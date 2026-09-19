@@ -4,10 +4,11 @@ import {
   type InstallMethod,
   type WorkflowLanguageKey,
 } from './onboarding-options';
-import { type UseCaseChoice } from './onboarding-steps-types';
 import {
+  agentPatternOrder,
+  agentPatterns,
   buildOnboardingPrompt,
-  type AgentUseCaseKey,
+  type AgentPatternKey,
 } from './prompt-templates';
 import {
   availableUseCases,
@@ -59,52 +60,6 @@ const brandCardClass =
 // still showing and no other step exists yet.
 export type SetupPath = 'agent' | 'manual';
 
-// True for use cases the CLI can scaffold + trigger (the manual path). The
-// agent path additionally offers roadmap use cases (fanout/event/durable) and
-// the freeform custom choice, which drive prompt generation only.
-function isScaffoldableUseCase(
-  choice: UseCaseChoice,
-): choice is AvailableUseCaseKey {
-  return choice !== 'custom' && choice in availableUseCases;
-}
-
-// Agent-path use-case cards. Labels + descriptions from copy 4.1
-// (usecase.*.label / .desc). The agent path is prompt-only, so it offers the
-// full list including the roadmap use cases the CLI cannot scaffold yet.
-const agentUseCaseOptions: {
-  value: AgentUseCaseKey;
-  label: string;
-  description: string;
-}[] = [
-  {
-    value: 'simple',
-    label: 'Simple task',
-    description: 'A single task that takes an input and returns a result.',
-  },
-  {
-    value: 'scheduled',
-    label: 'Cron job / scheduled run',
-    description: 'A workflow that runs on a schedule.',
-  },
-  {
-    value: 'fanout',
-    label: 'Fan-out / parallel',
-    description:
-      'A parent task that spawns work in parallel and aggregates the results.',
-  },
-  {
-    value: 'event',
-    label: 'Event-driven',
-    description: 'A workflow triggered by an event you push.',
-  },
-  {
-    value: 'durable',
-    label: 'Durable / long-running',
-    description:
-      'A task that sleeps or waits for an event and survives restarts.',
-  },
-];
-
 export type StepKey =
   'path' | 'usecase' | 'setup' | 'runagent' | 'runtask' | 'finish';
 
@@ -135,7 +90,12 @@ const sdkReferenceDocs: Record<Sdk, { label: string; href: string }> = {
   ruby: { label: 'Ruby SDK reference', href: `${DOCS_BASE}/reference/ruby` },
 };
 
-const useCaseDocs: Record<UseCaseChoice, { label: string; href: string }> = {
+// Manual-path templates map to one docs page each; the agent path links the
+// page for every pattern the developer picked.
+const manualUseCaseDocs: Record<
+  AvailableUseCaseKey,
+  { label: string; href: string }
+> = {
   simple: {
     label: 'Running your task',
     href: `${DOCS_BASE}/v1/running-your-task`,
@@ -144,36 +104,35 @@ const useCaseDocs: Record<UseCaseChoice, { label: string; href: string }> = {
     label: 'Scheduled runs',
     href: `${DOCS_BASE}/v1/scheduled-runs`,
   },
-  fanout: {
-    label: 'Fan-out and child spawning',
-    href: `${DOCS_BASE}/v1/child-spawning`,
-  },
-  event: { label: 'Event triggers', href: `${DOCS_BASE}/v1/events` },
-  durable: {
-    label: 'Durable execution',
-    href: `${DOCS_BASE}/v1/durable-execution`,
-  },
-  custom: { label: 'Quickstart', href: `${DOCS_BASE}/v1/quickstart` },
 };
 
 function relevantDocs({
   sdk,
-  useCaseChoice,
+  useCase,
+  patterns,
   path,
 }: {
   sdk: Sdk;
-  useCaseChoice: UseCaseChoice;
+  useCase: AvailableUseCaseKey;
+  patterns: AgentPatternKey[];
   path: SetupPath | null;
 }): { label: string; href: string }[] {
-  const docs: { label: string; href: string }[] = [
-    sdkReferenceDocs[sdk],
-    useCaseDocs[useCaseChoice],
-  ];
+  const docs: { label: string; href: string }[] = [sdkReferenceDocs[sdk]];
   if (path === 'agent') {
+    agentPatternOrder
+      .filter((key) => patterns.includes(key))
+      .forEach((key) =>
+        docs.push({
+          label: agentPatterns[key].label,
+          href: `${DOCS_BASE}${agentPatterns[key].docPath}`,
+        }),
+      );
     docs.push({
       label: 'MCP server reference',
       href: `${DOCS_BASE}/reference/cli/mcp`,
     });
+  } else {
+    docs.push(manualUseCaseDocs[useCase]);
   }
   docs.push({
     label: 'Embedded mode for local iteration',
@@ -216,10 +175,10 @@ export function OnboardingSteps({
   path,
   step,
   onNavigate,
-  useCaseChoice,
-  onUseCaseChoiceChange,
-  freeform,
-  onFreeformChange,
+  patterns,
+  onPatternsChange,
+  description,
+  onDescriptionChange,
   sdk,
   onSdkChange,
   useCase,
@@ -248,18 +207,18 @@ export function OnboardingSteps({
   path: SetupPath | null;
   step?: StepKey;
   onNavigate: (next: { path: SetupPath | null; step: StepKey }) => void;
-  // The selected use case (including agent-only and "custom" choices) and the
-  // custom free text. Owned by the parent so they survive a refresh too.
-  useCaseChoice: UseCaseChoice;
-  onUseCaseChoiceChange: (next: UseCaseChoice) => void;
-  freeform: string;
-  onFreeformChange: (next: string) => void;
+  // Agent path: the Hatchet patterns picked (any number, possibly none) and
+  // the developer's own description of what they are building, which is always
+  // required. Owned by the parent so they survive a refresh too.
+  patterns: AgentPatternKey[];
+  onPatternsChange: (next: AgentPatternKey[]) => void;
+  description: string;
+  onDescriptionChange: (next: string) => void;
   sdk: Sdk;
   // Updates the global SDK preference; the modal also syncs the persisted
   // onboarding language and analytics.
   onSdkChange: (next: Sdk) => void;
-  // The persisted use case (a real, scaffoldable one). The freeform "custom"
-  // choice is local and does not touch this.
+  // The persisted manual-path template (one the CLI can scaffold).
   useCase: AvailableUseCaseKey;
   onUseCaseChange: (next: AvailableUseCaseKey) => void;
   // Records selectionConfirmedAt (via applyTabChange semantics) so progress
@@ -278,7 +237,7 @@ export function OnboardingSteps({
   progress: OnboardingProgress;
   onFinish: () => void;
   // Fired when the agent-path prompt is generated or regenerated.
-  onPromptGenerated: (template: UseCaseChoice, sdk: Sdk) => void;
+  onPromptGenerated: (patterns: AgentPatternKey[], sdk: Sdk) => void;
   // Fired on navigation to a different step (the stepper analog of a tab
   // change).
   onStepChangeEvent?: (step: StepKey, label: string) => void;
@@ -295,7 +254,6 @@ export function OnboardingSteps({
   // link, or the other path's run step) falls back to the first step.
   const currentStep: StepKey =
     step && sequence.includes(step) ? step : sequence[0];
-  const setUseCaseChoice = onUseCaseChoiceChange;
 
   // Landing directly on a later step (refresh or a link) bypasses goTo, which
   // is what normally confirms the selection. Progress polling only starts once
@@ -324,11 +282,6 @@ export function OnboardingSteps({
   };
 
   const choosePath = (next: SetupPath) => {
-    // Roadmap/custom use cases are agent-only. Switching to the manual path
-    // with one selected falls back to the persisted scaffoldable use case.
-    if (next === 'manual' && !isScaffoldableUseCase(useCaseChoice)) {
-      setUseCaseChoice(useCase);
-    }
     // Path and step change together in one navigation, so the URL never holds
     // a step that is invalid for its path.
     goTo('usecase', next);
@@ -338,11 +291,11 @@ export function OnboardingSteps({
     () =>
       buildOnboardingPrompt({
         sdk,
-        useCaseKey: useCaseChoice,
-        freeform,
+        patterns,
+        description,
         profileName,
       }),
-    [sdk, useCaseChoice, freeform, profileName],
+    [sdk, patterns, description, profileName],
   );
 
   const StatusRow = ({
@@ -437,62 +390,110 @@ export function OnboardingSteps({
           <p className="text-sm font-medium">SDK</p>
           <SdkSwitcher value={sdk} onChange={onSdkChange} />
         </div>
-        <div className="space-y-2">
-          <p className="text-sm font-medium">Use case</p>
-          <RadioGroup
-            value={useCaseChoice}
-            onValueChange={(value) => {
-              const next = value as UseCaseChoice;
-              setUseCaseChoice(next);
-              // Only scaffoldable use cases feed the manual command builders,
-              // so only they update the persisted state.
-              if (isScaffoldableUseCase(next)) {
-                onUseCaseChange(next);
+        {path === 'manual' ? (
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Template</p>
+            <RadioGroup
+              value={useCase}
+              onValueChange={(value) =>
+                onUseCaseChange(value as AvailableUseCaseKey)
               }
-            }}
-            className="grid-cols-1 gap-3 lg:grid-cols-2"
-          >
-            {(path === 'manual'
-              ? Object.values(availableUseCases)
-              : agentUseCaseOptions
-            ).map((option) => (
-              <RadioGroupCardItem
-                key={option.value}
-                value={option.value}
-                className={brandCardClass}
+              className="grid-cols-1 gap-3 lg:grid-cols-2"
+            >
+              {Object.values(availableUseCases).map((option) => (
+                <RadioGroupCardItem
+                  key={option.value}
+                  value={option.value}
+                  className={brandCardClass}
+                >
+                  <div>
+                    <span className="block text-sm font-medium">
+                      {option.label}
+                    </span>
+                    <span className="mt-1 block text-sm text-muted-foreground">
+                      {option.description}
+                    </span>
+                  </div>
+                </RadioGroupCardItem>
+              ))}
+            </RadioGroup>
+          </div>
+        ) : (
+          <>
+            <div className="space-y-2">
+              <div>
+                <p id="onboarding-patterns" className="text-sm font-medium">
+                  Patterns
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Pick any that apply. Your agent will build with these Hatchet
+                  features.
+                </p>
+              </div>
+              {/* Toggle buttons rather than a radio group: a use case often
+                  combines patterns (a cron job that kicks off a pipeline). */}
+              <div
+                role="group"
+                aria-labelledby="onboarding-patterns"
+                className="grid grid-cols-1 gap-3 lg:grid-cols-2"
               >
-                <div>
-                  <span className="block text-sm font-medium">
-                    {option.label}
-                  </span>
-                  <span className="mt-1 block text-sm text-muted-foreground">
-                    {option.description}
-                  </span>
-                </div>
-              </RadioGroupCardItem>
-            ))}
-            {path !== 'manual' && (
-              <RadioGroupCardItem value="custom" className={brandCardClass}>
-                <div>
-                  <span className="block text-sm font-medium">
-                    Describe your own
-                  </span>
-                  <span className="mt-1 block text-sm text-muted-foreground">
-                    Tell your agent exactly what to build.
-                  </span>
-                </div>
-              </RadioGroupCardItem>
-            )}
-          </RadioGroup>
-          {path !== 'manual' && useCaseChoice === 'custom' && (
-            <Textarea
-              value={freeform}
-              onChange={(e) => onFreeformChange(e.target.value)}
-              placeholder="e.g. process uploaded CSVs and email a summary when done"
-              className={focusRing}
-            />
-          )}
-        </div>
+                {agentPatternOrder.map((key) => {
+                  const selected = patterns.includes(key);
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() =>
+                        onPatternsChange(
+                          selected
+                            ? patterns.filter((p) => p !== key)
+                            : [...patterns, key],
+                        )
+                      }
+                      className={cn(
+                        'rounded-lg border p-4 text-left',
+                        focusRing,
+                        selected
+                          ? 'border-brand bg-brand/10'
+                          : 'border-border/50 bg-muted/20 hover:border-brand/50',
+                      )}
+                    >
+                      <span className="block text-sm font-medium">
+                        {agentPatterns[key].label}
+                      </span>
+                      <span className="mt-1 block text-sm text-muted-foreground">
+                        {agentPatterns[key].description}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <div>
+                <label
+                  htmlFor="onboarding-description"
+                  className="text-sm font-medium"
+                >
+                  Describe your use case
+                </label>
+                <p className="text-sm text-muted-foreground">
+                  Required. The more specific you are, the better the first
+                  result.
+                </p>
+              </div>
+              <Textarea
+                id="onboarding-description"
+                value={description}
+                onChange={(e) => onDescriptionChange(e.target.value)}
+                placeholder="e.g. process uploaded CSVs and email a summary when done"
+                rows={3}
+                className={focusRing}
+              />
+            </div>
+          </>
+        )}
       </>
     ),
     setup: (
@@ -691,7 +692,7 @@ export function OnboardingSteps({
             variant="ghost"
             size="sm"
             className={`w-fit ${focusRing}`}
-            onClick={() => onPromptGenerated(useCaseChoice, sdk)}
+            onClick={() => onPromptGenerated(patterns, sdk)}
           >
             Regenerate
           </Button>
@@ -787,7 +788,7 @@ export function OnboardingSteps({
         <div className="space-y-3">
           <h4 className="text-sm font-medium">Learn more</h4>
           <ul className="space-y-2">
-            {relevantDocs({ sdk, useCaseChoice, path }).map((doc) => (
+            {relevantDocs({ sdk, useCase, patterns, path }).map((doc) => (
               <li key={doc.href}>
                 <a
                   href={doc.href}
@@ -826,7 +827,7 @@ export function OnboardingSteps({
       return;
     }
     if (nextStep === 'runagent') {
-      onPromptGenerated(useCaseChoice, sdk);
+      onPromptGenerated(patterns, sdk);
     }
     goTo(nextStep);
   };
@@ -835,6 +836,11 @@ export function OnboardingSteps({
   // survives refreshes) is satisfied: the Set up CLI step needs an API token;
   // the run steps need a connected worker and a completed run.
   const stepGateMet = (() => {
+    if (currentStep === 'usecase') {
+      // The agent prompt is built around the developer's own description, so
+      // it is required; the manual path only needs its (defaulted) template.
+      return path === 'manual' || description.trim().length > 0;
+    }
     if (currentStep === 'setup') {
       return hasApiToken;
     }

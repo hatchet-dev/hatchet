@@ -11,7 +11,7 @@ import {
   type SetupPath,
   type StepKey,
 } from './onboarding-steps';
-import { type UseCaseChoice } from './onboarding-steps-types';
+import { type AgentPatternKey } from './prompt-templates';
 import { type AvailableUseCaseKey } from './use-case-options';
 import { useOnboardingProgress } from './use-onboarding-progress';
 import { usePreferredSdk, type Sdk } from './use-preferred-sdk';
@@ -59,11 +59,14 @@ function sdkToWorkflowLanguage(sdk: Sdk) {
 // A 100-year expiry, matching the profile-token flow on the Overview page.
 const PROFILE_TOKEN_EXPIRES_IN = `${100 * 365 * 24 * 60 * 60}s`;
 
-// The agent-path selections that are not part of the shared persisted
-// onboarding schema (agent-only use cases, "custom", and its free text). Kept
-// under their own tenant-scoped key so a refresh restores them without
-// widening the schema the legacy inline flow also reads.
-type AgentSelections = { useCaseChoice?: UseCaseChoice; freeform?: string };
+// The agent-path selections (Hatchet patterns and the developer's own
+// description). They are not part of the shared persisted onboarding schema,
+// so they live under their own tenant-scoped key: a refresh restores them
+// without widening the schema the legacy inline flow also reads.
+type AgentSelections = {
+  patterns?: AgentPatternKey[];
+  description?: string;
+};
 
 const agentSelectionsKey = (tenantId: string) =>
   `hatchet:onboarding-agent:${tenantId}`;
@@ -133,8 +136,8 @@ export function OnboardingModal({
       agentSelectionsKey(tenantId ?? 'unknown'),
       {},
     );
-  const useCaseChoice: UseCaseChoice = agentSelections.useCaseChoice ?? useCase;
-  const freeform = agentSelections.freeform ?? '';
+  const patterns = agentSelections.patterns ?? [];
+  const description = agentSelections.description ?? '';
 
   // Advancing past step 1 confirms the selection so progress polling can
   // begin. Reuses applyTabChange semantics (any move off Choose use case sets
@@ -324,13 +327,13 @@ export function OnboardingModal({
               path={path}
               step={step}
               onNavigate={onNavigate}
-              useCaseChoice={useCaseChoice}
-              onUseCaseChoiceChange={(next) =>
-                setAgentSelections((prev) => ({ ...prev, useCaseChoice: next }))
+              patterns={patterns}
+              onPatternsChange={(next) =>
+                setAgentSelections((prev) => ({ ...prev, patterns: next }))
               }
-              freeform={freeform}
-              onFreeformChange={(next) =>
-                setAgentSelections((prev) => ({ ...prev, freeform: next }))
+              description={description}
+              onDescriptionChange={(next) =>
+                setAgentSelections((prev) => ({ ...prev, description: next }))
               }
               sdk={sdk}
               onSdkChange={handleSdkChange}
@@ -349,11 +352,11 @@ export function OnboardingModal({
               // Finish just closes the overlay (refreshing Overview data);
               // completion is derived from useOnboardingProgress, never a button.
               onFinish={handleClose}
-              onPromptGenerated={(template, promptSdk) => {
+              onPromptGenerated={(promptPatterns, promptSdk) => {
                 capture('onboarding_prompt_generated', {
                   tenant_id: tenantId,
                   user_email: currentUser?.email,
-                  template,
+                  patterns: promptPatterns,
                   sdk: promptSdk,
                   source: 'onboarding_modal',
                 });

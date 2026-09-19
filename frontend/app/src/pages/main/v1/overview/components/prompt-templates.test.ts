@@ -1,32 +1,31 @@
-import { buildOnboardingPrompt, sdkFragments } from './prompt-templates';
+import {
+  agentPatterns,
+  buildOnboardingPrompt,
+  sdkFragments,
+} from './prompt-templates';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+const base: Parameters<typeof buildOnboardingPrompt>[0] = {
+  sdk: 'python',
+  patterns: [],
+  description: 'process uploaded CSVs and email a summary',
+  profileName: 'my-tenant',
+};
+
 test('includes the CLI capability preflight without an MCP check', () => {
-  const prompt = buildOnboardingPrompt({
-    sdk: 'python',
-    useCaseKey: 'simple',
-    profileName: 'my-tenant',
-  });
+  const prompt = buildOnboardingPrompt({ ...base });
   assert.match(prompt, /hatchet profile env --help/);
   assert.doesNotMatch(prompt, /hatchet mcp --help/);
   assert.doesNotMatch(prompt, /MCP/);
 });
 
 test('lists the markdown doc URLs and the SDK reference', () => {
-  const prompt = buildOnboardingPrompt({
-    sdk: 'typescript',
-    useCaseKey: 'scheduled',
-    profileName: 'my-tenant',
-  });
+  const prompt = buildOnboardingPrompt({ ...base, sdk: 'typescript' });
   assert.match(prompt, /https:\/\/docs\.hatchet\.run\/llms\.txt/);
   assert.match(
     prompt,
     /https:\/\/docs\.hatchet\.run\/llms\/v1\/quickstart\.md/,
-  );
-  assert.match(
-    prompt,
-    /https:\/\/docs\.hatchet\.run\/llms\/v1\/running-your-task\.md/,
   );
   assert.match(
     prompt,
@@ -36,11 +35,12 @@ test('lists the markdown doc URLs and the SDK reference', () => {
 
 test('loads credentials from the named profile and never hardcodes the token', () => {
   const prompt = buildOnboardingPrompt({
+    ...base,
     sdk: 'go',
-    useCaseKey: 'simple',
     profileName: 'prod-tenant',
   });
   assert.match(prompt, /eval "\$\(hatchet profile env --name "prod-tenant"\)"/);
+  assert.match(prompt, /CLI profile named "prod-tenant"/);
   assert.match(prompt, /Do not read, print, or hardcode my token/);
   assert.match(
     prompt,
@@ -48,40 +48,57 @@ test('loads credentials from the named profile and never hardcodes the token', (
   );
 });
 
-test('names the profile so the agent targets the right instance', () => {
-  const prompt = buildOnboardingPrompt({
-    sdk: 'python',
-    useCaseKey: 'simple',
-    profileName: 'staging-eu',
-  });
-  assert.match(prompt, /CLI profile named "staging-eu"/);
+test('always carries the developer description', () => {
+  const prompt = buildOnboardingPrompt({ ...base });
+  assert.match(
+    prompt,
+    /Here is what I want to build: process uploaded CSVs and email a summary/,
+  );
+  assert.match(prompt, /Design the smallest Hatchet workflow in Python/);
 });
 
-test('splices in the selected use-case block', () => {
+test('splices in guidance and docs for every selected pattern, in a stable order', () => {
   const prompt = buildOnboardingPrompt({
-    sdk: 'python',
-    useCaseKey: 'scheduled',
-    profileName: 'my-tenant',
+    ...base,
+    // Clicked out of order on purpose.
+    patterns: ['cron', 'durable'],
   });
-  assert.match(prompt, /runs on a cron schedule/);
+  assert.match(prompt, /Build it with these Hatchet patterns:/);
+  assert.ok(prompt.includes(agentPatterns.cron.guidance));
+  assert.ok(prompt.includes(agentPatterns.durable.guidance));
+  assert.ok(prompt.includes(agentPatterns.cron.doc));
+  assert.ok(prompt.includes(agentPatterns.durable.doc));
+  assert.ok(
+    prompt.indexOf(agentPatterns.durable.guidance) <
+      prompt.indexOf(agentPatterns.cron.guidance),
+  );
+  assert.ok(!prompt.includes(agentPatterns.dag.guidance));
 });
 
-test('wraps freeform text for the custom use case with the SDK name', () => {
-  const prompt = buildOnboardingPrompt({
-    sdk: 'go',
-    useCaseKey: 'custom',
-    freeform: 'process uploaded CSVs and email a summary',
-    profileName: 'my-tenant',
-  });
-  assert.match(prompt, /Here is what I want to build: process uploaded CSVs/);
-  assert.match(prompt, /Design the smallest Hatchet workflow in Go/);
+test('with no pattern selected, asks the agent to choose the fitting features', () => {
+  const prompt = buildOnboardingPrompt({ ...base });
+  assert.doesNotMatch(prompt, /Build it with these Hatchet patterns:/);
+  assert.match(prompt, /Pick the Hatchet features that fit/);
+});
+
+test('treats the install command as an example, not the only way', () => {
+  const python = buildOnboardingPrompt({ ...base });
+  assert.match(python, /For example: `pip install hatchet-sdk`/);
+  assert.match(python, /poetry add hatchet-sdk/);
+  assert.match(python, /uv add hatchet-sdk/);
+  assert.match(python, /do not introduce a second package manager/);
+
+  const ts = buildOnboardingPrompt({ ...base, sdk: 'typescript' });
+  assert.match(ts, /pnpm add @hatchet-dev\/typescript-sdk/);
+});
+
+test('asks the agent to fit into an existing project and framework', () => {
+  const prompt = buildOnboardingPrompt({ ...base });
+  assert.match(prompt, /Fit into my project rather than around it/);
+  assert.match(prompt, /FastAPI, Django or Flask/);
 });
 
 test('ends with the SDK embeddedLater note', () => {
-  const prompt = buildOnboardingPrompt({
-    sdk: 'ruby',
-    useCaseKey: 'simple',
-    profileName: 'my-tenant',
-  });
+  const prompt = buildOnboardingPrompt({ ...base, sdk: 'ruby' });
   assert.ok(prompt.trimEnd().endsWith(sdkFragments.ruby.embeddedLater));
 });
