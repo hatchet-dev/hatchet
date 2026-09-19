@@ -1,9 +1,4 @@
-import {
-  installMethodOptions,
-  workflowLanguageOptions,
-  type InstallMethod,
-  type WorkflowLanguageKey,
-} from './onboarding-options';
+import { installMethodOptions, type InstallMethod } from './onboarding-options';
 import {
   agentPatternOrder,
   agentPatterns,
@@ -19,7 +14,13 @@ import {
   type AvailableUseCaseKey,
 } from './use-case-options';
 import { type OnboardingProgress } from './use-onboarding-progress';
-import { SdkSwitcher, type Sdk } from './use-preferred-sdk';
+import {
+  focusRing,
+  SdkSwitcher,
+  segmentedTabsListClass,
+  segmentedTabsTriggerClass,
+  type Sdk,
+} from './use-preferred-sdk';
 import { HelpDropdown } from '@/components/v1/nav/help-dropdown';
 import { Button } from '@/components/v1/ui/button';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
@@ -33,7 +34,7 @@ import {
 } from '@/components/v1/ui/tabs';
 import { Textarea } from '@/components/v1/ui/textarea';
 import { cn } from '@/lib/utils';
-import { appRoutes } from '@/router';
+import { appRoutes, type OnboardingSearch } from '@/router';
 import {
   CheckIcon,
   ChevronLeftIcon,
@@ -44,24 +45,16 @@ import { Link } from '@tanstack/react-router';
 import { Bot, LifeBuoy, Terminal } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
-// The shared Button strips the native focus outline without a replacement, so
-// each focusable onboarding control carries an explicit ring, matching
-// learn-workflow-section rather than changing the shared primitives app-wide.
-const focusRing =
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background';
-
 // Brand-tinted selected state for the use-case cards, layered over the
 // RadioGroupCardItem base so selection reads as the app's brand blue instead
 // of muted grey and unselected cards gain a brand hover affordance.
 const brandCardClass =
   'data-[state=unchecked]:hover:border-brand/50 data-[state=checked]:border-brand data-[state=checked]:hover:border-brand data-[state=checked]:bg-brand/10';
 
-// The chosen setup path. It is picked first; null means the path selector is
-// still showing and no other step exists yet.
-export type SetupPath = 'agent' | 'manual';
-
-export type StepKey =
-  'path' | 'usecase' | 'setup' | 'runagent' | 'runtask' | 'finish';
+// Path and step are the tenant onboarding route's search params, so their
+// types come from that schema rather than being declared twice.
+export type SetupPath = NonNullable<OnboardingSearch['path']>;
+export type StepKey = NonNullable<OnboardingSearch['step']>;
 
 const stepRailLabels: Record<StepKey, string> = {
   path: 'Choose path',
@@ -87,7 +80,6 @@ const sdkReferenceDocs: Record<Sdk, { label: string; href: string }> = {
     href: `${DOCS_BASE}/reference/typescript`,
   },
   go: { label: 'Go SDK reference', href: `${DOCS_BASE}/reference/go` },
-  ruby: { label: 'Ruby SDK reference', href: `${DOCS_BASE}/reference/ruby` },
 };
 
 // Manual-path templates map to one docs page each; the agent path links the
@@ -141,25 +133,39 @@ function relevantDocs({
   return docs;
 }
 
-// SDK -> command-builder language. The command builders only speak the three
-// fully supported languages; Ruby has no scaffold/trigger template, so the
-// manual path is unavailable for it (callers show a docs note instead).
-function sdkToLanguage(sdk: Sdk): WorkflowLanguageKey | null {
-  switch (sdk) {
-    case 'python':
-      return workflowLanguageOptions.python.value;
-    case 'typescript':
-      return workflowLanguageOptions.typescript.value;
-    case 'go':
-      return workflowLanguageOptions.go.value;
-    case 'ruby':
-      return null;
-  }
+const codeBlockClass = 'bg-muted/20 ring-1 ring-border/50 ring-inset px-1';
+
+// Module-level so its identity is stable: defined inside the stepper it would
+// remount (restarting the spinner) on every poll and keystroke.
+function StatusRow({
+  done,
+  waiting,
+  ready,
+}: {
+  done: string;
+  waiting: string;
+  ready: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-3 rounded-lg border border-border/50 bg-muted/20 p-4">
+      {ready ? (
+        <>
+          <CheckIcon className="size-5 text-foreground" />
+          <span className="text-sm font-medium text-foreground">{done}</span>
+        </>
+      ) : (
+        <>
+          <Spinner className="size-5" />
+          <span className="text-sm text-muted-foreground">{waiting}</span>
+        </>
+      )}
+    </div>
+  );
 }
 
 // The visible step sequence for a path. The path is chosen first, so before a
 // path exists the selector is the only step; picking one reveals the rest.
-export function stepSequence(path: SetupPath | null): StepKey[] {
+function stepSequence(path: SetupPath | null): StepKey[] {
   if (path === 'agent') {
     return ['path', 'usecase', 'setup', 'runagent', 'finish'];
   }
@@ -215,14 +221,12 @@ export function OnboardingSteps({
   description: string;
   onDescriptionChange: (next: string) => void;
   sdk: Sdk;
-  // Updates the global SDK preference; the modal also syncs the persisted
-  // onboarding language and analytics.
+  // Updates the global SDK preference.
   onSdkChange: (next: Sdk) => void;
   // The persisted manual-path template (one the CLI can scaffold).
   useCase: AvailableUseCaseKey;
   onUseCaseChange: (next: AvailableUseCaseKey) => void;
-  // Records selectionConfirmedAt (via applyTabChange semantics) so progress
-  // polling can begin. Idempotent: only the first call past step 1 sets it.
+  // Records selectionConfirmedAt so progress polling can begin. Idempotent.
   onConfirmSelection: () => void;
   profileToken?: string;
   isGeneratingProfileToken: boolean;
@@ -240,10 +244,9 @@ export function OnboardingSteps({
   onPromptGenerated: (patterns: AgentPatternKey[], sdk: Sdk) => void;
   // Fired on navigation to a different step (the stepper analog of a tab
   // change).
-  onStepChangeEvent?: (step: StepKey, label: string) => void;
+  onStepChangeEvent?: (label: string) => void;
 }) {
   const profileName = tenantName?.trim() || 'local';
-  const language = sdkToLanguage(sdk);
 
   const [installMethod, setInstallMethod] = useState<InstallMethod>(
     installMethodOptions.native.value,
@@ -251,9 +254,16 @@ export function OnboardingSteps({
 
   const sequence = useMemo(() => stepSequence(path), [path]);
   // A step from the URL that does not belong to this path's sequence (a stale
-  // link, or the other path's run step) falls back to the first step.
-  const currentStep: StepKey =
+  // link, or the other path's run step) falls back to the first step. A link
+  // past the use-case step with no description falls back to it, since every
+  // later agent step is built on that description.
+  const requestedStep: StepKey =
     step && sequence.includes(step) ? step : sequence[0];
+  const needsDescription =
+    path === 'agent' &&
+    description.trim().length === 0 &&
+    sequence.indexOf(requestedStep) > sequence.indexOf('usecase');
+  const currentStep: StepKey = needsDescription ? 'usecase' : requestedStep;
 
   // Landing directly on a later step (refresh or a link) bypasses goTo, which
   // is what normally confirms the selection. Progress polling only starts once
@@ -276,7 +286,7 @@ export function OnboardingSteps({
       onConfirmSelection();
     }
     if (target !== currentStep) {
-      onStepChangeEvent?.(target, stepRailLabels[target]);
+      onStepChangeEvent?.(stepRailLabels[target]);
     }
     onNavigate({ path: targetPath, step: target });
   };
@@ -297,32 +307,6 @@ export function OnboardingSteps({
       }),
     [sdk, patterns, description, profileName],
   );
-
-  const StatusRow = ({
-    done,
-    waiting,
-    ready,
-  }: {
-    done: string;
-    waiting: string;
-    ready: boolean;
-  }) => (
-    <div className="flex items-center gap-3 rounded-lg border border-border/50 bg-muted/20 p-4">
-      {ready ? (
-        <>
-          <CheckIcon className="size-5 text-foreground" />
-          <span className="text-sm font-medium text-foreground">{done}</span>
-        </>
-      ) : (
-        <>
-          <Spinner className="size-5" />
-          <span className="text-sm text-muted-foreground">{waiting}</span>
-        </>
-      )}
-    </div>
-  );
-
-  const codeBlockClass = 'bg-muted/20 ring-1 ring-border/50 ring-inset px-1';
 
   // Optional MCP-install section. Lets the developer wire the Hatchet MCP into
   // their coding agent before they run the prompt, so the agent can trigger
@@ -511,16 +495,16 @@ export function OnboardingSteps({
             onValueChange={(value) => setInstallMethod(value as InstallMethod)}
             className="w-full"
           >
-            <TabsList className="mt-2 bg-muted ring-1 ring-border/50 rounded-lg p-0 gap-0.5 dark:bg-muted/20 dark:ring-inset">
+            <TabsList className={cn('mt-2', segmentedTabsListClass)}>
               <TabsTrigger
                 value={installMethodOptions.native.value}
-                className={`rounded-lg h-full text-muted-foreground data-[state=active]:ring-1 data-[state=active]:ring-border data-[state=active]:bg-background dark:data-[state=active]:bg-muted/70 dark:data-[state=active]:shadow-lg dark:ring-inset ${focusRing}`}
+                className={segmentedTabsTriggerClass}
               >
                 curl
               </TabsTrigger>
               <TabsTrigger
                 value={installMethodOptions.homebrew.value}
-                className={`rounded-lg h-full text-muted-foreground data-[state=active]:ring-1 data-[state=active]:ring-border data-[state=active]:bg-background dark:data-[state=active]:bg-muted/70 dark:data-[state=active]:shadow-lg dark:ring-inset ${focusRing}`}
+                className={segmentedTabsTriggerClass}
               >
                 Homebrew
               </TabsTrigger>
@@ -603,6 +587,15 @@ export function OnboardingSteps({
               </div>
               {profileTokenError && (
                 <div className="text-sm text-red-500">{profileTokenError}</div>
+              )}
+              {hasApiToken && !profileToken && (
+                // An existing token lets the step pass, but the API cannot
+                // tell whether this machine has a CLI profile for it.
+                <p className="text-xs text-muted-foreground">
+                  This tenant already has an API token. If this machine does not
+                  have a CLI profile for it yet, generate a token above and run
+                  the command it gives you.
+                </p>
               )}
               {profileToken && (
                 <>
@@ -687,16 +680,6 @@ export function OnboardingSteps({
           maxHeight="220px"
           copy
         />
-        <div className="flex flex-wrap items-center gap-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            className={`w-fit ${focusRing}`}
-            onClick={() => onPromptGenerated(patterns, sdk)}
-          >
-            Regenerate
-          </Button>
-        </div>
         <p className="text-xs text-muted-foreground">
           No need to refresh, we're watching for your worker and run.
         </p>
@@ -722,53 +705,32 @@ export function OnboardingSteps({
             complete.
           </p>
         </div>
-        {language === null ? (
-          <p className="text-sm text-muted-foreground">
-            Ruby does not have a scaffold template yet. Follow the{' '}
-            <a
-              href="https://docs.hatchet.run/llms/reference/ruby.md"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline hover:text-foreground"
-            >
-              Ruby SDK reference
-            </a>{' '}
-            to create a project, or switch to the agent setup.
-          </p>
-        ) : (
-          <>
-            <p className="text-sm">Scaffold the project:</p>
-            <CodeHighlighter
-              className={codeBlockClass}
-              code={scaffoldCommand({ useCase, language })}
-              language="shell"
-              copy
-            />
-            <p className="text-sm">Start a dev worker:</p>
-            <CodeHighlighter
-              className={codeBlockClass}
-              code={workerDevCommand(profileName)}
-              language="shell"
-              copy
-            />
-          </>
-        )}
+        <p className="text-sm">Scaffold the project:</p>
+        <CodeHighlighter
+          className={codeBlockClass}
+          code={scaffoldCommand({ useCase, language: sdk })}
+          language="shell"
+          copy
+        />
+        <p className="text-sm">Start a dev worker:</p>
+        <CodeHighlighter
+          className={codeBlockClass}
+          code={workerDevCommand(profileName)}
+          language="shell"
+          copy
+        />
         <StatusRow
           ready={progress.workerConnected}
           done="Worker connected"
           waiting="Waiting for the worker to connect..."
         />
-        {language !== null && (
-          <>
-            <p className="text-sm">Trigger a run:</p>
-            <CodeHighlighter
-              className={codeBlockClass}
-              code={triggerCommand(useCase, profileName)}
-              language="shell"
-              copy
-            />
-          </>
-        )}
+        <p className="text-sm">Trigger a run:</p>
+        <CodeHighlighter
+          className={codeBlockClass}
+          code={triggerCommand(useCase, profileName)}
+          language="shell"
+          copy
+        />
         <StatusRow
           ready={progress.runCompleted}
           done="Run completed"
@@ -810,8 +772,6 @@ export function OnboardingSteps({
   const currentIndex = sequence.indexOf(currentStep);
   const nextStep = sequence[currentIndex + 1];
 
-  // Back steps within the sequence without confirming the selection or
-  // emitting a step-change event, matching the prior Back behavior.
   const goBack = () => {
     const prev = sequence[currentIndex - 1];
     if (prev) {
@@ -819,9 +779,6 @@ export function OnboardingSteps({
     }
   };
 
-  // Next is the sole forward control. Entering the run-agent step generates the
-  // prompt (and fires its analytics capture), preserving what the old
-  // move-off-MCP trigger did.
   const goNext = () => {
     if (!nextStep) {
       return;
@@ -832,23 +789,29 @@ export function OnboardingSteps({
     goTo(nextStep);
   };
 
-  // Whether the current step's completion gate (checked against the API, so it
-  // survives refreshes) is satisfied: the Set up CLI step needs an API token;
-  // the run steps need a connected worker and a completed run.
-  const stepGateMet = (() => {
-    if (currentStep === 'usecase') {
-      // The agent prompt is built around the developer's own description, so
-      // it is required; the manual path only needs its (defaulted) template.
-      return path === 'manual' || description.trim().length > 0;
+  // Each step's completion gate. Token and run gates are checked against the
+  // API so they survive a refresh.
+  const gateMet = (target: StepKey) => {
+    switch (target) {
+      case 'usecase':
+        // The agent prompt is built around the developer's own description, so
+        // it is required; the manual path only needs its (defaulted) template.
+        return path === 'manual' || description.trim().length > 0;
+      case 'setup':
+        return hasApiToken;
+      case 'runagent':
+      case 'runtask':
+        return progress.runCompleted;
+      default:
+        return true;
     }
-    if (currentStep === 'setup') {
-      return hasApiToken;
-    }
-    if (currentStep === 'runagent' || currentStep === 'runtask') {
-      return progress.onboarded;
-    }
-    return true;
-  })();
+  };
+  const stepGateMet = gateMet(currentStep);
+  // The step rail can jump backwards freely, but not past the first step
+  // whose gate is unmet (otherwise "Run agent" is reachable with no
+  // description and a prompt that claims setup is done).
+  const firstUnmet = sequence.findIndex((candidate) => !gateMet(candidate));
+  const furthestIndex = firstUnmet === -1 ? sequence.length - 1 : firstUnmet;
 
   // The path selector advances by picking a card; finish keeps its own gated
   // CTA. Every other step advances via Next once its gate is met.
@@ -866,8 +829,10 @@ export function OnboardingSteps({
             <button
               type="button"
               onClick={() => goTo(railStep)}
+              disabled={index > furthestIndex}
+              aria-current={railStep === currentStep ? 'step' : undefined}
               className={cn(
-                'font-medium transition-colors hover:text-foreground',
+                'font-medium transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:text-muted-foreground',
                 focusRing,
                 railStep === currentStep && 'text-foreground font-semibold',
                 railStep !== currentStep &&
@@ -882,8 +847,6 @@ export function OnboardingSteps({
       </ol>
       <div className="rounded-md p-4 bg-muted/20 ring-1 ring-border/50 ring-inset space-y-4">
         {stepContent[currentStep]}
-        {/* Persistent, aligned footer: life-ring + Back on the left, Next on
-            the right, all on one horizontal line. */}
         <div className="flex items-center justify-between border-t border-border/50 pt-4">
           <div className="flex items-center gap-2">
             <HelpDropdown
@@ -930,9 +893,9 @@ export function OnboardingSteps({
               variant="default"
               size="sm"
               className={cn('gap-1', focusRing)}
-              disabled={!progress.onboarded}
+              disabled={!progress.runCompleted}
               hoverText={
-                progress.onboarded
+                progress.runCompleted
                   ? undefined
                   : 'Waiting for a worker to connect and execute a task.'
               }

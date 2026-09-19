@@ -412,79 +412,76 @@ export default function RedeemOffersPage() {
         title="Redeem Offers"
         description="View and redeem available offers for your account."
         className="max-w-2xl"
+        bodyClassName="space-y-4"
       >
-        <div className="space-y-4">
-          {error && (
-            <Alert variant="destructive">
-              <ExclamationTriangleIcon className="size-4" />
-              <AlertTitle>Redemption failed</AlertTitle>
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
+        {error && (
+          <Alert variant="destructive">
+            <ExclamationTriangleIcon className="size-4" />
+            <AlertTitle>Redemption failed</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
 
-          {successMessage && (
-            <Alert variant="default" className="border-green-500/50">
-              <CheckCircleIcon className="size-4 text-green-500" />
-              <AlertTitle>Offer redeemed</AlertTitle>
-              <AlertDescription>{successMessage}</AlertDescription>
-            </Alert>
-          )}
+        {successMessage && (
+          <Alert variant="default" className="border-green-500/50">
+            <CheckCircleIcon className="size-4 text-green-500" />
+            <AlertTitle>Offer redeemed</AlertTitle>
+            <AlertDescription>{successMessage}</AlertDescription>
+          </Alert>
+        )}
 
-          {isLoading ? (
-            <div className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <Skeleton className="h-5 w-28 rounded-md" />
-                    <Skeleton className="h-5 w-20 rounded-md" />
+        {isLoading ? (
+          <div className="space-y-4">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <Skeleton className="h-5 w-28 rounded-md" />
+                  <Skeleton className="h-5 w-20 rounded-md" />
+                </div>
+                <Skeleton className="mt-2 h-4 w-44" />
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-end gap-3">
+                  <div className="flex-1 space-y-1.5">
+                    <Skeleton className="h-4 w-36" />
+                    <Skeleton className="h-9 w-full rounded-md" />
                   </div>
-                  <Skeleton className="mt-2 h-4 w-44" />
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-end gap-3">
-                    <div className="flex-1 space-y-1.5">
-                      <Skeleton className="h-4 w-36" />
-                      <Skeleton className="h-9 w-full rounded-md" />
-                    </div>
-                    <Skeleton className="h-9 w-24 rounded-md" />
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          ) : offers.length === 0 ? (
-            <div className="py-10 text-center">
-              <GiftIcon className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-              <h3 className="mb-2 text-lg font-medium">No Offers Available</h3>
-              <p className="mb-4 text-muted-foreground">
-                There are no offers associated with your account at this time.
-              </p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  navigate({ to: appRoutes.authenticatedRoute.to })
-                }
-              >
-                Go to Dashboard
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {offers.map((offer) => (
-                <OfferCard
-                  key={offer.recordId}
-                  offer={offer}
-                  organizations={organizations}
-                  defaultOrgId={defaultOrgId}
-                  onRedeem={handleRedeem}
-                  onCreateOrg={handleCreateOrg}
-                  isRedeeming={redeemMutation.isPending}
-                  redeemingOfferId={redeemingOfferId}
-                />
-              ))}
-            </div>
-          )}
-        </div>
+                  <Skeleton className="h-9 w-24 rounded-md" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        ) : offers.length === 0 ? (
+          <div className="py-10 text-center">
+            <GiftIcon className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+            <h3 className="mb-2 text-lg font-medium">No Offers Available</h3>
+            <p className="mb-4 text-muted-foreground">
+              There are no offers associated with your account at this time.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate({ to: appRoutes.authenticatedRoute.to })}
+            >
+              Go to Dashboard
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {offers.map((offer) => (
+              <OfferCard
+                key={offer.recordId}
+                offer={offer}
+                organizations={organizations}
+                defaultOrgId={defaultOrgId}
+                onRedeem={handleRedeem}
+                onCreateOrg={handleCreateOrg}
+                isRedeeming={redeemMutation.isPending}
+                redeemingOfferId={redeemingOfferId}
+              />
+            ))}
+          </div>
+        )}
       </SetupCard>
 
       <Dialog open={createOrgOpen} onOpenChange={setCreateOrgOpen}>

@@ -13,11 +13,9 @@ const base: Parameters<typeof buildOnboardingPrompt>[0] = {
   profileName: 'my-tenant',
 };
 
-test('includes the CLI capability preflight without an MCP check', () => {
+test('includes the CLI capability preflight', () => {
   const prompt = buildOnboardingPrompt({ ...base });
   assert.match(prompt, /hatchet profile env --help/);
-  assert.doesNotMatch(prompt, /hatchet mcp --help/);
-  assert.doesNotMatch(prompt, /MCP/);
 });
 
 test('lists the markdown doc URLs and the SDK reference', () => {
@@ -115,6 +113,6 @@ test('asks the agent to fit into an existing project and framework', () => {
 });
 
 test('ends with the SDK embeddedLater note', () => {
-  const prompt = buildOnboardingPrompt({ ...base, sdk: 'ruby' });
-  assert.ok(prompt.trimEnd().endsWith(sdkFragments.ruby.embeddedLater));
+  const prompt = buildOnboardingPrompt({ ...base, sdk: 'go' });
+  assert.ok(prompt.trimEnd().endsWith(sdkFragments.go.embeddedLater));
 });

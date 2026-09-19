@@ -69,7 +69,7 @@ export default function CreateOrganization() {
                 // Ignore prefetch errors; subscription plans will be fetched on demand if needed.
               });
             return redirectOrNavigate({
-              to: appRoutes.tenantOverviewRoute.to,
+              to: appRoutes.tenantOnboardingRoute.to,
               params: { tenant: tenant.id },
               replace: true,
             });

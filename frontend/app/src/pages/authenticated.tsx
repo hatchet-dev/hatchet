@@ -5,13 +5,7 @@ import { CreateTenantInviteModal } from '@/components/modals/create-tenant-invit
 import { InviteModal } from '@/components/modals/invite-modal';
 import { OrganizationInviteMemberModal } from '@/components/modals/organization-invite-member-modal';
 import { WelcomeModal } from '@/components/modals/welcome-modal';
-import {
-  freePlanLimitNoticeKey,
-  readWelcomeTrigger,
-  WELCOME_KEY,
-  WELCOME_TRIGGER,
-  type WelcomeReason,
-} from '@/components/modals/welcome-modal-state';
+import { freePlanLimitNoticeKey } from '@/components/modals/welcome-modal-state';
 import SupportChat from '@/components/support-chat';
 import TopNav from '@/components/v1/nav/top-nav.tsx';
 import {
@@ -46,7 +40,10 @@ import { OutletWithContext } from '@/lib/router-helpers';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { useInactivityDetection } from '@/pages/auth/hooks/use-inactivity-detection';
 import { OnboardingModal } from '@/pages/main/v1/overview/components/onboarding-modal';
-import { useNewOnboardingEnabled } from '@/pages/main/v1/overview/components/use-new-onboarding';
+import {
+  type SetupPath,
+  type StepKey,
+} from '@/pages/main/v1/overview/components/onboarding-steps';
 import { useUserUniverse } from '@/providers/user-universe';
 import queryClient from '@/query-client';
 import { appRoutes, tenantOnboardingRoute } from '@/router';
@@ -60,7 +57,7 @@ import {
 } from '@tanstack/react-router';
 import { AxiosError } from 'axios';
 import { useAtom } from 'jotai';
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 
 const DevtoolsFooter = import.meta.env.DEV
   ? lazy(() => import('../devtools.tsx'))
@@ -105,12 +102,7 @@ function AuthenticatedInner() {
     { organizationId: string; organizationName: string } | undefined
   >();
   const [showWelcome, setShowWelcome] = useState(false);
-  const [welcomeReason, setWelcomeReason] = useState<WelcomeReason>('welcome');
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
-
-  // Temporary flag gating the entire new onboarding surface. Off by default,
-  // so existing users see no change. See use-new-onboarding.ts.
-  const newOnboardingEnabled = useNewOnboardingEnabled();
 
   const loaderData = useLoaderData({ from: '/' });
 
@@ -125,7 +117,27 @@ function AuthenticatedInner() {
     shouldThrow: false,
   });
   const onboardingTenant = onboardingMatch?.params.tenant;
-  const onboardingOpen = newOnboardingEnabled && !!onboardingMatch;
+  const onboardingOpen = !!onboardingMatch;
+  const navigateOnboarding = useCallback(
+    ({ path, step }: { path: SetupPath | null; step: StepKey }) => {
+      if (onboardingTenant) {
+        navigate({
+          to: appRoutes.tenantOnboardingRoute.to,
+          params: { tenant: onboardingTenant },
+          search: { ...(path ? { path } : {}), step },
+        });
+      }
+    },
+    [navigate, onboardingTenant],
+  );
+  const closeOnboarding = useCallback(() => {
+    if (onboardingTenant) {
+      navigate({
+        to: appRoutes.tenantOverviewRoute.to,
+        params: { tenant: onboardingTenant },
+      });
+    }
+  }, [navigate, onboardingTenant]);
   const location = useLocation();
   const pathname = location.pathname;
   const matchRoute = useMatchRoute();
@@ -439,69 +451,21 @@ function AuthenticatedInner() {
     [],
   );
 
-  // With the flag off the onboarding route has nothing to show, so send a
-  // direct visit (an old link, a bookmark) to the tenant's Overview instead.
-  useEffect(() => {
-    if (onboardingTenant && !newOnboardingEnabled) {
-      navigate({
-        to: appRoutes.tenantOverviewRoute.to,
-        params: { tenant: onboardingTenant },
-        replace: true,
-      });
-    }
-  }, [onboardingTenant, newOnboardingEnabled, navigate]);
+  // The free-plan notice is shown once per organization, the first time a
+  // free-plan tenant reaches the alarm threshold (or the cap) on any resource
+  // limit, rather than right after signup when it is just noise. The query
+  // shares its key with the resource-limit notifications, so it adds no request.
+  const resourcePolicyQuery = useQuery({
+    ...queries.tenantResourcePolicy.get(tenant?.metadata.id ?? ''),
+    refetchInterval: 2 * 60_000,
+    enabled: isControlPlaneEnabled && canBill && !!tenant?.metadata.id,
+  });
+  const approachingLimit = (resourcePolicyQuery.data?.limits ?? []).some(
+    (limit) => getResourceLimitStatus(limit) !== 'ok',
+  );
 
   useEffect(() => {
-    const welcomeTrigger = readWelcomeTrigger(
-      localStorage.getItem(WELCOME_KEY),
-    );
-    if (!welcomeTrigger) {
-      return;
-    }
-
-    if (!tenant?.metadata.id) {
-      return;
-    }
-
-    if (!isUserUniverseLoaded) {
-      return;
-    }
-
-    // With the new onboarding, a freshly created organization lands in the
-    // "run your first task" flow instead of the free-plan modal. The plan
-    // summary is deferred until the tenant approaches a limit (see below).
-    if (newOnboardingEnabled) {
-      localStorage.removeItem(WELCOME_KEY);
-      if (welcomeTrigger === WELCOME_TRIGGER.OrganizationCreated) {
-        navigate({
-          to: appRoutes.tenantOnboardingRoute.to,
-          params: { tenant: tenant.metadata.id },
-          replace: true,
-        });
-      }
-      return;
-    }
-
-    if (!isControlPlaneEnabled) {
-      localStorage.removeItem(WELCOME_KEY);
-      return;
-    }
-
-    if (!organizationId) {
-      return;
-    }
-
-    if (!canBill) {
-      return;
-    }
-
-    if (welcomeTrigger === WELCOME_TRIGGER.OrganizationCreated) {
-      localStorage.removeItem(WELCOME_KEY);
-      setShowWelcome(true);
-      capture('welcome_modal_shown', {
-        tenant_id: tenant?.metadata.id,
-        source: welcomeTrigger,
-      });
+    if (!approachingLimit || !organizationId || onboardingOpen) {
       return;
     }
 
@@ -526,104 +490,23 @@ function AuthenticatedInner() {
       !currentSubscription ||
       currentSubscription.plan === SubscriptionPlanCode.Free;
 
-    if (!canShowWelcomeForSubscription) {
-      localStorage.removeItem(WELCOME_KEY);
-      return;
-    }
-
-    localStorage.removeItem(WELCOME_KEY);
-    setShowWelcome(true);
-    capture('welcome_modal_shown', {
-      tenant_id: tenant?.metadata.id,
-      source: welcomeTrigger,
-    });
-  }, [
-    tenant?.metadata.id,
-    organizationId,
-    capture,
-    isControlPlaneEnabled,
-    isUserUniverseLoaded,
-    canBill,
-    newOnboardingEnabled,
-    navigate,
-    welcomeBillingState.data?.currentSubscription,
-    welcomeBillingState.error,
-    welcomeBillingState.isError,
-    welcomeBillingState.isPending,
-  ]);
-
-  // Deferred free-plan notice: shown once per organization, the first time a
-  // free-plan tenant reaches the alarm threshold (or the cap) on any resource
-  // limit, rather than immediately after signup when it is just noise. Shares
-  // its query key with the resource-limit notifications, so it adds no request.
-  const resourcePolicyQuery = useQuery({
-    ...queries.tenantResourcePolicy.get(tenant?.metadata.id ?? ''),
-    refetchInterval: 2 * 60_000,
-    enabled:
-      newOnboardingEnabled &&
-      isControlPlaneEnabled &&
-      canBill &&
-      !!tenant?.metadata.id,
-  });
-  const approachingLimit = (resourcePolicyQuery.data?.limits ?? []).some(
-    (limit) => getResourceLimitStatus(limit) !== 'ok',
-  );
-
-  useEffect(() => {
-    if (
-      !newOnboardingEnabled ||
-      !approachingLimit ||
-      !organizationId ||
-      onboardingOpen ||
-      showWelcome
-    ) {
-      return;
-    }
-
-    const billingStateError =
-      welcomeBillingState.error as AxiosError<unknown> | null;
-    const billingStateNotFound =
-      billingStateError?.status === 404 ||
-      billingStateError?.response?.status === 404;
-
-    if (
-      welcomeBillingState.isPending ||
-      (welcomeBillingState.isError && !billingStateNotFound)
-    ) {
-      return;
-    }
-
-    const currentSubscription = billingStateNotFound
-      ? undefined
-      : welcomeBillingState.data?.currentSubscription;
-    const onFreePlan =
-      !currentSubscription ||
-      currentSubscription.plan === SubscriptionPlanCode.Free;
-
-    if (!onFreePlan) {
-      return;
-    }
-
     const noticeKey = freePlanLimitNoticeKey(organizationId);
-    if (localStorage.getItem(noticeKey)) {
+    if (!canShowWelcomeForSubscription || localStorage.getItem(noticeKey)) {
       return;
     }
 
     localStorage.setItem(noticeKey, new Date().toISOString());
-    setWelcomeReason('approaching-limit');
     setShowWelcome(true);
     capture('welcome_modal_shown', {
       tenant_id: tenant?.metadata.id,
       source: 'approaching_limit',
     });
   }, [
-    newOnboardingEnabled,
-    approachingLimit,
-    organizationId,
-    onboardingOpen,
-    showWelcome,
-    capture,
     tenant?.metadata.id,
+    organizationId,
+    capture,
+    approachingLimit,
+    onboardingOpen,
     welcomeBillingState.data?.currentSubscription,
     welcomeBillingState.error,
     welcomeBillingState.isError,
@@ -688,30 +571,15 @@ function AuthenticatedInner() {
           />
         }
         overlay={
-          newOnboardingEnabled ? (
+          // Mounted only while open, and keyed by tenant: its polling stops on
+          // close and no state leaks across a tenant switch.
+          onboardingMatch ? (
             <OnboardingModal
-              open={onboardingOpen}
-              path={onboardingMatch?.search.path ?? null}
-              step={onboardingMatch?.search.step}
-              onNavigate={({ path, step }) => {
-                if (!onboardingTenant) {
-                  return;
-                }
-                navigate({
-                  to: appRoutes.tenantOnboardingRoute.to,
-                  params: { tenant: onboardingTenant },
-                  search: { ...(path ? { path } : {}), step },
-                });
-              }}
-              onClose={() => {
-                if (!onboardingTenant) {
-                  return;
-                }
-                navigate({
-                  to: appRoutes.tenantOverviewRoute.to,
-                  params: { tenant: onboardingTenant },
-                });
-              }}
+              key={onboardingTenant}
+              path={onboardingMatch.search.path ?? null}
+              step={onboardingMatch.search.step}
+              onNavigate={navigateOnboarding}
+              onClose={closeOnboarding}
             />
           ) : undefined
         }
@@ -792,7 +660,6 @@ function AuthenticatedInner() {
         tenantId={tenant?.metadata.id}
         organizationId={organizationId}
         open={showWelcome}
-        reason={welcomeReason}
         onClose={() => setShowWelcome(false)}
       />
       <InviteModal

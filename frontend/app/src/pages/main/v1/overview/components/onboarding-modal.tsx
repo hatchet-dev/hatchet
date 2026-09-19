@@ -1,7 +1,4 @@
-import { workflowLanguageOptions } from './onboarding-options';
 import {
-  applyLanguageChange,
-  applyTabChange,
   applyUseCaseChange,
   normalizeOnboardingState,
   onboardingStorageKey,
@@ -28,41 +25,23 @@ import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-// Overview panel query-key prefixes that reflect runs/workers. Invalidated when
-// onboarding closes so the just-created worker and run show on the Overview
-// immediately, instead of the panels showing stale (often empty) data until
-// their next poll.
+// Query-key prefixes behind the Overview panels and its setup banner. The user
+// usually creates their first worker and run while this overlay covers the
+// Overview, so they are invalidated on close: the panels refetch in the
+// background and show the new run instead of stale (often empty) data.
 const OVERVIEW_DATA_KEY_PREFIXES = [
   'worker:list',
   'v1:workflow-run:list',
   'v1:task-run:metrics',
   'v1-task:metrics',
+  'queue-metrics:get:step-run',
 ];
 
-// Maps the global SDK preference to the language the persisted onboarding
-// state and command builders understand. Ruby has no command-builder language,
-// so it leaves the persisted language untouched (the manual path is
-// unavailable for Ruby anyway).
-function sdkToWorkflowLanguage(sdk: Sdk) {
-  switch (sdk) {
-    case 'python':
-      return workflowLanguageOptions.python.value;
-    case 'typescript':
-      return workflowLanguageOptions.typescript.value;
-    case 'go':
-      return workflowLanguageOptions.go.value;
-    case 'ruby':
-      return null;
-  }
-}
-
-// A 100-year expiry, matching the profile-token flow on the Overview page.
+// A 100-year expiry: the token backs a long-lived local CLI profile.
 const PROFILE_TOKEN_EXPIRES_IN = `${100 * 365 * 24 * 60 * 60}s`;
 
-// The agent-path selections (Hatchet patterns and the developer's own
-// description). They are not part of the shared persisted onboarding schema,
-// so they live under their own tenant-scoped key: a refresh restores them
-// without widening the schema the legacy inline flow also reads.
+// The agent-path selections live under their own tenant-scoped key so a refresh
+// restores them without widening the shared onboarding state schema.
 type AgentSelections = {
   patterns?: AgentPatternKey[];
   description?: string;
@@ -71,29 +50,20 @@ type AgentSelections = {
 const agentSelectionsKey = (tenantId: string) =>
   `hatchet:onboarding-agent:${tenantId}`;
 
-// Full-screen onboarding overlay. It renders into AppLayout's content-area
-// overlay slot (absolute inset-0), so it covers the page and the sidebar but
-// NOT the header or banner: the nav bar and its tenant switcher stay visible
-// and interactive regardless of banner height. Its z-[110] sits above the
-// sidebar (z-[100], which stays mounted on desktop) yet below Radix dialogs
-// (z-[200]) so the token-success dialog this modal spawns still layers on top.
+// The onboarding overlay. It renders into AppLayout's overlay slot so it covers
+// the page and the sidebar but not the header: the tenant switcher stays
+// usable. z-[110] sits above the sidebar (z-[100]) and below Radix dialogs and
+// popovers (z-[200]+).
 //
-// The body is the redesigned OnboardingSteps stepper: shared steps, a path
-// fork (agent vs manual), and a converged finish. The modal owns the
-// persisted onboarding state, the profile-token mutation, live progress, and
-// analytics; the stepper owns navigation and the local path/agent/freeform
-// selections. The inline LearnWorkflowSection flow on the Overview page is
-// unchanged and still used when the onboarding flag is off.
+// It is mounted only while the tenant onboarding route matches, keyed by
+// tenant (see authenticated.tsx), so its polling stops on close and no state
+// (such as a freshly generated token) leaks across a tenant switch.
 export function OnboardingModal({
-  open,
   onClose,
   path,
   step,
   onNavigate,
 }: {
-  // Open state, path and step all come from the tenant onboarding route (see
-  // authenticated.tsx), so the flow is refresh-safe and tenant-scoped.
-  open: boolean;
   onClose: () => void;
   path: SetupPath | null;
   step?: StepKey;
@@ -107,6 +77,7 @@ export function OnboardingModal({
     meta && 'authDisabledToken' in meta ? meta.authDisabledToken : undefined;
   const { capture } = useAnalytics();
   const canWrite = useCanWrite();
+  const queryClient = useQueryClient();
 
   const [sdk, setSdk] = usePreferredSdk();
 
@@ -116,10 +87,7 @@ export function OnboardingModal({
   >();
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const hasCapturedOpen = useRef(false);
 
-  // Shared with the inline flow through the same tenant-scoped storage key,
-  // so progress is consistent whichever surface the user uses.
   const [storedOnboarding, setStoredOnboarding] = useLocalStorageState<unknown>(
     onboardingStorageKey(tenantId ?? 'unknown'),
     null,
@@ -129,57 +97,42 @@ export function OnboardingModal({
     [storedOnboarding],
   );
 
-  const useCase: AvailableUseCaseKey = onboarding.useCase;
-
   const [agentSelections, setAgentSelections] =
     useLocalStorageState<AgentSelections>(
       agentSelectionsKey(tenantId ?? 'unknown'),
       {},
     );
-  const patterns = agentSelections.patterns ?? [];
-  const description = agentSelections.description ?? '';
 
-  // Advancing past step 1 confirms the selection so progress polling can
-  // begin. Reuses applyTabChange semantics (any move off Choose use case sets
-  // selectionConfirmedAt exactly once).
+  // Progress only counts workers and runs created after the selection was
+  // confirmed. Changing the template clears the timestamp (applyUseCaseChange),
+  // so this sets it whenever it is missing rather than only once.
   const confirmSelection = () =>
-    setStoredOnboarding((prev: unknown) =>
-      applyTabChange(
-        normalizeOnboardingState(prev),
-        'install',
-        new Date().toISOString(),
-      ),
-    );
+    setStoredOnboarding((prev: unknown) => {
+      const state = normalizeOnboardingState(prev);
+      return state.selectionConfirmedAt
+        ? state
+        : { ...state, selectionConfirmedAt: new Date().toISOString() };
+    });
 
   const progress = useOnboardingProgress(
     tenantId,
     onboarding.selectionConfirmedAt ?? undefined,
   );
 
-  // Whether the tenant has an API token, checked against the API (not local
-  // state) so the gate survives refreshes. Polled while onboarding is open so
-  // it flips as soon as a token is generated.
   const tokensQuery = useQuery({
     ...queries.tokens.list(tenantId ?? ''),
-    enabled: !!tenantId && open,
+    enabled: !!tenantId,
     // Poll (for tokens created elsewhere, e.g. the settings page) only until
     // one exists.
     refetchInterval: (query) =>
       (query.state.data?.rows?.length ?? 0) > 0 ? false : 2000,
   });
-  // A token this modal just generated counts immediately, without waiting for
-  // the list to refetch, so Next appears as soon as the command is shown. An
+  // Checked against the API so the gate survives a refresh. A token generated
+  // here counts immediately, without waiting for the list to refetch, and an
   // auth-disabled instance needs no token at all.
   const hasApiToken =
     (tokensQuery.data?.rows?.length ?? 0) > 0 || !!profileToken || authDisabled;
 
-  const queryClient = useQueryClient();
-
-  // Refresh the Overview's run/worker data, then close. The user often creates
-  // their first worker and run while onboarding is open on top of the Overview,
-  // so its panels can be stale; invalidating refetches them in the background
-  // (existing data stays visible, no loading flash) so the new run is there
-  // when the overlay closes.
   const handleClose = useCallback(() => {
     OVERVIEW_DATA_KEY_PREFIXES.forEach((prefix) => {
       void queryClient.invalidateQueries({ queryKey: [prefix] });
@@ -223,19 +176,8 @@ export function OnboardingModal({
     });
   };
 
-  // SDK is the global source of truth. Changing it also keeps the persisted
-  // onboarding language in sync (so the manual-path command builders and the
-  // selection-confirmed gate stay coherent) and reports it as a language
-  // selection to analytics. Ruby has no command-builder language, so the
-  // persisted language is left as-is.
   const handleSdkChange = (nextSdk: Sdk) => {
     setSdk(nextSdk);
-    const nextLanguage = sdkToWorkflowLanguage(nextSdk);
-    if (nextLanguage) {
-      setStoredOnboarding((prev: unknown) =>
-        applyLanguageChange(normalizeOnboardingState(prev), nextLanguage),
-      );
-    }
     capture('onboarding_language_selected', {
       tenant_id: tenantId,
       user_email: currentUser?.email,
@@ -256,64 +198,52 @@ export function OnboardingModal({
     });
   };
 
-  // Fire once per open.
+  // The ref keeps this to one event per open even if the user's email resolves
+  // after mount and re-runs the effect.
+  const hasCapturedOpen = useRef(false);
   useEffect(() => {
-    if (open && !hasCapturedOpen.current) {
-      hasCapturedOpen.current = true;
-      capture('onboarding_modal_opened', {
-        tenant_id: tenantId,
-        user_email: currentUser?.email,
-      });
-    }
-    if (!open) {
-      hasCapturedOpen.current = false;
-    }
-  }, [open, capture, tenantId, currentUser?.email]);
-
-  // Focus the overlay exactly once when it opens. This effect depends only on
-  // `open` so it does NOT re-run on every parent render. Re-focusing on every
-  // render (which happened while `onClose` was in the deps, since it is a new
-  // arrow each render) would steal focus back from the nav's tenant/org
-  // switcher popover and close it immediately. It intentionally does not trap
-  // focus: the nav stays interactive during the flow.
-  useEffect(() => {
-    if (open) {
-      containerRef.current?.focus();
-    }
-  }, [open]);
-
-  // Close on Esc while open.
-  useEffect(() => {
-    if (!open) {
+    if (hasCapturedOpen.current) {
       return;
     }
+    hasCapturedOpen.current = true;
+    capture('onboarding_modal_opened', {
+      tenant_id: tenantId,
+      user_email: currentUser?.email,
+    });
+  }, [capture, tenantId, currentUser?.email]);
 
+  // Focus moves into the overlay once, on mount. It deliberately does not trap
+  // focus, because the header stays interactive during the flow.
+  useEffect(() => {
+    containerRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        handleClose();
+      // Radix layers (the help menu, the tenant switcher) handle Escape in the
+      // capture phase and mark it prevented; closing the whole flow as well
+      // would be a surprise.
+      if (e.key !== 'Escape' || e.defaultPrevented) {
+        return;
       }
+      e.preventDefault();
+      handleClose();
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [open, handleClose]);
-
-  if (!open) {
-    return null;
-  }
+  }, [handleClose]);
 
   return (
     <div
       ref={containerRef}
+      // Not aria-modal: the header above stays interactive, so the rest of the
+      // page is made inert by AppLayout instead.
       role="dialog"
-      aria-modal="true"
       aria-label="Run your first task"
       tabIndex={-1}
       className="absolute inset-0 z-[110] overflow-y-auto bg-background outline-none"
     >
-      {/* Supabase-style: a centered card on a slightly-off background, below
-          the nav, scrolling when taller than the viewport. */}
       <div className="flex min-h-full items-center justify-center p-6">
         <div className="flex w-full flex-col items-center">
           <SetupCard
@@ -327,17 +257,17 @@ export function OnboardingModal({
               path={path}
               step={step}
               onNavigate={onNavigate}
-              patterns={patterns}
+              patterns={agentSelections.patterns ?? []}
               onPatternsChange={(next) =>
                 setAgentSelections((prev) => ({ ...prev, patterns: next }))
               }
-              description={description}
+              description={agentSelections.description ?? ''}
               onDescriptionChange={(next) =>
                 setAgentSelections((prev) => ({ ...prev, description: next }))
               }
               sdk={sdk}
               onSdkChange={handleSdkChange}
-              useCase={useCase}
+              useCase={onboarding.useCase}
               onUseCaseChange={handleUseCaseChange}
               onConfirmSelection={confirmSelection}
               profileToken={profileToken}
@@ -349,8 +279,6 @@ export function OnboardingModal({
               authDisabled={authDisabled}
               authDisabledToken={authDisabledToken}
               progress={progress}
-              // Finish just closes the overlay (refreshing Overview data);
-              // completion is derived from useOnboardingProgress, never a button.
               onFinish={handleClose}
               onPromptGenerated={(promptPatterns, promptSdk) => {
                 capture('onboarding_prompt_generated', {
@@ -361,7 +289,7 @@ export function OnboardingModal({
                   source: 'onboarding_modal',
                 });
               }}
-              onStepChangeEvent={(_step, stepLabel) => {
+              onStepChangeEvent={(stepLabel) => {
                 capture('onboarding_tab_changed', {
                   tenant_id: tenantId,
                   user_email: currentUser?.email,

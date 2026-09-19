@@ -1,22 +1,22 @@
 import { cn } from '@/lib/utils';
 import { type ReactNode } from 'react';
 
-// A centered, compact card: a small header (title + optional description) over
-// a body, with a subtle border on a slightly-off background. Defaults to a
-// narrow width that suits the short org/tenant creation forms; the onboarding
-// flow, which holds a wider stepper, passes a larger max-width via className.
+// Narrow by default because most callers hold a short form; the onboarding
+// flow passes a wider max-width for its stepper.
 export function SetupCard({
   title,
   description,
   children,
   footer,
   className,
+  bodyClassName,
 }: {
   title: ReactNode;
   description?: ReactNode;
   children: ReactNode;
   footer?: ReactNode;
   className?: string;
+  bodyClassName?: string;
 }) {
   return (
     <div className={cn('w-full max-w-xl', className)}>
@@ -27,7 +27,7 @@ export function SetupCard({
             <p className="mt-1 text-sm text-muted-foreground">{description}</p>
           ) : null}
         </div>
-        <div className="px-6 py-5">{children}</div>
+        <div className={cn('px-6 py-5', bodyClassName)}>{children}</div>
         {footer ? (
           <div className="flex items-center justify-end gap-2 border-t border-border px-6 py-4">
             {footer}
@@ -38,9 +38,8 @@ export function SetupCard({
   );
 }
 
-// A full-screen centered surface for the creation flows: a scrollable
-// background that centers a SetupCard, with an optional top-right slot for
-// controls (e.g. sign out).
+// `fixed` so the screen covers the app shell (nav and sidebar) on routes that
+// render inside it.
 export function SetupScreen({
   topRight,
   children,

@@ -94,7 +94,6 @@ export enum OrganizationMemberRoleType {
   MEMBER = "MEMBER",
 }
 
-/** How a user first heard about Hatchet, captured at signup */
 export enum OrganizationSignupAttribution {
   Search = "search",
   XTwitter = "x_twitter",
@@ -110,6 +109,12 @@ export enum OrganizationSignupAttribution {
   Other = "other",
 }
 
+export enum OrganizationOnboardingSDK {
+  PYTHON = "PYTHON",
+  TYPESCRIPT = "TYPESCRIPT",
+  GO = "GO",
+  RUBY = "RUBY",
+}
 
 export interface APIControlPlaneMetadata {
   /**
@@ -219,10 +224,21 @@ export interface CreateOrganizationRequest {
    * @maxLength 256
    */
   name: string;
-  /** How the user heard about Hatchet, captured at initial signup (multi-select) */
+  /**
+   * What the user would like to build with Hatchet
+   * @maxLength 1000
+   */
+  whatToBuild?: string;
+  /** Which SDK the user is planning to use */
+  sdk?: OrganizationOnboardingSDK;
+  /**
+   * How the user first heard about Hatchet, every option they selected
+   * @maxItems 12
+   * @uniqueItems true
+   */
   attribution?: OrganizationSignupAttribution[];
   /**
-   * Free-text detail supplied when attribution includes "other"
+   * Free-text answer when attribution includes "other"
    * @maxLength 500
    */
   attributionOther?: string;

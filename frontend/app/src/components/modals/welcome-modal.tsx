@@ -1,4 +1,3 @@
-import { WELCOME_KEY, type WelcomeReason } from './welcome-modal-state';
 import { Button } from '@/components/v1/ui/button';
 import {
   Card,
@@ -27,9 +26,6 @@ interface WelcomeModalProps {
   tenantId: string | undefined;
   organizationId: string | undefined;
   open: boolean;
-  // Defaults to the post-signup welcome. 'approaching-limit' reframes the same
-  // free-plan summary for a tenant that is close to a limit.
-  reason?: WelcomeReason;
   onClose: () => void;
 }
 
@@ -37,10 +33,8 @@ export function WelcomeModal({
   tenantId,
   organizationId,
   open,
-  reason = 'welcome',
   onClose,
 }: WelcomeModalProps) {
-  const approachingLimit = reason === 'approaching-limit';
   const { capture } = useAnalytics();
   const navigate = useNavigate();
   const { isControlPlaneEnabled, canBill } = useControlPlane();
@@ -67,7 +61,6 @@ export function WelcomeModal({
       return response.data;
     },
     onSuccess: (data) => {
-      localStorage.removeItem(WELCOME_KEY);
       onClose();
       if (data.checkoutUrl) {
         window.location.href = data.checkoutUrl;
@@ -75,17 +68,12 @@ export function WelcomeModal({
     },
   });
 
-  const dismiss = () => {
-    localStorage.removeItem(WELCOME_KEY);
-    onClose();
-  };
-
   return (
     <Dialog
       open={open}
       onOpenChange={(o) => {
         if (!o) {
-          dismiss();
+          onClose();
         }
       }}
     >
@@ -94,9 +82,7 @@ export function WelcomeModal({
           <div className="flex flex-col gap-3">
             <HatchetLogo variant="mark" className="h-8 w-8" />
             <DialogTitle className="text-2xl font-semibold tracking-tight">
-              {approachingLimit
-                ? "You're approaching your free plan limits"
-                : 'Welcome to Hatchet'}
+              You&apos;re approaching your free plan limits
             </DialogTitle>
             <DialogDescription className="text-sm text-muted-foreground">
               You&apos;re on the free plan with daily limits.{' '}
@@ -153,12 +139,12 @@ export function WelcomeModal({
                 capture('welcome_modal_dismissed', {
                   tenant_id: tenantId,
                   organization_id: organizationId,
-                  cta: 'get_started',
+                  cta: 'continue',
                 });
-                dismiss();
+                onClose();
               }}
             >
-              {approachingLimit ? 'Continue' : 'Get started'}
+              Continue
             </Button>
             <Button
               variant="ghost"
@@ -169,7 +155,7 @@ export function WelcomeModal({
                   organization_id: organizationId,
                   cta: 'view_plan_options',
                 });
-                dismiss();
+                onClose();
                 if (tenantId) {
                   navigate({
                     to: appRoutes.organizationSettingsBillingRoute.to,

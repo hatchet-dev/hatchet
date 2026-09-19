@@ -206,14 +206,9 @@ export default function TopNav({
     <header
       className={cn(
         'h-16 w-full bg-background',
-        // The onboarding overlay renders in the content cell at z-[110]. That
-        // content cell is not a stacking context, so the overlay competes
-        // directly against the header in the flex column. At the default z-50
-        // the overlay outranks the whole header, hiding the tenant/org switcher
-        // popover (a header descendant) no matter how high the popover's own
-        // z-index is. While onboarding is active we lift the header above the
-        // overlay (still below Radix dialogs at z-[200]) so the switcher stays
-        // usable and the overlay stops covering the nav.
+        // The onboarding overlay (z-[110]) competes directly with the header,
+        // since the content cell is not a stacking context. At z-50 it would
+        // cover the tenant switcher popover, which is a header descendant.
         onboardingActive ? 'z-[120]' : 'z-50',
       )}
     >

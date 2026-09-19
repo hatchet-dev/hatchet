@@ -11,6 +11,10 @@ import {
 } from '@/components/v1/ui/table';
 import useControlPlane from '@/hooks/use-control-plane';
 import { queries, V1TaskStatus, type V1TaskSummary } from '@/lib/api';
+import {
+  isFailureEventType,
+  mapEventTypeToTitle,
+} from '@/pages/main/v1/workflow-runs-v1/$run/v2components/event-utils';
 import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
@@ -18,6 +22,37 @@ import { RiErrorWarningLine } from 'react-icons/ri';
 
 const REFETCH_MS = 20000;
 const ERROR_LIMIT = 5;
+
+// A run only carries an errorMessage when task code threw. Failures that never
+// reach user code (a scheduling timeout, an execution timeout, a cancellation)
+// record their reason solely as a task event, so for those rows the reason is
+// read from the run's most recent failure event, the same source and wording
+// the run detail page uses.
+function ErrorReason({ run }: { run: V1TaskSummary }) {
+  const eventsQuery = useQuery({
+    ...queries.v1WorkflowRuns.listTaskEvents(run.metadata.id),
+    enabled: !run.errorMessage,
+  });
+
+  if (run.errorMessage) {
+    return <>{truncateError(run.errorMessage)}</>;
+  }
+
+  const failure = (eventsQuery.data?.rows ?? [])
+    .filter((event) => isFailureEventType(event.eventType))
+    .sort((a, b) => b.timestamp.localeCompare(a.timestamp))[0];
+
+  if (!failure) {
+    return <>{eventsQuery.isLoading ? 'Loading...' : 'Failed'}</>;
+  }
+
+  return (
+    <>
+      {truncateError(failure.errorMessage || failure.message) ||
+        mapEventTypeToTitle(failure.eventType)}
+    </>
+  );
+}
 
 export function ErrorsPanel({
   tenantId,
@@ -90,7 +125,7 @@ export function ErrorsPanel({
                   <TableCell className="align-top">
                     <div className="flex flex-col gap-1">
                       <span className="line-clamp-2 font-mono text-xs text-muted-foreground">
-                        {truncateError(row.errorMessage) || 'Unknown error'}
+                        <ErrorReason run={row} />
                       </span>
                       <Link
                         to={appRoutes.tenantRunRoute.to}

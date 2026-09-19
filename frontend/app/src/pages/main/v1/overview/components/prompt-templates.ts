@@ -2,9 +2,7 @@ import { escapeForDoubleQuotes } from './use-case-options';
 import { type Sdk } from './use-preferred-sdk';
 
 // Pure prompt-assembly module for the coding-agent onboarding path. No React
-// imports, so it is trivially unit-testable. All strings are copied inline
-// from docs/plans/onboarding-copy.mdx (sections 5 and 6); keep them in sync
-// with that file by hand.
+// imports, so it is trivially unit-testable.
 
 // Per-SDK fragments spliced into the base wrapper. `name` fills {sdkName};
 // `installExample` is ONE example install command and `installAlternatives`
@@ -60,18 +58,6 @@ export const sdkFragments: Record<Sdk, SdkFragment> = {
     refDoc: 'https://docs.hatchet.run/llms/reference/go.md',
     embeddedLater:
       'For faster local iteration you can later use `hatchet.WithEmbedded()` with a blank import of `github.com/hatchet-dev/hatchet-embedded` (a full engine in-process, no server or token). See https://docs.hatchet.run/llms/v1/embedded.md',
-  },
-  ruby: {
-    name: 'Ruby (early access)',
-    installExample: 'gem install hatchet-sdk',
-    installAlternatives:
-      'in a Bundler project that is `bundle add hatchet-sdk` (or add it to the Gemfile and run `bundle install`)',
-    frameworks: 'Rails or Sinatra',
-    connect:
-      'Create the client per the Ruby SDK reference. It reads `HATCHET_CLIENT_TOKEN` from the environment.',
-    refDoc: 'https://docs.hatchet.run/llms/reference/ruby.md',
-    embeddedLater:
-      'Embedded mode is not yet available for Ruby; keep running against your live instance.',
   },
 };
 

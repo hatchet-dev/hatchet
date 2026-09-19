@@ -62,6 +62,10 @@ export function AppLayout({
             'h-full w-full min-h-0 min-w-0',
             contentScroll ? 'overflow-auto' : 'overflow-hidden',
           )}
+          // While an overlay covers the content it must not stay reachable
+          // by keyboard or assistive tech. React 18 has no typed `inert` prop,
+          // so it is passed through as a plain attribute.
+          {...(overlay ? { inert: '' } : {})}
         >
           {children}
         </div>

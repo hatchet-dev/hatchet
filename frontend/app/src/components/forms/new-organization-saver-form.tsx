@@ -5,10 +5,6 @@ import {
   OrganizationOnboardingQuestionsForm,
   shuffledAttributionOptions,
 } from './organization-onboarding-questions-form';
-import {
-  WELCOME_KEY,
-  WELCOME_TRIGGER,
-} from '@/components/modals/welcome-modal-state';
 import { useAnalytics } from '@/hooks/use-analytics';
 import useControlPlane from '@/hooks/use-control-plane';
 import {
@@ -84,7 +80,6 @@ const useSaveOrganization = ({
       // Yield a tick so React can flush the universe context update
       // before afterSave navigates away.
       await new Promise((resolve) => setTimeout(resolve, 0));
-      localStorage.setItem(WELCOME_KEY, WELCOME_TRIGGER.OrganizationCreated);
       capture('onboarding_tenant_created', {
         tenant_type: 'cloud',
         is_cloud: true,

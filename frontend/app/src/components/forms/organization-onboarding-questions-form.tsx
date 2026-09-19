@@ -14,9 +14,9 @@ type AttributionOption = {
   label: string;
 };
 
-// The stable value keys are what the control plane forwards to the signup
-// Slack thread and analytics; only the labels are display copy. Keep in sync
-// with the backend (docs/plans/signup-attribution-copy.mdx).
+// The values are stable keys the control plane forwards to the signup Slack
+// thread and analytics (it holds the matching labels); only the labels here are
+// display copy.
 const ATTRIBUTION_OPTIONS: AttributionOption[] = [
   { value: OrganizationSignupAttribution.Search, label: 'Search engine' },
   { value: OrganizationSignupAttribution.XTwitter, label: 'X / Twitter' },
@@ -167,6 +167,7 @@ export function OrganizationOnboardingQuestionsForm({
         {otherSelected && (
           <Textarea
             id="attribution-other"
+            aria-label="Tell us more about where you heard about us"
             placeholder="Tell us more (optional)"
             rows={2}
             maxLength={ATTRIBUTION_OTHER_MAX_LENGTH}

@@ -25,7 +25,7 @@ export default function OrganizationsNew() {
         <NewOrganizationSaverForm
           afterSave={({ tenant }) =>
             navigate({
-              to: appRoutes.tenantOverviewRoute.to,
+              to: appRoutes.tenantOnboardingRoute.to,
               params: { tenant: tenant.id },
             })
           }

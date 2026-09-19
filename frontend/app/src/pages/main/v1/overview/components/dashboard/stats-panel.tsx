@@ -16,11 +16,14 @@ function StatCell({
   label,
   hint,
   loading,
+  error,
   children,
 }: {
   label: string;
   hint?: string;
   loading: boolean;
+  // A failed request must not render as an authoritative-looking zero.
+  error: boolean;
   children: ReactNode;
 }) {
   return (
@@ -31,7 +34,9 @@ function StatCell({
       {loading ? (
         <Skeleton className="h-8 w-16" />
       ) : (
-        <span className="text-2xl font-semibold tabular-nums">{children}</span>
+        <span className="text-2xl font-semibold tabular-nums">
+          {error ? 'n/a' : children}
+        </span>
       )}
       {hint && <span className="text-xs text-muted-foreground/70">{hint}</span>}
     </div>
@@ -84,7 +89,6 @@ export function StatsPanel({
     <PanelCard
       icon={<RiBarChart2Line className="size-4" />}
       title="Stats"
-      className="lg:col-span-2"
       bodyClassName="p-0"
     >
       <div className="grid grid-cols-2 divide-x divide-y divide-border/50 md:grid-cols-3 lg:grid-cols-6 lg:divide-y-0">
@@ -92,25 +96,46 @@ export function StatsPanel({
           label="Worker utilization"
           hint="Occupied slots across active workers."
           loading={workersQuery.isLoading}
+          error={workersQuery.isError}
         >
           {`${Math.round(utilization * 100)}%`}
         </StatCell>
         {/* Queue depth is a live total with no time window; the three status
             counts beside it come from the 24h run metrics, so each label says
             which one it is. */}
-        <StatCell label="Queued tasks (total)" loading={queueQuery.isLoading}>
+        <StatCell
+          label="Queued tasks (total)"
+          loading={queueQuery.isLoading}
+          error={queueQuery.isError}
+        >
           {fmt(queued)}
         </StatCell>
-        <StatCell label="Succeeded (24h)" loading={statusQuery.isLoading}>
+        <StatCell
+          label="Succeeded (24h)"
+          loading={statusQuery.isLoading}
+          error={statusQuery.isError}
+        >
           {fmt(succeeded)}
         </StatCell>
-        <StatCell label="Running (24h)" loading={statusQuery.isLoading}>
+        <StatCell
+          label="Running (24h)"
+          loading={statusQuery.isLoading}
+          error={statusQuery.isError}
+        >
           {fmt(running)}
         </StatCell>
-        <StatCell label="Failed (24h)" loading={statusQuery.isLoading}>
+        <StatCell
+          label="Failed (24h)"
+          loading={statusQuery.isLoading}
+          error={statusQuery.isError}
+        >
           {fmt(failed)}
         </StatCell>
-        <StatCell label="Workers connected" loading={workersQuery.isLoading}>
+        <StatCell
+          label="Workers connected"
+          loading={workersQuery.isLoading}
+          error={workersQuery.isError}
+        >
           {fmt(workersConnected)}
         </StatCell>
       </div>

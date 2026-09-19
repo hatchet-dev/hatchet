@@ -1,4 +1,3 @@
-import { SetupCard } from '@/components/layout/setup-card';
 import { Alert, AlertDescription } from '@/components/v1/ui/alert';
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
@@ -32,16 +31,9 @@ import { useEffect, useMemo, useState } from 'react';
 interface InviteModalProps {
   isOpen: boolean;
   onClose: () => void;
-  // 'card' renders the same content as a SetupCard for the standalone
-  // /onboarding/invites page, where there is no app underneath to overlay.
-  variant?: 'dialog' | 'card';
 }
 
-export function InviteModal({
-  isOpen,
-  onClose,
-  variant = 'dialog',
-}: InviteModalProps) {
+export function InviteModal({ isOpen, onClose }: InviteModalProps) {
   const { pendingInvitesQuery, invalidate: invalidatePendingInvites } =
     usePendingInvites();
   const { tenantMemberships } = useUserUniverse();
@@ -84,7 +76,7 @@ export function InviteModal({
   // Close immediately if opened with stale data that resolves to 0 invites.
   // Gate on `!isFetching`: while a refetch is in flight react-query retains the
   // previous (possibly stale count=0) data, and closing on it would fight
-  // whatever opened the modal, causing an open/close loop.
+  // whatever opened the modal — an open/close loop.
   useEffect(() => {
     if (
       isOpen &&
@@ -147,143 +139,6 @@ export function InviteModal({
     totalInviteCount === 0 &&
     processedIds.size === 0;
 
-  const isConfirmation = phase === 'confirmation';
-
-  const title = isConfirmation ? "You're all set!" : titleText;
-
-  const description = isConfirmation
-    ? confirmationDescription(acceptedTenantInfos, acceptedTenants)
-    : pendingCount === 1
-      ? 'Accept or decline the invite below.'
-      : `You have ${pendingCount} pending invite${pendingCount !== 1 ? 's' : ''}.`;
-
-  const body = (
-    <>
-      {isConfirmation ? (
-        <ConfirmationStep
-          acceptedTenantInfos={acceptedTenantInfos}
-          acceptedTenants={acceptedTenants}
-          onSwitch={(tenant) => {
-            setTenant(tenant);
-            onClose();
-          }}
-          onClose={onClose}
-        />
-      ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-16">Type</TableHead>
-              <TableHead>Name</TableHead>
-              <TableHead className="w-24">Role</TableHead>
-              <TableHead className="w-44">From</TableHead>
-              <TableHead className="w-20 text-right" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {visibleTenantInvites.map((invite) => (
-              <TableRow key={invite.metadata.id}>
-                <TableCell>
-                  <Badge variant="secondary" className="text-xs font-normal">
-                    Tenant
-                  </Badge>
-                </TableCell>
-                <TableCell className="font-medium">
-                  {invite.tenantName ?? '-'}
-                </TableCell>
-                <TableCell className="capitalize text-muted-foreground">
-                  {invite.role.toLowerCase()}
-                </TableCell>
-                <TableCell
-                  className="max-w-[176px] truncate text-xs text-muted-foreground"
-                  title={invite.email}
-                >
-                  {invite.email}
-                </TableCell>
-                <TableCell className="text-right">
-                  <InviteActions
-                    disabled={pendingId === invite.metadata.id}
-                    onAccept={() =>
-                      handleTenantAccept(
-                        invite.metadata.id,
-                        invite.tenantId,
-                        invite.tenantName ?? '',
-                      )
-                    }
-                    onDecline={() => handleTenantReject(invite.metadata.id)}
-                  />
-                </TableCell>
-              </TableRow>
-            ))}
-            {visibleOrgInvites.map((invite) => (
-              <TableRow key={invite.metadata.id}>
-                <TableCell>
-                  <Badge variant="secondary" className="text-xs font-normal">
-                    Org
-                  </Badge>
-                </TableCell>
-                <TableCell className="font-medium">
-                  {invite.organizationName ?? '-'}
-                  {invite.tenants && invite.tenants.length > 0 && (
-                    <div className="mt-0.5 text-xs font-normal text-muted-foreground">
-                      Includes access to:{' '}
-                      {invite.tenants
-                        .slice(0, 3)
-                        .map(
-                          (tenant) =>
-                            `${tenant.tenantName} (${formatMemberRole(tenant.tenantRole)})`,
-                        )
-                        .join(', ')}
-                      {invite.tenants.length > 3 &&
-                        ` and ${invite.tenants.length - 3} more`}
-                    </div>
-                  )}
-                </TableCell>
-                <TableCell className="capitalize text-muted-foreground">
-                  {invite.role.toLowerCase()}
-                </TableCell>
-                <TableCell
-                  className="max-w-[176px] truncate text-xs text-muted-foreground"
-                  title={invite.inviterEmail}
-                >
-                  {invite.inviterEmail}
-                </TableCell>
-                <TableCell className="text-right">
-                  <InviteActions
-                    disabled={pendingId === invite.metadata.id}
-                    onAccept={() => handleOrgAccept(invite.metadata.id)}
-                    onDecline={() => handleOrgReject(invite.metadata.id)}
-                  />
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
-      {errors.length > 0 && (
-        <Alert variant="destructive">
-          <AlertDescription>
-            {errors.map((e, i) => (
-              <p key={i}>{e}</p>
-            ))}
-          </AlertDescription>
-        </Alert>
-      )}
-    </>
-  );
-
-  if (variant === 'card') {
-    if (!isOpen || isStaleClose) {
-      return null;
-    }
-
-    return (
-      <SetupCard title={title} description={description} className="max-w-2xl">
-        <div className="flex flex-col gap-4">{body}</div>
-      </SetupCard>
-    );
-  }
-
   return (
     <Dialog
       open={isOpen}
@@ -299,33 +154,141 @@ export function InviteModal({
       >
         {!isStaleClose && (
           <>
-            <DialogHeader>
-              <DialogTitle>{title}</DialogTitle>
-              <DialogDescription>{description}</DialogDescription>
-            </DialogHeader>
-            {body}
+            {phase === 'invites' ? (
+              <>
+                <DialogHeader>
+                  <DialogTitle>{titleText}</DialogTitle>
+                  <DialogDescription>
+                    {pendingCount === 1
+                      ? 'Accept or decline the invite below.'
+                      : `You have ${pendingCount} pending invite${pendingCount !== 1 ? 's' : ''}.`}
+                  </DialogDescription>
+                </DialogHeader>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-16">Type</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead className="w-24">Role</TableHead>
+                      <TableHead className="w-44">From</TableHead>
+                      <TableHead className="w-20 text-right" />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {visibleTenantInvites.map((invite) => (
+                      <TableRow key={invite.metadata.id}>
+                        <TableCell>
+                          <Badge
+                            variant="secondary"
+                            className="text-xs font-normal"
+                          >
+                            Tenant
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {invite.tenantName ?? '—'}
+                        </TableCell>
+                        <TableCell className="capitalize text-muted-foreground">
+                          {invite.role.toLowerCase()}
+                        </TableCell>
+                        <TableCell
+                          className="max-w-[176px] truncate text-xs text-muted-foreground"
+                          title={invite.email}
+                        >
+                          {invite.email}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <InviteActions
+                            disabled={pendingId === invite.metadata.id}
+                            onAccept={() =>
+                              handleTenantAccept(
+                                invite.metadata.id,
+                                invite.tenantId,
+                                invite.tenantName ?? '',
+                              )
+                            }
+                            onDecline={() =>
+                              handleTenantReject(invite.metadata.id)
+                            }
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {visibleOrgInvites.map((invite) => (
+                      <TableRow key={invite.metadata.id}>
+                        <TableCell>
+                          <Badge
+                            variant="secondary"
+                            className="text-xs font-normal"
+                          >
+                            Org
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {invite.organizationName ?? '—'}
+                          {invite.tenants && invite.tenants.length > 0 && (
+                            <div className="mt-0.5 text-xs font-normal text-muted-foreground">
+                              Includes access to:{' '}
+                              {invite.tenants
+                                .slice(0, 3)
+                                .map(
+                                  (tenant) =>
+                                    `${tenant.tenantName} (${formatMemberRole(tenant.tenantRole)})`,
+                                )
+                                .join(', ')}
+                              {invite.tenants.length > 3 &&
+                                ` and ${invite.tenants.length - 3} more`}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell className="capitalize text-muted-foreground">
+                          {invite.role.toLowerCase()}
+                        </TableCell>
+                        <TableCell
+                          className="max-w-[176px] truncate text-xs text-muted-foreground"
+                          title={invite.inviterEmail}
+                        >
+                          {invite.inviterEmail}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <InviteActions
+                            disabled={pendingId === invite.metadata.id}
+                            onAccept={() => handleOrgAccept(invite.metadata.id)}
+                            onDecline={() =>
+                              handleOrgReject(invite.metadata.id)
+                            }
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </>
+            ) : (
+              <ConfirmationStep
+                acceptedTenantInfos={acceptedTenantInfos}
+                acceptedTenants={acceptedTenants}
+                onSwitch={(tenant) => {
+                  setTenant(tenant);
+                  onClose();
+                }}
+                onClose={onClose}
+              />
+            )}
+            {errors.length > 0 && (
+              <Alert variant="destructive">
+                <AlertDescription>
+                  {errors.map((e, i) => (
+                    <p key={i}>{e}</p>
+                  ))}
+                </AlertDescription>
+              </Alert>
+            )}
           </>
         )}
       </DialogContent>
     </Dialog>
   );
-}
-
-function confirmationDescription(
-  acceptedTenantInfos: AcceptedTenantInfo[],
-  acceptedTenants: Array<{ info: AcceptedTenantInfo; tenant: Tenant }>,
-) {
-  const stillLoading =
-    acceptedTenantInfos.length > 0 && acceptedTenants.length === 0;
-  const hasTenants = acceptedTenants.length > 0;
-
-  return !hasTenants && !stillLoading
-    ? 'Your invites have been processed.'
-    : hasTenants && acceptedTenants.length === 1
-      ? `You joined ${acceptedTenants[0].info.name}. Switch to it now?`
-      : hasTenants
-        ? `You joined ${acceptedTenants.length} new tenants. Select one to switch to.`
-        : 'Processing…';
 }
 
 function ConfirmationStep({
@@ -344,66 +307,81 @@ function ConfirmationStep({
   const hasTenants = acceptedTenants.length > 0;
 
   return (
-    <div className="flex flex-col gap-3">
-      {!hasTenants && !stillLoading && (
-        <div className="flex justify-end">
-          <Button onClick={onClose}>Done</Button>
-        </div>
-      )}
+    <>
+      <DialogHeader>
+        <DialogTitle>You&apos;re all set!</DialogTitle>
+        <DialogDescription>
+          {!hasTenants && !stillLoading
+            ? 'Your invites have been processed.'
+            : hasTenants && acceptedTenants.length === 1
+              ? `You joined ${acceptedTenants[0].info.name}. Switch to it now?`
+              : hasTenants
+                ? `You joined ${acceptedTenants.length} new tenants. Select one to switch to.`
+                : 'Processing…'}
+        </DialogDescription>
+      </DialogHeader>
 
-      {stillLoading && (
-        <>
-          {acceptedTenantInfos.map((info) => (
-            <div
-              key={info.id}
-              className="flex items-center justify-between rounded-md border p-3"
-            >
-              <span className="font-medium">{info.name}</span>
-              <Button size="sm" disabled>
-                Loading…
+      <div className="flex flex-col gap-3">
+        {!hasTenants && !stillLoading && (
+          <div className="flex justify-end">
+            <Button onClick={onClose}>Done</Button>
+          </div>
+        )}
+
+        {stillLoading && (
+          <>
+            {acceptedTenantInfos.map((info) => (
+              <div
+                key={info.id}
+                className="flex items-center justify-between rounded-md border p-3"
+              >
+                <span className="font-medium">{info.name}</span>
+                <Button size="sm" disabled>
+                  Loading…
+                </Button>
+              </div>
+            ))}
+            <div className="flex justify-end">
+              <Button variant="outline" onClick={onClose}>
+                Maybe later
               </Button>
             </div>
-          ))}
-          <div className="flex justify-end">
+          </>
+        )}
+
+        {hasTenants && acceptedTenants.length === 1 && (
+          <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={onClose}>
               Maybe later
             </Button>
-          </div>
-        </>
-      )}
-
-      {hasTenants && acceptedTenants.length === 1 && (
-        <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={onClose}>
-            Maybe later
-          </Button>
-          <Button onClick={() => onSwitch(acceptedTenants[0].tenant)}>
-            Switch to {acceptedTenants[0].info.name}
-          </Button>
-        </div>
-      )}
-
-      {hasTenants && acceptedTenants.length > 1 && (
-        <>
-          {acceptedTenants.map(({ info, tenant }) => (
-            <div
-              key={info.id}
-              className="flex items-center justify-between rounded-md border p-3"
-            >
-              <span className="font-medium">{info.name}</span>
-              <Button size="sm" onClick={() => onSwitch(tenant)}>
-                Switch
-              </Button>
-            </div>
-          ))}
-          <div className="flex justify-end">
-            <Button variant="outline" onClick={onClose}>
-              Maybe later
+            <Button onClick={() => onSwitch(acceptedTenants[0].tenant)}>
+              Switch to {acceptedTenants[0].info.name}
             </Button>
           </div>
-        </>
-      )}
-    </div>
+        )}
+
+        {hasTenants && acceptedTenants.length > 1 && (
+          <>
+            {acceptedTenants.map(({ info, tenant }) => (
+              <div
+                key={info.id}
+                className="flex items-center justify-between rounded-md border p-3"
+              >
+                <span className="font-medium">{info.name}</span>
+                <Button size="sm" onClick={() => onSwitch(tenant)}>
+                  Switch
+                </Button>
+              </div>
+            ))}
+            <div className="flex justify-end">
+              <Button variant="outline" onClick={onClose}>
+                Maybe later
+              </Button>
+            </div>
+          </>
+        )}
+      </div>
+    </>
   );
 }
 

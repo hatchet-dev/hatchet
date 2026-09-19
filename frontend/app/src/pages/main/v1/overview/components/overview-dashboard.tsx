@@ -3,32 +3,33 @@ import { StatsPanel } from './dashboard/stats-panel';
 import { TasksPanel } from './dashboard/tasks-panel';
 import { WorkersPanel } from './dashboard/workers-panel';
 import { SupportSection } from './support-section';
-import { useOpenOnboarding } from './use-new-onboarding';
+import { useTenantOnboarded } from './use-onboarding-progress';
+import { useOpenOnboarding } from './use-open-onboarding';
 import { Button } from '@/components/v1/ui/button';
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 
-// The new, flag-gated Overview. Replaces the legacy onboarding-wizard-centric
-// content with a live dashboard of tenant data. Composes the title, the
-// onboarding re-entry highlight (until the tenant is onboarded), the panel
-// grid, the Support footer, and the footer re-entry link. The onboarding modal
-// itself is mounted globally, so the banner and footer only navigate to its route.
-export function OverviewDashboard({
-  tenantId,
-  onboarded,
-}: {
-  tenantId: string;
-  onboarded: boolean;
-}) {
+const DAY_MS = 24 * 60 * 60 * 1000;
+const WINDOW_REFRESH_MS = 5 * 60_000;
+
+const dayAgo = () => new Date(Date.now() - DAY_MS).toISOString();
+
+export function OverviewDashboard({ tenantId }: { tenantId: string }) {
   const openOnboarding = useOpenOnboarding(tenantId);
+  const tenantSetup = useTenantOnboarded(tenantId);
   const [bannerDismissed, setBannerDismissed] = useState(false);
-  const showBanner = !onboarded && !bannerDismissed;
+  // While the setup state is unknown the banner stays hidden, so it never
+  // flashes at tenants that turn out to be set up.
+  const showBanner =
+    !tenantSetup.isLoading && !tenantSetup.onboarded && !bannerDismissed;
 
-  // A single 24h window shared by every panel that filters on it, so their
-  // React Query keys match and the underlying requests are deduped.
-  const since = useMemo(
-    () => new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-    [],
-  );
+  // One 24h cutoff shared by every panel, so their React Query keys match and
+  // the requests are deduped. It advances periodically: a cutoff fixed at mount
+  // would silently widen the "last 24 hours" window on a tab left open.
+  const [since, setSince] = useState(dayAgo);
+  useEffect(() => {
+    const id = window.setInterval(() => setSince(dayAgo()), WINDOW_REFRESH_MS);
+    return () => window.clearInterval(id);
+  }, []);
 
   return (
     <div className="flex h-full w-full flex-col gap-y-6 lg:p-6">
