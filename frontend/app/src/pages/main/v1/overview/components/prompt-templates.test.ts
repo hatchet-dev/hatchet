@@ -39,13 +39,29 @@ test('loads credentials from the named profile and never hardcodes the token', (
     sdk: 'go',
     profileName: 'prod-tenant',
   });
-  assert.match(prompt, /eval "\$\(hatchet profile env --name "prod-tenant"\)"/);
+  // The two-step form, because eval "$(...)" swallows a failed lookup.
+  assert.ok(
+    prompt.includes(
+      'env_block=$(hatchet profile env --name "prod-tenant") || exit $?',
+    ),
+  );
+  assert.ok(prompt.includes('eval "$env_block"'));
+  assert.ok(
+    !prompt.includes('eval "$(hatchet profile env --name "prod-tenant")"'),
+  );
   assert.match(prompt, /CLI profile named "prod-tenant"/);
   assert.match(prompt, /Do not read, print, or hardcode my token/);
   assert.match(
     prompt,
     /do not use a local or embedded engine for this first run/,
   );
+});
+
+test('tells the agent to pass --profile to the CLI, which ignores the env token', () => {
+  const prompt = buildOnboardingPrompt({ ...base, profileName: 'prod-tenant' });
+  assert.match(prompt, /the CLI does not read HATCHET_CLIENT_TOKEN/);
+  assert.ok(prompt.includes('hatchet worker list --profile "prod-tenant"'));
+  assert.doesNotMatch(prompt, /It reads the exported HATCHET_CLIENT_TOKEN/);
 });
 
 test('always carries the developer description', () => {
