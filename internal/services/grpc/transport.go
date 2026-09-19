@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"connectrpc.com/connect"
@@ -30,6 +31,11 @@ const (
 	rpcWriteSlack = 2 * time.Second
 	// maxRPCTimeout is the longest timeout that gets a transport deadline.
 	maxRPCTimeout = 365 * 24 * time.Hour
+	// defaultHTTP1BodyReadTimeout is how long an HTTP/1.1 caller has to send its request body.
+	defaultHTTP1BodyReadTimeout = 30 * time.Second
+	// defaultHTTP1UnaryWriteTimeout is how long an HTTP/1.1 caller has to take a unary response
+	// once the server starts writing it.
+	defaultHTTP1UnaryWriteTimeout = 30 * time.Second
 )
 
 // isGRPC reports whether the request speaks the gRPC protocol proper (not gRPC-Web, which
@@ -55,22 +61,97 @@ func withStreamAbort(next http.Handler) http.Handler {
 	})
 }
 
-// enforceRPCTimeout ties a call's own timeout to its transport. connect turns the timeout into
-// a context deadline, but a context cannot interrupt a request body read or a response write, so
-// a caller that stops sending would keep the call open past its deadline. Calls without a
-// timeout keep no deadline: streams are long-lived.
-func enforceRPCTimeout(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if timeout, ok := rpcTimeout(r.Header); ok {
-			rc := http.NewResponseController(w)
-			now := time.Now()
+// transportDeadlines bounds the I/O of a call with deadlines on its connection or stream, which
+// is the only thing that interrupts a blocked request body read or response write: a context
+// cannot.
+type transportDeadlines struct {
+	routes                 grpcRoutes
+	http1BodyReadTimeout   time.Duration
+	http1UnaryWriteTimeout time.Duration
+}
 
-			_ = rc.SetReadDeadline(now.Add(timeout + rpcReadSlack))
-			_ = rc.SetWriteDeadline(now.Add(timeout + rpcWriteSlack))
+// enforce applies two rules.
+//
+// A call's own timeout (see rpcTimeout) bounds its reads and writes, on every protocol. connect
+// turns the timeout into a context deadline, but a caller that stops sending would otherwise
+// keep the call open past it. Calls without a timeout keep no deadline: streams are long-lived.
+//
+// HTTP/1.1 calls get two more bounds, because nothing else reclaims them: the pings that find a
+// dead HTTP/2 connection do not exist there. Every procedure reachable over HTTP/1.1 sends
+// exactly one request message (connect refuses bidirectional streams on it), so the request
+// body must arrive within http1BodyReadTimeout, and a unary response must be taken within
+// http1UnaryWriteTimeout of its first byte. Server streams stay unbounded on the write side. An
+// idle keep-alive connection is not bounded, which is no different from an idle HTTP/2
+// connection: http.Server.IdleTimeout would also close HTTP/2 connections that have no open
+// stream, which google.golang.org/grpc never did to its callers.
+func (d transportDeadlines) enforce(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		rc := http.NewResponseController(w)
+		now := time.Now()
+
+		var readDeadline, writeDeadline time.Time
+
+		if timeout, ok := rpcTimeout(r.Header); ok {
+			readDeadline = now.Add(timeout + rpcReadSlack)
+			writeDeadline = now.Add(timeout + rpcWriteSlack)
+		}
+
+		if r.ProtoMajor == 1 {
+			// net/http lifts the read deadline itself once the body has been read, when it
+			// starts watching the connection for the caller going away, so the deadline only
+			// covers the body. A request without a body is already being watched, and an
+			// expired deadline there would read as the caller going away and cancel the call.
+			if r.ContentLength != 0 {
+				if bodyDeadline := now.Add(d.http1BodyReadTimeout); readDeadline.IsZero() || bodyDeadline.Before(readDeadline) {
+					readDeadline = bodyDeadline
+				}
+			} else {
+				readDeadline = time.Time{}
+			}
+
+			if !d.routes.isServerStreaming(r.URL.Path) {
+				w = &deadlineOnWriteResponse{ResponseWriter: w, arm: func() {
+					if deadline := time.Now().Add(d.http1UnaryWriteTimeout); writeDeadline.IsZero() || deadline.Before(writeDeadline) {
+						_ = rc.SetWriteDeadline(deadline)
+					}
+				}}
+			}
+		}
+
+		if !readDeadline.IsZero() {
+			_ = rc.SetReadDeadline(readDeadline)
+		}
+
+		if !writeDeadline.IsZero() {
+			_ = rc.SetWriteDeadline(writeDeadline)
 		}
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+// deadlineOnWriteResponse starts a write deadline when the response starts, so that the time
+// the handler takes does not count against the caller.
+type deadlineOnWriteResponse struct {
+	http.ResponseWriter
+	arm  func()
+	once sync.Once
+}
+
+func (w *deadlineOnWriteResponse) WriteHeader(statusCode int) {
+	w.once.Do(w.arm)
+	w.ResponseWriter.WriteHeader(statusCode)
+}
+
+func (w *deadlineOnWriteResponse) Write(p []byte) (int, error) {
+	w.once.Do(w.arm)
+
+	return w.ResponseWriter.Write(p)
+}
+
+// Unwrap lets http.ResponseController reach the connection.
+func (w *deadlineOnWriteResponse) Unwrap() http.ResponseWriter {
+	return w.ResponseWriter
 }
 
 // rpcTimeout reads the timeout a caller attached to its call: grpc-timeout for gRPC and
@@ -123,23 +204,44 @@ func rpcTimeout(header http.Header) (time.Duration, bool) {
 	return 0, false
 }
 
-// grpcRoutes is the set of mounted procedures, by service and method name.
-type grpcRoutes map[string]map[string]struct{}
+// grpcRoutes is the set of mounted procedures, by service and method name. The value is whether
+// the method streams its response.
+type grpcRoutes map[string]map[string]bool
 
 func (routes grpcRoutes) addService(service protoreflect.ServiceDescriptor) {
 	methods := service.Methods()
 
 	for i := range methods.Len() {
-		routes.add(string(service.FullName()), string(methods.Get(i).Name()))
+		method := methods.Get(i)
+
+		routes.add(string(service.FullName()), string(method.Name()), method.IsStreamingServer())
 	}
 }
 
-func (routes grpcRoutes) add(service, method string) {
+func (routes grpcRoutes) add(service, method string, serverStreaming bool) {
 	if routes[service] == nil {
-		routes[service] = map[string]struct{}{}
+		routes[service] = map[string]bool{}
 	}
 
-	routes[service][method] = struct{}{}
+	routes[service][method] = serverStreaming
+}
+
+// splitProcedure splits /Service/Method. ok is false for a path without a method.
+func splitProcedure(path string) (service, method string, ok bool) {
+	procedure := strings.TrimPrefix(path, "/")
+	pos := strings.LastIndex(procedure, "/")
+
+	if pos == -1 {
+		return "", "", false
+	}
+
+	return procedure[:pos], procedure[pos+1:], true
+}
+
+func (routes grpcRoutes) isServerStreaming(path string) bool {
+	service, method, _ := splitProcedure(path)
+
+	return routes[service][method]
 }
 
 // unimplemented answers gRPC calls to procedures that are not mounted the way
@@ -153,21 +255,14 @@ func (routes grpcRoutes) unimplemented(next http.Handler) http.Handler {
 			return
 		}
 
-		procedure := strings.TrimPrefix(r.URL.Path, "/")
-		pos := strings.LastIndex(procedure, "/")
-
 		var message string
 
-		if pos == -1 {
+		if service, method, ok := splitProcedure(r.URL.Path); !ok {
 			message = fmt.Sprintf("malformed method name: %q", r.URL.Path)
-		} else {
-			service, method := procedure[:pos], procedure[pos+1:]
-
-			if methods, knownService := routes[service]; !knownService {
-				message = fmt.Sprintf("unknown service %v", service)
-			} else if _, knownMethod := methods[method]; !knownMethod {
-				message = fmt.Sprintf("unknown method %v for service %v", method, service)
-			}
+		} else if methods, knownService := routes[service]; !knownService {
+			message = fmt.Sprintf("unknown service %v", service)
+		} else if _, knownMethod := methods[method]; !knownMethod {
+			message = fmt.Sprintf("unknown method %v for service %v", method, service)
 		}
 
 		if message == "" {

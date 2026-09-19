@@ -58,6 +58,12 @@ const (
 	validToken   = "valid-token"
 	limitedToken = "limited-token"
 	maxMsgSize   = 64 * 1024
+
+	// the "big-response" worker name gets a response larger than any socket buffer
+	bigResponseSize = 24 * 1024 * 1024
+	// the "ticking" worker id gets a slow server stream
+	tickingMessages = 10
+	tickingInterval = 100 * time.Millisecond
 )
 
 var (
@@ -137,6 +143,8 @@ func (f *fakeDispatcher) Register(ctx context.Context, req *dispatchercontracts.
 		return nil, connectErr
 	case "callback":
 		grpcmiddleware.TriggerCallback(ctx)
+	case "big-response":
+		req.WorkerName = strings.Repeat("x", bigResponseSize)
 	}
 
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant) // nolint:staticcheck
@@ -155,6 +163,22 @@ func (f *fakeDispatcher) ListenV2(ctx context.Context, req *dispatchercontracts.
 	f.mu.Lock()
 	f.lateSender = sender
 	f.mu.Unlock()
+
+	if req.WorkerId == "ticking" {
+		for i := range tickingMessages {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(tickingInterval):
+			}
+
+			if err := sender.Send(&dispatchercontracts.AssignedAction{ActionId: fmt.Sprintf("tick-%d", i)}); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}
 
 	if req.WorkerId == "until-cancelled" {
 		if err := sender.Send(&dispatchercontracts.AssignedAction{ActionId: "first"}); err != nil {
@@ -274,7 +298,7 @@ func (testJWTManager) ValidateTenantToken(_ context.Context, tok string) (uuid.U
 	}
 }
 
-func startTestServer(t *testing.T, tr transport, pki *testPKI, rateLimit float64) *testEnv {
+func startTestServer(t *testing.T, tr transport, pki *testPKI, rateLimit float64, extra ...ServerOpt) *testEnv {
 	t.Helper()
 
 	l := zerolog.Nop()
@@ -306,6 +330,8 @@ func startTestServer(t *testing.T, tr transport, pki *testPKI, rateLimit float64
 		WithBindAddress("127.0.0.1"),
 		WithShutdownTimeout(2 * time.Second),
 	}
+
+	opts = append(opts, extra...)
 
 	if tr.insecure {
 		opts = append(opts, WithInsecure(), WithTLSConfig(&tls.Config{MinVersion: tls.VersionTLS12}))

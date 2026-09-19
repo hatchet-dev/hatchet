@@ -73,6 +73,9 @@ type Server struct {
 	insecure      bool
 
 	shutdownTimeout time.Duration
+
+	http1BodyReadTimeout   time.Duration
+	http1UnaryWriteTimeout time.Duration
 }
 
 type ServerOpt func(*ServerOpts)
@@ -94,6 +97,9 @@ type ServerOpts struct {
 	insecure      bool
 
 	shutdownTimeout time.Duration
+
+	http1BodyReadTimeout   time.Duration
+	http1UnaryWriteTimeout time.Duration
 }
 
 func defaultServerOpts() *ServerOpts {
@@ -109,6 +115,9 @@ func defaultServerOpts() *ServerOpts {
 		insecure:    false,
 
 		shutdownTimeout: 10 * time.Second,
+
+		http1BodyReadTimeout:   defaultHTTP1BodyReadTimeout,
+		http1UnaryWriteTimeout: defaultHTTP1UnaryWriteTimeout,
 	}
 }
 
@@ -242,6 +251,9 @@ func NewServer(fs ...ServerOpt) (*Server, error) {
 		insecure:      opts.insecure,
 
 		shutdownTimeout: opts.shutdownTimeout,
+
+		http1BodyReadTimeout:   opts.http1BodyReadTimeout,
+		http1UnaryWriteTimeout: opts.http1UnaryWriteTimeout,
 	}, nil
 }
 
@@ -323,7 +335,7 @@ func (s *Server) handler() (http.Handler, error) {
 
 	if s.otelCollector != nil {
 		// Register as the standard OTLP TraceService for OTEL SDK compatibility
-		routes.add(traceServiceName, "Export")
+		routes.add(traceServiceName, "Export", false)
 		mux.Handle(traceServiceExportProcedure, connect.NewUnaryHandlerSimple(
 			traceServiceExportProcedure,
 			func(ctx context.Context, req *collectortracev1.ExportTraceServiceRequest) (*collectortracev1.ExportTraceServiceResponse, error) {
@@ -333,8 +345,14 @@ func (s *Server) handler() (http.Handler, error) {
 		))
 	}
 
+	deadlines := transportDeadlines{
+		routes:                 routes,
+		http1BodyReadTimeout:   s.http1BodyReadTimeout,
+		http1UnaryWriteTimeout: s.http1UnaryWriteTimeout,
+	}
+
 	// outermost first
-	return routes.unimplemented(enforceRPCTimeout(withStreamAbort(matchRequestCompression(mux)))), nil
+	return routes.unimplemented(deadlines.enforce(withStreamAbort(matchRequestCompression(mux)))), nil
 }
 
 // matchRequestCompression keeps the response compression rule gRPC clients have always had
@@ -371,11 +389,12 @@ func (s *Server) startGRPC() (func() error, error) {
 		return nil, fmt.Errorf("failed to listen: %w", err)
 	}
 
-	// HTTP/2 only, as it has always been: negotiated over TLS, or with prior knowledge (h2c)
-	// when the server is insecure. Connect and gRPC-Web callers use HTTP/2 as well. HTTP/1.1
-	// stays off because nothing below would find a caller that stops sending its body: the
-	// pings that reclaim dead connections are an HTTP/2 mechanism.
+	// gRPC clients need HTTP/2: negotiated over TLS, or with prior knowledge (h2c) when the
+	// server is insecure. HTTP/1.1 is what fetch-based Connect callers get from serverless
+	// runtimes and from load balancers that do not speak HTTP/2 to their backends; it carries
+	// unary calls and server streams, and transportDeadlines bounds it.
 	protocols := new(http.Protocols)
+	protocols.SetHTTP1(true)
 
 	if s.insecure {
 		protocols.SetUnencryptedHTTP2(true)
@@ -388,9 +407,9 @@ func (s *Server) startGRPC() (func() error, error) {
 		Protocols:         protocols,
 		ReadHeaderTimeout: readHeaderTimeout,
 		MaxHeaderBytes:    maxHeaderBytes,
-		// streams are long-lived, so there is no read, write or idle timeout; dead connections
-		// are found by the pings below, and calls that carry a timeout get deadlines from
-		// enforceRPCTimeout
+		// streams are long-lived, so there is no read, write or idle timeout; dead HTTP/2
+		// connections are found by the pings below, and per-call deadlines come from
+		// transportDeadlines
 		HTTP2: &http.HTTP2Config{
 			// gRPC clients multiplex every call and stream of a worker over one connection
 			MaxConcurrentStreams: math.MaxInt32,

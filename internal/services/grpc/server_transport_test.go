@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -28,6 +29,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	dispatcherconnect "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts/contractsconnect"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/rpcstream"
 	"github.com/hatchet-dev/hatchet/pkg/config/database"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
@@ -95,7 +97,7 @@ func (s *stalledDispatcher) SubscribeToWorkflowRuns(ctx context.Context, stream 
 }
 
 // startServerWith starts an insecure server around disp with the given message size limit.
-func startServerWith(t *testing.T, disp dispatcher.Dispatcher, maxMsg int) string {
+func startServerWith(t *testing.T, disp dispatcher.Dispatcher, maxMsg int, extra ...ServerOpt) string {
 	t.Helper()
 
 	l := zerolog.Nop()
@@ -108,7 +110,7 @@ func startServerWith(t *testing.T, disp dispatcher.Dispatcher, maxMsg int) strin
 
 	port := freePort(t)
 
-	s, err := NewServer(
+	s, err := NewServer(append([]ServerOpt{
 		WithConfig(sc),
 		WithLogger(&l),
 		WithDispatcher(disp),
@@ -117,7 +119,7 @@ func startServerWith(t *testing.T, disp dispatcher.Dispatcher, maxMsg int) strin
 		WithInsecure(),
 		WithTLSConfig(&tls.Config{MinVersion: tls.VersionTLS12}),
 		WithShutdownTimeout(time.Second),
-	)
+	}, extra...)...)
 	require.NoError(t, err)
 
 	cleanup, err := s.Start()
@@ -385,67 +387,309 @@ func TestLargeMetadataIsAccepted(t *testing.T) {
 	assert.Equal(t, "w", res.WorkerName)
 }
 
-// The listener speaks HTTP/2 only, as it did when google.golang.org/grpc served it. HTTP/1.1
-// requests would have no ping to find a caller that stops sending its body.
-func TestHTTP1IsRefused(t *testing.T) {
-	t.Run("insecure", func(t *testing.T) {
-		env := startTestServer(t, transports()[0], nil, 0)
+// withHTTP1Timeouts shortens the HTTP/1.1 bounds so tests can cross them.
+func withHTTP1Timeouts(bodyRead, unaryWrite time.Duration) ServerOpt {
+	return func(opts *ServerOpts) {
+		opts.http1BodyReadTimeout = bodyRead
+		opts.http1UnaryWriteTimeout = unaryWrite
+	}
+}
 
-		conn, err := net.Dial("tcp", env.addr)
+// http1Client never negotiates HTTP/2, like fetch in a serverless runtime.
+func http1Client(t *testing.T, tlsConfig *tls.Config) *http.Client {
+	t.Helper()
+
+	protocols := new(http.Protocols)
+	protocols.SetHTTP1(true)
+
+	tr := &http.Transport{Protocols: protocols, TLSClientConfig: tlsConfig}
+	t.Cleanup(tr.CloseIdleConnections)
+
+	return &http.Client{Transport: tr, Timeout: 10 * time.Second}
+}
+
+// Serverless runtimes reach the engine with fetch, which speaks HTTP/1.1 unless the platform
+// negotiates HTTP/2 for it, and never HTTP/2 without TLS. The Connect protocol has to work there.
+func TestConnectProtocolOverHTTP1(t *testing.T) {
+	pki := newTestPKI(t)
+
+	for _, tr := range transports()[:2] {
+		t.Run(tr.name, func(t *testing.T) {
+			env := startTestServer(t, tr, pki, 0)
+
+			scheme, tlsConfig := "http", (*tls.Config)(nil)
+
+			if !tr.insecure {
+				scheme, tlsConfig = "https", tr.clientTLS(pki, false)
+			}
+
+			httpClient := http1Client(t, tlsConfig)
+			baseURL := scheme + "://" + env.addr
+			client := dispatcherconnect.NewDispatcherClient(httpClient, baseURL)
+
+			authed := func() context.Context {
+				ctx, callInfo := connect.NewClientContext(context.Background())
+				callInfo.RequestHeader().Set("Authorization", "Bearer "+validToken)
+
+				return ctx
+			}
+
+			t.Run("unary", func(t *testing.T) {
+				res, err := client.Register(authed(), &dispatchercontracts.WorkerRegisterRequest{WorkerName: "w"})
+				require.NoError(t, err)
+				assert.Equal(t, testTenantID.String(), res.TenantId)
+			})
+
+			t.Run("plain fetch-style JSON call", func(t *testing.T) {
+				req, err := http.NewRequest(http.MethodPost, baseURL+"/Dispatcher/Register", strings.NewReader(`{"workerName":"w"}`))
+				require.NoError(t, err)
+
+				req.Header.Set("Content-Type", "application/json")
+				req.Header.Set("Authorization", "Bearer "+validToken)
+
+				res, err := httpClient.Do(req)
+				require.NoError(t, err)
+
+				defer res.Body.Close()
+
+				body, err := io.ReadAll(res.Body)
+				require.NoError(t, err)
+
+				assert.Equal(t, 1, res.ProtoMajor)
+				assert.Equal(t, http.StatusOK, res.StatusCode)
+				assert.JSONEq(t, fmt.Sprintf(`{"tenantId":%q,"workerId":"worker-id","workerName":"w"}`, testTenantID.String()), string(body))
+			})
+
+			t.Run("auth failure is a Connect error body", func(t *testing.T) {
+				req, err := http.NewRequest(http.MethodPost, baseURL+"/Dispatcher/Register", strings.NewReader(`{"workerName":"w"}`))
+				require.NoError(t, err)
+
+				req.Header.Set("Content-Type", "application/json")
+				req.Header.Set("Authorization", "Bearer nope")
+
+				res, err := httpClient.Do(req)
+				require.NoError(t, err)
+
+				defer res.Body.Close()
+
+				body, err := io.ReadAll(res.Body)
+				require.NoError(t, err)
+
+				assert.Equal(t, http.StatusUnauthorized, res.StatusCode)
+				assert.JSONEq(t, `{"code":"unauthenticated","message":"invalid auth token"}`, string(body))
+
+				_, err = client.Register(context.Background(), &dispatchercontracts.WorkerRegisterRequest{WorkerName: "w"})
+				assert.Equal(t, connect.CodeUnauthenticated, connect.CodeOf(err))
+			})
+
+			t.Run("server stream", func(t *testing.T) {
+				stream, err := client.ListenV2(authed(), &dispatchercontracts.WorkerListenRequest{WorkerId: "w"})
+				require.NoError(t, err)
+
+				defer stream.Close()
+
+				var got []string
+
+				for stream.Receive() {
+					got = append(got, stream.Msg().ActionId)
+				}
+
+				require.NoError(t, stream.Err())
+				assert.Equal(t, []string{"action-0", "action-1", "action-2", "action-3", "action-4"}, got)
+			})
+
+			// a limitation of HTTP/1.1, not of this server: it cannot carry both directions
+			// of a stream at once
+			t.Run("bidirectional streams are refused", func(t *testing.T) {
+				req, err := http.NewRequest(http.MethodPost, baseURL+"/Dispatcher/SubscribeToWorkflowRuns", bytes.NewReader(nil))
+				require.NoError(t, err)
+
+				req.Header.Set("Content-Type", "application/connect+proto")
+				req.Header.Set("Authorization", "Bearer "+validToken)
+
+				res, err := httpClient.Do(req)
+				require.NoError(t, err)
+
+				defer res.Body.Close()
+
+				assert.Equal(t, http.StatusHTTPVersionNotSupported, res.StatusCode)
+			})
+		})
+	}
+}
+
+// Nothing reclaims an HTTP/1.1 connection whose caller stops sending: the pings that find a
+// dead connection are an HTTP/2 mechanism. The request body has its own deadline.
+func TestHTTP1RequestBodyHasADeadline(t *testing.T) {
+	const bodyDeadline = 300 * time.Millisecond
+
+	for name, token := range map[string]string{
+		"authenticated caller":   validToken,
+		"unauthenticated caller": "nope",
+	} {
+		t.Run(name, func(t *testing.T) {
+			env := startTestServer(t, transports()[0], nil, 0, withHTTP1Timeouts(bodyDeadline, time.Minute))
+
+			conn, err := net.Dial("tcp", env.addr)
+			require.NoError(t, err)
+
+			defer conn.Close()
+
+			// two bytes promised, one sent
+			_, err = fmt.Fprintf(conn, "POST /Dispatcher/Register HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\nAuthorization: Bearer %s\r\nContent-Length: 2\r\n\r\n{", token)
+			require.NoError(t, err)
+
+			start := time.Now()
+
+			require.NoError(t, conn.SetReadDeadline(start.Add(5*time.Second)))
+
+			// the server either answers with an error or closes; what matters is that it
+			// lets go of the request on its own
+			_, err = io.Copy(io.Discard, conn)
+
+			var netErr net.Error
+			if errors.As(err, &netErr) {
+				require.False(t, netErr.Timeout(), "the server was still waiting for the body after %s", time.Since(start))
+			}
+
+			assert.GreaterOrEqual(t, time.Since(start), bodyDeadline-50*time.Millisecond)
+			assert.Less(t, time.Since(start), 3*time.Second)
+
+			env.disp.mu.Lock()
+			defer env.disp.mu.Unlock()
+
+			assert.Nil(t, env.disp.lastCtx, "a request without a complete body reached the handler")
+		})
+	}
+}
+
+// The body deadline covers the body and nothing after it: a server stream over HTTP/1.1 runs
+// for as long as it needs to.
+func TestHTTP1ServerStreamOutlivesTheBodyDeadline(t *testing.T) {
+	const bodyDeadline = 200 * time.Millisecond
+
+	require.Greater(t, tickingMessages*tickingInterval, 3*bodyDeadline)
+
+	env := startTestServer(t, transports()[0], nil, 0, withHTTP1Timeouts(bodyDeadline, bodyDeadline))
+	httpClient := http1Client(t, nil)
+
+	// connect-go sends the request chunked
+	t.Run("chunked request", func(t *testing.T) {
+		client := dispatcherconnect.NewDispatcherClient(httpClient, "http://"+env.addr)
+
+		ctx, callInfo := connect.NewClientContext(context.Background())
+		callInfo.RequestHeader().Set("Authorization", "Bearer "+validToken)
+
+		stream, err := client.ListenV2(ctx, &dispatchercontracts.WorkerListenRequest{WorkerId: "ticking"})
 		require.NoError(t, err)
 
-		defer conn.Close()
+		defer stream.Close()
 
-		_, err = fmt.Fprintf(conn, "POST /Dispatcher/Register HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\nAuthorization: Bearer %s\r\nContent-Length: 2\r\n\r\n{}", validToken)
-		require.NoError(t, err)
+		received := 0
 
-		require.NoError(t, conn.SetReadDeadline(time.Now().Add(5*time.Second)))
-
-		res, err := http.ReadResponse(bufio.NewReader(conn), nil)
-		// the connection is closed without an answer; a refusal with a status would do as well
-		if err == nil {
-			defer res.Body.Close()
-
-			assert.GreaterOrEqual(t, res.StatusCode, 400)
+		for stream.Receive() {
+			received++
 		}
 
-		requireHandlerNotReached(t, env)
+		require.NoError(t, stream.Err())
+		assert.Equal(t, tickingMessages, received)
 	})
 
-	t.Run("tls", func(t *testing.T) {
-		pki := newTestPKI(t)
-		tr := transports()[1]
-		env := startTestServer(t, tr, pki, 0)
-
-		cfg := tr.clientTLS(pki, false)
-		cfg.NextProtos = []string{"http/1.1"}
-
-		client := &http.Client{Transport: &http.Transport{TLSClientConfig: cfg}, Timeout: 5 * time.Second}
-
-		req, err := http.NewRequest(http.MethodPost, "https://"+env.addr+"/Dispatcher/Register", strings.NewReader("{}"))
+	// fetch sends a body it already holds with a Content-Length
+	t.Run("request with a content length", func(t *testing.T) {
+		req, err := http.NewRequest(http.MethodPost, "http://"+env.addr+"/Dispatcher/ListenV2", bytes.NewReader(grpcFrame(t, &dispatchercontracts.WorkerListenRequest{WorkerId: "ticking"})))
 		require.NoError(t, err)
 
-		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Content-Type", "application/connect+proto")
 		req.Header.Set("Authorization", "Bearer "+validToken)
 
-		res, err := client.Do(req)
-		if err == nil {
-			defer res.Body.Close()
+		res, err := httpClient.Do(req)
+		require.NoError(t, err)
 
-			assert.GreaterOrEqual(t, res.StatusCode, 400)
-		}
+		defer res.Body.Close()
 
-		requireHandlerNotReached(t, env)
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		body, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+
+		// ten messages, then the end-of-stream envelope without an error in it
+		assert.Equal(t, tickingMessages, bytes.Count(body, []byte("tick-")))
+		assert.NotContains(t, string(body), `"error"`)
 	})
 }
 
-func requireHandlerNotReached(t *testing.T, env *testEnv) {
-	t.Helper()
+// slowDispatcher answers Heartbeat after a delay, unless the call is cancelled first.
+type slowDispatcher struct {
+	fakeDispatcher
 
-	env.disp.mu.Lock()
-	defer env.disp.mu.Unlock()
+	delay time.Duration
+}
 
-	require.Nil(t, env.disp.lastCtx, "an HTTP/1.1 request reached a handler")
+func (s *slowDispatcher) Heartbeat(ctx context.Context, _ *dispatchercontracts.HeartbeatRequest) (*dispatchercontracts.HeartbeatResponse, error) {
+	select {
+	case <-ctx.Done():
+		return nil, fmt.Errorf("cancelled while the caller was still waiting: %w", ctx.Err())
+	case <-time.After(s.delay):
+		return &dispatchercontracts.HeartbeatResponse{}, nil
+	}
+}
+
+// An empty message is an empty body. net/http already watches such a connection for the caller
+// going away and takes an expired read deadline for exactly that, so there must be none.
+func TestHTTP1CallWithoutABodyOutlivesTheBodyDeadline(t *testing.T) {
+	const bodyDeadline = 200 * time.Millisecond
+
+	addr := startServerWith(t, &slowDispatcher{delay: 4 * bodyDeadline}, maxMsgSize, withHTTP1Timeouts(bodyDeadline, time.Minute))
+
+	req, err := http.NewRequest(http.MethodPost, "http://"+addr+"/Dispatcher/Heartbeat", http.NoBody)
+	require.NoError(t, err)
+
+	req.Header.Set("Content-Type", "application/proto")
+	req.Header.Set("Authorization", "Bearer "+validToken)
+
+	res, err := http1Client(t, nil).Do(req)
+	require.NoError(t, err)
+
+	defer res.Body.Close()
+
+	body, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusOK, res.StatusCode, "body: %s", body)
+}
+
+// A unary response over HTTP/1.1 has to be taken within a bounded time once it starts, or a
+// caller that stops reading would hold its connection and goroutine.
+func TestHTTP1UnaryResponseHasAWriteDeadline(t *testing.T) {
+	const writeDeadline = 300 * time.Millisecond
+
+	addr := startServerWith(t, &fakeDispatcher{}, 2*bigResponseSize, withHTTP1Timeouts(time.Minute, writeDeadline))
+
+	conn, err := net.Dial("tcp", addr)
+	require.NoError(t, err)
+
+	defer conn.Close()
+
+	body := `{"workerName":"big-response"}`
+
+	_, err = fmt.Fprintf(conn, "POST /Dispatcher/Register HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\nAuthorization: Bearer %s\r\nContent-Length: %d\r\n\r\n%s", validToken, len(body), body)
+	require.NoError(t, err)
+
+	// do not read until well past the deadline
+	time.Sleep(writeDeadline + time.Second)
+
+	require.NoError(t, conn.SetReadDeadline(time.Now().Add(10*time.Second)))
+
+	res, err := http.ReadResponse(bufio.NewReader(conn), nil)
+	require.NoError(t, err)
+
+	defer res.Body.Close()
+
+	n, err := io.Copy(io.Discard, res.Body)
+
+	require.Error(t, err, "the whole response (%d bytes) was still there for a caller that stopped reading", n)
+	assert.Less(t, n, int64(bigResponseSize))
 }
 
 type countingDecompressor struct {
