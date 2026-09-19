@@ -1646,10 +1646,10 @@ func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, task *sqlcv1
 	}, nil
 }
 
-func (d *DispatcherImpl) CancelTaskEvent(ctx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
-	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
-	tenantId := tenant.ID
-
+// CancelTaskEventCustom reports a cancelled task with a custom cancellation reason on behalf of
+// an engine-internal operator (operator.TaskEventWriter). It is not a gRPC handler: the tenant
+// is an argument, not the one the auth middleware puts on a request context.
+func (d *DispatcherImpl) CancelTaskEventCustom(ctx context.Context, tenantId uuid.UUID, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	taskExternalId, err := uuid.Parse(request.TaskRunExternalId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid task external run id %s: %v", request.TaskRunExternalId, err)

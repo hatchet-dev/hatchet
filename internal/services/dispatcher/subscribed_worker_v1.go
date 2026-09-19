@@ -9,6 +9,7 @@ import (
 
 	"go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/google/uuid"
 
@@ -20,7 +21,11 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
-var errFlowControlActive = errors.New("could not acquire worker send mutex, flow control is active")
+var (
+	errFlowControlActive = errors.New("could not acquire worker send mutex, flow control is active")
+	errSessionReleased   = errors.New("worker session has been released")
+	errWorkerPaused      = errors.New("worker session is paused, the task is returned to the queue")
+)
 
 func (worker *subscribedWorker) StartTaskFromBulk(
 	ctx context.Context,
@@ -74,7 +79,13 @@ func (worker *subscribedWorker) sendToWorker(
 	ctx context.Context,
 	action *contracts.AssignedAction,
 ) error {
-	if worker.operator != nil {
+	// a paused operator session refuses starts the way a failed send does, so the caller
+	// requeues the task; see subscribedWorker.paused
+	if action.ActionType != contracts.ActionType_CANCEL_STEP_RUN && worker.paused.Load() {
+		return errWorkerPaused
+	}
+
+	if worker.handler != nil {
 		return worker.sendToWorkerWithOperator(ctx, action)
 	}
 
@@ -96,7 +107,7 @@ func (worker *subscribedWorker) sendToWorkerWithOperator(
 		},
 	)
 
-	return worker.operator.HandleAction(ctx, action)
+	return worker.handler.HandleAction(ctx, action)
 }
 
 func (worker *subscribedWorker) sendToWorkerWithStream(
@@ -122,10 +133,35 @@ func (worker *subscribedWorker) sendToWorkerWithStream(
 		},
 	)
 
+	var msg proto.Message = action
+
+	if worker.wrap != nil {
+		msg = worker.wrap(action)
+	}
+
+	return worker.sendMsg(ctx, msg)
+}
+
+// sendMsg encodes msg and writes it on the stream. Writes on one stream are serialised by
+// sendLock, which is held until the SendMsg call itself exits: gRPC forbids concurrent SendMsg
+// calls on a stream, so a caller whose ctx ends while its send is still blocked by flow
+// control returns without releasing the lock, and the next caller fails fast with
+// errFlowControlActive once the lock timeout elapses rather than starting an overlapping
+// send.
+func (worker *subscribedWorker) sendMsg(ctx context.Context, msg proto.Message) error {
+	select {
+	case <-worker.done:
+		return errSessionReleased
+	default:
+	}
+
+	_, span := telemetry.NewSpan(ctx, "send-worker-message")
+	defer span.End()
+
 	_, encodeSpan := telemetry.NewSpan(ctx, "encode-action")
 
-	msg := &grpc.PreparedMsg{}
-	err := msg.Encode(worker.stream, action)
+	prepared := &grpc.PreparedMsg{}
+	err := prepared.Encode(worker.stream, msg)
 	if err != nil {
 		encodeSpan.RecordError(err)
 		encodeSpan.End()
@@ -134,18 +170,18 @@ func (worker *subscribedWorker) sendToWorkerWithStream(
 
 	encodeSpan.End()
 
+	lockBegin := time.Now()
+
+	_, lockSpan := telemetry.NewSpan(ctx, "acquire-worker-stream-lock")
+
 	if !worker.sendLock.Acquire() {
+		lockSpan.End()
 		span.RecordError(errFlowControlActive)
 		span.SetStatus(codes.Error, "flow control is active")
 		return errFlowControlActive
 	}
 
-	lockBegin := time.Now()
-
-	_, lockSpan := telemetry.NewSpan(ctx, "acquire-worker-stream-lock")
-
-	defer worker.sendLock.Release()
-	defer lockSpan.End()
+	lockSpan.End()
 
 	telemetry.WithAttributes(span, telemetry.AttributeKV{
 		Key:   "lock.duration_ms",
@@ -160,8 +196,11 @@ func (worker *subscribedWorker) sendToWorkerWithStream(
 	sentCh := make(chan error, 1)
 
 	go func() {
-		defer close(sentCh)
-		err = worker.stream.SendMsg(msg)
+		// the lock is released only once SendMsg has returned, whether or not the caller is
+		// still waiting for the result
+		defer worker.sendLock.Release()
+
+		err := worker.stream.SendMsg(prepared)
 
 		if err != nil {
 			span.RecordError(err)

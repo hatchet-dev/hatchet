@@ -3,11 +3,13 @@ INSERT INTO v1_operator (
     tenant_id,
     name,
     kind,
+    leasing_manager,
     config
 ) VALUES (
     @tenantId::UUID,
     @name::TEXT,
     @kind::v1_operator_kind,
+    @leasing_manager::v1_operator_leasing_manager,
     @config::JSONB
 )
 RETURNING *;
@@ -53,6 +55,17 @@ WHERE
     AND id = @id::UUID
 RETURNING *;
 
+-- name: LockOperator :one
+-- Takes the operator's row lock for the rest of the transaction. A delta on one of the
+-- operator's workers takes it after the worker's own row lock, always in that order, so the
+-- per-operator action budget is checked against a sum no concurrent delta is changing.
+SELECT id
+FROM v1_operator
+WHERE
+    tenant_id = @tenantId::UUID
+    AND id = @id::UUID
+FOR UPDATE;
+
 -- name: DeleteOperator :one
 DELETE FROM v1_operator
 WHERE
@@ -85,40 +98,43 @@ WITH operators_on_inactive_dispatchers AS (
 )
 SELECT *
 FROM v1_operator
-WHERE v1_operator.id IN (SELECT id FROM operators_on_inactive_dispatchers) OR
-v1_operator.id IN (SELECT id FROM unassigned_operators) OR
-v1_operator.id IN (SELECT id FROM operators_already_assigned_to_dispatcher)
+WHERE
+    -- Only DISPATCHER rows are claimed, whatever their kind. A SELF row keeps itself alive
+    -- (a Listen stream out of process, its own leaser in process) and registers its own
+    -- workers, so the claimer never claims or reconciles it.
+    v1_operator.leasing_manager = 'DISPATCHER'
+    AND (
+        v1_operator.id IN (SELECT id FROM operators_on_inactive_dispatchers) OR
+        v1_operator.id IN (SELECT id FROM unassigned_operators) OR
+        v1_operator.id IN (SELECT id FROM operators_already_assigned_to_dispatcher)
+    )
 ORDER BY v1_operator.id
 FOR UPDATE SKIP LOCKED;
 
--- name: CreateOperatorWorker :one
--- Creates a fresh worker for a single operator instance, linked back to the operator via
--- "operatorId". Each time an operator is instantiated on a dispatcher it gets its own
--- worker; older workers age out via the normal worker-inactivity path.
-INSERT INTO "Worker" (
-    "id",
-    "createdAt",
-    "updatedAt",
-    "tenantId",
-    "name",
-    "dispatcherId",
-    "type",
-    "actionHash",
-    "operatorId",
-    "isActive"
+-- name: UpsertOperator :one
+-- Registers an operator by (tenant, name, kind), the row a session registers under by name. The
+-- row carries no config. A repeat registration takes the leasing manager it names: a row a
+-- dispatcher was claiming that registers as SELF leaves the claim set on the claimer's next poll,
+-- and the other way round. A SELF row never gets a worker_id: each registration creates its own worker, linked
+-- back via "Worker"."operatorId".
+INSERT INTO v1_operator (
+    tenant_id,
+    name,
+    kind,
+    leasing_manager,
+    config
 ) VALUES (
-    gen_random_uuid(),
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP,
-    @tenantId::uuid,
-    @name::text,
-    @dispatcherId::uuid,
-    'SELFHOSTED',
-    @actionHash::bytea,
-    @operatorId::uuid,
-    -- operator workers have no gRPC listener to activate them, so they are born active.
-    true
-) RETURNING *;
+    @tenantId::UUID,
+    @name::TEXT,
+    @kind::v1_operator_kind,
+    @leasing_manager::v1_operator_leasing_manager,
+    '{}'::JSONB
+)
+ON CONFLICT (tenant_id, name, kind) DO UPDATE
+SET
+    leasing_manager = EXCLUDED.leasing_manager,
+    updated_at = NOW()
+RETURNING *;
 
 -- name: UpdateWorkerActionsHash :exec
 UPDATE

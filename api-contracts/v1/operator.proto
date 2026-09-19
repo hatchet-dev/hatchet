@@ -1,0 +1,205 @@
+syntax = "proto3";
+
+option go_package = "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1";
+
+package v1;
+
+import "google/protobuf/timestamp.proto";
+// api-contracts/dispatcher/dispatcher.proto has no package, so its types are referenced with a
+// leading dot (.AssignedAction, .StepActionEvent, .ActionEventResponse, .WorkerLabels, .RuntimeInfo).
+import "dispatcher.proto";
+import "v1/dispatcher.proto";
+
+// OperatorService is the engine API for operators that run outside the engine process and talk
+// to it over gRPC (kind = GRPC in v1_operator). Every RPC is authenticated with a tenant token.
+//
+// Identity model:
+//   - The operator row is upserted by Register by (tenant, name, kind = GRPC).
+//   - Register also creates the worker for one connection, or resumes a previous worker of the
+//     same operator when worker_id is sent. Each connection gets its own worker row so replicas
+//     of the same operator load-balance like SDK workers.
+//   - One Listen stream activates one worker; the worker is deactivated when the stream ends.
+//
+// Operator identity: every RPC after Register, including Listen, must carry the operator id in
+// gRPC metadata under the key "hatchet-operator-id" (the operator_id returned by Register). The
+// server rejects calls where the metadata is missing or malformed (InvalidArgument) and calls
+// where the operator does not exist, is not of kind GRPC, or belongs to another tenant
+// (PermissionDenied). Where a worker id is also present, the worker must belong to that
+// operator.
+service OperatorService {
+    // Register upserts the operator and creates or resumes the worker for this connection. It
+    // does not register workflows or actions: workflows are put through AdminService.PutWorkflow
+    // on the same connection, and actions are added on the Listen stream.
+    rpc Register(OperatorRegisterRequest) returns (OperatorRegisterResponse);
+
+    // Listen activates a registered worker for the lifetime of the stream, streams assigned
+    // actions to it, and accepts heartbeats and action set deltas from it.
+    //
+    // Protocol:
+    //   1. The first client message MUST be start, naming the worker returned by Register. Any
+    //      other first message is rejected with InvalidArgument, and a second start on the same
+    //      stream is also rejected. The server waits at most 30 seconds for it.
+    //   2. Every server message is an OperatorListenResponse: either an assigned action from the
+    //      dispatcher fan-out or an ack for an actions delta.
+    //   3. The client sends a heartbeat every 4 seconds on this stream. A worker whose heartbeat
+    //      goes stale is treated as inactive by the scheduler. See OperatorHeartbeat for why the
+    //      heartbeat is in-stream rather than a separate RPC like an SDK worker's.
+    //   4. The client sends actions deltas whenever the set of actions it can run changes. Deltas
+    //      are applied incrementally to the worker's action set and never replace it; a removed
+    //      action stops being assigned to the worker within about a second. Each delta carries at
+    //      most 1000 ids (adds plus removes); larger deltas are rejected with InvalidArgument.
+    //   5. Delta acknowledgement. Each delta carries a sequence number that is positive and
+    //      strictly increasing on the stream. The server applies deltas in stream order and
+    //      answers each one with an OperatorActionsAck carrying its sequence once the change is
+    //      committed. An ack for sequence N therefore also confirms every lower sequence. A delta
+    //      whose sequence is 0 is applied but never acknowledged. The server ends the stream
+    //      instead of acknowledging when a delta cannot be applied or the ack cannot be sent.
+    //   6. Recovery. The client keeps every sent delta until its ack arrives. After a reconnect
+    //      it first resends the unacknowledged deltas in order; if the reconnect did not resume
+    //      the worker (OperatorRegisterResponse.resumed is false) it instead resends its whole
+    //      desired action set, since a new worker starts with no actions. Applying a delta twice
+    //      is harmless: adding an action the worker has and removing one it lacks are no-ops, so
+    //      a delta that was committed but not acknowledged converges on replay.
+    //   7. When the stream ends (client close, network failure, or engine shutdown) the worker is
+    //      deactivated. Reconnect by calling Register with worker_id set, then Listen again; the
+    //      resumed worker keeps its action set.
+    //   8. Pause. The stream is stateful: a pause message stops the scheduler assigning to the
+    //      worker, and from the moment the server answers with an OperatorPauseAck no action is
+    //      delivered on the stream; one that the scheduler had already assigned is returned to
+    //      the queue instead. An operator that pauses before draining therefore knows the
+    //      actions it holds are the last it will get. pause with paused = false lets the worker
+    //      be assigned to again and is acknowledged the same way. The pause belongs to the
+    //      stream: Register clears it when it resumes the worker, so a client that reconnects
+    //      while paused sends the pause again on the new stream, before its deltas.
+    //
+    // Requires the hatchet-operator-id metadata.
+    rpc Listen(stream OperatorListenRequest) returns (stream OperatorListenResponse);
+
+    // SendStepActionEvent reports task progress (started, completed, failed) for an action that
+    // was delivered on a Listen stream. Same semantics as Dispatcher.SendStepActionEvent.
+    // Requires the hatchet-operator-id metadata; the event's worker_id must belong to the
+    // operator.
+    rpc SendStepActionEvent(.StepActionEvent) returns (.ActionEventResponse);
+
+    // DurableTask is the durable task event stream, identical to V1Dispatcher.DurableTask. The
+    // first client message registers the worker id returned by Register; a worker that belongs
+    // to another operator is rejected with PermissionDenied. Requires the hatchet-operator-id
+    // metadata.
+    rpc DurableTask(stream DurableTaskRequest) returns (stream DurableTaskResponse);
+}
+
+// OperatorRegisterRequest identifies the operator and describes the worker for this connection.
+message OperatorRegisterRequest {
+    // Operator name, unique per (tenant, kind = GRPC). The operator row is upserted by this name.
+    string name = 1;
+
+    // Slot config for the worker (slot_type -> max units). Defaults to {"default": 100} when
+    // empty.
+    map<string, int32> slot_config = 2;
+
+    // Worker labels used for affinity-based assignment.
+    map<string, .WorkerLabels> labels = 3;
+
+    // Runtime information about the operator process, shown in the dashboard.
+    optional .RuntimeInfo runtime_info = 4;
+
+    // Worker id from a previous OperatorRegisterResponse on this operator. When set and the
+    // worker still exists for this operator, the response resumes that worker instead of
+    // creating a new one.
+    optional string worker_id = 5;
+}
+
+message OperatorRegisterResponse {
+    string tenant_id = 1;
+
+    // Operator id. Send it as the hatchet-operator-id gRPC metadata value on every later RPC.
+    string operator_id = 2;
+
+    // Worker id backing this connection. Use it in the Listen start message, for
+    // SendStepActionEvent and DurableTask, and to resume the worker on reconnect.
+    string worker_id = 3;
+
+    // True when worker_id is the worker named in the request, false when a new worker was
+    // created (no worker_id was sent, or the worker no longer exists for this operator). A
+    // client that keeps its own view of the action set must replay it when resumed is false.
+    bool resumed = 4;
+}
+
+// OperatorListenRequest is a client-to-server message on the Listen stream. The first message
+// must be start; every later message is a heartbeat, an actions delta or a pause.
+message OperatorListenRequest {
+    oneof message {
+        OperatorListenStart start = 1;
+        OperatorHeartbeat heartbeat = 2;
+        OperatorActionsDelta actions = 3;
+        OperatorPause pause = 4;
+    }
+}
+
+// OperatorListenStart names the worker this stream activates.
+message OperatorListenStart {
+    // Worker id from OperatorRegisterResponse. The worker must belong to the calling operator.
+    string worker_id = 1;
+}
+
+// OperatorHeartbeat keeps the worker alive. Clients send one every 4 seconds on the Listen
+// stream.
+//
+// SDK workers heartbeat out of stream (Dispatcher.Heartbeat), from a thread of their own, because
+// the runtimes the SDKs target can block their event loop while a task runs and would starve an
+// in-stream heartbeat, marking a busy worker dead. Operators are written against the Go SDK, whose
+// runtime is not subject to event loop blocking that way, so the heartbeat rides the stream it
+// keeps alive: one connection, one liveness, and a stream that is gone takes its heartbeat with it.
+message OperatorHeartbeat {
+    google.protobuf.Timestamp heartbeat_at = 1;
+}
+
+// OperatorActionsDelta changes the worker's action set incrementally. Adds are applied before
+// removes. Adding an action the worker already has, or removing one it does not have, is a
+// no-op. At most 1000 ids per message across both lists.
+message OperatorActionsDelta {
+    // Action ids the worker can now run.
+    repeated string add = 1;
+
+    // Action ids the worker no longer runs.
+    repeated string remove = 2;
+
+    // Sequence number of this delta on the stream: positive and strictly increasing. The
+    // server acknowledges the delta with an OperatorActionsAck carrying the same value once
+    // the change is committed. 0 asks for no ack.
+    uint64 sequence = 3;
+}
+
+// OperatorPause stops the scheduler assigning to the stream's worker, or lets it be assigned to
+// again. The server answers with an OperatorPauseAck once the change is committed; after the ack
+// of a pause nothing is delivered on the stream until the pause is lifted.
+message OperatorPause {
+    // True to stop the scheduler assigning to the worker, false to let it be assigned to again.
+    bool paused = 1;
+}
+
+// OperatorListenResponse is a server-to-client message on the Listen stream.
+message OperatorListenResponse {
+    oneof message {
+        // An action assigned to the worker by the dispatcher.
+        .AssignedAction action = 1;
+
+        // Acknowledgement of a committed actions delta.
+        OperatorActionsAck ack = 2;
+
+        // Acknowledgement of a committed pause.
+        OperatorPauseAck pause_ack = 3;
+    }
+}
+
+// OperatorActionsAck confirms that the delta with this sequence, and every delta with a lower
+// sequence on the stream, has been committed to the worker's action set.
+message OperatorActionsAck {
+    uint64 sequence = 1;
+}
+
+// OperatorPauseAck confirms that the pause state is committed on the worker. For paused = true
+// it also confirms that no action will be delivered on the stream from here on.
+message OperatorPauseAck {
+    bool paused = 1;
+}

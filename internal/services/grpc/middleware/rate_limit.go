@@ -158,6 +158,9 @@ func matchServiceName(name string) string {
 		return "dispatcher"
 	case strings.HasPrefix(name, "/v1.V1Dispatcher"):
 		return "dispatcher"
+	case strings.HasPrefix(name, "/v1.OperatorService"):
+		// operators running outside the engine share the dispatcher bucket
+		return "dispatcher"
 	case strings.HasPrefix(name, "/EventsService"):
 		return "events"
 	case strings.HasPrefix(name, "/WorkflowService"):

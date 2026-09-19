@@ -867,7 +867,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 
 		orchestrator := CreateStepOpts{
 			ReadableId:        opts.Name,
-			Action:            strings.ToLower(fmt.Sprintf("%s_orchestrator", opts.Name)),
+			Action:            DAGOrchestratorActionId(opts.Name),
 			IsDurable:         true,
 			IsDagOrchestrator: true,
 			Timeout:           retentionPeriod,

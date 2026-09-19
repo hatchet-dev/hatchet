@@ -35,11 +35,18 @@ WITH operators_on_inactive_dispatchers AS (
     JOIN "Worker" w ON w."id" = v1_operator.worker_id
     WHERE w."dispatcherId" = $1::UUID
 )
-SELECT id, tenant_id, name, kind, config, worker_id, created_at, updated_at
+SELECT id, tenant_id, name, kind, leasing_manager, config, worker_id, created_at, updated_at
 FROM v1_operator
-WHERE v1_operator.id IN (SELECT id FROM operators_on_inactive_dispatchers) OR
-v1_operator.id IN (SELECT id FROM unassigned_operators) OR
-v1_operator.id IN (SELECT id FROM operators_already_assigned_to_dispatcher)
+WHERE
+    -- Only DISPATCHER rows are claimed, whatever their kind. A SELF row keeps itself alive
+    -- (a Listen stream out of process, its own leaser in process) and registers its own
+    -- workers, so the claimer never claims or reconciles it.
+    v1_operator.leasing_manager = 'DISPATCHER'
+    AND (
+        v1_operator.id IN (SELECT id FROM operators_on_inactive_dispatchers) OR
+        v1_operator.id IN (SELECT id FROM unassigned_operators) OR
+        v1_operator.id IN (SELECT id FROM operators_already_assigned_to_dispatcher)
+    )
 ORDER BY v1_operator.id
 FOR UPDATE SKIP LOCKED
 `
@@ -58,6 +65,7 @@ func (q *Queries) ClaimOperators(ctx context.Context, db DBTX, dispatcherid uuid
 			&i.TenantID,
 			&i.Name,
 			&i.Kind,
+			&i.LeasingManager,
 			&i.Config,
 			&i.WorkerID,
 			&i.CreatedAt,
@@ -119,21 +127,24 @@ INSERT INTO v1_operator (
     tenant_id,
     name,
     kind,
+    leasing_manager,
     config
 ) VALUES (
     $1::UUID,
     $2::TEXT,
     $3::v1_operator_kind,
-    $4::JSONB
+    $4::v1_operator_leasing_manager,
+    $5::JSONB
 )
-RETURNING id, tenant_id, name, kind, config, worker_id, created_at, updated_at
+RETURNING id, tenant_id, name, kind, leasing_manager, config, worker_id, created_at, updated_at
 `
 
 type CreateOperatorParams struct {
-	Tenantid uuid.UUID      `json:"tenantid"`
-	Name     string         `json:"name"`
-	Kind     V1OperatorKind `json:"kind"`
-	Config   []byte         `json:"config"`
+	Tenantid       uuid.UUID                `json:"tenantid"`
+	Name           string                   `json:"name"`
+	Kind           V1OperatorKind           `json:"kind"`
+	LeasingManager V1OperatorLeasingManager `json:"leasing_manager"`
+	Config         []byte                   `json:"config"`
 }
 
 func (q *Queries) CreateOperator(ctx context.Context, db DBTX, arg CreateOperatorParams) (*V1Operator, error) {
@@ -141,6 +152,7 @@ func (q *Queries) CreateOperator(ctx context.Context, db DBTX, arg CreateOperato
 		arg.Tenantid,
 		arg.Name,
 		arg.Kind,
+		arg.LeasingManager,
 		arg.Config,
 	)
 	var i V1Operator
@@ -149,85 +161,11 @@ func (q *Queries) CreateOperator(ctx context.Context, db DBTX, arg CreateOperato
 		&i.TenantID,
 		&i.Name,
 		&i.Kind,
+		&i.LeasingManager,
 		&i.Config,
 		&i.WorkerID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-	)
-	return &i, err
-}
-
-const createOperatorWorker = `-- name: CreateOperatorWorker :one
-INSERT INTO "Worker" (
-    "id",
-    "createdAt",
-    "updatedAt",
-    "tenantId",
-    "name",
-    "dispatcherId",
-    "type",
-    "actionHash",
-    "operatorId",
-    "isActive"
-) VALUES (
-    gen_random_uuid(),
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP,
-    $1::uuid,
-    $2::text,
-    $3::uuid,
-    'SELFHOSTED',
-    $4::bytea,
-    $5::uuid,
-    -- operator workers have no gRPC listener to activate them, so they are born active.
-    true
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "lastListenerSessionId", "isPaused", type, "webhookId", "operatorId", language, "languageVersion", os, "runtimeExtra", "sdkVersion", "durableTaskDispatcherId", "actionHash"
-`
-
-type CreateOperatorWorkerParams struct {
-	Tenantid     uuid.UUID `json:"tenantid"`
-	Name         string    `json:"name"`
-	Dispatcherid uuid.UUID `json:"dispatcherid"`
-	Actionhash   []byte    `json:"actionhash"`
-	Operatorid   uuid.UUID `json:"operatorid"`
-}
-
-// Creates a fresh worker for a single operator instance, linked back to the operator via
-// "operatorId". Each time an operator is instantiated on a dispatcher it gets its own
-// worker; older workers age out via the normal worker-inactivity path.
-func (q *Queries) CreateOperatorWorker(ctx context.Context, db DBTX, arg CreateOperatorWorkerParams) (*Worker, error) {
-	row := db.QueryRow(ctx, createOperatorWorker,
-		arg.Tenantid,
-		arg.Name,
-		arg.Dispatcherid,
-		arg.Actionhash,
-		arg.Operatorid,
-	)
-	var i Worker
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DeletedAt,
-		&i.TenantId,
-		&i.LastHeartbeatAt,
-		&i.Name,
-		&i.DispatcherId,
-		&i.MaxRuns,
-		&i.IsActive,
-		&i.LastListenerEstablished,
-		&i.LastListenerSessionId,
-		&i.IsPaused,
-		&i.Type,
-		&i.WebhookId,
-		&i.OperatorId,
-		&i.Language,
-		&i.LanguageVersion,
-		&i.Os,
-		&i.RuntimeExtra,
-		&i.SdkVersion,
-		&i.DurableTaskDispatcherId,
-		&i.ActionHash,
 	)
 	return &i, err
 }
@@ -237,7 +175,7 @@ DELETE FROM v1_operator
 WHERE
     tenant_id = $1::UUID
     AND id = $2::UUID
-RETURNING id, tenant_id, name, kind, config, worker_id, created_at, updated_at
+RETURNING id, tenant_id, name, kind, leasing_manager, config, worker_id, created_at, updated_at
 `
 
 type DeleteOperatorParams struct {
@@ -253,6 +191,7 @@ func (q *Queries) DeleteOperator(ctx context.Context, db DBTX, arg DeleteOperato
 		&i.TenantID,
 		&i.Name,
 		&i.Kind,
+		&i.LeasingManager,
 		&i.Config,
 		&i.WorkerID,
 		&i.CreatedAt,
@@ -262,7 +201,7 @@ func (q *Queries) DeleteOperator(ctx context.Context, db DBTX, arg DeleteOperato
 }
 
 const getOperator = `-- name: GetOperator :one
-SELECT id, tenant_id, name, kind, config, worker_id, created_at, updated_at
+SELECT id, tenant_id, name, kind, leasing_manager, config, worker_id, created_at, updated_at
 FROM v1_operator
 WHERE
     id = $1::UUID
@@ -276,6 +215,7 @@ func (q *Queries) GetOperator(ctx context.Context, db DBTX, id uuid.UUID) (*V1Op
 		&i.TenantID,
 		&i.Name,
 		&i.Kind,
+		&i.LeasingManager,
 		&i.Config,
 		&i.WorkerID,
 		&i.CreatedAt,
@@ -318,7 +258,7 @@ func (q *Queries) ListDAGOrchestrationActionsForTenant(ctx context.Context, db D
 }
 
 const listOperators = `-- name: ListOperators :many
-SELECT id, tenant_id, name, kind, config, worker_id, created_at, updated_at
+SELECT id, tenant_id, name, kind, leasing_manager, config, worker_id, created_at, updated_at
 FROM v1_operator
 WHERE
     tenant_id = $1::UUID
@@ -357,6 +297,7 @@ func (q *Queries) ListOperators(ctx context.Context, db DBTX, arg ListOperatorsP
 			&i.TenantID,
 			&i.Name,
 			&i.Kind,
+			&i.LeasingManager,
 			&i.Config,
 			&i.WorkerID,
 			&i.CreatedAt,
@@ -370,6 +311,30 @@ func (q *Queries) ListOperators(ctx context.Context, db DBTX, arg ListOperatorsP
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockOperator = `-- name: LockOperator :one
+SELECT id
+FROM v1_operator
+WHERE
+    tenant_id = $1::UUID
+    AND id = $2::UUID
+FOR UPDATE
+`
+
+type LockOperatorParams struct {
+	Tenantid uuid.UUID `json:"tenantid"`
+	ID       uuid.UUID `json:"id"`
+}
+
+// Takes the operator's row lock for the rest of the transaction. A delta on one of the
+// operator's workers takes it after the worker's own row lock, always in that order, so the
+// per-operator action budget is checked against a sum no concurrent delta is changing.
+func (q *Queries) LockOperator(ctx context.Context, db DBTX, arg LockOperatorParams) (uuid.UUID, error) {
+	row := db.QueryRow(ctx, lockOperator, arg.Tenantid, arg.ID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
 }
 
 const tenantHasDAGOperator = `-- name: TenantHasDAGOperator :one
@@ -399,7 +364,7 @@ SET
 WHERE
     tenant_id = $4::UUID
     AND id = $5::UUID
-RETURNING id, tenant_id, name, kind, config, worker_id, created_at, updated_at
+RETURNING id, tenant_id, name, kind, leasing_manager, config, worker_id, created_at, updated_at
 `
 
 type UpdateOperatorParams struct {
@@ -424,6 +389,7 @@ func (q *Queries) UpdateOperator(ctx context.Context, db DBTX, arg UpdateOperato
 		&i.TenantID,
 		&i.Name,
 		&i.Kind,
+		&i.LeasingManager,
 		&i.Config,
 		&i.WorkerID,
 		&i.CreatedAt,
@@ -449,4 +415,59 @@ type UpdateWorkerActionsHashParams struct {
 func (q *Queries) UpdateWorkerActionsHash(ctx context.Context, db DBTX, arg UpdateWorkerActionsHashParams) error {
 	_, err := db.Exec(ctx, updateWorkerActionsHash, arg.Actionhash, arg.Workerid)
 	return err
+}
+
+const upsertOperator = `-- name: UpsertOperator :one
+INSERT INTO v1_operator (
+    tenant_id,
+    name,
+    kind,
+    leasing_manager,
+    config
+) VALUES (
+    $1::UUID,
+    $2::TEXT,
+    $3::v1_operator_kind,
+    $4::v1_operator_leasing_manager,
+    '{}'::JSONB
+)
+ON CONFLICT (tenant_id, name, kind) DO UPDATE
+SET
+    leasing_manager = EXCLUDED.leasing_manager,
+    updated_at = NOW()
+RETURNING id, tenant_id, name, kind, leasing_manager, config, worker_id, created_at, updated_at
+`
+
+type UpsertOperatorParams struct {
+	Tenantid       uuid.UUID                `json:"tenantid"`
+	Name           string                   `json:"name"`
+	Kind           V1OperatorKind           `json:"kind"`
+	LeasingManager V1OperatorLeasingManager `json:"leasing_manager"`
+}
+
+// Registers an operator by (tenant, name, kind), the row a session registers under by name. The
+// row carries no config. A repeat registration takes the leasing manager it names: a row a
+// dispatcher was claiming that registers as SELF leaves the claim set on the claimer's next poll,
+// and the other way round. A SELF row never gets a worker_id: each registration creates its own worker, linked
+// back via "Worker"."operatorId".
+func (q *Queries) UpsertOperator(ctx context.Context, db DBTX, arg UpsertOperatorParams) (*V1Operator, error) {
+	row := db.QueryRow(ctx, upsertOperator,
+		arg.Tenantid,
+		arg.Name,
+		arg.Kind,
+		arg.LeasingManager,
+	)
+	var i V1Operator
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Name,
+		&i.Kind,
+		&i.LeasingManager,
+		&i.Config,
+		&i.WorkerID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return &i, err
 }
