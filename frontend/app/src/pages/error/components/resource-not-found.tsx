@@ -60,7 +60,7 @@ export function ResourceNotFound({
 
   return (
     <ErrorPageLayout
-      icon={<FileQuestion className="h-5 w-5" />}
+      icon={<FileQuestion className="size-4" />}
       title={`${resource} not found`}
       description={
         description ??
@@ -69,6 +69,7 @@ export function ResourceNotFound({
       actions={
         <>
           <Button
+            size="sm"
             leftIcon={
               <Icon
                 className="h-4 w-4"
@@ -83,6 +84,7 @@ export function ResourceNotFound({
             {primaryAction?.label ?? 'Dashboard'}
           </Button>
           <Button
+            size="sm"
             leftIcon={<Undo2 className="h-4 w-4" />}
             onClick={() => window.history.back()}
             variant="outline"
@@ -92,12 +94,12 @@ export function ResourceNotFound({
         </>
       }
     >
-      <div className="flex justify-center">
+      <div className="flex">
         <Badge variant="secondary" className="font-mono">
           404
         </Badge>
       </div>
-      <div className="mx-auto w-full max-w-prose rounded-md border bg-muted/20 p-3 text-left font-mono text-xs text-muted-foreground">
+      <div className="w-full rounded-md border bg-muted/20 p-3 text-left font-mono text-xs text-muted-foreground">
         <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground/70">
           Requested path
         </div>

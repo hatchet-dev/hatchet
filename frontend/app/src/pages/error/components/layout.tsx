@@ -1,12 +1,9 @@
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-} from '@/components/v1/ui/card';
-import { cn } from '@/lib/utils';
+import { SetupCard } from '@/components/layout/setup-card';
 import { PropsWithChildren, ReactNode } from 'react';
 
+// Error states render both full-screen (root error boundary) and inside the
+// app shell next to the sidebar (resource not found), so this centers a
+// SetupCard in flow instead of using the fixed, shell-covering SetupScreen.
 export function ErrorPageLayout({
   title,
   description,
@@ -22,41 +19,38 @@ export function ErrorPageLayout({
   className?: string;
 }>) {
   return (
-    <div className="flex h-full w-full flex-1 flex-row items-center justify-center p-6">
-      <Card
-        className={cn(
-          'w-full max-w-xl border-border/60 bg-background shadow-sm',
-          className,
-        )}
-      >
-        <CardHeader className="pb-3 text-center">
-          {icon && (
-            <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-md border bg-muted/30 text-foreground/80">
-              {icon}
-            </div>
-          )}
-          <div className="text-xl font-semibold tracking-tight sm:text-2xl">
-            {title}
-          </div>
-          {description && (
-            <div className="mx-auto max-w-prose text-sm text-muted-foreground">
-              {description}
-            </div>
-          )}
-        </CardHeader>
-
-        {children && (
-          <CardContent className="pt-0">
+    <div className="h-full w-full flex-1 overflow-y-auto">
+      <div className="flex min-h-full items-center justify-center p-6">
+        <SetupCard
+          title={
+            <span className="flex items-center gap-2">
+              {icon && (
+                <span className="shrink-0 text-muted-foreground">{icon}</span>
+              )}
+              {title}
+            </span>
+          }
+          description={children ? description : undefined}
+          footer={
+            actions ? (
+              // Callers list the primary action first. Reversing keeps it
+              // first in tab order while placing it at the right edge.
+              <div className="flex flex-row-reverse flex-wrap gap-2">
+                {actions}
+              </div>
+            ) : undefined
+          }
+          className={className}
+        >
+          {children ? (
             <div className="space-y-3">{children}</div>
-          </CardContent>
-        )}
-
-        {actions && (
-          <CardFooter className="flex flex-col gap-2 sm:flex-row sm:justify-center">
-            {actions}
-          </CardFooter>
-        )}
-      </Card>
+          ) : (
+            // Without detail content the description is the body, so the card
+            // does not render an empty padded section.
+            <div className="text-sm text-muted-foreground">{description}</div>
+          )}
+        </SetupCard>
+      </div>
     </div>
   );
 }
