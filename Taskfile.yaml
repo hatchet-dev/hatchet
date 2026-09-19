@@ -385,6 +385,20 @@ tasks:
       - ./hack/ci/release-notes-cli.sh {{.TAG}} | git tag --cleanup=verbatim -a -f {{.TAG}} HEAD -F -
       - git push --force origin {{.TAG}}
 
+  latest-tag:
+    desc: Print the latest stable release tag (ignores pre-releases)
+    silent: true
+    cmds:
+      - git fetch --tags --quiet origin
+      - git tag --list 'v[0-9]*.[0-9]*.[0-9]*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1
+
+  latest-alpha-tag:
+    desc: Print the latest alpha tag, if any
+    silent: true
+    cmds:
+      - git fetch --tags --quiet origin
+      - git tag --list 'v[0-9]*-alpha.*' | sort -V | tail -1
+
   patch:
     desc: Bump patch version (e.g. v0.83.16 → v0.83.17) and push the tag
     cmds:
@@ -395,12 +409,10 @@ tasks:
           echo "Error: must be on 'main' to bump the version (currently on '${branch}')" >&2
           exit 1
         fi
-        git fetch origin main
         git pull origin main
-        current=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -1)
+        current=$(task latest-tag)
         IFS='.' read -r major minor patch <<< "${current#v}"
-        patch=$((patch + 1))
-        next="v${major}.${minor}.${patch}"
+        next="v${major}.${minor}.$((patch + 1))"
         echo "Bumping ${current} → ${next}"
         git tag "${next}"
         git push origin "${next}"
@@ -415,29 +427,29 @@ tasks:
           echo "Error: must be on 'main' to bump the version (currently on '${branch}')" >&2
           exit 1
         fi
-        git fetch origin main
         git pull origin main
-        current=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -1)
+        current=$(task latest-tag)
         IFS='.' read -r major minor patch <<< "${current#v}"
-        minor=$((minor + 1))
-        next="v${major}.${minor}.0"
+        next="v${major}.$((minor + 1)).0"
         echo "Bumping ${current} → ${next}"
         git tag "${next}"
         git push origin "${next}"
 
   alpha:
-    desc: Bump to next alpha pre-release (e.g. v0.83.16 → v0.83.16-alpha.0, or v0.83.16-alpha.0 → v0.83.16-alpha.1)
+    desc: Cut the next alpha of the unreleased version (e.g. v0.83.16 → v0.83.17-alpha.0, or v0.83.17-alpha.0 → v0.83.17-alpha.1)
     cmds:
       - |
         set -e
-        current=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -1)
-        base="${current%%-alpha.*}"
-        if [[ "${current}" == *-alpha.* ]]; then
-          alpha_num="${current##*-alpha.}"
-          next="${base}-alpha.$((alpha_num + 1))"
+        stable=$(task latest-tag)
+        latest_alpha=$(task latest-alpha-tag)
+        IFS='.' read -r major minor patch <<< "${stable#v}"
+        alpha_base="${latest_alpha%%-alpha.*}"
+        # only continue an alpha series if its base version has not been released yet
+        if [ -n "${latest_alpha}" ] && [ "$(printf '%s\n' "${stable}" "${alpha_base}" | sort -V | tail -1)" != "${stable}" ]; then
+          next="${alpha_base}-alpha.$(( ${latest_alpha##*-alpha.} + 1 ))"
         else
-          next="${base}-alpha.0"
+          next="v${major}.${minor}.$((patch + 1))-alpha.0"
         fi
-        echo "Bumping ${current} → ${next}"
+        echo "Bumping ${stable} → ${next}"
         git tag "${next}"
         git push origin "${next}"
