@@ -537,20 +537,11 @@ func (d *dag) emitReadyTasks(ctx context.Context) (bool, error) {
 		t.isTriggered = true
 		progressed = true
 
-		if result.IsSatisfied {
-			errorMessage := ""
-			if result.ErrorMessage != nil {
-				errorMessage = *result.ErrorMessage
-			}
-			if err := d.applyCompletion(ctx, t, result.IsFailure, errorMessage, result.ResultPayload); err != nil {
-				d.err = err
-				return progressed, d.err
-			}
-		} else if !t.isCompleted {
-			if err := d.expectChild(t); err != nil {
-				d.err = err
-				return progressed, d.err
-			}
+		// A satisfied entry (a replayed, skipped or cancelled step) is delivered on the channel
+		// like any other completion, so every triggered step is awaited there.
+		if err := d.expectChild(t); err != nil {
+			d.err = err
+			return progressed, d.err
 		}
 	}
 
@@ -862,20 +853,9 @@ func (d *dag) evaluateOnFailure(ctx context.Context) (bool, error) {
 
 	d.tasks = append(d.tasks, d.onFailureTask)
 
-	if result.IsSatisfied {
-		errorMessage := ""
-		if result.ErrorMessage != nil {
-			errorMessage = *result.ErrorMessage
-		}
-		if err := d.applyCompletion(ctx, d.onFailureTask, result.IsFailure, errorMessage, result.ResultPayload); err != nil {
-			d.err = err
-			return true, d.err
-		}
-	} else if !d.onFailureTask.isCompleted {
-		if err := d.expectChild(d.onFailureTask); err != nil {
-			d.err = err
-			return true, d.err
-		}
+	if err := d.expectChild(d.onFailureTask); err != nil {
+		d.err = err
+		return true, d.err
 	}
 
 	return true, nil

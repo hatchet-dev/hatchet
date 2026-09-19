@@ -23,10 +23,15 @@ jobs:
               echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
             fi
 
+        - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+          with:
+            ref: ${{ steps.tag_name.outputs.tag }}
+
+        # A tag without a CHANGELOG.md section is a CLI-only release: no latest images, no load tests.
         - id: skip
           run: |
             tag="${{ steps.tag_name.outputs.tag }}"
-            if echo "$tag" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            if echo "$tag" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$' && [ -n "$(./hack/ci/release-notes-cli.sh "$tag")" ]; then
               echo "should_publish=true" >> "$GITHUB_OUTPUT"
             else
               echo "should_publish=false" >> "$GITHUB_OUTPUT"
