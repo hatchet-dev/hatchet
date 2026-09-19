@@ -94,6 +94,21 @@ export enum OrganizationMemberRoleType {
   MEMBER = "MEMBER",
 }
 
+export enum OrganizationSignupAttribution {
+  Search = "search",
+  XTwitter = "x_twitter",
+  Linkedin = "linkedin",
+  HackerNews = "hacker_news",
+  Reddit = "reddit",
+  Github = "github",
+  BlogArticle = "blog_article",
+  FriendColleague = "friend_colleague",
+  ConferenceEvent = "conference_event",
+  AiAssistant = "ai_assistant",
+  SearchForAlternative = "search_for_alternative",
+  Other = "other",
+}
+
 export enum OrganizationOnboardingSDK {
   PYTHON = "PYTHON",
   TYPESCRIPT = "TYPESCRIPT",
@@ -216,6 +231,17 @@ export interface CreateOrganizationRequest {
   whatToBuild?: string;
   /** Which SDK the user is planning to use */
   sdk?: OrganizationOnboardingSDK;
+  /**
+   * How the user first heard about Hatchet, every option they selected
+   * @maxItems 12
+   * @uniqueItems true
+   */
+  attribution?: OrganizationSignupAttribution[];
+  /**
+   * Free-text answer when attribution includes "other"
+   * @maxLength 500
+   */
+  attributionOther?: string;
 }
 
 export interface UpdateOrganizationRequest {
