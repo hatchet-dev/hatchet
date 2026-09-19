@@ -1,0 +1,19 @@
+{
+  "name": "@hatchet-dev/serverless",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Hatchet serverless endpoint package. Generation target for the serverless wire contract; not yet published.",
+  "license": "MIT",
+  "scripts": {
+    "generate-proto": "./generate-proto.sh"
+  },
+  "devDependencies": {
+    "grpc-tools": "1.13.1",
+    "ts-proto": "2.12.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "grpc-tools"
+    ]
+  }
+}

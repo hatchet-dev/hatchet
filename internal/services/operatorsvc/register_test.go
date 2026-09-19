@@ -182,7 +182,7 @@ func TestRegisterRejects(t *testing.T) {
 	})
 
 	// a named registration says who keeps the row alive; it cannot leave that unsaid
-	t.Run("missing leasing", func(t *testing.T) {
+	t.Run("missing leasing manager", func(t *testing.T) {
 		svc := newTestService(t, nil)
 		_, err := svc.Register(t.Context(), tenant, operatorsvc.RegisterOpts{Name: "op", Kind: sqlcv1.V1OperatorKindGRPC})
 		require.Error(t, err)

@@ -1,0 +1,130 @@
+syntax = "proto3";
+
+option go_package = "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1";
+
+package v1;
+
+// api-contracts/dispatcher/dispatcher.proto has no package, so its types are referenced with a
+// leading dot (.AssignedAction).
+import "dispatcher.proto";
+import "v1/dispatcher.proto";
+import "v1/workflows.proto";
+
+// The wire contract between the serverless operator and a serverless endpoint. Every message
+// travels as protojson: field names are lowerCamelCase, int64 values are decimal strings,
+// bytes are base64 and enums are their names. The operator ignores unknown fields when it
+// parses an endpoint's message, so a newer endpoint SDK does not break an older operator; an
+// endpoint SDK is expected to do the same.
+//
+// Headers, the signature scheme and the websocket close codes are not messages; they are
+// defined in pkg/serverlessoperator/contract and pkg/serverlessoperator/durable.
+
+// ServerlessHealthcheckRequest is the body of POST healthcheck_url. The namespace lets the
+// endpoint apply the same prefix the operator applies to everything it registers.
+message ServerlessHealthcheckRequest {
+    string endpoint_id = 1;
+    string namespace = 2;
+    // Unix seconds at which the request was built; the same value is sent in
+    // X-Hatchet-Timestamp.
+    int64 timestamp = 3;
+}
+
+// ServerlessHealthcheckResponse is what an endpoint answers to a healthcheck.
+message ServerlessHealthcheckResponse {
+    // The workflow definitions this endpoint serves, without the namespace prefix. The
+    // operator namespaces them, derives their action ids and registers them when the
+    // canonical form changes.
+    repeated CreateWorkflowVersionRequest workflows = 1;
+    // Action ids this endpoint serves in addition to the ones derived from workflows, without
+    // the namespace prefix. When empty, the endpoint serves exactly the derived actions.
+    repeated string actions = 2;
+    ServerlessDurableSupport durable = 3;
+    ServerlessRuntime runtime = 4;
+}
+
+// ServerlessDurableSupport says whether the endpoint accepts the durable websocket protocol.
+// An endpoint that does not is never assigned durable tasks.
+message ServerlessDurableSupport {
+    bool supported = 1;
+}
+
+// ServerlessRuntime identifies the endpoint's runtime and SDK for display on the endpoint.
+message ServerlessRuntime {
+    // The platform, such as "cloudflare-workers" or "vercel".
+    string name = 1;
+    string sdk_version = 2;
+}
+
+// ServerlessTriggerRequest is the body of POST trigger_url for a non-durable task. The action
+// carries the action id and workflow name as registered, namespace prefix included; the
+// endpoint strips the prefix to dispatch to user code.
+message ServerlessTriggerRequest {
+    string endpoint_id = 1;
+    string namespace = 2;
+    .AssignedAction action = 3;
+    // Unix seconds at which the request was built; the same value is sent in
+    // X-Hatchet-Timestamp.
+    int64 timestamp = 4;
+    // The envelope version, currently 1.
+    int32 version = 5;
+}
+
+// ServerlessTriggerError is the optional body of a non-2xx trigger response. It overrides the
+// status mapping: error replaces the reported message and retry, when set, decides whether
+// the engine retries the task.
+message ServerlessTriggerError {
+    string error = 1;
+    optional bool retry = 2;
+}
+
+// ServerlessFirstFrame is the first frame the operator sends on a durable websocket, right
+// after the upgrade.
+message ServerlessFirstFrame {
+    // The assigned action, namespaced as registered. Its task run external id is the durable
+    // task id every request on this socket is stamped with.
+    .AssignedAction action = 1;
+    string namespace = 2;
+    // The invocation this socket serves. The endpoint re-executes the task from the top on
+    // every invocation and the engine replays memo, wait_for and trigger_runs from its log.
+    int32 invocation_count = 3;
+    // How long the endpoint may wait inline for a wait_for entry to complete before it
+    // evicts the invocation.
+    int32 inline_wait_budget_ms = 4;
+}
+
+// ServerlessErrorFrame reports an engine-side error for the invocation. The endpoint is
+// expected to finish with a done frame carrying the error and retry false.
+message ServerlessErrorFrame {
+    // "nondeterminism" when a replay diverged from the log, "unspecified" otherwise.
+    string code = 1;
+    string message = 2;
+}
+
+// ServerlessDoneFrame is the endpoint's terminal frame. Exactly one shape applies, checked in
+// this order: status "evicted" (no terminal event; the engine re-invokes the task when the
+// awaited entry is satisfied), error set (FAILED; retry decides whether the engine retries),
+// otherwise output (COMPLETED; an absent output completes with {}).
+message ServerlessDoneFrame {
+    // The task's output as a JSON document. It is a string rather than a google.protobuf
+    // value so any JSON value is allowed and the operator hands it to the engine byte for
+    // byte, without the float64 round trip that Struct and Value impose on numbers.
+    optional string output = 1;
+    optional string error = 2;
+    // "evicted" when the invocation evicted itself, empty otherwise.
+    string status = 3;
+    bool retry = 4;
+}
+
+// ServerlessDurableFrame is one text frame on the durable websocket. The operator sends
+// first, response and error; the endpoint sends request and done.
+message ServerlessDurableFrame {
+    oneof frame {
+        ServerlessFirstFrame first = 1;
+        DurableTaskRequest request = 2;
+        DurableTaskResponse response = 3;
+        ServerlessErrorFrame error = 4;
+        ServerlessDoneFrame done = 5;
+    }
+    // An endpoint-chosen sequence id on request frames, echoed in the operator's logs only.
+    optional int64 id = 6;
+}
