@@ -267,6 +267,9 @@ tasks:
     desc: Regenerate the TypeScript bindings for the serverless wire contract
     dir: sdks/typescript-serverless
     cmds:
+      # The package depends on the TypeScript SDK's build output (file:../typescript/dist)
+      # until 1.32 is published, so the SDK is built before the package is installed.
+      - pnpm run build:sdk
       - pnpm install --frozen-lockfile
       - pnpm run generate-proto
   generate-proto-python:
