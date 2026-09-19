@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel/codes"
-	"google.golang.org/grpc"
 
 	"github.com/google/uuid"
 
@@ -122,18 +121,6 @@ func (worker *subscribedWorker) sendToWorkerWithStream(
 		},
 	)
 
-	_, encodeSpan := telemetry.NewSpan(ctx, "encode-action")
-
-	msg := &grpc.PreparedMsg{}
-	err := msg.Encode(worker.stream, action)
-	if err != nil {
-		encodeSpan.RecordError(err)
-		encodeSpan.End()
-		return fmt.Errorf("could not encode action: %w", err)
-	}
-
-	encodeSpan.End()
-
 	if !worker.sendLock.Acquire() {
 		span.RecordError(errFlowControlActive)
 		span.SetStatus(codes.Error, "flow control is active")
@@ -161,7 +148,7 @@ func (worker *subscribedWorker) sendToWorkerWithStream(
 
 	go func() {
 		defer close(sentCh)
-		err = worker.stream.SendMsg(msg)
+		err := worker.stream.Send(action)
 
 		if err != nil {
 			span.RecordError(err)
@@ -178,7 +165,7 @@ func (worker *subscribedWorker) sendToWorkerWithStream(
 	select {
 	case <-ctx.Done():
 		return fmt.Errorf("context done before send could complete: %w", ctx.Err())
-	case err = <-sentCh:
+	case err := <-sentCh:
 		return err
 	}
 }

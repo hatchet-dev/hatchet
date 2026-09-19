@@ -27,8 +27,6 @@ const (
 )
 
 type otelCollectorImpl struct {
-	collectortracev1.UnimplementedTraceServiceServer
-
 	repo         repository.Repository
 	l            *zerolog.Logger
 	maxBatchSize int
