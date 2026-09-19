@@ -2,13 +2,13 @@ package middleware
 
 import (
 	"context"
+	"errors"
+	"net/http"
+	"strings"
 
-	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
+	"connectrpc.com/connect"
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel/trace"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/status"
 
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
@@ -28,9 +28,18 @@ func NewAuthN(config *server.ServerConfig) *GRPCAuthN {
 	}
 }
 
-func (a *GRPCAuthN) Middleware(ctx context.Context) (context.Context, error) {
-	forbidden := status.Errorf(codes.Unauthenticated, "invalid auth token")
-	token, err := auth.AuthFromMD(ctx, "bearer")
+// Interceptor authenticates every unary and streaming call before the handler runs.
+func (a *GRPCAuthN) Interceptor() connect.Interceptor {
+	return &handlerInterceptor{
+		before: func(ctx context.Context, _ connect.Spec, header http.Header, _ connect.Peer) (context.Context, error) {
+			return a.Middleware(ctx, header)
+		},
+	}
+}
+
+func (a *GRPCAuthN) Middleware(ctx context.Context, header http.Header) (context.Context, error) {
+	forbidden := connect.NewError(connect.CodeUnauthenticated, errors.New("invalid auth token"))
+	token, err := bearerToken(header)
 
 	if err != nil {
 		a.l.Debug().Ctx(ctx).Err(err).Msgf("error getting bearer token from request: %s", err)
@@ -54,10 +63,8 @@ func (a *GRPCAuthN) Middleware(ctx context.Context) (context.Context, error) {
 	)
 
 	source := analytics.SourceGRPC
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		if vals := md.Get(analytics.SourceMetadataKey); len(vals) > 0 {
-			source = analytics.Source(vals[0])
-		}
+	if vals := header.Values(analytics.SourceMetadataKey); len(vals) > 0 {
+		source = analytics.Source(vals[0])
 	}
 	ctx = context.WithValue(ctx, analytics.SourceKey, source)
 
@@ -69,4 +76,24 @@ func (a *GRPCAuthN) Middleware(ctx context.Context) (context.Context, error) {
 	}
 
 	return context.WithValue(ctx, "tenant", queriedTenant), nil
+}
+
+// bearerToken extracts the token from the first authorization header value. The scheme is
+// matched case-insensitively.
+func bearerToken(header http.Header) (string, error) {
+	vals := header.Values("Authorization")
+	if len(vals) == 0 {
+		return "", errors.New("request unauthenticated with bearer")
+	}
+
+	scheme, token, found := strings.Cut(vals[0], " ")
+	if !found {
+		return "", errors.New("bad authorization string")
+	}
+
+	if !strings.EqualFold(scheme, "bearer") {
+		return "", errors.New("request unauthenticated with bearer")
+	}
+
+	return token, nil
 }

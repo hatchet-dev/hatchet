@@ -2,14 +2,15 @@ package middleware
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"net/http"
 	"strings"
 	"sync"
 
+	"connectrpc.com/connect"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	"golang.org/x/time/rate"
 
@@ -60,17 +61,28 @@ func NewHatchetRateLimiter(r rate.Limit, b int, l *zerolog.Logger) *HatchetRateL
 	}
 }
 
-// Limit is called before each request is processed. It should return an error if rate-limited.
-func (r *HatchetRateLimiter) Limit(ctx context.Context) error {
-	serviceName, ok := ctx.Value(grpcServiceName).(string)
-	if !ok {
-		return status.Errorf(codes.Internal, "no server in context")
+// Interceptor applies the limit to every unary call and to the start of every stream.
+func (r *HatchetRateLimiter) Interceptor() connect.Interceptor {
+	return &handlerInterceptor{
+		before: func(ctx context.Context, spec connect.Spec, _ http.Header, _ connect.Peer) (context.Context, error) {
+			if err := r.Limit(ctx, spec.Procedure); err != nil {
+				return nil, err
+			}
+
+			return ctx, nil
+		},
 	}
+}
+
+// Limit is called before each request is processed. It should return an error if rate-limited.
+// procedure is the full method name, for example /Dispatcher/Register.
+func (r *HatchetRateLimiter) Limit(ctx context.Context, procedure string) error {
+	serviceName := procedure
 
 	rateLimitToken, ok := ctx.Value(analytics.APITokenIDKey).(uuid.UUID)
 
 	if !ok || rateLimitToken == uuid.Nil {
-		return status.Errorf(codes.Unauthenticated, "no rate limit token found")
+		return connect.NewError(connect.CodeUnauthenticated, errors.New("no rate limit token found"))
 	}
 
 	switch matchServiceName(serviceName) {
@@ -78,78 +90,37 @@ func (r *HatchetRateLimiter) Limit(ctx context.Context) error {
 
 		if !r.GetOrCreateTenantRateLimiter(rateLimitToken.String()).dispatcherLimiter.Allow() {
 			r.l.Info().Ctx(ctx).Msgf("dispatcher rate limit (%v per second) exceeded", r.GetOrCreateTenantRateLimiter(rateLimitToken.String()).dispatcherLimiter.Limit())
-			return status.Errorf(codes.ResourceExhausted, "dispatcher rate limit exceeded")
+			return connect.NewError(connect.CodeResourceExhausted, errors.New("dispatcher rate limit exceeded"))
 		}
 
 	case "events":
 		if !r.GetOrCreateTenantRateLimiter(rateLimitToken.String()).eventsLimiter.Allow() {
 			r.l.Info().Ctx(ctx).Msgf("ingest rate limit (%v per second) exceeded", r.GetOrCreateTenantRateLimiter(rateLimitToken.String()).eventsLimiter.Limit())
-			return status.Errorf(codes.ResourceExhausted, "ingest rate limit exceeded")
+			return connect.NewError(connect.CodeResourceExhausted, errors.New("ingest rate limit exceeded"))
 		}
 
 	case "workflow":
 		if !r.GetOrCreateTenantRateLimiter(rateLimitToken.String()).workflowLimiter.Allow() {
 			r.l.Info().Ctx(ctx).Msgf("workflow rate limit (%v per second) exceeded", r.GetOrCreateTenantRateLimiter(rateLimitToken.String()).workflowLimiter.Limit())
-			return status.Errorf(codes.ResourceExhausted, "admin rate limit exceeded")
+			return connect.NewError(connect.CodeResourceExhausted, errors.New("admin rate limit exceeded"))
 		}
 	case "admin":
 		if !r.GetOrCreateTenantRateLimiter(rateLimitToken.String()).adminV1Limiter.Allow() {
 			r.l.Info().Ctx(ctx).Msgf("admin rate limit (%v per second) exceeded", r.GetOrCreateTenantRateLimiter(rateLimitToken.String()).adminV1Limiter.Limit())
-			return status.Errorf(codes.ResourceExhausted, "admin rate limit exceeded")
+			return connect.NewError(connect.CodeResourceExhausted, errors.New("admin rate limit exceeded"))
 		}
 
 	case "otelcol":
 		if !r.GetOrCreateTenantRateLimiter(rateLimitToken.String()).otelColLimiter.Allow() {
 			r.l.Info().Ctx(ctx).Msgf("otel collector rate limit (%v per second) exceeded", r.GetOrCreateTenantRateLimiter(rateLimitToken.String()).otelColLimiter.Limit())
-			return status.Errorf(codes.ResourceExhausted, "otel collector rate limit exceeded")
+			return connect.NewError(connect.CodeResourceExhausted, errors.New("otel collector rate limit exceeded"))
 		}
 
 	default:
-		return status.Errorf(codes.Internal, "service %s not recognized", serviceName)
+		return connect.NewError(connect.CodeInternal, fmt.Errorf("service %s not recognized", serviceName))
 	}
 
 	return nil
-}
-
-type contextKey string
-
-const grpcServiceName = contextKey("grpcServiceName")
-
-func AttachServerNameInterceptor(
-	ctx context.Context,
-	req interface{},
-	info *grpc.UnaryServerInfo,
-	handler grpc.UnaryHandler,
-) (interface{}, error) {
-	ctx = context.WithValue(ctx, grpcServiceName, info.FullMethod)
-
-	return handler(ctx, req)
-}
-
-func ServerNameStreamingInterceptor(
-	srv interface{},
-	ss grpc.ServerStream,
-	info *grpc.StreamServerInfo,
-	handler grpc.StreamHandler,
-) error {
-
-	ctx := context.WithValue(ss.Context(), grpcServiceName, info.FullMethod)
-
-	wrappedStream := &wrappedServerStream{
-		ServerStream: ss,
-		ctx:          ctx,
-	}
-
-	return handler(srv, wrappedStream)
-}
-
-type wrappedServerStream struct {
-	grpc.ServerStream
-	ctx context.Context
-}
-
-func (w *wrappedServerStream) Context() context.Context {
-	return w.ctx
 }
 
 func matchServiceName(name string) string {
