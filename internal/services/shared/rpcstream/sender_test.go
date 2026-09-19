@@ -1,6 +1,7 @@
 package rpcstream
 
 import (
+	"context"
 	"sync"
 	"testing"
 	"time"
@@ -28,7 +29,7 @@ func TestSenderRejectsSendsAfterClose(t *testing.T) {
 	stream := &blockingStream{entered: make(chan struct{}, 1), release: make(chan struct{})}
 	close(stream.release)
 
-	sender := NewSender[int](stream)
+	sender := NewSender[int](context.Background(), stream)
 
 	one, two := 1, 2
 	require.NoError(t, sender.Send(&one))
@@ -43,7 +44,7 @@ func TestSenderRejectsSendsAfterClose(t *testing.T) {
 // and the HTTP/2 server panics on a write that outlives its handler.
 func TestSenderCloseWaitsForInFlightSend(t *testing.T) {
 	stream := &blockingStream{entered: make(chan struct{}), release: make(chan struct{})}
-	sender := NewSender[int](stream)
+	sender := NewSender[int](context.Background(), stream)
 
 	var wg sync.WaitGroup
 

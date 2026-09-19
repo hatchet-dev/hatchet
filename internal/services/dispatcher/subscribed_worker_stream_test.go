@@ -26,7 +26,7 @@ func (f *fakeActionStream) Send(action *contracts.AssignedAction) error {
 // handler returning has to come back as an error instead.
 func TestSubscribedWorker_SendAfterStreamCloseReturnsError(t *testing.T) {
 	stream := &fakeActionStream{}
-	sender := rpcstream.NewSender[contracts.AssignedAction](stream)
+	sender := rpcstream.NewSender[contracts.AssignedAction](context.Background(), stream)
 	worker := newGRPCSubscribedWorker(sender, nil, uuid.New(), time.Second, nil)
 
 	if err := worker.sendToWorker(context.Background(), &contracts.AssignedAction{}); err != nil {

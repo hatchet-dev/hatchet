@@ -8,11 +8,9 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/rs/zerolog"
-	"go.opentelemetry.io/otel/trace"
 
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
-	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 type GRPCAuthN struct {
@@ -28,15 +26,8 @@ func NewAuthN(config *server.ServerConfig) *GRPCAuthN {
 	}
 }
 
-// Interceptor authenticates every unary and streaming call before the handler runs.
-func (a *GRPCAuthN) Interceptor() connect.Interceptor {
-	return &handlerInterceptor{
-		before: func(ctx context.Context, _ connect.Spec, header http.Header, _ connect.Peer) (context.Context, error) {
-			return a.Middleware(ctx, header)
-		},
-	}
-}
-
+// Middleware validates the bearer token in header and returns ctx carrying the tenant, the
+// token id and the call source. It runs from the request gate, before any message is read.
 func (a *GRPCAuthN) Middleware(ctx context.Context, header http.Header) (context.Context, error) {
 	forbidden := connect.NewError(connect.CodeUnauthenticated, errors.New("invalid auth token"))
 	token, err := bearerToken(header)
@@ -56,11 +47,6 @@ func (a *GRPCAuthN) Middleware(ctx context.Context, header http.Header) (context
 
 	ctx = context.WithValue(ctx, analytics.APITokenIDKey, tokenUUID)
 	ctx = context.WithValue(ctx, analytics.TenantIDKey, tenantId)
-
-	span := trace.SpanFromContext(ctx)
-	telemetry.WithAttributes(span,
-		telemetry.AttributeKV{Key: "tenant.id", Value: tenantId},
-	)
 
 	source := analytics.SourceGRPC
 	if vals := header.Values(analytics.SourceMetadataKey); len(vals) > 0 {

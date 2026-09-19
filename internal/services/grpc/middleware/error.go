@@ -5,6 +5,7 @@ import (
 	goerrors "errors"
 	"fmt"
 	"runtime/debug"
+	"strings"
 
 	"connectrpc.com/connect"
 	"github.com/jackc/pgx/v5"
@@ -40,9 +41,19 @@ func expectedStatus(ctx context.Context, err error) error {
 	}
 
 	// Extensions built against google.golang.org/grpc may still return status errors; keep
-	// their code and message on the wire.
+	// their code, message and details on the wire. The message of a wrapped status error is the
+	// text of the whole chain, as status.FromError reports it.
 	if st, ok := status.FromError(err); ok && st.Code() != codes.Unknown && st.Code() != codes.OK {
-		return connect.NewError(connect.Code(st.Code()), goerrors.New(st.Message()))
+		statusErr := connect.NewError(connect.Code(st.Code()), goerrors.New(st.Message()))
+
+		for _, detail := range st.Proto().GetDetails() {
+			// an Any is carried over as is, so a type this server does not know survives
+			if connectDetail, detailErr := connect.NewErrorDetail(detail); detailErr == nil {
+				statusErr.AddDetail(connectDetail)
+			}
+		}
+
+		return statusErr
 	}
 
 	return nil
@@ -73,12 +84,42 @@ func (e *ErrorInterceptor) Interceptor() connect.Interceptor {
 				e.l.Err(err).Ctx(ctx).Msg("")
 				e.a.SendAlert(context.Background(), err, nil)
 
-				err = connect.NewError(connect.CodeInternal, goerrors.New("An internal error occurred."))
+				return connect.NewError(connect.CodeInternal, goerrors.New("An internal error occurred."))
 			}
 
-			return err
+			return unwrappedCodedError(err)
 		},
 	}
+}
+
+// unwrappedCodedError keeps the message of a coded error that a handler wrapped, as in
+// fmt.Errorf("could not create trigger opt: %w", codedErr). connect would send the inner error
+// alone; clients have always received the text of the whole chain, with the coded error rendered
+// the way google.golang.org/grpc renders a status error.
+func unwrappedCodedError(err error) error {
+	coded := new(connect.Error)
+
+	if err == nil || !goerrors.As(err, &coded) || error(coded) == err {
+		return err
+	}
+
+	message := err.Error()
+
+	if i := strings.LastIndex(message, coded.Error()); i >= 0 {
+		message = message[:i] + grpcErrorString(coded) + message[i+len(coded.Error()):]
+	}
+
+	unwrapped := connect.NewError(coded.Code(), goerrors.New(message))
+
+	for _, detail := range coded.Details() {
+		unwrapped.AddDetail(detail)
+	}
+
+	for key, values := range coded.Meta() {
+		unwrapped.Meta()[key] = values
+	}
+
+	return unwrapped
 }
 
 // RecoveryInterceptor converts a panic in a handler into an internal error, for unary and

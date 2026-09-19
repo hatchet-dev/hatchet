@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -18,41 +19,49 @@ type callStartKey struct{}
 func LoggingInterceptor(l *zerolog.Logger) connect.Interceptor {
 	return &handlerInterceptor{
 		before: func(ctx context.Context, spec connect.Spec, _ http.Header, peer connect.Peer) (context.Context, error) {
-			start := time.Now()
+			start := callStart{at: time.Now(), peer: peer}
 
-			ev := callFields(l.Info(), spec, peer).Str("grpc.start_time", start.Format(time.RFC3339))
+			logStartedCall(ctx, l, spec, start)
 
-			if d, ok := ctx.Deadline(); ok {
-				ev = ev.Str("grpc.request.deadline", d.Format(time.RFC3339))
-			}
-
-			ev.Msg("started call")
-
-			return context.WithValue(ctx, callStartKey{}, callStart{at: start, peer: peer}), nil
+			return context.WithValue(ctx, callStartKey{}, start), nil
 		},
 		after: func(ctx context.Context, spec connect.Spec, err error) error {
 			start, _ := ctx.Value(callStartKey{}).(callStart)
 
-			code := "OK"
-
-			if err != nil {
-				code = codeName(connect.CodeOf(err))
-			}
-
-			ev := callFields(l.WithLevel(codeToLevel(err)), spec, start.peer).
-				Str("grpc.start_time", start.at.Format(time.RFC3339)).
-				Str("grpc.code", code)
-
-			if err != nil {
-				ev = ev.Str("grpc.error", err.Error())
-			}
-
-			ev.Str("grpc.time_ms", fmt.Sprintf("%v", float32(time.Since(start.at).Nanoseconds()/1000)/1000)).
-				Msg("finished call")
+			logFinishedCall(l, spec, start, err)
 
 			return err
 		},
 	}
+}
+
+func logStartedCall(ctx context.Context, l *zerolog.Logger, spec connect.Spec, start callStart) {
+	ev := callFields(l.Info(), spec, start.peer).Str("grpc.start_time", start.at.Format(time.RFC3339))
+
+	if d, ok := ctx.Deadline(); ok {
+		ev = ev.Str("grpc.request.deadline", d.Format(time.RFC3339))
+	}
+
+	ev.Msg("started call")
+}
+
+func logFinishedCall(l *zerolog.Logger, spec connect.Spec, start callStart, err error) {
+	code := "OK"
+
+	if err != nil {
+		code = codeName(connect.CodeOf(err))
+	}
+
+	ev := callFields(l.WithLevel(codeToLevel(err)), spec, start.peer).
+		Str("grpc.start_time", start.at.Format(time.RFC3339)).
+		Str("grpc.code", code)
+
+	if err != nil {
+		ev = ev.Str("grpc.error", grpcErrorString(err))
+	}
+
+	ev.Str("grpc.time_ms", fmt.Sprintf("%v", float32(time.Since(start.at).Nanoseconds()/1000)/1000)).
+		Msg("finished call")
 }
 
 type callStart struct {
@@ -144,4 +153,19 @@ func codeName(c connect.Code) string {
 	default:
 		return fmt.Sprintf("Code(%d)", c)
 	}
+}
+
+// grpcErrorString renders err the way google.golang.org/grpc renders a status error, which is the
+// text logs and wrapped error messages have always carried.
+func grpcErrorString(err error) string {
+	return fmt.Sprintf("rpc error: code = %s desc = %s", codeName(connect.CodeOf(err)), errorMessage(err))
+}
+
+// errorMessage is the message of err without connect's code prefix.
+func errorMessage(err error) string {
+	if connectErr := new(connect.Error); errors.As(err, &connectErr) && error(connectErr) == err {
+		return connectErr.Message()
+	}
+
+	return err.Error()
 }

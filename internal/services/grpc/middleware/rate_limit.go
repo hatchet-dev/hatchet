@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"strings"
 	"sync"
 
@@ -58,19 +57,6 @@ func NewHatchetRateLimiter(r rate.Limit, b int, l *zerolog.Logger) *HatchetRateL
 		rate:         r,
 		burst:        b,
 		l:            l,
-	}
-}
-
-// Interceptor applies the limit to every unary call and to the start of every stream.
-func (r *HatchetRateLimiter) Interceptor() connect.Interceptor {
-	return &handlerInterceptor{
-		before: func(ctx context.Context, spec connect.Spec, _ http.Header, _ connect.Peer) (context.Context, error) {
-			if err := r.Limit(ctx, spec.Procedure); err != nil {
-				return nil, err
-			}
-
-			return ctx, nil
-		},
 	}
 }
 

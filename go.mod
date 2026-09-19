@@ -4,7 +4,6 @@ go 1.26.0
 
 require (
 	connectrpc.com/connect v1.21.0
-	connectrpc.com/otelconnect v0.9.0
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/aws/aws-sdk-go-v2 v1.45.1
 	github.com/aws/aws-sdk-go-v2/config v1.33.2

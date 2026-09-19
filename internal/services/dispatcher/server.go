@@ -187,7 +187,7 @@ func (s *DispatcherImpl) upsertLabels(ctx context.Context, workerId uuid.UUID, r
 func (s *DispatcherImpl) Listen(ctx context.Context, request *contracts.WorkerListenRequest, connectStream *connect.ServerStream[contracts.AssignedAction]) error {
 	// other goroutines send on this stream; Close runs after every other deferred call and
 	// before the handler returns, so no send can reach the stream once the handler is done
-	stream := rpcstream.NewSender[contracts.AssignedAction](connectStream)
+	stream := rpcstream.NewSender[contracts.AssignedAction](ctx, connectStream)
 	defer stream.Close()
 
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
@@ -313,7 +313,7 @@ func (s *DispatcherImpl) Listen(ctx context.Context, request *contracts.WorkerLi
 func (s *DispatcherImpl) ListenV2(ctx context.Context, request *contracts.WorkerListenRequest, connectStream *connect.ServerStream[contracts.AssignedAction]) error {
 	// other goroutines send on this stream; Close runs after every other deferred call and
 	// before the handler returns, so no send can reach the stream once the handler is done
-	stream := rpcstream.NewSender[contracts.AssignedAction](connectStream)
+	stream := rpcstream.NewSender[contracts.AssignedAction](ctx, connectStream)
 	defer stream.Close()
 
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
@@ -507,7 +507,7 @@ func (s *DispatcherImpl) RestoreEvictedTask(ctx context.Context, req *contracts.
 func (s *DispatcherImpl) SubscribeToWorkflowEvents(ctx context.Context, request *contracts.SubscribeToWorkflowEventsRequest, connectStream *connect.ServerStream[contracts.WorkflowEvent]) error {
 	// other goroutines send on this stream; Close runs after every other deferred call and
 	// before the handler returns, so no send can reach the stream once the handler is done
-	stream := rpcstream.NewSender[contracts.WorkflowEvent](connectStream)
+	stream := rpcstream.NewSender[contracts.WorkflowEvent](ctx, connectStream)
 	defer stream.Close()
 
 	if _, ok := ctx.Value("tenant").(*sqlcv1.Tenant); ok {
@@ -616,7 +616,7 @@ func calculateResultsSize(results []*contracts.StepRunResult) (totalSize int, si
 func (s *DispatcherImpl) SubscribeToWorkflowRuns(ctx context.Context, connectStream *connect.BidiStream[contracts.SubscribeToWorkflowRunsRequest, contracts.WorkflowRunEvent]) error {
 	// other goroutines send on this stream; Close runs after every other deferred call and
 	// before the handler returns, so no send can reach the stream once the handler is done
-	stream := rpcstream.NewSender[contracts.WorkflowRunEvent](connectStream)
+	stream := rpcstream.NewSender[contracts.WorkflowRunEvent](ctx, connectStream)
 	defer stream.Close()
 
 	s.analytics.Count(ctx, analytics.WorkflowRun, analytics.Subscribe)

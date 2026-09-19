@@ -12,21 +12,24 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"connectrpc.com/otelconnect"
 	"github.com/rs/zerolog"
 	"golang.org/x/time/rate"
 
 	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 
 	"github.com/hatchet-dev/hatchet/internal/services/admin"
+	admincontracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts/contractsconnect"
 	adminv1 "github.com/hatchet-dev/hatchet/internal/services/admin/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
+	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	dispatcherconnect "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts/contractsconnect"
 	"github.com/hatchet-dev/hatchet/internal/services/grpc/middleware"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
+	eventcontracts "github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
 	eventsconnect "github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts/contractsconnect"
 	"github.com/hatchet-dev/hatchet/internal/services/otelcol"
+	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1/v1connect"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
@@ -36,7 +39,10 @@ import (
 
 // traceServiceExportProcedure is the standard OTLP TraceService method, served for OTel SDK
 // compatibility.
-const traceServiceExportProcedure = "/opentelemetry.proto.collector.trace.v1.TraceService/Export"
+const (
+	traceServiceName            = "opentelemetry.proto.collector.trace.v1.TraceService"
+	traceServiceExportProcedure = "/" + traceServiceName + "/Export"
+)
 
 const (
 	// serverPingInterval pings the client if the connection has been idle for this long, to
@@ -246,16 +252,6 @@ func (s *Server) Start() (func() error, error) {
 // handlerOptions returns the options shared by every handler. Interceptors run in the order
 // listed, outermost first.
 func (s *Server) handlerOptions() ([]connect.HandlerOption, error) {
-	otelInterceptor, err := otelconnect.NewInterceptor(
-		// continue the caller's trace instead of starting a linked root span
-		otelconnect.WithTrustRemote(),
-		otelconnect.WithoutServerPeerAttributes(),
-	)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not create otel interceptor: %w", err)
-	}
-
 	limit := s.config.Runtime.GRPCRateLimit
 	if limit == 0 {
 		limit = 1000
@@ -264,10 +260,8 @@ func (s *Server) handlerOptions() ([]connect.HandlerOption, error) {
 	limiter := middleware.NewHatchetRateLimiter(rate.Limit(limit), int(burst), s.l)
 
 	interceptors := []connect.Interceptor{
-		otelInterceptor,
+		middleware.NewTelemetryInterceptor(),
 		middleware.LoggingInterceptor(s.l),
-		middleware.NewAuthN(s.config).Interceptor(),
-		limiter.Interceptor(),
 		middleware.NewErrorInterceptor(s.a, s.l).Interceptor(),
 		middleware.RecoveryInterceptor(s.a, s.l),
 	}
@@ -277,10 +271,18 @@ func (s *Server) handlerOptions() ([]connect.HandlerOption, error) {
 		interceptors = append(interceptors, interceptor)
 	}
 
+	maxMsgSize := s.config.Runtime.GRPCMaxMsgSize
+	if maxMsgSize <= 0 {
+		maxMsgSize = defaultMaxMsgSize
+	}
+
 	return []connect.HandlerOption{
+		// authentication and rate limits run on the request headers, before any body is read
+		connect.WithRequestGate(middleware.NewRequestGate(middleware.NewAuthN(s.config), limiter, s.l)),
 		connect.WithInterceptors(interceptors...),
-		connect.WithReadMaxBytes(s.config.Runtime.GRPCMaxMsgSize),
-		connect.WithSendMaxBytes(s.config.Runtime.GRPCMaxMsgSize),
+		connect.WithReadMaxBytes(maxMsgSize),
+		connect.WithSendMaxBytes(maxMsgSize),
+		withBoundedGzip(maxMsgSize),
 	}, nil
 }
 
@@ -292,29 +294,36 @@ func (s *Server) handler() (http.Handler, error) {
 	}
 
 	mux := http.NewServeMux()
+	routes := grpcRoutes{}
 
 	if s.ingestor != nil {
+		routes.addService(eventcontracts.File_events_proto.Services().ByName("EventsService"))
 		mux.Handle(eventsconnect.NewEventsServiceHandler(s.ingestor, opts...))
 	}
 
 	if s.dispatcher != nil {
+		routes.addService(dispatchercontracts.File_dispatcher_proto.Services().ByName("Dispatcher"))
 		mux.Handle(dispatcherconnect.NewDispatcherHandler(s.dispatcher, opts...))
 	}
 
 	if s.dispatcherv1 != nil {
+		routes.addService(v1contracts.File_v1_dispatcher_proto.Services().ByName("V1Dispatcher"))
 		mux.Handle(v1connect.NewV1DispatcherHandler(s.dispatcherv1, opts...))
 	}
 
 	if s.admin != nil {
+		routes.addService(admincontracts.File_workflows_proto.Services().ByName("WorkflowService"))
 		mux.Handle(contractsconnect.NewWorkflowServiceHandler(s.admin, opts...))
 	}
 
 	if s.adminv1 != nil {
+		routes.addService(v1contracts.File_v1_workflows_proto.Services().ByName("AdminService"))
 		mux.Handle(v1connect.NewAdminServiceHandler(s.adminv1, opts...))
 	}
 
 	if s.otelCollector != nil {
 		// Register as the standard OTLP TraceService for OTEL SDK compatibility
+		routes.add(traceServiceName, "Export")
 		mux.Handle(traceServiceExportProcedure, connect.NewUnaryHandlerSimple(
 			traceServiceExportProcedure,
 			func(ctx context.Context, req *collectortracev1.ExportTraceServiceRequest) (*collectortracev1.ExportTraceServiceResponse, error) {
@@ -324,7 +333,8 @@ func (s *Server) handler() (http.Handler, error) {
 		))
 	}
 
-	return matchRequestCompression(mux), nil
+	// outermost first
+	return routes.unimplemented(enforceRPCTimeout(withStreamAbort(matchRequestCompression(mux)))), nil
 }
 
 // matchRequestCompression keeps the response compression rule gRPC clients have always had
@@ -361,10 +371,11 @@ func (s *Server) startGRPC() (func() error, error) {
 		return nil, fmt.Errorf("failed to listen: %w", err)
 	}
 
-	// gRPC clients need HTTP/2: negotiated over TLS, or with prior knowledge (h2c) when the
-	// server is insecure. HTTP/1.1 stays on for Connect and gRPC-Web unary calls.
+	// HTTP/2 only, as it has always been: negotiated over TLS, or with prior knowledge (h2c)
+	// when the server is insecure. Connect and gRPC-Web callers use HTTP/2 as well. HTTP/1.1
+	// stays off because nothing below would find a caller that stops sending its body: the
+	// pings that reclaim dead connections are an HTTP/2 mechanism.
 	protocols := new(http.Protocols)
-	protocols.SetHTTP1(true)
 
 	if s.insecure {
 		protocols.SetUnencryptedHTTP2(true)
@@ -376,8 +387,10 @@ func (s *Server) startGRPC() (func() error, error) {
 		Handler:           handler,
 		Protocols:         protocols,
 		ReadHeaderTimeout: readHeaderTimeout,
+		MaxHeaderBytes:    maxHeaderBytes,
 		// streams are long-lived, so there is no read, write or idle timeout; dead connections
-		// are found by the pings below
+		// are found by the pings below, and calls that carry a timeout get deadlines from
+		// enforceRPCTimeout
 		HTTP2: &http.HTTP2Config{
 			// gRPC clients multiplex every call and stream of a worker over one connection
 			MaxConcurrentStreams: math.MaxInt32,

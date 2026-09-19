@@ -172,7 +172,7 @@ func (w *durableEventAcks) ackEvent(taskId int64, taskInsertedAt pgtype.Timestam
 func (d *DispatcherServiceImpl) ListenForDurableEvent(ctx context.Context, server *connect.BidiStream[contracts.ListenForDurableEventRequest, contracts.DurableEvent]) error {
 	// other goroutines send on this stream; Close runs after every other deferred call and
 	// before the handler returns, so no send can reach the stream once the handler is done
-	sender := rpcstream.NewSender[contracts.DurableEvent](server)
+	sender := rpcstream.NewSender[contracts.DurableEvent](ctx, server)
 	defer sender.Close()
 
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
@@ -560,7 +560,7 @@ func (s *durableTaskInvocation) staleReleaseHolds(timeout time.Duration) []order
 func (d *DispatcherServiceImpl) DurableTask(ctx context.Context, server *connect.BidiStream[contracts.DurableTaskRequest, contracts.DurableTaskResponse]) error {
 	// other goroutines send on this stream; Close runs after durableTask has torn the session
 	// down and before the handler returns, so no send can reach the stream once the handler is done
-	sender := rpcstream.NewSender[contracts.DurableTaskResponse](server)
+	sender := rpcstream.NewSender[contracts.DurableTaskResponse](ctx, server)
 	defer sender.Close()
 
 	return d.durableTask(ctx, server.Receive, sender)

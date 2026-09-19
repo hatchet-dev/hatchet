@@ -43,7 +43,7 @@ func runDurableTask(d *DispatcherServiceImpl, server *fakeDurableTaskServer) <-c
 	done := make(chan error, 1)
 
 	go func() {
-		sender := rpcstream.NewSender[contracts.DurableTaskResponse](server)
+		sender := rpcstream.NewSender[contracts.DurableTaskResponse](context.Background(), server)
 		defer sender.Close()
 
 		done <- d.durableTask(server.ctx, server.recv, sender)

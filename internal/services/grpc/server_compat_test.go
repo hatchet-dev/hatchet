@@ -149,7 +149,7 @@ func (f *fakeDispatcher) Register(ctx context.Context, req *dispatchercontracts.
 }
 
 func (f *fakeDispatcher) ListenV2(ctx context.Context, req *dispatchercontracts.WorkerListenRequest, stream *connect.ServerStream[dispatchercontracts.AssignedAction]) error {
-	sender := rpcstream.NewSender[dispatchercontracts.AssignedAction](stream)
+	sender := rpcstream.NewSender[dispatchercontracts.AssignedAction](ctx, stream)
 	defer sender.Close()
 
 	f.mu.Lock()
@@ -180,7 +180,7 @@ func (f *fakeDispatcher) ListenV2(ctx context.Context, req *dispatchercontracts.
 }
 
 func (f *fakeDispatcher) SubscribeToWorkflowRuns(ctx context.Context, stream *connect.BidiStream[dispatchercontracts.SubscribeToWorkflowRunsRequest, dispatchercontracts.WorkflowRunEvent]) error {
-	sender := rpcstream.NewSender[dispatchercontracts.WorkflowRunEvent](stream)
+	sender := rpcstream.NewSender[dispatchercontracts.WorkflowRunEvent](ctx, stream)
 	defer sender.Close()
 
 	for {
@@ -604,7 +604,7 @@ func TestGRPCClientCompatibility(t *testing.T) {
 				})
 			}
 
-			t.Run("connect and grpc-web protocols are served too", func(t *testing.T) {
+			t.Run("connect and grpc-web protocols are served too, over HTTP/2", func(t *testing.T) {
 				httpClient := newHTTPClient(tr, pki)
 				scheme := "https"
 
@@ -694,7 +694,8 @@ func TestRateLimitIsPerTokenAndResourceExhausted(t *testing.T) {
 
 	require.Error(t, limited)
 	assert.Equal(t, codes.ResourceExhausted, status.Code(limited))
-	assert.Equal(t, "dispatcher rate limit exceeded", status.Convert(limited).Message())
+	// the historical text, from the go-grpc-middleware wrapper the server used to run
+	assert.Equal(t, "/Dispatcher/Register is rejected by grpc_ratelimit middleware, please retry later. rpc error: code = ResourceExhausted desc = dispatcher rate limit exceeded", status.Convert(limited).Message())
 
 	// another token has its own bucket
 	_, err := client.Register(authCtx(t, validToken), &dispatchercontracts.WorkerRegisterRequest{WorkerName: "w"})
