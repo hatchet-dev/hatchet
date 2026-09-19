@@ -23,6 +23,7 @@ WITH partitions AS (
 SELECT partition_name, lower_bound AS partition_date
 FROM partitions
 WHERE lower_bound <= $2::DATE
+ORDER BY partition_date ASC -- ordering by the lower bound so we finish old partitions before starting new ones
 `
 
 type FindV1PayloadPartitionsBeforeDateRow struct {
