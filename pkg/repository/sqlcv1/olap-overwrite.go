@@ -1017,7 +1017,7 @@ WITH partitions AS (
     JOIN pg_class parent ON pg_inherits.inhparent = parent.oid
     JOIN pg_class child ON pg_inherits.inhrelid = child.oid
     WHERE parent.relname = 'v1_payloads_olap'
-    ORDER BY child.relname DESC
+    ORDER BY child.relname ASC
 	LIMIT $1::INTEGER
 )
 
