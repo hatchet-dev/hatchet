@@ -77,6 +77,7 @@ func createOLAPRepositoryWithPayloadStore(t *testing.T, pool *pgxpool.Pool) *OLA
 		24*time.Hour,
 		false,
 		false,
+		false,
 		StatusUpdateBatchSizeLimits{Task: 1000, DAG: 1000},
 	).(*OLAPRepositoryImpl)
 	require.True(t, ok)
