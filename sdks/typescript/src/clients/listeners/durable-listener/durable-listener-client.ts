@@ -797,6 +797,11 @@ export class DurableListenerClient {
     reason?: string
   ): Promise<void> {
     const key = evictionKey(durableTaskExternalId, invocationCount);
+    const pending = this._pendingEvictionAcks.get(key);
+    if (pending) {
+      return pending.promise;
+    }
+
     const d = deferred<void>();
     this._pendingEvictionAcks.set(key, d);
 
@@ -808,17 +813,21 @@ export class DurableListenerClient {
 
     this._enqueueRequest({ evictInvocation: req });
 
-    const timeout = sleep(EVICTION_ACK_TIMEOUT_MS).then(() => {
-      throw new Error(
-        `Eviction ack timed out after ${EVICTION_ACK_TIMEOUT_MS}ms for task ${durableTaskExternalId} invocation ${invocationCount}`
+    const timeout = setTimeout(() => {
+      d.reject(
+        new Error(
+          `Eviction ack timed out after ${EVICTION_ACK_TIMEOUT_MS}ms for task ${durableTaskExternalId} invocation ${invocationCount}`
+        )
       );
-    });
+    }, EVICTION_ACK_TIMEOUT_MS);
 
     try {
-      await Promise.race([d.promise, timeout]);
-    } catch (err) {
-      this._pendingEvictionAcks.delete(key);
-      throw err;
+      await d.promise;
+    } finally {
+      clearTimeout(timeout);
+      if (this._pendingEvictionAcks.get(key) === d) {
+        this._pendingEvictionAcks.delete(key);
+      }
     }
   }
 

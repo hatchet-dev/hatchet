@@ -93,6 +93,7 @@ export class InternalWorker {
 
   private healthServer: HealthServer | undefined;
   private status: WorkerStatus = workerStatus.INITIALIZED;
+  private shutdownPromise: Promise<void> | undefined;
 
   constructor(
     client: HatchetClient,
@@ -821,6 +822,17 @@ export class InternalWorker {
   }
 
   async exitGracefully(handleKill: boolean) {
+    // Signals and an explicit stop must await the same eviction and listener teardown.
+    this.shutdownPromise ??= this.shutdown();
+    await this.shutdownPromise;
+
+    if (handleKill) {
+      this.logger.info('Exiting hatchet worker...');
+      process.exit(0);
+    }
+  }
+
+  private async shutdown(): Promise<void> {
     this.killing = true;
     this.setStatus(workerStatus.UNHEALTHY);
 
@@ -872,11 +884,6 @@ export class InternalWorker {
       } catch (e: any) {
         this.logger.error(`Could not stop health server: ${e.message}`);
       }
-    }
-
-    if (handleKill) {
-      this.logger.info('Exiting hatchet worker...');
-      process.exit(0);
     }
   }
 
