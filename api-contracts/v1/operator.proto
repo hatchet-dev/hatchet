@@ -67,7 +67,7 @@ service OperatorService {
     //      worker, and from the moment the server answers with an OperatorPauseAck no action is
     //      delivered on the stream; one that the scheduler had already assigned is returned to
     //      the queue instead. An operator that pauses before draining therefore knows the
-    //      actions it holds are the last it will get. pause with paused = false lets the worker
+    //      actions it holds are the last it will get. pause with is_paused = false lets the worker
     //      be assigned to again and is acknowledged the same way. The pause belongs to the
     //      stream: Register clears it when it resumes the worker, so a client that reconnects
     //      while paused sends the pause again on the new stream, before its deltas.
@@ -175,7 +175,7 @@ message OperatorActionsDelta {
 // of a pause nothing is delivered on the stream until the pause is lifted.
 message OperatorPause {
     // True to stop the scheduler assigning to the worker, false to let it be assigned to again.
-    bool paused = 1;
+    bool is_paused = 1;
 }
 
 // OperatorListenResponse is a server-to-client message on the Listen stream.
@@ -198,8 +198,8 @@ message OperatorActionsAck {
     uint64 sequence = 1;
 }
 
-// OperatorPauseAck confirms that the pause state is committed on the worker. For paused = true
+// OperatorPauseAck confirms that the pause state is committed on the worker. For is_paused = true
 // it also confirms that no action will be delivered on the stream from here on.
 message OperatorPauseAck {
-    bool paused = 1;
+    bool is_paused = 1;
 }

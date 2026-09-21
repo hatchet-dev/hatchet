@@ -62,7 +62,7 @@ func (s *fakeOperatorListenStream) Send(req *v1.OperatorListenRequest) error {
 
 	if pause := req.GetPause(); pause != nil && !s.noPauseAck.Load() {
 		s.responses <- &v1.OperatorListenResponse{
-			Message: &v1.OperatorListenResponse_PauseAck{PauseAck: &v1.OperatorPauseAck{Paused: pause.Paused}},
+			Message: &v1.OperatorListenResponse_PauseAck{PauseAck: &v1.OperatorPauseAck{IsPaused: pause.IsPaused}},
 		}
 	}
 

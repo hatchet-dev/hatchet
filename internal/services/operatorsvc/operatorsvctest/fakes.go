@@ -781,7 +781,7 @@ func (f *Dispatcher) PauseAcks() []bool {
 	for _, msg := range f.sent {
 		if resp, ok := msg.(*v1contracts.OperatorListenResponse); ok {
 			if ack := resp.GetPauseAck(); ack != nil {
-				out = append(out, ack.Paused)
+				out = append(out, ack.IsPaused)
 			}
 		}
 	}

@@ -184,7 +184,7 @@ func TestOpenByName(t *testing.T) {
 
 	created := h.workers.Created()
 	require.Len(t, created, 1)
-	assert.True(t, created[0].ExemptFromLimits, "every worker the in-process host creates is engine infrastructure")
+	assert.True(t, created[0].IsExemptFromLimits, "every worker the in-process host creates is engine infrastructure")
 
 	// the same name opens another worker of the same operator
 	again, err := h.Open(t.Context(), operator.Identity{TenantId: h.tenant.ID, Name: "contract-op"}, operator.OpenOpts{Handler: nopHandler{}})

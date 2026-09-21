@@ -53,14 +53,14 @@ type CreateWorkerOpts struct {
 	// connections (for example an OperatorService Listen stream), nil for SDK workers.
 	OperatorId *uuid.UUID `validate:"omitempty"`
 
-	// ExemptFromLimits leaves the worker out of the tenant's WORKER and WORKER_SLOT limits:
+	// IsExemptFromLimits leaves the worker out of the tenant's WORKER and WORKER_SLOT limits:
 	// neither metered here nor counted by the limit queries in workers.sql and
 	// tenant_limits.sql, which read the same flag off the row. It is a hosting fact, decided by
 	// whoever creates the worker: the in-process operator host sets it for every worker it
 	// creates, since those are engine infrastructure that runs whether or not the tenant runs
 	// workers of its own; the wire never sets it, so a worker registered over OperatorService
 	// or by an SDK is metered.
-	ExemptFromLimits bool
+	IsExemptFromLimits bool
 }
 
 type UpdateWorkerOpts struct {
@@ -650,7 +650,7 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 	postWorker := func() {}
 	postWorkerSlot := func() {}
 
-	if !opts.ExemptFromLimits {
+	if !opts.IsExemptFromLimits {
 		var preWorker, preWorkerSlot func() error
 
 		preWorker, postWorker = w.m.Meter(ctx, nil, sqlcv1.LimitResourceWORKER, tenantId, 1)
@@ -685,7 +685,7 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 		Actionhash:          hashActions(initialActions),
 		Operatoractioncount: int32(len(initialActions)), // nolint: gosec // bounded by the request size
 		OperatorId:          opts.OperatorId,
-		Exemptfromlimits:    opts.ExemptFromLimits,
+		Isexemptfromlimits:  opts.IsExemptFromLimits,
 	}
 
 	// Default to self hosted
@@ -935,7 +935,7 @@ func (w *workerRepository) linkActions(ctx context.Context, tx pgx.Tx, tenantId,
 		return 0, err
 	}
 
-	linked, err := w.queries.LinkActionsToWorkerReturning(ctx, tx, sqlcv1.LinkActionsToWorkerReturningParams{
+	linked, err := w.queries.LinkNewActionsToWorker(ctx, tx, sqlcv1.LinkNewActionsToWorkerParams{
 		Workerid:  workerId,
 		Tenantid:  tenantId,
 		Actionids: actionUUIDs,
@@ -975,7 +975,7 @@ func (w *workerRepository) unlinkActions(ctx context.Context, tx pgx.Tx, tenantI
 		actionUUIDs = append(actionUUIDs, action.ID)
 	}
 
-	unlinked, err := w.queries.UnlinkActionsFromWorkerReturning(ctx, tx, sqlcv1.UnlinkActionsFromWorkerReturningParams{
+	unlinked, err := w.queries.UnlinkActionsFromWorker(ctx, tx, sqlcv1.UnlinkActionsFromWorkerParams{
 		Workerid:  workerId,
 		Tenantid:  tenantId,
 		Actionids: actionUUIDs,
@@ -1107,17 +1107,8 @@ func (w *workerRepository) resolveActionIds(ctx context.Context, tx pgx.Tx, tena
 // The caller holds the worker's row lock, so the digest written here is the digest of the
 // links this transaction leaves behind.
 func (w *workerRepository) refreshWorkerActionHash(ctx context.Context, tx pgx.Tx, workerId uuid.UUID) error {
-	hash, err := w.queries.ComputeWorkerActionHash(ctx, tx, workerId)
-
-	if err != nil {
-		return fmt.Errorf("could not compute worker actions hash: %w", err)
-	}
-
-	if err := w.queries.UpdateWorkerActionsHash(ctx, tx, sqlcv1.UpdateWorkerActionsHashParams{
-		Workerid:   workerId,
-		Actionhash: hash,
-	}); err != nil {
-		return fmt.Errorf("could not update worker actions hash: %w", err)
+	if err := w.queries.RefreshWorkerActionHash(ctx, tx, workerId); err != nil {
+		return fmt.Errorf("could not refresh worker actions hash: %w", err)
 	}
 
 	return nil
@@ -1163,7 +1154,8 @@ func (w *workerRepository) UpdateWorker(ctx context.Context, tenantId uuid.UUID,
 	defer sqlchelpers.DeferRollback(ctx, w.l, tx.Rollback)
 
 	updateParams := sqlcv1.UpdateWorkerParams{
-		ID: workerId,
+		ID:       workerId,
+		Tenantid: tenantId,
 	}
 
 	if opts.LastHeartbeatAt != nil {
@@ -1312,11 +1304,11 @@ func (w *workerRepository) DeactivateWorkerListener(ctx context.Context, tenantI
 }
 
 func (w *workerRepository) PauseWorkerForListener(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, sessionId uuid.UUID, paused bool) error {
-	if _, err := w.queries.SetWorkerPausedForListener(ctx, w.pool, sqlcv1.SetWorkerPausedForListenerParams{
-		ID:        workerId,
-		Tenantid:  tenantId,
-		Sessionid: sessionId,
-		Paused:    paused,
+	if _, err := w.queries.UpdateWorker(ctx, w.pool, sqlcv1.UpdateWorkerParams{
+		ID:                workerId,
+		Tenantid:          tenantId,
+		IsPaused:          pgtype.Bool{Bool: paused, Valid: true},
+		ListenerSessionId: &sessionId,
 	}); err != nil {
 		return fmt.Errorf("could not set paused=%t on worker %s for listener session %s: %w", paused, workerId, sessionId, err)
 	}

@@ -398,25 +398,6 @@ func (q *Queries) UpdateOperator(ctx context.Context, db DBTX, arg UpdateOperato
 	return &i, err
 }
 
-const updateWorkerActionsHash = `-- name: UpdateWorkerActionsHash :exec
-UPDATE
-    "Worker" w
-SET
-    "actionHash" = $1::bytea
-WHERE
-    w."id" = $2::uuid
-`
-
-type UpdateWorkerActionsHashParams struct {
-	Actionhash []byte    `json:"actionhash"`
-	Workerid   uuid.UUID `json:"workerid"`
-}
-
-func (q *Queries) UpdateWorkerActionsHash(ctx context.Context, db DBTX, arg UpdateWorkerActionsHashParams) error {
-	_, err := db.Exec(ctx, updateWorkerActionsHash, arg.Actionhash, arg.Workerid)
-	return err
-}
-
 const upsertOperator = `-- name: UpsertOperator :one
 INSERT INTO v1_operator (
     tenant_id,

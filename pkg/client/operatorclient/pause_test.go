@@ -39,8 +39,8 @@ func TestOperatorSessionPauseAndResume(t *testing.T) {
 
 	pauses := client.pauseRequests()
 	require.Len(t, pauses, 2)
-	assert.True(t, pauses[0].Paused)
-	assert.False(t, pauses[1].Paused)
+	assert.True(t, pauses[0].IsPaused)
+	assert.False(t, pauses[1].IsPaused)
 	assert.Equal(t, 1, client.streamCount(), "the pause rides the stream that is already open")
 }
 
@@ -77,7 +77,7 @@ func TestOperatorSessionReplaysPauseOnReconnect(t *testing.T) {
 	waitFor(t, func() bool { return client.streamCount() == 2 }, "the session did not reconnect")
 
 	waitFor(t, func() bool { return len(client.stream(1).pauses()) == 1 }, "the pause was not replayed")
-	assert.True(t, client.stream(1).pauses()[0].Paused)
+	assert.True(t, client.stream(1).pauses()[0].IsPaused)
 	assert.Equal(t, []string{"start", "pause"}, client.stream(1).requestKinds()[:2], "the pause is the first message after start")
 
 	require.NoError(t, s.Resume(context.Background()))
@@ -107,7 +107,7 @@ func TestOperatorSessionCloseDrainsInFlightActions(t *testing.T) {
 	go func() { closed <- s.Close() }()
 
 	waitFor(t, func() bool { return len(client.pauseRequests()) == 1 }, "the worker was not paused")
-	assert.True(t, client.pauseRequests()[0].Paused)
+	assert.True(t, client.pauseRequests()[0].IsPaused)
 
 	select {
 	case <-closed:

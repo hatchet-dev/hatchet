@@ -343,8 +343,8 @@ WHERE
     AND w."isPaused" = false
     -- a worker the in-process operator host created is engine infrastructure and is not
     -- metered; every other worker, an operator's or an SDK's, counts (see
-    -- CreateWorkerOpts.ExemptFromLimits in worker.go)
-    AND NOT w."exemptFromLimits"
+    -- CreateWorkerOpts.IsExemptFromLimits in worker.go)
+    AND NOT w."isExemptFromLimits"
 GROUP BY wc.tenant_id
 ;
 
@@ -362,8 +362,8 @@ WHERE
     AND w."isPaused" = false
     -- a worker the in-process operator host created is engine infrastructure and is not
     -- metered; every other worker, an operator's or an SDK's, counts (see
-    -- CreateWorkerOpts.ExemptFromLimits in worker.go)
-    AND NOT w."exemptFromLimits"
+    -- CreateWorkerOpts.IsExemptFromLimits in worker.go)
+    AND NOT w."isExemptFromLimits"
 GROUP BY wc.tenant_id, wc.slot_type
 ;
 
@@ -489,6 +489,8 @@ SET
     "isPaused" = coalesce(sqlc.narg('isPaused')::boolean, "isPaused")
 WHERE
     "id" = @id::uuid
+    AND "tenantId" = @tenantId::uuid
+    AND (sqlc.narg('listenerSessionId')::uuid IS NULL OR "lastListenerSessionId" = sqlc.narg('listenerSessionId')::uuid)
 RETURNING *;
 
 -- name: LinkActionsToWorker :exec
@@ -512,12 +514,7 @@ WHERE
 FOR UPDATE;
 
 -- name: InsertMissingActions :many
--- Creates the Action rows in @actions that do not exist yet and returns the rows it created.
--- Existing rows are left untouched (no lock, no rewrite), so concurrent transactions that
--- reference the same actions do not contend on them. @actions must be lower-cased, free of
--- duplicates and sorted: two transactions creating overlapping sets then take their row locks
--- in the same order and cannot deadlock. An action another transaction creates concurrently is
--- absent from the result; the caller resolves it with ListActionsByActionIds afterwards.
+-- @actions must be lower-cased, deduplicated and sorted so concurrent callers lock in one order.
 INSERT INTO "Action" (
     "id",
     "actionId",
@@ -531,7 +528,7 @@ FROM unnest(@actions::text[]) AS a(action)
 ON CONFLICT ("tenantId", "actionId") DO NOTHING
 RETURNING "id", "actionId";
 
--- name: LinkActionsToWorkerReturning :many
+-- name: LinkNewActionsToWorker :many
 -- Links the worker to the given action rows and returns the action row ids that were newly
 -- linked, so the caller knows whether the set changed. The Worker and Action rows are joined
 -- on the tenant: an action of another tenant, or a worker of another tenant, is never linked.
@@ -559,10 +556,10 @@ WHERE
     "tenantId" = @tenantId::uuid
     AND "actionId" = ANY(@actionIds::text[]);
 
--- name: UnlinkActionsFromWorkerReturning :many
+-- name: UnlinkActionsFromWorker :many
 -- Unlinks the given action rows from the worker and returns the action row ids that were
 -- actually unlinked. The Worker and Action rows are joined on the tenant, as in
--- LinkActionsToWorkerReturning.
+-- LinkNewActionsToWorker.
 DELETE FROM "_ActionToWorker" aw
 USING "Worker" w, "Action" a
 WHERE
@@ -574,24 +571,24 @@ WHERE
     AND a."id" = ANY(@actionIds::uuid[])
 RETURNING aw."A";
 
--- name: ComputeWorkerActionHash :one
--- The canonical digest of the worker's linked action set: sha256 over the action ids sorted
--- by byte order, each followed by ";". An id cannot contain the separator (ParseActionID
--- rejects it), so no id can be read as the boundary between two others. It is the same
--- function hashActions computes in Go, byte for byte, so a worker created with an initial set
--- and a worker built by deltas hash equal for the same set. The empty set hashes to sha256 of
--- no bytes.
-SELECT sha256(coalesce(
-    string_agg(
-        convert_to(a."actionId", 'UTF8') || ';'::bytea,
+-- name: RefreshWorkerActionHash :exec
+-- sha256 over the linked action ids sorted by byte order, each followed by ";", the same digest
+-- hashActions computes in Go.
+UPDATE "Worker" w
+SET "actionHash" = (
+    SELECT sha256(coalesce(
+        string_agg(
+            convert_to(a."actionId", 'UTF8') || ';'::bytea,
+            ''::bytea
+            ORDER BY a."actionId" COLLATE "C"
+        ),
         ''::bytea
-        ORDER BY a."actionId" COLLATE "C"
-    ),
-    ''::bytea
-))::bytea AS "hash"
-FROM "_ActionToWorker" aw
-JOIN "Action" a ON a."id" = aw."A"
-WHERE aw."B" = @workerId::uuid;
+    ))
+    FROM "_ActionToWorker" aw
+    JOIN "Action" a ON a."id" = aw."A"
+    WHERE aw."B" = w."id"
+)
+WHERE w."id" = @workerId::uuid;
 
 -- name: RecountWorkerActions :exec
 -- Sets "operatorActionCount" to the worker's real link count, for the paths that link
@@ -681,20 +678,6 @@ WHERE
     "id" = @id::uuid
     AND "tenantId" = @tenantId::uuid
 RETURNING *;
-
--- name: SetWorkerPausedForListener :one
--- Sets the worker's pause on behalf of a listener session, only while that session is the one
--- recorded on the row. A superseded session must not change the scheduling state the newer
--- session owns, so this returns no rows in that case.
-UPDATE "Worker"
-SET
-    "isPaused" = @paused::boolean,
-    "updatedAt" = CURRENT_TIMESTAMP
-WHERE
-    "id" = @id::uuid
-    AND "tenantId" = @tenantId::uuid
-    AND "lastListenerSessionId" = @sessionId::uuid
-RETURNING "id";
 
 -- name: DeactivateWorkerListener :one
 -- Marks the worker inactive only while the given session is still the one recorded on the
@@ -794,7 +777,7 @@ INSERT INTO "Worker" (
     "actionHash",
     "operatorActionCount",
     "operatorId",
-    "exemptFromLimits"
+    "isExemptFromLimits"
 ) VALUES (
     gen_random_uuid(),
     CURRENT_TIMESTAMP,
@@ -814,7 +797,7 @@ INSERT INTO "Worker" (
     -- set for workers backing an operator connection; NULL for SDK workers
     sqlc.narg('operatorId')::uuid,
     -- true only for workers the in-process operator host creates; the limit queries skip them
-    @exemptFromLimits::boolean
+    @isExemptFromLimits::boolean
 ) RETURNING *;
 
 -- name: LinkServicesToWorker :exec

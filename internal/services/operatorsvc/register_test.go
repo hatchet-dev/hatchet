@@ -52,7 +52,7 @@ func TestRegisterCreatesWorker(t *testing.T) {
 	assert.Equal(t, op.ID, *created[0].OperatorId)
 	assert.Empty(t, created[0].Actions, "registration never registers actions")
 	assert.Equal(t, map[string]int32{"default": 5}, created[0].SlotConfig)
-	assert.False(t, created[0].ExemptFromLimits, "a worker is metered unless the caller exempts it")
+	assert.False(t, created[0].IsExemptFromLimits, "a worker is metered unless the caller exempts it")
 
 	require.Len(t, svc.workers.Labels(reg.WorkerId), 1)
 	assert.Equal(t, "kind", svc.workers.Labels(reg.WorkerId)[0].Key)
@@ -217,20 +217,20 @@ func TestRegisterExemptsWorkerOnRequest(t *testing.T) {
 	svc := newTestService(t, nil)
 
 	exempt := grpcRegisterOpts("op")
-	exempt.ExemptFromLimits = true
+	exempt.IsExemptFromLimits = true
 
 	_, err := svc.Register(t.Context(), tenant, exempt)
 	require.NoError(t, err)
 
 	row := svc.operators.Put(&sqlcv1.V1Operator{ID: uuid.New(), TenantID: tenant.ID, Name: "dag", Kind: sqlcv1.V1OperatorKindDAG, LeasingManager: sqlcv1.V1OperatorLeasingManagerDISPATCHER})
 
-	_, err = svc.Register(t.Context(), tenant, operatorsvc.RegisterOpts{OperatorId: &row.ID, ExemptFromLimits: true})
+	_, err = svc.Register(t.Context(), tenant, operatorsvc.RegisterOpts{OperatorId: &row.ID, IsExemptFromLimits: true})
 	require.NoError(t, err)
 
 	created := svc.workers.Created()
 	require.Len(t, created, 2)
-	assert.True(t, created[0].ExemptFromLimits)
-	assert.True(t, created[1].ExemptFromLimits)
+	assert.True(t, created[0].IsExemptFromLimits)
+	assert.True(t, created[1].IsExemptFromLimits)
 }
 
 // A claimed row is registered by id: nothing is upserted, the worker is named after the row and

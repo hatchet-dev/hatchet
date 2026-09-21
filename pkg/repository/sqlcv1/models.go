@@ -4116,7 +4116,7 @@ type Worker struct {
 	DurableTaskDispatcherId *uuid.UUID       `json:"durableTaskDispatcherId"`
 	ActionHash              []byte           `json:"actionHash"`
 	OperatorActionCount     int32            `json:"operatorActionCount"`
-	ExemptFromLimits        bool             `json:"exemptFromLimits"`
+	IsExemptFromLimits      bool             `json:"isExemptFromLimits"`
 }
 
 type WorkerAssignEvent struct {

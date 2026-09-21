@@ -20,7 +20,7 @@ const (
 	// the listener's receive loop (it is spawned).
 	recvQueueSize = 64
 
-	// sendQueueSize bounds requests waiting for the hub's pump to hand them to the shared
+	// sendQueueSize bounds requests waiting for the hub's send loop to hand them to the shared
 	// listener. A Send past it blocks, selecting on the invocation's close and the caller's
 	// context, so a full queue (an unreachable engine) never holds a closing invocation.
 	sendQueueSize = 256
@@ -40,29 +40,29 @@ const (
 // that task's channels without walking every open channel under the lock. It is created on
 // the first OpenDurable and stops the listener it built when it closes.
 //
-// Requests reach the listener through the hub's bounded outbound queue and one pump
-// goroutine: the listener's own enqueue has no cancellation, so only the pump ever blocks on
-// it, while every channel's Send selects on its own close signal.
+// Requests reach the listener through the hub's bounded outbound queue and one send loop
+// goroutine: the listener's own enqueue has no cancellation, so only the send loop ever blocks
+// on it, while every channel's Send selects on its own close signal.
 type durableHub struct {
-	listener *durableTaskListener
-	channels map[string]map[int32]*durableChannel
-	outbound chan outboundRequest
-	stopped  chan struct{}
-	pumpDone chan struct{}
-	stopOnce sync.Once
-	mu       sync.Mutex
-	closed   bool
+	listener     *durableTaskListener
+	channels     map[string]map[int32]*durableChannel
+	outbound     chan outboundRequest
+	stopped      chan struct{}
+	sendLoopDone chan struct{}
+	stopOnce     sync.Once
+	mu           sync.Mutex
+	closed       bool
 
-	// pumpCtx bounds the pump's hand-off to the listener; closeAll cancels it so a pump
-	// blocked on the listener's full queue returns.
-	pumpCtx    context.Context
-	pumpCancel context.CancelFunc
+	// sendLoopCtx bounds the send loop's hand-off to the listener; closeAll cancels it so a send
+	// loop blocked on the listener's full queue returns.
+	sendLoopCtx    context.Context
+	sendLoopCancel context.CancelFunc
 
 	// stopListener stops the listener the hub built; nil when the caller owns it.
 	stopListener func()
 }
 
-// outboundRequest is one queued request and the channel it belongs to; the pump drops
+// outboundRequest is one queued request and the channel it belongs to; the send loop drops
 // requests of channels closed while they waited.
 type outboundRequest struct {
 	req *v1.DurableTaskRequest
@@ -86,30 +86,30 @@ func newDurableHub(session operatorclient.Session, l *zerolog.Logger) *durableHu
 
 // newDurableHubOver builds a hub over a listener the caller starts and stops.
 func newDurableHubOver(listener *durableTaskListener) *durableHub {
-	pumpCtx, pumpCancel := context.WithCancel(context.Background())
+	sendLoopCtx, sendLoopCancel := context.WithCancel(context.Background())
 
 	hub := &durableHub{
-		listener:   listener,
-		channels:   map[string]map[int32]*durableChannel{},
-		outbound:   make(chan outboundRequest, sendQueueSize),
-		stopped:    make(chan struct{}),
-		pumpDone:   make(chan struct{}),
-		pumpCtx:    pumpCtx,
-		pumpCancel: pumpCancel,
+		listener:       listener,
+		channels:       map[string]map[int32]*durableChannel{},
+		outbound:       make(chan outboundRequest, sendQueueSize),
+		stopped:        make(chan struct{}),
+		sendLoopDone:   make(chan struct{}),
+		sendLoopCtx:    sendLoopCtx,
+		sendLoopCancel: sendLoopCancel,
 	}
 
-	go hub.pump()
+	go hub.sendLoop()
 
 	return hub
 }
 
-// pump hands queued requests to the shared listener. A listener that is no longer running
+// sendLoop hands queued requests to the shared listener. A listener that is no longer running
 // would never drain its queue, so requests are dropped instead of blocking on it; the
 // channels they belong to are being closed with the session. The hand-off itself is
-// bounded by pumpCtx and by the listener's own stop, so a full listener queue (an
-// unreachable engine) cannot hold the pump past closeAll.
-func (h *durableHub) pump() {
-	defer close(h.pumpDone)
+// bounded by sendLoopCtx and by the listener's own stop, so a full listener queue (an
+// unreachable engine) cannot hold the send loop past closeAll.
+func (h *durableHub) sendLoop() {
+	defer close(h.sendLoopDone)
 
 	for {
 		select {
@@ -120,7 +120,7 @@ func (h *durableHub) pump() {
 				continue
 			}
 
-			if err := h.listener.SendRequest(h.pumpCtx, item.req); err != nil && h.pumpCtx.Err() != nil {
+			if err := h.listener.SendRequest(h.sendLoopCtx, item.req); err != nil && h.sendLoopCtx.Err() != nil {
 				return
 			}
 		}
@@ -162,15 +162,15 @@ func (h *durableHub) open(taskId string, invocation int32) (*durableChannel, err
 		return nil, operator.ErrSessionClosed
 	}
 
-	byInvocation := h.channels[taskId]
+	channelsByInvocation := h.channels[taskId]
 
-	if _, ok := byInvocation[invocation]; ok {
+	if _, ok := channelsByInvocation[invocation]; ok {
 		return nil, fmt.Errorf("durable channel for task %s invocation %d is already open", taskId, invocation)
 	}
 
-	if byInvocation == nil {
-		byInvocation = map[int32]*durableChannel{}
-		h.channels[taskId] = byInvocation
+	if channelsByInvocation == nil {
+		channelsByInvocation = map[int32]*durableChannel{}
+		h.channels[taskId] = channelsByInvocation
 	}
 
 	ch := &durableChannel{
@@ -183,7 +183,7 @@ func (h *durableHub) open(taskId string, invocation int32) (*durableChannel, err
 		evictedCh:  make(chan struct{}),
 	}
 
-	byInvocation[invocation] = ch
+	channelsByInvocation[invocation] = ch
 
 	return ch, nil
 }
@@ -192,15 +192,15 @@ func (h *durableHub) remove(ch *durableChannel) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	byInvocation := h.channels[ch.taskId]
+	channelsByInvocation := h.channels[ch.taskId]
 
-	if byInvocation[ch.invocation] != ch {
+	if channelsByInvocation[ch.invocation] != ch {
 		return
 	}
 
-	delete(byInvocation, ch.invocation)
+	delete(channelsByInvocation, ch.invocation)
 
-	if len(byInvocation) == 0 {
+	if len(channelsByInvocation) == 0 {
 		delete(h.channels, ch.taskId)
 	}
 }
@@ -226,14 +226,14 @@ func (h *durableHub) onServerEvict(taskId string, invocation int32, reason strin
 	}
 }
 
-// closeAll closes every open channel, stops the pump and then the listener the hub built.
+// closeAll closes every open channel, stops the send loop and then the listener the hub built.
 func (h *durableHub) closeAll() {
 	h.mu.Lock()
 	h.closed = true
 	channels := make([]*durableChannel, 0, len(h.channels))
 
-	for _, byInvocation := range h.channels {
-		for _, ch := range byInvocation {
+	for _, channelsByInvocation := range h.channels {
+		for _, ch := range channelsByInvocation {
 			channels = append(channels, ch)
 		}
 	}
@@ -246,7 +246,7 @@ func (h *durableHub) closeAll() {
 
 	h.stopOnce.Do(func() {
 		close(h.stopped)
-		h.pumpCancel()
+		h.sendLoopCancel()
 
 		if h.stopListener != nil {
 			h.stopListener()

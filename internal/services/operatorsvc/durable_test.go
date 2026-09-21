@@ -466,7 +466,7 @@ func TestOpenDurableDeliversACompletionOnce(t *testing.T) {
 	assert.Zero(t, operatorsvc.RetainedResponses(ch), "nothing is retained for a delivered entry")
 }
 
-// What the pump retains for Recv, deliverable or held, is bounded for the life of the
+// What the receive loop retains for Recv, deliverable or held, is bounded for the life of the
 // invocation: past the limit the channel fails rather than buffer without end.
 func TestOpenDurableRetainedResponsesAreBounded(t *testing.T) {
 	tenant := &sqlcv1.Tenant{ID: uuid.New()}
@@ -492,7 +492,7 @@ func TestOpenDurableRetainedResponsesAreBounded(t *testing.T) {
 	select {
 	case <-fed:
 	case <-time.After(5 * time.Second):
-		t.Fatal("the engine could not hand its responses to the pump")
+		t.Fatal("the engine could not hand its responses to the receive loop")
 	}
 
 	recvCtx, cancel := context.WithTimeout(t.Context(), time.Second)

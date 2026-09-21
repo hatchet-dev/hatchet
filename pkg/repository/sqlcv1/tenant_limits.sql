@@ -171,6 +171,6 @@ WHERE
     AND w."isActive" = true
     -- a worker the in-process operator host created is engine infrastructure and is not
     -- metered; every other worker, an operator's or an SDK's, counts (see
-    -- CreateWorkerOpts.ExemptFromLimits in worker.go)
-    AND NOT w."exemptFromLimits"
+    -- CreateWorkerOpts.IsExemptFromLimits in worker.go)
+    AND NOT w."isExemptFromLimits"
 ;
