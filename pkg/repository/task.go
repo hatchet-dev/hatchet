@@ -423,10 +423,18 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	if err != nil {
 		r.l.Error().Err(err).Msg("failed to acquire connection from ddlPool")
 	}
+
+	createPartitionsTx, err := ddlConn.Begin(ctx)
+	if err != nil {
+		release()
+		return fmt.Errorf("failed to begin partition creation transaction: %w", err)
+	}
+
 	releaseCreateConn := func() {
 		resetCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		defer release()
+		_ = createPartitionsTx.Rollback(resetCtx)
 		if _, resetErr := ddlConn.Exec(resetCtx, "SET lock_timeout = 0"); resetErr != nil {
 			r.l.Error().Err(resetErr).Msg("failed to reset lock_timeout on DDL connection")
 		}
@@ -437,7 +445,7 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		return fmt.Errorf("failed to set lock_timeout: %w", err)
 	}
 
-	todayCreations, err := r.queries.CreatePartitions(ctx, ddlConn, pgtype.Date{
+	todayCreations, err := r.queries.CreatePartitions(ctx, createPartitionsTx, pgtype.Date{
 		Time:  today,
 		Valid: true,
 	})
@@ -450,7 +458,7 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		return err
 	}
 
-	tomorrowCreations, err := r.queries.CreatePartitions(ctx, ddlConn, pgtype.Date{
+	tomorrowCreations, err := r.queries.CreatePartitions(ctx, createPartitionsTx, pgtype.Date{
 		Time:  tomorrow,
 		Valid: true,
 	})
@@ -473,12 +481,17 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		payloadDatesToCreateUniqueConstraints = append(payloadDatesToCreateUniqueConstraints, tomorrow)
 	}
 
-	if err = createExternalIdUniqueConstraintsOnDailyPartitions(ctx, ddlConn, "v1_payload", payloadDatesToCreateUniqueConstraints...); err != nil {
+	if err = createExternalIdUniqueConstraintsOnDailyPartitions(ctx, createPartitionsTx, "v1_payload", payloadDatesToCreateUniqueConstraints...); err != nil {
 		releaseCreateConn()
 		if isLockNotAvailable(err) {
 			return ErrPartitionLockConflict
 		}
 		return err
+	}
+
+	if err = createPartitionsTx.Commit(ctx); err != nil {
+		releaseCreateConn()
+		return fmt.Errorf("failed to commit partition creation transaction: %w", err)
 	}
 
 	releaseCreateConn()
