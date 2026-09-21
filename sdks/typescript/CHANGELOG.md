@@ -5,12 +5,86 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.33.1] - 2026-09-09
+
+### Changed
+
+- Embedded mode now reports first-run progress on stderr: a line when the sidecar download starts (with version and destination) and completes, a notice when a slow release or checksum fetch blocks startup, a startup line before waiting for the engine, and a heartbeat every 30 seconds while the engine is still becoming ready. Warm starts print at most one startup line.
+- `HatchetEmbeddedClient.init()` now warns once when `HATCHET_CLIENT_TOKEN` is set in the environment, since Hatchet clients created with the standard constructor in the same process will not use the embedded engine.
+
+## [1.33.0] - 2026-09-08
+
+### Added
+
+- Added `/readyz` and `/livez` endpoints to the worker health server, matching Kubernetes' own probe naming convention. `/readyz` returns 200 only when the worker is `HEALTHY`; `/livez` returns 200 whenever the process can respond, independent of Hatchet connectivity, so a transient upstream disconnect doesn't trigger a container restart. `/health` is unchanged.
+
+## [1.32.0] - 2026-09-08
+
+### Added
+
+- Added the `@hatchet-dev/typescript-sdk/edge` entry point: the declaration factories and classes, `Context`, `DurableContext`, conditions, durations, errors and the wire types needed to declare and run tasks from a runtime without a Hatchet client (Cloudflare Workers, Vercel Functions). It imports nothing from Node, which `scripts/check-edge-entry.mjs` enforces in CI, and ships a `declarations()` factory that returns `task`, `durableTask`, `workflow` and `batchTask` bound to no client. The subpath resolves through the package's file layout, like the existing `v1/embedded` subpath.
+- Added `workflowToProto(definition, { namespace })`, a pure function that builds the `CreateWorkflowVersionRequest` a workflow registers under, lifted out of the worker together with `normalizeWorkflowDefinition` and the mapping helpers. The worker registers through it.
+- Added the `ContextRuntime` and `DurableTransport` interfaces. `Context` and `DurableContext` now perform every engine-facing operation through them; a worker supplies adapters over its client and durable listener, and the existing `(action, client, worker)` constructors keep working.
+- Added `createActionId(workflowName, taskName)` and `ParentRunContextManager.useStorage(...)` so runtimes without `AsyncLocalStorage` can still declare and serve tasks.
+
+### Changed
+
+- Action ids are registered fully lowercased (`<workflow>:<task>`), matching the ids the worker keys its registries by. Behaviour on the wire is unchanged: the engine already normalised ids (`ParseActionID` lowercases the verb and `UpsertAction` stores `LOWER(actionId)`), and the SDK now sends the normalised form itself.
+- Memo keys for `ctx.now()` are computed with WebCrypto (`crypto.subtle.digest`) instead of `crypto.createHash`. The bytes are unchanged, so recorded durable event logs keep replaying; `globalThis.crypto` (Node 20 or newer) is required for durable tasks.
+- `bindAbortSignalHandler` moved from `util/abort-error` to `util/abort-signal`, keeping the abort helpers free of Node imports.
+
+## [1.31.1] - 2026-09-03
+
+### Security
+
+- Bumped `qs` to 6.16.0 to address GHSA-4mjr-xmp4-gh2g and GHSA-x5fp-wj9c-mxmx.
+
+## [1.31.0] - 2026-09-03
+
+### Added
+
+- Added support for tenant-scoped shared concurrency strategies. Declare a `Concurrency` entry with `isTenantScoped: true` and a `name`, and reference the same name from tasks in different workflows so they share a single concurrency limit. Tenant-scoped entries can be mixed with ordinary workflow-scoped entries on the same task.
+- `Concurrency.maxRuns` now accepts `number | string`: a string is a CEL expression over task input computing the max runs for each concurrency group, so different groups (e.g. pricing tiers) can have different limits.
+
+## [1.30.1] - 2026-09-01
+
+### Fixed
+
+- Fixes another durable callback ordering bug which would cause NonDeterminismErrors to be raised on replay in the case where e.g. children were spawned recursively, concurrently.
+
+## [1.30.0] - 2026-08-26
+
+### Added
+
+- Added support for `CANCEL_QUEUED_EXCEPT_NEWEST` and `CANCEL_QUEUED_EXCEPT_OLDEST` concurrency strategies.
+
+
+## [1.29.3] - 2026-08-31
+
+### Changed
+
+- The missing-token configuration error now explains how to run Hatchet embedded for local development, via `HatchetEmbeddedClient.init()`, with a link to the embedded mode docs.
+
 
 ## [1.29.2] - 2026-08-10
 
 ### Fixed
 
 - Improved error handling around failed heartbeats
+
+
+## [1.29.1] - 2026-08-25
+
+### Added
+
+- Added `stopEmbedded()` on clients returned by `HatchetEmbeddedClient.init()` and a standalone `stopEmbeddedSidecar()` export, which gracefully stop the embedded engine (including its bundled Postgres) and resolve once it has fully exited.
+
+
+## [1.29.0] - 2026-08-24
+
+### Added
+
+- Added embedded mode (early beta): `HatchetEmbeddedClient.init()` from the `@hatchet-dev/typescript-sdk/v1/embedded` entry point downloads and spawns the `hatchet-embedded` sidecar (checksum-verified, cached under `~/.hatchet/embedded`), runs a full Hatchet engine locally with a bundled Postgres by default (pass `databaseUrl` to use your own), and returns a client wired to it. The separate entry point keeps embedded support out of production bundles.
 
 
 ## [1.28.2] - 2026-08-10

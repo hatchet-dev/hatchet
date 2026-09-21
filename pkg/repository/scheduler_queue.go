@@ -43,6 +43,11 @@ type RateLimitResult struct {
 	RetryCount     int32
 }
 
+type taskIdRetryCount struct {
+	taskId     int64
+	retryCount int32
+}
+
 type AssignedItem struct {
 	WorkerId uuid.UUID
 
@@ -291,12 +296,15 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 
 	idsToUnqueue := make([]int64, 0, len(r.Assigned)+len(r.Buffered))
 	queueItemIdsToAssignedItem := make(map[int64]*AssignedItem, len(r.Assigned))
-	taskIdToAssignedItem := make(map[int64]*AssignedItem, len(r.Assigned))
+	taskRetryToAssignedItem := make(map[taskIdRetryCount]*AssignedItem, len(r.Assigned))
 
 	for _, assignedItem := range r.Assigned {
 		idsToUnqueue = append(idsToUnqueue, assignedItem.QueueItem.ID)
 		queueItemIdsToAssignedItem[assignedItem.QueueItem.ID] = assignedItem
-		taskIdToAssignedItem[assignedItem.QueueItem.TaskID] = assignedItem
+		taskRetryToAssignedItem[taskIdRetryCount{
+			taskId:     assignedItem.QueueItem.TaskID,
+			retryCount: assignedItem.QueueItem.RetryCount,
+		}] = assignedItem
 	}
 
 	tasksToRelease := make([]TaskIdInsertedAtRetryCount, 0, len(r.SchedulingTimedOut))
@@ -446,6 +454,7 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 
 	taskIds := make([]int64, 0, len(r.Assigned))
 	taskInsertedAts := make([]pgtype.Timestamptz, 0, len(r.Assigned))
+	taskRetryCounts := make([]int32, 0, len(r.Assigned))
 	workerIds := make([]uuid.UUID, 0, len(r.Assigned))
 
 	var minTaskInsertedAt pgtype.Timestamptz
@@ -456,6 +465,7 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 		if _, ok := queuedItemsMap[id]; ok {
 			taskIds = append(taskIds, assignedItem.QueueItem.TaskID)
 			taskInsertedAts = append(taskInsertedAts, assignedItem.QueueItem.TaskInsertedAt)
+			taskRetryCounts = append(taskRetryCounts, assignedItem.QueueItem.RetryCount)
 			workerIds = append(workerIds, assignedItem.WorkerId)
 
 			if assignedItem.QueueItem.TaskInsertedAt.Valid && (!minTaskInsertedAt.Valid || assignedItem.QueueItem.TaskInsertedAt.Time.Before(minTaskInsertedAt.Time)) {
@@ -487,6 +497,7 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 	updatedTasks, err := d.queries.UpdateTasksToAssigned(ctx, tx, sqlcv1.UpdateTasksToAssignedParams{
 		Taskids:           taskIds,
 		Taskinsertedats:   taskInsertedAts,
+		Taskretrycounts:   taskRetryCounts,
 		Mintaskinsertedat: minTaskInsertedAt,
 		Workerids:         workerIds,
 		Tenantid:          tenantId,
@@ -522,17 +533,19 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 	failed = make([]*AssignedItem, 0, len(r.Assigned))
 
 	for _, row := range updatedTasks {
-		if assignedItem, ok := taskIdToAssignedItem[row.TaskID]; ok {
+		key := taskIdRetryCount{taskId: row.TaskID, retryCount: row.RetryCount}
+
+		if assignedItem, ok := taskRetryToAssignedItem[key]; ok {
 			if row.IsDurable.Valid {
 				assignedItem.IsDurable = row.IsDurable.Bool
 			}
 
 			succeeded = append(succeeded, assignedItem)
-			delete(taskIdToAssignedItem, row.TaskID)
+			delete(taskRetryToAssignedItem, key)
 		}
 	}
 
-	for _, assignedItem := range taskIdToAssignedItem {
+	for _, assignedItem := range taskRetryToAssignedItem {
 		failed = append(failed, assignedItem)
 	}
 
@@ -1196,6 +1209,7 @@ func (b *batchQueueRepository) commitAssignmentsTx(ctx context.Context, tx pgx.T
 	ids := make([]int64, 0, len(assignments))
 	taskIds := make([]int64, 0, len(assignments))
 	taskInsertedAts := make([]pgtype.Timestamptz, 0, len(assignments))
+	taskRetryCounts := make([]int32, 0, len(assignments))
 	workerIds := make([]uuid.UUID, 0, len(assignments))
 
 	var minTaskInsertedAt pgtype.Timestamptz
@@ -1208,6 +1222,7 @@ func (b *batchQueueRepository) commitAssignmentsTx(ctx context.Context, tx pgx.T
 		ids = append(ids, assignment.BatchQueueItemID)
 		taskIds = append(taskIds, assignment.TaskID)
 		taskInsertedAts = append(taskInsertedAts, assignment.TaskInsertedAt)
+		taskRetryCounts = append(taskRetryCounts, assignment.RetryCount)
 		workerIds = append(workerIds, assignment.WorkerID)
 
 		if assignment.TaskInsertedAt.Valid && (!minTaskInsertedAt.Valid || assignment.TaskInsertedAt.Time.Before(minTaskInsertedAt.Time)) {
@@ -1226,6 +1241,7 @@ func (b *batchQueueRepository) commitAssignmentsTx(ctx context.Context, tx pgx.T
 	updated, err := b.queries.UpdateTasksToAssigned(ctx, tx, sqlcv1.UpdateTasksToAssignedParams{
 		Taskids:           taskIds,
 		Taskinsertedats:   taskInsertedAts,
+		Taskretrycounts:   taskRetryCounts,
 		Workerids:         workerIds,
 		Mintaskinsertedat: minTaskInsertedAt,
 		Tenantid:          b.tenantId,
@@ -1234,10 +1250,10 @@ func (b *batchQueueRepository) commitAssignmentsTx(ctx context.Context, tx pgx.T
 		return nil, fmt.Errorf("could not update tasks to assigned: %w", err)
 	}
 
-	updatedTaskIDs := make(map[int64]struct{}, len(updated))
+	updatedTaskIDs := make(map[taskIdRetryCount]struct{}, len(updated))
 	for _, row := range updated {
 		if row != nil {
-			updatedTaskIDs[row.TaskID] = struct{}{}
+			updatedTaskIDs[taskIdRetryCount{taskId: row.TaskID, retryCount: row.RetryCount}] = struct{}{}
 		}
 	}
 
@@ -1246,7 +1262,7 @@ func (b *batchQueueRepository) commitAssignmentsTx(ctx context.Context, tx pgx.T
 		if a == nil {
 			continue
 		}
-		if _, ok := updatedTaskIDs[a.TaskID]; ok {
+		if _, ok := updatedTaskIDs[taskIdRetryCount{taskId: a.TaskID, retryCount: a.RetryCount}]; ok {
 			succeeded = append(succeeded, a)
 		}
 	}

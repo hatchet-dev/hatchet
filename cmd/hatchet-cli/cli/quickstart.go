@@ -46,7 +46,7 @@ support a subset of languages.`,
   hatchet quickstart -l python -m uv -p my-worker -d ./my-worker`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// Check if at least one profile exists
-		profileNames := cli.ListProfiles()
+		profileNames := cli.Profiles.ListProfiles()
 		if len(profileNames) == 0 {
 			fmt.Println(noProfilesMessage())
 			os.Exit(1)

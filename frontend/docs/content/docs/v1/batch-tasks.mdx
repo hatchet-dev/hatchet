@@ -57,7 +57,7 @@ In the following example, the batch task will be executed once 3 tasks have accu
 
 To allow for accumulation of multiple batches simultaneously using the same workflow, batch keys can be used.
 For example, if you had multiple tenants, and wanted to ensure that each batch execution did not mix inputs from multiple
-tenants, batch keys can be used to partition the inputs. In the following example, the batches will flush independently based on the `group` value.
+tenants, batch keys can be used to partition the inputs. The batch key is a [CEL expression](/v1/cel-expressions) evaluated against the run's input and additional metadata. In the following example, the batches will flush independently based on the `group` value.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab>

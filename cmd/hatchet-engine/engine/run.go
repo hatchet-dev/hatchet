@@ -31,6 +31,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
+	"github.com/hatchet-dev/hatchet/pkg/o11yusage"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -127,8 +128,20 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig, cleanup *cleanu
 	return runV0Config(ctx, sc, cleanup)
 }
 
+func startO11yUsage(sc *server.ServerConfig, cleanup *cleanup.Cleanup) *o11yusage.Aggregator {
+	if sc.O11yUsageFlush == nil {
+		return nil
+	}
+
+	agg := o11yusage.NewAggregator(sc.Logger, sc.Runtime.O11yUsageFlushInterval, sc.O11yUsageFlush)
+	agg.Start()
+	cleanup.Add(agg.Shutdown, "o11y-usage")
+	return agg
+}
+
 func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.Cleanup) error {
 	var l = sc.Logger
+	o11yUsage := startO11yUsage(sc, cleanup)
 
 	telemetryShutdown, err := telemetry.InitTracer(&telemetry.TracerOpts{
 		ServiceName:   sc.OpenTelemetry.ServiceName,
@@ -356,8 +369,6 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			dispatcher.WithStreamEventBufferTimeout(sc.Runtime.StreamEventBufferTimeout),
 			dispatcher.WithVersion(sc.Version),
 			dispatcher.WithAnalytics(sc.Analytics),
-			dispatcher.WithEncryption(sc.Encryption),
-			dispatcher.WithInfraBlockedCIDRs(sc.Runtime.OperatorInfraBlockedCIDRs),
 			dispatcher.WithDAGOperatorDefaultSlots(sc.Runtime.DagOperatorDefaultSlots),
 			dispatcher.WithPrometheusGate(sc.PrometheusGate),
 		)
@@ -384,6 +395,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			ingestor.WithGrpcTriggerSlots(sc.Runtime.GRPCTriggerWriteSlots),
 			ingestor.WithAnalytics(sc.Analytics),
 			ingestor.WithPrometheusGate(sc.PrometheusGate),
+			ingestor.WithO11yUsage(o11yUsage),
 		)
 
 		if err != nil {
@@ -444,6 +456,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 				otelcol.WithLogger(sc.Logger),
 				otelcol.WithMaxBatchSize(sc.Observability.MaxBatchSize),
 				otelcol.WithAnalytics(sc.Analytics),
+				otelcol.WithO11yUsage(o11yUsage),
 			)
 
 			if err != nil {
@@ -546,6 +559,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 
 func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.Cleanup) error {
 	var l = sc.Logger
+	o11yUsage := startO11yUsage(sc, cleanup)
 
 	telemetryShutdown, err := telemetry.InitTracer(&telemetry.TracerOpts{
 		ServiceName:   sc.OpenTelemetry.ServiceName,
@@ -804,8 +818,6 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			dispatcher.WithStreamEventBufferTimeout(sc.Runtime.StreamEventBufferTimeout),
 			dispatcher.WithVersion(sc.Version),
 			dispatcher.WithAnalytics(sc.Analytics),
-			dispatcher.WithEncryption(sc.Encryption),
-			dispatcher.WithInfraBlockedCIDRs(sc.Runtime.OperatorInfraBlockedCIDRs),
 			dispatcher.WithDAGOperatorDefaultSlots(sc.Runtime.DagOperatorDefaultSlots),
 			dispatcher.WithPrometheusGate(sc.PrometheusGate),
 		)
@@ -833,6 +845,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			ingestor.WithGrpcTriggerSlots(sc.Runtime.GRPCTriggerWriteSlots),
 			ingestor.WithAnalytics(sc.Analytics),
 			ingestor.WithPrometheusGate(sc.PrometheusGate),
+			ingestor.WithO11yUsage(o11yUsage),
 		)
 
 		if err != nil {
@@ -894,6 +907,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 				otelcol.WithLogger(sc.Logger),
 				otelcol.WithMaxBatchSize(sc.Observability.MaxBatchSize),
 				otelcol.WithAnalytics(sc.Analytics),
+				otelcol.WithO11yUsage(o11yUsage),
 			)
 
 			if err != nil {

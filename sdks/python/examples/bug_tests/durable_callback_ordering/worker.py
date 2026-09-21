@@ -1,169 +1,144 @@
 from __future__ import annotations
 
-import argparse
 import asyncio
-import os
 from datetime import timedelta
-from typing import cast
 
 from hatchet_sdk import Context, DurableContext, Hatchet
 from hatchet_sdk.runnables.eviction import EvictionPolicy
 from pydantic import BaseModel, Field
 
-WORKFLOW_PREFIX = "durable-recursive-gather-repro"
-
-
-class ChildInput(BaseModel):
-    path: str
-    phase: str
-    delay_ms: int
-
-
-class ChildOutput(BaseModel):
-    path: str
-    phase: str
-
-
-class ReproInput(BaseModel):
-    depth: int = Field(default=9, ge=1, le=12)
-    child_delay_ms: int = Field(default=10, ge=0, le=60_000)
-
-
-class ReproOutput(BaseModel):
-    child_workflow_count: int
-    invocation_count: int
-
-
-def _expected_child_count(depth: int) -> int:
-    # There are 2**depth - 1 internal nodes. Each starts a first and follow-up
-    # child, and the parent adds two outer children:
-    #   2 * (2**depth - 1) + 2 == 2**(depth + 1)
-    return cast(int, 2 ** (depth + 1))
-
+WORKFLOW_PREFIX = "durable-callback-ordering"
 
 hatchet = Hatchet()
 
-# Read before the decorator runs, so it cannot come from argparse. A TTL near
-# zero can evict the parent faster than it makes progress, which livelocks the
-# run instead of reproducing anything.
-EVICTION_TTL_MS = int(os.environ.get("REPRO2_EVICTION_TTL_MS", "1"))
+
+class LeafInput(BaseModel):
+    mid: int
+    branch: int
+    delay_ms: int
+    generation: int
+
+
+class LeafOutput(BaseModel):
+    mid: int
+    branch: int
+    generation: int
+
+
+class MidInput(BaseModel):
+    mid: int
+    branches: int = Field(ge=2, le=100)
+    child_delay_ms: int = Field(ge=1_100, le=60_000)
+    delay_step_ms: int = Field(ge=0, le=1_000)
+
+
+class MidOutput(BaseModel):
+    mid: int
+    completed_branches: list[int]
+    invocation_count: int
+
+
+class RootInput(BaseModel):
+    durables: int = Field(default=4, ge=2, le=32)
+    branches: int = Field(default=8, ge=2, le=100)
+    child_delay_ms: int = Field(default=1_500, ge=1_100, le=60_000)
+    delay_step_ms: int = Field(default=3, ge=0, le=1_000)
+
+
+class RootOutput(BaseModel):
+    root_invocation_count: int
+    mid_invocation_counts: list[int]
+    completed_mids: list[int]
 
 
 @hatchet.task(
-    name=f"{WORKFLOW_PREFIX}-child",
-    input_validator=ChildInput,
+    name=f"{WORKFLOW_PREFIX}-leaf",
+    input_validator=LeafInput,
     execution_timeout=timedelta(minutes=1),
 )
-async def child(params: ChildInput, _context: Context) -> ChildOutput:
+async def callback_ordering_leaf(params: LeafInput, _context: Context) -> LeafOutput:
     await asyncio.sleep(params.delay_ms / 1_000)
-    return ChildOutput(path=params.path, phase=params.phase)
+    return LeafOutput(
+        mid=params.mid, branch=params.branch, generation=params.generation
+    )
 
 
 @hatchet.durable_task(
-    name=f"{WORKFLOW_PREFIX}-parent",
-    input_validator=ReproInput,
-    execution_timeout=timedelta(minutes=20),
+    name=f"{WORKFLOW_PREFIX}-mid",
+    input_validator=MidInput,
+    execution_timeout=timedelta(minutes=5),
     retries=0,
     eviction_policy=EvictionPolicy(
-        # The eviction manager checks once per second. A near-zero TTL makes the
-        # parent eligible on every check while any child wait remains active.
-        ttl=timedelta(milliseconds=EVICTION_TTL_MS),
+        ttl=timedelta(milliseconds=250),
         allow_capacity_eviction=True,
     ),
 )
-async def parent(params: ReproInput, context: DurableContext) -> ReproOutput:
-    print(
-        f"parent invocation={context.invocation_count} depth={params.depth} "
-        f"expected_children={_expected_child_count(params.depth)}",
-        flush=True,
-    )
-
-    async def run_child(path: str, phase: str) -> None:
-        result = await child.aio_run(
-            ChildInput(
-                path=path,
-                phase=phase,
+async def callback_ordering_mid(params: MidInput, context: DurableContext) -> MidOutput:
+    # Staggered first-generation children complete out of spawn order, so each
+    # branch's second-generation spawn is emitted in completion order. Replays
+    # after eviction must re-deliver those completions in the recorded order or
+    # the re-emitted spawn sequence diverges from the event log.
+    async def branch(branch_index: int) -> int:
+        first_delay_ms = (
+            params.child_delay_ms
+            + (params.branches - branch_index - 1) * params.delay_step_ms
+        )
+        first = await callback_ordering_leaf.aio_run(
+            LeafInput(
+                mid=params.mid,
+                branch=branch_index,
+                delay_ms=first_delay_ms,
+                generation=1,
+            )
+        )
+        second = await callback_ordering_leaf.aio_run(
+            LeafInput(
+                mid=params.mid,
+                branch=first.branch,
                 delay_ms=params.child_delay_ms,
+                generation=2,
             )
         )
-        if result.path != path or result.phase != phase:
-            raise RuntimeError(
-                f"unexpected child result: expected {path}/{phase}, "
-                f"got {result.path}/{result.phase}"
-            )
+        return second.branch
 
-    async def expand(path: str, remaining_depth: int) -> int:
-        if remaining_depth == 0:
-            return 0
-
-        # A first-level child races with both recursive branches. Once all three
-        # complete, this node unlocks another child while first-level children
-        # from other parts of the tree may still be spawning or completing.
-        _, left_count, right_count = await asyncio.gather(
-            run_child(path, "first"),
-            expand(f"{path}L", remaining_depth - 1),
-            expand(f"{path}R", remaining_depth - 1),
-        )
-        await run_child(path, "follow-up")
-        return 2 + left_count + right_count
-
-    _, tree_count, _ = await asyncio.gather(
-        run_child("outer-left", "outer"),
-        expand("root", params.depth),
-        run_child("outer-right", "outer"),
+    completed = await asyncio.gather(
+        *(branch(branch_index) for branch_index in range(params.branches))
     )
-    child_workflow_count = tree_count + 2
-    expected_count = _expected_child_count(params.depth)
-    if child_workflow_count != expected_count:
-        raise RuntimeError(
-            f"expected {expected_count} child workflows, got {child_workflow_count}"
-        )
-
-    return ReproOutput(
-        child_workflow_count=child_workflow_count,
+    return MidOutput(
+        mid=params.mid,
+        completed_branches=list(completed),
         invocation_count=context.invocation_count,
     )
 
 
-def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--attempts", type=int, default=1)
-    parser.add_argument(
-        "--depth",
-        type=int,
-        default=9,
-        help="Depth 9 creates exactly 1024 child workflows.",
+@hatchet.durable_task(
+    name=f"{WORKFLOW_PREFIX}-root",
+    input_validator=RootInput,
+    execution_timeout=timedelta(minutes=10),
+    retries=0,
+    eviction_policy=EvictionPolicy(
+        ttl=timedelta(milliseconds=250),
+        allow_capacity_eviction=True,
+    ),
+)
+async def callback_ordering_root(
+    params: RootInput, context: DurableContext
+) -> RootOutput:
+    results = await asyncio.gather(
+        *(
+            callback_ordering_mid.aio_run(
+                MidInput(
+                    mid=mid_index,
+                    branches=params.branches,
+                    child_delay_ms=params.child_delay_ms,
+                    delay_step_ms=params.delay_step_ms,
+                )
+            )
+            for mid_index in range(params.durables)
+        )
     )
-    parser.add_argument("--child-delay-ms", type=int, default=10)
-    parser.add_argument(
-        "--slots",
-        type=int,
-        default=8,
-        help=(
-            "Standard worker slots for child workflows. Keeping this low makes "
-            "the durable parent remain waiting across multiple eviction ticks."
-        ),
+    return RootOutput(
+        root_invocation_count=context.invocation_count,
+        mid_invocation_counts=[item.invocation_count for item in results],
+        completed_mids=[item.mid for item in results],
     )
-    parser.add_argument("--durable-slots", type=int, default=1)
-    parser.add_argument(
-        "--worker-startup-seconds",
-        type=float,
-        default=3,
-        help="Time to allow workflow registration before triggering the first run.",
-    )
-    return parser.parse_args()
-
-
-def main() -> None:
-    args = _parse_args()
-    worker = hatchet.worker(
-        name=f"{WORKFLOW_PREFIX}-worker",
-        slots=args.slots,
-        durable_slots=args.durable_slots,
-        workflows=[child, parent],
-    )
-    worker.start()
-
-
-if __name__ == "__main__":
-    main()

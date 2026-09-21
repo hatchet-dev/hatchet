@@ -23,10 +23,15 @@ jobs:
               echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
             fi
 
+        - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+          with:
+            ref: ${{ steps.tag_name.outputs.tag }}
+
+        # A tag without a CHANGELOG.md section is a CLI-only release: no latest images, no load tests.
         - id: skip
           run: |
             tag="${{ steps.tag_name.outputs.tag }}"
-            if echo "$tag" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            if echo "$tag" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$' && [ -n "$(./hack/ci/release-notes-cli.sh "$tag")" ]; then
               echo "should_publish=true" >> "$GITHUB_OUTPUT"
             else
               echo "should_publish=false" >> "$GITHUB_OUTPUT"
@@ -45,7 +50,7 @@ jobs:
         optimistic-scheduling: ["true", "false"]
 
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.verify.outputs.tag }}
           fetch-depth: 0
@@ -56,7 +61,7 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Go
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: "1.26"
 
@@ -71,7 +76,7 @@ jobs:
 
       - name: Test
         run: |
-          go test -tags load ./... -p 5 -v -race -failfast -timeout 20m
+          go test -tags load ./... -p 5 -race -failfast -timeout 20m
         env:
           TESTING_MATRIX_MIGRATE: ${{ matrix.migrate-strategy }}
           TESTING_MATRIX_RABBITMQ_ENABLED: ${{ matrix.rabbitmq-enabled }}

@@ -1,6 +1,7 @@
 {
   "pages": [
     "setup-cli",
+    "local-dev-embedded",
     "start-worker",
     "trigger-and-watch",
     "debug-run",

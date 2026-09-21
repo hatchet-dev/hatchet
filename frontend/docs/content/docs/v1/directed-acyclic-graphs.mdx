@@ -109,6 +109,8 @@ Even though the structure of a DAG is fixed when you define it, individual tasks
 - **`skip_if`**: Skip this task if the parent's output matches the condition. Downstream tasks can [check whether a parent was skipped](#checking-if-a-parent-was-skipped) and behave accordingly.
 - **`cancel_if`**: Cancel this task if the parent's output matches the condition.
 
+Conditions are [CEL expressions](/v1/cel-expressions#task-condition-expressions) evaluated against the parent's `output`.
+
 <Callout type="warning">
   A task cancelled by `cancel_if` behaves like any other cancellation in
   Hatchet, meaning its downstream dependents will be cancelled as well.

@@ -149,6 +149,14 @@ export function formatDuration(ms: number): string {
 
 export const emptyGolangUUID = '00000000-0000-0000-0000-000000000000';
 
+export function prettyPrintIfValidJson(value: string): string {
+  try {
+    return JSON.stringify(JSON.parse(value), null, 2);
+  } catch {
+    return value;
+  }
+}
+
 export function parseDuration(input: string): number | null {
   const s = input.trim();
   if (!s) {

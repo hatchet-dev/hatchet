@@ -5,6 +5,48 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.40.3] - 2026-09-18
+
+### Added
+
+- The sync `result()` poll interval is configurable via `ClientConfig.sync_result_poll_interval` or the `HATCHET_CLIENT_SYNC_RESULT_POLL_INTERVAL` environment variable, or per call on `WorkflowRunRef.result` / `TaskRunRef.result`. The minimum remains 1 second.
+
+## [1.40.2] - 2026-09-09
+
+### Changed
+
+- Embedded mode now reports first-run progress on stderr: a line when the sidecar download starts (with version and destination) and completes, a notice when a slow release or checksum fetch blocks startup, a startup line before waiting for the engine, and a heartbeat every 30 seconds while the engine is still becoming ready. Warm starts print at most one startup line.
+- `Hatchet.from_embedded()` now warns once when `HATCHET_CLIENT_TOKEN` is set in the environment or in a `.env` file, since Hatchet clients created with the standard constructor in the same process will not use the embedded engine.
+
+## [1.40.1] - 2026-09-09
+
+### Fixed
+
+- Errors if duplicate action ids are present in the action registry, since internally we assume they're unique
+- Raises correctly on errors inside of `aio_start` by handling coroutine callback
+- Raises an error and exists if a task e.g. segfaults instead of orphaning a process and hanging indefinitely
+
+## [1.40.0] - 2026-09-03
+
+### Added
+
+- Added support for tenant-scoped shared concurrency strategies. Declare a `ConcurrencyExpression` with `is_tenant_scoped=True` and a `name`, and reference the same name from the `concurrency` list of tasks in different workflows so they share a single concurrency limit. Tenant-scoped entries can be mixed with ordinary workflow-scoped entries on the same task.
+- `ConcurrencyExpression.max_runs` now accepts `int | str`: a string is a CEL expression over task input computing the max runs for each concurrency group, so different groups (e.g. pricing tiers) can have different limits.
+- Fixes another durable callback ordering bug which would cause NonDeterminismErrors to be raised on replay in the case where e.g. children were spawned recursively, concurrently.
+- Makes workflows register concurrently on `start` to speed up worker boot time
+
+## [1.39.0] - 2026-08-26
+
+### Added
+
+- Added support for `CANCEL_QUEUED_EXCEPT_NEWEST` and `CANCEL_QUEUED_EXCEPT_OLDEST` concurrency strategies.
+
+## [1.38.2] - 2026-08-31
+
+### Changed
+
+- The missing-token configuration error now explains how to run Hatchet embedded for local development, via `Hatchet.from_embedded()`, with a link to the embedded mode docs.
+
 ## [1.38.1] - 2026-08-25
 
 ### Added

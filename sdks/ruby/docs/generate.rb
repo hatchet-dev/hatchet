@@ -457,7 +457,7 @@ def generate_client_page(pages)
     prose = Md.clean(m.docstring)
     prose = Md.clean(ret&.text) if prose.empty?
     feature = pages.find { |_, k| Array(ret&.types).include?(k.path) }
-    prose += " See the [#{feature_title(feature[1])} client](./feature-clients/#{feature[0]})." if feature
+    prose += " See the [#{feature_title(feature[1])} client](/reference/ruby/feature-clients/#{feature[0]})." if feature
     "#### `#{m.name}`\n\n#{prose}"
   end
 
@@ -534,6 +534,179 @@ def generate_runnables_page
   )
 end
 
+# ---------------------------------------------------------------------------
+# Overview (index) page
+# ---------------------------------------------------------------------------
+# Shared mapping pairing feature-client concepts with descriptions, per-language
+# page slugs, and user-guide links. Hand-maintained; consumed by all four SDK
+# doc generators.
+REFERENCE_MAP_PATH = File.join(REPO_ROOT, "frontend", "docs", "reference-map.json")
+CONTENT_DOCS_DIR = File.join(REPO_ROOT, "frontend", "docs", "content", "docs")
+MAP_LANG = "ruby"
+
+def guide_page_exists?(guide)
+  rel = guide.delete_prefix("/")
+  File.exist?(File.join(CONTENT_DOCS_DIR, "#{rel}.mdx")) ||
+    File.exist?(File.join(CONTENT_DOCS_DIR, rel, "index.mdx"))
+end
+
+# Emits the Ruby SDK overview page (index.mdx): a link map over the core pages
+# and a feature-clients table cross-linked to the user guide. Hard-fails when an
+# emitted feature-client page has no reference-map.json entry, when an entry's
+# ruby slug matches no emitted page (stale entry), or when a guide link points
+# at a missing content file.
+def generate_index_page(pages)
+  map = JSON.parse(File.read(REFERENCE_MAP_PATH))
+
+  slug_to_concept = {}
+  map.fetch("featureClients").each do |concept, feature|
+    slug = feature.fetch("slugs")[MAP_LANG]
+    next unless slug
+    if slug_to_concept.key?(slug)
+      abort "ERROR: reference-map.json: #{MAP_LANG} slug #{slug.inspect} claimed by both #{slug_to_concept[slug].inspect} and #{concept.inspect}"
+    end
+
+    slug_to_concept[slug] = concept
+  end
+
+  emitted = pages.map(&:first)
+  emitted.each do |slug|
+    next if slug_to_concept.key?(slug)
+
+    abort "ERROR: reference-map.json has no featureClients entry with slugs.#{MAP_LANG} = #{slug.inspect}; add one for the #{slug} client"
+  end
+  slug_to_concept.each do |slug, concept|
+    next if emitted.include?(slug)
+
+    abort "ERROR: reference-map.json entry #{concept.inspect} lists stale #{MAP_LANG} slug #{slug.inspect}: no such feature-client page is emitted"
+  end
+
+  core_lines = Dir[File.join(OUT_DIR, "*.mdx")].sort
+                                               .map { |f| File.basename(f, ".mdx") }
+                                               .reject { |b| b == "index" }
+                                               .map do |page|
+    core = map.fetch("corePages")[page]
+    abort "ERROR: reference-map.json has no corePages entry for emitted page #{page.inspect}" unless core
+
+    "- [#{core.fetch('title')}](/reference/#{MAP_LANG}/#{page}): #{core.fetch('description')}"
+  end
+
+  rows = pages.map do |slug, _klass|
+    feature = map.fetch("featureClients").fetch(slug_to_concept.fetch(slug))
+    guide = ""
+    if (guide_path = feature["guide"])
+      unless guide_page_exists?(guide_path)
+        abort "ERROR: reference-map.json: guide #{guide_path.inspect} for #{feature['title'].inspect} does not exist under frontend/docs/content/docs"
+      end
+
+      guide = "[#{feature['guideTitle'] || guide_path}](#{guide_path})"
+    end
+    ["[#{feature.fetch('title')}](/reference/#{MAP_LANG}/feature-clients/#{slug})", feature.fetch("description"), guide]
+  end
+
+  write_page(
+    "index.mdx",
+    [
+      frontmatter("Overview"),
+      "# Ruby SDK",
+      "This is the generated API reference for the Hatchet Ruby SDK. For concepts and guides, see the [user guide](/v1).",
+      "## Core pages",
+      core_lines.join("\n"),
+      "## Feature clients",
+      "Feature clients are available as methods on the [client](/reference/ruby/client), and each covers one area of the Hatchet API. The Guide column links to the user guide page for the feature.",
+      Md.table(["Client", "Description", "Guide"], rows),
+    ],
+  )
+end
+
+# ---------------------------------------------------------------------------
+# README "Documentation for agents" block
+# ---------------------------------------------------------------------------
+# Injected into the README that ships in the hatchet-sdk gem (the gemspec picks
+# up src/README.md via git ls-files). Every listed page is served as plain
+# markdown at <baseUrl><path>.md. The block between the markers is replaced in
+# full on every run and inserted above the first "## " heading when absent.
+# Content comes from reference-map.json (agentDocs + featureClients).
+README_PATH = File.join(SDK_ROOT, "src", "README.md")
+AGENT_DOCS_START = "<!-- hatchet-agent-docs:start -->"
+AGENT_DOCS_END = "<!-- hatchet-agent-docs:end -->"
+LANG_DISPLAY = "Ruby"
+
+def render_agent_docs_block(map)
+  agent_docs = map["agentDocs"] || {}
+  base_url = agent_docs["baseUrl"]
+  lead = agent_docs["lead"]
+  sections = Array(agent_docs["sections"])
+  if base_url.to_s.empty? || lead.to_s.empty? || sections.empty?
+    abort "ERROR: reference-map.json agentDocs is missing baseUrl, lead, or sections"
+  end
+
+  lines = [
+    AGENT_DOCS_START,
+    "<!-- Generated by the SDK docs pipeline from frontend/docs/reference-map.json. Do not edit by hand. -->",
+    "",
+    "## Documentation for agents",
+    "",
+    lead,
+  ]
+
+  sections.each do |section|
+    links = section.fetch("links").select { |l| l["langs"].nil? || l["langs"].include?(MAP_LANG) }
+    next if links.empty?
+
+    lines += ["", "#{section.fetch('title')}:", ""]
+    links.each do |link|
+      unless guide_page_exists?(link.fetch("path"))
+        abort "ERROR: reference-map.json agentDocs link #{link['title'].inspect} (#{link['path']}) does not exist under frontend/docs/content/docs"
+      end
+
+      lines << "- #{link.fetch('title')}: #{base_url}#{link.fetch('path')}.md"
+    end
+  end
+
+  lines += ["", "#{LANG_DISPLAY} SDK reference (overview: #{base_url}/reference/#{MAP_LANG}.md):", ""]
+  map.fetch("featureClients").keys.sort.each do |concept|
+    feature = map.fetch("featureClients").fetch(concept)
+    slug = feature.fetch("slugs")[MAP_LANG]
+    next unless slug
+
+    line = "- #{feature.fetch('title')}: #{base_url}/reference/#{MAP_LANG}/feature-clients/#{slug}.md"
+    line += " (guide: #{base_url}#{feature['guide']}.md)" if feature["guide"]
+    lines << line
+  end
+
+  lines += ["", AGENT_DOCS_END]
+  lines.join("\n")
+end
+
+def update_readme_agent_docs
+  map = JSON.parse(File.read(REFERENCE_MAP_PATH))
+  block = render_agent_docs_block(map)
+  readme = File.read(README_PATH)
+
+  start_idx = readme.index(AGENT_DOCS_START)
+  end_idx = readme.index(AGENT_DOCS_END)
+
+  updated =
+    if start_idx && end_idx && end_idx > start_idx
+      readme[0...start_idx] + block + readme[(end_idx + AGENT_DOCS_END.length)..]
+    elsif start_idx || end_idx
+      abort "ERROR: #{README_PATH}: found only one of the hatchet-agent-docs markers"
+    else
+      lines = readme.split("\n", -1)
+      heading_index = lines.index { |l| l.start_with?("## ") }
+      abort "ERROR: #{README_PATH}: no '## ' heading to insert the agent docs block above" unless heading_index
+
+      lines.insert(heading_index, block, "")
+      lines.join("\n")
+    end
+
+  return if updated == readme
+
+  File.write(README_PATH, updated)
+  puts "wrote #{README_PATH}"
+end
+
 # Merge ruby/meta.json rather than overwriting it: keep existing entry order
 # and any "---Separator---" strings, drop entries whose page no longer exists,
 # and append newly emitted top-level pages (sorted) that aren't listed yet.
@@ -596,7 +769,9 @@ generate_client_page(pages)
 generate_context_page
 generate_runnables_page
 generate_feature_client_pages(pages)
+generate_index_page(pages)
 merge_ruby_meta
 assert_all_pages_reachable
+update_readme_agent_docs
 
 puts "done: #{Dir[File.join(OUT_DIR, '**', '*')].count { |f| File.file?(f) }} files in #{OUT_DIR}"

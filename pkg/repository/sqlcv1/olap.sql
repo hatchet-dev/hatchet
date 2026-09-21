@@ -319,7 +319,10 @@ WITH tasks AS (
         lt.external_id = @workflowRunId::uuid
         AND lt.tenant_id = @tenantId::uuid
         AND (
-            dt.task_id != dt.dag_id
+            -- the orchestrator's self-mapping row is hidden by default once real child tasks
+            -- exist, since orchestration is abstracted away from the user
+            COALESCE(sqlc.narg('includeOrchestratorEvents')::boolean, FALSE)
+            OR dt.task_id != dt.dag_id
             OR NOT EXISTS (
                 SELECT 1
                 FROM v1_dag_to_task_olap other
@@ -1039,17 +1042,8 @@ WITH inputs AS (
             SELECT dag_inserted_at, dag_id, tenant_id
             FROM inputs
         )
-    -- this is a trick to figure out if the dag is an operator (dag-as-durable-task)
-    -- operator dags are updated by the separate UpdateDAGStatusesFromOrchestratorEvents. the
-    -- orchestrator's self-mapping row is what marks them, and older binaries already write it, so
-    -- this classifies correctly even for dags created by a pod that predates this change
-    AND NOT EXISTS (
-        SELECT 1
-        FROM v1_dag_to_task_olap dt
-        WHERE
-            (dt.dag_id, dt.dag_inserted_at) = (d.id, d.inserted_at)
-            AND (dt.task_id, dt.task_inserted_at) = (d.id, d.inserted_at)
-    )
+    -- operator dags are updated by the separate UpdateDAGStatusesFromOrchestratorEvents
+    AND NOT d.is_dag_operator
     ORDER BY inserted_at, id
     FOR UPDATE
 ), dag_task_counts AS (
@@ -1181,13 +1175,7 @@ WITH tenants AS (
                 distinct_dags dd
         )
         -- see UpdateDAGStatusesFromMQ
-        AND NOT EXISTS (
-            SELECT 1
-            FROM v1_dag_to_task_olap dt
-            WHERE
-                (dt.dag_id, dt.dag_inserted_at) = (d.id, d.inserted_at)
-                AND (dt.task_id, dt.task_inserted_at) = (d.id, d.inserted_at)
-        )
+        AND NOT d.is_dag_operator
     ORDER BY
         d.inserted_at, d.id
     FOR UPDATE
@@ -2522,3 +2510,45 @@ SELECT
     UNNEST(@dagIds::bigint[]),
     UNNEST(@dagInsertedAts::timestamptz[])
 ON CONFLICT DO NOTHING;
+
+-- name: ReconcileOperatorDAGStatusesOnCreate :exec
+-- An operator DAG's OLAP row is written by a 'created-dag' message that can be raced by status events.
+-- This query reconciles DAG OLAP rows that are created *after* status events have already arrived.
+WITH inputs AS (
+    SELECT
+        UNNEST(@dagIds::BIGINT[]) AS dag_id,
+        UNNEST(@dagInsertedAts::TIMESTAMPTZ[]) AS dag_inserted_at
+), latest_event AS (
+    SELECT DISTINCT ON (e.task_id, e.task_inserted_at)
+        e.task_id,
+        e.task_inserted_at,
+        e.readable_status,
+        e.retry_count
+    FROM v1_task_events_olap e
+    -- dag operator task ids are the same as the dag ids
+    JOIN inputs i ON (e.task_id, e.task_inserted_at) = (i.dag_id, i.dag_inserted_at)
+    ORDER BY
+        e.task_id,
+        e.task_inserted_at,
+        e.retry_count DESC,
+        v1_status_to_priority(e.readable_status) DESC,
+        e.id DESC
+)
+UPDATE v1_dags_olap d
+SET
+    readable_status = le.readable_status,
+    latest_retry_count = le.retry_count
+FROM latest_event le
+WHERE (d.id, d.inserted_at) = (le.task_id, le.task_inserted_at)
+    AND (
+        le.retry_count > d.latest_retry_count
+        OR (
+            le.retry_count = d.latest_retry_count
+            AND v1_status_to_priority(le.readable_status) > v1_status_to_priority(d.readable_status)
+        )
+        OR (
+            le.retry_count = d.latest_retry_count
+            AND d.readable_status = 'EVICTED'
+            AND le.readable_status != 'EVICTED'
+        )
+    );

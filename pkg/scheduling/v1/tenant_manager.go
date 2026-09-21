@@ -314,8 +314,20 @@ func (t *tenantManager) setConcurrencyStrategies(strategies []*sqlcv1.V1StepConc
 	newArr := make([]*ConcurrencyManager, 0, len(strategies))
 
 	for _, c := range t.concurrencyStrategies {
-		if _, ok := strategiesSet[c.strategy.ID]; ok {
-			newArr = append(newArr, c)
+		if strat, ok := strategiesSet[c.strategy.ID]; ok {
+			// If the definition changed (e.g. a shared strategy was re-registered with a
+			// different max_concurrency or expression), apply it to the running manager
+			// in place. Only structural changes (limit-strategy kind, parent linkage)
+			// still tear the manager down and rebuild: an async cleanup + init re-acquires
+			// the outbox topic and rehydrates every slot, and risks contending with the
+			// old manager's locks while it winds down.
+			if c.strategyDiffers(strat) && !c.UpdateStrategy(strat) {
+				go c.cleanup()
+
+				newArr = append(newArr, newConcurrencyManager(t.cf, t.tenantId, strat, t.concurrencyResultsCh, t.concurrencyAdvisoryLock, t.concurrencyParentAdvisoryLock))
+			} else {
+				newArr = append(newArr, c)
+			}
 
 			// delete from set
 			delete(strategiesSet, c.strategy.ID)

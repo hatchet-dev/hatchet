@@ -1,0 +1,157 @@
+---
+title: "Embedded"
+---
+
+# Embedded
+
+Embedded mode runs a full local Hatchet engine as a sidecar process managed by your
+application. It needs no API token, no Docker, and no external services (by default
+the sidecar starts a bundled Postgres), which makes it a good fit for local
+development and CI.
+
+```typescript
+import { HatchetEmbeddedClient } from "@hatchet-dev/typescript-sdk/v1/embedded";
+
+const hatchet = await HatchetEmbeddedClient.init();
+// ... register workers and run tasks as usual ...
+await hatchet.stopEmbedded();
+```
+
+See the [embedded mode guide](https://docs.hatchet.run/v1/embedded) for setup and
+configuration details.
+
+<a id="hatchetembeddedclient"></a>
+
+### Hatchet Embedded Client
+
+Entry point for embedded mode. `init()` starts a full local Hatchet engine and
+returns a regular Hatchet client connected to it. No API token or Docker is needed.
+See the [embedded mode guide](https://docs.hatchet.run/v1/embedded).
+
+#### Methods
+
+<a id="init"></a>
+
+##### `init()`
+
+Runs a full Hatchet engine locally via the hatchet-embedded sidecar (downloaded
+on first use) and returns a client wired to it. No API token or Docker is needed,
+which makes this a good fit for local development and CI. By default the sidecar
+starts a bundled Postgres; pass `databaseUrl` to point it at your own instead.
+
+See the [embedded mode guide](https://docs.hatchet.run/v1/embedded).
+
+Parameters
+
+| Parameter       | Type                                                  | Description                                                      |
+| --------------- | ----------------------------------------------------- | ---------------------------------------------------------------- |
+| `embeddedOpts?` | [`EmbeddedOptions`](#embeddedoptions)                 | Options for the embedded engine (version, ports, database, ...). |
+| `config?`       | `Omit`\<`Partial`\<`ClientConfig`\>, `"middleware"`\> | Optional configuration overrides for the client.                 |
+| `options?`      | `HatchetClientOptions`                                | Optional client options.                                         |
+| `axiosConfig?`  | `AxiosRequestConfig`\<`any`\>                         | Optional Axios configuration for HTTP requests.                  |
+
+Returns
+
+`Promise`\<[`EmbeddedClient`](#embeddedclient)\<`T`, `U`\>\>
+
+A new Hatchet client instance connected to the embedded engine.
+
+## Interfaces
+
+<a id="embeddedoptions"></a>
+
+### EmbeddedOptions
+
+Options for the embedded engine sidecar. All fields are optional; by default the
+latest hatchet-embedded release is downloaded and started with a bundled Postgres.
+
+Properties
+
+| Property                                        | Type      | Description                                                                                                                                                                                                             |
+| ----------------------------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| <a id="apiport"></a> `apiPort?`                 | `number`  | bind the REST API server to this port                                                                                                                                                                                   |
+| <a id="binarypath"></a> `binaryPath?`           | `string`  | path to an existing sidecar binary, skips the download (or HATCHET_CLIENT_EMBEDDED_BINARY_PATH)                                                                                                                         |
+| <a id="checksum"></a> `checksum?`               | `string`  | expected sha256 hex digest of the sidecar binary. When set, it replaces the release's checksums.txt as the trust anchor, so a compromised release channel cannot substitute the binary. Pin it together with `version`. |
+| <a id="databaseurl"></a> `databaseUrl?`         | `string`  | use an existing Postgres instead of the bundled one                                                                                                                                                                     |
+| <a id="grpcport"></a> `grpcPort?`               | `number`  | bind the engine's gRPC server to this port                                                                                                                                                                              |
+| <a id="loglevel"></a> `logLevel?`               | `string`  | log level for the engine's output                                                                                                                                                                                       |
+| <a id="postgresdatadir"></a> `postgresDataDir?` | `string`  | store the bundled Postgres runtime and data under this directory                                                                                                                                                        |
+| <a id="rabbitmqurl"></a> `rabbitmqUrl?`         | `string`  | use RabbitMQ instead of the Postgres message queue                                                                                                                                                                      |
+| <a id="readytimeoutms"></a> `readyTimeoutMs?`   | `number`  | how long to wait for the engine to become ready, in milliseconds (default 300000)                                                                                                                                       |
+| <a id="runmigrations"></a> `runMigrations?`     | `boolean` | set to false to skip running migrations on startup                                                                                                                                                                      |
+| <a id="startapi"></a> `startApi?`               | `boolean` | set to false to start only the engine + gRPC, no REST API                                                                                                                                                               |
+| <a id="version"></a> `version?`                 | `string`  | hatchet-embedded release tag to download (defaults to HATCHET_CLIENT_EMBEDDED_VERSION or latest). Tags correspond to the Hatchet engine version baked into the sidecar, so pinning this pins the engine.                |
+
+---
+
+<a id="embeddedsidecar"></a>
+
+### EmbeddedSidecar
+
+A running embedded engine sidecar and its connection details, as returned by
+`startEmbeddedSidecar`.
+
+Properties
+
+| Property                               | Type                      | Description                                                        |
+| -------------------------------------- | ------------------------- | ------------------------------------------------------------------ |
+| <a id="apiurl"></a> `apiUrl`           | `string`                  | base URL of the REST API (empty when `startApi` is false)          |
+| <a id="grpcaddress"></a> `grpcAddress` | `string`                  | host:port of the engine's gRPC server                              |
+| <a id="stop"></a> `stop`               | () => `Promise`\<`void`\> | gracefully stops the sidecar and resolves once it has fully exited |
+| <a id="tenantid"></a> `tenantId`       | `string`                  | ID of the sidecar's default tenant                                 |
+| <a id="token"></a> `token`             | `string`                  | API token for the sidecar's default tenant                         |
+
+## Type Aliases
+
+<a id="embeddedclient"></a>
+
+### Embedded Client
+
+```ts
+type EmbeddedClient<T, U> = HatchetClient<T, U> & object;
+```
+
+A `HatchetClient` connected to an embedded engine, extended with `stopEmbedded`.
+Returned by [HatchetEmbeddedClient.init](#init).
+
+#### Type Declaration
+
+| Name             | Type                   | Description                                                                                                                                                                                                                             |
+| ---------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `stopEmbedded()` | () => `Promise`\<...\> | Gracefully stops the embedded engine sidecar and resolves once it has fully exited, including its bundled Postgres. Call this before your process exits so the engine's shutdown output does not print after your program has returned. |
+
+## Functions
+
+<a id="startembeddedsidecar"></a>
+
+### `startEmbeddedSidecar()`
+
+Downloads (and caches) the hatchet-embedded sidecar binary, spawns it, and waits
+until the embedded engine is ready. The sidecar shuts down when this process exits.
+Use [HatchetEmbeddedClient.init](#init) unless you need the raw connection details.
+
+Parameters
+
+| Parameter | Type                                  |
+| --------- | ------------------------------------- |
+| `opts`    | [`EmbeddedOptions`](#embeddedoptions) |
+
+Returns
+
+`Promise`\<[`EmbeddedSidecar`](#embeddedsidecar)\>
+
+---
+
+<a id="stopembeddedsidecar"></a>
+
+### `stopEmbeddedSidecar()`
+
+Gracefully stops every sidecar started in this process by
+`HatchetEmbeddedClient.init()` (or `startEmbeddedSidecar`) and resolves once
+they have fully exited, including their bundled Postgres. Call this before
+your process exits so the engine's shutdown output does not print after
+your program has returned.
+
+Returns
+
+`Promise`\<`void`\>

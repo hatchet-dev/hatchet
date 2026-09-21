@@ -17,6 +17,7 @@ import (
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 func (i *IngestorImpl) putStreamEventV1(ctx context.Context, tenant *sqlcv1.Tenant, req *contracts.PutStreamEventRequest) (*contracts.PutStreamEventResponse, error) {
@@ -146,6 +147,10 @@ func (i *IngestorImpl) putLogV1(ctx context.Context, tenant *sqlcv1.Tenant, req 
 
 	if err != nil {
 		return nil, err
+	}
+
+	if i.o11yUsage != nil {
+		i.o11yUsage.AddLogs(tenantId, int64(proto.Size(req)))
 	}
 
 	return &contracts.PutLogResponse{}, nil

@@ -2,6 +2,7 @@ package hatchet
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -44,9 +45,62 @@ type Client struct {
 	webhooks   *features.WebhooksClient
 }
 
+// ClientOpt configures the client created by NewClient.
+//
+//nolint:staticcheck // SA1019: bridges to the v0 option type consumed by NewClient
+type ClientOpt = v0Client.ClientOpt
+
+// WithToken sets the API token used to authenticate with Hatchet.
+// Defaults to the HATCHET_CLIENT_TOKEN environment variable.
+func WithToken(token string) ClientOpt {
+	return v0Client.WithToken(token) //nolint:staticcheck // SA1019
+}
+
+// WithHostPort sets the gRPC host and port to connect to, overriding the
+// address embedded in the token or set via environment variables.
+func WithHostPort(host string, port int) ClientOpt {
+	return v0Client.WithHostPort(host, port) //nolint:staticcheck // SA1019
+}
+
+// WithNamespace prefixes all workflow, event, and cron names with the given namespace.
+func WithNamespace(namespace string) ClientOpt {
+	return v0Client.WithNamespace(namespace) //nolint:staticcheck // SA1019
+}
+
+// WithTenantId sets the tenant ID for the client, overriding the one embedded in the token.
+func WithTenantId(tenantId string) ClientOpt {
+	return v0Client.WithTenantId(tenantId) //nolint:staticcheck // SA1019
+}
+
+// WithTLSConfig sets the gRPC TLS config directly, overriding any config derived
+// from environment variables. A nil config connects without TLS (insecure).
+func WithTLSConfig(tlsConfig *tls.Config) ClientOpt {
+	return v0Client.WithTLSConfig(tlsConfig)
+}
+
+// WithGRPCHeaders adds custom headers to every gRPC request made by the client.
+func WithGRPCHeaders(headers map[string]string) ClientOpt {
+	return v0Client.WithGRPCHeaders(headers)
+}
+
+// WithSharedMeta sets metadata that is attached to every event pushed by the client.
+func WithSharedMeta(meta map[string]string) ClientOpt {
+	return v0Client.WithSharedMeta(meta) //nolint:staticcheck // SA1019
+}
+
+// WithClientLogger sets the logger used by the client and its workers.
+func WithClientLogger(l *zerolog.Logger) ClientOpt {
+	return v0Client.WithLogger(l) //nolint:staticcheck // SA1019
+}
+
+// WithClientLogLevel sets the log level for the client's default logger.
+func WithClientLogLevel(lvl string) ClientOpt {
+	return v0Client.WithLogLevel(lvl) //nolint:staticcheck // SA1019
+}
+
 // NewClient creates a new Hatchet client.
 // Configuration options can be provided to customize the client behavior.
-func NewClient(opts ...v0Client.ClientOpt) (*Client, error) {
+func NewClient(opts ...ClientOpt) (*Client, error) {
 	probe := &v0Client.ClientOpts{} //nolint:staticcheck // SA1019
 	for _, o := range opts {
 		o(probe)
@@ -146,6 +200,10 @@ func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error
 	for _, opt := range options {
 		opt(config)
 	}
+
+	// Worker log output follows the client's configured level and format by
+	// default; an explicit WithLogger on the worker takes precedence.
+	config.logger = resolveWorkerLogger(config.logger, c.legacyClient.Logger())
 
 	dumps := gatherWorkflowDumps(config.workflows)
 
@@ -497,11 +555,15 @@ func (w *Worker) fetchEngineVersion(ctx context.Context) (string, error) {
 	return w.dispatcher.GetVersion(ctx)
 }
 
+// MiddlewareFunc is a middleware function invoked around each task run execution.
+// It receives the task's Context and a next function that continues the chain.
+//
+//nolint:staticcheck // SA1019: bridges to the v0 middleware type consumed by the worker
+type MiddlewareFunc = worker.MiddlewareFunc
+
 // Use registers middleware functions on the worker.
 // Middleware functions are called in order for each step run execution.
-//
-//nolint:staticcheck // SA1019: worker.MiddlewareFunc is deprecated but still used internally
-func (w *Worker) Use(mws ...worker.MiddlewareFunc) {
+func (w *Worker) Use(mws ...MiddlewareFunc) {
 	if w.worker != nil {
 		w.worker.Use(mws...) //nolint:staticcheck // SA1019
 	}
@@ -814,7 +876,7 @@ func (st *StandaloneTask) RunNoWait(ctx context.Context, input any, opts ...RunO
 	return workflowRunRef, nil
 }
 
-// RunMany executes multiple standalone task instances with different inputs.
+// RunMany executes multiple standalone task instances with different inputs. The returned results are in the same order as the inputs.
 // Returns workflow run IDs that can be used to track the run statuses.
 func (st *StandaloneTask) RunMany(ctx context.Context, inputs []RunManyOpt) ([]WorkflowRunRef, error) {
 	workflowRefs, err := st.workflow.RunMany(ctx, inputs)
@@ -1094,7 +1156,7 @@ type RunManyOpt struct {
 	Opts  []RunOptFunc
 }
 
-// RunMany executes multiple workflow instances with different inputs.
+// RunMany executes multiple workflow instances with different inputs. The returned results are in the same order as the inputs.
 // Returns workflow run IDs that can be used to track the run statuses.
 func (c *Client) RunMany(ctx context.Context, workflowName string, inputs []RunManyOpt) ([]WorkflowRunRef, error) {
 	tracer := otel.Tracer("github.com/hatchet-dev/hatchet/sdks/go")
@@ -1130,36 +1192,8 @@ func (c *Client) RunMany(ctx context.Context, workflowName string, inputs []RunM
 		}
 	}
 
-	var workflowRefs []WorkflowRunRef
-
-	var wg sync.WaitGroup
-	var errs []error
-	var errsMutex sync.Mutex
-	var workflowRefsMutex sync.Mutex
-
-	wg.Add(len(inputs))
-
-	for _, input := range inputs {
-		go func() {
-			defer wg.Done()
-
-			workflowRef, err := c.RunNoWait(originalCtx, workflowName, input.Input, input.Opts...)
-			if err != nil {
-				errsMutex.Lock()
-				errs = append(errs, err)
-				errsMutex.Unlock()
-				return
-			}
-
-			workflowRefsMutex.Lock()
-			workflowRefs = append(workflowRefs, *workflowRef)
-			workflowRefsMutex.Unlock()
-		}()
-	}
-
-	wg.Wait()
-
-	if err := errors.Join(errs...); err != nil {
+	workflowRefs, err := runManyBulk(originalCtx, otelCtx, c.legacyClient, workflowName, inputs)
+	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return workflowRefs, err
 	}
@@ -1261,7 +1295,7 @@ func (c *Client) Filters() *features.FiltersClient {
 }
 
 // Events returns a client for sending and managing events.
-func (c *Client) Events() v0Client.EventClient {
+func (c *Client) Events() EventClient {
 	return c.legacyClient.Event()
 }
 

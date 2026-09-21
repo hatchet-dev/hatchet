@@ -150,6 +150,7 @@ func (t *V1WorkflowRunsService) V1WorkflowRunCreate(ctx echo.Context, request ge
 		tenantId,
 		rawWorkflowRun,
 		authz.CanViewPayloads(ctx),
+		false,
 	)
 
 	if err != nil {
