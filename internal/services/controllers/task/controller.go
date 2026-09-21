@@ -633,27 +633,33 @@ func (tc *TasksControllerImpl) cancelChildrenOfOrchestratorsWithoutWorker(
 		return fmt.Errorf("could not list unfinished orchestrator children: %w", err)
 	}
 
-	if len(children) == 0 {
+	return tc.publishChildCancellations(ctx, tenantId, children)
+}
+
+func (tc *TasksControllerImpl) publishChildCancellations(
+	ctx context.Context,
+	tenantId uuid.UUID,
+	children []v1.TaskIdInsertedAtRetryCount,
+) error {
+	return queueutils.BatchLinear(BULK_MSG_BATCH_SIZE, children, func(batch []v1.TaskIdInsertedAtRetryCount) error {
+		msg, err := msgqueue.NewTenantMessage(
+			tenantId,
+			msgqueue.MsgIDCancelTasks,
+			false,
+			true,
+			tasktypes.CancelTasksPayload{Tasks: batch},
+		)
+
+		if err != nil {
+			return fmt.Errorf("could not create cancel message for orchestrator children: %w", err)
+		}
+
+		if err := tc.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
+			return fmt.Errorf("could not publish cancel message for orchestrator children: %w", err)
+		}
+
 		return nil
-	}
-
-	msg, err := msgqueue.NewTenantMessage(
-		tenantId,
-		msgqueue.MsgIDCancelTasks,
-		false,
-		true,
-		tasktypes.CancelTasksPayload{Tasks: children},
-	)
-
-	if err != nil {
-		return fmt.Errorf("could not create cancel message for orchestrator children: %w", err)
-	}
-
-	if err := tc.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
-		return fmt.Errorf("could not publish cancel message for orchestrator children: %w", err)
-	}
-
-	return nil
+	})
 }
 
 func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
