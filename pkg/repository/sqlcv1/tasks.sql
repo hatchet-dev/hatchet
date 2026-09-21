@@ -1,14 +1,14 @@
--- name: CreatePartitions :exec
+-- name: CreatePartitions :one
 SELECT
-    create_v1_range_partition('v1_task', @date::date),
-    create_v1_range_partition('v1_dag', @date::date),
-    create_v1_range_partition('v1_task_event', @date::date),
-    create_v1_range_partition('v1_log_line', @date::date),
-    create_v1_range_partition('v1_payload', @date::date),
-    create_v1_range_partition('v1_event', @date::date),
-    create_v1_range_partition('v1_durable_event_log_file', @date::date),
-    create_v1_range_partition('v1_durable_event_log_entry', @date::date, 80),
-    create_v1_range_partition('v1_durable_event_log_branch_point', @date::date, 80)
+    create_v1_range_partition('v1_task', @date::date) AS v1_task,
+    create_v1_range_partition('v1_dag', @date::date) AS v1_dag,
+    create_v1_range_partition('v1_task_event', @date::date) AS v1_task_event,
+    create_v1_range_partition('v1_log_line', @date::date) AS v1_log_line,
+    create_v1_range_partition('v1_payload', @date::date) AS v1_payload,
+    create_v1_range_partition('v1_event', @date::date) AS v1_event,
+    create_v1_range_partition('v1_durable_event_log_file', @date::date) AS v1_durable_event_log_file,
+    create_v1_range_partition('v1_durable_event_log_entry', @date::date, 80) AS v1_durable_event_log_entry,
+    create_v1_range_partition('v1_durable_event_log_branch_point', @date::date, 80) AS v1_durable_event_log_branch_point
 ;
 
 -- name: EnsureTablePartitionsExist :one

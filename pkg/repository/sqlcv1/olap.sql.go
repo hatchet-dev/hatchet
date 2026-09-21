@@ -477,14 +477,14 @@ func (q *Queries) CreateOLAPOtelPartitions(ctx context.Context, db DBTX, date pg
 	return err
 }
 
-const createOLAPPartitions = `-- name: CreateOLAPPartitions :exec
+const createOLAPPartitions = `-- name: CreateOLAPPartitions :one
 SELECT
-    create_v1_hash_partitions('v1_task_events_olap_tmp'::text, $1::int),
-    create_v1_hash_partitions('v1_task_status_updates_tmp'::text, $1::int),
-    create_v1_range_partition('v1_tasks_olap'::text, $2::date),
-    create_v1_range_partition('v1_runs_olap'::text, $2::date),
-    create_v1_range_partition('v1_dags_olap'::text, $2::date),
-    create_v1_range_partition('v1_payloads_olap'::text, $2::date)
+    create_v1_hash_partitions('v1_task_events_olap_tmp'::text, $1::int) AS v1_task_events_olap_tmp,
+    create_v1_hash_partitions('v1_task_status_updates_tmp'::text, $1::int) AS v1_task_status_updates_tmp,
+    create_v1_range_partition('v1_tasks_olap'::text, $2::date) AS v1_tasks_olap,
+    create_v1_range_partition('v1_runs_olap'::text, $2::date) AS v1_runs_olap,
+    create_v1_range_partition('v1_dags_olap'::text, $2::date) AS v1_dags_olap,
+    create_v1_range_partition('v1_payloads_olap'::text, $2::date) AS v1_payloads_olap
 `
 
 type CreateOLAPPartitionsParams struct {
@@ -492,9 +492,27 @@ type CreateOLAPPartitionsParams struct {
 	Date       pgtype.Date `json:"date"`
 }
 
-func (q *Queries) CreateOLAPPartitions(ctx context.Context, db DBTX, arg CreateOLAPPartitionsParams) error {
-	_, err := db.Exec(ctx, createOLAPPartitions, arg.Partitions, arg.Date)
-	return err
+type CreateOLAPPartitionsRow struct {
+	V1TaskEventsOlapTmp    int32 `json:"v1_task_events_olap_tmp"`
+	V1TaskStatusUpdatesTmp int32 `json:"v1_task_status_updates_tmp"`
+	V1TasksOlap            int32 `json:"v1_tasks_olap"`
+	V1RunsOlap             int32 `json:"v1_runs_olap"`
+	V1DagsOlap             int32 `json:"v1_dags_olap"`
+	V1PayloadsOlap         int32 `json:"v1_payloads_olap"`
+}
+
+func (q *Queries) CreateOLAPPartitions(ctx context.Context, db DBTX, arg CreateOLAPPartitionsParams) (*CreateOLAPPartitionsRow, error) {
+	row := db.QueryRow(ctx, createOLAPPartitions, arg.Partitions, arg.Date)
+	var i CreateOLAPPartitionsRow
+	err := row.Scan(
+		&i.V1TaskEventsOlapTmp,
+		&i.V1TaskStatusUpdatesTmp,
+		&i.V1TasksOlap,
+		&i.V1RunsOlap,
+		&i.V1DagsOlap,
+		&i.V1PayloadsOlap,
+	)
+	return &i, err
 }
 
 const createOLAPPayloadRangeChunks = `-- name: CreateOLAPPayloadRangeChunks :many
@@ -3021,12 +3039,7 @@ SELECT
         ELSE NULL
     END AS inline_content
 FROM inputs i
-ON CONFLICT (tenant_id, external_id, inserted_at) DO UPDATE
-SET
-    location = EXCLUDED.location,
-    external_location_key = EXCLUDED.external_location_key,
-    inline_content = EXCLUDED.inline_content,
-    updated_at = NOW()
+ON CONFLICT DO NOTHING
 `
 
 type PutPayloadsParams struct {

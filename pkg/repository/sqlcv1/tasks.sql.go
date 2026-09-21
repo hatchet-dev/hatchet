@@ -203,22 +203,46 @@ func (q *Queries) CountActiveTaskBatchRuns(ctx context.Context, db DBTX, arg Cou
 	return active_count, err
 }
 
-const createPartitions = `-- name: CreatePartitions :exec
+const createPartitions = `-- name: CreatePartitions :one
 SELECT
-    create_v1_range_partition('v1_task', $1::date),
-    create_v1_range_partition('v1_dag', $1::date),
-    create_v1_range_partition('v1_task_event', $1::date),
-    create_v1_range_partition('v1_log_line', $1::date),
-    create_v1_range_partition('v1_payload', $1::date),
-    create_v1_range_partition('v1_event', $1::date),
-    create_v1_range_partition('v1_durable_event_log_file', $1::date),
-    create_v1_range_partition('v1_durable_event_log_entry', $1::date, 80),
-    create_v1_range_partition('v1_durable_event_log_branch_point', $1::date, 80)
+    create_v1_range_partition('v1_task', $1::date) AS v1_task,
+    create_v1_range_partition('v1_dag', $1::date) AS v1_dag,
+    create_v1_range_partition('v1_task_event', $1::date) AS v1_task_event,
+    create_v1_range_partition('v1_log_line', $1::date) AS v1_log_line,
+    create_v1_range_partition('v1_payload', $1::date) AS v1_payload,
+    create_v1_range_partition('v1_event', $1::date) AS v1_event,
+    create_v1_range_partition('v1_durable_event_log_file', $1::date) AS v1_durable_event_log_file,
+    create_v1_range_partition('v1_durable_event_log_entry', $1::date, 80) AS v1_durable_event_log_entry,
+    create_v1_range_partition('v1_durable_event_log_branch_point', $1::date, 80) AS v1_durable_event_log_branch_point
 `
 
-func (q *Queries) CreatePartitions(ctx context.Context, db DBTX, date pgtype.Date) error {
-	_, err := db.Exec(ctx, createPartitions, date)
-	return err
+type CreatePartitionsRow struct {
+	V1Task                       int32 `json:"v1_task"`
+	V1Dag                        int32 `json:"v1_dag"`
+	V1TaskEvent                  int32 `json:"v1_task_event"`
+	V1LogLine                    int32 `json:"v1_log_line"`
+	V1Payload                    int32 `json:"v1_payload"`
+	V1Event                      int32 `json:"v1_event"`
+	V1DurableEventLogFile        int32 `json:"v1_durable_event_log_file"`
+	V1DurableEventLogEntry       int32 `json:"v1_durable_event_log_entry"`
+	V1DurableEventLogBranchPoint int32 `json:"v1_durable_event_log_branch_point"`
+}
+
+func (q *Queries) CreatePartitions(ctx context.Context, db DBTX, date pgtype.Date) (*CreatePartitionsRow, error) {
+	row := db.QueryRow(ctx, createPartitions, date)
+	var i CreatePartitionsRow
+	err := row.Scan(
+		&i.V1Task,
+		&i.V1Dag,
+		&i.V1TaskEvent,
+		&i.V1LogLine,
+		&i.V1Payload,
+		&i.V1Event,
+		&i.V1DurableEventLogFile,
+		&i.V1DurableEventLogEntry,
+		&i.V1DurableEventLogBranchPoint,
+	)
+	return &i, err
 }
 
 const defaultTaskActivityGauge = `-- name: DefaultTaskActivityGauge :one

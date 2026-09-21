@@ -376,19 +376,15 @@ func (r *TaskRepositoryImpl) EnsureTablePartitionsExist(ctx context.Context) (bo
 	return r.queries.EnsureTablePartitionsExist(ctx, r.pool)
 }
 
-func createPayloadPartitionExternalIdUniqueConstraints(ctx context.Context, ddlConn *pgx.Conn, dts ...time.Time) error {
-	for _, dt := range dts {
-		_, err := ddlConn.Exec(
-			ctx,
-			fmt.Sprintf(
-				"ALTER TABLE v1_payload_%s ADD CONSTRAINT v1_payload_%s_external_id_uq UNIQUE (external_id)",
-				dt.UTC().Format("20060102"),
-				dt.UTC().Format("20060102"),
-			),
-		)
+func createExternalIdUniqueConstraintsOnDailyPartitions(ctx context.Context, db sqlcv1.DBTX, parentTableName string, partitionDates ...time.Time) error {
+	for _, partitionDate := range partitionDates {
+		partitionTableName := fmt.Sprintf("%s_%s", parentTableName, partitionDate.UTC().Format("20060102"))
+		constraintName := fmt.Sprintf("%s_external_id_uq", partitionTableName)
+
+		_, err := db.Exec(ctx, fmt.Sprintf("ALTER TABLE %s ADD CONSTRAINT %s UNIQUE (external_id);", partitionTableName, constraintName))
 
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to create unique constraint %s: %w", constraintName, err)
 		}
 	}
 
@@ -441,7 +437,7 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		return fmt.Errorf("failed to set lock_timeout: %w", err)
 	}
 
-	err = r.queries.CreatePartitions(ctx, ddlConn, pgtype.Date{
+	todayCreations, err := r.queries.CreatePartitions(ctx, ddlConn, pgtype.Date{
 		Time:  today,
 		Valid: true,
 	})
@@ -454,7 +450,7 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		return err
 	}
 
-	err = r.queries.CreatePartitions(ctx, ddlConn, pgtype.Date{
+	tomorrowCreations, err := r.queries.CreatePartitions(ctx, ddlConn, pgtype.Date{
 		Time:  tomorrow,
 		Valid: true,
 	})
@@ -467,9 +463,21 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		return err
 	}
 
-	if err = createPayloadPartitionExternalIdUniqueConstraints(ctx, ddlConn, today, tomorrow); err != nil {
-		releaseCreateConn()
+	var payloadDatesToCreateUniqueConstraints []time.Time
 
+	if todayCreations.V1Payload > 0 {
+		payloadDatesToCreateUniqueConstraints = append(payloadDatesToCreateUniqueConstraints, today)
+	}
+
+	if tomorrowCreations.V1Payload > 0 {
+		payloadDatesToCreateUniqueConstraints = append(payloadDatesToCreateUniqueConstraints, tomorrow)
+	}
+
+	if err = createExternalIdUniqueConstraintsOnDailyPartitions(ctx, ddlConn, "v1_payload", payloadDatesToCreateUniqueConstraints...); err != nil {
+		releaseCreateConn()
+		if isLockNotAvailable(err) {
+			return ErrPartitionLockConflict
+		}
 		return err
 	}
 
