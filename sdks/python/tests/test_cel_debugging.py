@@ -12,7 +12,6 @@ from hatchet_sdk.utils.typing import JSONSerializableMapping
 @pytest.mark.parametrize(
     "expression, input, additional_metadata, filter_payload, expected",
     [
-        # --- existing boolean cases (regression) ---
         (
             "input.key == 'value' && additional_metadata.meta == 'data' && payload.filter == 'payload'",
             {"key": "value"},
@@ -34,7 +33,6 @@ from hatchet_sdk.utils.typing import JSONSerializableMapping
             None,
             ("failure", None, None),
         ),
-        # --- new: string output (concurrency key) ---
         (
             "input.user_id",
             {"user_id": "alice"},
@@ -42,7 +40,6 @@ from hatchet_sdk.utils.typing import JSONSerializableMapping
             None,
             ("success", "alice", "string"),
         ),
-        # --- new: string constant ---
         (
             "'singleton'",
             {},
@@ -50,7 +47,6 @@ from hatchet_sdk.utils.typing import JSONSerializableMapping
             None,
             ("success", "singleton", "string"),
         ),
-        # --- new: int output (rate limit units) ---
         (
             "input.cost",
             {"cost": 5},
@@ -58,7 +54,6 @@ from hatchet_sdk.utils.typing import JSONSerializableMapping
             None,
             ("success", "5", "int"),
         ),
-        # --- new: payload variable (only available via debugEnv) ---
         (
             "payload.tier == 'gold'",
             {},

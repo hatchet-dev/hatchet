@@ -17,8 +17,11 @@ module HatchetSdkRest
   class V1CELDebugResponse
     attr_accessor :status
 
-    # The result of the CEL expression evaluation, if successful
+    # The result of the CEL expression evaluation serialized as a string (e.g. "true", "alice", "5")
     attr_accessor :output
+
+    # The type of the output value
+    attr_accessor :output_type
 
     # The error message if the evaluation failed
     attr_accessor :error
@@ -50,6 +53,7 @@ module HatchetSdkRest
       {
         :'status' => :'status',
         :'output' => :'output',
+        :'output_type' => :'outputType',
         :'error' => :'error'
       }
     end
@@ -68,7 +72,8 @@ module HatchetSdkRest
     def self.openapi_types
       {
         :'status' => :'V1CELDebugResponseStatus',
-        :'output' => :'Boolean',
+        :'output' => :'String',
+        :'output_type' => :'String',
         :'error' => :'String'
       }
     end
@@ -103,6 +108,10 @@ module HatchetSdkRest
 
       if attributes.key?(:'output')
         self.output = attributes[:'output']
+      end
+
+      if attributes.key?(:'outputType')
+        self.output_type = attributes[:'outputType']
       end
 
       if attributes.key?(:'error')
@@ -147,6 +156,7 @@ module HatchetSdkRest
       self.class == o.class &&
           status == o.status &&
           output == o.output &&
+          output_type == o.output_type &&
           error == o.error
     end
 
@@ -159,7 +169,7 @@ module HatchetSdkRest
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [status, output, error].hash
+      [status, output, output_type, error].hash
     end
 
     # Builds the object from hash

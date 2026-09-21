@@ -110,7 +110,6 @@ func TestCELParserDebugExpression(t *testing.T) {
 		expectStr   *string
 		expectInt   *int
 	}{
-		// --- boolean expressions (regression: must still work) ---
 		{
 			expression: `input.key == 'value'`,
 			input: cel.NewInput(
@@ -132,7 +131,6 @@ func TestCELParserDebugExpression(t *testing.T) {
 			),
 			expectBool: boolPtr(false),
 		},
-		// --- string expressions (broken today, must pass after fix) ---
 		{
 			expression: `input.user_id`,
 			input: cel.NewInput(
@@ -166,7 +164,6 @@ func TestCELParserDebugExpression(t *testing.T) {
 			),
 			expectStr: strPtr("user:created"),
 		},
-		// --- int expressions (broken today, must pass after fix) ---
 		{
 			expression: `input.cost`,
 			input: cel.NewInput(
@@ -181,7 +178,6 @@ func TestCELParserDebugExpression(t *testing.T) {
 			),
 			expectInt: intPtr(100),
 		},
-		// --- error cases (must still error after fix) ---
 		{
 			expression:  `input.missing_key`,
 			input:       cel.NewInput(),
