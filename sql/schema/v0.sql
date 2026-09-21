@@ -879,15 +879,10 @@ CREATE TABLE "Worker" (
     -- delta that changed their links and the refresh at the end of the delta sequence; the
     -- scheduler reads such workers' actions through the join instead of the hash cache.
     "actionHash" BYTEA,
-    -- The number of "_ActionToWorker" rows the worker holds, kept for the per-operator action
-    -- budget: every path that links or unlinks actions maintains it, so the budget is the sum
-    -- over the operator's workers rather than a count of their links. Only operator workers
-    -- are read; an SDK worker's count is zero until it registers and nothing reads it.
+    -- Count of the worker's "_ActionToWorker" rows, read only for operator workers.
     "operatorActionCount" INTEGER NOT NULL DEFAULT 0,
-    -- Whether the worker is left out of the tenant's WORKER and WORKER_SLOT limits. Decided
-    -- when the worker is created, by whoever hosts it: the in-process operator host exempts
-    -- every worker it creates, the wire meters every worker it registers.
-    "exemptFromLimits" BOOLEAN NOT NULL DEFAULT false,
+    -- Set at creation by the host: in-process operator workers are exempt, wire-registered ones are metered.
+    "isExemptFromLimits" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "Worker_pkey" PRIMARY KEY ("id")
 );

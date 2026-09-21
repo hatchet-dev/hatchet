@@ -167,18 +167,18 @@ func (s *OperatorServiceImpl) Listen(stream v1contracts.OperatorService_ListenSe
 			case *v1contracts.OperatorListenRequest_Pause:
 				// the pause is committed, and the session stops delivering, before the ack
 				// goes out: the ack is the client's promise that nothing more arrives
-				if err := session.Pause(ctx, msg.Pause.Paused); err != nil {
+				if err := session.Pause(ctx, msg.Pause.IsPaused); err != nil {
 					return err
 				}
 
 				if err := session.Send(ctx, &v1contracts.OperatorListenResponse{
-					Message: &v1contracts.OperatorListenResponse_PauseAck{PauseAck: &v1contracts.OperatorPauseAck{Paused: msg.Pause.Paused}},
+					Message: &v1contracts.OperatorListenResponse_PauseAck{PauseAck: &v1contracts.OperatorPauseAck{IsPaused: msg.Pause.IsPaused}},
 				}); err != nil {
-					l.Error().Ctx(ctx).Err(err).Bool("paused", msg.Pause.Paused).Msg("could not acknowledge operator pause")
+					l.Error().Ctx(ctx).Err(err).Bool("paused", msg.Pause.IsPaused).Msg("could not acknowledge operator pause")
 					return status.Errorf(codes.Unavailable, "could not acknowledge pause: %s", err.Error())
 				}
 
-				l.Info().Ctx(ctx).Bool("paused", msg.Pause.Paused).Msg("operator worker pause state changed")
+				l.Info().Ctx(ctx).Bool("paused", msg.Pause.IsPaused).Msg("operator worker pause state changed")
 			case *v1contracts.OperatorListenRequest_Start:
 				return status.Error(codes.InvalidArgument, "the Listen stream is already started")
 			default:

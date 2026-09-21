@@ -1339,7 +1339,7 @@ func (e *loopbackEngine) Listen(stream v1.OperatorService_ListenServer) error {
 			case *v1.OperatorListenRequest_Actions:
 				resp = &v1.OperatorListenResponse{Message: &v1.OperatorListenResponse_Ack{Ack: &v1.OperatorActionsAck{Sequence: msg.Actions.Sequence}}}
 			case *v1.OperatorListenRequest_Pause:
-				resp = &v1.OperatorListenResponse{Message: &v1.OperatorListenResponse_PauseAck{PauseAck: &v1.OperatorPauseAck{Paused: msg.Pause.Paused}}}
+				resp = &v1.OperatorListenResponse{Message: &v1.OperatorListenResponse_PauseAck{PauseAck: &v1.OperatorPauseAck{IsPaused: msg.Pause.IsPaused}}}
 			default:
 				continue
 			}

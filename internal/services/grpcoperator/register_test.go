@@ -37,7 +37,7 @@ func TestRegisterAnswersWithTheAssignedIdentity(t *testing.T) {
 	created := svc.workers.Created()
 	require.Len(t, created, 1)
 	assert.Equal(t, map[string]int32{"default": 5}, created[0].SlotConfig)
-	assert.False(t, created[0].ExemptFromLimits, "a wire-registered worker is metered")
+	assert.False(t, created[0].IsExemptFromLimits, "a wire-registered worker is metered")
 
 	workerId := resp.WorkerId
 

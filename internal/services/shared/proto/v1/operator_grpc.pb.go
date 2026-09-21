@@ -62,7 +62,7 @@ type OperatorServiceClient interface {
 	//     worker, and from the moment the server answers with an OperatorPauseAck no action is
 	//     delivered on the stream; one that the scheduler had already assigned is returned to
 	//     the queue instead. An operator that pauses before draining therefore knows the
-	//     actions it holds are the last it will get. pause with paused = false lets the worker
+	//     actions it holds are the last it will get. pause with is_paused = false lets the worker
 	//     be assigned to again and is acknowledged the same way. The pause belongs to the
 	//     stream: Register clears it when it resumes the worker, so a client that reconnects
 	//     while paused sends the pause again on the new stream, before its deltas.
@@ -212,7 +212,7 @@ type OperatorServiceServer interface {
 	//     worker, and from the moment the server answers with an OperatorPauseAck no action is
 	//     delivered on the stream; one that the scheduler had already assigned is returned to
 	//     the queue instead. An operator that pauses before draining therefore knows the
-	//     actions it holds are the last it will get. pause with paused = false lets the worker
+	//     actions it holds are the last it will get. pause with is_paused = false lets the worker
 	//     be assigned to again and is acknowledged the same way. The pause belongs to the
 	//     stream: Register clears it when it resumes the worker, so a client that reconnects
 	//     while paused sends the pause again on the new stream, before its deltas.

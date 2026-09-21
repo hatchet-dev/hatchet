@@ -2885,7 +2885,6 @@ CREATE TABLE v1_operator (
     CONSTRAINT v1_operator_pkey PRIMARY KEY (id)
 );
 
--- Operators are upserted by (tenant, name, kind) on registration, so that triple is unique.
 CREATE UNIQUE INDEX v1_operator_tenant_name_kind_key ON v1_operator (tenant_id, name, kind);
 
 CREATE TYPE v1_serverless_endpoint_kind AS ENUM ('GENERIC_HTTP', 'CLOUDFLARE_WORKERS');

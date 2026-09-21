@@ -42,10 +42,10 @@ type RegisterOpts struct {
 	// OperatorId is set.
 	LeasingManager sqlcv1.V1OperatorLeasingManager
 
-	// ExemptFromLimits leaves the worker out of the tenant's worker and slot limits. It is a
+	// IsExemptFromLimits leaves the worker out of the tenant's worker and slot limits. It is a
 	// hosting fact: the in-process host sets it for every worker it creates, the wire never
 	// does.
-	ExemptFromLimits bool
+	IsExemptFromLimits bool
 
 	// WorkerName names the worker row. It defaults to the operator name, which is what one
 	// worker per connection looks like in the dashboard.
@@ -266,7 +266,7 @@ func (s *Service) createWorker(ctx context.Context, tenant *sqlcv1.Tenant, op *s
 		Name:             name,
 		SlotConfig:       slotConfig,
 		OperatorId:       &operatorId,
-		ExemptFromLimits: opts.ExemptFromLimits,
+		IsExemptFromLimits: opts.IsExemptFromLimits,
 	}
 
 	if opts.RuntimeInfo != nil {

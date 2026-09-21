@@ -219,7 +219,7 @@ func (h *Host) Open(ctx context.Context, id operator.Identity, o operator.OpenOp
 		Name:             id.Name,
 		Kind:             kind,
 		LeasingManager:   leasingManager,
-		ExemptFromLimits: true,
+		IsExemptFromLimits: true,
 		WorkerName:       o.WorkerName,
 		SlotConfig:       o.SlotConfig,
 		Labels:           labelsToProto(o.Labels),

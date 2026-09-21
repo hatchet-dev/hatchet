@@ -83,11 +83,11 @@ type DAGStepTriggerResult struct {
 // durable invocations, the action set) is on Session instead. Every call names its tenant
 // explicitly: nothing here reads the tenant the gRPC auth middleware puts on a request context.
 type TaskEventWriter interface {
-	// CancelTaskEventCustom reports a cancelled task with a custom cancellation reason. It is
+	// CancelTaskWithReason reports a cancelled task with a custom cancellation reason. It is
 	// the engine-internal writer behind SendCancelledWithMessage, distinct from the CANCELLED
 	// step action event every host offers through Session.SendStepActionEvent, and it is not
 	// on the gRPC surface: an out-of-process operator has no equivalent.
-	CancelTaskEventCustom(ctx context.Context, tenantId uuid.UUID, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error)
+	CancelTaskWithReason(ctx context.Context, tenantId uuid.UUID, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error)
 
 	TriggerDAGStep(ctx context.Context, tenantId uuid.UUID, req *DAGStepTriggerRequest) (*DAGStepTriggerResult, error)
 
@@ -319,7 +319,7 @@ func (s *SharedOperator[T]) SendCancelledWithMessage(action *contracts.AssignedA
 	ctx, cancel := context.WithTimeout(context.Background(), eventReportTimeout)
 	defer cancel()
 
-	_, err := s.taskEventWriter.CancelTaskEventCustom(ctx, s.tenantId, event)
+	_, err := s.taskEventWriter.CancelTaskWithReason(ctx, s.tenantId, event)
 	return err
 }
 

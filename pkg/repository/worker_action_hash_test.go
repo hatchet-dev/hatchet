@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
@@ -104,7 +106,7 @@ func TestWorkerActionHashAgreesAcrossPaths(t *testing.T) {
 		Name:             "initial-set",
 		Actions:          []string{"Svc:Run", "svc:other"},
 		OperatorId:       &operatorId,
-		ExemptFromLimits: true,
+		IsExemptFromLimits: true,
 	})
 	require.NoError(t, err)
 
@@ -151,12 +153,13 @@ func TestWorkerActionsRejectTenantWorkerMismatch(t *testing.T) {
 	require.Error(t, err, "a worker of another tenant must not be unlinked")
 	assert.Equal(t, []string{"svc:run"}, linkedActions(t, ctx, pool, worker))
 
-	var cross int
-	require.NoError(t, pool.QueryRow(ctx,
-		`SELECT count(*) FROM "_ActionToWorker" aw JOIN "Action" a ON a.id = aw."A" JOIN "Worker" w ON w.id = aw."B" WHERE aw."B" = $1 AND a."tenantId" <> w."tenantId"`,
-		worker,
-	).Scan(&cross))
-	assert.Zero(t, cross)
+	// no action of the other tenant is linked to the worker
+	cross, err := sqlcv1.New().GetWorkerActionsByWorkerId(ctx, pool, sqlcv1.GetWorkerActionsByWorkerIdParams{
+		Tenantid:  tenantA,
+		Workerids: []uuid.UUID{worker},
+	})
+	require.NoError(t, err)
+	assert.Empty(t, cross)
 }
 
 // A budgeted add links nothing when it would leave the operator over its cap, repeated actions

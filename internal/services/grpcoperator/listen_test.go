@@ -340,7 +340,7 @@ func TestListenExitsOnDispatcherFin(t *testing.T) {
 
 func pauseMsg(paused bool) *v1contracts.OperatorListenRequest {
 	return &v1contracts.OperatorListenRequest{Message: &v1contracts.OperatorListenRequest_Pause{
-		Pause: &v1contracts.OperatorPause{Paused: paused},
+		Pause: &v1contracts.OperatorPause{IsPaused: paused},
 	}}
 }
 
