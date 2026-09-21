@@ -505,6 +505,8 @@ class Runner:
         task_inputs = self._create_batch_input(task, action)
         context = self.create_context(action=action, task=task, is_durable=False)
 
+        self._start_counting_slots(action.key, {"default": 1})
+
         try:
             if task._is_async_function:
                 outputs = await cast(Any, task._fn)(task_inputs, context)
@@ -647,6 +649,8 @@ class Runner:
                     ],
                 )
             )
+        finally:
+            self._stop_counting_slots(action.key)
 
     async def log_thread_pool_status(self) -> None:
         thread_pool_details = {
@@ -788,6 +792,11 @@ class Runner:
                 workflow_name=task.workflow.name,
                 worker_labels=self.worker_labels,
             )
+        )
+
+        loop = asyncio.get_running_loop()
+        ctx._on_slot_released = lambda: loop.call_soon_threadsafe(
+            self._stop_counting_slots, action.key
         )
 
         ctx_hatchet_context.set(ctx)

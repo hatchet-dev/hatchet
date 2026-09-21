@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Adds a new `slots` key to the response of the `/health` and `/metrics` endpoints on the worker, which provides data on slot usage on that worker
+- Adds a new `slots` key to the worker's `/health` response and `hatchet_worker_used_slots` and `hatchet_worker_slot_limit` gauges to its `/metrics` response
 
 ## [1.40.3] - 2026-09-18
 
