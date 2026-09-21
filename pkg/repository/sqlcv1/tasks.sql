@@ -529,8 +529,8 @@ WITH input AS (
                 unnest_nd_1d(@eventTypes::text[][]) AS event_types
         ) AS subquery
 ), looked_up AS MATERIALIZED (
-    -- Probe v1_task by primary key per lookup row. A plain join is planned as a
-    -- merge across every daily partition.
+    -- Resolve keys before joining v1_task. Joining v1_lookup_table directly
+    -- is planned as a merge across every daily partition.
     SELECT
         l.external_id,
         l.task_id,
@@ -546,11 +546,8 @@ SELECT
     e.*
 FROM
     looked_up l
-JOIN LATERAL (
-    SELECT *
-    FROM v1_task t
-    WHERE t.id = l.task_id AND t.inserted_at = l.inserted_at
-) t ON true
+JOIN
+    v1_task t ON t.id = l.task_id AND t.inserted_at = l.inserted_at
 JOIN
     v1_task_event e ON e.tenant_id = @tenantId::uuid AND e.task_id = t.id AND e.task_inserted_at = t.inserted_at
 JOIN

@@ -1430,8 +1430,8 @@ WITH input AS (
                 unnest_nd_1d($3::text[][]) AS event_types
         ) AS subquery
 ), looked_up AS MATERIALIZED (
-    -- Probe v1_task by primary key per lookup row. A plain join is planned as a
-    -- merge across every daily partition.
+    -- Resolve keys before joining v1_task. Joining v1_lookup_table directly
+    -- is planned as a merge across every daily partition.
     SELECT
         l.external_id,
         l.task_id,
@@ -1447,11 +1447,8 @@ SELECT
     e.id, e.inserted_at, e.tenant_id, e.task_id, e.task_inserted_at, e.retry_count, e.event_type, e.event_key, e.created_at, e.data, e.external_id, e.child_external_id
 FROM
     looked_up l
-JOIN LATERAL (
-    SELECT id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, batch_key, retry_backoff_factor, retry_max_backoff, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key, idempotency_key, is_dag_orchestrator, concurrency_max_runs
-    FROM v1_task t
-    WHERE t.id = l.task_id AND t.inserted_at = l.inserted_at
-) t ON true
+JOIN
+    v1_task t ON t.id = l.task_id AND t.inserted_at = l.inserted_at
 JOIN
     v1_task_event e ON e.tenant_id = $1::uuid AND e.task_id = t.id AND e.task_inserted_at = t.inserted_at
 JOIN
