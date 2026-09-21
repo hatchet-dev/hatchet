@@ -22,7 +22,6 @@ type CELParser struct {
 	idempotencyKeyEnv  *cel.Env
 	eventEnv           *cel.Env
 	incomingWebhookEnv *cel.Env
-	debugEnv           *cel.Env
 }
 
 var checksumDecl = decls.NewFunction("checksum",
@@ -110,29 +109,12 @@ func NewCELParser() *CELParser {
 		ext.Strings(),
 	)
 
-	debugEnv, _ := cel.NewEnv(
-		cel.Declarations(
-			decls.NewVar("input", decls.NewMapType(decls.String, decls.Dyn)),
-			decls.NewVar("additional_metadata", decls.NewMapType(decls.String, decls.Dyn)),
-			decls.NewVar("workflow_run_id", decls.String),
-			decls.NewVar("parents", decls.NewMapType(decls.String, decls.NewMapType(decls.String, decls.Dyn))),
-			decls.NewVar("payload", decls.NewMapType(decls.String, decls.Dyn)),
-			decls.NewVar("event_id", decls.String),
-			decls.NewVar("event_key", decls.String),
-			decls.NewVar("headers", decls.NewMapType(decls.String, decls.String)),
-			checksumDecl,
-		),
-		checksum,
-		ext.Strings(),
-	)
-
 	return &CELParser{
 		workflowStrEnv:     workflowStrEnv,
 		stepRunEnv:         stepRunEnv,
 		idempotencyKeyEnv:  idempotencyKeyEnv,
 		eventEnv:           eventEnv,
 		incomingWebhookEnv: incomingWebhookEnv,
-		debugEnv:           debugEnv,
 	}
 }
 
@@ -468,15 +450,15 @@ type DebugOut struct {
 	Bool   *bool
 }
 
-// EvaluateDebugExpression compiles and evaluates expr against a combined environment that
-// accepts all declared CEL variables, returning the result as a string, int, or bool.
+// EvaluateDebugExpression compiles and evaluates expr against the event environment,
+// returning the result as a string, int, or bool without enforcing a boolean return type.
 func (p *CELParser) EvaluateDebugExpression(expr string, input Input) (*DebugOut, error) {
-	ast, issues := p.debugEnv.Compile(expr)
+	ast, issues := p.eventEnv.Compile(expr)
 	if issues != nil && issues.Err() != nil {
 		return nil, fmt.Errorf("failed to compile expression: %w", issues.Err())
 	}
 
-	program, err := p.debugEnv.Program(ast)
+	program, err := p.eventEnv.Program(ast)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create program: %w", err)
 	}

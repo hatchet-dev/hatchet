@@ -100,7 +100,6 @@ func TestCELParser(t *testing.T) {
 
 func TestCELParserDebugExpression(t *testing.T) {
 	parser := cel.NewCELParser()
-	dummyUuid := uuid.New()
 
 	tests := []struct {
 		expression  string
@@ -144,25 +143,11 @@ func TestCELParserDebugExpression(t *testing.T) {
 			expectStr:  strPtr("singleton"),
 		},
 		{
-			expression: `'rl-' + workflow_run_id`,
-			input: cel.NewInput(
-				cel.WithWorkflowRunID(dummyUuid),
-			),
-			expectStr: strPtr("rl-" + dummyUuid.String()),
-		},
-		{
 			expression: `payload.tier`,
 			input: cel.NewInput(
 				cel.WithPayload(map[string]interface{}{"tier": "gold"}),
 			),
 			expectStr: strPtr("gold"),
-		},
-		{
-			expression: `event_key`,
-			input: cel.NewInput(
-				cel.WithEventKey("user:created"),
-			),
-			expectStr: strPtr("user:created"),
 		},
 		{
 			expression: `input.cost`,
