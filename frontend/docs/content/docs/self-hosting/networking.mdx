@@ -51,7 +51,7 @@ Set the base path via the environment variable for your deployment mode. It defa
 | Deployment                        | Variable                  | Notes                                                           |
 | --------------------------------- | ------------------------- | --------------------------------------------------------------- |
 | Helm `frontend` chart             | `BASE_PATH`               | Set under `frontend.env`. Passed to the static file server.     |
-| Combined `dashboard` image        | `BASE_PATH`               | Injected into `index.html` and nginx routing by the entrypoint. |
+| Combined `dashboard` image        | `BASE_PATH`               | Read by the bundled static file server, which also proxies `/api` to `hatchet-api`. |
 | `hatchet-lite`                    | `LITE_FRONTEND_BASE_PATH` |                                                                 |
 | `hatchet-staticfileserver` binary | `-base-path` flag         |                                                                 |
 

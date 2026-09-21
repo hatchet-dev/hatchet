@@ -74,7 +74,7 @@ assert_auth_enabled api "http://localhost:$API_PORT" || fail=1
 echo "::endgroup::"
 
 echo "::group::dashboard"
-# The dashboard bundles the api binary behind nginx (port 80); reuse the api's DB + config.
+# The dashboard bundles the api binary behind the static file server (port 80); reuse the api's DB + config.
 docker run -d --name authcheck-dashboard --network "$NET" -e DATABASE_URL="$DBURL_API" \
   -e SERVER_MSGQUEUE_KIND=postgres -e SERVER_GRPC_INSECURE=true \
   -e SERVER_AUTH_COOKIE_INSECURE=true -e SERVER_AUTH_COOKIE_DOMAIN=localhost \

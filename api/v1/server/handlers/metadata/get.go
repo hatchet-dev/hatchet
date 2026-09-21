@@ -1,6 +1,8 @@
 package metadata
 
 import (
+	"crypto/fips140"
+
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
@@ -39,6 +41,8 @@ func (u *MetadataService) MetadataGet(ctx echo.Context, request gen.MetadataGetR
 
 	authDisabled := authmode.IsDisabled
 
+	fipsEnabled := fips140.Enabled()
+
 	meta := gen.APIMeta{
 		Auth: &gen.APIMetaAuth{
 			Schemes: &authTypes,
@@ -53,6 +57,12 @@ func (u *MetadataService) MetadataGet(ctx echo.Context, request gen.MetadataGetR
 		PrometheusServerEnabled: &prometheusServerEnabled,
 		AuthDisabled:            &authDisabled,
 		Embedded:                &u.config.Runtime.Embedded,
+		Fips:                    &fipsEnabled,
+	}
+
+	if fipsEnabled {
+		fipsVersion := fips140.Version()
+		meta.FipsVersion = &fipsVersion
 	}
 
 	if authDisabled {
