@@ -2882,7 +2882,8 @@ CREATE TABLE v1_operator (
     worker_id UUID,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT v1_operator_pkey PRIMARY KEY (id)
+    CONSTRAINT v1_operator_pkey PRIMARY KEY (id),
+    CONSTRAINT v1_operator_dag_leasing_manager_check CHECK (kind <> 'DAG' OR leasing_manager = 'DISPATCHER')
 );
 
 CREATE UNIQUE INDEX v1_operator_tenant_name_kind_key ON v1_operator (tenant_id, name, kind);
