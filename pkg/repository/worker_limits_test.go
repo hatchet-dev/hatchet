@@ -90,10 +90,10 @@ func TestCreateNewWorkerMetersOperatorWorkers(t *testing.T) {
 
 	operatorWorker := func(name string, operatorId uuid.UUID, exempt bool, slots int32) *CreateWorkerOpts {
 		return &CreateWorkerOpts{
-			DispatcherId:     dispatcherId,
-			Name:             name,
-			SlotConfig:       map[string]int32{SlotTypeDefault: slots},
-			OperatorId:       &operatorId,
+			DispatcherId:       dispatcherId,
+			Name:               name,
+			SlotConfig:         map[string]int32{SlotTypeDefault: slots},
+			OperatorId:         &operatorId,
 			IsExemptFromLimits: exempt,
 		}
 	}

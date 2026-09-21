@@ -262,10 +262,10 @@ func (s *Service) createWorker(ctx context.Context, tenant *sqlcv1.Tenant, op *s
 	operatorId := op.ID
 
 	createOpts := &repository.CreateWorkerOpts{
-		DispatcherId:     s.dispatcherId,
-		Name:             name,
-		SlotConfig:       slotConfig,
-		OperatorId:       &operatorId,
+		DispatcherId:       s.dispatcherId,
+		Name:               name,
+		SlotConfig:         slotConfig,
+		OperatorId:         &operatorId,
 		IsExemptFromLimits: opts.IsExemptFromLimits,
 	}
 
