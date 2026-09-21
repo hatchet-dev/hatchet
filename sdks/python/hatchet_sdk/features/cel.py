@@ -16,7 +16,17 @@ from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 class CELSuccess(BaseModel):
     status: Literal["success"] = "success"
-    output: bool
+    output: str
+    output_type: Literal["bool", "string", "int"]
+
+    def as_bool(self) -> bool:
+        return self.output == "true"
+
+    def as_str(self) -> str:
+        return self.output
+
+    def as_int(self) -> int:
+        return int(self.output)
 
 
 class CELFailure(BaseModel):
@@ -78,7 +88,12 @@ class CELClient(BaseRestClient):
             if result.output is None:
                 raise ValueError("No output received from CEL debug API.")
 
-            return CELEvaluationResult(result=CELSuccess(output=result.output))
+            if result.output_type is None:
+                raise ValueError("No output type received from CEL debug API.")
+
+            return CELEvaluationResult(
+                result=CELSuccess(output=result.output, output_type=result.output_type)
+            )
 
     async def aio_debug(
         self,

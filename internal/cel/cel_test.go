@@ -97,6 +97,132 @@ func TestCELParser(t *testing.T) {
 	}
 }
 
+func TestCELParserDebugExpression(t *testing.T) {
+	parser := cel.NewCELParser()
+	dummyUuid := uuid.New()
+
+	tests := []struct {
+		expression  string
+		input       cel.Input
+		expectError bool
+		expectBool  *bool
+		expectStr   *string
+		expectInt   *int
+	}{
+		// --- boolean expressions (regression: must still work) ---
+		{
+			expression: `input.key == 'value'`,
+			input: cel.NewInput(
+				cel.WithInput(map[string]interface{}{"key": "value"}),
+			),
+			expectBool: boolPtr(true),
+		},
+		{
+			expression: `input.priority > 5`,
+			input: cel.NewInput(
+				cel.WithInput(map[string]interface{}{"priority": 10}),
+			),
+			expectBool: boolPtr(true),
+		},
+		{
+			expression: `payload.tier == 'gold'`,
+			input: cel.NewInput(
+				cel.WithPayload(map[string]interface{}{"tier": "silver"}),
+			),
+			expectBool: boolPtr(false),
+		},
+		// --- string expressions (broken today, must pass after fix) ---
+		{
+			expression: `input.user_id`,
+			input: cel.NewInput(
+				cel.WithInput(map[string]interface{}{"user_id": "alice"}),
+			),
+			expectStr: strPtr("alice"),
+		},
+		{
+			expression: `'singleton'`,
+			input:      cel.NewInput(),
+			expectStr:  strPtr("singleton"),
+		},
+		{
+			expression: `'rl-' + workflow_run_id`,
+			input: cel.NewInput(
+				cel.WithWorkflowRunID(dummyUuid),
+			),
+			expectStr: strPtr("rl-" + dummyUuid.String()),
+		},
+		{
+			expression: `payload.tier`,
+			input: cel.NewInput(
+				cel.WithPayload(map[string]interface{}{"tier": "gold"}),
+			),
+			expectStr: strPtr("gold"),
+		},
+		{
+			expression: `event_key`,
+			input: cel.NewInput(
+				cel.WithEventKey("user:created"),
+			),
+			expectStr: strPtr("user:created"),
+		},
+		// --- int expressions (broken today, must pass after fix) ---
+		{
+			expression: `input.cost`,
+			input: cel.NewInput(
+				cel.WithInput(map[string]interface{}{"cost": 5}),
+			),
+			expectInt: intPtr(5),
+		},
+		{
+			expression: `input.quota`,
+			input: cel.NewInput(
+				cel.WithInput(map[string]interface{}{"quota": 100}),
+			),
+			expectInt: intPtr(100),
+		},
+		// --- error cases (must still error after fix) ---
+		{
+			expression:  `input.missing_key`,
+			input:       cel.NewInput(),
+			expectError: true,
+		},
+		{
+			expression:  `unknown_var`,
+			input:       cel.NewInput(),
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.expression, func(t *testing.T) {
+			result, err := parser.EvaluateDebugExpression(tt.expression, tt.input)
+
+			if tt.expectError {
+				assert.Error(t, err)
+				return
+			}
+
+			assert.NoError(t, err)
+
+			switch {
+			case tt.expectBool != nil:
+				assert.NotNil(t, result.Bool)
+				assert.Equal(t, *tt.expectBool, *result.Bool)
+			case tt.expectStr != nil:
+				assert.NotNil(t, result.String)
+				assert.Equal(t, *tt.expectStr, *result.String)
+			case tt.expectInt != nil:
+				assert.NotNil(t, result.Int)
+				assert.Equal(t, *tt.expectInt, *result.Int)
+			}
+		})
+	}
+}
+
+func boolPtr(b bool) *bool    { return &b }
+func strPtr(s string) *string { return &s }
+func intPtr(i int) *int       { return &i }
+
 func TestCELParserEventExpression(t *testing.T) {
 	parser := cel.NewCELParser()
 

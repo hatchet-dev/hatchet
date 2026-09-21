@@ -39,9 +39,10 @@ func NewCELClient(
 // Deprecated: CELEvaluationResult is part of the old generics-based v1 Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type CELEvaluationResult struct {
-	status gen.V1CELDebugResponseStatus
-	output *bool
-	err    *string
+	status     gen.V1CELDebugResponseStatus
+	output     *string
+	outputType *rest.V1CELDebugResponseOutputType
+	err        *string
 }
 
 // Deprecated: Debug is part of the old generics-based v1 Go SDK.
@@ -72,7 +73,8 @@ func (c *celClientImpl) Debug(ctx context.Context, expression string, input map[
 	}
 
 	return &CELEvaluationResult{
-		status: gen.V1CELDebugResponseStatusSUCCESS,
-		output: resp.JSON200.Output,
+		status:     gen.V1CELDebugResponseStatusSUCCESS,
+		output:     resp.JSON200.Output,
+		outputType: resp.JSON200.OutputType,
 	}, nil
 }

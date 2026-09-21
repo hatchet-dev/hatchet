@@ -21,6 +21,7 @@ type CELParser struct {
 	stepRunEnv         *cel.Env
 	eventEnv           *cel.Env
 	incomingWebhookEnv *cel.Env
+	debugEnv           *cel.Env
 }
 
 var checksumDecl = decls.NewFunction("checksum",
@@ -92,11 +93,28 @@ func NewCELParser() *CELParser {
 		),
 	)
 
+	debugEnv, _ := cel.NewEnv(
+		cel.Declarations(
+			decls.NewVar("input", decls.NewMapType(decls.String, decls.Dyn)),
+			decls.NewVar("additional_metadata", decls.NewMapType(decls.String, decls.Dyn)),
+			decls.NewVar("workflow_run_id", decls.String),
+			decls.NewVar("parents", decls.NewMapType(decls.String, decls.NewMapType(decls.String, decls.Dyn))),
+			decls.NewVar("payload", decls.NewMapType(decls.String, decls.Dyn)),
+			decls.NewVar("event_id", decls.String),
+			decls.NewVar("event_key", decls.String),
+			decls.NewVar("headers", decls.NewMapType(decls.String, decls.String)),
+			checksumDecl,
+		),
+		checksum,
+		ext.Strings(),
+	)
+
 	return &CELParser{
 		workflowStrEnv:     workflowStrEnv,
 		stepRunEnv:         stepRunEnv,
 		eventEnv:           eventEnv,
 		incomingWebhookEnv: incomingWebhookEnv,
+		debugEnv:           debugEnv,
 	}
 }
 
@@ -370,6 +388,53 @@ func (p *CELParser) EvaluateEventExpression(expr string, input Input) (bool, err
 	}
 
 	return out.Value().(bool), nil
+}
+
+type DebugOut struct {
+	String *string
+	Int    *int
+	Bool   *bool
+}
+
+func (p *CELParser) EvaluateDebugExpression(expr string, input Input) (*DebugOut, error) {
+	ast, issues := p.debugEnv.Compile(expr)
+	if issues != nil && issues.Err() != nil {
+		return nil, fmt.Errorf("failed to compile expression: %w", issues.Err())
+	}
+
+	program, err := p.debugEnv.Program(ast)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create program: %w", err)
+	}
+
+	var inMap map[string]interface{} = input
+
+	out, _, err := program.Eval(inMap)
+	if err != nil {
+		return nil, fmt.Errorf("failed to evaluate expression: %w", err)
+	}
+
+	res := &DebugOut{}
+
+	switch out.Type() {
+	case types.StringType:
+		s := out.Value().(string)
+		res.String = &s
+	case types.IntType:
+		i := int(out.Value().(int64))
+		res.Int = &i
+	case types.DoubleType:
+		// float64 literals in CEL are doubles; truncate to int to match ParseAndEvalStepRun behaviour
+		i := int(out.Value().(float64))
+		res.Int = &i
+	case types.BoolType:
+		b := out.Value().(bool)
+		res.Bool = &b
+	default:
+		return nil, fmt.Errorf("expression evaluated to unsupported type: %s", out.Type().TypeName())
+	}
+
+	return res, nil
 }
 
 func (p *CELParser) EvaluateIncomingWebhookExpression(expr string, input Input) (string, error) {

@@ -1317,8 +1317,10 @@ export interface V1CELDebugRequest {
 export interface V1CELDebugResponse {
   /** The status of the CEL evaluation */
   status: V1CELDebugResponseStatus;
-  /** The result of the CEL expression evaluation, if successful */
-  output?: boolean;
+  /** The result of the CEL expression evaluation serialized as a string (e.g. "true", "alice", "5") */
+  output?: string;
+  /** The type of the output value */
+  outputType?: "bool" | "string" | "int";
   /** The error message if the evaluation failed */
   error?: string;
 }

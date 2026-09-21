@@ -9,10 +9,13 @@ export type DebugCELInput = {
   filterPayload?: Record<string, any>;
 };
 
+export type CELOutputType = 'bool' | 'string' | 'int';
+
 export type CELEvaluationResult =
   | {
       status: V1CELDebugResponseStatus.SUCCESS;
-      output: boolean;
+      output: string;
+      outputType: CELOutputType;
     }
   | {
       status: V1CELDebugResponseStatus.ERROR;
@@ -53,13 +56,14 @@ export class CELClient {
         };
       }
 
-      if (response.data.output === undefined) {
+      if (response.data.output === undefined || response.data.outputType === undefined) {
         throw new Error('No output received from CEL debug API.');
       }
 
       return {
         status: V1CELDebugResponseStatus.SUCCESS,
         output: response.data.output,
+        outputType: response.data.outputType as CELOutputType,
       };
     } catch (err) {
       if (err instanceof AxiosError) {

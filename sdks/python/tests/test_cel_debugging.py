@@ -12,26 +12,59 @@ from hatchet_sdk.utils.typing import JSONSerializableMapping
 @pytest.mark.parametrize(
     "expression, input, additional_metadata, filter_payload, expected",
     [
+        # --- existing boolean cases (regression) ---
         (
             "input.key == 'value' && additional_metadata.meta == 'data' && payload.filter == 'payload'",
             {"key": "value"},
             {"meta": "data"},
             {"filter": "payload"},
-            ("success", True),
+            ("success", "true", "bool"),
         ),
         (
             "input.key == 'value'",
             {"key": "other_value"},
             None,
             None,
-            ("success", False),
+            ("success", "false", "bool"),
         ),
         (
             "input.key == 'value'",
             {},
             None,
             None,
-            ("failure", False),
+            ("failure", None, None),
+        ),
+        # --- new: string output (concurrency key) ---
+        (
+            "input.user_id",
+            {"user_id": "alice"},
+            None,
+            None,
+            ("success", "alice", "string"),
+        ),
+        # --- new: string constant ---
+        (
+            "'singleton'",
+            {},
+            None,
+            None,
+            ("success", "singleton", "string"),
+        ),
+        # --- new: int output (rate limit units) ---
+        (
+            "input.cost",
+            {"cost": 5},
+            None,
+            None,
+            ("success", "5", "int"),
+        ),
+        # --- new: payload variable (only available via debugEnv) ---
+        (
+            "payload.tier == 'gold'",
+            {},
+            None,
+            {"tier": "gold"},
+            ("success", "true", "bool"),
         ),
     ],
 )
@@ -41,7 +74,7 @@ def test_cel_debug(
     input: JSONSerializableMapping,
     additional_metadata: JSONSerializableMapping | None,
     filter_payload: JSONSerializableMapping | None,
-    expected: tuple[Literal["success", "failure"], bool],  ## (error, result)
+    expected: tuple[Literal["success", "failure"], str | None, str | None],
 ) -> None:
     result = hatchet.cel.debug(
         expression=expression,
@@ -50,7 +83,7 @@ def test_cel_debug(
         filter_payload=filter_payload,
     )
 
-    status, output = expected
+    status, output, output_type = expected
 
     print(result)
 
@@ -58,3 +91,4 @@ def test_cel_debug(
 
     if result.result.status == "success":
         assert result.result.output == output
+        assert result.result.output_type == output_type
