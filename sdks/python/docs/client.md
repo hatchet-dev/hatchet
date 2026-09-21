@@ -22,3 +22,13 @@ This is the Python SDK reference, documenting methods available for interacting 
         - workflow
         - task
         - durable_task
+        - from_embedded
+        - stop_embedded
+        - aio_stop_embedded
+
+## Embedded Engine Configuration
+
+::: config.EmbeddedHatchetConfig
+    options:
+      inherited_members: false
+      members: false

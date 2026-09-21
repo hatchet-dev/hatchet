@@ -4,7 +4,9 @@ title: "Worker Health Checks"
 
 # Worker Health Checks
 
-The Python SDK allows you to enable and ping a healthcheck to check on the status of your worker.
+Both the Python and TypeScript SDKs let you enable and ping a healthcheck to check on the status of your worker.
+
+## Python SDK
 
 ### Usage
 
@@ -80,4 +82,26 @@ An example query to check if the worker is healthy might look something like:
 
 ```
 (hatchet_worker_listener_health_my_worker{instance="localhost:8001", job="hatchet"}) or vector(0)
+```
+
+## TypeScript SDK
+
+Set `HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED=true` (and optionally `HATCHET_CLIENT_WORKER_HEALTHCHECK_PORT`, default `8001`) to enable the worker's health server. It exposes:
+
+1. `/health` - Always returns **200**, with the worker's status (`INITIALIZED`, `STARTING`, `HEALTHY`, or `UNHEALTHY`) in the JSON body, e.g. `{"status":"HEALTHY"}`. Kept unconditional for backward compatibility with consumers that inspect the body directly — since the status code alone doesn't indicate health, this endpoint is **not** suitable for a Kubernetes `httpGet` probe. Use `/readyz` for that instead.
+2. `/readyz` - A Kubernetes-style readiness probe. Returns **200** only when the worker is `HEALTHY` (registered and holding an action listener), **503** otherwise.
+3. `/livez` - A Kubernetes-style liveness probe. Always returns **200** as long as the process can respond at all, independent of Hatchet connectivity — a worker that's temporarily `UNHEALTHY` should be pulled from rotation via `/readyz`, not killed and restarted, since restarting doesn't fix an upstream Hatchet outage and drops in-flight work.
+4. `/metrics` - A metrics endpoint intended to be used by a monitoring system like Prometheus (requires the optional `prom-client` dependency).
+
+#### Example Kubernetes probe configuration
+
+```yaml
+readinessProbe:
+  httpGet:
+    path: /readyz
+    port: 8001
+livenessProbe:
+  httpGet:
+    path: /livez
+    port: 8001
 ```

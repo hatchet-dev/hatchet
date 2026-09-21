@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"math"
 	"reflect"
-	"sync"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -53,6 +52,74 @@ type RunPriority = features.RunPriority
 type DesiredWorkerLabel = types.DesiredWorkerLabel
 
 type WorkerLabelComparator = types.WorkerLabelComparator
+
+// WorkerLabelComparator values for DesiredWorkerLabel.Comparator.
+const (
+	WorkerLabelComparatorEqual              = types.WorkerLabelComparator_EQUAL
+	WorkerLabelComparatorNotEqual           = types.WorkerLabelComparator_NOT_EQUAL
+	WorkerLabelComparatorGreaterThan        = types.WorkerLabelComparator_GREATER_THAN
+	WorkerLabelComparatorGreaterThanOrEqual = types.WorkerLabelComparator_GREATER_THAN_OR_EQUAL
+	WorkerLabelComparatorLessThan           = types.WorkerLabelComparator_LESS_THAN
+	WorkerLabelComparatorLessThanOrEqual    = types.WorkerLabelComparator_LESS_THAN_OR_EQUAL
+)
+
+// ComparatorPtr returns a pointer to the given comparator, for use in DesiredWorkerLabel.
+func ComparatorPtr(v WorkerLabelComparator) *WorkerLabelComparator {
+	return &v
+}
+
+// Concurrency controls how many runs of a workflow or task may execute at once
+// for a given key expression, and what happens when the limit is exceeded.
+type Concurrency = types.Concurrency
+
+// ConcurrencyLimitStrategy determines what happens to runs beyond a concurrency limit.
+type ConcurrencyLimitStrategy = types.WorkflowConcurrencyLimitStrategy
+
+// ConcurrencyLimitStrategy values for Concurrency.LimitStrategy.
+const (
+	CancelInProgress         = types.CancelInProgress
+	CancelNewest             = types.CancelNewest
+	GroupRoundRobin          = types.GroupRoundRobin
+	DropNewest               = types.DropNewest
+	QueueNewest              = types.QueueNewest
+	CancelQueuedExceptNewest = types.CancelQueuedExceptNewest
+	CancelQueuedExceptOldest = types.CancelQueuedExceptOldest
+)
+
+// RateLimit declares a rate limit consumed by a task run, used with WithRateLimits.
+type RateLimit = types.RateLimit
+
+// RateLimitDuration is the window over which a rate limit applies.
+type RateLimitDuration = types.RateLimitDuration
+
+// RateLimitDuration values.
+const (
+	Second = types.Second
+	Minute = types.Minute
+	Hour   = types.Hour
+	Day    = types.Day
+	Week   = types.Week
+	Month  = types.Month
+	Year   = types.Year
+)
+
+// StickyStrategy determines how child workflow runs are routed back to the worker
+// that ran the parent.
+type StickyStrategy = types.StickyStrategy
+
+// StickyStrategy values for WithWorkflowStickyStrategy.
+const (
+	StickyStrategySoft = types.StickyStrategy_SOFT
+	StickyStrategyHard = types.StickyStrategy_HARD
+)
+
+// DefaultFilter declares a default event filter for a workflow or standalone task,
+// used with WithDefaultFilters.
+type DefaultFilter = types.DefaultFilter
+
+// TaskDefaults sets default task configuration for all tasks in a workflow,
+// used with WithWorkflowTaskDefaults.
+type TaskDefaults = create.TaskDefaults
 
 type runOpts struct {
 	AdditionalMetadata  *map[string]string
@@ -240,14 +307,14 @@ func WithWorkflowDescription(description string) WorkflowOption {
 }
 
 // WithWorkflowConcurrency sets concurrency controls for the workflow.
-func WithWorkflowConcurrency(concurrency ...types.Concurrency) WorkflowOption {
+func WithWorkflowConcurrency(concurrency ...Concurrency) WorkflowOption {
 	return func(config *workflowConfig) {
 		config.concurrency = concurrency
 	}
 }
 
 // WithWorkflowTaskDefaults sets the default configuration for all tasks in the workflow.
-func WithWorkflowTaskDefaults(defaults *create.TaskDefaults) WorkflowOption {
+func WithWorkflowTaskDefaults(defaults *TaskDefaults) WorkflowOption {
 	return func(config *workflowConfig) {
 		config.taskDefaults = defaults
 	}
@@ -261,7 +328,7 @@ func WithWorkflowDefaultPriority(priority RunPriority) WorkflowOption {
 }
 
 // WithWorkflowStickyStrategy sets the sticky strategy for the workflow.
-func WithWorkflowStickyStrategy(stickyStrategy types.StickyStrategy) WorkflowOption {
+func WithWorkflowStickyStrategy(stickyStrategy StickyStrategy) WorkflowOption {
 	return func(config *workflowConfig) {
 		config.stickyStrategy = &stickyStrategy
 	}
@@ -276,6 +343,15 @@ func WithWorkflowIdempotency(config IdempotencyConfig) WorkflowOption {
 	}
 }
 
+// validateConcurrency panics if any concurrency option has a non-positive MaxRuns.
+func validateConcurrency(ownerKind, ownerName string, concurrency []*types.Concurrency) {
+	for _, c := range concurrency {
+		if c != nil && c.MaxRuns != nil && *c.MaxRuns <= 0 {
+			panic(ownerKind + " '" + ownerName + "' concurrency MaxRuns must be positive when provided")
+		}
+	}
+}
+
 // newWorkflow creates a new workflow definition.
 func newWorkflow(name string, v0Client v0Client.Client, options ...WorkflowOption) *Workflow {
 	config := &workflowConfig{}
@@ -283,6 +359,12 @@ func newWorkflow(name string, v0Client v0Client.Client, options ...WorkflowOptio
 	for _, opt := range options {
 		opt(config)
 	}
+
+	concurrencyPtrs := make([]*types.Concurrency, len(config.concurrency))
+	for i := range config.concurrency {
+		concurrencyPtrs[i] = &config.concurrency[i]
+	}
+	validateConcurrency("workflow", name, concurrencyPtrs)
 
 	if len(config.onCron) > 0 && config.cronInput == nil {
 		emptyJSON := "{}"
@@ -407,14 +489,14 @@ func WithEvents(events ...string) TaskOption {
 }
 
 // WithDefaultFilters sets default filters for event-triggered workflows or standalone tasks.
-func WithDefaultFilters(filters ...types.DefaultFilter) WorkflowOption {
+func WithDefaultFilters(filters ...DefaultFilter) WorkflowOption {
 	return func(config *workflowConfig) {
 		config.defaultFilters = filters
 	}
 }
 
 // WithConcurrency sets concurrency limits for task execution.
-func WithConcurrency(concurrency ...*types.Concurrency) TaskOption {
+func WithConcurrency(concurrency ...*Concurrency) TaskOption {
 	return func(config *taskConfig) {
 		config.concurrency = concurrency
 	}
@@ -428,7 +510,7 @@ func withDurable() TaskOption {
 }
 
 // WithRateLimits sets rate limiting for task execution.
-func WithRateLimits(rateLimits ...*types.RateLimit) TaskOption {
+func WithRateLimits(rateLimits ...*RateLimit) TaskOption {
 	return func(config *taskConfig) {
 		config.rateLimits = rateLimits
 	}
@@ -447,14 +529,14 @@ func WithParents(parents ...*Task) TaskOption {
 }
 
 // WithWaitFor sets a condition that must be met before the task executes.
-func WithWaitFor(condition condition.Condition) TaskOption {
+func WithWaitFor(condition Condition) TaskOption {
 	return func(config *taskConfig) {
 		config.waitFor = condition
 	}
 }
 
 // WithSkipIf sets a condition that will skip the task if met.
-func WithSkipIf(condition condition.Condition) TaskOption {
+func WithSkipIf(condition Condition) TaskOption {
 	return func(config *taskConfig) {
 		config.skipIf = condition
 	}
@@ -498,6 +580,8 @@ func (w *Workflow) NewTask(name string, fn any, options ...TaskOption) *Task {
 	for _, opt := range options {
 		opt(config)
 	}
+
+	validateConcurrency("task", name, config.concurrency)
 
 	fnValue := reflect.ValueOf(fn)
 	fnType := fnValue.Type()
@@ -641,6 +725,8 @@ func (w *Workflow) NewBatchTask(name string, fn any, batch BatchConfig, options 
 	for _, opt := range options {
 		opt(config)
 	}
+
+	validateConcurrency("batch task", name, config.concurrency)
 
 	if config.isDurable {
 		panic("batch task '" + name + "' cannot be durable")
@@ -973,7 +1059,7 @@ func (w *Workflow) runWorkflowInternal(ctx context.Context, otelCtx context.Cont
 	return &WorkflowRunRef{RunId: v0Workflow.RunId(), v0Workflow: v0Workflow}, nil
 }
 
-// RunMany executes multiple workflow instances with different inputs.
+// RunMany executes multiple workflow instances with different inputs. The returned results are in the same order as the inputs.
 func (w *Workflow) RunMany(ctx context.Context, inputs []RunManyOpt) ([]WorkflowRunRef, error) {
 	tracer := otel.Tracer("github.com/hatchet-dev/hatchet/sdks/go")
 	originalCtx := ctx
@@ -1001,56 +1087,99 @@ func (w *Workflow) RunMany(ctx context.Context, inputs []RunManyOpt) ([]Workflow
 		return durableRefs, nil
 	}
 
-	var workflowRefs []WorkflowRunRef
-
-	var wg sync.WaitGroup
-	var otherErrs []error
-	var collisions []*IdempotencyCollisionError
-	var errsMutex sync.Mutex
-	var workflowRefsMutex sync.Mutex
-	wg.Add(len(inputs))
-
-	for _, input := range inputs {
-		go func() {
-			defer wg.Done()
-
-			workflowRef, err := w.RunNoWait(originalCtx, input.Input, input.Opts...)
-			if err != nil {
-				errsMutex.Lock()
-				if collision, ok := IsIdempotencyCollisionError(err); ok {
-					collisions = append(collisions, collision)
-				} else {
-					otherErrs = append(otherErrs, err)
-				}
-				errsMutex.Unlock()
-				return
-			}
-			workflowRefsMutex.Lock()
-			workflowRefs = append(workflowRefs, *workflowRef)
-			workflowRefsMutex.Unlock()
-		}()
-	}
-
-	wg.Wait()
-
-	if err := errors.Join(otherErrs...); err != nil {
+	workflowRefs, err := runManyBulk(originalCtx, otelCtx, w.v0Client, w.declaration.Name(), inputs)
+	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return workflowRefs, err
 	}
 
-	if len(collisions) > 0 {
-		successfulIds := make([]string, 0, len(workflowRefs))
-		for _, ref := range workflowRefs {
+	span.SetStatus(codes.Ok, "")
+	return workflowRefs, nil
+}
+
+func runManyBulk(ctx context.Context, otelCtx context.Context, v0 v0Client.Client, workflowName string, inputs []RunManyOpt) ([]WorkflowRunRef, error) {
+	runs, err := triggerRunMany(ctx, otelCtx, v0, workflowName, inputs)
+
+	refs := make([]WorkflowRunRef, len(runs))
+	for i, run := range runs {
+		refs[i] = WorkflowRunRef{RunId: run.RunId(), v0Workflow: run}
+	}
+
+	if err != nil {
+		var bulkErr *v0Client.BulkIdempotencyViolationErr
+		if !errors.As(err, &bulkErr) {
+			return refs, err
+		}
+
+		successfulIds := make([]string, 0, len(refs)+len(bulkErr.SuccessfulRunExternalIds))
+		for _, ref := range refs {
 			successfulIds = append(successfulIds, ref.RunId)
 		}
-		bulkErr := &BulkTriggerIdempotencyCollisionError{
+		successfulIds = append(successfulIds, bulkErr.SuccessfulRunExternalIds...)
+
+		collisions := make([]*IdempotencyCollisionError, len(bulkErr.Collisions))
+		for i, c := range bulkErr.Collisions {
+			collisions[i] = &IdempotencyCollisionError{ExistingRunExternalId: c.ExistingRunExternalId}
+		}
+
+		return refs, &BulkTriggerIdempotencyCollisionError{
 			SuccessfulRunExternalIds: successfulIds,
 			Collisions:               collisions,
 		}
-		span.SetStatus(codes.Error, bulkErr.Error())
-		return workflowRefs, bulkErr
 	}
 
-	span.SetStatus(codes.Ok, "")
-	return workflowRefs, nil
+	return refs, nil
+}
+
+func triggerRunMany(ctx context.Context, otelCtx context.Context, v0 v0Client.Client, workflowName string, inputs []RunManyOpt) ([]*v0Client.Workflow, error) {
+	hCtx, inTask := ctx.(Context)
+
+	spawnOpts := make([]*worker.SpawnWorkflowsOpts, len(inputs))
+	bulkRuns := make([]*v0Client.WorkflowRun, len(inputs))
+
+	for i, input := range inputs {
+		runOpts := &runOpts{}
+		for _, opt := range input.Opts {
+			opt(runOpts)
+		}
+
+		var priority *int32
+		if runOpts.Priority != nil {
+			priority = &[]int32{int32(*runOpts.Priority)}[0]
+		}
+
+		runOpts.AdditionalMetadata = injectTraceparentToMap(otelCtx, runOpts.AdditionalMetadata)
+
+		if inTask {
+			spawnOpts[i] = &worker.SpawnWorkflowsOpts{
+				WorkflowName:        workflowName,
+				Input:               input.Input,
+				Key:                 runOpts.Key,
+				Sticky:              runOpts.Sticky,
+				Priority:            priority,
+				AdditionalMetadata:  runOpts.AdditionalMetadata,
+				DesiredWorkerLabels: runOpts.DesiredWorkerLabels,
+			}
+			continue
+		}
+
+		var v0Opts []v0Client.RunOptFunc
+		if runOpts.AdditionalMetadata != nil {
+			v0Opts = append(v0Opts, v0Client.WithRunMetadata(*runOpts.AdditionalMetadata))
+		}
+		if priority != nil {
+			v0Opts = append(v0Opts, v0Client.WithPriority(*priority))
+		}
+		if runOpts.DesiredWorkerLabels != nil {
+			v0Opts = append(v0Opts, v0Client.WithDesiredWorkerLabels(runOpts.DesiredWorkerLabels))
+		}
+
+		bulkRuns[i] = &v0Client.WorkflowRun{Name: workflowName, Input: input.Input, Options: v0Opts}
+	}
+
+	if inTask {
+		return hCtx.SpawnWorkflows(spawnOpts)
+	}
+
+	return v0.Admin().BulkRunWorkflows(bulkRuns)
 }

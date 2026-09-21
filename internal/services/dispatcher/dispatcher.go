@@ -26,7 +26,6 @@ import (
 	tasktypesv1 "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/internal/syncx"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
-	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
@@ -100,20 +99,20 @@ func (d *DispatcherImpl) CancelDAGChildren(ctx context.Context, tenantId uuid.UU
 var ErrWorkerNotFound = fmt.Errorf("worker not found")
 
 type workers struct {
-	innerMap syncx.Map[uuid.UUID, *syncx.Map[string, *subscribedWorker]]
+	innerMap syncx.Map[uuid.UUID, *syncx.Map[uuid.UUID, *subscribedWorker]]
 }
 
-func (w *workers) Range(f func(key uuid.UUID, value *syncx.Map[string, *subscribedWorker]) bool) {
+func (w *workers) Range(f func(key uuid.UUID, value *syncx.Map[uuid.UUID, *subscribedWorker]) bool) {
 	w.innerMap.Range(f)
 }
 
-func (w *workers) Add(workerId uuid.UUID, sessionId string, worker *subscribedWorker) {
-	actual, _ := w.innerMap.LoadOrStore(workerId, &syncx.Map[string, *subscribedWorker]{})
+func (w *workers) Add(workerId uuid.UUID, sessionId uuid.UUID, worker *subscribedWorker) {
+	actual, _ := w.innerMap.LoadOrStore(workerId, &syncx.Map[uuid.UUID, *subscribedWorker]{})
 
 	actual.Store(sessionId, worker)
 }
 
-func (w *workers) GetForSession(workerId uuid.UUID, sessionId string) (*subscribedWorker, error) {
+func (w *workers) GetForSession(workerId uuid.UUID, sessionId uuid.UUID) (*subscribedWorker, error) {
 	actual, ok := w.innerMap.Load(workerId)
 	if !ok {
 		return nil, ErrWorkerNotFound
@@ -136,7 +135,7 @@ func (w *workers) Get(workerId uuid.UUID) ([]*subscribedWorker, error) {
 
 	workers := []*subscribedWorker{}
 
-	actual.Range(func(key string, value *subscribedWorker) bool {
+	actual.Range(func(key uuid.UUID, value *subscribedWorker) bool {
 		workers = append(workers, value)
 		return true
 	})
@@ -144,7 +143,7 @@ func (w *workers) Get(workerId uuid.UUID) ([]*subscribedWorker, error) {
 	return workers, nil
 }
 
-func (w *workers) DeleteForSession(workerId uuid.UUID, sessionId string) {
+func (w *workers) DeleteForSession(workerId uuid.UUID, sessionId uuid.UUID) {
 	actual, ok := w.innerMap.Load(workerId)
 
 	if !ok {
@@ -174,8 +173,6 @@ type DispatcherOpts struct {
 	defaultMaxWorkerLockAcquisitionTime time.Duration
 	workflowRunBufferSize               int
 	streamEventBufferTimeout            time.Duration
-	enc                                 encryption.EncryptionService
-	infraBlockedCIDRs                   []string
 	dagOperatorDefaultSlots             int
 	dispatcherId                        uuid.UUID
 	promGate                            *prometheus.Gate
@@ -243,18 +240,6 @@ func WithDispatcherId(dispatcherId uuid.UUID) DispatcherOpt {
 func WithCache(cache cache.Cacheable) DispatcherOpt {
 	return func(opts *DispatcherOpts) {
 		opts.cache = cache
-	}
-}
-
-func WithEncryption(enc encryption.EncryptionService) DispatcherOpt {
-	return func(opts *DispatcherOpts) {
-		opts.enc = enc
-	}
-}
-
-func WithInfraBlockedCIDRs(cidrs []string) DispatcherOpt {
-	return func(opts *DispatcherOpts) {
-		opts.infraBlockedCIDRs = cidrs
 	}
 }
 
@@ -344,7 +329,7 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 
 	pubBuffer := msgqueue.NewMQPubBuffer(opts.mqv1)
 
-	om := manager.NewOperatorManager(opts.dispatcherId, opts.l, opts.repov1, opts.enc, opts.infraBlockedCIDRs, opts.dagOperatorDefaultSlots)
+	om := manager.NewOperatorManager(opts.dispatcherId, opts.l, opts.repov1, opts.dagOperatorDefaultSlots)
 	v := validator.NewDefaultValidator()
 
 	return &DispatcherImpl{
@@ -453,8 +438,8 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 		// drain the existing connections
 		d.l.Debug().Ctx(ctx).Msg("draining existing connections")
 
-		d.workers.Range(func(key uuid.UUID, value *syncx.Map[string, *subscribedWorker]) bool {
-			value.Range(func(key string, value *subscribedWorker) bool {
+		d.workers.Range(func(key uuid.UUID, value *syncx.Map[uuid.UUID, *subscribedWorker]) bool {
+			value.Range(func(key uuid.UUID, value *subscribedWorker) bool {
 				w := value
 
 				// operator-backed workers have no stream goroutine reading `finished`; the
@@ -500,7 +485,7 @@ func (d *DispatcherImpl) listenForOperators(ch <-chan []operator.Operator) {
 	// workerId -> sessionId for the operator-backed entries this loop has added; only this
 	// goroutine touches it. operator workers are exclusive to their operator instance, so a
 	// stable session per worker is sufficient.
-	sessions := make(map[uuid.UUID]string)
+	sessions := make(map[uuid.UUID]uuid.UUID)
 
 	for operators := range ch {
 		current := make(map[uuid.UUID]struct{}, len(operators))
@@ -513,7 +498,7 @@ func (d *DispatcherImpl) listenForOperators(ch <-chan []operator.Operator) {
 				continue
 			}
 
-			sessionId := uuid.NewString()
+			sessionId := uuid.New()
 			sessions[workerId] = sessionId
 
 			d.workers.Add(
@@ -574,6 +559,8 @@ func (d *DispatcherImpl) DispatcherId() uuid.UUID {
 func (d *DispatcherImpl) handleDurableCallbackCompleted(ctx context.Context, task *msgqueue.Message) error {
 	payloads := msgqueue.JSONConvert[tasktypesv1.DurableCallbackCompletedPayload](task.Payloads)
 
+	undelivered := make([]tasktypesv1.DurableCallbackCompletedPayload, 0)
+
 	for _, payload := range payloads {
 		err := d.serviceV1.DeliverDurableEventLogEntryCompletion(
 			task.TenantID,
@@ -588,8 +575,23 @@ func (d *DispatcherImpl) handleDurableCallbackCompleted(ctx context.Context, tas
 		)
 
 		if err != nil {
-			d.l.Warn().Err(err).Msgf("failed to deliver callback completion for task %s (worker may still be reconnecting; polling path will catch up)", payload.TaskExternalId)
+			d.l.Warn().Err(err).Msgf("could not deliver callback completion for task %s; redelivering via the dead-letter queue", payload.TaskExternalId)
+			undelivered = append(undelivered, *payload)
 		}
+	}
+
+	if len(undelivered) == 0 {
+		return nil
+	}
+
+	msg, err := msgqueue.NewTenantMessage(task.TenantID, msgqueue.MsgIDDurableCallbackCompleted, false, true, undelivered...)
+
+	if err != nil {
+		return fmt.Errorf("could not create dead-letter message for undelivered durable callbacks: %w", err)
+	}
+
+	if err := d.mqv1.SendMessage(ctx, msgqueue.DISPATCHER_DEAD_LETTER_QUEUE, msg); err != nil {
+		return fmt.Errorf("could not publish undelivered durable callbacks to the dead-letter queue: %w", err)
 	}
 
 	return nil
@@ -678,7 +680,7 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 func (d *DispatcherImpl) GetLocalWorkerIds() map[uuid.UUID]struct{} {
 	workerIds := make(map[uuid.UUID]struct{})
 
-	d.workers.Range(func(workerId uuid.UUID, value *syncx.Map[string, *subscribedWorker]) bool {
+	d.workers.Range(func(workerId uuid.UUID, value *syncx.Map[uuid.UUID, *subscribedWorker]) bool {
 		workerIds[workerId] = struct{}{}
 
 		return true

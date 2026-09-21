@@ -7,30 +7,39 @@
 -- webhook_count: row count on v1_incoming_webhook.
 -- NULL tenantIds drops the tenant filter (hourly shard-wide collect).
 -- The result is still one row per tenant, not a summed shard total.
-WITH cron_counts AS (
-    SELECT
-        w."tenantId" AS tenant_id,
-        count(*)::bigint AS cron_count
-    FROM "WorkflowTriggerCronRef" c
-    JOIN "WorkflowTriggers" t ON t."id" = c."parentId"
-    JOIN "WorkflowVersion" v ON v."id" = t."workflowVersionId"
+-- latest_versions uses DISTINCT ON (workflowId) ORDER BY order DESC so
+-- Postgres can use idx_workflow_version_workflow_id_order.
+WITH latest_versions AS (
+    SELECT DISTINCT ON (v."workflowId")
+        v.id,
+        v."workflowId"
+    FROM "WorkflowVersion" v
     JOIN "Workflow" w ON w."id" = v."workflowId"
     WHERE
-        c."deletedAt" IS NULL
-        AND c."enabled" = true
-        AND t."deletedAt" IS NULL
-        AND v."deletedAt" IS NULL
+        v."deletedAt" IS NULL
         AND w."deletedAt" IS NULL
         AND (
             sqlc.narg('tenantIds')::uuid[] IS NULL
             OR w."tenantId" = ANY(sqlc.narg('tenantIds')::uuid[])
         )
-        AND NOT EXISTS (
-            SELECT 1
-            FROM "WorkflowVersion" newer
-            WHERE newer."workflowId" = v."workflowId"
-              AND newer."deletedAt" IS NULL
-              AND newer."order" > v."order"
+    ORDER BY v."workflowId", v."order" DESC
+),
+cron_counts AS (
+    SELECT
+        w."tenantId" AS tenant_id,
+        count(*)::bigint AS cron_count
+    FROM "WorkflowTriggerCronRef" c
+    JOIN "WorkflowTriggers" t ON t."id" = c."parentId"
+    JOIN latest_versions lv ON lv.id = t."workflowVersionId"
+    JOIN "Workflow" w ON w."id" = lv."workflowId"
+    WHERE
+        c."deletedAt" IS NULL
+        AND c."enabled" = true
+        AND t."deletedAt" IS NULL
+        AND w."deletedAt" IS NULL
+        AND (
+            sqlc.narg('tenantIds')::uuid[] IS NULL
+            OR w."tenantId" = ANY(sqlc.narg('tenantIds')::uuid[])
         )
     GROUP BY w."tenantId"
 ),

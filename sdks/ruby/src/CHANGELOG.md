@@ -5,6 +5,21 @@ All notable changes to Hatchet's Ruby SDK will be documented in this changelog.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-09-02
+
+### Added
+
+- Added support for tenant-scoped shared concurrency strategies: declare a `ConcurrencyExpression` with `is_tenant_scoped: true` and a `name`, and every task declaring the same name (across workflows) consumes the same concurrency limit. Re-declaring a name updates the strategy in place, and tenant-scoped entries mix freely with workflow-scoped entries in one chain.
+- `max_runs` on `ConcurrencyExpression` now accepts an `Integer` or a `String`: a string is a CEL expression over task input computing the max runs for each concurrency group, so different groups (e.g. pricing tiers) can have different limits.
+
+
+## [0.7.0] - 2026-08-26
+
+### Changed
+
+- Adds support for `CANCEL_QUEUED_EXCEPT_NEWEST` and `CANCEL_QUEUED_EXCEPT_OLDEST` concurrency strategies.
+
+
 ## [0.6.0] - 2026-07-23
 
 ### Changed

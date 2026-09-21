@@ -99,7 +99,6 @@ import {
   V1CancelTaskRequest,
   V1CancelledTasks,
   V1CreateFilterRequest,
-  V1CreateHTTPOperatorRequest,
   V1CreateWebhookRequest,
   V1DagChildren,
   V1DurableEventLogList,
@@ -107,8 +106,6 @@ import {
   V1EventList,
   V1Filter,
   V1FilterList,
-  V1HTTPOperator,
-  V1HTTPOperatorList,
   V1LogLineLevel,
   V1LogLineList,
   V1LogLineOrderByDirection,
@@ -126,7 +123,6 @@ import {
   V1TaskTimingList,
   V1TriggerWorkflowRunRequest,
   V1UpdateFilterRequest,
-  V1UpdateHTTPOperatorRequest,
   V1UpdateWebhookRequest,
   V1Webhook,
   V1WebhookList,
@@ -708,10 +704,18 @@ export class Api<
    * @request GET:/api/v1/stable/workflow-runs/{v1-workflow-run}
    * @secure
    */
-  v1WorkflowRunGet = Object.assign((v1WorkflowRun: string, params: RequestParams = {}) =>
+  v1WorkflowRunGet = Object.assign((
+    v1WorkflowRun: string,
+    query?: {
+      /** Whether to include the DAG orchestrator's task events, which are hidden by default */
+      includeOrchestratorEvents?: boolean;
+    },
+    params: RequestParams = {},
+  ) =>
     this.request<V1WorkflowRunDetails, APIErrors>({
       path: `/api/v1/stable/workflow-runs/${v1WorkflowRun}`,
       method: "GET",
+      query: query,
       secure: true,
       format: "json",
       ...params,
@@ -1306,124 +1310,6 @@ export class Api<
       ...params,
       xResources: ["tenant", "v1-webhook"],
     }), { resources: new Set<string>(["tenant", "v1-webhook"]) });
-  /**
-   * @description Lists all HTTP operators for a tenant.
-   *
-   * @tags Operator
-   * @name V1HttpOperatorList
-   * @summary List HTTP operators
-   * @request GET:/api/v1/stable/tenants/{tenant}/operators/http
-   * @secure
-   */
-  v1HttpOperatorList = Object.assign((
-    tenant: string,
-    query?: {
-      /**
-       * The number to skip
-       * @format int64
-       */
-      offset?: number;
-      /**
-       * The number to limit by
-       * @format int64
-       */
-      limit?: number;
-    },
-    params: RequestParams = {},
-  ) =>
-    this.request<V1HTTPOperatorList, APIErrors>({
-      path: `/api/v1/stable/tenants/${tenant}/operators/http`,
-      method: "GET",
-      query: query,
-      secure: true,
-      format: "json",
-      ...params,
-      xResources: ["tenant"],
-    }), { resources: new Set<string>(["tenant"]) });
-  /**
-   * @description Create a new HTTP operator
-   *
-   * @tags Operator
-   * @name V1HttpOperatorCreate
-   * @summary Create an HTTP operator
-   * @request POST:/api/v1/stable/tenants/{tenant}/operators/http
-   * @secure
-   */
-  v1HttpOperatorCreate = Object.assign((
-    tenant: string,
-    data: V1CreateHTTPOperatorRequest,
-    params: RequestParams = {},
-  ) =>
-    this.request<V1HTTPOperator, APIErrors>({
-      path: `/api/v1/stable/tenants/${tenant}/operators/http`,
-      method: "POST",
-      body: data,
-      secure: true,
-      type: ContentType.Json,
-      format: "json",
-      ...params,
-      xResources: ["tenant"],
-    }), { resources: new Set<string>(["tenant"]) });
-  /**
-   * @description Get an HTTP operator by its id
-   *
-   * @tags Operator
-   * @name V1HttpOperatorGet
-   * @summary Get an HTTP operator
-   * @request GET:/api/v1/stable/operators/http/{v1-http-operator}
-   * @secure
-   */
-  v1HttpOperatorGet = Object.assign((v1HttpOperator: string, params: RequestParams = {}) =>
-    this.request<V1HTTPOperator, APIErrors>({
-      path: `/api/v1/stable/operators/http/${v1HttpOperator}`,
-      method: "GET",
-      secure: true,
-      format: "json",
-      ...params,
-      xResources: ["tenant", "v1-http-operator"],
-    }), { resources: new Set<string>(["tenant", "v1-http-operator"]) });
-  /**
-   * @description Update an HTTP operator
-   *
-   * @tags Operator
-   * @name V1HttpOperatorUpdate
-   * @summary Update an HTTP operator
-   * @request PATCH:/api/v1/stable/operators/http/{v1-http-operator}
-   * @secure
-   */
-  v1HttpOperatorUpdate = Object.assign((
-    v1HttpOperator: string,
-    data: V1UpdateHTTPOperatorRequest,
-    params: RequestParams = {},
-  ) =>
-    this.request<V1HTTPOperator, APIErrors>({
-      path: `/api/v1/stable/operators/http/${v1HttpOperator}`,
-      method: "PATCH",
-      body: data,
-      secure: true,
-      type: ContentType.Json,
-      format: "json",
-      ...params,
-      xResources: ["tenant", "v1-http-operator"],
-    }), { resources: new Set<string>(["tenant", "v1-http-operator"]) });
-  /**
-   * @description Delete an HTTP operator
-   *
-   * @tags Operator
-   * @name V1HttpOperatorDelete
-   * @summary Delete an HTTP operator
-   * @request DELETE:/api/v1/stable/operators/http/{v1-http-operator}
-   * @secure
-   */
-  v1HttpOperatorDelete = Object.assign((v1HttpOperator: string, params: RequestParams = {}) =>
-    this.request<V1HTTPOperator, APIErrors>({
-      path: `/api/v1/stable/operators/http/${v1HttpOperator}`,
-      method: "DELETE",
-      secure: true,
-      format: "json",
-      ...params,
-      xResources: ["tenant", "v1-http-operator"],
-    }), { resources: new Set<string>(["tenant", "v1-http-operator"]) });
   /**
    * @description Evaluate a CEL expression against provided input data.
    *
@@ -3730,6 +3616,8 @@ export class Api<
       statuses?: WorkerStatus[];
       /** Filter by worker labels */
       labels?: string[];
+      /** Whether to include engine-managed operator workers, which are hidden by default */
+      includeOperators?: boolean;
     },
     params: RequestParams = {},
   ) =>

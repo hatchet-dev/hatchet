@@ -23,11 +23,14 @@ func (t *V1WorkflowRunsService) V1WorkflowRunGet(ctx echo.Context, request gen.V
 
 	requestContext := ctx.Request().Context()
 
+	includeOrchestratorEvents := request.Params.IncludeOrchestratorEvents != nil && *request.Params.IncludeOrchestratorEvents
+
 	details, err := t.getWorkflowRunDetails(
 		requestContext,
 		tenantId,
 		rawWorkflowRun,
 		authz.CanViewPayloads(ctx),
+		includeOrchestratorEvents,
 	)
 
 	if err != nil {
@@ -44,6 +47,7 @@ func (t *V1WorkflowRunsService) getWorkflowRunDetails(
 	tenantId uuid.UUID,
 	rawWorkflowRun *v1.V1WorkflowRunPopulator,
 	includePayloads bool,
+	includeOrchestratorEvents bool,
 ) (*gen.V1WorkflowRunDetails, error) {
 	workflowRun := rawWorkflowRun.WorkflowRun
 	taskMetadata := rawWorkflowRun.TaskMetadata
@@ -53,6 +57,7 @@ func (t *V1WorkflowRunsService) getWorkflowRunDetails(
 		ctx,
 		tenantId,
 		workflowRunId,
+		includeOrchestratorEvents,
 	)
 
 	if err != nil {

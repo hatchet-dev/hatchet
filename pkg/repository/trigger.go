@@ -767,7 +767,7 @@ func (r *sharedRepository) evalIdempotencyKey(tuple triggerTuple) (string, error
 		}
 	}
 
-	key, err := r.celParser.ParseAndEvalWorkflowString(
+	key, err := r.celParser.ParseAndEvalIdempotencyKey(
 		tuple.idempotency.Expression,
 		cel.NewInput(
 			cel.WithInput(inputData),
@@ -1120,9 +1120,13 @@ func (r *sharedRepository) triggerWorkflowsCore(
 			stepId := step.ID
 			taskExternalId := stepsToExternalIds[i][stepId]
 
-			// if this is an on failure step, create match conditions for every other step in the DAG
+			// if this is an on failure step, create match conditions for every other step in the DAG.
+			// This only applies when triggering the whole DAG at once (no targetActionId): an
+			// operator-targeted trigger for a single step (including the on-failure step) has
+			// already had its wait/skip conditions resolved by the caller and must go through the
+			// direct-create branch below instead.
 			switch {
-			case step.JobKind == sqlcv1.JobKindONFAILURE:
+			case step.JobKind == sqlcv1.JobKindONFAILURE && tuple.targetActionId == nil:
 				conditions := make([]GroupMatchCondition, 0)
 				groupId := uuid.New()
 
@@ -1571,6 +1575,13 @@ func (r *sharedRepository) triggerWorkflowsCore(
 		}); err != nil {
 			return nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to move queue items for paused workflows: %w", err)
 		}
+
+		if err := r.queries.MovePausedWorkflowConcurrencySlots(ctx, tx, sqlcv1.MovePausedWorkflowConcurrencySlotsParams{
+			Workflowids: workflowIds,
+			Tenantid:    tenantId,
+		}); err != nil {
+			return nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to move concurrency slots for paused workflows: %w", err)
+		}
 	}
 
 	for _, dag := range dags {
@@ -1891,7 +1902,14 @@ func (r *sharedRepository) registerChildWorkflows(
 
 		for stepIndex, step := range orderSteps(steps) {
 			stepId := step.ID
-			stepExternalId := stepsToExternalIds[i][stepId]
+			stepExternalId, hasExternalId := stepsToExternalIds[i][stepId]
+
+			// stepsToExternalIds only contains regular user steps. The DAG orchestrator step's
+			// task runs under the run's external id and its completion is handled by the operator
+			// paths, so a per-step match here would hint at a zero UUID and never be satisfied.
+			if !hasExternalId {
+				continue
+			}
 
 			k := getChildSignalEventKey(*tuple.parentExternalId, int64(stepIndex), *tuple.childIndex, tuple.childKey)
 
@@ -2003,7 +2021,6 @@ func (r *sharedRepository) registerChildWorkflows(
 	}
 
 	createMatchOpts := make([]CreateMatchOpts, 0)
-	tuplesToSkip = make(map[uuid.UUID]struct{})
 
 	for i, tuple := range tuples {
 		if _, ok := tuplesToSkip[tuple.externalId]; ok {
@@ -2027,10 +2044,18 @@ func (r *sharedRepository) registerChildWorkflows(
 				continue
 			}
 
+			if spawnsAsOperatorRun(tuple, steps) {
+				continue
+			}
+
 			for _, step := range orderSteps(steps) {
 				stepId := step.ID
 				stepReadableId := step.ReadableId.String
-				stepExternalId := stepsToExternalIds[i][stepId]
+				stepExternalId, hasExternalId := stepsToExternalIds[i][stepId]
+
+				if !hasExternalId {
+					continue
+				}
 
 				key := externalIdsToKeys[stepExternalId]
 
@@ -2271,6 +2296,20 @@ func filterStepsByActionId(steps []*sqlcv1.ListStepsByWorkflowVersionIdsRow, act
 		}
 	}
 	return nil
+}
+
+func spawnsAsOperatorRun(tuple triggerTuple, steps []*sqlcv1.ListStepsByWorkflowVersionIdsRow) bool {
+	if tuple.targetActionId != nil {
+		return false
+	}
+
+	for _, s := range steps {
+		if s.IsDagOrchestrator {
+			return true
+		}
+	}
+
+	return false
 }
 
 func regularUserSteps(steps []*sqlcv1.ListStepsByWorkflowVersionIdsRow) []*sqlcv1.ListStepsByWorkflowVersionIdsRow {

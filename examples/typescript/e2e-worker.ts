@@ -11,7 +11,14 @@ import { cancellationWorkflow } from './cancellation/cancellation-workflow';
 import { taskConditionWorkflow } from './conditions/complex-workflow';
 import { concurrencyCancelInProgressWorkflow } from './concurrency_cancel_in_progress/workflow';
 import { concurrencyCancelNewestWorkflow } from './concurrency_cancel_newest/workflow';
+import { concurrencyCancelQueuedExceptNewestWorkflow } from './concurrency_cancel_queued_except_newest/workflow';
+import { concurrencyCancelQueuedExceptOldestWorkflow } from './concurrency_cancel_queued_except_oldest/workflow';
 import { concurrencyMultipleKeysWorkflow } from './concurrency_multiple_keys/workflow';
+import {
+  concurrencySharedMixedWorkflow,
+  concurrencySharedWorkflowA,
+  concurrencySharedWorkflowB,
+} from './concurrency_shared/workflow';
 import { concurrencyWorkflowLevelWorkflow } from './concurrency_workflow_level/workflow';
 import { dag } from './dag/workflow';
 import {
@@ -36,6 +43,7 @@ import { durableEvent, durableEventWithFilter } from './durable_event/workflow';
 import {
   evictableSleep,
   evictableWaitForEvent,
+  evictableMemoThenWaitForEvent,
   evictableChildSpawn,
   multipleEviction,
   nonEvictableSleep,
@@ -43,6 +51,11 @@ import {
   bulkChildTask,
   evictableChildBulkSpawn,
 } from './durable_eviction/workflow';
+import {
+  callbackOrderingLeaf,
+  callbackOrderingMid,
+  callbackOrderingRoot,
+} from './durable_callback_ordering/workflow';
 import { durableSleep } from './durable_sleep/workflow';
 import { createLoggingWorkflow } from './logger/workflow';
 import { nonRetryableWorkflow } from './non_retryable/workflow';
@@ -68,6 +81,7 @@ import {
   batchChildBatchSpawn,
 } from './batch_assign/workflow';
 import { streamingTask } from './streaming/workflow';
+import { dagStream, longStream } from './subscribe_to_stream/workflow';
 import { timeoutTask, refreshTimeoutTask } from './timeout/workflow';
 import { webhookWorkflow } from './webhooks/workflow';
 import {
@@ -95,7 +109,12 @@ const workflows = [
   taskConditionWorkflow,
   concurrencyCancelInProgressWorkflow,
   concurrencyCancelNewestWorkflow,
+  concurrencyCancelQueuedExceptNewestWorkflow,
+  concurrencyCancelQueuedExceptOldestWorkflow,
   concurrencyMultipleKeysWorkflow,
+  concurrencySharedWorkflowA,
+  concurrencySharedWorkflowB,
+  concurrencySharedMixedWorkflow,
   concurrencyWorkflowLevelWorkflow,
   dag,
   durableWorkflow,
@@ -116,9 +135,13 @@ const workflows = [
   errorRaisingDurableParent,
   durableEvent,
   durableEventWithFilter,
+  callbackOrderingLeaf,
+  callbackOrderingMid,
+  callbackOrderingRoot,
   durableSleep,
   evictableSleep,
   evictableWaitForEvent,
+  evictableMemoThenWaitForEvent,
   evictableChildSpawn,
   multipleEviction,
   nonEvictableSleep,
@@ -136,6 +159,8 @@ const workflows = [
   helloWorld,
   helloWorldDurable,
   streamingTask,
+  dagStream,
+  longStream,
   timeoutTask,
   refreshTimeoutTask,
   webhookWorkflow,

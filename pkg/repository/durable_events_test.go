@@ -286,6 +286,51 @@ func TestCreateIdempotencyKey_WithAndWithoutTriggerOpts(t *testing.T) {
 	assert.NotEqual(t, without, with)
 }
 
+func int64Ptr(i int64) *int64 { return &i }
+
+func dagStepTriggerOpts(actionId string, childIndex int64) *WorkflowNameTriggerOpts {
+	return &WorkflowNameTriggerOpts{
+		IsDagStepTrigger: true,
+		TriggerTaskData: &TriggerTaskData{
+			WorkflowName:   "my-dag",
+			Data:           []byte(`{"x":1}`),
+			TargetActionId: strPtr(actionId),
+			ChildIndex:     int64Ptr(childIndex),
+		},
+	}
+}
+
+func TestCreateIdempotencyKey_DagStepsOfSameWorkflowDiffer(t *testing.T) {
+	stepA := keyFromKind(t, sqlcv1.V1DurableEventLogKindRUN, dagStepTriggerOpts("my-dag:step-a", 9), nil)
+	stepB := keyFromKind(t, sqlcv1.V1DurableEventLogKindRUN, dagStepTriggerOpts("my-dag:step-b", 13), nil)
+
+	assert.NotEqual(t, stepA, stepB)
+}
+
+func TestIdempotencyKeyMatches_AcceptsLegacyDagStepKey(t *testing.T) {
+	r := &durableEventsRepository{}
+	triggerOpts := dagStepTriggerOpts("my-dag:step-a", 9)
+
+	current, err := r.createIdempotencyKey(sqlcv1.V1DurableEventLogKindRUN, triggerOpts, nil)
+	assert.NoError(t, err)
+
+	legacy, err := r.createLegacyDagStepIdempotencyKey(triggerOpts)
+	assert.NoError(t, err)
+
+	preUpgrade := keyFromKind(t, sqlcv1.V1DurableEventLogKindRUN, &WorkflowNameTriggerOpts{
+		TriggerTaskData: &TriggerTaskData{WorkflowName: "my-dag", Data: []byte(`{"x":1}`)},
+	}, nil)
+
+	assert.Equal(t, preUpgrade, string(legacy))
+	assert.NotEqual(t, string(current), string(legacy))
+
+	opt := GetOrCreateLogEntryOpt{IdempotencyKey: current, LegacyIdempotencyKey: legacy}
+
+	assert.True(t, opt.idempotencyKeyMatches(current))
+	assert.True(t, opt.idempotencyKeyMatches(legacy))
+	assert.False(t, opt.idempotencyKeyMatches([]byte(keyFromKind(t, sqlcv1.V1DurableEventLogKindRUN, dagStepTriggerOpts("my-dag:step-b", 13), nil))))
+}
+
 func int32Ptr(i int32) *int32 { return &i }
 
 func TestCreateIdempotencyKey_PriorityIgnored(t *testing.T) {

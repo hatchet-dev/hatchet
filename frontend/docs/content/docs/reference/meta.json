@@ -1,5 +1,6 @@
 {
   "pages": [
+    "index",
     "changelog",
     "python",
     "typescript",

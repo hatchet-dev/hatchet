@@ -13,7 +13,7 @@ import {
   useContextFromParent,
 } from '@/lib/outlet';
 import { OutletWithContext, useOutletContext } from '@/lib/router-helpers';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ReactNode, useEffect, useMemo } from 'react';
 
 export function MainShell({ children }: { children?: ReactNode }) {
@@ -39,14 +39,23 @@ export function MainShell({ children }: { children?: ReactNode }) {
     );
   }, [queryClient, tenantId]);
 
+  const listManagedWorkersQuery = useQuery({
+    ...queries.cloud.listManagedWorkers(tenantId ?? ''),
+    enabled: isControlPlaneEnabled && !!tenantId,
+  });
+
+  const hasManagedWorkers =
+    (listManagedWorkersQuery.data?.rows?.length || 0) > 0;
+
   const navSections = useMemo(
     () =>
       sideNavItems({
         canBill,
         isControlPlaneEnabled,
         orgId,
+        hasManagedWorkers,
       }),
-    [canBill, isControlPlaneEnabled, orgId],
+    [canBill, isControlPlaneEnabled, orgId, hasManagedWorkers],
   );
 
   const childCtx = useContextFromParent({

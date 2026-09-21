@@ -5,11 +5,7 @@ import { CreateTenantInviteModal } from '@/components/modals/create-tenant-invit
 import { InviteModal } from '@/components/modals/invite-modal';
 import { OrganizationInviteMemberModal } from '@/components/modals/organization-invite-member-modal';
 import { WelcomeModal } from '@/components/modals/welcome-modal';
-import {
-  readWelcomeTrigger,
-  WELCOME_KEY,
-  WELCOME_TRIGGER,
-} from '@/components/modals/welcome-modal-state';
+import { freePlanLimitNoticeKey } from '@/components/modals/welcome-modal-state';
 import SupportChat from '@/components/support-chat';
 import TopNav from '@/components/v1/nav/top-nav.tsx';
 import {
@@ -39,22 +35,29 @@ import { lastTenantAtom } from '@/lib/atoms';
 import { globalEmitter } from '@/lib/global-emitter';
 import { useContextFromParent } from '@/lib/outlet';
 import { REDIRECT_TARGET_KEY } from '@/lib/redirect';
+import { getResourceLimitStatus } from '@/lib/resource-limit-status';
 import { OutletWithContext } from '@/lib/router-helpers';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { useInactivityDetection } from '@/pages/auth/hooks/use-inactivity-detection';
+import { OnboardingModal } from '@/pages/main/v1/overview/components/onboarding-modal';
+import {
+  type SetupPath,
+  type StepKey,
+} from '@/pages/main/v1/overview/components/onboarding-steps';
 import { useUserUniverse } from '@/providers/user-universe';
 import queryClient from '@/query-client';
-import { appRoutes } from '@/router';
+import { appRoutes, tenantOnboardingRoute } from '@/router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   useLoaderData,
   useLocation,
+  useMatch,
   useMatchRoute,
   useNavigate,
 } from '@tanstack/react-router';
 import { AxiosError } from 'axios';
 import { useAtom } from 'jotai';
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 
 const DevtoolsFooter = import.meta.env.DEV
   ? lazy(() => import('../devtools.tsx'))
@@ -104,6 +107,37 @@ function AuthenticatedInner() {
   const loaderData = useLoaderData({ from: '/' });
 
   const navigate = useNavigate();
+
+  // The onboarding overlay is open exactly when the tenant onboarding route
+  // matches. Keeping that in the URL (rather than component state) makes it
+  // survive a refresh, scopes it to the tenant in the path, and gives it
+  // working back/forward. The route's search params carry the path and step.
+  const onboardingMatch = useMatch({
+    from: tenantOnboardingRoute.id,
+    shouldThrow: false,
+  });
+  const onboardingTenant = onboardingMatch?.params.tenant;
+  const onboardingOpen = !!onboardingMatch;
+  const navigateOnboarding = useCallback(
+    ({ path, step }: { path: SetupPath | null; step: StepKey }) => {
+      if (onboardingTenant) {
+        navigate({
+          to: appRoutes.tenantOnboardingRoute.to,
+          params: { tenant: onboardingTenant },
+          search: { ...(path ? { path } : {}), step },
+        });
+      }
+    },
+    [navigate, onboardingTenant],
+  );
+  const closeOnboarding = useCallback(() => {
+    if (onboardingTenant) {
+      navigate({
+        to: appRoutes.tenantOverviewRoute.to,
+        params: { tenant: onboardingTenant },
+      });
+    }
+  }, [navigate, onboardingTenant]);
   const location = useLocation();
   const pathname = location.pathname;
   const matchRoute = useMatchRoute();
@@ -417,42 +451,21 @@ function AuthenticatedInner() {
     [],
   );
 
+  // The free-plan notice is shown once per organization, the first time a
+  // free-plan tenant reaches the alarm threshold (or the cap) on any resource
+  // limit, rather than right after signup when it is just noise. The query
+  // shares its key with the resource-limit notifications, so it adds no request.
+  const resourcePolicyQuery = useQuery({
+    ...queries.tenantResourcePolicy.get(tenant?.metadata.id ?? ''),
+    refetchInterval: 2 * 60_000,
+    enabled: isControlPlaneEnabled && canBill && !!tenant?.metadata.id,
+  });
+  const approachingLimit = (resourcePolicyQuery.data?.limits ?? []).some(
+    (limit) => getResourceLimitStatus(limit) !== 'ok',
+  );
+
   useEffect(() => {
-    const welcomeTrigger = readWelcomeTrigger(
-      localStorage.getItem(WELCOME_KEY),
-    );
-    if (!welcomeTrigger) {
-      return;
-    }
-
-    if (!tenant?.metadata.id) {
-      return;
-    }
-
-    if (!isUserUniverseLoaded) {
-      return;
-    }
-
-    if (!isControlPlaneEnabled) {
-      localStorage.removeItem(WELCOME_KEY);
-      return;
-    }
-
-    if (!organizationId) {
-      return;
-    }
-
-    if (!canBill) {
-      return;
-    }
-
-    if (welcomeTrigger === WELCOME_TRIGGER.OrganizationCreated) {
-      localStorage.removeItem(WELCOME_KEY);
-      setShowWelcome(true);
-      capture('welcome_modal_shown', {
-        tenant_id: tenant?.metadata.id,
-        source: welcomeTrigger,
-      });
+    if (!approachingLimit || !organizationId || onboardingOpen) {
       return;
     }
 
@@ -477,24 +490,23 @@ function AuthenticatedInner() {
       !currentSubscription ||
       currentSubscription.plan === SubscriptionPlanCode.Free;
 
-    if (!canShowWelcomeForSubscription) {
-      localStorage.removeItem(WELCOME_KEY);
+    const noticeKey = freePlanLimitNoticeKey(organizationId);
+    if (!canShowWelcomeForSubscription || localStorage.getItem(noticeKey)) {
       return;
     }
 
-    localStorage.removeItem(WELCOME_KEY);
+    localStorage.setItem(noticeKey, new Date().toISOString());
     setShowWelcome(true);
     capture('welcome_modal_shown', {
       tenant_id: tenant?.metadata.id,
-      source: welcomeTrigger,
+      source: 'approaching_limit',
     });
   }, [
     tenant?.metadata.id,
     organizationId,
     capture,
-    isControlPlaneEnabled,
-    isUserUniverseLoaded,
-    canBill,
+    approachingLimit,
+    onboardingOpen,
     welcomeBillingState.data?.currentSubscription,
     welcomeBillingState.error,
     welcomeBillingState.isError,
@@ -555,7 +567,21 @@ function AuthenticatedInner() {
           <TopNav
             user={currentUser}
             tenantMemberships={tenantMemberships || []}
+            onboardingActive={onboardingOpen}
           />
+        }
+        overlay={
+          // Mounted only while open, and keyed by tenant: its polling stops on
+          // close and no state leaks across a tenant switch.
+          onboardingMatch ? (
+            <OnboardingModal
+              key={onboardingTenant}
+              path={onboardingMatch.search.path ?? null}
+              step={onboardingMatch.search.step}
+              onNavigate={navigateOnboarding}
+              onClose={closeOnboarding}
+            />
+          ) : undefined
         }
         footer={
           isTenantPage && DevtoolsFooter ? (

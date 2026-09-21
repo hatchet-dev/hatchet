@@ -84,6 +84,7 @@ func (r *runsClientImpl) Get(ctx context.Context, runId string) (*rest.V1Workflo
 	return r.api.V1WorkflowRunGetWithResponse(
 		ctx,
 		uuid.MustParse(runId),
+		nil,
 	)
 }
 
@@ -106,6 +107,7 @@ func (r *runsClientImpl) GetDetails(ctx context.Context, runId string) (*rest.V1
 	return r.api.V1WorkflowRunGetWithResponse(
 		ctx,
 		uuid.MustParse(runId),
+		nil,
 	)
 }
 

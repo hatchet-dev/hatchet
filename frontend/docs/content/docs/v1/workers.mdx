@@ -8,6 +8,7 @@ import { Callout } from "@/components/nextra-compat";
 import { Tabs } from "@/components/nextra-compat";
 import UniversalTabs from "@/components/UniversalTabs";
 import Keywords from "@/components/Keywords";
+import { QueueBackpressure } from "@/components/flow-animations/QueueBackpressure";
 
 # Workers
 
@@ -128,6 +129,8 @@ Once the worker starts, you will see logs confirming it is connected:
 ## Slots
 
 Every worker has a fixed number of **slots** that control how many tasks it can run concurrently, which can be configured with the `slots` option on the worker. For instance, if `slots` is set to 5, the worker will run up to five tasks concurrently at any time. Any additional tasks wait in the queue until a slot opens up. Slots are a **local** limit. They protect the individual worker from attempting to run more tasks concurrently than desired, which can help control resource usage by the worker.
+
+<QueueBackpressure />
 
 To set the slot count, pass the `slots` option when declaring the worker:
 

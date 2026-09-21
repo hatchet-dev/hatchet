@@ -245,7 +245,7 @@ func runConfigTrigger(cmd *cobra.Command, trigger *worker.Trigger, profileFlag s
 		}
 	}
 
-	profile, err := cli.GetProfile(selectedProfile)
+	profile, err := cli.Profiles.GetProfile(selectedProfile)
 	if err != nil {
 		cli.Logger.Fatalf("could not get profile '%s': %v", selectedProfile, err)
 	}
@@ -293,7 +293,7 @@ func runManualTrigger(cmd *cobra.Command, workflowFlag string, jsonFlag string, 
 		}
 	}
 
-	profile, err := cli.GetProfile(selectedProfile)
+	profile, err := cli.Profiles.GetProfile(selectedProfile)
 	if err != nil {
 		cli.Logger.Fatalf("could not get profile '%s': %v", selectedProfile, err)
 	}

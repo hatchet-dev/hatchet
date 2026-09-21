@@ -15,6 +15,7 @@ export const FILENAME_REMAP: Record<string, string> = {
   'Hatchet-TypeScript-SDK-Reference.mdx': 'client.mdx',
   'Context.mdx': 'context.mdx',
   'Runnables.mdx': 'runnables.mdx',
+  'Embedded.mdx': 'embedded.mdx',
 };
 
 function remapFilename(filename: string): { outRelative: string; basename: string; directory: string } {

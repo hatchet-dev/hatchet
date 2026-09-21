@@ -6,11 +6,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"time"
 
 	natsgo "github.com/nats-io/nats.go"
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	prommetrics "github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 )
 
@@ -120,6 +122,10 @@ func NewPubSub(fs ...PubSubOpt) (func() error, *PubSub, error) {
 
 	l := opts.l
 
+	// Sampled to one line per minute; for tenant-stream subscriptions this
+	// log is the only drop signal.
+	asyncErrL := l.Sample(&zerolog.BurstSampler{Burst: 1, Period: time.Minute})
+
 	connectOpts := []natsgo.Option{
 		// Reconnect behavior is deliberately fixed rather than configurable.
 		// MaxReconnects(-1) retries forever: any finite limit permanently
@@ -154,11 +160,19 @@ func NewPubSub(fs ...PubSubOpt) (func() error, *PubSub, error) {
 			l.Info().Msg("nats pubsub connection closed")
 		}),
 		natsgo.ErrorHandler(func(_ *natsgo.Conn, sub *natsgo.Subscription, err error) {
-			subject := ""
+			e := asyncErrL.Warn().Err(err)
 			if sub != nil {
-				subject = sub.Subject
+				e = e.Str("subject", sub.Subject)
+				if e.Enabled() {
+					if dropped, derr := sub.Dropped(); derr == nil {
+						e = e.Int("dropped_total", dropped)
+					}
+					if pendingMsgs, pendingBytes, perr := sub.Pending(); perr == nil {
+						e = e.Int("pending_msgs", pendingMsgs).Int("pending_bytes", pendingBytes)
+					}
+				}
 			}
-			l.Error().Err(err).Str("subject", subject).Msg("nats pubsub async error")
+			e.Msg("nats pubsub async error")
 		}),
 	}
 
@@ -309,7 +323,26 @@ func (p *PubSub) Sub(topic msgqueue.Topic, handler msgqueue.MsgHandler) (func() 
 		return nil, fmt.Errorf("could not flush after subscribe to %s: %w", subject, err)
 	}
 
+	unregisterDrops := p.registerDropsCounter(topic, sub)
+
 	return func() error {
+		unregisterDrops()
 		return sub.Unsubscribe()
 	}, nil
+}
+
+// registerDropsCounter republishes sub's cumulative Dropped() as a Prometheus
+// counter, only for scheduler-partition topics: one long-lived subscription per scheduler pod (its partition).
+func (p *PubSub) registerDropsCounter(topic msgqueue.Topic, sub *natsgo.Subscription) func() {
+	if topic.Kind() != msgqueue.TopicKindSchedulerPartition {
+		return func() {}
+	}
+
+	return prommetrics.RegisterNATSSchedulerPartitionDrops(func() float64 {
+		dropped, err := sub.Dropped()
+		if err != nil {
+			return 0
+		}
+		return float64(dropped)
+	})
 }

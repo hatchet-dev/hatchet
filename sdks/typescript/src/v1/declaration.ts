@@ -311,7 +311,9 @@ export type TaskDefaults = {
   workerLabels?: CreateWorkflowTaskOpts<any, any>['desiredWorkerLabels'];
 
   /**
-   * (optional) the concurrency options for the task.
+   * (optional) the concurrency options for the task, processed in array order. Entries
+   * may be workflow-scoped strategies or tenant-scoped entries (`isTenantScoped`)
+   * strategies, whose definitions are upserted as part of workflow registration.
    */
   concurrency?: Concurrency | Concurrency[];
 };
