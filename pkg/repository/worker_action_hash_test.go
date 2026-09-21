@@ -102,10 +102,10 @@ func TestWorkerActionHashAgreesAcrossPaths(t *testing.T) {
 	// an exempt operator worker: this repository has no limit meter, and the hash is what is
 	// under test
 	created, err := repo.CreateNewWorker(ctx, tenantId, &CreateWorkerOpts{
-		DispatcherId:     dispatcherId,
-		Name:             "initial-set",
-		Actions:          []string{"Svc:Run", "svc:other"},
-		OperatorId:       &operatorId,
+		DispatcherId:       dispatcherId,
+		Name:               "initial-set",
+		Actions:            []string{"Svc:Run", "svc:other"},
+		OperatorId:         &operatorId,
 		IsExemptFromLimits: true,
 	})
 	require.NoError(t, err)
