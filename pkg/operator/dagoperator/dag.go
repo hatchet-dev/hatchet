@@ -533,17 +533,6 @@ func (d *dag) emitReadyTasks(ctx context.Context) (bool, error) {
 		t.workflowRunExternalId = &result.WorkflowRunExternalId
 		t.isTriggered = true
 		progressed = true
-
-		if result.IsSatisfied {
-			errorMessage := ""
-			if result.ErrorMessage != nil {
-				errorMessage = *result.ErrorMessage
-			}
-			if err := d.applyCompletion(ctx, t, result.IsFailure, errorMessage, result.ResultPayload); err != nil {
-				d.err = err
-				return progressed, d.err
-			}
-		}
 	}
 
 	d.pendingTasks = stillPending
@@ -840,17 +829,6 @@ func (d *dag) evaluateOnFailure(ctx context.Context) (bool, error) {
 	}
 
 	d.tasks = append(d.tasks, d.onFailureTask)
-
-	if result.IsSatisfied {
-		errorMessage := ""
-		if result.ErrorMessage != nil {
-			errorMessage = *result.ErrorMessage
-		}
-		if err := d.applyCompletion(ctx, d.onFailureTask, result.IsFailure, errorMessage, result.ResultPayload); err != nil {
-			d.err = err
-			return true, d.err
-		}
-	}
 
 	return true, nil
 }

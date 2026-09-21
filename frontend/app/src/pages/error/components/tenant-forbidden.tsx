@@ -191,11 +191,12 @@ export function TenantForbidden() {
 
   return (
     <ErrorPageLayout
-      icon={<ShieldX className="h-6 w-6" />}
+      icon={<ShieldX className="size-4" />}
       title="Access denied"
       description="You don't have permission to view this tenant."
       actions={
         <Button
+          size="sm"
           leftIcon={<Undo2 className="h-4 w-4" />}
           onClick={() => window.history.back()}
           variant="outline"
@@ -204,13 +205,13 @@ export function TenantForbidden() {
         </Button>
       }
     >
-      <div className="flex justify-center">
+      <div className="flex">
         <Badge variant="secondary" className="font-mono">
           403
         </Badge>
       </div>
 
-      <div className="mx-auto w-full max-w-prose rounded-md border bg-muted/20 p-3 text-left font-mono text-xs text-muted-foreground">
+      <div className="w-full rounded-md border bg-muted/20 p-3 text-left font-mono text-xs text-muted-foreground">
         <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground/70">
           Requested Tenant
         </div>
@@ -220,7 +221,7 @@ export function TenantForbidden() {
       </div>
 
       {availableTenants.length > 0 && (
-        <div className="mx-auto w-full max-w-prose rounded-md border bg-muted/20 p-1">
+        <div className="w-full rounded-md border bg-muted/20 p-1">
           <div className="px-3 pb-1 pt-2 text-[10px] uppercase tracking-wide text-muted-foreground/70">
             Switch to another tenant
           </div>
@@ -251,7 +252,7 @@ export function TenantForbidden() {
         </div>
       )}
 
-      <div className="flex flex-row flex-wrap items-center justify-center gap-2">
+      <div className="flex flex-row flex-wrap items-center justify-between gap-2">
         {!!currentUser?.email && (
           <div className="text-xs text-muted-foreground">
             Signed in as <span className="font-mono">{currentUser.email}</span>

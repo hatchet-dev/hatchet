@@ -401,14 +401,7 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 		defer wg.Done()
 
 		if taskErr := d.handleV1Task(ctx, task); taskErr != nil {
-			// ErrNoActiveDurableInvocation is an expected, self-healing condition (worker
-			// reconnecting after a roll); it's returned so the callback dead-letters and is
-			// re-routed, not because anything is wrong here.
-			if errors.Is(taskErr, ErrNoActiveDurableInvocation) {
-				d.l.Warn().Ctx(ctx).Err(taskErr).Msgf("deferring dispatcher task %s to dead-letter retry", task.ID)
-			} else {
-				d.l.Error().Ctx(ctx).Err(taskErr).Msgf("could not handle dispatcher task %s", task.ID)
-			}
+			d.l.Error().Ctx(ctx).Err(taskErr).Msgf("could not handle dispatcher task %s", task.ID)
 			return taskErr
 		}
 
@@ -566,9 +559,7 @@ func (d *DispatcherImpl) DispatcherId() uuid.UUID {
 func (d *DispatcherImpl) handleDurableCallbackCompleted(ctx context.Context, task *msgqueue.Message) error {
 	payloads := msgqueue.JSONConvert[tasktypesv1.DurableCallbackCompletedPayload](task.Payloads)
 
-	// We need to return no active invocation errors because otherwise they will get stuck on engine failure, never go to DLQ,
-	// and then the next engine that stands up will have no idea about it, leading to runs stuck in RUNNING
-	var retryErr error
+	undelivered := make([]tasktypesv1.DurableCallbackCompletedPayload, 0)
 
 	for _, payload := range payloads {
 		err := d.serviceV1.DeliverDurableEventLogEntryCompletion(
@@ -583,20 +574,27 @@ func (d *DispatcherImpl) handleDurableCallbackCompleted(ctx context.Context, tas
 			payload.ChildTaskErrorMessage,
 		)
 
-		if err == nil {
-			continue
+		if err != nil {
+			d.l.Warn().Err(err).Msgf("could not deliver callback completion for task %s; redelivering via the dead-letter queue", payload.TaskExternalId)
+			undelivered = append(undelivered, *payload)
 		}
-
-		if errors.Is(err, ErrNoActiveDurableInvocation) {
-			d.l.Warn().Err(err).Msgf("deferring callback completion for task %s (worker reconnecting); will redeliver", payload.TaskExternalId)
-			retryErr = err
-			continue
-		}
-
-		d.l.Warn().Err(err).Msgf("failed to deliver callback completion for task %s", payload.TaskExternalId)
 	}
 
-	return retryErr
+	if len(undelivered) == 0 {
+		return nil
+	}
+
+	msg, err := msgqueue.NewTenantMessage(task.TenantID, msgqueue.MsgIDDurableCallbackCompleted, false, true, undelivered...)
+
+	if err != nil {
+		return fmt.Errorf("could not create dead-letter message for undelivered durable callbacks: %w", err)
+	}
+
+	if err := d.mqv1.SendMessage(ctx, msgqueue.DISPATCHER_DEAD_LETTER_QUEUE, msg); err != nil {
+		return fmt.Errorf("could not publish undelivered durable callbacks to the dead-letter queue: %w", err)
+	}
+
+	return nil
 }
 
 func (d *DispatcherImpl) runUpdateHeartbeat(ctx context.Context) func() {

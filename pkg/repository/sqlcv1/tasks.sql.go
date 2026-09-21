@@ -925,11 +925,14 @@ func (q *Queries) FlattenExternalIds(ctx context.Context, db DBTX, arg FlattenEx
 
 const getTaskByExternalId = `-- name: GetTaskByExternalId :one
 SELECT t.id, t.inserted_at, t.tenant_id, t.queue, t.action_id, t.step_id, t.step_readable_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.external_id, t.display_name, t.input, t.retry_count, t.internal_retry_count, t.app_retry_count, t.step_index, t.additional_metadata, t.dag_id, t.dag_inserted_at, t.parent_task_external_id, t.parent_task_id, t.parent_task_inserted_at, t.child_index, t.child_key, t.initial_state, t.initial_state_reason, t.concurrency_parent_strategy_ids, t.concurrency_strategy_ids, t.concurrency_keys, t.batch_key, t.retry_backoff_factor, t.retry_max_backoff, t.is_durable, t.desired_worker_label, t.triggering_event_external_id, t.triggering_event_key, t.idempotency_key, t.is_dag_orchestrator, t.concurrency_max_runs
-FROM v1_lookup_table l
-JOIN v1_task t ON t.id = l.task_id AND t.inserted_at = l.inserted_at
-WHERE
-    l.external_id = $1::uuid
-    AND l.tenant_id = $2::uuid
+FROM v1_task t
+WHERE (t.id, t.inserted_at) = (
+    SELECT l.task_id, l.inserted_at
+    FROM v1_lookup_table l
+    WHERE
+        l.external_id = $1::uuid
+        AND l.tenant_id = $2::uuid
+)
 `
 
 type GetTaskByExternalIdParams struct {
@@ -937,6 +940,8 @@ type GetTaskByExternalIdParams struct {
 	Tenantid   uuid.UUID `json:"tenantid"`
 }
 
+// Resolve the task key before reading v1_task. Joining the lookup row directly
+// is planned as a merge across every daily partition.
 func (q *Queries) GetTaskByExternalId(ctx context.Context, db DBTX, arg GetTaskByExternalIdParams) (*V1Task, error) {
 	row := db.QueryRow(ctx, getTaskByExternalId, arg.Externalid, arg.Tenantid)
 	var i V1Task
@@ -1424,12 +1429,24 @@ WITH input AS (
                 -- can match any of the event types
                 unnest_nd_1d($3::text[][]) AS event_types
         ) AS subquery
+), looked_up AS MATERIALIZED (
+    -- Resolve keys before joining v1_task. Joining v1_lookup_table directly
+    -- is planned as a merge across every daily partition.
+    SELECT
+        l.external_id,
+        l.task_id,
+        l.inserted_at
+    FROM
+        v1_lookup_table l
+    WHERE
+        l.tenant_id = $1::uuid
+        AND l.external_id = ANY($2::uuid[])
 )
 SELECT
     t.external_id as task_external_id,
     e.id, e.inserted_at, e.tenant_id, e.task_id, e.task_inserted_at, e.retry_count, e.event_type, e.event_key, e.created_at, e.data, e.external_id, e.child_external_id
 FROM
-    v1_lookup_table l
+    looked_up l
 JOIN
     v1_task t ON t.id = l.task_id AND t.inserted_at = l.inserted_at
 JOIN
@@ -1437,9 +1454,7 @@ JOIN
 JOIN
     input i ON i.task_external_id = l.external_id AND e.event_type::text = ANY(i.event_types)
 WHERE
-    l.tenant_id = $1::uuid
-    AND l.external_id = ANY($2::uuid[])
-    AND (e.retry_count = -1 OR e.retry_count = t.retry_count)
+    e.retry_count = -1 OR e.retry_count = t.retry_count
 `
 
 type ListMatchingTaskEventsParams struct {
@@ -2807,19 +2822,26 @@ func (q *Queries) LookupExternalIds(ctx context.Context, db DBTX, arg LookupExte
 }
 
 const manualSlotRelease = `-- name: ManualSlotRelease :one
-WITH task AS (
+WITH task AS MATERIALIZED (
+    -- Resolve the task key before reading v1_task. Joining the lookup row directly
+    -- is planned as a merge across every daily partition.
     SELECT
         t.id,
         t.inserted_at,
         t.retry_count,
         t.tenant_id
     FROM
-        v1_lookup_table lt
-    JOIN
-        v1_task t ON t.id = lt.task_id AND t.inserted_at = lt.inserted_at
-    WHERE
-        lt.external_id = $1::uuid AND
-        lt.tenant_id = $2::uuid
+        v1_task t
+    WHERE (t.id, t.inserted_at) = (
+        SELECT
+            lt.task_id,
+            lt.inserted_at
+        FROM
+            v1_lookup_table lt
+        WHERE
+            lt.external_id = $1::uuid AND
+            lt.tenant_id = $2::uuid
+    )
 ), locked_runtime AS (
     SELECT
         tr.task_id,
@@ -3106,19 +3128,26 @@ func (q *Queries) ProcessRetryQueueItems(ctx context.Context, db DBTX, arg Proce
 }
 
 const refreshTimeoutBy = `-- name: RefreshTimeoutBy :one
-WITH task AS (
+WITH task AS MATERIALIZED (
+    -- Resolve the task key before reading v1_task. Joining the lookup row directly
+    -- is planned as a merge across every daily partition.
     SELECT
         t.id,
         t.inserted_at,
         t.retry_count,
         t.tenant_id
     FROM
-        v1_lookup_table lt
-    JOIN
-        v1_task t ON t.id = lt.task_id AND t.inserted_at = lt.inserted_at
-    WHERE
-        lt.external_id = $2::uuid AND
-        lt.tenant_id = $3::uuid
+        v1_task t
+    WHERE (t.id, t.inserted_at) = (
+        SELECT
+            lt.task_id,
+            lt.inserted_at
+        FROM
+            v1_lookup_table lt
+        WHERE
+            lt.external_id = $2::uuid AND
+            lt.tenant_id = $3::uuid
+    )
 ), locked_runtime AS (
     SELECT
         tr.task_id,

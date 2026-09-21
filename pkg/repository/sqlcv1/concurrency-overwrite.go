@@ -37,7 +37,14 @@ WITH filled_parent_slots AS (
         tenant_id = $1::uuid AND
         strategy_id = $3::bigint AND
         schedule_timeout_at < NOW() AND
-        is_filled = FALSE
+        NOT EXISTS (
+            SELECT 1
+            FROM v1_task_runtime tr
+            WHERE
+                tr.task_id = v1_concurrency_slot.task_id AND
+                tr.task_inserted_at = v1_concurrency_slot.task_inserted_at AND
+                tr.retry_count = v1_concurrency_slot.task_retry_count
+        )
     ORDER BY
         task_id, task_inserted_at
     FOR UPDATE

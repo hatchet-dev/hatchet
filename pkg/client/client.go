@@ -287,6 +287,41 @@ func NewFromConfigFile(cf *client.ClientConfigFile, fs ...ClientOpt) (Client, er
 	return newFromOpts(opts)
 }
 
+// NewFromConfig creates a client from a fully resolved client configuration.
+// Unlike New and NewFromConfigFile, it performs no environment or file
+// loading: the supplied configuration is authoritative for the token, tenant,
+// endpoints, and TLS settings. Callers that resolve their configuration from a
+// trusted source (e.g. the CLI's profile store) use this so ambient
+// HATCHET_CLIENT_* variables cannot override it.
+func NewFromConfig(cfg *client.ClientConfig, fs ...ClientOpt) (Client, error) {
+	l := logger.NewStdErr(&cfg.Logger, "client")
+
+	opts := &ClientOpts{
+		tenantId:               cfg.TenantId,
+		token:                  cfg.Token,
+		l:                      &l,
+		v:                      validator.NewDefaultValidator(),
+		tls:                    cfg.TLSConfig,
+		hostPort:               cfg.GRPCBroadcastAddress,
+		serverURL:              cfg.ServerURL,
+		filesLoader:            types.DefaultLoader,
+		namespace:              cfg.Namespace,
+		cloudRegisterID:        cfg.CloudRegisterID,
+		runnableActions:        cfg.RunnableActions,
+		noGrpcRetry:            cfg.NoGrpcRetry,
+		noRetry:                cfg.NoRetry,
+		sharedMeta:             make(map[string]string),
+		presetWorkerLabels:     cfg.PresetWorkerLabels,
+		disableGzipCompression: cfg.DisableGzipCompression,
+	}
+
+	for _, f := range fs {
+		f(opts)
+	}
+
+	return newFromOpts(opts)
+}
+
 func newFromOpts(opts *ClientOpts) (Client, error) {
 	if opts.token == "" {
 		return nil, fmt.Errorf("token is required")

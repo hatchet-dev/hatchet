@@ -1,3 +1,19 @@
+## [0.107.0] - 2026-09-15
+
+Hatchet v0.107.0 adds a local MCP server to the CLI. It also introduces some performance and query optimizations.
+
+### Highlights
+
+- **`hatchet mcp`**: the CLI now ships a local MCP server so AI coding agents can trigger runs, inspect run status and events, list workers, replay runs, and check engine status against a Hatchet deployment. `hatchet mcp install` writes the server into Claude Code, Cursor, VS Code, or Codex configs, and `hatchet mcp auth` controls which CLI profiles it may use. See [MCP Server](https://docs.hatchet.run/reference/cli/mcp?utm_source=changelog&utm_campaign=v0.107.0) ([#4911](https://github.com/hatchet-dev/hatchet/pull/4911)).
+
+### Fixed
+
+- Engine: duplicate `v1_match` rows written on repeated child spawns were never cleaned up, growing the table indefinitely and leaking database CPU ([#4923](https://github.com/hatchet-dev/hatchet/pull/4923), [#4927](https://github.com/hatchet-dev/hatchet/pull/4927)).
+- Engine: `GetTenantTaskStats` no longer sequentially scans `v1_task`, fixing task-stats latency once a paused workflow accumulates queued runs ([#4934](https://github.com/hatchet-dev/hatchet/pull/4934)).
+- Engine: autovacuum overrides now apply to high-churn unpartitioned tables such as `v1_match`, `v1_concurrency_slot`, and `v1_retry_queue_item` ([#4951](https://github.com/hatchet-dev/hatchet/pull/4951)).
+- Go SDK: workers now inherit the client's configured logger by default, with `WithLogger` still available to override ([#4941](https://github.com/hatchet-dev/hatchet/pull/4941)).
+- Dashboard: standalone tasks open in the side panel again, JSON errors render nicely, `cancelled due to concurrency` is shown as an info-level log, and feature flag rendering no longer flashes ([#4938](https://github.com/hatchet-dev/hatchet/pull/4938)).
+
 ## [0.106.5] - 2026-09-08
 
 Hatchet v0.106.5 is a concurrency-focused release, adding support for dynamic concurrency limits, shared concurrency across workflows, and two new queue-depth concurrency strategies.

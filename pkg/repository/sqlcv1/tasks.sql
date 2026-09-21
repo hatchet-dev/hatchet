@@ -214,13 +214,17 @@ FROM
     tasks_from_dags;
 
 -- name: GetTaskByExternalId :one
+-- Resolve the task key before reading v1_task. Joining the lookup row directly
+-- is planned as a merge across every daily partition.
 SELECT t.*
-FROM v1_lookup_table l
-JOIN v1_task t ON t.id = l.task_id AND t.inserted_at = l.inserted_at
-WHERE
-    l.external_id = @externalId::uuid
-    AND l.tenant_id = @tenantId::uuid
-;
+FROM v1_task t
+WHERE (t.id, t.inserted_at) = (
+    SELECT l.task_id, l.inserted_at
+    FROM v1_lookup_table l
+    WHERE
+        l.external_id = @externalId::uuid
+        AND l.tenant_id = @tenantId::uuid
+);
 
 -- name: LookupExternalIds :many
 SELECT
@@ -524,12 +528,24 @@ WITH input AS (
                 -- can match any of the event types
                 unnest_nd_1d(@eventTypes::text[][]) AS event_types
         ) AS subquery
+), looked_up AS MATERIALIZED (
+    -- Resolve keys before joining v1_task. Joining v1_lookup_table directly
+    -- is planned as a merge across every daily partition.
+    SELECT
+        l.external_id,
+        l.task_id,
+        l.inserted_at
+    FROM
+        v1_lookup_table l
+    WHERE
+        l.tenant_id = @tenantId::uuid
+        AND l.external_id = ANY(@taskExternalIds::uuid[])
 )
 SELECT
     t.external_id as task_external_id,
     e.*
 FROM
-    v1_lookup_table l
+    looked_up l
 JOIN
     v1_task t ON t.id = l.task_id AND t.inserted_at = l.inserted_at
 JOIN
@@ -537,9 +553,7 @@ JOIN
 JOIN
     input i ON i.task_external_id = l.external_id AND e.event_type::text = ANY(i.event_types)
 WHERE
-    l.tenant_id = @tenantId::uuid
-    AND l.external_id = ANY(@taskExternalIds::uuid[])
-    AND (e.retry_count = -1 OR e.retry_count = t.retry_count);
+    e.retry_count = -1 OR e.retry_count = t.retry_count;
 
 -- name: LockSignalCreatedEvents :many
 -- Places a lock on the SIGNAL_CREATED events to make sure concurrent operations don't
@@ -1026,19 +1040,26 @@ WHERE
     );
 
 -- name: RefreshTimeoutBy :one
-WITH task AS (
+WITH task AS MATERIALIZED (
+    -- Resolve the task key before reading v1_task. Joining the lookup row directly
+    -- is planned as a merge across every daily partition.
     SELECT
         t.id,
         t.inserted_at,
         t.retry_count,
         t.tenant_id
     FROM
-        v1_lookup_table lt
-    JOIN
-        v1_task t ON t.id = lt.task_id AND t.inserted_at = lt.inserted_at
-    WHERE
-        lt.external_id = @externalId::uuid AND
-        lt.tenant_id = @tenantId::uuid
+        v1_task t
+    WHERE (t.id, t.inserted_at) = (
+        SELECT
+            lt.task_id,
+            lt.inserted_at
+        FROM
+            v1_lookup_table lt
+        WHERE
+            lt.external_id = @externalId::uuid AND
+            lt.tenant_id = @tenantId::uuid
+    )
 ), locked_runtime AS (
     SELECT
         tr.task_id,
@@ -1065,19 +1086,26 @@ RETURNING
     v1_task_runtime.*;
 
 -- name: ManualSlotRelease :one
-WITH task AS (
+WITH task AS MATERIALIZED (
+    -- Resolve the task key before reading v1_task. Joining the lookup row directly
+    -- is planned as a merge across every daily partition.
     SELECT
         t.id,
         t.inserted_at,
         t.retry_count,
         t.tenant_id
     FROM
-        v1_lookup_table lt
-    JOIN
-        v1_task t ON t.id = lt.task_id AND t.inserted_at = lt.inserted_at
-    WHERE
-        lt.external_id = @externalId::uuid AND
-        lt.tenant_id = @tenantId::uuid
+        v1_task t
+    WHERE (t.id, t.inserted_at) = (
+        SELECT
+            lt.task_id,
+            lt.inserted_at
+        FROM
+            v1_lookup_table lt
+        WHERE
+            lt.external_id = @externalId::uuid AND
+            lt.tenant_id = @tenantId::uuid
+    )
 ), locked_runtime AS (
     SELECT
         tr.task_id,
