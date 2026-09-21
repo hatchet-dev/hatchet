@@ -311,10 +311,7 @@ type TaskRepository interface {
 
 	GetQueueSizesByMetadata(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.GetQueueSizesByMetadataRow, error)
 
-	// ReplayTasks replays tasks in one transaction while holding an advisory lock per workflow run, so
-	// replays of distinct runs proceed in parallel across controllers. workflowRunIds are the runs the
-	// tasks belong to.
-	ReplayTasks(ctx context.Context, tenantId uuid.UUID, workflowRunIds []uuid.UUID, tasks []TaskIdInsertedAtRetryCount) (*ReplayTasksResult, error)
+	ReplayTasks(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) (*ReplayTasksResult, error)
 
 	RefreshTimeoutBy(ctx context.Context, tenantId uuid.UUID, opt RefreshTimeoutBy) (*sqlcv1.V1TaskRuntime, error)
 
@@ -3602,17 +3599,7 @@ func makeEventTypeArr(status sqlcv1.V1TaskEventType, n int) []sqlcv1.V1TaskEvent
 	return a
 }
 
-func replayInputRetrieveOpt(tenantId uuid.UUID, task *sqlcv1.ListTasksForReplayRow) RetrievePayloadOpts {
-	return RetrievePayloadOpts{
-		Id:         task.ID,
-		InsertedAt: task.InsertedAt,
-		Type:       sqlcv1.V1PayloadTypeTASKINPUT,
-		TenantId:   tenantId,
-		ExternalId: task.ExternalID,
-	}
-}
-
-func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID, workflowRunIds []uuid.UUID, tasks []TaskIdInsertedAtRetryCount) (*ReplayTasksResult, error) {
+func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) (*ReplayTasksResult, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
 
 	if err != nil {
@@ -3621,16 +3608,14 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 
 	defer rollback()
 
-	lockKeys := make([]int64, len(workflowRunIds))
+	acquired, err := r.queries.TryAdvisoryLock(ctx, tx, sqlchelpers.AdvisoryLockKey("replay_"+tenantId.String()))
 
-	for i, workflowRunId := range workflowRunIds {
-		lockKeys[i] = sqlchelpers.AdvisoryLockKey("replay_" + workflowRunId.String())
+	if err != nil {
+		return nil, fmt.Errorf("failed to try advisory lock for replaying tasks: %w", err)
 	}
 
-	// blocks until every run in the batch is ours; a concurrent replay of the same run then finds its
-	// tasks already queued and discards them in the preflight check below
-	if err := r.queries.AdvisoryLockMany(ctx, tx, lockKeys); err != nil {
-		return nil, fmt.Errorf("failed to acquire advisory locks for replaying tasks: %w", err)
+	if !acquired {
+		return nil, fmt.Errorf("could not acquire advisory lock for replaying tasks")
 	}
 
 	taskIds := make([]int64, len(tasks))
@@ -3755,9 +3740,23 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 	replayOpts := make([]ReplayTaskOpts, 0)
 	replayedTasks := make([]TaskIdInsertedAtRetryCount, 0)
 
-	// tasks which are replayed immediately; their inputs are retrieved after the discard checks so only
-	// inputs which are actually needed are fetched
-	immediateTasks := make([]*sqlcv1.ListTasksForReplayRow, 0)
+	retrieveOpts := make([]RetrievePayloadOpts, len(lockedTasks))
+
+	for i, task := range lockedTasks {
+		retrieveOpts[i] = RetrievePayloadOpts{
+			Id:         task.ID,
+			InsertedAt: task.InsertedAt,
+			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+			TenantId:   tenantId,
+			ExternalId: task.ExternalID,
+		}
+	}
+
+	payloads, err := r.payloadStore.Retrieve(ctx, tx, retrieveOpts...)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to bulk retrieve task inputs: %w", err)
+	}
 
 	for _, task := range lockedTasks {
 		// check whether to discard the task
@@ -3830,23 +3829,15 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 			}
 		}
 
-		immediateTasks = append(immediateTasks, task)
-	}
+		retrieveOpt := RetrievePayloadOpts{
+			Id:         task.ID,
+			InsertedAt: task.InsertedAt,
+			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+			TenantId:   tenantId,
+			ExternalId: task.ExternalID,
+		}
 
-	retrieveOpts := make([]RetrievePayloadOpts, len(immediateTasks))
-
-	for i, task := range immediateTasks {
-		retrieveOpts[i] = replayInputRetrieveOpt(tenantId, task)
-	}
-
-	payloads, err := r.payloadStore.Retrieve(ctx, tx, retrieveOpts...)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to bulk retrieve task inputs: %w", err)
-	}
-
-	for _, task := range immediateTasks {
-		input, ok := payloads[replayInputRetrieveOpt(tenantId, task)]
+		input, ok := payloads[retrieveOpt]
 
 		if !ok {
 			// If the input wasn't found in the payload store,
