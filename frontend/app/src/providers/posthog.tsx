@@ -1,3 +1,4 @@
+import { readConsentDecision } from '@/lib/consent';
 import { REFERRAL_CODE_KEY, sanitizeReferralCode } from '@/lib/referral';
 import { clearUtmParams, readUtmParams } from '@/lib/utm';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
@@ -85,10 +86,18 @@ export function PostHogProvider({ children }: PostHogProviderProps) {
 
     console.info('Initializing Analytics, opt out in settings.');
 
+    // Consent travels with the visitor from hatchet.run / docs.hatchet.run via
+    // cookies on `.hatchet.run`; a direct landing with no cookie resolves to
+    // "restricted", which is how this app behaved before regions existed.
+    const consent = readConsentDecision();
+
     posthog.init(config.apiKey, {
       api_host: config.apiHost || 'https://us.i.posthog.com',
+      // Rejecting still yields aggregate, cookieless counting.
       cookieless_mode: 'on_reject',
-      opt_out_capturing_by_default: true,
+      // EEA/UK/CH visitors are counted cookielessly until they accept;
+      // everyone else is counted normally until they opt out.
+      opt_out_capturing_by_default: consent.status === 'denied',
       person_profiles: 'identified_only',
       capture_pageview: false,
       capture_pageleave: true,
@@ -102,7 +111,10 @@ export function PostHogProvider({ children }: PostHogProviderProps) {
         tenantAnalyticsOptOut || capturePaused ? null : event,
     });
 
-    if (posthog.get_explicit_consent_status() === 'pending') {
+    if (
+      consent.status === 'denied' &&
+      posthog.get_explicit_consent_status() !== 'denied'
+    ) {
       posthog.opt_out_capturing();
     }
 
@@ -124,6 +136,15 @@ export function PostHogProvider({ children }: PostHogProviderProps) {
         posthog.opt_out_capturing();
       }
       posthog.stopSessionRecording?.();
+      setSyncedTenantId(tenant.metadata.id);
+      return;
+    }
+
+    // A decline made on any Hatchet property keeps capture off here too.
+    if (readConsentDecision().status === 'denied') {
+      if (posthog.get_explicit_consent_status() !== 'denied') {
+        posthog.opt_out_capturing();
+      }
       setSyncedTenantId(tenant.metadata.id);
       return;
     }

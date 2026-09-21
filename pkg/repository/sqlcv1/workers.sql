@@ -130,6 +130,17 @@ FROM
 WHERE
     workers."tenantId" = @tenantId
     AND (
+        COALESCE(sqlc.narg('includeOperators')::boolean, FALSE)
+        OR NOT EXISTS (
+            -- hide dag operators
+            SELECT 1
+            FROM v1_operator op
+            WHERE
+                op.id = workers."operatorId"
+                AND op.kind = 'DAG'
+        )
+    )
+    AND (
         sqlc.narg('actionId')::text IS NULL OR
         workers."id" IN (
             SELECT "_ActionToWorker"."B"
@@ -198,6 +209,17 @@ FROM
     "Worker" workers
 WHERE
     workers."tenantId" = @tenantId
+    AND (
+        COALESCE(sqlc.narg('includeOperators')::boolean, FALSE)
+        OR NOT EXISTS (
+            -- hide dag operators
+            SELECT 1
+            FROM v1_operator op
+            WHERE
+                op.id = workers."operatorId"
+                AND op.kind = 'DAG'
+        )
+    )
     AND (
         sqlc.narg('actionId')::text IS NULL OR
         workers."id" IN (
@@ -319,6 +341,8 @@ WHERE
     AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
     AND w."isActive" = true
     AND w."isPaused" = false
+    -- exclude operators from active slot counts for metering
+    AND w."operatorId" IS NULL
 GROUP BY wc.tenant_id
 ;
 
@@ -334,6 +358,8 @@ WHERE
     AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
     AND w."isActive" = true
     AND w."isPaused" = false
+    -- exclude operators from active slot counts for metering
+    AND w."operatorId" IS NULL
 GROUP BY wc.tenant_id, wc.slot_type
 ;
 
@@ -452,7 +478,6 @@ SET
     "updatedAt" = CURRENT_TIMESTAMP,
     "dispatcherId" = coalesce(sqlc.narg('dispatcherId')::uuid, "dispatcherId"),
     "lastHeartbeatAt" = coalesce(sqlc.narg('lastHeartbeatAt')::timestamp, "lastHeartbeatAt"),
-    "isActive" = coalesce(sqlc.narg('isActive')::boolean, "isActive"),
     "isPaused" = coalesce(sqlc.narg('isPaused')::boolean, "isPaused")
 WHERE
     "id" = @id::uuid
@@ -502,17 +527,31 @@ WHERE
   "id" = @id::uuid
 RETURNING *;
 
--- name: UpdateWorkerActiveStatus :one
+-- name: ActivateWorkerListener :one
+-- Marks the worker active for the given listener session. lastListenerEstablished is
+-- stamped alongside the session id because Heartbeat uses it to tell a worker that never
+-- opened a listener from one whose listener has gone away.
 UPDATE "Worker"
 SET
-    "isActive" = @isActive::boolean,
-    "lastListenerEstablished" = sqlc.narg('lastListenerEstablished')::timestamp
+    "isActive" = TRUE,
+    "lastListenerSessionId" = @sessionId::uuid,
+    "lastListenerEstablished" = CURRENT_TIMESTAMP
 WHERE
     "id" = @id::uuid
-    AND (
-        "lastListenerEstablished" IS NULL
-        OR "lastListenerEstablished" <= sqlc.narg('lastListenerEstablished')::timestamp
-        )
+    AND "tenantId" = @tenantId::uuid
+RETURNING *;
+
+-- name: DeactivateWorkerListener :one
+-- Marks the worker inactive only while the given session is still the one recorded on the
+-- row. A session whose id is no longer on the row was superseded by a newer session and
+-- must not touch it, so this returns no rows in that case.
+UPDATE "Worker"
+SET
+    "isActive" = FALSE
+WHERE
+    "id" = @id::uuid
+    AND "tenantId" = @tenantId::uuid
+    AND "lastListenerSessionId" = @sessionId::uuid
 RETURNING *;
 
 -- name: UpsertWorkerLabel :one

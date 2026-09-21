@@ -12,6 +12,10 @@ import { HeartbeatMessage, STOP_HEARTBEAT } from './heartbeat-controller';
 import { classifyHeartbeatFailure } from './heartbeat-severity';
 
 const HEARTBEAT_INTERVAL = 4000;
+// Fail fast on a stalled connection: without a deadline, a heartbeat RPC on a dead
+// TCP connection can hang for 50+ seconds, well past the engine's 30s reassignment
+// window, while setInterval stacks overlapping in-flight requests behind it.
+const HEARTBEAT_TIMEOUT = 5000;
 
 const postMessage = (message: HeartbeatMessage) => {
   parentPort?.postMessage(message);
@@ -60,10 +64,13 @@ class HeartbeatWorker {
           message: 'Heartbeat sending...',
         });
 
-        await this.client.heartbeat({
-          workerId: this.workerId,
-          heartbeatAt: new Date(),
-        });
+        await this.client.heartbeat(
+          {
+            workerId: this.workerId,
+            heartbeatAt: new Date(),
+          },
+          { signal: AbortSignal.timeout(HEARTBEAT_TIMEOUT) }
+        );
         const now = new Date().getTime();
 
         const actualInterval = now - this.timeLastHeartbeat;
@@ -102,7 +109,7 @@ class HeartbeatWorker {
         const message = `Failed to send heartbeat: ${getErrorMessage(e)}`;
         this.logger.debug(message);
 
-        const severity = classifyHeartbeatFailure(getGrpcErrorCode(e), this.missedHeartbeats);
+        const severity = classifyHeartbeatFailure(e, this.missedHeartbeats);
         if (severity !== 'silent') {
           postMessage({
             type: severity,

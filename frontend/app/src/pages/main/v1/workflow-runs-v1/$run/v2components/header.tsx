@@ -100,7 +100,7 @@ const V1RunSummary = () => {
         <RelativeDate date={workflowRun.startedAt} />
       </div>,
     );
-  } else {
+  } else if (workflowRun.status === V1TaskStatus.RUNNING) {
     timings.push(
       <div key="running" className="text-sm text-muted-foreground">
         Running

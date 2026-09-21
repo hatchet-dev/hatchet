@@ -2,14 +2,17 @@ package nats
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"slices"
+	"time"
 
 	natsgo "github.com/nats-io/nats.go"
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	prommetrics "github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 )
 
@@ -32,6 +35,8 @@ type PubSubOpts struct {
 	url           string
 	username      string
 	password      string
+	tlsEnabled    bool
+	tlsRootCAFile string
 	subjectPrefix string
 }
 
@@ -66,6 +71,23 @@ func WithPubSubPassword(password string) PubSubOpt {
 	}
 }
 
+// WithPubSubTLSEnabled requires TLS with a TLS-first handshake (the server
+// must enable handshake_first). Verification uses the system roots unless a
+// root CA file is set.
+func WithPubSubTLSEnabled(enabled bool) PubSubOpt {
+	return func(opts *PubSubOpts) {
+		opts.tlsEnabled = enabled
+	}
+}
+
+// WithPubSubTLSRootCAFile sets a PEM CA bundle for server verification.
+// Requires WithPubSubTLSEnabled(true).
+func WithPubSubTLSRootCAFile(path string) PubSubOpt {
+	return func(opts *PubSubOpts) {
+		opts.tlsRootCAFile = path
+	}
+}
+
 // WithPubSubSubjectPrefix sets the NATS subject prefix (default
 // "hatchet.pubsub"). Empty falls back to the default. No trimming or
 // validation: a bad prefix fails loudly via nats ErrBadSubject at startup.
@@ -94,7 +116,15 @@ func NewPubSub(fs ...PubSubOpt) (func() error, *PubSub, error) {
 		return nil, nil, fmt.Errorf("nats pubsub requires a URL to be set")
 	}
 
+	if opts.tlsRootCAFile != "" && !opts.tlsEnabled {
+		return nil, nil, fmt.Errorf("nats pubsub tlsRootCAFile is set but tlsEnabled is false; a private CA bundle only takes effect with tlsEnabled: true (SERVER_MSGQUEUE_PUBSUB_NATS_TLS_ENABLED)")
+	}
+
 	l := opts.l
+
+	// Sampled to one line per minute; for tenant-stream subscriptions this
+	// log is the only drop signal.
+	asyncErrL := l.Sample(&zerolog.BurstSampler{Burst: 1, Period: time.Minute})
 
 	connectOpts := []natsgo.Option{
 		// Reconnect behavior is deliberately fixed rather than configurable.
@@ -130,12 +160,34 @@ func NewPubSub(fs ...PubSubOpt) (func() error, *PubSub, error) {
 			l.Info().Msg("nats pubsub connection closed")
 		}),
 		natsgo.ErrorHandler(func(_ *natsgo.Conn, sub *natsgo.Subscription, err error) {
-			subject := ""
+			e := asyncErrL.Warn().Err(err)
 			if sub != nil {
-				subject = sub.Subject
+				e = e.Str("subject", sub.Subject)
+				if e.Enabled() {
+					if dropped, derr := sub.Dropped(); derr == nil {
+						e = e.Int("dropped_total", dropped)
+					}
+					if pendingMsgs, pendingBytes, perr := sub.Pending(); perr == nil {
+						e = e.Int("pending_msgs", pendingMsgs).Int("pending_bytes", pendingBytes)
+					}
+				}
 			}
-			l.Error().Err(err).Str("subject", subject).Msg("nats pubsub async error")
+			e.Msg("nats pubsub async error")
 		}),
+	}
+
+	if opts.tlsEnabled {
+		// Non-nil config: bare Secure() skips server verification per its
+		// doc comment.
+		connectOpts = append(connectOpts,
+			natsgo.Secure(&tls.Config{MinVersion: tls.VersionTLS13}),
+			natsgo.TLSHandshakeFirst(),
+		)
+
+		if opts.tlsRootCAFile != "" {
+			// RootCAs fails Connect on a missing or non-PEM file before any dial.
+			connectOpts = append(connectOpts, natsgo.RootCAs(opts.tlsRootCAFile))
+		}
 	}
 
 	nc, err := natsgo.Connect(opts.url, connectOpts...)
@@ -271,7 +323,26 @@ func (p *PubSub) Sub(topic msgqueue.Topic, handler msgqueue.MsgHandler) (func() 
 		return nil, fmt.Errorf("could not flush after subscribe to %s: %w", subject, err)
 	}
 
+	unregisterDrops := p.registerDropsCounter(topic, sub)
+
 	return func() error {
+		unregisterDrops()
 		return sub.Unsubscribe()
 	}, nil
+}
+
+// registerDropsCounter republishes sub's cumulative Dropped() as a Prometheus
+// counter, only for scheduler-partition topics: one long-lived subscription per scheduler pod (its partition).
+func (p *PubSub) registerDropsCounter(topic msgqueue.Topic, sub *natsgo.Subscription) func() {
+	if topic.Kind() != msgqueue.TopicKindSchedulerPartition {
+		return func() {}
+	}
+
+	return prommetrics.RegisterNATSSchedulerPartitionDrops(func() float64 {
+		dropped, err := sub.Dropped()
+		if err != nil {
+			return 0
+		}
+		return float64(dropped)
+	})
 }

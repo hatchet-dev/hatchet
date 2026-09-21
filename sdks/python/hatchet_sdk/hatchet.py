@@ -1,6 +1,7 @@
+import asyncio
 import logging
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import timedelta
 from typing import Any, Concatenate, Literal, ParamSpec, cast, overload
 
@@ -11,7 +12,8 @@ from hatchet_sdk.client import Client
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
 from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
-from hatchet_sdk.config import ClientConfig
+from hatchet_sdk.config import ClientConfig, EmbeddedHatchetConfig
+from hatchet_sdk.embedded import resolve_embedded_connection
 from hatchet_sdk.features.cel import CELClient
 from hatchet_sdk.features.cron import CronClient
 from hatchet_sdk.features.filters import FiltersClient
@@ -93,6 +95,54 @@ class Hatchet:
             )
 
         self._client = client if client else Client(config=_config, debug=_debug)
+
+    @classmethod
+    def from_embedded(cls, config: ClientConfig | None = None) -> "Hatchet":
+        """
+        Run a full Hatchet engine locally and return a client wired to it.
+        No API token and no Docker required, which makes this the fastest way
+        to run Hatchet for local development. The engine runs as the
+        hatchet-embedded sidecar process (downloaded on first use) and starts
+        a bundled Postgres by default; set `database_url` on `config.embedded`
+        to use your own Postgres instead. You can read more about the embedded
+        engine in [the docs](https://docs.hatchet.run/v1/embedded).
+
+        :param config: Base client configuration to use; the connection fields
+            (token, tenant, addresses, TLS) are overridden to point at the
+            embedded engine. Set `config.embedded` (an `EmbeddedHatchetConfig`)
+            to configure the embedded engine itself (e.g. database URL, ports).
+        :return: A Hatchet client instance connected to the embedded engine.
+        """
+        return cls(
+            config=resolve_embedded_connection(
+                config or ClientConfig(embedded=EmbeddedHatchetConfig())
+            )
+        )
+
+    def stop_embedded(self) -> None:
+        """
+        Gracefully stop the embedded engine started by `Hatchet.from_embedded()`.
+
+        Blocks until the engine has fully exited, including its bundled
+        Postgres. The embedded engine is process-wide: every client created
+        via `Hatchet.from_embedded()` in this process shares it. Call this
+        before your process exits so the engine's shutdown output does not
+        print after your program has returned. No-op when no embedded engine
+        is running in this process.
+        """
+        from hatchet_sdk.embedded import stop_embedded_sidecar
+
+        stop_embedded_sidecar()
+
+    async def aio_stop_embedded(self) -> None:
+        """
+        Async variant of `stop_embedded`.
+
+        Gracefully stops the embedded engine without blocking the event loop,
+        and returns once the engine has fully exited. No-op when no embedded
+        engine is running in this process.
+        """
+        await asyncio.to_thread(self.stop_embedded)
 
     @property
     def cel(self) -> CELClient:
@@ -279,7 +329,7 @@ class Hatchet:
         sticky: StickyStrategy | None = None,
         default_priority: int | Priority = Priority.LOW,
         concurrency: (
-            int | ConcurrencyExpression | list[ConcurrencyExpression] | None
+            int | ConcurrencyExpression | Sequence[ConcurrencyExpression] | None
         ) = None,
         task_defaults: TaskDefaults = TaskDefaults(),
         default_filters: list[DefaultFilter] | None = None,
@@ -303,7 +353,7 @@ class Hatchet:
         sticky: StickyStrategy | None = None,
         default_priority: int | Priority = Priority.LOW,
         concurrency: (
-            int | ConcurrencyExpression | list[ConcurrencyExpression] | None
+            int | ConcurrencyExpression | Sequence[ConcurrencyExpression] | None
         ) = None,
         task_defaults: TaskDefaults = TaskDefaults(),
         default_filters: list[DefaultFilter] | None = None,
@@ -326,7 +376,7 @@ class Hatchet:
         sticky: StickyStrategy | None = None,
         default_priority: int | Priority = Priority.LOW,
         concurrency: (
-            int | ConcurrencyExpression | list[ConcurrencyExpression] | None
+            int | ConcurrencyExpression | Sequence[ConcurrencyExpression] | None
         ) = None,
         task_defaults: TaskDefaults = TaskDefaults(),
         default_filters: list[DefaultFilter] | None = None,
@@ -405,7 +455,7 @@ class Hatchet:
         sticky: StickyStrategy | None = None,
         default_priority: int | Priority = Priority.LOW,
         concurrency: (
-            int | ConcurrencyExpression | list[ConcurrencyExpression] | None
+            int | ConcurrencyExpression | Sequence[ConcurrencyExpression] | None
         ) = None,
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
@@ -441,7 +491,7 @@ class Hatchet:
         sticky: StickyStrategy | None = None,
         default_priority: int | Priority = Priority.LOW,
         concurrency: (
-            int | ConcurrencyExpression | list[ConcurrencyExpression] | None
+            int | ConcurrencyExpression | Sequence[ConcurrencyExpression] | None
         ) = None,
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
@@ -476,7 +526,7 @@ class Hatchet:
         sticky: StickyStrategy | None = None,
         default_priority: int | Priority = Priority.LOW,
         concurrency: (
-            int | ConcurrencyExpression | list[ConcurrencyExpression] | None
+            int | ConcurrencyExpression | Sequence[ConcurrencyExpression] | None
         ) = None,
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
@@ -890,7 +940,7 @@ class Hatchet:
         sticky: StickyStrategy | None = None,
         default_priority: int | Priority = Priority.LOW,
         concurrency: (
-            int | ConcurrencyExpression | list[ConcurrencyExpression] | None
+            int | ConcurrencyExpression | Sequence[ConcurrencyExpression] | None
         ) = None,
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
@@ -926,7 +976,7 @@ class Hatchet:
         sticky: StickyStrategy | None = None,
         default_priority: int | Priority = Priority.LOW,
         concurrency: (
-            int | ConcurrencyExpression | list[ConcurrencyExpression] | None
+            int | ConcurrencyExpression | Sequence[ConcurrencyExpression] | None
         ) = None,
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
@@ -965,7 +1015,7 @@ class Hatchet:
         sticky: StickyStrategy | None = None,
         default_priority: int | Priority = Priority.LOW,
         concurrency: (
-            int | ConcurrencyExpression | list[ConcurrencyExpression] | None
+            int | ConcurrencyExpression | Sequence[ConcurrencyExpression] | None
         ) = None,
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),

@@ -5,13 +5,11 @@ require "securerandom"
 
 module Hatchet
   # Extended context for durable tasks that supports sleep and event-waiting
-  # across task suspensions.
+  # across task suspensions. All methods and attributes of {Context} are also
+  # available.
   #
   # Durable tasks can be suspended and resumed by the Hatchet engine,
   # allowing long-running workflows that survive process restarts.
-  #
-  # Uses V1::V1Dispatcher for registering and listening for durable events
-  # via bidirectional gRPC streaming.
   #
   # @example Sleep for a duration
   #   hatchet.durable_task(name: "my_task") do |input, ctx|
@@ -42,10 +40,8 @@ module Hatchet
     attr_accessor :engine_version
 
     # Sleep for a specified duration. The task is suspended and resumed
-    # by the engine after the duration expires.
-    #
-    # Delegates to {#wait_for} with a {Hatchet::SleepCondition} so that both
-    # sleeps and event waits share a single registration / eviction path.
+    # by the engine after the duration expires, so no worker slot is blocked
+    # while sleeping (subject to the task's eviction policy).
     #
     # @param duration [Integer, String] Duration in seconds, or a duration string (e.g. "60s")
     # @param label [String, nil] Optional wait label shown in durable event logs.
@@ -62,11 +58,8 @@ module Hatchet
     # Wait for a condition to be met (event or sleep).
     # The task is suspended and resumed when the condition is satisfied.
     #
-    # Register the durable wait with ``send_event`` first, then start eviction
-    # tracking only while blocked on ``wait_for_callback``.
-    #
     # @param key [String] A unique key for this wait operation
-    # @param condition [Object] The condition to wait for (UserEventCondition, SleepCondition, Hash, etc.)
+    # @param condition [UserEventCondition, SleepCondition, OrCondition] The condition to wait for
     # @param label [String, nil] Optional wait label shown in durable event logs.
     # @return [Hash] Result from the wait, including which condition was satisfied
     def wait_for(key, condition, label: nil)

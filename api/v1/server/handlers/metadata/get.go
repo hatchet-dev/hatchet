@@ -52,6 +52,7 @@ func (u *MetadataService) MetadataGet(ctx echo.Context, request gen.MetadataGetR
 		ObservabilityEnabled:    &observabilityEnabled,
 		PrometheusServerEnabled: &prometheusServerEnabled,
 		AuthDisabled:            &authDisabled,
+		Embedded:                &u.config.Runtime.Embedded,
 	}
 
 	if authDisabled {

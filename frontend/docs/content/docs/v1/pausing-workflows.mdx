@@ -1,0 +1,82 @@
+---
+title: "Pausing Workflows"
+---
+
+import { Callout } from "@/components/nextra-compat";
+
+# Pausing Workflows
+
+Pausing a workflow stops new runs of that workflow from starting. Use it when you need to halt a workflow temporarily without deleting its triggers or cancelling work that is already running.
+
+<Callout type="info">
+  Workflow pause is different from worker pause. Pausing a worker stops that
+  worker from picking up new tasks. Pausing a workflow applies to one workflow
+  across every worker.
+</Callout>
+
+## What happens while a workflow is paused
+
+- **In-flight runs keep running.** Pause does not cancel or interrupt tasks that have already started.
+- **New runs do not start.** Event and manual triggers still create runs, but those runs stay queued until you unpause, or until the [queue TTL](#queue-ttl) expires. Cron and scheduled triggers can instead skip creating a run entirely (see below).
+- **Other workflows are unaffected.** Workers keep running other workflows as usual.
+
+## Cron and scheduled runs
+
+When you pause, you choose how [cron](/v1/cron-runs) and [scheduled](/v1/scheduled-runs) triggers behave while the workflow is paused:
+
+| Behavior  | Effect                                                                                                                  |
+| --------- | ----------------------------------------------------------------------------------------------------------------------- |
+| **QUEUE** | The trigger still creates a run. The run stays queued and starts after you unpause, unless the queue TTL expires first. |
+| **DROP**  | The trigger is skipped. No run is created for that cron tick or schedule while the workflow is paused.                  |
+
+Cron and scheduled behavior are set independently. Event-triggered and manually triggered runs always queue while the workflow is paused; they are not controlled by these settings.
+
+## Queue TTL
+
+Queued runs waiting on a paused workflow have a TTL. If a run is still queued when its age exceeds the TTL, Hatchet cancels it. The dashboard defaults this to `24h`. Duration strings use the same format as [timeouts](/v1/timeouts) (for example `30m` or `24h`).
+
+## Unpausing
+
+Unpausing clears the pause settings and requeues runs that are still waiting. Runs that already expired under the TTL stay cancelled.
+
+## From the dashboard
+
+1. Open the workflow.
+2. Go to the **Settings** tab.
+3. Under **Workflow status**, choose **Paused**.
+
+<figure style={{ margin: "2rem auto", maxWidth: "100%", textAlign: "center" }}>
+  <img
+    src="/workflow-pause-status-dropdown.png"
+    alt="Workflow status dropdown in the Settings tab"
+    style={{ width: "100%", height: "auto", borderRadius: "8px" }}
+  />
+</figure>
+
+4. Confirm and set cron behavior, scheduled behavior, and queue TTL.
+
+<figure style={{ margin: "2rem auto", maxWidth: "100%", textAlign: "center" }}>
+  <img
+    src="/workflow-pause-confirmation-modal.png"
+    alt="Pause workflow confirmation modal"
+    style={{ width: "100%", height: "auto", borderRadius: "8px" }}
+  />
+</figure>
+
+5. To resume, set **Workflow status** back to **Active** and confirm.
+
+## From the Python SDK
+
+```python
+from datetime import timedelta
+
+my_workflow.pause(
+    queue_ttl=timedelta(hours=24),
+    paused_workflow_cron_run_queue_behavior="QUEUE",
+    paused_workflow_scheduled_run_queue_behavior="QUEUE",
+)
+
+my_workflow.unpause()
+```
+
+Async equivalents are `aio_pause` and `aio_unpause`.

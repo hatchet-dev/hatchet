@@ -5,6 +5,7 @@ import { WorkflowTags } from '../components/workflow-tags';
 import { PauseWorkflowDialog } from './components/pause-workflow-dialog';
 import { TriggerWorkflowForm } from './components/trigger-workflow-form';
 import WorkflowGeneralSettings from './components/workflow-general-settings';
+import { WorkflowStatusSettings } from './components/workflow-status-settings';
 import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
@@ -159,21 +160,8 @@ export default function ExpandedWorkflow() {
             <Badge
               variant={workflow.isPaused ? 'inProgress' : 'successful'}
               className={
-                togglePauseMutation.isPending
-                  ? 'cursor-not-allowed px-2 opacity-50'
-                  : 'cursor-pointer px-2'
+                togglePauseMutation.isPending ? 'px-2 opacity-50' : 'px-2'
               }
-              onClick={() => {
-                if (togglePauseMutation.isPending) {
-                  return;
-                }
-
-                if (workflow.isPaused) {
-                  setUnpauseWorkflow(true);
-                } else {
-                  setPauseWorkflow(true);
-                }
-              }}
             >
               {workflow.isPaused ? 'Paused' : 'Active'}
             </Badge>
@@ -261,6 +249,14 @@ export default function ExpandedWorkflow() {
             value="settings"
             className="min-h-0 flex-1 overflow-y-auto pt-4 pb-8"
           >
+            <WorkflowStatusSettings
+              isPaused={!!workflow.isPaused}
+              disabled={!canWrite}
+              isPending={togglePauseMutation.isPending}
+              onRequestPause={() => setPauseWorkflow(true)}
+              onRequestUnpause={() => setUnpauseWorkflow(true)}
+            />
+
             {workflowVersionQuery.isLoading || !workflowVersionQuery.data ? (
               <Loading />
             ) : (

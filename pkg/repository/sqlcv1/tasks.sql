@@ -214,13 +214,17 @@ FROM
     tasks_from_dags;
 
 -- name: GetTaskByExternalId :one
+-- Resolve the task key before reading v1_task. Joining the lookup row directly
+-- is planned as a merge across every daily partition.
 SELECT t.*
-FROM v1_lookup_table l
-JOIN v1_task t ON t.id = l.task_id AND t.inserted_at = l.inserted_at
-WHERE
-    l.external_id = @externalId::uuid
-    AND l.tenant_id = @tenantId::uuid
-;
+FROM v1_task t
+WHERE (t.id, t.inserted_at) = (
+    SELECT l.task_id, l.inserted_at
+    FROM v1_lookup_table l
+    WHERE
+        l.external_id = @externalId::uuid
+        AND l.tenant_id = @tenantId::uuid
+);
 
 -- name: LookupExternalIds :many
 SELECT
@@ -275,7 +279,15 @@ SELECT
     display_name,
     workflow_version_id,
     step_id,
-    is_dag_orchestrator
+    is_dag_orchestrator,
+    EXISTS (
+        SELECT 1
+        FROM "Job" j
+        JOIN "Step" s ON s."jobId" = j."id"
+        WHERE
+            j."workflowVersionId" = v1_task.workflow_version_id
+            AND s."isDagOrchestrator"
+    ) AS was_triggered_by_dag_orchestrator
 FROM
     v1_task
 WHERE
@@ -412,8 +424,6 @@ WITH expired_runtimes AS (
     WHERE
         tenant_id = @tenantId::uuid
         AND timeout_at <= NOW()
-        -- evicted tasks are not eligible for timeout
-        AND evicted_at IS NULL
     ORDER BY
         task_id, task_inserted_at, retry_count
     LIMIT
@@ -518,12 +528,24 @@ WITH input AS (
                 -- can match any of the event types
                 unnest_nd_1d(@eventTypes::text[][]) AS event_types
         ) AS subquery
+), looked_up AS MATERIALIZED (
+    -- Resolve keys before joining v1_task. Joining v1_lookup_table directly
+    -- is planned as a merge across every daily partition.
+    SELECT
+        l.external_id,
+        l.task_id,
+        l.inserted_at
+    FROM
+        v1_lookup_table l
+    WHERE
+        l.tenant_id = @tenantId::uuid
+        AND l.external_id = ANY(@taskExternalIds::uuid[])
 )
 SELECT
     t.external_id as task_external_id,
     e.*
 FROM
-    v1_lookup_table l
+    looked_up l
 JOIN
     v1_task t ON t.id = l.task_id AND t.inserted_at = l.inserted_at
 JOIN
@@ -531,9 +553,7 @@ JOIN
 JOIN
     input i ON i.task_external_id = l.external_id AND e.event_type::text = ANY(i.event_types)
 WHERE
-    l.tenant_id = @tenantId::uuid
-    AND l.external_id = ANY(@taskExternalIds::uuid[])
-    AND (e.retry_count = -1 OR e.retry_count = t.retry_count);
+    e.retry_count = -1 OR e.retry_count = t.retry_count;
 
 -- name: LockSignalCreatedEvents :many
 -- Places a lock on the SIGNAL_CREATED events to make sure concurrent operations don't
@@ -922,7 +942,7 @@ FROM
 
 -- name: PreflightCheckTasksForReplay :many
 -- Checks whether tasks can be replayed by ensuring that they don't have any active runtimes,
--- concurrency slots, or retry queue items. Returns the tasks which cannot be replayed.
+-- concurrency slots, retry queue items, or pending queue items. Returns the tasks which cannot be replayed.
 WITH input AS (
     SELECT
         UNNEST(@taskIds::bigint[]) AS task_id,
@@ -946,6 +966,14 @@ LEFT JOIN
     v1_concurrency_slot cs ON cs.task_id = t.id AND cs.task_inserted_at = t.inserted_at AND cs.task_retry_count = t.retry_count
 LEFT JOIN
     v1_retry_queue_item rqi ON rqi.task_id = t.id AND rqi.task_inserted_at = t.inserted_at AND rqi.task_retry_count = t.retry_count
+LEFT JOIN
+    v1_queue_item qi ON qi.task_id = t.id AND qi.task_inserted_at = t.inserted_at AND qi.retry_count = t.retry_count
+LEFT JOIN
+    v1_batched_queue_item bqi ON bqi.task_id = t.id AND bqi.task_inserted_at = t.inserted_at AND bqi.retry_count = t.retry_count
+LEFT JOIN
+    v1_rate_limited_queue_items rlqi ON rlqi.task_id = t.id AND rlqi.task_inserted_at = t.inserted_at AND rlqi.retry_count = t.retry_count
+LEFT JOIN
+    v1_paused_workflow_queue_item pwqi ON pwqi.task_id = t.id AND pwqi.task_inserted_at = t.inserted_at AND pwqi.retry_count = t.retry_count
 WHERE
     t.tenant_id = @tenantId::uuid
     AND NOT EXISTS (
@@ -957,7 +985,15 @@ WHERE
             AND (e.task_id, e.task_inserted_at, e.retry_count) = (t.id, t.inserted_at, t.retry_count)
             AND e.event_type = ANY('{COMPLETED, FAILED, CANCELLED}'::v1_task_event_type[])
     )
-    AND (tr.task_id IS NOT NULL OR cs.task_id IS NOT NULL OR rqi.task_id IS NOT NULL)
+    AND (
+        tr.task_id IS NOT NULL
+        OR cs.task_id IS NOT NULL
+        OR rqi.task_id IS NOT NULL
+        OR qi.task_id IS NOT NULL
+        OR bqi.task_id IS NOT NULL
+        OR rlqi.task_id IS NOT NULL
+        OR pwqi.task_id IS NOT NULL
+    )
 ;
 
 -- name: ListAllTasksInDags :many
@@ -1004,19 +1040,26 @@ WHERE
     );
 
 -- name: RefreshTimeoutBy :one
-WITH task AS (
+WITH task AS MATERIALIZED (
+    -- Resolve the task key before reading v1_task. Joining the lookup row directly
+    -- is planned as a merge across every daily partition.
     SELECT
         t.id,
         t.inserted_at,
         t.retry_count,
         t.tenant_id
     FROM
-        v1_lookup_table lt
-    JOIN
-        v1_task t ON t.id = lt.task_id AND t.inserted_at = lt.inserted_at
-    WHERE
-        lt.external_id = @externalId::uuid AND
-        lt.tenant_id = @tenantId::uuid
+        v1_task t
+    WHERE (t.id, t.inserted_at) = (
+        SELECT
+            lt.task_id,
+            lt.inserted_at
+        FROM
+            v1_lookup_table lt
+        WHERE
+            lt.external_id = @externalId::uuid AND
+            lt.tenant_id = @tenantId::uuid
+    )
 ), locked_runtime AS (
     SELECT
         tr.task_id,
@@ -1043,19 +1086,26 @@ RETURNING
     v1_task_runtime.*;
 
 -- name: ManualSlotRelease :one
-WITH task AS (
+WITH task AS MATERIALIZED (
+    -- Resolve the task key before reading v1_task. Joining the lookup row directly
+    -- is planned as a merge across every daily partition.
     SELECT
         t.id,
         t.inserted_at,
         t.retry_count,
         t.tenant_id
     FROM
-        v1_lookup_table lt
-    JOIN
-        v1_task t ON t.id = lt.task_id AND t.inserted_at = lt.inserted_at
-    WHERE
-        lt.external_id = @externalId::uuid AND
-        lt.tenant_id = @tenantId::uuid
+        v1_task t
+    WHERE (t.id, t.inserted_at) = (
+        SELECT
+            lt.task_id,
+            lt.inserted_at
+        FROM
+            v1_lookup_table lt
+        WHERE
+            lt.external_id = @externalId::uuid AND
+            lt.tenant_id = @tenantId::uuid
+    )
 ), locked_runtime AS (
     SELECT
         tr.task_id,
@@ -1122,7 +1172,42 @@ WITH locked_runtime AS (
     RETURNING 1
 )
 SELECT
-    COALESCE((SELECT 1 FROM updated_runtime LIMIT 1), 0)::int AS "evicted";
+    COALESCE((SELECT 1 FROM updated_runtime LIMIT 1), 0)::int AS "evicted",
+    EXISTS (
+        SELECT 1
+        FROM v1_durable_event_log_entry
+        WHERE durable_task_id = @taskId::bigint
+          AND durable_task_inserted_at = @taskInsertedAt::timestamptz
+          AND NOT is_satisfied
+    ) AS has_unsatisfied_durable_events;
+
+-- name: ListStuckEvictedDurableOrchestrators :many
+-- DAG-orchestrator tasks whose runtime has been evicted past the grace period and whose durable
+-- event log entries are ALL satisfied -- the orchestrator is ready to resume but the
+-- edge-triggered restore (a child callback arriving while evicted -> DurableRestoreTask) never
+-- fired: the callback was lost on an engine roll, or every entry was satisfied before the
+-- eviction so there was no later callback. The caller re-queues these via DurableRestoreTask.
+SELECT
+    t.id,
+    t.inserted_at,
+    t.external_id,
+    rt.retry_count
+FROM v1_task_runtime rt
+JOIN v1_task t ON (t.id, t.inserted_at) = (rt.task_id, rt.task_inserted_at)
+WHERE rt.tenant_id = @tenantId::uuid
+    AND rt.evicted_at < NOW() - @gracePeriod::interval
+    AND t.is_dag_orchestrator
+    AND EXISTS (
+        SELECT 1 FROM v1_durable_event_log_entry e
+        WHERE (e.durable_task_id, e.durable_task_inserted_at) = (t.id, t.inserted_at)
+    )
+    AND NOT EXISTS (
+        SELECT 1 FROM v1_durable_event_log_entry e
+        WHERE (e.durable_task_id, e.durable_task_inserted_at) = (t.id, t.inserted_at)
+          AND NOT e.is_satisfied
+    )
+ORDER BY rt.evicted_at
+LIMIT @maxTasks::int;
 
 
 -- name: CleanupWorkflowConcurrencySlotsAfterInsert :exec
@@ -1276,20 +1361,20 @@ WHERE (task_id, task_inserted_at, task_retry_count) IN (
 -- name: GetTenantTaskStats :many
 WITH queued_tasks AS (
     SELECT
-        t.step_readable_id,
-        t.queue,
+        s."readableId" AS step_readable_id,
+        qi.queue,
         COUNT(*) as count,
-        MIN(t.inserted_at) AS oldest,
-        MIN(t.inserted_at) FILTER (WHERE t.retry_count = 0) AS oldest_excluding_retries
+        MIN(qi.task_inserted_at) AS oldest,
+        MIN(qi.task_inserted_at) FILTER (WHERE qi.retry_count = 0) AS oldest_excluding_retries
     FROM
         v1_queue_item qi
     JOIN
-        v1_task t ON qi.task_id = t.id AND qi.task_inserted_at = t.inserted_at AND qi.retry_count = t.retry_count
+        "Step" s ON s."id" = qi.step_id
     WHERE
         qi.tenant_id = @tenantId::uuid
     GROUP BY
-        t.step_readable_id,
-        t.queue
+        s."readableId",
+        qi.queue
 ), retry_queued_tasks AS (
     SELECT
         t.step_readable_id,
@@ -1308,36 +1393,36 @@ WITH queued_tasks AS (
         t.queue
 ), rate_limited_queued_tasks AS (
     SELECT
-        t.step_readable_id,
-        t.queue,
+        s."readableId" AS step_readable_id,
+        rqi.queue,
         COUNT(*) as count,
-        MIN(t.inserted_at) AS oldest,
-        MIN(t.inserted_at) FILTER (WHERE t.retry_count = 0) AS oldest_excluding_retries
+        MIN(rqi.task_inserted_at) AS oldest,
+        MIN(rqi.task_inserted_at) FILTER (WHERE rqi.retry_count = 0) AS oldest_excluding_retries
     FROM
         v1_rate_limited_queue_items rqi
     JOIN
-        v1_task t ON rqi.task_id = t.id AND rqi.task_inserted_at = t.inserted_at
+        "Step" s ON s."id" = rqi.step_id
     WHERE
         rqi.tenant_id = @tenantId::uuid
     GROUP BY
-        t.step_readable_id,
-        t.queue
+        s."readableId",
+        rqi.queue
 ), paused_workflow_queued_tasks AS (
     SELECT
-        t.step_readable_id,
-        t.queue,
+        s."readableId" AS step_readable_id,
+        pqi.queue,
         COUNT(*) as count,
-        MIN(t.inserted_at) AS oldest,
-        MIN(t.inserted_at) FILTER (WHERE t.retry_count = 0) AS oldest_excluding_retries
+        MIN(pqi.task_inserted_at) AS oldest,
+        MIN(pqi.task_inserted_at) FILTER (WHERE pqi.retry_count = 0) AS oldest_excluding_retries
     FROM
         v1_paused_workflow_queue_item pqi
     JOIN
-        v1_task t ON pqi.task_inserted_at = t.inserted_at AND pqi.task_id = t.id AND pqi.retry_count = t.retry_count
+        "Step" s ON s."id" = pqi.step_id
     WHERE
         pqi.tenant_id = @tenantId::uuid
     GROUP BY
-        t.step_readable_id,
-        t.queue
+        s."readableId",
+        pqi.queue
 ), concurrency_queued_tasks AS (
     SELECT
         t.step_readable_id,
@@ -1353,7 +1438,9 @@ WITH queued_tasks AS (
     JOIN
         v1_task t ON cs.task_id = t.id AND cs.task_inserted_at = t.inserted_at AND cs.task_retry_count = t.retry_count
     JOIN
-        v1_step_concurrency sc ON sc.workflow_id = t.workflow_id AND sc.workflow_version_id = t.workflow_version_id AND sc.step_id = t.step_id AND cs.strategy_id = sc.id
+        -- tenant-scoped refs put the tenant strategy's id on the slot, so resolve via
+        -- tenant_strategy_id when set
+        v1_step_concurrency sc ON sc.workflow_id = t.workflow_id AND sc.workflow_version_id = t.workflow_version_id AND sc.step_id = t.step_id AND cs.strategy_id = COALESCE(sc.tenant_strategy_id, sc.id)
     WHERE
         cs.tenant_id = @tenantId::uuid
         AND cs.is_filled = FALSE
@@ -1406,7 +1493,7 @@ WITH queued_tasks AS (
     JOIN
         v1_concurrency_slot cs ON cs.task_id = rta.task_id AND cs.task_inserted_at = rta.task_inserted_at AND cs.task_retry_count = rta.retry_count AND cs.workflow_id = rta.workflow_id AND cs.workflow_version_id = rta.workflow_version_id
     JOIN
-        v1_step_concurrency sc ON sc.workflow_id = rta.workflow_id AND sc.workflow_version_id = rta.workflow_version_id AND sc.step_id = rta.step_id AND cs.strategy_id = sc.id
+        v1_step_concurrency sc ON sc.workflow_id = rta.workflow_id AND sc.workflow_version_id = rta.workflow_version_id AND sc.step_id = rta.step_id AND cs.strategy_id = COALESCE(sc.tenant_strategy_id, sc.id)
     WHERE
         cs.tenant_id = @tenantId::uuid
         AND cs.tenant_id = rta.tenant_id

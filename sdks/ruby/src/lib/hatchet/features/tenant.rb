@@ -8,7 +8,7 @@ module Hatchet
     # from the Hatchet system.
     #
     # @example Getting the current tenant
-    #   tenant_info = tenant_client.get
+    #   tenant_info = hatchet.tenant.get
     #
     # @since 0.1.0
     class Tenant
@@ -29,7 +29,7 @@ module Hatchet
       # @return [Object] The tenant details
       # @raise [HatchetSdkRest::ApiError] If the API request fails
       # @example
-      #   tenant = tenant_client.get
+      #   tenant = hatchet.tenant.get
       def get
         @tenant_api.tenant_get(@config.tenant_id)
       end

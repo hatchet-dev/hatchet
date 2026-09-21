@@ -10,7 +10,7 @@ module Hatchet
     # associated with task runs in the Hatchet system.
     #
     # @example Listing logs for a task run
-    #   logs = logs_client.list("task-run-id", limit: 100)
+    #   logs = hatchet.logs.list("task-run-id", limit: 100)
     #
     # @since 0.1.0
     class Logs
@@ -35,7 +35,7 @@ module Hatchet
       # @return [Object] A list of log lines for the specified task run
       # @raise [HatchetSdkRest::ApiError] If the API request fails
       # @example
-      #   logs = logs_client.list("task-run-123", limit: 500, since: Time.now - 3600)
+      #   logs = hatchet.logs.list("task-run-123", limit: 500, since: Time.now - 3600)
       def list(task_run_id, limit: 1000, since: nil, until_time: nil)
         @log_api.v1_log_line_list(
           task_run_id,

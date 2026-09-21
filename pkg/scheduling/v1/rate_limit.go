@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
@@ -80,7 +81,7 @@ func (r *rateLimiter) loopFlush(ctx context.Context) {
 			err := r.flushToDatabase(ctx)
 
 			if err != nil {
-				r.l.Error().Ctx(ctx).Err(err).Msg("error flushing rate limits to database")
+				logger.ShutdownAware(ctx, r.l, err, zerolog.ErrorLevel).Ctx(ctx).Err(err).Msg("error flushing rate limits to database")
 			}
 		}
 	}
@@ -109,7 +110,8 @@ func (r *rateLimiter) use(ctx context.Context, taskId int64, rls map[string]int3
 		err := r.flushToDatabase(ctx)
 
 		if err != nil {
-			r.l.Error().Ctx(ctx).Err(err).Msg("error flushing rate limits to database")
+			logger.ShutdownAware(ctx, r.l, err, zerolog.ErrorLevel).Ctx(ctx).Err(err).Msg("error flushing rate limits to database")
+
 			return res
 		}
 
@@ -120,7 +122,8 @@ func (r *rateLimiter) use(ctx context.Context, taskId int64, rls map[string]int3
 		err := r.flushToDatabase(ctx)
 
 		if err != nil {
-			r.l.Error().Ctx(ctx).Err(err).Msg("error flushing rate limits to database")
+			logger.ShutdownAware(ctx, r.l, err, zerolog.ErrorLevel).Ctx(ctx).Err(err).Msg("error flushing rate limits to database")
+
 			return res
 		}
 	}

@@ -17,15 +17,31 @@ type WebhookRepository interface {
 	GetWebhook(ctx context.Context, tenantId uuid.UUID, webhookId string) (*sqlcv1.V1IncomingWebhook, error)
 	CanCreate(ctx context.Context, tenantId uuid.UUID, webhookLimit int32) (bool, error)
 	UpdateWebhook(ctx context.Context, tenantId uuid.UUID, webhookName string, opts UpdateWebhookOpts) (*sqlcv1.V1IncomingWebhook, error)
+
+	// RegisterAllocatedResourceChangeCallback runs after a successful create or
+	// delete of an incoming webhook. The callback receives the tenant id.
+	RegisterAllocatedResourceChangeCallback(callback TenantScopedCallback[struct{}])
 }
 
 type webhookRepository struct {
 	*sharedRepository
+
+	allocatedChangeCallbacks []TenantScopedCallback[struct{}]
 }
 
 func newWebhookRepository(shared *sharedRepository) WebhookRepository {
 	return &webhookRepository{
 		sharedRepository: shared,
+	}
+}
+
+func (r *webhookRepository) RegisterAllocatedResourceChangeCallback(callback TenantScopedCallback[struct{}]) {
+	r.allocatedChangeCallbacks = append(r.allocatedChangeCallbacks, callback)
+}
+
+func (r *webhookRepository) notifyAllocatedResourceChange(tenantId uuid.UUID) {
+	for _, cb := range r.allocatedChangeCallbacks {
+		cb.Do(r.l, tenantId, struct{}{})
 	}
 }
 
@@ -162,7 +178,12 @@ func (r *webhookRepository) CreateWebhook(ctx context.Context, tenantId uuid.UUI
 		return nil, fmt.Errorf("unsupported auth type: %s", opts.AuthConfig.Type)
 	}
 
-	return r.queries.CreateWebhook(ctx, r.pool, params)
+	created, err := r.queries.CreateWebhook(ctx, r.pool, params)
+	if err != nil {
+		return nil, err
+	}
+	r.notifyAllocatedResourceChange(tenantId)
+	return created, nil
 }
 
 type ListWebhooksOpts struct {
@@ -205,10 +226,15 @@ func (r *webhookRepository) ListWebhooks(ctx context.Context, tenantId uuid.UUID
 }
 
 func (r *webhookRepository) DeleteWebhook(ctx context.Context, tenantId uuid.UUID, name string) (*sqlcv1.V1IncomingWebhook, error) {
-	return r.queries.DeleteWebhook(ctx, r.pool, sqlcv1.DeleteWebhookParams{
+	deleted, err := r.queries.DeleteWebhook(ctx, r.pool, sqlcv1.DeleteWebhookParams{
 		Tenantid: tenantId,
 		Name:     name,
 	})
+	if err != nil {
+		return nil, err
+	}
+	r.notifyAllocatedResourceChange(tenantId)
+	return deleted, nil
 }
 
 func (r *webhookRepository) GetWebhook(ctx context.Context, tenantId uuid.UUID, name string) (*sqlcv1.V1IncomingWebhook, error) {

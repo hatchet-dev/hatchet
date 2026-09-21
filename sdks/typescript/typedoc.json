@@ -1,20 +1,7 @@
 {
   "$schema": "https://typedoc.org/schema.json",
-  "entryPoints": [
-    "./src/v1/client/client.ts",
-    "./src/v1/client/worker/context.ts",
-    "./src/v1/declaration.ts",
-    "./src/v1/client/features/crons.ts",
-    "./src/v1/client/features/filters.ts",
-    "./src/v1/client/features/metrics.ts",
-    "./src/v1/client/features/ratelimits.ts",
-    "./src/v1/client/features/runs.ts",
-    "./src/v1/client/features/schedules.ts",
-    "./src/v1/client/features/workers.ts",
-    "./src/v1/client/features/workflows.ts",
-    "./src/v1/client/features/webhooks.ts",
-    "./src/v1/client/features/logs.ts"
-  ],
+  // entryPoints are derived at generation time by docs/generate.ts (fixed core files +
+  // a glob of src/v1/client/features/*.ts) and passed on the typedoc CLI.
   "entryPointStrategy": "expand",
   "out": "/tmp/hatchet-typescript/docs/gen",
   "plugin": ["typedoc-plugin-markdown", "typedoc-plugin-no-inherit", "./docs/markdown-theme.mjs"],

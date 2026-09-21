@@ -79,16 +79,16 @@ tenant lists the users who are synced into it automatically, based on which grou
 flowchart LR
     subgraph UG["User Groups"]
         direction TB
-        G1("<b style='color:#4a148c'>Everyone</b><br/><span style='font-size:10px;color:#7b4a94'>tags: production, staging</span><br/><span style='font-family:monospace;font-size:11px;color:#4a148c'>a@example.com&nbsp;&nbsp;ADMIN</span>")
-        G2("<b style='color:#0d47a1'>Production Team</b><br/><span style='font-size:10px;color:#3f6fa8'>tags: production</span><br/><span style='font-family:monospace;font-size:11px;color:#0d47a1'>c@example.com&nbsp;&nbsp;MEMBER</span>")
-        G3("<b style='color:#e65100'>Staging Team</b><br/><span style='font-size:10px;color:#b3661f'>tags: staging</span><br/><span style='font-family:monospace;font-size:11px;color:#e65100'>b@example.com&nbsp;&nbsp;MEMBER</span>")
+        G1("<b>Everyone</b><br/>tags: production, staging<br/>a@example.com&nbsp;&nbsp;ADMIN")
+        G2("<b>Production Team</b><br/>tags: production<br/>c@example.com&nbsp;&nbsp;MEMBER")
+        G3("<b>Staging Team</b><br/>tags: staging<br/>b@example.com&nbsp;&nbsp;MEMBER")
     end
 
     subgraph TN["Tenants"]
         direction TB
-        T1("<b style='color:#4a148c'>Preview</b><br/><span style='font-size:10px;color:#7b4a94'>tags: production, staging</span><br/><span style='font-family:monospace;font-size:11px;color:#4a148c'>a@example.com&nbsp;&nbsp;ADMIN</span>")
-        T2("<b style='color:#0d47a1'>Production</b><br/><span style='font-size:10px;color:#3f6fa8'>tags: production</span><br/><span style='font-family:monospace;font-size:11px;color:#0d47a1'>a@example.com&nbsp;&nbsp;ADMIN</span><br/><span style='font-family:monospace;font-size:11px;color:#0d47a1'>c@example.com&nbsp;&nbsp;MEMBER</span>")
-        T3("<b style='color:#e65100'>Staging</b><br/><span style='font-size:10px;color:#b3661f'>tags: staging</span><br/><span style='font-family:monospace;font-size:11px;color:#e65100'>a@example.com&nbsp;&nbsp;ADMIN</span><br/><span style='font-family:monospace;font-size:11px;color:#e65100'>b@example.com&nbsp;&nbsp;MEMBER</span>")
+        T1("<b>Preview</b><br/>tags: production, staging<br/>a@example.com&nbsp;&nbsp;ADMIN")
+        T2("<b>Production</b><br/>tags: production<br/>a@example.com&nbsp;&nbsp;ADMIN<br/>c@example.com&nbsp;&nbsp;MEMBER")
+        T3("<b>Staging</b><br/>tags: staging<br/>a@example.com&nbsp;&nbsp;ADMIN<br/>b@example.com&nbsp;&nbsp;MEMBER")
     end
 
     G1 --> T1
@@ -97,14 +97,9 @@ flowchart LR
     G2 --> T2
     G3 --> T3
 
-    style G1 stroke-dasharray: 4 3,fill:#f3e5f5,stroke:#8e24aa,color:#4a148c
-    style G2 stroke-dasharray: 4 3,fill:#e3f2fd,stroke:#1976d2,color:#0d47a1
-    style G3 stroke-dasharray: 4 3,fill:#fff3e0,stroke:#f57c00,color:#e65100
-    style T1 fill:#f3e5f5,stroke:#8e24aa,stroke-width:2px,color:#4a148c
-    style T2 fill:#e3f2fd,stroke:#1976d2,stroke-width:2px,color:#0d47a1
-    style T3 fill:#fff3e0,stroke:#f57c00,stroke-width:2px,color:#e65100
-    style UG fill:transparent,stroke:#8a8a8a,stroke-width:1px
-    style TN fill:transparent,stroke:#8a8a8a,stroke-width:1px
+    style G1 stroke-dasharray: 4 3
+    style G2 stroke-dasharray: 4 3
+    style G3 stroke-dasharray: 4 3
 ```
 
 ## Organization Owners

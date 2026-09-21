@@ -41,6 +41,10 @@ APIMeta:
       type: string
       description: the embedded worker API token, only set on authdisabled builds
       example: eyJhbGciOiJFUzI1NiIs...
+    embedded:
+      type: boolean
+      description: whether this instance is running in embedded mode
+      example: false
 
 APIMetaAuth:
   type: object

@@ -1,0 +1,149 @@
+---
+title: "Cron"
+---
+
+# Cron Client
+
+Cron client for managing cron workflow triggers within Hatchet.
+
+This class provides a high-level interface for creating, deleting, listing, and retrieving cron workflow triggers.
+
+```ruby
+cron = hatchet.cron.create(
+  workflow_name: "my-workflow",
+  cron_name: "daily-run",
+  expression: "0 0 * * *",
+  input: { key: "value" },
+  additional_metadata: { source: "api" }
+)
+```
+
+It is available on the main client as `hatchet.cron`.
+
+Methods:
+
+| Name     | Description                                                  |
+| -------- | ------------------------------------------------------------ |
+| `create` | Create a new workflow cron trigger.                          |
+| `delete` | Delete a workflow cron trigger.                              |
+| `list`   | List cron workflow triggers matching the specified criteria. |
+| `get`    | Retrieve a specific workflow cron trigger by ID.             |
+
+### Functions
+
+#### `create`
+
+Create a new workflow cron trigger.
+
+```ruby
+cron = hatchet.cron.create(
+  workflow_name: "my-workflow",
+  cron_name: "hourly-run",
+  expression: "0 * * * *",
+  input: { key: "value" },
+  additional_metadata: { source: "api" }
+)
+```
+
+Parameters:
+
+| Name                  | Type             | Description                                                     | Default    |
+| --------------------- | ---------------- | --------------------------------------------------------------- | ---------- |
+| `workflow_name`       | `String`         | The name of the workflow to trigger (namespace will be applied) | _required_ |
+| `cron_name`           | `String`         | The name of the cron trigger.                                   | _required_ |
+| `expression`          | `String`         | The cron expression defining the schedule.                      | _required_ |
+| `input`               | `Hash`           | The input data for the cron workflow.                           | `{}`       |
+| `additional_metadata` | `Hash`           | Additional metadata associated with the cron trigger.           | `{}`       |
+| `priority`            | `Integer \| nil` | The priority of the cron workflow trigger.                      | `nil`      |
+
+Returns:
+
+| Type     | Description                         |
+| -------- | ----------------------------------- |
+| `Object` | The created cron workflow instance. |
+
+Raises:
+
+| Type                       | Description                        |
+| -------------------------- | ---------------------------------- |
+| `ArgumentError`            | If the cron expression is invalid. |
+| `HatchetSdkRest::ApiError` | If the API request fails.          |
+
+#### `delete`
+
+Delete a workflow cron trigger.
+
+```ruby
+hatchet.cron.delete("cron-123")
+```
+
+Parameters:
+
+| Name      | Type     | Description                           | Default    |
+| --------- | -------- | ------------------------------------- | ---------- |
+| `cron_id` | `String` | The ID of the cron trigger to delete. | _required_ |
+
+Raises:
+
+| Type                       | Description               |
+| -------------------------- | ------------------------- |
+| `HatchetSdkRest::ApiError` | If the API request fails. |
+
+#### `list`
+
+List cron workflow triggers matching the specified criteria.
+
+```ruby
+crons = hatchet.cron.list(limit: 10, workflow_name: "my-workflow")
+```
+
+Parameters:
+
+| Name                  | Type             | Description                                | Default |
+| --------------------- | ---------------- | ------------------------------------------ | ------- |
+| `offset`              | `Integer \| nil` | The offset to start the list from.         | `nil`   |
+| `limit`               | `Integer \| nil` | The maximum number of items to return.     | `nil`   |
+| `workflow_id`         | `String \| nil`  | The ID of the workflow to filter by.       | `nil`   |
+| `additional_metadata` | `Hash \| nil`    | Filter by additional metadata keys.        | `nil`   |
+| `order_by_field`      | `String \| nil`  | The field to order the list by.            | `nil`   |
+| `order_by_direction`  | `String \| nil`  | The direction to order the list by.        | `nil`   |
+| `workflow_name`       | `String \| nil`  | The name of the workflow to filter by.     | `nil`   |
+| `cron_name`           | `String \| nil`  | The name of the cron trigger to filter by. | `nil`   |
+
+Returns:
+
+| Type     | Description               |
+| -------- | ------------------------- |
+| `Object` | A list of cron workflows. |
+
+Raises:
+
+| Type                       | Description               |
+| -------------------------- | ------------------------- |
+| `HatchetSdkRest::ApiError` | If the API request fails. |
+
+#### `get`
+
+Retrieve a specific workflow cron trigger by ID.
+
+```ruby
+cron = hatchet.cron.get("cron-123")
+```
+
+Parameters:
+
+| Name      | Type     | Description                      | Default    |
+| --------- | -------- | -------------------------------- | ---------- |
+| `cron_id` | `String` | The cron trigger ID to retrieve. | _required_ |
+
+Returns:
+
+| Type     | Description                           |
+| -------- | ------------------------------------- |
+| `Object` | The requested cron workflow instance. |
+
+Raises:
+
+| Type                       | Description               |
+| -------------------------- | ------------------------- |
+| `HatchetSdkRest::ApiError` | If the API request fails. |

@@ -248,6 +248,8 @@ CREATE TABLE v1_dags_olap (
     parent_task_external_id UUID,
     total_tasks INT NOT NULL DEFAULT 1,
     idempotency_key TEXT,
+    latest_retry_count INT NOT NULL DEFAULT 0,
+    is_dag_operator BOOLEAN NOT NULL DEFAULT FALSE,
     PRIMARY KEY (inserted_at, id)
 ) PARTITION BY RANGE(inserted_at);
 

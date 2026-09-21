@@ -32,7 +32,7 @@ export const Snippet = ({ src }: { src: SnippetType }) => {
     <CodeBlock
       source={{
         githubUrl: src.githubUrl,
-        raw: src.content,
+        raw: src.content.trimEnd(),
         language: languageToHighlightAbbreviation(src.language),
         codePath: src.codePath,
       }}

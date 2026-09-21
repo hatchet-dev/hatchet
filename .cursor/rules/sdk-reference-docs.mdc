@@ -1,0 +1,15 @@
+---
+description: SDK reference docs pipeline — regenerating references, ownership rules, gotchas, adding a new SDK language
+globs:
+  - "sdks/*/docs/**"
+  - "frontend/docs/content/docs/reference/**"
+  - ".github/workflows/gen-sdk-docs.yml"
+alwaysApply: false
+---
+
+The SDK reference docs are generated from SDK source. Before editing anything
+under `frontend/docs/content/docs/reference/` or `sdks/*/docs/`, read the
+canonical guide at `.claude/skills/sdk-reference-docs/SKILL.md` and follow it.
+Key rules: never hand-edit generated .mdx (edit SDK doc comments/docstrings and
+run `task generate-sdk-docs` instead), keep generator output deterministic, and
+never put `{/* */}` JSX comments in MDX files (prettier corrupts them).

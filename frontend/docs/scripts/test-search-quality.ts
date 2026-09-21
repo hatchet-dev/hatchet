@@ -551,6 +551,47 @@ const TEST_CASES: SearchTestCase[] = [
   },
 
   // -------------------------------------------------------------------------
+  // Embedded mode / local development
+  // -------------------------------------------------------------------------
+  {
+    name: "embedded",
+    query: "embedded",
+    expectAnyOf: ["v1/embedded"],
+  },
+  {
+    name: "local development → embedded",
+    query: "local development",
+    expectAnyOf: ["v1/embedded"],
+  },
+  {
+    name: "run hatchet locally without docker",
+    query: "run hatchet locally without docker",
+    expectAnyOf: ["v1/embedded"],
+    topN: 10,
+  },
+  {
+    name: "in-process engine → embedded",
+    query: "in-process engine",
+    expectAnyOf: ["v1/embedded"],
+  },
+  {
+    name: "embedded postgres",
+    query: "embedded postgres",
+    expectAnyOf: ["v1/embedded"],
+  },
+  {
+    name: "local testing → embedded",
+    query: "local testing",
+    expectAnyOf: ["v1/embedded"],
+  },
+  {
+    name: "testing in ci → embedded",
+    query: "testing workers in ci",
+    expectAnyOf: ["v1/embedded"],
+    topN: 10,
+  },
+
+  // -------------------------------------------------------------------------
   // Code-specific searches
   // -------------------------------------------------------------------------
   {
@@ -637,9 +678,9 @@ const TEST_CASES: SearchTestCase[] = [
     expectAnyOf: ["v1/concurrency"],
   },
   {
-    name: "dedup → concurrency",
+    name: "dedup → concurrency or idempotency",
     query: "dedup",
-    expectAnyOf: ["v1/concurrency"],
+    expectAnyOf: ["v1/concurrency", "v1/idempotency"],
   },
   {
     name: "throttle → rate limits",
@@ -838,6 +879,17 @@ const TEST_CASES: SearchTestCase[] = [
     name: "how to limit concurrency",
     query: "how to limit concurrency",
     expectAnyOf: ["v1/concurrency", "v1/rate-limits"],
+    topN: 10,
+  },
+  {
+    name: "cel expression",
+    query: "cel expression",
+    expectAnyOf: ["v1/cel-expressions"],
+  },
+  {
+    name: "filter expression syntax",
+    query: "filter expression syntax",
+    expectAnyOf: ["v1/cel-expressions", "v1/events"],
     topN: 10,
   },
 ];

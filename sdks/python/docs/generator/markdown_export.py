@@ -14,7 +14,6 @@ class MarkdownExportPlugin(BasePlugin):  # type: ignore
     def __init__(self) -> None:
         super().__init__()
         self.soup: BeautifulSoup
-        self.page_source_path: str
 
     def _remove_async_tags(self) -> "MarkdownExportPlugin":
         spans = self.soup.find_all("span", class_="doc doc-labels")
@@ -90,11 +89,6 @@ class MarkdownExportPlugin(BasePlugin):  # type: ignore
 
     def _interpolate_docs_links(self) -> "MarkdownExportPlugin":
         links = self.soup.find_all("a")
-        page_depth = self.page_source_path.count("/")
-
-        ## Using the depth + 2 here because the links are relative to the root of
-        ## the SDK docs subdir, which sits at `/sdks/python` (two levels below the root)
-        dirs_up_prefix = "../" * (page_depth + 2)
 
         for link in links:
             href = link.get("href")
@@ -105,7 +99,10 @@ class MarkdownExportPlugin(BasePlugin):  # type: ignore
             href = cast(str, link["href"])
 
             if href.startswith("https://docs.hatchet.run/"):
-                link["href"] = href.replace("https://docs.hatchet.run/", dirs_up_prefix)
+                link["href"] = href.replace(
+                    "https://docs.hatchet.run/sdks/python/",
+                    "https://docs.hatchet.run/reference/python/",
+                ).replace("https://docs.hatchet.run/", "/")
 
         return self
 
@@ -129,8 +126,6 @@ class MarkdownExportPlugin(BasePlugin):  # type: ignore
     def on_post_page(
         self, output_content: str, page: Page, config: MkDocsConfig
     ) -> str:
-        self.page_source_path = page.file.src_uri
-
         content = self._preprocess_html(output_content)
         md_content = markdownify(content, heading_style="ATX", wrap=False)
 

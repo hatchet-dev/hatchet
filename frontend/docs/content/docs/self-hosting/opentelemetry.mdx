@@ -33,7 +33,7 @@ Values under `sharedConfig.env` apply to all backend services, so a `SERVER_OTEL
 
 ## What Hatchet emits
 
-When export is enabled, the engine and the API server initialize tracing and can emit spans, including spans for database queries traced through `otelpgx`. Spans are namespaced under `hatchet.run/`. Each exporting service sets the `service.name` resource attribute, from `SERVER_OTEL_SERVICE_NAME`, along with `library.language=go`, and adds `k8s.pod.name` and `k8s.namespace.name` when `K8S_POD_NAME` and `K8S_POD_NAMESPACE` are set.
+When export is enabled, the engine and the API server initialize tracing and can emit spans, including spans for database queries traced through `otelpgx`. Spans are namespaced under `hatchet.run/`. Each exporting service sets the `service.name` resource attribute, from `SERVER_OTEL_SERVICE_NAME`, along with `library.language=go`, and adds `k8s.pod.name`, `k8s.namespace.name`, and `cloud.region` when `K8S_POD_NAME`, `K8S_POD_NAMESPACE`, and `K8S_CLOUD_REGION` (or `AWS_REGION` / `AWS_DEFAULT_REGION`) are set.
 
 ## Configuration reference
 

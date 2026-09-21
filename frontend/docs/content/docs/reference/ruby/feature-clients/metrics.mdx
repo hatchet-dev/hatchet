@@ -1,0 +1,127 @@
+---
+title: "Metrics"
+---
+
+# Metrics Client
+
+Metrics client for reading metrics out of Hatchet's metrics API.
+
+This class provides a high-level interface for retrieving queue metrics, Prometheus metrics, task statistics, and task metrics from the Hatchet system.
+
+```ruby
+metrics = hatchet.metrics.get_queue_metrics
+```
+
+```ruby
+task_metrics = hatchet.metrics.get_task_metrics(
+  since: Time.now - 86400,
+  workflow_ids: ["wf-1"]
+)
+```
+
+It is available on the main client as `hatchet.metrics`.
+
+Methods:
+
+| Name                               | Description                                                                             |
+| ---------------------------------- | --------------------------------------------------------------------------------------- |
+| `get_queue_metrics`                | Retrieve the current queue metrics for the tenant.                                      |
+| `scrape_tenant_prometheus_metrics` | Scrape Prometheus metrics for the tenant.                                               |
+| `get_task_stats`                   | Get task statistics for the tenant.                                                     |
+| `get_task_metrics`                 | Retrieve task metrics grouped by status (queued, running, completed, failed, cancelled) |
+
+### Functions
+
+#### `get_queue_metrics`
+
+Retrieve the current queue metrics for the tenant.
+
+```ruby
+queues = hatchet.metrics.get_queue_metrics
+```
+
+Returns:
+
+| Type   | Description                |
+| ------ | -------------------------- |
+| `Hash` | The current queue metrics. |
+
+Raises:
+
+| Type                       | Description               |
+| -------------------------- | ------------------------- |
+| `HatchetSdkRest::ApiError` | If the API request fails. |
+
+#### `scrape_tenant_prometheus_metrics`
+
+Scrape Prometheus metrics for the tenant.
+
+```ruby
+prometheus_text = hatchet.metrics.scrape_tenant_prometheus_metrics
+```
+
+Returns:
+
+| Type     | Description                            |
+| -------- | -------------------------------------- |
+| `String` | The metrics in Prometheus text format. |
+
+Raises:
+
+| Type                       | Description               |
+| -------------------------- | ------------------------- |
+| `HatchetSdkRest::ApiError` | If the API request fails. |
+
+#### `get_task_stats`
+
+Get task statistics for the tenant.
+
+```ruby
+stats = hatchet.metrics.get_task_stats
+```
+
+Returns:
+
+| Type     | Description          |
+| -------- | -------------------- |
+| `Object` | The task statistics. |
+
+Raises:
+
+| Type                       | Description               |
+| -------------------------- | ------------------------- |
+| `HatchetSdkRest::ApiError` | If the API request fails. |
+
+#### `get_task_metrics`
+
+Retrieve task metrics grouped by status (queued, running, completed, failed, cancelled)
+
+```ruby
+metrics = hatchet.metrics.get_task_metrics(
+  since: Time.now - 86400,
+  workflow_ids: ["wf-1"]
+)
+puts "Completed: #{metrics.completed}, Failed: #{metrics.failed}"
+```
+
+Parameters:
+
+| Name                           | Type                   | Description                                                          | Default |
+| ------------------------------ | ---------------------- | -------------------------------------------------------------------- | ------- |
+| `since`                        | `Time \| nil`          | Start time for the metrics query (defaults to the past day if unset) | `nil`   |
+| `until_time`                   | `Time \| nil`          | End time for the metrics query.                                      | `nil`   |
+| `workflow_ids`                 | `Array<String> \| nil` | List of workflow IDs to filter the metrics by.                       | `nil`   |
+| `parent_task_external_id`      | `String \| nil`        | ID of the parent task to filter by.                                  | `nil`   |
+| `triggering_event_external_id` | `String \| nil`        | ID of the triggering event to filter by.                             | `nil`   |
+
+Returns:
+
+| Type          | Description                          |
+| ------------- | ------------------------------------ |
+| `TaskMetrics` | Task metrics with counts per status. |
+
+Raises:
+
+| Type                       | Description               |
+| -------------------------- | ------------------------- |
+| `HatchetSdkRest::ApiError` | If the API request fails. |

@@ -279,13 +279,15 @@ export function NewTenantInputForm({
         </div>
       )}
 
-      <Button
-        type="submit"
-        className="w-full"
-        disabled={isSaving || cannotSubmitRegion}
-      >
-        {isSaving ? 'Getting started...' : 'Get started'}
-      </Button>
+      <div className="flex justify-end">
+        <Button
+          type="submit"
+          size="sm"
+          disabled={isSaving || cannotSubmitRegion}
+        >
+          {isSaving ? 'Getting started...' : 'Get started'}
+        </Button>
+      </div>
     </form>
   );
 }

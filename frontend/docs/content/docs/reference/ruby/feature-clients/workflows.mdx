@@ -1,0 +1,133 @@
+---
+title: "Workflows"
+---
+
+# Workflows Client
+
+Workflows client for managing workflow definitions within Hatchet.
+
+Note that workflows are the declaration, _not_ the individual runs. If you're looking for runs, use the Runs client instead.
+
+```ruby
+workflow = hatchet.workflows.get("workflow-id")
+```
+
+```ruby
+workflows = hatchet.workflows.list(workflow_name: "my-workflow", limit: 10)
+```
+
+It is available on the main client as `hatchet.workflows`.
+
+Methods:
+
+| Name          | Description                                                        |
+| ------------- | ------------------------------------------------------------------ |
+| `get`         | Get a workflow by its ID.                                          |
+| `list`        | List all workflows in the tenant matching optional filters.        |
+| `get_version` | Get a workflow version by the workflow ID and an optional version. |
+| `delete`      | Permanently delete a workflow.                                     |
+
+### Functions
+
+#### `get`
+
+Get a workflow by its ID.
+
+```ruby
+workflow = hatchet.workflows.get("workflow-123")
+```
+
+Parameters:
+
+| Name          | Type     | Description                         | Default    |
+| ------------- | -------- | ----------------------------------- | ---------- |
+| `workflow_id` | `String` | The ID of the workflow to retrieve. | _required_ |
+
+Returns:
+
+| Type     | Description           |
+| -------- | --------------------- |
+| `Object` | The workflow details. |
+
+Raises:
+
+| Type                       | Description               |
+| -------------------------- | ------------------------- |
+| `HatchetSdkRest::ApiError` | If the API request fails. |
+
+#### `list`
+
+List all workflows in the tenant matching optional filters.
+
+```ruby
+workflows = hatchet.workflows.list(workflow_name: "my-workflow", limit: 10, offset: 0)
+```
+
+Parameters:
+
+| Name            | Type             | Description                                                       | Default |
+| --------------- | ---------------- | ----------------------------------------------------------------- | ------- |
+| `workflow_name` | `String \| nil`  | The name of the workflow to filter by (namespace will be applied) | `nil`   |
+| `limit`         | `Integer \| nil` | The maximum number of items to return.                            | `nil`   |
+| `offset`        | `Integer \| nil` | The offset to start the list from.                                | `nil`   |
+
+Returns:
+
+| Type     | Description          |
+| -------- | -------------------- |
+| `Object` | A list of workflows. |
+
+Raises:
+
+| Type                       | Description               |
+| -------------------------- | ------------------------- |
+| `HatchetSdkRest::ApiError` | If the API request fails. |
+
+#### `get_version`
+
+Get a workflow version by the workflow ID and an optional version.
+
+```ruby
+version = hatchet.workflows.get_version("workflow-123", version: "v2")
+```
+
+Parameters:
+
+| Name          | Type            | Description                                                      | Default    |
+| ------------- | --------------- | ---------------------------------------------------------------- | ---------- |
+| `workflow_id` | `String`        | The ID of the workflow to retrieve the version for.              | _required_ |
+| `version`     | `String \| nil` | The version to retrieve. If nil, the latest version is returned. | `nil`      |
+
+Returns:
+
+| Type     | Description           |
+| -------- | --------------------- |
+| `Object` | The workflow version. |
+
+Raises:
+
+| Type                       | Description               |
+| -------------------------- | ------------------------- |
+| `HatchetSdkRest::ApiError` | If the API request fails. |
+
+#### `delete`
+
+Permanently delete a workflow.
+
+**DANGEROUS: This will delete a workflow and all of its data**.
+
+```ruby
+hatchet.workflows.delete("workflow-123")
+```
+
+Parameters:
+
+| Name          | Type     | Description                       | Default    |
+| ------------- | -------- | --------------------------------- | ---------- |
+| `workflow_id` | `String` | The ID of the workflow to delete. | _required_ |
+
+Raises:
+
+| Type                       | Description               |
+| -------------------------- | ------------------------- |
+| `HatchetSdkRest::ApiError` | If the API request fails. |

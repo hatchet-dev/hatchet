@@ -6,6 +6,16 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+func TimestamptzFromUnixMicros(micros int64) pgtype.Timestamptz {
+	if micros == 0 {
+		return pgtype.Timestamptz{}
+	}
+
+	t := time.UnixMicro(micros)
+
+	return TimestamptzFromTime(t)
+}
+
 func TimestampFromTime(t time.Time) pgtype.Timestamp {
 	if t.IsZero() {
 		return pgtype.Timestamp{}

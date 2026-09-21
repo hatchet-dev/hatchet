@@ -2,7 +2,7 @@
 title: "Durable Execution"
 ---
 
-import DurableWorkflowDiagram from "@/components/DurableWorkflowDiagramWrapper";
+import { DurableExecution } from "@/components/flow-animations/DurableExecution";
 
 # Introduction to Durable Execution
 
@@ -16,7 +16,7 @@ One of the main promises of durable execution, when used correctly, is to give y
 
 This means that if you run a durable task to a midway point and the worker it's running on crashes, you can replay the task from whatever checkpoint it last reached without re-running any of the previous steps or duplicating any work. This is priceless in systems that cannot reasonably be made idempotent, so replaying on failure is impossible.
 
-<DurableWorkflowDiagram />
+<DurableExecution />
 
 ## Core Assumptions
 

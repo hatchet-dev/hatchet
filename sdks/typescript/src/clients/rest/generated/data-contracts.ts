@@ -43,6 +43,7 @@ export enum FeatureFlagId {
   TenantLogWorkflowFilterEnabled = 'tenant-log-workflow-filter-enabled',
   TraceMinimapEnabled = 'trace-minimap-enabled',
   OrganizationSsoEnabled = 'organization-sso-enabled',
+  OperatorDetailsEnabled = 'operator-details-enabled',
 }
 
 export enum WebhookWorkerRequestMethod {
@@ -1244,62 +1245,6 @@ export interface V1UpdateWebhookRequest {
   returnEventAsResponsePayload?: boolean;
 }
 
-export interface V1HTTPOperator {
-  metadata: APIResourceMeta;
-  /**
-   * The ID of the tenant associated with this operator.
-   * @format uuid
-   */
-  tenantId: string;
-  /** The name of the operator. */
-  name: string;
-  /** The HTTPS endpoint (https, port 443) that assigned tasks are delivered to. */
-  triggerEndpoint: string;
-  /** The HTTPS endpoint polled periodically to discover the actions this operator handles. */
-  healthcheckEndpoint: string;
-  /**
-   * The per-request timeout backstop, in seconds.
-   * @format int32
-   */
-  requestTimeoutSeconds: number;
-}
-
-export interface V1HTTPOperatorList {
-  pagination?: PaginationResponse;
-  rows?: V1HTTPOperator[];
-}
-
-export interface V1CreateHTTPOperatorRequest {
-  /** The name of the operator. */
-  name: string;
-  /** The HTTPS endpoint (https, port 443) that assigned tasks are delivered to. */
-  triggerEndpoint: string;
-  /** The HTTPS endpoint polled periodically to discover the actions this operator handles. */
-  healthcheckEndpoint: string;
-  /** The secret used to HMAC-sign delivered requests (sent in the X-Hatchet-Signature header). Write-only: it is never returned in responses. */
-  signingSecret: string;
-  /**
-   * The per-request timeout backstop, in seconds.
-   * @format int32
-   */
-  requestTimeoutSeconds: number;
-}
-
-/** Fields to update on an HTTP operator. Omitted fields are left unchanged. */
-export interface V1UpdateHTTPOperatorRequest {
-  /** The HTTPS endpoint (https, port 443) that assigned tasks are delivered to. */
-  triggerEndpoint?: string;
-  /** An optional HTTPS endpoint polled to verify the operator endpoint is reachable. */
-  healthcheckEndpoint?: string;
-  /** The secret used to HMAC-sign delivered requests. Write-only: it is never returned in responses. Provide a new value to rotate it. */
-  signingSecret?: string;
-  /**
-   * Optional override for the per-request timeout backstop, in seconds.
-   * @format int32
-   */
-  requestTimeoutSeconds?: number;
-}
-
 export interface V1CELDebugRequest {
   /** The CEL expression to evaluate */
   expression: string;
@@ -1389,6 +1334,11 @@ export interface APIMeta {
    * @example "eyJhbGciOiJFUzI1NiIs..."
    */
   authDisabledToken?: string;
+  /**
+   * whether this instance is running in embedded mode
+   * @example false
+   */
+  embedded?: boolean;
 }
 
 export interface APIMetaIntegration {
@@ -2571,6 +2521,13 @@ export interface Worker {
    */
   webhookId?: string;
   runtimeInfo?: WorkerRuntimeInfo;
+  /**
+   * The id of the operator that owns this worker, if it is an engine-managed operator worker.
+   * @format uuid
+   */
+  operatorId?: string;
+  /** The number of durable task runs owned by this operator that are currently evicted while waiting on durable events. Evicted runs hold no slots. Only set for operator workers. */
+  evictedDurableTaskCount?: number;
 }
 
 export interface WorkerList {

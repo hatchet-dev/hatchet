@@ -1,6 +1,3 @@
-/**
- * @module Tenant Client
- */
 import { Tenant } from '@hatchet/clients/rest/generated/data-contracts';
 import { HatchetClient } from '../client';
 

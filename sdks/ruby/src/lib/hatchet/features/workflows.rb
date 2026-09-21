@@ -8,10 +8,10 @@ module Hatchet
     # If you're looking for runs, use the Runs client instead.
     #
     # @example Getting a workflow
-    #   workflow = workflows_client.get("workflow-id")
+    #   workflow = hatchet.workflows.get("workflow-id")
     #
     # @example Listing workflows
-    #   workflows = workflows_client.list(workflow_name: "my-workflow", limit: 10)
+    #   workflows = hatchet.workflows.list(workflow_name: "my-workflow", limit: 10)
     #
     # @since 0.1.0
     class Workflows
@@ -33,7 +33,7 @@ module Hatchet
       # @return [Object] The workflow details
       # @raise [HatchetSdkRest::ApiError] If the API request fails
       # @example
-      #   workflow = workflows_client.get("workflow-123")
+      #   workflow = hatchet.workflows.get("workflow-123")
       def get(workflow_id)
         @workflow_api.workflow_get(workflow_id)
       end
@@ -46,7 +46,7 @@ module Hatchet
       # @return [Object] A list of workflows
       # @raise [HatchetSdkRest::ApiError] If the API request fails
       # @example
-      #   workflows = workflows_client.list(workflow_name: "my-workflow", limit: 10, offset: 0)
+      #   workflows = hatchet.workflows.list(workflow_name: "my-workflow", limit: 10, offset: 0)
       def list(workflow_name: nil, limit: nil, offset: nil)
         @workflow_api.workflow_list(
           @config.tenant_id,
@@ -65,7 +65,7 @@ module Hatchet
       # @return [Object] The workflow version
       # @raise [HatchetSdkRest::ApiError] If the API request fails
       # @example
-      #   version = workflows_client.get_version("workflow-123", version: "v2")
+      #   version = hatchet.workflows.get_version("workflow-123", version: "v2")
       def get_version(workflow_id, version: nil)
         @workflow_api.workflow_version_get(workflow_id, { version: version })
       end
@@ -78,7 +78,7 @@ module Hatchet
       # @return [void]
       # @raise [HatchetSdkRest::ApiError] If the API request fails
       # @example
-      #   workflows_client.delete("workflow-123")
+      #   hatchet.workflows.delete("workflow-123")
       def delete(workflow_id)
         @workflow_api.workflow_delete(workflow_id)
       end

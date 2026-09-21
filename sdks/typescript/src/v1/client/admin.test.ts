@@ -63,7 +63,8 @@ describe('AdminClient workflow name normalization', () => {
     await admin.runWorkflow('MyPascalWorkflow', { hello: 'world' });
 
     expect(admin.workflowsGrpc.triggerWorkflow).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'mypascalworkflow' })
+      expect.objectContaining({ name: 'mypascalworkflow' }),
+      expect.anything()
     );
   });
 
@@ -72,7 +73,8 @@ describe('AdminClient workflow name normalization', () => {
     await admin.runWorkflow('concurrencyCancelNewest', {});
 
     expect(admin.workflowsGrpc.triggerWorkflow).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'concurrencycancelnewest' })
+      expect.objectContaining({ name: 'concurrencycancelnewest' }),
+      expect.anything()
     );
   });
 
@@ -81,7 +83,8 @@ describe('AdminClient workflow name normalization', () => {
     await admin.runWorkflow('my-workflow', {});
 
     expect(admin.workflowsGrpc.triggerWorkflow).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'my-workflow' })
+      expect.objectContaining({ name: 'my-workflow' }),
+      expect.anything()
     );
   });
 
@@ -90,7 +93,8 @@ describe('AdminClient workflow name normalization', () => {
     await admin.runWorkflow('MyWorkflow', {});
 
     expect(admin.workflowsGrpc.triggerWorkflow).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'ns-myworkflow' })
+      expect.objectContaining({ name: 'ns-myworkflow' }),
+      expect.anything()
     );
   });
 

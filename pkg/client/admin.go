@@ -5,6 +5,7 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"sync"
@@ -15,6 +16,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	admincontracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
@@ -168,6 +170,7 @@ type AdminClient interface {
 	RunWorkflow(workflowName string, input interface{}, opts ...RunOptFunc) (*Workflow, error)
 
 	BulkRunWorkflow(workflows []*WorkflowRun) ([]string, error)
+	BulkRunWorkflows(workflows []*WorkflowRun) ([]*Workflow, error)
 
 	RunChildWorkflow(workflowName string, input interface{}, opts *ChildWorkflowOpts) (string, error)
 	RunChildWorkflows(workflows []*RunChildWorkflowsOpts) ([]string, error)
@@ -191,6 +194,39 @@ type IdempotencyViolationErr struct {
 
 func (e *IdempotencyViolationErr) Error() string {
 	return fmt.Sprintf("idempotency key collision: existing run %s", e.ExistingRunExternalId)
+}
+
+// BulkIdempotencyViolationErr is returned when one or more runs in a bulk trigger collide on idempotency keys.
+type BulkIdempotencyViolationErr struct {
+	SuccessfulRunExternalIds []string
+	Collisions               []*IdempotencyViolationErr
+}
+
+func (e *BulkIdempotencyViolationErr) Error() string {
+	return fmt.Sprintf("idempotency key collision in bulk trigger: %d successful, %d collision(s)", len(e.SuccessfulRunExternalIds), len(e.Collisions))
+}
+
+func parseBulkTriggerErr(err error) error {
+	if status.Code(err) != codes.AlreadyExists {
+		return fmt.Errorf("could not bulk trigger workflows: %w", err)
+	}
+
+	if st, ok := status.FromError(err); ok {
+		for _, detail := range st.Details() {
+			if bulkErr, ok := detail.(*v1contracts.BulkTriggerIdempotencyCollisionError); ok {
+				collisions := make([]*IdempotencyViolationErr, len(bulkErr.Collisions))
+				for i, c := range bulkErr.Collisions {
+					collisions[i] = &IdempotencyViolationErr{ExistingRunExternalId: c.GetExistingRunExternalId()}
+				}
+				return &BulkIdempotencyViolationErr{
+					SuccessfulRunExternalIds: bulkErr.GetSuccessfulWorkflowRunExternalIds(),
+					Collisions:               collisions,
+				}
+			}
+		}
+	}
+
+	return &DedupeViolationErr{details: fmt.Sprintf("could not bulk trigger workflows: %s", err.Error())}
 }
 
 type adminClientImpl struct {
@@ -470,7 +506,17 @@ func (a *adminClientImpl) RunWorkflow(workflowName string, input interface{}, op
 }
 
 func (a *adminClientImpl) BulkRunWorkflow(workflows []*WorkflowRun) ([]string, error) {
+	runs, err := a.BulkRunWorkflows(workflows)
 
+	ids := make([]string, len(runs))
+	for i, run := range runs {
+		ids[i] = run.RunId()
+	}
+
+	return ids, err
+}
+
+func (a *adminClientImpl) BulkRunWorkflows(workflows []*WorkflowRun) ([]*Workflow, error) {
 	triggerWorkflowRequests := make([]*v1contracts.TriggerWorkflowRequest, len(workflows))
 
 	for i, workflow := range workflows {
@@ -493,18 +539,92 @@ func (a *adminClientImpl) BulkRunWorkflow(workflows []*WorkflowRun) ([]string, e
 		}
 	}
 
-	r := admincontracts.BulkTriggerWorkflowRequest{
-		Workflows: triggerWorkflowRequests,
-	}
+	runIds, triggerErr := a.bulkTriggerChunked(triggerWorkflowRequests)
 
-	res, err := a.client.BulkTriggerWorkflow(a.ctx.newContext(context.Background()), &r)
+	listener, err := a.saveOrLoadListener()
 
 	if err != nil {
-		return nil, fmt.Errorf("could not bulk trigger workflows: %w", err)
+		return nil, fmt.Errorf("failed to subscribe to workflow run events: %w", err)
 	}
 
-	return res.WorkflowRunIds, nil
+	runs := make([]*Workflow, len(runIds))
+	for i, id := range runIds {
+		runs[i] = NewWorkflow(id, listener)
+	}
 
+	return runs, triggerErr
+}
+
+const (
+	// bulkTriggerMaxChunkBytes stays below the engine's default 4MB gRPC message limit,
+	// with headroom for per-request framing overhead.
+	bulkTriggerMaxChunkBytes = 3 * 1024 * 1024
+	bulkTriggerMaxChunkSize  = 1000
+)
+
+// nextChunkEnd returns the exclusive end index of the chunk starting at start, packing
+// requests until the byte or count limit is hit. A single oversized request forms its own chunk.
+func nextChunkEnd(requests []*v1contracts.TriggerWorkflowRequest, start int) int {
+	end := start
+	chunkBytes := 0
+	for end < len(requests) && end-start < bulkTriggerMaxChunkSize {
+		size := proto.Size(requests[end])
+		if end > start && chunkBytes+size > bulkTriggerMaxChunkBytes {
+			break
+		}
+		chunkBytes += size
+		end++
+	}
+	return end
+}
+
+// bulkTriggerChunked splits the requests into chunks that fit within the engine's gRPC
+// message limit and triggers every chunk, even if an earlier chunk fails. Run IDs of
+// successfully triggered chunks are returned in request order alongside any errors;
+// idempotency collisions across chunks are aggregated into a single BulkIdempotencyViolationErr.
+func (a *adminClientImpl) bulkTriggerChunked(requests []*v1contracts.TriggerWorkflowRequest) ([]string, error) {
+	runIds := make([]string, 0, len(requests))
+	var errs []error
+	var successfulIds []string
+	var collisions []*IdempotencyViolationErr
+
+	start := 0
+	for start < len(requests) {
+		end := nextChunkEnd(requests, start)
+
+		res, err := a.client.BulkTriggerWorkflow(a.ctx.newContext(context.Background()), &admincontracts.BulkTriggerWorkflowRequest{
+			Workflows: requests[start:end],
+		})
+
+		if err != nil {
+			err = parseBulkTriggerErr(err)
+
+			var bulkErr *BulkIdempotencyViolationErr
+			if errors.As(err, &bulkErr) {
+				successfulIds = append(successfulIds, bulkErr.SuccessfulRunExternalIds...)
+				collisions = append(collisions, bulkErr.Collisions...)
+			} else {
+				errs = append(errs, err)
+			}
+		} else {
+			runIds = append(runIds, res.WorkflowRunIds...)
+		}
+
+		start = end
+	}
+
+	if len(collisions) > 0 {
+		errs = append(errs, &BulkIdempotencyViolationErr{
+			SuccessfulRunExternalIds: successfulIds,
+			Collisions:               collisions,
+		})
+	}
+
+	if len(errs) == 1 {
+		return runIds, errs[0]
+	}
+
+	return runIds, errors.Join(errs...)
 }
 
 func (a *adminClientImpl) RunChildWorkflow(workflowName string, input interface{}, opts *ChildWorkflowOpts) (string, error) {
@@ -562,16 +682,7 @@ func (a *adminClientImpl) RunChildWorkflows(workflows []*RunChildWorkflowsOpts) 
 
 	}
 
-	res, err := a.client.BulkTriggerWorkflow(a.ctx.newContext(context.Background()), &admincontracts.BulkTriggerWorkflowRequest{
-		Workflows: triggerWorkflowRequests,
-	})
-
-	if err != nil {
-
-		return nil, fmt.Errorf("could not trigger child workflow: %w", err)
-	}
-
-	return res.WorkflowRunIds, nil
+	return a.bulkTriggerChunked(triggerWorkflowRequests)
 }
 
 func (a *adminClientImpl) PutRateLimit(key string, opts *types.RateLimitOpts) error {

@@ -2,32 +2,27 @@
 title: "Using Coding Agents"
 ---
 
-import { Callout, Steps } from "@/components/nextra-compat";
+import { Callout } from "@/components/nextra-compat";
 import { Tabs } from "@/components/nextra-compat";
-import {
-  McpUrl,
-  CursorDeeplinkButton,
-  CursorMcpConfig,
-  ClaudeCodeCommand,
-  CursorTabLabel,
-  ClaudeCodeTabLabel,
-  OtherAgentsTabLabel,
-} from "@/components/McpSetup";
+import UniversalTabs from "@/components/UniversalTabs";
+import { Snippet } from "@/components/code";
+import { snippets } from "@/lib/generated/snippets";
+import { McpUrl } from "@/components/McpSetup";
 import Keywords from "@/components/Keywords";
 
 # Using Coding Agents
 
-Hatchet is designed to work well with AI coding agents. This page covers how to give your agent access to Hatchet documentation and step-by-step skills for common CLI operations.
+Hatchet is designed to work well with AI coding agents. This page covers how to give your agent tools for operating Hatchet, step-by-step skills for common CLI operations, and access to Hatchet documentation.
 
 <Callout type="info">
-  **Prerequisite:** The `hatchet skills install` and `hatchet docs install`
-  commands require the Hatchet CLI. See the [CLI reference](/cli) for
-  installation instructions.
+  **Prerequisite:** The `hatchet skills install` and `hatchet mcp install`
+  commands require the Hatchet CLI. See the{" "}
+  <a href="/reference/cli">CLI reference</a> for installation instructions.
 </Callout>
 
 ## Agent Skills
 
-Agent skills are reference documents that teach AI coding agents how to use the Hatchet CLI — triggering workflows, starting workers, debugging runs, and more.
+Agent skills are reference documents that teach AI coding agents how to use the Hatchet CLI: triggering workflows, starting workers, debugging runs, and more.
 
 Run the following command in your project root to install the skill package:
 
@@ -47,100 +42,60 @@ After installation, commit the `skills/` directory and `AGENTS.md` to version co
 
 ### Available references
 
-| Reference                         | When to use                                           |
-| --------------------------------- | ----------------------------------------------------- |
-| `references/setup-cli.md`         | Installing the CLI, creating or listing profiles      |
-| `references/start-worker.md`      | Starting a dev worker for local development           |
-| `references/trigger-and-watch.md` | Triggering a workflow and polling for completion      |
-| `references/debug-run.md`         | Diagnosing a failed, stuck, or unexpected run         |
-| `references/replay-run.md`        | Re-running a previous workflow with same or new input |
+| Reference                          | When to use                                              |
+| ---------------------------------- | -------------------------------------------------------- |
+| `references/setup-cli.md`          | Installing the CLI, creating or listing profiles         |
+| `references/local-dev-embedded.md` | Running Hatchet locally with no token, server, or Docker |
+| `references/start-worker.md`       | Starting a dev worker for local development              |
+| `references/trigger-and-watch.md`  | Triggering a workflow and polling for completion         |
+| `references/debug-run.md`          | Diagnosing a failed, stuck, or unexpected run            |
+| `references/replay-run.md`         | Re-running a previous workflow with same or new input    |
+
+## Local Development with Embedded Mode
+
+For local development, an agent does not need an API token or Docker. [Embedded mode](/v1/embedded) runs a full Hatchet engine locally, so an agent can start a worker, trigger tasks, and inspect results without any account setup.
+
+Each SDK has an embedded entry point: Python uses `Hatchet.from_embedded()`, TypeScript uses `HatchetEmbeddedClient.init()` from `@hatchet-dev/typescript-sdk/v1/embedded`, and Go uses `hatchet.WithEmbedded()` with a blank import of `github.com/hatchet-dev/hatchet-embedded`:
+
+<UniversalTabs items={["Python", "Typescript", "Go"]}>
+  <Tabs.Tab title="Python">
+
+<Snippet src={snippets.python.embedded.worker.create_an_embedded_client} />
+
+  </Tabs.Tab>
+  <Tabs.Tab title="Typescript">
+
+<Snippet src={snippets.typescript.embedded.worker.create_an_embedded_client} />
+
+  </Tabs.Tab>
+  <Tabs.Tab title="Go">
+
+<Snippet src={snippets.go.embedded.main.create_an_embedded_client} />
+
+  </Tabs.Tab>
+</UniversalTabs>
+
+See [Embedded Mode](/v1/embedded) for configuration options, stopping the engine, and serving the dashboard.
 
 ## MCP Server
 
-Hatchet documentation is available as an **MCP (Model Context Protocol) server**, so AI coding assistants like Cursor and Claude Code can search and reference Hatchet docs directly.
+The Hatchet CLI includes a **local MCP (Model Context Protocol) server** that lets coding agents operate against a running Hatchet deployment: trigger workflow runs, inspect run status and events, list workers, replay runs, check engine status, and submit product feedback.
 
-MCP endpoint: <McpUrl />
+Add it to your agents with one command:
 
-<Tabs items={[<CursorTabLabel />, <ClaudeCodeTabLabel />, <OtherAgentsTabLabel />]}>
-  <Tabs.Tab>
+```bash copy
+hatchet mcp install
+```
 
-    <Tabs items={['Hatchet CLI', 'One-Click Install', 'Manual Config']}>
-      <Tabs.Tab>
+Use `--target` for non-interactive setup:
 
-        ```bash copy
-        hatchet docs install cursor
-        ```
+```bash copy
+hatchet mcp install --target claude-code,cursor
+```
 
-        This creates a `.cursor/rules/hatchet-docs.mdc` file and prints the one-click deeplink.
+Access is default-deny, you must grant access to [CLI profiles](/reference/cli/profiles) during the installation process or with `hatchet mcp auth` after installation. The only exception is [embedded instance](/v1/embedded), which is always available without an explicit grant.
 
-      </Tabs.Tab>
-      <Tabs.Tab>
-
-        Install the Hatchet docs MCP server in Cursor with one click:
-
-        <CursorDeeplinkButton />
-
-      </Tabs.Tab>
-      <Tabs.Tab>
-
-        <Steps>
-
-        ### Open Cursor Settings
-
-        Go to **Cursor Settings** → **MCP** → **Add new MCP server**.
-
-        ### Add the server configuration
-
-        <CursorMcpConfig />
-
-        ### Use in chat
-
-        Reference Hatchet docs in any Cursor chat with `@hatchet-docs` or ask questions and the agent will automatically search the docs.
-
-        </Steps>
-
-      </Tabs.Tab>
-    </Tabs>
-
-  </Tabs.Tab>
-  <Tabs.Tab>
-
-    <Tabs items={['Hatchet CLI', 'Command']}>
-      <Tabs.Tab>
-
-        ```bash copy
-        hatchet docs install claude-code
-        ```
-
-        If `claude` is on your PATH, this runs the command automatically. Otherwise it prints it for you to copy.
-
-      </Tabs.Tab>
-      <Tabs.Tab>
-
-        Run this command in your terminal:
-
-        <ClaudeCodeCommand />
-
-      </Tabs.Tab>
-    </Tabs>
-
-  </Tabs.Tab>
-  <Tabs.Tab>
-
-    For any AI tool that supports [llms.txt](https://llmstxt.org/), Hatchet docs are available at:
-
-    | Resource | URL |
-    |----------|-----|
-    | **llms.txt** (index) | [docs.hatchet.run/llms.txt](https://docs.hatchet.run/llms.txt) |
-    | **llms-full.txt** (all docs) | [docs.hatchet.run/llms-full.txt](https://docs.hatchet.run/llms-full.txt) |
-    | **Per-page markdown** | `docs.hatchet.run/llms/{section}/{page}.md` |
-    | **MCP endpoint** | <McpUrl /> |
-
-    Every documentation page also includes a `<link rel="alternate" type="text/markdown">` header
-    pointing to its markdown version, and a "View as Markdown" link at the top of the page.
-
-  </Tabs.Tab>
-</Tabs>
+See the [MCP server reference](/reference/cli/mcp) for all targets, scopes, and the grants model.
 
 ## llms.txt
 

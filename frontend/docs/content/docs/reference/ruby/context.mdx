@@ -1,0 +1,317 @@
+---
+title: "Context"
+---
+
+# Context
+
+The Hatchet Context class provides helper methods and useful data to tasks at runtime. It is passed as the second argument to all task blocks.
+
+There are two types of context classes you'll encounter:
+
+- `Hatchet::Context` - The standard context for regular tasks with methods for logging, task output retrieval, cancellation, and more.
+- `Hatchet::DurableContext` - An extended context for durable tasks that includes additional methods for durable execution like `sleep_for` and `wait_for`.
+
+## Context
+
+Context object passed to task execution blocks.
+
+Provides access to workflow run metadata, parent task outputs, logging, cancellation, and other runtime capabilities.
+
+```ruby
+workflow.task(:step2, parents: [step1]) do |input, ctx|
+  parent_result = ctx.task_output(step1)
+  { "sum" => parent_result["value"] + 1 }
+end
+```
+
+### Methods
+
+| Name                 | Description                                                            |
+| -------------------- | ---------------------------------------------------------------------- |
+| `task_output`        | Get the output of a parent task.                                       |
+| `was_skipped?`       | Check if a parent task was skipped.                                    |
+| `log`                | Log a message via the Hatchet logging system.                          |
+| `cancel`             | Cancel the current workflow run.                                       |
+| `cancelled?`         | Check if the task has been cancelled.                                  |
+| `refresh_timeout`    | Refresh the execution timeout for this task.                           |
+| `release_slot`       | Release the worker slot before the task completes.                     |
+| `put_stream`         | Put a stream chunk for real-time streaming output.                     |
+| `task_run_errors`    | Get errors from upstream task runs (used in on_failure tasks)          |
+| `get_task_run_error` | Get the error from a specific upstream task (used in on_failure tasks) |
+| `worker`             | Access the worker context for worker-level operations.                 |
+
+### Attributes
+
+#### `additional_metadata`
+
+Additional metadata attached to this run.
+
+Returns:
+
+| Type   | Description                               |
+| ------ | ----------------------------------------- |
+| `Hash` | Additional metadata attached to this run. |
+
+#### `attempt_number`
+
+Current attempt number (retry_count + 1)
+
+Returns:
+
+| Type      | Description                              |
+| --------- | ---------------------------------------- |
+| `Integer` | Current attempt number (retry_count + 1) |
+
+#### `deps`
+
+Resolved dependency values.
+
+Returns:
+
+| Type   | Description                 |
+| ------ | --------------------------- |
+| `Hash` | Resolved dependency values. |
+
+#### `filter_payload`
+
+Filter payload for event-triggered workflows.
+
+Returns:
+
+| Type          | Description                                   |
+| ------------- | --------------------------------------------- |
+| `Hash \| nil` | Filter payload for event-triggered workflows. |
+
+#### `priority`
+
+Task priority.
+
+Returns:
+
+| Type             | Description    |
+| ---------------- | -------------- |
+| `Integer \| nil` | Task priority. |
+
+#### `retry_count`
+
+Current retry count (0 on first attempt)
+
+Returns:
+
+| Type      | Description                              |
+| --------- | ---------------------------------------- |
+| `Integer` | Current retry count (0 on first attempt) |
+
+#### `step_run_id`
+
+The step run ID.
+
+Returns:
+
+| Type     | Description      |
+| -------- | ---------------- |
+| `String` | The step run ID. |
+
+#### `worker_id`
+
+The worker ID assigned by the server.
+
+Returns:
+
+| Type            | Description                           |
+| --------------- | ------------------------------------- |
+| `String \| nil` | The worker ID assigned by the server. |
+
+#### `workflow_run_id`
+
+The workflow run ID.
+
+Returns:
+
+| Type     | Description          |
+| -------- | -------------------- |
+| `String` | The workflow run ID. |
+
+### Functions
+
+#### `task_output`
+
+Get the output of a parent task.
+
+Parameters:
+
+| Name       | Type                       | Description                   | Default    |
+| ---------- | -------------------------- | ----------------------------- | ---------- |
+| `task_ref` | `Task \| Symbol \| String` | Reference to the parent task. | _required_ |
+
+Returns:
+
+| Type          | Description               |
+| ------------- | ------------------------- |
+| `Hash \| nil` | The parent task's output. |
+
+#### `was_skipped?`
+
+Check if a parent task was skipped.
+
+Parameters:
+
+| Name       | Type                       | Description                   | Default    |
+| ---------- | -------------------------- | ----------------------------- | ---------- |
+| `task_ref` | `Task \| Symbol \| String` | Reference to the parent task. | _required_ |
+
+Returns:
+
+| Type      | Description                   |
+| --------- | ----------------------------- |
+| `Boolean` | true if the task was skipped. |
+
+#### `log`
+
+Log a message via the Hatchet logging system. Sends the log to the server via gRPC if an event client is available.
+
+Parameters:
+
+| Name      | Type             | Description         | Default    |
+| --------- | ---------------- | ------------------- | ---------- |
+| `message` | `String \| Hash` | The message to log. | _required_ |
+
+#### `cancel`
+
+Cancel the current workflow run.
+
+Batch tasks share one context across every buffered member, so there is no single task run to cancel; instead this sends a batch CANCELLED event covering every member of the batch.
+
+#### `cancelled?`
+
+Check if the task has been cancelled.
+
+Returns:
+
+| Type      | Description                              |
+| --------- | ---------------------------------------- |
+| `Boolean` | true if cancellation has been requested. |
+
+#### `refresh_timeout`
+
+Refresh the execution timeout for this task.
+
+Parameters:
+
+| Name       | Type                | Description                                   | Default    |
+| ---------- | ------------------- | --------------------------------------------- | ---------- |
+| `duration` | `Integer \| String` | New timeout in seconds, or a duration string. | _required_ |
+
+#### `release_slot`
+
+Release the worker slot before the task completes. Useful for tasks that have a resource-intensive phase followed by a lighter phase.
+
+#### `put_stream`
+
+Put a stream chunk for real-time streaming output.
+
+Parameters:
+
+| Name   | Type     | Description               | Default    |
+| ------ | -------- | ------------------------- | ---------- |
+| `data` | `String` | The chunk data to stream. | _required_ |
+
+#### `task_run_errors`
+
+Get errors from upstream task runs (used in on_failure tasks)
+
+Returns:
+
+| Type                  | Description      |
+| --------------------- | ---------------- |
+| `Array<TaskRunError>` | Task run errors. |
+
+#### `get_task_run_error`
+
+Get the error from a specific upstream task (used in on_failure tasks)
+
+Parameters:
+
+| Name       | Type                       | Description                   | Default    |
+| ---------- | -------------------------- | ----------------------------- | ---------- |
+| `task_ref` | `Task \| Symbol \| String` | Reference to the failed task. | _required_ |
+
+Returns:
+
+| Type                  | Description                 |
+| --------------------- | --------------------------- |
+| `TaskRunError \| nil` | The task run error, or nil. |
+
+#### `worker`
+
+Access the worker context for worker-level operations. The returned `WorkerContext` exposes `id` (the worker id), `labels` (the current worker labels), and `upsert_labels` to add or update worker labels on the server at runtime.
+
+Returns:
+
+| Type                   | Description                             |
+| ---------------------- | --------------------------------------- |
+| `WorkerContext \| nil` | The worker context, if one is attached. |
+
+## DurableContext
+
+Bases: `Hatchet::Context`
+
+Extended context for durable tasks that supports sleep and event-waiting across task suspensions. All methods and attributes of `Context` are also available.
+
+Durable tasks can be suspended and resumed by the Hatchet engine, allowing long-running workflows that survive process restarts.
+
+```ruby
+hatchet.durable_task(name: "my_task") do |input, ctx|
+  ctx.sleep_for(duration: 60) # sleep for 60 seconds
+end
+```
+
+```ruby
+hatchet.durable_task(name: "my_task") do |input, ctx|
+  result = ctx.wait_for("event", Hatchet::UserEventCondition.new(event_key: "user:update"))
+end
+```
+
+### Methods
+
+| Name        | Description                                      |
+| ----------- | ------------------------------------------------ |
+| `sleep_for` | Sleep for a specified duration.                  |
+| `wait_for`  | Wait for a condition to be met (event or sleep). |
+
+### Functions
+
+#### `sleep_for`
+
+Sleep for a specified duration. The task is suspended and resumed by the engine after the duration expires, so no worker slot is blocked while sleeping (subject to the task's eviction policy).
+
+Parameters:
+
+| Name       | Type                | Description                                            | Default    |
+| ---------- | ------------------- | ------------------------------------------------------ | ---------- |
+| `duration` | `Integer \| String` | Duration in seconds, or a duration string (e.g. "60s") | _required_ |
+| `label`    | `String \| nil`     | Optional wait label shown in durable event logs.       | `nil`      |
+
+Returns:
+
+| Type          | Description                  |
+| ------------- | ---------------------------- |
+| `Hash \| nil` | Result from the sleep event. |
+
+#### `wait_for`
+
+Wait for a condition to be met (event or sleep). The task is suspended and resumed when the condition is satisfied.
+
+Parameters:
+
+| Name        | Type                                                  | Description                                      | Default    |
+| ----------- | ----------------------------------------------------- | ------------------------------------------------ | ---------- |
+| `key`       | `String`                                              | A unique key for this wait operation.            | _required_ |
+| `condition` | `UserEventCondition \| SleepCondition \| OrCondition` | The condition to wait for.                       | _required_ |
+| `label`     | `String \| nil`                                       | Optional wait label shown in durable event logs. | `nil`      |
+
+Returns:
+
+| Type   | Description                                                    |
+| ------ | -------------------------------------------------------------- |
+| `Hash` | Result from the wait, including which condition was satisfied. |

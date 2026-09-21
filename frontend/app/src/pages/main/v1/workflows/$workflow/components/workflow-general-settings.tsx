@@ -1,5 +1,4 @@
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
-import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
 import { Badge } from '@/components/v1/ui/badge';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { Label } from '@/components/v1/ui/label';
@@ -65,7 +64,14 @@ export default function WorkflowGeneralSettings({
         <ConfigurationSettings workflow={workflow} />
       </SettingsSection>
 
-      <CopyWorkflowConfigButton workflowConfig={workflow.workflowConfig} />
+      <SettingsSection title="Config">
+        <CodeHighlighter
+          className="my-1 max-w-3xl"
+          language="json"
+          code={JSON.stringify(workflow.workflowConfig ?? {}, null, 2)}
+          maxHeight="24rem"
+        />
+      </SettingsSection>
     </div>
   );
 }

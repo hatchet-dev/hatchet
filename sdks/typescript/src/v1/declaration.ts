@@ -311,7 +311,9 @@ export type TaskDefaults = {
   workerLabels?: CreateWorkflowTaskOpts<any, any>['desiredWorkerLabels'];
 
   /**
-   * (optional) the concurrency options for the task.
+   * (optional) the concurrency options for the task, processed in array order. Entries
+   * may be workflow-scoped strategies or tenant-scoped entries (`isTenantScoped`)
+   * strategies, whose definitions are upserted as part of workflow registration.
    */
   concurrency?: Concurrency | Concurrency[];
 };
@@ -430,7 +432,7 @@ export class BaseWorkflowDeclaration<
       warn: (message) => this.client!.admin.logger.warn(message),
     });
 
-    // Snapshot childIndex before incrementing — shared with Context.spawnIndex
+    // Snapshot childIndex before incrementing (shared with Context.spawnIndex)
     // via parentRunContextManager so both spawning APIs produce unique indices.
     const baseChildIndex = parentRunContext?.childIndex;
     const inputCount = Array.isArray(input) ? input.length : 1;

@@ -1,0 +1,52 @@
+---
+title: "Logs"
+---
+
+# Logs Client
+
+Logs client for interacting with Hatchet's logs API.
+
+This class provides a high-level interface for listing log lines associated with task runs in the Hatchet system.
+
+```ruby
+logs = hatchet.logs.list("task-run-id", limit: 100)
+```
+
+It is available on the main client as `hatchet.logs`.
+
+Methods:
+
+| Name   | Description                          |
+| ------ | ------------------------------------ |
+| `list` | List log lines for a given task run. |
+
+### Functions
+
+#### `list`
+
+List log lines for a given task run.
+
+```ruby
+logs = hatchet.logs.list("task-run-123", limit: 500, since: Time.now - 3600)
+```
+
+Parameters:
+
+| Name          | Type          | Description                                           | Default    |
+| ------------- | ------------- | ----------------------------------------------------- | ---------- |
+| `task_run_id` | `String`      | The ID of the task run to list logs for.              | _required_ |
+| `limit`       | `Integer`     | Maximum number of log lines to return (default: 1000) | `1000`     |
+| `since`       | `Time \| nil` | The start time to get logs for.                       | `nil`      |
+| `until_time`  | `Time \| nil` | The end time to get logs for.                         | `nil`      |
+
+Returns:
+
+| Type     | Description                                     |
+| -------- | ----------------------------------------------- |
+| `Object` | A list of log lines for the specified task run. |
+
+Raises:
+
+| Type                       | Description               |
+| -------------------------- | ------------------------- |
+| `HatchetSdkRest::ApiError` | If the API request fails. |

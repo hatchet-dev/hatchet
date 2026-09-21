@@ -283,7 +283,7 @@ func TestOLAPStatusUpdate_ReplayOfCompletedTask(t *testing.T) {
 
 			eventExternalIdToWorkflowRunId := map[uuid.UUID]uuid.UUID{f.externalId: f.externalId}
 
-			_, locksNotAcquired, err := repo.CreateTaskEvents(ctx, f.tenantId, events, eventExternalIdToWorkflowRunId)
+			_, locksNotAcquired, err := repo.CreateTaskEvents(ctx, f.tenantId, events, eventExternalIdToWorkflowRunId, nil, nil)
 			require.NoError(t, err)
 			require.Empty(t, locksNotAcquired)
 		}
@@ -321,7 +321,7 @@ func TestOLAPStatusUpdate_ReplayOfCompletedTask(t *testing.T) {
 		batches := replayEventBatches(f)
 
 		eventExternalIdToWorkflowRunId := map[uuid.UUID]uuid.UUID{f.externalId: f.externalId}
-		_, locksNotAcquired, err := repo.CreateTaskEvents(ctx, f.tenantId, batches[0], eventExternalIdToWorkflowRunId)
+		_, locksNotAcquired, err := repo.CreateTaskEvents(ctx, f.tenantId, batches[0], eventExternalIdToWorkflowRunId, nil, nil)
 		require.NoError(t, err)
 		require.Empty(t, locksNotAcquired)
 		assertOLAPTaskStatus(t, ctx, pool, f, "COMPLETED", 1)

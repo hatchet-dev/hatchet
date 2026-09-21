@@ -3,10 +3,12 @@ package telemetry
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/labstack/echo/v4"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
@@ -35,6 +37,57 @@ func (m *OTelMiddleware) Middleware() echo.MiddlewareFunc {
 		}),
 		otelecho.WithTracerProvider(tracerProvider),
 	)
+}
+
+// don't include oauthCallbackRoutes in telemetry
+var oauthCallbackRoutes = map[string]bool{
+	"/api/v1/users/github/callback": true,
+	"/api/v1/users/google/callback": true,
+	"/api/v1/users/slack/callback":  true,
+}
+
+// redact known-sensitive params
+var sensitiveQueryParams = map[string]struct{}{
+	"code":          {},
+	"state":         {},
+	"token":         {},
+	"access_token":  {},
+	"accesstoken":   {},
+	"refresh_token": {},
+	"refreshtoken":  {},
+	"api_key":       {},
+	"apikey":        {},
+	"secret":        {},
+	"client_secret": {},
+	"clientsecret":  {},
+	"password":      {},
+	"authorization": {},
+}
+
+func (m *OTelMiddleware) QueryParamMiddleware() echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			queryParams := c.QueryParams()
+
+			if len(queryParams) > 0 && !oauthCallbackRoutes[c.Path()] {
+				span := trace.SpanFromContext(c.Request().Context())
+
+				for name, values := range queryParams {
+					key := "url.query." + name
+
+					if _, isSensitive := sensitiveQueryParams[strings.ToLower(name)]; isSensitive {
+						span.SetAttributes(attribute.String(key, "<redacted>"))
+					} else if len(values) == 1 {
+						span.SetAttributes(attribute.String(key, values[0]))
+					} else {
+						span.SetAttributes(attribute.StringSlice(key, values))
+					}
+				}
+			}
+
+			return next(c)
+		}
+	}
 }
 
 // ErrorStatusMiddleware marks the current span as Error for any 4xx or 5xx response,

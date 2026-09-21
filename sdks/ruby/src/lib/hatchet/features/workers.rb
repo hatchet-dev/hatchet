@@ -8,10 +8,10 @@ module Hatchet
     # updating workers in the Hatchet system.
     #
     # @example Getting a worker
-    #   worker = workers_client.get("worker-id")
+    #   worker = hatchet.workers.get("worker-id")
     #
     # @example Listing all workers
-    #   workers = workers_client.list
+    #   workers = hatchet.workers.list
     #
     # @since 0.1.0
     class Workers
@@ -33,7 +33,7 @@ module Hatchet
       # @return [Object] The worker details
       # @raise [HatchetSdkRest::ApiError] If the API request fails
       # @example
-      #   worker = workers_client.get("worker-123")
+      #   worker = hatchet.workers.get("worker-123")
       def get(worker_id)
         @worker_api.worker_get(worker_id)
       end
@@ -43,7 +43,7 @@ module Hatchet
       # @return [Object] A list of workers
       # @raise [HatchetSdkRest::ApiError] If the API request fails
       # @example
-      #   workers = workers_client.list
+      #   workers = hatchet.workers.list
       def list
         @worker_api.worker_list(@config.tenant_id)
       end
@@ -55,7 +55,7 @@ module Hatchet
       # @return [Object] The updated worker
       # @raise [HatchetSdkRest::ApiError] If the API request fails
       # @example
-      #   updated = workers_client.update("worker-123", { is_paused: true })
+      #   updated = hatchet.workers.update("worker-123", { is_paused: true })
       def update(worker_id, opts)
         update_request = HatchetSdkRest::UpdateWorkerRequest.new(opts)
         @worker_api.worker_update(worker_id, update_request)

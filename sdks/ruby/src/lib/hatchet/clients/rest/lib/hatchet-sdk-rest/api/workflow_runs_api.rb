@@ -358,6 +358,7 @@ module HatchetSdkRest
     # Get a workflow run and its metadata to display on the \"detail\" page
     # @param v1_workflow_run [String] The workflow run id to get
     # @param [Hash] opts the optional parameters
+    # @option opts [Boolean] :include_orchestrator_events Whether to include the DAG orchestrator&#39;s task events, which are hidden by default
     # @return [V1WorkflowRunDetails]
     def v1_workflow_run_get(v1_workflow_run, opts = {})
       data, _status_code, _headers = v1_workflow_run_get_with_http_info(v1_workflow_run, opts)
@@ -368,6 +369,7 @@ module HatchetSdkRest
     # Get a workflow run and its metadata to display on the \&quot;detail\&quot; page
     # @param v1_workflow_run [String] The workflow run id to get
     # @param [Hash] opts the optional parameters
+    # @option opts [Boolean] :include_orchestrator_events Whether to include the DAG orchestrator&#39;s task events, which are hidden by default
     # @return [Array<(V1WorkflowRunDetails, Integer, Hash)>] V1WorkflowRunDetails data, response status code and response headers
     def v1_workflow_run_get_with_http_info(v1_workflow_run, opts = {})
       if @api_client.config.debugging
@@ -390,6 +392,7 @@ module HatchetSdkRest
 
       # query parameters
       query_params = opts[:query_params] || {}
+      query_params[:'includeOrchestratorEvents'] = opts[:'include_orchestrator_events'] if !opts[:'include_orchestrator_events'].nil?
 
       # header parameters
       header_params = opts[:header_params] || {}

@@ -110,3 +110,9 @@ CLAUDE.md
 
 .cache
 .rspec_status
+
+sdks/go/generator
+.pymon
+
+run-loadtest.sh
+run-local-loadtest.sh

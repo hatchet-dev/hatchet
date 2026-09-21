@@ -186,6 +186,7 @@ func (t *WorkerService) workerListV1(ctx echo.Context, tenant *sqlcv1.Tenant, re
 	}
 	opts.LabelKeys = labelKeys
 	opts.LabelValues = labelValues
+	opts.IncludeOperators = request.Params.IncludeOperators
 
 	listCtx, listSpan := telemetry.NewSpan(reqCtx, "worker-service.v1.list-workers")
 	defer listSpan.End()

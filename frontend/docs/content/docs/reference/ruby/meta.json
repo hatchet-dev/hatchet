@@ -1,0 +1,10 @@
+{
+  "pages": [
+    "index",
+    "client",
+    "context",
+    "feature-clients",
+    "runnables"
+  ],
+  "title": "Ruby SDK"
+}

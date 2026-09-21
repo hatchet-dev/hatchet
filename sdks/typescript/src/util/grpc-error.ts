@@ -11,6 +11,16 @@ export function isConnectionError(code: number | undefined): boolean {
 }
 
 /**
+ * Returns true if `e` is the DOMException thrown when an AbortSignal (e.g. from
+ * AbortSignal.timeout()) fires. This rejects the underlying call directly rather than
+ * surfacing as a gRPC status code, so it needs to be classified as transient separately
+ * from isConnectionError.
+ */
+export function isTimeoutOrAbortError(e: unknown): boolean {
+  return e instanceof DOMException && (e.name === 'TimeoutError' || e.name === 'AbortError');
+}
+
+/**
  * Returns the gRPC status code from an unknown value (e.g. from a catch block).
  * Used for checking Status.CANCELLED, Status.UNAVAILABLE, etc.
  */
