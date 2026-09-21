@@ -376,6 +376,25 @@ func (r *TaskRepositoryImpl) EnsureTablePartitionsExist(ctx context.Context) (bo
 	return r.queries.EnsureTablePartitionsExist(ctx, r.pool)
 }
 
+func createPayloadPartitionExternalIdUniqueConstraints(ctx context.Context, ddlConn *pgx.Conn, dts ...time.Time) error {
+	for _, dt := range dts {
+		_, err := ddlConn.Exec(
+			ctx,
+			fmt.Sprintf(
+				"ALTER TABLE v1_payload_%s ADD CONSTRAINT v1_payload_%s_external_id_uq UNIQUE (external_id)",
+				dt.UTC().Format("20060102"),
+				dt.UTC().Format("20060102"),
+			),
+		)
+
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	const leaseKey = "v1_task_partitions"
 
@@ -445,6 +464,12 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		if isLockNotAvailable(err) {
 			return ErrPartitionLockConflict
 		}
+		return err
+	}
+
+	if err = createPayloadPartitionExternalIdUniqueConstraints(ctx, ddlConn, today, tomorrow); err != nil {
+		releaseCreateConn()
+
 		return err
 	}
 
