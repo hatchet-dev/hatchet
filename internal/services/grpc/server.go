@@ -231,6 +231,20 @@ func NewServer(fs ...ServerOpt) (*Server, error) {
 		return nil, fmt.Errorf("tls config is required. use WithTLSConfig")
 	}
 
+	// the engine always serves the whole API; only the OTel collector is optional
+	switch {
+	case opts.ingestor == nil:
+		return nil, fmt.Errorf("ingestor is required. use WithIngestor")
+	case opts.dispatcher == nil:
+		return nil, fmt.Errorf("dispatcher is required. use WithDispatcher")
+	case opts.dispatcherv1 == nil:
+		return nil, fmt.Errorf("v1 dispatcher is required. use WithDispatcherV1")
+	case opts.admin == nil:
+		return nil, fmt.Errorf("admin service is required. use WithAdmin")
+	case opts.adminv1 == nil:
+		return nil, fmt.Errorf("v1 admin service is required. use WithAdminV1")
+	}
+
 	newLogger := opts.l.With().Str("service", "grpc").Logger()
 	opts.l = &newLogger
 
@@ -308,30 +322,20 @@ func (s *Server) handler() (http.Handler, error) {
 	mux := http.NewServeMux()
 	routes := grpcRoutes{}
 
-	if s.ingestor != nil {
-		routes.addService(eventcontracts.File_events_proto.Services().ByName("EventsService"))
-		mux.Handle(eventsconnect.NewEventsServiceHandler(s.ingestor, opts...))
-	}
+	routes.addService(eventcontracts.File_events_proto.Services().ByName("EventsService"))
+	mux.Handle(eventsconnect.NewEventsServiceHandler(s.ingestor, opts...))
 
-	if s.dispatcher != nil {
-		routes.addService(dispatchercontracts.File_dispatcher_proto.Services().ByName("Dispatcher"))
-		mux.Handle(dispatcherconnect.NewDispatcherHandler(s.dispatcher, opts...))
-	}
+	routes.addService(dispatchercontracts.File_dispatcher_proto.Services().ByName("Dispatcher"))
+	mux.Handle(dispatcherconnect.NewDispatcherHandler(s.dispatcher, opts...))
 
-	if s.dispatcherv1 != nil {
-		routes.addService(v1contracts.File_v1_dispatcher_proto.Services().ByName("V1Dispatcher"))
-		mux.Handle(v1connect.NewV1DispatcherHandler(s.dispatcherv1, opts...))
-	}
+	routes.addService(v1contracts.File_v1_dispatcher_proto.Services().ByName("V1Dispatcher"))
+	mux.Handle(v1connect.NewV1DispatcherHandler(s.dispatcherv1, opts...))
 
-	if s.admin != nil {
-		routes.addService(admincontracts.File_workflows_proto.Services().ByName("WorkflowService"))
-		mux.Handle(contractsconnect.NewWorkflowServiceHandler(s.admin, opts...))
-	}
+	routes.addService(admincontracts.File_workflows_proto.Services().ByName("WorkflowService"))
+	mux.Handle(contractsconnect.NewWorkflowServiceHandler(s.admin, opts...))
 
-	if s.adminv1 != nil {
-		routes.addService(v1contracts.File_v1_workflows_proto.Services().ByName("AdminService"))
-		mux.Handle(v1connect.NewAdminServiceHandler(s.adminv1, opts...))
-	}
+	routes.addService(v1contracts.File_v1_workflows_proto.Services().ByName("AdminService"))
+	mux.Handle(v1connect.NewAdminServiceHandler(s.adminv1, opts...))
 
 	if s.otelCollector != nil {
 		// Register as the standard OTLP TraceService for OTEL SDK compatibility
@@ -355,8 +359,8 @@ func (s *Server) handler() (http.Handler, error) {
 	return routes.unimplemented(deadlines.enforce(withStreamAbort(matchRequestCompression(mux)))), nil
 }
 
-// matchRequestCompression keeps the response compression rule gRPC clients have always had
-// from this server: a response is compressed only when its request was. gRPC clients advertise
+// matchRequestCompression compresses a gRPC response only when its request was compressed,
+// which is the rule gRPC servers follow and SDKs are sized for. gRPC clients advertise
 // gzip on every call whether or not they were configured to compress, and connect compresses
 // whenever the client advertises support, which would put every assigned action through gzip.
 func matchRequestCompression(next http.Handler) http.Handler {

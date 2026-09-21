@@ -98,7 +98,7 @@ func TestErrorInterceptorKeepsCodeOfGRPCStatusErrors(t *testing.T) {
 }
 
 // A status error with details, as an extension built against google.golang.org/grpc returns it,
-// reached the client with its details on origin/main.
+// reaches the client with every detail, including types the server does not know.
 func TestErrorInterceptorKeepsDetailsOfGRPCStatusErrors(t *testing.T) {
 	unknownType := &anypb.Any{TypeUrl: "type.googleapis.com/acme.NotRegisteredHere", Value: []byte{0x0a, 0x01, 0x78}}
 

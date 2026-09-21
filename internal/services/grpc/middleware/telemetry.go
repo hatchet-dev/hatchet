@@ -22,9 +22,9 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
-// The engine's gRPC server was instrumented by otelgrpc's stats handler. Spans and metrics keep
-// its instrumentation scope, names, attributes and units so that existing dashboards, alerts
-// and trace queries keep matching.
+// Spans and metrics follow the stable OpenTelemetry RPC conventions under otelgrpc's
+// instrumentation scope, names, attributes and units. Dashboards, alerts and trace queries
+// select on these, so they are a contract.
 const (
 	telemetryScopeName    = "go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	telemetryScopeVersion = "0.71.0"

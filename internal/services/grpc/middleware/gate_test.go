@@ -96,8 +96,8 @@ func (exhaustedLimiter) Limit(context.Context) error {
 	return status.Errorf(codes.ResourceExhausted, "dispatcher rate limit exceeded")
 }
 
-// The message is the one go-grpc-middleware's ratelimit interceptor produced around the
-// limiter's status error, byte for byte.
+// The message is the one go-grpc-middleware's ratelimit interceptor produces around the
+// limiter's status error, byte for byte. Callers may match on it.
 func TestGateRateLimitMessageMatchesTheGRPCMiddleware(t *testing.T) {
 	_, baseline := ratelimit.UnaryServerInterceptor(exhaustedLimiter{})(
 		context.Background(), nil, &grpc.UnaryServerInfo{FullMethod: "/Dispatcher/Register"}, nil,

@@ -14,8 +14,9 @@ import (
 
 type callStartKey struct{}
 
-// LoggingInterceptor logs the start and finish of every call with the same messages, fields and
-// levels the engine has always used for its gRPC server.
+// LoggingInterceptor logs the start and finish of every call. The messages, field names and
+// levels are a contract with log queries and alerts: grpc.code carries the canonical gRPC code
+// name and grpc.error the gRPC rendering of the error.
 func LoggingInterceptor(l *zerolog.Logger) connect.Interceptor {
 	return &handlerInterceptor{
 		before: func(ctx context.Context, spec connect.Spec, _ http.Header, peer connect.Peer) (context.Context, error) {

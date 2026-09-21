@@ -35,8 +35,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 )
 
-// These tests hold the transport behaviour a google.golang.org/grpc server gave callers and that
-// net/http does not give by default. Each one came out of the first review of the migration.
+// These tests hold the transport behaviour gRPC callers depend on and that net/http does not
+// give by default.
 
 // stalledDispatcher sends a message larger than the caller's flow-control window from another
 // goroutine, the way the dispatcher does, and then wants to return.
@@ -114,6 +114,7 @@ func startServerWith(t *testing.T, disp dispatcher.Dispatcher, maxMsg int, extra
 		WithConfig(sc),
 		WithLogger(&l),
 		WithDispatcher(disp),
+		withFakeServices(),
 		WithPort(port),
 		WithBindAddress("127.0.0.1"),
 		WithInsecure(),
@@ -309,7 +310,7 @@ func TestUnknownProceduresGetAGRPCStatus(t *testing.T) {
 		"/Dispatcher/NotAMethod": "unknown method NotAMethod for service Dispatcher",
 		"/Absent/Method":         "unknown service Absent",
 		// mounted on other servers, not on this one
-		"/EventsService/Push": "unknown service EventsService",
+		"/NoSuchService/Push": "unknown service NoSuchService",
 		"/nomethod":           `malformed method name: "/nomethod"`,
 	} {
 		req := rawGRPCRequest(t, context.Background(), env.addr, path, bytes.NewReader(grpcFrame(t, &dispatchercontracts.WorkerRegisterRequest{})))

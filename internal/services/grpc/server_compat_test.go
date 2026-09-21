@@ -35,10 +35,15 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/stats"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/wrapperspb"
+	"google.golang.org/protobuf/proto"
 
+	"github.com/hatchet-dev/hatchet/internal/services/admin"
+	adminv1 "github.com/hatchet-dev/hatchet/internal/services/admin/v1"
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	dispatcherconnect "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts/contractsconnect"
+	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
+	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1/v1connect"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/rpcstream"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/auth/token"
@@ -130,14 +135,22 @@ func (f *fakeDispatcher) Register(ctx context.Context, req *dispatchercontracts.
 		return nil, status.Error(codes.FailedPrecondition, "legacy status error")
 	case "panic":
 		panic("handler panicked")
-	case "details":
-		connectErr := connect.NewError(connect.CodeAlreadyExists, errors.New("idempotency key collision"))
+	case "details", "bulk-details":
+		// the same construction the admin services use for idempotency key collisions
+		var msg proto.Message = &v1contracts.IdempotencyCollisionError{ExistingRunExternalId: "existing-run-id"}
 
-		detail, err := connect.NewErrorDetail(wrapperspb.String("existing-run-id"))
+		if req.WorkerName == "bulk-details" {
+			msg = &v1contracts.BulkTriggerIdempotencyCollisionError{
+				SuccessfulWorkflowRunExternalIds: []string{"new-run-id"},
+			}
+		}
+
+		detail, err := connect.NewErrorDetail(msg)
 		if err != nil {
 			return nil, err
 		}
 
+		connectErr := connect.NewError(connect.CodeAlreadyExists, errors.New("idempotency key collision"))
 		connectErr.AddDetail(detail)
 
 		return nil, connectErr
@@ -225,6 +238,26 @@ func (f *fakeDispatcher) SubscribeToWorkflowRuns(ctx context.Context, stream *co
 		if err := sender.Send(&dispatchercontracts.WorkflowRunEvent{WorkflowRunId: req.WorkflowRunId}); err != nil {
 			return err
 		}
+	}
+}
+
+// The server requires every service. These tests only call the dispatcher, so the others are
+// typed placeholders whose methods are never reached.
+type (
+	fakeIngestor     struct{ ingestor.Ingestor }
+	fakeAdmin        struct{ admin.AdminService }
+	fakeAdminV1      struct{ adminv1.AdminService }
+	fakeDispatcherV1 struct {
+		v1connect.UnimplementedV1DispatcherHandler
+	}
+)
+
+func withFakeServices() ServerOpt {
+	return func(opts *ServerOpts) {
+		opts.ingestor = fakeIngestor{}
+		opts.admin = fakeAdmin{}
+		opts.adminv1 = fakeAdminV1{}
+		opts.dispatcherv1 = fakeDispatcherV1{}
 	}
 }
 
@@ -326,6 +359,7 @@ func startTestServer(t *testing.T, tr transport, pki *testPKI, rateLimit float64
 		WithLogger(&l),
 		WithAlerter(env.alerter),
 		WithDispatcher(env.disp),
+		withFakeServices(),
 		WithPort(port),
 		WithBindAddress("127.0.0.1"),
 		WithShutdownTimeout(2 * time.Second),
@@ -424,7 +458,7 @@ func TestGRPCClientCompatibility(t *testing.T) {
 					assert.Equal(t, "invalid auth token", status.Convert(err).Message(), name)
 				}
 
-				// scheme is case-insensitive, as it was with go-grpc-middleware
+				// the scheme is case-insensitive: SDKs send both Bearer and bearer
 				_, err := client.Register(metadata.NewOutgoingContext(context.Background(), metadata.Pairs("authorization", "bearer "+validToken)), &dispatchercontracts.WorkerRegisterRequest{WorkerName: "w"})
 				require.NoError(t, err)
 			})
@@ -479,24 +513,32 @@ func TestGRPCClientCompatibility(t *testing.T) {
 				require.NoError(t, err)
 			})
 
-			t.Run("error details survive", func(t *testing.T) {
+			t.Run("idempotency collision details decode as the SDKs decode them", func(t *testing.T) {
 				_, err := client.Register(authCtx(t, validToken), &dispatchercontracts.WorkerRegisterRequest{WorkerName: "details"})
 				st := status.Convert(err)
 				assert.Equal(t, codes.AlreadyExists, st.Code())
 				assert.Equal(t, "idempotency key collision", st.Message())
 				require.Len(t, st.Details(), 1)
 
-				detail, ok := st.Details()[0].(*wrapperspb.StringValue)
+				single, ok := st.Details()[0].(*v1contracts.IdempotencyCollisionError)
 				require.True(t, ok, "detail was %T", st.Details()[0])
-				assert.Equal(t, "existing-run-id", detail.Value)
+				assert.Equal(t, "existing-run-id", single.ExistingRunExternalId)
+
+				_, err = client.Register(authCtx(t, validToken), &dispatchercontracts.WorkerRegisterRequest{WorkerName: "bulk-details"})
+				st = status.Convert(err)
+				assert.Equal(t, codes.AlreadyExists, st.Code())
+				require.Len(t, st.Details(), 1)
+
+				bulk, ok := st.Details()[0].(*v1contracts.BulkTriggerIdempotencyCollisionError)
+				require.True(t, ok, "detail was %T", st.Details()[0])
+				assert.Equal(t, []string{"new-run-id"}, bulk.SuccessfulWorkflowRunExternalIds)
 			})
 
-			t.Run("unimplemented method and unregistered service", func(t *testing.T) {
+			t.Run("unimplemented method and unknown service", func(t *testing.T) {
 				_, err := client.GetVersion(authCtx(t, validToken), &dispatchercontracts.GetVersionRequest{})
 				assert.Equal(t, codes.Unimplemented, status.Code(err))
 
-				// the events service is not registered on this server
-				err = conn.Invoke(authCtx(t, validToken), "/EventsService/Push", &dispatchercontracts.GetVersionRequest{}, &dispatchercontracts.GetVersionResponse{})
+				err = conn.Invoke(authCtx(t, validToken), "/NoSuchService/Push", &dispatchercontracts.GetVersionRequest{}, &dispatchercontracts.GetVersionResponse{})
 				assert.Equal(t, codes.Unimplemented, status.Code(err))
 			})
 
@@ -720,7 +762,7 @@ func TestRateLimitIsPerTokenAndResourceExhausted(t *testing.T) {
 
 	require.Error(t, limited)
 	assert.Equal(t, codes.ResourceExhausted, status.Code(limited))
-	// the historical text, from the go-grpc-middleware wrapper the server used to run
+	// the message format is go-grpc-middleware's ratelimit interceptor's, which callers may match on
 	assert.Equal(t, "/Dispatcher/Register is rejected by grpc_ratelimit middleware, please retry later. rpc error: code = ResourceExhausted desc = dispatcher rate limit exceeded", status.Convert(limited).Message())
 
 	// another token has its own bucket
@@ -748,8 +790,8 @@ func TestShutdownForcesOpenStreamsClosedAfterTimeout(t *testing.T) {
 }
 
 // TestIdleConnectionSurvivesClientKeepalive holds an idle connection through two client keepalive
-// pings. grpc-go servers close connections that ping more often than their enforcement policy
-// allows; this server must tolerate the cadence every SDK uses.
+// pings. Every SDK pings every ten seconds, with or without an open stream, and the server must
+// tolerate that cadence.
 func TestIdleConnectionSurvivesClientKeepalive(t *testing.T) {
 	if testing.Short() {
 		t.Skip("waits for keepalive pings")

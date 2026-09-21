@@ -61,7 +61,7 @@ func (ts *testServer) durationPoints(t *testing.T) []metricdata.HistogramDataPoi
 	return histogram.DataPoints
 }
 
-// The golden values are what otelgrpc v0.71.0's server stats handler recorded for the same call
+// The golden values are what otelgrpc v0.71.0's server stats handler records for the same call
 // with its defaults (the stable RPC conventions).
 func TestTelemetryMatchesOtelGRPCForAnOKCall(t *testing.T) {
 	ts := startTestServer(t, nil, 1000, 1000)
@@ -92,7 +92,7 @@ func TestTelemetryMatchesOtelGRPCForAnOKCall(t *testing.T) {
 		attribute.String("rpc.method", "Dispatcher/Register"),
 		attribute.String("rpc.system.name", "grpc"),
 		attribute.String("rpc.response.status_code", "OK"),
-		// set by auth before; not part of otelgrpc's output
+		// the engine's own attribute, on top of otelgrpc's
 		attribute.String("hatchet.run/tenant.id", testTenantID.String()),
 	}, ts.serverAddrAttrs(t)...), span.Attributes())
 

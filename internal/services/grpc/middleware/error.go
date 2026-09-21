@@ -40,7 +40,7 @@ func expectedStatus(ctx context.Context, err error) error {
 		return connect.NewError(connect.CodeNotFound, goerrors.New("not found"))
 	}
 
-	// Extensions built against google.golang.org/grpc may still return status errors; keep
+	// Extensions built against google.golang.org/grpc return status errors; keep
 	// their code, message and details on the wire. The message of a wrapped status error is the
 	// text of the whole chain, as status.FromError reports it.
 	if st, ok := status.FromError(err); ok && st.Code() != codes.Unknown && st.Code() != codes.OK {

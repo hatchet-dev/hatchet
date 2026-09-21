@@ -83,7 +83,7 @@ type transportDeadlines struct {
 // http1UnaryWriteTimeout of its first byte. Server streams stay unbounded on the write side. An
 // idle keep-alive connection is not bounded, which is no different from an idle HTTP/2
 // connection: http.Server.IdleTimeout would also close HTTP/2 connections that have no open
-// stream, which google.golang.org/grpc never did to its callers.
+// stream, and gRPC clients expect an idle connection to stay open.
 func (d transportDeadlines) enforce(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		rc := http.NewResponseController(w)
