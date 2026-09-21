@@ -50,6 +50,45 @@ func TestAcquireSlotWaitingTimesOut(t *testing.T) {
 	}
 }
 
+func TestAcquireSlotWaitingCanceled(t *testing.T) {
+	tw := &TriggerWriter{semaphore: make(chan struct{}, 1)}
+
+	held, err := tw.acquireSlot(context.Background(), true)
+	if err != nil {
+		t.Fatalf("expected first acquire to succeed, got %v", err)
+	}
+	defer held()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err = tw.acquireSlot(ctx, true)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled, got %v", err)
+	}
+	if errors.Is(err, ErrNoTriggerSlots) {
+		t.Fatalf("cancel must not be reported as slot exhaustion, got %v", err)
+	}
+}
+
+func TestAcquireSlotWaitingCanceledDoesNotTakeFreeSlot(t *testing.T) {
+	tw := &TriggerWriter{semaphore: make(chan struct{}, 1)}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := tw.acquireSlot(ctx, true)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled, got %v", err)
+	}
+
+	release, err := tw.acquireSlot(context.Background(), false)
+	if err != nil {
+		t.Fatalf("expected free slot to remain available, got %v", err)
+	}
+	release()
+}
+
 func TestAcquireSlotWaitingUnblocks(t *testing.T) {
 	tw := &TriggerWriter{semaphore: make(chan struct{}, 1)}
 

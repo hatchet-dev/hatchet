@@ -57,11 +57,17 @@ func (tw *TriggerWriter) acquireSlot(ctx context.Context, wait bool) (func(), er
 	}
 
 	if wait {
+		// A client cancel is not slot exhaustion. Ingest maps ErrNoTriggerSlots to
+		// ResourceExhausted, which clients retry. Deadline expiry stays on that path.
+		if err := ctx.Err(); err != nil {
+			return nil, slotWaitErr(err)
+		}
+
 		select {
 		case tw.semaphore <- struct{}{}:
 			return func() { <-tw.semaphore }, nil
 		case <-ctx.Done():
-			return nil, fmt.Errorf("%w: %w", ErrNoTriggerSlots, ctx.Err())
+			return nil, slotWaitErr(ctx.Err())
 		}
 	}
 
@@ -71,6 +77,14 @@ func (tw *TriggerWriter) acquireSlot(ctx context.Context, wait bool) (func(), er
 	default:
 		return nil, ErrNoTriggerSlots
 	}
+}
+
+func slotWaitErr(err error) error {
+	if errors.Is(err, context.Canceled) {
+		return err
+	}
+
+	return fmt.Errorf("%w: %w", ErrNoTriggerSlots, err)
 }
 
 func (tw *TriggerWriter) TriggerFromEvents(ctx context.Context, tenantId uuid.UUID, eventIdToOpts map[uuid.UUID]v1.EventTriggerOpts) error {
