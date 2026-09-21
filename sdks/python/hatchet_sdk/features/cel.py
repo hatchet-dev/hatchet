@@ -20,12 +20,18 @@ class CELSuccess(BaseModel):
     output_type: Literal["bool", "string", "int"]
 
     def as_bool(self) -> bool:
+        if self.output_type != "bool":
+            raise ValueError(f"Cannot convert {self.output_type} result to bool")
         return self.output == "true"
 
     def as_str(self) -> str:
+        if self.output_type != "string":
+            raise ValueError(f"Cannot convert {self.output_type} result to str")
         return self.output
 
     def as_int(self) -> int:
+        if self.output_type != "int":
+            raise ValueError(f"Cannot convert {self.output_type} result to int")
         return int(self.output)
 
 
