@@ -17,6 +17,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/hatchet-dev/hatchet/internal/listutils"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -103,6 +104,7 @@ type ExternalStore interface {
 
 type PayloadStoreRepository interface {
 	Store(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) error
+	OverwriteExisting(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) error
 	Retrieve(ctx context.Context, tx sqlcv1.DBTX, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
 	RetrieveSingle(ctx context.Context, tx sqlcv1.DBTX, opt RetrievePayloadOpts) ([]byte, error)
 	RetrieveFromExternal(ctx context.Context, opts ...RetrieveFromExternalOpts) (map[RetrieveFromExternalOpts][]byte, error)
@@ -247,6 +249,39 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 	}
 
 	return err
+}
+
+func (p *payloadStoreRepositoryImpl) OverwriteExisting(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) error {
+	if len(payloads) == 0 {
+		return nil
+	}
+
+	uniquePayloads := listutils.UniqBy(payloads, func(payload StorePayloadOpts) PayloadUniqueKey {
+		return PayloadUniqueKey{
+			ID:              payload.Id,
+			InsertedAtMicro: payload.InsertedAt.Time.UnixMicro(),
+			TenantId:        payload.TenantId,
+			Type:            payload.Type,
+		}
+	})
+
+	params := sqlcv1.OverwritePayloadsParams{}
+
+	for _, payload := range uniquePayloads {
+		params.Ids = append(params.Ids, payload.Id)
+		params.Insertedats = append(params.Insertedats, payload.InsertedAt)
+		params.Types = append(params.Types, string(payload.Type))
+		params.Inlinecontents = append(params.Inlinecontents, payload.Payload)
+		params.Tenantids = append(params.Tenantids, payload.TenantId)
+	}
+
+	err := p.queries.OverwritePayloads(ctx, tx, params)
+
+	if err != nil {
+		return fmt.Errorf("failed to overwrite payloads: %w", err)
+	}
+
+	return nil
 }
 
 func (p *payloadStoreRepositoryImpl) Retrieve(ctx context.Context, tx sqlcv1.DBTX, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error) {

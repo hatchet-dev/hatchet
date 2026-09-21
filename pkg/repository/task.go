@@ -3180,10 +3180,10 @@ func (r *sharedRepository) replayTasks(
 			return nil, fmt.Errorf("missing payload store opts for step id %s", stepId)
 		}
 
-		err = r.payloadStore.Store(ctx, tx, storePayloadOpts...)
+		err = r.payloadStore.OverwriteExisting(ctx, tx, storePayloadOpts...)
 
 		if err != nil {
-			return nil, fmt.Errorf("failed to store payloads for step id %s: %w", stepId, err)
+			return nil, fmt.Errorf("failed to overwrite payloads for step id %s: %w", stepId, err)
 		}
 
 		for _, task := range replayRes {

@@ -353,6 +353,55 @@ func (q *Queries) MarkCutoverJobAsCompleted(ctx context.Context, db DBTX, key pg
 	return err
 }
 
+const overwritePayloads = `-- name: OverwritePayloads :exec
+WITH inputs AS (
+    SELECT DISTINCT
+        UNNEST($1::BIGINT[]) AS id,
+        UNNEST($2::TIMESTAMPTZ[]) AS inserted_at,
+        UNNEST(CAST($3::TEXT[] AS v1_payload_type[])) AS type,
+        UNNEST($4::JSONB[]) AS inline_content,
+        UNNEST($5::UUID[]) AS tenant_id
+), locked_payloads AS (
+    SELECT p.tenant_id, p.inserted_at, p.id, p.type
+    FROM v1_payload p
+    WHERE (p.tenant_id, p.inserted_at, p.id, p.type) IN (
+        SELECT tenant_id, inserted_at, id, type
+        FROM inputs
+    )
+    ORDER BY p.tenant_id, p.inserted_at, p.id, p.type
+    FOR UPDATE
+)
+
+UPDATE v1_payload p
+SET
+    location = 'INLINE',
+    external_location_key = NULL,
+    inline_content = i.inline_content,
+    updated_at = NOW()
+FROM inputs i
+JOIN locked_payloads l ON (l.tenant_id, l.inserted_at, l.id, l.type) = (i.tenant_id, i.inserted_at, i.id, i.type)
+WHERE (p.tenant_id, p.inserted_at, p.id, p.type) = (i.tenant_id, i.inserted_at, i.id, i.type)
+`
+
+type OverwritePayloadsParams struct {
+	Ids            []int64              `json:"ids"`
+	Insertedats    []pgtype.Timestamptz `json:"insertedats"`
+	Types          []string             `json:"types"`
+	Inlinecontents [][]byte             `json:"inlinecontents"`
+	Tenantids      []uuid.UUID          `json:"tenantids"`
+}
+
+func (q *Queries) OverwritePayloads(ctx context.Context, db DBTX, arg OverwritePayloadsParams) error {
+	_, err := db.Exec(ctx, overwritePayloads,
+		arg.Ids,
+		arg.Insertedats,
+		arg.Types,
+		arg.Inlinecontents,
+		arg.Tenantids,
+	)
+	return err
+}
+
 const readPayloads = `-- name: ReadPayloads :many
 WITH inputs AS (
     SELECT
