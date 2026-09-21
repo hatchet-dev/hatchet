@@ -421,7 +421,7 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	// so they cannot go through pgbouncer when it's configured.
 	ddlConn, release, err := sqlchelpers.AcquireConnectionWithStatementTimeout(ctx, r.ddlPool, r.l, 30*60*1000) // nolint:govet
 	if err != nil {
-		r.l.Error().Err(err).Msg("failed to acquire connection from ddlPool")
+		return fmt.Errorf("failed to acquire connection from ddlPool: %w", err)
 	}
 
 	createPartitionsTx, err := ddlConn.Begin(ctx)
