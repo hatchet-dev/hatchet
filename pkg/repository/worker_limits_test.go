@@ -50,9 +50,16 @@ func seedOperatorForLimits(t *testing.T, ctx context.Context, pool *pgxpool.Pool
 
 	operatorId := uuid.New()
 
+	// a DAG operator is always leased by the dispatcher
+	leasingManager := sqlcv1.V1OperatorLeasingManagerSELF
+
+	if kind == sqlcv1.V1OperatorKindDAG {
+		leasingManager = sqlcv1.V1OperatorLeasingManagerDISPATCHER
+	}
+
 	_, err := pool.Exec(ctx,
-		`INSERT INTO v1_operator (id, tenant_id, name, kind, config) VALUES ($1, $2, $3, $4, '{}'::jsonb)`,
-		operatorId, tenantId, "op-"+operatorId.String()[:8], string(kind),
+		`INSERT INTO v1_operator (id, tenant_id, name, kind, leasing_manager, config) VALUES ($1, $2, $3, $4, $5, '{}'::jsonb)`,
+		operatorId, tenantId, "op-"+operatorId.String()[:8], string(kind), string(leasingManager),
 	)
 	require.NoError(t, err)
 

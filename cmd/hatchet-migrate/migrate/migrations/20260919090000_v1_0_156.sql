@@ -18,6 +18,9 @@ ALTER TABLE v1_operator ADD COLUMN leasing_manager v1_operator_leasing_manager N
 -- Every DAG operator row was claimed by a dispatcher before the column existed.
 UPDATE v1_operator SET leasing_manager = 'DISPATCHER' WHERE kind = 'DAG';
 
+ALTER TABLE v1_operator
+    ADD CONSTRAINT v1_operator_dag_leasing_manager_check CHECK (kind <> 'DAG' OR leasing_manager = 'DISPATCHER');
+
 -- ensureDAGOperator checks and then inserts, so two concurrent registrations could have created
 -- a tenant's DAG operator twice. The oldest row keeps its name so the unique index can build.
 UPDATE v1_operator dup
@@ -43,15 +46,19 @@ FROM v1_operator op
 WHERE op.id = w."operatorId" AND op.kind = 'DAG';
 
 -- +goose Down
-
+-- The statements are sent as one query, which Postgres runs as a single transaction.
+-- +goose StatementBegin
 ALTER TABLE "Worker"
-    DROP COLUMN IF EXISTS "isExemptFromLimits",
-    DROP COLUMN IF EXISTS "operatorActionCount";
+    DROP COLUMN "isExemptFromLimits",
+    DROP COLUMN "operatorActionCount";
 
-DROP INDEX IF EXISTS v1_operator_tenant_name_kind_key;
+DROP INDEX v1_operator_tenant_name_kind_key;
 
-ALTER TABLE v1_operator DROP COLUMN leasing_manager;
+ALTER TABLE v1_operator
+    DROP CONSTRAINT v1_operator_dag_leasing_manager_check,
+    DROP COLUMN leasing_manager;
 
-DROP TYPE IF EXISTS v1_operator_leasing_manager;
+DROP TYPE v1_operator_leasing_manager;
+-- +goose StatementEnd
 
 -- Postgres cannot drop a value from an enum type, so 'GRPC' stays on v1_operator_kind.
