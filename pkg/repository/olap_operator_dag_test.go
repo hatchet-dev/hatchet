@@ -17,11 +17,12 @@ import (
 )
 
 type operatorDagFixture struct {
-	tenantId      uuid.UUID
-	dagId         int64
-	dagInsertedAt pgtype.Timestamptz
-	dagExternalId uuid.UUID
-	workflowId    uuid.UUID
+	tenantId          uuid.UUID
+	dagId             int64
+	dagInsertedAt     pgtype.Timestamptz
+	dagExternalId     uuid.UUID
+	workflowId        uuid.UUID
+	workflowVersionId uuid.UUID
 }
 
 func seedOperatorDag(t *testing.T, ctx context.Context, repo *OLAPRepositoryImpl, dagId int64) operatorDagFixture {
@@ -32,11 +33,12 @@ func seedOperatorDag(t *testing.T, ctx context.Context, repo *OLAPRepositoryImpl
 
 func newOperatorDagFixture(dagId int64, dagExternalId uuid.UUID) operatorDagFixture {
 	return operatorDagFixture{
-		tenantId:      uuid.New(),
-		dagId:         dagId,
-		dagInsertedAt: pgtype.Timestamptz{Time: time.Now().UTC().Truncate(time.Microsecond), Valid: true},
-		dagExternalId: dagExternalId,
-		workflowId:    uuid.New(),
+		tenantId:          uuid.New(),
+		dagId:             dagId,
+		dagInsertedAt:     pgtype.Timestamptz{Time: time.Now().UTC().Truncate(time.Microsecond), Valid: true},
+		dagExternalId:     dagExternalId,
+		workflowId:        uuid.New(),
+		workflowVersionId: uuid.New(),
 	}
 }
 
@@ -54,7 +56,7 @@ func (f operatorDagFixture) create(t *testing.T, ctx context.Context, repo *OLAP
 			ExternalID:        f.dagExternalId,
 			DisplayName:       "operator-dag-test",
 			WorkflowID:        f.workflowId,
-			WorkflowVersionID: uuid.New(),
+			WorkflowVersionID: f.workflowVersionId,
 		},
 		Input:              []byte(`{}`),
 		AdditionalMetadata: []byte(`{}`),
@@ -171,10 +173,15 @@ func (f operatorDagFixture) operatorRunIds() map[uuid.UUID]struct{} {
 
 func (f operatorDagFixture) orchestratorUpdate(status sqlcv1.V1ReadableStatusOlap, retryCount int32) OrchestratorDAGStatusUpdateOpt {
 	return OrchestratorDAGStatusUpdateOpt{
-		DagId:          f.dagId,
-		DagInsertedAt:  f.dagInsertedAt,
-		ReadableStatus: status,
-		RetryCount:     retryCount,
+		DagId:              f.dagId,
+		DagInsertedAt:      f.dagInsertedAt,
+		ReadableStatus:     status,
+		RetryCount:         retryCount,
+		ExternalId:         f.dagExternalId,
+		DisplayName:        "orchestrator-task",
+		WorkflowId:         f.workflowId,
+		WorkflowVersionId:  f.workflowVersionId,
+		AdditionalMetadata: []byte(`{}`),
 	}
 }
 
@@ -550,5 +557,80 @@ func TestOperatorDAG_CatchesUpWhenOrchestratorEventsPrecedeDagRow(t *testing.T) 
 		f.create(t, ctx, repo)
 
 		f.assertDagStatus(t, ctx, pool, "QUEUED")
+	})
+}
+
+func TestOperatorDAG_StatusUpdateWithoutDagRowIsNotLost(t *testing.T) {
+	basePool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+
+	pool := createEnumAwarePool(t, basePool)
+	repo := createOLAPRepositoryWithPayloadStore(t, pool)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	require.NoError(t, repo.UpdateTablePartitions(ctx))
+
+	t.Run("terminal update before dag row survives the later create", func(t *testing.T) {
+		f := newOperatorDagFixture(700, uuid.New())
+
+		result := f.applyOrchestratorEvents(t, ctx, repo, f.orchestratorUpdate(sqlcv1.V1ReadableStatusOlapCOMPLETED, 0))
+		require.Len(t, result.DAGRows, 1, "the update must be reported so downstream consumers still see the outcome")
+
+		f.assertDagStatus(t, ctx, pool, "COMPLETED")
+
+		f.create(t, ctx, repo)
+
+		f.assertDagStatus(t, ctx, pool, "COMPLETED")
+	})
+
+	t.Run("create overwrites the metadata the update could not know", func(t *testing.T) {
+		f := newOperatorDagFixture(701, uuid.New())
+
+		f.applyOrchestratorEvents(t, ctx, repo, f.orchestratorUpdate(sqlcv1.V1ReadableStatusOlapCOMPLETED, 0))
+		f.create(t, ctx, repo)
+
+		var displayName string
+		var isDagOperator bool
+
+		err := pool.QueryRow(ctx, `
+			SELECT display_name, is_dag_operator
+			FROM v1_dags_olap
+			WHERE tenant_id = $1 AND id = $2
+		`, f.tenantId, f.dagId).Scan(&displayName, &isDagOperator)
+		require.NoError(t, err)
+
+		assert.Equal(t, "operator-dag-test", displayName)
+		assert.True(t, isDagOperator)
+	})
+
+	t.Run("update inserts a lookup row the create can be found by", func(t *testing.T) {
+		f := newOperatorDagFixture(702, uuid.New())
+
+		f.applyOrchestratorEvents(t, ctx, repo, f.orchestratorUpdate(sqlcv1.V1ReadableStatusOlapRUNNING, 0))
+
+		var dagId int64
+
+		err := pool.QueryRow(ctx, `
+			SELECT dag_id
+			FROM v1_lookup_table_olap
+			WHERE tenant_id = $1 AND external_id = $2
+		`, f.tenantId, f.dagExternalId).Scan(&dagId)
+		require.NoError(t, err)
+
+		assert.Equal(t, f.dagId, dagId)
+	})
+
+	t.Run("a stale update cannot lower a status the create already raised", func(t *testing.T) {
+		f := newOperatorDagFixture(703, uuid.New())
+
+		f.applyOrchestratorEvents(t, ctx, repo, f.orchestratorUpdate(sqlcv1.V1ReadableStatusOlapCOMPLETED, 0))
+		f.create(t, ctx, repo)
+
+		result := f.applyOrchestratorEvents(t, ctx, repo, f.orchestratorUpdate(sqlcv1.V1ReadableStatusOlapRUNNING, 0))
+		assert.Empty(t, result.DAGRows)
+
+		f.assertDagStatus(t, ctx, pool, "COMPLETED")
 	})
 }

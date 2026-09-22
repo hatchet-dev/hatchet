@@ -2442,56 +2442,75 @@ WITH inputs AS (
         UNNEST(@dagIds::BIGINT[]) AS dag_id,
         UNNEST(@dagInsertedAts::TIMESTAMPTZ[]) AS dag_inserted_at,
         UNNEST(@statuses::v1_readable_status_olap[]) AS new_readable_status,
-        UNNEST(@retryCounts::INTEGER[]) AS retry_count
-), locked_dags AS (
-    SELECT
-        d.id,
-        d.inserted_at,
-        d.tenant_id,
-        i.new_readable_status,
-        i.retry_count AS new_retry_count
-    FROM v1_dags_olap d
-    JOIN inputs i ON (d.id, d.inserted_at) = (i.dag_id, i.dag_inserted_at)
-    WHERE
-        d.tenant_id = @tenantId::UUID
-        AND (
-            -- a newer attempt always applies, so a replay revives a terminal DAG and a straggler
-            -- from the previous attempt can no longer clobber it
-            (
-                i.retry_count > d.latest_retry_count
-            ) OR
-            -- within an attempt, only move forward through QUEUED -> RUNNING -> terminal
-            (
-                i.retry_count = d.latest_retry_count
-                AND v1_status_to_priority(i.new_readable_status) > v1_status_to_priority(d.readable_status)
-            ) OR
-            -- EVICTED is reversible (a durable restore moves it back to RUNNING) but outranks
-            -- RUNNING by priority, so it needs an explicit escape hatch
-            (
-                i.retry_count = d.latest_retry_count
-                AND d.readable_status = 'EVICTED'
-                AND i.new_readable_status != 'EVICTED'
-            )
-        )
-    ORDER BY d.inserted_at, d.id
-    FOR UPDATE OF d
-), updated_dags AS (
-    UPDATE v1_dags_olap d
-    SET
-        readable_status = ld.new_readable_status,
-        latest_retry_count = ld.new_retry_count
-    FROM locked_dags ld
-    WHERE (d.inserted_at, d.id, d.tenant_id) = (ld.inserted_at, ld.id, ld.tenant_id)
-    RETURNING d.tenant_id, d.id, d.inserted_at, d.external_id, d.readable_status, d.workflow_id
+        UNNEST(@retryCounts::INTEGER[]) AS retry_count,
+        UNNEST(@externalIds::UUID[]) AS external_id,
+        UNNEST(@displayNames::TEXT[]) AS display_name,
+        UNNEST(@workflowIds::UUID[]) AS workflow_id,
+        UNNEST(@workflowVersionIds::UUID[]) AS workflow_version_id,
+        UNNEST(@additionalMetadatas::JSONB[]) AS additional_metadata
+)
+INSERT INTO v1_dags_olap (
+    tenant_id,
+    id,
+    inserted_at,
+    external_id,
+    display_name,
+    workflow_id,
+    workflow_version_id,
+    input,
+    additional_metadata,
+    total_tasks,
+    readable_status,
+    latest_retry_count,
+    is_dag_operator
 )
 SELECT
-    ud.tenant_id::UUID AS tenant_id,
-    ud.id::BIGINT AS dag_id,
-    ud.inserted_at::TIMESTAMPTZ AS dag_inserted_at,
-    ud.external_id::UUID AS external_id,
-    ud.readable_status::v1_readable_status_olap AS readable_status,
-    ud.workflow_id::UUID AS workflow_id
-FROM updated_dags ud;
+    @tenantId::UUID,
+    i.dag_id,
+    i.dag_inserted_at,
+    i.external_id,
+    i.display_name,
+    i.workflow_id,
+    i.workflow_version_id,
+    '{}'::JSONB,
+    i.additional_metadata,
+    0,
+    i.new_readable_status,
+    i.retry_count,
+    TRUE
+FROM inputs i
+ORDER BY i.dag_inserted_at, i.dag_id
+ON CONFLICT (inserted_at, id) DO UPDATE SET
+    readable_status = EXCLUDED.readable_status,
+    latest_retry_count = EXCLUDED.latest_retry_count
+WHERE
+    v1_dags_olap.tenant_id = @tenantId::UUID
+    AND (
+        -- a newer attempt always applies, so a replay revives a terminal DAG and a straggler
+        -- from the previous attempt can no longer clobber it
+        (
+            EXCLUDED.latest_retry_count > v1_dags_olap.latest_retry_count
+        ) OR
+        -- within an attempt, only move forward through QUEUED -> RUNNING -> terminal
+        (
+            EXCLUDED.latest_retry_count = v1_dags_olap.latest_retry_count
+            AND v1_status_to_priority(EXCLUDED.readable_status) > v1_status_to_priority(v1_dags_olap.readable_status)
+        ) OR
+        -- EVICTED is reversible (a durable restore moves it back to RUNNING) but outranks
+        -- RUNNING by priority, so it needs an explicit escape hatch
+        (
+            EXCLUDED.latest_retry_count = v1_dags_olap.latest_retry_count
+            AND v1_dags_olap.readable_status = 'EVICTED'
+            AND EXCLUDED.readable_status != 'EVICTED'
+        )
+    )
+RETURNING
+    tenant_id::UUID AS tenant_id,
+    id::BIGINT AS dag_id,
+    inserted_at::TIMESTAMPTZ AS dag_inserted_at,
+    external_id::UUID AS external_id,
+    readable_status::v1_readable_status_olap AS readable_status,
+    workflow_id::UUID AS workflow_id;
 
 -- name: CreateDagToTaskOLAPSelfMappings :exec
 -- For operator-managed DAGs, maps the DAG to its orchestrator task's events (the orchestrator
