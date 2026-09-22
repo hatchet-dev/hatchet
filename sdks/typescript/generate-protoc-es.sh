@@ -49,6 +49,7 @@ done < <(find "$IN_DIR" -name '*.proto' -print0 | LC_ALL=C sort -z)
 
 [ "${#PROTOS[@]}" -gt 0 ] || fail "no .proto files found under $IN_DIR"
 
+mkdir -p "$(dirname "$OUT_DIR")"
 STAGE_DIR="$(mktemp -d "${OUT_DIR}.XXXXXX")"
 trap 'rm -rf "$STAGE_DIR"' EXIT
 

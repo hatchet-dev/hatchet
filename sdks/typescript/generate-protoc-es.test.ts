@@ -101,6 +101,15 @@ describe('generate-protoc-es.sh', () => {
     expect(readdirSync(join(repo.sdk, 'src'))).toEqual(['protoc-es']);
   });
 
+  it('generates into a checkout that has no output directory yet', () => {
+    repo.withInputs(['ordinary.proto']);
+    rmSync(join(repo.sdk, 'src'), { recursive: true });
+
+    expect(repo.run().status).toBe(0);
+
+    expect(readdirSync(repo.out)).toEqual(['generated.ts']);
+  });
+
   it('keeps the existing output when the compiler fails', () => {
     repo.withInputs(['ordinary.proto']);
 
