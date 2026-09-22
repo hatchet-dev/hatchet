@@ -1,10 +1,27 @@
 import { readFileSync } from 'fs';
 import type { SecureClientSessionOptions } from 'http2';
-import { compressionGzip, createGrpcTransport } from '@connectrpc/connect-node';
+import {
+  compressionGzip,
+  createGrpcTransport,
+  type GrpcTransportOptions,
+} from '@connectrpc/connect-node';
 import type { ClientConfig } from '@clients/hatchet-client/client-config';
 import { createAuthInterceptor, type Transport } from './transport';
 
 const DEFAULT_MAX_MESSAGE_BYTES = 4 * 1024 * 1024;
+
+/**
+ * The connection settings the `nice-grpc` channel uses (`grpc.keepalive_time_ms`,
+ * `grpc.keepalive_timeout_ms`, `grpc.keepalive_permit_without_calls` and
+ * `grpc.client_idle_timeout_ms` in `util/grpc-helpers.ts`), so a unary connection is kept alive,
+ * given up on and idled exactly as a streaming one.
+ */
+export const SESSION_OPTIONS = {
+  pingIntervalMs: 10 * 1000,
+  pingTimeoutMs: 60 * 1000,
+  pingIdleConnection: true,
+  idleConnectionTimeoutMs: 60 * 1000,
+} as const;
 
 /**
  * Builds the TLS session options for the engine connection from the client's `tls_config`:
@@ -13,7 +30,7 @@ const DEFAULT_MAX_MESSAGE_BYTES = 4 * 1024 * 1024;
  * overrides the hostname used for SNI and certificate verification, which is what lets a
  * client reach an engine through an address its certificate does not name.
  */
-function tlsSessionOptions(tls: ClientConfig['tls_config']): SecureClientSessionOptions {
+export function tlsSessionOptions(tls: ClientConfig['tls_config']): SecureClientSessionOptions {
   const options: SecureClientSessionOptions = {};
 
   if (tls.ca_file) {
@@ -50,7 +67,7 @@ export function createNodeTransport(config: ClientConfig): Transport {
 
   const get = () => {
     if (!transport) {
-      transport = buildNodeTransport(config);
+      transport = createGrpcTransport(nodeTransportOptions(config));
     }
     return transport;
   };
@@ -61,18 +78,19 @@ export function createNodeTransport(config: ClientConfig): Transport {
   };
 }
 
-function buildNodeTransport(config: ClientConfig): Transport {
+/**
+ * The options `createNodeTransport` builds its transport from, derived from the client config.
+ */
+export function nodeTransportOptions(config: ClientConfig): GrpcTransportOptions {
   const insecure = config.tls_config.tls_strategy === 'none';
 
-  return createGrpcTransport({
+  return {
     baseUrl: `${insecure ? 'http' : 'https'}://${config.host_port}`,
     nodeOptions: insecure ? undefined : tlsSessionOptions(config.tls_config),
     interceptors: [createAuthInterceptor(config.token)],
     sendCompression: compressionGzip,
     readMaxBytes: config.grpc_max_recv_message_length ?? DEFAULT_MAX_MESSAGE_BYTES,
     writeMaxBytes: config.grpc_max_send_message_length ?? DEFAULT_MAX_MESSAGE_BYTES,
-    pingIntervalMs: 10 * 1000,
-    pingIdleConnection: true,
-    idleConnectionTimeoutMs: 60 * 1000,
-  });
+    ...SESSION_OPTIONS,
+  };
 }
