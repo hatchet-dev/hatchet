@@ -39,6 +39,7 @@ from hatchet_sdk.runnables.contextvars import (
 from hatchet_sdk.types.labels import WorkerLabel
 from hatchet_sdk.utils.backoff import exp_backoff_sleep
 from hatchet_sdk.utils.typing import STOP_LOOP, STOP_LOOP_TYPE
+from hatchet_sdk.worker.slot_usage import SharedSlotUsageByPool, read_slot_usage
 
 ACTION_EVENT_RETRY_COUNT = 5
 STARTING_UNHEALTHY_AFTER_SECONDS = 10.0
@@ -84,7 +85,9 @@ class WorkerActionListenerProcess:
         labels: list[WorkerLabel],
         worker_id_queue: "Queue[str]",
         stop_event: "multiprocessing.synchronize.Event",
+        shared_slot_usage_by_pool: SharedSlotUsageByPool | None = None,
     ) -> None:
+        self.shared_slot_usage_by_pool = shared_slot_usage_by_pool or {}
         self.name = name
         self.actions = actions
         self.slot_config = slot_config
@@ -102,6 +105,8 @@ class WorkerActionListenerProcess:
         self._health_runner: web.AppRunner | None = None
         self._listener_health_gauge: Gauge | None = None
         self._event_loop_lag_gauge: Gauge | None = None
+        self._used_slots_gauge: Gauge | None = None
+        self._slot_limit_gauge: Gauge | None = None
         self._event_loop_monitor_task: asyncio.Task[None] | None = None
         self._event_loop_last_lag_seconds: float = 0.0
         self._event_loop_blocked_since: float | None = None
@@ -135,6 +140,16 @@ class WorkerActionListenerProcess:
             self._event_loop_lag_gauge = Gauge(
                 "hatchet_worker_event_loop_lag_seconds",
                 "Event loop lag in seconds (listener process)",
+            )
+            self._used_slots_gauge = Gauge(
+                "hatchet_worker_used_slots",
+                "Slots currently used by running tasks, by slot pool",
+                ["slot_pool"],
+            )
+            self._slot_limit_gauge = Gauge(
+                "hatchet_worker_slot_limit",
+                "Configured slot limit, by slot pool",
+                ["slot_pool"],
             )
 
     @property
@@ -250,7 +265,10 @@ class WorkerActionListenerProcess:
         ok = status == HealthStatus.HEALTHY
 
         # Keep this response minimal because the endpoint is public.
-        response = {"status": status.value}
+        response = {
+            "status": status.value,
+            "slots": self._slot_usage_and_limit_by_pool(),
+        }
 
         return web.json_response(response, status=200 if ok else 503)
 
@@ -264,8 +282,23 @@ class WorkerActionListenerProcess:
         if self._event_loop_lag_gauge is not None:
             self._event_loop_lag_gauge.set(self._event_loop_last_lag_seconds)
 
+        for pool, slots in self._slot_usage_and_limit_by_pool().items():
+            if self._used_slots_gauge is not None:
+                self._used_slots_gauge.labels(slot_pool=pool).set(slots["used"])
+
+            if self._slot_limit_gauge is not None:
+                self._slot_limit_gauge.labels(slot_pool=pool).set(slots["limit"])
+
         # Note: this is a local Prometheus endpoint for the worker process itself.
         return web.Response(body=generate_latest(), content_type="text/plain")
+
+    def _slot_usage_and_limit_by_pool(self) -> dict[str, dict[str, int]]:
+        used_slots_by_pool = read_slot_usage(self.shared_slot_usage_by_pool)
+
+        return {
+            pool: {"used": used_slots_by_pool.get(pool, 0), "limit": limit}
+            for pool, limit in self.slot_config.items()
+        }
 
     async def start_health_server(self) -> None:
         if not self.config.healthcheck.enabled:
@@ -594,6 +627,7 @@ def worker_action_listener_process(
     labels: list[WorkerLabel],
     worker_id_queue: "Queue[str]",
     stop_event: "multiprocessing.synchronize.Event",
+    shared_slot_usage_by_pool: SharedSlotUsageByPool | None = None,
 ) -> None:
     async def run() -> None:
         process = WorkerActionListenerProcess(
@@ -608,6 +642,7 @@ def worker_action_listener_process(
             labels=labels,
             worker_id_queue=worker_id_queue,
             stop_event=stop_event,
+            shared_slot_usage_by_pool=shared_slot_usage_by_pool,
         )
         await process.start_health_server()
         await process.start()
