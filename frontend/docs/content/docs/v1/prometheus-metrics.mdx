@@ -39,11 +39,11 @@ Authorization: Bearer <API_TOKEN>
 
 ### Response Format
 
-The response is returned in standard Prometheus Text Format, including:
-
-- HELP comments describing each metric
-- TYPE declarations (counter, gauge, etc.)
-- Metric samples with labels and values
+The response is returned in standard Prometheus Text Format. Every metric name
+gets a `# TYPE <name> untyped` line followed by its samples with labels, values
+and millisecond timestamps. Metric types and descriptions are listed in the
+[tenant metrics table](/self-hosting/prometheus-metrics#tenant-metrics). Series
+are summed across engine pods, so each label set appears once.
 
 ### Example Usage
 
