@@ -78,11 +78,9 @@ func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *v1contrac
 	)
 
 	if err != nil {
-		// a coded error names the reason (for example ResourceExhausted) and passes through
 		var connectErr *connect.Error
-
 		if errors.As(err, &connectErr) {
-			return nil, err
+			return nil, connectErr
 		}
 
 		return nil, fmt.Errorf("could not trigger workflow: %w", err)
