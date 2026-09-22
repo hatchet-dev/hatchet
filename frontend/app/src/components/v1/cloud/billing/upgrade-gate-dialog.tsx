@@ -73,30 +73,30 @@ const COPY = {
     tenants: {
       title: "You've hit your tenant limit",
       description: (free: string, payg: string) =>
-        `The Free tier includes ${free} tenant. Pay as you Go includes ${payg}, so you can separate dev, staging, and prod.`,
+        `The free tier includes ${free} tenant. Pay-as-you-go includes ${payg}, so you can separate dev, staging, and prod.`,
     },
     users: {
       title: "You've hit your member limit",
       description: (free: string, payg: string) =>
-        `The Free tier includes ${free} members. Pay as you Go includes ${payg}, so your whole team can work in Hatchet.`,
+        `The free tier includes ${free} members. Pay-as-you-go includes ${payg}, so your whole team can work in Hatchet.`,
     },
     retention: {
       title: "You've gone past your retention window",
       triedPreset: (window: string) => `You tried to view the last ${window}.`,
       triedSince: (date: string) => `You tried to look back to ${date}.`,
       description: (free: string, payg: string) =>
-        `The Free tier keeps ${free} of runs, events, and logs. Pay as you Go keeps ${payg}.`,
+        `The free tier keeps ${free} of runs, events, and logs. Pay-as-you-go keeps ${payg}.`,
     },
     usageResource: {
       title: (resource: string) =>
         `You've hit your limit for ${resource.toLowerCase()}`,
       description: (free: string, payg: string) =>
-        `The Free tier includes ${free}. Pay as you Go includes ${payg}, and you only pay for usage beyond that.`,
+        `The free tier includes ${free}. Pay-as-you-go includes ${payg}, and you only pay for usage beyond that.`,
     },
     usageGeneric: {
       title: 'Upgrade to Pay as you Go',
       description:
-        'Pay as you Go removes the Free tier limits. There is no monthly fee, and you pay nothing until you scale past what is included.',
+        'Pay-as-you-go removes the free tier limits. There is no monthly fee, and you pay nothing until you scale past what is included.',
     },
   },
   compare: {
@@ -113,7 +113,7 @@ const COPY = {
     payg: '$0, then usage-based',
   },
   actions: {
-    upgrade: 'Upgrade to Pay as you Go',
+    upgrade: 'Upgrade',
     dismiss: 'Not now',
     footnote:
       'No monthly fee. You pay nothing until you scale past the included usage.',
