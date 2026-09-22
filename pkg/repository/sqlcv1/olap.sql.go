@@ -93,12 +93,57 @@ func (q *Queries) AnalyzeV1DAGsOLAP(ctx context.Context, db DBTX) error {
 	return err
 }
 
+const analyzeV1EventLookupTableOLAP = `-- name: AnalyzeV1EventLookupTableOLAP :exec
+ANALYZE v1_event_lookup_table_olap
+`
+
+func (q *Queries) AnalyzeV1EventLookupTableOLAP(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1EventLookupTableOLAP)
+	return err
+}
+
+const analyzeV1EventToRunOLAP = `-- name: AnalyzeV1EventToRunOLAP :exec
+ANALYZE v1_event_to_run_olap
+`
+
+func (q *Queries) AnalyzeV1EventToRunOLAP(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1EventToRunOLAP)
+	return err
+}
+
+const analyzeV1EventsOLAP = `-- name: AnalyzeV1EventsOLAP :exec
+ANALYZE v1_events_olap
+`
+
+func (q *Queries) AnalyzeV1EventsOLAP(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1EventsOLAP)
+	return err
+}
+
 const analyzeV1LookupTableOLAP = `-- name: AnalyzeV1LookupTableOLAP :exec
 ANALYZE v1_lookup_table_olap
 `
 
 func (q *Queries) AnalyzeV1LookupTableOLAP(ctx context.Context, db DBTX) error {
 	_, err := db.Exec(ctx, analyzeV1LookupTableOLAP)
+	return err
+}
+
+const analyzeV1OtelTraceLookupOLAP = `-- name: AnalyzeV1OtelTraceLookupOLAP :exec
+ANALYZE v1_otel_trace_lookup_olap
+`
+
+func (q *Queries) AnalyzeV1OtelTraceLookupOLAP(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1OtelTraceLookupOLAP)
+	return err
+}
+
+const analyzeV1OtelTraceOLAP = `-- name: AnalyzeV1OtelTraceOLAP :exec
+ANALYZE v1_otel_trace_olap
+`
+
+func (q *Queries) AnalyzeV1OtelTraceOLAP(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1OtelTraceOLAP)
 	return err
 }
 

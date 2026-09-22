@@ -1305,6 +1305,21 @@ ANALYZE v1_task_event;
 -- name: AnalyzeV1Dag :exec
 ANALYZE v1_dag;
 
+-- name: AnalyzeV1DurableEventLogFile :exec
+ANALYZE v1_durable_event_log_file;
+
+-- name: AnalyzeV1DurableEventLogEntry :exec
+ANALYZE v1_durable_event_log_entry;
+
+-- name: AnalyzeV1DurableEventLogBranchPoint :exec
+ANALYZE v1_durable_event_log_branch_point;
+
+-- name: AnalyzeV1LogLine :exec
+ANALYZE v1_log_line;
+
+-- name: AnalyzeV1Event :exec
+ANALYZE v1_event;
+
 -- name: CleanupV1TaskRuntime :execresult
 WITH locked_trs AS (
     SELECT vtr.task_id, vtr.task_inserted_at, vtr.retry_count
