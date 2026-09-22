@@ -8,7 +8,6 @@ import {
 import useControlPlane from '@/hooks/use-control-plane';
 import {
   TIME_WINDOW_LABELS,
-  formatRetentionPeriod,
   isTimeWindowOutsideRetention,
   type TimeWindowPreset,
 } from '@/lib/utils/retention';
@@ -36,9 +35,6 @@ export function TimeRangeSelect({
   triggerClassName,
 }: TimeRangeSelectProps) {
   const { isControlPlaneEnabled } = useControlPlane();
-  const label = retentionPeriod
-    ? formatRetentionPeriod(retentionPeriod)
-    : undefined;
 
   return (
     <div className="space-y-1">
@@ -73,13 +69,6 @@ export function TimeRangeSelect({
           })}
         </SelectContent>
       </Select>
-      {label ? (
-        <p className="px-1 text-xs text-muted-foreground">
-          {isControlPlaneEnabled
-            ? `Your plan keeps ${label} of history.`
-            : `This instance keeps ${label} of history.`}
-        </p>
-      ) : null}
     </div>
   );
 }
