@@ -3,6 +3,7 @@ import type { SecureClientSessionOptions } from 'http2';
 import {
   compressionGzip,
   createGrpcTransport,
+  Http2SessionManager,
   type GrpcTransportOptions,
 } from '@connectrpc/connect-node';
 import type { ClientConfig } from '@clients/hatchet-client/client-config';
@@ -110,18 +111,46 @@ export function createNodeTransport(config: ClientConfig): Transport {
 
 /**
  * The options `createNodeTransport` builds its transport from, derived from the client config.
+ * The session manager is built here from `nodeOptions` and the session settings; Connect takes
+ * the connection from it and leaves those transport-level copies as the record of what it uses.
  */
 export function nodeTransportOptions(config: ClientConfig): GrpcTransportOptions {
   const insecure = config.tls_config.tls_strategy === 'none';
   const target = parseGrpcTarget(config.host_port);
+  const baseUrl = grpcTargetBaseUrl(target, insecure ? 'http' : 'https');
+  const nodeOptions = insecure ? undefined : tlsSessionOptions(config.tls_config);
 
   return {
-    baseUrl: grpcTargetBaseUrl(target, insecure ? 'http' : 'https'),
-    nodeOptions: insecure ? undefined : tlsSessionOptions(config.tls_config),
+    baseUrl,
+    nodeOptions,
+    sessionManager: createSessionManager(baseUrl, target.authority, nodeOptions),
     interceptors: [createAuthInterceptor(config.token)],
     sendCompression: compressionGzip,
     readMaxBytes: messageLimit(config.grpc_max_recv_message_length),
     writeMaxBytes: messageLimit(config.grpc_max_send_message_length),
     ...SESSION_OPTIONS,
+  };
+}
+
+type SessionManager = NonNullable<GrpcTransportOptions['sessionManager']>;
+
+/**
+ * The HTTP/2 session for the transport, sending `:authority` as grpc-js does: the target as
+ * written, so `server_name` changes only SNI and certificate verification. Node otherwise
+ * derives the authority from `servername` when it is set, which would also change the virtual
+ * host a proxy in front of the engine routes on.
+ */
+function createSessionManager(
+  baseUrl: string,
+  authority: string,
+  nodeOptions: SecureClientSessionOptions | undefined
+): SessionManager {
+  const manager = new Http2SessionManager(baseUrl, SESSION_OPTIONS, nodeOptions);
+
+  return {
+    authority: manager.authority,
+    request: (method, path, headers, options) =>
+      manager.request(method, path, { ':authority': authority, ...headers }, options),
+    notifyResponseByteRead: (stream) => manager.notifyResponseByteRead(stream),
   };
 }

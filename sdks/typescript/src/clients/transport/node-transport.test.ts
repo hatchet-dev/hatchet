@@ -381,6 +381,33 @@ describe('createNodeTransport over TLS', () => {
     }
   });
 
+  it('keeps host_port as :authority when server_name overrides SNI and verification', async () => {
+    const server = await serveGrpc(serverOptions(pki.server));
+    try {
+      await expect(
+        call(server.port, { tls_strategy: 'tls', ca_file: pki.ca, server_name: 'engine.test' })
+      ).resolves.toBeDefined();
+      await expect(
+        call(server.port, { tls_strategy: 'tls', ca_file: pki.ca })
+      ).resolves.toBeDefined();
+
+      expect(server.requests).toEqual([
+        {
+          authority: `127.0.0.1:${server.port}`,
+          servername: 'engine.test',
+          path: '/EventsService/PutLog',
+        },
+        {
+          authority: `127.0.0.1:${server.port}`,
+          servername: undefined,
+          path: '/EventsService/PutLog',
+        },
+      ]);
+    } finally {
+      await server.close();
+    }
+  });
+
   it('authenticates with the client certificate an mTLS endpoint requires', async () => {
     const server = await serveGrpc({
       ...serverOptions(pki.server),
