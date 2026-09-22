@@ -1312,13 +1312,19 @@ func (r *durableEventsRepository) getOrCreateEventLogEntriesForTasks(
 			return nil
 		}
 
-		return payloadOrEmptyJSONObject(existingPayloads[RetrievePayloadOpts{
+		payload := existingPayloads[RetrievePayloadOpts{
 			Id:         e.ID,
 			InsertedAt: e.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
 			TenantId:   tenantId,
 			ExternalId: e.ResultPayloadExternalID,
-		}])
+		}]
+
+		if !e.IsSatisfied {
+			return payload
+		}
+
+		return payloadOrEmptyJSONObject(payload)
 	}
 
 	for _, state := range survivingStates {
