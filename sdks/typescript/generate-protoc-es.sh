@@ -11,6 +11,9 @@
 #
 # v1/operator.proto is the engine-internal OperatorService API and v1/serverless.proto the
 # serverless operator's wire contract; neither is called by this package.
+#
+# Every input is checked and the bindings are generated into a staging directory before the
+# existing output is touched, so a failed run leaves the committed bindings in place.
 
 set -euo pipefail
 
@@ -20,23 +23,44 @@ OUT_DIR="./src/protoc-es"
 IN_DIR="../../api-contracts"
 VENDOR_DIR="../../hack/proto/vendor"
 PROTOC="${PROTOC:-protoc}"
+PLUGIN="./node_modules/.bin/protoc-gen-es"
 
+fail() {
+  echo "generate-protoc-es: $*" >&2
+  exit 1
+}
+
+[ -d "$IN_DIR" ] || fail "proto source directory not found: $IN_DIR"
+[ -d "$VENDOR_DIR" ] || fail "vendored proto directory not found: $VENDOR_DIR"
+[ -x "$PLUGIN" ] || fail "protoc-gen-es not found at $PLUGIN; run pnpm install"
+command -v "$PROTOC" >/dev/null 2>&1 || fail "protoc not found: $PROTOC (install protoc or set PROTOC)"
+
+# Sources are passed as paths under IN_DIR, never as bare names, so a file name can only ever be
+# an input to the compiler and not one of its options. The list is NUL-delimited because a name
+# with a newline cannot be carried through a line-oriented pipeline; such a name is refused.
 PROTOS=()
-while IFS= read -r f; do
+while IFS= read -r -d '' f; do
   case "$f" in
-    v1/operator.proto | v1/serverless.proto) continue ;;
+    *$'\n'*) fail "proto file name contains a newline: ${f//$'\n'/\\n}" ;;
+    "$IN_DIR/v1/operator.proto" | "$IN_DIR/v1/serverless.proto") continue ;;
   esac
   PROTOS+=("$f")
-done < <(cd "$IN_DIR" && find . -name '*.proto' | sed 's#^\./##' | sort)
+done < <(find "$IN_DIR" -name '*.proto' -print0 | LC_ALL=C sort -z)
 
-rm -rf "$OUT_DIR"
-mkdir -p "$OUT_DIR"
+[ "${#PROTOS[@]}" -gt 0 ] || fail "no .proto files found under $IN_DIR"
+
+STAGE_DIR="$(mktemp -d "${OUT_DIR}.XXXXXX")"
+trap 'rm -rf "$STAGE_DIR"' EXIT
 
 "$PROTOC" \
-  --plugin=protoc-gen-es=./node_modules/.bin/protoc-gen-es \
-  --es_out="$OUT_DIR" \
+  --plugin=protoc-gen-es="$PLUGIN" \
+  --es_out="$STAGE_DIR" \
   --es_opt=target=ts \
   --proto_path="$IN_DIR" \
   --proto_path="$VENDOR_DIR" \
   "${PROTOS[@]}" \
   google/rpc/status.proto
+
+rm -rf "$OUT_DIR"
+mv "$STAGE_DIR" "$OUT_DIR"
+trap - EXIT
