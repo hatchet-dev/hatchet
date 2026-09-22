@@ -8,8 +8,6 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel/codes"
-	"google.golang.org/grpc"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/google/uuid"
 
@@ -133,55 +131,24 @@ func (worker *subscribedWorker) sendToWorkerWithStream(
 		},
 	)
 
-	var msg proto.Message = action
-
-	if worker.wrap != nil {
-		msg = worker.wrap(action)
-	}
-
-	return worker.sendMsg(ctx, msg)
-}
-
-// sendMsg encodes msg and writes it on the stream. Writes on one stream are serialised by
-// sendLock, which is held until the SendMsg call itself exits: gRPC forbids concurrent SendMsg
-// calls on a stream, so a caller whose ctx ends while its send is still blocked by flow
-// control returns without releasing the lock, and the next caller fails fast with
-// errFlowControlActive once the lock timeout elapses rather than starting an overlapping
-// send.
-func (worker *subscribedWorker) sendMsg(ctx context.Context, msg proto.Message) error {
 	select {
 	case <-worker.done:
 		return errSessionReleased
 	default:
 	}
 
-	_, span := telemetry.NewSpan(ctx, "send-worker-message")
-	defer span.End()
-
-	_, encodeSpan := telemetry.NewSpan(ctx, "encode-action")
-
-	prepared := &grpc.PreparedMsg{}
-	err := prepared.Encode(worker.stream, msg)
-	if err != nil {
-		encodeSpan.RecordError(err)
-		encodeSpan.End()
-		return fmt.Errorf("could not encode action: %w", err)
-	}
-
-	encodeSpan.End()
-
-	lockBegin := time.Now()
-
-	_, lockSpan := telemetry.NewSpan(ctx, "acquire-worker-stream-lock")
-
 	if !worker.sendLock.Acquire() {
-		lockSpan.End()
 		span.RecordError(errFlowControlActive)
 		span.SetStatus(codes.Error, "flow control is active")
 		return errFlowControlActive
 	}
 
-	lockSpan.End()
+	lockBegin := time.Now()
+
+	_, lockSpan := telemetry.NewSpan(ctx, "acquire-worker-stream-lock")
+
+	defer worker.sendLock.Release()
+	defer lockSpan.End()
 
 	telemetry.WithAttributes(span, telemetry.AttributeKV{
 		Key:   "lock.duration_ms",
@@ -196,11 +163,8 @@ func (worker *subscribedWorker) sendMsg(ctx context.Context, msg proto.Message) 
 	sentCh := make(chan error, 1)
 
 	go func() {
-		// the lock is released only once SendMsg has returned, whether or not the caller is
-		// still waiting for the result
-		defer worker.sendLock.Release()
-
-		err := worker.stream.SendMsg(prepared)
+		defer close(sentCh)
+		err := worker.stream.Send(action)
 
 		if err != nil {
 			span.RecordError(err)
@@ -217,7 +181,7 @@ func (worker *subscribedWorker) sendMsg(ctx context.Context, msg proto.Message) 
 	select {
 	case <-ctx.Done():
 		return fmt.Errorf("context done before send could complete: %w", ctx.Err())
-	case err = <-sentCh:
+	case err := <-sentCh:
 		return err
 	}
 }

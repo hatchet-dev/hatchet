@@ -10,7 +10,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/task/trigger"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
-	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
+	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts/contractsconnect"
 	"github.com/hatchet-dev/hatchet/internal/services/scheduler/v1"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
@@ -24,7 +24,7 @@ import (
 )
 
 type Ingestor interface {
-	contracts.EventsServiceServer
+	contractsconnect.EventsServiceHandler
 	IngestEvent(ctx context.Context, tenant *sqlcv1.Tenant, eventName string, data []byte, metadata []byte, priority *int32, scope, triggeringWebhookName *string) (*sqlcv1.Event, error)
 	IngestWebhookValidationFailure(ctx context.Context, tenant *sqlcv1.Tenant, webhookName, errorText string) error
 	BulkIngestEvent(ctx context.Context, tenant *sqlcv1.Tenant, eventOpts []*CreateEventOpts) ([]*sqlcv1.Event, error)
@@ -144,7 +144,7 @@ func WithO11yUsage(agg *o11yusage.Aggregator) IngestorOptFunc {
 }
 
 type IngestorImpl struct {
-	contracts.UnimplementedEventsServiceServer
+	contractsconnect.UnimplementedEventsServiceHandler
 
 	steprunTenantLookupCache *lru.Cache[string, string]
 

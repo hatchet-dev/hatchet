@@ -4,11 +4,11 @@ import (
 	"crypto/tls"
 	"time"
 
+	"connectrpc.com/connect"
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog"
 	"github.com/spf13/viper"
 	"golang.org/x/oauth2"
-	"google.golang.org/grpc"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
@@ -809,7 +809,7 @@ type ServerConfig struct {
 
 	Operations ConfigFileOperations
 
-	GRPCInterceptors []grpc.UnaryServerInterceptor
+	GRPCInterceptors []connect.UnaryInterceptorFunc
 
 	Version string
 
@@ -838,7 +838,7 @@ func (c *ServerConfig) HasService(name string) bool {
 	return false
 }
 
-func (c *ServerConfig) AddGRPCUnaryInterceptor(interceptor grpc.UnaryServerInterceptor) {
+func (c *ServerConfig) AddGRPCUnaryInterceptor(interceptor connect.UnaryInterceptorFunc) {
 	c.GRPCInterceptors = append(c.GRPCInterceptors, interceptor)
 }
 

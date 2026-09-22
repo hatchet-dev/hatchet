@@ -2242,7 +2242,7 @@ CREATE TABLE v1_payload (
     tenant_id UUID NOT NULL,
     id BIGINT NOT NULL,
     inserted_at TIMESTAMPTZ NOT NULL,
-    external_id UUID NOT NULL DEFAULT gen_random_uuid(),
+    external_id UUID NOT NULL DEFAULT gen_random_uuid(), -- IMPORTANT: Each _partition_ of this table has a `UNIQUE` constraint on this column, but the parent does not
     type v1_payload_type NOT NULL,
     location v1_payload_location NOT NULL,
     external_location_key TEXT,
