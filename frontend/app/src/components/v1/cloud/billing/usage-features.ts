@@ -317,3 +317,90 @@ export function toUsageDisplayRows(
       showPeriodAsCount: isPeriodUsageFeature(feature.featureId),
     }));
 }
+
+export const TENANT_USAGE_COLORS = [
+  'hsl(221 83% 60%)',
+  'hsl(160 72% 45%)',
+  'hsl(38 92% 55%)',
+  'hsl(270 70% 66%)',
+  'hsl(350 78% 62%)',
+  'hsl(188 80% 48%)',
+  'hsl(25 90% 58%)',
+  'hsl(82 65% 48%)',
+];
+
+export type TenantDailyPoint = {
+  date: string;
+  taskRuns: number;
+  events: number;
+};
+
+export type TenantUsageBreakdown = {
+  tenantId: string;
+  tenantName: string;
+  series?: TenantDailyPoint[];
+};
+
+export type TenantChartSeries = {
+  tenantId: string;
+  name: string;
+  color: string;
+};
+
+export function tenantUsageColor(
+  tenants: { tenantId: string }[],
+  tenantId: string,
+) {
+  const index = tenants.findIndex((tenant) => tenant.tenantId === tenantId);
+  const slot = index < 0 ? 0 : index;
+  return TENANT_USAGE_COLORS[slot % TENANT_USAGE_COLORS.length];
+}
+
+export function tenantUsageChart(
+  tenants: TenantUsageBreakdown[],
+  featureId: string,
+  selectedTenantId?: string | null,
+) {
+  if (!tenants.some((tenant) => (tenant.series?.length ?? 0) > 0)) {
+    return null;
+  }
+
+  const colored = tenants.map((tenant) => ({
+    tenant,
+    color: tenantUsageColor(tenants, tenant.tenantId),
+  }));
+  const selected = colored.filter(
+    (entry) => entry.tenant.tenantId === selectedTenantId,
+  );
+  const shown = selected.length > 0 ? selected : colored;
+  const axis =
+    colored.find((entry) => (entry.tenant.series?.length ?? 0) > 0)?.tenant
+      .series ?? [];
+
+  let total = 0;
+  const points = axis.map((point) => {
+    const row: { date: string } & Record<string, number> = {
+      date: point.date.includes('T')
+        ? point.date
+        : `${point.date}T00:00:00.000Z`,
+    };
+    for (const entry of shown) {
+      const day = entry.tenant.series?.find((item) => item.date === point.date);
+      const value =
+        featureId === 'events' ? (day?.events ?? 0) : (day?.taskRuns ?? 0);
+      row[entry.tenant.tenantId] = value;
+      total += value;
+    }
+    return row;
+  });
+
+  return {
+    points,
+    series: shown.map((entry) => ({
+      tenantId: entry.tenant.tenantId,
+      name: entry.tenant.tenantName,
+      color: entry.color,
+    })),
+    total,
+  };
+}

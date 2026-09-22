@@ -6,6 +6,7 @@ import {
   selectDailyMeters,
   shardUsageRows,
   sumUsageSeries,
+  tenantUsageChart,
   toUsageDisplayRows,
 } from './usage-features';
 import {
@@ -350,5 +351,53 @@ describe('nextRefillAt', () => {
       formatTimeUntil(new Date('2026-09-09T16:00:00.000Z'), now),
       'refills in 6h',
     );
+  });
+});
+
+describe('tenantUsageChart', () => {
+  const tenants = [
+    {
+      tenantId: 'alpha',
+      tenantName: 'alpha',
+      series: [
+        { date: '2026-09-01', taskRuns: 10, events: 2 },
+        { date: '2026-09-02', taskRuns: 0, events: 0 },
+      ],
+    },
+    {
+      tenantId: 'zeta',
+      tenantName: 'zeta',
+      series: [
+        { date: '2026-09-01', taskRuns: 5, events: 1 },
+        { date: '2026-09-02', taskRuns: 0, events: 0 },
+      ],
+    },
+  ];
+
+  it('stacks each tenant on the same day', () => {
+    const chart = tenantUsageChart(tenants, 'task_runs');
+
+    assert.equal(chart?.total, 15);
+    assert.deepEqual(
+      chart?.series.map((series) => series.tenantId),
+      ['alpha', 'zeta'],
+    );
+    assert.equal(chart?.points[0]?.alpha, 10);
+    assert.equal(chart?.points[0]?.zeta, 5);
+    assert.notEqual(chart?.series[0]?.color, chart?.series[1]?.color);
+  });
+
+  it('keeps a selected tenant color and drops the others', () => {
+    const all = tenantUsageChart(tenants, 'task_runs');
+    const filtered = tenantUsageChart(tenants, 'task_runs', 'zeta');
+
+    assert.equal(filtered?.total, 5);
+    assert.deepEqual(
+      filtered?.series.map((series) => series.tenantId),
+      ['zeta'],
+    );
+    assert.equal(filtered?.series[0]?.color, all?.series[1]?.color);
+    assert.equal(filtered?.points[0]?.zeta, 5);
+    assert.equal(filtered?.points[0]?.alpha, undefined);
   });
 });

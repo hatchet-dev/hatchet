@@ -1044,6 +1044,8 @@ export interface OrganizationUsageTimeseriesTenant {
    * @format int64
    */
   webhooks?: number;
+  /** Daily usage for this tenant, including zero days. Same calendar as the organization series. */
+  series?: OrganizationUsageTimeseriesPoint[];
 }
 
 export interface OrganizationUsageTimeseries {

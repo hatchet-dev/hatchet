@@ -8,6 +8,9 @@ import {
   selectDailyMeters,
   shardUsageRows,
   sumUsageSeries,
+  tenantUsageChart,
+  tenantUsageColor,
+  type TenantChartSeries,
   type DailyMeter,
   type UsageDisplayRow,
   type UsageRangePreset,
@@ -26,6 +29,12 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/v1/ui/card';
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from '@/components/v1/ui/chart';
 import {
   Dialog,
   DialogContent,
@@ -55,7 +64,16 @@ import { ArrowUpCircleIcon } from '@heroicons/react/24/outline';
 import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { useEffect, useMemo, useState } from 'react';
-import { Line, LineChart, ResponsiveContainer } from 'recharts';
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  XAxis,
+  YAxis,
+} from 'recharts';
 
 const GRAPHABLE_FEATURES = new Set(['task_runs', 'events']);
 
@@ -232,6 +250,74 @@ function metricValue(
   return featureId === 'events' ? point.events : point.taskRuns;
 }
 
+function TenantUsageChart({
+  points,
+  series,
+}: {
+  points: Array<{ date: string } & Record<string, number>>;
+  series: TenantChartSeries[];
+}) {
+  const config: ChartConfig = Object.fromEntries(
+    series.map((item) => [
+      item.tenantId,
+      { label: item.name, color: item.color },
+    ]),
+  );
+  const dates = points.map((point) => new Date(point.date).getTime());
+  const span = Math.max(...dates) - Math.min(...dates);
+
+  return (
+    <ChartContainer config={config} className="aspect-auto h-[240px] w-full">
+      <BarChart data={points} margin={{ left: 0, right: 0, top: 8, bottom: 0 }}>
+        <CartesianGrid vertical={false} />
+        <XAxis
+          dataKey="date"
+          tickFormatter={(value: string) =>
+            new Date(value).toLocaleDateString([], {
+              month: 'short',
+              day: 'numeric',
+            })
+          }
+          tickLine={false}
+          axisLine={false}
+          tickMargin={4}
+          minTickGap={span > 7 * 24 * 60 * 60 * 1000 ? 24 : 16}
+          style={{ fontSize: '10px', userSelect: 'none' }}
+        />
+        <YAxis
+          tickLine={false}
+          axisLine={false}
+          tickMargin={4}
+          width={36}
+          style={{ fontSize: '10px', userSelect: 'none' }}
+        />
+        <ChartTooltip
+          content={
+            <ChartTooltipContent
+              className="w-[180px] font-mono text-xs"
+              labelFormatter={(value) =>
+                new Date(value).toLocaleDateString([], {
+                  month: 'short',
+                  day: 'numeric',
+                })
+              }
+            />
+          }
+        />
+        {series.map((item) => (
+          <Bar
+            key={item.tenantId}
+            dataKey={item.tenantId}
+            stackId="usage"
+            fill={item.color}
+            isAnimationActive={false}
+          />
+        ))}
+      </BarChart>
+    </ChartContainer>
+  );
+}
+
 function UsageSparkline({ values }: { values: number[] }) {
   const data = values.map((usage, index) => ({ index, usage }));
   const active = values.some((value) => value > 0);
@@ -390,6 +476,7 @@ export function UsageThisPeriod({
 }) {
   const { canBill, isControlPlaneEnabled } = useControlPlane();
   const [detailFeatureId, setDetailFeatureId] = useState<string | null>(null);
+  const [chartTenantId, setChartTenantId] = useState<string | null>(null);
   const [upgradeGate, setUpgradeGate] = useState<UpgradeGate | null>(null);
   const [rangePreset, setRangePreset] = useState<RangePreset>('period');
   const [tenantId, setTenantId] = useState('all');
@@ -492,6 +579,15 @@ export function UsageThisPeriod({
     [detailFeatureId, timeseries.data?.series],
   );
   const chartTotal = chartData.reduce((sum, point) => sum + point.usage, 0);
+  const tenantChart = useMemo(
+    () =>
+      tenantUsageChart(
+        timeseries.data?.tenants ?? [],
+        detailFeatureId ?? 'task_runs',
+        chartTenantId,
+      ),
+    [chartTenantId, detailFeatureId, timeseries.data?.tenants],
+  );
   const tenantRows = timeseries.data?.tenants ?? [];
   const tenantTotal = tenantRows.reduce(
     (sum, tenant) => sum + metricValue(detailFeatureId ?? 'task_runs', tenant),
@@ -633,6 +729,7 @@ export function UsageThisPeriod({
         onOpenChange={(open) => {
           if (!open) {
             setDetailFeatureId(null);
+            setChartTenantId(null);
           }
         }}
       >
@@ -654,7 +751,7 @@ export function UsageThisPeriod({
                 )
                   ? ` · ${formatRangeLabel(range.start.toISOString(), range.end.toISOString())}`
                   : ''}
-                . Total {formatUsageCount(chartTotal)}.
+                . Total {formatUsageCount(tenantChart?.total ?? chartTotal)}.
               </DialogDescription>
             }
           >
@@ -667,6 +764,11 @@ export function UsageThisPeriod({
               </Alert>
             ) : timeseries.isPending ? (
               <Skeleton className="h-[220px] w-full" />
+            ) : tenantChart ? (
+              <TenantUsageChart
+                points={tenantChart.points}
+                series={tenantChart.series}
+              />
             ) : (
               <ZoomableChart<'usage'>
                 kind="bar"
@@ -678,8 +780,8 @@ export function UsageThisPeriod({
             )}
 
             {tenantRows.length > 0 ? (
-              <div className="space-y-3">
-                <p className="text-sm font-medium text-foreground">
+              <div className="-mx-6 space-y-3">
+                <p className="px-6 text-sm font-medium text-foreground">
                   Usage by tenant
                 </p>
                 <div className="divide-y divide-border/40">
@@ -690,24 +792,41 @@ export function UsageThisPeriod({
                     );
                     const percent =
                       tenantTotal > 0 ? (value / tenantTotal) * 100 : 0;
+                    const selected = chartTenantId === tenant.tenantId;
+                    const color = tenantUsageColor(tenantRows, tenant.tenantId);
                     return (
-                      <div
+                      <button
                         key={tenant.tenantId}
-                        className="flex items-center justify-between gap-4 py-2"
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() =>
+                          setChartTenantId(selected ? null : tenant.tenantId)
+                        }
+                        className={cn(
+                          'flex w-full items-center justify-between gap-4 px-6 py-2 text-left transition-colors hover:bg-muted/40',
+                          selected && 'bg-muted/50',
+                          chartTenantId && !selected && 'opacity-50',
+                        )}
                       >
-                        <div>
-                          <p className="text-sm text-foreground">
-                            {tenant.tenantName}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {tenant.tenantSlug}
-                          </p>
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span
+                            className="h-2.5 w-2.5 shrink-0 rounded-sm"
+                            style={{ backgroundColor: color }}
+                          />
+                          <div className="min-w-0">
+                            <p className="text-sm text-foreground">
+                              {tenant.tenantName}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {tenant.tenantSlug}
+                            </p>
+                          </div>
                         </div>
                         <p className="text-sm tabular-nums text-muted-foreground">
                           {formatUsageCount(value)}
                           {tenantTotal > 0 ? ` · ${percent.toFixed(1)}%` : ''}
                         </p>
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
