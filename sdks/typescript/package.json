@@ -195,6 +195,7 @@
     "@bufbuild/protobuf": "^2.15.0",
     "@connectrpc/connect": "~2.1.2",
     "@connectrpc/connect-node": "~2.1.2",
+    "@connectrpc/connect-web": "~2.1.2",
     "@types/qs": "^6.15.0",
     "abort-controller-x": "^0.5.0",
     "axios": "^1.15.2",

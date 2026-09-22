@@ -23,15 +23,28 @@ import {
   WorkflowVersionSchema,
 } from '@hatchet/protoc-es/workflows/workflows_pb';
 import {
+  CancelTasksRequest,
+  CancelTasksResponse,
   CreateWorkflowVersionRequest,
   CreateWorkflowVersionResponse,
+  GetRunDetailsRequest,
+  GetRunDetailsResponse,
+  ReplayTasksRequest,
+  ReplayTasksResponse,
 } from '@hatchet/protoc/v1/workflows';
 import {
   AdminService,
+  CancelTasksRequestSchema,
+  CancelTasksResponseSchema,
   CreateWorkflowVersionRequestSchema,
   CreateWorkflowVersionResponseSchema,
+  GetRunDetailsRequestSchema,
+  GetRunDetailsResponseSchema,
+  ReplayTasksRequestSchema,
+  ReplayTasksResponseSchema,
 } from '@hatchet/protoc-es/v1/workflows_pb';
-import { fromProtobufEs, toProtobufEs, type DeepPartial, type Transport } from '@clients/transport';
+import { fromProtobufEs, toProtobufEs, type DeepPartial } from '@clients/transport/message-bridge';
+import type { Transport } from '@clients/transport/transport';
 
 /**
  * The `WorkflowService` RPCs the SDK calls, typed with the SDK's message types and served by a
@@ -102,6 +115,9 @@ export interface V1AdminRpc {
   putWorkflow(
     request: DeepPartial<CreateWorkflowVersionRequest>
   ): Promise<CreateWorkflowVersionResponse>;
+  getRunDetails(request: DeepPartial<GetRunDetailsRequest>): Promise<GetRunDetailsResponse>;
+  cancelTasks(request: DeepPartial<CancelTasksRequest>): Promise<CancelTasksResponse>;
+  replayTasks(request: DeepPartial<ReplayTasksRequest>): Promise<ReplayTasksResponse>;
 }
 
 export function createV1AdminRpc(transport: Transport): V1AdminRpc {
@@ -114,6 +130,30 @@ export function createV1AdminRpc(transport: Transport): V1AdminRpc {
         CreateWorkflowVersionResponseSchema,
         await client.putWorkflow(
           toProtobufEs(CreateWorkflowVersionRequestSchema, CreateWorkflowVersionRequest, request)
+        )
+      ),
+    getRunDetails: async (request) =>
+      fromProtobufEs(
+        GetRunDetailsResponse,
+        GetRunDetailsResponseSchema,
+        await client.getRunDetails(
+          toProtobufEs(GetRunDetailsRequestSchema, GetRunDetailsRequest, request)
+        )
+      ),
+    cancelTasks: async (request) =>
+      fromProtobufEs(
+        CancelTasksResponse,
+        CancelTasksResponseSchema,
+        await client.cancelTasks(
+          toProtobufEs(CancelTasksRequestSchema, CancelTasksRequest, request)
+        )
+      ),
+    replayTasks: async (request) =>
+      fromProtobufEs(
+        ReplayTasksResponse,
+        ReplayTasksResponseSchema,
+        await client.replayTasks(
+          toProtobufEs(ReplayTasksRequestSchema, ReplayTasksRequest, request)
         )
       ),
   };

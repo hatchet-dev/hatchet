@@ -1,118 +1,22 @@
-import { Client, createClient } from '@connectrpc/connect';
 import { Channel, ClientFactory } from 'nice-grpc';
-import {
-  BulkPushEventRequest,
-  Event,
-  Events,
-  PushEventRequest,
-  PutLogRequest,
-  PutLogResponse,
-  PutStreamEventRequest,
-  PutStreamEventResponse,
-} from '@hatchet/protoc/events/events';
-import {
-  BulkPushEventRequestSchema,
-  EventSchema,
-  EventsSchema,
-  EventsService,
-  PushEventRequestSchema,
-  PutLogRequestSchema,
-  PutLogResponseSchema,
-  PutStreamEventRequestSchema,
-  PutStreamEventResponseSchema,
-} from '@hatchet/protoc-es/events/events_pb';
-import {
-  createNodeTransport,
-  fromProtobufEs,
-  toProtobufEs,
-  type DeepPartial,
-  type Transport,
-} from '@clients/transport';
+import { createNodeTransport, type Transport } from '@clients/transport';
 import { getErrorMessage, toHatchetError } from '@util/errors/hatchet-error';
 import { ClientConfig } from '@clients/hatchet-client/client-config';
 import { Logger } from '@hatchet/util/logger';
 import { retrier } from '@hatchet/util/retrier';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { HatchetClient } from '@hatchet/v1';
-import { parentRunContextManager } from '@hatchet/v1/parent-run-context-vars';
+import type { EventWithMetadata, PushEventOptions } from '@hatchet/core/types';
+import {
+  buildBulkPushEventRequest,
+  buildPushEventRequest,
+  createEventsRpc,
+  LogLevel,
+  type EventsRpc,
+} from './rpc';
 
-export enum LogLevel {
-  INFO = 'INFO',
-  WARN = 'WARN',
-  ERROR = 'ERROR',
-  DEBUG = 'DEBUG',
-}
-
-export interface PushEventOptions {
-  additionalMetadata?: Record<string, string>;
-  priority?: number;
-  scope?: string;
-}
-
-export interface EventWithMetadata<T> {
-  payload: T;
-  additionalMetadata?: Record<string, unknown>;
-  priority?: number;
-  scope?: string;
-}
-
-function injectSourceInfo(metadata: Record<string, string>): Record<string, string> {
-  const ctx = parentRunContextManager.getContext();
-  if (!ctx?.parentId || !ctx?.parentTaskRunExternalId) {
-    return metadata;
-  }
-  return {
-    ...metadata,
-    hatchet__source_workflow_run_id: ctx.parentId,
-    hatchet__source_step_run_id: ctx.parentTaskRunExternalId,
-  };
-}
-
-/**
- * The events RPCs the SDK calls, typed with the SDK's message types and served by a Connect
- * client on the given transport.
- */
-export interface EventsRpc {
-  push(request: DeepPartial<PushEventRequest>): Promise<Event>;
-  bulkPush(request: DeepPartial<BulkPushEventRequest>): Promise<Events>;
-  putLog(request: DeepPartial<PutLogRequest>): Promise<PutLogResponse>;
-  putStreamEvent(request: DeepPartial<PutStreamEventRequest>): Promise<PutStreamEventResponse>;
-}
-
-export function createEventsRpc(transport: Transport): EventsRpc {
-  const client: Client<typeof EventsService> = createClient(EventsService, transport);
-
-  return {
-    push: async (request) =>
-      fromProtobufEs(
-        Event,
-        EventSchema,
-        await client.push(toProtobufEs(PushEventRequestSchema, PushEventRequest, request))
-      ),
-    bulkPush: async (request) =>
-      fromProtobufEs(
-        Events,
-        EventsSchema,
-        await client.bulkPush(
-          toProtobufEs(BulkPushEventRequestSchema, BulkPushEventRequest, request)
-        )
-      ),
-    putLog: async (request) =>
-      fromProtobufEs(
-        PutLogResponse,
-        PutLogResponseSchema,
-        await client.putLog(toProtobufEs(PutLogRequestSchema, PutLogRequest, request))
-      ),
-    putStreamEvent: async (request) =>
-      fromProtobufEs(
-        PutStreamEventResponse,
-        PutStreamEventResponseSchema,
-        await client.putStreamEvent(
-          toProtobufEs(PutStreamEventRequestSchema, PutStreamEventRequest, request)
-        )
-      ),
-  };
-}
+export type { EventsRpc, EventWithMetadata, PushEventOptions };
+export { createEventsRpc, LogLevel };
 
 export class EventClient {
   config: ClientConfig;
@@ -146,18 +50,7 @@ export class EventClient {
    */
   push<T>(type: string, input: T, options: PushEventOptions = {}) {
     const namespacedType = applyNamespace(type, this.config.namespace);
-
-    const enhancedMetadata = injectSourceInfo(options.additionalMetadata ?? {});
-
-    const req: PushEventRequest = {
-      key: namespacedType,
-      payload: JSON.stringify(input),
-      eventTimestamp: new Date(),
-      additionalMetadata:
-        Object.keys(enhancedMetadata).length > 0 ? JSON.stringify(enhancedMetadata) : undefined,
-      priority: options.priority,
-      scope: options.scope,
-    };
+    const req = buildPushEventRequest(type, input, options, this.config.namespace);
 
     return this.retrier(async () => this.client.push(req), this.logger, this.config.retrier)
       .then((result) => {
@@ -175,25 +68,7 @@ export class EventClient {
    */
   bulkPush<T>(type: string, inputs: EventWithMetadata<T>[], options: PushEventOptions = {}) {
     const namespacedType = applyNamespace(type, this.config.namespace);
-
-    const events = inputs.map((input) => {
-      const baseMeta =
-        (input.additionalMetadata as Record<string, string>) ?? options.additionalMetadata ?? {};
-      const enhanced = injectSourceInfo(baseMeta);
-
-      return {
-        key: namespacedType,
-        payload: JSON.stringify(input.payload),
-        eventTimestamp: new Date(),
-        additionalMetadata: Object.keys(enhanced).length > 0 ? JSON.stringify(enhanced) : undefined,
-        priority: input.priority ?? options.priority,
-        scope: input.scope ?? options.scope,
-      };
-    });
-
-    const req: BulkPushEventRequest = {
-      events,
-    };
+    const req = buildBulkPushEventRequest(type, inputs, options, this.config.namespace);
 
     return this.retrier(async () => this.client.bulkPush(req), this.logger, this.config.retrier)
       .then((result) => {
