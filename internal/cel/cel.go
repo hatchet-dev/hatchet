@@ -3,6 +3,7 @@ package cel
 import (
 	"crypto/sha256"
 	"fmt"
+	"strconv"
 
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/checker/decls"
@@ -477,9 +478,8 @@ func (p *CELParser) EvaluateDebugExpression(expr string, input Input) (*DebugOut
 		i := int(out.Value().(int64))
 		res.Int = &i
 	case types.DoubleType:
-		// float64 literals in CEL are doubles; truncate to int to match ParseAndEvalStepRun behaviour
-		i := int(out.Value().(float64))
-		res.Int = &i
+		s := strconv.FormatFloat(out.Value().(float64), 'f', -1, 64)
+		res.String = &s
 	case types.BoolType:
 		b := out.Value().(bool)
 		res.Bool = &b

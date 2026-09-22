@@ -6,6 +6,7 @@ from hatchet_sdk import Hatchet
 from hatchet_sdk.clients.rest.models.v1_cel_debug_response_status import (
     V1CELDebugResponseStatus,
 )
+from hatchet_sdk.features.cel import CELSuccess
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 
@@ -61,6 +62,20 @@ from hatchet_sdk.utils.typing import JSONSerializableMapping
             {"tier": "gold"},
             ("success", "true", "bool"),
         ),
+        (
+            "input.count",
+            {"count": 0},
+            None,
+            None,
+            ("success", "0", "int"),
+        ),
+        (
+            "''",
+            {},
+            None,
+            None,
+            ("success", "", "string"),
+        ),
     ],
 )
 def test_cel_debug(
@@ -87,3 +102,23 @@ def test_cel_debug(
     if result.result.status == "success":
         assert result.result.output == output
         assert result.result.output_type == output_type
+
+
+def test_cel_success_wrong_type_helpers() -> None:
+    string_result = CELSuccess(output="alice", output_type="string")
+    with pytest.raises(ValueError):
+        string_result.as_bool()
+    with pytest.raises(ValueError):
+        string_result.as_int()
+
+    bool_result = CELSuccess(output="true", output_type="bool")
+    with pytest.raises(ValueError):
+        bool_result.as_str()
+    with pytest.raises(ValueError):
+        bool_result.as_int()
+
+    int_result = CELSuccess(output="5", output_type="int")
+    with pytest.raises(ValueError):
+        int_result.as_bool()
+    with pytest.raises(ValueError):
+        int_result.as_str()

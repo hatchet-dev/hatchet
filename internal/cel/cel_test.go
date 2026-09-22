@@ -164,6 +164,20 @@ func TestCELParserDebugExpression(t *testing.T) {
 			expectInt: intPtr(100),
 		},
 		{
+			expression: `input.price`,
+			input: cel.NewInput(
+				cel.WithInput(map[string]interface{}{"price": float64(3.99)}),
+			),
+			expectStr: strPtr("3.99"),
+		},
+		{
+			expression: `input.count`,
+			input: cel.NewInput(
+				cel.WithInput(map[string]interface{}{"count": float64(0)}),
+			),
+			expectStr: strPtr("0"),
+		},
+		{
 			expression:  `input.missing_key`,
 			input:       cel.NewInput(),
 			expectError: true,
