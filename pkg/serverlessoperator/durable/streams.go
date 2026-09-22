@@ -31,16 +31,15 @@ type StreamOpener interface {
 // for every other endpoint message.
 var unmarshalStream = protojson.UnmarshalOptions{DiscardUnknown: true}
 
-// relayStream is one engine stream open on the socket, keyed by the endpoint-chosen id.
+// relayStream is one engine stream open on the socket, keyed by the endpoint-chosen id. A
+// stream removed from the table by the endpoint's stream_close or by the socket's teardown
+// gets no stream_close back: its reader finds it gone and leaves quietly.
 type relayStream struct {
 	rs     operator.RunStream
 	id     string
 	kind   operator.RunStreamKind
 	ctx    context.Context
 	cancel context.CancelFunc
-	// endpointClosed records that the endpoint sent stream_close, so the reader's exit needs
-	// no stream_close back.
-	endpointClosed bool
 }
 
 // streamTable is the socket's open streams. Frames from the endpoint are handled on the read
@@ -230,10 +229,6 @@ func (t *streamTable) handleStreamClose(f *v1.ServerlessStreamClose) bool {
 	if s == nil {
 		return true
 	}
-
-	t.mu.Lock()
-	s.endpointClosed = true
-	t.mu.Unlock()
 
 	t.remove(s)
 	s.cancel()

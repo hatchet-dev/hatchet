@@ -16,7 +16,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	"google.golang.org/protobuf/encoding/protojson"
 
+	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/internal/signature"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/contract"
@@ -64,27 +66,47 @@ type durableScript struct {
 	crashFirstAttempt bool
 }
 
+// streamScript is what the fake does on the socket of a non-durable task the catalog flagged
+// with streams: trigger a child run through the tenant's client (unary, outside the socket),
+// open a SubscribeToWorkflowRuns stream for it over the socket, wait for the child's terminal
+// event, close the stream and finish with the child's result as the output.
+type streamScript struct {
+	// trigger starts the child run with the parent's input and returns its run id.
+	trigger func(input json.RawMessage) (string, error)
+}
+
+// streamRun is what the stream script observed for one socket invocation.
+type streamRun struct {
+	childRunId string
+	closeCode  int32
+	invocation int32
+}
+
 // fakeEndpoint is an httptest server standing in for a serverless endpoint: it verifies the
 // signature of every request with its secret, answers the healthcheck with its configured
 // workflows, echoes non-durable triggers and runs the durable script on websocket upgrades.
 type fakeEndpoint struct {
-	t          *testing.T
-	name       string
-	secret     string
-	srv        *httptest.Server
-	upgrader   websocket.Upgrader
-	workflows  []*v1.CreateWorkflowVersionRequest
-	script     durableScript
-	failStatus int
-	failBody   string
-	hold       chan struct{}
-	endpointId string
-	requests   []recordedRequest
-	runs       []durableRun
-	conns      map[*websocket.Conn]struct{}
-	closed     bool
-	wg         sync.WaitGroup
-	mu         sync.Mutex
+	t         *testing.T
+	name      string
+	secret    string
+	srv       *httptest.Server
+	upgrader  websocket.Upgrader
+	workflows []*v1.CreateWorkflowVersionRequest
+	script    durableScript
+	streams   streamScript
+	// streamActions are the un-prefixed actions the healthcheck flags with streams.
+	streamActions []string
+	failStatus    int
+	failBody      string
+	hold          chan struct{}
+	endpointId    string
+	requests      []recordedRequest
+	runs          []durableRun
+	streamRuns    []streamRun
+	conns         map[*websocket.Conn]struct{}
+	closed        bool
+	wg            sync.WaitGroup
+	mu            sync.Mutex
 }
 
 func newFakeEndpoint(t *testing.T, name string, workflows ...*v1.CreateWorkflowVersionRequest) *fakeEndpoint {
@@ -148,6 +170,30 @@ func (f *fakeEndpoint) setScript(s durableScript) {
 	defer f.mu.Unlock()
 
 	f.script = s
+}
+
+// setStreamScript flags the actions with streams in the healthcheck and installs the script
+// their sockets run.
+func (f *fakeEndpoint) setStreamScript(s streamScript, actions ...string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.streams = s
+	f.streamActions = actions
+}
+
+func (f *fakeEndpoint) recordStreamRun(r streamRun) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.streamRuns = append(f.streamRuns, r)
+}
+
+func (f *fakeEndpoint) streamedRuns() []streamRun {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return append([]streamRun{}, f.streamRuns...)
 }
 
 // holdTriggers makes every trigger request from now on wait, after it is recorded, until the
@@ -262,11 +308,19 @@ func (f *fakeEndpoint) serveHealthcheck(w http.ResponseWriter, body []byte) {
 
 	f.mu.Lock()
 	workflows := f.workflows
+	streamActions := f.streamActions
 	f.mu.Unlock()
+
+	tasks := make([]*v1.ServerlessTaskOptions, 0, len(streamActions))
+
+	for _, action := range streamActions {
+		tasks = append(tasks, &v1.ServerlessTaskOptions{Action: action, Streams: true})
+	}
 
 	out, err := contract.Marshal(&v1.ServerlessHealthcheckResponse{
 		Workflows: workflows,
 		Durable:   &v1.ServerlessDurableSupport{Supported: true},
+		Tasks:     tasks,
 	})
 
 	if err != nil {
@@ -400,11 +454,12 @@ func (f *fakeEndpoint) serveUpgrade(w http.ResponseWriter, r *http.Request) {
 		f.wg.Done()
 	}()
 
-	f.runDurable(conn)
+	f.runSocket(conn)
 }
 
-// runDurable reads the first frame and executes the script on the socket.
-func (f *fakeEndpoint) runDurable(conn *websocket.Conn) {
+// runSocket reads the first frame and executes the durable script, or the stream script on
+// the socket of a non-durable task, on the socket.
+func (f *fakeEndpoint) runSocket(conn *websocket.Conn) {
 	_ = conn.SetReadDeadline(time.Now().Add(ackWait))
 
 	_, data, err := conn.ReadMessage()
@@ -438,6 +493,11 @@ func (f *fakeEndpoint) runDurable(conn *websocket.Conn) {
 		invocation:   first.InvocationCount,
 		retryCount:   action.RetryCount,
 	})
+
+	if action.DurableTaskInvocationCount == nil {
+		f.runStreaming(conn, first)
+		return
+	}
 
 	f.mu.Lock()
 	script := f.script
@@ -500,6 +560,95 @@ func (f *fakeEndpoint) runDurable(conn *websocket.Conn) {
 	s.done(&v1.ServerlessDoneFrame{Output: &encoded})
 }
 
+// runStreaming runs the stream script on the socket of a non-durable task: the child is
+// triggered outside the socket, its result awaited on a stream opened over it.
+func (f *fakeEndpoint) runStreaming(conn *websocket.Conn, first *v1.ServerlessFirstFrame) {
+	f.mu.Lock()
+	script := f.streams
+	f.mu.Unlock()
+
+	run := streamRun{invocation: first.InvocationCount}
+	defer func() { f.recordStreamRun(run) }()
+
+	s := newDurableSession(f, conn)
+
+	if script.trigger == nil {
+		f.t.Errorf("fake %s: a flagged task was invoked over the socket without a stream script", f.name)
+		return
+	}
+
+	var payload struct {
+		Input json.RawMessage `json:"input"`
+	}
+
+	if err := json.Unmarshal([]byte(first.GetAction().ActionPayload), &payload); err != nil {
+		f.t.Errorf("fake %s: could not decode the action payload: %v", f.name, err)
+		return
+	}
+
+	childRunId, err := script.trigger(payload.Input)
+
+	if err != nil {
+		f.t.Errorf("fake %s: could not trigger the child: %v", f.name, err)
+		return
+	}
+
+	run.childRunId = childRunId
+
+	request, err := protojson.Marshal(&dispatchercontracts.SubscribeToWorkflowRunsRequest{WorkflowRunId: childRunId})
+
+	if err != nil {
+		f.t.Errorf("fake %s: could not encode the subscription: %v", f.name, err)
+		return
+	}
+
+	if err := s.sendFrame(&v1.ServerlessDurableFrame{Frame: &v1.ServerlessDurableFrame_StreamOpen{StreamOpen: &v1.ServerlessStreamOpen{
+		Id:        "child",
+		Procedure: "/Dispatcher/SubscribeToWorkflowRuns",
+		Request:   string(request),
+	}}}); err != nil {
+		f.t.Errorf("fake %s: could not send stream_open: %v", f.name, err)
+		return
+	}
+
+	event, closeCode, err := s.recvStream("child", ackWait)
+
+	if err != nil {
+		f.t.Errorf("fake %s: waiting for the child's event: %v", f.name, err)
+		return
+	}
+
+	if event == nil {
+		f.t.Errorf("fake %s: the stream closed with code %d before the child's event", f.name, closeCode)
+		run.closeCode = closeCode
+
+		return
+	}
+
+	if err := s.sendFrame(&v1.ServerlessDurableFrame{Frame: &v1.ServerlessDurableFrame_StreamClose{StreamClose: &v1.ServerlessStreamClose{Id: "child"}}}); err != nil {
+		f.t.Errorf("fake %s: could not send stream_close: %v", f.name, err)
+		return
+	}
+
+	output := map[string]any{"childRunId": event.WorkflowRunId, "results": map[string]json.RawMessage{}}
+
+	for _, result := range event.Results {
+		if result.Output != nil {
+			output["results"].(map[string]json.RawMessage)[result.TaskName] = json.RawMessage(*result.Output)
+		}
+	}
+
+	raw, err := json.Marshal(output)
+
+	if err != nil {
+		f.t.Errorf("fake %s: could not encode output: %v", f.name, err)
+		return
+	}
+
+	encoded := string(raw)
+	s.done(&v1.ServerlessDoneFrame{Output: &encoded})
+}
+
 // durableSession is the endpoint side of one durable websocket: it sends requests as the
 // endpoint SDK would and reads the engine's responses back. Frames are read by one goroutine
 // into a channel so waiting with a timeout (the inline budget) never sets a read deadline,
@@ -546,10 +695,14 @@ func (s *durableSession) send(req *v1.DurableTaskRequest) error {
 	s.seq++
 	id := s.seq
 
-	frame, err := contract.MarshalFrame(&v1.ServerlessDurableFrame{
+	return s.sendFrame(&v1.ServerlessDurableFrame{
 		Frame: &v1.ServerlessDurableFrame_Request{Request: req},
 		Id:    &id,
 	})
+}
+
+func (s *durableSession) sendFrame(frame *v1.ServerlessDurableFrame) error {
+	out, err := contract.MarshalFrame(frame)
 
 	if err != nil {
 		return err
@@ -557,7 +710,53 @@ func (s *durableSession) send(req *v1.DurableTaskRequest) error {
 
 	_ = s.conn.SetWriteDeadline(time.Now().Add(ackWait))
 
-	return s.conn.WriteMessage(websocket.TextMessage, frame)
+	return s.conn.WriteMessage(websocket.TextMessage, out)
+}
+
+// recvStream reads frames until the stream carries a message (returned decoded) or a
+// stream_close (returned as its code with a nil event).
+func (s *durableSession) recvStream(id string, wait time.Duration) (*dispatchercontracts.WorkflowRunEvent, int32, error) {
+	deadline := time.After(wait)
+
+	for {
+		var data []byte
+
+		select {
+		case frame, ok := <-s.frames:
+			if !ok {
+				return nil, 0, errors.New("socket closed")
+			}
+
+			if frame.err != nil {
+				return nil, 0, frame.err
+			}
+
+			data = frame.data
+		case <-deadline:
+			return nil, 0, errReadTimeout
+		}
+
+		frame, err := contract.UnmarshalFrame(data)
+
+		if err != nil {
+			return nil, 0, err
+		}
+
+		switch {
+		case frame.GetStreamMessage() != nil && frame.GetStreamMessage().GetId() == id:
+			event := &dispatchercontracts.WorkflowRunEvent{}
+
+			if err := protojson.Unmarshal([]byte(frame.GetStreamMessage().GetMessage()), event); err != nil {
+				return nil, 0, err
+			}
+
+			return event, 0, nil
+		case frame.GetStreamClose() != nil && frame.GetStreamClose().GetId() == id:
+			return nil, frame.GetStreamClose().GetCode(), nil
+		default:
+			return nil, 0, fmt.Errorf("unexpected frame %s", string(data))
+		}
+	}
 }
 
 // errReadTimeout reports that no frame arrived within the wait.

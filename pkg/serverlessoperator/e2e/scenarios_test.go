@@ -212,6 +212,83 @@ func TestDurableCrash(t *testing.T) {
 	})
 }
 
+// A non-durable task the catalog flags with streams is invoked over the websocket; it
+// triggers a child run through the tenant's unary client, opens a SubscribeToWorkflowRuns
+// stream for it over the socket, and completes with the child's result once the terminal
+// event arrives. The child itself is an unflagged task of the same endpoint and is posted.
+func TestStreamChildResult(t *testing.T) {
+	forEachLink(t, func(t *testing.T, lc linkCase) {
+		e := lc.e
+		tn := e.newTenant()
+		e.pinLease(tn.id, 0, lc.owner)
+
+		fake := newFakeEndpoint(t, "streamer",
+			workflow("parent", "svc:parent", false, 0),
+			workflow("child", "svc:child", false, 0),
+		)
+
+		ep := e.createEndpoint(tn, fake, endpointOpts{})
+		ns := ep.Namespace
+
+		fake.setStreamScript(streamScript{
+			trigger: func(input json.RawMessage) (string, error) {
+				var in map[string]any
+
+				if err := json.Unmarshal(input, &in); err != nil {
+					return "", err
+				}
+
+				ref, err := tn.sdk.RunNoWait(e.ctx, namespaced(ns, "child"), in)
+
+				if err != nil {
+					return "", err
+				}
+
+				return ref.RunId, nil
+			},
+		}, "svc:parent")
+
+		dumpOnFailure(t, e, tn, fake)
+
+		e.waitRegistered(ep.ID, namespaced(ns, "svc:parent"), namespaced(ns, "svc:child"))
+
+		e.pollUntil(registerWait, "the parent's action to be flagged for the socket", func() (bool, error) {
+			return e.streamActions(ep.ID) != nil && len(e.streamActions(ep.ID)) == 1, nil
+		})
+
+		assert.Equal(t, []string{namespaced(ns, "svc:parent")}, e.streamActions(ep.ID))
+
+		input := map[string]any{"message": "from the parent"}
+		details := e.runToCompletion(tn, namespaced(ns, "parent"), input, 60*time.Second)
+
+		out := taskOutput(t, details)
+
+		streamed := fake.streamedRuns()
+		require.Len(t, streamed, 1, "the parent ran once over the socket: %+v", streamed)
+		assert.Equal(t, int32(1), streamed[0].invocation)
+		assert.Equal(t, streamed[0].childRunId, out["childRunId"], "the output carries the child the task awaited")
+
+		results, ok := out["results"].(map[string]any)
+		require.True(t, ok, "output %+v carries the child's results", out)
+
+		childOutput, ok := results["task"].(map[string]any)
+		require.True(t, ok, "results %+v carry the child's task output", results)
+		assert.Equal(t, input, childOutput["input"], "the child echoed the parent's input")
+		assert.Equal(t, "streamer", childOutput["endpoint"])
+
+		upgrades := fake.requestsOfKind("upgrade")
+		require.Len(t, upgrades, 1, "only the flagged parent is invoked over the socket")
+		assert.Equal(t, namespaced(ns, "svc:parent"), upgrades[0].actionId)
+		assert.Equal(t, int32(1), upgrades[0].invocation)
+
+		triggers := fake.requestsOfKind("trigger")
+		require.Len(t, triggers, 1, "the unflagged child keeps the POST")
+		assert.Equal(t, namespaced(ns, "svc:child"), triggers[0].actionId)
+
+		assertServedBy(t, e, tn.id, namespaced(ns, "svc:parent"), lc.owner)
+	})
+}
+
 func TestHealthcheckChangeAddsWorkflow(t *testing.T) {
 	forEachLink(t, func(t *testing.T, lc linkCase) {
 		e := lc.e
