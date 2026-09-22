@@ -194,6 +194,9 @@ importers:
       typescript-eslint:
         specifier: ^8.56.1
         version: 8.65.0(eslint@10.8.0)(typescript@5.9.3)
+      undici:
+        specifier: ^7.29.1
+        version: 7.29.1
 
 packages:
 
@@ -3717,6 +3720,10 @@ packages:
 
   undici-types@6.21.0:
     resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==}
+
+  undici@7.29.1:
+    resolution: {integrity: sha512-RYONW2MeafgYlkVOKYKkA/Ag7BmXqgIWCa8t1m0JcxrQg9pI9lEqRhAOruOBCbAohOa/gkCF+iPi9hrgvTzu6Q==}
+    engines: {node: '>=20.18.1'}
 
   unpipe@1.0.0:
     resolution: {integrity: sha512-pjy2bYhSsufwWlKwPc+l3cN7+wuJlK6uz0YdJEOlQDbl6jo/YlPi4mb8agUkVC8BF7V8NuzeyPNqRksA3hztKQ==}
@@ -7976,6 +7983,8 @@ snapshots:
     optional: true
 
   undici-types@6.21.0: {}
+
+  undici@7.29.1: {}
 
   unpipe@1.0.0: {}
 

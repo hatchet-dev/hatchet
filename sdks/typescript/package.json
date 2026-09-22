@@ -190,7 +190,8 @@
     "typedoc-plugin-markdown": "^4.10.0",
     "typedoc-plugin-no-inherit": "^1.6.1",
     "typescript": "^5.8.2",
-    "typescript-eslint": "^8.56.1"
+    "typescript-eslint": "^8.56.1",
+    "undici": "^7.29.1"
   },
   "dependencies": {
     "@bufbuild/protobuf": "^2.15.0",
