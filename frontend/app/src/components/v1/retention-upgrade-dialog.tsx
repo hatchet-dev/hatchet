@@ -55,7 +55,6 @@ export function RetentionUpgradeDialog({
         gate="retention"
         organizationId={organizationId}
         onDismiss={onClose}
-        retentionAttempt={attempt}
         retentionPeriod={retentionPeriod}
       />
     );
