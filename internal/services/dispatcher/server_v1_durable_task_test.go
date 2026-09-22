@@ -11,22 +11,19 @@ import (
 	"github.com/rs/zerolog"
 
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/internal/services/shared/rpcstream"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/streams"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-// fakeDurableTaskServer stubs the bidi stream; the embedded interface is left nil
-// because the handler only uses Context and Recv on these test paths.
+// fakeDurableTaskServer stubs the bidi stream: the handler only uses the context and the
+// receiving half on these test paths, so sends are discarded.
 type fakeDurableTaskServer struct {
-	contracts.V1Dispatcher_DurableTaskServer
-
 	ctx  context.Context
 	recv func() (*contracts.DurableTaskRequest, error)
 }
 
-func (f *fakeDurableTaskServer) Context() context.Context { return f.ctx }
-
-func (f *fakeDurableTaskServer) Recv() (*contracts.DurableTaskRequest, error) { return f.recv() }
+func (f *fakeDurableTaskServer) Send(*contracts.DurableTaskResponse) error { return nil }
 
 func newTestDispatcher() *DispatcherServiceImpl {
 	l := zerolog.Nop()
@@ -42,11 +39,14 @@ func tenantContext() context.Context {
 	return context.WithValue(context.Background(), "tenant", &sqlcv1.Tenant{ID: uuid.New()})
 }
 
-func runDurableTask(d *DispatcherServiceImpl, server contracts.V1Dispatcher_DurableTaskServer) <-chan error {
+func runDurableTask(d *DispatcherServiceImpl, server *fakeDurableTaskServer) <-chan error {
 	done := make(chan error, 1)
 
 	go func() {
-		done <- d.DurableTask(server)
+		sender := rpcstream.NewSender[contracts.DurableTaskResponse](context.Background(), server)
+		defer sender.Close()
+
+		done <- d.durableTask(server.ctx, server.recv, sender)
 	}()
 
 	return done

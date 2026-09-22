@@ -21,6 +21,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts/contractsconnect"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/streams"
 	tasktypesv1 "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
@@ -41,12 +42,14 @@ import (
 )
 
 type Dispatcher interface {
-	contracts.DispatcherServer
+	contractsconnect.DispatcherHandler
 	Start() (func() error, error)
 }
 
+var _ contractsconnect.DispatcherHandler = (*DispatcherImpl)(nil)
+
 type DispatcherImpl struct {
-	contracts.UnimplementedDispatcherServer
+	contractsconnect.UnimplementedDispatcherHandler
 	v                                   validator.Validator
 	s                                   gocron.Scheduler
 	mqv1                                msgqueue.MessageQueue
