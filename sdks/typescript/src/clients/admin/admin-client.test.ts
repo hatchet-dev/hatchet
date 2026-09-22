@@ -5,6 +5,11 @@ import { AdminClient } from './admin-client';
 import { mockChannel, mockFactory, mockTransport } from '../../legacy/legacy-client.test';
 import { RunListenerClient } from '../listeners/run-listener/child-listener-client';
 
+// The client retries failed calls with backoff; these tests assert on the outcome, not the retries.
+jest.mock('@hatchet/util/retrier', () => ({
+  retrier: (fn: () => Promise<unknown>) => fn(),
+}));
+
 describe('AdminClient', () => {
   let client: AdminClient;
 
@@ -79,7 +84,14 @@ describe('AdminClient', () => {
         concurrency: undefined,
       };
 
-      expect(() => client.putWorkflow(workflow)).rejects.toThrow(
+      // The engine rejects a versionless workflow; the client wraps and rethrows that error.
+      jest
+        .spyOn(client.client, 'putWorkflow')
+        .mockRejectedValue(
+          new Error('PutWorkflow error: workflow version is required, or use autoVersion')
+        );
+
+      await expect(client.putWorkflow(workflow)).rejects.toThrow(
         'PutWorkflow error: workflow version is required, or use autoVersion'
       );
     });
