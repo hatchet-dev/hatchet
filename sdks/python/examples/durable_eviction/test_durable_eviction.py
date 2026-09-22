@@ -33,6 +33,7 @@ from examples.durable_eviction.worker import (
 from hatchet_sdk import Hatchet
 from hatchet_sdk.clients.admin import WorkflowRunDetail
 from hatchet_sdk.clients.rest.api.task_api import TaskApi
+from hatchet_sdk.clients.rest.exceptions import NotFoundException
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 
 POLL_INTERVAL = 0.2
@@ -76,6 +77,19 @@ def _has_evicted_task(details: WorkflowRunDetail) -> bool:
 
 def _get_task_id(details: WorkflowRunDetail) -> str:
     return list(details.task_runs.values())[0].external_id
+
+
+async def _restore_task(hatchet: Hatchet, task_id: str) -> None:
+    with hatchet.runs.client() as client:
+        api = TaskApi(client)
+        for _ in range(MAX_POLLS):
+            try:
+                await asyncio.to_thread(api.v1_task_get, task=task_id)
+                break
+            except NotFoundException:
+                await asyncio.sleep(POLL_INTERVAL)
+
+        await asyncio.to_thread(api.v1_task_restore, task=task_id)
 
 
 @requires_durable_eviction
@@ -129,8 +143,7 @@ async def test_evictable_task_restore(hatchet: Hatchet) -> None:
     details = await _poll_until_evicted(hatchet, ref.workflow_run_id)
     task_id = _get_task_id(details)
 
-    with hatchet.runs.client() as client:
-        TaskApi(client).v1_task_restore(task=task_id)
+    await _restore_task(hatchet, task_id)
 
     details = await _poll_until_status(
         hatchet, ref.workflow_run_id, V1TaskStatus.RUNNING
@@ -153,8 +166,7 @@ async def test_evictable_task_restore_completes(hatchet: Hatchet) -> None:
     details = await _poll_until_evicted(hatchet, ref.workflow_run_id)
     task_id = _get_task_id(details)
 
-    with hatchet.runs.client() as client:
-        TaskApi(client).v1_task_restore(task=task_id)
+    await _restore_task(hatchet, task_id)
 
     result = await ref.aio_result()
     elapsed = time.time() - start
@@ -184,8 +196,7 @@ async def test_evictable_wait_for_event_restore(hatchet: Hatchet) -> None:
     details = await _poll_until_evicted(hatchet, ref.workflow_run_id)
     task_id = _get_task_id(details)
 
-    with hatchet.runs.client() as client:
-        TaskApi(client).v1_task_restore(task=task_id)
+    await _restore_task(hatchet, task_id)
 
     await _poll_until_status(hatchet, ref.workflow_run_id, V1TaskStatus.RUNNING)
 
@@ -204,8 +215,7 @@ async def test_evictable_memo_then_wait_for_event_restore(hatchet: Hatchet) -> N
     details = await _poll_until_evicted(hatchet, ref.workflow_run_id)
     task_id = _get_task_id(details)
 
-    with hatchet.runs.client() as client:
-        TaskApi(client).v1_task_restore(task=task_id)
+    await _restore_task(hatchet, task_id)
 
     await _poll_until_status(hatchet, ref.workflow_run_id, V1TaskStatus.RUNNING)
 
@@ -238,8 +248,7 @@ async def test_evictable_child_spawn_restore(hatchet: Hatchet) -> None:
     details = await _poll_until_evicted(hatchet, ref.workflow_run_id)
     task_id = _get_task_id(details)
 
-    with hatchet.runs.client() as client:
-        TaskApi(client).v1_task_restore(task=task_id)
+    await _restore_task(hatchet, task_id)
 
     details = await _poll_until_status(
         hatchet, ref.workflow_run_id, V1TaskStatus.RUNNING
@@ -261,8 +270,7 @@ async def test_evictable_child_spawn_restore_completes(hatchet: Hatchet) -> None
     details = await _poll_until_evicted(hatchet, ref.workflow_run_id)
     task_id = _get_task_id(details)
 
-    with hatchet.runs.client() as client:
-        TaskApi(client).v1_task_restore(task=task_id)
+    await _restore_task(hatchet, task_id)
 
     result = await ref.aio_result()
     assert result["status"] == "completed"
@@ -280,8 +288,7 @@ async def test_evictable_child_bulk_spawn_restore_completes(hatchet: Hatchet) ->
         details = await _poll_until_evicted(hatchet, ref.workflow_run_id)
         eviction_count += 1
         task_id = _get_task_id(details)
-        with hatchet.runs.client() as client:
-            TaskApi(client).v1_task_restore(task=task_id)
+        await _restore_task(hatchet, task_id)
 
     result = await ref.aio_result()
     assert eviction_count == 3, f"Expected 3 evictions, got {eviction_count}"
@@ -305,8 +312,7 @@ async def test_multiple_eviction_cycle(hatchet: Hatchet) -> None:
     assert _has_evicted_task(details), f"First eviction failed"
 
     task_id = _get_task_id(details)
-    with hatchet.runs.client() as client:
-        TaskApi(client).v1_task_restore(task=task_id)
+    await _restore_task(hatchet, task_id)
 
     # --- second eviction cycle ---
     await _poll_until_status(hatchet, ref.workflow_run_id, V1TaskStatus.RUNNING)
@@ -314,8 +320,7 @@ async def test_multiple_eviction_cycle(hatchet: Hatchet) -> None:
     assert _has_evicted_task(details), f"Second eviction failed"
 
     task_id = _get_task_id(details)
-    with hatchet.runs.client() as client:
-        TaskApi(client).v1_task_restore(task=task_id)
+    await _restore_task(hatchet, task_id)
 
     # --- should complete after the second restore ---
     result = await ref.aio_result()
@@ -445,8 +450,7 @@ async def test_capacity_eviction_restore_completes(
     details = await _poll_until_evicted(hatchet, ref.workflow_run_id)
     task_id = _get_task_id(details)
 
-    with hatchet.runs.client() as client:
-        TaskApi(client).v1_task_restore(task=task_id)
+    await _restore_task(hatchet, task_id)
 
     result = await ref.aio_result()
     assert result["status"] == "completed"
@@ -462,9 +466,8 @@ async def test_restore_idempotency(hatchet: Hatchet) -> None:
     details = await _poll_until_evicted(hatchet, ref.workflow_run_id)
     task_id = _get_task_id(details)
 
-    with hatchet.runs.client() as client:
-        TaskApi(client).v1_task_restore(task=task_id)
-        TaskApi(client).v1_task_restore(task=task_id)
+    await _restore_task(hatchet, task_id)
+    await _restore_task(hatchet, task_id)
 
     result = await ref.aio_result()
     assert result["status"] == "completed"
