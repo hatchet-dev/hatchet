@@ -355,7 +355,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                             )}
                           </span>
                           <p className="mt-1 text-sm text-muted-foreground">
-                            estimated this period
+                            billing period to date
                           </p>
                         </>
                       ) : typeof currentPlanSummary.amountCents === 'number' &&
