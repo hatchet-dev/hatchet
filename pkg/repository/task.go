@@ -4578,6 +4578,24 @@ func (r *TaskRepositoryImpl) AnalyzeTaskTables(ctx context.Context) error {
 		return fmt.Errorf("error analyzing v1_payload: %v", err)
 	}
 
+	err = r.queries.AnalyzeV1DurableEventLogEntry(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_durable_event_log_entry: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1DurableEventLogBranchPoint(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_durable_event_log_branch_point: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1DurableEventLogFile(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_durable_event_log_file: %v", err)
+	}
+
 	if err := commit(ctx); err != nil {
 		return fmt.Errorf("error committing transaction: %v", err)
 	}

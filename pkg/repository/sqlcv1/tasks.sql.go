@@ -22,6 +22,33 @@ func (q *Queries) AnalyzeV1Dag(ctx context.Context, db DBTX) error {
 	return err
 }
 
+const analyzeV1DurableEventLogBranchPoint = `-- name: AnalyzeV1DurableEventLogBranchPoint :exec
+ANALYZE v1_durable_event_log_branch_point
+`
+
+func (q *Queries) AnalyzeV1DurableEventLogBranchPoint(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1DurableEventLogBranchPoint)
+	return err
+}
+
+const analyzeV1DurableEventLogEntry = `-- name: AnalyzeV1DurableEventLogEntry :exec
+ANALYZE v1_durable_event_log_entry
+`
+
+func (q *Queries) AnalyzeV1DurableEventLogEntry(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1DurableEventLogEntry)
+	return err
+}
+
+const analyzeV1DurableEventLogFile = `-- name: AnalyzeV1DurableEventLogFile :exec
+ANALYZE v1_durable_event_log_file
+`
+
+func (q *Queries) AnalyzeV1DurableEventLogFile(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1DurableEventLogFile)
+	return err
+}
+
 const analyzeV1Task = `-- name: AnalyzeV1Task :exec
 ANALYZE v1_task
 `
