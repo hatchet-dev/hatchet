@@ -1209,6 +1209,26 @@ WHERE rt.tenant_id = @tenantId::uuid
 ORDER BY rt.evicted_at
 LIMIT @maxTasks::int;
 
+-- name: ListUnfinishedDurableOrchestratorChildren :many
+SELECT DISTINCT
+    child.id,
+    child.inserted_at,
+    child.retry_count
+FROM v1_lookup_table orch_lookup
+JOIN v1_task orch ON (orch.id, orch.inserted_at, orch.is_dag_orchestrator) = (orch_lookup.task_id, orch_lookup.inserted_at, TRUE)
+JOIN v1_durable_event_log_entry e ON (e.durable_task_id, e.durable_task_inserted_at) = (orch.id, orch.inserted_at)
+JOIN v1_lookup_table child_lookup ON child_lookup.external_id = e.child_task_external_id
+JOIN v1_task child ON (child.id, child.inserted_at) = (child_lookup.task_id, child_lookup.inserted_at)
+WHERE
+    orch_lookup.tenant_id = @tenantId::uuid
+    AND orch_lookup.external_id = ANY(@orchestratorExternalIds::uuid[])
+    AND e.kind = 'RUN'
+    AND NOT EXISTS (
+        SELECT 1
+        FROM v1_task_event ev
+        WHERE (ev.task_id, ev.task_inserted_at, ev.retry_count) = (child.id, child.inserted_at, child.retry_count)
+          AND ev.event_type IN ('COMPLETED', 'FAILED', 'CANCELLED')
+    );
 
 -- name: CleanupWorkflowConcurrencySlotsAfterInsert :exec
 -- Cleans up workflow concurrency slots when tasks have been inserted in a non-QUEUED state.
