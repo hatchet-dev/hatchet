@@ -338,6 +338,15 @@ class DispatcherClient:
             metadata=create_authorization_header(self.token),
         )
 
+    async def aio_release_slot(self, step_run_id: str) -> None:
+        aio_client = self._get_or_create_aio_client()
+
+        await aio_client.ReleaseSlot(
+            ReleaseSlotRequest(task_run_external_id=step_run_id),
+            timeout=DEFAULT_REGISTER_TIMEOUT,
+            metadata=create_authorization_header(self.token),
+        )
+
     def refresh_timeout(self, step_run_id: str, increment_by: str) -> None:
         client = self._get_or_create_client()
 

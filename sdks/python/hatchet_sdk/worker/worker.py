@@ -41,6 +41,7 @@ from hatchet_sdk.worker.action_listener_process import (
 )
 from hatchet_sdk.worker.runner.run_loop_manager import WorkerActionRunLoopManager
 from hatchet_sdk.worker.slot_types import SlotType
+from hatchet_sdk.worker.slot_usage import create_shared_slot_usage_by_pool
 
 T = TypeVar("T")
 
@@ -125,6 +126,12 @@ class Worker:
         # registered with the engine.  The worker reads it back so it can
         # pause task assignment directly without going through the subprocess.
         self._worker_id_queue: Queue[str] = self._ctx.Queue()
+
+        self._shared_slot_usage_by_pool = (
+            create_shared_slot_usage_by_pool(self._ctx, slot_config)
+            if self._config.healthcheck.enabled
+            else None
+        )
 
         # Set by the parent to tell listener subprocesses to stop their action
         # loops.  Using a multiprocessing.Event avoids sending OS signals.
@@ -606,6 +613,7 @@ class Worker:
                 self._labels,
                 lifespan_context,
                 engine_version=self._engine_version,
+                shared_slot_usage_by_pool=self._shared_slot_usage_by_pool,
             )
 
         raise RuntimeError("event loop not set, cannot start action runner")
@@ -659,6 +667,7 @@ class Worker:
                     self._labels,
                     self._worker_id_queue,
                     self._stop_listener_event,
+                    self._shared_slot_usage_by_pool,
                 ),
             )
             process.start()
