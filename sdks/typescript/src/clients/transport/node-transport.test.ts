@@ -2,12 +2,13 @@ import { DEFAULT_LOGGER } from '@clients/hatchet-client/hatchet-logger';
 import { ClientConfig } from '@clients/hatchet-client/client-config';
 import { createGrpcTransport } from '@connectrpc/connect-node';
 import { createEventsRpc } from '@clients/event/event-client';
-import { execFileSync } from 'child_process';
+import { execFile, execFileSync } from 'child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { createSecureServer, type Http2Session, type SecureServerOptions } from 'http2';
 import type { AddressInfo } from 'net';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { promisify } from 'util';
 import type { TLSSocket } from 'tls';
 import {
   createNodeTransport,
@@ -228,6 +229,42 @@ async function serveGrpc(tls: SecureServerOptions) {
   };
 }
 
+/**
+ * Runs one unary call through `createNodeTransport` in a child Node process, for settings Node
+ * itself reads from the process environment. The child loads the TypeScript sources through tsx.
+ * It runs asynchronously so the fixture server in this process can serve it.
+ */
+async function callInChild(
+  config: ClientConfig,
+  env: Record<string, string>
+): Promise<{ ok: boolean; message?: string }> {
+  const script = `
+    require(process.argv[2]);
+    const { createNodeTransport } = require(process.argv[3]);
+    const { EventsService } = require(process.argv[4]);
+    const config = JSON.parse(process.argv[5]);
+    const done = (result) => { console.log(JSON.stringify(result)); process.exit(0); };
+    createNodeTransport(config)
+      .unary(EventsService.method.putLog, undefined, undefined, undefined, {})
+      .then(() => done({ ok: true }), (e) => done({ ok: false, message: e.message }));
+  `;
+  const { logger: _logger, ...serializable } = config;
+  const scriptFile = join(mkdtempSync(join(tmpdir(), 'hatchet-child-')), 'call.cjs');
+  writeFileSync(scriptFile, script);
+  const { stdout } = await promisify(execFile)(
+    process.execPath,
+    [
+      scriptFile,
+      require.resolve('tsx/cjs'),
+      require.resolve('./node-transport'),
+      require.resolve('@hatchet/protoc-es/events/events_pb'),
+      JSON.stringify(serializable),
+    ],
+    { env: { ...process.env, ...env }, encoding: 'utf8' }
+  );
+  return JSON.parse(stdout.trim().split('\n').pop() ?? '{}');
+}
+
 describe('tlsSessionOptions', () => {
   let dir: string;
   const env = { ...process.env };
@@ -256,6 +293,11 @@ describe('tlsSessionOptions', () => {
 
     delete process.env.GRPC_DEFAULT_SSL_ROOTS_FILE_PATH;
     expect(tlsSessionOptions({ tls_strategy: 'tls' }).ca).toBeUndefined();
+  });
+
+  it('always verifies the peer', () => {
+    expect(tlsSessionOptions({ tls_strategy: 'tls' }).rejectUnauthorized).toBe(true);
+    expect(tlsSessionOptions({ tls_strategy: 'mtls' }).rejectUnauthorized).toBe(true);
   });
 
   it('applies GRPC_SSL_CIPHER_SUITES when set', () => {
@@ -312,6 +354,27 @@ describe('createNodeTransport over TLS', () => {
       process.env.GRPC_DEFAULT_SSL_ROOTS_FILE_PATH = pki.ca;
 
       await expect(call(server.port, { tls_strategy: 'tls' })).rejects.toThrow();
+      expect(server.requests).toHaveLength(0);
+    } finally {
+      await server.close();
+    }
+  });
+
+  it('keeps verifying the peer when NODE_TLS_REJECT_UNAUTHORIZED=0 is set', async () => {
+    const server = await serveGrpc(serverOptions(pki.otherServer));
+    try {
+      // Node reads the switch from the real process environment, which a Jest sandbox does not
+      // share, so the call runs in a child process started with it.
+      const result = await callInChild(
+        {
+          ...baseConfig,
+          host_port: `127.0.0.1:${server.port}`,
+          tls_config: { tls_strategy: 'tls', ca_file: pki.ca },
+        },
+        { NODE_TLS_REJECT_UNAUTHORIZED: '0' }
+      );
+
+      expect(result.ok).toBe(false);
       expect(server.requests).toHaveLength(0);
     } finally {
       await server.close();

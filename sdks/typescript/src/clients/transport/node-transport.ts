@@ -47,7 +47,9 @@ export const SESSION_OPTIONS = {
  * `GRPC_SSL_CIPHER_SUITES` when set.
  */
 export function tlsSessionOptions(tls: ClientConfig['tls_config']): SecureClientSessionOptions {
-  const options: SecureClientSessionOptions = {};
+  // grpc-js verifies the peer regardless of NODE_TLS_REJECT_UNAUTHORIZED, which is Node's
+  // process-wide switch; set explicitly, the switch cannot weaken this connection either.
+  const options: SecureClientSessionOptions = { rejectUnauthorized: true };
 
   const rootsFile = tls.ca_file || process.env.GRPC_DEFAULT_SSL_ROOTS_FILE_PATH;
   if (rootsFile) {
