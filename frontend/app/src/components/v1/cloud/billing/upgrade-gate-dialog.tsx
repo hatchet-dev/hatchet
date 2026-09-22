@@ -506,8 +506,10 @@ function ComparisonSection({
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <div className="flex flex-wrap items-baseline gap-x-2">
-        <p className="text-sm font-medium text-foreground">{label}</p>
+      <div className="flex flex-col gap-0.5">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          {label}
+        </p>
         {note ? <p className="text-xs text-muted-foreground">{note}</p> : null}
       </div>
       <div className="overflow-hidden rounded-lg border border-border/50">
