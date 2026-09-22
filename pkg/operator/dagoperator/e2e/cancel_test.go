@@ -7,7 +7,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"os"
 	"strings"
 	"sync/atomic"
@@ -15,8 +14,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -24,6 +21,9 @@ import (
 	"google.golang.org/grpc/metadata"
 
 	admincontracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/internal/statusutils"
+	"github.com/hatchet-dev/hatchet/pkg/config/loader"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/testing/harness"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
@@ -73,7 +73,8 @@ type dagInput struct {
 // cancelEnv is a tenant with the DAG operator enabled and a worker serving a DAG whose two
 // parallel roots block until cancelled. The leaf depends on both roots, so it is never reached.
 type cancelEnv struct {
-	db       *pgxpool.Pool
+	repo     v1.Repository
+	tenantID uuid.UUID
 	workflow *hatchet.Workflow
 	admin    admincontracts.AdminServiceClient
 	token    string
@@ -87,13 +88,21 @@ func newCancelEnv(t *testing.T) *cancelEnv {
 
 	require.NoError(t, harness.WaitEngineReady(ctx, engineReadyTimeout))
 
-	db, err := pgxpool.New(ctx, os.Getenv("DATABASE_URL"))
+	// Mirrors how the harness engine itself builds a repository (pkg/testing/harness/engine.go):
+	// a second connection to the same database the engine under test is using.
+	cf := loader.NewConfigLoader("")
+	dl, err := cf.InitDataLayer()
 	require.NoError(t, err)
-	t.Cleanup(db.Close)
+	t.Cleanup(func() { _ = dl.Disconnect() })
+
+	token := os.Getenv("HATCHET_CLIENT_TOKEN")
+	tenantID := tenantIDFromToken(t, token)
 
 	// The entitlement is read when the workflow is registered, so it has to be on before the
 	// worker starts.
-	enableDagOperator(ctx, t, db)
+	require.NoError(t, dl.V1.TenantEntitlement().SetEntitlements(ctx, tenantID, v1.TenantEntitlements{
+		DAGOperator: true,
+	}))
 
 	client, err := hatchet.NewClient()
 	require.NoError(t, err)
@@ -124,10 +133,11 @@ func newCancelEnv(t *testing.T) *cancelEnv {
 	t.Cleanup(func() { _ = conn.Close() })
 
 	return &cancelEnv{
-		db:       db,
+		repo:     dl.V1,
+		tenantID: tenantID,
 		workflow: workflow,
 		admin:    admincontracts.NewAdminServiceClient(conn),
-		token:    os.Getenv("HATCHET_CLIENT_TOKEN"),
+		token:    token,
 	}
 }
 
@@ -157,20 +167,6 @@ func newWorker(t *testing.T, client *hatchet.Client, workflow *hatchet.Workflow)
 	require.NoError(t, err, "NewWorker kept returning the legacy-engine deprecation error")
 
 	return nil
-}
-
-func enableDagOperator(ctx context.Context, t *testing.T, db *pgxpool.Pool) {
-	t.Helper()
-
-	// The engine creates tenants of its own on startup, so the entitlement has to go to the
-	// tenant the client's token belongs to rather than whichever tenant comes back first.
-	tenantID := tenantIDFromToken(t, os.Getenv("HATCHET_CLIENT_TOKEN"))
-
-	_, err := db.Exec(ctx, `
-		INSERT INTO tenant_entitlement (tenant_id, dag_operator) VALUES ($1, TRUE)
-		ON CONFLICT (tenant_id) DO UPDATE SET dag_operator = TRUE
-	`, tenantID)
-	require.NoError(t, err)
 }
 
 // tenantIDFromToken reads the subject claim, which is the tenant id for a tenant API token. The
@@ -264,132 +260,24 @@ func (e *cancelEnv) cancel(ctx context.Context, ids ...uuid.UUID) error {
 	return err
 }
 
-// These tests read engine state straight from the database: the API doesn't surface whether an
-// orchestrator is evicted, and "the child is cancelled" is most directly a statement about the
-// child's runtime row and task events.
-
-// taskState is the engine's view of one task, read from the core tables.
-type taskState struct {
-	externalID uuid.UUID
-	name       string
-	hasRuntime bool // has a v1_task_runtime row: running on a worker, or evicted
-	evicted    bool
-	cancelled  bool // has a CANCELLED task event
-	completed  bool // has a COMPLETED task event
-}
-
-func (s taskState) String() string {
-	return fmt.Sprintf(
-		"%s (%s): runtime=%t evicted=%t cancelled=%t completed=%t",
-		s.name, s.externalID, s.hasRuntime, s.evicted, s.cancelled, s.completed,
-	)
-}
-
-const taskStatesQuery = `
-SELECT
-    l.external_id,
-    t.step_readable_id,
-    rt.task_id IS NOT NULL AS has_runtime,
-    rt.evicted_at IS NOT NULL AS evicted,
-    EXISTS (
-        SELECT 1 FROM v1_task_event ev
-        WHERE (ev.task_id, ev.task_inserted_at) = (t.id, t.inserted_at)
-          AND ev.event_type = 'CANCELLED'
-    ) AS cancelled,
-    EXISTS (
-        SELECT 1 FROM v1_task_event ev
-        WHERE (ev.task_id, ev.task_inserted_at) = (t.id, t.inserted_at)
-          AND ev.event_type = 'COMPLETED'
-    ) AS completed
-FROM v1_lookup_table l
-JOIN v1_task t ON (t.id, t.inserted_at) = (l.task_id, l.inserted_at)
-LEFT JOIN v1_task_runtime rt ON (rt.task_id, rt.task_inserted_at, rt.retry_count) = (t.id, t.inserted_at, t.retry_count)
-WHERE l.external_id = ANY($1::uuid[])
-ORDER BY t.step_readable_id
-`
-
-func (e *cancelEnv) taskStates(ctx context.Context, externalIDs []uuid.UUID) ([]taskState, error) {
-	rows, err := e.db.Query(ctx, taskStatesQuery, externalIDs)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var states []taskState
-	for rows.Next() {
-		var s taskState
-		if err := rows.Scan(&s.externalID, &s.name, &s.hasRuntime, &s.evicted, &s.cancelled, &s.completed); err != nil {
-			return nil, err
-		}
-		states = append(states, s)
-	}
-
-	return states, rows.Err()
-}
-
-// For an operator run the run's external id belongs to the orchestrator task. For a regular DAG
-// it belongs to a DAG row instead, so there is no task to join to.
-const runIsOperatorQuery = `
-SELECT COALESCE(t.is_dag_orchestrator, FALSE)
-FROM v1_lookup_table l
-LEFT JOIN v1_task t ON (t.id, t.inserted_at) = (l.task_id, l.inserted_at)
-WHERE l.external_id = $1
-`
-
-// The children an operator DAG has spawned are the RUN entries in the orchestrator's durable
-// event log.
-const orchestratorChildrenQuery = `
-SELECT DISTINCT e.child_task_external_id
-FROM v1_lookup_table l
-JOIN v1_task orch ON (orch.id, orch.inserted_at, orch.is_dag_orchestrator) = (l.task_id, l.inserted_at, TRUE)
-JOIN v1_durable_event_log_entry e ON (e.durable_task_id, e.durable_task_inserted_at) = (orch.id, orch.inserted_at)
-WHERE l.external_id = $1
-  AND e.kind = 'RUN'
-  AND e.child_task_external_id IS NOT NULL
-`
-
-func (e *cancelEnv) orchestratorChildren(ctx context.Context, runID uuid.UUID) ([]uuid.UUID, error) {
-	rows, err := e.db.Query(ctx, orchestratorChildrenQuery, runID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var ids []uuid.UUID
-	for rows.Next() {
-		var id uuid.UUID
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		ids = append(ids, id)
-	}
-
-	return ids, rows.Err()
+// runDetails is the same repository call the admin service's GetRunDetails RPC uses
+// (internal/services/admin/v1/server.go): for a DAG-operator orchestrator's own external id it
+// reports the orchestrator's own status separately (OrchestratorStatus) from each child it has
+// spawned (ReadableIdToDetails, keyed by step readable id). It returns (nil, nil) if runID hasn't
+// shown up in the lookup table yet.
+func (e *cancelEnv) runDetails(ctx context.Context, runID uuid.UUID) (*v1.WorkflowRunDetails, error) {
+	return e.repo.Tasks().GetWorkflowRunResultDetails(ctx, e.tenantID, runID)
 }
 
 func (e *cancelEnv) requireOperatorRun(ctx context.Context, t *testing.T, runID uuid.UUID) {
 	t.Helper()
 
-	deadline := time.Now().Add(15 * time.Second)
-
-	for {
-		var isOperator bool
-		err := e.db.QueryRow(ctx, runIsOperatorQuery, runID).Scan(&isOperator)
-
-		switch {
-		case err == nil:
-			require.True(t, isOperator, "run %s was not created as a DAG operator orchestrator", runID)
-			return
-		case !errors.Is(err, pgx.ErrNoRows):
-			require.NoError(t, err)
-		}
-
-		if time.Now().After(deadline) {
-			t.Fatalf("run %s never showed up in v1_lookup_table", runID)
-		}
-
-		time.Sleep(pollInterval)
-	}
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		details, err := e.runDetails(ctx, runID)
+		require.NoError(c, err)
+		require.NotNil(c, details, "run %s never showed up", runID)
+		assert.NotNil(c, details.OrchestratorStatus, "run %s was not created as a DAG operator orchestrator", runID)
+	}, 15*time.Second, pollInterval)
 }
 
 // startBlockingDag runs the DAG and returns once the operator has spawned both roots and each is
@@ -415,21 +303,24 @@ func (e *cancelEnv) startBlockingDag(ctx context.Context, t *testing.T, input da
 	e.requireOperatorRun(ctx, t, runID)
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		ids, err := e.orchestratorChildren(ctx, runID)
+		details, err := e.runDetails(ctx, runID)
 		require.NoError(c, err)
-		require.Len(c, ids, 2, "the orchestrator should have spawned both roots")
+		require.NotNil(c, details)
+		require.Len(c, details.ReadableIdToDetails, 2, "the orchestrator should have spawned both roots")
 
-		states, err := e.taskStates(ctx, ids)
-		require.NoError(c, err)
-		require.Len(c, states, 2)
-
-		for _, s := range states {
-			assert.True(c, s.hasRuntime || s.completed, "root is not running yet: %s", s)
+		for readableID, d := range details.ReadableIdToDetails {
+			started := d.Status == statusutils.V1RunStatusRunning || d.Status == statusutils.V1RunStatusCompleted
+			assert.True(c, started, "%s is not running yet: %s", readableID, d.Status)
 		}
 	}, rootsStartTimeout, pollInterval)
 
-	rootIDs, err = e.orchestratorChildren(ctx, runID)
+	details, err := e.runDetails(ctx, runID)
 	require.NoError(t, err)
+	require.NotNil(t, details)
+
+	for _, d := range details.ReadableIdToDetails {
+		rootIDs = append(rootIDs, d.ExternalId)
+	}
 
 	return runID, rootIDs
 }
@@ -438,28 +329,39 @@ func (e *cancelEnv) requireOrchestratorEvicted(ctx context.Context, t *testing.T
 	t.Helper()
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		states, err := e.taskStates(ctx, []uuid.UUID{runID})
+		details, err := e.runDetails(ctx, runID)
 		require.NoError(c, err)
-		require.Len(c, states, 1)
+		require.NotNil(c, details)
 
-		assert.True(c, states[0].evicted, "orchestrator is not evicted yet: %s", states[0])
+		if assert.NotNil(c, details.OrchestratorStatus) {
+			assert.Equal(c, statusutils.V1RunStatusEvicted, *details.OrchestratorStatus, "orchestrator is not evicted yet")
+		}
 	}, evictionTimeout, pollInterval)
 }
 
-// requireRunAndChildrenCancelled waits for the orchestrator and every child it had spawned to be
-// cancelled: no runtime row left, a CANCELLED event recorded, and never completed.
+// requireRunAndChildrenCancelled waits for the orchestrator and every child in rootIDs to reach
+// CANCELLED status.
 func (e *cancelEnv) requireRunAndChildrenCancelled(ctx context.Context, t *testing.T, runID uuid.UUID, rootIDs []uuid.UUID) {
 	t.Helper()
 
-	all := append([]uuid.UUID{runID}, rootIDs...)
-
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		states, err := e.taskStates(ctx, all)
+		details, err := e.runDetails(ctx, runID)
 		require.NoError(c, err)
-		require.Len(c, states, len(all))
+		require.NotNil(c, details)
 
-		for _, s := range states {
-			assert.True(c, s.cancelled && !s.hasRuntime && !s.completed, "not cancelled: %s", s)
+		if assert.NotNil(c, details.OrchestratorStatus) {
+			assert.Equal(c, statusutils.V1RunStatusCancelled, *details.OrchestratorStatus, "orchestrator not cancelled")
+		}
+
+		statusByExternalID := make(map[uuid.UUID]statusutils.V1RunStatus, len(details.ReadableIdToDetails))
+		for _, d := range details.ReadableIdToDetails {
+			statusByExternalID[d.ExternalId] = d.Status
+		}
+
+		for _, id := range rootIDs {
+			status, found := statusByExternalID[id]
+			assert.True(c, found && status == statusutils.V1RunStatusCancelled,
+				"child %s not cancelled (found=%t, status=%s)", id, found, status)
 		}
 	}, cancelPropagationTimeout, pollInterval,
 		"cancelling a dag operator run must cancel the orchestrator and every child it had already spawned")
@@ -476,11 +378,12 @@ func TestDagOperatorCancel(t *testing.T) {
 
 		runID, rootIDs := env.startBlockingDag(ctx, t, dagInput{})
 
-		orchestrator, err := env.taskStates(ctx, []uuid.UUID{runID})
+		details, err := env.runDetails(ctx, runID)
 		require.NoError(t, err)
-		require.Len(t, orchestrator, 1)
+		require.NotNil(t, details)
+		require.NotNil(t, details.OrchestratorStatus)
 
-		if orchestrator[0].evicted {
+		if *details.OrchestratorStatus == statusutils.V1RunStatusEvicted {
 			t.Skip("orchestrator was evicted before the cancel was sent, so this run doesn't exercise the not-evicted path")
 		}
 
@@ -511,23 +414,24 @@ func TestDagOperatorCancel(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 		defer cancel()
 
-		runID, rootIDs := env.startBlockingDag(ctx, t, dagInput{CompleteRootA: true})
+		runID, _ := env.startBlockingDag(ctx, t, dagInput{CompleteRootA: true})
 
-		// the roots come back ordered by name, so the finished one is first
+		var blocked uuid.UUID
+
 		require.EventuallyWithT(t, func(c *assert.CollectT) {
-			states, err := env.taskStates(ctx, rootIDs)
+			details, err := env.runDetails(ctx, runID)
 			require.NoError(c, err)
-			require.Len(c, states, 2)
+			require.NotNil(c, details)
 
-			assert.True(c, states[0].completed, "root a has not finished yet: %s", states[0])
-			assert.True(c, states[1].hasRuntime, "root b is not running yet: %s", states[1])
+			if a, ok := details.ReadableIdToDetails[rootA]; assert.True(c, ok, "%s has not spawned yet", rootA) {
+				assert.Equal(c, statusutils.V1RunStatusCompleted, a.Status, "%s has not finished yet", rootA)
+			}
+
+			if b, ok := details.ReadableIdToDetails[rootB]; assert.True(c, ok, "%s has not spawned yet", rootB) {
+				assert.Equal(c, statusutils.V1RunStatusRunning, b.Status, "%s is not running yet", rootB)
+				blocked = b.ExternalId
+			}
 		}, rootsStartTimeout, pollInterval)
-
-		roots, err := env.taskStates(ctx, rootIDs)
-		require.NoError(t, err)
-		require.Len(t, roots, 2)
-
-		finished, blocked := roots[0].externalID, roots[1].externalID
 
 		env.requireOrchestratorEvicted(ctx, t, runID)
 
@@ -535,10 +439,13 @@ func TestDagOperatorCancel(t *testing.T) {
 
 		env.requireRunAndChildrenCancelled(ctx, t, runID, []uuid.UUID{blocked})
 
-		states, err := env.taskStates(ctx, []uuid.UUID{finished})
+		details, err := env.runDetails(ctx, runID)
 		require.NoError(t, err)
-		require.Len(t, states, 1)
-		assert.True(t, states[0].completed && !states[0].cancelled,
-			"a child that finished before the cancel must keep its result: %s", states[0])
+		require.NotNil(t, details)
+
+		finished, ok := details.ReadableIdToDetails[rootA]
+		require.True(t, ok)
+		assert.Equal(t, statusutils.V1RunStatusCompleted, finished.Status,
+			"a child that finished before the cancel must keep its result")
 	})
 }
