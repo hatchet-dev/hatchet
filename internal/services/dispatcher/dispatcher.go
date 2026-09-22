@@ -565,6 +565,7 @@ func (d *DispatcherImpl) handleDurableCallbackCompleted(ctx context.Context, tas
 	undelivered := make([]tasktypesv1.DurableCallbackCompletedPayload, 0)
 
 	for _, payload := range payloads {
+		fmt.Printf("[ordered-release] task=%s invocation=%d source=live-push node=%d branch=%d order=%v\n", payload.TaskExternalId, payload.InvocationCount, payload.NodeId, payload.BranchId, payload.SatisfiedOrder)
 		err := d.serviceV1.DeliverDurableEventLogEntryCompletion(
 			task.TenantID,
 			payload.TaskExternalId,
