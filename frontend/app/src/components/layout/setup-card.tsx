@@ -24,7 +24,9 @@ export function SetupCard({
         <div className="border-b border-border px-6 py-5">
           <h2 className="text-base font-medium tracking-tight">{title}</h2>
           {description ? (
-            <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+            <div className="mt-1 text-sm text-muted-foreground">
+              {description}
+            </div>
           ) : null}
         </div>
         <div className={cn('px-6 py-5', bodyClassName)}>{children}</div>
@@ -37,6 +39,11 @@ export function SetupCard({
     </div>
   );
 }
+
+// DialogContent still portals, traps focus, and closes on Escape. Strip its
+// chrome when the visible surface is a SetupCard.
+export const setupCardDialogClassName =
+  'gap-0 border-none bg-transparent p-0 shadow-none sm:rounded-none';
 
 // `fixed` so the screen covers the app shell (nav and sidebar) on routes that
 // render inside it.

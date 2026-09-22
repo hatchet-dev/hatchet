@@ -1,15 +1,22 @@
 import { UpgradeGate, UpgradeGateDialog } from './upgrade-gate-dialog';
 import {
   dailyMeterSeverity,
+  formatObservedUsage,
   formatTimeUntil,
   meterPercent,
   nextRefillAt,
   selectDailyMeters,
+  sumUsageSeries,
   toUsageDisplayRows,
   type DailyMeter,
   type UsageDisplayRow,
+  type UsageRangePreset,
   type UsageSeverity,
 } from './usage-features';
+import {
+  setupCardDialogClassName,
+  SetupCard,
+} from '@/components/layout/setup-card';
 import { ZoomableChart } from '@/components/v1/molecules/charts/zoomable';
 import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
 import { Button } from '@/components/v1/ui/button';
@@ -23,7 +30,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogHeader,
   DialogTitle,
 } from '@/components/v1/ui/dialog';
 import {
@@ -52,7 +58,7 @@ import { Line, LineChart, ResponsiveContainer } from 'recharts';
 
 const GRAPHABLE_FEATURES = new Set(['task_runs', 'events']);
 
-type RangePreset = 'period' | '7d' | '30d';
+type RangePreset = UsageRangePreset;
 
 function formatUsageCount(value: number) {
   return new Intl.NumberFormat('en-US').format(value);
@@ -241,17 +247,25 @@ function UsageSparkline({ values }: { values: number[] }) {
 function UsageMeter({
   row,
   sparkline,
+  observedUsage,
+  rangePreset,
   selectable,
   onSelect,
   onUpgrade,
 }: {
   row: UsageDisplayRow;
   sparkline?: number[];
+  observedUsage?: number;
+  rangePreset: RangePreset;
   selectable: boolean;
   onSelect: () => void;
   onUpgrade: () => void;
 }) {
   const { feature, dailyMeter, showPeriodAsCount } = row;
+  const periodCount =
+    observedUsage !== undefined
+      ? formatObservedUsage(observedUsage, rangePreset)
+      : formatPeriodCount(feature);
   const percent = dailyMeter
     ? meterPercent(dailyMeter)
     : showPeriodAsCount
@@ -272,7 +286,7 @@ function UsageMeter({
   const primaryValue = dailyMeter
     ? formatDailyMeterValue(dailyMeter)
     : showPeriodAsCount
-      ? formatPeriodCount(feature)
+      ? periodCount
       : formatUsageLabel(feature);
 
   const content = (
@@ -284,9 +298,7 @@ function UsageMeter({
               {feature.name}
             </p>
             {dailyMeter && showPeriodAsCount ? (
-              <p className="text-xs text-muted-foreground">
-                {formatPeriodCount(feature)}
-              </p>
+              <p className="text-xs text-muted-foreground">{periodCount}</p>
             ) : null}
           </div>
           <div className="flex items-center gap-1.5">
@@ -567,6 +579,12 @@ export function UsageThisPeriod({
                     key={row.feature.featureId}
                     row={row}
                     sparkline={sparkline}
+                    observedUsage={
+                      graphable && timeseries.isSuccess
+                        ? sumUsageSeries(sparkline ?? [])
+                        : undefined
+                    }
+                    rangePreset={rangePreset}
                     selectable={graphable}
                     onSelect={() => setDetailFeatureId(row.feature.featureId)}
                     onUpgrade={() =>
@@ -601,76 +619,84 @@ export function UsageThisPeriod({
           }
         }}
       >
-        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{detailFeature?.name ?? 'Usage'}</DialogTitle>
-            <DialogDescription>
-              Daily usage
-              {formatRangeLabel(
-                range.start.toISOString(),
-                range.end.toISOString(),
-              )
-                ? ` · ${formatRangeLabel(range.start.toISOString(), range.end.toISOString())}`
-                : ''}
-              . Total {formatUsageCount(chartTotal)}.
-            </DialogDescription>
-          </DialogHeader>
+        <DialogContent
+          className={`${setupCardDialogClassName} max-h-[85vh] max-w-3xl overflow-y-auto`}
+        >
+          <DialogTitle className="sr-only">
+            {detailFeature?.name ?? 'Usage'}
+          </DialogTitle>
+          <SetupCard
+            className="max-w-none"
+            title={detailFeature?.name ?? 'Usage'}
+            description={
+              <DialogDescription>
+                Daily usage
+                {formatRangeLabel(
+                  range.start.toISOString(),
+                  range.end.toISOString(),
+                )
+                  ? ` · ${formatRangeLabel(range.start.toISOString(), range.end.toISOString())}`
+                  : ''}
+                . Total {formatUsageCount(chartTotal)}.
+              </DialogDescription>
+            }
+          >
+            {timeseries.isError ? (
+              <Alert variant="warn">
+                <AlertTitle>Usage graph unavailable</AlertTitle>
+                <AlertDescription>
+                  We couldn&apos;t load daily usage from your shards.
+                </AlertDescription>
+              </Alert>
+            ) : timeseries.isPending ? (
+              <Skeleton className="h-[220px] w-full" />
+            ) : (
+              <ZoomableChart<'usage'>
+                kind="bar"
+                showYAxis
+                data={chartData}
+                colors={{ usage: 'hsl(var(--foreground))' }}
+                className="h-[240px] min-h-[240px]"
+              />
+            )}
 
-          {timeseries.isError ? (
-            <Alert variant="warn">
-              <AlertTitle>Usage graph unavailable</AlertTitle>
-              <AlertDescription>
-                We couldn&apos;t load daily usage from your shards.
-              </AlertDescription>
-            </Alert>
-          ) : timeseries.isPending ? (
-            <Skeleton className="h-[220px] w-full" />
-          ) : (
-            <ZoomableChart<'usage'>
-              kind="bar"
-              showYAxis
-              data={chartData}
-              colors={{ usage: 'hsl(var(--foreground))' }}
-              className="h-[240px] min-h-[240px]"
-            />
-          )}
-
-          {tenantRows.length > 0 ? (
-            <div className="space-y-3">
-              <p className="text-sm font-medium text-foreground">
-                Usage by tenant
-              </p>
-              <div className="divide-y divide-border/40">
-                {tenantRows.map((tenant) => {
-                  const value = metricValue(
-                    detailFeatureId ?? 'task_runs',
-                    tenant,
-                  );
-                  const percent =
-                    tenantTotal > 0 ? (value / tenantTotal) * 100 : 0;
-                  return (
-                    <div
-                      key={tenant.tenantId}
-                      className="flex items-center justify-between gap-4 py-2"
-                    >
-                      <div>
-                        <p className="text-sm text-foreground">
-                          {tenant.tenantName}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {tenant.tenantSlug}
+            {tenantRows.length > 0 ? (
+              <div className="space-y-3">
+                <p className="text-sm font-medium text-foreground">
+                  Usage by tenant
+                </p>
+                <div className="divide-y divide-border/40">
+                  {tenantRows.map((tenant) => {
+                    const value = metricValue(
+                      detailFeatureId ?? 'task_runs',
+                      tenant,
+                    );
+                    const percent =
+                      tenantTotal > 0 ? (value / tenantTotal) * 100 : 0;
+                    return (
+                      <div
+                        key={tenant.tenantId}
+                        className="flex items-center justify-between gap-4 py-2"
+                      >
+                        <div>
+                          <p className="text-sm text-foreground">
+                            {tenant.tenantName}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {tenant.tenantSlug}
+                          </p>
+                        </div>
+                        <p className="text-sm tabular-nums text-muted-foreground">
+                          {formatUsageCount(value)}
+                          {tenantTotal > 0 ? ` · ${percent.toFixed(1)}%` : ''}
                         </p>
                       </div>
-                      <p className="text-sm tabular-nums text-muted-foreground">
-                        {formatUsageCount(value)}
-                        {tenantTotal > 0 ? ` · ${percent.toFixed(1)}%` : ''}
-                      </p>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          ) : null}
+            ) : null}
+          </SetupCard>
         </DialogContent>
       </Dialog>
     </>

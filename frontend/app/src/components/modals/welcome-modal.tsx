@@ -1,4 +1,8 @@
 import { WELCOME_KEY } from './welcome-modal-state';
+import {
+  setupCardDialogClassName,
+  SetupCard,
+} from '@/components/layout/setup-card';
 import { Button } from '@/components/v1/ui/button';
 import {
   Card,
@@ -90,90 +94,99 @@ export function WelcomeModal({
         }
       }}
     >
-      <DialogContent className="max-w-lg">
-        <div className="flex w-full flex-col gap-6">
-          <div className="flex flex-col gap-3">
-            <HatchetLogo variant="mark" className="h-8 w-8" />
-            <DialogTitle className="text-2xl font-semibold tracking-tight">
-              Welcome to Hatchet
-            </DialogTitle>
-            <DialogDescription className="text-sm text-muted-foreground">
+      <DialogContent
+        className={`${setupCardDialogClassName} max-h-[85vh] max-w-xl overflow-y-auto`}
+      >
+        <DialogTitle className="sr-only">Welcome to Hatchet</DialogTitle>
+        <SetupCard
+          className="max-w-none"
+          title={
+            <span className="flex flex-col gap-3">
+              <HatchetLogo variant="mark" className="h-8 w-8" />
+              <span>Welcome to Hatchet</span>
+            </span>
+          }
+          description={
+            <DialogDescription>
               The free tier includes everything you need to start building. No
               credit card, no time limit.
             </DialogDescription>
-          </div>
-          <Card
-            variant="light"
-            className="bg-transparent ring-1 ring-border/50 border-none"
-          >
-            <CardHeader className="p-4 border-b border-border/50">
-              <CardTitle className="font-mono font-normal tracking-wider uppercase text-xs text-muted-foreground whitespace-nowrap">
-                Included free
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-4">
-              {welcomePlansQuery.isLoading ? (
-                <div className="flex justify-center py-2">
-                  <Spinner />
-                </div>
-              ) : (
-                <ul className="space-y-2.5 text-sm">
-                  {freeLimits?.map((fl) => {
-                    const copy = FREE_LIMIT_COPY[fl.featureId];
-                    return (
-                      <li key={fl.featureId} className="flex justify-between">
-                        <span className="text-muted-foreground">
-                          {copy?.name ?? fl.name}
-                        </span>
-                        <span className="font-medium">
-                          {fl.limit.toLocaleString()}
-                          {copy?.suffix ?? ''}
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
-          <div className="flex w-full flex-col gap-2">
-            <p className="text-sm text-muted-foreground">
-              When you're ready for production, Pay as you Go removes these
-              limits. There's no base monthly fee and you pay nothing until you
-              scale past what's included for free.
-            </p>
-            <Button
-              className="w-full"
-              disabled={developerPlanMutation.isPending}
-              onClick={() => {
-                capture('welcome_modal_add_payment', {
-                  tenant_id: tenantId,
-                  organization_id: organizationId,
-                  cta: 'upgrade_button',
-                });
-                developerPlanMutation.mutate();
-              }}
+          }
+        >
+          <div className="flex w-full flex-col gap-6">
+            <Card
+              variant="light"
+              className="bg-transparent ring-1 ring-border/50 border-none"
             >
-              {developerPlanMutation.isPending
-                ? 'Redirecting…'
-                : 'Upgrade to Pay as you Go – starts at $0/month'}
-            </Button>
-            <Button
-              variant="ghost"
-              className="w-full"
-              onClick={() => {
-                capture('welcome_modal_dismissed', {
-                  tenant_id: tenantId,
-                  organization_id: organizationId,
-                  cta: 'start_building',
-                });
-                dismiss();
-              }}
-            >
-              Start Building with these Limits
-            </Button>
+              <CardHeader className="p-4 border-b border-border/50">
+                <CardTitle className="font-mono font-normal tracking-wider uppercase text-xs text-muted-foreground whitespace-nowrap">
+                  Included free
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4">
+                {welcomePlansQuery.isLoading ? (
+                  <div className="flex justify-center py-2">
+                    <Spinner />
+                  </div>
+                ) : (
+                  <ul className="space-y-2.5 text-sm">
+                    {freeLimits?.map((fl) => {
+                      const copy = FREE_LIMIT_COPY[fl.featureId];
+                      return (
+                        <li key={fl.featureId} className="flex justify-between">
+                          <span className="text-muted-foreground">
+                            {copy?.name ?? fl.name}
+                          </span>
+                          <span className="font-medium">
+                            {fl.limit.toLocaleString()}
+                            {copy?.suffix ?? ''}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </CardContent>
+            </Card>
+            <div className="flex w-full flex-col gap-2">
+              <p className="text-sm text-muted-foreground">
+                When you're ready for production, Pay as you Go removes these
+                limits. There's no base monthly fee and you pay nothing until
+                you scale past what's included for free.
+              </p>
+              <Button
+                className="w-full"
+                disabled={developerPlanMutation.isPending}
+                onClick={() => {
+                  capture('welcome_modal_add_payment', {
+                    tenant_id: tenantId,
+                    organization_id: organizationId,
+                    cta: 'upgrade_button',
+                  });
+                  developerPlanMutation.mutate();
+                }}
+              >
+                {developerPlanMutation.isPending
+                  ? 'Redirecting…'
+                  : 'Upgrade to Pay as you Go – starts at $0/month'}
+              </Button>
+              <Button
+                variant="ghost"
+                className="w-full"
+                onClick={() => {
+                  capture('welcome_modal_dismissed', {
+                    tenant_id: tenantId,
+                    organization_id: organizationId,
+                    cta: 'start_building',
+                  });
+                  dismiss();
+                }}
+              >
+                Start Building with these Limits
+              </Button>
+            </div>
           </div>
-        </div>
+        </SetupCard>
       </DialogContent>
     </Dialog>
   );

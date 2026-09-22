@@ -1,8 +1,10 @@
 import {
   dailyMeterSeverity,
+  formatObservedUsage,
   formatTimeUntil,
   nextRefillAt,
   selectDailyMeters,
+  sumUsageSeries,
   toUsageDisplayRows,
 } from './usage-features';
 import {
@@ -59,6 +61,19 @@ function tenant(
     limits,
   };
 }
+
+describe('observed usage', () => {
+  it('sums the same series the graph draws', () => {
+    assert.equal(sumUsageSeries([0, 4, 0, 11]), 15);
+    assert.equal(sumUsageSeries([]), 0);
+  });
+
+  it('labels the count for the selected window', () => {
+    assert.equal(formatObservedUsage(15, 'period'), '15 this period');
+    assert.equal(formatObservedUsage(1500, '7d'), '1,500 in the last 7 days');
+    assert.equal(formatObservedUsage(0, '30d'), '0 in the last 30 days');
+  });
+});
 
 describe('toUsageDisplayRows', () => {
   it('hides autumn daily-limit rows and attaches the live meter', () => {
@@ -123,6 +138,47 @@ describe('toUsageDisplayRows', () => {
           meterLimit: undefined,
         },
       ],
+    );
+  });
+
+  it('hides unmetered plan allowances', () => {
+    const rows = toUsageDisplayRows([
+      feature('crons', { name: 'Crons', usage: 9, unlimited: true }),
+      feature('throughput_rps', {
+        name: 'RPS Throughput Limit',
+        usage: 0,
+        includedUsage: 500,
+      }),
+      feature('worker_slots_limit', {
+        name: 'Concurrent Runs',
+        usage: 0,
+        includedUsage: 500000,
+      }),
+      feature('active_storage_gb', {
+        name: 'GB Active Storage',
+        usage: 0,
+        includedUsage: 100,
+      }),
+      feature('network_bandwidth_gb', {
+        name: 'GB Network Bandwidth',
+        usage: 0,
+        includedUsage: 1000,
+      }),
+      feature('data_retention_days', {
+        name: 'Days Data Retention',
+        usage: 0,
+        includedUsage: 7,
+      }),
+      feature('managed_compute_cents', {
+        name: 'Managed Compute (Cents)',
+        usage: 0,
+        includedUsage: 0,
+      }),
+    ]);
+
+    assert.deepEqual(
+      rows.map((row) => row.feature.featureId),
+      ['crons', 'worker_slots_limit'],
     );
   });
 

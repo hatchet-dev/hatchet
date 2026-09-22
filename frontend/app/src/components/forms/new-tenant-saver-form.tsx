@@ -1,5 +1,6 @@
 import { generateTenantSlug } from './generate-tenant-slug';
 import { NewTenantInputForm } from './new-tenant-input-form';
+import { SetupCard } from '@/components/layout/setup-card';
 import {
   WELCOME_KEY,
   WELCOME_TRIGGER,
@@ -16,7 +17,7 @@ import { useApiError } from '@/lib/hooks';
 import { useUserUniverse } from '@/providers/user-universe';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import invariant from 'tiny-invariant';
 
 type NewTenantSaverFormProps = {
@@ -30,6 +31,7 @@ type NewTenantSaverFormProps = {
   ) => void;
   onUpgradeNavigate?: () => void;
   onGateChange?: (gated: boolean) => void;
+  framed?: boolean;
 };
 
 const useSaveTenant = ({
@@ -117,6 +119,7 @@ export function NewTenantSaverForm({
   afterSave,
   onUpgradeNavigate,
   onGateChange,
+  framed = false,
 }: NewTenantSaverFormProps) {
   const { organizations, isLoaded: isUserUniverseLoaded } = useUserUniverse();
   const { isControlPlaneEnabled } = useControlPlane();
@@ -159,14 +162,27 @@ export function NewTenantSaverForm({
 
   invariant(!isControlPlaneEnabled || organizations);
 
+  const frame = (form: ReactNode) =>
+    framed ? (
+      <SetupCard
+        className="max-w-none"
+        title="Create a new tenant"
+        description="A tenant is an isolated environment for your workflows. Set one up to get started."
+      >
+        {form}
+      </SetupCard>
+    ) : (
+      form
+    );
+
   if (!isControlPlaneEnabled) {
-    return (
+    return frame(
       <NewTenantInputForm
         defaultTenantName={defaultTenantName}
         isSaving={saveTenantMutation.isPending}
         isControlPlaneEnabled={false}
         onSubmit={saveTenantMutation.mutate}
-      />
+      />,
     );
   }
 
@@ -182,7 +198,7 @@ export function NewTenantSaverForm({
     );
   }
 
-  return (
+  return frame(
     <NewTenantInputForm
       defaultTenantName={defaultTenantName}
       isSaving={saveTenantMutation.isPending}
@@ -196,6 +212,6 @@ export function NewTenantSaverForm({
       availableShards={shardsQuery.data?.rows}
       isShardsLoading={shardsQuery.isLoading}
       onSubmit={saveTenantMutation.mutate}
-    />
+    />,
   );
 }

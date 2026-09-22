@@ -7,6 +7,15 @@ import {
 
 const PERIOD_USAGE_FEATURE_IDS = new Set(['task_runs', 'events']);
 
+// Plan allowances we do not meter. Showing them as 0 / limit reads as usage.
+const HIDDEN_USAGE_FEATURE_IDS = new Set([
+  'throughput_rps',
+  'active_storage_gb',
+  'network_bandwidth_gb',
+  'data_retention_days',
+  'managed_compute_cents',
+]);
+
 const DAILY_LIMIT_BY_PERIOD: Record<string, string> = {
   task_runs: 'task_runs_daily_limit',
   events: 'events_daily_limit',
@@ -40,8 +49,25 @@ export type UsageDisplayRow = {
 
 export type UsageSeverity = 'ok' | 'warn' | 'critical';
 
+export type UsageRangePreset = 'period' | '7d' | '30d';
+
 export function isPeriodUsageFeature(featureId: string) {
   return PERIOD_USAGE_FEATURE_IDS.has(featureId);
+}
+
+export function sumUsageSeries(values: number[]) {
+  return values.reduce((sum, value) => sum + value, 0);
+}
+
+export function formatObservedUsage(count: number, preset: UsageRangePreset) {
+  const formatted = new Intl.NumberFormat('en-US').format(count);
+  if (preset === '7d') {
+    return `${formatted} in the last 7 days`;
+  }
+  if (preset === '30d') {
+    return `${formatted} in the last 30 days`;
+  }
+  return `${formatted} this period`;
 }
 
 export function isDailyLimitFeature(featureId: string) {
@@ -195,6 +221,7 @@ export function toUsageDisplayRows(
   const byId = new Map(features.map((feature) => [feature.featureId, feature]));
 
   return features
+    .filter((feature) => !HIDDEN_USAGE_FEATURE_IDS.has(feature.featureId))
     .filter((feature) => {
       const periodId = PERIOD_BY_DAILY_LIMIT[feature.featureId];
       return !periodId || !byId.has(periodId);

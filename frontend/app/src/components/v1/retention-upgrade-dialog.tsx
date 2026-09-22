@@ -1,3 +1,7 @@
+import {
+  setupCardDialogClassName,
+  SetupCard,
+} from '@/components/layout/setup-card';
 import { UpgradeGateDialog } from '@/components/v1/cloud/billing/upgrade-gate-dialog';
 import { DocsButton } from '@/components/v1/docs/docs-button';
 import { Button } from '@/components/v1/ui/button';
@@ -59,29 +63,36 @@ export function RetentionUpgradeDialog({
 
   return (
     <Dialog open={!!attempt} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-md">
-        <DialogTitle>Outside retention window</DialogTitle>
-        <DialogDescription className="space-y-2">
-          {tried ? <p>{tried}</p> : null}
-          <p>
-            {`This instance keeps ${label} of data${
-              attempt?.kind === 'since' && boundary
-                ? ` (since ${formatShortDate(boundary)})`
-                : ''
-            }.`}
-          </p>
-          <p>
-            Raise SERVER_LIMITS_DEFAULT_TENANT_RETENTION_PERIOD in your config
-            if you need a longer window.
-          </p>
-        </DialogDescription>
-        <DocsButton
-          doc={docsPages['self-hosting']['data-retention']}
-          label="Retention docs"
-        />
-        <Button variant="ghost" className="w-full" onClick={onClose}>
-          {`Keep last ${label}`}
-        </Button>
+      <DialogContent className={`${setupCardDialogClassName} max-w-xl`}>
+        <DialogTitle className="sr-only">Outside retention window</DialogTitle>
+        <SetupCard
+          className="max-w-none"
+          title="Outside retention window"
+          description={
+            <DialogDescription>
+              {tried ? `${tried} ` : ''}
+              {`This instance keeps ${label} of data${
+                attempt?.kind === 'since' && boundary
+                  ? ` (since ${formatShortDate(boundary)})`
+                  : ''
+              }.`}
+            </DialogDescription>
+          }
+        >
+          <div className="flex flex-col gap-4">
+            <p className="text-sm text-muted-foreground">
+              Raise SERVER_LIMITS_DEFAULT_TENANT_RETENTION_PERIOD in your config
+              if you need a longer window.
+            </p>
+            <DocsButton
+              doc={docsPages['self-hosting']['data-retention']}
+              label="Retention docs"
+            />
+            <Button variant="ghost" className="w-full" onClick={onClose}>
+              {`Keep last ${label}`}
+            </Button>
+          </div>
+        </SetupCard>
       </DialogContent>
     </Dialog>
   );

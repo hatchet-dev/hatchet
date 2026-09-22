@@ -1,4 +1,8 @@
 import { payAsYouGoPlan } from './subscription-plan-code';
+import {
+  setupCardDialogClassName,
+  SetupCard,
+} from '@/components/layout/setup-card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
 import { Button } from '@/components/v1/ui/button';
 import {
@@ -223,91 +227,90 @@ export function UpgradeGateContent({
   });
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="space-y-2 text-left">
-        <h2 className="text-2xl font-semibold tracking-tight text-foreground">
-          {pitch.title}
-        </h2>
-        <p className="text-sm text-muted-foreground">{pitch.context}</p>
-      </div>
+    <SetupCard
+      className="max-w-none"
+      title={pitch.title}
+      description={pitch.context}
+    >
+      <div className="flex flex-col gap-6">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {cards.map((card, index) => {
+            const Icon = card.icon;
+            return (
+              <div
+                key={card.id}
+                className={cn(
+                  'rounded-lg border border-border/60 bg-muted/20 p-4 text-left',
+                  index === 0 && 'border-primary/40 bg-primary/5',
+                )}
+              >
+                <Icon className="mb-3 h-5 w-5 text-foreground" />
+                <p className="text-sm font-medium text-foreground">
+                  {card.title}
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {card.description}
+                </p>
+              </div>
+            );
+          })}
+        </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {cards.map((card, index) => {
-          const Icon = card.icon;
-          return (
-            <div
-              key={card.id}
-              className={cn(
-                'rounded-lg border border-border/60 bg-muted/20 p-4 text-left',
-                index === 0 && 'border-primary/40 bg-primary/5',
-              )}
-            >
-              <Icon className="mb-3 h-5 w-5 text-foreground" />
-              <p className="text-sm font-medium text-foreground">
-                {card.title}
-              </p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {card.description}
-              </p>
-            </div>
-          );
-        })}
-      </div>
+        {upgrade.isError ? (
+          <Alert variant="destructive">
+            <AlertTitle>Plan change failed</AlertTitle>
+            <AlertDescription>
+              {getPlanChangeErrorMessage(upgrade.error)}
+            </AlertDescription>
+          </Alert>
+        ) : null}
 
-      {upgrade.isError ? (
-        <Alert variant="destructive">
-          <AlertTitle>Plan change failed</AlertTitle>
-          <AlertDescription>
-            {getPlanChangeErrorMessage(upgrade.error)}
-          </AlertDescription>
-        </Alert>
-      ) : null}
-
-      <div className="flex flex-col gap-3">
-        <Button
-          size="lg"
-          className="w-full"
-          disabled={
-            !isControlPlaneEnabled || !canBill || !payg || upgrade.isPending
-          }
-          onClick={() => payg && upgrade.mutate(payg.planCode)}
-        >
-          {upgrade.isPending ? (
-            <Spinner />
-          ) : (
-            'Upgrade to Pay as you Go – starts at $0/month'
-          )}
-        </Button>
-        <a
-          href={PRICING_URL}
-          target="_blank"
-          rel="noreferrer"
-          className="text-center text-sm text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground"
-        >
-          More Pricing Details
-        </a>
-        <p className="text-center text-sm text-muted-foreground">
-          Complex requirements? Volume discounts?{' '}
+        <div className="flex flex-col gap-3">
+          <Button
+            size="lg"
+            className="w-full"
+            disabled={
+              !isControlPlaneEnabled || !canBill || !payg || upgrade.isPending
+            }
+            onClick={() => payg && upgrade.mutate(payg.planCode)}
+          >
+            {upgrade.isPending ? (
+              <Spinner />
+            ) : (
+              'Upgrade to Pay as you Go – starts at $0/month'
+            )}
+          </Button>
           <a
-            href={salesUrl(tenant?.name, tenant?.metadata?.id)}
+            href={PRICING_URL}
             target="_blank"
             rel="noreferrer"
-            className="underline underline-offset-4 hover:text-foreground"
+            className="text-center text-sm text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground"
           >
-            Let's chat
+            More Pricing Details
           </a>
-        </p>
-        {onDismiss ? (
-          <button
-            type="button"
-            onClick={onDismiss}
-            className="w-full py-1 text-center text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
-            {DISMISS_LABEL}
-          </button>
-        ) : null}
+          <p className="text-center text-sm text-muted-foreground">
+            Complex requirements? Volume discounts?{' '}
+            <a
+              href={salesUrl(tenant?.name, tenant?.metadata?.id)}
+              target="_blank"
+              rel="noreferrer"
+              className="underline underline-offset-4 hover:text-foreground"
+            >
+              Let's chat
+            </a>
+          </p>
+          {onDismiss ? (
+            <button
+              type="button"
+              onClick={onDismiss}
+              className="w-full py-1 text-center text-sm text-muted-foreground transition-colors hover:text-foreground"
+            >
+              {DISMISS_LABEL}
+            </button>
+          ) : null}
+        </div>
       </div>
-    </div>
+    </SetupCard>
   );
 }
 
@@ -318,7 +321,9 @@ export function UpgradeGateDialog({
 }: UpgradeGateProps & { open: boolean; onDismiss: () => void }) {
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onDismiss()}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+      <DialogContent
+        className={`${setupCardDialogClassName} max-h-[85vh] max-w-2xl overflow-y-auto`}
+      >
         <DialogTitle className="sr-only">Upgrade to Pay as you Go</DialogTitle>
         <DialogDescription className="sr-only">
           Upgrade your plan to unlock more tenants, members, and retention.
