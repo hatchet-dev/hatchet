@@ -508,7 +508,8 @@ export const Subscription: React.FC<SubscriptionProps> = ({
               >
                 <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
                   <p className="text-sm text-muted-foreground">
-                    Need volume discounts, HIPAA, or VPC peering?
+                    Need volume discounts, HIPAA, VPC peering, or other
+                    requirements?
                   </p>
                   <Button
                     variant="outline"
