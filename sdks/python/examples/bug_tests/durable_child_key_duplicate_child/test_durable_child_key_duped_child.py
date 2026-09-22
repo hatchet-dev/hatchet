@@ -4,6 +4,7 @@ from examples.bug_tests.durable_child_key_duplicate_child.worker import (
     durable_parent_child_key_bug,
     Input,
 )
+from examples.test_utils import wait_for_child_runs
 from hatchet_sdk import Hatchet, V1TaskStatus
 
 
@@ -16,7 +17,7 @@ async def test_durable_child_key_duplicate_bug_all_duped(hatchet: Hatchet) -> No
 
     await res.aio_result()
 
-    runs = await hatchet.runs.aio_list(parent_task_external_id=run_id)
+    runs = await wait_for_child_runs(hatchet, run_id)
 
     assert (
         len(runs.rows) == 1
@@ -36,7 +37,7 @@ async def test_durable_child_key_duplicate_bug_second_unique(hatchet: Hatchet) -
 
     await res.aio_result()
 
-    runs = await hatchet.runs.aio_list(parent_task_external_id=run_id)
+    runs = await wait_for_child_runs(hatchet, run_id)
 
     assert (
         len(runs.rows) == 2
@@ -61,7 +62,7 @@ async def test_durable_child_key_duplicate_bug_third_unique(hatchet: Hatchet) ->
 
     await res.aio_result()
 
-    runs = await hatchet.runs.aio_list(parent_task_external_id=run_id)
+    runs = await wait_for_child_runs(hatchet, run_id)
 
     assert (
         len(runs.rows) == 2

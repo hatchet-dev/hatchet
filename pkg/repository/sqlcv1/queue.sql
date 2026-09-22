@@ -77,9 +77,11 @@ LEFT JOIN
     tenant_actions ta ON ta."id" = wa.action_id;
 
 -- name: ListActionsForWorkersLegacyFallback :many
--- Fallback for workers registered before actionHash existed; expands the full
--- worker<>action join per worker. Prefer the hash-cached path in the
--- assignment repository (ListLiveWorkerActionHashes + ListWorkerActionSets).
+-- Fallback for workers without an actionHash: workers registered before the column existed,
+-- and operator workers whose hash is NULL because a delta changed their links and the
+-- refresh at the end of the delta sequence has not run yet. Expands the full worker<>action
+-- join per worker. Prefer the hash-cached path in the assignment repository
+-- (ListLiveWorkerActionHashes + ListWorkerActionSets).
 SELECT
     w."id" as "workerId",
     a."actionId"

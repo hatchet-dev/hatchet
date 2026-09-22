@@ -4,11 +4,11 @@ import (
 	"crypto/tls"
 	"time"
 
+	"connectrpc.com/connect"
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog"
 	"github.com/spf13/viper"
 	"golang.org/x/oauth2"
-	"google.golang.org/grpc"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
@@ -310,6 +310,20 @@ type ConfigFileRuntime struct {
 	// orchestrates concurrently)
 	DagOperatorDefaultSlots int `mapstructure:"dagOperatorDefaultSlots" json:"dagOperatorDefaultSlots,omitempty" default:"10000"`
 
+	// GRPCOperatorsEnabled registers the v1.OperatorService gRPC API for operators running outside the engine
+	// process. Off by default; when disabled the service is not registered and callers receive Unimplemented.
+	GRPCOperatorsEnabled bool `mapstructure:"grpcOperatorsEnabled" json:"grpcOperatorsEnabled,omitempty" default:"false"`
+
+	// GRPCOperatorMaxListenStreamsPerOperator caps the Listen streams one operator holds open on this replica
+	// (SERVER_GRPC_OPERATOR_MAX_LISTEN_STREAMS_PER_OPERATOR). Each stream is a live worker, metered like an SDK
+	// worker; the cap bounds what one operator can hold on a replica on top of the tenant's worker limit. A
+	// stream over the cap is refused with ResourceExhausted before its worker is activated. Zero disables the cap.
+	GRPCOperatorMaxListenStreamsPerOperator int `mapstructure:"grpcOperatorMaxListenStreamsPerOperator" json:"grpcOperatorMaxListenStreamsPerOperator,omitempty" default:"100"`
+
+	// GRPCOperatorMaxActionsPerOperator caps the action links held across all workers of one operator
+	// (SERVER_GRPC_OPERATOR_MAX_ACTIONS_PER_OPERATOR). A delta that would newly link actions over the cap is
+	// refused with ResourceExhausted and links nothing. Zero disables the cap.
+	GRPCOperatorMaxActionsPerOperator int64 `mapstructure:"grpcOperatorMaxActionsPerOperator" json:"grpcOperatorMaxActionsPerOperator,omitempty" default:"1000000"`
 	// SchedulerConcurrencyRateLimit is the rate limit for scheduler concurrency strategy execution (per second)
 	SchedulerConcurrencyRateLimit int `mapstructure:"schedulerConcurrencyRateLimit" json:"schedulerConcurrencyRateLimit,omitempty" default:"20"`
 
@@ -795,7 +809,7 @@ type ServerConfig struct {
 
 	Operations ConfigFileOperations
 
-	GRPCInterceptors []grpc.UnaryServerInterceptor
+	GRPCInterceptors []connect.UnaryInterceptorFunc
 
 	Version string
 
@@ -824,7 +838,7 @@ func (c *ServerConfig) HasService(name string) bool {
 	return false
 }
 
-func (c *ServerConfig) AddGRPCUnaryInterceptor(interceptor grpc.UnaryServerInterceptor) {
+func (c *ServerConfig) AddGRPCUnaryInterceptor(interceptor connect.UnaryInterceptorFunc) {
 	c.GRPCInterceptors = append(c.GRPCInterceptors, interceptor)
 }
 
@@ -874,6 +888,9 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.allowedOriginsString", "SERVER_ALLOWED_ORIGINS")
 	_ = v.BindEnv("runtime.operatorInfraBlockedCIDRsString", "SERVER_OPERATOR_INFRA_BLOCKED_CIDRS")
 	_ = v.BindEnv("runtime.dagOperatorDefaultSlots", "SERVER_DAG_OPERATOR_DEFAULT_SLOTS")
+	_ = v.BindEnv("runtime.grpcOperatorsEnabled", "SERVER_GRPC_OPERATORS_ENABLED")
+	_ = v.BindEnv("runtime.grpcOperatorMaxListenStreamsPerOperator", "SERVER_GRPC_OPERATOR_MAX_LISTEN_STREAMS_PER_OPERATOR")
+	_ = v.BindEnv("runtime.grpcOperatorMaxActionsPerOperator", "SERVER_GRPC_OPERATOR_MAX_ACTIONS_PER_OPERATOR")
 
 	// security check options
 	_ = v.BindEnv("securityCheck.enabled", "SERVER_SECURITY_CHECK_ENABLED")

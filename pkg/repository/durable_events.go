@@ -757,7 +757,7 @@ func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context,
 			ExternalId: row.ResultPayloadExternalID,
 		}
 
-		payload := payloads[retrieveOpt]
+		payload := payloadOrEmptyJSONObject(payloads[retrieveOpt])
 
 		var childTaskErrorMessage *string
 		if row.ChildTaskErrorMessage.Valid {
@@ -1312,13 +1312,19 @@ func (r *durableEventsRepository) getOrCreateEventLogEntriesForTasks(
 			return nil
 		}
 
-		return existingPayloads[RetrievePayloadOpts{
+		payload := existingPayloads[RetrievePayloadOpts{
 			Id:         e.ID,
 			InsertedAt: e.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
 			TenantId:   tenantId,
 			ExternalId: e.ResultPayloadExternalID,
 		}]
+
+		if !e.IsSatisfied {
+			return payload
+		}
+
+		return payloadOrEmptyJSONObject(payload)
 	}
 
 	for _, state := range survivingStates {
@@ -2678,12 +2684,7 @@ func (r *durableEventsRepository) handleEventLookback(ctx context.Context, tenan
 			ExternalId: row.ExternalID,
 		}
 
-		payload, ok := retrieveOptsToPayload[retrieveOpts]
-
-		if !ok {
-			r.l.Warn().Ctx(ctx).Msgf("payload not found for recent user event with id %d and seen_at %s", row.ID, row.SeenAt.Time)
-			payload = nil
-		}
+		payload := retrieveOptsToPayload[retrieveOpts]
 
 		var resourceHint *string
 		if row.Scope.Valid {
