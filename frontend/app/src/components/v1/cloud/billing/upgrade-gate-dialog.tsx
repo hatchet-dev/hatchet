@@ -444,7 +444,7 @@ function useUpgradeGate({
     ...queries.controlPlane.subscriptionPlans(),
     enabled: isControlPlaneEnabled && canBill,
   });
-  const payg = payAsYouGoPlan(plansQuery.data?.plans);
+  const paygPlan = payAsYouGoPlan(plansQuery.data?.plans);
   const upgrade = useSubscriptionUpgrade(organizationId);
 
   const highlightId: ResourceId | null =
@@ -504,8 +504,8 @@ function useUpgradeGate({
       mode === 'custom' ? { name: planName, retention: retentionLabel } : null,
     mode,
     upgrade,
-    canUpgrade: isControlPlaneEnabled && canBill && !!payg,
-    onUpgrade: () => payg && upgrade.mutate(payg.planCode),
+    canUpgrade: isControlPlaneEnabled && canBill && !!paygPlan,
+    onUpgrade: () => paygPlan && upgrade.mutate(paygPlan.planCode),
     salesHref: salesUrl(tenant?.name, tenant?.metadata?.id),
   };
 }

@@ -111,7 +111,7 @@ export function settingsNavGroups(opts: {
           ? [
               {
                 key: 'organization-sso',
-                name: 'Single Sign On',
+                name: 'Single Sign-On',
                 to: appRoutes.organizationSsoRoute.to,
                 params,
               },

@@ -22,7 +22,7 @@ const PROVIDER_CONFIG: Record<
   },
   sso: {
     href: 'users/sso/start',
-    label: 'Single Sign On',
+    label: 'Single Sign-On',
     icon: <LockOpen className="size-4" />,
   },
 };

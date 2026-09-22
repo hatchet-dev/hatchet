@@ -1,6 +1,7 @@
 import {
   OrganizationBillingStateSubscription,
   SubscriptionPlan,
+  SubscriptionPlanCode,
 } from '@/lib/api/generated/control-plane/data-contracts';
 
 export function resolveSubscriptionPlanCode(
@@ -14,13 +15,22 @@ export function planCodeBase(planCode?: string | null) {
   return (planCode ?? '').split('_')[0];
 }
 
+function isBasePlan(
+  planCode: string | null | undefined,
+  code: SubscriptionPlanCode,
+) {
+  return planCodeBase(planCode) === (code as string);
+}
+
 export function isPayAsYouGoPlanCode(planCode?: string | null) {
-  return planCodeBase(planCode) === 'pay-as-you-go';
+  return isBasePlan(planCode, SubscriptionPlanCode.PayAsYouGo);
 }
 
 export function canSelfServePayAsYouGoUpgrade(planCode?: string | null) {
-  const base = planCodeBase(planCode);
-  return base === 'free' || base === 'developer';
+  return (
+    isBasePlan(planCode, SubscriptionPlanCode.Free) ||
+    isBasePlan(planCode, SubscriptionPlanCode.Developer)
+  );
 }
 
 export function payAsYouGoPlan(plans?: SubscriptionPlan[]) {

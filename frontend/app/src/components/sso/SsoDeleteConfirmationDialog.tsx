@@ -17,9 +17,9 @@ export function SsoDeleteConfirmationDialog() {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Delete Single Sign On Configuration?</DialogTitle>
+          <DialogTitle>Delete Single Sign-On Configuration?</DialogTitle>
           <DialogDescription>
-            This will permanently delete the Single Sign On configuration for{' '}
+            This will permanently delete the Single Sign-On configuration for{' '}
             <strong>{providerName}</strong>. This action cannot be undone.
           </DialogDescription>
         </DialogHeader>

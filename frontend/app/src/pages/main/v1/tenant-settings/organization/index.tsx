@@ -181,8 +181,8 @@ const SECTION_HEADERS: Record<
       'Review the regions where new tenants can be deployed for this organization.',
   },
   sso: {
-    title: 'Single Sign On',
-    description: 'Configure Single Sign On for this organization.',
+    title: 'Single Sign-On',
+    description: 'Configure Single Sign-On for this organization.',
   },
   compliance: {
     title: 'Compliance',
@@ -1075,7 +1075,7 @@ export function CloudOrganizationSettings({
                   <div className="flex items-center justify-between rounded-lg border border-border/50 bg-muted/10 p-4">
                     <div className="space-y-0.5">
                       <p className="text-sm font-medium">
-                        Force Single Sign On
+                        Force Single Sign-On
                       </p>
                       <p className="text-sm text-muted-foreground">
                         Require all organization members to sign in with Single
@@ -1100,7 +1100,7 @@ export function CloudOrganizationSettings({
                 <div className="space-y-4">
                   <div>
                     <h3 className="text-base font-semibold">
-                      Single Sign On Domains
+                      Single Sign-On Domains
                     </h3>
                     <p className="mt-1 text-sm text-muted-foreground">
                       Domains associated with your organization for Single Sign
@@ -1116,13 +1116,13 @@ export function CloudOrganizationSettings({
                         <ExclamationTriangleIcon className="mt-0.5 h-4 w-4 shrink-0 text-yellow-500" />
                         <div>
                           <p className="font-medium text-yellow-600 dark:text-yellow-400">
-                            Single Sign On is configured but no domains are set
+                            Single Sign-On is configured but no domains are set
                             up.
                           </p>
                           <p className="mt-0.5 text-muted-foreground">
                             Without a verified domain, members will not be
                             automatically redirected to your identity provider.
-                            Add a domain below to complete your Single Sign On
+                            Add a domain below to complete your Single Sign-On
                             setup.
                           </p>
                         </div>
@@ -1196,7 +1196,7 @@ export function CloudOrganizationSettings({
                       <KeyIcon className="h-8 w-8 text-primary" />
                     </div>
                   }
-                  title="Unlock Single Sign On"
+                  title="Unlock Single Sign-On"
                   description="Let your team log in through your identity provider – Okta, Microsoft Entra, Google, OneLogin, JumpCloud or generic OIDC providers. Included on Hatchet Custom plans, alongside RBAC, audit logs, and HIPAA BAA."
                   buttons={[
                     {
