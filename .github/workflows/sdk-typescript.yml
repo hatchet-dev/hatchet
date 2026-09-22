@@ -81,6 +81,10 @@ jobs:
         if: matrix.package-manager == 'pnpm'
         run: pnpm check:edge
 
+      - name: Check the package exports map resolves from ESM and CJS
+        if: matrix.package-manager == 'pnpm'
+        run: pnpm check:exports
+
       - name: Setup Go
         if: matrix.package-manager == 'pnpm'
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0

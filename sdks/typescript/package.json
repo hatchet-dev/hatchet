@@ -6,6 +6,93 @@
   },
   "description": "Background task orchestration & visibility for developers",
   "types": "index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    },
+    "./v1": {
+      "types": "./v1/index.d.ts",
+      "default": "./v1/index.js"
+    },
+    "./edge": {
+      "types": "./edge/index.d.ts",
+      "default": "./edge/index.js"
+    },
+    "./core": {
+      "types": "./core/index.d.ts",
+      "default": "./core/index.js"
+    },
+    "./clients/admin": {
+      "types": "./clients/admin/index.d.ts",
+      "default": "./clients/admin/index.js"
+    },
+    "./clients/hatchet-client": {
+      "types": "./clients/hatchet-client/index.d.ts",
+      "default": "./clients/hatchet-client/index.js"
+    },
+    "./clients/rest": {
+      "types": "./clients/rest/index.d.ts",
+      "default": "./clients/rest/index.js"
+    },
+    "./clients/transport": {
+      "types": "./clients/transport/index.d.ts",
+      "default": "./clients/transport/index.js"
+    },
+    "./opentelemetry": {
+      "types": "./opentelemetry/index.d.ts",
+      "default": "./opentelemetry/index.js"
+    },
+    "./protoc/dispatcher": {
+      "types": "./protoc/dispatcher/index.d.ts",
+      "default": "./protoc/dispatcher/index.js"
+    },
+    "./protoc/events": {
+      "types": "./protoc/events/index.d.ts",
+      "default": "./protoc/events/index.js"
+    },
+    "./protoc/workflows": {
+      "types": "./protoc/workflows/index.d.ts",
+      "default": "./protoc/workflows/index.js"
+    },
+    "./util/config-loader": {
+      "types": "./util/config-loader/index.d.ts",
+      "default": "./util/config-loader/index.js"
+    },
+    "./util/logger": {
+      "types": "./util/logger/index.d.ts",
+      "default": "./util/logger/index.js"
+    },
+    "./v1/client/features": {
+      "types": "./v1/client/features/index.d.ts",
+      "default": "./v1/client/features/index.js"
+    },
+    "./v1/client/worker/deprecated": {
+      "types": "./v1/client/worker/deprecated/index.d.ts",
+      "default": "./v1/client/worker/deprecated/index.js"
+    },
+    "./v1/client/worker/eviction": {
+      "types": "./v1/client/worker/eviction/index.d.ts",
+      "default": "./v1/client/worker/eviction/index.js"
+    },
+    "./v1/conditions": {
+      "types": "./v1/conditions/index.d.ts",
+      "default": "./v1/conditions/index.js"
+    },
+    "./package.json": "./package.json",
+    "./*.js": {
+      "types": "./*.d.ts",
+      "default": "./*.js"
+    },
+    "./*/index": {
+      "types": "./*/index.d.ts",
+      "default": "./*/index.js"
+    },
+    "./*": {
+      "types": "./*.d.ts",
+      "default": "./*.js"
+    }
+  },
   "files": [
     "*",
     "!**/*.test.js",
@@ -26,6 +113,7 @@
     "tsc:build": "pnpm run dump-version && tsc && resolve-tspaths",
     "test:unit": "jest --testMatch='**/*.test.ts'",
     "check:edge": "pnpm run tsc:build && node scripts/check-edge-entry.mjs",
+    "check:exports": "pnpm run tsc:build && node scripts/check-exports.mjs",
     "test:e2e": "jest --config jest.e2e.config.ts --silent --forceExit --runInBand",
     "test:unit:watch": "jest --testMatch='**/*.test.ts' --watch",
     "generate": "pnpm run '/generate-.*/'",
