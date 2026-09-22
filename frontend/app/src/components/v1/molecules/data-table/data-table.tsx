@@ -317,6 +317,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
             table={table}
             onSetPageSize={onSetPageSize}
             showSelectedRows={showSelectedRows}
+            isLoading={loadingNoData}
           />
         </div>
       </div>
