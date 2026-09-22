@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
@@ -560,7 +561,88 @@ func TestOperatorDAG_CatchesUpWhenOrchestratorEventsPrecedeDagRow(t *testing.T) 
 	})
 }
 
-func TestOperatorDAG_StatusUpdateWithoutDagRowIsNotLost(t *testing.T) {
+func (f operatorDagFixture) createDagsParams() sqlcv1.CreateDAGsOLAPOverwriteParams {
+	return sqlcv1.CreateDAGsOLAPOverwriteParams{
+		Tenantids:             []uuid.UUID{f.tenantId},
+		Ids:                   []int64{f.dagId},
+		Insertedats:           []pgtype.Timestamptz{f.dagInsertedAt},
+		Externalids:           []uuid.UUID{f.dagExternalId},
+		Displaynames:          []string{"operator-dag-test"},
+		Workflowids:           []uuid.UUID{f.workflowId},
+		Workflowversionids:    []uuid.UUID{f.workflowVersionId},
+		Additionalmetadatas:   [][]byte{[]byte(`{}`)},
+		Parenttaskexternalids: []*uuid.UUID{nil},
+		Totaltasks:            []int32{1},
+		IdempotencyKeys:       []pgtype.Text{{}},
+		IsDagOperators:        []bool{true},
+	}
+}
+
+func (f operatorDagFixture) orchestratorUpdateParams(status sqlcv1.V1ReadableStatusOlap) sqlcv1.UpdateDAGStatusesFromOrchestratorEventsParams {
+	return sqlcv1.UpdateDAGStatusesFromOrchestratorEventsParams{
+		Tenantid:            f.tenantId,
+		Dagids:              []int64{f.dagId},
+		Daginsertedats:      []pgtype.Timestamptz{f.dagInsertedAt},
+		Statuses:            []sqlcv1.V1ReadableStatusOlap{status},
+		Retrycounts:         []int32{0},
+		Externalids:         []uuid.UUID{f.dagExternalId},
+		Displaynames:        []string{"orchestrator-task"},
+		Workflowids:         []uuid.UUID{f.workflowId},
+		Workflowversionids:  []uuid.UUID{f.workflowVersionId},
+		Additionalmetadatas: [][]byte{[]byte(`{}`)},
+	}
+}
+
+// Runs first in an open transaction, then second in its own transaction, and asserts that second
+// only completes once first commits.
+func runOverlappingTransactions(t *testing.T, ctx context.Context, pool *pgxpool.Pool, first, second func(pgx.Tx) error) {
+	t.Helper()
+
+	firstTx, err := pool.BeginTx(ctx, pgx.TxOptions{})
+	require.NoError(t, err)
+	defer firstTx.Rollback(ctx) // nolint: errcheck
+
+	require.NoError(t, first(firstTx))
+
+	secondDone := make(chan error, 1)
+
+	go func() {
+		secondTx, err := pool.BeginTx(ctx, pgx.TxOptions{})
+		if err != nil {
+			secondDone <- err
+			return
+		}
+		defer secondTx.Rollback(ctx) // nolint: errcheck
+
+		if err := second(secondTx); err != nil {
+			secondDone <- err
+			return
+		}
+
+		secondDone <- secondTx.Commit(ctx)
+	}()
+
+	select {
+	case err := <-secondDone:
+		t.Fatalf("second transaction did not wait for the first to commit: %v", err)
+	case <-time.After(500 * time.Millisecond):
+	}
+
+	require.NoError(t, firstTx.Commit(ctx))
+
+	select {
+	case err := <-secondDone:
+		require.NoError(t, err)
+	case <-time.After(10 * time.Second):
+		t.Fatal("second transaction never finished after the first committed")
+	}
+}
+
+// The create and the status update run in separate transactions on separate message queue
+// consumers. Under READ COMMITTED an UPDATE finds no row while the create is uncommitted, and the
+// create's reconcile finds no events while the update is uncommitted, so both orderings lost the
+// terminal status. The upsert makes the second transaction wait on the first one's row.
+func TestOperatorDAG_ConcurrentCreateAndStatusUpdateSerialize(t *testing.T) {
 	basePool, cleanup := setupPostgresWithMigration(t)
 	defer cleanup()
 
@@ -572,65 +654,91 @@ func TestOperatorDAG_StatusUpdateWithoutDagRowIsNotLost(t *testing.T) {
 
 	require.NoError(t, repo.UpdateTablePartitions(ctx))
 
-	t.Run("terminal update before dag row survives the later create", func(t *testing.T) {
-		f := newOperatorDagFixture(700, uuid.New())
+	t.Run("create first", func(t *testing.T) {
+		f := newOperatorDagFixture(800, uuid.New())
 
-		result := f.applyOrchestratorEvents(t, ctx, repo, f.orchestratorUpdate(sqlcv1.V1ReadableStatusOlapCOMPLETED, 0))
-		require.Len(t, result.DAGRows, 1, "the update must be reported so downstream consumers still see the outcome")
-
-		f.assertDagStatus(t, ctx, pool, "COMPLETED")
-
-		f.create(t, ctx, repo)
-
-		f.assertDagStatus(t, ctx, pool, "COMPLETED")
-	})
-
-	t.Run("create overwrites the metadata the update could not know", func(t *testing.T) {
-		f := newOperatorDagFixture(701, uuid.New())
-
-		f.applyOrchestratorEvents(t, ctx, repo, f.orchestratorUpdate(sqlcv1.V1ReadableStatusOlapCOMPLETED, 0))
-		f.create(t, ctx, repo)
-
-		var displayName string
-		var isDagOperator bool
-
-		err := pool.QueryRow(ctx, `
-			SELECT display_name, is_dag_operator
-			FROM v1_dags_olap
-			WHERE tenant_id = $1 AND id = $2
-		`, f.tenantId, f.dagId).Scan(&displayName, &isDagOperator)
-		require.NoError(t, err)
-
-		assert.Equal(t, "operator-dag-test", displayName)
-		assert.True(t, isDagOperator)
-	})
-
-	t.Run("update inserts a lookup row the create can be found by", func(t *testing.T) {
-		f := newOperatorDagFixture(702, uuid.New())
-
-		f.applyOrchestratorEvents(t, ctx, repo, f.orchestratorUpdate(sqlcv1.V1ReadableStatusOlapRUNNING, 0))
-
-		var dagId int64
-
-		err := pool.QueryRow(ctx, `
-			SELECT dag_id
-			FROM v1_lookup_table_olap
-			WHERE tenant_id = $1 AND external_id = $2
-		`, f.tenantId, f.dagExternalId).Scan(&dagId)
-		require.NoError(t, err)
-
-		assert.Equal(t, f.dagId, dagId)
-	})
-
-	t.Run("a stale update cannot lower a status the create already raised", func(t *testing.T) {
-		f := newOperatorDagFixture(703, uuid.New())
-
-		f.applyOrchestratorEvents(t, ctx, repo, f.orchestratorUpdate(sqlcv1.V1ReadableStatusOlapCOMPLETED, 0))
-		f.create(t, ctx, repo)
-
-		result := f.applyOrchestratorEvents(t, ctx, repo, f.orchestratorUpdate(sqlcv1.V1ReadableStatusOlapRUNNING, 0))
-		assert.Empty(t, result.DAGRows)
+		runOverlappingTransactions(t, ctx, pool,
+			func(tx pgx.Tx) error {
+				return repo.queries.CreateDAGsOLAP(ctx, tx, f.createDagsParams())
+			},
+			func(tx pgx.Tx) error {
+				_, err := repo.queries.UpdateDAGStatusesFromOrchestratorEvents(ctx, tx, f.orchestratorUpdateParams(sqlcv1.V1ReadableStatusOlapCOMPLETED))
+				return err
+			},
+		)
 
 		f.assertDagStatus(t, ctx, pool, "COMPLETED")
 	})
+
+	t.Run("update first", func(t *testing.T) {
+		f := newOperatorDagFixture(801, uuid.New())
+
+		runOverlappingTransactions(t, ctx, pool,
+			func(tx pgx.Tx) error {
+				_, err := repo.queries.UpdateDAGStatusesFromOrchestratorEvents(ctx, tx, f.orchestratorUpdateParams(sqlcv1.V1ReadableStatusOlapCOMPLETED))
+				return err
+			},
+			func(tx pgx.Tx) error {
+				return repo.queries.CreateDAGsOLAP(ctx, tx, f.createDagsParams())
+			},
+		)
+
+		f.assertDagStatus(t, ctx, pool, "COMPLETED")
+	})
+}
+
+// A status update that lands first inserts the DAG row, and the insert trigger copies it to
+// v1_runs_olap without the parent task or idempotency key the update cannot know. The later create
+// only takes the conflict path on v1_dags_olap, so the runs row depends on the update trigger to
+// carry those columns over.
+func TestOperatorDAG_RunsRowGetsParentFromLateCreate(t *testing.T) {
+	basePool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+
+	pool := createEnumAwarePool(t, basePool)
+	repo := createOLAPRepositoryWithPayloadStore(t, pool)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	require.NoError(t, repo.UpdateTablePartitions(ctx))
+
+	f := newOperatorDagFixture(900, uuid.New())
+	parentTaskExternalId := uuid.New()
+
+	f.applyOrchestratorEvents(t, ctx, repo, f.orchestratorUpdate(sqlcv1.V1ReadableStatusOlapCOMPLETED, 0))
+
+	_, err := repo.CreateDAGs(ctx, f.tenantId, []*DAGWithData{{
+		V1Dag: &sqlcv1.V1Dag{
+			ID:                f.dagId,
+			InsertedAt:        f.dagInsertedAt,
+			TenantID:          f.tenantId,
+			ExternalID:        f.dagExternalId,
+			DisplayName:       "operator-dag-test",
+			WorkflowID:        f.workflowId,
+			WorkflowVersionID: f.workflowVersionId,
+			IdempotencyKey:    pgtype.Text{String: "idempotency-key", Valid: true},
+		},
+		Input:                []byte(`{}`),
+		AdditionalMetadata:   []byte(`{}`),
+		ParentTaskExternalID: &parentTaskExternalId,
+		IsOperatorRun:        true,
+	}})
+	require.NoError(t, err)
+
+	var runParent *uuid.UUID
+	var runIdempotencyKey *string
+
+	require.NoError(t, pool.QueryRow(ctx, `
+		SELECT parent_task_external_id, idempotency_key
+		FROM v1_runs_olap
+		WHERE tenant_id = $1 AND external_id = $2
+	`, f.tenantId, f.dagExternalId).Scan(&runParent, &runIdempotencyKey))
+
+	require.NotNil(t, runParent)
+	assert.Equal(t, parentTaskExternalId, *runParent)
+	require.NotNil(t, runIdempotencyKey)
+	assert.Equal(t, "idempotency-key", *runIdempotencyKey)
+
+	f.assertDagStatus(t, ctx, pool, "COMPLETED")
 }
