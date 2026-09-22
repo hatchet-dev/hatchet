@@ -477,7 +477,8 @@ export const queries = createQueryKeyStore({
   workers: {
     list: (tenant: string, query?: ListWorkersQuery) => ({
       queryKey: ['worker:list', tenant, query],
-      queryFn: async () => (await api.workerList(tenant, query)).data,
+      queryFn: async ({ signal }) =>
+        (await api.workerList(tenant, query, { signal })).data,
     }),
     get: (worker: string) => ({
       queryKey: ['worker:get', worker],

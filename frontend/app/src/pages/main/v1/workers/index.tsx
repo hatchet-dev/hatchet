@@ -114,6 +114,7 @@ function WorkersTable() {
       columns={tableColumns}
       data={rows}
       isLoading={listWorkersQuery.isLoading}
+      isPlaceholderData={listWorkersQuery.isPlaceholderData}
       filters={[
         {
           columnId: 'status',

@@ -213,28 +213,29 @@ export const useEvents = ({ key }: UseEventsProps) => {
 
   const { isSelfHosted } = useControlPlane();
 
-  const { data, isLoading, refetch, error, isRefetching } = useQuery({
-    ...withPolling(
-      queries.v1Events.list(
-        tenantId,
-        {
-          offset,
-          limit,
-          keys: selectedKeys,
-          since,
-          until,
-          eventIds: selectedEventIds,
-          workflowRunStatuses: selectedStatuses,
-          additionalMetadata: selectedMetadata,
-          workflowIds: selectedWorkflowIds,
-          scopes: selectedScopes,
-        },
-        isSelfHosted,
+  const { data, isLoading, refetch, error, isRefetching, isPlaceholderData } =
+    useQuery({
+      ...withPolling(
+        queries.v1Events.list(
+          tenantId,
+          {
+            offset,
+            limit,
+            keys: selectedKeys,
+            since,
+            until,
+            eventIds: selectedEventIds,
+            workflowRunStatuses: selectedStatuses,
+            additionalMetadata: selectedMetadata,
+            workflowIds: selectedWorkflowIds,
+            scopes: selectedScopes,
+          },
+          isSelfHosted,
+        ),
+        selectedEventIds?.length ? false : refetchInterval,
       ),
-      selectedEventIds?.length ? false : refetchInterval,
-    ),
-    placeholderData: (prev) => prev,
-  });
+      placeholderData: (prev) => prev,
+    });
 
   const fetchTimedOut = data === 'timeout';
   const events = (data !== 'timeout' ? data?.rows : undefined) ?? [];
@@ -294,6 +295,7 @@ export const useEvents = ({ key }: UseEventsProps) => {
     workflowKeyFilters,
     workflowRunStatusFilters: eventStatusFilters,
     isRefetching,
+    isPlaceholderData,
     resetFilters,
     // time range
     timeWindow,

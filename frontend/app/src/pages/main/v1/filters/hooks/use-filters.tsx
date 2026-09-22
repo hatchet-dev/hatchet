@@ -139,29 +139,30 @@ export const useFilters = ({ key, scopeOverrides }: UseFiltersProps) => {
     [columnFilters, paramKey, setSearchParams],
   );
 
-  const { data, isLoading, isRefetching, refetch, error } = useQuery({
-    queryKey: [
-      'v1:filter:list',
-      tenantId,
-      key,
-      offset,
-      limit,
-      selectedWorkflowIds,
-      selectedScopes,
-    ],
-    queryFn: async () => {
-      const response = await api.v1FilterList(tenantId, {
+  const { data, isLoading, isRefetching, isPlaceholderData, refetch, error } =
+    useQuery({
+      queryKey: [
+        'v1:filter:list',
+        tenantId,
+        key,
         offset,
         limit,
-        workflowIds: selectedWorkflowIds,
-        scopes: selectedScopes,
-      });
+        selectedWorkflowIds,
+        selectedScopes,
+      ],
+      queryFn: async () => {
+        const response = await api.v1FilterList(tenantId, {
+          offset,
+          limit,
+          workflowIds: selectedWorkflowIds,
+          scopes: selectedScopes,
+        });
 
-      return response.data;
-    },
-    refetchInterval,
-    placeholderData: (prev) => prev,
-  });
+        return response.data;
+      },
+      refetchInterval,
+      placeholderData: (prev) => prev,
+    });
 
   const filters = data?.rows ?? [];
   const numFilters = data?.pagination?.num_pages ?? 1;
@@ -266,6 +267,7 @@ export const useFilters = ({ key, scopeOverrides }: UseFiltersProps) => {
     isLoading,
     refetch,
     isRefetching,
+    isPlaceholderData,
     error: error || workflowKeysError,
     pagination,
     setPagination,

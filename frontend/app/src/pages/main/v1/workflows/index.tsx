@@ -43,6 +43,7 @@ function WorkflowTable() {
     numWorkflows,
     isLoading,
     isRefetching,
+    isPlaceholderData,
     pagination,
     setPagination,
     setPageSize,
@@ -92,6 +93,7 @@ function WorkflowTable() {
       showSelectedRows={false}
       pageCount={numWorkflows}
       isLoading={isLoading}
+      isPlaceholderData={isPlaceholderData}
       showColumnToggle={true}
       columnKeyToName={WorkflowColumn}
       refetchProps={{
