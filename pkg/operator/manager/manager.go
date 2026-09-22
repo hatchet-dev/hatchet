@@ -11,10 +11,8 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/syncx"
-	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/operator/dagoperator"
-	"github.com/hatchet-dev/hatchet/pkg/operator/httpoperator"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -29,7 +27,6 @@ const bulkPauseTimeout = 30 * time.Second
 
 type OperatorManager struct {
 	repo            repository.Repository
-	enc             encryption.EncryptionService
 	taskEventWriter operator.TaskEventWriter
 	l               *zerolog.Logger
 	operatorsCh     chan []operator.Operator
@@ -44,9 +41,8 @@ type OperatorManager struct {
 	// per-operator drain goroutines remove, heartbeat loop reads).
 	draining map[uuid.UUID]struct{}
 
-	infraBlockedCIDRs []string
-	dispatcherId      uuid.UUID
-	mu                sync.Mutex
+	dispatcherId uuid.UUID
+	mu           sync.Mutex
 
 	dagOperatorDefaultSlots int
 
@@ -54,13 +50,11 @@ type OperatorManager struct {
 	drains sync.WaitGroup
 }
 
-func NewOperatorManager(dispatcherId uuid.UUID, l *zerolog.Logger, repo repository.Repository, enc encryption.EncryptionService, infraBlockedCIDRs []string, dagOperatorDefaultSlots int) *OperatorManager {
+func NewOperatorManager(dispatcherId uuid.UUID, l *zerolog.Logger, repo repository.Repository, dagOperatorDefaultSlots int) *OperatorManager {
 	om := &OperatorManager{
 		dispatcherId:            dispatcherId,
 		repo:                    repo,
 		l:                       l,
-		enc:                     enc,
-		infraBlockedCIDRs:       infraBlockedCIDRs,
 		dagOperatorDefaultSlots: dagOperatorDefaultSlots,
 		operatorsCh:             make(chan []operator.Operator),
 		donePollingCh:           make(chan struct{}, 1),
@@ -248,15 +242,6 @@ func (om *OperatorManager) instantiateOperator(ctx context.Context, op *sqlcv1.V
 	}
 
 	switch op.Kind {
-	case sqlcv1.V1OperatorKindHTTPAPI:
-		newOperator, err := httpoperator.NewHTTPOperator(op, om.l, om.repo, om.taskEventWriter, om.enc, om.infraBlockedCIDRs, worker.ID)
-
-		if err != nil {
-			om.l.Error().Err(err).Msgf("could not construct http operator: %s", err.Error())
-			return nil
-		}
-
-		return newOperator
 	case sqlcv1.V1OperatorKindDAG:
 		newOperator, err := dagoperator.NewDAGOperator(op, om.l, om.repo, om.taskEventWriter, worker.ID, dagoperator.WithSlots(om.dagOperatorDefaultSlots))
 
@@ -275,8 +260,6 @@ func (om *OperatorManager) instantiateOperator(ctx context.Context, op *sqlcv1.V
 // config. It returns (nil, nil) for unsupported kinds so the caller skips instantiation.
 func (om *OperatorManager) slotConfigForKind(op *sqlcv1.V1Operator) (map[string]int32, error) {
 	switch op.Kind {
-	case sqlcv1.V1OperatorKindHTTPAPI:
-		return httpoperator.SlotConfig(op)
 	case sqlcv1.V1OperatorKindDAG:
 		return dagoperator.SlotConfig(op, om.dagOperatorDefaultSlots)
 	default:

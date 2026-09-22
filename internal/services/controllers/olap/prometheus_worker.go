@@ -5,10 +5,12 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
+	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -113,7 +115,7 @@ func (o *OLAPControllerImpl) runTaskPrometheusUpdateWorker() {
 		err := eg.Wait()
 
 		if err != nil {
-			o.l.Error().Err(err).Msg("failed to process task prometheus updates")
+			logger.ShutdownAware(o.taskPrometheusWorkerCtx, o.l, err, zerolog.ErrorLevel).Err(err).Msg("failed to process task prometheus updates")
 		}
 	}
 
@@ -223,7 +225,7 @@ func (o *OLAPControllerImpl) runDAGPrometheusUpdateWorker() {
 		err := eg.Wait()
 
 		if err != nil {
-			o.l.Error().Err(err).Msg("failed to process dag prometheus updates")
+			logger.ShutdownAware(o.dagPrometheusWorkerCtx, o.l, err, zerolog.ErrorLevel).Err(err).Msg("failed to process dag prometheus updates")
 		}
 	}
 

@@ -237,6 +237,7 @@ class EmbeddedHatchetConfig(BaseSettings):
 
 
 DEFAULT_HOST_PORT = "localhost:7070"
+DEFAULT_SYNC_RESULT_POLL_INTERVAL_SECONDS = 1.0
 
 
 class ClientConfig(BaseSettings):
@@ -277,6 +278,15 @@ class ClientConfig(BaseSettings):
     force_shutdown_on_shutdown_signal: bool = False
     tenacity: TenacityConfig = TenacityConfig()
     embedded: EmbeddedHatchetConfig | None = None
+
+    sync_result_poll_interval: float = Field(
+        default=DEFAULT_SYNC_RESULT_POLL_INTERVAL_SECONDS,
+        ge=DEFAULT_SYNC_RESULT_POLL_INTERVAL_SECONDS,
+        description=(
+            "Seconds between GetRunDetails polls when waiting for a workflow "
+            "result on the sync path. Cannot be set below 1 second."
+        ),
+    )
 
     @model_validator(mode="after")
     def validate_token_and_tenant(self) -> "ClientConfig":

@@ -20,7 +20,9 @@ import { HATCHET_VERSION } from '@hatchet/version';
 import { SlotConfig, SlotType } from '@hatchet/v1/slot-types';
 import { ActionListener } from './action-listener';
 
-export type WorkerLabels = Record<string, string | number | undefined>;
+import type { WorkerLabels } from '@hatchet/v1/client/worker/runtime';
+
+export type { WorkerLabels } from '@hatchet/v1/client/worker/runtime';
 
 interface GetActionListenerOptions {
   workerName: string;

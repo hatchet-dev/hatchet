@@ -293,10 +293,12 @@ type ConfigFileRuntime struct {
 	// The loader splits this into AllowedOrigins at startup.
 	AllowedOriginsString string `mapstructure:"allowedOriginsString" json:"allowedOriginsString,omitempty"`
 
-	// OperatorInfraBlockedCIDRs are additional CIDR ranges the HTTP operator blocks when
-	// delivering outbound requests (our own infrastructure: VPC, metadata, internal LBs),
-	// on top of the built-in reserved/private denylist. Populated from
-	// OperatorInfraBlockedCIDRsString at startup; do not set directly via env.
+	// OperatorInfraBlockedCIDRs are additional CIDR ranges that consumers of
+	// pkg/operator/safeclient block when delivering outbound requests (our own
+	// infrastructure: VPC, metadata, internal LBs), on top of the built-in
+	// reserved/private denylist. The engine does not read it today; it is kept so the
+	// serverless operator can consume it. Populated from OperatorInfraBlockedCIDRsString
+	// at startup; do not set directly via env.
 	OperatorInfraBlockedCIDRs []string `mapstructure:"operatorInfraBlockedCIDRs" json:"operatorInfraBlockedCIDRs,omitempty"`
 
 	// OperatorInfraBlockedCIDRsString is the raw space-separated value used for env binding

@@ -3337,6 +3337,7 @@ type V1DagsOlap struct {
 	TotalTasks           int32                `json:"total_tasks"`
 	IdempotencyKey       pgtype.Text          `json:"idempotency_key"`
 	LatestRetryCount     int32                `json:"latest_retry_count"`
+	IsDagOperator        bool                 `json:"is_dag_operator"`
 }
 
 type V1DurableEventLogBranchPoint struct {
@@ -4058,6 +4059,7 @@ type Worker struct {
 	MaxRuns                 int32            `json:"maxRuns"`
 	IsActive                bool             `json:"isActive"`
 	LastListenerEstablished pgtype.Timestamp `json:"lastListenerEstablished"`
+	LastListenerSessionId   *uuid.UUID       `json:"lastListenerSessionId"`
 	IsPaused                bool             `json:"isPaused"`
 	Type                    WorkerType       `json:"type"`
 	WebhookId               *uuid.UUID       `json:"webhookId"`

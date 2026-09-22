@@ -478,7 +478,6 @@ SET
     "updatedAt" = CURRENT_TIMESTAMP,
     "dispatcherId" = coalesce(sqlc.narg('dispatcherId')::uuid, "dispatcherId"),
     "lastHeartbeatAt" = coalesce(sqlc.narg('lastHeartbeatAt')::timestamp, "lastHeartbeatAt"),
-    "isActive" = coalesce(sqlc.narg('isActive')::boolean, "isActive"),
     "isPaused" = coalesce(sqlc.narg('isPaused')::boolean, "isPaused")
 WHERE
     "id" = @id::uuid
@@ -528,17 +527,31 @@ WHERE
   "id" = @id::uuid
 RETURNING *;
 
--- name: UpdateWorkerActiveStatus :one
+-- name: ActivateWorkerListener :one
+-- Marks the worker active for the given listener session. lastListenerEstablished is
+-- stamped alongside the session id because Heartbeat uses it to tell a worker that never
+-- opened a listener from one whose listener has gone away.
 UPDATE "Worker"
 SET
-    "isActive" = @isActive::boolean,
-    "lastListenerEstablished" = sqlc.narg('lastListenerEstablished')::timestamp
+    "isActive" = TRUE,
+    "lastListenerSessionId" = @sessionId::uuid,
+    "lastListenerEstablished" = CURRENT_TIMESTAMP
 WHERE
     "id" = @id::uuid
-    AND (
-        "lastListenerEstablished" IS NULL
-        OR "lastListenerEstablished" <= sqlc.narg('lastListenerEstablished')::timestamp
-        )
+    AND "tenantId" = @tenantId::uuid
+RETURNING *;
+
+-- name: DeactivateWorkerListener :one
+-- Marks the worker inactive only while the given session is still the one recorded on the
+-- row. A session whose id is no longer on the row was superseded by a newer session and
+-- must not touch it, so this returns no rows in that case.
+UPDATE "Worker"
+SET
+    "isActive" = FALSE
+WHERE
+    "id" = @id::uuid
+    AND "tenantId" = @tenantId::uuid
+    AND "lastListenerSessionId" = @sessionId::uuid
 RETURNING *;
 
 -- name: UpsertWorkerLabel :one

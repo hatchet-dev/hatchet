@@ -621,7 +621,6 @@ func (d *DAGOperator) buildDAG(ctx context.Context, action *contracts.AssignedAc
 		}
 
 		t := &task{
-			id:           s.ID,
 			actionId:     s.ActionId,
 			workflowName: s.WorkflowName,
 			readableId:   s.ReadableId.String,

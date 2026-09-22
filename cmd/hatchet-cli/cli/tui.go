@@ -49,7 +49,7 @@ var tuiCmd = &cobra.Command{
 			}
 		}
 
-		profile, err := cli.GetProfile(selectedProfile)
+		profile, err := cli.Profiles.GetProfile(selectedProfile)
 		if err != nil {
 			cli.Logger.Fatalf("could not get profile '%s': %v", selectedProfile, err)
 		}
@@ -147,7 +147,7 @@ func newTUIModel(profileName string, hatchetClient client.Client) tuiModel {
 	currentView := tui.NewRunsListView(ctx)
 
 	// Get available profiles
-	profiles := cli.GetProfiles()
+	profiles := cli.Profiles.GetProfiles()
 	profileNames := make([]string, 0, len(profiles))
 	for name := range profiles {
 		profileNames = append(profileNames, name)
@@ -727,7 +727,7 @@ func (m tuiModel) renderProfileSelector() string {
 func (m tuiModel) switchProfile(profileName string) tea.Cmd {
 	return func() tea.Msg {
 		// Load the selected profile
-		profile, err := cli.GetProfile(profileName)
+		profile, err := cli.Profiles.GetProfile(profileName)
 		if err != nil {
 			// Return error message
 			return profileSwitchErrorMsg{err: err}

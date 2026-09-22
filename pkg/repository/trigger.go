@@ -1902,7 +1902,14 @@ func (r *sharedRepository) registerChildWorkflows(
 
 		for stepIndex, step := range orderSteps(steps) {
 			stepId := step.ID
-			stepExternalId := stepsToExternalIds[i][stepId]
+			stepExternalId, hasExternalId := stepsToExternalIds[i][stepId]
+
+			// stepsToExternalIds only contains regular user steps. The DAG orchestrator step's
+			// task runs under the run's external id and its completion is handled by the operator
+			// paths, so a per-step match here would hint at a zero UUID and never be satisfied.
+			if !hasExternalId {
+				continue
+			}
 
 			k := getChildSignalEventKey(*tuple.parentExternalId, int64(stepIndex), *tuple.childIndex, tuple.childKey)
 
@@ -2014,7 +2021,6 @@ func (r *sharedRepository) registerChildWorkflows(
 	}
 
 	createMatchOpts := make([]CreateMatchOpts, 0)
-	tuplesToSkip = make(map[uuid.UUID]struct{})
 
 	for i, tuple := range tuples {
 		if _, ok := tuplesToSkip[tuple.externalId]; ok {
@@ -2038,10 +2044,18 @@ func (r *sharedRepository) registerChildWorkflows(
 				continue
 			}
 
+			if spawnsAsOperatorRun(tuple, steps) {
+				continue
+			}
+
 			for _, step := range orderSteps(steps) {
 				stepId := step.ID
 				stepReadableId := step.ReadableId.String
-				stepExternalId := stepsToExternalIds[i][stepId]
+				stepExternalId, hasExternalId := stepsToExternalIds[i][stepId]
+
+				if !hasExternalId {
+					continue
+				}
 
 				key := externalIdsToKeys[stepExternalId]
 
@@ -2282,6 +2296,20 @@ func filterStepsByActionId(steps []*sqlcv1.ListStepsByWorkflowVersionIdsRow, act
 		}
 	}
 	return nil
+}
+
+func spawnsAsOperatorRun(tuple triggerTuple, steps []*sqlcv1.ListStepsByWorkflowVersionIdsRow) bool {
+	if tuple.targetActionId != nil {
+		return false
+	}
+
+	for _, s := range steps {
+		if s.IsDagOrchestrator {
+			return true
+		}
+	}
+
+	return false
 }
 
 func regularUserSteps(steps []*sqlcv1.ListStepsByWorkflowVersionIdsRow) []*sqlcv1.ListStepsByWorkflowVersionIdsRow {

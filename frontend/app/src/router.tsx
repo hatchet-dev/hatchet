@@ -594,6 +594,31 @@ const tenantOverviewRoute = createRoute({
   ),
 });
 
+// The "run your first task" onboarding. It is a real, tenant-scoped route so
+// it survives a refresh and can be linked to, but it renders the Overview: the
+// onboarding itself is an overlay that the authenticated shell opens whenever
+// this route matches (it has to cover the sidebar, which a page cannot do).
+// The chosen path and current step live in the search params.
+const onboardingSearchSchema = z.object({
+  path: z.enum(['agent', 'manual']).optional().catch(undefined),
+  step: z
+    .enum(['path', 'usecase', 'setup', 'runagent', 'runtask', 'finish'])
+    .optional()
+    .catch(undefined),
+});
+
+export type OnboardingSearch = z.infer<typeof onboardingSearchSchema>;
+
+export const tenantOnboardingRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'onboarding',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/overview/index.tsx'),
+    'default',
+  ),
+  validateSearch: onboardingSearchSchema,
+});
+
 const tenantRunsRoute = createRoute({
   getParentRoute: () => tenantRoute,
   path: 'runs',
@@ -1062,6 +1087,7 @@ const tenantRoutes = [
   tenantWorkflowsRoute,
   tenantWorkflowRoute,
   tenantOverviewRoute,
+  tenantOnboardingRoute,
   tenantRunsRoute,
   tenantRunRoute,
   tenantTaskRunsRoute,
@@ -1211,6 +1237,7 @@ export const appRoutes = {
   tenantWorkflowsRoute,
   tenantWorkflowRoute,
   tenantOverviewRoute,
+  tenantOnboardingRoute,
   tenantRunsRoute,
   tenantRunRoute,
   tenantTaskRunsRoute,

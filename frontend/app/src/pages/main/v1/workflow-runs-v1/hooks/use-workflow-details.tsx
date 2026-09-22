@@ -3,7 +3,7 @@ import { queries, V1TaskStatus } from '@/lib/api';
 import { getErrorStatus } from '@/lib/error-utils';
 import { defaultQueryRetry } from '@/lib/query-retry';
 import { appRoutes } from '@/router';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
 
 export function isTerminalState(status: V1TaskStatus | undefined) {
@@ -37,6 +37,7 @@ export const useWorkflowDetails = () => {
 
       return 1000;
     },
+    placeholderData: keepPreviousData,
     ...queries.v1WorkflowRuns.details(params.run, includeOrchestratorEvents),
   });
 

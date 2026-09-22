@@ -249,6 +249,7 @@ CREATE TABLE v1_dags_olap (
     total_tasks INT NOT NULL DEFAULT 1,
     idempotency_key TEXT,
     latest_retry_count INT NOT NULL DEFAULT 0,
+    is_dag_operator BOOLEAN NOT NULL DEFAULT FALSE,
     PRIMARY KEY (inserted_at, id)
 ) PARTITION BY RANGE(inserted_at);
 
@@ -434,7 +435,7 @@ CREATE TYPE v1_payload_location_olap AS ENUM ('INLINE', 'EXTERNAL');
 
 CREATE TABLE v1_payloads_olap (
     tenant_id UUID NOT NULL,
-    external_id UUID NOT NULL,
+    external_id UUID NOT NULL, -- IMPORTANT: Each _partition_ of this table has a `UNIQUE` constraint on this column, but the parent does not
 
     location v1_payload_location_olap NOT NULL,
     external_location_key TEXT,

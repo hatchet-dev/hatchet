@@ -12,6 +12,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
+	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -61,8 +62,6 @@ type Queuer struct {
 
 	unassigned   map[int64]*sqlcv1.V1QueueItem
 	unassignedMu mutex
-
-	hasRateLimits bool
 
 	// consecutiveEmptyPolls counts loop iterations whose refill returned no items. It is only
 	// accessed from the loopQueue goroutine.
@@ -221,22 +220,17 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 
 		start := time.Now()
 		checkpoint := start
-		var err error
 
-		if q.hasRateLimits {
-			_, err := q.repo.RequeueRateLimitedItems(ctx, q.tenantId, q.queueName)
-
-			if err != nil {
-				q.l.Error().Ctx(ctx).Err(err).Msg("error requeuing rate limited items")
-			}
-		}
+		q.requeueRateLimitedItems(ctx)
 
 		qis, err := q.refillQueue(ctx)
 
 		if err != nil {
 			span.RecordError(err)
 			span.End()
-			q.l.Error().Ctx(ctx).Err(err).Msg("error refilling queue")
+
+			logger.ShutdownAware(ctx, q.l, err, zerolog.ErrorLevel).Ctx(ctx).Err(err).Msg("error refilling queue")
+
 			continue
 		}
 
@@ -264,14 +258,10 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 			span.RecordError(err)
 			span.End()
 
-			q.l.Error().Ctx(ctx).Err(err).Msg("error getting rate limits")
+			logger.ShutdownAware(ctx, q.l, err, zerolog.ErrorLevel).Ctx(ctx).Err(err).Msg("error getting rate limits")
 
 			q.unackedToUnassigned(qis)
 			continue
-		}
-
-		if len(rls) > 0 {
-			q.hasRateLimits = true
 		}
 
 		rateLimitTime := time.Since(checkpoint)
@@ -301,7 +291,8 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		if err != nil {
 			span.RecordError(err)
 			span.End()
-			q.l.Error().Ctx(ctx).Err(err).Msg("error getting desired labels")
+
+			logger.ShutdownAware(ctx, q.l, err, zerolog.ErrorLevel).Ctx(ctx).Err(err).Msg("error getting desired labels")
 
 			q.unackedToUnassigned(qis)
 			continue
@@ -315,7 +306,8 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		if err != nil {
 			span.RecordError(err)
 			span.End()
-			q.l.Error().Err(err).Msg("error getting batch configs")
+
+			logger.ShutdownAware(ctx, q.l, err, zerolog.ErrorLevel).Err(err).Msg("error getting batch configs")
 
 			q.unackedToUnassigned(qis)
 			continue
@@ -329,7 +321,8 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		if err != nil {
 			span.RecordError(err)
 			span.End()
-			q.l.Error().Ctx(ctx).Err(err).Msg("error getting step slot requests")
+
+			logger.ShutdownAware(ctx, q.l, err, zerolog.ErrorLevel).Ctx(ctx).Err(err).Msg("error getting step slot requests")
 
 			q.unackedToUnassigned(qis)
 			continue
@@ -503,6 +496,14 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 				).Int("item_count", len(prevQis)).Msg("queue took longer than 100ms to process and flush items")
 			}
 		}(start)
+	}
+}
+
+func (q *Queuer) requeueRateLimitedItems(ctx context.Context) {
+	_, err := q.repo.RequeueRateLimitedItems(ctx, q.tenantId, q.queueName)
+
+	if err != nil {
+		logger.ShutdownAware(ctx, q.l, err, zerolog.ErrorLevel).Ctx(ctx).Err(err).Msg("error requeuing rate limited items")
 	}
 }
 
