@@ -828,7 +828,7 @@ func (a *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts 
 		idempotencyKeyCollisions, err := a.tw.TriggerFromWorkflowNamesWaiting(ctx, tenantId, optsToSend)
 		if err != nil {
 			if errors.Is(err, trigger.ErrNoTriggerSlots) {
-				return nil, status.Error(codes.ResourceExhausted, err.Error())
+				return nil, connect.NewError(connect.CodeResourceExhausted, err)
 			}
 
 			return nil, fmt.Errorf("could not trigger workflows: %w", err)
