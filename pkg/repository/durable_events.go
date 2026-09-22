@@ -2678,12 +2678,7 @@ func (r *durableEventsRepository) handleEventLookback(ctx context.Context, tenan
 			ExternalId: row.ExternalID,
 		}
 
-		payload, ok := retrieveOptsToPayload[retrieveOpts]
-
-		if !ok {
-			r.l.Warn().Ctx(ctx).Msgf("payload not found for recent user event with id %d and seen_at %s", row.ID, row.SeenAt.Time)
-			payload = nil
-		}
+		payload := retrieveOptsToPayload[retrieveOpts]
 
 		var resourceHint *string
 		if row.Scope.Valid {

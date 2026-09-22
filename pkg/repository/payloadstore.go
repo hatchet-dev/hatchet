@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -178,6 +179,12 @@ func payloadUniqueKeyFromRetrieveOpt(opt RetrievePayloadOpts) PayloadUniqueKey {
 	}
 }
 
+func isEmptyPayload(payload []byte) bool {
+	trimmed := bytes.TrimSpace(payload)
+
+	return len(trimmed) == 0 || bytes.Equal(trimmed, []byte("{}"))
+}
+
 func payloadUniqueKeyFromRow(payload *sqlcv1.V1Payload) PayloadUniqueKey {
 	return PayloadUniqueKey{
 		ID:              payload.ID,
@@ -209,6 +216,10 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 	})
 
 	for _, payload := range payloads {
+		if isEmptyPayload(payload.Payload) {
+			continue
+		}
+
 		tenantId := payload.TenantId
 		uniqueKey := PayloadUniqueKey{
 			ID:              payload.Id,
