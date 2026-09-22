@@ -80,16 +80,16 @@ def _get_task_id(details: WorkflowRunDetail) -> str:
 
 
 async def _restore_task(hatchet: Hatchet, task_id: str) -> None:
-    """The restore endpoint resolves the task through OLAP, which lags the engine under load, so wait until it is visible there first."""
     with hatchet.runs.client() as client:
         api = TaskApi(client)
         for _ in range(MAX_POLLS):
             try:
-                api.v1_task_get(task=task_id)
+                await asyncio.to_thread(api.v1_task_get, task=task_id)
                 break
             except NotFoundException:
                 await asyncio.sleep(POLL_INTERVAL)
-        api.v1_task_restore(task=task_id)
+
+        await asyncio.to_thread(api.v1_task_restore, task=task_id)
 
 
 @requires_durable_eviction

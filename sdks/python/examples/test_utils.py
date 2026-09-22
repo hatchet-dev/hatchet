@@ -35,15 +35,16 @@ async def wait_for_child_runs(
     timeout: float = 30.0,
     **list_kwargs: Any,
 ) -> V1TaskSummaryList:
-    """Poll the runs list until at least min_count children of the parent are visible in OLAP, which lags the engine under load."""
     interval = 0.5
     deadline = asyncio.get_running_loop().time() + timeout
     while True:
         runs = await hatchet.runs.aio_list(
             parent_task_external_id=parent_task_external_id, **list_kwargs
         )
+
         if len(runs.rows) >= min_count or asyncio.get_running_loop().time() >= deadline:
             return runs
+
         await asyncio.sleep(interval)
 
 
