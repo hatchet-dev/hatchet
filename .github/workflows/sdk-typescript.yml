@@ -87,6 +87,13 @@ jobs:
         with:
           go-version: "1.26"
 
+      - name: Install Protoc
+        if: matrix.package-manager == 'pnpm'
+        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3.0.0
+        with:
+          version: "29.6"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Generate OpenAPI spec
         if: matrix.package-manager == 'pnpm'
         working-directory: .
@@ -97,13 +104,14 @@ jobs:
         run: |
           pnpm run generate-api
           ./generate-protoc.sh
+          ./generate-protoc-es.sh
 
       - name: Check generated bindings are up to date
         if: matrix.package-manager == 'pnpm'
         run: |
-          git add -A src/protoc src/clients/rest/generated
-          if ! git diff --cached --exit-code -- src/protoc src/clients/rest/generated; then
-            echo "::error::Generated protobuf/REST bindings are out of date. Run 'pnpm run generate-api' and 'sdks/typescript/generate-protoc.sh' and commit the changes."
+          git add -A src/protoc src/protoc-es src/clients/rest/generated
+          if ! git diff --cached --exit-code -- src/protoc src/protoc-es src/clients/rest/generated; then
+            echo "::error::Generated protobuf/REST bindings are out of date. Run 'pnpm run generate-api', 'sdks/typescript/generate-protoc.sh' and 'sdks/typescript/generate-protoc-es.sh' and commit the changes."
             exit 1
           fi
 

@@ -6,7 +6,7 @@ import tseslint from 'typescript-eslint';
 
 export default [
   {
-    ignores: ['dist/**', '**/generated/**/*', 'node_modules/**', '**/*.test-d.ts'],
+    ignores: ['dist/**', '**/generated/**/*', 'src/protoc-es/**', 'node_modules/**', '**/*.test-d.ts'],
   },
 
   eslint.configs.recommended,
