@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
@@ -64,17 +65,18 @@ type fakeSession struct {
 	flushErr error
 	// err is what Err reports once done is closed: nil after Close, the terminal failure a
 	// test injected through fail.
-	err         error
-	openDurable func(taskId uuid.UUID, invocation int32) (operator.DurableChannel, error)
-	puts        []*v1.CreateWorkflowVersionRequest
-	deltas      []actionDelta
-	events      []*contracts.StepActionEvent
-	ops         []string
-	done        chan struct{}
-	doneOnce    sync.Once
-	flushes     int
-	mu          sync.Mutex
-	closed      bool
+	err           error
+	openDurable   func(taskId uuid.UUID, invocation int32) (operator.DurableChannel, error)
+	openRunStream func(ctx context.Context, kind operator.RunStreamKind, first proto.Message) (operator.RunStream, error)
+	puts          []*v1.CreateWorkflowVersionRequest
+	deltas        []actionDelta
+	events        []*contracts.StepActionEvent
+	ops           []string
+	done          chan struct{}
+	doneOnce      sync.Once
+	flushes       int
+	mu            sync.Mutex
+	closed        bool
 }
 
 func newFakeSession(handler operator.ActionHandler, reg operator.Registration) *fakeSession {
@@ -198,6 +200,27 @@ func (f *fakeSession) setOpenDurable(open func(taskId uuid.UUID, invocation int3
 	defer f.mu.Unlock()
 
 	f.openDurable = open
+}
+
+// OpenRunStream is backed by openRunStream when set; otherwise the session reports run
+// streams unsupported, as operatortest.Session does.
+func (f *fakeSession) OpenRunStream(ctx context.Context, kind operator.RunStreamKind, first proto.Message) (operator.RunStream, error) {
+	f.mu.Lock()
+	open := f.openRunStream
+	f.mu.Unlock()
+
+	if open == nil {
+		return nil, operator.ErrNotSupported
+	}
+
+	return open(ctx, kind, first)
+}
+
+func (f *fakeSession) setOpenRunStream(open func(ctx context.Context, kind operator.RunStreamKind, first proto.Message) (operator.RunStream, error)) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.openRunStream = open
 }
 
 func (f *fakeSession) Pause(_ context.Context) error {

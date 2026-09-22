@@ -394,6 +394,7 @@ func newTestOperatorSession(t *testing.T, client *fakeOperatorServiceClient, res
 	s := newSession(
 		client,
 		admin,
+		runStreamClients{},
 		newCallMetadata("token", nil),
 		&logger,
 		&v1.OperatorRegisterRequest{

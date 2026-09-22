@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
@@ -632,6 +633,17 @@ func (s *session) OpenDurable(_ context.Context, taskExternalId uuid.UUID, invoc
 	s.mu.Unlock()
 
 	return hub.open(taskExternalId.String(), invocation)
+}
+
+// OpenRunStream implements operator.Session on the current client session, whose connection
+// carries the tenant's token. A stream open on a client session the host replaces ends with
+// it, like a durable channel; the caller opens another.
+func (s *session) OpenRunStream(ctx context.Context, kind operator.RunStreamKind, first proto.Message) (operator.RunStream, error) {
+	if s.isClosed() {
+		return nil, operator.ErrSessionClosed
+	}
+
+	return s.client().OpenRunStream(ctx, kind, first)
 }
 
 // Pause implements operator.Session through the pause message on the Listen stream; it returns

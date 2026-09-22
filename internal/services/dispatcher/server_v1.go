@@ -175,6 +175,18 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(ctx context.Context, serve
 	sender := rpcstream.NewSender[contracts.DurableEvent](ctx, server)
 	defer sender.Close()
 
+	return d.listenForDurableEvent(ctx, server.Receive, sender)
+}
+
+// listenForDurableEvent runs a ListenForDurableEvent session over the two halves of the
+// stream: receive yields the client's listeners (io.EOF or a Canceled code when the client is
+// done), sender takes the durable events. It is shared by the gRPC handler and the
+// channel-backed RegisterRunStream; sender is closed by the caller.
+func (d *DispatcherServiceImpl) listenForDurableEvent(
+	ctx context.Context,
+	receive func() (*contracts.ListenForDurableEventRequest, error),
+	sender *rpcstream.Sender[contracts.DurableEvent],
+) error {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 	d.analytics.Count(ctx, analytics.Worker, analytics.Listen)
@@ -269,7 +281,7 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(ctx context.Context, serve
 	// start a new goroutine to handle client-side streaming
 	go func() {
 		for {
-			req, err := server.Receive()
+			req, err := receive()
 
 			if err != nil {
 				cancel()
