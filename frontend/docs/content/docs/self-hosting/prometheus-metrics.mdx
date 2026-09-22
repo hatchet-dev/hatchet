@@ -71,6 +71,43 @@ export SERVER_PROMETHEUS_PATH="/custom-metrics"
 
 Restart your Hatchet server after setting these variables to apply the changes.
 
+##### Running more than one engine pod
+
+The [tenant metrics](#tenant-metrics) are per-process: each engine pod only
+counts the events it handled. The tenant endpoint therefore queries your
+Prometheus for `sum without (pod) (...)` over every series carrying the tenant's
+`tenant_id`, so pods that differ only by a `pod` label are summed into one series
+per metric. Summing is correct for every tenant metric: counters and histograms
+are counted on exactly one pod, and the gauges are reported by the single pod
+that runs the tenant's scheduler.
+
+With a default scrape config Prometheus tells engine pods apart by `instance`,
+not `pod`, so the endpoint returns one series per instance and consumers must
+aggregate themselves, for example `sum without (instance) (...)`. To serve one
+series per tenant instead, give every engine pod the same `instance` value and
+carry the pod identity in `pod`:
+
+```yaml
+scrape_configs:
+  - job_name: hatchet-engine
+    kubernetes_sd_configs: [{ role: pod }]
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_name]
+        target_label: pod
+    metric_relabel_configs:
+      - target_label: instance
+        replacement: hatchet
+```
+
+<Callout type="warning">
+  Do not collapse `instance` without adding `pod`. The pods' series then collide
+  in Prometheus and the endpoint alternates between the totals of whichever pod
+  was scraped last.
+</Callout>
+
+Summed counters still drop when a pod restarts, so `rate()` over the endpoint's
+series shows a one-window spike at each rollout.
+
 ---
 
 ### Global Metrics
