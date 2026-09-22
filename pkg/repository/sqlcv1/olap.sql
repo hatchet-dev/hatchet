@@ -41,6 +41,21 @@ ANALYZE v1_payloads_olap;
 -- name: AnalyzeV1LookupTableOLAP :exec
 ANALYZE v1_lookup_table_olap;
 
+-- name: AnalyzeV1EventsOLAP :exec
+ANALYZE v1_events_olap;
+
+-- name: AnalyzeV1EventLookupTableOLAP :exec
+ANALYZE v1_event_lookup_table_olap;
+
+-- name: AnalyzeV1EventToRunOLAP :exec
+ANALYZE v1_event_to_run_olap;
+
+-- name: AnalyzeV1OtelTraceOLAP :exec
+ANALYZE v1_otel_trace_olap;
+
+-- name: AnalyzeV1OtelTraceLookupOLAP :exec
+ANALYZE v1_otel_trace_lookup_olap;
+
 -- name: ListOLAPPartitionsBeforeDate :many
 WITH task_partitions AS (
     SELECT 'v1_tasks_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_tasks_olap'::text, @date::date) AS p
