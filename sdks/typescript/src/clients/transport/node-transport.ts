@@ -37,16 +37,26 @@ export const SESSION_OPTIONS = {
 
 /**
  * Builds the TLS session options for the engine connection from the client's `tls_config`:
- * `none` means plaintext, `tls` verifies the server against `ca_file`, and `mtls` (the default
- * when no strategy is set) additionally presents `cert_file` and `key_file`. `server_name`
- * overrides the hostname used for SNI and certificate verification, which is what lets a
- * client reach an engine through an address its certificate does not name.
+ * `none` means plaintext, `tls` verifies the server against the trusted roots, and `mtls` (the
+ * default when no strategy is set) additionally presents `cert_file` and `key_file`.
+ * `server_name` overrides the hostname used for SNI and certificate verification, which is what
+ * lets a client reach an engine through an address its certificate does not name.
+ *
+ * The roots and cipher suites follow grpc-js, which the streaming channel uses: `ca_file`, else
+ * the bundle `GRPC_DEFAULT_SSL_ROOTS_FILE_PATH` names, else the platform roots; and
+ * `GRPC_SSL_CIPHER_SUITES` when set.
  */
 export function tlsSessionOptions(tls: ClientConfig['tls_config']): SecureClientSessionOptions {
   const options: SecureClientSessionOptions = {};
 
-  if (tls.ca_file) {
-    options.ca = readFileSync(tls.ca_file);
+  const rootsFile = tls.ca_file || process.env.GRPC_DEFAULT_SSL_ROOTS_FILE_PATH;
+  if (rootsFile) {
+    options.ca = readFileSync(rootsFile);
+  }
+
+  const ciphers = process.env.GRPC_SSL_CIPHER_SUITES;
+  if (ciphers) {
+    options.ciphers = ciphers;
   }
 
   if (tls.tls_strategy !== 'tls') {
