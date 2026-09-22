@@ -4,11 +4,10 @@ import (
 	"context"
 	"testing"
 
+	"connectrpc.com/connect"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	"github.com/hatchet-dev/hatchet/internal/services/operatorsvc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -27,13 +26,13 @@ func TestListenRejectsStreamsOverOperatorCap(t *testing.T) {
 	second := svc.workers.Add(&sqlcv1.Worker{ID: uuid.New(), TenantId: tenant.ID, OperatorId: &op.ID})
 
 	first := newFakeListenStream(ctx, startMsg(worker.ID.String()))
-	firstDone := runListen(svc, first)
+	firstDone := runListen(svc, first, tenant, op)
 
 	eventually(t, func() bool { return svc.dispatcher.SessionCount() == 1 }, "first session was not registered")
 	assert.Equal(t, 1, svc.svc.ListenStreamCount(op.ID))
 
-	err := waitListen(t, runListen(svc, newFakeListenStream(ctx, startMsg(second.ID.String()))))
-	assert.Equal(t, codes.ResourceExhausted, status.Code(err), err)
+	err := waitListen(t, runListen(svc, newFakeListenStream(ctx, startMsg(second.ID.String())), tenant, op))
+	assert.Equal(t, connect.CodeResourceExhausted, connect.CodeOf(err), err)
 	assert.Equal(t, 1, svc.dispatcher.SessionCount(), "a refused stream registers no session")
 	assert.Len(t, svc.workers.SessionLog(), 1, "a refused stream never activates its worker")
 
@@ -42,7 +41,7 @@ func TestListenRejectsStreamsOverOperatorCap(t *testing.T) {
 	assert.Zero(t, svc.svc.ListenStreamCount(op.ID), "the slot is released when the stream ends")
 
 	third := newFakeListenStream(ctx, startMsg(second.ID.String()))
-	thirdDone := runListen(svc, third)
+	thirdDone := runListen(svc, third, tenant, op)
 
 	eventually(t, func() bool { return svc.dispatcher.SessionCount() == 2 }, "a stream after the release was not admitted")
 
@@ -54,20 +53,18 @@ func TestListenRejectsStreamsOverOperatorCap(t *testing.T) {
 func TestListenStreamCapIsPerOperator(t *testing.T) {
 	tenant := &sqlcv1.Tenant{ID: uuid.New()}
 	svc := newTestService(t, nil, operatorsvc.WithMaxListenStreamsPerOperator(1))
-	ctx, _, worker := registeredOperator(t, svc, tenant)
+	ctx, op, worker := registeredOperator(t, svc, tenant)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	otherOp, err := svc.operators.UpsertGRPCOperator(t.Context(), tenant.ID, "other")
 	require.NoError(t, err)
 	otherWorker := svc.workers.Add(&sqlcv1.Worker{ID: uuid.New(), TenantId: tenant.ID, OperatorId: &otherOp.ID})
-	otherCtx, cancelOther := context.WithCancel(operatorContext(tenant, otherOp.ID.String()))
-	defer cancelOther()
 
 	first := newFakeListenStream(ctx, startMsg(worker.ID.String()))
-	firstDone := runListen(svc, first)
-	other := newFakeListenStream(otherCtx, startMsg(otherWorker.ID.String()))
-	otherDone := runListen(svc, other)
+	firstDone := runListen(svc, first, tenant, op)
+	other := newFakeListenStream(ctx, startMsg(otherWorker.ID.String()))
+	otherDone := runListen(svc, other, tenant, otherOp)
 
 	eventually(t, func() bool { return svc.dispatcher.SessionCount() == 2 }, "both operators' streams were not admitted")
 
@@ -93,7 +90,7 @@ func TestListenRejectsActionsOverOperatorCap(t *testing.T) {
 	require.NoError(t, err)
 
 	stream := newFakeListenStream(ctx, startMsg(worker.ID.String()))
-	done := runListen(svc, stream)
+	done := runListen(svc, stream, tenant, op)
 
 	eventually(t, func() bool { return svc.dispatcher.SessionCount() == 1 }, "session was not registered")
 
@@ -110,7 +107,7 @@ func TestListenRejectsActionsOverOperatorCap(t *testing.T) {
 	stream.push(sequencedDeltaMsg(4, []string{"svc:d"}, nil))
 
 	err = waitListen(t, done)
-	assert.Equal(t, codes.ResourceExhausted, status.Code(err), err)
+	assert.Equal(t, connect.CodeResourceExhausted, connect.CodeOf(err), err)
 	assert.ElementsMatch(t, []string{"svc:a", "svc:c"}, svc.workers.ActionSet(worker.ID), "a refused delta is not applied")
 	assert.Equal(t, []uint64{1, 2, 3}, svc.dispatcher.AckedSequences(), "a refused delta is not acknowledged")
 }
@@ -119,7 +116,7 @@ func TestListenRejectsActionsOverOperatorCap(t *testing.T) {
 func TestListenAtActionCapStillRemoves(t *testing.T) {
 	tenant := &sqlcv1.Tenant{ID: uuid.New()}
 	svc := newTestService(t, nil, operatorsvc.WithMaxActionsPerOperator(1))
-	ctx, _, worker := registeredOperator(t, svc, tenant)
+	ctx, op, worker := registeredOperator(t, svc, tenant)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -127,7 +124,7 @@ func TestListenAtActionCapStillRemoves(t *testing.T) {
 	require.NoError(t, err)
 
 	stream := newFakeListenStream(ctx, startMsg(worker.ID.String()))
-	done := runListen(svc, stream)
+	done := runListen(svc, stream, tenant, op)
 
 	eventually(t, func() bool { return svc.dispatcher.SessionCount() == 1 }, "session was not registered")
 

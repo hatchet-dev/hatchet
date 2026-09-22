@@ -5,14 +5,10 @@ import (
 	"errors"
 	"testing"
 
+	"connectrpc.com/connect"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/proto"
 
-	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -28,12 +24,12 @@ func sequencedDeltaMsg(seq uint64, add, remove []string) *v1contracts.OperatorLi
 func TestListenAcknowledgesCommittedDeltas(t *testing.T) {
 	tenant := &sqlcv1.Tenant{ID: uuid.New()}
 	svc := newTestService(t, nil)
-	ctx, _, worker := registeredOperator(t, svc, tenant)
+	ctx, op, worker := registeredOperator(t, svc, tenant)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	stream := newFakeListenStream(ctx, startMsg(worker.ID.String()))
-	done := runListen(svc, stream)
+	done := runListen(svc, stream, tenant, op)
 
 	eventually(t, func() bool { return svc.dispatcher.SessionCount() == 1 }, "session was not registered")
 
@@ -54,14 +50,14 @@ func TestListenAcknowledgesCommittedDeltas(t *testing.T) {
 func TestListenDoesNotAcknowledgeRejectedDelta(t *testing.T) {
 	tenant := &sqlcv1.Tenant{ID: uuid.New()}
 	svc := newTestService(t, nil)
-	ctx, _, worker := registeredOperator(t, svc, tenant)
+	ctx, op, worker := registeredOperator(t, svc, tenant)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	stream := newFakeListenStream(ctx, startMsg(worker.ID.String()), sequencedDeltaMsg(3, []string{"not an action"}, nil))
 
-	err := waitListen(t, runListen(svc, stream))
-	assert.Equal(t, codes.InvalidArgument, status.Code(err), err)
+	err := waitListen(t, runListen(svc, stream, tenant, op))
+	assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err), err)
 	assert.Empty(t, svc.dispatcher.AckedSequences())
 }
 
@@ -69,7 +65,7 @@ func TestListenDoesNotAcknowledgeRejectedDelta(t *testing.T) {
 func TestListenEndsWhenAckCannotBeSent(t *testing.T) {
 	tenant := &sqlcv1.Tenant{ID: uuid.New()}
 	svc := newTestService(t, nil)
-	ctx, _, worker := registeredOperator(t, svc, tenant)
+	ctx, op, worker := registeredOperator(t, svc, tenant)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -77,18 +73,8 @@ func TestListenEndsWhenAckCannotBeSent(t *testing.T) {
 
 	stream := newFakeListenStream(ctx, startMsg(worker.ID.String()), sequencedDeltaMsg(1, []string{"svc:a"}, nil))
 
-	err := waitListen(t, runListen(svc, stream))
-	assert.Equal(t, codes.Unavailable, status.Code(err), err)
+	err := waitListen(t, runListen(svc, stream, tenant, op))
+	assert.Equal(t, connect.CodeUnavailable, connect.CodeOf(err), err)
 	assert.Equal(t, []string{"svc:a"}, svc.workers.ActionSet(worker.ID), "the delta itself was committed before the ack failed")
 	assert.Len(t, svc.workers.SessionLog(), 2, "the worker is deactivated on exit")
-}
-
-// The dispatcher fan-out wraps every assigned action in the Listen response envelope.
-func TestWrapAssignedAction(t *testing.T) {
-	action := &contracts.AssignedAction{ActionId: "svc:a", TaskRunExternalId: uuid.NewString()}
-
-	resp, ok := wrapAssignedAction(action).(*v1contracts.OperatorListenResponse)
-	require.True(t, ok)
-	assert.True(t, proto.Equal(resp.GetAction(), action))
-	assert.Nil(t, resp.GetAck())
 }

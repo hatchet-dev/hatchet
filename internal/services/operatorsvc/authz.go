@@ -3,11 +3,11 @@ package operatorsvc
 import (
 	"context"
 	"errors"
+	"fmt"
 
+	"connectrpc.com/connect"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -20,7 +20,7 @@ import (
 // engine's own, and a row the engine leases is driven by the claimer, never over the wire.
 func (s *Service) AuthorizeOperator(ctx context.Context, tenant *sqlcv1.Tenant, operatorId uuid.UUID) (*sqlcv1.V1Operator, error) {
 	if tenant == nil {
-		return nil, status.Error(codes.Unauthenticated, "tenant not found in request context")
+		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("tenant not found in request context"))
 	}
 
 	op, err := cache.MakeCacheable(s.cache, "operator:"+operatorId.String(), func() (*sqlcv1.V1Operator, error) {
@@ -29,7 +29,7 @@ func (s *Service) AuthorizeOperator(ctx context.Context, tenant *sqlcv1.Tenant, 
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, status.Errorf(codes.PermissionDenied, "operator %s is not a self-leased GRPC operator for this tenant", operatorId)
+			return nil, connect.NewError(connect.CodePermissionDenied, fmt.Errorf("operator %s is not a self-leased GRPC operator for this tenant", operatorId))
 		}
 
 		s.l.Error().Ctx(ctx).Err(err).Msgf("could not get operator %s", operatorId)
@@ -37,7 +37,7 @@ func (s *Service) AuthorizeOperator(ctx context.Context, tenant *sqlcv1.Tenant, 
 	}
 
 	if op.TenantID != tenant.ID || op.Kind != sqlcv1.V1OperatorKindGRPC || op.LeasingManager != sqlcv1.V1OperatorLeasingManagerSELF {
-		return nil, status.Errorf(codes.PermissionDenied, "operator %s is not a self-leased GRPC operator for this tenant", operatorId)
+		return nil, connect.NewError(connect.CodePermissionDenied, fmt.Errorf("operator %s is not a self-leased GRPC operator for this tenant", operatorId))
 	}
 
 	return op, nil
@@ -48,14 +48,14 @@ func (s *Service) AuthorizeOperator(ctx context.Context, tenant *sqlcv1.Tenant, 
 // A worker that does not exist is reported the same way as one owned by someone else.
 func (s *Service) AuthorizeWorker(ctx context.Context, tenant *sqlcv1.Tenant, operatorId uuid.UUID, workerId uuid.UUID) (*sqlcv1.GetWorkerForEngineRow, error) {
 	if tenant == nil {
-		return nil, status.Error(codes.Unauthenticated, "tenant not found in request context")
+		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("tenant not found in request context"))
 	}
 
 	worker, err := s.workers.GetWorkerForEngine(ctx, tenant.ID, workerId)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, status.Errorf(codes.PermissionDenied, "worker %s does not belong to operator %s", workerId, operatorId)
+			return nil, connect.NewError(connect.CodePermissionDenied, fmt.Errorf("worker %s does not belong to operator %s", workerId, operatorId))
 		}
 
 		s.l.Error().Ctx(ctx).Err(err).Msgf("could not get worker %s for operator %s", workerId, operatorId)
@@ -63,7 +63,7 @@ func (s *Service) AuthorizeWorker(ctx context.Context, tenant *sqlcv1.Tenant, op
 	}
 
 	if worker.OperatorId == nil || *worker.OperatorId != operatorId {
-		return nil, status.Errorf(codes.PermissionDenied, "worker %s does not belong to operator %s", workerId, operatorId)
+		return nil, connect.NewError(connect.CodePermissionDenied, fmt.Errorf("worker %s does not belong to operator %s", workerId, operatorId))
 	}
 
 	return worker, nil

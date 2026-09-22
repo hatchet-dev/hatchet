@@ -78,8 +78,11 @@ func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *v1contrac
 	)
 
 	if err != nil {
-		if s, ok := status.FromError(err); ok {
-			return nil, s.Err()
+		// a coded error names the reason (for example ResourceExhausted) and passes through
+		var connectErr *connect.Error
+
+		if errors.As(err, &connectErr) {
+			return nil, err
 		}
 
 		return nil, fmt.Errorf("could not trigger workflow: %w", err)
@@ -385,7 +388,7 @@ func (i *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts 
 		idempotencyKeyCollisions, err := i.tw.TriggerFromWorkflowNamesWaiting(ctx, tenantId, optsToSend)
 		if err != nil {
 			if errors.Is(err, trigger.ErrNoTriggerSlots) {
-				return nil, status.Error(codes.ResourceExhausted, err.Error())
+				return nil, connect.NewError(connect.CodeResourceExhausted, err)
 			}
 
 			return nil, fmt.Errorf("could not trigger workflows: %w", err)

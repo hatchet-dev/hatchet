@@ -68,7 +68,7 @@ type Server struct {
 	dispatcherv1  v1connect.V1DispatcherHandler
 	admin         admin.AdminService
 	adminv1       adminv1.AdminService
-	operatorSvc   v1contracts.OperatorServiceServer
+	operatorSvc   v1connect.OperatorServiceHandler
 	otelCollector otelcol.OTelCollector
 	tls           *tls.Config
 	insecure      bool
@@ -93,7 +93,7 @@ type ServerOpts struct {
 	dispatcherv1  v1connect.V1DispatcherHandler
 	admin         admin.AdminService
 	adminv1       adminv1.AdminService
-	operatorSvc   v1contracts.OperatorServiceServer
+	operatorSvc   v1connect.OperatorServiceHandler
 	otelCollector otelcol.OTelCollector
 	tls           *tls.Config
 	insecure      bool
@@ -214,7 +214,7 @@ func WithAdminV1(a adminv1.AdminService) ServerOpt {
 
 // WithOperatorService registers the v1.OperatorService for out-of-process operators. When it is
 // not set the service is not registered and callers receive Unimplemented.
-func WithOperatorService(o v1contracts.OperatorServiceServer) ServerOpt {
+func WithOperatorService(o v1connect.OperatorServiceHandler) ServerOpt {
 	return func(opts *ServerOpts) {
 		opts.operatorSvc = o
 	}
@@ -349,7 +349,8 @@ func (s *Server) handler() (http.Handler, error) {
 	mux.Handle(v1connect.NewAdminServiceHandler(s.adminv1, opts...))
 
 	if s.operatorSvc != nil {
-		v1contracts.RegisterOperatorServiceServer(grpcServer, s.operatorSvc)
+		routes.addService(v1contracts.File_v1_operator_proto.Services().ByName("OperatorService"))
+		mux.Handle(v1connect.NewOperatorServiceHandler(s.operatorSvc, opts...))
 	}
 
 	if s.otelCollector != nil {

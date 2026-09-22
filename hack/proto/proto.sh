@@ -41,6 +41,8 @@ protoc --proto_path=api-contracts --proto_path=api-contracts/dispatcher \
     --go_opt=module=github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1 \
     --go-grpc_out=./internal/services/shared/proto/v1 \
     --go-grpc_opt=module=github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1 \
+    --connect-go_out=./internal/services/shared/proto/v1 \
+    --connect-go_opt=module=github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1,simple=true \
     v1/operator.proto
 
 protoc --proto_path=api-contracts/dispatcher --go_out=./internal/services/dispatcher/contracts --go_opt=paths=source_relative \

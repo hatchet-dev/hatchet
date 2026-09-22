@@ -5,10 +5,9 @@ import (
 	"errors"
 	"fmt"
 
+	"connectrpc.com/connect"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
@@ -86,7 +85,7 @@ type registerNameOpts struct {
 // its session.
 func (s *Service) Register(ctx context.Context, tenant *sqlcv1.Tenant, opts RegisterOpts) (Registration, error) {
 	if tenant == nil {
-		return Registration{}, status.Error(codes.Unauthenticated, "tenant not found in request context")
+		return Registration{}, connect.NewError(connect.CodeUnauthenticated, errors.New("tenant not found in request context"))
 	}
 
 	var op *sqlcv1.V1Operator
@@ -96,7 +95,7 @@ func (s *Service) Register(ctx context.Context, tenant *sqlcv1.Tenant, opts Regi
 		op, err = s.loadOperator(ctx, tenant, *opts.OperatorId)
 	} else {
 		if err := s.v.Validate(registerNameOpts{Name: opts.Name}); err != nil {
-			return Registration{}, status.Errorf(codes.InvalidArgument, "invalid register request: %s", err.Error())
+			return Registration{}, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid register request: %s", err.Error()))
 		}
 
 		op, err = s.upsertOperator(ctx, tenant, opts)
@@ -155,7 +154,7 @@ func (s *Service) loadOperator(ctx context.Context, tenant *sqlcv1.Tenant, opera
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, status.Errorf(codes.NotFound, "operator %s does not exist for this tenant", operatorId)
+			return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("operator %s does not exist for this tenant", operatorId))
 		}
 
 		s.l.Error().Ctx(ctx).Err(err).Msgf("could not get operator %s", operatorId)
@@ -163,7 +162,7 @@ func (s *Service) loadOperator(ctx context.Context, tenant *sqlcv1.Tenant, opera
 	}
 
 	if op.TenantID != tenant.ID {
-		return nil, status.Errorf(codes.NotFound, "operator %s does not exist for this tenant", operatorId)
+		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("operator %s does not exist for this tenant", operatorId))
 	}
 
 	return op, nil
@@ -302,7 +301,7 @@ func (s *Service) upsertLabels(ctx context.Context, workerId uuid.UUID, labels m
 
 	for key, config := range labels {
 		if err := s.v.Validate(config); err != nil {
-			return status.Errorf(codes.InvalidArgument, "Invalid affinity config: %s", err.Error())
+			return connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("Invalid affinity config: %s", err.Error()))
 		}
 
 		affinities = append(affinities, repository.UpsertWorkerLabelOpts{

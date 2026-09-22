@@ -13,12 +13,12 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/operatorsvc"
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/internal/services/shared/rpcstream"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -681,9 +681,6 @@ type Dispatcher struct {
 	sendErr error
 	// pauses records every SetPaused call on a session handle, in order
 	pauses []bool
-	// durableRegister records the first message the delegated durable stream received
-	durableRegister *v1contracts.DurableTaskRequest
-	durableErr      error
 
 	durables          []*DurableInvocation
 	registerDurableEr error
@@ -693,7 +690,7 @@ func NewDispatcher() *Dispatcher {
 	return &Dispatcher{fin: make(chan bool)}
 }
 
-func (f *Dispatcher) AddOperatorStreamSession(workerId uuid.UUID, sessionId uuid.UUID, _ grpc.ServerStream, _ func(*contracts.AssignedAction) proto.Message) operatorsvc.StreamSession {
+func (f *Dispatcher) AddOperatorStreamSession(_ context.Context, workerId uuid.UUID, sessionId uuid.UUID, _ *rpcstream.Sender[v1contracts.OperatorListenResponse]) operatorsvc.StreamSession {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -722,7 +719,7 @@ type streamSession struct {
 
 func (s *streamSession) Fin() <-chan bool { return s.d.fin }
 
-func (s *streamSession) Send(_ context.Context, msg proto.Message) error {
+func (s *streamSession) Send(_ context.Context, msg *v1contracts.OperatorListenResponse) error {
 	s.d.mu.Lock()
 	defer s.d.mu.Unlock()
 
@@ -803,24 +800,6 @@ func (f *Dispatcher) SendStepActionEvent(_ context.Context, req *contracts.StepA
 	f.stepCalls = append(f.stepCalls, req)
 
 	return &contracts.ActionEventResponse{WorkerId: req.WorkerId}, nil
-}
-
-// DurableTask stands in for the dispatcher's own durable task stream handler: it reads the
-// first message and records it.
-func (f *Dispatcher) DurableTask(stream v1contracts.V1Dispatcher_DurableTaskServer) error {
-	req, err := stream.Recv()
-
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	if err != nil {
-		f.durableErr = err
-		return err
-	}
-
-	f.durableRegister = req
-
-	return nil
 }
 
 // DurableInvocation is one channel-backed durable task the service registered. Requests carries
@@ -969,20 +948,4 @@ func (f *Dispatcher) AckedSequences() []uint64 {
 	}
 
 	return out
-}
-
-// DurableRegister is the first message the delegated durable stream received.
-func (f *Dispatcher) DurableRegister() *v1contracts.DurableTaskRequest {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	return f.durableRegister
-}
-
-// DurableErr is the error the delegated durable stream ended with.
-func (f *Dispatcher) DurableErr() error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	return f.durableErr
 }

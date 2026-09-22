@@ -3,11 +3,10 @@ package operatorsvc_test
 import (
 	"testing"
 
+	"connectrpc.com/connect"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/operatorsvc"
@@ -160,14 +159,14 @@ func TestRegisterRejects(t *testing.T) {
 	t.Run("missing tenant", func(t *testing.T) {
 		svc := newTestService(t, nil)
 		_, err := svc.Register(t.Context(), nil, grpcRegisterOpts("op"))
-		assert.Equal(t, codes.Unauthenticated, status.Code(err))
+		assert.Equal(t, connect.CodeUnauthenticated, connect.CodeOf(err))
 	})
 
 	for _, name := range []string{"", "bad name!"} {
 		t.Run("invalid name "+name, func(t *testing.T) {
 			svc := newTestService(t, nil)
 			_, err := svc.Register(t.Context(), tenant, grpcRegisterOpts(name))
-			assert.Equal(t, codes.InvalidArgument, status.Code(err))
+			assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
 			assert.Zero(t, svc.operators.Count(), "validation runs before the upsert")
 		})
 	}
@@ -261,9 +260,9 @@ func TestRegisterClaimedRow(t *testing.T) {
 	other := svc.operators.Put(&sqlcv1.V1Operator{ID: uuid.New(), TenantID: uuid.New(), Name: "dag", Kind: sqlcv1.V1OperatorKindDAG})
 
 	_, err = svc.Register(t.Context(), tenant, operatorsvc.RegisterOpts{OperatorId: &other.ID})
-	assert.Equal(t, codes.NotFound, status.Code(err))
+	assert.Equal(t, connect.CodeNotFound, connect.CodeOf(err))
 
 	missing := uuid.New()
 	_, err = svc.Register(t.Context(), tenant, operatorsvc.RegisterOpts{OperatorId: &missing})
-	assert.Equal(t, codes.NotFound, status.Code(err))
+	assert.Equal(t, connect.CodeNotFound, connect.CodeOf(err))
 }

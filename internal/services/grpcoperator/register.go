@@ -2,10 +2,11 @@ package grpcoperator
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
+	"connectrpc.com/connect"
 	"github.com/google/uuid"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	"github.com/hatchet-dev/hatchet/internal/services/operatorsvc"
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
@@ -19,7 +20,7 @@ func (s *OperatorServiceImpl) Register(ctx context.Context, req *v1contracts.Ope
 	tenant, ok := tenantFromContext(ctx)
 
 	if !ok {
-		return nil, status.Error(codes.Unauthenticated, "tenant not found in request context")
+		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("tenant not found in request context"))
 	}
 
 	resumeWorkerId, err := parseResumeWorkerId(req.WorkerId)
@@ -62,7 +63,7 @@ func parseResumeWorkerId(raw *string) (*uuid.UUID, error) {
 	workerId, err := uuid.Parse(*raw)
 
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid worker ID format: %s", *raw)
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid worker ID format: %s", *raw))
 	}
 
 	return &workerId, nil
