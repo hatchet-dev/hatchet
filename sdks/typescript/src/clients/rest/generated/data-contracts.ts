@@ -1006,6 +1006,8 @@ export interface Tenant {
   serverUrl?: string;
   /** Control-plane shard region for the tenant (e.g. aws:us-west-2). */
   region?: string;
+  /** The data retention period for the tenant, e.g. 720h. */
+  dataRetentionPeriod?: string;
 }
 
 export interface V1EventWorkflowRunSummary {
@@ -1225,7 +1227,9 @@ export type V1CreateWebhookRequestHMAC = V1CreateWebhookRequestBase & {
 };
 
 export type V1CreateWebhookRequest =
-  V1CreateWebhookRequestBasicAuth | V1CreateWebhookRequestAPIKey | V1CreateWebhookRequestHMAC;
+  | V1CreateWebhookRequestBasicAuth
+  | V1CreateWebhookRequestAPIKey
+  | V1CreateWebhookRequestHMAC;
 
 export interface V1WebhookResponse {
   /** The message for the webhook response */
