@@ -1,9 +1,8 @@
-import type { EventsRpc } from '@hatchet/clients/event/rpc';
-import type { PutStreamEventResponse } from '@hatchet/protoc/events/events';
+import type { EventsServiceClient, PutStreamEventResponse } from '@hatchet/protoc/events/events';
 
 /** Publishes stream chunks from a task run, the way `ctx.putStream` does from a worker. */
 export class StreamsClient {
-  constructor(private readonly rpc: EventsRpc) {}
+  constructor(private readonly rpc: EventsServiceClient) {}
 
   /**
    * Publishes one chunk on a task run's stream. `index` orders chunks that are published

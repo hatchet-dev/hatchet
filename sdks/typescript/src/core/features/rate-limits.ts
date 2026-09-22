@@ -1,10 +1,10 @@
 import { retrier, type RetrierConfig } from '@hatchet/util/retrier';
 import type { Logger } from '@hatchet/util/logger/logger';
-import type { WorkflowsRpc } from '@hatchet/clients/admin/rpc';
+import type { WorkflowServiceClient } from '@hatchet/protoc/workflows/workflows';
 import type { CreateRateLimitOpts } from '../types';
 
 export interface RateLimitsClientDeps {
-  rpc: WorkflowsRpc;
+  rpc: WorkflowServiceClient;
   logger: Logger;
   retrier?: RetrierConfig;
 }

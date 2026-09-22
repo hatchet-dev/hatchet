@@ -5,20 +5,17 @@ import {
   createFetchTransport,
   resolveServerUrl as resolveFetchServerUrl,
 } from '@clients/transport/fetch-transport';
-import {
-  createV1AdminRpc,
-  createWorkflowsRpc,
-  type V1AdminRpc,
-  type WorkflowsRpc,
-} from '@hatchet/clients/admin/rpc';
+import { createV1AdminRpc, createWorkflowsRpc } from '@hatchet/clients/admin/rpc';
 import {
   buildTriggerWorkflowRequest,
   extractBulkTriggerCollision,
   extractExistingRunId,
   isAlreadyExists,
 } from '@hatchet/clients/admin/trigger-request';
-import { createEventsRpc, type EventsRpc } from '@hatchet/clients/event/rpc';
-import { BulkTriggerWorkflowRequest } from '@hatchet/protoc/workflows';
+import { createEventsRpc } from '@hatchet/clients/event/rpc';
+import type { EventsServiceClient } from '@hatchet/protoc/events/events';
+import { BulkTriggerWorkflowRequest, type WorkflowServiceClient } from '@hatchet/protoc/workflows';
+import type { AdminServiceClient } from '@hatchet/protoc/v1/workflows';
 import { getAddressesFromJWT, getTenantIdFromJWT } from '@hatchet/util/config-loader/token';
 import { batch } from '@hatchet/util/batch';
 import { retrier } from '@hatchet/util/retrier';
@@ -92,9 +89,9 @@ export class HatchetCore {
   /** Publishes task run stream chunks. */
   readonly streams: StreamsClient;
 
-  private readonly workflowsRpc: WorkflowsRpc;
-  private readonly adminRpc: V1AdminRpc;
-  private readonly eventsRpc: EventsRpc;
+  private readonly workflowsRpc: WorkflowServiceClient;
+  private readonly adminRpc: AdminServiceClient;
+  private readonly eventsRpc: EventsServiceClient;
 
   constructor(config: CoreClientConfig) {
     if (!config.token) {

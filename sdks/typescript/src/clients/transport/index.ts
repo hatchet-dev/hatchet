@@ -12,3 +12,11 @@ export {
   type DeepPartial,
   type TsProtoCodec,
 } from './message-bridge';
+export {
+  createTsProtoClient,
+  headersToMetadata,
+  metadataToHeaders,
+  toConnectCallOptions,
+  type UnaryCallOptions,
+  type UnaryCallOptionsExt,
+} from './ts-proto-client';

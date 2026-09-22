@@ -27,6 +27,7 @@ export type { RunRefClient } from './run-ref';
 export { toRunDetail, runStatusToJSON } from './run-detail';
 export { ConsoleLogger, consoleLogger } from './logger';
 export type {
+  CallOptions,
   CancelRunOpts,
   CoreClientConfig,
   CreateRateLimitOpts,

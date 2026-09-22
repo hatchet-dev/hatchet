@@ -200,6 +200,41 @@ describe('HatchetCore configuration', () => {
       /serverUrl or hostPort/
     );
   });
+
+  it('takes the gRPC target forms the Node client takes for hostPort', () => {
+    const forms: Array<[string, string]> = [
+      ['dns:///engine.example.com:7070', 'http://engine.example.com:7070'],
+      ['dns:engine.example.com:7070', 'http://engine.example.com:7070'],
+      ['ipv4:127.0.0.1:7070', 'http://127.0.0.1:7070'],
+      ['ipv6:[::1]:7070', 'http://[::1]:7070'],
+      ['engine.example.com', 'http://engine.example.com:443'],
+    ];
+    for (const [hostPort, serverUrl] of forms) {
+      const client = new HatchetCore({
+        token: TOKEN,
+        hostPort,
+        tls: { strategy: 'none' },
+        logLevel: 'OFF',
+      });
+      expect(client.config.serverUrl).toBe(serverUrl);
+    }
+    expect(
+      () =>
+        new HatchetCore({ token: TOKEN, hostPort: 'unix:/var/run/engine.sock', logLevel: 'OFF' })
+    ).toThrow(/unix domain socket/);
+  });
+
+  it('refuses a token that cannot travel in a header without quoting it', () => {
+    const token = `${TOKEN}\n`;
+    expect(() => new HatchetCore({ token, logLevel: 'OFF' })).toThrow(
+      /cannot be sent in an HTTP header/
+    );
+    try {
+      new HatchetCore({ token, logLevel: 'OFF' });
+    } catch (e) {
+      expect((e as Error).message).not.toContain(TOKEN.split('.')[1]);
+    }
+  });
 });
 
 describe('HatchetCore.runNoWait', () => {
@@ -418,6 +453,19 @@ describe('WorkflowRunRef.result', () => {
 });
 
 describe('HatchetCore.runs', () => {
+  it('rejects an aborted unary call before sending it', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    engine.detailsQueue.push(running);
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(client.runs.get('run-x', { signal: controller.signal })).rejects.toMatchObject({
+      name: 'AbortError',
+    });
+    expect(engine.detailsCalls).toBe(0);
+  });
+
   it('returns run details with statuses mapped and payloads decoded', async () => {
     const engine = fakeEngine();
     const client = makeClient(engine);

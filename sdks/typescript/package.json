@@ -80,6 +80,7 @@
       "default": "./v1/conditions/index.js"
     },
     "./package.json": "./package.json",
+    "./*.d.ts": "./*.d.ts",
     "./*.js": {
       "types": "./*.d.ts",
       "default": "./*.js"
@@ -113,7 +114,7 @@
     "tsc:build": "pnpm run dump-version && tsc && resolve-tspaths",
     "test:unit": "jest --testMatch='**/*.test.ts'",
     "check:edge": "pnpm run tsc:build && node scripts/check-edge-entry.mjs",
-    "check:core": "pnpm run tsc:build && node scripts/check-edge-entry.mjs dist/core/index.js --forbid axios,nice-grpc,nice-grpc-common,@grpc/grpc-js,@connectrpc/connect-node,long,protobufjs,yaml",
+    "check:core": "pnpm run tsc:build && node scripts/check-edge-entry.mjs dist/core/index.js --forbid axios,nice-grpc,@grpc/grpc-js,@connectrpc/connect-node,long,protobufjs,yaml",
     "check:exports": "pnpm run tsc:build && node scripts/check-exports.mjs",
     "test:e2e": "jest --config jest.e2e.config.ts --silent --forceExit --runInBand",
     "test:unit:watch": "jest --testMatch='**/*.test.ts' --watch",

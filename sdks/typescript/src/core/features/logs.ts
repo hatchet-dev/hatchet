@@ -1,6 +1,5 @@
-import type { EventsRpc } from '@hatchet/clients/event/rpc';
 import { LogLevel } from '@hatchet/clients/event/rpc';
-import type { PutLogResponse } from '@hatchet/protoc/events/events';
+import type { EventsServiceClient, PutLogResponse } from '@hatchet/protoc/events/events';
 
 export interface PutLogOptions {
   /** Defaults to `INFO`. */
@@ -12,7 +11,7 @@ export interface PutLogOptions {
 
 /** Writes log lines against a task run, the way `ctx.log` does from a worker. */
 export class LogsClient {
-  constructor(private readonly rpc: EventsRpc) {}
+  constructor(private readonly rpc: EventsServiceClient) {}
 
   /**
    * Stores one log line for a task run. Unlike the Node client's fire-and-forget `putLog`,

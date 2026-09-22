@@ -104,9 +104,10 @@ export class HatchetClient<
    */
   get v0() {
     if (!this._v0) {
+      // The legacy facade shares this client's unary transport rather than building its own.
       this._v0 = new LegacyHatchetClient(
         this._config,
-        this._options,
+        { ...this._options, transport: this._transport },
         this._axiosConfig,
         this.runs,
         this._listener,

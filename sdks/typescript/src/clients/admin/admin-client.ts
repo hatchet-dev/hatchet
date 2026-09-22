@@ -3,6 +3,7 @@ import {
   BulkTriggerWorkflowRequest,
   CreateWorkflowVersionOpts,
   RateLimitDuration,
+  WorkflowServiceClient,
 } from '@hatchet/protoc/workflows';
 import { toHatchetError } from '@util/errors/hatchet-error';
 import { ClientConfig } from '@clients/hatchet-client/client-config';
@@ -10,7 +11,7 @@ import { Logger } from '@hatchet/util/logger';
 import { retrier } from '@hatchet/util/retrier';
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
 
-import { CreateWorkflowVersionRequest } from '@hatchet/protoc/v1/workflows';
+import { AdminServiceClient, CreateWorkflowVersionRequest } from '@hatchet/protoc/v1/workflows';
 import { Priority, RunsClient, WorkerLabelComparator } from '@hatchet/v1';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { DesiredWorkerLabels } from '@hatchet/protoc/v1/shared/trigger';
@@ -22,7 +23,7 @@ import {
   WorkflowRunStatusList,
 } from '../rest/generated/data-contracts';
 import { RunListenerClient } from '../listeners/run-listener/child-listener-client';
-import { createV1AdminRpc, createWorkflowsRpc, V1AdminRpc, WorkflowsRpc } from './rpc';
+import { createV1AdminRpc, createWorkflowsRpc } from './rpc';
 
 type DesiredWorkerLabelOpt = {
   value: string | number;
@@ -79,8 +80,8 @@ export type WorkflowRun<T = object> = {
 
 export class AdminClient {
   config: ClientConfig;
-  client: WorkflowsRpc;
-  v1Client: V1AdminRpc;
+  client: WorkflowServiceClient;
+  v1Client: AdminServiceClient;
   api: Api;
   tenantId: string;
   logger: Logger;

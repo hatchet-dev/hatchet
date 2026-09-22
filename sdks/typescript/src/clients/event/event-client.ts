@@ -1,4 +1,5 @@
 import { Channel, ClientFactory } from 'nice-grpc';
+import { EventsServiceClient } from '@hatchet/protoc/events/events';
 import { createNodeTransport, type Transport } from '@clients/transport';
 import { getErrorMessage, toHatchetError } from '@util/errors/hatchet-error';
 import { ClientConfig } from '@clients/hatchet-client/client-config';
@@ -7,20 +8,14 @@ import { retrier } from '@hatchet/util/retrier';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { HatchetClient } from '@hatchet/v1';
 import type { EventWithMetadata, PushEventOptions } from '@hatchet/core/types';
-import {
-  buildBulkPushEventRequest,
-  buildPushEventRequest,
-  createEventsRpc,
-  LogLevel,
-  type EventsRpc,
-} from './rpc';
+import { buildBulkPushEventRequest, buildPushEventRequest, createEventsRpc, LogLevel } from './rpc';
 
-export type { EventsRpc, EventWithMetadata, PushEventOptions };
+export type { EventWithMetadata, PushEventOptions };
 export { createEventsRpc, LogLevel };
 
 export class EventClient {
   config: ClientConfig;
-  client: EventsRpc;
+  client: EventsServiceClient;
   retrier: typeof retrier;
   api: HatchetClient['api'];
   tenantId: string;

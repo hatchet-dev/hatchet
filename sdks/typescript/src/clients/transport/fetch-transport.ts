@@ -1,4 +1,5 @@
 import { createConnectTransport } from '@connectrpc/connect-web';
+import { grpcTargetBaseUrl, parseGrpcTarget } from './grpc-target';
 import { createAuthInterceptor, type Transport } from './transport';
 
 /**
@@ -28,7 +29,9 @@ export interface FetchTransportOptions {
 
 /**
  * Resolves the engine's base URL from a `serverUrl` or from `hostPort` plus the TLS
- * strategy, the two ways a fetch-based client can be pointed at an engine.
+ * strategy, the two ways a fetch-based client can be pointed at an engine. `hostPort` takes
+ * the gRPC target forms the Node client takes (`host:port`, `dns:///host:port`, `ipv4:`,
+ * `ipv6:`), so a token or config shared with a Node client works unchanged.
  */
 export function resolveServerUrl(
   options: Pick<FetchTransportOptions, 'serverUrl' | 'hostPort' | 'tls'>
@@ -39,7 +42,7 @@ export function resolveServerUrl(
 
   if (options.hostPort) {
     const scheme = options.tls?.strategy === 'none' ? 'http' : 'https';
-    return `${scheme}://${options.hostPort}`;
+    return grpcTargetBaseUrl(parseGrpcTarget(options.hostPort), scheme);
   }
 
   throw new Error('a fetch transport needs a serverUrl or a hostPort');

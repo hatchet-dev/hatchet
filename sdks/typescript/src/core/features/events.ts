@@ -1,16 +1,12 @@
 import { toHatchetError } from '@util/errors/hatchet-error';
 import { retrier, type RetrierConfig } from '@hatchet/util/retrier';
 import type { Logger } from '@hatchet/util/logger/logger';
-import type { Event, Events } from '@hatchet/protoc/events/events';
-import {
-  buildBulkPushEventRequest,
-  buildPushEventRequest,
-  type EventsRpc,
-} from '@hatchet/clients/event/rpc';
+import type { Event, Events, EventsServiceClient } from '@hatchet/protoc/events/events';
+import { buildBulkPushEventRequest, buildPushEventRequest } from '@hatchet/clients/event/rpc';
 import type { EventWithMetadata, PushEventOptions } from '../types';
 
 export interface EventsClientDeps {
-  rpc: EventsRpc;
+  rpc: EventsServiceClient;
   logger: Logger;
   namespace?: string;
   retrier?: RetrierConfig;

@@ -1,8 +1,7 @@
-import type { V1AdminRpc } from '@hatchet/clients/admin/rpc';
-import type { TasksFilter } from '@hatchet/protoc/v1/workflows';
+import type { AdminServiceClient, TasksFilter } from '@hatchet/protoc/v1/workflows';
 import { toRunDetail } from '../run-detail';
 import { WorkflowRunRef } from '../run-ref';
-import type { CancelRunOpts, ReplayRunOpts, RunDetail, RunFilter } from '../types';
+import type { CallOptions, CancelRunOpts, ReplayRunOpts, RunDetail, RunFilter } from '../types';
 
 /**
  * Task and workflow runs, over the v1 `AdminService`. Everything here is a unary call, so
@@ -10,21 +9,28 @@ import type { CancelRunOpts, ReplayRunOpts, RunDetail, RunFilter } from '../type
  * client and is not available here.
  */
 export class RunsClient {
-  constructor(private readonly rpc: V1AdminRpc) {}
+  constructor(private readonly rpc: AdminServiceClient) {}
 
   /**
    * Gets a run's state: its status, whether it is done, its input and metadata, and each of
    * its tasks with their status, output and error.
    * @param run - The run id or a reference to the run.
+   * @param options - A signal or deadline for the call.
    */
-  async get<T = unknown>(run: string | WorkflowRunRef<T>): Promise<RunDetail> {
-    return this.getDetails(run);
+  async get<T = unknown>(
+    run: string | WorkflowRunRef<T>,
+    options?: CallOptions
+  ): Promise<RunDetail> {
+    return this.getDetails(run, options);
   }
 
   /** @alias get */
-  async getDetails<T = unknown>(run: string | WorkflowRunRef<T>): Promise<RunDetail> {
+  async getDetails<T = unknown>(
+    run: string | WorkflowRunRef<T>,
+    options?: CallOptions
+  ): Promise<RunDetail> {
     const externalId = typeof run === 'string' ? run : await run.getWorkflowRunId();
-    return toRunDetail(await this.rpc.getRunDetails({ externalId }));
+    return toRunDetail(await this.rpc.getRunDetails({ externalId }, options));
   }
 
   /**

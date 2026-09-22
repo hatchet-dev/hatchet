@@ -6,7 +6,8 @@ import {
 } from '@hatchet/clients/listeners/run-listener/child-listener-client';
 import { WorkflowsClient } from './workflows';
 import { HatchetClient } from '../client';
-import { createV1AdminRpc, type V1AdminRpc } from '@hatchet/clients/admin/rpc';
+import { createV1AdminRpc } from '@hatchet/clients/admin/rpc';
+import type { AdminServiceClient } from '@hatchet/protoc/v1/workflows';
 import type { Transport } from '@hatchet/clients/transport/transport';
 import { runStatusToJSON, toRunDetail } from '@hatchet/core/run-detail';
 import type { RunDetail, RunFilterBase, TaskRunDetail } from '@hatchet/core/types';
@@ -91,7 +92,7 @@ export class RunsClient {
   workflows: WorkflowsClient;
   listener: RunListenerClient;
   private _transport: Transport;
-  private _adminRpc: V1AdminRpc | undefined;
+  private _adminRpc: AdminServiceClient | undefined;
 
   constructor(client: HatchetClient) {
     this.api = client.api;
@@ -102,7 +103,7 @@ export class RunsClient {
   }
 
   /** The v1 admin RPCs on the client's Connect transport, the same path the core client uses. */
-  private get adminRpc(): V1AdminRpc {
+  private get adminRpc(): AdminServiceClient {
     if (!this._adminRpc) {
       this._adminRpc = createV1AdminRpc(this._transport);
     }

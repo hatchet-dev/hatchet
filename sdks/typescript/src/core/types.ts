@@ -11,9 +11,17 @@ import type { RateLimitDuration } from '@hatchet/protoc/workflows/workflows';
 import type { V1TaskStatus } from '@hatchet/clients/rest/generated/data-contracts';
 import type { RetrierConfig } from '@hatchet/util/retrier';
 import type { Logger, LogLevel } from '@hatchet/util/logger/logger';
+import type { UnaryCallOptions } from '@clients/transport/ts-proto-client';
 
 /** Builds the logger a client component logs through. */
 export type LogConstructor = (context: string, logLevel?: LogLevel) => Logger;
+
+/**
+ * Per-call options for a unary RPC: `signal` aborts the call, `deadline` (a `Date` or epoch
+ * milliseconds) bounds it, `metadata` adds request headers. The same options the Node
+ * client's RPC clients take.
+ */
+export type CallOptions = UnaryCallOptions;
 
 /**
  * The core client's configuration. It is explicit by design: nothing is read from the

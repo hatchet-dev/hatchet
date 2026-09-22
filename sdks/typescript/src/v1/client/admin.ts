@@ -9,14 +9,9 @@ import { addTokenMiddleware, channelFactory } from '@hatchet/util/grpc-helpers';
 import { ConfigLoader } from '@hatchet/util/config-loader';
 import { RunListenerClient } from '@hatchet/clients/listeners/run-listener/child-listener-client';
 import { Api } from '@hatchet/clients/rest/generated/Api';
-import { BulkTriggerWorkflowRequest } from '@hatchet/protoc/workflows';
-import { CreateWorkflowVersionRequest } from '@hatchet/protoc/v1/workflows';
-import {
-  createV1AdminRpc,
-  createWorkflowsRpc,
-  V1AdminRpc,
-  WorkflowsRpc,
-} from '@hatchet/clients/admin/rpc';
+import { BulkTriggerWorkflowRequest, WorkflowServiceClient } from '@hatchet/protoc/workflows';
+import { AdminServiceClient, CreateWorkflowVersionRequest } from '@hatchet/protoc/v1/workflows';
+import { createV1AdminRpc, createWorkflowsRpc } from '@hatchet/clients/admin/rpc';
 import {
   buildTriggerWorkflowRequest,
   extractBulkTriggerCollision,
@@ -53,8 +48,8 @@ export type WorkflowRun<T = object> = {
 
 export class AdminClient {
   config: ClientConfig;
-  workflowsGrpc: WorkflowsRpc;
-  adminGrpc: V1AdminRpc;
+  workflowsGrpc: WorkflowServiceClient;
+  adminGrpc: AdminServiceClient;
   listenerClient: RunListenerClient;
   runs: RunsClient;
   logger: Logger;

@@ -1,11 +1,11 @@
 import HatchetError from '@util/errors/hatchet-error';
 import { createAbortError } from '@hatchet/util/abort-error';
 import { V1TaskStatus } from '@hatchet/clients/rest/generated/data-contracts';
-import type { ResultOptions, RunDetail } from './types';
+import type { CallOptions, ResultOptions, RunDetail } from './types';
 
 /** What a run reference needs from the client that created it. */
 export interface RunRefClient {
-  getDetails(runId: string): Promise<RunDetail>;
+  getDetails(runId: string, options?: CallOptions): Promise<RunDetail>;
   cancel(opts: { ids: string[] }): Promise<unknown>;
   replay(opts: { ids: string[] }): Promise<unknown>;
 }
@@ -102,7 +102,17 @@ export class WorkflowRunRef<T> {
         throw createAbortError(`waiting for run ${this.workflowRunId} was aborted`);
       }
 
-      const detail = await this.runs.getDetails(this.workflowRunId);
+      // The signal also cancels the poll in flight; an abort during it surfaces as the same
+      // AbortError the check above throws, whatever the transport rejected with.
+      let detail: RunDetail;
+      try {
+        detail = await this.runs.getDetails(this.workflowRunId, { signal });
+      } catch (e) {
+        if (signal?.aborted) {
+          throw createAbortError(`waiting for run ${this.workflowRunId} was aborted`);
+        }
+        throw e;
+      }
       if (detail.done) {
         return this.resolveResult(detail);
       }

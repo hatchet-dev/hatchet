@@ -1,26 +1,11 @@
-import { Client, createClient } from '@connectrpc/connect';
 import {
   BulkPushEventRequest,
-  Event,
-  Events,
+  EventsServiceClient,
+  EventsServiceDefinition,
   PushEventRequest,
-  PutLogRequest,
-  PutLogResponse,
-  PutStreamEventRequest,
-  PutStreamEventResponse,
 } from '@hatchet/protoc/events/events';
-import {
-  BulkPushEventRequestSchema,
-  EventSchema,
-  EventsSchema,
-  EventsService,
-  PushEventRequestSchema,
-  PutLogRequestSchema,
-  PutLogResponseSchema,
-  PutStreamEventRequestSchema,
-  PutStreamEventResponseSchema,
-} from '@hatchet/protoc-es/events/events_pb';
-import { fromProtobufEs, toProtobufEs, type DeepPartial } from '@clients/transport/message-bridge';
+import { EventsService } from '@hatchet/protoc-es/events/events_pb';
+import { createTsProtoClient } from '@clients/transport/ts-proto-client';
 import type { Transport } from '@clients/transport/transport';
 import type { EventWithMetadata, PushEventOptions } from '@hatchet/core/types';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
@@ -35,49 +20,12 @@ export enum LogLevel {
 }
 
 /**
- * The events RPCs the SDK calls, typed with the SDK's message types and served by a Connect
- * client on the given transport.
+ * The `EventsService` client, every RPC of the generated `EventsServiceClient` interface,
+ * served by a Connect client on the given transport. The Node and core clients both call
+ * through it.
  */
-export interface EventsRpc {
-  push(request: DeepPartial<PushEventRequest>): Promise<Event>;
-  bulkPush(request: DeepPartial<BulkPushEventRequest>): Promise<Events>;
-  putLog(request: DeepPartial<PutLogRequest>): Promise<PutLogResponse>;
-  putStreamEvent(request: DeepPartial<PutStreamEventRequest>): Promise<PutStreamEventResponse>;
-}
-
-export function createEventsRpc(transport: Transport): EventsRpc {
-  const client: Client<typeof EventsService> = createClient(EventsService, transport);
-
-  return {
-    push: async (request) =>
-      fromProtobufEs(
-        Event,
-        EventSchema,
-        await client.push(toProtobufEs(PushEventRequestSchema, PushEventRequest, request))
-      ),
-    bulkPush: async (request) =>
-      fromProtobufEs(
-        Events,
-        EventsSchema,
-        await client.bulkPush(
-          toProtobufEs(BulkPushEventRequestSchema, BulkPushEventRequest, request)
-        )
-      ),
-    putLog: async (request) =>
-      fromProtobufEs(
-        PutLogResponse,
-        PutLogResponseSchema,
-        await client.putLog(toProtobufEs(PutLogRequestSchema, PutLogRequest, request))
-      ),
-    putStreamEvent: async (request) =>
-      fromProtobufEs(
-        PutStreamEventResponse,
-        PutStreamEventResponseSchema,
-        await client.putStreamEvent(
-          toProtobufEs(PutStreamEventRequestSchema, PutStreamEventRequest, request)
-        )
-      ),
-  };
+export function createEventsRpc(transport: Transport): EventsServiceClient {
+  return createTsProtoClient(EventsServiceDefinition, EventsService, transport);
 }
 
 /**
