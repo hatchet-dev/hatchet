@@ -8,11 +8,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/operatorsvc"
 	"github.com/hatchet-dev/hatchet/internal/services/operatorsvc/operatorsvctest"
+	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/internal/services/shared/rpcstream"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -67,10 +68,19 @@ func registeredOperator(t *testing.T, svc *testService, tenant *sqlcv1.Tenant) (
 	return op, worker
 }
 
-// nopStream stands in for the gRPC stream a stream-backed session delivers on. The dispatcher
+// nopStream discards every message; newNopSender wraps it the way a Listen handler would. The dispatcher
 // owns the stream, and the dispatcher here is a double, so nothing is ever called on it.
-type nopStream struct {
-	grpc.ServerStream
+type nopStream struct{}
+
+func (nopStream) Send(*v1contracts.OperatorListenResponse) error { return nil }
+
+func newNopSender(t *testing.T) *rpcstream.Sender[v1contracts.OperatorListenResponse] {
+	t.Helper()
+
+	sender := rpcstream.NewSender[v1contracts.OperatorListenResponse](t.Context(), nopStream{})
+	t.Cleanup(sender.Close)
+
+	return sender
 }
 
 // nopHandler stands in for an in-process operator's action handler.

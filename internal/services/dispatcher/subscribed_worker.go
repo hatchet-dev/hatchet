@@ -6,10 +6,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"google.golang.org/grpc"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	"github.com/hatchet-dev/hatchet/internal/services/shared/rpcstream"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/timeout_lock"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
 
@@ -17,15 +16,12 @@ import (
 )
 
 type subscribedWorker struct {
-	// stream is the server stream actions are encoded onto; nil for operator-backed workers
-	stream    grpc.ServerStream
+	// stream is any guarded server stream whose message type is AssignedAction, so operator services
+	// can register their own streams alongside the SDK Listen streams; nil for operator-backed workers
+	stream    *rpcstream.Sender[contracts.AssignedAction]
 	finished  chan<- bool
 	sendLock  *timeout_lock.TimeoutLock
 	pubBuffer *msgqueue.MQPubBuffer
-
-	// wrap converts an assigned action into the stream's server message type before it is
-	// encoded; nil when the stream's server message type is AssignedAction itself
-	wrap func(*contracts.AssignedAction) proto.Message
 
 	// done is closed by markDone when the session's owner releases it, so a shutdown drain
 	// that captured the session before the release does not block on finished; nil for
@@ -46,7 +42,7 @@ type subscribedWorker struct {
 }
 
 func newGRPCSubscribedWorker(
-	stream grpc.ServerStream,
+	stream *rpcstream.Sender[contracts.AssignedAction],
 	fin chan<- bool,
 	workerId uuid.UUID,
 	maxLockAcquisitionTime time.Duration,

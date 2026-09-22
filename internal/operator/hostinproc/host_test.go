@@ -10,12 +10,11 @@ import (
 	"testing"
 	"time"
 
+	"connectrpc.com/connect"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	"github.com/hatchet-dev/hatchet/internal/operator/hostinproc"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
@@ -184,7 +183,7 @@ func TestOpenByName(t *testing.T) {
 
 	created := h.workers.Created()
 	require.Len(t, created, 1)
-	assert.True(t, created[0].ExemptFromLimits, "every worker the in-process host creates is engine infrastructure")
+	assert.True(t, created[0].IsExemptFromLimits, "every worker the in-process host creates is engine infrastructure")
 
 	// the same name opens another worker of the same operator
 	again, err := h.Open(t.Context(), operator.Identity{TenantId: h.tenant.ID, Name: "contract-op"}, operator.OpenOpts{Handler: nopHandler{}})
@@ -211,7 +210,7 @@ func TestOpenRejects(t *testing.T) {
 
 	other := h.operators.Put(&sqlcv1.V1Operator{ID: uuid.New(), TenantID: uuid.New(), Name: "dag", Kind: sqlcv1.V1OperatorKindDAG})
 	_, err = h.Open(t.Context(), operator.Identity{TenantId: h.tenant.ID, OperatorId: &other.ID}, operator.OpenOpts{Handler: nopHandler{}})
-	assert.Equal(t, codes.NotFound, status.Code(err), "another tenant's row is refused")
+	assert.Equal(t, connect.CodeNotFound, connect.CodeOf(err), "another tenant's row is refused")
 
 	assert.Zero(t, h.SessionCount())
 	assert.Zero(t, h.dispatcher.SessionCount())
@@ -238,7 +237,7 @@ func TestOpenInitialActionsChunkedAndBudgeted(t *testing.T) {
 	// the operator now holds 1500 links, so the next worker has no budget left
 	_, err = h.Open(t.Context(), operator.Identity{TenantId: h.tenant.ID, OperatorId: &row.ID}, operator.OpenOpts{Handler: nopHandler{}, Actions: []string{"one-more_orchestrator"}})
 	require.Error(t, err)
-	assert.Equal(t, codes.ResourceExhausted, status.Code(errors.Unwrap(err)))
+	assert.Equal(t, connect.CodeResourceExhausted, connect.CodeOf(errors.Unwrap(err)))
 
 	assert.Zero(t, h.SessionCount())
 	assert.Equal(t, 2, h.dispatcher.ReleasedCount(), "the session opened for the refused worker is released")
@@ -267,10 +266,10 @@ func TestDeltasAreSynchronous(t *testing.T) {
 	require.NoError(t, s.Flush(t.Context()))
 
 	err = s.AddActions(t.Context(), []string{"not an action id"})
-	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+	assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
 
 	err = s.AddActions(t.Context(), []string{"svc:a"})
-	assert.Equal(t, codes.InvalidArgument, status.Code(err), "a DAG operator holds no worker action")
+	assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err), "a DAG operator holds no worker action")
 }
 
 func TestHeartbeatCoversOpenAndDrainingSessions(t *testing.T) {
@@ -346,7 +345,7 @@ func TestSendStepActionEvent(t *testing.T) {
 	assert.Equal(t, s.Registration().WorkerId.String(), calls[0].WorkerId, "an empty worker id is the session's")
 
 	err = s.SendStepActionEvent(t.Context(), &contracts.StepActionEvent{WorkerId: uuid.NewString(), TaskRunExternalId: "run-2"})
-	assert.Equal(t, codes.PermissionDenied, status.Code(err), "another worker's id is refused")
+	assert.Equal(t, connect.CodePermissionDenied, connect.CodeOf(err), "another worker's id is refused")
 }
 
 func TestPutWorkflow(t *testing.T) {

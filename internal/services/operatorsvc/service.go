@@ -9,7 +9,7 @@
 // only in how assigned actions reach the operator and in how the caller is authenticated.
 //
 // The API takes no OperatorService protocol messages: callers pass plain values and get
-// repository rows back. Errors carry gRPC status codes because they are returned to gRPC
+// repository rows back. Errors carry connect codes because they are returned to RPC
 // callers unchanged; in-process callers can ignore the codes.
 package operatorsvc
 
@@ -19,15 +19,13 @@ import (
 	"sync"
 	"time"
 
+	"connectrpc.com/connect"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/internal/services/shared/rpcstream"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
@@ -106,7 +104,7 @@ type ActionHandler = operator.ActionHandler
 // delivers nothing.
 type StreamSession interface {
 	Fin() <-chan bool
-	Send(ctx context.Context, msg proto.Message) error
+	Send(ctx context.Context, msg *v1contracts.OperatorListenResponse) error
 	SetPaused(paused bool)
 	Release()
 }
@@ -122,7 +120,7 @@ type HandlerSession interface {
 // for either delivery, scheduler notification, task events, and the channel-backed durable
 // session.
 type DispatcherBackend interface {
-	AddOperatorStreamSession(workerId uuid.UUID, sessionId uuid.UUID, stream grpc.ServerStream, wrap func(*contracts.AssignedAction) proto.Message) StreamSession
+	AddOperatorStreamSession(ctx context.Context, workerId uuid.UUID, sessionId uuid.UUID, stream *rpcstream.Sender[v1contracts.OperatorListenResponse]) StreamSession
 	AddOperatorSession(workerId uuid.UUID, sessionId uuid.UUID, handler ActionHandler) HandlerSession
 	NotifyNewWorker(ctx context.Context, tenant *sqlcv1.Tenant, workerId uuid.UUID)
 	SendStepActionEvent(ctx context.Context, req *contracts.StepActionEvent) (*contracts.ActionEventResponse, error)
@@ -310,7 +308,7 @@ func (s *Service) acquireListenStream(operatorId uuid.UUID) (release func(), err
 	}
 
 	if s.maxListenStreamsPerOperator > 0 && s.listenStreams[operatorId] >= s.maxListenStreamsPerOperator {
-		return nil, status.Errorf(codes.ResourceExhausted, "operator %s already holds %d Listen streams, the limit is %d", operatorId, s.listenStreams[operatorId], s.maxListenStreamsPerOperator)
+		return nil, connect.NewError(connect.CodeResourceExhausted, fmt.Errorf("operator %s already holds %d Listen streams, the limit is %d", operatorId, s.listenStreams[operatorId], s.maxListenStreamsPerOperator))
 	}
 
 	s.listenStreams[operatorId]++
@@ -343,7 +341,7 @@ func (s *Service) SendStepActionEvent(ctx context.Context, tenant *sqlcv1.Tenant
 	workerId, err := uuid.Parse(ev.WorkerId)
 
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid worker ID format: %s", ev.WorkerId)
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid worker ID format: %s", ev.WorkerId))
 	}
 
 	if _, err := s.AuthorizeWorker(ctx, tenant, op.ID, workerId); err != nil {

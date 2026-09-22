@@ -7,15 +7,14 @@ import (
 	"sync"
 	"time"
 
+	"connectrpc.com/connect"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/internal/services/shared/rpcstream"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -29,12 +28,8 @@ var ErrNoStream = errors.New("operatorsvc: session has no stream to send on")
 // Stream and Handler is set: Stream encodes actions onto a gRPC stream, Handler receives them
 // by direct call in the engine process.
 type OpenOpts struct {
-	// Stream is the gRPC stream the dispatcher fans actions out on.
-	Stream grpc.ServerStream
-
-	// Wrap converts an assigned action into Stream's server message type; nil means the
-	// stream's server message type is AssignedAction itself.
-	Wrap func(*contracts.AssignedAction) proto.Message
+	// Stream is the guarded sender of the Listen stream the dispatcher fans actions out on.
+	Stream *rpcstream.Sender[v1contracts.OperatorListenResponse]
 
 	// Handler receives assigned actions by direct call.
 	Handler ActionHandler
@@ -87,7 +82,7 @@ type Session struct {
 // in-process sessions hold no stream, so only the action budget applies to them.
 func (s *Service) OpenSession(ctx context.Context, tenant *sqlcv1.Tenant, op *sqlcv1.V1Operator, workerId uuid.UUID, opts OpenOpts) (*Session, error) {
 	if tenant == nil {
-		return nil, status.Error(codes.Unauthenticated, "tenant not found in request context")
+		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("tenant not found in request context"))
 	}
 
 	if (opts.Stream == nil) == (opts.Handler == nil) {
@@ -146,7 +141,7 @@ func (s *Service) OpenSession(ctx context.Context, tenant *sqlcv1.Tenant, op *sq
 	}
 
 	if opts.Stream != nil {
-		ss.stream = s.dispatcher.AddOperatorStreamSession(workerId, ss.sessionId, opts.Stream, opts.Wrap)
+		ss.stream = s.dispatcher.AddOperatorStreamSession(ctx, workerId, ss.sessionId, opts.Stream)
 	} else {
 		ss.handler = s.dispatcher.AddOperatorSession(workerId, ss.sessionId, opts.Handler)
 	}
@@ -263,7 +258,7 @@ func (ss *Session) Fin() <-chan bool {
 
 // Send writes a protocol message on a stream-backed session's stream, serialised with the
 // dispatcher's own action sends.
-func (ss *Session) Send(ctx context.Context, msg proto.Message) error {
+func (ss *Session) Send(ctx context.Context, msg *v1contracts.OperatorListenResponse) error {
 	if ss.stream == nil {
 		return ErrNoStream
 	}
@@ -313,7 +308,7 @@ func (ss *Session) SendStepActionEvent(ctx context.Context, ev *contracts.StepAc
 	if ev.WorkerId == "" {
 		ev.WorkerId = ss.workerId.String()
 	} else if ev.WorkerId != ss.workerId.String() {
-		return status.Errorf(codes.PermissionDenied, "worker %s is not this session's worker %s", ev.WorkerId, ss.workerId)
+		return connect.NewError(connect.CodePermissionDenied, fmt.Errorf("worker %s is not this session's worker %s", ev.WorkerId, ss.workerId))
 	}
 
 	_, err := ss.svc.dispatcher.SendStepActionEvent(WithTenant(ctx, ss.tenant), ev)
@@ -515,11 +510,11 @@ func (s *Service) validateDelta(kind sqlcv1.V1OperatorKind, add, remove []string
 // of the operator holds. It reports whether the set changed.
 func (s *Service) applyDelta(ctx context.Context, l *zerolog.Logger, tenantId, workerId uuid.UUID, kind sqlcv1.V1OperatorKind, add, remove []string) (bool, error) {
 	if n := len(add) + len(remove); n > MaxActionsPerDelta {
-		return false, status.Errorf(codes.InvalidArgument, "actions delta carries %d ids, the limit is %d per message", n, MaxActionsPerDelta)
+		return false, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("actions delta carries %d ids, the limit is %d per message", n, MaxActionsPerDelta))
 	}
 
 	if err := s.validateDelta(kind, add, remove); err != nil {
-		return false, status.Errorf(codes.InvalidArgument, "invalid actions delta: %s", err.Error())
+		return false, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid actions delta: %s", err.Error()))
 	}
 
 	maxLinks := s.maxActionsPerOperator
@@ -534,7 +529,7 @@ func (s *Service) applyDelta(ctx context.Context, l *zerolog.Logger, tenantId, w
 		var budgetErr *repository.ActionBudgetError
 
 		if errors.As(err, &budgetErr) {
-			return false, status.Errorf(codes.ResourceExhausted, "the delta would leave the operator with %d action links across its workers, the limit is %d", budgetErr.Linked, budgetErr.Limit)
+			return false, connect.NewError(connect.CodeResourceExhausted, fmt.Errorf("the delta would leave the operator with %d action links across its workers, the limit is %d", budgetErr.Linked, budgetErr.Limit))
 		}
 
 		l.Error().Ctx(ctx).Err(err).Msg("could not apply worker actions delta")

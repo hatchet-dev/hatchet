@@ -50,9 +50,16 @@ func seedOperatorForLimits(t *testing.T, ctx context.Context, pool *pgxpool.Pool
 
 	operatorId := uuid.New()
 
+	// a DAG operator is always leased by the dispatcher
+	leasingManager := sqlcv1.V1OperatorLeasingManagerSELF
+
+	if kind == sqlcv1.V1OperatorKindDAG {
+		leasingManager = sqlcv1.V1OperatorLeasingManagerDISPATCHER
+	}
+
 	_, err := pool.Exec(ctx,
-		`INSERT INTO v1_operator (id, tenant_id, name, kind, config) VALUES ($1, $2, $3, $4, '{}'::jsonb)`,
-		operatorId, tenantId, "op-"+operatorId.String()[:8], string(kind),
+		`INSERT INTO v1_operator (id, tenant_id, name, kind, leasing_manager, config) VALUES ($1, $2, $3, $4, $5, '{}'::jsonb)`,
+		operatorId, tenantId, "op-"+operatorId.String()[:8], string(kind), string(leasingManager),
 	)
 	require.NoError(t, err)
 
@@ -67,7 +74,7 @@ func seedActiveWorkerForLimits(t *testing.T, ctx context.Context, pool *pgxpool.
 	workerId := uuid.New()
 
 	_, err := pool.Exec(ctx,
-		`INSERT INTO "Worker" ("id", "tenantId", "name", "actionHash", "isActive", "lastHeartbeatAt", "operatorId", "exemptFromLimits") VALUES ($1, $2, $3, $4, true, now(), $5, $6)`,
+		`INSERT INTO "Worker" ("id", "tenantId", "name", "actionHash", "isActive", "lastHeartbeatAt", "operatorId", "isExemptFromLimits") VALUES ($1, $2, $3, $4, true, now(), $5, $6)`,
 		workerId, tenantId, "worker-"+workerId.String()[:8], hashActions(nil), operatorId, exempt,
 	)
 	require.NoError(t, err)
@@ -90,11 +97,11 @@ func TestCreateNewWorkerMetersOperatorWorkers(t *testing.T) {
 
 	operatorWorker := func(name string, operatorId uuid.UUID, exempt bool, slots int32) *CreateWorkerOpts {
 		return &CreateWorkerOpts{
-			DispatcherId:     dispatcherId,
-			Name:             name,
-			SlotConfig:       map[string]int32{SlotTypeDefault: slots},
-			OperatorId:       &operatorId,
-			ExemptFromLimits: exempt,
+			DispatcherId:       dispatcherId,
+			Name:               name,
+			SlotConfig:         map[string]int32{SlotTypeDefault: slots},
+			OperatorId:         &operatorId,
+			IsExemptFromLimits: exempt,
 		}
 	}
 
@@ -120,7 +127,7 @@ func TestCreateNewWorkerMetersOperatorWorkers(t *testing.T) {
 
 		exempt, err := repo.CreateNewWorker(ctx, tenantId, operatorWorker("dag-op", dagOp, true, 10000))
 		require.NoError(t, err, "an exempt worker is infrastructure and is not metered")
-		assert.True(t, exempt.ExemptFromLimits, "the exemption is on the row for the limit queries")
+		assert.True(t, exempt.IsExemptFromLimits, "the exemption is on the row for the limit queries")
 	})
 
 	t.Run("exempt workers do not count, whatever operator they back", func(t *testing.T) {

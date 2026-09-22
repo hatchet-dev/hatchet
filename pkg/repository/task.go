@@ -376,6 +376,21 @@ func (r *TaskRepositoryImpl) EnsureTablePartitionsExist(ctx context.Context) (bo
 	return r.queries.EnsureTablePartitionsExist(ctx, r.pool)
 }
 
+func createExternalIdUniqueConstraintsOnDailyPartitions(ctx context.Context, db sqlcv1.DBTX, parentTableName string, partitionDates ...time.Time) error {
+	for _, partitionDate := range partitionDates {
+		partitionTableName := fmt.Sprintf("%s_%s", parentTableName, partitionDate.UTC().Format("20060102"))
+		constraintName := fmt.Sprintf("%s_external_id_uq", partitionTableName)
+
+		_, err := db.Exec(ctx, fmt.Sprintf("ALTER TABLE %s ADD CONSTRAINT %s UNIQUE (external_id);", partitionTableName, constraintName))
+
+		if err != nil {
+			return fmt.Errorf("failed to create unique constraint %s: %w", constraintName, err)
+		}
+	}
+
+	return nil
+}
+
 func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	const leaseKey = "v1_task_partitions"
 
@@ -406,12 +421,20 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	// so they cannot go through pgbouncer when it's configured.
 	ddlConn, release, err := sqlchelpers.AcquireConnectionWithStatementTimeout(ctx, r.ddlPool, r.l, 30*60*1000) // nolint:govet
 	if err != nil {
-		r.l.Error().Err(err).Msg("failed to acquire connection from ddlPool")
+		return fmt.Errorf("failed to acquire connection from ddlPool: %w", err)
 	}
+
+	createPartitionsTx, err := ddlConn.Begin(ctx)
+	if err != nil {
+		release()
+		return fmt.Errorf("failed to begin partition creation transaction: %w", err)
+	}
+
 	releaseCreateConn := func() {
 		resetCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		defer release()
+		_ = createPartitionsTx.Rollback(resetCtx)
 		if _, resetErr := ddlConn.Exec(resetCtx, "SET lock_timeout = 0"); resetErr != nil {
 			r.l.Error().Err(resetErr).Msg("failed to reset lock_timeout on DDL connection")
 		}
@@ -422,7 +445,7 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		return fmt.Errorf("failed to set lock_timeout: %w", err)
 	}
 
-	err = r.queries.CreatePartitions(ctx, ddlConn, pgtype.Date{
+	todayCreations, err := r.queries.CreatePartitions(ctx, createPartitionsTx, pgtype.Date{
 		Time:  today,
 		Valid: true,
 	})
@@ -435,7 +458,7 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		return err
 	}
 
-	err = r.queries.CreatePartitions(ctx, ddlConn, pgtype.Date{
+	tomorrowCreations, err := r.queries.CreatePartitions(ctx, createPartitionsTx, pgtype.Date{
 		Time:  tomorrow,
 		Valid: true,
 	})
@@ -446,6 +469,29 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 			return ErrPartitionLockConflict
 		}
 		return err
+	}
+
+	var payloadDatesToCreateUniqueConstraints []time.Time
+
+	if todayCreations.V1Payload > 0 {
+		payloadDatesToCreateUniqueConstraints = append(payloadDatesToCreateUniqueConstraints, today)
+	}
+
+	if tomorrowCreations.V1Payload > 0 {
+		payloadDatesToCreateUniqueConstraints = append(payloadDatesToCreateUniqueConstraints, tomorrow)
+	}
+
+	if err = createExternalIdUniqueConstraintsOnDailyPartitions(ctx, createPartitionsTx, "v1_payload", payloadDatesToCreateUniqueConstraints...); err != nil {
+		releaseCreateConn()
+		if isLockNotAvailable(err) {
+			return ErrPartitionLockConflict
+		}
+		return err
+	}
+
+	if err = createPartitionsTx.Commit(ctx); err != nil {
+		releaseCreateConn()
+		return fmt.Errorf("failed to commit partition creation transaction: %w", err)
 	}
 
 	releaseCreateConn()
@@ -3147,10 +3193,10 @@ func (r *sharedRepository) replayTasks(
 			return nil, fmt.Errorf("missing payload store opts for step id %s", stepId)
 		}
 
-		err = r.payloadStore.Store(ctx, tx, storePayloadOpts...)
+		err = r.payloadStore.OverwriteExisting(ctx, tx, storePayloadOpts...)
 
 		if err != nil {
-			return nil, fmt.Errorf("failed to store payloads for step id %s: %w", stepId, err)
+			return nil, fmt.Errorf("failed to overwrite payloads for step id %s: %w", stepId, err)
 		}
 
 		for _, task := range replayRes {

@@ -3,11 +3,10 @@ package operatorsvc_test
 import (
 	"testing"
 
+	"connectrpc.com/connect"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/operatorsvc"
@@ -52,7 +51,7 @@ func TestRegisterCreatesWorker(t *testing.T) {
 	assert.Equal(t, op.ID, *created[0].OperatorId)
 	assert.Empty(t, created[0].Actions, "registration never registers actions")
 	assert.Equal(t, map[string]int32{"default": 5}, created[0].SlotConfig)
-	assert.False(t, created[0].ExemptFromLimits, "a worker is metered unless the caller exempts it")
+	assert.False(t, created[0].IsExemptFromLimits, "a worker is metered unless the caller exempts it")
 
 	require.Len(t, svc.workers.Labels(reg.WorkerId), 1)
 	assert.Equal(t, "kind", svc.workers.Labels(reg.WorkerId)[0].Key)
@@ -160,14 +159,14 @@ func TestRegisterRejects(t *testing.T) {
 	t.Run("missing tenant", func(t *testing.T) {
 		svc := newTestService(t, nil)
 		_, err := svc.Register(t.Context(), nil, grpcRegisterOpts("op"))
-		assert.Equal(t, codes.Unauthenticated, status.Code(err))
+		assert.Equal(t, connect.CodeUnauthenticated, connect.CodeOf(err))
 	})
 
 	for _, name := range []string{"", "bad name!"} {
 		t.Run("invalid name "+name, func(t *testing.T) {
 			svc := newTestService(t, nil)
 			_, err := svc.Register(t.Context(), tenant, grpcRegisterOpts(name))
-			assert.Equal(t, codes.InvalidArgument, status.Code(err))
+			assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
 			assert.Zero(t, svc.operators.Count(), "validation runs before the upsert")
 		})
 	}
@@ -217,20 +216,20 @@ func TestRegisterExemptsWorkerOnRequest(t *testing.T) {
 	svc := newTestService(t, nil)
 
 	exempt := grpcRegisterOpts("op")
-	exempt.ExemptFromLimits = true
+	exempt.IsExemptFromLimits = true
 
 	_, err := svc.Register(t.Context(), tenant, exempt)
 	require.NoError(t, err)
 
 	row := svc.operators.Put(&sqlcv1.V1Operator{ID: uuid.New(), TenantID: tenant.ID, Name: "dag", Kind: sqlcv1.V1OperatorKindDAG, LeasingManager: sqlcv1.V1OperatorLeasingManagerDISPATCHER})
 
-	_, err = svc.Register(t.Context(), tenant, operatorsvc.RegisterOpts{OperatorId: &row.ID, ExemptFromLimits: true})
+	_, err = svc.Register(t.Context(), tenant, operatorsvc.RegisterOpts{OperatorId: &row.ID, IsExemptFromLimits: true})
 	require.NoError(t, err)
 
 	created := svc.workers.Created()
 	require.Len(t, created, 2)
-	assert.True(t, created[0].ExemptFromLimits)
-	assert.True(t, created[1].ExemptFromLimits)
+	assert.True(t, created[0].IsExemptFromLimits)
+	assert.True(t, created[1].IsExemptFromLimits)
 }
 
 // A claimed row is registered by id: nothing is upserted, the worker is named after the row and
@@ -261,9 +260,9 @@ func TestRegisterClaimedRow(t *testing.T) {
 	other := svc.operators.Put(&sqlcv1.V1Operator{ID: uuid.New(), TenantID: uuid.New(), Name: "dag", Kind: sqlcv1.V1OperatorKindDAG})
 
 	_, err = svc.Register(t.Context(), tenant, operatorsvc.RegisterOpts{OperatorId: &other.ID})
-	assert.Equal(t, codes.NotFound, status.Code(err))
+	assert.Equal(t, connect.CodeNotFound, connect.CodeOf(err))
 
 	missing := uuid.New()
 	_, err = svc.Register(t.Context(), tenant, operatorsvc.RegisterOpts{OperatorId: &missing})
-	assert.Equal(t, codes.NotFound, status.Code(err))
+	assert.Equal(t, connect.CodeNotFound, connect.CodeOf(err))
 }

@@ -302,7 +302,7 @@ const OnboardingSettingRow: React.FC = () => {
   return (
     <SettingRow
       label="Onboarding"
-      description="Restart the onboarding guide on the Overview page. This clears onboarding progress for this tenant in this browser."
+      description="Restart the onboarding guide. This clears onboarding progress for this tenant in this browser."
     >
       <Button
         variant="outline"
@@ -310,7 +310,7 @@ const OnboardingSettingRow: React.FC = () => {
         onClick={() => {
           setStoredOnboarding(defaultOnboardingState());
           navigate({
-            to: '/tenants/$tenant/overview',
+            to: '/tenants/$tenant/onboarding',
             params: { tenant: tenantId },
           });
         }}

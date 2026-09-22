@@ -3,34 +3,36 @@ package dispatcher
 import (
 	"context"
 	"errors"
-	"io"
-	"net"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/internal/services/shared/rpcstream"
 )
 
-const operatorStreamMethod = "/test.OperatorStream/Listen"
-
-// operatorStreamHarness runs a bidi stream over an in-process gRPC server whose handler
-// registers the stream with the dispatcher through AddOperatorStreamSession. Real gRPC is
-// required because PreparedMsg.Encode reads codec info that only a live server stream carries.
+// operatorStreamHarness runs a Listen stream fake whose handler registers it with the
+// dispatcher through AddOperatorStreamSession, the way the operator service does.
 type operatorStreamHarness struct {
 	d      *DispatcherImpl
-	stream grpc.ClientStream
+	sender *rpcstream.Sender[v1contracts.OperatorListenResponse]
+	// sent receives every message written on the stream
+	sent chan *v1contracts.OperatorListenResponse
 	// ready is closed once the handler has registered the session
 	ready chan struct{}
 	// done receives the handler's return value
 	done chan error
+}
+
+// Send implements the stream: messages are queued for the test to receive.
+func (h *operatorStreamHarness) Send(msg *v1contracts.OperatorListenResponse) error {
+	h.sent <- msg
+	return nil
 }
 
 func newOperatorStreamHarness(t *testing.T, workerId uuid.UUID) *operatorStreamHarness {
@@ -44,78 +46,31 @@ func newOperatorStreamHarness(t *testing.T, workerId uuid.UUID) *operatorStreamH
 			l:                                   &l,
 			defaultMaxWorkerLockAcquisitionTime: time.Second,
 		},
+		sent:  make(chan *v1contracts.OperatorListenResponse, 16),
 		ready: make(chan struct{}),
 		done:  make(chan error, 1),
 	}
 
-	handler := func(srv any, stream grpc.ServerStream) error {
-		session := h.d.AddOperatorStreamSession(workerId, uuid.New(), stream, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	h.sender = rpcstream.NewSender[v1contracts.OperatorListenResponse](ctx, h)
+
+	go func() {
+		defer h.sender.Close()
+
+		session := h.d.AddOperatorStreamSession(ctx, workerId, uuid.New(), h.sender)
 		defer session.Release()
 
 		close(h.ready)
 
 		select {
 		case <-session.Fin():
-			return nil
-		case <-stream.Context().Done():
-			return stream.Context().Err()
+			h.done <- nil
+		case <-ctx.Done():
+			h.done <- ctx.Err()
 		}
-	}
-
-	lis := bufconn.Listen(1024 * 1024)
-	srv := grpc.NewServer()
-
-	srv.RegisterService(&grpc.ServiceDesc{
-		ServiceName: "test.OperatorStream",
-		HandlerType: (*any)(nil),
-		Streams: []grpc.StreamDesc{{
-			StreamName: "Listen",
-			Handler: func(srv any, stream grpc.ServerStream) error {
-				err := handler(srv, stream)
-				h.done <- err
-				return err
-			},
-			ServerStreams: true,
-			ClientStreams: true,
-		}},
-	}, nil)
-
-	go func() {
-		_ = srv.Serve(lis)
 	}()
 
-	conn, err := grpc.NewClient(
-		"passthrough:///bufnet",
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
-			return lis.DialContext(ctx)
-		}),
-	)
-
-	if err != nil {
-		t.Fatalf("could not dial: %v", err)
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-
-	stream, err := conn.NewStream(ctx, &grpc.StreamDesc{
-		StreamName:    "Listen",
-		ServerStreams: true,
-		ClientStreams: true,
-	}, operatorStreamMethod)
-
-	if err != nil {
-		t.Fatalf("could not open stream: %v", err)
-	}
-
-	h.stream = stream
-
-	t.Cleanup(func() {
-		cancel()
-		conn.Close()
-		srv.Stop()
-		lis.Close()
-	})
+	t.Cleanup(cancel)
 
 	select {
 	case <-h.ready:
@@ -124,6 +79,25 @@ func newOperatorStreamHarness(t *testing.T, workerId uuid.UUID) *operatorStreamH
 	}
 
 	return h
+}
+
+// recv returns the next assigned action written on the stream.
+func (h *operatorStreamHarness) recv(t *testing.T) *contracts.AssignedAction {
+	t.Helper()
+
+	select {
+	case msg := <-h.sent:
+		action := msg.GetAction()
+
+		if action == nil {
+			t.Fatalf("stream carried %T, want an action", msg.GetMessage())
+		}
+
+		return action
+	case <-time.After(5 * time.Second):
+		t.Fatal("no message on the stream")
+		return nil
+	}
 }
 
 func (h *operatorStreamHarness) worker(t *testing.T, workerId uuid.UUID) *subscribedWorker {
@@ -156,11 +130,7 @@ func TestAddOperatorStreamSessionSendsAction(t *testing.T) {
 		t.Fatalf("could not send action: %v", err)
 	}
 
-	got := &contracts.AssignedAction{}
-
-	if err := h.stream.RecvMsg(got); err != nil {
-		t.Fatalf("could not receive action: %v", err)
-	}
+	got := h.recv(t)
 
 	if !proto.Equal(got, action) {
 		t.Fatalf("received action %v, want %v", got, action)
@@ -190,8 +160,8 @@ func TestAddOperatorStreamSessionFinAndRelease(t *testing.T) {
 		t.Fatal("handler did not return after fin")
 	}
 
-	if err := h.stream.RecvMsg(&contracts.AssignedAction{}); !errors.Is(err, io.EOF) {
-		t.Fatalf("expected stream to end with EOF, got %v", err)
+	if err := h.sender.Send(&v1contracts.OperatorListenResponse{}); !errors.Is(err, rpcstream.ErrClosed) {
+		t.Fatalf("expected the stream to be closed once the handler returned, got %v", err)
 	}
 
 	if _, err := h.d.workers.Get(workerId); err != nil {
@@ -304,11 +274,7 @@ func TestOperatorStreamSessionPausedReturnsStarts(t *testing.T) {
 		t.Fatalf("could not send cancel while paused: %v", err)
 	}
 
-	got := &contracts.AssignedAction{}
-
-	if err := h.stream.RecvMsg(got); err != nil {
-		t.Fatalf("could not receive cancel: %v", err)
-	}
+	got := h.recv(t)
 
 	if !proto.Equal(got, cancelAction) {
 		t.Fatalf("received %v while paused, want the cancel %v", got, cancelAction)
@@ -320,9 +286,7 @@ func TestOperatorStreamSessionPausedReturnsStarts(t *testing.T) {
 		t.Fatalf("could not send start after the pause was lifted: %v", err)
 	}
 
-	if err := h.stream.RecvMsg(got); err != nil {
-		t.Fatalf("could not receive start: %v", err)
-	}
+	got = h.recv(t)
 
 	if !proto.Equal(got, start) {
 		t.Fatalf("received %v, want %v", got, start)
@@ -372,5 +336,22 @@ func TestOperatorHandlerSessionPausedReturnsStarts(t *testing.T) {
 
 	if calls() != 1 {
 		t.Fatalf("the handler was called %d times, want 1", calls())
+	}
+}
+
+// The fan-out writes assigned actions on the operator stream wrapped in its message type.
+func TestOperatorListenStreamWrapsActions(t *testing.T) {
+	h := newOperatorStreamHarness(t, uuid.New())
+
+	action := &contracts.AssignedAction{TaskRunExternalId: uuid.NewString(), ActionType: contracts.ActionType_START_STEP_RUN}
+
+	if err := (operatorListenStream{sender: h.sender}).Send(action); err != nil {
+		t.Fatalf("could not send: %v", err)
+	}
+
+	msg := <-h.sent
+
+	if msg.GetAck() != nil || !proto.Equal(msg.GetAction(), action) {
+		t.Fatalf("stream carried %v, want the action wrapped", msg)
 	}
 }

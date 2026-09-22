@@ -342,7 +342,7 @@ func (s *session) isPaused() bool {
 
 func pauseMessage(paused bool) *v1.OperatorListenRequest {
 	return &v1.OperatorListenRequest{
-		Message: &v1.OperatorListenRequest_Pause{Pause: &v1.OperatorPause{Paused: paused}},
+		Message: &v1.OperatorListenRequest_Pause{Pause: &v1.OperatorPause{IsPaused: paused}},
 	}
 }
 
@@ -493,7 +493,7 @@ func (s *session) receiveLoop(ctx context.Context) {
 			case *v1.OperatorListenResponse_Ack:
 				s.actions.ack(msg.Ack.Sequence)
 			case *v1.OperatorListenResponse_PauseAck:
-				s.deliverPauseAck(msg.PauseAck.Paused)
+				s.deliverPauseAck(msg.PauseAck.IsPaused)
 			case *v1.OperatorListenResponse_Action:
 				s.l.Debug().Ctx(ctx).
 					Str("action_type", msg.Action.ActionType.String()).

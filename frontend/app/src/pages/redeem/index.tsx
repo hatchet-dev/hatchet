@@ -1,4 +1,5 @@
 import { NewOrganizationSaverForm } from '@/components/forms/new-organization-saver-form';
+import { SetupCard, SetupScreen } from '@/components/layout/setup-card';
 import { usePylon } from '@/components/support-chat';
 import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
 import { Badge } from '@/components/v1/ui/badge';
@@ -39,13 +40,13 @@ import { lastTenantAtom } from '@/lib/atoms';
 import { cn } from '@/lib/utils';
 import { appRoutes } from '@/router';
 import {
-  ArrowLeftIcon,
   ChatBubbleLeftIcon,
   ExclamationTriangleIcon,
   GiftIcon,
   CheckCircleIcon,
   PlusIcon,
   TruckIcon,
+  XMarkIcon,
 } from '@heroicons/react/24/outline';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
@@ -253,6 +254,7 @@ function OfferCard({
               <div />
             )}
             <Button
+              size="sm"
               onClick={() =>
                 onRedeem(
                   offer.recordId,
@@ -393,27 +395,25 @@ export default function RedeemOffersPage() {
   };
 
   return (
-    <div className="max-h-full overflow-y-auto">
-      <div className="mx-auto max-w-2xl space-y-6 p-6">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate({ to: appRoutes.authenticatedRoute.to })}
-            className="gap-2 text-muted-foreground"
-          >
-            <ArrowLeftIcon className="size-4" />
-            Back to Dashboard
-          </Button>
-        </div>
-
-        <div>
-          <h1 className="text-2xl font-bold">Redeem Offers</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            View and redeem available offers for your account.
-          </p>
-        </div>
-
+    <SetupScreen
+      topRight={
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => navigate({ to: appRoutes.authenticatedRoute.to })}
+          className="h-8 w-8 p-0"
+          aria-label="Back to Dashboard"
+        >
+          <XMarkIcon className="size-4" />
+        </Button>
+      }
+    >
+      <SetupCard
+        title="Redeem Offers"
+        description="View and redeem available offers for your account."
+        className="max-w-2xl"
+        bodyClassName="space-y-4"
+      >
         {error && (
           <Alert variant="destructive">
             <ExclamationTriangleIcon className="size-4" />
@@ -452,23 +452,20 @@ export default function RedeemOffersPage() {
             </Card>
           </div>
         ) : offers.length === 0 ? (
-          <Card>
-            <CardContent className="py-16 text-center">
-              <GiftIcon className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-              <h3 className="mb-2 text-lg font-medium">No Offers Available</h3>
-              <p className="mb-4 text-muted-foreground">
-                There are no offers associated with your account at this time.
-              </p>
-              <Button
-                variant="outline"
-                onClick={() =>
-                  navigate({ to: appRoutes.authenticatedRoute.to })
-                }
-              >
-                Go to Dashboard
-              </Button>
-            </CardContent>
-          </Card>
+          <div className="py-10 text-center">
+            <GiftIcon className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+            <h3 className="mb-2 text-lg font-medium">No Offers Available</h3>
+            <p className="mb-4 text-muted-foreground">
+              There are no offers associated with your account at this time.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate({ to: appRoutes.authenticatedRoute.to })}
+            >
+              Go to Dashboard
+            </Button>
+          </div>
         ) : (
           <div className="space-y-4">
             {offers.map((offer) => (
@@ -485,7 +482,7 @@ export default function RedeemOffersPage() {
             ))}
           </div>
         )}
-      </div>
+      </SetupCard>
 
       <Dialog open={createOrgOpen} onOpenChange={setCreateOrgOpen}>
         <DialogContent className="w-fit min-w-[500px] max-w-[80%]">
@@ -504,6 +501,6 @@ export default function RedeemOffersPage() {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </SetupScreen>
   );
 }

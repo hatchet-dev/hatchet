@@ -136,14 +136,6 @@ SET
     updated_at = NOW()
 RETURNING *;
 
--- name: UpdateWorkerActionsHash :exec
-UPDATE
-    "Worker" w
-SET
-    "actionHash" = @actionHash::bytea
-WHERE
-    w."id" = @workerId::uuid;
-
 -- name: TenantHasDAGOperator :one
 SELECT EXISTS(
     SELECT 1

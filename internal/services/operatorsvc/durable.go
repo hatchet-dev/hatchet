@@ -36,7 +36,7 @@ const (
 	// awaited. A session that exceeds it is refused rather than buffering without end.
 	HandshakeHoldLimit = 256
 
-	// RetainedResponseLimit bounds what the pump retains for Recv over the life of the
+	// RetainedResponseLimit bounds what the receive loop retains for Recv over the life of the
 	// invocation: responses queued for delivery plus entry completions held for an ack or an
 	// expectation. The handshake bound covers a burst before the operator can read; this one
 	// allows for an operator that reads but is momentarily behind a fan-out of completions, and
@@ -61,15 +61,15 @@ func WithTenant(ctx context.Context, tenant *sqlcv1.Tenant) context.Context {
 //
 // The engine delivers responses on one goroutine that blocks on each delivery before it reads
 // the next request, so an operator that sends while a response is undelivered would deadlock
-// against it. A pump goroutine therefore reads the engine's responses as they come and queues
-// them for Recv; Send only ever waits for the engine to take the request.
+// against it. A receive loop goroutine therefore reads the engine's responses as they come and
+// queues them for Recv; Send only ever waits for the engine to take the request.
 //
 // At most one ack-bearing request (memo, trigger_runs, wait_for, evict_invocation) may be in
 // flight: the engine keys its pending state by (task, invocation), so a second one would clobber
 // the first. The slot is released when the ack, or the error that replaces it, arrives.
 //
-// What the pump retains is bounded by RetainedResponseLimit. Past it the channel is failed:
-// everything retained is dropped, Send and Recv return ErrChannelClosed, and the pump keeps
+// What the receive loop retains is bounded by RetainedResponseLimit. Past it the channel is failed:
+// everything retained is dropped, Send and Recv return ErrChannelClosed, and the receive loop keeps
 // discarding what the engine sends until the operator closes the channel, so the engine's
 // delivery goroutine is never left blocked on it.
 type durableChannel struct {
@@ -102,14 +102,14 @@ type durableChannel struct {
 	retained   int
 	overflowed bool
 
-	// notify wakes a Recv waiting for the queue to grow or the pump to end.
-	notify   chan struct{}
-	pumpDone chan struct{}
+	// notify wakes a Recv waiting for the queue to grow or the receive loop to end.
+	notify       chan struct{}
+	recvLoopDone chan struct{}
 
 	closeOnce sync.Once
 	mu        sync.Mutex
 	inflight  bool
-	// ended records that the engine closed its side; the pump sets it.
+	// ended records that the engine closed its side; the receive loop sets it.
 	ended bool
 }
 
@@ -151,7 +151,7 @@ func (ss *Session) OpenDurable(ctx context.Context, taskExternalId uuid.UUID, in
 		wanted:         make(map[entryRef]struct{}),
 		delivered:      make(map[entryRef]struct{}),
 		notify:         make(chan struct{}, 1),
-		pumpDone:       make(chan struct{}),
+		recvLoopDone:   make(chan struct{}),
 	}
 
 	register := &v1contracts.DurableTaskRequest{
@@ -178,7 +178,7 @@ func (ss *Session) OpenDurable(ctx context.Context, taskExternalId uuid.UUID, in
 			}
 
 			if resp.GetRegisterWorker() != nil {
-				go ch.pump()
+				go ch.recvLoop()
 				return ch, nil
 			}
 
@@ -202,8 +202,8 @@ func (ss *Session) OpenDurable(ctx context.Context, taskExternalId uuid.UUID, in
 	}
 }
 
-// abandon tears down a channel whose handshake failed: the pump never started, so the engine's
-// side is drained here until it closes.
+// abandon tears down a channel whose handshake failed: the receive loop never started, so the
+// engine's side is drained here until it closes.
 func (c *durableChannel) abandon() {
 	c.closeOnce.Do(func() {
 		close(c.closed)
@@ -225,11 +225,11 @@ func (c *durableChannel) abandon() {
 	})
 }
 
-// pump reads the engine's responses for the life of the invocation and queues the deliverable
+// recvLoop reads the engine's responses for the life of the invocation and queues the deliverable
 // ones for Recv. It runs until the engine closes its side, which Close forces by cancelling the
 // invocation; a failed channel keeps reading and discards, so the engine never blocks on it.
-func (c *durableChannel) pump() {
-	defer close(c.pumpDone)
+func (c *durableChannel) recvLoop() {
+	defer close(c.recvLoopDone)
 
 	for resp := range c.respCh {
 		c.ingest(resp)
@@ -530,7 +530,7 @@ func (c *durableChannel) Close() error {
 		defer timeout.Stop()
 
 		select {
-		case <-c.pumpDone:
+		case <-c.recvLoopDone:
 		case <-timeout.C:
 		}
 	})

@@ -14,8 +14,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 // seedOperator inserts a GRPC operator row for the tenant.
@@ -257,10 +255,6 @@ func TestWorkerActionHashGoAndSQLAgree(t *testing.T) {
 
 		stored := workerActionHash(t, ctx, pool, worker)
 		assert.Equal(t, hashActions(set), stored, "Go and SQL agree on %v", set)
-
-		fromSQL, err := sqlcv1.New().ComputeWorkerActionHash(ctx, pool, worker)
-		require.NoError(t, err)
-		assert.Equal(t, stored, fromSQL)
 
 		if previous, ok := hashes[string(stored)]; ok {
 			t.Errorf("sets %v and %v hash equal", previous, set)

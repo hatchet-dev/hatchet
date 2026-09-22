@@ -3422,6 +3422,7 @@ type V1DagsOlap struct {
 	TotalTasks           int32                `json:"total_tasks"`
 	IdempotencyKey       pgtype.Text          `json:"idempotency_key"`
 	LatestRetryCount     int32                `json:"latest_retry_count"`
+	IsDagOperator        bool                 `json:"is_dag_operator"`
 }
 
 type V1DurableEventLogBranchPoint struct {
@@ -4203,7 +4204,7 @@ type Worker struct {
 	DurableTaskDispatcherId *uuid.UUID       `json:"durableTaskDispatcherId"`
 	ActionHash              []byte           `json:"actionHash"`
 	OperatorActionCount     int32            `json:"operatorActionCount"`
-	ExemptFromLimits        bool             `json:"exemptFromLimits"`
+	IsExemptFromLimits      bool             `json:"isExemptFromLimits"`
 }
 
 type WorkerAssignEvent struct {

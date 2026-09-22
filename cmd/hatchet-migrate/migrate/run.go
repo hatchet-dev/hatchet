@@ -291,6 +291,10 @@ func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) error {
 		}
 	}
 
+	if err := rewriteV1_0_153GooseVersion(ctx, conn); err != nil {
+		return migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "rewrite v1_0_153 goose version", err)
+	}
+
 	err = locker.SessionUnlock(ctx, conn)
 
 	if err != nil {
@@ -366,6 +370,21 @@ func CreateTable(tableName string) string {
 		tstamp timestamp NOT NULL DEFAULT now()
 	)`
 	return fmt.Sprintf(q, tableName)
+}
+
+// rewriteV1_0_153GooseVersion remaps the 15-digit version 153 originally
+// shipped under so goose matches 20260910122311_v1_0_153.sql and does not
+// treat that file as missing before the current max version.
+func rewriteV1_0_153GooseVersion(ctx context.Context, conn *sql.Conn) error {
+	_, err := conn.ExecContext(ctx, `
+UPDATE goose_db_version
+SET version_id = 20260910122311
+WHERE version_id = 202609101223115
+  AND NOT EXISTS (
+      SELECT 1 FROM goose_db_version g2 WHERE g2.version_id = 20260910122311
+  )
+`)
+	return err
 }
 
 func InsertVersion(tableName string) string {
@@ -514,6 +533,10 @@ func runDownMigrationImpl(ctx context.Context, targetVersion string, l *zerolog.
 			l.Error().Err(migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "session unlock", err)).Msg("session unlock failed")
 		}
 	}()
+
+	if err := rewriteV1_0_153GooseVersion(ctx, conn); err != nil {
+		return migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "rewrite v1_0_153 goose version", err)
+	}
 
 	fsys, err := fs.Sub(embedMigrations, "migrations")
 	if err != nil {
