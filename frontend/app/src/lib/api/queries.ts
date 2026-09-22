@@ -273,11 +273,14 @@ export const queries = createQueryKeyStore({
   v1Events: {
     list: (tenant: string, query: V1EventListQuery, isSelfHosted: boolean) => ({
       queryKey: ['v1:events:list', tenant, query],
-      queryFn: async (): Promise<V1EventList | 'timeout' | undefined> => {
+      queryFn: async ({
+        signal,
+      }): Promise<V1EventList | 'timeout' | undefined> => {
         const timeout = isSelfHosted ? SELF_HOSTED_LIST_TIMEOUT_MS : undefined;
 
         try {
-          return (await api.v1EventList(tenant, query, { timeout })).data;
+          return (await api.v1EventList(tenant, query, { timeout, signal }))
+            .data;
         } catch (e) {
           if (e instanceof AxiosError && e.code === 'ECONNABORTED') {
             return 'timeout';
@@ -295,11 +298,15 @@ export const queries = createQueryKeyStore({
       isSelfHosted: boolean,
     ) => ({
       queryKey: ['v1:workflow-run:list', tenant, query],
-      queryFn: async (): Promise<V1TaskSummaryList | 'timeout' | undefined> => {
+      queryFn: async ({
+        signal,
+      }): Promise<V1TaskSummaryList | 'timeout' | undefined> => {
         const timeout = isSelfHosted ? SELF_HOSTED_LIST_TIMEOUT_MS : undefined;
 
         try {
-          return (await api.v1WorkflowRunList(tenant, query, { timeout })).data;
+          return (
+            await api.v1WorkflowRunList(tenant, query, { timeout, signal })
+          ).data;
         } catch (e) {
           if (e instanceof AxiosError && e.code === 'ECONNABORTED') {
             return 'timeout';
@@ -401,13 +408,13 @@ export const queries = createQueryKeyStore({
   v1TaskRuns: {
     metrics: (tenant: string, query: GetTaskMetricsQuery) => ({
       queryKey: ['v1:task-run:metrics', tenant, query],
-      queryFn: async () =>
-        (await api.v1TaskListStatusMetrics(tenant, query)).data,
+      queryFn: async ({ signal }) =>
+        (await api.v1TaskListStatusMetrics(tenant, query, { signal })).data,
     }),
     pointMetrics: (tenant: string, query: V2TaskGetPointMetricsQuery) => ({
       queryKey: ['v1-task:metrics', tenant, query],
-      queryFn: async () =>
-        (await api.v1TaskGetPointMetrics(tenant, query)).data,
+      queryFn: async ({ signal }) =>
+        (await api.v1TaskGetPointMetrics(tenant, query, { signal })).data,
     }),
   },
   metrics: {
@@ -417,8 +424,8 @@ export const queries = createQueryKeyStore({
     }),
     getStepRunQueueMetrics: (tenant: string) => ({
       queryKey: ['queue-metrics:get:step-run', tenant],
-      queryFn: async () =>
-        (await api.tenantGetStepRunQueueMetrics(tenant)).data,
+      queryFn: async ({ signal }) =>
+        (await api.tenantGetStepRunQueueMetrics(tenant, { signal })).data,
     }),
   },
   stepRuns: {

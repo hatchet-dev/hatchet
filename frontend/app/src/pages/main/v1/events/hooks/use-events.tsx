@@ -15,6 +15,7 @@ import useControlPlane from '@/hooks/use-control-plane';
 import { usePagination } from '@/hooks/use-pagination';
 import { useZodColumnFilters } from '@/hooks/use-zod-column-filters';
 import api, { queries, V1TaskStatus } from '@/lib/api';
+import { withPolling } from '@/lib/api/polling';
 import { useSearchParams } from '@/lib/router-helpers';
 import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
@@ -216,23 +217,25 @@ export const useEvents = ({ key }: UseEventsProps) => {
   const { isSelfHosted } = useControlPlane();
 
   const { data, isLoading, refetch, error, isRefetching } = useQuery({
-    ...queries.v1Events.list(
-      tenantId,
-      {
-        offset,
-        limit,
-        keys: selectedKeys,
-        since,
-        until,
-        eventIds: selectedEventIds,
-        workflowRunStatuses: selectedStatuses,
-        additionalMetadata: selectedMetadata,
-        workflowIds: selectedWorkflowIds,
-        scopes: selectedScopes,
-      },
-      isSelfHosted,
+    ...withPolling(
+      queries.v1Events.list(
+        tenantId,
+        {
+          offset,
+          limit,
+          keys: selectedKeys,
+          since,
+          until,
+          eventIds: selectedEventIds,
+          workflowRunStatuses: selectedStatuses,
+          additionalMetadata: selectedMetadata,
+          workflowIds: selectedWorkflowIds,
+          scopes: selectedScopes,
+        },
+        isSelfHosted,
+      ),
+      selectedEventIds?.length ? false : refetchInterval,
     ),
-    refetchInterval: selectedEventIds?.length ? false : refetchInterval,
     placeholderData: (prev) => prev,
   });
 

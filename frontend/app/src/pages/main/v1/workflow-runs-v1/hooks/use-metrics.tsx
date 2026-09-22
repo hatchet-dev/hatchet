@@ -1,6 +1,7 @@
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { queries } from '@/lib/api';
+import { withPolling } from '@/lib/api/polling';
 import { useQuery } from '@tanstack/react-query';
 
 export const useMetrics = ({
@@ -28,24 +29,28 @@ export const useMetrics = ({
     isRefetching: isStatusCountsRefetching,
     refetch,
   } = useQuery({
-    ...queries.v1TaskRuns.metrics(tenantId, {
-      since:
-        createdAfter ||
-        new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-      until: createdBefore,
-      parent_task_external_id: parentTaskExternalId,
-      workflow_ids: workflowIds ?? [],
-      additional_metadata: additionalMetadata,
-    }),
+    ...withPolling(
+      queries.v1TaskRuns.metrics(tenantId, {
+        since:
+          createdAfter ||
+          new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+        until: createdBefore,
+        parent_task_external_id: parentTaskExternalId,
+        workflow_ids: workflowIds ?? [],
+        additional_metadata: additionalMetadata,
+      }),
+      refetchInterval,
+    ),
     placeholderData: (prev) => prev,
-    refetchInterval,
   });
 
   const runStatusCounts = rawStatusCounts || [];
 
   const { data: queueMetricsRaw, isLoading: isQueueMetricsLoading } = useQuery({
-    ...queries.metrics.getStepRunQueueMetrics(tenantId),
-    refetchInterval: 5000,
+    ...withPolling(
+      queries.metrics.getStepRunQueueMetrics(tenantId),
+      refetchInterval,
+    ),
     enabled: showQueueMetrics,
   });
 

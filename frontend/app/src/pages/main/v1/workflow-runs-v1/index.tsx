@@ -27,8 +27,13 @@ export default function RunsPage() {
   const workflowCountQuery = useQuery(
     queries.workflows.list(tenantId, { limit: 1, offset: 0 }),
   );
-  const recentRunsQuery = useQuery(
-    queries.v1WorkflowRuns.list(
+  const hasWorkflows = (workflowCountQuery.data?.rows?.length ?? 0) > 0;
+
+  // The runs list can be slow, so it is only probed when the tenant has no
+  // workflows and the table would otherwise be replaced by onboarding.
+  const shouldProbeRecentRuns = workflowCountQuery.isSuccess && !hasWorkflows;
+  const recentRunsQuery = useQuery({
+    ...queries.v1WorkflowRuns.list(
       tenantId,
       {
         limit: 1,
@@ -38,13 +43,16 @@ export default function RunsPage() {
       },
       isSelfHosted,
     ),
-  );
+    enabled: shouldProbeRecentRuns,
+  });
 
-  if (workflowCountQuery.isLoading || recentRunsQuery.isLoading) {
+  if (
+    workflowCountQuery.isLoading ||
+    (shouldProbeRecentRuns && recentRunsQuery.isLoading)
+  ) {
     return <Loading />;
   }
 
-  const hasWorkflows = (workflowCountQuery.data?.rows?.length ?? 0) > 0;
   const hasRecentRuns =
     recentRunsQuery.data !== 'timeout' &&
     (recentRunsQuery.data?.rows?.length ?? 0) > 0;
