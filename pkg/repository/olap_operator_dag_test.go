@@ -4,10 +4,12 @@ package repository
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
@@ -560,7 +562,69 @@ func TestOperatorDAG_CatchesUpWhenOrchestratorEventsPrecedeDagRow(t *testing.T) 
 	})
 }
 
-func TestOperatorDAG_StatusUpdateWithoutDagRowIsNotLost(t *testing.T) {
+func (f operatorDagFixture) createDagsParams(parentTaskExternalId *uuid.UUID) sqlcv1.CreateDAGsOLAPOverwriteParams {
+	return sqlcv1.CreateDAGsOLAPOverwriteParams{
+		Tenantids:             []uuid.UUID{f.tenantId},
+		Ids:                   []int64{f.dagId},
+		Insertedats:           []pgtype.Timestamptz{f.dagInsertedAt},
+		Externalids:           []uuid.UUID{f.dagExternalId},
+		Displaynames:          []string{"operator-dag-test"},
+		Workflowids:           []uuid.UUID{f.workflowId},
+		Workflowversionids:    []uuid.UUID{f.workflowVersionId},
+		Additionalmetadatas:   [][]byte{[]byte(`{}`)},
+		Parenttaskexternalids: []*uuid.UUID{parentTaskExternalId},
+		Totaltasks:            []int32{1},
+		IdempotencyKeys:       []pgtype.Text{{}},
+		IsDagOperators:        []bool{true},
+	}
+}
+
+func (f operatorDagFixture) orchestratorUpdateParams(status sqlcv1.V1ReadableStatusOlap, retryCount int32) sqlcv1.UpdateDAGStatusesFromOrchestratorEventsParams {
+	return sqlcv1.UpdateDAGStatusesFromOrchestratorEventsParams{
+		Tenantid:            f.tenantId,
+		Dagids:              []int64{f.dagId},
+		Daginsertedats:      []pgtype.Timestamptz{f.dagInsertedAt},
+		Statuses:            []sqlcv1.V1ReadableStatusOlap{status},
+		Retrycounts:         []int32{retryCount},
+		Externalids:         []uuid.UUID{f.dagExternalId},
+		Displaynames:        []string{"orchestrator-task"},
+		Workflowids:         []uuid.UUID{f.workflowId},
+		Workflowversionids:  []uuid.UUID{f.workflowVersionId},
+		Additionalmetadatas: [][]byte{[]byte(`{}`)},
+	}
+}
+
+func (f operatorDagFixture) createWithParent(t *testing.T, ctx context.Context, repo *OLAPRepositoryImpl, parentTaskExternalId uuid.UUID) {
+	t.Helper()
+
+	dag := &DAGWithData{
+		V1Dag: &sqlcv1.V1Dag{
+			ID:                   f.dagId,
+			InsertedAt:           f.dagInsertedAt,
+			TenantID:             f.tenantId,
+			ExternalID:           f.dagExternalId,
+			DisplayName:          "operator-dag-test",
+			WorkflowID:           f.workflowId,
+			WorkflowVersionID:    f.workflowVersionId,
+			ParentTaskExternalID: &parentTaskExternalId,
+			IdempotencyKey:       pgtype.Text{String: "idempotency-key", Valid: true},
+		},
+		Input:                []byte(`{}`),
+		AdditionalMetadata:   []byte(`{}`),
+		ParentTaskExternalID: &parentTaskExternalId,
+		IsOperatorRun:        true,
+	}
+
+	locksNotAcquired, err := repo.CreateDAGs(ctx, f.tenantId, []*DAGWithData{dag})
+	require.NoError(t, err)
+	require.Empty(t, locksNotAcquired)
+}
+
+// The create and the status update run in separate transactions on separate message queue
+// consumers. Under READ COMMITTED an UPDATE finds no row while the create is uncommitted, and the
+// create's reconcile finds no events while the update is uncommitted, so both orderings lost the
+// terminal status. The upsert makes the second transaction wait on the first one's row.
+func TestOperatorDAG_ConcurrentCreateAndStatusUpdateSerialize(t *testing.T) {
 	basePool, cleanup := setupPostgresWithMigration(t)
 	defer cleanup()
 
@@ -572,65 +636,224 @@ func TestOperatorDAG_StatusUpdateWithoutDagRowIsNotLost(t *testing.T) {
 
 	require.NoError(t, repo.UpdateTablePartitions(ctx))
 
-	t.Run("terminal update before dag row survives the later create", func(t *testing.T) {
-		f := newOperatorDagFixture(700, uuid.New())
+	t.Run("create holds an uncommitted row while the update runs", func(t *testing.T) {
+		f := newOperatorDagFixture(800, uuid.New())
 
-		result := f.applyOrchestratorEvents(t, ctx, repo, f.orchestratorUpdate(sqlcv1.V1ReadableStatusOlapCOMPLETED, 0))
-		require.Len(t, result.DAGRows, 1, "the update must be reported so downstream consumers still see the outcome")
+		createTx, err := pool.BeginTx(ctx, pgx.TxOptions{})
+		require.NoError(t, err)
+		defer createTx.Rollback(ctx) // nolint: errcheck
 
-		f.assertDagStatus(t, ctx, pool, "COMPLETED")
+		require.NoError(t, repo.queries.CreateDAGsOLAP(ctx, createTx, f.createDagsParams(nil)))
 
-		f.create(t, ctx, repo)
+		updateDone := make(chan []*sqlcv1.UpdateDAGStatusesFromOrchestratorEventsRow, 1)
+		updateErr := make(chan error, 1)
+
+		go func() {
+			updateTx, err := pool.BeginTx(ctx, pgx.TxOptions{})
+			if err != nil {
+				updateErr <- err
+				return
+			}
+			defer updateTx.Rollback(ctx) // nolint: errcheck
+
+			rows, err := repo.queries.UpdateDAGStatusesFromOrchestratorEvents(ctx, updateTx, f.orchestratorUpdateParams(sqlcv1.V1ReadableStatusOlapCOMPLETED, 0))
+			if err != nil {
+				updateErr <- err
+				return
+			}
+
+			if err := updateTx.Commit(ctx); err != nil {
+				updateErr <- err
+				return
+			}
+
+			updateDone <- rows
+		}()
+
+		select {
+		case rows := <-updateDone:
+			t.Fatalf("update did not block on the uncommitted create; returned %d rows", len(rows))
+		case err := <-updateErr:
+			t.Fatalf("update errored while create was uncommitted: %v", err)
+		case <-time.After(500 * time.Millisecond):
+		}
+
+		require.NoError(t, createTx.Commit(ctx))
+
+		select {
+		case rows := <-updateDone:
+			require.Len(t, rows, 1)
+		case err := <-updateErr:
+			t.Fatalf("update errored after create committed: %v", err)
+		case <-time.After(10 * time.Second):
+			t.Fatal("update never finished after create committed")
+		}
 
 		f.assertDagStatus(t, ctx, pool, "COMPLETED")
 	})
 
-	t.Run("create overwrites the metadata the update could not know", func(t *testing.T) {
-		f := newOperatorDagFixture(701, uuid.New())
+	t.Run("update holds an uncommitted placeholder while the create runs", func(t *testing.T) {
+		f := newOperatorDagFixture(801, uuid.New())
 
-		f.applyOrchestratorEvents(t, ctx, repo, f.orchestratorUpdate(sqlcv1.V1ReadableStatusOlapCOMPLETED, 0))
-		f.create(t, ctx, repo)
+		updateTx, err := pool.BeginTx(ctx, pgx.TxOptions{})
+		require.NoError(t, err)
+		defer updateTx.Rollback(ctx) // nolint: errcheck
+
+		rows, err := repo.queries.UpdateDAGStatusesFromOrchestratorEvents(ctx, updateTx, f.orchestratorUpdateParams(sqlcv1.V1ReadableStatusOlapCOMPLETED, 0))
+		require.NoError(t, err)
+		require.Len(t, rows, 1)
+
+		createDone := make(chan struct{}, 1)
+		createErr := make(chan error, 1)
+
+		go func() {
+			createTx, err := pool.BeginTx(ctx, pgx.TxOptions{})
+			if err != nil {
+				createErr <- err
+				return
+			}
+			defer createTx.Rollback(ctx) // nolint: errcheck
+
+			if err := repo.queries.CreateDAGsOLAP(ctx, createTx, f.createDagsParams(nil)); err != nil {
+				createErr <- err
+				return
+			}
+
+			if err := createTx.Commit(ctx); err != nil {
+				createErr <- err
+				return
+			}
+
+			createDone <- struct{}{}
+		}()
+
+		select {
+		case <-createDone:
+			t.Fatal("create did not block on the uncommitted placeholder")
+		case err := <-createErr:
+			t.Fatalf("create errored while placeholder was uncommitted: %v", err)
+		case <-time.After(500 * time.Millisecond):
+		}
+
+		require.NoError(t, updateTx.Commit(ctx))
+
+		select {
+		case <-createDone:
+		case err := <-createErr:
+			t.Fatalf("create errored after placeholder committed: %v", err)
+		case <-time.After(10 * time.Second):
+			t.Fatal("create never finished after placeholder committed")
+		}
+
+		f.assertDagStatus(t, ctx, pool, "COMPLETED")
 
 		var displayName string
-		var isDagOperator bool
-
-		err := pool.QueryRow(ctx, `
-			SELECT display_name, is_dag_operator
-			FROM v1_dags_olap
-			WHERE tenant_id = $1 AND id = $2
-		`, f.tenantId, f.dagId).Scan(&displayName, &isDagOperator)
-		require.NoError(t, err)
-
+		require.NoError(t, pool.QueryRow(ctx, `SELECT display_name FROM v1_dags_olap WHERE tenant_id = $1 AND id = $2`, f.tenantId, f.dagId).Scan(&displayName))
 		assert.Equal(t, "operator-dag-test", displayName)
-		assert.True(t, isDagOperator)
 	})
 
-	t.Run("update inserts a lookup row the create can be found by", func(t *testing.T) {
-		f := newOperatorDagFixture(702, uuid.New())
+	t.Run("many fully concurrent create and update pairs", func(t *testing.T) {
+		const pairs = 40
 
-		f.applyOrchestratorEvents(t, ctx, repo, f.orchestratorUpdate(sqlcv1.V1ReadableStatusOlapRUNNING, 0))
+		var wg sync.WaitGroup
 
-		var dagId int64
+		fixtures := make([]operatorDagFixture, pairs)
 
-		err := pool.QueryRow(ctx, `
-			SELECT dag_id
-			FROM v1_lookup_table_olap
-			WHERE tenant_id = $1 AND external_id = $2
-		`, f.tenantId, f.dagExternalId).Scan(&dagId)
-		require.NoError(t, err)
+		for i := range pairs {
+			fixtures[i] = newOperatorDagFixture(int64(1000+i), uuid.New())
+		}
 
-		assert.Equal(t, f.dagId, dagId)
+		errs := make(chan error, 2*pairs)
+
+		for _, f := range fixtures {
+			wg.Add(2)
+
+			go func() {
+				defer wg.Done()
+
+				_, err := repo.CreateDAGs(ctx, f.tenantId, []*DAGWithData{{
+					V1Dag: &sqlcv1.V1Dag{
+						ID:                f.dagId,
+						InsertedAt:        f.dagInsertedAt,
+						TenantID:          f.tenantId,
+						ExternalID:        f.dagExternalId,
+						DisplayName:       "operator-dag-test",
+						WorkflowID:        f.workflowId,
+						WorkflowVersionID: f.workflowVersionId,
+					},
+					Input:              []byte(`{}`),
+					AdditionalMetadata: []byte(`{}`),
+					IsOperatorRun:      true,
+				}})
+				if err != nil {
+					errs <- err
+				}
+			}()
+
+			go func() {
+				defer wg.Done()
+
+				_, _, err := repo.CreateTaskEvents(ctx, f.tenantId,
+					[]sqlcv1.CreateTaskEventsOLAPParams{f.orchestratorEvent(sqlcv1.V1EventTypeOlapFINISHED, sqlcv1.V1ReadableStatusOlapCOMPLETED, 0)},
+					map[uuid.UUID]uuid.UUID{},
+					[]OrchestratorDAGStatusUpdateOpt{f.orchestratorUpdate(sqlcv1.V1ReadableStatusOlapCOMPLETED, 0)},
+					f.operatorRunIds(),
+				)
+				if err != nil {
+					errs <- err
+				}
+			}()
+		}
+
+		wg.Wait()
+		close(errs)
+
+		for err := range errs {
+			require.NoError(t, err)
+		}
+
+		for _, f := range fixtures {
+			f.assertDagStatus(t, ctx, pool, "COMPLETED")
+		}
 	})
+}
 
-	t.Run("a stale update cannot lower a status the create already raised", func(t *testing.T) {
-		f := newOperatorDagFixture(703, uuid.New())
+// A status update that lands first inserts the DAG row, and the insert trigger copies it to
+// v1_runs_olap without the parent task or idempotency key the update cannot know. The later create
+// only takes the conflict path on v1_dags_olap, so the runs row depends on the update trigger to
+// carry those columns over.
+func TestOperatorDAG_RunsRowGetsParentFromLateCreate(t *testing.T) {
+	basePool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
 
-		f.applyOrchestratorEvents(t, ctx, repo, f.orchestratorUpdate(sqlcv1.V1ReadableStatusOlapCOMPLETED, 0))
-		f.create(t, ctx, repo)
+	pool := createEnumAwarePool(t, basePool)
+	repo := createOLAPRepositoryWithPayloadStore(t, pool)
 
-		result := f.applyOrchestratorEvents(t, ctx, repo, f.orchestratorUpdate(sqlcv1.V1ReadableStatusOlapRUNNING, 0))
-		assert.Empty(t, result.DAGRows)
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
 
-		f.assertDagStatus(t, ctx, pool, "COMPLETED")
-	})
+	require.NoError(t, repo.UpdateTablePartitions(ctx))
+
+	f := newOperatorDagFixture(900, uuid.New())
+	parentTaskExternalId := uuid.New()
+
+	f.applyOrchestratorEvents(t, ctx, repo, f.orchestratorUpdate(sqlcv1.V1ReadableStatusOlapCOMPLETED, 0))
+	f.createWithParent(t, ctx, repo, parentTaskExternalId)
+
+	var runParent *uuid.UUID
+	var runIdempotencyKey *string
+
+	require.NoError(t, pool.QueryRow(ctx, `
+		SELECT parent_task_external_id, idempotency_key
+		FROM v1_runs_olap
+		WHERE tenant_id = $1 AND external_id = $2
+	`, f.tenantId, f.dagExternalId).Scan(&runParent, &runIdempotencyKey))
+
+	require.NotNil(t, runParent, "v1_runs_olap.parent_task_external_id")
+	assert.Equal(t, parentTaskExternalId, *runParent)
+
+	require.NotNil(t, runIdempotencyKey, "v1_runs_olap.idempotency_key")
+	assert.Equal(t, "idempotency-key", *runIdempotencyKey)
+
+	f.assertDagStatus(t, ctx, pool, "COMPLETED")
 }
