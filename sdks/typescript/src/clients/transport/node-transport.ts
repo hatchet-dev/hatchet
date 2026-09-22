@@ -11,6 +11,17 @@ import { createAuthInterceptor, type Transport } from './transport';
 const DEFAULT_MAX_MESSAGE_BYTES = 4 * 1024 * 1024;
 
 /**
+ * The largest message size Connect can enforce (a 32-bit length prefix). The config schema
+ * accepts any positive integer, as grpc-js does, so a larger configured limit is clamped to it
+ * rather than refused at the first call.
+ */
+export const MAX_MESSAGE_BYTES = 0xffffffff;
+
+function messageLimit(configured: number | undefined): number {
+  return Math.min(configured ?? DEFAULT_MAX_MESSAGE_BYTES, MAX_MESSAGE_BYTES);
+}
+
+/**
  * The connection settings the `nice-grpc` channel uses (`grpc.keepalive_time_ms`,
  * `grpc.keepalive_timeout_ms`, `grpc.keepalive_permit_without_calls` and
  * `grpc.client_idle_timeout_ms` in `util/grpc-helpers.ts`), so a unary connection is kept alive,
@@ -89,8 +100,8 @@ export function nodeTransportOptions(config: ClientConfig): GrpcTransportOptions
     nodeOptions: insecure ? undefined : tlsSessionOptions(config.tls_config),
     interceptors: [createAuthInterceptor(config.token)],
     sendCompression: compressionGzip,
-    readMaxBytes: config.grpc_max_recv_message_length ?? DEFAULT_MAX_MESSAGE_BYTES,
-    writeMaxBytes: config.grpc_max_send_message_length ?? DEFAULT_MAX_MESSAGE_BYTES,
+    readMaxBytes: messageLimit(config.grpc_max_recv_message_length),
+    writeMaxBytes: messageLimit(config.grpc_max_send_message_length),
     ...SESSION_OPTIONS,
   };
 }
