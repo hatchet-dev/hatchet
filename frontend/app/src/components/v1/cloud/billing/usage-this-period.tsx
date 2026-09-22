@@ -10,6 +10,7 @@ import {
   sumUsageSeries,
   tenantUsageChart,
   tenantUsageColor,
+  type TenantChartPoint,
   type TenantChartSeries,
   type DailyMeter,
   type UsageDisplayRow,
@@ -254,7 +255,7 @@ function TenantUsageChart({
   points,
   series,
 }: {
-  points: Array<{ date: string } & Record<string, number>>;
+  points: TenantChartPoint[];
   series: TenantChartSeries[];
 }) {
   const config: ChartConfig = Object.fromEntries(

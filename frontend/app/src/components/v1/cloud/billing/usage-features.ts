@@ -347,6 +347,13 @@ export type TenantChartSeries = {
   color: string;
 };
 
+// Keyed by tenant id; `date` is the only non-numeric member. Recharts reads the
+// series values by tenant id, so a plain index signature is enough.
+export type TenantChartPoint = { date: string } & Record<
+  string,
+  string | number
+>;
+
 export function tenantUsageColor(
   tenants: { tenantId: string }[],
   tenantId: string,
@@ -379,7 +386,7 @@ export function tenantUsageChart(
 
   let total = 0;
   const points = axis.map((point) => {
-    const row: { date: string } & Record<string, number> = {
+    const row: TenantChartPoint = {
       date: point.date.includes('T')
         ? point.date
         : `${point.date}T00:00:00.000Z`,
