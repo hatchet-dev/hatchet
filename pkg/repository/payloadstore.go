@@ -185,6 +185,14 @@ func isEmptyPayload(payload []byte) bool {
 	return len(trimmed) == 0 || bytes.Equal(trimmed, []byte("{}"))
 }
 
+func payloadOrEmptyJSONObject(payload []byte) []byte {
+	if len(payload) == 0 {
+		return []byte("{}")
+	}
+
+	return payload
+}
+
 func payloadUniqueKeyFromRow(payload *sqlcv1.V1Payload) PayloadUniqueKey {
 	return PayloadUniqueKey{
 		ID:              payload.ID,

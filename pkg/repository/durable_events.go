@@ -757,7 +757,7 @@ func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context,
 			ExternalId: row.ResultPayloadExternalID,
 		}
 
-		payload := payloads[retrieveOpt]
+		payload := payloadOrEmptyJSONObject(payloads[retrieveOpt])
 
 		var childTaskErrorMessage *string
 		if row.ChildTaskErrorMessage.Valid {
@@ -1312,13 +1312,13 @@ func (r *durableEventsRepository) getOrCreateEventLogEntriesForTasks(
 			return nil
 		}
 
-		return existingPayloads[RetrievePayloadOpts{
+		return payloadOrEmptyJSONObject(existingPayloads[RetrievePayloadOpts{
 			Id:         e.ID,
 			InsertedAt: e.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
 			TenantId:   tenantId,
 			ExternalId: e.ResultPayloadExternalID,
-		}]
+		}])
 	}
 
 	for _, state := range survivingStates {
