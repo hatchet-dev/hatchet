@@ -351,4 +351,3 @@ export const EventsService: GenService<{
   },
 }> = /*@__PURE__*/
   serviceDesc(file_events_events, 0);
-
