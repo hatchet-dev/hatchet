@@ -3,11 +3,13 @@
 // Verifies the package's `exports` map against the built `dist/`: every documented import
 // path resolves from both a native ESM module and a CommonJS module, every directory that
 // ships an `index.js` has an explicit entry (a wildcard cannot map a bare directory to its
-// index), and every entry's target exists.
+// index), every entry's target exists, and a TypeScript consumer compiles against the
+// declarations, including an explicit `.d.ts` import path.
 //
 // The published package root is `dist/` (`publish:ci` copies package.json there and publishes
 // from it), so the map is checked from a scratch package whose node_modules links to `dist/`.
 // Run after `pnpm run tsc:build` (the `check:exports` script does both).
+import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import {
   cpSync,
@@ -38,8 +40,22 @@ const DOCUMENTED_SUBPATHS = [
   './protoc/dispatcher/dispatcher',
 ];
 
+// Type-only imports a consumer's TypeScript may use: the explicit declaration-file path a
+// `types` condition cannot produce on its own (`./*` would append `.d.ts` twice), next to the
+// bare, `.js`-suffixed and directory-entry forms.
+const TYPE_CONSUMER = [
+  "import type { ClientConfig } from '@hatchet-dev/typescript-sdk/clients/hatchet-client/client-config.d.ts';",
+  "import type { HatchetClient } from '@hatchet-dev/typescript-sdk/v1';",
+  "import type { AdminClient } from '@hatchet-dev/typescript-sdk/v1/client/admin';",
+  "import type { EventClient } from '@hatchet-dev/typescript-sdk/clients/event/event-client.js';",
+  'export type Consumer = [ClientConfig, HatchetClient, AdminClient, EventClient];',
+  '',
+].join('\n');
+const TYPE_RESOLUTIONS = ['node16', 'bundler'];
+
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const dist = join(root, 'dist');
+const tsc = join(root, 'node_modules', 'typescript', 'bin', 'tsc');
 
 if (!existsSync(join(dist, 'index.js'))) {
   console.error(`dist is not built: ${dist}/index.js is missing. Run \`pnpm run tsc:build\` first.`);
@@ -112,6 +128,34 @@ try {
       failures.push(`CJS require of ${specifier} failed: ${e.message}`);
     }
   }
+
+  const typesDir = join(scratch, 'types');
+  mkdirSync(typesDir);
+  writeFileSync(join(typesDir, 'consumer.ts'), TYPE_CONSUMER);
+  for (const moduleResolution of TYPE_RESOLUTIONS) {
+    const tsconfig = join(typesDir, `tsconfig.${moduleResolution}.json`);
+    writeFileSync(
+      tsconfig,
+      JSON.stringify({
+        compilerOptions: {
+          target: 'ES2022',
+          module: moduleResolution === 'bundler' ? 'ESNext' : moduleResolution,
+          moduleResolution,
+          strict: true,
+          noEmit: true,
+          skipLibCheck: true,
+          types: [],
+        },
+        files: ['consumer.ts'],
+      })
+    );
+    const result = spawnSync(process.execPath, [tsc, '-p', tsconfig], { encoding: 'utf8' });
+    if (result.status !== 0) {
+      failures.push(
+        `type consumer (moduleResolution ${moduleResolution}) failed:\n${result.stdout}${result.stderr}`
+      );
+    }
+  }
 } finally {
   rmSync(scratch, { recursive: true, force: true });
 }
@@ -123,5 +167,5 @@ if (failures.length) {
 }
 
 console.log(
-  `exports map resolves ${DOCUMENTED_SUBPATHS.length} documented and ${explicitSubpaths.length} explicit subpaths from ESM and CJS`
+  `exports map resolves ${DOCUMENTED_SUBPATHS.length} documented and ${explicitSubpaths.length} explicit subpaths from ESM and CJS, and a type consumer compiles under ${TYPE_RESOLUTIONS.join(' and ')}`
 );

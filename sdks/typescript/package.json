@@ -80,6 +80,7 @@
       "default": "./v1/conditions/index.js"
     },
     "./package.json": "./package.json",
+    "./*.d.ts": "./*.d.ts",
     "./*.js": {
       "types": "./*.d.ts",
       "default": "./*.js"
