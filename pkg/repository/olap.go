@@ -3275,12 +3275,20 @@ func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, te
 	externalKeys := make([]string, 0, len(putPayloadOpts))
 
 	for _, opt := range putPayloadOpts {
+		if isEmptyPayload(opt.Payload) {
+			continue
+		}
+
 		externalIds = append(externalIds, opt.ExternalId)
 		insertedAts = append(insertedAts, opt.InsertedAt)
 		tenantIds = append(tenantIds, tenantId)
 		payloads = append(payloads, opt.Payload)
 		locations = append(locations, string(sqlcv1.V1PayloadLocationOlapINLINE))
 		externalKeys = append(externalKeys, "")
+	}
+
+	if len(externalIds) == 0 {
+		return nil
 	}
 
 	err = r.queries.PutPayloads(ctx, tx, sqlcv1.PutPayloadsParams{
