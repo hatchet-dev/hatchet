@@ -1,7 +1,8 @@
 import { DEFAULT_LOGGER } from '@clients/hatchet-client/hatchet-logger';
 import { ClientConfig } from '@clients/hatchet-client/client-config';
 import { createGrpcTransport } from '@connectrpc/connect-node';
-import { MAX_MESSAGE_BYTES, nodeTransportOptions } from './node-transport';
+import { createEventsRpc } from '@clients/event/event-client';
+import { createNodeTransport, MAX_MESSAGE_BYTES, nodeTransportOptions } from './node-transport';
 
 const baseConfig: ClientConfig = {
   token: 'test-token',
@@ -18,6 +19,22 @@ function options(overrides: Partial<ClientConfig> = {}) {
 }
 
 describe('nodeTransportOptions', () => {
+  it('dials the endpoint a gRPC target names, with the scheme the TLS strategy selects', () => {
+    expect(options().baseUrl).toBe('http://127.0.0.1:7070');
+    expect(options({ host_port: 'dns:///127.0.0.1:7070' }).baseUrl).toBe('http://127.0.0.1:7070');
+    expect(options({ host_port: 'ipv6:[::1]:7070' }).baseUrl).toBe('http://[::1]:7070');
+    expect(
+      options({ host_port: 'engine.example.com:443', tls_config: { tls_strategy: 'tls' } }).baseUrl
+    ).toBe('https://engine.example.com:443');
+  });
+
+  it('refuses an unsupported target when the transport is first used', async () => {
+    const transport = createNodeTransport({ ...baseConfig, host_port: 'unix:/tmp/engine.sock' });
+    const events = createEventsRpc(transport);
+
+    await expect(events.putLog({})).rejects.toThrow(/unix domain socket/);
+  });
+
   it('keeps the connection alive with the nice-grpc channel settings', () => {
     // grpc-helpers.ts: keepalive_time_ms 10 s, keepalive_timeout_ms 60 s, permit without calls,
     // client_idle_timeout_ms 60 s.

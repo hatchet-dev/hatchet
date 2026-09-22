@@ -6,6 +6,7 @@ import {
   type GrpcTransportOptions,
 } from '@connectrpc/connect-node';
 import type { ClientConfig } from '@clients/hatchet-client/client-config';
+import { grpcTargetBaseUrl, parseGrpcTarget } from './grpc-target';
 import { createAuthInterceptor, type Transport } from './transport';
 
 const DEFAULT_MAX_MESSAGE_BYTES = 4 * 1024 * 1024;
@@ -94,9 +95,10 @@ export function createNodeTransport(config: ClientConfig): Transport {
  */
 export function nodeTransportOptions(config: ClientConfig): GrpcTransportOptions {
   const insecure = config.tls_config.tls_strategy === 'none';
+  const target = parseGrpcTarget(config.host_port);
 
   return {
-    baseUrl: `${insecure ? 'http' : 'https'}://${config.host_port}`,
+    baseUrl: grpcTargetBaseUrl(target, insecure ? 'http' : 'https'),
     nodeOptions: insecure ? undefined : tlsSessionOptions(config.tls_config),
     interceptors: [createAuthInterceptor(config.token)],
     sendCompression: compressionGzip,
