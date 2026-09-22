@@ -1,13 +1,14 @@
 import { payAsYouGoPlan, planCodeBase } from './subscription-plan-code';
-import { SetupCard } from '@/components/layout/setup-card';
+import {
+  setupCardDialogClassName,
+  SetupCard,
+} from '@/components/layout/setup-card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
 import { Button } from '@/components/v1/ui/button';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
-  DialogHeader,
   DialogTitle,
 } from '@/components/v1/ui/dialog';
 import { Spinner } from '@/components/v1/ui/loading';
@@ -41,15 +42,9 @@ import {
   formatRetentionPeriod,
   formatShortDate,
 } from '@/lib/utils/retention';
-import {
-  BoltIcon,
-  BuildingOffice2Icon,
-  CalendarDaysIcon,
-  ClockIcon,
-  GlobeAltIcon,
-  UsersIcon,
-} from '@heroicons/react/24/outline';
+import { ChevronDownIcon } from '@radix-ui/react-icons';
 import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 
 export type UpgradeGate = 'tenants' | 'users' | 'retention' | 'usage';
 
@@ -74,11 +69,6 @@ export type UpgradeGateProps = {
 const COPY = {
   planName: 'Pay as you Go',
   freeName: 'Free',
-  callout: {
-    limitReached: 'Free tier limit.',
-    usedOf: (used: string, limit: string) => `${used} of ${limit} used`,
-    included: (value: string) => `${value} included`,
-  },
   header: {
     tenants: {
       title: 'Tenant limit reached',
@@ -108,17 +98,13 @@ const COPY = {
         'Pay as you Go removes the Free tier limits. There is no monthly fee, and you pay nothing until you scale past what is included.',
     },
   },
-  detail: {
-    tenants: (payg: string) => `Pay as you Go includes ${payg} tenants.`,
-    users: (payg: string) => `Pay as you Go includes ${payg} members.`,
-    retention: (payg: string) => `Pay as you Go keeps ${payg} of history.`,
-    usage: (payg: string) => `Pay as you Go includes ${payg}.`,
-  },
   compare: {
     resource: 'Resource',
     perDay: '/ day',
     perMonth: '/ month',
     unlimited: 'Unlimited',
+    expand: 'See full breakdown',
+    collapse: 'Hide full breakdown',
   },
   price: {
     label: 'Base price',
@@ -141,15 +127,15 @@ const COPY = {
 
 // Row order in the comparison table. `label` is user-facing.
 const RESOURCES = [
-  { id: 'tenants', label: 'Tenants', icon: BuildingOffice2Icon },
-  { id: 'users', label: 'Members', icon: UsersIcon },
-  { id: 'data_retention_days', label: 'Data retention', icon: ClockIcon },
-  { id: 'task_runs', label: 'Task runs', icon: BoltIcon },
-  { id: 'events', label: 'Events', icon: BoltIcon },
-  { id: 'worker_slots_limit', label: 'Concurrent runs', icon: BoltIcon },
-  { id: 'crons', label: 'Crons', icon: CalendarDaysIcon },
-  { id: 'scheduled_runs', label: 'Scheduled runs', icon: CalendarDaysIcon },
-  { id: 'webhooks', label: 'Webhook endpoints', icon: GlobeAltIcon },
+  { id: 'tenants', label: 'Tenants' },
+  { id: 'users', label: 'Members' },
+  { id: 'data_retention_days', label: 'Data retention' },
+  { id: 'task_runs', label: 'Task runs' },
+  { id: 'events', label: 'Events' },
+  { id: 'worker_slots_limit', label: 'Concurrent runs' },
+  { id: 'crons', label: 'Crons' },
+  { id: 'scheduled_runs', label: 'Scheduled runs' },
+  { id: 'webhooks', label: 'Webhook endpoints' },
 ] as const;
 
 type ResourceId = (typeof RESOURCES)[number]['id'];
@@ -202,13 +188,6 @@ type Comparison = {
 type GateHeader = {
   title: string;
   description: string;
-};
-
-type LimitCallout = {
-  icon: typeof BuildingOffice2Icon;
-  label: string;
-  value: string;
-  detail: string;
 };
 
 type Entitlements = {
@@ -406,55 +385,6 @@ function buildHeader(
   }
 }
 
-function buildCallout(
-  gate: UpgradeGate,
-  row: ComparisonRow | undefined,
-  entitlements?: Entitlements,
-): LimitCallout | null {
-  if (!row) {
-    return null;
-  }
-  const icon =
-    RESOURCES.find((resource) => resource.id === row.id)?.icon ?? BoltIcon;
-
-  const usedOf = (limit?: OrganizationResourceLimit) =>
-    limit && !limit.unlimited && limit.limit >= 0
-      ? COPY.callout.usedOf(formatCount(limit.used), formatCount(limit.limit))
-      : COPY.callout.included(row.free);
-
-  switch (gate) {
-    case 'tenants':
-      return {
-        icon,
-        label: row.label,
-        value: usedOf(entitlements?.tenants),
-        detail: COPY.detail.tenants(row.payg),
-      };
-    case 'users':
-      return {
-        icon,
-        label: row.label,
-        value: usedOf(entitlements?.users),
-        detail: COPY.detail.users(row.payg),
-      };
-    case 'retention':
-      return {
-        icon,
-        label: row.label,
-        value: row.free,
-        detail: COPY.detail.retention(row.payg),
-      };
-    case 'usage':
-    default:
-      return {
-        icon,
-        label: row.label,
-        value: COPY.callout.included(row.free),
-        detail: COPY.detail.usage(row.payg),
-      };
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Hook: everything the dialog and the inline card need
 // ---------------------------------------------------------------------------
@@ -495,7 +425,6 @@ function useUpgradeGate({
 
   return {
     header: buildHeader(gate, highlighted, retentionAttempt),
-    callout: buildCallout(gate, highlighted, entitlements),
     comparison,
     upgrade,
     canUpgrade: isControlPlaneEnabled && canBill && !!payg,
@@ -510,100 +439,101 @@ type UpgradeGateState = ReturnType<typeof useUpgradeGate>;
 // Presentation
 // ---------------------------------------------------------------------------
 
-function LimitCalloutBox({ callout }: { callout: LimitCallout }) {
-  const Icon = callout.icon;
-  return (
-    <div className="flex items-start gap-3 rounded-lg border border-primary/40 bg-primary/5 p-4">
-      <Icon className="mt-0.5 h-5 w-5 shrink-0 text-foreground" />
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-          <p className="text-sm font-medium text-foreground">{callout.label}</p>
-          <p className="text-sm font-semibold tabular-nums text-foreground">
-            {callout.value}
-          </p>
-        </div>
-        <p className="mt-1 text-sm text-muted-foreground">
-          <span className="font-medium text-foreground">
-            {COPY.callout.limitReached}
-          </span>{' '}
-          {callout.detail}
-        </p>
-      </div>
-    </div>
-  );
-}
-
 function ComparisonTable({ comparison }: { comparison: Comparison }) {
+  const highlighted = comparison.rows.find(
+    (row) => row.id === comparison.highlightId,
+  );
+  // With no gated resource there is nothing to collapse to, so show it all.
+  const [expanded, setExpanded] = useState(!highlighted);
+  const rows = expanded ? comparison.rows : highlighted ? [highlighted] : [];
+
   return (
-    <div className="overflow-hidden rounded-lg border border-border">
-      <Table>
-        <TableHeader>
-          <TableRow className="hover:bg-transparent">
-            <TableHead className="px-3">{COPY.compare.resource}</TableHead>
-            <TableHead className="px-3 text-right">{COPY.freeName}</TableHead>
-            <TableHead className="px-3 text-right text-foreground">
-              {COPY.planName}
-            </TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {comparison.rows.map((row) => {
-            const highlighted = row.id === comparison.highlightId;
-            return (
-              <TableRow
-                key={row.id}
-                className={cn(highlighted && 'bg-primary/5 hover:bg-primary/5')}
-              >
-                <TableCell
-                  className={cn(
-                    'px-3 py-2',
-                    highlighted
-                      ? 'font-medium text-foreground'
-                      : 'text-muted-foreground',
-                  )}
+    <div className="flex flex-col gap-2">
+      <div className="overflow-hidden rounded-lg border border-border/50">
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="h-9 px-3 text-xs">
+                {COPY.compare.resource}
+              </TableHead>
+              <TableHead className="h-9 px-3 text-right text-xs">
+                {COPY.freeName}
+              </TableHead>
+              <TableHead className="h-9 px-3 text-right text-xs text-foreground">
+                {COPY.planName}
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((row) => {
+              const isGated = row.id === comparison.highlightId;
+              return (
+                <TableRow
+                  key={row.id}
+                  className={cn(isGated && 'bg-primary/5 hover:bg-primary/5')}
                 >
-                  {row.label}
+                  <TableCell
+                    className={cn(
+                      'px-3 py-2 text-sm',
+                      isGated
+                        ? 'font-medium text-foreground'
+                        : 'text-muted-foreground',
+                    )}
+                  >
+                    {row.label}
+                  </TableCell>
+                  <TableCell className="px-3 py-2 text-right text-sm tabular-nums text-muted-foreground">
+                    {row.free}
+                  </TableCell>
+                  <TableCell className="px-3 py-2 text-right text-sm font-medium tabular-nums text-foreground">
+                    {row.payg}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+            {expanded ? (
+              <TableRow className="bg-muted/30 hover:bg-muted/30">
+                <TableCell className="px-3 py-2 text-sm text-muted-foreground">
+                  {COPY.price.label}
                 </TableCell>
-                <TableCell className="px-3 py-2 text-right tabular-nums text-muted-foreground">
-                  {row.free}
+                <TableCell className="px-3 py-2 text-right text-sm tabular-nums text-muted-foreground">
+                  {COPY.price.free}
                 </TableCell>
-                <TableCell className="px-3 py-2 text-right font-medium tabular-nums text-foreground">
-                  {row.payg}
+                <TableCell className="px-3 py-2 text-right text-sm font-medium text-foreground">
+                  {COPY.price.payg}
                 </TableCell>
               </TableRow>
-            );
-          })}
-          <TableRow className="bg-muted/30 hover:bg-muted/30">
-            <TableCell className="px-3 py-2 text-muted-foreground">
-              {COPY.price.label}
-            </TableCell>
-            <TableCell className="px-3 py-2 text-right tabular-nums text-muted-foreground">
-              {COPY.price.free}
-            </TableCell>
-            <TableCell className="px-3 py-2 text-right font-medium text-foreground">
-              {COPY.price.payg}
-            </TableCell>
-          </TableRow>
-        </TableBody>
-      </Table>
+            ) : null}
+          </TableBody>
+        </Table>
+      </div>
+      {highlighted ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="w-fit gap-1 px-2 text-xs text-muted-foreground"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((value) => !value)}
+        >
+          {expanded ? COPY.compare.collapse : COPY.compare.expand}
+          <ChevronDownIcon
+            className={cn(
+              'size-3 transition-transform',
+              expanded && 'rotate-180',
+            )}
+          />
+        </Button>
+      ) : null}
     </div>
   );
 }
 
-function UpgradeGateBody({
-  state,
-  onDismiss,
-}: {
-  state: UpgradeGateState;
-  onDismiss?: () => void;
-}) {
-  const { callout, comparison, upgrade, canUpgrade, onUpgrade, salesHref } =
-    state;
+function UpgradeGateBody({ state }: { state: UpgradeGateState }) {
+  const { comparison, upgrade, salesHref } = state;
 
   return (
-    <div className="flex flex-col gap-5">
-      {callout ? <LimitCalloutBox callout={callout} /> : null}
-
+    <div className="flex flex-col gap-4">
       <ComparisonTable comparison={comparison} />
 
       {upgrade.isError ? (
@@ -615,45 +545,55 @@ function UpgradeGateBody({
         </Alert>
       ) : null}
 
-      <div className="flex flex-col gap-3">
-        <DialogFooter className="gap-2 sm:gap-2">
-          {onDismiss ? (
-            <Button type="button" variant="outline" onClick={onDismiss}>
-              {COPY.actions.dismiss}
-            </Button>
-          ) : null}
-          <Button
-            type="button"
-            disabled={!canUpgrade || upgrade.isPending}
-            onClick={onUpgrade}
-          >
-            {upgrade.isPending ? <Spinner /> : COPY.actions.upgrade}
-          </Button>
-        </DialogFooter>
-        <p className="text-center text-xs text-muted-foreground sm:text-right">
-          {COPY.actions.footnote}{' '}
-          <a
-            href={PRICING_URL}
-            target="_blank"
-            rel="noreferrer"
-            className="underline underline-offset-4 hover:text-foreground"
-          >
-            {COPY.actions.pricing}
-          </a>
-        </p>
-        <p className="text-center text-xs text-muted-foreground sm:text-right">
-          {COPY.actions.salesLead}{' '}
-          <a
-            href={salesHref}
-            target="_blank"
-            rel="noreferrer"
-            className="underline underline-offset-4 hover:text-foreground"
-          >
-            {COPY.actions.sales}
-          </a>
-        </p>
-      </div>
+      <p className="text-xs text-muted-foreground">
+        {COPY.actions.footnote}{' '}
+        <a
+          href={PRICING_URL}
+          target="_blank"
+          rel="noreferrer"
+          className="underline underline-offset-4 hover:text-foreground"
+        >
+          {COPY.actions.pricing}
+        </a>
+        {' · '}
+        {COPY.actions.salesLead}{' '}
+        <a
+          href={salesHref}
+          target="_blank"
+          rel="noreferrer"
+          className="underline underline-offset-4 hover:text-foreground"
+        >
+          {COPY.actions.sales}
+        </a>
+      </p>
     </div>
+  );
+}
+
+function UpgradeGateFooter({
+  state,
+  onDismiss,
+}: {
+  state: UpgradeGateState;
+  onDismiss?: () => void;
+}) {
+  const { upgrade, canUpgrade, onUpgrade } = state;
+  return (
+    <>
+      {onDismiss ? (
+        <Button type="button" variant="outline" size="sm" onClick={onDismiss}>
+          {COPY.actions.dismiss}
+        </Button>
+      ) : null}
+      <Button
+        type="button"
+        size="sm"
+        disabled={!canUpgrade || upgrade.isPending}
+        onClick={onUpgrade}
+      >
+        {upgrade.isPending ? <Spinner /> : COPY.actions.upgrade}
+      </Button>
+    </>
   );
 }
 
@@ -669,8 +609,9 @@ export function UpgradeGateContent({ onDismiss, ...props }: UpgradeGateProps) {
       className="max-w-none"
       title={state.header.title}
       description={state.header.description}
+      footer={<UpgradeGateFooter state={state} onDismiss={onDismiss} />}
     >
-      <UpgradeGateBody state={state} onDismiss={onDismiss} />
+      <UpgradeGateBody state={state} />
     </SetupCard>
   );
 }
@@ -684,12 +625,20 @@ export function UpgradeGateDialog({
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onDismiss()}>
-      <DialogContent className="max-h-[85vh] max-w-xl overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{state.header.title}</DialogTitle>
-          <DialogDescription>{state.header.description}</DialogDescription>
-        </DialogHeader>
-        <UpgradeGateBody state={state} onDismiss={onDismiss} />
+      <DialogContent
+        className={`${setupCardDialogClassName} max-h-[85vh] max-w-xl overflow-y-auto`}
+      >
+        <DialogTitle className="sr-only">{state.header.title}</DialogTitle>
+        <SetupCard
+          className="max-w-none"
+          title={state.header.title}
+          description={
+            <DialogDescription>{state.header.description}</DialogDescription>
+          }
+          footer={<UpgradeGateFooter state={state} onDismiss={onDismiss} />}
+        >
+          <UpgradeGateBody state={state} />
+        </SetupCard>
       </DialogContent>
     </Dialog>
   );
