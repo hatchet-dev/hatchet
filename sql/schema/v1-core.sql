@@ -2920,6 +2920,8 @@ CREATE TABLE v1_serverless_endpoint (
     registered_actions TEXT[] NOT NULL DEFAULT '{}',
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- the subset of registered_actions whose task asked for an invocation websocket
+    stream_actions TEXT[] NOT NULL DEFAULT '{}',
     CONSTRAINT v1_serverless_endpoint_pkey PRIMARY KEY (id),
     CONSTRAINT v1_serverless_endpoint_tenant_name_key UNIQUE (tenant_id, name),
     CONSTRAINT v1_serverless_endpoint_namespace_key UNIQUE (namespace)

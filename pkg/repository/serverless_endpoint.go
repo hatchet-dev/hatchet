@@ -365,13 +365,18 @@ func (r *serverlessEndpointRepository) UpdateStatus(ctx context.Context, endpoin
 	return changedAt.Time, nil
 }
 
-func (r *serverlessEndpointRepository) UpdateRegisteredActions(ctx context.Context, endpointId uuid.UUID, actions []string) error {
+func (r *serverlessEndpointRepository) UpdateRegisteredActions(ctx context.Context, endpointId uuid.UUID, actions, streamActions []string) error {
 	if actions == nil {
 		actions = []string{}
+	}
+
+	if streamActions == nil {
+		streamActions = []string{}
 	}
 
 	return r.queries.UpdateServerlessEndpointRegisteredActions(ctx, r.pool, sqlcv1.UpdateServerlessEndpointRegisteredActionsParams{
 		ID:                endpointId,
 		Registeredactions: actions,
+		Streamactions:     streamActions,
 	})
 }

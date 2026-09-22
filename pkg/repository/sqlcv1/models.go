@@ -3854,6 +3854,7 @@ type V1ServerlessEndpoint struct {
 	RegisteredActions     []string                 `json:"registered_actions"`
 	CreatedAt             pgtype.Timestamptz       `json:"created_at"`
 	UpdatedAt             pgtype.Timestamptz       `json:"updated_at"`
+	StreamActions         []string                 `json:"stream_actions"`
 }
 
 type V1ServerlessLease struct {

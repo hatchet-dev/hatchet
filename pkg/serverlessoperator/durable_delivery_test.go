@@ -15,6 +15,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
@@ -329,4 +330,132 @@ func TestDurableDeliveryCancelSendsNoSecondEvent(t *testing.T) {
 		contracts.StepActionEventType_STEP_EVENT_TYPE_STARTED,
 		contracts.StepActionEventType_STEP_EVENT_TYPE_CANCELLED,
 	}, types)
+}
+
+// TestStreamingTaskDeliveredOverSocket drives a non-durable task the catalog flagged with
+// streams through the registration: no POST, a signed upgrade, a first frame with invocation
+// 1 and no durable channel, a child run stream opened through the session's multiplexer, the
+// engine's event relayed as a stream_message, done, COMPLETED. Closing the registration closes
+// the multiplexer's engine stream.
+func TestStreamingTaskDeliveredOverSocket(t *testing.T) {
+	env := newTestEnv(t)
+	tenant := uuid.New()
+
+	row := healthyRow(endpointSpec{tenantId: tenant, name: "a", actions: []string{"svc:run", "svc:plain"}})
+	row.StreamActions = []string{prefixed(row.Namespace, "svc:run")}
+
+	type seen struct {
+		first *v1.ServerlessFirstFrame
+		event *contracts.WorkflowRunEvent
+	}
+
+	got := make(chan seen, 1)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !websocket.IsWebSocketUpgrade(r) {
+			http.Error(w, "the flagged task must not be posted", http.StatusBadRequest)
+			return
+		}
+
+		conn, err := (&websocket.Upgrader{}).Upgrade(w, r, nil)
+
+		if err != nil {
+			return
+		}
+
+		defer conn.Close()
+
+		var s seen
+
+		_, data, err := conn.ReadMessage()
+
+		if err != nil {
+			return
+		}
+
+		frame, err := contract.UnmarshalFrame(data)
+
+		if err != nil || frame.GetFirst() == nil {
+			return
+		}
+
+		s.first = frame.GetFirst()
+
+		_ = conn.WriteMessage(websocket.TextMessage, []byte(`{"streamOpen":{"id":"child","procedure":"/Dispatcher/SubscribeToWorkflowRuns","request":"{\"workflowRunId\":\"run-1\"}"}}`))
+
+		_, data, err = conn.ReadMessage()
+
+		if err != nil {
+			return
+		}
+
+		frame, err = contract.UnmarshalFrame(data)
+
+		if err != nil || frame.GetStreamMessage() == nil {
+			return
+		}
+
+		s.event = &contracts.WorkflowRunEvent{}
+
+		if err := contract.Unmarshal([]byte(frame.GetStreamMessage().GetMessage()), s.event); err != nil {
+			return
+		}
+
+		_ = conn.WriteMessage(websocket.TextMessage, []byte(`{"done":{"output":"{\"child\":\"finished\"}"}}`))
+
+		got <- s
+	}))
+	defer srv.Close()
+
+	row.TriggerUrl = srv.URL + "/trigger"
+	env.addEndpoint(row)
+
+	env.r.UnitsGained(context.Background(), []memrepo.Unit{env.unit(row)})
+	reg := env.host.session(0)
+	require.NotNil(t, reg)
+
+	engine := newFakeRunsStream()
+	var opened []operator.RunStreamKind
+
+	reg.setOpenRunStream(func(_ context.Context, kind operator.RunStreamKind, first proto.Message) (operator.RunStream, error) {
+		opened = append(opened, kind)
+		assert.Nil(t, first, "the multiplexer opens the stream and subscribes afterwards")
+
+		return engine, nil
+	})
+
+	go func() {
+		// the engine answers the subscription with the run's terminal event
+		runId := engine.subscription(t)
+		engine.recv <- finished(runId)
+	}()
+
+	action := startAction(row.Namespace, "svc:run")
+	reg.deliver(t, action)
+
+	require.Eventually(t, func() bool { return len(reg.eventTypes()) == 2 }, eventually, 10*time.Millisecond)
+
+	types := reg.eventTypes()
+	assert.Equal(t, contracts.StepActionEventType_STEP_EVENT_TYPE_STARTED, types[0])
+	assert.Equal(t, contracts.StepActionEventType_STEP_EVENT_TYPE_COMPLETED, types[1])
+	assert.JSONEq(t, `{"child":"finished"}`, reg.lastEvent().EventPayload)
+
+	s := <-got
+	assert.Equal(t, int32(1), s.first.InvocationCount)
+	assert.Nil(t, s.first.GetAction().DurableTaskInvocationCount)
+	assert.Equal(t, "run-1", s.event.WorkflowRunId)
+	assert.Equal(t, []operator.RunStreamKind{operator.RunStreamWorkflowRuns}, opened)
+	assert.Empty(t, env.sender.callsTo(row.TriggerUrl), "a flagged task is never posted")
+
+	require.Eventually(t, func() bool { return reg.inflightCount(env) == 0 }, eventually, 10*time.Millisecond)
+
+	// The unflagged task of the same endpoint keeps the POST.
+	env.sender.respond(row.TriggerUrl, http.StatusOK, `{"ok":true}`)
+	reg.deliver(t, startAction(row.Namespace, "svc:plain"))
+
+	require.Eventually(t, func() bool { return len(reg.eventTypes()) == 4 }, eventually, 10*time.Millisecond)
+	assert.Len(t, env.sender.callsTo(row.TriggerUrl), 1)
+
+	env.tenant(tenant).registration().close()
+	assert.True(t, engine.isClosed(), "closing the registration closes the multiplexed engine stream")
 }

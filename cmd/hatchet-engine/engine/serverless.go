@@ -194,6 +194,7 @@ func serverlessConfigFromServer(cf server.ServerlessOperatorConfigFile) serverle
 		WSPingInterval:               cf.WSPingInterval,
 		WSMaxUpgradeHeaderBytes:      cf.WSMaxUpgradeHeaderBytes,
 		WSMaxQueuedBytes:             cf.WSMaxQueuedBytes,
+		WSMaxStreams:                 cf.WSMaxStreams,
 		HealthPort:                   0,
 	}
 }

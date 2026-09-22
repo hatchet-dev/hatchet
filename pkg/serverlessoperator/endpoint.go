@@ -35,13 +35,15 @@ type endpointPoller struct {
 	// grow it past the catalog cap.
 	putHashes map[string]string
 
-	// registered is what this poller knows the endpoint row's registered_actions to be: the
-	// cached value when the first change is applied, then every set it wrote. The write is
-	// decided against it rather than the cache, since SetHealthcheck moves the cache ahead of
-	// the row before the write and a failed attempt must not leave the write skipped.
-	registered      []string
-	registeredKnown bool
-	lastHash        string
+	// registered and registeredStreams are what this poller knows the endpoint row's
+	// registered_actions and stream_actions to be: the cached values when the first change is
+	// applied, then every set it wrote. The write is decided against them rather than the
+	// cache, since SetHealthcheck moves the cache ahead of the row before the write and a
+	// failed attempt must not leave the write skipped.
+	registered        []string
+	registeredStreams []string
+	registeredKnown   bool
+	lastHash          string
 
 	// rejectedHash is the response hash the engine or the host last refused, with the
 	// backoff before the same catalog is tried again; an unchanged rejected catalog is not
@@ -253,26 +255,29 @@ func (p *endpointPoller) applyChange(ctx context.Context, reg *registration, res
 	}
 
 	if !p.registeredKnown {
-		p.registered = p.ts.cache.Config(p.ep).registeredActions
+		cfg := p.ts.cache.Config(p.ep)
+		p.registered = cfg.registeredActions
+		p.registeredStreams = cfg.streamActions
 		p.registeredKnown = true
 	}
 
-	previous := p.ts.cache.Config(p.ep).registeredActions
-	unionChanged := p.ts.cache.SetHealthcheck(p.ep.id, res.actions)
+	previous := p.ts.cache.Config(p.ep)
+	unionChanged := p.ts.cache.SetHealthcheck(p.ep.id, res.actions, res.streamActions)
 
 	// The owner's registration is the one that runs this endpoint's tasks, so its delta is
 	// part of the change: a failure here is retried on the next poll like a rejected put.
 	if err := reg.syncActions(ctx, p.ts.cache); err != nil {
-		p.ts.cache.SetHealthcheck(p.ep.id, previous)
+		p.ts.cache.SetHealthcheck(p.ep.id, previous.registeredActions, previous.streamActions)
 		return err
 	}
 
-	if !stringsEqual(p.registered, res.actions) {
-		if err := p.r.repo.Endpoints().UpdateRegisteredActions(ctx, p.ep.id, res.actions); err != nil {
+	if !stringsEqual(p.registered, res.actions) || !stringsEqual(p.registeredStreams, res.streamActions) {
+		if err := p.r.repo.Endpoints().UpdateRegisteredActions(ctx, p.ep.id, res.actions, res.streamActions); err != nil {
 			return fmt.Errorf("could not write registered actions: %w", err)
 		}
 
 		p.registered = res.actions
+		p.registeredStreams = res.streamActions
 	}
 
 	p.r.l.Info().

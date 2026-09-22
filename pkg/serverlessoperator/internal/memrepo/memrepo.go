@@ -31,8 +31,9 @@ type StatusWrite struct {
 
 // ActionWrite is one UpdateRegisteredActions call.
 type ActionWrite struct {
-	Actions    []string
-	EndpointId uuid.UUID
+	Actions       []string
+	StreamActions []string
+	EndpointId    uuid.UUID
 }
 
 type process struct {
@@ -500,7 +501,7 @@ func (e *endpoints) UpdateStatus(_ context.Context, endpointId uuid.UUID, health
 	return now, nil
 }
 
-func (e *endpoints) UpdateRegisteredActions(_ context.Context, endpointId uuid.UUID, actions []string) error {
+func (e *endpoints) UpdateRegisteredActions(_ context.Context, endpointId uuid.UUID, actions, streamActions []string) error {
 	e.r.mu.Lock()
 	defer e.r.mu.Unlock()
 
@@ -508,10 +509,11 @@ func (e *endpoints) UpdateRegisteredActions(_ context.Context, endpointId uuid.U
 		return e.r.failWrites
 	}
 
-	e.r.actionWrites = append(e.r.actionWrites, ActionWrite{EndpointId: endpointId, Actions: append([]string{}, actions...)})
+	e.r.actionWrites = append(e.r.actionWrites, ActionWrite{EndpointId: endpointId, Actions: append([]string{}, actions...), StreamActions: append([]string{}, streamActions...)})
 
 	if ep, ok := e.r.endpoints[endpointId]; ok {
 		ep.RegisteredActions = append([]string{}, actions...)
+		ep.StreamActions = append([]string{}, streamActions...)
 		ep.UpdatedAt = pgtype.Timestamptz{Time: e.r.Now(), Valid: true}
 	}
 

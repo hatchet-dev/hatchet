@@ -94,12 +94,15 @@ func evicted(closeCode int, source string) Outcome {
 	return Outcome{Kind: KindEvicted, EvictionSource: source, CloseCode: closeCode}
 }
 
-// Params describes one invocation to relay. Channel is opened by the caller and closed by
-// Run on every exit.
+// Params describes one invocation to relay. Channel is the durable channel of a durable
+// task's invocation, opened by the caller and closed by Run on every exit; it is nil on the
+// socket of a non-durable task that asked for one, where request frames are refused. Streams
+// opens the engine streams the endpoint asks for with stream_open frames; nil refuses them.
 type Params struct {
 	Logger  *zerolog.Logger
 	Dialer  NetDialer
 	Channel operator.DurableChannel
+	Streams StreamOpener
 	Action  *contracts.AssignedAction
 
 	// Cancelled reports, once ctx is done, whether the engine cancelled the task (close
@@ -121,8 +124,13 @@ type Params struct {
 
 	// MaxQueuedBytes bounds the encoded frames waiting for the endpoint, in addition to the
 	// sendQueueSize frame count; crossing it closes the socket with CloseBackpressure. 16 MiB
-	// by default. A single frame larger than the budget trips it on its own.
+	// by default. A single frame larger than the budget trips it on its own. Stream frames
+	// count against the same budget as durable responses.
 	MaxQueuedBytes int64
+
+	// MaxStreams caps the engine streams open on the socket at once; a stream_open past it is
+	// answered with a resource exhausted stream_close. 16 by default.
+	MaxStreams int
 
 	PingInterval     time.Duration
 	HandshakeTimeout time.Duration
@@ -152,6 +160,10 @@ func (p *Params) withDefaults() {
 
 	if p.MaxQueuedBytes <= 0 {
 		p.MaxQueuedBytes = defaultMaxQueuedBytes
+	}
+
+	if p.MaxStreams <= 0 {
+		p.MaxStreams = defaultMaxStreams
 	}
 
 	if p.PingInterval <= 0 {
@@ -189,6 +201,7 @@ type relay struct {
 	ctx        context.Context
 	cancel     context.CancelFunc
 	l          *zerolog.Logger
+	streams    *streamTable
 	sendQ      chan []byte
 	stop       chan struct{}
 	writerDone chan struct{}
@@ -209,12 +222,14 @@ type relay struct {
 func Run(ctx context.Context, p Params) Outcome {
 	p.withDefaults()
 
-	if p.Channel == nil || p.Dialer == nil || p.Action == nil {
-		return failed(0, "durable relay misconfigured: channel, dialer and action are required", false)
+	if p.Dialer == nil || p.Action == nil {
+		return failed(0, "socket relay misconfigured: dialer and action are required", false)
 	}
 
 	defer func() {
-		_ = p.Channel.Close()
+		if p.Channel != nil {
+			_ = p.Channel.Close()
+		}
 	}()
 
 	first, err := buildFirstFrame(&p)
@@ -249,6 +264,8 @@ func Run(ctx context.Context, p Params) Outcome {
 		writerDone: make(chan struct{}),
 	}
 
+	r.streams = newStreamTable(r)
+
 	conn.SetPongHandler(func(string) error {
 		r.missed.Store(0)
 		return nil
@@ -261,11 +278,16 @@ func Run(ctx context.Context, p Params) Outcome {
 		return r.result
 	}
 
-	r.wg.Add(3)
+	r.wg.Add(2)
 
 	go r.readLoop()
-	go r.pumpLoop()
 	go r.writeLoop()
+
+	if p.Channel != nil {
+		r.wg.Add(1)
+
+		go r.pumpLoop()
+	}
 
 	select {
 	case <-r.stop:
@@ -387,14 +409,16 @@ func (r *relay) stopped() bool {
 	}
 }
 
-// teardown sends the close frame (unless the endpoint closed first), closes the socket and
-// the channel, and waits for the loops. The writer is awaited first, bounded, so a queued
-// server_evict frame goes out before the close frame.
+// teardown ends every engine stream, sends the close frame (unless the endpoint closed
+// first), closes the socket and the channel, and waits for the loops. The writer is awaited
+// first, bounded, so a queued server_evict frame goes out before the close frame.
 func (r *relay) teardown() {
 	select {
 	case <-r.writerDone:
 	case <-time.After(closeWriteTimeout):
 	}
+
+	r.streams.closeAll()
 
 	if !r.peerClosed.Load() && r.result.CloseCode > 0 {
 		reason := r.result.Error
@@ -408,7 +432,11 @@ func (r *relay) teardown() {
 	}
 
 	_ = r.conn.Close()
-	_ = r.p.Channel.Close()
+
+	if r.p.Channel != nil {
+		_ = r.p.Channel.Close()
+	}
+
 	r.cancel()
 
 	r.wg.Wait()
@@ -483,7 +511,8 @@ func (r *relay) closedWithoutDone(msg string) {
 }
 
 // handleFrame processes one endpoint frame and reports whether reading should continue. An
-// endpoint may only send request and done frames; anything else is a protocol violation.
+// endpoint may send request (on a durable socket), done and the stream frames; anything else
+// is a protocol violation.
 func (r *relay) handleFrame(data []byte) bool {
 	if r.done.Load() {
 		r.l.Debug().Str("task_id", r.p.TaskId).Msg("dropping durable frame received after done")
@@ -502,9 +531,20 @@ func (r *relay) handleFrame(data []byte) bool {
 		r.handleDone(f.Done)
 		return false
 	case *v1.ServerlessDurableFrame_Request:
+		if r.p.Channel == nil {
+			r.violation(CloseForbiddenMessage, "endpoint sent a durable request on the socket of a non-durable task")
+			return false
+		}
+
 		return r.handleRequest(f.Request)
+	case *v1.ServerlessDurableFrame_StreamOpen:
+		return r.streams.handleStreamOpen(f.StreamOpen)
+	case *v1.ServerlessDurableFrame_StreamMessage:
+		return r.streams.handleStreamMessage(f.StreamMessage)
+	case *v1.ServerlessDurableFrame_StreamClose:
+		return r.streams.handleStreamClose(f.StreamClose)
 	default:
-		r.violation(CloseForbiddenMessage, "endpoint sent a frame with neither request nor done")
+		r.violation(CloseForbiddenMessage, "endpoint sent a frame that is not a request, a done or a stream frame")
 		return false
 	}
 }
@@ -700,19 +740,7 @@ func (r *relay) forward(resp *v1.DurableTaskResponse) bool {
 		return false
 	}
 
-	// The byte budget is charged before the frame is queued and released by the writer once
-	// the frame left the queue, so it bounds what the relay retains for a slow endpoint.
-	if r.queued.Add(int64(len(frame))) > r.p.MaxQueuedBytes {
-		r.finish(exit{kind: exitBackpressure, closeCode: CloseBackpressure, msg: fmt.Sprintf("endpoint fell more than %d bytes behind", r.p.MaxQueuedBytes)})
-		return false
-	}
-
-	select {
-	case r.sendQ <- frame:
-	case <-r.stop:
-		return false
-	default:
-		r.finish(exit{kind: exitBackpressure, closeCode: CloseBackpressure, msg: fmt.Sprintf("endpoint fell more than %d frames behind", sendQueueSize)})
+	if !r.enqueue(frame) {
 		return false
 	}
 
@@ -724,6 +752,27 @@ func (r *relay) forward(resp *v1.DurableTaskResponse) bool {
 	}
 
 	return true
+}
+
+// enqueue queues one encoded frame for the writer, charging the byte and frame budgets, and
+// reports whether the relay is still live. The byte budget is charged before the frame is
+// queued and released by the writer once the frame left the queue, so it bounds what the
+// relay retains for a slow endpoint; crossing either budget ends the relay with backpressure.
+func (r *relay) enqueue(frame []byte) bool {
+	if r.queued.Add(int64(len(frame))) > r.p.MaxQueuedBytes {
+		r.finish(exit{kind: exitBackpressure, closeCode: CloseBackpressure, msg: fmt.Sprintf("endpoint fell more than %d bytes behind", r.p.MaxQueuedBytes)})
+		return false
+	}
+
+	select {
+	case r.sendQ <- frame:
+		return true
+	case <-r.stop:
+		return false
+	default:
+		r.finish(exit{kind: exitBackpressure, closeCode: CloseBackpressure, msg: fmt.Sprintf("endpoint fell more than %d frames behind", sendQueueSize)})
+		return false
+	}
 }
 
 // linkFailed ends the relay on an engine-side failure. The detail stays in the operator
