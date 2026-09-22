@@ -1029,6 +1029,21 @@ export interface OrganizationUsageTimeseriesTenant {
    * @format int64
    */
   events: number;
+  /**
+   * Live cron count on the shard. Omitted when the shard count could not be loaded.
+   * @format int64
+   */
+  crons?: number;
+  /**
+   * Live pending scheduled-run count on the shard. Omitted when the shard count could not be loaded.
+   * @format int64
+   */
+  scheduledRuns?: number;
+  /**
+   * Live webhook endpoint count on the shard. Omitted when the shard count could not be loaded.
+   * @format int64
+   */
+  webhooks?: number;
 }
 
 export interface OrganizationUsageTimeseries {

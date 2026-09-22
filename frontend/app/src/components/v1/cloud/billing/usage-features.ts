@@ -14,6 +14,8 @@ const HIDDEN_USAGE_FEATURE_IDS = new Set([
   'network_bandwidth_gb',
   'data_retention_days',
   'managed_compute_cents',
+  'queue_backlog_limit',
+  'ingested_bytes',
 ]);
 
 const DAILY_LIMIT_BY_PERIOD: Record<string, string> = {
@@ -45,7 +47,90 @@ export type UsageDisplayRow = {
   feature: OrganizationUsageFeature;
   dailyMeter?: DailyMeter;
   showPeriodAsCount: boolean;
+  // Live inventory from the shard. Not a billing-period total and not a plan allowance.
+  countOnly?: boolean;
 };
+
+export type ShardUsageCounts = {
+  taskRuns: number;
+  events: number;
+  crons?: number;
+  scheduledRuns?: number;
+  webhooks?: number;
+  tenants?: { used: number; limit: number; unlimited: boolean };
+  users?: { used: number; limit: number; unlimited: boolean };
+};
+
+const SHARD_USAGE_ROWS: {
+  id: string;
+  name: string;
+  kind: 'period' | 'inventory' | 'allowance';
+}[] = [
+  { id: 'task_runs', name: 'Task Runs', kind: 'period' },
+  { id: 'events', name: 'Events', kind: 'period' },
+  { id: 'crons', name: 'Crons', kind: 'inventory' },
+  { id: 'scheduled_runs', name: 'Scheduled Runs', kind: 'inventory' },
+  { id: 'webhooks', name: 'Webhook Endpoints', kind: 'inventory' },
+  { id: 'tenants', name: 'Tenants', kind: 'allowance' },
+  { id: 'users', name: 'Users', kind: 'allowance' },
+];
+
+function shardCount(counts: ShardUsageCounts, id: string): number | undefined {
+  switch (id) {
+    case 'task_runs':
+      return counts.taskRuns;
+    case 'events':
+      return counts.events;
+    case 'crons':
+      return counts.crons;
+    case 'scheduled_runs':
+      return counts.scheduledRuns;
+    case 'webhooks':
+      return counts.webhooks;
+    case 'tenants':
+      return counts.tenants?.used;
+    case 'users':
+      return counts.users?.used;
+    default:
+      return undefined;
+  }
+}
+
+export function shardUsageRows(
+  counts: ShardUsageCounts,
+  dailyMeters: Partial<Record<string, DailyMeter>> = {},
+): UsageDisplayRow[] {
+  const rows: UsageDisplayRow[] = [];
+
+  for (const definition of SHARD_USAGE_ROWS) {
+    const value = shardCount(counts, definition.id);
+    if (value === undefined) {
+      continue;
+    }
+
+    const allowance =
+      definition.id === 'tenants'
+        ? counts.tenants
+        : definition.id === 'users'
+          ? counts.users
+          : undefined;
+
+    rows.push({
+      feature: {
+        featureId: definition.id,
+        name: definition.name,
+        usage: value,
+        includedUsage: allowance?.unlimited ? 0 : (allowance?.limit ?? 0),
+        unlimited: allowance?.unlimited ?? false,
+      },
+      dailyMeter: dailyMeters[definition.id],
+      showPeriodAsCount: definition.kind === 'period',
+      countOnly: definition.kind === 'inventory',
+    });
+  }
+
+  return rows;
+}
 
 export type UsageSeverity = 'ok' | 'warn' | 'critical';
 
@@ -67,7 +152,7 @@ export function formatObservedUsage(count: number, preset: UsageRangePreset) {
   if (preset === '30d') {
     return `${formatted} in the last 30 days`;
   }
-  return `${formatted} this period`;
+  return `${formatted} this month`;
 }
 
 export function isDailyLimitFeature(featureId: string) {

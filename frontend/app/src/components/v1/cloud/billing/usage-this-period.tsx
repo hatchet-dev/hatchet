@@ -6,8 +6,8 @@ import {
   meterPercent,
   nextRefillAt,
   selectDailyMeters,
+  shardUsageRows,
   sumUsageSeries,
-  toUsageDisplayRows,
   type DailyMeter,
   type UsageDisplayRow,
   type UsageRangePreset,
@@ -47,6 +47,7 @@ import {
   TooltipTrigger,
 } from '@/components/v1/ui/tooltip';
 import useControlPlane from '@/hooks/use-control-plane';
+import { useOrganizationEntitlements } from '@/hooks/use-organization-entitlements';
 import { queries } from '@/lib/api';
 import { OrganizationUsageFeature } from '@/lib/api/generated/control-plane/data-contracts';
 import { cn } from '@/lib/utils';
@@ -196,20 +197,32 @@ function formatRangeLabel(start?: string, end?: string) {
   return `${startDate.toLocaleDateString('en-US', opts)} – ${endDate.toLocaleDateString('en-US', opts)}`;
 }
 
-function rangeForPreset(
-  preset: RangePreset,
-  periodStart?: string,
-  periodEnd?: string,
-) {
+function rangeForPreset(preset: RangePreset) {
   const end = new Date();
-  if (preset === 'period' && periodStart && periodEnd) {
-    return { start: new Date(periodStart), end: new Date(periodEnd) };
+  if (preset === 'period') {
+    return {
+      start: new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), 1)),
+      end,
+    };
   }
   const days = preset === '7d' ? 7 : 30;
   return {
     start: new Date(end.getTime() - days * 24 * 60 * 60 * 1000),
     end,
   };
+}
+
+function sumLoadedCount(
+  tenants: { crons?: number; scheduledRuns?: number; webhooks?: number }[],
+  key: 'crons' | 'scheduledRuns' | 'webhooks',
+) {
+  if (tenants.length === 0) {
+    return 0;
+  }
+  if (tenants.some((tenant) => tenant[key] == null)) {
+    return undefined;
+  }
+  return tenants.reduce((sum, tenant) => sum + (tenant[key] ?? 0), 0);
 }
 
 function metricValue(
@@ -261,7 +274,7 @@ function UsageMeter({
   onSelect: () => void;
   onUpgrade: () => void;
 }) {
-  const { feature, dailyMeter, showPeriodAsCount } = row;
+  const { feature, dailyMeter, showPeriodAsCount, countOnly } = row;
   const periodCount =
     observedUsage !== undefined
       ? formatObservedUsage(observedUsage, rangePreset)
@@ -285,9 +298,11 @@ function UsageMeter({
     : `Upgrade to raise the ${feature.name} limit`;
   const primaryValue = dailyMeter
     ? formatDailyMeterValue(dailyMeter)
-    : showPeriodAsCount
-      ? periodCount
-      : formatUsageLabel(feature);
+    : countOnly
+      ? formatUsageCount(feature.usage)
+      : showPeriodAsCount
+        ? periodCount
+        : formatUsageLabel(feature);
 
   const content = (
     <>
@@ -382,10 +397,7 @@ export function UsageThisPeriod({
     { tenantId: string; tenantName: string }[]
   >([]);
 
-  const usage = useQuery({
-    ...queries.controlPlane.usage(organizationId ?? ''),
-    enabled: isControlPlaneEnabled && canBill && !!organizationId,
-  });
+  const { entitlements } = useOrganizationEntitlements(organizationId);
 
   const resourceLimits = useQuery({
     ...queries.controlPlane.tenantResourceLimits(organizationId ?? ''),
@@ -393,31 +405,12 @@ export function UsageThisPeriod({
     enabled: isControlPlaneEnabled && canBill && !!organizationId,
   });
 
-  const features = useMemo(
-    () => [...(usage.data?.features ?? [])].sort((a, b) => b.usage - a.usage),
-    [usage.data?.features],
-  );
   const dailyMeters = useMemo(
     () => selectDailyMeters(resourceLimits.data?.tenants ?? [], tenantId),
     [resourceLimits.data?.tenants, tenantId],
   );
-  const rows = useMemo(
-    () => toUsageDisplayRows(features, dailyMeters),
-    [dailyMeters, features],
-  );
-  const detailFeature = features.find(
-    (feature) => feature.featureId === detailFeatureId,
-  );
 
-  const range = useMemo(
-    () =>
-      rangeForPreset(
-        rangePreset,
-        usage.data?.periodStart,
-        usage.data?.periodEnd,
-      ),
-    [rangePreset, usage.data?.periodEnd, usage.data?.periodStart],
-  );
+  const range = useMemo(() => rangeForPreset(rangePreset), [rangePreset]);
 
   const timeseries = useQuery({
     ...queries.controlPlane.usageTimeseries(organizationId ?? '', {
@@ -452,6 +445,36 @@ export function UsageThisPeriod({
     );
   }, [resourceLimits.data?.tenants, tenantId, timeseries.data?.tenants]);
 
+  const rows = useMemo(() => {
+    const shardTenants = timeseries.data?.tenants ?? [];
+    return shardUsageRows(
+      {
+        taskRuns: sumUsageSeries(
+          (timeseries.data?.series ?? []).map((point) => point.taskRuns),
+        ),
+        events: sumUsageSeries(
+          (timeseries.data?.series ?? []).map((point) => point.events),
+        ),
+        crons: sumLoadedCount(shardTenants, 'crons'),
+        scheduledRuns: sumLoadedCount(shardTenants, 'scheduledRuns'),
+        webhooks: sumLoadedCount(shardTenants, 'webhooks'),
+        tenants: tenantId === 'all' ? entitlements?.tenants : undefined,
+        users: tenantId === 'all' ? entitlements?.users : undefined,
+      },
+      dailyMeters,
+    );
+  }, [
+    dailyMeters,
+    entitlements?.tenants,
+    entitlements?.users,
+    tenantId,
+    timeseries.data?.series,
+    timeseries.data?.tenants,
+  ]);
+  const detailFeature = rows.find(
+    (row) => row.feature.featureId === detailFeatureId,
+  )?.feature;
+
   const seriesByFeature = useMemo(() => {
     const series = timeseries.data?.series ?? [];
     return {
@@ -475,7 +498,7 @@ export function UsageThisPeriod({
     0,
   );
 
-  if (usage.isPending && !timeseries.data) {
+  if (timeseries.isPending) {
     return (
       <Card
         variant="light"
@@ -493,18 +516,17 @@ export function UsageThisPeriod({
     );
   }
 
-  if (usage.isError && timeseries.isError) {
+  if (timeseries.isError) {
     return (
       <Alert variant="warn">
         <AlertTitle>Usage unavailable</AlertTitle>
         <AlertDescription className="flex flex-col gap-3">
-          <span>We couldn&apos;t load usage for this billing period.</span>
+          <span>We couldn&apos;t load usage from your shards.</span>
           <div>
             <Button
               size="sm"
               variant="outline"
               onClick={() => {
-                void usage.refetch();
                 void timeseries.refetch();
                 void resourceLimits.refetch();
               }}
@@ -537,12 +559,7 @@ export function UsageThisPeriod({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="period">
-                    {formatRangeLabel(
-                      usage.data?.periodStart,
-                      usage.data?.periodEnd,
-                    ) ?? 'Current period'}
-                  </SelectItem>
+                  <SelectItem value="period">This month</SelectItem>
                   <SelectItem value="7d">Last 7 days</SelectItem>
                   <SelectItem value="30d">Last 30 days</SelectItem>
                 </SelectContent>

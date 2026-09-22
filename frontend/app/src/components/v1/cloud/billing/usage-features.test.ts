@@ -4,6 +4,7 @@ import {
   formatTimeUntil,
   nextRefillAt,
   selectDailyMeters,
+  shardUsageRows,
   sumUsageSeries,
   toUsageDisplayRows,
 } from './usage-features';
@@ -69,9 +70,74 @@ describe('observed usage', () => {
   });
 
   it('labels the count for the selected window', () => {
-    assert.equal(formatObservedUsage(15, 'period'), '15 this period');
+    assert.equal(formatObservedUsage(15, 'period'), '15 this month');
     assert.equal(formatObservedUsage(1500, '7d'), '1,500 in the last 7 days');
     assert.equal(formatObservedUsage(0, '30d'), '0 in the last 30 days');
+  });
+});
+
+describe('shardUsageRows', () => {
+  it('builds the table from shard counts and skips inventory that did not load', () => {
+    const rows = shardUsageRows({
+      taskRuns: 12,
+      events: 4,
+      crons: 9,
+      tenants: { used: 4, limit: -1, unlimited: true },
+      users: { used: 1, limit: 3, unlimited: false },
+    });
+
+    assert.deepEqual(
+      rows.map((row) => ({
+        id: row.feature.featureId,
+        usage: row.feature.usage,
+        unlimited: row.feature.unlimited,
+        included: row.feature.includedUsage,
+        period: row.showPeriodAsCount,
+        countOnly: row.countOnly ?? false,
+      })),
+      [
+        {
+          id: 'task_runs',
+          usage: 12,
+          unlimited: false,
+          included: 0,
+          period: true,
+          countOnly: false,
+        },
+        {
+          id: 'events',
+          usage: 4,
+          unlimited: false,
+          included: 0,
+          period: true,
+          countOnly: false,
+        },
+        {
+          id: 'crons',
+          usage: 9,
+          unlimited: false,
+          included: 0,
+          period: false,
+          countOnly: true,
+        },
+        {
+          id: 'tenants',
+          usage: 4,
+          unlimited: true,
+          included: 0,
+          period: false,
+          countOnly: false,
+        },
+        {
+          id: 'users',
+          usage: 1,
+          unlimited: false,
+          included: 3,
+          period: false,
+          countOnly: false,
+        },
+      ],
+    );
   });
 });
 
@@ -174,6 +240,8 @@ describe('toUsageDisplayRows', () => {
         usage: 0,
         includedUsage: 0,
       }),
+      feature('queue_backlog_limit', { name: 'Queue Backlog', usage: 0 }),
+      feature('ingested_bytes', { name: 'Ingested Bytes', usage: 0 }),
     ]);
 
     assert.deepEqual(
