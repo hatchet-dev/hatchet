@@ -41,9 +41,11 @@ export function SetupCard({
 }
 
 // DialogContent still portals, traps focus, and closes on Escape. Strip its
-// chrome when the visible surface is a SetupCard.
+// chrome when the visible surface is a SetupCard, but keep a solid background
+// behind the card: its own fill is translucent and page text would otherwise
+// bleed through the overlay.
 export const setupCardDialogClassName =
-  'gap-0 border-none bg-transparent p-0 shadow-none sm:rounded-none';
+  'gap-0 rounded-xl border-none bg-background p-0 shadow-none sm:rounded-xl';
 
 // `fixed` so the screen covers the app shell (nav and sidebar) on routes that
 // render inside it.
