@@ -98,6 +98,17 @@ jobs:
           version: "29.6"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
+      # The action matches the version by prefix and does not pin the archive, so the compiler
+      # that generates the bindings is checked to be exactly the one they are committed from.
+      - name: Check protoc version
+        if: matrix.package-manager == 'pnpm'
+        run: |
+          version="$(protoc --version)"
+          if [ "$version" != "libprotoc 29.6" ]; then
+            echo "::error::expected libprotoc 29.6, got $version"
+            exit 1
+          fi
+
       - name: Generate OpenAPI spec
         if: matrix.package-manager == 'pnpm'
         working-directory: .
