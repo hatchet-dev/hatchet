@@ -10,6 +10,8 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/google/uuid"
+	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx/v5/pgconn"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/internal/listutils"
@@ -828,7 +830,7 @@ func (a *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts 
 		idempotencyKeyCollisions, err := a.tw.TriggerFromWorkflowNamesWaiting(ctx, tenantId, optsToSend)
 		if err != nil {
 			if errors.Is(err, trigger.ErrNoTriggerSlots) {
-				return nil, status.Error(codes.ResourceExhausted, err.Error())
+				return nil, connect.NewError(connect.CodeResourceExhausted, err)
 			}
 
 			return nil, fmt.Errorf("could not trigger workflows: %w", err)
@@ -960,13 +962,31 @@ func (a *AdminServiceImpl) ensureDAGOperator(ctx context.Context, tenantId uuid.
 		return fmt.Errorf("could not marshal DAG operator config: %w", err)
 	}
 
+	// The DAG operator is engine-leased: the claimer assigns the row to a dispatcher and
+	// builds the operator there.
 	_, err = a.repo.Operators().CreateOperator(ctx, tenantId, v1.CreateOperatorOpts{
-		Name:   "default",
-		Kind:   sqlcv1.V1OperatorKindDAG,
-		Config: config,
+		Name:           "default",
+		Kind:           sqlcv1.V1OperatorKindDAG,
+		LeasingManager: sqlcv1.V1OperatorLeasingManagerDISPATCHER,
+		Config:         config,
 	})
 
+	// Two workflows put at once both see no operator and both create one; the row is unique
+	// per (tenant, name, kind), so the second insert loses and the tenant has its operator
+	// either way.
+	if isUniqueViolation(err) {
+		return nil
+	}
+
 	return err
+}
+
+// isUniqueViolation reports whether err is Postgres refusing a row that duplicates a unique
+// index.
+func isUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+
+	return errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation
 }
 
 func getActionsForTasks(tasks []*contracts.CreateTaskOpts) ([]string, error) {

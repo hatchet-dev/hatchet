@@ -43,6 +43,30 @@ func TestValidatorName(t *testing.T) {
 	}
 }
 
+type actionResource struct {
+	Actions []string `validate:"dive,actionId"`
+	Action  *string  `validate:"omitempty,actionId"`
+}
+
+// The actionId tag is what every registration path validates action ids with: worker
+// registration, worker update, operator action deltas and workflow step actions. It refuses
+// a semicolon anywhere in the id, since the worker action hash frames ids with one.
+func TestValidatorActionId(t *testing.T) {
+	v := newValidator()
+
+	assert.NoError(t, v.Struct(&actionResource{Actions: []string{"svc:run", "svc:run:sub", "Svc:Run"}}))
+
+	for _, id := range []string{"svc:a;svc:b", "svc:run;", "run", "a:b:c:d", ":run", "svc:"} {
+		t.Run(id, func(t *testing.T) {
+			err := v.Struct(&actionResource{Actions: []string{id}})
+			assert.ErrorContains(t, err, "failed on the 'actionId' tag")
+
+			err = v.Struct(&actionResource{Action: &id})
+			assert.ErrorContains(t, err, "failed on the 'actionId' tag")
+		})
+	}
+}
+
 type cronResource struct {
 	Cron string `validate:"cron"`
 }

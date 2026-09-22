@@ -1304,7 +1304,9 @@ func (d *durableHatchetContext) Memo(key string, fn func() (any, error)) (json.R
 			return nil, fmt.Errorf("failed to marshal memo result: %w", err)
 		}
 
-		listener.SendMemoCompleted(ack.Ref, memoKey, payload)
+		if err := listener.SendMemoCompleted(d.GetContext(), ack.Ref, memoKey, payload); err != nil {
+			return nil, fmt.Errorf("failed to send memo completion: %w", err)
+		}
 
 		d.memoMu.Lock()
 		d.memoCache[key] = payload

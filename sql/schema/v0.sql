@@ -874,7 +874,15 @@ CREATE TABLE "Worker" (
     "runtimeExtra" TEXT,
     "sdkVersion" TEXT,
     "durableTaskDispatcherId" UUID,
+    -- The canonical digest of the worker's linked action set (ComputeWorkerActionHash). NULL
+    -- for workers registered before the column existed, and for operator workers between a
+    -- delta that changed their links and the refresh at the end of the delta sequence; the
+    -- scheduler reads such workers' actions through the join instead of the hash cache.
     "actionHash" BYTEA,
+    -- Count of the worker's "_ActionToWorker" rows, read only for operator workers.
+    "operatorActionCount" INTEGER NOT NULL DEFAULT 0,
+    -- Set at creation by the host: in-process operator workers are exempt, wire-registered ones are metered.
+    "isExemptFromLimits" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "Worker_pkey" PRIMARY KEY ("id")
 );

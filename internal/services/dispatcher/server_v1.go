@@ -572,6 +572,18 @@ func (d *DispatcherServiceImpl) DurableTask(ctx context.Context, server *connect
 	return d.durableTask(ctx, server.Receive, sender)
 }
 
+// DurableTaskWithReceive runs a durable task session over the two halves of a DurableTask
+// stream that another service owns: the operator service authorizes the stream and reads its
+// first message itself, then hands the rest over through receive. sender must be closed by the
+// caller before its handler returns.
+func (d *DispatcherServiceImpl) DurableTaskWithReceive(
+	ctx context.Context,
+	receive func() (*contracts.DurableTaskRequest, error),
+	sender *rpcstream.Sender[contracts.DurableTaskResponse],
+) error {
+	return d.durableTask(ctx, receive, sender)
+}
+
 // durableTask runs a durable task session over the two halves of the DurableTask stream.
 func (d *DispatcherServiceImpl) durableTask(
 	ctx context.Context,

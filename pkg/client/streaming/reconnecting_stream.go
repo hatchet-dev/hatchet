@@ -1,6 +1,8 @@
-// Deprecated: This package is part of the legacy v0 workflow definition system.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
-package client
+// Package streaming holds the machinery every long-lived gRPC stream client in
+// this module shares: a stream whose underlying client is replaced on
+// reconnect, the receive loop that drives it with backoff, and the error
+// classification that decides between reconnecting and stopping.
+package streaming
 
 import (
 	"context"
@@ -14,9 +16,11 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client/retry"
 )
 
-var errStreamNotConnected = errors.New("client is not connected")
+// ErrStreamNotConnected is returned by a send on a stream that has no client
+// installed.
+var ErrStreamNotConnected = errors.New("client is not connected")
 
-// reconnectingStream is one logical gRPC stream whose underlying client can be
+// ReconnectingStream is one logical gRPC stream whose underlying client can be
 // replaced on reconnect. connectGroup (singleflight) coalesces concurrent
 // connect attempts so only one replacement stream opens. Connect runs outside
 // mu so snapshots do not block behind network I/O. replay re-sends current
@@ -24,13 +28,13 @@ var errStreamNotConnected = errors.New("client is not connected")
 // Close; caller contexts must not kill shared listeners.
 // NOTE: field order follows govet fieldalignment (enforced by the pre-commit
 // autofixer); mu guards client, generation, hasClient, and closed.
-type reconnectingStream[C any] struct {
+type ReconnectingStream[C any] struct {
 	lifecycleCtx context.Context
 	client       C
 	connectGroup singleflight.Group
 
 	// sleep waits out the backoff delay for the given attempt. Tests inject a
-	// no-op; production uses retry.SleepStreamBackoff.
+	// no-op through SetSleep; production uses retry.SleepStreamBackoff.
 	sleep func(ctx context.Context, attempt int) error
 
 	constructor     func(context.Context) (C, error)
@@ -54,27 +58,32 @@ type reconnectingStream[C any] struct {
 	closed    bool
 }
 
-func newReconnectingStream[C any](
+// NewReconnectingStream builds a stream whose lifecycle ends only with Close.
+// constructor opens a new client, closeSend half-closes a retired one, and
+// replay (optional) brings a fresh client up to date before it is published.
+func NewReconnectingStream[C any](
 	l *zerolog.Logger,
 	name string,
 	constructor func(context.Context) (C, error),
 	closeSend func(C) error,
 	replay func(context.Context, C) error,
-) *reconnectingStream[C] {
-	return newReconnectingStreamWithLifecycle(context.Background(), l, name, constructor, closeSend, replay)
+) *ReconnectingStream[C] {
+	return NewReconnectingStreamWithLifecycle(context.Background(), l, name, constructor, closeSend, replay)
 }
 
-func newReconnectingStreamWithLifecycle[C any](
+// NewReconnectingStreamWithLifecycle is NewReconnectingStream with a parent
+// for the lifecycle context, so cancelling parent also ends the stream.
+func NewReconnectingStreamWithLifecycle[C any](
 	parent context.Context,
 	l *zerolog.Logger,
 	name string,
 	constructor func(context.Context) (C, error),
 	closeSend func(C) error,
 	replay func(context.Context, C) error,
-) *reconnectingStream[C] {
+) *ReconnectingStream[C] {
 	lifecycleCtx, lifecycleCancel := context.WithCancel(parent) // nolint: gosec // lifecycleCancel is stored on the struct and called by Close
 
-	return &reconnectingStream[C]{
+	return &ReconnectingStream[C]{
 		constructor:     constructor,
 		closeSend:       closeSend,
 		replay:          replay,
@@ -86,13 +95,29 @@ func newReconnectingStreamWithLifecycle[C any](
 	}
 }
 
-func (s *reconnectingStream[C]) snapshot() (client C, generation uint64, ok bool) {
+// SetSleep replaces the backoff sleep used between reconnect and send
+// attempts. Tests use it to disable backoff; it is not safe to call once the
+// stream is in use.
+func (s *ReconnectingStream[C]) SetSleep(sleep func(ctx context.Context, attempt int) error) {
+	s.sleep = sleep
+}
+
+// Name is the stream's name in log messages.
+func (s *ReconnectingStream[C]) Name() string {
+	return s.name
+}
+
+// Snapshot returns the current client, its generation, and whether one is
+// installed. It never blocks behind network I/O.
+func (s *ReconnectingStream[C]) Snapshot() (client C, generation uint64, ok bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.client, s.generation, s.hasClient
 }
 
-func (s *reconnectingStream[C]) setInitialClient(client C) {
+// SetInitialClient installs client without a connect when none is installed
+// yet; a later ConnectOnce replaces it like any other.
+func (s *ReconnectingStream[C]) SetInitialClient(client C) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -106,11 +131,11 @@ func (s *reconnectingStream[C]) setInitialClient(client C) {
 
 // installClientLocked publishes client and retires the previous client. The
 // caller must hold sendMu.
-func (s *reconnectingStream[C]) installClientLocked(client C) error {
+func (s *ReconnectingStream[C]) installClientLocked(client C) error {
 	s.mu.Lock()
 	if s.closed {
 		s.mu.Unlock()
-		return errListenerClosed
+		return ErrListenerClosed
 	}
 
 	oldClient := s.client
@@ -130,22 +155,27 @@ func (s *reconnectingStream[C]) installClientLocked(client C) error {
 	return nil
 }
 
-func (s *reconnectingStream[C]) isClosed() bool {
+// IsClosed reports whether Close has been called.
+func (s *ReconnectingStream[C]) IsClosed() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.closed
 }
 
-func (s *reconnectingStream[C]) lifecycleContext() context.Context {
+// LifecycleContext is the context that only Close cancels. Reconnects and
+// background loops that must outlive any one caller use it.
+func (s *ReconnectingStream[C]) LifecycleContext() context.Context {
 	return s.lifecycleCtx
 }
 
-func (s *reconnectingStream[C]) connectOnce(ctx context.Context) error {
+// ConnectOnce makes one connect attempt, coalesced with any concurrent one,
+// and publishes the new client after replay.
+func (s *ReconnectingStream[C]) ConnectOnce(ctx context.Context) error {
 	_, err, _ := s.connectGroup.Do("connect", func() (interface{}, error) {
 		s.mu.Lock()
 		if s.closed {
 			s.mu.Unlock()
-			return nil, errListenerClosed
+			return nil, ErrListenerClosed
 		}
 		s.mu.Unlock()
 
@@ -178,9 +208,11 @@ func (s *reconnectingStream[C]) connectOnce(ctx context.Context) error {
 	return err
 }
 
-func (s *reconnectingStream[C]) connectSync(ctx context.Context) error {
-	if s.isClosed() {
-		return errListenerClosed
+// ConnectSync connects with bounded retries and backoff, returning the last
+// error when every attempt fails.
+func (s *ReconnectingStream[C]) ConnectSync(ctx context.Context) error {
+	if s.IsClosed() {
+		return ErrListenerClosed
 	}
 
 	if err := ctx.Err(); err != nil {
@@ -195,22 +227,22 @@ func (s *reconnectingStream[C]) connectSync(ctx context.Context) error {
 			}
 		}
 
-		if s.isClosed() {
-			return errListenerClosed
+		if s.IsClosed() {
+			return ErrListenerClosed
 		}
 
 		if err := ctx.Err(); err != nil {
 			return err
 		}
 
-		err := s.connectOnce(ctx)
+		err := s.ConnectOnce(ctx)
 		if err == nil {
 			return nil
 		}
 
 		lastErr = err
 
-		if errors.Is(err, errListenerClosed) || retry.ClassifyStreamError(ctx, err) == retry.StreamDecisionStop {
+		if errors.Is(err, ErrListenerClosed) || retry.ClassifyStreamError(ctx, err) == retry.StreamDecisionStop {
 			return err
 		}
 
@@ -221,14 +253,14 @@ func (s *reconnectingStream[C]) connectSync(ctx context.Context) error {
 	return fmt.Errorf("could not connect to %s after %d attempts: %w", s.name, retry.StreamSyncMaxAttempts, lastErr)
 }
 
-// retrySend sends with bounded retries. Each failed attempt makes at most one
-// reconnect attempt (connectOnce, coalesced with any concurrent reconnect via
+// RetrySend sends with bounded retries. Each failed attempt makes at most one
+// reconnect attempt (ConnectOnce, coalesced with any concurrent reconnect via
 // singleflight) before backing off, so the total budget is
 // StreamSyncMaxAttempts sends, at most StreamSyncMaxAttempts reconnects, and
 // at most StreamSyncMaxAttempts-1 backoff sleeps.
-// A reconnect failure that is permanent (errListenerClosed or classified
+// A reconnect failure that is permanent (ErrListenerClosed or classified
 // StreamDecisionStop) short-circuits immediately.
-func (s *reconnectingStream[C]) retrySend(ctx context.Context, send func(C) error) error {
+func (s *ReconnectingStream[C]) RetrySend(ctx context.Context, send func(C) error) error {
 	var lastErr error
 	for attempt := 0; attempt < retry.StreamSyncMaxAttempts; attempt++ {
 		var gen uint64
@@ -236,9 +268,9 @@ func (s *reconnectingStream[C]) retrySend(ctx context.Context, send func(C) erro
 			s.sendMu.Lock()
 			defer s.sendMu.Unlock()
 
-			client, g, ok := s.snapshot()
+			client, g, ok := s.Snapshot()
 			if !ok {
-				return errStreamNotConnected
+				return ErrStreamNotConnected
 			}
 			gen = g
 			return send(client)
@@ -246,19 +278,19 @@ func (s *reconnectingStream[C]) retrySend(ctx context.Context, send func(C) erro
 		if err == nil {
 			return nil
 		}
-		if errors.Is(err, errStreamNotConnected) {
+		if errors.Is(err, ErrStreamNotConnected) {
 			return err
 		}
 
 		lastErr = err
 		s.l.Warn().Err(err).Str("stream", s.name).Int("attempt", attempt+1).Msg("stream send failed")
 
-		if _, genAfter, _ := s.snapshot(); genAfter != gen {
+		if _, genAfter, _ := s.Snapshot(); genAfter != gen {
 			continue
 		}
 
-		if rerr := s.connectOnce(ctx); rerr != nil {
-			if errors.Is(rerr, errListenerClosed) || retry.ClassifyStreamError(ctx, rerr) == retry.StreamDecisionStop {
+		if rerr := s.ConnectOnce(ctx); rerr != nil {
+			if errors.Is(rerr, ErrListenerClosed) || retry.ClassifyStreamError(ctx, rerr) == retry.StreamDecisionStop {
 				return fmt.Errorf("could not reconnect %s to retry send: %w", s.name, rerr)
 			}
 			s.l.Error().Err(rerr).Str("stream", s.name).Msg("stream reconnect after send failure failed")
@@ -274,8 +306,25 @@ func (s *reconnectingStream[C]) retrySend(ctx context.Context, send func(C) erro
 	return fmt.Errorf("could not send to %s after %d attempts: %w", s.name, retry.StreamSyncMaxAttempts, lastErr)
 }
 
-func (s *reconnectingStream[C]) closeStream() error {
-	client, _, ok := s.snapshot()
+// SendOnce performs one send on the current client under sendMu and never
+// reconnects. Callers that keep their own record of what was sent use it so
+// a reconnect's replay is the only path that sends the same message again.
+func (s *ReconnectingStream[C]) SendOnce(send func(C) error) error {
+	s.sendMu.Lock()
+	defer s.sendMu.Unlock()
+
+	client, _, ok := s.Snapshot()
+	if !ok {
+		return ErrStreamNotConnected
+	}
+
+	return send(client)
+}
+
+// CloseStream half-closes the current client without closing the stream, so
+// the receive loop reconnects.
+func (s *ReconnectingStream[C]) CloseStream() error {
+	client, _, ok := s.Snapshot()
 	if !ok || s.closeSend == nil {
 		return nil
 	}
@@ -285,7 +334,9 @@ func (s *reconnectingStream[C]) closeStream() error {
 	return s.closeSend(client)
 }
 
-func (s *reconnectingStream[C]) Close() error {
+// Close ends the stream for good: the lifecycle context is cancelled and the
+// current client is half-closed.
+func (s *ReconnectingStream[C]) Close() error {
 	s.mu.Lock()
 	s.closed = true
 	s.mu.Unlock()
@@ -294,5 +345,5 @@ func (s *reconnectingStream[C]) Close() error {
 		s.lifecycleCancel()
 	}
 
-	return s.closeStream()
+	return s.CloseStream()
 }
