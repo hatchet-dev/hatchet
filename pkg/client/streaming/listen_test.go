@@ -1,4 +1,4 @@
-package client
+package streaming
 
 import (
 	"context"
@@ -39,13 +39,13 @@ func TestListenReconnectingStreamHandlesEventsAndStopsOnEOF(t *testing.T) {
 
 	listenErr := make(chan error, 1)
 	go func() {
-		listenErr <- listenStream(context.Background(), stream,
+		listenErr <- Listen(context.Background(), stream,
 			func(c *testListenClient) (testListenEvent, error) { return c.Recv() },
 			func(event testListenEvent) error {
 				handled.Store(event.value)
 				return nil
 			},
-			newStreamClassifier(func(context.Context) bool { return false }),
+			NewClassifier(func(context.Context) bool { return false }),
 		)
 	}()
 
@@ -73,10 +73,10 @@ func TestListenReconnectingStreamContextCancellationReturnsNil(t *testing.T) {
 		return client, nil
 	})
 
-	err := listenStream(ctx, stream,
+	err := Listen(ctx, stream,
 		func(c *testListenClient) (testListenEvent, error) { return c.Recv() },
 		func(testListenEvent) error { return nil },
-		newStreamClassifier(func(context.Context) bool { return true }),
+		NewClassifier(func(context.Context) bool { return true }),
 	)
 	require.NoError(t, err)
 }
@@ -94,10 +94,10 @@ func TestListenReconnectingStreamPermanentRecvErrorReturnsError(t *testing.T) {
 		return nil, nil
 	})
 
-	err := listenStream(context.Background(), stream,
+	err := Listen(context.Background(), stream,
 		func(c *testListenClient) (testListenEvent, error) { return c.Recv() },
 		func(testListenEvent) error { return nil },
-		newStreamClassifier(func(context.Context) bool { return true }),
+		NewClassifier(func(context.Context) bool { return true }),
 	)
 	require.ErrorIs(t, err, recvErr)
 	assert.Equal(t, codes.PermissionDenied, status.Code(err))
@@ -132,14 +132,14 @@ func TestListenReconnectingStreamReconnectsOnEOFWhenPolicyAllows(t *testing.T) {
 	var handled atomic.Value
 	listenErr := make(chan error, 1)
 	go func() {
-		listenErr <- listenStream(ctx, stream,
+		listenErr <- Listen(ctx, stream,
 			func(c *testListenClient) (testListenEvent, error) { return c.Recv() },
 			func(event testListenEvent) error {
 				handled.Store(event.value)
 				cancel()
 				return nil
 			},
-			newStreamClassifier(func(context.Context) bool { return ctx.Err() == nil }),
+			NewClassifier(func(context.Context) bool { return ctx.Err() == nil }),
 		)
 	}()
 
@@ -172,10 +172,10 @@ func TestListenReconnectingStreamChecksEOFPolicyEachRecvError(t *testing.T) {
 		return client, nil
 	})
 
-	err := listenStream(context.Background(), stream,
+	err := Listen(context.Background(), stream,
 		func(c *testListenClient) (testListenEvent, error) { return c.Recv() },
 		func(testListenEvent) error { return nil },
-		newStreamClassifier(func(context.Context) bool {
+		NewClassifier(func(context.Context) bool {
 			return policyCalls.Add(1) == 1
 		}),
 	)
@@ -203,10 +203,10 @@ func TestListenReconnectingStreamNoProgressReconnectsBeforeCap(t *testing.T) {
 		return client, nil
 	})
 
-	err := listenStream(context.Background(), stream,
+	err := Listen(context.Background(), stream,
 		func(c *testListenClient) (testListenEvent, error) { return c.Recv() },
 		func(testListenEvent) error { return nil },
-		newStreamClassifier(func(context.Context) bool { return false }),
+		NewClassifier(func(context.Context) bool { return false }),
 	)
 	require.NoError(t, err)
 	assert.Equal(t, int32(1), constructorCalls.Load())
@@ -228,15 +228,15 @@ func TestListenStreamNoProgressStopsAtCap(t *testing.T) {
 		return nil, fmt.Errorf("plain connect error")
 	})
 
-	err := listenStream(context.Background(), stream,
+	err := Listen(context.Background(), stream,
 		func(c *testListenClient) (testListenEvent, error) { return c.Recv() },
 		func(testListenEvent) error { return nil },
-		newStreamClassifier(func(context.Context) bool { return true }),
+		NewClassifier(func(context.Context) bool { return true }),
 	)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "made no progress")
 	assert.Equal(t, int32(1), recvCalls.Load())
-	assert.GreaterOrEqual(t, constructorCalls.Load(), int32(maxConsecutiveStreamNoProgress-2))
+	assert.GreaterOrEqual(t, constructorCalls.Load(), int32(MaxConsecutiveNoProgress-2))
 }
 
 func TestListenStreamNoProgressFatalClassifierStopsImmediately(t *testing.T) {
@@ -254,15 +254,15 @@ func TestListenStreamNoProgressFatalClassifierStopsImmediately(t *testing.T) {
 		return nil, nil
 	})
 
-	base := newStreamClassifier(func(context.Context) bool { return false })
-	classify := func(ctx context.Context, err error) streamVerdict {
-		if v := base(ctx, err); v != verdictNoProgress {
+	base := NewClassifier(func(context.Context) bool { return false })
+	classify := func(ctx context.Context, err error) Verdict {
+		if v := base(ctx, err); v != VerdictNoProgress {
 			return v
 		}
-		return verdictStopError
+		return VerdictStopError
 	}
 
-	err := listenStream(context.Background(), stream,
+	err := Listen(context.Background(), stream,
 		func(c *testListenClient) (testListenEvent, error) { return c.Recv() },
 		func(testListenEvent) error { return nil },
 		classify,
@@ -290,17 +290,17 @@ func TestListenStreamConnectsUseLifecycleContext(t *testing.T) {
 		return client, nil
 	})
 
-	err := listenStream(listenCtx, stream,
+	err := Listen(listenCtx, stream,
 		func(c *testListenClient) (testListenEvent, error) { return c.Recv() },
 		func(testListenEvent) error { return nil },
-		newStreamClassifier(func(context.Context) bool {
+		NewClassifier(func(context.Context) bool {
 			return recvCalls.Load() == 1
 		}),
 	)
 	require.NoError(t, err)
 
 	storedCtx := constructorCtx.Load().(context.Context)
-	assert.Equal(t, stream.lifecycleContext(), storedCtx)
+	assert.Equal(t, stream.LifecycleContext(), storedCtx)
 }
 
 func TestListenReconnectingStreamGenerationChangeFastPath(t *testing.T) {
@@ -326,10 +326,10 @@ func TestListenReconnectingStreamGenerationChangeFastPath(t *testing.T) {
 
 	listenErr := make(chan error, 1)
 	go func() {
-		listenErr <- listenStream(context.Background(), stream,
+		listenErr <- Listen(context.Background(), stream,
 			func(c *testListenClient) (testListenEvent, error) { return c.Recv() },
 			func(testListenEvent) error { return nil },
-			newStreamClassifier(func(context.Context) bool { return false }),
+			NewClassifier(func(context.Context) bool { return false }),
 		)
 	}()
 
@@ -363,10 +363,10 @@ func TestListenReconnectingStreamClosesListenedClientOnExit(t *testing.T) {
 		return replacementClient, nil
 	})
 
-	require.NoError(t, listenStream(context.Background(), stream,
+	require.NoError(t, Listen(context.Background(), stream,
 		func(c *testListenClient) (testListenEvent, error) { return c.Recv() },
 		func(testListenEvent) error { return nil },
-		newStreamClassifier(func(context.Context) bool { return false }),
+		NewClassifier(func(context.Context) bool { return false }),
 	))
 	assert.True(t, initialClient.closeCalled.Load())
 	assert.False(t, replacementClient.closeCalled.Load())
@@ -383,10 +383,10 @@ func TestListenStreamReconnectsUnboundedlyOnTransientErrors(t *testing.T) {
 		return nil, status.Error(codes.Unavailable, "still down")
 	})
 
-	err := listenStream(ctx, stream,
+	err := Listen(ctx, stream,
 		func(c *testListenClient) (testListenEvent, error) { return c.Recv() },
 		func(testListenEvent) error { return nil },
-		newStreamClassifier(func(context.Context) bool { return true }),
+		NewClassifier(func(context.Context) bool { return true }),
 	)
 	require.NoError(t, err)
 	assert.Greater(t, constructorCalls.Load(), int32(retry.StreamSyncMaxAttempts))
@@ -408,15 +408,15 @@ func TestListenStreamRetryableRecvFailureAppliesReconnectBackoff(t *testing.T) {
 	stream := newTestListenStream(t, client, func(ctx context.Context) (*testListenClient, error) {
 		return client, nil
 	})
-	stream.sleep = func(_ context.Context, attempt int) error {
+	stream.SetSleep(func(_ context.Context, attempt int) error {
 		sleepAttempts = append(sleepAttempts, attempt)
 		return nil
-	}
+	})
 
-	err := listenStream(context.Background(), stream,
+	err := Listen(context.Background(), stream,
 		func(c *testListenClient) (testListenEvent, error) { return c.Recv() },
 		func(testListenEvent) error { return nil },
-		newStreamClassifier(func(context.Context) bool { return false }),
+		NewClassifier(func(context.Context) bool { return false }),
 	)
 	require.NoError(t, err)
 	assert.Equal(t, []int{0}, sleepAttempts)
@@ -432,15 +432,15 @@ func TestListenStreamSleepCancellationReturnsNil(t *testing.T) {
 	}, func(ctx context.Context) (*testListenClient, error) {
 		return nil, status.Error(codes.Unavailable, "still down")
 	})
-	stream.sleep = func(sleepCtx context.Context, _ int) error {
+	stream.SetSleep(func(sleepCtx context.Context, _ int) error {
 		cancel()
 		return sleepCtx.Err()
-	}
+	})
 
-	err := listenStream(ctx, stream,
+	err := Listen(ctx, stream,
 		func(c *testListenClient) (testListenEvent, error) { return c.Recv() },
 		func(testListenEvent) error { return nil },
-		newStreamClassifier(func(context.Context) bool { return true }),
+		NewClassifier(func(context.Context) bool { return true }),
 	)
 	require.NoError(t, err)
 }

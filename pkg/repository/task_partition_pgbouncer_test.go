@@ -163,7 +163,7 @@ func TestUpdateTablePartitions_PgBouncer(t *testing.T) {
 
 	// Create partitions for 3 days ago using direct pool
 	threeDaysAgo := time.Now().UTC().AddDate(0, 0, -3)
-	err := queries.CreatePartitions(ctx, directPool, pgtype.Date{
+	_, err := queries.CreatePartitions(ctx, directPool, pgtype.Date{
 		Time:  threeDaysAgo,
 		Valid: true,
 	})

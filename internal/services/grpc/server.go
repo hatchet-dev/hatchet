@@ -68,6 +68,7 @@ type Server struct {
 	dispatcherv1  v1connect.V1DispatcherHandler
 	admin         admin.AdminService
 	adminv1       adminv1.AdminService
+	operatorSvc   v1connect.OperatorServiceHandler
 	otelCollector otelcol.OTelCollector
 	tls           *tls.Config
 	insecure      bool
@@ -92,6 +93,7 @@ type ServerOpts struct {
 	dispatcherv1  v1connect.V1DispatcherHandler
 	admin         admin.AdminService
 	adminv1       adminv1.AdminService
+	operatorSvc   v1connect.OperatorServiceHandler
 	otelCollector otelcol.OTelCollector
 	tls           *tls.Config
 	insecure      bool
@@ -210,6 +212,14 @@ func WithAdminV1(a adminv1.AdminService) ServerOpt {
 	}
 }
 
+// WithOperatorService registers the v1.OperatorService for out-of-process operators. When it is
+// not set the service is not registered and callers receive Unimplemented.
+func WithOperatorService(o v1connect.OperatorServiceHandler) ServerOpt {
+	return func(opts *ServerOpts) {
+		opts.operatorSvc = o
+	}
+}
+
 func WithOTelCollector(oc otelcol.OTelCollector) ServerOpt {
 	return func(opts *ServerOpts) {
 		opts.otelCollector = oc
@@ -260,6 +270,7 @@ func NewServer(fs ...ServerOpt) (*Server, error) {
 		dispatcherv1:  opts.dispatcherv1,
 		admin:         opts.admin,
 		adminv1:       opts.adminv1,
+		operatorSvc:   opts.operatorSvc,
 		otelCollector: opts.otelCollector,
 		tls:           opts.tls,
 		insecure:      opts.insecure,
@@ -336,6 +347,11 @@ func (s *Server) handler() (http.Handler, error) {
 
 	routes.addService(v1contracts.File_v1_workflows_proto.Services().ByName("AdminService"))
 	mux.Handle(v1connect.NewAdminServiceHandler(s.adminv1, opts...))
+
+	if s.operatorSvc != nil {
+		routes.addService(v1contracts.File_v1_operator_proto.Services().ByName("OperatorService"))
+		mux.Handle(v1connect.NewOperatorServiceHandler(s.operatorSvc, opts...))
+	}
 
 	if s.otelCollector != nil {
 		// Register as the standard OTLP TraceService for OTEL SDK compatibility

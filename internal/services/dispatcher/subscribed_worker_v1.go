@@ -19,7 +19,11 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
-var errFlowControlActive = errors.New("could not acquire worker send mutex, flow control is active")
+var (
+	errFlowControlActive = errors.New("could not acquire worker send mutex, flow control is active")
+	errSessionReleased   = errors.New("worker session has been released")
+	errWorkerPaused      = errors.New("worker session is paused, the task is returned to the queue")
+)
 
 func (worker *subscribedWorker) StartTaskFromBulk(
 	ctx context.Context,
@@ -73,7 +77,13 @@ func (worker *subscribedWorker) sendToWorker(
 	ctx context.Context,
 	action *contracts.AssignedAction,
 ) error {
-	if worker.operator != nil {
+	// a paused operator session refuses starts the way a failed send does, so the caller
+	// requeues the task; see subscribedWorker.paused
+	if action.ActionType != contracts.ActionType_CANCEL_STEP_RUN && worker.paused.Load() {
+		return errWorkerPaused
+	}
+
+	if worker.handler != nil {
 		return worker.sendToWorkerWithOperator(ctx, action)
 	}
 
@@ -95,7 +105,7 @@ func (worker *subscribedWorker) sendToWorkerWithOperator(
 		},
 	)
 
-	return worker.operator.HandleAction(ctx, action)
+	return worker.handler.HandleAction(ctx, action)
 }
 
 func (worker *subscribedWorker) sendToWorkerWithStream(
@@ -120,6 +130,12 @@ func (worker *subscribedWorker) sendToWorkerWithStream(
 			Value: len(action.ActionPayload),
 		},
 	)
+
+	select {
+	case <-worker.done:
+		return errSessionReleased
+	default:
+	}
 
 	if !worker.sendLock.Acquire() {
 		span.RecordError(errFlowControlActive)
