@@ -22,7 +22,6 @@ import {
 } from '@/components/v1/ui/table';
 import useControlPlane from '@/hooks/use-control-plane';
 import { useOrganizationEntitlements } from '@/hooks/use-organization-entitlements';
-import type { RetentionAttempt } from '@/hooks/use-retention-gate';
 import {
   getPlanChangeErrorMessage,
   useSubscriptionUpgrade,
@@ -37,11 +36,7 @@ import {
 } from '@/lib/api/generated/control-plane/data-contracts';
 import { OFFICE_HOURS_URL, PRICING_URL } from '@/lib/external-links';
 import { cn } from '@/lib/utils';
-import {
-  TIME_WINDOW_LABELS,
-  formatRetentionPeriod,
-  formatShortDate,
-} from '@/lib/utils/retention';
+import { formatRetentionPeriod } from '@/lib/utils/retention';
 import { ChevronDownIcon } from '@radix-ui/react-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -58,7 +53,6 @@ export type UpgradeGateProps = {
    * generic "upgrade" entry point with no specific limit.
    */
   featureId?: string;
-  retentionAttempt?: RetentionAttempt | null;
   retentionPeriod?: string;
 };
 
@@ -72,31 +66,26 @@ const COPY = {
   header: {
     tenants: {
       title: "You've hit your tenant limit",
-      description: (free: string, payg: string) =>
-        `The free tier includes ${free} tenant. Pay-as-you-go includes ${payg}, so you can separate dev, staging, and prod.`,
+      description:
+        'Upgrade to pay-as-you-go to add more tenants and separate dev, staging, and prod.',
     },
     users: {
       title: "You've hit your member limit",
-      description: (free: string, payg: string) =>
-        `The free tier includes ${free} members. Pay-as-you-go includes ${payg}, so your whole team can work in Hatchet.`,
+      description: 'Upgrade to pay-as-you-go to bring in your whole team.',
     },
     retention: {
       title: "You've gone past your retention window",
-      triedPreset: (window: string) => `You tried to view the last ${window}.`,
-      triedSince: (date: string) => `You tried to look back to ${date}.`,
-      description: (free: string, payg: string) =>
-        `The free tier keeps ${free} of runs, events, and logs. Pay-as-you-go keeps ${payg}.`,
+      description: 'Upgrade to pay-as-you-go to unlock longer retention.',
     },
     usageResource: {
       title: (resource: string) =>
         `You've hit your limit for ${resource.toLowerCase()}`,
-      description: (free: string, payg: string) =>
-        `The free tier includes ${free}. Pay-as-you-go includes ${payg}, and you only pay for usage beyond that.`,
+      description: (resource: string) =>
+        `Upgrade to pay-as-you-go to unlock more ${resource.toLowerCase()}.`,
     },
     usageGeneric: {
       title: 'Upgrade to Pay as you Go',
-      description:
-        'Pay-as-you-go removes the free tier limits. There is no monthly fee, and you pay nothing until you scale past what is included.',
+      description: 'Upgrade to pay-as-you-go to remove the free tier limits.',
     },
   },
   compare: {
@@ -330,59 +319,23 @@ function buildComparison(input: {
 function buildHeader(
   gate: UpgradeGate,
   row: ComparisonRow | undefined,
-  retentionAttempt?: RetentionAttempt | null,
 ): GateHeader {
   switch (gate) {
     case 'tenants':
-      return {
-        title: COPY.header.tenants.title,
-        description: COPY.header.tenants.description(
-          row?.free ?? FREE_FALLBACK.tenants,
-          row?.payg ?? PAYG_FALLBACK.tenants,
-        ),
-      };
+      return COPY.header.tenants;
     case 'users':
-      return {
-        title: COPY.header.users.title,
-        description: COPY.header.users.description(
-          row?.free ?? FREE_FALLBACK.users,
-          row?.payg ?? PAYG_FALLBACK.users,
-        ),
-      };
-    case 'retention': {
-      const tried = retentionAttempt
-        ? retentionAttempt.kind === 'preset'
-          ? COPY.header.retention.triedPreset(
-              TIME_WINDOW_LABELS[retentionAttempt.window],
-            )
-          : COPY.header.retention.triedSince(
-              formatShortDate(retentionAttempt.date),
-            )
-        : null;
-      const description = COPY.header.retention.description(
-        row?.free ?? formatDays(FREE_FALLBACK.data_retention_days),
-        row?.payg ?? formatDays(PAYG_FALLBACK.data_retention_days),
-      );
-      return {
-        title: COPY.header.retention.title,
-        description: tried ? `${tried} ${description}` : description,
-      };
-    }
+      return COPY.header.users;
+    case 'retention':
+      return COPY.header.retention;
     case 'usage':
     default:
       if (row) {
         return {
           title: COPY.header.usageResource.title(row.label),
-          description: COPY.header.usageResource.description(
-            row.free,
-            row.payg,
-          ),
+          description: COPY.header.usageResource.description(row.label),
         };
       }
-      return {
-        title: COPY.header.usageGeneric.title,
-        description: COPY.header.usageGeneric.description,
-      };
+      return COPY.header.usageGeneric;
   }
 }
 
@@ -394,7 +347,6 @@ function useUpgradeGate({
   gate,
   organizationId,
   featureId,
-  retentionAttempt,
   retentionPeriod,
 }: Omit<UpgradeGateProps, 'onDismiss'>) {
   const { canBill, isControlPlaneEnabled } = useControlPlane();
@@ -425,7 +377,7 @@ function useUpgradeGate({
   const highlighted = comparison.rows.find((row) => row.id === highlightId);
 
   return {
-    header: buildHeader(gate, highlighted, retentionAttempt),
+    header: buildHeader(gate, highlighted),
     comparison,
     upgrade,
     canUpgrade: isControlPlaneEnabled && canBill && !!payg,
