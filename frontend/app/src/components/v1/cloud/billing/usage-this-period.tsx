@@ -477,7 +477,10 @@ export function UsageThisPeriod({
   const { canBill, isControlPlaneEnabled } = useControlPlane();
   const [detailFeatureId, setDetailFeatureId] = useState<string | null>(null);
   const [chartTenantId, setChartTenantId] = useState<string | null>(null);
-  const [upgradeGate, setUpgradeGate] = useState<UpgradeGate | null>(null);
+  const [upgradeGate, setUpgradeGate] = useState<{
+    gate: UpgradeGate;
+    featureId: string;
+  } | null>(null);
   const [rangePreset, setRangePreset] = useState<RangePreset>('period');
   const [tenantId, setTenantId] = useState('all');
   const [tenantOptions, setTenantOptions] = useState<
@@ -701,7 +704,10 @@ export function UsageThisPeriod({
                     selectable={graphable}
                     onSelect={() => setDetailFeatureId(row.feature.featureId)}
                     onUpgrade={() =>
-                      setUpgradeGate(gateForFeature(row.feature.featureId))
+                      setUpgradeGate({
+                        gate: gateForFeature(row.feature.featureId),
+                        featureId: row.feature.featureId,
+                      })
                     }
                   />
                 );
@@ -718,7 +724,8 @@ export function UsageThisPeriod({
       {organizationId && upgradeGate ? (
         <UpgradeGateDialog
           open
-          gate={upgradeGate}
+          gate={upgradeGate.gate}
+          featureId={upgradeGate.featureId}
           organizationId={organizationId}
           onDismiss={() => setUpgradeGate(null)}
         />
