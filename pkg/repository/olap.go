@@ -1401,9 +1401,6 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 				outputPayload, exists = externalIdToPayload[*dag.OutputEventExternalID]
 
 				if !exists {
-					if opts.IncludePayloads && dag.ReadableStatus == sqlcv1.V1ReadableStatusOlapCOMPLETED {
-						r.l.Error().Ctx(ctx).Msgf("ListWorkflowRuns-1: dag with external_id %s and inserted_at %s has empty payload, falling back to output", dag.ExternalID, dag.InsertedAt.Time)
-					}
 					outputPayload = dag.Output
 				}
 			} else {
@@ -1412,9 +1409,6 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 
 			inputPayload, exists := externalIdToPayload[dag.ExternalID]
 			if !exists {
-				if opts.IncludePayloads && dag.ExternalID != uuid.Nil {
-					r.l.Error().Ctx(ctx).Msgf("ListWorkflowRuns-2: dag with external_id %s and inserted_at %s has empty payload, falling back to input", dag.ExternalID, dag.InsertedAt.Time)
-				}
 				inputPayload = dag.Input
 			}
 
@@ -1638,7 +1632,6 @@ func (r *OLAPRepositoryImpl) ListTaskRunEventsByWorkflowRunId(ctx context.Contex
 	for _, row := range rows {
 		payload, exists := payloads[row.EventExternalID]
 		if !exists {
-			r.l.Error().Ctx(ctx).Msgf("ListTaskRunEventsByWorkflowRunId: event with external_id %s and task_inserted_at %s has empty payload, falling back to payload", row.EventExternalID, row.TaskInsertedAt.Time)
 			payload = row.Output
 		}
 
@@ -2332,7 +2325,6 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 		// fall back to input if payload is empty
 		// for backwards compatibility
 		if len(payload) == 0 {
-			r.l.Error().Ctx(ctx).Msgf("writeTaskBatch: task %s with ID %d and inserted_at %s has empty payload, falling back to input", task.ExternalID.String(), task.ID, task.InsertedAt.Time)
 			payload = task.Input
 		}
 
