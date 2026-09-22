@@ -95,11 +95,7 @@ export const useScheduledRuns = ({
   const scheduledRuns = data?.rows ?? [];
   const numPages = data?.pagination?.num_pages ?? 1;
 
-  const {
-    data: workflowKeys,
-    isLoading: workflowKeysIsLoading,
-    error: workflowKeysError,
-  } = useQuery({
+  const { data: workflowKeys, error: workflowKeysError } = useQuery({
     ...queries.workflows.list(tenantId, { limit: 200 }),
     refetchInterval,
   });
@@ -137,7 +133,7 @@ export const useScheduledRuns = ({
   return {
     scheduledRuns,
     numPages,
-    isLoading: isLoading || workflowKeysIsLoading,
+    isLoading,
     refetch,
     error: error || workflowKeysError,
     pagination,

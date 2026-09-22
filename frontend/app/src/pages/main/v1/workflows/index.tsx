@@ -7,7 +7,6 @@ import {
   SearchBarWithFilters,
   type SearchSuggestion,
 } from '@/components/v1/molecules/search-bar-with-filters/search-bar-with-filters';
-import { Loading } from '@/components/v1/ui/loading.tsx';
 import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { docsPages } from '@/lib/generated/docs';
 import { appRoutes } from '@/router';
@@ -58,10 +57,6 @@ function WorkflowTable() {
   });
 
   const autocompleteContext = useMemo(() => ({}), []);
-
-  if (isLoading) {
-    return <Loading />;
-  }
 
   const searchBar = (
     <SearchBarWithFilters

@@ -166,11 +166,7 @@ export const useFilters = ({ key, scopeOverrides }: UseFiltersProps) => {
   const filters = data?.rows ?? [];
   const numFilters = data?.pagination?.num_pages ?? 1;
 
-  const {
-    data: workflowKeys,
-    isLoading: workflowKeysIsLoading,
-    error: workflowKeysError,
-  } = useQuery({
+  const { data: workflowKeys, error: workflowKeysError } = useQuery({
     ...queries.workflows.list(tenantId, { limit: 200 }),
   });
 
@@ -267,7 +263,7 @@ export const useFilters = ({ key, scopeOverrides }: UseFiltersProps) => {
   return {
     filters,
     numFilters,
-    isLoading: isLoading || workflowKeysIsLoading,
+    isLoading,
     refetch,
     isRefetching,
     error: error || workflowKeysError,

@@ -2,7 +2,6 @@ import { RunsTable } from './components/runs-table';
 import { RunsProvider } from './hooks/runs-provider';
 import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import { useOnboardingActions } from '@/components/v1/molecules/empty-state/workflows-guard';
-import { Loading } from '@/components/v1/ui/loading';
 import useControlPlane from '@/hooks/use-control-plane';
 import { queries } from '@/lib/api';
 import { docsPages } from '@/lib/generated/docs';
@@ -28,10 +27,7 @@ export default function RunsPage() {
     queries.workflows.list(tenantId, { limit: 1, offset: 0 }),
   );
   const hasWorkflows = (workflowCountQuery.data?.rows?.length ?? 0) > 0;
-
-  // The runs list can be slow, so it is only probed when the tenant has no
-  // workflows and the table would otherwise be replaced by onboarding.
-  const shouldProbeRecentRuns = workflowCountQuery.isSuccess && !hasWorkflows;
+  const confirmedNoWorkflows = workflowCountQuery.isSuccess && !hasWorkflows;
   const recentRunsQuery = useQuery({
     ...queries.v1WorkflowRuns.list(
       tenantId,
@@ -43,28 +39,17 @@ export default function RunsPage() {
       },
       isSelfHosted,
     ),
-    enabled: shouldProbeRecentRuns,
+    enabled: confirmedNoWorkflows,
   });
 
-  if (
-    workflowCountQuery.isLoading ||
-    (shouldProbeRecentRuns && recentRunsQuery.isLoading)
-  ) {
-    return <Loading />;
-  }
-
-  const hasRecentRuns =
+  const confirmedNoRecentRuns =
+    recentRunsQuery.isSuccess &&
     recentRunsQuery.data !== 'timeout' &&
-    (recentRunsQuery.data?.rows?.length ?? 0) > 0;
+    (recentRunsQuery.data?.rows?.length ?? 0) === 0;
 
-  // Fail open on probe errors: the table's own error handling is more useful
-  // than trapping the user on the onboarding placeholder.
-  const probesErrored =
-    workflowCountQuery.isError ||
-    recentRunsQuery.isError ||
-    recentRunsQuery.data === 'timeout';
-
-  if (!probesErrored && !hasWorkflows && !hasRecentRuns) {
+  // The table renders while the probes are in flight and is only replaced by
+  // onboarding once both probes have confirmed there is nothing to show.
+  if (confirmedNoWorkflows && confirmedNoRecentRuns) {
     return (
       <div className="flex h-full items-center justify-center">
         <EmptyState
