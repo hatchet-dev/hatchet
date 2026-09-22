@@ -1,0 +1,78 @@
+import { readFileSync } from 'fs';
+import type { SecureClientSessionOptions } from 'http2';
+import { compressionGzip, createGrpcTransport } from '@connectrpc/connect-node';
+import type { ClientConfig } from '@clients/hatchet-client/client-config';
+import { createAuthInterceptor, type Transport } from './transport';
+
+const DEFAULT_MAX_MESSAGE_BYTES = 4 * 1024 * 1024;
+
+/**
+ * Builds the TLS session options for the engine connection from the client's `tls_config`:
+ * `none` means plaintext, `tls` verifies the server against `ca_file`, and `mtls` (the default
+ * when no strategy is set) additionally presents `cert_file` and `key_file`. `server_name`
+ * overrides the hostname used for SNI and certificate verification, which is what lets a
+ * client reach an engine through an address its certificate does not name.
+ */
+function tlsSessionOptions(tls: ClientConfig['tls_config']): SecureClientSessionOptions {
+  const options: SecureClientSessionOptions = {};
+
+  if (tls.ca_file) {
+    options.ca = readFileSync(tls.ca_file);
+  }
+
+  if (tls.tls_strategy !== 'tls') {
+    if (tls.key_file) {
+      options.key = readFileSync(tls.key_file);
+    }
+    if (tls.cert_file) {
+      options.cert = readFileSync(tls.cert_file);
+    }
+  }
+
+  if (tls.server_name) {
+    options.servername = tls.server_name;
+  }
+
+  return options;
+}
+
+/**
+ * Creates the Node transport: the gRPC protocol over HTTP/2 (`createGrpcTransport` speaks
+ * nothing else), the same wire the SDK's `nice-grpc` clients speak, so an engine sees no
+ * difference between the two. The bearer token from the config is attached to every call and
+ * the connection is kept alive with pings the way the `nice-grpc` channel is.
+ *
+ * The transport is built on the first call so that constructing a client reads no TLS files;
+ * a client whose unary RPCs are never used never touches them.
+ */
+export function createNodeTransport(config: ClientConfig): Transport {
+  let transport: Transport | undefined;
+
+  const get = () => {
+    if (!transport) {
+      transport = buildNodeTransport(config);
+    }
+    return transport;
+  };
+
+  return {
+    unary: (...args) => get().unary(...args),
+    stream: (...args) => get().stream(...args),
+  };
+}
+
+function buildNodeTransport(config: ClientConfig): Transport {
+  const insecure = config.tls_config.tls_strategy === 'none';
+
+  return createGrpcTransport({
+    baseUrl: `${insecure ? 'http' : 'https'}://${config.host_port}`,
+    nodeOptions: insecure ? undefined : tlsSessionOptions(config.tls_config),
+    interceptors: [createAuthInterceptor(config.token)],
+    sendCompression: compressionGzip,
+    readMaxBytes: config.grpc_max_recv_message_length ?? DEFAULT_MAX_MESSAGE_BYTES,
+    writeMaxBytes: config.grpc_max_send_message_length ?? DEFAULT_MAX_MESSAGE_BYTES,
+    pingIntervalMs: 10 * 1000,
+    pingIdleConnection: true,
+    idleConnectionTimeoutMs: 60 * 1000,
+  });
+}
