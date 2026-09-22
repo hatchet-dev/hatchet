@@ -1,8 +1,9 @@
 module github.com/hatchet-dev/hatchet
 
-go 1.26.0
+go 1.26.6
 
 require (
+	connectrpc.com/connect v1.21.0
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/aws/aws-sdk-go-v2 v1.45.1
 	github.com/aws/aws-sdk-go-v2/config v1.33.2
@@ -62,7 +63,6 @@ require (
 	github.com/vicanso/go-charts/v2 v2.6.10
 	github.com/wneessen/go-mail v0.8.1
 	go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho v0.71.0
-	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.71.0
 	go.opentelemetry.io/otel v1.46.0
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.46.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.46.0

@@ -2,16 +2,15 @@ package grpcoperator
 
 import (
 	"context"
+	"errors"
 	"io"
 	"testing"
 	"time"
 
+	"connectrpc.com/connect"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/hatchet-dev/hatchet/internal/services/operatorsvc"
@@ -19,11 +18,10 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-// fakeListenStream feeds client messages to the handler. Closing the queue reads as the client
-// closing its send side (io.EOF).
+// fakeListenStream feeds client messages to the run half of the Listen handler. Closing the
+// queue reads as the client closing its send side (io.EOF); ctx is the handler context the
+// stream runs under, and a pending Receive ends with it as the transport's would.
 type fakeListenStream struct {
-	grpc.ServerStream
-
 	ctx  context.Context
 	recv chan *v1contracts.OperatorListenRequest
 }
@@ -38,9 +36,7 @@ func newFakeListenStream(ctx context.Context, msgs ...*v1contracts.OperatorListe
 	return &fakeListenStream{ctx: ctx, recv: recv}
 }
 
-func (f *fakeListenStream) Context() context.Context { return f.ctx }
-
-func (f *fakeListenStream) Recv() (*v1contracts.OperatorListenRequest, error) {
+func (f *fakeListenStream) Receive() (*v1contracts.OperatorListenRequest, error) {
 	select {
 	case msg, ok := <-f.recv:
 		if !ok {
@@ -49,7 +45,7 @@ func (f *fakeListenStream) Recv() (*v1contracts.OperatorListenRequest, error) {
 
 		return msg, nil
 	case <-f.ctx.Done():
-		return nil, status.Error(codes.Canceled, "stream context done")
+		return nil, connect.NewError(connect.CodeCanceled, errors.New("stream context done"))
 	}
 }
 
@@ -75,11 +71,12 @@ func deltaMsg(add, remove []string) *v1contracts.OperatorListenRequest {
 	}}
 }
 
-// runListen runs the handler in the background and returns a channel with its result.
-func runListen(svc *testService, stream *fakeListenStream) <-chan error {
+// runListen runs the Listen run half for op in the background, under the stream's context,
+// and returns a channel with its result.
+func runListen(svc *testService, stream *fakeListenStream, tenant *sqlcv1.Tenant, op *sqlcv1.V1Operator) <-chan error {
 	done := make(chan error, 1)
 
-	go func() { done <- svc.Listen(stream) }()
+	go func() { done <- svc.listen(stream.ctx, stream, tenant, op) }()
 
 	return done
 }
@@ -96,30 +93,35 @@ func waitListen(t *testing.T, done <-chan error) error {
 	}
 }
 
+// The operator header is read by the real handler, so this case goes over the wire.
 func TestListenRequiresOperatorMetadata(t *testing.T) {
-	ctx, cancel := context.WithCancel(tenantContext(&sqlcv1.Tenant{ID: uuid.New()}))
-	defer cancel()
-
 	svc := newTestService(t, nil)
+	client := operatorClient(t, svc, &sqlcv1.Tenant{ID: uuid.New()})
 
-	err := svc.Listen(newFakeListenStream(ctx, startMsg(uuid.NewString())))
+	stream, err := client.Listen(t.Context())
+	require.NoError(t, err)
 
-	assert.Equal(t, codes.InvalidArgument, status.Code(err), err)
+	// the handler refuses the stream before reading it, so the send may already see it
+	// closed; the refusal itself comes back on Receive
+	_ = stream.Send(startMsg(uuid.NewString()))
+
+	_, err = stream.Receive()
+	assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err), err)
 	assert.Zero(t, svc.dispatcher.SessionCount())
 }
 
 func TestListenRejectsNonStartFirstMessage(t *testing.T) {
 	tenant := &sqlcv1.Tenant{ID: uuid.New()}
 	svc := newTestService(t, nil)
-	ctx, _, _ := registeredOperator(t, svc, tenant)
+	ctx, op, _ := registeredOperator(t, svc, tenant)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	for _, first := range []*v1contracts.OperatorListenRequest{heartbeatMsg(), deltaMsg([]string{"svc:a"}, nil)} {
-		err := svc.Listen(newFakeListenStream(ctx, first))
+		err := svc.listen(ctx, newFakeListenStream(ctx, first), tenant, op)
 
 		require.Error(t, err)
-		assert.Equal(t, codes.InvalidArgument, status.Code(err), err.Error())
+		assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err), err.Error())
 	}
 
 	assert.Zero(t, svc.dispatcher.SessionCount(), "nothing is registered before a start message")
@@ -129,18 +131,18 @@ func TestListenRejectsNonStartFirstMessage(t *testing.T) {
 func TestListenRejectsForeignWorker(t *testing.T) {
 	tenant := &sqlcv1.Tenant{ID: uuid.New()}
 	svc := newTestService(t, nil)
-	ctx, _, _ := registeredOperator(t, svc, tenant)
+	ctx, op, _ := registeredOperator(t, svc, tenant)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	otherOp := uuid.New()
 	other := svc.workers.Add(&sqlcv1.Worker{ID: uuid.New(), TenantId: tenant.ID, OperatorId: &otherOp})
 
-	err := svc.Listen(newFakeListenStream(ctx, startMsg(other.ID.String())))
-	assert.Equal(t, codes.PermissionDenied, status.Code(err), err)
+	err := svc.listen(ctx, newFakeListenStream(ctx, startMsg(other.ID.String())), tenant, op)
+	assert.Equal(t, connect.CodePermissionDenied, connect.CodeOf(err), err)
 
-	err = svc.Listen(newFakeListenStream(ctx, startMsg("nope")))
-	assert.Equal(t, codes.InvalidArgument, status.Code(err), err)
+	err = svc.listen(ctx, newFakeListenStream(ctx, startMsg("nope")), tenant, op)
+	assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err), err)
 
 	assert.Zero(t, svc.dispatcher.SessionCount())
 }
@@ -148,25 +150,25 @@ func TestListenRejectsForeignWorker(t *testing.T) {
 func TestListenClientCloseBeforeStart(t *testing.T) {
 	tenant := &sqlcv1.Tenant{ID: uuid.New()}
 	svc := newTestService(t, nil)
-	ctx, _, _ := registeredOperator(t, svc, tenant)
+	ctx, op, _ := registeredOperator(t, svc, tenant)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	stream := newFakeListenStream(ctx)
 	close(stream.recv)
 
-	assert.NoError(t, svc.Listen(stream))
+	assert.NoError(t, svc.listen(ctx, stream, tenant, op))
 }
 
 func TestListenActivatesAndDeactivatesWithSessionId(t *testing.T) {
 	tenant := &sqlcv1.Tenant{ID: uuid.New()}
 	svc := newTestService(t, nil)
-	ctx, _, worker := registeredOperator(t, svc, tenant)
+	ctx, op, worker := registeredOperator(t, svc, tenant)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	stream := newFakeListenStream(ctx, startMsg(worker.ID.String()))
-	done := runListen(svc, stream)
+	done := runListen(svc, stream, tenant, op)
 
 	eventually(t, func() bool { return svc.dispatcher.SessionCount() == 1 }, "session was not registered")
 	assert.Equal(t, []uuid.UUID{worker.ID}, svc.workers.Activations())
@@ -182,7 +184,7 @@ func TestListenActivatesAndDeactivatesWithSessionId(t *testing.T) {
 	stream.push(startMsg(worker.ID.String()))
 
 	err := waitListen(t, done)
-	assert.Equal(t, codes.InvalidArgument, status.Code(err), err)
+	assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err), err)
 	assert.Equal(t, 1, svc.dispatcher.ReleasedCount(), "the session is released on exit")
 
 	sessions := svc.workers.SessionLog()
@@ -198,17 +200,17 @@ func TestListenActivatesAndDeactivatesWithSessionId(t *testing.T) {
 func TestListenSupersededSessionLeavesWorkerActive(t *testing.T) {
 	tenant := &sqlcv1.Tenant{ID: uuid.New()}
 	svc := newTestService(t, nil)
-	ctx, _, worker := registeredOperator(t, svc, tenant)
+	ctx, op, worker := registeredOperator(t, svc, tenant)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	first := newFakeListenStream(ctx, startMsg(worker.ID.String()))
-	firstDone := runListen(svc, first)
+	firstDone := runListen(svc, first, tenant, op)
 
 	eventually(t, func() bool { return svc.dispatcher.SessionCount() == 1 }, "first session was not registered")
 
 	second := newFakeListenStream(ctx, startMsg(worker.ID.String()))
-	secondDone := runListen(svc, second)
+	secondDone := runListen(svc, second, tenant, op)
 
 	eventually(t, func() bool { return svc.dispatcher.SessionCount() == 2 }, "second session was not registered")
 
@@ -231,12 +233,12 @@ func TestListenSupersededSessionLeavesWorkerActive(t *testing.T) {
 func TestListenAppliesDeltasWithThrottledNotify(t *testing.T) {
 	tenant := &sqlcv1.Tenant{ID: uuid.New()}
 	svc := newTestService(t, nil, operatorsvc.WithNotifyInterval(100*time.Millisecond))
-	ctx, _, worker := registeredOperator(t, svc, tenant)
+	ctx, op, worker := registeredOperator(t, svc, tenant)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	stream := newFakeListenStream(ctx, startMsg(worker.ID.String()))
-	done := runListen(svc, stream)
+	done := runListen(svc, stream, tenant, op)
 
 	eventually(t, func() bool { return svc.dispatcher.NotifyCount() == 1 }, "start did not notify")
 
@@ -291,14 +293,14 @@ func TestListenRejectsBadDeltas(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			svc := newTestService(t, nil)
-			ctx, _, worker := registeredOperator(t, svc, tenant)
+			ctx, op, worker := registeredOperator(t, svc, tenant)
 			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()
 
 			stream := newFakeListenStream(ctx, startMsg(worker.ID.String()), tc.delta)
 
-			err := waitListen(t, runListen(svc, stream))
-			assert.Equal(t, codes.InvalidArgument, status.Code(err), err)
+			err := waitListen(t, runListen(svc, stream, tenant, op))
+			assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err), err)
 			assert.Empty(t, svc.workers.ActionSet(worker.ID), "a rejected delta must not touch the store")
 			assert.Len(t, svc.workers.SessionLog(), 2, "the worker is deactivated on error exit")
 		})
@@ -306,12 +308,12 @@ func TestListenRejectsBadDeltas(t *testing.T) {
 
 	t.Run("exactly the cap is accepted", func(t *testing.T) {
 		svc := newTestService(t, nil)
-		ctx, _, worker := registeredOperator(t, svc, tenant)
+		ctx, op, worker := registeredOperator(t, svc, tenant)
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
 		stream := newFakeListenStream(ctx, startMsg(worker.ID.String()), deltaMsg(tooMany[:operatorsvc.MaxActionsPerDelta], nil))
-		done := runListen(svc, stream)
+		done := runListen(svc, stream, tenant, op)
 
 		eventually(t, func() bool { return len(svc.workers.ActionSet(worker.ID)) == 1 }, "delta at the cap was not applied")
 
@@ -323,12 +325,12 @@ func TestListenRejectsBadDeltas(t *testing.T) {
 func TestListenExitsOnDispatcherFin(t *testing.T) {
 	tenant := &sqlcv1.Tenant{ID: uuid.New()}
 	svc := newTestService(t, nil)
-	ctx, _, worker := registeredOperator(t, svc, tenant)
+	ctx, op, worker := registeredOperator(t, svc, tenant)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	stream := newFakeListenStream(ctx, startMsg(worker.ID.String()))
-	done := runListen(svc, stream)
+	done := runListen(svc, stream, tenant, op)
 
 	eventually(t, func() bool { return svc.dispatcher.SessionCount() == 1 }, "session was not registered")
 
@@ -350,12 +352,12 @@ func pauseMsg(paused bool) *v1contracts.OperatorListenRequest {
 func TestListenPausesOnTheStream(t *testing.T) {
 	tenant := &sqlcv1.Tenant{ID: uuid.New()}
 	svc := newTestService(t, nil)
-	ctx, _, worker := registeredOperator(t, svc, tenant)
+	ctx, op, worker := registeredOperator(t, svc, tenant)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	stream := newFakeListenStream(ctx, startMsg(worker.ID.String()))
-	done := runListen(svc, stream)
+	done := runListen(svc, stream, tenant, op)
 
 	eventually(t, func() bool { return svc.dispatcher.SessionCount() == 1 }, "session was not registered")
 

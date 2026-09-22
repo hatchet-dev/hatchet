@@ -1,12 +1,13 @@
 package operatorsvc
 
 import (
+	"context"
+
 	"github.com/google/uuid"
-	"google.golang.org/grpc"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
-	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/internal/services/shared/rpcstream"
 )
 
 // dispatcherAdapter presents *dispatcher.DispatcherImpl as a DispatcherBackend. The two session
@@ -20,8 +21,8 @@ func NewDispatcherBackend(d *dispatcher.DispatcherImpl) DispatcherBackend {
 	return dispatcherAdapter{d}
 }
 
-func (a dispatcherAdapter) AddOperatorStreamSession(workerId uuid.UUID, sessionId uuid.UUID, stream grpc.ServerStream, wrap func(*contracts.AssignedAction) proto.Message) StreamSession {
-	return a.DispatcherImpl.AddOperatorStreamSession(workerId, sessionId, stream, wrap)
+func (a dispatcherAdapter) AddOperatorStreamSession(ctx context.Context, workerId uuid.UUID, sessionId uuid.UUID, stream *rpcstream.Sender[v1contracts.OperatorListenResponse]) StreamSession {
+	return a.DispatcherImpl.AddOperatorStreamSession(ctx, workerId, sessionId, stream)
 }
 
 func (a dispatcherAdapter) AddOperatorSession(workerId uuid.UUID, sessionId uuid.UUID, handler ActionHandler) HandlerSession {

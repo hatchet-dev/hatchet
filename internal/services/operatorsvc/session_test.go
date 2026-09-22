@@ -6,11 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"connectrpc.com/connect"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	"github.com/hatchet-dev/hatchet/internal/services/operatorsvc"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
@@ -25,7 +24,7 @@ func TestOpenSessionStreamDelivery(t *testing.T) {
 	svc := newTestService(t, nil)
 	op, worker := registeredOperator(t, svc, tenant)
 
-	session, err := svc.OpenSession(t.Context(), tenant, op, worker.ID, operatorsvc.OpenOpts{Stream: nopStream{}})
+	session, err := svc.OpenSession(t.Context(), tenant, op, worker.ID, operatorsvc.OpenOpts{Stream: newNopSender(t)})
 	require.NoError(t, err)
 
 	assert.Equal(t, []uuid.UUID{worker.ID}, svc.workers.Activations())
@@ -76,7 +75,7 @@ func TestOpenSessionRequiresOneDelivery(t *testing.T) {
 	_, err := svc.OpenSession(t.Context(), tenant, op, worker.ID, operatorsvc.OpenOpts{})
 	require.Error(t, err)
 
-	_, err = svc.OpenSession(t.Context(), tenant, op, worker.ID, operatorsvc.OpenOpts{Stream: nopStream{}, Handler: nopHandler{}})
+	_, err = svc.OpenSession(t.Context(), tenant, op, worker.ID, operatorsvc.OpenOpts{Stream: newNopSender(t), Handler: nopHandler{}})
 	require.Error(t, err)
 
 	assert.Empty(t, svc.workers.SessionLog(), "a refused session never touches the worker")
@@ -90,11 +89,11 @@ func TestOpenSessionStreamCap(t *testing.T) {
 
 	second := svc.workers.Add(&sqlcv1.Worker{ID: uuid.New(), TenantId: tenant.ID, OperatorId: &op.ID})
 
-	first, err := svc.OpenSession(t.Context(), tenant, op, worker.ID, operatorsvc.OpenOpts{Stream: nopStream{}})
+	first, err := svc.OpenSession(t.Context(), tenant, op, worker.ID, operatorsvc.OpenOpts{Stream: newNopSender(t)})
 	require.NoError(t, err)
 
-	_, err = svc.OpenSession(t.Context(), tenant, op, second.ID, operatorsvc.OpenOpts{Stream: nopStream{}})
-	assert.Equal(t, codes.ResourceExhausted, status.Code(err), err)
+	_, err = svc.OpenSession(t.Context(), tenant, op, second.ID, operatorsvc.OpenOpts{Stream: newNopSender(t)})
+	assert.Equal(t, connect.CodeResourceExhausted, connect.CodeOf(err), err)
 	assert.Len(t, svc.workers.SessionLog(), 1, "a refused stream never activates its worker")
 
 	inProcess, err := svc.OpenSession(t.Context(), tenant, op, second.ID, operatorsvc.OpenOpts{Handler: nopHandler{}})
@@ -103,7 +102,7 @@ func TestOpenSessionStreamCap(t *testing.T) {
 
 	require.NoError(t, first.Close(t.Context(), operatorsvc.WithoutPause()))
 
-	third, err := svc.OpenSession(t.Context(), tenant, op, second.ID, operatorsvc.OpenOpts{Stream: nopStream{}})
+	third, err := svc.OpenSession(t.Context(), tenant, op, second.ID, operatorsvc.OpenOpts{Stream: newNopSender(t)})
 	require.NoError(t, err, "the slot is released when the session closes")
 	require.NoError(t, third.Close(t.Context(), operatorsvc.WithoutPause()))
 }
@@ -147,7 +146,7 @@ func TestSessionCloseWithoutPause(t *testing.T) {
 	svc := newTestService(t, nil)
 	op, worker := registeredOperator(t, svc, tenant)
 
-	session, err := svc.OpenSession(t.Context(), tenant, op, worker.ID, operatorsvc.OpenOpts{Stream: nopStream{}})
+	session, err := svc.OpenSession(t.Context(), tenant, op, worker.ID, operatorsvc.OpenOpts{Stream: newNopSender(t)})
 	require.NoError(t, err)
 
 	require.NoError(t, session.Close(t.Context(), operatorsvc.WithoutPause()))
@@ -168,10 +167,10 @@ func TestSessionSupersededCloseLeavesWorkerActive(t *testing.T) {
 	svc := newTestService(t, nil)
 	op, worker := registeredOperator(t, svc, tenant)
 
-	first, err := svc.OpenSession(t.Context(), tenant, op, worker.ID, operatorsvc.OpenOpts{Stream: nopStream{}})
+	first, err := svc.OpenSession(t.Context(), tenant, op, worker.ID, operatorsvc.OpenOpts{Stream: newNopSender(t)})
 	require.NoError(t, err)
 
-	second, err := svc.OpenSession(t.Context(), tenant, op, worker.ID, operatorsvc.OpenOpts{Stream: nopStream{}})
+	second, err := svc.OpenSession(t.Context(), tenant, op, worker.ID, operatorsvc.OpenOpts{Stream: newNopSender(t)})
 	require.NoError(t, err)
 
 	assert.NotEqual(t, first.SessionId(), second.SessionId())
@@ -188,7 +187,7 @@ func TestSessionHeartbeatIsThrottled(t *testing.T) {
 	svc := newTestService(t, nil)
 	op, worker := registeredOperator(t, svc, tenant)
 
-	session, err := svc.OpenSession(t.Context(), tenant, op, worker.ID, operatorsvc.OpenOpts{Stream: nopStream{}})
+	session, err := svc.OpenSession(t.Context(), tenant, op, worker.ID, operatorsvc.OpenOpts{Stream: newNopSender(t)})
 	require.NoError(t, err)
 
 	now := time.Now().UTC()
@@ -227,11 +226,11 @@ func TestSessionApplyDeltaRejectsBadDeltas(t *testing.T) {
 			svc := newTestService(t, nil)
 			op, worker := registeredOperator(t, svc, tenant)
 
-			session, err := svc.OpenSession(t.Context(), tenant, op, worker.ID, operatorsvc.OpenOpts{Stream: nopStream{}})
+			session, err := svc.OpenSession(t.Context(), tenant, op, worker.ID, operatorsvc.OpenOpts{Stream: newNopSender(t)})
 			require.NoError(t, err)
 
 			_, err = session.ApplyDelta(t.Context(), tc.add, tc.remove)
-			assert.Equal(t, codes.InvalidArgument, status.Code(err), err)
+			assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err), err)
 			assert.Empty(t, svc.workers.ActionSet(worker.ID), "a rejected delta must not touch the store")
 
 			require.NoError(t, session.Close(t.Context(), operatorsvc.WithoutPause()))
@@ -242,7 +241,7 @@ func TestSessionApplyDeltaRejectsBadDeltas(t *testing.T) {
 		svc := newTestService(t, nil)
 		op, worker := registeredOperator(t, svc, tenant)
 
-		session, err := svc.OpenSession(t.Context(), tenant, op, worker.ID, operatorsvc.OpenOpts{Stream: nopStream{}})
+		session, err := svc.OpenSession(t.Context(), tenant, op, worker.ID, operatorsvc.OpenOpts{Stream: newNopSender(t)})
 		require.NoError(t, err)
 
 		changed, err := session.ApplyDelta(t.Context(), tooMany[:operatorsvc.MaxActionsPerDelta], nil)
@@ -278,10 +277,10 @@ func TestSessionApplyDeltaValidatesIdsByOperatorKind(t *testing.T) {
 		assert.Equal(t, []string{orchestrator}, svc.workers.ActionSet(worker.ID))
 
 		_, err = session.ApplyDelta(t.Context(), []string{"svc:run"}, nil)
-		assert.Equal(t, codes.InvalidArgument, status.Code(err), "a worker action is not the DAG operator's")
+		assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err), "a worker action is not the DAG operator's")
 
 		_, err = session.ApplyDelta(t.Context(), nil, []string{"svc:run"})
-		assert.Equal(t, codes.InvalidArgument, status.Code(err))
+		assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
 		assert.Equal(t, []string{orchestrator}, svc.workers.ActionSet(worker.ID), "a rejected delta must not touch the store")
 
 		require.NoError(t, session.Close(t.Context(), operatorsvc.WithoutPause()))
@@ -291,11 +290,11 @@ func TestSessionApplyDeltaValidatesIdsByOperatorKind(t *testing.T) {
 		svc := newTestService(t, nil)
 		op, worker := registeredOperator(t, svc, tenant)
 
-		session, err := svc.OpenSession(t.Context(), tenant, op, worker.ID, operatorsvc.OpenOpts{Stream: nopStream{}})
+		session, err := svc.OpenSession(t.Context(), tenant, op, worker.ID, operatorsvc.OpenOpts{Stream: newNopSender(t)})
 		require.NoError(t, err)
 
 		_, err = session.ApplyDelta(t.Context(), []string{orchestrator}, nil)
-		assert.Equal(t, codes.InvalidArgument, status.Code(err), "an orchestrator id is the engine's alone")
+		assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err), "an orchestrator id is the engine's alone")
 		assert.Empty(t, svc.workers.ActionSet(worker.ID))
 
 		require.NoError(t, session.Close(t.Context(), operatorsvc.WithoutPause()))
@@ -316,7 +315,7 @@ func TestSessionApplyDeltaBudget(t *testing.T) {
 			_, err := svc.workers.AddWorkerActions(t.Context(), tenant.ID, sibling.ID, []string{"svc:held"})
 			require.NoError(t, err)
 
-			opts := operatorsvc.OpenOpts{Stream: nopStream{}}
+			opts := operatorsvc.OpenOpts{Stream: newNopSender(t)}
 
 			if delivery == "handler" {
 				opts = operatorsvc.OpenOpts{Handler: nopHandler{}}
@@ -338,7 +337,7 @@ func TestSessionApplyDeltaBudget(t *testing.T) {
 			assert.ElementsMatch(t, []string{"svc:a", "svc:c"}, svc.workers.ActionSet(worker.ID))
 
 			_, err = session.ApplyDelta(t.Context(), []string{"svc:d"}, nil)
-			assert.Equal(t, codes.ResourceExhausted, status.Code(err), err)
+			assert.Equal(t, connect.CodeResourceExhausted, connect.CodeOf(err), err)
 			assert.ElementsMatch(t, []string{"svc:a", "svc:c"}, svc.workers.ActionSet(worker.ID), "a refused delta is not applied")
 
 			// a session at the cap can still give links back
@@ -360,7 +359,7 @@ func TestSessionApplyDeltaThrottlesNotifications(t *testing.T) {
 	svc := newTestService(t, nil, operatorsvc.WithNotifyInterval(100*time.Millisecond))
 	op, worker := registeredOperator(t, svc, tenant)
 
-	session, err := svc.OpenSession(t.Context(), tenant, op, worker.ID, operatorsvc.OpenOpts{Stream: nopStream{}})
+	session, err := svc.OpenSession(t.Context(), tenant, op, worker.ID, operatorsvc.OpenOpts{Stream: newNopSender(t)})
 	require.NoError(t, err)
 
 	require.Equal(t, 1, svc.dispatcher.NotifyCount(), "opening the session notifies once")
@@ -448,7 +447,7 @@ func TestSessionActionBudgetSpansSessions(t *testing.T) {
 	}
 
 	_, err = b.ApplyDelta(t.Context(), chunk(3), nil)
-	assert.Equal(t, codes.ResourceExhausted, status.Code(err), "the delta past the cap is refused: %v", err)
+	assert.Equal(t, connect.CodeResourceExhausted, connect.CodeOf(err), "the delta past the cap is refused: %v", err)
 	assert.ErrorContains(t, err, "3000")
 
 	total, err := svc.workers.CountOperatorWorkerActions(t.Context(), tenant.ID, op.ID)
@@ -463,7 +462,7 @@ func TestSessionActionBudgetSpansSessions(t *testing.T) {
 	require.NoError(t, err, "the freed link is available to the other session")
 
 	_, err = b.ApplyDelta(t.Context(), chunk(3)[1:2], nil)
-	assert.Equal(t, codes.ResourceExhausted, status.Code(err), err)
+	assert.Equal(t, connect.CodeResourceExhausted, connect.CodeOf(err), err)
 }
 
 // Closing a session that a newer session superseded on the same worker leaves the successor

@@ -2,13 +2,14 @@ package grpcoperator
 
 import (
 	"context"
-	"sync"
+	"errors"
 
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
+	"connectrpc.com/connect"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/internal/services/shared/rpcstream"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 // SendStepActionEvent reports task progress for an action delivered on a Listen stream. The
@@ -26,69 +27,65 @@ func (s *OperatorServiceImpl) SendStepActionEvent(ctx context.Context, req *cont
 
 // DurableTask is the durable task event stream. The operator is authorized once when the
 // stream opens, and the worker named by the first register_worker message is checked for
-// ownership before the dispatcher's V1 service sees it; the dispatcher then owns the stream.
-// The SDK's durable listener registers exactly once per stream (it opens a new stream to
-// register again), so a second register_worker is refused as a protocol error rather than
-// re-checked: the stream stays bound to the worker it was authorized for.
-func (s *OperatorServiceImpl) DurableTask(stream v1contracts.OperatorService_DurableTaskServer) error {
-	tenant, op, err := s.authorizeOperator(stream.Context())
+// ownership before the dispatcher sees it; the dispatcher then owns the session. The SDK's
+// durable listener registers exactly once per stream (it opens a new stream to register
+// again), so a second register_worker is refused as a protocol error rather than re-checked:
+// the stream stays bound to the worker it was authorized for.
+func (s *OperatorServiceImpl) DurableTask(ctx context.Context, stream *connect.BidiStream[v1contracts.DurableTaskRequest, v1contracts.DurableTaskResponse]) error {
+	tenant, op, err := s.authorizeOperator(ctx)
 
 	if err != nil {
 		return err
 	}
 
-	return s.durable.DurableTask(&ownershipCheckedDurableStream{
-		OperatorService_DurableTaskServer: stream,
-		check: func(ctx context.Context, workerId string) error {
-			_, err := s.authorizeWorker(ctx, tenant, op, workerId)
-			return err
-		},
-	})
+	return s.durableTask(ctx, stream, tenant, op)
 }
 
-// ownershipCheckedDurableStream intercepts the first register_worker message on a durable task
-// stream and runs the worker ownership check on its worker id before handing the message to the
-// dispatcher. Any later register_worker is refused with InvalidArgument. The generated
-// OperatorService_DurableTaskServer and V1Dispatcher_DurableTaskServer interfaces have the same
-// method set, so the wrapped stream passes through otherwise unchanged.
-type ownershipCheckedDurableStream struct {
-	v1contracts.OperatorService_DurableTaskServer
-
-	check func(ctx context.Context, workerId string) error
-
-	mu      sync.Mutex
-	checked bool
+// durableStream is the transport the DurableTask handler runs over, satisfied by the connect
+// stream.
+type durableStream interface {
+	Receive() (*v1contracts.DurableTaskRequest, error)
+	Send(*v1contracts.DurableTaskResponse) error
 }
 
-func (w *ownershipCheckedDurableStream) Recv() (*v1contracts.DurableTaskRequest, error) {
-	req, err := w.OperatorService_DurableTaskServer.Recv()
+// durableTask runs the DurableTask stream for an authorized operator.
+func (s *OperatorServiceImpl) durableTask(ctx context.Context, stream durableStream, tenant *sqlcv1.Tenant, op *sqlcv1.V1Operator) error {
+	// other goroutines send on this stream; Close runs after the dispatcher has torn the
+	// session down and before the handler returns
+	sender := rpcstream.NewSender[v1contracts.DurableTaskResponse](ctx, stream)
+	defer sender.Close()
 
-	if err != nil {
-		return nil, err
-	}
+	registered := false
 
-	w.mu.Lock()
-	defer w.mu.Unlock()
+	receive := func() (*v1contracts.DurableTaskRequest, error) {
+		req, err := stream.Receive()
 
-	register := req.GetRegisterWorker()
-
-	if w.checked {
-		if register != nil {
-			return nil, status.Error(codes.InvalidArgument, "the DurableTask stream is already registered to a worker")
+		if err != nil {
+			return nil, err
 		}
+
+		register := req.GetRegisterWorker()
+
+		if registered {
+			if register != nil {
+				return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("the DurableTask stream is already registered to a worker"))
+			}
+
+			return req, nil
+		}
+
+		if register == nil {
+			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("the first message on the DurableTask stream must be register_worker"))
+		}
+
+		if _, err := s.authorizeWorker(ctx, tenant, op, register.WorkerId); err != nil {
+			return nil, err
+		}
+
+		registered = true
 
 		return req, nil
 	}
 
-	if register == nil {
-		return nil, status.Error(codes.InvalidArgument, "the first message on the DurableTask stream must be register_worker")
-	}
-
-	if err := w.check(w.Context(), register.WorkerId); err != nil {
-		return nil, err
-	}
-
-	w.checked = true
-
-	return req, nil
+	return s.durable.DurableTaskWithReceive(ctx, receive, sender)
 }

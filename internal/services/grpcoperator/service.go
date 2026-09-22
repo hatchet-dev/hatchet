@@ -7,17 +7,18 @@ package grpcoperator
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	"connectrpc.com/connect"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/status"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
 	"github.com/hatchet-dev/hatchet/internal/services/operatorsvc"
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1/v1connect"
+	"github.com/hatchet-dev/hatchet/internal/services/shared/rpcstream"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
@@ -30,28 +31,18 @@ import (
 const OperatorIdMetadataKey = "hatchet-operator-id"
 
 type OperatorService interface {
-	v1contracts.OperatorServiceServer
+	v1connect.OperatorServiceHandler
 	Cleanup() error
 }
 
-// durableTaskDelegate is the dispatcher's own durable task stream handler. The operator service
-// authorizes the stream and hands it over unchanged, so the dispatcher owns it from there.
+// durableTaskDelegate is the dispatcher's own durable task session. The operator service
+// authorizes the stream and reads its first message, then the dispatcher owns the session.
 type durableTaskDelegate interface {
-	DurableTask(stream v1contracts.V1Dispatcher_DurableTaskServer) error
-}
-
-// dispatcherDurableAdapter reaches the durable task handler, which lives on the dispatcher's V1
-// service.
-type dispatcherDurableAdapter struct {
-	*dispatcher.DispatcherImpl
-}
-
-func (a dispatcherDurableAdapter) DurableTask(stream v1contracts.V1Dispatcher_DurableTaskServer) error {
-	return a.V1().DurableTask(stream)
+	DurableTaskWithReceive(ctx context.Context, receive func() (*v1contracts.DurableTaskRequest, error), sender *rpcstream.Sender[v1contracts.DurableTaskResponse]) error
 }
 
 type OperatorServiceImpl struct {
-	v1contracts.UnimplementedOperatorServiceServer
+	v1connect.UnimplementedOperatorServiceHandler
 
 	svc     *operatorsvc.Service
 	durable durableTaskDelegate
@@ -165,7 +156,7 @@ func New(fs ...OperatorServiceOpt) (*OperatorServiceImpl, error) {
 
 	return &OperatorServiceImpl{
 		svc:     svc,
-		durable: dispatcherDurableAdapter{opts.dispatcher},
+		durable: opts.dispatcher.V1(),
 		l:       &newLogger,
 	}, nil
 }
@@ -182,32 +173,30 @@ func tenantFromContext(ctx context.Context) (*sqlcv1.Tenant, bool) {
 	return tenant, ok && tenant != nil
 }
 
-// authorizeOperator resolves the calling operator from the hatchet-operator-id metadata and the
-// token's tenant. Parsing the metadata is this package's job; deciding whether the operator may
-// be used is the service's.
+// authorizeOperator resolves the calling operator from the hatchet-operator-id request header
+// and the token's tenant. Parsing the header is this package's job; deciding whether the
+// operator may be used is the service's.
 func (s *OperatorServiceImpl) authorizeOperator(ctx context.Context) (*sqlcv1.Tenant, *sqlcv1.V1Operator, error) {
 	tenant, ok := tenantFromContext(ctx)
 
 	if !ok {
-		return nil, nil, status.Error(codes.Unauthenticated, "tenant not found in request context")
+		return nil, nil, connect.NewError(connect.CodeUnauthenticated, errors.New("tenant not found in request context"))
 	}
 
-	md, ok := metadata.FromIncomingContext(ctx)
+	value := ""
 
-	if !ok {
-		return nil, nil, status.Errorf(codes.InvalidArgument, "missing %s metadata", OperatorIdMetadataKey)
+	if info, ok := connect.CallInfoForHandlerContext(ctx); ok {
+		value = info.RequestHeader().Get(OperatorIdMetadataKey)
 	}
 
-	values := md.Get(OperatorIdMetadataKey)
-
-	if len(values) == 0 || values[0] == "" {
-		return nil, nil, status.Errorf(codes.InvalidArgument, "missing %s metadata", OperatorIdMetadataKey)
+	if value == "" {
+		return nil, nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("missing %s metadata", OperatorIdMetadataKey))
 	}
 
-	operatorId, err := uuid.Parse(values[0])
+	operatorId, err := uuid.Parse(value)
 
 	if err != nil {
-		return nil, nil, status.Errorf(codes.InvalidArgument, "invalid %s metadata: %s is not a uuid", OperatorIdMetadataKey, values[0])
+		return nil, nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid %s metadata: %s is not a uuid", OperatorIdMetadataKey, value))
 	}
 
 	op, err := s.svc.AuthorizeOperator(ctx, tenant, operatorId)
@@ -224,7 +213,7 @@ func (s *OperatorServiceImpl) authorizeWorker(ctx context.Context, tenant *sqlcv
 	workerId, err := uuid.Parse(workerIdStr)
 
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid worker ID format: %s", workerIdStr)
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid worker ID format: %s", workerIdStr))
 	}
 
 	return s.svc.AuthorizeWorker(ctx, tenant, op.ID, workerId)

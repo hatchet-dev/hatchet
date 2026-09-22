@@ -1,11 +1,11 @@
--- name: CreateOLAPPartitions :exec
+-- name: CreateOLAPPartitions :one
 SELECT
-    create_v1_hash_partitions('v1_task_events_olap_tmp'::text, @partitions::int),
-    create_v1_hash_partitions('v1_task_status_updates_tmp'::text, @partitions::int),
-    create_v1_range_partition('v1_tasks_olap'::text, @date::date),
-    create_v1_range_partition('v1_runs_olap'::text, @date::date),
-    create_v1_range_partition('v1_dags_olap'::text, @date::date),
-    create_v1_range_partition('v1_payloads_olap'::text, @date::date)
+    create_v1_hash_partitions('v1_task_events_olap_tmp'::text, @partitions::int) AS v1_task_events_olap_tmp,
+    create_v1_hash_partitions('v1_task_status_updates_tmp'::text, @partitions::int) AS v1_task_status_updates_tmp,
+    create_v1_range_partition('v1_tasks_olap'::text, @date::date) AS v1_tasks_olap,
+    create_v1_range_partition('v1_runs_olap'::text, @date::date) AS v1_runs_olap,
+    create_v1_range_partition('v1_dags_olap'::text, @date::date) AS v1_dags_olap,
+    create_v1_range_partition('v1_payloads_olap'::text, @date::date) AS v1_payloads_olap
 ;
 
 -- name: CreateOLAPEventPartitions :exec
@@ -2151,12 +2151,7 @@ SELECT
         ELSE NULL
     END AS inline_content
 FROM inputs i
-ON CONFLICT (tenant_id, external_id, inserted_at) DO UPDATE
-SET
-    location = EXCLUDED.location,
-    external_location_key = EXCLUDED.external_location_key,
-    inline_content = EXCLUDED.inline_content,
-    updated_at = NOW()
+ON CONFLICT DO NOTHING
 ;
 
 -- name: OffloadPayloads :exec

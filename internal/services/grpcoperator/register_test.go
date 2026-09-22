@@ -3,11 +3,10 @@ package grpcoperator
 import (
 	"testing"
 
+	"connectrpc.com/connect"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -56,13 +55,13 @@ func TestRegisterRejects(t *testing.T) {
 	t.Run("missing tenant", func(t *testing.T) {
 		svc := newTestService(t, nil)
 		_, err := svc.Register(t.Context(), &v1contracts.OperatorRegisterRequest{Name: "op"})
-		assert.Equal(t, codes.Unauthenticated, status.Code(err))
+		assert.Equal(t, connect.CodeUnauthenticated, connect.CodeOf(err))
 	})
 
 	t.Run("invalid name", func(t *testing.T) {
 		svc := newTestService(t, nil)
 		_, err := svc.Register(tenantContext(tenant), &v1contracts.OperatorRegisterRequest{Name: "bad name!"})
-		assert.Equal(t, codes.InvalidArgument, status.Code(err))
+		assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
 	})
 
 	// the worker id is a protocol field, so a malformed one is refused before anything is
@@ -72,7 +71,7 @@ func TestRegisterRejects(t *testing.T) {
 		malformed := "not-a-uuid"
 
 		_, err := svc.Register(tenantContext(tenant), &v1contracts.OperatorRegisterRequest{Name: "op", WorkerId: &malformed})
-		assert.Equal(t, codes.InvalidArgument, status.Code(err))
+		assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
 		assert.Zero(t, svc.operators.Count())
 	})
 

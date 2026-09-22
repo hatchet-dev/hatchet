@@ -6,11 +6,10 @@ import (
 	"fmt"
 	"time"
 
+	"connectrpc.com/connect"
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 	"golang.org/x/sync/errgroup"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/task/trigger"
@@ -48,10 +47,7 @@ func (i *IngestorImpl) ingestEventV1(ctx context.Context, tenant *sqlcv1.Tenant,
 	}
 
 	if !canCreateEvents {
-		return nil, status.Error(
-			codes.ResourceExhausted,
-			fmt.Sprintf("tenant has reached %d%% of its events limit", eLimit),
-		)
+		return nil, connect.NewError(connect.CodeResourceExhausted, fmt.Errorf("tenant has reached %d%% of its events limit", eLimit))
 	}
 
 	opt := eventToPayload(tenantId, key, data, metadata, priority, scope, triggeringWebhookName)
@@ -232,10 +228,7 @@ func (i *IngestorImpl) bulkIngestEventV1(ctx context.Context, tenant *sqlcv1.Ten
 	}
 
 	if !canCreateEvents {
-		return nil, status.Error(
-			codes.ResourceExhausted,
-			fmt.Sprintf("tenant has reached %d%% of its events limit", eLimit),
-		)
+		return nil, connect.NewError(connect.CodeResourceExhausted, fmt.Errorf("tenant has reached %d%% of its events limit", eLimit))
 	}
 
 	payloads := make([]tasktypes.UserEventTaskPayload, 0, len(eventOpts))

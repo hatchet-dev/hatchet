@@ -4,77 +4,97 @@ import (
 	"context"
 	"testing"
 
+	"connectrpc.com/connect"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/status"
 
+	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/operatorsvc/operatorsvctest"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-// The operator id travels in gRPC metadata; parsing it is this package's job, and deciding
-// whether the operator may be used is the operator service's.
+// The operator id travels in the request header; parsing it is this package's job, and deciding
+// whether the operator may be used is the operator service's. The header is only visible through
+// connect's handler context, so these cases go over the wire and use SendStepActionEvent, the
+// unary RPC that authorizes the operator first.
 func TestAuthorizeOperatorReadsMetadata(t *testing.T) {
 	tenant := &sqlcv1.Tenant{ID: uuid.New()}
 	grpcOp := &sqlcv1.V1Operator{ID: uuid.New(), TenantID: tenant.ID, Name: "grpc-op", Kind: sqlcv1.V1OperatorKindGRPC, LeasingManager: sqlcv1.V1OperatorLeasingManagerSELF}
 
+	withHeader := func(key, value string) context.Context {
+		ctx, info := connect.NewClientContext(context.Background())
+		info.RequestHeader().Set(key, value)
+
+		return ctx
+	}
+
 	cases := []struct {
 		ctx      context.Context
+		tenant   *sqlcv1.Tenant
 		name     string
-		wantCode codes.Code
+		wantCode connect.Code // zero means the call succeeds
 	}{
 		{
 			name:     "missing tenant",
-			ctx:      metadata.NewIncomingContext(context.Background(), metadata.Pairs(OperatorIdMetadataKey, grpcOp.ID.String())),
-			wantCode: codes.Unauthenticated,
+			tenant:   nil,
+			ctx:      operatorCallContext(context.Background(), grpcOp.ID.String()),
+			wantCode: connect.CodeUnauthenticated,
 		},
 		{
 			name:     "no incoming metadata",
-			ctx:      tenantContext(tenant),
-			wantCode: codes.InvalidArgument,
+			tenant:   tenant,
+			ctx:      context.Background(),
+			wantCode: connect.CodeInvalidArgument,
 		},
 		{
 			name:     "metadata without operator id",
-			ctx:      metadata.NewIncomingContext(tenantContext(tenant), metadata.Pairs("other-key", "value")),
-			wantCode: codes.InvalidArgument,
+			tenant:   tenant,
+			ctx:      withHeader("other-key", "value"),
+			wantCode: connect.CodeInvalidArgument,
 		},
 		{
 			name:     "malformed operator id",
-			ctx:      operatorContext(tenant, "not-a-uuid"),
-			wantCode: codes.InvalidArgument,
+			tenant:   tenant,
+			ctx:      operatorCallContext(context.Background(), "not-a-uuid"),
+			wantCode: connect.CodeInvalidArgument,
 		},
 		{
 			name:     "unknown operator",
-			ctx:      operatorContext(tenant, uuid.NewString()),
-			wantCode: codes.PermissionDenied,
+			tenant:   tenant,
+			ctx:      operatorCallContext(context.Background(), uuid.NewString()),
+			wantCode: connect.CodePermissionDenied,
 		},
 		{
 			name:     "authorized",
-			ctx:      operatorContext(tenant, grpcOp.ID.String()),
-			wantCode: codes.OK,
+			tenant:   tenant,
+			ctx:      operatorCallContext(context.Background(), grpcOp.ID.String()),
+			wantCode: 0,
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			svc := newTestService(t, operatorsvctest.NewOperatorStore(grpcOp))
+			worker := svc.workers.Add(&sqlcv1.Worker{ID: uuid.New(), TenantId: tenant.ID, OperatorId: &grpcOp.ID})
+			client := operatorClient(t, svc, tc.tenant)
 
-			gotTenant, op, err := svc.authorizeOperator(tc.ctx)
+			resp, err := client.SendStepActionEvent(tc.ctx, &contracts.StepActionEvent{WorkerId: worker.ID.String()})
 
-			if tc.wantCode == codes.OK {
+			if tc.wantCode == 0 {
+				// the worker is owned by grpcOp under tenant, so the event only goes through
+				// when authorization resolved that operator and tenant
 				require.NoError(t, err)
-				assert.Equal(t, grpcOp.ID, op.ID)
-				assert.Equal(t, tenant.ID, gotTenant.ID)
+				assert.Equal(t, worker.ID.String(), resp.WorkerId)
+				assert.Len(t, svc.dispatcher.StepCalls(), 1)
 
 				return
 			}
 
 			require.Error(t, err)
-			assert.Nil(t, op)
-			assert.Equal(t, tc.wantCode, status.Code(err), err.Error())
+			assert.Nil(t, resp)
+			assert.Equal(t, tc.wantCode, connect.CodeOf(err), err.Error())
+			assert.Empty(t, svc.dispatcher.StepCalls(), "nothing reaches the dispatcher without authorization")
 		})
 	}
 }
@@ -86,7 +106,7 @@ func TestAuthorizeWorkerRejectsMalformedId(t *testing.T) {
 	_, op, worker := registeredOperator(t, svc, tenant)
 
 	_, err := svc.authorizeWorker(t.Context(), tenant, op, "not-a-uuid")
-	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+	assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
 
 	got, err := svc.authorizeWorker(t.Context(), tenant, op, worker.ID.String())
 	require.NoError(t, err)

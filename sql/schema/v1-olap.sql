@@ -435,7 +435,7 @@ CREATE TYPE v1_payload_location_olap AS ENUM ('INLINE', 'EXTERNAL');
 
 CREATE TABLE v1_payloads_olap (
     tenant_id UUID NOT NULL,
-    external_id UUID NOT NULL,
+    external_id UUID NOT NULL, -- IMPORTANT: Each _partition_ of this table has a `UNIQUE` constraint on this column, but the parent does not
 
     location v1_payload_location_olap NOT NULL,
     external_location_key TEXT,
