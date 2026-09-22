@@ -93,6 +93,13 @@ const COPY = {
     perDay: '/ day',
     perMonth: '/ month',
     unlimited: 'Unlimited',
+    dailyCap: 'hard daily cap',
+    overage: (price: string, units: string) => `then ${price} per ${units}`,
+    groups: {
+      metered: 'Metered usage',
+      meteredNote: 'Included each month, then billed per use',
+      limits: 'Plan limits',
+    },
     expand: 'See full breakdown',
     collapse: 'Hide full breakdown',
   },
@@ -115,20 +122,23 @@ const COPY = {
   },
 } as const;
 
-// Row order in the comparison table. `label` is user-facing.
+// Row order in the comparison table, grouped by kind. `label` is user-facing.
+// Metered resources have an included monthly amount and then bill per use;
+// limits are hard ceilings on the plan.
 const RESOURCES = [
-  { id: 'tenants', label: 'Tenants' },
-  { id: 'users', label: 'Members' },
-  { id: 'data_retention_days', label: 'Data retention' },
-  { id: 'task_runs', label: 'Task runs' },
-  { id: 'events', label: 'Events' },
-  { id: 'worker_slots_limit', label: 'Concurrent runs' },
-  { id: 'crons', label: 'Crons' },
-  { id: 'scheduled_runs', label: 'Scheduled runs' },
-  { id: 'webhooks', label: 'Webhook endpoints' },
+  { id: 'task_runs', label: 'Task runs', kind: 'metered' },
+  { id: 'events', label: 'Events', kind: 'metered' },
+  { id: 'tenants', label: 'Tenants', kind: 'limit' },
+  { id: 'users', label: 'Members', kind: 'limit' },
+  { id: 'data_retention_days', label: 'Data retention', kind: 'limit' },
+  { id: 'worker_slots_limit', label: 'Concurrent runs', kind: 'limit' },
+  { id: 'crons', label: 'Crons', kind: 'limit' },
+  { id: 'scheduled_runs', label: 'Scheduled runs', kind: 'limit' },
+  { id: 'webhooks', label: 'Webhook endpoints', kind: 'limit' },
 ] as const;
 
 type ResourceId = (typeof RESOURCES)[number]['id'];
+type ResourceKind = (typeof RESOURCES)[number]['kind'];
 
 // Only shown when the plans API is unavailable (e.g. billing disabled).
 const PAYG_FALLBACK: Record<ResourceId, string> = {
@@ -158,6 +168,14 @@ const FREE_FALLBACK: Record<ResourceId, string> = {
   webhooks: '5',
 };
 
+// Overage pricing shown when the plans API is unavailable.
+const OVERAGE_FALLBACK: Partial<
+  Record<ResourceId, { price: number; units: number }>
+> = {
+  task_runs: { price: 10, units: 1_000_000 },
+  events: { price: 2, units: 1_000_000 },
+};
+
 const DAILY_LIMIT_TO_RESOURCE: Record<string, ResourceId> = {
   task_runs_daily_limit: 'task_runs',
   events_daily_limit: 'events',
@@ -165,9 +183,12 @@ const DAILY_LIMIT_TO_RESOURCE: Record<string, ResourceId> = {
 
 type ComparisonRow = {
   id: ResourceId;
+  kind: ResourceKind;
   label: string;
   free: string;
+  freeNote?: string;
   payg: string;
+  paygNote?: string;
 };
 
 type Comparison = {
@@ -200,6 +221,29 @@ function formatCount(value: number) {
     return `${value / 1_000_000}M`;
   }
   return new Intl.NumberFormat('en-US').format(value);
+}
+
+const usd = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 2,
+});
+
+function formatOverage(
+  feature: SubscriptionPlanFeature | undefined,
+  fallback: { price: number; units: number } | undefined,
+) {
+  const overage = feature?.overage
+    ? { price: feature.overage.price, units: feature.overage.billingUnits }
+    : fallback;
+  if (!overage || overage.units <= 0) {
+    return undefined;
+  }
+  return COPY.compare.overage(
+    usd.format(overage.price),
+    formatCount(overage.units),
+  );
 }
 
 function formatIncluded(feature: SubscriptionPlanFeature | undefined) {
@@ -258,7 +302,7 @@ function buildComparison(input: {
   retentionPeriod?: string;
   highlightId: ResourceId | null;
 }): Comparison {
-  const payg = payAsYouGoPlan(input.planList?.plans);
+  const paygPlan = payAsYouGoPlan(input.planList?.plans);
   const free = freePlan(input.planList?.plans);
   const freeDaily = new Map(
     (input.planList?.freeLimits ?? []).map((limit) => [
@@ -268,7 +312,7 @@ function buildComparison(input: {
   );
 
   const paygValue = (id: ResourceId) =>
-    formatIncluded(findFeature(payg, id)) ?? PAYG_FALLBACK[id];
+    formatIncluded(findFeature(paygPlan, id)) ?? PAYG_FALLBACK[id];
 
   const freeValue = (id: ResourceId) => {
     const fromPlan = formatIncluded(findFeature(free, id));
@@ -294,7 +338,7 @@ function buildComparison(input: {
   };
 
   const rows = RESOURCES.map((resource): ComparisonRow => {
-    const id = resource.id;
+    const { id, kind, label } = resource;
     let free = freeValue(id);
     let payg = paygValue(id);
 
@@ -305,12 +349,22 @@ function buildComparison(input: {
       payg = formatDays(payg);
     }
 
-    if (id === 'task_runs' || id === 'events') {
-      free = `${free} ${COPY.compare.perDay}`;
-      payg = `${payg} ${COPY.compare.perMonth}`;
+    if (kind === 'metered') {
+      return {
+        id,
+        kind,
+        label,
+        free: `${free} ${COPY.compare.perDay}`,
+        freeNote: COPY.compare.dailyCap,
+        payg: `${payg} ${COPY.compare.perMonth}`,
+        paygNote: formatOverage(
+          findFeature(paygPlan, id),
+          OVERAGE_FALLBACK[id],
+        ),
+      };
     }
 
-    return { id, label: resource.label, free, payg };
+    return { id, kind, label, free, payg };
   });
 
   return { rows, highlightId: input.highlightId };
@@ -392,13 +446,81 @@ type UpgradeGateState = ReturnType<typeof useUpgradeGate>;
 // Presentation
 // ---------------------------------------------------------------------------
 
+function ValueCell({
+  value,
+  note,
+  className,
+}: {
+  value: string;
+  note?: string;
+  className?: string;
+}) {
+  return (
+    <TableCell className={cn('px-3 py-2 text-right align-top', className)}>
+      <span className="block text-sm tabular-nums">{value}</span>
+      {note ? (
+        <span className="block text-xs font-normal text-muted-foreground">
+          {note}
+        </span>
+      ) : null}
+    </TableCell>
+  );
+}
+
+function GroupRow({ label, note }: { label: string; note?: string }) {
+  return (
+    <TableRow className="bg-muted/30 hover:bg-muted/30">
+      <TableCell colSpan={3} className="px-3 py-1.5">
+        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          {label}
+        </span>
+        {note ? (
+          <span className="ml-2 text-xs text-muted-foreground">{note}</span>
+        ) : null}
+      </TableCell>
+    </TableRow>
+  );
+}
+
+function ResourceRow({
+  row,
+  highlighted,
+}: {
+  row: ComparisonRow;
+  highlighted: boolean;
+}) {
+  return (
+    <TableRow className={cn(highlighted && 'bg-primary/5 hover:bg-primary/5')}>
+      <TableCell
+        className={cn(
+          'px-3 py-2 align-top text-sm',
+          highlighted ? 'font-medium text-foreground' : 'text-muted-foreground',
+        )}
+      >
+        {row.label}
+      </TableCell>
+      <ValueCell
+        value={row.free}
+        note={row.freeNote}
+        className="text-muted-foreground"
+      />
+      <ValueCell
+        value={row.payg}
+        note={row.paygNote}
+        className="font-medium text-foreground"
+      />
+    </TableRow>
+  );
+}
+
 function ComparisonTable({ comparison }: { comparison: Comparison }) {
   const highlighted = comparison.rows.find(
     (row) => row.id === comparison.highlightId,
   );
   // With no gated resource there is nothing to collapse to, so show it all.
   const [expanded, setExpanded] = useState(!highlighted);
-  const rows = expanded ? comparison.rows : highlighted ? [highlighted] : [];
+  const metered = comparison.rows.filter((row) => row.kind === 'metered');
+  const limits = comparison.rows.filter((row) => row.kind === 'limit');
 
   return (
     <div className="flex flex-col gap-2">
@@ -418,44 +540,43 @@ function ComparisonTable({ comparison }: { comparison: Comparison }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map((row) => {
-              const isGated = row.id === comparison.highlightId;
-              return (
-                <TableRow
-                  key={row.id}
-                  className={cn(isGated && 'bg-primary/5 hover:bg-primary/5')}
-                >
-                  <TableCell
-                    className={cn(
-                      'px-3 py-2 text-sm',
-                      isGated
-                        ? 'font-medium text-foreground'
-                        : 'text-muted-foreground',
-                    )}
-                  >
-                    {row.label}
-                  </TableCell>
-                  <TableCell className="px-3 py-2 text-right text-sm tabular-nums text-muted-foreground">
-                    {row.free}
-                  </TableCell>
-                  <TableCell className="px-3 py-2 text-right text-sm font-medium tabular-nums text-foreground">
-                    {row.payg}
-                  </TableCell>
-                </TableRow>
-              );
-            })}
             {expanded ? (
-              <TableRow className="bg-muted/30 hover:bg-muted/30">
-                <TableCell className="px-3 py-2 text-sm text-muted-foreground">
-                  {COPY.price.label}
-                </TableCell>
-                <TableCell className="px-3 py-2 text-right text-sm tabular-nums text-muted-foreground">
-                  {COPY.price.free}
-                </TableCell>
-                <TableCell className="px-3 py-2 text-right text-sm font-medium text-foreground">
-                  {COPY.price.payg}
-                </TableCell>
-              </TableRow>
+              <>
+                <GroupRow
+                  label={COPY.compare.groups.metered}
+                  note={COPY.compare.groups.meteredNote}
+                />
+                {metered.map((row) => (
+                  <ResourceRow
+                    key={row.id}
+                    row={row}
+                    highlighted={row.id === comparison.highlightId}
+                  />
+                ))}
+                <GroupRow label={COPY.compare.groups.limits} />
+                {limits.map((row) => (
+                  <ResourceRow
+                    key={row.id}
+                    row={row}
+                    highlighted={row.id === comparison.highlightId}
+                  />
+                ))}
+                <TableRow className="bg-muted/30 hover:bg-muted/30">
+                  <TableCell className="px-3 py-2 text-sm text-muted-foreground">
+                    {COPY.price.label}
+                  </TableCell>
+                  <ValueCell
+                    value={COPY.price.free}
+                    className="text-muted-foreground"
+                  />
+                  <ValueCell
+                    value={COPY.price.payg}
+                    className="font-medium text-foreground"
+                  />
+                </TableRow>
+              </>
+            ) : highlighted ? (
+              <ResourceRow row={highlighted} highlighted />
             ) : null}
           </TableBody>
         </Table>
