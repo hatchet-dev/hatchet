@@ -103,11 +103,6 @@ const COPY = {
     expand: 'See full breakdown',
     collapse: 'Hide full breakdown',
   },
-  price: {
-    label: 'Base price',
-    free: '$0',
-    payg: '$0, then usage-based',
-  },
   actions: {
     upgrade: 'Upgrade',
     dismiss: 'Not now',
@@ -467,21 +462,6 @@ function ValueCell({
   );
 }
 
-function GroupRow({ label, note }: { label: string; note?: string }) {
-  return (
-    <TableRow className="bg-muted/30 hover:bg-muted/30">
-      <TableCell colSpan={3} className="px-3 py-1.5">
-        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          {label}
-        </span>
-        {note ? (
-          <span className="ml-2 text-xs text-muted-foreground">{note}</span>
-        ) : null}
-      </TableCell>
-    </TableRow>
-  );
-}
-
 function ResourceRow({
   row,
   highlighted,
@@ -513,17 +493,23 @@ function ResourceRow({
   );
 }
 
-function ComparisonTable({ comparison }: { comparison: Comparison }) {
-  const highlighted = comparison.rows.find(
-    (row) => row.id === comparison.highlightId,
-  );
-  // With no gated resource there is nothing to collapse to, so show it all.
-  const [expanded, setExpanded] = useState(!highlighted);
-  const metered = comparison.rows.filter((row) => row.kind === 'metered');
-  const limits = comparison.rows.filter((row) => row.kind === 'limit');
-
+function ComparisonSection({
+  label,
+  note,
+  rows,
+  highlightId,
+}: {
+  label: string;
+  note?: string;
+  rows: ComparisonRow[];
+  highlightId: ResourceId | null;
+}) {
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-1.5">
+      <div className="flex flex-wrap items-baseline gap-x-2">
+        <p className="text-sm font-medium text-foreground">{label}</p>
+        {note ? <p className="text-xs text-muted-foreground">{note}</p> : null}
+      </div>
       <div className="overflow-hidden rounded-lg border border-border/50">
         <Table>
           <TableHeader>
@@ -540,46 +526,61 @@ function ComparisonTable({ comparison }: { comparison: Comparison }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {expanded ? (
-              <>
-                <GroupRow
-                  label={COPY.compare.groups.metered}
-                  note={COPY.compare.groups.meteredNote}
-                />
-                {metered.map((row) => (
-                  <ResourceRow
-                    key={row.id}
-                    row={row}
-                    highlighted={row.id === comparison.highlightId}
-                  />
-                ))}
-                <GroupRow label={COPY.compare.groups.limits} />
-                {limits.map((row) => (
-                  <ResourceRow
-                    key={row.id}
-                    row={row}
-                    highlighted={row.id === comparison.highlightId}
-                  />
-                ))}
-                <TableRow className="bg-muted/30 hover:bg-muted/30">
-                  <TableCell className="px-3 py-2 text-sm text-muted-foreground">
-                    {COPY.price.label}
-                  </TableCell>
-                  <ValueCell
-                    value={COPY.price.free}
-                    className="text-muted-foreground"
-                  />
-                  <ValueCell
-                    value={COPY.price.payg}
-                    className="font-medium text-foreground"
-                  />
-                </TableRow>
-              </>
-            ) : highlighted ? (
-              <ResourceRow row={highlighted} highlighted />
-            ) : null}
+            {rows.map((row) => (
+              <ResourceRow
+                key={row.id}
+                row={row}
+                highlighted={row.id === highlightId}
+              />
+            ))}
           </TableBody>
         </Table>
+      </div>
+    </div>
+  );
+}
+
+const SECTIONS: { kind: ResourceKind; label: string; note?: string }[] = [
+  {
+    kind: 'metered',
+    label: COPY.compare.groups.metered,
+    note: COPY.compare.groups.meteredNote,
+  },
+  { kind: 'limit', label: COPY.compare.groups.limits },
+];
+
+function ComparisonTable({ comparison }: { comparison: Comparison }) {
+  const highlighted = comparison.rows.find(
+    (row) => row.id === comparison.highlightId,
+  );
+  // With no gated resource there is nothing to collapse to, so show it all.
+  const [expanded, setExpanded] = useState(!highlighted);
+
+  // Collapsed: only the gated row, under its own section label so a metered
+  // resource still reads as included-then-overage.
+  const sections = expanded
+    ? SECTIONS.map((section) => ({
+        ...section,
+        rows: comparison.rows.filter((row) => row.kind === section.kind),
+      }))
+    : highlighted
+      ? SECTIONS.filter((section) => section.kind === highlighted.kind).map(
+          (section) => ({ ...section, rows: [highlighted] }),
+        )
+      : [];
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-4">
+        {sections.map((section) => (
+          <ComparisonSection
+            key={section.kind}
+            label={section.label}
+            note={section.note}
+            rows={section.rows}
+            highlightId={comparison.highlightId}
+          />
+        ))}
       </div>
       {highlighted ? (
         <Button
