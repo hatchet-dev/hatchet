@@ -88,7 +88,15 @@ export class LegacyHatchetClient {
 
     this.tenantId = this.config.tenant_id;
     this.api = api(this.config.api_url, this.config.token, axiosOpts);
-    this.event = event || new EventClient(this.config, this.api, transport);
+    this.event =
+      event ||
+      new EventClient(
+        this.config,
+        channelFactory(this.config, this.credentials),
+        clientFactory,
+        this.api,
+        transport
+      );
     this.dispatcher =
       dispatcher ||
       new DispatcherClient(

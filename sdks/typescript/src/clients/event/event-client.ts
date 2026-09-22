@@ -1,4 +1,5 @@
 import { Client, createClient } from '@connectrpc/connect';
+import { Channel, ClientFactory } from 'nice-grpc';
 import {
   BulkPushEventRequest,
   Event,
@@ -122,8 +123,12 @@ export class EventClient {
 
   logger: Logger;
 
+  // The channel and factory arguments are the streaming clients' and are unused here; they stay
+  // in the signature so deep imports constructed with the original four arguments keep working.
   constructor(
     config: ClientConfig,
+    _channel: Channel,
+    _factory: ClientFactory,
     api: HatchetClient['api'],
     transport: Transport = createNodeTransport(config)
   ) {

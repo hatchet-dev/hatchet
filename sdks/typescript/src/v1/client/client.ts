@@ -577,7 +577,13 @@ export class HatchetClient<
    */
   get events() {
     if (!this._event) {
-      this._event = new EventClient(this._config, this.api, this._transport);
+      this._event = new EventClient(
+        this._config,
+        channelFactory(this._config, this._credentials),
+        this._clientFactory,
+        this.api,
+        this._transport
+      );
     }
     return this._event;
   }

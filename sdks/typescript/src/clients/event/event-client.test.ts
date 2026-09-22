@@ -1,7 +1,7 @@
 import { DEFAULT_LOGGER } from '@clients/hatchet-client/hatchet-logger';
 import { HatchetClient } from '@hatchet/v1';
 import { EventClient } from './event-client';
-import { mockTransport } from '../../legacy/legacy-client.test';
+import { mockChannel, mockFactory, mockTransport } from '../../legacy/legacy-client.test';
 
 let client: EventClient;
 
@@ -22,6 +22,8 @@ describe('EventClient', () => {
         tenant_id: 'tenantId',
         logger: DEFAULT_LOGGER,
       },
+      mockChannel,
+      mockFactory,
       new HatchetClient().api,
       mockTransport
     );
@@ -45,6 +47,8 @@ describe('EventClient', () => {
         tenant_id: 'tenantId',
         logger: DEFAULT_LOGGER,
       },
+      mockChannel,
+      mockFactory,
       new HatchetClient().api,
       mockTransport
     );

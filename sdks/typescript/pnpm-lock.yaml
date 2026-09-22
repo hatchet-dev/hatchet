@@ -29,11 +29,11 @@ importers:
         specifier: ^2.15.0
         version: 2.15.0
       '@connectrpc/connect':
-        specifier: ^2.2.0
-        version: 2.2.0(@bufbuild/protobuf@2.15.0)
+        specifier: ~2.1.2
+        version: 2.1.2(@bufbuild/protobuf@2.15.0)
       '@connectrpc/connect-node':
-        specifier: ^2.2.0
-        version: 2.2.0(@bufbuild/protobuf@2.15.0)(@connectrpc/connect@2.2.0(@bufbuild/protobuf@2.15.0))
+        specifier: ~2.1.2
+        version: 2.1.2(@bufbuild/protobuf@2.15.0)(@connectrpc/connect@2.1.2(@bufbuild/protobuf@2.15.0))
       '@types/qs':
         specifier: ^6.15.0
         version: 6.15.1
@@ -541,15 +541,15 @@ packages:
   '@bufbuild/protoplugin@2.15.0':
     resolution: {integrity: sha512-vZhRoqB/jTHATqItRvJQf1zbxdrGRRhiusGty4+lKcfEFODG0PMXky2Ezv4WHHS6oSxq+5qShITuE7K1/82SuQ==}
 
-  '@connectrpc/connect-node@2.2.0':
-    resolution: {integrity: sha512-E6uUO6e11WdynAuBjuN+0WpHjqxEM9BNDdfDIJHcn49Esg/WxSIbn2y1KFt9XL96IJi01qdBbvubcdpBz1X3Zw==}
-    engines: {node: '>=22'}
+  '@connectrpc/connect-node@2.1.2':
+    resolution: {integrity: sha512-+i/aAOpsI8sIx1mbYp6d99zvxaUSF6t/jP9Ux9maAmjsZPgmIQ3JuIeYi0zJIP9zlCnBlJjkpPosshCgdRuThQ==}
+    engines: {node: '>=20'}
     peerDependencies:
       '@bufbuild/protobuf': ^2.7.0
-      '@connectrpc/connect': 2.2.0
+      '@connectrpc/connect': 2.1.2
 
-  '@connectrpc/connect@2.2.0':
-    resolution: {integrity: sha512-M63OQ1ZFcPUm85CuewJ9G9CMV8LjzGR9935xOnXNQGSazAbwMb3x2W7vXBYM1zqrP7XFD8uxp/dUAhirclgwnQ==}
+  '@connectrpc/connect@2.1.2':
+    resolution: {integrity: sha512-MXkBijtcX09R10Eb6sFeIetc6w6746eio6xtfuyVOH7oQAacT1X0GzMIQFux6Qy8cq3W/T5qX5Bei8YbFtmRGA==}
     peerDependencies:
       '@bufbuild/protobuf': ^2.7.0
 
@@ -4292,12 +4292,12 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@connectrpc/connect-node@2.2.0(@bufbuild/protobuf@2.15.0)(@connectrpc/connect@2.2.0(@bufbuild/protobuf@2.15.0))':
+  '@connectrpc/connect-node@2.1.2(@bufbuild/protobuf@2.15.0)(@connectrpc/connect@2.1.2(@bufbuild/protobuf@2.15.0))':
     dependencies:
       '@bufbuild/protobuf': 2.15.0
-      '@connectrpc/connect': 2.2.0(@bufbuild/protobuf@2.15.0)
+      '@connectrpc/connect': 2.1.2(@bufbuild/protobuf@2.15.0)
 
-  '@connectrpc/connect@2.2.0(@bufbuild/protobuf@2.15.0)':
+  '@connectrpc/connect@2.1.2(@bufbuild/protobuf@2.15.0)':
     dependencies:
       '@bufbuild/protobuf': 2.15.0
 
