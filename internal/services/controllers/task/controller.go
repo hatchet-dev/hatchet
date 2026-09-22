@@ -602,6 +602,9 @@ func (tc *TasksControllerImpl) emitOrchestratorTerminalEvents(
 	return errs
 }
 
+// orchestratorIdsWithoutWorker returns the orchestrators released with no worker (evicted), whose
+// children nothing else cancels. With a worker the operator does, and a second cancel duplicates
+// the children's CANCELLED events.
 func orchestratorIdsWithoutWorker(released []*sqlcv1.ReleaseTasksRow) []uuid.UUID {
 	var ids []uuid.UUID
 
@@ -616,6 +619,7 @@ func orchestratorIdsWithoutWorker(released []*sqlcv1.ReleaseTasksRow) []uuid.UUI
 	return ids
 }
 
+// cancelChildrenOfOrchestratorsWithoutWorker cancels those orchestrators' unfinished children.
 func (tc *TasksControllerImpl) cancelChildrenOfOrchestratorsWithoutWorker(
 	ctx context.Context,
 	tenantId uuid.UUID,
@@ -636,6 +640,8 @@ func (tc *TasksControllerImpl) cancelChildrenOfOrchestratorsWithoutWorker(
 	return tc.publishChildCancellations(ctx, tenantId, children)
 }
 
+// publishChildCancellations batches the children: a payload is published whole, so one holding them
+// all could exceed msgqueue.MaxMessageSize.
 func (tc *TasksControllerImpl) publishChildCancellations(
 	ctx context.Context,
 	tenantId uuid.UUID,
