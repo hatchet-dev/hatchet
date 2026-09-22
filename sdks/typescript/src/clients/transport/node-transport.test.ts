@@ -300,6 +300,27 @@ describe('tlsSessionOptions', () => {
     expect(tlsSessionOptions({ tls_strategy: 'mtls' }).rejectUnauthorized).toBe(true);
   });
 
+  it('refuses half a client identity the way grpc-js does', () => {
+    expect(() =>
+      tlsSessionOptions({ tls_strategy: 'mtls', cert_file: join(dir, 'client.pem') })
+    ).toThrow('Certificate chain must be given with accompanying private key');
+    expect(() => tlsSessionOptions({ key_file: join(dir, 'client-key.pem') })).toThrow(
+      'Private key must be given with accompanying certificate chain'
+    );
+  });
+
+  it('presents a complete client identity under mtls and ignores one under tls', () => {
+    const pair = { cert_file: join(dir, 'client.pem'), key_file: join(dir, 'client-key.pem') };
+
+    expect(tlsSessionOptions({ tls_strategy: 'mtls', ...pair })).toMatchObject({
+      cert: Buffer.from('client cert'),
+      key: Buffer.from('client key'),
+    });
+    expect(
+      tlsSessionOptions({ tls_strategy: 'tls', cert_file: pair.cert_file })
+    ).not.toHaveProperty('cert');
+  });
+
   it('applies GRPC_SSL_CIPHER_SUITES when set', () => {
     expect(tlsSessionOptions({ tls_strategy: 'tls' }).ciphers).toBeUndefined();
 
@@ -355,6 +376,32 @@ describe('createNodeTransport over TLS', () => {
 
       await expect(call(server.port, { tls_strategy: 'tls' })).rejects.toThrow();
       expect(server.requests).toHaveLength(0);
+    } finally {
+      await server.close();
+    }
+  });
+
+  it('authenticates with the client certificate an mTLS endpoint requires', async () => {
+    const server = await serveGrpc({
+      ...serverOptions(pki.server),
+      ca: readFileSync(pki.ca),
+      requestCert: true,
+      rejectUnauthorized: true,
+    });
+    try {
+      const tls_config = {
+        tls_strategy: 'mtls' as const,
+        ca_file: pki.ca,
+        cert_file: pki.client.cert,
+        key_file: pki.client.key,
+      };
+
+      await expect(call(server.port, tls_config)).resolves.toBeDefined();
+      expect(server.requests).toHaveLength(1);
+      await expect(
+        call(server.port, { tls_strategy: 'mtls', ca_file: pki.ca, cert_file: pki.client.cert })
+      ).rejects.toThrow('Certificate chain must be given with accompanying private key');
+      expect(server.requests).toHaveLength(1);
     } finally {
       await server.close();
     }

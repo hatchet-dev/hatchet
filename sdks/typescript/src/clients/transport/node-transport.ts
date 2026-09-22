@@ -62,10 +62,16 @@ export function tlsSessionOptions(tls: ClientConfig['tls_config']): SecureClient
   }
 
   if (tls.tls_strategy !== 'tls') {
-    if (tls.key_file) {
-      options.key = readFileSync(tls.key_file);
+    // grpc-js refuses half a client identity with these messages rather than connecting without
+    // one, which an endpoint that does not require client certificates would silently accept.
+    if (tls.key_file && !tls.cert_file) {
+      throw new Error('Private key must be given with accompanying certificate chain');
     }
-    if (tls.cert_file) {
+    if (tls.cert_file && !tls.key_file) {
+      throw new Error('Certificate chain must be given with accompanying private key');
+    }
+    if (tls.key_file && tls.cert_file) {
+      options.key = readFileSync(tls.key_file);
       options.cert = readFileSync(tls.cert_file);
     }
   }
