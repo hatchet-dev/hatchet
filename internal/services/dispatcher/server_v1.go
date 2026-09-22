@@ -480,17 +480,12 @@ func (s *durableTaskInvocation) deliverOrdered(taskExternalId uuid.UUID, invocat
 
 	var toSend []*contracts.DurableTaskResponse
 
-	nodeId := resp.GetEntryCompleted().GetRef().GetNodeId()
-	branchId := resp.GetEntryCompleted().GetRef().GetBranchId()
-
 	switch {
 	case order <= rel.maxSatisfiedOrderSentAlready:
-		fmt.Printf("[ordered-release] task=%s invocation=%d order=%d node=%d branch=%d cursor=%d action=resend-already-released\n", taskExternalId, invocationCount, order, nodeId, branchId, rel.maxSatisfiedOrderSentAlready)
 		// already released (e.g. reconnect / worker-status re-delivery); the worker
 		// dedupes by node id, so send it through again.
 		toSend = []*contracts.DurableTaskResponse{resp}
 	case order == rel.maxSatisfiedOrderSentAlready+1:
-		fmt.Printf("[ordered-release] task=%s invocation=%d order=%d node=%d branch=%d cursor=%d action=send buffered=%d\n", taskExternalId, invocationCount, order, nodeId, branchId, rel.maxSatisfiedOrderSentAlready, len(rel.bufferedCompletions))
 		toSend = append(toSend, resp)
 		rel.maxSatisfiedOrderSentAlready++
 
@@ -528,7 +523,6 @@ func (s *durableTaskInvocation) deliverOrdered(taskExternalId uuid.UUID, invocat
 		if rel.oldestBufferedAt.IsZero() {
 			rel.oldestBufferedAt = time.Now()
 		}
-		fmt.Printf("[ordered-release] task=%s invocation=%d order=%d node=%d branch=%d cursor=%d action=buffer buffered=%d waiting_for=%d\n", taskExternalId, invocationCount, order, nodeId, branchId, rel.maxSatisfiedOrderSentAlready, len(rel.bufferedCompletions), rel.maxSatisfiedOrderSentAlready+1)
 	}
 
 	for _, r := range toSend {
@@ -902,7 +896,6 @@ func (d *DispatcherServiceImpl) sendStaleInvocationEviction(invocation *durableT
 }
 
 func (d *DispatcherServiceImpl) deliverSatisfiedEntries(tenantId uuid.UUID, taskExternalId string, result *v1.IngestDurableTaskEventResult) error {
-	fmt.Printf("[ordered-release] task=%s source=reissue-cached kind=%s\n", taskExternalId, result.Kind)
 	switch result.Kind {
 	case sqlcv1.V1DurableEventLogKindRUN:
 		for _, entry := range result.TriggerRunsResult.Entries {
@@ -1399,8 +1392,6 @@ func (d *DispatcherServiceImpl) evictDurableTask(
 		return nil, fmt.Errorf("failed to get current invocation count: %w", err)
 	}
 
-	fmt.Printf("[ordered-release] task=%s invocation=%d action=evict reason=%q\n", taskExternalId, invocationCount, reason)
-
 	if current, ok := currentCounts[idInsertedAt]; ok && current != nil && invocationCount < *current {
 		d.l.Warn().Msgf(
 			"skipping eviction of durable task %s: requested for invocation %d but current invocation is %d",
@@ -1557,7 +1548,6 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 	}
 
 	for _, cb := range callbacks {
-		fmt.Printf("[ordered-release] task=%s invocation=%d source=worker-status node=%d branch=%d order=%v\n", cb.TaskExternalId, cb.InvocationCount, cb.NodeID, cb.BranchID, derefOrder(cb.SatisfiedOrder))
 		if err := d.deliverEntryCompleted(invocation, cb); err != nil {
 			d.l.Error().Err(err).Msgf("failed to send event_log_entry for task %s node %d", cb.TaskExternalId, cb.NodeID)
 		}
@@ -1681,13 +1671,6 @@ func (d *DispatcherServiceImpl) deliverEntryCompleted(invocation *durableTaskInv
 			EntryCompleted: resp,
 		},
 	})
-}
-
-func derefOrder(order *int64) int64 {
-	if order == nil {
-		return -1
-	}
-	return *order
 }
 
 // ErrNoActiveDurableInvocation is returned by DeliverDurableEventLogEntryCompletion when this
