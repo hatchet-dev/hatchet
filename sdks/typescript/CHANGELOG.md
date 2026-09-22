@@ -5,6 +5,19 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.34.0-alpha.1] - 2026-09-22
+
+### Added
+
+- The `@hatchet-dev/typescript-sdk/core` entry now exports `HatchetCore` (also as `Hatchet`), the application client for runtimes without gRPC: Cloudflare Workers, Vercel Functions, Deno, Bun, browsers and Node. It issues unary Connect calls over the runtime's `fetch` through `createFetchTransport` (binary protobuf bodies, HTTP/1.1 or HTTP/2 as the runtime negotiates) and is configured from an explicit object only: `{ token, serverUrl?, hostPort?, tls?: { strategy: 'none' | 'tls', serverName? }, namespace?, transport?, fetch?, retrier?, logger?, logLevel? }`. With only a `token`, the engine address comes from the token's `grpc_broadcast_address` claim. It owns `run`, `runNoWait`, `runMany` and `runManyNoWait` (over `TriggerWorkflow` and `BulkTriggerWorkflow`, with the Node client's options and namespacing, accepting the declarations from `/edge`), `events.push` and `bulkPush`, `workflows.put`, `rateLimits.put`, `runs.get`, `getDetails`, `cancel` and `replay` (`GetRunDetails`, `CancelTasks` and `ReplayTasks` on the v1 `AdminService`), `logs.put` and `streams.put`. Its `WorkflowRunRef.result()` polls `GetRunDetails` with backoff (250 ms doubling to 5 s, with jitter), takes `{ timeoutMs, signal }`, and rejects a failed run with the tasks' error messages the way the Node client's `result()` does. The REST-backed features of the Node client (`crons`, `schedules`, `runs.list`, `workflows.get`, `events.list`) are not on this entry, since the generated REST client depends on `axios`.
+- Added `createFetchTransport` to `clients/transport`, and `getRunDetails`, `cancelTasks` and `replayTasks` to `V1AdminRpc`.
+- `scripts/check-edge-entry.mjs` also rejects packages named with `--forbid` and SDK modules that read the `process` or `Buffer` globals; `pnpm check:core` runs it against the core entry in CI, next to `check:edge`. A Go e2e (`pkg/testing/e2e/tscore`, `go test -tags e2e`) runs the core client from the built package over HTTP/1.1 against the harness engine.
+
+### Changed
+
+- `runs.getDetails` on the Node client issues `GetRunDetails` through the Connect transport, the same code path the core client uses; its request and response types are unchanged. The trigger and event requests are built by modules both clients share (`clients/admin/trigger-request`, `clients/event/rpc`), with no change to what is sent.
+- `util/batch` measures payloads with `TextEncoder` instead of `Buffer`, so it runs outside Node.
+
 ## [1.34.0-alpha.0] - 2026-09-22
 
 ### Added
