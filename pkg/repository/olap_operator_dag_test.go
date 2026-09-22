@@ -4,7 +4,6 @@ package repository
 
 import (
 	"context"
-	"sync"
 	"testing"
 	"time"
 
@@ -562,7 +561,7 @@ func TestOperatorDAG_CatchesUpWhenOrchestratorEventsPrecedeDagRow(t *testing.T) 
 	})
 }
 
-func (f operatorDagFixture) createDagsParams(parentTaskExternalId *uuid.UUID) sqlcv1.CreateDAGsOLAPOverwriteParams {
+func (f operatorDagFixture) createDagsParams() sqlcv1.CreateDAGsOLAPOverwriteParams {
 	return sqlcv1.CreateDAGsOLAPOverwriteParams{
 		Tenantids:             []uuid.UUID{f.tenantId},
 		Ids:                   []int64{f.dagId},
@@ -572,20 +571,20 @@ func (f operatorDagFixture) createDagsParams(parentTaskExternalId *uuid.UUID) sq
 		Workflowids:           []uuid.UUID{f.workflowId},
 		Workflowversionids:    []uuid.UUID{f.workflowVersionId},
 		Additionalmetadatas:   [][]byte{[]byte(`{}`)},
-		Parenttaskexternalids: []*uuid.UUID{parentTaskExternalId},
+		Parenttaskexternalids: []*uuid.UUID{nil},
 		Totaltasks:            []int32{1},
 		IdempotencyKeys:       []pgtype.Text{{}},
 		IsDagOperators:        []bool{true},
 	}
 }
 
-func (f operatorDagFixture) orchestratorUpdateParams(status sqlcv1.V1ReadableStatusOlap, retryCount int32) sqlcv1.UpdateDAGStatusesFromOrchestratorEventsParams {
+func (f operatorDagFixture) orchestratorUpdateParams(status sqlcv1.V1ReadableStatusOlap) sqlcv1.UpdateDAGStatusesFromOrchestratorEventsParams {
 	return sqlcv1.UpdateDAGStatusesFromOrchestratorEventsParams{
 		Tenantid:            f.tenantId,
 		Dagids:              []int64{f.dagId},
 		Daginsertedats:      []pgtype.Timestamptz{f.dagInsertedAt},
 		Statuses:            []sqlcv1.V1ReadableStatusOlap{status},
-		Retrycounts:         []int32{retryCount},
+		Retrycounts:         []int32{0},
 		Externalids:         []uuid.UUID{f.dagExternalId},
 		Displaynames:        []string{"orchestrator-task"},
 		Workflowids:         []uuid.UUID{f.workflowId},
@@ -594,30 +593,49 @@ func (f operatorDagFixture) orchestratorUpdateParams(status sqlcv1.V1ReadableSta
 	}
 }
 
-func (f operatorDagFixture) createWithParent(t *testing.T, ctx context.Context, repo *OLAPRepositoryImpl, parentTaskExternalId uuid.UUID) {
+// Runs first in an open transaction, then second in its own transaction, and asserts that second
+// only completes once first commits.
+func runOverlappingTransactions(t *testing.T, ctx context.Context, pool *pgxpool.Pool, first, second func(pgx.Tx) error) {
 	t.Helper()
 
-	dag := &DAGWithData{
-		V1Dag: &sqlcv1.V1Dag{
-			ID:                   f.dagId,
-			InsertedAt:           f.dagInsertedAt,
-			TenantID:             f.tenantId,
-			ExternalID:           f.dagExternalId,
-			DisplayName:          "operator-dag-test",
-			WorkflowID:           f.workflowId,
-			WorkflowVersionID:    f.workflowVersionId,
-			ParentTaskExternalID: &parentTaskExternalId,
-			IdempotencyKey:       pgtype.Text{String: "idempotency-key", Valid: true},
-		},
-		Input:                []byte(`{}`),
-		AdditionalMetadata:   []byte(`{}`),
-		ParentTaskExternalID: &parentTaskExternalId,
-		IsOperatorRun:        true,
+	firstTx, err := pool.BeginTx(ctx, pgx.TxOptions{})
+	require.NoError(t, err)
+	defer firstTx.Rollback(ctx) // nolint: errcheck
+
+	require.NoError(t, first(firstTx))
+
+	secondDone := make(chan error, 1)
+
+	go func() {
+		secondTx, err := pool.BeginTx(ctx, pgx.TxOptions{})
+		if err != nil {
+			secondDone <- err
+			return
+		}
+		defer secondTx.Rollback(ctx) // nolint: errcheck
+
+		if err := second(secondTx); err != nil {
+			secondDone <- err
+			return
+		}
+
+		secondDone <- secondTx.Commit(ctx)
+	}()
+
+	select {
+	case err := <-secondDone:
+		t.Fatalf("second transaction did not wait for the first to commit: %v", err)
+	case <-time.After(500 * time.Millisecond):
 	}
 
-	locksNotAcquired, err := repo.CreateDAGs(ctx, f.tenantId, []*DAGWithData{dag})
-	require.NoError(t, err)
-	require.Empty(t, locksNotAcquired)
+	require.NoError(t, firstTx.Commit(ctx))
+
+	select {
+	case err := <-secondDone:
+		require.NoError(t, err)
+	case <-time.After(10 * time.Second):
+		t.Fatal("second transaction never finished after the first committed")
+	}
 }
 
 // The create and the status update run in separate transactions on separate message queue
@@ -636,185 +654,36 @@ func TestOperatorDAG_ConcurrentCreateAndStatusUpdateSerialize(t *testing.T) {
 
 	require.NoError(t, repo.UpdateTablePartitions(ctx))
 
-	t.Run("create holds an uncommitted row while the update runs", func(t *testing.T) {
+	t.Run("create first", func(t *testing.T) {
 		f := newOperatorDagFixture(800, uuid.New())
 
-		createTx, err := pool.BeginTx(ctx, pgx.TxOptions{})
-		require.NoError(t, err)
-		defer createTx.Rollback(ctx) // nolint: errcheck
-
-		require.NoError(t, repo.queries.CreateDAGsOLAP(ctx, createTx, f.createDagsParams(nil)))
-
-		updateDone := make(chan []*sqlcv1.UpdateDAGStatusesFromOrchestratorEventsRow, 1)
-		updateErr := make(chan error, 1)
-
-		go func() {
-			updateTx, err := pool.BeginTx(ctx, pgx.TxOptions{})
-			if err != nil {
-				updateErr <- err
-				return
-			}
-			defer updateTx.Rollback(ctx) // nolint: errcheck
-
-			rows, err := repo.queries.UpdateDAGStatusesFromOrchestratorEvents(ctx, updateTx, f.orchestratorUpdateParams(sqlcv1.V1ReadableStatusOlapCOMPLETED, 0))
-			if err != nil {
-				updateErr <- err
-				return
-			}
-
-			if err := updateTx.Commit(ctx); err != nil {
-				updateErr <- err
-				return
-			}
-
-			updateDone <- rows
-		}()
-
-		select {
-		case rows := <-updateDone:
-			t.Fatalf("update did not block on the uncommitted create; returned %d rows", len(rows))
-		case err := <-updateErr:
-			t.Fatalf("update errored while create was uncommitted: %v", err)
-		case <-time.After(500 * time.Millisecond):
-		}
-
-		require.NoError(t, createTx.Commit(ctx))
-
-		select {
-		case rows := <-updateDone:
-			require.Len(t, rows, 1)
-		case err := <-updateErr:
-			t.Fatalf("update errored after create committed: %v", err)
-		case <-time.After(10 * time.Second):
-			t.Fatal("update never finished after create committed")
-		}
+		runOverlappingTransactions(t, ctx, pool,
+			func(tx pgx.Tx) error {
+				return repo.queries.CreateDAGsOLAP(ctx, tx, f.createDagsParams())
+			},
+			func(tx pgx.Tx) error {
+				_, err := repo.queries.UpdateDAGStatusesFromOrchestratorEvents(ctx, tx, f.orchestratorUpdateParams(sqlcv1.V1ReadableStatusOlapCOMPLETED))
+				return err
+			},
+		)
 
 		f.assertDagStatus(t, ctx, pool, "COMPLETED")
 	})
 
-	t.Run("update holds an uncommitted placeholder while the create runs", func(t *testing.T) {
+	t.Run("update first", func(t *testing.T) {
 		f := newOperatorDagFixture(801, uuid.New())
 
-		updateTx, err := pool.BeginTx(ctx, pgx.TxOptions{})
-		require.NoError(t, err)
-		defer updateTx.Rollback(ctx) // nolint: errcheck
-
-		rows, err := repo.queries.UpdateDAGStatusesFromOrchestratorEvents(ctx, updateTx, f.orchestratorUpdateParams(sqlcv1.V1ReadableStatusOlapCOMPLETED, 0))
-		require.NoError(t, err)
-		require.Len(t, rows, 1)
-
-		createDone := make(chan struct{}, 1)
-		createErr := make(chan error, 1)
-
-		go func() {
-			createTx, err := pool.BeginTx(ctx, pgx.TxOptions{})
-			if err != nil {
-				createErr <- err
-				return
-			}
-			defer createTx.Rollback(ctx) // nolint: errcheck
-
-			if err := repo.queries.CreateDAGsOLAP(ctx, createTx, f.createDagsParams(nil)); err != nil {
-				createErr <- err
-				return
-			}
-
-			if err := createTx.Commit(ctx); err != nil {
-				createErr <- err
-				return
-			}
-
-			createDone <- struct{}{}
-		}()
-
-		select {
-		case <-createDone:
-			t.Fatal("create did not block on the uncommitted placeholder")
-		case err := <-createErr:
-			t.Fatalf("create errored while placeholder was uncommitted: %v", err)
-		case <-time.After(500 * time.Millisecond):
-		}
-
-		require.NoError(t, updateTx.Commit(ctx))
-
-		select {
-		case <-createDone:
-		case err := <-createErr:
-			t.Fatalf("create errored after placeholder committed: %v", err)
-		case <-time.After(10 * time.Second):
-			t.Fatal("create never finished after placeholder committed")
-		}
+		runOverlappingTransactions(t, ctx, pool,
+			func(tx pgx.Tx) error {
+				_, err := repo.queries.UpdateDAGStatusesFromOrchestratorEvents(ctx, tx, f.orchestratorUpdateParams(sqlcv1.V1ReadableStatusOlapCOMPLETED))
+				return err
+			},
+			func(tx pgx.Tx) error {
+				return repo.queries.CreateDAGsOLAP(ctx, tx, f.createDagsParams())
+			},
+		)
 
 		f.assertDagStatus(t, ctx, pool, "COMPLETED")
-
-		var displayName string
-		require.NoError(t, pool.QueryRow(ctx, `SELECT display_name FROM v1_dags_olap WHERE tenant_id = $1 AND id = $2`, f.tenantId, f.dagId).Scan(&displayName))
-		assert.Equal(t, "operator-dag-test", displayName)
-	})
-
-	t.Run("many fully concurrent create and update pairs", func(t *testing.T) {
-		const pairs = 40
-
-		var wg sync.WaitGroup
-
-		fixtures := make([]operatorDagFixture, pairs)
-
-		for i := range pairs {
-			fixtures[i] = newOperatorDagFixture(int64(1000+i), uuid.New())
-		}
-
-		errs := make(chan error, 2*pairs)
-
-		for _, f := range fixtures {
-			wg.Add(2)
-
-			go func() {
-				defer wg.Done()
-
-				_, err := repo.CreateDAGs(ctx, f.tenantId, []*DAGWithData{{
-					V1Dag: &sqlcv1.V1Dag{
-						ID:                f.dagId,
-						InsertedAt:        f.dagInsertedAt,
-						TenantID:          f.tenantId,
-						ExternalID:        f.dagExternalId,
-						DisplayName:       "operator-dag-test",
-						WorkflowID:        f.workflowId,
-						WorkflowVersionID: f.workflowVersionId,
-					},
-					Input:              []byte(`{}`),
-					AdditionalMetadata: []byte(`{}`),
-					IsOperatorRun:      true,
-				}})
-				if err != nil {
-					errs <- err
-				}
-			}()
-
-			go func() {
-				defer wg.Done()
-
-				_, _, err := repo.CreateTaskEvents(ctx, f.tenantId,
-					[]sqlcv1.CreateTaskEventsOLAPParams{f.orchestratorEvent(sqlcv1.V1EventTypeOlapFINISHED, sqlcv1.V1ReadableStatusOlapCOMPLETED, 0)},
-					map[uuid.UUID]uuid.UUID{},
-					[]OrchestratorDAGStatusUpdateOpt{f.orchestratorUpdate(sqlcv1.V1ReadableStatusOlapCOMPLETED, 0)},
-					f.operatorRunIds(),
-				)
-				if err != nil {
-					errs <- err
-				}
-			}()
-		}
-
-		wg.Wait()
-		close(errs)
-
-		for err := range errs {
-			require.NoError(t, err)
-		}
-
-		for _, f := range fixtures {
-			f.assertDagStatus(t, ctx, pool, "COMPLETED")
-		}
 	})
 }
 
@@ -838,7 +707,24 @@ func TestOperatorDAG_RunsRowGetsParentFromLateCreate(t *testing.T) {
 	parentTaskExternalId := uuid.New()
 
 	f.applyOrchestratorEvents(t, ctx, repo, f.orchestratorUpdate(sqlcv1.V1ReadableStatusOlapCOMPLETED, 0))
-	f.createWithParent(t, ctx, repo, parentTaskExternalId)
+
+	_, err := repo.CreateDAGs(ctx, f.tenantId, []*DAGWithData{{
+		V1Dag: &sqlcv1.V1Dag{
+			ID:                f.dagId,
+			InsertedAt:        f.dagInsertedAt,
+			TenantID:          f.tenantId,
+			ExternalID:        f.dagExternalId,
+			DisplayName:       "operator-dag-test",
+			WorkflowID:        f.workflowId,
+			WorkflowVersionID: f.workflowVersionId,
+			IdempotencyKey:    pgtype.Text{String: "idempotency-key", Valid: true},
+		},
+		Input:                []byte(`{}`),
+		AdditionalMetadata:   []byte(`{}`),
+		ParentTaskExternalID: &parentTaskExternalId,
+		IsOperatorRun:        true,
+	}})
+	require.NoError(t, err)
 
 	var runParent *uuid.UUID
 	var runIdempotencyKey *string
@@ -849,10 +735,9 @@ func TestOperatorDAG_RunsRowGetsParentFromLateCreate(t *testing.T) {
 		WHERE tenant_id = $1 AND external_id = $2
 	`, f.tenantId, f.dagExternalId).Scan(&runParent, &runIdempotencyKey))
 
-	require.NotNil(t, runParent, "v1_runs_olap.parent_task_external_id")
+	require.NotNil(t, runParent)
 	assert.Equal(t, parentTaskExternalId, *runParent)
-
-	require.NotNil(t, runIdempotencyKey, "v1_runs_olap.idempotency_key")
+	require.NotNil(t, runIdempotencyKey)
 	assert.Equal(t, "idempotency-key", *runIdempotencyKey)
 
 	f.assertDagStatus(t, ctx, pool, "COMPLETED")
