@@ -1,4 +1,10 @@
-import { payAsYouGoPlan, planCodeBase } from './subscription-plan-code';
+import {
+  canSelfServePayAsYouGoUpgrade,
+  isPayAsYouGoPlanCode,
+  payAsYouGoPlan,
+  planCodeBase,
+  resolveSubscriptionPlanCode,
+} from './subscription-plan-code';
 import {
   setupCardDialogClassName,
   SetupCard,
@@ -29,6 +35,7 @@ import {
 import { useTenantDetails } from '@/hooks/use-tenant';
 import { queries } from '@/lib/api';
 import {
+  OrganizationBillingState,
   OrganizationResourceLimit,
   SubscriptionPlan,
   SubscriptionPlanFeature,
@@ -77,6 +84,12 @@ const COPY = {
       title: "You've gone past your retention window",
       description: 'Upgrade to pay-as-you-go to unlock longer retention.',
     },
+    retentionCustom: {
+      title: "You've gone past your retention window",
+      description: (plan: string, retention: string) =>
+        `Your ${plan} plan keeps ${retention} of data. Contact us for a custom plan with longer retention.`,
+      checking: 'Checking your plan.',
+    },
     usageResource: {
       title: (resource: string) =>
         `You've hit your limit for ${resource.toLowerCase()}`,
@@ -102,10 +115,12 @@ const COPY = {
     },
     expand: 'See full breakdown',
     collapse: 'Hide full breakdown',
+    currentPlan: 'Current plan',
   },
   actions: {
     upgrade: 'Upgrade',
     dismiss: 'Not now',
+    contact: 'Contact us',
     footnote:
       'No monthly fee. You pay nothing until you scale past the included usage.',
     pricing: 'Pricing details',
@@ -388,6 +403,30 @@ function buildHeader(
   }
 }
 
+type GateMode = 'upgrade' | 'custom' | 'loading';
+
+function currentPlanCode(state: OrganizationBillingState | undefined) {
+  if (!state) {
+    return null;
+  }
+  return resolveSubscriptionPlanCode(state.currentSubscription, null) || 'free';
+}
+
+function currentPlanDisplayName(
+  plans: SubscriptionPlan[] | undefined,
+  planCode: string,
+) {
+  if (isPayAsYouGoPlanCode(planCode)) {
+    return COPY.planName;
+  }
+  const match =
+    plans?.find((plan) => plan.planCode === planCode) ??
+    plans?.find(
+      (plan) => planCodeBase(plan.planCode) === planCodeBase(planCode),
+    );
+  return match?.name || planCode;
+}
+
 // ---------------------------------------------------------------------------
 // Hook: everything the dialog and the inline card need
 // ---------------------------------------------------------------------------
@@ -399,7 +438,7 @@ function useUpgradeGate({
   retentionPeriod,
 }: Omit<UpgradeGateProps, 'onDismiss'>) {
   const { canBill, isControlPlaneEnabled } = useControlPlane();
-  const { tenant } = useTenantDetails();
+  const { tenant, billing } = useTenantDetails();
   const { entitlements } = useOrganizationEntitlements(organizationId);
   const plansQuery = useQuery({
     ...queries.controlPlane.subscriptionPlans(),
@@ -424,10 +463,46 @@ function useUpgradeGate({
     highlightId,
   });
   const highlighted = comparison.rows.find((row) => row.id === highlightId);
+  const planCode = currentPlanCode(billing?.state);
+  const retentionLabel = retentionPeriod
+    ? formatRetentionPeriod(retentionPeriod)
+    : 'your current window';
+  // Free and developer can still move to pay-as-you-go. Anyone already on a
+  // paid plan has no longer retention to unlock here, so offer a custom plan.
+  const customPlan =
+    gate === 'retention' &&
+    !!planCode &&
+    !canSelfServePayAsYouGoUpgrade(planCode);
+  const mode: GateMode =
+    gate === 'retention' && billing?.isLoading && !billing.state
+      ? 'loading'
+      : customPlan
+        ? 'custom'
+        : 'upgrade';
+  const planName = planCode
+    ? currentPlanDisplayName(billing?.state?.plans, planCode)
+    : COPY.planName;
 
   return {
-    header: buildHeader(gate, highlighted),
+    header:
+      mode === 'loading'
+        ? {
+            title: COPY.header.retentionCustom.title,
+            description: COPY.header.retentionCustom.checking,
+          }
+        : mode === 'custom'
+          ? {
+              title: COPY.header.retentionCustom.title,
+              description: COPY.header.retentionCustom.description(
+                planName,
+                retentionLabel,
+              ),
+            }
+          : buildHeader(gate, highlighted),
     comparison,
+    currentPlan:
+      mode === 'custom' ? { name: planName, retention: retentionLabel } : null,
+    mode,
     upgrade,
     canUpgrade: isControlPlaneEnabled && canBill && !!payg,
     onUpgrade: () => payg && upgrade.mutate(payg.planCode),
@@ -606,8 +681,65 @@ function ComparisonTable({ comparison }: { comparison: Comparison }) {
   );
 }
 
+function CurrentPlanRetention({
+  planName,
+  retention,
+}: {
+  planName: string;
+  retention: string;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        {COPY.compare.currentPlan}
+      </p>
+      <div className="overflow-hidden rounded-lg border border-border/50">
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="h-9 px-3 text-xs">
+                {COPY.compare.resource}
+              </TableHead>
+              <TableHead className="h-9 px-3 text-right text-xs text-foreground">
+                {planName}
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <TableRow className="bg-primary/5 hover:bg-primary/5">
+              <TableCell className="px-3 py-2 align-top text-sm font-medium text-foreground">
+                Data retention
+              </TableCell>
+              <TableCell className="px-3 py-2 text-right align-top text-sm font-medium tabular-nums text-foreground">
+                {retention}
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
+
 function UpgradeGateBody({ state }: { state: UpgradeGateState }) {
-  const { comparison, upgrade, salesHref } = state;
+  const { comparison, upgrade, salesHref, mode, currentPlan } = state;
+
+  if (mode === 'loading') {
+    return (
+      <div className="flex justify-center py-6">
+        <Spinner />
+      </div>
+    );
+  }
+
+  if (mode === 'custom' && currentPlan) {
+    return (
+      <CurrentPlanRetention
+        planName={currentPlan.name}
+        retention={currentPlan.retention}
+      />
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -622,7 +754,7 @@ function UpgradeGateBody({ state }: { state: UpgradeGateState }) {
         </Alert>
       ) : null}
 
-      <p className="text-xs text-muted-foreground">
+      <p className="text-xs leading-5 text-muted-foreground">
         {COPY.actions.footnote}{' '}
         <a
           href={PRICING_URL}
@@ -631,8 +763,7 @@ function UpgradeGateBody({ state }: { state: UpgradeGateState }) {
           className="underline underline-offset-4 hover:text-foreground"
         >
           {COPY.actions.pricing}
-        </a>
-        {' · '}
+        </a>{' '}
         {COPY.actions.salesLead}{' '}
         <a
           href={salesHref}
@@ -654,7 +785,33 @@ function UpgradeGateFooter({
   state: UpgradeGateState;
   onDismiss?: () => void;
 }) {
-  const { upgrade, canUpgrade, onUpgrade } = state;
+  const { upgrade, canUpgrade, onUpgrade, mode, salesHref } = state;
+
+  if (mode === 'loading') {
+    return onDismiss ? (
+      <Button type="button" variant="outline" size="sm" onClick={onDismiss}>
+        {COPY.actions.dismiss}
+      </Button>
+    ) : null;
+  }
+
+  if (mode === 'custom') {
+    return (
+      <>
+        {onDismiss ? (
+          <Button type="button" variant="outline" size="sm" onClick={onDismiss}>
+            {COPY.actions.dismiss}
+          </Button>
+        ) : null}
+        <Button type="button" size="sm" asChild>
+          <a href={salesHref} target="_blank" rel="noreferrer">
+            {COPY.actions.contact}
+          </a>
+        </Button>
+      </>
+    );
+  }
+
   return (
     <>
       {onDismiss ? (
