@@ -14,10 +14,14 @@ import { RunListenerClient } from '@hatchet/clients/listeners/run-listener/child
 import { Api } from '@hatchet/clients/rest/generated/Api';
 import api from '@hatchet/clients/rest';
 import { DurableListenerClient } from '@hatchet/clients/listeners/durable-listener/durable-listener-client';
+import { createNodeTransport, type Transport } from '@hatchet/clients/transport';
 
 export interface HatchetClientOptions {
   config_path?: string;
+  /** Credentials for the streaming gRPC channel. Unary calls derive their TLS settings from `tls_config`. */
   credentials?: ChannelCredentials;
+  /** The transport unary calls go over; defaults to the Node gRPC transport built from the config. */
+  transport?: Transport;
 }
 
 export class LegacyHatchetClient {
@@ -80,17 +84,11 @@ export class LegacyHatchetClient {
       options?.credentials ?? ConfigLoader.createCredentials(this.config.tls_config);
 
     const clientFactory = createClientFactory().use(addTokenMiddleware(this.config.token));
+    const transport = options?.transport ?? createNodeTransport(this.config);
 
     this.tenantId = this.config.tenant_id;
     this.api = api(this.config.api_url, this.config.token, axiosOpts);
-    this.event =
-      event ||
-      new EventClient(
-        this.config,
-        channelFactory(this.config, this.credentials),
-        clientFactory,
-        this.api
-      );
+    this.event = event || new EventClient(this.config, this.api, transport);
     this.dispatcher =
       dispatcher ||
       new DispatcherClient(
@@ -114,7 +112,8 @@ export class LegacyHatchetClient {
       this.api,
       this.tenantId,
       this.listener,
-      this.runs
+      this.runs,
+      transport
     );
 
     this.durableListener =

@@ -3,8 +3,6 @@ import {
   BulkTriggerWorkflowRequest,
   CreateWorkflowVersionOpts,
   RateLimitDuration,
-  WorkflowServiceClient,
-  WorkflowServiceDefinition,
 } from '@hatchet/protoc/workflows';
 import { toHatchetError } from '@util/errors/hatchet-error';
 import { ClientConfig } from '@clients/hatchet-client/client-config';
@@ -12,14 +10,11 @@ import { Logger } from '@hatchet/util/logger';
 import { retrier } from '@hatchet/util/retrier';
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
 
-import {
-  AdminServiceClient,
-  AdminServiceDefinition,
-  CreateWorkflowVersionRequest,
-} from '@hatchet/protoc/v1/workflows';
+import { CreateWorkflowVersionRequest } from '@hatchet/protoc/v1/workflows';
 import { Priority, RunsClient, WorkerLabelComparator } from '@hatchet/v1';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { DesiredWorkerLabels } from '@hatchet/protoc/v1/shared/trigger';
+import { createNodeTransport, type Transport } from '@clients/transport';
 import { Api } from '../rest';
 import {
   WebhookWorkerCreateRequest,
@@ -27,6 +22,7 @@ import {
   WorkflowRunStatusList,
 } from '../rest/generated/data-contracts';
 import { RunListenerClient } from '../listeners/run-listener/child-listener-client';
+import { createV1AdminRpc, createWorkflowsRpc, V1AdminRpc, WorkflowsRpc } from './rpc';
 
 type DesiredWorkerLabelOpt = {
   value: string | number;
@@ -83,26 +79,31 @@ export type WorkflowRun<T = object> = {
 
 export class AdminClient {
   config: ClientConfig;
-  client: WorkflowServiceClient;
-  v1Client: AdminServiceClient;
+  client: WorkflowsRpc;
+  v1Client: V1AdminRpc;
   api: Api;
   tenantId: string;
   logger: Logger;
   listenerClient: RunListenerClient;
   workflows: RunsClient | undefined;
 
+  /**
+   * The gRPC calls go over `transport`; `channel` and `factory` stay in the signature so
+   * callers that construct the client positionally keep compiling.
+   */
   constructor(
     config: ClientConfig,
-    channel: Channel,
-    factory: ClientFactory,
+    _channel: Channel,
+    _factory: ClientFactory,
     api: Api,
     tenantId: string,
     listenerClient: RunListenerClient,
-    workflows: RunsClient | undefined
+    workflows: RunsClient | undefined,
+    transport: Transport = createNodeTransport(config)
   ) {
     this.config = config;
-    this.client = factory.create(WorkflowServiceDefinition, channel);
-    this.v1Client = factory.create(AdminServiceDefinition, channel);
+    this.client = createWorkflowsRpc(transport);
+    this.v1Client = createV1AdminRpc(transport);
     this.api = api;
     this.tenantId = tenantId;
     this.logger = config.logger(`Admin`, config.log_level);

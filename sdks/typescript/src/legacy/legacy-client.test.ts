@@ -1,8 +1,10 @@
 import { ChannelCredentials, createChannel, createClientFactory } from 'nice-grpc';
+import { createGrpcTransport } from '@connectrpc/connect-node';
 import { LegacyHatchetClient } from './legacy-client';
 
 export const mockChannel = createChannel('localhost:50051');
 export const mockFactory = createClientFactory();
+export const mockTransport = createGrpcTransport({ baseUrl: 'http://localhost:50051' });
 
 describe('Client', () => {
   beforeEach(() => {

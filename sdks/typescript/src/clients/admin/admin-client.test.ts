@@ -2,7 +2,7 @@ import { CreateWorkflowVersionOpts, WorkflowVersion } from '@hatchet/protoc/work
 import { DEFAULT_LOGGER } from '@clients/hatchet-client/hatchet-logger';
 import { ClientConfig } from '@clients/hatchet-client';
 import { AdminClient } from './admin-client';
-import { mockChannel, mockFactory } from '../../legacy/legacy-client.test';
+import { mockChannel, mockFactory, mockTransport } from '../../legacy/legacy-client.test';
 import { RunListenerClient } from '../listeners/run-listener/child-listener-client';
 
 describe('AdminClient', () => {
@@ -31,7 +31,8 @@ describe('AdminClient', () => {
       {} as any,
       'tenantId',
       new RunListenerClient(config, mockChannel, mockFactory, {} as any),
-      {} as any
+      {} as any,
+      mockTransport
     );
 
     expect(x).toBeDefined();
@@ -60,7 +61,8 @@ describe('AdminClient', () => {
       {} as any,
       'tenantId',
       new RunListenerClient(config, mockChannel, mockFactory, {} as any),
-      {} as any
+      {} as any,
+      mockTransport
     );
   });
 

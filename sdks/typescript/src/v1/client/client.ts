@@ -26,6 +26,7 @@ import { Logger } from '@hatchet/util/logger';
 import { RunListenerClient } from '@hatchet/clients/listeners/run-listener/child-listener-client';
 import { DurableListenerClient } from '@hatchet/clients/listeners/durable-listener/durable-listener-client';
 import { addTokenMiddleware, channelFactory } from '@hatchet/util/grpc-helpers';
+import { createNodeTransport, type Transport } from '@hatchet/clients/transport';
 import { ChannelCredentials, ClientFactory, createClientFactory } from 'nice-grpc';
 import {
   CreateTaskWorkflowOpts,
@@ -95,6 +96,7 @@ export class HatchetClient<
   private _axiosConfig: AxiosRequestConfig | undefined;
   private _clientFactory: ClientFactory;
   private _credentials: ChannelCredentials;
+  private _transport: Transport;
 
   /**
    * @deprecated v0 client will be removed in a future release, please upgrade to v1
@@ -161,6 +163,7 @@ export class HatchetClient<
       this._clientFactory = createClientFactory().use(addTokenMiddleware(this.config.token));
       this._credentials =
         options?.credentials ?? ConfigLoader.createCredentials(this.config.tls_config);
+      this._transport = options?.transport ?? createNodeTransport(this.config);
 
       this._listener = new RunListenerClient(
         this.config,
@@ -574,12 +577,7 @@ export class HatchetClient<
    */
   get events() {
     if (!this._event) {
-      this._event = new EventClient(
-        this._config,
-        channelFactory(this._config, this._credentials),
-        this._clientFactory,
-        this.api
-      );
+      this._event = new EventClient(this._config, this.api, this._transport);
     }
     return this._event;
   }
@@ -761,7 +759,7 @@ export class HatchetClient<
    */
   get admin() {
     if (!this._admin) {
-      this._admin = new AdminClient(this._config, this.api, this.runs);
+      this._admin = new AdminClient(this._config, this.api, this.runs, this._transport);
     }
     return this._admin;
   }
