@@ -71,24 +71,25 @@ const COPY = {
   freeName: 'Free',
   header: {
     tenants: {
-      title: 'Tenant limit reached',
+      title: "You've hit your tenant limit",
       description: (free: string, payg: string) =>
         `The Free tier includes ${free} tenant. Pay as you Go includes ${payg}, so you can separate dev, staging, and prod.`,
     },
     users: {
-      title: 'Member limit reached',
+      title: "You've hit your member limit",
       description: (free: string, payg: string) =>
         `The Free tier includes ${free} members. Pay as you Go includes ${payg}, so your whole team can work in Hatchet.`,
     },
     retention: {
-      title: 'Outside your retention window',
+      title: "You've gone past your retention window",
       triedPreset: (window: string) => `You tried to view the last ${window}.`,
       triedSince: (date: string) => `You tried to look back to ${date}.`,
       description: (free: string, payg: string) =>
         `The Free tier keeps ${free} of runs, events, and logs. Pay as you Go keeps ${payg}.`,
     },
     usageResource: {
-      title: (resource: string) => `${resource} limit reached`,
+      title: (resource: string) =>
+        `You've hit your limit for ${resource.toLowerCase()}`,
       description: (free: string, payg: string) =>
         `The Free tier includes ${free}. Pay as you Go includes ${payg}, and you only pay for usage beyond that.`,
     },
@@ -121,7 +122,7 @@ const COPY = {
     sales: 'Talk to us',
   },
   error: {
-    title: 'Plan change failed',
+    title: "We couldn't change your plan",
   },
 } as const;
 
