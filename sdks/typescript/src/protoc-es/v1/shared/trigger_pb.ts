@@ -190,4 +190,3 @@ export enum WorkerLabelComparator {
  */
 export const WorkerLabelComparatorSchema: GenEnum<WorkerLabelComparator> = /*@__PURE__*/
   enumDesc(file_v1_shared_trigger, 0);
-

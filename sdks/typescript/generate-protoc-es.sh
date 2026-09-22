@@ -62,6 +62,12 @@ trap 'rm -rf "$STAGE_DIR"' EXIT
   "${PROTOS[@]}" \
   google/rpc/status.proto
 
+# protoc-gen-es ends each file with a blank line; the repository's end-of-file hook strips it,
+# so trim it here and the committed files match a fresh generation byte for byte.
+find "$STAGE_DIR" -name '*.ts' -print0 | while IFS= read -r -d '' f; do
+  printf '%s\n' "$(cat "$f")" > "$f"
+done
+
 rm -rf "$OUT_DIR"
 mv "$STAGE_DIR" "$OUT_DIR"
 trap - EXIT

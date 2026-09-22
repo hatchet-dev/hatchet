@@ -73,4 +73,3 @@ export type Status = Message<"google.rpc.Status"> & {
  */
 export const StatusSchema: GenMessage<Status> = /*@__PURE__*/
   messageDesc(file_google_rpc_status, 0);
-
