@@ -49,6 +49,24 @@ func (q *Queries) AnalyzeV1DurableEventLogFile(ctx context.Context, db DBTX) err
 	return err
 }
 
+const analyzeV1Event = `-- name: AnalyzeV1Event :exec
+ANALYZE v1_event
+`
+
+func (q *Queries) AnalyzeV1Event(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1Event)
+	return err
+}
+
+const analyzeV1LogLine = `-- name: AnalyzeV1LogLine :exec
+ANALYZE v1_log_line
+`
+
+func (q *Queries) AnalyzeV1LogLine(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1LogLine)
+	return err
+}
+
 const analyzeV1Task = `-- name: AnalyzeV1Task :exec
 ANALYZE v1_task
 `
