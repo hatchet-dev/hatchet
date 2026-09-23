@@ -1573,8 +1573,14 @@ type V1CELDebugResponse struct {
 	// Error The error message if the evaluation failed
 	Error *string `json:"error,omitempty"`
 
-	// Output The result of the CEL expression evaluation serialized as a string (e.g. "true", "alice", "5")
-	Output *string `json:"output,omitempty"`
+	// Output The result of the CEL expression evaluation, if the expression evaluated to a boolean
+	Output *bool `json:"output,omitempty"`
+
+	// OutputInt The result of the CEL expression evaluation, if the expression evaluated to an integer
+	OutputInt *int `json:"outputInt,omitempty"`
+
+	// OutputStr The result of the CEL expression evaluation, if the expression evaluated to a string
+	OutputStr *string `json:"outputStr,omitempty"`
 
 	// OutputType The type of the output value
 	OutputType *V1CELDebugResponseOutputType `json:"outputType,omitempty"`

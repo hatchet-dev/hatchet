@@ -1,8 +1,6 @@
 package celv1
 
 import (
-	"strconv"
-
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
@@ -27,7 +25,9 @@ func (c *V1CELService) V1CelDebug(ctx echo.Context, request gen.V1CelDebugReques
 		cel.WithPayload(filterPayload),
 	))
 
-	var output *string
+	var output *bool
+	var outputStr *string
+	var outputInt *int
 	var outputType *gen.V1CELDebugResponseOutputType
 	var errorMessage *string
 
@@ -37,22 +37,22 @@ func (c *V1CELService) V1CelDebug(ctx echo.Context, request gen.V1CelDebugReques
 	} else {
 		switch {
 		case res.Bool != nil:
-			s := strconv.FormatBool(*res.Bool)
 			t := gen.Bool
-			output, outputType = &s, &t
+			output, outputType = res.Bool, &t
 		case res.String != nil:
 			t := gen.String
-			output, outputType = res.String, &t
+			outputStr, outputType = res.String, &t
 		case res.Int != nil:
-			s := strconv.Itoa(*res.Int)
 			t := gen.Int
-			output, outputType = &s, &t
+			outputInt, outputType = res.Int, &t
 		}
 	}
 
 	return gen.V1CelDebug200JSONResponse(transformers.ToV1CELDebugResponse(
 		err == nil,
 		output,
+		outputStr,
+		outputInt,
 		outputType,
 		errorMessage,
 	)), nil

@@ -17,8 +17,14 @@ module HatchetSdkRest
   class V1CELDebugResponse
     attr_accessor :status
 
-    # The result of the CEL expression evaluation serialized as a string (e.g. "true", "alice", "5")
+    # The result of the CEL expression evaluation, if the expression evaluated to a boolean
     attr_accessor :output
+
+    # The result of the CEL expression evaluation, if the expression evaluated to a string
+    attr_accessor :output_str
+
+    # The result of the CEL expression evaluation, if the expression evaluated to an integer
+    attr_accessor :output_int
 
     # The type of the output value
     attr_accessor :output_type
@@ -53,6 +59,8 @@ module HatchetSdkRest
       {
         :'status' => :'status',
         :'output' => :'output',
+        :'output_str' => :'outputStr',
+        :'output_int' => :'outputInt',
         :'output_type' => :'outputType',
         :'error' => :'error'
       }
@@ -72,7 +80,9 @@ module HatchetSdkRest
     def self.openapi_types
       {
         :'status' => :'V1CELDebugResponseStatus',
-        :'output' => :'String',
+        :'output' => :'Boolean',
+        :'output_str' => :'String',
+        :'output_int' => :'Integer',
         :'output_type' => :'String',
         :'error' => :'String'
       }
@@ -108,6 +118,14 @@ module HatchetSdkRest
 
       if attributes.key?(:'output')
         self.output = attributes[:'output']
+      end
+
+      if attributes.key?(:'outputStr')
+        self.output_str = attributes[:'outputStr']
+      end
+
+      if attributes.key?(:'outputInt')
+        self.output_int = attributes[:'outputInt']
       end
 
       if attributes.key?(:'outputType')
@@ -156,6 +174,8 @@ module HatchetSdkRest
       self.class == o.class &&
           status == o.status &&
           output == o.output &&
+          output_str == o.output_str &&
+          output_int == o.output_int &&
           output_type == o.output_type &&
           error == o.error
     end
@@ -169,7 +189,7 @@ module HatchetSdkRest
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [status, output, output_type, error].hash
+      [status, output, output_str, output_int, output_type, error].hash
     end
 
     # Builds the object from hash

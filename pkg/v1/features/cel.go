@@ -40,7 +40,9 @@ func NewCELClient(
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type CELEvaluationResult struct {
 	status     gen.V1CELDebugResponseStatus
-	output     *string
+	output     *bool
+	outputStr  *string
+	outputInt  *int
 	outputType *rest.V1CELDebugResponseOutputType
 	err        *string
 }
@@ -75,6 +77,8 @@ func (c *celClientImpl) Debug(ctx context.Context, expression string, input map[
 	return &CELEvaluationResult{
 		status:     gen.V1CELDebugResponseStatusSUCCESS,
 		output:     resp.JSON200.Output,
+		outputStr:  resp.JSON200.OutputStr,
+		outputInt:  resp.JSON200.OutputInt,
 		outputType: resp.JSON200.OutputType,
 	}, nil
 }
