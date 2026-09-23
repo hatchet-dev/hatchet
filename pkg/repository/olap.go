@@ -495,6 +495,12 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		}
 	}
 
+	if err = runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
+		return reattachIndicesToParents(ctx, r.queries, tx, true)
+	}); err != nil {
+		return err
+	}
+
 	params := sqlcv1.ListOLAPPartitionsBeforeDateParams{
 		Shouldpartitioneventstables: r.shouldPartitionEventsTables,
 		Shouldpartitionoteltables:   r.shouldPartitionOtelTables,
