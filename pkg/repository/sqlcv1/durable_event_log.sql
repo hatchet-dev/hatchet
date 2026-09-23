@@ -194,14 +194,6 @@ JOIN locked_log_files llf ON (llf.durable_task_id, llf.durable_task_inserted_at)
 ;
 
 -- name: ListSatisfiedEntries :many
--- Materialize the input row so the planner keeps branch_id and node_id on the
--- outer side of the entry lookup. Inlining them turns those equalities into a
--- join filter and the scan reads every entry for the task.
---
--- minTaskInsertedAt and maxTaskInsertedAt bound the inserted_at of every task
--- in taskExternalIds. Equality with the lookup row only prunes partitions at
--- run time, which still locks all of them. Constant bounds prune at plan time
--- when the statement is planned with its parameter values.
 WITH inputs AS MATERIALIZED (
     SELECT
         UNNEST(@taskExternalIds::UUID[]) AS external_id,
@@ -209,9 +201,9 @@ WITH inputs AS MATERIALIZED (
         UNNEST(@branchIds::BIGINT[]) AS branch_id
 ), tasks AS MATERIALIZED (
     SELECT
-        i.external_id::uuid AS external_id,
-        i.node_id::bigint AS node_id,
-        i.branch_id::bigint AS branch_id,
+        i.external_id AS external_id,
+        i.node_id AS node_id,
+        i.branch_id AS branch_id,
         lt.task_id,
         lt.inserted_at
     FROM inputs i

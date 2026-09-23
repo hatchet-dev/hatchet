@@ -185,9 +185,9 @@ type DurableEventsRepository interface {
 	TriggerPendingRunEntries(ctx context.Context, tenantId uuid.UUID, tasks []TriggerPendingRunEntriesOpt) ([]*V1TaskWithPayload, []*DAGWithData, []CELEvaluationFailure, error)
 
 	// GetSatisfiedDurableEvents returns the satisfied entries among events.
-	// taskInsertedAt must cover the inserted_at of every task referenced by
+	// taskInsertedAtRange must cover the inserted_at of every task referenced by
 	// events; it lets the query prune durable log partitions at plan time.
-	GetSatisfiedDurableEvents(ctx context.Context, tenantId uuid.UUID, events []TaskExternalIdNodeIdBranchId, taskInsertedAt TaskInsertedAtRange) ([]*SatisfiedEventWithPayload, error)
+	GetSatisfiedDurableEvents(ctx context.Context, tenantId uuid.UUID, events []TaskExternalIdNodeIdBranchId, taskInsertedAtRange TaskInsertedAtRange) ([]*SatisfiedEventWithPayload, error)
 	GetDurableTaskInvocationCounts(ctx context.Context, tenantId uuid.UUID, tasks []IdInsertedAt) (map[IdInsertedAt]*int32, error)
 	CompleteMemoEntry(ctx context.Context, opts CompleteMemoEntryOpts) error
 	ListDurableEventLog(ctx context.Context, tenantId uuid.UUID, taskInsertedAt pgtype.Timestamptz, taskId, limit, offset int64) ([]*sqlcv1.ListDurableEventLogForTaskRow, error)
@@ -735,10 +735,10 @@ func (c customPlanDBTX) Query(ctx context.Context, sql string, args ...interface
 	return c.DBTX.Query(ctx, sql, withMode...)
 }
 
-func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context, tenantId uuid.UUID, events []TaskExternalIdNodeIdBranchId, taskInsertedAt TaskInsertedAtRange) ([]*SatisfiedEventWithPayload, error) {
+func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context, tenantId uuid.UUID, events []TaskExternalIdNodeIdBranchId, taskInsertedAtRange TaskInsertedAtRange) ([]*SatisfiedEventWithPayload, error) {
 	// An empty range means no task in events resolved, so there is nothing to
 	// look up.
-	if len(events) == 0 || !taskInsertedAt.Min.Valid || !taskInsertedAt.Max.Valid {
+	if len(events) == 0 || !taskInsertedAtRange.Min.Valid || !taskInsertedAtRange.Max.Valid {
 		return nil, nil
 	}
 
@@ -763,8 +763,8 @@ func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context,
 		Nodeids:           nodeIds,
 		Branchids:         branchIds,
 		Tenantid:          tenantId,
-		Mintaskinsertedat: taskInsertedAt.Min,
-		Maxtaskinsertedat: taskInsertedAt.Max,
+		Mintaskinsertedat: taskInsertedAtRange.Min,
+		Maxtaskinsertedat: taskInsertedAtRange.Max,
 	})
 
 	if err != nil {

@@ -996,9 +996,9 @@ WITH inputs AS MATERIALIZED (
         UNNEST($5::BIGINT[]) AS branch_id
 ), tasks AS MATERIALIZED (
     SELECT
-        i.external_id::uuid AS external_id,
-        i.node_id::bigint AS node_id,
-        i.branch_id::bigint AS branch_id,
+        i.external_id AS external_id,
+        i.node_id AS node_id,
+        i.branch_id AS branch_id,
         lt.task_id,
         lt.inserted_at
     FROM inputs i

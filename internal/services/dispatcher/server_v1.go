@@ -1488,7 +1488,7 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 	}
 
 	staleExternalIds := make(map[uuid.UUID]struct{})
-	var taskInsertedAt v1.TaskInsertedAtRange
+	var taskInsertedAtRange v1.TaskInsertedAtRange
 
 	if len(uniqueExternalIds) > 0 {
 		externalIds := make([]uuid.UUID, 0, len(uniqueExternalIds))
@@ -1508,7 +1508,7 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 				key := v1.IdInsertedAt{ID: t.ID, InsertedAtUnixMicros: t.InsertedAt.Time.UnixMicro()}
 				idInsertedAts = append(idInsertedAts, key)
 				taskIdToExternalId[key] = t.ExternalID
-				taskInsertedAt.Extend(t.InsertedAt)
+				taskInsertedAtRange.Extend(t.InsertedAt)
 			}
 
 			idInsertedAtToInvocationCount, err := d.repo.DurableEvents().GetDurableTaskInvocationCounts(ctx, invocation.tenantId, idInsertedAts)
@@ -1544,7 +1544,7 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 		}
 	}
 
-	callbacks, err := d.repo.DurableEvents().GetSatisfiedDurableEvents(ctx, invocation.tenantId, waiting, taskInsertedAt)
+	callbacks, err := d.repo.DurableEvents().GetSatisfiedDurableEvents(ctx, invocation.tenantId, waiting, taskInsertedAtRange)
 	if err != nil {
 		return fmt.Errorf("failed to get satisfied callbacks: %w", err)
 	}
