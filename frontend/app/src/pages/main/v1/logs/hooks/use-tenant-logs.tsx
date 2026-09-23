@@ -15,7 +15,7 @@ import { appRoutes } from '@/router';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
 import { AxiosError } from 'axios';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { z } from 'zod';
 
 const LOGS_PER_PAGE = 100;
@@ -110,20 +110,10 @@ export function useTenantLogs() {
     return id ? [id] : undefined;
   }, [parsedQuery.workflow, workflowNameToId]);
 
-  // Stable since: computed once per filter change, not on every render
-  const [since, setSince] = useState(
+  const since = useMemo(
     () => filters.since ?? getSinceFromTimeWindow(filters.tw),
+    [filters.since, filters.tw],
   );
-
-  useEffect(() => {
-    setSince(filters.since ?? getSinceFromTimeWindow(filters.tw));
-  }, [
-    filters.tw,
-    filters.since,
-    filters.until,
-    parsedQuery.level,
-    parsedQuery.search,
-  ]);
 
   const logsQuery = useInfiniteQuery({
     queryKey: [
@@ -135,7 +125,13 @@ export function useTenantLogs() {
       parsedQuery.search,
       workflowIds,
     ],
-    queryFn: async ({ pageParam }: { pageParam: string | undefined }) => {
+    queryFn: async ({
+      pageParam,
+      signal,
+    }: {
+      pageParam: string | undefined;
+      signal: AbortSignal;
+    }) => {
       const timeout = isSelfHosted ? SELF_HOSTED_LIST_TIMEOUT_MS : undefined;
 
       try {
@@ -156,7 +152,7 @@ export function useTenantLogs() {
             ...(workflowIds && { workflow_ids: workflowIds }),
             order_by_direction: V1LogLineOrderByDirection.DESC,
           },
-          { timeout },
+          { timeout, signal },
         );
         setFetchTimedOut(false);
         return response.data;
@@ -213,16 +209,20 @@ export function useTenantLogs() {
       parsedQuery.search,
       workflowIds,
     ],
-    queryFn: async () => {
-      const response = await api.v1TenantLogLineGetPointMetrics(tenantId, {
-        since,
-        ...(filters.until && { until: filters.until }),
-        ...(parsedQuery.level && {
-          levels: [LOG_LEVEL_TO_API[parsedQuery.level]],
-        }),
-        ...(parsedQuery.search && { search: parsedQuery.search }),
-        ...(workflowIds && { workflow_ids: workflowIds }),
-      });
+    queryFn: async ({ signal }) => {
+      const response = await api.v1TenantLogLineGetPointMetrics(
+        tenantId,
+        {
+          since,
+          ...(filters.until && { until: filters.until }),
+          ...(parsedQuery.level && {
+            levels: [LOG_LEVEL_TO_API[parsedQuery.level]],
+          }),
+          ...(parsedQuery.search && { search: parsedQuery.search }),
+          ...(workflowIds && { workflow_ids: workflowIds }),
+        },
+        { signal },
+      );
       return response.data;
     },
     refetchInterval,

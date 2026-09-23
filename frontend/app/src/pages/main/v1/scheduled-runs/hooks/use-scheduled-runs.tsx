@@ -75,31 +75,28 @@ export const useScheduledRuns = ({
       ],
     });
 
-  const { data, isLoading, refetch, error, isRefetching } = useQuery({
-    ...queries.scheduledRuns.list(tenantId, {
-      offset,
-      limit,
-      statuses: selectedStatuses.length > 0 ? selectedStatuses : undefined,
-      workflowId: effectiveWorkflowId,
-      parentWorkflowRunId,
-      parentStepRunId,
-      orderByDirection: WorkflowRunOrderByDirection.DESC,
-      orderByField: ScheduledWorkflowsOrderByField.TriggerAt,
-      additionalMetadata:
-        selectedMetadata.length > 0 ? selectedMetadata : undefined,
-    }),
-    placeholderData: (prev) => prev,
-    refetchInterval,
-  });
+  const { data, isLoading, refetch, error, isRefetching, isPlaceholderData } =
+    useQuery({
+      ...queries.scheduledRuns.list(tenantId, {
+        offset,
+        limit,
+        statuses: selectedStatuses.length > 0 ? selectedStatuses : undefined,
+        workflowId: effectiveWorkflowId,
+        parentWorkflowRunId,
+        parentStepRunId,
+        orderByDirection: WorkflowRunOrderByDirection.DESC,
+        orderByField: ScheduledWorkflowsOrderByField.TriggerAt,
+        additionalMetadata:
+          selectedMetadata.length > 0 ? selectedMetadata : undefined,
+      }),
+      placeholderData: (prev) => prev,
+      refetchInterval,
+    });
 
   const scheduledRuns = data?.rows ?? [];
   const numPages = data?.pagination?.num_pages ?? 1;
 
-  const {
-    data: workflowKeys,
-    isLoading: workflowKeysIsLoading,
-    error: workflowKeysError,
-  } = useQuery({
+  const { data: workflowKeys, error: workflowKeysError } = useQuery({
     ...queries.workflows.list(tenantId, { limit: 200 }),
     refetchInterval,
   });
@@ -137,7 +134,7 @@ export const useScheduledRuns = ({
   return {
     scheduledRuns,
     numPages,
-    isLoading: isLoading || workflowKeysIsLoading,
+    isLoading,
     refetch,
     error: error || workflowKeysError,
     pagination,
@@ -150,6 +147,7 @@ export const useScheduledRuns = ({
     selectedMetadata,
     workflowKeyFilters,
     isRefetching,
+    isPlaceholderData,
     resetFilters,
     triggerNow,
   };
