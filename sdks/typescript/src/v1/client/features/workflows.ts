@@ -9,6 +9,8 @@ import {
 import { HatchetClient } from '../client';
 import { Duration, durationToString } from '../duration';
 
+export { WorkflowPauseScheduledCronRunQueueBehavior };
+
 export type PauseWorkflowOpts = {
   /** How long runs stay queued while the workflow is paused before they are dropped. */
   queueTTL: Duration;

@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Added `pause` and `unpause` methods to the workflows client (`hatchet.workflows.pause(workflow, opts)`) and to workflow declarations (`workflow.pause(opts)`). `opts` requires a `queueTTL` for how long runs stay queued while the workflow is paused, and optionally takes the behavior (`QUEUE` or `DROP`) for cron and scheduled runs triggered while paused, both defaulting to `QUEUE`.
+- Added `pause` and `unpause` methods to the workflows client (`hatchet.workflows.pause(workflow, opts)`) and to workflow declarations (`workflow.pause(opts)`). `opts` requires a `queueTTL` for how long runs stay queued while the workflow is paused, and optionally takes the behavior (`QUEUE` or `DROP`) for cron and scheduled runs triggered while paused, both defaulting to `QUEUE`. The `WorkflowPauseScheduledCronRunQueueBehavior` enum is now exported from the package root.
 
 ## [1.33.1] - 2026-09-09
 

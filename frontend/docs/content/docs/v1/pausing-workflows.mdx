@@ -2,7 +2,10 @@
 title: "Pausing Workflows"
 ---
 
-import { Callout } from "@/components/nextra-compat";
+import { Callout, Tabs } from "@/components/nextra-compat";
+import UniversalTabs from "@/components/UniversalTabs";
+import { Snippet } from "@/components/code";
+import { snippets } from "@/lib/generated/snippets";
 
 # Pausing Workflows
 
@@ -65,18 +68,29 @@ Unpausing clears the pause settings and requeues runs that are still waiting. Ru
 
 5. To resume, set **Workflow status** back to **Active** and confirm.
 
-## From the Python SDK
+## From the SDKs
 
-```python
-from datetime import timedelta
+Pausing requires a queue TTL. Cron and scheduled behavior both default to `QUEUE`.
 
-my_workflow.pause(
-    queue_ttl=timedelta(hours=24),
-    paused_workflow_cron_run_queue_behavior="QUEUE",
-    paused_workflow_scheduled_run_queue_behavior="QUEUE",
-)
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+  <Tabs.Tab title="Python">
+    <Snippet src={snippets.python.workflow_pause.pause.pause_a_workflow} />
+    <Snippet src={snippets.python.workflow_pause.pause.unpause_a_workflow} />
+  </Tabs.Tab>
+  <Tabs.Tab title="Typescript">
+    <Snippet src={snippets.typescript.workflow_pause.pause.pause_a_workflow} />
+    <Snippet
+      src={snippets.typescript.workflow_pause.pause.unpause_a_workflow}
+    />
+  </Tabs.Tab>
+  <Tabs.Tab title="Go">
+    <Snippet src={snippets.go.workflow_pause.main.pause_a_workflow} />
+    <Snippet src={snippets.go.workflow_pause.main.unpause_a_workflow} />
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+    <Snippet src={snippets.ruby.workflow_pause.pause.pause_a_workflow} />
+    <Snippet src={snippets.ruby.workflow_pause.pause.unpause_a_workflow} />
+  </Tabs.Tab>
+</UniversalTabs>
 
-my_workflow.unpause()
-```
-
-Async equivalents are `aio_pause` and `aio_unpause`.
+You can also pause and unpause through the workflows client instead of a workflow object: `hatchet.workflows.pause(...)` in Python, TypeScript and Ruby, and `client.Workflows().Pause(...)` in Go. In Python, `aio_pause` and `aio_unpause` are the async versions. In Ruby, `queue_ttl` also accepts an integer number of seconds.
