@@ -12,12 +12,14 @@ WorkflowsClient provides methods for interacting with workflows
 
 Methods:
 
-| Name     | Description                                                                     |
-| -------- | ------------------------------------------------------------------------------- |
-| `Delete` | Delete removes a workflow by its ID or name.                                    |
-| `Get`    | Get retrieves a workflow by its ID or name.                                     |
-| `GetId`  | GetId retrieves a workflow by its name.                                         |
-| `List`   | List retrieves all workflows for the tenant with optional filtering parameters. |
+| Name      | Description                                                                     |
+| --------- | ------------------------------------------------------------------------------- |
+| `Delete`  | Delete removes a workflow by its ID or name.                                    |
+| `Get`     | Get retrieves a workflow by its ID or name.                                     |
+| `GetId`   | GetId retrieves a workflow by its name.                                         |
+| `List`    | List retrieves all workflows for the tenant with optional filtering parameters. |
+| `Pause`   | Pause pauses a workflow by its name.                                            |
+| `Unpause` | Unpause unpauses a workflow by its name.                                        |
 
 ### Functions
 
@@ -108,3 +110,62 @@ Returns:
 | -------------------- |
 | `*rest.WorkflowList` |
 | `error`              |
+
+#### `Pause`
+
+Pause pauses a workflow by its name. While paused, new runs of the workflow are queued but not started.
+
+```go
+func (w *WorkflowsClient) Pause(ctx context.Context, workflowName string, opts PauseWorkflowOpts) (*rest.Workflow, error)
+```
+
+Parameters:
+
+| Name           | Type                |
+| -------------- | ------------------- |
+| `ctx`          | `context.Context`   |
+| `workflowName` | `string`            |
+| `opts`         | `PauseWorkflowOpts` |
+
+Returns:
+
+| Type             |
+| ---------------- |
+| `*rest.Workflow` |
+| `error`          |
+
+#### `Unpause`
+
+Unpause unpauses a workflow by its name.
+
+```go
+func (w *WorkflowsClient) Unpause(ctx context.Context, workflowName string) (*rest.Workflow, error)
+```
+
+Parameters:
+
+| Name           | Type              |
+| -------------- | ----------------- |
+| `ctx`          | `context.Context` |
+| `workflowName` | `string`          |
+
+Returns:
+
+| Type             |
+| ---------------- |
+| `*rest.Workflow` |
+| `error`          |
+
+## Related types
+
+### PauseWorkflowOpts
+
+PauseWorkflowOpts contains the configuration for pausing a workflow.
+
+Fields:
+
+| Name                        | Type                                              | Description                                                                                                                       |
+| --------------------------- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `QueueTTL`                  | `time.Duration`                                   | QueueTTL is how long runs stay queued while the workflow is paused before they are dropped.                                       |
+| `CronRunQueueBehavior`      | `rest.WorkflowPauseScheduledCronRunQueueBehavior` | (optional) CronRunQueueBehavior is the behavior of cron runs triggered while the workflow is paused. Defaults to QUEUE.           |
+| `ScheduledRunQueueBehavior` | `rest.WorkflowPauseScheduledCronRunQueueBehavior` | (optional) ScheduledRunQueueBehavior is the behavior of scheduled runs triggered while the workflow is paused. Defaults to QUEUE. |

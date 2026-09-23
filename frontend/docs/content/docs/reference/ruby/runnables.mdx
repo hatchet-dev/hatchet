@@ -39,6 +39,8 @@ wf.task(:step2, parents: [step1]) { |input, ctx|
 | `create_bulk_run_item` | Create a bulk run item for this workflow, intended to be used with the `run_many` methods. |
 | `schedule`             | Schedule this workflow to run at a specific time.                                          |
 | `create_cron`          | Create a cron trigger for this workflow.                                                   |
+| `pause`                | Pause this workflow.                                                                       |
+| `unpause`              | Unpause this workflow.                                                                     |
 
 ### Attributes
 
@@ -435,6 +437,45 @@ Returns:
 | Type     | Description                        |
 | -------- | ---------------------------------- |
 | `Object` | The created cron workflow trigger. |
+
+Raises:
+
+| Type             | Description                                   |
+| ---------------- | --------------------------------------------- |
+| `Hatchet::Error` | If no client is associated with the workflow. |
+
+#### `pause`
+
+Pause this workflow. While paused, new runs of the workflow are queued but not started.
+
+Parameters:
+
+| Name        | Type                | Description                                                                                                                       | Default    |
+| ----------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `queue_ttl` | `Integer \| String` | How long runs stay queued while the workflow is paused before they are dropped, in seconds or as a duration string (e.g. "1h30m") | _required_ |
+| `**opts`    | `Hash`              |                                                                                                                                   | `{}`       |
+
+Returns:
+
+| Type                       | Description           |
+| -------------------------- | --------------------- |
+| `HatchetSdkRest::Workflow` | The updated workflow. |
+
+Raises:
+
+| Type             | Description                                   |
+| ---------------- | --------------------------------------------- |
+| `Hatchet::Error` | If no client is associated with the workflow. |
+
+#### `unpause`
+
+Unpause this workflow.
+
+Returns:
+
+| Type                       | Description           |
+| -------------------------- | --------------------- |
+| `HatchetSdkRest::Workflow` | The updated workflow. |
 
 Raises:
 
