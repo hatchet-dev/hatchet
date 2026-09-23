@@ -3,6 +3,7 @@ package features
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/cockroachdb/errors"
@@ -149,7 +150,7 @@ func (w *WorkflowsClient) Pause(ctx context.Context, workflowName string, opts P
 
 	err := pauseRequest.FromPauseWorkflowRequestPause(rest.PauseWorkflowRequestPause{
 		Action:                                  rest.Pause,
-		PausedWorkflowQueueTTL:                  opts.QueueTTL.String(),
+		PausedWorkflowQueueTTL:                  strconv.FormatFloat(opts.QueueTTL.Seconds(), 'f', -1, 64) + "s",
 		PausedWorkflowCronRunQueueBehavior:      queueBehaviorOrDefault(opts.CronRunQueueBehavior),
 		PausedWorkflowScheduledRunQueueBehavior: queueBehaviorOrDefault(opts.ScheduledRunQueueBehavior),
 	})

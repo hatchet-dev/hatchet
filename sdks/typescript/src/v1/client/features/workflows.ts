@@ -220,10 +220,8 @@ export class WorkflowsClient {
 
     try {
       const { data } = await this.api.workflowUpdate(workflowId, request);
-      this.workflowCache.set(name, {
-        workflow: data,
-        expiry: Date.now() + this.cacheTTL,
-      });
+      this.workflowCache.delete(name);
+      this.workflowCache.delete(data.name);
       return data;
     } catch (error) {
       this.workflowCache.delete(name);
