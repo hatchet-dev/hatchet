@@ -5,6 +5,12 @@ All notable changes to Hatchet's Ruby SDK will be documented in this changelog.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-09-23
+
+### Added
+
+- Added `pause` and `unpause` methods to the workflows client (`hatchet.workflows.pause(workflow_id, queue_ttl:)`) and to workflows (`workflow.pause(queue_ttl:)`). `queue_ttl` is how long runs stay queued while the workflow is paused, in seconds or as a duration string, and the behavior (`QUEUE` or `DROP`) for cron and scheduled runs triggered while paused can optionally be set, both defaulting to `QUEUE`.
+
 ## [0.8.0] - 2026-09-02
 
 ### Added
