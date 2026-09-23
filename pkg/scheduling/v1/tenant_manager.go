@@ -589,7 +589,7 @@ func (t *tenantManager) runOptimisticScheduling(
 	localWorkerIds map[uuid.UUID]struct{},
 ) (map[uuid.UUID][]*AssignedItemWithTask, []*v1.V1TaskWithPayload, []*v1.DAGWithData, []v1.IdempotencyCollision, error) {
 	// create a transaction
-	tx, err := t.cf.repo.Optimistic().StartTx(ctx)
+	tx, err := t.cf.repo.Optimistic().StartTx(ctx, t.tenantId)
 
 	if err != nil {
 		return nil, nil, nil, nil, err
@@ -684,7 +684,7 @@ func (t *tenantManager) runOptimisticSchedulingFromEvents(
 	localWorkerIds map[uuid.UUID]struct{},
 ) (map[uuid.UUID][]*AssignedItemWithTask, *v1.TriggerFromEventsResult, error) {
 	// create a transaction
-	tx, err := t.cf.repo.Optimistic().StartTx(ctx)
+	tx, err := t.cf.repo.Optimistic().StartTx(ctx, t.tenantId)
 
 	if err != nil {
 		return nil, nil, err

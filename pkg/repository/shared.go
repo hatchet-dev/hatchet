@@ -12,6 +12,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
+
 	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/pkg/config/limits"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
@@ -28,7 +30,7 @@ type taskExternalIdTenantIdTuple struct {
 }
 
 type sharedRepository struct {
-	pool    *pgxpool.Pool
+	pool    *fairpool.Pool
 	ddlPool *pgxpool.Pool // bypasses pgbouncer for DDL operations
 	v       validator.Validator
 	l       *zerolog.Logger
@@ -57,7 +59,8 @@ type sharedRepository struct {
 }
 
 func newSharedRepository(
-	pool, ddlPool *pgxpool.Pool,
+	pool *fairpool.Pool,
+	ddlPool *pgxpool.Pool,
 	v validator.Validator,
 	l *zerolog.Logger,
 	payloadStoreOpts PayloadStoreRepositoryOpts,
@@ -143,7 +146,9 @@ func (s *sharedRepository) isDagOperatorEnabled(ctx context.Context, db sqlcv1.D
 }
 
 func (s *sharedRepository) hasDAGOperator(ctx context.Context, tenantId uuid.UUID) (bool, error) {
-	enabled, err := s.isDagOperatorEnabled(ctx, s.pool, tenantId)
+	db := s.pool.ForTenant(tenantId)
+
+	enabled, err := s.isDagOperatorEnabled(ctx, db, tenantId)
 
 	if err != nil {
 		return false, err
@@ -153,7 +158,7 @@ func (s *sharedRepository) hasDAGOperator(ctx context.Context, tenantId uuid.UUI
 		return false, nil
 	}
 
-	return s.queries.TenantHasDAGOperator(ctx, s.pool, tenantId)
+	return s.queries.TenantHasDAGOperator(ctx, db, tenantId)
 }
 
 func (s *sharedRepository) cleanup() error {

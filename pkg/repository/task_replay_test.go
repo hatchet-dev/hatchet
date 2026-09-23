@@ -40,7 +40,7 @@ func TestReplayQueuedTaskIsRejected(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, stepIdsToConfig, stepID)
 
-	insertedTasks, err := repo.sharedRepository.insertTasks(ctx, repo.pool, internalTenantId, []CreateTaskOpts{
+	insertedTasks, err := repo.sharedRepository.insertTasks(ctx, repo.pool.ForShared(), internalTenantId, []CreateTaskOpts{
 		{
 			ExternalId:    uuid.New(),
 			WorkflowRunId: uuid.New(),

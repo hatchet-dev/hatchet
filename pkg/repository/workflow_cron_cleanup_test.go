@@ -16,6 +16,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
@@ -24,7 +25,7 @@ var internalTenantId = uuid.MustParse("8d420720-ef03-41dc-9c73-1c93f276db97")
 func newWorkflowTestRepository(pool *pgxpool.Pool) *workflowRepository {
 	logger := zerolog.Nop()
 	shared := &sharedRepository{
-		pool:       pool,
+		pool:       fairpool.Wrap(pool),
 		ddlPool:    pool,
 		l:          &logger,
 		queries:    sqlcv1.New(),

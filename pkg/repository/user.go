@@ -120,17 +120,17 @@ func (r *userRepository) RegisterCreateCallback(callback UnscopedCallback[*UserC
 }
 
 func (r *userRepository) GetUserByID(ctx context.Context, id uuid.UUID) (*sqlcv1.User, error) {
-	return r.queries.GetUserByID(ctx, r.pool, id)
+	return r.queries.GetUserByID(ctx, r.pool.ForShared(), id)
 }
 
 func (r *userRepository) GetUserByEmail(ctx context.Context, email string) (*sqlcv1.User, error) {
 	emailLower := strings.ToLower(email)
 
-	return r.queries.GetUserByEmail(ctx, r.pool, emailLower)
+	return r.queries.GetUserByEmail(ctx, r.pool.ForShared(), emailLower)
 }
 
 func (r *userRepository) GetUserPassword(ctx context.Context, id uuid.UUID) (*sqlcv1.UserPassword, error) {
-	return r.queries.GetUserPassword(ctx, r.pool, id)
+	return r.queries.GetUserPassword(ctx, r.pool.ForShared(), id)
 }
 
 func (r *userRepository) CreateUser(ctx context.Context, opts *CreateUserOpts) (*sqlcv1.User, error) {
@@ -153,7 +153,7 @@ func (r *userRepository) CreateUser(ctx context.Context, opts *CreateUserOpts) (
 		params.Name = sqlchelpers.TextFromStr(*opts.Name)
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool.ForShared(), r.l)
 
 	if err != nil {
 		return nil, err
@@ -235,7 +235,7 @@ func (r *userRepository) UpdateUser(ctx context.Context, id uuid.UUID, opts *Upd
 		params.Name = sqlchelpers.TextFromStr(*opts.Name)
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool.ForShared(), r.l)
 
 	if err != nil {
 		return nil, err
@@ -288,7 +288,7 @@ func (r *userRepository) UpdateUser(ctx context.Context, id uuid.UUID, opts *Upd
 }
 
 func (r *userRepository) ListTenantMemberships(ctx context.Context, userId uuid.UUID) ([]*sqlcv1.PopulateTenantMembersRow, error) {
-	memberships, err := r.queries.ListTenantMemberships(ctx, r.pool, userId)
+	memberships, err := r.queries.ListTenantMemberships(ctx, r.pool.ForShared(), userId)
 
 	if err != nil {
 		return nil, err

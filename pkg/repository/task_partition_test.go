@@ -21,6 +21,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-migrate/migrate"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 )
 
 func setupPostgresWithMigration(t *testing.T) (*pgxpool.Pool, func()) {
@@ -85,7 +86,7 @@ func setupPostgresWithMigration(t *testing.T) (*pgxpool.Pool, func()) {
 func createTaskRepository(pool *pgxpool.Pool) *TaskRepositoryImpl {
 	logger := zerolog.Nop()
 	shared := &sharedRepository{
-		pool:    pool,
+		pool:    fairpool.Wrap(pool),
 		ddlPool: pool,
 		l:       &logger,
 		queries: sqlcv1.New(),
