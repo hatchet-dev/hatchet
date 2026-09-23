@@ -2,11 +2,12 @@ import { Channel, ClientFactory } from 'nice-grpc';
 import {
   BulkPushEventRequest,
   EventsServiceClient,
-  EventsServiceDefinition,
   PushEventRequest,
 } from '@hatchet/protoc/events/events';
-import { EventsService } from '@hatchet/protoc-es/events/events_pb';
-import { createNodeTransport, createTsProtoClient, type Transport } from '@clients/transport';
+import { createNodeTransport, type Transport } from '@clients/transport';
+import { createEventsRpc } from './rpc';
+
+export { createEventsRpc };
 import { getErrorMessage, toHatchetError } from '@util/errors/hatchet-error';
 import { ClientConfig } from '@clients/hatchet-client/client-config';
 import { Logger } from '@hatchet/util/logger';
@@ -45,14 +46,6 @@ function injectSourceInfo(metadata: Record<string, string>): Record<string, stri
     hatchet__source_workflow_run_id: ctx.parentId,
     hatchet__source_step_run_id: ctx.parentTaskRunExternalId,
   };
-}
-
-/**
- * The `EventsService` client, every RPC of the generated `EventsServiceClient` interface,
- * served by a Connect client on the given transport.
- */
-export function createEventsRpc(transport: Transport): EventsServiceClient {
-  return createTsProtoClient(EventsServiceDefinition, EventsService, transport);
 }
 
 export class EventClient {
