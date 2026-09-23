@@ -11,7 +11,7 @@ import type { EventWithMetadata, PushEventOptions } from '@hatchet/core/types';
 import { buildBulkPushEventRequest, buildPushEventRequest, createEventsRpc, LogLevel } from './rpc';
 
 export type { EventWithMetadata, PushEventOptions };
-export { createEventsRpc, LogLevel };
+export { LogLevel };
 
 export class EventClient {
   config: ClientConfig;
