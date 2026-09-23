@@ -19,13 +19,14 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/tenantpool"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
 func newBatchTestRepository(pool *pgxpool.Pool) *TaskRepositoryImpl {
 	logger := zerolog.Nop()
 	queries := sqlcv1.New()
-	payloadStore := NewPayloadStoreRepository(pool, &logger, queries, PayloadStoreRepositoryOpts{
+	payloadStore := NewPayloadStoreRepository(tenantpool.Wrap(pool), &logger, queries, PayloadStoreRepositoryOpts{
 		ExternalCutoverProcessInterval: time.Second,
 		ExternalCutoverBatchSize:       1,
 	})
@@ -35,7 +36,7 @@ func newBatchTestRepository(pool *pgxpool.Pool) *TaskRepositoryImpl {
 	taskLookupCache, _ := lru.New[taskExternalIdTenantIdTuple, *sqlcv1.FlattenExternalIdsRow](1024)
 
 	shared := &sharedRepository{
-		pool:                pool,
+		pool:                tenantpool.Wrap(pool),
 		ddlPool:             pool,
 		l:                   &logger,
 		v:                   validator.NewDefaultValidator(),

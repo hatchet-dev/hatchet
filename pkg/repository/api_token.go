@@ -57,7 +57,9 @@ func (a *apiTokenRepository) RevokeAPIToken(ctx context.Context, id uuid.UUID) e
 }
 
 func (a *apiTokenRepository) ListAPITokensByTenant(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.APIToken, error) {
-	return a.queries.ListAPITokensByTenant(ctx, a.pool, tenantId)
+	db := a.pool.ForTenant(tenantId)
+
+	return a.queries.ListAPITokensByTenant(ctx, db, tenantId)
 }
 
 func (a *apiTokenRepository) CreateAPIToken(ctx context.Context, opts *CreateAPITokenOpts) (*sqlcv1.APIToken, error) {
@@ -90,7 +92,9 @@ func (a *apiTokenRepository) GetAPITokenById(ctx context.Context, id uuid.UUID) 
 }
 
 func (a *apiTokenRepository) DeleteAPIToken(ctx context.Context, tenantId, id uuid.UUID) error {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, a.pool, a.l)
+	db := a.pool.ForTenant(tenantId)
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, db, a.l)
 
 	if err != nil {
 		return err

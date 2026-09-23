@@ -197,6 +197,8 @@ func (w *workflowScheduleRepository) RegisterCreateCallback(callback TenantScope
 }
 
 func (w *workflowScheduleRepository) CreateScheduledWorkflow(ctx context.Context, tenantId uuid.UUID, opts *CreateScheduledWorkflowRunForWorkflowOpts) (*sqlcv1.ListScheduledWorkflowsRow, error) {
+	db := w.pool.ForTenant(tenantId)
+
 	if err := w.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -219,13 +221,13 @@ func (w *workflowScheduleRepository) CreateScheduledWorkflow(ctx context.Context
 		Priority: sqlchelpers.ToInt(&priority),
 	}
 
-	created, err := w.queries.CreateWorkflowTriggerScheduledRefForWorkflow(ctx, w.pool, createParams)
+	created, err := w.queries.CreateWorkflowTriggerScheduledRefForWorkflow(ctx, db, createParams)
 
 	if err != nil {
 		return nil, err
 	}
 
-	scheduled, err := w.queries.ListScheduledWorkflows(ctx, w.pool, sqlcv1.ListScheduledWorkflowsParams{
+	scheduled, err := w.queries.ListScheduledWorkflows(ctx, db, sqlcv1.ListScheduledWorkflowsParams{
 		Tenantid:   tenantId,
 		ScheduleId: &created.ID,
 	})
@@ -243,6 +245,8 @@ func (w *workflowScheduleRepository) CreateScheduledWorkflow(ctx context.Context
 }
 
 func (w *workflowScheduleRepository) ListScheduledWorkflows(ctx context.Context, tenantId uuid.UUID, opts *ListScheduledWorkflowsOpts) ([]*sqlcv1.ListScheduledWorkflowsRow, int64, error) {
+	db := w.pool.ForTenant(tenantId)
+
 	if err := w.v.Validate(opts); err != nil {
 		return nil, 0, err
 	}
@@ -300,7 +304,7 @@ func (w *workflowScheduleRepository) ListScheduledWorkflows(ctx context.Context,
 		countParams.Statuses = statuses
 	}
 
-	count, err := w.queries.CountScheduledWorkflows(ctx, w.pool, countParams)
+	count, err := w.queries.CountScheduledWorkflows(ctx, db, countParams)
 
 	if err != nil {
 		return nil, 0, err
@@ -334,7 +338,7 @@ func (w *workflowScheduleRepository) ListScheduledWorkflows(ctx context.Context,
 
 	listOpts.Orderby = orderByField + " " + orderByDirection
 
-	scheduledWorkflows, err := w.queries.ListScheduledWorkflows(ctx, w.pool, listOpts)
+	scheduledWorkflows, err := w.queries.ListScheduledWorkflows(ctx, db, listOpts)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -343,7 +347,9 @@ func (w *workflowScheduleRepository) ListScheduledWorkflows(ctx context.Context,
 }
 
 func (w *workflowScheduleRepository) DeleteScheduledWorkflow(ctx context.Context, tenantId, scheduledWorkflowId uuid.UUID) error {
-	if err := w.queries.DeleteScheduledWorkflow(ctx, w.pool, scheduledWorkflowId); err != nil {
+	db := w.pool.ForTenant(tenantId)
+
+	if err := w.queries.DeleteScheduledWorkflow(ctx, db, scheduledWorkflowId); err != nil {
 		return err
 	}
 	w.notifyAllocatedResourceChange(tenantId)
@@ -351,13 +357,14 @@ func (w *workflowScheduleRepository) DeleteScheduledWorkflow(ctx context.Context
 }
 
 func (w *workflowScheduleRepository) GetScheduledWorkflow(ctx context.Context, tenantId, scheduledWorkflowId uuid.UUID) (*sqlcv1.ListScheduledWorkflowsRow, error) {
+	db := w.pool.ForTenant(tenantId)
 
 	listOpts := sqlcv1.ListScheduledWorkflowsParams{
 		Tenantid:   tenantId,
 		ScheduleId: &scheduledWorkflowId,
 	}
 
-	scheduledWorkflows, err := w.queries.ListScheduledWorkflows(ctx, w.pool, listOpts)
+	scheduledWorkflows, err := w.queries.ListScheduledWorkflows(ctx, db, listOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -371,18 +378,22 @@ func (w *workflowScheduleRepository) GetScheduledWorkflow(ctx context.Context, t
 }
 
 func (w *workflowScheduleRepository) UpdateScheduledWorkflow(ctx context.Context, tenantId, scheduledWorkflowId uuid.UUID, triggerAt time.Time) error {
-	return w.queries.UpdateScheduledWorkflow(ctx, w.pool, sqlcv1.UpdateScheduledWorkflowParams{
+	db := w.pool.ForTenant(tenantId)
+
+	return w.queries.UpdateScheduledWorkflow(ctx, db, sqlcv1.UpdateScheduledWorkflowParams{
 		Scheduleid: scheduledWorkflowId,
 		Triggerat:  sqlchelpers.TimestampFromTime(triggerAt),
 	})
 }
 
 func (w *workflowScheduleRepository) ScheduledWorkflowMetaByIds(ctx context.Context, tenantId uuid.UUID, scheduledWorkflowIds []uuid.UUID) (map[uuid.UUID]ScheduledWorkflowMeta, error) {
+	db := w.pool.ForTenant(tenantId)
+
 	if len(scheduledWorkflowIds) == 0 {
 		return map[uuid.UUID]ScheduledWorkflowMeta{}, nil
 	}
 
-	rows, err := w.queries.GetScheduledWorkflowMetaByIds(ctx, w.pool, sqlcv1.GetScheduledWorkflowMetaByIdsParams{
+	rows, err := w.queries.GetScheduledWorkflowMetaByIds(ctx, db, sqlcv1.GetScheduledWorkflowMetaByIdsParams{
 		Tenantid: tenantId,
 		Ids:      scheduledWorkflowIds,
 	})
@@ -403,11 +414,13 @@ func (w *workflowScheduleRepository) ScheduledWorkflowMetaByIds(ctx context.Cont
 }
 
 func (w *workflowScheduleRepository) BulkDeleteScheduledWorkflows(ctx context.Context, tenantId uuid.UUID, scheduledWorkflowIds []uuid.UUID) ([]uuid.UUID, error) {
+	db := w.pool.ForTenant(tenantId)
+
 	if len(scheduledWorkflowIds) == 0 {
 		return []uuid.UUID{}, nil
 	}
 
-	deleted, err := w.queries.BulkDeleteScheduledWorkflows(ctx, w.pool, sqlcv1.BulkDeleteScheduledWorkflowsParams{
+	deleted, err := w.queries.BulkDeleteScheduledWorkflows(ctx, db, sqlcv1.BulkDeleteScheduledWorkflowsParams{
 		Tenantid: tenantId,
 		Ids:      scheduledWorkflowIds,
 	})
@@ -421,6 +434,8 @@ func (w *workflowScheduleRepository) BulkDeleteScheduledWorkflows(ctx context.Co
 }
 
 func (w *workflowScheduleRepository) BulkUpdateScheduledWorkflows(ctx context.Context, tenantId uuid.UUID, updates []ScheduledWorkflowUpdate) ([]uuid.UUID, error) {
+	db := w.pool.ForTenant(tenantId)
+
 	if len(updates) == 0 {
 		return []uuid.UUID{}, nil
 	}
@@ -432,7 +447,7 @@ func (w *workflowScheduleRepository) BulkUpdateScheduledWorkflows(ctx context.Co
 		triggerAts = append(triggerAts, sqlchelpers.TimestampFromTime(u.TriggerAt))
 	}
 
-	return w.queries.BulkUpdateScheduledWorkflows(ctx, w.pool, sqlcv1.BulkUpdateScheduledWorkflowsParams{
+	return w.queries.BulkUpdateScheduledWorkflows(ctx, db, sqlcv1.BulkUpdateScheduledWorkflowsParams{
 		Tenantid:   tenantId,
 		Ids:        ids,
 		Triggerats: triggerAts,
@@ -440,6 +455,8 @@ func (w *workflowScheduleRepository) BulkUpdateScheduledWorkflows(ctx context.Co
 }
 
 func (w *workflowScheduleRepository) ListCronWorkflows(ctx context.Context, tenantId uuid.UUID, opts *ListCronWorkflowsOpts) ([]*sqlcv1.ListCronWorkflowsRow, int64, error) {
+	db := w.pool.ForTenant(tenantId)
+
 	if err := w.v.Validate(opts); err != nil {
 		return nil, 0, err
 	}
@@ -505,13 +522,13 @@ func (w *workflowScheduleRepository) ListCronWorkflows(ctx context.Context, tena
 		countOpts.WorkflowName = sqlchelpers.TextFromStr(*opts.WorkflowName)
 	}
 
-	cronWorkflows, err := w.queries.ListCronWorkflows(ctx, w.pool, listOpts)
+	cronWorkflows, err := w.queries.ListCronWorkflows(ctx, db, listOpts)
 
 	if err != nil {
 		return nil, 0, err
 	}
 
-	count, err := w.queries.CountCronWorkflows(ctx, w.pool, countOpts)
+	count, err := w.queries.CountCronWorkflows(ctx, db, countOpts)
 
 	if err != nil {
 		return nil, count, err
@@ -521,12 +538,14 @@ func (w *workflowScheduleRepository) ListCronWorkflows(ctx context.Context, tena
 }
 
 func (w *workflowScheduleRepository) GetCronWorkflow(ctx context.Context, tenantId, cronWorkflowId uuid.UUID) (*sqlcv1.ListCronWorkflowsRow, error) {
+	db := w.pool.ForTenant(tenantId)
+
 	listOpts := sqlcv1.ListCronWorkflowsParams{
 		Tenantid:      tenantId,
 		CronTriggerId: &cronWorkflowId,
 	}
 
-	cronWorkflows, err := w.queries.ListCronWorkflows(ctx, w.pool, listOpts)
+	cronWorkflows, err := w.queries.ListCronWorkflows(ctx, db, listOpts)
 
 	if err != nil {
 		return nil, err
@@ -540,7 +559,9 @@ func (w *workflowScheduleRepository) GetCronWorkflow(ctx context.Context, tenant
 }
 
 func (w *workflowScheduleRepository) DeleteCronWorkflow(ctx context.Context, tenantId, id uuid.UUID) error {
-	if err := w.queries.DeleteWorkflowTriggerCronRef(ctx, w.pool, id); err != nil {
+	db := w.pool.ForTenant(tenantId)
+
+	if err := w.queries.DeleteWorkflowTriggerCronRef(ctx, db, id); err != nil {
 		return err
 	}
 	w.notifyAllocatedResourceChange(tenantId)
@@ -548,6 +569,8 @@ func (w *workflowScheduleRepository) DeleteCronWorkflow(ctx context.Context, ten
 }
 
 func (w *workflowScheduleRepository) UpdateCronWorkflow(ctx context.Context, tenantId, id uuid.UUID, opts *UpdateCronOpts) error {
+	db := w.pool.ForTenant(tenantId)
+
 	params := sqlcv1.UpdateCronTriggerParams{
 		Crontriggerid: id,
 	}
@@ -556,7 +579,7 @@ func (w *workflowScheduleRepository) UpdateCronWorkflow(ctx context.Context, ten
 		params.Enabled = sqlchelpers.BoolFromBoolean(*opts.Enabled)
 	}
 
-	if err := w.queries.UpdateCronTrigger(ctx, w.pool, params); err != nil {
+	if err := w.queries.UpdateCronTrigger(ctx, db, params); err != nil {
 		return err
 	}
 
@@ -568,6 +591,7 @@ func (w *workflowScheduleRepository) UpdateCronWorkflow(ctx context.Context, ten
 }
 
 func (w *workflowScheduleRepository) CreateCronWorkflow(ctx context.Context, tenantId uuid.UUID, opts *CreateCronWorkflowTriggerOpts) (*sqlcv1.ListCronWorkflowsRow, error) {
+	db := w.pool.ForTenant(tenantId)
 
 	var input, additionalMetadata []byte
 	var err error
@@ -607,13 +631,13 @@ func (w *workflowScheduleRepository) CreateCronWorkflow(ctx context.Context, ten
 		Priority: sqlchelpers.ToInt(&priority),
 	}
 
-	cronTrigger, err := w.queries.CreateWorkflowTriggerCronRefForWorkflow(ctx, w.pool, createParams)
+	cronTrigger, err := w.queries.CreateWorkflowTriggerCronRefForWorkflow(ctx, db, createParams)
 
 	if err != nil {
 		return nil, err
 	}
 
-	row, err := w.queries.ListCronWorkflows(ctx, w.pool, sqlcv1.ListCronWorkflowsParams{
+	row, err := w.queries.ListCronWorkflows(ctx, db, sqlcv1.ListCronWorkflowsParams{
 		Tenantid:      tenantId,
 		CronTriggerId: &cronTrigger.ID,
 		Limit:         1,

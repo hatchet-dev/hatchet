@@ -9,6 +9,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
+
+	"github.com/hatchet-dev/hatchet/pkg/repository/tenantpool"
 )
 
 type TaskOperationLimits struct {
@@ -96,7 +98,8 @@ type repositoryImpl struct {
 }
 
 func NewRepository(
-	pool, ddlPool *pgxpool.Pool,
+	pool *tenantpool.Pool,
+	ddlPool *pgxpool.Pool,
 	l *zerolog.Logger,
 	cacheDuration time.Duration,
 	taskRetentionPeriod, olapRetentionPeriod time.Duration,

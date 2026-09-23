@@ -74,7 +74,9 @@ func newTickerRepository(shared *sharedRepository) TickerRepository {
 }
 
 func (t *tickerRepository) IsTenantAlertActive(ctx context.Context, tenantId uuid.UUID) (bool, time.Time, error) {
-	res, err := t.queries.IsTenantAlertActive(ctx, t.pool, tenantId)
+	db := t.pool.ForTenant(tenantId)
+
+	res, err := t.queries.IsTenantAlertActive(ctx, db, tenantId)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

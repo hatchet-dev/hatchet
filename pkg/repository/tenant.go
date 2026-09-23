@@ -396,13 +396,15 @@ func (r *tenantRepository) GetTenantBySlug(ctx context.Context, slug string) (*s
 }
 
 func (r *tenantRepository) CreateTenantMember(ctx context.Context, tenantId uuid.UUID, opts *CreateTenantMemberOpts) (*sqlcv1.PopulateTenantMembersRow, error) {
+	db := r.pool.ForTenant(tenantId)
+
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
 	createdMember, err := r.queries.CreateTenantMember(
 		ctx,
-		r.pool,
+		db,
 		sqlcv1.CreateTenantMemberParams{
 			Tenantid:        tenantId,
 			Userid:          opts.UserId,
@@ -443,9 +445,11 @@ func (r *tenantRepository) GetTenantMemberByID(ctx context.Context, memberId uui
 }
 
 func (r *tenantRepository) GetTenantMemberByUserID(ctx context.Context, tenantId uuid.UUID, userId uuid.UUID) (*sqlcv1.PopulateTenantMembersRow, error) {
+	db := r.pool.ForTenant(tenantId)
+
 	member, err := r.queries.GetTenantMemberByUserID(
 		ctx,
-		r.pool,
+		db,
 		sqlcv1.GetTenantMemberByUserIDParams{
 			Tenantid: tenantId,
 			Userid:   userId,
@@ -460,9 +464,11 @@ func (r *tenantRepository) GetTenantMemberByUserID(ctx context.Context, tenantId
 }
 
 func (r *tenantRepository) ListTenantMembers(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.PopulateTenantMembersRow, error) {
+	db := r.pool.ForTenant(tenantId)
+
 	members, err := r.queries.ListTenantMembers(
 		ctx,
-		r.pool,
+		db,
 		tenantId,
 	)
 
@@ -480,9 +486,11 @@ func (r *tenantRepository) ListTenantMembers(ctx context.Context, tenantId uuid.
 }
 
 func (r *tenantRepository) GetTenantMemberByEmail(ctx context.Context, tenantId uuid.UUID, email string) (*sqlcv1.PopulateTenantMembersRow, error) {
+	db := r.pool.ForTenant(tenantId)
+
 	member, err := r.queries.GetTenantMemberByEmail(
 		ctx,
-		r.pool,
+		db,
 		sqlcv1.GetTenantMemberByEmailParams{
 			Tenantid: tenantId,
 			Email:    email,
@@ -585,6 +593,8 @@ func (r *tenantRepository) DeleteTenantMember(ctx context.Context, memberId uuid
 }
 
 func (r *tenantRepository) GetQueueMetrics(ctx context.Context, tenantId uuid.UUID, opts *GetQueueMetricsOpts) (*GetQueueMetricsResponse, error) {
+	db := r.pool.ForTenant(tenantId)
+
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -612,7 +622,7 @@ func (r *tenantRepository) GetQueueMetrics(ctx context.Context, tenantId uuid.UU
 		totalParams.WorkflowIds = opts.WorkflowIds
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, db, r.l)
 
 	if err != nil {
 		return nil, err
@@ -916,7 +926,9 @@ func (r *tenantRepository) DeleteTenant(ctx context.Context, id uuid.UUID) error
 }
 
 func (r *tenantRepository) GetTenantUsageData(ctx context.Context, tenantId uuid.UUID) (*sqlcv1.GetTenantUsageDataRow, error) {
-	return r.queries.GetTenantUsageData(ctx, r.pool, tenantId)
+	db := r.pool.ForTenant(tenantId)
+
+	return r.queries.GetTenantUsageData(ctx, db, tenantId)
 }
 
 func getPartitionName() pgtype.Text {

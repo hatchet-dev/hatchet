@@ -16,6 +16,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/config/limits"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/tenantpool"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
@@ -30,7 +31,7 @@ func newUserEventScopeTestRepositories(t *testing.T, pool *pgxpool.Pool) userEve
 
 	logger := zerolog.Nop()
 	shared, cleanup := newSharedRepository(
-		pool,
+		tenantpool.Wrap(pool),
 		pool,
 		validator.NewDefaultValidator(),
 		&logger,

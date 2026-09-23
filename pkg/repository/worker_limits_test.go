@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/tenantpool"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
@@ -26,7 +27,7 @@ func createMeteredWorkerRepositoryForTest(t *testing.T, pool *pgxpool.Pool) (Wor
 	limits := createTenantLimitRepositoryForTest(t, pool, defaultLimitTestConfig())
 
 	return newWorkerRepository(&sharedRepository{
-		pool:    pool,
+		pool:    tenantpool.Wrap(pool),
 		l:       &logger,
 		v:       validator.NewDefaultValidator(),
 		queries: sqlcv1.New(),

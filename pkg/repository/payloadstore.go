@@ -12,7 +12,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/sync/errgroup"
@@ -20,6 +19,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/listutils"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/tenantpool"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
@@ -121,7 +121,7 @@ type PayloadStoreRepository interface {
 }
 
 type payloadStoreRepositoryImpl struct {
-	pool                                 *pgxpool.Pool
+	pool                                 *tenantpool.Pool
 	l                                    *zerolog.Logger
 	queries                              *sqlcv1.Queries
 	externalStoreEnabled                 bool
@@ -142,7 +142,7 @@ type PayloadStoreRepositoryOpts struct {
 }
 
 func NewPayloadStoreRepository(
-	pool *pgxpool.Pool,
+	pool *tenantpool.Pool,
 	l *zerolog.Logger,
 	queries *sqlcv1.Queries,
 	opts PayloadStoreRepositoryOpts,

@@ -15,6 +15,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/tenantpool"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
@@ -47,7 +48,7 @@ type messageQueueRepository struct {
 }
 
 func newMessageQueueRepository(shared *sharedRepository) (*messageQueueRepository, func() error) {
-	m := newMultiplexedListener(shared.l, shared.pool)
+	m := newMultiplexedListener(shared.l, shared.pool.Unwrap())
 
 	return &messageQueueRepository{
 			sharedRepository: shared,
@@ -64,7 +65,7 @@ func newMessageQueueRepository(shared *sharedRepository) (*messageQueueRepositor
 // which must never share pooled resources with the repository layer.
 func NewMessageQueueRepositoryWithPool(l *zerolog.Logger, pool *pgxpool.Pool) (MessageQueueRepository, func() error) {
 	return newMessageQueueRepository(&sharedRepository{
-		pool:    pool,
+		pool:    tenantpool.Wrap(pool),
 		l:       l,
 		queries: sqlcv1.New(),
 	})

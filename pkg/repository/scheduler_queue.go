@@ -1023,7 +1023,9 @@ func (d *queueRepository) ListWorkflowNamesByIds(ctx context.Context, workflowId
 }
 
 func (d *queueRepository) RequeueRateLimitedItems(ctx context.Context, tenantId uuid.UUID, queueName string) ([]*sqlcv1.RequeueRateLimitedQueueItemsRow, error) {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l)
+	db := d.pool.ForTenant(tenantId)
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, db, d.l)
 
 	if err != nil {
 		return nil, err
@@ -1329,6 +1331,8 @@ func (b *batchQueueRepository) ReserveAndCommitBatchRun(
 	maxRuns int,
 	assignments []*BatchAssignment,
 ) (bool, []*BatchAssignment, error) {
+	db := b.pool.ForTenant(tenantId)
+
 	if maxRuns <= 0 || strings.TrimSpace(batchKey) == "" {
 		succeeded, err := b.CommitAssignments(ctx, assignments)
 		return true, succeeded, err
@@ -1337,7 +1341,7 @@ func (b *batchQueueRepository) ReserveAndCommitBatchRun(
 	ctx, span := telemetry.NewSpan(ctx, "reserve-and-commit-batch-run")
 	defer span.End()
 
-	tx, err := b.pool.BeginTx(ctx, pgx.TxOptions{})
+	tx, err := db.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return false, nil, fmt.Errorf("could not begin transaction: %w", err)
 	}

@@ -16,12 +16,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/tenantpool"
 )
 
 func createOLAPRepository(pool *pgxpool.Pool) *OLAPRepositoryImpl {
 	logger := zerolog.Nop()
 	shared := &sharedRepository{
-		pool:    pool,
+		pool:    tenantpool.Wrap(pool),
 		ddlPool: pool,
 		l:       &logger,
 		queries: sqlcv1.New(),

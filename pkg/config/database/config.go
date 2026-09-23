@@ -37,6 +37,13 @@ type ConfigFile struct {
 	MaxConnLifetime time.Duration `mapstructure:"maxConnLifetime" json:"maxConnLifetime,omitempty" default:"15m"`
 	MaxConnIdleTime time.Duration `mapstructure:"maxConnIdleTime" json:"maxConnIdleTime,omitempty" default:"1m"`
 
+	// TenantPoolMaxPercent is the share of the pool one tenant may hold.
+	// 100 (the default) installs no cap. Values from 1 to 99 cap each tenant at that percent of MaxConns.
+	TenantPoolMaxPercent int `mapstructure:"tenantPoolMaxPercent" json:"tenantPoolMaxPercent,omitempty" default:"100"`
+
+	// TenantPoolMaxWait is how long an acquire waits for a tenant slot before it fails.
+	TenantPoolMaxWait time.Duration `mapstructure:"tenantPoolMaxWait" json:"tenantPoolMaxWait,omitempty" default:"5s"`
+
 	// ApplicationNamePrefix is prepended to the pgx application_name as "<prefix>:<otel service name>"
 	// so connections in pg_stat_activity can be attributed to a deployment. In Kubernetes this is
 	// populated with the pod namespace via the downward API (K8S_POD_NAMESPACE).
@@ -118,6 +125,8 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("minConns", "DATABASE_MIN_CONNS")
 	_ = v.BindEnv("maxConnLifetime", "DATABASE_MAX_CONN_LIFETIME")
 	_ = v.BindEnv("maxConnIdleTime", "DATABASE_MAX_CONN_IDLE_TIME")
+	_ = v.BindEnv("tenantPoolMaxPercent", "DATABASE_TENANT_POOL_MAX_PERCENT")
+	_ = v.BindEnv("tenantPoolMaxWait", "DATABASE_TENANT_POOL_MAX_WAIT")
 	_ = v.BindEnv("applicationNamePrefix", "K8S_POD_NAMESPACE")
 
 	_ = v.BindEnv("pgbouncerUrl", "DATABASE_PGBOUNCER_URL")

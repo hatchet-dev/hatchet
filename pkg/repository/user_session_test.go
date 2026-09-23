@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/tenantpool"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
@@ -18,7 +19,7 @@ import (
 func createUserSessionRepository(pool *pgxpool.Pool) *userSessionRepository {
 	logger := zerolog.Nop()
 	shared := &sharedRepository{
-		pool:    pool,
+		pool:    tenantpool.Wrap(pool),
 		ddlPool: pool,
 		l:       &logger,
 		queries: sqlcv1.New(),

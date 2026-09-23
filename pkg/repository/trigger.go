@@ -332,12 +332,14 @@ func (r *sharedRepository) doTriggerFromEvents(
 	tenantId uuid.UUID,
 	opts []EventTriggerOpts,
 ) (*TriggerFromEventsResult, error) {
+	db := r.pool.ForTenant(tenantId)
+
 	var prepareTx sqlcv1.DBTX
 
 	if tx != nil {
 		prepareTx = tx.tx
 	} else {
-		prepareTx = r.pool
+		prepareTx = db
 	}
 
 	triggerOpts, createCoreEventOpts, externalIdToEventIdAndFilterId, celEvaluationFailures, err := r.prepareTriggerFromEvents(ctx, prepareTx, tenantId, opts)
@@ -508,6 +510,8 @@ func (e *ErrNamesNotFound) Error() string {
 }
 
 func (r *TriggerRepositoryImpl) PreflightVerifyWorkflowNameOpts(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) error {
+	db := r.pool.ForTenant(tenantId)
+
 	// get a list of workflow names
 	workflowNamesFound := make(map[string]bool)
 
@@ -521,7 +525,7 @@ func (r *TriggerRepositoryImpl) PreflightVerifyWorkflowNameOpts(ctx context.Cont
 		uniqueWorkflowNames = append(uniqueWorkflowNames, name)
 	}
 
-	rows, err := r.listWorkflowsByNames(ctx, r.pool, tenantId, uniqueWorkflowNames)
+	rows, err := r.listWorkflowsByNames(ctx, db, tenantId, uniqueWorkflowNames)
 
 	if err != nil {
 		return fmt.Errorf("failed to list workflows by names: %w", err)
@@ -549,6 +553,8 @@ func (r *TriggerRepositoryImpl) PreflightVerifyWorkflowNameOpts(ctx context.Cont
 }
 
 func (r *TriggerRepositoryImpl) PopulateWorkflowIdempotencyPresence(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) error {
+	db := r.pool.ForTenant(tenantId)
+
 	if len(opts) == 0 {
 		return nil
 	}
@@ -564,7 +570,7 @@ func (r *TriggerRepositoryImpl) PopulateWorkflowIdempotencyPresence(ctx context.
 		uniqueNames[opt.WorkflowName] = struct{}{}
 	}
 
-	rows, err := r.listWorkflowsByNames(ctx, r.pool, tenantId, names)
+	rows, err := r.listWorkflowsByNames(ctx, db, tenantId, names)
 
 	if err != nil {
 		return fmt.Errorf("failed to list workflows by names: %w", err)
@@ -793,6 +799,8 @@ func (r *sharedRepository) triggerWorkflowsCore(
 	coreEvents *createCoreUserEventOpts,
 	ownsTx bool,
 ) ([]*V1TaskWithPayload, []*DAGWithData, []IdempotencyCollision, []CELEvaluationFailure, []StorePayloadOpts, map[uuid.UUID]triggerTuple, error) {
+	db := r.pool.ForTenant(tenantId)
+
 	if optTx == nil {
 		return nil, nil, nil, nil, nil, nil, fmt.Errorf("triggerWorkflowsCore requires a non-nil transaction")
 	}
@@ -800,7 +808,7 @@ func (r *sharedRepository) triggerWorkflowsCore(
 	preflightTx := optTx.tx
 
 	if ownsTx {
-		preflightTx = r.pool
+		preflightTx = db
 	}
 
 	tuples := make([]triggerTuple, 0, len(triggerCandidateTuples))
@@ -2992,7 +3000,9 @@ func (r *sharedRepository) NewTriggerTaskData(
 }
 
 func (r *sharedRepository) lookupParentOutputsByWorkflowRunIds(ctx context.Context, tenantId uuid.UUID, parentTaskExternalIds []uuid.UUID) (map[uuid.UUID]*TaskOutputEvent, error) {
-	rows, err := r.queries.ListTaskOutputEventIdsByTaskRunExternalIds(ctx, r.pool, parentTaskExternalIds)
+	db := r.pool.ForTenant(tenantId)
+
+	rows, err := r.queries.ListTaskOutputEventIdsByTaskRunExternalIds(ctx, db, parentTaskExternalIds)
 	if err != nil {
 		return nil, err
 	}
@@ -3009,7 +3019,7 @@ func (r *sharedRepository) lookupParentOutputsByWorkflowRunIds(ctx context.Conte
 		})
 	}
 
-	payloads, err := r.payloadStore.Retrieve(ctx, r.pool, retrieveOpts...)
+	payloads, err := r.payloadStore.Retrieve(ctx, db, retrieveOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve parent output payloads: %w", err)
 	}

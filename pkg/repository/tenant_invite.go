@@ -118,11 +118,13 @@ func (r *tenantInviteRepository) RegisterDeleteCallback(callback UnscopedCallbac
 }
 
 func (r *tenantInviteRepository) CreateTenantInvite(ctx context.Context, tenantId uuid.UUID, opts *CreateTenantInviteOpts) (*sqlcv1.TenantInviteLink, error) {
+	db := r.pool.ForTenant(tenantId)
+
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, db, r.l)
 
 	if err != nil {
 		return nil, err
@@ -208,6 +210,8 @@ func (r *tenantInviteRepository) ListTenantInvitesByEmail(ctx context.Context, e
 }
 
 func (r *tenantInviteRepository) ListTenantInvitesByTenantId(ctx context.Context, tenantId uuid.UUID, opts *ListTenantInvitesOpts) ([]*sqlcv1.TenantInviteLink, error) {
+	db := r.pool.ForTenant(tenantId)
+
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -232,7 +236,7 @@ func (r *tenantInviteRepository) ListTenantInvitesByTenantId(ctx context.Context
 
 	return r.queries.ListInvitesByTenantId(
 		ctx,
-		r.pool,
+		db,
 		params,
 	)
 }

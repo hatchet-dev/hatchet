@@ -12,6 +12,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/tenantpool"
 )
 
 type WasSuccessfullyClaimed bool
@@ -41,7 +42,7 @@ func newIdempotencyRepository(shared *sharedRepository) IdempotencyRepository {
 func NewIdempotencyRepository(pool *pgxpool.Pool) IdempotencyRepository {
 	logger := zerolog.Nop()
 	shared := &sharedRepository{
-		pool:    pool,
+		pool:    tenantpool.Wrap(pool),
 		ddlPool: pool,
 		l:       &logger,
 		queries: sqlcv1.New(),
@@ -50,11 +51,15 @@ func NewIdempotencyRepository(pool *pgxpool.Pool) IdempotencyRepository {
 }
 
 func (r *idempotencyRepository) EvictExpiredIdempotencyKeys(context context.Context, tenantId uuid.UUID) error {
-	return r.queries.CleanUpExpiredIdempotencyKeys(context, r.pool, tenantId)
+	db := r.pool.ForTenant(tenantId)
+
+	return r.queries.CleanUpExpiredIdempotencyKeys(context, db, tenantId)
 }
 
 func (r *idempotencyRepository) ClaimKey(ctx context.Context, tenantId uuid.UUID, key string, expiresAt time.Time, claimedByExternalId uuid.UUID) (bool, error) {
-	results, err := r.queries.ClaimIdempotencyKeys(ctx, r.pool, sqlcv1.ClaimIdempotencyKeysParams{
+	db := r.pool.ForTenant(tenantId)
+
+	results, err := r.queries.ClaimIdempotencyKeys(ctx, db, sqlcv1.ClaimIdempotencyKeysParams{
 		Keys:                 []string{key},
 		Expiresats:           []pgtype.Timestamptz{sqlchelpers.TimestamptzFromTime(expiresAt)},
 		Claimedbyexternalids: []uuid.UUID{claimedByExternalId},

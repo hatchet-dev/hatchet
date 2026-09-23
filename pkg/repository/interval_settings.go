@@ -62,7 +62,9 @@ func (r *intervalSettingsRepository) ReadAllIntervals(ctx context.Context, opera
 }
 
 func (r *intervalSettingsRepository) ReadInterval(ctx context.Context, operationId string, tenantId uuid.UUID) (time.Duration, error) {
-	interval, err := r.queries.ReadInterval(ctx, r.pool, sqlcv1.ReadIntervalParams{
+	db := r.pool.ForTenant(tenantId)
+
+	interval, err := r.queries.ReadInterval(ctx, db, sqlcv1.ReadIntervalParams{
 		Operationid: operationId,
 		Tenantid:    tenantId,
 	})
@@ -81,7 +83,9 @@ func (r *intervalSettingsRepository) ReadInterval(ctx context.Context, operation
 }
 
 func (r *intervalSettingsRepository) SetInterval(ctx context.Context, operationId string, tenantId uuid.UUID, d time.Duration) (time.Duration, error) {
-	interval, err := r.queries.UpsertInterval(ctx, r.pool, sqlcv1.UpsertIntervalParams{
+	db := r.pool.ForTenant(tenantId)
+
+	interval, err := r.queries.UpsertInterval(ctx, db, sqlcv1.UpsertIntervalParams{
 		Intervalnanoseconds: int64(d),
 		Operationid:         operationId,
 		Tenantid:            tenantId,

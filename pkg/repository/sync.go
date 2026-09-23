@@ -4,10 +4,10 @@ import (
 	"context"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/tenantpool"
 )
 
 // SyncRepository provides database access for syncing tenants, users,
@@ -25,7 +25,7 @@ import (
 // no gen_random_uuid() or NOW() defaults are called server-side.
 type SyncRepository interface {
 	// Pool returns the connection pool so callers can start their own transactions.
-	Pool() *pgxpool.Pool
+	Pool() *tenantpool.Pool
 
 	SyncUpsertTenant(ctx context.Context, db sqlcv1.DBTX, arg sqlcv1.SyncUpsertTenantParams) (*sqlcv1.Tenant, error)
 	SyncUpdateTenant(ctx context.Context, db sqlcv1.DBTX, arg sqlcv1.SyncUpdateTenantParams) (*sqlcv1.Tenant, error)
@@ -46,12 +46,12 @@ type SyncRepository interface {
 }
 
 type syncRepository struct {
-	pool    *pgxpool.Pool
+	pool    *tenantpool.Pool
 	queries *sqlcv1.Queries
 	l       *zerolog.Logger
 }
 
-func NewSyncRepository(pool *pgxpool.Pool, l *zerolog.Logger) SyncRepository {
+func NewSyncRepository(pool *tenantpool.Pool, l *zerolog.Logger) SyncRepository {
 	return &syncRepository{
 		pool:    pool,
 		queries: sqlcv1.New(),
@@ -59,7 +59,7 @@ func NewSyncRepository(pool *pgxpool.Pool, l *zerolog.Logger) SyncRepository {
 	}
 }
 
-func (r *syncRepository) Pool() *pgxpool.Pool {
+func (r *syncRepository) Pool() *tenantpool.Pool {
 	return r.pool
 }
 

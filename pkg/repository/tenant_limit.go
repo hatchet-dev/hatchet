@@ -135,11 +135,13 @@ func (t *tenantLimitRepository) DefaultLimits() []Limit {
 }
 
 func (t *tenantLimitRepository) GetLimits(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.TenantResourceLimit, error) {
+	db := t.pool.ForTenant(tenantId)
+
 	if !t.enforceLimits {
 		return []*sqlcv1.TenantResourceLimit{}, nil
 	}
 
-	limits, err := t.queries.ListTenantResourceLimits(ctx, t.pool, tenantId)
+	limits, err := t.queries.ListTenantResourceLimits(ctx, db, tenantId)
 
 	if err != nil {
 		return nil, err
@@ -149,7 +151,7 @@ func (t *tenantLimitRepository) GetLimits(ctx context.Context, tenantId uuid.UUI
 	for _, limit := range limits {
 
 		if limit.Resource == sqlcv1.LimitResourceWORKER {
-			workerCount, err := t.queries.CountTenantWorkers(ctx, t.pool, tenantId)
+			workerCount, err := t.queries.CountTenantWorkers(ctx, db, tenantId)
 			if err != nil {
 				return nil, err
 			}
@@ -157,7 +159,7 @@ func (t *tenantLimitRepository) GetLimits(ctx context.Context, tenantId uuid.UUI
 		}
 
 		if limit.Resource == sqlcv1.LimitResourceWORKERSLOT {
-			totalSlotsRows, err := t.queries.ListTotalActiveSlotsPerTenant(ctx, t.pool)
+			totalSlotsRows, err := t.queries.ListTotalActiveSlotsPerTenant(ctx, db)
 			if err != nil {
 				return nil, err
 			}
@@ -181,12 +183,14 @@ func (t *tenantLimitRepository) CanCreate(ctx context.Context, resource sqlcv1.L
 }
 
 func (t *tenantLimitRepository) canCreate(ctx context.Context, dbtx sqlcv1.DBTX, resource sqlcv1.LimitResource, tenantId uuid.UUID, numberOfResources int32) (bool, int, error) {
+	db := t.pool.ForTenant(tenantId)
+
 	if !t.enforceLimits {
 		return true, 0, nil
 	}
 
 	if dbtx == nil {
-		dbtx = t.pool
+		dbtx = db
 	}
 
 	limit, err := t.queries.GetTenantResourceLimit(ctx, dbtx, sqlcv1.GetTenantResourceLimitParams{
@@ -427,12 +431,14 @@ func prepareTenantResourceLimitParams(limits []Limit) (resources []string, limit
 }
 
 func (t *tenantLimitRepository) updateLimits(ctx context.Context, dbtx sqlcv1.DBTX, tenantId uuid.UUID, limits []Limit) error {
+	db := t.pool.ForTenant(tenantId)
+
 	if len(limits) == 0 {
 		return nil
 	}
 
 	if dbtx == nil {
-		dbtx = t.pool
+		dbtx = db
 	}
 
 	resources, limitValues, alarmValues, windows, customValueMeters := prepareTenantResourceLimitParams(limits)
