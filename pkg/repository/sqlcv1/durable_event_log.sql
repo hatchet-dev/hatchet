@@ -194,30 +194,36 @@ JOIN locked_log_files llf ON (llf.durable_task_id, llf.durable_task_inserted_at)
 ;
 
 -- name: ListSatisfiedEntries :many
-WITH inputs AS (
+WITH inputs AS MATERIALIZED (
     SELECT
         UNNEST(@taskExternalIds::UUID[]) AS external_id,
         UNNEST(@nodeIds::BIGINT[]) AS node_id,
         UNNEST(@branchIds::BIGINT[]) AS branch_id
-), tasks_with_nodes AS (
-    SELECT t.*, i.node_id AS requested_node_id, i.branch_id AS requested_branch_id
+), tasks AS MATERIALIZED (
+    SELECT
+        i.external_id AS external_id,
+        i.node_id AS node_id,
+        i.branch_id AS branch_id,
+        lt.task_id,
+        lt.inserted_at
     FROM inputs i
     JOIN v1_lookup_table lt ON lt.external_id = i.external_id
-    JOIN v1_task t ON (t.id, t.inserted_at) = (lt.task_id, lt.inserted_at)
     WHERE lt.tenant_id = @tenantId::UUID
 )
-
 SELECT
     e.*,
-    twn.external_id AS task_external_id,
+    t.external_id::uuid AS task_external_id,
     lf.latest_invocation_count AS invocation_count
-FROM v1_durable_event_log_entry e
-JOIN tasks_with_nodes twn ON (twn.id, twn.inserted_at) = (e.durable_task_id, e.durable_task_inserted_at)
-JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_inserted_at) = (e.durable_task_id, e.durable_task_inserted_at)
-WHERE
-    e.branch_id = twn.requested_branch_id
-    AND e.node_id = twn.requested_node_id
-    AND e.is_satisfied
+FROM tasks t
+JOIN v1_durable_event_log_entry e
+    ON (e.durable_task_id, e.durable_task_inserted_at, e.branch_id, e.node_id) = (t.task_id, t.inserted_at, t.branch_id, t.node_id)
+JOIN v1_durable_event_log_file lf
+    ON (lf.durable_task_id, lf.durable_task_inserted_at) = (t.task_id, t.inserted_at)
+WHERE e.is_satisfied
+  AND e.durable_task_inserted_at >= @minTaskInsertedAt::TIMESTAMPTZ
+  AND e.durable_task_inserted_at <= @maxTaskInsertedAt::TIMESTAMPTZ
+  AND lf.durable_task_inserted_at >= @minTaskInsertedAt::TIMESTAMPTZ
+  AND lf.durable_task_inserted_at <= @maxTaskInsertedAt::TIMESTAMPTZ
 ;
 
 -- name: MarkDurableEventLogEntrySatisfied :one
