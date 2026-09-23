@@ -979,21 +979,23 @@ func TestConnectUnaryOverHTTP1ForFetchClients(t *testing.T) {
 	}
 
 	// Nothing but the body deadline reclaims an HTTP/1.1 caller that keeps sending. The deadline
-	// is absolute: a body that never goes idle is still cut off at the default.
-	t.Run("body trickling past the default deadline gets a deadline error", func(t *testing.T) {
-		if testing.Short() {
-			t.Skip("waits for the default HTTP/1.1 body deadline")
-		}
+	// is absolute: a body that never goes idle is still cut off when it elapses. The server runs
+	// with a short deadline here so the test does not wait out the production value, which is
+	// pinned separately.
+	t.Run("body trickling past the deadline gets a deadline error", func(t *testing.T) {
+		assert.Equal(t, 30*time.Second, defaultHTTP1BodyReadTimeout, "the production body deadline")
+
+		const bodyDeadline = 500 * time.Millisecond
 
 		admin := &unaryAdminV1{}
-		env := startTestServer(t, transports()[0], nil, 0, WithAdminV1(admin))
+		env := startTestServer(t, transports()[0], nil, 0, WithAdminV1(admin), withHTTP1Timeouts(bodyDeadline, time.Minute))
 
 		msg, err := proto.Marshal(&v1contracts.TriggerWorkflowRunRequest{WorkflowName: strings.Repeat("w", 256)})
 		require.NoError(t, err)
 
-		// one byte every 250ms: over a minute for the whole message, but never idle
-		body := &trickleReader{data: msg, interval: 250 * time.Millisecond}
-		require.Greater(t, time.Duration(len(msg))*body.interval, 2*defaultHTTP1BodyReadTimeout)
+		// one byte at a time: several deadlines for the whole message, but never idle
+		body := &trickleReader{data: msg, interval: 10 * time.Millisecond}
+		require.Greater(t, time.Duration(len(msg))*body.interval, 2*bodyDeadline)
 
 		req, err := http.NewRequest(http.MethodPost, "http://"+env.addr+"/v1.AdminService/TriggerWorkflowRun", body)
 		require.NoError(t, err)
@@ -1005,7 +1007,7 @@ func TestConnectUnaryOverHTTP1ForFetchClients(t *testing.T) {
 
 		httpClient := http1Client(t, nil)
 		// far longer than the body deadline: the server has to be the one to finish
-		httpClient.Timeout = 2 * defaultHTTP1BodyReadTimeout
+		httpClient.Timeout = 20 * bodyDeadline
 
 		start := time.Now()
 
@@ -1022,8 +1024,8 @@ func TestConnectUnaryOverHTTP1ForFetchClients(t *testing.T) {
 		assert.Equal(t, http.StatusGatewayTimeout, res.StatusCode, "body: %s", errBody)
 		assert.Equal(t, "application/json", res.Header.Get("Content-Type"))
 		assert.Contains(t, string(errBody), `"code":"deadline_exceeded"`)
-		assert.GreaterOrEqual(t, elapsed, defaultHTTP1BodyReadTimeout-time.Second)
-		assert.Less(t, elapsed, defaultHTTP1BodyReadTimeout+10*time.Second)
+		assert.GreaterOrEqual(t, elapsed, bodyDeadline-50*time.Millisecond)
+		assert.Less(t, elapsed, 5*bodyDeadline)
 		assert.Zero(t, admin.calls.Load(), "an incomplete request reached the handler")
 	})
 }
