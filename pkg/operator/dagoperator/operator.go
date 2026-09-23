@@ -17,6 +17,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/syncx"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
@@ -449,12 +450,12 @@ func (d *DAGOperator) run(action *contracts.AssignedAction) error {
 	}
 
 	if len(completedRefs) > 0 {
-		task, err := d.repo.Tasks().GetTaskByExternalId(d.ctx, d.TenantId(), externalId, false)
-		if err != nil {
-			return d.fail(span, action, fmt.Errorf("could not look up dag task: %w", err), false)
+		taskInsertedAtRange, ok := taskInsertedAtRangeFromAction(action)
+		if !ok {
+			return d.fail(span, action, fmt.Errorf("dag action missing task inserted_at"), false)
 		}
 
-		events, err := d.repo.DurableEvents().GetSatisfiedDurableEvents(d.ctx, d.TenantId(), completedRefs, repository.TaskInsertedAtRange{Min: task.InsertedAt, Max: task.InsertedAt})
+		events, err := d.repo.DurableEvents().GetSatisfiedDurableEvents(d.ctx, d.TenantId(), completedRefs, taskInsertedAtRange)
 		if err != nil {
 			return d.fail(span, action, fmt.Errorf("could not fetch completed task outputs: %w", err), false)
 		}
@@ -489,6 +490,17 @@ func (d *DAGOperator) run(action *contracts.AssignedAction) error {
 	}
 
 	return nil
+}
+
+func taskInsertedAtRangeFromAction(action *contracts.AssignedAction) (repository.TaskInsertedAtRange, bool) {
+	ts := action.GetTaskInsertedAt()
+	if ts == nil {
+		return repository.TaskInsertedAtRange{}, false
+	}
+
+	insertedAt := sqlchelpers.TimestamptzFromTime(ts.AsTime())
+
+	return repository.TaskInsertedAtRange{Min: insertedAt, Max: insertedAt}, true
 }
 
 func (d *DAGOperator) abortForShutdown(span trace.Span, action *contracts.AssignedAction, err error) error {

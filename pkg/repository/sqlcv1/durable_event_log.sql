@@ -212,7 +212,7 @@ WITH inputs AS MATERIALIZED (
 )
 SELECT
     e.*,
-    t.external_id AS task_external_id,
+    t.external_id::uuid AS task_external_id,
     lf.latest_invocation_count AS invocation_count
 FROM tasks t
 JOIN v1_durable_event_log_entry e

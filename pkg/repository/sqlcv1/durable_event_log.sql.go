@@ -1007,7 +1007,7 @@ WITH inputs AS MATERIALIZED (
 )
 SELECT
     e.tenant_id, e.external_id, e.result_payload_external_id, e.child_task_external_id, e.child_task_is_failure, e.child_task_error_message, e.inserted_at, e.id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.branch_id, e.idempotency_key, e.is_satisfied, e.satisfied_at, e.satisfied_order, e.user_message, e.wait_data, e.triggered_at,
-    t.external_id AS task_external_id,
+    t.external_id::uuid AS task_external_id,
     lf.latest_invocation_count AS invocation_count
 FROM tasks t
 JOIN v1_durable_event_log_entry e
@@ -1055,14 +1055,6 @@ type ListSatisfiedEntriesRow struct {
 	InvocationCount         int32                 `json:"invocation_count"`
 }
 
-// Materialize the input row so the planner keeps branch_id and node_id on the
-// outer side of the entry lookup. Inlining them turns those equalities into a
-// join filter and the scan reads every entry for the task.
-//
-// minTaskInsertedAt and maxTaskInsertedAt bound the inserted_at of every task
-// in taskExternalIds. Equality with the lookup row only prunes partitions at
-// run time, which still locks all of them. Constant bounds prune at plan time
-// when the statement is planned with its parameter values.
 func (q *Queries) ListSatisfiedEntries(ctx context.Context, db DBTX, arg ListSatisfiedEntriesParams) ([]*ListSatisfiedEntriesRow, error) {
 	rows, err := db.Query(ctx, listSatisfiedEntries,
 		arg.Mintaskinsertedat,

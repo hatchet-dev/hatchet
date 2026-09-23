@@ -215,6 +215,9 @@ message AssignedAction {
 
     // (optional) the partition key used for batching
     optional string batchKey = 28;
+
+    // inserted_at of the assigned task. The DAG operator uses this to prune durable log partitions.
+    google.protobuf.Timestamp task_inserted_at = 29;
 }
 
 message BatchStartPayload {
