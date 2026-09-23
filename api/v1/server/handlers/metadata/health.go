@@ -35,25 +35,8 @@ func (u *MetadataService) logHealthErrors(errs []error) {
 	}
 }
 
+// LivenessGet reports only that the process is serving requests; dependency checks belong in ReadinessGet.
 func (u *MetadataService) LivenessGet(ctx echo.Context, request gen.LivenessGetRequestObject) (gen.LivenessGetResponseObject, error) {
-	gCtx, cancel := context.WithTimeout(ctx.Request().Context(), 5*time.Second)
-	defer cancel()
-
-	allErrors := u.collectHealthErrors(gCtx)
-
-	if len(allErrors) > 0 {
-		u.logHealthErrors(allErrors)
-
-		allErrors = append(allErrors, fmt.Errorf(
-			"pg connections - acquired: %d, idle: %d, total: %d",
-			u.config.V1.Health().PgStat().AcquiredConns(),
-			u.config.V1.Health().PgStat().IdleConns(),
-			u.config.V1.Health().PgStat().TotalConns(),
-		))
-
-		return gen.LivenessGet500JSONResponse(gen.APIErrors{Errors: errorsToAPIErrors(allErrors)}), nil
-	}
-
 	return gen.LivenessGet200Response{}, nil
 }
 

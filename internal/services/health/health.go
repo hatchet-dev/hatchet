@@ -40,19 +40,10 @@ func (h *Health) SetShuttingDown(shuttingDown bool) {
 func (h *Health) Start(port int) (func() error, error) {
 	mux := http.NewServeMux()
 
+	// NOTE: liveness must not check the database or the queue. A shared dependency
+	// failing restarts every replica at once, which a restart cannot fix; /ready
+	// covers dependencies by taking the pod out of rotation instead.
 	mux.HandleFunc("/live", func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-		defer cancel()
-
-		queueReady := h.queue.IsReady()
-		repositoryReady := h.repository.IsHealthy(ctx)
-
-		if !queueReady || !repositoryReady {
-			h.l.Error().Ctx(ctx).Msgf("liveness check failed - queue ready: %t, repository ready: %t", queueReady, repositoryReady)
-			w.WriteHeader(http.StatusServiceUnavailable)
-			return
-		}
-
 		w.WriteHeader(http.StatusOK)
 	})
 
