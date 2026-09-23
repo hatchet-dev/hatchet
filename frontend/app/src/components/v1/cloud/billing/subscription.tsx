@@ -228,7 +228,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="space-y-1">
                 <p className="text-xl font-semibold leading-tight text-foreground">
-                  You are on a Dedicated plan
+                  You are on a Custom plan
                 </p>
                 <p className="text-sm text-muted-foreground">
                   Contact us to make changes to your plan.

@@ -158,7 +158,7 @@ export function PlanSelector({
         );
       })}
       <PlanCard
-        name="Enterprise"
+        name="Custom"
         description="Have technical or compliance requirements?"
         enterpriseHighlights={[
           'Volume usage discounts',
