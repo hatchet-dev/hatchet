@@ -40,9 +40,6 @@ func (h *Health) SetShuttingDown(shuttingDown bool) {
 func (h *Health) Start(port int) (func() error, error) {
 	mux := http.NewServeMux()
 
-	// NOTE: liveness must not check the database or the queue. A shared dependency
-	// failing restarts every replica at once, which a restart cannot fix; /ready
-	// covers dependencies by taking the pod out of rotation instead.
 	mux.HandleFunc("/live", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -67,14 +64,12 @@ func (h *Health) Start(port int) (func() error, error) {
 	})
 
 	mux.HandleFunc("/version", func(w http.ResponseWriter, r *http.Request) {
-
 		w.WriteHeader(http.StatusOK)
 		e := json.NewEncoder(w).Encode(map[string]string{"version": h.version})
 		if e != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-
 	})
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", port),

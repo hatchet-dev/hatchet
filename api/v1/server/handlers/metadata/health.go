@@ -35,7 +35,6 @@ func (u *MetadataService) logHealthErrors(errs []error) {
 	}
 }
 
-// LivenessGet reports only that the process is serving requests; dependency checks belong in ReadinessGet.
 func (u *MetadataService) LivenessGet(ctx echo.Context, request gen.LivenessGetRequestObject) (gen.LivenessGetResponseObject, error) {
 	return gen.LivenessGet200Response{}, nil
 }
