@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel/attribute"
 	telemetry_codes "go.opentelemetry.io/otel/codes"
@@ -449,7 +450,12 @@ func (d *DAGOperator) run(action *contracts.AssignedAction) error {
 	}
 
 	if len(completedRefs) > 0 {
-		events, err := d.repo.DurableEvents().GetSatisfiedDurableEvents(d.ctx, d.TenantId(), completedRefs)
+		task, err := d.repo.Tasks().GetTaskByExternalId(d.ctx, d.TenantId(), externalId, false)
+		if err != nil {
+			return d.fail(span, action, fmt.Errorf("could not look up dag task: %w", err), false)
+		}
+
+		events, err := d.repo.DurableEvents().GetSatisfiedDurableEvents(d.ctx, d.TenantId(), completedRefs, []pgtype.Timestamptz{task.InsertedAt})
 		if err != nil {
 			return d.fail(span, action, fmt.Errorf("could not fetch completed task outputs: %w", err), false)
 		}

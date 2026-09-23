@@ -162,7 +162,7 @@ type DurableEventsRepository interface {
 	HandleBranchForDAGReplay(ctx context.Context, tenantId uuid.UUID, task *sqlcv1.FlattenExternalIdsRow, forcedChildExternalIds []uuid.UUID) (*HandleBranchResult, error)
 	TriggerPendingRunEntries(ctx context.Context, tenantId uuid.UUID, tasks []TriggerPendingRunEntriesOpt) ([]*V1TaskWithPayload, []*DAGWithData, []CELEvaluationFailure, error)
 
-	GetSatisfiedDurableEvents(ctx context.Context, tenantId uuid.UUID, events []TaskExternalIdNodeIdBranchId) ([]*SatisfiedEventWithPayload, error)
+	GetSatisfiedDurableEvents(ctx context.Context, tenantId uuid.UUID, events []TaskExternalIdNodeIdBranchId, taskInsertedAts []pgtype.Timestamptz) ([]*SatisfiedEventWithPayload, error)
 	GetDurableTaskInvocationCounts(ctx context.Context, tenantId uuid.UUID, tasks []IdInsertedAt) (map[IdInsertedAt]*int32, error)
 	CompleteMemoEntry(ctx context.Context, opts CompleteMemoEntryOpts) error
 	ListDurableEventLog(ctx context.Context, tenantId uuid.UUID, taskInsertedAt pgtype.Timestamptz, taskId, limit, offset int64) ([]*sqlcv1.ListDurableEventLogForTaskRow, error)
@@ -696,7 +696,21 @@ type EventLogEntryWithResultPayload struct {
 	AlreadyExisted bool
 }
 
-func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context, tenantId uuid.UUID, events []TaskExternalIdNodeIdBranchId) ([]*SatisfiedEventWithPayload, error) {
+// customPlanDBTX plans the statement with the bound parameter values. A cached
+// generic plan cannot see taskInsertedAts, so it keeps every daily partition
+// and locks them.
+type customPlanDBTX struct {
+	sqlcv1.DBTX
+}
+
+func (c customPlanDBTX) Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error) {
+	withMode := make([]any, 0, len(args)+1)
+	withMode = append(withMode, pgx.QueryExecModeCacheDescribe)
+	withMode = append(withMode, args...)
+	return c.DBTX.Query(ctx, sql, withMode...)
+}
+
+func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context, tenantId uuid.UUID, events []TaskExternalIdNodeIdBranchId, taskInsertedAts []pgtype.Timestamptz) ([]*SatisfiedEventWithPayload, error) {
 	if len(events) == 0 {
 		return nil, nil
 	}
@@ -717,11 +731,12 @@ func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context,
 		isSatisfieds[i] = true
 	}
 
-	rows, err := r.queries.ListSatisfiedEntries(ctx, r.pool, sqlcv1.ListSatisfiedEntriesParams{
+	rows, err := r.queries.ListSatisfiedEntries(ctx, customPlanDBTX{r.pool}, sqlcv1.ListSatisfiedEntriesParams{
 		Taskexternalids: taskExternalIds,
 		Nodeids:         nodeIds,
 		Branchids:       branchIds,
 		Tenantid:        tenantId,
+		Taskinsertedats: taskInsertedAts,
 	})
 
 	if err != nil {

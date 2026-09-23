@@ -194,15 +194,16 @@ JOIN locked_log_files llf ON (llf.durable_task_id, llf.durable_task_inserted_at)
 ;
 
 -- name: ListSatisfiedEntries :many
--- Materialize the input row so the planner keeps branch_id and node_id on the
--- outer side of the entry lookup. Inlining them turns those equalities into a
--- join filter and the scan reads every entry for the task.
-WITH inputs AS MATERIALIZED (
+-- taskInsertedAts is the inserted_at of every task in taskExternalIds. Equality
+-- with the lookup row only runtime-prunes, and that still locks every daily
+-- partition. This parameter is visible to a custom plan, so the Append keeps
+-- only the partitions that contain those timestamps.
+WITH inputs AS (
     SELECT
         UNNEST(@taskExternalIds::UUID[]) AS external_id,
         UNNEST(@nodeIds::BIGINT[]) AS node_id,
         UNNEST(@branchIds::BIGINT[]) AS branch_id
-), tasks AS MATERIALIZED (
+), tasks AS (
     SELECT
         i.external_id::uuid AS external_id,
         i.node_id::bigint AS node_id,
@@ -219,11 +220,25 @@ SELECT
     t.external_id AS task_external_id,
     lf.latest_invocation_count AS invocation_count
 FROM tasks t
-JOIN v1_durable_event_log_entry e
-    ON (e.durable_task_id, e.durable_task_inserted_at, e.branch_id, e.node_id) = (t.task_id, t.inserted_at, t.branch_id, t.node_id)
+-- The LIMIT keeps this subquery out of the outer join search, so every primary
+-- key column stays in the index condition. Written as a plain join, the planner
+-- may probe on (durable_task_id, durable_task_inserted_at) alone and apply
+-- branch_id and node_id as a join filter, which reads every entry of the task.
+-- The primary key already guarantees at most one row.
+CROSS JOIN LATERAL (
+    SELECT *
+    FROM v1_durable_event_log_entry e
+    WHERE e.durable_task_id = t.task_id
+      AND e.durable_task_inserted_at = t.inserted_at
+      AND e.durable_task_inserted_at = ANY(@taskInsertedAts::TIMESTAMPTZ[])
+      AND e.branch_id = t.branch_id
+      AND e.node_id = t.node_id
+      AND e.is_satisfied
+    LIMIT 1
+) e
 JOIN v1_durable_event_log_file lf
     ON (lf.durable_task_id, lf.durable_task_inserted_at) = (t.task_id, t.inserted_at)
-WHERE e.is_satisfied
+   AND lf.durable_task_inserted_at = ANY(@taskInsertedAts::TIMESTAMPTZ[])
 ;
 
 -- name: MarkDurableEventLogEntrySatisfied :one
