@@ -469,8 +469,8 @@ export interface AssignedAction {
   batchStartPayload?: BatchStartPayload | undefined;
   /** (optional) the partition key used for batching */
   batchKey?: string | undefined;
-  /** inserted_at of the assigned task. The DAG operator uses this to prune durable log partitions. */
-  taskInsertedAt: Date | undefined;
+  /** (optional) inserted_at of the assigned task. The DAG operator uses this to prune durable log partitions. */
+  taskInsertedAt?: Date | undefined;
 }
 
 export interface BatchStartPayload {
