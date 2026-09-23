@@ -15,11 +15,7 @@ func (u *MetadataService) collectHealthErrors(ctx context.Context) []error {
 	errs := []error{}
 
 	if !u.config.V1.Health().IsHealthy(ctx) {
-		errs = append(errs, errors.New("api repository is not healthy"))
-	}
-
-	if !u.config.V1.Health().IsHealthy(ctx) {
-		errs = append(errs, errors.New("engine repository is not healthy"))
+		errs = append(errs, errors.New("repository is not healthy"))
 	}
 
 	if !u.config.MessageQueueV1.IsReady() {
