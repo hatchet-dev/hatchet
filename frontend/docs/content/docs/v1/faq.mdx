@@ -43,8 +43,6 @@ There are a number of common reasons a worker might miss heartbeats:
 - **Network disruption** - the connection between the worker and the Hatchet engine is interrupted (DNS failure, firewall change, cloud network blip).
 - **Resource pressure** - High CPU or memory usage can starve the worker for resources
 
-<Keywords keywords="faq, heartbeat, reassignment, reassign, slots" />
-
 ## What happens to running tasks when a worker shuts down?
 
 When a worker begins to shut down, a few things happen:
@@ -59,3 +57,5 @@ This means that there are some practical considerations here:
 
 - Ideally, tasks would be _idempotent_, because a reassign could result in work being executed more than once (note that this is a good idea in virtually any queueing system).
 - It's often advantageous to try to keep tasks relatively short if possible, so that they can complete in the grace period the worker is given in order to avoid reassignments.
+
+<Keywords keywords="faq, heartbeat, reassignment, reassign, slots, shutdown" />
