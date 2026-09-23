@@ -1,7 +1,7 @@
 import { DEFAULT_LOGGER } from '@clients/hatchet-client/hatchet-logger';
 import { ClientConfig } from '@clients/hatchet-client/client-config';
 import { createGrpcTransport } from '@connectrpc/connect-node';
-import { createEventsRpc } from '@clients/event/event-client';
+import { createEventsRpc } from '@clients/event/rpc';
 import { execFile, execFileSync } from 'child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { createSecureServer, type Http2Session, type SecureServerOptions } from 'http2';

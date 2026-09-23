@@ -6,8 +6,6 @@ import {
 } from '@hatchet/protoc/events/events';
 import { createNodeTransport, type Transport } from '@clients/transport';
 import { createEventsRpc } from './rpc';
-
-export { createEventsRpc };
 import { getErrorMessage, toHatchetError } from '@util/errors/hatchet-error';
 import { ClientConfig } from '@clients/hatchet-client/client-config';
 import { Logger } from '@hatchet/util/logger';
