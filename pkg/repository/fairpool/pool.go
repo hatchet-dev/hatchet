@@ -161,33 +161,33 @@ type handle struct {
 	gated    bool
 }
 
-func (h *handle) enter(ctx context.Context) (func(), error) {
+func (h *handle) enter(ctx context.Context, label string) (*slotHold, error) {
 	if !h.gated {
-		return func() {}, nil
+		return nil, nil
 	}
 
-	return h.pool.gate.enter(ctx, h.key, h.tenantID)
+	return h.pool.gate.enter(ctx, h.key, label, h.tenantID)
 }
 
 func (h *handle) Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error) {
-	release, err := h.enter(ctx)
+	hold, err := h.enter(ctx, queryName(sql))
 	if err != nil {
 		return pgconn.CommandTag{}, err
 	}
-	defer release()
+	defer hold.release()
 
 	return h.pool.inner.Exec(ctx, sql, arguments...)
 }
 
 func (h *handle) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
-	release, err := h.enter(ctx)
+	hold, err := h.enter(ctx, queryName(sql))
 	if err != nil {
 		return nil, err
 	}
 
 	rows, err := h.pool.inner.Query(ctx, sql, args...)
 	if err != nil {
-		release()
+		hold.release()
 		return nil, err
 	}
 
@@ -195,7 +195,7 @@ func (h *handle) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, 
 		return rows, nil
 	}
 
-	return newGatingRows(rows, release), nil
+	return newGatingRows(rows, hold.release), nil
 }
 
 func (h *handle) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
@@ -212,17 +212,17 @@ func (h *handle) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row 
 }
 
 func (h *handle) CopyFrom(ctx context.Context, tableName pgx.Identifier, columnNames []string, rowSrc pgx.CopyFromSource) (int64, error) {
-	release, err := h.enter(ctx)
+	hold, err := h.enter(ctx, "copy")
 	if err != nil {
 		return 0, err
 	}
-	defer release()
+	defer hold.release()
 
 	return h.pool.inner.CopyFrom(ctx, tableName, columnNames, rowSrc)
 }
 
 func (h *handle) SendBatch(ctx context.Context, b *pgx.Batch) pgx.BatchResults {
-	release, err := h.enter(ctx)
+	hold, err := h.enter(ctx, batchLabel(b))
 	if err != nil {
 		return errBatchResults{err: err}
 	}
@@ -232,7 +232,7 @@ func (h *handle) SendBatch(ctx context.Context, b *pgx.Batch) pgx.BatchResults {
 		return results
 	}
 
-	return newGatingBatch(results, release)
+	return newGatingBatch(results, hold.release)
 }
 
 func (h *handle) Begin(ctx context.Context) (pgx.Tx, error) {
@@ -240,14 +240,14 @@ func (h *handle) Begin(ctx context.Context) (pgx.Tx, error) {
 }
 
 func (h *handle) BeginTx(ctx context.Context, txOptions pgx.TxOptions) (pgx.Tx, error) {
-	release, err := h.enter(ctx)
+	hold, err := h.enter(ctx, "begin")
 	if err != nil {
 		return nil, err
 	}
 
 	tx, err := h.pool.inner.BeginTx(ctx, txOptions)
 	if err != nil {
-		release()
+		hold.release()
 		return nil, err
 	}
 
@@ -255,18 +255,18 @@ func (h *handle) BeginTx(ctx context.Context, txOptions pgx.TxOptions) (pgx.Tx, 
 		return tx, nil
 	}
 
-	return newGatingTx(tx, release), nil
+	return newGatingTx(tx, hold), nil
 }
 
 func (h *handle) Acquire(ctx context.Context) (*Conn, error) {
-	release, err := h.enter(ctx)
+	hold, err := h.enter(ctx, "acquire")
 	if err != nil {
 		return nil, err
 	}
 
 	conn, err := h.pool.inner.Acquire(ctx)
 	if err != nil {
-		release()
+		hold.release()
 		return nil, err
 	}
 
@@ -274,7 +274,7 @@ func (h *handle) Acquire(ctx context.Context) (*Conn, error) {
 		return newConn(conn, nil), nil
 	}
 
-	return newConn(conn, release), nil
+	return newConn(conn, hold), nil
 }
 
 func (h *handle) Stat() *pgxpool.Stat {

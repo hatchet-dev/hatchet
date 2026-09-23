@@ -19,13 +19,13 @@ type Conn struct {
 }
 
 type connHold struct {
-	inner   *pgxpool.Conn
-	release func()
-	once    sync.Once
+	inner *pgxpool.Conn
+	slot  *slotHold
+	once  sync.Once
 }
 
-func newConn(inner *pgxpool.Conn, release func()) *Conn {
-	hold := &connHold{inner: inner, release: release}
+func newConn(inner *pgxpool.Conn, slot *slotHold) *Conn {
+	hold := &connHold{inner: inner, slot: slot}
 	c := &Conn{hold: hold}
 	c.stop = runtime.AddCleanup(c, func(h *connHold) { h.releaseConn() }, hold)
 
@@ -46,9 +46,7 @@ func (h *connHold) run(fn func()) bool {
 func (h *connHold) releaseConn() bool {
 	return h.run(func() {
 		h.inner.Release()
-		if h.release != nil {
-			h.release()
-		}
+		h.slot.release()
 	})
 }
 
@@ -57,9 +55,7 @@ func (h *connHold) hijack() (*pgx.Conn, bool) {
 
 	ok := h.run(func() {
 		conn = h.inner.Hijack()
-		if h.release != nil {
-			h.release()
-		}
+		h.slot.release()
 	})
 
 	return conn, ok
@@ -85,22 +81,27 @@ func (c *Conn) Hijack() *pgx.Conn {
 }
 
 func (c *Conn) Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error) {
+	c.hold.slot.retag(queryName(sql))
 	return c.hold.inner.Exec(ctx, sql, arguments...)
 }
 
 func (c *Conn) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
+	c.hold.slot.retag(queryName(sql))
 	return c.hold.inner.Query(ctx, sql, args...)
 }
 
 func (c *Conn) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
+	c.hold.slot.retag(queryName(sql))
 	return c.hold.inner.QueryRow(ctx, sql, args...)
 }
 
 func (c *Conn) SendBatch(ctx context.Context, b *pgx.Batch) pgx.BatchResults {
+	c.hold.slot.retag(batchLabel(b))
 	return c.hold.inner.SendBatch(ctx, b)
 }
 
 func (c *Conn) CopyFrom(ctx context.Context, tableName pgx.Identifier, columnNames []string, rowSrc pgx.CopyFromSource) (int64, error) {
+	c.hold.slot.retag("copy")
 	return c.hold.inner.CopyFrom(ctx, tableName, columnNames, rowSrc)
 }
 
@@ -223,16 +224,16 @@ func (r *gatingRow) Scan(dest ...any) error {
 }
 
 type txHold struct {
-	tx      pgx.Tx
-	release func()
-	once    sync.Once
+	tx   pgx.Tx
+	slot *slotHold
+	once sync.Once
 }
 
 func (h *txHold) finish(ctx context.Context, commit bool) error {
 	var err error
 
 	h.once.Do(func() {
-		defer h.release()
+		defer h.slot.release()
 
 		if commit {
 			err = h.tx.Commit(ctx)
@@ -251,14 +252,39 @@ type gatingTx struct {
 	stop runtime.Cleanup
 }
 
-func newGatingTx(tx pgx.Tx, release func()) pgx.Tx {
-	hold := &txHold{tx: tx, release: release}
+func newGatingTx(tx pgx.Tx, slot *slotHold) pgx.Tx {
+	hold := &txHold{tx: tx, slot: slot}
 	g := &gatingTx{Tx: tx, hold: hold}
 	// An abandoned transaction still occupies a pool connection. Roll it back
 	// once nothing references it so the slot does not stick for the process lifetime.
 	g.stop = runtime.AddCleanup(g, func(h *txHold) { _ = h.finish(context.Background(), false) }, hold)
 
 	return g
+}
+
+func (g *gatingTx) Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error) {
+	g.hold.slot.retag(queryName(sql))
+	return g.Tx.Exec(ctx, sql, arguments...)
+}
+
+func (g *gatingTx) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
+	g.hold.slot.retag(queryName(sql))
+	return g.Tx.Query(ctx, sql, args...)
+}
+
+func (g *gatingTx) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
+	g.hold.slot.retag(queryName(sql))
+	return g.Tx.QueryRow(ctx, sql, args...)
+}
+
+func (g *gatingTx) SendBatch(ctx context.Context, b *pgx.Batch) pgx.BatchResults {
+	g.hold.slot.retag(batchLabel(b))
+	return g.Tx.SendBatch(ctx, b)
+}
+
+func (g *gatingTx) CopyFrom(ctx context.Context, tableName pgx.Identifier, columnNames []string, rowSrc pgx.CopyFromSource) (int64, error) {
+	g.hold.slot.retag("copy")
+	return g.Tx.CopyFrom(ctx, tableName, columnNames, rowSrc)
 }
 
 func (g *gatingTx) Commit(ctx context.Context) error {

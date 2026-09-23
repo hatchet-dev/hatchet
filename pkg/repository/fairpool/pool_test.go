@@ -267,6 +267,9 @@ func TestSharedCapLetsTenantsThrough(t *testing.T) {
 	require.Equal(t, "shared", limitErr.Key)
 	require.Equal(t, uuid.Nil, limitErr.TenantID)
 	require.Equal(t, int64(2), limitErr.Limit)
+	require.Equal(t, map[string]int{"begin": 2}, limitErr.Queries)
+	require.Contains(t, limitErr.Error(), "fairpool-exhausted:")
+	require.Contains(t, limitErr.Error(), "begin=2")
 
 	tenant := uuid.New()
 	txT, err := pool.ForTenant(tenant).Begin(ctx)
@@ -277,6 +280,30 @@ func TestSharedCapLetsTenantsThrough(t *testing.T) {
 	require.NoError(t, tx1.Rollback(ctx))
 	require.NoError(t, tx2.Rollback(ctx))
 	requireGone(t, name, "shared")
+}
+
+func TestLimitErrorListsHeldQueries(t *testing.T) {
+	pool, _ := newPool(t, 50, 150*time.Millisecond, nil)
+	ctx := context.Background()
+	db := pool.ForTenant(uuid.New())
+
+	tx, err := db.Begin(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = tx.Rollback(context.Background()) })
+	_, err = tx.Exec(ctx, "-- name: Alpha :exec\nSELECT 1")
+	require.NoError(t, err)
+
+	rows, err := db.Query(ctx, "-- name: Beta :many\nSELECT 1")
+	require.NoError(t, err)
+	t.Cleanup(func() { rows.Close() })
+
+	_, err = db.Begin(ctx)
+	var limitErr *fairpool.LimitError
+	require.ErrorAs(t, err, &limitErr)
+	require.Equal(t, map[string]int{"Alpha": 1, "Beta": 1}, limitErr.Queries)
+	require.Contains(t, limitErr.Error(), "fairpool-exhausted:")
+	require.Contains(t, limitErr.Error(), "Alpha=1")
+	require.Contains(t, limitErr.Error(), "Beta=1")
 }
 
 func TestNilTenantUsesSharedBucket(t *testing.T) {

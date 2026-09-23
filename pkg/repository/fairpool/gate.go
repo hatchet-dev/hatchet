@@ -18,6 +18,10 @@ import (
 // It uses the same connection limit as any single tenant.
 const sharedKey = "shared"
 
+// maxQueryLabels bounds how many distinct statement names one bucket remembers.
+// Further names fold into "other" so raw SQL cannot grow the map without limit.
+const maxQueryLabels = 64
+
 // LimitError is returned when a tenant or shared work waits MaxWait without getting a connection slot.
 type LimitError struct {
 	// Key is the gate bucket. Tenants use the tenant id string; shared work uses "shared".
@@ -25,14 +29,23 @@ type LimitError struct {
 	TenantID uuid.UUID
 	Limit    int64
 	Waited   time.Duration
+	// Queries counts statements currently holding a slot in this bucket, keyed by sqlc name.
+	Queries map[string]int
 }
 
 func (e *LimitError) Error() string {
+	var msg string
 	if e.Key == sharedKey {
-		return fmt.Sprintf("shared work held the maximum of %d database connections for %s", e.Limit, e.Waited)
+		msg = fmt.Sprintf("fairpool-exhausted: shared work held the maximum of %d database connections for %s", e.Limit, e.Waited)
+	} else {
+		msg = fmt.Sprintf("fairpool-exhausted: tenant %s held the maximum of %d database connections for %s", e.TenantID, e.Limit, e.Waited)
 	}
 
-	return fmt.Sprintf("tenant %s held the maximum of %d database connections for %s", e.TenantID, e.Limit, e.Waited)
+	if counts := formatQueryCounts(e.Queries); counts != "" {
+		msg += " " + counts
+	}
+
+	return msg
 }
 
 type gate struct {
@@ -48,7 +61,19 @@ type gate struct {
 type tenantSlots struct {
 	sem      *semaphore.Weighted
 	held     int64
+	queries  map[string]int
 	lastWarn time.Time
+}
+
+// slotHold is one checked-out connection. retag moves its count when a transaction
+// runs a statement, so an exhaustion error names the statement rather than "begin".
+type slotHold struct {
+	g     *gate
+	key   string
+	slots *tenantSlots
+	label string
+	done  bool
+	once  sync.Once
 }
 
 func newGate(limit int64, maxWait time.Duration, poolName string, l *zerolog.Logger) *gate {
@@ -66,15 +91,14 @@ func newGate(limit int64, maxWait time.Duration, poolName string, l *zerolog.Log
 	}
 }
 
-// enter takes one slot for key. tenantID is recorded on LimitError for tenant buckets
-// and is uuid.Nil for shared work. The timeout used while waiting is not returned;
-// callers must run the query with the context they were given.
-func (g *gate) enter(ctx context.Context, key string, tenantID uuid.UUID) (func(), error) {
+// enter takes one slot for key and counts it under label. tenantID is recorded on
+// LimitError for tenant buckets and is uuid.Nil for shared work. The timeout used
+// while waiting is not returned; callers must run the query with the context they were given.
+func (g *gate) enter(ctx context.Context, key, label string, tenantID uuid.UUID) (*slotHold, error) {
 	slots := g.slots(key)
 
 	if slots.sem.TryAcquire(1) {
-		g.addHeld(key, slots, 1)
-		return g.release(key, slots), nil
+		return g.take(key, label, slots), nil
 	}
 
 	start := time.Now()
@@ -104,11 +128,17 @@ func (g *gate) enter(ctx context.Context, key string, tenantID uuid.UUID) (func(
 			telemetry.AttributeKV{Key: "outcome", Value: "rejected"},
 		)
 
-		return nil, &LimitError{Key: key, TenantID: tenantID, Limit: g.limit, Waited: waited}
+		return nil, &LimitError{
+			Key:      key,
+			TenantID: tenantID,
+			Limit:    g.limit,
+			Waited:   waited,
+			Queries:  g.snapshotQueries(slots),
+		}
 	}
 
 	prometheus.TenantPoolGateWait.WithLabelValues(g.poolName, "acquired").Observe(waited.Seconds())
-	g.addHeld(key, slots, 1)
+	hold := g.take(key, label, slots)
 	g.warnLimited(key, slots, waited)
 
 	telemetry.WithAttributes(span,
@@ -118,7 +148,7 @@ func (g *gate) enter(ctx context.Context, key string, tenantID uuid.UUID) (func(
 		telemetry.AttributeKV{Key: "outcome", Value: "acquired"},
 	)
 
-	return g.release(key, slots), nil
+	return hold, nil
 }
 
 func (g *gate) slots(key string) *tenantSlots {
@@ -134,23 +164,88 @@ func (g *gate) slots(key string) *tenantSlots {
 	return slots
 }
 
-func (g *gate) release(key string, slots *tenantSlots) func() {
-	var once sync.Once
-
-	return func() {
-		once.Do(func() {
-			slots.sem.Release(1)
-			g.addHeld(key, slots, -1)
-		})
-	}
-}
-
-func (g *gate) addHeld(key string, slots *tenantSlots, delta int64) {
+func (g *gate) take(key, label string, slots *tenantSlots) *slotHold {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
-	slots.held += delta
+	slots.held++
+	g.noteHeldLocked(key, slots)
 
+	hold := &slotHold{g: g, key: key, slots: slots}
+	hold.label = slots.addQueryLocked(label)
+
+	return hold
+}
+
+func (h *slotHold) release() {
+	if h == nil {
+		return
+	}
+
+	h.once.Do(func() {
+		h.g.mu.Lock()
+		h.done = true
+		h.slots.dropQueryLocked(h.label)
+		h.slots.held--
+		h.g.noteHeldLocked(h.key, h.slots)
+		h.g.mu.Unlock()
+
+		h.slots.sem.Release(1)
+	})
+}
+
+func (h *slotHold) retag(label string) {
+	if h == nil || label == "" {
+		return
+	}
+
+	h.g.mu.Lock()
+	defer h.g.mu.Unlock()
+
+	if h.done || h.label == label {
+		return
+	}
+
+	h.slots.dropQueryLocked(h.label)
+	h.label = h.slots.addQueryLocked(label)
+}
+
+func (s *tenantSlots) addQueryLocked(label string) string {
+	if s.queries == nil {
+		s.queries = make(map[string]int)
+	}
+	if _, ok := s.queries[label]; !ok && len(s.queries) >= maxQueryLabels {
+		label = "other"
+	}
+	s.queries[label]++
+
+	return label
+}
+
+func (s *tenantSlots) dropQueryLocked(label string) {
+	s.queries[label]--
+	if s.queries[label] <= 0 {
+		delete(s.queries, label)
+	}
+}
+
+func (g *gate) snapshotQueries(slots *tenantSlots) map[string]int {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	if len(slots.queries) == 0 {
+		return nil
+	}
+
+	out := make(map[string]int, len(slots.queries))
+	for name, n := range slots.queries {
+		out[name] = n
+	}
+
+	return out
+}
+
+func (g *gate) noteHeldLocked(key string, slots *tenantSlots) {
 	if slots.held <= 0 {
 		slots.held = 0
 		prometheus.TenantPoolHeldConns.DeleteLabelValues(g.poolName, key)
