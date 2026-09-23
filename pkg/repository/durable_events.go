@@ -186,7 +186,7 @@ type DurableEventsRepository interface {
 
 	// GetSatisfiedDurableEvents returns the satisfied entries among events.
 	// taskInsertedAtRange must cover the inserted_at of every task referenced by
-	// events; it lets the query prune durable log partitions at plan time.
+	// events so the query can prune durable log partitions.
 	GetSatisfiedDurableEvents(ctx context.Context, tenantId uuid.UUID, events []TaskExternalIdNodeIdBranchId, taskInsertedAtRange TaskInsertedAtRange) ([]*SatisfiedEventWithPayload, error)
 	GetDurableTaskInvocationCounts(ctx context.Context, tenantId uuid.UUID, tasks []IdInsertedAt) (map[IdInsertedAt]*int32, error)
 	CompleteMemoEntry(ctx context.Context, opts CompleteMemoEntryOpts) error
@@ -721,20 +721,6 @@ type EventLogEntryWithResultPayload struct {
 	AlreadyExisted bool
 }
 
-// customPlanDBTX plans the statement with the bound parameter values. A cached
-// generic plan cannot see the task inserted_at bounds, so it keeps every daily
-// partition and locks them.
-type customPlanDBTX struct {
-	sqlcv1.DBTX
-}
-
-func (c customPlanDBTX) Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error) {
-	withMode := make([]any, 0, len(args)+1)
-	withMode = append(withMode, pgx.QueryExecModeCacheDescribe)
-	withMode = append(withMode, args...)
-	return c.DBTX.Query(ctx, sql, withMode...)
-}
-
 func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context, tenantId uuid.UUID, events []TaskExternalIdNodeIdBranchId, taskInsertedAtRange TaskInsertedAtRange) ([]*SatisfiedEventWithPayload, error) {
 	// An empty range means no task in events resolved, so there is nothing to
 	// look up.
@@ -758,7 +744,7 @@ func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context,
 		isSatisfieds[i] = true
 	}
 
-	rows, err := r.queries.ListSatisfiedEntries(ctx, customPlanDBTX{r.pool}, sqlcv1.ListSatisfiedEntriesParams{
+	rows, err := r.queries.ListSatisfiedEntries(ctx, r.pool, sqlcv1.ListSatisfiedEntriesParams{
 		Taskexternalids:   taskExternalIds,
 		Nodeids:           nodeIds,
 		Branchids:         branchIds,
