@@ -25,35 +25,5 @@ func (c *V1CELService) V1CelDebug(ctx echo.Context, request gen.V1CelDebugReques
 		cel.WithPayload(filterPayload),
 	))
 
-	var output *bool
-	var outputStr *string
-	var outputInt *int
-	var outputType *gen.V1CELDebugResponseOutputType
-	var errorMessage *string
-
-	if err != nil {
-		msg := err.Error()
-		errorMessage = &msg
-	} else {
-		switch {
-		case res.Bool != nil:
-			t := gen.Bool
-			output, outputType = res.Bool, &t
-		case res.String != nil:
-			t := gen.String
-			outputStr, outputType = res.String, &t
-		case res.Int != nil:
-			t := gen.Int
-			outputInt, outputType = res.Int, &t
-		}
-	}
-
-	return gen.V1CelDebug200JSONResponse(transformers.ToV1CELDebugResponse(
-		err == nil,
-		output,
-		outputStr,
-		outputInt,
-		outputType,
-		errorMessage,
-	)), nil
+	return gen.V1CelDebug200JSONResponse(transformers.ToV1CELDebugResponse(res, err)), nil
 }

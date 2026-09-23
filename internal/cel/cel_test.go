@@ -107,7 +107,7 @@ func TestCELParserDebugExpression(t *testing.T) {
 		expectError bool
 		expectBool  *bool
 		expectStr   *string
-		expectInt   *int
+		expectInt   *int64
 	}{
 		{
 			expression: `input.key == 'value'`,
@@ -154,14 +154,14 @@ func TestCELParserDebugExpression(t *testing.T) {
 			input: cel.NewInput(
 				cel.WithInput(map[string]interface{}{"cost": 5}),
 			),
-			expectInt: intPtr(5),
+			expectInt: int64Ptr(5),
 		},
 		{
 			expression: `input.quota`,
 			input: cel.NewInput(
 				cel.WithInput(map[string]interface{}{"quota": 100}),
 			),
-			expectInt: intPtr(100),
+			expectInt: int64Ptr(100),
 		},
 		{
 			expression: `input.price`,
@@ -202,14 +202,14 @@ func TestCELParserDebugExpression(t *testing.T) {
 
 			switch {
 			case tt.expectBool != nil:
-				assert.NotNil(t, result.Bool)
-				assert.Equal(t, *tt.expectBool, *result.Bool)
+				assert.NotNil(t, result.BoolVal)
+				assert.Equal(t, *tt.expectBool, *result.BoolVal)
 			case tt.expectStr != nil:
-				assert.NotNil(t, result.String)
-				assert.Equal(t, *tt.expectStr, *result.String)
+				assert.NotNil(t, result.StringVal)
+				assert.Equal(t, *tt.expectStr, *result.StringVal)
 			case tt.expectInt != nil:
-				assert.NotNil(t, result.Int)
-				assert.Equal(t, *tt.expectInt, *result.Int)
+				assert.NotNil(t, result.IntVal)
+				assert.Equal(t, *tt.expectInt, *result.IntVal)
 			}
 		})
 	}
@@ -322,7 +322,8 @@ func TestCELParserStepRun(t *testing.T) {
 	}
 }
 
-func boolPtr(b bool) *bool { return &b }
+func boolPtr(b bool) *bool   { return &b }
+func int64Ptr(i int64) *int64 { return &i }
 
 func TestCELParserIdempotencyKey(t *testing.T) {
 	parser := cel.NewCELParser()

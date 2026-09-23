@@ -19,24 +19,21 @@ class CELSuccess(BaseModel):
     output: bool | None = None
     output_str: str | None = None
     output_int: int | None = None
-    output_type: Literal["bool", "string", "int"]
+    output_type: Literal["bool", "string", "int"] | None = None
 
     def as_bool(self) -> bool:
-        if self.output_type != "bool":
-            raise ValueError(f"Cannot convert {self.output_type} result to bool")
-        assert self.output is not None
+        if self.output_type != "bool" or self.output is None:
+            raise ValueError(f"Cannot convert {self.output_type!r} result to bool")
         return self.output
 
     def as_str(self) -> str:
-        if self.output_type != "string":
-            raise ValueError(f"Cannot convert {self.output_type} result to str")
-        assert self.output_str is not None
+        if self.output_type != "string" or self.output_str is None:
+            raise ValueError(f"Cannot convert {self.output_type!r} result to str")
         return self.output_str
 
     def as_int(self) -> int:
-        if self.output_type != "int":
-            raise ValueError(f"Cannot convert {self.output_type} result to int")
-        assert self.output_int is not None
+        if self.output_type != "int" or self.output_int is None:
+            raise ValueError(f"Cannot convert {self.output_type!r} result to int")
         return self.output_int
 
 
@@ -95,9 +92,6 @@ class CELClient(BaseRestClient):
                     raise ValueError("No error message received from CEL debug API.")
 
                 return CELEvaluationResult(result=CELFailure(error=result.error))
-
-            if result.output_type is None:
-                raise ValueError("No output type received from CEL debug API.")
 
             return CELEvaluationResult(
                 result=CELSuccess(

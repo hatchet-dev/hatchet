@@ -47,6 +47,15 @@ type CELEvaluationResult struct {
 	err        *string
 }
 
+func (r *CELEvaluationResult) Status() gen.V1CELDebugResponseStatus { return r.status }
+func (r *CELEvaluationResult) Output() *bool                        { return r.output }
+func (r *CELEvaluationResult) OutputStr() *string                   { return r.outputStr }
+func (r *CELEvaluationResult) OutputInt() *int                      { return r.outputInt }
+func (r *CELEvaluationResult) OutputType() *rest.V1CELDebugResponseOutputType {
+	return r.outputType
+}
+func (r *CELEvaluationResult) Err() *string { return r.err }
+
 // Deprecated: Debug is part of the old generics-based v1 Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 //

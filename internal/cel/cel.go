@@ -445,9 +445,9 @@ func (p *CELParser) EvaluateEventExpression(expr string, input Input) (bool, err
 }
 
 type DebugOut struct {
-	String *string
-	Int    *int
-	Bool   *bool
+	StringVal *string
+	IntVal    *int64
+	BoolVal   *bool
 }
 
 func (p *CELParser) EvaluateDebugExpression(expr string, input Input) (*DebugOut, error) {
@@ -473,16 +473,16 @@ func (p *CELParser) EvaluateDebugExpression(expr string, input Input) (*DebugOut
 	switch out.Type() {
 	case types.StringType:
 		s := out.Value().(string)
-		res.String = &s
+		res.StringVal = &s
 	case types.IntType:
-		i := int(out.Value().(int64))
-		res.Int = &i
+		i := out.Value().(int64)
+		res.IntVal = &i
 	case types.DoubleType:
 		s := strconv.FormatFloat(out.Value().(float64), 'f', -1, 64)
-		res.String = &s
+		res.StringVal = &s
 	case types.BoolType:
 		b := out.Value().(bool)
-		res.Bool = &b
+		res.BoolVal = &b
 	default:
 		return nil, fmt.Errorf("expression evaluated to unsupported type: %s", out.Type().TypeName())
 	}
