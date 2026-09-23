@@ -17,7 +17,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/config/limits"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/tenantpool"
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
@@ -62,7 +62,7 @@ func createOLAPRepositoryWithPayloadStore(t *testing.T, pool *pgxpool.Pool) *OLA
 	logger := zerolog.Nop()
 
 	shared, cleanupShared := newSharedRepository(
-		tenantpool.Wrap(pool),
+		fairpool.Wrap(pool),
 		pool,
 		validator.NewDefaultValidator(),
 		&logger,

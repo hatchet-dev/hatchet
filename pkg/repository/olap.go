@@ -26,9 +26,9 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/pkg/config/limits"
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/tenantpool"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
@@ -250,7 +250,7 @@ type TaskEventWithPayloads struct {
 
 type OLAPRepository interface {
 	UpdateTablePartitions(ctx context.Context) error
-	SetReadReplicaPool(pool *tenantpool.Pool)
+	SetReadReplicaPool(pool *fairpool.Pool)
 
 	ReadTaskRun(ctx context.Context, taskExternalId uuid.UUID) (*sqlcv1.V1TasksOlap, error)
 	ReadWorkflowRun(ctx context.Context, workflowRunExternalId uuid.UUID) (*V1WorkflowRunPopulator, error)
@@ -321,7 +321,7 @@ type StatusUpdateBatchSizeLimits struct {
 type OLAPRepositoryImpl struct {
 	*sharedRepository
 
-	readPool *tenantpool.Pool
+	readPool *fairpool.Pool
 
 	eventCache *lru.Cache[string, bool]
 
@@ -346,7 +346,7 @@ func NewOLAPRepositoryFromPool(
 ) (OLAPRepository, func() error) {
 	v := validator.NewDefaultValidator()
 
-	shared, cleanupShared := newSharedRepository(tenantpool.Wrap(pool), pool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration)
+	shared, cleanupShared := newSharedRepository(fairpool.Wrap(pool), pool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration)
 
 	return newOLAPRepository(shared, olapRetentionPeriod, shouldPartitionEventsTables, shouldPartitionOtelTables, statusUpdateBatchSizeLimits), cleanupShared
 }
@@ -600,7 +600,7 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	return nil
 }
 
-func (r *OLAPRepositoryImpl) SetReadReplicaPool(pool *tenantpool.Pool) {
+func (r *OLAPRepositoryImpl) SetReadReplicaPool(pool *fairpool.Pool) {
 	r.readPool = pool
 }
 
@@ -626,7 +626,7 @@ func StringToReadableStatus(status string) ReadableTaskStatus {
 }
 
 func (r *OLAPRepositoryImpl) ReadTaskRun(ctx context.Context, taskExternalId uuid.UUID) (*sqlcv1.V1TasksOlap, error) {
-	row, err := r.queries.ReadTaskByExternalID(ctx, r.readPool, taskExternalId)
+	row, err := r.queries.ReadTaskByExternalID(ctx, r.readPool.ForShared(), taskExternalId)
 
 	if err != nil {
 		return nil, err
@@ -678,7 +678,7 @@ func ParseTaskMetadata(jsonData []byte) ([]TaskMetadata, error) {
 }
 
 func (r *OLAPRepositoryImpl) ReadWorkflowRun(ctx context.Context, workflowRunExternalId uuid.UUID) (*V1WorkflowRunPopulator, error) {
-	row, err := r.queries.ReadWorkflowRunByExternalId(ctx, r.readPool, workflowRunExternalId)
+	row, err := r.queries.ReadWorkflowRunByExternalId(ctx, r.readPool.ForShared(), workflowRunExternalId)
 
 	if err != nil {
 		return nil, err
@@ -2106,7 +2106,7 @@ func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantIds [
 
 		eg.Go(func() error {
 			ctx := innerCtx
-			tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+			tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool.ForShared(), r.l)
 
 			if err != nil {
 				return err
@@ -2236,7 +2236,7 @@ func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantIds []
 
 		eg.Go(func() error {
 			ctx := innerCtx
-			tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+			tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool.ForShared(), r.l)
 
 			if err != nil {
 				return fmt.Errorf("failed to prepare transaction: %w", err)
@@ -2700,7 +2700,7 @@ func (r *OLAPRepositoryImpl) GetTaskPointMetrics(ctx context.Context, tenantId u
 }
 
 func (r *OLAPRepositoryImpl) ReadDAG(ctx context.Context, dagExternalId uuid.UUID) (*sqlcv1.V1DagsOlap, error) {
-	return r.queries.ReadDAGByExternalID(ctx, r.readPool, dagExternalId)
+	return r.queries.ReadDAGByExternalID(ctx, r.readPool.ForShared(), dagExternalId)
 }
 
 func (r *OLAPRepositoryImpl) ListTasksByExternalIds(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID) ([]*sqlcv1.FlattenTasksByExternalIdsRow, error) {
@@ -2827,7 +2827,7 @@ type BulkCreateEventsAndTriggersParams struct {
 }
 
 func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, events BulkCreateEventsAndTriggersParams, triggers []EventTriggersFromExternalId) error {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool.ForShared(), r.l)
 
 	if err != nil {
 		return fmt.Errorf("error beginning transaction: %v", err)
@@ -2920,7 +2920,7 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 }
 
 func (r *OLAPRepositoryImpl) GetEvent(ctx context.Context, externalId uuid.UUID) (*sqlcv1.V1EventsOlap, error) {
-	return r.queries.GetEventByExternalId(ctx, r.readPool, externalId)
+	return r.queries.GetEventByExternalId(ctx, r.readPool.ForShared(), externalId)
 }
 
 func (r *OLAPRepositoryImpl) PopulateEventData(ctx context.Context, tenantId uuid.UUID, eventExternalIds []uuid.UUID, minSeenAt pgtype.Timestamptz) (map[uuid.UUID]sqlcv1.PopulateEventDataRow, error) {
@@ -3042,10 +3042,12 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 		eventCount int64
 	)
 
+	db := r.readPool.ForTenant(opts.Tenantid)
+
 	g, gctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		c, err := r.queries.CountEvents(gctx, r.readPool, sqlcv1.CountEventsParams{
+		c, err := r.queries.CountEvents(gctx, db, sqlcv1.CountEventsParams{
 			Tenantid:           opts.Tenantid,
 			Keys:               opts.Keys,
 			Since:              opts.Since,
@@ -3067,7 +3069,7 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 
 	// We need the events list to proceed; keep it in-line while the count runs in the background.
 	var err error
-	events, err = r.queries.ListEvents(gctx, r.readPool, opts)
+	events, err = r.queries.ListEvents(gctx, db, opts)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -3094,7 +3096,7 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 		return nil, nil, fmt.Errorf("error populating event data: %v", err)
 	}
 
-	externalIdToPayload, err := r.readPayloads(ctx, r.readPool, opts.Tenantid, readPayloadOpts...)
+	externalIdToPayload, err := r.readPayloads(ctx, db, opts.Tenantid, readPayloadOpts...)
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("error reading event payloads: %v", err)
@@ -3525,7 +3527,7 @@ func (r *OLAPRepositoryImpl) OffloadPayloads(ctx context.Context, tenantId uuid.
 
 func (r *OLAPRepositoryImpl) AnalyzeOLAPTables(ctx context.Context) error {
 	const timeout = 1000 * 60 * 60 // 60 minute timeout
-	tx, commit, rollback, err := sqlchelpers.PrepareTxWithStatementTimeout(ctx, r.pool, r.l, timeout)
+	tx, commit, rollback, err := sqlchelpers.PrepareTxWithStatementTimeout(ctx, r.pool.ForShared(), r.l, timeout)
 
 	if err != nil {
 		return fmt.Errorf("error beginning transaction: %v", err)
@@ -3681,15 +3683,15 @@ func (r *OLAPRepositoryImpl) StatusUpdateBatchSizeLimits() StatusUpdateBatchSize
 }
 
 func (r *OLAPRepositoryImpl) CountOLAPTempTableSizeForDAGStatusUpdates(ctx context.Context) (int64, error) {
-	return r.queries.CountOLAPTempTableSizeForDAGStatusUpdates(ctx, r.readPool)
+	return r.queries.CountOLAPTempTableSizeForDAGStatusUpdates(ctx, r.readPool.ForShared())
 }
 
 func (r *OLAPRepositoryImpl) CountOLAPTempTableSizeForTaskStatusUpdates(ctx context.Context) (int64, error) {
-	return r.queries.CountOLAPTempTableSizeForTaskStatusUpdates(ctx, r.readPool)
+	return r.queries.CountOLAPTempTableSizeForTaskStatusUpdates(ctx, r.readPool.ForShared())
 }
 
 func (r *OLAPRepositoryImpl) ListYesterdayRunCountsByStatus(ctx context.Context) (map[sqlcv1.V1ReadableStatusOlap]int64, error) {
-	rows, err := r.queries.ListYesterdayRunCountsByStatus(ctx, r.readPool)
+	rows, err := r.queries.ListYesterdayRunCountsByStatus(ctx, r.readPool.ForShared())
 
 	if err != nil {
 		return nil, err
@@ -3759,7 +3761,7 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 	ctx, span := telemetry.NewSpan(ctx, "OLAPRepository.processOLAPPayloadCutoverBatch")
 	defer span.End()
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool.ForShared(), p.l)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare transaction for copying offloaded payloads: %w", err)
@@ -3818,7 +3820,7 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 	for _, payloadRange := range payloadRanges {
 		pr := payloadRange
 		eg.Go(func() error {
-			payloads, err := p.queries.ListPaginatedOLAPPayloadsForOffload(ctx, p.pool, sqlcv1.ListPaginatedOLAPPayloadsForOffloadParams{
+			payloads, err := p.queries.ListPaginatedOLAPPayloadsForOffload(ctx, p.pool.ForShared(), sqlcv1.ListPaginatedOLAPPayloadsForOffloadParams{
 				Partitiondate:  pgtype.Date(partitionDate),
 				Lastexternalid: pr.LowerExternalID,
 				Nextexternalid: pr.UpperExternalID,
@@ -3867,7 +3869,7 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 
 	span.SetAttributes(attribute.Int("num_payloads_read", numPayloads))
 
-	leaseTx, leaseCommit, leaseRollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l)
+	leaseTx, leaseCommit, leaseRollback, err := sqlchelpers.PrepareTx(ctx, p.pool.ForShared(), p.l)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare transaction for inserting cutover payloads: %w", err)
@@ -3959,7 +3961,7 @@ func (p *OLAPRepositoryImpl) prepareCutoverTableJob(ctx context.Context, process
 		return nil, fmt.Errorf("inline store TTL is not set")
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool.ForShared(), p.l)
 
 	if err != nil {
 		return nil, err
@@ -4027,7 +4029,7 @@ func (p *OLAPRepositoryImpl) processSinglePartition(ctx context.Context, process
 		lastExternalId = outcome.NextExternalId
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool.ForShared(), p.l)
 
 	if err != nil {
 		return fmt.Errorf("failed to prepare transaction for swapping payload cutover temp table: %w", err)
@@ -4080,7 +4082,7 @@ func (p *OLAPRepositoryImpl) ProcessOLAPPayloadCutovers(ctx context.Context, ext
 		Valid: true,
 	}
 
-	partitions, err := p.queries.FindV1OLAPPayloadPartitionsBeforeDate(ctx, p.pool, MAX_PARTITIONS_TO_OFFLOAD, mostRecentPartitionToOffload)
+	partitions, err := p.queries.FindV1OLAPPayloadPartitionsBeforeDate(ctx, p.pool.ForShared(), MAX_PARTITIONS_TO_OFFLOAD, mostRecentPartitionToOffload)
 
 	if err != nil {
 		return fmt.Errorf("failed to find payload partitions before date %s: %w", mostRecentPartitionToOffload.Time.String(), err)

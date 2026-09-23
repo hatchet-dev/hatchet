@@ -19,14 +19,14 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/tenantpool"
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
 func newBatchTestRepository(pool *pgxpool.Pool) *TaskRepositoryImpl {
 	logger := zerolog.Nop()
 	queries := sqlcv1.New()
-	payloadStore := NewPayloadStoreRepository(tenantpool.Wrap(pool), &logger, queries, PayloadStoreRepositoryOpts{
+	payloadStore := NewPayloadStoreRepository(fairpool.Wrap(pool), &logger, queries, PayloadStoreRepositoryOpts{
 		ExternalCutoverProcessInterval: time.Second,
 		ExternalCutoverBatchSize:       1,
 	})
@@ -36,7 +36,7 @@ func newBatchTestRepository(pool *pgxpool.Pool) *TaskRepositoryImpl {
 	taskLookupCache, _ := lru.New[taskExternalIdTenantIdTuple, *sqlcv1.FlattenExternalIdsRow](1024)
 
 	shared := &sharedRepository{
-		pool:                tenantpool.Wrap(pool),
+		pool:                fairpool.Wrap(pool),
 		ddlPool:             pool,
 		l:                   &logger,
 		v:                   validator.NewDefaultValidator(),
@@ -119,7 +119,7 @@ func TestInsertTasksPersistsBatchKeys(t *testing.T) {
 		makeTask("2"),
 	}
 
-	_, err = repo.sharedRepository.insertTasks(ctx, repo.pool, tenantID, tasks, stepIdsToConfig)
+	_, err = repo.sharedRepository.insertTasks(ctx, repo.pool.ForShared(), tenantID, tasks, stepIdsToConfig)
 	require.NoError(t, err)
 
 	_, err = pool.Exec(ctx, `

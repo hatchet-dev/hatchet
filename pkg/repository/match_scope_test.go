@@ -16,7 +16,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/config/limits"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/tenantpool"
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
@@ -31,7 +31,7 @@ func newUserEventScopeTestRepositories(t *testing.T, pool *pgxpool.Pool) userEve
 
 	logger := zerolog.Nop()
 	shared, cleanup := newSharedRepository(
-		tenantpool.Wrap(pool),
+		fairpool.Wrap(pool),
 		pool,
 		validator.NewDefaultValidator(),
 		&logger,
@@ -63,7 +63,7 @@ func createUserEventScopeTestTask(t *testing.T, ctx context.Context, repos userE
 		ExternalID: uuid.New(),
 	}
 
-	_, err := repos.shared.queries.IncrementLogFileInvocationCounts(ctx, repos.shared.pool, sqlcv1.IncrementLogFileInvocationCountsParams{
+	_, err := repos.shared.queries.IncrementLogFileInvocationCounts(ctx, repos.shared.pool.ForShared(), sqlcv1.IncrementLogFileInvocationCountsParams{
 		Durabletaskids:         []int64{task.ID},
 		Durabletaskinsertedats: []pgtype.Timestamptz{task.InsertedAt},
 		Tenantids:              []uuid.UUID{tenantID},
@@ -124,7 +124,7 @@ func insertUserEventScopeTestEvent(
 	eventExternalID := uuid.New()
 	eventSeenAt := pgtype.Timestamptz{Time: seenAt, Valid: true}
 
-	createdEvents, err := repos.shared.queries.BulkCreateEvents(ctx, repos.shared.pool, sqlcv1.BulkCreateEventsParams{
+	createdEvents, err := repos.shared.queries.BulkCreateEvents(ctx, repos.shared.pool.ForShared(), sqlcv1.BulkCreateEventsParams{
 		Tenantids:              []uuid.UUID{tenantID},
 		Externalids:            []uuid.UUID{eventExternalID},
 		Seenats:                []pgtype.Timestamptz{eventSeenAt},
@@ -136,7 +136,7 @@ func insertUserEventScopeTestEvent(
 	require.NoError(t, err)
 	require.Len(t, createdEvents, 1)
 
-	require.NoError(t, repos.shared.payloadStore.Store(ctx, repos.shared.pool, StorePayloadOpts{
+	require.NoError(t, repos.shared.payloadStore.Store(ctx, repos.shared.pool.ForShared(), StorePayloadOpts{
 		Id:         createdEvents[0].ID,
 		InsertedAt: eventSeenAt,
 		ExternalId: eventExternalID,
@@ -149,7 +149,7 @@ func insertUserEventScopeTestEvent(
 func requireUserEventScopeTestWaiterState(t *testing.T, ctx context.Context, repos userEventScopeTestRepositories, task *sqlcv1.FlattenExternalIdsRow, nodeID, branchID int64, expected bool) {
 	t.Helper()
 
-	entry, err := repos.shared.queries.GetDurableEventLogEntry(ctx, repos.shared.pool, sqlcv1.GetDurableEventLogEntryParams{
+	entry, err := repos.shared.queries.GetDurableEventLogEntry(ctx, repos.shared.pool.ForShared(), sqlcv1.GetDurableEventLogEntryParams{
 		Durabletaskid:         task.ID,
 		Durabletaskinsertedat: task.InsertedAt,
 		Nodeid:                nodeID,

@@ -74,7 +74,7 @@ func (r *slackRepository) ListSlackWebhooks(ctx context.Context, tenantId uuid.U
 func (r *slackRepository) GetSlackWebhookById(ctx context.Context, id uuid.UUID) (*sqlcv1.SlackAppWebhook, error) {
 	return r.queries.GetSlackWebhookById(
 		ctx,
-		r.pool,
+		r.pool.ForShared(),
 		id,
 	)
 }

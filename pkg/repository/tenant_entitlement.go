@@ -81,7 +81,7 @@ func (t *tenantEntitlementRepository) AnyTenantHasAuditLogs(ctx context.Context,
 		return false, nil
 	}
 
-	return t.queries.AnyTenantHasAuditLogs(ctx, t.pool, tenantIds)
+	return t.queries.AnyTenantHasAuditLogs(ctx, t.pool.ForShared(), tenantIds)
 }
 
 func (t *tenantEntitlementRepository) IsPrometheusMetricsEnabled(ctx context.Context, tenantId uuid.UUID) (bool, error) {

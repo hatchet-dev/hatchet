@@ -50,7 +50,7 @@ func (r *snsRepository) GetSNSIntegration(ctx context.Context, tenantId uuid.UUI
 func (r *snsRepository) GetSNSIntegrationById(ctx context.Context, id uuid.UUID) (*sqlcv1.SNSIntegration, error) {
 	return r.queries.GetSNSIntegrationById(
 		ctx,
-		r.pool,
+		r.pool.ForShared(),
 		id,
 	)
 }

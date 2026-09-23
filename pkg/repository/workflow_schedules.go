@@ -185,7 +185,7 @@ func (w *workflowScheduleRepository) CountAllocatedResourcesByTenant(ctx context
 	if len(tenantIds) == 0 {
 		tenantIds = nil
 	}
-	return w.queries.CountAllocatedResourcesByTenant(ctx, w.pool, tenantIds)
+	return w.queries.CountAllocatedResourcesByTenant(ctx, w.pool.ForShared(), tenantIds)
 }
 
 func (w *workflowScheduleRepository) RegisterCreateCallback(callback TenantScopedCallback[*sqlcv1.WorkflowRun]) {
@@ -656,5 +656,5 @@ func (w *workflowScheduleRepository) CreateCronWorkflow(ctx context.Context, ten
 }
 
 func (w *workflowScheduleRepository) DeleteInvalidCron(ctx context.Context, id uuid.UUID) error {
-	return w.queries.DeleteWorkflowTriggerCronRef(ctx, w.pool, id)
+	return w.queries.DeleteWorkflowTriggerCronRef(ctx, w.pool.ForShared(), id)
 }

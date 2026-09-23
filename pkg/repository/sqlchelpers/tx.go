@@ -13,8 +13,8 @@ import (
 	"github.com/rs/zerolog"
 )
 
-// Pool is the subset of a pgx pool used to start a transaction. *pgxpool.Pool,
-// *tenantpool.Pool, and a tenantpool.ForTenant handle all satisfy it.
+// Pool is the subset of a pgx pool used to start a transaction. *pgxpool.Pool
+// and a fairpool.DB handle (ForTenant or ForShared) both satisfy it.
 type Pool interface {
 	Begin(context.Context) (pgx.Tx, error)
 	BeginTx(context.Context, pgx.TxOptions) (pgx.Tx, error)

@@ -103,7 +103,7 @@ func (r *operatorRepository) UpsertOperator(ctx context.Context, tenantId uuid.U
 }
 
 func (r *operatorRepository) GetOperatorById(ctx context.Context, operatorId uuid.UUID) (*sqlcv1.V1Operator, error) {
-	return r.queries.GetOperator(ctx, r.pool, operatorId)
+	return r.queries.GetOperator(ctx, r.pool.ForShared(), operatorId)
 }
 
 type ListOperatorsOpts struct {
@@ -196,7 +196,7 @@ func nullOperatorKind(kind *sqlcv1.V1OperatorKind) sqlcv1.NullV1OperatorKind {
 }
 
 func (r *operatorRepository) ClaimOperators(ctx context.Context, dispatcherId uuid.UUID) ([]*sqlcv1.V1Operator, error) {
-	return r.queries.ClaimOperators(ctx, r.pool, dispatcherId)
+	return r.queries.ClaimOperators(ctx, r.pool.ForShared(), dispatcherId)
 }
 
 func (r *operatorRepository) ListDAGOrchestrationActions(ctx context.Context, tenantId uuid.UUID) ([]string, error) {

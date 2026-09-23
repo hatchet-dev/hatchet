@@ -183,7 +183,7 @@ func (d *queueRepository) ListQueueItems(ctx context.Context, limit int) ([]*sql
 	start := time.Now()
 	checkpoint := start
 
-	qis, err := d.queries.ListQueueItemsForQueue(ctx, d.pool, sqlcv1.ListQueueItemsForQueueParams{
+	qis, err := d.queries.ListQueueItemsForQueue(ctx, d.pool.ForTenant(d.tenantId), sqlcv1.ListQueueItemsForQueueParams{
 		Tenantid: d.tenantId,
 		Queue:    d.queueName,
 		GtId:     d.getMinId(),
@@ -235,7 +235,7 @@ func (d *queueRepository) updateMinId() {
 	dbCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	minId, err := d.queries.GetMinUnprocessedQueueItemId(dbCtx, d.pool, sqlcv1.GetMinUnprocessedQueueItemIdParams{
+	minId, err := d.queries.GetMinUnprocessedQueueItemId(dbCtx, d.pool.ForTenant(d.tenantId), sqlcv1.GetMinUnprocessedQueueItemIdParams{
 		Tenantid: d.tenantId,
 		Queue:    d.queueName,
 	})
@@ -251,7 +251,7 @@ func (d *queueRepository) updateMinId() {
 }
 
 func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *AssignResults) (succeeded []*AssignedItem, failed []*AssignedItem, err error) {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool.ForTenant(d.tenantId), d.l)
 
 	if err != nil {
 		return nil, nil, err
@@ -601,7 +601,7 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, tx *OptimisticT
 	if tx != nil {
 		queryTx = tx.tx
 	} else {
-		queryTx = d.pool
+		queryTx = d.pool.ForTenant(d.tenantId)
 	}
 
 	taskIds := make([]int64, 0, len(queueItems))
@@ -858,7 +858,7 @@ func (d *queueRepository) GetDesiredLabels(ctx context.Context, tx *OptimisticTx
 	if tx != nil {
 		queryTx = tx.tx
 	} else {
-		queryTx = d.pool
+		queryTx = d.pool.ForTenant(d.tenantId)
 	}
 
 	labels, err := d.queries.GetDesiredLabels(ctx, queryTx, stepIdsToLookup)
@@ -910,7 +910,7 @@ func (d *queueRepository) GetStepSlotRequests(ctx context.Context, tx *Optimisti
 	if tx != nil {
 		queryTx = tx.tx
 	} else {
-		queryTx = d.pool
+		queryTx = d.pool.ForTenant(d.tenantId)
 	}
 
 	rows, err := d.queries.GetStepSlotRequests(ctx, queryTx, sqlcv1.GetStepSlotRequestsParams{
@@ -968,7 +968,7 @@ func (d *queueRepository) GetStepBatchConfigs(ctx context.Context, tx *Optimisti
 	if tx != nil {
 		queryTx = tx.tx
 	} else {
-		queryTx = d.pool
+		queryTx = d.pool.ForTenant(d.tenantId)
 	}
 
 	steps, err := d.queries.ListStepsWithBatchConfig(ctx, queryTx, stepIdsToLookup)
@@ -1008,7 +1008,7 @@ func (d *queueRepository) ListWorkflowNamesByIds(ctx context.Context, workflowId
 		return workflowIdToName, nil
 	}
 
-	rows, err := d.queries.ListWorkflowNamesByIds(ctx, d.pool, misses)
+	rows, err := d.queries.ListWorkflowNamesByIds(ctx, d.pool.ForTenant(d.tenantId), misses)
 
 	if err != nil {
 		return nil, err
@@ -1068,7 +1068,7 @@ func (b *batchQueueRepository) ListBatchResources(ctx context.Context) ([]*sqlcv
 	ctx, span := telemetry.NewSpan(ctx, "list-batch-resources")
 	defer span.End()
 
-	rows, err := b.queries.ListDistinctBatchResources(ctx, b.pool, b.tenantId)
+	rows, err := b.queries.ListDistinctBatchResources(ctx, b.pool.ForTenant(b.tenantId), b.tenantId)
 	if err != nil {
 		return nil, err
 	}
@@ -1097,7 +1097,7 @@ func (b *batchQueueRepository) ListBatchedQueueItems(ctx context.Context, stepId
 		}
 	}
 
-	rows, err := b.queries.ListBatchedQueueItemsForStep(ctx, b.pool, params)
+	rows, err := b.queries.ListBatchedQueueItemsForStep(ctx, b.pool.ForTenant(b.tenantId), params)
 	if err != nil {
 		return nil, err
 	}
@@ -1123,7 +1123,7 @@ func (b *batchQueueRepository) DeleteBatchedQueueItems(ctx context.Context, ids 
 		return nil
 	}
 
-	return b.queries.DeleteBatchedQueueItems(ctx, b.pool, ids)
+	return b.queries.DeleteBatchedQueueItems(ctx, b.pool.ForTenant(b.tenantId), ids)
 }
 
 func (b *batchQueueRepository) ListExistingBatchedQueueItemIds(ctx context.Context, ids []int64) (map[int64]struct{}, error) {
@@ -1131,7 +1131,7 @@ func (b *batchQueueRepository) ListExistingBatchedQueueItemIds(ctx context.Conte
 		return map[int64]struct{}{}, nil
 	}
 
-	rows, err := b.queries.ListExistingBatchedQueueItemIds(ctx, b.pool, sqlcv1.ListExistingBatchedQueueItemIdsParams{
+	rows, err := b.queries.ListExistingBatchedQueueItemIds(ctx, b.pool.ForTenant(b.tenantId), sqlcv1.ListExistingBatchedQueueItemIdsParams{
 		Tenantid: b.tenantId,
 		Ids:      ids,
 	})
@@ -1155,7 +1155,7 @@ func (b *batchQueueRepository) GetBatchedQueueItemsByIds(ctx context.Context, id
 	ctx, span := telemetry.NewSpan(ctx, "get-batched-queue-items-by-ids")
 	defer span.End()
 
-	return b.queries.GetBatchedQueueItemsByIds(ctx, b.pool, sqlcv1.GetBatchedQueueItemsByIdsParams{
+	return b.queries.GetBatchedQueueItemsByIds(ctx, b.pool.ForTenant(b.tenantId), sqlcv1.GetBatchedQueueItemsByIdsParams{
 		Tenantid: b.tenantId,
 		Ids:      ids,
 	})
@@ -1166,7 +1166,7 @@ func (b *batchQueueRepository) MoveBatchedQueueItems(ctx context.Context, ids []
 		return nil, nil
 	}
 
-	return b.queries.MoveBatchedQueueItems(ctx, b.pool, ids)
+	return b.queries.MoveBatchedQueueItems(ctx, b.pool.ForTenant(b.tenantId), ids)
 }
 
 func (b *batchQueueRepository) CommitAssignments(ctx context.Context, assignments []*BatchAssignment) ([]*BatchAssignment, error) {
@@ -1177,7 +1177,7 @@ func (b *batchQueueRepository) CommitAssignments(ctx context.Context, assignment
 	ctx, span := telemetry.NewSpan(ctx, "commit-batch-assignments")
 	defer span.End()
 
-	tx, err := b.pool.BeginTx(ctx, pgx.TxOptions{})
+	tx, err := b.pool.ForTenant(b.tenantId).BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("could not begin transaction: %w", err)
 	}

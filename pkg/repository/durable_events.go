@@ -1777,7 +1777,7 @@ func (r *durableEventsRepository) appendDurableEventLogBatch(ctx context.Context
 	}
 	slices.Sort(taskIds)
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool.ForShared(), r.l)
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to prepare tx: %w", err)
@@ -2263,7 +2263,7 @@ func (r *durableEventsRepository) enrichNonDeterminismErrorDetail(ctx context.Co
 	}
 
 	var existingPayload []byte
-	payloads, retrieveErr := r.payloadStore.Retrieve(ctx, r.pool, retrieveOpts)
+	payloads, retrieveErr := r.payloadStore.Retrieve(ctx, r.pool.ForTenant(opts.TenantId), retrieveOpts)
 	if retrieveErr == nil {
 		existingPayload = payloads[retrieveOpts]
 	}
@@ -2275,7 +2275,7 @@ func (r *durableEventsRepository) TriggerPendingRunEntries(ctx context.Context, 
 	ctx, span := telemetry.NewSpan(ctx, "trigger-pending-durable-run-entries")
 	defer span.End()
 
-	optTx, err := r.PrepareOptimisticTx(ctx)
+	optTx, err := r.PrepareOptimisticTx(ctx, tenantId)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to prepare tx: %w", err)
 	}
@@ -2608,7 +2608,7 @@ func (r *durableEventsRepository) handleEventLookback(ctx context.Context, tenan
 		telemetry.AttributeKV{Key: "task_external_id", Value: task.ExternalID},
 	)
 
-	lookbackOptTx, err := r.PrepareOptimisticTx(ctx)
+	lookbackOptTx, err := r.PrepareOptimisticTx(ctx, tenantId)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare tx for retroactive matching: %w", err)
@@ -2804,7 +2804,9 @@ func (r *durableEventsRepository) CompleteMemoEntry(ctx context.Context, opts Co
 		return fmt.Errorf("failed to get task by external id: %w", err)
 	}
 
-	entry, err := r.queries.GetDurableEventLogEntry(ctx, r.pool, sqlcv1.GetDurableEventLogEntryParams{
+	db := r.pool.ForTenant(opts.TenantId)
+
+	entry, err := r.queries.GetDurableEventLogEntry(ctx, db, sqlcv1.GetDurableEventLogEntryParams{
 		Durabletaskid:         task.ID,
 		Durabletaskinsertedat: task.InsertedAt,
 		Nodeid:                opts.NodeId,
@@ -2818,7 +2820,7 @@ func (r *durableEventsRepository) CompleteMemoEntry(ctx context.Context, opts Co
 		return nil
 	}
 
-	_, err = r.queries.MarkDurableEventLogEntrySatisfied(ctx, r.pool, sqlcv1.MarkDurableEventLogEntrySatisfiedParams{
+	_, err = r.queries.MarkDurableEventLogEntrySatisfied(ctx, db, sqlcv1.MarkDurableEventLogEntrySatisfiedParams{
 		Durabletaskid:         task.ID,
 		Durabletaskinsertedat: task.InsertedAt,
 		Nodeid:                opts.NodeId,
@@ -2830,7 +2832,7 @@ func (r *durableEventsRepository) CompleteMemoEntry(ctx context.Context, opts Co
 	}
 
 	if len(opts.Payload) > 0 {
-		err = r.payloadStore.Store(ctx, r.pool, StorePayloadOpts{
+		err = r.payloadStore.Store(ctx, db, StorePayloadOpts{
 			Id:         entry.ID,
 			InsertedAt: entry.InsertedAt,
 			ExternalId: entry.ResultPayloadExternalID,
@@ -2852,7 +2854,7 @@ func (r *durableEventsRepository) HandleBranch(ctx context.Context, tenantId uui
 }
 
 func (r *durableEventsRepository) handleBranch(ctx context.Context, tenantId uuid.UUID, nodeId, branchId int64, task *sqlcv1.FlattenExternalIdsRow, replayChildExternalIds []uuid.UUID) (*HandleBranchResult, error) {
-	optTx, err := r.PrepareOptimisticTx(ctx)
+	optTx, err := r.PrepareOptimisticTx(ctx, tenantId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare tx: %w", err)
 	}

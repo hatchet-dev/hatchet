@@ -474,7 +474,7 @@ func (s *sharedRepository) triggerFromWorkflowNames(ctx context.Context, tx *Opt
 }
 
 func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) ([]*V1TaskWithPayload, []*DAGWithData, []IdempotencyCollision, []CELEvaluationFailure, error) {
-	tx, err := r.PrepareOptimisticTx(ctx)
+	tx, err := r.PrepareOptimisticTx(ctx, tenantId)
 
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("failed to prepare tx: %w", err)
@@ -1675,7 +1675,7 @@ func (r *sharedRepository) triggerWorkflows(
 
 	if tx == nil {
 		var err error
-		tx, err = r.PrepareOptimisticTx(ctx)
+		tx, err = r.PrepareOptimisticTx(ctx, tenantId)
 
 		if err != nil {
 			return nil, nil, nil, nil, err

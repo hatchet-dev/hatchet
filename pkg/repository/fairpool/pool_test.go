@@ -1,6 +1,6 @@
 //go:build !e2e && !load && !rampup && !integration
 
-package tenantpool_test
+package fairpool_test
 
 import (
 	"context"
@@ -23,7 +23,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/testutils"
 	prommetrics "github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
-	"github.com/hatchet-dev/hatchet/pkg/repository/tenantpool"
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 )
 
 var (
@@ -52,7 +52,7 @@ func prepareDB(t *testing.T) {
 	prepareMu.Unlock()
 }
 
-func newPool(t *testing.T, percent int, maxWait time.Duration, tracer pgx.QueryTracer) (*tenantpool.Pool, string) {
+func newPool(t *testing.T, percent int, maxWait time.Duration, tracer pgx.QueryTracer) (*fairpool.Pool, string) {
 	t.Helper()
 	prepareDB(t)
 
@@ -65,8 +65,8 @@ func newPool(t *testing.T, percent int, maxWait time.Duration, tracer pgx.QueryT
 		cfg.ConnConfig.Tracer = tracer
 	}
 
-	name := "tenantpool-test-" + uuid.NewString()
-	pool, err := tenantpool.NewWithConfig(context.Background(), cfg, tenantpool.Options{
+	name := "fairpool-test-" + uuid.NewString()
+	pool, err := fairpool.NewWithConfig(context.Background(), cfg, fairpool.Options{
 		MaxPercent: percent,
 		MaxWait:    maxWait,
 		PoolName:   name,
@@ -168,7 +168,12 @@ func TestTenantCapLetsOtherTenantsThrough(t *testing.T) {
 	require.NoError(t, txB.Rollback(ctx))
 	requireGone(t, name, tenantB.String())
 
-	shared, err := pool.Begin(ctx)
+	sharedTx, err := pool.ForShared().Begin(ctx)
+	require.NoError(t, err)
+	require.NoError(t, sharedTx.Rollback(ctx))
+	requireGone(t, name, "shared")
+
+	shared, err := pool.Unwrap().Begin(ctx)
 	require.NoError(t, err)
 	require.NoError(t, shared.Rollback(ctx))
 
@@ -199,8 +204,9 @@ func TestLimitErrorAndCancel(t *testing.T) {
 	t.Cleanup(func() { _ = tx2.Rollback(context.Background()) })
 
 	_, err = dbA.Begin(ctx)
-	var limitErr *tenantpool.LimitError
+	var limitErr *fairpool.LimitError
 	require.ErrorAs(t, err, &limitErr)
+	require.Equal(t, tenantA.String(), limitErr.Key)
 	require.Equal(t, tenantA, limitErr.TenantID)
 	require.Equal(t, int64(2), limitErr.Limit)
 
@@ -221,18 +227,92 @@ func TestLimitErrorAndCancel(t *testing.T) {
 	}
 }
 
-func TestNilTenantIsUngated(t *testing.T) {
+func TestUnwrapIsUngated(t *testing.T) {
 	pool, name := newPool(t, 50, time.Second, nil)
 	ctx := context.Background()
-	db := pool.ForTenant(uuid.Nil)
+	raw := pool.Unwrap()
 
 	var txs []pgx.Tx
 	for i := 0; i < 3; i++ {
-		tx, err := db.Begin(ctx)
+		tx, err := raw.Begin(ctx)
 		require.NoError(t, err)
 		txs = append(txs, tx)
 	}
-	_, ok := gaugeValue(name, uuid.Nil.String())
+	_, sharedOK := gaugeValue(name, "shared")
+	require.False(t, sharedOK)
+	_, nilOK := gaugeValue(name, uuid.Nil.String())
+	require.False(t, nilOK)
+
+	for _, tx := range txs {
+		require.NoError(t, tx.Rollback(ctx))
+	}
+}
+
+func TestSharedCapLetsTenantsThrough(t *testing.T) {
+	pool, name := newPool(t, 50, 150*time.Millisecond, nil)
+	ctx := context.Background()
+	shared := pool.ForShared()
+
+	tx1, err := shared.Begin(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = tx1.Rollback(context.Background()) })
+	tx2, err := shared.Begin(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = tx2.Rollback(context.Background()) })
+	requireHeld(t, name, "shared", 2)
+
+	_, err = shared.Begin(ctx)
+	var limitErr *fairpool.LimitError
+	require.ErrorAs(t, err, &limitErr)
+	require.Equal(t, "shared", limitErr.Key)
+	require.Equal(t, uuid.Nil, limitErr.TenantID)
+	require.Equal(t, int64(2), limitErr.Limit)
+
+	tenant := uuid.New()
+	txT, err := pool.ForTenant(tenant).Begin(ctx)
+	require.NoError(t, err)
+	require.NoError(t, txT.Rollback(ctx))
+	requireGone(t, name, tenant.String())
+
+	require.NoError(t, tx1.Rollback(ctx))
+	require.NoError(t, tx2.Rollback(ctx))
+	requireGone(t, name, "shared")
+}
+
+func TestNilTenantUsesSharedBucket(t *testing.T) {
+	pool, name := newPool(t, 50, 150*time.Millisecond, nil)
+	ctx := context.Background()
+
+	tx1, err := pool.ForTenant(uuid.Nil).Begin(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = tx1.Rollback(context.Background()) })
+	tx2, err := pool.ForShared().Begin(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = tx2.Rollback(context.Background()) })
+	requireHeld(t, name, "shared", 2)
+
+	_, err = pool.ForTenant(uuid.Nil).Begin(ctx)
+	var limitErr *fairpool.LimitError
+	require.ErrorAs(t, err, &limitErr)
+	require.Equal(t, "shared", limitErr.Key)
+	require.Equal(t, uuid.Nil, limitErr.TenantID)
+
+	require.NoError(t, tx1.Rollback(ctx))
+	require.NoError(t, tx2.Rollback(ctx))
+	requireGone(t, name, "shared")
+}
+
+func TestSharedUngatedAtFullPercent(t *testing.T) {
+	pool, name := newPool(t, 100, time.Second, nil)
+	ctx := context.Background()
+
+	var txs []pgx.Tx
+	for i := 0; i < 3; i++ {
+		tx, err := pool.ForShared().Begin(ctx)
+		require.NoError(t, err)
+		txs = append(txs, tx)
+	}
+	_, ok := gaugeValue(name, "shared")
 	require.False(t, ok)
 
 	for _, tx := range txs {
@@ -307,10 +387,10 @@ func TestSlotReleasedForEachOperation(t *testing.T) {
 	requireGone(t, name, id)
 
 	table := "tp_copy_" + uuid.NewString()[:8]
-	_, err = pool.Exec(ctx, fmt.Sprintf("CREATE TABLE %s (n int)", table))
+	_, err = pool.Unwrap().Exec(ctx, fmt.Sprintf("CREATE TABLE %s (n int)", table))
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		_, _ = pool.Exec(context.Background(), "DROP TABLE IF EXISTS "+table)
+		_, _ = pool.Unwrap().Exec(context.Background(), "DROP TABLE IF EXISTS "+table)
 	})
 	copied, err := db.CopyFrom(ctx, pgx.Identifier{table}, []string{"n"}, pgx.CopyFromRows([][]any{{1}}))
 	require.NoError(t, err)
@@ -363,21 +443,21 @@ func TestAbandonedResultsReleaseSlots(t *testing.T) {
 	waitGone(t, name, id)
 }
 
-func abandonRows(t *testing.T, db tenantpool.DB) {
+func abandonRows(t *testing.T, db fairpool.DB) {
 	t.Helper()
 	rows, err := db.Query(context.Background(), "SELECT 1")
 	require.NoError(t, err)
 	runtime.KeepAlive(rows)
 }
 
-func abandonTx(t *testing.T, db tenantpool.DB) {
+func abandonTx(t *testing.T, db fairpool.DB) {
 	t.Helper()
 	tx, err := db.Begin(context.Background())
 	require.NoError(t, err)
 	runtime.KeepAlive(tx)
 }
 
-func abandonConn(t *testing.T, db tenantpool.DB) {
+func abandonConn(t *testing.T, db fairpool.DB) {
 	t.Helper()
 	conn, err := db.Acquire(context.Background())
 	require.NoError(t, err)
@@ -390,7 +470,7 @@ func TestAcquireSpanStaysOnInnerPool(t *testing.T) {
 	tracer := otelpgx.NewTracer(otelpgx.WithTracerProvider(provider))
 
 	pool, _ := newPool(t, 50, time.Second, tracer)
-	ctx, span := provider.Tracer("tenantpool-test").Start(context.Background(), "parent")
+	ctx, span := provider.Tracer("fairpool-test").Start(context.Background(), "parent")
 
 	rows, err := pool.ForTenant(uuid.New()).Query(ctx, "SELECT 1")
 	require.NoError(t, err)

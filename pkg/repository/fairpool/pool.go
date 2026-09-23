@@ -1,4 +1,4 @@
-package tenantpool
+package fairpool
 
 import (
 	"context"
@@ -13,9 +13,9 @@ import (
 
 // Options configures the per-tenant connection cap.
 //
-// MaxPercent is the share of the pool one tenant may hold. The gate is installed
-// only for values from 1 to 99. 100 (the default) and anything outside that range
-// leaves ForTenant ungated, so a tenant may hold the whole pool.
+// MaxPercent is the share of the pool one tenant, and shared engine work, may hold.
+// The gate is installed only for values from 1 to 99. 100 (the default) and anything
+// outside that range leaves ForTenant and ForShared ungated, so either may hold the whole pool.
 type Options struct {
 	MaxPercent int
 	MaxWait    time.Duration
@@ -23,16 +23,18 @@ type Options struct {
 	L          *zerolog.Logger
 }
 
-// Pool is a pgx pool plus an optional per-tenant cap.
-// Methods on Pool itself do not gate. Call ForTenant to count an acquire
-// against a tenant.
+// Pool is a pgx pool plus an optional connection cap. Call ForTenant to count an
+// acquire against a tenant, or ForShared to count it against shared engine work.
+// Both buckets use the same limit. Unwrap does not count.
 type Pool struct {
-	inner *pgxpool.Pool
-	gate  *gate
+	inner  *pgxpool.Pool
+	gate   *gate
+	shared *handle
 }
 
 // DB is the handle sqlc and transaction helpers call. A handle from ForTenant
-// counts connections against that tenant; a handle from Pool does not.
+// counts connections against that tenant. A handle from ForShared counts them
+// against shared engine work.
 type DB interface {
 	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
 	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
@@ -80,10 +82,12 @@ func newPool(inner *pgxpool.Pool, opts Options) *Pool {
 		p.gate = newGate(limit, opts.MaxWait, opts.PoolName, opts.L)
 	}
 
+	p.shared = &handle{pool: p, key: sharedKey, gated: p.gate != nil}
+
 	return p
 }
 
-// connectionLimit is the number of connections one tenant may hold.
+// connectionLimit is the number of connections one tenant, or shared engine work, may hold.
 // Zero means the gate is not installed.
 func connectionLimit(maxConns int32, percent int) int64 {
 	if percent <= 0 || percent >= 100 || maxConns <= 0 {
@@ -99,7 +103,7 @@ func connectionLimit(maxConns int32, percent int) int64 {
 }
 
 // Unwrap returns the underlying pgx pool. Callers that hijack a connection,
-// such as LISTEN, use this so they never take a tenant slot.
+// such as LISTEN, use this so they never take a gate slot.
 func (p *Pool) Unwrap() *pgxpool.Pool {
 	if p == nil {
 		return nil
@@ -108,50 +112,34 @@ func (p *Pool) Unwrap() *pgxpool.Pool {
 	return p.inner
 }
 
+// ForShared returns the handle for engine work that is not tied to one tenant.
+// It counts against the same limit as any single tenant. A pool with no gate
+// returns a handle that does not count.
+func (p *Pool) ForShared() DB {
+	if p == nil {
+		return nil
+	}
+
+	return p.shared
+}
+
 // ForTenant returns a handle that counts acquires against tenantID.
-// A nil id, or a pool with no gate, returns a handle that does not count.
+// A nil id counts against the shared bucket. A pool with no gate returns a
+// handle that does not count.
 func (p *Pool) ForTenant(tenantID uuid.UUID) DB {
 	if p == nil {
 		return nil
 	}
 
-	if tenantID == uuid.Nil || p.gate == nil {
+	if tenantID == uuid.Nil {
+		return p.shared
+	}
+
+	if p.gate == nil {
 		return &handle{pool: p}
 	}
 
-	return &handle{pool: p, tenantID: tenantID, gated: true}
-}
-
-func (p *Pool) Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error) {
-	return p.inner.Exec(ctx, sql, arguments...)
-}
-
-func (p *Pool) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
-	return p.inner.Query(ctx, sql, args...)
-}
-
-func (p *Pool) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
-	return p.inner.QueryRow(ctx, sql, args...)
-}
-
-func (p *Pool) CopyFrom(ctx context.Context, tableName pgx.Identifier, columnNames []string, rowSrc pgx.CopyFromSource) (int64, error) {
-	return p.inner.CopyFrom(ctx, tableName, columnNames, rowSrc)
-}
-
-func (p *Pool) SendBatch(ctx context.Context, b *pgx.Batch) pgx.BatchResults {
-	return p.inner.SendBatch(ctx, b)
-}
-
-func (p *Pool) Begin(ctx context.Context) (pgx.Tx, error) {
-	return p.inner.Begin(ctx)
-}
-
-func (p *Pool) BeginTx(ctx context.Context, txOptions pgx.TxOptions) (pgx.Tx, error) {
-	return p.inner.BeginTx(ctx, txOptions)
-}
-
-func (p *Pool) Acquire(ctx context.Context) (*Conn, error) {
-	return (&handle{pool: p}).Acquire(ctx)
+	return &handle{pool: p, key: tenantID.String(), tenantID: tenantID, gated: true}
 }
 
 func (p *Pool) Stat() *pgxpool.Stat {
@@ -168,6 +156,7 @@ func (p *Pool) Close() {
 
 type handle struct {
 	pool     *Pool
+	key      string
 	tenantID uuid.UUID
 	gated    bool
 }
@@ -177,7 +166,7 @@ func (h *handle) enter(ctx context.Context) (func(), error) {
 		return func() {}, nil
 	}
 
-	return h.pool.gate.enter(ctx, h.tenantID)
+	return h.pool.gate.enter(ctx, h.key, h.tenantID)
 }
 
 func (h *handle) Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error) {

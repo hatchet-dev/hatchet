@@ -125,7 +125,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("minConns", "DATABASE_MIN_CONNS")
 	_ = v.BindEnv("maxConnLifetime", "DATABASE_MAX_CONN_LIFETIME")
 	_ = v.BindEnv("maxConnIdleTime", "DATABASE_MAX_CONN_IDLE_TIME")
-	_ = v.BindEnv("tenantPoolMaxPercent", "DATABASE_TENANT_POOL_MAX_PERCENT")
+	_ = v.BindEnv("tenantPoolMaxPercent", "DATABASE_FAIR_TENANT_POOL_MAX_PERCENT")
 	_ = v.BindEnv("tenantPoolMaxWait", "DATABASE_TENANT_POOL_MAX_WAIT")
 	_ = v.BindEnv("applicationNamePrefix", "K8S_POD_NAMESPACE")
 

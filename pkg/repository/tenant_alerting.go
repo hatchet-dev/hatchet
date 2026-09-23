@@ -143,7 +143,7 @@ func (r *tenantAlertingRepository) UpdateTenantAlertGroup(ctx context.Context, i
 
 	return r.queries.UpdateTenantAlertGroup(
 		ctx,
-		r.pool,
+		r.pool.ForShared(),
 		sqlcv1.UpdateTenantAlertGroupParams{
 			ID:     id,
 			Emails: emails,
@@ -164,7 +164,7 @@ func (r *tenantAlertingRepository) ListTenantAlertGroups(ctx context.Context, te
 func (r *tenantAlertingRepository) GetTenantAlertGroupById(ctx context.Context, id uuid.UUID) (*sqlcv1.TenantAlertEmailGroup, error) {
 	return r.queries.GetTenantAlertGroupById(
 		ctx,
-		r.pool,
+		r.pool.ForShared(),
 		id,
 	)
 }

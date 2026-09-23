@@ -43,7 +43,7 @@ func (d *dispatcherRepository) CreateNewDispatcher(ctx context.Context, opts *Cr
 		return nil, err
 	}
 
-	return d.queries.CreateDispatcher(ctx, d.pool, opts.ID)
+	return d.queries.CreateDispatcher(ctx, d.pool.ForShared(), opts.ID)
 }
 
 func (d *dispatcherRepository) UpdateDispatcher(ctx context.Context, dispatcherId uuid.UUID, opts *UpdateDispatcherOpts) (*sqlcv1.Dispatcher, error) {
@@ -51,13 +51,13 @@ func (d *dispatcherRepository) UpdateDispatcher(ctx context.Context, dispatcherI
 		return nil, err
 	}
 
-	return d.queries.UpdateDispatcher(ctx, d.pool, sqlcv1.UpdateDispatcherParams{
+	return d.queries.UpdateDispatcher(ctx, d.pool.ForShared(), sqlcv1.UpdateDispatcherParams{
 		ID:              dispatcherId,
 		LastHeartbeatAt: sqlchelpers.TimestampFromTime(opts.LastHeartbeatAt.UTC()),
 	})
 }
 
 func (d *dispatcherRepository) Delete(ctx context.Context, dispatcherId uuid.UUID) error {
-	_, err := d.queries.DeleteDispatcher(ctx, d.pool, dispatcherId)
+	_, err := d.queries.DeleteDispatcher(ctx, d.pool.ForShared(), dispatcherId)
 	return err
 }

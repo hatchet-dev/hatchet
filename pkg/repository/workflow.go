@@ -1689,7 +1689,7 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 }
 
 func (r *workflowRepository) GetWorkflowShape(ctx context.Context, workflowVersionId uuid.UUID) ([]*sqlcv1.GetWorkflowShapeRow, error) {
-	return r.queries.GetWorkflowShape(ctx, r.pool, workflowVersionId)
+	return r.queries.GetWorkflowShape(ctx, r.pool.ForShared(), workflowVersionId)
 }
 
 func (r *workflowRepository) ListWorkflows(tenantId uuid.UUID, opts *ListWorkflowsOpts) (*ListWorkflowsResult, error) {
@@ -1768,7 +1768,7 @@ func (r *workflowRepository) ListWorkflows(tenantId uuid.UUID, opts *ListWorkflo
 }
 
 func (r *workflowRepository) GetWorkflowById(ctx context.Context, workflowId uuid.UUID) (*sqlcv1.GetWorkflowByIdRow, error) {
-	return r.queries.GetWorkflowById(context.Background(), r.pool, workflowId)
+	return r.queries.GetWorkflowById(context.Background(), r.pool.ForShared(), workflowId)
 }
 
 func (r *workflowRepository) GetWorkflowVersionWithTriggers(ctx context.Context, tenantId uuid.UUID, workflowVersionId uuid.UUID) (
@@ -1917,7 +1917,7 @@ type PauseWorkflowOpts struct {
 }
 
 func (r *workflowRepository) PauseWorkflow(ctx context.Context, workflowId uuid.UUID, opts PauseWorkflowOpts) (*sqlcv1.Workflow, error) {
-	return r.queries.PauseWorkflow(ctx, r.pool, sqlcv1.PauseWorkflowParams{
+	return r.queries.PauseWorkflow(ctx, r.pool.ForShared(), sqlcv1.PauseWorkflowParams{
 		ID:                        workflowId,
 		Cronrunqueuebehavior:      sqlcv1.WorkflowPauseQueueBehavior(opts.CronRunQueueBehavior),
 		Scheduledrunqueuebehavior: sqlcv1.WorkflowPauseQueueBehavior(opts.ScheduledRunQueueBehavior),
@@ -1926,7 +1926,7 @@ func (r *workflowRepository) PauseWorkflow(ctx context.Context, workflowId uuid.
 }
 
 func (r *workflowRepository) UnpauseWorkflow(ctx context.Context, workflowId uuid.UUID) (*sqlcv1.Workflow, error) {
-	return r.queries.UnpauseWorkflow(ctx, r.pool, workflowId)
+	return r.queries.UnpauseWorkflow(ctx, r.pool.ForShared(), workflowId)
 }
 
 func (r *workflowRepository) MovePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID, workflowIds []uuid.UUID) error {

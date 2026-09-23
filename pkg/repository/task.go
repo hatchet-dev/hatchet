@@ -375,7 +375,7 @@ func newTaskRepository(s *sharedRepository, taskRetentionPeriod time.Duration, m
 }
 
 func (r *TaskRepositoryImpl) EnsureTablePartitionsExist(ctx context.Context) (bool, error) {
-	return r.queries.EnsureTablePartitionsExist(ctx, r.pool)
+	return r.queries.EnsureTablePartitionsExist(ctx, r.pool.ForShared())
 }
 
 func createExternalIdUniqueConstraintsOnDailyPartitions(ctx context.Context, db sqlcv1.DBTX, parentTableName string, partitionDates ...time.Time) error {
@@ -1529,7 +1529,7 @@ func (r *TaskRepositoryImpl) DefaultTaskActivityGauge(ctx context.Context, tenan
 		return 0, err
 	}
 
-	res, err := r.queries.DefaultTaskActivityGauge(ctx, r.pool, sqlcv1.DefaultTaskActivityGaugeParams{
+	res, err := r.queries.DefaultTaskActivityGauge(ctx, r.pool.ForTenant(tenantIdUuid), sqlcv1.DefaultTaskActivityGaugeParams{
 		Tenantid: tenantIdUuid,
 		Activesince: pgtype.Timestamptz{
 			Time:  notBefore,
@@ -4643,7 +4643,7 @@ func (r *TaskRepositoryImpl) ListSignalCompletedEvents(ctx context.Context, tena
 
 func (r *TaskRepositoryImpl) AnalyzeTaskTables(ctx context.Context) error {
 	const timeout = 1000 * 60 * 60 // 60 minute timeout
-	tx, commit, rollback, err := sqlchelpers.PrepareTxWithStatementTimeout(ctx, r.pool, r.l, timeout)
+	tx, commit, rollback, err := sqlchelpers.PrepareTxWithStatementTimeout(ctx, r.pool.ForShared(), r.l, timeout)
 
 	if err != nil {
 		return fmt.Errorf("error beginning transaction: %v", err)
@@ -4736,7 +4736,7 @@ func (r *TaskRepositoryImpl) Cleanup(ctx context.Context) (bool, error) {
 	// Helper to run a cleanup operation with its own transaction and advisory lock
 	runCleanup := func(lockName string, cleanupFn func(ctx context.Context, tx sqlcv1.DBTX) error) func() error {
 		return func() error {
-			tx, commit, rollback, err := sqlchelpers.PrepareTxWithStatementTimeout(ctx, r.pool, r.l, timeout)
+			tx, commit, rollback, err := sqlchelpers.PrepareTxWithStatementTimeout(ctx, r.pool.ForShared(), r.l, timeout)
 			if err != nil {
 				return fmt.Errorf("error beginning transaction for %s: %v", lockName, err)
 			}
@@ -5028,8 +5028,10 @@ func (r *TaskRepositoryImpl) CountActiveTaskBatchRuns(ctx context.Context, tenan
 	ctx, span := telemetry.NewSpan(ctx, "TaskRepositoryImpl.CountActiveTaskBatchRuns")
 	defer span.End()
 
-	count, err := r.queries.CountActiveTaskBatchRuns(ctx, r.pool, sqlcv1.CountActiveTaskBatchRunsParams{
-		Tenantid: uuid.MustParse(tenantId),
+	tenantUUID := uuid.MustParse(tenantId)
+
+	count, err := r.queries.CountActiveTaskBatchRuns(ctx, r.pool.ForTenant(tenantUUID), sqlcv1.CountActiveTaskBatchRunsParams{
+		Tenantid: tenantUUID,
 		Stepid:   uuid.MustParse(stepId),
 		Batchkey: batchKey,
 	})
@@ -5041,8 +5043,10 @@ func (r *TaskRepositoryImpl) DeleteTaskBatchRun(ctx context.Context, tenantId, b
 	ctx, span := telemetry.NewSpan(ctx, "TaskRepositoryImpl.CompleteTaskBatchRun")
 	defer span.End()
 
-	err := r.queries.DeleteTaskBatchRun(ctx, r.pool, sqlcv1.DeleteTaskBatchRunParams{
-		Tenantid: uuid.MustParse(tenantId),
+	tenantUUID := uuid.MustParse(tenantId)
+
+	err := r.queries.DeleteTaskBatchRun(ctx, r.pool.ForTenant(tenantUUID), sqlcv1.DeleteTaskBatchRunParams{
+		Tenantid: tenantUUID,
 		Batchid:  uuid.MustParse(batchId),
 	})
 
@@ -5059,7 +5063,7 @@ func (r *TaskRepositoryImpl) DeleteTaskBatchRun(ctx context.Context, tenantId, b
 }
 
 func (r *TaskRepositoryImpl) FindOldestRunningTaskInsertedAt(ctx context.Context) (*time.Time, error) {
-	t, err := r.queries.FindOldestRunningTask(ctx, r.pool)
+	t, err := r.queries.FindOldestRunningTask(ctx, r.pool.ForShared())
 
 	if err != nil {
 		return nil, err
@@ -5073,7 +5077,7 @@ func (r *TaskRepositoryImpl) FindOldestRunningTaskInsertedAt(ctx context.Context
 }
 
 func (r *TaskRepositoryImpl) FindOldestTaskInsertedAt(ctx context.Context) (*time.Time, error) {
-	t, err := r.queries.FindOldestTask(ctx, r.pool)
+	t, err := r.queries.FindOldestTask(ctx, r.pool.ForShared())
 
 	if err != nil {
 		return nil, err

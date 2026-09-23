@@ -88,7 +88,7 @@ func newTenantLimitRepository(shared *sharedRepository, s limits.LimitConfigFile
 }
 
 func (t *tenantLimitRepository) ResolveAllTenantResourceLimits(ctx context.Context) error {
-	_, err := t.queries.ResolveAllLimitsIfWindowPassed(ctx, t.pool)
+	_, err := t.queries.ResolveAllLimitsIfWindowPassed(ctx, t.pool.ForShared())
 	return err
 }
 
@@ -319,7 +319,7 @@ func (t *tenantLimitRepository) flushToDatabase(ctx context.Context) error {
 		numResources = append(numResources, n)
 	}
 
-	limits, err := t.queries.BulkMeterTenantResources(ctx, t.pool, sqlcv1.BulkMeterTenantResourcesParams{
+	limits, err := t.queries.BulkMeterTenantResources(ctx, t.pool.ForShared(), sqlcv1.BulkMeterTenantResourcesParams{
 		Tenantids:    tenantIds,
 		Resources:    resources,
 		Numresources: numResources,

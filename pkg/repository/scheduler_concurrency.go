@@ -1509,7 +1509,7 @@ func (c *ConcurrencyRepositoryImpl) DeactivateStaleStepConcurrency(ctx context.C
 }
 
 func (c *ConcurrencyRepositoryImpl) ListTenantsWithManyStepConcurrencies(ctx context.Context, threshold int64) ([]*sqlcv1.ListTenantsWithManyStepConcurrenciesRow, error) {
-	return c.queries.ListTenantsWithManyStepConcurrencies(ctx, c.pool, threshold)
+	return c.queries.ListTenantsWithManyStepConcurrencies(ctx, c.pool.ForShared(), threshold)
 }
 
 func (c *ConcurrencyRepositoryImpl) ReadConcurrencySlotsForIndexing(ctx context.Context, tenantId uuid.UUID, strategyId int64, writeCh chan<- *sqlcv1.ListConcurrencySlotsForIndexingRow) error {

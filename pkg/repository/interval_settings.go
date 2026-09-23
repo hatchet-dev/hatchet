@@ -46,7 +46,7 @@ func newIntervalSettingsRepository(shared *sharedRepository) IntervalSettingsRep
 }
 
 func (r *intervalSettingsRepository) ReadAllIntervals(ctx context.Context, operationId string) (map[string]time.Duration, error) {
-	intervals, err := r.queries.ListIntervalsByOperationId(ctx, r.pool, operationId)
+	intervals, err := r.queries.ListIntervalsByOperationId(ctx, r.pool.ForShared(), operationId)
 
 	if err != nil {
 		return nil, err

@@ -46,8 +46,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/debugger"
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/tenantpool"
 	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 	"github.com/hatchet-dev/hatchet/pkg/security"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
@@ -312,7 +312,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		config.AfterRelease = debug.AfterRelease
 	}
 
-	gatedPool, err := tenantpool.NewWithConfig(context.Background(), config, tenantpool.Options{
+	gatedPool, err := fairpool.NewWithConfig(context.Background(), config, fairpool.Options{
 		MaxPercent: cf.TenantPoolMaxPercent,
 		MaxWait:    cf.TenantPoolMaxWait,
 		PoolName:   "main",
@@ -332,7 +332,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 	}
 
 	// a pool for read replicas, if enabled
-	var readReplicaPool *tenantpool.Pool
+	var readReplicaPool *fairpool.Pool
 
 	if cf.ReadReplicaEnabled {
 		if cf.ReadReplicaDatabaseURL == "" {
@@ -368,7 +368,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 		readReplicaConfig.AfterConnect = pgxpoolConnAfterConnect
 
-		readReplicaPool, err = tenantpool.NewWithConfig(context.Background(), readReplicaConfig, tenantpool.Options{
+		readReplicaPool, err = fairpool.NewWithConfig(context.Background(), readReplicaConfig, fairpool.Options{
 			MaxPercent: cf.TenantPoolMaxPercent,
 			MaxWait:    cf.TenantPoolMaxWait,
 			PoolName:   "read-replica",

@@ -13,9 +13,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/tenantpool"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
@@ -65,7 +65,7 @@ func newMessageQueueRepository(shared *sharedRepository) (*messageQueueRepositor
 // which must never share pooled resources with the repository layer.
 func NewMessageQueueRepositoryWithPool(l *zerolog.Logger, pool *pgxpool.Pool) (MessageQueueRepository, func() error) {
 	return newMessageQueueRepository(&sharedRepository{
-		pool:    tenantpool.Wrap(pool),
+		pool:    fairpool.Wrap(pool),
 		l:       l,
 		queries: sqlcv1.New(),
 	})
@@ -104,7 +104,7 @@ func (m *messageQueueRepository) AddMessage(ctx context.Context, queue string, p
 		ReadAfter: sqlchelpers.TimestampFromTime(time.Now().UTC()),
 	})
 
-	_, err := m.queries.BulkAddMessage(ctx, m.pool, p)
+	_, err := m.queries.BulkAddMessage(ctx, m.pool.ForShared(), p)
 
 	return err
 }
@@ -127,31 +127,31 @@ func (m *messageQueueRepository) BindQueue(ctx context.Context, queue string, du
 		params.ExclusiveConsumerId = &parsedUuid
 	}
 
-	_, err := m.queries.UpsertMessageQueue(ctx, m.pool, params)
+	_, err := m.queries.UpsertMessageQueue(ctx, m.pool.ForShared(), params)
 
 	return err
 }
 
 func (m *messageQueueRepository) UpdateQueueLastActive(ctx context.Context, queue string) error {
-	return m.queries.UpdateMessageQueueActive(ctx, m.pool, queue)
+	return m.queries.UpdateMessageQueueActive(ctx, m.pool.ForShared(), queue)
 }
 
 func (m *messageQueueRepository) CleanupQueues(ctx context.Context) error {
-	return m.queries.CleanupMessageQueue(ctx, m.pool)
+	return m.queries.CleanupMessageQueue(ctx, m.pool.ForShared())
 }
 
 func (m *messageQueueRepository) ReadMessages(ctx context.Context, queue string, qos int) ([]*sqlcv1.ReadMessagesRow, error) {
 	ctx, span := telemetry.NewSpan(ctx, "pgmq-read-messages")
 	defer span.End()
 
-	return m.queries.ReadMessages(ctx, m.pool, sqlcv1.ReadMessagesParams{
+	return m.queries.ReadMessages(ctx, m.pool.ForShared(), sqlcv1.ReadMessagesParams{
 		Queueid: queue,
 		Limit:   pgtype.Int4{Int32: int32(qos), Valid: true}, // nolint: gosec
 	})
 }
 
 func (m *messageQueueRepository) AckMessage(ctx context.Context, id int64) error {
-	return m.queries.BulkAckMessages(ctx, m.pool, []int64{id})
+	return m.queries.BulkAckMessages(ctx, m.pool.ForShared(), []int64{id})
 }
 
 func (m *messageQueueRepository) CleanupMessageQueueItems(ctx context.Context) error {
@@ -160,7 +160,7 @@ func (m *messageQueueRepository) CleanupMessageQueueItems(ctx context.Context) e
 	defer span.End()
 
 	// get the min and max queue items
-	minMax, err := m.queries.GetMinMaxExpiredMessageQueueItems(ctx, m.pool)
+	minMax, err := m.queries.GetMinMaxExpiredMessageQueueItems(ctx, m.pool.ForShared())
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -199,7 +199,7 @@ func (m *messageQueueRepository) CleanupMessageQueueItems(ctx context.Context) e
 		}
 
 		// get the next batch of queue items
-		err := m.queries.CleanupMessageQueueItems(ctx, m.pool, sqlcv1.CleanupMessageQueueItemsParams{
+		err := m.queries.CleanupMessageQueueItems(ctx, m.pool.ForShared(), sqlcv1.CleanupMessageQueueItemsParams{
 			Minid: minId,
 			Maxid: minId + batchSize*currBatch,
 		})

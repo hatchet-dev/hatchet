@@ -1,4 +1,4 @@
-package tenantpool
+package fairpool
 
 import (
 	"context"

@@ -310,7 +310,7 @@ func (w *workerRepository) ListWorkers(ctx context.Context, tenantId uuid.UUID, 
 }
 
 func (w *workerRepository) GetWorkerById(ctx context.Context, workerId uuid.UUID) (*sqlcv1.GetWorkerByIdRow, error) {
-	return w.queries.GetWorkerById(ctx, w.pool, workerId)
+	return w.queries.GetWorkerById(ctx, w.pool.ForShared(), workerId)
 }
 
 type SDK struct {
@@ -331,7 +331,7 @@ type TenantIdSlotTypeTuple struct {
 }
 
 func (w *workerRepository) ListActiveSDKsPerTenant(ctx context.Context) (map[TenantIdSDKTuple]int64, error) {
-	sdks, err := w.queries.ListActiveSDKsPerTenant(ctx, w.pool)
+	sdks, err := w.queries.ListActiveSDKsPerTenant(ctx, w.pool.ForShared())
 
 	if err != nil {
 		return nil, fmt.Errorf("could not list active sdks per tenant: %w", err)
@@ -358,7 +358,7 @@ func (w *workerRepository) ListActiveSDKsPerTenant(ctx context.Context) (map[Ten
 }
 
 func (w *workerRepository) ListTotalActiveSlotsPerTenant(ctx context.Context) (map[uuid.UUID]int64, error) {
-	rows, err := w.queries.ListTotalActiveSlotsPerTenant(ctx, w.pool)
+	rows, err := w.queries.ListTotalActiveSlotsPerTenant(ctx, w.pool.ForShared())
 	if err != nil {
 		return nil, fmt.Errorf("could not list total active slots per tenant: %w", err)
 	}
@@ -372,7 +372,7 @@ func (w *workerRepository) ListTotalActiveSlotsPerTenant(ctx context.Context) (m
 }
 
 func (w *workerRepository) ListActiveSlotsPerTenantAndSlotType(ctx context.Context) (map[TenantIdSlotTypeTuple]int64, error) {
-	rows, err := w.queries.ListActiveSlotsPerTenantAndSlotType(ctx, w.pool)
+	rows, err := w.queries.ListActiveSlotsPerTenantAndSlotType(ctx, w.pool.ForShared())
 	if err != nil {
 		return nil, fmt.Errorf("could not list active slots per tenant and slot type: %w", err)
 	}
@@ -389,7 +389,7 @@ func (w *workerRepository) ListActiveSlotsPerTenantAndSlotType(ctx context.Conte
 }
 
 func (w *workerRepository) CountActiveWorkersPerTenant(ctx context.Context) (map[uuid.UUID]int64, error) {
-	workers, err := w.queries.ListActiveWorkersPerTenant(ctx, w.pool)
+	workers, err := w.queries.ListActiveWorkersPerTenant(ctx, w.pool.ForShared())
 
 	if err != nil {
 		return nil, fmt.Errorf("could not list active workers per tenant: %w", err)
@@ -1271,7 +1271,7 @@ func (w *workerRepository) UpdateWorkerHeartbeats(ctx context.Context, workerIds
 		return nil
 	}
 
-	err := w.queries.UpdateWorkerHeartbeats(ctx, w.pool, sqlcv1.UpdateWorkerHeartbeatsParams{
+	err := w.queries.UpdateWorkerHeartbeats(ctx, w.pool.ForShared(), sqlcv1.UpdateWorkerHeartbeatsParams{
 		Ids:             workerIds,
 		Lastheartbeatat: sqlchelpers.TimestampFromTime(lastHeartbeat),
 	})
@@ -1288,7 +1288,7 @@ func (w *workerRepository) PauseWorkers(ctx context.Context, workerIds []uuid.UU
 		return nil
 	}
 
-	err := w.queries.PauseWorkers(ctx, w.pool, workerIds)
+	err := w.queries.PauseWorkers(ctx, w.pool.ForShared(), workerIds)
 
 	if err != nil {
 		return fmt.Errorf("could not pause workers: %w", err)
@@ -1384,7 +1384,7 @@ func (w *workerRepository) UpsertWorkerLabels(ctx context.Context, workerId uuid
 			StrValue: strValue,
 		}
 
-		affinity, err := w.queries.UpsertWorkerLabel(ctx, w.pool, dbsqlcOpts)
+		affinity, err := w.queries.UpsertWorkerLabel(ctx, w.pool.ForShared(), dbsqlcOpts)
 		if err != nil {
 			return nil, fmt.Errorf("could not update worker affinity state: %w", err)
 		}

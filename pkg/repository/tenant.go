@@ -275,7 +275,7 @@ func (r *tenantRepository) CreateTenant(ctx context.Context, opts *CreateTenantO
 		engineVersion = *opts.EngineVersion
 	}
 
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.pool.ForShared().Begin(ctx)
 
 	if err != nil {
 		return nil, err
@@ -366,7 +366,7 @@ func (r *tenantRepository) UpdateTenant(ctx context.Context, id uuid.UUID, opts 
 
 	updated, err := r.queries.UpdateTenant(
 		ctx,
-		r.pool,
+		r.pool.ForShared(),
 		params,
 	)
 
@@ -383,14 +383,14 @@ func (r *tenantRepository) UpdateTenant(ctx context.Context, id uuid.UUID, opts 
 
 func (r *tenantRepository) GetTenantByID(ctx context.Context, id uuid.UUID) (*sqlcv1.Tenant, error) {
 	return cache.MakeCacheable(r.cache, "api"+id.String(), func() (*sqlcv1.Tenant, error) {
-		return r.queries.GetTenantByID(ctx, r.pool, id)
+		return r.queries.GetTenantByID(ctx, r.pool.ForShared(), id)
 	})
 }
 
 func (r *tenantRepository) GetTenantBySlug(ctx context.Context, slug string) (*sqlcv1.Tenant, error) {
 	return r.queries.GetTenantBySlug(
 		ctx,
-		r.pool,
+		r.pool.ForShared(),
 		slug,
 	)
 }
@@ -433,7 +433,7 @@ func (r *tenantRepository) CreateTenantMember(ctx context.Context, tenantId uuid
 func (r *tenantRepository) GetTenantMemberByID(ctx context.Context, memberId uuid.UUID) (*sqlcv1.PopulateTenantMembersRow, error) {
 	member, err := r.queries.GetTenantMemberByID(
 		ctx,
-		r.pool,
+		r.pool.ForShared(),
 		memberId,
 	)
 
@@ -526,7 +526,7 @@ func (r *tenantRepository) UpdateTenantMember(ctx context.Context, memberId uuid
 
 	updatedMember, err := r.queries.UpdateTenantMember(
 		ctx,
-		r.pool,
+		r.pool.ForShared(),
 		params,
 	)
 
@@ -564,7 +564,7 @@ func (r *sharedRepository) populateSingleTenantMember(ctx context.Context, ids u
 func (r *sharedRepository) populateTenantMembers(ctx context.Context, ids []uuid.UUID) ([]*sqlcv1.PopulateTenantMembersRow, error) {
 	return r.queries.PopulateTenantMembers(
 		ctx,
-		r.pool,
+		r.pool.ForShared(),
 		ids,
 	)
 }
@@ -581,7 +581,7 @@ func (r *tenantRepository) DeleteTenantMember(ctx context.Context, memberId uuid
 		}
 	}
 
-	if err := r.queries.DeleteTenantMember(ctx, r.pool, memberId); err != nil {
+	if err := r.queries.DeleteTenantMember(ctx, r.pool.ForShared(), memberId); err != nil {
 		return err
 	}
 
@@ -669,11 +669,11 @@ func (r *tenantRepository) GetQueueMetrics(ctx context.Context, tenantId uuid.UU
 }
 
 func (r *tenantRepository) ListTenants(ctx context.Context) ([]*sqlcv1.Tenant, error) {
-	return r.queries.ListTenants(ctx, r.pool)
+	return r.queries.ListTenants(ctx, r.pool.ForShared())
 }
 
 func (r *tenantRepository) UpdateControllerPartitionHeartbeat(ctx context.Context, partitionId string) (string, error) {
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.pool.ForShared().Begin(ctx)
 
 	if err != nil {
 		return "", err
@@ -717,7 +717,7 @@ func (r *tenantRepository) UpdateControllerPartitionHeartbeat(ctx context.Contex
 }
 
 func (r *tenantRepository) UpdateWorkerPartitionHeartbeat(ctx context.Context, partitionId string) (string, error) {
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.pool.ForShared().Begin(ctx)
 
 	if err != nil {
 		return "", err
@@ -761,7 +761,7 @@ func (r *tenantRepository) UpdateWorkerPartitionHeartbeat(ctx context.Context, p
 }
 
 func (r *tenantRepository) GetInternalTenantForController(ctx context.Context, controllerPartitionId string) (*sqlcv1.Tenant, error) {
-	tenant, err := r.queries.GetInternalTenantForController(ctx, r.pool, controllerPartitionId)
+	tenant, err := r.queries.GetInternalTenantForController(ctx, r.pool.ForShared(), controllerPartitionId)
 
 	if err != nil && errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
@@ -777,7 +777,7 @@ func (r *tenantRepository) ListTenantsByControllerPartition(ctx context.Context,
 		return nil, fmt.Errorf("partitionId is required")
 	}
 
-	return r.queries.ListTenantsByControllerPartitionId(ctx, r.pool, controllerPartitionId)
+	return r.queries.ListTenantsByControllerPartitionId(ctx, r.pool.ForShared(), controllerPartitionId)
 }
 
 func (r *tenantRepository) ListTenantsByWorkerPartition(ctx context.Context, workerPartitionId string) ([]*sqlcv1.Tenant, error) {
@@ -785,12 +785,12 @@ func (r *tenantRepository) ListTenantsByWorkerPartition(ctx context.Context, wor
 		return nil, fmt.Errorf("partitionId is required")
 	}
 
-	return r.queries.ListTenantsByTenantWorkerPartitionId(ctx, r.pool, workerPartitionId)
+	return r.queries.ListTenantsByTenantWorkerPartitionId(ctx, r.pool.ForShared(), workerPartitionId)
 }
 
 func (r *tenantRepository) CreateControllerPartition(ctx context.Context) (string, error) {
 
-	partition, err := r.queries.CreateControllerPartition(ctx, r.pool, getPartitionName())
+	partition, err := r.queries.CreateControllerPartition(ctx, r.pool.ForShared(), getPartitionName())
 
 	if err != nil {
 		return "", err
@@ -800,20 +800,20 @@ func (r *tenantRepository) CreateControllerPartition(ctx context.Context) (strin
 }
 
 func (r *tenantRepository) DeleteControllerPartition(ctx context.Context, id string) error {
-	_, err := r.queries.DeleteControllerPartition(ctx, r.pool, id)
+	_, err := r.queries.DeleteControllerPartition(ctx, r.pool.ForShared(), id)
 	return err
 }
 
 func (r *tenantRepository) RebalanceAllControllerPartitions(ctx context.Context) error {
-	return r.queries.RebalanceAllControllerPartitions(ctx, r.pool)
+	return r.queries.RebalanceAllControllerPartitions(ctx, r.pool.ForShared())
 }
 
 func (r *tenantRepository) RebalanceInactiveControllerPartitions(ctx context.Context) error {
-	return r.queries.RebalanceInactiveControllerPartitions(ctx, r.pool)
+	return r.queries.RebalanceInactiveControllerPartitions(ctx, r.pool.ForShared())
 }
 
 func (r *tenantRepository) CreateTenantWorkerPartition(ctx context.Context) (string, error) {
-	partition, err := r.queries.CreateTenantWorkerPartition(ctx, r.pool, getPartitionName())
+	partition, err := r.queries.CreateTenantWorkerPartition(ctx, r.pool.ForShared(), getPartitionName())
 
 	if err != nil {
 		return "", err
@@ -823,20 +823,20 @@ func (r *tenantRepository) CreateTenantWorkerPartition(ctx context.Context) (str
 }
 
 func (r *tenantRepository) DeleteTenantWorkerPartition(ctx context.Context, id string) error {
-	_, err := r.queries.DeleteTenantWorkerPartition(ctx, r.pool, id)
+	_, err := r.queries.DeleteTenantWorkerPartition(ctx, r.pool.ForShared(), id)
 	return err
 }
 
 func (r *tenantRepository) RebalanceAllTenantWorkerPartitions(ctx context.Context) error {
-	return r.queries.RebalanceAllTenantWorkerPartitions(ctx, r.pool)
+	return r.queries.RebalanceAllTenantWorkerPartitions(ctx, r.pool.ForShared())
 }
 
 func (r *tenantRepository) RebalanceInactiveTenantWorkerPartitions(ctx context.Context) error {
-	return r.queries.RebalanceInactiveTenantWorkerPartitions(ctx, r.pool)
+	return r.queries.RebalanceInactiveTenantWorkerPartitions(ctx, r.pool.ForShared())
 }
 
 func (r *tenantRepository) UpdateSchedulerPartitionHeartbeat(ctx context.Context, partitionId string) (string, error) {
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.pool.ForShared().Begin(ctx)
 
 	if err != nil {
 		return "", err
@@ -884,12 +884,12 @@ func (r *tenantRepository) ListTenantsBySchedulerPartition(ctx context.Context, 
 		return nil, fmt.Errorf("partitionId is required")
 	}
 
-	return r.queries.ListTenantsBySchedulerPartitionId(ctx, r.pool, schedulerPartitionId)
+	return r.queries.ListTenantsBySchedulerPartitionId(ctx, r.pool.ForShared(), schedulerPartitionId)
 }
 
 func (r *tenantRepository) CreateSchedulerPartition(ctx context.Context) (string, error) {
 
-	partition, err := r.queries.CreateSchedulerPartition(ctx, r.pool, getPartitionName())
+	partition, err := r.queries.CreateSchedulerPartition(ctx, r.pool.ForShared(), getPartitionName())
 
 	if err != nil {
 		return "", err
@@ -899,20 +899,20 @@ func (r *tenantRepository) CreateSchedulerPartition(ctx context.Context) (string
 }
 
 func (r *tenantRepository) DeleteSchedulerPartition(ctx context.Context, id string) error {
-	_, err := r.queries.DeleteSchedulerPartition(ctx, r.pool, id)
+	_, err := r.queries.DeleteSchedulerPartition(ctx, r.pool.ForShared(), id)
 	return err
 }
 
 func (r *tenantRepository) RebalanceAllSchedulerPartitions(ctx context.Context) error {
-	return r.queries.RebalanceAllSchedulerPartitions(ctx, r.pool)
+	return r.queries.RebalanceAllSchedulerPartitions(ctx, r.pool.ForShared())
 }
 
 func (r *tenantRepository) RebalanceInactiveSchedulerPartitions(ctx context.Context) error {
-	return r.queries.RebalanceInactiveSchedulerPartitions(ctx, r.pool)
+	return r.queries.RebalanceInactiveSchedulerPartitions(ctx, r.pool.ForShared())
 }
 
 func (r *tenantRepository) DeleteTenant(ctx context.Context, id uuid.UUID) error {
-	tenant, err := r.queries.DeleteTenant(ctx, r.pool, id)
+	tenant, err := r.queries.DeleteTenant(ctx, r.pool.ForShared(), id)
 
 	if err != nil {
 		return err

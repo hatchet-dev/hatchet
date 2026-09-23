@@ -196,7 +196,7 @@ func (r *tenantInviteRepository) CreateTenantInvite(ctx context.Context, tenantI
 func (r *tenantInviteRepository) GetTenantInvite(ctx context.Context, id uuid.UUID) (*sqlcv1.TenantInviteLink, error) {
 	return r.queries.GetInviteById(
 		ctx,
-		r.pool,
+		r.pool.ForShared(),
 		id,
 	)
 }
@@ -204,7 +204,7 @@ func (r *tenantInviteRepository) GetTenantInvite(ctx context.Context, id uuid.UU
 func (r *tenantInviteRepository) ListTenantInvitesByEmail(ctx context.Context, email string) ([]*sqlcv1.ListTenantInvitesByEmailRow, error) {
 	return r.queries.ListTenantInvitesByEmail(
 		ctx,
-		r.pool,
+		r.pool.ForShared(),
 		email,
 	)
 }
@@ -270,7 +270,7 @@ func (r *tenantInviteRepository) UpdateTenantInvite(ctx context.Context, id uuid
 
 	updated, err := r.queries.UpdateTenantInvite(
 		ctx,
-		r.pool,
+		r.pool.ForShared(),
 		params,
 	)
 
@@ -290,14 +290,14 @@ func (r *tenantInviteRepository) DeleteTenantInvite(ctx context.Context, id uuid
 
 	if len(r.deleteCallbacks) > 0 {
 		var err error
-		invite, err = r.queries.GetInviteById(ctx, r.pool, id)
+		invite, err = r.queries.GetInviteById(ctx, r.pool.ForShared(), id)
 
 		if err != nil {
 			return err
 		}
 	}
 
-	if err := r.queries.DeleteTenantInvite(ctx, r.pool, id); err != nil {
+	if err := r.queries.DeleteTenantInvite(ctx, r.pool.ForShared(), id); err != nil {
 		return err
 	}
 

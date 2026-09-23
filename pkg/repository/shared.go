@@ -12,7 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/tenantpool"
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 
 	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/pkg/config/limits"
@@ -30,7 +30,7 @@ type taskExternalIdTenantIdTuple struct {
 }
 
 type sharedRepository struct {
-	pool    *tenantpool.Pool
+	pool    *fairpool.Pool
 	ddlPool *pgxpool.Pool // bypasses pgbouncer for DDL operations
 	v       validator.Validator
 	l       *zerolog.Logger
@@ -59,7 +59,7 @@ type sharedRepository struct {
 }
 
 func newSharedRepository(
-	pool *tenantpool.Pool,
+	pool *fairpool.Pool,
 	ddlPool *pgxpool.Pool,
 	v validator.Validator,
 	l *zerolog.Logger,
