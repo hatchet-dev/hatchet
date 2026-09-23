@@ -989,12 +989,12 @@ func (q *Queries) ListDurableEventLogForTask(ctx context.Context, db DBTX, arg L
 }
 
 const listSatisfiedEntries = `-- name: ListSatisfiedEntries :many
-WITH inputs AS (
+WITH inputs AS MATERIALIZED (
     SELECT
-        UNNEST($2::UUID[]) AS external_id,
-        UNNEST($3::BIGINT[]) AS node_id,
-        UNNEST($4::BIGINT[]) AS branch_id
-), tasks AS (
+        UNNEST($3::UUID[]) AS external_id,
+        UNNEST($4::BIGINT[]) AS node_id,
+        UNNEST($5::BIGINT[]) AS branch_id
+), tasks AS MATERIALIZED (
     SELECT
         i.external_id::uuid AS external_id,
         i.node_id::bigint AS node_id,
@@ -1003,36 +1003,31 @@ WITH inputs AS (
         lt.inserted_at
     FROM inputs i
     JOIN v1_lookup_table lt ON lt.external_id = i.external_id
-    WHERE lt.tenant_id = $5::UUID
+    WHERE lt.tenant_id = $6::UUID
 )
-
 SELECT
     e.tenant_id, e.external_id, e.result_payload_external_id, e.child_task_external_id, e.child_task_is_failure, e.child_task_error_message, e.inserted_at, e.id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.branch_id, e.idempotency_key, e.is_satisfied, e.satisfied_at, e.satisfied_order, e.user_message, e.wait_data, e.triggered_at,
     t.external_id AS task_external_id,
     lf.latest_invocation_count AS invocation_count
 FROM tasks t
-CROSS JOIN LATERAL (
-    SELECT tenant_id, external_id, result_payload_external_id, child_task_external_id, child_task_is_failure, child_task_error_message, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, branch_id, idempotency_key, is_satisfied, satisfied_at, satisfied_order, user_message, wait_data, triggered_at
-    FROM v1_durable_event_log_entry e
-    WHERE e.durable_task_id = t.task_id
-      AND e.durable_task_inserted_at = t.inserted_at
-      AND e.durable_task_inserted_at = ANY($1::TIMESTAMPTZ[])
-      AND e.branch_id = t.branch_id
-      AND e.node_id = t.node_id
-      AND e.is_satisfied
-    LIMIT 1
-) e
+JOIN v1_durable_event_log_entry e
+    ON (e.durable_task_id, e.durable_task_inserted_at, e.branch_id, e.node_id) = (t.task_id, t.inserted_at, t.branch_id, t.node_id)
 JOIN v1_durable_event_log_file lf
     ON (lf.durable_task_id, lf.durable_task_inserted_at) = (t.task_id, t.inserted_at)
-   AND lf.durable_task_inserted_at = ANY($1::TIMESTAMPTZ[])
+WHERE e.is_satisfied
+  AND e.durable_task_inserted_at >= $1::TIMESTAMPTZ
+  AND e.durable_task_inserted_at <= $2::TIMESTAMPTZ
+  AND lf.durable_task_inserted_at >= $1::TIMESTAMPTZ
+  AND lf.durable_task_inserted_at <= $2::TIMESTAMPTZ
 `
 
 type ListSatisfiedEntriesParams struct {
-	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
-	Taskexternalids []uuid.UUID          `json:"taskexternalids"`
-	Nodeids         []int64              `json:"nodeids"`
-	Branchids       []int64              `json:"branchids"`
-	Tenantid        uuid.UUID            `json:"tenantid"`
+	Mintaskinsertedat pgtype.Timestamptz `json:"mintaskinsertedat"`
+	Maxtaskinsertedat pgtype.Timestamptz `json:"maxtaskinsertedat"`
+	Taskexternalids   []uuid.UUID        `json:"taskexternalids"`
+	Nodeids           []int64            `json:"nodeids"`
+	Branchids         []int64            `json:"branchids"`
+	Tenantid          uuid.UUID          `json:"tenantid"`
 }
 
 type ListSatisfiedEntriesRow struct {
@@ -1060,18 +1055,18 @@ type ListSatisfiedEntriesRow struct {
 	InvocationCount         int32                 `json:"invocation_count"`
 }
 
-// taskInsertedAts is the inserted_at of every task in taskExternalIds. Equality
-// with the lookup row only runtime-prunes, and that still locks every daily
-// partition. This parameter is visible to a custom plan, so the Append keeps
-// only the partitions that contain those timestamps.
-// The LIMIT keeps this subquery out of the outer join search, so every primary
-// key column stays in the index condition. Written as a plain join, the planner
-// may probe on (durable_task_id, durable_task_inserted_at) alone and apply
-// branch_id and node_id as a join filter, which reads every entry of the task.
-// The primary key already guarantees at most one row.
+// Materialize the input row so the planner keeps branch_id and node_id on the
+// outer side of the entry lookup. Inlining them turns those equalities into a
+// join filter and the scan reads every entry for the task.
+//
+// minTaskInsertedAt and maxTaskInsertedAt bound the inserted_at of every task
+// in taskExternalIds. Equality with the lookup row only prunes partitions at
+// run time, which still locks all of them. Constant bounds prune at plan time
+// when the statement is planned with its parameter values.
 func (q *Queries) ListSatisfiedEntries(ctx context.Context, db DBTX, arg ListSatisfiedEntriesParams) ([]*ListSatisfiedEntriesRow, error) {
 	rows, err := db.Query(ctx, listSatisfiedEntries,
-		arg.Taskinsertedats,
+		arg.Mintaskinsertedat,
+		arg.Maxtaskinsertedat,
 		arg.Taskexternalids,
 		arg.Nodeids,
 		arg.Branchids,

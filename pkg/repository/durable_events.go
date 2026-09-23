@@ -31,6 +31,28 @@ type TaskExternalIdNodeIdBranchId struct {
 	BranchId       int64     `validate:"required"`
 }
 
+// TaskInsertedAtRange is the inclusive inserted_at span of a set of tasks. An
+// invalid Min or Max means the set is empty.
+type TaskInsertedAtRange struct {
+	Min pgtype.Timestamptz
+	Max pgtype.Timestamptz
+}
+
+// Extend widens the range to include insertedAt.
+func (r *TaskInsertedAtRange) Extend(insertedAt pgtype.Timestamptz) {
+	if !insertedAt.Valid {
+		return
+	}
+
+	if !r.Min.Valid || insertedAt.Time.Before(r.Min.Time) {
+		r.Min = insertedAt
+	}
+
+	if !r.Max.Valid || insertedAt.Time.After(r.Max.Time) {
+		r.Max = insertedAt
+	}
+}
+
 type SatisfiedEventWithPayload struct {
 	Result                []byte
 	SatisfiedOrder        *int64
@@ -162,7 +184,10 @@ type DurableEventsRepository interface {
 	HandleBranchForDAGReplay(ctx context.Context, tenantId uuid.UUID, task *sqlcv1.FlattenExternalIdsRow, forcedChildExternalIds []uuid.UUID) (*HandleBranchResult, error)
 	TriggerPendingRunEntries(ctx context.Context, tenantId uuid.UUID, tasks []TriggerPendingRunEntriesOpt) ([]*V1TaskWithPayload, []*DAGWithData, []CELEvaluationFailure, error)
 
-	GetSatisfiedDurableEvents(ctx context.Context, tenantId uuid.UUID, events []TaskExternalIdNodeIdBranchId, taskInsertedAts []pgtype.Timestamptz) ([]*SatisfiedEventWithPayload, error)
+	// GetSatisfiedDurableEvents returns the satisfied entries among events.
+	// taskInsertedAt must cover the inserted_at of every task referenced by
+	// events; it lets the query prune durable log partitions at plan time.
+	GetSatisfiedDurableEvents(ctx context.Context, tenantId uuid.UUID, events []TaskExternalIdNodeIdBranchId, taskInsertedAt TaskInsertedAtRange) ([]*SatisfiedEventWithPayload, error)
 	GetDurableTaskInvocationCounts(ctx context.Context, tenantId uuid.UUID, tasks []IdInsertedAt) (map[IdInsertedAt]*int32, error)
 	CompleteMemoEntry(ctx context.Context, opts CompleteMemoEntryOpts) error
 	ListDurableEventLog(ctx context.Context, tenantId uuid.UUID, taskInsertedAt pgtype.Timestamptz, taskId, limit, offset int64) ([]*sqlcv1.ListDurableEventLogForTaskRow, error)
@@ -697,8 +722,8 @@ type EventLogEntryWithResultPayload struct {
 }
 
 // customPlanDBTX plans the statement with the bound parameter values. A cached
-// generic plan cannot see taskInsertedAts, so it keeps every daily partition
-// and locks them.
+// generic plan cannot see the task inserted_at bounds, so it keeps every daily
+// partition and locks them.
 type customPlanDBTX struct {
 	sqlcv1.DBTX
 }
@@ -710,8 +735,10 @@ func (c customPlanDBTX) Query(ctx context.Context, sql string, args ...interface
 	return c.DBTX.Query(ctx, sql, withMode...)
 }
 
-func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context, tenantId uuid.UUID, events []TaskExternalIdNodeIdBranchId, taskInsertedAts []pgtype.Timestamptz) ([]*SatisfiedEventWithPayload, error) {
-	if len(events) == 0 {
+func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context, tenantId uuid.UUID, events []TaskExternalIdNodeIdBranchId, taskInsertedAt TaskInsertedAtRange) ([]*SatisfiedEventWithPayload, error) {
+	// An empty range means no task in events resolved, so there is nothing to
+	// look up.
+	if len(events) == 0 || !taskInsertedAt.Min.Valid || !taskInsertedAt.Max.Valid {
 		return nil, nil
 	}
 
@@ -732,11 +759,12 @@ func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context,
 	}
 
 	rows, err := r.queries.ListSatisfiedEntries(ctx, customPlanDBTX{r.pool}, sqlcv1.ListSatisfiedEntriesParams{
-		Taskexternalids: taskExternalIds,
-		Nodeids:         nodeIds,
-		Branchids:       branchIds,
-		Tenantid:        tenantId,
-		Taskinsertedats: taskInsertedAts,
+		Taskexternalids:   taskExternalIds,
+		Nodeids:           nodeIds,
+		Branchids:         branchIds,
+		Tenantid:          tenantId,
+		Mintaskinsertedat: taskInsertedAt.Min,
+		Maxtaskinsertedat: taskInsertedAt.Max,
 	})
 
 	if err != nil {
