@@ -1280,7 +1280,13 @@ ON CONFLICT (inserted_at, id) DO UPDATE SET
         WHEN v1_status_to_priority(EXCLUDED.readable_status) > v1_status_to_priority(v1_dags_olap.readable_status)
         THEN EXCLUDED.readable_status
         ELSE v1_dags_olap.readable_status
-    END
+    END,
+    display_name = EXCLUDED.display_name,
+    workflow_version_id = EXCLUDED.workflow_version_id,
+    additional_metadata = EXCLUDED.additional_metadata,
+    parent_task_external_id = EXCLUDED.parent_task_external_id,
+    total_tasks = EXCLUDED.total_tasks,
+    idempotency_key = EXCLUDED.idempotency_key
 `
 
 type CreateDAGsOLAPOverwriteParams struct {

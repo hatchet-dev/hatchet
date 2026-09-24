@@ -1,6 +1,5 @@
 import { EmptyState, EmptyStateAction } from './empty-state';
 import { usePylon } from '@/components/support-chat';
-import { Loading } from '@/components/v1/ui/loading';
 import { queries } from '@/lib/api';
 import { DISCORD_INVITE_URL, OFFICE_HOURS_URL } from '@/lib/external-links';
 import { appRoutes } from '@/router';
@@ -66,8 +65,9 @@ type WorkflowsGuardProps = {
   children: React.ReactNode;
 };
 
-// Shows an onboarding placeholder instead of the page content until the tenant
-// has at least one registered workflow.
+// Shows an onboarding placeholder instead of the page content once the probe
+// confirms the tenant has no registered workflows. The page renders while the
+// probe is in flight so it never blocks on the request.
 export function WorkflowsGuard({
   title,
   description,
@@ -81,15 +81,10 @@ export function WorkflowsGuard({
     queries.workflows.list(tenantId, { limit: 1, offset: 0 }),
   );
 
-  if (workflowCountQuery.isLoading) {
-    return <Loading />;
-  }
-
   const hasWorkflows = (workflowCountQuery.data?.rows?.length ?? 0) > 0;
+  const confirmedNoWorkflows = workflowCountQuery.isSuccess && !hasWorkflows;
 
-  // Fail open on probe errors: the page's own error handling is more useful
-  // than trapping the user on the onboarding placeholder.
-  if (workflowCountQuery.isError || hasWorkflows) {
+  if (!confirmedNoWorkflows) {
     return <>{children}</>;
   }
 

@@ -269,6 +269,8 @@ type TaskRepository interface {
 
 	ListDurableOrchestratorChildExternalIds(ctx context.Context, tenantId, orchestratorExternalId uuid.UUID) ([]uuid.UUID, error)
 
+	ListUnfinishedDurableOrchestratorChildren(ctx context.Context, tenantId uuid.UUID, orchestratorExternalIds []uuid.UUID) ([]TaskIdInsertedAtRetryCount, error)
+
 	CompleteTasks(ctx context.Context, tenantId uuid.UUID, tasks []CompleteTaskOpts) (*FinalizedTaskResponse, error)
 
 	FailTasks(ctx context.Context, tenantId uuid.UUID, tasks []FailTaskOpts) (*FailTasksResponse, error)
@@ -391,6 +393,23 @@ func createExternalIdUniqueConstraintsOnDailyPartitions(ctx context.Context, db 
 	return nil
 }
 
+func reattachIndicesToParents(ctx context.Context, queries *sqlcv1.Queries, db sqlcv1.DBTX, isOlap bool) error {
+	invalidIndexes, err := queries.FindInvalidIndexes(ctx, db, isOlap)
+	if err != nil {
+		return fmt.Errorf("failed to list invalid partitioned indexes: %w", err)
+	}
+
+	for _, index := range invalidIndexes {
+		_, err := db.Exec(ctx, fmt.Sprintf("ALTER INDEX %s ATTACH PARTITION %s;", index.ParentIndexName, index.ExampleChildIndexName))
+
+		if err != nil {
+			return fmt.Errorf("failed to attach index %s to invalid parent index %s on %s: %w", index.ExampleChildIndexName, index.ParentIndexName, index.ParentTableName, err)
+		}
+	}
+
+	return nil
+}
+
 func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	const leaseKey = "v1_task_partitions"
 
@@ -482,6 +501,14 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	}
 
 	if err = createExternalIdUniqueConstraintsOnDailyPartitions(ctx, createPartitionsTx, "v1_payload", payloadDatesToCreateUniqueConstraints...); err != nil {
+		releaseCreateConn()
+		if isLockNotAvailable(err) {
+			return ErrPartitionLockConflict
+		}
+		return err
+	}
+
+	if err = reattachIndicesToParents(ctx, r.queries, createPartitionsTx, false); err != nil {
 		releaseCreateConn()
 		if isLockNotAvailable(err) {
 			return ErrPartitionLockConflict
@@ -1369,6 +1396,29 @@ func (r *TaskRepositoryImpl) ListDurableOrchestratorChildOutputEvents(ctx contex
 
 func (r *TaskRepositoryImpl) ListDurableOrchestratorChildExternalIds(ctx context.Context, tenantId, orchestratorExternalId uuid.UUID) ([]uuid.UUID, error) {
 	return r.queries.ListDurableOrchestratorChildTaskExternalIds(ctx, r.pool, []uuid.UUID{orchestratorExternalId})
+}
+
+func (r *TaskRepositoryImpl) ListUnfinishedDurableOrchestratorChildren(ctx context.Context, tenantId uuid.UUID, orchestratorExternalIds []uuid.UUID) ([]TaskIdInsertedAtRetryCount, error) {
+	rows, err := r.queries.ListUnfinishedDurableOrchestratorChildren(ctx, r.pool, sqlcv1.ListUnfinishedDurableOrchestratorChildrenParams{
+		Tenantid:                tenantId,
+		Orchestratorexternalids: orchestratorExternalIds,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	children := make([]TaskIdInsertedAtRetryCount, len(rows))
+
+	for i, row := range rows {
+		children[i] = TaskIdInsertedAtRetryCount{
+			Id:         row.ID,
+			InsertedAt: row.InsertedAt,
+			RetryCount: row.RetryCount,
+		}
+	}
+
+	return children, nil
 }
 
 func (r *TaskRepositoryImpl) listTaskOutputEvents(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, taskExternalIds []uuid.UUID) ([]*TaskOutputEvent, error) {
@@ -4576,6 +4626,36 @@ func (r *TaskRepositoryImpl) AnalyzeTaskTables(ctx context.Context) error {
 
 	if err != nil {
 		return fmt.Errorf("error analyzing v1_payload: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1DurableEventLogEntry(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_durable_event_log_entry: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1DurableEventLogBranchPoint(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_durable_event_log_branch_point: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1DurableEventLogFile(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_durable_event_log_file: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1LogLine(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_log_line: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1Event(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_event: %v", err)
 	}
 
 	if err := commit(ctx); err != nil {

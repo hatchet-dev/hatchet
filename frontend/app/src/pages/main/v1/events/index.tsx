@@ -72,6 +72,7 @@ function EventsTable() {
     workflowKeyFilters,
     workflowRunStatusFilters,
     isRefetching,
+    isPlaceholderData,
     resetFilters,
     timeRangeConfig,
     hasActiveFilters,
@@ -108,6 +109,7 @@ function EventsTable() {
       <DataTable
         error={error}
         isLoading={isLoading}
+        isPlaceholderData={isPlaceholderData}
         columns={tableColumns}
         data={events}
         filters={[
