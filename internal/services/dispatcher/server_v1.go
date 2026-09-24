@@ -399,6 +399,12 @@ func (d *DispatcherServiceImpl) processDurableTaskMessage(
 		registerTask(msg.TriggerRuns.DurableTaskExternalId)
 	case *contracts.DurableTaskRequest_WaitFor:
 		registerTask(msg.WaitFor.DurableTaskExternalId)
+	case *contracts.DurableTaskRequest_WorkerStatus:
+		// a worker that reconnects mid-wait only sends status heartbeats, so this is
+		// the only chance to route pushed completions back to its new session
+		for _, entry := range msg.WorkerStatus.WaitingEntries {
+			registerTask(entry.DurableTaskExternalId)
+		}
 	}
 
 	if err := d.handleDurableTaskRequest(ctx, invocation, req); err != nil {
@@ -687,6 +693,12 @@ func (d *DispatcherServiceImpl) durableTask(
 				registerTask(msg.TriggerRuns.DurableTaskExternalId)
 			case *contracts.DurableTaskRequest_WaitFor:
 				registerTask(msg.WaitFor.DurableTaskExternalId)
+			case *contracts.DurableTaskRequest_WorkerStatus:
+				// a worker that reconnects mid-wait only sends status heartbeats, so this is
+				// the only chance to route pushed completions back to its new session
+				for _, entry := range msg.WorkerStatus.WaitingEntries {
+					registerTask(entry.DurableTaskExternalId)
+				}
 			}
 
 			reqWg.Add(1)
