@@ -68,6 +68,8 @@ class QueuedBatchActionEvent:
     items: list[BatchEventItem]
 
 
+MAX_EVENTS_PER_SEND_LOOP_ITERATION = 1000
+
 BLOCKED_THREAD_WARNING = "THE TIME TO START THE TASK RUN IS TOO LONG, THE EVENT LOOP MAY BE BLOCKED. See https://docs.hatchet.run/blog/warning-event-loop-blocked for details and debugging help."
 
 
@@ -402,7 +404,7 @@ class WorkerActionListenerProcess:
     ) -> list[ActionEvent | QueuedBatchActionEvent | STOP_LOOP_TYPE]:
         events = [first_event]
         with contextlib.suppress(Empty):
-            while True:
+            while len(events) < MAX_EVENTS_PER_SEND_LOOP_ITERATION:
                 events.append(self.event_queue.get_nowait())
         return events
 

@@ -1539,6 +1539,14 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 				if workerInvocationCount < *currentCount {
 					staleExternalIds[extId] = struct{}{}
 
+					// the stream loop registered this task for the session when the status
+					// arrived, before the invocation count was known; a stale session must not
+					// keep routing completions
+					d.durableInvocations.CompareAndDelete(durableInvocationsKey{
+						tenantId: invocation.tenantId,
+						taskId:   extId,
+					}, invocation)
+
 					err = invocation.send(&contracts.DurableTaskResponse{
 						Message: &contracts.DurableTaskResponse_ServerEvict{
 							ServerEvict: &contracts.DurableTaskServerEvictNotice{

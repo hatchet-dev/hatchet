@@ -423,9 +423,10 @@ func (s *Server) startGRPC() (func() error, error) {
 	}
 
 	httpServer := &http.Server{
-		Handler:        handler,
-		Protocols:      protocols,
-		MaxHeaderBytes: maxHeaderBytes,
+		Handler:           handler,
+		Protocols:         protocols,
+		ReadHeaderTimeout: readHeaderTimeout,
+		MaxHeaderBytes:    maxHeaderBytes,
 		// streams are long-lived, so there is no read, write or idle timeout; dead HTTP/2
 		// connections are found by the pings below, and per-call deadlines come from
 		// transportDeadlines
@@ -443,12 +444,6 @@ func (s *Server) startGRPC() (func() error, error) {
 
 	if !s.insecure {
 		httpServer.TLSConfig = s.tls.Clone()
-		// net/http arms ReadHeaderTimeout as a deadline on the raw connection before it knows
-		// the protocol. On a TLS connection it clears that deadline after the handshake, but on
-		// a plaintext HTTP/2 connection it hands the connection to the HTTP/2 server with the
-		// deadline still armed and nothing ever clears it, so every connection would be closed
-		// after readHeaderTimeout regardless of activity. Only apply it when TLS is on.
-		httpServer.ReadHeaderTimeout = readHeaderTimeout
 	}
 
 	go func() {
