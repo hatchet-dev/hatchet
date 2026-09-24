@@ -789,15 +789,10 @@ func TestShutdownForcesOpenStreamsClosedAfterTimeout(t *testing.T) {
 	assert.Equal(t, codes.Unavailable, status.Code(err))
 }
 
-// TestIdleConnectionSurvivesClientKeepalive holds an idle connection through two client keepalive
-// pings. Every SDK pings every ten seconds, with or without an open stream, and the server must
-// tolerate that cadence.
-// TestIdleConnectionSurvivesClientKeepalive holds an open stream and an idle connection well past
-// the server's header timeout and through several client keepalive pings, on every transport.
-// Every SDK pings every ten seconds, with or without an open stream, and the server must
-// tolerate that cadence; and a connection that has finished its preface or handshake must not
-// keep a read deadline from the header timeout, or every long-lived stream on it dies when it
-// expires.
+// TestIdleConnectionSurvivesClientKeepalive exists because a connection that has finished its
+// preface or handshake must not keep the header read deadline: if it did, every long-lived
+// stream on it would die when the timeout expires, on a transport that only pings. SDKs ping
+// every ten seconds and hold streams open for hours.
 func TestIdleConnectionSurvivesClientKeepalive(t *testing.T) {
 	if testing.Short() {
 		t.Skip("waits past the header timeout")
@@ -807,6 +802,9 @@ func TestIdleConnectionSurvivesClientKeepalive(t *testing.T) {
 
 	for _, tr := range transports() {
 		t.Run(tr.name, func(t *testing.T) {
+			// each transport waits past the header timeout; wait once, not three times
+			t.Parallel()
+
 			env := startTestServer(t, tr, pki, 0)
 			client := dispatchercontracts.NewDispatcherClient(env.dial(t, tr, pki, tr.clientCert))
 
