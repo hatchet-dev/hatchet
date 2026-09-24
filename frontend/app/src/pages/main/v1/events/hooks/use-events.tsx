@@ -30,7 +30,7 @@ import {
 import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { z } from 'zod';
 
 const eventStatusFilters: FilterOption[] = [

@@ -25,7 +25,7 @@ import { appRoutes } from '@/router';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
 import { AxiosError } from 'axios';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { z } from 'zod';
 
 const LOGS_PER_PAGE = 100;
