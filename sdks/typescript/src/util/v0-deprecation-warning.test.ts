@@ -1,7 +1,7 @@
 import { DEFAULT_LOGGER } from '@clients/hatchet-client/hatchet-logger';
 import { warnLegacyWorkflow } from '@hatchet/legacy/legacy-transformer';
 import { AdminClient } from '@clients/admin/admin-client';
-import { mockChannel, mockFactory } from '../legacy/legacy-client.test';
+import { createChannel, createClientFactory } from 'nice-grpc';
 import {
   V0_DEPRECATION_CODE,
   _resetEmittedV0Warnings,
@@ -164,6 +164,8 @@ describe('using a v0 workflow', () => {
     _resetEmittedV0Warnings();
     const emitWarning = jest.spyOn(process, 'emitWarning').mockImplementation(() => {});
 
+    const mockChannel = createChannel('localhost:50051');
+    const mockFactory = createClientFactory();
     const admin = new AdminClient(
       {
         token: 't',
