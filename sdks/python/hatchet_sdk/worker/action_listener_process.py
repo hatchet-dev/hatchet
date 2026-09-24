@@ -397,10 +397,20 @@ class WorkerActionListenerProcess:
             None, self.event_queue.get, True, timeout_seconds
         )
 
+    def _drain_ready_events(
+        self, first_event: ActionEvent | QueuedBatchActionEvent | STOP_LOOP_TYPE
+    ) -> list[ActionEvent | QueuedBatchActionEvent | STOP_LOOP_TYPE]:
+        events = [first_event]
+        with contextlib.suppress(Empty):
+            while True:
+                events.append(self.event_queue.get_nowait())
+        return events
+
     async def start_event_send_loop(self) -> None:
-        while True:
+        stopping = False
+        while not stopping:
             try:
-                event = await self._get_event(timeout_seconds=1.0)
+                first_event = await self._get_event(timeout_seconds=1.0)
             except Empty:
                 if self._parent_is_dead():
                     logger.error("stopping event send loop, parent is dead...")
@@ -410,14 +420,17 @@ class WorkerActionListenerProcess:
                     self._stop_event.set()
                     break
                 continue
-            if event == STOP_LOOP:
-                logger.debug("stopping event send loop...")
-                break
 
-            logger.debug(f"tx: event: {event.action.action_id}/{event.type}")
-            t = asyncio.create_task(self.send_event(event))
-            self.step_action_events.add(t)
-            t.add_done_callback(lambda t: self.step_action_events.discard(t))
+            for event in self._drain_ready_events(first_event):
+                if event == STOP_LOOP:
+                    logger.debug("stopping event send loop...")
+                    stopping = True
+                    break
+
+                logger.debug(f"tx: event: {event.action.action_id}/{event.type}")
+                t = asyncio.create_task(self.send_event(event))
+                self.step_action_events.add(t)
+                t.add_done_callback(lambda t: self.step_action_events.discard(t))
 
     async def start_blocked_main_loop(self) -> None:
         threshold = 1

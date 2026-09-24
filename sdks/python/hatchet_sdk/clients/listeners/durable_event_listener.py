@@ -1,5 +1,6 @@
 import asyncio
 import json
+import time
 from collections import deque
 from collections.abc import AsyncIterator, Callable
 from contextlib import suppress
@@ -41,6 +42,10 @@ from hatchet_sdk.utils.cache import DurableInvocationCallbackCache, TTLCache
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 DEFAULT_RECONNECT_INTERVAL = 3  # seconds
+
+WORKER_STATUS_RESEND_INTERVAL_SECONDS = 5.0
+WORKER_STATUS_RESEND_MIN_PENDING_SECONDS = 2.0
+WORKER_STATUS_MAX_ENTRIES_PER_REQUEST = 10_000
 
 
 @dataclass(frozen=True)
@@ -164,6 +169,19 @@ class OrderedCompletionQueue:
         default_factory=deque
     )
     delivered: set[PendingCallback] = field(default_factory=set)
+    pending_keys: set[PendingCallback] = field(default_factory=set)
+
+    def enqueue(
+        self, key: PendingCallback, result: "DurableTaskEventLogEntryResult"
+    ) -> None:
+        self.delivered.add(key)
+        self.pending_keys.add(key)
+        self.pending.append((key, result))
+
+    def dequeue_head(self) -> tuple[PendingCallback, "DurableTaskEventLogEntryResult"]:
+        head = self.pending.popleft()
+        self.pending_keys.discard(head[0])
+        return head
 
 
 class DurableEventListener:
@@ -206,6 +224,9 @@ class DurableEventListener:
         self._send_task: asyncio.Task[None] | None = None
         self._running = False
         self._start_lock = asyncio.Lock()
+        self._worker_status_send_scheduled = False
+        self._newly_waiting_keys: set[PendingCallback] = set()
+        self._waiting_since: dict[PendingCallback, float] = {}
 
         self._on_server_evict = on_server_evict
 
@@ -248,7 +269,7 @@ class DurableEventListener:
         )
 
         await self._register_worker()
-        await self._poll_worker_status()
+        self._enqueue_worker_status()
 
         if old_queue is not None:
             carried_over = 0
@@ -312,33 +333,62 @@ class DurableEventListener:
 
     async def _send_loop(self) -> None:
         while self._running:
-            await asyncio.sleep(1)
-            await self._poll_worker_status()
+            await asyncio.sleep(WORKER_STATUS_RESEND_INTERVAL_SECONDS)
+            self._enqueue_worker_status_for_long_pending_waiters()
 
-    async def _poll_worker_status(self) -> None:
-        if self._request_queue is None or self._worker_id is None:
+    def _register_waiting_key(self, key: PendingCallback) -> None:
+        self._waiting_since[key] = time.monotonic()
+        self._newly_waiting_keys.add(key)
+
+    def _schedule_worker_status_send(self) -> None:
+        if self._worker_status_send_scheduled:
             return
 
-        if not self._pending_callbacks:
-            return
+        self._worker_status_send_scheduled = True
+        asyncio.get_running_loop().call_soon(self._send_newly_waiting_worker_status)
 
-        waiting = [
-            DurableTaskAwaitedCompletedEntry(
-                durable_task_external_id=task_ext_id,
-                invocation_count=inv_count,
-                node_id=node_id,
-                branch_id=branch_id,
-            )
-            for (task_ext_id, inv_count, branch_id, node_id) in self._pending_callbacks
-        ]
+    def _send_newly_waiting_worker_status(self) -> None:
+        self._worker_status_send_scheduled = False
+        keys = [k for k in self._newly_waiting_keys if k in self._pending_callbacks]
+        self._newly_waiting_keys.clear()
+        self._enqueue_worker_status_for(keys)
 
-        request = DurableTaskRequest(
-            worker_status=DurableTaskWorkerStatusRequest(
-                worker_id=self._worker_id,
-                waiting_entries=waiting,
-            )
+    def _enqueue_worker_status_for_long_pending_waiters(self) -> None:
+        cutoff = time.monotonic() - WORKER_STATUS_RESEND_MIN_PENDING_SECONDS
+        self._waiting_since = {
+            k: since
+            for k, since in self._waiting_since.items()
+            if k in self._pending_callbacks
+        }
+        self._enqueue_worker_status_for(
+            [k for k, since in self._waiting_since.items() if since <= cutoff]
         )
-        await self._request_queue.put(request)
+
+    def _enqueue_worker_status(self) -> None:
+        self._newly_waiting_keys.clear()
+        self._enqueue_worker_status_for(list(self._pending_callbacks))
+
+    def _enqueue_worker_status_for(self, keys: list[PendingCallback]) -> None:
+        if self._request_queue is None or self._worker_id is None or not keys:
+            return
+
+        for start in range(0, len(keys), WORKER_STATUS_MAX_ENTRIES_PER_REQUEST):
+            chunk = keys[start : start + WORKER_STATUS_MAX_ENTRIES_PER_REQUEST]
+            request = DurableTaskRequest(
+                worker_status=DurableTaskWorkerStatusRequest(
+                    worker_id=self._worker_id,
+                    waiting_entries=[
+                        DurableTaskAwaitedCompletedEntry(
+                            durable_task_external_id=task_ext_id,
+                            invocation_count=inv_count,
+                            node_id=node_id,
+                            branch_id=branch_id,
+                        )
+                        for (task_ext_id, inv_count, branch_id, node_id) in chunk
+                    ],
+                )
+            )
+            self._request_queue.put_nowait(request)
 
     def _fail_pending_acks(self, exc: Exception) -> None:
         for future in self._pending_event_acks.values():
@@ -489,9 +539,8 @@ class DurableEventListener:
                 else OrderedCompletionQueue()
             )
             if completed_key not in queue.delivered:
-                queue.delivered.add(completed_key)
-                queue.pending.append((completed_key, result))
-            elif all(k != completed_key for k, _ in queue.pending):
+                queue.enqueue(completed_key, result)
+            elif completed_key not in queue.pending_keys:
                 # Re-delivery of a completion that already drained (reconnect,
                 # worker-status re-send, or a repeated wait on a node deduped by
                 # child key). Its satisfied_order was released before anything
@@ -718,7 +767,7 @@ class DurableEventListener:
             if future is None:
                 break
 
-            queue.pending.popleft()
+            queue.dequeue_head()
             del self._pending_callbacks[head_key]
             if not future.done():
                 future.set_result(result)
@@ -738,6 +787,7 @@ class DurableEventListener:
         future: asyncio.Future[DurableTaskEventLogEntryResult] = asyncio.Future()
         future.add_done_callback(_swallow_future_result)
         self._pending_callbacks[key] = future
+        self._register_waiting_key(key)
         self._drain_ordered_completions((durable_task_external_id, invocation_count))
 
     async def wait_for_callback(
@@ -754,9 +804,10 @@ class DurableEventListener:
 
         future: asyncio.Future[DurableTaskEventLogEntryResult] = asyncio.Future()
         self._pending_callbacks[key] = future
+        self._register_waiting_key(key)
         self._drain_ordered_completions((durable_task_external_id, invocation_count))
         if not future.done():
-            await self._poll_worker_status()
+            self._schedule_worker_status_send()
         return await future
 
     def cleanup_task_state(
