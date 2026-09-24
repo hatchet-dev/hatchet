@@ -19,6 +19,15 @@ END $$;
 ALTER TABLE v1_lookup_table_partitioned RENAME TO v1_lookup_table;
 ALTER INDEX v1_lookup_table_partitioned_pkey RENAME TO v1_lookup_table_pkey;
 
+DO $$
+DECLARE
+    next_month_start DATE := (date_trunc('month', NOW()) + INTERVAL '1 month')::DATE;
+    next_month_partition_name TEXT := 'v1_lookup_table_' || to_char(next_month_start, 'YYYYMMDD');
+BEGIN
+    PERFORM create_v1_monthly_range_partition('v1_lookup_table', next_month_start);
+    EXECUTE format('ALTER TABLE %I ADD CONSTRAINT %I UNIQUE (external_id)', next_month_partition_name, next_month_partition_name || '_external_id_uq');
+END $$;
+
 -- Update v1_task_insert_function to use new composite PK (external_id, inserted_at)
 CREATE OR REPLACE FUNCTION v1_task_insert_function()
 RETURNS TRIGGER AS $$
