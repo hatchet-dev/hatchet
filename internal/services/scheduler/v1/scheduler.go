@@ -1464,6 +1464,20 @@ func (s *Scheduler) handleDeadLetteredBatchStart(ctx context.Context, msg *msgqu
 // task, or the OLAP reconcile sweeps.
 const maxDurableCallbackRedeliveries = 50
 
+// The dispatcher publishes undelivered callbacks straight to the dead-letter queue, which has no
+// message TTL, so without a delay here the whole retry budget is spent within a second, before a
+// reconnecting worker has had a chance to re-register its session.
+const (
+	durableCallbackRedeliveryBaseDelay = 100 * time.Millisecond
+	durableCallbackRedeliveryMaxDelay  = 5 * time.Second
+)
+
+func durableCallbackRedeliveryDelay(redeliveryCount int32) time.Duration {
+	delay := durableCallbackRedeliveryBaseDelay << min(redeliveryCount, 10)
+
+	return min(delay, durableCallbackRedeliveryMaxDelay)
+}
+
 func (s *Scheduler) handleDeadLetteredDurableCallbackCompleted(ctx context.Context, msg *msgqueue.Message) error {
 	payloads := msgqueue.JSONConvert[tasktypes.DurableCallbackCompletedPayload](msg.Payloads)
 
@@ -1510,7 +1524,28 @@ func (s *Scheduler) handleDeadLetteredDurableCallbackCompleted(ctx context.Conte
 		})
 	}
 
-	return durable.DispatchCallbacks(ctx, s.l, s.mq, s.repov1, msg.TenantID, callbacks)
+	if len(callbacks) == 0 {
+		return nil
+	}
+
+	var maxRedeliveryCount int32
+
+	for _, cb := range callbacks {
+		maxRedeliveryCount = max(maxRedeliveryCount, cb.RedeliveryCount)
+	}
+
+	// re-dispatch after a delay without holding the dead-letter message open
+	redispatchCtx := context.WithoutCancel(ctx)
+
+	go func() {
+		time.Sleep(durableCallbackRedeliveryDelay(maxRedeliveryCount))
+
+		if err := durable.DispatchCallbacks(redispatchCtx, s.l, s.mq, s.repov1, msg.TenantID, callbacks); err != nil {
+			s.l.Error().Ctx(redispatchCtx).Err(err).Msg("could not re-dispatch undelivered durable callbacks")
+		}
+	}()
+
+	return nil
 }
 
 func (s *Scheduler) handleDeadLetteredTaskCancelled(ctx context.Context, msg *msgqueue.Message) error {
