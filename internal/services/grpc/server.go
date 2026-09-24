@@ -423,10 +423,9 @@ func (s *Server) startGRPC() (func() error, error) {
 	}
 
 	httpServer := &http.Server{
-		Handler:           handler,
-		Protocols:         protocols,
-		ReadHeaderTimeout: readHeaderTimeout,
-		MaxHeaderBytes:    maxHeaderBytes,
+		Handler:        handler,
+		Protocols:      protocols,
+		MaxHeaderBytes: maxHeaderBytes,
 		// streams are long-lived, so there is no read, write or idle timeout; dead HTTP/2
 		// connections are found by the pings below, and per-call deadlines come from
 		// transportDeadlines
@@ -444,6 +443,7 @@ func (s *Server) startGRPC() (func() error, error) {
 
 	if !s.insecure {
 		httpServer.TLSConfig = s.tls.Clone()
+		httpServer.ReadHeaderTimeout = readHeaderTimeout
 	}
 
 	go func() {
