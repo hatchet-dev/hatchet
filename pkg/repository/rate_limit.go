@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -44,8 +45,17 @@ type UpsertRateLimitOpts struct {
 	Duration *string `validate:"omitnil,oneof=SECOND MINUTE HOUR DAY WEEK MONTH YEAR"`
 }
 
+// RateLimitUsage is usage to charge against a single rate limit key.
+type RateLimitUsage struct {
+	Units int
+
+	// WindowStart is the lastRefill of the window the units were reserved in. Usage is
+	// dropped if the key has refilled since then.
+	WindowStart time.Time
+}
+
 type RateLimitRepository interface {
-	UpdateRateLimits(ctx context.Context, tenantId uuid.UUID, updates map[string]int) ([]*sqlcv1.ListRateLimitsForTenantWithMutateRow, *time.Time, error)
+	UpdateRateLimits(ctx context.Context, tenantId uuid.UUID, updates map[string]RateLimitUsage) ([]*sqlcv1.ListRateLimitsForTenantWithMutateRow, *time.Time, error)
 
 	UpsertRateLimit(ctx context.Context, tenantId uuid.UUID, key string, opts *UpsertRateLimitOpts) (*sqlcv1.RateLimit, error)
 
@@ -66,7 +76,7 @@ func newRateLimitRepository(shared *sharedRepository) *rateLimitRepository {
 	}
 }
 
-func (r *rateLimitRepository) UpdateRateLimits(ctx context.Context, tenantId uuid.UUID, updates map[string]int) ([]*sqlcv1.ListRateLimitsForTenantWithMutateRow, *time.Time, error) {
+func (r *rateLimitRepository) UpdateRateLimits(ctx context.Context, tenantId uuid.UUID, updates map[string]RateLimitUsage) ([]*sqlcv1.ListRateLimitsForTenantWithMutateRow, *time.Time, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
 
 	if err != nil {
@@ -76,14 +86,16 @@ func (r *rateLimitRepository) UpdateRateLimits(ctx context.Context, tenantId uui
 	defer rollback()
 
 	params := sqlcv1.BulkUpdateRateLimitsParams{
-		Tenantid: tenantId,
-		Keys:     make([]string, 0, len(updates)),
-		Units:    make([]int32, 0, len(updates)),
+		Tenantid:     tenantId,
+		Keys:         make([]string, 0, len(updates)),
+		Units:        make([]int32, 0, len(updates)),
+		Windowstarts: make([]pgtype.Timestamp, 0, len(updates)),
 	}
 
 	for k, v := range updates {
 		params.Keys = append(params.Keys, k)
-		params.Units = append(params.Units, int32(v)) // nolint: gosec
+		params.Units = append(params.Units, int32(v.Units)) // nolint: gosec
+		params.Windowstarts = append(params.Windowstarts, pgtype.Timestamp{Time: v.WindowStart, Valid: true})
 	}
 
 	tenantInt := tenantAdvisoryInt(tenantId)

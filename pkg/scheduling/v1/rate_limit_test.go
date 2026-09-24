@@ -13,16 +13,18 @@ import (
 	"github.com/google/uuid"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 type mockRateLimitRepo struct {
 	mock.Mock
 }
 
-func (m *mockRateLimitRepo) UpdateRateLimits(ctx context.Context, tenantId uuid.UUID, updates map[string]int) ([]*sqlcv1.ListRateLimitsForTenantWithMutateRow, *time.Time, error) {
+func (m *mockRateLimitRepo) UpdateRateLimits(ctx context.Context, tenantId uuid.UUID, updates map[string]v1.RateLimitUsage) ([]*sqlcv1.ListRateLimitsForTenantWithMutateRow, *time.Time, error) {
 	args := m.Called(ctx, tenantId, updates)
 	return args.Get(0).([]*sqlcv1.ListRateLimitsForTenantWithMutateRow), args.Get(1).(*time.Time), args.Error(2)
 }
@@ -216,6 +218,47 @@ func TestRateLimiter_FlushToDatabase(t *testing.T) {
 
 	// Verify that unflushed is empty
 	assert.Empty(t, rateLimiter.unflushed)
+}
+
+func TestRateLimiter_UsageFromRefilledWindowDoesNotReduceNewWindow(t *testing.T) {
+	l := zerolog.Nop()
+	ctx := context.Background()
+
+	window0 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	window1 := window0.Add(time.Second)
+	nextRefill := time.Now().Add(time.Minute)
+
+	mockRateLimitRepo := &mockRateLimitRepo{}
+	mockRateLimitRepo.On("UpdateRateLimits", ctx, mock.Anything, mock.Anything).Return([]*sqlcv1.ListRateLimitsForTenantWithMutateRow{
+		{Key: "key1", Value: 10, LastRefill: pgtype.Timestamp{Time: window1, Valid: true}},
+	}, &nextRefill, nil)
+
+	rateLimiter := &rateLimiter{
+		dbRateLimits: rateLimitSet{
+			"key1": {key: "key1", val: 10, windowStart: window0},
+		},
+		unacked:       make(map[int64]rateLimitSet),
+		unflushed:     make(rateLimitSet),
+		l:             &l,
+		rateLimitRepo: mockRateLimitRepo,
+	}
+
+	require.True(t, rateLimiter.use(ctx, 1, map[string]int32{"key1": 4}).succeeded)
+
+	// the key refills while task 1 is still unacked
+	require.NoError(t, rateLimiter.flushToDatabase(ctx))
+
+	assert.True(t, rateLimiter.use(ctx, 2, map[string]int32{"key1": 7}).succeeded, "unacked usage from the refilled window must not count")
+
+	rateLimiter.ack(1)
+
+	assert.True(t, rateLimiter.use(ctx, 3, map[string]int32{"key1": 3}).succeeded, "acked usage from the refilled window must not count")
+
+	rateLimiter.ack(2)
+	rateLimiter.ack(3)
+
+	assert.Equal(t, &rateLimit{key: "key1", val: 10, windowStart: window1}, rateLimiter.unflushed["key1"])
+	assert.False(t, rateLimiter.use(ctx, 4, map[string]int32{"key1": 1}).succeeded, "usage from the current window must count")
 }
 
 func BenchmarkRateLimiter(b *testing.B) {
