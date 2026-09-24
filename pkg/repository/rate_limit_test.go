@@ -15,22 +15,19 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
 func TestUpdateRateLimits_ChargesUsageBeforeRefilling(t *testing.T) {
 	pool, cleanup := setupPostgresWithMigration(t)
 	defer cleanup()
 
-	logger := zerolog.Nop()
-	repo := newRateLimitRepository(&sharedRepository{
-		pool:    pool,
-		l:       &logger,
-		queries: sqlcv1.New(),
-	})
+	repo := newRateLimitRepository(newRateLimitTestShared(pool))
 
 	tests := []struct {
 		name          string
-		lastRefillAgo time.Duration
+		duration      string
+		waitForExpiry bool
 		units         int
 		wantValue     int32
 		wantRefreshed bool
@@ -38,14 +35,15 @@ func TestUpdateRateLimits_ChargesUsageBeforeRefilling(t *testing.T) {
 		{
 			// prior-window usage must not consume the new window's budget
 			name:          "expired window resets to full limit",
-			lastRefillAgo: 2 * time.Minute,
+			duration:      "SECOND",
+			waitForExpiry: true,
 			units:         10,
 			wantValue:     10,
 			wantRefreshed: true,
 		},
 		{
 			name:          "active window is charged without refill",
-			lastRefillAgo: 10 * time.Second,
+			duration:      "MINUTE",
 			units:         4,
 			wantValue:     6,
 			wantRefreshed: false,
@@ -58,31 +56,22 @@ func TestUpdateRateLimits_ChargesUsageBeforeRefilling(t *testing.T) {
 			tenantID := createLimitTestTenant(t, pool)
 			key := "test-key"
 
-			var lastRefillBefore time.Time
-			err := pool.QueryRow(ctx, `
-				INSERT INTO "RateLimit" ("tenantId", "key", "limitValue", "value", "window", "lastRefill")
-				VALUES ($1, $2, 10, 10, '1 minute', NOW() - make_interval(secs => $3))
-				RETURNING "lastRefill"
-			`, tenantID, key, tt.lastRefillAgo.Seconds()).Scan(&lastRefillBefore)
+			created, err := repo.UpsertRateLimit(ctx, tenantID, key, &UpsertRateLimitOpts{Limit: 10, Duration: &tt.duration})
 			require.NoError(t, err)
+
+			if tt.waitForExpiry {
+				time.Sleep(1100 * time.Millisecond)
+			}
 
 			rows, _, err := repo.UpdateRateLimits(ctx, tenantID, map[string]int{key: tt.units})
 			require.NoError(t, err)
 			require.Len(t, rows, 1)
 			assert.Equal(t, tt.wantValue, rows[0].Value)
 
-			var value int32
-			var lastRefillAfter time.Time
-			err = pool.QueryRow(ctx, `
-				SELECT "value", "lastRefill" FROM "RateLimit" WHERE "tenantId" = $1 AND "key" = $2
-			`, tenantID, key).Scan(&value, &lastRefillAfter)
-			require.NoError(t, err)
-
-			assert.Equal(t, tt.wantValue, value)
 			if tt.wantRefreshed {
-				assert.True(t, lastRefillAfter.After(lastRefillBefore), "lastRefill should advance on refill")
+				assert.True(t, rows[0].LastRefill.Time.After(created.LastRefill.Time), "lastRefill should advance on refill")
 			} else {
-				assert.True(t, lastRefillAfter.Equal(lastRefillBefore), "lastRefill should be unchanged within the window")
+				assert.True(t, rows[0].LastRefill.Time.Equal(created.LastRefill.Time), "lastRefill should be unchanged within the window")
 			}
 		})
 	}
@@ -92,12 +81,7 @@ func TestGetTaskRateLimits_OptimisticTxDoesNotWriteRateLimits(t *testing.T) {
 	pool, cleanup := setupPostgresWithMigration(t)
 	defer cleanup()
 
-	logger := zerolog.Nop()
-	shared := &sharedRepository{
-		pool:    pool,
-		l:       &logger,
-		queries: sqlcv1.New(),
-	}
+	shared := newRateLimitTestShared(pool)
 	rateLimitRepo := newRateLimitRepository(shared)
 
 	t.Run("new dynamic key is not written and does not block refresh", func(t *testing.T) {
@@ -106,7 +90,7 @@ func TestGetTaskRateLimits_OptimisticTxDoesNotWriteRateLimits(t *testing.T) {
 		queueRepo := newQueueRepository(shared, tenantID, "default")
 		t.Cleanup(queueRepo.Cleanup)
 
-		qi := insertDynamicRateLimitEvals(t, pool, tenantID, 1001, "new-key", 10)
+		qi := createDynamicRateLimitEvals(t, shared, tenantID, 1001, "new-key", 10)
 
 		tx, err := shared.PrepareOptimisticTx(ctx)
 		require.NoError(t, err)
@@ -124,7 +108,7 @@ func TestGetTaskRateLimits_OptimisticTxDoesNotWriteRateLimits(t *testing.T) {
 		require.NoError(t, err, "rate limit refresh blocked on the optimistic transaction")
 
 		tx.Rollback()
-		assert.False(t, rateLimitExists(t, pool, tenantID, "new-key"), "rolled back trigger must not leave a rate limit definition")
+		assert.Empty(t, listRateLimitsByKey(t, rateLimitRepo, tenantID, "new-key"), "rolled back trigger must not leave a rate limit definition")
 	})
 
 	t.Run("existing key is not overwritten or locked", func(t *testing.T) {
@@ -133,14 +117,12 @@ func TestGetTaskRateLimits_OptimisticTxDoesNotWriteRateLimits(t *testing.T) {
 		queueRepo := newQueueRepository(shared, tenantID, "default")
 		t.Cleanup(queueRepo.Cleanup)
 
-		_, err := pool.Exec(ctx, `
-			INSERT INTO "RateLimit" ("tenantId", "key", "limitValue", "value", "window", "lastRefill")
-			VALUES ($1, 'shared-key', 10, 10, '1 MINUTE', NOW() - INTERVAL '2 minutes')
-		`, tenantID)
+		minute := "MINUTE"
+		_, err := rateLimitRepo.UpsertRateLimit(ctx, tenantID, "shared-key", &UpsertRateLimitOpts{Limit: 10, Duration: &minute})
 		require.NoError(t, err)
 
 		// the unassigned task asks for a different limit than the one other tasks share
-		qi := insertDynamicRateLimitEvals(t, pool, tenantID, 1002, "shared-key", 5)
+		qi := createDynamicRateLimitEvals(t, shared, tenantID, 1002, "shared-key", 5)
 
 		tx, err := shared.PrepareOptimisticTx(ctx)
 		require.NoError(t, err)
@@ -149,6 +131,7 @@ func TestGetTaskRateLimits_OptimisticTxDoesNotWriteRateLimits(t *testing.T) {
 		_, err = queueRepo.GetTaskRateLimits(ctx, tx, []*sqlcv1.V1QueueItem{qi})
 		require.NoError(t, err)
 
+		// charging the key takes a row lock, which an upsert inside the optimistic tx would already hold
 		refreshCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 		defer cancel()
 
@@ -156,7 +139,7 @@ func TestGetTaskRateLimits_OptimisticTxDoesNotWriteRateLimits(t *testing.T) {
 		require.NoError(t, err, "rate limit refresh blocked on the optimistic transaction")
 		require.Len(t, rows, 1)
 		assert.Equal(t, int32(10), rows[0].LimitValue)
-		assert.Equal(t, int32(10), rows[0].Value)
+		assert.Equal(t, int32(9), rows[0].Value)
 	})
 
 	t.Run("queue loop upserts the definition", func(t *testing.T) {
@@ -165,11 +148,14 @@ func TestGetTaskRateLimits_OptimisticTxDoesNotWriteRateLimits(t *testing.T) {
 		queueRepo := newQueueRepository(shared, tenantID, "default")
 		t.Cleanup(queueRepo.Cleanup)
 
-		qi := insertDynamicRateLimitEvals(t, pool, tenantID, 1003, "loop-key", 10)
+		qi := createDynamicRateLimitEvals(t, shared, tenantID, 1003, "loop-key", 10)
 
 		_, err := queueRepo.GetTaskRateLimits(ctx, nil, []*sqlcv1.V1QueueItem{qi})
 		require.NoError(t, err)
-		assert.True(t, rateLimitExists(t, pool, tenantID, "loop-key"))
+
+		rows := listRateLimitsByKey(t, rateLimitRepo, tenantID, "loop-key")
+		require.Len(t, rows, 1)
+		assert.Equal(t, int32(10), rows[0].LimitValue)
 	})
 }
 
@@ -179,7 +165,7 @@ func TestGetTaskRateLimits_OptimisticTxNeedsNoSecondConnection(t *testing.T) {
 
 	ctx := context.Background()
 	tenantID := createLimitTestTenant(t, pool)
-	qi := insertDynamicRateLimitEvals(t, pool, tenantID, 2001, "pool-key", 10)
+	qi := createDynamicRateLimitEvals(t, newRateLimitTestShared(pool), tenantID, 2001, "pool-key", 10)
 
 	// a single-connection pool: any second checkout while the optimistic tx is open would hang
 	cfg := pool.Config().Copy()
@@ -189,12 +175,7 @@ func TestGetTaskRateLimits_OptimisticTxNeedsNoSecondConnection(t *testing.T) {
 	require.NoError(t, err)
 	defer onePool.Close()
 
-	logger := zerolog.Nop()
-	shared := &sharedRepository{
-		pool:    onePool,
-		l:       &logger,
-		queries: sqlcv1.New(),
-	}
+	shared := newRateLimitTestShared(onePool)
 	queueRepo := newQueueRepository(shared, tenantID, "default")
 	defer queueRepo.Cleanup()
 
@@ -211,44 +192,52 @@ func TestGetTaskRateLimits_OptimisticTxNeedsNoSecondConnection(t *testing.T) {
 	require.NoError(t, tx.Commit(ctx))
 }
 
-func insertDynamicRateLimitEvals(t *testing.T, pool *pgxpool.Pool, tenantID uuid.UUID, taskID int64, key string, limit int32) *sqlcv1.V1QueueItem {
-	t.Helper()
+func newRateLimitTestShared(pool *pgxpool.Pool) *sharedRepository {
+	logger := zerolog.Nop()
 
-	qi := &sqlcv1.V1QueueItem{
-		TenantID:       tenantID,
-		TaskID:         taskID,
-		TaskInsertedAt: pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true},
-		StepID:         uuid.New(),
+	return &sharedRepository{
+		pool:    pool,
+		l:       &logger,
+		v:       validator.NewDefaultValidator(),
+		queries: sqlcv1.New(),
 	}
-
-	for _, eval := range []struct {
-		kind     sqlcv1.StepExpressionKind
-		valueStr *string
-		valueInt *int32
-	}{
-		{kind: sqlcv1.StepExpressionKindDYNAMICRATELIMITKEY, valueStr: strPtr(key)},
-		{kind: sqlcv1.StepExpressionKindDYNAMICRATELIMITVALUE, valueInt: int32Ptr(limit)},
-		{kind: sqlcv1.StepExpressionKindDYNAMICRATELIMITWINDOW, valueStr: strPtr("MINUTE")},
-		{kind: sqlcv1.StepExpressionKindDYNAMICRATELIMITUNITS, valueInt: int32Ptr(1)},
-	} {
-		_, err := pool.Exec(context.Background(), `
-			INSERT INTO v1_task_expression_eval (key, task_id, task_inserted_at, value_str, value_int, kind)
-			VALUES ($1, $2, $3, $4, $5, $6)
-		`, "rl", qi.TaskID, qi.TaskInsertedAt, eval.valueStr, eval.valueInt, string(eval.kind))
-		require.NoError(t, err)
-	}
-
-	return qi
 }
 
-func rateLimitExists(t *testing.T, pool *pgxpool.Pool, tenantID uuid.UUID, key string) bool {
+func createDynamicRateLimitEvals(t *testing.T, shared *sharedRepository, tenantID uuid.UUID, taskID int64, key string, limit int) *sqlcv1.V1QueueItem {
 	t.Helper()
 
-	var exists bool
-	err := pool.QueryRow(context.Background(), `
-		SELECT EXISTS (SELECT 1 FROM "RateLimit" WHERE "tenantId" = $1 AND "key" = $2)
-	`, tenantID, key).Scan(&exists)
+	task := &V1TaskWithPayload{V1Task: &sqlcv1.V1Task{
+		ID:         taskID,
+		InsertedAt: pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true},
+		ExternalID: uuid.New(),
+	}}
+
+	window := "MINUTE"
+	units := 1
+
+	err := shared.createExpressionEvals(context.Background(), shared.pool, []*V1TaskWithPayload{task}, map[uuid.UUID][]createTaskExpressionEvalOpt{
+		task.ExternalID: {
+			{Key: "rl", Kind: sqlcv1.StepExpressionKindDYNAMICRATELIMITKEY, ValueStr: &key},
+			{Key: "rl", Kind: sqlcv1.StepExpressionKindDYNAMICRATELIMITVALUE, ValueInt: &limit},
+			{Key: "rl", Kind: sqlcv1.StepExpressionKindDYNAMICRATELIMITWINDOW, ValueStr: &window},
+			{Key: "rl", Kind: sqlcv1.StepExpressionKindDYNAMICRATELIMITUNITS, ValueInt: &units},
+		},
+	})
 	require.NoError(t, err)
 
-	return exists
+	return &sqlcv1.V1QueueItem{
+		TenantID:       tenantID,
+		TaskID:         task.ID,
+		TaskInsertedAt: task.InsertedAt,
+		StepID:         uuid.New(),
+	}
+}
+
+func listRateLimitsByKey(t *testing.T, repo *rateLimitRepository, tenantID uuid.UUID, key string) []*sqlcv1.ListRateLimitsForTenantNoMutateRow {
+	t.Helper()
+
+	res, err := repo.ListRateLimits(context.Background(), tenantID, &ListRateLimitOpts{Search: &key})
+	require.NoError(t, err)
+
+	return res.Rows
 }
