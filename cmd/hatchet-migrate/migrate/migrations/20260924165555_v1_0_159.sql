@@ -1,4 +1,10 @@
 -- +goose Up
+-- Attaches the existing tables prepared by the previous migration as partitions and swaps the new
+-- partitioned tables into place. Runs in a single transaction so a failure leaves everything untouched.
+
+-- ----------------------------------------------------------------------------------------------------
+-- v1_lookup_table
+-- ----------------------------------------------------------------------------------------------------
 -- +goose StatementBegin
 -- The existing table is named after the current month so retention drops it once the whole month
 -- is past the retention cutoff. Its old single-column primary key stays as the per-partition unique
@@ -219,7 +225,138 @@ $$
 LANGUAGE plpgsql;
 -- +goose StatementEnd
 
+-- ----------------------------------------------------------------------------------------------------
+-- v1_dag_to_task
+-- ----------------------------------------------------------------------------------------------------
+-- +goose StatementBegin
+-- The existing table is named after today so retention drops it on the same schedule as a daily
+-- partition for today. MINVALUE: it holds all history, so its range is unbounded below.
+DO $$
+DECLARE
+    today_start DATE := (NOW() AT TIME ZONE 'UTC')::DATE;
+    tomorrow_start DATE := today_start + 1;
+    legacy_partition_name TEXT := 'v1_dag_to_task_' || to_char(today_start, 'YYYYMMDD');
+BEGIN
+    EXECUTE format('ALTER TABLE v1_dag_to_task RENAME CONSTRAINT v1_dag_to_task_pkey TO %I', legacy_partition_name || '_pkey');
+    EXECUTE format('ALTER TABLE v1_dag_to_task RENAME TO %I', legacy_partition_name);
+    EXECUTE format('ALTER TABLE v1_dag_to_task_partitioned ATTACH PARTITION %I FOR VALUES FROM (MINVALUE) TO (%L)', legacy_partition_name, tomorrow_start);
+    EXECUTE format('ALTER TABLE %I DROP CONSTRAINT v1_dag_to_task_attach_bound', legacy_partition_name);
+END $$;
+
+ALTER TABLE v1_dag_to_task_partitioned RENAME TO v1_dag_to_task;
+ALTER INDEX v1_dag_to_task_partitioned_pkey RENAME TO v1_dag_to_task_pkey;
+
+-- Create tomorrow's partition now rather than relying on the partition tick.
+SELECT create_v1_range_partition('v1_dag_to_task', ((NOW() AT TIME ZONE 'UTC')::DATE + 1));
+-- +goose StatementEnd
+
+-- ----------------------------------------------------------------------------------------------------
+-- v1_dag_data
+-- ----------------------------------------------------------------------------------------------------
+-- +goose StatementBegin
+-- The existing table is named after today so retention drops it on the same schedule as a daily
+-- partition for today. MINVALUE: it holds all history, so its range is unbounded below.
+DO $$
+DECLARE
+    today_start DATE := (NOW() AT TIME ZONE 'UTC')::DATE;
+    tomorrow_start DATE := today_start + 1;
+    legacy_partition_name TEXT := 'v1_dag_data_' || to_char(today_start, 'YYYYMMDD');
+BEGIN
+    EXECUTE format('ALTER TABLE v1_dag_data RENAME CONSTRAINT v1_dag_input_pkey TO %I', legacy_partition_name || '_pkey');
+    EXECUTE format('ALTER TABLE v1_dag_data RENAME TO %I', legacy_partition_name);
+    EXECUTE format('ALTER TABLE v1_dag_data_partitioned ATTACH PARTITION %I FOR VALUES FROM (MINVALUE) TO (%L)', legacy_partition_name, tomorrow_start);
+    EXECUTE format('ALTER TABLE %I DROP CONSTRAINT v1_dag_data_attach_bound', legacy_partition_name);
+END $$;
+
+ALTER TABLE v1_dag_data_partitioned RENAME TO v1_dag_data;
+ALTER INDEX v1_dag_data_partitioned_pkey RENAME TO v1_dag_data_pkey;
+
+-- Create tomorrow's partition now rather than relying on the partition tick.
+SELECT create_v1_range_partition('v1_dag_data', ((NOW() AT TIME ZONE 'UTC')::DATE + 1));
+-- +goose StatementEnd
+
 -- +goose Down
+-- ----------------------------------------------------------------------------------------------------
+-- v1_dag_data
+-- ----------------------------------------------------------------------------------------------------
+-- +goose StatementBegin
+DO $$
+DECLARE
+    legacy_partition_name TEXT;
+BEGIN
+    SELECT c.relname
+    INTO legacy_partition_name
+    FROM pg_inherits i
+    JOIN pg_class c ON c.oid = i.inhrelid
+    WHERE i.inhparent = 'v1_dag_data'::regclass
+    AND pg_get_expr(c.relpartbound, c.oid) LIKE 'FOR VALUES FROM (MINVALUE)%';
+
+    IF legacy_partition_name IS NULL THEN
+        CREATE TABLE v1_dag_data_original (
+    dag_id BIGINT NOT NULL,
+    dag_inserted_at TIMESTAMPTZ NOT NULL,
+    input JSONB NOT NULL,
+    additional_metadata JSONB,
+    CONSTRAINT v1_dag_input_pkey PRIMARY KEY (dag_id, dag_inserted_at)
+        );
+
+        INSERT INTO v1_dag_data_original SELECT * FROM v1_dag_data;
+
+        DROP TABLE v1_dag_data;
+        ALTER TABLE v1_dag_data_original RENAME TO v1_dag_data;
+        RETURN;
+    END IF;
+
+    EXECUTE format('ALTER TABLE v1_dag_data DETACH PARTITION %I', legacy_partition_name);
+    EXECUTE format('INSERT INTO %I SELECT * FROM v1_dag_data ON CONFLICT DO NOTHING', legacy_partition_name);
+    DROP TABLE v1_dag_data;
+    EXECUTE format('ALTER TABLE %I RENAME TO v1_dag_data', legacy_partition_name);
+    EXECUTE format('ALTER TABLE v1_dag_data RENAME CONSTRAINT %I TO v1_dag_input_pkey', legacy_partition_name || '_pkey');
+END $$;
+-- +goose StatementEnd
+
+-- ----------------------------------------------------------------------------------------------------
+-- v1_dag_to_task
+-- ----------------------------------------------------------------------------------------------------
+-- +goose StatementBegin
+DO $$
+DECLARE
+    legacy_partition_name TEXT;
+BEGIN
+    SELECT c.relname
+    INTO legacy_partition_name
+    FROM pg_inherits i
+    JOIN pg_class c ON c.oid = i.inhrelid
+    WHERE i.inhparent = 'v1_dag_to_task'::regclass
+    AND pg_get_expr(c.relpartbound, c.oid) LIKE 'FOR VALUES FROM (MINVALUE)%';
+
+    IF legacy_partition_name IS NULL THEN
+        CREATE TABLE v1_dag_to_task_original (
+    dag_id BIGINT NOT NULL,
+    dag_inserted_at TIMESTAMPTZ NOT NULL,
+    task_id BIGINT NOT NULL,
+    task_inserted_at TIMESTAMPTZ NOT NULL,
+    CONSTRAINT v1_dag_to_task_pkey PRIMARY KEY (dag_id, dag_inserted_at, task_id, task_inserted_at)
+        );
+
+        INSERT INTO v1_dag_to_task_original SELECT * FROM v1_dag_to_task;
+
+        DROP TABLE v1_dag_to_task;
+        ALTER TABLE v1_dag_to_task_original RENAME TO v1_dag_to_task;
+        RETURN;
+    END IF;
+
+    EXECUTE format('ALTER TABLE v1_dag_to_task DETACH PARTITION %I', legacy_partition_name);
+    EXECUTE format('INSERT INTO %I SELECT * FROM v1_dag_to_task ON CONFLICT DO NOTHING', legacy_partition_name);
+    DROP TABLE v1_dag_to_task;
+    EXECUTE format('ALTER TABLE %I RENAME TO v1_dag_to_task', legacy_partition_name);
+    EXECUTE format('ALTER TABLE v1_dag_to_task RENAME CONSTRAINT %I TO v1_dag_to_task_pkey', legacy_partition_name || '_pkey');
+END $$;
+-- +goose StatementEnd
+
+-- ----------------------------------------------------------------------------------------------------
+-- v1_lookup_table
+-- ----------------------------------------------------------------------------------------------------
 -- +goose StatementBegin
 DO $$
 DECLARE
