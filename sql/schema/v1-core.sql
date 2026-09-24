@@ -533,7 +533,7 @@ CREATE TABLE v1_task (
 
 CREATE TABLE v1_lookup_table (
     tenant_id UUID NOT NULL,
-    external_id UUID NOT NULL,
+    external_id UUID NOT NULL, -- IMPORTANT: Each _partition_ of this table has a `UNIQUE` constraint on this column, but the parent does not
     task_id BIGINT,
     dag_id BIGINT,
     inserted_at TIMESTAMPTZ NOT NULL,

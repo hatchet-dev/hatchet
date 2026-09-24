@@ -116,3 +116,14 @@ func AreSetEqual[T comparable](a, b []T) bool {
 
 	return true
 }
+
+// inspiration: map/2 https://elixir.hexdocs.pm/Enum.html#map/2
+func Map[T any, R any](xs []T, fn func(x T) R) []R {
+	result := make([]R, 0, len(xs))
+
+	for _, x := range xs {
+		result = append(result, fn(x))
+	}
+
+	return result
+}

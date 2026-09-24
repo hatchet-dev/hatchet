@@ -379,8 +379,23 @@ func (r *TaskRepositoryImpl) EnsureTablePartitionsExist(ctx context.Context) (bo
 }
 
 func createExternalIdUniqueConstraintsOnDailyPartitions(ctx context.Context, db sqlcv1.DBTX, parentTableName string, partitionDates ...time.Time) error {
-	for _, partitionDate := range partitionDates {
-		partitionTableName := fmt.Sprintf("%s_%s", parentTableName, partitionDate.UTC().Format("20060102"))
+	partitionTableNames := listutils.Map(partitionDates, func(partitionDate time.Time) string {
+		return fmt.Sprintf("%s_%s", parentTableName, partitionDate.UTC().Format("20060102"))
+	})
+
+	return createExternalIdUniqueConstraintsOnPartitions(ctx, db, partitionTableNames...)
+}
+
+func createExternalIdUniqueConstraintsOnMonthlyPartitions(ctx context.Context, db sqlcv1.DBTX, parentTableName string, partitionDates ...time.Time) error {
+	partitionTableNames := listutils.Map(partitionDates, func(partitionDate time.Time) string {
+		return fmt.Sprintf("%s_%s01", parentTableName, partitionDate.UTC().Format("200601"))
+	})
+
+	return createExternalIdUniqueConstraintsOnPartitions(ctx, db, partitionTableNames...)
+}
+
+func createExternalIdUniqueConstraintsOnPartitions(ctx context.Context, db sqlcv1.DBTX, partitionTableNames ...string) error {
+	for _, partitionTableName := range partitionTableNames {
 		constraintName := fmt.Sprintf("%s_external_id_uq", partitionTableName)
 
 		_, err := db.Exec(ctx, fmt.Sprintf("ALTER TABLE %s ADD CONSTRAINT %s UNIQUE (external_id);", partitionTableName, constraintName))
@@ -501,6 +516,24 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	}
 
 	if err = createExternalIdUniqueConstraintsOnDailyPartitions(ctx, createPartitionsTx, "v1_payload", payloadDatesToCreateUniqueConstraints...); err != nil {
+		releaseCreateConn()
+		if isLockNotAvailable(err) {
+			return ErrPartitionLockConflict
+		}
+		return err
+	}
+
+	var lookupTableDatesToCreateUniqueConstraints []time.Time
+
+	if todayCreations.V1LookupTable > 0 {
+		lookupTableDatesToCreateUniqueConstraints = append(lookupTableDatesToCreateUniqueConstraints, today)
+	}
+
+	if tomorrowCreations.V1LookupTable > 0 {
+		lookupTableDatesToCreateUniqueConstraints = append(lookupTableDatesToCreateUniqueConstraints, tomorrow)
+	}
+
+	if err = createExternalIdUniqueConstraintsOnMonthlyPartitions(ctx, createPartitionsTx, "v1_lookup_table", lookupTableDatesToCreateUniqueConstraints...); err != nil {
 		releaseCreateConn()
 		if isLockNotAvailable(err) {
 			return ErrPartitionLockConflict
