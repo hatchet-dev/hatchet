@@ -800,9 +800,10 @@ func (r *TaskRepositoryImpl) verifyAllTasksFinalized(ctx context.Context, tx sql
 
 	// check DAGs
 	notFinalizedDags, err := r.queries.PreflightCheckDAGsForReplay(ctx, tx, sqlcv1.PreflightCheckDAGsForReplayParams{
-		Dagids:         dagIdsToCheck,
-		Daginsertedats: dagInsertedAtsToCheck,
-		Tenantid:       tenantId,
+		Dagids:           dagIdsToCheck,
+		Daginsertedats:   dagInsertedAtsToCheck,
+		Mindaginsertedat: sqlchelpers.MinTimestamptz(dagInsertedAtsToCheck),
+		Tenantid:         tenantId,
 	})
 
 	if err != nil {
@@ -3829,9 +3830,10 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 	dagIdsFailedPreflight := make(map[int64]bool)
 
 	preflightDAGs, err := r.queries.PreflightCheckDAGsForReplay(ctx, tx, sqlcv1.PreflightCheckDAGsForReplayParams{
-		Dagids:         successfullyLockedDAGIds,
-		Daginsertedats: successfullyLockedDAGInsertedAts,
-		Tenantid:       tenantId,
+		Dagids:           successfullyLockedDAGIds,
+		Daginsertedats:   successfullyLockedDAGInsertedAts,
+		Mindaginsertedat: sqlchelpers.MinTimestamptz(successfullyLockedDAGInsertedAts),
+		Tenantid:         tenantId,
 	})
 
 	if err != nil {
@@ -3863,7 +3865,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 
 	// group tasks by their dag_id, if it exists
 	dagIdsToChildTasks := make(map[int64][]*sqlcv1.ListTasksForReplayRow)
-	dagIds := make(map[int64]struct{}, 0)
+	dagIdsToDagInsertedAts := make(map[int64]pgtype.Timestamptz, 0)
 
 	// figure out which tasks to replay immediately
 	replayOpts := make([]ReplayTaskOpts, 0)
@@ -3911,7 +3913,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 		})
 
 		if task.DagID.Valid {
-			dagIds[task.DagID.Int64] = struct{}{}
+			dagIdsToDagInsertedAts[task.DagID.Int64] = task.DagInsertedAt
 		}
 
 		if task.DagID.Valid && len(task.Parents) > 0 {
@@ -3997,15 +3999,19 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 		})
 	}
 
-	dagIdsArr := make([]int64, 0, len(dagIds))
+	dagIdsArr := make([]int64, 0, len(dagIdsToDagInsertedAts))
+	dagInsertedAtsArr := make([]pgtype.Timestamptz, 0, len(dagIdsToDagInsertedAts))
 
-	for dagId := range dagIds {
+	for dagId, dagInsertedAt := range dagIdsToDagInsertedAts {
 		dagIdsArr = append(dagIdsArr, dagId)
+		dagInsertedAtsArr = append(dagInsertedAtsArr, dagInsertedAt)
 	}
 
 	allTasksInDAGs, err := r.queries.ListAllTasksInDags(ctx, tx, sqlcv1.ListAllTasksInDagsParams{
-		Dagids:   dagIdsArr,
-		Tenantid: tenantId,
+		Dagids:           dagIdsArr,
+		Daginsertedats:   dagInsertedAtsArr,
+		Mindaginsertedat: sqlchelpers.MinTimestamptz(dagInsertedAtsArr),
+		Tenantid:         tenantId,
 	})
 
 	if err != nil {

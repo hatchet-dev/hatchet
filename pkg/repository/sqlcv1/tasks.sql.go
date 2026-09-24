@@ -1387,6 +1387,11 @@ func (q *Queries) GetTenantTaskStats(ctx context.Context, db DBTX, tenantid uuid
 }
 
 const listAllTasksInDags = `-- name: ListAllTasksInDags :many
+WITH input AS (
+    SELECT
+        UNNEST($3::bigint[]) AS dag_id,
+        UNNEST($4::timestamptz[]) AS dag_inserted_at
+)
 SELECT
     t.id,
     t.inserted_at,
@@ -1398,17 +1403,21 @@ SELECT
     t.workflow_id,
     t.external_id
 FROM
-    v1_task t
+    input i
 JOIN
-    v1_dag_to_task dt ON dt.task_id = t.id
+    v1_dag_to_task dt ON dt.dag_id = i.dag_id AND dt.dag_inserted_at = i.dag_inserted_at
+JOIN
+    v1_task t ON t.id = dt.task_id AND t.inserted_at = dt.task_inserted_at
 WHERE
     t.tenant_id = $1::uuid
-    AND dt.dag_id = ANY($2::bigint[])
+    AND dt.dag_inserted_at >= $2::timestamptz
 `
 
 type ListAllTasksInDagsParams struct {
-	Tenantid uuid.UUID `json:"tenantid"`
-	Dagids   []int64   `json:"dagids"`
+	Tenantid         uuid.UUID            `json:"tenantid"`
+	Mindaginsertedat pgtype.Timestamptz   `json:"mindaginsertedat"`
+	Dagids           []int64              `json:"dagids"`
+	Daginsertedats   []pgtype.Timestamptz `json:"daginsertedats"`
 }
 
 type ListAllTasksInDagsRow struct {
@@ -1424,7 +1433,12 @@ type ListAllTasksInDagsRow struct {
 }
 
 func (q *Queries) ListAllTasksInDags(ctx context.Context, db DBTX, arg ListAllTasksInDagsParams) ([]*ListAllTasksInDagsRow, error) {
-	rows, err := db.Query(ctx, listAllTasksInDags, arg.Tenantid, arg.Dagids)
+	rows, err := db.Query(ctx, listAllTasksInDags,
+		arg.Tenantid,
+		arg.Mindaginsertedat,
+		arg.Dagids,
+		arg.Daginsertedats,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -3109,6 +3123,8 @@ WITH input AS (
         "Step" s ON s."jobId" = j."id"
     WHERE
         d.tenant_id = $3::uuid
+        AND d.inserted_at >= $4::timestamptz
+        AND dt.dag_inserted_at >= $4::timestamptz
     GROUP BY
         d.id,
         d.inserted_at
@@ -3124,9 +3140,10 @@ FROM
 `
 
 type PreflightCheckDAGsForReplayParams struct {
-	Dagids         []int64              `json:"dagids"`
-	Daginsertedats []pgtype.Timestamptz `json:"daginsertedats"`
-	Tenantid       uuid.UUID            `json:"tenantid"`
+	Dagids           []int64              `json:"dagids"`
+	Daginsertedats   []pgtype.Timestamptz `json:"daginsertedats"`
+	Tenantid         uuid.UUID            `json:"tenantid"`
+	Mindaginsertedat pgtype.Timestamptz   `json:"mindaginsertedat"`
 }
 
 type PreflightCheckDAGsForReplayRow struct {
@@ -3142,7 +3159,12 @@ type PreflightCheckDAGsForReplayRow struct {
 // don't interfere with each other. It also does not check for whether the tasks are running, as that's
 // checked in a different query. It returns DAGs which cannot be replayed.
 func (q *Queries) PreflightCheckDAGsForReplay(ctx context.Context, db DBTX, arg PreflightCheckDAGsForReplayParams) ([]*PreflightCheckDAGsForReplayRow, error) {
-	rows, err := db.Query(ctx, preflightCheckDAGsForReplay, arg.Dagids, arg.Daginsertedats, arg.Tenantid)
+	rows, err := db.Query(ctx, preflightCheckDAGsForReplay,
+		arg.Dagids,
+		arg.Daginsertedats,
+		arg.Tenantid,
+		arg.Mindaginsertedat,
+	)
 	if err != nil {
 		return nil, err
 	}

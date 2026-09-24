@@ -958,6 +958,8 @@ WITH input AS (
         "Step" s ON s."jobId" = j."id"
     WHERE
         d.tenant_id = @tenantId::uuid
+        AND d.inserted_at >= @minDagInsertedAt::timestamptz
+        AND dt.dag_inserted_at >= @minDagInsertedAt::timestamptz
     GROUP BY
         d.id,
         d.inserted_at
@@ -1028,6 +1030,11 @@ WHERE
 ;
 
 -- name: ListAllTasksInDags :many
+WITH input AS (
+    SELECT
+        UNNEST(@dagIds::bigint[]) AS dag_id,
+        UNNEST(@dagInsertedAts::timestamptz[]) AS dag_inserted_at
+)
 SELECT
     t.id,
     t.inserted_at,
@@ -1039,12 +1046,14 @@ SELECT
     t.workflow_id,
     t.external_id
 FROM
-    v1_task t
+    input i
 JOIN
-    v1_dag_to_task dt ON dt.task_id = t.id
+    v1_dag_to_task dt ON dt.dag_id = i.dag_id AND dt.dag_inserted_at = i.dag_inserted_at
+JOIN
+    v1_task t ON t.id = dt.task_id AND t.inserted_at = dt.task_inserted_at
 WHERE
     t.tenant_id = @tenantId::uuid
-    AND dt.dag_id = ANY(@dagIds::bigint[]);
+    AND dt.dag_inserted_at >= @minDagInsertedAt::timestamptz;
 
 -- name: ListTaskExpressionEvals :many
 WITH input AS (
