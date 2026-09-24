@@ -383,7 +383,9 @@ WITH match_counts AS (
         (v1_match_id, id) IN (SELECT v1_match_id, id FROM locked_conditions)
     RETURNING
         v1_match_id AS id
-), matches_with_data AS (
+), matches_with_data AS MATERIALIZED (
+    -- Materialized so the correlated aggregate below runs once per result match. Inlined, the
+    -- planner re-evaluates it for every row of the final join, which is quadratic in the batch.
     SELECT
         m.id,
         m.action,
