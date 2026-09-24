@@ -820,7 +820,9 @@ BEGIN
     UPDATE
         v1_runs_olap r
     SET
-        readable_status = n.readable_status
+        readable_status = n.readable_status,
+        parent_task_external_id = n.parent_task_external_id,
+        idempotency_key = n.idempotency_key
     FROM new_rows n
     WHERE
         r.id = n.id

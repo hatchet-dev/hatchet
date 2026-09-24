@@ -1,0 +1,17 @@
+-- name: FindInvalidIndexes :many
+SELECT
+    parent_table.relname AS parent_table_name,
+    parent_index.relname AS parent_index_name,
+    MIN(child_index.relname)::name AS example_child_index_name
+FROM pg_catalog.pg_index parent_idx
+JOIN pg_catalog.pg_class parent_index ON parent_index.oid = parent_idx.indexrelid
+JOIN pg_catalog.pg_class parent_table ON parent_table.oid = parent_idx.indrelid
+JOIN pg_catalog.pg_namespace parent_namespace ON parent_namespace.oid = parent_table.relnamespace
+JOIN pg_catalog.pg_inherits child_inh ON child_inh.inhparent = parent_index.oid
+JOIN pg_catalog.pg_class child_index ON child_index.oid = child_inh.inhrelid
+WHERE NOT parent_idx.indisvalid
+  AND parent_table.relkind = 'p'
+  AND parent_namespace.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+  AND (parent_table.relname LIKE '%olap%') = @isOlap::boolean
+GROUP BY parent_table.relname, parent_index.relname
+ORDER BY parent_index.relname;

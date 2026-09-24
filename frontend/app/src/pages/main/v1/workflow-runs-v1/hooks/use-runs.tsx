@@ -9,6 +9,7 @@ import {
   V1TaskSummary,
   V1TaskStatus,
 } from '@/lib/api';
+import { withPolling } from '@/lib/api/polling';
 import { useQuery } from '@tanstack/react-query';
 import { RowSelectionState } from '@tanstack/react-table';
 import { useCallback, useMemo, useState } from 'react';
@@ -82,31 +83,33 @@ export const useRuns = ({
     [createdAfter, initialRenderTime, parentTaskExternalId],
   );
 
-  const listTasksQuery = useQuery({
-    ...queries.v1WorkflowRuns.list(
-      tenantId,
-      {
-        offset: disablePagination ? 0 : offset,
-        limit: disablePagination ? 500 : pagination.pageSize,
-        statuses: statuses && statuses.length > 0 ? statuses : undefined,
-        workflow_ids: workflowIds && workflowIds.length > 0 ? workflowIds : [],
-        parent_task_external_id: parentTaskExternalId,
-        since,
-        until: finishedBefore,
-        additional_metadata: additionalMetadata,
-        idempotency_keys: idempotencyKeys,
-        additional_metadata_operator: additionalMetadataOperator,
-        worker_id: workerId,
-        only_tasks: onlyTasks,
-        triggering_event_external_id: triggeringEventExternalId,
-        include_payloads: false,
-        running_filter: runningFilter,
-      },
-      isSelfHosted,
-    ),
-    refetchInterval:
+  const listTasksQuery = useQuery(
+    withPolling(
+      queries.v1WorkflowRuns.list(
+        tenantId,
+        {
+          offset: disablePagination ? 0 : offset,
+          limit: disablePagination ? 500 : pagination.pageSize,
+          statuses: statuses && statuses.length > 0 ? statuses : undefined,
+          workflow_ids:
+            workflowIds && workflowIds.length > 0 ? workflowIds : [],
+          parent_task_external_id: parentTaskExternalId,
+          since,
+          until: finishedBefore,
+          additional_metadata: additionalMetadata,
+          idempotency_keys: idempotencyKeys,
+          additional_metadata_operator: additionalMetadataOperator,
+          worker_id: workerId,
+          only_tasks: onlyTasks,
+          triggering_event_external_id: triggeringEventExternalId,
+          include_payloads: false,
+          running_filter: runningFilter,
+        },
+        isSelfHosted,
+      ),
       Object.keys(rowSelection).length > 0 ? false : refetchInterval,
-  });
+    ),
+  );
 
   const getRowId = useCallback((row: V1TaskSummary) => {
     return row.metadata.id;
