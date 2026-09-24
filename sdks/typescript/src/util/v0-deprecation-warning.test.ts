@@ -1,3 +1,4 @@
+import { DEFAULT_LOGGER } from '@clients/hatchet-client/hatchet-logger';
 import { warnLegacyWorkflow } from '@hatchet/legacy/legacy-transformer';
 import { AdminClient } from '@clients/admin/admin-client';
 import { mockChannel, mockFactory } from '../legacy/legacy-client.test';
@@ -164,7 +165,12 @@ describe('using a v0 workflow', () => {
     const emitWarning = jest.spyOn(process, 'emitWarning').mockImplementation(() => {});
 
     const admin = new AdminClient(
-      { token: 't', host_port: 'h', log_level: 'OFF', tls_config: { tls_strategy: 'none' } } as any,
+      {
+        token: 't',
+        host_port: 'h',
+        tls_config: { tls_strategy: 'none' },
+        logger: DEFAULT_LOGGER,
+      } as any,
       mockChannel,
       mockFactory,
       {} as any,
