@@ -1,4 +1,5 @@
 import type { Workflow } from '@hatchet/legacy/workflow';
+import { emitV0RemovedWarning } from '@util/v0-deprecation-warning';
 import { V0Context } from '@hatchet/legacy/step';
 import type { CreateStep } from '@hatchet/legacy/step';
 import { BaseWorkflowDeclaration, WorkflowDeclaration } from '../v1/declaration';
@@ -38,8 +39,20 @@ export function isLegacyWorkflow(workflow: unknown): workflow is Workflow {
 /**
  * Emits a deprecation warning for legacy workflow usage.
  */
+let warnedLegacyWorkflow = false;
+
+/**
+ * Warns once per process that a v0 workflow is in use: the banner for the terminal and a
+ * DeprecationWarning with a stable code that Node's warning flags and handlers can filter.
+ */
 export function warnLegacyWorkflow(): void {
+  if (warnedLegacyWorkflow) {
+    return;
+  }
+
+  warnedLegacyWorkflow = true;
   console.warn(LEGACY_WORKFLOW_WARNING);
+  emitV0RemovedWarning('workflow');
 }
 
 /**
