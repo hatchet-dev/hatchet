@@ -1,18 +1,11 @@
 /**
- * v0 SDK root-import deprecation warnings.
+ * The v0 SDK deprecation warning, emitted when a v0 workflow is actually used (registered on a
+ * worker or put to the engine), never when a module is merely imported: the root entry still
+ * re-exports the v0 `workflow` and `step` modules for consumers that only use v1 APIs, and
+ * loading them must stay silent.
  *
- * The legacy `workflow` and `step` re-exports under the root specifier need
- * to keep nagging consumers to migrate to v1, but the original implementation
- * used `console.warn` at module evaluation time, which:
- *   - cannot be silenced by Node's standard `--no-deprecation`,
- *     `--no-warnings`, or `--no-warnings=DeprecationWarning` flags;
- *   - has no stable `code` for `process.on('warning', ...)` handlers; and
- *   - is duplicated when both submodules are loaded (which happens for
- *     anyone importing from the root, since `index.ts` re-exports both).
- *
- * Switching to `process.emitWarning` with a fixed code makes the warnings
- * filterable, dedupable, and consistent with the rest of Node's deprecation
- * surface, while still being visible by default.
+ * `process.emitWarning` with a fixed code keeps the warning filterable with Node's standard
+ * `--no-deprecation` and `--no-warnings` flags and addressable from `process.on('warning')`.
  */
 
 export const V0_DEPRECATION_CODE = 'HATCHET_V0_REMOVED';
