@@ -1,3 +1,6 @@
+import { warnLegacyWorkflow } from '@hatchet/legacy/legacy-transformer';
+import { AdminClient } from '@clients/admin/admin-client';
+import { mockChannel, mockFactory } from '../legacy/legacy-client.test';
 import {
   V0_DEPRECATION_CODE,
   _resetEmittedV0Warnings,
@@ -136,5 +139,46 @@ describe('importing the SDK', () => {
 
     emitWarning.mockRestore();
     consoleWarn.mockRestore();
+  });
+});
+
+describe('using a v0 workflow', () => {
+  it('warns once, with the banner and the coded deprecation', () => {
+    _resetEmittedV0Warnings();
+    const emitWarning = jest.spyOn(process, 'emitWarning').mockImplementation(() => {});
+    const consoleWarn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+    warnLegacyWorkflow();
+    warnLegacyWorkflow();
+
+    expect(consoleWarn).toHaveBeenCalledTimes(1);
+    expect(emitWarning).toHaveBeenCalledTimes(1);
+    expect(emitWarning.mock.calls[0][1]).toMatchObject({ code: V0_DEPRECATION_CODE });
+
+    emitWarning.mockRestore();
+    consoleWarn.mockRestore();
+  });
+
+  it('warns when a v0 definition is put to the engine directly', async () => {
+    _resetEmittedV0Warnings();
+    const emitWarning = jest.spyOn(process, 'emitWarning').mockImplementation(() => {});
+
+    const admin = new AdminClient(
+      { token: 't', host_port: 'h', log_level: 'OFF', tls_config: { tls_strategy: 'none' } } as any,
+      mockChannel,
+      mockFactory,
+      {} as any,
+      'tenantId',
+      {} as any,
+      {} as any
+    );
+    (admin as any).client = { putWorkflow: jest.fn().mockResolvedValue({}) };
+
+    await admin.putWorkflow({ name: 'v0', steps: [] } as any);
+
+    expect(emitWarning).toHaveBeenCalledTimes(1);
+    expect(emitWarning.mock.calls[0][1]).toMatchObject({ code: V0_DEPRECATION_CODE });
+
+    emitWarning.mockRestore();
   });
 });

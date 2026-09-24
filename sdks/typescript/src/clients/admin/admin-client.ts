@@ -7,6 +7,7 @@ import {
   WorkflowServiceDefinition,
 } from '@hatchet/protoc/workflows';
 import { toHatchetError } from '@util/errors/hatchet-error';
+import { emitV0RemovedWarning } from '@util/v0-deprecation-warning';
 import { ClientConfig } from '@clients/hatchet-client/client-config';
 import { Logger } from '@hatchet/util/logger';
 import { retrier } from '@hatchet/util/retrier';
@@ -123,6 +124,10 @@ export class AdminClient {
    * @param workflow a workflow definition to create
    */
   async putWorkflow(workflow: CreateWorkflowVersionOpts) {
+    // a v0 workflow definition sent straight to the engine, the one v0 use that never
+    // reaches the legacy transformer
+    emitV0RemovedWarning('workflow');
+
     try {
       return await retrier(async () => this.client.putWorkflow({ opts: workflow }), this.logger);
     } catch (e: unknown) {
