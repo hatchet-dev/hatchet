@@ -860,6 +860,26 @@ func (q *Queuer) runOptimisticQueue(
 		return nil, nil, err
 	}
 
+	// rate-limited items stay queued for the regular queue loop, so the rate limiter never runs inside the optimistic tx
+	assignable := make([]*sqlcv1.V1QueueItem, 0, len(qis))
+
+	for _, qi := range qis {
+		if len(rls[qi.TaskID]) == 0 {
+			assignable = append(assignable, qi)
+		}
+	}
+
+	if len(assignable) < len(qis) {
+		notifyCtx := context.WithoutCancel(ctx)
+		tx.AddPostCommit(func() { q.queue(notifyCtx) })
+	}
+
+	if len(assignable) == 0 {
+		return nil, nil, nil
+	}
+
+	qis = assignable
+
 	stepIds := make([]uuid.UUID, 0, len(qis))
 	taskIdToDesiredLabelsFromTrigger := make(map[int64][]*sqlcv1.GetDesiredLabelsRow)
 
@@ -895,7 +915,7 @@ func (q *Queuer) runOptimisticQueue(
 		return nil, nil, err
 	}
 
-	assignCh := q.s.tryAssign(ctx, qis, labels, stepRequests, rls, taskIdToDesiredLabelsFromTrigger, batchConfigs)
+	assignCh := q.s.tryAssign(ctx, qis, labels, stepRequests, nil, taskIdToDesiredLabelsFromTrigger, batchConfigs)
 
 	var allLocalAssigned []*v1.AssignedItem
 	var allQueueResults []*QueueResults

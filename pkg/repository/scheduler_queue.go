@@ -784,7 +784,8 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, tx *OptimisticT
 
 	var stepRateLimits []*sqlcv1.StepRateLimit
 
-	if len(upsertRateLimitBulkParams.Keys) > 0 {
+	// optimistic callers defer rate-limited tasks to the queue loop, which upserts once the trigger has committed
+	if len(upsertRateLimitBulkParams.Keys) > 0 && tx == nil {
 		// upsert all rate limits based on the keys, limit values, and durations
 		err = d.upsertDynamicRateLimits(ctx, upsertRateLimitBulkParams)
 
@@ -836,9 +837,7 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, tx *OptimisticT
 //
 // NOTE: all writers of "RateLimit" must take the per-tenant advisory lock before acquiring any
 // row locks on the table (see UpdateRateLimits), otherwise concurrent writers can deadlock
-// (40P01). This always commits in its own transaction: holding the lock or row locks in the
-// caller's optimistic transaction would block the rate limiter's UpdateRateLimits refresh
-// during assignment, which runs before that transaction commits.
+// (40P01). Must not be called from an optimistic transaction (see Queuer.runOptimisticQueue).
 func (d *queueRepository) upsertDynamicRateLimits(ctx context.Context, params sqlcv1.UpsertRateLimitsBulkParams) error {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l)
 
