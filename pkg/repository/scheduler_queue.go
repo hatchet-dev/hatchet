@@ -592,7 +592,7 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 	return succeeded, failed, nil
 }
 
-func (d *queueRepository) GetTaskRateLimits(ctx context.Context, tx *OptimisticTx, queueItems []*sqlcv1.V1QueueItem) (map[int64]map[string]int32, error) {
+func (d *queueRepository) GetTaskRateLimits(ctx context.Context, tx *OptimisticTx, queueItems []*sqlcv1.V1QueueItem) (map[int64]map[string]int32, map[string]RateLimitDefinition, error) {
 	ctx, span := telemetry.NewSpan(ctx, "get-step-run-rate-limits")
 	defer span.End()
 
@@ -631,7 +631,7 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, tx *OptimisticT
 	}
 
 	if skipRateLimiting {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	// get all step run expression evals which correspond to rate limits, grouped by step run id
@@ -641,7 +641,7 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, tx *OptimisticT
 	})
 
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	taskIdAndGlobalKeyToKey := make(map[string]string)
@@ -682,9 +682,7 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, tx *OptimisticT
 		rateLimitKeyToEvals[k] = append(rateLimitKeyToEvals[k], eval)
 	}
 
-	upsertRateLimitBulkParams := sqlcv1.UpsertRateLimitsBulkParams{
-		Tenantid: d.tenantId,
-	}
+	definitions := make(map[string]RateLimitDefinition)
 
 	taskIdToKeyToUnits := make(map[int64]map[string]int32)
 
@@ -776,23 +774,14 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, tx *OptimisticT
 
 		// important: we use -1 as a sentinel value for a placeholder to indicate we don't need to upsert
 		if limitValue >= 0 {
-			upsertRateLimitBulkParams.Keys = append(upsertRateLimitBulkParams.Keys, key)
-			upsertRateLimitBulkParams.Windows = append(upsertRateLimitBulkParams.Windows, getWindowParamFromDurString(duration))
-			upsertRateLimitBulkParams.Limitvalues = append(upsertRateLimitBulkParams.Limitvalues, int32(limitValue)) // nolint: gosec
+			definitions[key] = RateLimitDefinition{
+				LimitValue: int32(limitValue), // nolint: gosec
+				Window:     getWindowParamFromDurString(duration),
+			}
 		}
 	}
 
 	var stepRateLimits []*sqlcv1.StepRateLimit
-
-	// optimistic callers defer rate-limited tasks to the queue loop, which upserts once the trigger has committed
-	if len(upsertRateLimitBulkParams.Keys) > 0 && tx == nil {
-		// upsert all rate limits based on the keys, limit values, and durations
-		err = d.upsertDynamicRateLimits(ctx, upsertRateLimitBulkParams)
-
-		if err != nil {
-			return nil, fmt.Errorf("could not bulk upsert dynamic rate limits: %w", err)
-		}
-	}
 
 	// get all existing static rate limits for steps to the mapping, mapping back from step ids to step run ids
 	uniqueStepIds := make([]uuid.UUID, 0, len(stepIdToTasks))
@@ -807,7 +796,7 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, tx *OptimisticT
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("could not list rate limits for steps: %w", err)
+		return nil, nil, fmt.Errorf("could not list rate limits for steps: %w", err)
 	}
 
 	for _, row := range stepRateLimits {
@@ -830,32 +819,7 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, tx *OptimisticT
 		d.cachedStepIdHasRateLimit.Set(stepId.String(), hasRateLimit)
 	}
 
-	return taskIdToKeyToUnits, nil
-}
-
-// upsertDynamicRateLimits writes dynamic rate limit definitions to the "RateLimit" table.
-//
-// NOTE: all writers of "RateLimit" must take the per-tenant advisory lock before acquiring any
-// row locks on the table (see UpdateRateLimits), otherwise concurrent writers can deadlock
-// (40P01). Must not be called from an optimistic transaction (see Queuer.runOptimisticQueue).
-func (d *queueRepository) upsertDynamicRateLimits(ctx context.Context, params sqlcv1.UpsertRateLimitsBulkParams) error {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l)
-
-	if err != nil {
-		return err
-	}
-
-	defer rollback()
-
-	if err := d.queries.AdvisoryLock(ctx, tx, tenantAdvisoryInt(d.tenantId)); err != nil {
-		return err
-	}
-
-	if err := d.queries.UpsertRateLimitsBulk(ctx, tx, params); err != nil {
-		return err
-	}
-
-	return commit(ctx)
+	return taskIdToKeyToUnits, definitions, nil
 }
 
 func (d *queueRepository) GetDesiredLabels(ctx context.Context, tx *OptimisticTx, stepIds []uuid.UUID) (map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow, error) {

@@ -65,14 +65,14 @@ type rateLimitedQueueRepo struct {
 	fakeQueueRepository
 }
 
-func (r *rateLimitedQueueRepo) GetTaskRateLimits(_ context.Context, _ *v1repo.OptimisticTx, qis []*sqlcv1.V1QueueItem) (map[int64]map[string]int32, error) {
+func (r *rateLimitedQueueRepo) GetTaskRateLimits(_ context.Context, _ *v1repo.OptimisticTx, qis []*sqlcv1.V1QueueItem) (map[int64]map[string]int32, map[string]v1repo.RateLimitDefinition, error) {
 	rls := make(map[int64]map[string]int32, len(qis))
 
 	for _, qi := range qis {
 		rls[qi.TaskID] = map[string]int32{"key": 1}
 	}
 
-	return rls, nil
+	return rls, nil, nil
 }
 
 // TestRunOptimisticQueueDefersRateLimitedItems ensures rate-limited items never reach tryAssign inside the
