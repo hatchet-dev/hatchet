@@ -199,13 +199,7 @@ WITH input AS (
 UPDATE
     "RateLimit" rl
 SET
-    "value" = get_refill_value(rl) - (SELECT "units" FROM input WHERE "key" = rl."key"),
-    "lastRefill" = CASE
-        WHEN NOW() - rl."lastRefill" >= (rl."window"::INTERVAL - INTERVAL '10 milliseconds') THEN
-            CURRENT_TIMESTAMP
-        ELSE
-            rl."lastRefill"
-    END
+    "value" = rl."value" - (SELECT "units" FROM input WHERE "key" = rl."key")
 FROM
     rls_to_update rl2
 WHERE
