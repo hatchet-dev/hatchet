@@ -76,18 +76,6 @@ func (h *Health) Start(port int) (func() error, error) {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/live", func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-		defer cancel()
-
-		queueReady := h.queue.IsReady()
-		repositoryReady := h.repository.IsHealthy(ctx)
-
-		if !queueReady || !repositoryReady {
-			h.l.Error().Ctx(ctx).Msgf("liveness check failed - queue ready: %t, repository ready: %t", queueReady, repositoryReady)
-			w.WriteHeader(http.StatusServiceUnavailable)
-			return
-		}
-
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -112,14 +100,12 @@ func (h *Health) Start(port int) (func() error, error) {
 	})
 
 	mux.HandleFunc("/version", func(w http.ResponseWriter, r *http.Request) {
-
 		w.WriteHeader(http.StatusOK)
 		e := json.NewEncoder(w).Encode(map[string]string{"version": h.version})
 		if e != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-
 	})
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", port),

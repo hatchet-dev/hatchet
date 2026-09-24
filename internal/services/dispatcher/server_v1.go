@@ -411,6 +411,12 @@ func (d *DispatcherServiceImpl) processDurableTaskMessage(
 		registerTask(msg.TriggerRuns.DurableTaskExternalId)
 	case *contracts.DurableTaskRequest_WaitFor:
 		registerTask(msg.WaitFor.DurableTaskExternalId)
+	case *contracts.DurableTaskRequest_WorkerStatus:
+		// a worker that reconnects mid-wait only sends status heartbeats, so this is
+		// the only chance to route pushed completions back to its new session
+		for _, entry := range msg.WorkerStatus.WaitingEntries {
+			registerTask(entry.DurableTaskExternalId)
+		}
 	}
 
 	if err := d.handleDurableTaskRequest(ctx, invocation, req); err != nil {
@@ -699,6 +705,12 @@ func (d *DispatcherServiceImpl) durableTask(
 				registerTask(msg.TriggerRuns.DurableTaskExternalId)
 			case *contracts.DurableTaskRequest_WaitFor:
 				registerTask(msg.WaitFor.DurableTaskExternalId)
+			case *contracts.DurableTaskRequest_WorkerStatus:
+				// a worker that reconnects mid-wait only sends status heartbeats, so this is
+				// the only chance to route pushed completions back to its new session
+				for _, entry := range msg.WorkerStatus.WaitingEntries {
+					registerTask(entry.DurableTaskExternalId)
+				}
 			}
 
 			reqWg.Add(1)
@@ -1500,6 +1512,7 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 	}
 
 	staleExternalIds := make(map[uuid.UUID]struct{})
+	var taskInsertedAtRange v1.TaskInsertedAtRange
 
 	if len(uniqueExternalIds) > 0 {
 		externalIds := make([]uuid.UUID, 0, len(uniqueExternalIds))
@@ -1519,6 +1532,7 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 				key := v1.IdInsertedAt{ID: t.ID, InsertedAtUnixMicros: t.InsertedAt.Time.UnixMicro()}
 				idInsertedAts = append(idInsertedAts, key)
 				taskIdToExternalId[key] = t.ExternalID
+				taskInsertedAtRange.Extend(t.InsertedAt)
 			}
 
 			idInsertedAtToInvocationCount, err := d.repo.DurableEvents().GetDurableTaskInvocationCounts(ctx, invocation.tenantId, idInsertedAts)
@@ -1537,6 +1551,14 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 				if workerInvocationCount < *currentCount {
 					staleExternalIds[extId] = struct{}{}
 
+					// the stream loop registered this task for the session when the status
+					// arrived, before the invocation count was known; a stale session must not
+					// keep routing completions
+					d.durableInvocations.CompareAndDelete(durableInvocationsKey{
+						tenantId: invocation.tenantId,
+						taskId:   extId,
+					}, invocation)
+
 					err = invocation.send(&contracts.DurableTaskResponse{
 						Message: &contracts.DurableTaskResponse_ServerEvict{
 							ServerEvict: &contracts.DurableTaskServerEvictNotice{
@@ -1554,7 +1576,7 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 		}
 	}
 
-	callbacks, err := d.repo.DurableEvents().GetSatisfiedDurableEvents(ctx, invocation.tenantId, waiting)
+	callbacks, err := d.repo.DurableEvents().GetSatisfiedDurableEvents(ctx, invocation.tenantId, waiting, taskInsertedAtRange)
 	if err != nil {
 		return fmt.Errorf("failed to get satisfied callbacks: %w", err)
 	}

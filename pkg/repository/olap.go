@@ -495,6 +495,12 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		}
 	}
 
+	if err = runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
+		return reattachIndicesToParents(ctx, r.queries, tx, true)
+	}); err != nil {
+		return err
+	}
+
 	params := sqlcv1.ListOLAPPartitionsBeforeDateParams{
 		Shouldpartitioneventstables: r.shouldPartitionEventsTables,
 		Shouldpartitionoteltables:   r.shouldPartitionOtelTables,
@@ -1401,9 +1407,6 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 				outputPayload, exists = externalIdToPayload[*dag.OutputEventExternalID]
 
 				if !exists {
-					if opts.IncludePayloads && dag.ReadableStatus == sqlcv1.V1ReadableStatusOlapCOMPLETED {
-						r.l.Error().Ctx(ctx).Msgf("ListWorkflowRuns-1: dag with external_id %s and inserted_at %s has empty payload, falling back to output", dag.ExternalID, dag.InsertedAt.Time)
-					}
 					outputPayload = dag.Output
 				}
 			} else {
@@ -1412,9 +1415,6 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 
 			inputPayload, exists := externalIdToPayload[dag.ExternalID]
 			if !exists {
-				if opts.IncludePayloads && dag.ExternalID != uuid.Nil {
-					r.l.Error().Ctx(ctx).Msgf("ListWorkflowRuns-2: dag with external_id %s and inserted_at %s has empty payload, falling back to input", dag.ExternalID, dag.InsertedAt.Time)
-				}
 				inputPayload = dag.Input
 			}
 
@@ -1473,9 +1473,6 @@ func (r *OLAPRepositoryImpl) taskToWorkflowRunData(ctx context.Context, task *sq
 	if task.OutputEventExternalID != nil {
 		outputPayload, exists = payloads[*task.OutputEventExternalID]
 		if !exists {
-			if includePayloads && task.Status == sqlcv1.V1ReadableStatusOlapCOMPLETED {
-				r.l.Error().Ctx(ctx).Msgf("ListWorkflowRuns: task with external_id %s has empty output payload", task.ExternalID)
-			}
 			outputPayload = task.Output
 		}
 	} else {
@@ -1638,7 +1635,6 @@ func (r *OLAPRepositoryImpl) ListTaskRunEventsByWorkflowRunId(ctx context.Contex
 	for _, row := range rows {
 		payload, exists := payloads[row.EventExternalID]
 		if !exists {
-			r.l.Error().Ctx(ctx).Msgf("ListTaskRunEventsByWorkflowRunId: event with external_id %s and task_inserted_at %s has empty payload, falling back to payload", row.EventExternalID, row.TaskInsertedAt.Time)
 			payload = row.Output
 		}
 
@@ -2332,7 +2328,6 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 		// fall back to input if payload is empty
 		// for backwards compatibility
 		if len(payload) == 0 {
-			r.l.Error().Ctx(ctx).Msgf("writeTaskBatch: task %s with ID %d and inserted_at %s has empty payload, falling back to input", task.ExternalID.String(), task.ID, task.InsertedAt.Time)
 			payload = task.Input
 		}
 
@@ -2570,10 +2565,15 @@ func (r *OLAPRepositoryImpl) CreateDAGs(ctx context.Context, tenantId uuid.UUID,
 }
 
 type OrchestratorDAGStatusUpdateOpt struct {
-	DagInsertedAt  pgtype.Timestamptz
-	ReadableStatus sqlcv1.V1ReadableStatusOlap
-	DagId          int64
-	RetryCount     int32
+	DagInsertedAt      pgtype.Timestamptz
+	ReadableStatus     sqlcv1.V1ReadableStatusOlap
+	ExternalId         uuid.UUID
+	DisplayName        string
+	WorkflowId         uuid.UUID
+	WorkflowVersionId  uuid.UUID
+	AdditionalMetadata []byte
+	DagId              int64
+	RetryCount         int32
 }
 
 // Picks one update per DAG like prepareStatusUpdateBatch does for tasks: highest retry count wins, then
@@ -2621,6 +2621,11 @@ func (r *OLAPRepositoryImpl) applyOrchestratorEventsToDAGs(ctx context.Context, 
 		params.Daginsertedats = append(params.Daginsertedats, update.DagInsertedAt)
 		params.Statuses = append(params.Statuses, update.ReadableStatus)
 		params.Retrycounts = append(params.Retrycounts, update.RetryCount)
+		params.Externalids = append(params.Externalids, update.ExternalId)
+		params.Displaynames = append(params.Displaynames, update.DisplayName)
+		params.Workflowids = append(params.Workflowids, update.WorkflowId)
+		params.Workflowversionids = append(params.Workflowversionids, update.WorkflowVersionId)
+		params.Additionalmetadatas = append(params.Additionalmetadatas, update.AdditionalMetadata)
 	}
 
 	rows, err := r.queries.UpdateDAGStatusesFromOrchestratorEvents(ctx, tx, params)
@@ -3515,6 +3520,36 @@ func (r *OLAPRepositoryImpl) AnalyzeOLAPTables(ctx context.Context) error {
 
 	if err != nil {
 		return fmt.Errorf("error analyzing v1_lookup_table_olap: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1EventsOLAP(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_events_olap: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1EventLookupTableOLAP(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_event_lookup_table_olap: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1EventToRunOLAP(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_event_to_run_olap: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1OtelTraceOLAP(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_otel_trace_olap: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1OtelTraceLookupOLAP(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_otel_trace_lookup_olap: %v", err)
 	}
 
 	if err := commit(ctx); err != nil {
