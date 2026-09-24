@@ -53,7 +53,6 @@ BEGIN
     WHERE
         inhparent = targetTableName::regclass
         AND substring(inhrelid::regclass::text, format('%s_(\d{8})', targetTableName)) ~ '^\d{8}'
-        -- only drop a monthly partition once every row in it is older than the target date
         AND (substring(inhrelid::regclass::text, format('%s_(\d{8})', targetTableName))::date + INTERVAL '1 month') <= targetDate
     ;
 END;

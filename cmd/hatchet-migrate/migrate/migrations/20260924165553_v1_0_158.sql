@@ -1,12 +1,5 @@
 -- +goose NO TRANSACTION
 -- +goose Up
--- Prepares v1_lookup_table, v1_dag_to_task and v1_dag_data to be attached as partitions of new
--- partitioned tables in the next migration. Everything here is slow on large tables but does not
--- block writes, and every step is safe to re-run if the migration fails partway through.
-
--- ----------------------------------------------------------------------------------------------------
--- v1_lookup_table
--- ----------------------------------------------------------------------------------------------------
 -- +goose StatementBegin
 CREATE OR REPLACE FUNCTION get_v1_monthly_partitions_before_date(
     targetTableName text,
@@ -23,7 +16,6 @@ BEGIN
     WHERE
         inhparent = targetTableName::regclass
         AND substring(inhrelid::regclass::text, format('%s_(\d{8})', targetTableName)) ~ '^\d{8}'
-        -- only drop a monthly partition once every row in it is older than the target date
         AND (substring(inhrelid::regclass::text, format('%s_(\d{8})', targetTableName))::date + INTERVAL '1 month') <= targetDate
     ;
 END;
@@ -103,9 +95,6 @@ END $$;
 ALTER TABLE v1_lookup_table VALIDATE CONSTRAINT v1_lookup_table_attach_bound;
 -- +goose StatementEnd
 
--- ----------------------------------------------------------------------------------------------------
--- v1_dag_to_task
--- ----------------------------------------------------------------------------------------------------
 -- +goose StatementBegin
 CREATE TABLE IF NOT EXISTS v1_dag_to_task_partitioned (
     dag_id BIGINT NOT NULL,
@@ -116,12 +105,6 @@ CREATE TABLE IF NOT EXISTS v1_dag_to_task_partitioned (
 ) PARTITION BY RANGE (dag_inserted_at);
 -- +goose StatementEnd
 
--- This migration only prepares the existing v1_dag_to_task to be attached as a partition of the new table
--- in the next migration. Its primary key already includes dag_inserted_at, so it needs no new index.
--- The check constraint proves the partition bound so ATTACH PARTITION does not need to scan the table.
--- It is validated separately because VALIDATE CONSTRAINT only takes a SHARE UPDATE EXCLUSIVE lock.
--- IMPORTANT: from this point until the next migration attaches the table, inserts with dag_inserted_at
--- on or after tomorrow (UTC) are rejected, so these migrations must not run in the final minutes of a day.
 -- +goose StatementBegin
 DO $$
 DECLARE
@@ -137,9 +120,6 @@ END $$;
 ALTER TABLE v1_dag_to_task VALIDATE CONSTRAINT v1_dag_to_task_attach_bound;
 -- +goose StatementEnd
 
--- ----------------------------------------------------------------------------------------------------
--- v1_dag_data
--- ----------------------------------------------------------------------------------------------------
 -- +goose StatementBegin
 CREATE TABLE IF NOT EXISTS v1_dag_data_partitioned (
     dag_id BIGINT NOT NULL,
@@ -150,12 +130,6 @@ CREATE TABLE IF NOT EXISTS v1_dag_data_partitioned (
 ) PARTITION BY RANGE (dag_inserted_at);
 -- +goose StatementEnd
 
--- This migration only prepares the existing v1_dag_data to be attached as a partition of the new table
--- in the next migration. Its primary key already includes dag_inserted_at, so it needs no new index.
--- The check constraint proves the partition bound so ATTACH PARTITION does not need to scan the table.
--- It is validated separately because VALIDATE CONSTRAINT only takes a SHARE UPDATE EXCLUSIVE lock.
--- IMPORTANT: from this point until the next migration attaches the table, inserts with dag_inserted_at
--- on or after tomorrow (UTC) are rejected, so these migrations must not run in the final minutes of a day.
 -- +goose StatementBegin
 DO $$
 DECLARE
@@ -172,25 +146,16 @@ ALTER TABLE v1_dag_data VALIDATE CONSTRAINT v1_dag_data_attach_bound;
 -- +goose StatementEnd
 
 -- +goose Down
--- ----------------------------------------------------------------------------------------------------
--- v1_dag_data
--- ----------------------------------------------------------------------------------------------------
 -- +goose StatementBegin
 ALTER TABLE v1_dag_data DROP CONSTRAINT IF EXISTS v1_dag_data_attach_bound;
 DROP TABLE IF EXISTS v1_dag_data_partitioned;
 -- +goose StatementEnd
 
--- ----------------------------------------------------------------------------------------------------
--- v1_dag_to_task
--- ----------------------------------------------------------------------------------------------------
 -- +goose StatementBegin
 ALTER TABLE v1_dag_to_task DROP CONSTRAINT IF EXISTS v1_dag_to_task_attach_bound;
 DROP TABLE IF EXISTS v1_dag_to_task_partitioned;
 -- +goose StatementEnd
 
--- ----------------------------------------------------------------------------------------------------
--- v1_lookup_table
--- ----------------------------------------------------------------------------------------------------
 -- +goose StatementBegin
 ALTER TABLE v1_lookup_table DROP CONSTRAINT IF EXISTS v1_lookup_table_attach_bound;
 ALTER TABLE v1_lookup_table DROP CONSTRAINT IF EXISTS v1_lookup_table_external_id_inserted_at_uq;

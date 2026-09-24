@@ -1,14 +1,5 @@
 -- +goose Up
--- Attaches the existing tables prepared by the previous migration as partitions and swaps the new
--- partitioned tables into place. Runs in a single transaction so a failure leaves everything untouched.
-
--- ----------------------------------------------------------------------------------------------------
--- v1_lookup_table
--- ----------------------------------------------------------------------------------------------------
 -- +goose StatementBegin
--- The existing table is named after the current month so retention drops it once the whole month
--- is past the retention cutoff. Its old single-column primary key stays as the per-partition unique
--- constraint on external_id, using the same name the engine gives new partitions.
 DO $$
 DECLARE
     current_month_start DATE := date_trunc('month', NOW())::DATE;
@@ -34,7 +25,6 @@ BEGIN
     EXECUTE format('ALTER TABLE %I ADD CONSTRAINT %I UNIQUE (external_id)', next_month_partition_name, next_month_partition_name || '_external_id_uq');
 END $$;
 
--- Update v1_task_insert_function to use new composite PK (external_id, inserted_at)
 CREATE OR REPLACE FUNCTION v1_task_insert_function()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -200,7 +190,6 @@ END;
 $$
 LANGUAGE plpgsql;
 
--- Update v1_dag_insert_function to use new composite PK (external_id, inserted_at)
 CREATE OR REPLACE FUNCTION v1_dag_insert_function()
 RETURNS TRIGGER AS
 $$
@@ -225,12 +214,7 @@ $$
 LANGUAGE plpgsql;
 -- +goose StatementEnd
 
--- ----------------------------------------------------------------------------------------------------
--- v1_dag_to_task
--- ----------------------------------------------------------------------------------------------------
 -- +goose StatementBegin
--- The existing table is named after today so retention drops it on the same schedule as a daily
--- partition for today. MINVALUE: it holds all history, so its range is unbounded below.
 DO $$
 DECLARE
     today_start DATE := (NOW() AT TIME ZONE 'UTC')::DATE;
@@ -246,16 +230,10 @@ END $$;
 ALTER TABLE v1_dag_to_task_partitioned RENAME TO v1_dag_to_task;
 ALTER INDEX v1_dag_to_task_partitioned_pkey RENAME TO v1_dag_to_task_pkey;
 
--- Create tomorrow's partition now rather than relying on the partition tick.
 SELECT create_v1_range_partition('v1_dag_to_task', ((NOW() AT TIME ZONE 'UTC')::DATE + 1));
 -- +goose StatementEnd
 
--- ----------------------------------------------------------------------------------------------------
--- v1_dag_data
--- ----------------------------------------------------------------------------------------------------
 -- +goose StatementBegin
--- The existing table is named after today so retention drops it on the same schedule as a daily
--- partition for today. MINVALUE: it holds all history, so its range is unbounded below.
 DO $$
 DECLARE
     today_start DATE := (NOW() AT TIME ZONE 'UTC')::DATE;
@@ -271,14 +249,10 @@ END $$;
 ALTER TABLE v1_dag_data_partitioned RENAME TO v1_dag_data;
 ALTER INDEX v1_dag_data_partitioned_pkey RENAME TO v1_dag_data_pkey;
 
--- Create tomorrow's partition now rather than relying on the partition tick.
 SELECT create_v1_range_partition('v1_dag_data', ((NOW() AT TIME ZONE 'UTC')::DATE + 1));
 -- +goose StatementEnd
 
 -- +goose Down
--- ----------------------------------------------------------------------------------------------------
--- v1_dag_data
--- ----------------------------------------------------------------------------------------------------
 -- +goose StatementBegin
 DO $$
 DECLARE
@@ -315,9 +289,6 @@ BEGIN
 END $$;
 -- +goose StatementEnd
 
--- ----------------------------------------------------------------------------------------------------
--- v1_dag_to_task
--- ----------------------------------------------------------------------------------------------------
 -- +goose StatementBegin
 DO $$
 DECLARE
@@ -354,9 +325,6 @@ BEGIN
 END $$;
 -- +goose StatementEnd
 
--- ----------------------------------------------------------------------------------------------------
--- v1_lookup_table
--- ----------------------------------------------------------------------------------------------------
 -- +goose StatementBegin
 DO $$
 DECLARE
