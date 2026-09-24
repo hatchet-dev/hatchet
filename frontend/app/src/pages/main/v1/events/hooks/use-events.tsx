@@ -17,6 +17,7 @@ import { useRetentionGate } from '@/hooks/use-retention-gate';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import { useZodColumnFilters } from '@/hooks/use-zod-column-filters';
 import api, { queries, V1TaskStatus } from '@/lib/api';
+import { withPolling } from '@/lib/api/polling';
 import { useSearchParams } from '@/lib/router-helpers';
 import {
   defaultTimeWindowForRetention,
@@ -29,7 +30,7 @@ import {
 import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 import { z } from 'zod';
 
 const eventStatusFilters: FilterOption[] = [
@@ -108,13 +109,10 @@ export const useEvents = ({ key }: UseEventsProps) => {
   const timeWindow = timeState.tw;
   const isCustomTimeRange = !!timeState.since;
 
-  // Stabilize `since` so Date.now() is not called on every render
-  const [since, setSince] = useState(
+  const since = useMemo(
     () => timeState.since ?? getSinceFromTimeWindow(timeState.tw),
+    [timeState.since, timeState.tw],
   );
-  useEffect(() => {
-    setSince(timeState.since ?? getSinceFromTimeWindow(timeState.tw));
-  }, [timeState.tw, timeState.since, timeState.until]);
 
   const until = timeState.until;
 
@@ -278,26 +276,29 @@ export const useEvents = ({ key }: UseEventsProps) => {
 
   const { isSelfHosted } = useControlPlane();
 
-  const { data, isLoading, refetch, error, isRefetching } = useQuery({
-    ...queries.v1Events.list(
-      tenantId,
-      {
-        offset,
-        limit,
-        keys: selectedKeys,
-        since,
-        until,
-        eventIds: selectedEventIds,
-        workflowRunStatuses: selectedStatuses,
-        additionalMetadata: selectedMetadata,
-        workflowIds: selectedWorkflowIds,
-        scopes: selectedScopes,
-      },
-      isSelfHosted,
-    ),
-    refetchInterval: selectedEventIds?.length ? false : refetchInterval,
-    placeholderData: (prev) => prev,
-  });
+  const { data, isLoading, refetch, error, isRefetching, isPlaceholderData } =
+    useQuery({
+      ...withPolling(
+        queries.v1Events.list(
+          tenantId,
+          {
+            offset,
+            limit,
+            keys: selectedKeys,
+            since,
+            until,
+            eventIds: selectedEventIds,
+            workflowRunStatuses: selectedStatuses,
+            additionalMetadata: selectedMetadata,
+            workflowIds: selectedWorkflowIds,
+            scopes: selectedScopes,
+          },
+          isSelfHosted,
+        ),
+        selectedEventIds?.length ? false : refetchInterval,
+      ),
+      placeholderData: (prev) => prev,
+    });
 
   const fetchTimedOut = data === 'timeout';
   const events = (data !== 'timeout' ? data?.rows : undefined) ?? [];
@@ -322,11 +323,7 @@ export const useEvents = ({ key }: UseEventsProps) => {
     );
   }, [eventKeys]);
 
-  const {
-    data: workflowKeys,
-    isLoading: workflowKeysIsLoading,
-    error: workflowKeysError,
-  } = useQuery({
+  const { data: workflowKeys, error: workflowKeysError } = useQuery({
     ...queries.workflows.list(tenantId, { limit: 200 }),
   });
 
@@ -343,7 +340,7 @@ export const useEvents = ({ key }: UseEventsProps) => {
     events,
     numEvents,
     fetchTimedOut,
-    isLoading: isLoading || workflowKeysIsLoading,
+    isLoading,
     refetch,
     error: error || eventKeysError || workflowKeysError,
     pagination,
@@ -361,6 +358,7 @@ export const useEvents = ({ key }: UseEventsProps) => {
     workflowKeyFilters,
     workflowRunStatusFilters: eventStatusFilters,
     isRefetching,
+    isPlaceholderData,
     resetFilters,
     // time range
     since,

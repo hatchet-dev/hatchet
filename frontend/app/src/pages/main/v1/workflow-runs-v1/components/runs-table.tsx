@@ -28,6 +28,7 @@ import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { queries, V1TaskStatus } from '@/lib/api';
+import { withPolling } from '@/lib/api/polling';
 import { docsPages } from '@/lib/generated/docs';
 import { formatRetentionPeriod } from '@/lib/utils/retention';
 import { useQuery } from '@tanstack/react-query';
@@ -52,12 +53,14 @@ const GetWorkflowChart = () => {
   );
 
   const workflowRunEventsMetricsQuery = useQuery({
-    ...queries.v1TaskRuns.pointMetrics(tenantId, {
-      createdAfter: apiFilters.since,
-      finishedBefore: apiFilters.until,
-    }),
+    ...withPolling(
+      queries.v1TaskRuns.pointMetrics(tenantId, {
+        createdAfter: apiFilters.since,
+        finishedBefore: apiFilters.until,
+      }),
+      refetchInterval,
+    ),
     placeholderData: (prev) => prev,
-    refetchInterval,
   });
 
   if (workflowRunEventsMetricsQuery.isLoading) {
@@ -101,7 +104,6 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
     isStatusCountsLoading,
     isQueueMetricsLoading,
     isRefetching,
-    runStatusCounts,
     queueMetrics,
     actionModalParams,
     selectedActionType,
@@ -206,8 +208,6 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
     return () => clearInterval(interval);
   }, [filters, filters.isCustomTimeRange, filters.updateCurrentTimeWindow]);
 
-  const isRunningFirstLoad = isRunsLoading || isStatusCountsLoading;
-
   const allStatusCount = Object.values(V1TaskStatus).length;
   const hasActiveFilters =
     (filters.apiFilters.statuses?.length ?? allStatusCount) < allStatusCount ||
@@ -224,10 +224,10 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
     ...(!hideCounts
       ? [
           <div key="metrics" className="mr-auto flex justify-start">
-            {runStatusCounts.length > 0 ? (
-              <V1WorkflowRunsMetricsView />
-            ) : (
+            {isStatusCountsLoading ? (
               <Skeleton className="h-8 w-[40vw] max-w-[800px]" />
+            ) : (
+              <V1WorkflowRunsMetricsView />
             )}
           </div>,
         ]
@@ -314,7 +314,7 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
               />
             )
           }
-          isLoading={isRunningFirstLoad}
+          isLoading={isRunsLoading}
           columns={tableColumns}
           columnVisibility={columnVisibility}
           setColumnVisibility={setColumnVisibility}

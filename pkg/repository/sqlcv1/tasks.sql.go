@@ -2703,6 +2703,59 @@ func (q *Queries) ListTasksToTimeout(ctx context.Context, db DBTX, arg ListTasks
 	return items, nil
 }
 
+const listUnfinishedDurableOrchestratorChildren = `-- name: ListUnfinishedDurableOrchestratorChildren :many
+SELECT DISTINCT
+    child.id,
+    child.inserted_at,
+    child.retry_count
+FROM v1_lookup_table orch_lookup
+JOIN v1_task orch ON (orch.id, orch.inserted_at, orch.is_dag_orchestrator) = (orch_lookup.task_id, orch_lookup.inserted_at, TRUE)
+JOIN v1_durable_event_log_entry e ON (e.durable_task_id, e.durable_task_inserted_at) = (orch.id, orch.inserted_at)
+JOIN v1_lookup_table child_lookup ON child_lookup.external_id = e.child_task_external_id
+JOIN v1_task child ON (child.id, child.inserted_at) = (child_lookup.task_id, child_lookup.inserted_at)
+WHERE
+    orch_lookup.tenant_id = $1::uuid
+    AND orch_lookup.external_id = ANY($2::uuid[])
+    AND e.kind = 'RUN'
+    AND NOT EXISTS (
+        SELECT 1
+        FROM v1_task_event ev
+        WHERE (ev.task_id, ev.task_inserted_at, ev.retry_count) = (child.id, child.inserted_at, child.retry_count)
+          AND ev.event_type IN ('COMPLETED', 'FAILED', 'CANCELLED')
+    )
+`
+
+type ListUnfinishedDurableOrchestratorChildrenParams struct {
+	Tenantid                uuid.UUID   `json:"tenantid"`
+	Orchestratorexternalids []uuid.UUID `json:"orchestratorexternalids"`
+}
+
+type ListUnfinishedDurableOrchestratorChildrenRow struct {
+	ID         int64              `json:"id"`
+	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
+	RetryCount int32              `json:"retry_count"`
+}
+
+func (q *Queries) ListUnfinishedDurableOrchestratorChildren(ctx context.Context, db DBTX, arg ListUnfinishedDurableOrchestratorChildrenParams) ([]*ListUnfinishedDurableOrchestratorChildrenRow, error) {
+	rows, err := db.Query(ctx, listUnfinishedDurableOrchestratorChildren, arg.Tenantid, arg.Orchestratorexternalids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListUnfinishedDurableOrchestratorChildrenRow
+	for rows.Next() {
+		var i ListUnfinishedDurableOrchestratorChildrenRow
+		if err := rows.Scan(&i.ID, &i.InsertedAt, &i.RetryCount); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockDAGsForReplay = `-- name: LockDAGsForReplay :many
 WITH input AS (
     SELECT
@@ -2785,6 +2838,9 @@ WITH input AS (
     WHERE
         e.tenant_id = $4::uuid
         AND e.event_type = 'SIGNAL_CREATED'
+        -- filtering by key here keeps it in the index probe; a durable parent can have tens of
+        -- thousands of signal events, and matching keys afterwards rescanned the input per event
+        AND e.event_key = ANY($3::TEXT[])
 )
 SELECT
 	e.id,
@@ -2795,8 +2851,6 @@ SELECT
     e.child_external_id
 FROM
 	events_to_lock e
-WHERE
-	e.event_key = ANY(SELECT event_key FROM input)
 `
 
 type LockSignalCreatedEventsParams struct {
