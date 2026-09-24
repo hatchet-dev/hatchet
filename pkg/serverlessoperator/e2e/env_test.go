@@ -444,6 +444,17 @@ func (e *testEnv) registeredActions(endpointId uuid.UUID) []string {
 	return actions
 }
 
+func (e *testEnv) streamActions(endpointId uuid.UUID) []string {
+	e.t.Helper()
+
+	var actions []string
+
+	err := e.pool.QueryRow(e.ctx, `SELECT stream_actions FROM v1_serverless_endpoint WHERE id = $1`, endpointId).Scan(&actions)
+	require.NoError(e.t, err)
+
+	return actions
+}
+
 // waitRegistered waits until the endpoint's registered_actions carry every given action,
 // which the owner writes after PutWorkflow succeeded.
 func (e *testEnv) waitRegistered(endpointId uuid.UUID, actions ...string) {

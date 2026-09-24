@@ -301,12 +301,12 @@ func TestRoutingCacheRefreshAndUnion(t *testing.T) {
 	assert.Empty(t, removed)
 
 	// SetHealthcheck replaces the endpoint's actions in the union immediately.
-	changed := cache.SetHealthcheck(a.ID, []string{prefixed(a.Namespace, "svc:new")})
+	changed := cache.SetHealthcheck(a.ID, []string{prefixed(a.Namespace, "svc:new")}, nil)
 	assert.True(t, changed)
 	union, rev = cache.ActionUnion()
 	assert.Equal(t, []string{prefixed(a.Namespace, "svc:new")}, union)
 	assert.Equal(t, uint64(3), rev)
-	assert.False(t, cache.SetHealthcheck(a.ID, []string{prefixed(a.Namespace, "svc:new")}), "same actions, no change")
+	assert.False(t, cache.SetHealthcheck(a.ID, []string{prefixed(a.Namespace, "svc:new")}, nil), "same actions, no change")
 	assert.Equal(t, uint64(3), cache.Revision(), "an unchanged union keeps its revision")
 
 	// Deltas coalesce across revisions: svc:a2 entered at 2 and left at 3, so from 1 the net
@@ -364,11 +364,11 @@ func TestRoutingCacheUnionIsReferenceCounted(t *testing.T) {
 	union, _ := cache.ActionUnion()
 	assert.Equal(t, []string{prefixed(a.Namespace, "svc:a"), shared}, union)
 
-	assert.False(t, cache.SetHealthcheck(b.ID, nil), "the action is still advertised by a")
+	assert.False(t, cache.SetHealthcheck(b.ID, nil, nil), "the action is still advertised by a")
 	union, _ = cache.ActionUnion()
 	assert.Contains(t, union, shared)
 
-	assert.True(t, cache.SetHealthcheck(a.ID, []string{prefixed(a.Namespace, "svc:a")}), "the last advertiser dropped it")
+	assert.True(t, cache.SetHealthcheck(a.ID, []string{prefixed(a.Namespace, "svc:a")}, nil), "the last advertiser dropped it")
 	union, _ = cache.ActionUnion()
 	assert.Equal(t, []string{prefixed(a.Namespace, "svc:a")}, union)
 

@@ -331,6 +331,8 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 			}, nil
 		}
 
+		w.config.Logger.Err(err).Str("webhook", webhookName).Str("tenant", tenantId.String()).Msg("failed to ingest event on webhook receive")
+
 		return nil, fmt.Errorf("failed to ingest event")
 	}
 

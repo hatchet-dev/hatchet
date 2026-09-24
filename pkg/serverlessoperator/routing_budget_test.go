@@ -269,8 +269,8 @@ func TestHealthcheckChangeCostIsLocal(t *testing.T) {
 
 	elapsed, allocated := measure(func() {
 		for i := 0; i < 100; i++ {
-			c.SetHealthcheck(ep.ID, next)
-			c.SetHealthcheck(ep.ID, ep.RegisteredActions)
+			c.SetHealthcheck(ep.ID, next, nil)
+			c.SetHealthcheck(ep.ID, ep.RegisteredActions, nil)
 		}
 	})
 
@@ -314,9 +314,9 @@ func TestChangedUnionSyncIsIncremental(t *testing.T) {
 
 	elapsed, allocated := measure(func() {
 		for i := 0; i < 50; i++ {
-			c.SetHealthcheck(ep.ID, next)
+			c.SetHealthcheck(ep.ID, next, nil)
 			require.NoError(t, reg.syncActions(context.Background(), c))
-			c.SetHealthcheck(ep.ID, ep.RegisteredActions)
+			c.SetHealthcheck(ep.ID, ep.RegisteredActions, nil)
 			require.NoError(t, reg.syncActions(context.Background(), c))
 		}
 	})
@@ -357,13 +357,13 @@ func TestSyncFallsBackToDiffAndCompacts(t *testing.T) {
 
 	// Sync after every change: the log covers each step.
 	for i := 0; i < 3; i++ {
-		c.SetHealthcheck(ep.ID, []string{ep.ID.String() + fmt.Sprintf("_service:v%d", i)})
+		c.SetHealthcheck(ep.ID, []string{ep.ID.String() + fmt.Sprintf("_service:v%d", i)}, nil)
 		sync()
 	}
 
 	// More changes than the log keeps, then one sync: the fallback diff.
 	for i := 0; i < unionLogSize+8; i++ {
-		c.SetHealthcheck(ep.ID, []string{ep.ID.String() + fmt.Sprintf("_service:w%d", i)})
+		c.SetHealthcheck(ep.ID, []string{ep.ID.String() + fmt.Sprintf("_service:w%d", i)}, nil)
 	}
 
 	sync()
@@ -375,7 +375,7 @@ func TestSyncFallsBackToDiffAndCompacts(t *testing.T) {
 
 	// Enough small deltas to cross the compaction floor fold into a new base.
 	for i := 0; i < appliedCompactionFloor+16; i++ {
-		c.SetHealthcheck(ep.ID, []string{ep.ID.String() + fmt.Sprintf("_service:x%d", i)})
+		c.SetHealthcheck(ep.ID, []string{ep.ID.String() + fmt.Sprintf("_service:x%d", i)}, nil)
 		sync()
 	}
 
@@ -555,7 +555,7 @@ func BenchmarkOneActionChangeSync(b *testing.B) {
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
-				c.SetHealthcheck(ep.ID, variants[i%2])
+				c.SetHealthcheck(ep.ID, variants[i%2], nil)
 
 				if err := reg.syncActions(context.Background(), c); err != nil {
 					b.Fatal(err)

@@ -210,7 +210,7 @@ func TestDurableHandshakeCarriesRequestDeadline(t *testing.T) {
 
 	go func() {
 		defer close(done)
-		reg.deliverDurable(ctx, &inflightTask{}, action, &cachedEndpoint{id: uuid.New(), namespace: uuid.New()}, &endpointConfig{requestTimeoutSeconds: 1, secret: "test-secret"}, time.Now())
+		reg.deliverOverSocket(ctx, &inflightTask{}, action, &cachedEndpoint{id: uuid.New(), namespace: uuid.New()}, &endpointConfig{requestTimeoutSeconds: 1, secret: "test-secret"}, time.Now(), invocation, true)
 	}()
 
 	openCtx := <-blocking.observed

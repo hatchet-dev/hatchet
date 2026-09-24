@@ -40,6 +40,20 @@ message ServerlessHealthcheckResponse {
     repeated string actions = 2;
     ServerlessDurableSupport durable = 3;
     ServerlessRuntime runtime = 4;
+    // Per-task options, keyed by action id without the namespace prefix. A task the list does
+    // not name runs with the defaults: a non-durable task is invoked with one signed POST.
+    repeated ServerlessTaskOptions tasks = 5;
+}
+
+// ServerlessTaskOptions are the options of one task the endpoint serves.
+message ServerlessTaskOptions {
+    // The action id as it appears in the workflow definition, without the namespace prefix.
+    string action = 1;
+    // streams asks the operator to invoke the task over the websocket instead of the signed
+    // POST, so the task can open engine streams (ServerlessStreamOpen) while it runs. The
+    // first frame carries invocation_count 1 and no durable channel is opened; the endpoint
+    // runs the task and finishes with a done frame. Durable tasks always get a socket.
+    bool streams = 2;
 }
 
 // ServerlessDurableSupport says whether the endpoint accepts the durable websocket protocol.
@@ -77,15 +91,17 @@ message ServerlessTriggerError {
     optional bool retry = 2;
 }
 
-// ServerlessFirstFrame is the first frame the operator sends on a durable websocket, right
-// after the upgrade.
+// ServerlessFirstFrame is the first frame the operator sends on an invocation websocket,
+// right after the upgrade. A socket is opened for every durable task and for every task whose
+// ServerlessTaskOptions.streams is set.
 message ServerlessFirstFrame {
     // The assigned action, namespaced as registered. Its task run external id is the durable
     // task id every request on this socket is stamped with.
     .AssignedAction action = 1;
     string namespace = 2;
-    // The invocation this socket serves. The endpoint re-executes the task from the top on
-    // every invocation and the engine replays memo, wait_for and trigger_runs from its log.
+    // The invocation this socket serves. The endpoint re-executes a durable task from the top
+    // on every invocation and the engine replays memo, wait_for and trigger_runs from its
+    // log. A non-durable task is always invocation 1.
     int32 invocation_count = 3;
     // How long the endpoint may wait inline for a wait_for entry to complete before it
     // evicts the invocation.
@@ -115,8 +131,48 @@ message ServerlessDoneFrame {
     bool retry = 4;
 }
 
-// ServerlessDurableFrame is one text frame on the durable websocket. The operator sends
-// first, response and error; the endpoint sends request and done.
+// ServerlessStreamOpen asks the operator to open one engine stream on the task's behalf. The
+// endpoint sends it; the operator answers with stream_message frames as the engine sends
+// messages and with a stream_close frame when the stream ends. The engine call is made with
+// the operator's own credentials, so no token reaches the endpoint.
+message ServerlessStreamOpen {
+    // An endpoint-chosen id, unique among the streams open on this socket. Every later frame
+    // of the stream carries it.
+    string id = 1;
+    // The fully qualified procedure name. The operator allows exactly
+    // /Dispatcher/SubscribeToWorkflowRuns, /Dispatcher/SubscribeToWorkflowEvents and
+    // /v1.V1Dispatcher/ListenForDurableEvent; anything else is closed with code 12
+    // (unimplemented) before any engine call is made.
+    string procedure = 2;
+    // The first message of the stream as a protojson document: the request of a server
+    // stream, the first subscription of a bidi stream. A request that names a run the task
+    // may not observe is closed with code 7 (permission denied).
+    string request = 3;
+}
+
+// ServerlessStreamMessage is one message on an open stream, in either direction: from the
+// endpoint, a further request on a bidi stream; from the operator, a message the engine sent.
+message ServerlessStreamMessage {
+    string id = 1;
+    // The message as a protojson document, of the procedure's request or response type.
+    string message = 2;
+}
+
+// ServerlessStreamClose ends one stream. From the endpoint it cancels the engine stream and
+// carries no code. From the operator it reports why the stream ended: code 0 (ok) when the
+// engine finished it, otherwise a connect code (connectrpc.com/connect codes: 2 unknown, 3
+// invalid argument, 7 permission denied, 8 resource exhausted, 12 unimplemented, 14
+// unavailable) with a message for the endpoint's logs.
+message ServerlessStreamClose {
+    string id = 1;
+    int32 code = 2;
+    string message = 3;
+}
+
+// ServerlessDurableFrame is one text frame on the invocation websocket. The operator sends
+// first, response, error, stream_message and stream_close; the endpoint sends request, done,
+// stream_open, stream_message and stream_close. request and response only exist on a durable
+// task's socket; the stream frames exist on every socket.
 message ServerlessDurableFrame {
     oneof frame {
         ServerlessFirstFrame first = 1;
@@ -124,6 +180,9 @@ message ServerlessDurableFrame {
         DurableTaskResponse response = 3;
         ServerlessErrorFrame error = 4;
         ServerlessDoneFrame done = 5;
+        ServerlessStreamOpen stream_open = 7;
+        ServerlessStreamMessage stream_message = 8;
+        ServerlessStreamClose stream_close = 9;
     }
     // An endpoint-chosen sequence id on request frames, echoed in the operator's logs only.
     optional int64 id = 6;

@@ -1,10 +1,14 @@
-// Package durable relays one durable task invocation between the engine, reached through an
-// operator.DurableChannel, and a serverless endpoint, reached over an operator-dialed websocket.
-// The socket is the invocation's single request: the core sends the assigned action as the
-// first frame, forwards the endpoint's DurableTaskRequests to the engine and the engine's
-// DurableTaskResponses back, and reads the outcome from the endpoint's final done frame.
-// What an exit means depends on what the engine has already committed to (an acknowledged
-// eviction, a reported error); outcome.go holds that table.
+// Package durable relays one task invocation between the engine and a serverless endpoint
+// over an operator-dialed websocket. The socket is the invocation's single request: the core
+// sends the assigned action as the first frame and reads the outcome from the endpoint's
+// final done frame. What an exit means depends on what the engine has already committed to
+// (an acknowledged eviction, a reported error); outcome.go holds that table.
+//
+// A durable task's socket also carries its durable channel (operator.DurableChannel): the
+// endpoint's DurableTaskRequests go to the engine and the engine's DurableTaskResponses come
+// back. Every socket, durable or not, can open engine streams on the task's behalf
+// (streams.go): the endpoint asks with stream_open, the operator opens the stream through its
+// own session and relays messages both ways until either side closes it.
 //
 // Every frame is one protojson v1.ServerlessDurableFrame (api-contracts/v1/serverless.proto),
 // encoded and decoded through the contract package.

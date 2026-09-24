@@ -190,14 +190,17 @@ func sortedUnion(lists ...[]string) []string {
 // endpointConfig is the mutable, row-derived part of a cached endpoint. It is replaced as a
 // whole on refresh so readers take one consistent snapshot.
 type endpointConfig struct {
-	secretErr             error
-	name                  string
-	healthcheckUrl        string
-	triggerUrl            string
-	secret                string
-	secretEnc             string
-	statusError           string
-	registeredActions     []string
+	secretErr         error
+	name              string
+	healthcheckUrl    string
+	triggerUrl        string
+	secret            string
+	secretEnc         string
+	statusError       string
+	registeredActions []string
+	// streamActions is the subset of registeredActions whose task is invoked over the
+	// websocket; sorted, so a lookup is a binary search.
+	streamActions         []string
 	updatedAt             time.Time
 	statusChangedAt       time.Time
 	requestTimeoutSeconds int32
@@ -226,6 +229,12 @@ func (cfg *endpointConfig) contribution() []string {
 	}
 
 	return cfg.registeredActions
+}
+
+// streams reports whether the action's task asked for an invocation websocket.
+func (cfg *endpointConfig) streams(actionId string) bool {
+	i := sort.SearchStrings(cfg.streamActions, actionId)
+	return i < len(cfg.streamActions) && cfg.streamActions[i] == actionId
 }
 
 // cachedEndpoint is one endpoint of a served tenant. Identity fields never change; cfg is
@@ -654,6 +663,7 @@ func (c *routingCache) upsertLocked(b *batch, row *sqlcv1.V1ServerlessEndpoint) 
 		healthKnown:           row.Healthy.Valid,
 		healthy:               row.Healthy.Valid && row.Healthy.Bool,
 		registeredActions:     row.RegisteredActions,
+		streamActions:         sortedUnion(row.StreamActions),
 	}
 
 	if row.StatusError.Valid {
@@ -672,7 +682,7 @@ func (c *routingCache) upsertLocked(b *batch, row *sqlcv1.V1ServerlessEndpoint) 
 
 	// A row already applied at this version changes nothing; the refresh window and the
 	// full reload both return rows the cache has seen.
-	if prev != nil && prev.updatedAt.Equal(cfg.updatedAt) && prev.statusChangedAt.Equal(cfg.statusChangedAt) && stringsEqual(prev.registeredActions, cfg.registeredActions) {
+	if prev != nil && prev.updatedAt.Equal(cfg.updatedAt) && prev.statusChangedAt.Equal(cfg.statusChangedAt) && stringsEqual(prev.registeredActions, cfg.registeredActions) && stringsEqual(prev.streamActions, cfg.streamActions) {
 		return
 	}
 
@@ -1031,10 +1041,11 @@ func (c *routingCache) rememberMissed(ns uuid.UUID) {
 	c.missed[ns] = time.Now().Add(missNegativeTTL)
 }
 
-// SetHealthcheck records the action set an owned endpoint's healthcheck produced. It
-// replaces registered_actions in the cache so the union changes here as soon as the owner
-// learns it, without waiting for a refresh. It returns whether the union changed.
-func (c *routingCache) SetHealthcheck(id uuid.UUID, actions []string) bool {
+// SetHealthcheck records the action set an owned endpoint's healthcheck produced, with the
+// actions of it that are invoked over the websocket. It replaces registered_actions and
+// stream_actions in the cache so the union and the delivery path change here as soon as the
+// owner learns them, without waiting for a refresh. It returns whether the union changed.
+func (c *routingCache) SetHealthcheck(id uuid.UUID, actions, streamActions []string) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -1046,6 +1057,7 @@ func (c *routingCache) SetHealthcheck(id uuid.UUID, actions []string) bool {
 
 	cfg := *ep.cfg
 	cfg.registeredActions = append([]string{}, actions...)
+	cfg.streamActions = sortedUnion(streamActions)
 
 	b := newBatch()
 	b.move(c, ep.cfg.contribution(), cfg.contribution())

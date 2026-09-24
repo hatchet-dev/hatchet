@@ -35,6 +35,8 @@ CREATE TABLE v1_serverless_endpoint (
     status_changed_at TIMESTAMPTZ,
     -- namespaced; written by the owner on healthcheck change
     registered_actions TEXT[] NOT NULL DEFAULT '{}',
+    -- the subset of registered_actions whose task asked for an invocation websocket
+    stream_actions TEXT[] NOT NULL DEFAULT '{}',
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT v1_serverless_endpoint_pkey PRIMARY KEY (id),

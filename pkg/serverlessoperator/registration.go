@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
@@ -89,7 +90,12 @@ type registration struct {
 	applied       []unionDelta
 	appliedIds    int
 	advertisedRev uint64
-	mu            sync.Mutex
+
+	// runs multiplexes the tenant's SubscribeToWorkflowRuns stream over every socket that
+	// awaits a run; built on first use, closed with the registration.
+	runs *runMux
+
+	mu sync.Mutex
 	// syncMu serializes syncActions so two callers (maintenance pass and a poller) never
 	// derive and push the same delta twice.
 	syncMu sync.Mutex
@@ -431,7 +437,14 @@ func (reg *registration) deliver(ctx context.Context, task *inflightTask, action
 	}
 
 	if action.DurableTaskInvocationCount != nil {
-		reg.deliverDurable(ctx, task, action, ep, cfg, start)
+		reg.deliverOverSocket(ctx, task, action, ep, cfg, start, *action.DurableTaskInvocationCount, true)
+		return
+	}
+
+	// A task the catalog flagged with streams runs over the socket like a durable one, as
+	// invocation 1 and without a durable channel; every other task keeps the signed POST.
+	if cfg.streams(action.ActionId) {
+		reg.deliverOverSocket(ctx, task, action, ep, cfg, start, 1, false)
 		return
 	}
 
@@ -453,13 +466,12 @@ func (reg *registration) deliver(ctx context.Context, task *inflightTask, action
 	}
 }
 
-// deliverDurable relays a durable invocation over the endpoint websocket: report STARTED,
-// open the invocation's channel through the session and run the relay, which owns the
-// socket and the channel until the endpoint's done frame or a failure. The endpoint's request
-// timeout bounds the whole invocation, the host's handshake included.
-func (reg *registration) deliverDurable(ctx context.Context, task *inflightTask, action *contracts.AssignedAction, ep *cachedEndpoint, cfg *endpointConfig, start time.Time) {
-	invocation := *action.DurableTaskInvocationCount
-
+// deliverOverSocket relays an invocation over the endpoint websocket: report STARTED, open
+// the invocation's durable channel through the session when the task is durable, and run the
+// relay, which owns the socket, the channel and the engine streams the endpoint opens until
+// the endpoint's done frame or a failure. The endpoint's request timeout bounds the whole
+// invocation, the host's handshake included.
+func (reg *registration) deliverOverSocket(ctx context.Context, task *inflightTask, action *contracts.AssignedAction, ep *cachedEndpoint, cfg *endpointConfig, start time.Time, invocation int32, durableTask bool) {
 	dialer, ok := reg.r.sender.(durable.NetDialer)
 
 	if !ok {
@@ -480,7 +492,7 @@ func (reg *registration) deliverDurable(ctx context.Context, task *inflightTask,
 
 	if err != nil {
 		reg.r.m.delivered("failed", time.Since(start))
-		reg.reportFailure(action, fmt.Sprintf("durable task id %q is not a uuid", action.TaskRunExternalId), false)
+		reg.reportFailure(action, fmt.Sprintf("task id %q is not a uuid", action.TaskRunExternalId), false)
 
 		return
 	}
@@ -494,19 +506,23 @@ func (reg *registration) deliverDurable(ctx context.Context, task *inflightTask,
 	rctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	ch, err := reg.session.OpenDurable(rctx, taskId, invocation)
+	var ch operator.DurableChannel
 
-	if err != nil {
-		result := "retryable"
+	if durableTask {
+		ch, err = reg.session.OpenDurable(rctx, taskId, invocation)
 
-		if errors.Is(err, operator.ErrNotSupported) {
-			result = "durable_unsupported"
+		if err != nil {
+			result := "retryable"
+
+			if errors.Is(err, operator.ErrNotSupported) {
+				result = "durable_unsupported"
+			}
+
+			reg.r.m.delivered(result, time.Since(start))
+			reg.reportFailure(action, err.Error(), true)
+
+			return
 		}
-
-		reg.r.m.delivered(result, time.Since(start))
-		reg.reportFailure(action, err.Error(), true)
-
-		return
 	}
 
 	insecure := false
@@ -521,6 +537,7 @@ func (reg *registration) deliverDurable(ctx context.Context, task *inflightTask,
 		Logger:                reg.r.l,
 		Dialer:                dialer,
 		Channel:               ch,
+		Streams:               reg.streamOpener(),
 		Action:                action,
 		Cancelled:             task.byEngine.Load,
 		TriggerURL:            cfg.triggerUrl,
@@ -531,6 +548,7 @@ func (reg *registration) deliverDurable(ctx context.Context, task *inflightTask,
 		MaxFrameBytes:         reg.r.cfg.WSMaxFrameBytes,
 		MaxUpgradeHeaderBytes: reg.r.cfg.WSMaxUpgradeHeaderBytes,
 		MaxQueuedBytes:        reg.r.cfg.WSMaxQueuedBytes,
+		MaxStreams:            reg.r.cfg.WSMaxStreams,
 		PingInterval:          reg.r.cfg.WSPingInterval,
 		InlineWaitBudgetMs:    cfg.inlineWaitBudgetMs,
 		Invocation:            invocation,
@@ -550,9 +568,10 @@ func (reg *registration) deliverDurable(ctx context.Context, task *inflightTask,
 	reg.r.l.Debug().
 		Str("task_run_external_id", action.TaskRunExternalId).
 		Int32("invocation", invocation).
+		Bool("durable", durableTask).
 		Str("result", o.result).
 		Int("close_code", out.CloseCode).
-		Msg("durable invocation relayed")
+		Msg("invocation relayed over the socket")
 
 	if !report {
 		return
@@ -812,6 +831,41 @@ func (reg *registration) drain(timeout time.Duration) {
 	<-done
 }
 
+// streamOpener is what the relay opens engine streams through: SubscribeToWorkflowRuns goes
+// through the registration's multiplexer, so the tenant holds one such stream per process
+// however many sockets await runs; the other kinds are one engine stream per socket.
+func (reg *registration) streamOpener() durable.StreamOpener {
+	return streamOpener{reg: reg}
+}
+
+type streamOpener struct {
+	reg *registration
+}
+
+func (o streamOpener) OpenRunStream(ctx context.Context, kind operator.RunStreamKind, first proto.Message) (operator.RunStream, error) {
+	if kind != operator.RunStreamWorkflowRuns {
+		return o.reg.session.OpenRunStream(ctx, kind, first)
+	}
+
+	return o.reg.runMux().Subscribe(ctx, first)
+}
+
+// runMux returns the registration's multiplexer, built on first use over the session.
+func (reg *registration) runMux() *runMux {
+	reg.mu.Lock()
+	defer reg.mu.Unlock()
+
+	if reg.runs == nil {
+		l := reg.r.l.With().Str("tenant_id", reg.ts.tenantId.String()).Logger()
+
+		reg.runs = newRunMux(&l, func(ctx context.Context) (operator.RunStream, error) {
+			return reg.session.OpenRunStream(ctx, operator.RunStreamWorkflowRuns, nil)
+		})
+	}
+
+	return reg.runs
+}
+
 // close ends the session; later actions are refused. It runs once.
 func (reg *registration) close() {
 	reg.mu.Lock()
@@ -822,7 +876,12 @@ func (reg *registration) close() {
 	}
 
 	reg.closed = true
+	runs := reg.runs
 	reg.mu.Unlock()
+
+	if runs != nil {
+		runs.close()
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), sessionOpTimeout)
 	defer cancel()

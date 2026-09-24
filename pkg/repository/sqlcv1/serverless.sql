@@ -173,12 +173,13 @@ WHERE id = @id::UUID
 RETURNING status_changed_at;
 
 -- name: UpdateServerlessEndpointRegisteredActions :exec
--- Written by the owner when a healthcheck changes the endpoint's workflows. Bumps updated_at so
--- ListServerlessEndpointsUpdatedSince surfaces the new action set to every registration for
--- the tenant.
+-- Written by the owner when a healthcheck changes the endpoint's workflows or task options.
+-- Bumps updated_at so ListServerlessEndpointsUpdatedSince surfaces the new action set to every
+-- registration for the tenant.
 UPDATE v1_serverless_endpoint
 SET
     registered_actions = @registeredActions::TEXT[],
+    stream_actions = @streamActions::TEXT[],
     updated_at = NOW()
 WHERE id = @id::UUID;
 

@@ -178,3 +178,21 @@ func TestParseHealthcheckResponse(t *testing.T) {
 	_, err = parseHealthcheckResponse([]byte(`not json`), ns, catalogLimits{})
 	assert.Error(t, err)
 }
+
+// Task options flag the actions invoked over the websocket: they are namespaced, sorted, part
+// of the hash, and must name actions the catalog serves.
+func TestParseHealthcheckTaskOptions(t *testing.T) {
+	ns := uuid.New()
+
+	plain, err := parseHealthcheckResponse([]byte(`{"actions":["svc:a","svc:b"]}`), ns, catalogLimits{})
+	require.NoError(t, err)
+	assert.Empty(t, plain.streamActions)
+
+	flagged, err := parseHealthcheckResponse([]byte(`{"actions":["svc:a","svc:b"],"tasks":[{"action":"Svc:B","streams":true},{"action":"svc:a","streams":false}]}`), ns, catalogLimits{})
+	require.NoError(t, err)
+	assert.Equal(t, []string{prefixed(ns, "svc:b")}, flagged.streamActions)
+	assert.NotEqual(t, plain.hash, flagged.hash, "the flag is part of the catalog hash")
+
+	_, err = parseHealthcheckResponse([]byte(`{"actions":["svc:a"],"tasks":[{"action":"svc:missing","streams":true}]}`), ns, catalogLimits{})
+	assert.ErrorContains(t, err, "does not serve")
+}

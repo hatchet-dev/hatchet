@@ -37,7 +37,10 @@ type healthcheckResult struct {
 	workflows      []*v1.CreateWorkflowVersionRequest
 	workflowHashes []string
 	actions        []string
-	durable        bool
+	// streamActions is the sorted subset of actions whose task asked for an invocation
+	// websocket (ServerlessTaskOptions.streams).
+	streamActions []string
+	durable       bool
 }
 
 // signedHeaders returns the headers every endpoint request carries: the HMAC-SHA256 hex
@@ -224,14 +227,57 @@ func parseHealthcheckResponse(body []byte, ns uuid.UUID, limits catalogLimits) (
 
 	hasher.Write([]byte(strings.Join(actions, "\n")))
 
+	streamActions, err := streamActionsOf(resp.Tasks, ns, actions)
+
+	if err != nil {
+		return nil, err
+	}
+
+	hasher.Write([]byte{0})
+	hasher.Write([]byte(strings.Join(streamActions, "\n")))
+
 	return &healthcheckResult{
 		workflows:      workflows,
 		workflowHashes: workflowHashes,
 		actions:        actions,
+		streamActions:  streamActions,
 		hash:           hex.EncodeToString(hasher.Sum(nil)),
 		durable:        resp.GetDurable().GetSupported(),
 		runtime:        resp.Runtime,
 	}, nil
+}
+
+// streamActionsOf namespaces the actions the task options flag with streams and checks each
+// one against the catalog's action set: an option for an action the endpoint does not serve
+// is a catalog error, so a misspelt id surfaces on the endpoint instead of being ignored.
+func streamActionsOf(tasks []*v1.ServerlessTaskOptions, ns uuid.UUID, actions []string) ([]string, error) {
+	served := make(map[string]struct{}, len(actions))
+
+	for _, action := range actions {
+		served[action] = struct{}{}
+	}
+
+	flagged := make([]string, 0)
+
+	for _, task := range tasks {
+		if task == nil || !task.GetStreams() {
+			continue
+		}
+
+		prefixed, err := prefixAction(ns, task.GetAction())
+
+		if err != nil {
+			return nil, fmt.Errorf("invalid task option action %q: %w", task.GetAction(), err)
+		}
+
+		if _, ok := served[prefixed]; !ok {
+			return nil, fmt.Errorf("task options name action %q, which the catalog does not serve", task.GetAction())
+		}
+
+		flagged = append(flagged, prefixed)
+	}
+
+	return sortedUnion(flagged), nil
 }
 
 // pollInterval spreads polls of endpoints created together by up to 10 percent either way.

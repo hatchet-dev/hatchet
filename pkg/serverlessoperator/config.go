@@ -74,6 +74,10 @@ type Config struct {
 	// WSMaxQueuedBytes bounds the encoded frames one relay retains for an endpoint that reads
 	// slower than the engine answers; crossing it closes the socket with backpressure.
 	WSMaxQueuedBytes int64
+
+	// WSMaxStreams caps the engine streams one socket may hold open at once through
+	// stream_open frames.
+	WSMaxStreams int
 }
 
 const (
@@ -103,6 +107,7 @@ const (
 	// Relay resource limit defaults.
 	DefaultWSMaxUpgradeHeaderBytes int64 = 64 * 1024
 	DefaultWSMaxQueuedBytes        int64 = 16 * 1024 * 1024
+	DefaultWSMaxStreams                  = 16
 
 	// processSweepInterval and processExpiryCutoff drive the expired process row sweep every
 	// process runs.
@@ -140,6 +145,7 @@ func DefaultConfig() Config {
 		HealthPort:                   DefaultHealthPort,
 		WSMaxUpgradeHeaderBytes:      DefaultWSMaxUpgradeHeaderBytes,
 		WSMaxQueuedBytes:             DefaultWSMaxQueuedBytes,
+		WSMaxStreams:                 DefaultWSMaxStreams,
 	}
 }
 
@@ -242,6 +248,10 @@ func (c Config) withDefaults() Config {
 
 	if c.WSMaxQueuedBytes <= 0 {
 		c.WSMaxQueuedBytes = d.WSMaxQueuedBytes
+	}
+
+	if c.WSMaxStreams <= 0 {
+		c.WSMaxStreams = d.WSMaxStreams
 	}
 
 	return c
