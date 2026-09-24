@@ -792,28 +792,56 @@ func TestShutdownForcesOpenStreamsClosedAfterTimeout(t *testing.T) {
 // TestIdleConnectionSurvivesClientKeepalive holds an idle connection through two client keepalive
 // pings. Every SDK pings every ten seconds, with or without an open stream, and the server must
 // tolerate that cadence.
+// TestIdleConnectionSurvivesClientKeepalive holds an open stream and an idle connection well past
+// the server's header timeout and through several client keepalive pings, on every transport.
+// Every SDK pings every ten seconds, with or without an open stream, and the server must
+// tolerate that cadence; and a connection that has finished its preface or handshake must not
+// keep a read deadline from the header timeout, or every long-lived stream on it dies when it
+// expires.
 func TestIdleConnectionSurvivesClientKeepalive(t *testing.T) {
 	if testing.Short() {
-		t.Skip("waits for keepalive pings")
+		t.Skip("waits past the header timeout")
 	}
 
-	tr := transports()[0]
-	env := startTestServer(t, tr, nil, 0)
-	client := dispatchercontracts.NewDispatcherClient(env.dial(t, tr, nil, false))
+	pki := newTestPKI(t)
 
-	stream, err := client.ListenV2(authCtx(t, validToken), &dispatchercontracts.WorkerListenRequest{WorkerId: "until-cancelled"})
-	require.NoError(t, err)
+	for _, tr := range transports() {
+		t.Run(tr.name, func(t *testing.T) {
+			env := startTestServer(t, tr, pki, 0)
+			client := dispatchercontracts.NewDispatcherClient(env.dial(t, tr, pki, tr.clientCert))
 
-	_, err = stream.Recv()
-	require.NoError(t, err)
+			// no deadline on the stream itself: it has to outlive the header timeout
+			streamCtx, cancelStream := context.WithCancel(metadata.NewOutgoingContext(context.Background(), metadata.Pairs("authorization", "Bearer "+validToken)))
+			defer cancelStream()
 
-	time.Sleep(25 * time.Second)
+			stream, err := client.ListenV2(streamCtx, &dispatchercontracts.WorkerListenRequest{WorkerId: "until-cancelled"})
+			require.NoError(t, err)
 
-	ctx, cancel := context.WithTimeout(metadata.NewOutgoingContext(context.Background(), metadata.Pairs("authorization", "Bearer "+validToken)), 5*time.Second)
-	defer cancel()
+			_, err = stream.Recv()
+			require.NoError(t, err)
 
-	_, err = client.Register(ctx, &dispatchercontracts.WorkerRegisterRequest{WorkerName: "w"})
-	require.NoError(t, err)
+			// the handler sends nothing more until the call is cancelled, so this Recv only
+			// returns if the stream or its connection is torn down
+			streamEnded := make(chan error, 1)
+
+			go func() {
+				_, err := stream.Recv()
+				streamEnded <- err
+			}()
+
+			select {
+			case err := <-streamEnded:
+				t.Fatalf("stream ended while idle: %v", err)
+			case <-time.After(readHeaderTimeout + 5*time.Second):
+			}
+
+			ctx, cancel := context.WithTimeout(metadata.NewOutgoingContext(context.Background(), metadata.Pairs("authorization", "Bearer "+validToken)), 5*time.Second)
+			defer cancel()
+
+			_, err = client.Register(ctx, &dispatchercontracts.WorkerRegisterRequest{WorkerName: "w"})
+			require.NoError(t, err)
+		})
+	}
 }
 
 func newHTTPClient(tr transport, pki *testPKI) *http.Client {
