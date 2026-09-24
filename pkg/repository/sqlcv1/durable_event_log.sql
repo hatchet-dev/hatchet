@@ -212,7 +212,7 @@ WITH inputs AS MATERIALIZED (
 ), satisfied_entries AS MATERIALIZED (
     SELECT
         e.*,
-        t.external_id AS task_external_id
+        t.external_id::UUID AS task_external_id
     FROM tasks t
     JOIN v1_durable_event_log_entry e
         ON e.durable_task_id = t.task_id

@@ -1007,7 +1007,7 @@ WITH inputs AS MATERIALIZED (
 ), satisfied_entries AS MATERIALIZED (
     SELECT
         e.tenant_id, e.external_id, e.result_payload_external_id, e.child_task_external_id, e.child_task_is_failure, e.child_task_error_message, e.inserted_at, e.id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.branch_id, e.idempotency_key, e.is_satisfied, e.satisfied_at, e.satisfied_order, e.user_message, e.wait_data, e.triggered_at,
-        t.external_id AS task_external_id
+        t.external_id::UUID AS task_external_id
     FROM tasks t
     JOIN v1_durable_event_log_entry e
         ON e.durable_task_id = t.task_id
@@ -1060,7 +1060,7 @@ type ListSatisfiedEntriesRow struct {
 	UserMessage             pgtype.Text           `json:"user_message"`
 	WaitData                []byte                `json:"wait_data"`
 	TriggeredAt             pgtype.Timestamptz    `json:"triggered_at"`
-	TaskExternalID          interface{}           `json:"task_external_id"`
+	TaskExternalID          uuid.UUID             `json:"task_external_id"`
 	InvocationCount         int32                 `json:"invocation_count"`
 }
 
