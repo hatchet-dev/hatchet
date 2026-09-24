@@ -68,11 +68,6 @@ CREATE TABLE IF NOT EXISTS v1_lookup_table_partitioned (
 ) PARTITION BY RANGE (inserted_at);
 -- +goose StatementEnd
 
--- This migration only prepares the existing v1_lookup_table to be attached as a partition of the new
--- table in the next migration. Everything here is slow on a large table but does not block writes,
--- and every step is safe to re-run if the migration fails partway through.
-
--- The partition needs a unique constraint matching the parent's primary key, built concurrently.
 -- +goose StatementBegin
 CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS v1_lookup_table_external_id_inserted_at_idx ON v1_lookup_table (external_id, inserted_at);
 -- +goose StatementEnd
@@ -86,10 +81,6 @@ BEGIN
 END $$;
 -- +goose StatementEnd
 
--- The check constraint proves the partition bound so ATTACH PARTITION does not need to scan the table.
--- It is validated separately because VALIDATE CONSTRAINT only takes a SHARE UPDATE EXCLUSIVE lock.
--- IMPORTANT: from this point until the next migration attaches the table, inserts with inserted_at on
--- or after the first of next month are rejected, so these migrations must not run in the final minutes of a month.
 -- +goose StatementBegin
 DO $$
 DECLARE
