@@ -786,7 +786,7 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, tx *OptimisticT
 
 	if len(upsertRateLimitBulkParams.Keys) > 0 {
 		// upsert all rate limits based on the keys, limit values, and durations
-		err = d.upsertDynamicRateLimits(ctx, tx, upsertRateLimitBulkParams)
+		err = d.upsertDynamicRateLimits(ctx, upsertRateLimitBulkParams)
 
 		if err != nil {
 			return nil, fmt.Errorf("could not bulk upsert dynamic rate limits: %w", err)
@@ -836,22 +836,10 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, tx *OptimisticT
 //
 // NOTE: all writers of "RateLimit" must take the per-tenant advisory lock before acquiring any
 // row locks on the table (see UpdateRateLimits), otherwise concurrent writers can deadlock
-// (40P01). When called inside an optimistic transaction we take the advisory lock on that
-// transaction instead of opening a new one: acquiring a second pool connection while already
-// holding one can starve the pool and deadlock the process under saturation.
-func (d *queueRepository) upsertDynamicRateLimits(ctx context.Context, optimisticTx *OptimisticTx, params sqlcv1.UpsertRateLimitsBulkParams) error {
-	lockAndUpsert := func(tx sqlcv1.DBTX) error {
-		if err := d.queries.AdvisoryLock(ctx, tx, tenantAdvisoryInt(d.tenantId)); err != nil {
-			return err
-		}
-
-		return d.queries.UpsertRateLimitsBulk(ctx, tx, params)
-	}
-
-	if optimisticTx != nil {
-		return lockAndUpsert(optimisticTx.tx)
-	}
-
+// (40P01). This always commits in its own transaction: holding the lock or row locks in the
+// caller's optimistic transaction would block the rate limiter's UpdateRateLimits refresh
+// during assignment, which runs before that transaction commits.
+func (d *queueRepository) upsertDynamicRateLimits(ctx context.Context, params sqlcv1.UpsertRateLimitsBulkParams) error {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l)
 
 	if err != nil {
@@ -860,7 +848,11 @@ func (d *queueRepository) upsertDynamicRateLimits(ctx context.Context, optimisti
 
 	defer rollback()
 
-	if err := lockAndUpsert(tx); err != nil {
+	if err := d.queries.AdvisoryLock(ctx, tx, tenantAdvisoryInt(d.tenantId)); err != nil {
+		return err
+	}
+
+	if err := d.queries.UpsertRateLimitsBulk(ctx, tx, params); err != nil {
 		return err
 	}
 
