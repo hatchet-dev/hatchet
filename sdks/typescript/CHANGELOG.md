@@ -5,6 +5,12 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.34.0] - 2026-09-23
+
+### Added
+
+- Added `pause` and `unpause` methods to the workflows client (`hatchet.workflows.pause(workflow, opts)`) and to workflow declarations (`workflow.pause(opts)`). `opts` requires a `queueTTL` for how long runs stay queued while the workflow is paused, and optionally takes the behavior (`QUEUE` or `DROP`) for cron and scheduled runs triggered while paused, both defaulting to `QUEUE`. The `WorkflowPauseScheduledCronRunQueueBehavior` enum is now exported from the package root.
+
 ## [1.33.1] - 2026-09-09
 
 ### Changed

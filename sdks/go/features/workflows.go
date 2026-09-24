@@ -3,6 +3,7 @@ package features
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/cockroachdb/errors"
@@ -121,4 +122,75 @@ func (w *WorkflowsClient) Delete(ctx context.Context, workflowName string) (*res
 	w.cache.Set(workflowName, nil)
 
 	return resp, nil
+}
+
+// PauseWorkflowOpts contains the configuration for pausing a workflow.
+type PauseWorkflowOpts struct {
+	// QueueTTL is how long runs stay queued while the workflow is paused before they are dropped.
+	QueueTTL time.Duration
+
+	// (optional) CronRunQueueBehavior is the behavior of cron runs triggered while the workflow is paused. Defaults to QUEUE.
+	CronRunQueueBehavior rest.WorkflowPauseScheduledCronRunQueueBehavior
+
+	// (optional) ScheduledRunQueueBehavior is the behavior of scheduled runs triggered while the workflow is paused. Defaults to QUEUE.
+	ScheduledRunQueueBehavior rest.WorkflowPauseScheduledCronRunQueueBehavior
+}
+
+func queueBehaviorOrDefault(behavior rest.WorkflowPauseScheduledCronRunQueueBehavior) rest.WorkflowPauseScheduledCronRunQueueBehavior {
+	if behavior == "" {
+		return rest.QUEUE
+	}
+
+	return behavior
+}
+
+// Pause pauses a workflow by its name. While paused, new runs of the workflow are queued but not started.
+func (w *WorkflowsClient) Pause(ctx context.Context, workflowName string, opts PauseWorkflowOpts) (*rest.Workflow, error) {
+	var pauseRequest rest.PauseWorkflowRequest
+
+	err := pauseRequest.FromPauseWorkflowRequestPause(rest.PauseWorkflowRequestPause{
+		Action:                                  rest.Pause,
+		PausedWorkflowQueueTTL:                  strconv.FormatFloat(opts.QueueTTL.Seconds(), 'f', -1, 64) + "s",
+		PausedWorkflowCronRunQueueBehavior:      queueBehaviorOrDefault(opts.CronRunQueueBehavior),
+		PausedWorkflowScheduledRunQueueBehavior: queueBehaviorOrDefault(opts.ScheduledRunQueueBehavior),
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to build pause request")
+	}
+
+	return w.update(ctx, workflowName, rest.WorkflowUpdateRequest{Pause: &pauseRequest})
+}
+
+// Unpause unpauses a workflow by its name.
+func (w *WorkflowsClient) Unpause(ctx context.Context, workflowName string) (*rest.Workflow, error) {
+	var unpauseRequest rest.PauseWorkflowRequest
+
+	err := unpauseRequest.FromPauseWorkflowRequestUnpause(rest.PauseWorkflowRequestUnpause{
+		Action: rest.Unpause,
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to build unpause request")
+	}
+
+	return w.update(ctx, workflowName, rest.WorkflowUpdateRequest{Pause: &unpauseRequest})
+}
+
+func (w *WorkflowsClient) update(ctx context.Context, workflowName string, request rest.WorkflowUpdateRequest) (*rest.Workflow, error) {
+	workflowId, err := w.GetId(ctx, workflowName)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get workflow ID")
+	}
+
+	resp, err := w.api.WorkflowUpdateWithResponse(ctx, workflowId, request)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to update workflow")
+	}
+
+	if err := validateJSON200Response(resp.StatusCode(), resp.Body, resp.JSON200); err != nil {
+		return nil, err
+	}
+
+	w.cache.Set(workflowName, resp.JSON200)
+
+	return resp.JSON200, nil
 }

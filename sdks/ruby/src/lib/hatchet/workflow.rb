@@ -348,6 +348,29 @@ module Hatchet
       )
     end
 
+    # Pause this workflow. While paused, new runs of the workflow are queued but not started.
+    #
+    # @param queue_ttl [Integer, String] How long runs stay queued while the workflow is paused before they are dropped, in seconds or as a duration string (e.g. "1h30m")
+    # @param paused_workflow_cron_run_queue_behavior [String] The behavior of cron runs triggered while the workflow is paused ("QUEUE" or "DROP")
+    # @param paused_workflow_scheduled_run_queue_behavior [String] The behavior of scheduled runs triggered while the workflow is paused ("QUEUE" or "DROP")
+    # @return [HatchetSdkRest::Workflow] The updated workflow
+    # @raise [Hatchet::Error] If no client is associated with the workflow
+    def pause(queue_ttl:, **opts)
+      raise Error, "No client associated with workflow #{@name}" unless @client
+
+      @client.workflows.pause(id, queue_ttl: queue_ttl, **opts)
+    end
+
+    # Unpause this workflow.
+    #
+    # @return [HatchetSdkRest::Workflow] The updated workflow
+    # @raise [Hatchet::Error] If no client is associated with the workflow
+    def unpause
+      raise Error, "No client associated with workflow #{@name}" unless @client
+
+      @client.workflows.unpause(id)
+    end
+
     private
 
     # Resolve the workflow UUID by looking up the workflow by name via the REST API.
