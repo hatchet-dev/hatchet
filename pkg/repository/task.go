@@ -3758,9 +3758,10 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 
 	// list tasks (and augment with task descendants) and locks them for update
 	lockedTasks, err := r.queries.ListTasksForReplay(ctx, tx, sqlcv1.ListTasksForReplayParams{
-		Taskids:         taskIds,
-		Taskinsertedats: taskInsertedAts,
-		Tenantid:        tenantId,
+		Taskids:           taskIds,
+		Taskinsertedats:   taskInsertedAts,
+		Mintaskinsertedat: sqlchelpers.MinTimestamptz(taskInsertedAts),
+		Tenantid:          tenantId,
 	})
 
 	if err != nil {
@@ -4464,11 +4465,13 @@ func (r *sharedRepository) createExpressionEvals(ctx context.Context, dbtx sqlcv
 func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId uuid.UUID, tasks []*sqlcv1.V1Task) (map[int64][]*TaskOutputEvent, error) {
 	taskIds := make([]int64, 0)
 	taskInsertedAts := make([]pgtype.Timestamptz, 0)
+	dagInsertedAts := make([]pgtype.Timestamptz, 0)
 
 	for _, task := range tasks {
 		if task.DagID.Valid {
 			taskIds = append(taskIds, task.ID)
 			taskInsertedAts = append(taskInsertedAts, task.InsertedAt)
+			dagInsertedAts = append(dagInsertedAts, task.DagInsertedAt)
 		}
 	}
 
@@ -4479,9 +4482,11 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 	}
 
 	res, err := r.queries.ListTaskParentOutputs(ctx, r.pool, sqlcv1.ListTaskParentOutputsParams{
-		Tenantid:        tenantId,
-		Taskids:         taskIds,
-		Taskinsertedats: taskInsertedAts,
+		Tenantid:          tenantId,
+		Taskids:           taskIds,
+		Taskinsertedats:   taskInsertedAts,
+		Mintaskinsertedat: sqlchelpers.MinTimestamptz(taskInsertedAts),
+		Mindaginsertedat:  sqlchelpers.MinTimestamptz(dagInsertedAts),
 	})
 
 	if err != nil {

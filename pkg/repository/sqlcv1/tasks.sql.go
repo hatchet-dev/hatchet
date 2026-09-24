@@ -887,7 +887,7 @@ func (q *Queries) FindOldestTask(ctx context.Context, db DBTX) (*V1Task, error) 
 }
 
 const flattenExternalIds = `-- name: FlattenExternalIds :many
-WITH lookup_rows AS (
+WITH lookup_rows AS MATERIALIZED (
     SELECT
         tenant_id, external_id, task_id, dag_id, inserted_at
     FROM
@@ -924,6 +924,8 @@ WITH lookup_rows AS (
         v1_task t ON t.id = dt.task_id AND t.inserted_at = dt.task_inserted_at
     WHERE
         l.dag_id IS NOT NULL
+        AND dt.dag_inserted_at >= (SELECT MIN(inserted_at) FROM lookup_rows WHERE dag_id IS NOT NULL)
+        AND t.inserted_at >= (SELECT MIN(inserted_at) FROM lookup_rows WHERE dag_id IS NOT NULL)
 )
 SELECT
     t.id,
@@ -951,6 +953,7 @@ JOIN
     v1_task t ON t.id = l.task_id AND t.inserted_at = l.inserted_at
 WHERE
     l.task_id IS NOT NULL
+    AND t.inserted_at >= (SELECT MIN(inserted_at) FROM lookup_rows WHERE task_id IS NOT NULL)
 
 UNION ALL
 
@@ -1573,7 +1576,9 @@ JOIN
 JOIN
     input i ON i.task_external_id = l.external_id AND e.event_type::text = ANY(i.event_types)
 WHERE
-    e.retry_count = -1 OR e.retry_count = t.retry_count
+    (e.retry_count = -1 OR e.retry_count = t.retry_count)
+    AND t.inserted_at >= (SELECT MIN(inserted_at) FROM looked_up)
+    AND e.task_inserted_at >= (SELECT MIN(inserted_at) FROM looked_up)
 `
 
 type ListMatchingTaskEventsParams struct {
@@ -2082,6 +2087,10 @@ WITH input AS (
         )
         AND t1.tenant_id = $3::uuid
         AND t1.dag_id IS NOT NULL
+        AND t1.inserted_at >= $4::timestamptz
+        AND dt.dag_inserted_at >= $5::timestamptz
+        AND t.inserted_at >= $5::timestamptz
+        AND e.task_inserted_at >= $5::timestamptz
 ), max_retry_counts AS (
     SELECT
         id,
@@ -2112,9 +2121,11 @@ ORDER BY
 `
 
 type ListTaskParentOutputsParams struct {
-	Taskids         []int64              `json:"taskids"`
-	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
-	Tenantid        uuid.UUID            `json:"tenantid"`
+	Taskids           []int64              `json:"taskids"`
+	Taskinsertedats   []pgtype.Timestamptz `json:"taskinsertedats"`
+	Tenantid          uuid.UUID            `json:"tenantid"`
+	Mintaskinsertedat pgtype.Timestamptz   `json:"mintaskinsertedat"`
+	Mindaginsertedat  pgtype.Timestamptz   `json:"mindaginsertedat"`
 }
 
 type ListTaskParentOutputsRow struct {
@@ -2128,7 +2139,13 @@ type ListTaskParentOutputsRow struct {
 // Lists the outputs of parent steps for a list of tasks. This is recursive because it looks at all grandparents
 // of the tasks as well.
 func (q *Queries) ListTaskParentOutputs(ctx context.Context, db DBTX, arg ListTaskParentOutputsParams) ([]*ListTaskParentOutputsRow, error) {
-	rows, err := db.Query(ctx, listTaskParentOutputs, arg.Taskids, arg.Taskinsertedats, arg.Tenantid)
+	rows, err := db.Query(ctx, listTaskParentOutputs,
+		arg.Taskids,
+		arg.Taskinsertedats,
+		arg.Tenantid,
+		arg.Mintaskinsertedat,
+		arg.Mindaginsertedat,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -2367,8 +2384,7 @@ func (q *Queries) ListTasks(ctx context.Context, db DBTX, arg ListTasksParams) (
 }
 
 const listTasksForReplay = `-- name: ListTasksForReplay :many
-WITH RECURSIVE augmented_tasks AS (
-    -- First, select the tasks from the input
+WITH RECURSIVE input_tasks AS MATERIALIZED (
     SELECT
         id,
         inserted_at,
@@ -2385,6 +2401,18 @@ WITH RECURSIVE augmented_tasks AS (
                 unnest($2::timestamptz[])
         )
         AND tenant_id = $3::uuid
+        AND inserted_at >= $4::timestamptz
+), augmented_tasks AS (
+    -- First, select the tasks from the input
+    SELECT
+        id,
+        inserted_at,
+        tenant_id,
+        dag_id,
+        dag_inserted_at,
+        step_id
+    FROM
+        input_tasks
 
     UNION
 
@@ -2408,6 +2436,9 @@ WITH RECURSIVE augmented_tasks AS (
         "Step" s2 ON s2."id" = t.step_id
     JOIN
         "_StepOrder" so ON so."B" = s2."id" AND so."A" = s1."id"
+    WHERE
+        dt.dag_inserted_at >= (SELECT MIN(dag_inserted_at) FROM input_tasks)
+        AND t.inserted_at >= (SELECT MIN(dag_inserted_at) FROM input_tasks)
 ), locked_tasks AS (
     SELECT
         t.id,
@@ -2440,6 +2471,7 @@ WITH RECURSIVE augmented_tasks AS (
                 augmented_tasks
         )
         AND t.tenant_id = $3::uuid
+        AND t.inserted_at >= (SELECT MIN(inserted_at) FROM augmented_tasks)
     -- order by the task id to get a stable lock order
     ORDER BY
         id
@@ -2491,9 +2523,10 @@ LEFT JOIN
 `
 
 type ListTasksForReplayParams struct {
-	Taskids         []int64              `json:"taskids"`
-	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
-	Tenantid        uuid.UUID            `json:"tenantid"`
+	Taskids           []int64              `json:"taskids"`
+	Taskinsertedats   []pgtype.Timestamptz `json:"taskinsertedats"`
+	Tenantid          uuid.UUID            `json:"tenantid"`
+	Mintaskinsertedat pgtype.Timestamptz   `json:"mintaskinsertedat"`
 }
 
 type ListTasksForReplayRow struct {
@@ -2524,7 +2557,12 @@ type ListTasksForReplayRow struct {
 // Lists tasks for replay by recursively selecting all tasks that are children of the input tasks,
 // then locks the tasks for replay.
 func (q *Queries) ListTasksForReplay(ctx context.Context, db DBTX, arg ListTasksForReplayParams) ([]*ListTasksForReplayRow, error) {
-	rows, err := db.Query(ctx, listTasksForReplay, arg.Taskids, arg.Taskinsertedats, arg.Tenantid)
+	rows, err := db.Query(ctx, listTasksForReplay,
+		arg.Taskids,
+		arg.Taskinsertedats,
+		arg.Tenantid,
+		arg.Mintaskinsertedat,
+	)
 	if err != nil {
 		return nil, err
 	}

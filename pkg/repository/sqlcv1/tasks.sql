@@ -170,7 +170,7 @@ WHERE
     AND last_active > @activeSince::timestamptz;
 
 -- name: FlattenExternalIds :many
-WITH lookup_rows AS (
+WITH lookup_rows AS MATERIALIZED (
     SELECT
         *
     FROM
@@ -207,6 +207,8 @@ WITH lookup_rows AS (
         v1_task t ON t.id = dt.task_id AND t.inserted_at = dt.task_inserted_at
     WHERE
         l.dag_id IS NOT NULL
+        AND dt.dag_inserted_at >= (SELECT MIN(inserted_at) FROM lookup_rows WHERE dag_id IS NOT NULL)
+        AND t.inserted_at >= (SELECT MIN(inserted_at) FROM lookup_rows WHERE dag_id IS NOT NULL)
 )
 -- Union the tasks from the lookup table with the tasks from the DAGs
 SELECT
@@ -235,6 +237,7 @@ JOIN
     v1_task t ON t.id = l.task_id AND t.inserted_at = l.inserted_at
 WHERE
     l.task_id IS NOT NULL
+    AND t.inserted_at >= (SELECT MIN(inserted_at) FROM lookup_rows WHERE task_id IS NOT NULL)
 
 UNION ALL
 
@@ -583,7 +586,9 @@ JOIN
 JOIN
     input i ON i.task_external_id = l.external_id AND e.event_type::text = ANY(i.event_types)
 WHERE
-    e.retry_count = -1 OR e.retry_count = t.retry_count;
+    (e.retry_count = -1 OR e.retry_count = t.retry_count)
+    AND t.inserted_at >= (SELECT MIN(inserted_at) FROM looked_up)
+    AND e.task_inserted_at >= (SELECT MIN(inserted_at) FROM looked_up);
 
 -- name: LockSignalCreatedEvents :many
 -- Places a lock on the SIGNAL_CREATED events to make sure concurrent operations don't
@@ -686,8 +691,7 @@ WHERE
 -- name: ListTasksForReplay :many
 -- Lists tasks for replay by recursively selecting all tasks that are children of the input tasks,
 -- then locks the tasks for replay.
-WITH RECURSIVE augmented_tasks AS (
-    -- First, select the tasks from the input
+WITH RECURSIVE input_tasks AS MATERIALIZED (
     SELECT
         id,
         inserted_at,
@@ -704,6 +708,18 @@ WITH RECURSIVE augmented_tasks AS (
                 unnest(@taskInsertedAts::timestamptz[])
         )
         AND tenant_id = @tenantId::uuid
+        AND inserted_at >= @minTaskInsertedAt::timestamptz
+), augmented_tasks AS (
+    -- First, select the tasks from the input
+    SELECT
+        id,
+        inserted_at,
+        tenant_id,
+        dag_id,
+        dag_inserted_at,
+        step_id
+    FROM
+        input_tasks
 
     UNION
 
@@ -727,6 +743,9 @@ WITH RECURSIVE augmented_tasks AS (
         "Step" s2 ON s2."id" = t.step_id
     JOIN
         "_StepOrder" so ON so."B" = s2."id" AND so."A" = s1."id"
+    WHERE
+        dt.dag_inserted_at >= (SELECT MIN(dag_inserted_at) FROM input_tasks)
+        AND t.inserted_at >= (SELECT MIN(dag_inserted_at) FROM input_tasks)
 ), locked_tasks AS (
     SELECT
         t.id,
@@ -759,6 +778,7 @@ WITH RECURSIVE augmented_tasks AS (
                 augmented_tasks
         )
         AND t.tenant_id = @tenantId::uuid
+        AND t.inserted_at >= (SELECT MIN(inserted_at) FROM augmented_tasks)
     -- order by the task id to get a stable lock order
     ORDER BY
         id
@@ -849,6 +869,10 @@ WITH input AS (
         )
         AND t1.tenant_id = @tenantId::uuid
         AND t1.dag_id IS NOT NULL
+        AND t1.inserted_at >= @minTaskInsertedAt::timestamptz
+        AND dt.dag_inserted_at >= @minDagInsertedAt::timestamptz
+        AND t.inserted_at >= @minDagInsertedAt::timestamptz
+        AND e.task_inserted_at >= @minDagInsertedAt::timestamptz
 ), max_retry_counts AS (
     SELECT
         id,
