@@ -8,7 +8,7 @@ title: "Python SDK"
 
 ### Fixed
 
-- Durable tasks that fan out to thousands of children no longer block the worker's event loop. The durable listener sent one worker status request per awaited child, each listing every pending child, which was quadratic in the fan-out size; it now sends one request per event loop iteration listing only the newly awaited children.
+- [Durable tasks](https://docs.hatchet.run/v1/durable-tasks) that fan out to thousands of children no longer block the worker's event loop. The durable listener sent one worker status request per awaited child, each listing every pending child, which was quadratic in the fan-out size; it now sends one request per event loop iteration listing only the newly awaited children.
 - Registering an awaited child no longer scans every pending callback to evict older invocations. The callback cache is indexed by task and invocation.
 - The periodic worker status request lists only children that have been pending for more than two seconds, is sent every five seconds instead of every second, and is split into requests of at most 10,000 entries so it stays under the gRPC message size limit.
 - Re-delivered child completions are matched against pending callbacks without scanning the pending queue.

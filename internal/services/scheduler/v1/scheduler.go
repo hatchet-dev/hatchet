@@ -1534,18 +1534,15 @@ func (s *Scheduler) handleDeadLetteredDurableCallbackCompleted(ctx context.Conte
 		maxRedeliveryCount = max(maxRedeliveryCount, cb.RedeliveryCount)
 	}
 
-	// re-dispatch after a delay without holding the dead-letter message open
-	redispatchCtx := context.WithoutCancel(ctx)
+	// the dead-letter message stays unacknowledged while we wait, so a scheduler that stops
+	// mid-delay has the message redelivered instead of losing the callbacks
+	select {
+	case <-time.After(durableCallbackRedeliveryDelay(maxRedeliveryCount)):
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 
-	go func() {
-		time.Sleep(durableCallbackRedeliveryDelay(maxRedeliveryCount))
-
-		if err := durable.DispatchCallbacks(redispatchCtx, s.l, s.mq, s.repov1, msg.TenantID, callbacks); err != nil {
-			s.l.Error().Ctx(redispatchCtx).Err(err).Msg("could not re-dispatch undelivered durable callbacks")
-		}
-	}()
-
-	return nil
+	return durable.DispatchCallbacks(ctx, s.l, s.mq, s.repov1, msg.TenantID, callbacks)
 }
 
 func (s *Scheduler) handleDeadLetteredTaskCancelled(ctx context.Context, msg *msgqueue.Message) error {

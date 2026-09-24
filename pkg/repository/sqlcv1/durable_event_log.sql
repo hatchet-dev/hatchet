@@ -210,31 +210,29 @@ WITH inputs AS MATERIALIZED (
     JOIN v1_lookup_table lt ON lt.external_id = i.external_id
     WHERE lt.tenant_id = @tenantId::UUID
 ), satisfied_entries AS MATERIALIZED (
-    -- Materialized so entries are looked up by their full primary key from the input rows.
-    -- Joining the log file first makes the planner probe entries by task only and filter node
-    -- and branch afterwards, which reads every entry of the task once per input row.
     SELECT
         e.*,
-        t.external_id::uuid AS task_external_id
+        t.external_id AS task_external_id
     FROM tasks t
     JOIN v1_durable_event_log_entry e
         ON e.durable_task_id = t.task_id
         AND e.durable_task_inserted_at = t.inserted_at
         AND e.branch_id = t.branch_id
         AND e.node_id = t.node_id
-    WHERE e.is_satisfied
-      AND e.durable_task_inserted_at >= @minTaskInsertedAt::TIMESTAMPTZ
-      AND e.durable_task_inserted_at <= @maxTaskInsertedAt::TIMESTAMPTZ
+    WHERE
+        e.is_satisfied
+        AND e.durable_task_inserted_at >= @minTaskInsertedAt::TIMESTAMPTZ
+        AND e.durable_task_inserted_at <= @maxTaskInsertedAt::TIMESTAMPTZ
 )
+
 SELECT
     s.*,
     lf.latest_invocation_count AS invocation_count
 FROM satisfied_entries s
-JOIN v1_durable_event_log_file lf
-    ON lf.durable_task_id = s.durable_task_id
-    AND lf.durable_task_inserted_at = s.durable_task_inserted_at
-WHERE lf.durable_task_inserted_at >= @minTaskInsertedAt::TIMESTAMPTZ
-  AND lf.durable_task_inserted_at <= @maxTaskInsertedAt::TIMESTAMPTZ
+JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_inserted_at) = (s.durable_task_id, s.durable_task_inserted_at)
+WHERE
+    lf.durable_task_inserted_at >= @minTaskInsertedAt::TIMESTAMPTZ
+    AND lf.durable_task_inserted_at <= @maxTaskInsertedAt::TIMESTAMPTZ
 ;
 
 -- name: MarkDurableEventLogEntrySatisfied :one

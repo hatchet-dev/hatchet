@@ -1005,31 +1005,29 @@ WITH inputs AS MATERIALIZED (
     JOIN v1_lookup_table lt ON lt.external_id = i.external_id
     WHERE lt.tenant_id = $6::UUID
 ), satisfied_entries AS MATERIALIZED (
-    -- Materialized so entries are looked up by their full primary key from the input rows.
-    -- Joining the log file first makes the planner probe entries by task only and filter node
-    -- and branch afterwards, which reads every entry of the task once per input row.
     SELECT
         e.tenant_id, e.external_id, e.result_payload_external_id, e.child_task_external_id, e.child_task_is_failure, e.child_task_error_message, e.inserted_at, e.id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.branch_id, e.idempotency_key, e.is_satisfied, e.satisfied_at, e.satisfied_order, e.user_message, e.wait_data, e.triggered_at,
-        t.external_id::uuid AS task_external_id
+        t.external_id AS task_external_id
     FROM tasks t
     JOIN v1_durable_event_log_entry e
         ON e.durable_task_id = t.task_id
         AND e.durable_task_inserted_at = t.inserted_at
         AND e.branch_id = t.branch_id
         AND e.node_id = t.node_id
-    WHERE e.is_satisfied
-      AND e.durable_task_inserted_at >= $1::TIMESTAMPTZ
-      AND e.durable_task_inserted_at <= $2::TIMESTAMPTZ
+    WHERE
+        e.is_satisfied
+        AND e.durable_task_inserted_at >= $1::TIMESTAMPTZ
+        AND e.durable_task_inserted_at <= $2::TIMESTAMPTZ
 )
+
 SELECT
     s.tenant_id, s.external_id, s.result_payload_external_id, s.child_task_external_id, s.child_task_is_failure, s.child_task_error_message, s.inserted_at, s.id, s.durable_task_id, s.durable_task_inserted_at, s.kind, s.node_id, s.branch_id, s.idempotency_key, s.is_satisfied, s.satisfied_at, s.satisfied_order, s.user_message, s.wait_data, s.triggered_at, s.task_external_id,
     lf.latest_invocation_count AS invocation_count
 FROM satisfied_entries s
-JOIN v1_durable_event_log_file lf
-    ON lf.durable_task_id = s.durable_task_id
-    AND lf.durable_task_inserted_at = s.durable_task_inserted_at
-WHERE lf.durable_task_inserted_at >= $1::TIMESTAMPTZ
-  AND lf.durable_task_inserted_at <= $2::TIMESTAMPTZ
+JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_inserted_at) = (s.durable_task_id, s.durable_task_inserted_at)
+WHERE
+    lf.durable_task_inserted_at >= $1::TIMESTAMPTZ
+    AND lf.durable_task_inserted_at <= $2::TIMESTAMPTZ
 `
 
 type ListSatisfiedEntriesParams struct {
@@ -1062,7 +1060,7 @@ type ListSatisfiedEntriesRow struct {
 	UserMessage             pgtype.Text           `json:"user_message"`
 	WaitData                []byte                `json:"wait_data"`
 	TriggeredAt             pgtype.Timestamptz    `json:"triggered_at"`
-	TaskExternalID          uuid.UUID             `json:"task_external_id"`
+	TaskExternalID          interface{}           `json:"task_external_id"`
 	InvocationCount         int32                 `json:"invocation_count"`
 }
 
