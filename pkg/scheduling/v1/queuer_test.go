@@ -61,7 +61,6 @@ func TestQueuerRequeuesRateLimitedItemsOnFreshProcess(t *testing.T) {
 // Ensure recordingQueueRepo still satisfies QueueRepository.
 var _ v1repo.QueueRepository = (*recordingQueueRepo)(nil)
 
-// rateLimitedQueueRepo reports a rate limit for every queue item it is asked about.
 type rateLimitedQueueRepo struct {
 	fakeQueueRepository
 }

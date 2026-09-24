@@ -211,7 +211,6 @@ func TestGetTaskRateLimits_OptimisticTxNeedsNoSecondConnection(t *testing.T) {
 	require.NoError(t, tx.Commit(ctx))
 }
 
-// insertDynamicRateLimitEvals stores the expression evals for a task with one dynamic rate limit key costing 1 unit.
 func insertDynamicRateLimitEvals(t *testing.T, pool *pgxpool.Pool, tenantID uuid.UUID, taskID int64, key string, limit int32) *sqlcv1.V1QueueItem {
 	t.Helper()
 
