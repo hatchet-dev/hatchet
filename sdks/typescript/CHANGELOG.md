@@ -21,6 +21,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `HatchetClientOptions.credentials` applies to the streaming `nice-grpc` channel only; the unary transport derives its TLS settings from `tls_config`.
 - A token containing characters that cannot travel in an HTTP header (a stray line break in `HATCHET_CLIENT_TOKEN`, for example) now fails the first unary call with a fixed message instead of an error that quoted the token.
 
+## [1.33.2] - 2026-09-24
+
+### Fixed
+
+- Importing the SDK no longer prints the v0 deprecation warnings. The root entry re-exports the v0 `workflow` and `step` modules, and the SDK itself imported them internally, so every v1 user saw `HATCHET_V0_REMOVED` twice plus a note about `ConcurrencyLimitStrategy` on startup. The warning is now emitted once, when a v0 workflow is registered or put to the engine.
+
 ## [1.33.1] - 2026-09-09
 
 ### Changed
