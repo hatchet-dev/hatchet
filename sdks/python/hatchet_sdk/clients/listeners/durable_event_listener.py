@@ -626,7 +626,7 @@ class DurableEventListener:
         all_run_entries: list[DurableTaskRunAckEntry] = []
         key = (durable_task_external_id, invocation_count)
 
-        for chunk in self.admin_client.chunk_workflow_runs(trigger_opts_list):
+        for chunk in self.admin_client.chunk_workflow_runs(trigger_opts_list, 100):
             future: asyncio.Future[DurableTaskEventAck] = asyncio.Future()
             self._pending_event_acks[key] = future
 
