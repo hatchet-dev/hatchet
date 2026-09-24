@@ -115,3 +115,26 @@ describe('emitV0RemovedWarning', () => {
     }
   });
 });
+
+describe('importing the SDK', () => {
+  it('emits no deprecation warning from the root or v1 entries', () => {
+    const emitWarning = jest.spyOn(process, 'emitWarning').mockImplementation(() => {});
+    const consoleWarn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+    // isolateModules needs require so the modules evaluate fresh inside the isolated registry
+    /* eslint-disable @typescript-eslint/no-require-imports */
+    jest.isolateModules(() => {
+      require('../index');
+      require('../v1');
+      require('../workflow');
+      require('../step');
+    });
+    /* eslint-enable @typescript-eslint/no-require-imports */
+
+    expect(emitWarning).not.toHaveBeenCalled();
+    expect(consoleWarn).not.toHaveBeenCalled();
+
+    emitWarning.mockRestore();
+    consoleWarn.mockRestore();
+  });
+});
