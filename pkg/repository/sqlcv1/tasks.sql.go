@@ -277,58 +277,51 @@ func (q *Queries) CountActiveTaskBatchRuns(ctx context.Context, db DBTX, arg Cou
 
 const createPartitions = `-- name: CreatePartitions :one
 SELECT
-    -- intentionally formatted this way to limit merge conflicts + diff sizes
-    create_v1_range_partition('v1_task', $1::date)
-    , create_v1_range_partition('v1_dag', $1::date)
-    , create_v1_range_partition('v1_task_event', $1::date)
-    , create_v1_range_partition('v1_log_line', $1::date)
-    , create_v1_range_partition('v1_payload', $1::date)
-    , create_v1_range_partition('v1_event', $1::date)
-    , create_v1_weekly_range_partition('v1_event_lookup_table', $1::date)
-    , create_v1_range_partition('v1_event_to_run', $1::date)
-    , create_v1_range_partition('v1_durable_event_log_file', $1::date)
-    , create_v1_range_partition('v1_durable_event_log_entry', $1::date, 80)
-    , create_v1_range_partition('v1_durable_event_log_branch_point', $1::date, 80)
-    , create_v1_range_partition('v1_dag_to_task', $1::date)
-    , create_v1_range_partition('v1_dag_data', $1::date)
-    , create_v1_weekly_range_partition('v1_lookup_table', $1::date)
+    create_v1_range_partition('v1_task', $1::date) AS v1_task,
+    create_v1_range_partition('v1_dag', $1::date) AS v1_dag,
+    create_v1_range_partition('v1_task_event', $1::date) AS v1_task_event,
+    create_v1_range_partition('v1_log_line', $1::date) AS v1_log_line,
+    create_v1_range_partition('v1_payload', $1::date) AS v1_payload,
+    create_v1_range_partition('v1_event', $1::date) AS v1_event,
+    create_v1_range_partition('v1_durable_event_log_file', $1::date) AS v1_durable_event_log_file,
+    create_v1_range_partition('v1_durable_event_log_entry', $1::date, 80) AS v1_durable_event_log_entry,
+    create_v1_range_partition('v1_durable_event_log_branch_point', $1::date, 80) AS v1_durable_event_log_branch_point,
+    create_v1_range_partition('v1_dag_to_task', $1::date) AS v1_dag_to_task,
+    create_v1_range_partition('v1_dag_data', $1::date) AS v1_dag_data,
+    create_v1_monthly_range_partition('v1_lookup_table', $1::date) AS v1_lookup_table
 `
 
 type CreatePartitionsRow struct {
-	CreateV1RangePartition         int32 `json:"create_v1_range_partition"`
-	CreateV1RangePartition_2       int32 `json:"create_v1_range_partition_2"`
-	CreateV1RangePartition_3       int32 `json:"create_v1_range_partition_3"`
-	CreateV1RangePartition_4       int32 `json:"create_v1_range_partition_4"`
-	CreateV1RangePartition_5       int32 `json:"create_v1_range_partition_5"`
-	CreateV1RangePartition_6       int32 `json:"create_v1_range_partition_6"`
-	CreateV1WeeklyRangePartition   int32 `json:"create_v1_weekly_range_partition"`
-	CreateV1RangePartition_7       int32 `json:"create_v1_range_partition_7"`
-	CreateV1RangePartition_8       int32 `json:"create_v1_range_partition_8"`
-	CreateV1RangePartition_9       int32 `json:"create_v1_range_partition_9"`
-	CreateV1RangePartition_10      int32 `json:"create_v1_range_partition_10"`
-	CreateV1RangePartition_11      int32 `json:"create_v1_range_partition_11"`
-	CreateV1RangePartition_12      int32 `json:"create_v1_range_partition_12"`
-	CreateV1WeeklyRangePartition_2 int32 `json:"create_v1_weekly_range_partition_2"`
+	V1Task                       int32 `json:"v1_task"`
+	V1Dag                        int32 `json:"v1_dag"`
+	V1TaskEvent                  int32 `json:"v1_task_event"`
+	V1LogLine                    int32 `json:"v1_log_line"`
+	V1Payload                    int32 `json:"v1_payload"`
+	V1Event                      int32 `json:"v1_event"`
+	V1DurableEventLogFile        int32 `json:"v1_durable_event_log_file"`
+	V1DurableEventLogEntry       int32 `json:"v1_durable_event_log_entry"`
+	V1DurableEventLogBranchPoint int32 `json:"v1_durable_event_log_branch_point"`
+	V1DagToTask                  int32 `json:"v1_dag_to_task"`
+	V1DagData                    int32 `json:"v1_dag_data"`
+	V1LookupTable                int32 `json:"v1_lookup_table"`
 }
 
 func (q *Queries) CreatePartitions(ctx context.Context, db DBTX, date pgtype.Date) (*CreatePartitionsRow, error) {
 	row := db.QueryRow(ctx, createPartitions, date)
 	var i CreatePartitionsRow
 	err := row.Scan(
-		&i.CreateV1RangePartition,
-		&i.CreateV1RangePartition_2,
-		&i.CreateV1RangePartition_3,
-		&i.CreateV1RangePartition_4,
-		&i.CreateV1RangePartition_5,
-		&i.CreateV1RangePartition_6,
-		&i.CreateV1WeeklyRangePartition,
-		&i.CreateV1RangePartition_7,
-		&i.CreateV1RangePartition_8,
-		&i.CreateV1RangePartition_9,
-		&i.CreateV1RangePartition_10,
-		&i.CreateV1RangePartition_11,
-		&i.CreateV1RangePartition_12,
-		&i.CreateV1WeeklyRangePartition_2,
+		&i.V1Task,
+		&i.V1Dag,
+		&i.V1TaskEvent,
+		&i.V1LogLine,
+		&i.V1Payload,
+		&i.V1Event,
+		&i.V1DurableEventLogFile,
+		&i.V1DurableEventLogEntry,
+		&i.V1DurableEventLogBranchPoint,
+		&i.V1DagToTask,
+		&i.V1DagData,
+		&i.V1LookupTable,
 	)
 	return &i, err
 }
@@ -1628,48 +1621,30 @@ func (q *Queries) ListMatchingTaskEvents(ctx context.Context, db DBTX, arg ListM
 }
 
 const listPartitionsBeforeDate = `-- name: ListPartitionsBeforeDate :many
-WITH
-task_partitions AS (
+WITH task_partitions AS (
     SELECT 'v1_task' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_task', $1::date) AS p
-)
-, dag_partitions AS (
+), dag_partitions AS (
     SELECT 'v1_dag' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dag', $1::date) AS p
-)
-, task_event_partitions AS (
+), task_event_partitions AS (
     SELECT 'v1_task_event' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_task_event', $1::date) AS p
-)
-, log_line_partitions AS (
+), log_line_partitions AS (
     SELECT 'v1_log_line' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_log_line', $1::date) AS p
-)
-, payload_partitions AS (
+), payload_partitions AS (
     SELECT 'v1_payload' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_payload', $1::date) AS p
-)
-, event_partitions AS (
+), event_partitions AS (
     SELECT 'v1_event' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_event', $1::date) AS p
-)
-, event_lookup_table_partitions AS (
-    SELECT 'v1_event_lookup_table' AS parent_table, p::text as partition_name FROM get_v1_weekly_partitions_before_date('v1_event_lookup_table', $1::date) AS p
-)
-, event_to_run_partitions AS (
-    SELECT 'v1_event_to_run' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_event_to_run', $1::date) AS p
-)
-, durable_event_log_file_partitions AS (
+), durable_event_log_file_partitions AS (
     SELECT 'v1_durable_event_log_file' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_durable_event_log_file', $1::date) AS p
-)
-, durable_event_log_entry_partitions AS (
+), durable_event_log_entry_partitions AS (
     SELECT 'v1_durable_event_log_entry' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_durable_event_log_entry', $1::date) AS p
-)
-, durable_event_log_branch_point_partitions AS (
+), durable_event_log_branch_point_partitions AS (
     SELECT 'v1_durable_event_log_branch_point' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_durable_event_log_branch_point', $1::date) AS p
-)
-, dag_to_task_partitions AS (
+), dag_to_task_partitions AS (
     SELECT 'v1_dag_to_task' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dag_to_task', $1::date) AS p
-)
-, dag_data_partitions AS (
+), dag_data_partitions AS (
     SELECT 'v1_dag_data' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dag_data', $1::date) AS p
-)
-, lookup_table_partitions AS (
-    SELECT 'v1_lookup_table' AS parent_table, p::text as partition_name FROM get_v1_weekly_partitions_before_date('v1_lookup_table', $1::date) AS p
+), lookup_table_partitions AS (
+    SELECT 'v1_lookup_table' AS parent_table, p::text as partition_name FROM get_v1_monthly_partitions_before_date('v1_lookup_table', $1::date) AS p
 )
 
 SELECT
@@ -1760,7 +1735,6 @@ type ListPartitionsBeforeDateRow struct {
 	PartitionName string `json:"partition_name"`
 }
 
-// intentionally formatted this way to limit merge conflicts + diff sizes
 func (q *Queries) ListPartitionsBeforeDate(ctx context.Context, db DBTX, date pgtype.Date) ([]*ListPartitionsBeforeDateRow, error) {
 	rows, err := db.Query(ctx, listPartitionsBeforeDate, date)
 	if err != nil {

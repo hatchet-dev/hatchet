@@ -1,6 +1,63 @@
 -- +goose NO TRANSACTION
 -- +goose Up
 -- +goose StatementBegin
+CREATE OR REPLACE FUNCTION get_v1_monthly_partitions_before_date(
+    targetTableName text,
+    targetDate date
+) RETURNS TABLE(partition_name text)
+    LANGUAGE plpgsql AS
+$$
+BEGIN
+    RETURN QUERY
+    SELECT
+        inhrelid::regclass::text AS partition_name
+    FROM
+        pg_inherits
+    WHERE
+        inhparent = targetTableName::regclass
+        AND substring(inhrelid::regclass::text, format('%s_(\d{8})', targetTableName)) ~ '^\d{8}'
+        -- only drop a monthly partition once every row in it is older than the target date
+        AND (substring(inhrelid::regclass::text, format('%s_(\d{8})', targetTableName))::date + INTERVAL '1 month') <= targetDate
+    ;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION create_v1_monthly_range_partition(
+    targetTableName text,
+    targetDate date
+) RETURNS integer
+    LANGUAGE plpgsql AS
+$$
+DECLARE
+    monthStartStr varchar;
+    nextMonthStartStr varchar;
+    newTableName varchar;
+BEGIN
+    SELECT to_char(date_trunc('month', targetDate), 'YYYYMMDD') INTO monthStartStr;
+    SELECT to_char(date_trunc('month', targetDate) + INTERVAL '1 month', 'YYYYMMDD') INTO nextMonthStartStr;
+    SELECT lower(format('%s_%s', targetTableName, monthStartStr)) INTO newTableName;
+    -- exit if the table exists
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = newTableName) THEN
+        RETURN 0;
+    END IF;
+
+    EXECUTE
+        format('CREATE TABLE %s (LIKE %s INCLUDING INDEXES)', newTableName, targetTableName);
+    EXECUTE
+        format('ALTER TABLE %s SET (
+            autovacuum_vacuum_scale_factor = ''0.1'',
+            autovacuum_analyze_scale_factor=''0.05'',
+            autovacuum_vacuum_threshold=''25'',
+            autovacuum_analyze_threshold=''25'',
+            autovacuum_vacuum_cost_delay=''10'',
+            autovacuum_vacuum_cost_limit=''1000''
+        )', newTableName);
+    EXECUTE
+        format('ALTER TABLE %s ATTACH PARTITION %s FOR VALUES FROM (''%s'') TO (''%s'')', targetTableName, newTableName, monthStartStr, nextMonthStartStr);
+    RETURN 1;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION rename_partitions(
     parent_table_name TEXT,
     new_prefix TEXT
@@ -76,10 +133,10 @@ BEGIN
         oldest_date := (NOW() - INTERVAL '30 day')::DATE;
     END IF;
 
-    d := oldest_date;
+    d := date_trunc('month', oldest_date)::DATE;
     WHILE d <= (NOW() + INTERVAL '1 day')::DATE LOOP
-        PERFORM create_v1_weekly_range_partition('v1_lookup_table_partitioned', d);
-        d := d + INTERVAL '1 day';
+        PERFORM create_v1_monthly_range_partition('v1_lookup_table_partitioned', d);
+        d := d + INTERVAL '1 month';
     END LOOP;
 END $$;
 
@@ -163,6 +220,7 @@ RETURNS TRIGGER AS $$
 DECLARE
     rec RECORD;
 BEGIN
+    -- Only insert if there's a single task with initial_state = 'QUEUED' and concurrency_strategy_ids is not null
     IF (SELECT COUNT(*) FROM new_table WHERE initial_state = 'QUEUED' AND concurrency_strategy_ids[1] IS NOT NULL) > 0 THEN
         WITH new_slot_rows AS (
             SELECT
@@ -188,6 +246,11 @@ BEGIN
                     WHEN array_length(concurrency_keys, 1) > 1 THEN concurrency_keys[2:array_length(concurrency_keys, 1)]
                     ELSE '{}'::text[]
                 END AS next_keys,
+                concurrency_max_runs[1] AS max_runs,
+                CASE
+                    WHEN array_length(concurrency_max_runs, 1) > 1 THEN concurrency_max_runs[2:array_length(concurrency_max_runs, 1)]
+                    ELSE '{}'::integer[]
+                END AS next_max_runs,
                 workflow_id,
                 workflow_version_id,
                 queue,
@@ -211,6 +274,8 @@ BEGIN
             priority,
             key,
             next_keys,
+            max_runs,
+            next_max_runs,
             queue_to_notify,
             schedule_timeout_at
         )
@@ -230,6 +295,8 @@ BEGIN
             COALESCE(priority, 1),
             key,
             next_keys,
+            max_runs,
+            next_max_runs,
             queue,
             schedule_timeout_at
         FROM new_slot_rows;
@@ -251,7 +318,8 @@ BEGIN
         sticky,
         desired_worker_id,
         retry_count,
-        desired_worker_label
+        desired_worker_label,
+        batch_key
     )
     SELECT
         tenant_id,
@@ -269,12 +337,14 @@ BEGIN
         sticky,
         desired_worker_id,
         retry_count,
-        desired_worker_label
+        desired_worker_label,
+        batch_key
     FROM new_table
     WHERE initial_state = 'QUEUED' AND concurrency_strategy_ids[1] IS NULL
     ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
     ;
 
+    -- Only insert into v1_dag and v1_dag_to_task if dag_id and dag_inserted_at are not null
     IF (SELECT COUNT(*) FROM new_table WHERE dag_id IS NOT NULL AND dag_inserted_at IS NOT NULL) > 0 THEN
         INSERT INTO v1_dag_to_task (
             dag_id,
@@ -392,6 +462,7 @@ RETURNS TRIGGER AS $$
 DECLARE
     rec RECORD;
 BEGIN
+    -- Only insert if there's a single task with initial_state = 'QUEUED' and concurrency_strategy_ids is not null
     IF (SELECT COUNT(*) FROM new_table WHERE initial_state = 'QUEUED' AND concurrency_strategy_ids[1] IS NOT NULL) > 0 THEN
         WITH new_slot_rows AS (
             SELECT
@@ -417,6 +488,11 @@ BEGIN
                     WHEN array_length(concurrency_keys, 1) > 1 THEN concurrency_keys[2:array_length(concurrency_keys, 1)]
                     ELSE '{}'::text[]
                 END AS next_keys,
+                concurrency_max_runs[1] AS max_runs,
+                CASE
+                    WHEN array_length(concurrency_max_runs, 1) > 1 THEN concurrency_max_runs[2:array_length(concurrency_max_runs, 1)]
+                    ELSE '{}'::integer[]
+                END AS next_max_runs,
                 workflow_id,
                 workflow_version_id,
                 queue,
@@ -440,6 +516,8 @@ BEGIN
             priority,
             key,
             next_keys,
+            max_runs,
+            next_max_runs,
             queue_to_notify,
             schedule_timeout_at
         )
@@ -459,6 +537,8 @@ BEGIN
             COALESCE(priority, 1),
             key,
             next_keys,
+            max_runs,
+            next_max_runs,
             queue,
             schedule_timeout_at
         FROM new_slot_rows;
@@ -480,7 +560,8 @@ BEGIN
         sticky,
         desired_worker_id,
         retry_count,
-        desired_worker_label
+        desired_worker_label,
+        batch_key
     )
     SELECT
         tenant_id,
@@ -498,12 +579,14 @@ BEGIN
         sticky,
         desired_worker_id,
         retry_count,
-        desired_worker_label
+        desired_worker_label,
+        batch_key
     FROM new_table
     WHERE initial_state = 'QUEUED' AND concurrency_strategy_ids[1] IS NULL
     ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
     ;
 
+    -- Only insert into v1_dag and v1_dag_to_task if dag_id and dag_inserted_at are not null
     IF (SELECT COUNT(*) FROM new_table WHERE dag_id IS NOT NULL AND dag_inserted_at IS NOT NULL) > 0 THEN
         INSERT INTO v1_dag_to_task (
             dag_id,

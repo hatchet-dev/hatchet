@@ -1,20 +1,17 @@
 -- name: CreatePartitions :one
 SELECT
-    -- intentionally formatted this way to limit merge conflicts + diff sizes
-    create_v1_range_partition('v1_task', @date::date)
-    , create_v1_range_partition('v1_dag', @date::date)
-    , create_v1_range_partition('v1_task_event', @date::date)
-    , create_v1_range_partition('v1_log_line', @date::date)
-    , create_v1_range_partition('v1_payload', @date::date)
-    , create_v1_range_partition('v1_event', @date::date)
-    , create_v1_weekly_range_partition('v1_event_lookup_table', @date::date)
-    , create_v1_range_partition('v1_event_to_run', @date::date)
-    , create_v1_range_partition('v1_durable_event_log_file', @date::date)
-    , create_v1_range_partition('v1_durable_event_log_entry', @date::date, 80)
-    , create_v1_range_partition('v1_durable_event_log_branch_point', @date::date, 80)
-    , create_v1_range_partition('v1_dag_to_task', @date::date)
-    , create_v1_range_partition('v1_dag_data', @date::date)
-    , create_v1_weekly_range_partition('v1_lookup_table', @date::date)
+    create_v1_range_partition('v1_task', @date::date) AS v1_task,
+    create_v1_range_partition('v1_dag', @date::date) AS v1_dag,
+    create_v1_range_partition('v1_task_event', @date::date) AS v1_task_event,
+    create_v1_range_partition('v1_log_line', @date::date) AS v1_log_line,
+    create_v1_range_partition('v1_payload', @date::date) AS v1_payload,
+    create_v1_range_partition('v1_event', @date::date) AS v1_event,
+    create_v1_range_partition('v1_durable_event_log_file', @date::date) AS v1_durable_event_log_file,
+    create_v1_range_partition('v1_durable_event_log_entry', @date::date, 80) AS v1_durable_event_log_entry,
+    create_v1_range_partition('v1_durable_event_log_branch_point', @date::date, 80) AS v1_durable_event_log_branch_point,
+    create_v1_range_partition('v1_dag_to_task', @date::date) AS v1_dag_to_task,
+    create_v1_range_partition('v1_dag_data', @date::date) AS v1_dag_data,
+    create_v1_monthly_range_partition('v1_lookup_table', @date::date) AS v1_lookup_table
 ;
 
 -- name: EnsureTablePartitionsExist :one
@@ -54,49 +51,30 @@ SELECT
 FROM partition_check;
 
 -- name: ListPartitionsBeforeDate :many
-WITH
--- intentionally formatted this way to limit merge conflicts + diff sizes
-task_partitions AS (
+WITH task_partitions AS (
     SELECT 'v1_task' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_task', @date::date) AS p
-)
-, dag_partitions AS (
+), dag_partitions AS (
     SELECT 'v1_dag' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dag', @date::date) AS p
-)
-, task_event_partitions AS (
+), task_event_partitions AS (
     SELECT 'v1_task_event' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_task_event', @date::date) AS p
-)
-, log_line_partitions AS (
+), log_line_partitions AS (
     SELECT 'v1_log_line' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_log_line', @date::date) AS p
-)
-, payload_partitions AS (
+), payload_partitions AS (
     SELECT 'v1_payload' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_payload', @date::date) AS p
-)
-, event_partitions AS (
+), event_partitions AS (
     SELECT 'v1_event' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_event', @date::date) AS p
-)
-, event_lookup_table_partitions AS (
-    SELECT 'v1_event_lookup_table' AS parent_table, p::text as partition_name FROM get_v1_weekly_partitions_before_date('v1_event_lookup_table', @date::date) AS p
-)
-, event_to_run_partitions AS (
-    SELECT 'v1_event_to_run' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_event_to_run', @date::date) AS p
-)
-, durable_event_log_file_partitions AS (
+), durable_event_log_file_partitions AS (
     SELECT 'v1_durable_event_log_file' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_durable_event_log_file', @date::date) AS p
-)
-, durable_event_log_entry_partitions AS (
+), durable_event_log_entry_partitions AS (
     SELECT 'v1_durable_event_log_entry' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_durable_event_log_entry', @date::date) AS p
-)
-, durable_event_log_branch_point_partitions AS (
+), durable_event_log_branch_point_partitions AS (
     SELECT 'v1_durable_event_log_branch_point' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_durable_event_log_branch_point', @date::date) AS p
-)
-, dag_to_task_partitions AS (
+), dag_to_task_partitions AS (
     SELECT 'v1_dag_to_task' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dag_to_task', @date::date) AS p
-)
-, dag_data_partitions AS (
+), dag_data_partitions AS (
     SELECT 'v1_dag_data' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dag_data', @date::date) AS p
-)
-, lookup_table_partitions AS (
-    SELECT 'v1_lookup_table' AS parent_table, p::text as partition_name FROM get_v1_weekly_partitions_before_date('v1_lookup_table', @date::date) AS p
+), lookup_table_partitions AS (
+    SELECT 'v1_lookup_table' AS parent_table, p::text as partition_name FROM get_v1_monthly_partitions_before_date('v1_lookup_table', @date::date) AS p
 )
 
 SELECT
