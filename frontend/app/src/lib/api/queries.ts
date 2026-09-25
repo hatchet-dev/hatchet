@@ -64,6 +64,35 @@ export const queries = createQueryKeyStore({
         (await controlPlaneApi.organizationPaymentMethodsGet(organization))
           .data,
     }),
+    invoices: (organization: string) => ({
+      queryKey: ['organization-invoices:get', organization],
+      queryFn: async () =>
+        (await controlPlaneApi.organizationInvoicesGet(organization)).data,
+    }),
+    usage: (organization: string) => ({
+      queryKey: ['organization-usage:get', organization],
+      queryFn: async () =>
+        (await controlPlaneApi.organizationUsageGet(organization)).data,
+    }),
+    usageTimeseries: (
+      organization: string,
+      params?: { start?: string; end?: string; tenantId?: string },
+    ) => ({
+      queryKey: [
+        'organization-usage-timeseries:get',
+        organization,
+        params?.start,
+        params?.end,
+        params?.tenantId,
+      ],
+      queryFn: async () =>
+        (
+          await controlPlaneApi.organizationUsageTimeseriesGet(
+            organization,
+            params,
+          )
+        ).data,
+    }),
   },
   cloud: {
     createComputeDemoTemplate: (tenant: string, template: TemplateOptions) => ({

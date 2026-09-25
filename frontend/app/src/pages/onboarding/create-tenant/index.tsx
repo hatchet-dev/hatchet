@@ -1,5 +1,5 @@
 import { NewTenantSaverForm } from '@/components/forms/new-tenant-saver-form';
-import { SetupCard, SetupScreen } from '@/components/layout/setup-card';
+import { SetupScreen } from '@/components/layout/setup-card';
 import { Button } from '@/components/v1/ui/button';
 import { queries } from '@/lib/api';
 import { useUserApi } from '@/lib/api/user-wrapper';
@@ -43,34 +43,30 @@ export default function CreateTenant() {
         </Button>
       }
     >
-      <SetupCard
-        title="Create a new tenant"
-        description="A tenant is an isolated environment for your workflows. Set one up to get started."
-      >
-        <NewTenantSaverForm
-          defaultOrganizationId={defaultOrganizationId}
-          afterSave={(result) => {
-            const tenantId =
-              result.type === 'cloud'
-                ? result.tenant.id
-                : result.tenant.metadata.id;
+      <NewTenantSaverForm
+        framed
+        defaultOrganizationId={defaultOrganizationId}
+        afterSave={(result) => {
+          const tenantId =
+            result.type === 'cloud'
+              ? result.tenant.id
+              : result.tenant.metadata.id;
 
-            if (result.type === 'cloud') {
-              void queryClient
-                .prefetchQuery(queries.controlPlane.subscriptionPlans())
-                .catch(() => {
-                  // Ignore prefetch errors; subscription plans will be fetched on demand if needed.
-                });
-            }
+          if (result.type === 'cloud') {
+            void queryClient
+              .prefetchQuery(queries.controlPlane.subscriptionPlans())
+              .catch(() => {
+                // Ignore prefetch errors; subscription plans will be fetched on demand if needed.
+              });
+          }
 
-            redirectOrNavigate({
-              to: appRoutes.tenantOverviewRoute.to,
-              params: { tenant: tenantId },
-              replace: true,
-            });
-          }}
-        />
-      </SetupCard>
+          redirectOrNavigate({
+            to: appRoutes.tenantOverviewRoute.to,
+            params: { tenant: tenantId },
+            replace: true,
+          });
+        }}
+      />
     </SetupScreen>
   );
 }
