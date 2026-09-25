@@ -842,6 +842,220 @@ func TestIdleConnectionSurvivesClientKeepalive(t *testing.T) {
 	}
 }
 
+// unaryAdminV1 answers the two v1.AdminService procedures a client that only polls needs:
+// trigger a run, then read its details. The rest stay unimplemented.
+type unaryAdminV1 struct {
+	v1connect.UnimplementedAdminServiceHandler
+
+	calls atomic.Int64
+}
+
+func (*unaryAdminV1) Cleanup() error { return nil }
+
+func (a *unaryAdminV1) TriggerWorkflowRun(ctx context.Context, req *v1contracts.TriggerWorkflowRunRequest) (*v1contracts.TriggerWorkflowRunResponse, error) {
+	a.calls.Add(1)
+
+	tenant := ctx.Value("tenant").(*sqlcv1.Tenant) // nolint:staticcheck
+
+	return &v1contracts.TriggerWorkflowRunResponse{ExternalId: tenant.ID.String() + "/" + req.WorkflowName}, nil
+}
+
+func (a *unaryAdminV1) GetRunDetails(_ context.Context, req *v1contracts.GetRunDetailsRequest) (*v1contracts.GetRunDetailsResponse, error) {
+	a.calls.Add(1)
+
+	return &v1contracts.GetRunDetailsResponse{
+		Status: v1contracts.RunStatus_COMPLETED,
+		Done:   true,
+		Input:  []byte(`{"run":"` + req.ExternalId + `"}`),
+		TaskRuns: map[string]*v1contracts.TaskRunDetail{
+			"task-1": {ExternalId: "task-1", ReadableId: "step", Status: v1contracts.RunStatus_COMPLETED},
+		},
+	}, nil
+}
+
+// trickleReader yields one byte of data per interval, so a body is never idle but never done
+// before the deadline either.
+type trickleReader struct {
+	data     []byte
+	interval time.Duration
+}
+
+func (r *trickleReader) Read(p []byte) (int, error) {
+	if len(r.data) == 0 {
+		return 0, io.EOF
+	}
+
+	time.Sleep(r.interval)
+
+	p[0] = r.data[0]
+	r.data = r.data[1:]
+
+	return 1, nil
+}
+
+// TestConnectUnaryOverHTTP1ForFetchClients pins what a fetch-based Connect client gets from the
+// engine: HTTP/1.1, the Connect protocol with binary protobuf messages, unary procedures only.
+// TestConnectProtocolOverHTTP1 holds the Dispatcher on that transport; this one holds the v1
+// services a run-and-poll client is built on, and the default body deadline that bounds it.
+func TestConnectUnaryOverHTTP1ForFetchClients(t *testing.T) {
+	pki := newTestPKI(t)
+
+	for _, tr := range transports()[:2] {
+		t.Run(tr.name, func(t *testing.T) {
+			admin := &unaryAdminV1{}
+			env := startTestServer(t, tr, pki, 0, WithAdminV1(admin))
+
+			scheme, tlsConfig := "http", (*tls.Config)(nil)
+
+			if !tr.insecure {
+				scheme, tlsConfig = "https", tr.clientTLS(pki, false)
+			}
+
+			httpClient := http1Client(t, tlsConfig)
+			baseURL := scheme + "://" + env.addr
+
+			// connect-go's defaults are what connect-web sends for a unary call: the Connect
+			// protocol with binary protobuf messages. The interceptor sees the headers the
+			// protocol client wrote, so the test can hold that rather than assume it.
+			var contentType, protocol atomic.Value
+
+			opts := []connect.ClientOption{connect.WithInterceptors(connect.UnaryInterceptorFunc(func(next connect.UnaryFunc) connect.UnaryFunc {
+				return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
+					contentType.Store(req.Header().Get("Content-Type"))
+					protocol.Store(req.Peer().Protocol)
+
+					return next(ctx, req)
+				}
+			}))}
+			adminClient := v1connect.NewAdminServiceClient(httpClient, baseURL, opts...)
+			dispatcherV1Client := v1connect.NewV1DispatcherClient(httpClient, baseURL, opts...)
+			dispatcherClient := dispatcherconnect.NewDispatcherClient(httpClient, baseURL, opts...)
+
+			authed := func() context.Context {
+				ctx, callInfo := connect.NewClientContext(context.Background())
+				callInfo.RequestHeader().Set("Authorization", "Bearer "+validToken)
+
+				return ctx
+			}
+
+			t.Run("unauthenticated calls are unauthenticated on every service", func(t *testing.T) {
+				_, err := adminClient.TriggerWorkflowRun(context.Background(), &v1contracts.TriggerWorkflowRunRequest{WorkflowName: "wf"})
+				assert.Equal(t, connect.CodeUnauthenticated, connect.CodeOf(err), "AdminService: %v", err)
+
+				_, err = adminClient.GetRunDetails(context.Background(), &v1contracts.GetRunDetailsRequest{ExternalId: "run"})
+				assert.Equal(t, connect.CodeUnauthenticated, connect.CodeOf(err), "AdminService: %v", err)
+
+				_, err = dispatcherV1Client.RegisterDurableEvent(context.Background(), &v1contracts.RegisterDurableEventRequest{})
+				assert.Equal(t, connect.CodeUnauthenticated, connect.CodeOf(err), "V1Dispatcher: %v", err)
+
+				_, err = dispatcherClient.Register(context.Background(), &dispatchercontracts.WorkerRegisterRequest{WorkerName: "w"})
+				assert.Equal(t, connect.CodeUnauthenticated, connect.CodeOf(err), "Dispatcher: %v", err)
+
+				var connectErr *connect.Error
+				require.ErrorAs(t, err, &connectErr)
+				assert.Equal(t, "invalid auth token", connectErr.Message())
+
+				assert.Zero(t, admin.calls.Load(), "an unauthenticated call reached the handler")
+			})
+
+			t.Run("trigger then poll decodes", func(t *testing.T) {
+				triggered, err := adminClient.TriggerWorkflowRun(authed(), &v1contracts.TriggerWorkflowRunRequest{WorkflowName: "wf", Input: []byte(`{}`)})
+				require.NoError(t, err)
+				assert.Equal(t, testTenantID.String()+"/wf", triggered.ExternalId)
+				assert.Equal(t, "application/proto", contentType.Load())
+				assert.Equal(t, connect.ProtocolConnect, protocol.Load())
+
+				details, err := adminClient.GetRunDetails(authed(), &v1contracts.GetRunDetailsRequest{ExternalId: triggered.ExternalId})
+				require.NoError(t, err)
+				assert.True(t, details.Done)
+				assert.Equal(t, v1contracts.RunStatus_COMPLETED, details.Status)
+				assert.JSONEq(t, `{"run":"`+triggered.ExternalId+`"}`, string(details.Input))
+				require.Contains(t, details.TaskRuns, "task-1")
+				assert.Equal(t, "step", details.TaskRuns["task-1"].ReadableId)
+				assert.Equal(t, v1contracts.RunStatus_COMPLETED, details.TaskRuns["task-1"].Status)
+			})
+
+			t.Run("v1 dispatcher unary passes the gate and reaches its handler", func(t *testing.T) {
+				_, err := dispatcherV1Client.RegisterDurableEvent(authed(), &v1contracts.RegisterDurableEventRequest{})
+				assert.Equal(t, connect.CodeUnimplemented, connect.CodeOf(err))
+
+				// connect's own message for a mounted but unimplemented procedure, not a 404
+				var connectErr *connect.Error
+				require.ErrorAs(t, err, &connectErr)
+				assert.Equal(t, "v1.V1Dispatcher.RegisterDurableEvent is not implemented", connectErr.Message())
+			})
+
+			t.Run("bidirectional procedure fails with the HTTP/1.1 refusal", func(t *testing.T) {
+				stream, err := dispatcherV1Client.DurableTask(authed())
+				require.NoError(t, err)
+
+				defer stream.CloseResponse()
+
+				// the refusal is a 505 with no Connect error body, which a Connect client reads
+				// as unknown: a fetch caller must not open one and expect a coded error
+				_ = stream.Send(&v1contracts.DurableTaskRequest{})
+				require.NoError(t, stream.CloseRequest())
+
+				_, err = stream.Receive()
+				require.Error(t, err)
+				assert.Equal(t, connect.CodeUnknown, connect.CodeOf(err), "got %v", err)
+				assert.Contains(t, err.Error(), "505")
+			})
+		})
+	}
+
+	// Nothing but the body deadline reclaims an HTTP/1.1 caller that keeps sending. The deadline
+	// is absolute: a body that never goes idle is still cut off when it elapses. The server runs
+	// with a short deadline here so the test does not wait out the production value, which is
+	// pinned separately.
+	t.Run("body trickling past the deadline gets a deadline error", func(t *testing.T) {
+		assert.Equal(t, 30*time.Second, defaultHTTP1BodyReadTimeout, "the production body deadline")
+
+		const bodyDeadline = 500 * time.Millisecond
+
+		admin := &unaryAdminV1{}
+		env := startTestServer(t, transports()[0], nil, 0, WithAdminV1(admin), withHTTP1Timeouts(bodyDeadline, time.Minute))
+
+		msg, err := proto.Marshal(&v1contracts.TriggerWorkflowRunRequest{WorkflowName: strings.Repeat("w", 256)})
+		require.NoError(t, err)
+
+		// one byte at a time: several deadlines for the whole message, but never idle
+		body := &trickleReader{data: msg, interval: 10 * time.Millisecond}
+		require.Greater(t, time.Duration(len(msg))*body.interval, 2*bodyDeadline)
+
+		req, err := http.NewRequest(http.MethodPost, "http://"+env.addr+"/v1.AdminService/TriggerWorkflowRun", body)
+		require.NoError(t, err)
+
+		// fetch sends a body it already holds with a Content-Length
+		req.ContentLength = int64(len(msg))
+		req.Header.Set("Content-Type", "application/proto")
+		req.Header.Set("Authorization", "Bearer "+validToken)
+
+		httpClient := http1Client(t, nil)
+		// far longer than the body deadline: the server has to be the one to finish
+		httpClient.Timeout = 20 * bodyDeadline
+
+		start := time.Now()
+
+		res, err := httpClient.Do(req)
+		require.NoError(t, err)
+
+		defer res.Body.Close()
+
+		errBody, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+
+		elapsed := time.Since(start)
+
+		assert.Equal(t, http.StatusGatewayTimeout, res.StatusCode, "body: %s", errBody)
+		assert.Equal(t, "application/json", res.Header.Get("Content-Type"))
+		assert.Contains(t, string(errBody), `"code":"deadline_exceeded"`)
+		assert.GreaterOrEqual(t, elapsed, bodyDeadline-50*time.Millisecond)
+		assert.Less(t, elapsed, 5*bodyDeadline)
+		assert.Zero(t, admin.calls.Load(), "an incomplete request reached the handler")
+	})
+}
+
 func newHTTPClient(tr transport, pki *testPKI) *http.Client {
 	if tr.insecure {
 		protocols := new(http.Protocols)
