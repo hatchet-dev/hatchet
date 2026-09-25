@@ -457,12 +457,6 @@ type APIMeta struct {
 	// Embedded whether this instance is running in embedded mode
 	Embedded *bool `json:"embedded,omitempty"`
 
-	// Fips whether this instance is running with the Go FIPS 140-3 cryptographic module enabled (-fips build)
-	Fips *bool `json:"fips,omitempty"`
-
-	// FipsVersion the version of the FIPS 140-3 module in use, only set when fips is true
-	FipsVersion *string `json:"fipsVersion,omitempty"`
-
 	// ObservabilityEnabled whether or not observability (trace collection) is enabled on this instance
 	ObservabilityEnabled *bool           `json:"observabilityEnabled,omitempty"`
 	Posthog              *APIMetaPosthog `json:"posthog,omitempty"`

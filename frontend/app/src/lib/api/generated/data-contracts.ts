@@ -1342,16 +1342,6 @@ export interface APIMeta {
    * @example false
    */
   embedded?: boolean;
-  /**
-   * whether this instance is running with the Go FIPS 140-3 cryptographic module enabled (-fips build)
-   * @example false
-   */
-  fips?: boolean;
-  /**
-   * the version of the FIPS 140-3 module in use, only set when fips is true
-   * @example "v1.0.0"
-   */
-  fipsVersion?: string;
 }
 
 export interface APIMetaIntegration {

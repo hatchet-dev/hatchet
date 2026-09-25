@@ -768,7 +768,6 @@ jobs:
       - build-push-hatchet-lite-amd
       - build-push-hatchet-dashboard-amd
       - build-push-hatchet-frontend-amd
-      - build-push-hatchet-loadtest-amd
     steps:
       - name: Get tag name
         id: tag_name
@@ -790,8 +789,7 @@ jobs:
             $r/hatchet-migrate:$t=/hatchet/hatchet-migrate \
             $r/hatchet-lite:$t=/hatchet-lite,/hatchet-admin,/hatchet-migrate \
             $r/hatchet-dashboard:$t=/hatchet/hatchet-api,/hatchet/hatchet-staticfileserver \
-            $r/hatchet-frontend:$t=/app/hatchet-staticfileserver \
-            $r/hatchet-loadtest:$t=/hatchet/hatchet-load-test,/hatchet/hatchet-load-test-worker
+            $r/hatchet-frontend:$t=/app/hatchet-staticfileserver
   combine-hatchet-lite:
     name: Combine hatchet-lite
     runs-on: ubuntu-latest

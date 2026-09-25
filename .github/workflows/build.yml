@@ -114,7 +114,7 @@ jobs:
               -t hatchet-$target-fips-tmp . &
           done
           wait
-      - name: Build lite, dashboard, frontend and loadtest (fips)
+      - name: Build lite, dashboard and frontend (fips)
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/lite.dockerfile \
             --build-arg HATCHET_LITE_IMAGE=hatchet-lite-fips-tmp \
@@ -126,8 +126,6 @@ jobs:
             -t hatchet-dashboard-fips:ci .
           DOCKER_BUILDKIT=1 docker build -f ./build/package/frontend.dockerfile \
             --build-arg FIPS=true -t hatchet-frontend-fips:ci .
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/loadtest.dockerfile \
-            --build-arg FIPS=true -t hatchet-loadtest-fips:ci .
       - name: Assert every Go binary links the validated FIPS module
         run: |
           EXPECT_FIPS=true bash hack/ci/assert-fips.sh \
@@ -137,8 +135,7 @@ jobs:
             hatchet-migrate-fips-tmp=/hatchet/hatchet-migrate \
             hatchet-lite-fips:ci=/hatchet-lite,/hatchet-admin,/hatchet-migrate \
             hatchet-dashboard-fips:ci=/hatchet/hatchet-api,/hatchet/hatchet-staticfileserver \
-            hatchet-frontend-fips:ci=/app/hatchet-staticfileserver \
-            hatchet-loadtest-fips:ci=/hatchet/hatchet-load-test,/hatchet/hatchet-load-test-worker
+            hatchet-frontend-fips:ci=/app/hatchet-staticfileserver
 
   admin:
     runs-on: ubuntu-latest

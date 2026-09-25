@@ -78,37 +78,6 @@ jobs:
       - name: Push to GHCR
         run: docker push $REGISTRY/hatchet-frontend-fips:${{ steps.tag_name.outputs.tag }}-${{ matrix.arch }}
 
-  loadtest:
-    name: hatchet-loadtest-fips-${{ matrix.arch }}
-    runs-on: ${{ matrix.runner }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: amd64
-            runner: ubuntu-latest
-          - arch: arm64
-            runner: hatchet-arm64-2
-    steps:
-      - name: Get tag name
-        id: tag_name
-        run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
-        env:
-          GITHUB_TAG: ${{ github.ref }}
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Login to GHCR
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-      - name: Build
-        run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/loadtest.dockerfile \
-            -t $REGISTRY/hatchet-loadtest-fips:${{ steps.tag_name.outputs.tag }}-${{ matrix.arch }} \
-            --build-arg FIPS=true \
-            --platform linux/${{ matrix.arch }} \
-            .
-      - name: Push to GHCR
-        run: docker push $REGISTRY/hatchet-loadtest-fips:${{ steps.tag_name.outputs.tag }}-${{ matrix.arch }}
-
   lite:
     name: hatchet-lite-fips-${{ matrix.arch }}
     runs-on: ${{ matrix.runner }}
@@ -207,7 +176,7 @@ jobs:
   fips-enabled:
     name: Verify fips images link the validated module
     runs-on: ubuntu-latest
-    needs: [servers, frontend, loadtest, lite, dashboard]
+    needs: [servers, frontend, lite, dashboard]
     steps:
       - name: Get tag name
         id: tag_name
@@ -228,8 +197,7 @@ jobs:
             $r/hatchet-migrate-fips:$t=/hatchet/hatchet-migrate \
             $r/hatchet-lite-fips:$t=/hatchet-lite,/hatchet-admin,/hatchet-migrate \
             $r/hatchet-dashboard-fips:$t=/hatchet/hatchet-api,/hatchet/hatchet-staticfileserver \
-            $r/hatchet-frontend-fips:$t=/app/hatchet-staticfileserver \
-            $r/hatchet-loadtest-fips:$t=/hatchet/hatchet-load-test,/hatchet/hatchet-load-test-worker
+            $r/hatchet-frontend-fips:$t=/app/hatchet-staticfileserver
 
   combine:
     name: Combine hatchet-${{ matrix.image }}-fips
@@ -238,7 +206,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        image: [api, engine, admin, migrate, frontend, loadtest, lite, dashboard]
+        image: [api, engine, admin, migrate, frontend, lite, dashboard]
     steps:
       - name: Get tag name
         id: tag_name

@@ -15,6 +15,7 @@ import (
 
 type localEncryptionService struct {
 	key                *aead.KMSEnvelopeAEAD
+	legacyKey          *aead.KMSEnvelopeAEAD
 	privateEc256Handle *keyset.Handle
 	publicEc256Handle  *keyset.Handle
 }
@@ -57,11 +58,17 @@ func NewLocalEncryption(masterKey []byte, privateEc256 []byte, publicEc256 []byt
 		return nil, fmt.Errorf("failed to create envelope")
 	}
 
-	return &localEncryptionService{
+	svc := &localEncryptionService{
 		key:                envelope,
 		privateEc256Handle: privateEc256Handle,
 		publicEc256Handle:  publicEc256Handle,
-	}, nil
+	}
+
+	if !fips140.Enabled() {
+		svc.legacyKey = aead.NewKMSEnvelopeAEAD2(aead.AES128GCMKeyTemplate(), a)
+	}
+
+	return svc, nil
 }
 
 func GenerateLocalKeys() (masterKey []byte, privateEc256 []byte, publicEc256 []byte, insecurePublicHandleEc256 []byte, err error) {
@@ -235,7 +242,13 @@ func (svc *localEncryptionService) Encrypt(plaintext []byte, dataId string) ([]b
 }
 
 func (svc *localEncryptionService) Decrypt(ciphertext []byte, dataId string) ([]byte, error) {
-	return decrypt(svc.key, ciphertext, dataId)
+	plaintext, err := decrypt(svc.key, ciphertext, dataId)
+
+	if err != nil && svc.legacyKey != nil {
+		return decrypt(svc.legacyKey, ciphertext, dataId)
+	}
+
+	return plaintext, err
 }
 
 func (svc *localEncryptionService) EncryptString(data string, dataId string) (string, error) {
@@ -251,7 +264,7 @@ func (svc *localEncryptionService) DecryptString(data string, dataId string) (st
 	if err != nil {
 		return "", err
 	}
-	b, err := decrypt(svc.key, plain, dataId)
+	b, err := svc.Decrypt(plain, dataId)
 	if err != nil {
 		return "", err
 	}

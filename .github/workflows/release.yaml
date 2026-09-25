@@ -167,7 +167,7 @@ jobs:
           done
       - name: Pull and push fips images
         run: |
-          for img in hatchet-api hatchet-engine hatchet-admin hatchet-migrate hatchet-frontend hatchet-lite hatchet-dashboard hatchet-loadtest; do
+          for img in hatchet-api hatchet-engine hatchet-admin hatchet-migrate hatchet-frontend hatchet-lite hatchet-dashboard; do
             docker pull ghcr.io/hatchet-dev/hatchet/$img-fips:${{steps.tag_name.outputs.tag}}-arm64
             docker pull ghcr.io/hatchet-dev/hatchet/$img-fips:${{steps.tag_name.outputs.tag}}-amd64
 
