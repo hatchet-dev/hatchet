@@ -107,7 +107,8 @@ export class HatchetCore {
     }
 
     const tenantId = getTenantIdFromJWT(config.token);
-    const serverUrl = resolveServerUrl(config);
+    // a caller-supplied transport owns its base URL, auth and limits, so no address is resolved
+    const serverUrl = config.transport ? (config.serverUrl ?? '') : resolveServerUrl(config);
     const namespace = normalizeNamespace(config.namespace);
     const logger = config.logger ?? consoleLogger;
 
