@@ -31,6 +31,7 @@ import {
   flattenDAGsKey,
   createdAfterKey,
   finishedBeforeKey,
+  includeOlderActiveRunsKey,
   runningFilterKey,
   statusKey,
   isCustomTimeRangeKey,
@@ -168,8 +169,10 @@ function FilterControl<TData>({
           <Checkbox
             id={`filter-${filter.columnId}`}
             checked={!!value}
+            // Store the explicit boolean so an unchecked switch survives a
+            // schema default of true (see includeOlderActiveRuns).
             onCheckedChange={(checked) =>
-              column?.setFilterValue(checked === true ? true : undefined)
+              column?.setFilterValue(checked === true)
             }
           />
         </div>
@@ -612,6 +615,11 @@ export function DataTableOptions<TData>({
         }
 
         if (f.id === flattenDAGsKey && !f.value) {
+          return false;
+        }
+
+        // checked is the default, so only an unchecked switch counts as a filter
+        if (f.id === includeOlderActiveRunsKey && f.value === true) {
           return false;
         }
 

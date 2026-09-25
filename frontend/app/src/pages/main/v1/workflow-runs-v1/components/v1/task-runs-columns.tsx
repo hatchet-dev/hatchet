@@ -30,6 +30,7 @@ export const TaskRunColumn = {
   workflow: 'Workflow',
   parentTaskExternalId: 'Parent Task External ID',
   flattenDAGs: 'Flatten DAGs',
+  includeOlderActiveRuns: 'Show older active runs',
   runningFilter: 'Running Filter',
   createdAt: 'Created At',
   startedAt: 'Started At',
@@ -45,6 +46,8 @@ export type TaskRunColumnKeys = keyof typeof TaskRunColumn;
 export const workflowKey: TaskRunColumnKeys = 'workflow';
 const parentTaskExternalIdKey: TaskRunColumnKeys = 'parentTaskExternalId';
 export const flattenDAGsKey: TaskRunColumnKeys = 'flattenDAGs';
+export const includeOlderActiveRunsKey: TaskRunColumnKeys =
+  'includeOlderActiveRuns';
 export const createdAtKey: TaskRunColumnKeys = 'createdAt';
 const startedAtKey: TaskRunColumnKeys = 'startedAt';
 const finishedAtKey: TaskRunColumnKeys = 'finishedAt';
@@ -270,6 +273,18 @@ export const columns: (
       <DataTableColumnHeader
         column={column}
         title={TaskRunColumn.flattenDAGs}
+      />
+    ),
+    cell: () => null,
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
+    accessorKey: includeOlderActiveRunsKey,
+    header: ({ column }) => (
+      <DataTableColumnHeader
+        column={column}
+        title={TaskRunColumn.includeOlderActiveRuns}
       />
     ),
     cell: () => null,

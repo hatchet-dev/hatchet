@@ -212,6 +212,7 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
     (filters.apiFilters.workflowIds?.length ?? 0) > 0 ||
     (filters.apiFilters.additionalMetadata?.length ?? 0) > 0 ||
     !!filters.apiFilters.runningFilter ||
+    !filters.apiFilters.includeOlderActiveRuns ||
     filters.isCustomTimeRange ||
     filters.timeWindow !== '1d';
   const isDefaultOneDayWindow =
