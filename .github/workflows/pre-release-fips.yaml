@@ -169,6 +169,7 @@ jobs:
             -t $REGISTRY/hatchet-dashboard-fips:${{ steps.tag_name.outputs.tag }}-${{ matrix.arch }} \
             --platform linux/${{ matrix.arch }} \
             --build-arg HATCHET_API_IMAGE=hatchet-api-fips-tmp:${{ matrix.arch }} \
+            --build-arg FIPS=true \
             .
       - name: Push to GHCR
         run: docker push $REGISTRY/hatchet-dashboard-fips:${{ steps.tag_name.outputs.tag }}-${{ matrix.arch }}
@@ -187,17 +188,20 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Login to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-      - name: Assert every Go binary in every -fips image links GOFIPS140=v1.0.0
+      - name: Assert every Go binary in every -fips image, both architectures, links GOFIPS140=v1.0.0
         run: |
-          r=$REGISTRY; t=${{ steps.tag_name.outputs.tag }}-amd64
-          EXPECT_FIPS=true bash hack/ci/assert-fips.sh \
-            $r/hatchet-api-fips:$t=/hatchet/hatchet-api \
-            $r/hatchet-engine-fips:$t=/hatchet/hatchet-engine \
-            $r/hatchet-admin-fips:$t=/hatchet/hatchet-admin \
-            $r/hatchet-migrate-fips:$t=/hatchet/hatchet-migrate \
-            $r/hatchet-lite-fips:$t=/hatchet-lite,/hatchet-admin,/hatchet-migrate \
-            $r/hatchet-dashboard-fips:$t=/hatchet/hatchet-api,/hatchet/hatchet-staticfileserver \
-            $r/hatchet-frontend-fips:$t=/app/hatchet-staticfileserver
+          r=$REGISTRY
+          for arch in amd64 arm64; do
+            t=${{ steps.tag_name.outputs.tag }}-$arch
+            EXPECT_FIPS=true bash hack/ci/assert-fips.sh \
+              $r/hatchet-api-fips:$t=/hatchet/hatchet-api \
+              $r/hatchet-engine-fips:$t=/hatchet/hatchet-engine \
+              $r/hatchet-admin-fips:$t=/hatchet/hatchet-admin \
+              $r/hatchet-migrate-fips:$t=/hatchet/hatchet-migrate \
+              $r/hatchet-lite-fips:$t=/hatchet-lite,/hatchet-admin,/hatchet-migrate \
+              $r/hatchet-dashboard-fips:$t=/hatchet/hatchet-api,/hatchet/hatchet-staticfileserver \
+              $r/hatchet-frontend-fips:$t=/app/hatchet-staticfileserver
+          done
 
   combine:
     name: Combine hatchet-${{ matrix.image }}-fips

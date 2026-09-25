@@ -122,7 +122,7 @@ jobs:
             --build-arg HATCHET_MIGRATE_IMAGE=hatchet-migrate-fips-tmp \
             -t hatchet-lite-fips:ci .
           DOCKER_BUILDKIT=1 docker build -f ./build/package/dashboard.dockerfile \
-            --build-arg HATCHET_API_IMAGE=hatchet-api-fips-tmp \
+            --build-arg HATCHET_API_IMAGE=hatchet-api-fips-tmp --build-arg FIPS=true \
             -t hatchet-dashboard-fips:ci .
           DOCKER_BUILDKIT=1 docker build -f ./build/package/frontend.dockerfile \
             --build-arg FIPS=true -t hatchet-frontend-fips:ci .

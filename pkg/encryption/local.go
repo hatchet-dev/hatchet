@@ -10,12 +10,12 @@ import (
 	"github.com/tink-crypto/tink-go/insecurecleartextkeyset"
 	"github.com/tink-crypto/tink-go/jwt"
 	"github.com/tink-crypto/tink-go/keyset"
+	tinkpb "github.com/tink-crypto/tink-go/proto/tink_go_proto"
 	"github.com/tink-crypto/tink-go/tink"
 )
 
 type localEncryptionService struct {
 	key                *aead.KMSEnvelopeAEAD
-	legacyKey          *aead.KMSEnvelopeAEAD
 	privateEc256Handle *keyset.Handle
 	publicEc256Handle  *keyset.Handle
 }
@@ -52,23 +52,33 @@ func NewLocalEncryption(masterKey []byte, privateEc256 []byte, publicEc256 []byt
 		return nil, err
 	}
 
-	envelope := aead.NewKMSEnvelopeAEAD2(aead.AES128CTRHMACSHA256KeyTemplate(), a)
+	envelope := aead.NewKMSEnvelopeAEAD2(envelopeKeyTemplate(), a)
 
 	if envelope == nil {
 		return nil, fmt.Errorf("failed to create envelope")
 	}
 
-	svc := &localEncryptionService{
+	return &localEncryptionService{
 		key:                envelope,
 		privateEc256Handle: privateEc256Handle,
 		publicEc256Handle:  publicEc256Handle,
+	}, nil
+}
+
+func envelopeKeyTemplate() *tinkpb.KeyTemplate {
+	if fips140.Enabled() {
+		return aead.AES128CTRHMACSHA256KeyTemplate()
 	}
 
-	if !fips140.Enabled() {
-		svc.legacyKey = aead.NewKMSEnvelopeAEAD2(aead.AES128GCMKeyTemplate(), a)
+	return aead.AES128GCMKeyTemplate()
+}
+
+func masterKeyTemplate() *tinkpb.KeyTemplate {
+	if fips140.Enabled() {
+		return aead.AES256CTRHMACSHA256KeyTemplate()
 	}
 
-	return svc, nil
+	return aead.AES256GCMKeyTemplate()
 }
 
 func GenerateLocalKeys() (masterKey []byte, privateEc256 []byte, publicEc256 []byte, insecurePublicHandleEc256 []byte, err error) {
@@ -102,7 +112,7 @@ func checkFIPSKeyset(h *keyset.Handle) error {
 
 	for _, k := range h.KeysetInfo().GetKeyInfo() {
 		if k.GetTypeUrl() == aesGCMKeyTypeURL {
-			return fmt.Errorf("master keyset uses AES-GCM, which is not FIPS-approved: regenerate the keysets with a FIPS build of hatchet-admin")
+			return fmt.Errorf("master keyset uses AES-GCM, which is not FIPS-approved: regenerate the keysets with a FIPS build of hatchet-admin; secrets encrypted under the old keyset (OAuth tokens, Slack and inbound webhook credentials) must be re-created")
 		}
 	}
 
@@ -110,10 +120,10 @@ func checkFIPSKeyset(h *keyset.Handle) error {
 }
 
 func generateLocalMasterKey() ([]byte, *keyset.Handle, error) {
-	masterHandle, err := keyset.NewHandle(aead.AES256CTRHMACSHA256KeyTemplate())
+	masterHandle, err := keyset.NewHandle(masterKeyTemplate())
 
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create new keyset handle with AES256CTRHMACSHA256 template: %w", err)
+		return nil, nil, fmt.Errorf("failed to create new master keyset handle: %w", err)
 	}
 
 	bytes, err := insecureBytesFromHandle(masterHandle)
@@ -242,13 +252,7 @@ func (svc *localEncryptionService) Encrypt(plaintext []byte, dataId string) ([]b
 }
 
 func (svc *localEncryptionService) Decrypt(ciphertext []byte, dataId string) ([]byte, error) {
-	plaintext, err := decrypt(svc.key, ciphertext, dataId)
-
-	if err != nil && svc.legacyKey != nil {
-		return decrypt(svc.legacyKey, ciphertext, dataId)
-	}
-
-	return plaintext, err
+	return decrypt(svc.key, ciphertext, dataId)
 }
 
 func (svc *localEncryptionService) EncryptString(data string, dataId string) (string, error) {
@@ -264,7 +268,7 @@ func (svc *localEncryptionService) DecryptString(data string, dataId string) (st
 	if err != nil {
 		return "", err
 	}
-	b, err := svc.Decrypt(plain, dataId)
+	b, err := decrypt(svc.key, plain, dataId)
 	if err != nil {
 		return "", err
 	}

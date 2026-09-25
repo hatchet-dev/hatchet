@@ -85,6 +85,7 @@ const (
 	pbkdf2KeyLen     = 32
 )
 
+// ErrLegacyPasswordHash is returned in FIPS mode when a stored hash is bcrypt.
 var ErrLegacyPasswordHash = errors.New("password hash uses bcrypt, which is not permitted in FIPS mode; the password must be reset")
 
 func HashPassword(pw string) (*string, error) {
@@ -105,6 +106,7 @@ func HashPassword(pw string) (*string, error) {
 	return StringPtr(fmt.Sprintf("%s%d$%s$%s", pbkdf2Prefix, pbkdf2Iterations, enc.EncodeToString(salt), enc.EncodeToString(key))), nil
 }
 
+// IsLegacyPasswordHash reports whether hashedPW is a bcrypt hash from before the PBKDF2 switch.
 func IsLegacyPasswordHash(hashedPW string) bool {
 	return !strings.HasPrefix(hashedPW, pbkdf2Prefix)
 }
