@@ -15,12 +15,13 @@ import (
 const bulkUpdateRateLimits = `-- name: BulkUpdateRateLimits :many
 WITH input AS (
     SELECT
-        "key", "units"
+        "key", "units", "windowStart"
     FROM
         (
             SELECT
                 unnest($1::text[]) AS "key",
-                unnest($2::int[]) AS "units"
+                unnest($2::int[]) AS "units",
+                unnest($3::timestamp[]) AS "windowStart"
         ) AS subquery
 ), rls_to_update AS (
     SELECT
@@ -28,7 +29,7 @@ WITH input AS (
     FROM
         "RateLimit" rl
     WHERE
-        rl."tenantId" = $3::uuid
+        rl."tenantId" = $4::uuid
         AND rl."key" = ANY(SELECT "key" FROM input)
     ORDER BY
         rl."tenantId" ASC, rl."key" ASC
@@ -37,29 +38,35 @@ WITH input AS (
 UPDATE
     "RateLimit" rl
 SET
-    "value" = get_refill_value(rl) - (SELECT "units" FROM input WHERE "key" = rl."key"),
-    "lastRefill" = CASE
-        WHEN NOW() - rl."lastRefill" >= (rl."window"::INTERVAL - INTERVAL '10 milliseconds') THEN
-            CURRENT_TIMESTAMP
-        ELSE
-            rl."lastRefill"
-    END
+    "value" = GREATEST(0, rl."value" - input."units")
 FROM
-    rls_to_update rl2
+    rls_to_update rl2,
+    input
 WHERE
     rl2."tenantId" = rl."tenantId"
     AND rl2."key" = rl."key"
+    AND input."key" = rl."key"
+    AND input."windowStart" = rl."lastRefill"
 RETURNING rl."tenantId", rl.key, rl."limitValue", rl.value, rl."window", rl."lastRefill"
 `
 
 type BulkUpdateRateLimitsParams struct {
-	Keys     []string  `json:"keys"`
-	Units    []int32   `json:"units"`
-	Tenantid uuid.UUID `json:"tenantid"`
+	Keys         []string           `json:"keys"`
+	Units        []int32            `json:"units"`
+	Windowstarts []pgtype.Timestamp `json:"windowstarts"`
+	Tenantid     uuid.UUID          `json:"tenantid"`
 }
 
+// Usage is only charged to the window it was reserved in (identified by "lastRefill");
+// usage from an already-refilled window is dropped. Refills happen in
+// ListRateLimitsForTenantWithMutate.
 func (q *Queries) BulkUpdateRateLimits(ctx context.Context, db DBTX, arg BulkUpdateRateLimitsParams) ([]*RateLimit, error) {
-	rows, err := db.Query(ctx, bulkUpdateRateLimits, arg.Keys, arg.Units, arg.Tenantid)
+	rows, err := db.Query(ctx, bulkUpdateRateLimits,
+		arg.Keys,
+		arg.Units,
+		arg.Windowstarts,
+		arg.Tenantid,
+	)
 	if err != nil {
 		return nil, err
 	}

@@ -18,6 +18,10 @@ type rateLimit struct {
 	key          string
 	val          int
 	nextRefillAt *time.Time
+
+	// windowStart is the database lastRefill of the window this value belongs to. Unacked
+	// and unflushed usage only counts against the window it was reserved in.
+	windowStart time.Time
 }
 
 type rateLimitSet map[string]*rateLimit
@@ -149,7 +153,7 @@ func (r *rateLimiter) use(ctx context.Context, taskId int64, rls map[string]int3
 	}
 
 	// if we can use all the rate limits, add them to the unacked set
-	r.addToUnacked(taskId, rls)
+	r.addToUnacked(taskId, rls, currRls)
 
 	return rateLimitResult{
 		succeeded: true,
@@ -201,6 +205,7 @@ func (r *rateLimiter) copyDbRateLimits() rateLimitSet {
 			key:          k,
 			val:          v.val,
 			nextRefillAt: v.nextRefillAt,
+			windowStart:  v.windowStart,
 		}
 	}
 
@@ -214,9 +219,8 @@ func (r *rateLimiter) subtractUnacked(candidateRls map[string]int32, currRls rat
 	for _, set := range r.unacked {
 		for k, v := range set {
 			if _, ok := candidateRls[k]; ok {
-				if _, ok := currRls[k]; ok {
-					unackedRl := v
-					currRls[k].val -= unackedRl.val
+				if currRl, ok := currRls[k]; ok && v.windowStart.Equal(currRl.windowStart) {
+					currRl.val -= v.val
 				}
 			}
 		}
@@ -229,14 +233,16 @@ func (r *rateLimiter) subtractUnflushed(candidateRls map[string]int32, currRls r
 
 	for k, v := range r.unflushed {
 		if _, ok := candidateRls[k]; ok {
-			if _, ok := currRls[k]; ok {
-				currRls[k].val -= v.val
+			if currRl, ok := currRls[k]; ok && v.windowStart.Equal(currRl.windowStart) {
+				currRl.val -= v.val
 			}
 		}
 	}
 }
 
-func (r *rateLimiter) addToUnacked(taskId int64, rls map[string]int32) {
+// addToUnacked tags each reservation with the window of the snapshot the admission
+// decision was made against, so a concurrent flush can't move it into a newer window.
+func (r *rateLimiter) addToUnacked(taskId int64, rls map[string]int32, snapshot rateLimitSet) {
 	r.unackedMu.Lock()
 	defer r.unackedMu.Unlock()
 
@@ -245,9 +251,16 @@ func (r *rateLimiter) addToUnacked(taskId int64, rls map[string]int32) {
 			r.unacked[taskId] = make(rateLimitSet)
 		}
 
+		var windowStart time.Time
+
+		if snapshotRl, ok := snapshot[k]; ok {
+			windowStart = snapshotRl.windowStart
+		}
+
 		r.unacked[taskId][k] = &rateLimit{
-			key: k,
-			val: int(v),
+			key:         k,
+			val:         int(v),
+			windowStart: windowStart,
 		}
 	}
 }
@@ -262,10 +275,19 @@ func (r *rateLimiter) ack(taskId int64) {
 
 	if _, ok := r.unacked[taskId]; ok {
 		for k, v := range r.unacked[taskId] {
-			if _, ok := r.unflushed[k]; !ok {
+			// unflushed holds usage for a single window per key: usage from an older window
+			// is dropped, since that window has already been refilled
+			existing, ok := r.unflushed[k]
+
+			if ok && v.windowStart.Before(existing.windowStart) {
+				continue
+			}
+
+			if !ok || v.windowStart.After(existing.windowStart) {
 				r.unflushed[k] = &rateLimit{
-					key: k,
-					val: 0,
+					key:         k,
+					val:         0,
+					windowStart: v.windowStart,
 				}
 			}
 
@@ -304,10 +326,13 @@ func (r *rateLimiter) flushToDatabase(ctx context.Context) error {
 	}
 
 	// copy the unflushed rate limits to a new map
-	updates := make(map[string]int)
+	updates := make(map[string]v1.RateLimitUsage, len(r.unflushed))
 
 	for k, v := range r.unflushed {
-		updates[k] = v.val
+		updates[k] = v1.RateLimitUsage{
+			Units:       v.val,
+			WindowStart: v.windowStart,
+		}
 	}
 
 	newRateLimits, nextRefillAt, err := r.rateLimitRepo.UpdateRateLimits(ctx, r.tenantId, updates)
@@ -338,6 +363,7 @@ func (r *rateLimiter) flushToDatabase(ctx context.Context) error {
 			key:          key,
 			val:          int(newVal.Value),
 			nextRefillAt: &next,
+			windowStart:  newVal.LastRefill.Time,
 		}
 	}
 

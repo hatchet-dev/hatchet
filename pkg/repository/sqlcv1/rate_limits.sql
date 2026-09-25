@@ -175,14 +175,18 @@ WHERE
     AND srl."tenantId" = @tenantId::uuid;
 
 -- name: BulkUpdateRateLimits :many
+-- Usage is only charged to the window it was reserved in (identified by "lastRefill");
+-- usage from an already-refilled window is dropped. Refills happen in
+-- ListRateLimitsForTenantWithMutate.
 WITH input AS (
     SELECT
-        "key", "units"
+        "key", "units", "windowStart"
     FROM
         (
             SELECT
                 unnest(@keys::text[]) AS "key",
-                unnest(@units::int[]) AS "units"
+                unnest(@units::int[]) AS "units",
+                unnest(@windowStarts::timestamp[]) AS "windowStart"
         ) AS subquery
 ), rls_to_update AS (
     SELECT
@@ -199,16 +203,13 @@ WITH input AS (
 UPDATE
     "RateLimit" rl
 SET
-    "value" = get_refill_value(rl) - (SELECT "units" FROM input WHERE "key" = rl."key"),
-    "lastRefill" = CASE
-        WHEN NOW() - rl."lastRefill" >= (rl."window"::INTERVAL - INTERVAL '10 milliseconds') THEN
-            CURRENT_TIMESTAMP
-        ELSE
-            rl."lastRefill"
-    END
+    "value" = GREATEST(0, rl."value" - input."units")
 FROM
-    rls_to_update rl2
+    rls_to_update rl2,
+    input
 WHERE
     rl2."tenantId" = rl."tenantId"
     AND rl2."key" = rl."key"
+    AND input."key" = rl."key"
+    AND input."windowStart" = rl."lastRefill"
 RETURNING rl.*;
