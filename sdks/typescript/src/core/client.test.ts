@@ -564,16 +564,46 @@ describe('WorkflowRunRef.result', () => {
     await expect(ref.result()).rejects.toEqual(['boom']);
   });
 
-  it('rejects a cancelled run with an Error when no task reported one', async () => {
+  it('resolves a cancelled run whose tasks carry no error, as the Node client does', async () => {
     const engine = fakeEngine();
     const client = makeClient(engine);
     engine.detailsQueue.push({
-      ...completed({ t: taskRun('t', RunStatus.CANCELLED) }),
+      ...completed({
+        absent: taskRun('absent', RunStatus.CANCELLED),
+        empty: taskRun('empty', RunStatus.CANCELLED, { partial: true }, ''),
+      }),
       status: RunStatus.CANCELLED,
     });
 
     const ref = await client.runNoWait('wf', {});
-    await expect(ref.result()).rejects.toThrow(/run run-1 was cancelled/);
+    await expect(ref.result()).resolves.toEqual({ absent: {}, empty: { partial: true } });
+  });
+
+  it('rejects a cancelled run with the task errors when one carries a message', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    engine.detailsQueue.push({
+      ...completed({
+        quiet: taskRun('quiet', RunStatus.CANCELLED),
+        loud: taskRun('loud', RunStatus.CANCELLED, undefined, 'cancelled by timeout'),
+      }),
+      status: RunStatus.CANCELLED,
+    });
+
+    const ref = await client.runNoWait('wf', {});
+    await expect(ref.result()).rejects.toEqual(['cancelled by timeout']);
+  });
+
+  it('rejects a cancelled or failed run with an Error when it has no tasks or no error', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    engine.detailsQueue.push(
+      { ...completed({}), status: RunStatus.CANCELLED },
+      { ...completed({ t: taskRun('t', RunStatus.FAILED) }), status: RunStatus.FAILED }
+    );
+
+    await expect(client.runRef('run-a').result()).rejects.toThrow(/run run-a was cancelled/);
+    await expect(client.runRef('run-b').result()).rejects.toThrow(/run run-b failed/);
   });
 
   it('times out after timeoutMs with a HatchetError', async () => {

@@ -124,8 +124,10 @@ export class WorkflowRunRef<T> {
    * between polls, so a stalled `GetRunDetails` cannot hold the result past the deadline.
    *
    * A failed or cancelled run rejects the way the Node client's `result()` does: with the
-   * array of the tasks' error messages when any task reported one, otherwise with an `Error`
-   * naming the run's status.
+   * array of the tasks' error messages when any task reported one. A cancelled run whose
+   * tasks reported no error resolves with their outputs, as it does on the Node client,
+   * since that is the shape an explicit cancellation leaves. A failed run with no task error,
+   * or a run with no tasks at all, rejects with an `Error` naming the run's status.
    */
   async result(options: ResultOptions = {}): Promise<T> {
     const signal = options.signal ?? this.defaultSignal;
@@ -190,12 +192,20 @@ export class WorkflowRunRef<T> {
       return Promise.resolve(this.outputs(detail));
     }
 
-    const errors = Object.values(detail.taskRuns)
+    const tasks = Object.values(detail.taskRuns);
+    const errors = tasks
       .map((task) => task.error)
       .filter((error): error is string => error !== undefined && error !== '');
 
     if (errors.length > 0) {
       return Promise.reject(errors);
+    }
+
+    // A cancelled task with no error is what an explicit cancellation (`ctx.cancel()` on a
+    // batch member, for one) leaves behind; the Node client resolves it with the task's
+    // output rather than failing the wait, and this keeps that contract.
+    if (detail.status === V1TaskStatus.CANCELLED && tasks.length > 0) {
+      return Promise.resolve(this.outputs(detail));
     }
 
     const outcome = detail.status === V1TaskStatus.CANCELLED ? 'was cancelled' : 'failed';
