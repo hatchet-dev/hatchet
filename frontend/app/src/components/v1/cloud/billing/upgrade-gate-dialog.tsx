@@ -436,7 +436,12 @@ function useUpgradeGate({
   organizationId,
   featureId,
   retentionPeriod,
-}: Omit<UpgradeGateProps, 'onDismiss'>) {
+  onUpgraded,
+}: Omit<UpgradeGateProps, 'onDismiss'> & {
+  // A saved card updates the plan in place. Close the dialog only then;
+  // a checkout URL navigates away on its own.
+  onUpgraded?: () => void;
+}) {
   const { canBill, isControlPlaneEnabled } = useControlPlane();
   const { tenant, billing } = useTenantDetails();
   const { entitlements } = useOrganizationEntitlements(organizationId);
@@ -505,7 +510,15 @@ function useUpgradeGate({
     mode,
     upgrade,
     canUpgrade: isControlPlaneEnabled && canBill && !!paygPlan,
-    onUpgrade: () => paygPlan && upgrade.mutate(paygPlan.planCode),
+    onUpgrade: () =>
+      paygPlan &&
+      upgrade.mutate(paygPlan.planCode, {
+        onSuccess: (data) => {
+          if (!data.checkoutUrl) {
+            onUpgraded?.();
+          }
+        },
+      }),
     salesHref: salesUrl(tenant?.name, tenant?.metadata?.id),
   };
 }
@@ -855,7 +868,7 @@ export function UpgradeGateDialog({
   onDismiss,
   ...props
 }: UpgradeGateProps & { open: boolean; onDismiss: () => void }) {
-  const state = useUpgradeGate(props);
+  const state = useUpgradeGate({ ...props, onUpgraded: onDismiss });
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onDismiss()}>

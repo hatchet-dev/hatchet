@@ -36,7 +36,11 @@ const featureToNotification = (
 ): Notification | null => {
   // Period included amounts for task runs / events are billing thresholds,
   // not hard caps. Daily-limit features still notify.
-  if (isPeriodUsageFeature(feature.featureId)) {
+  // Tenant count stays on the billing page and does not raise the header alert.
+  if (
+    isPeriodUsageFeature(feature.featureId) ||
+    feature.featureId === 'tenants'
+  ) {
     return null;
   }
 
