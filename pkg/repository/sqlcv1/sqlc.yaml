@@ -43,6 +43,7 @@ sql:
       - durable_event_log.sql
       - operator.sql
       - maintenance.sql
+      - serverless.sql
     schema:
       - ../../../sql/schema/v0.sql
       - ../../../sql/schema/v1-core.sql

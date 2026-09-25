@@ -142,6 +142,13 @@ Class | Method | HTTP request | Description
 *HatchetSdkRest::SNSApi* | [**sns_create**](docs/SNSApi.md#sns_create) | **POST** /api/v1/tenants/{tenant}/sns | Create SNS integration
 *HatchetSdkRest::SNSApi* | [**sns_delete**](docs/SNSApi.md#sns_delete) | **DELETE** /api/v1/sns/{sns} | Delete SNS integration
 *HatchetSdkRest::SNSApi* | [**sns_list**](docs/SNSApi.md#sns_list) | **GET** /api/v1/tenants/{tenant}/sns | List SNS integrations
+*HatchetSdkRest::ServerlessApi* | [**v1_serverless_endpoint_create**](docs/ServerlessApi.md#v1_serverless_endpoint_create) | **POST** /api/v1/stable/tenants/{tenant}/serverless/endpoints | Create a serverless endpoint
+*HatchetSdkRest::ServerlessApi* | [**v1_serverless_endpoint_delete**](docs/ServerlessApi.md#v1_serverless_endpoint_delete) | **DELETE** /api/v1/stable/serverless/endpoints/{v1-serverless-endpoint} | Delete a serverless endpoint
+*HatchetSdkRest::ServerlessApi* | [**v1_serverless_endpoint_get**](docs/ServerlessApi.md#v1_serverless_endpoint_get) | **GET** /api/v1/stable/serverless/endpoints/{v1-serverless-endpoint} | Get a serverless endpoint
+*HatchetSdkRest::ServerlessApi* | [**v1_serverless_endpoint_list**](docs/ServerlessApi.md#v1_serverless_endpoint_list) | **GET** /api/v1/stable/tenants/{tenant}/serverless/endpoints | List serverless endpoints
+*HatchetSdkRest::ServerlessApi* | [**v1_serverless_endpoint_update**](docs/ServerlessApi.md#v1_serverless_endpoint_update) | **PATCH** /api/v1/stable/serverless/endpoints/{v1-serverless-endpoint} | Update a serverless endpoint
+*HatchetSdkRest::ServerlessApi* | [**v1_serverless_tenant_get**](docs/ServerlessApi.md#v1_serverless_tenant_get) | **GET** /api/v1/stable/tenants/{tenant}/serverless/settings | Get serverless settings
+*HatchetSdkRest::ServerlessApi* | [**v1_serverless_tenant_update**](docs/ServerlessApi.md#v1_serverless_tenant_update) | **PATCH** /api/v1/stable/tenants/{tenant}/serverless/settings | Update serverless settings
 *HatchetSdkRest::SlackApi* | [**slack_webhook_delete**](docs/SlackApi.md#slack_webhook_delete) | **DELETE** /api/v1/slack/{slack} | Delete Slack webhook
 *HatchetSdkRest::SlackApi* | [**slack_webhook_list**](docs/SlackApi.md#slack_webhook_list) | **GET** /api/v1/tenants/{tenant}/slack | List Slack integrations
 *HatchetSdkRest::StepRunApi* | [**step_run_get**](docs/StepRunApi.md#step_run_get) | **GET** /api/v1/tenants/{tenant}/step-runs/{step-run} | Get step run
@@ -387,6 +394,7 @@ Class | Method | HTTP request | Description
  - [HatchetSdkRest::V1CancelTaskRequest](docs/V1CancelTaskRequest.md)
  - [HatchetSdkRest::V1CancelledTasks](docs/V1CancelledTasks.md)
  - [HatchetSdkRest::V1CreateFilterRequest](docs/V1CreateFilterRequest.md)
+ - [HatchetSdkRest::V1CreateServerlessEndpointRequest](docs/V1CreateServerlessEndpointRequest.md)
  - [HatchetSdkRest::V1CreateWebhookRequest](docs/V1CreateWebhookRequest.md)
  - [HatchetSdkRest::V1CreateWebhookRequestAPIKey](docs/V1CreateWebhookRequestAPIKey.md)
  - [HatchetSdkRest::V1CreateWebhookRequestBase](docs/V1CreateWebhookRequestBase.md)
@@ -414,6 +422,11 @@ Class | Method | HTTP request | Description
  - [HatchetSdkRest::V1RestoreTaskResponse](docs/V1RestoreTaskResponse.md)
  - [HatchetSdkRest::V1RunningDetailCount](docs/V1RunningDetailCount.md)
  - [HatchetSdkRest::V1RunningFilter](docs/V1RunningFilter.md)
+ - [HatchetSdkRest::V1ServerlessEndpoint](docs/V1ServerlessEndpoint.md)
+ - [HatchetSdkRest::V1ServerlessEndpointKind](docs/V1ServerlessEndpointKind.md)
+ - [HatchetSdkRest::V1ServerlessEndpointList](docs/V1ServerlessEndpointList.md)
+ - [HatchetSdkRest::V1ServerlessEndpointStatus](docs/V1ServerlessEndpointStatus.md)
+ - [HatchetSdkRest::V1ServerlessTenantSettings](docs/V1ServerlessTenantSettings.md)
  - [HatchetSdkRest::V1TaskEvent](docs/V1TaskEvent.md)
  - [HatchetSdkRest::V1TaskEventList](docs/V1TaskEventList.md)
  - [HatchetSdkRest::V1TaskEventType](docs/V1TaskEventType.md)
@@ -429,6 +442,8 @@ Class | Method | HTTP request | Description
  - [HatchetSdkRest::V1TaskTimingList](docs/V1TaskTimingList.md)
  - [HatchetSdkRest::V1TriggerWorkflowRunRequest](docs/V1TriggerWorkflowRunRequest.md)
  - [HatchetSdkRest::V1UpdateFilterRequest](docs/V1UpdateFilterRequest.md)
+ - [HatchetSdkRest::V1UpdateServerlessEndpointRequest](docs/V1UpdateServerlessEndpointRequest.md)
+ - [HatchetSdkRest::V1UpdateServerlessTenantSettingsRequest](docs/V1UpdateServerlessTenantSettingsRequest.md)
  - [HatchetSdkRest::V1UpdateWebhookRequest](docs/V1UpdateWebhookRequest.md)
  - [HatchetSdkRest::V1WaitItem](docs/V1WaitItem.md)
  - [HatchetSdkRest::V1Webhook](docs/V1Webhook.md)

@@ -263,6 +263,9 @@ from hatchet_sdk.clients.rest.models.v1_cancelled_tasks import V1CancelledTasks
 from hatchet_sdk.clients.rest.models.v1_create_filter_request import (
     V1CreateFilterRequest,
 )
+from hatchet_sdk.clients.rest.models.v1_create_serverless_endpoint_request import (
+    V1CreateServerlessEndpointRequest,
+)
 from hatchet_sdk.clients.rest.models.v1_create_webhook_request import (
     V1CreateWebhookRequest,
 )
@@ -314,6 +317,19 @@ from hatchet_sdk.clients.rest.models.v1_restore_task_response import (
 )
 from hatchet_sdk.clients.rest.models.v1_running_detail_count import V1RunningDetailCount
 from hatchet_sdk.clients.rest.models.v1_running_filter import V1RunningFilter
+from hatchet_sdk.clients.rest.models.v1_serverless_endpoint import V1ServerlessEndpoint
+from hatchet_sdk.clients.rest.models.v1_serverless_endpoint_kind import (
+    V1ServerlessEndpointKind,
+)
+from hatchet_sdk.clients.rest.models.v1_serverless_endpoint_list import (
+    V1ServerlessEndpointList,
+)
+from hatchet_sdk.clients.rest.models.v1_serverless_endpoint_status import (
+    V1ServerlessEndpointStatus,
+)
+from hatchet_sdk.clients.rest.models.v1_serverless_tenant_settings import (
+    V1ServerlessTenantSettings,
+)
 from hatchet_sdk.clients.rest.models.v1_task_event import V1TaskEvent
 from hatchet_sdk.clients.rest.models.v1_task_event_list import V1TaskEventList
 from hatchet_sdk.clients.rest.models.v1_task_event_type import V1TaskEventType
@@ -332,6 +348,12 @@ from hatchet_sdk.clients.rest.models.v1_trigger_workflow_run_request import (
 )
 from hatchet_sdk.clients.rest.models.v1_update_filter_request import (
     V1UpdateFilterRequest,
+)
+from hatchet_sdk.clients.rest.models.v1_update_serverless_endpoint_request import (
+    V1UpdateServerlessEndpointRequest,
+)
+from hatchet_sdk.clients.rest.models.v1_update_serverless_tenant_settings_request import (
+    V1UpdateServerlessTenantSettingsRequest,
 )
 from hatchet_sdk.clients.rest.models.v1_update_webhook_request import (
     V1UpdateWebhookRequest,

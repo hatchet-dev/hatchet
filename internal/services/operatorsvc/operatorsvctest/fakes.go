@@ -19,6 +19,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/operatorsvc"
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/rpcstream"
+	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -684,6 +685,9 @@ type Dispatcher struct {
 
 	durables          []*DurableInvocation
 	registerDurableEr error
+
+	runStreams           []*RunStream
+	registerRunStreamErr error
 }
 
 func NewDispatcher() *Dispatcher {
@@ -849,6 +853,84 @@ func (f *Dispatcher) RegisterDurableTask(ctx context.Context, externalId uuid.UU
 	}()
 
 	return inv.Requests, inv.Responses, nil
+}
+
+// RunStream is one channel-backed run stream the service registered. Requests carries what the
+// session sent (nil for a server stream), Responses is what the test sends back; the response
+// channel is closed when the session's context ends or the test calls End, as the engine
+// closes its side once its handler returned.
+type RunStream struct {
+	Kind      operator.RunStreamKind
+	First     proto.Message
+	Requests  chan proto.Message
+	Responses chan proto.Message
+
+	end     chan struct{}
+	endOnce sync.Once
+}
+
+// End closes the engine's side of the stream.
+func (rs *RunStream) End() {
+	rs.endOnce.Do(func() { close(rs.end) })
+}
+
+// Done is closed once the stream's context ended or End was called.
+func (rs *RunStream) Done() <-chan struct{} { return rs.end }
+
+// RegisterRunStream hands out a channel pair for the stream and records it.
+func (f *Dispatcher) RegisterRunStream(ctx context.Context, kind operator.RunStreamKind, first proto.Message) (chan<- proto.Message, <-chan proto.Message, error) {
+	f.mu.Lock()
+
+	if err := f.registerRunStreamErr; err != nil {
+		f.mu.Unlock()
+		return nil, nil, err
+	}
+
+	rs := &RunStream{
+		Kind:      kind,
+		First:     first,
+		Responses: make(chan proto.Message, 64),
+		end:       make(chan struct{}),
+	}
+
+	if kind.Bidi() {
+		rs.Requests = make(chan proto.Message, 64)
+	}
+
+	f.runStreams = append(f.runStreams, rs)
+	f.mu.Unlock()
+
+	go func() {
+		select {
+		case <-ctx.Done():
+			rs.End()
+		case <-rs.end:
+		}
+
+		close(rs.Responses)
+	}()
+
+	if rs.Requests == nil {
+		return nil, rs.Responses, nil
+	}
+
+	return rs.Requests, rs.Responses, nil
+}
+
+// FailRegisterRunStream makes the next RegisterRunStream calls fail.
+func (f *Dispatcher) FailRegisterRunStream(err error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.registerRunStreamErr = err
+}
+
+// RunStreams returns the run streams registered so far, in order.
+func (f *Dispatcher) RunStreams() []*RunStream {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return append([]*RunStream(nil), f.runStreams...)
 }
 
 // FailRegisterDurableTask makes the next RegisterDurableTask calls fail.

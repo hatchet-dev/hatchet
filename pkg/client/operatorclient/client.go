@@ -16,9 +16,11 @@ import (
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/proto"
 
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
@@ -116,6 +118,13 @@ type Session interface {
 	// before a reconnect registers the worker the engine now knows. The
 	// caller owns the listener it builds over it and stops it before Close.
 	OpenDurableTaskStream(ctx context.Context) (v1.V1Dispatcher_DurableTaskClient, error)
+
+	// OpenRunStream opens one of the engine's run observation streams (see
+	// operator.RunStreamKind) on the session's connection with its bearer token, on behalf
+	// of the tenant. first is the opening message: required for a server stream, optional
+	// for a bidi one. The stream lives until Close, the engine ending it, or the session
+	// closing.
+	OpenRunStream(ctx context.Context, kind operator.RunStreamKind, first proto.Message) (operator.RunStream, error)
 
 	// Pause stops the scheduler assigning to this session's worker. It sends
 	// the pause on the Listen stream and returns once the engine has
@@ -233,6 +242,7 @@ func (m *callMetadata) context(ctx context.Context) context.Context {
 type clientImpl struct {
 	client             v1.OperatorServiceClient
 	admin              v1.AdminServiceClient
+	streams            runStreamClients
 	l                  *zerolog.Logger
 	v                  validator.Validator
 	md                 *callMetadata
@@ -267,6 +277,7 @@ func New(conn *grpc.ClientConn, fs ...Opt) (Client, error) {
 	return &clientImpl{
 		client:             v1.NewOperatorServiceClient(conn),
 		admin:              v1.NewAdminServiceClient(conn),
+		streams:            runStreamClients{dispatcher: dispatchercontracts.NewDispatcherClient(conn), v1dispatcher: v1.NewV1DispatcherClient(conn)},
 		l:                  o.l,
 		v:                  o.v,
 		md:                 newCallMetadata(o.token, o.headers),
@@ -303,7 +314,7 @@ func (o *clientImpl) Connect(ctx context.Context, req *ConnectRequest) (Session,
 
 	resume := req.ResumeWorker == nil || *req.ResumeWorker
 
-	s := newSession(o.client, o.admin, o.md, o.l, register, resume)
+	s := newSession(o.client, o.admin, o.streams, o.md, o.l, register, resume)
 
 	if err := s.connect(ctx); err != nil {
 		// nothing has been assigned to a worker that never connected, so there is nothing to

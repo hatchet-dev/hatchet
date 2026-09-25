@@ -1,0 +1,316 @@
+V1ServerlessEndpointListCreate:
+  get:
+    x-resources: ["tenant"]
+    description: Lists the serverless endpoints of a tenant.
+    operationId: v1-serverless-endpoint:list
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The number to skip
+        in: query
+        name: offset
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - description: The number to limit by
+        in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int64
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1ServerlessEndpointList"
+        description: Successfully listed the serverless endpoints
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: List serverless endpoints
+    tags:
+      - Serverless
+  post:
+    x-resources: ["tenant"]
+    description: Create a serverless endpoint
+    operationId: v1-serverless-endpoint:create
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "../../../components/schemas/_index.yaml#/V1CreateServerlessEndpointRequest"
+      description: The input to the serverless endpoint creation
+      required: true
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1ServerlessEndpoint"
+        description: Successfully created the serverless endpoint
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Not found
+    summary: Create a serverless endpoint
+    tags:
+      - Serverless
+
+V1ServerlessEndpointGetUpdateDelete:
+  get:
+    x-resources: ["tenant", "v1-serverless-endpoint"]
+    description: Get a serverless endpoint by its id
+    operationId: v1-serverless-endpoint:get
+    parameters:
+      - description: The serverless endpoint id
+        in: path
+        name: v1-serverless-endpoint
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1ServerlessEndpoint"
+        description: Successfully got the serverless endpoint
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Not found
+    summary: Get a serverless endpoint
+    tags:
+      - Serverless
+  patch:
+    x-resources: ["tenant", "v1-serverless-endpoint"]
+    description: Update a serverless endpoint
+    operationId: v1-serverless-endpoint:update
+    parameters:
+      - description: The id of the serverless endpoint to update
+        in: path
+        name: v1-serverless-endpoint
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "../../../components/schemas/_index.yaml#/V1UpdateServerlessEndpointRequest"
+      description: The fields to update on the serverless endpoint
+      required: true
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1ServerlessEndpoint"
+        description: Successfully updated the serverless endpoint
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Not found
+    summary: Update a serverless endpoint
+    tags:
+      - Serverless
+  delete:
+    x-resources: ["tenant", "v1-serverless-endpoint"]
+    description: Delete a serverless endpoint
+    operationId: v1-serverless-endpoint:delete
+    parameters:
+      - description: The id of the serverless endpoint to delete
+        in: path
+        name: v1-serverless-endpoint
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1ServerlessEndpoint"
+        description: Successfully deleted the serverless endpoint
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Not found
+    summary: Delete a serverless endpoint
+    tags:
+      - Serverless
+
+V1ServerlessTenantSettingsGetUpdate:
+  get:
+    x-resources: ["tenant"]
+    description: Get the serverless settings of a tenant
+    operationId: v1-serverless-tenant:get
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1ServerlessTenantSettings"
+        description: Successfully got the serverless settings
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: Get serverless settings
+    tags:
+      - Serverless
+  patch:
+    x-resources: ["tenant"]
+    description: Update the serverless settings of a tenant
+    operationId: v1-serverless-tenant:update
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "../../../components/schemas/_index.yaml#/V1UpdateServerlessTenantSettingsRequest"
+      description: The settings to update
+      required: true
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1ServerlessTenantSettings"
+        description: Successfully updated the serverless settings
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: Update serverless settings
+    tags:
+      - Serverless

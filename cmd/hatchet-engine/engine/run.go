@@ -437,7 +437,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 
 		// the operators this dispatcher claims (the DAG operator) are hosted in process, on
 		// the local dispatcher, from here
-		stopOperators, err := startOperatorClaimer(sc, d, adminv1Svc)
+		operators, err := startOperatorClaimer(sc, d, adminv1Svc)
 
 		if err != nil {
 			return fmt.Errorf("could not start operator claimer: %w", err)
@@ -498,6 +498,20 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			grpcOpts = append(grpcOpts, grpc.WithOperatorService(operatorSvc))
 		}
 
+		// the in-engine serverless operator opens its sessions on the same in-process host; it
+		// is a no-op unless enabled
+		stopServerlessOperator, serverlessRunning, err := startServerlessOperator(sc, d, operators.host)
+
+		if err != nil {
+			return fmt.Errorf("could not start serverless operator: %w", err)
+		}
+
+		// readiness observes the in-engine operator: while its core is down and waiting to
+		// restart, the replica reports not ready
+		if healthProbes && serverlessRunning != nil {
+			h.AddReadinessCheck("serverless-operator", serverlessRunning)
+		}
+
 		// create the grpc server
 		s, err := grpc.NewServer(
 			grpcOpts...,
@@ -512,9 +526,14 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		}
 
 		cleanupGrpcApi := func() error {
-			// the claimed operators are paused, drained and closed before the dispatcher
-			// drains, while their events can still be reported
-			if err := stopOperators(); err != nil {
+			// the serverless operator closes its registrations (and deactivates their workers)
+			// before the dispatcher drains, while events can still be reported
+			if err := stopServerlessOperator(); err != nil {
+				return err
+			}
+
+			// the claimed operators are paused, drained and closed next, for the same reason
+			if err := operators.stop(); err != nil {
 				return err
 			}
 
@@ -926,7 +945,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 
 		// the operators this dispatcher claims (the DAG operator) are hosted in process, on
 		// the local dispatcher, from here
-		stopOperators, err := startOperatorClaimer(sc, d, adminv1Svc)
+		operators, err := startOperatorClaimer(sc, d, adminv1Svc)
 
 		if err != nil {
 			return fmt.Errorf("could not start operator claimer: %w", err)
@@ -987,6 +1006,20 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			grpcOpts = append(grpcOpts, grpc.WithOperatorService(operatorSvc))
 		}
 
+		// the in-engine serverless operator opens its sessions on the same in-process host; it
+		// is a no-op unless enabled
+		stopServerlessOperator, serverlessRunning, err := startServerlessOperator(sc, d, operators.host)
+
+		if err != nil {
+			return fmt.Errorf("could not start serverless operator: %w", err)
+		}
+
+		// readiness observes the in-engine operator: while its core is down and waiting to
+		// restart, the replica reports not ready
+		if healthProbes && serverlessRunning != nil {
+			h.AddReadinessCheck("serverless-operator", serverlessRunning)
+		}
+
 		// create the grpc server
 		s, err := grpc.NewServer(
 			grpcOpts...,
@@ -1001,9 +1034,14 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		}
 
 		grpcApiCleanup := func() error {
-			// the claimed operators are paused, drained and closed before the dispatcher
-			// drains, while their events can still be reported
-			if err := stopOperators(); err != nil {
+			// the serverless operator closes its registrations (and deactivates their workers)
+			// before the dispatcher drains, while events can still be reported
+			if err := stopServerlessOperator(); err != nil {
+				return err
+			}
+
+			// the claimed operators are paused, drained and closed next, for the same reason
+			if err := operators.stop(); err != nil {
 				return err
 			}
 

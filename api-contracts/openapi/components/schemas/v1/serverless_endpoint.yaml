@@ -1,0 +1,225 @@
+V1ServerlessEndpointKind:
+  type: string
+  description: >-
+    The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the
+    serverless endpoint contract; CLOUDFLARE_WORKERS applies the Cloudflare Workers runtime
+    constraints on top of it.
+  enum:
+    - GENERIC_HTTP
+    - CLOUDFLARE_WORKERS
+
+V1ServerlessEndpointStatus:
+  type: object
+  description: >-
+    The health of the endpoint as last observed by the serverless operator. Written on state
+    transitions only, so changedAt is the time the endpoint last flipped between healthy and
+    unhealthy.
+  properties:
+    healthy:
+      type: boolean
+      description: Whether the last healthcheck succeeded. Absent until the operator has polled the endpoint at least once.
+    error:
+      type: string
+      description: The error from the last failed healthcheck, if the endpoint is unhealthy.
+    changedAt:
+      type: string
+      format: date-time
+      description: When the healthy flag last changed.
+    registeredActions:
+      type: array
+      description: The namespaced action ids the operator registered for this endpoint from its last healthcheck.
+      items:
+        type: string
+  required:
+    - registeredActions
+
+V1ServerlessEndpoint:
+  type: object
+  properties:
+    metadata:
+      $ref: "../metadata.yaml#/APIResourceMeta"
+    tenantId:
+      type: string
+      format: uuid
+      description: The ID of the tenant that owns this endpoint.
+    name:
+      type: string
+      description: The name of the endpoint. Unique within the tenant.
+    namespace:
+      type: string
+      format: uuid
+      description: >-
+        The prefix applied to everything this endpoint registers (workflows, actions, events),
+        as "<namespace>_". Read-only: assigned on creation and immutable.
+    kind:
+      $ref: "#/V1ServerlessEndpointKind"
+    healthcheckUrl:
+      type: string
+      description: The HTTPS URL (port 443) polled periodically to discover the workflows this endpoint serves.
+    triggerUrl:
+      type: string
+      description: The HTTPS URL (port 443) that assigned tasks are delivered to.
+    requestTimeoutSeconds:
+      type: integer
+      format: int32
+      description: The per-request timeout backstop for trigger requests, in seconds.
+    pollIntervalSeconds:
+      type: integer
+      format: int32
+      description: How often the healthcheck URL is polled, in seconds.
+    inlineWaitBudgetMs:
+      type: integer
+      format: int32
+      description: >-
+        How long a trigger request may block waiting for a durable result before the operator
+        falls back to the websocket durable protocol, in milliseconds.
+    labels:
+      type: object
+      additionalProperties: true
+      description: Worker labels applied to the connection-backed worker the operator creates for this endpoint.
+    enabled:
+      type: boolean
+      description: Whether the operator polls and dispatches to this endpoint.
+    status:
+      $ref: "#/V1ServerlessEndpointStatus"
+  required:
+    - metadata
+    - tenantId
+    - name
+    - namespace
+    - kind
+    - healthcheckUrl
+    - triggerUrl
+    - requestTimeoutSeconds
+    - pollIntervalSeconds
+    - inlineWaitBudgetMs
+    - labels
+    - enabled
+    - status
+
+V1ServerlessEndpointList:
+  type: object
+  properties:
+    pagination:
+      $ref: "../metadata.yaml#/PaginationResponse"
+    rows:
+      type: array
+      items:
+        $ref: "#/V1ServerlessEndpoint"
+
+V1CreateServerlessEndpointRequest:
+  type: object
+  properties:
+    name:
+      type: string
+      description: The name of the endpoint. Unique within the tenant.
+    kind:
+      $ref: "#/V1ServerlessEndpointKind"
+    healthcheckUrl:
+      type: string
+      description: The HTTPS URL (port 443) polled periodically to discover the workflows this endpoint serves.
+    triggerUrl:
+      type: string
+      description: The HTTPS URL (port 443) that assigned tasks are delivered to.
+    signingSecret:
+      type: string
+      minLength: 32
+      description: >-
+        The secret used to HMAC-sign requests delivered to the endpoint. At least 32
+        characters. Write-only: it is stored encrypted and never returned in responses.
+    requestTimeoutSeconds:
+      type: integer
+      format: int32
+      description: The per-request timeout backstop for trigger requests, in seconds. Defaults to 60.
+    pollIntervalSeconds:
+      type: integer
+      format: int32
+      description: How often the healthcheck URL is polled, in seconds. Defaults to 30.
+    inlineWaitBudgetMs:
+      type: integer
+      format: int32
+      description: The inline wait budget for durable results, in milliseconds. Defaults to 5000.
+    labels:
+      type: object
+      additionalProperties: true
+      description: Worker labels applied to the worker the operator creates for this endpoint.
+    enabled:
+      type: boolean
+      description: Whether the operator polls and dispatches to this endpoint. Defaults to true.
+  required:
+    - name
+    - healthcheckUrl
+    - triggerUrl
+    - signingSecret
+
+V1UpdateServerlessEndpointRequest:
+  type: object
+  description: Fields to update on a serverless endpoint. Omitted fields are left unchanged.
+  properties:
+    name:
+      type: string
+      description: The name of the endpoint. Unique within the tenant.
+    kind:
+      $ref: "#/V1ServerlessEndpointKind"
+    healthcheckUrl:
+      type: string
+      description: The HTTPS URL (port 443) polled periodically to discover the workflows this endpoint serves.
+    triggerUrl:
+      type: string
+      description: The HTTPS URL (port 443) that assigned tasks are delivered to.
+    signingSecret:
+      type: string
+      minLength: 32
+      description: >-
+        A new secret used to HMAC-sign requests delivered to the endpoint. At least 32
+        characters. Provide a value to rotate the secret; it is never returned in responses.
+    requestTimeoutSeconds:
+      type: integer
+      format: int32
+      description: The per-request timeout backstop for trigger requests, in seconds.
+    pollIntervalSeconds:
+      type: integer
+      format: int32
+      description: How often the healthcheck URL is polled, in seconds.
+    inlineWaitBudgetMs:
+      type: integer
+      format: int32
+      description: The inline wait budget for durable results, in milliseconds.
+    labels:
+      type: object
+      additionalProperties: true
+      description: Worker labels applied to the worker the operator creates for this endpoint. Replaces the existing labels.
+    enabled:
+      type: boolean
+      description: Whether the operator polls and dispatches to this endpoint.
+
+V1ServerlessTenantSettings:
+  type: object
+  properties:
+    tenantId:
+      type: string
+      format: uuid
+      description: The ID of the tenant these settings belong to.
+    shardCount:
+      type: integer
+      format: int32
+      description: >-
+        The number of shards the tenant's endpoints are spread across. Each shard is a lease
+        unit that one operator process owns, so a count above 1 lets a hot tenant be served by
+        several processes. Existing endpoints keep their shard; only new endpoints hash over the
+        new count.
+  required:
+    - tenantId
+    - shardCount
+
+V1UpdateServerlessTenantSettingsRequest:
+  type: object
+  properties:
+    shardCount:
+      type: integer
+      format: int32
+      minimum: 1
+      maximum: 64
+      description: The number of shards to spread the tenant's endpoints across.
+  required:
+    - shardCount
