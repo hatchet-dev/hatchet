@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- `hatchet.cel.debug()` now accepts non-boolean CEL expressions. String, integer, and boolean results are all supported. The response includes an `output_type` field (`bool`, `string`, or `int`) alongside the serialized `output` string. `CELSuccess` exposes `as_bool()`, `as_str()`, and `as_int()` helpers for typed access.
+- `hatchet.cel.debug()` now accepts non-boolean CEL expressions. The response includes an `output_type` discriminator (`bool`, `string`, or `int`) and three typed output fields: `output` (boolean), `output_str` (string), and `output_int` (integer). `CELSuccess` exposes `as_bool()`, `as_str()`, and `as_int()` helpers for typed access.
 
 ## [1.40.3] - 2026-09-18
 
