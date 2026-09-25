@@ -5,27 +5,34 @@
  */
 const IPV4 = /^(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)$/;
 const HEX_GROUP = /^[0-9a-fA-F]{1,4}$/;
+/** What Node accepts after the one `%` of a zone id: nonempty, letters, digits, `-`, `.` and `:`. */
+const ZONE_ID = /^[0-9a-zA-Z\-.:]+$/;
 
 function isIPv4(address: string): boolean {
   return IPV4.test(address);
 }
 
 function isIPv6(address: string): boolean {
-  // A zone id (`%eth0`) is allowed after the address, as Node allows it.
-  const [literal] = address.split('%');
+  const zoneAt = address.indexOf('%');
+  if (zoneAt !== -1 && !ZONE_ID.test(address.slice(zoneAt + 1))) {
+    return false;
+  }
+  const literal = zoneAt === -1 ? address : address.slice(0, zoneAt);
+
   const halves = literal.split('::');
   if (halves.length > 2) {
     return false;
   }
 
-  const groups = (part: string): string[] | null => {
+  // An embedded IPv4 address counts as two groups and may only end the whole literal: the
+  // last item of the part after `::`, or of the only part when there is no `::`.
+  const groups = (part: string, endsLiteral: boolean): string[] | null => {
     if (part === '') {
       return [];
     }
     const items = part.split(':');
-    // An embedded IPv4 address may end the literal and counts as two groups.
     const last = items[items.length - 1];
-    if (last.includes('.')) {
+    if (endsLiteral && last.includes('.')) {
       if (!isIPv4(last)) {
         return null;
       }
@@ -34,8 +41,8 @@ function isIPv6(address: string): boolean {
     return items.every((item) => HEX_GROUP.test(item)) ? items : null;
   };
 
-  const head = groups(halves[0]);
-  const tail = halves.length === 2 ? groups(halves[1]) : [];
+  const head = groups(halves[0], halves.length === 1);
+  const tail = halves.length === 2 ? groups(halves[1], true) : [];
   if (!head || !tail) {
     return false;
   }
