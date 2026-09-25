@@ -2,6 +2,7 @@ import { ErrorsPanel } from './dashboard/errors-panel';
 import { StatsPanel } from './dashboard/stats-panel';
 import { TasksPanel } from './dashboard/tasks-panel';
 import { WorkersPanel } from './dashboard/workers-panel';
+import { FreePlanBanner } from './free-plan-banner';
 import { SupportSection } from './support-section';
 import { useTenantOnboarded } from './use-onboarding-progress';
 import { useOpenOnboarding } from './use-open-onboarding';
@@ -69,6 +70,8 @@ export function OverviewDashboard({ tenantId }: { tenantId: string }) {
           </div>
         </div>
       )}
+
+      <FreePlanBanner />
 
       {/* Stats spans the full width. Below it, two independent columns so each
           packs top-to-bottom on its own: Workers sits directly under Runs on
