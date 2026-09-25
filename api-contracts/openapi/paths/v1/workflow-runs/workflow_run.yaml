@@ -127,6 +127,12 @@ listWorkflowRuns:
           type: array
           items:
             type: string
+      - description: Whether to also return QUEUED and RUNNING runs created before `since`, back to the OLAP retention period, so in-flight work stays visible regardless of the time window. Defaults to `true` if unset.
+        in: query
+        name: include_older_active_runs
+        required: false
+        schema:
+          type: boolean
     responses:
       "200":
         content:

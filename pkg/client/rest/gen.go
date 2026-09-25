@@ -3017,6 +3017,9 @@ type V1WorkflowRunListParams struct {
 
 	// IdempotencyKeys The idempotency key(s) to filter for
 	IdempotencyKeys *[]string `form:"idempotency_keys,omitempty" json:"idempotency_keys,omitempty"`
+
+	// IncludeOlderActiveRuns Whether to also return QUEUED and RUNNING runs created before `since`, back to the OLAP retention period, so in-flight work stays visible regardless of the time window. Defaults to `true` if unset.
+	IncludeOlderActiveRuns *bool `form:"include_older_active_runs,omitempty" json:"include_older_active_runs,omitempty"`
 }
 
 // V1WorkflowRunDisplayNamesListParams defines parameters for V1WorkflowRunDisplayNamesList.
@@ -9280,6 +9283,22 @@ func NewV1WorkflowRunListRequest(server string, tenant openapi_types.UUID, param
 		if params.IdempotencyKeys != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "idempotency_keys", runtime.ParamLocationQuery, *params.IdempotencyKeys); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.IncludeOlderActiveRuns != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "include_older_active_runs", runtime.ParamLocationQuery, *params.IncludeOlderActiveRuns); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err

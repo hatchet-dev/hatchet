@@ -532,6 +532,8 @@ export class Api<
       running_filter?: V1RunningFilter;
       /** The idempotency key(s) to filter for */
       idempotency_keys?: string[];
+      /** Whether to also return QUEUED and RUNNING runs created before `since`, back to the OLAP retention period, so in-flight work stays visible regardless of the time window. Defaults to `true` if unset. */
+      include_older_active_runs?: boolean;
     },
     params: RequestParams = {},
   ) =>

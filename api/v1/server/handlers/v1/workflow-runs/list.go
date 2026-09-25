@@ -98,6 +98,16 @@ func normalizeWorkflowRunStatuses(statuses []gen.V1TaskStatus, runningFilter *ge
 	return normalized
 }
 
+// includeOlderActiveRuns maps the optional include_older_active_runs query param,
+// defaulting to true so in-flight runs stay visible regardless of the time window.
+func includeOlderActiveRuns(param *bool) bool {
+	if param == nil {
+		return true
+	}
+
+	return *param
+}
+
 func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenantId uuid.UUID, useGinIndex bool, canViewPayloads bool) (gen.V1WorkflowRunListResponseObject, error) {
 	ctx, span := telemetry.NewSpan(ctx, "v1-workflow-runs-list-with-dags-tasks")
 	defer span.End()
@@ -141,7 +151,7 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 		Offset:                 offset,
 		IncludePayloads:        includePayloads,
 		IdempotencyKeys:        request.Params.IdempotencyKeys,
-		IncludeOlderActiveRuns: true,
+		IncludeOlderActiveRuns: includeOlderActiveRuns(request.Params.IncludeOlderActiveRuns),
 	}
 
 	additionalMetadataFilters := make(map[string]interface{})
@@ -293,7 +303,7 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 		WorkerId:               request.Params.WorkerId,
 		IncludePayloads:        includePayloads,
 		IdempotencyKeys:        request.Params.IdempotencyKeys,
-		IncludeOlderActiveRuns: true,
+		IncludeOlderActiveRuns: includeOlderActiveRuns(request.Params.IncludeOlderActiveRuns),
 	}
 
 	additionalMetadataFilters := make(map[string]interface{})
