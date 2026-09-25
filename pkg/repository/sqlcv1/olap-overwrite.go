@@ -2,6 +2,7 @@ package sqlcv1
 
 import (
 	"context"
+	"regexp"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -24,6 +25,13 @@ import (
 // the tenant's rows. Each variant must only run with its containment parameter set;
 // the functions select the text based on which params field is populated. Parameter
 // numbering is identical across variants so they share the same argument list.
+//
+// The workflow run list/count queries have the same problem with their
+// "$3 IS NULL OR workflow_id = ANY($3)" guard: under a generic plan the workflow_id
+// filter is evaluated after fetching every tenant row in the window from the heap,
+// even with an index containing workflow_id. Each of those statements therefore has
+// a derived variant with the guard replaced by a mandatory filter, selected when
+// WorkflowIds is non-empty (see requiredWorkflowIdsVariants).
 
 const countTasks = `-- name: CountTasks :one
 WITH filtered AS (
@@ -444,6 +452,10 @@ func (q *Queries) CountWorkflowRuns(ctx context.Context, db DBTX, arg CountWorkf
 		metadataContains = arg.AdditionalMetadataContainsAny
 	}
 
+	if len(arg.WorkflowIds) > 0 {
+		query = requiredWorkflowIdsVariants[query]
+	}
+
 	row := db.QueryRow(ctx, query,
 		arg.Tenantid,
 		arg.Statuses,
@@ -658,6 +670,10 @@ func (q *Queries) FetchWorkflowRunIds(ctx context.Context, db DBTX, arg FetchWor
 		metadataContains = arg.AdditionalMetadataContainsAny
 	}
 
+	if len(arg.WorkflowIds) > 0 {
+		query = requiredWorkflowIdsVariants[query]
+	}
+
 	rows, err := db.Query(ctx, query,
 		arg.Tenantid,
 		arg.Statuses,
@@ -695,6 +711,30 @@ func (q *Queries) FetchWorkflowRunIds(ctx context.Context, db DBTX, arg FetchWor
 		return nil, err
 	}
 	return items, nil
+}
+
+var optionalWorkflowIdsFilter = regexp.MustCompile(`\$3::uuid\[\] IS NULL\s+OR workflow_id = ANY\(\$3::uuid\[\]\)`)
+
+// requiredWorkflowIdsVariants maps each workflow run list/count statement to the same
+// statement with a mandatory workflow_id filter. Only valid when WorkflowIds is
+// non-empty.
+var requiredWorkflowIdsVariants = buildRequiredWorkflowIdsVariants(
+	countWorkflowRuns,
+	countWorkflowRunsMetadataContainsAll,
+	countWorkflowRunsMetadataContainsAny,
+	fetchWorkflowRunIds,
+	fetchWorkflowRunIdsMetadataContainsAll,
+	fetchWorkflowRunIdsMetadataContainsAny,
+)
+
+func buildRequiredWorkflowIdsVariants(queries ...string) map[string]string {
+	variants := make(map[string]string, len(queries))
+
+	for _, query := range queries {
+		variants[query] = optionalWorkflowIdsFilter.ReplaceAllLiteralString(query, "workflow_id = ANY($3::uuid[])")
+	}
+
+	return variants
 }
 
 const listTasksOlap = `-- name: ListTasksOlap :many
