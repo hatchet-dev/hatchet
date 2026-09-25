@@ -222,6 +222,32 @@ describe('HatchetCore configuration', () => {
     expect(client.config.serverUrl).toBe('https://e.example');
   });
 
+  it('refuses a plaintext serverUrl unless tls.strategy is none', () => {
+    expect(() => new HatchetCore({ token: TOKEN, serverUrl: 'http://localhost:7070' })).toThrow(
+      /serverUrl is http:\/\/ but tls\.strategy is 'tls'/
+    );
+    expect(
+      () =>
+        new HatchetCore({
+          token: TOKEN,
+          serverUrl: 'http://localhost:7070',
+          tls: { strategy: 'tls' },
+        })
+    ).toThrow(/serverUrl is http:\/\/ but tls\.strategy/);
+    expect(
+      () =>
+        new HatchetCore({ token: TOKEN, serverUrl: 'https://e.example', tls: { strategy: 'none' } })
+    ).toThrow(/serverUrl is https:\/\/ but tls\.strategy is 'none'/);
+
+    const client = new HatchetCore({
+      token: TOKEN,
+      serverUrl: 'http://localhost:7070/',
+      tls: { strategy: 'none' },
+      logLevel: 'OFF',
+    });
+    expect(client.config.serverUrl).toBe('http://localhost:7070');
+  });
+
   it('normalizes the namespace the way the Node config loader does', () => {
     const client = new HatchetCore({ token: TOKEN, namespace: 'Prod', logLevel: 'OFF' });
     expect(client.config.namespace).toBe('prod_');

@@ -121,7 +121,7 @@ export class HatchetCore {
     this.logger = logger('HatchetCore', config.logLevel);
     this.transport =
       config.transport ??
-      createFetchTransport({ token: config.token, serverUrl, fetch: config.fetch });
+      createFetchTransport({ token: config.token, serverUrl, tls: config.tls, fetch: config.fetch });
 
     this.workflowsRpc = createWorkflowsRpc(this.transport);
     this.adminRpc = createV1AdminRpc(this.transport);
@@ -323,8 +323,8 @@ function runOptsToTrigger(opts: RunOpts | undefined): TriggerRunOptions | undefi
 }
 
 /**
- * The engine's base URL: `serverUrl` as given, `hostPort` with the TLS strategy, or the
- * `grpc_broadcast_address` the token was issued with.
+ * The engine's base URL: `serverUrl` checked against the TLS strategy, `hostPort` with the
+ * TLS strategy, or the `grpc_broadcast_address` the token was issued with.
  */
 function resolveServerUrl(config: CoreClientConfig): string {
   if (config.serverUrl || config.hostPort) {

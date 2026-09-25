@@ -32,14 +32,19 @@ export interface CoreClientConfig {
   /** The tenant API token. */
   token: string;
   /**
-   * The engine's base URL, for example `https://engine.example.com:7070`. When neither this
-   * nor `hostPort` is set, the address is read from the token's `grpc_broadcast_address`
-   * claim, so `{ token }` alone reaches the engine the token was issued for.
+   * The engine's base URL, for example `https://engine.example.com:7070`: an absolute
+   * `http://` or `https://` URL with no username, password, query string or fragment, whose
+   * scheme agrees with `tls` (`http://` needs `{ strategy: 'none' }`). When neither this nor
+   * `hostPort` is set, the address is read from the token's `grpc_broadcast_address` claim,
+   * so `{ token }` alone reaches the engine the token was issued for.
    */
   serverUrl?: string;
   /** The engine's `host:port`, combined with `tls` into the base URL. */
   hostPort?: string;
-  /** Defaults to `{ strategy: 'tls' }`. */
+  /**
+   * Defaults to `{ strategy: 'tls' }`. The token travels on every call, so plain HTTP has to
+   * be chosen explicitly with `{ strategy: 'none' }`.
+   */
   tls?: FetchTlsConfig;
   /**
    * The prefix applied to workflow names and event keys, the same way the Node client applies
