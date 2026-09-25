@@ -1,8 +1,9 @@
-// The core client scenario run.mjs executes from a scratch package: it reaches the engine
-// through the fetch transport over HTTP/1.1 only (an undici Agent that never negotiates
-// HTTP/2, which is what fetch does from a serverless runtime), triggers the echo workflow a
-// Go worker serves, waits for the result by polling, reads the run back and pushes an event
-// the same workflow is bound to.
+// The scenario run.mjs executes from a scratch package. It must reach the engine over
+// HTTP/1.1 only, since that is what fetch gets from a serverless runtime and the Connect
+// path this client depends on has to work without HTTP/2; an undici Agent with HTTP/2
+// disabled is passed in so the constraint holds whatever the runtime's fetch negotiates by
+// default. The event is pushed only after the direct run completed, so that the Go test can
+// assert the worker saw the two runs in that order.
 import { Agent, fetch as undiciFetch } from 'undici';
 import { Hatchet } from '@hatchet-dev/typescript-sdk/core';
 import { declarations } from '@hatchet-dev/typescript-sdk/edge';

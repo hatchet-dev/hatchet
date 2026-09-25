@@ -74,7 +74,7 @@ func TestCoreClientOverHTTP1(t *testing.T) {
 	client, err := hatchet.NewClient()
 	require.NoError(t, err)
 
-	// Every input the worker handles, whether the run was triggered directly or by the event.
+	// Buffered so the worker never blocks on the test reading the inputs it handled.
 	received := make(chan string, 16)
 	echo := client.NewStandaloneTask(
 		workflowName,
@@ -115,7 +115,7 @@ func TestCoreClientOverHTTP1(t *testing.T) {
 	require.NotEmpty(t, result.EventID)
 	require.Equal(t, eventKey, result.EventKey)
 
-	// The worker handled the direct trigger and the event-triggered run in that order.
+	// The order is fixed: the scenario pushes the event only after the direct run completed.
 	require.Equal(t, result.Output.Message, waitForMessage(t, received))
 	require.Equal(t, "event "+result.Output.Message, waitForMessage(t, received))
 }
@@ -131,8 +131,9 @@ func waitForMessage(t *testing.T, received <-chan string) string {
 	}
 }
 
-// runCommand runs the command in dir with the process environment plus extraEnv, fails the
-// test when it exits non-zero, and returns its stdout.
+// runCommand keeps stdout apart from stderr because the scenario's result is the last stdout
+// line; pnpm's and Node's progress output goes to stderr and is only logged. The inherited
+// environment stays in place so the harness's HATCHET_CLIENT_* variables reach Node.
 func runCommand(t *testing.T, ctx context.Context, dir string, extraEnv []string, name string, args ...string) string {
 	t.Helper()
 
@@ -154,7 +155,8 @@ func runCommand(t *testing.T, ctx context.Context, dir string, extraEnv []string
 	return stdout.String()
 }
 
-// repoRoot is the module root, four directories above this file.
+// repoRoot is derived from this file's path rather than the working directory, which `go test`
+// sets to the package directory.
 func repoRoot(t *testing.T) string {
 	t.Helper()
 	_, file, _, ok := runtime.Caller(0)

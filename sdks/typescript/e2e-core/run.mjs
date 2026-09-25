@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 /* eslint-disable no-console */
-// Runs the core client scenario (scenario.mjs) against a live engine from the built package,
-// the way a user's project imports it: a scratch package whose node_modules links
-// @hatchet-dev/typescript-sdk to dist/ (as scripts/check-exports.mjs does) and undici to the
-// SDK's dev dependency. Prints the scenario's result as one JSON line on stdout.
+// The scenario (scenario.mjs) must import the SDK the way a user's project does, through the
+// package's exports map from a real node_modules, so that a broken `/core` or `/edge` entry
+// fails here and not only in a user's bundle. A scratch package linking dist/ provides that
+// (as scripts/check-exports.mjs does); undici is linked from the SDK's dev dependencies since
+// the scenario needs an HTTP/1.1-only agent. The result is the last stdout line, as JSON,
+// which is what pkg/testing/e2e/tscore parses.
 //
 // Run after `pnpm run tsc:build`, with HATCHET_CLIENT_TOKEN and HATCHET_CLIENT_HOST_PORT set:
 //   node e2e-core/run.mjs
-// pkg/testing/e2e/tscore drives it from `go test -tags e2e` against the harness engine.
 import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
