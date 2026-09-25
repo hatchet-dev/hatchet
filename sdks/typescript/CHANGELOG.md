@@ -416,7 +416,7 @@ Moved optional dependencies from `optionalDependencies` to `peerDependencies`.
 
 - Improved cancellation log messages: cancellation-related logs now use `debug` level instead of `error` level since cancellation is expected behavior, not a failure.
 - Updated terminology in log messages from "step run" to "task run" for consistency.
-- Added link to cancellation docs (https://docs.hatchet.run/home/cancellation) in error messages when task completion fails.
+- Added link to cancellation docs (https://docs.hatchet.run/v1/cancellation) in error messages when task completion fails.
 
 ## [1.10.7] - 2026-01-27
 
