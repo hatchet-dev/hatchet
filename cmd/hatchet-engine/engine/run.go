@@ -19,6 +19,7 @@ import (
 	metricscontroller "github.com/hatchet-dev/hatchet/internal/services/controllers/metrics"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/olap"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/retention"
+	streamscontroller "github.com/hatchet-dev/hatchet/internal/services/controllers/streams"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/task"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
 	"github.com/hatchet-dev/hatchet/internal/services/grpc"
@@ -28,6 +29,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/otelcol"
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	schedulerv1 "github.com/hatchet-dev/hatchet/internal/services/scheduler/v1"
+	streamssvc "github.com/hatchet-dev/hatchet/internal/services/streams"
 	"github.com/hatchet-dev/hatchet/internal/services/ticker"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
@@ -761,6 +763,28 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			)
 		}
 
+		streamsController, err := streamscontroller.New(
+			streamscontroller.WithAlerter(sc.Alerter),
+			streamscontroller.WithMessageQueueV1(sc.MessageQueueV1),
+			streamscontroller.WithRepositoryV1(sc.V1),
+			streamscontroller.WithLogger(sc.Logger),
+		)
+
+		if err != nil {
+			return fmt.Errorf("could not create streams controller: %w", err)
+		}
+
+		cleanupStreamsController, err := streamsController.Start()
+
+		if err != nil {
+			return fmt.Errorf("could not start streams controller: %w", err)
+		}
+
+		cleanup.Add(
+			cleanupStreamsController,
+			"streams controller",
+		)
+
 		cleanupTenantWorkerPartition, err := p.StartTenantWorkerPartition(ctx)
 
 		if err != nil {
@@ -924,6 +948,17 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			return fmt.Errorf("could not create admin service (v1): %w", err)
 		}
 
+		streamsSvc, err := streamssvc.NewService(
+			streamssvc.WithMessageQueueV1(sc.MessageQueueV1),
+			streamssvc.WithPubSub(sc.PubSubV1),
+			streamssvc.WithRepositoryV1(sc.V1),
+			streamssvc.WithLogger(sc.Logger),
+		)
+
+		if err != nil {
+			return fmt.Errorf("could not create streams service: %w", err)
+		}
+
 		// the operators this dispatcher claims (the DAG operator) are hosted in process, on
 		// the local dispatcher, from here
 		stopOperators, err := startOperatorClaimer(sc, d, adminv1Svc)
@@ -939,6 +974,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			grpc.WithDispatcherV1(d.V1()),
 			grpc.WithAdmin(adminSvc),
 			grpc.WithAdminV1(adminv1Svc),
+			grpc.WithStreamsV1(streamsSvc),
 			grpc.WithLogger(sc.Logger),
 			grpc.WithAlerter(sc.Alerter),
 			grpc.WithTLSConfig(sc.TLSConfig),
@@ -1010,6 +1046,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			// hang up long-lived subscriber streams first so that GracefulStop does not
 			// block on them until the pod is killed
 			d.CancelStreamSessions()
+			streamsSvc.CancelStreamSessions()
 
 			g := new(errgroup.Group)
 
@@ -1037,6 +1074,9 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 				}
 				if err := ei.Cleanup(); err != nil {
 					return fmt.Errorf("failed to cleanup ingestor: %w", err)
+				}
+				if err := streamsSvc.Cleanup(); err != nil {
+					return fmt.Errorf("failed to cleanup streams service: %w", err)
 				}
 				return nil
 			})

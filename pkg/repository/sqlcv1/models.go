@@ -331,6 +331,8 @@ const (
 	LimitResourceCRON            LimitResource = "CRON"
 	LimitResourceSCHEDULE        LimitResource = "SCHEDULE"
 	LimitResourceINCOMINGWEBHOOK LimitResource = "INCOMING_WEBHOOK"
+	LimitResourceSTREAMTOPIC     LimitResource = "STREAM_TOPIC"
+	LimitResourceSTREAMMESSAGE   LimitResource = "STREAM_MESSAGE"
 )
 
 func (e *LimitResource) Scan(src interface{}) error {
@@ -3846,6 +3848,35 @@ type V1StepSlotRequest struct {
 	Units     int32              `json:"units"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+type V1StreamMessage struct {
+	ID          int64              `json:"id"`
+	InsertedAt  pgtype.Timestamptz `json:"inserted_at"`
+	TenantID    uuid.UUID          `json:"tenant_id"`
+	Namespace   string             `json:"namespace"`
+	Topic       string             `json:"topic"`
+	Payload     []byte             `json:"payload"`
+	XactID      interface{}        `json:"xact_id"`
+	ProducerID  string             `json:"producer_id"`
+	ProducerSeq int64              `json:"producer_seq"`
+}
+
+type V1StreamProducerCursor struct {
+	TenantID   uuid.UUID `json:"tenant_id"`
+	Namespace  string    `json:"namespace"`
+	Topic      string    `json:"topic"`
+	ProducerID string    `json:"producer_id"`
+	LastSeq    int64     `json:"last_seq"`
+}
+
+type V1StreamTopic struct {
+	ID              int64              `json:"id"`
+	TenantID        uuid.UUID          `json:"tenant_id"`
+	Namespace       string             `json:"namespace"`
+	Topic           string             `json:"topic"`
+	InsertedAt      pgtype.Timestamptz `json:"inserted_at"`
+	LastPublishedAt pgtype.Timestamptz `json:"last_published_at"`
 }
 
 type V1Task struct {

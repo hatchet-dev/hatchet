@@ -42,3 +42,12 @@ type StreamEventPayload struct {
 	RetryCount    *int32    `json:"retry_count,omitempty"`
 	EventIndex    *int64    `json:"event_index"`
 }
+
+type StreamMessagePayload struct {
+	Namespace   string    `json:"namespace"`
+	Topic       string    `json:"topic" validate:"required"`
+	Payload     []byte    `json:"payload"`
+	CreatedAt   time.Time `json:"created_at" validate:"required"`
+	ProducerID  string    `json:"producer_id,omitempty"`
+	ProducerSeq int64     `json:"producer_seq,omitempty"`
+}

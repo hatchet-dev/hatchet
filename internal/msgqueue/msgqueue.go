@@ -44,6 +44,7 @@ const (
 	OLAP_QUEUE                   staticQueue = "olap_queue_v2"
 	DISPATCHER_DEAD_LETTER_QUEUE staticQueue = "dispatcher_dlq_v2"
 	TICKER_UPDATE_QUEUE          staticQueue = "ticker_update_queue_v2"
+	STREAMS_QUEUE                staticQueue = "streams_queue_v1"
 )
 
 func (s staticQueue) Name() string {

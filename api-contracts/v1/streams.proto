@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+option go_package = "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1";
+
+package v1;
+
+import "google/protobuf/timestamp.proto";
+
+service V1Streams {
+    rpc Publish(PublishStreamMessageRequest) returns (PublishStreamMessageResponse) {}
+    rpc Subscribe(SubscribeStreamRequest) returns (stream StreamMessage) {}
+}
+
+message PublishStreamMessageRequest {
+    string namespace = 1;
+    string topic = 2;
+    bytes payload = 3;
+    string producer_id = 4;
+    int64 producer_seq = 5;
+}
+
+message PublishStreamMessageResponse {}
+
+message SubscribeStreamRequest {
+    string namespace = 1;
+    string topic = 2;
+    optional string cursor = 3;
+}
+
+message StreamMessage {
+    repeated StreamEntry entries = 1;
+    bool hangup = 2;
+    string cursor = 3;
+}
+
+message StreamEntry {
+    bytes payload = 1;
+    string cursor = 2;
+    google.protobuf.Timestamp created_at = 3;
+}

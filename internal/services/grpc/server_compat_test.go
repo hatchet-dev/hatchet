@@ -250,6 +250,9 @@ type (
 	fakeDispatcherV1 struct {
 		v1connect.UnimplementedV1DispatcherHandler
 	}
+	fakeStreamsV1 struct {
+		v1connect.UnimplementedV1StreamsHandler
+	}
 )
 
 func withFakeServices() ServerOpt {
@@ -258,6 +261,7 @@ func withFakeServices() ServerOpt {
 		opts.admin = fakeAdmin{}
 		opts.adminv1 = fakeAdminV1{}
 		opts.dispatcherv1 = fakeDispatcherV1{}
+		opts.streamsv1 = fakeStreamsV1{}
 	}
 }
 

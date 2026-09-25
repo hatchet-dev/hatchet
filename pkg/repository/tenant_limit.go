@@ -131,6 +131,17 @@ func (t *tenantLimitRepository) DefaultLimits() []Limit {
 			Limit:    t.config.DefaultIncomingWebhookLimit,                // nolint: gosec
 			Alarm:    Int32Ptr(t.config.DefaultIncomingWebhookAlarmLimit), // nolint: gosec
 		},
+		{
+			Resource: sqlcv1.LimitResourceSTREAMTOPIC,
+			Limit:    t.config.DefaultStreamTopicLimit,                // nolint: gosec
+			Alarm:    Int32Ptr(t.config.DefaultStreamTopicAlarmLimit), // nolint: gosec
+		},
+		{
+			Resource: sqlcv1.LimitResourceSTREAMMESSAGE,
+			Limit:    t.config.DefaultStreamMessageLimit,                // nolint: gosec
+			Alarm:    Int32Ptr(t.config.DefaultStreamMessageAlarmLimit), // nolint: gosec
+			Window:   &t.config.DefaultStreamMessageWindow,
+		},
 	}
 }
 

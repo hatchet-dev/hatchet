@@ -19,6 +19,9 @@ const (
 
 	// TopicKindSchedulerPartition wakes the scheduler owning a partition.
 	TopicKindSchedulerPartition TopicKind = "scheduler-partition"
+
+	// TopicKindStreamTopic wakes a durable-stream Consume RPC tailing a topic.
+	TopicKindStreamTopic TopicKind = "stream-topic"
 )
 
 // Topic identifies a best-effort pub/sub destination.
@@ -52,6 +55,14 @@ func SchedulerPartitionTopic(partitionId string) Topic {
 	return Topic{
 		name: fmt.Sprintf("%s_scheduler_v1", partitionId),
 		kind: TopicKindSchedulerPartition,
+	}
+}
+
+// StreamTopic wakes any Consume RPC tailing this (tenant, namespace, topic).
+func StreamTopic(tenantId uuid.UUID, namespace, topic string) Topic {
+	return Topic{
+		name: fmt.Sprintf("%s_%s_%s_stream_v1", tenantId, namespace, topic),
+		kind: TopicKindStreamTopic,
 	}
 }
 

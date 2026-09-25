@@ -69,6 +69,7 @@ type Server struct {
 	admin         admin.AdminService
 	adminv1       adminv1.AdminService
 	operatorSvc   v1connect.OperatorServiceHandler
+	streamsv1     v1connect.V1StreamsHandler
 	otelCollector otelcol.OTelCollector
 	tls           *tls.Config
 	insecure      bool
@@ -94,6 +95,7 @@ type ServerOpts struct {
 	admin         admin.AdminService
 	adminv1       adminv1.AdminService
 	operatorSvc   v1connect.OperatorServiceHandler
+	streamsv1     v1connect.V1StreamsHandler
 	otelCollector otelcol.OTelCollector
 	tls           *tls.Config
 	insecure      bool
@@ -220,6 +222,12 @@ func WithOperatorService(o v1connect.OperatorServiceHandler) ServerOpt {
 	}
 }
 
+func WithStreamsV1(s v1connect.V1StreamsHandler) ServerOpt {
+	return func(opts *ServerOpts) {
+		opts.streamsv1 = s
+	}
+}
+
 func WithOTelCollector(oc otelcol.OTelCollector) ServerOpt {
 	return func(opts *ServerOpts) {
 		opts.otelCollector = oc
@@ -253,6 +261,8 @@ func NewServer(fs ...ServerOpt) (*Server, error) {
 		return nil, fmt.Errorf("admin service is required. use WithAdmin")
 	case opts.adminv1 == nil:
 		return nil, fmt.Errorf("v1 admin service is required. use WithAdminV1")
+	case opts.streamsv1 == nil:
+		return nil, fmt.Errorf("v1 streams service is required. use WithStreamsV1")
 	}
 
 	newLogger := opts.l.With().Str("service", "grpc").Logger()
@@ -271,6 +281,7 @@ func NewServer(fs ...ServerOpt) (*Server, error) {
 		admin:         opts.admin,
 		adminv1:       opts.adminv1,
 		operatorSvc:   opts.operatorSvc,
+		streamsv1:     opts.streamsv1,
 		otelCollector: opts.otelCollector,
 		tls:           opts.tls,
 		insecure:      opts.insecure,
@@ -347,6 +358,9 @@ func (s *Server) handler() (http.Handler, error) {
 
 	routes.addService(v1contracts.File_v1_workflows_proto.Services().ByName("AdminService"))
 	mux.Handle(v1connect.NewAdminServiceHandler(s.adminv1, opts...))
+
+	routes.addService(v1contracts.File_v1_streams_proto.Services().ByName("V1Streams"))
+	mux.Handle(v1connect.NewV1StreamsHandler(s.streamsv1, opts...))
 
 	if s.operatorSvc != nil {
 		routes.addService(v1contracts.File_v1_operator_proto.Services().ByName("OperatorService"))
