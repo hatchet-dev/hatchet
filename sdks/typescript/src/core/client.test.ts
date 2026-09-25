@@ -1,0 +1,956 @@
+import { Code, ConnectError, createRouterTransport } from '@connectrpc/connect';
+import type { MessageInitShape } from '@bufbuild/protobuf';
+import {
+  BulkTriggerWorkflowRequest,
+  WorkflowService,
+} from '@hatchet/protoc-es/workflows/workflows_pb';
+import {
+  TriggerWorkflowRequest,
+  WorkerLabelComparator,
+} from '@hatchet/protoc-es/v1/shared/trigger_pb';
+import {
+  AdminService,
+  BulkTriggerIdempotencyCollisionErrorSchema,
+  CancelTasksRequest,
+  GetRunDetailsResponseSchema,
+  IdempotencyCollisionErrorSchema,
+  RunStatus,
+} from '@hatchet/protoc-es/v1/workflows_pb';
+import {
+  EventsService,
+  PushEventRequest,
+  PutLogRequest,
+} from '@hatchet/protoc-es/events/events_pb';
+import { declarations } from '@hatchet/edge/declarations';
+import { V1TaskStatus } from '@hatchet/clients/rest/generated/data-contracts';
+import HatchetError from '@util/errors/hatchet-error';
+import { IdempotencyCollisionError } from '@util/errors/idempotency-collision-error';
+import { BulkTriggerIdempotencyCollisionError } from '@util/errors/bulk-trigger-idempotency-collision-error';
+import { BulkTriggerPartialError } from '@util/errors/bulk-trigger-partial-error';
+import { AbortError } from '@hatchet/util/abort-error';
+import { LogLevel } from '@hatchet/clients/event/rpc';
+import { HatchetCore } from './client';
+import { INITIAL_POLL_INTERVAL_MS, MAX_POLL_INTERVAL_MS, WorkflowRunRef } from './run-ref';
+
+type RunDetails = MessageInitShape<typeof GetRunDetailsResponseSchema>;
+
+const TENANT_ID = '707d0855-80ab-4e1f-a156-f1c4546cbf52';
+
+function makeToken(claims: Record<string, unknown>): string {
+  const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url');
+  return `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode(claims)}.signature`;
+}
+
+const TOKEN = makeToken({
+  sub: TENANT_ID,
+  grpc_broadcast_address: 'engine.example.com:7070',
+  server_url: 'https://app.example.com',
+});
+
+const encodeJson = (value: unknown) => new TextEncoder().encode(JSON.stringify(value));
+
+function taskRun(
+  readableId: string,
+  status: RunStatus,
+  output?: unknown,
+  error?: string
+): NonNullable<RunDetails['taskRuns']>[string] {
+  return {
+    externalId: `${readableId}-id`,
+    readableId,
+    status,
+    output: output === undefined ? undefined : encodeJson(output),
+    error,
+    isEvicted: false,
+  };
+}
+
+/** A task run whose output is stored as the given text, JSON or not. */
+function taskRunText(
+  readableId: string,
+  status: RunStatus,
+  text: string
+): NonNullable<RunDetails['taskRuns']>[string] {
+  return { ...taskRun(readableId, status), output: new TextEncoder().encode(text) };
+}
+
+/**
+ * An in-memory engine: records every request and answers `GetRunDetails` from a queue, the
+ * last entry of which is repeated once the queue is drained.
+ */
+function fakeEngine() {
+  const triggers: TriggerWorkflowRequest[] = [];
+  const bulkTriggers: BulkTriggerWorkflowRequest[] = [];
+  const pushes: PushEventRequest[] = [];
+  const logs: PutLogRequest[] = [];
+  const cancels: CancelTasksRequest[] = [];
+  const detailsQueue: RunDetails[] = [];
+  const detailsTimeouts: Array<number | undefined> = [];
+  let detailsCalls = 0;
+  let detailsStalled = false;
+  let triggerError: ConnectError | undefined;
+  let bulkFailure: { batchIndex: number; error: Error } | undefined;
+
+  const transport = createRouterTransport(({ service }) => {
+    service(WorkflowService, {
+      triggerWorkflow: (req) => {
+        if (triggerError) throw triggerError;
+        triggers.push(req);
+        return { workflowRunId: `run-${triggers.length}` };
+      },
+      bulkTriggerWorkflow: (req) => {
+        if (bulkFailure?.batchIndex === bulkTriggers.length) throw bulkFailure.error;
+        bulkTriggers.push(req);
+        const offset = bulkTriggers.slice(0, -1).reduce((n, b) => n + b.workflows.length, 0);
+        return { workflowRunIds: req.workflows.map((_, i) => `bulk-${offset + i}`) };
+      },
+    });
+    service(AdminService, {
+      getRunDetails: (_req, ctx) => {
+        detailsCalls += 1;
+        detailsTimeouts.push(ctx.timeoutMs());
+        if (detailsStalled) {
+          // A stalled engine answers only when the call is abandoned, as a fetch aborted by
+          // its signal does.
+          return new Promise<RunDetails>((_, reject) => {
+            ctx.signal.addEventListener('abort', () => reject(ctx.signal.reason), {
+              once: true,
+            });
+          });
+        }
+        if (detailsQueue.length === 0) throw new Error('no run details queued');
+        return detailsQueue.length > 1 ? detailsQueue.shift()! : detailsQueue[0];
+      },
+      cancelTasks: (req) => {
+        cancels.push(req);
+        return { cancelledTasks: req.externalIds };
+      },
+      replayTasks: (req) => ({ replayedTasks: req.externalIds }),
+    });
+    service(EventsService, {
+      push: (req) => {
+        pushes.push(req);
+        return {
+          tenantId: TENANT_ID,
+          eventId: `evt-${pushes.length}`,
+          key: req.key,
+          payload: req.payload,
+          eventTimestamp: req.eventTimestamp,
+          additionalMetadata: req.additionalMetadata,
+        };
+      },
+      bulkPush: (req) => ({
+        events: req.events.map((e, i) => ({
+          tenantId: TENANT_ID,
+          eventId: `evt-${i}`,
+          key: e.key,
+          payload: e.payload,
+          eventTimestamp: e.eventTimestamp,
+        })),
+      }),
+      putLog: (req) => {
+        logs.push(req);
+        return {};
+      },
+    });
+  });
+
+  return {
+    transport,
+    triggers,
+    bulkTriggers,
+    pushes,
+    logs,
+    cancels,
+    detailsQueue,
+    detailsTimeouts,
+    get detailsCalls() {
+      return detailsCalls;
+    },
+    failTriggersWith(error: ConnectError) {
+      triggerError = error;
+    },
+    stallDetails() {
+      detailsStalled = true;
+    },
+    failBulkBatch(batchIndex: number, error: Error) {
+      bulkFailure = { batchIndex, error };
+    },
+  };
+}
+
+function makeClient(engine: ReturnType<typeof fakeEngine>, namespace?: string) {
+  return new HatchetCore({
+    token: TOKEN,
+    transport: engine.transport,
+    namespace,
+    logLevel: 'OFF',
+    retrier: { maxAttempts: 1 },
+  });
+}
+
+const completed = (taskRuns: RunDetails['taskRuns']): RunDetails => ({
+  status: RunStatus.COMPLETED,
+  done: true,
+  input: encodeJson({}),
+  additionalMetadata: new Uint8Array(),
+  isEvicted: false,
+  taskRuns,
+});
+
+const running: RunDetails = {
+  status: RunStatus.RUNNING,
+  done: false,
+  input: encodeJson({}),
+  additionalMetadata: new Uint8Array(),
+  isEvicted: false,
+  taskRuns: { echo: taskRun('echo', RunStatus.RUNNING) },
+};
+
+describe('HatchetCore configuration', () => {
+  it('reads the engine address from the token when no address is configured', () => {
+    const client = new HatchetCore({ token: TOKEN, logLevel: 'OFF' });
+    expect(client.config.serverUrl).toBe('https://engine.example.com:7070');
+    expect(client.tenantId).toBe(TENANT_ID);
+  });
+
+  it('builds the address from hostPort and the TLS strategy', () => {
+    const client = new HatchetCore({
+      token: TOKEN,
+      hostPort: 'localhost:7070',
+      tls: { strategy: 'none' },
+      logLevel: 'OFF',
+    });
+    expect(client.config.serverUrl).toBe('http://localhost:7070');
+  });
+
+  it('takes serverUrl as given without a trailing slash', () => {
+    const client = new HatchetCore({
+      token: TOKEN,
+      serverUrl: 'https://e.example/',
+      logLevel: 'OFF',
+    });
+    expect(client.config.serverUrl).toBe('https://e.example');
+  });
+
+  it('refuses a plaintext serverUrl unless tls.strategy is none', () => {
+    expect(() => new HatchetCore({ token: TOKEN, serverUrl: 'http://localhost:7070' })).toThrow(
+      /serverUrl is http:\/\/ but tls\.strategy is 'tls'/
+    );
+    expect(
+      () =>
+        new HatchetCore({
+          token: TOKEN,
+          serverUrl: 'http://localhost:7070',
+          tls: { strategy: 'tls' },
+        })
+    ).toThrow(/serverUrl is http:\/\/ but tls\.strategy/);
+    expect(
+      () =>
+        new HatchetCore({ token: TOKEN, serverUrl: 'https://e.example', tls: { strategy: 'none' } })
+    ).toThrow(/serverUrl is https:\/\/ but tls\.strategy is 'none'/);
+
+    const client = new HatchetCore({
+      token: TOKEN,
+      serverUrl: 'http://localhost:7070/',
+      tls: { strategy: 'none' },
+      logLevel: 'OFF',
+    });
+    expect(client.config.serverUrl).toBe('http://localhost:7070');
+  });
+
+  it('normalizes the namespace the way the Node config loader does', () => {
+    const client = new HatchetCore({ token: TOKEN, namespace: 'Prod', logLevel: 'OFF' });
+    expect(client.config.namespace).toBe('prod_');
+  });
+
+  it('needs only sub and grpc_broadcast_address from the token', () => {
+    const token = makeToken({ sub: TENANT_ID, grpc_broadcast_address: 'engine.example.com:7070' });
+    const client = new HatchetCore({ token, logLevel: 'OFF' });
+    expect(client.config.serverUrl).toBe('https://engine.example.com:7070');
+    expect(client.tenantId).toBe(TENANT_ID);
+  });
+
+  it('takes hostPort when the token carries no address claims', () => {
+    const client = new HatchetCore({
+      token: makeToken({ sub: TENANT_ID }),
+      hostPort: 'localhost:7070',
+      tls: { strategy: 'none' },
+      logLevel: 'OFF',
+    });
+    expect(client.config.serverUrl).toBe('http://localhost:7070');
+  });
+
+  it('rejects a missing token and names the claim and fields when no address is found', () => {
+    expect(() => new HatchetCore({ token: '' })).toThrow(HatchetError);
+    expect(() => new HatchetCore({ token: makeToken({ sub: TENANT_ID }) })).toThrow(
+      /grpc_broadcast_address claim; set serverUrl or hostPort/
+    );
+  });
+
+  it('resolves no address when a transport is supplied', async () => {
+    const engine = fakeEngine();
+    const client = new HatchetCore({
+      token: makeToken({ sub: TENANT_ID }),
+      transport: engine.transport,
+      logLevel: 'OFF',
+    });
+    expect(client.config.serverUrl).toBe('');
+    expect(client.tenantId).toBe(TENANT_ID);
+    await expect(client.runNoWait('wf', {})).resolves.toBeDefined();
+
+    const withUnusedUrl = new HatchetCore({
+      token: makeToken({ sub: TENANT_ID }),
+      serverUrl: 'http://ignored.example.com',
+      transport: engine.transport,
+      logLevel: 'OFF',
+    });
+    expect(withUnusedUrl.config.serverUrl).toBe('http://ignored.example.com');
+  });
+
+  it('takes the gRPC target forms the Node client takes for hostPort', () => {
+    const forms: Array<[string, string]> = [
+      ['dns:///engine.example.com:7070', 'http://engine.example.com:7070'],
+      ['dns:engine.example.com:7070', 'http://engine.example.com:7070'],
+      ['ipv4:127.0.0.1:7070', 'http://127.0.0.1:7070'],
+      ['ipv6:[::1]:7070', 'http://[::1]:7070'],
+      ['engine.example.com', 'http://engine.example.com:443'],
+    ];
+    for (const [hostPort, serverUrl] of forms) {
+      const client = new HatchetCore({
+        token: TOKEN,
+        hostPort,
+        tls: { strategy: 'none' },
+        logLevel: 'OFF',
+      });
+      expect(client.config.serverUrl).toBe(serverUrl);
+    }
+    expect(
+      () =>
+        new HatchetCore({ token: TOKEN, hostPort: 'unix:/var/run/engine.sock', logLevel: 'OFF' })
+    ).toThrow(/unix domain socket/);
+  });
+
+  it('refuses a token that cannot travel in a header without quoting it', () => {
+    const token = `${TOKEN}\n`;
+    expect(() => new HatchetCore({ token, logLevel: 'OFF' })).toThrow(
+      /cannot be sent in an HTTP header/
+    );
+    try {
+      new HatchetCore({ token, logLevel: 'OFF' });
+    } catch (e) {
+      expect((e as Error).message).not.toContain(TOKEN.split('.')[1]);
+    }
+  });
+});
+
+describe('HatchetCore.runNoWait', () => {
+  it('sends the namespaced, lowercased name and JSON input', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine, 'Prod');
+
+    const ref = await client.runNoWait('MyWorkflow', { hello: 'world' });
+
+    expect(ref.workflowRunId).toBe('run-1');
+    expect(engine.triggers).toHaveLength(1);
+    const [req] = engine.triggers;
+    expect(req.name).toBe('prod_myworkflow');
+    expect(req.input).toBe(JSON.stringify({ hello: 'world' }));
+    expect(req.additionalMetadata).toBeUndefined();
+    expect(req.desiredWorkerLabels).toEqual({});
+  });
+
+  it('maps the options onto the trigger request the way the Node admin client does', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+
+    await client.runNoWait(
+      'wf',
+      {},
+      {
+        additionalMetadata: { source: 'test' },
+        priority: 3,
+        parentStepRunId: 'parent-task',
+        parentId: 'parent-run',
+        childIndex: 2,
+        childKey: 'child',
+        desiredWorkerId: 'worker-1',
+        desiredWorkerLabels: {
+          region: { value: 'us-east', required: true },
+          cores: { value: 8, weight: 2, comparator: WorkerLabelComparator.GREATER_THAN },
+        },
+      }
+    );
+
+    const [req] = engine.triggers;
+    expect(req.additionalMetadata).toBe(JSON.stringify({ source: 'test' }));
+    expect(req.priority).toBe(3);
+    expect(req.parentTaskRunExternalId).toBe('parent-task');
+    expect(req.parentId).toBe('parent-run');
+    expect(req.childIndex).toBe(2);
+    expect(req.childKey).toBe('child');
+    expect(req.desiredWorkerId).toBe('worker-1');
+    expect(req.desiredWorkerLabels.region).toMatchObject({ strValue: 'us-east', required: true });
+    expect(req.desiredWorkerLabels.cores).toMatchObject({
+      intValue: 8,
+      weight: 2,
+      comparator: WorkerLabelComparator.GREATER_THAN,
+    });
+  });
+
+  it('accepts a declaration from the edge entry and unwraps a task output', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine, 'ns');
+    const { task } = declarations();
+    const echo = task({ name: 'Echo', fn: (input: { message: string }) => input });
+    engine.detailsQueue.push(
+      completed({ Echo: taskRun('Echo', RunStatus.COMPLETED, { message: 'hi' }) })
+    );
+
+    const output = await client.run(echo, { message: 'hi' });
+
+    expect(engine.triggers[0].name).toBe('ns_echo');
+    expect(output).toEqual({ message: 'hi' });
+  });
+
+  it('raises an IdempotencyCollisionError from the ALREADY_EXISTS details', async () => {
+    const engine = fakeEngine();
+    engine.failTriggersWith(
+      new ConnectError('collision', Code.AlreadyExists, undefined, [
+        {
+          desc: IdempotencyCollisionErrorSchema,
+          value: { existingRunExternalId: 'existing-run', collidingRunExternalId: '' },
+        },
+      ])
+    );
+    const client = makeClient(engine);
+
+    await expect(client.runNoWait('wf', {})).rejects.toThrow(IdempotencyCollisionError);
+    await expect(client.runNoWait('wf', {})).rejects.toMatchObject({
+      existingRunExternalId: 'existing-run',
+    });
+  });
+});
+
+describe('HatchetCore.runManyNoWait', () => {
+  it('bulk-triggers in input order with per-run options', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine, 'ns');
+
+    const refs = await client.runManyNoWait('Wf', [
+      { input: { i: 1 } },
+      { input: { i: 2 }, opts: { additionalMetadata: { k: 'v' }, priority: 1 } },
+    ]);
+
+    expect(refs.map((r) => r.workflowRunId)).toEqual(['bulk-0', 'bulk-1']);
+    expect(engine.bulkTriggers).toHaveLength(1);
+    const [{ workflows }] = engine.bulkTriggers;
+    expect(workflows.map((w) => w.name)).toEqual(['ns_wf', 'ns_wf']);
+    expect(workflows[1].input).toBe(JSON.stringify({ i: 2 }));
+    expect(workflows[1].additionalMetadata).toBe(JSON.stringify({ k: 'v' }));
+    expect(workflows[1].priority).toBe(1);
+    expect(workflows[0].priority).toBeUndefined();
+  });
+
+  it('splits more than 500 runs into batches and keeps the order', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+
+    const refs = await client.runManyNoWait(
+      'wf',
+      Array.from({ length: 1001 }, (_, i) => ({ input: { i } }))
+    );
+
+    expect(engine.bulkTriggers.map((b) => b.workflows.length)).toEqual([500, 500, 1]);
+    expect(refs).toHaveLength(1001);
+    expect(refs[1000].workflowRunId).toBe('bulk-1000');
+  });
+
+  it('reports the runs created before a later batch fails', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    engine.failBulkBatch(1, new ConnectError('engine unavailable', Code.Unavailable));
+    const runs = Array.from({ length: 1001 }, (_, i) => ({ input: { i } }));
+
+    const rejection = await client.runManyNoWait('wf', runs).catch((e) => e as unknown);
+
+    expect(rejection).toBeInstanceOf(BulkTriggerPartialError);
+    const error = rejection as BulkTriggerPartialError<WorkflowRunRef<void>>;
+    expect(error.failedBatchIndex).toBe(1);
+    expect(error.refs).toHaveLength(500);
+    expect(error.refs[0].workflowRunId).toBe('bulk-0');
+    expect(error.refs[499].workflowRunId).toBe('bulk-499');
+    expect(error.cause).toBeInstanceOf(HatchetError);
+    expect(error.message).toMatch(/batch 1 after 500 runs were created: .*engine unavailable/);
+    expect(engine.bulkTriggers).toHaveLength(1);
+  });
+
+  it('wraps a later batch idempotency collision in the partial error', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    engine.failBulkBatch(
+      1,
+      new ConnectError('collision', Code.AlreadyExists, undefined, [
+        {
+          desc: BulkTriggerIdempotencyCollisionErrorSchema,
+          value: {
+            successfulWorkflowRunExternalIds: ['bulk-500'],
+            collisions: [{ existingRunExternalId: 'existing-run', collidingRunExternalId: '' }],
+          },
+        },
+      ])
+    );
+    const runs = Array.from({ length: 501 }, (_, i) => ({ input: { i } }));
+
+    const error = await client.runManyNoWait('wf', runs).catch((e) => e as unknown);
+
+    expect(error).toBeInstanceOf(BulkTriggerPartialError);
+    const partial = error as BulkTriggerPartialError;
+    expect(partial.refs).toHaveLength(500);
+    expect(partial.cause).toBeInstanceOf(BulkTriggerIdempotencyCollisionError);
+    const collision = partial.cause as BulkTriggerIdempotencyCollisionError;
+    expect(collision.successfulWorkflowRunExternalIds).toEqual(['bulk-500']);
+    expect(collision.collisions[0].existingRunExternalId).toBe('existing-run');
+  });
+
+  it('runMany rejects with the first failure unless returnExceptions is set', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    engine.detailsQueue.push(
+      completed({ task: taskRun('task', RunStatus.COMPLETED, { ok: true }) }),
+      {
+        ...completed({ task: taskRun('task', RunStatus.FAILED, undefined, 'task error') }),
+        status: RunStatus.FAILED,
+      }
+    );
+
+    await expect(client.runMany('wf', [{ input: {} }, { input: {} }])).rejects.toEqual([
+      'task error',
+    ]);
+  });
+
+  it('runMany returns failures as Errors in input order under returnExceptions', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    const failed = {
+      ...completed({ task: taskRun('task', RunStatus.FAILED, undefined, 'task error') }),
+      status: RunStatus.FAILED,
+    };
+    engine.detailsQueue.push(
+      failed,
+      completed({ task: taskRun('task', RunStatus.COMPLETED, { ok: true }) }),
+      {
+        ...completed({ task: taskRun('task', RunStatus.FAILED, undefined, 'one') }),
+        status: RunStatus.FAILED,
+      },
+      { ...completed({}), status: RunStatus.CANCELLED }
+    );
+    engine.detailsQueue[2].taskRuns!.other = taskRun('other', RunStatus.FAILED, undefined, 'two');
+
+    const results: unknown[] = await client.runMany('wf', [
+      { input: {}, opts: { returnExceptions: true } },
+      { input: {} },
+      { input: {} },
+      { input: {} },
+    ]);
+
+    expect(results).toHaveLength(4);
+    expect(results[0]).toBeInstanceOf(Error);
+    expect((results[0] as Error).message).toBe('task error');
+    expect(results[1]).toEqual({ task: { ok: true } });
+    expect((results[2] as Error).message).toBe('one; two');
+    expect((results[3] as Error).message).toMatch(/was cancelled/);
+  });
+
+  it('rejects with the batch error itself when the first batch fails', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    engine.failBulkBatch(0, new ConnectError('engine unavailable', Code.Unavailable));
+
+    const rejection = client.runManyNoWait('wf', [{ input: {} }]);
+
+    await expect(rejection).rejects.toThrow(HatchetError);
+    await expect(rejection).rejects.not.toBeInstanceOf(BulkTriggerPartialError);
+  });
+});
+
+describe('WorkflowRunRef.result', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('polls until the run is done and returns the outputs keyed by task', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    engine.detailsQueue.push(
+      running,
+      running,
+      completed({
+        step1: taskRun('step1', RunStatus.COMPLETED, { a: 1 }),
+        step2: taskRun('step2', RunStatus.COMPLETED),
+      })
+    );
+
+    const ref = await client.runNoWait('wf', {});
+    const result = ref.result();
+    // Two not-done answers, so two waits: the first interval and the doubled one.
+    await jest.advanceTimersByTimeAsync(INITIAL_POLL_INTERVAL_MS * 1.2);
+    await jest.advanceTimersByTimeAsync(INITIAL_POLL_INTERVAL_MS * 2.4);
+
+    await expect(result).resolves.toEqual({ step1: { a: 1 }, step2: {} });
+    expect(engine.detailsCalls).toBe(3);
+  });
+
+  it('backs off from 250 ms to the 5 s cap, jitter included', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    engine.detailsQueue.push(...Array(8).fill(running), completed({}));
+    const random = jest.spyOn(Math, 'random').mockReturnValue(0.999999);
+    // The spy calls through to the fake timer, so it only records the waits.
+    const setTimeoutSpy = jest.spyOn(globalThis, 'setTimeout');
+
+    try {
+      const ref = await client.runNoWait('wf', {});
+      const result = ref.result();
+      for (let i = 0; i < 8; i += 1) {
+        await jest.advanceTimersByTimeAsync(MAX_POLL_INTERVAL_MS);
+      }
+
+      await expect(result).resolves.toEqual({});
+      const waits = setTimeoutSpy.mock.calls.map(([, ms]) => ms);
+      expect(waits).toEqual([300, 600, 1200, 2400, 4800, 5000, 5000, 5000]);
+    } finally {
+      random.mockRestore();
+      setTimeoutSpy.mockRestore();
+    }
+  });
+
+  it('reads outputs the way the Node client does: absent is {}, null is null', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    engine.detailsQueue.push(
+      completed({
+        none: taskRun('none', RunStatus.COMPLETED),
+        empty: taskRunText('empty', RunStatus.COMPLETED, ''),
+        nil: taskRunText('nil', RunStatus.COMPLETED, 'null'),
+        zero: taskRunText('zero', RunStatus.COMPLETED, '0'),
+        no: taskRunText('no', RunStatus.COMPLETED, 'false'),
+        blank: taskRunText('blank', RunStatus.COMPLETED, '""'),
+        list: taskRunText('list', RunStatus.COMPLETED, '[]'),
+      })
+    );
+
+    const ref = await client.runNoWait('wf', {});
+    await expect(ref.result()).resolves.toEqual({
+      none: {},
+      empty: {},
+      nil: null,
+      zero: 0,
+      no: false,
+      blank: '',
+      list: [],
+    });
+  });
+
+  it('resolves a standalone task whose output is a JSON null with null', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    engine.detailsQueue.push(
+      completed({ nothing: taskRunText('nothing', RunStatus.COMPLETED, 'null') })
+    );
+
+    const ref = await client.runNoWait('nothing', {}, { _standaloneTaskName: 'nothing' });
+    await expect(ref.result()).resolves.toBeNull();
+  });
+
+  it('rejects with the SyntaxError when a task output is not JSON, as the Node client does', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    engine.detailsQueue.push(
+      completed({
+        ok: taskRun('ok', RunStatus.COMPLETED, { a: 1 }),
+        broken: taskRunText('broken', RunStatus.COMPLETED, '{'),
+      })
+    );
+
+    const ref = await client.runNoWait('wf', {});
+    await expect(ref.result()).rejects.toThrow(SyntaxError);
+  });
+
+  it('rejects a failed run with the task error messages, as the Node client does', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    engine.detailsQueue.push({
+      ...completed({
+        ok: taskRun('ok', RunStatus.COMPLETED, {}),
+        bad: taskRun('bad', RunStatus.FAILED, undefined, 'boom'),
+      }),
+      status: RunStatus.FAILED,
+    });
+
+    const ref = await client.runNoWait('wf', {});
+    await expect(ref.result()).rejects.toEqual(['boom']);
+  });
+
+  it('resolves a cancelled run whose tasks carry no error, as the Node client does', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    engine.detailsQueue.push({
+      ...completed({
+        absent: taskRun('absent', RunStatus.CANCELLED),
+        empty: taskRun('empty', RunStatus.CANCELLED, { partial: true }, ''),
+      }),
+      status: RunStatus.CANCELLED,
+    });
+
+    const ref = await client.runNoWait('wf', {});
+    await expect(ref.result()).resolves.toEqual({ absent: {}, empty: { partial: true } });
+  });
+
+  it('rejects a cancelled run with the task errors when one carries a message', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    engine.detailsQueue.push({
+      ...completed({
+        quiet: taskRun('quiet', RunStatus.CANCELLED),
+        loud: taskRun('loud', RunStatus.CANCELLED, undefined, 'cancelled by timeout'),
+      }),
+      status: RunStatus.CANCELLED,
+    });
+
+    const ref = await client.runNoWait('wf', {});
+    await expect(ref.result()).rejects.toEqual(['cancelled by timeout']);
+  });
+
+  it('resolves a failed run whose tasks carry no error, as the Node client does', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    engine.detailsQueue.push({
+      ...completed({ t: taskRun('t', RunStatus.FAILED, { partial: true }) }),
+      status: RunStatus.FAILED,
+    });
+
+    const ref = await client.runNoWait('wf', {});
+    await expect(ref.result()).resolves.toEqual({ t: { partial: true } });
+  });
+
+  it('rejects a cancelled or failed run with an Error when it has no tasks', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    engine.detailsQueue.push(
+      { ...completed({}), status: RunStatus.CANCELLED },
+      { ...completed({}), status: RunStatus.FAILED }
+    );
+
+    await expect(client.runRef('run-a').result()).rejects.toThrow(/run run-a was cancelled/);
+    await expect(client.runRef('run-b').result()).rejects.toThrow(/run run-b failed/);
+  });
+
+  it('times out after timeoutMs with a HatchetError', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    engine.detailsQueue.push(running);
+
+    const ref = await client.runNoWait('wf', {});
+    const result = ref.result({ timeoutMs: 1_000 });
+    const assertion = expect(result).rejects.toThrow(HatchetError);
+    await jest.advanceTimersByTimeAsync(1_100);
+
+    await assertion;
+    await expect(result).rejects.toThrow(/timed out after 1000 ms/);
+    expect(engine.detailsCalls).toBeGreaterThanOrEqual(2);
+  });
+
+  it('stops waiting with an AbortError when the signal fires', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    engine.detailsQueue.push(running);
+    const controller = new AbortController();
+
+    const ref = await client.runNoWait('wf', {});
+    const result = ref.result({ signal: controller.signal });
+    const assertion = expect(result).rejects.toThrow(AbortError);
+    await jest.advanceTimersByTimeAsync(10);
+    const callsBeforeAbort = engine.detailsCalls;
+    controller.abort();
+    await jest.advanceTimersByTimeAsync(10_000);
+
+    await assertion;
+    expect(engine.detailsCalls).toBe(callsBeforeAbort);
+  });
+
+  it('times out a poll in flight at the deadline and passes it to the call', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    engine.stallDetails();
+
+    const ref = await client.runNoWait('wf', {});
+    const result = ref.result({ timeoutMs: 1_000 });
+    const assertion = expect(result).rejects.toThrow(HatchetError);
+    await jest.advanceTimersByTimeAsync(1_100);
+
+    await assertion;
+    await expect(result).rejects.toThrow(/timed out after 1000 ms/);
+    expect(engine.detailsCalls).toBe(1);
+    expect(engine.detailsTimeouts[0]).toBeGreaterThan(0);
+    expect(engine.detailsTimeouts[0]).toBeLessThanOrEqual(1_000);
+  });
+
+  it('aborts a poll in flight with an AbortError when the signal fires', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    engine.stallDetails();
+    const controller = new AbortController();
+
+    const ref = await client.runNoWait('wf', {});
+    const result = ref.result({ signal: controller.signal, timeoutMs: 60_000 });
+    const assertion = expect(result).rejects.toThrow(AbortError);
+    await jest.advanceTimersByTimeAsync(10);
+    controller.abort();
+    await jest.advanceTimersByTimeAsync(10);
+
+    await assertion;
+    expect(engine.detailsCalls).toBe(1);
+  });
+});
+
+describe('HatchetCore.runs', () => {
+  it('rejects an aborted unary call before sending it', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    engine.detailsQueue.push(running);
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(client.runs.get('run-x', { signal: controller.signal })).rejects.toMatchObject({
+      name: 'AbortError',
+    });
+    expect(engine.detailsCalls).toBe(0);
+  });
+
+  it('returns run details with statuses mapped and payloads decoded', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    engine.detailsQueue.push({
+      ...completed({ t: taskRun('t', RunStatus.COMPLETED, { out: true }) }),
+      input: encodeJson({ in: 1 }),
+      additionalMetadata: encodeJson({ meta: 'x' }),
+    });
+
+    const detail = await client.runs.get('run-x');
+
+    expect(detail.status).toBe(V1TaskStatus.COMPLETED);
+    expect(detail.done).toBe(true);
+    expect(detail.input).toEqual({ in: 1 });
+    expect(detail.additionalMetadata).toEqual({ meta: 'x' });
+    expect(detail.taskRuns.t).toMatchObject({
+      externalId: 't-id',
+      status: V1TaskStatus.COMPLETED,
+      output: { out: true },
+      rawOutput: JSON.stringify({ out: true }),
+    });
+  });
+
+  it('shapes details forgivingly: a missing, null or malformed output reads as null', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    engine.detailsQueue.push(
+      completed({
+        none: taskRun('none', RunStatus.COMPLETED),
+        nil: taskRunText('nil', RunStatus.COMPLETED, 'null'),
+        broken: taskRunText('broken', RunStatus.COMPLETED, '{'),
+      })
+    );
+
+    const { taskRuns } = await client.runs.get('run-x');
+
+    expect(taskRuns.none).toMatchObject({ output: null });
+    expect(taskRuns.none.rawOutput).toBeUndefined();
+    expect(taskRuns.nil).toMatchObject({ output: null, rawOutput: 'null' });
+    expect(taskRuns.broken).toMatchObject({ output: null, rawOutput: '{' });
+  });
+
+  it('cancels by id, and by filter with since defaulting to an hour ago', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+
+    await client.runs.cancel({ ids: ['a', 'b'] });
+    expect(engine.cancels[0].externalIds).toEqual(['a', 'b']);
+    expect(engine.cancels[0].filter).toBeUndefined();
+
+    const before = Date.now();
+    await client.runs.cancel({
+      filters: { statuses: [V1TaskStatus.RUNNING], additionalMetadata: { k: 'v' } },
+    });
+    const [, { filter, externalIds }] = engine.cancels;
+    expect(externalIds).toEqual([]);
+    expect(filter?.statuses).toEqual(['RUNNING']);
+    expect(filter?.additionalMetadata).toEqual(['k:v']);
+    const since = Number(filter?.since?.seconds) * 1000;
+    expect(before - since).toBeGreaterThanOrEqual(60 * 60 * 1000 - 1000);
+    expect(before - since).toBeLessThan(60 * 60 * 1000 + 5000);
+  });
+});
+
+describe('HatchetCore.events', () => {
+  it('pushes a namespaced event with a JSON payload and metadata', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine, 'ns');
+
+    const event = await client.events.push(
+      'user:created',
+      { id: 1 },
+      { additionalMetadata: { source: 'test' }, priority: 2, scope: 'tenant-a' }
+    );
+
+    const [req] = engine.pushes;
+    expect(req.key).toBe('ns_user:created');
+    expect(req.payload).toBe(JSON.stringify({ id: 1 }));
+    expect(req.additionalMetadata).toBe(JSON.stringify({ source: 'test' }));
+    expect(req.priority).toBe(2);
+    expect(req.scope).toBe('tenant-a');
+    expect(event.eventId).toBe('evt-1');
+    expect(event.key).toBe('ns_user:created');
+    expect(event.eventTimestamp).toBeInstanceOf(Date);
+  });
+
+  it('logs.put sends a line of up to 1,000 characters and rejects a longer one by length', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+
+    await client.logs.put('task-1', 'x'.repeat(1_000), { level: LogLevel.WARN, retryCount: 2 });
+    expect(engine.logs).toHaveLength(1);
+    expect(engine.logs[0]).toMatchObject({
+      taskRunExternalId: 'task-1',
+      level: LogLevel.WARN,
+      taskRetryCount: 2,
+    });
+    expect(engine.logs[0].message).toHaveLength(1_000);
+
+    const rejected = client.logs.put('task-1', 'y'.repeat(1_001));
+    await expect(rejected).rejects.toThrow(HatchetError);
+    await expect(rejected).rejects.toThrow(
+      /log line is 1001 characters, over the 1000-character limit/
+    );
+    await expect(rejected).rejects.not.toThrow(/yyy/);
+    expect(engine.logs).toHaveLength(1);
+  });
+
+  it('bulk-pushes events with per-event overrides', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+
+    const events = await client.events.bulkPush(
+      'batch',
+      [{ payload: { n: 1 } }, { payload: { n: 2 }, priority: 3, scope: 'b' }],
+      { priority: 1 }
+    );
+
+    expect(events.events.map((e) => e.key)).toEqual(['batch', 'batch']);
+    expect(events.events[1].payload).toBe(JSON.stringify({ n: 2 }));
+  });
+});

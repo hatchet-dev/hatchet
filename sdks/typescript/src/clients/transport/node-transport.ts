@@ -8,9 +8,7 @@ import {
 } from '@connectrpc/connect-node';
 import type { ClientConfig } from '@clients/hatchet-client/client-config';
 import { grpcTargetBaseUrl, parseGrpcTarget } from './grpc-target';
-import { createAuthInterceptor, type Transport } from './transport';
-
-const DEFAULT_MAX_MESSAGE_BYTES = 4 * 1024 * 1024;
+import { createAuthInterceptor, DEFAULT_MAX_MESSAGE_BYTES, type Transport } from './transport';
 
 /**
  * The largest message size Connect can enforce (a 32-bit length prefix). The config schema

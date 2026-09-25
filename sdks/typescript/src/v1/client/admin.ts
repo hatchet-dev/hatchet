@@ -1,16 +1,10 @@
 import HatchetError from '@util/errors/hatchet-error';
 import { IdempotencyCollisionError } from '@util/errors/idempotency-collision-error';
-import { BulkTriggerIdempotencyCollisionError } from '@util/errors/bulk-trigger-idempotency-collision-error';
 import { ClientConfig } from '@clients/hatchet-client/client-config';
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
-import { Code, ConnectError } from '@connectrpc/connect';
-import {
-  BulkTriggerIdempotencyCollisionErrorSchema,
-  IdempotencyCollisionErrorSchema,
-} from '@hatchet/protoc-es/v1/workflows_pb';
 import { createClientFactory } from 'nice-grpc';
 
-import { Priority, RateLimitDuration, RunsClient, WorkerLabelComparator } from '@hatchet/v1';
+import { RateLimitDuration, RunsClient } from '@hatchet/v1';
 import { addTokenMiddleware, channelFactory } from '@hatchet/util/grpc-helpers';
 import { ConfigLoader } from '@hatchet/util/config-loader';
 import { RunListenerClient } from '@hatchet/clients/listeners/run-listener/child-listener-client';
@@ -18,59 +12,17 @@ import { Api } from '@hatchet/clients/rest/generated/Api';
 import { BulkTriggerWorkflowRequest, WorkflowServiceClient } from '@hatchet/protoc/workflows';
 import { AdminServiceClient, CreateWorkflowVersionRequest } from '@hatchet/protoc/v1/workflows';
 import { createV1AdminRpc, createWorkflowsRpc } from '@hatchet/clients/admin/rpc';
+import {
+  buildTriggerWorkflowRequest,
+  extractBulkTriggerCollision,
+  extractExistingRunId,
+  isAlreadyExists,
+} from '@hatchet/clients/admin/trigger-request';
 import { createNodeTransport, type Transport } from '@hatchet/clients/transport';
+import type { TriggerRun, TriggerRunOptions } from '@hatchet/core/types';
 import { Logger } from '@hatchet/util/logger';
 import { retrier } from '@hatchet/util/retrier';
 import { batch } from '@hatchet/util/batch';
-import { applyNamespace } from '@hatchet/util/apply-namespace';
-import { DesiredWorkerLabels } from '@hatchet-dev/typescript-sdk/protoc/v1/shared/trigger';
-
-/**
- * The engine answers a trigger whose idempotency key is already taken with `ALREADY_EXISTS`
- * and attaches the collision details to the status. The Connect client decodes those details
- * from the trailer, so the error carries everything needed to build the SDK's collision errors.
- */
-function isAlreadyExists(e: unknown): e is ConnectError {
-  return e instanceof ConnectError && e.code === Code.AlreadyExists;
-}
-
-function extractExistingRunId(e: ConnectError): string {
-  const [detail] = e.findDetails(IdempotencyCollisionErrorSchema);
-  return detail?.existingRunExternalId ?? '';
-}
-
-function extractBulkTriggerCollision(e: ConnectError): BulkTriggerIdempotencyCollisionError | null {
-  const [detail] = e.findDetails(BulkTriggerIdempotencyCollisionErrorSchema);
-  if (!detail) return null;
-  return new BulkTriggerIdempotencyCollisionError(
-    detail.successfulWorkflowRunExternalIds,
-    detail.collisions.map((c) => new IdempotencyCollisionError(c.existingRunExternalId))
-  );
-}
-
-type DesiredWorkerLabelOpt = {
-  value: string | number;
-  required?: boolean;
-  weight?: number;
-  comparator?: WorkerLabelComparator;
-};
-
-function convertDesiredWorkerLabels(
-  labels: Record<string, DesiredWorkerLabelOpt>
-): Record<string, DesiredWorkerLabels> {
-  return Object.fromEntries(
-    Object.entries(labels).map(([key, label]) => [
-      key,
-      {
-        strValue: typeof label.value === 'string' ? label.value : undefined,
-        intValue: typeof label.value === 'number' ? label.value : undefined,
-        required: label.required,
-        weight: label.weight,
-        comparator: label.comparator,
-      } satisfies DesiredWorkerLabels,
-    ])
-  );
-}
 
 export type WorkflowRun<T = object> = {
   workflowName: string;
@@ -147,54 +99,15 @@ export class AdminClient {
   async runWorkflow<Q = object, P = object>(
     workflowName: string,
     input: Q,
-    options?: {
-      parentId?: string | undefined;
-      /**
-       * (optional) the parent task run external id.
-       *
-       * This is the field understood by the workflows gRPC API (`parent_task_run_external_id`).
-       */
-      parentTaskRunExternalId?: string | undefined;
-      /**
-       * @deprecated Use `parentTaskRunExternalId` instead.
-       * Kept for backward compatibility; will be mapped to `parentTaskRunExternalId`.
-       */
-      parentStepRunId?: string | undefined;
-      childIndex?: number | undefined;
-      childKey?: string | undefined;
-      additionalMetadata?: Record<string, string> | undefined;
-      desiredWorkerId?: string | undefined;
-      priority?: Priority;
-      desiredWorkerLabels?: Record<string, DesiredWorkerLabelOpt>;
-      _standaloneTaskName?: string | undefined;
-    }
+    options?: TriggerRunOptions
   ) {
     try {
-      const computedName = applyNamespace(workflowName, this.config.namespace).toLowerCase();
-
-      const inputStr = JSON.stringify(input);
-
-      const opts = options ?? {};
-      const {
-        additionalMetadata,
-        parentStepRunId,
-        parentTaskRunExternalId,
-        desiredWorkerLabels,
-        ...rest
-      } = opts;
-
-      const request = {
-        name: computedName,
-        input: inputStr,
-        ...rest,
-        // API expects `parentTaskRunExternalId`; accept old names as aliases.
-        parentTaskRunExternalId: parentTaskRunExternalId ?? parentStepRunId,
-        additionalMetadata: additionalMetadata ? JSON.stringify(additionalMetadata) : undefined,
-        priority: opts.priority,
-        desiredWorkerLabels: desiredWorkerLabels
-          ? convertDesiredWorkerLabels(desiredWorkerLabels)
-          : {},
-      };
+      const request = buildTriggerWorkflowRequest(
+        workflowName,
+        input,
+        options,
+        this.config.namespace
+      );
 
       const resp = await retrier(
         async () => this.workflowsGrpc.triggerWorkflow(request),
@@ -232,59 +145,13 @@ export class AdminClient {
    * Keep the signature in sync with the instrumentor wrapper.
    */
   async runWorkflows<Q = object, P = object>(
-    workflowRuns: Array<{
-      workflowName: string;
-      input: Q;
-      options?: {
-        parentId?: string | undefined;
-        /**
-         * (optional) the parent task run external id.
-         *
-         * This is the field understood by the workflows gRPC API (`parent_task_run_external_id`).
-         */
-        parentTaskRunExternalId?: string | undefined;
-        /**
-         * @deprecated Use `parentTaskRunExternalId` instead.
-         * Kept for backward compatibility; will be mapped to `parentTaskRunExternalId`.
-         */
-        parentStepRunId?: string | undefined;
-        childIndex?: number | undefined;
-        childKey?: string | undefined;
-        additionalMetadata?: Record<string, string> | undefined;
-        desiredWorkerId?: string | undefined;
-        priority?: Priority;
-        desiredWorkerLabels?: Record<string, DesiredWorkerLabelOpt>;
-        _standaloneTaskName?: string | undefined;
-      };
-    }>,
+    workflowRuns: Array<TriggerRun<Q>>,
     batchSize: number = 500
   ): Promise<WorkflowRunRef<P>[]> {
     // Prepare workflows to be triggered in bulk
-    const workflowRequests = workflowRuns.map(({ workflowName, input, options }) => {
-      const computedName = applyNamespace(workflowName, this.config.namespace).toLowerCase();
-      const inputStr = JSON.stringify(input);
-
-      const opts = options ?? {};
-      const {
-        additionalMetadata,
-        parentStepRunId,
-        parentTaskRunExternalId,
-        desiredWorkerLabels,
-        ...rest
-      } = opts;
-
-      return {
-        name: computedName,
-        input: inputStr,
-        ...rest,
-        // API expects `parentTaskRunExternalId`; accept old names as aliases.
-        parentTaskRunExternalId: parentTaskRunExternalId ?? parentStepRunId,
-        additionalMetadata: additionalMetadata ? JSON.stringify(additionalMetadata) : undefined,
-        desiredWorkerLabels: desiredWorkerLabels
-          ? convertDesiredWorkerLabels(desiredWorkerLabels)
-          : {},
-      };
-    });
+    const workflowRequests = workflowRuns.map(({ workflowName, input, options }) =>
+      buildTriggerWorkflowRequest(workflowName, input, options, this.config.namespace)
+    );
 
     const batches = batch(
       workflowRequests,
