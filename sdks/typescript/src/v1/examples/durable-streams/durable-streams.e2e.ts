@@ -19,7 +19,7 @@ async function collect<T>(iter: AsyncIterable<T>, count: number): Promise<T[]> {
 describe('durable-streams-e2e', () => {
   const hatchet = makeE2EClient();
 
-  it('a message published before consuming is not replayed by default (no cursor = start from now)', async () => {
+  it('a subscribe starts from beginning of queue, even when publish happened prior', async () => {
     const topic = makeTestScope('durable_streams_tail_from_now');
 
     await hatchet.streams.publish(topic, 'published-before-consume');
@@ -38,9 +38,13 @@ describe('durable-streams-e2e', () => {
       });
     }, 200);
 
-    const received = await collect(events, publishedAfter.length);
+    const received = await collect(events, publishedAfter.length+1);
 
-    expect(received.map((e) => decode(e.payload))).toEqual(publishedAfter);
+    expect(received.map((e) => decode(e.payload))).toEqual([
+      'published-before-consume',
+      'live-1',
+      'live-2',
+    ]);
   }, 30_000);
 
   it('resumes from a cursor read off a previously received event, with no re-delivery and no gap', async () => {

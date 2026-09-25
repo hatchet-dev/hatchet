@@ -226,7 +226,13 @@ func (s *ServiceImpl) Subscribe(ctx context.Context, req *contracts.SubscribeStr
 // subscribe to and the effective starting cursor for a Subscribe call.
 func resolveSubscribeAddressAndCursor(req *contracts.SubscribeStreamRequest) (namespace, topic string, cursor v1.StreamCursor, err error) {
 	var decoded *v1.StreamCursor
-
+	// by default cursor starts from beginning. Because sorting is based on ID only, just use 0.
+	decoded = &v1.StreamCursor{
+		Namespace: req.Namespace,
+		Topic:     req.Topic,
+		CreatedAt: time.Time{},
+		ID:        0,
+	}
 	if req.Cursor != nil && *req.Cursor != "" {
 		c, err := v1.DecodeStreamCursor(*req.Cursor)
 
