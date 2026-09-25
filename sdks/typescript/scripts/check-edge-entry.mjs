@@ -3,8 +3,10 @@
 // Verifies that an entry point imports nothing from Node. Bundles the entry for a
 // workerd-like browser target and fails on any `node:` specifier or Node builtin reached
 // from it, transitively, on any package named with `--forbid`, and on any SDK module in the
-// bundle that touches the `process` or `Buffer` globals (which a bundler cannot see, since
-// nothing imports them).
+// bundle that touches a Node-only global (which a bundler cannot see, since nothing imports
+// them): `process`, `Buffer`, `setImmediate`, a timer's `.unref()`, `AbortSignal.timeout`
+// and `AbortSignal.any`. A use the module feature-detects (`typeof setImmediate`,
+// `timer.unref?.()`, `globalThis.Buffer`) is allowed.
 //
 // Run after `pnpm run tsc:build`:
 //   node scripts/check-edge-entry.mjs                       # dist/edge/index.js
@@ -80,7 +82,7 @@ const result = await build({
 });
 
 const bundled = Object.keys(result.metafile.inputs);
-const sdkInputs = bundled.filter((f) => f.startsWith('dist/'));
+const sdkInputs = bundled.filter((f) => !f.includes('node_modules/'));
 const packageInputs = [...new Set(bundled.filter((f) => f.includes('node_modules/')).map((f) => {
   const m = f.match(/node_modules\/(?:\.pnpm\/[^/]+\/node_modules\/)?((?:@[^/]+\/)?[^/]+)/);
   return m ? m[1] : f;
@@ -106,15 +108,32 @@ if (forbiddenHits.length > 0) {
   console.error(`\n${label} entry bundles forbidden package(s): ${forbiddenHits.join(', ')}`);
 }
 
-// `process` and `Buffer` are globals in Node and absent in workerd and browsers; a module
-// that reads them fails at runtime without ever importing anything. A `globalThis.Buffer`
-// access is a feature check the generated bindings guard, so it is allowed.
-const nodeGlobal = /(?<!globalThis\.)\b(?:process|Buffer)\s*\./;
-const globalHits = sdkInputs.filter((f) => nodeGlobal.test(readFileSync(resolve(root, f), 'utf8')));
-if (globalHits.length > 0) {
-  failed = true;
-  console.error(`\n${label} entry bundles SDK module(s) that use the process or Buffer globals:`);
-  for (const f of globalHits) console.error(`  ${f}`);
+// These are globals in Node that workerd and browsers lack, or that some runtimes the entry
+// targets lack (`AbortSignal.any`, `AbortSignal.timeout`); a module that reads them fails at
+// runtime without ever importing anything. A module that feature-detects one may use it: a
+// `globalThis.Buffer` access (which the generated bindings guard) and an optional
+// `.unref?.()` call are their own guards, and a `typeof` check of the global anywhere in the
+// module allows its use in that module.
+const nodeGlobals = [
+  { what: 'the process or Buffer globals', pattern: /(?<!globalThis\.)\b(?:process|Buffer)\s*\./ },
+  { what: 'setImmediate', pattern: /(?<![.\w$])setImmediate\s*\(/, guard: /typeof\s+setImmediate\b/ },
+  { what: "a timer's .unref()", pattern: /(?<!\?)\.unref\s*\(/ },
+  {
+    what: 'AbortSignal.timeout or AbortSignal.any',
+    pattern: /\bAbortSignal\s*\.\s*(?:timeout|any)\b/,
+    guard: /typeof\s+AbortSignal\s*\.\s*(?:timeout|any)\b/,
+  },
+];
+// Comments describe these globals without touching them, so they are stripped first.
+const stripComments = (source) => source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:\\])\/\/.*$/gm, '$1');
+const sources = new Map(sdkInputs.map((f) => [f, stripComments(readFileSync(resolve(root, f), 'utf8'))]));
+for (const { what, pattern, guard } of nodeGlobals) {
+  const hits = sdkInputs.filter((f) => pattern.test(sources.get(f)) && !(guard && guard.test(sources.get(f))));
+  if (hits.length > 0) {
+    failed = true;
+    console.error(`\n${label} entry bundles SDK module(s) that use ${what}:`);
+    for (const f of hits) console.error(`  ${f}`);
+  }
 }
 
 if (failed) process.exit(1);
