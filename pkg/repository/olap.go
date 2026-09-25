@@ -436,7 +436,13 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		}
 
 		if todayCreations.V1PayloadsOlap > 0 {
-			return createExternalIdUniqueConstraintsOnDailyPartitions(ctx, tx, "v1_payloads_olap", today)
+			if err := createExternalIdUniqueConstraintsOnDailyPartitions(ctx, tx, "v1_payloads_olap", today); err != nil {
+				return err
+			}
+		}
+
+		if todayCreations.V1LookupTableOlap > 0 {
+			return createExternalIdUniqueConstraintsOnMonthlyPartitions(ctx, tx, "v1_lookup_table_olap", today)
 		}
 
 		return nil
@@ -471,7 +477,13 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		}
 
 		if tomorrowCreations.V1PayloadsOlap > 0 {
-			return createExternalIdUniqueConstraintsOnDailyPartitions(ctx, tx, "v1_payloads_olap", tomorrow)
+			if err := createExternalIdUniqueConstraintsOnDailyPartitions(ctx, tx, "v1_payloads_olap", tomorrow); err != nil {
+				return err
+			}
+		}
+
+		if tomorrowCreations.V1LookupTableOlap > 0 {
+			return createExternalIdUniqueConstraintsOnMonthlyPartitions(ctx, tx, "v1_lookup_table_olap", tomorrow)
 		}
 
 		return nil
@@ -1806,9 +1818,10 @@ func (r *OLAPRepositoryImpl) prepareDAGStatusUpdateBatch(taskRows []*sqlcv1.Upda
 	}
 
 	return sqlcv1.UpdateDAGStatusesFromMQParams{
-		Tenantids:      tenantIds,
-		Dagids:         dagIds,
-		Daginsertedats: dagInsertedAts,
+		Tenantids:        tenantIds,
+		Dagids:           dagIds,
+		Daginsertedats:   dagInsertedAts,
+		Mindaginsertedat: sqlchelpers.MinTimestamptz(dagInsertedAts),
 	}
 }
 
@@ -1834,9 +1847,10 @@ func (r *OLAPRepositoryImpl) prepareDAGStatusUpdateBatchFromStatusRows(taskRows 
 	}
 
 	return sqlcv1.UpdateDAGStatusesFromMQParams{
-		Tenantids:      tenantIds,
-		Dagids:         dagIds,
-		Daginsertedats: dagInsertedAts,
+		Tenantids:        tenantIds,
+		Dagids:           dagIds,
+		Daginsertedats:   dagInsertedAts,
+		Mindaginsertedat: sqlchelpers.MinTimestamptz(dagInsertedAts),
 	}
 }
 
@@ -3187,10 +3201,11 @@ func (r *OLAPRepositoryImpl) GetTaskStartedTimestamps(ctx context.Context, tenan
 	}
 
 	return r.queries.GetTaskStartedTimestamps(ctx, r.readPool, sqlcv1.GetTaskStartedTimestampsParams{
-		Tenantid:       tenantId,
-		Taskids:        taskIds,
-		Taskinsertedat: pgInsertedAts,
-		Retrycounts:    retryCounts,
+		Tenantid:          tenantId,
+		Taskids:           taskIds,
+		Taskinsertedat:    pgInsertedAts,
+		Mintaskinsertedat: sqlchelpers.MinTimestamptz(pgInsertedAts),
+		Retrycounts:       retryCounts,
 	})
 }
 
@@ -3516,6 +3531,18 @@ func (r *OLAPRepositoryImpl) AnalyzeOLAPTables(ctx context.Context) error {
 
 	if err != nil {
 		return fmt.Errorf("error analyzing v1_lookup_table_olap: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1TaskEventsOLAP(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_task_events_olap: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1StatusesOLAP(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_statuses_olap: %v", err)
 	}
 
 	err = r.queries.AnalyzeV1EventsOLAP(ctx, tx)
