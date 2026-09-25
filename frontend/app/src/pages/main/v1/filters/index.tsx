@@ -45,6 +45,7 @@ function Filters() {
     error,
     isLoading,
     isRefetching,
+    isPlaceholderData,
     columnFilters,
     setColumnFilters,
     workflowIdToName,
@@ -83,6 +84,7 @@ function Filters() {
     <DataTable
       error={error}
       isLoading={isLoading}
+      isPlaceholderData={isPlaceholderData}
       columns={tableColumns}
       data={filters}
       filters={[

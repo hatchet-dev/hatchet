@@ -72,6 +72,7 @@ interface DataTableProps<TData extends IDGetter<TData>, TValue> {
   rowSelection?: RowSelectionState;
   setRowSelection?: OnChangeFn<RowSelectionState>;
   isLoading?: boolean;
+  isPlaceholderData?: boolean;
   enableRowSelection?: boolean;
   getRowId?:
     | ((
@@ -122,6 +123,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
   rowSelection,
   setRowSelection,
   isLoading,
+  isPlaceholderData = false,
   getRowId,
   emptyState,
   manualSorting = true,
@@ -317,6 +319,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
             table={table}
             onSetPageSize={onSetPageSize}
             showSelectedRows={showSelectedRows}
+            isLoading={loadingNoData || isPlaceholderData}
           />
         </div>
       </div>

@@ -52,6 +52,7 @@ function RateLimitsTable() {
     setPagination,
     numPages,
     isRefetching,
+    isPlaceholderData,
     refetch,
     resetFilters,
   } = useRateLimits({ key: 'rate-limits-table' });
@@ -78,6 +79,7 @@ function RateLimitsTable() {
     <DataTable
       error={error}
       isLoading={isLoading}
+      isPlaceholderData={isPlaceholderData}
       columns={tableColumns}
       data={data}
       filters={[

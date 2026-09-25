@@ -6,7 +6,7 @@ import {
   ScheduledWorkflowsList,
 } from '@hatchet/clients/rest/generated/data-contracts';
 import { z } from 'zod/v4';
-import { Workflow } from '@hatchet/workflow';
+import type { Workflow } from '@hatchet/legacy/workflow';
 import { AxiosError } from 'axios';
 import { isValidUUID } from '@util/uuid';
 import { BaseWorkflowDeclaration, WorkflowDefinition } from '@hatchet/v1';

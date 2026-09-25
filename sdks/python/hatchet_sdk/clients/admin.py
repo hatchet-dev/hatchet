@@ -505,18 +505,19 @@ class AdminClient:
         )
 
     def chunk_workflow_runs(
-        self, xs: list[trigger_protos.TriggerWorkflowRequest]
+        self,
+        xs: list[trigger_protos.TriggerWorkflowRequest],
+        max_chunk_size: int | None = None,
     ) -> Generator[list[trigger_protos.TriggerWorkflowRequest], None, None]:
         chunk: list[trigger_protos.TriggerWorkflowRequest] = []
         curr_size = 0
+        max_batch_size = max_chunk_size or MAX_BULK_WORKFLOW_RUN_BATCH_SIZE
 
         for x in xs:
             size = x.ByteSize()
             would_exceed_limit = (
                 curr_size + size
-            ) > self.config.grpc_max_send_message_length or len(
-                chunk
-            ) >= MAX_BULK_WORKFLOW_RUN_BATCH_SIZE
+            ) > self.config.grpc_max_send_message_length or len(chunk) >= max_batch_size
 
             if chunk and would_exceed_limit:
                 yield chunk
