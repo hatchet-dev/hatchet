@@ -8,6 +8,13 @@ import type { Interceptor, Transport } from '@connectrpc/connect';
 export type { Transport };
 
 /**
+ * The largest message either transport accepts or sends unless configured otherwise: the
+ * grpc-js default the `grpc_max_recv_message_length` and `grpc_max_send_message_length`
+ * settings override.
+ */
+export const DEFAULT_MAX_MESSAGE_BYTES = 4 * 1024 * 1024;
+
+/**
  * The characters a token may contain and still travel in an HTTP header: the printable ASCII
  * range, which is also what grpc-js accepts in metadata. Anything else would make the header
  * layer reject the request with an error quoting the token.

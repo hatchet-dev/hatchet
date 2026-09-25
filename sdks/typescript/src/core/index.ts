@@ -57,11 +57,17 @@ export { StreamsClient } from './features/streams';
 // Transport
 export {
   createFetchTransport,
+  limitMessageSizes,
   resolveServerUrl,
   type FetchTlsConfig,
   type FetchTransportOptions,
+  type MessageSizeLimits,
 } from '@clients/transport/fetch-transport';
-export { createAuthInterceptor, type Transport } from '@clients/transport/transport';
+export {
+  createAuthInterceptor,
+  DEFAULT_MAX_MESSAGE_BYTES,
+  type Transport,
+} from '@clients/transport/transport';
 
 // Wire enums and errors callers switch on
 export { LogLevel } from '@hatchet/clients/event/rpc';

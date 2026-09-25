@@ -51,10 +51,27 @@ export interface CoreClientConfig {
    * `HATCHET_CLIENT_NAMESPACE`: it is lowercased and gets a trailing underscore when missing.
    */
   namespace?: string;
-  /** A ready transport, in place of the fetch transport the client builds from the fields above. */
+  /**
+   * A ready transport, in place of the fetch transport the client builds from the fields
+   * above. It is used as is: the bearer token, the URL and TLS checks and the message size
+   * limits apply to the transport the client builds, so a supplied transport owns its own
+   * authentication and limits.
+   */
   transport?: Transport;
   /** The `fetch` the transport sends with. Defaults to the runtime's global `fetch`. */
   fetch?: typeof globalThis.fetch;
+  /**
+   * The largest response accepted, in bytes after HTTP decompression; a larger one rejects
+   * with a `ConnectError` of code `ResourceExhausted`. Defaults to 4 MiB, the Node client's
+   * `grpc_max_recv_message_length` default.
+   */
+  maxReceiveMessageBytes?: number;
+  /**
+   * The largest request sent, in bytes; a larger one rejects with a `ConnectError` of code
+   * `ResourceExhausted` before anything is sent. Defaults to 4 MiB, the Node client's
+   * `grpc_max_send_message_length` default.
+   */
+  maxSendMessageBytes?: number;
   /** Retry settings for the unary calls, the same shape as the Node client's `retrier`. */
   retrier?: RetrierConfig;
   logger?: LogConstructor;

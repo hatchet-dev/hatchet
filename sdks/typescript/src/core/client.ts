@@ -121,7 +121,14 @@ export class HatchetCore {
     this.logger = logger('HatchetCore', config.logLevel);
     this.transport =
       config.transport ??
-      createFetchTransport({ token: config.token, serverUrl, tls: config.tls, fetch: config.fetch });
+      createFetchTransport({
+        token: config.token,
+        serverUrl,
+        tls: config.tls,
+        fetch: config.fetch,
+        maxReceiveMessageBytes: config.maxReceiveMessageBytes,
+        maxSendMessageBytes: config.maxSendMessageBytes,
+      });
 
     this.workflowsRpc = createWorkflowsRpc(this.transport);
     this.adminRpc = createV1AdminRpc(this.transport);

@@ -1,6 +1,7 @@
+import { Code, ConnectError } from '@connectrpc/connect';
 import { createConnectTransport } from '@connectrpc/connect-web';
 import { grpcTargetBaseUrl, parseGrpcTarget } from './grpc-target';
-import { createAuthInterceptor, type Transport } from './transport';
+import { createAuthInterceptor, DEFAULT_MAX_MESSAGE_BYTES, type Transport } from './transport';
 
 /**
  * How a fetch-based client reaches the engine. `none` speaks plain HTTP; `tls` speaks HTTPS
@@ -33,6 +34,22 @@ export interface FetchTransportOptions {
   tls?: FetchTlsConfig;
   /** The `fetch` to send requests with. Defaults to the runtime's global `fetch`. */
   fetch?: typeof globalThis.fetch;
+  /**
+   * The largest response accepted, in bytes after the runtime's HTTP decompression. Defaults
+   * to 4 MiB, the Node transport's `grpc_max_recv_message_length` default.
+   */
+  maxReceiveMessageBytes?: number;
+  /**
+   * The largest request sent, in bytes. Defaults to 4 MiB, the Node transport's
+   * `grpc_max_send_message_length` default.
+   */
+  maxSendMessageBytes?: number;
+}
+
+/** The limits `limitMessageSizes` applies, in bytes. */
+export interface MessageSizeLimits {
+  receive: number;
+  send: number;
 }
 
 /**
@@ -102,13 +119,98 @@ function validateServerUrl(serverUrl: string, strategy: FetchTlsConfig['strategy
  * runtime's `fetch`, so it runs wherever `fetch` does (Cloudflare Workers, Vercel Functions,
  * Deno, Bun, browsers). The engine answers unary calls over HTTP/1.1 or HTTP/2, whichever
  * the runtime negotiates; nothing here depends on the version. The bearer token is attached
- * to every call.
+ * to every call, and requests and responses are held to the same message size limits as the
+ * Node transport's.
  */
 export function createFetchTransport(options: FetchTransportOptions): Transport {
+  const send: typeof globalThis.fetch =
+    options.fetch ?? ((input, init) => globalThis.fetch(input, init));
+  const limits: MessageSizeLimits = {
+    receive: options.maxReceiveMessageBytes ?? DEFAULT_MAX_MESSAGE_BYTES,
+    send: options.maxSendMessageBytes ?? DEFAULT_MAX_MESSAGE_BYTES,
+  };
+
   return createConnectTransport({
     baseUrl: resolveServerUrl(options),
     useBinaryFormat: true,
     interceptors: [createAuthInterceptor(options.token)],
-    fetch: options.fetch,
+    fetch: limitMessageSizes(send, limits),
+  });
+}
+
+/**
+ * Wraps a `fetch` with the message size limits the Node transport enforces through Connect's
+ * `readMaxBytes` and `writeMaxBytes`, which the fetch transport has no option for. A request
+ * body over the send limit is refused before anything is sent, and a response body that grows
+ * past the receive limit is cancelled as it streams, counted after the runtime's HTTP
+ * decompression so a small compressed body cannot expand past it; the limit covers Connect
+ * error bodies as well as messages. Both surface as a `ConnectError` with
+ * `Code.ResourceExhausted`, as they do on the Node transport.
+ */
+export function limitMessageSizes(
+  send: typeof globalThis.fetch,
+  limits: MessageSizeLimits
+): typeof globalThis.fetch {
+  return async (input, init) => {
+    const size = bodySize(init?.body);
+    if (size > limits.send) {
+      throw new ConnectError(
+        `message size ${size} is larger than configured maxSendMessageBytes ${limits.send}`,
+        Code.ResourceExhausted
+      );
+    }
+
+    const response = await send(input, init);
+    if (!response.body) {
+      return response;
+    }
+    return new Response(limitBody(response.body, limits.receive), {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+    });
+  };
+}
+
+/** The size of the bodies Connect sends; a body of another kind is not measured. */
+function bodySize(body: RequestInit['body']): number {
+  if (typeof body === 'string') {
+    return new TextEncoder().encode(body).byteLength;
+  }
+  if (body instanceof ArrayBuffer || ArrayBuffer.isView(body)) {
+    return body.byteLength;
+  }
+  if (body instanceof Blob) {
+    return body.size;
+  }
+  return 0;
+}
+
+function limitBody(body: ReadableStream<Uint8Array>, max: number): ReadableStream<Uint8Array> {
+  const reader = body.getReader();
+  let received = 0;
+
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      const { done, value } = await reader.read();
+      if (done) {
+        controller.close();
+        return;
+      }
+      received += value.byteLength;
+      if (received > max) {
+        const error = new ConnectError(
+          `response body is larger than configured maxReceiveMessageBytes ${max}`,
+          Code.ResourceExhausted
+        );
+        await reader.cancel(error).catch(() => undefined);
+        controller.error(error);
+        return;
+      }
+      controller.enqueue(value);
+    },
+    cancel(reason) {
+      return reader.cancel(reason);
+    },
   });
 }
