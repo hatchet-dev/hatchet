@@ -69,7 +69,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     if [ "$FIPS" = "true" ]; then export GOFIPS140=v1.0.0; LDFLAGS="-w"; else LDFLAGS="-w -s"; fi && \
     go build -tags="${GO_BUILD_TAGS}" -ldflags="${LDFLAGS} -X 'main.Version=${VERSION}'" -a -o ./bin/hatchet-${SERVER_TARGET} ./cmd/hatchet-${SERVER_TARGET} && \
     if [ "$FIPS" = "true" ]; then \
-      go version -m ./bin/hatchet-${SERVER_TARGET} | grep -q 'GOFIPS140=v1.0.0' || { echo "hatchet-${SERVER_TARGET} is not linked against the validated FIPS module"; exit 1; }; \
+      go version -m ./bin/hatchet-${SERVER_TARGET} | grep -Ec 'GOFIPS140=v1.0.0|DefaultGODEBUG=.*fips140=only' | grep -qx 2 || { echo "hatchet-${SERVER_TARGET} is not linked against the validated FIPS module"; exit 1; }; \
     fi
 
 # Deployment environment

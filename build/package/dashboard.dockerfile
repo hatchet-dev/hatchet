@@ -33,7 +33,7 @@ COPY ./cmd/hatchet-staticfileserver/ ./cmd/hatchet-staticfileserver/
 RUN if [ "$FIPS" = "true" ]; then export GOFIPS140=v1.0.0; LDFLAGS="-w"; else LDFLAGS="-w -s"; fi && \
     go build -ldflags="${LDFLAGS}" -a -o hatchet-staticfileserver ./cmd/hatchet-staticfileserver/main.go && \
     if [ "$FIPS" = "true" ]; then \
-      go version -m ./hatchet-staticfileserver | grep -q 'GOFIPS140=v1.0.0' || { echo "hatchet-staticfileserver is not linked against the validated FIPS module"; exit 1; }; \
+      go version -m ./hatchet-staticfileserver | grep -Ec 'GOFIPS140=v1.0.0|DefaultGODEBUG=.*fips140=only' | grep -qx 2 || { echo "hatchet-staticfileserver is not linked against the validated FIPS module"; exit 1; }; \
     fi
 
 # Stage 4: deployment image

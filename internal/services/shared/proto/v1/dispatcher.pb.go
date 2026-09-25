@@ -1140,7 +1140,6 @@ type DurableTaskRequest struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Types that are assignable to Message:
-	//
 	//	*DurableTaskRequest_RegisterWorker
 	//	*DurableTaskRequest_Memo
 	//	*DurableTaskRequest_TriggerRuns
@@ -1354,7 +1353,6 @@ type DurableTaskResponse struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Types that are assignable to Message:
-	//
 	//	*DurableTaskResponse_RegisterWorker
 	//	*DurableTaskResponse_MemoAck
 	//	*DurableTaskResponse_TriggerRunsAck

@@ -50,12 +50,12 @@ func newMessageQueueRepository(shared *sharedRepository) (*messageQueueRepositor
 	m := newMultiplexedListener(shared.l, shared.pool)
 
 	return &messageQueueRepository{
-			sharedRepository: shared,
-			m:                m,
-		}, func() error {
-			m.cancel()
-			return nil
-		}
+		sharedRepository: shared,
+		m:                m,
+	}, func() error {
+		m.cancel()
+		return nil
+	}
 }
 
 // NewMessageQueueRepositoryWithPool constructs a standalone MessageQueueRepository

@@ -25,8 +25,8 @@ for spec in "$@"; do
     docker cp "fipscheck:$p" "$d/bin" >/dev/null || { echo "::error::$image: $p missing from image"; fail=1; continue; }
     settings=$(docker run --rm -v "$d:/check:ro" "$GO_IMAGE" go version -m /check/bin 2>&1)
     if [ "$EXPECT_FIPS" = "true" ]; then
-      if grep -q 'GOFIPS140=v1.0.0' <<<"$settings" && grep -Eq 'DefaultGODEBUG=.*fips140=on' <<<"$settings"; then
-        echo "$image $p: validated FIPS module linked (GOFIPS140=v1.0.0, fips140=on)"
+      if grep -q 'GOFIPS140=v1.0.0' <<<"$settings" && grep -Eq 'DefaultGODEBUG=.*fips140=only' <<<"$settings"; then
+        echo "$image $p: validated FIPS module linked (GOFIPS140=v1.0.0, fips140=only)"
       else
         echo "::error::$image: $p is not a FIPS build"
         echo "$settings"

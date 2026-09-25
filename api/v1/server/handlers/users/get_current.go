@@ -1,7 +1,6 @@
 package users
 
 import (
-	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -11,6 +10,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
+	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -61,7 +61,12 @@ func signMessageWithHMAC(message, secret string) (*string, error) {
 		return nil, errors.New("unable to decode secret")
 	}
 
-	h := hmac.New(sha256.New, secretBytes)
+	h, err := encryption.NewHMAC(sha256.New, secretBytes)
+
+	if err != nil {
+		return nil, err
+	}
+
 	h.Write([]byte(message))
 	signature := h.Sum(nil)
 

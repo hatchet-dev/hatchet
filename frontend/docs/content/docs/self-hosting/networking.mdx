@@ -48,12 +48,12 @@ The base path is injected into the served `index.html` at request time and the s
 
 Set the base path via the environment variable for your deployment mode. It defaults to `/`, which preserves the root-hosted behavior.
 
-| Deployment                        | Variable                  | Notes                                                           |
-| --------------------------------- | ------------------------- | --------------------------------------------------------------- |
-| Helm `frontend` chart             | `BASE_PATH`               | Set under `frontend.env`. Passed to the static file server.     |
+| Deployment                        | Variable                  | Notes                                                                               |
+| --------------------------------- | ------------------------- | ----------------------------------------------------------------------------------- |
+| Helm `frontend` chart             | `BASE_PATH`               | Set under `frontend.env`. Passed to the static file server.                         |
 | Combined `dashboard` image        | `BASE_PATH`               | Read by the bundled static file server, which also proxies `/api` to `hatchet-api`. |
-| `hatchet-lite`                    | `LITE_FRONTEND_BASE_PATH` |                                                                 |
-| `hatchet-staticfileserver` binary | `-base-path` flag         |                                                                 |
+| `hatchet-lite`                    | `LITE_FRONTEND_BASE_PATH` |                                                                                     |
+| `hatchet-staticfileserver` binary | `-base-path` flag         |                                                                                     |
 
 <Callout type="info">
   The base path is normalized automatically, so `hatchet`, `/hatchet`, and

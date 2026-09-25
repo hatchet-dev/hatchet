@@ -31,41 +31,41 @@ type OperatorServiceClient interface {
 	// actions to it, and accepts heartbeats and action set deltas from it.
 	//
 	// Protocol:
-	//  1. The first client message MUST be start, naming the worker returned by Register. Any
-	//     other first message is rejected with InvalidArgument, and a second start on the same
-	//     stream is also rejected. The server waits at most 30 seconds for it.
-	//  2. Every server message is an OperatorListenResponse: either an assigned action from the
-	//     dispatcher fan-out or an ack for an actions delta.
-	//  3. The client sends a heartbeat every 4 seconds on this stream. A worker whose heartbeat
-	//     goes stale is treated as inactive by the scheduler. See OperatorHeartbeat for why the
-	//     heartbeat is in-stream rather than a separate RPC like an SDK worker's.
-	//  4. The client sends actions deltas whenever the set of actions it can run changes. Deltas
-	//     are applied incrementally to the worker's action set and never replace it; a removed
-	//     action stops being assigned to the worker within about a second. Each delta carries at
-	//     most 1000 ids (adds plus removes); larger deltas are rejected with InvalidArgument.
-	//  5. Delta acknowledgement. Each delta carries a sequence number that is positive and
-	//     strictly increasing on the stream. The server applies deltas in stream order and
-	//     answers each one with an OperatorActionsAck carrying its sequence once the change is
-	//     committed. An ack for sequence N therefore also confirms every lower sequence. A delta
-	//     whose sequence is 0 is applied but never acknowledged. The server ends the stream
-	//     instead of acknowledging when a delta cannot be applied or the ack cannot be sent.
-	//  6. Recovery. The client keeps every sent delta until its ack arrives. After a reconnect
-	//     it first resends the unacknowledged deltas in order; if the reconnect did not resume
-	//     the worker (OperatorRegisterResponse.resumed is false) it instead resends its whole
-	//     desired action set, since a new worker starts with no actions. Applying a delta twice
-	//     is harmless: adding an action the worker has and removing one it lacks are no-ops, so
-	//     a delta that was committed but not acknowledged converges on replay.
-	//  7. When the stream ends (client close, network failure, or engine shutdown) the worker is
-	//     deactivated. Reconnect by calling Register with worker_id set, then Listen again; the
-	//     resumed worker keeps its action set.
-	//  8. Pause. The stream is stateful: a pause message stops the scheduler assigning to the
-	//     worker, and from the moment the server answers with an OperatorPauseAck no action is
-	//     delivered on the stream; one that the scheduler had already assigned is returned to
-	//     the queue instead. An operator that pauses before draining therefore knows the
-	//     actions it holds are the last it will get. pause with is_paused = false lets the worker
-	//     be assigned to again and is acknowledged the same way. The pause belongs to the
-	//     stream: Register clears it when it resumes the worker, so a client that reconnects
-	//     while paused sends the pause again on the new stream, before its deltas.
+	//   1. The first client message MUST be start, naming the worker returned by Register. Any
+	//      other first message is rejected with InvalidArgument, and a second start on the same
+	//      stream is also rejected. The server waits at most 30 seconds for it.
+	//   2. Every server message is an OperatorListenResponse: either an assigned action from the
+	//      dispatcher fan-out or an ack for an actions delta.
+	//   3. The client sends a heartbeat every 4 seconds on this stream. A worker whose heartbeat
+	//      goes stale is treated as inactive by the scheduler. See OperatorHeartbeat for why the
+	//      heartbeat is in-stream rather than a separate RPC like an SDK worker's.
+	//   4. The client sends actions deltas whenever the set of actions it can run changes. Deltas
+	//      are applied incrementally to the worker's action set and never replace it; a removed
+	//      action stops being assigned to the worker within about a second. Each delta carries at
+	//      most 1000 ids (adds plus removes); larger deltas are rejected with InvalidArgument.
+	//   5. Delta acknowledgement. Each delta carries a sequence number that is positive and
+	//      strictly increasing on the stream. The server applies deltas in stream order and
+	//      answers each one with an OperatorActionsAck carrying its sequence once the change is
+	//      committed. An ack for sequence N therefore also confirms every lower sequence. A delta
+	//      whose sequence is 0 is applied but never acknowledged. The server ends the stream
+	//      instead of acknowledging when a delta cannot be applied or the ack cannot be sent.
+	//   6. Recovery. The client keeps every sent delta until its ack arrives. After a reconnect
+	//      it first resends the unacknowledged deltas in order; if the reconnect did not resume
+	//      the worker (OperatorRegisterResponse.resumed is false) it instead resends its whole
+	//      desired action set, since a new worker starts with no actions. Applying a delta twice
+	//      is harmless: adding an action the worker has and removing one it lacks are no-ops, so
+	//      a delta that was committed but not acknowledged converges on replay.
+	//   7. When the stream ends (client close, network failure, or engine shutdown) the worker is
+	//      deactivated. Reconnect by calling Register with worker_id set, then Listen again; the
+	//      resumed worker keeps its action set.
+	//   8. Pause. The stream is stateful: a pause message stops the scheduler assigning to the
+	//      worker, and from the moment the server answers with an OperatorPauseAck no action is
+	//      delivered on the stream; one that the scheduler had already assigned is returned to
+	//      the queue instead. An operator that pauses before draining therefore knows the
+	//      actions it holds are the last it will get. pause with is_paused = false lets the worker
+	//      be assigned to again and is acknowledged the same way. The pause belongs to the
+	//      stream: Register clears it when it resumes the worker, so a client that reconnects
+	//      while paused sends the pause again on the new stream, before its deltas.
 	//
 	// Requires the hatchet-operator-id metadata.
 	Listen(ctx context.Context, opts ...grpc.CallOption) (OperatorService_ListenClient, error)
@@ -181,41 +181,41 @@ type OperatorServiceServer interface {
 	// actions to it, and accepts heartbeats and action set deltas from it.
 	//
 	// Protocol:
-	//  1. The first client message MUST be start, naming the worker returned by Register. Any
-	//     other first message is rejected with InvalidArgument, and a second start on the same
-	//     stream is also rejected. The server waits at most 30 seconds for it.
-	//  2. Every server message is an OperatorListenResponse: either an assigned action from the
-	//     dispatcher fan-out or an ack for an actions delta.
-	//  3. The client sends a heartbeat every 4 seconds on this stream. A worker whose heartbeat
-	//     goes stale is treated as inactive by the scheduler. See OperatorHeartbeat for why the
-	//     heartbeat is in-stream rather than a separate RPC like an SDK worker's.
-	//  4. The client sends actions deltas whenever the set of actions it can run changes. Deltas
-	//     are applied incrementally to the worker's action set and never replace it; a removed
-	//     action stops being assigned to the worker within about a second. Each delta carries at
-	//     most 1000 ids (adds plus removes); larger deltas are rejected with InvalidArgument.
-	//  5. Delta acknowledgement. Each delta carries a sequence number that is positive and
-	//     strictly increasing on the stream. The server applies deltas in stream order and
-	//     answers each one with an OperatorActionsAck carrying its sequence once the change is
-	//     committed. An ack for sequence N therefore also confirms every lower sequence. A delta
-	//     whose sequence is 0 is applied but never acknowledged. The server ends the stream
-	//     instead of acknowledging when a delta cannot be applied or the ack cannot be sent.
-	//  6. Recovery. The client keeps every sent delta until its ack arrives. After a reconnect
-	//     it first resends the unacknowledged deltas in order; if the reconnect did not resume
-	//     the worker (OperatorRegisterResponse.resumed is false) it instead resends its whole
-	//     desired action set, since a new worker starts with no actions. Applying a delta twice
-	//     is harmless: adding an action the worker has and removing one it lacks are no-ops, so
-	//     a delta that was committed but not acknowledged converges on replay.
-	//  7. When the stream ends (client close, network failure, or engine shutdown) the worker is
-	//     deactivated. Reconnect by calling Register with worker_id set, then Listen again; the
-	//     resumed worker keeps its action set.
-	//  8. Pause. The stream is stateful: a pause message stops the scheduler assigning to the
-	//     worker, and from the moment the server answers with an OperatorPauseAck no action is
-	//     delivered on the stream; one that the scheduler had already assigned is returned to
-	//     the queue instead. An operator that pauses before draining therefore knows the
-	//     actions it holds are the last it will get. pause with is_paused = false lets the worker
-	//     be assigned to again and is acknowledged the same way. The pause belongs to the
-	//     stream: Register clears it when it resumes the worker, so a client that reconnects
-	//     while paused sends the pause again on the new stream, before its deltas.
+	//   1. The first client message MUST be start, naming the worker returned by Register. Any
+	//      other first message is rejected with InvalidArgument, and a second start on the same
+	//      stream is also rejected. The server waits at most 30 seconds for it.
+	//   2. Every server message is an OperatorListenResponse: either an assigned action from the
+	//      dispatcher fan-out or an ack for an actions delta.
+	//   3. The client sends a heartbeat every 4 seconds on this stream. A worker whose heartbeat
+	//      goes stale is treated as inactive by the scheduler. See OperatorHeartbeat for why the
+	//      heartbeat is in-stream rather than a separate RPC like an SDK worker's.
+	//   4. The client sends actions deltas whenever the set of actions it can run changes. Deltas
+	//      are applied incrementally to the worker's action set and never replace it; a removed
+	//      action stops being assigned to the worker within about a second. Each delta carries at
+	//      most 1000 ids (adds plus removes); larger deltas are rejected with InvalidArgument.
+	//   5. Delta acknowledgement. Each delta carries a sequence number that is positive and
+	//      strictly increasing on the stream. The server applies deltas in stream order and
+	//      answers each one with an OperatorActionsAck carrying its sequence once the change is
+	//      committed. An ack for sequence N therefore also confirms every lower sequence. A delta
+	//      whose sequence is 0 is applied but never acknowledged. The server ends the stream
+	//      instead of acknowledging when a delta cannot be applied or the ack cannot be sent.
+	//   6. Recovery. The client keeps every sent delta until its ack arrives. After a reconnect
+	//      it first resends the unacknowledged deltas in order; if the reconnect did not resume
+	//      the worker (OperatorRegisterResponse.resumed is false) it instead resends its whole
+	//      desired action set, since a new worker starts with no actions. Applying a delta twice
+	//      is harmless: adding an action the worker has and removing one it lacks are no-ops, so
+	//      a delta that was committed but not acknowledged converges on replay.
+	//   7. When the stream ends (client close, network failure, or engine shutdown) the worker is
+	//      deactivated. Reconnect by calling Register with worker_id set, then Listen again; the
+	//      resumed worker keeps its action set.
+	//   8. Pause. The stream is stateful: a pause message stops the scheduler assigning to the
+	//      worker, and from the moment the server answers with an OperatorPauseAck no action is
+	//      delivered on the stream; one that the scheduler had already assigned is returned to
+	//      the queue instead. An operator that pauses before draining therefore knows the
+	//      actions it holds are the last it will get. pause with is_paused = false lets the worker
+	//      be assigned to again and is acknowledged the same way. The pause belongs to the
+	//      stream: Register clears it when it resumes the worker, so a client that reconnects
+	//      while paused sends the pause again on the new stream, before its deltas.
 	//
 	// Requires the hatchet-operator-id metadata.
 	Listen(OperatorService_ListenServer) error

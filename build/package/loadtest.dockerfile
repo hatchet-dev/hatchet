@@ -26,7 +26,7 @@ RUN if [ "$FIPS" = "true" ]; then export GOFIPS140=v1.0.0; LDFLAGS="-w"; else LD
     go build -ldflags="${LDFLAGS}" -a -o ./bin/hatchet-load-test-worker ./cli/go && \
     if [ "$FIPS" = "true" ]; then \
       for b in hatchet-load-test hatchet-load-test-worker; do \
-        go version -m ./bin/$b | grep -q 'GOFIPS140=v1.0.0' || { echo "$b is not linked against the validated FIPS module"; exit 1; }; \
+        go version -m ./bin/$b | grep -Ec 'GOFIPS140=v1.0.0|DefaultGODEBUG=.*fips140=only' | grep -qx 2 || { echo "$b is not linked against the validated FIPS module"; exit 1; }; \
       done; \
     fi
 

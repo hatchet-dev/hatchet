@@ -2,7 +2,15 @@ package repository
 
 import (
 	"context"
+	"crypto/fips140"
+	"crypto/pbkdf2"
+	"crypto/rand"
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/base64"
+	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -70,15 +78,35 @@ type UserRepository interface {
 	ListTenantMemberships(ctx context.Context, userId uuid.UUID) ([]*sqlcv1.PopulateTenantMembersRow, error)
 }
 
+const (
+	pbkdf2Prefix     = "$pbkdf2-sha256$"
+	pbkdf2Iterations = 600000
+	pbkdf2SaltLen    = 16
+	pbkdf2KeyLen     = 32
+)
+
+var ErrLegacyPasswordHash = errors.New("password hash uses bcrypt, which is not permitted in FIPS mode; the password must be reset")
+
 func HashPassword(pw string) (*string, error) {
-	// hash the new password using bcrypt
-	hashedPw, err := bcrypt.GenerateFromPassword([]byte(pw), 10)
+	salt := make([]byte, pbkdf2SaltLen)
+
+	if _, err := rand.Read(salt); err != nil {
+		return nil, fmt.Errorf("could not hash password: %w", err)
+	}
+
+	key, err := pbkdf2.Key(sha256.New, pw, salt, pbkdf2Iterations, pbkdf2KeyLen)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not hash password: %w", err)
 	}
 
-	return StringPtr(string(hashedPw)), nil
+	enc := base64.RawStdEncoding
+
+	return StringPtr(fmt.Sprintf("%s%d$%s$%s", pbkdf2Prefix, pbkdf2Iterations, enc.EncodeToString(salt), enc.EncodeToString(key))), nil
+}
+
+func IsLegacyPasswordHash(hashedPW string) bool {
+	return !strings.HasPrefix(hashedPW, pbkdf2Prefix)
 }
 
 func StringPtr(s string) *string {
@@ -94,9 +122,47 @@ func Int32Ptr(i int32) *int32 {
 }
 
 func VerifyPassword(hashedPW, candidate string) (bool, error) {
-	err := bcrypt.CompareHashAndPassword([]byte(hashedPW), []byte(candidate))
+	if IsLegacyPasswordHash(hashedPW) {
+		if fips140.Enabled() {
+			return false, ErrLegacyPasswordHash
+		}
 
-	return err == nil, err
+		err := bcrypt.CompareHashAndPassword([]byte(hashedPW), []byte(candidate))
+
+		return err == nil, err
+	}
+
+	parts := strings.Split(strings.TrimPrefix(hashedPW, pbkdf2Prefix), "$")
+
+	if len(parts) != 3 {
+		return false, errors.New("malformed password hash")
+	}
+
+	iter, err := strconv.Atoi(parts[0])
+
+	if err != nil {
+		return false, fmt.Errorf("malformed password hash: %w", err)
+	}
+
+	salt, err := base64.RawStdEncoding.DecodeString(parts[1])
+
+	if err != nil {
+		return false, fmt.Errorf("malformed password hash: %w", err)
+	}
+
+	want, err := base64.RawStdEncoding.DecodeString(parts[2])
+
+	if err != nil {
+		return false, fmt.Errorf("malformed password hash: %w", err)
+	}
+
+	got, err := pbkdf2.Key(sha256.New, candidate, salt, iter, len(want))
+
+	if err != nil {
+		return false, err
+	}
+
+	return subtle.ConstantTimeCompare(got, want) == 1, nil
 }
 
 type userRepository struct {
