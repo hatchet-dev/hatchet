@@ -22,7 +22,6 @@ import (
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/styles"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/tui"
 	"github.com/hatchet-dev/hatchet/pkg/client"
-	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	profileconfig "github.com/hatchet-dev/hatchet/pkg/config/cli"
 )
@@ -334,18 +333,18 @@ func runManualInteractive(profile *profileconfig.Profile, hatchetClient client.C
 
 	// Fetch workflows
 	fmt.Println(styles.InfoMessage("Fetching workflows..."))
-	response, err := hatchetClient.API().WorkflowListWithResponse(ctx, tenantUUID, &rest.WorkflowListParams{})
+	rows, err := tui.SearchWorkflows(ctx, hatchetClient.API(), tenantUUID, "")
 	if err != nil {
 		cli.Logger.Fatalf("could not fetch workflows: %v", err)
 	}
 
-	if response.JSON200 == nil || response.JSON200.Rows == nil || len(*response.JSON200.Rows) == 0 {
+	if len(rows) == 0 {
 		cli.Logger.Fatal("no workflows available. Deploy a workflow first.")
 	}
 
 	// Build workflow list
 	workflows := make([]WorkflowInfo, 0)
-	for _, wf := range *response.JSON200.Rows {
+	for _, wf := range rows {
 		version := "latest"
 		if wf.Versions != nil && len(*wf.Versions) > 0 {
 			firstVersion := (*wf.Versions)[0]
@@ -411,18 +410,18 @@ func runManualNonInteractive(profile *profileconfig.Profile, hatchetClient clien
 	}
 
 	// Fetch workflows
-	response, err := hatchetClient.API().WorkflowListWithResponse(ctx, tenantUUID, &rest.WorkflowListParams{})
+	rows, err := tui.SearchWorkflows(ctx, hatchetClient.API(), tenantUUID, workflowName)
 	if err != nil {
 		cli.Logger.Fatalf("could not fetch workflows: %v", err)
 	}
 
-	if response.JSON200 == nil || response.JSON200.Rows == nil || len(*response.JSON200.Rows) == 0 {
+	if len(rows) == 0 {
 		cli.Logger.Fatal("no workflows available. Deploy a workflow first.")
 	}
 
 	// Find workflow by name
 	var selectedWorkflow *WorkflowInfo
-	for _, wf := range *response.JSON200.Rows {
+	for _, wf := range rows {
 		if wf.Name == workflowName {
 			version := "latest"
 			if wf.Versions != nil && len(*wf.Versions) > 0 {
