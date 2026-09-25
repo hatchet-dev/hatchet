@@ -16,7 +16,10 @@ import { createEventsRpc } from '@hatchet/clients/event/rpc';
 import type { EventsServiceClient } from '@hatchet/protoc/events/events';
 import { BulkTriggerWorkflowRequest, type WorkflowServiceClient } from '@hatchet/protoc/workflows';
 import type { AdminServiceClient } from '@hatchet/protoc/v1/workflows';
-import { getAddressesFromJWT, getTenantIdFromJWT } from '@hatchet/util/config-loader/token';
+import {
+  getGrpcBroadcastAddressFromJWT,
+  getTenantIdFromJWT,
+} from '@hatchet/util/config-loader/token';
 import { batch } from '@hatchet/util/batch';
 import { retrier } from '@hatchet/util/retrier';
 import type { Logger } from '@hatchet/util/logger/logger';
@@ -283,12 +286,10 @@ function resolveServerUrl(config: CoreClientConfig): string {
     return resolveFetchServerUrl(config);
   }
 
-  let hostPort: string;
-  try {
-    hostPort = getAddressesFromJWT(config.token).grpcBroadcastAddress;
-  } catch {
+  const hostPort = getGrpcBroadcastAddressFromJWT(config.token);
+  if (!hostPort) {
     throw new HatchetError(
-      'the token carries no engine address; set serverUrl or hostPort on the client config'
+      'the token carries no grpc_broadcast_address claim; set serverUrl or hostPort on the client config'
     );
   }
   return resolveFetchServerUrl({ hostPort, tls: config.tls });

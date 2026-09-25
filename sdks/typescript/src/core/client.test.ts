@@ -194,10 +194,27 @@ describe('HatchetCore configuration', () => {
     expect(client.config.namespace).toBe('prod_');
   });
 
-  it('rejects a missing token and a token without an address', () => {
+  it('needs only sub and grpc_broadcast_address from the token', () => {
+    const token = makeToken({ sub: TENANT_ID, grpc_broadcast_address: 'engine.example.com:7070' });
+    const client = new HatchetCore({ token, logLevel: 'OFF' });
+    expect(client.config.serverUrl).toBe('https://engine.example.com:7070');
+    expect(client.tenantId).toBe(TENANT_ID);
+  });
+
+  it('takes hostPort when the token carries no address claims', () => {
+    const client = new HatchetCore({
+      token: makeToken({ sub: TENANT_ID }),
+      hostPort: 'localhost:7070',
+      tls: { strategy: 'none' },
+      logLevel: 'OFF',
+    });
+    expect(client.config.serverUrl).toBe('http://localhost:7070');
+  });
+
+  it('rejects a missing token and names the claim and fields when no address is found', () => {
     expect(() => new HatchetCore({ token: '' })).toThrow(HatchetError);
     expect(() => new HatchetCore({ token: makeToken({ sub: TENANT_ID }) })).toThrow(
-      /serverUrl or hostPort/
+      /grpc_broadcast_address claim; set serverUrl or hostPort/
     );
   });
 
