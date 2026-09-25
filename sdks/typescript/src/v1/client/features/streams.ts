@@ -33,14 +33,21 @@ export class StreamsClient {
   private _grpc: PbV1StreamsClient | undefined;
 
   // producerId identifies this client instance to the server for ordering
-  // purposes (see api-contracts/v1/streams.proto). nextSeq assigns a strictly
-  // increasing sequence per (namespace, topic), synchronously at call time --
-  // before any network I/O -- so the assigned order reflects the order
-  // publish() was actually called in, regardless of what happens to each
-  // request afterward (network reordering, concurrent queue processing,
-  // retries).
+  // purposes (see api-contracts/v1/streams.proto).
   private producerId: string;
+
+  // nextSeq is the next producer_seq to use per (namespace, topic), only
+  // advanced after a publish succeeds -- see publishChains.
   private nextSeq = new Map<string, number>();
+
+  // publishChains serializes publish() calls per (namespace, topic): each
+  // call waits for the previous one on the same key to settle before reading
+  // nextSeq, so a failed call never advances it (a retry reuses the same
+  // seq) without risking two calls ever using the same seq for different
+  // payloads. The stored promise always resolves, even when the publish it
+  // chains from failed, so one failure doesn't block every later call on
+  // that key.
+  private publishChains = new Map<string, Promise<void>>();
 
   constructor(client: HatchetClient) {
     this._config = client.config;
@@ -55,18 +62,31 @@ export class StreamsClient {
     return this._grpc;
   }
 
-  private nextProducerSeq(namespace: string, topic: string): number {
-    const key = `${namespace}\u0000${topic}`;
-    const seq = this.nextSeq.get(key) ?? 0;
-    this.nextSeq.set(key, seq + 1);
-    return seq;
+  private async publishOrdered(
+    key: string,
+    namespace: string,
+    topic: string,
+    payload: Uint8Array
+  ): Promise<void> {
+    const producerSeq = this.nextSeq.get(key) ?? 0;
+
+    await this.grpc.publish({
+      namespace,
+      topic,
+      payload,
+      producerId: this.producerId,
+      producerSeq,
+    });
+
+    this.nextSeq.set(key, producerSeq + 1);
   }
 
   /**
    * Durably publishes a message to a topic. Topics are created implicitly on
    * first publish. Messages from this client instance are delivered to
    * events() in the order publish() was called, even under concurrent calls
-   * or network/queue reordering.
+   * or network/queue reordering. A failed publish never consumes its
+   * producer_seq, so retrying with the same arguments picks it back up.
    * @param topic - the topic to publish to
    * @param message - the message payload
    * @param options - optional namespace override
@@ -78,15 +98,17 @@ export class StreamsClient {
   ): Promise<void> {
     const payload = typeof message === 'string' ? new TextEncoder().encode(message) : message;
     const namespace = options?.namespace ?? '';
-    const producerSeq = this.nextProducerSeq(namespace, topic);
+    const key = `${namespace}\u0000${topic}`;
 
-    await this.grpc.publish({
-      namespace,
-      topic,
-      payload,
-      producerId: this.producerId,
-      producerSeq,
-    });
+    const previous = this.publishChains.get(key) ?? Promise.resolve();
+    const publishPromise = previous.then(() => this.publishOrdered(key, namespace, topic, payload));
+
+    this.publishChains.set(
+      key,
+      publishPromise.catch(() => {})
+    );
+
+    return publishPromise;
   }
 
   /**

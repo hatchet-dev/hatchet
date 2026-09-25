@@ -163,7 +163,7 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl, error) {
 		pubMaxChans = 20
 	}
 
-	pubChannelPool, err := newChannelPool(ctx, opts.l, opts.url, pubMaxChans, channelPoolQueueDurable, channelPoolRolePub)
+	pubChannelPool, err := newChannelPool(ctx, opts.l, opts.url, pubMaxChans, channelPoolQueueDurable, channelPoolRolePub, true)
 
 	if err != nil {
 		cancel()
@@ -176,7 +176,7 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl, error) {
 		subMaxChans = 100
 	}
 
-	subChannelPool, err := newChannelPool(ctx, opts.l, opts.url, subMaxChans, channelPoolQueueDurable, channelPoolRoleSub)
+	subChannelPool, err := newChannelPool(ctx, opts.l, opts.url, subMaxChans, channelPoolQueueDurable, channelPoolRoleSub, false)
 
 	if err != nil {
 		pubChannelPool.Close()
@@ -437,13 +437,22 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 
 	pubSpan.SetAttributes(spanAttrs...)
 
-	// no timeout here on purpose: amqp091-go takes the context as `_` and
-	// clears socket deadlines after the handshake, so a publish is bounded
-	// only by TCP flow control. confirms are off, so a nil error means the
-	// frames were written, not that the broker accepted them
-	err = pub.PublishWithContext(ctx, "", q.Name(), false, false, pubMsg)
+	// no timeout on the publish call itself: amqp091-go takes the context as
+	// `_` and clears socket deadlines after the handshake, so it's bounded
+	// only by TCP flow control. Every pub channel is in confirm mode, but a
+	// nil error here only means the broker acked receipt for queues that opt
+	// in via RequiresPublishConfirm -- everyone else still only gets "frame
+	// was written to the socket".
+	publish := func() error {
+		return pub.PublishWithContext(ctx, "", q.Name(), false, false, pubMsg)
+	}
 
-	// retry failed delivery on the next session
+	if q.RequiresPublishConfirm() {
+		err = t.pubChannels.publishWithConfirm(ctx, pub, publish)
+	} else {
+		err = publish()
+	}
+
 	if err != nil {
 		pubSpan.RecordError(err)
 		pubSpan.SetStatus(codes.Error, "error publishing message")

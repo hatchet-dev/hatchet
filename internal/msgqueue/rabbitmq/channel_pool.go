@@ -2,6 +2,7 @@ package rabbitmq
 
 import (
 	"context"
+	"fmt"
 	"net/url"
 	"sync"
 	"time"
@@ -37,6 +38,69 @@ type channelPool struct {
 	connMu sync.Mutex
 
 	metricReg metric.Registration
+
+	// confirmMode, when true, puts every channel this pool constructs into
+	// RabbitMQ publisher-confirm mode and tracks a waiter per channel (see
+	// pubConfirm) -- confirmations are always drained in the background
+	// regardless of whether any caller is waiting, since an undrained
+	// NotifyPublish channel can stall the whole connection's frame dispatch.
+	confirmMode bool
+	confirms    sync.Map // *amqp.Channel -> *pubConfirm
+}
+
+// pubConfirm tracks the in-flight publisher-confirm waiter for one pooled
+// channel. A channel is only ever checked out to one goroutine at a time, so
+// there is at most one waiter -- registering it before publishing (see
+// publishWithConfirm) is enough to correlate it correctly, no delivery-tag
+// bookkeeping needed.
+type pubConfirm struct {
+	mu     sync.Mutex
+	waiter chan amqp.Confirmation
+}
+
+// publishWithConfirm runs publish with a confirm waiter registered first, then
+// blocks for the broker's ack/nack or ctx cancellation. If ch isn't in confirm
+// mode it just runs publish, so callers that don't need the guarantee pay
+// nothing extra.
+func (p *channelPool) publishWithConfirm(ctx context.Context, ch *amqp.Channel, publish func() error) error {
+	v, ok := p.confirms.Load(ch)
+
+	if !ok {
+		return publish()
+	}
+
+	pc := v.(*pubConfirm)
+
+	waitCh := make(chan amqp.Confirmation, 1)
+
+	pc.mu.Lock()
+	pc.waiter = waitCh
+	pc.mu.Unlock()
+
+	clearWaiter := func() {
+		pc.mu.Lock()
+		if pc.waiter == waitCh {
+			pc.waiter = nil
+		}
+		pc.mu.Unlock()
+	}
+
+	if err := publish(); err != nil {
+		clearWaiter()
+		return err
+	}
+
+	select {
+	case confirmation := <-waitCh:
+		if !confirmation.Ack {
+			return fmt.Errorf("broker nacked publish")
+		}
+
+		return nil
+	case <-ctx.Done():
+		clearWaiter()
+		return ctx.Err()
+	}
 }
 
 // redactURL masks the password in a connection URL (as url.URL.Redacted does).
@@ -89,10 +153,11 @@ func (p *channelPool) Close() {
 	}
 }
 
-func newChannelPool(ctx context.Context, l *zerolog.Logger, url string, maxChannels int32, queue, role string) (*channelPool, error) {
+func newChannelPool(ctx context.Context, l *zerolog.Logger, url string, maxChannels int32, queue, role string, confirmMode bool) (*channelPool, error) {
 	p := &channelPool{
-		l:   l,
-		url: url,
+		l:           l,
+		url:         url,
+		confirmMode: confirmMode,
 	}
 
 	err := p.newConnection()
@@ -111,10 +176,42 @@ func newChannelPool(ctx context.Context, l *zerolog.Logger, url string, maxChann
 			return nil, err
 		}
 
+		if p.confirmMode {
+			if err := ch.Confirm(false); err != nil {
+				l.Error().Msgf("cannot enable publisher confirms: %v", err)
+				_ = ch.Close()
+				return nil, err
+			}
+
+			pc := &pubConfirm{}
+			confirmations := ch.NotifyPublish(make(chan amqp.Confirmation, 1))
+			p.confirms.Store(ch, pc)
+
+			// always drained, whether or not a publish is currently waiting on
+			// it -- an unread NotifyPublish channel can stall dispatch for the
+			// whole connection, not just this channel. Exits when ch closes.
+			go func() {
+				for confirmation := range confirmations {
+					pc.mu.Lock()
+					w := pc.waiter
+					pc.waiter = nil
+					pc.mu.Unlock()
+
+					if w != nil {
+						w <- confirmation
+					}
+				}
+			}()
+		}
+
 		return ch, nil
 	}
 
 	destructor := func(ch *amqp.Channel) {
+		if p.confirmMode {
+			p.confirms.Delete(ch)
+		}
+
 		if !ch.IsClosed() {
 			err := ch.Close()
 

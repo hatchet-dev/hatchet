@@ -35,6 +35,11 @@ type Queue interface {
 
 	// IsExpirable refers to whether the queue itself is expirable
 	IsExpirable() bool
+
+	// RequiresPublishConfirm reports whether SendMessage must wait for the
+	// broker's publisher-confirm ack before returning success, rather than a
+	// nil error meaning only that the frame was written to the socket.
+	RequiresPublishConfirm() bool
 }
 
 type staticQueue string
@@ -82,6 +87,10 @@ func (s staticQueue) IsAutoDLQ() bool {
 
 func (s staticQueue) IsExpirable() bool {
 	return false
+}
+
+func (s staticQueue) RequiresPublishConfirm() bool {
+	return s == STREAMS_QUEUE
 }
 
 type dlq struct {
@@ -146,6 +155,10 @@ func (d dispatcherQueue) IsAutoDLQ() bool {
 
 func (d dispatcherQueue) IsExpirable() bool {
 	return true
+}
+
+func (d dispatcherQueue) RequiresPublishConfirm() bool {
+	return false
 }
 
 func QueueTypeFromDispatcherID(d uuid.UUID) dispatcherQueue {

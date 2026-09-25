@@ -94,14 +94,15 @@ func (s *ServiceImpl) Publish(ctx context.Context, req *contracts.PublishStreamM
 		return nil, err
 	}
 
-	// durable send -- this is the real delivery path. wait=true only blocks
-	// until the buffered send succeeds, not until the streams controller has
-	// durably inserted the row.
-	fmt.Println("sending rabbit message")
+	// durable send -- this is the real delivery path. wait=true blocks until
+	// rabbit has confirmed receipt (STREAMS_QUEUE requires publisher
+	// confirms, see Queue.RequiresPublishConfirm), not until the streams
+	// controller has durably inserted the row. A single failed attempt is
+	// returned straight to the caller -- it's the SDK's job to retry.
 	if err := s.pubBuffer.Pub(ctx, msgqueue.STREAMS_QUEUE, msg, true); err != nil {
 		return nil, connect.NewError(connect.CodeUnavailable, fmt.Errorf("could not enqueue stream message: %w", err))
 	}
-	fmt.Println("sent rabbit message")
+
 	post()
 
 	// Best-effort wake for any consumer currently tailing this topic. Never
