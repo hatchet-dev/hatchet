@@ -34,11 +34,11 @@ func createOLAPRepository(pool *pgxpool.Pool) *OLAPRepositoryImpl {
 		panic(err)
 	}
 	return &OLAPRepositoryImpl{
-		sharedRepository:            shared,
-		eventCache:                  eventCache,
-		olapRetentionPeriod:         24 * time.Hour,
-		shouldPartitionEventsTables: false,
-		shouldPartitionOtelTables:   false,
+		sharedRepository:                    shared,
+		eventCache:                          eventCache,
+		olapRetentionPeriod:                 24 * time.Hour,
+		shouldManageOptionalTablePartitions: false,
+		shouldPartitionOtelTables:           false,
 	}
 }
 
@@ -243,10 +243,7 @@ func TestOLAPUpdateTablePartitions_LookupTablePartitionsHaveUniqueExternalId(t *
 	queries := sqlcv1.New()
 	twoMonthsAhead := time.Now().UTC().AddDate(0, 2, 0)
 
-	creations, err := queries.CreateOLAPPartitions(ctx, pool, sqlcv1.CreateOLAPPartitionsParams{
-		Date:       pgtype.Date{Time: twoMonthsAhead, Valid: true},
-		Partitions: NUM_PARTITIONS,
-	})
+	creations, err := queries.CreateOLAPOptionalTablePartitions(ctx, pool, pgtype.Date{Time: twoMonthsAhead, Valid: true})
 	require.NoError(t, err)
 	require.Equal(t, int32(1), creations.V1LookupTableOlap, "should create a new monthly lookup table partition")
 	require.Equal(t, int32(1), creations.V1StatusesOlap, "should create a new monthly statuses partition")

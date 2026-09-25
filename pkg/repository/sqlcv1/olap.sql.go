@@ -484,20 +484,6 @@ func (q *Queries) CreateIncomingWebhookValidationFailureLogs(ctx context.Context
 	return err
 }
 
-const createOLAPEventPartitions = `-- name: CreateOLAPEventPartitions :exec
-SELECT
-    create_v1_range_partition('v1_events_olap'::text, $1::date),
-    create_v1_range_partition('v1_event_to_run_olap'::text, $1::date),
-    create_v1_weekly_range_partition('v1_event_lookup_table_olap'::text, $1::date),
-    create_v1_range_partition('v1_incoming_webhook_validation_failures_olap'::text, $1::date),
-    create_v1_range_partition('v1_cel_evaluation_failures_olap'::text, $1::date)
-`
-
-func (q *Queries) CreateOLAPEventPartitions(ctx context.Context, db DBTX, date pgtype.Date) error {
-	_, err := db.Exec(ctx, createOLAPEventPartitions, date)
-	return err
-}
-
 const createOLAPOffloadedPayloadIndexBlock = `-- name: CreateOLAPOffloadedPayloadIndexBlock :exec
 INSERT INTO v1_payloads_olap_offloaded_block_index (
     payload_inserted_at_date,
@@ -529,6 +515,48 @@ func (q *Queries) CreateOLAPOffloadedPayloadIndexBlock(ctx context.Context, db D
 	return err
 }
 
+const createOLAPOptionalTablePartitions = `-- name: CreateOLAPOptionalTablePartitions :one
+SELECT
+    create_v1_range_partition('v1_events_olap'::text, $1::date) AS v1_events_olap,
+    create_v1_range_partition('v1_event_to_run_olap'::text, $1::date) AS v1_event_to_run_olap,
+    create_v1_weekly_range_partition('v1_event_lookup_table_olap'::text, $1::date) AS v1_event_lookup_table_olap,
+    create_v1_range_partition('v1_incoming_webhook_validation_failures_olap'::text, $1::date) AS v1_incoming_webhook_validation_failures_olap,
+    create_v1_range_partition('v1_cel_evaluation_failures_olap'::text, $1::date) AS v1_cel_evaluation_failures_olap,
+    create_v1_range_partition('v1_task_events_olap'::text, $1::date) AS v1_task_events_olap,
+    create_v1_range_partition('v1_dag_to_task_olap'::text, $1::date) AS v1_dag_to_task_olap,
+    create_v1_monthly_range_partition('v1_lookup_table_olap'::text, $1::date) AS v1_lookup_table_olap,
+    create_v1_monthly_range_partition('v1_statuses_olap'::text, $1::date) AS v1_statuses_olap
+`
+
+type CreateOLAPOptionalTablePartitionsRow struct {
+	V1EventsOlap                            int32 `json:"v1_events_olap"`
+	V1EventToRunOlap                        int32 `json:"v1_event_to_run_olap"`
+	V1EventLookupTableOlap                  int32 `json:"v1_event_lookup_table_olap"`
+	V1IncomingWebhookValidationFailuresOlap int32 `json:"v1_incoming_webhook_validation_failures_olap"`
+	V1CelEvaluationFailuresOlap             int32 `json:"v1_cel_evaluation_failures_olap"`
+	V1TaskEventsOlap                        int32 `json:"v1_task_events_olap"`
+	V1DagToTaskOlap                         int32 `json:"v1_dag_to_task_olap"`
+	V1LookupTableOlap                       int32 `json:"v1_lookup_table_olap"`
+	V1StatusesOlap                          int32 `json:"v1_statuses_olap"`
+}
+
+func (q *Queries) CreateOLAPOptionalTablePartitions(ctx context.Context, db DBTX, date pgtype.Date) (*CreateOLAPOptionalTablePartitionsRow, error) {
+	row := db.QueryRow(ctx, createOLAPOptionalTablePartitions, date)
+	var i CreateOLAPOptionalTablePartitionsRow
+	err := row.Scan(
+		&i.V1EventsOlap,
+		&i.V1EventToRunOlap,
+		&i.V1EventLookupTableOlap,
+		&i.V1IncomingWebhookValidationFailuresOlap,
+		&i.V1CelEvaluationFailuresOlap,
+		&i.V1TaskEventsOlap,
+		&i.V1DagToTaskOlap,
+		&i.V1LookupTableOlap,
+		&i.V1StatusesOlap,
+	)
+	return &i, err
+}
+
 const createOLAPOtelPartitions = `-- name: CreateOLAPOtelPartitions :exec
 SELECT
     create_v1_range_partition('v1_otel_trace_olap'::text, $1::date),
@@ -547,11 +575,7 @@ SELECT
     create_v1_range_partition('v1_tasks_olap'::text, $2::date) AS v1_tasks_olap,
     create_v1_range_partition('v1_runs_olap'::text, $2::date) AS v1_runs_olap,
     create_v1_range_partition('v1_dags_olap'::text, $2::date) AS v1_dags_olap,
-    create_v1_range_partition('v1_payloads_olap'::text, $2::date) AS v1_payloads_olap,
-    create_v1_range_partition('v1_task_events_olap'::text, $2::date) AS v1_task_events_olap,
-    create_v1_range_partition('v1_dag_to_task_olap'::text, $2::date) AS v1_dag_to_task_olap,
-    create_v1_monthly_range_partition('v1_lookup_table_olap'::text, $2::date) AS v1_lookup_table_olap,
-    create_v1_monthly_range_partition('v1_statuses_olap'::text, $2::date) AS v1_statuses_olap
+    create_v1_range_partition('v1_payloads_olap'::text, $2::date) AS v1_payloads_olap
 `
 
 type CreateOLAPPartitionsParams struct {
@@ -566,10 +590,6 @@ type CreateOLAPPartitionsRow struct {
 	V1RunsOlap             int32 `json:"v1_runs_olap"`
 	V1DagsOlap             int32 `json:"v1_dags_olap"`
 	V1PayloadsOlap         int32 `json:"v1_payloads_olap"`
-	V1TaskEventsOlap       int32 `json:"v1_task_events_olap"`
-	V1DagToTaskOlap        int32 `json:"v1_dag_to_task_olap"`
-	V1LookupTableOlap      int32 `json:"v1_lookup_table_olap"`
-	V1StatusesOlap         int32 `json:"v1_statuses_olap"`
 }
 
 func (q *Queries) CreateOLAPPartitions(ctx context.Context, db DBTX, arg CreateOLAPPartitionsParams) (*CreateOLAPPartitionsRow, error) {
@@ -582,10 +602,6 @@ func (q *Queries) CreateOLAPPartitions(ctx context.Context, db DBTX, arg CreateO
 		&i.V1RunsOlap,
 		&i.V1DagsOlap,
 		&i.V1PayloadsOlap,
-		&i.V1TaskEventsOlap,
-		&i.V1DagToTaskOlap,
-		&i.V1LookupTableOlap,
-		&i.V1StatusesOlap,
 	)
 	return &i, err
 }
@@ -1727,7 +1743,17 @@ FROM candidates
 WHERE
     CASE
         WHEN $1::BOOLEAN THEN TRUE
-        ELSE parent_table NOT IN ('v1_events_olap', 'v1_event_to_run_olap', 'v1_cel_evaluation_failures_olap', 'v1_incoming_webhook_validation_failures_olap')
+        ELSE parent_table NOT IN (
+            'v1_events_olap',
+            'v1_event_to_run_olap',
+            'v1_event_lookup_table_olap',
+            'v1_cel_evaluation_failures_olap',
+            'v1_incoming_webhook_validation_failures_olap',
+            'v1_task_events_olap',
+            'v1_dag_to_task_olap',
+            'v1_lookup_table_olap',
+            'v1_statuses_olap'
+        )
     END
     AND CASE
         WHEN $2::BOOLEAN THEN TRUE
@@ -1736,9 +1762,9 @@ WHERE
 `
 
 type ListOLAPPartitionsBeforeDateParams struct {
-	Shouldpartitioneventstables bool        `json:"shouldpartitioneventstables"`
-	Shouldpartitionoteltables   bool        `json:"shouldpartitionoteltables"`
-	Date                        pgtype.Date `json:"date"`
+	Shouldmanageoptionaltablepartitions bool        `json:"shouldmanageoptionaltablepartitions"`
+	Shouldpartitionoteltables           bool        `json:"shouldpartitionoteltables"`
+	Date                                pgtype.Date `json:"date"`
 }
 
 type ListOLAPPartitionsBeforeDateRow struct {
@@ -1747,7 +1773,7 @@ type ListOLAPPartitionsBeforeDateRow struct {
 }
 
 func (q *Queries) ListOLAPPartitionsBeforeDate(ctx context.Context, db DBTX, arg ListOLAPPartitionsBeforeDateParams) ([]*ListOLAPPartitionsBeforeDateRow, error) {
-	rows, err := db.Query(ctx, listOLAPPartitionsBeforeDate, arg.Shouldpartitioneventstables, arg.Shouldpartitionoteltables, arg.Date)
+	rows, err := db.Query(ctx, listOLAPPartitionsBeforeDate, arg.Shouldmanageoptionaltablepartitions, arg.Shouldpartitionoteltables, arg.Date)
 	if err != nil {
 		return nil, err
 	}

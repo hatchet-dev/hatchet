@@ -326,8 +326,8 @@ type OLAPRepositoryImpl struct {
 
 	olapRetentionPeriod time.Duration
 
-	shouldPartitionEventsTables bool
-	shouldPartitionOtelTables   bool
+	shouldManageOptionalTablePartitions bool
+	shouldPartitionOtelTables           bool
 
 	statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits
 }
@@ -337,7 +337,7 @@ func NewOLAPRepositoryFromPool(
 	l *zerolog.Logger,
 	olapRetentionPeriod time.Duration,
 	tenantLimitConfig limits.LimitConfigFile, enforceLimits bool,
-	shouldPartitionEventsTables bool,
+	shouldManageOptionalTablePartitions bool,
 	payloadStoreOpts PayloadStoreRepositoryOpts,
 	statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits,
 	cacheDuration time.Duration,
@@ -347,10 +347,10 @@ func NewOLAPRepositoryFromPool(
 
 	shared, cleanupShared := newSharedRepository(pool, pool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration)
 
-	return newOLAPRepository(shared, olapRetentionPeriod, shouldPartitionEventsTables, shouldPartitionOtelTables, statusUpdateBatchSizeLimits), cleanupShared
+	return newOLAPRepository(shared, olapRetentionPeriod, shouldManageOptionalTablePartitions, shouldPartitionOtelTables, statusUpdateBatchSizeLimits), cleanupShared
 }
 
-func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Duration, shouldPartitionEventsTables bool, shouldPartitionOtelTables bool, statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits) OLAPRepository {
+func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Duration, shouldManageOptionalTablePartitions bool, shouldPartitionOtelTables bool, statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits) OLAPRepository {
 	eventCache, err := lru.New[string, bool](100000)
 
 	if err != nil {
@@ -358,13 +358,13 @@ func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Durati
 	}
 
 	return &OLAPRepositoryImpl{
-		sharedRepository:            shared,
-		readPool:                    shared.pool,
-		eventCache:                  eventCache,
-		olapRetentionPeriod:         olapRetentionPeriod,
-		shouldPartitionEventsTables: shouldPartitionEventsTables,
-		shouldPartitionOtelTables:   shouldPartitionOtelTables,
-		statusUpdateBatchSizeLimits: statusUpdateBatchSizeLimits,
+		sharedRepository:                    shared,
+		readPool:                            shared.pool,
+		eventCache:                          eventCache,
+		olapRetentionPeriod:                 olapRetentionPeriod,
+		shouldManageOptionalTablePartitions: shouldManageOptionalTablePartitions,
+		shouldPartitionOtelTables:           shouldPartitionOtelTables,
+		statusUpdateBatchSizeLimits:         statusUpdateBatchSizeLimits,
 	}
 }
 
@@ -392,6 +392,20 @@ func runPartitionDDLWithLockTimeout(ctx context.Context, pool *pgxpool.Pool, log
 	}
 
 	return commit(ctx)
+}
+
+func (r *OLAPRepositoryImpl) createOptionalTablePartitions(ctx context.Context, tx pgx.Tx, date time.Time) error {
+	creations, err := r.queries.CreateOLAPOptionalTablePartitions(ctx, tx, pgtype.Date{Time: date, Valid: true})
+
+	if err != nil {
+		return err
+	}
+
+	if creations.V1LookupTableOlap > 0 {
+		return createExternalIdUniqueConstraintsOnMonthlyPartitions(ctx, tx, "v1_lookup_table_olap", date)
+	}
+
+	return nil
 }
 
 func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
@@ -436,13 +450,7 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		}
 
 		if todayCreations.V1PayloadsOlap > 0 {
-			if err := createExternalIdUniqueConstraintsOnDailyPartitions(ctx, tx, "v1_payloads_olap", today); err != nil {
-				return err
-			}
-		}
-
-		if todayCreations.V1LookupTableOlap > 0 {
-			return createExternalIdUniqueConstraintsOnMonthlyPartitions(ctx, tx, "v1_lookup_table_olap", today)
+			return createExternalIdUniqueConstraintsOnDailyPartitions(ctx, tx, "v1_payloads_olap", today)
 		}
 
 		return nil
@@ -450,9 +458,9 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		return err
 	}
 
-	if r.shouldPartitionEventsTables {
+	if r.shouldManageOptionalTablePartitions {
 		if err = runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
-			return r.queries.CreateOLAPEventPartitions(ctx, tx, pgtype.Date{Time: today, Valid: true})
+			return r.createOptionalTablePartitions(ctx, tx, today)
 		}); err != nil {
 			return err
 		}
@@ -477,13 +485,7 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		}
 
 		if tomorrowCreations.V1PayloadsOlap > 0 {
-			if err := createExternalIdUniqueConstraintsOnDailyPartitions(ctx, tx, "v1_payloads_olap", tomorrow); err != nil {
-				return err
-			}
-		}
-
-		if tomorrowCreations.V1LookupTableOlap > 0 {
-			return createExternalIdUniqueConstraintsOnMonthlyPartitions(ctx, tx, "v1_lookup_table_olap", tomorrow)
+			return createExternalIdUniqueConstraintsOnDailyPartitions(ctx, tx, "v1_payloads_olap", tomorrow)
 		}
 
 		return nil
@@ -491,9 +493,9 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		return err
 	}
 
-	if r.shouldPartitionEventsTables {
+	if r.shouldManageOptionalTablePartitions {
 		if err = runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
-			return r.queries.CreateOLAPEventPartitions(ctx, tx, pgtype.Date{Time: tomorrow, Valid: true})
+			return r.createOptionalTablePartitions(ctx, tx, tomorrow)
 		}); err != nil {
 			return err
 		}
@@ -514,8 +516,8 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	}
 
 	params := sqlcv1.ListOLAPPartitionsBeforeDateParams{
-		Shouldpartitioneventstables: r.shouldPartitionEventsTables,
-		Shouldpartitionoteltables:   r.shouldPartitionOtelTables,
+		Shouldmanageoptionaltablepartitions: r.shouldManageOptionalTablePartitions,
+		Shouldpartitionoteltables:           r.shouldPartitionOtelTables,
 		Date: pgtype.Date{
 			Time:  removeBefore,
 			Valid: true,
