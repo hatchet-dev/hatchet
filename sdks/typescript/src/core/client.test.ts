@@ -67,7 +67,9 @@ function fakeEngine() {
   const pushes: PushEventRequest[] = [];
   const cancels: CancelTasksRequest[] = [];
   const detailsQueue: RunDetails[] = [];
+  const detailsTimeouts: Array<number | undefined> = [];
   let detailsCalls = 0;
+  let detailsStalled = false;
   let triggerError: ConnectError | undefined;
 
   const transport = createRouterTransport(({ service }) => {
@@ -84,8 +86,18 @@ function fakeEngine() {
       },
     });
     service(AdminService, {
-      getRunDetails: () => {
+      getRunDetails: (_req, ctx) => {
         detailsCalls += 1;
+        detailsTimeouts.push(ctx.timeoutMs());
+        if (detailsStalled) {
+          // A stalled engine answers only when the call is abandoned, as a fetch aborted by
+          // its signal does.
+          return new Promise<RunDetails>((_, reject) => {
+            ctx.signal.addEventListener('abort', () => reject(ctx.signal.reason), {
+              once: true,
+            });
+          });
+        }
         if (detailsQueue.length === 0) throw new Error('no run details queued');
         return detailsQueue.length > 1 ? detailsQueue.shift()! : detailsQueue[0];
       },
@@ -126,11 +138,15 @@ function fakeEngine() {
     pushes,
     cancels,
     detailsQueue,
+    detailsTimeouts,
     get detailsCalls() {
       return detailsCalls;
     },
     failTriggersWith(error: ConnectError) {
       triggerError = error;
+    },
+    stallDetails() {
+      detailsStalled = true;
     },
   };
 }
@@ -466,6 +482,40 @@ describe('WorkflowRunRef.result', () => {
 
     await assertion;
     expect(engine.detailsCalls).toBe(callsBeforeAbort);
+  });
+
+  it('times out a poll in flight at the deadline and passes it to the call', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    engine.stallDetails();
+
+    const ref = await client.runNoWait('wf', {});
+    const result = ref.result({ timeoutMs: 1_000 });
+    const assertion = expect(result).rejects.toThrow(HatchetError);
+    await jest.advanceTimersByTimeAsync(1_100);
+
+    await assertion;
+    await expect(result).rejects.toThrow(/timed out after 1000 ms/);
+    expect(engine.detailsCalls).toBe(1);
+    expect(engine.detailsTimeouts[0]).toBeGreaterThan(0);
+    expect(engine.detailsTimeouts[0]).toBeLessThanOrEqual(1_000);
+  });
+
+  it('aborts a poll in flight with an AbortError when the signal fires', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    engine.stallDetails();
+    const controller = new AbortController();
+
+    const ref = await client.runNoWait('wf', {});
+    const result = ref.result({ signal: controller.signal, timeoutMs: 60_000 });
+    const assertion = expect(result).rejects.toThrow(AbortError);
+    await jest.advanceTimersByTimeAsync(10);
+    controller.abort();
+    await jest.advanceTimersByTimeAsync(10);
+
+    await assertion;
+    expect(engine.detailsCalls).toBe(1);
   });
 });
 

@@ -15,6 +15,40 @@ export const INITIAL_POLL_INTERVAL_MS = 250;
 /** The longest wait between two polls; the interval doubles until it gets here. */
 export const MAX_POLL_INTERVAL_MS = 5_000;
 
+/**
+ * The signal one poll is issued with: it fires when the caller's signal fires or when the
+ * deadline arrives, whichever is first. `AbortSignal.any` and `AbortSignal.timeout` are
+ * missing on some runtimes the core entry targets, so a plain controller, timer and
+ * forwarded abort are used everywhere; the timer is also one a test's fake clock controls.
+ */
+function pollSignal(
+  signal: AbortSignal | undefined,
+  remainingMs: number | undefined
+): { signal: AbortSignal; timedOut: () => boolean; dispose: () => void } {
+  const controller = new AbortController();
+  let timedOut = false;
+
+  const forwardAbort = () => controller.abort(signal?.reason);
+  signal?.addEventListener('abort', forwardAbort, { once: true });
+
+  const timer =
+    remainingMs === undefined
+      ? undefined
+      : setTimeout(() => {
+          timedOut = true;
+          controller.abort();
+        }, remainingMs);
+
+  return {
+    signal: controller.signal,
+    timedOut: () => timedOut,
+    dispose: () => {
+      signal?.removeEventListener('abort', forwardAbort);
+      if (timer !== undefined) clearTimeout(timer);
+    },
+  };
+}
+
 function wait(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
     if (signal?.aborted) {
@@ -85,7 +119,8 @@ export class WorkflowRunRef<T> {
    *
    * The wait polls with backoff, starting at 250 ms and capped at 5 s with jitter. It is
    * unbounded unless `timeoutMs` is set (rejects with a `HatchetError`) or `signal` fires
-   * (rejects with an `AbortError`).
+   * (rejects with an `AbortError`). Both bound the poll in flight as well as the waits
+   * between polls, so a stalled `GetRunDetails` cannot hold the result past the deadline.
    *
    * A failed or cancelled run rejects the way the Node client's `result()` does: with the
    * array of the tasks' error messages when any task reported one, otherwise with an `Error`
@@ -97,21 +132,38 @@ export class WorkflowRunRef<T> {
     const deadline = options.timeoutMs !== undefined ? startedAt + options.timeoutMs : undefined;
     let interval = INITIAL_POLL_INTERVAL_MS;
 
+    const abortError = () => createAbortError(`waiting for run ${this.workflowRunId} was aborted`);
+    const timeoutError = () =>
+      new HatchetError(
+        `timed out after ${options.timeoutMs} ms waiting for run ${this.workflowRunId}`
+      );
+
     for (;;) {
       if (signal?.aborted) {
-        throw createAbortError(`waiting for run ${this.workflowRunId} was aborted`);
+        throw abortError();
+      }
+      const remaining = deadline !== undefined ? deadline - Date.now() : undefined;
+      if (remaining !== undefined && remaining <= 0) {
+        throw timeoutError();
       }
 
-      // The signal also cancels the poll in flight; an abort during it surfaces as the same
-      // AbortError the check above throws, whatever the transport rejected with.
+      // Whatever the transport rejected with, an abort by the caller's signal surfaces as the
+      // AbortError the check above throws and one by the deadline as the same HatchetError;
+      // the deadline also goes to the call so the transport applies a Connect timeout.
+      const poll = pollSignal(signal, remaining);
       let detail: RunDetail;
       try {
-        detail = await this.runs.getDetails(this.workflowRunId, { signal });
+        detail = await this.runs.getDetails(this.workflowRunId, { signal: poll.signal, deadline });
       } catch (e) {
         if (signal?.aborted) {
-          throw createAbortError(`waiting for run ${this.workflowRunId} was aborted`);
+          throw abortError();
+        }
+        if (poll.timedOut() || (deadline !== undefined && Date.now() >= deadline)) {
+          throw timeoutError();
         }
         throw e;
+      } finally {
+        poll.dispose();
       }
       if (detail.done) {
         return this.resolveResult(detail);
@@ -119,9 +171,7 @@ export class WorkflowRunRef<T> {
 
       const now = Date.now();
       if (deadline !== undefined && now >= deadline) {
-        throw new HatchetError(
-          `timed out after ${options.timeoutMs} ms waiting for run ${this.workflowRunId}`
-        );
+        throw timeoutError();
       }
 
       // Jitter of up to 20% keeps many waiters from polling in lockstep.
