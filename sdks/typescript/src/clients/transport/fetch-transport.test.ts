@@ -45,7 +45,9 @@ describe('createFetchTransport message size limits', () => {
   it('decodes a response under the receive limit', async () => {
     const body = detailsBody(DEFAULT_MAX_MESSAGE_BYTES - 64);
     const { fetch } = stubFetch(() => new Response(body, { headers: PROTO }));
-    const rpc = createV1AdminRpc(createFetchTransport({ token: TOKEN, serverUrl: 'https://e', fetch }));
+    const rpc = createV1AdminRpc(
+      createFetchTransport({ token: TOKEN, serverUrl: 'https://e', fetch })
+    );
 
     const details = await rpc.getRunDetails({ externalId: 'run' });
 
@@ -56,7 +58,9 @@ describe('createFetchTransport message size limits', () => {
   it('rejects a response over 4 MiB with ResourceExhausted instead of decoding it', async () => {
     const body = detailsBody(DEFAULT_MAX_MESSAGE_BYTES + 16);
     const { fetch } = stubFetch(() => new Response(body, { headers: PROTO }));
-    const rpc = createV1AdminRpc(createFetchTransport({ token: TOKEN, serverUrl: 'https://e', fetch }));
+    const rpc = createV1AdminRpc(
+      createFetchTransport({ token: TOKEN, serverUrl: 'https://e', fetch })
+    );
 
     const error = await rejection(rpc.getRunDetails({ externalId: 'run' }));
 
@@ -81,7 +85,9 @@ describe('createFetchTransport message size limits', () => {
         },
       });
     const { fetch } = stubFetch(() => new Response(endless(), { headers: PROTO }));
-    const rpc = createV1AdminRpc(createFetchTransport({ token: TOKEN, serverUrl: 'https://e', fetch }));
+    const rpc = createV1AdminRpc(
+      createFetchTransport({ token: TOKEN, serverUrl: 'https://e', fetch })
+    );
 
     const error = await rejection(rpc.getRunDetails({ externalId: 'run' }));
 
@@ -95,7 +101,9 @@ describe('createFetchTransport message size limits', () => {
     const { fetch } = stubFetch(
       () => new Response(json, { status: 500, headers: { 'content-type': 'application/json' } })
     );
-    const rpc = createV1AdminRpc(createFetchTransport({ token: TOKEN, serverUrl: 'https://e', fetch }));
+    const rpc = createV1AdminRpc(
+      createFetchTransport({ token: TOKEN, serverUrl: 'https://e', fetch })
+    );
 
     const error = await rejection(rpc.getRunDetails({ externalId: 'run' }));
 
@@ -104,7 +112,9 @@ describe('createFetchTransport message size limits', () => {
 
   it('refuses a request over 4 MiB before sending it', async () => {
     const { fetch, requests } = stubFetch(() => new Response(new Uint8Array(), { headers: PROTO }));
-    const rpc = createEventsRpc(createFetchTransport({ token: TOKEN, serverUrl: 'https://e', fetch }));
+    const rpc = createEventsRpc(
+      createFetchTransport({ token: TOKEN, serverUrl: 'https://e', fetch })
+    );
 
     const error = await rejection(
       rpc.putLog({ taskRunExternalId: 'task', message: 'x'.repeat(DEFAULT_MAX_MESSAGE_BYTES) })
@@ -168,12 +178,28 @@ describe('resolveServerUrl', () => {
 
   it.each([
     ['http://e.example:7070', undefined, /serverUrl is http:\/\/ but tls\.strategy is 'tls'/],
-    ['http://e.example:7070', { strategy: 'tls' as const }, /serverUrl is http:\/\/ but tls\.strategy/],
-    ['https://e.example', { strategy: 'none' as const }, /serverUrl is https:\/\/ but tls\.strategy is 'none'/],
+    [
+      'http://e.example:7070',
+      { strategy: 'tls' as const },
+      /serverUrl is http:\/\/ but tls\.strategy/,
+    ],
+    [
+      'https://e.example',
+      { strategy: 'none' as const },
+      /serverUrl is https:\/\/ but tls\.strategy is 'none'/,
+    ],
     ['https://user:secret@e.example', undefined, /serverUrl must not carry a username or password/],
-    ['https://e.example/base?x=1', undefined, /serverUrl must not carry a query string or fragment/],
+    [
+      'https://e.example/base?x=1',
+      undefined,
+      /serverUrl must not carry a query string or fragment/,
+    ],
     ['https://e.example/base?', undefined, /serverUrl must not carry a query string or fragment/],
-    ['https://e.example/base#frag', undefined, /serverUrl must not carry a query string or fragment/],
+    [
+      'https://e.example/base#frag',
+      undefined,
+      /serverUrl must not carry a query string or fragment/,
+    ],
     ['ftp://e.example', undefined, /serverUrl must be an absolute http:\/\/ or https:\/\/ URL/],
     ['e.example:7070', undefined, /serverUrl must be an absolute http:\/\/ or https:\/\/ URL/],
     ['//e.example', undefined, /serverUrl must be an absolute http:\/\/ or https:\/\/ URL/],

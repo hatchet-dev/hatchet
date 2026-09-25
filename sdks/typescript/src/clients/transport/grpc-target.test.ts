@@ -84,11 +84,14 @@ describe('parseGrpcTarget', () => {
     expect(() => parseGrpcTarget('engine:port')).toThrow(/valid host and port/);
   });
 
-  it.each(IPV6_CORPUS)('decides ipv6:%j as Node does, bare and bracketed with a port', (literal) => {
-    const expected = nodeIsIPv6(literal);
-    expect(accepts(`ipv6:${literal}`)).toBe(expected);
-    expect(accepts(`ipv6:[${literal}]:7070`)).toBe(expected);
-  });
+  it.each(IPV6_CORPUS)(
+    'decides ipv6:%j as Node does, bare and bracketed with a port',
+    (literal) => {
+      const expected = nodeIsIPv6(literal);
+      expect(accepts(`ipv6:${literal}`)).toBe(expected);
+      expect(accepts(`ipv6:[${literal}]:7070`)).toBe(expected);
+    }
+  );
 
   it.each([
     'fe80::1%',

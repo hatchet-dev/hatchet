@@ -498,7 +498,10 @@ describe('HatchetCore.runManyNoWait', () => {
     const client = makeClient(engine);
     engine.detailsQueue.push(
       completed({ task: taskRun('task', RunStatus.COMPLETED, { ok: true }) }),
-      { ...completed({ task: taskRun('task', RunStatus.FAILED, undefined, 'task error') }), status: RunStatus.FAILED }
+      {
+        ...completed({ task: taskRun('task', RunStatus.FAILED, undefined, 'task error') }),
+        status: RunStatus.FAILED,
+      }
     );
 
     await expect(client.runMany('wf', [{ input: {} }, { input: {} }])).rejects.toEqual([
@@ -516,7 +519,10 @@ describe('HatchetCore.runManyNoWait', () => {
     engine.detailsQueue.push(
       failed,
       completed({ task: taskRun('task', RunStatus.COMPLETED, { ok: true }) }),
-      { ...completed({ task: taskRun('task', RunStatus.FAILED, undefined, 'one') }), status: RunStatus.FAILED },
+      {
+        ...completed({ task: taskRun('task', RunStatus.FAILED, undefined, 'one') }),
+        status: RunStatus.FAILED,
+      },
       { ...completed({}), status: RunStatus.CANCELLED }
     );
     engine.detailsQueue[2].taskRuns!.other = taskRun('other', RunStatus.FAILED, undefined, 'two');
@@ -633,7 +639,9 @@ describe('WorkflowRunRef.result', () => {
   it('resolves a standalone task whose output is a JSON null with null', async () => {
     const engine = fakeEngine();
     const client = makeClient(engine);
-    engine.detailsQueue.push(completed({ nothing: taskRunText('nothing', RunStatus.COMPLETED, 'null') }));
+    engine.detailsQueue.push(
+      completed({ nothing: taskRunText('nothing', RunStatus.COMPLETED, 'null') })
+    );
 
     const ref = await client.runNoWait('nothing', {}, { _standaloneTaskName: 'nothing' });
     await expect(ref.result()).resolves.toBeNull();
@@ -893,7 +901,9 @@ describe('HatchetCore.events', () => {
 
     const rejected = client.logs.put('task-1', 'y'.repeat(1_001));
     await expect(rejected).rejects.toThrow(HatchetError);
-    await expect(rejected).rejects.toThrow(/log line is 1001 characters, over the 1000-character limit/);
+    await expect(rejected).rejects.toThrow(
+      /log line is 1001 characters, over the 1000-character limit/
+    );
     await expect(rejected).rejects.not.toThrow(/yyy/);
     expect(engine.logs).toHaveLength(1);
   });
