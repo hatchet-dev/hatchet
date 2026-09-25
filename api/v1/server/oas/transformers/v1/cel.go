@@ -16,6 +16,7 @@ const (
 	minSafeInteger = -maxSafeInteger
 )
 
+// ToV1CELDebugResponse converts a DebugOut and evaluation error into the API response shape.
 func ToV1CELDebugResponse(res *cel.DebugOut, err error) gen.V1CELDebugResponse {
 	if err != nil {
 		msg := err.Error()

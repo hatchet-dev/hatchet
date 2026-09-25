@@ -444,12 +444,15 @@ func (p *CELParser) EvaluateEventExpression(expr string, input Input) (bool, err
 	return out.Value().(bool), nil
 }
 
+// DebugOut holds the result of a debug CEL evaluation. Exactly one field is non-nil on success.
 type DebugOut struct {
 	StringVal *string
 	IntVal    *int64
 	BoolVal   *bool
 }
 
+// EvaluateDebugExpression evaluates expr against input using the event environment and returns
+// the result as a DebugOut regardless of the output type (bool, string, or int).
 func (p *CELParser) EvaluateDebugExpression(expr string, input Input) (*DebugOut, error) {
 	ast, issues := p.eventEnv.Compile(expr)
 	if issues != nil && issues.Err() != nil {
