@@ -98,12 +98,10 @@ export class CELClient {
         };
       }
 
-      if (response.data.outputType === undefined) {
-        throw new Error('No output received from CEL debug API.');
-      }
-
-      const rawType = response.data.outputType;
-      if (!rawType || !VALID_OUTPUT_TYPES.includes(rawType as CELOutputType)) {
+      // Old servers (pre-outputType) return only `output: boolean` with no outputType.
+      // Fall back to 'bool' so upgrading the SDK against an old server keeps working.
+      const rawType = response.data.outputType ?? 'bool';
+      if (!VALID_OUTPUT_TYPES.includes(rawType as CELOutputType)) {
         throw new Error(`Unknown outputType received from CEL debug API: ${rawType}`);
       }
 
