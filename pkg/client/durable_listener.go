@@ -10,6 +10,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/pkg/client/streaming"
 )
 
 type DurableEvent *contracts.DurableEvent
@@ -27,7 +28,7 @@ type listenTuple struct {
 // NOTE: flow methods mirror WorkflowRunsListener in listener.go; keep changes
 // in sync when adjusting add/ensure/dispatch behavior.
 type DurableEventsListener struct {
-	stream *reconnectingStream[contracts.V1Dispatcher_ListenForDurableEventClient]
+	stream *streaming.ReconnectingStream[contracts.V1Dispatcher_ListenForDurableEventClient]
 	l      *zerolog.Logger
 	reg    handlerRegistry[listenTuple, DurableEvent]
 	gate   listenGate
@@ -41,7 +42,7 @@ func newDurableEventsListener(
 		reg: newHandlerRegistry[listenTuple, DurableEvent](),
 		l:   l,
 	}
-	d.stream = newReconnectingStream(
+	d.stream = streaming.NewReconnectingStream(
 		l,
 		"durable event listener",
 		constructor,
@@ -67,7 +68,7 @@ func (r *subscribeClientImpl) getDurableEventsListener(
 		return r.clientv1.ListenForDurableEvent(r.ctx.newContext(ctx), grpc_retry.Disable())
 	})
 
-	if err := l.stream.connectSync(ctx); err != nil {
+	if err := l.stream.ConnectSync(ctx); err != nil {
 		return nil, err
 	}
 
@@ -80,7 +81,7 @@ func (r *subscribeClientImpl) getDurableEventsListener(
 	}
 
 	if err := l.startBackground(onExit); err != nil {
-		_ = l.stream.closeStream()
+		_ = l.stream.CloseStream()
 		return nil, err
 	}
 
@@ -102,11 +103,11 @@ func (l *DurableEventsListener) add(
 	handler DurableEventHandler,
 	onError func(error),
 ) error {
-	if l.stream.isClosed() {
+	if l.stream.IsClosed() {
 		return errListenerClosed
 	}
 
-	lifecycle := l.stream.lifecycleContext()
+	lifecycle := l.stream.LifecycleContext()
 	if err := l.ensureListening(lifecycle); err != nil {
 		return err
 	}
@@ -132,7 +133,7 @@ func (l *DurableEventsListener) add(
 }
 
 func (l *DurableEventsListener) retrySend(t listenTuple) error {
-	return l.stream.retrySend(l.stream.lifecycleContext(),
+	return l.stream.RetrySend(l.stream.LifecycleContext(),
 		func(c contracts.V1Dispatcher_ListenForDurableEventClient) error {
 			return c.Send(&contracts.ListenForDurableEventRequest{
 				TaskId:    t.taskId,
@@ -182,12 +183,12 @@ func (l *DurableEventsListener) dispatch(event *contracts.DurableEvent) error {
 }
 
 func (l *DurableEventsListener) shouldReconnectOnEOF(ctx context.Context) bool {
-	return ctx.Err() == nil && !l.stream.isClosed() && l.reg.hasAny()
+	return ctx.Err() == nil && !l.stream.IsClosed() && l.reg.hasAny()
 }
 
 func (l *DurableEventsListener) failHandlers(err error) {
 	n := l.reg.failAll(err)
-	l.l.Error().Err(err).Str("stream", l.stream.name).Int("handlers", n).
+	l.l.Error().Err(err).Str("stream", l.stream.Name()).Int("handlers", n).
 		Msg("stream listener terminated; failing registered handlers")
 }
 
@@ -196,51 +197,51 @@ func (l *DurableEventsListener) runLoop(ctx context.Context) (err error) {
 	released := false
 	defer func() { finishGatedListen(&l.gate, released, err, l.failHandlers) }()
 
-	return listenStream(ctx, l.stream,
+	return streaming.Listen(ctx, l.stream,
 		func(c contracts.V1Dispatcher_ListenForDurableEventClient) (*contracts.DurableEvent, error) {
 			return c.Recv()
 		},
 		l.dispatch,
-		gatedClassifier(newStreamClassifier(keep), &l.gate, keep, &released),
+		gatedClassifier(streaming.NewClassifier(keep), &l.gate, keep, &released),
 	)
 }
 
 func (l *DurableEventsListener) ensureListening(ctx context.Context) error {
-	if l.stream.isClosed() {
+	if l.stream.IsClosed() {
 		return errListenerClosed
 	}
 	if l.gate.active() {
 		return nil
 	}
-	if err := l.stream.connectSync(ctx); err != nil {
+	if err := l.stream.ConnectSync(ctx); err != nil {
 		return err
 	}
-	if !l.gate.tryStart(l.stream.isClosed()) {
-		if l.stream.isClosed() {
+	if !l.gate.tryStart(l.stream.IsClosed()) {
+		if l.stream.IsClosed() {
 			return errListenerClosed
 		}
 		return nil
 	}
-	go func() { _ = l.runLoop(l.stream.lifecycleContext()) }()
+	go func() { _ = l.runLoop(l.stream.LifecycleContext()) }()
 	return nil
 }
 
 func (l *DurableEventsListener) startBackground(onExit func()) error {
-	if !l.gate.tryStart(l.stream.isClosed()) {
-		if l.stream.isClosed() {
+	if !l.gate.tryStart(l.stream.IsClosed()) {
+		if l.stream.IsClosed() {
 			return errListenerClosed
 		}
 		return nil
 	}
 	go func() {
 		defer onExit()
-		_ = l.runLoop(l.stream.lifecycleContext())
+		_ = l.runLoop(l.stream.LifecycleContext())
 	}()
 	return nil
 }
 
 func (l *DurableEventsListener) listen(ctx context.Context) error {
-	if !l.gate.tryStart(l.stream.isClosed()) {
+	if !l.gate.tryStart(l.stream.IsClosed()) {
 		return nil
 	}
 	return l.runLoop(ctx)

@@ -2,6 +2,7 @@ import { ErrorsPanel } from './dashboard/errors-panel';
 import { StatsPanel } from './dashboard/stats-panel';
 import { TasksPanel } from './dashboard/tasks-panel';
 import { WorkersPanel } from './dashboard/workers-panel';
+import { FreePlanBanner } from './free-plan-banner';
 import { SupportSection } from './support-section';
 import { useTenantOnboarded } from './use-onboarding-progress';
 import { useOpenOnboarding } from './use-open-onboarding';
@@ -70,6 +71,8 @@ export function OverviewDashboard({ tenantId }: { tenantId: string }) {
         </div>
       )}
 
+      <FreePlanBanner />
+
       {/* Stats spans the full width. Below it, two independent columns so each
           packs top-to-bottom on its own: Workers sits directly under Runs on
           the left regardless of how tall the Errors panel grows on the right. A
@@ -86,19 +89,7 @@ export function OverviewDashboard({ tenantId }: { tenantId: string }) {
         </div>
       </div>
 
-      <SupportSection />
-
-      <div className="flex flex-wrap items-center gap-2 border-t border-border/50 pt-4 text-sm text-muted-foreground">
-        <span>Want to run your first task?</span>
-        <Button
-          variant="link"
-          size="sm"
-          className="h-auto p-0"
-          onClick={openOnboarding}
-        >
-          Run your first task
-        </Button>
-      </div>
+      <SupportSection tenantId={tenantId} />
     </div>
   );
 }

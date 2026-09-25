@@ -549,6 +549,10 @@ func (m *sharedRepository) processEventMatchesForTarget(ctx context.Context, tx 
 	satisfiedMatches := make([]*sqlcv1.SaveSatisfiedMatchConditionsRow, 0)
 
 	if len(satisfiedMatchIds) > 0 {
+		if err := sqlchelpers.DisableJITForTransaction(ctx, tx); err != nil {
+			return nil, err
+		}
+
 		satisfiedMatches, err = m.queries.SaveSatisfiedMatchConditions(
 			ctx,
 			tx,

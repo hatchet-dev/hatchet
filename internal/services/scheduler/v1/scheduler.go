@@ -1464,6 +1464,20 @@ func (s *Scheduler) handleDeadLetteredBatchStart(ctx context.Context, msg *msgqu
 // task, or the OLAP reconcile sweeps.
 const maxDurableCallbackRedeliveries = 50
 
+// The dispatcher publishes undelivered callbacks straight to the dead-letter queue, which has no
+// message TTL, so without a delay here the whole retry budget is spent within a second, before a
+// reconnecting worker has had a chance to re-register its session.
+const (
+	durableCallbackRedeliveryBaseDelay = 100 * time.Millisecond
+	durableCallbackRedeliveryMaxDelay  = 5 * time.Second
+)
+
+func durableCallbackRedeliveryDelay(redeliveryCount int32) time.Duration {
+	delay := durableCallbackRedeliveryBaseDelay << min(redeliveryCount, 10)
+
+	return min(delay, durableCallbackRedeliveryMaxDelay)
+}
+
 func (s *Scheduler) handleDeadLetteredDurableCallbackCompleted(ctx context.Context, msg *msgqueue.Message) error {
 	payloads := msgqueue.JSONConvert[tasktypes.DurableCallbackCompletedPayload](msg.Payloads)
 
@@ -1508,6 +1522,24 @@ func (s *Scheduler) handleDeadLetteredDurableCallbackCompleted(ctx context.Conte
 			ChildTaskErrorMessage: p.ChildTaskErrorMessage,
 			RedeliveryCount:       p.RedeliveryCount + 1,
 		})
+	}
+
+	if len(callbacks) == 0 {
+		return nil
+	}
+
+	var maxRedeliveryCount int32
+
+	for _, cb := range callbacks {
+		maxRedeliveryCount = max(maxRedeliveryCount, cb.RedeliveryCount)
+	}
+
+	// the dead-letter message stays unacknowledged while we wait, so a scheduler that stops
+	// mid-delay has the message redelivered instead of losing the callbacks
+	select {
+	case <-time.After(durableCallbackRedeliveryDelay(maxRedeliveryCount)):
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 
 	return durable.DispatchCallbacks(ctx, s.l, s.mq, s.repov1, msg.TenantID, callbacks)

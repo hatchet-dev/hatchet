@@ -435,7 +435,7 @@ CREATE TYPE v1_payload_location_olap AS ENUM ('INLINE', 'EXTERNAL');
 
 CREATE TABLE v1_payloads_olap (
     tenant_id UUID NOT NULL,
-    external_id UUID NOT NULL,
+    external_id UUID NOT NULL, -- IMPORTANT: Each _partition_ of this table has a `UNIQUE` constraint on this column, but the parent does not
 
     location v1_payload_location_olap NOT NULL,
     external_location_key TEXT,
@@ -820,7 +820,9 @@ BEGIN
     UPDATE
         v1_runs_olap r
     SET
-        readable_status = n.readable_status
+        readable_status = n.readable_status,
+        parent_task_external_id = n.parent_task_external_id,
+        idempotency_key = n.idempotency_key
     FROM new_rows n
     WHERE
         r.id = n.id

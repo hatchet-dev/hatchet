@@ -269,6 +269,8 @@ type TaskRepository interface {
 
 	ListDurableOrchestratorChildExternalIds(ctx context.Context, tenantId, orchestratorExternalId uuid.UUID) ([]uuid.UUID, error)
 
+	ListUnfinishedDurableOrchestratorChildren(ctx context.Context, tenantId uuid.UUID, orchestratorExternalIds []uuid.UUID) ([]TaskIdInsertedAtRetryCount, error)
+
 	CompleteTasks(ctx context.Context, tenantId uuid.UUID, tasks []CompleteTaskOpts) (*FinalizedTaskResponse, error)
 
 	FailTasks(ctx context.Context, tenantId uuid.UUID, tasks []FailTaskOpts) (*FailTasksResponse, error)
@@ -376,6 +378,38 @@ func (r *TaskRepositoryImpl) EnsureTablePartitionsExist(ctx context.Context) (bo
 	return r.queries.EnsureTablePartitionsExist(ctx, r.pool)
 }
 
+func createExternalIdUniqueConstraintsOnDailyPartitions(ctx context.Context, db sqlcv1.DBTX, parentTableName string, partitionDates ...time.Time) error {
+	for _, partitionDate := range partitionDates {
+		partitionTableName := fmt.Sprintf("%s_%s", parentTableName, partitionDate.UTC().Format("20060102"))
+		constraintName := fmt.Sprintf("%s_external_id_uq", partitionTableName)
+
+		_, err := db.Exec(ctx, fmt.Sprintf("ALTER TABLE %s ADD CONSTRAINT %s UNIQUE (external_id);", partitionTableName, constraintName))
+
+		if err != nil {
+			return fmt.Errorf("failed to create unique constraint %s: %w", constraintName, err)
+		}
+	}
+
+	return nil
+}
+
+func reattachIndicesToParents(ctx context.Context, queries *sqlcv1.Queries, db sqlcv1.DBTX, isOlap bool) error {
+	invalidIndexes, err := queries.FindInvalidIndexes(ctx, db, isOlap)
+	if err != nil {
+		return fmt.Errorf("failed to list invalid partitioned indexes: %w", err)
+	}
+
+	for _, index := range invalidIndexes {
+		_, err := db.Exec(ctx, fmt.Sprintf("ALTER INDEX %s ATTACH PARTITION %s;", index.ParentIndexName, index.ExampleChildIndexName))
+
+		if err != nil {
+			return fmt.Errorf("failed to attach index %s to invalid parent index %s on %s: %w", index.ExampleChildIndexName, index.ParentIndexName, index.ParentTableName, err)
+		}
+	}
+
+	return nil
+}
+
 func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	const leaseKey = "v1_task_partitions"
 
@@ -406,12 +440,20 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	// so they cannot go through pgbouncer when it's configured.
 	ddlConn, release, err := sqlchelpers.AcquireConnectionWithStatementTimeout(ctx, r.ddlPool, r.l, 30*60*1000) // nolint:govet
 	if err != nil {
-		r.l.Error().Err(err).Msg("failed to acquire connection from ddlPool")
+		return fmt.Errorf("failed to acquire connection from ddlPool: %w", err)
 	}
+
+	createPartitionsTx, err := ddlConn.Begin(ctx)
+	if err != nil {
+		release()
+		return fmt.Errorf("failed to begin partition creation transaction: %w", err)
+	}
+
 	releaseCreateConn := func() {
 		resetCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		defer release()
+		_ = createPartitionsTx.Rollback(resetCtx)
 		if _, resetErr := ddlConn.Exec(resetCtx, "SET lock_timeout = 0"); resetErr != nil {
 			r.l.Error().Err(resetErr).Msg("failed to reset lock_timeout on DDL connection")
 		}
@@ -422,7 +464,7 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		return fmt.Errorf("failed to set lock_timeout: %w", err)
 	}
 
-	err = r.queries.CreatePartitions(ctx, ddlConn, pgtype.Date{
+	todayCreations, err := r.queries.CreatePartitions(ctx, createPartitionsTx, pgtype.Date{
 		Time:  today,
 		Valid: true,
 	})
@@ -435,7 +477,7 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		return err
 	}
 
-	err = r.queries.CreatePartitions(ctx, ddlConn, pgtype.Date{
+	tomorrowCreations, err := r.queries.CreatePartitions(ctx, createPartitionsTx, pgtype.Date{
 		Time:  tomorrow,
 		Valid: true,
 	})
@@ -446,6 +488,37 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 			return ErrPartitionLockConflict
 		}
 		return err
+	}
+
+	var payloadDatesToCreateUniqueConstraints []time.Time
+
+	if todayCreations.V1Payload > 0 {
+		payloadDatesToCreateUniqueConstraints = append(payloadDatesToCreateUniqueConstraints, today)
+	}
+
+	if tomorrowCreations.V1Payload > 0 {
+		payloadDatesToCreateUniqueConstraints = append(payloadDatesToCreateUniqueConstraints, tomorrow)
+	}
+
+	if err = createExternalIdUniqueConstraintsOnDailyPartitions(ctx, createPartitionsTx, "v1_payload", payloadDatesToCreateUniqueConstraints...); err != nil {
+		releaseCreateConn()
+		if isLockNotAvailable(err) {
+			return ErrPartitionLockConflict
+		}
+		return err
+	}
+
+	if err = reattachIndicesToParents(ctx, r.queries, createPartitionsTx, false); err != nil {
+		releaseCreateConn()
+		if isLockNotAvailable(err) {
+			return ErrPartitionLockConflict
+		}
+		return err
+	}
+
+	if err = createPartitionsTx.Commit(ctx); err != nil {
+		releaseCreateConn()
+		return fmt.Errorf("failed to commit partition creation transaction: %w", err)
 	}
 
 	releaseCreateConn()
@@ -1323,6 +1396,29 @@ func (r *TaskRepositoryImpl) ListDurableOrchestratorChildOutputEvents(ctx contex
 
 func (r *TaskRepositoryImpl) ListDurableOrchestratorChildExternalIds(ctx context.Context, tenantId, orchestratorExternalId uuid.UUID) ([]uuid.UUID, error) {
 	return r.queries.ListDurableOrchestratorChildTaskExternalIds(ctx, r.pool, []uuid.UUID{orchestratorExternalId})
+}
+
+func (r *TaskRepositoryImpl) ListUnfinishedDurableOrchestratorChildren(ctx context.Context, tenantId uuid.UUID, orchestratorExternalIds []uuid.UUID) ([]TaskIdInsertedAtRetryCount, error) {
+	rows, err := r.queries.ListUnfinishedDurableOrchestratorChildren(ctx, r.pool, sqlcv1.ListUnfinishedDurableOrchestratorChildrenParams{
+		Tenantid:                tenantId,
+		Orchestratorexternalids: orchestratorExternalIds,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	children := make([]TaskIdInsertedAtRetryCount, len(rows))
+
+	for i, row := range rows {
+		children[i] = TaskIdInsertedAtRetryCount{
+			Id:         row.ID,
+			InsertedAt: row.InsertedAt,
+			RetryCount: row.RetryCount,
+		}
+	}
+
+	return children, nil
 }
 
 func (r *TaskRepositoryImpl) listTaskOutputEvents(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, taskExternalIds []uuid.UUID) ([]*TaskOutputEvent, error) {
@@ -3147,10 +3243,10 @@ func (r *sharedRepository) replayTasks(
 			return nil, fmt.Errorf("missing payload store opts for step id %s", stepId)
 		}
 
-		err = r.payloadStore.Store(ctx, tx, storePayloadOpts...)
+		err = r.payloadStore.OverwriteExisting(ctx, tx, storePayloadOpts...)
 
 		if err != nil {
-			return nil, fmt.Errorf("failed to store payloads for step id %s: %w", stepId, err)
+			return nil, fmt.Errorf("failed to overwrite payloads for step id %s: %w", stepId, err)
 		}
 
 		for _, task := range replayRes {
@@ -4530,6 +4626,36 @@ func (r *TaskRepositoryImpl) AnalyzeTaskTables(ctx context.Context) error {
 
 	if err != nil {
 		return fmt.Errorf("error analyzing v1_payload: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1DurableEventLogEntry(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_durable_event_log_entry: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1DurableEventLogBranchPoint(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_durable_event_log_branch_point: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1DurableEventLogFile(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_durable_event_log_file: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1LogLine(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_log_line: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1Event(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_event: %v", err)
 	}
 
 	if err := commit(ctx); err != nil {

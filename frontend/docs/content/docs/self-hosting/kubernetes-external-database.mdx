@@ -57,3 +57,17 @@ grant hatchet to postgres;
 
 alter database hatchet owner to hatchet;
 ```
+
+## Required Postgres extensions
+
+As of `v0.87.6`, Hatchet's migrations run `CREATE EXTENSION btree_gist`. `btree_gist` ships with Postgres and is a [trusted extension](https://www.postgresql.org/docs/current/btree-gist.html), so the database owner can create it without superuser privileges on most self-managed instances, AWS RDS, and Google Cloud SQL.
+
+Some managed providers require extensions to be allow-listed before any user can create them. If `btree_gist` is not allow-listed, migrations will fail with an error like:
+
+```
+ERROR: extension "btree_gist" is not allow-listed for users in Azure Database for PostgreSQL (SQLSTATE 0A000)
+```
+
+- **Azure Database for PostgreSQL:** add `BTREE_GIST` to the `azure.extensions` server parameter. See [Allow extensions](https://learn.microsoft.com/en-us/azure/postgresql/extensions/how-to-allow-extensions).
+
+You only need to allow-list the extension. Do not create it yourself on a fresh database, since the migration creates it and will fail if it already exists.

@@ -71,7 +71,7 @@ def _skip_unless_batching(supports_batching: bool) -> None:
 def worker() -> Generator[Popen[bytes], None, None]:
     command = ["poetry", "run", "python", "examples/worker.py"]
 
-    with hatchet_worker(command) as proc:
+    with hatchet_worker(command, get_free_port()) as proc:
         yield proc
 
 

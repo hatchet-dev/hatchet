@@ -1,11 +1,11 @@
 package repository
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -17,6 +17,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/hatchet-dev/hatchet/internal/listutils"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -103,6 +104,7 @@ type ExternalStore interface {
 
 type PayloadStoreRepository interface {
 	Store(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) error
+	OverwriteExisting(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) error
 	Retrieve(ctx context.Context, tx sqlcv1.DBTX, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
 	RetrieveSingle(ctx context.Context, tx sqlcv1.DBTX, opt RetrievePayloadOpts) ([]byte, error)
 	RetrieveFromExternal(ctx context.Context, opts ...RetrieveFromExternalOpts) (map[RetrieveFromExternalOpts][]byte, error)
@@ -176,6 +178,20 @@ func payloadUniqueKeyFromRetrieveOpt(opt RetrievePayloadOpts) PayloadUniqueKey {
 	}
 }
 
+func isEmptyPayload(payload []byte) bool {
+	trimmed := bytes.TrimSpace(payload)
+
+	return len(trimmed) == 0 || bytes.Equal(trimmed, []byte("{}"))
+}
+
+func payloadOrEmptyJSONObject(payload []byte) []byte {
+	if len(payload) == 0 {
+		return []byte("{}")
+	}
+
+	return payload
+}
+
 func payloadUniqueKeyFromRow(payload *sqlcv1.V1Payload) PayloadUniqueKey {
 	return PayloadUniqueKey{
 		ID:              payload.ID,
@@ -207,6 +223,10 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 	})
 
 	for _, payload := range payloads {
+		if isEmptyPayload(payload.Payload) {
+			continue
+		}
+
 		tenantId := payload.TenantId
 		uniqueKey := PayloadUniqueKey{
 			ID:              payload.Id,
@@ -247,6 +267,39 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 	}
 
 	return err
+}
+
+func (p *payloadStoreRepositoryImpl) OverwriteExisting(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) error {
+	if len(payloads) == 0 {
+		return nil
+	}
+
+	uniquePayloads := listutils.UniqBy(payloads, func(payload StorePayloadOpts) PayloadUniqueKey {
+		return PayloadUniqueKey{
+			ID:              payload.Id,
+			InsertedAtMicro: payload.InsertedAt.Time.UnixMicro(),
+			TenantId:        payload.TenantId,
+			Type:            payload.Type,
+		}
+	})
+
+	params := sqlcv1.OverwritePayloadsParams{}
+
+	for _, payload := range uniquePayloads {
+		params.Ids = append(params.Ids, payload.Id)
+		params.Insertedats = append(params.Insertedats, payload.InsertedAt)
+		params.Types = append(params.Types, string(payload.Type))
+		params.Inlinecontents = append(params.Inlinecontents, payload.Payload)
+		params.Tenantids = append(params.Tenantids, payload.TenantId)
+	}
+
+	err := p.queries.OverwritePayloads(ctx, tx, params)
+
+	if err != nil {
+		return fmt.Errorf("failed to overwrite payloads: %w", err)
+	}
+
+	return nil
 }
 
 func (p *payloadStoreRepositoryImpl) Retrieve(ctx context.Context, tx sqlcv1.DBTX, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error) {
@@ -517,48 +570,6 @@ func (p *payloadStoreRepositoryImpl) OptimizePayloadWindowSize(ctx context.Conte
 	)
 }
 
-type DuplicatedExternalIdRow struct {
-	ExternalId uuid.UUID
-	Count      int64
-}
-
-func (p *payloadStoreRepositoryImpl) ValidateNoDuplicateExternalIds(ctx context.Context, tx sqlcv1.DBTX, partitionDate PartitionDate) ([]*DuplicatedExternalIdRow, error) {
-	tableName := fmt.Sprintf("v1_payload_%s", partitionDate.String())
-	rows, err := tx.Query(
-		ctx,
-		fmt.Sprintf(
-			`
-			SELECT external_id, COUNT(*)
-			FROM %s
-			GROUP BY external_id
-			HAVING COUNT(*) > 1
-			LIMIT 100
-			`,
-			tableName,
-		),
-	)
-
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*DuplicatedExternalIdRow
-	for rows.Next() {
-		var i DuplicatedExternalIdRow
-		if err := rows.Scan(
-			&i.ExternalId,
-			&i.Count,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Context, processId uuid.UUID, partitionDate PartitionDate, lastExternalId uuid.UUID) (*CutoverBatchOutcome, error) {
 	ctx, span := telemetry.NewSpan(ctx, "PayloadStoreRepository.ProcessPayloadCutoverBatch")
 	defer span.End()
@@ -824,74 +835,6 @@ func (p *payloadStoreRepositoryImpl) processSinglePartition(ctx context.Context,
 
 	if !jobMeta.ShouldRun {
 		return nil
-	}
-
-	// if the job is running for the first time, check that there aren't any duplicate external ids before proceeding
-	if jobMeta.LastExternalId == uuid.Nil {
-		connStatementTimeout := 15 * 60 * 1000 // 15 minutes
-
-		conn, release, err := sqlchelpers.AcquireConnectionWithStatementTimeout(ctx, p.pool, p.l, connStatementTimeout)
-
-		if err != nil {
-			return fmt.Errorf("failed to acquire connection with statement timeout: %w", err)
-		}
-
-		defer release()
-
-		stopLeaseExtension := make(chan struct{})
-		leaseExtensionDone := make(chan struct{})
-
-		go func() {
-			defer close(leaseExtensionDone)
-
-			ticker := time.NewTicker(30 * time.Second)
-			defer ticker.Stop()
-
-			for {
-				select {
-				case <-stopLeaseExtension:
-					return
-				case <-ticker.C:
-					leaseTx, leaseCommit, leaseRollback, txErr := sqlchelpers.PrepareTx(ctx, p.pool, p.l)
-
-					if txErr != nil {
-						p.l.Error().Err(txErr).Msg("failed to prepare transaction for lease extension during duplicate check")
-						continue
-					}
-
-					_, txErr = p.acquireOrExtendJobLease(ctx, leaseTx, processId, partitionDate, jobMeta.LastExternalId)
-
-					if txErr != nil {
-						leaseRollback()
-						p.l.Error().Err(txErr).Msg("failed to extend lease during duplicate check")
-						continue
-					}
-
-					if txErr = leaseCommit(ctx); txErr != nil {
-						leaseRollback()
-						p.l.Error().Err(txErr).Msg("failed to commit lease extension during duplicate check")
-					}
-				}
-			}
-		}()
-
-		duplicatedExternalIds, err := p.ValidateNoDuplicateExternalIds(ctx, conn, partitionDate)
-		close(stopLeaseExtension)
-		<-leaseExtensionDone
-
-		if err != nil {
-			return fmt.Errorf("failed to validate no duplicate external ids: %w", err)
-		}
-
-		if len(duplicatedExternalIds) > 0 {
-			var duplicatedIds []string
-
-			for _, row := range duplicatedExternalIds {
-				duplicatedIds = append(duplicatedIds, row.ExternalId.String())
-			}
-
-			return fmt.Errorf("found duplicate external ids in partition %s. Sampled ids: %s", partitionDate.String(), strings.Join(duplicatedIds, ", "))
-		}
 	}
 
 	lastExternalId := jobMeta.LastExternalId

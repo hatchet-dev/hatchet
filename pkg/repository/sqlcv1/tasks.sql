@@ -1,14 +1,14 @@
--- name: CreatePartitions :exec
+-- name: CreatePartitions :one
 SELECT
-    create_v1_range_partition('v1_task', @date::date),
-    create_v1_range_partition('v1_dag', @date::date),
-    create_v1_range_partition('v1_task_event', @date::date),
-    create_v1_range_partition('v1_log_line', @date::date),
-    create_v1_range_partition('v1_payload', @date::date),
-    create_v1_range_partition('v1_event', @date::date),
-    create_v1_range_partition('v1_durable_event_log_file', @date::date),
-    create_v1_range_partition('v1_durable_event_log_entry', @date::date, 80),
-    create_v1_range_partition('v1_durable_event_log_branch_point', @date::date, 80)
+    create_v1_range_partition('v1_task', @date::date) AS v1_task,
+    create_v1_range_partition('v1_dag', @date::date) AS v1_dag,
+    create_v1_range_partition('v1_task_event', @date::date) AS v1_task_event,
+    create_v1_range_partition('v1_log_line', @date::date) AS v1_log_line,
+    create_v1_range_partition('v1_payload', @date::date) AS v1_payload,
+    create_v1_range_partition('v1_event', @date::date) AS v1_event,
+    create_v1_range_partition('v1_durable_event_log_file', @date::date) AS v1_durable_event_log_file,
+    create_v1_range_partition('v1_durable_event_log_entry', @date::date, 80) AS v1_durable_event_log_entry,
+    create_v1_range_partition('v1_durable_event_log_branch_point', @date::date, 80) AS v1_durable_event_log_branch_point
 ;
 
 -- name: EnsureTablePartitionsExist :one
@@ -214,13 +214,17 @@ FROM
     tasks_from_dags;
 
 -- name: GetTaskByExternalId :one
+-- Resolve the task key before reading v1_task. Joining the lookup row directly
+-- is planned as a merge across every daily partition.
 SELECT t.*
-FROM v1_lookup_table l
-JOIN v1_task t ON t.id = l.task_id AND t.inserted_at = l.inserted_at
-WHERE
-    l.external_id = @externalId::uuid
-    AND l.tenant_id = @tenantId::uuid
-;
+FROM v1_task t
+WHERE (t.id, t.inserted_at) = (
+    SELECT l.task_id, l.inserted_at
+    FROM v1_lookup_table l
+    WHERE
+        l.external_id = @externalId::uuid
+        AND l.tenant_id = @tenantId::uuid
+);
 
 -- name: LookupExternalIds :many
 SELECT
@@ -524,12 +528,24 @@ WITH input AS (
                 -- can match any of the event types
                 unnest_nd_1d(@eventTypes::text[][]) AS event_types
         ) AS subquery
+), looked_up AS MATERIALIZED (
+    -- Resolve keys before joining v1_task. Joining v1_lookup_table directly
+    -- is planned as a merge across every daily partition.
+    SELECT
+        l.external_id,
+        l.task_id,
+        l.inserted_at
+    FROM
+        v1_lookup_table l
+    WHERE
+        l.tenant_id = @tenantId::uuid
+        AND l.external_id = ANY(@taskExternalIds::uuid[])
 )
 SELECT
     t.external_id as task_external_id,
     e.*
 FROM
-    v1_lookup_table l
+    looked_up l
 JOIN
     v1_task t ON t.id = l.task_id AND t.inserted_at = l.inserted_at
 JOIN
@@ -537,9 +553,7 @@ JOIN
 JOIN
     input i ON i.task_external_id = l.external_id AND e.event_type::text = ANY(i.event_types)
 WHERE
-    l.tenant_id = @tenantId::uuid
-    AND l.external_id = ANY(@taskExternalIds::uuid[])
-    AND (e.retry_count = -1 OR e.retry_count = t.retry_count);
+    e.retry_count = -1 OR e.retry_count = t.retry_count;
 
 -- name: LockSignalCreatedEvents :many
 -- Places a lock on the SIGNAL_CREATED events to make sure concurrent operations don't
@@ -573,6 +587,9 @@ WITH input AS (
     WHERE
         e.tenant_id = @tenantId::uuid
         AND e.event_type = 'SIGNAL_CREATED'
+        -- filtering by key here keeps it in the index probe; a durable parent can have tens of
+        -- thousands of signal events, and matching keys afterwards rescanned the input per event
+        AND e.event_key = ANY(@eventKeys::TEXT[])
 )
 SELECT
 	e.id,
@@ -582,9 +599,7 @@ SELECT
     e.external_id,
     e.child_external_id
 FROM
-	events_to_lock e
-WHERE
-	e.event_key = ANY(SELECT event_key FROM input);
+	events_to_lock e;
 
 -- name: ListMatchingSignalEvents :many
 WITH input AS (
@@ -1026,19 +1041,26 @@ WHERE
     );
 
 -- name: RefreshTimeoutBy :one
-WITH task AS (
+WITH task AS MATERIALIZED (
+    -- Resolve the task key before reading v1_task. Joining the lookup row directly
+    -- is planned as a merge across every daily partition.
     SELECT
         t.id,
         t.inserted_at,
         t.retry_count,
         t.tenant_id
     FROM
-        v1_lookup_table lt
-    JOIN
-        v1_task t ON t.id = lt.task_id AND t.inserted_at = lt.inserted_at
-    WHERE
-        lt.external_id = @externalId::uuid AND
-        lt.tenant_id = @tenantId::uuid
+        v1_task t
+    WHERE (t.id, t.inserted_at) = (
+        SELECT
+            lt.task_id,
+            lt.inserted_at
+        FROM
+            v1_lookup_table lt
+        WHERE
+            lt.external_id = @externalId::uuid AND
+            lt.tenant_id = @tenantId::uuid
+    )
 ), locked_runtime AS (
     SELECT
         tr.task_id,
@@ -1065,19 +1087,26 @@ RETURNING
     v1_task_runtime.*;
 
 -- name: ManualSlotRelease :one
-WITH task AS (
+WITH task AS MATERIALIZED (
+    -- Resolve the task key before reading v1_task. Joining the lookup row directly
+    -- is planned as a merge across every daily partition.
     SELECT
         t.id,
         t.inserted_at,
         t.retry_count,
         t.tenant_id
     FROM
-        v1_lookup_table lt
-    JOIN
-        v1_task t ON t.id = lt.task_id AND t.inserted_at = lt.inserted_at
-    WHERE
-        lt.external_id = @externalId::uuid AND
-        lt.tenant_id = @tenantId::uuid
+        v1_task t
+    WHERE (t.id, t.inserted_at) = (
+        SELECT
+            lt.task_id,
+            lt.inserted_at
+        FROM
+            v1_lookup_table lt
+        WHERE
+            lt.external_id = @externalId::uuid AND
+            lt.tenant_id = @tenantId::uuid
+    )
 ), locked_runtime AS (
     SELECT
         tr.task_id,
@@ -1181,6 +1210,26 @@ WHERE rt.tenant_id = @tenantId::uuid
 ORDER BY rt.evicted_at
 LIMIT @maxTasks::int;
 
+-- name: ListUnfinishedDurableOrchestratorChildren :many
+SELECT DISTINCT
+    child.id,
+    child.inserted_at,
+    child.retry_count
+FROM v1_lookup_table orch_lookup
+JOIN v1_task orch ON (orch.id, orch.inserted_at, orch.is_dag_orchestrator) = (orch_lookup.task_id, orch_lookup.inserted_at, TRUE)
+JOIN v1_durable_event_log_entry e ON (e.durable_task_id, e.durable_task_inserted_at) = (orch.id, orch.inserted_at)
+JOIN v1_lookup_table child_lookup ON child_lookup.external_id = e.child_task_external_id
+JOIN v1_task child ON (child.id, child.inserted_at) = (child_lookup.task_id, child_lookup.inserted_at)
+WHERE
+    orch_lookup.tenant_id = @tenantId::uuid
+    AND orch_lookup.external_id = ANY(@orchestratorExternalIds::uuid[])
+    AND e.kind = 'RUN'
+    AND NOT EXISTS (
+        SELECT 1
+        FROM v1_task_event ev
+        WHERE (ev.task_id, ev.task_inserted_at, ev.retry_count) = (child.id, child.inserted_at, child.retry_count)
+          AND ev.event_type IN ('COMPLETED', 'FAILED', 'CANCELLED')
+    );
 
 -- name: CleanupWorkflowConcurrencySlotsAfterInsert :exec
 -- Cleans up workflow concurrency slots when tasks have been inserted in a non-QUEUED state.
@@ -1276,6 +1325,21 @@ ANALYZE v1_task_event;
 
 -- name: AnalyzeV1Dag :exec
 ANALYZE v1_dag;
+
+-- name: AnalyzeV1DurableEventLogFile :exec
+ANALYZE v1_durable_event_log_file;
+
+-- name: AnalyzeV1DurableEventLogEntry :exec
+ANALYZE v1_durable_event_log_entry;
+
+-- name: AnalyzeV1DurableEventLogBranchPoint :exec
+ANALYZE v1_durable_event_log_branch_point;
+
+-- name: AnalyzeV1LogLine :exec
+ANALYZE v1_log_line;
+
+-- name: AnalyzeV1Event :exec
+ANALYZE v1_event;
 
 -- name: CleanupV1TaskRuntime :execresult
 WITH locked_trs AS (

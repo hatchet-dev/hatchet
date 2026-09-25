@@ -64,6 +64,35 @@ export const queries = createQueryKeyStore({
         (await controlPlaneApi.organizationPaymentMethodsGet(organization))
           .data,
     }),
+    invoices: (organization: string) => ({
+      queryKey: ['organization-invoices:get', organization],
+      queryFn: async () =>
+        (await controlPlaneApi.organizationInvoicesGet(organization)).data,
+    }),
+    usage: (organization: string) => ({
+      queryKey: ['organization-usage:get', organization],
+      queryFn: async () =>
+        (await controlPlaneApi.organizationUsageGet(organization)).data,
+    }),
+    usageTimeseries: (
+      organization: string,
+      params?: { start?: string; end?: string; tenantId?: string },
+    ) => ({
+      queryKey: [
+        'organization-usage-timeseries:get',
+        organization,
+        params?.start,
+        params?.end,
+        params?.tenantId,
+      ],
+      queryFn: async () =>
+        (
+          await controlPlaneApi.organizationUsageTimeseriesGet(
+            organization,
+            params,
+          )
+        ).data,
+    }),
   },
   cloud: {
     createComputeDemoTemplate: (tenant: string, template: TemplateOptions) => ({
@@ -273,11 +302,14 @@ export const queries = createQueryKeyStore({
   v1Events: {
     list: (tenant: string, query: V1EventListQuery, isSelfHosted: boolean) => ({
       queryKey: ['v1:events:list', tenant, query],
-      queryFn: async (): Promise<V1EventList | 'timeout' | undefined> => {
+      queryFn: async ({
+        signal,
+      }): Promise<V1EventList | 'timeout' | undefined> => {
         const timeout = isSelfHosted ? SELF_HOSTED_LIST_TIMEOUT_MS : undefined;
 
         try {
-          return (await api.v1EventList(tenant, query, { timeout })).data;
+          return (await api.v1EventList(tenant, query, { timeout, signal }))
+            .data;
         } catch (e) {
           if (e instanceof AxiosError && e.code === 'ECONNABORTED') {
             return 'timeout';
@@ -295,11 +327,15 @@ export const queries = createQueryKeyStore({
       isSelfHosted: boolean,
     ) => ({
       queryKey: ['v1:workflow-run:list', tenant, query],
-      queryFn: async (): Promise<V1TaskSummaryList | 'timeout' | undefined> => {
+      queryFn: async ({
+        signal,
+      }): Promise<V1TaskSummaryList | 'timeout' | undefined> => {
         const timeout = isSelfHosted ? SELF_HOSTED_LIST_TIMEOUT_MS : undefined;
 
         try {
-          return (await api.v1WorkflowRunList(tenant, query, { timeout })).data;
+          return (
+            await api.v1WorkflowRunList(tenant, query, { timeout, signal })
+          ).data;
         } catch (e) {
           if (e instanceof AxiosError && e.code === 'ECONNABORTED') {
             return 'timeout';
@@ -401,13 +437,13 @@ export const queries = createQueryKeyStore({
   v1TaskRuns: {
     metrics: (tenant: string, query: GetTaskMetricsQuery) => ({
       queryKey: ['v1:task-run:metrics', tenant, query],
-      queryFn: async () =>
-        (await api.v1TaskListStatusMetrics(tenant, query)).data,
+      queryFn: async ({ signal }) =>
+        (await api.v1TaskListStatusMetrics(tenant, query, { signal })).data,
     }),
     pointMetrics: (tenant: string, query: V2TaskGetPointMetricsQuery) => ({
       queryKey: ['v1-task:metrics', tenant, query],
-      queryFn: async () =>
-        (await api.v1TaskGetPointMetrics(tenant, query)).data,
+      queryFn: async ({ signal }) =>
+        (await api.v1TaskGetPointMetrics(tenant, query, { signal })).data,
     }),
   },
   metrics: {
@@ -417,8 +453,8 @@ export const queries = createQueryKeyStore({
     }),
     getStepRunQueueMetrics: (tenant: string) => ({
       queryKey: ['queue-metrics:get:step-run', tenant],
-      queryFn: async () =>
-        (await api.tenantGetStepRunQueueMetrics(tenant)).data,
+      queryFn: async ({ signal }) =>
+        (await api.tenantGetStepRunQueueMetrics(tenant, { signal })).data,
     }),
   },
   stepRuns: {
@@ -470,7 +506,8 @@ export const queries = createQueryKeyStore({
   workers: {
     list: (tenant: string, query?: ListWorkersQuery) => ({
       queryKey: ['worker:list', tenant, query],
-      queryFn: async () => (await api.workerList(tenant, query)).data,
+      queryFn: async ({ signal }) =>
+        (await api.workerList(tenant, query, { signal })).data,
     }),
     get: (worker: string) => ({
       queryKey: ['worker:get', worker],
