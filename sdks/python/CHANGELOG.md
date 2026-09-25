@@ -5,6 +5,28 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.41.1] - 2026-09-24
+
+### Fixed
+
+- [Durable tasks](https://docs.hatchet.run/v1/durable-tasks) that fan out to thousands of children no longer block the worker's event loop. The durable listener sent one worker status request per awaited child, each listing every pending child, which was quadratic in the fan-out size; it now sends one request per event loop iteration listing only the newly awaited children.
+- Registering an awaited child no longer scans every pending callback to evict older invocations. The callback cache is indexed by task and invocation.
+- The periodic worker status request lists only children that have been pending for more than two seconds, is sent every five seconds instead of every second, and is split into requests of at most 10,000 entries so it stays under the gRPC message size limit.
+- Re-delivered child completions are matched against pending callbacks without scanning the pending queue.
+- The action listener drains every queued step event in one loop iteration instead of paying a thread hop per event, which removed spurious "event loop may be blocked" warnings on bursts of task starts.
+
+## [1.41.0] - 2026-09-22
+
+### Added
+
+- Adds a new `slots` key to the worker's `/health` response and `hatchet_worker_used_slots` and `hatchet_worker_slot_limit` gauges to its `/metrics` response
+
+## [1.40.3] - 2026-09-18
+
+### Added
+
+- The sync `result()` poll interval is configurable via `ClientConfig.sync_result_poll_interval` or the `HATCHET_CLIENT_SYNC_RESULT_POLL_INTERVAL` environment variable, or per call on `WorkflowRunRef.result` / `TaskRunRef.result`. The minimum remains 1 second.
+
 ## [1.40.2] - 2026-09-09
 
 ### Changed

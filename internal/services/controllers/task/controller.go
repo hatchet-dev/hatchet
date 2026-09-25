@@ -602,6 +602,72 @@ func (tc *TasksControllerImpl) emitOrchestratorTerminalEvents(
 	return errs
 }
 
+// orchestratorIdsWithoutWorker returns the orchestrators released with no worker (evicted), whose
+// children nothing else cancels. With a worker the operator does, and a second cancel duplicates
+// the children's CANCELLED events.
+func orchestratorIdsWithoutWorker(released []*sqlcv1.ReleaseTasksRow) []uuid.UUID {
+	var ids []uuid.UUID
+
+	for _, rt := range released {
+		if rt == nil || !rt.IsDagOrchestrator || !rt.IsCurrentRetry || rt.WorkerID != uuid.Nil {
+			continue
+		}
+
+		ids = append(ids, rt.ExternalID)
+	}
+
+	return ids
+}
+
+// cancelChildrenOfOrchestratorsWithoutWorker cancels those orchestrators' unfinished children.
+func (tc *TasksControllerImpl) cancelChildrenOfOrchestratorsWithoutWorker(
+	ctx context.Context,
+	tenantId uuid.UUID,
+	released []*sqlcv1.ReleaseTasksRow,
+) error {
+	orchestratorExternalIds := orchestratorIdsWithoutWorker(released)
+
+	if len(orchestratorExternalIds) == 0 {
+		return nil
+	}
+
+	children, err := tc.repov1.Tasks().ListUnfinishedDurableOrchestratorChildren(ctx, tenantId, orchestratorExternalIds)
+
+	if err != nil {
+		return fmt.Errorf("could not list unfinished orchestrator children: %w", err)
+	}
+
+	return tc.publishChildCancellations(ctx, tenantId, children)
+}
+
+// publishChildCancellations batches the children: a payload is published whole, so one holding them
+// all could exceed msgqueue.MaxMessageSize.
+func (tc *TasksControllerImpl) publishChildCancellations(
+	ctx context.Context,
+	tenantId uuid.UUID,
+	children []v1.TaskIdInsertedAtRetryCount,
+) error {
+	return queueutils.BatchLinear(BULK_MSG_BATCH_SIZE, children, func(batch []v1.TaskIdInsertedAtRetryCount) error {
+		msg, err := msgqueue.NewTenantMessage(
+			tenantId,
+			msgqueue.MsgIDCancelTasks,
+			false,
+			true,
+			tasktypes.CancelTasksPayload{Tasks: batch},
+		)
+
+		if err != nil {
+			return fmt.Errorf("could not create cancel message for orchestrator children: %w", err)
+		}
+
+		if err := tc.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
+			return fmt.Errorf("could not publish cancel message for orchestrator children: %w", err)
+		}
+
+		return nil
+	})
+}
+
 func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
 	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.handleTaskCompleted")
 	defer span.End()
@@ -931,6 +997,12 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 		outerErr = multierror.Append(outerErr, emitErr)
 	}
 
+	if cancelErr := tc.cancelChildrenOfOrchestratorsWithoutWorker(ctx, tenantId, res.ReleasedTasks); cancelErr != nil {
+		span.RecordError(cancelErr)
+		span.SetStatus(codes.Error, "could not cancel orchestrator children")
+		outerErr = multierror.Append(outerErr, cancelErr)
+	}
+
 	// instrumentation
 	tenantMetricsEnabled := tc.promGate.Enabled(ctx, tenantId)
 
@@ -942,7 +1014,8 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 	}
 
 	// outerErr accumulates every per-task publish failure above (including the orchestrator
-	// terminal events); returning it lets the source message redeliver on any failure
+	// terminal events and the child cancellations); returning it lets the source message
+	// redeliver on any failure
 	return outerErr
 }
 

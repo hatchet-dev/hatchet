@@ -1017,13 +1017,19 @@ WITH partitions AS (
     JOIN pg_class parent ON pg_inherits.inhparent = parent.oid
     JOIN pg_class child ON pg_inherits.inhrelid = child.oid
     WHERE parent.relname = 'v1_payloads_olap'
-    ORDER BY child.relname DESC
-	LIMIT $1::INTEGER
 )
 
 SELECT partition_name, lower_bound AS partition_date
 FROM partitions
-WHERE lower_bound <= $2::DATE
+WHERE
+    lower_bound <= $2::DATE
+    AND NOT EXISTS (
+        SELECT 1
+        FROM v1_payloads_olap_cutover_job_offset offsets
+        WHERE offsets.key = partitions.lower_bound AND offsets.is_completed
+    )
+ORDER BY partition_date ASC -- finish old partitions before starting new ones
+LIMIT $1::INTEGER
 `
 
 type FindV1OLAPPayloadPartitionsBeforeDateRow struct {
@@ -1207,7 +1213,8 @@ WITH inputs AS (
         UNNEST($8::JSONB[]) AS additional_metadata,
         UNNEST($9::UUID[]) AS parent_task_external_id,
         UNNEST($10::INTEGER[]) AS total_tasks,
-		UNNEST($11::TEXT[]) AS idempotency_key
+		UNNEST($11::TEXT[]) AS idempotency_key,
+        UNNEST($12::BOOLEAN[]) AS is_dag_operator
 ), dag_task_counts AS (
     SELECT
         i.id,
@@ -1253,7 +1260,8 @@ INSERT INTO v1_dags_olap (
     parent_task_external_id,
     total_tasks,
     readable_status,
-	idempotency_key
+	idempotency_key,
+    is_dag_operator
 )
 SELECT
     i.tenant_id,
@@ -1268,7 +1276,8 @@ SELECT
     i.parent_task_external_id,
     i.total_tasks,
     COALESCE(ds.computed_status, 'QUEUED'::v1_readable_status_olap),
-	i.idempotency_key
+	i.idempotency_key,
+    i.is_dag_operator
 FROM inputs i
 LEFT JOIN dag_statuses ds ON (i.id, i.inserted_at) = (ds.id, ds.inserted_at)
 ON CONFLICT (inserted_at, id) DO UPDATE SET
@@ -1276,7 +1285,13 @@ ON CONFLICT (inserted_at, id) DO UPDATE SET
         WHEN v1_status_to_priority(EXCLUDED.readable_status) > v1_status_to_priority(v1_dags_olap.readable_status)
         THEN EXCLUDED.readable_status
         ELSE v1_dags_olap.readable_status
-    END
+    END,
+    display_name = EXCLUDED.display_name,
+    workflow_version_id = EXCLUDED.workflow_version_id,
+    additional_metadata = EXCLUDED.additional_metadata,
+    parent_task_external_id = EXCLUDED.parent_task_external_id,
+    total_tasks = EXCLUDED.total_tasks,
+    idempotency_key = EXCLUDED.idempotency_key
 `
 
 type CreateDAGsOLAPOverwriteParams struct {
@@ -1291,6 +1306,7 @@ type CreateDAGsOLAPOverwriteParams struct {
 	Parenttaskexternalids []*uuid.UUID         `json:"parenttaskexternalids"`
 	Totaltasks            []int32              `json:"totaltasks"`
 	IdempotencyKeys       []pgtype.Text        `json:"idempotencyKeys"`
+	IsDagOperators        []bool               `json:"isDagOperators"`
 }
 
 func (q *Queries) CreateDAGsOLAP(ctx context.Context, db DBTX, arg CreateDAGsOLAPOverwriteParams) error {
@@ -1306,6 +1322,7 @@ func (q *Queries) CreateDAGsOLAP(ctx context.Context, db DBTX, arg CreateDAGsOLA
 		arg.Parenttaskexternalids,
 		arg.Totaltasks,
 		arg.IdempotencyKeys,
+		arg.IsDagOperators,
 	)
 	return err
 }

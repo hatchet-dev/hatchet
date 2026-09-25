@@ -9,15 +9,15 @@ import (
 	"sync"
 	"time"
 
+	"connectrpc.com/connect"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/internal/services/shared/rpcstream"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
@@ -40,14 +40,14 @@ func (d *DispatcherServiceImpl) RegisterDurableEvent(ctx context.Context, req *c
 
 	if err != nil {
 		d.l.Error().Ctx(ctx).Msgf("task id %s is not a valid uuid", req.TaskId)
-		return nil, status.Error(codes.InvalidArgument, "task id is not a valid uuid")
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("task id is not a valid uuid"))
 	}
 
 	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, tenantId, taskId, false)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, status.Errorf(codes.NotFound, "task run not found: %s", taskId)
+			return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("task run not found: %s", taskId))
 		}
 
 		return nil, err
@@ -60,7 +60,7 @@ func (d *DispatcherServiceImpl) RegisterDurableEvent(ctx context.Context, req *c
 
 		if parseErr != nil {
 			d.l.Error().Ctx(ctx).Msgf("or group id %s is not a valid uuid", condition.Base.OrGroupId)
-			return nil, status.Error(codes.InvalidArgument, "or group id is not a valid uuid")
+			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("or group id is not a valid uuid"))
 		}
 
 		createConditionOpts = append(createConditionOpts, v1.CreateExternalSignalConditionOpt{
@@ -76,7 +76,7 @@ func (d *DispatcherServiceImpl) RegisterDurableEvent(ctx context.Context, req *c
 
 		if parseErr != nil {
 			d.l.Error().Ctx(ctx).Msgf("or group id %s is not a valid uuid", condition.Base.OrGroupId)
-			return nil, status.Error(codes.InvalidArgument, "or group id is not a valid uuid")
+			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("or group id is not a valid uuid"))
 		}
 
 		createConditionOpts = append(createConditionOpts, v1.CreateExternalSignalConditionOpt{
@@ -169,16 +169,21 @@ func (w *durableEventAcks) ackEvent(taskId int64, taskInsertedAt pgtype.Timestam
 	delete(w.acks, k)
 }
 
-func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatcher_ListenForDurableEventServer) error {
-	tenant := server.Context().Value("tenant").(*sqlcv1.Tenant)
+func (d *DispatcherServiceImpl) ListenForDurableEvent(ctx context.Context, server *connect.BidiStream[contracts.ListenForDurableEventRequest, contracts.DurableEvent]) error {
+	// other goroutines send on this stream; Close runs after every other deferred call and
+	// before the handler returns, so no send can reach the stream once the handler is done
+	sender := rpcstream.NewSender[contracts.DurableEvent](ctx, server)
+	defer sender.Close()
+
+	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
-	d.analytics.Count(server.Context(), analytics.Worker, analytics.Listen)
+	d.analytics.Count(ctx, analytics.Worker, analytics.Listen)
 
 	acks := &durableEventAcks{
 		acks: make(map[v1.TaskIdInsertedAtSignalKey]uuid.UUID),
 	}
 
-	ctx, cancel := context.WithCancel(server.Context())
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	deregister := d.streamSessions.Register(cancel)
@@ -206,7 +211,7 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 
 		// send the task to the client
 		sendMu.Lock()
-		err := server.Send(&contracts.DurableEvent{
+		err := sender.Send(&contracts.DurableEvent{
 			TaskId:    externalId.String(),
 			SignalKey: e.EventKey.String,
 			Data:      e.Payload,
@@ -264,11 +269,11 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 	// start a new goroutine to handle client-side streaming
 	go func() {
 		for {
-			req, err := server.Recv()
+			req, err := server.Receive()
 
 			if err != nil {
 				cancel()
-				if errors.Is(err, io.EOF) || status.Code(err) == codes.Canceled {
+				if errors.Is(err, io.EOF) || connect.CodeOf(err) == connect.CodeCanceled {
 					return
 				}
 
@@ -394,6 +399,12 @@ func (d *DispatcherServiceImpl) processDurableTaskMessage(
 		registerTask(msg.TriggerRuns.DurableTaskExternalId)
 	case *contracts.DurableTaskRequest_WaitFor:
 		registerTask(msg.WaitFor.DurableTaskExternalId)
+	case *contracts.DurableTaskRequest_WorkerStatus:
+		// a worker that reconnects mid-wait only sends status heartbeats, so this is
+		// the only chance to route pushed completions back to its new session
+		for _, entry := range msg.WorkerStatus.WaitingEntries {
+			registerTask(entry.DurableTaskExternalId)
+		}
 	}
 
 	if err := d.handleDurableTaskRequest(ctx, invocation, req); err != nil {
@@ -552,18 +563,44 @@ func (s *durableTaskInvocation) staleReleaseHolds(timeout time.Duration) []order
 	return stale
 }
 
-func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_DurableTaskServer) error {
-	tenant := server.Context().Value("tenant").(*sqlcv1.Tenant)
+func (d *DispatcherServiceImpl) DurableTask(ctx context.Context, server *connect.BidiStream[contracts.DurableTaskRequest, contracts.DurableTaskResponse]) error {
+	// other goroutines send on this stream; Close runs after durableTask has torn the session
+	// down and before the handler returns, so no send can reach the stream once the handler is done
+	sender := rpcstream.NewSender[contracts.DurableTaskResponse](ctx, server)
+	defer sender.Close()
+
+	return d.durableTask(ctx, server.Receive, sender)
+}
+
+// DurableTaskWithReceive runs a durable task session over the two halves of a DurableTask
+// stream that another service owns: the operator service authorizes the stream and reads its
+// first message itself, then hands the rest over through receive. sender must be closed by the
+// caller before its handler returns.
+func (d *DispatcherServiceImpl) DurableTaskWithReceive(
+	ctx context.Context,
+	receive func() (*contracts.DurableTaskRequest, error),
+	sender *rpcstream.Sender[contracts.DurableTaskResponse],
+) error {
+	return d.durableTask(ctx, receive, sender)
+}
+
+// durableTask runs a durable task session over the two halves of the DurableTask stream.
+func (d *DispatcherServiceImpl) durableTask(
+	ctx context.Context,
+	receive func() (*contracts.DurableTaskRequest, error),
+	sender *rpcstream.Sender[contracts.DurableTaskResponse],
+) error {
+	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 
-	ctx, cancel := context.WithCancel(server.Context())
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	deregister := d.streamSessions.Register(cancel)
 	defer deregister()
 
 	invocation := &durableTaskInvocation{
-		sendFn:   server.Send,
+		sendFn:   sender.Send,
 		tenantId: tenantId,
 		l:        d.l,
 	}
@@ -609,12 +646,12 @@ func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_Durabl
 	// ending, not by ctx; this lets the handler observe context cancellation (e.g.
 	// server shutdown hanging up this stream) while a Recv is pending. The goroutine
 	// does nothing but Recv and hand off, so all processing and the deferred cleanup
-	// stay serialized on the handler goroutine. Once the handler returns, gRPC
-	// cancels server.Context(), which unblocks the pending channel send (or the next
-	// Recv) and lets the goroutine exit.
+	// stay serialized on the handler goroutine. Once the handler returns, the
+	// request context is cancelled and the request body is closed, which unblocks
+	// the pending channel send (or the next Receive) and lets the goroutine exit.
 	go func() {
 		for {
-			req, err := server.Recv()
+			req, err := receive()
 
 			select {
 			case msgCh <- recvResult{req: req, err: err}:
@@ -634,7 +671,7 @@ func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_Durabl
 			return nil
 		case r := <-msgCh:
 			if r.err != nil {
-				if errors.Is(r.err, io.EOF) || status.Code(r.err) == codes.Canceled {
+				if errors.Is(r.err, io.EOF) || connect.CodeOf(r.err) == connect.CodeCanceled {
 					return nil
 				}
 
@@ -656,6 +693,12 @@ func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_Durabl
 				registerTask(msg.TriggerRuns.DurableTaskExternalId)
 			case *contracts.DurableTaskRequest_WaitFor:
 				registerTask(msg.WaitFor.DurableTaskExternalId)
+			case *contracts.DurableTaskRequest_WorkerStatus:
+				// a worker that reconnects mid-wait only sends status heartbeats, so this is
+				// the only chance to route pushed completions back to its new session
+				for _, entry := range msg.WorkerStatus.WaitingEntries {
+					registerTask(entry.DurableTaskExternalId)
+				}
 			}
 
 			reqWg.Add(1)
@@ -685,7 +728,7 @@ func (d *DispatcherServiceImpl) RegisterDurableTask(ctx context.Context, externa
 	tenant, ok := ctx.Value("tenant").(*sqlcv1.Tenant)
 
 	if !ok {
-		return nil, nil, status.Error(codes.InvalidArgument, "tenant not found on context")
+		return nil, nil, connect.NewError(connect.CodeInvalidArgument, errors.New("tenant not found on context"))
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -796,7 +839,7 @@ func (d *DispatcherServiceImpl) handleDurableTaskRequest(
 	case *contracts.DurableTaskRequest_CompleteMemo:
 		return d.handleCompleteMemo(ctx, invocation, msg.CompleteMemo)
 	default:
-		return status.Errorf(codes.InvalidArgument, "unknown message type: %T", msg)
+		return connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("unknown message type: %T", msg))
 	}
 }
 
@@ -807,14 +850,14 @@ func (d *DispatcherServiceImpl) handleRegisterWorker(
 ) error {
 	workerId, err := uuid.Parse(req.WorkerId)
 	if err != nil {
-		return status.Errorf(codes.InvalidArgument, "invalid worker id: %v", err)
+		return connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid worker id: %v", err))
 	}
 
 	d.analytics.Count(ctx, analytics.DurableTask, analytics.Register)
 
 	err = d.repo.Workers().UpdateWorkerDurableTaskDispatcherId(ctx, invocation.tenantId, workerId, d.dispatcherId)
 	if err != nil {
-		return status.Errorf(codes.Internal, "failed to update worker durable task dispatcher id: %v", err)
+		return connect.NewError(connect.CodeInternal, fmt.Errorf("failed to update worker durable task dispatcher id: %v", err))
 	}
 
 	return invocation.send(&contracts.DurableTaskResponse{
@@ -941,14 +984,14 @@ func (d *DispatcherServiceImpl) handleMemo(
 
 	taskExternalId, err := uuid.Parse(req.DurableTaskExternalId)
 	if err != nil {
-		return status.Errorf(codes.InvalidArgument, "invalid durable_task_external_id: %v", err)
+		return connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid durable_task_external_id: %v", err))
 	}
 
 	d.analytics.Count(ctx, analytics.DurableTask, analytics.Memo)
 
 	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, invocation.tenantId, taskExternalId, false)
 	if err != nil {
-		return status.Errorf(codes.NotFound, "task not found: %v", err)
+		return connect.NewError(connect.CodeNotFound, fmt.Errorf("task not found: %v", err))
 	}
 
 	ingestionResult, err := d.repo.DurableEvents().IngestDurableTaskEvent(ctx, v1.IngestDurableTaskEventOpts{
@@ -973,7 +1016,7 @@ func (d *DispatcherServiceImpl) handleMemo(
 	case err != nil && errors.As(err, &sie):
 		return d.sendStaleInvocationEviction(invocation, sie)
 	case err != nil:
-		return status.Errorf(codes.Internal, "failed to ingest memo event: %v", err)
+		return connect.NewError(connect.CodeInternal, fmt.Errorf("failed to ingest memo event: %v", err))
 	}
 
 	err = invocation.send(&contracts.DurableTaskResponse{
@@ -989,7 +1032,7 @@ func (d *DispatcherServiceImpl) handleMemo(
 		},
 	})
 	if err != nil {
-		return status.Errorf(codes.Internal, "failed to send memo ack: %v", err)
+		return connect.NewError(connect.CodeInternal, fmt.Errorf("failed to send memo ack: %v", err))
 	}
 
 	return d.deliverSatisfiedEntries(invocation.tenantId, req.DurableTaskExternalId, ingestionResult)
@@ -1012,7 +1055,7 @@ func (d *DispatcherServiceImpl) handleTriggerRuns(
 
 	taskExternalId, err := uuid.Parse(req.DurableTaskExternalId)
 	if err != nil {
-		return status.Errorf(codes.InvalidArgument, "invalid durable_task_external_id: %v", err)
+		return connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid durable_task_external_id: %v", err))
 	}
 
 	for _, w := range req.TriggerOpts {
@@ -1028,14 +1071,14 @@ func (d *DispatcherServiceImpl) handleTriggerRuns(
 
 	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, invocation.tenantId, taskExternalId, false)
 	if err != nil {
-		return status.Errorf(codes.NotFound, "task not found: %v", err)
+		return connect.NewError(connect.CodeNotFound, fmt.Errorf("task not found: %v", err))
 	}
 
 	triggerOpts := make([]*v1.WorkflowNameTriggerOpts, 0, len(req.TriggerOpts))
 	for _, triggerReq := range req.TriggerOpts {
 		triggerTaskData, triggerErr := d.repo.Triggers().NewTriggerTaskData(ctx, invocation.tenantId, triggerReq, task)
 		if triggerErr != nil {
-			return status.Errorf(codes.Internal, "failed to create trigger options: %v", triggerErr)
+			return connect.NewError(connect.CodeInternal, fmt.Errorf("failed to create trigger options: %v", triggerErr))
 		}
 		triggerOpts = append(triggerOpts, &v1.WorkflowNameTriggerOpts{
 			TriggerTaskData: triggerTaskData,
@@ -1063,7 +1106,7 @@ func (d *DispatcherServiceImpl) handleTriggerRuns(
 	case err != nil && errors.As(err, &sie):
 		return d.sendStaleInvocationEviction(invocation, sie)
 	case err != nil:
-		return status.Errorf(codes.Internal, "failed to ingest trigger runs event: %v", err)
+		return connect.NewError(connect.CodeInternal, fmt.Errorf("failed to ingest trigger runs event: %v", err))
 	}
 
 	ackResp := &contracts.DurableTaskEventTriggerRunsAckResponse{
@@ -1097,14 +1140,14 @@ func (d *DispatcherServiceImpl) handleTriggerRuns(
 			Entries:               entries,
 		})
 		if msgErr != nil {
-			return status.Errorf(codes.Internal, "failed to build durable run trigger message: %v", msgErr)
+			return connect.NewError(connect.CodeInternal, fmt.Errorf("failed to build durable run trigger message: %v", msgErr))
 		}
 
 		// publish before acking: if this is lost, the child task never gets created and the
 		// durable task would hang forever with no other recovery path, so treat it as fatal
 		// to the RPC rather than best-effort
 		if sendErr := d.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg); sendErr != nil {
-			return status.Errorf(codes.Internal, "failed to enqueue durable run trigger: %v", sendErr)
+			return connect.NewError(connect.CodeInternal, fmt.Errorf("failed to enqueue durable run trigger: %v", sendErr))
 		}
 	}
 
@@ -1114,7 +1157,7 @@ func (d *DispatcherServiceImpl) handleTriggerRuns(
 		},
 	})
 	if err != nil {
-		return status.Errorf(codes.Internal, "failed to send trigger runs ack: %v", err)
+		return connect.NewError(connect.CodeInternal, fmt.Errorf("failed to send trigger runs ack: %v", err))
 	}
 
 	return d.deliverSatisfiedEntries(invocation.tenantId, req.DurableTaskExternalId, ingestionResult)
@@ -1136,7 +1179,7 @@ func (d *DispatcherServiceImpl) handleWaitFor(
 
 	taskExternalId, err := uuid.Parse(req.DurableTaskExternalId)
 	if err != nil {
-		return status.Errorf(codes.InvalidArgument, "invalid durable_task_external_id: %v", err)
+		return connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid durable_task_external_id: %v", err))
 	}
 
 	var hasSleep, hasUserEvent bool
@@ -1151,7 +1194,7 @@ func (d *DispatcherServiceImpl) handleWaitFor(
 
 	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, invocation.tenantId, taskExternalId, false)
 	if err != nil {
-		return status.Errorf(codes.NotFound, "task not found: %v", err)
+		return connect.NewError(connect.CodeNotFound, fmt.Errorf("task not found: %v", err))
 	}
 
 	var createConditionOpts []v1.CreateExternalSignalConditionOpt
@@ -1160,7 +1203,7 @@ func (d *DispatcherServiceImpl) handleWaitFor(
 		for _, condition := range req.WaitForConditions.SleepConditions {
 			orGroupId, parseErr := uuid.Parse(condition.Base.OrGroupId)
 			if parseErr != nil {
-				return status.Errorf(codes.InvalidArgument, "or group id is not a valid uuid: %v", parseErr)
+				return connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("or group id is not a valid uuid: %v", parseErr))
 			}
 			createConditionOpts = append(createConditionOpts, v1.CreateExternalSignalConditionOpt{
 				Kind:            v1.CreateExternalSignalConditionKindSLEEP,
@@ -1173,7 +1216,7 @@ func (d *DispatcherServiceImpl) handleWaitFor(
 		for _, condition := range req.WaitForConditions.UserEventConditions {
 			orGroupId, parseErr := uuid.Parse(condition.Base.OrGroupId)
 			if parseErr != nil {
-				return status.Errorf(codes.InvalidArgument, "or group id is not a valid uuid: %v", parseErr)
+				return connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("or group id is not a valid uuid: %v", parseErr))
 			}
 
 			var considerEventsSince *time.Time
@@ -1221,7 +1264,7 @@ func (d *DispatcherServiceImpl) handleWaitFor(
 	case err != nil && errors.As(err, &sie):
 		return d.sendStaleInvocationEviction(invocation, sie)
 	case err != nil:
-		return status.Errorf(codes.Internal, "failed to ingest wait_for event: %v", err)
+		return connect.NewError(connect.CodeInternal, fmt.Errorf("failed to ingest wait_for event: %v", err))
 	}
 
 	err = invocation.send(&contracts.DurableTaskResponse{
@@ -1235,7 +1278,7 @@ func (d *DispatcherServiceImpl) handleWaitFor(
 		},
 	})
 	if err != nil {
-		return status.Errorf(codes.Internal, "failed to send wait_for ack: %v", err)
+		return connect.NewError(connect.CodeInternal, fmt.Errorf("failed to send wait_for ack: %v", err))
 	}
 
 	return d.deliverSatisfiedEntries(invocation.tenantId, req.DurableTaskExternalId, ingestionResult)
@@ -1252,12 +1295,12 @@ func (d *DispatcherServiceImpl) handleCompleteMemo(
 	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant_id", Value: invocation.tenantId})
 
 	if req.Ref == nil {
-		return status.Errorf(codes.InvalidArgument, "ref is required")
+		return connect.NewError(connect.CodeInvalidArgument, errors.New("ref is required"))
 	}
 
 	taskExternalId, err := uuid.Parse(req.Ref.DurableTaskExternalId)
 	if err != nil {
-		return status.Errorf(codes.InvalidArgument, "invalid durable_task_external_id: %v", err)
+		return connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid durable_task_external_id: %v", err))
 	}
 
 	d.analytics.Count(ctx, analytics.DurableTask, analytics.Memo)
@@ -1272,7 +1315,7 @@ func (d *DispatcherServiceImpl) handleCompleteMemo(
 		Payload:         req.Payload,
 	})
 	if err != nil {
-		return status.Errorf(codes.Internal, "failed to complete memo entry: %v", err)
+		return connect.NewError(connect.CodeInternal, fmt.Errorf("failed to complete memo entry: %v", err))
 	}
 
 	return nil
@@ -1457,6 +1500,7 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 	}
 
 	staleExternalIds := make(map[uuid.UUID]struct{})
+	var taskInsertedAtRange v1.TaskInsertedAtRange
 
 	if len(uniqueExternalIds) > 0 {
 		externalIds := make([]uuid.UUID, 0, len(uniqueExternalIds))
@@ -1476,6 +1520,7 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 				key := v1.IdInsertedAt{ID: t.ID, InsertedAtUnixMicros: t.InsertedAt.Time.UnixMicro()}
 				idInsertedAts = append(idInsertedAts, key)
 				taskIdToExternalId[key] = t.ExternalID
+				taskInsertedAtRange.Extend(t.InsertedAt)
 			}
 
 			idInsertedAtToInvocationCount, err := d.repo.DurableEvents().GetDurableTaskInvocationCounts(ctx, invocation.tenantId, idInsertedAts)
@@ -1494,6 +1539,14 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 				if workerInvocationCount < *currentCount {
 					staleExternalIds[extId] = struct{}{}
 
+					// the stream loop registered this task for the session when the status
+					// arrived, before the invocation count was known; a stale session must not
+					// keep routing completions
+					d.durableInvocations.CompareAndDelete(durableInvocationsKey{
+						tenantId: invocation.tenantId,
+						taskId:   extId,
+					}, invocation)
+
 					err = invocation.send(&contracts.DurableTaskResponse{
 						Message: &contracts.DurableTaskResponse_ServerEvict{
 							ServerEvict: &contracts.DurableTaskServerEvictNotice{
@@ -1511,7 +1564,7 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 		}
 	}
 
-	callbacks, err := d.repo.DurableEvents().GetSatisfiedDurableEvents(ctx, invocation.tenantId, waiting)
+	callbacks, err := d.repo.DurableEvents().GetSatisfiedDurableEvents(ctx, invocation.tenantId, waiting, taskInsertedAtRange)
 	if err != nil {
 		return fmt.Errorf("failed to get satisfied callbacks: %w", err)
 	}
@@ -1782,13 +1835,17 @@ func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uui
 	var tasks []*v1.V1TaskWithPayload
 
 	if pending := ingestionResult.TriggerRunsResult.PendingTriggers; len(pending) > 0 {
-		createdTasks, createdDags, _, triggerErr := d.repo.DurableEvents().TriggerPendingRunEntries(ctx, tenantId, []v1.TriggerPendingRunEntriesOpt{{
+		createdTasks, createdDags, celFailures, triggerErr := d.repo.DurableEvents().TriggerPendingRunEntries(ctx, tenantId, []v1.TriggerPendingRunEntriesOpt{{
 			Task:        task,
 			PendingRuns: pending,
 		}})
 
 		if triggerErr != nil {
 			return nil, fmt.Errorf("failed to trigger pending durable runs for dag step: %w", triggerErr)
+		}
+
+		if len(celFailures) > 0 {
+			return nil, fmt.Errorf("dag step trigger for %q did not create its child run: %s", req.ActionId, celFailures[0].ErrorMessage)
 		}
 
 		tasks = createdTasks
@@ -1805,29 +1862,36 @@ func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uui
 		return nil, fmt.Errorf("no entries returned from durable event ingestion")
 	}
 
-	if inv, ok := d.durableInvocations.Load(durableInvocationsKey{tenantId: tenantId, taskId: task.ExternalID}); ok {
+	entry := ingestionResult.TriggerRunsResult.Entries[0]
+
+	// the operator is blocked in this call and its session channel is unbuffered
+	if entry.IsSatisfied {
 		invocationCount := ingestionResult.TriggerRunsResult.InvocationCount
-		satisfiedEntries := make([]*v1.IngestTriggerRunsEntry, 0, len(ingestionResult.TriggerRunsResult.Entries))
-		for _, e := range ingestionResult.TriggerRunsResult.Entries {
-			if e.IsSatisfied {
-				satisfiedEntries = append(satisfiedEntries, e)
-			}
-		}
 
 		go func() {
-			for _, e := range satisfiedEntries {
-				if e.SatisfiedOrder == nil {
-					return
-				}
+			err := d.DeliverDurableEventLogEntryCompletion(
+				tenantId,
+				task.ExternalID,
+				invocationCount,
+				entry.BranchId,
+				entry.NodeId,
+				entry.ResultPayload,
+				entry.SatisfiedOrder,
+				entry.ChildTaskIsFailure,
+				entry.ChildTaskErrorMessage,
+			)
 
-				if err := inv.deliverOrdered(task.ExternalID, invocationCount, e.SatisfiedOrder, nil); err != nil {
-					d.l.Error().Err(err).Msgf("failed to advance ordered release for task %s past satisfied_order %d", task.ExternalID, *e.SatisfiedOrder)
-				}
+			operatorSessionAlreadyEnded := errors.Is(err, errDurableTaskSessionClosed) || errors.Is(err, context.Canceled) || errors.Is(err, ErrNoActiveDurableInvocation)
+
+			switch {
+			case err == nil:
+			case operatorSessionAlreadyEnded:
+				d.l.Debug().Err(err).Msgf("dag operator session ended before satisfied dag step completion was delivered for task %s node %d", task.ExternalID, entry.NodeId)
+			default:
+				d.l.Error().Err(err).Msgf("failed to deliver satisfied dag step completion for task %s node %d", task.ExternalID, entry.NodeId)
 			}
 		}()
 	}
-
-	entry := ingestionResult.TriggerRunsResult.Entries[0]
 
 	if entry.ChildNeedsReplay {
 		if err := d.replayDAGStepChild(ctx, tenantId, entry.WorkflowRunExternalId); err != nil {

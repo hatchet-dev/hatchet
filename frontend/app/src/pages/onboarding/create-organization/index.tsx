@@ -1,11 +1,10 @@
 import { NewOrganizationSaverForm } from '@/components/forms/new-organization-saver-form';
+import { SetupCard, SetupScreen } from '@/components/layout/setup-card';
 import { Button } from '@/components/v1/ui/button';
-import { HatchetLogo } from '@/components/v1/ui/hatchet-logo';
 import { queries } from '@/lib/api';
 import { useUserApi } from '@/lib/api/user-wrapper';
 import freeEmailDomains from '@/lib/free-email-domains.json';
 import { useRedirectOrNavigate } from '@/lib/redirect';
-import { AuthLayout } from '@/pages/auth/components/auth-layout';
 import { useAppContext } from '@/providers/app-context';
 import queryClient from '@/query-client';
 import { appRoutes } from '@/router';
@@ -43,8 +42,8 @@ export default function CreateOrganization() {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-background">
-      <div className="absolute top-4 right-4 z-10">
+    <SetupScreen
+      topRight={
         <Button
           variant="ghost"
           size="sm"
@@ -53,22 +52,14 @@ export default function CreateOrganization() {
         >
           Sign out
         </Button>
-      </div>
-      <AuthLayout>
-        <div className="flex flex-col gap-3 text-center lg:text-left w-full">
-          <div className="flex justify-center pb-3 lg:hidden">
-            <HatchetLogo className="h-8 w-auto" />
-          </div>
-          <h2 className="text-2xl font-semibold tracking-tight">
-            Set up your workspace
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            Create your organization and first workspace to get started with
-            Hatchet.
-          </p>
-        </div>
-
+      }
+    >
+      <SetupCard
+        title="Set up your workspace"
+        description="Create your organization and first workspace to get started with Hatchet."
+      >
         <NewOrganizationSaverForm
+          askAttribution
           defaultOrganizationName={user ? deriveDefaultOrgName(user) : ''}
           defaultTenantName="development"
           afterSave={({ tenant }) => {
@@ -78,13 +69,13 @@ export default function CreateOrganization() {
                 // Ignore prefetch errors; subscription plans will be fetched on demand if needed.
               });
             return redirectOrNavigate({
-              to: appRoutes.tenantOverviewRoute.to,
+              to: appRoutes.tenantOnboardingRoute.to,
               params: { tenant: tenant.id },
               replace: true,
             });
           }}
         />
-      </AuthLayout>
-    </div>
+      </SetupCard>
+    </SetupScreen>
   );
 }

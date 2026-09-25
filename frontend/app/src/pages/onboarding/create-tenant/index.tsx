@@ -1,10 +1,9 @@
 import { NewTenantSaverForm } from '@/components/forms/new-tenant-saver-form';
+import { SetupCard, SetupScreen } from '@/components/layout/setup-card';
 import { Button } from '@/components/v1/ui/button';
-import { HatchetLogo } from '@/components/v1/ui/hatchet-logo';
 import { queries } from '@/lib/api';
 import { useUserApi } from '@/lib/api/user-wrapper';
 import { useRedirectOrNavigate } from '@/lib/redirect';
-import { AuthLayout } from '@/pages/auth/components/auth-layout';
 import queryClient from '@/query-client';
 import { appRoutes } from '@/router';
 import { useMutation } from '@tanstack/react-query';
@@ -32,8 +31,8 @@ export default function CreateTenant() {
       : undefined;
 
   return (
-    <div className="fixed inset-0 z-50 bg-background">
-      <div className="absolute top-4 right-4 z-10">
+    <SetupScreen
+      topRight={
         <Button
           variant="ghost"
           size="sm"
@@ -42,21 +41,12 @@ export default function CreateTenant() {
         >
           Sign out
         </Button>
-      </div>
-      <AuthLayout>
-        <div className="flex flex-col gap-3 text-center lg:text-left w-full">
-          <div className="flex justify-center pb-3 lg:hidden">
-            <HatchetLogo className="h-8 w-auto" />
-          </div>
-          <h2 className="text-2xl font-semibold tracking-tight">
-            Create a new tenant
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            A tenant is an isolated environment for your workflows. Set one up
-            to get started.
-          </p>
-        </div>
-
+      }
+    >
+      <SetupCard
+        title="Create a new tenant"
+        description="A tenant is an isolated environment for your workflows. Set one up to get started."
+      >
         <NewTenantSaverForm
           defaultOrganizationId={defaultOrganizationId}
           afterSave={(result) => {
@@ -80,7 +70,7 @@ export default function CreateTenant() {
             });
           }}
         />
-      </AuthLayout>
-    </div>
+      </SetupCard>
+    </SetupScreen>
   );
 }
