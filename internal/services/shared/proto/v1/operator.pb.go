@@ -195,6 +195,7 @@ type OperatorListenRequest struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Types that are assignable to Message:
+	//
 	//	*OperatorListenRequest_Start
 	//	*OperatorListenRequest_Heartbeat
 	//	*OperatorListenRequest_Actions
@@ -530,6 +531,7 @@ type OperatorListenResponse struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Types that are assignable to Message:
+	//
 	//	*OperatorListenResponse_Action
 	//	*OperatorListenResponse_Ack
 	//	*OperatorListenResponse_PauseAck
