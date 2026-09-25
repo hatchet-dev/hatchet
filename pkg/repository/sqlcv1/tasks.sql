@@ -11,6 +11,7 @@ SELECT
     create_v1_range_partition('v1_durable_event_log_branch_point', @date::date, 80) AS v1_durable_event_log_branch_point,
     create_v1_range_partition('v1_dag_to_task', @date::date) AS v1_dag_to_task,
     create_v1_range_partition('v1_dag_data', @date::date) AS v1_dag_data,
+    create_v1_range_partition('v1_task_expression_eval', @date::date) AS v1_task_expression_eval,
     create_v1_monthly_range_partition('v1_lookup_table', @date::date) AS v1_lookup_table
 ;
 
@@ -73,6 +74,8 @@ WITH task_partitions AS (
     SELECT 'v1_dag_to_task' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dag_to_task', @date::date) AS p
 ), dag_data_partitions AS (
     SELECT 'v1_dag_data' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dag_data', @date::date) AS p
+), task_expression_eval_partitions AS (
+    SELECT 'v1_task_expression_eval' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_task_expression_eval', @date::date) AS p
 ), lookup_table_partitions AS (
     SELECT 'v1_lookup_table' AS parent_table, p::text as partition_name FROM get_v1_monthly_partitions_before_date('v1_lookup_table', @date::date) AS p
 )
@@ -151,6 +154,13 @@ SELECT
     *
 FROM
     dag_data_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    task_expression_eval_partitions
 
 UNION ALL
 
@@ -1101,7 +1111,8 @@ WHERE
             task_inserted_at
         FROM
             input
-    );
+    )
+    AND te.task_inserted_at >= @minTaskInsertedAt::timestamptz;
 
 -- name: RefreshTimeoutBy :one
 WITH task AS MATERIALIZED (
@@ -1409,6 +1420,9 @@ ANALYZE v1_dag_to_task;
 
 -- name: AnalyzeV1DagData :exec
 ANALYZE v1_dag_data;
+
+-- name: AnalyzeV1TaskExpressionEval :exec
+ANALYZE v1_task_expression_eval;
 
 -- name: AnalyzeV1LookupTable :exec
 ANALYZE v1_lookup_table;

@@ -252,7 +252,64 @@ ALTER INDEX v1_dag_data_partitioned_pkey RENAME TO v1_dag_data_pkey;
 SELECT create_v1_range_partition('v1_dag_data', ((NOW() AT TIME ZONE 'UTC')::DATE + 1));
 -- +goose StatementEnd
 
+-- +goose StatementBegin
+DO $$
+DECLARE
+    today_start DATE := (NOW() AT TIME ZONE 'UTC')::DATE;
+    tomorrow_start DATE := today_start + 1;
+    legacy_partition_name TEXT := 'v1_task_expression_eval_' || to_char(today_start, 'YYYYMMDD');
+BEGIN
+    EXECUTE format('ALTER TABLE v1_task_expression_eval RENAME CONSTRAINT v1_task_expression_eval_pkey TO %I', legacy_partition_name || '_pkey');
+    EXECUTE format('ALTER TABLE v1_task_expression_eval RENAME TO %I', legacy_partition_name);
+    EXECUTE format('ALTER TABLE v1_task_expression_eval_partitioned ATTACH PARTITION %I FOR VALUES FROM (MINVALUE) TO (%L)', legacy_partition_name, tomorrow_start);
+    EXECUTE format('ALTER TABLE %I DROP CONSTRAINT v1_task_expression_eval_attach_bound', legacy_partition_name);
+END $$;
+
+ALTER TABLE v1_task_expression_eval_partitioned RENAME TO v1_task_expression_eval;
+ALTER INDEX v1_task_expression_eval_partitioned_pkey RENAME TO v1_task_expression_eval_pkey;
+
+SELECT create_v1_range_partition('v1_task_expression_eval', ((NOW() AT TIME ZONE 'UTC')::DATE + 1));
+-- +goose StatementEnd
+
 -- +goose Down
+-- +goose StatementBegin
+DO $$
+DECLARE
+    legacy_partition_name TEXT;
+BEGIN
+    SELECT c.relname
+    INTO legacy_partition_name
+    FROM pg_inherits i
+    JOIN pg_class c ON c.oid = i.inhrelid
+    WHERE i.inhparent = 'v1_task_expression_eval'::regclass
+    AND pg_get_expr(c.relpartbound, c.oid) LIKE 'FOR VALUES FROM (MINVALUE)%';
+
+    IF legacy_partition_name IS NULL THEN
+        CREATE TABLE v1_task_expression_eval_original (
+            key TEXT NOT NULL,
+            task_id BIGINT NOT NULL,
+            task_inserted_at TIMESTAMPTZ NOT NULL,
+            value_str TEXT,
+            value_int INTEGER,
+            kind "StepExpressionKind" NOT NULL,
+            CONSTRAINT v1_task_expression_eval_pkey PRIMARY KEY (task_id, task_inserted_at, kind, key)
+        );
+
+        INSERT INTO v1_task_expression_eval_original SELECT * FROM v1_task_expression_eval;
+
+        DROP TABLE v1_task_expression_eval;
+        ALTER TABLE v1_task_expression_eval_original RENAME TO v1_task_expression_eval;
+        RETURN;
+    END IF;
+
+    EXECUTE format('ALTER TABLE v1_task_expression_eval DETACH PARTITION %I', legacy_partition_name);
+    EXECUTE format('INSERT INTO %I SELECT * FROM v1_task_expression_eval ON CONFLICT DO NOTHING', legacy_partition_name);
+    DROP TABLE v1_task_expression_eval;
+    EXECUTE format('ALTER TABLE %I RENAME TO v1_task_expression_eval', legacy_partition_name);
+    EXECUTE format('ALTER TABLE v1_task_expression_eval RENAME CONSTRAINT %I TO v1_task_expression_eval_pkey', legacy_partition_name || '_pkey');
+END $$;
+-- +goose StatementEnd
+
 -- +goose StatementBegin
 DO $$
 DECLARE

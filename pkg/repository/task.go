@@ -4678,6 +4678,12 @@ func (r *TaskRepositoryImpl) AnalyzeTaskTables(ctx context.Context) error {
 		return fmt.Errorf("error analyzing v1_dag_data: %v", err)
 	}
 
+	err = r.queries.AnalyzeV1TaskExpressionEval(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_task_expression_eval: %v", err)
+	}
+
 	err = r.queries.AnalyzeV1LookupTable(ctx, tx)
 
 	if err != nil {

@@ -112,6 +112,15 @@ func (q *Queries) AnalyzeV1TaskEvent(ctx context.Context, db DBTX) error {
 	return err
 }
 
+const analyzeV1TaskExpressionEval = `-- name: AnalyzeV1TaskExpressionEval :exec
+ANALYZE v1_task_expression_eval
+`
+
+func (q *Queries) AnalyzeV1TaskExpressionEval(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1TaskExpressionEval)
+	return err
+}
+
 const checkLastAutovacuumForPartitionedTablesCoreDB = `-- name: CheckLastAutovacuumForPartitionedTablesCoreDB :many
 SELECT
     s.schemaname,
@@ -288,6 +297,7 @@ SELECT
     create_v1_range_partition('v1_durable_event_log_branch_point', $1::date, 80) AS v1_durable_event_log_branch_point,
     create_v1_range_partition('v1_dag_to_task', $1::date) AS v1_dag_to_task,
     create_v1_range_partition('v1_dag_data', $1::date) AS v1_dag_data,
+    create_v1_range_partition('v1_task_expression_eval', $1::date) AS v1_task_expression_eval,
     create_v1_monthly_range_partition('v1_lookup_table', $1::date) AS v1_lookup_table
 `
 
@@ -303,6 +313,7 @@ type CreatePartitionsRow struct {
 	V1DurableEventLogBranchPoint int32 `json:"v1_durable_event_log_branch_point"`
 	V1DagToTask                  int32 `json:"v1_dag_to_task"`
 	V1DagData                    int32 `json:"v1_dag_data"`
+	V1TaskExpressionEval         int32 `json:"v1_task_expression_eval"`
 	V1LookupTable                int32 `json:"v1_lookup_table"`
 }
 
@@ -321,6 +332,7 @@ func (q *Queries) CreatePartitions(ctx context.Context, db DBTX, date pgtype.Dat
 		&i.V1DurableEventLogBranchPoint,
 		&i.V1DagToTask,
 		&i.V1DagData,
+		&i.V1TaskExpressionEval,
 		&i.V1LookupTable,
 	)
 	return &i, err
@@ -1662,6 +1674,8 @@ WITH task_partitions AS (
     SELECT 'v1_dag_to_task' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dag_to_task', $1::date) AS p
 ), dag_data_partitions AS (
     SELECT 'v1_dag_data' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dag_data', $1::date) AS p
+), task_expression_eval_partitions AS (
+    SELECT 'v1_task_expression_eval' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_task_expression_eval', $1::date) AS p
 ), lookup_table_partitions AS (
     SELECT 'v1_lookup_table' AS parent_table, p::text as partition_name FROM get_v1_monthly_partitions_before_date('v1_lookup_table', $1::date) AS p
 )
@@ -1740,6 +1754,13 @@ SELECT
     parent_table, partition_name
 FROM
     dag_data_partitions
+
+UNION ALL
+
+SELECT
+    parent_table, partition_name
+FROM
+    task_expression_eval_partitions
 
 UNION ALL
 
@@ -1848,8 +1869,8 @@ WITH input AS (
     FROM
         (
             SELECT
-                unnest($1::bigint[]) AS task_id,
-                unnest($2::timestamptz[]) AS task_inserted_at
+                unnest($2::bigint[]) AS task_id,
+                unnest($3::timestamptz[]) AS task_inserted_at
         ) AS subquery
 )
 SELECT
@@ -1864,15 +1885,17 @@ WHERE
         FROM
             input
     )
+    AND te.task_inserted_at >= $1::timestamptz
 `
 
 type ListTaskExpressionEvalsParams struct {
-	Taskids         []int64              `json:"taskids"`
-	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
+	Mintaskinsertedat pgtype.Timestamptz   `json:"mintaskinsertedat"`
+	Taskids           []int64              `json:"taskids"`
+	Taskinsertedats   []pgtype.Timestamptz `json:"taskinsertedats"`
 }
 
 func (q *Queries) ListTaskExpressionEvals(ctx context.Context, db DBTX, arg ListTaskExpressionEvalsParams) ([]*V1TaskExpressionEval, error) {
-	rows, err := db.Query(ctx, listTaskExpressionEvals, arg.Taskids, arg.Taskinsertedats)
+	rows, err := db.Query(ctx, listTaskExpressionEvals, arg.Mintaskinsertedat, arg.Taskids, arg.Taskinsertedats)
 	if err != nil {
 		return nil, err
 	}

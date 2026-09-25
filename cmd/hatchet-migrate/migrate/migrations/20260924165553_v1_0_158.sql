@@ -145,7 +145,39 @@ END $$;
 ALTER TABLE v1_dag_data VALIDATE CONSTRAINT v1_dag_data_attach_bound;
 -- +goose StatementEnd
 
+-- +goose StatementBegin
+CREATE TABLE IF NOT EXISTS v1_task_expression_eval_partitioned (
+    key TEXT NOT NULL,
+    task_id BIGINT NOT NULL,
+    task_inserted_at TIMESTAMPTZ NOT NULL,
+    value_str TEXT,
+    value_int INTEGER,
+    kind "StepExpressionKind" NOT NULL,
+    PRIMARY KEY (task_id, task_inserted_at, kind, key)
+) PARTITION BY RANGE (task_inserted_at);
+-- +goose StatementEnd
+
+-- +goose StatementBegin
+DO $$
+DECLARE
+    tomorrow_start TIMESTAMPTZ := date_trunc('day', NOW() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' + INTERVAL '1 day';
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'v1_task_expression_eval_attach_bound') THEN
+        EXECUTE format('ALTER TABLE v1_task_expression_eval ADD CONSTRAINT v1_task_expression_eval_attach_bound CHECK (task_inserted_at < %L) NOT VALID', tomorrow_start);
+    END IF;
+END $$;
+-- +goose StatementEnd
+
+-- +goose StatementBegin
+ALTER TABLE v1_task_expression_eval VALIDATE CONSTRAINT v1_task_expression_eval_attach_bound;
+-- +goose StatementEnd
+
 -- +goose Down
+-- +goose StatementBegin
+ALTER TABLE v1_task_expression_eval DROP CONSTRAINT IF EXISTS v1_task_expression_eval_attach_bound;
+DROP TABLE IF EXISTS v1_task_expression_eval_partitioned;
+-- +goose StatementEnd
+
 -- +goose StatementBegin
 ALTER TABLE v1_dag_data DROP CONSTRAINT IF EXISTS v1_dag_data_attach_bound;
 DROP TABLE IF EXISTS v1_dag_data_partitioned;

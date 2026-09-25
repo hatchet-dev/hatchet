@@ -586,7 +586,7 @@ CREATE TABLE v1_task_expression_eval (
     kind "StepExpressionKind" NOT NULL,
 
     CONSTRAINT v1_task_expression_eval_pkey PRIMARY KEY (task_id, task_inserted_at, kind, key)
-);
+) PARTITION BY RANGE(task_inserted_at);
 
 -- CreateTable
 -- NOTE: changes to v1_queue_item should be reflected in v1_rate_limited_queue_items
