@@ -288,6 +288,26 @@ describe('HatchetCore configuration', () => {
     );
   });
 
+  it('resolves no address when a transport is supplied', async () => {
+    const engine = fakeEngine();
+    const client = new HatchetCore({
+      token: makeToken({ sub: TENANT_ID }),
+      transport: engine.transport,
+      logLevel: 'OFF',
+    });
+    expect(client.config.serverUrl).toBe('');
+    expect(client.tenantId).toBe(TENANT_ID);
+    await expect(client.runNoWait('wf', {})).resolves.toBeDefined();
+
+    const withUnusedUrl = new HatchetCore({
+      token: makeToken({ sub: TENANT_ID }),
+      serverUrl: 'http://ignored.example.com',
+      transport: engine.transport,
+      logLevel: 'OFF',
+    });
+    expect(withUnusedUrl.config.serverUrl).toBe('http://ignored.example.com');
+  });
+
   it('takes the gRPC target forms the Node client takes for hostPort', () => {
     const forms: Array<[string, string]> = [
       ['dns:///engine.example.com:7070', 'http://engine.example.com:7070'],
@@ -706,12 +726,24 @@ describe('WorkflowRunRef.result', () => {
     await expect(ref.result()).rejects.toEqual(['cancelled by timeout']);
   });
 
-  it('rejects a cancelled or failed run with an Error when it has no tasks or no error', async () => {
+  it('resolves a failed run whose tasks carry no error, as the Node client does', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    engine.detailsQueue.push({
+      ...completed({ t: taskRun('t', RunStatus.FAILED, { partial: true }) }),
+      status: RunStatus.FAILED,
+    });
+
+    const ref = await client.runNoWait('wf', {});
+    await expect(ref.result()).resolves.toEqual({ t: { partial: true } });
+  });
+
+  it('rejects a cancelled or failed run with an Error when it has no tasks', async () => {
     const engine = fakeEngine();
     const client = makeClient(engine);
     engine.detailsQueue.push(
       { ...completed({}), status: RunStatus.CANCELLED },
-      { ...completed({ t: taskRun('t', RunStatus.FAILED) }), status: RunStatus.FAILED }
+      { ...completed({}), status: RunStatus.FAILED }
     );
 
     await expect(client.runRef('run-a').result()).rejects.toThrow(/run run-a was cancelled/);
