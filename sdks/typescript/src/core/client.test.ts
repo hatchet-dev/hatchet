@@ -16,7 +16,11 @@ import {
   IdempotencyCollisionErrorSchema,
   RunStatus,
 } from '@hatchet/protoc-es/v1/workflows_pb';
-import { EventsService, PushEventRequest } from '@hatchet/protoc-es/events/events_pb';
+import {
+  EventsService,
+  PushEventRequest,
+  PutLogRequest,
+} from '@hatchet/protoc-es/events/events_pb';
 import { declarations } from '@hatchet/edge/declarations';
 import { V1TaskStatus } from '@hatchet/clients/rest/generated/data-contracts';
 import HatchetError from '@util/errors/hatchet-error';
@@ -24,6 +28,7 @@ import { IdempotencyCollisionError } from '@util/errors/idempotency-collision-er
 import { BulkTriggerIdempotencyCollisionError } from '@util/errors/bulk-trigger-idempotency-collision-error';
 import { BulkTriggerPartialError } from '@util/errors/bulk-trigger-partial-error';
 import { AbortError } from '@hatchet/util/abort-error';
+import { LogLevel } from '@hatchet/clients/event/rpc';
 import { HatchetCore } from './client';
 import { INITIAL_POLL_INTERVAL_MS, MAX_POLL_INTERVAL_MS, WorkflowRunRef } from './run-ref';
 
@@ -77,6 +82,7 @@ function fakeEngine() {
   const triggers: TriggerWorkflowRequest[] = [];
   const bulkTriggers: BulkTriggerWorkflowRequest[] = [];
   const pushes: PushEventRequest[] = [];
+  const logs: PutLogRequest[] = [];
   const cancels: CancelTasksRequest[] = [];
   const detailsQueue: RunDetails[] = [];
   const detailsTimeouts: Array<number | undefined> = [];
@@ -142,6 +148,10 @@ function fakeEngine() {
           eventTimestamp: e.eventTimestamp,
         })),
       }),
+      putLog: (req) => {
+        logs.push(req);
+        return {};
+      },
     });
   });
 
@@ -150,6 +160,7 @@ function fakeEngine() {
     triggers,
     bulkTriggers,
     pushes,
+    logs,
     cancels,
     detailsQueue,
     detailsTimeouts,
@@ -865,6 +876,26 @@ describe('HatchetCore.events', () => {
     expect(event.eventId).toBe('evt-1');
     expect(event.key).toBe('ns_user:created');
     expect(event.eventTimestamp).toBeInstanceOf(Date);
+  });
+
+  it('logs.put sends a line of up to 1,000 characters and rejects a longer one by length', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+
+    await client.logs.put('task-1', 'x'.repeat(1_000), { level: LogLevel.WARN, retryCount: 2 });
+    expect(engine.logs).toHaveLength(1);
+    expect(engine.logs[0]).toMatchObject({
+      taskRunExternalId: 'task-1',
+      level: LogLevel.WARN,
+      taskRetryCount: 2,
+    });
+    expect(engine.logs[0].message).toHaveLength(1_000);
+
+    const rejected = client.logs.put('task-1', 'y'.repeat(1_001));
+    await expect(rejected).rejects.toThrow(HatchetError);
+    await expect(rejected).rejects.toThrow(/log line is 1001 characters, over the 1000-character limit/);
+    await expect(rejected).rejects.not.toThrow(/yyy/);
+    expect(engine.logs).toHaveLength(1);
   });
 
   it('bulk-pushes events with per-event overrides', async () => {

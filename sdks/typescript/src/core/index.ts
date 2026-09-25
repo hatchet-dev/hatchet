@@ -50,7 +50,7 @@ export { EventsClient } from './features/events';
 export { RunsClient } from './features/runs';
 export { WorkflowsClient } from './features/workflows';
 export { RateLimitsClient } from './features/rate-limits';
-export { LogsClient } from './features/logs';
+export { LogsClient, MAX_LOG_LINE_CHARS } from './features/logs';
 export type { PutLogOptions } from './features/logs';
 export { StreamsClient } from './features/streams';
 
