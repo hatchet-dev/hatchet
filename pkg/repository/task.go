@@ -2167,6 +2167,12 @@ func (r *sharedRepository) upsertQueues(ctx context.Context, tx sqlcv1.DBTX, ten
 		uniqueQueues = append(uniqueQueues, queue)
 	}
 
+	// every queue is already known (5 minute cache): the statement would run with an empty
+	// name list and do nothing, so skip the round trip
+	if len(uniqueQueues) == 0 {
+		return func() {}, nil
+	}
+
 	err := r.queries.UpsertQueues(ctx, tx, sqlcv1.UpsertQueuesParams{
 		TenantID: tenantId,
 		Names:    uniqueQueues,
@@ -3572,6 +3578,12 @@ func (r *sharedRepository) createTaskEvents(
 
 	if childExternalIdsByIndex != nil && len(childExternalIdsByIndex) != len(tasks) {
 		return nil, fmt.Errorf("mismatched task and child external id lengths")
+	}
+
+	// the common insert path (every task born QUEUED) has no events to write: skip the
+	// statement and the payload store round trip
+	if len(tasks) == 0 {
+		return []InternalTaskEvent{}, nil
 	}
 
 	taskIds := make([]int64, len(tasks))
