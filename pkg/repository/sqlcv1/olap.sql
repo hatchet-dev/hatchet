@@ -5,7 +5,11 @@ SELECT
     create_v1_range_partition('v1_tasks_olap'::text, @date::date) AS v1_tasks_olap,
     create_v1_range_partition('v1_runs_olap'::text, @date::date) AS v1_runs_olap,
     create_v1_range_partition('v1_dags_olap'::text, @date::date) AS v1_dags_olap,
-    create_v1_range_partition('v1_payloads_olap'::text, @date::date) AS v1_payloads_olap
+    create_v1_range_partition('v1_payloads_olap'::text, @date::date) AS v1_payloads_olap,
+    create_v1_range_partition('v1_task_events_olap'::text, @date::date) AS v1_task_events_olap,
+    create_v1_range_partition('v1_dag_to_task_olap'::text, @date::date) AS v1_dag_to_task_olap,
+    create_v1_monthly_range_partition('v1_lookup_table_olap'::text, @date::date) AS v1_lookup_table_olap,
+    create_v1_monthly_range_partition('v1_statuses_olap'::text, @date::date) AS v1_statuses_olap
 ;
 
 -- name: CreateOLAPEventPartitions :exec
@@ -40,6 +44,12 @@ ANALYZE v1_payloads_olap;
 
 -- name: AnalyzeV1LookupTableOLAP :exec
 ANALYZE v1_lookup_table_olap;
+
+-- name: AnalyzeV1TaskEventsOLAP :exec
+ANALYZE v1_task_events_olap;
+
+-- name: AnalyzeV1StatusesOLAP :exec
+ANALYZE v1_statuses_olap;
 
 -- name: AnalyzeV1EventsOLAP :exec
 ANALYZE v1_events_olap;
@@ -79,6 +89,14 @@ WITH task_partitions AS (
     SELECT 'v1_otel_trace_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_otel_trace_olap', @date::date) AS p
 ), otel_trace_lookup_partitions AS (
     SELECT 'v1_otel_trace_lookup_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_otel_trace_lookup_olap', @date::date) AS p
+), task_events_partitions AS (
+    SELECT 'v1_task_events_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_task_events_olap', @date::date) AS p
+), dag_to_task_partitions AS (
+    SELECT 'v1_dag_to_task_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_dag_to_task_olap', @date::date) AS p
+), lookup_table_partitions AS (
+    SELECT 'v1_lookup_table_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_monthly_partitions_before_date('v1_lookup_table_olap', @date::date) AS p
+), statuses_partitions AS (
+    SELECT 'v1_statuses_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_monthly_partitions_before_date('v1_statuses_olap', @date::date) AS p
 ), candidates AS (
     SELECT
         *
@@ -155,6 +173,33 @@ WITH task_partitions AS (
     FROM
         otel_trace_lookup_partitions
 
+    UNION ALL
+
+    SELECT
+        *
+    FROM
+        task_events_partitions
+
+    UNION ALL
+
+    SELECT
+        *
+    FROM
+        dag_to_task_partitions
+
+    UNION ALL
+
+    SELECT
+        *
+    FROM
+        lookup_table_partitions
+
+    UNION ALL
+
+    SELECT
+        *
+    FROM
+        statuses_partitions
 )
 
 SELECT *
@@ -226,7 +271,9 @@ FROM
 JOIN
     lookup_task lt ON lt.tenant_id = t.tenant_id AND lt.task_id = t.id AND lt.inserted_at = t.inserted_at
 JOIN
-    v1_task_events_olap e ON (e.tenant_id, e.task_id, e.readable_status, e.retry_count) = (t.tenant_id, t.id, t.readable_status, t.latest_retry_count)
+    v1_task_events_olap e ON (e.tenant_id, e.task_id, e.task_inserted_at, e.readable_status, e.retry_count) = (t.tenant_id, t.id, t.inserted_at, t.readable_status, t.latest_retry_count)
+WHERE
+    e.task_inserted_at >= (SELECT MIN(inserted_at) FROM lookup_task)
 ;
 
 -- name: ListTasksByExternalIds :many
@@ -241,19 +288,30 @@ WHERE
     AND tenant_id = @tenantId::uuid;
 
 -- name: ListTasksByDAGIds :many
+WITH lookups AS MATERIALIZED (
+    SELECT
+        external_id,
+        dag_id,
+        inserted_at
+    FROM
+        v1_lookup_table_olap
+    WHERE
+        external_id = ANY(@dagIds::uuid[])
+        AND tenant_id = @tenantId::uuid
+)
 SELECT
     DISTINCT ON (t.external_id)
     dt.*,
     lt.external_id AS dag_external_id
 FROM
-    v1_lookup_table_olap lt
+    lookups lt
 JOIN
     v1_dag_to_task_olap dt ON (lt.dag_id, lt.inserted_at)= (dt.dag_id, dt.dag_inserted_at)
 JOIN
     v1_tasks_olap t ON (t.id, t.inserted_at) = (dt.task_id, dt.task_inserted_at)
 WHERE
-    lt.external_id = ANY(@dagIds::uuid[])
-    AND lt.tenant_id = @tenantId::uuid
+    dt.dag_inserted_at >= (SELECT MIN(inserted_at) FROM lookups)
+    AND t.inserted_at >= (SELECT MIN(inserted_at) FROM lookups)
 ORDER BY
     t.external_id, t.inserted_at DESC;
 
@@ -364,6 +422,7 @@ WITH tasks AS (
     JOIN tasks t ON t.task_id = e.task_id AND t.task_inserted_at = e.task_inserted_at
     WHERE
         e.tenant_id = @tenantId::uuid
+        AND e.task_inserted_at >= (SELECT MIN(task_inserted_at) FROM tasks)
     GROUP BY e.tenant_id, e.task_id, e.task_inserted_at, t.dag_id, t.dag_inserted_at, e.retry_count, e.event_type, e.durable_invocation_count
 )
 SELECT
@@ -560,6 +619,8 @@ WITH input AS (
         v1_task_events_olap e
     JOIN
         tasks t ON t.id = e.task_id AND t.tenant_id = e.tenant_id AND t.inserted_at = e.task_inserted_at
+    WHERE
+        e.task_inserted_at >= (SELECT MIN(inserted_at) FROM input)
 ), max_retry_counts AS (
     SELECT
         e.tenant_id,
@@ -1081,6 +1142,9 @@ WITH inputs AS (
         v1_dag_to_task_olap dt ON (d.id, d.inserted_at) = (dt.dag_id, dt.dag_inserted_at)
     JOIN
         v1_tasks_olap t ON (dt.task_id, dt.task_inserted_at) = (t.id, t.inserted_at)
+    WHERE
+        dt.dag_inserted_at >= @minDagInsertedAt::TIMESTAMPTZ
+        AND t.inserted_at >= @minDagInsertedAt::TIMESTAMPTZ
     GROUP BY
         d.id, d.inserted_at, d.readable_status, d.tenant_id, d.total_tasks
 ), dag_new_statuses AS (
@@ -1210,7 +1274,8 @@ WITH tenants AS (
         v1_tasks_olap t ON
             (dt.task_id, dt.task_inserted_at) = (t.id, t.inserted_at)
     WHERE
-        t.inserted_at >= @minInsertedAt::TIMESTAMPTZ
+        dt.dag_inserted_at >= @minInsertedAt::TIMESTAMPTZ
+        AND t.inserted_at >= @minInsertedAt::TIMESTAMPTZ
     -- Note that the ORDER BY seems to help the query planner by pruning partitions earlier. We
     -- have previously seen Postgres use an index-only scan on partitions older than the minInsertedAt,
     -- each of which can take a long time to scan. This can be very pathological since we partition on
@@ -1426,7 +1491,10 @@ WITH input AS (
     FROM runs r
     JOIN v1_dag_to_task_olap dt ON (r.dag_id, r.inserted_at) = (dt.dag_id, dt.dag_inserted_at)
     JOIN v1_task_events_olap e ON (e.task_id, e.task_inserted_at) = (dt.task_id, dt.task_inserted_at)
-    WHERE e.tenant_id = @tenantId::uuid
+    WHERE
+        e.tenant_id = @tenantId::uuid
+        AND dt.dag_inserted_at >= (SELECT MIN(inserted_at) FROM input)
+        AND e.task_inserted_at >= (SELECT MIN(inserted_at) FROM input)
 ), max_retry_count AS (
     SELECT run_id, MAX(retry_count) AS max_retry_count
     FROM relevant_events
@@ -1623,7 +1691,10 @@ WITH runs AS (
     FROM runs r
     JOIN v1_dag_to_task_olap dt ON r.dag_id = dt.dag_id AND r.inserted_at = dt.dag_inserted_at
     JOIN v1_task_events_olap e ON (e.task_id, e.task_inserted_at) = (dt.task_id, dt.task_inserted_at)
-    WHERE r.dag_id IS NOT NULL
+    WHERE
+        r.dag_id IS NOT NULL
+        AND dt.dag_inserted_at >= (SELECT MIN(inserted_at) FROM runs)
+        AND e.task_inserted_at >= (SELECT MIN(inserted_at) FROM runs)
 
     UNION ALL
 
@@ -1631,7 +1702,9 @@ WITH runs AS (
         e.*
     FROM runs r
     JOIN v1_task_events_olap e ON e.task_id = r.task_id AND e.task_inserted_at = r.inserted_at
-    WHERE r.task_id IS NOT NULL
+    WHERE
+        r.task_id IS NOT NULL
+        AND e.task_inserted_at >= (SELECT MIN(inserted_at) FROM runs)
 ), max_retry_counts AS (
     SELECT task_id, MAX(retry_count) AS max_retry_count
     FROM relevant_events
@@ -1692,7 +1765,7 @@ WHERE
 ;
 
 -- name: FlattenTasksByExternalIds :many
-WITH lookups AS (
+WITH lookups AS MATERIALIZED (
     SELECT
         *
     FROM
@@ -1711,6 +1784,7 @@ WITH lookups AS (
         v1_dag_to_task_olap dt ON l.dag_id = dt.dag_id AND l.inserted_at = dt.dag_inserted_at
     WHERE
         l.dag_id IS NOT NULL
+        AND dt.dag_inserted_at >= (SELECT MIN(inserted_at) FROM lookups WHERE dag_id IS NOT NULL)
 ), unioned_tasks AS (
     SELECT
         l.tenant_id AS tenant_id,
@@ -2032,6 +2106,8 @@ JOIN
 WHERE lt.external_id = ANY(@externalIds::UUID[])
     AND lt.tenant_id = @tenantId::UUID
     AND d.inserted_at >= @minInsertedAt::TIMESTAMPTZ
+    AND dt.dag_inserted_at >= @minInsertedAt::TIMESTAMPTZ
+    AND e.task_inserted_at >= @minInsertedAt::TIMESTAMPTZ
 GROUP BY lt.external_id
 ;
 
@@ -2065,6 +2141,8 @@ WITH input AS (
         task_data td
     JOIN
         v1_task_events_olap e ON (e.tenant_id, e.task_id, e.task_inserted_at, e.retry_count) = (td.tenant_id, td.task_id, td.inserted_at, td.latest_retry_count)
+    WHERE
+        e.task_inserted_at >= (SELECT MIN(inserted_at) FROM input)
 ), task_times AS (
     SELECT
         task_id,
@@ -2097,6 +2175,7 @@ WHERE
     AND (task_id, task_inserted_at, retry_count) IN (
         SELECT UNNEST(@taskIds::bigint[]), UNNEST(@taskInsertedAt::timestamptz[]), UNNEST(@retryCounts::int[])
     )
+    AND task_inserted_at >= @minTaskInsertedAt::timestamptz
     AND event_type = 'STARTED'
 GROUP BY task_id, task_inserted_at, retry_count;
 
@@ -2556,6 +2635,7 @@ WITH inputs AS (
     FROM v1_task_events_olap e
     -- dag operator task ids are the same as the dag ids
     JOIN inputs i ON (e.task_id, e.task_inserted_at) = (i.dag_id, i.dag_inserted_at)
+    WHERE e.task_inserted_at >= (SELECT MIN(dag_inserted_at) FROM inputs)
     ORDER BY
         e.task_id,
         e.task_inserted_at,
