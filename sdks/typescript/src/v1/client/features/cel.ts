@@ -9,15 +9,60 @@ export type DebugCELInput = {
   filterPayload?: Record<string, any>;
 };
 
+export type CELOutputType = 'bool' | 'string' | 'int';
+
+const VALID_OUTPUT_TYPES: readonly CELOutputType[] = ['bool', 'string', 'int'] as const;
+
+export type CELSuccess = {
+  status: V1CELDebugResponseStatus.SUCCESS;
+  output?: boolean;
+  outputStr?: string;
+  outputInt?: number;
+  outputType: CELOutputType;
+  asBoolean(): boolean;
+  asString(): string;
+  asNumber(): number;
+};
+
 export type CELEvaluationResult =
-  | {
-      status: V1CELDebugResponseStatus.SUCCESS;
-      output: boolean;
-    }
+  | CELSuccess
   | {
       status: V1CELDebugResponseStatus.ERROR;
       error: string;
     };
+
+function makeCELSuccess(
+  output: boolean | undefined,
+  outputStr: string | undefined,
+  outputInt: number | undefined,
+  outputType: CELOutputType,
+): CELSuccess {
+  return {
+    status: V1CELDebugResponseStatus.SUCCESS,
+    output,
+    outputStr,
+    outputInt,
+    outputType,
+    asBoolean() {
+      if (outputType !== 'bool' || output === undefined) {
+        throw new Error(`Cannot convert ${outputType} result to boolean`);
+      }
+      return output;
+    },
+    asString() {
+      if (outputType !== 'string' || outputStr === undefined) {
+        throw new Error(`Cannot convert ${outputType} result to string`);
+      }
+      return outputStr;
+    },
+    asNumber() {
+      if (outputType !== 'int' || outputInt === undefined) {
+        throw new Error(`Cannot convert ${outputType} result to number`);
+      }
+      return outputInt;
+    },
+  };
+}
 
 /**
  * Client for debugging CEL expressions.
@@ -53,14 +98,19 @@ export class CELClient {
         };
       }
 
-      if (response.data.output === undefined) {
-        throw new Error('No output received from CEL debug API.');
+      // Old servers (pre-outputType) return only `output: boolean` with no outputType.
+      // Fall back to 'bool' so upgrading the SDK against an old server keeps working.
+      const rawType = response.data.outputType ?? 'bool';
+      if (!VALID_OUTPUT_TYPES.includes(rawType as CELOutputType)) {
+        throw new Error(`Unknown outputType received from CEL debug API: ${rawType}`);
       }
 
-      return {
-        status: V1CELDebugResponseStatus.SUCCESS,
-        output: response.data.output,
-      };
+      return makeCELSuccess(
+        response.data.output,
+        response.data.outputStr,
+        response.data.outputInt,
+        rawType as CELOutputType,
+      );
     } catch (err) {
       if (err instanceof AxiosError) {
         throw new Error(JSON.stringify(err.response?.data.errors), { cause: err });

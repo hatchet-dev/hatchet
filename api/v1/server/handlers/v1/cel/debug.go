@@ -19,27 +19,11 @@ func (c *V1CELService) V1CelDebug(ctx echo.Context, request gen.V1CelDebugReques
 		filterPayload = *request.Body.FilterPayload
 	}
 
-	result, err := c.celParser.EvaluateEventExpression(request.Body.Expression, cel.NewInput(
+	res, err := c.celParser.EvaluateDebugExpression(request.Body.Expression, cel.NewInput(
 		cel.WithInput(request.Body.Input),
 		cel.WithAdditionalMetadata(additionalMetadata),
 		cel.WithPayload(filterPayload),
 	))
 
-	var output *bool
-	var errorMessage *string
-
-	success := err == nil
-
-	if success {
-		output = &result
-	} else {
-		msg := err.Error()
-		errorMessage = &msg
-	}
-
-	return gen.V1CelDebug200JSONResponse(transformers.ToV1CELDebugResponse(
-		err == nil,
-		output,
-		errorMessage,
-	)), nil
+	return gen.V1CelDebug200JSONResponse(transformers.ToV1CELDebugResponse(res, err)), nil
 }

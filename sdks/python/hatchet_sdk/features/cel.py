@@ -16,7 +16,25 @@ from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 class CELSuccess(BaseModel):
     status: Literal["success"] = "success"
-    output: bool
+    output: bool | None = None
+    output_str: str | None = None
+    output_int: int | None = None
+    output_type: Literal["bool", "string", "int"] | None = None
+
+    def as_bool(self) -> bool:
+        if self.output_type != "bool" or self.output is None:
+            raise ValueError(f"Cannot convert {self.output_type!r} result to bool")
+        return self.output
+
+    def as_str(self) -> str:
+        if self.output_type != "string" or self.output_str is None:
+            raise ValueError(f"Cannot convert {self.output_type!r} result to str")
+        return self.output_str
+
+    def as_int(self) -> int:
+        if self.output_type != "int" or self.output_int is None:
+            raise ValueError(f"Cannot convert {self.output_type!r} result to int")
+        return self.output_int
 
 
 class CELFailure(BaseModel):
@@ -75,10 +93,14 @@ class CELClient(BaseRestClient):
 
                 return CELEvaluationResult(result=CELFailure(error=result.error))
 
-            if result.output is None:
-                raise ValueError("No output received from CEL debug API.")
-
-            return CELEvaluationResult(result=CELSuccess(output=result.output))
+            return CELEvaluationResult(
+                result=CELSuccess(
+                    output=result.output,
+                    output_str=result.output_str,
+                    output_int=result.output_int,
+                    output_type=result.output_type,
+                )
+            )
 
     async def aio_debug(
         self,

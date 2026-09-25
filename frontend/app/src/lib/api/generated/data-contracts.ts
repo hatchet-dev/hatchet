@@ -1264,8 +1264,14 @@ export interface V1CELDebugRequest {
 export interface V1CELDebugResponse {
   /** The status of the CEL evaluation */
   status: V1CELDebugResponseStatus;
-  /** The result of the CEL expression evaluation, if successful */
+  /** The result of the CEL expression evaluation, if the expression evaluated to a boolean */
   output?: boolean;
+  /** The result of the CEL expression evaluation, if the expression evaluated to a string */
+  outputStr?: string;
+  /** The result of the CEL expression evaluation, if the expression evaluated to an integer */
+  outputInt?: number;
+  /** The type of the output value */
+  outputType?: "bool" | "string" | "int";
   /** The error message if the evaluation failed */
   error?: string;
 }

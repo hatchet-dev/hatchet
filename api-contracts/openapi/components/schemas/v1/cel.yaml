@@ -31,7 +31,20 @@ V1CELDebugResponse:
       $ref: "#/V1CELDebugResponseStatus"
     output:
       type: boolean
-      description: The result of the CEL expression evaluation, if successful
+      description: The result of the CEL expression evaluation, if the expression evaluated to a boolean
+    outputStr:
+      type: string
+      description: The result of the CEL expression evaluation, if the expression evaluated to a string
+    outputInt:
+      type: integer
+      description: The result of the CEL expression evaluation, if the expression evaluated to an integer
+    outputType:
+      type: string
+      enum:
+        - bool
+        - string
+        - int
+      description: The type of the output value
     error:
       type: string
       description: The error message if the evaluation failed

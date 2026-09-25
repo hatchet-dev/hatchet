@@ -5,6 +5,12 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.41.2] - 2026-09-25
+
+### Fixed
+
+- `hatchet.cel.debug()` now accepts non-boolean CEL expressions. The response includes an `output_type` discriminator (`bool`, `string`, or `int`) and three typed output fields: `output` (boolean), `output_str` (string), and `output_int` (integer). `CELSuccess` exposes `as_bool()`, `as_str()`, and `as_int()` helpers for typed access.
+
 ## [1.41.1] - 2026-09-24
 
 ### Fixed
