@@ -2,9 +2,10 @@ import { Channel, ClientFactory } from 'nice-grpc';
 import {
   BulkPushEventRequest,
   EventsServiceClient,
-  EventsServiceDefinition,
   PushEventRequest,
 } from '@hatchet/protoc/events/events';
+import { createNodeTransport, type Transport } from '@clients/transport';
+import { createEventsRpc } from './rpc';
 import { getErrorMessage, toHatchetError } from '@util/errors/hatchet-error';
 import { ClientConfig } from '@clients/hatchet-client/client-config';
 import { Logger } from '@hatchet/util/logger';
@@ -54,14 +55,17 @@ export class EventClient {
 
   logger: Logger;
 
+  // The positional channel and factory parameters are part of the public constructor signature;
+  // unary event calls go over the transport and do not use them.
   constructor(
     config: ClientConfig,
-    channel: Channel,
-    factory: ClientFactory,
-    api: HatchetClient['api']
+    _channel: Channel,
+    _factory: ClientFactory,
+    api: HatchetClient['api'],
+    transport: Transport = createNodeTransport(config)
   ) {
     this.config = config;
-    this.client = factory.create(EventsServiceDefinition, channel);
+    this.client = createEventsRpc(transport);
     this.logger = config.logger(`Dispatcher`, config.log_level);
     this.retrier = retrier;
     this.api = api;
