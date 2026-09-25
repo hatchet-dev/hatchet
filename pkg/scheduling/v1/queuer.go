@@ -6,6 +6,7 @@ import (
 	"math/rand/v2"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -66,6 +67,12 @@ type Queuer struct {
 	// consecutiveEmptyPolls counts loop iterations whose refill returned no items. It is only
 	// accessed from the loopQueue goroutine.
 	consecutiveEmptyPolls int
+
+	// capacityRestored counts notifyCapacityRestored calls. loopQueue compares it before and
+	// after a batch so a wake that arrives while the batch's misses are still being flushed
+	// (and so are filtered out of the refill it triggers) is not lost: the batch re-queues once
+	// its misses are retryable.
+	capacityRestored atomic.Uint64
 }
 
 // nextPollInterval returns the duration until the next poll of the queue. The interval doubles
@@ -173,6 +180,13 @@ func (q *Queuer) queue(ctx context.Context) {
 	}()
 }
 
+// notifyCapacityRestored wakes the queue like queue does and records the wake, so a batch
+// whose misses are still in flight re-queues once they are retryable (see loopQueue).
+func (q *Queuer) notifyCapacityRestored(ctx context.Context) {
+	q.capacityRestored.Add(1)
+	q.queue(ctx)
+}
+
 func (q *Queuer) loopQueue(ctx context.Context) {
 	timer := time.NewTimer(q.nextPollInterval())
 	defer timer.Stop()
@@ -222,6 +236,10 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		checkpoint := start
 
 		q.requeueRateLimitedItems(ctx)
+
+		// wakes from here on may find this batch's misses still unacked (see the re-queue
+		// after the flush below)
+		capacityRestoredAtRefill := q.capacityRestored.Load()
 
 		qis, err := q.refillQueue(ctx)
 
@@ -339,6 +357,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 
 		startingQiLength := len(qis)
 		processedQiLength := 0
+		unassignedCount := 0
 
 		for r := range assignCh {
 			wg.Add(1)
@@ -354,6 +373,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 				countMu.Lock()
 				count += numFlushed
 				processedQiLength += len(ar.assigned) + len(ar.buffered) + len(ar.batched) + len(ar.unassigned) + len(ar.schedulingTimedOut) + len(ar.rateLimited) + len(ar.rateLimitedToMove)
+				unassignedCount += len(ar.unassigned)
 				countMu.Unlock()
 
 				if sinceStart := time.Since(startFlush); sinceStart > 100*time.Millisecond {
@@ -481,6 +501,12 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 
 			countMu.Lock()
 			if len(prevQis) > 0 && count == len(prevQis) {
+				q.queue(context.Background())
+			} else if unassignedCount > 0 && q.capacityRestored.Load() != capacityRestoredAtRefill {
+				// Capacity was restored while this batch's misses were still unacked, so the
+				// refill that wake triggered filtered them out. They are in unassigned now
+				// (every flush acks in its defer), so retry them instead of waiting for the
+				// next poll.
 				q.queue(context.Background())
 			}
 

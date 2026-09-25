@@ -25,6 +25,11 @@ const rateLimitedRequeueAfterThreshold = 2 * time.Second
 // database reads) must not hold assignment results hostage.
 const parkedAssignRetryTimeout = 100 * time.Millisecond
 
+// kickedReplenishMinInterval bounds how often assignment misses may trigger a
+// replenish outside the loopReplenish ticker. Misses that arrive while a
+// kicked replenish is pending or too recent coalesce into one.
+const kickedReplenishMinInterval = 100 * time.Millisecond
+
 // Scheduler is responsible for scheduling steps to workers as efficiently as possible.
 // This is tenant-scoped, so each tenant will have its own scheduler.
 //
@@ -72,6 +77,24 @@ type Scheduler struct {
 	// and paying a full queue poll interval.
 	afterReplenish []func()
 
+	// replenishKick wakes loopReplenish for a heuristic replenish when an
+	// assignment batch missed capacity (see kickReplenish). One buffered slot,
+	// so bursts of misses coalesce into a single pending kick.
+	replenishKick chan struct{}
+
+	// loopReplenish timing, settable by tests: the forced ticker's bounds and
+	// the debounce interval for kicked replenishes (kickedReplenishMinInterval).
+	replenishTickerMin         time.Duration
+	replenishTickerMax         time.Duration
+	kickedReplenishMinInterval time.Duration
+
+	// onCapacityRestored, when set, is called outside the run loop after a
+	// replenish rebuilds the pools of actions that had starved and now have
+	// the slots they were missing, with the queues whose items missed. The
+	// tenant manager wakes those queuers so the items are retried right away
+	// instead of on the next poll.
+	onCapacityRestored func(queues []string)
+
 	// warmedSlotTypes tracks (worker, slot type) pairs whose slots have appeared in the
 	// in-memory pool at least once. An empty pool is ambiguous — a worker which has not
 	// been replenished yet looks identical to a fully saturated one — so utilization is
@@ -95,7 +118,21 @@ func newScheduler(cf *sharedConfig, tenantId uuid.UUID, rl *rateLimiter, exts *E
 		poolsByWorker:   make(map[uuid.UUID]map[string]*slotPool),
 		workers:         make(map[uuid.UUID]*worker),
 		unackedSlots:    make(map[int]*assignedSlots),
+		replenishKick:   make(chan struct{}, 1),
 		warmedSlotTypes: make(map[uuid.UUID]map[string]struct{}),
+
+		replenishTickerMin:         1000 * time.Millisecond,
+		replenishTickerMax:         1500 * time.Millisecond,
+		kickedReplenishMinInterval: kickedReplenishMinInterval,
+	}
+}
+
+// kickReplenish asks loopReplenish for a heuristic replenish as soon as
+// kickedReplenishMinInterval allows. Non-blocking, safe from the run loop.
+func (s *Scheduler) kickReplenish() {
+	select {
+	case s.replenishKick <- struct{}{}:
+	default:
 	}
 }
 
@@ -411,6 +448,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	actionsToReplenish := make(map[string]struct{})
 	actionsScanned := 0
 	activeSlotsTotal := 0
+	starvedActions := 0
 
 	if ok := s.do(ctx, func() {
 		scanNow := time.Now()
@@ -437,6 +475,9 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 			activeSlotsTotal += activeCount
 
 			switch {
+			case storedAction.starved != nil:
+				starvedActions++
+				replenish = true
 			case activeCount == 0:
 				replenish = true
 			case activeCount <= (storedAction.lastReplenishedSlotCount / 2):
@@ -459,6 +500,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		telemetry.AttributeKV{Key: "replenish.actions_scanned", Value: actionsScanned},
 		telemetry.AttributeKV{Key: "replenish.active_slots", Value: activeSlotsTotal},
 		telemetry.AttributeKV{Key: "replenish.unique_actions", Value: len(actionsToWorkerIds)},
+		telemetry.AttributeKV{Key: "replenish.starved_actions", Value: starvedActions},
 	)
 	computeActionsSpan.End()
 
@@ -543,6 +585,8 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	actionsRemoved := 0
 	actionCount := 0
 	unackedEntries := 0
+	restoredActions := 0
+	restoredQueues := make(map[string]struct{})
 
 	if ok := s.do(ctx, func() {
 		// retain unacked slots in their worker-owned pools
@@ -631,6 +675,27 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 				continue
 			}
 
+			if starved := storedAction.starved; starved != nil {
+				restored := false
+
+				for queue, requests := range starved.requestsByQueue {
+					for _, request := range requests {
+						if requestFitsOnWorker(nextPoolsByWorker, actionWorkerIds, request) {
+							restoredQueues[queue] = struct{}{}
+							restored = true
+
+							break
+						}
+					}
+				}
+
+				if restored {
+					restoredActions++
+				}
+
+				storedAction.starved = nil
+			}
+
 			storedAction.workerIds = actionWorkerIds
 			storedAction.lastReplenishedSlotCount = totalSlots
 			storedAction.lastReplenishedWorkerCount = len(actionWorkerIds)
@@ -650,8 +715,18 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		telemetry.AttributeKV{Key: "replenish.slots_built", Value: totalSlotsBuilt},
 		telemetry.AttributeKV{Key: "replenish.max_slots_per_pool", Value: maxSlotsPerPool},
 		telemetry.AttributeKV{Key: "replenish.unacked_slot_entries", Value: unackedEntries},
+		telemetry.AttributeKV{Key: "replenish.restored_actions", Value: restoredActions},
 	)
 	buildSlotsSpan.End()
+
+	if len(restoredQueues) > 0 && s.onCapacityRestored != nil {
+		queues := make([]string, 0, len(restoredQueues))
+		for queue := range restoredQueues {
+			queues = append(queues, queue)
+		}
+
+		s.onCapacityRestored(queues)
+	}
 
 	telemetry.WithAttributes(span,
 		telemetry.AttributeKV{Key: "replenish.actions_with_new_slots", Value: actionCount},
@@ -669,22 +744,59 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	return nil
 }
 
+// loopReplenish runs a forced replenish on a 1 to 1.5 s ticker and a
+// heuristic one on demand when assignment misses kick it (kickReplenish).
+// Kicks are debounced to one per kickedReplenishMinInterval: the first kick
+// after a quiet period runs immediately, kicks that follow within the interval
+// coalesce into one run at the end of it.
 func (s *Scheduler) loopReplenish(ctx context.Context) {
-	ticker := randomticker.NewRandomTicker(1000*time.Millisecond, 1500*time.Millisecond)
+	ticker := randomticker.NewRandomTicker(s.replenishTickerMin, s.replenishTickerMax)
 	defer ticker.Stop()
+
+	run := func(mustReplenish bool) {
+		innerCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		defer cancel()
+
+		if err := s.replenish(innerCtx, mustReplenish); err != nil {
+			s.l.Error().Ctx(ctx).Err(err).Msg("error replenishing slots")
+		}
+	}
+
+	var (
+		lastKicked time.Time
+		kickTimer  *time.Timer
+		kickC      <-chan time.Time
+	)
+
+	defer func() {
+		if kickTimer != nil {
+			kickTimer.Stop()
+		}
+	}()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			innerCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-			err := s.replenish(innerCtx, true)
-
-			if err != nil {
-				s.l.Error().Ctx(ctx).Err(err).Msg("error replenishing slots")
+			run(true)
+		case <-s.replenishKick:
+			if kickC != nil {
+				// a kicked replenish is already pending
+				continue
 			}
-			cancel()
+
+			delay := s.kickedReplenishMinInterval - time.Since(lastKicked)
+			if delay < 0 {
+				delay = 0
+			}
+
+			kickTimer = time.NewTimer(delay)
+			kickC = kickTimer.C
+		case <-kickC:
+			kickC = nil
+			lastKicked = time.Now()
+			run(false)
 		}
 	}
 }
@@ -903,6 +1015,14 @@ func (s *Scheduler) tryAssignBatch(
 			})
 
 			return
+		}
+
+		// The pools may lag the database: a slot released by a completion this
+		// engine has not replenished since, or an action registered since the
+		// last rebuild. Ask for a replenish now instead of leaving the missed
+		// items to the next ticker cycle.
+		if batchHasMisses(res) {
+			s.kickReplenish()
 		}
 
 		if isRetry {
@@ -1155,6 +1275,7 @@ func (s *Scheduler) assignSingleton(
 	}
 
 	if selected == nil {
+		a.markStarved(qi.Queue, requests)
 		r.noSlots = true
 		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "assign.succeeded", Value: false})
 		return
@@ -1259,6 +1380,36 @@ func selectSlotsFromPools(poolsByType map[string]*slotPool, requests map[string]
 	}
 
 	return selected, true
+}
+
+// requestFitsOnWorker reports whether one of the workers has, for every slot
+// type in the request, at least the requested number of free slots. This is
+// the per-worker capacity check of selectSlotsFromPools applied to freshly
+// built pools; it ignores label and sticky ranking, so a queue woken for a
+// request those constraints then reject misses again, re-marks the action and
+// kicks, bounded by the kick debounce. Runs on the run loop.
+func requestFitsOnWorker(poolsByWorker map[uuid.UUID]map[string]*slotPool, workerIds []uuid.UUID, request map[string]int32) bool {
+	for _, workerId := range workerIds {
+		pools := poolsByWorker[workerId]
+		fits := true
+
+		for slotType, units := range request {
+			if units <= 0 {
+				continue
+			}
+
+			if pool := pools[slotType]; pool == nil || len(pool.free) < int(units) {
+				fits = false
+				break
+			}
+		}
+
+		if fits {
+			return true
+		}
+	}
+
+	return false
 }
 
 // rankWorkerIds runs on the run loop (it reads s.workers for label affinity).
