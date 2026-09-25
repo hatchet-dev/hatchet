@@ -31,6 +31,13 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/random"
 )
 
+// engineVersion is what the in-process engine answers to GetVersion. The Go SDK parses it as
+// semver, and anything it cannot parse counts as 0.0.0, an engine without slot_config
+// support whose legacy registration path fails intermittently now that its deprecation
+// window has closed. The engine here is built from this checkout, so it reports the first
+// version with slot_config support and a suffix that marks the harness build.
+const engineVersion = "v0.78.23-harness"
+
 func getEnvConfig() (string, bool, string, bool, bool) {
 	// Get migration strategy: penultimate or latest
 	migrateStrategy := os.Getenv("TESTING_MATRIX_MIGRATE")
@@ -216,7 +223,7 @@ func startEngine() func() {
 	engineCh := make(chan error)
 
 	go func() {
-		engineCh <- engine.Run(ctx, cf, "testing")
+		engineCh <- engine.Run(ctx, cf, engineVersion)
 	}()
 
 	// Return a cleanup function that properly handles shutdown
