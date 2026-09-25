@@ -55,8 +55,8 @@ export class EventClient {
 
   logger: Logger;
 
-  // The channel and factory arguments are the streaming clients' and are unused here; they stay
-  // in the signature so deep imports constructed with the original four arguments keep working.
+  // The positional channel and factory parameters are part of the public constructor signature;
+  // unary event calls go over the transport and do not use them.
   constructor(
     config: ClientConfig,
     _channel: Channel,

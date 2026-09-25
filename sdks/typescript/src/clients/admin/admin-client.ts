@@ -90,8 +90,8 @@ export class AdminClient {
   workflows: RunsClient | undefined;
 
   /**
-   * The gRPC calls go over `transport`; `channel` and `factory` stay in the signature so
-   * callers that construct the client positionally keep compiling.
+   * The positional `channel` and `factory` parameters are part of the public constructor
+   * signature; the unary calls go over `transport` and the streaming clients own the channel.
    */
   constructor(
     config: ClientConfig,
