@@ -177,8 +177,9 @@ export class WorkflowRunRef<T> {
         throw timeoutError();
       }
 
-      // Jitter of up to 20% keeps many waiters from polling in lockstep.
-      let delay = Math.round(interval * (1 + Math.random() * 0.2));
+      // Jitter of up to 20% keeps many waiters from polling in lockstep; the cap holds for
+      // the jittered wait too.
+      let delay = Math.min(Math.round(interval * (1 + Math.random() * 0.2)), MAX_POLL_INTERVAL_MS);
       if (deadline !== undefined) {
         delay = Math.min(delay, Math.max(0, deadline - now));
       }

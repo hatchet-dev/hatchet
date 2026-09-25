@@ -25,7 +25,7 @@ import { BulkTriggerIdempotencyCollisionError } from '@util/errors/bulk-trigger-
 import { BulkTriggerPartialError } from '@util/errors/bulk-trigger-partial-error';
 import { AbortError } from '@hatchet/util/abort-error';
 import { HatchetCore } from './client';
-import { INITIAL_POLL_INTERVAL_MS, WorkflowRunRef } from './run-ref';
+import { INITIAL_POLL_INTERVAL_MS, MAX_POLL_INTERVAL_MS, WorkflowRunRef } from './run-ref';
 
 type RunDetails = MessageInitShape<typeof GetRunDetailsResponseSchema>;
 
@@ -540,6 +540,30 @@ describe('WorkflowRunRef.result', () => {
 
     await expect(result).resolves.toEqual({ step1: { a: 1 }, step2: {} });
     expect(engine.detailsCalls).toBe(3);
+  });
+
+  it('backs off from 250 ms to the 5 s cap, jitter included', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    engine.detailsQueue.push(...Array(8).fill(running), completed({}));
+    const random = jest.spyOn(Math, 'random').mockReturnValue(0.999999);
+    // The spy calls through to the fake timer, so it only records the waits.
+    const setTimeoutSpy = jest.spyOn(globalThis, 'setTimeout');
+
+    try {
+      const ref = await client.runNoWait('wf', {});
+      const result = ref.result();
+      for (let i = 0; i < 8; i += 1) {
+        await jest.advanceTimersByTimeAsync(MAX_POLL_INTERVAL_MS);
+      }
+
+      await expect(result).resolves.toEqual({});
+      const waits = setTimeoutSpy.mock.calls.map(([, ms]) => ms);
+      expect(waits).toEqual([300, 600, 1200, 2400, 4800, 5000, 5000, 5000]);
+    } finally {
+      random.mockRestore();
+      setTimeoutSpy.mockRestore();
+    }
   });
 
   it('reads outputs the way the Node client does: absent is {}, null is null', async () => {
