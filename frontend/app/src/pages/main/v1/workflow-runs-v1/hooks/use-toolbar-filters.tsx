@@ -154,7 +154,7 @@ export const useToolbarFilters = ({
     },
     {
       columnId: includeOlderActiveRunsKey,
-      title: 'Show older active runs',
+      title: 'Include active runs, even if older',
       type: ToolbarType.Switch,
     },
     {

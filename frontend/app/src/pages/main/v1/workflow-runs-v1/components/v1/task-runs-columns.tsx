@@ -30,7 +30,7 @@ export const TaskRunColumn = {
   workflow: 'Workflow',
   parentTaskExternalId: 'Parent Task External ID',
   flattenDAGs: 'Flatten DAGs',
-  includeOlderActiveRuns: 'Show older active runs',
+  includeOlderActiveRuns: 'Include active runs, even if older',
   runningFilter: 'Running Filter',
   createdAt: 'Created At',
   startedAt: 'Started At',
