@@ -379,8 +379,23 @@ func (r *TaskRepositoryImpl) EnsureTablePartitionsExist(ctx context.Context) (bo
 }
 
 func createExternalIdUniqueConstraintsOnDailyPartitions(ctx context.Context, db sqlcv1.DBTX, parentTableName string, partitionDates ...time.Time) error {
-	for _, partitionDate := range partitionDates {
-		partitionTableName := fmt.Sprintf("%s_%s", parentTableName, partitionDate.UTC().Format("20060102"))
+	partitionTableNames := listutils.Map(partitionDates, func(partitionDate time.Time) string {
+		return fmt.Sprintf("%s_%s", parentTableName, partitionDate.UTC().Format("20060102"))
+	})
+
+	return createExternalIdUniqueConstraintsOnPartitions(ctx, db, partitionTableNames...)
+}
+
+func createExternalIdUniqueConstraintsOnMonthlyPartitions(ctx context.Context, db sqlcv1.DBTX, parentTableName string, partitionDates ...time.Time) error {
+	partitionTableNames := listutils.Map(partitionDates, func(partitionDate time.Time) string {
+		return fmt.Sprintf("%s_%s01", parentTableName, partitionDate.UTC().Format("200601"))
+	})
+
+	return createExternalIdUniqueConstraintsOnPartitions(ctx, db, partitionTableNames...)
+}
+
+func createExternalIdUniqueConstraintsOnPartitions(ctx context.Context, db sqlcv1.DBTX, partitionTableNames ...string) error {
+	for _, partitionTableName := range partitionTableNames {
 		constraintName := fmt.Sprintf("%s_external_id_uq", partitionTableName)
 
 		_, err := db.Exec(ctx, fmt.Sprintf("ALTER TABLE %s ADD CONSTRAINT %s UNIQUE (external_id);", partitionTableName, constraintName))
@@ -501,6 +516,24 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	}
 
 	if err = createExternalIdUniqueConstraintsOnDailyPartitions(ctx, createPartitionsTx, "v1_payload", payloadDatesToCreateUniqueConstraints...); err != nil {
+		releaseCreateConn()
+		if isLockNotAvailable(err) {
+			return ErrPartitionLockConflict
+		}
+		return err
+	}
+
+	var lookupTableDatesToCreateUniqueConstraints []time.Time
+
+	if todayCreations.V1LookupTable > 0 {
+		lookupTableDatesToCreateUniqueConstraints = append(lookupTableDatesToCreateUniqueConstraints, today)
+	}
+
+	if tomorrowCreations.V1LookupTable > 0 {
+		lookupTableDatesToCreateUniqueConstraints = append(lookupTableDatesToCreateUniqueConstraints, tomorrow)
+	}
+
+	if err = createExternalIdUniqueConstraintsOnMonthlyPartitions(ctx, createPartitionsTx, "v1_lookup_table", lookupTableDatesToCreateUniqueConstraints...); err != nil {
 		releaseCreateConn()
 		if isLockNotAvailable(err) {
 			return ErrPartitionLockConflict
@@ -767,9 +800,10 @@ func (r *TaskRepositoryImpl) verifyAllTasksFinalized(ctx context.Context, tx sql
 
 	// check DAGs
 	notFinalizedDags, err := r.queries.PreflightCheckDAGsForReplay(ctx, tx, sqlcv1.PreflightCheckDAGsForReplayParams{
-		Dagids:         dagIdsToCheck,
-		Daginsertedats: dagInsertedAtsToCheck,
-		Tenantid:       tenantId,
+		Dagids:           dagIdsToCheck,
+		Daginsertedats:   dagInsertedAtsToCheck,
+		Mindaginsertedat: sqlchelpers.MinTimestamptz(dagInsertedAtsToCheck),
+		Tenantid:         tenantId,
 	})
 
 	if err != nil {
@@ -3724,9 +3758,10 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 
 	// list tasks (and augment with task descendants) and locks them for update
 	lockedTasks, err := r.queries.ListTasksForReplay(ctx, tx, sqlcv1.ListTasksForReplayParams{
-		Taskids:         taskIds,
-		Taskinsertedats: taskInsertedAts,
-		Tenantid:        tenantId,
+		Taskids:           taskIds,
+		Taskinsertedats:   taskInsertedAts,
+		Mintaskinsertedat: sqlchelpers.MinTimestamptz(taskInsertedAts),
+		Tenantid:          tenantId,
 	})
 
 	if err != nil {
@@ -3796,9 +3831,10 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 	dagIdsFailedPreflight := make(map[int64]bool)
 
 	preflightDAGs, err := r.queries.PreflightCheckDAGsForReplay(ctx, tx, sqlcv1.PreflightCheckDAGsForReplayParams{
-		Dagids:         successfullyLockedDAGIds,
-		Daginsertedats: successfullyLockedDAGInsertedAts,
-		Tenantid:       tenantId,
+		Dagids:           successfullyLockedDAGIds,
+		Daginsertedats:   successfullyLockedDAGInsertedAts,
+		Mindaginsertedat: sqlchelpers.MinTimestamptz(successfullyLockedDAGInsertedAts),
+		Tenantid:         tenantId,
 	})
 
 	if err != nil {
@@ -3830,7 +3866,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 
 	// group tasks by their dag_id, if it exists
 	dagIdsToChildTasks := make(map[int64][]*sqlcv1.ListTasksForReplayRow)
-	dagIds := make(map[int64]struct{}, 0)
+	dagIdsToDagInsertedAts := make(map[int64]pgtype.Timestamptz, 0)
 
 	// figure out which tasks to replay immediately
 	replayOpts := make([]ReplayTaskOpts, 0)
@@ -3878,7 +3914,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 		})
 
 		if task.DagID.Valid {
-			dagIds[task.DagID.Int64] = struct{}{}
+			dagIdsToDagInsertedAts[task.DagID.Int64] = task.DagInsertedAt
 		}
 
 		if task.DagID.Valid && len(task.Parents) > 0 {
@@ -3964,15 +4000,19 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 		})
 	}
 
-	dagIdsArr := make([]int64, 0, len(dagIds))
+	dagIdsArr := make([]int64, 0, len(dagIdsToDagInsertedAts))
+	dagInsertedAtsArr := make([]pgtype.Timestamptz, 0, len(dagIdsToDagInsertedAts))
 
-	for dagId := range dagIds {
+	for dagId, dagInsertedAt := range dagIdsToDagInsertedAts {
 		dagIdsArr = append(dagIdsArr, dagId)
+		dagInsertedAtsArr = append(dagInsertedAtsArr, dagInsertedAt)
 	}
 
 	allTasksInDAGs, err := r.queries.ListAllTasksInDags(ctx, tx, sqlcv1.ListAllTasksInDagsParams{
-		Dagids:   dagIdsArr,
-		Tenantid: tenantId,
+		Dagids:           dagIdsArr,
+		Daginsertedats:   dagInsertedAtsArr,
+		Mindaginsertedat: sqlchelpers.MinTimestamptz(dagInsertedAtsArr),
+		Tenantid:         tenantId,
 	})
 
 	if err != nil {
@@ -4425,11 +4465,13 @@ func (r *sharedRepository) createExpressionEvals(ctx context.Context, dbtx sqlcv
 func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId uuid.UUID, tasks []*sqlcv1.V1Task) (map[int64][]*TaskOutputEvent, error) {
 	taskIds := make([]int64, 0)
 	taskInsertedAts := make([]pgtype.Timestamptz, 0)
+	dagInsertedAts := make([]pgtype.Timestamptz, 0)
 
 	for _, task := range tasks {
 		if task.DagID.Valid {
 			taskIds = append(taskIds, task.ID)
 			taskInsertedAts = append(taskInsertedAts, task.InsertedAt)
+			dagInsertedAts = append(dagInsertedAts, task.DagInsertedAt)
 		}
 	}
 
@@ -4440,9 +4482,11 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 	}
 
 	res, err := r.queries.ListTaskParentOutputs(ctx, r.pool, sqlcv1.ListTaskParentOutputsParams{
-		Tenantid:        tenantId,
-		Taskids:         taskIds,
-		Taskinsertedats: taskInsertedAts,
+		Tenantid:          tenantId,
+		Taskids:           taskIds,
+		Taskinsertedats:   taskInsertedAts,
+		Mintaskinsertedat: sqlchelpers.MinTimestamptz(taskInsertedAts),
+		Mindaginsertedat:  sqlchelpers.MinTimestamptz(dagInsertedAts),
 	})
 
 	if err != nil {
@@ -4620,6 +4664,30 @@ func (r *TaskRepositoryImpl) AnalyzeTaskTables(ctx context.Context) error {
 
 	if err != nil {
 		return fmt.Errorf("error analyzing v1_dag: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1DAGToTask(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_dag_to_task: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1DagData(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_dag_data: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1TaskExpressionEval(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_task_expression_eval: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1LookupTable(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_lookup_table: %v", err)
 	}
 
 	err = r.queries.AnalyzeV1Payload(ctx, tx)

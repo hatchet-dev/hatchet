@@ -585,8 +585,9 @@ func (m *sharedRepository) processEventMatchesForTarget(ctx context.Context, tx 
 
 	if len(dagIds) > 0 {
 		dagInputDatas, err := m.queries.GetDAGData(ctx, tx, sqlcv1.GetDAGDataParams{
-			Dagids:         dagIds,
-			Daginsertedats: dagInsertedAts,
+			Dagids:           dagIds,
+			Daginsertedats:   dagInsertedAts,
+			Mindaginsertedat: sqlchelpers.MinTimestamptz(dagInsertedAts),
 		})
 
 		if err != nil {

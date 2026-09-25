@@ -43,3 +43,19 @@ func TimestamptzFromTime(t time.Time) pgtype.Timestamptz {
 
 	return pgTs
 }
+
+func MinTimestamptz(timestamps []pgtype.Timestamptz) pgtype.Timestamptz {
+	minTimestamp := pgtype.Timestamptz{}
+
+	for _, timestamp := range timestamps {
+		if !timestamp.Valid {
+			continue
+		}
+
+		if !minTimestamp.Valid || timestamp.Time.Before(minTimestamp.Time) {
+			minTimestamp = timestamp
+		}
+	}
+
+	return minTimestamp
+}
