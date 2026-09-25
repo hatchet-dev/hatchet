@@ -158,7 +158,7 @@ The example below provides some filters you might use to cancel or replay runs i
   </Tabs.Tab>
 </UniversalTabs>
 
-# Manual Retries
+## Manual Retries
 
 Hatchet provides a manual retry mechanism that allows you to handle failed task instances flexibly from the Hatchet dashboard.
 
@@ -168,7 +168,7 @@ To retry a failed task, simply click on the task in the run details view and the
 
 Manual retries give you full control over when and how to reprocess failed instances. For example, you may choose to wait until an external service is back online before retrying instances that depend on that service, or you may need to deploy a bug fix to your task code before retrying instances that were affected by the bug.
 
-## A Note on Dead Letter Queues
+### A Note on Dead Letter Queues
 
 A dead letter queue (DLQ) is a messaging concept used to handle messages that cannot be processed successfully. In the context of task management, a DLQ can be used to store failed task instances that require manual intervention or further analysis.
 
