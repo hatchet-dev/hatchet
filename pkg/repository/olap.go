@@ -68,6 +68,11 @@ type ListTaskRunOpts struct {
 	IncludePayloads bool
 
 	IdempotencyKeys *[]string
+
+	// IncludeOlderActiveRuns also returns QUEUED and RUNNING tasks inserted before
+	// CreatedAfter, back to the OLAP retention floor, so in-flight work stays visible
+	// regardless of the requested time window.
+	IncludeOlderActiveRuns bool
 }
 
 type ListWorkflowRunOpts struct {
@@ -96,6 +101,11 @@ type ListWorkflowRunOpts struct {
 	IncludePayloads bool
 
 	IdempotencyKeys *[]string
+
+	// IncludeOlderActiveRuns also returns QUEUED and RUNNING runs inserted before
+	// CreatedAfter, back to the OLAP retention floor, so in-flight work stays visible
+	// regardless of the requested time window.
+	IncludeOlderActiveRuns bool
 }
 
 type ReadTaskRunMetricsOpts struct {
@@ -846,6 +856,13 @@ func (r *OLAPRepositoryImpl) ReadTaskRunData(ctx context.Context, tenantId uuid.
 	}, workflowRunId, nil
 }
 
+// activeRunsFloor is the oldest inserted_at an active (QUEUED/RUNNING) run can have and
+// still be listed outside the requested time window. Partitions older than the OLAP
+// retention period are dropped, so nothing exists below it.
+func (r *OLAPRepositoryImpl) activeRunsFloor() pgtype.Timestamptz {
+	return sqlchelpers.TimestamptzFromTime(time.Now().UTC().Add(-r.olapRetentionPeriod))
+}
+
 func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, opts ListTaskRunOpts) ([]*TaskWithPayloads, int, error) {
 	ctx, span := telemetry.NewSpan(ctx, "list-tasks-olap")
 	defer span.End()
@@ -874,6 +891,12 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, 
 		TriggeringEventExternalId: opts.TriggeringEventExternalId,
 		WorkerId:                  opts.WorkerId,
 		IdempotencyKeys:           opts.IdempotencyKeys,
+	}
+
+	if opts.IncludeOlderActiveRuns {
+		activeSince := r.activeRunsFloor()
+		params.ActiveSince = activeSince
+		countParams.ActiveSince = activeSince
 	}
 
 	statuses := make([]string, 0)
@@ -1236,6 +1259,12 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 		ParentTaskExternalId:      opts.ParentTaskExternalId,
 		TriggeringEventExternalId: opts.TriggeringEventExternalId,
 		IdempotencyKeys:           opts.IdempotencyKeys,
+	}
+
+	if opts.IncludeOlderActiveRuns {
+		activeSince := r.activeRunsFloor()
+		params.ActiveSince = activeSince
+		countParams.ActiveSince = activeSince
 	}
 
 	statuses := make([]string, 0)

@@ -233,6 +233,9 @@ CREATE INDEX ix_v1_tasks_olap_idempotency_key ON v1_tasks_olap (idempotency_key,
 -- supports containment, which is all the list/count queries use.
 CREATE INDEX ix_v1_tasks_olap_additional_metadata_gin ON v1_tasks_olap USING gin (additional_metadata jsonb_path_ops);
 
+-- Backs the "active tasks older than the time window" branch of the list/count queries.
+CREATE INDEX ix_v1_tasks_olap_tenant_ins_at_active ON v1_tasks_olap (tenant_id, inserted_at DESC) WHERE readable_status IN ('QUEUED', 'RUNNING');
+
 -- DAG DEFINITIONS --
 CREATE TABLE v1_dags_olap (
     id BIGINT NOT NULL,
@@ -282,6 +285,9 @@ CREATE INDEX ix_v1_runs_olap_idempotency_key ON v1_runs_olap (idempotency_key, i
 -- Backs additional_metadata containment filters (@> / @> ANY). jsonb_path_ops only
 -- supports containment, which is all the list/count queries use.
 CREATE INDEX ix_v1_runs_olap_additional_metadata_gin ON v1_runs_olap USING gin (additional_metadata jsonb_path_ops);
+
+-- Backs the "active runs older than the time window" branch of the list/count queries.
+CREATE INDEX ix_v1_runs_olap_tenant_ins_at_active ON v1_runs_olap (tenant_id, inserted_at DESC) WHERE readable_status IN ('QUEUED', 'RUNNING');
 
 -- LOOKUP TABLES --
 CREATE TABLE v1_lookup_table_olap (
