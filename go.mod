@@ -4,6 +4,7 @@ go 1.26.7
 
 require (
 	connectrpc.com/connect v1.21.0
+	connectrpc.com/cors v0.1.0
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/aws/aws-sdk-go-v2 v1.47.0
 	github.com/aws/aws-sdk-go-v2/config v1.33.5
@@ -50,6 +51,7 @@ require (
 	github.com/posthog/posthog-go v1.25.2
 	github.com/pressly/goose/v3 v3.28.0
 	github.com/prometheus/client_model v0.6.3
+	github.com/rs/cors v1.11.1
 	github.com/sashabaranov/go-openai v1.42.1
 	github.com/sethvargo/go-retry v0.4.0
 	github.com/spf13/cobra v1.10.2

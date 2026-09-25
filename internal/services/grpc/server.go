@@ -372,7 +372,7 @@ func (s *Server) handler() (http.Handler, error) {
 	}
 
 	// outermost first
-	return routes.unimplemented(deadlines.enforce(withStreamAbort(matchRequestCompression(mux)))), nil
+	return withCORS(s.config.Runtime.AllowedOrigins, routes.unimplemented(deadlines.enforce(withStreamAbort(matchRequestCompression(mux))))), nil
 }
 
 // matchRequestCompression compresses a gRPC response only when its request was compressed,
