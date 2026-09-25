@@ -5,6 +5,12 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.34.0-alpha.1] - 2026-09-25
+
+### Fixed
+
+- `HatchetClient` and `HatchetLogger` no longer write log lines when the log level is `OFF`.
+
 ## [1.34.0-alpha.0] - 2026-09-22
 
 ### Added
@@ -20,10 +26,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `EventClient` and the legacy `AdminClient` keep their positional constructor parameters and take an optional `transport` last.
 - `HatchetClientOptions.credentials` applies to the streaming `nice-grpc` channel only; the unary transport derives its TLS settings from `tls_config`.
 - A token containing characters that cannot travel in an HTTP header (a stray line break in `HATCHET_CLIENT_TOKEN`, for example) now fails the first unary call with a fixed message instead of an error that quoted the token.
-
-### Fixed
-
-- `HatchetClient` and `HatchetLogger` no longer write log lines when the log level is `OFF`; the level's numeric value sat below every other level, so the threshold check let everything through.
 
 ## [1.33.2] - 2026-09-24
 
