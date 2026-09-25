@@ -1,11 +1,99 @@
 {
   "name": "@hatchet-dev/typescript-sdk",
-  "version": "1.33.2",
+  "version": "1.34.0-alpha.0",
   "engines": {
     "node": ">=20"
   },
   "description": "Background task orchestration & visibility for developers",
   "types": "index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    },
+    "./v1": {
+      "types": "./v1/index.d.ts",
+      "default": "./v1/index.js"
+    },
+    "./edge": {
+      "types": "./edge/index.d.ts",
+      "default": "./edge/index.js"
+    },
+    "./core": {
+      "types": "./core/index.d.ts",
+      "default": "./core/index.js"
+    },
+    "./clients/admin": {
+      "types": "./clients/admin/index.d.ts",
+      "default": "./clients/admin/index.js"
+    },
+    "./clients/hatchet-client": {
+      "types": "./clients/hatchet-client/index.d.ts",
+      "default": "./clients/hatchet-client/index.js"
+    },
+    "./clients/rest": {
+      "types": "./clients/rest/index.d.ts",
+      "default": "./clients/rest/index.js"
+    },
+    "./clients/transport": {
+      "types": "./clients/transport/index.d.ts",
+      "default": "./clients/transport/index.js"
+    },
+    "./opentelemetry": {
+      "types": "./opentelemetry/index.d.ts",
+      "default": "./opentelemetry/index.js"
+    },
+    "./protoc/dispatcher": {
+      "types": "./protoc/dispatcher/index.d.ts",
+      "default": "./protoc/dispatcher/index.js"
+    },
+    "./protoc/events": {
+      "types": "./protoc/events/index.d.ts",
+      "default": "./protoc/events/index.js"
+    },
+    "./protoc/workflows": {
+      "types": "./protoc/workflows/index.d.ts",
+      "default": "./protoc/workflows/index.js"
+    },
+    "./util/config-loader": {
+      "types": "./util/config-loader/index.d.ts",
+      "default": "./util/config-loader/index.js"
+    },
+    "./util/logger": {
+      "types": "./util/logger/index.d.ts",
+      "default": "./util/logger/index.js"
+    },
+    "./v1/client/features": {
+      "types": "./v1/client/features/index.d.ts",
+      "default": "./v1/client/features/index.js"
+    },
+    "./v1/client/worker/deprecated": {
+      "types": "./v1/client/worker/deprecated/index.d.ts",
+      "default": "./v1/client/worker/deprecated/index.js"
+    },
+    "./v1/client/worker/eviction": {
+      "types": "./v1/client/worker/eviction/index.d.ts",
+      "default": "./v1/client/worker/eviction/index.js"
+    },
+    "./v1/conditions": {
+      "types": "./v1/conditions/index.d.ts",
+      "default": "./v1/conditions/index.js"
+    },
+    "./package.json": "./package.json",
+    "./*.d.ts": "./*.d.ts",
+    "./*.js": {
+      "types": "./*.d.ts",
+      "default": "./*.js"
+    },
+    "./*/index": {
+      "types": "./*/index.d.ts",
+      "default": "./*/index.js"
+    },
+    "./*": {
+      "types": "./*.d.ts",
+      "default": "./*.js"
+    }
+  },
   "files": [
     "*",
     "!**/*.test.js",
@@ -26,11 +114,13 @@
     "tsc:build": "pnpm run dump-version && tsc && resolve-tspaths",
     "test:unit": "jest --testMatch='**/*.test.ts'",
     "check:edge": "pnpm run tsc:build && node scripts/check-edge-entry.mjs",
+    "check:exports": "pnpm run tsc:build && node scripts/check-exports.mjs",
     "test:e2e": "jest --config jest.e2e.config.ts --silent --forceExit --runInBand",
     "test:unit:watch": "jest --testMatch='**/*.test.ts' --watch",
     "generate": "pnpm run '/generate-.*/'",
     "generate-api": "npx swagger-typescript-api@13.2.7 generate -p ../../bin/oas/openapi.yaml -o ./src/clients/rest/generated -n hatchet.ts --modular --axios",
     "generate-protoc": "./generate-protoc.sh",
+    "generate-protoc-es": "./generate-protoc-es.sh",
     "lint:check": "pnpm run eslint:check && pnpm run prettier:check",
     "lint:fix": "pnpm run eslint:fix && pnpm run prettier:fix",
     "eslint:check": "eslint \"{src,tests}/**/*.{ts,tsx,js}\"",
@@ -63,6 +153,7 @@
   "devDependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.148",
     "@aws-sdk/client-s3": "^3.1042.0",
+    "@bufbuild/protoc-gen-es": "^2.15.0",
     "@eslint/js": "^10.0.1",
     "@grpc/grpc-js": "^1.14.3",
     "@modelcontextprotocol/sdk": "^1.29.0",
@@ -102,7 +193,9 @@
     "typescript-eslint": "^8.56.1"
   },
   "dependencies": {
-    "@bufbuild/protobuf": "^2.11.0",
+    "@bufbuild/protobuf": "^2.15.0",
+    "@connectrpc/connect": "~2.1.2",
+    "@connectrpc/connect-node": "~2.1.2",
     "@types/qs": "^6.15.0",
     "abort-controller-x": "^0.5.0",
     "axios": "^1.15.2",
