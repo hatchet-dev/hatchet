@@ -1,9 +1,14 @@
-import { PlanSelector } from './plan-selector';
-import { resolveSubscriptionPlanCode } from './subscription-plan-code';
+import { formatInvoiceAmount, formatInvoiceDate } from './invoice-formatters';
+import {
+  canSelfServePayAsYouGoUpgrade,
+  isPayAsYouGoPlanCode,
+  payAsYouGoPlan,
+  resolveSubscriptionPlanCode,
+} from './subscription-plan-code';
+import { UpcomingInvoiceDialog } from './upcoming-invoice-dialog';
+import { UpgradeGateDialog } from './upgrade-gate-dialog';
 import { usePylon } from '@/components/support-chat';
-import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
 import RelativeDate from '@/components/v1/molecules/relative-date';
-import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
 import {
@@ -12,10 +17,8 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/v1/ui/card';
-import { Label } from '@/components/v1/ui/label';
 import { Spinner } from '@/components/v1/ui/loading';
 import { Separator } from '@/components/v1/ui/separator';
-import { Switch } from '@/components/v1/ui/switch';
 import {
   Tooltip,
   TooltipContent,
@@ -27,23 +30,23 @@ import { useTenantDetails } from '@/hooks/use-tenant';
 import { queries } from '@/lib/api';
 import { controlPlaneApi } from '@/lib/api/api';
 import {
+  Coupon,
   OrganizationBillingStateSubscription,
+  OrganizationInvoicePreview,
   SubscriptionPlan,
   SubscriptionPlanCode,
-  SubscriptionPeriod,
-  Coupon,
 } from '@/lib/api/generated/control-plane/data-contracts';
 import { OFFICE_HOURS_URL } from '@/lib/external-links';
 import { useApiError } from '@/lib/hooks';
-import queryClient from '@/query-client';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import React, { useEffect, useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import React, { useMemo, useState } from 'react';
 
 interface SubscriptionProps {
   active?: OrganizationBillingStateSubscription;
   upcoming?: OrganizationBillingStateSubscription;
   plans?: SubscriptionPlan[];
   coupons?: Coupon[];
+  invoicePreviews?: OrganizationInvoicePreview[];
 }
 
 function formatCurrency(cents: number, period?: string) {
@@ -78,43 +81,12 @@ function formatPeriod(period?: string) {
 function isLegacySubscriptionPlan(plan?: SubscriptionPlanCode) {
   return (
     plan === SubscriptionPlanCode.Starter ||
-    plan === SubscriptionPlanCode.Growth
+    plan === SubscriptionPlanCode.Growth ||
+    plan === SubscriptionPlanCode.Developer ||
+    plan === SubscriptionPlanCode.Team ||
+    plan === SubscriptionPlanCode.Scale ||
+    plan === SubscriptionPlanCode.Migration
   );
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object';
-}
-
-function getPlanChangeErrorMessage(error: unknown) {
-  const fallback =
-    'We could not change your plan. Please try again or contact us if this keeps happening.';
-
-  if (isRecord(error)) {
-    const response = error.response;
-    if (isRecord(response)) {
-      const data = response.data;
-      if (isRecord(data)) {
-        if (data.code === 'plan_already_attached') {
-          return 'This plan is already attached to your organization. Refreshing billing details should show the current plan.';
-        }
-
-        if (typeof data.message === 'string') {
-          return data.message;
-        }
-
-        if (typeof data.description === 'string') {
-          return data.description;
-        }
-      }
-    }
-  }
-
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
-
-  return fallback;
 }
 
 export const Subscription: React.FC<SubscriptionProps> = ({
@@ -122,16 +94,12 @@ export const Subscription: React.FC<SubscriptionProps> = ({
   upcoming,
   plans,
   coupons,
+  invoicePreviews,
 }) => {
-  const [loading, setLoading] = useState<string>();
-  const [showAnnual, setShowAnnual] = useState<boolean>(false);
-  const [isChangeConfirmOpen, setChangeConfirmOpen] = useState<
-    SubscriptionPlan | undefined
-  >(undefined);
-  const [planChangeError, setPlanChangeError] = useState<string>();
-  const [submittedPlanCode, setSubmittedPlanCode] = useState<string>();
+  const [invoicePreviewOpen, setInvoicePreviewOpen] = useState(false);
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
 
-  const { tenantId, tenant, billing, organizationId } = useTenantDetails();
+  const { tenantId, tenant, organizationId } = useTenantDetails();
   const { canBill, isControlPlaneEnabled } = useControlPlane();
   const { handleApiError } = useApiError({});
   const pylon = usePylon();
@@ -194,102 +162,9 @@ export const Subscription: React.FC<SubscriptionProps> = ({
     }
   };
 
-  const subscriptionMutation = useMutation({
-    mutationKey: ['organization-subscription:update'],
-    onMutate: ({ plan_code }: { plan_code: string }) => {
-      setLoading(plan_code);
-      setPlanChangeError(undefined);
-      setSubmittedPlanCode(undefined);
-    },
-    mutationFn: async ({ plan_code }: { plan_code: string }) => {
-      const [plan, period] = plan_code.split('_');
-      if (!organizationId) {
-        throw new Error('Organization not found for billing');
-      }
-      const response = await controlPlaneApi.organizationSubscriptionUpdate(
-        organizationId,
-        {
-          plan: plan as SubscriptionPlanCode,
-          period: period as SubscriptionPeriod,
-        },
-      );
-      return response.data;
-    },
-    onSuccess: async (data, variables) => {
-      if (data.checkoutUrl) {
-        window.location.href = data.checkoutUrl;
-        return;
-      }
-
-      setSubmittedPlanCode(variables.plan_code);
-
-      const invalidations = [
-        queryClient.invalidateQueries({
-          queryKey: queries.controlPlane.billing(organizationId).queryKey,
-        }),
-      ];
-
-      if (tenantId) {
-        invalidations.push(
-          queryClient.invalidateQueries({
-            queryKey: queries.tenantResourcePolicy.get(tenantId).queryKey,
-          }),
-        );
-      }
-
-      await Promise.all(invalidations);
-    },
-    onError: (error) => {
-      setPlanChangeError(getPlanChangeErrorMessage(error));
-      setSubmittedPlanCode(undefined);
-      setLoading(undefined);
-
-      if (!isChangeConfirmOpen) {
-        handleApiError(error as any);
-      }
-
-      if (organizationId) {
-        void queryClient.invalidateQueries({
-          queryKey: queries.controlPlane.billing(organizationId).queryKey,
-        });
-      }
-    },
-  });
-
   const activePlanCode = useMemo(() => {
     return resolveSubscriptionPlanCode(active, 'free') ?? 'free';
   }, [active]);
-
-  useEffect(() => {
-    return setShowAnnual(active?.period?.includes('yearly') || false);
-  }, [active]);
-
-  const upcomingPlanCode = useMemo(() => {
-    return resolveSubscriptionPlanCode(upcoming, null);
-  }, [upcoming]);
-
-  useEffect(() => {
-    if (!submittedPlanCode) {
-      return;
-    }
-
-    if (
-      activePlanCode !== submittedPlanCode &&
-      upcomingPlanCode !== submittedPlanCode
-    ) {
-      return;
-    }
-
-    setLoading(undefined);
-    setSubmittedPlanCode(undefined);
-    setPlanChangeError(undefined);
-    setChangeConfirmOpen(undefined);
-  }, [activePlanCode, submittedPlanCode, upcomingPlanCode]);
-
-  const activePlanAmountCents = useMemo(
-    () => plans?.find((p) => p.planCode === activePlanCode)?.amountCents,
-    [plans, activePlanCode],
-  );
 
   const formattedEndDate = useMemo(() => {
     if (!active?.endsAt) {
@@ -337,89 +212,47 @@ export const Subscription: React.FC<SubscriptionProps> = ({
   }, [tenant, tenantId]);
 
   const isDedicatedPlan = active?.plan === 'dedicated';
-
-  const openChangeConfirm = (plan: SubscriptionPlan) => {
-    setPlanChangeError(undefined);
-    setSubmittedPlanCode(undefined);
-    setChangeConfirmOpen(plan);
-  };
-
-  const closeChangeConfirm = () => {
-    if (loading || submittedPlanCode) {
-      return;
-    }
-
-    setPlanChangeError(undefined);
-    setChangeConfirmOpen(undefined);
-  };
+  const nextInvoice = invoicePreviews?.[0];
+  const isUsageBasedCurrentPlan = isPayAsYouGoPlanCode(activePlanCode);
+  const showPlanSelector =
+    !isDedicatedPlan && !isPayAsYouGoPlanCode(activePlanCode);
+  const salesGatedLegacy =
+    !!currentPlanSummary?.legacy &&
+    !canSelfServePayAsYouGoUpgrade(activePlanCode);
 
   return (
     <>
-      <ConfirmDialog
-        isOpen={!!isChangeConfirmOpen}
-        title={'Confirm Plan Change'}
-        submitVariant="default"
-        description={
-          <>
-            Are you sure you'd like to change to the{' '}
-            <span className="font-semibold">{isChangeConfirmOpen?.name}</span>{' '}
-            plan?
-            <br />
-            <br />
-            Upgrades will be prorated and downgrades will take effect at the end
-            of the billing period.
-            {planChangeError && (
-              <Alert variant="destructive" className="mt-4">
-                <AlertTitle>Plan change failed</AlertTitle>
-                <AlertDescription>{planChangeError}</AlertDescription>
-              </Alert>
-            )}
-          </>
-        }
-        submitLabel={'Change Plan'}
-        onSubmit={() => {
-          if (!isChangeConfirmOpen) {
-            return;
-          }
-
-          subscriptionMutation.mutate({
-            plan_code: isChangeConfirmOpen!.planCode,
-          });
-        }}
-        onCancel={closeChangeConfirm}
-        cancelDisabled={!!loading || !!submittedPlanCode}
-        isLoading={!!loading}
-      />
-
       <div>
         {isDedicatedPlan ? (
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="space-y-1">
-              <p className="text-xl font-semibold leading-tight text-foreground">
-                You are on a Dedicated plan
-              </p>
-              <p className="text-sm text-muted-foreground">
-                Contact us to make changes to your plan.
-              </p>
-            </div>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              {pylon.enabled && (
-                <Button onClick={pylon.show} variant="outline">
-                  Contact us
+          <div className="space-y-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1">
+                <p className="text-xl font-semibold leading-tight text-foreground">
+                  You are on a Custom plan
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Contact us to make changes to your plan.
+                </p>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                {pylon.enabled && (
+                  <Button onClick={pylon.show} variant="outline">
+                    Contact us
+                  </Button>
+                )}
+                <Button asChild variant="outline">
+                  <a href={OFFICE_HOURS_URL} target="_blank" rel="noreferrer">
+                    Office hours
+                  </a>
                 </Button>
-              )}
-              <Button asChild variant="outline">
-                <a href={OFFICE_HOURS_URL} target="_blank" rel="noreferrer">
-                  Office hours
-                </a>
-              </Button>
-              <Button
-                onClick={manageClicked}
-                variant="outline"
-                disabled={portalLoading}
-              >
-                {portalLoading ? <Spinner /> : 'Manage Billing'}
-              </Button>
+                <Button
+                  onClick={manageClicked}
+                  variant="outline"
+                  disabled={portalLoading}
+                >
+                  {portalLoading ? <Spinner /> : 'Manage Billing'}
+                </Button>
+              </div>
             </div>
           </div>
         ) : (
@@ -485,7 +318,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                     {portalLoading ? <Spinner /> : 'Manage Billing'}
                   </Button>
                 </CardHeader>
-                <CardContent className="p-4">
+                <CardContent className="p-4 space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="flex items-center gap-2">
@@ -513,7 +346,20 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                       )}
                     </div>
                     <div className="text-right">
-                      {typeof currentPlanSummary.amountCents === 'number' ? (
+                      {isUsageBasedCurrentPlan && nextInvoice ? (
+                        <>
+                          <span className="text-2xl font-bold text-foreground">
+                            {formatInvoiceAmount(
+                              nextInvoice.totalCents,
+                              nextInvoice.currency,
+                            )}
+                          </span>
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            billing period to date
+                          </p>
+                        </>
+                      ) : typeof currentPlanSummary.amountCents === 'number' &&
+                        currentPlanSummary.amountCents > 0 ? (
                         <>
                           <span className="text-2xl font-bold text-foreground">
                             {formatCurrency(
@@ -525,6 +371,10 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                             / month
                           </span>
                         </>
+                      ) : isUsageBasedCurrentPlan ? (
+                        <p className="text-sm text-muted-foreground">
+                          Pay only for what you use
+                        </p>
                       ) : (
                         <span className="text-sm text-muted-foreground">
                           {formatPeriod(currentPlanSummary.period)}
@@ -532,6 +382,21 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                       )}
                     </div>
                   </div>
+                  {nextInvoice ? (
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-sm text-muted-foreground">
+                        Next charge {formatInvoiceDate(nextInvoice.invoiceAt)}
+                      </p>
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="h-auto p-0 justify-start sm:justify-end"
+                        onClick={() => setInvoicePreviewOpen(true)}
+                      >
+                        View breakdown
+                      </Button>
+                    </div>
+                  ) : null}
                 </CardContent>
               </Card>
             )}
@@ -576,63 +441,106 @@ export const Subscription: React.FC<SubscriptionProps> = ({
               </Card>
             )}
 
-            <div className="flex flex-row items-center justify-between mb-4">
-              <p className="text-sm text-muted-foreground">
-                For plan details, visit{' '}
-                <a
-                  href="https://hatchet.run/pricing"
-                  className="text-primary/70 hover:text-primary hover:underline"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  our pricing page
-                </a>{' '}
-                or{' '}
-                <a
-                  href={OFFICE_HOURS_URL}
-                  className="text-primary/70 hover:text-primary hover:underline"
-                >
-                  contact us
-                </a>{' '}
-                for custom requirements.
-              </p>
-
-              <div className="flex gap-2 items-center shrink-0 ml-4">
-                <Switch
-                  id="sa"
-                  checked={showAnnual}
-                  onClick={() => {
-                    setShowAnnual((checkedState) => !checkedState);
-                  }}
-                />
-                <Label htmlFor="sa" className="text-sm whitespace-nowrap">
-                  Annual Billing
-                  <Badge variant="inProgress" className="ml-2">
-                    Save up to 20%
-                  </Badge>
-                </Label>
-              </div>
-            </div>
-
-            <PlanSelector
-              activePlanCode={activePlanCode}
-              activePlanAmountCents={activePlanAmountCents}
-              upcomingPlanCode={upcomingPlanCode}
-              showAnnual={showAnnual}
-              onSelectPlan={(plan) => {
-                if (!billing?.hasPaymentMethods) {
-                  subscriptionMutation.mutate({ plan_code: plan.planCode });
-                } else {
-                  openChangeConfirm(plan);
-                }
-              }}
-              enterpriseContactUrl={enterpriseContactUrl}
-              loading={loading}
-              coupons={coupons}
-            />
+            {showPlanSelector && salesGatedLegacy ? (
+              <Card
+                variant="light"
+                className="bg-transparent ring-1 ring-border/50 border-none"
+              >
+                <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-foreground">
+                      New pricing is here!
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      You're on a legacy plan. Let's get you on a plan that fits
+                      your usage and budget.
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      window.open(enterpriseContactUrl, '_blank', 'noreferrer')
+                    }
+                  >
+                    Talk to us
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : showPlanSelector && payAsYouGoPlan(plans) ? (
+              <Card
+                variant="light"
+                className="bg-transparent ring-1 ring-border/50 border-none"
+              >
+                <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-foreground">
+                      Upgrade to Pay as you Go
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      No monthly fee. Usage billed monthly.
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Button size="sm" onClick={() => setUpgradeOpen(true)}>
+                      Upgrade
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        window.open(
+                          enterpriseContactUrl,
+                          '_blank',
+                          'noreferrer',
+                        )
+                      }
+                    >
+                      Talk to sales
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : !isDedicatedPlan ? (
+              <Card
+                variant="light"
+                className="bg-transparent ring-1 ring-border/50 border-none"
+              >
+                <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    Need volume discounts, HIPAA, VPC peering, or other
+                    requirements?
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      window.open(enterpriseContactUrl, '_blank', 'noreferrer')
+                    }
+                  >
+                    Schedule a Sales Call
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : null}
           </>
         )}
       </div>
+
+      <UpcomingInvoiceDialog
+        preview={nextInvoice ?? null}
+        open={invoicePreviewOpen && !!nextInvoice}
+        onOpenChange={setInvoicePreviewOpen}
+      />
+
+      {organizationId ? (
+        <UpgradeGateDialog
+          open={upgradeOpen}
+          gate="usage"
+          organizationId={organizationId}
+          onDismiss={() => setUpgradeOpen(false)}
+        />
+      ) : null}
     </>
   );
 };

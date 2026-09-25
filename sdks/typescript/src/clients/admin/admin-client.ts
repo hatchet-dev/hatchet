@@ -4,7 +4,6 @@ import {
   CreateWorkflowVersionOpts,
   RateLimitDuration,
   WorkflowServiceClient,
-  WorkflowServiceDefinition,
 } from '@hatchet/protoc/workflows';
 import { toHatchetError } from '@util/errors/hatchet-error';
 import { emitV0RemovedWarning } from '@util/v0-deprecation-warning';
@@ -13,14 +12,11 @@ import { Logger } from '@hatchet/util/logger';
 import { retrier } from '@hatchet/util/retrier';
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
 
-import {
-  AdminServiceClient,
-  AdminServiceDefinition,
-  CreateWorkflowVersionRequest,
-} from '@hatchet/protoc/v1/workflows';
+import { AdminServiceClient, CreateWorkflowVersionRequest } from '@hatchet/protoc/v1/workflows';
 import { Priority, RunsClient, WorkerLabelComparator } from '@hatchet/v1';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { DesiredWorkerLabels } from '@hatchet/protoc/v1/shared/trigger';
+import { createNodeTransport, type Transport } from '@clients/transport';
 import { Api } from '../rest';
 import {
   WebhookWorkerCreateRequest,
@@ -28,6 +24,7 @@ import {
   WorkflowRunStatusList,
 } from '../rest/generated/data-contracts';
 import { RunListenerClient } from '../listeners/run-listener/child-listener-client';
+import { createV1AdminRpc, createWorkflowsRpc } from './rpc';
 
 type DesiredWorkerLabelOpt = {
   value: string | number;
@@ -92,18 +89,23 @@ export class AdminClient {
   listenerClient: RunListenerClient;
   workflows: RunsClient | undefined;
 
+  /**
+   * The positional `channel` and `factory` parameters are part of the public constructor
+   * signature; the unary calls go over `transport` and the streaming clients own the channel.
+   */
   constructor(
     config: ClientConfig,
-    channel: Channel,
-    factory: ClientFactory,
+    _channel: Channel,
+    _factory: ClientFactory,
     api: Api,
     tenantId: string,
     listenerClient: RunListenerClient,
-    workflows: RunsClient | undefined
+    workflows: RunsClient | undefined,
+    transport: Transport = createNodeTransport(config)
   ) {
     this.config = config;
-    this.client = factory.create(WorkflowServiceDefinition, channel);
-    this.v1Client = factory.create(AdminServiceDefinition, channel);
+    this.client = createWorkflowsRpc(transport);
+    this.v1Client = createV1AdminRpc(transport);
     this.api = api;
     this.tenantId = tenantId;
     this.logger = config.logger(`Admin`, config.log_level);
