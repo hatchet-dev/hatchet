@@ -77,4 +77,5 @@ export {
 } from '@hatchet/util/errors/hatchet-error';
 export { IdempotencyCollisionError } from '@hatchet/util/errors/idempotency-collision-error';
 export { BulkTriggerIdempotencyCollisionError } from '@hatchet/util/errors/bulk-trigger-idempotency-collision-error';
+export { BulkTriggerPartialError } from '@hatchet/util/errors/bulk-trigger-partial-error';
 export { AbortError, isAbortError } from '@hatchet/util/abort-error';

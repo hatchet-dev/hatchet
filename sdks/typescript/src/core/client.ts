@@ -1,6 +1,7 @@
 import type { Transport } from '@connectrpc/connect';
 import HatchetError from '@util/errors/hatchet-error';
 import { IdempotencyCollisionError } from '@util/errors/idempotency-collision-error';
+import { BulkTriggerPartialError } from '@util/errors/bulk-trigger-partial-error';
 import {
   createFetchTransport,
   resolveServerUrl as resolveFetchServerUrl,
@@ -14,7 +15,11 @@ import {
 } from '@hatchet/clients/admin/trigger-request';
 import { createEventsRpc } from '@hatchet/clients/event/rpc';
 import type { EventsServiceClient } from '@hatchet/protoc/events/events';
-import { BulkTriggerWorkflowRequest, type WorkflowServiceClient } from '@hatchet/protoc/workflows';
+import {
+  BulkTriggerWorkflowRequest,
+  type BulkTriggerWorkflowResponse,
+  type WorkflowServiceClient,
+} from '@hatchet/protoc/workflows';
 import type { AdminServiceClient } from '@hatchet/protoc/v1/workflows';
 import {
   getGrpcBroadcastAddressFromJWT,
@@ -194,6 +199,14 @@ export class HatchetCore {
    * Triggers many runs of one workflow in batches of 500 (or 4 MB) over `BulkTriggerWorkflow`
    * and returns their references in input order. `runs` takes the `RunManyOpt` entries the
    * declarations' `runMany` takes.
+   *
+   * Each batch is one call, so a failure part way through leaves the earlier batches' runs
+   * created. That failure rejects with a `BulkTriggerPartialError` whose `refs` are those runs'
+   * references and whose `cause` is the batch's own error, so the caller can keep or cancel
+   * them instead of retrying the whole request and creating them twice. A failure of the
+   * first batch rejects with the batch's error itself: a
+   * `BulkTriggerIdempotencyCollisionError` on an idempotency key collision, otherwise a
+   * `HatchetError`.
    */
   async runManyNoWait<I extends InputType = UnknownInputType, O extends OutputType = void>(
     workflow: WorkflowRef<I, O>,
@@ -212,28 +225,26 @@ export class HatchetCore {
     const batches = batch(requests, BULK_TRIGGER_BATCH_SIZE, BULK_TRIGGER_MAX_BYTES);
     const refs: WorkflowRunRef<O>[] = [];
 
-    try {
-      for (const { payloads } of batches) {
-        const request = BulkTriggerWorkflowRequest.create({ workflows: payloads });
-        const response = await retrier(
+    for (const { batchIndex, payloads } of batches) {
+      const request = BulkTriggerWorkflowRequest.create({ workflows: payloads });
+      let response: BulkTriggerWorkflowResponse;
+      try {
+        response = await retrier(
           () => this.workflowsRpc.bulkTriggerWorkflow(request),
           this.logger,
           { ...this.config.retrier, shouldRetry: (e) => !isAlreadyExists(e) }
         );
-        refs.push(
-          ...response.workflowRunIds.map(
-            (id) => new WorkflowRunRef<O>(id, this.runs, undefined, taskName)
-          )
-        );
+      } catch (e: unknown) {
+        const error = bulkTriggerError(e);
+        throw batchIndex === 0 ? error : new BulkTriggerPartialError(refs, batchIndex, error);
       }
-      return refs;
-    } catch (e: unknown) {
-      if (isAlreadyExists(e)) {
-        const collision = extractBulkTriggerCollision(e);
-        if (collision) throw collision;
-      }
-      throw new HatchetError(e instanceof Error ? e.message : String(e));
+      refs.push(
+        ...response.workflowRunIds.map(
+          (id) => new WorkflowRunRef<O>(id, this.runs, undefined, taskName)
+        )
+      );
     }
+    return refs;
   }
 
   /** Triggers many runs of one workflow and waits for all of their outputs, in input order. */
@@ -261,6 +272,18 @@ function standaloneTaskName<I extends InputType, O extends OutputType>(
   workflow: WorkflowRef<I, O>
 ): string | undefined {
   return workflow instanceof TaskWorkflowDeclaration ? workflow._standalone_task_name : undefined;
+}
+
+/**
+ * The error one bulk trigger batch raises: the collision details when the engine attached
+ * them, otherwise a `HatchetError`.
+ */
+function bulkTriggerError(e: unknown): Error {
+  if (isAlreadyExists(e)) {
+    const collision = extractBulkTriggerCollision(e);
+    if (collision) return collision;
+  }
+  return new HatchetError(e instanceof Error ? e.message : String(e));
 }
 
 /**

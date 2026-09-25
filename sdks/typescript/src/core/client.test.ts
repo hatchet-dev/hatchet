@@ -10,6 +10,7 @@ import {
 } from '@hatchet/protoc-es/v1/shared/trigger_pb';
 import {
   AdminService,
+  BulkTriggerIdempotencyCollisionErrorSchema,
   CancelTasksRequest,
   GetRunDetailsResponseSchema,
   IdempotencyCollisionErrorSchema,
@@ -20,9 +21,11 @@ import { declarations } from '@hatchet/edge/declarations';
 import { V1TaskStatus } from '@hatchet/clients/rest/generated/data-contracts';
 import HatchetError from '@util/errors/hatchet-error';
 import { IdempotencyCollisionError } from '@util/errors/idempotency-collision-error';
+import { BulkTriggerIdempotencyCollisionError } from '@util/errors/bulk-trigger-idempotency-collision-error';
+import { BulkTriggerPartialError } from '@util/errors/bulk-trigger-partial-error';
 import { AbortError } from '@hatchet/util/abort-error';
 import { HatchetCore } from './client';
-import { INITIAL_POLL_INTERVAL_MS } from './run-ref';
+import { INITIAL_POLL_INTERVAL_MS, WorkflowRunRef } from './run-ref';
 
 type RunDetails = MessageInitShape<typeof GetRunDetailsResponseSchema>;
 
@@ -71,6 +74,7 @@ function fakeEngine() {
   let detailsCalls = 0;
   let detailsStalled = false;
   let triggerError: ConnectError | undefined;
+  let bulkFailure: { batchIndex: number; error: Error } | undefined;
 
   const transport = createRouterTransport(({ service }) => {
     service(WorkflowService, {
@@ -80,6 +84,7 @@ function fakeEngine() {
         return { workflowRunId: `run-${triggers.length}` };
       },
       bulkTriggerWorkflow: (req) => {
+        if (bulkFailure?.batchIndex === bulkTriggers.length) throw bulkFailure.error;
         bulkTriggers.push(req);
         const offset = bulkTriggers.slice(0, -1).reduce((n, b) => n + b.workflows.length, 0);
         return { workflowRunIds: req.workflows.map((_, i) => `bulk-${offset + i}`) };
@@ -147,6 +152,9 @@ function fakeEngine() {
     },
     stallDetails() {
       detailsStalled = true;
+    },
+    failBulkBatch(batchIndex: number, error: Error) {
+      bulkFailure = { batchIndex, error };
     },
   };
 }
@@ -390,6 +398,64 @@ describe('HatchetCore.runManyNoWait', () => {
     expect(engine.bulkTriggers.map((b) => b.workflows.length)).toEqual([500, 500, 1]);
     expect(refs).toHaveLength(1001);
     expect(refs[1000].workflowRunId).toBe('bulk-1000');
+  });
+
+  it('reports the runs created before a later batch fails', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    engine.failBulkBatch(1, new ConnectError('engine unavailable', Code.Unavailable));
+    const runs = Array.from({ length: 1001 }, (_, i) => ({ input: { i } }));
+
+    const rejection = await client.runManyNoWait('wf', runs).catch((e) => e as unknown);
+
+    expect(rejection).toBeInstanceOf(BulkTriggerPartialError);
+    const error = rejection as BulkTriggerPartialError<WorkflowRunRef<void>>;
+    expect(error.failedBatchIndex).toBe(1);
+    expect(error.refs).toHaveLength(500);
+    expect(error.refs[0].workflowRunId).toBe('bulk-0');
+    expect(error.refs[499].workflowRunId).toBe('bulk-499');
+    expect(error.cause).toBeInstanceOf(HatchetError);
+    expect(error.message).toMatch(/batch 1 after 500 runs were created: .*engine unavailable/);
+    expect(engine.bulkTriggers).toHaveLength(1);
+  });
+
+  it('wraps a later batch idempotency collision in the partial error', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    engine.failBulkBatch(
+      1,
+      new ConnectError('collision', Code.AlreadyExists, undefined, [
+        {
+          desc: BulkTriggerIdempotencyCollisionErrorSchema,
+          value: {
+            successfulWorkflowRunExternalIds: ['bulk-500'],
+            collisions: [{ existingRunExternalId: 'existing-run', collidingRunExternalId: '' }],
+          },
+        },
+      ])
+    );
+    const runs = Array.from({ length: 501 }, (_, i) => ({ input: { i } }));
+
+    const error = await client.runManyNoWait('wf', runs).catch((e) => e as unknown);
+
+    expect(error).toBeInstanceOf(BulkTriggerPartialError);
+    const partial = error as BulkTriggerPartialError;
+    expect(partial.refs).toHaveLength(500);
+    expect(partial.cause).toBeInstanceOf(BulkTriggerIdempotencyCollisionError);
+    const collision = partial.cause as BulkTriggerIdempotencyCollisionError;
+    expect(collision.successfulWorkflowRunExternalIds).toEqual(['bulk-500']);
+    expect(collision.collisions[0].existingRunExternalId).toBe('existing-run');
+  });
+
+  it('rejects with the batch error itself when the first batch fails', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    engine.failBulkBatch(0, new ConnectError('engine unavailable', Code.Unavailable));
+
+    const rejection = client.runManyNoWait('wf', [{ input: {} }]);
+
+    await expect(rejection).rejects.toThrow(HatchetError);
+    await expect(rejection).rejects.not.toBeInstanceOf(BulkTriggerPartialError);
   });
 });
 
