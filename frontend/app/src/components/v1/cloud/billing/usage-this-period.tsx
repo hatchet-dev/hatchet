@@ -1,0 +1,848 @@
+import { UpgradeGate, UpgradeGateDialog } from './upgrade-gate-dialog';
+import {
+  dailyMeterSeverity,
+  formatObservedUsage,
+  formatTimeUntil,
+  meterPercent,
+  nextRefillAt,
+  selectDailyMeters,
+  shardUsageRows,
+  sumUsageSeries,
+  tenantUsageChart,
+  tenantUsageColor,
+  type TenantChartPoint,
+  type TenantChartSeries,
+  type DailyMeter,
+  type UsageDisplayRow,
+  type UsageRangePreset,
+  type UsageSeverity,
+} from './usage-features';
+import {
+  setupCardDialogClassName,
+  SetupCard,
+} from '@/components/layout/setup-card';
+import { ZoomableChart } from '@/components/v1/molecules/charts/zoomable';
+import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
+import { Button } from '@/components/v1/ui/button';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@/components/v1/ui/card';
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from '@/components/v1/ui/chart';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from '@/components/v1/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/v1/ui/select';
+import { Skeleton } from '@/components/v1/ui/skeleton';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/v1/ui/tooltip';
+import useControlPlane from '@/hooks/use-control-plane';
+import { useOrganizationEntitlements } from '@/hooks/use-organization-entitlements';
+import { queries } from '@/lib/api';
+import { OrganizationUsageFeature } from '@/lib/api/generated/control-plane/data-contracts';
+import { cn } from '@/lib/utils';
+import { ArrowUpCircleIcon } from '@heroicons/react/24/outline';
+import { useQuery } from '@tanstack/react-query';
+import { format } from 'date-fns';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  XAxis,
+  YAxis,
+} from 'recharts';
+
+const GRAPHABLE_FEATURES = new Set(['task_runs', 'events']);
+
+type RangePreset = UsageRangePreset;
+
+function formatUsageCount(value: number) {
+  return new Intl.NumberFormat('en-US').format(value);
+}
+
+function usagePercent(feature: OrganizationUsageFeature) {
+  if (feature.unlimited || feature.includedUsage <= 0) {
+    return 0;
+  }
+  return Math.min(100, (feature.usage / feature.includedUsage) * 100);
+}
+
+function usageSeverity(feature: OrganizationUsageFeature): UsageSeverity {
+  if (feature.unlimited || feature.includedUsage <= 0) {
+    return 'ok';
+  }
+  const percent = usagePercent(feature);
+  if (percent > 95) {
+    return 'critical';
+  }
+  if (percent > 75) {
+    return 'warn';
+  }
+  return 'ok';
+}
+
+function gateForFeature(featureId: string): UpgradeGate {
+  if (featureId === 'tenants') {
+    return 'tenants';
+  }
+  if (featureId === 'users') {
+    return 'users';
+  }
+  if (featureId === 'data_retention_days') {
+    return 'retention';
+  }
+  return 'usage';
+}
+
+const severityStyles: Record<UsageSeverity, { value: string; bar: string }> = {
+  ok: {
+    value: 'text-muted-foreground',
+    bar: 'bg-foreground',
+  },
+  warn: {
+    value: 'text-yellow-500 dark:text-yellow-400',
+    bar: 'bg-yellow-500 dark:bg-yellow-400',
+  },
+  critical: {
+    value: 'text-red-500 dark:text-red-400',
+    bar: 'bg-red-500 dark:bg-red-400',
+  },
+};
+
+function formatUsageLabel(feature: OrganizationUsageFeature) {
+  if (feature.unlimited) {
+    return `${formatUsageCount(feature.usage)} / ∞`;
+  }
+  return `${formatUsageCount(feature.usage)} / ${formatUsageCount(feature.includedUsage)}`;
+}
+
+function formatPeriodCount(feature: OrganizationUsageFeature) {
+  return `${formatUsageCount(feature.usage)} this period`;
+}
+
+function formatDailyMeterValue(meter: DailyMeter) {
+  return `${formatUsageCount(meter.value)} / ${formatUsageCount(meter.limitValue)}`;
+}
+
+function dailyLimitKind(window?: string) {
+  if (window === '24h0m0s' || window === '24h') {
+    return 'daily limit';
+  }
+  if (window === '168h0m0s' || window === '168h') {
+    return 'weekly limit';
+  }
+  if (window === '720h0m0s' || window === '720h') {
+    return 'monthly limit';
+  }
+  return 'limit';
+}
+
+function DailyMeterAnnotation({ meter }: { meter: DailyMeter }) {
+  const refill = nextRefillAt(meter);
+
+  return (
+    <span className="font-normal text-muted-foreground">
+      {' '}
+      ({dailyLimitKind(meter.window)}
+      {refill ? (
+        <>
+          {' - '}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger
+                asChild
+                onFocusCapture={(event) => {
+                  event.stopPropagation();
+                }}
+              >
+                <span
+                  className="underline decoration-muted-foreground/50 decoration-dotted underline-offset-2"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                  }}
+                >
+                  {formatTimeUntil(refill)}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                {format(refill, 'yyyy-MM-dd HH:mm:ss.SSS zzz')}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </>
+      ) : null}
+      {meter.showTenant && meter.tenantName ? ` - ${meter.tenantName}` : null})
+    </span>
+  );
+}
+
+function formatRangeLabel(start?: string, end?: string) {
+  if (!start || !end) {
+    return null;
+  }
+  const startDate = new Date(start);
+  const endDate = new Date(end);
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+    return null;
+  }
+  const opts: Intl.DateTimeFormatOptions = {
+    month: 'short',
+    day: 'numeric',
+  };
+  return `${startDate.toLocaleDateString('en-US', opts)} – ${endDate.toLocaleDateString('en-US', opts)}`;
+}
+
+function rangeForPreset(preset: RangePreset) {
+  const end = new Date();
+  if (preset === 'period') {
+    return {
+      start: new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), 1)),
+      end,
+    };
+  }
+  const days = preset === '7d' ? 7 : 30;
+  return {
+    start: new Date(end.getTime() - days * 24 * 60 * 60 * 1000),
+    end,
+  };
+}
+
+function sumLoadedCount(
+  tenants: { crons?: number; scheduledRuns?: number; webhooks?: number }[],
+  key: 'crons' | 'scheduledRuns' | 'webhooks',
+) {
+  if (tenants.length === 0) {
+    return 0;
+  }
+  if (tenants.some((tenant) => tenant[key] == null)) {
+    return undefined;
+  }
+  return tenants.reduce((sum, tenant) => sum + (tenant[key] ?? 0), 0);
+}
+
+function metricValue(
+  featureId: string,
+  point: { taskRuns: number; events: number },
+) {
+  return featureId === 'events' ? point.events : point.taskRuns;
+}
+
+function TenantUsageChart({
+  points,
+  series,
+}: {
+  points: TenantChartPoint[];
+  series: TenantChartSeries[];
+}) {
+  const config: ChartConfig = Object.fromEntries(
+    series.map((item) => [
+      item.tenantId,
+      { label: item.name, color: item.color },
+    ]),
+  );
+  const dates = points.map((point) => new Date(point.date).getTime());
+  const span = Math.max(...dates) - Math.min(...dates);
+
+  return (
+    <ChartContainer config={config} className="aspect-auto h-[240px] w-full">
+      <BarChart data={points} margin={{ left: 0, right: 0, top: 8, bottom: 0 }}>
+        <CartesianGrid vertical={false} />
+        <XAxis
+          dataKey="date"
+          tickFormatter={(value: string) =>
+            new Date(value).toLocaleDateString([], {
+              month: 'short',
+              day: 'numeric',
+            })
+          }
+          tickLine={false}
+          axisLine={false}
+          tickMargin={4}
+          minTickGap={span > 7 * 24 * 60 * 60 * 1000 ? 24 : 16}
+          style={{ fontSize: '10px', userSelect: 'none' }}
+        />
+        <YAxis
+          tickLine={false}
+          axisLine={false}
+          tickMargin={4}
+          width={36}
+          style={{ fontSize: '10px', userSelect: 'none' }}
+        />
+        <ChartTooltip
+          content={
+            <ChartTooltipContent
+              className="w-[180px] font-mono text-xs"
+              labelFormatter={(value) =>
+                new Date(value).toLocaleDateString([], {
+                  month: 'short',
+                  day: 'numeric',
+                })
+              }
+            />
+          }
+        />
+        {series.map((item) => (
+          <Bar
+            key={item.tenantId}
+            dataKey={item.tenantId}
+            stackId="usage"
+            fill={item.color}
+            isAnimationActive={false}
+          />
+        ))}
+      </BarChart>
+    </ChartContainer>
+  );
+}
+
+function UsageSparkline({ values }: { values: number[] }) {
+  const data = values.map((usage, index) => ({ index, usage }));
+  const active = values.some((value) => value > 0);
+
+  return (
+    <div className="h-8 w-28 shrink-0">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart
+          data={data}
+          margin={{ top: 4, right: 0, bottom: 4, left: 0 }}
+        >
+          <Line
+            type="monotone"
+            dataKey="usage"
+            stroke={active ? '#34d399' : 'hsl(var(--muted-foreground))'}
+            strokeWidth={1.5}
+            dot={false}
+            isAnimationActive={false}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+function UsageMeter({
+  row,
+  sparkline,
+  observedUsage,
+  rangePreset,
+  selectable,
+  onSelect,
+  onUpgrade,
+}: {
+  row: UsageDisplayRow;
+  sparkline?: number[];
+  observedUsage?: number;
+  rangePreset: RangePreset;
+  selectable: boolean;
+  onSelect: () => void;
+  onUpgrade: () => void;
+}) {
+  const { feature, dailyMeter, showPeriodAsCount, countOnly } = row;
+  const periodCount =
+    observedUsage !== undefined
+      ? formatObservedUsage(observedUsage, rangePreset)
+      : formatPeriodCount(feature);
+  const percent = dailyMeter
+    ? meterPercent(dailyMeter)
+    : showPeriodAsCount
+      ? 0
+      : usagePercent(feature);
+  const severity = dailyMeter
+    ? dailyMeterSeverity(dailyMeter)
+    : showPeriodAsCount
+      ? 'ok'
+      : usageSeverity(feature);
+  const styles = severityStyles[severity];
+  const showBar = dailyMeter
+    ? dailyMeter.limitValue > 0
+    : !showPeriodAsCount && !feature.unlimited && feature.includedUsage > 0;
+  const upgradeLabel = dailyMeter
+    ? `Upgrade to raise the ${feature.name} daily limit`
+    : `Upgrade to raise the ${feature.name} limit`;
+  const primaryValue = dailyMeter
+    ? formatDailyMeterValue(dailyMeter)
+    : countOnly
+      ? formatUsageCount(feature.usage)
+      : showPeriodAsCount
+        ? periodCount
+        : formatUsageLabel(feature);
+
+  const content = (
+    <>
+      <div className="min-w-0 flex-1 space-y-2">
+        <div className="flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-foreground">
+              {feature.name}
+            </p>
+            {dailyMeter && showPeriodAsCount ? (
+              <p className="text-xs text-muted-foreground">{periodCount}</p>
+            ) : null}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <p
+              className={cn(
+                'text-sm tabular-nums',
+                dailyMeter || !showPeriodAsCount
+                  ? styles.value
+                  : 'text-muted-foreground',
+              )}
+            >
+              {primaryValue}
+              {dailyMeter ? <DailyMeterAnnotation meter={dailyMeter} /> : null}
+            </p>
+            {severity !== 'ok' ? (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onUpgrade();
+                }}
+                className={cn(
+                  'rounded-sm p-0.5 transition-opacity hover:opacity-80',
+                  styles.value,
+                )}
+                aria-label={upgradeLabel}
+              >
+                <ArrowUpCircleIcon className="h-3.5 w-3.5" />
+              </button>
+            ) : null}
+          </div>
+        </div>
+        {showBar ? (
+          <div className="h-1 overflow-hidden rounded-full bg-muted">
+            <div
+              className={cn('h-full rounded-full', styles.bar)}
+              style={{ width: `${percent}%` }}
+            />
+          </div>
+        ) : null}
+      </div>
+      {sparkline ? <UsageSparkline values={sparkline} /> : null}
+    </>
+  );
+
+  if (selectable) {
+    return (
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={onSelect}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            onSelect();
+          }
+        }}
+        className="flex w-full cursor-pointer items-center gap-4 px-3 py-3 text-left transition-colors hover:bg-muted/40"
+      >
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex w-full items-center gap-4 px-3 py-3">{content}</div>
+  );
+}
+
+export function UsageThisPeriod({
+  organizationId,
+}: {
+  organizationId?: string | null;
+}) {
+  const { canBill, isControlPlaneEnabled } = useControlPlane();
+  const [detailFeatureId, setDetailFeatureId] = useState<string | null>(null);
+  const [chartTenantId, setChartTenantId] = useState<string | null>(null);
+  const [upgradeGate, setUpgradeGate] = useState<{
+    gate: UpgradeGate;
+    featureId: string;
+  } | null>(null);
+  const [rangePreset, setRangePreset] = useState<RangePreset>('period');
+  const [tenantId, setTenantId] = useState('all');
+  const [tenantOptions, setTenantOptions] = useState<
+    { tenantId: string; tenantName: string }[]
+  >([]);
+
+  const { entitlements } = useOrganizationEntitlements(organizationId);
+
+  const resourceLimits = useQuery({
+    ...queries.controlPlane.tenantResourceLimits(organizationId ?? ''),
+    refetchInterval: 2 * 60_000,
+    enabled: isControlPlaneEnabled && canBill && !!organizationId,
+  });
+
+  const dailyMeters = useMemo(
+    () => selectDailyMeters(resourceLimits.data?.tenants ?? [], tenantId),
+    [resourceLimits.data?.tenants, tenantId],
+  );
+
+  const range = useMemo(() => rangeForPreset(rangePreset), [rangePreset]);
+
+  const timeseries = useQuery({
+    ...queries.controlPlane.usageTimeseries(organizationId ?? '', {
+      start: range.start.toISOString(),
+      end: range.end.toISOString(),
+      tenantId: tenantId === 'all' ? undefined : tenantId,
+    }),
+    enabled: isControlPlaneEnabled && canBill && !!organizationId,
+  });
+
+  useEffect(() => {
+    if (tenantId !== 'all') {
+      return;
+    }
+
+    const fromLimits = (resourceLimits.data?.tenants ?? []).map((tenant) => ({
+      tenantId: tenant.tenantId,
+      tenantName: tenant.tenantName,
+    }));
+    if (fromLimits.length > 0) {
+      setTenantOptions(fromLimits);
+      return;
+    }
+    if (!timeseries.data?.tenants) {
+      return;
+    }
+    setTenantOptions(
+      timeseries.data.tenants.map((tenant) => ({
+        tenantId: tenant.tenantId,
+        tenantName: tenant.tenantName,
+      })),
+    );
+  }, [resourceLimits.data?.tenants, tenantId, timeseries.data?.tenants]);
+
+  const rows = useMemo(() => {
+    const shardTenants = timeseries.data?.tenants ?? [];
+    return shardUsageRows(
+      {
+        taskRuns: sumUsageSeries(
+          (timeseries.data?.series ?? []).map((point) => point.taskRuns),
+        ),
+        events: sumUsageSeries(
+          (timeseries.data?.series ?? []).map((point) => point.events),
+        ),
+        crons: sumLoadedCount(shardTenants, 'crons'),
+        scheduledRuns: sumLoadedCount(shardTenants, 'scheduledRuns'),
+        webhooks: sumLoadedCount(shardTenants, 'webhooks'),
+        tenants: tenantId === 'all' ? entitlements?.tenants : undefined,
+        users: tenantId === 'all' ? entitlements?.users : undefined,
+      },
+      dailyMeters,
+    );
+  }, [
+    dailyMeters,
+    entitlements?.tenants,
+    entitlements?.users,
+    tenantId,
+    timeseries.data?.series,
+    timeseries.data?.tenants,
+  ]);
+  const detailFeature = rows.find(
+    (row) => row.feature.featureId === detailFeatureId,
+  )?.feature;
+
+  const seriesByFeature = useMemo(() => {
+    const series = timeseries.data?.series ?? [];
+    return {
+      task_runs: series.map((point) => point.taskRuns),
+      events: series.map((point) => point.events),
+    };
+  }, [timeseries.data?.series]);
+
+  const chartData = useMemo(
+    () =>
+      (timeseries.data?.series ?? []).map((point) => ({
+        date: `${point.date}T00:00:00.000Z`,
+        usage: metricValue(detailFeatureId ?? 'task_runs', point),
+      })),
+    [detailFeatureId, timeseries.data?.series],
+  );
+  const chartTotal = chartData.reduce((sum, point) => sum + point.usage, 0);
+  const tenantChart = useMemo(
+    () =>
+      tenantUsageChart(
+        timeseries.data?.tenants ?? [],
+        detailFeatureId ?? 'task_runs',
+        chartTenantId,
+      ),
+    [chartTenantId, detailFeatureId, timeseries.data?.tenants],
+  );
+  const tenantRows = timeseries.data?.tenants ?? [];
+  const tenantTotal = tenantRows.reduce(
+    (sum, tenant) => sum + metricValue(detailFeatureId ?? 'task_runs', tenant),
+    0,
+  );
+
+  if (timeseries.isPending) {
+    return (
+      <Card
+        variant="light"
+        className="bg-transparent ring-1 ring-border/50 border-none"
+      >
+        <CardHeader className="p-4 border-b border-border/50">
+          <Skeleton className="h-4 w-32" />
+        </CardHeader>
+        <CardContent className="space-y-3 p-4">
+          <Skeleton className="h-6 w-full" />
+          <Skeleton className="h-6 w-5/6" />
+          <Skeleton className="h-6 w-full" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (timeseries.isError) {
+    return (
+      <Alert variant="warn">
+        <AlertTitle>Usage unavailable</AlertTitle>
+        <AlertDescription className="flex flex-col gap-3">
+          <span>We couldn&apos;t load usage from your shards.</span>
+          <div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                void timeseries.refetch();
+                void resourceLimits.refetch();
+              }}
+            >
+              Try again
+            </Button>
+          </div>
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  return (
+    <>
+      <Card
+        variant="light"
+        className="bg-transparent ring-1 ring-border/50 border-none"
+      >
+        <CardHeader className="p-4 border-b border-border/50">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <CardTitle className="font-mono font-normal tracking-wider uppercase text-xs text-muted-foreground">
+              Usage
+            </CardTitle>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <Select
+                value={rangePreset}
+                onValueChange={(value) => setRangePreset(value as RangePreset)}
+              >
+                <SelectTrigger className="h-8 w-[170px] text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="period">This month</SelectItem>
+                  <SelectItem value="7d">Last 7 days</SelectItem>
+                  <SelectItem value="30d">Last 30 days</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={tenantId} onValueChange={setTenantId}>
+                <SelectTrigger className="h-8 w-[180px] text-xs">
+                  <SelectValue placeholder="All tenants" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All tenants</SelectItem>
+                  {tenantOptions.map((tenant) => (
+                    <SelectItem key={tenant.tenantId} value={tenant.tenantId}>
+                      {tenant.tenantName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {rows.length > 0 ? (
+            <div className="divide-y divide-border/40">
+              {rows.map((row) => {
+                const graphable = GRAPHABLE_FEATURES.has(row.feature.featureId);
+                const sparkline = graphable
+                  ? seriesByFeature[
+                      row.feature.featureId as keyof typeof seriesByFeature
+                    ]
+                  : undefined;
+
+                return (
+                  <UsageMeter
+                    key={row.feature.featureId}
+                    row={row}
+                    sparkline={sparkline}
+                    observedUsage={
+                      graphable && timeseries.isSuccess
+                        ? sumUsageSeries(sparkline ?? [])
+                        : undefined
+                    }
+                    rangePreset={rangePreset}
+                    selectable={graphable}
+                    onSelect={() => setDetailFeatureId(row.feature.featureId)}
+                    onUpgrade={() =>
+                      setUpgradeGate({
+                        gate: gateForFeature(row.feature.featureId),
+                        featureId: row.feature.featureId,
+                      })
+                    }
+                  />
+                );
+              })}
+            </div>
+          ) : (
+            <p className="p-4 text-sm text-muted-foreground">
+              No usage recorded for this billing period.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {organizationId && upgradeGate ? (
+        <UpgradeGateDialog
+          open
+          gate={upgradeGate.gate}
+          featureId={upgradeGate.featureId}
+          organizationId={organizationId}
+          onDismiss={() => setUpgradeGate(null)}
+        />
+      ) : null}
+
+      <Dialog
+        open={!!detailFeatureId}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDetailFeatureId(null);
+            setChartTenantId(null);
+          }
+        }}
+      >
+        <DialogContent
+          className={`${setupCardDialogClassName} max-h-[85vh] max-w-3xl overflow-y-auto`}
+        >
+          <DialogTitle className="sr-only">
+            {detailFeature?.name ?? 'Usage'}
+          </DialogTitle>
+          <SetupCard
+            className="max-w-none"
+            title={detailFeature?.name ?? 'Usage'}
+            description={
+              <DialogDescription>
+                Daily usage
+                {formatRangeLabel(
+                  range.start.toISOString(),
+                  range.end.toISOString(),
+                )
+                  ? ` · ${formatRangeLabel(range.start.toISOString(), range.end.toISOString())}`
+                  : ''}
+                . Total {formatUsageCount(tenantChart?.total ?? chartTotal)}.
+              </DialogDescription>
+            }
+          >
+            {timeseries.isError ? (
+              <Alert variant="warn">
+                <AlertTitle>Usage graph unavailable</AlertTitle>
+                <AlertDescription>
+                  We couldn&apos;t load daily usage from your shards.
+                </AlertDescription>
+              </Alert>
+            ) : timeseries.isPending ? (
+              <Skeleton className="h-[220px] w-full" />
+            ) : tenantChart ? (
+              <TenantUsageChart
+                points={tenantChart.points}
+                series={tenantChart.series}
+              />
+            ) : (
+              <ZoomableChart<'usage'>
+                kind="bar"
+                showYAxis
+                data={chartData}
+                colors={{ usage: 'hsl(var(--foreground))' }}
+                className="h-[240px] min-h-[240px]"
+              />
+            )}
+
+            {tenantRows.length > 0 ? (
+              <div className="-mx-6 space-y-3">
+                <p className="px-6 text-sm font-medium text-foreground">
+                  Usage by tenant
+                </p>
+                <div className="divide-y divide-border/40">
+                  {tenantRows.map((tenant) => {
+                    const value = metricValue(
+                      detailFeatureId ?? 'task_runs',
+                      tenant,
+                    );
+                    const percent =
+                      tenantTotal > 0 ? (value / tenantTotal) * 100 : 0;
+                    const selected = chartTenantId === tenant.tenantId;
+                    const color = tenantUsageColor(tenantRows, tenant.tenantId);
+                    return (
+                      <button
+                        key={tenant.tenantId}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() =>
+                          setChartTenantId(selected ? null : tenant.tenantId)
+                        }
+                        className={cn(
+                          'flex w-full items-center justify-between gap-4 px-6 py-2 text-left transition-colors hover:bg-muted/40',
+                          selected && 'bg-muted/50',
+                          chartTenantId && !selected && 'opacity-50',
+                        )}
+                      >
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span
+                            className="h-2.5 w-2.5 shrink-0 rounded-sm"
+                            style={{ backgroundColor: color }}
+                          />
+                          <div className="min-w-0">
+                            <p className="text-sm text-foreground">
+                              {tenant.tenantName}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {tenant.tenantSlug}
+                            </p>
+                          </div>
+                        </div>
+                        <p className="text-sm tabular-nums text-muted-foreground">
+                          {formatUsageCount(value)}
+                          {tenantTotal > 0 ? ` · ${percent.toFixed(1)}%` : ''}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+          </SetupCard>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}

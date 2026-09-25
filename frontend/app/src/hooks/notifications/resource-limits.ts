@@ -1,3 +1,4 @@
+import { tenantResourceDismissKey } from './dismissed';
 import { Notification, NotificationColor } from './types';
 import { queries, TenantResource, TenantResourceLimit } from '@/lib/api';
 import {
@@ -51,6 +52,7 @@ const limitToNotification = (
         : `Approaching ${label} limit`,
     message: `${tenantName}: ${limit.value} / ${limit.limitValue} used`,
     timestamp: limit.metadata.createdAt,
+    dismissKey: tenantResourceDismissKey(tenantId, limit.resource, status),
     url: appRoutes.tenantSettingsBillingRoute.to.replace('$tenant', tenantId),
   };
 };
