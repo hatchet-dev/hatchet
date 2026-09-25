@@ -14,6 +14,8 @@ const DialogOverlay = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Overlay>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>
 >(({ className, ...props }, ref) => (
+  // z-[400] covers page chrome. Select, dropdown, popover, tooltip, and
+  // hover-card menus portal to the body at z-[500] so they still open above it.
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
