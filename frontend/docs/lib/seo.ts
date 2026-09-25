@@ -21,6 +21,12 @@ export function sdkLabel(slug: string[]): string | undefined {
   return language ? `${language} SDK` : undefined;
 }
 
+/** True when a heading such as "Hatchet Python SDK Reference" already names the SDK. */
+export function headingNamesSdk(heading: string, sdk: string): boolean {
+  const language = sdk.replace(/ SDK$/, "");
+  return new RegExp(`\\b${language}\\b`, "i").test(heading);
+}
+
 /**
  * The <title> for a page. `seoTitle` wins; SDK reference pages get their
  * language appended because the generators emit the same titles for every
@@ -96,7 +102,7 @@ export async function pageDescription(
   }
   if (!text) return undefined;
   // The same doc comment is generated for every SDK, so name the language.
-  return sdk
+  return sdk && !headingNamesSdk(text, sdk)
     ? `${sdk}: ${summarize(text, MAX_DESCRIPTION - sdk.length - 2)}`
     : summarize(text);
 }
