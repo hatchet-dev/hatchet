@@ -252,7 +252,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		refillTime := time.Since(checkpoint)
 		checkpoint = time.Now()
 
-		rls, err := q.repo.GetTaskRateLimits(ctx, nil, qis)
+		rls, rlDefinitions, err := q.repo.GetTaskRateLimits(ctx, nil, qis)
 
 		if err != nil {
 			span.RecordError(err)
@@ -263,6 +263,8 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 			q.unackedToUnassigned(qis)
 			continue
 		}
+
+		q.s.rl.addDefinitions(rlDefinitions)
 
 		rateLimitTime := time.Since(checkpoint)
 		checkpoint = time.Now()
@@ -854,11 +856,32 @@ func (q *Queuer) runOptimisticQueue(
 	qis []*sqlcv1.V1QueueItem,
 	localWorkerIds map[uuid.UUID]struct{},
 ) ([]*v1.AssignedItem, []*QueueResults, error) {
-	rls, err := q.repo.GetTaskRateLimits(ctx, tx, qis)
+	// definitions are dropped here: the trigger may roll back, and the queue loop re-reads them after commit
+	rls, _, err := q.repo.GetTaskRateLimits(ctx, tx, qis)
 
 	if err != nil {
 		return nil, nil, err
 	}
+
+	// rate-limited items stay queued for the regular queue loop, so the rate limiter never runs inside the optimistic tx
+	assignable := make([]*sqlcv1.V1QueueItem, 0, len(qis))
+
+	for _, qi := range qis {
+		if len(rls[qi.TaskID]) == 0 {
+			assignable = append(assignable, qi)
+		}
+	}
+
+	if len(assignable) < len(qis) {
+		notifyCtx := context.WithoutCancel(ctx)
+		tx.AddPostCommit(func() { q.queue(notifyCtx) })
+	}
+
+	if len(assignable) == 0 {
+		return nil, nil, nil
+	}
+
+	qis = assignable
 
 	stepIds := make([]uuid.UUID, 0, len(qis))
 	taskIdToDesiredLabelsFromTrigger := make(map[int64][]*sqlcv1.GetDesiredLabelsRow)
@@ -895,7 +918,7 @@ func (q *Queuer) runOptimisticQueue(
 		return nil, nil, err
 	}
 
-	assignCh := q.s.tryAssign(ctx, qis, labels, stepRequests, rls, taskIdToDesiredLabelsFromTrigger, batchConfigs)
+	assignCh := q.s.tryAssign(ctx, qis, labels, stepRequests, nil, taskIdToDesiredLabelsFromTrigger, batchConfigs)
 
 	var allLocalAssigned []*v1.AssignedItem
 	var allQueueResults []*QueueResults

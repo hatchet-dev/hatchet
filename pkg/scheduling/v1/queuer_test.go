@@ -60,3 +60,39 @@ func TestQueuerRequeuesRateLimitedItemsOnFreshProcess(t *testing.T) {
 
 // Ensure recordingQueueRepo still satisfies QueueRepository.
 var _ v1repo.QueueRepository = (*recordingQueueRepo)(nil)
+
+type rateLimitedQueueRepo struct {
+	fakeQueueRepository
+}
+
+func (r *rateLimitedQueueRepo) GetTaskRateLimits(_ context.Context, _ *v1repo.OptimisticTx, qis []*sqlcv1.V1QueueItem) (map[int64]map[string]int32, map[string]v1repo.RateLimitDefinition, error) {
+	rls := make(map[int64]map[string]int32, len(qis))
+
+	for _, qi := range qis {
+		rls[qi.TaskID] = map[string]int32{"key": 1}
+	}
+
+	return rls, nil, nil
+}
+
+// TestRunOptimisticQueueDefersRateLimitedItems ensures rate-limited items never reach tryAssign inside the
+// optimistic transaction, where a rate limiter refresh could wait on locks held by that same transaction.
+func TestRunOptimisticQueueDefersRateLimitedItems(t *testing.T) {
+	l := zerolog.Nop()
+
+	// a nil scheduler panics if tryAssign is reached
+	q := &Queuer{
+		repo:      &rateLimitedQueueRepo{},
+		tenantId:  uuid.New(),
+		queueName: "default",
+		l:         &l,
+	}
+
+	qis := []*sqlcv1.V1QueueItem{{TaskID: 1, StepID: uuid.New()}, {TaskID: 2, StepID: uuid.New()}}
+
+	assigned, results, err := q.runOptimisticQueue(context.Background(), &v1repo.OptimisticTx{}, qis, nil)
+
+	require.NoError(t, err)
+	require.Empty(t, assigned)
+	require.Empty(t, results)
+}

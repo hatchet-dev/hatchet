@@ -16,14 +16,15 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 type mockRateLimitRepo struct {
 	mock.Mock
 }
 
-func (m *mockRateLimitRepo) UpdateRateLimits(ctx context.Context, tenantId uuid.UUID, updates map[string]int) ([]*sqlcv1.ListRateLimitsForTenantWithMutateRow, *time.Time, error) {
-	args := m.Called(ctx, tenantId, updates)
+func (m *mockRateLimitRepo) UpdateRateLimits(ctx context.Context, tenantId uuid.UUID, updates map[string]int, definitions map[string]v1.RateLimitDefinition) ([]*sqlcv1.ListRateLimitsForTenantWithMutateRow, *time.Time, error) {
+	args := m.Called(ctx, tenantId, updates, definitions)
 	return args.Get(0).([]*sqlcv1.ListRateLimitsForTenantWithMutateRow), args.Get(1).(*time.Time), args.Error(2)
 }
 
@@ -49,7 +50,7 @@ func TestRateLimiter_Use(t *testing.T) {
 		{Key: "key3", Value: 7},
 	}
 	nextRefill := time.Now().Add(2 * time.Second)
-	mockRateLimitRepo.On("UpdateRateLimits", context.Background(), mock.Anything, mock.Anything).Return(mockRows, &nextRefill, nil)
+	mockRateLimitRepo.On("UpdateRateLimits", context.Background(), mock.Anything, mock.Anything, mock.Anything).Return(mockRows, &nextRefill, nil)
 
 	rateLimiter := &rateLimiter{
 		dbRateLimits: rateLimitSet{
@@ -85,7 +86,7 @@ func TestRateLimiter_Ack(t *testing.T) {
 		{Key: "key2", Value: 5},
 	}
 	nextRefill := time.Now().Add(2 * time.Second)
-	mockRateLimitRepo.On("UpdateRateLimits", context.Background(), mock.Anything, mock.Anything).Return(mockRows, &nextRefill, nil)
+	mockRateLimitRepo.On("UpdateRateLimits", context.Background(), mock.Anything, mock.Anything, mock.Anything).Return(mockRows, &nextRefill, nil)
 
 	rateLimiter := &rateLimiter{
 		dbRateLimits: rateLimitSet{
@@ -115,7 +116,7 @@ func TestRateLimiter_Nack(t *testing.T) {
 		{Key: "key2", Value: 5},
 	}
 	nextRefill := time.Now().Add(2 * time.Second)
-	mockRateLimitRepo.On("UpdateRateLimits", context.Background(), mock.Anything, mock.Anything).Return(mockRows, &nextRefill, nil)
+	mockRateLimitRepo.On("UpdateRateLimits", context.Background(), mock.Anything, mock.Anything, mock.Anything).Return(mockRows, &nextRefill, nil)
 
 	rateLimiter := &rateLimiter{
 		dbRateLimits: rateLimitSet{
@@ -145,7 +146,7 @@ func TestRateLimiter_Concurrency(t *testing.T) {
 		{Key: "key2", Value: 100},
 	}
 	nextRefill := time.Now().Add(2 * time.Second)
-	mockRateLimitRepo.On("UpdateRateLimits", context.Background(), mock.Anything, mock.Anything).Return(mockRows, &nextRefill, nil)
+	mockRateLimitRepo.On("UpdateRateLimits", context.Background(), mock.Anything, mock.Anything, mock.Anything).Return(mockRows, &nextRefill, nil)
 
 	rateLimiter := &rateLimiter{
 		dbRateLimits: rateLimitSet{
@@ -189,7 +190,7 @@ func TestRateLimiter_FlushToDatabase(t *testing.T) {
 		{Key: "key2", Value: 5},
 	}
 	nextRefill := time.Now().Add(2 * time.Second)
-	mockRateLimitRepo.On("UpdateRateLimits", context.Background(), mock.Anything, mock.Anything).Return(mockRows, &nextRefill, nil)
+	mockRateLimitRepo.On("UpdateRateLimits", context.Background(), mock.Anything, mock.Anything, mock.Anything).Return(mockRows, &nextRefill, nil)
 
 	rateLimiter := &rateLimiter{
 		dbRateLimits: rateLimitSet{
@@ -227,7 +228,7 @@ func BenchmarkRateLimiter(b *testing.B) {
 		{Key: "key2", Value: 1000},
 	}
 	nextRefill := time.Now().Add(2 * time.Second)
-	mockRateLimitRepo.On("UpdateRateLimits", context.Background(), mock.Anything, mock.Anything).Return(mockRows, &nextRefill, nil)
+	mockRateLimitRepo.On("UpdateRateLimits", context.Background(), mock.Anything, mock.Anything, mock.Anything).Return(mockRows, &nextRefill, nil)
 
 	r := rateLimiter{
 		unacked:       make(map[int64]rateLimitSet),
@@ -281,4 +282,117 @@ func TestRateLimiter_ShouldRefill(t *testing.T) {
 	past := time.Now().UTC().Add(-time.Millisecond)
 	r.nextRefillAt = &past
 	assert.True(t, r.shouldRefill())
+}
+
+func TestRateLimiter_FlushDefinitions(t *testing.T) {
+	minute := v1.RateLimitDefinition{LimitValue: 10, Window: "1 MINUTE"}
+
+	tests := []struct {
+		name            string
+		dbRateLimits    rateLimitSet
+		nextRefillAt    time.Time
+		pending         map[string]v1.RateLimitDefinition
+		wantFlush       bool
+		wantDefinitions map[string]v1.RateLimitDefinition
+	}{
+		{
+			// use() needs the key before the next refill, or the task can't be assigned
+			name:            "new key bypasses refill guard",
+			dbRateLimits:    rateLimitSet{},
+			nextRefillAt:    time.Now().Add(time.Minute),
+			pending:         map[string]v1.RateLimitDefinition{"new": minute},
+			wantFlush:       true,
+			wantDefinitions: map[string]v1.RateLimitDefinition{"new": minute},
+		},
+		{
+			name:         "changed definition waits for refill guard",
+			dbRateLimits: rateLimitSet{"k": {key: "k", limitValue: 10, window: "1 MINUTE"}},
+			nextRefillAt: time.Now().Add(time.Minute),
+			pending:      map[string]v1.RateLimitDefinition{"k": {LimitValue: 5, Window: "1 MINUTE"}},
+			wantFlush:    false,
+		},
+		{
+			name:            "changed definition is written once guard passes",
+			dbRateLimits:    rateLimitSet{"k": {key: "k", limitValue: 10, window: "1 MINUTE"}},
+			nextRefillAt:    time.Now().Add(-time.Second),
+			pending:         map[string]v1.RateLimitDefinition{"k": {LimitValue: 5, Window: "1 MINUTE"}},
+			wantFlush:       true,
+			wantDefinitions: map[string]v1.RateLimitDefinition{"k": {LimitValue: 5, Window: "1 MINUTE"}},
+		},
+		{
+			name:            "unchanged definition is not rewritten",
+			dbRateLimits:    rateLimitSet{"k": {key: "k", limitValue: 10, window: "1 MINUTE"}},
+			nextRefillAt:    time.Now().Add(-time.Second),
+			pending:         map[string]v1.RateLimitDefinition{"k": minute},
+			wantFlush:       true,
+			wantDefinitions: map[string]v1.RateLimitDefinition{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := zerolog.Nop()
+			repo := &mockRateLimitRepo{}
+			nextRefill := time.Now().Add(2 * time.Second)
+
+			if tt.wantFlush {
+				repo.On("UpdateRateLimits", context.Background(), mock.Anything, mock.Anything, tt.wantDefinitions).
+					Return([]*sqlcv1.ListRateLimitsForTenantWithMutateRow{}, &nextRefill, nil)
+			}
+
+			r := &rateLimiter{
+				dbRateLimits:  tt.dbRateLimits,
+				nextRefillAt:  &tt.nextRefillAt,
+				unacked:       make(map[int64]rateLimitSet),
+				unflushed:     make(rateLimitSet),
+				l:             &l,
+				rateLimitRepo: repo,
+			}
+
+			r.addDefinitions(tt.pending)
+
+			require.NoError(t, r.flushToDatabase(context.Background()))
+			repo.AssertExpectations(t)
+
+			if tt.wantFlush {
+				assert.Empty(t, r.pendingDefinitions)
+			} else {
+				repo.AssertNotCalled(t, "UpdateRateLimits", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+				assert.Equal(t, tt.pending, r.pendingDefinitions, "pending definitions are kept for the next flush")
+			}
+		})
+	}
+}
+
+func TestRateLimiter_FailedFlushDropsDefinitions(t *testing.T) {
+	l := zerolog.Nop()
+	repo := &mockRateLimitRepo{}
+	nextRefill := time.Now().Add(2 * time.Second)
+	bad := map[string]v1.RateLimitDefinition{"bad": {LimitValue: 10, Window: "1 MINUTE"}}
+
+	repo.On("UpdateRateLimits", context.Background(), mock.Anything, map[string]int{"k": 3}, bad).
+		Return([]*sqlcv1.ListRateLimitsForTenantWithMutateRow(nil), (*time.Time)(nil), fmt.Errorf("upsert failed")).Once()
+	repo.On("UpdateRateLimits", context.Background(), mock.Anything, map[string]int{"k": 3}, map[string]v1.RateLimitDefinition{}).
+		Return([]*sqlcv1.ListRateLimitsForTenantWithMutateRow{{Key: "k", Value: 7}}, &nextRefill, nil).Once()
+
+	r := &rateLimiter{
+		dbRateLimits:  rateLimitSet{},
+		unacked:       make(map[int64]rateLimitSet),
+		unflushed:     rateLimitSet{"k": {key: "k", val: 3}},
+		l:             &l,
+		rateLimitRepo: repo,
+	}
+
+	r.addDefinitions(bad)
+
+	require.Error(t, r.flushToDatabase(context.Background()))
+	assert.Empty(t, r.pendingDefinitions)
+	assert.Equal(t, 3, r.unflushed["k"].val, "usage is kept for the next flush")
+
+	// usage still flushes once the bad definition is gone
+	require.NoError(t, r.flushToDatabase(context.Background()))
+	assert.Empty(t, r.unflushed)
+	assert.Equal(t, 7, r.dbRateLimits["k"].val)
+
+	repo.AssertExpectations(t)
 }

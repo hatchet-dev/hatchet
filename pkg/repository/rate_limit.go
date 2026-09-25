@@ -44,8 +44,14 @@ type UpsertRateLimitOpts struct {
 	Duration *string `validate:"omitnil,oneof=SECOND MINUTE HOUR DAY WEEK MONTH YEAR"`
 }
 
+type RateLimitDefinition struct {
+	LimitValue int32
+	Window     string
+}
+
 type RateLimitRepository interface {
-	UpdateRateLimits(ctx context.Context, tenantId uuid.UUID, updates map[string]int) ([]*sqlcv1.ListRateLimitsForTenantWithMutateRow, *time.Time, error)
+	// definitions are upserted in the same transaction as the updates, so the scheduler is the tenant's only multi-row writer
+	UpdateRateLimits(ctx context.Context, tenantId uuid.UUID, updates map[string]int, definitions map[string]RateLimitDefinition) ([]*sqlcv1.ListRateLimitsForTenantWithMutateRow, *time.Time, error)
 
 	UpsertRateLimit(ctx context.Context, tenantId uuid.UUID, key string, opts *UpsertRateLimitOpts) (*sqlcv1.RateLimit, error)
 
@@ -66,7 +72,7 @@ func newRateLimitRepository(shared *sharedRepository) *rateLimitRepository {
 	}
 }
 
-func (r *rateLimitRepository) UpdateRateLimits(ctx context.Context, tenantId uuid.UUID, updates map[string]int) ([]*sqlcv1.ListRateLimitsForTenantWithMutateRow, *time.Time, error) {
+func (r *rateLimitRepository) UpdateRateLimits(ctx context.Context, tenantId uuid.UUID, updates map[string]int, definitions map[string]RateLimitDefinition) ([]*sqlcv1.ListRateLimitsForTenantWithMutateRow, *time.Time, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
 
 	if err != nil {
@@ -92,6 +98,25 @@ func (r *rateLimitRepository) UpdateRateLimits(ctx context.Context, tenantId uui
 
 	if err != nil {
 		return nil, nil, err
+	}
+
+	if len(definitions) > 0 {
+		upsertParams := sqlcv1.UpsertRateLimitsBulkParams{
+			Tenantid:    tenantId,
+			Keys:        make([]string, 0, len(definitions)),
+			Limitvalues: make([]int32, 0, len(definitions)),
+			Windows:     make([]string, 0, len(definitions)),
+		}
+
+		for k, def := range definitions {
+			upsertParams.Keys = append(upsertParams.Keys, k)
+			upsertParams.Limitvalues = append(upsertParams.Limitvalues, def.LimitValue)
+			upsertParams.Windows = append(upsertParams.Windows, def.Window)
+		}
+
+		if err := r.queries.UpsertRateLimitsBulk(ctx, tx, upsertParams); err != nil {
+			return nil, nil, fmt.Errorf("could not bulk upsert dynamic rate limits: %w", err)
+		}
 	}
 
 	_, err = r.queries.BulkUpdateRateLimits(ctx, tx, params)
