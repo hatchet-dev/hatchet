@@ -1,6 +1,7 @@
 import { NewTenantSaverForm } from '@/components/forms/new-tenant-saver-form';
 import { AppLayout } from '@/components/layout/app-layout';
 import { AuthDisabledBanner } from '@/components/layout/auth-disabled-banner';
+import { setupCardDialogClassName } from '@/components/layout/setup-card';
 import { CreateTenantInviteModal } from '@/components/modals/create-tenant-invite-modal';
 import { InviteModal } from '@/components/modals/invite-modal';
 import { OrganizationInviteMemberModal } from '@/components/modals/organization-invite-member-modal';
@@ -8,12 +9,7 @@ import { WelcomeModal } from '@/components/modals/welcome-modal';
 import { freePlanLimitNoticeKey } from '@/components/modals/welcome-modal-state';
 import SupportChat from '@/components/support-chat';
 import TopNav from '@/components/v1/nav/top-nav.tsx';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/v1/ui/dialog';
+import { Dialog, DialogContent, DialogTitle } from '@/components/v1/ui/dialog';
 import { Loading } from '@/components/v1/ui/loading.tsx';
 import { useAnalytics } from '@/hooks/use-analytics';
 import useControlPlane from '@/hooks/use-control-plane';
@@ -37,6 +33,7 @@ import { useContextFromParent } from '@/lib/outlet';
 import { REDIRECT_TARGET_KEY } from '@/lib/redirect';
 import { getResourceLimitStatus } from '@/lib/resource-limit-status';
 import { OutletWithContext } from '@/lib/router-helpers';
+import { cn } from '@/lib/utils';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { useInactivityDetection } from '@/pages/auth/hooks/use-inactivity-detection';
 import { OnboardingModal } from '@/pages/main/v1/overview/components/onboarding-modal';
@@ -90,6 +87,7 @@ function AuthenticatedInner() {
     }
   });
   const [newTenantModalOpen, setNewTenantModalOpen] = useState(false);
+  const [newTenantUpgradeOpen, setNewTenantUpgradeOpen] = useState(false);
   const [defaultOrganizationId, setDefaultOrganizationId] = useState<
     string | undefined
   >();
@@ -596,37 +594,59 @@ function AuthenticatedInner() {
         <OutletWithContext context={ctx} />
       </AppLayout>
 
-      <Dialog open={newTenantModalOpen} onOpenChange={setNewTenantModalOpen}>
-        <DialogContent className="w-fit min-w-[500px] max-w-[80%]">
-          <DialogHeader>
-            <DialogTitle>Create New Tenant</DialogTitle>
-          </DialogHeader>
-          <div className="flex justify-center">
-            <NewTenantSaverForm
-              defaultOrganizationId={defaultOrganizationId}
-              allTenantTags={newTenantAllTags}
-              afterSave={(result) => {
-                setDefaultOrganizationId(undefined);
-                setNewTenantAllTags([]);
-                setNewTenantModalOpen(false);
-                const tenantId =
-                  result.type === 'cloud'
-                    ? result.tenant.id
-                    : result.tenant.metadata.id;
+      <Dialog
+        open={newTenantModalOpen}
+        onOpenChange={(open) => {
+          setNewTenantModalOpen(open);
+          if (!open) {
+            setNewTenantUpgradeOpen(false);
+          }
+        }}
+      >
+        <DialogContent
+          className={cn(
+            setupCardDialogClassName,
+            'max-h-[85vh] overflow-y-auto',
+            newTenantUpgradeOpen ? 'max-w-2xl' : 'max-w-xl',
+          )}
+        >
+          <DialogTitle className="sr-only">
+            {newTenantUpgradeOpen
+              ? 'Upgrade to Pay as you Go'
+              : 'Create a new tenant'}
+          </DialogTitle>
+          <NewTenantSaverForm
+            framed
+            defaultOrganizationId={defaultOrganizationId}
+            allTenantTags={newTenantAllTags}
+            onGateChange={setNewTenantUpgradeOpen}
+            onUpgradeNavigate={() => {
+              setDefaultOrganizationId(undefined);
+              setNewTenantAllTags([]);
+              setNewTenantUpgradeOpen(false);
+              setNewTenantModalOpen(false);
+            }}
+            afterSave={(result) => {
+              setDefaultOrganizationId(undefined);
+              setNewTenantAllTags([]);
+              setNewTenantModalOpen(false);
+              const tenantId =
+                result.type === 'cloud'
+                  ? result.tenant.id
+                  : result.tenant.metadata.id;
 
-                if (result.type === 'cloud') {
-                  void queryClient.prefetchQuery(
-                    queries.controlPlane.subscriptionPlans(),
-                  );
-                }
+              if (result.type === 'cloud') {
+                void queryClient.prefetchQuery(
+                  queries.controlPlane.subscriptionPlans(),
+                );
+              }
 
-                navigate({
-                  to: appRoutes.tenantOverviewRoute.to,
-                  params: { tenant: tenantId },
-                });
-              }}
-            />
-          </div>
+              navigate({
+                to: appRoutes.tenantOverviewRoute.to,
+                params: { tenant: tenantId },
+              });
+            }}
+          />
         </DialogContent>
       </Dialog>
       {inviteModalOptions && (

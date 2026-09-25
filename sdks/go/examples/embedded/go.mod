@@ -3,7 +3,7 @@ module github.com/hatchet-dev/hatchet/sdks/go/examples/embedded
 go 1.26.4
 
 require (
-	github.com/hatchet-dev/hatchet v0.105.0
+	github.com/hatchet-dev/hatchet v0.106.1
 	github.com/hatchet-dev/hatchet-embedded v0.105.0
 )
 

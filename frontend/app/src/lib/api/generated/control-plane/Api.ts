@@ -40,10 +40,13 @@ import {
   OrganizationEntitlements,
   OrganizationForUserList,
   OrganizationInviteList,
+  OrganizationInvoices,
   OrganizationMember,
   OrganizationPaymentMethodList,
   OrganizationTenant,
   OrganizationTenantResourceLimitsList,
+  OrganizationUsage,
+  OrganizationUsageTimeseries,
   RejectOrganizationInviteRequest,
   RejectTenantInviteRequest,
   RemoveOrganizationMembersRequest,
@@ -1719,6 +1722,81 @@ export class Api<
     this.request<OrganizationCreditBalance, APIErrors>({
       path: `/api/v1/control-plane/billing/organizations/${organization}/credit-balance`,
       method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get upcoming invoice previews and previous invoices for an organization
+   *
+   * @tags Billing
+   * @name OrganizationInvoicesGet
+   * @summary Get invoices for an organization
+   * @request GET:/api/v1/control-plane/billing/organizations/{organization}/invoices
+   * @secure
+   */
+  organizationInvoicesGet = (
+    organization: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<OrganizationInvoices, APIErrors>({
+      path: `/api/v1/control-plane/billing/organizations/${organization}/invoices`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get current-period usage versus included balances for an organization
+   *
+   * @tags Billing
+   * @name OrganizationUsageGet
+   * @summary Get usage for an organization
+   * @request GET:/api/v1/control-plane/billing/organizations/{organization}/usage
+   * @secure
+   */
+  organizationUsageGet = (organization: string, params: RequestParams = {}) =>
+    this.request<OrganizationUsage, APIErrors>({
+      path: `/api/v1/control-plane/billing/organizations/${organization}/usage`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get daily task-run and event usage for an organization, aggregated from shard Timescale via fanout
+   *
+   * @tags Billing
+   * @name OrganizationUsageTimeseriesGet
+   * @summary Get usage timeseries for an organization
+   * @request GET:/api/v1/control-plane/billing/organizations/{organization}/usage/timeseries
+   * @secure
+   */
+  organizationUsageTimeseriesGet = (
+    organization: string,
+    query?: {
+      /**
+       * Inclusive start of the usage window. Defaults to 30 days before end.
+       * @format date-time
+       */
+      start?: string;
+      /**
+       * Exclusive end of the usage window. Defaults to now.
+       * @format date-time
+       */
+      end?: string;
+      /**
+       * When set, restrict the series and tenant breakdown to this tenant.
+       * @format uuid
+       */
+      tenantId?: string;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<OrganizationUsageTimeseries, APIErrors>({
+      path: `/api/v1/control-plane/billing/organizations/${organization}/usage/timeseries`,
+      method: "GET",
+      query: query,
       secure: true,
       format: "json",
       ...params,
