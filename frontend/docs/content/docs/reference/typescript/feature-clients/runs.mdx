@@ -216,3 +216,10 @@ type TaskRunDetail = object;
 ```
 
 The state of one task of a run, as `GetRunDetails` reports it.
+
+Properties
+
+| Property                            | Type      | Description                                                                                       |
+| ----------------------------------- | --------- | ------------------------------------------------------------------------------------------------- |
+| <a id="output"></a> `output`        | `unknown` | The output decoded as JSON; `null` when the task stored nothing, `null` or text that is not JSON. |
+| <a id="rawoutput"></a> `rawOutput?` | `string`  | The output text as the engine stored it; absent when the task stored nothing.                     |
