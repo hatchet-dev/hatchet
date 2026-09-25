@@ -247,13 +247,25 @@ export class HatchetCore {
     return refs;
   }
 
-  /** Triggers many runs of one workflow and waits for all of their outputs, in input order. */
+  /**
+   * Triggers many runs of one workflow and waits for all of their outputs, in input order.
+   *
+   * When any entry sets `opts.returnExceptions`, a failed run does not reject the whole
+   * wait: its slot holds an `Error` instead (a task error list is joined with `; `), the way
+   * a declaration's `runMany` behaves on the Node client.
+   */
   async runMany<I extends InputType = UnknownInputType, O extends OutputType = void>(
     workflow: WorkflowRef<I, O>,
     runs: RunManyOpt<I>[]
   ): Promise<O[]> {
     const refs = await this.runManyNoWait<I, O>(workflow, runs);
-    return Promise.all(refs.map((ref) => ref.result()));
+    const results = refs.map((ref) => ref.result());
+
+    if (runs.some((run) => run.opts?.returnExceptions)) {
+      const settled = await Promise.allSettled(results);
+      return settled.map((s) => (s.status === 'fulfilled' ? s.value : asError(s.reason))) as O[];
+    }
+    return Promise.all(results);
   }
 
   /** A reference to an existing run, to wait on, cancel or replay it. */
@@ -287,8 +299,18 @@ function bulkTriggerError(e: unknown): Error {
 }
 
 /**
- * Maps a declaration's `RunOpts` onto the trigger options. `sticky` and `returnExceptions`
- * only mean something inside a worker task and are dropped.
+ * The rejection of one run as `runMany` returns it under `returnExceptions`: an `Error` as is,
+ * a task error list joined with `; `, anything else as its string; the Node declaration's
+ * normalization.
+ */
+function asError(reason: unknown): Error {
+  if (reason instanceof Error) return reason;
+  return new Error(Array.isArray(reason) ? reason.join('; ') : String(reason));
+}
+
+/**
+ * Maps a declaration's `RunOpts` onto the trigger options. `sticky` only means something
+ * inside a worker task and is dropped; `returnExceptions` is read by `runMany` itself.
  */
 function runOptsToTrigger(opts: RunOpts | undefined): TriggerRunOptions | undefined {
   if (!opts) return undefined;

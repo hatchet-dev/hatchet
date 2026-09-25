@@ -456,6 +456,49 @@ describe('HatchetCore.runManyNoWait', () => {
     expect(collision.collisions[0].existingRunExternalId).toBe('existing-run');
   });
 
+  it('runMany rejects with the first failure unless returnExceptions is set', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    engine.detailsQueue.push(
+      completed({ task: taskRun('task', RunStatus.COMPLETED, { ok: true }) }),
+      { ...completed({ task: taskRun('task', RunStatus.FAILED, undefined, 'task error') }), status: RunStatus.FAILED }
+    );
+
+    await expect(client.runMany('wf', [{ input: {} }, { input: {} }])).rejects.toEqual([
+      'task error',
+    ]);
+  });
+
+  it('runMany returns failures as Errors in input order under returnExceptions', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    const failed = {
+      ...completed({ task: taskRun('task', RunStatus.FAILED, undefined, 'task error') }),
+      status: RunStatus.FAILED,
+    };
+    engine.detailsQueue.push(
+      failed,
+      completed({ task: taskRun('task', RunStatus.COMPLETED, { ok: true }) }),
+      { ...completed({ task: taskRun('task', RunStatus.FAILED, undefined, 'one') }), status: RunStatus.FAILED },
+      { ...completed({}), status: RunStatus.CANCELLED }
+    );
+    engine.detailsQueue[2].taskRuns!.other = taskRun('other', RunStatus.FAILED, undefined, 'two');
+
+    const results: unknown[] = await client.runMany('wf', [
+      { input: {}, opts: { returnExceptions: true } },
+      { input: {} },
+      { input: {} },
+      { input: {} },
+    ]);
+
+    expect(results).toHaveLength(4);
+    expect(results[0]).toBeInstanceOf(Error);
+    expect((results[0] as Error).message).toBe('task error');
+    expect(results[1]).toEqual({ task: { ok: true } });
+    expect((results[2] as Error).message).toBe('one; two');
+    expect((results[3] as Error).message).toMatch(/was cancelled/);
+  });
+
   it('rejects with the batch error itself when the first batch fails', async () => {
     const engine = fakeEngine();
     const client = makeClient(engine);
