@@ -1,6 +1,7 @@
 import HatchetError from '@util/errors/hatchet-error';
 import { createAbortError } from '@hatchet/util/abort-error';
 import { V1TaskStatus } from '@hatchet/clients/rest/generated/data-contracts';
+import { parseTaskOutput } from './run-detail';
 import type { CallOptions, ResultOptions, RunDetail } from './types';
 
 /** What a run reference needs from the client that created it. */
@@ -186,14 +187,7 @@ export class WorkflowRunRef<T> {
 
   private resolveResult(detail: RunDetail): Promise<T> {
     if (detail.status === V1TaskStatus.COMPLETED) {
-      const outputs: Record<string, unknown> = {};
-      for (const task of Object.values(detail.taskRuns)) {
-        outputs[task.readableId] = task.output ?? {};
-      }
-      if (this._standaloneTaskName) {
-        return Promise.resolve(outputs[this._standaloneTaskName] as T);
-      }
-      return Promise.resolve(outputs as T);
+      return Promise.resolve(this.outputs(detail));
     }
 
     const errors = Object.values(detail.taskRuns)
@@ -206,6 +200,21 @@ export class WorkflowRunRef<T> {
 
     const outcome = detail.status === V1TaskStatus.CANCELLED ? 'was cancelled' : 'failed';
     return Promise.reject(new Error(`run ${this.workflowRunId} ${outcome}`));
+  }
+
+  /**
+   * The outputs keyed by task name, or the standalone task's own output, each read the way
+   * the Node client reads them; a task output that is not JSON throws its `SyntaxError`.
+   */
+  private outputs(detail: RunDetail): T {
+    const outputs: Record<string, unknown> = {};
+    for (const task of Object.values(detail.taskRuns)) {
+      outputs[task.readableId] = parseTaskOutput(task);
+    }
+    if (this._standaloneTaskName) {
+      return outputs[this._standaloneTaskName] as T;
+    }
+    return outputs as T;
   }
 
   async toJSON(): Promise<string> {

@@ -60,6 +60,15 @@ function taskRun(
   };
 }
 
+/** A task run whose output is stored as the given text, JSON or not. */
+function taskRunText(
+  readableId: string,
+  status: RunStatus,
+  text: string
+): NonNullable<RunDetails['taskRuns']>[string] {
+  return { ...taskRun(readableId, status), output: new TextEncoder().encode(text) };
+}
+
 /**
  * An in-memory engine: records every request and answers `GetRunDetails` from a queue, the
  * last entry of which is repeated once the queue is drained.
@@ -490,6 +499,56 @@ describe('WorkflowRunRef.result', () => {
     expect(engine.detailsCalls).toBe(3);
   });
 
+  it('reads outputs the way the Node client does: absent is {}, null is null', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    engine.detailsQueue.push(
+      completed({
+        none: taskRun('none', RunStatus.COMPLETED),
+        empty: taskRunText('empty', RunStatus.COMPLETED, ''),
+        nil: taskRunText('nil', RunStatus.COMPLETED, 'null'),
+        zero: taskRunText('zero', RunStatus.COMPLETED, '0'),
+        no: taskRunText('no', RunStatus.COMPLETED, 'false'),
+        blank: taskRunText('blank', RunStatus.COMPLETED, '""'),
+        list: taskRunText('list', RunStatus.COMPLETED, '[]'),
+      })
+    );
+
+    const ref = await client.runNoWait('wf', {});
+    await expect(ref.result()).resolves.toEqual({
+      none: {},
+      empty: {},
+      nil: null,
+      zero: 0,
+      no: false,
+      blank: '',
+      list: [],
+    });
+  });
+
+  it('resolves a standalone task whose output is a JSON null with null', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    engine.detailsQueue.push(completed({ nothing: taskRunText('nothing', RunStatus.COMPLETED, 'null') }));
+
+    const ref = await client.runNoWait('nothing', {}, { _standaloneTaskName: 'nothing' });
+    await expect(ref.result()).resolves.toBeNull();
+  });
+
+  it('rejects with the SyntaxError when a task output is not JSON, as the Node client does', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    engine.detailsQueue.push(
+      completed({
+        ok: taskRun('ok', RunStatus.COMPLETED, { a: 1 }),
+        broken: taskRunText('broken', RunStatus.COMPLETED, '{'),
+      })
+    );
+
+    const ref = await client.runNoWait('wf', {});
+    await expect(ref.result()).rejects.toThrow(SyntaxError);
+  });
+
   it('rejects a failed run with the task error messages, as the Node client does', async () => {
     const engine = fakeEngine();
     const client = makeClient(engine);
@@ -618,7 +677,27 @@ describe('HatchetCore.runs', () => {
       externalId: 't-id',
       status: V1TaskStatus.COMPLETED,
       output: { out: true },
+      rawOutput: JSON.stringify({ out: true }),
     });
+  });
+
+  it('shapes details forgivingly: a missing, null or malformed output reads as null', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    engine.detailsQueue.push(
+      completed({
+        none: taskRun('none', RunStatus.COMPLETED),
+        nil: taskRunText('nil', RunStatus.COMPLETED, 'null'),
+        broken: taskRunText('broken', RunStatus.COMPLETED, '{'),
+      })
+    );
+
+    const { taskRuns } = await client.runs.get('run-x');
+
+    expect(taskRuns.none).toMatchObject({ output: null });
+    expect(taskRuns.none.rawOutput).toBeUndefined();
+    expect(taskRuns.nil).toMatchObject({ output: null, rawOutput: 'null' });
+    expect(taskRuns.broken).toMatchObject({ output: null, rawOutput: '{' });
   });
 
   it('cancels by id, and by filter with since defaulting to an hour ago', async () => {

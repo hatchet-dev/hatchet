@@ -13,13 +13,36 @@ const PROTO_STATUS_MAP: Record<RunStatus, V1TaskStatus> = {
   [RunStatus.UNRECOGNIZED]: V1TaskStatus.RUNNING,
 };
 
-function decodeBytes(b: Uint8Array | undefined): unknown {
-  if (!b?.length) return null;
+/** The stored text, or `undefined` when the engine stored nothing. */
+function decodeText(b: Uint8Array | undefined): string | undefined {
+  return b?.length ? new TextDecoder().decode(b) : undefined;
+}
+
+/**
+ * The forgiving decode `getDetails` shapes payloads with: absent, `null` and malformed JSON
+ * all read as `null`, so inspecting a run never throws.
+ */
+function decodeJson(text: string | undefined): unknown {
+  if (text === undefined) return null;
   try {
-    return JSON.parse(new TextDecoder().decode(b));
+    return JSON.parse(text);
   } catch {
     return null;
   }
+}
+
+/**
+ * A task's output the way the Node client's `result()` reads it (`JSON.parse(output || '{}')`):
+ * nothing stored is `{}`, a stored `null` is `null`, and stored text that is not JSON throws
+ * the `SyntaxError`, so a corrupt output is never mistaken for an empty one.
+ */
+export function parseTaskOutput(task: TaskRunDetail): unknown {
+  if (task.rawOutput === undefined) {
+    return task.output ?? {};
+  }
+  // The forgiving decode already parsed valid JSON; only a `null` result needs the strict
+  // parse to tell a stored `null` from text that failed to parse.
+  return task.output !== null ? task.output : JSON.parse(task.rawOutput);
 }
 
 /**
@@ -30,21 +53,25 @@ export function toRunDetail(raw: GetRunDetailsResponse): RunDetail {
   return {
     status: PROTO_STATUS_MAP[raw.status] ?? V1TaskStatus.RUNNING,
     done: raw.done,
-    input: decodeBytes(raw.input),
-    additionalMetadata: decodeBytes(raw.additionalMetadata),
+    input: decodeJson(decodeText(raw.input)),
+    additionalMetadata: decodeJson(decodeText(raw.additionalMetadata)),
     isEvicted: raw.isEvicted,
     taskRuns: Object.fromEntries(
-      Object.entries(raw.taskRuns).map(([id, tr]) => [
-        id,
-        {
-          externalId: tr.externalId,
-          readableId: tr.readableId,
-          status: PROTO_STATUS_MAP[tr.status] ?? V1TaskStatus.RUNNING,
-          output: decodeBytes(tr.output),
-          error: tr.error,
-          isEvicted: tr.isEvicted,
-        } satisfies TaskRunDetail,
-      ])
+      Object.entries(raw.taskRuns).map(([id, tr]) => {
+        const rawOutput = decodeText(tr.output);
+        return [
+          id,
+          {
+            externalId: tr.externalId,
+            readableId: tr.readableId,
+            status: PROTO_STATUS_MAP[tr.status] ?? V1TaskStatus.RUNNING,
+            output: decodeJson(rawOutput),
+            rawOutput,
+            error: tr.error,
+            isEvicted: tr.isEvicted,
+          } satisfies TaskRunDetail,
+        ];
+      })
     ),
   };
 }

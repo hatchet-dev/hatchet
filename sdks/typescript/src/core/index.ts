@@ -24,7 +24,7 @@ export { HatchetCore, HatchetCore as Hatchet } from './client';
 export type { ResolvedCoreConfig, WorkflowRef } from './client';
 export { WorkflowRunRef, INITIAL_POLL_INTERVAL_MS, MAX_POLL_INTERVAL_MS } from './run-ref';
 export type { RunRefClient } from './run-ref';
-export { toRunDetail, runStatusToJSON } from './run-detail';
+export { toRunDetail, parseTaskOutput, runStatusToJSON } from './run-detail';
 export { ConsoleLogger, consoleLogger } from './logger';
 export type {
   CallOptions,

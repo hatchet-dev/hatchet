@@ -122,7 +122,10 @@ export type TaskRunDetail = {
   externalId: string;
   readableId: string;
   status: V1TaskStatus;
+  /** The output decoded as JSON; `null` when the task stored nothing, `null` or text that is not JSON. */
   output: unknown;
+  /** The output text as the engine stored it; absent when the task stored nothing. */
+  rawOutput?: string;
   error?: string;
   isEvicted: boolean;
 };
