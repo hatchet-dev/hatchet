@@ -6,13 +6,14 @@ import { Logger, LogLevel, LogLevelEnum } from '@hatchet/util/logger/logger';
  * client does.
  */
 export class ConsoleLogger implements Logger {
+  /** The lowest level written; `OFF` sets it above every level, so nothing is. */
   private readonly threshold: number;
 
   constructor(
     private readonly context: string,
     logLevel: LogLevel = 'INFO'
   ) {
-    this.threshold = LogLevelEnum[logLevel];
+    this.threshold = logLevel === 'OFF' ? Number.POSITIVE_INFINITY : LogLevelEnum[logLevel];
   }
 
   private log(level: LogLevel, message: string, error?: Error) {
