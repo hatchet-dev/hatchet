@@ -284,6 +284,10 @@ BEGIN
     WHERE i.inhparent = 'v1_task_expression_eval'::regclass
     AND pg_get_expr(c.relpartbound, c.oid) LIKE 'FOR VALUES FROM (MINVALUE)%';
 
+    IF (SELECT relkind FROM pg_class WHERE oid = 'v1_task_expression_eval'::regclass) <> 'p' THEN
+        RETURN;
+    END IF;
+
     IF legacy_partition_name IS NULL THEN
         CREATE TABLE v1_task_expression_eval_original (
             key TEXT NOT NULL,
@@ -292,13 +296,14 @@ BEGIN
             value_str TEXT,
             value_int INTEGER,
             kind "StepExpressionKind" NOT NULL,
-            CONSTRAINT v1_task_expression_eval_pkey PRIMARY KEY (task_id, task_inserted_at, kind, key)
+            PRIMARY KEY (task_id, task_inserted_at, kind, key)
         );
 
         INSERT INTO v1_task_expression_eval_original SELECT * FROM v1_task_expression_eval;
 
         DROP TABLE v1_task_expression_eval;
         ALTER TABLE v1_task_expression_eval_original RENAME TO v1_task_expression_eval;
+        ALTER INDEX v1_task_expression_eval_original_pkey RENAME TO v1_task_expression_eval_pkey;
         RETURN;
     END IF;
 
@@ -364,13 +369,14 @@ BEGIN
     dag_inserted_at TIMESTAMPTZ NOT NULL,
     task_id BIGINT NOT NULL,
     task_inserted_at TIMESTAMPTZ NOT NULL,
-    CONSTRAINT v1_dag_to_task_pkey PRIMARY KEY (dag_id, dag_inserted_at, task_id, task_inserted_at)
+    PRIMARY KEY (dag_id, dag_inserted_at, task_id, task_inserted_at)
         );
 
         INSERT INTO v1_dag_to_task_original SELECT * FROM v1_dag_to_task;
 
         DROP TABLE v1_dag_to_task;
         ALTER TABLE v1_dag_to_task_original RENAME TO v1_dag_to_task;
+        ALTER INDEX v1_dag_to_task_original_pkey RENAME TO v1_dag_to_task_pkey;
         RETURN;
     END IF;
 
