@@ -85,10 +85,20 @@ const (
 	pbkdf2KeyLen     = 32
 )
 
-// ErrLegacyPasswordHash is returned in FIPS mode when a stored hash is bcrypt.
-var ErrLegacyPasswordHash = errors.New("password hash uses bcrypt, which is not permitted in FIPS mode; the password must be reset")
+// ErrPasswordHashNotFIPS is returned in FIPS mode when a stored hash is bcrypt.
+var ErrPasswordHashNotFIPS = errors.New("password hash uses bcrypt, which is not permitted in FIPS mode; the password must be reset")
 
 func HashPassword(pw string) (*string, error) {
+	if !fips140.Enabled() {
+		hashedPw, err := bcrypt.GenerateFromPassword([]byte(pw), 10)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not hash password: %w", err)
+		}
+
+		return StringPtr(string(hashedPw)), nil
+	}
+
 	salt := make([]byte, pbkdf2SaltLen)
 
 	if _, err := rand.Read(salt); err != nil {
@@ -106,9 +116,9 @@ func HashPassword(pw string) (*string, error) {
 	return StringPtr(fmt.Sprintf("%s%d$%s$%s", pbkdf2Prefix, pbkdf2Iterations, enc.EncodeToString(salt), enc.EncodeToString(key))), nil
 }
 
-// IsLegacyPasswordHash reports whether hashedPW is a bcrypt hash from before the PBKDF2 switch.
-func IsLegacyPasswordHash(hashedPW string) bool {
-	return !strings.HasPrefix(hashedPW, pbkdf2Prefix)
+// IsFIPSPasswordHash reports whether hashedPW is a PBKDF2-HMAC-SHA256 hash as produced by FIPS builds.
+func IsFIPSPasswordHash(hashedPW string) bool {
+	return strings.HasPrefix(hashedPW, pbkdf2Prefix)
 }
 
 func StringPtr(s string) *string {
@@ -124,9 +134,9 @@ func Int32Ptr(i int32) *int32 {
 }
 
 func VerifyPassword(hashedPW, candidate string) (bool, error) {
-	if IsLegacyPasswordHash(hashedPW) {
+	if !IsFIPSPasswordHash(hashedPW) {
 		if fips140.Enabled() {
-			return false, ErrLegacyPasswordHash
+			return false, ErrPasswordHashNotFIPS
 		}
 
 		err := bcrypt.CompareHashAndPassword([]byte(hashedPW), []byte(candidate))

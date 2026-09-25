@@ -61,14 +61,6 @@ func (u *UserService) UserUpdateLogin(ctx echo.Context, request gen.UserUpdateLo
 		return gen.UserUpdateLogin400JSONResponse(apierrors.NewAPIErrors(ErrInvalidCredentials)), nil
 	}
 
-	if v1.IsLegacyPasswordHash(userPass.Hash) {
-		if newHash, err := v1.HashPassword(request.Body.Password); err != nil {
-			u.config.Logger.Err(err).Msg("failed to rehash legacy password")
-		} else if _, err := u.config.V1.User().UpdateUser(ctx.Request().Context(), existingUser.ID, &v1.UpdateUserOpts{Password: newHash}); err != nil {
-			u.config.Logger.Err(err).Msg("failed to store rehashed password")
-		}
-	}
-
 	err = authn.NewSessionHelpers(u.config.SessionStore).SaveAuthenticated(ctx, existingUser)
 
 	if err != nil {
