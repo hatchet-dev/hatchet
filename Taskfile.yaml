@@ -389,26 +389,15 @@ tasks:
     desc: Print the latest stable release tag (ignores pre-releases)
     silent: true
     cmds:
-      - task: fetch-tags
+      - git fetch --tags origin
       - git tag --list 'v[0-9]*.[0-9]*.[0-9]*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1
 
   latest-alpha-tag:
     desc: Print the latest alpha tag, if any
     silent: true
     cmds:
-      - task: fetch-tags
+      - git fetch --tags origin
       - git tag --list 'v[0-9]*-alpha.*' | sort -V | tail -1
-
-  fetch-tags:
-    internal: true
-    silent: true
-    cmds:
-      - |
-        # --quiet also hides "would clobber existing tag".
-        if ! out=$(git fetch --tags origin 2>&1); then
-          printf '%s\n' "${out}" >&2
-          exit 1
-        fi
 
   patch:
     desc: Bump patch version (e.g. v0.83.16 → v0.83.17) and push the tag
