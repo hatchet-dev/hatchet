@@ -1,0 +1,229 @@
+on:
+  push:
+    tags:
+      - "v*" # Push events to matching v*, i.e. v1.0, v20.15.10
+name: Create prerelease FIPS images
+env:
+  REGISTRY: ghcr.io/hatchet-dev/hatchet
+jobs:
+  servers:
+    name: hatchet-${{ matrix.target }}-fips-${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [api, engine, admin, migrate]
+        arch: [amd64, arm64]
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: hatchet-arm64-2
+    steps:
+      - name: Get tag name
+        id: tag_name
+        run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
+        env:
+          GITHUB_TAG: ${{ github.ref }}
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Login to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Build
+        run: |
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+            -t $REGISTRY/hatchet-${{ matrix.target }}-fips:${{ steps.tag_name.outputs.tag }}-${{ matrix.arch }} \
+            --build-arg SERVER_TARGET=${{ matrix.target }} \
+            --build-arg VERSION=${{ steps.tag_name.outputs.tag }} \
+            --build-arg FIPS=true \
+            --platform linux/${{ matrix.arch }} \
+            .
+      - name: Push to GHCR
+        run: docker push $REGISTRY/hatchet-${{ matrix.target }}-fips:${{ steps.tag_name.outputs.tag }}-${{ matrix.arch }}
+
+  frontend:
+    name: hatchet-frontend-fips-${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: hatchet-arm64-2
+    steps:
+      - name: Get tag name
+        id: tag_name
+        run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
+        env:
+          GITHUB_TAG: ${{ github.ref }}
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+      - name: Generate docs snippets and examples
+        working-directory: frontend/snippets
+        run: python3 generate.py
+      - name: Login to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Build
+        run: |
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/frontend.dockerfile \
+            -t $REGISTRY/hatchet-frontend-fips:${{ steps.tag_name.outputs.tag }}-${{ matrix.arch }} \
+            --build-arg FIPS=true \
+            --platform linux/${{ matrix.arch }} \
+            .
+      - name: Push to GHCR
+        run: docker push $REGISTRY/hatchet-frontend-fips:${{ steps.tag_name.outputs.tag }}-${{ matrix.arch }}
+
+  lite:
+    name: hatchet-lite-fips-${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: hatchet-arm64-2
+    steps:
+      - name: Get tag name
+        id: tag_name
+        run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
+        env:
+          GITHUB_TAG: ${{ github.ref }}
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+      - name: Generate docs snippets and examples
+        working-directory: frontend/snippets
+        run: python3 generate.py
+      - name: Login to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Build
+        run: |
+          for target in lite admin migrate; do
+            DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+              --build-arg SERVER_TARGET=$target \
+              --build-arg VERSION=${{ steps.tag_name.outputs.tag }} \
+              --build-arg FIPS=true \
+              --platform linux/${{ matrix.arch }} \
+              -t hatchet-$target-fips-tmp:${{ matrix.arch }} \
+              . &
+          done
+          wait
+
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/lite.dockerfile \
+            -t $REGISTRY/hatchet-lite-fips:${{ steps.tag_name.outputs.tag }}-${{ matrix.arch }} \
+            --platform linux/${{ matrix.arch }} \
+            --build-arg HATCHET_LITE_IMAGE=hatchet-lite-fips-tmp:${{ matrix.arch }} \
+            --build-arg HATCHET_ADMIN_IMAGE=hatchet-admin-fips-tmp:${{ matrix.arch }} \
+            --build-arg HATCHET_MIGRATE_IMAGE=hatchet-migrate-fips-tmp:${{ matrix.arch }} \
+            .
+      - name: Push to GHCR
+        run: docker push $REGISTRY/hatchet-lite-fips:${{ steps.tag_name.outputs.tag }}-${{ matrix.arch }}
+
+  dashboard:
+    name: hatchet-dashboard-fips-${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: hatchet-arm64-2
+    steps:
+      - name: Get tag name
+        id: tag_name
+        run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
+        env:
+          GITHUB_TAG: ${{ github.ref }}
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+      - name: Generate docs snippets and examples
+        working-directory: frontend/snippets
+        run: python3 generate.py
+      - name: Login to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Build
+        run: |
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+            --build-arg SERVER_TARGET=api \
+            --build-arg VERSION=${{ steps.tag_name.outputs.tag }} \
+            --build-arg FIPS=true \
+            --platform linux/${{ matrix.arch }} \
+            -t hatchet-api-fips-tmp:${{ matrix.arch }} \
+            .
+
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/dashboard.dockerfile \
+            -t $REGISTRY/hatchet-dashboard-fips:${{ steps.tag_name.outputs.tag }}-${{ matrix.arch }} \
+            --platform linux/${{ matrix.arch }} \
+            --build-arg HATCHET_API_IMAGE=hatchet-api-fips-tmp:${{ matrix.arch }} \
+            --build-arg FIPS=true \
+            .
+      - name: Push to GHCR
+        run: docker push $REGISTRY/hatchet-dashboard-fips:${{ steps.tag_name.outputs.tag }}-${{ matrix.arch }}
+
+  fips-enabled:
+    name: Verify fips images link the validated module
+    runs-on: ubuntu-latest
+    needs: [servers, frontend, lite, dashboard]
+    steps:
+      - name: Get tag name
+        id: tag_name
+        run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
+        env:
+          GITHUB_TAG: ${{ github.ref }}
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Login to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Assert every Go binary in every -fips image, both architectures, links GOFIPS140=v1.0.0
+        run: |
+          r=$REGISTRY
+          for arch in amd64 arm64; do
+            t=${{ steps.tag_name.outputs.tag }}-$arch
+            EXPECT_FIPS=true bash hack/ci/assert-fips.sh \
+              $r/hatchet-api-fips:$t=/hatchet/hatchet-api \
+              $r/hatchet-engine-fips:$t=/hatchet/hatchet-engine \
+              $r/hatchet-admin-fips:$t=/hatchet/hatchet-admin \
+              $r/hatchet-migrate-fips:$t=/hatchet/hatchet-migrate \
+              $r/hatchet-lite-fips:$t=/hatchet-lite,/hatchet-admin,/hatchet-migrate \
+              $r/hatchet-dashboard-fips:$t=/hatchet/hatchet-api,/hatchet/hatchet-staticfileserver \
+              $r/hatchet-frontend-fips:$t=/app/hatchet-staticfileserver
+          done
+
+  combine:
+    name: Combine hatchet-${{ matrix.image }}-fips
+    runs-on: ubuntu-latest
+    needs: [fips-enabled]
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [api, engine, admin, migrate, frontend, lite, dashboard]
+    steps:
+      - name: Get tag name
+        id: tag_name
+        run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
+        env:
+          GITHUB_TAG: ${{ github.ref }}
+      - name: Login to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Combine
+        run: |
+          img=$REGISTRY/hatchet-${{ matrix.image }}-fips
+          tag=${{ steps.tag_name.outputs.tag }}
+          docker pull $img:$tag-amd64
+          docker pull $img:$tag-arm64
+          docker manifest create $img:$tag $img:$tag-amd64 $img:$tag-arm64
+          docker manifest push $img:$tag

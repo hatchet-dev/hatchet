@@ -1,6 +1,7 @@
 package webhooksv1
 
 import (
+	"crypto/fips140"
 	"crypto/hmac"
 	"crypto/md5"  // #nosec G501 -- only used as an HMAC primitive to support third-party webhook providers that mandate HMAC-MD5; HMAC remains sound even with MD5
 	"crypto/sha1" // #nosec G505 -- only used as an HMAC primitive to support third-party webhook providers that mandate HMAC-SHA1; HMAC remains sound even with SHA1
@@ -25,6 +26,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
 	"github.com/hatchet-dev/hatchet/internal/cel"
+	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -349,7 +351,22 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 	return gen.V1WebhookReceive200JSONResponse(*res), nil
 }
 
+func checkHMACAlgorithm(algorithm sqlcv1.V1IncomingWebhookHmacAlgorithm) error {
+	switch algorithm {
+	case sqlcv1.V1IncomingWebhookHmacAlgorithmMD5, sqlcv1.V1IncomingWebhookHmacAlgorithmSHA1:
+		if fips140.Enabled() {
+			return fmt.Errorf("HMAC algorithm %s is not permitted in FIPS mode; use SHA256 or SHA512", algorithm)
+		}
+	}
+
+	return nil
+}
+
 func computeHMACSignature(payload []byte, secret []byte, algorithm sqlcv1.V1IncomingWebhookHmacAlgorithm, encoding sqlcv1.V1IncomingWebhookHmacEncoding) (string, error) {
+	if err := checkHMACAlgorithm(algorithm); err != nil {
+		return "", err
+	}
+
 	var hashFunc func() hash.Hash
 	switch algorithm {
 	case sqlcv1.V1IncomingWebhookHmacAlgorithmSHA1:
@@ -364,7 +381,12 @@ func computeHMACSignature(payload []byte, secret []byte, algorithm sqlcv1.V1Inco
 		return "", fmt.Errorf("unsupported HMAC algorithm: %s", algorithm)
 	}
 
-	h := hmac.New(hashFunc, secret)
+	h, err := encryption.NewHMAC(hashFunc, secret)
+
+	if err != nil {
+		return "", err
+	}
+
 	h.Write(payload)
 	signature := h.Sum(nil)
 
@@ -866,7 +888,12 @@ func svixVerifyTimestamp(timestamp time.Time) error {
 func svixSign(key []byte, msgId string, timestamp time.Time, payload []byte) (string, error) {
 	toSign := fmt.Sprintf("%s.%d.%s", msgId, timestamp.Unix(), payload)
 
-	h := hmac.New(sha256.New, key)
+	h, err := encryption.NewHMAC(sha256.New, key)
+
+	if err != nil {
+		return "", err
+	}
+
 	h.Write([]byte(toSign))
 	sig := make([]byte, base64.StdEncoding.EncodedLen(h.Size()))
 	base64.StdEncoding.Encode(sig, h.Sum(nil))

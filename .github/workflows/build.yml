@@ -95,6 +95,48 @@ jobs:
           DOCKER_BUILDKIT=1 docker build -f ./build/package/dashboard.dockerfile \
             --build-arg HATCHET_API_IMAGE=hatchet-api-dev-tmp .
 
+  fips:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+      - name: Generate docs snippets and examples
+        working-directory: frontend/snippets
+        run: python3 generate.py
+      - name: Build servers (fips)
+        run: |
+          for target in api engine admin migrate lite; do
+            DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+              --build-arg SERVER_TARGET=$target --build-arg FIPS=true \
+              -t hatchet-$target-fips-tmp . &
+          done
+          wait
+      - name: Build lite, dashboard and frontend (fips)
+        run: |
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/lite.dockerfile \
+            --build-arg HATCHET_LITE_IMAGE=hatchet-lite-fips-tmp \
+            --build-arg HATCHET_ADMIN_IMAGE=hatchet-admin-fips-tmp \
+            --build-arg HATCHET_MIGRATE_IMAGE=hatchet-migrate-fips-tmp \
+            -t hatchet-lite-fips:ci .
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/dashboard.dockerfile \
+            --build-arg HATCHET_API_IMAGE=hatchet-api-fips-tmp --build-arg FIPS=true \
+            -t hatchet-dashboard-fips:ci .
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/frontend.dockerfile \
+            --build-arg FIPS=true -t hatchet-frontend-fips:ci .
+      - name: Assert every Go binary links the validated FIPS module
+        run: |
+          EXPECT_FIPS=true bash hack/ci/assert-fips.sh \
+            hatchet-api-fips-tmp=/hatchet/hatchet-api \
+            hatchet-engine-fips-tmp=/hatchet/hatchet-engine \
+            hatchet-admin-fips-tmp=/hatchet/hatchet-admin \
+            hatchet-migrate-fips-tmp=/hatchet/hatchet-migrate \
+            hatchet-lite-fips:ci=/hatchet-lite,/hatchet-admin,/hatchet-migrate \
+            hatchet-dashboard-fips:ci=/hatchet/hatchet-api,/hatchet/hatchet-staticfileserver \
+            hatchet-frontend-fips:ci=/app/hatchet-staticfileserver
+
   admin:
     runs-on: ubuntu-latest
     steps:
