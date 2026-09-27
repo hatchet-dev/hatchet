@@ -1,4 +1,54 @@
-import { isIPv4, isIPv6 } from 'net';
+/**
+ * IP literal checks with the same outcome as Node's `net.isIPv4` and `net.isIPv6` for the
+ * addresses a gRPC target can name. They are written here rather than imported from `net`
+ * because the fetch transport parses targets too, and it runs where `net` does not exist.
+ */
+const IPV4 = /^(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)$/;
+const HEX_GROUP = /^[0-9a-fA-F]{1,4}$/;
+/** What Node accepts after the one `%` of a zone id: nonempty, letters, digits, `-`, `.` and `:`. */
+const ZONE_ID = /^[0-9a-zA-Z\-.:]+$/;
+
+function isIPv4(address: string): boolean {
+  return IPV4.test(address);
+}
+
+function isIPv6(address: string): boolean {
+  const zoneAt = address.indexOf('%');
+  if (zoneAt !== -1 && !ZONE_ID.test(address.slice(zoneAt + 1))) {
+    return false;
+  }
+  const literal = zoneAt === -1 ? address : address.slice(0, zoneAt);
+
+  const halves = literal.split('::');
+  if (halves.length > 2) {
+    return false;
+  }
+
+  // An embedded IPv4 address counts as two groups and may only end the whole literal: the
+  // last item of the part after `::`, or of the only part when there is no `::`.
+  const groups = (part: string, endsLiteral: boolean): string[] | null => {
+    if (part === '') {
+      return [];
+    }
+    const items = part.split(':');
+    const last = items[items.length - 1];
+    if (endsLiteral && last.includes('.')) {
+      if (!isIPv4(last)) {
+        return null;
+      }
+      items.splice(items.length - 1, 1, '0', '0');
+    }
+    return items.every((item) => HEX_GROUP.test(item)) ? items : null;
+  };
+
+  const head = groups(halves[0], halves.length === 1);
+  const tail = halves.length === 2 ? groups(halves[1], true) : [];
+  if (!head || !tail) {
+    return false;
+  }
+  const count = head.length + tail.length;
+  return halves.length === 2 ? count < 8 : count === 8;
+}
 
 /**
  * Where a gRPC target points: the host and port to dial and the `:authority` grpc-js sends for
