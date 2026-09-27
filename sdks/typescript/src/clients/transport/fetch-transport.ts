@@ -115,12 +115,10 @@ function validateServerUrl(serverUrl: string, strategy: FetchTlsConfig['strategy
 }
 
 /**
- * Creates the fetch transport: the Connect protocol with binary protobuf bodies over the
- * runtime's `fetch`, so it runs wherever `fetch` does (Cloudflare Workers, Vercel Functions,
- * Deno, Bun, browsers). The engine answers unary calls over HTTP/1.1 or HTTP/2, whichever
- * the runtime negotiates; nothing here depends on the version. The bearer token is attached
- * to every call, and requests and responses are held to the same message size limits as the
- * Node transport's.
+ * The transport for runtimes that only have `fetch` (Cloudflare Workers, Vercel Functions,
+ * Deno, Bun, browsers). It must not depend on the HTTP version, since the engine answers unary
+ * calls over whichever of HTTP/1.1 and HTTP/2 the runtime negotiates, and it enforces the Node
+ * transport's message size limits itself because connect-web has none.
  */
 export function createFetchTransport(options: FetchTransportOptions): Transport {
   const send: typeof globalThis.fetch =

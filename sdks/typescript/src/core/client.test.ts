@@ -65,7 +65,6 @@ function taskRun(
   };
 }
 
-/** A task run whose output is stored as the given text, JSON or not. */
 function taskRunText(
   readableId: string,
   status: RunStatus,

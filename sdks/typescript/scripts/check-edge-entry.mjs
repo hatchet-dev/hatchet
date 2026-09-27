@@ -16,7 +16,7 @@ import { builtinModules } from 'node:module';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { build } from 'esbuild';
+import { build, transformSync } from 'esbuild';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -124,8 +124,9 @@ const nodeGlobals = [
     guard: /typeof\s+AbortSignal\s*\.\s*(?:timeout|any)\b/,
   },
 ];
-// Comments describe these globals without touching them, so they are stripped first.
-const stripComments = (source) => source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:\\])\/\/.*$/gm, '$1');
+// Comments describe these globals without touching them, so they are stripped first. esbuild
+// drops them while leaving string literals alone, which a regex over `//` cannot promise.
+const stripComments = (source) => transformSync(source, { loader: 'js', legalComments: 'none' }).code;
 const sources = new Map(sdkInputs.map((f) => [f, stripComments(readFileSync(resolve(root, f), 'utf8'))]));
 for (const { what, pattern, guard } of nodeGlobals) {
   const hits = sdkInputs.filter((f) => pattern.test(sources.get(f)) && !(guard && guard.test(sources.get(f))));

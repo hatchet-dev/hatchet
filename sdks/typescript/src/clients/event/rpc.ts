@@ -45,9 +45,8 @@ function injectSourceInfo(metadata: Record<string, string>): Record<string, stri
 }
 
 /**
- * Builds the `Push` request for one event: the key is namespaced, the payload and metadata
- * are JSON, and the source run is recorded when there is one. The Node client and the core
- * client send exactly this.
+ * One builder for both clients, so an event pushed from the core client is indistinguishable
+ * to the engine from one pushed by the Node client.
  */
 export function buildPushEventRequest<T>(
   type: string,

@@ -34,6 +34,7 @@ describe('check-edge-entry', () => {
     ['setImmediate', 'export const tick = () => setImmediate(() => {});', /setImmediate/],
     ['process.nextTick', 'export const tick = () => process.nextTick(() => {});', /process or Buffer/],
     ['Buffer', "export const bytes = Buffer.from('x');", /process or Buffer/],
+    ['Buffer after // inside a string', "export const p = 'a//b'; export const bytes = Buffer.from('x');", /process or Buffer/],
     ['.unref(', 'export const timer = setTimeout(() => {}, 1); timer.unref();', /\.unref\(\)/],
     ['AbortSignal.timeout', 'export const signal = AbortSignal.timeout(5);', /AbortSignal\.timeout or AbortSignal\.any/],
     ['AbortSignal.any', 'export const signal = AbortSignal.any([]);', /AbortSignal\.timeout or AbortSignal\.any/],

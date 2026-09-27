@@ -13,7 +13,6 @@ const PROTO_STATUS_MAP: Record<RunStatus, V1TaskStatus> = {
   [RunStatus.UNRECOGNIZED]: V1TaskStatus.RUNNING,
 };
 
-/** The stored text, or `undefined` when the engine stored nothing. */
 function decodeText(b: Uint8Array | undefined): string | undefined {
   return b?.length ? new TextDecoder().decode(b) : undefined;
 }

@@ -14,9 +14,8 @@ import type { DesiredWorkerLabelOpt, TriggerRunOptions } from '@hatchet/core/typ
 import { applyNamespace } from '@hatchet/util/apply-namespace';
 
 /**
- * Builds the `TriggerWorkflow` request for one run: the workflow name is namespaced and
- * lowercased, the input and metadata are JSON, and the deprecated `parentStepRunId` maps onto
- * `parentTaskRunExternalId`. The Node client and the core client send exactly this.
+ * One builder for both clients, so a run triggered from the core client is indistinguishable
+ * to the engine from one triggered by the Node client.
  */
 export function buildTriggerWorkflowRequest<Q>(
   workflowName: string,
