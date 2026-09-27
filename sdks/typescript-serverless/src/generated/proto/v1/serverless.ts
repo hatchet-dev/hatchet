@@ -40,7 +40,27 @@ export interface ServerlessHealthcheckResponse {
    */
   actions: string[];
   durable: ServerlessDurableSupport | undefined;
-  runtime: ServerlessRuntime | undefined;
+  runtime:
+    | ServerlessRuntime
+    | undefined;
+  /**
+   * Per-task options, keyed by action id without the namespace prefix. A task the list does
+   * not name runs with the defaults: a non-durable task is invoked with one signed POST.
+   */
+  tasks: ServerlessTaskOptions[];
+}
+
+/** ServerlessTaskOptions are the options of one task the endpoint serves. */
+export interface ServerlessTaskOptions {
+  /** The action id as it appears in the workflow definition, without the namespace prefix. */
+  action: string;
+  /**
+   * streams asks the operator to invoke the task over the websocket instead of the signed
+   * POST, so the task can open engine streams (ServerlessStreamOpen) while it runs. The
+   * first frame carries invocation_count 1 and no durable channel is opened; the endpoint
+   * runs the task and finishes with a done frame. Durable tasks always get a socket.
+   */
+  streams: boolean;
 }
 
 /**
@@ -89,8 +109,9 @@ export interface ServerlessTriggerError {
 }
 
 /**
- * ServerlessFirstFrame is the first frame the operator sends on a durable websocket, right
- * after the upgrade.
+ * ServerlessFirstFrame is the first frame the operator sends on an invocation websocket,
+ * right after the upgrade. A socket is opened for every durable task and for every task whose
+ * ServerlessTaskOptions.streams is set.
  */
 export interface ServerlessFirstFrame {
   /**
@@ -100,8 +121,9 @@ export interface ServerlessFirstFrame {
   action: AssignedAction | undefined;
   namespace: string;
   /**
-   * The invocation this socket serves. The endpoint re-executes the task from the top on
-   * every invocation and the engine replays memo, wait_for and trigger_runs from its log.
+   * The invocation this socket serves. The endpoint re-executes a durable task from the top
+   * on every invocation and the engine replays memo, wait_for and trigger_runs from its
+   * log. A non-durable task is always invocation 1.
    */
   invocationCount: number;
   /**
@@ -143,16 +165,71 @@ export interface ServerlessDoneFrame {
 }
 
 /**
- * ServerlessDurableFrame is one text frame on the durable websocket. The operator sends
- * first, response and error; the endpoint sends request and done.
+ * ServerlessStreamOpen asks the operator to open one engine stream on the task's behalf. The
+ * endpoint sends it; the operator answers with stream_message frames as the engine sends
+ * messages and with a stream_close frame when the stream ends. The engine call is made with
+ * the operator's own credentials, so no token reaches the endpoint.
+ */
+export interface ServerlessStreamOpen {
+  /**
+   * An endpoint-chosen id, unique among the streams open on this socket. Every later frame
+   * of the stream carries it.
+   */
+  id: string;
+  /**
+   * The fully qualified procedure name. The operator allows exactly
+   * /Dispatcher/SubscribeToWorkflowRuns, /Dispatcher/SubscribeToWorkflowEvents and
+   * /v1.V1Dispatcher/ListenForDurableEvent; anything else is closed with code 12
+   * (unimplemented) before any engine call is made.
+   */
+  procedure: string;
+  /**
+   * The first message of the stream as a protojson document: the request of a server
+   * stream, the first subscription of a bidi stream. A request that names a run the task
+   * may not observe is closed with code 7 (permission denied).
+   */
+  request: string;
+}
+
+/**
+ * ServerlessStreamMessage is one message on an open stream, in either direction: from the
+ * endpoint, a further request on a bidi stream; from the operator, a message the engine sent.
+ */
+export interface ServerlessStreamMessage {
+  id: string;
+  /** The message as a protojson document, of the procedure's request or response type. */
+  message: string;
+}
+
+/**
+ * ServerlessStreamClose ends one stream. From the endpoint it cancels the engine stream and
+ * carries no code. From the operator it reports why the stream ended: code 0 (ok) when the
+ * engine finished it, otherwise a connect code (connectrpc.com/connect codes: 2 unknown, 3
+ * invalid argument, 7 permission denied, 8 resource exhausted, 12 unimplemented, 14
+ * unavailable) with a message for the endpoint's logs.
+ */
+export interface ServerlessStreamClose {
+  id: string;
+  code: number;
+  message: string;
+}
+
+/**
+ * ServerlessDurableFrame is one text frame on the invocation websocket. The operator sends
+ * first, response, error, stream_message and stream_close; the endpoint sends request, done,
+ * stream_open, stream_message and stream_close. request and response only exist on a durable
+ * task's socket; the stream frames exist on every socket.
  */
 export interface ServerlessDurableFrame {
   first?: ServerlessFirstFrame | undefined;
   request?: DurableTaskRequest | undefined;
   response?: DurableTaskResponse | undefined;
   error?: ServerlessErrorFrame | undefined;
-  done?:
-    | ServerlessDoneFrame
+  done?: ServerlessDoneFrame | undefined;
+  streamOpen?: ServerlessStreamOpen | undefined;
+  streamMessage?: ServerlessStreamMessage | undefined;
+  streamClose?:
+    | ServerlessStreamClose
     | undefined;
   /** An endpoint-chosen sequence id on request frames, echoed in the operator's logs only. */
   id?: number | undefined;
@@ -255,7 +332,7 @@ export const ServerlessHealthcheckRequest: MessageFns<ServerlessHealthcheckReque
 };
 
 function createBaseServerlessHealthcheckResponse(): ServerlessHealthcheckResponse {
-  return { workflows: [], actions: [], durable: undefined, runtime: undefined };
+  return { workflows: [], actions: [], durable: undefined, runtime: undefined, tasks: [] };
 }
 
 export const ServerlessHealthcheckResponse: MessageFns<ServerlessHealthcheckResponse> = {
@@ -271,6 +348,9 @@ export const ServerlessHealthcheckResponse: MessageFns<ServerlessHealthcheckResp
     }
     if (message.runtime !== undefined) {
       ServerlessRuntime.encode(message.runtime, writer.uint32(34).fork()).join();
+    }
+    for (const v of message.tasks) {
+      ServerlessTaskOptions.encode(v!, writer.uint32(42).fork()).join();
     }
     return writer;
   },
@@ -314,6 +394,14 @@ export const ServerlessHealthcheckResponse: MessageFns<ServerlessHealthcheckResp
           message.runtime = ServerlessRuntime.decode(reader, reader.uint32());
           continue;
         }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.tasks.push(ServerlessTaskOptions.decode(reader, reader.uint32()));
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -331,6 +419,9 @@ export const ServerlessHealthcheckResponse: MessageFns<ServerlessHealthcheckResp
       actions: globalThis.Array.isArray(object?.actions) ? object.actions.map((e: any) => globalThis.String(e)) : [],
       durable: isSet(object.durable) ? ServerlessDurableSupport.fromJSON(object.durable) : undefined,
       runtime: isSet(object.runtime) ? ServerlessRuntime.fromJSON(object.runtime) : undefined,
+      tasks: globalThis.Array.isArray(object?.tasks)
+        ? object.tasks.map((e: any) => ServerlessTaskOptions.fromJSON(e))
+        : [],
     };
   },
 
@@ -348,6 +439,9 @@ export const ServerlessHealthcheckResponse: MessageFns<ServerlessHealthcheckResp
     if (message.runtime !== undefined) {
       obj.runtime = ServerlessRuntime.toJSON(message.runtime);
     }
+    if (message.tasks?.length) {
+      obj.tasks = message.tasks.map((e) => ServerlessTaskOptions.toJSON(e));
+    }
     return obj;
   },
 
@@ -364,6 +458,83 @@ export const ServerlessHealthcheckResponse: MessageFns<ServerlessHealthcheckResp
     message.runtime = (object.runtime !== undefined && object.runtime !== null)
       ? ServerlessRuntime.fromPartial(object.runtime)
       : undefined;
+    message.tasks = object.tasks?.map((e) => ServerlessTaskOptions.fromPartial(e)) || [];
+    return message;
+  },
+};
+
+function createBaseServerlessTaskOptions(): ServerlessTaskOptions {
+  return { action: "", streams: false };
+}
+
+export const ServerlessTaskOptions: MessageFns<ServerlessTaskOptions> = {
+  encode(message: ServerlessTaskOptions, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.action !== "") {
+      writer.uint32(10).string(message.action);
+    }
+    if (message.streams !== false) {
+      writer.uint32(16).bool(message.streams);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ServerlessTaskOptions {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseServerlessTaskOptions();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.action = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.streams = reader.bool();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ServerlessTaskOptions {
+    return {
+      action: isSet(object.action) ? globalThis.String(object.action) : "",
+      streams: isSet(object.streams) ? globalThis.Boolean(object.streams) : false,
+    };
+  },
+
+  toJSON(message: ServerlessTaskOptions): unknown {
+    const obj: any = {};
+    if (message.action !== "") {
+      obj.action = message.action;
+    }
+    if (message.streams !== false) {
+      obj.streams = message.streams;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<ServerlessTaskOptions>): ServerlessTaskOptions {
+    return ServerlessTaskOptions.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ServerlessTaskOptions>): ServerlessTaskOptions {
+    const message = createBaseServerlessTaskOptions();
+    message.action = object.action ?? "";
+    message.streams = object.streams ?? false;
     return message;
   },
 };
@@ -1014,6 +1185,266 @@ export const ServerlessDoneFrame: MessageFns<ServerlessDoneFrame> = {
   },
 };
 
+function createBaseServerlessStreamOpen(): ServerlessStreamOpen {
+  return { id: "", procedure: "", request: "" };
+}
+
+export const ServerlessStreamOpen: MessageFns<ServerlessStreamOpen> = {
+  encode(message: ServerlessStreamOpen, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.id !== "") {
+      writer.uint32(10).string(message.id);
+    }
+    if (message.procedure !== "") {
+      writer.uint32(18).string(message.procedure);
+    }
+    if (message.request !== "") {
+      writer.uint32(26).string(message.request);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ServerlessStreamOpen {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseServerlessStreamOpen();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.id = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.procedure = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.request = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ServerlessStreamOpen {
+    return {
+      id: isSet(object.id) ? globalThis.String(object.id) : "",
+      procedure: isSet(object.procedure) ? globalThis.String(object.procedure) : "",
+      request: isSet(object.request) ? globalThis.String(object.request) : "",
+    };
+  },
+
+  toJSON(message: ServerlessStreamOpen): unknown {
+    const obj: any = {};
+    if (message.id !== "") {
+      obj.id = message.id;
+    }
+    if (message.procedure !== "") {
+      obj.procedure = message.procedure;
+    }
+    if (message.request !== "") {
+      obj.request = message.request;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<ServerlessStreamOpen>): ServerlessStreamOpen {
+    return ServerlessStreamOpen.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ServerlessStreamOpen>): ServerlessStreamOpen {
+    const message = createBaseServerlessStreamOpen();
+    message.id = object.id ?? "";
+    message.procedure = object.procedure ?? "";
+    message.request = object.request ?? "";
+    return message;
+  },
+};
+
+function createBaseServerlessStreamMessage(): ServerlessStreamMessage {
+  return { id: "", message: "" };
+}
+
+export const ServerlessStreamMessage: MessageFns<ServerlessStreamMessage> = {
+  encode(message: ServerlessStreamMessage, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.id !== "") {
+      writer.uint32(10).string(message.id);
+    }
+    if (message.message !== "") {
+      writer.uint32(18).string(message.message);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ServerlessStreamMessage {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseServerlessStreamMessage();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.id = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.message = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ServerlessStreamMessage {
+    return {
+      id: isSet(object.id) ? globalThis.String(object.id) : "",
+      message: isSet(object.message) ? globalThis.String(object.message) : "",
+    };
+  },
+
+  toJSON(message: ServerlessStreamMessage): unknown {
+    const obj: any = {};
+    if (message.id !== "") {
+      obj.id = message.id;
+    }
+    if (message.message !== "") {
+      obj.message = message.message;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<ServerlessStreamMessage>): ServerlessStreamMessage {
+    return ServerlessStreamMessage.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ServerlessStreamMessage>): ServerlessStreamMessage {
+    const message = createBaseServerlessStreamMessage();
+    message.id = object.id ?? "";
+    message.message = object.message ?? "";
+    return message;
+  },
+};
+
+function createBaseServerlessStreamClose(): ServerlessStreamClose {
+  return { id: "", code: 0, message: "" };
+}
+
+export const ServerlessStreamClose: MessageFns<ServerlessStreamClose> = {
+  encode(message: ServerlessStreamClose, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.id !== "") {
+      writer.uint32(10).string(message.id);
+    }
+    if (message.code !== 0) {
+      writer.uint32(16).int32(message.code);
+    }
+    if (message.message !== "") {
+      writer.uint32(26).string(message.message);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ServerlessStreamClose {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseServerlessStreamClose();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.id = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.code = reader.int32();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.message = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ServerlessStreamClose {
+    return {
+      id: isSet(object.id) ? globalThis.String(object.id) : "",
+      code: isSet(object.code) ? globalThis.Number(object.code) : 0,
+      message: isSet(object.message) ? globalThis.String(object.message) : "",
+    };
+  },
+
+  toJSON(message: ServerlessStreamClose): unknown {
+    const obj: any = {};
+    if (message.id !== "") {
+      obj.id = message.id;
+    }
+    if (message.code !== 0) {
+      obj.code = Math.round(message.code);
+    }
+    if (message.message !== "") {
+      obj.message = message.message;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<ServerlessStreamClose>): ServerlessStreamClose {
+    return ServerlessStreamClose.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ServerlessStreamClose>): ServerlessStreamClose {
+    const message = createBaseServerlessStreamClose();
+    message.id = object.id ?? "";
+    message.code = object.code ?? 0;
+    message.message = object.message ?? "";
+    return message;
+  },
+};
+
 function createBaseServerlessDurableFrame(): ServerlessDurableFrame {
   return {
     first: undefined,
@@ -1021,6 +1452,9 @@ function createBaseServerlessDurableFrame(): ServerlessDurableFrame {
     response: undefined,
     error: undefined,
     done: undefined,
+    streamOpen: undefined,
+    streamMessage: undefined,
+    streamClose: undefined,
     id: undefined,
   };
 }
@@ -1041,6 +1475,15 @@ export const ServerlessDurableFrame: MessageFns<ServerlessDurableFrame> = {
     }
     if (message.done !== undefined) {
       ServerlessDoneFrame.encode(message.done, writer.uint32(42).fork()).join();
+    }
+    if (message.streamOpen !== undefined) {
+      ServerlessStreamOpen.encode(message.streamOpen, writer.uint32(58).fork()).join();
+    }
+    if (message.streamMessage !== undefined) {
+      ServerlessStreamMessage.encode(message.streamMessage, writer.uint32(66).fork()).join();
+    }
+    if (message.streamClose !== undefined) {
+      ServerlessStreamClose.encode(message.streamClose, writer.uint32(74).fork()).join();
     }
     if (message.id !== undefined) {
       writer.uint32(48).int64(message.id);
@@ -1095,6 +1538,30 @@ export const ServerlessDurableFrame: MessageFns<ServerlessDurableFrame> = {
           message.done = ServerlessDoneFrame.decode(reader, reader.uint32());
           continue;
         }
+        case 7: {
+          if (tag !== 58) {
+            break;
+          }
+
+          message.streamOpen = ServerlessStreamOpen.decode(reader, reader.uint32());
+          continue;
+        }
+        case 8: {
+          if (tag !== 66) {
+            break;
+          }
+
+          message.streamMessage = ServerlessStreamMessage.decode(reader, reader.uint32());
+          continue;
+        }
+        case 9: {
+          if (tag !== 74) {
+            break;
+          }
+
+          message.streamClose = ServerlessStreamClose.decode(reader, reader.uint32());
+          continue;
+        }
         case 6: {
           if (tag !== 48) {
             break;
@@ -1119,6 +1586,21 @@ export const ServerlessDurableFrame: MessageFns<ServerlessDurableFrame> = {
       response: isSet(object.response) ? DurableTaskResponse.fromJSON(object.response) : undefined,
       error: isSet(object.error) ? ServerlessErrorFrame.fromJSON(object.error) : undefined,
       done: isSet(object.done) ? ServerlessDoneFrame.fromJSON(object.done) : undefined,
+      streamOpen: isSet(object.streamOpen)
+        ? ServerlessStreamOpen.fromJSON(object.streamOpen)
+        : isSet(object.stream_open)
+        ? ServerlessStreamOpen.fromJSON(object.stream_open)
+        : undefined,
+      streamMessage: isSet(object.streamMessage)
+        ? ServerlessStreamMessage.fromJSON(object.streamMessage)
+        : isSet(object.stream_message)
+        ? ServerlessStreamMessage.fromJSON(object.stream_message)
+        : undefined,
+      streamClose: isSet(object.streamClose)
+        ? ServerlessStreamClose.fromJSON(object.streamClose)
+        : isSet(object.stream_close)
+        ? ServerlessStreamClose.fromJSON(object.stream_close)
+        : undefined,
       id: isSet(object.id) ? globalThis.Number(object.id) : undefined,
     };
   },
@@ -1139,6 +1621,15 @@ export const ServerlessDurableFrame: MessageFns<ServerlessDurableFrame> = {
     }
     if (message.done !== undefined) {
       obj.done = ServerlessDoneFrame.toJSON(message.done);
+    }
+    if (message.streamOpen !== undefined) {
+      obj.streamOpen = ServerlessStreamOpen.toJSON(message.streamOpen);
+    }
+    if (message.streamMessage !== undefined) {
+      obj.streamMessage = ServerlessStreamMessage.toJSON(message.streamMessage);
+    }
+    if (message.streamClose !== undefined) {
+      obj.streamClose = ServerlessStreamClose.toJSON(message.streamClose);
     }
     if (message.id !== undefined) {
       obj.id = Math.round(message.id);
@@ -1165,6 +1656,15 @@ export const ServerlessDurableFrame: MessageFns<ServerlessDurableFrame> = {
       : undefined;
     message.done = (object.done !== undefined && object.done !== null)
       ? ServerlessDoneFrame.fromPartial(object.done)
+      : undefined;
+    message.streamOpen = (object.streamOpen !== undefined && object.streamOpen !== null)
+      ? ServerlessStreamOpen.fromPartial(object.streamOpen)
+      : undefined;
+    message.streamMessage = (object.streamMessage !== undefined && object.streamMessage !== null)
+      ? ServerlessStreamMessage.fromPartial(object.streamMessage)
+      : undefined;
+    message.streamClose = (object.streamClose !== undefined && object.streamClose !== null)
+      ? ServerlessStreamClose.fromPartial(object.streamClose)
       : undefined;
     message.id = object.id ?? undefined;
     return message;

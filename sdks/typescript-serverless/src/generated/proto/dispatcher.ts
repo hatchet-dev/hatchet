@@ -499,7 +499,11 @@ export interface AssignedAction {
     | BatchStartPayload
     | undefined;
   /** (optional) the partition key used for batching */
-  batchKey?: string | undefined;
+  batchKey?:
+    | string
+    | undefined;
+  /** (optional) inserted_at of the assigned task. The DAG operator uses this to prune durable log partitions. */
+  taskInsertedAt?: Date | undefined;
 }
 
 export interface BatchStartPayload {
@@ -1748,6 +1752,7 @@ function createBaseAssignedAction(): AssignedAction {
     batchIndex: undefined,
     batchStartPayload: undefined,
     batchKey: undefined,
+    taskInsertedAt: undefined,
   };
 }
 
@@ -1836,6 +1841,9 @@ export const AssignedAction: MessageFns<AssignedAction> = {
     }
     if (message.batchKey !== undefined) {
       writer.uint32(226).string(message.batchKey);
+    }
+    if (message.taskInsertedAt !== undefined) {
+      Timestamp.encode(toTimestamp(message.taskInsertedAt), writer.uint32(234).fork()).join();
     }
     return writer;
   },
@@ -2071,6 +2079,14 @@ export const AssignedAction: MessageFns<AssignedAction> = {
           message.batchKey = reader.string();
           continue;
         }
+        case 29: {
+          if (tag !== 234) {
+            break;
+          }
+
+          message.taskInsertedAt = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -2200,6 +2216,11 @@ export const AssignedAction: MessageFns<AssignedAction> = {
         ? BatchStartPayload.fromJSON(object.batchStartPayload)
         : undefined,
       batchKey: isSet(object.batchKey) ? globalThis.String(object.batchKey) : undefined,
+      taskInsertedAt: isSet(object.taskInsertedAt)
+        ? fromJsonTimestamp(object.taskInsertedAt)
+        : isSet(object.task_inserted_at)
+        ? fromJsonTimestamp(object.task_inserted_at)
+        : undefined,
     };
   },
 
@@ -2289,6 +2310,9 @@ export const AssignedAction: MessageFns<AssignedAction> = {
     if (message.batchKey !== undefined) {
       obj.batchKey = message.batchKey;
     }
+    if (message.taskInsertedAt !== undefined) {
+      obj.taskInsertedAt = message.taskInsertedAt.toISOString();
+    }
     return obj;
   },
 
@@ -2327,6 +2351,7 @@ export const AssignedAction: MessageFns<AssignedAction> = {
       ? BatchStartPayload.fromPartial(object.batchStartPayload)
       : undefined;
     message.batchKey = object.batchKey ?? undefined;
+    message.taskInsertedAt = object.taskInsertedAt ?? undefined;
     return message;
   },
 };

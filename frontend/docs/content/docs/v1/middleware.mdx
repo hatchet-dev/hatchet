@@ -295,7 +295,7 @@ Global types (`HatchetClient.init<GlobalInput, GlobalOutput>()`) define fields t
 
 ### Can I use middleware for rate limiting or authentication?
 
-Yes. A `before` hook can check rate limits, validate API keys, or verify JWTs before the task runs. If the check fails, throw an error to abort the task. However, for rate limiting specifically, consider using Hatchet's built-in [rate limiting](/home/rate-limits) feature, which operates at the scheduling layer and is more efficient than in-worker checks.
+Yes. A `before` hook can check rate limits, validate API keys, or verify JWTs before the task runs. If the check fails, throw an error to abort the task. However, for rate limiting specifically, consider using Hatchet's built-in [rate limiting](/v1/rate-limits) feature, which operates at the scheduling layer and is more efficient than in-worker checks.
 
 ### How do I test middleware in isolation?
 
