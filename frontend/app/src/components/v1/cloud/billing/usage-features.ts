@@ -1,6 +1,7 @@
 import {
   OrganizationTenantResourceLimits,
   OrganizationUsageFeature,
+  SubscriptionPlan,
   TenantResource,
   TenantResourceLimit,
 } from '@/lib/api/generated/control-plane/data-contracts';
@@ -51,6 +52,15 @@ export type UsageDisplayRow = {
   countOnly?: boolean;
 };
 
+export type InventoryAllowance = {
+  limit: number;
+  unlimited: boolean;
+};
+
+const INVENTORY_FEATURE_IDS = ['crons', 'scheduled_runs', 'webhooks'] as const;
+
+type InventoryFeatureId = (typeof INVENTORY_FEATURE_IDS)[number];
+
 export type ShardUsageCounts = {
   taskRuns: number;
   events: number;
@@ -59,7 +69,38 @@ export type ShardUsageCounts = {
   webhooks?: number;
   tenants?: { used: number; limit: number; unlimited: boolean };
   users?: { used: number; limit: number; unlimited: boolean };
+  allowances?: Partial<Record<InventoryFeatureId, InventoryAllowance>>;
 };
+
+function isInventoryFeatureId(id: string): id is InventoryFeatureId {
+  return (INVENTORY_FEATURE_IDS as readonly string[]).includes(id);
+}
+
+// Plan caps for live inventory. A missing feature, or a zero grant, stays a
+// plain count so we don't draw "n / 0".
+export function inventoryAllowancesFromPlan(
+  plan: SubscriptionPlan | undefined,
+): ShardUsageCounts['allowances'] {
+  const features =
+    plan?.featureGroups?.flatMap((group) => group.features) ?? [];
+  const allowances: NonNullable<ShardUsageCounts['allowances']> = {};
+
+  for (const id of INVENTORY_FEATURE_IDS) {
+    const feature = features.find((item) => item.featureId === id);
+    if (!feature?.included) {
+      continue;
+    }
+    if (!feature.unlimited && feature.includedUsage <= 0) {
+      continue;
+    }
+    allowances[id] = {
+      limit: feature.includedUsage,
+      unlimited: feature.unlimited,
+    };
+  }
+
+  return allowances;
+}
 
 const SHARD_USAGE_ROWS: {
   id: string;
@@ -108,24 +149,32 @@ export function shardUsageRows(
       continue;
     }
 
-    const allowance =
+    const seatAllowance =
       definition.id === 'tenants'
         ? counts.tenants
         : definition.id === 'users'
           ? counts.users
           : undefined;
+    const inventoryAllowance = isInventoryFeatureId(definition.id)
+      ? counts.allowances?.[definition.id]
+      : undefined;
+    const unlimited =
+      seatAllowance?.unlimited ?? inventoryAllowance?.unlimited ?? false;
+    const includedUsage = unlimited
+      ? 0
+      : (seatAllowance?.limit ?? inventoryAllowance?.limit ?? 0);
 
     rows.push({
       feature: {
         featureId: definition.id,
         name: definition.name,
         usage: value,
-        includedUsage: allowance?.unlimited ? 0 : (allowance?.limit ?? 0),
-        unlimited: allowance?.unlimited ?? false,
+        includedUsage,
+        unlimited,
       },
       dailyMeter: dailyMeters[definition.id],
       showPeriodAsCount: definition.kind === 'period',
-      countOnly: definition.kind === 'inventory',
+      countOnly: definition.kind === 'inventory' && !inventoryAllowance,
     });
   }
 

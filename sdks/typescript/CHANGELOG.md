@@ -18,6 +18,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `runs.getDetails` on the Node client issues `GetRunDetails` through the Connect transport, the same code path the core client uses; its request and response types are unchanged. The trigger and event requests are built by modules both clients share (`clients/admin/trigger-request`, `clients/event/rpc`), with no change to what is sent.
 - `util/batch` measures payloads with `TextEncoder` instead of `Buffer`, so it runs outside Node.
 
+## [1.34.0-alpha.1] - 2026-09-25
+
+### Fixed
+
+- `HatchetClient` and `HatchetLogger` no longer write log lines when the log level is `OFF`.
+
 ## [1.34.0-alpha.0] - 2026-09-22
 
 ### Added
@@ -423,7 +429,7 @@ Moved optional dependencies from `optionalDependencies` to `peerDependencies`.
 
 - Improved cancellation log messages: cancellation-related logs now use `debug` level instead of `error` level since cancellation is expected behavior, not a failure.
 - Updated terminology in log messages from "step run" to "task run" for consistency.
-- Added link to cancellation docs (https://docs.hatchet.run/home/cancellation) in error messages when task completion fails.
+- Added link to cancellation docs (https://docs.hatchet.run/v1/cancellation) in error messages when task completion fails.
 
 ## [1.10.7] - 2026-01-27
 

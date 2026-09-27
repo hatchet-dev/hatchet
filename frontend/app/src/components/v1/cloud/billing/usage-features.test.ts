@@ -4,6 +4,7 @@ import {
   formatTimeUntil,
   nextRefillAt,
   selectDailyMeters,
+  inventoryAllowancesFromPlan,
   shardUsageRows,
   sumUsageSeries,
   tenantUsageChart,
@@ -12,6 +13,8 @@ import {
 import {
   OrganizationTenantResourceLimits,
   OrganizationUsageFeature,
+  SubscriptionPlan,
+  SubscriptionPlanFeature,
   TenantResource,
   TenantResourceLimit,
 } from '@/lib/api/generated/control-plane/data-contracts';
@@ -77,6 +80,50 @@ describe('observed usage', () => {
   });
 });
 
+function planFeature(
+  featureId: string,
+  overrides: Partial<SubscriptionPlanFeature> = {},
+): SubscriptionPlanFeature {
+  return {
+    featureId,
+    name: featureId,
+    featureType: 'continuous_use',
+    included: true,
+    includedUsage: 0,
+    unlimited: false,
+    ...overrides,
+  };
+}
+
+function plan(features: SubscriptionPlanFeature[]): SubscriptionPlan {
+  return {
+    planCode: 'growth_monthly',
+    name: 'Growth',
+    description: '',
+    amountCents: 0,
+    featureGroups: [{ name: 'Usage', features }],
+  };
+}
+
+describe('inventoryAllowancesFromPlan', () => {
+  it('keeps finite caps and skips a zero grant', () => {
+    assert.deepEqual(
+      inventoryAllowancesFromPlan(
+        plan([
+          planFeature('crons', { includedUsage: 5 }),
+          planFeature('scheduled_runs', { unlimited: true, includedUsage: 0 }),
+          planFeature('webhooks', { includedUsage: 0 }),
+          planFeature('task_runs', { includedUsage: 1000 }),
+        ]),
+      ),
+      {
+        crons: { limit: 5, unlimited: false },
+        scheduled_runs: { limit: 0, unlimited: true },
+      },
+    );
+  });
+});
+
 describe('shardUsageRows', () => {
   it('builds the table from shard counts and skips inventory that did not load', () => {
     const rows = shardUsageRows({
@@ -135,6 +182,48 @@ describe('shardUsageRows', () => {
           unlimited: false,
           included: 3,
           period: false,
+          countOnly: false,
+        },
+      ],
+    );
+  });
+
+  it('draws inventory against the plan cap', () => {
+    const rows = shardUsageRows({
+      taskRuns: 0,
+      events: 0,
+      crons: 4,
+      webhooks: 2,
+      allowances: {
+        crons: { limit: 5, unlimited: false },
+        webhooks: { limit: 0, unlimited: true },
+      },
+    });
+
+    assert.deepEqual(
+      rows
+        .filter((row) => row.feature.featureId !== 'task_runs')
+        .filter((row) => row.feature.featureId !== 'events')
+        .map((row) => ({
+          id: row.feature.featureId,
+          usage: row.feature.usage,
+          unlimited: row.feature.unlimited,
+          included: row.feature.includedUsage,
+          countOnly: row.countOnly ?? false,
+        })),
+      [
+        {
+          id: 'crons',
+          usage: 4,
+          unlimited: false,
+          included: 5,
+          countOnly: false,
+        },
+        {
+          id: 'webhooks',
+          usage: 2,
+          unlimited: true,
+          included: 0,
           countOnly: false,
         },
       ],
