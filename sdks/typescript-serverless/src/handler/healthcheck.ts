@@ -28,6 +28,8 @@ export function buildHealthcheck(
     ),
     actions: [...registry.served].sort(),
     durable: { supported: durableSupported },
+    // No task asks for an invocation socket yet; the streaming context methods set this later.
+    tasks: [],
     runtime: { name: runtime.name, sdkVersion },
   };
 }
