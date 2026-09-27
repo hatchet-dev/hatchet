@@ -5,6 +5,12 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.34.0-alpha.1] - 2026-09-25
+
+### Fixed
+
+- `HatchetClient` and `HatchetLogger` no longer write log lines when the log level is `OFF`.
+
 ## [1.34.0-alpha.0] - 2026-09-22
 
 ### Added
@@ -410,7 +416,7 @@ Moved optional dependencies from `optionalDependencies` to `peerDependencies`.
 
 - Improved cancellation log messages: cancellation-related logs now use `debug` level instead of `error` level since cancellation is expected behavior, not a failure.
 - Updated terminology in log messages from "step run" to "task run" for consistency.
-- Added link to cancellation docs (https://docs.hatchet.run/home/cancellation) in error messages when task completion fails.
+- Added link to cancellation docs (https://docs.hatchet.run/v1/cancellation) in error messages when task completion fails.
 
 ## [1.10.7] - 2026-01-27
 

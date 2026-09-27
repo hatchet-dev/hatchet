@@ -216,7 +216,7 @@ func startEngine() func() {
 	engineCh := make(chan error)
 
 	go func() {
-		engineCh <- engine.Run(ctx, cf, "testing")
+		engineCh <- engine.Run(ctx, cf, engine.DefaultVersion)
 	}()
 
 	// Return a cleanup function that properly handles shutdown

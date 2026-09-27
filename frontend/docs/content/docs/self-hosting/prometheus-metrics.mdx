@@ -1,14 +1,15 @@
 ---
 title: "Prometheus Metrics"
+seoTitle: "Prometheus Metrics for Self-Hosted Hatchet"
 ---
 
 import { Callout } from "@/components/nextra-compat";
 
-## Prometheus Metrics for Hatchet
+# Prometheus Metrics for Self-Hosted Hatchet
 
 This document provides an overview of the Prometheus metrics exposed by Hatchet, setup instructions for the metrics endpoint, and example PromQL queries to analyze them.
 
-### Setup
+## Setup
 
 To enable Prometheus metrics for your Hatchet instance, you can set the following environment variables. The corresponding configuration YAML values are mentioned in parentheses. If you are deploying [Hatchet in HA mode](/self-hosting/high-availability), these should be set on the `grpc`, `controllers`, and `scheduler` deployments.
 
@@ -41,7 +42,7 @@ To enable Prometheus metrics for your Hatchet instance, you can set the followin
 
 Once enabled, you can setup any scraper that supports ingesting Prometheus metrics.
 
-#### Tenant metrics endpoint
+### Tenant metrics endpoint
 
 <Callout type="info">
   This step requires communication with a service that scrapes Hatchet
@@ -73,7 +74,7 @@ Restart your Hatchet server after setting these variables to apply the changes.
 
 ---
 
-### Global Metrics
+## Global Metrics
 
 | Metric Name                                           | Type      | Description                                                                       |
 | ----------------------------------------------------- | --------- | --------------------------------------------------------------------------------- |
@@ -116,15 +117,15 @@ happen when a subscription exceeds the nats.go default pending limits (500,000
 messages / 64 MiB per subscription). For tenant-stream subscriptions the
 sampled `nats pubsub async error` warning log is the only drop signal.
 
-#### Example PromQL Queries
+### Example PromQL Queries
 
-##### 1. Rate of calls to the queuer method
+#### 1. Rate of calls to the queuer method
 
 ```promql
 rate(hatchet_queue_invocations_total[5m])
 ```
 
-##### 2. Average queue time in milliseconds
+#### 2. Average queue time in milliseconds
 
 ```promql
 # Calculates average queue time over the past 5 minutes, converted to ms
@@ -133,14 +134,14 @@ rate(hatchet_queued_to_assigned_time_seconds_sum[5m])
   * 1e3
 ```
 
-##### 3. Success and failure rates
+#### 3. Success and failure rates
 
 ```promql
 rate(hatchet_succeeded_tasks_total[5m])
 rate(hatchet_failed_tasks_total[5m])
 ```
 
-##### 4. Queue time distribution (histogram)
+#### 4. Queue time distribution (histogram)
 
 ```promql
 sum by (le) (
@@ -148,32 +149,32 @@ sum by (le) (
 )
 ```
 
-##### 5. Rate of tasks created vs. retried
+#### 5. Rate of tasks created vs. retried
 
 ```promql
 rate(hatchet_created_tasks_total[5m])
 rate(hatchet_retried_tasks_total[5m])
 ```
 
-##### 6. Task Assignment Rate
+#### 6. Task Assignment Rate
 
 ```promql
 rate(hatchet_assigned_tasks[5m])
 ```
 
-##### 7. Scheduling Timeout Rate
+#### 7. Scheduling Timeout Rate
 
 ```promql
 rate(hatchet_scheduling_timed_out[5m])
 ```
 
-##### 8. Rate Limiting Impact
+#### 8. Rate Limiting Impact
 
 ```promql
 rate(hatchet_rate_limited[5m])
 ```
 
-##### 9. Task Completion Ratio (Success vs Total)
+#### 9. Task Completion Ratio (Success vs Total)
 
 ```promql
 rate(hatchet_succeeded_tasks_total[5m])
@@ -181,31 +182,31 @@ rate(hatchet_succeeded_tasks_total[5m])
 (rate(hatchet_succeeded_tasks_total[5m]) + rate(hatchet_failed_tasks_total[5m]))
 ```
 
-##### 10. Task Cancellation Rate
+#### 10. Task Cancellation Rate
 
 ```promql
 rate(hatchet_cancelled_tasks_total[5m])
 ```
 
-##### 11. Task Skip Rate
+#### 11. Task Skip Rate
 
 ```promql
 rate(hatchet_skipped_tasks_total[5m])
 ```
 
-##### 12. Queue Processing Efficiency (Assigned vs Created)
+#### 12. Queue Processing Efficiency (Assigned vs Created)
 
 ```promql
 rate(hatchet_assigned_tasks[5m]) / rate(hatchet_created_tasks_total[5m])
 ```
 
-##### 13. Task Reassignment Rate
+#### 13. Task Reassignment Rate
 
 ```promql
 rate(hatchet_reassigned_tasks[5m])
 ```
 
-### Tenant Metrics
+## Tenant Metrics
 
 | Metric Name                                                  | Type      | Description                                                                                                                                                                                                                                                                                |
 | ------------------------------------------------------------ | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -253,9 +254,9 @@ The `slot_type` label separates the worker's slot pools (e.g. `default` and `dur
   per-run identifiers.
 </Callout>
 
-#### Example PromQL Queries
+### Example PromQL Queries
 
-##### 1. Workflow Duration by Tenant and Status
+#### 1. Workflow Duration by Tenant and Status
 
 ```promql
 rate(hatchet_tenant_workflow_duration_milliseconds_sum[5m])
@@ -265,7 +266,7 @@ rate(hatchet_tenant_workflow_duration_milliseconds_count[5m])
 by (tenant_id, workflow_name, status)
 ```
 
-##### 2. Tenant Queue Performance (95th percentile)
+#### 2. Tenant Queue Performance (95th percentile)
 
 ```promql
 histogram_quantile(0.95,
@@ -273,7 +274,7 @@ histogram_quantile(0.95,
 ) by (tenant_id)
 ```
 
-##### 3. Tenant Error Rate by Workflow
+#### 3. Tenant Error Rate by Workflow
 
 ```promql
 rate(hatchet_tenant_failed_tasks[5m]) by (tenant_id)
@@ -281,13 +282,13 @@ rate(hatchet_tenant_failed_tasks[5m]) by (tenant_id)
 rate(hatchet_tenant_created_tasks[5m]) by (tenant_id)
 ```
 
-##### 4. Tenant Task Throughput
+#### 4. Tenant Task Throughput
 
 ```promql
 rate(hatchet_tenant_succeeded_tasks[5m]) by (tenant_id)
 ```
 
-##### 5. Tenant Retry Rate
+#### 5. Tenant Retry Rate
 
 ```promql
 rate(hatchet_tenant_retried_tasks[5m]) by (tenant_id)
@@ -295,7 +296,7 @@ rate(hatchet_tenant_retried_tasks[5m]) by (tenant_id)
 rate(hatchet_tenant_created_tasks[5m]) by (tenant_id)
 ```
 
-##### 6. Workflow Duration Distribution by Tenant
+#### 6. Workflow Duration Distribution by Tenant
 
 ```promql
 sum by (tenant_id, le) (
@@ -303,25 +304,25 @@ sum by (tenant_id, le) (
 )
 ```
 
-##### 7. Tenant Rate Limiting Impact
+#### 7. Tenant Rate Limiting Impact
 
 ```promql
 rate(hatchet_tenant_rate_limited[5m]) by (tenant_id)
 ```
 
-##### 8. Per-Tenant Queue Utilization
+#### 8. Per-Tenant Queue Utilization
 
 ```promql
 rate(hatchet_tenant_queue_invocations[5m]) by (tenant_id)
 ```
 
-##### 9. Tenant Scheduling Timeouts
+#### 9. Tenant Scheduling Timeouts
 
 ```promql
 rate(hatchet_tenant_scheduling_timed_out[5m]) by (tenant_id)
 ```
 
-##### 10. Tenant Task Assignment Success Rate
+#### 10. Tenant Task Assignment Success Rate
 
 ```promql
 rate(hatchet_tenant_assigned_tasks[5m]) by (tenant_id)
@@ -329,13 +330,13 @@ rate(hatchet_tenant_assigned_tasks[5m]) by (tenant_id)
 rate(hatchet_tenant_created_tasks[5m]) by (tenant_id)
 ```
 
-##### 11. Tenant Task Reassignment Rate
+#### 11. Tenant Task Reassignment Rate
 
 ```promql
 rate(hatchet_tenant_reassigned_tasks[5m]) by (tenant_id)
 ```
 
-##### 12. Worker Slot Utilization by Label Pair
+#### 12. Worker Slot Utilization by Label Pair
 
 ```promql
 hatchet_tenant_used_worker_label_slots{label_key="pool", label_value="gpu", slot_type="default"}
@@ -343,13 +344,13 @@ hatchet_tenant_used_worker_label_slots{label_key="pool", label_value="gpu", slot
 hatchet_tenant_worker_label_slots{label_key="pool", label_value="gpu", slot_type="default"}
 ```
 
-##### 13. Queue Backlog by Additional Metadata Tag
+#### 13. Queue Backlog by Additional Metadata Tag
 
 ```promql
 sum(hatchet_tenant_additional_metadata_queue_size{key="prom_pool", value="gpu"}) or vector(0)
 ```
 
-##### 14. Queue Latency (p95) by Workflow
+#### 14. Queue Latency (p95) by Workflow
 
 ```promql
 histogram_quantile(0.95,
@@ -361,11 +362,11 @@ histogram_quantile(0.95,
 
 The worker slot and queue size gauges are designed to drive autoscalers — see [Autoscaling Workers](/v1/autoscaling-workers#scaling-based-on-worker-slot-utilization) for how to use them with KEDA.
 
-### Cross-Tenant Analysis
+## Cross-Tenant Analysis
 
-#### Example PromQL Queries
+### Example PromQL Queries
 
-##### 1. Top 5 Tenants by Task Volume
+#### 1. Top 5 Tenants by Task Volume
 
 ```promql
 topk(5,
@@ -375,7 +376,7 @@ topk(5,
 )
 ```
 
-##### 2. Slowest Workflows Across All Tenants
+#### 2. Slowest Workflows Across All Tenants
 
 ```promql
 topk(10,
@@ -385,7 +386,7 @@ topk(10,
 ) by (tenant_id, workflow_name)
 ```
 
-##### 3. Tenant Resource Consumption Comparison
+#### 3. Tenant Resource Consumption Comparison
 
 ```promql
 sum by (tenant_id) (
@@ -394,7 +395,7 @@ sum by (tenant_id) (
 / 1000 / 60  # Convert to minutes
 ```
 
-### Integration with Prometheus
+## Integration with Prometheus
 
 This endpoint can be used to configure Prometheus to scrape tenant-specific metrics:
 
