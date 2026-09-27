@@ -161,6 +161,22 @@ export function toConnectCallOptions(options?: UnaryCallOptions): ConnectCallOpt
   return connect;
 }
 
+/*
+ * Binary metadata is base64 on the wire. These use the standard `btoa`/`atob` rather than
+ * `Buffer`, since the fetch transport runs where `Buffer` does not exist.
+ */
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+  return btoa(binary);
+}
+
+function base64ToBytes(base64: string): Uint8Array {
+  return Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
+}
+
 /**
  * gRPC metadata as HTTP headers: binary values (keys ending in `-bin`) are base64 encoded,
  * which is how they travel on the wire in every gRPC implementation.
@@ -169,10 +185,7 @@ export function metadataToHeaders(metadata: Metadata): Headers {
   const headers = new Headers();
   for (const [key, values] of metadata) {
     for (const value of values) {
-      headers.append(
-        key,
-        typeof value === 'string' ? value : Buffer.from(value).toString('base64')
-      );
+      headers.append(key, typeof value === 'string' ? value : bytesToBase64(value));
     }
   }
   return headers;
@@ -189,7 +202,7 @@ export function headersToMetadata(headers: Headers): Metadata {
     if (key.endsWith('-bin')) {
       metadata.set(
         key,
-        value.split(',').map((part) => new Uint8Array(Buffer.from(part.trim(), 'base64')))
+        value.split(',').map((part) => base64ToBytes(part.trim()))
       );
     } else {
       metadata.set(key, value);
