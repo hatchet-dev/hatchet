@@ -5,6 +5,12 @@ All notable changes to Hatchet's Ruby SDK will be documented in this changelog.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.1] - 2026-09-27
+
+### Fixed
+
+- `V1CELDebugResponse` now exposes `output_str`, `output_int`, and `output_type` fields. These correspond to the new typed CEL debug response fields added in the API: `output_str` holds the string result, `output_int` holds the integer result, and `output_type` is the discriminator (`bool`, `string`, or `int`). The existing `output` boolean field is unchanged.
+
 ## [0.8.0] - 2026-09-02
 
 ### Added
