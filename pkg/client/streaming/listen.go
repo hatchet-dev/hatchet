@@ -47,7 +47,9 @@ func Listen[C any, E any](
 					return nil
 				}
 			}
-			if err := stream.ConnectOnce(stream.LifecycleContext()); err != nil {
+			// From the failed generation: a sender that reconnected meanwhile has already
+			// replaced it, and this call then adopts that client instead of opening another.
+			if err := stream.ConnectOnceFrom(stream.LifecycleContext(), generation); err != nil {
 				switch classify(ctx, err) {
 				case VerdictStopClean:
 					return nil
