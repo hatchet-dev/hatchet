@@ -2037,9 +2037,177 @@ func TestScheduler_TryAssignBatch_KicksReplenishOnMiss(t *testing.T) {
 	require.Len(t, s.replenishKick, 1)
 }
 
+// The batch-flush assignment path kicks a replenish on a miss like the regular
+// path does; a flush that assigns does not.
+func TestScheduler_TryAssignBatchQueueItem_KicksReplenishOnMiss(t *testing.T) {
+	tenantId := uuid.New()
+	workerId := uuid.New()
+
+	s := newTestScheduler(t, tenantId, &mockAssignmentRepo{})
+	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
+	seedActionPools(t, s, "A", newSlot(w, repo.SlotTypeDefault))
+
+	res, err := s.tryAssignBatchQueueItem(context.Background(), testQI(tenantId, "A", 1), nil)
+	require.NoError(t, err)
+	require.True(t, res.succeeded)
+	require.Len(t, s.replenishKick, 0, "a flush that assigns must not kick")
+
+	// the only default slot is taken: the next flush misses and kicks
+	res, err = s.tryAssignBatchQueueItem(context.Background(), testQI(tenantId, "A", 2), nil)
+	require.NoError(t, err)
+	require.True(t, res.noSlots)
+	require.Len(t, s.replenishKick, 1)
+
+	// an unknown action kicks too; the pending kick coalesces
+	res, err = s.tryAssignBatchQueueItem(context.Background(), testQI(tenantId, "B", 3), nil)
+	require.NoError(t, err)
+	require.True(t, res.noSlots)
+	require.Len(t, s.replenishKick, 1)
+}
+
+// kickBackoff spaces kicked runs by min, doubling per fruitless run up to max,
+// and resets on a restore or on a kick a full max after the last run.
+func TestKickBackoff_Pacing(t *testing.T) {
+	const (
+		minInterval = 100 * time.Millisecond
+		maxInterval = 1500 * time.Millisecond
+		kickAfter   = 5 * time.Millisecond
+	)
+
+	b := kickBackoff{min: minInterval, max: maxInterval}
+	at := time.Now()
+
+	// the first kick runs at once
+	require.Equal(t, time.Duration(0), b.delay(at, 0))
+	b.ran(at, 0)
+
+	// every fruitless run doubles the spacing from the run's start, up to max
+	for _, spacing := range []time.Duration{200 * time.Millisecond, 400 * time.Millisecond, 800 * time.Millisecond, maxInterval, maxInterval} {
+		require.Equal(t, spacing-kickAfter, b.delay(at.Add(kickAfter), 0), "spacing %s", spacing)
+		at = at.Add(spacing)
+		b.ran(at, 0)
+	}
+
+	// a run that restores capacity resets the spacing to min
+	require.Equal(t, maxInterval-kickAfter, b.delay(at.Add(kickAfter), 0))
+	at = at.Add(maxInterval)
+	b.ran(at, 1)
+	require.Equal(t, minInterval-kickAfter, b.delay(at.Add(kickAfter), 1))
+	at = at.Add(minInterval)
+	b.ran(at, 1)
+
+	// so does a restore by another replenish between kicks
+	require.Equal(t, 2*minInterval-kickAfter, b.delay(at.Add(kickAfter), 1))
+	require.Equal(t, minInterval-kickAfter, b.delay(at.Add(kickAfter), 2))
+	at = at.Add(minInterval)
+	b.ran(at, 2)
+
+	// a kick a full max after the last run is a fresh miss and runs at once
+	require.Equal(t, 2*minInterval-kickAfter, b.delay(at.Add(kickAfter), 2))
+	require.Equal(t, time.Duration(0), b.delay(at.Add(maxInterval), 2))
+}
+
+// Under persistent saturation (misses keep arriving, no kicked run restores
+// capacity) the kicked runs back off instead of running once per
+// kickedReplenishMinInterval; a run that restores capacity resets the pacing.
+func TestScheduler_LoopReplenish_BacksOffFruitlessKicks(t *testing.T) {
+	tenantId := uuid.New()
+	workerId := uuid.New()
+
+	// a saturated default pool next to an idle durable one keeps the action
+	// alive across rebuilds without giving the starved request room
+	var mu sync.Mutex
+	calls := 0
+	defaultAvailable := int32(0)
+	available := func() map[uuid.UUID]map[string]int32 {
+		mu.Lock()
+		defer mu.Unlock()
+		return map[uuid.UUID]map[string]int32{
+			workerId: {repo.SlotTypeDefault: defaultAvailable, repo.SlotTypeDurable: 1},
+		}
+	}
+	callCount := func() int {
+		mu.Lock()
+		defer mu.Unlock()
+		return calls
+	}
+
+	ar := &mockAssignmentRepo{
+		listActionsForWorkersFn: func(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListActionsForWorkersRow, error) {
+			mu.Lock()
+			calls++
+			mu.Unlock()
+			return starvedActionRepo(available()).listActionsForWorkersFn(ctx, tenantId, workerIds)
+		},
+		listWorkerSlotConfigsFn: func(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListWorkerSlotConfigsRow, error) {
+			return starvedActionRepo(available()).listWorkerSlotConfigsFn(ctx, tenantId, workerIds)
+		},
+		listAvailableSlotsForWorkersAndTypesFn: func(ctx context.Context, tenantId uuid.UUID, params sqlcv1.ListAvailableSlotsForWorkersAndTypesParams) ([]*sqlcv1.ListAvailableSlotsForWorkersAndTypesRow, error) {
+			return starvedActionRepo(available()).listAvailableSlotsForWorkersAndTypesFn(ctx, tenantId, params)
+		},
+	}
+
+	s := newTestScheduler(t, tenantId, ar)
+	s.setWorkers([]*repo.ListActiveWorkersResult{testWorker(workerId)})
+
+	// a short spacing so the run count below is meaningful, a ticker that never
+	// fires so every run counted is a kicked one, and a cap far above the test
+	const interval = 20 * time.Millisecond
+	s.kickedReplenishMinInterval = interval
+	s.replenishTickerMin = time.Hour
+	s.replenishTickerMax = 2 * time.Hour
+
+	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
+	used := newSlot(w, repo.SlotTypeDefault)
+	used.used = true
+	a := seedActionPools(t, s, "A", used, newSlot(w, repo.SlotTypeDurable))
+	require.True(t, assignOne(t, s, a, testQI(tenantId, "A", 1), nil, defaultRequest(), nil, nil).noSlots)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	loopDone := make(chan struct{})
+	go func() {
+		defer close(loopDone)
+		s.loopReplenish(ctx)
+	}()
+	t.Cleanup(func() {
+		cancel()
+		<-loopDone
+	})
+
+	// saturation: misses keep kicking for a second while no rebuild finds room
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		s.kickReplenish()
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	// spacing 20, 40, 80, 160, 320, 640 ms: six runs, not fifty
+	runs := callCount()
+	require.GreaterOrEqual(t, runs, 2, "kicks were not processed")
+	require.LessOrEqual(t, runs, 8, "kicked replenishes did not back off under saturation")
+
+	// the database frees a default slot: the next kicked run restores the
+	// starved request and resets the pacing
+	mu.Lock()
+	defaultAvailable = 1
+	mu.Unlock()
+	require.True(t, assignOne(t, s, a, testQI(tenantId, "A", 2), nil, defaultRequest(), nil, nil).noSlots)
+	s.kickReplenish()
+	require.Eventually(t, func() bool { return s.restoredRuns.Load() == 1 }, 5*time.Second, time.Millisecond)
+
+	// the kick after a restore runs at the base spacing again
+	before := callCount()
+	time.Sleep(interval)
+	s.kickReplenish()
+	require.Eventually(t, func() bool { return callCount() == before+1 }, 500*time.Millisecond, time.Millisecond,
+		"the kick after a restore did not run at the base spacing")
+}
+
 // Kicks run a heuristic replenish at most once per kickedReplenishMinInterval:
 // the first runs immediately, a burst that follows coalesces into one run at
-// the end of the interval.
+// the end of the spacing. The runs here restore nothing, so the spacing after
+// the first run is twice the interval (see kickBackoff).
 func TestScheduler_LoopReplenish_DebouncesKicks(t *testing.T) {
 	tenantId := uuid.New()
 
@@ -2063,7 +2231,7 @@ func TestScheduler_LoopReplenish_DebouncesKicks(t *testing.T) {
 
 	// wide interval so the assertions below have margin on a loaded host, and
 	// a ticker that never fires so every run counted below is a kicked one
-	const interval = 2 * time.Second
+	const interval = 1 * time.Second
 	s.kickedReplenishMinInterval = interval
 	s.replenishTickerMin = time.Hour
 	s.replenishTickerMax = 2 * time.Hour
@@ -2077,6 +2245,7 @@ func TestScheduler_LoopReplenish_DebouncesKicks(t *testing.T) {
 	}()
 
 	// a burst of kicks merges into one immediate run
+	firstRun := time.Now()
 	for i := 0; i < 5; i++ {
 		s.kickReplenish()
 	}
@@ -2084,14 +2253,13 @@ func TestScheduler_LoopReplenish_DebouncesKicks(t *testing.T) {
 	time.Sleep(interval / 8)
 	require.Equal(t, 1, callCount())
 
-	// a kick inside the interval runs once at the end of it, not immediately
-	start := time.Now()
+	// kicks inside the spacing run once at the end of it, not immediately
 	s.kickReplenish()
 	s.kickReplenish()
 	time.Sleep(interval / 8)
 	require.Equal(t, 1, callCount())
-	require.Eventually(t, func() bool { return callCount() == 2 }, 2*interval, time.Millisecond)
-	require.GreaterOrEqual(t, time.Since(start), interval/2, "kicked replenish ran before the interval elapsed")
+	require.Eventually(t, func() bool { return callCount() == 2 }, 3*interval, time.Millisecond)
+	require.GreaterOrEqual(t, time.Since(firstRun), 2*interval-interval/8, "kicked replenish ran before the spacing elapsed")
 	time.Sleep(interval / 8)
 	require.Equal(t, 2, callCount())
 

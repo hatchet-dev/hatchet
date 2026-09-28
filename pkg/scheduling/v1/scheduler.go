@@ -5,6 +5,7 @@ import (
 	"context"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -88,6 +89,11 @@ type Scheduler struct {
 	replenishTickerMax         time.Duration
 	kickedReplenishMinInterval time.Duration
 
+	// restoredRuns counts replenishes that restored capacity for a starved
+	// request. loopReplenish reads it to tell a kicked replenish that found
+	// capacity from one that did not (see kickBackoff).
+	restoredRuns atomic.Uint64
+
 	// onCapacityRestored, when set, is called outside the run loop after a
 	// replenish rebuilds the pools of actions that had starved and now have
 	// the slots they were missing, with the queues whose items missed. The
@@ -127,13 +133,75 @@ func newScheduler(cf *sharedConfig, tenantId uuid.UUID, rl *rateLimiter, exts *E
 	}
 }
 
-// kickReplenish asks loopReplenish for a heuristic replenish as soon as
-// kickedReplenishMinInterval allows. Non-blocking, safe from the run loop.
+// kickReplenish asks loopReplenish for a heuristic replenish as soon as the
+// kick backoff allows. Non-blocking, safe from the run loop.
 func (s *Scheduler) kickReplenish() {
 	select {
 	case s.replenishKick <- struct{}{}:
 	default:
 	}
+}
+
+// kickBackoff paces kicked replenishes for loopReplenish. The first kick after
+// a quiet period runs at once and later ones at least min apart. Each kicked
+// run that restores capacity for no starved request doubles the spacing, up to
+// max (the forced ticker's upper bound), so persistent saturation (workers
+// genuinely full while queues keep missing) costs at most one kicked capacity
+// read per forced interval instead of one per min. The spacing resets when any
+// replenish restores capacity, or when a kick arrives at least max after the
+// last kicked run: a forced replenish has rebuilt the pools since, so the miss
+// is a fresh one and keeps the fast path.
+type kickBackoff struct {
+	min, max time.Duration
+
+	fruitless    int
+	lastRun      time.Time
+	restoredSeen uint64
+}
+
+// delay returns how long the next kicked run must wait. restoredRuns is the
+// scheduler's counter at the time of the kick.
+func (b *kickBackoff) delay(now time.Time, restoredRuns uint64) time.Duration {
+	if restoredRuns != b.restoredSeen || now.Sub(b.lastRun) >= b.max {
+		b.fruitless = 0
+	}
+
+	b.restoredSeen = restoredRuns
+
+	delay := b.interval() - now.Sub(b.lastRun)
+	if delay < 0 {
+		delay = 0
+	}
+
+	return delay
+}
+
+// ran records a kicked run that started at now; restoredRuns is the counter
+// after it finished.
+func (b *kickBackoff) ran(now time.Time, restoredRuns uint64) {
+	b.lastRun = now
+
+	if restoredRuns != b.restoredSeen {
+		b.fruitless = 0
+	} else {
+		b.fruitless++
+	}
+
+	b.restoredSeen = restoredRuns
+}
+
+func (b *kickBackoff) interval() time.Duration {
+	interval := b.min
+
+	for i := 0; i < b.fruitless && interval < b.max; i++ {
+		interval *= 2
+	}
+
+	if interval > b.max {
+		interval = b.max
+	}
+
+	return interval
 }
 
 func (s *Scheduler) start(ctx context.Context) {
@@ -719,6 +787,10 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	)
 	buildSlotsSpan.End()
 
+	if restoredActions > 0 {
+		s.restoredRuns.Add(1)
+	}
+
 	if len(restoredQueues) > 0 && s.onCapacityRestored != nil {
 		queues := make([]string, 0, len(restoredQueues))
 		for queue := range restoredQueues {
@@ -746,9 +818,9 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 
 // loopReplenish runs a forced replenish on a 1 to 1.5 s ticker and a
 // heuristic one on demand when assignment misses kick it (kickReplenish).
-// Kicks are debounced to one per kickedReplenishMinInterval: the first kick
-// after a quiet period runs immediately, kicks that follow within the interval
-// coalesce into one run at the end of it.
+// Kicks are paced by kickBackoff: the first kick after a quiet period runs
+// immediately, kicks that follow within the current spacing coalesce into one
+// run at the end of it, and fruitless runs widen the spacing.
 func (s *Scheduler) loopReplenish(ctx context.Context) {
 	ticker := randomticker.NewRandomTicker(s.replenishTickerMin, s.replenishTickerMax)
 	defer ticker.Stop()
@@ -762,10 +834,11 @@ func (s *Scheduler) loopReplenish(ctx context.Context) {
 		}
 	}
 
+	backoff := kickBackoff{min: s.kickedReplenishMinInterval, max: s.replenishTickerMax}
+
 	var (
-		lastKicked time.Time
-		kickTimer  *time.Timer
-		kickC      <-chan time.Time
+		kickTimer *time.Timer
+		kickC     <-chan time.Time
 	)
 
 	defer func() {
@@ -786,17 +859,13 @@ func (s *Scheduler) loopReplenish(ctx context.Context) {
 				continue
 			}
 
-			delay := s.kickedReplenishMinInterval - time.Since(lastKicked)
-			if delay < 0 {
-				delay = 0
-			}
-
-			kickTimer = time.NewTimer(delay)
+			kickTimer = time.NewTimer(backoff.delay(time.Now(), s.restoredRuns.Load()))
 			kickC = kickTimer.C
 		case <-kickC:
 			kickC = nil
-			lastKicked = time.Now()
+			started := time.Now()
 			run(false)
+			backoff.ran(started, s.restoredRuns.Load())
 		}
 	}
 }
@@ -1338,6 +1407,8 @@ func (s *Scheduler) tryAssignBatchQueueItem(
 
 		if !ok || action == nil || len(action.workerIds) == 0 {
 			res.noSlots = true
+			// a replenish is what discovers a newly registered action
+			s.kickReplenish()
 			return
 		}
 
@@ -1346,6 +1417,12 @@ func (s *Scheduler) tryAssignBatchQueueItem(
 		requests := map[string]int32{v1.SlotTypeDefault: 1}
 
 		s.assignSingleton(ctx, action, qi, &res, labels, requests, noop, noop, time.Now())
+
+		// As in tryAssignBatch: the pools may lag the database, so ask for a
+		// replenish now rather than leaving the batch to the forced ticker.
+		if res.noSlots {
+			s.kickReplenish()
+		}
 	}); !ok {
 		res.noSlots = true
 	}
