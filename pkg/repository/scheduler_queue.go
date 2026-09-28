@@ -385,9 +385,14 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 	// order stays consistent with RestoreEvictedTasks; it must run before any other queue
 	// item is deleted in this transaction. On the optimistic path the tasks were inserted
 	// in this transaction and cannot have runtime rows yet, so the lock is skipped.
-	var flushed []*sqlcv1.FlushAssignedQueueItemsRow
+	var (
+		flushed       []*sqlcv1.FlushAssignedQueueItemsRow
+		flushDuration time.Duration
+	)
 
 	if len(taskIds)+len(removeTaskIds) > 0 {
+		flushStart := time.Now()
+
 		flushed, err = d.queries.FlushAssignedQueueItems(ctx, tx, sqlcv1.FlushAssignedQueueItemsParams{
 			Taskids:               taskIds,
 			Taskinsertedats:       taskInsertedAts,
@@ -402,12 +407,12 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 			Mintaskinsertedat:     minTaskInsertedAt,
 		})
 
+		flushDuration = time.Since(flushStart)
+
 		if err != nil {
 			return nil, nil, err
 		}
 	}
-
-	timeAfterFlush := time.Since(start)
 
 	// a key that did not come back was deleted from v1_queue_item underneath the
 	// scheduler (cancellation, another scheduler), so it is neither assigned nor buffered
@@ -537,14 +542,14 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 		telemetry.AttributeKV{Key: "result.succeeded", Value: len(succeeded)},
 		telemetry.AttributeKV{Key: "result.failed", Value: len(failed)},
 		telemetry.AttributeKV{Key: "duration.total_ms", Value: sinceStart.Milliseconds()},
-		telemetry.AttributeKV{Key: "duration.flush_ms", Value: timeAfterFlush.Milliseconds()},
+		telemetry.AttributeKV{Key: "duration.flush_ms", Value: flushDuration.Milliseconds()},
 	)
 
 	if sinceStart > 100*time.Millisecond {
 		d.l.Warn().Dur(
 			"duration", sinceStart,
 		).Dur(
-			"flush", timeAfterFlush,
+			"flush", flushDuration,
 		).Int(
 			"assigned", len(succeeded),
 		).Int(
