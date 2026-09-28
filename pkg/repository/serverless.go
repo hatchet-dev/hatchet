@@ -51,9 +51,14 @@ type ServerlessEndpointRepository interface {
 	List(ctx context.Context, tenantId uuid.UUID, opts ListServerlessEndpointsOpts) ([]*sqlcv1.V1ServerlessEndpoint, int64, error)
 	// Update changes configuration only; the shard is immutable.
 	Update(ctx context.Context, tenantId, endpointId uuid.UUID, opts UpdateServerlessEndpointOpts) (*sqlcv1.V1ServerlessEndpoint, error)
-	// Delete removes the endpoint and decrements its lease unit's endpoint_count in the same
-	// transaction. The lease row itself is kept.
+	// Delete marks the endpoint deleted and decrements its lease unit's endpoint_count in the
+	// same transaction. The row stays, versioned by the deletion, so every routing cache's
+	// incremental refresh sees it and drops the endpoint; no other read returns it. The lease
+	// row itself is kept.
 	Delete(ctx context.Context, tenantId, endpointId uuid.UUID) (*sqlcv1.V1ServerlessEndpoint, error)
+	// PurgeDeleted removes the rows deleted before cutoff and returns how many. The operator
+	// runs it on its sweep, once every cache has had the grace period to see the deletions.
+	PurgeDeleted(ctx context.Context, cutoff time.Time) (int64, error)
 
 	// ListForUnits returns the endpoints of the given units, keyset-paged by id: pass uuid.Nil
 	// for the first page and the last returned id afterwards.
@@ -63,7 +68,8 @@ type ServerlessEndpointRepository interface {
 	ListForTenant(ctx context.Context, tenantId uuid.UUID, afterId uuid.UUID, limit int64) ([]*sqlcv1.V1ServerlessEndpoint, error)
 	// ListUpdatedSince refreshes a tenant's routing cache incrementally: the rows whose version
 	// (the later of updated_at and status_changed_at) and id are past the (since, sinceId)
-	// keyset, in that order. Configuration, registered_actions and status changes all surface.
+	// keyset, in that order. Configuration, registered_actions, status and deletion changes
+	// all surface; a deleted row is returned with deleted_at set so the cache drops it.
 	ListUpdatedSince(ctx context.Context, tenantId uuid.UUID, since time.Time, sinceId uuid.UUID) ([]*sqlcv1.V1ServerlessEndpoint, error)
 	// ListVersions is the anti-entropy pass of a tenant's routing cache: every endpoint's id
 	// and version, keyset-paged on (version, id) from after, in that order, and nothing else,

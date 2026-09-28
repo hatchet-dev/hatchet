@@ -79,6 +79,8 @@ func seedServerlessUnits(t *testing.T, ctx context.Context, pool *pgxpool.Pool, 
 	return units
 }
 
+func boolPtr(b bool) *bool { return &b }
+
 func leaseRow(t *testing.T, ctx context.Context, pool *pgxpool.Pool, unit ServerlessUnit) (processId *uuid.UUID, endpointCount int32) {
 	t.Helper()
 
@@ -296,6 +298,71 @@ func TestServerlessRepository(t *testing.T) {
 		_, count, err := repo.Endpoints().List(ctx, tenantId, ListServerlessEndpointsOpts{Limit: 10})
 		require.NoError(t, err)
 		assert.Equal(t, int64(0), count, "no endpoint should have been created")
+	})
+
+	t.Run("delete is soft: hidden from reads, visible to the refresh, name free, purged later", func(t *testing.T) {
+		tenantId := uuid.New()
+
+		created, err := repo.Endpoints().Create(ctx, tenantId, serverlessEndpointOpts("soft"))
+		require.NoError(t, err)
+
+		before := created.UpdatedAt.Time.Add(-time.Second)
+
+		deleted, err := repo.Endpoints().Delete(ctx, tenantId, created.ID)
+		require.NoError(t, err)
+		assert.True(t, deleted.DeletedAt.Valid)
+		assert.False(t, deleted.UpdatedAt.Time.Before(deleted.DeletedAt.Time), "updated_at moves with the deletion")
+
+		_, err = repo.Endpoints().Get(ctx, tenantId, created.ID)
+		assert.ErrorIs(t, err, pgx.ErrNoRows)
+		_, err = repo.Endpoints().GetById(ctx, created.ID)
+		assert.ErrorIs(t, err, pgx.ErrNoRows)
+
+		_, count, err := repo.Endpoints().List(ctx, tenantId, ListServerlessEndpointsOpts{Limit: 10})
+		require.NoError(t, err)
+		assert.Equal(t, int64(0), count)
+
+		forTenant, err := repo.Endpoints().ListForTenant(ctx, tenantId, uuid.Nil, 10)
+		require.NoError(t, err)
+		assert.Empty(t, forTenant)
+
+		versions, err := repo.Endpoints().ListVersions(ctx, tenantId, ServerlessEndpointVersion{}, 10)
+		require.NoError(t, err)
+		assert.Empty(t, versions)
+
+		byIds, err := repo.Endpoints().ListByIds(ctx, []uuid.UUID{created.ID})
+		require.NoError(t, err)
+		assert.Empty(t, byIds)
+
+		// the refresh is the one read that returns the row, so the caches drop the endpoint
+		since, err := repo.Endpoints().ListUpdatedSince(ctx, tenantId, before, uuid.Nil)
+		require.NoError(t, err)
+		require.Len(t, since, 1)
+		assert.Equal(t, created.ID, since[0].ID)
+		assert.True(t, since[0].DeletedAt.Valid)
+
+		_, err = repo.Endpoints().Update(ctx, tenantId, created.ID, UpdateServerlessEndpointOpts{Enabled: boolPtr(false)})
+		assert.ErrorIs(t, err, pgx.ErrNoRows, "a deleted endpoint cannot be updated")
+
+		// the name is free again
+		again, err := repo.Endpoints().Create(ctx, tenantId, serverlessEndpointOpts("soft"))
+		require.NoError(t, err)
+		assert.NotEqual(t, created.ID, again.ID)
+
+		purged, err := repo.Endpoints().PurgeDeleted(ctx, time.Now().Add(-time.Hour))
+		require.NoError(t, err)
+		assert.Equal(t, int64(0), purged, "a fresh deletion is within the grace period")
+
+		purged, err = repo.Endpoints().PurgeDeleted(ctx, time.Now().Add(time.Second))
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, purged, int64(1))
+
+		since, err = repo.Endpoints().ListUpdatedSince(ctx, tenantId, before, uuid.Nil)
+		require.NoError(t, err)
+
+		for _, row := range since {
+			assert.NotEqual(t, created.ID, row.ID, "the purged row is gone")
+		}
 	})
 
 	t.Run("lease unit and endpoint_count follow endpoint create and delete", func(t *testing.T) {

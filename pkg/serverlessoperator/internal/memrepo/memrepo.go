@@ -231,17 +231,22 @@ func (r *Repo) UpdateEndpoint(id uuid.UUID, fn func(ep *sqlcv1.V1ServerlessEndpo
 }
 
 // RemoveEndpoint hard-deletes an endpoint and decrements its unit's count.
+// RemoveEndpoint deletes the endpoint the way the API does: the row is marked deleted and
+// versioned by the deletion, so only ListUpdatedSince returns it, and the lease unit's count
+// drops. PurgeDeleted removes the row.
 func (r *Repo) RemoveEndpoint(id uuid.UUID) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	ep, ok := r.endpoints[id]
 
-	if !ok {
+	if !ok || ep.DeletedAt.Valid {
 		return
 	}
 
-	delete(r.endpoints, id)
+	now := r.Now()
+	ep.DeletedAt = pgtype.Timestamptz{Time: now, Valid: true}
+	ep.UpdatedAt = pgtype.Timestamptz{Time: now, Valid: true}
 
 	if lease, ok := r.leases[Unit{TenantId: ep.TenantID, Shard: ep.Shard}]; ok {
 		lease.EndpointCount--
@@ -335,7 +340,7 @@ func (e *endpoints) ListForUnits(_ context.Context, units []Unit, afterId uuid.U
 	out := make([]*sqlcv1.V1ServerlessEndpoint, 0)
 
 	for _, ep := range e.r.endpoints {
-		if _, ok := want[Unit{TenantId: ep.TenantID, Shard: ep.Shard}]; !ok {
+		if _, ok := want[Unit{TenantId: ep.TenantID, Shard: ep.Shard}]; !ok || ep.DeletedAt.Valid {
 			continue
 		}
 
@@ -365,7 +370,7 @@ func (e *endpoints) ListForTenant(_ context.Context, tenantId uuid.UUID, afterId
 	out := make([]*sqlcv1.V1ServerlessEndpoint, 0)
 
 	for _, ep := range e.r.endpoints {
-		if ep.TenantID == tenantId && ep.ID.String() > afterId.String() {
+		if ep.TenantID == tenantId && !ep.DeletedAt.Valid && ep.ID.String() > afterId.String() {
 			out = append(out, copyEndpoint(ep))
 		}
 	}
@@ -390,7 +395,7 @@ func (e *endpoints) ListVersions(_ context.Context, tenantId uuid.UUID, after re
 	out := make([]repository.ServerlessEndpointVersion, 0)
 
 	for _, ep := range e.r.endpoints {
-		if ep.TenantID != tenantId {
+		if ep.TenantID != tenantId || ep.DeletedAt.Valid {
 			continue
 		}
 
@@ -425,7 +430,7 @@ func (e *endpoints) ListByIds(_ context.Context, ids []uuid.UUID) ([]*sqlcv1.V1S
 	out := make([]*sqlcv1.V1ServerlessEndpoint, 0, len(ids))
 
 	for _, id := range ids {
-		if ep, ok := e.r.endpoints[id]; ok {
+		if ep, ok := e.r.endpoints[id]; ok && !ep.DeletedAt.Valid {
 			out = append(out, copyEndpoint(ep))
 		}
 	}
@@ -444,6 +449,23 @@ func version(ep *sqlcv1.V1ServerlessEndpoint) time.Time {
 	}
 
 	return ep.UpdatedAt.Time
+}
+
+// PurgeDeleted removes the rows deleted before cutoff, like the database.
+func (e *endpoints) PurgeDeleted(_ context.Context, cutoff time.Time) (int64, error) {
+	e.r.mu.Lock()
+	defer e.r.mu.Unlock()
+
+	var n int64
+
+	for id, ep := range e.r.endpoints {
+		if ep.DeletedAt.Valid && ep.DeletedAt.Time.Before(cutoff) {
+			delete(e.r.endpoints, id)
+			n++
+		}
+	}
+
+	return n, nil
 }
 
 func (e *endpoints) ListUpdatedSince(_ context.Context, tenantId uuid.UUID, since time.Time, sinceId uuid.UUID) ([]*sqlcv1.V1ServerlessEndpoint, error) {

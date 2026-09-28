@@ -2920,9 +2920,15 @@ CREATE TABLE v1_serverless_endpoint (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     -- the subset of registered_actions whose task asked for an invocation websocket
     stream_actions TEXT[] NOT NULL DEFAULT '{}',
-    CONSTRAINT v1_serverless_endpoint_pkey PRIMARY KEY (id),
-    CONSTRAINT v1_serverless_endpoint_tenant_name_key UNIQUE (tenant_id, name)
+    -- Set by the delete API together with updated_at, so the routing caches' incremental
+    -- refresh sees the deletion through the version index and drops the endpoint; every other
+    -- read filters deleted rows out. The operator purges the rows after a grace period.
+    deleted_at TIMESTAMPTZ,
+    CONSTRAINT v1_serverless_endpoint_pkey PRIMARY KEY (id)
 );
+
+-- Names are unique among the live endpoints of a tenant; a deleted endpoint's name is free.
+CREATE UNIQUE INDEX v1_serverless_endpoint_tenant_name_key ON v1_serverless_endpoint (tenant_id, name) WHERE deleted_at IS NULL;
 
 -- endpoints of an owned unit (owner: polling) and of a served tenant (routing cache)
 CREATE INDEX v1_serverless_endpoint_unit_idx ON v1_serverless_endpoint (tenant_id, shard, id);

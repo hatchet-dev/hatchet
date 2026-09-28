@@ -290,6 +290,10 @@ func (r *serverlessEndpointRepository) Delete(ctx context.Context, tenantId, end
 	return endpoint, nil
 }
 
+func (r *serverlessEndpointRepository) PurgeDeleted(ctx context.Context, cutoff time.Time) (int64, error) {
+	return r.queries.PurgeDeletedServerlessEndpoints(ctx, r.pool, pgtype.Timestamptz{Time: cutoff, Valid: true})
+}
+
 func (r *serverlessEndpointRepository) ListForUnits(ctx context.Context, units []ServerlessUnit, afterId uuid.UUID, limit int64) ([]*sqlcv1.V1ServerlessEndpoint, error) {
 	if len(units) == 0 {
 		return nil, nil

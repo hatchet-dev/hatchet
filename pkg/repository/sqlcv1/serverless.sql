@@ -42,19 +42,24 @@ SELECT *
 FROM v1_serverless_endpoint
 WHERE
     tenant_id = @tenantId::UUID
-    AND id = @id::UUID;
+    AND id = @id::UUID
+    AND deleted_at IS NULL;
 
 -- name: GetServerlessEndpointById :one
 -- Resolves an endpoint before its tenant is known, for the API's resource populator, which
 -- checks the returned tenant_id against the caller's tenant.
 SELECT *
 FROM v1_serverless_endpoint
-WHERE id = @id::UUID;
+WHERE
+    id = @id::UUID
+    AND deleted_at IS NULL;
 
 -- name: ListServerlessEndpoints :many
 SELECT *
 FROM v1_serverless_endpoint
-WHERE tenant_id = @tenantId::UUID
+WHERE
+    tenant_id = @tenantId::UUID
+    AND deleted_at IS NULL
 ORDER BY created_at DESC, id DESC
 LIMIT @endpointLimit::BIGINT
 OFFSET @endpointOffset::BIGINT;
@@ -62,7 +67,9 @@ OFFSET @endpointOffset::BIGINT;
 -- name: CountServerlessEndpoints :one
 SELECT COUNT(*)
 FROM v1_serverless_endpoint
-WHERE tenant_id = @tenantId::UUID;
+WHERE
+    tenant_id = @tenantId::UUID
+    AND deleted_at IS NULL;
 
 -- name: UpdateServerlessEndpoint :one
 -- The shard is never updatable: it decides which lease unit owns the endpoint.
@@ -82,14 +89,28 @@ SET
 WHERE
     tenant_id = @tenantId::UUID
     AND id = @id::UUID
+    AND deleted_at IS NULL
 RETURNING *;
 
 -- name: DeleteServerlessEndpoint :one
-DELETE FROM v1_serverless_endpoint
+-- Marks the endpoint deleted. updated_at moves with it so ListServerlessEndpointsUpdatedSince
+-- surfaces the row to every routing cache, which drops the endpoint; the row is purged by
+-- PurgeDeletedServerlessEndpoints after a grace period.
+UPDATE v1_serverless_endpoint
+SET
+    deleted_at = NOW(),
+    updated_at = NOW()
 WHERE
     tenant_id = @tenantId::UUID
     AND id = @id::UUID
+    AND deleted_at IS NULL
 RETURNING *;
+
+-- name: PurgeDeletedServerlessEndpoints :execrows
+-- Removes endpoints deleted before the cutoff, once every routing cache has had the grace
+-- period to see the deletion.
+DELETE FROM v1_serverless_endpoint
+WHERE deleted_at < @cutoff::TIMESTAMPTZ;
 
 -- name: ListServerlessEndpointsForUnits :many
 -- Endpoints of the given (tenant, shard) units, keyset-paged by id through
@@ -103,7 +124,9 @@ JOIN (
         unnest(@tenantIds::UUID[]) AS tenant_id,
         unnest(@shards::INT[]) AS shard
 ) AS u ON e.tenant_id = u.tenant_id AND e.shard = u.shard
-WHERE e.id > @afterId::UUID
+WHERE
+    e.id > @afterId::UUID
+    AND e.deleted_at IS NULL
 ORDER BY e.id
 LIMIT @endpointLimit::BIGINT;
 
@@ -117,14 +140,16 @@ FROM v1_serverless_endpoint
 WHERE
     tenant_id = @tenantId::UUID
     AND id > @afterId::UUID
+    AND deleted_at IS NULL
 ORDER BY id
 LIMIT @endpointLimit::BIGINT;
 
 -- name: ListServerlessEndpointsUpdatedSince :many
 -- Incremental refresh of a tenant's routing cache through v1_serverless_endpoint_version_idx.
--- A row's version is the later of updated_at (configuration and registered_actions writes)
--- and status_changed_at (health transitions written by the owner), so every write the cache
--- needs to see surfaces here. Keyset on (version, id) from the last row the caller applied.
+-- A row's version is the later of updated_at (configuration, registered_actions and deletion
+-- writes) and status_changed_at (health transitions written by the owner), so every write the
+-- cache needs to see surfaces here; deleted rows are included so the cache drops them. Keyset
+-- on (version, id) from the last row the caller applied.
 SELECT *
 FROM v1_serverless_endpoint
 WHERE
@@ -145,6 +170,7 @@ SELECT
 FROM v1_serverless_endpoint
 WHERE
     tenant_id = @tenantId::UUID
+    AND deleted_at IS NULL
     AND (GREATEST(updated_at, COALESCE(status_changed_at, updated_at)), id) > (@afterVersion::TIMESTAMPTZ, @afterId::UUID)
 ORDER BY GREATEST(updated_at, COALESCE(status_changed_at, updated_at)), id
 LIMIT @versionLimit::BIGINT;
@@ -152,7 +178,9 @@ LIMIT @versionLimit::BIGINT;
 -- name: ListServerlessEndpointsByIds :many
 SELECT *
 FROM v1_serverless_endpoint
-WHERE id = ANY(@ids::UUID[])
+WHERE
+    id = ANY(@ids::UUID[])
+    AND deleted_at IS NULL
 ORDER BY id;
 
 -- name: UpdateServerlessEndpointStatus :one

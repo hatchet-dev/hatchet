@@ -551,8 +551,9 @@ func (c *routingCache) Reconcile(ctx context.Context) error {
 	return nil
 }
 
-// Refresh applies rows versioned past the watermark. Deleted endpoints are not visible here;
-// Reconcile drops them. A row whose commit lands after a refresh read past its version is
+// Refresh applies rows versioned past the watermark, deletions included: a deleted row is
+// versioned by its deletion and drops the endpoint here. A row whose commit lands after a
+// refresh read past its version, and a row purged without the cache seeing its deletion, are
 // caught by the next Reconcile.
 func (c *routingCache) Refresh(ctx context.Context) error {
 	c.mu.RLock()
@@ -599,6 +600,21 @@ func (c *routingCache) LastLoad() time.Time {
 
 func (c *routingCache) upsertLocked(b *batch, row *sqlcv1.V1ServerlessEndpoint) {
 	ep, ok := c.byId[row.ID]
+
+	// A deleted row reaches the cache through the incremental refresh only, versioned by its
+	// deletion: the endpoint leaves the cache and its contribution leaves the union.
+	if row.DeletedAt.Valid {
+		if ok {
+			b.move(c, ep, ep.cfg.contribution(), nil)
+			delete(c.byId, row.ID)
+		}
+
+		if row.UpdatedAt.Valid {
+			c.advanceWatermarkLocked(row.UpdatedAt.Time, row.ID)
+		}
+
+		return
+	}
 
 	if !ok {
 		ep = &cachedEndpoint{

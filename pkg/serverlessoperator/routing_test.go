@@ -321,17 +321,19 @@ func TestRoutingCacheRefreshAndUnion(t *testing.T) {
 	require.NoError(t, cache.Refresh(context.Background()))
 	assert.Equal(t, uint64(3), cache.Revision())
 
-	// A hard-deleted endpoint survives incremental refreshes and is dropped by a full load.
+	// A deleted endpoint is versioned by its deletion: the incremental refresh drops it and
+	// its actions leave the union.
 	repo.RemoveEndpoint(a.ID)
 	require.NoError(t, cache.Refresh(context.Background()))
 	_, ok = cache.Endpoint(a.ID)
-	assert.True(t, ok)
+	assert.False(t, ok)
+	assert.Equal(t, uint64(4), cache.Revision())
+	union, _ = cache.ActionUnion()
+	assert.Empty(t, union)
 
 	require.NoError(t, cache.Load(context.Background()))
 	_, ok = cache.Endpoint(a.ID)
 	assert.False(t, ok)
-	union, _ = cache.ActionUnion()
-	assert.Empty(t, union)
 }
 
 // Two endpoints advertising the same action keep it in the union until the last one drops it.
@@ -403,4 +405,52 @@ func TestRoutingCacheLoadPagesTheTenant(t *testing.T) {
 
 	union, _ = cache.ActionUnion()
 	assert.Len(t, union, numEndpoints-1)
+}
+
+// A deleted endpoint reaches the cache through the incremental refresh, versioned by its
+// deletion, and is dropped there: its deliveries stop on the next refresh, before any
+// reconcile, and its cached signing secret goes with it.
+func TestRoutingCacheRefreshDropsDeletedEndpoints(t *testing.T) {
+	repo := memrepo.New()
+	tenant := uuid.New()
+	l := zerolog.Nop()
+
+	a := newEndpointRow(endpointSpec{tenantId: tenant, name: "a", enabled: true, actions: []string{"svc:a"}})
+	b := newEndpointRow(endpointSpec{tenantId: tenant, name: "b", enabled: true, actions: []string{"svc:b"}})
+	repo.AddEndpoint(a)
+	repo.AddEndpoint(b)
+
+	cache := newRoutingCache(tenant, repo.Endpoints(), fakeEnc{}, &l)
+	require.NoError(t, cache.Load(context.Background()))
+	require.NoError(t, cache.Refresh(context.Background()))
+
+	_, _, err := cache.Route("svc:a")
+	require.NoError(t, err)
+
+	repo.RemoveEndpoint(a.ID)
+
+	require.NoError(t, cache.Refresh(context.Background()))
+	assert.Equal(t, 0, repo.ListVersionsCalls(), "no reconcile ran")
+
+	_, ok := cache.Endpoint(a.ID)
+	assert.False(t, ok, "the deleted endpoint left the cache on the refresh")
+	assert.Empty(t, cache.Serving("svc:a"))
+
+	_, _, err = cache.Route("svc:a")
+	assert.ErrorIs(t, err, errEndpointNotFound, "nothing routes to a deleted endpoint")
+
+	union, _ := cache.ActionUnion()
+	assert.Equal(t, []string{"svc:b"}, union, "the deleted endpoint's actions left the union")
+
+	// The refresh moved the watermark past the deletion: a further refresh reads nothing.
+	read := repo.ReadRows()
+	require.NoError(t, cache.Refresh(context.Background()))
+	assert.Equal(t, read, repo.ReadRows())
+
+	// Purging the row changes nothing the cache holds.
+	n, err := repo.Endpoints().PurgeDeleted(context.Background(), time.Now().Add(time.Second))
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), n)
+	require.NoError(t, cache.Reconcile(context.Background()))
+	assert.Len(t, cache.Endpoints(), 1)
 }

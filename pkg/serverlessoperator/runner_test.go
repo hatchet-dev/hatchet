@@ -638,16 +638,23 @@ func TestMaintainStartsPollerForNewEndpointAndStopsForDeleted(t *testing.T) {
 	assert.Equal(t, b.RegisteredActions, reg.added())
 	assert.Equal(t, 1, reg.flushCount())
 
-	// Deleting it is only visible to a full reload.
+	// Deleting it is visible to the next incremental refresh: the poller stops and the
+	// action leaves the union without waiting for a reconcile.
 	env.repo.RemoveEndpoint(b.ID)
-	env.r.maintainOnce(context.Background())
-	assert.NotNil(t, env.poller(b))
-
-	env.r.cfg.RoutingFullReloadInterval = 0
 	env.r.maintainOnce(context.Background())
 
 	assert.Nil(t, env.poller(b))
 	require.Equal(t, 2, reg.deltaCount())
 	assert.Equal(t, b.RegisteredActions, reg.removed())
 	assert.Equal(t, 2, reg.flushCount())
+
+	// A reconcile after the purge has nothing left to drop.
+	_, err := env.repo.Endpoints().PurgeDeleted(context.Background(), time.Now().Add(time.Second))
+	require.NoError(t, err)
+
+	env.r.cfg.RoutingFullReloadInterval = 0
+	env.r.maintainOnce(context.Background())
+
+	assert.Nil(t, env.poller(b))
+	assert.Equal(t, 2, reg.deltaCount())
 }
