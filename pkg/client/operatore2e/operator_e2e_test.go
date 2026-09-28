@@ -320,6 +320,43 @@ func workerActive(t *testing.T, ctx context.Context, workerId string) (active bo
 	return active, fmt.Sprintf("isActive=%t lastListenerEstablished=%v lastHeartbeatAt=%v", active, listenerEstablished, lastHeartbeat)
 }
 
+// workerListenerSession reads the worker's active flag and the id of the listener session that
+// last activated it. The engine stamps a fresh id on every Listen stream it accepts, so a
+// changed id is proof that a reconnect has been processed. The active flag alone is not: read
+// before the engine has seen the end of the old stream, it still says true for the session
+// being closed.
+func workerListenerSession(t *testing.T, ctx context.Context, workerId string) (active bool, sessionId *uuid.UUID) {
+	t.Helper()
+
+	conn, err := pgx.Connect(ctx, os.Getenv("DATABASE_URL"))
+	require.NoError(t, err)
+	defer conn.Close(ctx)
+
+	err = conn.QueryRow(ctx,
+		`SELECT "isActive", "lastListenerSessionId" FROM "Worker" WHERE "id" = $1`,
+		uuid.MustParse(workerId),
+	).Scan(&active, &sessionId)
+	require.NoError(t, err)
+
+	return active, sessionId
+}
+
+// pollWorkerReconnected waits until the worker is active under a listener session other than
+// previous, which is when a reconnect has been accepted by the engine.
+func pollWorkerReconnected(t *testing.T, ctx context.Context, workerId string, previous *uuid.UUID) {
+	t.Helper()
+	polls := 0
+	pollUntil(t, ctx, func() (bool, error) {
+		active, sessionId := workerListenerSession(t, ctx, workerId)
+		polls++
+		reconnected := active && sessionId != nil && (previous == nil || *sessionId != *previous)
+		if !reconnected && polls%25 == 1 {
+			t.Logf("worker %s not reconnected yet: isActive=%t lastListenerSessionId=%v previous=%v", workerId, active, sessionId, previous)
+		}
+		return reconnected, nil
+	})
+}
+
 // workerPaused reads the worker's paused flag straight from the database.
 func workerPaused(t *testing.T, ctx context.Context, workerId string) bool {
 	t.Helper()
@@ -593,11 +630,15 @@ func TestReconnectResumesWorker(t *testing.T) {
 
 	closer, ok := session.(interface{ CloseListenStream() error })
 	require.True(t, ok, "session does not expose CloseListenStream")
+	_, before := workerListenerSession(t, ctx, workerId)
 	require.NoError(t, closer.CloseListenStream())
 
-	// The worker is deactivated when the stream ends, so it is only active
-	// once the automatic reconnect has resumed it.
-	pollWorkerActive(t, ctx, workerId, true)
+	// The end of the stream deactivates the worker and the automatic reconnect activates it
+	// again under a new listener session. Polling the active flag alone races the engine: a
+	// read that lands before it has processed the end of the old stream still sees the worker
+	// active under the old session, and the registration below is then read before the
+	// reconnect happened. The session id changes only once the reconnect has been accepted.
+	pollWorkerReconnected(t, ctx, workerId, before)
 
 	reg := session.Registration()
 	assert.Equal(t, workerId, reg.WorkerId, "reconnect must resume the same worker")

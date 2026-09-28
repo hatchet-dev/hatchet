@@ -128,30 +128,64 @@ func TestMsgIdBufferMemoryLeak(t *testing.T) {
 	runtime.ReadMemStats(&baselineMemStats)
 	baselineGoroutines := runtime.NumGoroutine()
 
-	// Send many messages to trigger many flushes
+	// Send many messages to trigger many flushes.
+	//
+	// The buffer is rate limited by design: after the initial maxConcurrency
+	// burst the semaphore releaser frees one slot per flushInterval, so at most
+	// one flush of bufferSize messages lands every ~10ms. Draining 1000
+	// messages through a 100-slot buffer therefore takes ~90ms on an idle
+	// machine, and the senders below bypass handleMsg so they never trigger
+	// the capacityRelease fast path. A per-send timeout near that floor flakes
+	// under -race and CPU contention, so the deadline here is only a hang
+	// guard, and completion is observed on the result channels instead of by
+	// sleeping.
 	const numMessages = 1000
+	const hangGuard = 30 * time.Second
+
+	sendCtx, sendCancel := context.WithTimeout(ctx, hangGuard)
+	defer sendCancel()
+
+	msgs := make([]*msgWithResultCh, numMessages)
+	for i := range msgs {
+		msgs[i] = &msgWithResultCh{
+			msg:    &Message{TenantID: testTenantID, ID: "test-msg", Payloads: [][]byte{[]byte("test")}},
+			result: make(chan error, 1),
+		}
+	}
+
 	var wg sync.WaitGroup
-	for i := 0; i < numMessages; i++ {
+	for _, msg := range msgs {
 		wg.Add(1)
-		go func() {
+		go func(msg *msgWithResultCh) {
 			defer wg.Done()
-			msg := &msgWithResultCh{
-				msg:    &Message{TenantID: testTenantID, ID: "test-msg", Payloads: [][]byte{[]byte("test")}},
-				result: make(chan error, 1),
-			}
 			select {
 			case buf.msgIdBufferCh <- msg:
 				buf.notifier <- struct{}{}
-			case <-time.After(100 * time.Millisecond):
+			case <-sendCtx.Done():
 				t.Error("timeout sending message")
 			}
-		}()
+		}(msg)
 	}
 
 	wg.Wait()
 
-	// Wait for processing to complete
-	time.Sleep(200 * time.Millisecond)
+	// Wait for processing to complete: flush closes every result channel once
+	// dst has run for that batch.
+	for _, msg := range msgs {
+		select {
+		case <-msg.result:
+		case <-sendCtx.Done():
+			t.Fatal("timeout waiting for message to be flushed")
+		}
+	}
+
+	// The last flush hands its slot back to the semaphore releaser
+	// asynchronously, and stray notifier-triggered flushes that found the
+	// channel empty do the same. Wait for the semaphore to drain so the
+	// goroutine and heap measurements below see the buffer at rest.
+	waitUntil(t, hangGuard, "semaphore released after all flushes", func() bool {
+		return len(buf.semaphore) == 0 && len(buf.semaphoreRelease) == 0
+	})
 
 	// Force GC and check memory
 	runtime.GC()
@@ -187,6 +221,19 @@ func TestMsgIdBufferMemoryLeak(t *testing.T) {
 	t.Logf("Processed %d messages", processedCount.Load())
 	t.Logf("Goroutines: baseline=%d, after=%d, diff=%d", baselineGoroutines, afterGoroutines, goroutineDiff)
 	t.Logf("Memory growth: %.2f MB", memGrowthMB)
+}
+
+// waitUntil polls cond until it returns true or timeout elapses, failing the
+// test on timeout.
+func waitUntil(t *testing.T, timeout time.Duration, what string, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for !cond() {
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for %s", what)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
 }
 
 // TestSemaphoreReleaserReusesTimer verifies the semaphore releaser properly reuses one timer
