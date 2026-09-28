@@ -42,4 +42,25 @@ export const sleepThenEcho = hatchet.durableTask({
   },
 });
 
-export const workflows = [echo, sleepThenEcho];
+/**
+ * Non-durable, with a child: triggers `echo` through the Worker's Hatchet client (a unary call
+ * with the token from HATCHET_CLIENT_TOKEN) and awaits its result on the invocation websocket,
+ * where the operator relays the run's terminal event from the engine. Awaiting needs the
+ * socket, so `src/index.ts` lists this task in `streams`; over a plain POST the wait would
+ * throw. Unlike the durable task it never evicts: it waits inline, as invocation 1.
+ */
+export const parentEcho = hatchet.task({
+  name: "parent-echo",
+  executionTimeout: "5m",
+  fn: async (input: { message: string }, ctx) => {
+    const child = await ctx.runChild(echo, { message: `${input.message} (from parent)` });
+
+    return {
+      echo: input.message,
+      child,
+      workflowRunId: ctx.workflowRunId(),
+    };
+  },
+});
+
+export const workflows = [echo, sleepThenEcho, parentEcho];

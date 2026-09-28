@@ -8,12 +8,14 @@ main = "src/index.ts"
 # Any date up to today; pins the Workers runtime behaviour this code was written against.
 compatibility_date = "2025-09-01"
 
-# The signing secret is NOT configured here. Set it as a Worker secret so it never lands in
+# The secrets are NOT configured here. Set them as Worker secrets so they never land in
 # source control:
 #
-#   wrangler secret put HATCHET_SIGNING_SECRET
+#   wrangler secret put HATCHET_SIGNING_SECRET   # the HMAC key; the endpoint's signingSecret in Hatchet
+#   wrangler secret put HATCHET_CLIENT_TOKEN     # a tenant API token; the tasks' Hatchet client
 #
-# The same value goes into the endpoint's `signingSecret` when it is created in Hatchet.
+# Under `wrangler dev` both come from .dev.vars, with HATCHET_CLIENT_SERVER_URL for a local
+# engine over plain HTTP (see README.md).
 
 [limits]
 # CPU time per invocation, in milliseconds. The default on the Workers Paid plan is 30 s; the

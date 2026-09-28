@@ -13,6 +13,11 @@ and delivers assigned tasks to it over signed HTTPS requests.
   longer than the budget. Every re-invocation replays the memoized timestamp, the finished sleep
   and the child's output from the event log, and the last one finishes with `invocation` set to
   the number of invocations it took.
+- `parent-echo`: a non-durable task with a child. It triggers `echo` through the Worker's
+  Hatchet client (built from the `HATCHET_CLIENT_TOKEN` secret) and awaits the result with
+  `ctx.runChild`. Awaiting needs the invocation websocket, so `src/index.ts` lists the task in
+  `streams` and the operator dials it instead of POSTing it; the task waits inline and never
+  evicts.
 
 The operator registers the workflows under the names declared here, the way a worker would, so
 `echo` is triggered as `echo` and its action id is `echo:echo`.
@@ -22,7 +27,7 @@ The operator registers the workflows under the names declared here, the way a wo
 | File | Purpose |
 |---|---|
 | `src/tasks.ts` | The declarations, written with `hatchet.task` and `hatchet.durableTask` from `@hatchet-dev/serverless`. The same file works on a regular worker. |
-| `src/index.ts` | `export default cloudflare({ workflows })`: the adapter serves `POST /hatchet/healthcheck`, `POST /hatchet/trigger` and the durable websocket upgrade on `/hatchet/trigger`, and reads the secret from `env.HATCHET_SIGNING_SECRET`. |
+| `src/index.ts` | `export default cloudflare({ workflows, streams: [parentEcho], client })`: the adapter serves `POST /hatchet/healthcheck`, `POST /hatchet/trigger` and the invocation websocket upgrade on `/hatchet/trigger`, reads the signing secret from `env.HATCHET_SIGNING_SECRET`, and builds the tasks' Hatchet client from `env.HATCHET_CLIENT_TOKEN` (plus `env.HATCHET_CLIENT_SERVER_URL` for a local engine). |
 | `wrangler.toml` | Worker config. `limits.cpu_ms = 300000` raises the CPU budget to the 5 minute maximum (Workers Paid plan). |
 
 The wire contract is `api-contracts/v1/serverless.proto` (every request, response and websocket
@@ -44,16 +49,24 @@ pnpm run typecheck
 
 ## Secrets: what lives where
 
-The Worker holds exactly one secret, `HATCHET_SIGNING_SECRET`, the HMAC key the operator signs
-every request with. It never holds a Hatchet API token: the package has no Hatchet client, and
-the operator never sends a token to the Worker. The API token stays in the shell (or deploy
-script) that registers the endpoint and triggers runs.
+The Worker holds two secrets:
 
-- `wrangler dev` reads the secret from `.dev.vars` (gitignored).
-- `wrangler deploy` reads it from the Worker secret set with `wrangler secret put`.
+- `HATCHET_SIGNING_SECRET`, the HMAC key the operator signs every request with. The same value
+  is the endpoint's `signingSecret` when it is registered in Hatchet. It must be 32 characters
+  or longer; `openssl rand -hex 32` makes a fitting one.
+- `HATCHET_CLIENT_TOKEN`, a tenant API token. The adapter builds the tasks' Hatchet client from
+  it (`@hatchet-dev/typescript-sdk/core`, unary calls over `fetch`), which is what
+  `ctx.runChild`, `ctx.putStream`, `ctx.cancel` and `ctx.log` use. Without it those members
+  throw and `parent-echo` fails without retry; `echo` and `sleep-then-echo` need no client.
+  The operator never sends a token to the Worker; the token is configured here, like the
+  signing secret. The child's result is not fetched with the token: the task awaits it on the
+  invocation websocket, where the operator relays the engine stream with its own credentials.
 
-The same value is the endpoint's `signingSecret` when it is registered in Hatchet. It must be
-32 characters or longer; `openssl rand -hex 32` makes a fitting one.
+The API token that registers the endpoint and triggers runs below stays in the shell (or
+deploy script); it may be the same token or another one of the tenant.
+
+- `wrangler dev` reads both secrets from `.dev.vars` (gitignored).
+- `wrangler deploy` reads them from the Worker secrets set with `wrangler secret put`.
 
 ## Run against a local engine
 
@@ -91,8 +104,15 @@ psql "$DATABASE_URL" -c "INSERT INTO tenant_entitlement (tenant_id, serverless_o
 
 ### 2. Run the Worker locally
 
+`.dev.vars` carries the signing secret, the client token and, since the local engine serves
+plain HTTP on port 7070 (the token's `grpc_broadcast_address` names that port, but the client
+defaults to TLS), the engine's base URL. `src/index.ts` sets `tls: { strategy: 'none' }` for an
+`http://` URL; the client refuses plain HTTP otherwise, since the token travels on every call.
+The Worker runs on this machine under `wrangler dev`, so `localhost` reaches the engine.
+
 ```sh
-printf 'HATCHET_SIGNING_SECRET=%s\n' "$(openssl rand -hex 32)" > .dev.vars
+printf 'HATCHET_SIGNING_SECRET=%s\nHATCHET_CLIENT_TOKEN=%s\nHATCHET_CLIENT_SERVER_URL=http://localhost:7070\n' \
+  "$(openssl rand -hex 32)" "$HATCHET_CLIENT_TOKEN" > .dev.vars
 export SIGNING_SECRET=$(sed -n 's/^HATCHET_SIGNING_SECRET=//p' .dev.vars)
 pnpm run dev                                      # wrangler dev, http://localhost:8787
 ```
@@ -107,9 +127,11 @@ SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$SIGNING_SECRET" | awk '
 curl -s -X POST http://localhost:8787/hatchet/healthcheck -H "X-Hatchet-Signature: $SIG" -d "$BODY" | jq .
 ```
 
-Expected: `workflows` with `echo` and `sleep-then-echo`, `actions` equal to
-`["echo:echo", "sleep-then-echo:sleep-then-echo"]`, `durable.supported: true` and
-`runtime.name: "cloudflare-workers"`. An unsigned POST answers `401 {"error": "bad signature"}`.
+Expected: `workflows` with `echo`, `sleep-then-echo` and `parent-echo`, `actions` equal to
+`["echo:echo", "parent-echo:parent-echo", "sleep-then-echo:sleep-then-echo"]`,
+`durable.supported: true`, `tasks: [{"action": "parent-echo:parent-echo", "streams": true}]`
+(the task the operator invokes over the websocket) and `runtime.name: "cloudflare-workers"`. An
+unsigned POST answers `401 {"error": "bad signature"}`.
 
 ### 3. Give the operator a URL it may dial
 
@@ -160,7 +182,7 @@ Within about 15 seconds the operator has polled the healthcheck and registered t
 ```sh
 curl -s $API/api/v1/stable/serverless/endpoints/$ENDPOINT_ID \
   -H "Authorization: Bearer $HATCHET_CLIENT_TOKEN" | jq .status
-# {"healthy": true, "registeredActions": ["echo:echo", "sleep-then-echo:sleep-then-echo"], ...}
+# {"healthy": true, "registeredActions": ["echo:echo", "parent-echo:parent-echo", "sleep-then-echo:sleep-then-echo"], ...}
 ```
 
 `status.error` names the problem when `healthy` is false (a 401 means the endpoint's
@@ -188,6 +210,14 @@ first invocation (before the sleep evicted it), `child` the output of the `echo`
 endpoint served, and `finishedAt` by the last invocation. `invocation` is 2 when the child
 finished inside the inline wait budget and 3 when that wait evicted too. The child run shows up
 in the dashboard under the parent run.
+
+Trigger `parent-echo` the same way. The operator dials the Worker's websocket (the healthcheck
+flagged the task with `streams`), the task triggers `echo` through the client and awaits it on
+the socket, and the output is `{"echo": "hello", "child": {"echo": "hello (from parent)",
+"workflowRunId": "...", "retryCount": 0}, "workflowRunId": "..."}` within a few seconds. A
+`422` with `configure \`client\`` in the endpoint's error means `HATCHET_CLIENT_TOKEN` is not
+set in `.dev.vars`; one naming the `streams` option means the task was POSTed, so the operator
+did not read the flag from the healthcheck yet (it polls every `pollIntervalSeconds`).
 
 Or from a Node script with the TypeScript SDK. The local engine serves gRPC without TLS, so the
 client needs `tls_strategy: 'none'` (the SDK defaults to `tls`):
@@ -227,8 +257,12 @@ enough for `echo` but may not be for anything real), and `wrangler login`.
 ```sh
 openssl rand -hex 32                               # keep the value: it is the endpoint's signingSecret
 pnpm wrangler secret put HATCHET_SIGNING_SECRET    # paste it at the prompt
+pnpm wrangler secret put HATCHET_CLIENT_TOKEN      # a tenant API token of the Hatchet instance you register with
 pnpm run deploy                                    # prints https://<name>.<account>.workers.dev
 ```
+
+The token names the engine it was issued for, so `HATCHET_CLIENT_SERVER_URL` is only for a
+local engine and stays unset on a deployed Worker.
 
 Then register the endpoint as in section 4 with the `workers.dev` URL, against whichever Hatchet
 instance the token belongs to, and trigger runs as in section 5. Right after the first deploy the
