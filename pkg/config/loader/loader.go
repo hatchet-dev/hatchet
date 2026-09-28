@@ -238,12 +238,12 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 			}
 		}
 
-		_, err = conn.Exec(ctx, "SET statement_timeout="+defaultStatementTimeoutMs)
+		_, err = conn.Exec(ctx, "SET statement_timeout=30000")
 		if err != nil {
 			return err
 		}
 
-		_, err = conn.Exec(ctx, "SET idle_in_transaction_session_timeout="+defaultIdleInTxTimeoutMs)
+		_, err = conn.Exec(ctx, "SET idle_in_transaction_session_timeout=30000")
 
 		return err
 	}
@@ -272,11 +272,6 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 	}
 
 	setPgxApplicationName(config, appName)
-
-	if cf.PgBouncerURL != "" && cf.PgBouncerTrackTimeouts {
-		config.ConnConfig.RuntimeParams["statement_timeout"] = defaultStatementTimeoutMs
-		config.ConnConfig.RuntimeParams["idle_in_transaction_session_timeout"] = defaultIdleInTxTimeoutMs
-	}
 
 	config.AfterConnect = pgxpoolConnAfterConnect
 
@@ -1335,12 +1330,7 @@ func checkDatabaseTimezone(connConfig *pgx.ConnConfig, dbName string, dbLabel st
 	return nil
 }
 
-const (
-	defaultStatementTimeoutMs = "30000"
-	defaultIdleInTxTimeoutMs  = "30000"
-
-	timeoutProbeConns = 4
-)
+const timeoutProbeConns = 4
 
 // warnIfTimeoutsDisabled logs a warning when pooled connections run without a statement or
 // idle-in-transaction timeout. All connections are acquired before any transaction starts, so

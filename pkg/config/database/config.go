@@ -31,11 +31,6 @@ type ConfigFile struct {
 	// through pgbouncer, other than DDL-modifying statements which use the separate direct connection pool.
 	PgBouncerURL string `mapstructure:"pgbouncerUrl" json:"pgbouncerUrl,omitempty" default:""`
 
-	// PgBouncerTrackTimeouts sends statement_timeout and idle_in_transaction_session_timeout as startup
-	// parameters on the pgbouncer pool. Requires pgbouncer 1.26.0+ with both in track_extra_parameters;
-	// without it, session-level SETs only reach one server connection in transaction pooling mode.
-	PgBouncerTrackTimeouts bool `mapstructure:"pgbouncerTrackTimeouts" json:"pgbouncerTrackTimeouts,omitempty" default:"false"`
-
 	DDLPoolMaxConns int `mapstructure:"ddlPoolMaxConns" json:"ddlPoolMaxConns,omitempty" default:"5"`
 	DDLPoolMinConns int `mapstructure:"ddlPoolMinConns" json:"ddlPoolMinConns,omitempty" default:"1"`
 
@@ -126,7 +121,6 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("applicationNamePrefix", "K8S_POD_NAMESPACE")
 
 	_ = v.BindEnv("pgbouncerUrl", "DATABASE_PGBOUNCER_URL")
-	_ = v.BindEnv("pgbouncerTrackTimeouts", "DATABASE_PGBOUNCER_TRACK_TIMEOUTS")
 	_ = v.BindEnv("ddlPoolMaxConns", "DATABASE_DDL_POOL_MAX_CONNS")
 	_ = v.BindEnv("ddlPoolMinConns", "DATABASE_DDL_POOL_MIN_CONNS")
 

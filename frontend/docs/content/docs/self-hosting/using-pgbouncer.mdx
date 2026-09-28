@@ -14,22 +14,18 @@ To set this up, point the `DATABASE_PGBOUNCER_URL` environment variable at your 
 
 ## Statement timeouts
 
-Hatchet runs its queries with a 30 second `statement_timeout` and `idle_in_transaction_session_timeout`. In transaction pooling mode, PgBouncer does not carry these settings between server connections, so most queries run without them. Hatchet logs a warning on startup when it detects this.
+Hatchet runs its queries with a 30 second `statement_timeout` and `idle_in_transaction_session_timeout`. It sets them when a connection opens. In transaction pooling mode, that only reaches one server connection, so most queries run without them. Hatchet logs a warning on startup when it detects this.
 
-To keep the timeouts, use one of the following:
+To keep the timeouts, set them on the database role, for each Hatchet database:
 
-- On PgBouncer 1.26.0 or newer, add both settings to `track_extra_parameters` and set `DATABASE_PGBOUNCER_TRACK_TIMEOUTS=true`. Hatchet then sends the timeouts as startup parameters, and PgBouncer applies them to every server connection it assigns. Without `track_extra_parameters`, PgBouncer rejects the connection. Older versions accept the setting but don't apply it.
+```sql
+ALTER ROLE <hatchet_user> IN DATABASE <database> SET statement_timeout = '30s';
+ALTER ROLE <hatchet_user> IN DATABASE <database> SET idle_in_transaction_session_timeout = '30s';
+```
 
-  ```
-  track_extra_parameters = statement_timeout, idle_in_transaction_session_timeout
-  ```
+New server connections pick up these defaults. Migrations turn both timeouts off on their own connections, so they aren't affected.
 
-- If you use a managed pooler that doesn't expose `track_extra_parameters`, set the timeouts on the database role instead. Migrations connect with the same role, and some take longer than 30 seconds, so add `statement_timeout=0` to the connection string used by the migration job.
-
-  ```sql
-  ALTER ROLE <hatchet_user> IN DATABASE <database> SET statement_timeout = '30s';
-  ALTER ROLE <hatchet_user> IN DATABASE <database> SET idle_in_transaction_session_timeout = '30s';
-  ```
+On PgBouncer 1.26.0 or newer, you can instead add both settings to `track_extra_parameters` and append them to `DATABASE_PGBOUNCER_URL`, for example `?statement_timeout=30000&idle_in_transaction_session_timeout=30000`.
 
 ## Example usage with `docker-compose`
 
