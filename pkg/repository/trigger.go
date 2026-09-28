@@ -1611,7 +1611,7 @@ func (r *sharedRepository) triggerWorkflowsCore(
 	}
 
 	// task and event inputs are written by CreateTasks and BulkCreateEvents themselves; only
-	// DAG inputs still need the payload statement
+	// DAG inputs go through the payload statement
 	storePayloadOpts := make([]StorePayloadOpts, 0, len(dags))
 
 	for _, dag := range dags {

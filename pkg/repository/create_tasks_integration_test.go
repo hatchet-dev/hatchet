@@ -181,7 +181,7 @@ func TestCreateTasks_WritesPayloadAndQueueItem(t *testing.T) {
 			require.NoError(t, err)
 
 			withData := repo.EventTriggerOpts{ExternalId: uuid.New(), SeenAt: time.Now().UTC(), Key: eventKey, Data: inputBytes}
-			// an empty event input writes no payload row, the rule Store applied before the fold
+			// An empty event input writes no payload row.
 			empty := repo.EventTriggerOpts{ExternalId: uuid.New(), SeenAt: time.Now().UTC(), Key: eventKey, Data: []byte(`{}`)}
 
 			result, err := conf.V1.Triggers().TriggerFromEvents(ctx, tenantId, []repo.EventTriggerOpts{withData, empty})

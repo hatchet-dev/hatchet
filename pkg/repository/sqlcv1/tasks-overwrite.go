@@ -149,23 +149,43 @@ LEFT JOIN
 	v1_step_batch_config sbc ON sbc.step_id = i.step_id
 RETURNING
     id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff, workflow_version_id, workflow_run_id, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key, idempotency_key, batch_key, is_dag_orchestrator, concurrency_max_runs,
-    -- the whole row as a v1_task value, the input of the schema functions below
+    -- the whole row as a v1_task value, the input of store_queue_items_for_tasks below
     v1_task AS task
-), payloads AS MATERIALIZED (
-    -- store_payloads_for_tasks (sql/schema/v1-core.sql) writes the TASK_INPUT payload rows.
-    -- A CTE that only calls a function runs when the primary query reads it, hence the
-    -- count here and the CROSS JOIN below.
-    SELECT count(*) AS n
-    FROM (
-        SELECT array_agg(t.task) AS tasks, array_agg(i.input) AS inputs
-        FROM inserted t
-        JOIN input i ON i.external_id = t.external_id
-    ) x, store_payloads_for_tasks(x.tasks, x.inputs)
+), payloads AS (
+    -- The TASK_INPUT payload row of every task with a non-empty input; v1_task.input is
+    -- always '{}', so this row is the only copy of the input. A data-modifying CTE runs
+    -- exactly once whether or not the primary query reads it, which is why nothing below
+    -- references payloads.
+    INSERT INTO v1_payload (
+        tenant_id,
+        id,
+        inserted_at,
+        external_id,
+        type,
+        location,
+        external_location_key,
+        inline_content
+    )
+    SELECT
+        t.tenant_id,
+        t.id,
+        t.inserted_at,
+        t.external_id,
+        'TASK_INPUT'::v1_payload_type,
+        'INLINE'::v1_payload_location,
+        NULL,
+        i.input
+    FROM inserted t
+    JOIN input i ON i.external_id = t.external_id
+    WHERE i.input IS NOT NULL
+    ON CONFLICT DO NOTHING
 ), queue_items AS MATERIALIZED (
-    -- store_queue_items_for_tasks is the queue-item mapping the v1_task insert trigger uses
-    -- as well; it is called here so the ids come back with the tasks (the trigger fires
-    -- after this whole statement, so a join on v1_queue_item could not see its rows). The
-    -- trigger then finds these rows already written and skips them.
+    -- store_queue_items_for_tasks (sql/schema/v1-core.sql) is the queue-item mapping the
+    -- v1_task insert trigger uses as well; it is called here so the ids come back with the
+    -- tasks (the trigger fires after this whole statement, so a join on v1_queue_item could
+    -- not see its rows). The trigger's own call for these rows lands on the function's
+    -- ON CONFLICT DO NOTHING. A CTE that only calls a function runs when the primary query
+    -- reads it: the LEFT JOIN below is that read.
     SELECT qi.id, qi.task_id, qi.task_inserted_at, qi.retry_count, qi.schedule_timeout_at, qi.priority
     FROM store_queue_items_for_tasks((SELECT array_agg(t.task) FROM inserted t)) qi
 )
@@ -176,7 +196,6 @@ SELECT
     qi.priority AS queue_item_priority
 FROM inserted t
 LEFT JOIN queue_items qi ON (qi.task_id, qi.task_inserted_at, qi.retry_count) = (t.id, t.inserted_at, t.retry_count)
-CROSS JOIN payloads
 `
 
 // CreateTasksRow is one inserted task plus the identity of the queue item CreateTasks wrote
@@ -1154,23 +1173,38 @@ SELECT tenant_id, external_id, seen_at, key, additional_metadata, scope, trigger
 FROM to_insert
 ON CONFLICT (external_id, seen_at) DO NOTHING
 RETURNING
-    tenant_id, id, external_id, seen_at, key, additional_metadata, scope, triggering_webhook_name,
-    -- the whole row as a v1_event value, the input of the schema function below
-    v1_event AS event
-), payloads AS MATERIALIZED (
-    -- store_payloads_for_events (sql/schema/v1-core.sql) writes the USER_EVENT_INPUT payload
-    -- rows. A CTE that only calls a function runs when the primary query reads it, hence
-    -- the count here and the CROSS JOIN below.
-    SELECT count(*) AS n
-    FROM (
-        SELECT array_agg(e.event) AS events, array_agg(i.payload) AS inputs
-        FROM inserted e
-        JOIN to_insert i ON i.external_id = e.external_id AND i.seen_at = e.seen_at
-    ) x, store_payloads_for_events(x.events, x.inputs)
+    tenant_id, id, external_id, seen_at, key, additional_metadata, scope, triggering_webhook_name
+), payloads AS (
+    -- The USER_EVENT_INPUT payload row of every inserted event with a non-empty input (an
+    -- event dropped by ON CONFLICT above gets none). A data-modifying CTE runs exactly once
+    -- whether or not the primary query reads it, which is why nothing below references
+    -- payloads.
+    INSERT INTO v1_payload (
+        tenant_id,
+        id,
+        inserted_at,
+        external_id,
+        type,
+        location,
+        external_location_key,
+        inline_content
+    )
+    SELECT
+        e.tenant_id,
+        e.id,
+        e.seen_at,
+        e.external_id,
+        'USER_EVENT_INPUT'::v1_payload_type,
+        'INLINE'::v1_payload_location,
+        NULL,
+        i.payload
+    FROM inserted e
+    JOIN to_insert i ON i.external_id = e.external_id AND i.seen_at = e.seen_at
+    WHERE i.payload IS NOT NULL
+    ON CONFLICT DO NOTHING
 )
 SELECT e.tenant_id, e.id, e.external_id, e.seen_at, e.key, e.additional_metadata, e.scope, e.triggering_webhook_name
 FROM inserted e
-CROSS JOIN payloads
 `
 
 type BulkCreateEventsParams struct {
