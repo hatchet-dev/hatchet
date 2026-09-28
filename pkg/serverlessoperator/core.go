@@ -67,7 +67,7 @@ func (d Deps) validate() error {
 		return errors.New("serverless operator: process id is required")
 	}
 
-	return nil
+	return ValidateShardCount(d.Config.ShardCount)
 }
 
 // shutdownGrace is added to DrainTimeout to bound the whole shutdown sequence.

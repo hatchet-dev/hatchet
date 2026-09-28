@@ -1382,29 +1382,6 @@ export interface V1UpdateServerlessEndpointRequest {
   enabled?: boolean;
 }
 
-export interface V1ServerlessTenantSettings {
-  /**
-   * The ID of the tenant these settings belong to.
-   * @format uuid
-   */
-  tenantId: string;
-  /**
-   * The number of shards the tenant's endpoints are spread across. Each shard is a lease unit that one operator process owns, so a count above 1 lets a hot tenant be served by several processes. Existing endpoints keep their shard; only new endpoints hash over the new count.
-   * @format int32
-   */
-  shardCount: number;
-}
-
-export interface V1UpdateServerlessTenantSettingsRequest {
-  /**
-   * The number of shards to spread the tenant's endpoints across.
-   * @format int32
-   * @min 1
-   * @max 64
-   */
-  shardCount: number;
-}
-
 export interface V1CELDebugRequest {
   /** The CEL expression to evaluate */
   expression: string;

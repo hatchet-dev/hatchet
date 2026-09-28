@@ -174,10 +174,12 @@ SET
 WHERE id = @id::UUID;
 
 -- name: UpsertServerlessTenant :one
--- Creates the tenant's serverless settings row with defaults if it does not exist and returns
--- the current row either way. The no-op update makes RETURNING work on conflict.
-INSERT INTO v1_serverless_tenant (tenant_id)
-VALUES (@tenantId::UUID)
+-- Creates the tenant's serverless row with the configured shard_count if it does not exist and
+-- returns the current row either way: an existing row keeps its shard_count, so the configured
+-- value applies only to tenants first seen after it was set. The no-op update makes RETURNING
+-- work on conflict.
+INSERT INTO v1_serverless_tenant (tenant_id, shard_count)
+VALUES (@tenantId::UUID, @shardCount::INT)
 ON CONFLICT (tenant_id) DO UPDATE
 SET tenant_id = EXCLUDED.tenant_id
 RETURNING *;
@@ -186,12 +188,6 @@ RETURNING *;
 SELECT *
 FROM v1_serverless_tenant
 WHERE tenant_id = @tenantId::UUID;
-
--- name: UpdateServerlessTenantShardCount :one
-UPDATE v1_serverless_tenant
-SET shard_count = @shardCount::INT
-WHERE tenant_id = @tenantId::UUID
-RETURNING *;
 
 -- name: UpsertServerlessProcess :exec
 -- The process heartbeat. expires_at is computed in SQL so process clock skew does not matter.

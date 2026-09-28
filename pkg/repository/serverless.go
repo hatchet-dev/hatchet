@@ -14,8 +14,8 @@ import (
 )
 
 // ServerlessRepository is the data access layer of the serverless operator. Endpoints and tenant
-// settings are written by the API server; process rows and leases by the operator (out of
-// process or in-engine). Steady-state writes are one process heartbeat per process: lease rows
+// rows are written by the API server; process rows and leases by the operator (out of process
+// or in-engine). Steady-state writes are one process heartbeat per process: lease rows
 // change only on ownership changes and endpoint rows only on status transitions and workflow
 // changes.
 type ServerlessRepository interface {
@@ -39,10 +39,10 @@ type ServerlessEndpointVersion struct {
 }
 
 type ServerlessEndpointRepository interface {
-	// Create inserts the endpoint and, in the same transaction, upserts the tenant's settings
-	// row, creates the endpoint's lease unit if it is the first endpoint on that unit, and
-	// increments the unit's endpoint_count. The endpoint's shard is derived from its id and the
-	// tenant's current shard_count.
+	// Create inserts the endpoint and, in the same transaction, creates the tenant's row with
+	// opts.ShardCount if the tenant has none, creates the endpoint's lease unit if it is the
+	// first endpoint on that unit, and increments the unit's endpoint_count. The endpoint's
+	// shard is derived from its id and the tenant row's shard_count.
 	Create(ctx context.Context, tenantId uuid.UUID, opts CreateServerlessEndpointOpts) (*sqlcv1.V1ServerlessEndpoint, error)
 	Get(ctx context.Context, tenantId, endpointId uuid.UUID) (*sqlcv1.V1ServerlessEndpoint, error)
 	// GetById resolves an endpoint by id alone, for the API's resource populator, which sees
@@ -83,13 +83,10 @@ type ServerlessEndpointRepository interface {
 }
 
 type ServerlessTenantRepository interface {
-	// Upsert creates the tenant's settings row with defaults if absent and returns it.
-	Upsert(ctx context.Context, tenantId uuid.UUID) (*sqlcv1.V1ServerlessTenant, error)
+	// Upsert creates the tenant's row with shardCount if absent and returns the current row;
+	// an existing row keeps its shard_count.
+	Upsert(ctx context.Context, tenantId uuid.UUID, shardCount int32) (*sqlcv1.V1ServerlessTenant, error)
 	Get(ctx context.Context, tenantId uuid.UUID) (*sqlcv1.V1ServerlessTenant, error)
-	// UpdateShardCount sets shard_count and creates lease rows for any new shards. Existing
-	// endpoints keep the shard they were inserted with; only new endpoints hash over the new
-	// count.
-	UpdateShardCount(ctx context.Context, tenantId uuid.UUID, shardCount int32) (*sqlcv1.V1ServerlessTenant, error)
 }
 
 type ServerlessProcessRepository interface {

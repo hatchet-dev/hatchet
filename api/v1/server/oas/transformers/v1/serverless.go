@@ -89,10 +89,3 @@ func ToV1ServerlessEndpointList(endpoints []*sqlcv1.V1ServerlessEndpoint, total,
 		},
 	}
 }
-
-func ToV1ServerlessTenantSettings(tenant *sqlcv1.V1ServerlessTenant) gen.V1ServerlessTenantSettings {
-	return gen.V1ServerlessTenantSettings{
-		TenantId:   tenant.TenantID,
-		ShardCount: tenant.ShardCount,
-	}
-}

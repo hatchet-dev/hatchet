@@ -1088,25 +1088,6 @@ func (q *Queries) UpdateServerlessEndpointStatus(ctx context.Context, db DBTX, a
 	return status_changed_at, err
 }
 
-const updateServerlessTenantShardCount = `-- name: UpdateServerlessTenantShardCount :one
-UPDATE v1_serverless_tenant
-SET shard_count = $1::INT
-WHERE tenant_id = $2::UUID
-RETURNING tenant_id, shard_count
-`
-
-type UpdateServerlessTenantShardCountParams struct {
-	Shardcount int32     `json:"shardcount"`
-	Tenantid   uuid.UUID `json:"tenantid"`
-}
-
-func (q *Queries) UpdateServerlessTenantShardCount(ctx context.Context, db DBTX, arg UpdateServerlessTenantShardCountParams) (*V1ServerlessTenant, error) {
-	row := db.QueryRow(ctx, updateServerlessTenantShardCount, arg.Shardcount, arg.Tenantid)
-	var i V1ServerlessTenant
-	err := row.Scan(&i.TenantID, &i.ShardCount)
-	return &i, err
-}
-
 const upsertServerlessProcess = `-- name: UpsertServerlessProcess :exec
 INSERT INTO v1_serverless_process (process_id, expires_at, unit_count, endpoint_count, hostname, version)
 VALUES (
@@ -1146,17 +1127,24 @@ func (q *Queries) UpsertServerlessProcess(ctx context.Context, db DBTX, arg Upse
 }
 
 const upsertServerlessTenant = `-- name: UpsertServerlessTenant :one
-INSERT INTO v1_serverless_tenant (tenant_id)
-VALUES ($1::UUID)
+INSERT INTO v1_serverless_tenant (tenant_id, shard_count)
+VALUES ($1::UUID, $2::INT)
 ON CONFLICT (tenant_id) DO UPDATE
 SET tenant_id = EXCLUDED.tenant_id
 RETURNING tenant_id, shard_count
 `
 
-// Creates the tenant's serverless settings row with defaults if it does not exist and returns
-// the current row either way. The no-op update makes RETURNING work on conflict.
-func (q *Queries) UpsertServerlessTenant(ctx context.Context, db DBTX, tenantid uuid.UUID) (*V1ServerlessTenant, error) {
-	row := db.QueryRow(ctx, upsertServerlessTenant, tenantid)
+type UpsertServerlessTenantParams struct {
+	Tenantid   uuid.UUID `json:"tenantid"`
+	Shardcount int32     `json:"shardcount"`
+}
+
+// Creates the tenant's serverless row with the configured shard_count if it does not exist and
+// returns the current row either way: an existing row keeps its shard_count, so the configured
+// value applies only to tenants first seen after it was set. The no-op update makes RETURNING
+// work on conflict.
+func (q *Queries) UpsertServerlessTenant(ctx context.Context, db DBTX, arg UpsertServerlessTenantParams) (*V1ServerlessTenant, error) {
+	row := db.QueryRow(ctx, upsertServerlessTenant, arg.Tenantid, arg.Shardcount)
 	var i V1ServerlessTenant
 	err := row.Scan(&i.TenantID, &i.ShardCount)
 	return &i, err

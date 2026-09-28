@@ -132,12 +132,3 @@ func TestToV1ServerlessEndpointListPagination(t *testing.T) {
 	assert.Equal(t, int64(2), *list.Pagination.NextPage)
 	assert.Equal(t, int64(4), *list.Pagination.NumPages)
 }
-
-func TestToV1ServerlessTenantSettings(t *testing.T) {
-	tenantId := uuid.New()
-
-	result := ToV1ServerlessTenantSettings(&sqlcv1.V1ServerlessTenant{TenantID: tenantId, ShardCount: 4})
-
-	assert.Equal(t, tenantId, result.TenantId)
-	assert.Equal(t, int32(4), result.ShardCount)
-}

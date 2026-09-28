@@ -117,7 +117,6 @@ import {
   V1RunningFilter,
   V1ServerlessEndpoint,
   V1ServerlessEndpointList,
-  V1ServerlessTenantSettings,
   V1TaskEventList,
   V1TaskPointMetrics,
   V1TaskRunMetrics,
@@ -128,7 +127,6 @@ import {
   V1TriggerWorkflowRunRequest,
   V1UpdateFilterRequest,
   V1UpdateServerlessEndpointRequest,
-  V1UpdateServerlessTenantSettingsRequest,
   V1UpdateWebhookRequest,
   V1Webhook,
   V1WebhookList,
@@ -1440,48 +1438,6 @@ export class Api<
       ...params,
       xResources: ["tenant", "v1-serverless-endpoint"],
     }), { resources: new Set<string>(["tenant", "v1-serverless-endpoint"]) });
-  /**
-   * @description Get the serverless settings of a tenant
-   *
-   * @tags Serverless
-   * @name V1ServerlessTenantGet
-   * @summary Get serverless settings
-   * @request GET:/api/v1/stable/tenants/{tenant}/serverless/settings
-   * @secure
-   */
-  v1ServerlessTenantGet = Object.assign((tenant: string, params: RequestParams = {}) =>
-    this.request<V1ServerlessTenantSettings, APIErrors>({
-      path: `/api/v1/stable/tenants/${tenant}/serverless/settings`,
-      method: "GET",
-      secure: true,
-      format: "json",
-      ...params,
-      xResources: ["tenant"],
-    }), { resources: new Set<string>(["tenant"]) });
-  /**
-   * @description Update the serverless settings of a tenant
-   *
-   * @tags Serverless
-   * @name V1ServerlessTenantUpdate
-   * @summary Update serverless settings
-   * @request PATCH:/api/v1/stable/tenants/{tenant}/serverless/settings
-   * @secure
-   */
-  v1ServerlessTenantUpdate = Object.assign((
-    tenant: string,
-    data: V1UpdateServerlessTenantSettingsRequest,
-    params: RequestParams = {},
-  ) =>
-    this.request<V1ServerlessTenantSettings, APIErrors>({
-      path: `/api/v1/stable/tenants/${tenant}/serverless/settings`,
-      method: "PATCH",
-      body: data,
-      secure: true,
-      type: ContentType.Json,
-      format: "json",
-      ...params,
-      xResources: ["tenant"],
-    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Evaluate a CEL expression against provided input data.
    *

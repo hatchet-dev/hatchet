@@ -188,34 +188,3 @@ V1UpdateServerlessEndpointRequest:
     enabled:
       type: boolean
       description: Whether the operator polls and dispatches to this endpoint.
-
-V1ServerlessTenantSettings:
-  type: object
-  properties:
-    tenantId:
-      type: string
-      format: uuid
-      description: The ID of the tenant these settings belong to.
-    shardCount:
-      type: integer
-      format: int32
-      description: >-
-        The number of shards the tenant's endpoints are spread across. Each shard is a lease
-        unit that one operator process owns, so a count above 1 lets a hot tenant be served by
-        several processes. Existing endpoints keep their shard; only new endpoints hash over the
-        new count.
-  required:
-    - tenantId
-    - shardCount
-
-V1UpdateServerlessTenantSettingsRequest:
-  type: object
-  properties:
-    shardCount:
-      type: integer
-      format: int32
-      minimum: 1
-      maximum: 64
-      description: The number of shards to spread the tenant's endpoints across.
-  required:
-    - shardCount

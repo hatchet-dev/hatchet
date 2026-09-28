@@ -2039,15 +2039,6 @@ type V1ServerlessEndpointStatus struct {
 	RegisteredActions []string `json:"registeredActions"`
 }
 
-// V1ServerlessTenantSettings defines model for V1ServerlessTenantSettings.
-type V1ServerlessTenantSettings struct {
-	// ShardCount The number of shards the tenant's endpoints are spread across. Each shard is a lease unit that one operator process owns, so a count above 1 lets a hot tenant be served by several processes. Existing endpoints keep their shard; only new endpoints hash over the new count.
-	ShardCount int32 `json:"shardCount"`
-
-	// TenantId The ID of the tenant these settings belong to.
-	TenantId openapi_types.UUID `json:"tenantId"`
-}
-
 // V1TaskEvent defines model for V1TaskEvent.
 type V1TaskEvent struct {
 	// Attempt The attempt number of the task.
@@ -2317,12 +2308,6 @@ type V1UpdateServerlessEndpointRequest struct {
 
 	// TriggerUrl The HTTPS URL (port 443) that assigned tasks are delivered to.
 	TriggerUrl *string `json:"triggerUrl,omitempty"`
-}
-
-// V1UpdateServerlessTenantSettingsRequest defines model for V1UpdateServerlessTenantSettingsRequest.
-type V1UpdateServerlessTenantSettingsRequest struct {
-	// ShardCount The number of shards to spread the tenant's endpoints across.
-	ShardCount int32 `json:"shardCount"`
 }
 
 // V1UpdateWebhookRequest defines model for V1UpdateWebhookRequest.
@@ -3533,9 +3518,6 @@ type V1FilterUpdateJSONRequestBody = V1UpdateFilterRequest
 // V1ServerlessEndpointCreateJSONRequestBody defines body for V1ServerlessEndpointCreate for application/json ContentType.
 type V1ServerlessEndpointCreateJSONRequestBody = V1CreateServerlessEndpointRequest
 
-// V1ServerlessTenantUpdateJSONRequestBody defines body for V1ServerlessTenantUpdate for application/json ContentType.
-type V1ServerlessTenantUpdateJSONRequestBody = V1UpdateServerlessTenantSettingsRequest
-
 // V1TaskCancelJSONRequestBody defines body for V1TaskCancel for application/json ContentType.
 type V1TaskCancelJSONRequestBody = V1CancelTaskRequest
 
@@ -3988,14 +3970,6 @@ type ClientInterface interface {
 	V1ServerlessEndpointCreateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	V1ServerlessEndpointCreate(ctx context.Context, tenant openapi_types.UUID, body V1ServerlessEndpointCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// V1ServerlessTenantGet request
-	V1ServerlessTenantGet(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// V1ServerlessTenantUpdateWithBody request with any body
-	V1ServerlessTenantUpdateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	V1ServerlessTenantUpdate(ctx context.Context, tenant openapi_types.UUID, body V1ServerlessTenantUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1TaskListStatusMetrics request
 	V1TaskListStatusMetrics(ctx context.Context, tenant openapi_types.UUID, params *V1TaskListStatusMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -4919,42 +4893,6 @@ func (c *Client) V1ServerlessEndpointCreateWithBody(ctx context.Context, tenant 
 
 func (c *Client) V1ServerlessEndpointCreate(ctx context.Context, tenant openapi_types.UUID, body V1ServerlessEndpointCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewV1ServerlessEndpointCreateRequest(c.Server, tenant, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) V1ServerlessTenantGet(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewV1ServerlessTenantGetRequest(c.Server, tenant)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) V1ServerlessTenantUpdateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewV1ServerlessTenantUpdateRequestWithBody(c.Server, tenant, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) V1ServerlessTenantUpdate(ctx context.Context, tenant openapi_types.UUID, body V1ServerlessTenantUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewV1ServerlessTenantUpdateRequest(c.Server, tenant, body)
 	if err != nil {
 		return nil, err
 	}
@@ -8861,87 +8799,6 @@ func NewV1ServerlessEndpointCreateRequestWithBody(server string, tenant openapi_
 	}
 
 	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewV1ServerlessTenantGetRequest generates requests for V1ServerlessTenantGet
-func NewV1ServerlessTenantGetRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/serverless/settings", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewV1ServerlessTenantUpdateRequest calls the generic V1ServerlessTenantUpdate builder with application/json body
-func NewV1ServerlessTenantUpdateRequest(server string, tenant openapi_types.UUID, body V1ServerlessTenantUpdateJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewV1ServerlessTenantUpdateRequestWithBody(server, tenant, "application/json", bodyReader)
-}
-
-// NewV1ServerlessTenantUpdateRequestWithBody generates requests for V1ServerlessTenantUpdate with any type of body
-func NewV1ServerlessTenantUpdateRequestWithBody(server string, tenant openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/serverless/settings", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("PATCH", queryURL.String(), body)
 	if err != nil {
 		return nil, err
 	}
@@ -15454,14 +15311,6 @@ type ClientWithResponsesInterface interface {
 
 	V1ServerlessEndpointCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1ServerlessEndpointCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*V1ServerlessEndpointCreateResponse, error)
 
-	// V1ServerlessTenantGetWithResponse request
-	V1ServerlessTenantGetWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1ServerlessTenantGetResponse, error)
-
-	// V1ServerlessTenantUpdateWithBodyWithResponse request with any body
-	V1ServerlessTenantUpdateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1ServerlessTenantUpdateResponse, error)
-
-	V1ServerlessTenantUpdateWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1ServerlessTenantUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*V1ServerlessTenantUpdateResponse, error)
-
 	// V1TaskListStatusMetricsWithResponse request
 	V1TaskListStatusMetricsWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1TaskListStatusMetricsParams, reqEditors ...RequestEditorFn) (*V1TaskListStatusMetricsResponse, error)
 
@@ -16752,54 +16601,6 @@ func (r V1ServerlessEndpointCreateResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r V1ServerlessEndpointCreateResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type V1ServerlessTenantGetResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *V1ServerlessTenantSettings
-	JSON400      *APIErrors
-	JSON403      *APIErrors
-}
-
-// Status returns HTTPResponse.Status
-func (r V1ServerlessTenantGetResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r V1ServerlessTenantGetResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type V1ServerlessTenantUpdateResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *V1ServerlessTenantSettings
-	JSON400      *APIErrors
-	JSON403      *APIErrors
-}
-
-// Status returns HTTPResponse.Status
-func (r V1ServerlessTenantUpdateResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r V1ServerlessTenantUpdateResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -19905,32 +19706,6 @@ func (c *ClientWithResponses) V1ServerlessEndpointCreateWithResponse(ctx context
 	return ParseV1ServerlessEndpointCreateResponse(rsp)
 }
 
-// V1ServerlessTenantGetWithResponse request returning *V1ServerlessTenantGetResponse
-func (c *ClientWithResponses) V1ServerlessTenantGetWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1ServerlessTenantGetResponse, error) {
-	rsp, err := c.V1ServerlessTenantGet(ctx, tenant, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseV1ServerlessTenantGetResponse(rsp)
-}
-
-// V1ServerlessTenantUpdateWithBodyWithResponse request with arbitrary body returning *V1ServerlessTenantUpdateResponse
-func (c *ClientWithResponses) V1ServerlessTenantUpdateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1ServerlessTenantUpdateResponse, error) {
-	rsp, err := c.V1ServerlessTenantUpdateWithBody(ctx, tenant, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseV1ServerlessTenantUpdateResponse(rsp)
-}
-
-func (c *ClientWithResponses) V1ServerlessTenantUpdateWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1ServerlessTenantUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*V1ServerlessTenantUpdateResponse, error) {
-	rsp, err := c.V1ServerlessTenantUpdate(ctx, tenant, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseV1ServerlessTenantUpdateResponse(rsp)
-}
-
 // V1TaskListStatusMetricsWithResponse request returning *V1TaskListStatusMetricsResponse
 func (c *ClientWithResponses) V1TaskListStatusMetricsWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1TaskListStatusMetricsParams, reqEditors ...RequestEditorFn) (*V1TaskListStatusMetricsResponse, error) {
 	rsp, err := c.V1TaskListStatusMetrics(ctx, tenant, params, reqEditors...)
@@ -22712,86 +22487,6 @@ func ParseV1ServerlessEndpointCreateResponse(rsp *http.Response) (*V1ServerlessE
 			return nil, err
 		}
 		response.JSON404 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseV1ServerlessTenantGetResponse parses an HTTP response from a V1ServerlessTenantGetWithResponse call
-func ParseV1ServerlessTenantGetResponse(rsp *http.Response) (*V1ServerlessTenantGetResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &V1ServerlessTenantGetResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest V1ServerlessTenantSettings
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseV1ServerlessTenantUpdateResponse parses an HTTP response from a V1ServerlessTenantUpdateWithResponse call
-func ParseV1ServerlessTenantUpdateResponse(rsp *http.Response) (*V1ServerlessTenantUpdateResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &V1ServerlessTenantUpdateResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest V1ServerlessTenantSettings
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
 
 	}
 

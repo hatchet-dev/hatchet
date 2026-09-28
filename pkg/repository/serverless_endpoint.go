@@ -41,6 +41,11 @@ type CreateServerlessEndpointOpts struct {
 
 	// Enabled defaults to true.
 	Enabled *bool
+
+	// ShardCount is the shard_count the tenant's row is created with when this is the tenant's
+	// first endpoint (the operator's configured value); an existing row keeps its own. Zero
+	// means 1.
+	ShardCount int32 `validate:"min=0,max=64"`
 }
 
 type UpdateServerlessEndpointOpts struct {
@@ -122,7 +127,7 @@ func (r *serverlessEndpointRepository) Create(ctx context.Context, tenantId uuid
 
 	// The tenant row is upserted first so the endpoint's shard is computed against the
 	// tenant's current shard_count within the same transaction.
-	tenant, err := r.queries.UpsertServerlessTenant(ctx, tx, tenantId)
+	tenant, err := r.queries.UpsertServerlessTenant(ctx, tx, upsertServerlessTenantParams(tenantId, opts.ShardCount))
 
 	if err != nil {
 		return nil, fmt.Errorf("could not upsert serverless tenant: %w", err)

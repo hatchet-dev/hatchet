@@ -53,6 +53,7 @@ func (t *V1ServerlessService) V1ServerlessEndpointCreate(ctx echo.Context, reque
 		InlineWaitBudgetMs:    body.InlineWaitBudgetMs,
 		Labels:                labels,
 		Enabled:               body.Enabled,
+		ShardCount:            t.config.Runtime.ServerlessOperator.ShardCount,
 	}
 
 	if body.Kind != nil {

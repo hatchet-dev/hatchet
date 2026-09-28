@@ -368,9 +368,6 @@ from hatchet_sdk.clients.rest.models.v1_serverless_endpoint_list import (
 from hatchet_sdk.clients.rest.models.v1_serverless_endpoint_status import (
     V1ServerlessEndpointStatus,
 )
-from hatchet_sdk.clients.rest.models.v1_serverless_tenant_settings import (
-    V1ServerlessTenantSettings,
-)
 from hatchet_sdk.clients.rest.models.v1_task_event import V1TaskEvent
 from hatchet_sdk.clients.rest.models.v1_task_event_list import V1TaskEventList
 from hatchet_sdk.clients.rest.models.v1_task_event_type import V1TaskEventType
@@ -392,9 +389,6 @@ from hatchet_sdk.clients.rest.models.v1_update_filter_request import (
 )
 from hatchet_sdk.clients.rest.models.v1_update_serverless_endpoint_request import (
     V1UpdateServerlessEndpointRequest,
-)
-from hatchet_sdk.clients.rest.models.v1_update_serverless_tenant_settings_request import (
-    V1UpdateServerlessTenantSettingsRequest,
 )
 from hatchet_sdk.clients.rest.models.v1_update_webhook_request import (
     V1UpdateWebhookRequest,

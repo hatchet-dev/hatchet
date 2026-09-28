@@ -674,6 +674,12 @@ type ServerlessOperatorConfigFile struct {
 	DefaultSlots int32 `mapstructure:"defaultSlots" json:"defaultSlots,omitempty" default:"10000"`
 	DurableSlots int32 `mapstructure:"durableSlots" json:"durableSlots,omitempty" default:"10000"`
 
+	// ShardCount (SERVER_SERVERLESS_OPERATOR_SHARD_COUNT, 1 to 64) is the shard_count a tenant's serverless row
+	// is created with by the API server, alongside the tenant's first endpoint. A count above 1 lets several
+	// operator processes serve one tenant. A later change applies only to tenants first seen after it; existing
+	// tenants and endpoints keep their shards.
+	ShardCount int32 `mapstructure:"shardCount" json:"shardCount,omitempty" default:"1"`
+
 	// LeaseTTL is how long the process row stays live after a heartbeat; HeartbeatInterval refreshes it and
 	// RebalanceInterval is the claim/shed tick.
 	LeaseTTL          time.Duration `mapstructure:"leaseTtl" json:"leaseTtl,omitempty" default:"15s"`
@@ -982,6 +988,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.serverlessOperator.operatorName", "SERVER_SERVERLESS_OPERATOR_OPERATOR_NAME")
 	_ = v.BindEnv("runtime.serverlessOperator.defaultSlots", "SERVER_SERVERLESS_OPERATOR_DEFAULT_SLOTS")
 	_ = v.BindEnv("runtime.serverlessOperator.durableSlots", "SERVER_SERVERLESS_OPERATOR_DURABLE_SLOTS")
+	_ = v.BindEnv("runtime.serverlessOperator.shardCount", "SERVER_SERVERLESS_OPERATOR_SHARD_COUNT")
 	_ = v.BindEnv("runtime.serverlessOperator.leaseTtl", "SERVER_SERVERLESS_OPERATOR_LEASE_TTL")
 	_ = v.BindEnv("runtime.serverlessOperator.heartbeatInterval", "SERVER_SERVERLESS_OPERATOR_HEARTBEAT_INTERVAL")
 	_ = v.BindEnv("runtime.serverlessOperator.rebalanceInterval", "SERVER_SERVERLESS_OPERATOR_REBALANCE_INTERVAL")

@@ -1,6 +1,9 @@
 package serverlessoperator
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 // Config holds the knobs shared by the out-of-process binary and the in-engine mode. Zero
 // values are replaced by the defaults below; the binary binds SERVERLESS_OPERATOR_* onto it.
@@ -13,6 +16,14 @@ type Config struct {
 
 	DefaultSlots int32
 	DurableSlots int32
+
+	// ShardCount is the shard_count a tenant's v1_serverless_tenant row is created with, in
+	// MinShardCount to MaxShardCount. A tenant's endpoints hash over its shard count into
+	// lease units, so a count above 1 lets several processes serve one tenant. The row is
+	// created by the API server with the tenant's first endpoint and read whenever an endpoint
+	// is assigned a shard; a later change to this value applies only to tenants first seen
+	// after it, and existing endpoints keep their shard.
+	ShardCount int32
 
 	// LeaseTTL is how long a process row stays live after a heartbeat.
 	LeaseTTL          time.Duration
@@ -85,6 +96,7 @@ const (
 	DefaultLinkName                           = "grpc"
 	DefaultDefaultSlots                 int32 = 10000
 	DefaultDurableSlots                 int32 = 10000
+	DefaultShardCount                   int32 = 1
 	DefaultLeaseTTL                           = 15 * time.Second
 	DefaultHeartbeatInterval                  = 5 * time.Second
 	DefaultRebalanceInterval                  = 5 * time.Second
@@ -118,6 +130,27 @@ const (
 	workerLabelProcess = "hatchet-serverless-process"
 )
 
+// Bounds of Config.ShardCount. Each shard is a lease unit, so the ceiling caps how many lease
+// rows one tenant can spread over.
+const (
+	MinShardCount int32 = 1
+	MaxShardCount int32 = 64
+)
+
+// ValidateShardCount checks a configured shard count against the bounds; zero is the default
+// and passes.
+func ValidateShardCount(n int32) error {
+	if n == 0 {
+		return nil
+	}
+
+	if n < MinShardCount || n > MaxShardCount {
+		return fmt.Errorf("serverless operator shard count must be between %d and %d, got %d", MinShardCount, MaxShardCount, n)
+	}
+
+	return nil
+}
+
 // DefaultConfig returns the plan's defaults.
 func DefaultConfig() Config {
 	return Config{
@@ -125,6 +158,7 @@ func DefaultConfig() Config {
 		LinkName:                     DefaultLinkName,
 		DefaultSlots:                 DefaultDefaultSlots,
 		DurableSlots:                 DefaultDurableSlots,
+		ShardCount:                   DefaultShardCount,
 		LeaseTTL:                     DefaultLeaseTTL,
 		HeartbeatInterval:            DefaultHeartbeatInterval,
 		RebalanceInterval:            DefaultRebalanceInterval,
@@ -168,6 +202,10 @@ func (c Config) withDefaults() Config {
 
 	if c.DurableSlots <= 0 {
 		c.DurableSlots = d.DurableSlots
+	}
+
+	if c.ShardCount <= 0 {
+		c.ShardCount = d.ShardCount
 	}
 
 	if c.LeaseTTL <= 0 {

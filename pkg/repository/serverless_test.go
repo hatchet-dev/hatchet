@@ -325,29 +325,31 @@ func TestServerlessRepository(t *testing.T) {
 		assert.Equal(t, int32(0), endpointCount, "the lease row is kept with a zero count")
 	})
 
-	t.Run("tenant shard_count decides the shard", func(t *testing.T) {
+	t.Run("the configured shard_count is set with the first endpoint and decides the shard", func(t *testing.T) {
 		tenantId := uuid.New()
 		const shardCount = int32(8)
-
-		tenant, err := repo.Tenants().UpdateShardCount(ctx, tenantId, shardCount)
-		require.NoError(t, err)
-		assert.Equal(t, shardCount, tenant.ShardCount)
-
-		_, err = repo.Tenants().UpdateShardCount(ctx, tenantId, 0)
-		assert.Error(t, err)
-
-		// every shard has a lease row up front
-		var leaseRows int
-		require.NoError(t, pool.QueryRow(ctx, "SELECT count(*) FROM v1_serverless_lease WHERE tenant_id = $1", tenantId).Scan(&leaseRows))
-		assert.Equal(t, int(shardCount), leaseRows)
 
 		const numEndpoints = 32
 		created := make(map[uuid.UUID]*sqlcv1.V1ServerlessEndpoint, numEndpoints)
 		shardsSeen := make(map[int32]int)
 
 		for i := 0; i < numEndpoints; i++ {
-			endpoint, err := repo.Endpoints().Create(ctx, tenantId, serverlessEndpointOpts(fmt.Sprintf("endpoint-%d", i)))
+			opts := serverlessEndpointOpts(fmt.Sprintf("endpoint-%d", i))
+
+			// the tenant row takes the shard count of the first endpoint's create; a later
+			// create with another configured value leaves it alone
+			opts.ShardCount = shardCount
+
+			if i > 0 {
+				opts.ShardCount = 2
+			}
+
+			endpoint, err := repo.Endpoints().Create(ctx, tenantId, opts)
 			require.NoError(t, err)
+
+			tenant, err := repo.Tenants().Get(ctx, tenantId)
+			require.NoError(t, err)
+			assert.Equal(t, shardCount, tenant.ShardCount)
 
 			require.GreaterOrEqual(t, endpoint.Shard, int32(0))
 			require.Less(t, endpoint.Shard, shardCount)
@@ -362,6 +364,11 @@ func TestServerlessRepository(t *testing.T) {
 		}
 
 		assert.Greater(t, len(shardsSeen), 1, "32 endpoints over 8 shards should spread across more than one shard")
+
+		// a shard's lease row is created with the first endpoint that lands on it
+		var leaseRows int
+		require.NoError(t, pool.QueryRow(ctx, "SELECT count(*) FROM v1_serverless_lease WHERE tenant_id = $1", tenantId).Scan(&leaseRows))
+		assert.Equal(t, len(shardsSeen), leaseRows)
 
 		// endpoint_count per unit adds up to the endpoints created
 		for shard, want := range shardsSeen {
@@ -1011,18 +1018,21 @@ func TestServerlessRepository(t *testing.T) {
 		assert.Len(t, owned, numUnits)
 	})
 
-	t.Run("tenant upsert is idempotent", func(t *testing.T) {
+	t.Run("tenant upsert keeps the existing shard_count", func(t *testing.T) {
 		tenantId := uuid.New()
 
-		first, err := repo.Tenants().Upsert(ctx, tenantId)
+		first, err := repo.Tenants().Upsert(ctx, tenantId, 0)
 		require.NoError(t, err)
-		assert.Equal(t, int32(1), first.ShardCount)
+		assert.Equal(t, int32(1), first.ShardCount, "a zero shard count means the default")
 
-		_, err = repo.Tenants().UpdateShardCount(ctx, tenantId, 3)
+		again, err := repo.Tenants().Upsert(ctx, tenantId, 3)
 		require.NoError(t, err)
+		assert.Equal(t, int32(1), again.ShardCount, "upsert returns the existing row untouched")
 
-		again, err := repo.Tenants().Upsert(ctx, tenantId)
+		other := uuid.New()
+
+		created, err := repo.Tenants().Upsert(ctx, other, 3)
 		require.NoError(t, err)
-		assert.Equal(t, int32(3), again.ShardCount, "upsert returns the existing row untouched")
+		assert.Equal(t, int32(3), created.ShardCount, "a new row takes the configured count")
 	})
 }
