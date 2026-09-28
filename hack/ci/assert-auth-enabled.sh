@@ -36,7 +36,7 @@ wait_for_pg() {
 http_get() {
   local out
   for attempts in $(seq 1 15); do
-    out=$(curl -s -m 5 -w "\n%{http_code}" "$1" || true)
+    out=$(curl -s -m 5 -w "\n%{http_code}" "$1") || out=$'\n000'
     body="${out%$'\n'*}" code="${out##*$'\n'}"
     case "$code" in 000|5??) [ "$attempts" -lt 15 ] && sleep 2 ;; *) return ;; esac
   done
