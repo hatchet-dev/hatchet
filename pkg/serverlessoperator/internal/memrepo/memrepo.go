@@ -45,7 +45,10 @@ type Repo struct {
 	endpoints map[uuid.UUID]*sqlcv1.V1ServerlessEndpoint
 	processes map[uuid.UUID]*process
 	leases    map[Unit]*sqlcv1.V1ServerlessLease
-	Now       func() time.Time
+	// unentitled holds the tenants whose serverless entitlement is off; every other tenant is
+	// entitled, so tests only name the exceptions.
+	unentitled map[uuid.UUID]struct{}
+	Now        func() time.Time
 
 	// failWrites, when set, fails every write; SetFailWrites changes it under the lock.
 	failWrites error
@@ -164,11 +167,31 @@ func (r *Repo) SetFailWrites(err error) {
 
 func New() *Repo {
 	return &Repo{
-		endpoints: map[uuid.UUID]*sqlcv1.V1ServerlessEndpoint{},
-		processes: map[uuid.UUID]*process{},
-		leases:    map[Unit]*sqlcv1.V1ServerlessLease{},
-		Now:       time.Now,
+		endpoints:  map[uuid.UUID]*sqlcv1.V1ServerlessEndpoint{},
+		processes:  map[uuid.UUID]*process{},
+		leases:     map[Unit]*sqlcv1.V1ServerlessLease{},
+		unentitled: map[uuid.UUID]struct{}{},
+		Now:        time.Now,
 	}
+}
+
+// SetEntitled switches the tenant's serverless entitlement; tenants start entitled.
+func (r *Repo) SetEntitled(tenantId uuid.UUID, entitled bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if entitled {
+		delete(r.unentitled, tenantId)
+		return
+	}
+
+	r.unentitled[tenantId] = struct{}{}
+}
+
+func (r *Repo) entitledLocked(tenantId uuid.UUID) bool {
+	_, off := r.unentitled[tenantId]
+
+	return !off
 }
 
 // AddEndpoint stores a copy of ep, stamps updated_at, and creates or bumps its lease unit.
@@ -619,12 +642,12 @@ func (r *Repo) liveLocked(processId uuid.UUID) bool {
 	return ok && !proc.expired
 }
 
-// claimableLocked applies the database's rule: a unit is claimable when it has endpoints
-// and either no owner or an owner whose heartbeat row exists and has expired. An empty unit
-// is never claimed; a missing owner row is not claimable, row deletions release their units
-// instead.
+// claimableLocked applies the database's rule: a unit is claimable when its tenant is
+// entitled, it has endpoints and either no owner or an owner whose heartbeat row exists and
+// has expired. An empty unit is never claimed; a missing owner row is not claimable, row
+// deletions release their units instead.
 func (r *Repo) claimableLocked(lease *sqlcv1.V1ServerlessLease) bool {
-	if lease.EndpointCount <= 0 {
+	if lease.EndpointCount <= 0 || !r.entitledLocked(lease.TenantID) {
 		return false
 	}
 
@@ -721,6 +744,28 @@ func (l *leases) Shed(_ context.Context, processId uuid.UUID, units []Unit) ([]*
 		lease.ClaimedAt = pgtype.Timestamptz{}
 
 		out = append(out, &sqlcv1.ShedServerlessLeasesRow{TenantID: unit.TenantId, Shard: unit.Shard, EndpointCount: lease.EndpointCount})
+	}
+
+	return out, nil
+}
+
+func (l *leases) ReleaseUnentitled(_ context.Context, processId uuid.UUID) ([]*sqlcv1.ReleaseUnentitledServerlessLeasesRow, error) {
+	l.r.mu.Lock()
+	defer l.r.mu.Unlock()
+
+	out := make([]*sqlcv1.ReleaseUnentitledServerlessLeasesRow, 0)
+
+	for _, unit := range sortedUnits(l.r.leases) {
+		lease := l.r.leases[unit]
+
+		if lease.ProcessID == nil || *lease.ProcessID != processId || l.r.entitledLocked(unit.TenantId) {
+			continue
+		}
+
+		lease.ProcessID = nil
+		lease.ClaimedAt = pgtype.Timestamptz{}
+
+		out = append(out, &sqlcv1.ReleaseUnentitledServerlessLeasesRow{TenantID: unit.TenantId, Shard: unit.Shard, EndpointCount: lease.EndpointCount})
 	}
 
 	return out, nil

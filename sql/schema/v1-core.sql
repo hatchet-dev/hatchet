@@ -2985,6 +2985,10 @@ CREATE TABLE tenant_entitlement (
 
     dag_operator BOOLEAN NOT NULL DEFAULT FALSE,
 
+    -- Gates the serverless operator: endpoint creation over the API and the operator's lease
+    -- claims both require it.
+    serverless_operator BOOLEAN NOT NULL DEFAULT FALSE,
+
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 

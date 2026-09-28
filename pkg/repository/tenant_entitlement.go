@@ -37,6 +37,11 @@ type TenantEntitlementRepository interface {
 	// DAG operator to orchestrate DAGs.
 	IsDagOperatorEnabled(ctx context.Context, tenantId uuid.UUID) (bool, error)
 
+	// IsServerlessOperatorEnabled reports whether the tenant is entitled to register
+	// serverless endpoints and be served by the serverless operator. Tenants without an
+	// entitlement row are treated as not entitled.
+	IsServerlessOperatorEnabled(ctx context.Context, tenantId uuid.UUID) (bool, error)
+
 	// SetEntitlements upserts the full set of feature entitlements for the tenant.
 	SetEntitlements(ctx context.Context, tenantId uuid.UUID, entitlements TenantEntitlements) error
 }
@@ -48,6 +53,7 @@ type TenantEntitlements struct {
 	PrometheusMetrics               bool
 	StrictAdditionalMetadataFilters bool
 	DAGOperator                     bool
+	ServerlessOperator              bool
 }
 
 type tenantEntitlementRepository struct {
@@ -124,6 +130,20 @@ func (t *tenantEntitlementRepository) IsDagOperatorEnabled(ctx context.Context, 
 	return entitlement.DagOperator, nil
 }
 
+func (t *tenantEntitlementRepository) IsServerlessOperatorEnabled(ctx context.Context, tenantId uuid.UUID) (bool, error) {
+	entitlement, err := t.queries.GetTenantEntitlement(ctx, t.pool, tenantId)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	return entitlement.ServerlessOperator, nil
+}
+
 func (t *tenantEntitlementRepository) SetEntitlements(ctx context.Context, tenantId uuid.UUID, entitlements TenantEntitlements) error {
 	_, err := t.queries.UpsertTenantEntitlement(ctx, t.pool, sqlcv1.UpsertTenantEntitlementParams{
 		Tenantid:                        tenantId,
@@ -131,6 +151,7 @@ func (t *tenantEntitlementRepository) SetEntitlements(ctx context.Context, tenan
 		Prometheusmetrics:               entitlements.PrometheusMetrics,
 		Strictadditionalmetadatafilters: entitlements.StrictAdditionalMetadataFilters,
 		Dagoperator:                     entitlements.DAGOperator,
+		Serverlessoperator:              entitlements.ServerlessOperator,
 	})
 
 	return err

@@ -21,6 +21,10 @@ const (
 	minSigningSecretLength = 32
 
 	pgUniqueViolation = "23505"
+
+	// serverlessNotEntitledMessage answers endpoint creation for a tenant without the
+	// serverless operator entitlement.
+	serverlessNotEntitledMessage = "the serverless operator is not enabled for this tenant"
 )
 
 type V1ServerlessService struct {

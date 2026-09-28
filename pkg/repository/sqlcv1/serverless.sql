@@ -251,9 +251,10 @@ VALUES (@tenantId::UUID, @shard::INT)
 ON CONFLICT (tenant_id, shard) DO NOTHING;
 
 -- name: ClaimServerlessLeases :many
--- Claims up to @claimLimit units for @processId. Only units with endpoints are claimable: an
--- empty unit (shard growth, every endpoint deleted) has nothing to poll and is left unowned
--- until an endpoint lands on it. Unowned units come first, walked in (tenant_id, shard) order
+-- Claims up to @claimLimit units for @processId. Only units with endpoints of a tenant entitled
+-- to the serverless operator are claimable: an empty unit (shard growth, every endpoint
+-- deleted) has nothing to poll and is left unowned until an endpoint lands on it, and a
+-- tenant whose entitlement is off is not served. Unowned units come first, walked in (tenant_id, shard) order
 -- from @afterTenantId/@afterShard through v1_serverless_lease_claimable_idx (the caller starts
 -- at a random key and wraps around), then units of processes whose heartbeat row has expired,
 -- walked per dead process through v1_serverless_lease_owner_idx. Neither walk sorts the
@@ -269,6 +270,11 @@ WITH unowned AS (
         l.process_id IS NULL
         AND l.endpoint_count > 0
         AND (l.tenant_id, l.shard) > (@afterTenantId::UUID, @afterShard::INT)
+        AND EXISTS (
+            SELECT 1
+            FROM tenant_entitlement te
+            WHERE te.tenant_id = l.tenant_id AND te.serverless_operator
+        )
     ORDER BY l.tenant_id, l.shard
     LIMIT @claimLimit::INT
     FOR UPDATE SKIP LOCKED
@@ -278,7 +284,14 @@ WITH unowned AS (
     CROSS JOIN LATERAL (
         SELECT l.tenant_id, l.shard
         FROM v1_serverless_lease l
-        WHERE l.process_id = p.process_id AND l.endpoint_count > 0
+        WHERE
+            l.process_id = p.process_id
+            AND l.endpoint_count > 0
+            AND EXISTS (
+                SELECT 1
+                FROM tenant_entitlement te
+                WHERE te.tenant_id = l.tenant_id AND te.serverless_operator
+            )
         ORDER BY l.tenant_id, l.shard
         LIMIT @claimLimit::INT
         FOR UPDATE SKIP LOCKED
@@ -320,6 +333,21 @@ WHERE
     AND l.process_id = @processId::UUID
 RETURNING l.tenant_id, l.shard, l.endpoint_count;
 
+-- name: ReleaseUnentitledServerlessLeases :many
+-- Releases the units @processId holds whose tenant is not entitled to the serverless operator,
+-- so an entitlement switched off stops the tenant being served on the owner's next tick. The
+-- rows are returned so the owner can tear the tenant down.
+UPDATE v1_serverless_lease l
+SET process_id = NULL, claimed_at = NULL
+WHERE
+    l.process_id = @processId::UUID
+    AND NOT EXISTS (
+        SELECT 1
+        FROM tenant_entitlement te
+        WHERE te.tenant_id = l.tenant_id AND te.serverless_operator
+    )
+RETURNING l.tenant_id, l.shard, l.endpoint_count;
+
 -- name: ReleaseAllServerlessLeases :execrows
 UPDATE v1_serverless_lease
 SET process_id = NULL, claimed_at = NULL
@@ -333,9 +361,10 @@ ORDER BY tenant_id, shard;
 
 -- name: CountClaimableServerlessLeases :one
 -- Counts what a process may claim under the rules of ClaimServerlessLeases: unowned units
--- with endpoints (v1_serverless_lease_claimable_idx, index only) plus units with endpoints
--- still held by processes whose heartbeat row has expired (v1_serverless_lease_owner_idx), so
--- a survivor's fair share includes the work of dead processes. Empty units are not counted,
+-- with endpoints of entitled tenants (v1_serverless_lease_claimable_idx, joined to the
+-- entitlement by primary key) plus such units still held by processes whose heartbeat row
+-- has expired (v1_serverless_lease_owner_idx), so a survivor's fair share includes the work
+-- of dead processes. Empty units are not counted,
 -- as they are not claimed: a window of empty rows would otherwise report a claimable
 -- population of zero weight and hide the populated units behind it. Each side is a sample
 -- of at most @countLimit units, and the abandoned side is bounded as a whole, not per dead
@@ -344,9 +373,16 @@ ORDER BY tenant_id, shard;
 WITH unowned AS (
     SELECT COUNT(*) AS n, COALESCE(SUM(u.endpoint_count), 0) AS w
     FROM (
-        SELECT endpoint_count
-        FROM v1_serverless_lease
-        WHERE process_id IS NULL AND endpoint_count > 0
+        SELECT l.endpoint_count
+        FROM v1_serverless_lease l
+        WHERE
+            l.process_id IS NULL
+            AND l.endpoint_count > 0
+            AND EXISTS (
+                SELECT 1
+                FROM tenant_entitlement te
+                WHERE te.tenant_id = l.tenant_id AND te.serverless_operator
+            )
         LIMIT @countLimit::BIGINT
     ) u
 ), abandoned AS (
@@ -357,7 +393,14 @@ WITH unowned AS (
         CROSS JOIN LATERAL (
             SELECT l.endpoint_count
             FROM v1_serverless_lease l
-            WHERE l.process_id = p.process_id AND l.endpoint_count > 0
+            WHERE
+                l.process_id = p.process_id
+                AND l.endpoint_count > 0
+                AND EXISTS (
+                    SELECT 1
+                    FROM tenant_entitlement te
+                    WHERE te.tenant_id = l.tenant_id AND te.serverless_operator
+                )
             LIMIT @countLimit::BIGINT
         ) a
         WHERE p.expires_at < now()

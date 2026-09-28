@@ -92,10 +92,15 @@ CREATE INDEX v1_serverless_lease_claimable_idx ON v1_serverless_lease (tenant_id
 -- The gRPC operator service counts the action links of every worker of an operator once per
 -- Listen stream (CountOperatorWorkerActions); the workers are found by (tenant, operator).
 CREATE INDEX "Worker_tenantId_operatorId_idx" ON "Worker" ("tenantId", "operatorId");
+
+-- Gates the serverless operator per tenant: endpoint creation over the API and the operator's
+-- lease claims both require it.
+ALTER TABLE tenant_entitlement ADD COLUMN serverless_operator BOOLEAN NOT NULL DEFAULT FALSE;
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
+ALTER TABLE tenant_entitlement DROP COLUMN IF EXISTS serverless_operator;
 DROP INDEX IF EXISTS "Worker_tenantId_operatorId_idx";
 DROP INDEX IF EXISTS v1_serverless_lease_claimable_idx;
 DROP INDEX IF EXISTS v1_serverless_lease_owner_idx;

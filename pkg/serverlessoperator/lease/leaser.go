@@ -328,6 +328,19 @@ func (s *Leaser) Tick(ctx context.Context) error {
 		}
 	}()
 
+	// A tenant whose entitlement is off is released before ownership is read, so the tick
+	// reports its units lost and the runner stops serving it; the claim below never takes
+	// such units back.
+	unentitled, err := s.repo.Leases().ReleaseUnentitled(ctx, s.cfg.ProcessId)
+
+	if err != nil {
+		return fmt.Errorf("release unentitled leases: %w", err)
+	}
+
+	if len(unentitled) > 0 {
+		s.l.Info().Int("units", len(unentitled)).Msg("released serverless leases of tenants without the entitlement")
+	}
+
 	current, err := s.listOwned(ctx)
 
 	if err != nil {

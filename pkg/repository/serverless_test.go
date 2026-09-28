@@ -51,14 +51,26 @@ func resetServerlessLeases(t *testing.T, ctx context.Context, pool *pgxpool.Pool
 	require.NoError(t, err)
 }
 
-// seedServerlessUnits inserts n unowned units, one tenant each, and returns them.
-func seedServerlessUnits(t *testing.T, ctx context.Context, repo ServerlessRepository, n int) []ServerlessUnit {
+// entitleServerless switches the tenants' serverless entitlement on; claims and counts only
+// see units of entitled tenants.
+func entitleServerless(t *testing.T, ctx context.Context, pool *pgxpool.Pool, tenantIds ...uuid.UUID) {
+	t.Helper()
+
+	for _, tenantId := range tenantIds {
+		_, err := pool.Exec(ctx, "INSERT INTO tenant_entitlement (tenant_id, serverless_operator) VALUES ($1, TRUE) ON CONFLICT (tenant_id) DO UPDATE SET serverless_operator = TRUE", tenantId)
+		require.NoError(t, err)
+	}
+}
+
+// seedServerlessUnits inserts n unowned units, one entitled tenant each, and returns them.
+func seedServerlessUnits(t *testing.T, ctx context.Context, pool *pgxpool.Pool, repo ServerlessRepository, n int) []ServerlessUnit {
 	t.Helper()
 
 	units := make([]ServerlessUnit, 0, n)
 
 	for i := 0; i < n; i++ {
 		unit := ServerlessUnit{TenantId: uuid.New(), Shard: 0}
+		entitleServerless(t, ctx, pool, unit.TenantId)
 		require.NoError(t, repo.Leases().InsertIfAbsent(ctx, unit))
 		require.NoError(t, repo.Leases().IncrementEndpointCount(ctx, unit, int32(i+1))) // nolint: gosec
 		units = append(units, unit)
@@ -423,6 +435,45 @@ func TestServerlessRepository(t *testing.T) {
 		assert.Len(t, forTenant, numEndpoints)
 	})
 
+	t.Run("units of tenants without the entitlement are neither counted, claimed nor kept", func(t *testing.T) {
+		resetServerlessLeases(t, ctx, pool)
+
+		entitled := seedServerlessUnits(t, ctx, pool, repo, 1)[0]
+		other := ServerlessUnit{TenantId: uuid.New(), Shard: 0}
+		require.NoError(t, repo.Leases().InsertIfAbsent(ctx, other))
+		require.NoError(t, repo.Leases().IncrementEndpointCount(ctx, other, 1))
+
+		counted := countClaimable(t, ctx, repo)
+		assert.Equal(t, int64(1), counted.UnitCount, "a tenant without an entitlement row is not counted")
+
+		processId := uuid.New()
+		heartbeat(t, ctx, repo, processId, time.Minute)
+
+		rows, err := repo.Leases().Claim(ctx, processId, ServerlessUnit{}, 10)
+		require.NoError(t, err)
+		require.Len(t, rows, 1)
+		assert.Equal(t, entitled.TenantId, rows[0].TenantID)
+
+		released, err := repo.Leases().ReleaseUnentitled(ctx, processId)
+		require.NoError(t, err)
+		assert.Empty(t, released, "an entitled tenant's unit is kept")
+
+		_, err = pool.Exec(ctx, "UPDATE tenant_entitlement SET serverless_operator = FALSE WHERE tenant_id = $1", entitled.TenantId)
+		require.NoError(t, err)
+
+		released, err = repo.Leases().ReleaseUnentitled(ctx, processId)
+		require.NoError(t, err)
+		require.Len(t, released, 1)
+		assert.Equal(t, entitled.TenantId, released[0].TenantID)
+
+		owner, _ := leaseRow(t, ctx, pool, entitled)
+		assert.Nil(t, owner, "the unit is released once the entitlement is off")
+
+		rows, err = repo.Leases().Claim(ctx, processId, ServerlessUnit{}, 10)
+		require.NoError(t, err)
+		assert.Empty(t, rows, "nothing is claimable while both tenants lack the entitlement")
+	})
+
 	t.Run("process heartbeat, liveness and sweep", func(t *testing.T) {
 		resetServerlessLeases(t, ctx, pool)
 
@@ -538,10 +589,12 @@ func TestServerlessRepository(t *testing.T) {
 		// skip them, and a claim must never take them.
 		for i := 0; i < 4; i++ {
 			unit := ServerlessUnit{TenantId: uuid.MustParse(fmt.Sprintf("00000000-0000-0000-0000-00000000000%d", i+1)), Shard: 0}
+			entitleServerless(t, ctx, pool, unit.TenantId)
 			require.NoError(t, repo.Leases().InsertIfAbsent(ctx, unit))
 		}
 
 		populated := ServerlessUnit{TenantId: uuid.MustParse("00000000-0000-0000-0000-000000000009"), Shard: 0}
+		entitleServerless(t, ctx, pool, populated.TenantId)
 		require.NoError(t, repo.Leases().InsertIfAbsent(ctx, populated))
 		require.NoError(t, repo.Leases().IncrementEndpointCount(ctx, populated, 3))
 
@@ -581,6 +634,7 @@ func TestServerlessRepository(t *testing.T) {
 
 			for j := 0; j < 4; j++ {
 				unit := ServerlessUnit{TenantId: uuid.New(), Shard: 0}
+				entitleServerless(t, ctx, pool, unit.TenantId)
 				require.NoError(t, repo.Leases().InsertIfAbsent(ctx, unit))
 				require.NoError(t, repo.Leases().IncrementEndpointCount(ctx, unit, 1))
 				_, err := pool.Exec(ctx, "UPDATE v1_serverless_lease SET process_id = $1 WHERE tenant_id = $2", dead, unit.TenantId)
@@ -603,7 +657,7 @@ func TestServerlessRepository(t *testing.T) {
 		resetServerlessLeases(t, ctx, pool)
 
 		const numUnits = 20
-		units := seedServerlessUnits(t, ctx, repo, numUnits)
+		units := seedServerlessUnits(t, ctx, pool, repo, numUnits)
 
 		unowned := countClaimable(t, ctx, repo)
 		assert.Equal(t, int64(numUnits), unowned.UnitCount)
@@ -685,7 +739,7 @@ func TestServerlessRepository(t *testing.T) {
 
 	t.Run("a claimer without a live row cannot claim", func(t *testing.T) {
 		resetServerlessLeases(t, ctx, pool)
-		seedServerlessUnits(t, ctx, repo, 3)
+		seedServerlessUnits(t, ctx, pool, repo, 3)
 
 		processId := uuid.New()
 
@@ -710,7 +764,7 @@ func TestServerlessRepository(t *testing.T) {
 	t.Run("claim walks unowned units from the start key", func(t *testing.T) {
 		resetServerlessLeases(t, ctx, pool)
 
-		units := seedServerlessUnits(t, ctx, repo, 6)
+		units := seedServerlessUnits(t, ctx, pool, repo, 6)
 		sort.Slice(units, func(i, j int) bool { return units[i].TenantId.String() < units[j].TenantId.String() })
 
 		processId := uuid.New()
@@ -747,7 +801,7 @@ func TestServerlessRepository(t *testing.T) {
 	// earlier cannot transfer a live owner's unit.
 	t.Run("an owner that revives before the takeover keeps its units", func(t *testing.T) {
 		resetServerlessLeases(t, ctx, pool)
-		seedServerlessUnits(t, ctx, repo, 1)
+		seedServerlessUnits(t, ctx, pool, repo, 1)
 
 		a, b := uuid.New(), uuid.New()
 		heartbeat(t, ctx, repo, a, time.Second)
@@ -786,7 +840,7 @@ func TestServerlessRepository(t *testing.T) {
 	// releases them in the same statement, and count and claim keep agreeing.
 	t.Run("a swept owner row releases its units", func(t *testing.T) {
 		resetServerlessLeases(t, ctx, pool)
-		seedServerlessUnits(t, ctx, repo, 3)
+		seedServerlessUnits(t, ctx, pool, repo, 3)
 
 		dead, live := uuid.New(), uuid.New()
 		heartbeat(t, ctx, repo, dead, time.Second)
@@ -809,7 +863,7 @@ func TestServerlessRepository(t *testing.T) {
 
 	t.Run("a graceful delete releases units a failed release left behind", func(t *testing.T) {
 		resetServerlessLeases(t, ctx, pool)
-		units := seedServerlessUnits(t, ctx, repo, 2)
+		units := seedServerlessUnits(t, ctx, pool, repo, 2)
 
 		processId := uuid.New()
 		heartbeat(t, ctx, repo, processId, time.Minute)
@@ -832,7 +886,7 @@ func TestServerlessRepository(t *testing.T) {
 		resetServerlessLeases(t, ctx, pool)
 
 		const numUnits = 10
-		seedServerlessUnits(t, ctx, repo, numUnits)
+		seedServerlessUnits(t, ctx, pool, repo, numUnits)
 
 		deadProcess := uuid.New()
 		liveProcess := uuid.New()
@@ -882,7 +936,7 @@ func TestServerlessRepository(t *testing.T) {
 		resetServerlessLeases(t, ctx, pool)
 
 		const numUnits = 20
-		units := seedServerlessUnits(t, ctx, repo, numUnits)
+		units := seedServerlessUnits(t, ctx, pool, repo, numUnits)
 
 		owner := uuid.New()
 		other := uuid.New()
@@ -957,7 +1011,7 @@ func TestServerlessRepository(t *testing.T) {
 		resetServerlessLeases(t, ctx, pool)
 
 		const numUnits = 10
-		seedServerlessUnits(t, ctx, repo, numUnits)
+		seedServerlessUnits(t, ctx, pool, repo, numUnits)
 
 		processId := uuid.New()
 		heartbeat(t, ctx, repo, processId, time.Minute)

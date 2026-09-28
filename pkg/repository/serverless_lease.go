@@ -39,6 +39,10 @@ func (r *serverlessLeaseRepository) Shed(ctx context.Context, processId uuid.UUI
 	})
 }
 
+func (r *serverlessLeaseRepository) ReleaseUnentitled(ctx context.Context, processId uuid.UUID) ([]*sqlcv1.ReleaseUnentitledServerlessLeasesRow, error) {
+	return r.queries.ReleaseUnentitledServerlessLeases(ctx, r.pool, processId)
+}
+
 func (r *serverlessLeaseRepository) ReleaseAll(ctx context.Context, processId uuid.UUID) (int64, error) {
 	return r.queries.ReleaseAllServerlessLeases(ctx, r.pool, processId)
 }

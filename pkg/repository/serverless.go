@@ -104,14 +104,19 @@ type ServerlessProcessRepository interface {
 }
 
 type ServerlessLeaseRepository interface {
-	// Claim takes up to limit units for processId: units with no owner, walked in (tenant,
-	// shard) order from after (exclusive; pass the zero unit to start from the beginning),
-	// then units owned by processes whose heartbeat row has expired. The statement decides
+	// Claim takes up to limit units for processId, among the units of tenants entitled to the
+	// serverless operator: units with no owner, walked in (tenant, shard) order from after
+	// (exclusive; pass the zero unit to start from the beginning), then units owned by
+	// processes whose heartbeat row has expired. The statement decides
 	// liveness in its own snapshot and requires processId to be live itself, and uses
 	// FOR UPDATE SKIP LOCKED so concurrent claimers never block or double-claim.
 	Claim(ctx context.Context, processId uuid.UUID, after ServerlessUnit, limit int32) ([]*sqlcv1.ClaimServerlessLeasesRow, error)
 	// Shed releases the given units if, and only if, processId still owns them.
 	Shed(ctx context.Context, processId uuid.UUID, units []ServerlessUnit) ([]*sqlcv1.ShedServerlessLeasesRow, error)
+	// ReleaseUnentitled releases the units processId owns whose tenant is not entitled to the
+	// serverless operator and returns them, so an entitlement switched off stops the tenant
+	// being served on the owner's next tick.
+	ReleaseUnentitled(ctx context.Context, processId uuid.UUID) ([]*sqlcv1.ReleaseUnentitledServerlessLeasesRow, error)
 	// ReleaseAll releases every unit processId owns and returns how many.
 	ReleaseAll(ctx context.Context, processId uuid.UUID) (int64, error)
 	ListOwned(ctx context.Context, processId uuid.UUID) ([]*sqlcv1.V1ServerlessLease, error)

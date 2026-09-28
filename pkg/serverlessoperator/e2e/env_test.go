@@ -221,6 +221,9 @@ func (e *testEnv) newTenant() *tenant {
 	row, err := dl.V1.Tenant().CreateTenant(e.ctx, &repository.CreateTenantOpts{Name: slug, Slug: slug})
 	require.NoError(e.t, err)
 
+	// The operator claims and serves only entitled tenants.
+	require.NoError(e.t, dl.V1.TenantEntitlement().SetEntitlements(e.ctx, row.ID, repository.TenantEntitlements{ServerlessOperator: true}))
+
 	// A new tenant gets its scheduler partition from a once-a-minute rebalance; run it now so
 	// the tenant's queue is scheduled right away (the scheduler refreshes its tenants every
 	// second).
