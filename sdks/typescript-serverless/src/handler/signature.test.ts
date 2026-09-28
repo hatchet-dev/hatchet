@@ -26,7 +26,7 @@ describe('body signatures', () => {
   });
 
   it('round-trips a signed body', async () => {
-    const body = '{"endpointId":"e","namespace":"n","timestamp":"1"}';
+    const body = '{"endpointId":"e","timestampUnixSeconds":"1"}';
     const signature = await signHex(secret, body);
 
     expect(await verifyBodySignature(body, signature, secret)).toBe(true);

@@ -49,27 +49,3 @@ export function upgradeSigningPayload(
 ): string {
   return `${endpointId}.${timestamp}.${nonce}.${taskId}.${invocation}`;
 }
-
-/**
- * The operator prefixes everything an endpoint registers with `<namespace>_`: workflow
- * names, event keys and the service part of action ids (pkg/serverlessoperator/routing.go).
- * The namespace itself travels without the separator.
- */
-export function namespacePrefix(namespace: string): string {
-  return namespace ? `${namespace}_` : '';
-}
-
-/** Removes the namespace prefix from a workflow name or event key, if present. */
-export function stripNamespace(name: string, namespace: string): string {
-  const prefix = namespacePrefix(namespace);
-
-  return prefix && name.startsWith(prefix) ? name.slice(prefix.length) : name;
-}
-
-/**
- * Removes the namespace prefix from an action id. Only the service part is prefixed
- * (`<ns>_service:verb`), which for a leading prefix is the same as stripping the name.
- */
-export function stripActionNamespace(actionId: string, namespace: string): string {
-  return stripNamespace(actionId, namespace);
-}

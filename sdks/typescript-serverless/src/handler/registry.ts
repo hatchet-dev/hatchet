@@ -21,7 +21,7 @@ export type TaskRunner = (ctx: Context<any, any>) => unknown;
 export type DurableTaskRunner = (ctx: DurableContext<any, any>) => unknown;
 
 export interface RegisteredWorkflow {
-  /** The workflow name as registered, lowercased and without a namespace. */
+  /** The workflow name as registered, lowercased. */
   name: string;
   declaration: BaseWorkflowDeclaration<any, any>;
   /** The normalized definition the registration was built from, unsupported options removed. */

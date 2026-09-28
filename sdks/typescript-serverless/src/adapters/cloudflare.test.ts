@@ -21,8 +21,7 @@ function executionContext(): ExecutionContext {
 async function signedHealthcheck(path: string, signWith = secret) {
   const body = JSON.stringify({
     endpointId: 'e',
-    namespace: 'n',
-    timestamp: String(Math.floor(Date.now() / 1000)),
+    timestampUnixSeconds: String(Math.floor(Date.now() / 1000)),
   });
 
   return new Request(`https://worker.test${path}`, {

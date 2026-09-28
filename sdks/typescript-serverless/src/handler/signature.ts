@@ -123,8 +123,8 @@ export type BodyVerification =
 
 /**
  * Verifies a signed POST in the contract's order: the HMAC over the raw body, the body as
- * JSON, the `timestamp` it carries (within the window either way), then the `endpointId`
- * when one is configured. Returns the parsed body for the caller to decode.
+ * JSON, the `timestampUnixSeconds` it carries (within the window either way), then the
+ * `endpointId` when one is configured. Returns the parsed body for the caller to decode.
  */
 export async function verifySignedBody(
   body: string,
@@ -149,7 +149,7 @@ export async function verifySignedBody(
   }
 
   const record = json as Record<string, unknown>;
-  const timestamp = parseTimestamp(record.timestamp);
+  const timestamp = parseTimestamp(record.timestampUnixSeconds);
   const now = opts.nowSeconds ?? Math.floor(Date.now() / 1000);
 
   if (!isFreshTimestamp(timestamp, now)) {

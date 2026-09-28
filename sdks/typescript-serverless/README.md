@@ -147,9 +147,11 @@ The package's runtime entries (`.` and `./cloudflare`) carry no Node built-ins a
 ## Register the endpoint
 
 The `hatchet serverless register` command is the intended way and is not built yet. Until it
-lands, call the REST API directly. The response carries the endpoint's `namespace`; everything
-the endpoint registers is prefixed `<namespace>_`, so the `echo` task above is triggered as
-`<namespace>_echo`.
+lands, call the REST API directly. The tenant needs the serverless operator entitlement
+(`tenant_entitlement.serverless_operator`); without it the API answers 403. The operator
+registers the workflows under the names you declared, the way a worker does, so the `echo`
+task above is triggered as `echo`. Two endpoints of one tenant may declare the same workflow;
+both then serve it, like two workers.
 
 ```sh
 curl -X POST https://<hatchet>/api/v1/stable/tenants/$TENANT_ID/serverless/endpoints \
@@ -169,7 +171,7 @@ never to the Worker.
 ## Tests without Hatchet
 
 `@hatchet-dev/serverless/testing` invokes a handler the way the operator would: it signs the
-request, namespaces the action id and classifies the response with the operator's rules.
+request and classifies the response with the operator's rules.
 
 ```ts
 import { createTestOperator } from '@hatchet-dev/serverless/testing';
@@ -229,8 +231,8 @@ Every request from the operator is signed with the endpoint's secret (`X-Hatchet
 hex HMAC-SHA256). The handler checks, in this order:
 
 - **POST bodies** (healthcheck, non-durable trigger): the HMAC over the raw body, then the
-  `timestamp` field the signature covers, which must be within five minutes of the handler's
-  clock in either direction (`REQUEST_MAX_AGE_SECONDS`), then the `endpointId` when the
+  `timestampUnixSeconds` field the signature covers, which must be within five minutes of the
+  handler's clock in either direction (`REQUEST_MAX_AGE_SECONDS`), then the `endpointId` when the
   handler is configured with one (`HATCHET_ENDPOINT_ID` on Cloudflare). A captured request is
   therefore only replayable for five minutes; a task with side effects should treat
   `(endpointId, taskRunExternalId, retryCount)` as its idempotency key.

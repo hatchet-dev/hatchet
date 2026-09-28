@@ -1,17 +1,12 @@
 /**
  * POST trigger_url for a non-durable task: verify the signature over the raw body, decode
- * the envelope, strip the namespace, look the task up, run it under a `Context` and map the
+ * the envelope, look the task up by its action id, run it under a `Context` and map the
  * outcome onto the status codes pkg/serverlessoperator/delivery.go classifyResponse reads.
  */
 import { Context, NonRetryableError } from '@hatchet-dev/typescript-sdk/edge/index.js';
 import { ActionType } from '../generated/proto/dispatcher';
 import { ServerlessTriggerRequest } from '../generated/proto/v1/serverless';
-import {
-  SIGNATURE_HEADER,
-  TRIGGER_ENVELOPE_VERSION,
-  namespacePrefix,
-  stripNamespace,
-} from './contract';
+import { SIGNATURE_HEADER, TRIGGER_ENVELOPE_VERSION } from './contract';
 import { toSdkAction } from './action';
 import { ServerlessRuntime, type ConsoleLike } from './context';
 import { isServerlessLimitationError } from './errors';
@@ -75,7 +70,7 @@ export async function handleTrigger(request: Request, options: TriggerOptions): 
   }
 
   const { registry } = options;
-  const actionId = stripNamespace(envelope.action.actionId, envelope.namespace);
+  const { actionId } = envelope.action;
 
   if (registry.durableActions.has(actionId)) {
     return triggerError(
@@ -95,12 +90,8 @@ export async function handleTrigger(request: Request, options: TriggerOptions): 
 
   try {
     ctx = new Context(
-      toSdkAction(envelope.action, envelope.namespace),
-      new ServerlessRuntime({
-        namespace: namespacePrefix(envelope.namespace),
-        hasWorkflow: registry.hasWorkflow,
-        console: options.console,
-      })
+      toSdkAction(envelope.action),
+      new ServerlessRuntime({ hasWorkflow: registry.hasWorkflow, console: options.console })
     );
   } catch (err) {
     return triggerError(400, `could not build the task context: ${errorMessage(err)}`, false);

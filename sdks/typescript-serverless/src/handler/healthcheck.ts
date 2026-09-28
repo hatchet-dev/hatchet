@@ -1,7 +1,7 @@
 /**
  * The healthcheck body: every workflow in full, the action ids served here, whether the
- * durable relay is available, and the runtime. The operator namespaces the workflows and
- * registers them when the canonical form changes.
+ * durable relay is available, and the runtime. The operator registers the workflows under
+ * the names declared here, the way a worker does, when the canonical form changes.
  */
 import { CreateWorkflowVersionRequest as SdkCreateWorkflowVersionRequest } from '@hatchet-dev/typescript-sdk/edge/index.js';
 import { CreateWorkflowVersionRequest } from '../generated/proto/v1/workflows';

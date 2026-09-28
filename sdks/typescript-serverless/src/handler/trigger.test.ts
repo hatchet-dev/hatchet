@@ -181,8 +181,7 @@ describe('trigger outcomes', () => {
 
     const v2 = ServerlessTriggerRequest.toJSON({
       endpointId: op.endpointId,
-      namespace: op.namespace,
-      timestamp: Math.floor(Date.now() / 1000),
+      timestampUnixSeconds: Math.floor(Date.now() / 1000),
       version: 2,
       action: undefined,
     });
@@ -191,10 +190,9 @@ describe('trigger outcomes', () => {
     const cancel = ServerlessTriggerRequest.toJSON(
       ServerlessTriggerRequest.fromPartial({
         endpointId: op.endpointId,
-        namespace: op.namespace,
-        timestamp: Math.floor(Date.now() / 1000),
+        timestampUnixSeconds: Math.floor(Date.now() / 1000),
         version: 1,
-        action: { actionId: `${op.namespace}_echo:echo`, actionType: ActionType.CANCEL_STEP_RUN },
+        action: { actionId: 'echo:echo', actionType: ActionType.CANCEL_STEP_RUN },
       })
     );
     const response = await op.request(path, { body: JSON.stringify(cancel) });
@@ -207,14 +205,13 @@ describe('trigger outcomes', () => {
   });
 });
 
-describe('namespaces and context', () => {
-  it('strips a UUID namespace from the workflow name and the action service part', async () => {
-    const namespace = '0f7b2f3a-1c2d-4e5f-8a9b-0c1d2e3f4a5b';
-    const output = await operator({ namespace }).invoke<{
+describe('names and context', () => {
+  it('hands the task the workflow name and action id as declared', async () => {
+    const output = await operator().invoke<{
       workflow: string;
       actionId: string;
       taskName: string;
-    }>(echo, { message: 'ns' });
+    }>(echo, { message: 'names' });
 
     expect(output.workflow).toBe('echo');
     expect(output.actionId).toBe('echo:echo');

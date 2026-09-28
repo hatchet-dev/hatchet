@@ -18,9 +18,7 @@ import { ServerlessLimitationError } from './errors';
 export type ConsoleLike = Pick<Console, 'debug' | 'info' | 'warn' | 'error'>;
 
 export interface ServerlessRuntimeOptions {
-  /** The namespace the operator registered the workflows under, with its separator. */
-  namespace?: string;
-  /** Whether the handler serves the given workflow (un-namespaced name). */
+  /** Whether the handler serves the given workflow, by the name it was declared with. */
   hasWorkflow: (workflowName: string) => boolean;
   /** Where task logs go; defaults to the global console. */
   console?: ConsoleLike;
@@ -73,11 +71,7 @@ export class ConsoleLogger implements Logger {
 }
 
 export class ServerlessRuntime implements ContextRuntime {
-  readonly namespace?: string;
-
-  constructor(private readonly options: ServerlessRuntimeOptions) {
-    this.namespace = options.namespace;
-  }
+  constructor(private readonly options: ServerlessRuntimeOptions) {}
 
   logger(name: string): Logger {
     return new ConsoleLogger(name, this.options.console);

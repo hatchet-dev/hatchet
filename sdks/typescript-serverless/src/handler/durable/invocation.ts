@@ -22,7 +22,7 @@ import type {
   ServerlessFirstFrame,
 } from '../../generated/proto/v1/serverless';
 import { toSdkAction } from '../action';
-import { DONE_STATUS_EVICTED, stripNamespace } from '../contract';
+import { DONE_STATUS_EVICTED } from '../contract';
 import { ServerlessRuntime, type ConsoleLike } from '../context';
 import { errorMessage } from '../http';
 import type { Registry } from '../registry';
@@ -157,7 +157,7 @@ class DurableInvocation {
       return;
     }
 
-    const actionId = stripNamespace(first.action.actionId, first.namespace);
+    const { actionId } = first.action;
     const runner = registry.durableRunners.get(actionId);
 
     if (!runner) {
@@ -169,7 +169,7 @@ class DurableInvocation {
       return;
     }
 
-    const action = toSdkAction(first.action, first.namespace);
+    const action = toSdkAction(first.action);
     action.durableTaskInvocationCount = first.invocationCount;
 
     const transport = new FrameTransport({

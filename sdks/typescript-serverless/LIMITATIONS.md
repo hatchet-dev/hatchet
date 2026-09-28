@@ -70,13 +70,13 @@ server or `process.on`. The operator owns liveness (the healthcheck poll), routi
 non-durable task's wall-clock budget is the runtime's (`limits.cpu_ms` on Cloudflare) and the
 endpoint's `requestTimeoutSeconds` in Hatchet, whichever ends first.
 
-## `serve` subsets before shared namespaces
+## `serve` subsets
 
-`serve` limits the action ids listed in the healthcheck and answered by the trigger route. With
-today's operator each endpoint has its own namespace and registers every advertised workflow in
-full, so a task outside the subset is still registered under the endpoint's namespace and, if
-triggered, fails with `404` from the endpoint. Splitting one workflow across endpoints needs the
-operator change that lets a namespace span endpoints.
+`serve` limits the action ids listed in the healthcheck and answered by the trigger route. The
+operator registers every advertised workflow in full and derives the endpoint's actions from
+the workflow definitions, so a task outside the subset is still registered for the endpoint and,
+if triggered, fails with `404` from the endpoint. Two endpoints that declare the same workflow
+both register all of its actions, so splitting one workflow across endpoints is not supported.
 
 ## Response size
 

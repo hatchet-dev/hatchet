@@ -1,7 +1,7 @@
 /**
  * `@hatchet-dev/serverless/testing`: invokes a handler the way the operator would, without
- * Hatchet. Requests are signed with the endpoint secret, action ids are namespaced, and
- * responses are classified the way pkg/serverlessoperator/delivery.go does.
+ * Hatchet. Requests are signed with the endpoint secret and responses are classified the way
+ * pkg/serverlessoperator/delivery.go does.
  * @module Testing
  */
 import type {
@@ -24,7 +24,6 @@ import {
   SIGNATURE_HEADER,
   TIMESTAMP_HEADER,
   TRIGGER_ENVELOPE_VERSION,
-  namespacePrefix,
 } from '../handler/contract';
 import { signHex } from '../handler/signature';
 import {
@@ -51,8 +50,6 @@ export interface TestOperatorOptions extends Omit<
 > {
   /** The endpoint's signing secret. */
   secret: string;
-  /** The namespace the endpoint was registered under; a random UUID when omitted. */
-  namespace?: string;
   /** The endpoint id sent in X-Hatchet-Endpoint-Id; a random UUID when omitted. */
   endpointId?: string;
   /** The runtime name reported in the healthcheck. Defaults to "test". */
@@ -107,7 +104,6 @@ export class InvocationFailedError extends Error {
 
 export interface TestOperator {
   readonly handler: ServerlessHandler;
-  readonly namespace: string;
   readonly endpointId: string;
   /** POSTs a signed healthcheck, validates the body is protojson and returns it decoded. */
   healthcheck(): Promise<ServerlessHealthcheckResponse>;
@@ -143,7 +139,6 @@ const ORIGIN = 'https://endpoint.test';
 export function createTestOperator(options: TestOperatorOptions): TestOperator {
   const {
     secret,
-    namespace = crypto.randomUUID(),
     endpointId = crypto.randomUUID(),
     runtimeName = 'test',
     durable = true,
@@ -156,7 +151,6 @@ export function createTestOperator(options: TestOperatorOptions): TestOperator {
     durable,
     runtime: { name: runtimeName },
   });
-  const prefix = namespacePrefix(namespace);
 
   const request: TestOperator['request'] = async (path, init = {}) => {
     const { sign = true, ...requestInit } = init;
@@ -168,8 +162,7 @@ export function createTestOperator(options: TestOperatorOptions): TestOperator {
       requestInit.body = JSON.stringify(
         ServerlessHealthcheckRequest.toJSON({
           endpointId,
-          namespace,
-          timestamp: Math.floor(Date.now() / 1000),
+          timestampUnixSeconds: Math.floor(Date.now() / 1000),
         })
       );
     }
@@ -196,11 +189,11 @@ export function createTestOperator(options: TestOperatorOptions): TestOperator {
       tenantId: crypto.randomUUID(),
       workflowRunId: invokeOptions.workflowRunId ?? crypto.randomUUID(),
       jobId: crypto.randomUUID(),
-      jobName: `${prefix}${workflowName}`,
+      jobName: workflowName,
       jobRunId: crypto.randomUUID(),
       taskId: crypto.randomUUID(),
       taskRunExternalId: invokeOptions.taskRunExternalId ?? crypto.randomUUID(),
-      actionId: createActionId(`${prefix}${workflowName}`, taskName),
+      actionId: createActionId(workflowName, taskName),
       actionType: ActionType.START_STEP_RUN,
       actionPayload: JSON.stringify({
         input,
@@ -217,9 +210,8 @@ export function createTestOperator(options: TestOperatorOptions): TestOperator {
 
     const envelope = ServerlessTriggerRequest.toJSON({
       endpointId: invokeOptions.endpointId ?? endpointId,
-      namespace,
       action,
-      timestamp,
+      timestampUnixSeconds: timestamp,
       version: TRIGGER_ENVELOPE_VERSION,
     });
 
@@ -234,7 +226,6 @@ export function createTestOperator(options: TestOperatorOptions): TestOperator {
   const durableOperator = new DurableOperator({
     handler,
     secret,
-    namespace,
     endpointId,
     runChild: async (workflowName, input) => {
       const workflow = handler
@@ -267,7 +258,6 @@ export function createTestOperator(options: TestOperatorOptions): TestOperator {
 
   return {
     handler,
-    namespace,
     endpointId,
     clock: durableOperator.clock,
     emit: (eventKey, payload) => durableOperator.emit(eventKey, payload),
@@ -278,8 +268,7 @@ export function createTestOperator(options: TestOperatorOptions): TestOperator {
       const body = JSON.stringify(
         ServerlessHealthcheckRequest.toJSON({
           endpointId,
-          namespace,
-          timestamp: Math.floor(Date.now() / 1000),
+          timestampUnixSeconds: Math.floor(Date.now() / 1000),
         })
       );
       const response = await request(`${handler.basePath}/healthcheck`, {

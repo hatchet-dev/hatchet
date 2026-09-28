@@ -38,8 +38,7 @@ describe('signed POST freshness', () => {
       body: JSON.stringify(
         ServerlessHealthcheckRequest.toJSON({
           endpointId: endpointId ?? op.endpointId,
-          namespace: op.namespace,
-          timestamp,
+          timestampUnixSeconds: timestamp,
         })
       ),
     });
@@ -67,8 +66,7 @@ describe('signed POST freshness', () => {
     const response = await op.request(`${op.handler.basePath}/healthcheck`, {
       body: JSON.stringify({
         endpointId: op.endpointId,
-        namespace: op.namespace,
-        timestamp: now(),
+        timestampUnixSeconds: now(),
       }),
     });
 

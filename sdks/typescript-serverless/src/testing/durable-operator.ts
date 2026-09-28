@@ -25,7 +25,6 @@ import {
   SIGNATURE_HEADER,
   TASK_ID_HEADER,
   TIMESTAMP_HEADER,
-  stripNamespace,
   upgradeSigningPayload,
 } from '../handler/contract';
 import { decodeFrame, encodeFrame, frameKind } from '../handler/durable/frames';
@@ -115,7 +114,6 @@ interface TaskLog {
 export interface DurableOperatorOptions {
   handler: ServerlessHandler;
   secret: string;
-  namespace: string;
   endpointId: string;
   /** Runs a non-durable child through the trigger route; resolves with its output. */
   runChild: (workflowName: string, input: unknown) => Promise<unknown>;
@@ -361,18 +359,16 @@ class ActiveInvocation implements DurableRun {
   }
 
   private firstFrame(): ServerlessFirstFrame {
-    const { namespace } = this.options;
     const { params } = this;
-    const prefix = namespace ? `${namespace}_` : '';
     const action = AssignedAction.fromPartial({
       tenantId: crypto.randomUUID(),
       workflowRunId: params.options.workflowRunId ?? crypto.randomUUID(),
       jobId: crypto.randomUUID(),
-      jobName: `${prefix}${params.workflowName}`,
+      jobName: params.workflowName,
       jobRunId: crypto.randomUUID(),
       taskId: crypto.randomUUID(),
       taskRunExternalId: this.taskRunExternalId,
-      actionId: `${prefix}${params.workflowName}:${params.taskName}`.toLowerCase(),
+      actionId: `${params.workflowName}:${params.taskName}`.toLowerCase(),
       actionType: ActionType.START_STEP_RUN,
       actionPayload: JSON.stringify({
         input: params.input,
@@ -390,7 +386,6 @@ class ActiveInvocation implements DurableRun {
 
     return {
       action,
-      namespace,
       invocationCount: this.invocationCount,
       inlineWaitBudgetMs: this.params.inlineWaitBudgetMs,
     };
@@ -605,7 +600,7 @@ class ActiveInvocation implements DurableRun {
             entry.sleepDueAt = this.operator.clock.now() + durationToMs(sleep.sleepFor as Duration);
             entry.readableDataKey = sleep.base?.readableDataKey || undefined;
           } else if (event) {
-            entry.eventKey = stripNamespace(event.userEventKey, this.options.namespace);
+            entry.eventKey = event.userEventKey;
             entry.readableDataKey = event.base?.readableDataKey || entry.eventKey;
           }
         }
@@ -639,7 +634,7 @@ class ActiveInvocation implements DurableRun {
 
           if (!entry.childRunId) {
             entry.childRunId = crypto.randomUUID();
-            const name = stripNamespace(opt.name, this.options.namespace);
+            const { name } = opt;
             let input: unknown = {};
 
             try {
