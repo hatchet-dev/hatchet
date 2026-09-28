@@ -19,15 +19,7 @@ func v10158IndexName(table string) string {
 }
 
 // upV10158 adds (tenant_id, inserted_at DESC, readable_status, workflow_id) on
-// v1_runs_olap. workflow_id is a trailing key so workflow-filtered run lists check it
-// on the index entry instead of fetching every tenant row in the window from the heap,
-// while the scan still returns rows in inserted_at order for ORDER BY ... LIMIT.
-//
-// Postgres cannot create indexes concurrently on a partitioned parent table, so the
-// index is built concurrently on each partition first; creating it on the parent then
-// attaches the existing child indexes instead of rebuilding them. A child index left
-// invalid by an interrupted build is dropped and rebuilt, since IF NOT EXISTS would
-// otherwise skip it.
+// v1_runs_olap.
 func upV10158(ctx context.Context, db *sql.DB) error {
 	partitions, err := listLeafPartitions(ctx, db, "v1_runs_olap", 1)
 	if err != nil {
