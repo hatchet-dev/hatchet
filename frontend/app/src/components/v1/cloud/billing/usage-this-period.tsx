@@ -287,10 +287,7 @@ function TenantUsageChart({
 
   return (
     <ChartContainer config={config} className="aspect-auto h-[240px] w-full">
-      <BarChart
-        data={points}
-        margin={{ left: 8, right: 8, top: 8, bottom: 0 }}
-      >
+      <BarChart data={points} margin={{ left: 8, right: 8, top: 8, bottom: 0 }}>
         <CartesianGrid vertical={false} />
         <XAxis
           dataKey="date"
