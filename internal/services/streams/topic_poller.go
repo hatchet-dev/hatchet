@@ -34,9 +34,6 @@ type topicListener struct {
 // topicPoller runs a single tail loop (ticker + pubsub wake + Postgres poll)
 // for one (tenant, namespace, topic), shared by every Subscribe RPC currently
 // tailing it.
-// Catch-up (reading from a caller's own, possibly historical, starting
-// cursor) is deliberately NOT pooled because different callers can have very different
-// cursors
 type topicPoller struct {
 	streams           v1.StreamsRepository
 	pubsub            msgqueue.PubSub

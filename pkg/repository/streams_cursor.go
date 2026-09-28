@@ -18,14 +18,7 @@ const streamCursorVersion = "v1"
 // / DecodeStreamCursor.
 //
 // Namespace/Topic are embedded (not just CreatedAt/ID) so a cursor is fully
-// self-describing: a caller only needs to persist the cursor string to resume
-// later, without separately tracking which topic it belongs to. This also
-// closes a footgun that would otherwise exist silently -- id is a single
-// sequence shared by every topic in the tenant (see v1_stream_message), so
-// nothing at the query level stops a cursor from topic A being applied to
-// topic B; embedding the topic lets the caller (internal/services/streams)
-// detect and reject that mismatch instead of quietly resuming the wrong
-// topic from an unrelated position.
+// self-describing
 type StreamCursor struct {
 	Namespace string    `json:"namespace"`
 	Topic     string    `json:"topic"`
@@ -33,10 +26,6 @@ type StreamCursor struct {
 	ID        int64     `json:"id"`
 }
 
-// After reports whether c is strictly after other in stream order
-// (CreatedAt, then ID as a tiebreaker) -- the same ordering
-// ListStreamMessagesAfterCursor uses. Namespace/Topic don't participate in
-// ordering, only identification.
 func (c StreamCursor) After(other StreamCursor) bool {
 	if c.CreatedAt.After(other.CreatedAt) {
 		return true

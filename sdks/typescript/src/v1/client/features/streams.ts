@@ -19,6 +19,8 @@ export type StreamEvent = {
 export type StreamCallOptions = {
   namespace?: string;
   cursor?: string;
+  /** aborts an in-progress events() call; the iteration then ends cleanly instead of throwing */
+  signal?: AbortSignal;
 };
 
 /**
@@ -113,32 +115,44 @@ export class StreamsClient {
 
   /**
    * Returns an async iterable of messages published to topic, starting from
-   * the given cursor (options.cursor) or from "now" if none is supplied.
-   * Yields one message at a time -- the server may batch several messages
-   * into one wire frame while catching up from an old cursor, transparently
-   * to this iterable.
+   * the given cursor (options.cursor) or from the beginning of the topic if
+   * none is supplied. Yields one message at a time -- the server may batch
+   * several messages into one wire frame while catching up, transparently to
+   * this iterable. Stops when the server hangs up, options.signal aborts, or
+   * the caller stops iterating (e.g. `break`ing a `for await` loop).
    * @param topic - the topic to read from
-   * @param options - optional namespace override and resume cursor
+   * @param options - optional namespace override, resume cursor, and abort signal
    */
   async *events(topic: string, options?: StreamCallOptions): AsyncIterable<StreamEvent> {
-    const stream = this.grpc.subscribe({
-      namespace: options?.namespace ?? '',
-      topic,
-      cursor: options?.cursor,
-    });
+    const stream = this.grpc.subscribe(
+      {
+        namespace: options?.namespace ?? '',
+        topic,
+        cursor: options?.cursor,
+      },
+      { signal: options?.signal }
+    );
 
-    for await (const msg of stream) {
-      if (msg.hangup) {
+    try {
+      for await (const msg of stream) {
+        if (msg.hangup) {
+          return;
+        }
+
+        for (const entry of msg.entries) {
+          yield {
+            payload: entry.payload,
+            cursor: entry.cursor,
+            createdAt: entry.createdAt,
+          };
+        }
+      }
+    } catch (err) {
+      // an aborted signal is an intentional stop, not a failure
+      if (options?.signal?.aborted) {
         return;
       }
-
-      for (const entry of msg.entries) {
-        yield {
-          payload: entry.payload,
-          cursor: entry.cursor,
-          createdAt: entry.createdAt,
-        };
-      }
+      throw err;
     }
   }
 }

@@ -1,7 +1,6 @@
 package streams
 
 import (
-	"math"
 	"testing"
 	"time"
 
@@ -26,6 +25,15 @@ func TestResolveSubscribeAddressAndCursor_NoTopicNoCursor(t *testing.T) {
 	assert.Error(t, err, "topic is required unless cursor is supplied")
 }
 
+func TestResolveSubscribeAddressAndCursor_TopicWithNoCursorDefaultsToBeginning(t *testing.T) {
+	namespace, topic, cursor, err := resolveSubscribeAddressAndCursor(&contracts.SubscribeStreamRequest{Namespace: "ns-a", Topic: "topic-a"})
+	require.NoError(t, err)
+
+	assert.Equal(t, "ns-a", namespace)
+	assert.Equal(t, "topic-a", topic)
+	assert.Equal(t, v1.StreamCursor{Namespace: "ns-a", Topic: "topic-a", ID: 0}, cursor)
+}
+
 func TestResolveSubscribeAddressAndCursor_CursorAloneAddressesTheTopic(t *testing.T) {
 	// Round(0) strips the monotonic clock reading time.Now() attaches, which a
 	// real cursor never carries once it has been through a JSON round-trip --
@@ -40,20 +48,6 @@ func TestResolveSubscribeAddressAndCursor_CursorAloneAddressesTheTopic(t *testin
 	assert.Equal(t, "ns-a", namespace)
 	assert.Equal(t, "topic-a", topic)
 	assert.Equal(t, cursor, resolved)
-}
-
-func TestResolveSubscribeAddressAndCursor_TopicWithNoCursorDefaultsToNow(t *testing.T) {
-	before := time.Now()
-
-	namespace, topic, cursor, err := resolveSubscribeAddressAndCursor(&contracts.SubscribeStreamRequest{Namespace: "ns-a", Topic: "topic-a"})
-	require.NoError(t, err)
-
-	assert.Equal(t, "ns-a", namespace)
-	assert.Equal(t, "topic-a", topic)
-	assert.Equal(t, "ns-a", cursor.Namespace)
-	assert.Equal(t, "topic-a", cursor.Topic)
-	assert.Equal(t, int64(math.MaxInt64), cursor.ID)
-	assert.False(t, cursor.CreatedAt.Before(before), "default cursor should be at or after call time, not a historical position")
 }
 
 func TestResolveSubscribeAddressAndCursor_TopicWithMatchingCursor(t *testing.T) {

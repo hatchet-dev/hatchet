@@ -37,8 +37,7 @@ type Queue interface {
 	IsExpirable() bool
 
 	// RequiresPublishConfirm reports whether SendMessage must wait for the
-	// broker's publisher-confirm ack before returning success, rather than a
-	// nil error meaning only that the frame was written to the socket.
+	// broker's publisher-confirm ack before returning success
 	RequiresPublishConfirm() bool
 }
 

@@ -13,35 +13,21 @@ import (
 	sharedcontracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 )
 
-// StreamMessage is a single durably-persisted message read back from a
-// durable stream topic. Cursor is this message's own position, so a caller
-// can checkpoint after any individual message, not just at the start of a
-// Subscribe call.
 type StreamMessage struct {
 	Payload   []byte
 	Cursor    string
 	CreatedAt time.Time
 }
 
-// StreamsHandler processes one StreamMessage. Returning an error stops the
-// enclosing Subscribe call.
 type StreamsHandler func(msg StreamMessage) error
 
-// StreamsClient is the low-level client for the durable, topic-based streams
-// feature (see api-contracts/v1/streams.proto). It is distinct from the
-// legacy per-workflow-run stream events exposed by EventClient.PutStreamEvent
-// and SubscribeClient.Stream, which are fanout-only and never persisted.
 type StreamsClient interface {
 	// Publish durably publishes a message to a topic. Topics are created
-	// implicitly on first publish. A cursor is purely a client-side
-	// construction read off a message actually received from Subscribe, so
-	// there is nothing for Publish to return beyond success or failure.
+	// implicitly on first publish.
 	Publish(ctx context.Context, namespace, topic string, payload []byte) error
 
-	// Subscribe performs a keyset catch-up from cursor (or from "now" if cursor
-	// is nil) and then tails the topic, invoking handler once per message
-	// (the server may batch several messages into one wire frame during
-	// catch-up, transparently to handler), until handler returns an error,
+	// Subscribe returns all existing messages from topic (from cursor-on) in batches
+	// and then tails the topic, until handler returns an error,
 	// the context is cancelled, or the server hangs up.
 	Subscribe(ctx context.Context, namespace, topic string, cursor *string, handler StreamsHandler) error
 }
@@ -57,11 +43,8 @@ type producerSeqState struct {
 }
 
 type streamsClientImpl struct {
-	client sharedcontracts.V1StreamsClient
-	ctx    *contextLoader
-
-	// producerID identifies this client instance to the server for ordering
-	// purposes (see api-contracts/v1/streams.proto).
+	client     sharedcontracts.V1StreamsClient
+	ctx        *contextLoader
 	producerID string
 	mu         sync.Mutex
 	seqStates  map[string]*producerSeqState

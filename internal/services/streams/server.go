@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"time"
 
 	"connectrpc.com/connect"
@@ -94,11 +93,10 @@ func (s *ServiceImpl) Publish(ctx context.Context, req *contracts.PublishStreamM
 		return nil, err
 	}
 
-	// durable send -- this is the real delivery path. wait=true blocks until
-	// rabbit has confirmed receipt (STREAMS_QUEUE requires publisher
-	// confirms, see Queue.RequiresPublishConfirm), not until the streams
-	// controller has durably inserted the row. A single failed attempt is
-	// returned straight to the caller -- it's the SDK's job to retry.
+	// STREAMS_QUEUE requires publisher confirms, see Queue.RequiresPublishConfirm).
+	// Return errors back to the publisher--firing and forgetting here can lead to the
+	// SDK not being aware of failed messages, which will back up queue because inserting must be
+	// in-order
 	if err := s.pubBuffer.Pub(ctx, msgqueue.STREAMS_QUEUE, msg, true); err != nil {
 		return nil, connect.NewError(connect.CodeUnavailable, fmt.Errorf("could not enqueue stream message: %w", err))
 	}
@@ -152,7 +150,7 @@ func (s *ServiceImpl) Subscribe(ctx context.Context, req *contracts.SubscribeStr
 				Cursor:    cursor,
 				Limit:     subscribeCatchUpBatchSize,
 			})
-			fmt.Println("got messages after cursor", len(msgs))
+
 			if err != nil {
 				return err
 			}
@@ -193,12 +191,7 @@ func (s *ServiceImpl) Subscribe(ctx context.Context, req *contracts.SubscribeStr
 		return err
 	}
 
-	// The tail phase is pooled: every Subscribe call currently tailing this
-	// (tenant, namespace, topic) shares one poll-and-fanout loop rather than
-	// each running its own ticker, pubsub subscription, and Postgres query --
-	// see topic_poller.go. This call's own sender is registered as one
-	// listener on that shared poller; sends from here on are driven by the
-	// pooled loop, not by this goroutine.
+	// all tails on the same topic are pooled together
 	unregister, err := s.topicPollers.Join(ctx, topicPollerKey{
 		tenantId:  tenantId,
 		namespace: namespace,
@@ -226,14 +219,15 @@ func (s *ServiceImpl) Subscribe(ctx context.Context, req *contracts.SubscribeStr
 // resolveSubscribeAddressAndCursor determines which (namespace, topic) to
 // subscribe to and the effective starting cursor for a Subscribe call.
 func resolveSubscribeAddressAndCursor(req *contracts.SubscribeStreamRequest) (namespace, topic string, cursor v1.StreamCursor, err error) {
-	var decoded *v1.StreamCursor
-	// by default cursor starts from beginning. Because sorting is based on ID only, just use 0.
-	decoded = &v1.StreamCursor{
+	// default cursor starts from the beginning of the topic; ordering is by id
+	// alone, so 0 is before every real row.
+	decoded := v1.StreamCursor{
 		Namespace: req.Namespace,
 		Topic:     req.Topic,
 		CreatedAt: time.Time{},
 		ID:        0,
 	}
+
 	if req.Cursor != nil && *req.Cursor != "" {
 		c, err := v1.DecodeStreamCursor(*req.Cursor)
 
@@ -241,32 +235,23 @@ func resolveSubscribeAddressAndCursor(req *contracts.SubscribeStreamRequest) (na
 			return "", "", v1.StreamCursor{}, err
 		}
 
-		decoded = &c
+		decoded = c
 	}
 
 	if req.Topic == "" {
-		if decoded == nil {
+		if decoded.Topic == "" {
 			return "", "", v1.StreamCursor{}, fmt.Errorf("topic is required unless cursor is supplied")
 		}
 
-		return decoded.Namespace, decoded.Topic, *decoded, nil
+		return decoded.Namespace, decoded.Topic, decoded, nil
 	}
 
-	if decoded != nil && (decoded.Namespace != req.Namespace || decoded.Topic != req.Topic) {
+	if req.Cursor != nil && *req.Cursor != "" && (decoded.Namespace != req.Namespace || decoded.Topic != req.Topic) {
 		return "", "", v1.StreamCursor{}, fmt.Errorf(
 			"cursor belongs to namespace %q topic %q, not namespace %q topic %q; omit topic to resume the cursor's own topic",
 			decoded.Namespace, decoded.Topic, req.Namespace, req.Topic,
 		)
 	}
 
-	if decoded != nil {
-		return req.Namespace, req.Topic, *decoded, nil
-	}
-
-	return req.Namespace, req.Topic, v1.StreamCursor{
-		Namespace: req.Namespace,
-		Topic:     req.Topic,
-		CreatedAt: time.Now(),
-		ID:        math.MaxInt64,
-	}, nil
+	return req.Namespace, req.Topic, decoded, nil
 }
