@@ -208,15 +208,3 @@ func DisableJITForTransaction(ctx context.Context, tx execer) error {
 
 	return nil
 }
-
-// ForceCustomPlansForTransaction makes prepared statements in the transaction plan
-// with their actual parameter values. Queries that guard optional filters with
-// "$n IS NULL OR col = $n" need this: a cached generic plan cannot fold the guard,
-// so the filter is evaluated after fetching each row and indexes on col go unused.
-func ForceCustomPlansForTransaction(ctx context.Context, tx execer) error {
-	if _, err := tx.Exec(ctx, "SET LOCAL plan_cache_mode = force_custom_plan"); err != nil {
-		return fmt.Errorf("failed to force custom plans for transaction: %w", err)
-	}
-
-	return nil
-}

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -416,6 +417,14 @@ SELECT COUNT(*)
 FROM filtered
 `
 
+// planWithActualParams runs the workflow run list/count statements through the unnamed
+// statement, which is re-parsed on every call, so Postgres always plans them with the
+// actual parameter values. A cached named statement can switch to a generic plan, which
+// cannot fold the "$n IS NULL OR ..." guards and filters workflow_id and until after the
+// heap fetch instead of using them as index conditions. This relies on plan_cache_mode
+// being auto (the default); force_generic_plan would bring the generic plan back.
+const planWithActualParams = pgx.QueryExecModeCacheDescribe
+
 type CountWorkflowRunsParams struct {
 	Tenantid                      uuid.UUID          `json:"tenantid"`
 	Statuses                      []string           `json:"statuses"`
@@ -444,7 +453,7 @@ func (q *Queries) CountWorkflowRuns(ctx context.Context, db DBTX, arg CountWorkf
 		metadataContains = arg.AdditionalMetadataContainsAny
 	}
 
-	row := db.QueryRow(ctx, query,
+	row := db.QueryRow(ctx, query, planWithActualParams,
 		arg.Tenantid,
 		arg.Statuses,
 		arg.WorkflowIds,
@@ -658,7 +667,7 @@ func (q *Queries) FetchWorkflowRunIds(ctx context.Context, db DBTX, arg FetchWor
 		metadataContains = arg.AdditionalMetadataContainsAny
 	}
 
-	rows, err := db.Query(ctx, query,
+	rows, err := db.Query(ctx, query, planWithActualParams,
 		arg.Tenantid,
 		arg.Statuses,
 		arg.WorkflowIds,

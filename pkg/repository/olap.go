@@ -1220,10 +1220,6 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 
 	defer rollback()
 
-	if err := sqlchelpers.ForceCustomPlansForTransaction(ctx, tx); err != nil {
-		return nil, 0, err
-	}
-
 	params := sqlcv1.FetchWorkflowRunIdsParams{
 		Tenantid:                  tenantId,
 		Since:                     sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
