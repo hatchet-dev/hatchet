@@ -168,14 +168,28 @@ func (s *ReconnectingStream[C]) LifecycleContext() context.Context {
 	return s.lifecycleCtx
 }
 
-// ConnectOnce makes one connect attempt, coalesced with any concurrent one,
-// and publishes the new client after replay.
+// ConnectOnce makes one connect attempt from the current generation; see ConnectOnceFrom.
 func (s *ReconnectingStream[C]) ConnectOnce(ctx context.Context) error {
+	_, generation, _ := s.Snapshot()
+	return s.ConnectOnceFrom(ctx, generation)
+}
+
+// ConnectOnceFrom replaces the client of generation observed with a new one, coalesced with
+// any concurrent attempt, and publishes it after replay. A caller passes the generation of
+// the client it saw fail; when that generation has already been replaced, by a concurrent
+// caller or by one that finished earlier, nothing is opened and the caller adopts the
+// current client through Snapshot. The comparison happens inside the coalesced attempt, so
+// two callers reporting the same failure never open two streams.
+func (s *ReconnectingStream[C]) ConnectOnceFrom(ctx context.Context, observed uint64) error {
 	_, err, _ := s.connectGroup.Do("connect", func() (interface{}, error) {
 		s.mu.Lock()
 		if s.closed {
 			s.mu.Unlock()
 			return nil, ErrListenerClosed
+		}
+		if s.generation != observed {
+			s.mu.Unlock()
+			return nil, nil
 		}
 		s.mu.Unlock()
 
@@ -285,11 +299,7 @@ func (s *ReconnectingStream[C]) RetrySend(ctx context.Context, send func(C) erro
 		lastErr = err
 		s.l.Warn().Err(err).Str("stream", s.name).Int("attempt", attempt+1).Msg("stream send failed")
 
-		if _, genAfter, _ := s.Snapshot(); genAfter != gen {
-			continue
-		}
-
-		if rerr := s.ConnectOnce(ctx); rerr != nil {
+		if rerr := s.ConnectOnceFrom(ctx, gen); rerr != nil {
 			if errors.Is(rerr, ErrListenerClosed) || retry.ClassifyStreamError(ctx, rerr) == retry.StreamDecisionStop {
 				return fmt.Errorf("could not reconnect %s to retry send: %w", s.name, rerr)
 			}

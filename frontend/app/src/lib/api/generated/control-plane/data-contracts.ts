@@ -216,6 +216,8 @@ export interface OrganizationForUser {
 export interface OrganizationForUserList {
   rows: OrganizationForUser[];
   pagination: PaginationResponse;
+  /** Whether this user can create another free organization they would own. */
+  canCreateOrganization?: boolean;
 }
 
 export interface CreateOrganizationRequest {

@@ -310,6 +310,59 @@ export function dailyMeterSeverity(
   return 'ok';
 }
 
+const DAILY_LIMIT_ALERTS: Record<string, { featureId: string; name: string }> =
+  {
+    task_runs: {
+      featureId: 'task_runs_daily_limit',
+      name: 'Daily Task Runs',
+    },
+    events: {
+      featureId: 'events_daily_limit',
+      name: 'Daily External Events',
+    },
+  };
+
+export type DailyLimitAlert = {
+  featureId: string;
+  name: string;
+  usage: number;
+  includedUsage: number;
+  status: 'warn' | 'exhausted';
+  timestamp: string;
+  tenantName?: string;
+};
+
+// Header alerts for the daily caps. The shard meter refills, so its value is
+// the usage for the current window.
+export function dailyLimitAlerts(
+  tenants: OrganizationTenantResourceLimits[],
+): DailyLimitAlert[] {
+  const meters = selectDailyMeters(tenants, 'all');
+  const alerts: DailyLimitAlert[] = [];
+
+  for (const [periodId, definition] of Object.entries(DAILY_LIMIT_ALERTS)) {
+    const meter = meters[periodId];
+    if (!meter || dailyMeterSeverity(meter) === 'ok') {
+      continue;
+    }
+
+    alerts.push({
+      featureId: definition.featureId,
+      name: definition.name,
+      usage: meter.value,
+      includedUsage: meter.limitValue,
+      status: meter.value >= meter.limitValue ? 'exhausted' : 'warn',
+      timestamp:
+        meter.metadata.updatedAt ||
+        meter.lastRefill ||
+        meter.metadata.createdAt,
+      tenantName: meter.showTenant ? meter.tenantName : undefined,
+    });
+  }
+
+  return alerts;
+}
+
 export function selectDailyMeters(
   tenants: OrganizationTenantResourceLimits[],
   tenantId: string,

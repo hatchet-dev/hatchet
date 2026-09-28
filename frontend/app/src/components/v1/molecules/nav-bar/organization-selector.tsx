@@ -1,3 +1,4 @@
+import { UpgradeGateDialog } from '@/components/v1/cloud/billing/upgrade-gate-dialog';
 import { TenantRegionBadge } from '@/components/v1/molecules/nav-bar/tenant-region-badge';
 import { Button } from '@/components/v1/ui/button';
 import {
@@ -19,6 +20,7 @@ import { Tenant, TenantMember } from '@/lib/api';
 import { OrganizationForUser } from '@/lib/api/generated/cloud/data-contracts';
 import { globalEmitter } from '@/lib/global-emitter';
 import { cn } from '@/lib/utils';
+import { useUserUniverse } from '@/providers/user-universe';
 import { appRoutes } from '@/router';
 import {
   BuildingOffice2Icon,
@@ -211,6 +213,8 @@ export function OrganizationSelector({
 }: OrganizationSelectorProps) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { canCreateOrganization, invalidate } = useUserUniverse();
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
   const {
     setTenant: setCurrTenant,
     isUserUniverseLoaded: isTenantLoaded,
@@ -310,6 +314,8 @@ export function OrganizationSelector({
     !isOrganizationsLoaded ||
     (memberships.length === 0 && organizations.length === 0);
 
+  const upgradeOrganization = currentOrgData?.organization;
+
   const triggerLabel = hasNoTenant
     ? organizations.length === 1
       ? organizations[0].name
@@ -381,20 +387,35 @@ export function OrganizationSelector({
                     onNavigate={handleNavigate}
                   />
                   <div className="px-2 py-1">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      fullWidth
-                      leftIcon={<PlusIcon className="size-4" />}
-                      asChild
-                    >
-                      <Link
-                        to={appRoutes.organizationsNewRoute.to}
-                        onClick={() => setOpen(false)}
+                    {canCreateOrganization ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        fullWidth
+                        leftIcon={<PlusIcon className="size-4" />}
+                        asChild
+                      >
+                        <Link
+                          to={appRoutes.organizationsNewRoute.to}
+                          onClick={() => setOpen(false)}
+                        >
+                          Create Organization
+                        </Link>
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        fullWidth
+                        leftIcon={<PlusIcon className="size-4" />}
+                        onClick={() => {
+                          setOpen(false);
+                          setUpgradeOpen(true);
+                        }}
                       >
                         Create Organization
-                      </Link>
-                    </Button>
+                      </Button>
+                    )}
                   </div>
                 </CommandGroup>
               )}
@@ -424,6 +445,18 @@ export function OrganizationSelector({
           </Command>
         </PopoverContent>
       </Popover>
+      {upgradeOrganization ? (
+        <UpgradeGateDialog
+          open={upgradeOpen}
+          gate="organizations"
+          organizationId={upgradeOrganization.metadata.id}
+          organizationName={upgradeOrganization.name}
+          onDismiss={() => {
+            setUpgradeOpen(false);
+            void invalidate();
+          }}
+        />
+      ) : null}
     </TooltipProvider>
   );
 }

@@ -413,7 +413,7 @@ func (q *actionDeltaQueue) run() {
 				// the chunk stays in flight until the reconnect attempt settles, so a
 				// flush observes either the replayed chunk or the send error, never the
 				// error of a send the replay is about to repeat
-				if rerr := q.stream.ConnectOnce(ctx); rerr != nil {
+				if rerr := q.stream.ConnectOnceFrom(ctx, staged.generation); rerr != nil {
 					q.l.Warn().Err(rerr).Msg("could not reconnect operator listener after a failed delta send")
 					q.finishChunk(err)
 				} else {
