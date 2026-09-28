@@ -1,6 +1,6 @@
 /**
- * The tasks this endpoint serves. Names and actions are un-prefixed; the operator applies the
- * endpoint's namespace (`<uuid>_echo`, `<uuid>_echo:echo`) when it registers them.
+ * The tasks this endpoint serves. The operator registers them under these names, the way a
+ * worker would (`echo`, action `echo:echo`), so they are triggered by the names declared here.
  */
 import { hatchet } from "@hatchet-dev/serverless";
 
