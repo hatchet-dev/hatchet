@@ -65,8 +65,7 @@ FROM v1_serverless_endpoint
 WHERE tenant_id = @tenantId::UUID;
 
 -- name: UpdateServerlessEndpoint :one
--- namespace and shard are never updatable: the namespace prefixes everything the endpoint has
--- registered with the engine, and the shard decides which lease unit owns the endpoint.
+-- The shard is never updatable: it decides which lease unit owns the endpoint.
 UPDATE v1_serverless_endpoint
 SET
     name = COALESCE(sqlc.narg('name')::TEXT, name),
@@ -127,15 +126,6 @@ WHERE
     tenant_id = @tenantId::UUID
     AND (GREATEST(updated_at, COALESCE(status_changed_at, updated_at)), id) > (@since::TIMESTAMPTZ, @sinceId::UUID)
 ORDER BY GREATEST(updated_at, COALESCE(status_changed_at, updated_at)), id;
-
--- name: GetServerlessEndpointByNamespace :one
--- Resolves the endpoint an action's namespace names, for a routing miss: one row through the
--- namespace's unique index, scoped to the tenant, instead of a reload of the tenant.
-SELECT *
-FROM v1_serverless_endpoint
-WHERE
-    tenant_id = @tenantId::UUID
-    AND namespace = @namespace::UUID;
 
 -- name: ListServerlessEndpointVersions :many
 -- Anti-entropy pass of a tenant's routing cache: every endpoint's id and version, nothing

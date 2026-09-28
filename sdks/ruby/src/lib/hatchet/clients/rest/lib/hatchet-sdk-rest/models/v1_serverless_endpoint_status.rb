@@ -16,7 +16,7 @@ require 'time'
 module HatchetSdkRest
   # The health of the endpoint as last observed by the serverless operator. Written on state transitions only, so changedAt is the time the endpoint last flipped between healthy and unhealthy.
   class V1ServerlessEndpointStatus
-    # The namespaced action ids the operator registered for this endpoint from its last healthcheck.
+    # The action ids the operator registered for this endpoint from its last healthcheck, as the endpoint declared them. Several endpoints of a tenant may register the same action; each then serves it.
     attr_accessor :registered_actions
 
     # Whether the last healthcheck succeeded. Absent until the operator has polled the endpoint at least once.

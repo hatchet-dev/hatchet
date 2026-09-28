@@ -53,7 +53,6 @@ func ToV1ServerlessEndpoint(endpoint *sqlcv1.V1ServerlessEndpoint) gen.V1Serverl
 		},
 		TenantId:              endpoint.TenantID,
 		Name:                  endpoint.Name,
-		Namespace:             endpoint.Namespace,
 		Kind:                  gen.V1ServerlessEndpointKind(endpoint.Kind),
 		HealthcheckUrl:        endpoint.HealthcheckUrl,
 		TriggerUrl:            endpoint.TriggerUrl,

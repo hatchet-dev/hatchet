@@ -31,11 +31,7 @@ func healthyRow(spec endpointSpec) *sqlcv1.V1ServerlessEndpoint {
 	spec.healthy = pgtype.Bool{Bool: true, Valid: true}
 
 	row := newEndpointRow(spec)
-	row.RegisteredActions = []string{prefixed(row.Namespace, spec.actions[0])}
-
-	for _, a := range spec.actions[1:] {
-		row.RegisteredActions = append(row.RegisteredActions, prefixed(row.Namespace, a))
-	}
+	row.RegisteredActions = append([]string{}, spec.actions...)
 
 	return row
 }
@@ -66,7 +62,7 @@ func TestUnitGainOpensRegistrationWithTenantUnion(t *testing.T) {
 
 	call := env.sender.callsTo(a.HealthcheckUrl)[0]
 	assert.Equal(t, a.ID.String(), call.headers.Get("X-Hatchet-Endpoint-Id"))
-	assert.Contains(t, string(call.body), a.Namespace.String())
+	assert.Contains(t, string(call.body), a.ID.String())
 
 	assert.Empty(t, env.repo.ActionWrites(), "an unchanged action set is not rewritten")
 	assert.Empty(t, env.repo.StatusWrites(), "a healthy endpoint that stays healthy writes nothing")
@@ -130,10 +126,10 @@ func TestHealthcheckChangeUpdatesActionsAndRegistration(t *testing.T) {
 	env.sender.respond(a.HealthcheckUrl, http.StatusOK, healthcheckWithWorkflows(t, wf))
 	poller.pollOnce(context.Background())
 
-	wantA := []string{prefixed(a.Namespace, "svc:echo")}
+	wantA := []string{"svc:echo"}
 
 	require.Equal(t, 1, reg.putCount(), "the registration puts the changed workflow")
-	assert.Equal(t, prefixed(a.Namespace, "echo"), reg.puts[0].Name)
+	assert.Equal(t, "echo", reg.puts[0].Name)
 
 	require.Len(t, env.repo.ActionWrites(), 1)
 	assert.Equal(t, a.ID, env.repo.ActionWrites()[0].EndpointId)
@@ -161,10 +157,10 @@ func TestHealthcheckChangeUpdatesActionsAndRegistration(t *testing.T) {
 	poller.pollOnce(context.Background())
 
 	require.Equal(t, 2, reg.putCount(), "the unchanged workflow is not re-put")
-	assert.Equal(t, prefixed(a.Namespace, "other"), reg.puts[1].Name)
+	assert.Equal(t, "other", reg.puts[1].Name)
 	assert.Len(t, env.repo.ActionWrites(), 2)
 
-	wantA = []string{prefixed(a.Namespace, "svc:echo"), prefixed(a.Namespace, "svc:other")}
+	wantA = []string{"svc:echo", "svc:other"}
 	wantUnion := sortedUnion(wantA, b.RegisteredActions)
 
 	assert.Equal(t, wantA, reg.added(), "only the new action is added")
@@ -215,7 +211,7 @@ func TestFailedDeltaIsRetriedOnNextPoll(t *testing.T) {
 
 	poller.pollOnce(context.Background())
 
-	assert.Equal(t, []string{prefixed(a.Namespace, "svc:b")}, reg.added())
+	assert.Equal(t, []string{"svc:b"}, reg.added())
 	assert.Empty(t, reg.removed())
 	assert.Equal(t, 1, reg.flushCount())
 	require.Len(t, env.repo.ActionWrites(), 1)
@@ -327,7 +323,7 @@ func TestStatusWritesOnlyOnTransitions(t *testing.T) {
 
 	// Health unknown at first: the first success writes healthy=true.
 	a := newEndpointRow(endpointSpec{tenantId: tenant, name: "a", enabled: true})
-	a.RegisteredActions = []string{prefixed(a.Namespace, "svc:a")}
+	a.RegisteredActions = []string{"svc:a"}
 	env.addEndpoint(a)
 
 	env.r.UnitsGained(context.Background(), []memrepo.Unit{env.unit(a)})
@@ -374,12 +370,12 @@ func TestStatusWritesOnlyOnTransitions(t *testing.T) {
 	assert.Len(t, env.repo.StatusWrites(), 3)
 }
 
-func TestDeliveryRoutesByNamespace(t *testing.T) {
+func TestDeliveryRoutesToAnEndpointServingTheAction(t *testing.T) {
 	env := newTestEnv(t)
 	tenant := uuid.New()
 
 	a := healthyRow(endpointSpec{tenantId: tenant, name: "a", actions: []string{"svc:run"}})
-	b := healthyRow(endpointSpec{tenantId: tenant, name: "b", actions: []string{"svc:run"}})
+	b := healthyRow(endpointSpec{tenantId: tenant, name: "b", actions: []string{"svc:other"}})
 	env.addEndpoint(a)
 	env.addEndpoint(b)
 	env.sender.respond(a.TriggerUrl, http.StatusOK, `{"from":"a"}`)
@@ -389,8 +385,8 @@ func TestDeliveryRoutesByNamespace(t *testing.T) {
 	reg := env.host.session(0)
 	require.NotNil(t, reg)
 
-	// Same action name on two endpoints: the namespace prefix decides.
-	reg.deliver(t, startAction(b.Namespace, "svc:run"))
+	// Each endpoint serves its own action: the delivery goes to the one advertising it.
+	reg.deliver(t, startAction("svc:other"))
 
 	require.Eventually(t, func() bool { return len(env.sender.callsTo(b.TriggerUrl)) == 1 }, eventually, 10*time.Millisecond)
 	require.Eventually(t, func() bool { return len(reg.eventTypes()) == 2 }, eventually, 10*time.Millisecond)
@@ -409,7 +405,7 @@ func TestDeliveryRoutesByNamespace(t *testing.T) {
 
 	// A permanent endpoint failure is reported as non-retryable.
 	env.sender.respond(a.TriggerUrl, http.StatusBadRequest, `{"error":"bad input"}`)
-	reg.deliver(t, startAction(a.Namespace, "svc:run"))
+	reg.deliver(t, startAction("svc:run"))
 
 	require.Eventually(t, func() bool { return len(reg.eventTypes()) == 4 }, eventually, 10*time.Millisecond)
 	failed := reg.lastEvent()
@@ -429,20 +425,20 @@ func TestDeliveryRoutingMissAndDurable(t *testing.T) {
 	reg := env.host.session(0)
 
 	loads := env.repo.ListForTenantCalls()
-	lookups := env.repo.ByNamespaceCalls()
+	since := env.repo.ListSinceCalls()
 
-	reg.deliver(t, startAction(uuid.New(), "svc:run"))
+	reg.deliver(t, startAction("svc:missing"))
 
 	require.Eventually(t, func() bool { return len(reg.eventTypes()) == 1 }, eventually, 10*time.Millisecond)
 	miss := reg.lastEvent()
 	assert.Equal(t, contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED, miss.EventType)
-	assert.Contains(t, miss.EventPayload, "endpoint not found for namespace")
+	assert.Contains(t, miss.EventPayload, errEndpointNotFound.Error())
 	assert.False(t, *miss.ShouldNotRetry)
 	assert.Equal(t, loads, env.repo.ListForTenantCalls(), "a miss does not reload the tenant")
-	assert.Equal(t, lookups+1, env.repo.ByNamespaceCalls(), "a miss looks the namespace up once")
+	assert.Equal(t, since, env.repo.ListSinceCalls(), "a miss looks nothing up")
 
 	invocation := int32(0)
-	durable := startAction(a.Namespace, "svc:run")
+	durable := startAction("svc:run")
 	durable.DurableTaskInvocationCount = &invocation
 	reg.deliver(t, durable)
 
@@ -454,6 +450,43 @@ func TestDeliveryRoutingMissAndDurable(t *testing.T) {
 	assert.Equal(t, operator.ErrNotSupported.Error(), ev.EventPayload)
 	assert.False(t, *ev.ShouldNotRetry)
 	assert.Empty(t, env.sender.callsTo(a.TriggerUrl))
+}
+
+// Two endpoints of one tenant declaring the same action both serve it, like two workers:
+// deliveries of the action spread over both and the registration advertises it once.
+func TestDeliverySpreadsASharedActionOverItsEndpoints(t *testing.T) {
+	env := newTestEnv(t)
+	tenant := uuid.New()
+
+	a := healthyRow(endpointSpec{tenantId: tenant, name: "a", actions: []string{"svc:run"}})
+	b := healthyRow(endpointSpec{tenantId: tenant, name: "b", actions: []string{"svc:run"}})
+	env.addEndpoint(a)
+	env.addEndpoint(b)
+	env.sender.respond(a.TriggerUrl, http.StatusOK, `{"from":"a"}`)
+	env.sender.respond(b.TriggerUrl, http.StatusOK, `{"from":"b"}`)
+
+	env.r.UnitsGained(context.Background(), []memrepo.Unit{env.unit(a)})
+	reg := env.host.session(0)
+	require.NotNil(t, reg)
+	assert.Equal(t, []string{"svc:run"}, env.host.opens[0].opts.Actions, "the union names the shared action once")
+
+	const deliveries = 40
+
+	for i := 0; i < deliveries; i++ {
+		reg.deliver(t, startAction("svc:run"))
+	}
+
+	require.Eventually(t, func() bool {
+		return len(env.sender.callsTo(a.TriggerUrl))+len(env.sender.callsTo(b.TriggerUrl)) == deliveries
+	}, eventually, 10*time.Millisecond)
+	require.Eventually(t, func() bool { return len(reg.eventTypes()) == 2*deliveries }, eventually, 10*time.Millisecond)
+
+	assert.NotEmpty(t, env.sender.callsTo(a.TriggerUrl), "a serves some of the deliveries")
+	assert.NotEmpty(t, env.sender.callsTo(b.TriggerUrl), "b serves some of the deliveries")
+
+	for _, ev := range reg.eventTypes() {
+		assert.NotEqual(t, contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED, ev)
+	}
 }
 
 func TestCancelInFlightDelivery(t *testing.T) {
@@ -475,7 +508,7 @@ func TestCancelInFlightDelivery(t *testing.T) {
 	env.r.UnitsGained(context.Background(), []memrepo.Unit{env.unit(a)})
 	reg := env.host.session(0)
 
-	action := startAction(a.Namespace, "svc:run")
+	action := startAction("svc:run")
 	reg.deliver(t, action)
 
 	select {
@@ -524,7 +557,7 @@ func TestDrainTimeoutAbortsDeliveryRetryably(t *testing.T) {
 
 	env.r.UnitsGained(context.Background(), []memrepo.Unit{env.unit(a)})
 	reg := env.host.session(0)
-	reg.deliver(t, startAction(a.Namespace, "svc:run"))
+	reg.deliver(t, startAction("svc:run"))
 
 	<-started
 

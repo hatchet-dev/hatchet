@@ -3837,7 +3837,6 @@ type V1ServerlessEndpoint struct {
 	ID                    uuid.UUID                `json:"id"`
 	TenantID              uuid.UUID                `json:"tenant_id"`
 	Name                  string                   `json:"name"`
-	Namespace             uuid.UUID                `json:"namespace"`
 	Kind                  V1ServerlessEndpointKind `json:"kind"`
 	HealthcheckUrl        string                   `json:"healthcheck_url"`
 	TriggerUrl            string                   `json:"trigger_url"`

@@ -140,7 +140,6 @@ func TestServerlessRepository(t *testing.T) {
 
 		assert.Equal(t, tenantId, created.TenantID)
 		assert.Equal(t, "endpoint-a", created.Name)
-		assert.NotEqual(t, uuid.Nil, created.Namespace)
 		assert.Equal(t, sqlcv1.V1ServerlessEndpointKindCLOUDFLAREWORKERS, created.Kind)
 		assert.Equal(t, defaultServerlessRequestTimeoutSeconds, created.RequestTimeoutSeconds)
 		assert.Equal(t, defaultServerlessPollIntervalSeconds, created.PollIntervalSeconds)
@@ -155,7 +154,6 @@ func TestServerlessRepository(t *testing.T) {
 		got, err := repo.Endpoints().Get(ctx, tenantId, created.ID)
 		require.NoError(t, err)
 		assert.Equal(t, created.ID, got.ID)
-		assert.Equal(t, created.Namespace, got.Namespace)
 
 		// the endpoint is scoped to its tenant
 		_, err = repo.Endpoints().Get(ctx, uuid.New(), created.ID)
@@ -195,10 +193,9 @@ func TestServerlessRepository(t *testing.T) {
 		assert.Equal(t, int32(5), updated.RequestTimeoutSeconds)
 		assert.False(t, updated.Enabled)
 		assert.JSONEq(t, `{"env": "test"}`, string(updated.Labels))
-		// untouched fields keep their values, and the immutable ones cannot change
+		// untouched fields keep their values, and the shard cannot change
 		assert.Equal(t, created.HealthcheckUrl, updated.HealthcheckUrl)
 		assert.Equal(t, created.SigningSecretEnc, updated.SigningSecretEnc)
-		assert.Equal(t, created.Namespace, updated.Namespace)
 		assert.Equal(t, created.Shard, updated.Shard)
 		assert.True(t, updated.UpdatedAt.Time.After(created.UpdatedAt.Time))
 
@@ -234,7 +231,7 @@ func TestServerlessRepository(t *testing.T) {
 		assert.False(t, changed[0].Healthy.Bool)
 
 		// a workflow change is recorded and does bump updated_at
-		actions := []string{created.Namespace.String() + "_svc:run", created.Namespace.String() + "_svc:stream"}
+		actions := []string{"svc:run", "svc:stream"}
 		streamActions := actions[1:]
 		require.NoError(t, repo.Endpoints().UpdateRegisteredActions(ctx, created.ID, actions, streamActions))
 
@@ -287,29 +284,6 @@ func TestServerlessRepository(t *testing.T) {
 		_, count, err := repo.Endpoints().List(ctx, tenantId, ListServerlessEndpointsOpts{Limit: 10})
 		require.NoError(t, err)
 		assert.Equal(t, int64(0), count, "no endpoint should have been created")
-	})
-
-	t.Run("namespace is unique", func(t *testing.T) {
-		tenantId := uuid.New()
-
-		first, err := repo.Endpoints().Create(ctx, tenantId, serverlessEndpointOpts("endpoint-a"))
-		require.NoError(t, err)
-
-		second, err := repo.Endpoints().Create(ctx, tenantId, serverlessEndpointOpts("endpoint-b"))
-		require.NoError(t, err)
-
-		assert.NotEqual(t, first.Namespace, second.Namespace)
-
-		// the constraint holds even against a raw insert that reuses a namespace
-		_, err = pool.Exec(ctx, `
-			INSERT INTO v1_serverless_endpoint (tenant_id, name, namespace, healthcheck_url, trigger_url, signing_secret_enc)
-			VALUES ($1, 'endpoint-c', $2, 'https://example.com/h', 'https://example.com/t', 'enc')`,
-			tenantId, first.Namespace,
-		)
-		var pgErr *pgconn.PgError
-		require.ErrorAs(t, err, &pgErr)
-		assert.Equal(t, pgUniqueViolation, pgErr.Code)
-		assert.Equal(t, "v1_serverless_endpoint_namespace_key", pgErr.ConstraintName)
 	})
 
 	t.Run("lease unit and endpoint_count follow endpoint create and delete", func(t *testing.T) {
@@ -511,20 +485,13 @@ func TestServerlessRepository(t *testing.T) {
 		assert.Empty(t, dead)
 	})
 
-	t.Run("routing lookups by namespace, version listing and fetch by id", func(t *testing.T) {
+	t.Run("version listing and fetch by id", func(t *testing.T) {
 		tenantId := uuid.New()
 
 		a, err := repo.Endpoints().Create(ctx, tenantId, serverlessEndpointOpts("route-a"))
 		require.NoError(t, err)
 		b, err := repo.Endpoints().Create(ctx, tenantId, serverlessEndpointOpts("route-b"))
 		require.NoError(t, err)
-
-		got, err := repo.Endpoints().GetByNamespace(ctx, tenantId, a.Namespace)
-		require.NoError(t, err)
-		assert.Equal(t, a.ID, got.ID)
-
-		_, err = repo.Endpoints().GetByNamespace(ctx, uuid.New(), a.Namespace)
-		assert.ErrorIs(t, err, pgx.ErrNoRows, "the lookup is scoped to the tenant")
 
 		// A status write moves b's version past a's; the listing pages in version order.
 		_, err = repo.Endpoints().UpdateStatus(ctx, b.ID, false, nil)

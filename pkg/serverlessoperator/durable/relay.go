@@ -113,7 +113,6 @@ type Params struct {
 	TriggerURL string
 	Secret     string
 	EndpointId string
-	Namespace  string
 	TaskId     string
 
 	MaxFrameBytes int64
@@ -301,13 +300,11 @@ func Run(ctx context.Context, p Params) Outcome {
 }
 
 // buildFirstFrame encodes the first frame: the assigned action (action id and workflow name
-// namespaced as registered), the endpoint's namespace, the invocation count and the inline
-// wait budget.
+// as registered), the invocation count and the inline wait budget.
 func buildFirstFrame(p *Params) ([]byte, error) {
 	frame, err := contract.MarshalFrame(&v1.ServerlessDurableFrame{
 		Frame: &v1.ServerlessDurableFrame_First{First: &v1.ServerlessFirstFrame{
 			Action:             p.Action,
-			Namespace:          p.Namespace,
 			InvocationCount:    p.Invocation,
 			InlineWaitBudgetMs: p.InlineWaitBudgetMs,
 		}},
@@ -576,7 +573,7 @@ func (r *relay) handleDone(done *v1.ServerlessDoneFrame) {
 	}
 }
 
-// handleRequest stamps, validates, confines and forwards one DurableTaskRequest.
+// handleRequest stamps, validates and forwards one DurableTaskRequest.
 func (r *relay) handleRequest(req *v1.DurableTaskRequest) bool {
 	if err := r.stamp(req); err != nil {
 		var mismatch *mismatchError
@@ -652,36 +649,7 @@ func (r *relay) stamp(req *v1.DurableTaskRequest) error {
 	*id = r.p.TaskId
 	*inv = r.p.Invocation
 
-	r.confine(req)
-
 	return nil
-}
-
-// confine is the namespace boundary of the relay, the same in either host: the resources an
-// endpoint names in a nested request are prefixed with its namespace the way the operator
-// prefixed what it registered (contract.ApplyNamespace), so a durable task can only
-// trigger workflows and wait for user events of its own namespace. Names that already carry
-// the prefix are left alone. Everything the engine generates is untouched: log entry refs,
-// readable data keys and or-group ids are labels of this task's own log, sleep conditions
-// name no resource, event scopes are matched within the namespaced key, and memo keys are
-// private to the task.
-func (r *relay) confine(req *v1.DurableTaskRequest) {
-	ns := r.p.Namespace
-
-	switch m := req.Message.(type) {
-	case *v1.DurableTaskRequest_TriggerRuns:
-		for _, opt := range m.TriggerRuns.GetTriggerOpts() {
-			if opt != nil {
-				opt.Name = contract.ApplyNamespace(ns, opt.Name)
-			}
-		}
-	case *v1.DurableTaskRequest_WaitFor:
-		for _, cond := range m.WaitFor.GetWaitForConditions().GetUserEventConditions() {
-			if cond != nil {
-				cond.UserEventKey = contract.ApplyNamespace(ns, cond.UserEventKey)
-			}
-		}
-	}
 }
 
 // pumpLoop forwards engine responses to the send queue. A Recv that fails while the relay is

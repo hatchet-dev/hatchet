@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"sort"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/proto"
 
@@ -21,32 +21,13 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/contract"
 )
 
-// namespaceLen is the length of the prefix without its separator: a hyphenated uuid.
-const namespaceLen = 36
+var errEndpointNotFound = errors.New("no enabled endpoint serves the action")
 
-var errEndpointNotFound = errors.New("endpoint not found for namespace")
-
-// namespacePrefix is what prefixName prepends: contract.NamespacePrefix over the endpoint's
-// namespace, joined by the separator the SDK's HATCHET_CLIENT_NAMESPACE uses.
-func namespacePrefix(ns uuid.UUID) string {
-	return contract.NamespacePrefix(ns.String())
-}
-
-// prefixName applies the namespace to a workflow name, action service or event key through
-// contract.ApplyNamespace, the rule the durable relay applies to the names an endpoint
-// references in nested requests, so what the operator registers and what the relay confines
-// an endpoint to are prefixed by one implementation. Already-prefixed names are left alone,
-// so applying twice is harmless.
-func prefixName(ns uuid.UUID, name string) string {
-	return contract.ApplyNamespace(ns.String(), name)
-}
-
-// prefixAction normalizes an action id the way the engine stores it (types.ParseActionID:
-// service first letter lowered, verb lowered) and prefixes the service part. Re-parsing the
-// result is a no-op because the prefix starts with a hex digit. The engine's rule that both
-// parts are non-empty is checked before the prefix, which would otherwise hide an empty
-// service.
-func prefixAction(ns uuid.UUID, action string) (string, error) {
+// normalizeAction writes an action id the way the engine stores it (types.ParseActionID:
+// service first letter lowered, verb lowered), so an endpoint's spelling of an id and the
+// engine's assignment of it compare equal. The engine's rule that both parts are non-empty is
+// checked here so an empty service surfaces on the catalog.
+func normalizeAction(action string) (string, error) {
 	parsed, err := types.ParseActionID(action)
 
 	if err != nil {
@@ -57,15 +38,13 @@ func prefixAction(ns uuid.UUID, action string) (string, error) {
 		return "", fmt.Errorf("invalid action %q: service and verb are required", action)
 	}
 
-	parsed.Service = prefixName(ns, parsed.Service)
-
 	return parsed.String(), nil
 }
 
-// applyNamespace returns a deep copy of wf with the namespace applied to the workflow name,
-// the task and on-failure actions and the event trigger keys. Cron triggers are cron
-// expressions, not names, so they are left alone.
-func applyNamespace(wf *v1.CreateWorkflowVersionRequest, ns uuid.UUID) (*v1.CreateWorkflowVersionRequest, error) {
+// canonicalWorkflow returns a deep copy of wf with the task and on-failure actions
+// normalized. The workflow name and the event trigger keys are registered as the endpoint
+// declared them, the way a worker's are.
+func canonicalWorkflow(wf *v1.CreateWorkflowVersionRequest) (*v1.CreateWorkflowVersionRequest, error) {
 	if wf == nil {
 		return nil, errors.New("workflow is required")
 	}
@@ -74,12 +53,6 @@ func applyNamespace(wf *v1.CreateWorkflowVersionRequest, ns uuid.UUID) (*v1.Crea
 
 	if !ok {
 		return nil, errors.New("could not clone workflow")
-	}
-
-	out.Name = prefixName(ns, out.Name)
-
-	for i, key := range out.EventTriggers {
-		out.EventTriggers[i] = prefixName(ns, key)
 	}
 
 	tasks := append([]*v1.CreateTaskOpts{}, out.Tasks...)
@@ -97,7 +70,7 @@ func applyNamespace(wf *v1.CreateWorkflowVersionRequest, ns uuid.UUID) (*v1.Crea
 			return nil, fmt.Errorf("workflow %s: task %s is missing required field 'Action'", wf.Name, task.ReadableId)
 		}
 
-		action, err := prefixAction(ns, task.Action)
+		action, err := normalizeAction(task.Action)
 
 		if err != nil {
 			return nil, fmt.Errorf("workflow %s: %w", wf.Name, err)
@@ -143,22 +116,6 @@ func actionsForWorkflow(wf *v1.CreateWorkflowVersionRequest) ([]string, error) {
 	}
 
 	return actions, nil
-}
-
-// ParseNamespace extracts the endpoint namespace from a registered action id of the form
-// <uuid>_<service>:<verb>.
-func ParseNamespace(actionId string) (uuid.UUID, bool) {
-	if len(actionId) <= namespaceLen || actionId[namespaceLen:namespaceLen+1] != contract.NamespaceSeparator {
-		return uuid.Nil, false
-	}
-
-	ns, err := uuid.Parse(actionId[:namespaceLen])
-
-	if err != nil {
-		return uuid.Nil, false
-	}
-
-	return ns, true
 }
 
 // sortedUnion merges action lists, dropping duplicates and empties, and sorts the result so
@@ -241,12 +198,18 @@ func (cfg *endpointConfig) streams(actionId string) bool {
 // swapped under the cache lock. seenGen is the reconcile generation that last listed the
 // endpoint; only Reconcile, which runs one at a time per tenant, reads or writes it.
 type cachedEndpoint struct {
-	cfg       *endpointConfig
-	id        uuid.UUID
-	tenantId  uuid.UUID
-	namespace uuid.UUID
-	seenGen   uint64
-	shard     int32
+	cfg      *endpointConfig
+	id       uuid.UUID
+	tenantId uuid.UUID
+	seenGen  uint64
+	shard    int32
+}
+
+// routable reports whether a delivery may go to the endpoint: it is enabled and its last
+// known status is not unhealthy. An endpoint the operator has not polled yet is routable,
+// since it advertises actions only once a healthcheck succeeded.
+func (cfg *endpointConfig) routable() bool {
+	return cfg != nil && cfg.enabled && (!cfg.healthKnown || cfg.healthy)
 }
 
 // unionDelta is one published change of the union: the actions that entered it and the ones
@@ -261,28 +224,27 @@ type unionDelta struct {
 // the full union instead.
 const unionLogSize = 64
 
-// routingCache is a served tenant's endpoints keyed by namespace and by id, with decrypted
-// secrets and the union of registered_actions over enabled endpoints.
+// routingCache is a served tenant's endpoints keyed by id and by the actions they serve,
+// with decrypted secrets and the union of registered_actions over enabled endpoints.
 //
-// The union is a reference count per action: how many enabled endpoints advertise it. An
-// action enters the union on the 0 to 1 transition and leaves it on 1 to 0, so a change to
-// one endpoint costs that endpoint's actions, whatever the tenant's size. Every batch of row
-// changes (a load, a refresh, a page of a gained unit) publishes at most one revision, with
-// its delta appended to a bounded log; registrations catch up from the log by revision and
-// only fall back to a full diff when they are further behind than the log reaches. The sorted
-// form is built on demand, once per revision.
+// byAction holds, per action, the enabled endpoints advertising it; the union is its key set.
+// An action enters the union when its first enabled endpoint advertises it and leaves it when
+// the last one stops, so a change to one endpoint costs that endpoint's actions, whatever the
+// tenant's size. Every batch of row changes (a load, a refresh, a page of a gained unit)
+// publishes at most one revision, with its delta appended to a bounded log; registrations
+// catch up from the log by revision and only fall back to a full diff when they are further
+// behind than the log reaches. The sorted form is built on demand, once per revision.
 //
 // Load reads every row; Refresh reads rows whose version (the later of updated_at and
 // status_changed_at) is past the watermark, so configuration, registered_actions and status
 // changes all surface. Rows already applied at the same version are skipped.
 type routingCache struct {
-	byNamespace map[uuid.UUID]*cachedEndpoint
-	byId        map[uuid.UUID]*cachedEndpoint
-	repo        repository.ServerlessEndpointRepository
-	enc         encryption.EncryptionService
-	l           *zerolog.Logger
+	byId     map[uuid.UUID]*cachedEndpoint
+	byAction map[string]map[uuid.UUID]*cachedEndpoint
+	repo     repository.ServerlessEndpointRepository
+	enc      encryption.EncryptionService
+	l        *zerolog.Logger
 
-	counts    map[string]int
 	sorted    []string
 	log       []unionDelta
 	since     time.Time
@@ -296,47 +258,22 @@ type routingCache struct {
 	// reconcileGen counts Reconcile passes; an endpoint whose seenGen falls behind was not
 	// listed by the pass and is dropped.
 	reconcileGen uint64
-
-	// misses coalesces the namespace lookups of concurrent routing misses (one query per
-	// namespace at a time) and missed remembers namespaces that had no endpoint, for
-	// missNegativeTTL, so a burst of assignments to an absent namespace costs one query.
-	// missMu guards both.
-	misses map[uuid.UUID]*missLoad
-	missed map[uuid.UUID]time.Time
-	missMu sync.Mutex
 }
 
-// missLoad is one in-progress namespace lookup; waiters block on done.
-type missLoad struct {
-	done chan struct{}
-	err  error
-}
-
-const (
-	// missNegativeTTL is how long a namespace with no endpoint is remembered as absent.
-	missNegativeTTL = 5 * time.Second
-	// missedLimit bounds the negative cache; past it expired entries are dropped first and
-	// the oldest after them.
-	missedLimit = 4096
-
-	// reconcilePageSize is how many (id, version) pairs one anti-entropy page carries.
-	reconcilePageSize int64 = 5000
-)
+// reconcilePageSize is how many (id, version) pairs one anti-entropy page carries.
+const reconcilePageSize int64 = 5000
 
 // reconcileFetchSize is how many changed rows one fetch by id asks for.
 const reconcileFetchSize = 500
 
 func newRoutingCache(tenantId uuid.UUID, repo repository.ServerlessEndpointRepository, enc encryption.EncryptionService, l *zerolog.Logger) *routingCache {
 	return &routingCache{
-		tenantId:    tenantId,
-		repo:        repo,
-		enc:         enc,
-		l:           l,
-		byNamespace: map[uuid.UUID]*cachedEndpoint{},
-		byId:        map[uuid.UUID]*cachedEndpoint{},
-		counts:      map[string]int{},
-		misses:      map[uuid.UUID]*missLoad{},
-		missed:      map[uuid.UUID]time.Time{},
+		tenantId: tenantId,
+		repo:     repo,
+		enc:      enc,
+		l:        l,
+		byId:     map[uuid.UUID]*cachedEndpoint{},
+		byAction: map[string]map[uuid.UUID]*cachedEndpoint{},
 	}
 }
 
@@ -351,11 +288,18 @@ func newBatch() *batch {
 	return &batch{added: map[string]struct{}{}, removed: map[string]struct{}{}}
 }
 
-// enter counts one more enabled endpoint advertising action.
-func (b *batch) enter(c *routingCache, action string) {
-	c.counts[action]++
+// enter adds ep to the enabled endpoints advertising action.
+func (b *batch) enter(c *routingCache, ep *cachedEndpoint, action string) {
+	eps, ok := c.byAction[action]
 
-	if c.counts[action] != 1 {
+	if !ok {
+		eps = map[uuid.UUID]*cachedEndpoint{}
+		c.byAction[action] = eps
+	}
+
+	eps[ep.id] = ep
+
+	if len(eps) != 1 {
 		return
 	}
 
@@ -367,15 +311,16 @@ func (b *batch) enter(c *routingCache, action string) {
 	b.added[action] = struct{}{}
 }
 
-// leave counts one fewer enabled endpoint advertising action.
-func (b *batch) leave(c *routingCache, action string) {
-	c.counts[action]--
+// leave removes ep from the enabled endpoints advertising action.
+func (b *batch) leave(c *routingCache, ep *cachedEndpoint, action string) {
+	eps := c.byAction[action]
+	delete(eps, ep.id)
 
-	if c.counts[action] > 0 {
+	if len(eps) > 0 {
 		return
 	}
 
-	delete(c.counts, action)
+	delete(c.byAction, action)
 
 	if _, ok := b.added[action]; ok {
 		delete(b.added, action)
@@ -385,8 +330,8 @@ func (b *batch) leave(c *routingCache, action string) {
 	b.removed[action] = struct{}{}
 }
 
-// move replaces an endpoint's contribution from prev to next.
-func (b *batch) move(c *routingCache, prev, next []string) {
+// move replaces ep's contribution from prev to next.
+func (b *batch) move(c *routingCache, ep *cachedEndpoint, prev, next []string) {
 	if len(prev) == 0 && len(next) == 0 {
 		return
 	}
@@ -423,13 +368,13 @@ func (b *batch) move(c *routingCache, prev, next []string) {
 		prevSet[action] = struct{}{}
 
 		if _, keep := nextSet[action]; !keep {
-			b.leave(c, action)
+			b.leave(c, ep, action)
 		}
 	}
 
 	for action := range nextSet {
 		if _, had := prevSet[action]; !had {
-			b.enter(c, action)
+			b.enter(c, ep, action)
 		}
 	}
 }
@@ -485,9 +430,8 @@ func (c *routingCache) Load(ctx context.Context) error {
 			continue
 		}
 
-		b.move(c, ep.cfg.contribution(), nil)
+		b.move(c, ep, ep.cfg.contribution(), nil)
 		delete(c.byId, id)
-		delete(c.byNamespace, ep.namespace)
 	}
 
 	c.lastLoad = time.Now()
@@ -577,9 +521,8 @@ func (c *routingCache) Reconcile(ctx context.Context) error {
 			continue
 		}
 
-		b.move(c, ep.cfg.contribution(), nil)
+		b.move(c, ep, ep.cfg.contribution(), nil)
 		delete(c.byId, id)
-		delete(c.byNamespace, ep.namespace)
 	}
 
 	c.lastLoad = time.Now()
@@ -639,14 +582,12 @@ func (c *routingCache) upsertLocked(b *batch, row *sqlcv1.V1ServerlessEndpoint) 
 
 	if !ok {
 		ep = &cachedEndpoint{
-			id:        row.ID,
-			tenantId:  row.TenantID,
-			namespace: row.Namespace,
-			shard:     row.Shard,
+			id:       row.ID,
+			tenantId: row.TenantID,
+			shard:    row.Shard,
 		}
 
 		c.byId[row.ID] = ep
-		c.byNamespace[row.Namespace] = ep
 	}
 
 	prev := ep.cfg
@@ -708,7 +649,7 @@ func (c *routingCache) upsertLocked(b *batch, row *sqlcv1.V1ServerlessEndpoint) 
 		cfg.statusChangedAt = prev.statusChangedAt
 	}
 
-	b.move(c, prev.contribution(), cfg.contribution())
+	b.move(c, ep, prev.contribution(), cfg.contribution())
 
 	ep.cfg = cfg
 }
@@ -766,9 +707,9 @@ func (c *routingCache) ActionUnion() ([]string, uint64) {
 		}
 
 		rev := c.rev
-		sorted := make([]string, 0, len(c.counts))
+		sorted := make([]string, 0, len(c.byAction))
 
-		for action := range c.counts {
+		for action := range c.byAction {
 			sorted = append(sorted, action)
 		}
 
@@ -843,14 +784,14 @@ func (c *routingCache) DiffAgainst(have map[string]struct{}) (added, removed []s
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	for action := range c.counts {
+	for action := range c.byAction {
 		if _, ok := have[action]; !ok {
 			added = append(added, action)
 		}
 	}
 
 	for action := range have {
-		if _, ok := c.counts[action]; !ok {
+		if _, ok := c.byAction[action]; !ok {
 			removed = append(removed, action)
 		}
 	}
@@ -925,120 +866,70 @@ func (c *routingCache) Config(ep *cachedEndpoint) *endpointConfig {
 	return ep.cfg
 }
 
-func (c *routingCache) lookup(ns uuid.UUID) (*cachedEndpoint, *endpointConfig, bool) {
+// Route picks the endpoint a delivery of the action goes to, among the tenant's enabled
+// endpoints advertising it: one of those whose last known status is healthy, uniformly at
+// random, so two endpoints declaring the same action share its deliveries the way two
+// workers would; when none is known healthy, any enabled one, so a status the operator has
+// not caught up with does not park the task. errEndpointNotFound when no enabled endpoint
+// advertises the action: the union the registration advertised has moved on since the engine
+// assigned it, and the task is failed retryable for the engine to assign again.
+func (c *routingCache) Route(actionId string) (*cachedEndpoint, *endpointConfig, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	ep, ok := c.byNamespace[ns]
+	eps := c.byAction[actionId]
 
-	if !ok || !ep.cfg.enabled {
-		return nil, nil, false
+	if len(eps) == 0 {
+		return nil, nil, fmt.Errorf("%w: %s", errEndpointNotFound, actionId)
 	}
 
-	return ep, ep.cfg, true
+	healthy := make([]*cachedEndpoint, 0, len(eps))
+	enabled := make([]*cachedEndpoint, 0, len(eps))
+
+	for _, ep := range eps {
+		if !ep.cfg.enabled {
+			continue
+		}
+
+		enabled = append(enabled, ep)
+
+		if ep.cfg.routable() {
+			healthy = append(healthy, ep)
+		}
+	}
+
+	candidates := healthy
+
+	if len(candidates) == 0 {
+		candidates = enabled
+	}
+
+	if len(candidates) == 0 {
+		return nil, nil, fmt.Errorf("%w: %s", errEndpointNotFound, actionId)
+	}
+
+	ep := candidates[rand.IntN(len(candidates))] // #nosec G404 -- load spreading, not security
+
+	return ep, ep.cfg, nil
 }
 
-// Route resolves the endpoint an action id belongs to. A miss looks the namespace up on its
-// own (one row, coalesced with concurrent misses on the same namespace, and remembered as
-// absent for missNegativeTTL when there is none) before failing with errEndpointNotFound;
-// the tenant is never reloaded for a miss.
-func (c *routingCache) Route(ctx context.Context, actionId string) (*cachedEndpoint, *endpointConfig, error) {
-	ns, ok := ParseNamespace(actionId)
+// Serving lists the ids of the enabled endpoints advertising the action, sorted, for tests
+// and diagnostics.
+func (c *routingCache) Serving(actionId string) []uuid.UUID {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 
-	if !ok {
-		return nil, nil, fmt.Errorf("%w: action %q carries no namespace", errEndpointNotFound, actionId)
+	out := make([]uuid.UUID, 0, len(c.byAction[actionId]))
+
+	for id := range c.byAction[actionId] {
+		out = append(out, id)
 	}
 
-	if ep, cfg, ok := c.lookup(ns); ok {
-		return ep, cfg, nil
-	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].String() < out[j].String()
+	})
 
-	if err := c.loadNamespace(ctx, ns); err != nil {
-		return nil, nil, err
-	}
-
-	if ep, cfg, ok := c.lookup(ns); ok {
-		return ep, cfg, nil
-	}
-
-	return nil, nil, fmt.Errorf("%w: %s", errEndpointNotFound, ns)
-}
-
-// loadNamespace fetches the endpoint a namespace names and applies its row. Concurrent
-// callers for one namespace share one query; a namespace found absent is not queried again
-// for missNegativeTTL. An absent namespace is not an error here: the caller's lookup fails.
-func (c *routingCache) loadNamespace(ctx context.Context, ns uuid.UUID) error {
-	c.missMu.Lock()
-
-	if until, ok := c.missed[ns]; ok {
-		if time.Now().Before(until) {
-			c.missMu.Unlock()
-			return nil
-		}
-
-		delete(c.missed, ns)
-	}
-
-	if load, ok := c.misses[ns]; ok {
-		c.missMu.Unlock()
-
-		select {
-		case <-load.done:
-			return load.err
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-	}
-
-	load := &missLoad{done: make(chan struct{})}
-	c.misses[ns] = load
-	c.missMu.Unlock()
-
-	row, err := c.repo.GetByNamespace(ctx, c.tenantId, ns)
-
-	switch {
-	case errors.Is(err, pgx.ErrNoRows):
-		c.rememberMissed(ns)
-	case err != nil:
-		load.err = fmt.Errorf("could not look up endpoint for namespace %s: %w", ns, err)
-	default:
-		c.mu.Lock()
-		c.applyRowsLocked([]*sqlcv1.V1ServerlessEndpoint{row})
-		c.mu.Unlock()
-	}
-
-	c.missMu.Lock()
-	delete(c.misses, ns)
-	c.missMu.Unlock()
-	close(load.done)
-
-	return load.err
-}
-
-// rememberMissed records an absent namespace, keeping the negative cache under missedLimit.
-func (c *routingCache) rememberMissed(ns uuid.UUID) {
-	c.missMu.Lock()
-	defer c.missMu.Unlock()
-
-	if len(c.missed) >= missedLimit {
-		now := time.Now()
-
-		for id, until := range c.missed {
-			if !now.Before(until) {
-				delete(c.missed, id)
-			}
-		}
-
-		for id := range c.missed {
-			if len(c.missed) < missedLimit {
-				break
-			}
-
-			delete(c.missed, id)
-		}
-	}
-
-	c.missed[ns] = time.Now().Add(missNegativeTTL)
+	return out
 }
 
 // SetHealthcheck records the action set an owned endpoint's healthcheck produced, with the
@@ -1060,7 +951,7 @@ func (c *routingCache) SetHealthcheck(id uuid.UUID, actions, streamActions []str
 	cfg.streamActions = sortedUnion(streamActions)
 
 	b := newBatch()
-	b.move(c, ep.cfg.contribution(), cfg.contribution())
+	b.move(c, ep, ep.cfg.contribution(), cfg.contribution())
 	ep.cfg = &cfg
 
 	return c.publishLocked(b)

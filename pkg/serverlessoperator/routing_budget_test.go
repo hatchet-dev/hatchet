@@ -164,13 +164,12 @@ func budgetRows(n, a int) []*sqlcv1.V1ServerlessEndpoint {
 		actions := make([]string, a)
 
 		for j := range actions {
-			actions[j] = id.String() + fmt.Sprintf("_service:action%03d", j)
+			actions[j] = fmt.Sprintf("service%08d:action%03d", i, j)
 		}
 
 		rows[i] = &sqlcv1.V1ServerlessEndpoint{
 			ID:                id,
 			TenantID:          budgetTenant,
-			Namespace:         id,
 			Name:              fmt.Sprintf("endpoint-%08d", i),
 			HealthcheckUrl:    fmt.Sprintf("https://endpoint-%08d.example.test/health", i),
 			TriggerUrl:        fmt.Sprintf("https://endpoint-%08d.example.test/trigger", i),
@@ -547,8 +546,8 @@ func BenchmarkOneActionChangeSync(b *testing.B) {
 			reg := newRegistrationForTest(c, noopSession{})
 			base := append([]string(nil), ep.RegisteredActions...)
 			variants := [][]string{
-				append(append([]string(nil), base...), ep.Namespace.String()+"_service:extra0"),
-				append(append([]string(nil), base...), ep.Namespace.String()+"_service:extra1"),
+				append(append([]string(nil), base...), "service:extra0"),
+				append(append([]string(nil), base...), "service:extra1"),
 			}
 
 			b.ReportAllocs()

@@ -42,7 +42,7 @@ class V1ServerlessEndpointStatus(BaseModel):
         alias="changedAt",
     )
     registered_actions: List[StrictStr] = Field(
-        description="The namespaced action ids the operator registered for this endpoint from its last healthcheck.",
+        description="The action ids the operator registered for this endpoint from its last healthcheck, as the endpoint declared them. Several endpoints of a tenant may register the same action; each then serves it.",
         alias="registeredActions",
     )
     __properties: ClassVar[List[str]] = [

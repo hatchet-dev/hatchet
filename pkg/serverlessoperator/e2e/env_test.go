@@ -456,7 +456,8 @@ func (e *testEnv) streamActions(endpointId uuid.UUID) []string {
 }
 
 // waitRegistered waits until the endpoint's registered_actions carry every given action,
-// which the owner writes after PutWorkflow succeeded.
+// which the owner writes after PutWorkflow succeeded. Several endpoints of a tenant may
+// register the same action; each row lists it on its own.
 func (e *testEnv) waitRegistered(endpointId uuid.UUID, actions ...string) {
 	e.t.Helper()
 
@@ -576,8 +577,9 @@ func (e *testEnv) workersOfProcess(processId uuid.UUID) []workerRow {
 	return out
 }
 
-// runToCompletion triggers the namespaced workflow and waits for the run to complete. The
-// trigger is retried while the engine has not seen the workflow yet.
+// runToCompletion triggers the workflow by the name the endpoint declared it under and waits
+// for the run to complete. The trigger is retried while the engine has not seen the workflow
+// yet.
 func (e *testEnv) runToCompletion(tn *tenant, workflow string, input map[string]any, timeout time.Duration) *client.RunDetails {
 	e.t.Helper()
 
@@ -653,7 +655,8 @@ func taskOutput(t *testing.T, details *client.RunDetails) map[string]any {
 	return out
 }
 
-// workflow is a one-task workflow definition as an endpoint advertises it: un-prefixed.
+// workflow is a one-task workflow definition as an endpoint advertises it, under the name and
+// action id the operator registers it with.
 func workflow(name, action string, durable bool, retries int32) *v1.CreateWorkflowVersionRequest {
 	return &v1.CreateWorkflowVersionRequest{
 		Name: name,
@@ -665,10 +668,6 @@ func workflow(name, action string, durable bool, retries int32) *v1.CreateWorkfl
 			Retries:    retries,
 		}},
 	}
-}
-
-func namespaced(ns uuid.UUID, name string) string {
-	return ns.String() + "_" + name
 }
 
 // dumpOnFailure logs what the fakes saw and the tenant's serverless workers when the test

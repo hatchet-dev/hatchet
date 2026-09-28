@@ -1999,9 +1999,6 @@ type V1ServerlessEndpoint struct {
 	// Name The name of the endpoint. Unique within the tenant.
 	Name string `json:"name"`
 
-	// Namespace The prefix applied to everything this endpoint registers (workflows, actions, events), as "<namespace>_". Read-only: assigned on creation and immutable.
-	Namespace openapi_types.UUID `json:"namespace"`
-
 	// PollIntervalSeconds How often the healthcheck URL is polled, in seconds.
 	PollIntervalSeconds int32 `json:"pollIntervalSeconds"`
 
@@ -2038,7 +2035,7 @@ type V1ServerlessEndpointStatus struct {
 	// Healthy Whether the last healthcheck succeeded. Absent until the operator has polled the endpoint at least once.
 	Healthy *bool `json:"healthy,omitempty"`
 
-	// RegisteredActions The namespaced action ids the operator registered for this endpoint from its last healthcheck.
+	// RegisteredActions The action ids the operator registered for this endpoint from its last healthcheck, as the endpoint declared them. Several endpoints of a tenant may register the same action; each then serves it.
 	RegisteredActions []string `json:"registeredActions"`
 }
 

@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository"
@@ -61,7 +60,6 @@ type Repo struct {
 	releaseAlls   int
 	listForTenant int
 	listSince     int
-	byNamespace   int
 	listVersions  int
 	byIds         int
 	readRows      int
@@ -133,16 +131,8 @@ func (r *Repo) ListSinceCalls() int {
 	return r.listSince
 }
 
-// ByNamespaceCalls counts routing-miss lookups; ListVersionsCalls counts anti-entropy
-// version pages; ByIdsCalls counts fetches of changed rows by id; ReadRows counts every
-// endpoint row returned in full.
-func (r *Repo) ByNamespaceCalls() int {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	return r.byNamespace
-}
-
+// ListVersionsCalls counts anti-entropy version pages; ByIdsCalls counts fetches of changed
+// rows by id; ReadRows counts every endpoint row returned in full.
 func (r *Repo) ListVersionsCalls() int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -360,22 +350,6 @@ func (e *endpoints) ListForTenant(_ context.Context, tenantId uuid.UUID) ([]*sql
 	e.r.readRows += len(out)
 
 	return out, nil
-}
-
-func (e *endpoints) GetByNamespace(_ context.Context, tenantId, namespace uuid.UUID) (*sqlcv1.V1ServerlessEndpoint, error) {
-	e.r.mu.Lock()
-	defer e.r.mu.Unlock()
-
-	e.r.byNamespace++
-
-	for _, ep := range e.r.endpoints {
-		if ep.TenantID == tenantId && ep.Namespace == namespace {
-			e.r.readRows++
-			return copyEndpoint(ep), nil
-		}
-	}
-
-	return nil, pgx.ErrNoRows
 }
 
 func (e *endpoints) ListVersions(_ context.Context, tenantId uuid.UUID, after repository.ServerlessEndpointVersion, limit int64) ([]repository.ServerlessEndpointVersion, error) {

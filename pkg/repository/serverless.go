@@ -41,15 +41,15 @@ type ServerlessEndpointVersion struct {
 type ServerlessEndpointRepository interface {
 	// Create inserts the endpoint and, in the same transaction, upserts the tenant's settings
 	// row, creates the endpoint's lease unit if it is the first endpoint on that unit, and
-	// increments the unit's endpoint_count. The endpoint's namespace is assigned by the database
-	// and its shard is derived from its id and the tenant's current shard_count.
+	// increments the unit's endpoint_count. The endpoint's shard is derived from its id and the
+	// tenant's current shard_count.
 	Create(ctx context.Context, tenantId uuid.UUID, opts CreateServerlessEndpointOpts) (*sqlcv1.V1ServerlessEndpoint, error)
 	Get(ctx context.Context, tenantId, endpointId uuid.UUID) (*sqlcv1.V1ServerlessEndpoint, error)
 	// GetById resolves an endpoint by id alone, for the API's resource populator, which sees
 	// the endpoint id before the tenant and checks the returned tenant against the caller's.
 	GetById(ctx context.Context, endpointId uuid.UUID) (*sqlcv1.V1ServerlessEndpoint, error)
 	List(ctx context.Context, tenantId uuid.UUID, opts ListServerlessEndpointsOpts) ([]*sqlcv1.V1ServerlessEndpoint, int64, error)
-	// Update changes configuration only; namespace and shard are immutable.
+	// Update changes configuration only; the shard is immutable.
 	Update(ctx context.Context, tenantId, endpointId uuid.UUID, opts UpdateServerlessEndpointOpts) (*sqlcv1.V1ServerlessEndpoint, error)
 	// Delete removes the endpoint and decrements its lease unit's endpoint_count in the same
 	// transaction. The lease row itself is kept.
@@ -64,9 +64,6 @@ type ServerlessEndpointRepository interface {
 	// (the later of updated_at and status_changed_at) and id are past the (since, sinceId)
 	// keyset, in that order. Configuration, registered_actions and status changes all surface.
 	ListUpdatedSince(ctx context.Context, tenantId uuid.UUID, since time.Time, sinceId uuid.UUID) ([]*sqlcv1.V1ServerlessEndpoint, error)
-	// GetByNamespace resolves the tenant's endpoint an action namespace names, for a routing
-	// miss; pgx.ErrNoRows when there is none.
-	GetByNamespace(ctx context.Context, tenantId, namespace uuid.UUID) (*sqlcv1.V1ServerlessEndpoint, error)
 	// ListVersions is the anti-entropy pass of a tenant's routing cache: every endpoint's id
 	// and version, keyset-paged on (version, id) from after, in that order, and nothing else,
 	// so the cache can find the rows it must fetch and the ids that are gone without
@@ -79,9 +76,9 @@ type ServerlessEndpointRepository interface {
 	// status_changed_at of the write. It is written by the owning process on transitions only,
 	// never per poll.
 	UpdateStatus(ctx context.Context, endpointId uuid.UUID, healthy bool, statusError *string) (time.Time, error)
-	// UpdateRegisteredActions records the namespaced action set the owner registered after a
-	// healthcheck changed the endpoint's workflows or task options, with the subset of it
-	// whose task asked for an invocation websocket.
+	// UpdateRegisteredActions records the action set the owner registered after a healthcheck
+	// changed the endpoint's workflows or task options, with the subset of it whose task asked
+	// for an invocation websocket.
 	UpdateRegisteredActions(ctx context.Context, endpointId uuid.UUID, actions, streamActions []string) error
 }
 

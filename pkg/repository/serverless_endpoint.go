@@ -314,13 +314,6 @@ func (r *serverlessEndpointRepository) ListUpdatedSince(ctx context.Context, ten
 	})
 }
 
-func (r *serverlessEndpointRepository) GetByNamespace(ctx context.Context, tenantId, namespace uuid.UUID) (*sqlcv1.V1ServerlessEndpoint, error) {
-	return r.queries.GetServerlessEndpointByNamespace(ctx, r.pool, sqlcv1.GetServerlessEndpointByNamespaceParams{
-		Tenantid:  tenantId,
-		Namespace: namespace,
-	})
-}
-
 func (r *serverlessEndpointRepository) ListVersions(ctx context.Context, tenantId uuid.UUID, after ServerlessEndpointVersion, limit int64) ([]ServerlessEndpointVersion, error) {
 	rows, err := r.queries.ListServerlessEndpointVersions(ctx, r.pool, sqlcv1.ListServerlessEndpointVersionsParams{
 		Tenantid: tenantId,

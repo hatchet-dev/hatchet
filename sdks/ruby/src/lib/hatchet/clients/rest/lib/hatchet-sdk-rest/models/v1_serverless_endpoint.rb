@@ -23,9 +23,6 @@ module HatchetSdkRest
     # The name of the endpoint. Unique within the tenant.
     attr_accessor :name
 
-    # The prefix applied to everything this endpoint registers (workflows, actions, events), as \"<namespace>_\". Read-only: assigned on creation and immutable.
-    attr_accessor :namespace
-
     attr_accessor :kind
 
     # The HTTPS URL (port 443) polled periodically to discover the workflows this endpoint serves.
@@ -79,7 +76,6 @@ module HatchetSdkRest
         :'metadata' => :'metadata',
         :'tenant_id' => :'tenantId',
         :'name' => :'name',
-        :'namespace' => :'namespace',
         :'kind' => :'kind',
         :'healthcheck_url' => :'healthcheckUrl',
         :'trigger_url' => :'triggerUrl',
@@ -108,7 +104,6 @@ module HatchetSdkRest
         :'metadata' => :'APIResourceMeta',
         :'tenant_id' => :'String',
         :'name' => :'String',
-        :'namespace' => :'String',
         :'kind' => :'V1ServerlessEndpointKind',
         :'healthcheck_url' => :'String',
         :'trigger_url' => :'String',
@@ -159,12 +154,6 @@ module HatchetSdkRest
         self.name = attributes[:'name']
       else
         self.name = nil
-      end
-
-      if attributes.key?(:'namespace')
-        self.namespace = attributes[:'namespace']
-      else
-        self.namespace = nil
       end
 
       if attributes.key?(:'kind')
@@ -241,10 +230,6 @@ module HatchetSdkRest
         invalid_properties.push('invalid value for "name", name cannot be nil.')
       end
 
-      if @namespace.nil?
-        invalid_properties.push('invalid value for "namespace", namespace cannot be nil.')
-      end
-
       if @kind.nil?
         invalid_properties.push('invalid value for "kind", kind cannot be nil.')
       end
@@ -291,7 +276,6 @@ module HatchetSdkRest
       return false if @metadata.nil?
       return false if @tenant_id.nil?
       return false if @name.nil?
-      return false if @namespace.nil?
       return false if @kind.nil?
       return false if @healthcheck_url.nil?
       return false if @trigger_url.nil?
@@ -332,16 +316,6 @@ module HatchetSdkRest
       end
 
       @name = name
-    end
-
-    # Custom attribute writer method with validation
-    # @param [Object] namespace Value to be assigned
-    def namespace=(namespace)
-      if namespace.nil?
-        fail ArgumentError, 'namespace cannot be nil'
-      end
-
-      @namespace = namespace
     end
 
     # Custom attribute writer method with validation
@@ -442,7 +416,6 @@ module HatchetSdkRest
           metadata == o.metadata &&
           tenant_id == o.tenant_id &&
           name == o.name &&
-          namespace == o.namespace &&
           kind == o.kind &&
           healthcheck_url == o.healthcheck_url &&
           trigger_url == o.trigger_url &&
@@ -463,7 +436,7 @@ module HatchetSdkRest
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [metadata, tenant_id, name, namespace, kind, healthcheck_url, trigger_url, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, status].hash
+      [metadata, tenant_id, name, kind, healthcheck_url, trigger_url, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, status].hash
     end
 
     # Builds the object from hash

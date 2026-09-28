@@ -27,9 +27,9 @@ type RequestSender interface {
 	Deliver(ctx context.Context, method, endpoint string, body []byte, headers http.Header) (*safeclient.DeliveryResult, error)
 }
 
-// healthcheckResult is a parsed, namespaced healthcheck response. workflowHashes are the
-// per-workflow canonical hashes, parallel to workflows, so a poller can put only the
-// workflows that changed; hash covers the whole response.
+// healthcheckResult is a parsed healthcheck response. workflowHashes are the per-workflow
+// canonical hashes, parallel to workflows, so a poller can put only the workflows that
+// changed; hash covers the whole response.
 type healthcheckResult struct {
 	// runtime is nil when the endpoint did not report one.
 	runtime        *v1.ServerlessRuntime
@@ -74,8 +74,8 @@ type catalogLimits struct {
 // before it can enter a tenant's shared union.
 var actionRules = validator.NewDefaultValidator()
 
-// maxActionIdBytes caps a namespaced action id. The engine stores ids as text with no cap of
-// its own; this one keeps a catalog from carrying ids that are only there to be large.
+// maxActionIdBytes caps an action id. The engine stores ids as text with no cap of its own;
+// this one keeps a catalog from carrying ids that are only there to be large.
 const maxActionIdBytes = 1024
 
 // validateActionStorage rejects action ids the engine's rules accept but its storage cannot
@@ -112,8 +112,7 @@ func pollHealthcheck(ctx context.Context, sender RequestSender, ep *cachedEndpoi
 
 	body, err := contract.Marshal(&v1.ServerlessHealthcheckRequest{
 		TimestampUnixSeconds: now,
-		EndpointId: ep.id.String(),
-		Namespace:  ep.namespace.String(),
+		EndpointId:           ep.id.String(),
 	})
 
 	if err != nil {
@@ -136,15 +135,14 @@ func pollHealthcheck(ctx context.Context, sender RequestSender, ep *cachedEndpoi
 		return nil, fmt.Errorf("healthcheck returned status %d", res.StatusCode)
 	}
 
-	return parseHealthcheckResponse(res.BodyPrefix, ep.namespace, limits)
+	return parseHealthcheckResponse(res.BodyPrefix, limits)
 }
 
-// parseHealthcheckResponse applies the namespace to the advertised workflows, derives the
-// action set (the workflows' actions plus any the endpoint lists explicitly), validates every
-// action with the engine's rules, enforces the catalog caps, and hashes the canonical
-// (namespaced, deterministic) form so an unchanged response, however the endpoint formats it,
-// produces the same hash.
-func parseHealthcheckResponse(body []byte, ns uuid.UUID, limits catalogLimits) (*healthcheckResult, error) {
+// parseHealthcheckResponse canonicalizes the advertised workflows, derives the action set
+// (the workflows' actions plus any the endpoint lists explicitly), validates every action
+// with the engine's rules, enforces the catalog caps, and hashes the canonical (deterministic)
+// form so an unchanged response, however the endpoint formats it, produces the same hash.
+func parseHealthcheckResponse(body []byte, limits catalogLimits) (*healthcheckResult, error) {
 	resp := &v1.ServerlessHealthcheckResponse{}
 
 	if err := contract.Unmarshal(body, resp); err != nil {
@@ -166,19 +164,19 @@ func parseHealthcheckResponse(body []byte, ns uuid.UUID, limits catalogLimits) (
 	actionLists := make([][]string, 0, len(resp.Workflows)+1)
 
 	for _, wf := range resp.Workflows {
-		namespaced, err := applyNamespace(wf, ns)
+		canonicalWf, err := canonicalWorkflow(wf)
 
 		if err != nil {
 			return nil, err
 		}
 
-		actions, err := actionsForWorkflow(namespaced)
+		actions, err := actionsForWorkflow(canonicalWf)
 
 		if err != nil {
 			return nil, err
 		}
 
-		canonical, err := proto.MarshalOptions{Deterministic: true}.Marshal(namespaced)
+		canonical, err := proto.MarshalOptions{Deterministic: true}.Marshal(canonicalWf)
 
 		if err != nil {
 			return nil, fmt.Errorf("could not hash workflow %s: %w", wf.Name, err)
@@ -189,7 +187,7 @@ func parseHealthcheckResponse(body []byte, ns uuid.UUID, limits catalogLimits) (
 
 		wfHash := sha256.Sum256(canonical)
 
-		workflows = append(workflows, namespaced)
+		workflows = append(workflows, canonicalWf)
 		workflowHashes = append(workflowHashes, hex.EncodeToString(wfHash[:]))
 		actionLists = append(actionLists, actions)
 	}
@@ -201,13 +199,13 @@ func parseHealthcheckResponse(body []byte, ns uuid.UUID, limits catalogLimits) (
 			continue
 		}
 
-		prefixed, err := prefixAction(ns, action)
+		normalized, err := normalizeAction(action)
 
 		if err != nil {
 			return nil, fmt.Errorf("invalid action %q: %w", action, err)
 		}
 
-		extra = append(extra, prefixed)
+		extra = append(extra, normalized)
 	}
 
 	actionLists = append(actionLists, extra)
@@ -227,7 +225,7 @@ func parseHealthcheckResponse(body []byte, ns uuid.UUID, limits catalogLimits) (
 
 	hasher.Write([]byte(strings.Join(actions, "\n")))
 
-	streamActions, err := streamActionsOf(resp.Tasks, ns, actions)
+	streamActions, err := streamActionsOf(resp.Tasks, actions)
 
 	if err != nil {
 		return nil, err
@@ -247,10 +245,10 @@ func parseHealthcheckResponse(body []byte, ns uuid.UUID, limits catalogLimits) (
 	}, nil
 }
 
-// streamActionsOf namespaces the actions the task options flag with streams and checks each
+// streamActionsOf normalizes the actions the task options flag with streams and checks each
 // one against the catalog's action set: an option for an action the endpoint does not serve
 // is a catalog error, so a misspelt id surfaces on the endpoint instead of being ignored.
-func streamActionsOf(tasks []*v1.ServerlessTaskOptions, ns uuid.UUID, actions []string) ([]string, error) {
+func streamActionsOf(tasks []*v1.ServerlessTaskOptions, actions []string) ([]string, error) {
 	served := make(map[string]struct{}, len(actions))
 
 	for _, action := range actions {
@@ -264,17 +262,17 @@ func streamActionsOf(tasks []*v1.ServerlessTaskOptions, ns uuid.UUID, actions []
 			continue
 		}
 
-		prefixed, err := prefixAction(ns, task.GetAction())
+		normalized, err := normalizeAction(task.GetAction())
 
 		if err != nil {
 			return nil, fmt.Errorf("invalid task option action %q: %w", task.GetAction(), err)
 		}
 
-		if _, ok := served[prefixed]; !ok {
+		if _, ok := served[normalized]; !ok {
 			return nil, fmt.Errorf("task options name action %q, which the catalog does not serve", task.GetAction())
 		}
 
-		flagged = append(flagged, prefixed)
+		flagged = append(flagged, normalized)
 	}
 
 	return sortedUnion(flagged), nil

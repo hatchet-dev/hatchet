@@ -2896,10 +2896,6 @@ CREATE TABLE v1_serverless_endpoint (
     id UUID NOT NULL DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL,
     name TEXT NOT NULL,
-    -- Prefix for everything this endpoint registers (workflows, actions, events): "<namespace>_".
-    -- Unique per endpoint so names never collide within a tenant; immutable; the future hook
-    -- for per-endpoint auth.
-    namespace UUID NOT NULL DEFAULT gen_random_uuid(),
     kind v1_serverless_endpoint_kind NOT NULL DEFAULT 'CLOUDFLARE_WORKERS',
     healthcheck_url TEXT NOT NULL,
     trigger_url TEXT NOT NULL,
@@ -2916,15 +2912,16 @@ CREATE TABLE v1_serverless_endpoint (
     healthy BOOLEAN,
     status_error TEXT,
     status_changed_at TIMESTAMPTZ,
-    -- namespaced; written by the owner on healthcheck change
+    -- the action ids the endpoint's last accepted healthcheck declared, as registered with the
+    -- engine; written by the owner on healthcheck change. Several endpoints of a tenant may
+    -- declare the same action; each then serves it, like several workers would.
     registered_actions TEXT[] NOT NULL DEFAULT '{}',
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     -- the subset of registered_actions whose task asked for an invocation websocket
     stream_actions TEXT[] NOT NULL DEFAULT '{}',
     CONSTRAINT v1_serverless_endpoint_pkey PRIMARY KEY (id),
-    CONSTRAINT v1_serverless_endpoint_tenant_name_key UNIQUE (tenant_id, name),
-    CONSTRAINT v1_serverless_endpoint_namespace_key UNIQUE (namespace)
+    CONSTRAINT v1_serverless_endpoint_tenant_name_key UNIQUE (tenant_id, name)
 );
 
 -- endpoints of an owned unit (owner: polling) and of a served tenant (routing cache)

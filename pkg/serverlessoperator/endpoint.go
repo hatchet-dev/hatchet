@@ -29,8 +29,8 @@ type endpointPoller struct {
 	cancel context.CancelFunc
 	done   chan struct{}
 
-	// putHashes remembers the canonical hash of every workflow this poller put, by
-	// namespaced name, so a response change re-puts only what changed. It is pruned to the
+	// putHashes remembers the canonical hash of every workflow this poller put, by name, so
+	// a response change re-puts only what changed. It is pruned to the
 	// names of the last catalog applied, accepted or not, so a stream of new names cannot
 	// grow it past the catalog cap.
 	putHashes map[string]string

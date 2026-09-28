@@ -68,15 +68,14 @@ func TestEcho(t *testing.T) {
 
 		fake := newFakeEndpoint(t, "alpha", workflow("echo", "svc:echo", false, 0))
 		ep := e.createEndpoint(tn, fake, endpointOpts{})
-		ns := ep.Namespace
-		action := namespaced(ns, "svc:echo")
+		action := "svc:echo"
 
 		dumpOnFailure(t, e, tn, fake)
 
 		e.waitRegistered(ep.ID, action)
 
 		input := map[string]any{"message": "hello", "n": float64(3)}
-		details := e.runToCompletion(tn, namespaced(ns, "echo"), input, 30*time.Second)
+		details := e.runToCompletion(tn, "echo", input, 30*time.Second)
 
 		out := taskOutput(t, details)
 		assert.Equal(t, input, out["input"])
@@ -84,13 +83,13 @@ func TestEcho(t *testing.T) {
 
 		triggers := fake.requestsOfKind("trigger")
 		require.Len(t, triggers, 1)
-		assert.Equal(t, ns.String(), triggers[0].namespace)
 		assert.Equal(t, ep.ID.String(), triggers[0].endpointId)
 		assert.Equal(t, action, triggers[0].actionId)
+		assert.Equal(t, "echo", triggers[0].workflowName)
 
 		healthchecks := fake.requestsOfKind("healthcheck")
 		require.NotEmpty(t, healthchecks)
-		assert.Equal(t, ns.String(), healthchecks[0].namespace)
+		assert.Equal(t, ep.ID.String(), healthchecks[0].endpointId)
 
 		assertServedBy(t, e, tn.id, action, lc.owner)
 
@@ -100,7 +99,10 @@ func TestEcho(t *testing.T) {
 	})
 }
 
-func TestSameNamesCoexist(t *testing.T) {
+// Two endpoints of one tenant declaring the same workflow and action both serve it, like
+// two workers: the tenant's registration advertises the action once and every delivery goes
+// to one of the two, picked at random.
+func TestSharedActionServedByBothEndpoints(t *testing.T) {
 	forEachLink(t, func(t *testing.T, lc linkCase) {
 		e := lc.e
 		tn := e.newTenant()
@@ -114,28 +116,58 @@ func TestSameNamesCoexist(t *testing.T) {
 
 		dumpOnFailure(t, e, tn, alpha, beta)
 
-		e.waitRegistered(epA.ID, namespaced(epA.Namespace, "svc:echo"))
-		e.waitRegistered(epB.ID, namespaced(epB.Namespace, "svc:echo"))
+		e.waitRegistered(epA.ID, "svc:echo")
+		e.waitRegistered(epB.ID, "svc:echo")
 
-		outA := taskOutput(t, e.runToCompletion(tn, namespaced(epA.Namespace, "echo"), map[string]any{"to": "alpha"}, 30*time.Second))
-		outB := taskOutput(t, e.runToCompletion(tn, namespaced(epB.Namespace, "echo"), map[string]any{"to": "beta"}, 30*time.Second))
+		// Every delivery goes to one of the endpoints: the pick is random, so the split is
+		// only bounded, but over this many runs a pick that never reaches one endpoint is
+		// vanishingly unlikely.
+		const runs = 12
 
-		assert.Equal(t, "alpha", outA["endpoint"])
-		assert.Equal(t, map[string]any{"to": "alpha"}, outA["input"])
-		assert.Equal(t, "beta", outB["endpoint"])
-		assert.Equal(t, map[string]any{"to": "beta"}, outB["input"])
+		for i := 0; i < runs; i++ {
+			input := map[string]any{"run": float64(i)}
+			out := taskOutput(t, e.runToCompletion(tn, "echo", input, 30*time.Second))
 
-		require.Len(t, alpha.requestsOfKind("trigger"), 1)
-		require.Len(t, beta.requestsOfKind("trigger"), 1)
-		assert.Equal(t, epA.Namespace.String(), alpha.requestsOfKind("trigger")[0].namespace)
-		assert.Equal(t, epB.Namespace.String(), beta.requestsOfKind("trigger")[0].namespace)
+			assert.Equal(t, input, out["input"])
+			assert.Contains(t, []any{"alpha", "beta"}, out["endpoint"])
+		}
 
-		// Both endpoints' actions sit on the same registration.
-		w, ok := e.activeWorkerWithAction(tn.id, namespaced(epA.Namespace, "svc:echo"))
+		alphaTriggers := alpha.requestsOfKind("trigger")
+		betaTriggers := beta.requestsOfKind("trigger")
+
+		assert.Equal(t, runs, len(alphaTriggers)+len(betaTriggers), "every run is delivered exactly once")
+		assert.NotEmpty(t, alphaTriggers, "alpha served none of %d runs", runs)
+		assert.NotEmpty(t, betaTriggers, "beta served none of %d runs", runs)
+
+		for _, r := range alphaTriggers {
+			assert.Equal(t, epA.ID.String(), r.endpointId)
+			assert.Equal(t, "svc:echo", r.actionId)
+		}
+
+		for _, r := range betaTriggers {
+			assert.Equal(t, epB.ID.String(), r.endpointId)
+			assert.Equal(t, "svc:echo", r.actionId)
+		}
+
+		// The shared action sits once on the tenant's registration.
+		w, ok := e.activeWorkerWithAction(tn.id, "svc:echo")
 		require.True(t, ok)
-		assert.Contains(t, w.actions, namespaced(epB.Namespace, "svc:echo"))
+		assert.Equal(t, 1, countOf(w.actions, "svc:echo"), "the worker advertises the shared action once: %v", w.actions)
 		assert.Equal(t, lc.owner.String(), w.process)
 	})
+}
+
+// countOf counts how many times s appears in list.
+func countOf(list []string, s string) int {
+	n := 0
+
+	for _, item := range list {
+		if item == s {
+			n++
+		}
+	}
+
+	return n
 }
 
 func TestDurableMemoAndSleep(t *testing.T) {
@@ -152,13 +184,12 @@ func TestDurableMemoAndSleep(t *testing.T) {
 		})
 
 		ep := e.createEndpoint(tn, fake, endpointOpts{inlineWaitBudgetMs: 500})
-		ns := ep.Namespace
 
 		dumpOnFailure(t, e, tn, fake)
 
-		e.waitRegistered(ep.ID, namespaced(ns, "svc:sleeper"))
+		e.waitRegistered(ep.ID, "svc:sleeper")
 
-		details := e.runToCompletion(tn, namespaced(ns, "sleeper"), map[string]any{}, 60*time.Second)
+		details := e.runToCompletion(tn, "sleeper", map[string]any{}, 60*time.Second)
 
 		out := taskOutput(t, details)
 		assert.Equal(t, map[string]any{"v": "memoized"}, out["memo"])
@@ -177,10 +208,9 @@ func TestDurableMemoAndSleep(t *testing.T) {
 
 		upgrades := fake.requestsOfKind("upgrade")
 		require.Len(t, upgrades, 2)
-		assert.Equal(t, ns.String(), upgrades[0].namespace)
-		assert.Equal(t, namespaced(ns, "svc:sleeper"), upgrades[0].actionId)
+		assert.Equal(t, "svc:sleeper", upgrades[0].actionId)
 
-		assertServedBy(t, e, tn.id, namespaced(ns, "svc:sleeper"), lc.owner)
+		assertServedBy(t, e, tn.id, "svc:sleeper", lc.owner)
 	})
 }
 
@@ -194,13 +224,12 @@ func TestDurableCrash(t *testing.T) {
 		fake.setScript(durableScript{crashFirstAttempt: true})
 
 		ep := e.createEndpoint(tn, fake, endpointOpts{})
-		ns := ep.Namespace
 
 		dumpOnFailure(t, e, tn, fake)
 
-		e.waitRegistered(ep.ID, namespaced(ns, "svc:crash"))
+		e.waitRegistered(ep.ID, "svc:crash")
 
-		details := e.runToCompletion(tn, namespaced(ns, "crash"), map[string]any{}, 60*time.Second)
+		details := e.runToCompletion(tn, "crash", map[string]any{}, 60*time.Second)
 		assert.Contains(t, taskOutput(t, details), "invocation")
 
 		runs := fake.durableRuns()
@@ -228,7 +257,6 @@ func TestStreamChildResult(t *testing.T) {
 		)
 
 		ep := e.createEndpoint(tn, fake, endpointOpts{})
-		ns := ep.Namespace
 
 		fake.setStreamScript(streamScript{
 			trigger: func(input json.RawMessage) (string, error) {
@@ -238,7 +266,7 @@ func TestStreamChildResult(t *testing.T) {
 					return "", err
 				}
 
-				ref, err := tn.sdk.RunNoWait(e.ctx, namespaced(ns, "child"), in)
+				ref, err := tn.sdk.RunNoWait(e.ctx, "child", in)
 
 				if err != nil {
 					return "", err
@@ -250,16 +278,16 @@ func TestStreamChildResult(t *testing.T) {
 
 		dumpOnFailure(t, e, tn, fake)
 
-		e.waitRegistered(ep.ID, namespaced(ns, "svc:parent"), namespaced(ns, "svc:child"))
+		e.waitRegistered(ep.ID, "svc:parent", "svc:child")
 
 		e.pollUntil(registerWait, "the parent's action to be flagged for the socket", func() (bool, error) {
 			return e.streamActions(ep.ID) != nil && len(e.streamActions(ep.ID)) == 1, nil
 		})
 
-		assert.Equal(t, []string{namespaced(ns, "svc:parent")}, e.streamActions(ep.ID))
+		assert.Equal(t, []string{"svc:parent"}, e.streamActions(ep.ID))
 
 		input := map[string]any{"message": "from the parent"}
-		details := e.runToCompletion(tn, namespaced(ns, "parent"), input, 60*time.Second)
+		details := e.runToCompletion(tn, "parent", input, 60*time.Second)
 
 		out := taskOutput(t, details)
 
@@ -278,14 +306,14 @@ func TestStreamChildResult(t *testing.T) {
 
 		upgrades := fake.requestsOfKind("upgrade")
 		require.Len(t, upgrades, 1, "only the flagged parent is invoked over the socket")
-		assert.Equal(t, namespaced(ns, "svc:parent"), upgrades[0].actionId)
+		assert.Equal(t, "svc:parent", upgrades[0].actionId)
 		assert.Equal(t, int32(1), upgrades[0].invocation)
 
 		triggers := fake.requestsOfKind("trigger")
 		require.Len(t, triggers, 1, "the unflagged child keeps the POST")
-		assert.Equal(t, namespaced(ns, "svc:child"), triggers[0].actionId)
+		assert.Equal(t, "svc:child", triggers[0].actionId)
 
-		assertServedBy(t, e, tn.id, namespaced(ns, "svc:parent"), lc.owner)
+		assertServedBy(t, e, tn.id, "svc:parent", lc.owner)
 	})
 }
 
@@ -297,27 +325,26 @@ func TestHealthcheckChangeAddsWorkflow(t *testing.T) {
 
 		fake := newFakeEndpoint(t, "growing", workflow("first", "svc:first", false, 0))
 		ep := e.createEndpoint(tn, fake, endpointOpts{pollIntervalSeconds: 5})
-		ns := ep.Namespace
 
 		dumpOnFailure(t, e, tn, fake)
 
-		e.waitRegistered(ep.ID, namespaced(ns, "svc:first"))
+		e.waitRegistered(ep.ID, "svc:first")
 
 		fake.setWorkflows(
 			workflow("first", "svc:first", false, 0),
 			workflow("second", "svc:second", false, 0),
 		)
 
-		e.waitRegistered(ep.ID, namespaced(ns, "svc:first"), namespaced(ns, "svc:second"))
+		e.waitRegistered(ep.ID, "svc:first", "svc:second")
 
-		out := taskOutput(t, e.runToCompletion(tn, namespaced(ns, "second"), map[string]any{"k": "v"}, 30*time.Second))
+		out := taskOutput(t, e.runToCompletion(tn, "second", map[string]any{"k": "v"}, 30*time.Second))
 		assert.Equal(t, map[string]any{"k": "v"}, out["input"])
 
-		assert.ElementsMatch(t, []string{namespaced(ns, "svc:first"), namespaced(ns, "svc:second")}, e.registeredActions(ep.ID))
+		assert.ElementsMatch(t, []string{"svc:first", "svc:second"}, e.registeredActions(ep.ID))
 
-		w, ok := e.activeWorkerWithAction(tn.id, namespaced(ns, "svc:second"))
+		w, ok := e.activeWorkerWithAction(tn.id, "svc:second")
 		require.True(t, ok)
-		assert.Contains(t, w.actions, namespaced(ns, "svc:first"))
+		assert.Contains(t, w.actions, "svc:first")
 	})
 }
 
@@ -335,8 +362,8 @@ func TestEndpointDeleteRemovesActions(t *testing.T) {
 
 		dumpOnFailure(t, e, tn, keep, gone)
 
-		keepAction := namespaced(epKeep.Namespace, "svc:keep")
-		goneAction := namespaced(epGone.Namespace, "svc:gone")
+		keepAction := "svc:keep"
+		goneAction := "svc:gone"
 
 		e.waitRegistered(epKeep.ID, keepAction)
 		e.waitRegistered(epGone.ID, goneAction)
@@ -364,7 +391,7 @@ func TestEndpointDeleteRemovesActions(t *testing.T) {
 		require.True(t, ok, "the remaining endpoint's action must stay registered")
 		assert.Equal(t, lc.owner.String(), w.process)
 
-		out := taskOutput(t, e.runToCompletion(tn, namespaced(epKeep.Namespace, "keep"), map[string]any{}, 30*time.Second))
+		out := taskOutput(t, e.runToCompletion(tn, "keep", map[string]any{}, 30*time.Second))
 		assert.Equal(t, "keep", out["endpoint"])
 	})
 }
@@ -381,11 +408,10 @@ func TestLeaseFailover(t *testing.T) {
 	fake := newFakeEndpoint(t, "failover", workflow("echo", "svc:echo", false, 0))
 	ep := e.createEndpoint(tn, fake, endpointOpts{})
 	dumpOnFailure(t, e, tn, fake)
-	ns := ep.Namespace
-	action := namespaced(ns, "svc:echo")
+	action := "svc:echo"
 
 	e.waitRegistered(ep.ID, action)
-	e.runToCompletion(tn, namespaced(ns, "echo"), map[string]any{"before": true}, 30*time.Second)
+	e.runToCompletion(tn, "echo", map[string]any{"before": true}, 30*time.Second)
 	assertServedBy(t, e, tn.id, action, victim.id)
 
 	victim.crashNow()
@@ -411,7 +437,7 @@ func TestLeaseFailover(t *testing.T) {
 	require.NotNil(t, owner)
 	assert.Contains(t, []uuid.UUID{survivor.id, e.inEngine}, *owner)
 
-	out := taskOutput(t, e.runToCompletion(tn, namespaced(ns, "echo"), map[string]any{"after": true}, 30*time.Second))
+	out := taskOutput(t, e.runToCompletion(tn, "echo", map[string]any{"after": true}, 30*time.Second))
 	assert.Equal(t, map[string]any{"after": true}, out["input"])
 
 	assertServedBy(t, e, tn.id, action, *owner)
@@ -426,9 +452,9 @@ func TestShedOnScaleOut(t *testing.T) {
 
 	require.Equal(t, []uuid.UUID{e.inEngine}, e.liveProcesses(), "no out-of-process instance may be live before scale-out")
 
-	// Two tenants with two endpoints each, all owned by the in-engine process.
+	// Two tenants with two endpoints each, all owned by the in-engine process. Both endpoints
+	// of a tenant declare the same echo workflow, so either may serve a run of it.
 	tenants := make([]*tenant, 0, 2)
-	workflows := make([]string, 0, 2)
 
 	for i := 0; i < 2; i++ {
 		tn := e.newTenant()
@@ -437,11 +463,7 @@ func TestShedOnScaleOut(t *testing.T) {
 		for j := 0; j < 2; j++ {
 			fake := newFakeEndpoint(t, fmt.Sprintf("scale-%d-%d", i, j), workflow("echo", "svc:echo", false, 0))
 			ep := e.createEndpoint(tn, fake, endpointOpts{})
-			e.waitRegistered(ep.ID, namespaced(ep.Namespace, "svc:echo"))
-
-			if j == 0 {
-				workflows = append(workflows, namespaced(ep.Namespace, "echo"))
-			}
+			e.waitRegistered(ep.ID, "svc:echo")
 		}
 
 		tenants = append(tenants, tn)
@@ -463,7 +485,7 @@ func TestShedOnScaleOut(t *testing.T) {
 	})
 
 	for i, tn := range tenants {
-		out := taskOutput(t, e.runToCompletion(tn, workflows[i], map[string]any{"tenant": float64(i)}, 30*time.Second))
+		out := taskOutput(t, e.runToCompletion(tn, "echo", map[string]any{"tenant": float64(i)}, 30*time.Second))
 		assert.Equal(t, map[string]any{"tenant": float64(i)}, out["input"])
 	}
 }
@@ -479,11 +501,10 @@ func TestGracefulShutdownDeactivates(t *testing.T) {
 	fake := newFakeEndpoint(t, "graceful", workflow("echo", "svc:echo", false, 0))
 	ep := e.createEndpoint(tn, fake, endpointOpts{})
 	dumpOnFailure(t, e, tn, fake)
-	ns := ep.Namespace
-	action := namespaced(ns, "svc:echo")
+	action := "svc:echo"
 
 	e.waitRegistered(ep.ID, action)
-	e.runToCompletion(tn, namespaced(ns, "echo"), map[string]any{}, 30*time.Second)
+	e.runToCompletion(tn, "echo", map[string]any{}, 30*time.Second)
 
 	workers := e.workersOfProcess(p.id)
 	require.NotEmpty(t, workers)
@@ -498,7 +519,7 @@ func TestGracefulShutdownDeactivates(t *testing.T) {
 	// while it does, since deactivation is the close that follows the drain.
 	release := fake.holdTriggers()
 
-	ref, err := tn.sdk.RunNoWait(e.ctx, namespaced(ns, "echo"), map[string]any{"held": true})
+	ref, err := tn.sdk.RunNoWait(e.ctx, "echo", map[string]any{"held": true})
 	require.NoError(t, err)
 
 	e.pollUntil(30*time.Second, "the held run to reach the endpoint", func() (bool, error) {
@@ -575,7 +596,7 @@ func TestGracefulShutdownDeactivates(t *testing.T) {
 	assert.True(t, owner == nil || *owner != p.id, "lease must be released, owner is %v", owner)
 
 	// The released unit is picked up by the in-engine process and the workflow still runs.
-	out := taskOutput(t, e.runToCompletion(tn, namespaced(ns, "echo"), map[string]any{"after": "shutdown"}, 30*time.Second))
+	out := taskOutput(t, e.runToCompletion(tn, "echo", map[string]any{"after": "shutdown"}, 30*time.Second))
 	assert.Equal(t, map[string]any{"after": "shutdown"}, out["input"])
 	assertServedBy(t, e, tn.id, action, e.inEngine)
 }
