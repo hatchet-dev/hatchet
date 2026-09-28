@@ -19,6 +19,12 @@ import {
 } from '@/components/v1/ui/dialog';
 import { Spinner } from '@/components/v1/ui/loading';
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/v1/ui/tooltip';
+import {
   Table,
   TableBody,
   TableCell,
@@ -28,6 +34,7 @@ import {
 } from '@/components/v1/ui/table';
 import useControlPlane from '@/hooks/use-control-plane';
 import { useOrganizationEntitlements } from '@/hooks/use-organization-entitlements';
+import { useOrganizations } from '@/hooks/use-organizations';
 import {
   getPlanChangeErrorMessage,
   useSubscriptionUpgrade,
@@ -132,6 +139,7 @@ const COPY = {
   },
   actions: {
     upgrade: 'Upgrade',
+    ownerOnly: 'Only organization owners can upgrade.',
     dismiss: 'Not now',
     contact: 'Contact us',
     footnote:
@@ -464,6 +472,7 @@ function useUpgradeGate({
 }) {
   const { canBill, isControlPlaneEnabled } = useControlPlane();
   const { tenant, billing } = useTenantDetails();
+  const { organizations, isUserUniverseLoaded } = useOrganizations();
   const { entitlements } = useOrganizationEntitlements(organizationId);
   const plansQuery = useQuery({
     ...queries.controlPlane.subscriptionPlans(),
@@ -507,6 +516,15 @@ function useUpgradeGate({
   const planName = planCode
     ? currentPlanDisplayName(billing?.state?.plans, planCode)
     : COPY.planName;
+  // Ownership comes from the loaded org list. Until that list is in, keep
+  // Upgrade disabled so it does not flash as clickable for a member.
+  const ownerKnown = isUserUniverseLoaded && isControlPlaneEnabled;
+  const isOrganizationOwner =
+    ownerKnown &&
+    organizations.some(
+      (org) => org.metadata.id === organizationId && org.isOwner,
+    );
+  const billingReady = isControlPlaneEnabled && canBill && !!paygPlan;
 
   return {
     header:
@@ -529,7 +547,8 @@ function useUpgradeGate({
       mode === 'custom' ? { name: planName, retention: retentionLabel } : null,
     mode,
     upgrade,
-    canUpgrade: isControlPlaneEnabled && canBill && !!paygPlan,
+    canUpgrade: billingReady && isOrganizationOwner,
+    ownerOnlyUpgrade: billingReady && ownerKnown && !isOrganizationOwner,
     onUpgrade: () =>
       paygPlan &&
       upgrade.mutate(paygPlan.planCode, {
@@ -811,6 +830,40 @@ function UpgradeGateBody({ state }: { state: UpgradeGateState }) {
   );
 }
 
+function UpgradeButton({
+  disabled,
+  pending,
+  ownerOnly,
+  onUpgrade,
+}: {
+  disabled: boolean;
+  pending: boolean;
+  ownerOnly: boolean;
+  onUpgrade: () => void;
+}) {
+  const button = (
+    <Button type="button" size="sm" disabled={disabled} onClick={onUpgrade}>
+      {pending ? <Spinner /> : COPY.actions.upgrade}
+    </Button>
+  );
+
+  // A disabled button does not receive hover, so the tooltip sits on a span.
+  if (!ownerOnly) {
+    return button;
+  }
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="inline-flex">{button}</span>
+        </TooltipTrigger>
+        <TooltipContent>{COPY.actions.ownerOnly}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
 function UpgradeGateFooter({
   state,
   onDismiss,
@@ -818,7 +871,8 @@ function UpgradeGateFooter({
   state: UpgradeGateState;
   onDismiss?: () => void;
 }) {
-  const { upgrade, canUpgrade, onUpgrade, mode, salesHref } = state;
+  const { upgrade, canUpgrade, ownerOnlyUpgrade, onUpgrade, mode, salesHref } =
+    state;
 
   if (mode === 'loading') {
     return onDismiss ? (
@@ -852,14 +906,12 @@ function UpgradeGateFooter({
           {COPY.actions.dismiss}
         </Button>
       ) : null}
-      <Button
-        type="button"
-        size="sm"
+      <UpgradeButton
         disabled={!canUpgrade || upgrade.isPending}
-        onClick={onUpgrade}
-      >
-        {upgrade.isPending ? <Spinner /> : COPY.actions.upgrade}
-      </Button>
+        pending={upgrade.isPending}
+        ownerOnly={ownerOnlyUpgrade}
+        onUpgrade={onUpgrade}
+      />
     </>
   );
 }
