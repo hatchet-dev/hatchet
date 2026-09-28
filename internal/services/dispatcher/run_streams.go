@@ -21,9 +21,9 @@ import (
 // stream's flow control blocks it.
 const runStreamQueueSize = 64
 
-// RegisterRunStream is the in-engine equivalent of one of the run observation streams
-// (operator.RunStreamKind), for operators hosted in this process: the same handler runs as
-// for the gRPC stream, over a channel pair instead of a transport. The caller writes the
+// RegisterRunStream proxies the operator service's RegisterRunStream to the dispatcher
+// so we can re-use the dispatcher equivalents for `subscribeToWorkflowRunsV1`, `listenForDurableEvent`, etc
+// The caller writes the
 // stream's requests to the returned request channel (nil for a server stream, whose one
 // request is first) and reads the responses from the response channel, which closes once the
 // handler returned. The handler ends when ctx is cancelled, the request channel is closed, or
