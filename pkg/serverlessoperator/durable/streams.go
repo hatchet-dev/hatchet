@@ -58,10 +58,11 @@ func newStreamTable(r *relay) *streamTable {
 	return &streamTable{r: r, open: map[string]*relayStream{}}
 }
 
-// allowRun is the run filter: whether the task on this socket may observe the run. The socket
-// is authorized for one task run of the tenant, and the operator's engine calls carry the
-// operator's own credentials, so the task may observe any run of its tenant. A narrower
-// scope, such as a scoped token, is checked here without a change to the frames.
+// allowRun is the run filter: whether the task on this socket may observe the run. The
+// decision is tenant-wide observation: a task may observe any run of its tenant, since the
+// socket is authorized for one task run of the tenant and the operator's engine calls carry
+// the operator's own credentials, which are tenant-wide themselves. When tokens gain a
+// narrower scope, that scope is checked here, without a change to the frames.
 func (r *relay) allowRun(tenantId, runId string) bool {
 	_, _ = tenantId, runId
 	return true
