@@ -110,6 +110,61 @@ func TestDropOnFlushError(t *testing.T) {
 	}
 }
 
+func TestFlushEvictionRaceKeepsEveryByte(t *testing.T) {
+	t.Parallel()
+
+	tenantID := uuid.New()
+	var total atomic.Int64
+
+	l := zerolog.Nop()
+	// A long interval keeps the ticker out of the way. The test drives flush
+	// directly so that it laps the writers constantly and the zero-count
+	// eviction branch runs while Add calls are in flight.
+	a := NewAggregator(&l, time.Hour, func(tenants map[uuid.UUID]TenantBytes) error {
+		for _, tb := range tenants {
+			total.Add(tb.Logs)
+		}
+		return nil
+	})
+
+	const goroutines = 8
+	const addsPerGoroutine = 2000
+
+	stop := make(chan struct{})
+	var flusher sync.WaitGroup
+	flusher.Add(1)
+	go func() {
+		defer flusher.Done()
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+				a.flush()
+			}
+		}
+	}()
+
+	var writers sync.WaitGroup
+	writers.Add(goroutines)
+	for i := 0; i < goroutines; i++ {
+		go func() {
+			defer writers.Done()
+			for j := 0; j < addsPerGoroutine; j++ {
+				a.AddLogs(tenantID, 1)
+			}
+		}()
+	}
+	writers.Wait()
+	close(stop)
+	flusher.Wait()
+	a.flush()
+
+	if got := total.Load(); got != goroutines*addsPerGoroutine {
+		t.Fatalf("flushed %d bytes, want %d", got, goroutines*addsPerGoroutine)
+	}
+}
+
 var errFlush = errString("flush failed")
 
 type errString string

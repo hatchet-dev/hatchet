@@ -522,6 +522,55 @@ func TestFlush_ConcurrentCountsKeepMarkerInvariants(t *testing.T) {
 	}
 }
 
+func TestCount_RetryAtMaxKeysUsesReplacementEntry(t *testing.T) {
+	rec := &flushRecorder{}
+	// One key and room for exactly one key. A writer that loaded the entry
+	// just before flush evicted it must count into the replacement that
+	// another writer published in the meantime, not be dropped as a new
+	// key at capacity.
+	agg := NewAggregator(&nopLogger, true, time.Hour, 1, rec.record)
+
+	tenantID := uuid.New()
+	agg.Count(Event, Create, tenantID, nil, 1)
+	agg.flush()
+
+	// The first now() call after this point comes from the paused writer,
+	// between its Load and its Add.
+	loaded := make(chan struct{})
+	resume := make(chan struct{})
+	var calls atomic.Int64
+	agg.now = func() time.Time {
+		if calls.Add(1) == 1 {
+			close(loaded)
+			<-resume
+		}
+		return time.Now()
+	}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		agg.Count(Event, Create, tenantID, nil, 1)
+	}()
+	<-loaded
+
+	// Evict the idle entry, then republish the key from another writer.
+	agg.flush()
+	agg.Count(Event, Create, tenantID, nil, 1)
+
+	close(resume)
+	<-done
+	agg.flush()
+
+	var total int64
+	for _, e := range rec.getEvents() {
+		total += e.Count
+	}
+	if total != 3 {
+		t.Errorf("expected total count 3, got %d (keyCount=%d)", total, agg.keyCount.Load())
+	}
+}
+
 func TestProps(t *testing.T) {
 	got := Props(
 		"worker_name", "my-worker",
@@ -580,5 +629,55 @@ func TestProps_BooleanFlags(t *testing.T) {
 	}
 	if got["has_additional_meta"] != true {
 		t.Error("expected has_additional_meta=true")
+	}
+}
+
+func TestFlush_EvictionRaceKeepsEveryCount(t *testing.T) {
+	rec := &flushRecorder{}
+	// A long interval keeps the ticker out of the way. The test drives flush
+	// directly so that it laps the writers constantly and the zero-count
+	// eviction branch runs while Count calls are in flight.
+	agg := NewAggregator(&nopLogger, true, time.Hour, 0, rec.record)
+
+	tenantID := uuid.New()
+	const goroutines = 8
+	const countsPerGoroutine = 2000
+
+	stop := make(chan struct{})
+	var flusher sync.WaitGroup
+	flusher.Add(1)
+	go func() {
+		defer flusher.Done()
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+				agg.flush()
+			}
+		}
+	}()
+
+	var writers sync.WaitGroup
+	writers.Add(goroutines)
+	for i := 0; i < goroutines; i++ {
+		go func() {
+			defer writers.Done()
+			for j := 0; j < countsPerGoroutine; j++ {
+				agg.Count(Event, Create, tenantID, nil, 1)
+			}
+		}()
+	}
+	writers.Wait()
+	close(stop)
+	flusher.Wait()
+	agg.flush()
+
+	var total int64
+	for _, e := range rec.getEvents() {
+		total += e.Count
+	}
+	if total != goroutines*countsPerGoroutine {
+		t.Errorf("expected total count %d, got %d", goroutines*countsPerGoroutine, total)
 	}
 }
