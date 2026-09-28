@@ -305,8 +305,12 @@ func (r *serverlessEndpointRepository) ListForUnits(ctx context.Context, units [
 	})
 }
 
-func (r *serverlessEndpointRepository) ListForTenant(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.V1ServerlessEndpoint, error) {
-	return r.queries.ListServerlessEndpointsForTenant(ctx, r.pool, tenantId)
+func (r *serverlessEndpointRepository) ListForTenant(ctx context.Context, tenantId uuid.UUID, afterId uuid.UUID, limit int64) ([]*sqlcv1.V1ServerlessEndpoint, error) {
+	return r.queries.ListServerlessEndpointsForTenant(ctx, r.pool, sqlcv1.ListServerlessEndpointsForTenantParams{
+		Tenantid:      tenantId,
+		Afterid:       afterId,
+		Endpointlimit: limit,
+	})
 }
 
 func (r *serverlessEndpointRepository) ListUpdatedSince(ctx context.Context, tenantId uuid.UUID, since time.Time, sinceId uuid.UUID) ([]*sqlcv1.V1ServerlessEndpoint, error) {

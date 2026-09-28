@@ -24,7 +24,8 @@ type tenantReleaser interface {
 	ReleaseTenant(tenantId uuid.UUID)
 }
 
-// endpointPageSize is the keyset page size for loading a gained unit's endpoints.
+// endpointPageSize is the keyset page size for loading a tenant's routing cache and a gained
+// unit's endpoints.
 const endpointPageSize int64 = 500
 
 // tenantState is everything the process keeps for a served tenant: the routing cache, the

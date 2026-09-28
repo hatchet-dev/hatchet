@@ -108,12 +108,17 @@ ORDER BY e.id
 LIMIT @endpointLimit::BIGINT;
 
 -- name: ListServerlessEndpointsForTenant :many
--- Full load of a tenant's routing cache. Disabled endpoints are included so callers can decide
--- what to route; the routing cache filters on enabled itself.
+-- Full load of a tenant's routing cache, keyset-paged by id so a tenant of any size is read in
+-- bounded batches; pass afterId = '00000000-0000-0000-0000-000000000000' for the first page.
+-- Disabled endpoints are included so callers can decide what to route; the routing cache
+-- filters on enabled itself.
 SELECT *
 FROM v1_serverless_endpoint
-WHERE tenant_id = @tenantId::UUID
-ORDER BY id;
+WHERE
+    tenant_id = @tenantId::UUID
+    AND id > @afterId::UUID
+ORDER BY id
+LIMIT @endpointLimit::BIGINT;
 
 -- name: ListServerlessEndpointsUpdatedSince :many
 -- Incremental refresh of a tenant's routing cache through v1_serverless_endpoint_version_idx.

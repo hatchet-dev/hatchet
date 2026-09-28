@@ -58,8 +58,9 @@ type ServerlessEndpointRepository interface {
 	// ListForUnits returns the endpoints of the given units, keyset-paged by id: pass uuid.Nil
 	// for the first page and the last returned id afterwards.
 	ListForUnits(ctx context.Context, units []ServerlessUnit, afterId uuid.UUID, limit int64) ([]*sqlcv1.V1ServerlessEndpoint, error)
-	// ListForTenant loads a tenant's routing cache.
-	ListForTenant(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.V1ServerlessEndpoint, error)
+	// ListForTenant loads a tenant's routing cache, keyset-paged by id: pass uuid.Nil for the
+	// first page and the last returned id afterwards. A page shorter than limit is the last.
+	ListForTenant(ctx context.Context, tenantId uuid.UUID, afterId uuid.UUID, limit int64) ([]*sqlcv1.V1ServerlessEndpoint, error)
 	// ListUpdatedSince refreshes a tenant's routing cache incrementally: the rows whose version
 	// (the later of updated_at and status_changed_at) and id are past the (since, sinceId)
 	// keyset, in that order. Configuration, registered_actions and status changes all surface.

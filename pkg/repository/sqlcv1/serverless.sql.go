@@ -706,14 +706,25 @@ func (q *Queries) ListServerlessEndpointsByIds(ctx context.Context, db DBTX, ids
 const listServerlessEndpointsForTenant = `-- name: ListServerlessEndpointsForTenant :many
 SELECT id, tenant_id, name, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, shard, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at, stream_actions
 FROM v1_serverless_endpoint
-WHERE tenant_id = $1::UUID
+WHERE
+    tenant_id = $1::UUID
+    AND id > $2::UUID
 ORDER BY id
+LIMIT $3::BIGINT
 `
 
-// Full load of a tenant's routing cache. Disabled endpoints are included so callers can decide
-// what to route; the routing cache filters on enabled itself.
-func (q *Queries) ListServerlessEndpointsForTenant(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*V1ServerlessEndpoint, error) {
-	rows, err := db.Query(ctx, listServerlessEndpointsForTenant, tenantid)
+type ListServerlessEndpointsForTenantParams struct {
+	Tenantid      uuid.UUID `json:"tenantid"`
+	Afterid       uuid.UUID `json:"afterid"`
+	Endpointlimit int64     `json:"endpointlimit"`
+}
+
+// Full load of a tenant's routing cache, keyset-paged by id so a tenant of any size is read in
+// bounded batches; pass afterId = '00000000-0000-0000-0000-000000000000' for the first page.
+// Disabled endpoints are included so callers can decide what to route; the routing cache
+// filters on enabled itself.
+func (q *Queries) ListServerlessEndpointsForTenant(ctx context.Context, db DBTX, arg ListServerlessEndpointsForTenantParams) ([]*V1ServerlessEndpoint, error) {
+	rows, err := db.Query(ctx, listServerlessEndpointsForTenant, arg.Tenantid, arg.Afterid, arg.Endpointlimit)
 	if err != nil {
 		return nil, err
 	}

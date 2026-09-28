@@ -4,6 +4,7 @@ package serverlessoperator
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"testing"
 	"time"
@@ -367,4 +368,39 @@ func TestRoutingCacheUnionIsReferenceCounted(t *testing.T) {
 	require.NoError(t, cache.Refresh(context.Background()))
 	union, _ = cache.ActionUnion()
 	assert.Empty(t, union)
+}
+
+// A tenant larger than one page is loaded in pages of endpointPageSize, each published on
+// its own, and an endpoint the listing no longer names is dropped once every page is in.
+func TestRoutingCacheLoadPagesTheTenant(t *testing.T) {
+	repo := memrepo.New()
+	tenant := uuid.New()
+	l := zerolog.Nop()
+
+	const numEndpoints = int(endpointPageSize)*2 + 1
+
+	for i := 0; i < numEndpoints; i++ {
+		repo.AddEndpoint(newEndpointRow(endpointSpec{tenantId: tenant, name: fmt.Sprintf("ep-%d", i), enabled: true, actions: []string{fmt.Sprintf("svc:a%d", i)}}))
+	}
+
+	cache := newRoutingCache(tenant, repo.Endpoints(), fakeEnc{}, &l)
+	require.NoError(t, cache.Load(context.Background()))
+
+	assert.Equal(t, 3, repo.ListForTenantCalls(), "two full pages and a short last one")
+	assert.Len(t, cache.Endpoints(), numEndpoints)
+
+	union, _ := cache.ActionUnion()
+	assert.Len(t, union, numEndpoints)
+
+	gone := cache.Endpoints()[0]
+	repo.RemoveEndpoint(gone.id)
+
+	require.NoError(t, cache.Load(context.Background()))
+
+	assert.Len(t, cache.Endpoints(), numEndpoints-1)
+	_, ok := cache.Endpoint(gone.id)
+	assert.False(t, ok, "an endpoint the listing no longer names is dropped")
+
+	union, _ = cache.ActionUnion()
+	assert.Len(t, union, numEndpoints-1)
 }

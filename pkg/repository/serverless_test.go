@@ -430,9 +430,30 @@ func TestServerlessRepository(t *testing.T) {
 			assert.Equal(t, someShard.Shard, endpoint.Shard)
 		}
 
-		forTenant, err := repo.Endpoints().ListForTenant(ctx, tenantId)
-		require.NoError(t, err)
+		// ListForTenant pages by id: a page shorter than the limit is the last
+		forTenant := make([]*sqlcv1.V1ServerlessEndpoint, 0, numEndpoints)
+		pages := 0
+
+		for after := uuid.Nil; ; {
+			page, err := repo.Endpoints().ListForTenant(ctx, tenantId, after, 10)
+			require.NoError(t, err)
+
+			pages++
+			forTenant = append(forTenant, page...)
+
+			if len(page) < 10 {
+				break
+			}
+
+			after = page[len(page)-1].ID
+		}
+
 		assert.Len(t, forTenant, numEndpoints)
+		assert.Equal(t, 4, pages, "32 endpoints in pages of 10")
+
+		for i := 1; i < len(forTenant); i++ {
+			assert.True(t, forTenant[i-1].ID.String() < forTenant[i].ID.String(), "pages come back by id")
+		}
 	})
 
 	t.Run("units of tenants without the entitlement are neither counted, claimed nor kept", func(t *testing.T) {

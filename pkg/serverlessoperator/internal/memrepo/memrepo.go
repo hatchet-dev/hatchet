@@ -355,7 +355,8 @@ func (e *endpoints) ListForUnits(_ context.Context, units []Unit, afterId uuid.U
 	return out, nil
 }
 
-func (e *endpoints) ListForTenant(_ context.Context, tenantId uuid.UUID) ([]*sqlcv1.V1ServerlessEndpoint, error) {
+// ListForTenant pages by id like the database: rows past afterId, at most limit of them.
+func (e *endpoints) ListForTenant(_ context.Context, tenantId uuid.UUID, afterId uuid.UUID, limit int64) ([]*sqlcv1.V1ServerlessEndpoint, error) {
 	e.r.mu.Lock()
 	defer e.r.mu.Unlock()
 
@@ -364,12 +365,17 @@ func (e *endpoints) ListForTenant(_ context.Context, tenantId uuid.UUID) ([]*sql
 	out := make([]*sqlcv1.V1ServerlessEndpoint, 0)
 
 	for _, ep := range e.r.endpoints {
-		if ep.TenantID == tenantId {
+		if ep.TenantID == tenantId && ep.ID.String() > afterId.String() {
 			out = append(out, copyEndpoint(ep))
 		}
 	}
 
 	sortEndpoints(out)
+
+	if int64(len(out)) > limit {
+		out = out[:limit]
+	}
+
 	e.r.readRows += len(out)
 
 	return out, nil

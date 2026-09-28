@@ -47,9 +47,23 @@ type budgetRepo struct {
 	readVersions int
 }
 
-func (r *budgetRepo) ListForTenant(context.Context, uuid.UUID) ([]*sqlcv1.V1ServerlessEndpoint, error) {
-	r.readRows += len(r.rows)
-	return r.rows, nil
+// ListForTenant pages by id like the database; the rows are kept sorted by id.
+func (r *budgetRepo) ListForTenant(_ context.Context, _ uuid.UUID, afterId uuid.UUID, limit int64) ([]*sqlcv1.V1ServerlessEndpoint, error) {
+	out := make([]*sqlcv1.V1ServerlessEndpoint, 0)
+
+	for _, row := range r.rows {
+		if int64(len(out)) >= limit {
+			break
+		}
+
+		if row.ID.String() > afterId.String() {
+			out = append(out, row)
+		}
+	}
+
+	r.readRows += len(out)
+
+	return out, nil
 }
 
 func (r *budgetRepo) ListUpdatedSince(_ context.Context, _ uuid.UUID, since time.Time, sinceId uuid.UUID) ([]*sqlcv1.V1ServerlessEndpoint, error) {
@@ -241,7 +255,8 @@ func TestLoadUnitEndpointsBudget(t *testing.T) {
 	require.NotNil(t, ts)
 	union, rev := ts.cache.ActionUnion()
 	assert.Len(t, union, endpoints*10)
-	assert.Equal(t, uint64(1), rev, "the load published one revision and the unit pages none")
+	pages := uint64((endpoints + int(endpointPageSize) - 1) / int(endpointPageSize))
+	assert.Equal(t, pages, rev, "the load published one revision per page and the unit pages none")
 }
 
 // A refresh with nothing changed must read nothing and leave the watermark alone: the review

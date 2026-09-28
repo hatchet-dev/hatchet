@@ -43,7 +43,7 @@ func (r *failingEndpoints) setFail(fail bool) {
 	r.fail = fail
 }
 
-func (r *failingEndpoints) ListForTenant(ctx context.Context, id uuid.UUID) ([]*sqlcv1.V1ServerlessEndpoint, error) {
+func (r *failingEndpoints) ListForTenant(ctx context.Context, id uuid.UUID, afterId uuid.UUID, limit int64) ([]*sqlcv1.V1ServerlessEndpoint, error) {
 	r.mu.Lock()
 	fail := r.fail
 	r.mu.Unlock()
@@ -52,7 +52,7 @@ func (r *failingEndpoints) ListForTenant(ctx context.Context, id uuid.UUID) ([]*
 		return nil, errors.New("transient database outage")
 	}
 
-	return r.ServerlessEndpointRepository.ListForTenant(ctx, id)
+	return r.ServerlessEndpointRepository.ListForTenant(ctx, id, afterId, limit)
 }
 
 type failingRepo struct {

@@ -407,23 +407,43 @@ func (c *routingCache) publishLocked(b *batch) bool {
 }
 
 // Load replaces the cache with the tenant's current rows, dropping endpoints that vanished.
+// The rows are read in pages of endpointPageSize, each applied under one lock and publishing
+// at most one revision, so a tenant of any size is loaded in bounded batches and routing on
+// the tenant is never held for the whole load.
 func (c *routingCache) Load(ctx context.Context) error {
-	rows, err := c.repo.ListForTenant(ctx, c.tenantId)
+	seen := map[uuid.UUID]struct{}{}
+	after := uuid.Nil
 
-	if err != nil {
-		return fmt.Errorf("could not load endpoints for tenant %s: %w", c.tenantId, err)
+	for {
+		rows, err := c.repo.ListForTenant(ctx, c.tenantId, after, endpointPageSize)
+
+		if err != nil {
+			return fmt.Errorf("could not load endpoints for tenant %s: %w", c.tenantId, err)
+		}
+
+		c.mu.Lock()
+
+		b := newBatch()
+
+		for _, row := range rows {
+			seen[row.ID] = struct{}{}
+			c.upsertLocked(b, row)
+		}
+
+		c.publishLocked(b)
+		c.mu.Unlock()
+
+		if int64(len(rows)) < endpointPageSize {
+			break
+		}
+
+		after = rows[len(rows)-1].ID
 	}
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	b := newBatch()
-	seen := make(map[uuid.UUID]struct{}, len(rows))
-
-	for _, row := range rows {
-		seen[row.ID] = struct{}{}
-		c.upsertLocked(b, row)
-	}
 
 	for id, ep := range c.byId {
 		if _, ok := seen[id]; ok {
