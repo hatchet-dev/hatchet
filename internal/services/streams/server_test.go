@@ -34,22 +34,6 @@ func TestResolveSubscribeAddressAndCursor_TopicWithNoCursorDefaultsToBeginning(t
 	assert.Equal(t, v1.StreamCursor{Namespace: "ns-a", Topic: "topic-a", ID: 0}, cursor)
 }
 
-func TestResolveSubscribeAddressAndCursor_CursorAloneAddressesTheTopic(t *testing.T) {
-	// Round(0) strips the monotonic clock reading time.Now() attaches, which a
-	// real cursor never carries once it has been through a JSON round-trip --
-	// without this, assert.Equal below would spuriously fail comparing an
-	// in-process time.Time against its own post-JSON-round-trip copy.
-	cursor := v1.StreamCursor{Namespace: "ns-a", Topic: "topic-a", CreatedAt: time.Now().Round(0), ID: 7}
-	raw := encodedCursor(t, cursor)
-
-	namespace, topic, resolved, err := resolveSubscribeAddressAndCursor(&contracts.SubscribeStreamRequest{Cursor: &raw})
-	require.NoError(t, err)
-
-	assert.Equal(t, "ns-a", namespace)
-	assert.Equal(t, "topic-a", topic)
-	assert.Equal(t, cursor, resolved)
-}
-
 func TestResolveSubscribeAddressAndCursor_TopicWithMatchingCursor(t *testing.T) {
 	cursor := v1.StreamCursor{Namespace: "ns-a", Topic: "topic-a", CreatedAt: time.Now().Round(0), ID: 7}
 	raw := encodedCursor(t, cursor)

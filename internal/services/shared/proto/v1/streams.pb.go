@@ -26,17 +26,11 @@ type PublishStreamMessageRequest struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Namespace string `protobuf:"bytes,1,opt,name=namespace,proto3" json:"namespace,omitempty"`
-	Topic     string `protobuf:"bytes,2,opt,name=topic,proto3" json:"topic,omitempty"`
-	Payload   []byte `protobuf:"bytes,3,opt,name=payload,proto3" json:"payload,omitempty"`
-	// (required) a stable id for this publishing client/process, always set
-	// by the SDK. Paired with producer_seq, lets the server preserve this
-	// producer's own emission order even if concurrent publishes commit to
-	// Postgres out of order.
-	ProducerId string `protobuf:"bytes,4,opt,name=producer_id,json=producerId,proto3" json:"producer_id,omitempty"`
-	// (required) strictly increasing per (producer_id, namespace, topic),
-	// assigned by the caller before this request is sent.
-	ProducerSeq int64 `protobuf:"varint,5,opt,name=producer_seq,json=producerSeq,proto3" json:"producer_seq,omitempty"`
+	Namespace   string `protobuf:"bytes,1,opt,name=namespace,proto3" json:"namespace,omitempty"`
+	Topic       string `protobuf:"bytes,2,opt,name=topic,proto3" json:"topic,omitempty"`
+	Payload     []byte `protobuf:"bytes,3,opt,name=payload,proto3" json:"payload,omitempty"`
+	ProducerId  string `protobuf:"bytes,4,opt,name=producer_id,json=producerId,proto3" json:"producer_id,omitempty"`
+	ProducerSeq int64  `protobuf:"varint,5,opt,name=producer_seq,json=producerSeq,proto3" json:"producer_seq,omitempty"`
 }
 
 func (x *PublishStreamMessageRequest) Reset() {
