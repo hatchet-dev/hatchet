@@ -19,12 +19,6 @@ import {
 } from '@/components/v1/ui/dialog';
 import { Spinner } from '@/components/v1/ui/loading';
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/v1/ui/tooltip';
-import {
   Table,
   TableBody,
   TableCell,
@@ -32,6 +26,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/v1/ui/table';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/v1/ui/tooltip';
 import useControlPlane from '@/hooks/use-control-plane';
 import { useOrganizationEntitlements } from '@/hooks/use-organization-entitlements';
 import { useOrganizations } from '@/hooks/use-organizations';
@@ -51,8 +51,10 @@ import {
 import { OFFICE_HOURS_URL, PRICING_URL } from '@/lib/external-links';
 import { cn } from '@/lib/utils';
 import { formatRetentionPeriod } from '@/lib/utils/retention';
+import { appRoutes } from '@/router';
 import { ChevronDownIcon } from '@radix-ui/react-icons';
 import { useQuery } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
 
 export type UpgradeGate =
@@ -140,6 +142,7 @@ const COPY = {
   actions: {
     upgrade: 'Upgrade',
     ownerOnly: 'Only organization owners can upgrade.',
+    billing: 'View billing',
     dismiss: 'Not now',
     contact: 'Contact us',
     footnote:
@@ -525,6 +528,12 @@ function useUpgradeGate({
       (org) => org.metadata.id === organizationId && org.isOwner,
     );
   const billingReady = isControlPlaneEnabled && canBill && !!paygPlan;
+  // A missing plan (still loading, or a member who cannot read billing) stays
+  // on the upgrade action. A known non-free plan has nothing to self-serve
+  // here, so the button sends them to billing instead.
+  const planPending =
+    isControlPlaneEnabled && canBill && !!billing?.isLoading && !planCode;
+  const linkToBilling = !!planCode && planCodeBase(planCode) !== 'free';
 
   return {
     header:
@@ -547,8 +556,16 @@ function useUpgradeGate({
       mode === 'custom' ? { name: planName, retention: retentionLabel } : null,
     mode,
     upgrade,
-    canUpgrade: billingReady && isOrganizationOwner,
-    ownerOnlyUpgrade: billingReady && ownerKnown && !isOrganizationOwner,
+    canUpgrade:
+      billingReady && isOrganizationOwner && !linkToBilling && !planPending,
+    ownerOnlyUpgrade:
+      billingReady &&
+      ownerKnown &&
+      !isOrganizationOwner &&
+      !linkToBilling &&
+      !planPending,
+    linkToBilling,
+    organizationId,
     onUpgrade: () =>
       paygPlan &&
       upgrade.mutate(paygPlan.planCode, {
@@ -871,8 +888,16 @@ function UpgradeGateFooter({
   state: UpgradeGateState;
   onDismiss?: () => void;
 }) {
-  const { upgrade, canUpgrade, ownerOnlyUpgrade, onUpgrade, mode, salesHref } =
-    state;
+  const {
+    upgrade,
+    canUpgrade,
+    ownerOnlyUpgrade,
+    linkToBilling,
+    organizationId,
+    onUpgrade,
+    mode,
+    salesHref,
+  } = state;
 
   if (mode === 'loading') {
     return onDismiss ? (
@@ -906,12 +931,24 @@ function UpgradeGateFooter({
           {COPY.actions.dismiss}
         </Button>
       ) : null}
-      <UpgradeButton
-        disabled={!canUpgrade || upgrade.isPending}
-        pending={upgrade.isPending}
-        ownerOnly={ownerOnlyUpgrade}
-        onUpgrade={onUpgrade}
-      />
+      {linkToBilling ? (
+        <Button type="button" size="sm" asChild>
+          <Link
+            to={appRoutes.organizationBillingRoute.to}
+            params={{ organization: organizationId }}
+            onClick={onDismiss}
+          >
+            {COPY.actions.billing}
+          </Link>
+        </Button>
+      ) : (
+        <UpgradeButton
+          disabled={!canUpgrade || upgrade.isPending}
+          pending={upgrade.isPending}
+          ownerOnly={ownerOnlyUpgrade}
+          onUpgrade={onUpgrade}
+        />
+      )}
     </>
   );
 }
