@@ -48,7 +48,8 @@ import { ChevronDownIcon } from '@radix-ui/react-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 
-export type UpgradeGate = 'tenants' | 'users' | 'retention' | 'usage';
+export type UpgradeGate =
+  'tenants' | 'users' | 'retention' | 'usage' | 'organizations';
 
 export type UpgradeGateProps = {
   gate: UpgradeGate;
@@ -61,6 +62,11 @@ export type UpgradeGateProps = {
    */
   featureId?: string;
   retentionPeriod?: string;
+  /**
+   * Name of the organization the upgrade applies to. Used by the
+   * organizations gate so the copy names the current organization.
+   */
+  organizationName?: string;
 };
 
 // ---------------------------------------------------------------------------
@@ -75,6 +81,13 @@ const COPY = {
       title: "You've hit your tenant limit",
       description:
         'Upgrade to pay-as-you-go to add more tenants and separate dev, staging, and prod.',
+    },
+    organizations: {
+      title: 'Upgrade your current organization',
+      description: (name?: string) =>
+        name
+          ? `Upgrade ${name} to pay-as-you-go to create another organization.`
+          : 'Upgrade your current organization to pay-as-you-go to create another one.',
     },
     users: {
       title: "You've hit your member limit",
@@ -383,10 +396,16 @@ function buildComparison(input: {
 function buildHeader(
   gate: UpgradeGate,
   row: ComparisonRow | undefined,
+  organizationName?: string,
 ): GateHeader {
   switch (gate) {
     case 'tenants':
       return COPY.header.tenants;
+    case 'organizations':
+      return {
+        title: COPY.header.organizations.title,
+        description: COPY.header.organizations.description(organizationName),
+      };
     case 'users':
       return COPY.header.users;
     case 'retention':
@@ -436,6 +455,7 @@ function useUpgradeGate({
   organizationId,
   featureId,
   retentionPeriod,
+  organizationName,
   onUpgraded,
 }: Omit<UpgradeGateProps, 'onDismiss'> & {
   // A saved card updates the plan in place. Close the dialog only then;
@@ -503,7 +523,7 @@ function useUpgradeGate({
                 retentionLabel,
               ),
             }
-          : buildHeader(gate, highlighted),
+          : buildHeader(gate, highlighted, organizationName),
     comparison,
     currentPlan:
       mode === 'custom' ? { name: planName, retention: retentionLabel } : null,
