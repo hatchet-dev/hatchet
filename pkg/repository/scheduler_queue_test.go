@@ -4,6 +4,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"strings"
 	"testing"
@@ -176,11 +177,9 @@ func TestMarkQueueItemsProcessedDuplicateTaskKey(t *testing.T) {
 	assert.Equal(t, 0, queued)
 }
 
-// A scheduler can hold a queue item whose row another scheduler consumed and whose task
-// was then evicted and restored (RestoreEvictedTasks inserts a new queue item for the same
-// task key) before it flushes. The statement deletes by task key, so the stale read assigns
-// the restored item to the worker the scheduler already reserved for it, where the old
-// three-statement flush reported it failed.
+// A scheduler can hold a queue item whose row another scheduler consumed before the task
+// was evicted and restored. Because restoration creates a new queue item for the same task
+// key, the flush must assign that item to the worker the scheduler already reserved.
 func TestMarkQueueItemsProcessedAssignsRestoredQueueItem(t *testing.T) {
 	pool, cleanup := setupPostgresWithMigration(t)
 	t.Cleanup(cleanup)
@@ -289,4 +288,114 @@ func TestMarkQueueItemsProcessedInvalidStepTimeoutFailsOnlyThatItem(t *testing.T
 	assert.Equal(t, 0, runtimes)
 	require.NoError(t, pool.QueryRow(ctx, `SELECT count(*) FROM v1_queue_item WHERE task_id = $1`, invalid.TaskID).Scan(&queued))
 	assert.Equal(t, 1, queued)
+}
+
+// The flush locks the existing runtime row of every key before it deletes any queue item,
+// so against a transaction that holds a runtime row lock (RestoreEvictedTasks, EvictTask,
+// ReleaseTasks all lock runtime rows first) it waits without holding any queue item lock
+// of its own, and it cannot deadlock with them.
+func TestMarkQueueItemsProcessedLocksRuntimesBeforeDeletingQueueItems(t *testing.T) {
+	pool, cleanup := setupPostgresWithMigration(t)
+	t.Cleanup(cleanup)
+
+	ctx := context.Background()
+	require.NoError(t, createTaskRepository(pool).UpdateTablePartitions(ctx))
+
+	repo := createSharedRepositoryForTest(pool)
+	tenantID := uuid.New()
+
+	evicted := insertQueuedTaskForTest(t, ctx, pool, tenantID, 900001, "1h")
+	fresh := insertQueuedTaskForTest(t, ctx, pool, tenantID, 900002, "1h")
+
+	_, err := pool.Exec(ctx, `
+		INSERT INTO v1_task_runtime (task_id, task_inserted_at, retry_count, worker_id, tenant_id, timeout_at, evicted_at)
+		VALUES ($1, $2, $3, NULL, $4, now() + interval '1 hour', now())
+	`, evicted.TaskID, evicted.TaskInsertedAt, evicted.RetryCount, tenantID)
+	require.NoError(t, err)
+
+	// another transaction holds the runtime row lock of the first key
+	holder, err := pool.Begin(ctx)
+	require.NoError(t, err)
+	defer holder.Rollback(ctx) // nolint: errcheck
+
+	var holderPid int
+	require.NoError(t, holder.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&holderPid))
+
+	_, err = holder.Exec(ctx, `SELECT 1 FROM v1_task_runtime WHERE task_id = $1 FOR UPDATE`, evicted.TaskID)
+	require.NoError(t, err)
+
+	evictedItem := &AssignedItem{WorkerId: uuid.New(), QueueItem: evicted}
+	freshItem := &AssignedItem{WorkerId: uuid.New(), QueueItem: fresh}
+
+	flushDone := make(chan error, 1)
+
+	go func() {
+		tx, err := pool.Begin(ctx)
+
+		if err != nil {
+			flushDone <- err
+			return
+		}
+
+		defer tx.Rollback(ctx) // nolint: errcheck
+
+		succeeded, failed, err := repo.markQueueItemsProcessed(ctx, tenantID, &AssignResults{
+			Assigned: []*AssignedItem{evictedItem, freshItem},
+		}, tx, false)
+
+		if err != nil {
+			flushDone <- err
+			return
+		}
+
+		if len(succeeded) != 2 || len(failed) != 0 {
+			flushDone <- fmt.Errorf("expected both items assigned, got %d succeeded and %d failed", len(succeeded), len(failed))
+			return
+		}
+
+		flushDone <- tx.Commit(ctx)
+	}()
+
+	// the flush waits on the holder's row lock
+	require.Eventually(t, func() bool {
+		var blocked bool
+		err := pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE $1 = ANY(pg_blocking_pids(pid)))`, holderPid).Scan(&blocked)
+		return err == nil && blocked
+	}, 10*time.Second, 20*time.Millisecond)
+
+	select {
+	case err := <-flushDone:
+		t.Fatalf("flush finished while the runtime row lock was held: %v", err)
+	default:
+	}
+
+	// while it waits, the flush has deleted nothing: the second key's queue item can
+	// still be locked by a third transaction
+	probe, err := pool.Begin(ctx)
+	require.NoError(t, err)
+	defer probe.Rollback(ctx) // nolint: errcheck
+
+	var probedID int64
+	require.NoError(t, probe.QueryRow(ctx, `SELECT id FROM v1_queue_item WHERE task_id = $1 FOR UPDATE NOWAIT`, fresh.TaskID).Scan(&probedID))
+	assert.Equal(t, fresh.ID, probedID)
+	require.NoError(t, probe.Rollback(ctx))
+
+	require.NoError(t, holder.Rollback(ctx))
+
+	select {
+	case err := <-flushDone:
+		require.NoError(t, err)
+	case <-time.After(10 * time.Second):
+		t.Fatal("flush did not finish after the runtime row lock was released")
+	}
+
+	var queued int
+	require.NoError(t, pool.QueryRow(ctx, `SELECT count(*) FROM v1_queue_item WHERE task_id IN ($1, $2)`, evicted.TaskID, fresh.TaskID).Scan(&queued))
+	assert.Equal(t, 0, queued)
+
+	var workerID uuid.UUID
+	require.NoError(t, pool.QueryRow(ctx, `SELECT worker_id FROM v1_task_runtime WHERE task_id = $1 AND evicted_at IS NULL`, evicted.TaskID).Scan(&workerID))
+	assert.Equal(t, evictedItem.WorkerId, workerID)
+	require.NoError(t, pool.QueryRow(ctx, `SELECT worker_id FROM v1_task_runtime WHERE task_id = $1`, fresh.TaskID).Scan(&workerID))
+	assert.Equal(t, freshItem.WorkerId, workerID)
 }
