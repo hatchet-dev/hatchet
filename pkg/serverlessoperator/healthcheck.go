@@ -111,7 +111,7 @@ func pollHealthcheck(ctx context.Context, sender RequestSender, ep *cachedEndpoi
 	now := time.Now().Unix()
 
 	body, err := contract.Marshal(&v1.ServerlessHealthcheckRequest{
-		Timestamp:  now,
+		TimestampUnixSeconds: now,
 		EndpointId: ep.id.String(),
 		Namespace:  ep.namespace.String(),
 	})

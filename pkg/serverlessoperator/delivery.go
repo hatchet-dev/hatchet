@@ -78,7 +78,7 @@ func buildTriggerEnvelope(action *contracts.AssignedAction, ep *cachedEndpoint, 
 		Version:    contract.TriggerEnvelopeVersion,
 		EndpointId: ep.id.String(),
 		Namespace:  ep.namespace.String(),
-		Timestamp:  timestamp,
+		TimestampUnixSeconds: timestamp,
 		Action:     action,
 	})
 }

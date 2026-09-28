@@ -122,7 +122,7 @@ func TestDeliverActionSignsEnvelope(t *testing.T) {
 	assert.Equal(t, int32(contract.TriggerEnvelopeVersion), envelope.Version)
 	assert.Equal(t, ep.id.String(), envelope.EndpointId)
 	assert.Equal(t, ep.namespace.String(), envelope.Namespace)
-	assert.NotZero(t, envelope.Timestamp)
+	assert.NotZero(t, envelope.TimestampUnixSeconds)
 
 	delivered := envelope.GetAction()
 	require.NotNil(t, delivered)

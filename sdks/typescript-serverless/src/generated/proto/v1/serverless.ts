@@ -20,10 +20,11 @@ export interface ServerlessHealthcheckRequest {
   endpointId: string;
   namespace: string;
   /**
-   * Unix seconds at which the request was built; the same value is sent in
-   * X-Hatchet-Timestamp.
+   * The time the request was built, in Unix seconds (not milliseconds or nanoseconds); the
+   * same value is sent in X-Hatchet-Timestamp. The endpoint rejects a request whose value
+   * lies more than 5 minutes from its own clock in either direction.
    */
-  timestamp: number;
+  timestampUnixSeconds: number;
 }
 
 /** ServerlessHealthcheckResponse is what an endpoint answers to a healthcheck. */
@@ -90,10 +91,11 @@ export interface ServerlessTriggerRequest {
     | AssignedAction
     | undefined;
   /**
-   * Unix seconds at which the request was built; the same value is sent in
-   * X-Hatchet-Timestamp.
+   * The time the request was built, in Unix seconds (not milliseconds or nanoseconds); the
+   * same value is sent in X-Hatchet-Timestamp. The endpoint rejects a request whose value
+   * lies more than 5 minutes from its own clock in either direction.
    */
-  timestamp: number;
+  timestampUnixSeconds: number;
   /** The envelope version, currently 1. */
   version: number;
 }
@@ -236,7 +238,7 @@ export interface ServerlessDurableFrame {
 }
 
 function createBaseServerlessHealthcheckRequest(): ServerlessHealthcheckRequest {
-  return { endpointId: "", namespace: "", timestamp: 0 };
+  return { endpointId: "", namespace: "", timestampUnixSeconds: 0 };
 }
 
 export const ServerlessHealthcheckRequest: MessageFns<ServerlessHealthcheckRequest> = {
@@ -247,8 +249,8 @@ export const ServerlessHealthcheckRequest: MessageFns<ServerlessHealthcheckReque
     if (message.namespace !== "") {
       writer.uint32(18).string(message.namespace);
     }
-    if (message.timestamp !== 0) {
-      writer.uint32(24).int64(message.timestamp);
+    if (message.timestampUnixSeconds !== 0) {
+      writer.uint32(24).int64(message.timestampUnixSeconds);
     }
     return writer;
   },
@@ -281,7 +283,7 @@ export const ServerlessHealthcheckRequest: MessageFns<ServerlessHealthcheckReque
             break;
           }
 
-          message.timestamp = longToNumber(reader.int64());
+          message.timestampUnixSeconds = longToNumber(reader.int64());
           continue;
         }
       }
@@ -301,7 +303,11 @@ export const ServerlessHealthcheckRequest: MessageFns<ServerlessHealthcheckReque
         ? globalThis.String(object.endpoint_id)
         : "",
       namespace: isSet(object.namespace) ? globalThis.String(object.namespace) : "",
-      timestamp: isSet(object.timestamp) ? globalThis.Number(object.timestamp) : 0,
+      timestampUnixSeconds: isSet(object.timestampUnixSeconds)
+        ? globalThis.Number(object.timestampUnixSeconds)
+        : isSet(object.timestamp_unix_seconds)
+        ? globalThis.Number(object.timestamp_unix_seconds)
+        : 0,
     };
   },
 
@@ -313,8 +319,8 @@ export const ServerlessHealthcheckRequest: MessageFns<ServerlessHealthcheckReque
     if (message.namespace !== "") {
       obj.namespace = message.namespace;
     }
-    if (message.timestamp !== 0) {
-      obj.timestamp = Math.round(message.timestamp);
+    if (message.timestampUnixSeconds !== 0) {
+      obj.timestampUnixSeconds = Math.round(message.timestampUnixSeconds);
     }
     return obj;
   },
@@ -326,7 +332,7 @@ export const ServerlessHealthcheckRequest: MessageFns<ServerlessHealthcheckReque
     const message = createBaseServerlessHealthcheckRequest();
     message.endpointId = object.endpointId ?? "";
     message.namespace = object.namespace ?? "";
-    message.timestamp = object.timestamp ?? 0;
+    message.timestampUnixSeconds = object.timestampUnixSeconds ?? 0;
     return message;
   },
 };
@@ -678,7 +684,7 @@ export const ServerlessRuntime: MessageFns<ServerlessRuntime> = {
 };
 
 function createBaseServerlessTriggerRequest(): ServerlessTriggerRequest {
-  return { endpointId: "", namespace: "", action: undefined, timestamp: 0, version: 0 };
+  return { endpointId: "", namespace: "", action: undefined, timestampUnixSeconds: 0, version: 0 };
 }
 
 export const ServerlessTriggerRequest: MessageFns<ServerlessTriggerRequest> = {
@@ -692,8 +698,8 @@ export const ServerlessTriggerRequest: MessageFns<ServerlessTriggerRequest> = {
     if (message.action !== undefined) {
       AssignedAction.encode(message.action, writer.uint32(26).fork()).join();
     }
-    if (message.timestamp !== 0) {
-      writer.uint32(32).int64(message.timestamp);
+    if (message.timestampUnixSeconds !== 0) {
+      writer.uint32(32).int64(message.timestampUnixSeconds);
     }
     if (message.version !== 0) {
       writer.uint32(40).int32(message.version);
@@ -737,7 +743,7 @@ export const ServerlessTriggerRequest: MessageFns<ServerlessTriggerRequest> = {
             break;
           }
 
-          message.timestamp = longToNumber(reader.int64());
+          message.timestampUnixSeconds = longToNumber(reader.int64());
           continue;
         }
         case 5: {
@@ -766,7 +772,11 @@ export const ServerlessTriggerRequest: MessageFns<ServerlessTriggerRequest> = {
         : "",
       namespace: isSet(object.namespace) ? globalThis.String(object.namespace) : "",
       action: isSet(object.action) ? AssignedAction.fromJSON(object.action) : undefined,
-      timestamp: isSet(object.timestamp) ? globalThis.Number(object.timestamp) : 0,
+      timestampUnixSeconds: isSet(object.timestampUnixSeconds)
+        ? globalThis.Number(object.timestampUnixSeconds)
+        : isSet(object.timestamp_unix_seconds)
+        ? globalThis.Number(object.timestamp_unix_seconds)
+        : 0,
       version: isSet(object.version) ? globalThis.Number(object.version) : 0,
     };
   },
@@ -782,8 +792,8 @@ export const ServerlessTriggerRequest: MessageFns<ServerlessTriggerRequest> = {
     if (message.action !== undefined) {
       obj.action = AssignedAction.toJSON(message.action);
     }
-    if (message.timestamp !== 0) {
-      obj.timestamp = Math.round(message.timestamp);
+    if (message.timestampUnixSeconds !== 0) {
+      obj.timestampUnixSeconds = Math.round(message.timestampUnixSeconds);
     }
     if (message.version !== 0) {
       obj.version = Math.round(message.version);
@@ -801,7 +811,7 @@ export const ServerlessTriggerRequest: MessageFns<ServerlessTriggerRequest> = {
     message.action = (object.action !== undefined && object.action !== null)
       ? AssignedAction.fromPartial(object.action)
       : undefined;
-    message.timestamp = object.timestamp ?? 0;
+    message.timestampUnixSeconds = object.timestampUnixSeconds ?? 0;
     message.version = object.version ?? 0;
     return message;
   },

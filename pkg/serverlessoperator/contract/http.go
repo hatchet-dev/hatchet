@@ -27,7 +27,11 @@ import (
 const (
 	SignatureHeader  = "X-Hatchet-Signature"
 	EndpointIdHeader = "X-Hatchet-Endpoint-Id"
-	TimestampHeader  = "X-Hatchet-Timestamp"
+	// TimestampHeader carries the time the request was built as decimal Unix seconds (not
+	// milliseconds or nanoseconds), the same value as the body's timestamp_unix_seconds. An
+	// endpoint rejects a value more than RequestMaxAge (5 minutes) from its own clock in
+	// either direction.
+	TimestampHeader = "X-Hatchet-Timestamp"
 )
 
 // Headers carried only by the durable websocket upgrade, which has no body to sign. The

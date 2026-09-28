@@ -24,9 +24,10 @@ import "v1/workflows.proto";
 message ServerlessHealthcheckRequest {
     string endpoint_id = 1;
     string namespace = 2;
-    // Unix seconds at which the request was built; the same value is sent in
-    // X-Hatchet-Timestamp.
-    int64 timestamp = 3;
+    // The time the request was built, in Unix seconds (not milliseconds or nanoseconds); the
+    // same value is sent in X-Hatchet-Timestamp. The endpoint rejects a request whose value
+    // lies more than 5 minutes from its own clock in either direction.
+    int64 timestamp_unix_seconds = 3;
 }
 
 // ServerlessHealthcheckResponse is what an endpoint answers to a healthcheck.
@@ -76,9 +77,10 @@ message ServerlessTriggerRequest {
     string endpoint_id = 1;
     string namespace = 2;
     .AssignedAction action = 3;
-    // Unix seconds at which the request was built; the same value is sent in
-    // X-Hatchet-Timestamp.
-    int64 timestamp = 4;
+    // The time the request was built, in Unix seconds (not milliseconds or nanoseconds); the
+    // same value is sent in X-Hatchet-Timestamp. The endpoint rejects a request whose value
+    // lies more than 5 minutes from its own clock in either direction.
+    int64 timestamp_unix_seconds = 4;
     // The envelope version, currently 1.
     int32 version = 5;
 }
