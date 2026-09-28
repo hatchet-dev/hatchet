@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
-// Verifies that the runtime entries of the package (`.` and `./cloudflare`) import nothing
-// from Node and nothing from the SDK outside its edge entry. Bundles each built entry for a
-// workerd-like browser target, the way wrangler does, and fails on any `node:` specifier,
-// Node builtin or non-edge SDK module reached transitively.
+// Verifies that the runtime-agnostic entries of the package import nothing from Node and
+// nothing from the SDK outside its edge entry. Bundles each built entry for a workerd-like
+// browser target, the way wrangler does, and fails on any `node:` specifier, Node builtin
+// or non-edge SDK module reached transitively.
 //
 // Run after `pnpm run build` (the `check:edge` script does both). The linked SDK is bundled
 // from its dist so the check covers what the SDK's edge entry reaches too.
@@ -14,10 +14,17 @@ import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+
+// Entries that must run on workerd and every other WinterCG runtime.
+const edgeEntries = ['dist/index.js', 'dist/adapters/cloudflare.js'];
+// Entries that target Node and may import its builtins and the optional `ws` and
+// `@vercel/functions` peers; they are not checked here.
+const nodeEntries = ['dist/adapters/vercel.js', 'dist/adapters/node.js'];
+
 const entries = process.argv.slice(2);
 
 if (entries.length === 0) {
-  entries.push('dist/index.js', 'dist/adapters/cloudflare.js');
+  entries.push(...edgeEntries);
 }
 
 // Optional peers the SDK's declaration classes load lazily (`mcpTool()`); never reached on a
@@ -125,4 +132,6 @@ if (!ok) {
   process.exit(1);
 }
 
-console.log('runtime entries are free of Node builtins and of the SDK non-edge entry');
+console.log(
+  `edge entries are free of Node builtins and of the SDK non-edge entry (Node entries not checked: ${nodeEntries.join(', ')})`
+);

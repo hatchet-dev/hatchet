@@ -33,6 +33,20 @@
       "require": "./dist/adapters/cloudflare.cjs",
       "default": "./dist/adapters/cloudflare.js"
     },
+    "./vercel": {
+      "types": "./dist/adapters/vercel.d.ts",
+      "node": "./dist/adapters/vercel.js",
+      "import": "./dist/adapters/vercel.js",
+      "require": "./dist/adapters/vercel.cjs",
+      "default": "./dist/adapters/vercel.js"
+    },
+    "./node": {
+      "types": "./dist/adapters/node.d.ts",
+      "node": "./dist/adapters/node.js",
+      "import": "./dist/adapters/node.js",
+      "require": "./dist/adapters/node.cjs",
+      "default": "./dist/adapters/node.js"
+    },
     "./testing": {
       "types": "./dist/testing/index.d.ts",
       "import": "./dist/testing/index.js",
@@ -59,7 +73,17 @@
   },
   "peerDependencies": {
     "@hatchet-dev/typescript-sdk": "^1.32.0",
+    "@vercel/functions": ">=3.9.0",
+    "ws": ">=8",
     "zod": "^3.25.0 || ^4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@vercel/functions": {
+      "optional": true
+    },
+    "ws": {
+      "optional": true
+    }
   },
   "dependencies": {
     "@bufbuild/protobuf": "^2.11.0"
@@ -68,6 +92,9 @@
     "@cloudflare/workers-types": "^4.20250906.0",
     "@eslint/js": "^10.0.1",
     "@hatchet-dev/typescript-sdk": "file:../typescript/dist",
+    "@types/node": "^26.6.3",
+    "@types/ws": "^8.18.1",
+    "@vercel/functions": "^3.9.9",
     "esbuild": "^0.27.0",
     "eslint": "^10.0.3",
     "eslint-config-prettier": "^10.1.8",
@@ -80,6 +107,7 @@
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.56.1",
     "vitest": "^5.0.0",
+    "ws": "^8.22.0",
     "zod": "^4.0.0"
   },
   "publishConfig": {
