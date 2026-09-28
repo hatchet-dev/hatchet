@@ -459,10 +459,16 @@ func (e *testEnv) streamActions(endpointId uuid.UUID) []string {
 }
 
 // waitRegistered waits until the endpoint's registered_actions carry every given action,
-// which the owner writes after PutWorkflow succeeded. Several endpoints of a tenant may
-// register the same action; each row lists it on its own.
+// which the owner writes after PutWorkflow succeeded, and until an active serverless worker
+// of the tenant advertises each of them: the row is written before the session's delta, so
+// the row alone says nothing about what the engine can assign yet. Several endpoints of a
+// tenant may register the same action; each row lists it on its own.
 func (e *testEnv) waitRegistered(endpointId uuid.UUID, actions ...string) {
 	e.t.Helper()
+
+	var tenantId uuid.UUID
+
+	require.NoError(e.t, e.pool.QueryRow(e.ctx, `SELECT tenant_id FROM v1_serverless_endpoint WHERE id = $1`, endpointId).Scan(&tenantId))
 
 	e.pollUntil(registerWait, fmt.Sprintf("endpoint %s to register %v", endpointId, actions), func() (bool, error) {
 		have := map[string]struct{}{}
@@ -474,6 +480,10 @@ func (e *testEnv) waitRegistered(endpointId uuid.UUID, actions ...string) {
 		for _, a := range actions {
 			if _, ok := have[a]; !ok {
 				return false, fmt.Errorf("registered_actions is %v", e.registeredActions(endpointId))
+			}
+
+			if _, ok := e.activeWorkerWithAction(tenantId, a); !ok {
+				return false, fmt.Errorf("no active worker advertises %s", a)
 			}
 		}
 

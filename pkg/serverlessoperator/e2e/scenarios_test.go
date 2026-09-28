@@ -85,7 +85,6 @@ func TestEcho(t *testing.T) {
 		require.Len(t, triggers, 1)
 		assert.Equal(t, ep.ID.String(), triggers[0].endpointId)
 		assert.Equal(t, action, triggers[0].actionId)
-		assert.Equal(t, "echo", triggers[0].workflowName)
 
 		healthchecks := fake.requestsOfKind("healthcheck")
 		require.NotEmpty(t, healthchecks)

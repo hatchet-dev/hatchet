@@ -34,8 +34,7 @@ const (
 )
 
 // recordedRequest is one request the fake endpoint accepted, for assertions on what the
-// operator sent: the endpoint id, the action id and workflow name as registered, the
-// invocation.
+// operator sent: the endpoint id, the action id as registered, the job name, the invocation.
 type recordedRequest struct {
 	kind         string
 	endpointId   string
