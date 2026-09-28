@@ -319,15 +319,19 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 			continue
 		}
 
-		taskRetryToAssignedItem[key] = assignedItem
-
 		// the queue item carries the task's step_timeout, so it is parsed here instead
-		// of per row in the statement; the statement adds it to CURRENT_TIMESTAMP
+		// of per row in the statement; the statement adds it to CURRENT_TIMESTAMP. A
+		// timeout the grammar raises on fails only its own item (nacked, so its slot is
+		// released) and the rest of the batch still flushes.
 		stepTimeout, err := durationToInterval(qi.StepTimeout.String)
 
 		if err != nil {
-			return nil, nil, err
+			d.l.Warn().Err(err).Int64("task_id", qi.TaskID).Int32("retry_count", qi.RetryCount).Msg("could not parse the step timeout of an assigned queue item, reporting it failed")
+			failed = append(failed, assignedItem)
+			continue
 		}
+
+		taskRetryToAssignedItem[key] = assignedItem
 
 		taskIds = append(taskIds, qi.TaskID)
 		taskInsertedAts = append(taskInsertedAts, qi.TaskInsertedAt)

@@ -244,3 +244,49 @@ func TestMarkQueueItemsProcessedAssignsRestoredQueueItem(t *testing.T) {
 	require.NoError(t, pool.QueryRow(ctx, `SELECT count(*) FROM v1_queue_item WHERE task_id = $1`, stale.TaskID).Scan(&queued))
 	assert.Equal(t, 0, queued)
 }
+
+// A step timeout the duration grammar raises on (only importable rows carry one, since
+// registration validation rejects it) fails its own item and leaves the rest of the batch
+// flushed, so one poisoned queue item cannot hold back every assignment it shares a flush
+// with.
+func TestMarkQueueItemsProcessedInvalidStepTimeoutFailsOnlyThatItem(t *testing.T) {
+	pool, cleanup := setupPostgresWithMigration(t)
+	t.Cleanup(cleanup)
+
+	ctx := context.Background()
+	require.NoError(t, createTaskRepository(pool).UpdateTablePartitions(ctx))
+
+	repo := createSharedRepositoryForTest(pool)
+	tenantID := uuid.New()
+
+	invalid := insertQueuedTaskForTest(t, ctx, pool, tenantID, 900001, "1234567890123456h")
+	valid := insertQueuedTaskForTest(t, ctx, pool, tenantID, 900002, "1h")
+
+	invalidItem := &AssignedItem{WorkerId: uuid.New(), QueueItem: invalid}
+	validItem := &AssignedItem{WorkerId: uuid.New(), QueueItem: valid}
+
+	tx, err := pool.Begin(ctx)
+	require.NoError(t, err)
+	defer tx.Rollback(ctx) // nolint: errcheck
+
+	succeeded, failed, err := repo.markQueueItemsProcessed(ctx, tenantID, &AssignResults{
+		Assigned: []*AssignedItem{invalidItem, validItem},
+	}, tx, false)
+	require.NoError(t, err)
+	require.NoError(t, tx.Commit(ctx))
+
+	require.Len(t, succeeded, 1)
+	require.Len(t, failed, 1)
+	assert.Same(t, validItem, succeeded[0])
+	assert.Same(t, invalidItem, failed[0])
+
+	var workerID uuid.UUID
+	require.NoError(t, pool.QueryRow(ctx, `SELECT worker_id FROM v1_task_runtime WHERE task_id = $1`, valid.TaskID).Scan(&workerID))
+	assert.Equal(t, validItem.WorkerId, workerID)
+
+	var runtimes, queued int
+	require.NoError(t, pool.QueryRow(ctx, `SELECT count(*) FROM v1_task_runtime WHERE task_id = $1`, invalid.TaskID).Scan(&runtimes))
+	assert.Equal(t, 0, runtimes)
+	require.NoError(t, pool.QueryRow(ctx, `SELECT count(*) FROM v1_queue_item WHERE task_id = $1`, invalid.TaskID).Scan(&queued))
+	assert.Equal(t, 1, queued)
+}
