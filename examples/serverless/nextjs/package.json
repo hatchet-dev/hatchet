@@ -1,0 +1,30 @@
+{
+  "name": "hatchet-serverless-nextjs",
+  "private": true,
+  "type": "module",
+  "description": "Example Hatchet serverless endpoint in a Next.js App Router app on Vercel",
+  "scripts": {
+    "dev": "next dev",
+    "dev:vercel": "vercel dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hatchet-dev/serverless": "link:../../../sdks/typescript-serverless",
+    "@hatchet-dev/typescript-sdk": "file:../../../sdks/typescript/dist",
+    "@vercel/functions": "^3.9.0",
+    "next": "^15.5.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "ws": "^8.18.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@types/ws": "^8.18.0",
+    "typescript": "^5.6.0"
+  }
+}

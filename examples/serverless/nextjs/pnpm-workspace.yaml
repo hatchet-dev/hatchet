@@ -1,0 +1,15 @@
+packages:
+  - .
+
+# Installs refuse packages published less than a day ago, matching the SDK's policy.
+minimumReleaseAge: 1440
+
+# Dependency install scripts are opt-in under pnpm 10. sharp and unrs-resolver fetch their
+# platform binaries for Next.js; the SDK's postinstall only prints upgrade notes and protobufjs
+# needs nothing at install time.
+onlyBuiltDependencies:
+  - sharp
+  - unrs-resolver
+ignoredBuiltDependencies:
+  - "@hatchet-dev/typescript-sdk"
+  - protobufjs
