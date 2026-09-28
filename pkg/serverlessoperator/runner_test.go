@@ -202,9 +202,13 @@ func TestFailedDeltaIsRetriedOnNextPoll(t *testing.T) {
 	require.Len(t, env.repo.StatusWrites(), 1, "a delta the engine refused marks the endpoint")
 	assert.False(t, env.repo.StatusWrites()[0].Healthy)
 	assert.Contains(t, *env.repo.StatusWrites()[0].Error, "could not add actions")
-	assert.Empty(t, env.repo.ActionWrites(), "registered_actions is not written while the engine does not have the actions")
+	require.Len(t, env.repo.ActionWrites(), 1, "the row is written before the delta, so other processes see the set the endpoint serves")
 
-	// The engine accepts again: the same delta is pushed and the endpoint recovers.
+	union, _ := env.tenant(tenant).cache.ActionUnion()
+	assert.Equal(t, []string{"svc:a"}, union, "the cached union is restored while the engine does not have the actions")
+
+	// The engine accepts again: the same delta is pushed without another write and the
+	// endpoint recovers.
 	reg.mu.Lock()
 	reg.deltaErr = nil
 	reg.mu.Unlock()
@@ -217,6 +221,46 @@ func TestFailedDeltaIsRetriedOnNextPoll(t *testing.T) {
 	require.Len(t, env.repo.ActionWrites(), 1)
 	require.Len(t, env.repo.StatusWrites(), 2)
 	assert.True(t, env.repo.StatusWrites()[1].Healthy)
+}
+
+// A registered_actions write that fails leaves the engine, the cache and the row where they
+// were: the session gets no delta and the whole change is retried on the next poll.
+func TestFailedActionWriteChangesNothing(t *testing.T) {
+	env := newTestEnv(t)
+	tenant := uuid.New()
+
+	a := healthyRow(endpointSpec{tenantId: tenant, name: "a", actions: []string{"svc:a"}})
+	env.addEndpoint(a)
+
+	env.r.UnitsGained(context.Background(), []memrepo.Unit{env.unit(a)})
+	require.Eventually(t, func() bool { return len(env.sender.callsTo(a.HealthcheckUrl)) == 1 }, eventually, 10*time.Millisecond)
+
+	poller := env.poller(a)
+	poller.stop()
+
+	reg := env.host.session(0)
+
+	env.repo.SetFailWrites(assert.AnError)
+	env.sender.respond(a.HealthcheckUrl, http.StatusOK, healthcheckBody("svc:a", "svc:b"))
+	poller.pollOnce(context.Background())
+
+	assert.Equal(t, 0, reg.deltaCount(), "the session sees no delta while the row is not written")
+	assert.Empty(t, env.repo.ActionWrites())
+
+	union, _ := env.tenant(tenant).cache.ActionUnion()
+	assert.Equal(t, []string{"svc:a"}, union, "the cached union is unchanged")
+
+	// The write succeeds on the next poll: the row, the cache and the session all move.
+	env.repo.SetFailWrites(nil)
+	poller.pollOnce(context.Background())
+
+	require.Len(t, env.repo.ActionWrites(), 1)
+	assert.Equal(t, []string{"svc:a", "svc:b"}, env.repo.ActionWrites()[0].Actions)
+	assert.Equal(t, []string{"svc:b"}, reg.added())
+	assert.Equal(t, 1, reg.flushCount())
+
+	union, _ = env.tenant(tenant).cache.ActionUnion()
+	assert.Equal(t, []string{"svc:a", "svc:b"}, union)
 }
 
 func TestEngineRejectedWorkflowMarksEndpoint(t *testing.T) {

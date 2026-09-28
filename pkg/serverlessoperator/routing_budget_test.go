@@ -165,6 +165,12 @@ type budgetRootRepo struct {
 
 func (r budgetRootRepo) Endpoints() repository.ServerlessEndpointRepository { return r.ep }
 
+// UpdateRegisteredActions accepts the write without recording it: the fixed row set is what
+// the measurements read.
+func (r *budgetRepo) UpdateRegisteredActions(context.Context, uuid.UUID, []string, []string) error {
+	return nil
+}
+
 var budgetTenant = uuid.MustParse("00000000-0000-0000-0000-000000000001")
 
 // budgetRows builds n endpoints of one tenant with a actions each, all on shard 0, with ids
@@ -530,7 +536,7 @@ func TestPersistentWorkflowRejectionWritesStatusOnce(t *testing.T) {
 func newRegistrationForTest(c *routingCache, session operator.Session) *registration {
 	l := zerolog.Nop()
 	union, rev := c.ActionUnion()
-	reg := &registration{session: session, base: union, advertisedRev: rev, r: &runner{l: &l}}
+	reg := &registration{session: session, base: union, advertisedRev: rev, r: &runner{l: &l, repo: budgetRootRepo{ep: c.repo.(*budgetRepo)}}}
 	reg.ts = &tenantState{cache: c, tenantId: c.tenantId, reg: reg}
 
 	return reg
