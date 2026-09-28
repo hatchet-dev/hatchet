@@ -5,8 +5,12 @@ import {
   OrganizationOnboardingQuestionsForm,
   shuffledAttributionOptions,
 } from './organization-onboarding-questions-form';
+import { UpgradeGateContent } from '@/components/v1/cloud/billing/upgrade-gate-dialog';
 import { useAnalytics } from '@/hooks/use-analytics';
 import useControlPlane from '@/hooks/use-control-plane';
+import { useOrganizations } from '@/hooks/use-organizations';
+import { useTenantDetails } from '@/hooks/use-tenant';
+import { getApiErrorStatus } from '@/lib/api/api';
 import {
   Organization,
   OrganizationTenant,
@@ -15,6 +19,7 @@ import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useApiError } from '@/lib/hooks';
 import { useUserUniverse } from '@/providers/user-universe';
 import { useMutation, useQuery } from '@tanstack/react-query';
+import { AxiosError } from 'axios';
 import { useMemo, useState } from 'react';
 import invariant from 'tiny-invariant';
 
@@ -30,12 +35,15 @@ interface NewOrganizationSaverFormProps {
     organization: Organization;
     tenant: OrganizationTenant;
   }) => void | Promise<void>;
+  onLimitReached?: () => void;
 }
 
 const useSaveOrganization = ({
   afterSave,
+  onLimitReached,
 }: {
   afterSave: NewOrganizationSaverFormProps['afterSave'];
+  onLimitReached: () => void;
 }) => {
   const { invalidate: invalidateUserUniverse } = useUserUniverse();
   const { isControlPlaneEnabled } = useControlPlane();
@@ -89,7 +97,13 @@ const useSaveOrganization = ({
       // route's loader is still running.
       await afterSave(data);
     },
-    onError: handleApiError,
+    onError: (error) => {
+      if (getApiErrorStatus(error) === 403) {
+        onLimitReached();
+        return;
+      }
+      handleApiError(error as AxiosError);
+    },
   });
 };
 
@@ -104,8 +118,16 @@ export function NewOrganizationSaverForm({
   defaultTenantName,
   askAttribution = false,
   afterSave,
+  onLimitReached,
 }: NewOrganizationSaverFormProps) {
-  const { isLoaded: isUserUniverseLoaded } = useUserUniverse();
+  const {
+    isLoaded: isUserUniverseLoaded,
+    canCreateOrganization,
+    organizations,
+  } = useUserUniverse();
+  const { tenant } = useTenantDetails();
+  const { getOrganizationForTenant } = useOrganizations();
+  const [limitReached, setLimitReached] = useState(false);
   const { isControlPlaneEnabled } = useControlPlane();
   const orgApi = useOrganizationApi();
 
@@ -114,7 +136,13 @@ export function NewOrganizationSaverForm({
     enabled: isControlPlaneEnabled,
   });
 
-  const saveOrganizationMutation = useSaveOrganization({ afterSave });
+  const saveOrganizationMutation = useSaveOrganization({
+    afterSave,
+    onLimitReached: () => {
+      setLimitReached(true);
+      onLimitReached?.();
+    },
+  });
 
   const [details, setDetails] = useState<OrganizationDetails | null>(null);
   const [answers, setAnswers] = useState<OrganizationOnboardingAnswers>({});
@@ -133,6 +161,22 @@ export function NewOrganizationSaverForm({
     isControlPlaneEnabled,
     'NewOrganizationSaverForm requires the control plane',
   );
+
+  const currentOrganization = tenant
+    ? getOrganizationForTenant(tenant.metadata.id)
+    : undefined;
+  const ownedOrganization =
+    currentOrganization ?? organizations?.find((org) => org.isOwner);
+
+  if ((!canCreateOrganization || limitReached) && ownedOrganization) {
+    return (
+      <UpgradeGateContent
+        gate="organizations"
+        organizationId={ownedOrganization.metadata.id}
+        organizationName={ownedOrganization.name}
+      />
+    );
+  }
 
   const isSaving =
     // Stay in the saving state after success too: the component only
