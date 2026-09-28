@@ -18,8 +18,6 @@ func v10158IndexName(table string) string {
 	return fmt.Sprintf("ix_%s_tenant_ins_at_status_wf", table)
 }
 
-// upV10158 adds (tenant_id, inserted_at DESC, readable_status, workflow_id) on
-// v1_runs_olap.
 func upV10158(ctx context.Context, db *sql.DB) error {
 	partitions, err := listLeafPartitions(ctx, db, "v1_runs_olap", 1)
 	if err != nil {
