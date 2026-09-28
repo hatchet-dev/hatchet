@@ -31,6 +31,8 @@ import {
   type DurableInvokeOptions,
   type DurableResult,
   type DurableRun,
+  type RunStreamScript,
+  type RunTaskResult,
   type VirtualClock,
 } from './durable-operator';
 
@@ -39,6 +41,8 @@ export type {
   DurableResult,
   DurableRun,
   RecordedFrame,
+  RunStreamScript,
+  RunTaskResult,
   VirtualClock,
 } from './durable-operator';
 export { createSocketPair } from './socket-pair';
@@ -59,6 +63,11 @@ export interface TestOperatorOptions extends Omit<
    * with an upgrade hook does. Defaults to true; false reproduces an adapter without one.
    */
   durable?: boolean;
+  /**
+   * The engine behind the streams a task opens over its socket (`ctx.runChild` awaits child
+   * results on one). By default a subscription is answered by `completeRun`.
+   */
+  runStream?: RunStreamScript;
 }
 
 export interface InvokeOptions {
@@ -107,21 +116,30 @@ export interface TestOperator {
   readonly endpointId: string;
   /** POSTs a signed healthcheck, validates the body is protojson and returns it decoded. */
   healthcheck(): Promise<ServerlessHealthcheckResponse>;
-  /** Signs and POSTs a trigger for the target and returns the task's output. */
+  /**
+   * Delivers the task the way the operator would (a signed POST, or the socket for a task
+   * the healthcheck flags with `streams`) and returns the task's output.
+   */
   invoke<O = unknown>(target: InvokeTarget, input: unknown, options?: InvokeOptions): Promise<O>;
   /** Like `invoke`, but returns the operator's classification instead of throwing on failure. */
   deliver(target: InvokeTarget, input: unknown, options?: InvokeOptions): Promise<DeliveryOutcome>;
   /** Sends a raw request to the handler; the body is signed unless `sign` is false. */
   request(path: string, init?: RequestInit & { sign?: boolean }): Promise<Response>;
   /**
-   * Dials the handler over the durable relay for one invocation and returns its outcome:
-   * completed with the output, evicted after an eviction ack, or failed.
+   * Dials the handler over the invocation websocket for one invocation of any task, durable
+   * or not, and returns its outcome: completed with the output, evicted after an eviction
+   * ack, or failed.
    */
   invokeDurable(
     target: InvokeTarget,
     input: unknown,
     options?: DurableInvokeOptions
   ): Promise<DurableResult>;
+  /**
+   * Finishes a run a task awaits over its socket (`ctx.runChild`, `ref.result()`): every
+   * subscription to the run gets its terminal event with these results.
+   */
+  completeRun(workflowRunId: string, results: RunTaskResult[]): void;
   /** Like `invokeDurable`, but returns the invocation in progress for mid-flight actions. */
   startDurable(target: InvokeTarget, input: unknown, options?: DurableInvokeOptions): DurableRun;
   /** Re-invokes an evicted invocation against the same event log with the next count. */
@@ -142,6 +160,7 @@ export function createTestOperator(options: TestOperatorOptions): TestOperator {
     endpointId = crypto.randomUUID(),
     runtimeName = 'test',
     durable = true,
+    runStream,
     ...rest
   } = options;
   const handler = createHandler({
@@ -181,9 +200,46 @@ export function createTestOperator(options: TestOperatorOptions): TestOperator {
     );
   };
 
+  // The catalog decides how a task is delivered, as it does for the operator: durable tasks
+  // and tasks flagged with streams go over the socket, everything else over a POST.
+  const durableActions = new Set(
+    handler
+      .healthcheck()
+      .workflows.flatMap((workflow) =>
+        workflow.tasks.filter((task) => task.isDurable).map((task) => task.action)
+      )
+  );
+  const streamActions = new Set(
+    handler
+      .healthcheck()
+      .tasks.filter((task) => task.streams)
+      .map((task) => task.action)
+  );
+
   const deliver: TestOperator['deliver'] = async (target, input, invokeOptions = {}) => {
     const { workflowName, taskName } = resolveTarget(target);
     const timestamp = invokeOptions.timestamp ?? Math.floor(Date.now() / 1000);
+
+    if (streamActions.has(createActionId(workflowName, taskName))) {
+      const result = await durableOperator.start(workflowName, taskName, input, {
+        workflowRunId: invokeOptions.workflowRunId,
+        taskRunExternalId: invokeOptions.taskRunExternalId,
+        retryCount: invokeOptions.retryCount,
+        additionalMetadata: invokeOptions.additionalMetadata,
+        parents: invokeOptions.parents,
+      }).result;
+
+      if (result.status === 'completed') {
+        return { status: 'completed', output: result.output, httpStatus: result.httpStatus };
+      }
+
+      return {
+        status: 'failed',
+        error: result.error ?? `the socket invocation ${result.status}`,
+        retry: result.retry ?? false,
+        httpStatus: result.httpStatus,
+      };
+    }
 
     const action = AssignedAction.fromPartial({
       tenantId: crypto.randomUUID(),
@@ -227,6 +283,8 @@ export function createTestOperator(options: TestOperatorOptions): TestOperator {
     handler,
     secret,
     endpointId,
+    runStream,
+    isDurable: (actionId) => durableActions.has(actionId),
     runChild: async (workflowName, input) => {
       const workflow = handler
         .healthcheck()
@@ -261,6 +319,7 @@ export function createTestOperator(options: TestOperatorOptions): TestOperator {
     endpointId,
     clock: durableOperator.clock,
     emit: (eventKey, payload) => durableOperator.emit(eventKey, payload),
+    completeRun: (workflowRunId, results) => durableOperator.completeRun(workflowRunId, results),
     upgradeHeaders: (taskRunExternalId, invocationCount, overrides) =>
       durableOperator.upgradeHeaders(taskRunExternalId, invocationCount, overrides),
 

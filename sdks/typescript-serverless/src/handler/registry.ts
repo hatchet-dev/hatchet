@@ -42,6 +42,11 @@ export interface Registry {
   durableRunners: Map<string, DurableTaskRunner>;
   /** Action ids this endpoint serves. */
   served: Set<string>;
+  /**
+   * Action ids of non-durable tasks the operator invokes over the invocation socket rather
+   * than a POST, so they can await child runs. Advertised as `streams` in the healthcheck.
+   */
+  streamActions: Set<string>;
   hasWorkflow(workflowName: string): boolean;
 }
 
@@ -68,7 +73,8 @@ type Warn = (message: string) => void;
 export function buildRegistry(
   workflows: BaseWorkflowDeclaration<any, any>[],
   serve?: ServeEntry[],
-  warn: Warn = (message) => console.warn(message)
+  warn: Warn = (message) => console.warn(message),
+  streams?: ServeEntry[]
 ): Registry {
   const ignored = new Map<string, string[]>();
   const noteIgnored = (option: string, where: string) => {
@@ -137,12 +143,20 @@ export function buildRegistry(
     warn(`@hatchet-dev/serverless: ignoring "${option}" on ${where.join(', ')}: ${reason}`);
   }
 
+  // Durable tasks always run on a socket, so the flag only means something for the others.
+  const streamActions = new Set(
+    [...selectActions(registered, streams ?? [], 'streams')].filter(
+      (actionId) => !durableActions.has(actionId)
+    )
+  );
+
   return {
     workflows: registered,
     runners,
     durableActions,
     durableRunners,
     served: servedActions(registered, serve),
+    streamActions,
     hasWorkflow: (workflowName) => seenNames.has(workflowName.toLowerCase()),
   };
 }
@@ -152,26 +166,37 @@ function servedActions(workflows: RegisteredWorkflow[], serve?: ServeEntry[]): S
     return new Set(workflows.flatMap((workflow) => workflow.actions));
   }
 
-  const served = new Set<string>();
+  return selectActions(workflows, serve, 'serve');
+}
 
-  for (const entry of serve) {
+/** The action ids the entries of an option name: every action of a declaration, or an id as written. */
+function selectActions(
+  workflows: RegisteredWorkflow[],
+  entries: ServeEntry[],
+  option: 'serve' | 'streams'
+): Set<string> {
+  const selected = new Set<string>();
+
+  for (const entry of entries) {
     if (typeof entry === 'string') {
-      served.add(entry.toLowerCase());
+      selected.add(entry.toLowerCase());
       continue;
     }
 
     const workflow = workflows.find((candidate) => candidate.declaration === entry);
 
     if (!workflow) {
-      throw new Error(`serve lists workflow "${entry.definition.name}", which is not in workflows`);
+      throw new Error(
+        `${option} lists workflow "${entry.definition.name}", which is not in workflows`
+      );
     }
 
     for (const actionId of workflow.actions) {
-      served.add(actionId);
+      selected.add(actionId);
     }
   }
 
-  return served;
+  return selected;
 }
 
 /**

@@ -1,6 +1,7 @@
 /**
- * One text frame on the durable websocket is one protojson ServerlessDurableFrame. The
- * operator sends first, response and error; the endpoint sends request and done.
+ * One text frame on the invocation websocket is one protojson ServerlessDurableFrame. The
+ * operator sends first, response, error, stream_message and stream_close; the endpoint
+ * sends request, done, stream_open, stream_message and stream_close.
  */
 import { ServerlessDurableFrame } from '../../generated/proto/v1/serverless';
 
@@ -17,6 +18,9 @@ export function frameKind(frame: ServerlessDurableFrame): string {
   if (frame.first) return 'first';
   if (frame.done) return 'done';
   if (frame.error) return 'error';
+  if (frame.streamOpen) return 'streamOpen';
+  if (frame.streamMessage) return 'streamMessage';
+  if (frame.streamClose) return 'streamClose';
 
   if (frame.request) {
     const { request } = frame;

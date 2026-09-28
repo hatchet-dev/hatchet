@@ -4,6 +4,7 @@
  */
 import type { BaseWorkflowDeclaration } from '@hatchet-dev/typescript-sdk/edge/index.js';
 import type { ServerlessHealthcheckResponse } from '../generated/proto/v1/serverless';
+import { createClientResolver, type ClientOption } from './client';
 import { SIGNATURE_HEADER } from './contract';
 import type { ConsoleLike } from './context';
 import { runDurableInvocation } from './durable/invocation';
@@ -31,6 +32,23 @@ export interface HandlerOptions {
    * action of every workflow. Triggers for actions outside the subset are answered 404.
    */
   serve?: ServeEntry[];
+  /**
+   * The non-durable tasks (declarations, or action ids `workflow:task`) the operator invokes
+   * over the invocation websocket instead of a POST. A task that awaits a child run
+   * (`ctx.runChild`, `ctx.bulkRunChildren`, `ref.result()`) needs the socket, since results
+   * are awaited on engine streams the operator relays over it; every other task is cheaper
+   * over the POST. Durable tasks always have a socket and need no listing.
+   */
+  streams?: ServeEntry[];
+  /**
+   * The Hatchet client a task's `ctx` methods delegate to: a `HatchetCore` instance, the
+   * config `HatchetCore` takes (`{ token, serverUrl?, tls?, namespace?, ... }`), or a function
+   * of the runtime's environment returning either, for runtimes that hand secrets to the
+   * request. The token comes from the platform's secret store; the operator never sends it.
+   * Without a client, `ctx.runChild`, `ctx.putStream`, `ctx.cancel` and their relatives
+   * throw `ServerlessLimitationError`, and `ctx.log` stays on the console.
+   */
+  client?: ClientOption;
   /** The path the healthcheck and trigger routes live under. Defaults to `/hatchet`. */
   basePath?: string;
   /** The endpoint's signing secret, or a function reading it from the runtime's env. */
@@ -84,7 +102,13 @@ function resolve<T>(resolver: EnvResolver<T> | undefined, env: unknown): T | und
 
 export function createHandler(options: HandlerOptions): ServerlessHandler {
   const out = options.console ?? console;
-  const registry = buildRegistry(options.workflows, options.serve, (message) => out.warn(message));
+  const registry = buildRegistry(
+    options.workflows,
+    options.serve,
+    (message) => out.warn(message),
+    options.streams
+  );
+  const clientFor = createClientResolver(options.client);
   const basePath = normalizeBasePath(options.basePath);
   const durableSupported = options.durable === true && registry.durableActions.size > 0;
   const healthcheck = buildHealthcheck(registry, options.runtime, durableSupported);
@@ -185,10 +209,13 @@ export function createHandler(options: HandlerOptions): ServerlessHandler {
           return triggerError(verified.status, verified.reason, verified.status === 503);
         }
 
+        const client = clientFor(env);
+
         return hooks.upgrade(request, (socket) =>
           runDurableInvocation({
             socket,
             registry,
+            client,
             console: options.console,
             expected: { taskRunExternalId: verified.taskId, invocationCount: verified.invocation },
           })
@@ -199,6 +226,7 @@ export function createHandler(options: HandlerOptions): ServerlessHandler {
         registry,
         secret,
         endpointId: resolve(options.endpointId, env),
+        client: clientFor(env),
         console: options.console,
       });
     },

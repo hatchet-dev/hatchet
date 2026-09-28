@@ -1,13 +1,20 @@
 /**
- * An in-memory serverless operator for durable invocations. It dials the handler through
+ * An in-memory serverless operator for socket invocations. It dials the handler through
  * the `DurableHooks.upgrade` seam with a signed upgrade, speaks the frame protocol of
  * pkg/serverlessoperator/durable over an in-memory socket pair, keeps a durable event log
  * per task run (memo entries replay, wait entries complete from a virtual clock or from
- * emitted events, child runs execute the registered task function) and enforces the
- * operator's protocol rules so a misbehaving endpoint fails the test.
+ * emitted events, child runs execute the registered task function), answers the engine
+ * streams a task opens over the socket from a scripted engine, and enforces the operator's
+ * protocol rules so a misbehaving endpoint fails the test.
  */
 import { durationToMs, type Duration } from '@hatchet-dev/typescript-sdk/edge/index.js';
-import { ActionType, AssignedAction } from '../generated/proto/dispatcher';
+import {
+  ActionType,
+  AssignedAction,
+  SubscribeToWorkflowRunsRequest,
+  WorkflowRunEvent,
+  WorkflowRunEventType,
+} from '../generated/proto/dispatcher';
 import type {
   DurableEventLogEntryRef,
   DurableTaskRequest,
@@ -16,7 +23,16 @@ import type {
 import type {
   ServerlessDurableFrame,
   ServerlessFirstFrame,
+  ServerlessStreamClose,
+  ServerlessStreamMessage,
+  ServerlessStreamOpen,
 } from '../generated/proto/v1/serverless';
+import {
+  MAX_SOCKET_STREAMS,
+  SOCKET_STREAM_PROCEDURES,
+  SUBSCRIBE_TO_WORKFLOW_RUNS,
+  StreamCloseCode,
+} from '../handler/durable/streams';
 import {
   DONE_STATUS_EVICTED,
   ENDPOINT_ID_HEADER,
@@ -71,7 +87,7 @@ export interface DurableResult {
   operatorFrames: string[];
 }
 
-/** A durable invocation in progress, for tests that act on the operator side mid-flight. */
+/** A socket invocation in progress, for tests that act on the operator side mid-flight. */
 export interface DurableRun {
   result: Promise<DurableResult>;
   taskRunExternalId: string;
@@ -84,6 +100,35 @@ export interface DurableRun {
   sendError(code: 'nondeterminism' | 'unspecified', message: string): void;
   /** The operator closes the socket. */
   close(code: number, reason?: string): void;
+  /** The ids of the streams the endpoint holds open on the socket right now. */
+  openStreams(): string[];
+  /** The operator ends one stream with a connect code, as it does when the engine drops it. */
+  closeStream(id: string, code: number, message?: string): void;
+}
+
+/** One task's result in a run's terminal event, as `completeRun` takes it. */
+export interface RunTaskResult {
+  taskName: string;
+  /** The task's output, serialized as JSON in the event. */
+  output?: unknown;
+  error?: string;
+}
+
+/**
+ * The engine behind the streams a task opens over its socket. Only
+ * `/Dispatcher/SubscribeToWorkflowRuns` is served; the other procedures the operator allows
+ * are closed with code 12 (unimplemented), since the test operator has no engine for them.
+ */
+export interface RunStreamScript {
+  /**
+   * Answers a subscription to a run with its terminal event. By default the subscription
+   * waits for `completeRun(workflowRunId, ...)`, or is answered at once when the run was
+   * completed already. A rejection closes the stream with the error's `code` (a connect
+   * code) or 2 (unknown) and its message.
+   */
+  workflowRun?: (workflowRunId: string) => WorkflowRunEvent | Promise<WorkflowRunEvent>;
+  /** The cap on open streams per socket; defaults to the operator's 16. */
+  maxStreams?: number;
 }
 
 export interface VirtualClock {
@@ -117,6 +162,10 @@ export interface DurableOperatorOptions {
   endpointId: string;
   /** Runs a non-durable child through the trigger route; resolves with its output. */
   runChild: (workflowName: string, input: unknown) => Promise<unknown>;
+  /** Whether the action is a durable task; a durable request on any other socket is a violation. */
+  isDurable: (actionId: string) => boolean;
+  /** The engine behind the streams a task opens; defaults to `completeRun`-driven runs. */
+  runStream?: RunStreamScript;
 }
 
 interface Waiter {
@@ -142,6 +191,9 @@ export class DurableOperator {
   private now = 0;
   private logs = new Map<string, TaskLog>();
   private live = new Map<string, ActiveInvocation>();
+  /** Terminal events of completed runs, delivered to later subscriptions at once. */
+  private runEvents = new Map<string, WorkflowRunEvent>();
+  private runWaiters = new Map<string, Array<(event: WorkflowRunEvent) => void>>();
 
   constructor(private readonly options: DurableOperatorOptions) {
     this.clock = {
@@ -151,6 +203,54 @@ export class DurableOperator {
         this.settleSleeps();
       },
     };
+  }
+
+  /**
+   * Finishes a run the engine is asked about over a socket: every subscription to it, now
+   * or later, gets the terminal event carrying the tasks' outputs and errors.
+   */
+  completeRun(workflowRunId: string, results: RunTaskResult[]): void {
+    const event = WorkflowRunEvent.create({
+      workflowRunId,
+      eventType: WorkflowRunEventType.WORKFLOW_RUN_EVENT_TYPE_FINISHED,
+      eventTimestamp: new Date(),
+      results: results.map((result) => ({
+        taskRunExternalId: crypto.randomUUID(),
+        taskName: result.taskName,
+        jobRunId: crypto.randomUUID(),
+        error: result.error,
+        output: result.output === undefined ? undefined : JSON.stringify(result.output),
+      })),
+    });
+
+    this.runEvents.set(workflowRunId, event);
+
+    for (const waiter of this.runWaiters.get(workflowRunId) ?? []) {
+      waiter(event);
+    }
+
+    this.runWaiters.delete(workflowRunId);
+  }
+
+  /** The engine's answer to a subscription: the scripted one, or the `completeRun` event. */
+  awaitRun(workflowRunId: string): Promise<WorkflowRunEvent> {
+    const scripted = this.options.runStream?.workflowRun;
+
+    if (scripted) {
+      return Promise.resolve().then(() => scripted(workflowRunId));
+    }
+
+    const event = this.runEvents.get(workflowRunId);
+
+    if (event) {
+      return Promise.resolve(event);
+    }
+
+    return new Promise((resolve) => {
+      const waiters = this.runWaiters.get(workflowRunId) ?? [];
+      waiters.push(resolve);
+      this.runWaiters.set(workflowRunId, waiters);
+    });
   }
 
   /** Completes user-event waits for the key with the payload. */
@@ -286,6 +386,8 @@ class ActiveInvocation implements DurableRun {
   private violation: string | undefined;
   private settled = false;
   private httpStatus = 0;
+  /** The engine streams open on the socket, by the endpoint's id, with their procedure. */
+  private streams = new Map<string, string>();
 
   constructor(
     private readonly operator: DurableOperator,
@@ -433,12 +535,155 @@ class ActiveInvocation implements DurableRun {
       return;
     }
 
+    if (frame.streamOpen) {
+      this.onStreamOpen(frame.streamOpen);
+      return;
+    }
+
+    if (frame.streamMessage) {
+      this.onStreamMessage(frame.streamMessage);
+      return;
+    }
+
+    if (frame.streamClose) {
+      this.onStreamClose(frame.streamClose);
+      return;
+    }
+
     if (!frame.request) {
       this.violate(`unexpected frame ${this.kindOf(frame)}`);
       return;
     }
 
+    if (!this.options.isDurable(this.actionId)) {
+      this.violate('endpoint sent a durable request on the socket of a non-durable task');
+      return;
+    }
+
     this.onRequest(frame.request);
+  }
+
+  private get actionId(): string {
+    return `${this.params.workflowName}:${this.params.taskName}`.toLowerCase();
+  }
+
+  openStreams(): string[] {
+    return [...this.streams.keys()];
+  }
+
+  closeStream(id: string, code: number, message = ''): void {
+    if (this.streams.delete(id)) {
+      this.sendStreamClose(id, code, message);
+    }
+  }
+
+  private sendStreamClose(id: string, code: number, message: string): void {
+    this.send({ streamClose: { id, code, message } });
+  }
+
+  /**
+   * Mirrors pkg/serverlessoperator/durable/streams.go handleStreamOpen: a frame the contract
+   * forbids ends the socket; anything the stream layer can answer is a stream_close with a
+   * connect code and leaves the socket up.
+   */
+  private onStreamOpen(open: ServerlessStreamOpen): void {
+    if (!open.id) {
+      this.violate('endpoint sent stream_open without an id');
+      return;
+    }
+
+    if (this.streams.has(open.id)) {
+      this.violate(`endpoint sent stream_open for stream "${open.id}", which is already open`);
+      return;
+    }
+
+    if (!SOCKET_STREAM_PROCEDURES.includes(open.procedure)) {
+      this.sendStreamClose(
+        open.id,
+        StreamCloseCode.UNIMPLEMENTED,
+        `procedure "${open.procedure}" is not served over the socket`
+      );
+      return;
+    }
+
+    const maxStreams = this.options.runStream?.maxStreams ?? MAX_SOCKET_STREAMS;
+
+    if (this.streams.size >= maxStreams) {
+      this.sendStreamClose(
+        open.id,
+        StreamCloseCode.RESOURCE_EXHAUSTED,
+        `the socket already holds ${maxStreams} streams, the limit`
+      );
+      return;
+    }
+
+    if (open.procedure !== SUBSCRIBE_TO_WORKFLOW_RUNS) {
+      this.sendStreamClose(
+        open.id,
+        StreamCloseCode.UNIMPLEMENTED,
+        `the test operator serves only ${SUBSCRIBE_TO_WORKFLOW_RUNS}`
+      );
+      return;
+    }
+
+    this.streams.set(open.id, open.procedure);
+    this.subscribeRun(open.id, open.request);
+  }
+
+  private onStreamMessage(message: ServerlessStreamMessage): void {
+    if (!this.streams.has(message.id)) {
+      // A message crossing the operator's close; the relay drops it too.
+      return;
+    }
+
+    this.subscribeRun(message.id, message.message);
+  }
+
+  private onStreamClose(close: ServerlessStreamClose): void {
+    this.streams.delete(close.id);
+  }
+
+  /** Decodes a subscription and answers it with the run's terminal event when it comes. */
+  private subscribeRun(streamId: string, raw: string): void {
+    let workflowRunId: string;
+
+    try {
+      ({ workflowRunId } = SubscribeToWorkflowRunsRequest.fromJSON(JSON.parse(raw)));
+    } catch (err) {
+      this.streams.delete(streamId);
+      this.sendStreamClose(
+        streamId,
+        StreamCloseCode.INVALID_ARGUMENT,
+        `request is not a SubscribeToWorkflowRuns request: ${String(err)}`
+      );
+      return;
+    }
+
+    this.operator.awaitRun(workflowRunId).then(
+      (event) => {
+        if (this.streams.get(streamId) === undefined || this.done || this.pair.closed) {
+          return;
+        }
+
+        this.send({
+          streamMessage: {
+            id: streamId,
+            message: JSON.stringify(WorkflowRunEvent.toJSON(event)),
+          },
+        });
+      },
+      (err: unknown) => {
+        if (!this.streams.delete(streamId) || this.done || this.pair.closed) {
+          return;
+        }
+
+        const code =
+          typeof (err as { code?: unknown })?.code === 'number'
+            ? (err as { code: number }).code
+            : StreamCloseCode.UNKNOWN;
+        this.sendStreamClose(streamId, code, err instanceof Error ? err.message : String(err));
+      }
+    );
   }
 
   private notifyWaiters(frame: ServerlessDurableFrame): void {

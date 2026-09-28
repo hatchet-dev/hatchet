@@ -258,13 +258,23 @@ describe('durable invocations', () => {
     expect(permanent).toMatchObject({ status: 'failed', error: 'permanent', retry: false });
   });
 
-  it('refuses a non-durable action over the socket', async () => {
+  it('runs a non-durable action over the socket as invocation 1 with no durable frames', async () => {
     const op = operator();
+    const result = await op.invokeDurable(echo, { message: 'hi' });
+
+    expect(result.status).toBe('completed');
+    expect(result.output).toEqual({ echo: 'hi' });
+    expect(result.invocationCount).toBe(1);
+    expect(result.endpointFrames).toEqual(['done:output']);
+  });
+
+  it('refuses an action the endpoint does not serve over the socket', async () => {
+    const op = operator({ serve: [sleeper] });
     const result = await op.invokeDurable(echo, { message: 'hi' });
 
     expect(result.status).toBe('failed');
     expect(result.retry).toBe(false);
-    expect(result.error).toMatch(/not a durable task/);
+    expect(result.error).toMatch(/no task served for action echo:echo/);
     expect(result.endpointFrames).toEqual(['done:error']);
   });
 

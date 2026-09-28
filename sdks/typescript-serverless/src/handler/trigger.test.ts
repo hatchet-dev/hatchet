@@ -110,7 +110,7 @@ describe('trigger outcomes', () => {
 
     expect(outcome).toMatchObject({ status: 'failed', retry: false, httpStatus: 422 });
     expect((outcome as { error: string }).error).toMatch(/ctx\.runChild/);
-    expect((outcome as { error: string }).error).toMatch(/no Hatchet client/);
+    expect((outcome as { error: string }).error).toMatch(/configure `client` to enable this/);
   });
 
   it('throws anything else: 500, retry true', async () => {

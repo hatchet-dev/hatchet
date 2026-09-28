@@ -28,8 +28,12 @@ export function buildHealthcheck(
     ),
     actions: [...registry.served].sort(),
     durable: { supported: durableSupported },
-    // No task asks for an invocation socket yet; the streaming context methods set this later.
-    tasks: [],
+    // The served non-durable tasks the operator invokes over a socket, so they can await
+    // child runs on it. Durable tasks have a socket regardless and are not listed.
+    tasks: [...registry.streamActions]
+      .filter((action) => registry.served.has(action))
+      .sort()
+      .map((action) => ({ action, streams: true })),
     runtime: { name: runtime.name, sdkVersion },
   };
 }

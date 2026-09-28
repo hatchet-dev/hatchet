@@ -8,32 +8,48 @@
  * export default cloudflare({ workflows });
  * ```
  *
- * Serves `POST <basePath>/healthcheck`, `POST <basePath>/trigger` and the durable websocket
+ * Serves `POST <basePath>/healthcheck`, `POST <basePath>/trigger` and the invocation websocket
  * upgrade on `<basePath>/trigger`, reads the signing secret from `env.HATCHET_SIGNING_SECRET`
- * and hands every other path to the `fetch` option or answers 404. A durable invocation
- * runs under `ctx.waitUntil` with its socket open, so it outlives the 101 response. Typed
- * against `@cloudflare/workers-types`; nothing from Cloudflare is imported at runtime.
+ * and the client token from `env.HATCHET_CLIENT_TOKEN`, and hands every other path to the
+ * `fetch` option or answers 404. A socket invocation runs under `ctx.waitUntil` with its
+ * socket open, so it outlives the 101 response. Typed against `@cloudflare/workers-types`;
+ * nothing from Cloudflare is imported at runtime.
  * @module Cloudflare
  */
 /// <reference types="@cloudflare/workers-types" />
 import { createHandler, type DurableSocket, type HandlerOptions } from '../handler';
+import type { CoreClientConfig, HatchetCore } from '../handler/client';
 
 /** The bindings the adapter reads. Extend it with your own for the `fetch` fallback. */
 export interface HatchetEnv {
   /** `wrangler secret put HATCHET_SIGNING_SECRET`; the endpoint's signingSecret in Hatchet. */
   HATCHET_SIGNING_SECRET?: string;
+  /**
+   * `wrangler secret put HATCHET_CLIENT_TOKEN`: a tenant API token, from which the adapter
+   * builds the client `ctx.runChild`, `ctx.putStream`, `ctx.cancel` and `ctx.log` use.
+   * Without it those members throw `ServerlessLimitationError`.
+   */
+  HATCHET_CLIENT_TOKEN?: string;
   /** Optional: when set, durable upgrades from any other endpoint id are refused. */
   HATCHET_ENDPOINT_ID?: string;
 }
 
 export interface CloudflareOptions<Env = HatchetEnv> extends Omit<
   HandlerOptions,
-  'secret' | 'endpointId' | 'runtime' | 'durable'
+  'secret' | 'endpointId' | 'runtime' | 'durable' | 'client'
 > {
   /** The signing secret; defaults to `env.HATCHET_SIGNING_SECRET`. */
   secret?: string | ((env: Env) => string | undefined);
   /** The endpoint id; defaults to `env.HATCHET_ENDPOINT_ID`. */
   endpointId?: string | ((env: Env) => string | undefined);
+  /**
+   * The Hatchet client for the tasks' `ctx`: a `HatchetCore`, its config, or a function of
+   * `env` returning either, since Workers see secrets on the request. Defaults to
+   * `{ token: env.HATCHET_CLIENT_TOKEN }` when that secret is set; a local engine over plain
+   * HTTP needs the function form with `serverUrl` and `tls: { strategy: 'none' }`.
+   */
+  client?:
+    HatchetCore | CoreClientConfig | ((env: Env) => HatchetCore | CoreClientConfig | undefined);
   /** Handles every request outside `basePath`. Without it those requests get a 404. */
   fetch?: (request: Request, env: Env, ctx: ExecutionContext) => Response | Promise<Response>;
 }
@@ -79,7 +95,7 @@ export function cloudflareSocket(ws: WebSocket): DurableSocket {
 export function cloudflare<Env = HatchetEnv>(
   options: CloudflareOptions<Env>
 ): ExportedHandler<Env> {
-  const { secret, endpointId, fetch: fallback, ...rest } = options;
+  const { secret, endpointId, client, fetch: fallback, ...rest } = options;
 
   const handler = createHandler({
     ...rest,
@@ -88,6 +104,10 @@ export function cloudflare<Env = HatchetEnv>(
     secret: (env) => fromEnv(secret, env as Env, (bindings) => bindings.HATCHET_SIGNING_SECRET),
     endpointId: (env) =>
       fromEnv(endpointId, env as Env, (bindings) => bindings.HATCHET_ENDPOINT_ID),
+    client: (env) =>
+      fromEnv(client, env as Env, (bindings) =>
+        bindings.HATCHET_CLIENT_TOKEN ? { token: bindings.HATCHET_CLIENT_TOKEN } : undefined
+      ),
   });
 
   return {

@@ -1,6 +1,6 @@
 {
   "name": "@hatchet-dev/serverless",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.2",
   "private": false,
   "description": "Serve Hatchet tasks from serverless runtimes without a worker process",
   "license": "MIT",
@@ -58,14 +58,15 @@
     "publish:alpha": "pnpm run build:sdk && pnpm install && pnpm run lint && pnpm run test && pnpm run build && pnpm publish --access public --tag alpha --no-git-checks"
   },
   "peerDependencies": {
-    "@hatchet-dev/typescript-sdk": "^1.32.0",
+    "@hatchet-dev/typescript-sdk": "^1.34.0-alpha.2",
     "zod": "^3.25.0 || ^4.0.0"
   },
   "dependencies": {
-    "@bufbuild/protobuf": "^2.11.0"
+    "@bufbuild/protobuf": "^2.15.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250906.0",
+    "@connectrpc/connect": "~2.1.2",
     "@eslint/js": "^10.0.1",
     "@hatchet-dev/typescript-sdk": "file:../typescript/dist",
     "esbuild": "^0.27.0",

@@ -9,12 +9,15 @@ importers:
   .:
     dependencies:
       '@bufbuild/protobuf':
-        specifier: ^2.11.0
-        version: 2.14.1
+        specifier: ^2.15.0
+        version: 2.15.0
     devDependencies:
       '@cloudflare/workers-types':
         specifier: ^4.20250906.0
         version: 4.20260702.1
+      '@connectrpc/connect':
+        specifier: ~2.1.2
+        version: 2.1.2(@bufbuild/protobuf@2.15.0)
       '@eslint/js':
         specifier: ^10.0.1
         version: 10.0.1(eslint@10.10.0)
@@ -62,9 +65,6 @@ importers:
         version: 4.5.4
 
 packages:
-
-  '@bufbuild/protobuf@2.14.1':
-    resolution: {integrity: sha512-agRJn3+EJDUe8AvxTx/LnHA/GErvLE62pSaSk7+MwFOtOv8eWBu/qCq2qoZjBjVZ3C2aiFJCveuSs17KMkYGOw==}
 
   '@bufbuild/protobuf@2.15.0':
     resolution: {integrity: sha512-DAheWUkVr/SJTWCc+lg9dhY0eN4SaWlf4+bG1KzHeXbnqt0AfB/NX0Z+VunGlM1ki1B4zVvye27MpKh/svySUA==}
@@ -1781,8 +1781,6 @@ packages:
 
 snapshots:
 
-  '@bufbuild/protobuf@2.14.1': {}
-
   '@bufbuild/protobuf@2.15.0': {}
 
   '@cacheable/memory@2.2.0':
@@ -3102,11 +3100,11 @@ snapshots:
 
   ts-proto-descriptors@2.1.0:
     dependencies:
-      '@bufbuild/protobuf': 2.14.1
+      '@bufbuild/protobuf': 2.15.0
 
   ts-proto@2.12.0:
     dependencies:
-      '@bufbuild/protobuf': 2.14.1
+      '@bufbuild/protobuf': 2.15.0
       case-anything: 2.1.13
       ts-poet: 6.12.0
       ts-proto-descriptors: 2.1.0

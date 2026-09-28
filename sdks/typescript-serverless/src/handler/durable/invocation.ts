@@ -1,7 +1,10 @@
 /**
- * One durable invocation over an accepted websocket: wait for the operator's first frame,
- * run the durable task under a `DurableContext` whose transport is the socket, and finish
- * with exactly one done frame.
+ * One invocation over an accepted websocket: wait for the operator's first frame, run the
+ * task it names and finish with exactly one done frame. A durable task runs under a
+ * `DurableContext` whose transport is the socket; a non-durable task the catalog flagged
+ * with `streams` runs under a plain `Context`, invocation 1, with no durable frames at all.
+ * Either kind may open engine streams over the socket (child results are awaited that way),
+ * and every stream is closed before the done frame goes out.
  *
  * Outcomes, in the order the operator checks them: `done { status: "evicted" }` after an
  * eviction ack (the engine re-invokes the task when the awaited entry is satisfied),
@@ -11,6 +14,7 @@
  * sent. The socket is closed with 1000 after the done frame.
  */
 import {
+  Context,
   DurableContext,
   MinEngineVersion,
   NonRetryableError,
@@ -22,17 +26,23 @@ import type {
   ServerlessFirstFrame,
 } from '../../generated/proto/v1/serverless';
 import { toSdkAction } from '../action';
+import type { ClientSource } from '../client';
 import { DONE_STATUS_EVICTED } from '../contract';
 import { ServerlessRuntime, type ConsoleLike } from '../context';
+import { isServerlessLimitationError } from '../errors';
 import { errorMessage } from '../http';
 import type { Registry } from '../registry';
+import { RunWatcher } from '../runs';
 import { decodeFrame } from './frames';
 import type { DurableSocket } from './socket';
+import { SocketStreams } from './streams';
 import { FrameTransport } from './transport';
 
 export interface DurableInvocationOptions {
   socket: DurableSocket;
   registry: Registry;
+  /** The handler's client for the task's `ctx`; absent without a `client` option. */
+  client?: ClientSource;
   console?: ConsoleLike;
   /** How long to wait for the operator's first frame after the upgrade. Defaults to 30 s. */
   firstFrameTimeoutMs?: number;
@@ -53,7 +63,7 @@ type State =
 
 const DEFAULT_FIRST_FRAME_TIMEOUT_MS = 30_000;
 
-/** Runs one durable invocation on the socket; resolves once the invocation is over. */
+/** Runs one invocation on the socket, durable or not; resolves once the invocation is over. */
 export function runDurableInvocation(options: DurableInvocationOptions): Promise<void> {
   return new DurableInvocation(options).run();
 }
@@ -61,7 +71,9 @@ export function runDurableInvocation(options: DurableInvocationOptions): Promise
 class DurableInvocation {
   private state: State = 'awaiting-first';
   private transport: FrameTransport | undefined;
-  private ctx: DurableContext<unknown, unknown> | undefined;
+  private streams: SocketStreams | undefined;
+  private ctx: Context<unknown, unknown> | undefined;
+  private durableCtx: DurableContext<unknown, unknown> | undefined;
   private engineError: Error | undefined;
   private firstFrame: ((frame: ServerlessFirstFrame) => void) | undefined;
   private firstFrameTimer: ReturnType<typeof setTimeout> | undefined;
@@ -130,6 +142,10 @@ class DurableInvocation {
       return;
     }
 
+    if (this.streams?.handleFrame(frame)) {
+      return;
+    }
+
     this.transport?.handleFrame(frame);
   }
 
@@ -158,41 +174,70 @@ class DurableInvocation {
     }
 
     const { actionId } = first.action;
-    const runner = registry.durableRunners.get(actionId);
+    const durableRunner = registry.durableRunners.get(actionId);
+    const runner = durableRunner ? undefined : registry.runners.get(actionId);
 
-    if (!runner) {
-      const error = registry.runners.has(actionId)
-        ? `action ${actionId} is not a durable task; it is served over POST, not the websocket relay`
-        : `no durable task served for action ${actionId}`;
-
-      this.finish({ error, retry: false });
+    if ((!durableRunner && !runner) || !registry.served.has(actionId)) {
+      this.finish({ error: `no task served for action ${actionId}`, retry: false });
       return;
     }
 
     const action = toSdkAction(first.action);
     action.durableTaskInvocationCount = first.invocationCount;
 
-    const transport = new FrameTransport({
+    const streams = new SocketStreams({
       socket: this.options.socket,
-      durableTaskExternalId: action.taskRunExternalId,
-      invocationCount: first.invocationCount,
-      inlineWaitBudgetMs: first.inlineWaitBudgetMs,
-      onBudgetElapsed: (reason) => void this.evict(reason),
-      onEngineError: (error) => this.onEngineError(error),
-      onServerEvict: (reason) => this.onServerEvict(reason),
+      console: this.options.console,
+    });
+    const runtime = new ServerlessRuntime({
+      hasWorkflow: registry.hasWorkflow,
+      console: this.options.console,
+      client: this.options.client,
+      runs: new RunWatcher(streams),
+      durable: durableRunner !== undefined,
     });
 
-    let ctx: DurableContext<unknown, unknown>;
+    let transport: FrameTransport | undefined;
+    let ctx: Context<unknown, unknown>;
+    let task: () => unknown;
 
     try {
-      ctx = new DurableContext(
-        action,
-        new ServerlessRuntime({ hasWorkflow: registry.hasWorkflow, console: this.options.console }),
-        transport,
-        { engineVersion: this.options.engineVersion ?? MinEngineVersion.DURABLE_EVICTION }
-      );
+      if (durableRunner) {
+        const frames = new FrameTransport({
+          socket: this.options.socket,
+          durableTaskExternalId: action.taskRunExternalId,
+          invocationCount: first.invocationCount,
+          inlineWaitBudgetMs: first.inlineWaitBudgetMs,
+          onBudgetElapsed: (reason) => void this.evict(reason),
+          onEngineError: (error) => this.onEngineError(error),
+          onServerEvict: (reason) => this.onServerEvict(reason),
+        });
+        transport = frames;
+
+        const durableCtx = new DurableContext(action, runtime, frames, {
+          engineVersion: this.options.engineVersion ?? MinEngineVersion.DURABLE_EVICTION,
+        });
+        this.durableCtx = durableCtx;
+        ctx = durableCtx;
+        task = () =>
+          parentRunContextManager.runWithContext(
+            {
+              parentId: action.workflowRunId,
+              parentTaskRunExternalId: action.taskRunExternalId,
+              childIndex: 0,
+              desiredWorkerId: '',
+              signal: durableCtx.abortController.signal,
+              durableContext: durableCtx,
+            },
+            () => Promise.resolve().then(() => durableRunner(durableCtx))
+          );
+      } else {
+        const plainCtx = new Context(action, runtime);
+        ctx = plainCtx;
+        task = () => Promise.resolve().then(() => runner!(plainCtx));
+      }
     } catch (err) {
-      transport.dispose();
+      transport?.dispose();
       this.finish({
         error: `could not build the task context: ${errorMessage(err)}`,
         retry: false,
@@ -201,23 +246,12 @@ class DurableInvocation {
     }
 
     this.transport = transport;
+    this.streams = streams;
     this.ctx = ctx;
     this.state = 'running';
 
-    const task = parentRunContextManager.runWithContext(
-      {
-        parentId: action.workflowRunId,
-        parentTaskRunExternalId: action.taskRunExternalId,
-        childIndex: 0,
-        desiredWorkerId: '',
-        signal: ctx.abortController.signal,
-        durableContext: ctx,
-      },
-      () => Promise.resolve().then(() => runner(ctx))
-    );
-
     try {
-      const output = await task;
+      const output = await task();
       const state = this.stateNow();
 
       if (state === 'running') {
@@ -229,10 +263,13 @@ class DurableInvocation {
       switch (this.stateNow()) {
         case 'running':
           this.out.error(
-            `[hatchet] durable task ${actionId} (run ${action.workflowRunId}) failed: ${errorMessage(err)}`,
+            `[hatchet] task ${actionId} (run ${action.workflowRunId}) failed: ${errorMessage(err)}`,
             err
           );
-          this.finish({ error: errorMessage(err), retry: !(err instanceof NonRetryableError) });
+          this.finish({
+            error: errorMessage(err),
+            retry: !(err instanceof NonRetryableError || isServerlessLimitationError(err)),
+          });
           break;
         case 'engine-error':
           this.finish({ error: errorMessage(this.engineError ?? err), retry: false });
@@ -242,29 +279,32 @@ class DurableInvocation {
           break;
       }
     } finally {
-      transport.dispose();
+      transport?.dispose();
+      streams.fail('the invocation is over');
     }
   }
 
   /** Evicts the invocation: evict_invocation, its ack, then done evicted as the last frame. */
   private async evict(reason: string): Promise<void> {
-    if (this.state !== 'running' || !this.transport || !this.ctx) {
+    if (this.state !== 'running' || !this.transport || !this.durableCtx) {
       return;
     }
 
     this.state = 'evicting';
-    this.out.info(`[hatchet] durable task ${this.ctx.taskRunExternalId()}: ${reason}, evicting`);
+    this.out.info(
+      `[hatchet] durable task ${this.durableCtx.taskRunExternalId()}: ${reason}, evicting`
+    );
 
     try {
       await this.transport.sendEvictInvocation(
-        this.ctx.taskRunExternalId(),
-        this.ctx.invocationCount,
+        this.durableCtx.taskRunExternalId(),
+        this.durableCtx.invocationCount,
         reason
       );
     } catch (err) {
       if (this.stateNow() === 'evicting') {
         this.out.warn(
-          `[hatchet] eviction of ${this.ctx.taskRunExternalId()} failed: ${errorMessage(err)}`
+          `[hatchet] eviction of ${this.durableCtx.taskRunExternalId()} failed: ${errorMessage(err)}`
         );
       }
 
@@ -291,6 +331,7 @@ class DurableInvocation {
     );
     this.state = 'evicted';
     this.transport?.seal();
+    this.streams?.fail('the engine evicted the invocation');
     this.abortTask(new TaskRunTerminatedError('evicted', reason));
   }
 
@@ -319,10 +360,10 @@ class DurableInvocation {
     }
 
     this.state = 'closed';
+    const closed = `the operator closed the socket (code ${code}${reason ? `, ${reason}` : ''})`;
     this.transport?.seal();
-    this.transport?.fail(
-      new Error(`the operator closed the socket (code ${code}${reason ? `, ${reason}` : ''})`)
-    );
+    this.transport?.fail(new Error(closed));
+    this.streams?.fail(closed);
     this.abortTask(new TaskRunTerminatedError(code === 4003 ? 'cancelled' : 'evicted', reason));
   }
 
@@ -343,17 +384,20 @@ class DurableInvocation {
   private abortTask(error: TaskRunTerminatedError): void {
     this.ctx?.abortController.abort(error);
     this.transport?.cleanupTaskState(
-      this.ctx?.taskRunExternalId() ?? '',
-      this.ctx?.invocationCount ?? 0
+      this.durableCtx?.taskRunExternalId() ?? '',
+      this.durableCtx?.invocationCount ?? 0
     );
   }
 
+  /** The done frame is the last one: every open stream is closed ahead of it. */
   private sendDone(done: {
     output?: string;
     error?: string;
     retry?: boolean;
     status?: string;
   }): void {
+    this.streams?.closeAll();
+
     try {
       this.options.socket.send(
         JSON.stringify({

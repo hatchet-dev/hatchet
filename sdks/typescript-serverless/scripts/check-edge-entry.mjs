@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 
 // Verifies that the runtime entries of the package (`.` and `./cloudflare`) import nothing
-// from Node and nothing from the SDK outside its edge entry. Bundles each built entry for a
-// workerd-like browser target, the way wrangler does, and fails on any `node:` specifier,
-// Node builtin or non-edge SDK module reached transitively.
+// from Node and nothing from the SDK outside its edge and core entries (the core entry is
+// the fetch-based client; the SDK's own `check:core` proves it edge-safe). Bundles each
+// built entry for a workerd-like browser target, the way wrangler does, and fails on any
+// `node:` specifier, Node builtin or other SDK module reached transitively.
 //
 // Run after `pnpm run build` (the `check:edge` script does both). The linked SDK is bundled
-// from its dist so the check covers what the SDK's edge entry reaches too.
+// from its dist so the check covers what the SDK's edge and core entries reach too.
 import { builtinModules } from 'node:module';
 import { existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
@@ -59,7 +60,9 @@ async function check(entry) {
         const sdkModule = sdkModuleOf(args.path);
         const isNonEdgeSdk =
           args.path === '@hatchet-dev/typescript-sdk' ||
-          (sdkModule !== undefined && !sdkModule.startsWith('edge'));
+          (sdkModule !== undefined &&
+            !sdkModule.startsWith('edge') &&
+            !sdkModule.startsWith('core'));
 
         if (!isBuiltin && !isNonEdgeSdk) return undefined;
 

@@ -8,6 +8,7 @@ import { ActionType } from '../generated/proto/dispatcher';
 import { ServerlessTriggerRequest } from '../generated/proto/v1/serverless';
 import { SIGNATURE_HEADER, TRIGGER_ENVELOPE_VERSION } from './contract';
 import { toSdkAction } from './action';
+import type { ClientSource } from './client';
 import { ServerlessRuntime, type ConsoleLike } from './context';
 import { isServerlessLimitationError } from './errors';
 import { errorMessage, json, triggerError } from './http';
@@ -19,6 +20,8 @@ export interface TriggerOptions {
   secret: string;
   /** When set, envelopes carrying another endpoint id are refused with 403. */
   endpointId?: string;
+  /** The handler's client for the task's `ctx`; absent without a `client` option. */
+  client?: ClientSource;
   console?: ConsoleLike;
 }
 
@@ -89,9 +92,14 @@ export async function handleTrigger(request: Request, options: TriggerOptions): 
   let ctx: Context<unknown, unknown>;
 
   try {
+    // A POST-invoked task has no socket: its child references cannot await a result.
     ctx = new Context(
       toSdkAction(envelope.action),
-      new ServerlessRuntime({ hasWorkflow: registry.hasWorkflow, console: options.console })
+      new ServerlessRuntime({
+        hasWorkflow: registry.hasWorkflow,
+        console: options.console,
+        client: options.client,
+      })
     );
   } catch (err) {
     return triggerError(400, `could not build the task context: ${errorMessage(err)}`, false);

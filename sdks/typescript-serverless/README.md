@@ -6,43 +6,72 @@ endpoint with Hatchet. The Hatchet serverless operator polls the endpoint for th
 serves and delivers runs to it over signed HTTPS requests.
 
 Status: preview, not yet published. This version serves non-durable and durable tasks on
-Cloudflare Workers. The Vercel adapter, the `hatchet serverless` CLI commands and the
-management module are the next phases.
+Cloudflare Workers, with an optional Hatchet client for child runs, streams and logs. The
+Vercel adapter, the `hatchet serverless` CLI commands and the management module are the next
+phases.
 
-## There is no Hatchet client in the serverless runtime
+## The client, and what `ctx` can do
 
-The package never reads a Hatchet API token and never instantiates a Hatchet client. Most
-serverless runtimes cannot speak gRPC, and the transport that will replace it for them (a
-ConnectRPC-style migration) is not decided. Everything a task needs arrives from the operator in
-the signed request: input, parent outputs, retry count, metadata. Anything that would need a
-client is unavailable and throws a `ServerlessLimitationError` naming the feature, which the
-handler reports as a permanent failure (no retry, since retrying cannot help).
+Everything a task needs to run arrives from the operator in the signed request: input, parent
+outputs, retry count, metadata. Everything a task does that reaches the engine goes through
+the handler's optional `client`: the SDK's core client (`HatchetCore` from
+`@hatchet-dev/typescript-sdk/core`), which makes unary Connect calls over `fetch` and so runs
+wherever the handler runs. You configure it with a tenant API token from the platform's secret
+store, next to the signing secret; the operator never sends a token to the endpoint.
 
-`ctx` members that throw `ServerlessLimitationError`:
+```ts
+export default cloudflare({ workflows, streams: [parent] }); // client from env.HATCHET_CLIENT_TOKEN
+createHandler({ workflows, client: { token: env.HATCHET_CLIENT_TOKEN }, ... });
+createHandler({ workflows, client: (env) => ({ token: env.HATCHET_CLIENT_TOKEN }), ... });
+createHandler({ workflows, client: new HatchetCore({ token, serverUrl, tls }), ... });
+```
 
-| Member                                                                   | Reason                                                                                                           |
-| ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
-| `ctx.runChild`, `ctx.runNoWaitChild`, `ctx.spawnWorkflow`                | child runs need a client; durable tasks use `ctx.spawnChild` over the relay instead                              |
-| `ctx.bulkRunChildren`, `ctx.bulkRunNoWaitChildren`, `ctx.spawnWorkflows` | same; durable tasks use `ctx.spawnChildren`                                                                      |
-| `ctx.putStream`                                                          | streaming needs a client                                                                                         |
-| `ctx.cancel`                                                             | cancellation is the operator's: it drops the request or closes the socket and the task's `abortController` fires |
-| `ctx.refreshTimeout`, `ctx.releaseSlot`                                  | there is no worker slot to release or timeout to extend                                                          |
-| `ctx.worker.labels`, `ctx.worker.upsertLabels`                           | there is no worker                                                                                               |
+`client` takes a `HatchetCore`, the config it takes (`{ token, serverUrl?, hostPort?, tls?,
+namespace?, ... }`; with only a `token` the engine address comes from the token), or a function
+of the runtime's environment returning either, for runtimes that hand secrets to the request.
+One client is built per handler (per environment object for the function form) the first time
+a task needs it, and reused.
 
-`ctx` members that work unchanged: `input`, `parentOutput`, `retryCount`, `workflowRunId`,
+With a client:
+
+| Member                                                                  | How it works                                                                                                                                                |
+| ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ctx.runNoWaitChild`, `ctx.bulkRunNoWaitChildren`, `ctx.spawnWorkflow*` | one unary `TriggerWorkflow` per child through the client, with the parent run, index and key set                                                            |
+| `ctx.runChild`, `ctx.bulkRunChildren`, `ref.result()` inside a task     | the trigger as above; the result is awaited on the invocation websocket, where the operator relays one `SubscribeToWorkflowRuns` engine stream for the task |
+| `ctx.putStream`, `ctx.cancel`                                           | `PutStreamEvent` and `CancelTasks` through the client                                                                                                       |
+| `ctx.log`                                                               | the console, and the line is written to the engine too                                                                                                      |
+| `ctx.refreshTimeout`, `ctx.releaseSlot`, `ctx.worker.labels`            | still throw: there is no worker                                                                                                                             |
+
+Awaiting a child needs the invocation websocket, which the operator opens only for the tasks
+the catalog asks one for: every durable task, and every non-durable task you list in the
+`streams` option (`streams: [parent]`, or action ids like `'pipeline:summarize'`). The
+healthcheck advertises them as `tasks: [{ action, streams: true }]`; every other task is
+delivered over a signed POST, which is cheaper and has nothing to await on, so `result()` there
+throws and names the option. The operator allows at most 16 engine streams per socket and the
+package keeps every child of a task on one of them. Inside a durable task `ctx.runChild` throws:
+use `ctx.spawnChild` and `ctx.spawnChildren`, which record the child in the durable event log
+and replay its result after an eviction.
+
+Without a client every one of these members throws a `ServerlessLimitationError` naming the
+feature and "configure `client` to enable this", which the handler reports as a permanent
+failure (no retry, since retrying cannot help). `ctx.logger.*` and `ctx.log` print to the
+console. Existing deployments without a client are unchanged.
+
+`ctx` members that never need a client: `input`, `parentOutput`, `retryCount`, `workflowRunId`,
 `taskRunExternalId`, `workflowNameV1`, `taskName`, `additionalMetadata`, `triggers`, `errors`,
 `priority`, `triggeringEventId`, `triggeringEventKey`, `abortController` and `cancelled`.
-`ctx.logger.*` and `ctx.log` print to the console only; no log line reaches the engine.
 `ctx.worker.id()` is `undefined` and `ctx.worker.hasWorkflow(name)` answers from the
 declarations you handed to the adapter. In a durable task, `ctx.now`, `ctx.sleepFor`,
 `ctx.sleepUntil`, `ctx.waitFor`, `ctx.waitForEvent`, `ctx.spawnChild` and `ctx.spawnChildren`
-work: the operator relays them to the engine over the invocation's websocket.
+work with or without a client: the operator relays them to the engine over the invocation's
+websocket.
 
-Declarations cannot run themselves either: `echo.run(...)`, `echo.schedule(...)` and
-`echo.cron(...)` throw. Trigger runs from a process that has the regular SDK
-(`HatchetClient.init().run(echo, input)` accepts a client-less declaration by name).
+Declarations cannot run themselves: `echo.run(...)`, `echo.schedule(...)` and `echo.cron(...)`
+throw. Trigger runs through a `HatchetCore` (`new HatchetCore({ token }).run(echo, input)`
+accepts the declaration; `HatchetCore` is re-exported from `@hatchet-dev/serverless`) or from a
+process that has the regular SDK.
 
-[LIMITATIONS.md](./LIMITATIONS.md) has the full list, including the declaration options the
+[LIMITATIONS.md](./LIMITATIONS.md) has the full rules, including the declaration options the
 handler ignores.
 
 ## Install
@@ -51,8 +80,9 @@ handler ignores.
 pnpm add @hatchet-dev/serverless @hatchet-dev/typescript-sdk zod
 ```
 
-`@hatchet-dev/typescript-sdk` (1.32 or later) and `zod` are peer dependencies: the SDK supplies
-the declaration API, `Context` and the registration format, nothing else.
+`@hatchet-dev/typescript-sdk` (1.34.0-alpha.2 or later, for its `/core` entry) and `zod` are
+peer dependencies: the SDK supplies the declaration API, `Context`, the registration format and
+the core client, nothing else.
 
 ## Declare tasks
 
@@ -95,13 +125,23 @@ pipeline.task({
   fn: async (_, ctx) => ({ words: (await ctx.parentOutput(fetchStep)).body.split(' ').length }),
 });
 
-export const workflows = [echo, sleepThenEcho, pipeline];
+// Needs the client and, since it awaits the child, a socket: list it in `streams`.
+export const parent = hatchet.task({
+  name: 'parent',
+  fn: async (input: { message: string }, ctx) => ({
+    child: await ctx.runChild(echo, { message: `${input.message} (from parent)` }),
+  }),
+});
+
+export const workflows = [echo, sleepThenEcho, pipeline, parent];
 ```
 
 `hatchet` is the SDK's `task`, `durableTask`, `workflow` and `batchTask` factories bound to no
 client. A durable task runs on a websocket the operator dials; it may wait inline for the
 endpoint's `inlineWaitBudgetMs` (5000 by default) and evicts itself past that, to be re-invoked
-when the awaited sleep, event or child run completes. See LIMITATIONS.md for the rules.
+when the awaited sleep, event or child run completes. A non-durable task listed in `streams`
+runs on a websocket too, waits for its children inline and never evicts. See LIMITATIONS.md for
+the rules.
 
 ## Cloudflare Workers
 
@@ -110,7 +150,7 @@ when the awaited sleep, event or child run completes. See LIMITATIONS.md for the
 import { cloudflare } from '@hatchet-dev/serverless/cloudflare';
 import { workflows } from './tasks';
 
-export default cloudflare({ workflows });
+export default cloudflare({ workflows, streams: [parent] });
 ```
 
 ```toml
@@ -122,21 +162,25 @@ compatibility_date = "2026-09-01"
 
 ```sh
 wrangler secret put HATCHET_SIGNING_SECRET   # 32+ characters; keep the value for the registration
+wrangler secret put HATCHET_CLIENT_TOKEN     # a tenant API token; optional, for the ctx methods above
 wrangler deploy
 ```
 
 `cloudflare({ workflows })` returns an `ExportedHandler<Env>` serving `POST /hatchet/healthcheck`,
-`POST /hatchet/trigger` and the durable websocket upgrade on `/hatchet/trigger`. It reads
-`HATCHET_SIGNING_SECRET` and the optional `HATCHET_ENDPOINT_ID` from `env`, and keeps the isolate
-alive with `ctx.waitUntil` while a durable invocation is on its socket. Every other path gets a
-404 unless you pass a `fetch` option.
+`POST /hatchet/trigger` and the invocation websocket upgrade on `/hatchet/trigger`. It reads
+`HATCHET_SIGNING_SECRET`, the optional `HATCHET_CLIENT_TOKEN` (the client's token; without it
+there is no client) and the optional `HATCHET_ENDPOINT_ID` from `env`, and keeps the isolate
+alive with `ctx.waitUntil` while an invocation is on its socket. Every other path gets a 404
+unless you pass a `fetch` option.
 
 ```ts
 export default cloudflare({
   workflows,
-  serve: [echo], // actions this endpoint serves (default: all)
+  serve: [echo, parent], // actions this endpoint serves (default: all)
+  streams: [parent], // non-durable tasks invoked over the socket, so they can await children
   basePath: '/internal/hatchet', // default "/hatchet"
   secret: (env) => env.ORDERS_SIGNING_SECRET, // default env.HATCHET_SIGNING_SECRET
+  client: (env) => ({ token: env.HATCHET_CLIENT_TOKEN }), // the default; add serverUrl and tls for a local engine
   fetch: (request, env, ctx) => app.fetch(request, env, ctx), // everything not under basePath
 });
 ```
@@ -220,10 +264,18 @@ test('sleep-then-echo evicts and resumes', async () => {
 ```
 
 `op.startDurable(...)` returns the invocation in progress, with `frame(kind)` to wait for a
-frame the endpoint sent, and `serverEvict()`, `sendError()` and `close()` to act as the operator
-mid-flight; `op.emit(eventKey, payload)` satisfies a `waitForEvent`. The fake enforces the
-operator's protocol rules (one ack-bearing request in flight, nothing after the done frame,
-`done: evicted` only after an eviction ack), so a violation fails the test.
+frame the endpoint sent, and `serverEvict()`, `sendError()`, `close()` and `closeStream()` to
+act as the operator mid-flight; `op.emit(eventKey, payload)` satisfies a `waitForEvent`. The
+fake enforces the operator's protocol rules (one ack-bearing request in flight, nothing after
+the done frame, `done: evicted` only after an eviction ack, no durable request on a
+non-durable task's socket, the 16-stream cap), so a violation fails the test.
+
+A task that uses the client runs against whatever `client` you pass, so point it at a fake
+engine (`createRouterTransport` from `@connectrpc/connect` as `transport`). `op.invoke` and
+`op.deliver` take the socket for a task listed in `streams`, as the operator does, and the
+test operator answers the run subscription the task opens: `op.completeRun(runId, [{ taskName,
+output }])` finishes a child, or `runStream: { workflowRun: (runId) => event }` scripts the
+engine.
 
 ## What the package verifies
 
@@ -270,10 +322,11 @@ The operator (`pkg/serverlessoperator/delivery.go`) reads the status code; a
 | durable upgrade with a bad signature or stale timestamp | `401`; a foreign endpoint id `403` |
 | durable upgrade on an adapter without the relay         | `426 {"error", "retry": false}`    |
 
-On the durable websocket the outcome travels in the final `done` frame: `{ output }` completes
-the task, `{ error, retry }` fails it (retry is false for `NonRetryableError` and after an engine
-error frame), and `{ status: "evicted" }` after an eviction ack means the engine re-invokes the
-task later.
+On the invocation websocket (durable tasks, and non-durable tasks listed in `streams`) the
+outcome travels in the final `done` frame: `{ output }` completes the task, `{ error, retry }`
+fails it (retry is false for `NonRetryableError`, `ServerlessLimitationError` and after an
+engine error frame), and `{ status: "evicted" }` after an eviction ack means the engine
+re-invokes the task later. Every engine stream the task holds is closed before the done frame.
 
 ## Development
 
