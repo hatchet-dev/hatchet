@@ -106,6 +106,23 @@ func (c *collectingListener) count() int {
 	return len(c.received)
 }
 
+func (c *collectingListener) entryIDs(t *testing.T) []int64 {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	ids := []int64{}
+
+	for _, msg := range c.received {
+		for _, e := range msg.Entries {
+			cursor, err := v1.DecodeStreamCursor(e.Cursor)
+			require.NoError(t, err)
+			ids = append(ids, cursor.ID)
+		}
+	}
+
+	return ids
+}
+
 func TestTopicPollerRegistry_SharesOnePollerPerKey(t *testing.T) {
 	tenantId := uuid.New()
 	repo := newFakeStreamsRepository(tenantId, "", "topic-a", 0, time.Now())
@@ -226,6 +243,41 @@ func TestTopicPollerRegistry_JoinCatchesUpBeforeAttaching(t *testing.T) {
 
 	assert.Equal(t, 1, listenerA.count(), "the pre-existing listener must receive the message the new joiner had already caught up to")
 	assert.Equal(t, 0, listenerB.count(), "the new listener already saw this message during its own catch-up and must not receive it again")
+}
+
+// A listener whose own catch-up ended behind the shared poller must still get
+// the rows the poller had already fanned out to earlier listeners.
+func TestTopicPollerRegistry_JoinBehindPollerBackfillsListener(t *testing.T) {
+	tenantId := uuid.New()
+	base := time.Now()
+	repo := newFakeStreamsRepository(tenantId, "", "topic-a", 0, base)
+	registry := newTopicPollerRegistry(repo, fakePubSub{}, testLogger(), time.Hour, time.Hour)
+
+	key := topicPollerKey{tenantId: tenantId, topic: "topic-a"}
+
+	listenerA := &collectingListener{}
+	unregisterA, err := registry.Join(context.Background(), key, v1.StreamCursor{}, &topicListener{send: listenerA.send, cancel: func() {}})
+	require.NoError(t, err)
+	defer unregisterA()
+
+	repo.appendMessage(1, base.Add(time.Millisecond))
+	repo.appendMessage(2, base.Add(2*time.Millisecond))
+
+	// pulls the shared poller forward to id=2
+	listenerB := &collectingListener{}
+	unregisterB, err := registry.Join(context.Background(), key, v1.StreamCursor{ID: 2}, &topicListener{send: listenerB.send, cancel: func() {}})
+	require.NoError(t, err)
+	defer unregisterB()
+
+	// its own catch-up only reached id=1 before the poller advanced
+	listenerC := &collectingListener{}
+	unregisterC, err := registry.Join(context.Background(), key, v1.StreamCursor{ID: 1}, &topicListener{send: listenerC.send, cancel: func() {}})
+	require.NoError(t, err)
+	defer unregisterC()
+
+	assert.Equal(t, []int64{1, 2}, listenerA.entryIDs(t))
+	assert.Empty(t, listenerB.entryIDs(t))
+	assert.Equal(t, []int64{2}, listenerC.entryIDs(t))
 }
 
 func TestTopicPoller_BatchesMultipleMessagesIntoOneStreamMessage(t *testing.T) {

@@ -9,6 +9,8 @@ import (
 
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	sharedcontracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 )
@@ -32,30 +34,39 @@ type StreamsClient interface {
 	Subscribe(ctx context.Context, namespace, topic string, cursor *string, handler StreamsHandler) error
 }
 
-// producerSeqState guards the next producer_seq for one (namespace, topic):
-// its lock is held for a whole Publish call, not just the increment, so a
-// failed call never advances seq (a retry reuses it) while still making it
-// impossible for a concurrent call on the same key to reuse a seq that a
+// producerSeqState guards the producer identity and next producer_seq for one
+// (namespace, topic): its lock is held for a whole Publish call, not just the
+// increment, so a concurrent call on the same key can never reuse a seq that a
 // still-in-flight call might yet succeed with.
 type producerSeqState struct {
-	mu  sync.Mutex
-	seq int64
+	mu         sync.Mutex
+	producerID string
+	seq        int64
 }
 
 type streamsClientImpl struct {
-	client     sharedcontracts.V1StreamsClient
-	ctx        *contextLoader
-	producerID string
-	mu         sync.Mutex
-	seqStates  map[string]*producerSeqState
+	client    sharedcontracts.V1StreamsClient
+	ctx       *contextLoader
+	mu        sync.Mutex
+	seqStates map[string]*producerSeqState
 }
 
 func newStreams(conn *grpc.ClientConn, opts *sharedClientOpts) StreamsClient {
 	return &streamsClientImpl{
-		client:     sharedcontracts.NewV1StreamsClient(conn),
-		ctx:        opts.ctxLoader,
-		producerID: uuid.NewString(),
-		seqStates:  make(map[string]*producerSeqState),
+		client:    sharedcontracts.NewV1StreamsClient(conn),
+		ctx:       opts.ctxLoader,
+		seqStates: make(map[string]*producerSeqState),
+	}
+}
+
+// publishRejectedBeforeEnqueue reports whether err is one the server returns
+// before the message could have reached the queue, so its seq was never used.
+func publishRejectedBeforeEnqueue(err error) bool {
+	switch status.Code(err) {
+	case codes.InvalidArgument, codes.ResourceExhausted, codes.Unauthenticated, codes.PermissionDenied:
+		return true
+	default:
+		return false
 	}
 }
 
@@ -68,7 +79,7 @@ func (s *streamsClientImpl) seqState(namespace, topic string) *producerSeqState 
 	state, ok := s.seqStates[key]
 
 	if !ok {
-		state = &producerSeqState{}
+		state = &producerSeqState{producerID: uuid.NewString()}
 		s.seqStates[key] = state
 	}
 
@@ -85,11 +96,18 @@ func (s *streamsClientImpl) Publish(ctx context.Context, namespace, topic string
 		Namespace:   namespace,
 		Topic:       topic,
 		Payload:     payload,
-		ProducerId:  s.producerID,
+		ProducerId:  state.producerID,
 		ProducerSeq: state.seq,
 	})
 
 	if err != nil {
+		// the message may still land, so reusing its seq for a different
+		// payload would get that payload dropped as a duplicate
+		if !publishRejectedBeforeEnqueue(err) {
+			state.producerID = uuid.NewString()
+			state.seq = 0
+		}
+
 		return err
 	}
 

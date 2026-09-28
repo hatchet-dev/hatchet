@@ -75,7 +75,11 @@ func (q *Queries) ForceInsertOrderedStreamMessage(ctx context.Context, db DBTX, 
 const insertOrderedStreamMessage = `-- name: InsertOrderedStreamMessage :one
 WITH advanced AS (
     INSERT INTO v1_stream_producer_cursor (tenant_id, namespace, topic, producer_id, last_seq)
-    VALUES ($1::uuid, $2::text, $3::text, $4::text, $5::bigint)
+    SELECT $1::uuid, $2::text, $3::text, $4::text, $5::bigint
+    WHERE $5::bigint = 0 OR EXISTS (
+        SELECT 1 FROM v1_stream_producer_cursor
+        WHERE tenant_id = $1::uuid AND namespace = $2::text AND topic = $3::text AND producer_id = $4::text
+    )
     ON CONFLICT (tenant_id, namespace, topic, producer_id) DO UPDATE
     SET last_seq = $5::bigint
     -- computed by the caller as producerSeq - 1, rather than written as an
@@ -114,7 +118,8 @@ type InsertOrderedStreamMessageRow struct {
 // Atomically advances v1_stream_producer_cursor and inserts the message, but
 // only if producer_seq is exactly one past the producer's last durably
 // applied sequence -- the ON CONFLICT ... WHERE clause is a compare-and-swap
-// that also handles the very first message (no conflict, plain insert).
+// that also handles the very first message (no conflict, plain insert, but
+// only for producer_seq 0 so a reordered seq>0 can't claim the first slot).
 // inserted=false means this message was NOT applied; current_last_seq (the
 // watermark as of this call) tells the caller whether that's a gap worth
 // retrying (current_last_seq < producer_seq - 1) or a stale redelivery of an

@@ -21,14 +21,19 @@ SELECT COUNT(*) FROM v1_stream_topic WHERE tenant_id = @tenantId::uuid;
 -- Atomically advances v1_stream_producer_cursor and inserts the message, but
 -- only if producer_seq is exactly one past the producer's last durably
 -- applied sequence -- the ON CONFLICT ... WHERE clause is a compare-and-swap
--- that also handles the very first message (no conflict, plain insert).
+-- that also handles the very first message (no conflict, plain insert, but
+-- only for producer_seq 0 so a reordered seq>0 can't claim the first slot).
 -- inserted=false means this message was NOT applied; current_last_seq (the
 -- watermark as of this call) tells the caller whether that's a gap worth
 -- retrying (current_last_seq < producer_seq - 1) or a stale redelivery of an
 -- already-applied message (current_last_seq >= producer_seq).
 WITH advanced AS (
     INSERT INTO v1_stream_producer_cursor (tenant_id, namespace, topic, producer_id, last_seq)
-    VALUES (@tenantId::uuid, @namespace::text, @topic::text, @producerId::text, @producerSeq::bigint)
+    SELECT @tenantId::uuid, @namespace::text, @topic::text, @producerId::text, @producerSeq::bigint
+    WHERE @producerSeq::bigint = 0 OR EXISTS (
+        SELECT 1 FROM v1_stream_producer_cursor
+        WHERE tenant_id = @tenantId::uuid AND namespace = @namespace::text AND topic = @topic::text AND producer_id = @producerId::text
+    )
     ON CONFLICT (tenant_id, namespace, topic, producer_id) DO UPDATE
     SET last_seq = @producerSeq::bigint
     -- computed by the caller as producerSeq - 1, rather than written as an

@@ -26,12 +26,10 @@ type StreamCursor struct {
 	ID        int64     `json:"id"`
 }
 
+// After compares by ID only, matching ListStreamMessagesAfterCursor's ordering;
+// CreatedAt is transaction start time and isn't monotonic in ID.
 func (c StreamCursor) After(other StreamCursor) bool {
-	if c.CreatedAt.After(other.CreatedAt) {
-		return true
-	}
-
-	return c.CreatedAt.Equal(other.CreatedAt) && c.ID > other.ID
+	return c.ID > other.ID
 }
 
 // EncodeStreamCursor produces the opaque cursor string returned to callers.

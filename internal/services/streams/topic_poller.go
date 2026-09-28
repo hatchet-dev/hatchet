@@ -2,6 +2,7 @@ package streams
 
 import (
 	"context"
+	"math"
 	"sync"
 	"time"
 
@@ -72,9 +73,18 @@ func (p *topicPoller) join(ctx context.Context, startCursor v1.StreamCursor, lis
 		p.cursor = startCursor
 		p.lastActivityAt = time.Now()
 		p.startLocked()
-	} else if startCursor.After(p.cursor) {
-		if err := p.pollLocked(ctx); err != nil {
-			return 0, err
+	} else {
+		if startCursor.After(p.cursor) {
+			if err := p.pollLocked(ctx); err != nil {
+				return 0, err
+			}
+		}
+
+		// rows up to p.cursor were already fanned out to earlier listeners only
+		if p.cursor.After(startCursor) {
+			if err := p.catchUpLocked(ctx, startCursor, listener); err != nil {
+				return 0, err
+			}
 		}
 	}
 
@@ -203,40 +213,17 @@ func (p *topicPoller) hangUpIfIdleLocked() {
 // called with p.mu held.
 func (p *topicPoller) pollLocked(ctx context.Context) error {
 	for {
-		msgs, err := p.streams.ListMessagesAfterCursor(ctx, p.key.tenantId, v1.ListStreamMessagesOpts{
-			Namespace: p.key.namespace,
-			Topic:     p.key.topic,
-			Cursor:    p.cursor,
-			Limit:     subscribeCatchUpBatchSize,
-		})
+		entries, last, done, err := p.fetchPage(ctx, p.cursor, math.MaxInt64)
 
 		if err != nil {
 			return err
 		}
 
-		if len(msgs) > 0 {
+		if len(entries) > 0 {
 			p.lastActivityAt = time.Now()
 		}
 
-		entries := make([]*contracts.StreamEntry, 0, len(msgs))
-
-		for _, m := range msgs {
-			next := v1.StreamCursor{Namespace: p.key.namespace, Topic: p.key.topic, CreatedAt: m.InsertedAt.Time, ID: m.ID}
-
-			encodedCursor, err := v1.EncodeStreamCursor(next)
-
-			if err != nil {
-				return err
-			}
-
-			entries = append(entries, &contracts.StreamEntry{
-				Payload:   m.Payload,
-				Cursor:    encodedCursor,
-				CreatedAt: timestamppb.New(m.InsertedAt.Time),
-			})
-
-			p.cursor = next
-		}
+		p.cursor = last
 
 		for _, chunk := range chunkStreamEntries(entries) {
 			out := &contracts.StreamMessage{Entries: chunk}
@@ -250,10 +237,78 @@ func (p *topicPoller) pollLocked(ctx context.Context) error {
 			}
 		}
 
-		if len(msgs) < subscribeCatchUpBatchSize {
+		if done {
 			return nil
 		}
 	}
+}
+
+// catchUpLocked sends listener every row in (from, p.cursor]. Must be called
+// with p.mu held.
+func (p *topicPoller) catchUpLocked(ctx context.Context, from v1.StreamCursor, listener *topicListener) error {
+	for p.cursor.After(from) {
+		entries, last, done, err := p.fetchPage(ctx, from, p.cursor.ID)
+
+		if err != nil {
+			return err
+		}
+
+		for _, chunk := range chunkStreamEntries(entries) {
+			if err := listener.send(&contracts.StreamMessage{Entries: chunk}); err != nil {
+				return err
+			}
+		}
+
+		if done {
+			return nil
+		}
+
+		from = last
+	}
+
+	return nil
+}
+
+// fetchPage reads one keyset page after from, stopping early at the first row
+// past maxID. done reports that nothing further remains within bounds.
+func (p *topicPoller) fetchPage(ctx context.Context, from v1.StreamCursor, maxID int64) (entries []*contracts.StreamEntry, last v1.StreamCursor, done bool, err error) {
+	msgs, err := p.streams.ListMessagesAfterCursor(ctx, p.key.tenantId, v1.ListStreamMessagesOpts{
+		Namespace: p.key.namespace,
+		Topic:     p.key.topic,
+		Cursor:    from,
+		Limit:     subscribeCatchUpBatchSize,
+	})
+
+	if err != nil {
+		return nil, from, false, err
+	}
+
+	entries = make([]*contracts.StreamEntry, 0, len(msgs))
+	last = from
+
+	for _, m := range msgs {
+		if m.ID > maxID {
+			return entries, last, true, nil
+		}
+
+		next := v1.StreamCursor{Namespace: p.key.namespace, Topic: p.key.topic, CreatedAt: m.InsertedAt.Time, ID: m.ID}
+
+		encodedCursor, err := v1.EncodeStreamCursor(next)
+
+		if err != nil {
+			return nil, from, false, err
+		}
+
+		entries = append(entries, &contracts.StreamEntry{
+			Payload:   m.Payload,
+			Cursor:    encodedCursor,
+			CreatedAt: timestamppb.New(m.InsertedAt.Time),
+		})
+
+		last = next
+	}
+
+	return entries, last, len(msgs) < subscribeCatchUpBatchSize, nil
 }
 
 // topicPollerRegistry is the process-wide set of active topicPollers, one per

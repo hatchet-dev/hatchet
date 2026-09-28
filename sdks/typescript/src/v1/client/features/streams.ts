@@ -1,11 +1,25 @@
 import { randomUUID } from 'crypto';
+import { Status } from 'nice-grpc';
 import { ClientConfig } from '@hatchet/clients/hatchet-client';
 import { createGrpcClient } from '@hatchet/util/grpc-helpers';
+import { getGrpcErrorCode } from '@hatchet/util/grpc-error';
 import {
   V1StreamsClient as PbV1StreamsClient,
   V1StreamsDefinition,
 } from '@hatchet/protoc/v1/streams';
 import { HatchetClient } from '../client';
+
+// errors the server returns before the message could have reached the queue,
+// so its producer_seq was never used
+function publishRejectedBeforeEnqueue(err: unknown): boolean {
+  const code = getGrpcErrorCode(err);
+  return (
+    code === Status.INVALID_ARGUMENT ||
+    code === Status.RESOURCE_EXHAUSTED ||
+    code === Status.UNAUTHENTICATED ||
+    code === Status.PERMISSION_DENIED
+  );
+}
 
 export type StreamEvent = {
   /** the message payload */
@@ -34,26 +48,19 @@ export class StreamsClient {
   private _config: ClientConfig;
   private _grpc: PbV1StreamsClient | undefined;
 
-  // producerId identifies this client instance to the server for ordering
-  // purposes (see api-contracts/v1/streams.proto).
-  private producerId: string;
-
-  // nextSeq is the next producer_seq to use per (namespace, topic), only
+  // producer identity and next producer_seq per (namespace, topic), only
   // advanced after a publish succeeds -- see publishChains.
-  private nextSeq = new Map<string, number>();
+  private producers = new Map<string, { producerId: string; seq: number }>();
 
   // publishChains serializes publish() calls per (namespace, topic): each
   // call waits for the previous one on the same key to settle before reading
-  // nextSeq, so a failed call never advances it (a retry reuses the same
-  // seq) without risking two calls ever using the same seq for different
-  // payloads. The stored promise always resolves, even when the publish it
+  // producers, so two calls never use the same seq. The stored promise always resolves, even when the publish it
   // chains from failed, so one failure doesn't block every later call on
   // that key.
   private publishChains = new Map<string, Promise<void>>();
 
   constructor(client: HatchetClient) {
     this._config = client.config;
-    this.producerId = randomUUID();
   }
 
   private get grpc(): PbV1StreamsClient {
@@ -70,25 +77,38 @@ export class StreamsClient {
     topic: string,
     payload: Uint8Array
   ): Promise<void> {
-    const producerSeq = this.nextSeq.get(key) ?? 0;
+    let producer = this.producers.get(key);
+    if (!producer) {
+      producer = { producerId: randomUUID(), seq: 0 };
+      this.producers.set(key, producer);
+    }
 
-    await this.grpc.publish({
-      namespace,
-      topic,
-      payload,
-      producerId: this.producerId,
-      producerSeq,
-    });
+    try {
+      await this.grpc.publish({
+        namespace,
+        topic,
+        payload,
+        producerId: producer.producerId,
+        producerSeq: producer.seq,
+      });
+    } catch (err) {
+      // the message may still land, so reusing its seq for a different
+      // payload would get that payload dropped as a duplicate
+      if (!publishRejectedBeforeEnqueue(err)) {
+        this.producers.set(key, { producerId: randomUUID(), seq: 0 });
+      }
+      throw err;
+    }
 
-    this.nextSeq.set(key, producerSeq + 1);
+    producer.seq += 1;
   }
 
   /**
    * Durably publishes a message to a topic. Topics are created implicitly on
    * first publish. Messages from this client instance are delivered to
    * events() in the order publish() was called, even under concurrent calls
-   * or network/queue reordering. A failed publish never consumes its
-   * producer_seq, so retrying with the same arguments picks it back up.
+   * or network/queue reordering. A publish that fails ambiguously (e.g. a
+   * timeout) may still be delivered, so retrying it can produce a duplicate.
    * @param topic - the topic to publish to
    * @param message - the message payload
    * @param options - optional namespace override

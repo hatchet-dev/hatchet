@@ -92,6 +92,41 @@ func TestInsertOrderedStreamMessage_GapAndDuplicateReportRealWatermark(t *testin
 	assert.Equal(t, int64(0), dup.CurrentSeq)
 }
 
+// A producer's seq=1 arriving before its seq=0 must be held as a gap, not
+// inserted as the first row -- otherwise seq=0 is later dropped as stale.
+func TestInsertOrderedStreamMessage_FirstMessageArrivingOutOfOrderIsAGap(t *testing.T) {
+	pool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+
+	repo := createStreamsRepository(pool)
+	tenantId := uuid.New()
+
+	opts := func(seq int64, payload string) CreateOrderedStreamMessageOpts {
+		return CreateOrderedStreamMessageOpts{
+			Topic: "t", Payload: []byte(payload), ProducerID: "p1", ProducerSeq: seq,
+		}
+	}
+
+	early, err := repo.InsertOrderedStreamMessage(context.Background(), tenantId, opts(1, "second"))
+	require.NoError(t, err)
+	assert.False(t, early.Inserted)
+	assert.Equal(t, int64(-1), early.CurrentSeq)
+
+	first, err := repo.InsertOrderedStreamMessage(context.Background(), tenantId, opts(0, "first"))
+	require.NoError(t, err)
+	require.True(t, first.Inserted)
+
+	retried, err := repo.InsertOrderedStreamMessage(context.Background(), tenantId, opts(1, "second"))
+	require.NoError(t, err)
+	require.True(t, retried.Inserted)
+
+	msgs, err := repo.ListMessagesAfterCursor(context.Background(), tenantId, ListStreamMessagesOpts{Topic: "t"})
+	require.NoError(t, err)
+	require.Len(t, msgs, 2)
+	assert.Equal(t, []byte("first"), msgs[0].Payload)
+	assert.Equal(t, []byte("second"), msgs[1].Payload)
+}
+
 func TestForceInsertOrderedStreamMessage_InsertsAndBumpsWatermark(t *testing.T) {
 	pool, cleanup := setupPostgresWithMigration(t)
 	defer cleanup()
