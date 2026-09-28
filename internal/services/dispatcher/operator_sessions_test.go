@@ -54,8 +54,6 @@ func newOperatorStreamHarness(t *testing.T, workerId uuid.UUID) *operatorStreamH
 	ctx, cancel := context.WithCancel(context.Background())
 	h.sender = rpcstream.NewSender[v1contracts.OperatorListenResponse](ctx, h)
 
-	// handler mirrors the operator service's Listen: it closes the sender and releases the
-	// session on the way out, so done is signalled only after both have run.
 	handler := func() error {
 		defer h.sender.Close()
 
