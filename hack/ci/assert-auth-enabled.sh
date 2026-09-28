@@ -33,17 +33,35 @@ wait_for_pg() {
   return 1
 }
 
+http_get() {
+  local out
+  for attempts in $(seq 1 15); do
+    out=$(curl -s -m 5 -w "\n%{http_code}" "$1" || true)
+    body="${out%$'\n'*}" code="${out##*$'\n'}"
+    case "$code" in 000|5??) [ "$attempts" -lt 15 ] && sleep 2 ;; *) return ;; esac
+  done
+}
+
 assert_auth_enabled() {
-  local name="$1" base="$2" meta code
-  meta=$(curl -fsS "$base/api/v1/meta") || { echo "::error::$name: could not fetch /api/v1/meta"; return 1; }
-  echo "$meta"
-  if ! echo "$meta" | python3 -c "import sys,json; sys.exit(0 if json.load(sys.stdin).get('authDisabled') is not True else 1)"; then
+  local name="$1" base="$2" body code attempts
+  http_get "$base/api/v1/meta"
+  if [ "${code:0:1}" != "2" ]; then
+    echo "::error::$name: /api/v1/meta returned $code after $attempts attempts"
+    docker logs "authcheck-$name" 2>&1 | tail -60
+    return 1
+  fi
+  echo "$body"
+  if ! echo "$body" | python3 -c "import sys,json; sys.exit(0 if json.load(sys.stdin).get('authDisabled') is not True else 1)"; then
     echo "::error::$name: /api/v1/meta reports authDisabled=true — a non-dev image was built with GO_BUILD_TAGS=authdisabled"
     return 1
   fi
-  code=$(curl -s -o /dev/null -w "%{http_code}" "$base/api/v1/tenants/00000000-0000-0000-0000-000000000000/workers")
+  http_get "$base/api/v1/tenants/00000000-0000-0000-0000-000000000000/workers"
   if [ "$code" != "401" ] && [ "$code" != "403" ]; then
-    echo "::error::$name: unauthenticated tenant request returned $code (expected 401/403) — auth is not enforced"
+    case "$code" in
+      000|5??) echo "::error::$name: unauthenticated tenant request returned $code after $attempts attempts (expected 401/403) — service not ready, auth could not be verified" ;;
+      *) echo "::error::$name: unauthenticated tenant request returned $code (expected 401/403) — auth is not enforced" ;;
+    esac
+    docker logs "authcheck-$name" 2>&1 | tail -60
     return 1
   fi
   echo "$name: auth enabled (authDisabled=false, unauthenticated request rejected with $code)"
