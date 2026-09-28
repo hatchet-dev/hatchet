@@ -6,10 +6,13 @@ and delivers assigned tasks to it over signed HTTPS requests.
 
 - `echo`: a non-durable task. The operator POSTs the task, the Worker returns the message with
   the run id and retry count.
-- `sleep-then-echo`: a durable task. It records a timestamp, sleeps 3 seconds and returns both.
-  The sleep is longer than the endpoint's inline wait budget, so the first invocation evicts
-  itself and the engine re-invokes the task when the sleep is over; the second invocation gets
-  the memoized timestamp from the event log and finishes with `invocation: 2`.
+- `sleep-then-echo`: a durable task. It records a timestamp, sleeps 3 seconds, spawns `echo` as
+  a child run and waits for its output, then returns everything. The sleep exceeds the
+  endpoint's inline wait budget, so the first invocation evicts itself and the engine re-invokes
+  the task when the sleep is over; the child wait evicts the same way when the child takes
+  longer than the budget. Every re-invocation replays the memoized timestamp, the finished sleep
+  and the child's output from the event log, and the last one finishes with `invocation` set to
+  the number of invocations it took.
 
 The operator registers the workflows under the names declared here, the way a worker would, so
 `echo` is triggered as `echo` and its action id is `echo:echo`.
@@ -178,9 +181,13 @@ curl -s $API/api/v1/stable/workflow-runs/$RUN_ID \
 ```
 
 Expected: `status: "COMPLETED"` and `output: {"echo": "hello", "workflowRunId": "...", "retryCount": 0}`.
-Trigger `sleep-then-echo` the same way and read it back after about 8 seconds: the output is
-`{"echo": "hello", "startedAt": "...", "finishedAt": "...", "invocation": 2}`, with `startedAt`
-recorded by the first invocation (before the eviction) and `finishedAt` by the second.
+Trigger `sleep-then-echo` the same way and read it back after about 10 seconds: the output is
+`{"echo": "hello", "child": {"echo": "hello (from child)", "workflowRunId": "...", "retryCount": 0},
+"startedAt": "...", "finishedAt": "...", "invocation": 2}`, with `startedAt` recorded by the
+first invocation (before the sleep evicted it), `child` the output of the `echo` run this same
+endpoint served, and `finishedAt` by the last invocation. `invocation` is 2 when the child
+finished inside the inline wait budget and 3 when that wait evicted too. The child run shows up
+in the dashboard under the parent run.
 
 Or from a Node script with the TypeScript SDK. The local engine serves gRPC without TLS, so the
 client needs `tls_strategy: 'none'` (the SDK defaults to `tls`):

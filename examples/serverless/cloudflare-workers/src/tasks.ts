@@ -15,10 +15,12 @@ export const echo = hatchet.task({
 });
 
 /**
- * Durable: memoizes a timestamp, sleeps 3 seconds and returns both. The sleep is longer than
- * the endpoint's inline wait budget, so the first invocation evicts itself and the engine
- * re-invokes the task when the sleep is over; the second invocation gets the memoized
- * timestamp from the event log and finishes.
+ * Durable: memoizes a timestamp, sleeps 3 seconds, then spawns `echo` as a child run and waits
+ * for its output. Both the sleep and the child run go over the relay as durable events, and
+ * each is longer than the endpoint's inline wait budget, so the invocation evicts itself while
+ * waiting and the engine re-invokes the task when the awaited entry is satisfied. Every
+ * re-invocation replays the memoized timestamp, the finished sleep and the child's output
+ * from the event log, so the function runs from the top without repeating any of them.
  */
 export const sleepThenEcho = hatchet.durableTask({
   name: "sleep-then-echo",
@@ -28,8 +30,11 @@ export const sleepThenEcho = hatchet.durableTask({
 
     await ctx.sleepFor("3s");
 
+    const child = await ctx.spawnChild(echo, { message: `${input.message} (from child)` });
+
     return {
       echo: input.message,
+      child,
       startedAt: startedAt.toISOString(),
       finishedAt: new Date().toISOString(),
       invocation: ctx.invocationCount,
