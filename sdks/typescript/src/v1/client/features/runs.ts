@@ -1,91 +1,24 @@
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
-import { V1TaskStatus, V1TaskFilter } from '@hatchet/clients/rest/generated/data-contracts';
+import { V1TaskFilter } from '@hatchet/clients/rest/generated/data-contracts';
 import {
   RunEventType,
   RunListenerClient,
 } from '@hatchet/clients/listeners/run-listener/child-listener-client';
 import { WorkflowsClient } from './workflows';
 import { HatchetClient } from '../client';
-import {
-  AdminServiceClient,
-  AdminServiceDefinition,
-  GetRunDetailsResponse,
-  RunStatus,
-  runStatusToJSON,
-} from '@hatchet/protoc/v1/workflows';
-import { ClientConfig } from '@hatchet/clients/hatchet-client';
-import { createGrpcClient } from '@hatchet/util/grpc-helpers';
+import { createV1AdminRpc } from '@hatchet/clients/admin/rpc';
+import type { AdminServiceClient } from '@hatchet/protoc/v1/workflows';
+import type { Transport } from '@hatchet/clients/transport/transport';
+import { runStatusToJSON, toRunDetail } from '@hatchet/core/run-detail';
+import type { RunDetail, RunFilterBase, TaskRunDetail } from '@hatchet/core/types';
 
-export type RunDetail = {
-  status: V1TaskStatus;
-  done: boolean;
-  input: unknown;
-  additionalMetadata: unknown;
-  isEvicted: boolean;
-  taskRuns: Record<string, TaskRunDetail>;
-};
-
-export type TaskRunDetail = {
-  externalId: string;
-  readableId: string;
-  status: V1TaskStatus;
-  output: unknown;
-  error?: string;
-  isEvicted: boolean;
-};
-
-// EVICTED is not in V1TaskStatus; treat as RUNNING per the proto comment.
-const PROTO_STATUS_MAP: Record<RunStatus, V1TaskStatus> = {
-  [RunStatus.QUEUED]: V1TaskStatus.QUEUED,
-  [RunStatus.RUNNING]: V1TaskStatus.RUNNING,
-  [RunStatus.COMPLETED]: V1TaskStatus.COMPLETED,
-  [RunStatus.FAILED]: V1TaskStatus.FAILED,
-  [RunStatus.CANCELLED]: V1TaskStatus.CANCELLED,
-  [RunStatus.EVICTED]: V1TaskStatus.RUNNING,
-  [RunStatus.UNRECOGNIZED]: V1TaskStatus.RUNNING,
-};
-
-function decodeBytes(b: Uint8Array | undefined): unknown {
-  if (!b?.length) return null;
-  try {
-    return JSON.parse(new TextDecoder().decode(b));
-  } catch {
-    return null;
-  }
-}
-
-function toRunDetail(raw: GetRunDetailsResponse): RunDetail {
-  return {
-    status: PROTO_STATUS_MAP[raw.status] ?? V1TaskStatus.RUNNING,
-    done: raw.done,
-    input: decodeBytes(raw.input),
-    additionalMetadata: decodeBytes(raw.additionalMetadata),
-    isEvicted: raw.isEvicted,
-    taskRuns: Object.fromEntries(
-      Object.entries(raw.taskRuns).map(([id, tr]) => [
-        id,
-        {
-          externalId: tr.externalId,
-          readableId: tr.readableId,
-          status: PROTO_STATUS_MAP[tr.status] ?? V1TaskStatus.RUNNING,
-          output: decodeBytes(tr.output),
-          error: tr.error,
-          isEvicted: tr.isEvicted,
-        } satisfies TaskRunDetail,
-      ])
-    ),
-  };
-}
+export type { RunDetail, TaskRunDetail };
 
 // Keep runStatusToJSON importable for callers who want the raw proto status as a string.
 export { runStatusToJSON };
 
-export type RunFilter = {
-  since?: Date;
-  until?: Date;
-  statuses?: V1TaskStatus[];
+export type RunFilter = RunFilterBase & {
   workflowNames?: string[];
-  additionalMetadata?: Record<string, string>;
 };
 
 export type CancelRunOpts = {
@@ -158,23 +91,23 @@ export class RunsClient {
   tenantId: string;
   workflows: WorkflowsClient;
   listener: RunListenerClient;
-  private _config: ClientConfig;
-  private _adminGrpc: AdminServiceClient | undefined;
+  private _transport: Transport;
+  private _adminRpc: AdminServiceClient | undefined;
 
   constructor(client: HatchetClient) {
     this.api = client.api;
     this.tenantId = client.tenantId;
     this.workflows = client.workflows;
     this.listener = client._listener;
-    this._config = client.config;
+    this._transport = client.transport;
   }
 
-  private get adminGrpc(): AdminServiceClient {
-    if (!this._adminGrpc) {
-      const { client } = createGrpcClient(this._config, AdminServiceDefinition);
-      this._adminGrpc = client;
+  /** The v1 admin RPCs on the client's Connect transport, the same path the core client uses. */
+  private get adminRpc(): AdminServiceClient {
+    if (!this._adminRpc) {
+      this._adminRpc = createV1AdminRpc(this._transport);
     }
-    return this._adminGrpc;
+    return this._adminRpc;
   }
 
   /**
@@ -208,7 +141,7 @@ export class RunsClient {
    */
   async getDetails<T = any>(run: string | WorkflowRunRef<T>): Promise<RunDetail> {
     const runId = typeof run === 'string' ? run : await run.getWorkflowRunId();
-    return toRunDetail(await this.adminGrpc.getRunDetails({ externalId: runId }));
+    return toRunDetail(await this.adminRpc.getRunDetails({ externalId: runId }));
   }
 
   /**

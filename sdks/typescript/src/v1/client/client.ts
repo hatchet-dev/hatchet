@@ -618,6 +618,14 @@ export class HatchetClient<
   }
 
   /**
+   * The Connect transport the client's unary RPCs go through
+   * @internal
+   */
+  get transport() {
+    return this._transport;
+  }
+
+  /**
    * @deprecated use client.events instead
    * @hidden
    */

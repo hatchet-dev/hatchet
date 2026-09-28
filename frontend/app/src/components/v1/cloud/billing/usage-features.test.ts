@@ -1,4 +1,5 @@
 import {
+  dailyLimitAlerts,
   dailyMeterSeverity,
   formatObservedUsage,
   formatTimeUntil,
@@ -417,6 +418,79 @@ describe('dailyMeterSeverity', () => {
       dailyMeterSeverity({ value: 600, limitValue: 1000, alarmValue: 500 }),
       'warn',
     );
+  });
+});
+
+describe('dailyLimitAlerts', () => {
+  it('stays quiet while the shard meter is under the warn threshold', () => {
+    const alerts = dailyLimitAlerts([
+      tenant('t1', 'ci', [
+        limit(TenantResource.TASK_RUN, { value: 8, limitValue: 2000 }),
+        limit(TenantResource.EVENT, { value: 8, limitValue: 1000 }),
+      ]),
+    ]);
+
+    assert.deepEqual(alerts, []);
+  });
+
+  it('reports the shard meter once it reaches the cap', () => {
+    const alerts = dailyLimitAlerts([
+      tenant('t1', 'ci', [
+        limit(TenantResource.TASK_RUN, {
+          value: 2000,
+          limitValue: 2000,
+          metadata: {
+            id: 'task-limit',
+            createdAt: '2026-09-28T00:00:00.000Z',
+            updatedAt: '2026-09-28T15:00:00.000Z',
+          },
+        }),
+        limit(TenantResource.EVENT, { value: 1000, limitValue: 1000 }),
+      ]),
+    ]);
+
+    assert.deepEqual(
+      alerts.map((alert) => ({
+        featureId: alert.featureId,
+        usage: alert.usage,
+        includedUsage: alert.includedUsage,
+        status: alert.status,
+        tenantName: alert.tenantName,
+      })),
+      [
+        {
+          featureId: 'task_runs_daily_limit',
+          usage: 2000,
+          includedUsage: 2000,
+          status: 'exhausted',
+          tenantName: undefined,
+        },
+        {
+          featureId: 'events_daily_limit',
+          usage: 1000,
+          includedUsage: 1000,
+          status: 'exhausted',
+          tenantName: undefined,
+        },
+      ],
+    );
+    assert.equal(alerts[0]?.timestamp, '2026-09-28T15:00:00.000Z');
+  });
+
+  it('names the tenant that is closest to its cap', () => {
+    const alerts = dailyLimitAlerts([
+      tenant('low', 'low', [
+        limit(TenantResource.TASK_RUN, { value: 8, limitValue: 2000 }),
+      ]),
+      tenant('high', 'high', [
+        limit(TenantResource.TASK_RUN, { value: 1600, limitValue: 2000 }),
+      ]),
+    ]);
+
+    assert.equal(alerts.length, 1);
+    assert.equal(alerts[0]?.status, 'warn');
+    assert.equal(alerts[0]?.usage, 1600);
+    assert.equal(alerts[0]?.tenantName, 'high');
   });
 });
 
