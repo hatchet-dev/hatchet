@@ -99,7 +99,7 @@ func TestServerlessSupervisorRestartsTheCore(t *testing.T) {
 	})
 
 	require.Eventually(t, func() bool { return starts.Load() == 3 }, 3*time.Second, time.Millisecond, "the core is restarted after each early failure")
-	assert.True(t, sup.Running(), "readiness follows the running core")
+	assert.True(t, sup.Running(), "the core is up after its restarts")
 
 	stopped := make(chan error, 1)
 
