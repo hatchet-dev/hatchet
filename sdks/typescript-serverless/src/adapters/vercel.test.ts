@@ -104,6 +104,8 @@ function firstFrame(taskRunExternalId: string) {
   return encodeFrame({ first: { action, invocationCount: 1, inlineWaitBudgetMs: 5000 } });
 }
 
+const plain = { params: Promise.resolve({}) };
+
 const quiet = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 
 describe('vercel adapter', () => {
@@ -123,7 +125,8 @@ describe('vercel adapter', () => {
   it('serves the healthcheck under /api/hatchet with the secret from process.env', async () => {
     const { POST } = vercel({ workflows, durable: true });
     const response = await POST(
-      await signedHealthcheck('https://app.test/api/hatchet/healthcheck')
+      await signedHealthcheck('https://app.test/api/hatchet/healthcheck'),
+      plain
     );
 
     expect(response.status).toBe(200);
@@ -143,12 +146,12 @@ describe('vercel adapter', () => {
         .status
     ).toBe(200);
     expect(
-      (await POST(await signedHealthcheck('https://app.test/internal/x/healthcheck'))).status
+      (await POST(await signedHealthcheck('https://app.test/internal/x/healthcheck'), plain)).status
     ).toBe(404);
     expect(
       (
         await POST(await signedHealthcheck('https://app.test/internal/x/nope'), {
-          params: { slug: ['nope'] },
+          params: Promise.resolve({ slug: ['nope'] }),
         })
       ).status
     ).toBe(404);
@@ -164,11 +167,16 @@ describe('vercel adapter', () => {
     });
 
     expect(
-      (await POST(await signedHealthcheck('https://app.test/hooks/hatchet/healthcheck'))).status
+      (await POST(await signedHealthcheck('https://app.test/hooks/hatchet/healthcheck'), plain))
+        .status
     ).toBe(200);
     expect(
-      (await POST(await signedHealthcheck('https://app.test/hooks/hatchet/healthcheck', 'other')))
-        .status
+      (
+        await POST(
+          await signedHealthcheck('https://app.test/hooks/hatchet/healthcheck', 'other'),
+          plain
+        )
+      ).status
     ).toBe(401);
   });
 
@@ -177,7 +185,7 @@ describe('vercel adapter', () => {
     // protojson leaves a false `supported` out.
     expect(
       await (
-        await off.POST(await signedHealthcheck('https://app.test/api/hatchet/healthcheck'))
+        await off.POST(await signedHealthcheck('https://app.test/api/hatchet/healthcheck'), plain)
       ).json()
     ).toMatchObject({ durable: {} });
 
@@ -185,7 +193,7 @@ describe('vercel adapter', () => {
     const on = vercel({ workflows });
     expect(
       await (
-        await on.POST(await signedHealthcheck('https://app.test/api/hatchet/healthcheck'))
+        await on.POST(await signedHealthcheck('https://app.test/api/hatchet/healthcheck'), plain)
       ).json()
     ).toMatchObject({ durable: { supported: true } });
   });
@@ -196,7 +204,7 @@ describe('vercel adapter', () => {
     const taskId = crypto.randomUUID();
     const headers = await operator.upgradeHeaders(taskId, 1);
 
-    const pending = GET(new Request('https://app.test/api/hatchet/trigger', { headers }));
+    const pending = GET(new Request('https://app.test/api/hatchet/trigger', { headers }), plain);
 
     await vi.waitFor(() => expect(fake.state.sockets).toHaveLength(1));
     const [socket] = fake.state.sockets;
@@ -218,7 +226,10 @@ describe('vercel adapter', () => {
     const operator = createTestOperator({ workflows, secret });
     const headers = await operator.upgradeHeaders(crypto.randomUUID(), 1, { secret: 'other' });
 
-    const response = await GET(new Request('https://app.test/api/hatchet/trigger', { headers }));
+    const response = await GET(
+      new Request('https://app.test/api/hatchet/trigger', { headers }),
+      plain
+    );
 
     expect(response.status).toBe(401);
     expect(fake.state.sockets).toHaveLength(0);
@@ -232,7 +243,10 @@ describe('vercel adapter', () => {
     const operator = createTestOperator({ workflows, secret });
     const headers = await operator.upgradeHeaders(crypto.randomUUID(), 1);
 
-    const response = await GET(new Request('https://app.test/api/hatchet/trigger', { headers }));
+    const response = await GET(
+      new Request('https://app.test/api/hatchet/trigger', { headers }),
+      plain
+    );
 
     expect(response.status).toBe(426);
     expect(await response.json()).toMatchObject({
@@ -248,10 +262,12 @@ describe('vercel adapter', () => {
     const headers = await operator.upgradeHeaders(crypto.randomUUID(), 1);
 
     expect(
-      await (await POST(await signedHealthcheck('https://app.test/api/hatchet/healthcheck'))).json()
+      await (
+        await POST(await signedHealthcheck('https://app.test/api/hatchet/healthcheck'), plain)
+      ).json()
     ).toMatchObject({ durable: {} });
     expect(
-      (await GET(new Request('https://app.test/api/hatchet/trigger', { headers }))).status
+      (await GET(new Request('https://app.test/api/hatchet/trigger', { headers }), plain)).status
     ).toBe(426);
     expect(fake.state.sockets).toHaveLength(0);
   });

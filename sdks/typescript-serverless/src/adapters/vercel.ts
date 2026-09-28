@@ -52,16 +52,18 @@ export interface VercelOptions extends Omit<
   maxPayload?: number;
 }
 
-/** The second argument Next.js passes to a route handler; `params` is a promise on 15+. */
+/**
+ * The second argument Next.js passes to a route handler, typed the way Next.js checks it
+ * (`params` is a promise on 15 and later). The handlers also accept no context at all and
+ * then match the URL against `basePath`.
+ */
 export interface VercelRouteContext {
-  params?:
-    | Promise<Record<string, string | string[] | undefined>>
-    | Record<string, string | string[] | undefined>;
+  params: Promise<Record<string, string | string[] | undefined>>;
 }
 
 export type VercelRouteHandler = (
   request: Request,
-  context?: VercelRouteContext
+  context: VercelRouteContext
 ) => Promise<Response>;
 
 export interface VercelRoutes {
@@ -169,13 +171,13 @@ export function vercel(options: VercelOptions): VercelRoutes {
     out.warn(`[hatchet] durable upgrade refused: ${problem}. ${UPGRADE_GUIDANCE}`);
   };
 
-  const POST: VercelRouteHandler = async (request, context) => {
+  const POST: VercelRouteHandler = async (request, context?) => {
     const selected = await handler.select();
 
     return selected.fetch(await routed(request, handler.basePath, context), process.env);
   };
 
-  const GET: VercelRouteHandler = async (request, context) => {
+  const GET: VercelRouteHandler = async (request, context?) => {
     const [selected, loaded] = await Promise.all([handler.select(), functions]);
 
     return selected.fetch(await routed(request, handler.basePath, context), process.env, {

@@ -6,8 +6,9 @@ endpoint with Hatchet. The Hatchet serverless operator polls the endpoint for th
 serves and delivers runs to it over signed HTTPS requests.
 
 Status: preview, not yet published. This version serves non-durable and durable tasks on
-Cloudflare Workers. The Vercel adapter, the `hatchet serverless` CLI commands and the
-management module are the next phases.
+Cloudflare Workers, Vercel (Next.js App Router or a standalone function) and a Node server you
+run yourself. The `hatchet serverless` CLI commands and the management module are the next
+phases.
 
 ## There is no Hatchet client in the serverless runtime
 
@@ -144,6 +145,127 @@ export default cloudflare({
 The package's runtime entries (`.` and `./cloudflare`) carry no Node built-ins and bundle with
 `wrangler deploy` without `nodejs_compat`.
 
+## Vercel and Next.js
+
+```ts
+// app/api/hatchet/[...hatchet]/route.ts
+import { vercel } from '@hatchet-dev/serverless/vercel';
+import { workflows } from '@/hatchet/tasks';
+
+export const { GET, POST } = vercel({ workflows });
+export const maxDuration = 300; // the ceiling on one durable invocation; 800 on Pro and Enterprise
+```
+
+```sh
+pnpm add @vercel/functions ws          # only for durable tasks; optional peers of the package
+vercel env add HATCHET_SIGNING_SECRET  # 32+ characters; keep the value for the registration
+```
+
+`vercel({ workflows })` returns the two route handlers of a Next.js App Router catch-all route.
+`POST` serves the healthcheck and non-durable triggers; `GET` is the durable websocket upgrade,
+accepted through `experimental_upgradeWebSocket` from `@vercel/functions`, which needs
+[Fluid compute](https://vercel.com/docs/functions/websockets) and the `ws` package. The route
+is read from the catch-all segment, so the route file may live anywhere under `app/`; register
+the endpoint with the URLs the file produces (`/api/hatchet/healthcheck` and
+`/api/hatchet/trigger` for the file above). The signing secret comes from
+`process.env.HATCHET_SIGNING_SECRET`, the optional endpoint id from `HATCHET_ENDPOINT_ID`.
+
+```ts
+export const { GET, POST } = vercel({
+  workflows,
+  serve: [echo], // actions this endpoint serves (default: all)
+  secret: () => process.env.ORDERS_SIGNING_SECRET, // default process.env.HATCHET_SIGNING_SECRET
+  durable: false, // no relay: for a project without Fluid compute (default: on when VERCEL is set)
+  basePath: '/hooks/hatchet', // only for calls without a route context (default "/api/hatchet")
+});
+```
+
+What the adapter does with the socket: the upgrade callback awaits the relay, so the route's
+response completes only when the invocation does, and the same promise goes to `waitUntil`
+from `@vercel/functions` so the runtime accounts for it as background work. `after()` from
+`next/server` is not used, because it schedules work for after the response while the relay is
+already running when the 101 goes out, and because the adapter also serves functions outside
+Next.js. The socket's `maxPayload` is the operator's 4 MiB frame limit.
+
+When the upgrade cannot happen the adapter never hangs: without `@vercel/functions` or `ws`,
+or with `durable: false`, or outside Vercel (no `VERCEL` environment variable, which is what
+`next dev` looks like), the healthcheck reports `durable.supported: false` and the operator
+sends only non-durable tasks. A project without Fluid compute cannot be told apart from a
+healthcheck, so there an upgrade is refused at request time with
+`426 {"error": "websocket upgrade unavailable: ...", "retry": false}` and a logged hint; pass
+`durable: false` on such a project. Locally, the websocket path runs only under `vc dev`
+(Vercel CLI 54.14.2 or later), not `next dev`.
+
+Constraints Vercel imposes: a durable invocation cannot outlive `maxDuration` (300 s on Hobby,
+800 s on Pro and Enterprise), so the endpoint's `inlineWaitBudgetMs` must stay well below it;
+request and response bodies are capped at 4.5 MB.
+
+A standalone function (`api/hatchet.ts`, any framework or none) exports the endpoint as an
+`http.Server`, the shape Vercel serves directly, with the websocket through `ws`:
+
+```ts
+// api/hatchet.ts
+import { vercelServer } from '@hatchet-dev/serverless/vercel';
+import { workflows } from '../hatchet/tasks';
+
+export default vercelServer({ workflows }); // routes under /hatchet
+```
+
+Vercel routes only `/api/hatchet` itself to that file, so `vercel.json` needs
+`{ "rewrites": [{ "source": "/hatchet/:path*", "destination": "/api/hatchet" }] }` (or pass
+`basePath: '/api/hatchet'` and rewrite `/api/hatchet/:path*`).
+
+## Node
+
+For a Node process you run yourself: a Next.js custom server, an Express app, a container.
+
+```ts
+import { createServer } from '@hatchet-dev/serverless/node';
+import { workflows } from './tasks';
+
+createServer({ workflows }).listen(3000); // POST /hatchet/healthcheck, /hatchet/trigger and the upgrade
+```
+
+`nodeHandler({ workflows })` is the same endpoint as an `http` request listener with the
+websocket `upgrade` listener attached, for a server you already have. It calls `next()` outside
+`basePath` when mounted as Express middleware (and honours the mount path), answers 404 there
+otherwise, and `upgrade` returns false, leaving the socket untouched, for upgrades that are not
+its own:
+
+```ts
+import express from 'express';
+import { createServer } from 'node:http';
+import { nodeHandler } from '@hatchet-dev/serverless/node';
+
+const hatchet = nodeHandler({ workflows });
+const app = express().use(hatchet);
+const server = createServer(app);
+
+server.on('upgrade', (req, socket, head) => {
+  if (!hatchet.upgrade(req, socket, head)) socket.destroy();
+});
+server.listen(3000);
+```
+
+Both read `process.env.HATCHET_SIGNING_SECRET` and the optional `HATCHET_ENDPOINT_ID`, and take
+the same `secret`, `endpointId`, `serve`, `basePath`, `durable` and `maxPayload` options as the
+Vercel adapter. The relay needs the `ws` package (an optional peer); without it, or with
+`durable: false`, the healthcheck reports `durable.supported: false`.
+
+## Adapters
+
+| Runtime                    | Import                                                            | Durable tasks served by                                                                    | Constraints                                                                                                                                                    |
+| -------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Cloudflare Workers         | `cloudflare` from `@hatchet-dev/serverless/cloudflare`            | `WebSocketPair`, kept alive with `ctx.waitUntil`; nothing to install                       | CPU time per invocation (`limits.cpu_ms`, 5 min on Workers Paid); nonces per isolate unless `seenNonce` is backed by a Durable Object or KV                    |
+| Vercel, Next.js App Router | `vercel` from `@hatchet-dev/serverless/vercel`                    | `experimental_upgradeWebSocket` from `@vercel/functions` plus `ws`; Fluid compute required | `maxDuration` caps an invocation (300 s Hobby, 800 s Pro and Enterprise); 4.5 MB bodies; websocket locally only under `vc dev`; `durable: false` without Fluid |
+| Vercel, standalone `api/`  | `vercelServer` from `@hatchet-dev/serverless/vercel`              | `ws` on the exported `http.Server`                                                         | Same limits; `vercel.json` rewrite so every route reaches the function                                                                                         |
+| Node, self-hosted          | `createServer`, `nodeHandler` from `@hatchet-dev/serverless/node` | `ws` (optional peer)                                                                       | Your process lifetime and proxy; the operator dials https on 443 only, so terminate TLS in front                                                               |
+
+`.` and `./cloudflare` import nothing from Node and run on any WinterCG runtime; `./vercel`
+and `./node` import `node:http` and load `ws` (and `@vercel/functions`) at runtime. Every
+adapter serves the same handler, so the healthcheck body, the signature checks and the
+response mapping below are identical across runtimes; only the runtime name differs.
+
 ## Register the endpoint
 
 The `hatchet serverless register` command is the intended way and is not built yet. Until it
@@ -166,7 +288,8 @@ curl -X POST https://<hatchet>/api/v1/stable/tenants/$TENANT_ID/serverless/endpo
 ```
 
 The API token belongs to the process that registers the endpoint (a deploy script, your shell),
-never to the Worker.
+never to the Worker. `kind` is `CLOUDFLARE_WORKERS` for a Worker and `GENERIC_HTTP` for a
+Vercel or Node endpoint; the adapters apply their runtime's constraints themselves.
 
 ## Tests without Hatchet
 
