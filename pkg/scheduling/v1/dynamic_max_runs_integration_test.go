@@ -85,7 +85,7 @@ func createDynamicMaxRunsTasks(
 	s *dynamicMaxRunsTestSetup,
 	keys []string,
 	maxRuns []pgtype.Int4,
-) []*sqlcv1.V1Task {
+) []*sqlcv1.CreateTasksRow {
 	t.Helper()
 
 	require.Equal(t, len(keys), len(maxRuns))

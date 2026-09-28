@@ -184,6 +184,16 @@ func isEmptyPayload(payload []byte) bool {
 	return len(trimmed) == 0 || bytes.Equal(trimmed, []byte("{}"))
 }
 
+// payloadOrNil is the input a statement that writes its own v1_payload row gets: nil, which
+// writes no row, when the payload is empty, the same rule Store applies.
+func payloadOrNil(payload []byte) []byte {
+	if isEmptyPayload(payload) {
+		return nil
+	}
+
+	return payload
+}
+
 func payloadOrEmptyJSONObject(payload []byte) []byte {
 	if len(payload) == 0 {
 		return []byte("{}")

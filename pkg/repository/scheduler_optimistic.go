@@ -2,12 +2,9 @@ package repository
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -39,37 +36,10 @@ func (r *optimisticSchedulingRepositoryImpl) TriggerFromEvents(ctx context.Conte
 		return nil, nil, err
 	}
 
-	tasks := result.Tasks
-
-	// get the queue items for the tasks that were created
-	taskIds := make([]int64, 0, len(tasks))
-	taskInsertedAts := make([]pgtype.Timestamptz, 0, len(tasks))
-	retryCounts := make([]int32, 0, len(tasks))
-
-	for _, task := range tasks {
-		taskIds = append(taskIds, task.ID)
-		taskInsertedAts = append(taskInsertedAts, task.InsertedAt)
-		retryCounts = append(retryCounts, task.RetryCount)
-	}
-
-	qis, err := r.queries.ListQueueItemsForTasks(ctx, tx.tx, sqlcv1.ListQueueItemsForTasksParams{
-		Tenantid:        tenantId,
-		Taskids:         taskIds,
-		Taskinsertedats: taskInsertedAts,
-		Retrycounts:     retryCounts,
-	})
-
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			qis = []*sqlcv1.V1QueueItem{}
-		} else {
-			return nil, nil, fmt.Errorf("failed to list queue items for tasks: %w", err)
-		}
-	}
-
 	tx.AddPostCommit(post)
 
-	return qis, result, nil
+	// the queue items for the created tasks come back with CreateTasks
+	return queueItemsOf(result.Tasks), result, nil
 }
 
 func (r *optimisticSchedulingRepositoryImpl) TriggerFromNames(ctx context.Context, tx *OptimisticTx, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) ([]*sqlcv1.V1QueueItem, []*V1TaskWithPayload, []*DAGWithData, []IdempotencyCollision, error) {
@@ -85,33 +55,8 @@ func (r *optimisticSchedulingRepositoryImpl) TriggerFromNames(ctx context.Contex
 		return nil, nil, nil, nil, fmt.Errorf("failed to trigger workflows: %w", err)
 	}
 
-	// get the queue items for the tasks that were created
-	taskIds := make([]int64, 0, len(tasks))
-	taskInsertedAts := make([]pgtype.Timestamptz, 0, len(tasks))
-	retryCounts := make([]int32, 0, len(tasks))
-
-	for _, task := range tasks {
-		taskIds = append(taskIds, task.ID)
-		taskInsertedAts = append(taskInsertedAts, task.InsertedAt)
-		retryCounts = append(retryCounts, task.RetryCount)
-	}
-
-	qis, err := r.queries.ListQueueItemsForTasks(ctx, tx.tx, sqlcv1.ListQueueItemsForTasksParams{
-		Tenantid:        tenantId,
-		Taskids:         taskIds,
-		Taskinsertedats: taskInsertedAts,
-		Retrycounts:     retryCounts,
-	})
-
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			qis = []*sqlcv1.V1QueueItem{}
-		} else {
-			return nil, nil, nil, nil, fmt.Errorf("failed to list queue items for tasks: %w", err)
-		}
-	}
-
-	return qis, tasks, dags, idempotencyKeyCollisions, nil
+	// the queue items for the created tasks come back with CreateTasks
+	return queueItemsOf(tasks), tasks, dags, idempotencyKeyCollisions, nil
 }
 
 func (r *optimisticSchedulingRepositoryImpl) MarkQueueItemsProcessed(ctx context.Context, tx *OptimisticTx, tenantId uuid.UUID, r2 *AssignResults) (succeeded []*AssignedItem, failed []*AssignedItem, err error) {

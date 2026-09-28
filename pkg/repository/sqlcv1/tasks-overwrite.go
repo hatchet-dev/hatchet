@@ -51,8 +51,10 @@ WITH input AS (
 		unnest($37::text[]) AS idempotency_key,
 		unnest($38::text[]) AS batch_key,
 		unnest($39::boolean[]) AS is_dag_orchestrator,
-		unnest_nd_1d($40::integer[][]) AS concurrency_max_runs
-)
+		unnest_nd_1d($40::integer[][]) AS concurrency_max_runs,
+		-- the task input lives in v1_payload (v1_task.input is always '{}'); NULL when empty
+		unnest($41::jsonb[]) AS input
+), inserted AS (
 INSERT INTO v1_task (
     tenant_id,
     queue,
@@ -146,8 +148,75 @@ FROM
 LEFT JOIN
 	v1_step_batch_config sbc ON sbc.step_id = i.step_id
 RETURNING
-    id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff, workflow_version_id, workflow_run_id, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key, idempotency_key, batch_key, is_dag_orchestrator, concurrency_max_runs
+    id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff, workflow_version_id, workflow_run_id, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key, idempotency_key, batch_key, is_dag_orchestrator, concurrency_max_runs,
+    -- the whole row as a v1_task value, the input of the schema functions below
+    v1_task AS task
+), payloads AS MATERIALIZED (
+    -- store_payloads_for_tasks (sql/schema/v1-core.sql) writes the TASK_INPUT payload rows.
+    -- A CTE that only calls a function runs when the primary query reads it, hence the
+    -- count here and the CROSS JOIN below.
+    SELECT count(*) AS n
+    FROM (
+        SELECT array_agg(t.task) AS tasks, array_agg(i.input) AS inputs
+        FROM inserted t
+        JOIN input i ON i.external_id = t.external_id
+    ) x, store_payloads_for_tasks(x.tasks, x.inputs)
+), queue_items AS MATERIALIZED (
+    -- store_queue_items_for_tasks is the queue-item mapping the v1_task insert trigger uses
+    -- as well; it is called here so the ids come back with the tasks (the trigger fires
+    -- after this whole statement, so a join on v1_queue_item could not see its rows). The
+    -- trigger then finds these rows already written and skips them.
+    SELECT qi.id, qi.task_id, qi.task_inserted_at, qi.retry_count, qi.schedule_timeout_at, qi.priority
+    FROM store_queue_items_for_tasks((SELECT array_agg(t.task) FROM inserted t)) qi
+)
+SELECT
+    t.id, t.inserted_at, t.tenant_id, t.queue, t.action_id, t.step_id, t.step_readable_id, t.workflow_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.external_id, t.display_name, t.input, t.retry_count, t.internal_retry_count, t.app_retry_count, t.additional_metadata, t.initial_state, t.dag_id, t.dag_inserted_at, t.concurrency_parent_strategy_ids, t.concurrency_strategy_ids, t.concurrency_keys, t.initial_state_reason, t.parent_task_external_id, t.parent_task_id, t.parent_task_inserted_at, t.child_index, t.child_key, t.step_index, t.retry_backoff_factor, t.retry_max_backoff, t.workflow_version_id, t.workflow_run_id, t.is_durable, t.desired_worker_label, t.triggering_event_external_id, t.triggering_event_key, t.idempotency_key, t.batch_key, t.is_dag_orchestrator, t.concurrency_max_runs,
+    qi.id AS queue_item_id,
+    qi.schedule_timeout_at AS queue_item_schedule_timeout_at,
+    qi.priority AS queue_item_priority
+FROM inserted t
+LEFT JOIN queue_items qi ON (qi.task_id, qi.task_inserted_at, qi.retry_count) = (t.id, t.inserted_at, t.retry_count)
+CROSS JOIN payloads
 `
+
+// CreateTasksRow is one inserted task plus the identity of the queue item CreateTasks wrote
+// for it, when it wrote one (QUEUED tasks without a concurrency strategy).
+type CreateTasksRow struct {
+	V1Task
+	QueueItemID                pgtype.Int8
+	QueueItemScheduleTimeoutAt pgtype.Timestamp
+	QueueItemPriority          pgtype.Int4
+}
+
+// QueueItem returns the queue item CreateTasks inserted for the task, or nil when the task
+// has none. Every column but the three the statement returns is the task's own value, which
+// is exactly what the statement (and v1_task_insert_function) copies into v1_queue_item.
+func (r *CreateTasksRow) QueueItem() *V1QueueItem {
+	if !r.QueueItemID.Valid {
+		return nil
+	}
+
+	return &V1QueueItem{
+		ID:                 r.QueueItemID.Int64,
+		TenantID:           r.TenantID,
+		Queue:              r.Queue,
+		TaskID:             r.ID,
+		TaskInsertedAt:     r.InsertedAt,
+		ExternalID:         r.ExternalID,
+		ActionID:           r.ActionID,
+		StepID:             r.StepID,
+		WorkflowID:         r.WorkflowID,
+		WorkflowRunID:      r.WorkflowRunID,
+		ScheduleTimeoutAt:  r.QueueItemScheduleTimeoutAt,
+		StepTimeout:        r.StepTimeout,
+		Priority:           r.QueueItemPriority.Int32,
+		Sticky:             r.Sticky,
+		DesiredWorkerID:    r.DesiredWorkerID,
+		RetryCount:         r.RetryCount,
+		DesiredWorkerLabel: r.DesiredWorkerLabel,
+		BatchKey:           r.BatchKey,
+	}
+}
 
 type CreateTasksParams struct {
 	Tenantids           []uuid.UUID          `json:"tenantids"`
@@ -193,9 +262,11 @@ type CreateTasksParams struct {
 	IsDagOrchestrators           []bool               `json:"isDagOrchestrators"`
 	IdempotencyKeys              []pgtype.Text        `json:"idempotencyKeys"`
 	BatchKeys                    []string             `json:"batchKeys"`
+	// Inputs are the task inputs written to v1_payload; a nil element writes no payload
+	Inputs [][]byte `json:"inputs"`
 }
 
-func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParams) ([]*V1Task, error) {
+func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParams) ([]*CreateTasksRow, error) {
 	// panic-recover
 	// defer func() {
 	// 	if r := recover(); r != nil {
@@ -250,14 +321,15 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 		arg.BatchKeys,
 		arg.IsDagOrchestrators,
 		arg.ConcurrencyMaxRuns,
+		arg.Inputs,
 	)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*V1Task
+	var items []*CreateTasksRow
 	for rows.Next() {
-		var i V1Task
+		var i CreateTasksRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.InsertedAt,
@@ -304,6 +376,9 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 			&i.BatchKey,
 			&i.IsDagOrchestrator,
 			&i.ConcurrencyMaxRuns,
+			&i.QueueItemID,
+			&i.QueueItemScheduleTimeoutAt,
+			&i.QueueItemPriority,
 		); err != nil {
 			return nil, err
 		}
@@ -1061,9 +1136,10 @@ WITH to_insert AS (
         -- Scopes are nullable
         UNNEST($6::TEXT[]) AS scope,
         -- Webhook names are nullable
-        UNNEST($7::TEXT[]) AS triggering_webhook_name
-)
-
+        UNNEST($7::TEXT[]) AS triggering_webhook_name,
+        -- the event input lives in v1_payload; NULL when empty
+        UNNEST($8::JSONB[]) AS payload
+), inserted AS (
 INSERT INTO v1_event (
     tenant_id,
     external_id,
@@ -1077,7 +1153,24 @@ INSERT INTO v1_event (
 SELECT tenant_id, external_id, seen_at, key, additional_metadata, scope, triggering_webhook_name
 FROM to_insert
 ON CONFLICT (external_id, seen_at) DO NOTHING
-RETURNING tenant_id, id, external_id, seen_at, key, additional_metadata, scope, triggering_webhook_name
+RETURNING
+    tenant_id, id, external_id, seen_at, key, additional_metadata, scope, triggering_webhook_name,
+    -- the whole row as a v1_event value, the input of the schema function below
+    v1_event AS event
+), payloads AS MATERIALIZED (
+    -- store_payloads_for_events (sql/schema/v1-core.sql) writes the USER_EVENT_INPUT payload
+    -- rows. A CTE that only calls a function runs when the primary query reads it, hence
+    -- the count here and the CROSS JOIN below.
+    SELECT count(*) AS n
+    FROM (
+        SELECT array_agg(e.event) AS events, array_agg(i.payload) AS inputs
+        FROM inserted e
+        JOIN to_insert i ON i.external_id = e.external_id AND i.seen_at = e.seen_at
+    ) x, store_payloads_for_events(x.events, x.inputs)
+)
+SELECT e.tenant_id, e.id, e.external_id, e.seen_at, e.key, e.additional_metadata, e.scope, e.triggering_webhook_name
+FROM inserted e
+CROSS JOIN payloads
 `
 
 type BulkCreateEventsParams struct {
@@ -1088,6 +1181,8 @@ type BulkCreateEventsParams struct {
 	Additionalmetadatas    [][]byte             `json:"additionalmetadatas"`
 	Scopes                 []pgtype.Text        `json:"scopes"`
 	TriggeringWebhookNames []pgtype.Text        `json:"triggeringWebhookName"`
+	// Payloads are the event inputs written to v1_payload; a nil element writes no payload
+	Payloads [][]byte `json:"payloads"`
 }
 
 func (q *Queries) BulkCreateEvents(ctx context.Context, db DBTX, arg BulkCreateEventsParams) ([]*V1Event, error) {
@@ -1099,6 +1194,7 @@ func (q *Queries) BulkCreateEvents(ctx context.Context, db DBTX, arg BulkCreateE
 		arg.Additionalmetadatas,
 		arg.Scopes,
 		arg.TriggeringWebhookNames,
+		arg.Payloads,
 	)
 	if err != nil {
 		return nil, err
