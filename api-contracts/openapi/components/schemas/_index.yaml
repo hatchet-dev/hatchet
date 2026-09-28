@@ -144,10 +144,6 @@ V1CreateServerlessEndpointRequest:
   $ref: "./v1/serverless_endpoint.yaml#/V1CreateServerlessEndpointRequest"
 V1UpdateServerlessEndpointRequest:
   $ref: "./v1/serverless_endpoint.yaml#/V1UpdateServerlessEndpointRequest"
-V1ServerlessTenantSettings:
-  $ref: "./v1/serverless_endpoint.yaml#/V1ServerlessTenantSettings"
-V1UpdateServerlessTenantSettingsRequest:
-  $ref: "./v1/serverless_endpoint.yaml#/V1UpdateServerlessTenantSettingsRequest"
 RateLimit:
   $ref: "./rate_limits.yaml#/RateLimit"
 RateLimitList:

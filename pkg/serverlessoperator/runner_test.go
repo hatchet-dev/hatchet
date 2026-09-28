@@ -31,11 +31,7 @@ func healthyRow(spec endpointSpec) *sqlcv1.V1ServerlessEndpoint {
 	spec.healthy = pgtype.Bool{Bool: true, Valid: true}
 
 	row := newEndpointRow(spec)
-	row.RegisteredActions = []string{prefixed(row.Namespace, spec.actions[0])}
-
-	for _, a := range spec.actions[1:] {
-		row.RegisteredActions = append(row.RegisteredActions, prefixed(row.Namespace, a))
-	}
+	row.RegisteredActions = append([]string{}, spec.actions...)
 
 	return row
 }
@@ -66,7 +62,7 @@ func TestUnitGainOpensRegistrationWithTenantUnion(t *testing.T) {
 
 	call := env.sender.callsTo(a.HealthcheckUrl)[0]
 	assert.Equal(t, a.ID.String(), call.headers.Get("X-Hatchet-Endpoint-Id"))
-	assert.Contains(t, string(call.body), a.Namespace.String())
+	assert.Contains(t, string(call.body), a.ID.String())
 
 	assert.Empty(t, env.repo.ActionWrites(), "an unchanged action set is not rewritten")
 	assert.Empty(t, env.repo.StatusWrites(), "a healthy endpoint that stays healthy writes nothing")
@@ -130,10 +126,10 @@ func TestHealthcheckChangeUpdatesActionsAndRegistration(t *testing.T) {
 	env.sender.respond(a.HealthcheckUrl, http.StatusOK, healthcheckWithWorkflows(t, wf))
 	poller.pollOnce(context.Background())
 
-	wantA := []string{prefixed(a.Namespace, "svc:echo")}
+	wantA := []string{"svc:echo"}
 
 	require.Equal(t, 1, reg.putCount(), "the registration puts the changed workflow")
-	assert.Equal(t, prefixed(a.Namespace, "echo"), reg.puts[0].Name)
+	assert.Equal(t, "echo", reg.puts[0].Name)
 
 	require.Len(t, env.repo.ActionWrites(), 1)
 	assert.Equal(t, a.ID, env.repo.ActionWrites()[0].EndpointId)
@@ -161,10 +157,10 @@ func TestHealthcheckChangeUpdatesActionsAndRegistration(t *testing.T) {
 	poller.pollOnce(context.Background())
 
 	require.Equal(t, 2, reg.putCount(), "the unchanged workflow is not re-put")
-	assert.Equal(t, prefixed(a.Namespace, "other"), reg.puts[1].Name)
+	assert.Equal(t, "other", reg.puts[1].Name)
 	assert.Len(t, env.repo.ActionWrites(), 2)
 
-	wantA = []string{prefixed(a.Namespace, "svc:echo"), prefixed(a.Namespace, "svc:other")}
+	wantA = []string{"svc:echo", "svc:other"}
 	wantUnion := sortedUnion(wantA, b.RegisteredActions)
 
 	assert.Equal(t, wantA, reg.added(), "only the new action is added")
@@ -206,21 +202,65 @@ func TestFailedDeltaIsRetriedOnNextPoll(t *testing.T) {
 	require.Len(t, env.repo.StatusWrites(), 1, "a delta the engine refused marks the endpoint")
 	assert.False(t, env.repo.StatusWrites()[0].Healthy)
 	assert.Contains(t, *env.repo.StatusWrites()[0].Error, "could not add actions")
-	assert.Empty(t, env.repo.ActionWrites(), "registered_actions is not written while the engine does not have the actions")
+	require.Len(t, env.repo.ActionWrites(), 1, "the row is written before the delta, so other processes see the set the endpoint serves")
 
-	// The engine accepts again: the same delta is pushed and the endpoint recovers.
+	union, _ := env.tenant(tenant).cache.ActionUnion()
+	assert.Equal(t, []string{"svc:a"}, union, "the cached union is restored while the engine does not have the actions")
+
+	// The engine accepts again: the same delta is pushed without another write and the
+	// endpoint recovers.
 	reg.mu.Lock()
 	reg.deltaErr = nil
 	reg.mu.Unlock()
 
 	poller.pollOnce(context.Background())
 
-	assert.Equal(t, []string{prefixed(a.Namespace, "svc:b")}, reg.added())
+	assert.Equal(t, []string{"svc:b"}, reg.added())
 	assert.Empty(t, reg.removed())
 	assert.Equal(t, 1, reg.flushCount())
 	require.Len(t, env.repo.ActionWrites(), 1)
 	require.Len(t, env.repo.StatusWrites(), 2)
 	assert.True(t, env.repo.StatusWrites()[1].Healthy)
+}
+
+// A registered_actions write that fails leaves the engine, the cache and the row where they
+// were: the session gets no delta and the whole change is retried on the next poll.
+func TestFailedActionWriteChangesNothing(t *testing.T) {
+	env := newTestEnv(t)
+	tenant := uuid.New()
+
+	a := healthyRow(endpointSpec{tenantId: tenant, name: "a", actions: []string{"svc:a"}})
+	env.addEndpoint(a)
+
+	env.r.UnitsGained(context.Background(), []memrepo.Unit{env.unit(a)})
+	require.Eventually(t, func() bool { return len(env.sender.callsTo(a.HealthcheckUrl)) == 1 }, eventually, 10*time.Millisecond)
+
+	poller := env.poller(a)
+	poller.stop()
+
+	reg := env.host.session(0)
+
+	env.repo.SetFailWrites(assert.AnError)
+	env.sender.respond(a.HealthcheckUrl, http.StatusOK, healthcheckBody("svc:a", "svc:b"))
+	poller.pollOnce(context.Background())
+
+	assert.Equal(t, 0, reg.deltaCount(), "the session sees no delta while the row is not written")
+	assert.Empty(t, env.repo.ActionWrites())
+
+	union, _ := env.tenant(tenant).cache.ActionUnion()
+	assert.Equal(t, []string{"svc:a"}, union, "the cached union is unchanged")
+
+	// The write succeeds on the next poll: the row, the cache and the session all move.
+	env.repo.SetFailWrites(nil)
+	poller.pollOnce(context.Background())
+
+	require.Len(t, env.repo.ActionWrites(), 1)
+	assert.Equal(t, []string{"svc:a", "svc:b"}, env.repo.ActionWrites()[0].Actions)
+	assert.Equal(t, []string{"svc:b"}, reg.added())
+	assert.Equal(t, 1, reg.flushCount())
+
+	union, _ = env.tenant(tenant).cache.ActionUnion()
+	assert.Equal(t, []string{"svc:a", "svc:b"}, union)
 }
 
 func TestEngineRejectedWorkflowMarksEndpoint(t *testing.T) {
@@ -327,7 +367,7 @@ func TestStatusWritesOnlyOnTransitions(t *testing.T) {
 
 	// Health unknown at first: the first success writes healthy=true.
 	a := newEndpointRow(endpointSpec{tenantId: tenant, name: "a", enabled: true})
-	a.RegisteredActions = []string{prefixed(a.Namespace, "svc:a")}
+	a.RegisteredActions = []string{"svc:a"}
 	env.addEndpoint(a)
 
 	env.r.UnitsGained(context.Background(), []memrepo.Unit{env.unit(a)})
@@ -374,12 +414,12 @@ func TestStatusWritesOnlyOnTransitions(t *testing.T) {
 	assert.Len(t, env.repo.StatusWrites(), 3)
 }
 
-func TestDeliveryRoutesByNamespace(t *testing.T) {
+func TestDeliveryRoutesToAnEndpointServingTheAction(t *testing.T) {
 	env := newTestEnv(t)
 	tenant := uuid.New()
 
 	a := healthyRow(endpointSpec{tenantId: tenant, name: "a", actions: []string{"svc:run"}})
-	b := healthyRow(endpointSpec{tenantId: tenant, name: "b", actions: []string{"svc:run"}})
+	b := healthyRow(endpointSpec{tenantId: tenant, name: "b", actions: []string{"svc:other"}})
 	env.addEndpoint(a)
 	env.addEndpoint(b)
 	env.sender.respond(a.TriggerUrl, http.StatusOK, `{"from":"a"}`)
@@ -389,8 +429,8 @@ func TestDeliveryRoutesByNamespace(t *testing.T) {
 	reg := env.host.session(0)
 	require.NotNil(t, reg)
 
-	// Same action name on two endpoints: the namespace prefix decides.
-	reg.deliver(t, startAction(b.Namespace, "svc:run"))
+	// Each endpoint serves its own action: the delivery goes to the one advertising it.
+	reg.deliver(t, startAction("svc:other"))
 
 	require.Eventually(t, func() bool { return len(env.sender.callsTo(b.TriggerUrl)) == 1 }, eventually, 10*time.Millisecond)
 	require.Eventually(t, func() bool { return len(reg.eventTypes()) == 2 }, eventually, 10*time.Millisecond)
@@ -409,7 +449,7 @@ func TestDeliveryRoutesByNamespace(t *testing.T) {
 
 	// A permanent endpoint failure is reported as non-retryable.
 	env.sender.respond(a.TriggerUrl, http.StatusBadRequest, `{"error":"bad input"}`)
-	reg.deliver(t, startAction(a.Namespace, "svc:run"))
+	reg.deliver(t, startAction("svc:run"))
 
 	require.Eventually(t, func() bool { return len(reg.eventTypes()) == 4 }, eventually, 10*time.Millisecond)
 	failed := reg.lastEvent()
@@ -429,20 +469,20 @@ func TestDeliveryRoutingMissAndDurable(t *testing.T) {
 	reg := env.host.session(0)
 
 	loads := env.repo.ListForTenantCalls()
-	lookups := env.repo.ByNamespaceCalls()
+	since := env.repo.ListSinceCalls()
 
-	reg.deliver(t, startAction(uuid.New(), "svc:run"))
+	reg.deliver(t, startAction("svc:missing"))
 
 	require.Eventually(t, func() bool { return len(reg.eventTypes()) == 1 }, eventually, 10*time.Millisecond)
 	miss := reg.lastEvent()
 	assert.Equal(t, contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED, miss.EventType)
-	assert.Contains(t, miss.EventPayload, "endpoint not found for namespace")
+	assert.Contains(t, miss.EventPayload, errEndpointNotFound.Error())
 	assert.False(t, *miss.ShouldNotRetry)
 	assert.Equal(t, loads, env.repo.ListForTenantCalls(), "a miss does not reload the tenant")
-	assert.Equal(t, lookups+1, env.repo.ByNamespaceCalls(), "a miss looks the namespace up once")
+	assert.Equal(t, since, env.repo.ListSinceCalls(), "a miss looks nothing up")
 
 	invocation := int32(0)
-	durable := startAction(a.Namespace, "svc:run")
+	durable := startAction("svc:run")
 	durable.DurableTaskInvocationCount = &invocation
 	reg.deliver(t, durable)
 
@@ -454,6 +494,43 @@ func TestDeliveryRoutingMissAndDurable(t *testing.T) {
 	assert.Equal(t, operator.ErrNotSupported.Error(), ev.EventPayload)
 	assert.False(t, *ev.ShouldNotRetry)
 	assert.Empty(t, env.sender.callsTo(a.TriggerUrl))
+}
+
+// Two endpoints of one tenant declaring the same action both serve it, like two workers:
+// deliveries of the action spread over both and the registration advertises it once.
+func TestDeliverySpreadsASharedActionOverItsEndpoints(t *testing.T) {
+	env := newTestEnv(t)
+	tenant := uuid.New()
+
+	a := healthyRow(endpointSpec{tenantId: tenant, name: "a", actions: []string{"svc:run"}})
+	b := healthyRow(endpointSpec{tenantId: tenant, name: "b", actions: []string{"svc:run"}})
+	env.addEndpoint(a)
+	env.addEndpoint(b)
+	env.sender.respond(a.TriggerUrl, http.StatusOK, `{"from":"a"}`)
+	env.sender.respond(b.TriggerUrl, http.StatusOK, `{"from":"b"}`)
+
+	env.r.UnitsGained(context.Background(), []memrepo.Unit{env.unit(a)})
+	reg := env.host.session(0)
+	require.NotNil(t, reg)
+	assert.Equal(t, []string{"svc:run"}, env.host.opens[0].opts.Actions, "the union names the shared action once")
+
+	const deliveries = 40
+
+	for i := 0; i < deliveries; i++ {
+		reg.deliver(t, startAction("svc:run"))
+	}
+
+	require.Eventually(t, func() bool {
+		return len(env.sender.callsTo(a.TriggerUrl))+len(env.sender.callsTo(b.TriggerUrl)) == deliveries
+	}, eventually, 10*time.Millisecond)
+	require.Eventually(t, func() bool { return len(reg.eventTypes()) == 2*deliveries }, eventually, 10*time.Millisecond)
+
+	assert.NotEmpty(t, env.sender.callsTo(a.TriggerUrl), "a serves some of the deliveries")
+	assert.NotEmpty(t, env.sender.callsTo(b.TriggerUrl), "b serves some of the deliveries")
+
+	for _, ev := range reg.eventTypes() {
+		assert.NotEqual(t, contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED, ev)
+	}
 }
 
 func TestCancelInFlightDelivery(t *testing.T) {
@@ -475,7 +552,7 @@ func TestCancelInFlightDelivery(t *testing.T) {
 	env.r.UnitsGained(context.Background(), []memrepo.Unit{env.unit(a)})
 	reg := env.host.session(0)
 
-	action := startAction(a.Namespace, "svc:run")
+	action := startAction("svc:run")
 	reg.deliver(t, action)
 
 	select {
@@ -524,7 +601,7 @@ func TestDrainTimeoutAbortsDeliveryRetryably(t *testing.T) {
 
 	env.r.UnitsGained(context.Background(), []memrepo.Unit{env.unit(a)})
 	reg := env.host.session(0)
-	reg.deliver(t, startAction(a.Namespace, "svc:run"))
+	reg.deliver(t, startAction("svc:run"))
 
 	<-started
 
@@ -561,16 +638,23 @@ func TestMaintainStartsPollerForNewEndpointAndStopsForDeleted(t *testing.T) {
 	assert.Equal(t, b.RegisteredActions, reg.added())
 	assert.Equal(t, 1, reg.flushCount())
 
-	// Deleting it is only visible to a full reload.
+	// Deleting it is visible to the next incremental refresh: the poller stops and the
+	// action leaves the union without waiting for a reconcile.
 	env.repo.RemoveEndpoint(b.ID)
-	env.r.maintainOnce(context.Background())
-	assert.NotNil(t, env.poller(b))
-
-	env.r.cfg.RoutingFullReloadInterval = 0
 	env.r.maintainOnce(context.Background())
 
 	assert.Nil(t, env.poller(b))
 	require.Equal(t, 2, reg.deltaCount())
 	assert.Equal(t, b.RegisteredActions, reg.removed())
 	assert.Equal(t, 2, reg.flushCount())
+
+	// A reconcile after the purge has nothing left to drop.
+	_, err := env.repo.Endpoints().PurgeDeleted(context.Background(), time.Now().Add(time.Second))
+	require.NoError(t, err)
+
+	env.r.cfg.RoutingFullReloadInterval = 0
+	env.r.maintainOnce(context.Background())
+
+	assert.Nil(t, env.poller(b))
+	assert.Equal(t, 2, reg.deltaCount())
 }

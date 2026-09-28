@@ -43,7 +43,7 @@ func (r *failingEndpoints) setFail(fail bool) {
 	r.fail = fail
 }
 
-func (r *failingEndpoints) ListForTenant(ctx context.Context, id uuid.UUID) ([]*sqlcv1.V1ServerlessEndpoint, error) {
+func (r *failingEndpoints) ListForTenant(ctx context.Context, id uuid.UUID, afterId uuid.UUID, limit int64) ([]*sqlcv1.V1ServerlessEndpoint, error) {
 	r.mu.Lock()
 	fail := r.fail
 	r.mu.Unlock()
@@ -52,7 +52,7 @@ func (r *failingEndpoints) ListForTenant(ctx context.Context, id uuid.UUID) ([]*
 		return nil, errors.New("transient database outage")
 	}
 
-	return r.ServerlessEndpointRepository.ListForTenant(ctx, id)
+	return r.ServerlessEndpointRepository.ListForTenant(ctx, id, afterId, limit)
 }
 
 type failingRepo struct {
@@ -165,7 +165,7 @@ func TestDuplicateAssignmentIsIgnored(t *testing.T) {
 	reg := env.tenant(tenant).registration()
 	require.NotNil(t, reg)
 
-	action := startAction(a.Namespace, "svc:run")
+	action := startAction("svc:run")
 	fake.deliver(t, action)
 	require.Eventually(t, func() bool { return len(env.sender.callsTo(a.TriggerUrl)) == 1 }, eventually, 10*time.Millisecond)
 
@@ -210,7 +210,7 @@ func TestDurableHandshakeCarriesRequestDeadline(t *testing.T) {
 
 	go func() {
 		defer close(done)
-		reg.deliverOverSocket(ctx, &inflightTask{}, action, &cachedEndpoint{id: uuid.New(), namespace: uuid.New()}, &endpointConfig{requestTimeoutSeconds: 1, secret: "test-secret"}, time.Now(), invocation, true)
+		reg.deliverOverSocket(ctx, &inflightTask{}, action, &cachedEndpoint{id: uuid.New()}, &endpointConfig{requestTimeoutSeconds: 1, secret: "test-secret"}, time.Now(), invocation, true)
 	}()
 
 	openCtx := <-blocking.observed
@@ -329,26 +329,22 @@ var testLimits = catalogLimits{maxWorkflows: DefaultMaxWorkflowsPerEndpoint, max
 // Every advertised action, derived or listed, must pass the engine's action validation
 // before it can enter the shared tenant union.
 func TestHealthcheckRejectsInvalidActions(t *testing.T) {
-	ns := uuid.New()
-
-	_, err := parseHealthcheckResponse([]byte(`{"actions":["svc:"]}`), ns, testLimits)
+	_, err := parseHealthcheckResponse([]byte(`{"actions":["svc:"]}`), testLimits)
 	assert.Error(t, err, "an action with an empty verb must be rejected")
 
-	_, err = parseHealthcheckResponse([]byte(`{"actions":[":run"]}`), ns, testLimits)
+	_, err = parseHealthcheckResponse([]byte(`{"actions":[":run"]}`), testLimits)
 	assert.Error(t, err, "an action with an empty service must be rejected")
 
-	_, err = parseHealthcheckResponse([]byte(`{"workflows":[{"name":"w","tasks":[{"readableId":"t","action":"svc:"}]}]}`), ns, testLimits)
+	_, err = parseHealthcheckResponse([]byte(`{"workflows":[{"name":"w","tasks":[{"readableId":"t","action":"svc:"}]}]}`), testLimits)
 	assert.Error(t, err, "a derived action with an empty verb must be rejected")
 
-	res, err := parseHealthcheckResponse([]byte(`{"actions":["Svc:Run"]}`), ns, testLimits)
+	res, err := parseHealthcheckResponse([]byte(`{"actions":["Svc:Run"]}`), testLimits)
 	require.NoError(t, err)
-	assert.Equal(t, []string{prefixed(ns, "svc:run")}, res.actions)
+	assert.Equal(t, []string{"svc:run"}, res.actions)
 }
 
 // A byte-bounded healthcheck must not admit an unbounded number of workflows or actions.
 func TestHealthcheckCatalogIsCapped(t *testing.T) {
-	ns := uuid.New()
-
 	workflows := make([]map[string]any, 10000)
 
 	for i := range workflows {
@@ -358,7 +354,7 @@ func TestHealthcheckCatalogIsCapped(t *testing.T) {
 	body, err := json.Marshal(map[string]any{"workflows": workflows})
 	require.NoError(t, err)
 
-	_, err = parseHealthcheckResponse(body, ns, testLimits)
+	_, err = parseHealthcheckResponse(body, testLimits)
 	require.Error(t, err, "10000 workflows must be refused")
 	assert.Contains(t, err.Error(), "workflows")
 
@@ -371,7 +367,7 @@ func TestHealthcheckCatalogIsCapped(t *testing.T) {
 	body, err = json.Marshal(map[string]any{"actions": actions})
 	require.NoError(t, err)
 
-	_, err = parseHealthcheckResponse(body, ns, testLimits)
+	_, err = parseHealthcheckResponse(body, testLimits)
 	require.Error(t, err, "10000 actions must be refused")
 	assert.Contains(t, err.Error(), "actions")
 }
@@ -436,7 +432,7 @@ func TestInFlightIsReportedOnTheTenantsLastUnitOnly(t *testing.T) {
 	session := env.host.session(0)
 	require.NotNil(t, session)
 
-	session.deliver(t, startAction(a.Namespace, "svc:a"))
+	session.deliver(t, startAction("svc:a"))
 
 	select {
 	case <-started:
@@ -557,12 +553,12 @@ func TestHealthcheckRejectsUnstorableActions(t *testing.T) {
 		"bad utf-8": "{\"actions\":[\"review:run\xff\"]}",
 	} {
 		t.Run(name, func(t *testing.T) {
-			_, err := parseHealthcheckResponse([]byte(body), uuid.New(), limits)
+			_, err := parseHealthcheckResponse([]byte(body), limits)
 			require.Error(t, err)
 		})
 	}
 
-	res, err := parseHealthcheckResponse([]byte(`{"actions":["review:run"]}`), uuid.New(), limits)
+	res, err := parseHealthcheckResponse([]byte(`{"actions":["review:run"]}`), limits)
 	require.NoError(t, err)
 	assert.Len(t, res.actions, 1)
 }
@@ -579,7 +575,7 @@ func TestRefusedDeltaIsReversedOnTheSession(t *testing.T) {
 	ts := reg.ts
 	p := newEndpointPoller(reg.r, ts, ep)
 
-	res, err := parseHealthcheckResponse([]byte(`{"actions":["review:run"]}`), ep.namespace, catalogLimits{maxWorkflows: 200, maxActions: 500})
+	res, err := parseHealthcheckResponse([]byte(`{"actions":["review:run"]}`), catalogLimits{maxWorkflows: 200, maxActions: 500})
 	require.NoError(t, err)
 
 	fake.flushErr = errors.New("engine could not persist the action")

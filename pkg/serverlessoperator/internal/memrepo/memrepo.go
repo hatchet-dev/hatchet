@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository"
@@ -46,7 +45,10 @@ type Repo struct {
 	endpoints map[uuid.UUID]*sqlcv1.V1ServerlessEndpoint
 	processes map[uuid.UUID]*process
 	leases    map[Unit]*sqlcv1.V1ServerlessLease
-	Now       func() time.Time
+	// unentitled holds the tenants whose serverless entitlement is off; every other tenant is
+	// entitled, so tests only name the exceptions.
+	unentitled map[uuid.UUID]struct{}
+	Now        func() time.Time
 
 	// failWrites, when set, fails every write; SetFailWrites changes it under the lock.
 	failWrites error
@@ -61,7 +63,6 @@ type Repo struct {
 	releaseAlls   int
 	listForTenant int
 	listSince     int
-	byNamespace   int
 	listVersions  int
 	byIds         int
 	readRows      int
@@ -133,16 +134,8 @@ func (r *Repo) ListSinceCalls() int {
 	return r.listSince
 }
 
-// ByNamespaceCalls counts routing-miss lookups; ListVersionsCalls counts anti-entropy
-// version pages; ByIdsCalls counts fetches of changed rows by id; ReadRows counts every
-// endpoint row returned in full.
-func (r *Repo) ByNamespaceCalls() int {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	return r.byNamespace
-}
-
+// ListVersionsCalls counts anti-entropy version pages; ByIdsCalls counts fetches of changed
+// rows by id; ReadRows counts every endpoint row returned in full.
 func (r *Repo) ListVersionsCalls() int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -174,11 +167,31 @@ func (r *Repo) SetFailWrites(err error) {
 
 func New() *Repo {
 	return &Repo{
-		endpoints: map[uuid.UUID]*sqlcv1.V1ServerlessEndpoint{},
-		processes: map[uuid.UUID]*process{},
-		leases:    map[Unit]*sqlcv1.V1ServerlessLease{},
-		Now:       time.Now,
+		endpoints:  map[uuid.UUID]*sqlcv1.V1ServerlessEndpoint{},
+		processes:  map[uuid.UUID]*process{},
+		leases:     map[Unit]*sqlcv1.V1ServerlessLease{},
+		unentitled: map[uuid.UUID]struct{}{},
+		Now:        time.Now,
 	}
+}
+
+// SetEntitled switches the tenant's serverless entitlement; tenants start entitled.
+func (r *Repo) SetEntitled(tenantId uuid.UUID, entitled bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if entitled {
+		delete(r.unentitled, tenantId)
+		return
+	}
+
+	r.unentitled[tenantId] = struct{}{}
+}
+
+func (r *Repo) entitledLocked(tenantId uuid.UUID) bool {
+	_, off := r.unentitled[tenantId]
+
+	return !off
 }
 
 // AddEndpoint stores a copy of ep, stamps updated_at, and creates or bumps its lease unit.
@@ -218,17 +231,22 @@ func (r *Repo) UpdateEndpoint(id uuid.UUID, fn func(ep *sqlcv1.V1ServerlessEndpo
 }
 
 // RemoveEndpoint hard-deletes an endpoint and decrements its unit's count.
+// RemoveEndpoint deletes the endpoint the way the API does: the row is marked deleted and
+// versioned by the deletion, so only ListUpdatedSince returns it, and the lease unit's count
+// drops. PurgeDeleted removes the row.
 func (r *Repo) RemoveEndpoint(id uuid.UUID) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	ep, ok := r.endpoints[id]
 
-	if !ok {
+	if !ok || ep.DeletedAt.Valid {
 		return
 	}
 
-	delete(r.endpoints, id)
+	now := r.Now()
+	ep.DeletedAt = pgtype.Timestamptz{Time: now, Valid: true}
+	ep.UpdatedAt = pgtype.Timestamptz{Time: now, Valid: true}
 
 	if lease, ok := r.leases[Unit{TenantId: ep.TenantID, Shard: ep.Shard}]; ok {
 		lease.EndpointCount--
@@ -322,7 +340,7 @@ func (e *endpoints) ListForUnits(_ context.Context, units []Unit, afterId uuid.U
 	out := make([]*sqlcv1.V1ServerlessEndpoint, 0)
 
 	for _, ep := range e.r.endpoints {
-		if _, ok := want[Unit{TenantId: ep.TenantID, Shard: ep.Shard}]; !ok {
+		if _, ok := want[Unit{TenantId: ep.TenantID, Shard: ep.Shard}]; !ok || ep.DeletedAt.Valid {
 			continue
 		}
 
@@ -342,7 +360,8 @@ func (e *endpoints) ListForUnits(_ context.Context, units []Unit, afterId uuid.U
 	return out, nil
 }
 
-func (e *endpoints) ListForTenant(_ context.Context, tenantId uuid.UUID) ([]*sqlcv1.V1ServerlessEndpoint, error) {
+// ListForTenant pages by id like the database: rows past afterId, at most limit of them.
+func (e *endpoints) ListForTenant(_ context.Context, tenantId uuid.UUID, afterId uuid.UUID, limit int64) ([]*sqlcv1.V1ServerlessEndpoint, error) {
 	e.r.mu.Lock()
 	defer e.r.mu.Unlock()
 
@@ -351,31 +370,20 @@ func (e *endpoints) ListForTenant(_ context.Context, tenantId uuid.UUID) ([]*sql
 	out := make([]*sqlcv1.V1ServerlessEndpoint, 0)
 
 	for _, ep := range e.r.endpoints {
-		if ep.TenantID == tenantId {
+		if ep.TenantID == tenantId && !ep.DeletedAt.Valid && ep.ID.String() > afterId.String() {
 			out = append(out, copyEndpoint(ep))
 		}
 	}
 
 	sortEndpoints(out)
+
+	if int64(len(out)) > limit {
+		out = out[:limit]
+	}
+
 	e.r.readRows += len(out)
 
 	return out, nil
-}
-
-func (e *endpoints) GetByNamespace(_ context.Context, tenantId, namespace uuid.UUID) (*sqlcv1.V1ServerlessEndpoint, error) {
-	e.r.mu.Lock()
-	defer e.r.mu.Unlock()
-
-	e.r.byNamespace++
-
-	for _, ep := range e.r.endpoints {
-		if ep.TenantID == tenantId && ep.Namespace == namespace {
-			e.r.readRows++
-			return copyEndpoint(ep), nil
-		}
-	}
-
-	return nil, pgx.ErrNoRows
 }
 
 func (e *endpoints) ListVersions(_ context.Context, tenantId uuid.UUID, after repository.ServerlessEndpointVersion, limit int64) ([]repository.ServerlessEndpointVersion, error) {
@@ -387,7 +395,7 @@ func (e *endpoints) ListVersions(_ context.Context, tenantId uuid.UUID, after re
 	out := make([]repository.ServerlessEndpointVersion, 0)
 
 	for _, ep := range e.r.endpoints {
-		if ep.TenantID != tenantId {
+		if ep.TenantID != tenantId || ep.DeletedAt.Valid {
 			continue
 		}
 
@@ -422,7 +430,7 @@ func (e *endpoints) ListByIds(_ context.Context, ids []uuid.UUID) ([]*sqlcv1.V1S
 	out := make([]*sqlcv1.V1ServerlessEndpoint, 0, len(ids))
 
 	for _, id := range ids {
-		if ep, ok := e.r.endpoints[id]; ok {
+		if ep, ok := e.r.endpoints[id]; ok && !ep.DeletedAt.Valid {
 			out = append(out, copyEndpoint(ep))
 		}
 	}
@@ -441,6 +449,23 @@ func version(ep *sqlcv1.V1ServerlessEndpoint) time.Time {
 	}
 
 	return ep.UpdatedAt.Time
+}
+
+// PurgeDeleted removes the rows deleted before cutoff, like the database.
+func (e *endpoints) PurgeDeleted(_ context.Context, cutoff time.Time) (int64, error) {
+	e.r.mu.Lock()
+	defer e.r.mu.Unlock()
+
+	var n int64
+
+	for id, ep := range e.r.endpoints {
+		if ep.DeletedAt.Valid && ep.DeletedAt.Time.Before(cutoff) {
+			delete(e.r.endpoints, id)
+			n++
+		}
+	}
+
+	return n, nil
 }
 
 func (e *endpoints) ListUpdatedSince(_ context.Context, tenantId uuid.UUID, since time.Time, sinceId uuid.UUID) ([]*sqlcv1.V1ServerlessEndpoint, error) {
@@ -645,12 +670,12 @@ func (r *Repo) liveLocked(processId uuid.UUID) bool {
 	return ok && !proc.expired
 }
 
-// claimableLocked applies the database's rule: a unit is claimable when it has endpoints
-// and either no owner or an owner whose heartbeat row exists and has expired. An empty unit
-// is never claimed; a missing owner row is not claimable, row deletions release their units
-// instead.
+// claimableLocked applies the database's rule: a unit is claimable when its tenant is
+// entitled, it has endpoints and either no owner or an owner whose heartbeat row exists and
+// has expired. An empty unit is never claimed; a missing owner row is not claimable, row
+// deletions release their units instead.
 func (r *Repo) claimableLocked(lease *sqlcv1.V1ServerlessLease) bool {
-	if lease.EndpointCount <= 0 {
+	if lease.EndpointCount <= 0 || !r.entitledLocked(lease.TenantID) {
 		return false
 	}
 
@@ -747,6 +772,28 @@ func (l *leases) Shed(_ context.Context, processId uuid.UUID, units []Unit) ([]*
 		lease.ClaimedAt = pgtype.Timestamptz{}
 
 		out = append(out, &sqlcv1.ShedServerlessLeasesRow{TenantID: unit.TenantId, Shard: unit.Shard, EndpointCount: lease.EndpointCount})
+	}
+
+	return out, nil
+}
+
+func (l *leases) ReleaseUnentitled(_ context.Context, processId uuid.UUID) ([]*sqlcv1.ReleaseUnentitledServerlessLeasesRow, error) {
+	l.r.mu.Lock()
+	defer l.r.mu.Unlock()
+
+	out := make([]*sqlcv1.ReleaseUnentitledServerlessLeasesRow, 0)
+
+	for _, unit := range sortedUnits(l.r.leases) {
+		lease := l.r.leases[unit]
+
+		if lease.ProcessID == nil || *lease.ProcessID != processId || l.r.entitledLocked(unit.TenantId) {
+			continue
+		}
+
+		lease.ProcessID = nil
+		lease.ClaimedAt = pgtype.Timestamptz{}
+
+		out = append(out, &sqlcv1.ReleaseUnentitledServerlessLeasesRow{TenantID: unit.TenantId, Shard: unit.Shard, EndpointCount: lease.EndpointCount})
 	}
 
 	return out, nil

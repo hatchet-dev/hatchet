@@ -48,6 +48,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 	"github.com/hatchet-dev/hatchet/pkg/security"
+	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
@@ -875,6 +876,12 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 	if cf.Runtime.OperatorInfraBlockedCIDRsString != "" {
 		cf.Runtime.OperatorInfraBlockedCIDRs = getStrArr(cf.Runtime.OperatorInfraBlockedCIDRsString)
+	}
+
+	// The API server creates tenant rows with this value, so it is checked whether or not the
+	// in-engine operator is enabled.
+	if err := serverlessoperator.ValidateShardCount(cf.Runtime.ServerlessOperator.ShardCount); err != nil {
+		return nil, nil, err
 	}
 
 	if cf.Runtime.Monitoring.TLSRootCAFile == "" {

@@ -42,19 +42,24 @@ SELECT *
 FROM v1_serverless_endpoint
 WHERE
     tenant_id = @tenantId::UUID
-    AND id = @id::UUID;
+    AND id = @id::UUID
+    AND deleted_at IS NULL;
 
 -- name: GetServerlessEndpointById :one
 -- Resolves an endpoint before its tenant is known, for the API's resource populator, which
 -- checks the returned tenant_id against the caller's tenant.
 SELECT *
 FROM v1_serverless_endpoint
-WHERE id = @id::UUID;
+WHERE
+    id = @id::UUID
+    AND deleted_at IS NULL;
 
 -- name: ListServerlessEndpoints :many
 SELECT *
 FROM v1_serverless_endpoint
-WHERE tenant_id = @tenantId::UUID
+WHERE
+    tenant_id = @tenantId::UUID
+    AND deleted_at IS NULL
 ORDER BY created_at DESC, id DESC
 LIMIT @endpointLimit::BIGINT
 OFFSET @endpointOffset::BIGINT;
@@ -62,11 +67,12 @@ OFFSET @endpointOffset::BIGINT;
 -- name: CountServerlessEndpoints :one
 SELECT COUNT(*)
 FROM v1_serverless_endpoint
-WHERE tenant_id = @tenantId::UUID;
+WHERE
+    tenant_id = @tenantId::UUID
+    AND deleted_at IS NULL;
 
 -- name: UpdateServerlessEndpoint :one
--- namespace and shard are never updatable: the namespace prefixes everything the endpoint has
--- registered with the engine, and the shard decides which lease unit owns the endpoint.
+-- The shard is never updatable: it decides which lease unit owns the endpoint.
 UPDATE v1_serverless_endpoint
 SET
     name = COALESCE(sqlc.narg('name')::TEXT, name),
@@ -83,14 +89,28 @@ SET
 WHERE
     tenant_id = @tenantId::UUID
     AND id = @id::UUID
+    AND deleted_at IS NULL
 RETURNING *;
 
 -- name: DeleteServerlessEndpoint :one
-DELETE FROM v1_serverless_endpoint
+-- Marks the endpoint deleted. updated_at moves with it so ListServerlessEndpointsUpdatedSince
+-- surfaces the row to every routing cache, which drops the endpoint; the row is purged by
+-- PurgeDeletedServerlessEndpoints after a grace period.
+UPDATE v1_serverless_endpoint
+SET
+    deleted_at = NOW(),
+    updated_at = NOW()
 WHERE
     tenant_id = @tenantId::UUID
     AND id = @id::UUID
+    AND deleted_at IS NULL
 RETURNING *;
+
+-- name: PurgeDeletedServerlessEndpoints :execrows
+-- Removes endpoints deleted before the cutoff, once every routing cache has had the grace
+-- period to see the deletion.
+DELETE FROM v1_serverless_endpoint
+WHERE deleted_at < @cutoff::TIMESTAMPTZ;
 
 -- name: ListServerlessEndpointsForUnits :many
 -- Endpoints of the given (tenant, shard) units, keyset-paged by id through
@@ -104,38 +124,38 @@ JOIN (
         unnest(@tenantIds::UUID[]) AS tenant_id,
         unnest(@shards::INT[]) AS shard
 ) AS u ON e.tenant_id = u.tenant_id AND e.shard = u.shard
-WHERE e.id > @afterId::UUID
+WHERE
+    e.id > @afterId::UUID
+    AND e.deleted_at IS NULL
 ORDER BY e.id
 LIMIT @endpointLimit::BIGINT;
 
 -- name: ListServerlessEndpointsForTenant :many
--- Full load of a tenant's routing cache. Disabled endpoints are included so callers can decide
--- what to route; the routing cache filters on enabled itself.
+-- Full load of a tenant's routing cache, keyset-paged by id so a tenant of any size is read in
+-- bounded batches; pass afterId = '00000000-0000-0000-0000-000000000000' for the first page.
+-- Disabled endpoints are included so callers can decide what to route; the routing cache
+-- filters on enabled itself.
 SELECT *
 FROM v1_serverless_endpoint
-WHERE tenant_id = @tenantId::UUID
-ORDER BY id;
+WHERE
+    tenant_id = @tenantId::UUID
+    AND id > @afterId::UUID
+    AND deleted_at IS NULL
+ORDER BY id
+LIMIT @endpointLimit::BIGINT;
 
 -- name: ListServerlessEndpointsUpdatedSince :many
 -- Incremental refresh of a tenant's routing cache through v1_serverless_endpoint_version_idx.
--- A row's version is the later of updated_at (configuration and registered_actions writes)
--- and status_changed_at (health transitions written by the owner), so every write the cache
--- needs to see surfaces here. Keyset on (version, id) from the last row the caller applied.
+-- A row's version is the later of updated_at (configuration, registered_actions and deletion
+-- writes) and status_changed_at (health transitions written by the owner), so every write the
+-- cache needs to see surfaces here; deleted rows are included so the cache drops them. Keyset
+-- on (version, id) from the last row the caller applied.
 SELECT *
 FROM v1_serverless_endpoint
 WHERE
     tenant_id = @tenantId::UUID
     AND (GREATEST(updated_at, COALESCE(status_changed_at, updated_at)), id) > (@since::TIMESTAMPTZ, @sinceId::UUID)
 ORDER BY GREATEST(updated_at, COALESCE(status_changed_at, updated_at)), id;
-
--- name: GetServerlessEndpointByNamespace :one
--- Resolves the endpoint an action's namespace names, for a routing miss: one row through the
--- namespace's unique index, scoped to the tenant, instead of a reload of the tenant.
-SELECT *
-FROM v1_serverless_endpoint
-WHERE
-    tenant_id = @tenantId::UUID
-    AND namespace = @namespace::UUID;
 
 -- name: ListServerlessEndpointVersions :many
 -- Anti-entropy pass of a tenant's routing cache: every endpoint's id and version, nothing
@@ -150,6 +170,7 @@ SELECT
 FROM v1_serverless_endpoint
 WHERE
     tenant_id = @tenantId::UUID
+    AND deleted_at IS NULL
     AND (GREATEST(updated_at, COALESCE(status_changed_at, updated_at)), id) > (@afterVersion::TIMESTAMPTZ, @afterId::UUID)
 ORDER BY GREATEST(updated_at, COALESCE(status_changed_at, updated_at)), id
 LIMIT @versionLimit::BIGINT;
@@ -157,7 +178,9 @@ LIMIT @versionLimit::BIGINT;
 -- name: ListServerlessEndpointsByIds :many
 SELECT *
 FROM v1_serverless_endpoint
-WHERE id = ANY(@ids::UUID[])
+WHERE
+    id = ANY(@ids::UUID[])
+    AND deleted_at IS NULL
 ORDER BY id;
 
 -- name: UpdateServerlessEndpointStatus :one
@@ -184,10 +207,12 @@ SET
 WHERE id = @id::UUID;
 
 -- name: UpsertServerlessTenant :one
--- Creates the tenant's serverless settings row with defaults if it does not exist and returns
--- the current row either way. The no-op update makes RETURNING work on conflict.
-INSERT INTO v1_serverless_tenant (tenant_id)
-VALUES (@tenantId::UUID)
+-- Creates the tenant's serverless row with the configured shard_count if it does not exist and
+-- returns the current row either way: an existing row keeps its shard_count, so the configured
+-- value applies only to tenants first seen after it was set. The no-op update makes RETURNING
+-- work on conflict.
+INSERT INTO v1_serverless_tenant (tenant_id, shard_count)
+VALUES (@tenantId::UUID, @shardCount::INT)
 ON CONFLICT (tenant_id) DO UPDATE
 SET tenant_id = EXCLUDED.tenant_id
 RETURNING *;
@@ -196,12 +221,6 @@ RETURNING *;
 SELECT *
 FROM v1_serverless_tenant
 WHERE tenant_id = @tenantId::UUID;
-
--- name: UpdateServerlessTenantShardCount :one
-UPDATE v1_serverless_tenant
-SET shard_count = @shardCount::INT
-WHERE tenant_id = @tenantId::UUID
-RETURNING *;
 
 -- name: UpsertServerlessProcess :exec
 -- The process heartbeat. expires_at is computed in SQL so process clock skew does not matter.
@@ -265,9 +284,10 @@ VALUES (@tenantId::UUID, @shard::INT)
 ON CONFLICT (tenant_id, shard) DO NOTHING;
 
 -- name: ClaimServerlessLeases :many
--- Claims up to @claimLimit units for @processId. Only units with endpoints are claimable: an
--- empty unit (shard growth, every endpoint deleted) has nothing to poll and is left unowned
--- until an endpoint lands on it. Unowned units come first, walked in (tenant_id, shard) order
+-- Claims up to @claimLimit units for @processId. Only units with endpoints of a tenant entitled
+-- to the serverless operator are claimable: an empty unit (shard growth, every endpoint
+-- deleted) has nothing to poll and is left unowned until an endpoint lands on it, and a
+-- tenant whose entitlement is off is not served. Unowned units come first, walked in (tenant_id, shard) order
 -- from @afterTenantId/@afterShard through v1_serverless_lease_claimable_idx (the caller starts
 -- at a random key and wraps around), then units of processes whose heartbeat row has expired,
 -- walked per dead process through v1_serverless_lease_owner_idx. Neither walk sorts the
@@ -283,6 +303,11 @@ WITH unowned AS (
         l.process_id IS NULL
         AND l.endpoint_count > 0
         AND (l.tenant_id, l.shard) > (@afterTenantId::UUID, @afterShard::INT)
+        AND EXISTS (
+            SELECT 1
+            FROM tenant_entitlement te
+            WHERE te.tenant_id = l.tenant_id AND te.serverless_operator
+        )
     ORDER BY l.tenant_id, l.shard
     LIMIT @claimLimit::INT
     FOR UPDATE SKIP LOCKED
@@ -292,7 +317,14 @@ WITH unowned AS (
     CROSS JOIN LATERAL (
         SELECT l.tenant_id, l.shard
         FROM v1_serverless_lease l
-        WHERE l.process_id = p.process_id AND l.endpoint_count > 0
+        WHERE
+            l.process_id = p.process_id
+            AND l.endpoint_count > 0
+            AND EXISTS (
+                SELECT 1
+                FROM tenant_entitlement te
+                WHERE te.tenant_id = l.tenant_id AND te.serverless_operator
+            )
         ORDER BY l.tenant_id, l.shard
         LIMIT @claimLimit::INT
         FOR UPDATE SKIP LOCKED
@@ -334,6 +366,21 @@ WHERE
     AND l.process_id = @processId::UUID
 RETURNING l.tenant_id, l.shard, l.endpoint_count;
 
+-- name: ReleaseUnentitledServerlessLeases :many
+-- Releases the units @processId holds whose tenant is not entitled to the serverless operator,
+-- so an entitlement switched off stops the tenant being served on the owner's next tick. The
+-- rows are returned so the owner can tear the tenant down.
+UPDATE v1_serverless_lease l
+SET process_id = NULL, claimed_at = NULL
+WHERE
+    l.process_id = @processId::UUID
+    AND NOT EXISTS (
+        SELECT 1
+        FROM tenant_entitlement te
+        WHERE te.tenant_id = l.tenant_id AND te.serverless_operator
+    )
+RETURNING l.tenant_id, l.shard, l.endpoint_count;
+
 -- name: ReleaseAllServerlessLeases :execrows
 UPDATE v1_serverless_lease
 SET process_id = NULL, claimed_at = NULL
@@ -347,9 +394,10 @@ ORDER BY tenant_id, shard;
 
 -- name: CountClaimableServerlessLeases :one
 -- Counts what a process may claim under the rules of ClaimServerlessLeases: unowned units
--- with endpoints (v1_serverless_lease_claimable_idx, index only) plus units with endpoints
--- still held by processes whose heartbeat row has expired (v1_serverless_lease_owner_idx), so
--- a survivor's fair share includes the work of dead processes. Empty units are not counted,
+-- with endpoints of entitled tenants (v1_serverless_lease_claimable_idx, joined to the
+-- entitlement by primary key) plus such units still held by processes whose heartbeat row
+-- has expired (v1_serverless_lease_owner_idx), so a survivor's fair share includes the work
+-- of dead processes. Empty units are not counted,
 -- as they are not claimed: a window of empty rows would otherwise report a claimable
 -- population of zero weight and hide the populated units behind it. Each side is a sample
 -- of at most @countLimit units, and the abandoned side is bounded as a whole, not per dead
@@ -358,9 +406,16 @@ ORDER BY tenant_id, shard;
 WITH unowned AS (
     SELECT COUNT(*) AS n, COALESCE(SUM(u.endpoint_count), 0) AS w
     FROM (
-        SELECT endpoint_count
-        FROM v1_serverless_lease
-        WHERE process_id IS NULL AND endpoint_count > 0
+        SELECT l.endpoint_count
+        FROM v1_serverless_lease l
+        WHERE
+            l.process_id IS NULL
+            AND l.endpoint_count > 0
+            AND EXISTS (
+                SELECT 1
+                FROM tenant_entitlement te
+                WHERE te.tenant_id = l.tenant_id AND te.serverless_operator
+            )
         LIMIT @countLimit::BIGINT
     ) u
 ), abandoned AS (
@@ -371,7 +426,14 @@ WITH unowned AS (
         CROSS JOIN LATERAL (
             SELECT l.endpoint_count
             FROM v1_serverless_lease l
-            WHERE l.process_id = p.process_id AND l.endpoint_count > 0
+            WHERE
+                l.process_id = p.process_id
+                AND l.endpoint_count > 0
+                AND EXISTS (
+                    SELECT 1
+                    FROM tenant_entitlement te
+                    WHERE te.tenant_id = l.tenant_id AND te.serverless_operator
+                )
             LIMIT @countLimit::BIGINT
         ) a
         WHERE p.expires_at < now()

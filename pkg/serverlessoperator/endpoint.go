@@ -29,8 +29,8 @@ type endpointPoller struct {
 	cancel context.CancelFunc
 	done   chan struct{}
 
-	// putHashes remembers the canonical hash of every workflow this poller put, by
-	// namespaced name, so a response change re-puts only what changed. It is pruned to the
+	// putHashes remembers the canonical hash of every workflow this poller put, by name, so
+	// a response change re-puts only what changed. It is pruned to the
 	// names of the last catalog applied, accepted or not, so a stream of new names cannot
 	// grow it past the catalog cap.
 	putHashes map[string]string
@@ -38,8 +38,8 @@ type endpointPoller struct {
 	// registered and registeredStreams are what this poller knows the endpoint row's
 	// registered_actions and stream_actions to be: the cached values when the first change is
 	// applied, then every set it wrote. The write is decided against them rather than the
-	// cache, since SetHealthcheck moves the cache ahead of the row before the write and a
-	// failed attempt must not leave the write skipped.
+	// cache, so a delta the engine refused after a successful write is retried without
+	// writing the row again.
 	registered        []string
 	registeredStreams []string
 	registeredKnown   bool
@@ -229,12 +229,15 @@ func (p *endpointPoller) writeStatusIfChanged(ctx context.Context, cfg *endpoint
 	p.r.writeStatus(ctx, p.ts, p.ep, status.healthy, status.err)
 }
 
-// applyChange puts the endpoint's changed workflows through the unit's registration, moves
-// the cached union to the new action set, pushes the resulting delta to the owner's
-// registration, records registered_actions when it changed, and pushes the delta to every
-// other registration for the tenant on this process. Other processes pick the union up from
-// the database on their next cache refresh. A refused delta restores the endpoint's previous
-// contribution, so a rejected catalog never stays in the shared union.
+// applyChange puts the endpoint's changed workflows through the unit's registration, records
+// registered_actions when it changed, moves the cached union to the new action set, pushes
+// the resulting delta to the owner's registration, and pushes the delta to every other
+// registration for the tenant on this process. Other processes pick the union up from the
+// database on their next cache refresh. The row is written before the session sees the
+// delta: every other process reads the endpoint's action set from the row, so a failed write
+// changes nothing anywhere and the next poll retries the whole change, while a delta the
+// engine refuses after the write restores the endpoint's previous contribution here and is
+// retried on the next poll without another write.
 func (p *endpointPoller) applyChange(ctx context.Context, reg *registration, res *healthcheckResult) error {
 	// Whatever the outcome, the remembered puts are those of this catalog: an accepted
 	// early workflow of a catalog the engine then rejected is still worth not re-putting on
@@ -261,6 +264,15 @@ func (p *endpointPoller) applyChange(ctx context.Context, reg *registration, res
 		p.registeredKnown = true
 	}
 
+	if !stringsEqual(p.registered, res.actions) || !stringsEqual(p.registeredStreams, res.streamActions) {
+		if err := p.r.repo.Endpoints().UpdateRegisteredActions(ctx, p.ep.id, res.actions, res.streamActions); err != nil {
+			return fmt.Errorf("could not write registered actions: %w", err)
+		}
+
+		p.registered = res.actions
+		p.registeredStreams = res.streamActions
+	}
+
 	previous := p.ts.cache.Config(p.ep)
 	unionChanged := p.ts.cache.SetHealthcheck(p.ep.id, res.actions, res.streamActions)
 
@@ -269,15 +281,6 @@ func (p *endpointPoller) applyChange(ctx context.Context, reg *registration, res
 	if err := reg.syncActions(ctx, p.ts.cache); err != nil {
 		p.ts.cache.SetHealthcheck(p.ep.id, previous.registeredActions, previous.streamActions)
 		return err
-	}
-
-	if !stringsEqual(p.registered, res.actions) || !stringsEqual(p.registeredStreams, res.streamActions) {
-		if err := p.r.repo.Endpoints().UpdateRegisteredActions(ctx, p.ep.id, res.actions, res.streamActions); err != nil {
-			return fmt.Errorf("could not write registered actions: %w", err)
-		}
-
-		p.registered = res.actions
-		p.registeredStreams = res.streamActions
 	}
 
 	p.r.l.Info().

@@ -1267,7 +1267,7 @@ export interface V1ServerlessEndpointStatus {
    * @format date-time
    */
   changedAt?: string;
-  /** The namespaced action ids the operator registered for this endpoint from its last healthcheck. */
+  /** The action ids the operator registered for this endpoint from its last healthcheck, as the endpoint declared them. Several endpoints of a tenant may register the same action; each then serves it. */
   registeredActions: string[];
 }
 
@@ -1280,11 +1280,6 @@ export interface V1ServerlessEndpoint {
   tenantId: string;
   /** The name of the endpoint. Unique within the tenant. */
   name: string;
-  /**
-   * The prefix applied to everything this endpoint registers (workflows, actions, events), as "<namespace>_". Read-only: assigned on creation and immutable.
-   * @format uuid
-   */
-  namespace: string;
   /** The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS applies the Cloudflare Workers runtime constraints on top of it. */
   kind: V1ServerlessEndpointKind;
   /** The HTTPS URL (port 443) polled periodically to discover the workflows this endpoint serves. */
@@ -1388,29 +1383,6 @@ export interface V1UpdateServerlessEndpointRequest {
   labels?: Record<string, any>;
   /** Whether the operator polls and dispatches to this endpoint. */
   enabled?: boolean;
-}
-
-export interface V1ServerlessTenantSettings {
-  /**
-   * The ID of the tenant these settings belong to.
-   * @format uuid
-   */
-  tenantId: string;
-  /**
-   * The number of shards the tenant's endpoints are spread across. Each shard is a lease unit that one operator process owns, so a count above 1 lets a hot tenant be served by several processes. Existing endpoints keep their shard; only new endpoints hash over the new count.
-   * @format int32
-   */
-  shardCount: number;
-}
-
-export interface V1UpdateServerlessTenantSettingsRequest {
-  /**
-   * The number of shards to spread the tenant's endpoints across.
-   * @format int32
-   * @min 1
-   * @max 64
-   */
-  shardCount: number;
 }
 
 export interface V1CELDebugRequest {

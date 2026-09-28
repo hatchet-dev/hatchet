@@ -50,7 +50,7 @@ func registerVectors() *metricVectors {
 			tenantsWithoutToken: promauto.NewGaugeVec(prometheus.GaugeOpts{Name: "hatchet_serverless_tenants_without_token", Help: "Served tenants with no token"}, link),
 			deliveries:          promauto.NewCounterVec(prometheus.CounterOpts{Name: "hatchet_serverless_deliveries_total", Help: "Task deliveries by result"}, []string{"link", "result"}),
 			deliveryDuration:    promauto.NewHistogramVec(prometheus.HistogramOpts{Name: "hatchet_serverless_delivery_duration_seconds", Help: "Task delivery duration"}, link),
-			routingMisses:       promauto.NewCounterVec(prometheus.CounterOpts{Name: "hatchet_serverless_routing_misses_total", Help: "Actions whose namespace had no endpoint"}, link),
+			routingMisses:       promauto.NewCounterVec(prometheus.CounterOpts{Name: "hatchet_serverless_routing_misses_total", Help: "Assigned actions no enabled endpoint of the tenant served"}, link),
 			wsConnectionsOpen:   promauto.NewGaugeVec(prometheus.GaugeOpts{Name: "hatchet_serverless_ws_connections_open", Help: "Open durable websockets"}, link),
 			evictions:           promauto.NewCounterVec(prometheus.CounterOpts{Name: "hatchet_serverless_evictions_total", Help: "Durable evictions by source"}, []string{"link", "source"}),
 		}

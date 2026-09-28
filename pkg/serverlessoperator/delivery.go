@@ -72,14 +72,13 @@ func durableOutcome(out durable.Outcome) (o outcome, report bool) {
 }
 
 // buildTriggerEnvelope serializes the trigger body. The nested action is delivered as
-// registered: action id and workflow name carry the namespace prefix.
+// registered: the action id and workflow name the endpoint declared.
 func buildTriggerEnvelope(action *contracts.AssignedAction, ep *cachedEndpoint, timestamp int64) ([]byte, error) {
 	return contract.Marshal(&v1.ServerlessTriggerRequest{
-		Version:    contract.TriggerEnvelopeVersion,
-		EndpointId: ep.id.String(),
-		Namespace:  ep.namespace.String(),
-		Timestamp:  timestamp,
-		Action:     action,
+		Version:              contract.TriggerEnvelopeVersion,
+		EndpointId:           ep.id.String(),
+		TimestampUnixSeconds: timestamp,
+		Action:               action,
 	})
 }
 

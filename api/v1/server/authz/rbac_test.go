@@ -76,7 +76,6 @@ var memberOnlyOps = []string{
 	"V1ServerlessEndpointCreate",
 	"V1ServerlessEndpointUpdate",
 	"V1ServerlessEndpointDelete",
-	"V1ServerlessTenantUpdate",
 }
 
 func operationIdsFromSpec() []string {

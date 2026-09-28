@@ -62,14 +62,14 @@ func TestHandleActionBlocksOnFullSlots(t *testing.T) {
 	require.NotNil(t, session)
 	require.Equal(t, map[string]int32{"default": 1, "durable": 0}, env.host.opens[0].opts.SlotConfig)
 
-	first := startAction(a.Namespace, "svc:run")
+	first := startAction("svc:run")
 	require.NoError(t, session.handler.HandleAction(context.Background(), first))
 	<-started
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
-	second := startAction(a.Namespace, "svc:run")
+	second := startAction("svc:run")
 	err := session.handler.HandleAction(ctx, second)
 	require.ErrorIs(t, err, context.DeadlineExceeded, "the start waited on the caller's context instead of being refused")
 	assert.Len(t, env.sender.callsTo(a.TriggerUrl), 1, "the waiting start delivered nothing")
@@ -104,7 +104,7 @@ func TestCancelDoesNotTakeASlot(t *testing.T) {
 	env.r.UnitsGained(context.Background(), []memrepo.Unit{env.unit(a)})
 	session := env.host.session(0)
 
-	action := startAction(a.Namespace, "svc:run")
+	action := startAction("svc:run")
 	session.deliver(t, action)
 	<-started
 
@@ -136,10 +136,10 @@ func TestHandleActionOutsideTheRegistrationsLife(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 
-	require.ErrorIs(t, unopened.HandleAction(ctx, startAction(a.Namespace, "svc:run")), context.DeadlineExceeded, "the handler waits for the open")
+	require.ErrorIs(t, unopened.HandleAction(ctx, startAction("svc:run")), context.DeadlineExceeded, "the handler waits for the open")
 
 	unopened.open(nil)
-	require.ErrorIs(t, unopened.HandleAction(context.Background(), startAction(a.Namespace, "svc:run")), errRegistrationNotOpen)
+	require.ErrorIs(t, unopened.HandleAction(context.Background(), startAction("svc:run")), errRegistrationNotOpen)
 
 	env.r.UnitsGained(context.Background(), []memrepo.Unit{env.unit(a)})
 	session := env.host.session(0)
@@ -151,7 +151,7 @@ func TestHandleActionOutsideTheRegistrationsLife(t *testing.T) {
 	env.r.UnitsLost(context.Background(), []memrepo.Unit{env.unit(a)})
 	require.Eventually(t, session.isClosed, eventually, 10*time.Millisecond)
 
-	require.ErrorIs(t, session.handler.HandleAction(context.Background(), startAction(a.Namespace, "svc:run")), errRegistrationClosed)
+	require.ErrorIs(t, session.handler.HandleAction(context.Background(), startAction("svc:run")), errRegistrationClosed)
 	assert.Empty(t, env.sender.callsTo(a.TriggerUrl))
 }
 
@@ -171,7 +171,7 @@ func TestTeardownPausesBeforeDraining(t *testing.T) {
 	reg := env.tenant(tenant).registration()
 	require.NotNil(t, reg)
 
-	session.deliver(t, startAction(a.Namespace, "svc:run"))
+	session.deliver(t, startAction("svc:run"))
 	<-started
 
 	env.r.UnitsLost(context.Background(), []memrepo.Unit{env.unit(a)})

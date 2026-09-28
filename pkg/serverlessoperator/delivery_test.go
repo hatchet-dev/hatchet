@@ -93,12 +93,12 @@ func TestClassifyError(t *testing.T) {
 func TestDeliverActionSignsEnvelope(t *testing.T) {
 	sender := newFakeSender()
 
-	ep := &cachedEndpoint{id: uuid.New(), namespace: uuid.New()}
+	ep := &cachedEndpoint{id: uuid.New()}
 	cfg := &endpointConfig{triggerUrl: "https://ep.example.test/trigger", secret: "s3cret", requestTimeoutSeconds: 5}
 
 	sender.respond(cfg.triggerUrl, http.StatusOK, `{"result":42}`)
 
-	action := startAction(ep.namespace, "svc:run")
+	action := startAction("svc:run")
 
 	out := deliverAction(context.Background(), sender, ep, cfg, action)
 
@@ -121,21 +121,20 @@ func TestDeliverActionSignsEnvelope(t *testing.T) {
 	require.NoError(t, contract.Unmarshal(call.body, envelope))
 	assert.Equal(t, int32(contract.TriggerEnvelopeVersion), envelope.Version)
 	assert.Equal(t, ep.id.String(), envelope.EndpointId)
-	assert.Equal(t, ep.namespace.String(), envelope.Namespace)
-	assert.NotZero(t, envelope.Timestamp)
+	assert.NotZero(t, envelope.TimestampUnixSeconds)
 
 	delivered := envelope.GetAction()
 	require.NotNil(t, delivered)
-	assert.Equal(t, action.ActionId, delivered.ActionId, "the action id is delivered with its namespace prefix")
+	assert.Equal(t, action.ActionId, delivered.ActionId, "the action id is delivered as registered")
 	assert.Equal(t, action.TaskRunExternalId, delivered.TaskRunExternalId)
 }
 
 func TestDeliverActionWithoutSecretFails(t *testing.T) {
 	sender := newFakeSender()
-	ep := &cachedEndpoint{id: uuid.New(), namespace: uuid.New()}
+	ep := &cachedEndpoint{id: uuid.New()}
 	cfg := &endpointConfig{triggerUrl: "https://ep.example.test/trigger", secretErr: errors.New("could not decrypt signing secret")}
 
-	out := deliverAction(context.Background(), sender, ep, cfg, startAction(ep.namespace, "svc:run"))
+	out := deliverAction(context.Background(), sender, ep, cfg, startAction("svc:run"))
 
 	assert.Equal(t, contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED, out.status)
 	assert.False(t, out.retry)
@@ -143,24 +142,22 @@ func TestDeliverActionWithoutSecretFails(t *testing.T) {
 }
 
 func TestParseHealthcheckResponse(t *testing.T) {
-	ns := uuid.New()
-
-	legacy, err := parseHealthcheckResponse([]byte(`{"actions":["Svc:One","svc:two",""]}`), ns, catalogLimits{})
+	legacy, err := parseHealthcheckResponse([]byte(`{"actions":["Svc:One","svc:two",""]}`), catalogLimits{})
 	require.NoError(t, err)
 	assert.Empty(t, legacy.workflows)
-	assert.Equal(t, []string{prefixed(ns, "svc:one"), prefixed(ns, "svc:two")}, legacy.actions)
+	assert.Equal(t, []string{"svc:one", "svc:two"}, legacy.actions)
 
 	full, err := parseHealthcheckResponse([]byte(`{
 		"workflows": [{"name": "echo", "tasks": [{"readableId": "t", "action": "svc:echo"}], "unknownField": 1}],
 		"actions": ["svc:extra"],
 		"durable": {"supported": true},
 		"runtime": {"name": "cloudflare-workers", "sdkVersion": "0.1.0"}
-	}`), ns, catalogLimits{})
+	}`), catalogLimits{})
 	require.NoError(t, err)
 	require.Len(t, full.workflows, 1)
-	assert.Equal(t, prefixed(ns, "echo"), full.workflows[0].Name)
-	assert.Equal(t, prefixed(ns, "svc:echo"), full.workflows[0].Tasks[0].Action)
-	assert.Equal(t, []string{prefixed(ns, "svc:echo"), prefixed(ns, "svc:extra")}, full.actions)
+	assert.Equal(t, "echo", full.workflows[0].Name)
+	assert.Equal(t, "svc:echo", full.workflows[0].Tasks[0].Action)
+	assert.Equal(t, []string{"svc:echo", "svc:extra"}, full.actions)
 	assert.True(t, full.durable)
 	assert.Equal(t, "cloudflare-workers", full.runtime.GetName())
 	assert.Equal(t, "0.1.0", full.runtime.GetSdkVersion())
@@ -168,31 +165,29 @@ func TestParseHealthcheckResponse(t *testing.T) {
 	assert.NotEqual(t, legacy.hash, full.hash)
 
 	// Formatting differences do not change the hash; content does.
-	same, err := parseHealthcheckResponse([]byte(`{"actions":["svc:extra"],"workflows":[{"tasks":[{"action":"svc:echo","readableId":"t"}],"name":"echo"}]}`), ns, catalogLimits{})
+	same, err := parseHealthcheckResponse([]byte(`{"actions":["svc:extra"],"workflows":[{"tasks":[{"action":"svc:echo","readableId":"t"}],"name":"echo"}]}`), catalogLimits{})
 	require.NoError(t, err)
 	assert.Equal(t, full.hash, same.hash)
 
-	_, err = parseHealthcheckResponse([]byte(`{"workflows":[{"name":"bad","tasks":[{"action":"noverb"}]}]}`), ns, catalogLimits{})
+	_, err = parseHealthcheckResponse([]byte(`{"workflows":[{"name":"bad","tasks":[{"action":"noverb"}]}]}`), catalogLimits{})
 	assert.Error(t, err)
 
-	_, err = parseHealthcheckResponse([]byte(`not json`), ns, catalogLimits{})
+	_, err = parseHealthcheckResponse([]byte(`not json`), catalogLimits{})
 	assert.Error(t, err)
 }
 
-// Task options flag the actions invoked over the websocket: they are namespaced, sorted, part
+// Task options flag the actions invoked over the websocket: they are normalized, sorted, part
 // of the hash, and must name actions the catalog serves.
 func TestParseHealthcheckTaskOptions(t *testing.T) {
-	ns := uuid.New()
-
-	plain, err := parseHealthcheckResponse([]byte(`{"actions":["svc:a","svc:b"]}`), ns, catalogLimits{})
+	plain, err := parseHealthcheckResponse([]byte(`{"actions":["svc:a","svc:b"]}`), catalogLimits{})
 	require.NoError(t, err)
 	assert.Empty(t, plain.streamActions)
 
-	flagged, err := parseHealthcheckResponse([]byte(`{"actions":["svc:a","svc:b"],"tasks":[{"action":"Svc:B","streams":true},{"action":"svc:a","streams":false}]}`), ns, catalogLimits{})
+	flagged, err := parseHealthcheckResponse([]byte(`{"actions":["svc:a","svc:b"],"tasks":[{"action":"Svc:B","streams":true},{"action":"svc:a","streams":false}]}`), catalogLimits{})
 	require.NoError(t, err)
-	assert.Equal(t, []string{prefixed(ns, "svc:b")}, flagged.streamActions)
+	assert.Equal(t, []string{"svc:b"}, flagged.streamActions)
 	assert.NotEqual(t, plain.hash, flagged.hash, "the flag is part of the catalog hash")
 
-	_, err = parseHealthcheckResponse([]byte(`{"actions":["svc:a"],"tasks":[{"action":"svc:missing","streams":true}]}`), ns, catalogLimits{})
+	_, err = parseHealthcheckResponse([]byte(`{"actions":["svc:a"],"tasks":[{"action":"svc:missing","streams":true}]}`), catalogLimits{})
 	assert.ErrorContains(t, err, "does not serve")
 }

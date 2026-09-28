@@ -313,6 +313,18 @@ func (s *Leaser) sweep(ctx context.Context) error {
 		s.l.Info().Int64("deleted", deleted).Int64("released_units", released).Msg("swept expired serverless process rows")
 	}
 
+	// Deleted endpoint rows are kept for the caches' incremental refresh to see; the same
+	// cutoff is a grace period many refresh intervals long.
+	purged, err := s.repo.Endpoints().PurgeDeleted(ctx, time.Now().Add(-s.cfg.SweepCutoff))
+
+	if err != nil {
+		return fmt.Errorf("purge deleted endpoints: %w", err)
+	}
+
+	if purged > 0 {
+		s.l.Info().Int64("purged", purged).Msg("purged deleted serverless endpoint rows")
+	}
+
 	return nil
 }
 
@@ -327,6 +339,19 @@ func (s *Leaser) Tick(ctx context.Context) error {
 			s.hooks.Rebalanced(time.Since(start))
 		}
 	}()
+
+	// A tenant whose entitlement is off is released before ownership is read, so the tick
+	// reports its units lost and the runner stops serving it; the claim below never takes
+	// such units back.
+	unentitled, err := s.repo.Leases().ReleaseUnentitled(ctx, s.cfg.ProcessId)
+
+	if err != nil {
+		return fmt.Errorf("release unentitled leases: %w", err)
+	}
+
+	if len(unentitled) > 0 {
+		s.l.Info().Int("units", len(unentitled)).Msg("released serverless leases of tenants without the entitlement")
+	}
 
 	current, err := s.listOwned(ctx)
 

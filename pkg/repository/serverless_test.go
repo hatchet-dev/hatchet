@@ -51,14 +51,26 @@ func resetServerlessLeases(t *testing.T, ctx context.Context, pool *pgxpool.Pool
 	require.NoError(t, err)
 }
 
-// seedServerlessUnits inserts n unowned units, one tenant each, and returns them.
-func seedServerlessUnits(t *testing.T, ctx context.Context, repo ServerlessRepository, n int) []ServerlessUnit {
+// entitleServerless switches the tenants' serverless entitlement on; claims and counts only
+// see units of entitled tenants.
+func entitleServerless(t *testing.T, ctx context.Context, pool *pgxpool.Pool, tenantIds ...uuid.UUID) {
+	t.Helper()
+
+	for _, tenantId := range tenantIds {
+		_, err := pool.Exec(ctx, "INSERT INTO tenant_entitlement (tenant_id, serverless_operator) VALUES ($1, TRUE) ON CONFLICT (tenant_id) DO UPDATE SET serverless_operator = TRUE", tenantId)
+		require.NoError(t, err)
+	}
+}
+
+// seedServerlessUnits inserts n unowned units, one entitled tenant each, and returns them.
+func seedServerlessUnits(t *testing.T, ctx context.Context, pool *pgxpool.Pool, repo ServerlessRepository, n int) []ServerlessUnit {
 	t.Helper()
 
 	units := make([]ServerlessUnit, 0, n)
 
 	for i := 0; i < n; i++ {
 		unit := ServerlessUnit{TenantId: uuid.New(), Shard: 0}
+		entitleServerless(t, ctx, pool, unit.TenantId)
 		require.NoError(t, repo.Leases().InsertIfAbsent(ctx, unit))
 		require.NoError(t, repo.Leases().IncrementEndpointCount(ctx, unit, int32(i+1))) // nolint: gosec
 		units = append(units, unit)
@@ -66,6 +78,8 @@ func seedServerlessUnits(t *testing.T, ctx context.Context, repo ServerlessRepos
 
 	return units
 }
+
+func boolPtr(b bool) *bool { return &b }
 
 func leaseRow(t *testing.T, ctx context.Context, pool *pgxpool.Pool, unit ServerlessUnit) (processId *uuid.UUID, endpointCount int32) {
 	t.Helper()
@@ -140,7 +154,6 @@ func TestServerlessRepository(t *testing.T) {
 
 		assert.Equal(t, tenantId, created.TenantID)
 		assert.Equal(t, "endpoint-a", created.Name)
-		assert.NotEqual(t, uuid.Nil, created.Namespace)
 		assert.Equal(t, sqlcv1.V1ServerlessEndpointKindCLOUDFLAREWORKERS, created.Kind)
 		assert.Equal(t, defaultServerlessRequestTimeoutSeconds, created.RequestTimeoutSeconds)
 		assert.Equal(t, defaultServerlessPollIntervalSeconds, created.PollIntervalSeconds)
@@ -155,7 +168,6 @@ func TestServerlessRepository(t *testing.T) {
 		got, err := repo.Endpoints().Get(ctx, tenantId, created.ID)
 		require.NoError(t, err)
 		assert.Equal(t, created.ID, got.ID)
-		assert.Equal(t, created.Namespace, got.Namespace)
 
 		// the endpoint is scoped to its tenant
 		_, err = repo.Endpoints().Get(ctx, uuid.New(), created.ID)
@@ -195,10 +207,9 @@ func TestServerlessRepository(t *testing.T) {
 		assert.Equal(t, int32(5), updated.RequestTimeoutSeconds)
 		assert.False(t, updated.Enabled)
 		assert.JSONEq(t, `{"env": "test"}`, string(updated.Labels))
-		// untouched fields keep their values, and the immutable ones cannot change
+		// untouched fields keep their values, and the shard cannot change
 		assert.Equal(t, created.HealthcheckUrl, updated.HealthcheckUrl)
 		assert.Equal(t, created.SigningSecretEnc, updated.SigningSecretEnc)
-		assert.Equal(t, created.Namespace, updated.Namespace)
 		assert.Equal(t, created.Shard, updated.Shard)
 		assert.True(t, updated.UpdatedAt.Time.After(created.UpdatedAt.Time))
 
@@ -234,7 +245,7 @@ func TestServerlessRepository(t *testing.T) {
 		assert.False(t, changed[0].Healthy.Bool)
 
 		// a workflow change is recorded and does bump updated_at
-		actions := []string{created.Namespace.String() + "_svc:run", created.Namespace.String() + "_svc:stream"}
+		actions := []string{"svc:run", "svc:stream"}
 		streamActions := actions[1:]
 		require.NoError(t, repo.Endpoints().UpdateRegisteredActions(ctx, created.ID, actions, streamActions))
 
@@ -289,27 +300,69 @@ func TestServerlessRepository(t *testing.T) {
 		assert.Equal(t, int64(0), count, "no endpoint should have been created")
 	})
 
-	t.Run("namespace is unique", func(t *testing.T) {
+	t.Run("delete is soft: hidden from reads, visible to the refresh, name free, purged later", func(t *testing.T) {
 		tenantId := uuid.New()
 
-		first, err := repo.Endpoints().Create(ctx, tenantId, serverlessEndpointOpts("endpoint-a"))
+		created, err := repo.Endpoints().Create(ctx, tenantId, serverlessEndpointOpts("soft"))
 		require.NoError(t, err)
 
-		second, err := repo.Endpoints().Create(ctx, tenantId, serverlessEndpointOpts("endpoint-b"))
+		before := created.UpdatedAt.Time.Add(-time.Second)
+
+		deleted, err := repo.Endpoints().Delete(ctx, tenantId, created.ID)
+		require.NoError(t, err)
+		assert.True(t, deleted.DeletedAt.Valid)
+		assert.False(t, deleted.UpdatedAt.Time.Before(deleted.DeletedAt.Time), "updated_at moves with the deletion")
+
+		_, err = repo.Endpoints().Get(ctx, tenantId, created.ID)
+		assert.ErrorIs(t, err, pgx.ErrNoRows)
+		_, err = repo.Endpoints().GetById(ctx, created.ID)
+		assert.ErrorIs(t, err, pgx.ErrNoRows)
+
+		_, count, err := repo.Endpoints().List(ctx, tenantId, ListServerlessEndpointsOpts{Limit: 10})
+		require.NoError(t, err)
+		assert.Equal(t, int64(0), count)
+
+		forTenant, err := repo.Endpoints().ListForTenant(ctx, tenantId, uuid.Nil, 10)
+		require.NoError(t, err)
+		assert.Empty(t, forTenant)
+
+		versions, err := repo.Endpoints().ListVersions(ctx, tenantId, ServerlessEndpointVersion{}, 10)
+		require.NoError(t, err)
+		assert.Empty(t, versions)
+
+		byIds, err := repo.Endpoints().ListByIds(ctx, []uuid.UUID{created.ID})
+		require.NoError(t, err)
+		assert.Empty(t, byIds)
+
+		// the refresh is the one read that returns the row, so the caches drop the endpoint
+		since, err := repo.Endpoints().ListUpdatedSince(ctx, tenantId, before, uuid.Nil)
+		require.NoError(t, err)
+		require.Len(t, since, 1)
+		assert.Equal(t, created.ID, since[0].ID)
+		assert.True(t, since[0].DeletedAt.Valid)
+
+		_, err = repo.Endpoints().Update(ctx, tenantId, created.ID, UpdateServerlessEndpointOpts{Enabled: boolPtr(false)})
+		assert.ErrorIs(t, err, pgx.ErrNoRows, "a deleted endpoint cannot be updated")
+
+		// the name is free again
+		again, err := repo.Endpoints().Create(ctx, tenantId, serverlessEndpointOpts("soft"))
+		require.NoError(t, err)
+		assert.NotEqual(t, created.ID, again.ID)
+
+		purged, err := repo.Endpoints().PurgeDeleted(ctx, time.Now().Add(-time.Hour))
+		require.NoError(t, err)
+		assert.Equal(t, int64(0), purged, "a fresh deletion is within the grace period")
+
+		purged, err = repo.Endpoints().PurgeDeleted(ctx, time.Now().Add(time.Second))
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, purged, int64(1))
+
+		since, err = repo.Endpoints().ListUpdatedSince(ctx, tenantId, before, uuid.Nil)
 		require.NoError(t, err)
 
-		assert.NotEqual(t, first.Namespace, second.Namespace)
-
-		// the constraint holds even against a raw insert that reuses a namespace
-		_, err = pool.Exec(ctx, `
-			INSERT INTO v1_serverless_endpoint (tenant_id, name, namespace, healthcheck_url, trigger_url, signing_secret_enc)
-			VALUES ($1, 'endpoint-c', $2, 'https://example.com/h', 'https://example.com/t', 'enc')`,
-			tenantId, first.Namespace,
-		)
-		var pgErr *pgconn.PgError
-		require.ErrorAs(t, err, &pgErr)
-		assert.Equal(t, pgUniqueViolation, pgErr.Code)
-		assert.Equal(t, "v1_serverless_endpoint_namespace_key", pgErr.ConstraintName)
+		for _, row := range since {
+			assert.NotEqual(t, created.ID, row.ID, "the purged row is gone")
+		}
 	})
 
 	t.Run("lease unit and endpoint_count follow endpoint create and delete", func(t *testing.T) {
@@ -351,29 +404,31 @@ func TestServerlessRepository(t *testing.T) {
 		assert.Equal(t, int32(0), endpointCount, "the lease row is kept with a zero count")
 	})
 
-	t.Run("tenant shard_count decides the shard", func(t *testing.T) {
+	t.Run("the configured shard_count is set with the first endpoint and decides the shard", func(t *testing.T) {
 		tenantId := uuid.New()
 		const shardCount = int32(8)
-
-		tenant, err := repo.Tenants().UpdateShardCount(ctx, tenantId, shardCount)
-		require.NoError(t, err)
-		assert.Equal(t, shardCount, tenant.ShardCount)
-
-		_, err = repo.Tenants().UpdateShardCount(ctx, tenantId, 0)
-		assert.Error(t, err)
-
-		// every shard has a lease row up front
-		var leaseRows int
-		require.NoError(t, pool.QueryRow(ctx, "SELECT count(*) FROM v1_serverless_lease WHERE tenant_id = $1", tenantId).Scan(&leaseRows))
-		assert.Equal(t, int(shardCount), leaseRows)
 
 		const numEndpoints = 32
 		created := make(map[uuid.UUID]*sqlcv1.V1ServerlessEndpoint, numEndpoints)
 		shardsSeen := make(map[int32]int)
 
 		for i := 0; i < numEndpoints; i++ {
-			endpoint, err := repo.Endpoints().Create(ctx, tenantId, serverlessEndpointOpts(fmt.Sprintf("endpoint-%d", i)))
+			opts := serverlessEndpointOpts(fmt.Sprintf("endpoint-%d", i))
+
+			// the tenant row takes the shard count of the first endpoint's create; a later
+			// create with another configured value leaves it alone
+			opts.ShardCount = shardCount
+
+			if i > 0 {
+				opts.ShardCount = 2
+			}
+
+			endpoint, err := repo.Endpoints().Create(ctx, tenantId, opts)
 			require.NoError(t, err)
+
+			tenant, err := repo.Tenants().Get(ctx, tenantId)
+			require.NoError(t, err)
+			assert.Equal(t, shardCount, tenant.ShardCount)
 
 			require.GreaterOrEqual(t, endpoint.Shard, int32(0))
 			require.Less(t, endpoint.Shard, shardCount)
@@ -388,6 +443,11 @@ func TestServerlessRepository(t *testing.T) {
 		}
 
 		assert.Greater(t, len(shardsSeen), 1, "32 endpoints over 8 shards should spread across more than one shard")
+
+		// a shard's lease row is created with the first endpoint that lands on it
+		var leaseRows int
+		require.NoError(t, pool.QueryRow(ctx, "SELECT count(*) FROM v1_serverless_lease WHERE tenant_id = $1", tenantId).Scan(&leaseRows))
+		assert.Equal(t, len(shardsSeen), leaseRows)
 
 		// endpoint_count per unit adds up to the endpoints created
 		for shard, want := range shardsSeen {
@@ -437,9 +497,69 @@ func TestServerlessRepository(t *testing.T) {
 			assert.Equal(t, someShard.Shard, endpoint.Shard)
 		}
 
-		forTenant, err := repo.Endpoints().ListForTenant(ctx, tenantId)
-		require.NoError(t, err)
+		// ListForTenant pages by id: a page shorter than the limit is the last
+		forTenant := make([]*sqlcv1.V1ServerlessEndpoint, 0, numEndpoints)
+		pages := 0
+
+		for after := uuid.Nil; ; {
+			page, err := repo.Endpoints().ListForTenant(ctx, tenantId, after, 10)
+			require.NoError(t, err)
+
+			pages++
+			forTenant = append(forTenant, page...)
+
+			if len(page) < 10 {
+				break
+			}
+
+			after = page[len(page)-1].ID
+		}
+
 		assert.Len(t, forTenant, numEndpoints)
+		assert.Equal(t, 4, pages, "32 endpoints in pages of 10")
+
+		for i := 1; i < len(forTenant); i++ {
+			assert.True(t, forTenant[i-1].ID.String() < forTenant[i].ID.String(), "pages come back by id")
+		}
+	})
+
+	t.Run("units of tenants without the entitlement are neither counted, claimed nor kept", func(t *testing.T) {
+		resetServerlessLeases(t, ctx, pool)
+
+		entitled := seedServerlessUnits(t, ctx, pool, repo, 1)[0]
+		other := ServerlessUnit{TenantId: uuid.New(), Shard: 0}
+		require.NoError(t, repo.Leases().InsertIfAbsent(ctx, other))
+		require.NoError(t, repo.Leases().IncrementEndpointCount(ctx, other, 1))
+
+		counted := countClaimable(t, ctx, repo)
+		assert.Equal(t, int64(1), counted.UnitCount, "a tenant without an entitlement row is not counted")
+
+		processId := uuid.New()
+		heartbeat(t, ctx, repo, processId, time.Minute)
+
+		rows, err := repo.Leases().Claim(ctx, processId, ServerlessUnit{}, 10)
+		require.NoError(t, err)
+		require.Len(t, rows, 1)
+		assert.Equal(t, entitled.TenantId, rows[0].TenantID)
+
+		released, err := repo.Leases().ReleaseUnentitled(ctx, processId)
+		require.NoError(t, err)
+		assert.Empty(t, released, "an entitled tenant's unit is kept")
+
+		_, err = pool.Exec(ctx, "UPDATE tenant_entitlement SET serverless_operator = FALSE WHERE tenant_id = $1", entitled.TenantId)
+		require.NoError(t, err)
+
+		released, err = repo.Leases().ReleaseUnentitled(ctx, processId)
+		require.NoError(t, err)
+		require.Len(t, released, 1)
+		assert.Equal(t, entitled.TenantId, released[0].TenantID)
+
+		owner, _ := leaseRow(t, ctx, pool, entitled)
+		assert.Nil(t, owner, "the unit is released once the entitlement is off")
+
+		rows, err = repo.Leases().Claim(ctx, processId, ServerlessUnit{}, 10)
+		require.NoError(t, err)
+		assert.Empty(t, rows, "nothing is claimable while both tenants lack the entitlement")
 	})
 
 	t.Run("process heartbeat, liveness and sweep", func(t *testing.T) {
@@ -511,20 +631,13 @@ func TestServerlessRepository(t *testing.T) {
 		assert.Empty(t, dead)
 	})
 
-	t.Run("routing lookups by namespace, version listing and fetch by id", func(t *testing.T) {
+	t.Run("version listing and fetch by id", func(t *testing.T) {
 		tenantId := uuid.New()
 
 		a, err := repo.Endpoints().Create(ctx, tenantId, serverlessEndpointOpts("route-a"))
 		require.NoError(t, err)
 		b, err := repo.Endpoints().Create(ctx, tenantId, serverlessEndpointOpts("route-b"))
 		require.NoError(t, err)
-
-		got, err := repo.Endpoints().GetByNamespace(ctx, tenantId, a.Namespace)
-		require.NoError(t, err)
-		assert.Equal(t, a.ID, got.ID)
-
-		_, err = repo.Endpoints().GetByNamespace(ctx, uuid.New(), a.Namespace)
-		assert.ErrorIs(t, err, pgx.ErrNoRows, "the lookup is scoped to the tenant")
 
 		// A status write moves b's version past a's; the listing pages in version order.
 		_, err = repo.Endpoints().UpdateStatus(ctx, b.ID, false, nil)
@@ -564,10 +677,12 @@ func TestServerlessRepository(t *testing.T) {
 		// skip them, and a claim must never take them.
 		for i := 0; i < 4; i++ {
 			unit := ServerlessUnit{TenantId: uuid.MustParse(fmt.Sprintf("00000000-0000-0000-0000-00000000000%d", i+1)), Shard: 0}
+			entitleServerless(t, ctx, pool, unit.TenantId)
 			require.NoError(t, repo.Leases().InsertIfAbsent(ctx, unit))
 		}
 
 		populated := ServerlessUnit{TenantId: uuid.MustParse("00000000-0000-0000-0000-000000000009"), Shard: 0}
+		entitleServerless(t, ctx, pool, populated.TenantId)
 		require.NoError(t, repo.Leases().InsertIfAbsent(ctx, populated))
 		require.NoError(t, repo.Leases().IncrementEndpointCount(ctx, populated, 3))
 
@@ -607,6 +722,7 @@ func TestServerlessRepository(t *testing.T) {
 
 			for j := 0; j < 4; j++ {
 				unit := ServerlessUnit{TenantId: uuid.New(), Shard: 0}
+				entitleServerless(t, ctx, pool, unit.TenantId)
 				require.NoError(t, repo.Leases().InsertIfAbsent(ctx, unit))
 				require.NoError(t, repo.Leases().IncrementEndpointCount(ctx, unit, 1))
 				_, err := pool.Exec(ctx, "UPDATE v1_serverless_lease SET process_id = $1 WHERE tenant_id = $2", dead, unit.TenantId)
@@ -629,7 +745,7 @@ func TestServerlessRepository(t *testing.T) {
 		resetServerlessLeases(t, ctx, pool)
 
 		const numUnits = 20
-		units := seedServerlessUnits(t, ctx, repo, numUnits)
+		units := seedServerlessUnits(t, ctx, pool, repo, numUnits)
 
 		unowned := countClaimable(t, ctx, repo)
 		assert.Equal(t, int64(numUnits), unowned.UnitCount)
@@ -711,7 +827,7 @@ func TestServerlessRepository(t *testing.T) {
 
 	t.Run("a claimer without a live row cannot claim", func(t *testing.T) {
 		resetServerlessLeases(t, ctx, pool)
-		seedServerlessUnits(t, ctx, repo, 3)
+		seedServerlessUnits(t, ctx, pool, repo, 3)
 
 		processId := uuid.New()
 
@@ -736,7 +852,7 @@ func TestServerlessRepository(t *testing.T) {
 	t.Run("claim walks unowned units from the start key", func(t *testing.T) {
 		resetServerlessLeases(t, ctx, pool)
 
-		units := seedServerlessUnits(t, ctx, repo, 6)
+		units := seedServerlessUnits(t, ctx, pool, repo, 6)
 		sort.Slice(units, func(i, j int) bool { return units[i].TenantId.String() < units[j].TenantId.String() })
 
 		processId := uuid.New()
@@ -773,7 +889,7 @@ func TestServerlessRepository(t *testing.T) {
 	// earlier cannot transfer a live owner's unit.
 	t.Run("an owner that revives before the takeover keeps its units", func(t *testing.T) {
 		resetServerlessLeases(t, ctx, pool)
-		seedServerlessUnits(t, ctx, repo, 1)
+		seedServerlessUnits(t, ctx, pool, repo, 1)
 
 		a, b := uuid.New(), uuid.New()
 		heartbeat(t, ctx, repo, a, time.Second)
@@ -812,7 +928,7 @@ func TestServerlessRepository(t *testing.T) {
 	// releases them in the same statement, and count and claim keep agreeing.
 	t.Run("a swept owner row releases its units", func(t *testing.T) {
 		resetServerlessLeases(t, ctx, pool)
-		seedServerlessUnits(t, ctx, repo, 3)
+		seedServerlessUnits(t, ctx, pool, repo, 3)
 
 		dead, live := uuid.New(), uuid.New()
 		heartbeat(t, ctx, repo, dead, time.Second)
@@ -835,7 +951,7 @@ func TestServerlessRepository(t *testing.T) {
 
 	t.Run("a graceful delete releases units a failed release left behind", func(t *testing.T) {
 		resetServerlessLeases(t, ctx, pool)
-		units := seedServerlessUnits(t, ctx, repo, 2)
+		units := seedServerlessUnits(t, ctx, pool, repo, 2)
 
 		processId := uuid.New()
 		heartbeat(t, ctx, repo, processId, time.Minute)
@@ -858,7 +974,7 @@ func TestServerlessRepository(t *testing.T) {
 		resetServerlessLeases(t, ctx, pool)
 
 		const numUnits = 10
-		seedServerlessUnits(t, ctx, repo, numUnits)
+		seedServerlessUnits(t, ctx, pool, repo, numUnits)
 
 		deadProcess := uuid.New()
 		liveProcess := uuid.New()
@@ -908,7 +1024,7 @@ func TestServerlessRepository(t *testing.T) {
 		resetServerlessLeases(t, ctx, pool)
 
 		const numUnits = 20
-		units := seedServerlessUnits(t, ctx, repo, numUnits)
+		units := seedServerlessUnits(t, ctx, pool, repo, numUnits)
 
 		owner := uuid.New()
 		other := uuid.New()
@@ -983,7 +1099,7 @@ func TestServerlessRepository(t *testing.T) {
 		resetServerlessLeases(t, ctx, pool)
 
 		const numUnits = 10
-		seedServerlessUnits(t, ctx, repo, numUnits)
+		seedServerlessUnits(t, ctx, pool, repo, numUnits)
 
 		processId := uuid.New()
 		heartbeat(t, ctx, repo, processId, time.Minute)
@@ -1044,18 +1160,21 @@ func TestServerlessRepository(t *testing.T) {
 		assert.Len(t, owned, numUnits)
 	})
 
-	t.Run("tenant upsert is idempotent", func(t *testing.T) {
+	t.Run("tenant upsert keeps the existing shard_count", func(t *testing.T) {
 		tenantId := uuid.New()
 
-		first, err := repo.Tenants().Upsert(ctx, tenantId)
+		first, err := repo.Tenants().Upsert(ctx, tenantId, 0)
 		require.NoError(t, err)
-		assert.Equal(t, int32(1), first.ShardCount)
+		assert.Equal(t, int32(1), first.ShardCount, "a zero shard count means the default")
 
-		_, err = repo.Tenants().UpdateShardCount(ctx, tenantId, 3)
+		again, err := repo.Tenants().Upsert(ctx, tenantId, 3)
 		require.NoError(t, err)
+		assert.Equal(t, int32(1), again.ShardCount, "upsert returns the existing row untouched")
 
-		again, err := repo.Tenants().Upsert(ctx, tenantId)
+		other := uuid.New()
+
+		created, err := repo.Tenants().Upsert(ctx, other, 3)
 		require.NoError(t, err)
-		assert.Equal(t, int32(3), again.ShardCount, "upsert returns the existing row untouched")
+		assert.Equal(t, int32(3), created.ShardCount, "a new row takes the configured count")
 	})
 }

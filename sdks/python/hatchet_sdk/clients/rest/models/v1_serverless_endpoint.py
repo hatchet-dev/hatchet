@@ -41,9 +41,6 @@ class V1ServerlessEndpoint(BaseModel):
     name: StrictStr = Field(
         description="The name of the endpoint. Unique within the tenant."
     )
-    namespace: StrictStr = Field(
-        description='The prefix applied to everything this endpoint registers (workflows, actions, events), as "<namespace>_". Read-only: assigned on creation and immutable.'
-    )
     kind: V1ServerlessEndpointKind
     healthcheck_url: StrictStr = Field(
         description="The HTTPS URL (port 443) polled periodically to discover the workflows this endpoint serves.",
@@ -76,7 +73,6 @@ class V1ServerlessEndpoint(BaseModel):
         "metadata",
         "tenantId",
         "name",
-        "namespace",
         "kind",
         "healthcheckUrl",
         "triggerUrl",
@@ -151,7 +147,6 @@ class V1ServerlessEndpoint(BaseModel):
                 ),
                 "tenantId": obj.get("tenantId"),
                 "name": obj.get("name"),
-                "namespace": obj.get("namespace"),
                 "kind": obj.get("kind"),
                 "healthcheckUrl": obj.get("healthcheckUrl"),
                 "triggerUrl": obj.get("triggerUrl"),

@@ -1,6 +1,6 @@
 // Package serverlessv1 serves the management API of the serverless operator: the endpoints a
-// tenant registers and the tenant's sharding settings. It writes configuration only; the
-// operator owns the status columns and the leases.
+// tenant registers. It writes configuration only; the operator owns the status columns and
+// the leases, and the tenant's shard count comes from the operator configuration.
 package serverlessv1
 
 import (
@@ -21,6 +21,10 @@ const (
 	minSigningSecretLength = 32
 
 	pgUniqueViolation = "23505"
+
+	// serverlessNotEntitledMessage answers endpoint creation for a tenant without the
+	// serverless operator entitlement.
+	serverlessNotEntitledMessage = "the serverless operator is not enabled for this tenant"
 )
 
 type V1ServerlessService struct {

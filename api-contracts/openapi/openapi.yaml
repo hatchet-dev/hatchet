@@ -85,8 +85,6 @@ paths:
     $ref: "./paths/v1/serverless/endpoints.yaml#/V1ServerlessEndpointListCreate"
   /api/v1/stable/serverless/endpoints/{v1-serverless-endpoint}:
     $ref: "./paths/v1/serverless/endpoints.yaml#/V1ServerlessEndpointGetUpdateDelete"
-  /api/v1/stable/tenants/{tenant}/serverless/settings:
-    $ref: "./paths/v1/serverless/endpoints.yaml#/V1ServerlessTenantSettingsGetUpdate"
   /api/v1/stable/tenants/{tenant}/cel/debug:
     $ref: "./paths/v1/cel/cel.yaml#/V1CELDebug"
   /api/ready:

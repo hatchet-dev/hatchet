@@ -7,7 +7,6 @@ package contract
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"google.golang.org/protobuf/encoding/protojson"
@@ -27,7 +26,11 @@ import (
 const (
 	SignatureHeader  = "X-Hatchet-Signature"
 	EndpointIdHeader = "X-Hatchet-Endpoint-Id"
-	TimestampHeader  = "X-Hatchet-Timestamp"
+	// TimestampHeader carries the time the request was built as decimal Unix seconds (not
+	// milliseconds or nanoseconds), the same value as the body's timestamp_unix_seconds. An
+	// endpoint rejects a value more than RequestMaxAge (5 minutes) from its own clock in
+	// either direction.
+	TimestampHeader = "X-Hatchet-Timestamp"
 )
 
 // Headers carried only by the durable websocket upgrade, which has no body to sign. The
@@ -63,35 +66,6 @@ func UpgradeSigningPayload(endpointId, timestamp, nonce, taskId, invocation stri
 
 // TriggerEnvelopeVersion is the version field of v1.ServerlessTriggerRequest.
 const TriggerEnvelopeVersion = 1
-
-// NamespaceSeparator joins an endpoint's namespace to the names it owns, the way the SDK's
-// HATCHET_CLIENT_NAMESPACE does. The operator registers every workflow name, action service
-// and event key an endpoint serves as <namespace><separator><name>, and the durable relay
-// applies the same prefix to the workflow names and user event keys an endpoint references
-// in nested requests, so the namespace is the boundary of what an endpoint can reach.
-const NamespaceSeparator = "_"
-
-// NamespacePrefix is what ApplyNamespace prepends.
-func NamespacePrefix(namespace string) string {
-	return namespace + NamespaceSeparator
-}
-
-// ApplyNamespace prefixes a workflow name or event key with the namespace. A name that
-// already carries the prefix is left alone, so applying it twice is harmless; an empty
-// namespace applies nothing.
-func ApplyNamespace(namespace, name string) string {
-	if namespace == "" {
-		return name
-	}
-
-	prefix := NamespacePrefix(namespace)
-
-	if strings.HasPrefix(name, prefix) {
-		return name
-	}
-
-	return prefix + name
-}
 
 // DoneStatusEvicted is the v1.ServerlessDoneFrame status of an invocation that evicted
 // itself.

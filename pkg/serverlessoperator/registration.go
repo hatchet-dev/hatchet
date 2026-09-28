@@ -421,12 +421,12 @@ func (reg *registration) cancelTask(action *contracts.AssignedAction) {
 	}
 }
 
-// deliver routes the action to its endpoint by namespace, reports STARTED, delivers, and
-// reports the outcome.
+// deliver routes the action to one of the endpoints serving it, reports STARTED, delivers,
+// and reports the outcome.
 func (reg *registration) deliver(ctx context.Context, task *inflightTask, action *contracts.AssignedAction) {
 	start := time.Now()
 
-	ep, cfg, err := reg.ts.cache.Route(ctx, action.ActionId)
+	ep, cfg, err := reg.ts.cache.Route(action.ActionId)
 
 	if err != nil {
 		reg.r.m.routingMiss()
@@ -543,7 +543,6 @@ func (reg *registration) deliverOverSocket(ctx context.Context, task *inflightTa
 		TriggerURL:            cfg.triggerUrl,
 		Secret:                cfg.secret,
 		EndpointId:            ep.id.String(),
-		Namespace:             ep.namespace.String(),
 		TaskId:                action.TaskRunExternalId,
 		MaxFrameBytes:         reg.r.cfg.WSMaxFrameBytes,
 		MaxUpgradeHeaderBytes: reg.r.cfg.WSMaxUpgradeHeaderBytes,

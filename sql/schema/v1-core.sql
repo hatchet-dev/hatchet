@@ -2896,10 +2896,6 @@ CREATE TABLE v1_serverless_endpoint (
     id UUID NOT NULL DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL,
     name TEXT NOT NULL,
-    -- Prefix for everything this endpoint registers (workflows, actions, events): "<namespace>_".
-    -- Unique per endpoint so names never collide within a tenant; immutable; the future hook
-    -- for per-endpoint auth.
-    namespace UUID NOT NULL DEFAULT gen_random_uuid(),
     kind v1_serverless_endpoint_kind NOT NULL DEFAULT 'CLOUDFLARE_WORKERS',
     healthcheck_url TEXT NOT NULL,
     trigger_url TEXT NOT NULL,
@@ -2916,16 +2912,23 @@ CREATE TABLE v1_serverless_endpoint (
     healthy BOOLEAN,
     status_error TEXT,
     status_changed_at TIMESTAMPTZ,
-    -- namespaced; written by the owner on healthcheck change
+    -- the action ids the endpoint's last accepted healthcheck declared, as registered with the
+    -- engine; written by the owner on healthcheck change. Several endpoints of a tenant may
+    -- declare the same action; each then serves it, like several workers would.
     registered_actions TEXT[] NOT NULL DEFAULT '{}',
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     -- the subset of registered_actions whose task asked for an invocation websocket
     stream_actions TEXT[] NOT NULL DEFAULT '{}',
-    CONSTRAINT v1_serverless_endpoint_pkey PRIMARY KEY (id),
-    CONSTRAINT v1_serverless_endpoint_tenant_name_key UNIQUE (tenant_id, name),
-    CONSTRAINT v1_serverless_endpoint_namespace_key UNIQUE (namespace)
+    -- Set by the delete API together with updated_at, so the routing caches' incremental
+    -- refresh sees the deletion through the version index and drops the endpoint; every other
+    -- read filters deleted rows out. The operator purges the rows after a grace period.
+    deleted_at TIMESTAMPTZ,
+    CONSTRAINT v1_serverless_endpoint_pkey PRIMARY KEY (id)
 );
+
+-- Names are unique among the live endpoints of a tenant; a deleted endpoint's name is free.
+CREATE UNIQUE INDEX v1_serverless_endpoint_tenant_name_key ON v1_serverless_endpoint (tenant_id, name) WHERE deleted_at IS NULL;
 
 -- endpoints of an owned unit (owner: polling) and of a served tenant (routing cache)
 CREATE INDEX v1_serverless_endpoint_unit_idx ON v1_serverless_endpoint (tenant_id, shard, id);
@@ -2987,6 +2990,10 @@ CREATE TABLE tenant_entitlement (
     strict_additional_metadata_filters BOOLEAN NOT NULL DEFAULT FALSE,
 
     dag_operator BOOLEAN NOT NULL DEFAULT FALSE,
+
+    -- Gates the serverless operator: endpoint creation over the API and the operator's lease
+    -- claims both require it.
+    serverless_operator BOOLEAN NOT NULL DEFAULT FALSE,
 
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

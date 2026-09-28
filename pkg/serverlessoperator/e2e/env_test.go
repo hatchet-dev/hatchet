@@ -221,6 +221,9 @@ func (e *testEnv) newTenant() *tenant {
 	row, err := dl.V1.Tenant().CreateTenant(e.ctx, &repository.CreateTenantOpts{Name: slug, Slug: slug})
 	require.NoError(e.t, err)
 
+	// The operator claims and serves only entitled tenants.
+	require.NoError(e.t, dl.V1.TenantEntitlement().SetEntitlements(e.ctx, row.ID, repository.TenantEntitlements{ServerlessOperator: true}))
+
 	// A new tenant gets its scheduler partition from a once-a-minute rebalance; run it now so
 	// the tenant's queue is scheduled right away (the scheduler refreshes its tenants every
 	// second).
@@ -456,9 +459,16 @@ func (e *testEnv) streamActions(endpointId uuid.UUID) []string {
 }
 
 // waitRegistered waits until the endpoint's registered_actions carry every given action,
-// which the owner writes after PutWorkflow succeeded.
+// which the owner writes after PutWorkflow succeeded, and until an active serverless worker
+// of the tenant advertises each of them: the row is written before the session's delta, so
+// the row alone says nothing about what the engine can assign yet. Several endpoints of a
+// tenant may register the same action; each row lists it on its own.
 func (e *testEnv) waitRegistered(endpointId uuid.UUID, actions ...string) {
 	e.t.Helper()
+
+	var tenantId uuid.UUID
+
+	require.NoError(e.t, e.pool.QueryRow(e.ctx, `SELECT tenant_id FROM v1_serverless_endpoint WHERE id = $1`, endpointId).Scan(&tenantId))
 
 	e.pollUntil(registerWait, fmt.Sprintf("endpoint %s to register %v", endpointId, actions), func() (bool, error) {
 		have := map[string]struct{}{}
@@ -470,6 +480,10 @@ func (e *testEnv) waitRegistered(endpointId uuid.UUID, actions ...string) {
 		for _, a := range actions {
 			if _, ok := have[a]; !ok {
 				return false, fmt.Errorf("registered_actions is %v", e.registeredActions(endpointId))
+			}
+
+			if _, ok := e.activeWorkerWithAction(tenantId, a); !ok {
+				return false, fmt.Errorf("no active worker advertises %s", a)
 			}
 		}
 
@@ -576,8 +590,9 @@ func (e *testEnv) workersOfProcess(processId uuid.UUID) []workerRow {
 	return out
 }
 
-// runToCompletion triggers the namespaced workflow and waits for the run to complete. The
-// trigger is retried while the engine has not seen the workflow yet.
+// runToCompletion triggers the workflow by the name the endpoint declared it under and waits
+// for the run to complete. The trigger is retried while the engine has not seen the workflow
+// yet.
 func (e *testEnv) runToCompletion(tn *tenant, workflow string, input map[string]any, timeout time.Duration) *client.RunDetails {
 	e.t.Helper()
 
@@ -653,7 +668,8 @@ func taskOutput(t *testing.T, details *client.RunDetails) map[string]any {
 	return out
 }
 
-// workflow is a one-task workflow definition as an endpoint advertises it: un-prefixed.
+// workflow is a one-task workflow definition as an endpoint advertises it, under the name and
+// action id the operator registers it with.
 func workflow(name, action string, durable bool, retries int32) *v1.CreateWorkflowVersionRequest {
 	return &v1.CreateWorkflowVersionRequest{
 		Name: name,
@@ -665,10 +681,6 @@ func workflow(name, action string, durable bool, retries int32) *v1.CreateWorkfl
 			Retries:    retries,
 		}},
 	}
-}
-
-func namespaced(ns uuid.UUID, name string) string {
-	return ns.String() + "_" + name
 }
 
 // dumpOnFailure logs what the fakes saw and the tenant's serverless workers when the test

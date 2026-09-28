@@ -27,7 +27,10 @@ V1ServerlessEndpointStatus:
       description: When the healthy flag last changed.
     registeredActions:
       type: array
-      description: The namespaced action ids the operator registered for this endpoint from its last healthcheck.
+      description: >-
+        The action ids the operator registered for this endpoint from its last healthcheck,
+        as the endpoint declared them. Several endpoints of a tenant may register the same
+        action; each then serves it.
       items:
         type: string
   required:
@@ -45,12 +48,6 @@ V1ServerlessEndpoint:
     name:
       type: string
       description: The name of the endpoint. Unique within the tenant.
-    namespace:
-      type: string
-      format: uuid
-      description: >-
-        The prefix applied to everything this endpoint registers (workflows, actions, events),
-        as "<namespace>_". Read-only: assigned on creation and immutable.
     kind:
       $ref: "#/V1ServerlessEndpointKind"
     healthcheckUrl:
@@ -86,7 +83,6 @@ V1ServerlessEndpoint:
     - metadata
     - tenantId
     - name
-    - namespace
     - kind
     - healthcheckUrl
     - triggerUrl
@@ -192,34 +188,3 @@ V1UpdateServerlessEndpointRequest:
     enabled:
       type: boolean
       description: Whether the operator polls and dispatches to this endpoint.
-
-V1ServerlessTenantSettings:
-  type: object
-  properties:
-    tenantId:
-      type: string
-      format: uuid
-      description: The ID of the tenant these settings belong to.
-    shardCount:
-      type: integer
-      format: int32
-      description: >-
-        The number of shards the tenant's endpoints are spread across. Each shard is a lease
-        unit that one operator process owns, so a count above 1 lets a hot tenant be served by
-        several processes. Existing endpoints keep their shard; only new endpoints hash over the
-        new count.
-  required:
-    - tenantId
-    - shardCount
-
-V1UpdateServerlessTenantSettingsRequest:
-  type: object
-  properties:
-    shardCount:
-      type: integer
-      format: int32
-      minimum: 1
-      maximum: 64
-      description: The number of shards to spread the tenant's endpoints across.
-  required:
-    - shardCount

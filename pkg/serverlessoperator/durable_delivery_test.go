@@ -173,7 +173,7 @@ func TestDurableDeliveryEndToEnd(t *testing.T) {
 	})
 
 	invocation := int32(2)
-	action := startAction(row.Namespace, "svc:run")
+	action := startAction("svc:run")
 	action.DurableTaskInvocationCount = &invocation
 	reg.deliver(t, action)
 
@@ -185,7 +185,6 @@ func TestDurableDeliveryEndToEnd(t *testing.T) {
 	assert.JSONEq(t, `{"memo":"done"}`, reg.lastEvent().EventPayload)
 
 	s := <-got
-	assert.Equal(t, row.Namespace.String(), s.first.Namespace)
 	assert.Equal(t, int32(2), s.first.InvocationCount)
 	assert.Equal(t, int32(5000), s.first.InlineWaitBudgetMs)
 	assert.Contains(t, s.memo, "response")
@@ -244,7 +243,7 @@ func TestDurableDeliveryCloseWithoutDoneIsRetryable(t *testing.T) {
 	reg.setOpenDurable(func(uuid.UUID, int32) (operator.DurableChannel, error) { return newFakeDurableChannel(), nil })
 
 	invocation := int32(0)
-	action := startAction(row.Namespace, "svc:run")
+	action := startAction("svc:run")
 	action.DurableTaskInvocationCount = &invocation
 	reg.deliver(t, action)
 
@@ -298,7 +297,7 @@ func TestDurableDeliveryCancelSendsNoSecondEvent(t *testing.T) {
 	reg.setOpenDurable(func(uuid.UUID, int32) (operator.DurableChannel, error) { return newFakeDurableChannel(), nil })
 
 	invocation := int32(1)
-	action := startAction(row.Namespace, "svc:run")
+	action := startAction("svc:run")
 	action.DurableTaskInvocationCount = &invocation
 	reg.deliver(t, action)
 
@@ -342,7 +341,7 @@ func TestStreamingTaskDeliveredOverSocket(t *testing.T) {
 	tenant := uuid.New()
 
 	row := healthyRow(endpointSpec{tenantId: tenant, name: "a", actions: []string{"svc:run", "svc:plain"}})
-	row.StreamActions = []string{prefixed(row.Namespace, "svc:run")}
+	row.StreamActions = []string{"svc:run"}
 
 	type seen struct {
 		first *v1.ServerlessFirstFrame
@@ -430,7 +429,7 @@ func TestStreamingTaskDeliveredOverSocket(t *testing.T) {
 		engine.recv <- finished(runId)
 	}()
 
-	action := startAction(row.Namespace, "svc:run")
+	action := startAction("svc:run")
 	reg.deliver(t, action)
 
 	require.Eventually(t, func() bool { return len(reg.eventTypes()) == 2 }, eventually, 10*time.Millisecond)
@@ -451,7 +450,7 @@ func TestStreamingTaskDeliveredOverSocket(t *testing.T) {
 
 	// The unflagged task of the same endpoint keeps the POST.
 	env.sender.respond(row.TriggerUrl, http.StatusOK, `{"ok":true}`)
-	reg.deliver(t, startAction(row.Namespace, "svc:plain"))
+	reg.deliver(t, startAction("svc:plain"))
 
 	require.Eventually(t, func() bool { return len(reg.eventTypes()) == 4 }, eventually, 10*time.Millisecond)
 	assert.Len(t, env.sender.callsTo(row.TriggerUrl), 1)

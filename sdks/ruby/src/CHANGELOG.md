@@ -5,6 +5,12 @@ All notable changes to Hatchet's Ruby SDK will be documented in this changelog.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.1] - 2026-09-28
+
+### Added
+
+- The generated REST client covers the serverless endpoints API: `HatchetSdkRest::ServerlessApi` with `v1_serverless_endpoint_list`, `v1_serverless_endpoint_create`, `v1_serverless_endpoint_get`, `v1_serverless_endpoint_update` and `v1_serverless_endpoint_delete`, and the `V1ServerlessEndpoint`, `V1ServerlessEndpointList`, `V1ServerlessEndpointStatus`, `V1ServerlessEndpointKind`, `V1CreateServerlessEndpointRequest` and `V1UpdateServerlessEndpointRequest` models. An endpoint is a deployed function the serverless operator polls for the workflows it serves and delivers tasks to; creating one requires the tenant's serverless operator entitlement.
+
 ## [0.8.0] - 2026-09-02
 
 ### Added

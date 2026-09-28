@@ -17,6 +17,16 @@ func (t *V1ServerlessService) V1ServerlessEndpointCreate(ctx echo.Context, reque
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
 	body := request.Body
 
+	entitled, err := t.config.V1.TenantEntitlement().IsServerlessOperatorEnabled(ctx.Request().Context(), tenant.ID)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to check the serverless operator entitlement: %w", err)
+	}
+
+	if !entitled {
+		return gen.V1ServerlessEndpointCreate403JSONResponse(apierrors.NewAPIErrors(serverlessNotEntitledMessage)), nil
+	}
+
 	if err := validateEndpointUrl("healthcheckUrl", body.HealthcheckUrl); err != nil {
 		return gen.V1ServerlessEndpointCreate400JSONResponse(apierrors.NewAPIErrors(err.Error())), nil
 	}
@@ -53,6 +63,7 @@ func (t *V1ServerlessService) V1ServerlessEndpointCreate(ctx echo.Context, reque
 		InlineWaitBudgetMs:    body.InlineWaitBudgetMs,
 		Labels:                labels,
 		Enabled:               body.Enabled,
+		ShardCount:            t.config.Runtime.ServerlessOperator.ShardCount,
 	}
 
 	if body.Kind != nil {

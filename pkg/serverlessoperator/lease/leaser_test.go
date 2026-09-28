@@ -552,3 +552,37 @@ func TestReleaseAndDelete(t *testing.T) {
 	require.NoError(t, s.DeleteProcess(context.Background()))
 	assert.Equal(t, []uuid.UUID{pid}, repo.DeletedProcs())
 }
+
+// A tenant without the serverless entitlement is neither counted nor claimed, and a unit of
+// a tenant whose entitlement is switched off while owned is released on the next tick and
+// reported lost, so the runner stops serving it.
+func TestTickSkipsAndReleasesUnentitledTenants(t *testing.T) {
+	repo := memrepo.New()
+	pid := uuid.New()
+
+	repo.SetLease(unit(tenantA, 0), nil, 2)
+	repo.SetLease(unit(tenantB, 0), nil, 2)
+	repo.SetEntitled(tenantB, false)
+
+	rec := &fakeReconciler{}
+	s := newLeaser(t, repo, rec, pid)
+
+	require.NoError(t, s.Tick(context.Background()))
+
+	assert.Equal(t, []Unit{unit(tenantA, 0)}, rec.gained, "only the entitled tenant's unit is claimed")
+	assert.Nil(t, repo.Lease(unit(tenantB, 0)).ProcessID, "the unentitled tenant's unit stays unowned")
+
+	repo.SetEntitled(tenantA, false)
+
+	require.NoError(t, s.Tick(context.Background()))
+
+	assert.Equal(t, []Unit{unit(tenantA, 0)}, rec.lost, "the unit is reported lost once the entitlement is off")
+	assert.Nil(t, repo.Lease(unit(tenantA, 0)).ProcessID, "the unit is released")
+	assert.Empty(t, s.Owned())
+
+	repo.SetEntitled(tenantA, true)
+
+	require.NoError(t, s.Tick(context.Background()))
+
+	assert.Equal(t, []Unit{unit(tenantA, 0), unit(tenantA, 0)}, rec.gained, "the unit is claimed again once the entitlement is back")
+}

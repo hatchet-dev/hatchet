@@ -39,15 +39,15 @@ const serverlessRestartBackoffMax = 30 * time.Second
 // until it has; the caller runs it before the dispatcher drains its workers so the
 // registrations' workers are deactivated while the dispatcher can still take their events.
 // Stop never reports the core's earlier failures, which are logged when they happen, so the
-// engine's cleanup chain continues past it. running reports whether the core is up at the
-// moment, for the engine's readiness probe. When disabled the stop function is a no-op and
-// running is nil.
+// engine's cleanup chain continues past it. The core is not part of the replica's readiness:
+// it initiates every connection it holds, so nothing routes to the replica on its account.
+// When disabled the stop function is a no-op.
 //
 // The core runs on its own context rather than the engine's so that shutdown is ordered by
 // the cleanup chain, not by the engine context's cancellation.
-func startServerlessOperator(sc *server.ServerConfig, d *dispatcher.DispatcherImpl, host operator.Host) (stop func() error, running func() bool, err error) {
+func startServerlessOperator(sc *server.ServerConfig, d *dispatcher.DispatcherImpl, host operator.Host) (stop func() error, err error) {
 	if !sc.Runtime.ServerlessOperatorEnabled {
-		return func() error { return nil }, nil, nil
+		return func() error { return nil }, nil
 	}
 
 	l := sc.Logger.With().Str("service", "serverless-operator").Logger()
@@ -63,7 +63,7 @@ func startServerlessOperator(sc *server.ServerConfig, d *dispatcher.DispatcherIm
 	}, &l)
 
 	if err != nil {
-		return nil, nil, fmt.Errorf("could not build serverless operator request sender: %w", err)
+		return nil, fmt.Errorf("could not build serverless operator request sender: %w", err)
 	}
 
 	cfg := serverlessConfigFromServer(cf)
@@ -91,11 +91,11 @@ func startServerlessOperator(sc *server.ServerConfig, d *dispatcher.DispatcherIm
 		sender.CloseIdleConnections()
 
 		return err
-	}, sup.Running, nil
+	}, nil
 }
 
 // serverlessSupervisor keeps the core running until stopped. Running reports whether the core
-// is up at the moment, for a readiness probe to consult.
+// is up at the moment; tests observe it.
 type serverlessSupervisor struct {
 	cancel  context.CancelFunc
 	done    chan struct{}
@@ -176,6 +176,7 @@ func serverlessConfigFromServer(cf server.ServerlessOperatorConfigFile) serverle
 		LinkName:                     serverlessLinkName,
 		DefaultSlots:                 cf.DefaultSlots,
 		DurableSlots:                 cf.DurableSlots,
+		ShardCount:                   cf.ShardCount,
 		LeaseTTL:                     cf.LeaseTTL,
 		HeartbeatInterval:            cf.HeartbeatInterval,
 		RebalanceInterval:            cf.RebalanceInterval,

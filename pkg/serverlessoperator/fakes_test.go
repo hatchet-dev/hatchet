@@ -530,14 +530,13 @@ type endpointSpec struct {
 	healthy  pgtype.Bool
 }
 
-// newEndpointRow builds an endpoint row with a fresh id and namespace. URLs derive from the
+// newEndpointRow builds an endpoint row with a fresh id. URLs derive from the
 // name so tests can install sender handlers by them.
 func newEndpointRow(spec endpointSpec) *sqlcv1.V1ServerlessEndpoint {
 	return &sqlcv1.V1ServerlessEndpoint{
 		ID:                    uuid.New(),
 		TenantID:              spec.tenantId,
 		Name:                  spec.name,
-		Namespace:             uuid.New(),
 		Kind:                  sqlcv1.V1ServerlessEndpointKindGENERICHTTP,
 		HealthcheckUrl:        "https://" + spec.name + ".example.test/health",
 		TriggerUrl:            "https://" + spec.name + ".example.test/trigger",
@@ -550,10 +549,6 @@ func newEndpointRow(spec endpointSpec) *sqlcv1.V1ServerlessEndpoint {
 		Healthy:               spec.healthy,
 		RegisteredActions:     spec.actions,
 	}
-}
-
-func prefixed(ns uuid.UUID, action string) string {
-	return namespacePrefix(ns) + action
 }
 
 type testEnv struct {
@@ -597,17 +592,11 @@ func newTestEnv(t *testing.T) *testEnv {
 }
 
 // addEndpoint stores the row and installs a healthcheck handler that advertises the row's
-// registered actions, unprefixed, so the first poll changes nothing.
+// registered actions, so the first poll changes nothing.
 func (e *testEnv) addEndpoint(row *sqlcv1.V1ServerlessEndpoint) {
 	e.repo.AddEndpoint(row)
 
-	actions := make([]string, 0, len(row.RegisteredActions))
-
-	for _, a := range row.RegisteredActions {
-		actions = append(actions, strings.TrimPrefix(a, namespacePrefix(row.Namespace)))
-	}
-
-	e.sender.respond(row.HealthcheckUrl, http.StatusOK, healthcheckBody(actions...))
+	e.sender.respond(row.HealthcheckUrl, http.StatusOK, healthcheckBody(row.RegisteredActions...))
 }
 
 func (e *testEnv) unit(row *sqlcv1.V1ServerlessEndpoint) memrepo.Unit {
@@ -635,7 +624,7 @@ func (e *testEnv) tenant(id uuid.UUID) *tenantState {
 	return e.r.tenants[id]
 }
 
-func startAction(ns uuid.UUID, action string) *contracts.AssignedAction {
+func startAction(action string) *contracts.AssignedAction {
 	return &contracts.AssignedAction{
 		ActionType:        contracts.ActionType_START_STEP_RUN,
 		TenantId:          uuid.New().String(),
@@ -643,8 +632,8 @@ func startAction(ns uuid.UUID, action string) *contracts.AssignedAction {
 		JobRunId:          "job-run",
 		TaskId:            "task",
 		TaskRunExternalId: uuid.New().String(),
-		ActionId:          prefixed(ns, action),
-		JobName:           prefixed(ns, "wf"),
+		ActionId:          action,
+		JobName:           "wf",
 		ActionPayload:     `{"input":1}`,
 		RetryCount:        1,
 	}

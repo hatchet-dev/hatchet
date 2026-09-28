@@ -13,10 +13,6 @@ CREATE TABLE v1_serverless_endpoint (
     id UUID NOT NULL DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL,
     name TEXT NOT NULL,
-    -- Prefix for everything this endpoint registers (workflows, actions, events): "<namespace>_".
-    -- Unique per endpoint so names never collide within a tenant; immutable; the future hook
-    -- for per-endpoint auth.
-    namespace UUID NOT NULL DEFAULT gen_random_uuid(),
     kind v1_serverless_endpoint_kind NOT NULL DEFAULT 'CLOUDFLARE_WORKERS',
     healthcheck_url TEXT NOT NULL,
     trigger_url TEXT NOT NULL,
@@ -33,16 +29,23 @@ CREATE TABLE v1_serverless_endpoint (
     healthy BOOLEAN,
     status_error TEXT,
     status_changed_at TIMESTAMPTZ,
-    -- namespaced; written by the owner on healthcheck change
+    -- the action ids the endpoint's last accepted healthcheck declared, as registered with the
+    -- engine; written by the owner on healthcheck change. Several endpoints of a tenant may
+    -- declare the same action; each then serves it, like several workers would.
     registered_actions TEXT[] NOT NULL DEFAULT '{}',
     -- the subset of registered_actions whose task asked for an invocation websocket
     stream_actions TEXT[] NOT NULL DEFAULT '{}',
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT v1_serverless_endpoint_pkey PRIMARY KEY (id),
-    CONSTRAINT v1_serverless_endpoint_tenant_name_key UNIQUE (tenant_id, name),
-    CONSTRAINT v1_serverless_endpoint_namespace_key UNIQUE (namespace)
+    -- Set by the delete API together with updated_at, so the routing caches' incremental
+    -- refresh sees the deletion through the version index and drops the endpoint; every other
+    -- read filters deleted rows out. The operator purges the rows after a grace period.
+    deleted_at TIMESTAMPTZ,
+    CONSTRAINT v1_serverless_endpoint_pkey PRIMARY KEY (id)
 );
+
+-- Names are unique among the live endpoints of a tenant; a deleted endpoint's name is free.
+CREATE UNIQUE INDEX v1_serverless_endpoint_tenant_name_key ON v1_serverless_endpoint (tenant_id, name) WHERE deleted_at IS NULL;
 
 -- endpoints of an owned unit (owner: polling) and of a served tenant (routing cache)
 CREATE INDEX v1_serverless_endpoint_unit_idx ON v1_serverless_endpoint (tenant_id, shard, id);
@@ -95,10 +98,15 @@ CREATE INDEX v1_serverless_lease_claimable_idx ON v1_serverless_lease (tenant_id
 -- The gRPC operator service counts the action links of every worker of an operator once per
 -- Listen stream (CountOperatorWorkerActions); the workers are found by (tenant, operator).
 CREATE INDEX "Worker_tenantId_operatorId_idx" ON "Worker" ("tenantId", "operatorId");
+
+-- Gates the serverless operator per tenant: endpoint creation over the API and the operator's
+-- lease claims both require it.
+ALTER TABLE tenant_entitlement ADD COLUMN serverless_operator BOOLEAN NOT NULL DEFAULT FALSE;
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
+ALTER TABLE tenant_entitlement DROP COLUMN IF EXISTS serverless_operator;
 DROP INDEX IF EXISTS "Worker_tenantId_operatorId_idx";
 DROP INDEX IF EXISTS v1_serverless_lease_claimable_idx;
 DROP INDEX IF EXISTS v1_serverless_lease_owner_idx;
@@ -107,6 +115,7 @@ DROP TABLE IF EXISTS v1_serverless_process;
 DROP TABLE IF EXISTS v1_serverless_tenant;
 DROP INDEX IF EXISTS v1_serverless_endpoint_version_idx;
 DROP INDEX IF EXISTS v1_serverless_endpoint_unit_idx;
+DROP INDEX IF EXISTS v1_serverless_endpoint_tenant_name_key;
 DROP TABLE IF EXISTS v1_serverless_endpoint;
 DROP TYPE IF EXISTS v1_serverless_endpoint_kind;
 -- +goose StatementEnd

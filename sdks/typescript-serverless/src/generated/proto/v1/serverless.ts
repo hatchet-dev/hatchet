@@ -12,31 +12,29 @@ import { CreateWorkflowVersionRequest } from "./workflows";
 
 export const protobufPackage = "v1";
 
-/**
- * ServerlessHealthcheckRequest is the body of POST healthcheck_url. The namespace lets the
- * endpoint apply the same prefix the operator applies to everything it registers.
- */
+/** ServerlessHealthcheckRequest is the body of POST healthcheck_url. */
 export interface ServerlessHealthcheckRequest {
   endpointId: string;
-  namespace: string;
   /**
-   * Unix seconds at which the request was built; the same value is sent in
-   * X-Hatchet-Timestamp.
+   * The time the request was built, in Unix seconds (not milliseconds or nanoseconds); the
+   * same value is sent in X-Hatchet-Timestamp. The endpoint rejects a request whose value
+   * lies more than 5 minutes from its own clock in either direction.
    */
-  timestamp: number;
+  timestampUnixSeconds: number;
 }
 
 /** ServerlessHealthcheckResponse is what an endpoint answers to a healthcheck. */
 export interface ServerlessHealthcheckResponse {
   /**
-   * The workflow definitions this endpoint serves, without the namespace prefix. The
-   * operator namespaces them, derives their action ids and registers them when the
-   * canonical form changes.
+   * The workflow definitions this endpoint serves, under their plain names, the way a
+   * worker registers them. The operator derives their action ids and registers them when
+   * the canonical form changes. Two endpoints of one tenant may declare the same workflow
+   * or action; both then serve it, like two workers.
    */
   workflows: CreateWorkflowVersionRequest[];
   /**
-   * Action ids this endpoint serves in addition to the ones derived from workflows, without
-   * the namespace prefix. When empty, the endpoint serves exactly the derived actions.
+   * Action ids this endpoint serves in addition to the ones derived from workflows. When
+   * empty, the endpoint serves exactly the derived actions.
    */
   actions: string[];
   durable: ServerlessDurableSupport | undefined;
@@ -44,15 +42,15 @@ export interface ServerlessHealthcheckResponse {
     | ServerlessRuntime
     | undefined;
   /**
-   * Per-task options, keyed by action id without the namespace prefix. A task the list does
-   * not name runs with the defaults: a non-durable task is invoked with one signed POST.
+   * Per-task options, keyed by action id. A task the list does not name runs with the
+   * defaults: a non-durable task is invoked with one signed POST.
    */
   tasks: ServerlessTaskOptions[];
 }
 
 /** ServerlessTaskOptions are the options of one task the endpoint serves. */
 export interface ServerlessTaskOptions {
-  /** The action id as it appears in the workflow definition, without the namespace prefix. */
+  /** The action id as it appears in the workflow definition. */
   action: string;
   /**
    * streams asks the operator to invoke the task over the websocket instead of the signed
@@ -80,20 +78,20 @@ export interface ServerlessRuntime {
 
 /**
  * ServerlessTriggerRequest is the body of POST trigger_url for a non-durable task. The action
- * carries the action id and workflow name as registered, namespace prefix included; the
- * endpoint strips the prefix to dispatch to user code.
+ * carries the action id and workflow name as registered, which is as the endpoint declared
+ * them; the endpoint dispatches to user code by them.
  */
 export interface ServerlessTriggerRequest {
   endpointId: string;
-  namespace: string;
   action:
     | AssignedAction
     | undefined;
   /**
-   * Unix seconds at which the request was built; the same value is sent in
-   * X-Hatchet-Timestamp.
+   * The time the request was built, in Unix seconds (not milliseconds or nanoseconds); the
+   * same value is sent in X-Hatchet-Timestamp. The endpoint rejects a request whose value
+   * lies more than 5 minutes from its own clock in either direction.
    */
-  timestamp: number;
+  timestampUnixSeconds: number;
   /** The envelope version, currently 1. */
   version: number;
 }
@@ -115,11 +113,12 @@ export interface ServerlessTriggerError {
  */
 export interface ServerlessFirstFrame {
   /**
-   * The assigned action, namespaced as registered. Its task run external id is the durable
-   * task id every request on this socket is stamped with.
+   * The assigned action, as registered. Its task run external id is the durable task id
+   * every request on this socket is stamped with.
    */
-  action: AssignedAction | undefined;
-  namespace: string;
+  action:
+    | AssignedAction
+    | undefined;
   /**
    * The invocation this socket serves. The endpoint re-executes a durable task from the top
    * on every invocation and the engine replays memo, wait_for and trigger_runs from its
@@ -236,7 +235,7 @@ export interface ServerlessDurableFrame {
 }
 
 function createBaseServerlessHealthcheckRequest(): ServerlessHealthcheckRequest {
-  return { endpointId: "", namespace: "", timestamp: 0 };
+  return { endpointId: "", timestampUnixSeconds: 0 };
 }
 
 export const ServerlessHealthcheckRequest: MessageFns<ServerlessHealthcheckRequest> = {
@@ -244,11 +243,8 @@ export const ServerlessHealthcheckRequest: MessageFns<ServerlessHealthcheckReque
     if (message.endpointId !== "") {
       writer.uint32(10).string(message.endpointId);
     }
-    if (message.namespace !== "") {
-      writer.uint32(18).string(message.namespace);
-    }
-    if (message.timestamp !== 0) {
-      writer.uint32(24).int64(message.timestamp);
+    if (message.timestampUnixSeconds !== 0) {
+      writer.uint32(24).int64(message.timestampUnixSeconds);
     }
     return writer;
   },
@@ -268,20 +264,12 @@ export const ServerlessHealthcheckRequest: MessageFns<ServerlessHealthcheckReque
           message.endpointId = reader.string();
           continue;
         }
-        case 2: {
-          if (tag !== 18) {
-            break;
-          }
-
-          message.namespace = reader.string();
-          continue;
-        }
         case 3: {
           if (tag !== 24) {
             break;
           }
 
-          message.timestamp = longToNumber(reader.int64());
+          message.timestampUnixSeconds = longToNumber(reader.int64());
           continue;
         }
       }
@@ -300,8 +288,11 @@ export const ServerlessHealthcheckRequest: MessageFns<ServerlessHealthcheckReque
         : isSet(object.endpoint_id)
         ? globalThis.String(object.endpoint_id)
         : "",
-      namespace: isSet(object.namespace) ? globalThis.String(object.namespace) : "",
-      timestamp: isSet(object.timestamp) ? globalThis.Number(object.timestamp) : 0,
+      timestampUnixSeconds: isSet(object.timestampUnixSeconds)
+        ? globalThis.Number(object.timestampUnixSeconds)
+        : isSet(object.timestamp_unix_seconds)
+        ? globalThis.Number(object.timestamp_unix_seconds)
+        : 0,
     };
   },
 
@@ -310,11 +301,8 @@ export const ServerlessHealthcheckRequest: MessageFns<ServerlessHealthcheckReque
     if (message.endpointId !== "") {
       obj.endpointId = message.endpointId;
     }
-    if (message.namespace !== "") {
-      obj.namespace = message.namespace;
-    }
-    if (message.timestamp !== 0) {
-      obj.timestamp = Math.round(message.timestamp);
+    if (message.timestampUnixSeconds !== 0) {
+      obj.timestampUnixSeconds = Math.round(message.timestampUnixSeconds);
     }
     return obj;
   },
@@ -325,8 +313,7 @@ export const ServerlessHealthcheckRequest: MessageFns<ServerlessHealthcheckReque
   fromPartial(object: DeepPartial<ServerlessHealthcheckRequest>): ServerlessHealthcheckRequest {
     const message = createBaseServerlessHealthcheckRequest();
     message.endpointId = object.endpointId ?? "";
-    message.namespace = object.namespace ?? "";
-    message.timestamp = object.timestamp ?? 0;
+    message.timestampUnixSeconds = object.timestampUnixSeconds ?? 0;
     return message;
   },
 };
@@ -678,7 +665,7 @@ export const ServerlessRuntime: MessageFns<ServerlessRuntime> = {
 };
 
 function createBaseServerlessTriggerRequest(): ServerlessTriggerRequest {
-  return { endpointId: "", namespace: "", action: undefined, timestamp: 0, version: 0 };
+  return { endpointId: "", action: undefined, timestampUnixSeconds: 0, version: 0 };
 }
 
 export const ServerlessTriggerRequest: MessageFns<ServerlessTriggerRequest> = {
@@ -686,14 +673,11 @@ export const ServerlessTriggerRequest: MessageFns<ServerlessTriggerRequest> = {
     if (message.endpointId !== "") {
       writer.uint32(10).string(message.endpointId);
     }
-    if (message.namespace !== "") {
-      writer.uint32(18).string(message.namespace);
-    }
     if (message.action !== undefined) {
       AssignedAction.encode(message.action, writer.uint32(26).fork()).join();
     }
-    if (message.timestamp !== 0) {
-      writer.uint32(32).int64(message.timestamp);
+    if (message.timestampUnixSeconds !== 0) {
+      writer.uint32(32).int64(message.timestampUnixSeconds);
     }
     if (message.version !== 0) {
       writer.uint32(40).int32(message.version);
@@ -716,14 +700,6 @@ export const ServerlessTriggerRequest: MessageFns<ServerlessTriggerRequest> = {
           message.endpointId = reader.string();
           continue;
         }
-        case 2: {
-          if (tag !== 18) {
-            break;
-          }
-
-          message.namespace = reader.string();
-          continue;
-        }
         case 3: {
           if (tag !== 26) {
             break;
@@ -737,7 +713,7 @@ export const ServerlessTriggerRequest: MessageFns<ServerlessTriggerRequest> = {
             break;
           }
 
-          message.timestamp = longToNumber(reader.int64());
+          message.timestampUnixSeconds = longToNumber(reader.int64());
           continue;
         }
         case 5: {
@@ -764,9 +740,12 @@ export const ServerlessTriggerRequest: MessageFns<ServerlessTriggerRequest> = {
         : isSet(object.endpoint_id)
         ? globalThis.String(object.endpoint_id)
         : "",
-      namespace: isSet(object.namespace) ? globalThis.String(object.namespace) : "",
       action: isSet(object.action) ? AssignedAction.fromJSON(object.action) : undefined,
-      timestamp: isSet(object.timestamp) ? globalThis.Number(object.timestamp) : 0,
+      timestampUnixSeconds: isSet(object.timestampUnixSeconds)
+        ? globalThis.Number(object.timestampUnixSeconds)
+        : isSet(object.timestamp_unix_seconds)
+        ? globalThis.Number(object.timestamp_unix_seconds)
+        : 0,
       version: isSet(object.version) ? globalThis.Number(object.version) : 0,
     };
   },
@@ -776,14 +755,11 @@ export const ServerlessTriggerRequest: MessageFns<ServerlessTriggerRequest> = {
     if (message.endpointId !== "") {
       obj.endpointId = message.endpointId;
     }
-    if (message.namespace !== "") {
-      obj.namespace = message.namespace;
-    }
     if (message.action !== undefined) {
       obj.action = AssignedAction.toJSON(message.action);
     }
-    if (message.timestamp !== 0) {
-      obj.timestamp = Math.round(message.timestamp);
+    if (message.timestampUnixSeconds !== 0) {
+      obj.timestampUnixSeconds = Math.round(message.timestampUnixSeconds);
     }
     if (message.version !== 0) {
       obj.version = Math.round(message.version);
@@ -797,11 +773,10 @@ export const ServerlessTriggerRequest: MessageFns<ServerlessTriggerRequest> = {
   fromPartial(object: DeepPartial<ServerlessTriggerRequest>): ServerlessTriggerRequest {
     const message = createBaseServerlessTriggerRequest();
     message.endpointId = object.endpointId ?? "";
-    message.namespace = object.namespace ?? "";
     message.action = (object.action !== undefined && object.action !== null)
       ? AssignedAction.fromPartial(object.action)
       : undefined;
-    message.timestamp = object.timestamp ?? 0;
+    message.timestampUnixSeconds = object.timestampUnixSeconds ?? 0;
     message.version = object.version ?? 0;
     return message;
   },
@@ -884,16 +859,13 @@ export const ServerlessTriggerError: MessageFns<ServerlessTriggerError> = {
 };
 
 function createBaseServerlessFirstFrame(): ServerlessFirstFrame {
-  return { action: undefined, namespace: "", invocationCount: 0, inlineWaitBudgetMs: 0 };
+  return { action: undefined, invocationCount: 0, inlineWaitBudgetMs: 0 };
 }
 
 export const ServerlessFirstFrame: MessageFns<ServerlessFirstFrame> = {
   encode(message: ServerlessFirstFrame, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     if (message.action !== undefined) {
       AssignedAction.encode(message.action, writer.uint32(10).fork()).join();
-    }
-    if (message.namespace !== "") {
-      writer.uint32(18).string(message.namespace);
     }
     if (message.invocationCount !== 0) {
       writer.uint32(24).int32(message.invocationCount);
@@ -917,14 +889,6 @@ export const ServerlessFirstFrame: MessageFns<ServerlessFirstFrame> = {
           }
 
           message.action = AssignedAction.decode(reader, reader.uint32());
-          continue;
-        }
-        case 2: {
-          if (tag !== 18) {
-            break;
-          }
-
-          message.namespace = reader.string();
           continue;
         }
         case 3: {
@@ -955,7 +919,6 @@ export const ServerlessFirstFrame: MessageFns<ServerlessFirstFrame> = {
   fromJSON(object: any): ServerlessFirstFrame {
     return {
       action: isSet(object.action) ? AssignedAction.fromJSON(object.action) : undefined,
-      namespace: isSet(object.namespace) ? globalThis.String(object.namespace) : "",
       invocationCount: isSet(object.invocationCount)
         ? globalThis.Number(object.invocationCount)
         : isSet(object.invocation_count)
@@ -974,9 +937,6 @@ export const ServerlessFirstFrame: MessageFns<ServerlessFirstFrame> = {
     if (message.action !== undefined) {
       obj.action = AssignedAction.toJSON(message.action);
     }
-    if (message.namespace !== "") {
-      obj.namespace = message.namespace;
-    }
     if (message.invocationCount !== 0) {
       obj.invocationCount = Math.round(message.invocationCount);
     }
@@ -994,7 +954,6 @@ export const ServerlessFirstFrame: MessageFns<ServerlessFirstFrame> = {
     message.action = (object.action !== undefined && object.action !== null)
       ? AssignedAction.fromPartial(object.action)
       : undefined;
-    message.namespace = object.namespace ?? "";
     message.invocationCount = object.invocationCount ?? 0;
     message.inlineWaitBudgetMs = object.inlineWaitBudgetMs ?? 0;
     return message;

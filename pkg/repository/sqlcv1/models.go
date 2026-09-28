@@ -3171,6 +3171,7 @@ type TenantEntitlement struct {
 	PrometheusMetrics               bool               `json:"prometheus_metrics"`
 	StrictAdditionalMetadataFilters bool               `json:"strict_additional_metadata_filters"`
 	DagOperator                     bool               `json:"dag_operator"`
+	ServerlessOperator              bool               `json:"serverless_operator"`
 	CreatedAt                       pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                       pgtype.Timestamptz `json:"updated_at"`
 }
@@ -3837,7 +3838,6 @@ type V1ServerlessEndpoint struct {
 	ID                    uuid.UUID                `json:"id"`
 	TenantID              uuid.UUID                `json:"tenant_id"`
 	Name                  string                   `json:"name"`
-	Namespace             uuid.UUID                `json:"namespace"`
 	Kind                  V1ServerlessEndpointKind `json:"kind"`
 	HealthcheckUrl        string                   `json:"healthcheck_url"`
 	TriggerUrl            string                   `json:"trigger_url"`
@@ -3855,6 +3855,7 @@ type V1ServerlessEndpoint struct {
 	CreatedAt             pgtype.Timestamptz       `json:"created_at"`
 	UpdatedAt             pgtype.Timestamptz       `json:"updated_at"`
 	StreamActions         []string                 `json:"stream_actions"`
+	DeletedAt             pgtype.Timestamptz       `json:"deleted_at"`
 }
 
 type V1ServerlessLease struct {

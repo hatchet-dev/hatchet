@@ -47,9 +47,23 @@ type budgetRepo struct {
 	readVersions int
 }
 
-func (r *budgetRepo) ListForTenant(context.Context, uuid.UUID) ([]*sqlcv1.V1ServerlessEndpoint, error) {
-	r.readRows += len(r.rows)
-	return r.rows, nil
+// ListForTenant pages by id like the database; the rows are kept sorted by id.
+func (r *budgetRepo) ListForTenant(_ context.Context, _ uuid.UUID, afterId uuid.UUID, limit int64) ([]*sqlcv1.V1ServerlessEndpoint, error) {
+	out := make([]*sqlcv1.V1ServerlessEndpoint, 0)
+
+	for _, row := range r.rows {
+		if int64(len(out)) >= limit {
+			break
+		}
+
+		if row.ID.String() > afterId.String() {
+			out = append(out, row)
+		}
+	}
+
+	r.readRows += len(out)
+
+	return out, nil
 }
 
 func (r *budgetRepo) ListUpdatedSince(_ context.Context, _ uuid.UUID, since time.Time, sinceId uuid.UUID) ([]*sqlcv1.V1ServerlessEndpoint, error) {
@@ -151,6 +165,12 @@ type budgetRootRepo struct {
 
 func (r budgetRootRepo) Endpoints() repository.ServerlessEndpointRepository { return r.ep }
 
+// UpdateRegisteredActions accepts the write without recording it: the fixed row set is what
+// the measurements read.
+func (r *budgetRepo) UpdateRegisteredActions(context.Context, uuid.UUID, []string, []string) error {
+	return nil
+}
+
 var budgetTenant = uuid.MustParse("00000000-0000-0000-0000-000000000001")
 
 // budgetRows builds n endpoints of one tenant with a actions each, all on shard 0, with ids
@@ -164,13 +184,12 @@ func budgetRows(n, a int) []*sqlcv1.V1ServerlessEndpoint {
 		actions := make([]string, a)
 
 		for j := range actions {
-			actions[j] = id.String() + fmt.Sprintf("_service:action%03d", j)
+			actions[j] = fmt.Sprintf("service%08d:action%03d", i, j)
 		}
 
 		rows[i] = &sqlcv1.V1ServerlessEndpoint{
 			ID:                id,
 			TenantID:          budgetTenant,
-			Namespace:         id,
 			Name:              fmt.Sprintf("endpoint-%08d", i),
 			HealthcheckUrl:    fmt.Sprintf("https://endpoint-%08d.example.test/health", i),
 			TriggerUrl:        fmt.Sprintf("https://endpoint-%08d.example.test/trigger", i),
@@ -242,7 +261,8 @@ func TestLoadUnitEndpointsBudget(t *testing.T) {
 	require.NotNil(t, ts)
 	union, rev := ts.cache.ActionUnion()
 	assert.Len(t, union, endpoints*10)
-	assert.Equal(t, uint64(1), rev, "the load published one revision and the unit pages none")
+	pages := uint64((endpoints + int(endpointPageSize) - 1) / int(endpointPageSize))
+	assert.Equal(t, pages, rev, "the load published one revision per page and the unit pages none")
 }
 
 // A refresh with nothing changed must read nothing and leave the watermark alone: the review
@@ -516,7 +536,7 @@ func TestPersistentWorkflowRejectionWritesStatusOnce(t *testing.T) {
 func newRegistrationForTest(c *routingCache, session operator.Session) *registration {
 	l := zerolog.Nop()
 	union, rev := c.ActionUnion()
-	reg := &registration{session: session, base: union, advertisedRev: rev, r: &runner{l: &l}}
+	reg := &registration{session: session, base: union, advertisedRev: rev, r: &runner{l: &l, repo: budgetRootRepo{ep: c.repo.(*budgetRepo)}}}
 	reg.ts = &tenantState{cache: c, tenantId: c.tenantId, reg: reg}
 
 	return reg
@@ -547,8 +567,8 @@ func BenchmarkOneActionChangeSync(b *testing.B) {
 			reg := newRegistrationForTest(c, noopSession{})
 			base := append([]string(nil), ep.RegisteredActions...)
 			variants := [][]string{
-				append(append([]string(nil), base...), ep.Namespace.String()+"_service:extra0"),
-				append(append([]string(nil), base...), ep.Namespace.String()+"_service:extra1"),
+				append(append([]string(nil), base...), "service:extra0"),
+				append(append([]string(nil), base...), "service:extra1"),
 			}
 
 			b.ReportAllocs()

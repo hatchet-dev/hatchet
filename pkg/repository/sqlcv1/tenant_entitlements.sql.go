@@ -29,7 +29,7 @@ func (q *Queries) AnyTenantHasAuditLogs(ctx context.Context, db DBTX, tenantids 
 }
 
 const getTenantEntitlement = `-- name: GetTenantEntitlement :one
-SELECT tenant_id, audit_logs, prometheus_metrics, strict_additional_metadata_filters, dag_operator, created_at, updated_at
+SELECT tenant_id, audit_logs, prometheus_metrics, strict_additional_metadata_filters, dag_operator, serverless_operator, created_at, updated_at
 FROM tenant_entitlement
 WHERE tenant_id = $1::uuid
 `
@@ -43,6 +43,7 @@ func (q *Queries) GetTenantEntitlement(ctx context.Context, db DBTX, tenantid uu
 		&i.PrometheusMetrics,
 		&i.StrictAdditionalMetadataFilters,
 		&i.DagOperator,
+		&i.ServerlessOperator,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -50,16 +51,17 @@ func (q *Queries) GetTenantEntitlement(ctx context.Context, db DBTX, tenantid uu
 }
 
 const upsertTenantEntitlement = `-- name: UpsertTenantEntitlement :one
-INSERT INTO tenant_entitlement (tenant_id, audit_logs, prometheus_metrics, strict_additional_metadata_filters, dag_operator)
-VALUES ($1::uuid, $2::boolean, $3::boolean, $4::boolean, $5::boolean)
+INSERT INTO tenant_entitlement (tenant_id, audit_logs, prometheus_metrics, strict_additional_metadata_filters, dag_operator, serverless_operator)
+VALUES ($1::uuid, $2::boolean, $3::boolean, $4::boolean, $5::boolean, $6::boolean)
 ON CONFLICT (tenant_id) DO UPDATE
 SET
     audit_logs = EXCLUDED.audit_logs,
     prometheus_metrics = EXCLUDED.prometheus_metrics,
     strict_additional_metadata_filters = EXCLUDED.strict_additional_metadata_filters,
     dag_operator = EXCLUDED.dag_operator,
+    serverless_operator = EXCLUDED.serverless_operator,
     updated_at = NOW()
-RETURNING tenant_id, audit_logs, prometheus_metrics, strict_additional_metadata_filters, dag_operator, created_at, updated_at
+RETURNING tenant_id, audit_logs, prometheus_metrics, strict_additional_metadata_filters, dag_operator, serverless_operator, created_at, updated_at
 `
 
 type UpsertTenantEntitlementParams struct {
@@ -68,6 +70,7 @@ type UpsertTenantEntitlementParams struct {
 	Prometheusmetrics               bool      `json:"prometheusmetrics"`
 	Strictadditionalmetadatafilters bool      `json:"strictadditionalmetadatafilters"`
 	Dagoperator                     bool      `json:"dagoperator"`
+	Serverlessoperator              bool      `json:"serverlessoperator"`
 }
 
 func (q *Queries) UpsertTenantEntitlement(ctx context.Context, db DBTX, arg UpsertTenantEntitlementParams) (*TenantEntitlement, error) {
@@ -77,6 +80,7 @@ func (q *Queries) UpsertTenantEntitlement(ctx context.Context, db DBTX, arg Upse
 		arg.Prometheusmetrics,
 		arg.Strictadditionalmetadatafilters,
 		arg.Dagoperator,
+		arg.Serverlessoperator,
 	)
 	var i TenantEntitlement
 	err := row.Scan(
@@ -85,6 +89,7 @@ func (q *Queries) UpsertTenantEntitlement(ctx context.Context, db DBTX, arg Upse
 		&i.PrometheusMetrics,
 		&i.StrictAdditionalMetadataFilters,
 		&i.DagOperator,
+		&i.ServerlessOperator,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

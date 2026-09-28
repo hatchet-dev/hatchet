@@ -41,6 +41,11 @@ type CreateServerlessEndpointOpts struct {
 
 	// Enabled defaults to true.
 	Enabled *bool
+
+	// ShardCount is the shard_count the tenant's row is created with when this is the tenant's
+	// first endpoint (the operator's configured value); an existing row keeps its own. Zero
+	// means 1.
+	ShardCount int32 `validate:"min=0,max=64"`
 }
 
 type UpdateServerlessEndpointOpts struct {
@@ -122,7 +127,7 @@ func (r *serverlessEndpointRepository) Create(ctx context.Context, tenantId uuid
 
 	// The tenant row is upserted first so the endpoint's shard is computed against the
 	// tenant's current shard_count within the same transaction.
-	tenant, err := r.queries.UpsertServerlessTenant(ctx, tx, tenantId)
+	tenant, err := r.queries.UpsertServerlessTenant(ctx, tx, upsertServerlessTenantParams(tenantId, opts.ShardCount))
 
 	if err != nil {
 		return nil, fmt.Errorf("could not upsert serverless tenant: %w", err)
@@ -285,6 +290,10 @@ func (r *serverlessEndpointRepository) Delete(ctx context.Context, tenantId, end
 	return endpoint, nil
 }
 
+func (r *serverlessEndpointRepository) PurgeDeleted(ctx context.Context, cutoff time.Time) (int64, error) {
+	return r.queries.PurgeDeletedServerlessEndpoints(ctx, r.pool, pgtype.Timestamptz{Time: cutoff, Valid: true})
+}
+
 func (r *serverlessEndpointRepository) ListForUnits(ctx context.Context, units []ServerlessUnit, afterId uuid.UUID, limit int64) ([]*sqlcv1.V1ServerlessEndpoint, error) {
 	if len(units) == 0 {
 		return nil, nil
@@ -300,8 +309,12 @@ func (r *serverlessEndpointRepository) ListForUnits(ctx context.Context, units [
 	})
 }
 
-func (r *serverlessEndpointRepository) ListForTenant(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.V1ServerlessEndpoint, error) {
-	return r.queries.ListServerlessEndpointsForTenant(ctx, r.pool, tenantId)
+func (r *serverlessEndpointRepository) ListForTenant(ctx context.Context, tenantId uuid.UUID, afterId uuid.UUID, limit int64) ([]*sqlcv1.V1ServerlessEndpoint, error) {
+	return r.queries.ListServerlessEndpointsForTenant(ctx, r.pool, sqlcv1.ListServerlessEndpointsForTenantParams{
+		Tenantid:      tenantId,
+		Afterid:       afterId,
+		Endpointlimit: limit,
+	})
 }
 
 func (r *serverlessEndpointRepository) ListUpdatedSince(ctx context.Context, tenantId uuid.UUID, since time.Time, sinceId uuid.UUID) ([]*sqlcv1.V1ServerlessEndpoint, error) {
@@ -311,13 +324,6 @@ func (r *serverlessEndpointRepository) ListUpdatedSince(ctx context.Context, ten
 		// NULL and the query return nothing for a tenant the cache has never seen a row of.
 		Since:   pgtype.Timestamptz{Time: since, Valid: true},
 		Sinceid: sinceId,
-	})
-}
-
-func (r *serverlessEndpointRepository) GetByNamespace(ctx context.Context, tenantId, namespace uuid.UUID) (*sqlcv1.V1ServerlessEndpoint, error) {
-	return r.queries.GetServerlessEndpointByNamespace(ctx, r.pool, sqlcv1.GetServerlessEndpointByNamespaceParams{
-		Tenantid:  tenantId,
-		Namespace: namespace,
 	})
 }
 

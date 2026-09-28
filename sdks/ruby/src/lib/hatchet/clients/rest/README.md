@@ -147,8 +147,6 @@ Class | Method | HTTP request | Description
 *HatchetSdkRest::ServerlessApi* | [**v1_serverless_endpoint_get**](docs/ServerlessApi.md#v1_serverless_endpoint_get) | **GET** /api/v1/stable/serverless/endpoints/{v1-serverless-endpoint} | Get a serverless endpoint
 *HatchetSdkRest::ServerlessApi* | [**v1_serverless_endpoint_list**](docs/ServerlessApi.md#v1_serverless_endpoint_list) | **GET** /api/v1/stable/tenants/{tenant}/serverless/endpoints | List serverless endpoints
 *HatchetSdkRest::ServerlessApi* | [**v1_serverless_endpoint_update**](docs/ServerlessApi.md#v1_serverless_endpoint_update) | **PATCH** /api/v1/stable/serverless/endpoints/{v1-serverless-endpoint} | Update a serverless endpoint
-*HatchetSdkRest::ServerlessApi* | [**v1_serverless_tenant_get**](docs/ServerlessApi.md#v1_serverless_tenant_get) | **GET** /api/v1/stable/tenants/{tenant}/serverless/settings | Get serverless settings
-*HatchetSdkRest::ServerlessApi* | [**v1_serverless_tenant_update**](docs/ServerlessApi.md#v1_serverless_tenant_update) | **PATCH** /api/v1/stable/tenants/{tenant}/serverless/settings | Update serverless settings
 *HatchetSdkRest::SlackApi* | [**slack_webhook_delete**](docs/SlackApi.md#slack_webhook_delete) | **DELETE** /api/v1/slack/{slack} | Delete Slack webhook
 *HatchetSdkRest::SlackApi* | [**slack_webhook_list**](docs/SlackApi.md#slack_webhook_list) | **GET** /api/v1/tenants/{tenant}/slack | List Slack integrations
 *HatchetSdkRest::StepRunApi* | [**step_run_get**](docs/StepRunApi.md#step_run_get) | **GET** /api/v1/tenants/{tenant}/step-runs/{step-run} | Get step run
@@ -426,7 +424,6 @@ Class | Method | HTTP request | Description
  - [HatchetSdkRest::V1ServerlessEndpointKind](docs/V1ServerlessEndpointKind.md)
  - [HatchetSdkRest::V1ServerlessEndpointList](docs/V1ServerlessEndpointList.md)
  - [HatchetSdkRest::V1ServerlessEndpointStatus](docs/V1ServerlessEndpointStatus.md)
- - [HatchetSdkRest::V1ServerlessTenantSettings](docs/V1ServerlessTenantSettings.md)
  - [HatchetSdkRest::V1TaskEvent](docs/V1TaskEvent.md)
  - [HatchetSdkRest::V1TaskEventList](docs/V1TaskEventList.md)
  - [HatchetSdkRest::V1TaskEventType](docs/V1TaskEventType.md)
@@ -443,7 +440,6 @@ Class | Method | HTTP request | Description
  - [HatchetSdkRest::V1TriggerWorkflowRunRequest](docs/V1TriggerWorkflowRunRequest.md)
  - [HatchetSdkRest::V1UpdateFilterRequest](docs/V1UpdateFilterRequest.md)
  - [HatchetSdkRest::V1UpdateServerlessEndpointRequest](docs/V1UpdateServerlessEndpointRequest.md)
- - [HatchetSdkRest::V1UpdateServerlessTenantSettingsRequest](docs/V1UpdateServerlessTenantSettingsRequest.md)
  - [HatchetSdkRest::V1UpdateWebhookRequest](docs/V1UpdateWebhookRequest.md)
  - [HatchetSdkRest::V1WaitItem](docs/V1WaitItem.md)
  - [HatchetSdkRest::V1Webhook](docs/V1Webhook.md)

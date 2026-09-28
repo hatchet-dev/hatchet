@@ -303,7 +303,6 @@ func testParams(ep *fakeEndpoint, ch operator.DurableChannel) Params {
 		TriggerURL:         ep.srv.URL + "/trigger",
 		Secret:             testSecret,
 		EndpointId:         "ep-1",
-		Namespace:          "ns",
 		TaskId:             testTaskId,
 		PingInterval:       time.Second,
 		InlineWaitBudgetMs: 5000,
@@ -364,7 +363,6 @@ func TestRelayCompletesAndDropsLateFrames(t *testing.T) {
 	setT(t)
 
 	ep := newFakeEndpoint(t, func(t *testing.T, conn *websocket.Conn, first *v1.ServerlessFirstFrame) {
-		assert.Equal(t, "ns", first.Namespace)
 		assert.Equal(t, int32(3), first.InvocationCount)
 		assert.Equal(t, int32(5000), first.InlineWaitBudgetMs)
 

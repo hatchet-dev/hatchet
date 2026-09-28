@@ -34,10 +34,9 @@ const (
 )
 
 // recordedRequest is one request the fake endpoint accepted, for assertions on what the
-// operator sent: the namespace, the prefixed action id and workflow name, the invocation.
+// operator sent: the endpoint id, the action id as registered, the job name, the invocation.
 type recordedRequest struct {
 	kind         string
-	namespace    string
 	endpointId   string
 	actionId     string
 	workflowName string
@@ -94,7 +93,7 @@ type fakeEndpoint struct {
 	workflows []*v1.CreateWorkflowVersionRequest
 	script    durableScript
 	streams   streamScript
-	// streamActions are the un-prefixed actions the healthcheck flags with streams.
+	// streamActions are the actions the healthcheck flags with streams.
 	streamActions []string
 	failStatus    int
 	failBody      string
@@ -304,7 +303,7 @@ func (f *fakeEndpoint) serveHealthcheck(w http.ResponseWriter, body []byte) {
 		return
 	}
 
-	f.record(recordedRequest{kind: "healthcheck", namespace: req.Namespace, endpointId: req.EndpointId})
+	f.record(recordedRequest{kind: "healthcheck", endpointId: req.EndpointId})
 
 	f.mu.Lock()
 	workflows := f.workflows
@@ -349,7 +348,6 @@ func (f *fakeEndpoint) serveTrigger(w http.ResponseWriter, r *http.Request, body
 
 	f.record(recordedRequest{
 		kind:         "trigger",
-		namespace:    env.Namespace,
 		endpointId:   env.EndpointId,
 		actionId:     action.ActionId,
 		workflowName: action.JobName,
@@ -487,7 +485,6 @@ func (f *fakeEndpoint) runSocket(conn *websocket.Conn) {
 
 	f.record(recordedRequest{
 		kind:         "upgrade",
-		namespace:    first.Namespace,
 		actionId:     action.ActionId,
 		workflowName: action.JobName,
 		invocation:   first.InvocationCount,

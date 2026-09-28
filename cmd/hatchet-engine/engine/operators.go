@@ -18,7 +18,7 @@ import (
 const operatorStopTimeout = 60 * time.Second
 
 // inprocOperators is the engine's in-process operator runtime: the one host every operator
-// hosted in this dispatcher process opens its sessions on (the claimed DAG operators and the
+// hosted in this dispatcher process opens its sessions on (the claimed operators and the
 // serverless operator alike), and the stop that pauses, drains and closes the claimed
 // operators, then the host and its service. The serverless operator closes its own sessions
 // before stop runs.
@@ -28,10 +28,10 @@ type inprocOperators struct {
 }
 
 // startOperatorClaimer hosts the operators this dispatcher claims inside the engine process:
-// the in-process host over the engine's operator session logic, and the claimer that opens
-// the DAG operator on it for every claimed row. The stop it returns blocks until every claimed
-// operator is torn down; the caller runs it before the dispatcher drains its workers so the
-// operators' events still have somewhere to go.
+// the in-process host over the engine's operator session logic, and the claimer that opens an
+// operator on it for every claimed row, by the row's kind. The stop it returns blocks until
+// every claimed operator is torn down; the caller runs it before the dispatcher drains its
+// workers so the operators' events still have somewhere to go.
 func startOperatorClaimer(sc *server.ServerConfig, d *dispatcher.DispatcherImpl, adminv1Svc adminv1.AdminService) (*inprocOperators, error) {
 	l := sc.Logger.With().Str("service", "operator-claimer").Logger()
 

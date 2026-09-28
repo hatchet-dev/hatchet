@@ -213,7 +213,6 @@ lib/hatchet-sdk-rest/models/v1_serverless_endpoint.rb
 lib/hatchet-sdk-rest/models/v1_serverless_endpoint_kind.rb
 lib/hatchet-sdk-rest/models/v1_serverless_endpoint_list.rb
 lib/hatchet-sdk-rest/models/v1_serverless_endpoint_status.rb
-lib/hatchet-sdk-rest/models/v1_serverless_tenant_settings.rb
 lib/hatchet-sdk-rest/models/v1_task_event.rb
 lib/hatchet-sdk-rest/models/v1_task_event_list.rb
 lib/hatchet-sdk-rest/models/v1_task_event_type.rb
@@ -230,7 +229,6 @@ lib/hatchet-sdk-rest/models/v1_task_timing_list.rb
 lib/hatchet-sdk-rest/models/v1_trigger_workflow_run_request.rb
 lib/hatchet-sdk-rest/models/v1_update_filter_request.rb
 lib/hatchet-sdk-rest/models/v1_update_serverless_endpoint_request.rb
-lib/hatchet-sdk-rest/models/v1_update_serverless_tenant_settings_request.rb
 lib/hatchet-sdk-rest/models/v1_update_webhook_request.rb
 lib/hatchet-sdk-rest/models/v1_wait_item.rb
 lib/hatchet-sdk-rest/models/v1_webhook.rb

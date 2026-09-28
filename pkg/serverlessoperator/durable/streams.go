@@ -58,13 +58,13 @@ func newStreamTable(r *relay) *streamTable {
 	return &streamTable{r: r, open: map[string]*relayStream{}}
 }
 
-// allowRun is the run filter: whether the task on this socket may observe the run. The socket
-// is authorized for one task run of the tenant, and the operator's engine calls carry the
-// operator's own credentials, so today the task may observe any run of its tenant. When
-// tokens become namespace-scoped this is where the namespace of the run is checked, without a
-// change to the frames.
-func (r *relay) allowRun(tenantId, namespace, runId string) bool {
-	_, _, _ = tenantId, namespace, runId
+// allowRun is the run filter: whether the task on this socket may observe the run. The
+// decision is tenant-wide observation: a task may observe any run of its tenant, since the
+// socket is authorized for one task run of the tenant and the operator's engine calls carry
+// the operator's own credentials, which are tenant-wide themselves. When tokens gain a
+// narrower scope, that scope is checked here, without a change to the frames.
+func (r *relay) allowRun(tenantId, runId string) bool {
+	_, _ = tenantId, runId
 	return true
 }
 
@@ -98,7 +98,7 @@ func (r *relay) decodeStreamMessage(kind operator.RunStreamKind, raw string) (pr
 	}
 
 	for _, runId := range runsOf(msg) {
-		if !r.allowRun(r.p.Action.GetTenantId(), r.p.Namespace, runId) {
+		if !r.allowRun(r.p.Action.GetTenantId(), runId) {
 			return nil, connect.NewError(connect.CodePermissionDenied, fmt.Errorf("run %s is not observable from this task", runId))
 		}
 	}

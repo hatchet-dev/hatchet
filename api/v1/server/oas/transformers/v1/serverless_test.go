@@ -22,7 +22,6 @@ func testServerlessEndpoint() *sqlcv1.V1ServerlessEndpoint {
 		ID:                    uuid.New(),
 		TenantID:              uuid.New(),
 		Name:                  "billing-worker",
-		Namespace:             uuid.New(),
 		Kind:                  sqlcv1.V1ServerlessEndpointKindCLOUDFLAREWORKERS,
 		HealthcheckUrl:        "https://example.com/hatchet/health",
 		TriggerUrl:            "https://example.com/hatchet/trigger",
@@ -56,7 +55,6 @@ func TestToV1ServerlessEndpointMapsConfiguration(t *testing.T) {
 
 	assert.Equal(t, endpoint.ID.String(), result.Metadata.Id)
 	assert.Equal(t, endpoint.TenantID, result.TenantId)
-	assert.Equal(t, endpoint.Namespace, result.Namespace)
 	assert.Equal(t, "billing-worker", result.Name)
 	assert.Equal(t, "CLOUDFLARE_WORKERS", string(result.Kind))
 	assert.Equal(t, endpoint.HealthcheckUrl, result.HealthcheckUrl)
@@ -133,13 +131,4 @@ func TestToV1ServerlessEndpointListPagination(t *testing.T) {
 	assert.Equal(t, int64(1), *list.Pagination.CurrentPage)
 	assert.Equal(t, int64(2), *list.Pagination.NextPage)
 	assert.Equal(t, int64(4), *list.Pagination.NumPages)
-}
-
-func TestToV1ServerlessTenantSettings(t *testing.T) {
-	tenantId := uuid.New()
-
-	result := ToV1ServerlessTenantSettings(&sqlcv1.V1ServerlessTenant{TenantID: tenantId, ShardCount: 4})
-
-	assert.Equal(t, tenantId, result.TenantId)
-	assert.Equal(t, int32(4), result.ShardCount)
 }

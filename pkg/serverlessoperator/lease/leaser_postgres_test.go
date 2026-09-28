@@ -47,7 +47,7 @@ func leaseSchemaPool(t *testing.T) *pgxpool.Pool {
 		admin.Close()
 	})
 
-	for _, name := range []string{"v1_serverless_process", "v1_serverless_lease"} {
+	for _, name := range []string{"v1_serverless_process", "v1_serverless_lease", "tenant_entitlement"} {
 		_, err := admin.Exec(ctx, "CREATE TABLE "+ident+"."+name+" (LIKE public."+name+" INCLUDING ALL)")
 		require.NoError(t, err)
 	}
@@ -102,6 +102,9 @@ func TestZeroWeightWindowDoesNotStrandBacklog(t *testing.T) {
 		}
 
 		_, err := pool.Exec(ctx, "INSERT INTO v1_serverless_lease (tenant_id, shard, process_id, endpoint_count) VALUES ($1, 0, $2, $3)", tenant, holder, weight)
+		require.NoError(t, err)
+
+		_, err = pool.Exec(ctx, "INSERT INTO tenant_entitlement (tenant_id, serverless_operator) VALUES ($1, TRUE)", tenant)
 		require.NoError(t, err)
 	}
 

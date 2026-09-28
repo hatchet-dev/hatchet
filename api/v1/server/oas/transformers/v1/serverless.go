@@ -53,7 +53,6 @@ func ToV1ServerlessEndpoint(endpoint *sqlcv1.V1ServerlessEndpoint) gen.V1Serverl
 		},
 		TenantId:              endpoint.TenantID,
 		Name:                  endpoint.Name,
-		Namespace:             endpoint.Namespace,
 		Kind:                  gen.V1ServerlessEndpointKind(endpoint.Kind),
 		HealthcheckUrl:        endpoint.HealthcheckUrl,
 		TriggerUrl:            endpoint.TriggerUrl,
@@ -88,12 +87,5 @@ func ToV1ServerlessEndpointList(endpoints []*sqlcv1.V1ServerlessEndpoint, total,
 			NextPage:    &nextPage,
 			NumPages:    &totalPages,
 		},
-	}
-}
-
-func ToV1ServerlessTenantSettings(tenant *sqlcv1.V1ServerlessTenant) gen.V1ServerlessTenantSettings {
-	return gen.V1ServerlessTenantSettings{
-		TenantId:   tenant.TenantID,
-		ShardCount: tenant.ShardCount,
 	}
 }

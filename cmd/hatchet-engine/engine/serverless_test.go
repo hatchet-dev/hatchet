@@ -22,6 +22,7 @@ func TestServerlessConfigFromServer(t *testing.T) {
 		OperatorName:                 "custom",
 		DefaultSlots:                 11,
 		DurableSlots:                 12,
+		ShardCount:                   3,
 		LeaseTTL:                     13 * time.Second,
 		HeartbeatInterval:            14 * time.Second,
 		RebalanceInterval:            15 * time.Second,
@@ -49,6 +50,7 @@ func TestServerlessConfigFromServer(t *testing.T) {
 		LinkName:                     serverlessLinkName,
 		DefaultSlots:                 11,
 		DurableSlots:                 12,
+		ShardCount:                   3,
 		LeaseTTL:                     13 * time.Second,
 		HeartbeatInterval:            14 * time.Second,
 		RebalanceInterval:            15 * time.Second,
@@ -99,7 +101,7 @@ func TestServerlessSupervisorRestartsTheCore(t *testing.T) {
 	})
 
 	require.Eventually(t, func() bool { return starts.Load() == 3 }, 3*time.Second, time.Millisecond, "the core is restarted after each early failure")
-	assert.True(t, sup.Running(), "readiness follows the running core")
+	assert.True(t, sup.Running(), "the core is up after its restarts")
 
 	stopped := make(chan error, 1)
 
