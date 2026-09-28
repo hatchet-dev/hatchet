@@ -417,13 +417,28 @@ SELECT COUNT(*)
 FROM filtered
 `
 
-// planWithActualParams runs the workflow run list/count statements through the unnamed
-// statement, which is re-parsed on every call, so Postgres always plans them with the
-// actual parameter values. A cached named statement can switch to a generic plan, which
-// cannot fold the "$n IS NULL OR ..." guards and filters workflow_id and until after the
-// heap fetch instead of using them as index conditions. This relies on plan_cache_mode
-// being auto (the default); force_generic_plan would bring the generic plan back.
-const planWithActualParams = pgx.QueryExecModeCacheDescribe
+// forceCustomPlan forces Postgres to generate a query plan using the parameter values.
+//
+// This is applicable to FetchWorkflowRunIds and CountWorkflowRuns, they have multiple optional filters written as
+// `$n IS NULL OR ...`; a generic plan won't simplify these.
+//
+// Example:
+//
+//	CREATE INDEX ix_v1_runs_olap_tenant_ins_at_status_wf ON v1_runs_olap (tenant_id, inserted_at DESC, readable_status, workflow_id);
+//
+// The workflow_id (param $3) can't be used with the filter `($3 IS NULL) OR (workflow_id = ANY ($3))` Custom plans will
+// look differently between these cases, but generic plan can't address both.
+//
+// With QueryExecModeCacheDescribe, pgx doesn't create a named prepared statement (the default behavior is to create it).
+// It re-sends Parse for the unnamed statement on every call, so Postgres gets a fresh statement whose execution count
+// starts at zero. Under the default plan_cache_mode = auto, a statement with fewer than five executions always gets
+// a custom plan.
+//
+// The tradeoff is the cost of a parse and a plan on every call (3-5 ms for a 7-day window).
+//
+// Why create multiple variants? FetchWorkflowRunIds and CountWorkflowRuns already have 3 variants each, and we want
+// to avoid adding more.
+const forceCustomPlan = pgx.QueryExecModeCacheDescribe
 
 type CountWorkflowRunsParams struct {
 	Tenantid                      uuid.UUID          `json:"tenantid"`
@@ -453,7 +468,7 @@ func (q *Queries) CountWorkflowRuns(ctx context.Context, db DBTX, arg CountWorkf
 		metadataContains = arg.AdditionalMetadataContainsAny
 	}
 
-	row := db.QueryRow(ctx, query, planWithActualParams,
+	row := db.QueryRow(ctx, query, forceCustomPlan,
 		arg.Tenantid,
 		arg.Statuses,
 		arg.WorkflowIds,
@@ -667,7 +682,7 @@ func (q *Queries) FetchWorkflowRunIds(ctx context.Context, db DBTX, arg FetchWor
 		metadataContains = arg.AdditionalMetadataContainsAny
 	}
 
-	rows, err := db.Query(ctx, query, planWithActualParams,
+	rows, err := db.Query(ctx, query, forceCustomPlan,
 		arg.Tenantid,
 		arg.Statuses,
 		arg.WorkflowIds,
