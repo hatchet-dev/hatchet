@@ -17,7 +17,7 @@ const corsMaxAge = 2 * time.Hour
 func withCORS(allowedOrigins []string, next http.Handler) http.Handler {
 	opts := cors.Options{
 		AllowedMethods: connectcors.AllowedMethods(),
-		AllowedHeaders: append(connectcors.AllowedHeaders(), "Authorization"),
+		AllowedHeaders: []string{"*"},
 		ExposedHeaders: connectcors.ExposedHeaders(),
 		MaxAge:         int(corsMaxAge.Seconds()),
 	}
