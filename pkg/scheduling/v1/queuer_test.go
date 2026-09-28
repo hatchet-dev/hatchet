@@ -173,6 +173,11 @@ func TestQueuer_CapacityRestoredDuringFlushRequeuesMisses(t *testing.T) {
 	tm := &tenantManager{queuers: []*Queuer{q}}
 	s.onCapacityRestored = func(queues []string) { tm.notifyQueuers(context.Background(), queues) }
 
+	// released below once the wake has been observed; on an early failure the
+	// cleanup releases it so the held flush goroutine is not orphaned
+	release := sync.OnceFunc(func() { close(qr.flushRelease) })
+	t.Cleanup(release)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	go q.loopQueue(ctx)
@@ -195,7 +200,7 @@ func TestQueuer_CapacityRestoredDuringFlushRequeuesMisses(t *testing.T) {
 	// once the flush acks the miss, the batch re-queues and the retry assigns
 	// the item well inside the 1 s poll interval
 	released := time.Now()
-	close(qr.flushRelease)
+	release()
 	require.Eventually(t, func() bool { return qr.flushCount() >= 2 }, 500*time.Millisecond, time.Millisecond,
 		"the missed item was not retried after the flush acked it")
 	require.Less(t, time.Since(released), 900*time.Millisecond)
