@@ -591,8 +591,6 @@ func (t *tenantManager) queue(ctx context.Context, queueNames []string) {
 	for _, name := range queueNames {
 		requested[name] = struct{}{}
 	}
-	// iterate t.queuers (not queueNames) to keep queueMu acquisition order consistent
-	// across goroutines, avoiding lock-ordering warnings from go-deadlock
 	for _, q := range t.queuers {
 		if _, ok := requested[q.queueName]; ok {
 			q.queue(ctx)

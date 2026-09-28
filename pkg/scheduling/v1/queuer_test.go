@@ -164,7 +164,6 @@ func TestQueuer_CapacityRestoredDuringFlushRequeuesMisses(t *testing.T) {
 		limit:         100,
 		resultsCh:     make(chan *QueueResults, 16),
 		notifyQueueCh: make(chan map[string]string, 1),
-		queueMu:       newMu(&l),
 		unackedMu:     newRWMu(&l),
 		unacked:       make(map[int64]struct{}),
 		unassigned:    make(map[int64]*sqlcv1.V1QueueItem),

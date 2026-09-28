@@ -52,7 +52,12 @@ type Queuer struct {
 
 	notifyQueueCh chan map[string]string
 
-	queueMu mutex
+	// wakePending is set while a wake goroutine (see queue) is waiting to hand its
+	// carrier to loopQueue, so further wakes coalesce into it. A flag rather than a
+	// TryLock-ed mutex: the release runs on the wake goroutine, and a mutex unlocked
+	// off the goroutine that locked it reads as still held to lock-order checkers
+	// such as go-deadlock, which then flag any lock the caller takes next.
+	wakePending atomic.Bool
 
 	cleanup func()
 
@@ -128,7 +133,6 @@ func newQueuer(conf *sharedConfig, tenantId uuid.UUID, queueName string, s *Sche
 		limit:         defaultLimit,
 		resultsCh:     resultsCh,
 		notifyQueueCh: notifyQueueCh,
-		queueMu:       newMu(&queueLogger),
 		unackedMu:     newRWMu(&queueLogger),
 		unacked:       make(map[int64]struct{}),
 		unassigned:    make(map[int64]*sqlcv1.V1QueueItem),
@@ -161,12 +165,12 @@ func (q *Queuer) Cleanup() {
 }
 
 func (q *Queuer) queue(ctx context.Context) {
-	if ok := q.queueMu.TryLock(); !ok {
+	if !q.wakePending.CompareAndSwap(false, true) {
 		return
 	}
 
 	go func() {
-		defer q.queueMu.Unlock()
+		defer q.wakePending.Store(false)
 
 		telemetryCtx, span := telemetry.NewSpan(ctx, "notify-queue")
 		defer span.End()
