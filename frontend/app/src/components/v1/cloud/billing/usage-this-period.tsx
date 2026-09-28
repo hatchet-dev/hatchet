@@ -287,7 +287,10 @@ function TenantUsageChart({
 
   return (
     <ChartContainer config={config} className="aspect-auto h-[240px] w-full">
-      <BarChart data={points} margin={{ left: 0, right: 0, top: 8, bottom: 0 }}>
+      <BarChart
+        data={points}
+        margin={{ left: 8, right: 8, top: 8, bottom: 0 }}
+      >
         <CartesianGrid vertical={false} />
         <XAxis
           dataKey="date"
@@ -306,14 +309,14 @@ function TenantUsageChart({
         <YAxis
           tickLine={false}
           axisLine={false}
-          tickMargin={4}
-          width={36}
+          tickMargin={8}
+          width={60}
           style={{ fontSize: '10px', userSelect: 'none' }}
         />
         <ChartTooltip
           content={
             <ChartTooltipContent
-              className="w-[180px] font-mono text-xs"
+              className="w-max max-w-xs font-mono text-xs"
               labelFormatter={(value) =>
                 new Date(value).toLocaleDateString([], {
                   month: 'short',
@@ -346,7 +349,7 @@ function UsageSparkline({ values }: { values: number[] }) {
       <ResponsiveContainer width="100%" height="100%">
         <LineChart
           data={data}
-          margin={{ top: 4, right: 0, bottom: 4, left: 0 }}
+          margin={{ top: 4, right: 2, bottom: 4, left: 2 }}
         >
           <Line
             type="monotone"
@@ -828,14 +831,20 @@ export function UsageThisPeriod({
                         className="flex w-full items-center justify-between gap-4 px-6 py-2"
                       >
                         <div className="min-w-0">
-                          <p className="text-sm text-foreground">
+                          <p
+                            className="truncate text-sm text-foreground"
+                            title={tenant.tenantName}
+                          >
                             {tenant.tenantName}
                           </p>
-                          <p className="text-xs text-muted-foreground">
+                          <p
+                            className="truncate text-xs text-muted-foreground"
+                            title={tenant.tenantSlug}
+                          >
                             {tenant.tenantSlug}
                           </p>
                         </div>
-                        <p className="text-sm tabular-nums text-muted-foreground">
+                        <p className="shrink-0 whitespace-nowrap text-sm tabular-nums text-muted-foreground">
                           {formatUsageCount(value)}
                           {inventoryTotal > 0
                             ? ` · ${percent.toFixed(1)}%`
@@ -909,15 +918,21 @@ export function UsageThisPeriod({
                             style={{ backgroundColor: color }}
                           />
                           <div className="min-w-0">
-                            <p className="text-sm text-foreground">
+                            <p
+                              className="truncate text-sm text-foreground"
+                              title={tenant.tenantName}
+                            >
                               {tenant.tenantName}
                             </p>
-                            <p className="text-xs text-muted-foreground">
+                            <p
+                              className="truncate text-xs text-muted-foreground"
+                              title={tenant.tenantSlug}
+                            >
                               {tenant.tenantSlug}
                             </p>
                           </div>
                         </div>
-                        <p className="text-sm tabular-nums text-muted-foreground">
+                        <p className="shrink-0 whitespace-nowrap text-sm tabular-nums text-muted-foreground">
                           {formatUsageCount(value)}
                           {tenantTotal > 0 ? ` · ${percent.toFixed(1)}%` : ''}
                         </p>
