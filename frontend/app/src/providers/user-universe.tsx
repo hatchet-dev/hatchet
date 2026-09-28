@@ -23,6 +23,10 @@ type UserUniverse = {
   isLoaded: boolean;
   isFetching: boolean;
   organizations: OrganizationForUserList['rows'] | null;
+  // True when the control plane has not reported a free-organization cap.
+  // A missing flag stays allowed so self-hosted and first-org onboarding
+  // are unchanged.
+  canCreateOrganization: boolean;
   tenantMemberships: TenantMember[] | null;
   invalidate: () => Promise<void>;
   logoutMutation: UseMutationResult<
@@ -41,10 +45,12 @@ type UserUniverse = {
       tenantMemberships: TenantMember[];
       // null when self-hosted; rows (possibly empty) when control plane is on
       organizations: OrganizationForUserList['rows'] | null;
+      canCreateOrganization: boolean;
     }
   | {
       isLoaded: false;
       organizations: null;
+      canCreateOrganization: boolean;
       tenantMemberships: null;
     }
 );
@@ -55,6 +61,7 @@ type PossibleQueryResponses =
   | {
       isControlPlaneEnabled: true;
       organizations: OrganizationForUserList['rows'];
+      canCreateOrganization: boolean;
       tenantMemberships: TenantMember[];
     }
   | {
@@ -83,6 +90,8 @@ export const userUniverseQuery = (isControlPlaneEnabled: boolean) => ({
       ? {
           isControlPlaneEnabled,
           organizations,
+          canCreateOrganization:
+            organizationsResult?.data.canCreateOrganization !== false,
           tenantMemberships: membershipRows,
         }
       : {
@@ -170,6 +179,8 @@ export function UserUniverseProvider({
           isFetching,
           organizations:
             tenantMembershipAndOrganizationsQuery.data.organizations,
+          canCreateOrganization:
+            tenantMembershipAndOrganizationsQuery.data.canCreateOrganization,
           tenantMemberships:
             tenantMembershipAndOrganizationsQuery.data.tenantMemberships,
           get,
@@ -182,6 +193,7 @@ export function UserUniverseProvider({
         isLoaded: true,
         isFetching,
         organizations: null,
+        canCreateOrganization: true,
         tenantMemberships:
           tenantMembershipAndOrganizationsQuery.data.tenantMemberships,
         get,
@@ -194,6 +206,7 @@ export function UserUniverseProvider({
       isLoaded: false,
       isFetching,
       organizations: null,
+      canCreateOrganization: true,
       tenantMemberships: null,
       get,
       invalidate,
