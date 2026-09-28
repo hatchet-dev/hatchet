@@ -50,7 +50,14 @@ func (a *action) markStarved(queue string, requests map[string]int32) {
 		}
 	}
 
-	a.starved.requestsByQueue[queue] = append(a.starved.requestsByQueue[queue], maps.Clone(requests))
+	// copied by hand: maps.Clone leaks its argument to the heap in escape
+	// analysis, which would make every caller's request map allocate
+	recorded := make(map[string]int32, len(requests))
+	for slotType, units := range requests {
+		recorded[slotType] = units
+	}
+
+	a.starved.requestsByQueue[queue] = append(a.starved.requestsByQueue[queue], recorded)
 }
 
 func (a *action) activeCount(poolsByWorker map[uuid.UUID]map[string]*slotPool, now time.Time) int {
