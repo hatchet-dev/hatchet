@@ -347,6 +347,94 @@ func TestListenReconnectingStreamGenerationChangeFastPath(t *testing.T) {
 	assert.Equal(t, int32(1), constructorCalls.Load())
 }
 
+// A sender's RetrySend that reconnects while the receive loop is backing off must not be
+// followed by a second reconnect from the loop: the loop adopts the sender's client.
+func TestListenReconnectingStreamAdoptsClientInstalledDuringBackoff(t *testing.T) {
+	initialClient := &testListenClient{
+		recvFn: func() (testListenEvent, error) {
+			return testListenEvent{}, status.Error(codes.Unavailable, "broken")
+		},
+	}
+	replacementClient := &testListenClient{
+		recvFn: func() (testListenEvent, error) {
+			return testListenEvent{}, io.EOF
+		},
+	}
+
+	constructorCalls := atomic.Int32{}
+	stream := newTestListenStream(t, initialClient, func(ctx context.Context) (*testListenClient, error) {
+		constructorCalls.Add(1)
+		return replacementClient, nil
+	})
+
+	// a sender's reconnect lands while the loop is backing off
+	stream.SetSleep(func(context.Context, int) error {
+		stream.sendMu.Lock()
+		defer stream.sendMu.Unlock()
+		return stream.installClientLocked(replacementClient)
+	})
+
+	err := Listen(context.Background(), stream,
+		func(c *testListenClient) (testListenEvent, error) { return c.Recv() },
+		func(testListenEvent) error { return nil },
+		NewClassifier(func(context.Context) bool { return false }),
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, int32(0), constructorCalls.Load(), "the loop must adopt the installed client rather than reconnect")
+}
+
+// The receive loop and a sender see the same client fail; the sender reconnects at once while
+// the loop is still backing off. Exactly one stream is opened, and both end up on it.
+func TestListenAndRetrySendReconnectOnceForOneFailure(t *testing.T) {
+	for i := 0; i < 50; i++ {
+		var sendFailures atomic.Int32
+		initialClient := &testListenClient{
+			recvFn: func() (testListenEvent, error) {
+				return testListenEvent{}, status.Error(codes.Unavailable, "broken")
+			},
+			sendFn: func() error {
+				if sendFailures.Add(1) == 1 {
+					return status.Error(codes.Unavailable, "broken")
+				}
+				return nil
+			},
+		}
+		replacementClient := &testListenClient{
+			recvFn: func() (testListenEvent, error) {
+				return testListenEvent{}, io.EOF
+			},
+			sendFn: func() error { return nil },
+		}
+
+		constructorCalls := atomic.Int32{}
+		stream := newTestListenStream(t, initialClient, func(ctx context.Context) (*testListenClient, error) {
+			constructorCalls.Add(1)
+			time.Sleep(time.Millisecond)
+			return replacementClient, nil
+		})
+		// the loop's backoff outlasts the sender's reconnect, so the sender finishes first
+		// and the loop wakes to a generation that has already moved on
+		stream.SetSleep(func(context.Context, int) error {
+			time.Sleep(5 * time.Millisecond)
+			return nil
+		})
+
+		listenErr := make(chan error, 1)
+		go func() {
+			listenErr <- Listen(context.Background(), stream,
+				func(c *testListenClient) (testListenEvent, error) { return c.Recv() },
+				func(testListenEvent) error { return nil },
+				NewClassifier(func(context.Context) bool { return false }),
+			)
+		}()
+
+		require.NoError(t, stream.RetrySend(context.Background(), func(c *testListenClient) error { return c.Send() }))
+		require.NoError(t, <-listenErr)
+		assert.Equal(t, int32(1), constructorCalls.Load(), "iteration %d opened %d streams for one failure", i, constructorCalls.Load())
+	}
+}
+
 func TestListenReconnectingStreamClosesListenedClientOnExit(t *testing.T) {
 	initialClient := &testListenClient{
 		recvFn: func() (testListenEvent, error) {

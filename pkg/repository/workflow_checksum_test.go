@@ -273,3 +273,30 @@ func TestMergeWorkflowConcurrencyOntoSingleTask(t *testing.T) {
 		}
 	})
 }
+
+func TestMergeWorkflowConcurrencyOntoOrchestrator(t *testing.T) {
+	workflowScoped := CreateConcurrencyOpts{Expression: "input.doc_id"}
+	tenantScoped := CreateConcurrencyOpts{Name: "shared", IsTenantScoped: true, Expression: "input.user_id"}
+
+	opts := &CreateWorkflowVersionOpts{
+		Name:        "multi-task",
+		Concurrency: []CreateConcurrencyOpts{workflowScoped, tenantScoped},
+		Tasks: []CreateStepOpts{
+			{ReadableId: "step1", Action: "default:step1"},
+			{ReadableId: "step2", Action: "default:step2", Parents: []string{"step1"}},
+		},
+	}
+	orchestrator := CreateStepOpts{ReadableId: "multi-task", IsDagOrchestrator: true}
+
+	mergeWorkflowConcurrencyOntoOrchestrator(opts, &orchestrator)
+
+	if opts.Concurrency != nil {
+		t.Fatalf("expected workflow concurrency to be cleared, got %d entries", len(opts.Concurrency))
+	}
+	if len(orchestrator.Concurrency) != 2 {
+		t.Fatalf("expected 2 orchestrator concurrency entries, got %d", len(orchestrator.Concurrency))
+	}
+	if orchestrator.Concurrency[0].Expression != workflowScoped.Expression || orchestrator.Concurrency[1].Name != tenantScoped.Name {
+		t.Errorf("expected entries in declared order, got %+v", orchestrator.Concurrency)
+	}
+}
