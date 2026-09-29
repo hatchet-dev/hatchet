@@ -4,6 +4,7 @@ package v1
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -413,4 +414,93 @@ func TestQueuerQueueCoalescesIntoBufferedWake(t *testing.T) {
 	<-q.notifyQueueCh
 	q.queue(ctx)
 	require.Len(t, q.notifyQueueCh, 1, "once the buffered wake-up is consumed the next one is delivered, canceled context or not")
+}
+
+// failingFlushQueueRepo always has two items to hand out and fails every flush.
+type failingFlushQueueRepo struct {
+	fakeQueueRepository
+
+	items   []*sqlcv1.V1QueueItem
+	flushes atomic.Int64
+	flushed chan struct{}
+}
+
+func (r *failingFlushQueueRepo) ListQueueItems(context.Context, int) ([]*sqlcv1.V1QueueItem, error) {
+	return r.items, nil
+}
+
+func (r *failingFlushQueueRepo) MarkQueueItemsProcessed(context.Context, *v1repo.AssignResults) ([]*v1repo.AssignedItem, []*v1repo.AssignedItem, error) {
+	if r.flushes.Add(1) == 1 {
+		close(r.flushed)
+	}
+
+	return nil, nil, errors.New("write failed")
+}
+
+// A batch that assigns one item and misses another under a failing write nacks
+// the assignment, which returns its slot to the pool. That must not count as
+// capacity changing while the missed item was in flight: the tick would replay
+// itself, assign and fail again, and hammer the database once per failed flush
+// instead of waiting for the poll timer as it did before the epoch existed.
+func TestQueuer_FailedFlushDoesNotReplayItself(t *testing.T) {
+	tenantId := uuid.New()
+	workerId := uuid.New()
+
+	s := newTestScheduler(t, tenantId, &mockAssignmentRepo{})
+
+	// one free slot for two items: every tick assigns one and misses one
+	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
+	seedActionPools(t, s, "A", newSlot(w, v1repo.SlotTypeDefault))
+
+	repo := &failingFlushQueueRepo{
+		items:   []*sqlcv1.V1QueueItem{testQI(tenantId, "A", 1), testQI(tenantId, "A", 2)},
+		flushed: make(chan struct{}),
+	}
+
+	l := zerolog.Nop()
+	q := &Queuer{
+		repo:          repo,
+		tenantId:      tenantId,
+		queueName:     "q",
+		l:             &l,
+		s:             s,
+		limit:         100,
+		resultsCh:     make(chan *QueueResults, 16),
+		notifyQueueCh: make(chan map[string]string, 1),
+		unackedMu:     newRWMu(&l),
+		unacked:       make(map[int64]struct{}),
+		unassigned:    make(map[int64]*sqlcv1.V1QueueItem),
+		unassignedMu:  newMu(&l),
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	loopDone := make(chan struct{})
+	go func() {
+		defer close(loopDone)
+		q.loopQueue(ctx)
+	}()
+	t.Cleanup(func() {
+		cancel()
+		<-loopDone
+	})
+
+	epoch := s.capacityEpochNow()
+
+	q.queue(ctx)
+	waitFor(t, repo.flushed, "the first flush did not run")
+
+	// the poll floor is 1 s, so a second flush within 300 ms can only be a replay
+	require.Never(t, func() bool { return repo.flushes.Load() > 1 }, 300*time.Millisecond, 5*time.Millisecond,
+		"a tick whose own nack returned the slot must not replay itself")
+	require.False(t, s.isWorkerCapacityUpdated(epoch), "the nack is not an epoch change")
+
+	// the nacked slot is back for the next tick; the missed item is retryable in
+	// place and the failed one is re-read from the database on the next refill
+	onLoop(t, s, func() {
+		require.Len(t, s.poolsByWorker[workerId][v1repo.SlotTypeDefault].free, 1)
+	})
+	q.unassignedMu.Lock()
+	require.Len(t, q.unassigned, 1)
+	require.Contains(t, q.unassigned, repo.items[1].ID)
+	q.unassignedMu.Unlock()
 }

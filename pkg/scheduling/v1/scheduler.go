@@ -362,17 +362,12 @@ func (s *Scheduler) handleNack(ids []int) []func() {
 
 		delete(s.unackedSlots, id)
 
-		released := false
-
+		// the released slots are found by the next tick; this is deliberately
+		// not a capacity epoch change (see capacityEpoch)
 		for _, sl := range assigned.slots {
 			if sl.pool != nil {
 				sl.pool.release(sl)
-				released = true
 			}
-		}
-
-		if released {
-			s.markWorkerCapacityUpdated()
 		}
 
 		if assigned.rateLimitNack != nil {
@@ -384,27 +379,34 @@ func (s *Scheduler) handleNack(ids []int) []func() {
 }
 
 // capacityEpoch is a monotonic counter over the in-memory view of worker
-// capacity. It advances (markWorkerCapacityUpdated) exactly when that view may
-// have gained free slots:
-//
-//   - a replenish installed rebuilt pools, whether forced, heuristic or kicked
-//     by a miss; this is also the moment a starved action's requests are
-//     restored and the queues they came from are woken;
-//   - a nack returned assigned slots to their pools.
+// capacity, meaning the free slots in the pools. It advances
+// (markWorkerCapacityUpdated) exactly when a replenish installs rebuilt pools,
+// whether forced, heuristic or kicked by a miss; this is also the moment a
+// starved action's requests are restored and the queues they came from are
+// woken.
 //
 // It never advances for capacity being consumed, so a reader that saw no
-// change can conclude that everything it could have been placed on when it
-// missed is still all there is.
+// change can conclude that the pools it could have been placed on when it
+// missed have gained nothing since. Two things that can make a retry succeed
+// are deliberately outside it. A nack returns this engine's own reservation to
+// its pool, but the flush that nacks belongs to a tick that may itself be
+// asking this question: counting it would let a batch that assigns and misses
+// under a failing write authorize its own immediate replay, once per failed
+// flush, which is a loop and not a bound. Worker metadata (labels) changing
+// through setWorkers or addWorker can make a worker eligible that was not,
+// but the pools are unchanged. Both are found by the next wake or poll, as
+// they were before the epoch existed.
 //
 // A reader snapshots the epoch (capacityEpochNow) before it looks at the pools
 // and asks isWorkerCapacityUpdated once its missed items are retryable again.
 // A true answer justifies exactly one retry: capacity may have changed since
 // the snapshot, and a retry that misses again takes a fresh snapshot, so a
 // reader that re-queues at most once per epoch change cannot wake itself in a
-// loop. A true answer does not promise the retry will succeed (the change may
-// have been for other slot types or workers, or already consumed), and a false
-// answer does not mean the database has no capacity, only that this engine's
-// view of it has not moved.
+// loop; nothing a reader does on its own advances the epoch, and installs are
+// paced by the replenish ticker and the kick backoff. A true answer does not
+// promise the retry will succeed (the change may have been for other slot
+// types or workers, or already consumed), and a false answer does not mean the
+// database has no capacity, only that this engine's view of it has not moved.
 //
 // This one counter answers "did capacity change while I could not see my
 // items" for both the replay of a wake lost while a missed batch was in flight
@@ -425,7 +427,7 @@ func (s *Scheduler) isWorkerCapacityUpdated(since capacityEpoch) bool {
 }
 
 // markWorkerCapacityUpdated advances the capacity epoch. Called on the run
-// loop after pools were rebuilt or slots were released back to a pool.
+// loop when a replenish installs rebuilt pools, and nowhere else.
 func (s *Scheduler) markWorkerCapacityUpdated() {
 	s.capacityEpoch.Add(1)
 }
@@ -1245,6 +1247,24 @@ func batchHasMisses(res []*assignSingleResult) bool {
 	return false
 }
 
+// markActionStarved runs on the run loop. It records a miss for an action
+// whose workers this scheduler does not know yet, on a placeholder entry when
+// the action has none. A placeholder has no workers and no pools, so
+// assignment keeps treating the action as unknown; the replenish scan sees it
+// as starved once the registration snapshot names workers for it and rebuilds
+// it (restoring the recorded requests), and the apply phase drops it while
+// the snapshot does not.
+func (s *Scheduler) markActionStarved(actionId, queue string, requests map[string]int32) {
+	a := s.actions[actionId]
+
+	if a == nil {
+		a = new(action)
+		s.actions[actionId] = a
+	}
+
+	a.markStarved(queue, requests)
+}
+
 // handleAssignBatch runs on the run loop.
 func (s *Scheduler) handleAssignBatch(
 	ctx context.Context,
@@ -1272,9 +1292,25 @@ func (s *Scheduler) handleAssignBatch(
 		// moved to v1_batched_queue_item and the batch scheduler handles worker assignment.
 		// Marking them noSlots here would strand them in v1_queue_item indefinitely if the
 		// action isn't yet present in s.actions (e.g. replenish hasn't fired yet).
+		//
+		// The misses are recorded as starvation on a placeholder so that the
+		// replenish which discovers the action's workers (the caller kicks one)
+		// restores them and wakes their queues, exactly as a rebuild does for an
+		// action that starved with known workers. Without it a miss whose flush
+		// completed before that install saw no epoch change and waited for the
+		// next poll.
 		for i := range res {
 			if res[i].rateLimitResult == nil && !res[i].toBatch {
 				res[i].noSlots = true
+
+				requests := map[string]int32{v1.SlotTypeDefault: 1}
+				if stepIdsToRequests != nil {
+					if req, ok := stepIdsToRequests[qis[i].StepID]; ok && len(req) > 0 {
+						requests = req
+					}
+				}
+
+				s.markActionStarved(actionId, qis[i].Queue, requests)
 			}
 		}
 

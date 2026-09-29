@@ -379,15 +379,16 @@ func TestScheduler_IsWorkerCapacityUpdated(t *testing.T) {
 	s.nack([]int{999})
 	require.False(t, s.isWorkerCapacityUpdated(epoch), "a nack that releases no slot must not advance the epoch")
 
-	// a nack that returns a slot to its pool is capacity a missed item can use
+	// a nack returns the slot to its pool, but the flush that nacks may belong to
+	// the very tick asking the question: it is not an epoch change
+	// (TestQueuer_FailedFlushDoesNotReplayItself is the loop this prevents)
 	res = assignOne(t, s, a, testQI(tenantId, "A", 2), nil, defaultRequest(), nil, nil)
 	require.True(t, res.succeeded)
 	s.nack([]int{res.ackId})
-	require.True(t, s.isWorkerCapacityUpdated(epoch), "a nack that releases a slot must advance the epoch")
-
-	// a snapshot taken after the change reports no further change
-	epoch = s.capacityEpochNow()
-	require.False(t, s.isWorkerCapacityUpdated(epoch))
+	require.False(t, s.isWorkerCapacityUpdated(epoch), "a nack must not advance the epoch")
+	onLoop(t, s, func() {
+		require.Len(t, s.poolsByWorker[workerId][repo.SlotTypeDefault].free, 1, "the nacked slot is back on the freelist")
+	})
 
 	// a forced replenish installs rebuilt pools
 	require.NoError(t, s.replenish(context.Background(), true))
@@ -2476,4 +2477,106 @@ func TestScheduler_Replenish_StarvedRequestMustFitOnOneWorker(t *testing.T) {
 	require.Equal(t, 1, restoredCount())
 
 	require.True(t, assignOne(t, s, a, qi, nil, twoUnits, nil, nil).succeeded)
+}
+
+// A miss on an action this scheduler has not discovered yet kicks a replenish
+// (TestScheduler_TryAssignBatch_KicksReplenishOnMiss). The replenish that then
+// installs the action's pools must restore the miss and wake its queue like a
+// rebuild of a starved action does: the miss's flush may have completed before
+// the install, so the post-flush epoch check saw nothing and the item would
+// otherwise wait for the next poll.
+func TestScheduler_Replenish_RestoresQueueMissedOnUnknownAction(t *testing.T) {
+	tenantId := uuid.New()
+	workerId := uuid.New()
+
+	// the worker registers the action only after the miss
+	available := map[uuid.UUID]map[string]int32{}
+	s := newTestScheduler(t, tenantId, starvedActionRepo(available))
+	s.setWorkers([]*repo.ListActiveWorkersResult{testWorker(workerId)})
+
+	var restoredMu sync.Mutex
+	var restored []string
+	s.onCapacityRestored = func(queues []string) {
+		restoredMu.Lock()
+		defer restoredMu.Unlock()
+		restored = append(restored, queues...)
+	}
+	restoredQueues := func() []string {
+		restoredMu.Lock()
+		defer restoredMu.Unlock()
+		return append([]string(nil), restored...)
+	}
+
+	qi := testQI(tenantId, "A", 1)
+	res, err := s.tryAssignBatch(context.Background(), "A", []*sqlcv1.V1QueueItem{qi}, nil, nil, nil, nil, nil)
+	require.NoError(t, err)
+	require.True(t, res[0].noSlots)
+	require.Len(t, s.replenishKick, 1)
+	<-s.replenishKick
+
+	// the kicked replenish finds no registration for the action yet: nothing
+	// is installed, nothing is woken, and the miss stays recorded
+	require.NoError(t, s.replenish(context.Background(), false))
+	require.Empty(t, restoredQueues())
+	require.Zero(t, s.restoredRuns.Load())
+	onLoop(t, s, func() {
+		require.NotNil(t, s.actions["A"])
+		require.Empty(t, s.actions["A"].workerIds, "a placeholder has no workers")
+		require.NotNil(t, s.actions["A"].starved)
+	})
+
+	// still unknown to assignment: a second miss kicks again and adds nothing new
+	res, err = s.tryAssignBatch(context.Background(), "A", []*sqlcv1.V1QueueItem{testQI(tenantId, "A", 2)}, nil, nil, nil, nil, nil)
+	require.NoError(t, err)
+	require.True(t, res[0].noSlots)
+	require.Len(t, s.replenishKick, 1)
+	<-s.replenishKick
+
+	// the worker registers the action with one free slot: the replenish that
+	// discovers it restores the recorded request and wakes the queue
+	available[workerId] = map[string]int32{repo.SlotTypeDefault: 1}
+	require.NoError(t, s.replenish(context.Background(), false))
+	require.Equal(t, []string{qi.Queue}, restoredQueues())
+	require.EqualValues(t, 1, s.restoredRuns.Load())
+	onLoop(t, s, func() {
+		require.Nil(t, s.actions["A"].starved)
+		require.Len(t, s.actions["A"].workerIds, 1)
+	})
+
+	res, err = s.tryAssignBatch(context.Background(), "A", []*sqlcv1.V1QueueItem{qi}, nil, nil, nil, nil, nil)
+	require.NoError(t, err)
+	require.True(t, res[0].succeeded)
+}
+
+// A placeholder for an action nobody registers is dropped by the next apply
+// phase rather than kept for the scheduler's lifetime.
+func TestScheduler_Replenish_DropsPlaceholderWithoutWorkers(t *testing.T) {
+	tenantId := uuid.New()
+	workerId := uuid.New()
+
+	// worker registers only action B
+	s := newTestScheduler(t, tenantId, &mockAssignmentRepo{
+		listActionsForWorkersFn: func(context.Context, uuid.UUID, []uuid.UUID) ([]*sqlcv1.ListActionsForWorkersRow, error) {
+			return []*sqlcv1.ListActionsForWorkersRow{{WorkerId: workerId, ActionId: sqlchelpers.TextFromStr("B")}}, nil
+		},
+		listWorkerSlotConfigsFn: func(context.Context, uuid.UUID, []uuid.UUID) ([]*sqlcv1.ListWorkerSlotConfigsRow, error) {
+			return []*sqlcv1.ListWorkerSlotConfigsRow{{WorkerID: workerId, SlotType: repo.SlotTypeDefault, MaxUnits: 1}}, nil
+		},
+		listAvailableSlotsForWorkersAndTypesFn: func(context.Context, uuid.UUID, sqlcv1.ListAvailableSlotsForWorkersAndTypesParams) ([]*sqlcv1.ListAvailableSlotsForWorkersAndTypesRow, error) {
+			return []*sqlcv1.ListAvailableSlotsForWorkersAndTypesRow{{ID: workerId, SlotType: repo.SlotTypeDefault, AvailableSlots: 1}}, nil
+		},
+	})
+	s.setWorkers([]*repo.ListActiveWorkersResult{testWorker(workerId)})
+
+	res, err := s.tryAssignBatch(context.Background(), "A", []*sqlcv1.V1QueueItem{testQI(tenantId, "A", 1)}, nil, nil, nil, nil, nil)
+	require.NoError(t, err)
+	require.True(t, res[0].noSlots)
+	onLoop(t, s, func() { require.NotNil(t, s.actions["A"]) })
+
+	// B is new, so the apply phase runs and prunes the workerless placeholder
+	require.NoError(t, s.replenish(context.Background(), false))
+	onLoop(t, s, func() {
+		require.Nil(t, s.actions["A"])
+		require.NotNil(t, s.actions["B"])
+	})
 }
