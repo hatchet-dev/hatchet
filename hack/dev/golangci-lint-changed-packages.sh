@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# Run golangci-lint on only the Go packages that contain the given files.
+# Pre-commit entrypoint for golangci-lint.
 #
-# Used by the golangci-lint pre-commit hook instead of linting ./... on every
-# commit. --new-from-rev HEAD limits reported issues to changed lines, so
-# packages without changed files can't contribute findings.
+# Linting is scoped to the packages of the given files: --new-from-rev HEAD
+# limits reported issues to changed lines, so other packages can't contribute
+# findings and analyzing them only costs time.
 #
 # Directories where build constraints exclude every file (e.g. e2e-tagged
-# packages) are skipped, matching how ./... treats them.
+# packages) must be skipped; golangci-lint fails to typecheck them when they
+# are passed explicitly.
 set -euo pipefail
 
 if [ "$#" -eq 0 ]; then
