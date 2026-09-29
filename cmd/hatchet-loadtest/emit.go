@@ -19,6 +19,10 @@ type Event struct {
 	ID        int64     `json:"id"`
 	CreatedAt time.Time `json:"created_at"`
 	Payload   string    `json:"payload"`
+
+	// Read by the rate-limited workflow's dynamic rate limit expressions.
+	RateLimitKeys   int `json:"rate_limit_keys,omitempty"`
+	RateLimitPerKey int `json:"rate_limit_per_key,omitempty"`
 }
 
 func availableEventKeys(externalWorker bool) []eventkeys.EventKey {
@@ -152,7 +156,7 @@ type scheduledSample struct {
 	latency  time.Duration
 }
 
-func emit(ctx context.Context, namespace string, amountPerSecond int, duration time.Duration, scheduled chan<- scheduledSample, payloadArg string, emitWorkers int, eventKeys []eventkeys.EventKey) map[eventkeys.EventKey]int64 {
+func emit(ctx context.Context, namespace string, amountPerSecond int, duration time.Duration, scheduled chan<- scheduledSample, payloadArg string, emitWorkers int, eventKeys []eventkeys.EventKey, rl rateLimitSizing) map[eventkeys.EventKey]int64 {
 	c, err := v1.NewHatchetClient(
 		v1.Config{
 			Namespace: namespace,
@@ -241,9 +245,11 @@ loop:
 		case <-ticker.C:
 			newID := atomic.AddInt64(&id, 1)
 			ev := Event{
-				ID:        newID,
-				CreatedAt: time.Now(),
-				Payload:   payloadData,
+				ID:              newID,
+				CreatedAt:       time.Now(),
+				Payload:         payloadData,
+				RateLimitKeys:   rl.keys,
+				RateLimitPerKey: rl.perKey,
 			}
 			for _, key := range eventKeys {
 				select {

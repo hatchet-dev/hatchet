@@ -39,6 +39,8 @@ type LoadTestConfig struct {
 	RlKeys                   int
 	RlLimit                  int
 	RlDurationUnit           string
+	RateLimitRatio           float64
+	RateLimitKeys            int
 	AverageDurationThreshold time.Duration
 	PlotDir                  string
 
@@ -116,6 +118,8 @@ func main() {
 	loadtest.Flags().IntVar(&config.RlKeys, "rlKeys", 0, "rlKeys specifies the number of keys to use in the rate limit")
 	loadtest.Flags().IntVar(&config.RlLimit, "rlLimit", 0, "rlLimit specifies the rate limit")
 	loadtest.Flags().StringVar(&config.RlDurationUnit, "rlDurationUnit", "second", "rlDurationUnit specifies the duration unit for the rate limit (second, minute, hour)")
+	loadtest.Flags().Float64Var(&config.RateLimitRatio, "rateLimitRatio", 1, "rateLimitRatio sizes the rate-limited scenario's limits as a multiple of --events: the static limit is events*ratio/s and each dynamic key gets events*ratio/rateLimitKeys/s. Below 1 the backlog grows for the whole run and must drain within --wait")
+	loadtest.Flags().IntVar(&config.RateLimitKeys, "rateLimitKeys", 4, "rateLimitKeys is the number of dynamic rate limit keys the rate-limited scenario spreads runs across")
 	loadtest.Flags().StringVarP(&logLevel, "level", "l", "info", "logLevel specifies the log level (debug, info, warn, error)")
 	loadtest.Flags().DurationVar(&config.AverageDurationThreshold, "averageDurationThreshold", 100*time.Millisecond, "averageDurationThreshold specifies the threshold for the average duration per executed event to be considered a success")
 	loadtest.Flags().StringVar(&config.PlotDir, "plotDirectory", "", "plotDirectory specifies where to put the generated plots for latency and task duration")
