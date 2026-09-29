@@ -15,17 +15,7 @@ export interface PublishStreamMessageRequest {
   namespace: string;
   topic: string;
   payload: Uint8Array;
-  /**
-   * (required) a stable id for this publishing client/process, always set
-   * by the SDK. Paired with producer_seq, lets the server preserve this
-   * producer's own emission order even if concurrent publishes commit to
-   * Postgres out of order.
-   */
   producerId: string;
-  /**
-   * (required) strictly increasing per (producer_id, namespace, topic),
-   * assigned by the caller before this request is sent.
-   */
   producerSeq: number;
 }
 

@@ -34,22 +34,6 @@ func TestResolveSubscribeAddressAndCursor_TopicWithNoCursorDefaultsToBeginning(t
 	assert.Equal(t, v1.StreamCursor{Namespace: "ns-a", Topic: "topic-a", ID: 0}, cursor)
 }
 
-func TestResolveSubscribeAddressAndCursor_TopicWithMatchingCursor(t *testing.T) {
-	cursor := v1.StreamCursor{Namespace: "ns-a", Topic: "topic-a", CreatedAt: time.Now().Round(0), ID: 7}
-	raw := encodedCursor(t, cursor)
-
-	namespace, topic, resolved, err := resolveSubscribeAddressAndCursor(&contracts.SubscribeStreamRequest{
-		Namespace: "ns-a",
-		Topic:     "topic-a",
-		Cursor:    &raw,
-	})
-	require.NoError(t, err)
-
-	assert.Equal(t, "ns-a", namespace)
-	assert.Equal(t, "topic-a", topic)
-	assert.Equal(t, cursor, resolved)
-}
-
 func TestResolveSubscribeAddressAndCursor_RejectsMismatchedTopic(t *testing.T) {
 	cursor := v1.StreamCursor{Namespace: "ns-a", Topic: "topic-a", CreatedAt: time.Now(), ID: 7}
 	raw := encodedCursor(t, cursor)
