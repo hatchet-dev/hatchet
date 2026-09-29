@@ -44,7 +44,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: frontend/vscode-extension
-        run: pnpm install --frozen-lockfile
+        run: $GITHUB_WORKSPACE/hack/ci/retry.sh pnpm install --frozen-lockfile
 
       - name: Build VS Code extension
         working-directory: frontend/vscode-extension

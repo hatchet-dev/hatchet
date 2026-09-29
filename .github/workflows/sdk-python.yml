@@ -41,7 +41,7 @@ jobs:
           virtualenvs-in-project: true
 
       - name: Install linting tools
-        run: poetry install --all-extras
+        run: $GITHUB_WORKSPACE/hack/ci/retry.sh poetry install --all-extras
 
       - name: Run Black
         run: poetry run black . --check --verbose --diff --color
@@ -75,7 +75,7 @@ jobs:
           fi
 
       - name: Test install
-        run: pip install -e .
+        run: $GITHUB_WORKSPACE/hack/ci/retry.sh pip install -e .
 
   test:
     runs-on: ubicloud-standard-8
@@ -164,7 +164,7 @@ jobs:
           virtualenvs-in-project: true
 
       - name: Install dependencies
-        run: poetry install --no-interaction --all-extras
+        run: $GITHUB_WORKSPACE/hack/ci/retry.sh poetry install --no-interaction --all-extras
 
       - name: Generate Env File
         working-directory: .
@@ -225,7 +225,7 @@ jobs:
 
       - name: Install Poetry
         run: |
-          pipx install poetry==2.3.0
+          $GITHUB_WORKSPACE/hack/ci/retry.sh pipx install poetry==2.3.0
 
       - name: Run publish.sh script
         run: |

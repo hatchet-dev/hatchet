@@ -64,7 +64,7 @@ jobs:
           sleep 30
 
       - name: Install pnpm
-        run: npm install -g pnpm@10.16.1
+        run: $GITHUB_WORKSPACE/hack/ci/retry.sh npm install -g pnpm@10.16.1
 
       - name: Get pnpm store directory
         shell: bash
@@ -80,7 +80,7 @@ jobs:
             ${{ runner.os }}-pnpm-store-
 
       - name: Install dependencies
-        run: pnpm install
+        run: $GITHUB_WORKSPACE/hack/ci/retry.sh pnpm install
 
       - name: Set HATCHET_CLIENT_NAMESPACE
         run: |

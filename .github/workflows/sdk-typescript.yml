@@ -43,7 +43,7 @@ jobs:
 
       - name: Install pnpm
         if: matrix.package-manager == 'pnpm'
-        run: npm install -g pnpm@10.16.1
+        run: $GITHUB_WORKSPACE/hack/ci/retry.sh npm install -g pnpm@10.16.1
 
       - name: Get pnpm store directory
         if: matrix.package-manager == 'pnpm'
@@ -69,7 +69,7 @@ jobs:
           cache-dependency-path: sdks/typescript/pnpm-lock.yaml
 
       - name: Install dependencies
-        run: ${{ matrix.install-cmd }}
+        run: $GITHUB_WORKSPACE/hack/ci/retry.sh ${{ matrix.install-cmd }}
 
       - name: Lint
         run: ${{ matrix.lint-cmd }}
@@ -159,7 +159,7 @@ jobs:
 
       - name: Install pnpm
         if: matrix.package-manager == 'pnpm'
-        run: npm install -g pnpm@10.16.1
+        run: $GITHUB_WORKSPACE/hack/ci/retry.sh npm install -g pnpm@10.16.1
 
       - name: Get pnpm store directory
         if: matrix.package-manager == 'pnpm'
@@ -185,7 +185,7 @@ jobs:
           cache-dependency-path: sdks/typescript/pnpm-lock.yaml
 
       - name: Install dependencies
-        run: ${{ matrix.install-cmd }}
+        run: $GITHUB_WORKSPACE/hack/ci/retry.sh ${{ matrix.install-cmd }}
 
       - name: Unit tests
         run: ${{ matrix.unit-test-cmd }}
@@ -233,7 +233,7 @@ jobs:
 
       - name: Install pnpm
         if: matrix.package-manager == 'pnpm'
-        run: npm install -g pnpm@10.16.1
+        run: $GITHUB_WORKSPACE/hack/ci/retry.sh npm install -g pnpm@10.16.1
 
       - name: Get pnpm store directory
         if: matrix.package-manager == 'pnpm'
@@ -263,7 +263,7 @@ jobs:
         run: docker compose up -d
 
       - name: Install dependencies
-        run: ${{ matrix.install-cmd }}
+        run: $GITHUB_WORKSPACE/hack/ci/retry.sh ${{ matrix.install-cmd }}
 
       - name: Generate
         working-directory: .
@@ -327,7 +327,7 @@ jobs:
           submodules: recursive
 
       - name: Install pnpm
-        run: npm install -g pnpm@10.16.1
+        run: $GITHUB_WORKSPACE/hack/ci/retry.sh npm install -g pnpm@10.16.1
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -348,7 +348,7 @@ jobs:
             ${{ runner.os }}-pnpm-store-
 
       - name: Install dependencies
-        run: pnpm install
+        run: $GITHUB_WORKSPACE/hack/ci/retry.sh pnpm install
 
       - name: Build and Publish SDK
         run: |

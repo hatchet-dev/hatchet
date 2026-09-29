@@ -72,7 +72,7 @@ jobs:
           run_install: false
 
       - name: Go deps
-        run: go mod download
+        run: $GITHUB_WORKSPACE/hack/ci/retry.sh go mod download
 
       - name: Test
         run: |

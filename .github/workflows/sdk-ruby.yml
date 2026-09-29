@@ -48,7 +48,7 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
 
       - name: Install pre-commit
-        run: pip install pre-commit
+        run: $GITHUB_WORKSPACE/hack/ci/retry.sh pip install pre-commit
 
       # The shared runners intermittently hit GitHub's unauthenticated git-over-https
       # limits, which breaks pre-commit's hook-repo clones ("could not read Username for
