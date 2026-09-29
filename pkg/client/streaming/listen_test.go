@@ -17,9 +17,8 @@ import (
 )
 
 func TestListenReconnectingStreamHandlesEventsAndStopsOnEOF(t *testing.T) {
-	// Recv blocks like a real stream: an EOF only once the channel is closed.
-	// Returning EOF on an empty channel let Listen stop before the test had
-	// sent its event, whenever its first Recv won the race against the send.
+	// Recv blocks like a real stream and reports EOF only once the channel is
+	// closed, so the test's send and Listen's first Recv can run in any order.
 	recvChan := make(chan testListenEvent, 1)
 	client := &testListenClient{
 		recvFn: func() (testListenEvent, error) {
