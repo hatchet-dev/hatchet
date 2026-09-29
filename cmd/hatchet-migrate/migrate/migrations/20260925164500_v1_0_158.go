@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
+	"time"
 
 	"github.com/pressly/goose/v3"
 )
@@ -24,7 +26,19 @@ func upV10158(ctx context.Context, db *sql.DB) error {
 		return err
 	}
 
-	for _, partition := range partitions {
+	// A per-partition build can run for many minutes, so it must not inherit a server or
+	// role statement_timeout. SET is per session, hence one pinned connection for the builds.
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get connection: %w", err)
+	}
+	defer conn.Close()
+
+	if _, err := conn.ExecContext(ctx, `SET statement_timeout = 0;`); err != nil {
+		return fmt.Errorf("failed to disable statement_timeout: %w", err)
+	}
+
+	for i, partition := range partitions {
 		indexName := v10158IndexName(partition)
 
 		valid, err := indexIsValid(ctx, db, indexName)
@@ -36,7 +50,10 @@ func upV10158(ctx context.Context, db *sql.DB) error {
 			continue
 		}
 
-		if _, err := db.ExecContext(ctx, fmt.Sprintf(`DROP INDEX CONCURRENTLY IF EXISTS %s;`, quoteIdent(indexName))); err != nil {
+		log.Printf("v1_0_158: building %s (partition %d/%d)", indexName, i+1, len(partitions))
+		start := time.Now()
+
+		if _, err := conn.ExecContext(ctx, fmt.Sprintf(`DROP INDEX CONCURRENTLY IF EXISTS %s;`, quoteIdent(indexName))); err != nil {
 			return fmt.Errorf("failed to drop invalid index %s: %w", indexName, err)
 		}
 
@@ -47,9 +64,17 @@ func upV10158(ctx context.Context, db *sql.DB) error {
 			v10158Columns,
 		)
 
-		if _, err := db.ExecContext(ctx, stmt); err != nil {
+		if _, err := conn.ExecContext(ctx, stmt); err != nil {
 			return fmt.Errorf("failed to create index concurrently on %s: %w", partition, err)
 		}
+
+		log.Printf("v1_0_158: built %s in %s", indexName, time.Since(start).Round(time.Second))
+	}
+
+	// The parent create takes SHARE locks on v1_runs_olap, so waiting behind a long
+	// transaction would queue every writer; fail instead, a re-run only retries the attach.
+	if _, err := conn.ExecContext(ctx, `SET lock_timeout = '5s';`); err != nil {
+		return fmt.Errorf("failed to set lock_timeout: %w", err)
 	}
 
 	stmt := fmt.Sprintf(
@@ -58,7 +83,7 @@ func upV10158(ctx context.Context, db *sql.DB) error {
 		v10158Columns,
 	)
 
-	if _, err := db.ExecContext(ctx, stmt); err != nil {
+	if _, err := conn.ExecContext(ctx, stmt); err != nil {
 		return fmt.Errorf("failed to create index on %s: %w", "v1_runs_olap", err)
 	}
 
