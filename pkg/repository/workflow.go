@@ -841,6 +841,16 @@ func mergeWorkflowConcurrencyOntoSingleTask(opts *CreateWorkflowVersionOpts) {
 	opts.Concurrency = nil
 }
 
+// mergeWorkflowConcurrencyOntoOrchestrator moves the workflow's concurrency settings onto
+// the orchestrator step, keeping their order. With the DAG operator, each workflow run is a
+// single orchestrator task, so limiting that task limits the whole run. We don't leave the
+// settings on the workflow because they would be stored as parent strategies, which the
+// in-memory concurrency index can't handle.
+func mergeWorkflowConcurrencyOntoOrchestrator(opts *CreateWorkflowVersionOpts, orchestrator *CreateStepOpts) {
+	orchestrator.Concurrency = append(orchestrator.Concurrency, opts.Concurrency...)
+	opts.Concurrency = nil
+}
+
 func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sqlcv1.DBTX, tenantId, workflowId uuid.UUID, opts *CreateWorkflowVersionOpts, oldWorkflowVersion *sqlcv1.GetWorkflowVersionForEngineRow) (*uuid.UUID, error) {
 	workflowVersionId := uuid.New()
 
@@ -875,14 +885,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 			Retries:           &numRetries,
 		}
 
-		// The orchestrator is the only task the scheduler gates per run, so workflow-level
-		// concurrency becomes step concurrency on it (in array order), the same way
-		// mergeWorkflowConcurrencyOntoSingleTask treats a one-task workflow. Keeping the
-		// parent/child fan-out here would leave a single child strategy with a
-		// parent_strategy_id, which forces the SQL Run*CancelInProgress path instead of
-		// the in-memory concurrency index.
-		orchestrator.Concurrency = append(orchestrator.Concurrency, opts.Concurrency...)
-		opts.Concurrency = nil
+		mergeWorkflowConcurrencyOntoOrchestrator(opts, &orchestrator)
 		opts.Tasks = append(opts.Tasks, orchestrator)
 	}
 
