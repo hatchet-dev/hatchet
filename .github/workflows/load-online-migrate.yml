@@ -9,10 +9,15 @@ on:
     paths:
       - "cmd/hatchet-migrate/migrate/migrations/**"
 
+# Models the deploy order: migrations always run before new engines roll out.
+# The BASE commit's engine (the PR base, or the previous main commit on push)
+# runs on the base schema under load, this branch's migrations are applied
+# online against it, and only then does this branch's engine take over on the
+# migrated schema. See hack/ci/load-online-migrate.sh for the phases.
 jobs:
   load-online-migrate:
     runs-on: ubicloud-standard-8
-    timeout-minutes: 30
+    timeout-minutes: 40
     permissions:
       contents: read
       pull-requests: write
@@ -30,30 +35,42 @@ jobs:
       SERVER_LOGGER_FORMAT: console
       DATABASE_LOGGER_LEVEL: warn
       DATABASE_LOGGER_FORMAT: console
+      BASE_DIR: /tmp/hatchet-base
+      BASE_BIN: /tmp/hatchet-bin/base
+      PR_BIN: /tmp/hatchet-bin/pr
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # push: HEAD^1 is the previous main commit, the engine that is
+          # running when this commit's migrations are applied.
+          fetch-depth: 2
 
-      # Hold back only this branch's new goose files. Seed and boot against the
-      # PR base schema (usually main / prod), then apply branch migrations online.
-      - name: Resolve base migration version
+      # The base commit is what production runs when this change's migrations
+      # are applied: the PR base for pull requests, the parent commit on main.
+      - name: Resolve base commit
         run: |
-          BASE_REF="${{ github.base_ref }}"
-          if [ -z "$BASE_REF" ]; then
-            BASE_REF="${{ github.event.repository.default_branch }}"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            git fetch --no-tags --depth=1 origin "$BASE_SHA"
+          else
+            BASE_SHA=$(git rev-parse HEAD^1)
           fi
-          git fetch --no-tags --depth=1 origin "$BASE_REF"
-          BASE_MIGRATION_VERSION=$(git ls-tree -r --name-only "origin/${BASE_REF}" -- cmd/hatchet-migrate/migrate/migrations/ \
-            | xargs -n1 basename \
+          echo "Base commit: $BASE_SHA"
+          echo "BASE_SHA=$BASE_SHA" >> $GITHUB_ENV
+
+          git worktree add "$BASE_DIR" "$BASE_SHA"
+
+          BASE_MIGRATION_VERSION=$(ls "$BASE_DIR/cmd/hatchet-migrate/migrate/migrations/" \
             | grep -E '^[0-9]+' \
             | sort \
             | tail -1 \
             | cut -d'_' -f1)
           if [ -z "$BASE_MIGRATION_VERSION" ]; then
-            echo "could not determine latest migration on origin/${BASE_REF}"
+            echo "could not determine latest migration on $BASE_SHA"
             exit 1
           fi
-          echo "Base migration version (origin/${BASE_REF}): $BASE_MIGRATION_VERSION"
+          echo "Base migration version ($BASE_SHA): $BASE_MIGRATION_VERSION"
           echo "BASE_MIGRATION_VERSION=$BASE_MIGRATION_VERSION" >> $GITHUB_ENV
 
       - name: Setup Go
@@ -64,104 +81,40 @@ jobs:
       - name: Compose
         run: docker compose up -d
 
-      - name: Run migrations up to base
-        run: go run ./cmd/hatchet-migrate --up-to ${{ env.BASE_MIGRATION_VERSION }}
+      # The base migrator and admin set the database up the way production had
+      # it before this change; the base engine is what runs while the branch
+      # migrations are applied.
+      - name: Build base binaries
+        working-directory: ${{ env.BASE_DIR }}
+        run: |
+          mkdir -p "$BASE_BIN"
+          go build -o "$BASE_BIN/" ./cmd/hatchet-engine ./cmd/hatchet-migrate ./cmd/hatchet-admin
+
+      - name: Build branch binaries
+        run: |
+          mkdir -p "$PR_BIN"
+          go build -o "$PR_BIN/" ./cmd/hatchet-engine ./cmd/hatchet-migrate ./cmd/hatchet-loadtest
+
+      - name: Run base migrations
+        run: ${{ env.BASE_BIN }}/hatchet-migrate
 
       - name: Setup config and seed database
         run: |
           mkdir -p generated
-          go run ./cmd/hatchet-admin quickstart --skip certs --generated-config-dir ./generated
+          ${{ env.BASE_BIN }}/hatchet-admin quickstart --skip certs --generated-config-dir ./generated
 
       - name: Generate API token
         run: |
-          TOKEN=$(go run ./cmd/hatchet-admin --config ./generated token create)
+          TOKEN=$(${{ env.BASE_BIN }}/hatchet-admin --config ./generated token create)
           echo "HATCHET_CLIENT_TOKEN=$TOKEN" >> $GITHUB_ENV
-
-      - name: Start engine
-        run: |
-          go run ./cmd/hatchet-engine --config ./generated > /tmp/engine.log 2>&1 &
-          ENGINE_PID=$!
-          echo $ENGINE_PID > /tmp/engine.pid
-
-          echo "Waiting for engine gRPC port 7077..."
-          for _ in {1..60}; do
-            if ! kill -0 "$ENGINE_PID" 2>/dev/null; then
-              echo "Engine exited before becoming ready:"
-              tail -50 /tmp/engine.log
-              exit 1
-            fi
-
-            if nc -z localhost 7077; then
-              echo "Engine is accepting connections on port 7077"
-              exit 0
-            fi
-
-            sleep 1
-          done
-
-          echo "Timed out waiting for engine gRPC port 7077"
-          tail -50 /tmp/engine.log
-          exit 1
 
       - name: Run load test with migrations
         id: run-load-test
         continue-on-error: true
-        run: |
-          HATCHET_CLIENT_TOKEN="${{ env.HATCHET_CLIENT_TOKEN }}" \
-          HATCHET_CLIENT_TLS_STRATEGY=none \
-          HATCHET_CLIENT_HOST_PORT=localhost:7077 \
-          go run ./cmd/hatchet-loadtest loadtest -e 10 -d 240s -w 60s -s 100 \
-            --registrationTimeout 20s > /tmp/loadtest.log 2>&1 &
-          LOADTEST_PID=$!
-          echo $LOADTEST_PID > /tmp/loadtest.pid
-
-          (
-            while kill -0 "$LOADTEST_PID" 2>/dev/null; do
-              ENGINE_PID=$(cat /tmp/engine.pid)
-              if ! kill -0 "$ENGINE_PID" 2>/dev/null; then
-                echo "Engine died during load test:"
-                tail -50 /tmp/engine.log
-                kill "$LOADTEST_PID" 2>/dev/null || true
-                exit 1
-              fi
-              sleep 5
-            done
-          ) &
-          WATCHER=$!
-
-          echo "Waiting 30s for load test to get started..."
-          # Keep this above the 20s registration timeout so PutWorkflow must succeed on the base (main) schema.
-          sleep 30
-
-          echo "Applying branch migrations..."
-          go run ./cmd/hatchet-migrate
-          echo "Branch migrations applied"
-
-          echo "Migrating down to base version ${{ env.BASE_MIGRATION_VERSION }}..."
-          go run ./cmd/hatchet-migrate --down ${{ env.BASE_MIGRATION_VERSION }}
-          echo "Down migration successful"
-
-          echo "Re-applying migrations..."
-          go run ./cmd/hatchet-migrate
-          echo "Re-migration successful"
-
-          echo "Waiting for load test to complete..."
-          set +e
-          wait $LOADTEST_PID
-          LOADTEST_RC=$?
-          set -e
-
-          kill "$WATCHER" 2>/dev/null || true
-          wait "$WATCHER" 2>/dev/null || true
-
-          if [ "$LOADTEST_RC" -ne 0 ]; then
-            echo "=== Load test logs ==="
-            cat /tmp/loadtest.log
-            echo "=== Engine logs ==="
-            cat /tmp/engine.log
-            exit "$LOADTEST_RC"
-          fi
-          echo "Load test passed"
+        run: bash ./hack/ci/load-online-migrate.sh
+        env:
+          HATCHET_CLIENT_TOKEN: ${{ env.HATCHET_CLIENT_TOKEN }}
+          LOG_DIR: /tmp
 
       - name: Upload load-online-migrate logs
         if: steps.run-load-test.outcome == 'failure'
@@ -169,8 +122,10 @@ jobs:
         with:
           name: load-online-migrate-logs
           path: |
-            /tmp/engine.log
-            /tmp/loadtest.log
+            /tmp/engine-base.log
+            /tmp/engine-pr.log
+            /tmp/loadtest-base.log
+            /tmp/loadtest-pr.log
           if-no-files-found: ignore
 
       - name: Comment on PR
