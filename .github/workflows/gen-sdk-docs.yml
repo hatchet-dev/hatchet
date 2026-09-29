@@ -60,7 +60,7 @@ jobs:
 
       - name: Install docs dependencies
         working-directory: frontend/docs
-        run: $GITHUB_WORKSPACE/hack/ci/retry.sh pnpm install --frozen-lockfile
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" pnpm install --frozen-lockfile
 
       - name: Detect changed SDKs
         id: changes

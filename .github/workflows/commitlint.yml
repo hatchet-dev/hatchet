@@ -27,7 +27,7 @@ jobs:
 
       - name: Install commitlint
         run: |
-          $GITHUB_WORKSPACE/hack/ci/retry.sh pnpm install --save-dev @commitlint/cli @commitlint/config-conventional
+          sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" pnpm install --save-dev @commitlint/cli @commitlint/config-conventional
 
       - name: Validate PR title (used as squash commit message)
         env:

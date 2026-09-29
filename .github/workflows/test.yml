@@ -67,7 +67,7 @@ jobs:
       - name: Generate
         run: |
           go run ./cmd/hatchet-migrate
-          $GITHUB_WORKSPACE/hack/ci/retry.sh task pre-commit-install
+          sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" task pre-commit-install
           task generate-all
 
       - name: Check for diff
@@ -86,7 +86,7 @@ jobs:
           go-version: "1.26"
 
       - name: Go deps
-        run: $GITHUB_WORKSPACE/hack/ci/retry.sh go mod download
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" go mod download
 
       - name: Generate
         run: go generate ./...
@@ -121,7 +121,7 @@ jobs:
         run: docker compose up -d
 
       - name: Go deps
-        run: $GITHUB_WORKSPACE/hack/ci/retry.sh go mod download
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" go mod download
 
       - name: Generate
         run: |
@@ -170,7 +170,7 @@ jobs:
         run: docker compose up -d --wait
 
       - name: Go deps
-        run: $GITHUB_WORKSPACE/hack/ci/retry.sh go mod download
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" go mod download
 
       - name: Prepare
         run: |
@@ -305,7 +305,7 @@ jobs:
         run: docker compose up -d --wait
 
       - name: Go deps
-        run: $GITHUB_WORKSPACE/hack/ci/retry.sh go mod download
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" go mod download
 
       - name: Prepare
         run: |
@@ -437,7 +437,7 @@ jobs:
           run_install: false
 
       - name: Go deps
-        run: $GITHUB_WORKSPACE/hack/ci/retry.sh go mod download
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" go mod download
 
       - name: Test
         run: |
@@ -485,10 +485,10 @@ jobs:
           run_install: false
 
       - name: Go deps
-        run: $GITHUB_WORKSPACE/hack/ci/retry.sh go mod download
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" go mod download
 
       - name: Add go-deadlock dependency
-        run: $GITHUB_WORKSPACE/hack/ci/retry.sh go get github.com/sasha-s/go-deadlock@v0.3.6
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" go get github.com/sasha-s/go-deadlock@v0.3.6
 
       - name: Patch sync.Mutex/RWMutex to use go-deadlock
         shell: bash
@@ -589,7 +589,7 @@ jobs:
           run_install: false
 
       - name: Go deps
-        run: $GITHUB_WORKSPACE/hack/ci/retry.sh go mod download
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" go mod download
 
       - name: Test
         run: |

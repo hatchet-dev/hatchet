@@ -24,7 +24,7 @@ jobs:
           cache-dependency-path: frontend/app/pnpm-lock.yaml
       - name: Install dependencies
         working-directory: frontend/app
-        run: $GITHUB_WORKSPACE/hack/ci/retry.sh pnpm install --frozen-lockfile
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" pnpm install --frozen-lockfile
       - name: Lint
         working-directory: frontend/app
         run: npm run lint:check
@@ -47,7 +47,7 @@ jobs:
           cache-dependency-path: frontend/app/pnpm-lock.yaml
       - name: Install dependencies
         working-directory: frontend/app
-        run: $GITHUB_WORKSPACE/hack/ci/retry.sh pnpm install --frozen-lockfile
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" pnpm install --frozen-lockfile
       - name: Run unit tests
         working-directory: frontend/app
         run: pnpm run test:unit
@@ -70,7 +70,7 @@ jobs:
           cache-dependency-path: frontend/app/pnpm-lock.yaml
       - name: Install dependencies
         working-directory: frontend/app
-        run: $GITHUB_WORKSPACE/hack/ci/retry.sh pnpm install --frozen-lockfile
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" pnpm install --frozen-lockfile
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.14"
@@ -133,7 +133,7 @@ jobs:
 
       - name: Install frontend deps
         working-directory: frontend/app
-        run: $GITHUB_WORKSPACE/hack/ci/retry.sh pnpm install --frozen-lockfile
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" pnpm install --frozen-lockfile
 
       - name: Start API + engine
         run: |

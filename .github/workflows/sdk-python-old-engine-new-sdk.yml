@@ -81,7 +81,7 @@ jobs:
           virtualenvs-in-project: true
 
       - name: Install dependencies
-        run: $GITHUB_WORKSPACE/hack/ci/retry.sh poetry install --no-interaction --all-extras
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" poetry install --no-interaction --all-extras
 
       - name: Set HATCHET_CLIENT_NAMESPACE
         run: |

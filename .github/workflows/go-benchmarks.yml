@@ -27,7 +27,7 @@ jobs:
           go-version: "1.26"
 
       - name: Install benchstat
-        run: $GITHUB_WORKSPACE/hack/ci/retry.sh go install golang.org/x/perf/cmd/benchstat@latest
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" go install golang.org/x/perf/cmd/benchstat@latest
 
       - name: Find packages with benchmark tests
         id: packages
