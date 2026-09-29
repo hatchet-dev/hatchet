@@ -368,8 +368,9 @@ func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Durati
 	}
 }
 
-// Only CREATE TABLE / ALTER TABLE ATTACH PARTITION may be passed in fn. DETACH PARTITION
-// CONCURRENTLY cannot run inside a transaction and must use a raw connection instead.
+// Only transactional DDL (CREATE TABLE, ALTER TABLE ATTACH PARTITION, ALTER INDEX ATTACH
+// PARTITION) may be passed in fn. DETACH PARTITION CONCURRENTLY cannot run inside a
+// transaction and must use a raw connection instead.
 func runPartitionDDLWithLockTimeout(ctx context.Context, pool *pgxpool.Pool, logger *zerolog.Logger, fn func(tx pgx.Tx) error) error {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, pool, logger)
 
@@ -385,7 +386,7 @@ func runPartitionDDLWithLockTimeout(ctx context.Context, pool *pgxpool.Pool, log
 
 	err = fn(tx)
 
-	if err != nil && isLockNotAvailable(err) {
+	if err != nil && isPartitionLockConflict(err) {
 		return ErrPartitionLockConflict
 	} else if err != nil {
 		return err
@@ -495,12 +496,6 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		}
 	}
 
-	if err = runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
-		return reattachIndicesToParents(ctx, r.queries, tx, true)
-	}); err != nil {
-		return err
-	}
-
 	params := sqlcv1.ListOLAPPartitionsBeforeDateParams{
 		Shouldpartitioneventstables: r.shouldPartitionEventsTables,
 		Shouldpartitionoteltables:   r.shouldPartitionOtelTables,
@@ -596,7 +591,11 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		return fmt.Errorf("failed to delete old OLAP payload offloaded block index rows: %w", err)
 	}
 
-	return nil
+	// Runs last. Validating an invalid parent index locks every child, which can deadlock
+	// against concurrent inserts, and that must not skip retention.
+	return runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
+		return reattachIndicesToParents(ctx, r.queries, tx, true)
+	})
 }
 
 func (r *OLAPRepositoryImpl) SetReadReplicaPool(pool *pgxpool.Pool) {

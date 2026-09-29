@@ -34,6 +34,18 @@ func isLockNotAvailable(err error) bool {
 	return errors.As(err, &pgErr) && pgErr.Code == pgerrcode.LockNotAvailable
 }
 
+func isDeadlockDetected(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == pgerrcode.DeadlockDetected
+}
+
+// isPartitionLockConflict reports whether partition DDL lost a lock race with concurrent
+// table activity: either it timed out waiting (55P03) or Postgres broke a deadlock by
+// aborting it (40P01). Both are transient and are retried at the next interval.
+func isPartitionLockConflict(err error) bool {
+	return isLockNotAvailable(err) || isDeadlockDetected(err)
+}
+
 func isPendingDetach(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == pgerrcode.ObjectNotInPrerequisiteState && strings.Contains(pgErr.Message, "already pending detach")
@@ -508,14 +520,6 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		return err
 	}
 
-	if err = reattachIndicesToParents(ctx, r.queries, createPartitionsTx, false); err != nil {
-		releaseCreateConn()
-		if isLockNotAvailable(err) {
-			return ErrPartitionLockConflict
-		}
-		return err
-	}
-
 	if err = createPartitionsTx.Commit(ctx); err != nil {
 		releaseCreateConn()
 		return fmt.Errorf("failed to commit partition creation transaction: %w", err)
@@ -612,7 +616,12 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		return fmt.Errorf("failed to delete old payload offloaded block index rows: %w", err)
 	}
 
-	return nil
+	// Runs last, in its own transaction. Validating an invalid parent index locks every child,
+	// which can deadlock against concurrent inserts, and that must not roll back partition
+	// creation or skip retention.
+	return runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
+		return reattachIndicesToParents(ctx, r.queries, tx, false)
+	})
 }
 
 func (r *sharedRepository) GetTaskByExternalId(ctx context.Context, tenantId, taskExternalId uuid.UUID, skipCache bool) (*sqlcv1.FlattenExternalIdsRow, error) {
