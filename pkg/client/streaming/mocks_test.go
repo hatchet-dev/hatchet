@@ -47,8 +47,16 @@ type testListenEvent struct {
 
 type testListenClient struct {
 	recvFn      func() (testListenEvent, error)
+	sendFn      func() error
 	closeSendFn func() error
 	closeCalled atomic.Bool
+}
+
+func (c *testListenClient) Send() error {
+	if c.sendFn != nil {
+		return c.sendFn()
+	}
+	return nil
 }
 
 func (c *testListenClient) Recv() (testListenEvent, error) {

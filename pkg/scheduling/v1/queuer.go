@@ -50,14 +50,11 @@ type Queuer struct {
 
 	resultsCh chan<- *QueueResults
 
+	// notifyQueueCh carries wake-ups to loopQueue. Its buffer of one is the coalescing
+	// state: queue drops a wake-up only while one is already buffered, and the tick that
+	// consumes the buffered one refills after the drop, so it sees everything the dropped
+	// wake-up was about.
 	notifyQueueCh chan map[string]string
-
-	// wakePending is set while a wake goroutine (see queue) is waiting to hand its
-	// carrier to loopQueue, so further wakes coalesce into it. A flag rather than a
-	// TryLock-ed mutex: the release runs on the wake goroutine, and a mutex unlocked
-	// off the goroutine that locked it reads as still held to lock-order checkers
-	// such as go-deadlock, which then flag any lock the caller takes next.
-	wakePending atomic.Bool
 
 	cleanup func()
 
@@ -164,24 +161,22 @@ func (q *Queuer) Cleanup() {
 	q.cleanup()
 }
 
+// queue wakes loopQueue. It never blocks: when a wake-up is already buffered the new one
+// is dropped, which is safe because the buffered one has not been consumed yet, so the tick
+// it starts refills after this call returns.
 func (q *Queuer) queue(ctx context.Context) {
-	if !q.wakePending.CompareAndSwap(false, true) {
-		return
+	telemetryCtx, span := telemetry.NewSpan(ctx, "notify-queue")
+	defer span.End()
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "tenant.id", Value: q.tenantId.String()},
+		telemetry.AttributeKV{Key: "queue.name", Value: q.queueName},
+	)
+
+	select {
+	case q.notifyQueueCh <- telemetry.GetCarrier(telemetryCtx):
+	default:
 	}
-
-	go func() {
-		defer q.wakePending.Store(false)
-
-		telemetryCtx, span := telemetry.NewSpan(ctx, "notify-queue")
-		defer span.End()
-
-		telemetry.WithAttributes(span,
-			telemetry.AttributeKV{Key: "tenant.id", Value: q.tenantId.String()},
-			telemetry.AttributeKV{Key: "queue.name", Value: q.queueName},
-		)
-
-		q.notifyQueueCh <- telemetry.GetCarrier(telemetryCtx)
-	}()
 }
 
 // notifyCapacityRestored wakes the queue like queue does and records the wake, so a batch
@@ -217,6 +212,8 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		case <-timer.C:
 		case carrier = <-q.notifyQueueCh:
 		}
+
+		poolGen := q.s.poolGeneration.Load()
 
 		// re-arm immediately so early `continue` paths below can't stall the loop; re-armed
 		// again after the refill once the empty-poll streak is known
@@ -361,7 +358,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 
 		startingQiLength := len(qis)
 		processedQiLength := 0
-		unassignedCount := 0
+		unassignedReturned := 0
 
 		for r := range assignCh {
 			wg.Add(1)
@@ -376,8 +373,8 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 
 				countMu.Lock()
 				count += numFlushed
+				unassignedReturned += len(ar.unassigned)
 				processedQiLength += len(ar.assigned) + len(ar.buffered) + len(ar.batched) + len(ar.unassigned) + len(ar.schedulingTimedOut) + len(ar.rateLimited) + len(ar.rateLimitedToMove)
-				unassignedCount += len(ar.unassigned)
 				countMu.Unlock()
 
 				if sinceStart := time.Since(startFlush); sinceStart > 100*time.Millisecond {
@@ -506,12 +503,16 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 			countMu.Lock()
 			if len(prevQis) > 0 && count == len(prevQis) {
 				q.queue(context.Background())
-			} else if unassignedCount > 0 && q.capacityRestored.Load() != capacityRestoredAtRefill {
-				// Capacity was restored while this batch's misses were still unacked, so the
-				// refill that wake triggered filtered them out. They are in unassigned now
-				// (every flush acks in its defer), so retry them instead of waiting for the
-				// next poll.
-				q.queue(context.Background())
+			} else if unassignedReturned > 0 && (q.s.poolGeneration.Load() != poolGen ||
+				q.capacityRestored.Load() != capacityRestoredAtRefill) {
+				// Items that missed capacity were invisible to refillQueue (held in
+				// q.unacked) until their flush returned. When the pools were rebuilt
+				// meanwhile, any wake-up for the restored capacity either found
+				// nothing to assign or was never sent (the periodic replenish does
+				// not notify); wake the loop now that the items are back in
+				// q.unassigned instead of waiting for the next notify or poll. If a
+				// wake-up is still buffered this one coalesces with it.
+				q.queue(ctx)
 			}
 
 			if startingQiLength != processedQiLength {

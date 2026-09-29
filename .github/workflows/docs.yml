@@ -100,7 +100,7 @@ jobs:
           pnpm run start > server.log 2>&1 &
           for i in $(seq 1 60); do curl -sf http://localhost:3000/v1 > /dev/null && break; sleep 1; done
       - name: Check for broken links
-        uses: step-security/linkinator-action@c5c14e450dc690abba177d09df1ace749b4fd45c # v1.11.2
+        uses: step-security/linkinator-action@09bf8897475f4f956dc600cfaaa66c06a66c048c # v2.4.5
         with:
           paths: http://localhost:3000
           recurse: true

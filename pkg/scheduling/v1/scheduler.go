@@ -101,6 +101,11 @@ type Scheduler struct {
 	// instead of on the next poll.
 	onCapacityRestored func(queues []string)
 
+	// poolGeneration is incremented every time a replenish installs rebuilt
+	// pools. Queuers read it without the run loop to tell whether capacity may
+	// have changed while a batch of theirs was in flight.
+	poolGeneration atomic.Uint64
+
 	// warmedSlotTypes tracks (worker, slot type) pairs whose slots have appeared in the
 	// in-memory pool at least once. An empty pool is ambiguous — a worker which has not
 	// been replenished yet looks identical to a fully saturated one — so utilization is
@@ -720,6 +725,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 
 		s.pools = nextPools
 		s.poolsByWorker = nextPoolsByWorker
+		s.poolGeneration.Add(1)
 
 		for actionId, storedAction := range s.actions {
 			actionWorkerIds := actionsToWorkerIds[actionId]

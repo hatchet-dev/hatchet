@@ -54,7 +54,7 @@ func newOperatorStreamHarness(t *testing.T, workerId uuid.UUID) *operatorStreamH
 	ctx, cancel := context.WithCancel(context.Background())
 	h.sender = rpcstream.NewSender[v1contracts.OperatorListenResponse](ctx, h)
 
-	go func() {
+	handler := func() error {
 		defer h.sender.Close()
 
 		session := h.d.AddOperatorStreamSession(ctx, workerId, uuid.New(), h.sender)
@@ -64,10 +64,14 @@ func newOperatorStreamHarness(t *testing.T, workerId uuid.UUID) *operatorStreamH
 
 		select {
 		case <-session.Fin():
-			h.done <- nil
+			return nil
 		case <-ctx.Done():
-			h.done <- ctx.Err()
+			return ctx.Err()
 		}
+	}
+
+	go func() {
+		h.done <- handler()
 	}()
 
 	t.Cleanup(cancel)
