@@ -5,9 +5,15 @@ on:
       - main
     paths:
       - "cmd/hatchet-migrate/migrate/migrations/**"
+      - "cmd/hatchet-loadtest/**"
+      - "hack/ci/load-online-migrate.sh"
+      - ".github/workflows/load-online-migrate.yml"
   pull_request:
     paths:
       - "cmd/hatchet-migrate/migrate/migrations/**"
+      - "cmd/hatchet-loadtest/**"
+      - "hack/ci/load-online-migrate.sh"
+      - ".github/workflows/load-online-migrate.yml"
 
 # Models the deploy order: migrations always run before new engines roll out.
 # The BASE commit's engine (the PR base, or the previous main commit on push)
