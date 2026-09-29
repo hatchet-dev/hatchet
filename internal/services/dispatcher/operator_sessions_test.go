@@ -25,8 +25,7 @@ type operatorStreamHarness struct {
 	sent chan *v1contracts.OperatorListenResponse
 	// ready is closed once the handler has registered the session
 	ready chan struct{}
-	// done receives the handler's return value once the handler has returned, that is after
-	// its deferred Release and Close have run, so a receive on done observes the closed stream
+	// done receives the handler's return value
 	done chan error
 }
 
@@ -55,9 +54,6 @@ func newOperatorStreamHarness(t *testing.T, workerId uuid.UUID) *operatorStreamH
 	ctx, cancel := context.WithCancel(context.Background())
 	h.sender = rpcstream.NewSender[v1contracts.OperatorListenResponse](ctx, h)
 
-	// handler is the Listen handler: like the operator service it releases the session and closes
-	// the sender on the way out. done is written only after handler returns, so the deferred
-	// Release and Close happen before the test observes the return.
 	handler := func() error {
 		defer h.sender.Close()
 
