@@ -16,45 +16,97 @@ import (
 
 var testResourceID = uuid.New().String()
 
-func TestInterval_RunInterval_BasicTiming(t *testing.T) {
-	interval := &Interval{
-		resourceId:      testResourceID,
-		maxJitter:       0,
-		startInterval:   50 * time.Millisecond,
-		currInterval:    50 * time.Millisecond,
-		maxInterval:     1 * time.Second,
-		noActivityCount: 0,
-		incBackoffCount: 3,
-		repo:            v1.NewNoOpIntervalSettingsRepository(),
-	}
+// The timing tests in this file run against the real clock. Under -race on a
+// shared CI runner, timers have been observed firing 20-30ms late, so the
+// assertions follow two rules:
+//
+//   - Lower bounds are strict. time.After never fires early, and every
+//     measurement window is opened before the timer it measures is armed.
+//   - Upper bounds are relative to the interval under test and leave at least
+//     half an interval of headroom (about 3x the observed lateness), so a real
+//     regression such as a doubled interval or a phase drawn from a doubled
+//     window still fails.
+//
+// For repeating triggers the upper bound is checked cumulatively at the last
+// trigger (see assertTriggerCadence), so one stalled timer is absorbed by the
+// headroom of the other cycles while a systematically slow interval still fails.
 
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-	defer cancel()
-
+// triggerTimes runs the interval until ctx is done and returns the elapsed
+// time of every trigger, measured from before RunInterval arms its first
+// timer. Each timer is armed only after the previous trigger was delivered, so
+// the k-th (1-based) trigger cannot arrive before k times the minimum delay,
+// no matter how the goroutines are scheduled.
+func triggerTimes(ctx context.Context, interval *Interval) []time.Duration {
+	start := time.Now()
 	ch := interval.RunInterval(ctx)
 
-	start := time.Now()
-	triggerCount := 0
-
+	var times []time.Duration
 	for {
 		select {
 		case <-ctx.Done():
-			elapsed := time.Since(start)
-			assert.GreaterOrEqual(t, triggerCount, 3, "Should have triggered at least 3 times")
-			assert.LessOrEqual(t, elapsed, 220*time.Millisecond, "Should complete within timeout plus buffer")
-			return
+			return times
 		case <-ch:
-			triggerCount++
+			times = append(times, time.Since(start))
 		}
 	}
 }
 
-func TestInterval_RunInterval_WithJitter(t *testing.T) {
+// assertTriggerCadence checks that no trigger arrived faster than minGap per
+// cycle (strict) and that the last trigger has not drifted past maxGap per
+// cycle on average.
+func assertTriggerCadence(t *testing.T, times []time.Duration, minGap, maxGap time.Duration) {
+	t.Helper()
+
+	require.GreaterOrEqual(t, len(times), 3, "interval should keep triggering for the whole run")
+
+	for k, elapsed := range times {
+		assert.GreaterOrEqual(t, elapsed, time.Duration(k+1)*minGap, "trigger %d arrived faster than %d cycles of %v allow", k+1, k+1, minGap)
+	}
+
+	n := len(times)
+	assert.LessOrEqual(t, times[n-1], time.Duration(n)*maxGap, "trigger %d arrived later than %d cycles of %v allow", n, n, maxGap)
+}
+
+func TestInterval_RunInterval_BasicTiming(t *testing.T) {
+	const (
+		base = 100 * time.Millisecond
+		run  = 1 * time.Second
+	)
+
 	interval := &Interval{
 		resourceId:      testResourceID,
-		maxJitter:       20 * time.Millisecond,
-		startInterval:   50 * time.Millisecond,
-		currInterval:    50 * time.Millisecond,
+		maxJitter:       0,
+		startInterval:   base,
+		currInterval:    base,
+		maxInterval:     1 * time.Second,
+		noActivityCount: 0,
+		incBackoffCount: 3,
+		repo:            v1.NewNoOpIntervalSettingsRepository(),
+		// firstTrigger left false so every cycle, including the first, waits a full base interval.
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), run)
+	defer cancel()
+
+	times := triggerTimes(ctx, interval)
+
+	// A doubled interval would put the last trigger at >= 2*base per cycle.
+	assertTriggerCadence(t, times, base, base+base/2)
+}
+
+func TestInterval_RunInterval_WithJitter(t *testing.T) {
+	const (
+		base   = 100 * time.Millisecond
+		jitter = 50 * time.Millisecond
+		window = base + jitter
+		run    = 1 * time.Second
+	)
+
+	interval := &Interval{
+		resourceId:      testResourceID,
+		maxJitter:       jitter,
+		startInterval:   base,
+		currInterval:    base,
 		maxInterval:     1 * time.Second,
 		noActivityCount: 0,
 		incBackoffCount: 3,
@@ -62,31 +114,13 @@ func TestInterval_RunInterval_WithJitter(t *testing.T) {
 		// firstTrigger left false so subsequent-trigger timing (interval+jitter) is measured
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), run)
 	defer cancel()
 
-	ch := interval.RunInterval(ctx)
+	times := triggerTimes(ctx, interval)
 
-	var timings []time.Duration
-	lastTrigger := time.Now()
-
-	for {
-		select {
-		case <-ctx.Done():
-			assert.GreaterOrEqual(t, len(timings), 2, "Should have at least 2 timing measurements")
-			for _, timing := range timings {
-				assert.GreaterOrEqual(t, timing, 50*time.Millisecond, "Timing should be at least the base interval")
-				assert.LessOrEqual(t, timing, 85*time.Millisecond, "Timing should include jitter but not exceed base + max jitter + buffer")
-			}
-			return
-		case <-ch:
-			now := time.Now()
-			if len(timings) > 0 || !lastTrigger.IsZero() {
-				timings = append(timings, now.Sub(lastTrigger))
-			}
-			lastTrigger = now
-		}
-	}
+	// Jitter only ever adds to the base interval, and never more than maxJitter.
+	assertTriggerCadence(t, times, base, window+window/2)
 }
 
 func TestInterval_RunInterval_ContextCancellation(t *testing.T) {
@@ -198,25 +232,38 @@ func TestInterval_SetIntervalGauge_ConcurrentAccess(t *testing.T) {
 }
 
 func TestInterval_GetNextTrigger_ReturnsChannel(t *testing.T) {
+	// A single timer gets no averaging, so use a larger interval than the
+	// cadence tests: the half-window headroom is then 150ms of lateness.
+	const (
+		base   = 200 * time.Millisecond
+		jitter = 100 * time.Millisecond
+		window = base + jitter
+	)
+
 	interval := &Interval{
 		resourceId:      testResourceID,
-		maxJitter:       10 * time.Millisecond,
-		startInterval:   50 * time.Millisecond,
-		currInterval:    50 * time.Millisecond,
+		maxJitter:       jitter,
+		startInterval:   base,
+		currInterval:    base,
 		maxInterval:     1 * time.Second,
 		noActivityCount: 0,
 		incBackoffCount: 3,
 		repo:            v1.NewNoOpIntervalSettingsRepository(),
 	}
 
+	start := time.Now()
 	triggerCh := interval.getNextTrigger()
-	assert.NotNil(t, triggerCh, "Should return a non-nil channel")
+	require.NotNil(t, triggerCh, "Should return a non-nil channel")
 
 	select {
 	case <-triggerCh:
-	case <-time.After(70 * time.Millisecond):
-		t.Fatal("Trigger should have fired within expected time")
+	case <-time.After(5 * time.Second):
+		t.Fatal("Trigger never fired")
 	}
+	elapsed := time.Since(start)
+
+	assert.GreaterOrEqual(t, elapsed, base, "trigger should wait at least the base interval")
+	assert.LessOrEqual(t, elapsed, window+window/2, "trigger should not wait much longer than base+jitter")
 }
 
 func TestInterval_GetNextTrigger_ConcurrentAccess(t *testing.T) {
@@ -290,40 +337,70 @@ func TestInterval_RunInterval_Integration(t *testing.T) {
 }
 
 func TestInterval_GetNextTrigger_FirstTriggerUsesFullWindowPhase(t *testing.T) {
+	// Every sample is a single timer with no averaging, and the bounds below
+	// look at the extremes of 40 of them, so use a larger interval than the
+	// cadence tests: the half-window headroom is then 150ms of lateness.
 	const (
-		base   = 100 * time.Millisecond
-		jitter = 50 * time.Millisecond
+		base   = 200 * time.Millisecond
+		jitter = 100 * time.Millisecond
 		window = base + jitter
-		n      = 40
+		// late is the timer lateness tolerated on upper bounds. Half a window
+		// keeps a phase drawn from a doubled window (max near 2*window) failing.
+		late = window / 2
+		n    = 40
 	)
 
-	var delays []time.Duration
+	// The samples are independent, so take them in parallel: sequentially this
+	// test took about 8s, which is a long time to hold a CI test slot. Each
+	// sample's clock starts before its timer is armed, so scheduling delay
+	// between the two counts against the upper bounds; bounding how many
+	// samples run at once keeps the delay this test inflicts on itself small.
+	const parallelism = 8
+	var (
+		wg      sync.WaitGroup
+		slots   = make(chan struct{}, parallelism)
+		firsts  = make([]time.Duration, n)
+		seconds = make([]time.Duration, n)
+	)
+
+	wg.Add(n)
 	for i := 0; i < n; i++ {
-		interval := &Interval{
-			resourceId:    testResourceID,
-			maxJitter:     jitter,
-			startInterval: base,
-			currInterval:  base,
-			maxInterval:   time.Second,
-			firstTrigger:  true,
-			repo:          v1.NewNoOpIntervalSettingsRepository(),
-		}
+		go func(i int) {
+			defer wg.Done()
 
-		start := time.Now()
-		<-interval.getNextTrigger()
-		delays = append(delays, time.Since(start))
+			slots <- struct{}{}
+			defer func() { <-slots }()
 
-		// Subsequent trigger should wait ~base (+jitter), not a full-window phase near zero.
-		start = time.Now()
-		<-interval.getNextTrigger()
-		second := time.Since(start)
-		assert.GreaterOrEqual(t, second, base-5*time.Millisecond, "subsequent trigger should wait at least the base interval")
-		assert.LessOrEqual(t, second, window+20*time.Millisecond, "subsequent trigger should not exceed base+jitter")
+			interval := &Interval{
+				resourceId:    testResourceID,
+				maxJitter:     jitter,
+				startInterval: base,
+				currInterval:  base,
+				maxInterval:   time.Second,
+				firstTrigger:  true,
+				repo:          v1.NewNoOpIntervalSettingsRepository(),
+			}
+
+			start := time.Now()
+			<-interval.getNextTrigger()
+			firsts[i] = time.Since(start)
+
+			start = time.Now()
+			<-interval.getNextTrigger()
+			seconds[i] = time.Since(start)
+		}(i)
+	}
+	wg.Wait()
+
+	// Subsequent triggers should wait base (+jitter), not a full-window phase near zero.
+	for i, second := range seconds {
+		assert.GreaterOrEqual(t, second, base, "subsequent trigger %d should wait at least the base interval", i)
+		assert.LessOrEqual(t, second, window+late, "subsequent trigger %d should not exceed base+jitter", i)
 	}
 
-	var min, max time.Duration = delays[0], delays[0]
+	var min, max time.Duration = firsts[0], firsts[0]
 	var sum time.Duration
-	for _, d := range delays {
+	for _, d := range firsts {
 		if d < min {
 			min = d
 		}
@@ -333,11 +410,14 @@ func TestInterval_GetNextTrigger_FirstTriggerUsesFullWindowPhase(t *testing.T) {
 		sum += d
 	}
 
-	assert.Less(t, min, 40*time.Millisecond, "first-trigger phase should sometimes be near the start of the window")
-	assert.Greater(t, max, 80*time.Millisecond, "first-trigger phase should sometimes land later in the window")
-	assert.Less(t, max, window+30*time.Millisecond, "first-trigger phase should stay within the window")
+	// With 40 samples drawn uniformly from [0, window), the chance that none
+	// lands in a given half of the window is 2^-40, so these bounds hold even
+	// when every timer runs tens of milliseconds late.
+	assert.Less(t, min, window/2, "first-trigger phase should sometimes land in the first half of the window")
+	assert.Greater(t, max, window/2, "first-trigger phase should sometimes land in the second half of the window")
+	assert.Less(t, max, window+late, "first-trigger phase should stay within the window")
 	avg := sum / time.Duration(n)
-	assert.Greater(t, avg, 30*time.Millisecond, "average first-trigger delay should be spread across the window")
+	assert.Greater(t, avg, window/5, "average first-trigger delay should be spread across the window")
 	assert.Less(t, avg, window, "average first-trigger delay should be below the window upper bound")
 }
 
@@ -363,7 +443,9 @@ func TestInterval_NewInterval_DoesNotBlockOnRead(t *testing.T) {
 	assert.True(t, interval.needsIntervalLoad)
 	assert.True(t, interval.firstTrigger)
 	assert.Equal(t, int64(0), repo.reads.Load(), "NewInterval must not call ReadInterval")
-	assert.Less(t, elapsed, 20*time.Millisecond, "NewInterval should return without waiting on DB")
+	// The zero read count above is the real check; this bound only guards
+	// against the constructor blocking outright, so it is deliberately loose.
+	assert.Less(t, elapsed, time.Second, "NewInterval should return without waiting on DB")
 }
 
 func TestInterval_RunInterval_LazyLoadsPersistedInterval(t *testing.T) {
@@ -388,7 +470,9 @@ func TestInterval_RunInterval_LazyLoadsPersistedInterval(t *testing.T) {
 	assert.Equal(t, int64(0), repo.reads.Load())
 	assert.Equal(t, 50*time.Millisecond, interval.currInterval)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	// The first trigger lands within [0, persisted); the timeout only bounds
+	// the failure path, so it is deliberately loose.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	ch := interval.RunInterval(ctx)
@@ -406,7 +490,10 @@ func TestInterval_RunInterval_LazyLoadsPersistedInterval(t *testing.T) {
 
 func TestInterval_RunInterval_GaugePhaseIsRandomized(t *testing.T) {
 	prev := gaugeInterval
-	gaugeInterval = 40 * time.Millisecond
+	// Large enough that a scheduler stall of 100ms or more can neither
+	// collapse the phase spread of the samples nor push the latest first
+	// call past the half-interval headroom of the upper bound below.
+	gaugeInterval = 400 * time.Millisecond
 	t.Cleanup(func() { gaugeInterval = prev })
 
 	const n = 24
@@ -416,7 +503,9 @@ func TestInterval_RunInterval_GaugePhaseIsRandomized(t *testing.T) {
 		wg         sync.WaitGroup
 	)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
+	// First calls land within 2*gaugeInterval; the timeout only bounds the
+	// failure path, so it is deliberately loose.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	start := time.Now()
@@ -464,8 +553,11 @@ func TestInterval_RunInterval_GaugePhaseIsRandomized(t *testing.T) {
 
 	select {
 	case <-done:
-	case <-time.After(300 * time.Millisecond):
-		t.Fatalf("timed out waiting for gauge first calls; got %d/%d", len(firstCalls), n)
+	case <-ctx.Done():
+		mu.Lock()
+		got := len(firstCalls)
+		mu.Unlock()
+		t.Fatalf("timed out waiting for gauge first calls; got %d/%d", got, n)
 	}
 
 	mu.Lock()
@@ -482,10 +574,12 @@ func TestInterval_RunInterval_GaugePhaseIsRandomized(t *testing.T) {
 		}
 	}
 
-	// Without phase spread, all first gauge ticks would cluster near gaugeInterval.
-	// With phase in [0, gaugeInterval) then a full tick, first calls land in
-	// roughly [gaugeInterval, 2*gaugeInterval). Spread across that window.
-	assert.Greater(t, max-min, 15*time.Millisecond, "gauge first-call times should be phase-spread, not synchronized")
+	// With phase in [0, gaugeInterval) followed by a full tick, first calls
+	// land in [gaugeInterval, 2*gaugeInterval). Without phase spread they would
+	// all cluster just after gaugeInterval.
+	assert.GreaterOrEqual(t, min, gaugeInterval, "gauge must not be called before a full tick has elapsed")
+	assert.Less(t, max, 2*gaugeInterval+gaugeInterval/2, "gauge first calls should land within phase plus one tick")
+	assert.Greater(t, max-min, gaugeInterval/4, "gauge first-call times should be phase-spread, not synchronized")
 }
 
 type countingIntervalRepo struct {
