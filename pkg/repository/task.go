@@ -39,6 +39,11 @@ func isDeadlockDetected(err error) bool {
 	return errors.As(err, &pgErr) && pgErr.Code == pgerrcode.DeadlockDetected
 }
 
+// isPartitionLockConflict reports whether partition maintenance gave up because other queries
+// were using the same tables. That happens in two ways: we waited longer than lock_timeout
+// (55P03), or Postgres saw two transactions each waiting for a lock the other holds and
+// cancelled ours to break the tie (40P01, a deadlock). Neither means anything is broken, so
+// callers retry on the next scheduled run.
 func isPartitionLockConflict(err error) bool {
 	return isLockNotAvailable(err) || isDeadlockDetected(err)
 }
@@ -402,6 +407,16 @@ func createExternalIdUniqueConstraintsOnDailyPartitions(ctx context.Context, db 
 	return nil
 }
 
+// reattachIndicesToParents repairs parent indexes that Postgres still marks invalid even though
+// every partition now has a valid copy of the index. Postgres only re-checks a parent when a
+// child is attached, so re-running ATTACH PARTITION on a child that is already attached makes
+// it re-check and mark the parent valid.
+//
+// Two things to know before touching this:
+//   - Each ATTACH locks the child index so nothing else can read or write through it until
+//     the transaction commits. Don't attach more than needed.
+//   - The re-check only exists in Postgres 15.18, 16.14, 17.10, 18.4 and later. On older
+//     versions the statement leaves the parent invalid but still takes the lock.
 func reattachIndicesToParents(ctx context.Context, queries *sqlcv1.Queries, db sqlcv1.DBTX, isOlap bool) error {
 	invalidIndexes, err := queries.FindInvalidIndexes(ctx, db, isOlap)
 	if err != nil {
@@ -613,6 +628,8 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		return fmt.Errorf("failed to delete old payload offloaded block index rows: %w", err)
 	}
 
+	// Runs last, in its own transaction, so that if it gives up on a lock, partition creation
+	// and cleanup above have already been committed.
 	return runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
 		return reattachIndicesToParents(ctx, r.queries, tx, false)
 	})

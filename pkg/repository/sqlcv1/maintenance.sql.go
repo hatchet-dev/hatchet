@@ -40,9 +40,15 @@ type FindInvalidIndexesRow struct {
 	ExampleChildIndexName string `json:"example_child_index_name"`
 }
 
-// NOTE: only returns parents where every partition has a valid attached child index.
-// Indexes created with ON ONLY stay invalid until every partition has one, and attaching
-// a child to them takes an AccessExclusiveLock without validating anything.
+// Finds parent indexes on partitioned tables that are marked invalid but can be fixed now.
+// An index on a partitioned table is really one index per partition plus a parent entry that
+// ties them together. Postgres marks the parent valid only once every partition has a valid
+// copy attached to it.
+//
+// Skips parents where any partition is still missing its copy. Indexes created with
+// CREATE INDEX ... ON ONLY start out that way on purpose and stay invalid until the old
+// partitions without the index are dropped. Re-attaching can't fix them yet, and it would
+// still lock the child index and block reads and writes on that partition.
 func (q *Queries) FindInvalidIndexes(ctx context.Context, db DBTX, isolap bool) ([]*FindInvalidIndexesRow, error) {
 	rows, err := db.Query(ctx, findInvalidIndexes, isolap)
 	if err != nil {
