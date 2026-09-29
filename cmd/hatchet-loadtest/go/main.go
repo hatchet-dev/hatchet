@@ -117,9 +117,10 @@ func run() error {
 	dagNestedWorkflows := buildDagNestedWorkflows(client, dagNestedEventKey, dagShapeFailureRate, dagNestedChildren)
 
 	rateLimitedEventKey := envOr("HATCHET_LOADTEST_RATE_LIMITED_EVENT_KEY", eventkeys.EventKeyRateLimited.String())
+	// Best-effort so a rate limit API failure only breaks the rate-limited scenario.
 	rateLimitedTask, err := buildRateLimitedTask(client, rateLimitedEventKey)
 	if err != nil {
-		return err
+		log.Printf("warning: not registering %s: %v", eventkeys.WorkflowRateLimitedName, err)
 	}
 
 	dagConcurrencyEventKey := envOr("HATCHET_LOADTEST_DAG_CONCURRENCY_EVENT_KEY", eventkeys.EventKeyDagConcurrency.String())
@@ -191,7 +192,10 @@ func run() error {
 		hatchet.WithExecutionTimeout(5*time.Minute),
 	)
 
-	workflows := []hatchet.WorkflowBase{task, batchTask, durableTask, durableChildTask, dagWorkflow, rateLimitedTask, dagConcurrencyWorkflow}
+	workflows := []hatchet.WorkflowBase{task, batchTask, durableTask, durableChildTask, dagWorkflow, dagConcurrencyWorkflow}
+	if rateLimitedTask != nil {
+		workflows = append(workflows, rateLimitedTask)
+	}
 	for _, w := range dagShapeWorkflows {
 		workflows = append(workflows, w)
 	}
