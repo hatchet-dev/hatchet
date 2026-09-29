@@ -328,6 +328,22 @@ func (r *rateLimiter) takeChangedDefinitions() map[string]v1.RateLimitDefinition
 	return changed
 }
 
+// restoreDefinitions requeues definitions from a failed flush; definitions added since the flush started are newer and win.
+func (r *rateLimiter) restoreDefinitions(definitions map[string]v1.RateLimitDefinition) {
+	r.pendingDefinitionsMu.Lock()
+	defer r.pendingDefinitionsMu.Unlock()
+
+	if r.pendingDefinitions == nil {
+		r.pendingDefinitions = make(map[string]v1.RateLimitDefinition)
+	}
+
+	for k, def := range definitions {
+		if _, ok := r.pendingDefinitions[k]; !ok {
+			r.pendingDefinitions[k] = def
+		}
+	}
+}
+
 // flushToDatabase involves writing the rate limits and reading new rate limits from the
 // database
 func (r *rateLimiter) flushToDatabase(ctx context.Context) error {
@@ -360,6 +376,7 @@ func (r *rateLimiter) flushToDatabase(ctx context.Context) error {
 	newRateLimits, nextRefillAt, err := r.rateLimitRepo.FlushRateLimits(ctx, r.tenantId, usage, definitions)
 
 	if err != nil {
+		r.restoreDefinitions(definitions)
 		return err
 	}
 

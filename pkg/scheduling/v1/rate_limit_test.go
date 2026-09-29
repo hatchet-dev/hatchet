@@ -4,6 +4,7 @@ package v1
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"sync"
@@ -274,6 +275,51 @@ func TestRateLimiter_UnchangedDefinitionSkipsFlush(t *testing.T) {
 
 	assert.NoError(t, r.flushToDatabase(context.Background()))
 	mockRateLimitRepo.AssertNotCalled(t, "FlushRateLimits", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestRateLimiter_FailedFlushKeepsDefinitions(t *testing.T) {
+	l := zerolog.Nop()
+
+	stricter := v1.RateLimitDefinition{LimitValue: 5, Window: "1 HOUR"}
+	strictest := v1.RateLimitDefinition{LimitValue: 3, Window: "1 HOUR"}
+
+	future := time.Now().UTC().Add(time.Minute)
+
+	r := &rateLimiter{
+		dbRateLimits: rateLimitSet{
+			"key1": {key: "key1", val: 10, limitValue: 10, window: "1 HOUR"},
+		},
+		unacked:       make(map[int64]rateLimitSet),
+		unflushed:     make(rateLimitSet),
+		nextRefillAt:  &future,
+		l:             &l,
+		rateLimitRepo: nil,
+	}
+
+	mockRateLimitRepo := &mockRateLimitRepo{}
+
+	// a queue pass adds a newer definition while the failing flush is in flight
+	mockRateLimitRepo.On("FlushRateLimits", context.Background(), mock.Anything, mock.Anything, map[string]v1.RateLimitDefinition{"key1": stricter}).
+		Run(func(mock.Arguments) {
+			r.addDefinitions(map[string]v1.RateLimitDefinition{"key1": strictest})
+		}).
+		Return(([]*sqlcv1.ListRateLimitsForTenantWithMutateRow)(nil), (*time.Time)(nil), errors.New("flush failed")).Once()
+
+	nextRefill := time.Now().Add(2 * time.Second)
+	mockRateLimitRepo.On("FlushRateLimits", context.Background(), mock.Anything, mock.Anything, map[string]v1.RateLimitDefinition{"key1": strictest}).
+		Return([]*sqlcv1.ListRateLimitsForTenantWithMutateRow{
+			{Key: "key1", Value: 3, LimitValue: strictest.LimitValue, Window: strictest.Window},
+		}, &nextRefill, nil).Once()
+
+	r.rateLimitRepo = mockRateLimitRepo
+
+	r.addDefinitions(map[string]v1.RateLimitDefinition{"key1": stricter})
+
+	assert.Error(t, r.flushToDatabase(context.Background()))
+	assert.NoError(t, r.flushToDatabase(context.Background()))
+
+	assert.Equal(t, 3, r.dbRateLimits["key1"].val)
+	mockRateLimitRepo.AssertExpectations(t)
 }
 
 func BenchmarkRateLimiter(b *testing.B) {
