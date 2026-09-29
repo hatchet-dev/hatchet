@@ -415,9 +415,18 @@ func createExternalIdUniqueConstraintsOnDailyPartitions(ctx context.Context, db 
 // Two things to know before touching this:
 //   - Each ATTACH locks the child index so nothing else can read or write through it until
 //     the transaction commits. Don't attach more than needed.
-//   - The re-check only exists in Postgres 15.18, 16.14, 17.10, 18.4 and later. On older
-//     versions the statement leaves the parent invalid but still takes the lock.
+//   - Older Postgres versions don't have the re-check (see reattachValidatesParent). There the
+//     statement leaves the parent invalid but still takes the lock, so we skip it entirely.
 func reattachIndicesToParents(ctx context.Context, queries *sqlcv1.Queries, db sqlcv1.DBTX, isOlap bool) error {
+	var serverVersionNum int
+	if err := db.QueryRow(ctx, "SELECT current_setting('server_version_num')::int").Scan(&serverVersionNum); err != nil {
+		return fmt.Errorf("failed to read server_version_num: %w", err)
+	}
+
+	if !reattachValidatesParent(serverVersionNum) {
+		return nil
+	}
+
 	invalidIndexes, err := queries.FindInvalidIndexes(ctx, db, isOlap)
 	if err != nil {
 		return fmt.Errorf("failed to list invalid partitioned indexes: %w", err)
@@ -432,6 +441,31 @@ func reattachIndicesToParents(ctx context.Context, queries *sqlcv1.Queries, db s
 	}
 
 	return nil
+}
+
+// reattachValidatesParentSinceMinor is the first minor release, per major version, in which
+// ALTER INDEX ... ATTACH PARTITION re-checks the parent when the child is already attached.
+// Every release from 19 on has it.
+var reattachValidatesParentSinceMinor = map[int]int{
+	14: 23,
+	15: 18,
+	16: 14,
+	17: 10,
+	18: 4,
+}
+
+// reattachValidatesParent takes server_version_num (for example 180003 for 18.3) and reports
+// whether re-attaching an already attached child index can mark its parent valid.
+func reattachValidatesParent(serverVersionNum int) bool {
+	major, minor := serverVersionNum/10000, serverVersionNum%10000
+
+	if major >= 19 {
+		return true
+	}
+
+	sinceMinor, ok := reattachValidatesParentSinceMinor[major]
+
+	return ok && minor >= sinceMinor
 }
 
 func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {

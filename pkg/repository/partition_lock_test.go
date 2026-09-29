@@ -36,3 +36,30 @@ func TestIsPartitionLockConflict(t *testing.T) {
 		})
 	}
 }
+
+func TestReattachValidatesParent(t *testing.T) {
+	tests := []struct {
+		serverVersionNum int
+		want             bool
+	}{
+		{serverVersionNum: 130020, want: false},
+		{serverVersionNum: 140022, want: false},
+		{serverVersionNum: 140023, want: true},
+		{serverVersionNum: 150006, want: false},
+		{serverVersionNum: 150017, want: false},
+		{serverVersionNum: 150018, want: true},
+		{serverVersionNum: 160013, want: false},
+		{serverVersionNum: 160014, want: true},
+		{serverVersionNum: 170009, want: false},
+		{serverVersionNum: 170010, want: true},
+		{serverVersionNum: 180003, want: false},
+		{serverVersionNum: 180004, want: true},
+		{serverVersionNum: 190000, want: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprint(tt.serverVersionNum), func(t *testing.T) {
+			assert.Equal(t, tt.want, reattachValidatesParent(tt.serverVersionNum))
+		})
+	}
+}
