@@ -158,7 +158,7 @@ func TestMarkQueueItemsProcessedDuplicateTaskKey(t *testing.T) {
 
 	succeeded, failed, err := repo.markQueueItemsProcessed(ctx, tenantID, &AssignResults{
 		Assigned: []*AssignedItem{first, second, unrelated},
-	}, tx, false)
+	}, tx)
 	require.NoError(t, err)
 	require.NoError(t, tx.Commit(ctx))
 
@@ -224,7 +224,7 @@ func TestMarkQueueItemsProcessedAssignsRestoredQueueItem(t *testing.T) {
 
 	succeeded, failed, err := repo.markQueueItemsProcessed(ctx, tenantID, &AssignResults{
 		Assigned: []*AssignedItem{{WorkerId: worker, QueueItem: stale}},
-	}, tx, false)
+	}, tx)
 	require.NoError(t, err)
 	require.NoError(t, tx.Commit(ctx))
 
@@ -270,7 +270,7 @@ func TestMarkQueueItemsProcessedInvalidStepTimeoutFailsOnlyThatItem(t *testing.T
 
 	succeeded, failed, err := repo.markQueueItemsProcessed(ctx, tenantID, &AssignResults{
 		Assigned: []*AssignedItem{invalidItem, validItem},
-	}, tx, false)
+	}, tx)
 	require.NoError(t, err)
 	require.NoError(t, tx.Commit(ctx))
 
@@ -341,7 +341,7 @@ func TestMarkQueueItemsProcessedLocksRuntimesBeforeDeletingQueueItems(t *testing
 
 		succeeded, failed, err := repo.markQueueItemsProcessed(ctx, tenantID, &AssignResults{
 			Assigned: []*AssignedItem{evictedItem, freshItem},
-		}, tx, false)
+		}, tx)
 
 		if err != nil {
 			flushDone <- err

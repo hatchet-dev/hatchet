@@ -322,24 +322,15 @@ JOIN
 ;
 
 -- name: FlushAssignedQueueItems :many
--- One statement for the assignment flush on the poll and optimistic paths (the batch
--- scheduler keeps its own delete + UpdateTasksToAssigned pair):
---   1. lock existing runtime rows for every key in a fixed order (same order as
---      RestoreEvictedTasks and ReleaseTasks) so the flush cannot deadlock against them;
---      locked_runtimes is aggregated into keys_to_delete so every lock is taken before the
---      first queue item is deleted. @lockRuntimes is false on the optimistic path, where the
---      tasks were inserted in this transaction and no runtime row can exist yet.
---   2. delete the queue items by task key and return the keys that still existed; a key
---      that is not returned was removed underneath the scheduler (cancelled, another
---      scheduler) and the caller reports it as failed.
---   3. insert (or restore, for evicted runtimes) the runtime and slot rows for the assign
---      keys whose queue item was deleted; timeout_at is CURRENT_TIMESTAMP plus the step
---      timeout, which the caller parses into an interval (see durationToInterval) so the
---      statement neither calls convert_duration_to_interval per row nor leaves the
---      database clock.
--- Assign keys carry a worker id and step timeout; remove keys (scheduling timed out,
--- buffered) are only deleted. Every deleted key comes back, with worker_id and is_durable
--- set on the ones that were assigned.
+-- FlushAssignedQueueItems deletes v1_queue_item entries and inserts v1_task_runtime entries
+-- in a single statement. It locks existing v1_task_runtime entries in task_id order (the
+-- same order as RestoreEvictedTasks and ReleaseTasks) before the first delete.
+--
+-- Assign keys carry a worker id and a step timeout (an interval, see durationToInterval)
+-- and get a runtime and slot row; remove keys are only deleted.
+--
+-- Return values are task ids from successfully deleted v1_queue_items, with worker_id and
+-- is_durable set on the ones that were assigned.
 WITH assign_input AS (
     SELECT
         task_id,
@@ -376,11 +367,13 @@ WITH assign_input AS (
     JOIN
         v1_task_runtime r ON (r.task_id, r.task_inserted_at, r.retry_count) = (k.task_id, k.task_inserted_at, k.retry_count)
     WHERE
-        @lockRuntimes::boolean
-        AND r.tenant_id = @tenantId::uuid
+        r.tenant_id = @tenantId::uuid
     ORDER BY r.task_id, r.task_inserted_at, r.retry_count
     FOR UPDATE OF r
 ), keys_to_delete AS (
+    -- the CROSS JOIN on an aggregate of locked_runtimes is what makes that CTE run
+    -- (Postgres skips an unreferenced SELECT CTE), and it makes every runtime lock
+    -- precede the first delete
     SELECT
         k.task_id,
         k.task_inserted_at,

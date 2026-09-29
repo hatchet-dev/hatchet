@@ -259,7 +259,7 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *Assign
 
 	defer rollback()
 
-	succeeded, failed, err = d.markQueueItemsProcessed(ctx, d.tenantId, r, tx, false)
+	succeeded, failed, err = d.markQueueItemsProcessed(ctx, d.tenantId, r, tx)
 
 	if err != nil {
 		return nil, nil, err
@@ -277,13 +277,12 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *Assign
 	return succeeded, failed, nil
 }
 
-func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId uuid.UUID, r *AssignResults, tx sqlcv1.DBTX, isOptimistic bool) (succeeded []*AssignedItem, failed []*AssignedItem, err error) {
+func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId uuid.UUID, r *AssignResults, tx sqlcv1.DBTX) (succeeded []*AssignedItem, failed []*AssignedItem, err error) {
 	ctx, span := telemetry.NewSpan(ctx, "mark-queue-items-processed")
 	defer span.End()
 
 	telemetry.WithAttributes(span,
 		telemetry.AttributeKV{Key: "tenant.id", Value: tenantId.String()},
-		telemetry.AttributeKV{Key: "is_optimistic", Value: isOptimistic},
 		telemetry.AttributeKV{Key: "batch.assigned", Value: len(r.Assigned)},
 		telemetry.AttributeKV{Key: "batch.unassigned", Value: len(r.Unassigned)},
 		telemetry.AttributeKV{Key: "batch.scheduling_timed_out", Value: len(r.SchedulingTimedOut)},
@@ -383,8 +382,7 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 
 	// FlushAssignedQueueItems locks existing runtime rows first, so this transaction's lock
 	// order stays consistent with RestoreEvictedTasks; it must run before any other queue
-	// item is deleted in this transaction. On the optimistic path the tasks were inserted
-	// in this transaction and cannot have runtime rows yet, so the lock is skipped.
+	// item is deleted in this transaction.
 	var (
 		flushed       []*sqlcv1.FlushAssignedQueueItemsRow
 		flushDuration time.Duration
@@ -402,7 +400,6 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 			Removetaskids:         removeTaskIds,
 			Removetaskinsertedats: removeTaskInsertedAts,
 			Removeretrycounts:     removeRetryCounts,
-			Lockruntimes:          !isOptimistic,
 			Tenantid:              tenantId,
 			Mintaskinsertedat:     minTaskInsertedAt,
 		})
@@ -491,9 +488,7 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 		}
 	}
 
-	if !isOptimistic {
-		// we don't want to waste a query if we're scheduling optimistically; this only happens on insert so there's
-		// nothing to release
+	if len(tasksToRelease) > 0 {
 		_, err = d.releaseTasks(ctx, tx, tenantId, tasksToRelease)
 
 		if err != nil {
@@ -566,8 +561,6 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 			"ids_to_unqueue", len(taskIds)+len(removeTaskIds),
 		).Int(
 			"tasks_to_release", len(tasksToRelease),
-		).Bool(
-			"is_optimistic", isOptimistic,
 		).Msgf(
 			"marking queue items processed took longer than 100ms",
 		)
