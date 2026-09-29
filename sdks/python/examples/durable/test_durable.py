@@ -30,6 +30,7 @@ from examples.durable.worker import (
     wait_for_event_lookback,
     wait_for_or_event_lookback,
     wait_for_two_events_second_pushed_first,
+    wait_for_or_group_1,
     durable_spawn_many_dags,
     error_raising_durable_parent,
     error_raising_task,
@@ -44,17 +45,47 @@ TIMING_TOLERANCE = 2.0
 requires_durable_eviction = pytest.mark.usefixtures("_skip_unless_durable_eviction")
 
 
+async def _wait_for_task_to_complete(
+    hatchet: Hatchet, workflow_run_id: str, task_name: str, timeout: float = 90.0
+) -> None:
+    interval = 0.5
+    deadline = time.monotonic() + timeout
+
+    while time.monotonic() < deadline:
+        details = await hatchet.runs.aio_get(workflow_run_id)
+
+        # a task's display name is "<step readable id>-<unix timestamp>"
+        if any(
+            t.status == V1TaskStatus.COMPLETED
+            and t.display_name.startswith(f"{task_name}-")
+            for t in details.tasks
+        ):
+            return
+
+        await asyncio.sleep(interval)
+
+    raise TimeoutError(
+        f"{task_name} did not complete within {timeout}s for run {workflow_run_id}"
+    )
+
+
 @pytest.mark.asyncio(loop_scope="session")
 async def test_durable_workflow(hatchet: Hatchet) -> None:
     ref = await durable_workflow.aio_run(wait_for_result=False)
     id = str(uuid4())
 
-    await wait_for_running_status(hatchet, ref.workflow_run_id)
-    await asyncio.sleep(SLEEP_TIME + 3)
-
-    event = await hatchet.event.aio_push(
-        EVENT_KEY, AwaitedEvent(id=id).model_dump(mode="json")
+    # wait_for_or_group_1 races its SLEEP_TIME sleep against EVENT_KEY, and the
+    # test asserts the sleep wins. The durable tasks start whenever the shared
+    # worker has a durable slot free, so a fixed delay measured from the run
+    # going RUNNING can land the event before that sleep is even registered.
+    # Anchor on the sleep having fired instead: once wait_for_or_group_1 is
+    # COMPLETED the event can no longer beat it, and the lookback on
+    # durable_task and wait_for_or_group_2 still matches the event.
+    await _wait_for_task_to_complete(
+        hatchet, ref.workflow_run_id, wait_for_or_group_1.name
     )
+
+    await hatchet.event.aio_push(EVENT_KEY, AwaitedEvent(id=id).model_dump(mode="json"))
 
     result = await ref.aio_result()
 
