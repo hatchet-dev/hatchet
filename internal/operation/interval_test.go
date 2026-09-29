@@ -351,9 +351,14 @@ func TestInterval_GetNextTrigger_FirstTriggerUsesFullWindowPhase(t *testing.T) {
 	)
 
 	// The samples are independent, so take them in parallel: sequentially this
-	// test took about 8s, which is a long time to hold a CI test slot.
+	// test took about 8s, which is a long time to hold a CI test slot. Each
+	// sample's clock starts before its timer is armed, so scheduling delay
+	// between the two counts against the upper bounds; bounding how many
+	// samples run at once keeps the delay this test inflicts on itself small.
+	const parallelism = 8
 	var (
 		wg      sync.WaitGroup
+		slots   = make(chan struct{}, parallelism)
 		firsts  = make([]time.Duration, n)
 		seconds = make([]time.Duration, n)
 	)
@@ -362,6 +367,9 @@ func TestInterval_GetNextTrigger_FirstTriggerUsesFullWindowPhase(t *testing.T) {
 	for i := 0; i < n; i++ {
 		go func(i int) {
 			defer wg.Done()
+
+			slots <- struct{}{}
+			defer func() { <-slots }()
 
 			interval := &Interval{
 				resourceId:    testResourceID,

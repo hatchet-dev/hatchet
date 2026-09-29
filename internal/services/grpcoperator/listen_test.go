@@ -236,7 +236,11 @@ func TestListenSupersededSessionLeavesWorkerActive(t *testing.T) {
 // precondition exact instead of a poll on the store's size, which the first delta alone would
 // satisfy before the second one reverses part of it.
 func TestListenAppliesDeltasWithThrottledNotify(t *testing.T) {
-	const interval = 100 * time.Millisecond
+	// The assertion that the deltas were not notified immediately has to run
+	// before the deferred notification fires, so the window is long enough to
+	// absorb the scheduling delay of a loaded runner between the acks
+	// arriving and the assertion running.
+	const interval = time.Second
 
 	tenant := &sqlcv1.Tenant{ID: uuid.New()}
 	svc := newTestService(t, nil, operatorsvc.WithNotifyInterval(interval))
