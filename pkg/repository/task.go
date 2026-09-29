@@ -39,9 +39,6 @@ func isDeadlockDetected(err error) bool {
 	return errors.As(err, &pgErr) && pgErr.Code == pgerrcode.DeadlockDetected
 }
 
-// isPartitionLockConflict reports whether partition DDL lost a lock race with concurrent
-// table activity: either it timed out waiting (55P03) or Postgres broke a deadlock by
-// aborting it (40P01). Both are transient and are retried at the next interval.
 func isPartitionLockConflict(err error) bool {
 	return isLockNotAvailable(err) || isDeadlockDetected(err)
 }
@@ -616,9 +613,6 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		return fmt.Errorf("failed to delete old payload offloaded block index rows: %w", err)
 	}
 
-	// Runs last, in its own transaction. Validating an invalid parent index locks every child,
-	// which can deadlock against concurrent inserts, and that must not roll back partition
-	// creation or skip retention.
 	return runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
 		return reattachIndicesToParents(ctx, r.queries, tx, false)
 	})
