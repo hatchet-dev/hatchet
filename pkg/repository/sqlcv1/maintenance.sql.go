@@ -20,11 +20,17 @@ JOIN pg_catalog.pg_class parent_table ON parent_table.oid = parent_idx.indrelid
 JOIN pg_catalog.pg_namespace parent_namespace ON parent_namespace.oid = parent_table.relnamespace
 JOIN pg_catalog.pg_inherits child_inh ON child_inh.inhparent = parent_index.oid
 JOIN pg_catalog.pg_class child_index ON child_index.oid = child_inh.inhrelid
+JOIN pg_catalog.pg_index child_idx ON child_idx.indexrelid = child_index.oid
 WHERE NOT parent_idx.indisvalid
   AND parent_table.relkind = 'p'
   AND parent_namespace.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
   AND (parent_table.relname LIKE '%olap%') = $1::boolean
-GROUP BY parent_table.relname, parent_index.relname
+GROUP BY parent_table.oid, parent_table.relname, parent_index.relname
+HAVING COUNT(*) FILTER (WHERE child_idx.indisvalid) = (
+    SELECT COUNT(*)
+    FROM pg_catalog.pg_inherits table_inh
+    WHERE table_inh.inhparent = parent_table.oid
+)
 ORDER BY parent_index.relname
 `
 
@@ -34,6 +40,9 @@ type FindInvalidIndexesRow struct {
 	ExampleChildIndexName string `json:"example_child_index_name"`
 }
 
+// NOTE: only returns parents where every partition has a valid attached child index.
+// Indexes created with ON ONLY stay invalid until every partition has one, and attaching
+// a child to them takes an AccessExclusiveLock without validating anything.
 func (q *Queries) FindInvalidIndexes(ctx context.Context, db DBTX, isolap bool) ([]*FindInvalidIndexesRow, error) {
 	rows, err := db.Query(ctx, findInvalidIndexes, isolap)
 	if err != nil {
