@@ -64,6 +64,7 @@ class ScheduledClient(BaseRestClient):
         trigger_at: datetime.datetime,
         input: JSONSerializableMapping,
         additional_metadata: JSONSerializableMapping,
+        priority: int | None = None,
     ) -> ScheduledWorkflows:
         """
         Creates a new scheduled workflow run.
@@ -74,6 +75,7 @@ class ScheduledClient(BaseRestClient):
         :param trigger_at: The datetime when the run should be triggered.
         :param input: The input data for the scheduled workflow.
         :param additional_metadata: Additional metadata associated with the future run as a key-value pair.
+        :param priority: The priority of the scheduled workflow run. Must be between 1 and 3, inclusive.
 
         :return: The created scheduled workflow instance.
         """
@@ -85,6 +87,7 @@ class ScheduledClient(BaseRestClient):
                     triggerAt=trigger_at,
                     input=input,
                     additionalMetadata=additional_metadata,
+                    priority=priority,
                 ),
             )
 
@@ -94,6 +97,7 @@ class ScheduledClient(BaseRestClient):
         trigger_at: datetime.datetime,
         input: JSONSerializableMapping,
         additional_metadata: JSONSerializableMapping,
+        priority: int | None = None,
     ) -> ScheduledWorkflows:
         """
         Creates a new scheduled workflow run.
@@ -104,16 +108,13 @@ class ScheduledClient(BaseRestClient):
         :param trigger_at: The datetime when the run should be triggered.
         :param input: The input data for the scheduled workflow.
         :param additional_metadata: Additional metadata associated with the future run as a key-value pair.
+        :param priority: The priority of the scheduled workflow run. Must be between 1 and 3, inclusive.
 
         :return: The created scheduled workflow instance.
         """
 
         return await asyncio.to_thread(
-            self.create,
-            workflow_name,
-            trigger_at,
-            input,
-            additional_metadata,
+            self.create, workflow_name, trigger_at, input, additional_metadata, priority
         )
 
     def delete(self, scheduled_id: str) -> None:
