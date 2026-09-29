@@ -841,11 +841,9 @@ func mergeWorkflowConcurrencyOntoSingleTask(opts *CreateWorkflowVersionOpts) {
 	opts.Concurrency = nil
 }
 
-// mergeWorkflowConcurrencyOntoOrchestrator moves the workflow's concurrency settings onto
-// the orchestrator step, keeping their order. With the DAG operator, each workflow run is a
-// single orchestrator task, so limiting that task limits the whole run. We don't leave the
-// settings on the workflow because they would be stored as parent strategies, which the
-// in-memory concurrency index can't handle.
+// With the DAG operator, each workflow run is a single orchestrator task, so limiting
+// that task limits the whole run. Workflow-level settings would instead be stored as
+// parent strategies, which the in-memory concurrency index can't handle.
 func mergeWorkflowConcurrencyOntoOrchestrator(opts *CreateWorkflowVersionOpts, orchestrator *CreateStepOpts) {
 	orchestrator.Concurrency = append(orchestrator.Concurrency, opts.Concurrency...)
 	opts.Concurrency = nil
