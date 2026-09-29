@@ -35,14 +35,15 @@ func TestRandomTicker(t *testing.T) {
 	const (
 		minDuration = 10 * time.Millisecond
 		maxDuration = 20 * time.Millisecond
-		ticks       = 20
+		ticks       = 50
 		// The ticker sends without blocking, so a tick that fires while this
 		// goroutine is not parked on the channel is dropped and the next one
-		// lands up to maxDuration later. The slack absorbs a handful of such
-		// drops plus timer lateness on a loaded runner, while a ticker that
-		// ignores maxDuration (for example a fixed 30ms cadence, 600ms in
-		// total) still fails.
-		slack = 150 * time.Millisecond
+		// lands up to maxDuration later. Ticks average well under maxDuration,
+		// so the cumulative bound leaves room for roughly twenty dropped ticks
+		// plus timer lateness on a loaded runner, while a ticker that ignores
+		// maxDuration (for example a fixed 30ms cadence, 1.5s in total) still
+		// fails.
+		slack = 10 * maxDuration
 	)
 
 	// Every timer is armed after start and after the previous tick was

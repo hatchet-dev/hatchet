@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -32,9 +32,12 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/operatorclient"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
+	"github.com/hatchet-dev/hatchet/pkg/config/database"
+	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/operator/hostgrpc"
 	"github.com/hatchet-dev/hatchet/pkg/operator/operatortest"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/testing/harness"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
@@ -301,23 +304,67 @@ func assertStaysQueued(t *testing.T, ctx context.Context, sdk *hatchet.Client, r
 	}
 }
 
-// workerActive reads the worker's active flag straight from the database: the
-// harness runs the engine only, so there is no REST API to ask.
+// dataLayer returns a repository layer for the harness database, one per test. The harness
+// runs the engine only, so there is no REST API to ask, and the tests read worker state through
+// the same repository the engine uses rather than through hand-written SQL. The layer is
+// disconnected when the test ends so its background goroutines do not trip the harness's
+// goroutine leak check.
+func dataLayer(t *testing.T) *database.Layer {
+	t.Helper()
+
+	dataLayersMu.Lock()
+	defer dataLayersMu.Unlock()
+
+	if layer, ok := dataLayers[t]; ok {
+		return layer
+	}
+
+	confLoader := &loader.ConfigLoader{}
+	layer, err := confLoader.InitDataLayer()
+	require.NoError(t, err, "could not initialize the data layer for the harness database")
+
+	dataLayers[t] = layer
+	t.Cleanup(func() {
+		dataLayersMu.Lock()
+		delete(dataLayers, t)
+		dataLayersMu.Unlock()
+
+		_ = layer.Disconnect()
+	})
+
+	return layer
+}
+
+var (
+	dataLayersMu sync.Mutex
+	dataLayers   = map[*testing.T]*database.Layer{}
+)
+
+// getWorker reads the worker row through the repository.
+func getWorker(t *testing.T, ctx context.Context, workerId string) sqlcv1.Worker {
+	t.Helper()
+
+	row, err := dataLayer(t).V1.Workers().GetWorkerById(ctx, uuid.MustParse(workerId))
+	require.NoError(t, err)
+
+	return row.Worker
+}
+
+func timestampString(ts pgtype.Timestamp) string {
+	if !ts.Valid {
+		return "<nil>"
+	}
+
+	return ts.Time.String()
+}
+
+// workerActive reads the worker's active flag.
 func workerActive(t *testing.T, ctx context.Context, workerId string) (active bool, state string) {
 	t.Helper()
 
-	conn, err := pgx.Connect(ctx, os.Getenv("DATABASE_URL"))
-	require.NoError(t, err)
-	defer conn.Close(ctx)
+	w := getWorker(t, ctx, workerId)
 
-	var listenerEstablished, lastHeartbeat *time.Time
-	err = conn.QueryRow(ctx,
-		`SELECT "isActive", "lastListenerEstablished", "lastHeartbeatAt" FROM "Worker" WHERE "id" = $1`,
-		uuid.MustParse(workerId),
-	).Scan(&active, &listenerEstablished, &lastHeartbeat)
-	require.NoError(t, err)
-
-	return active, fmt.Sprintf("isActive=%t lastListenerEstablished=%v lastHeartbeatAt=%v", active, listenerEstablished, lastHeartbeat)
+	return w.IsActive, fmt.Sprintf("isActive=%t lastListenerEstablished=%s lastHeartbeatAt=%s", w.IsActive, timestampString(w.LastListenerEstablished), timestampString(w.LastHeartbeatAt))
 }
 
 // workerListenerSession reads the worker's active flag and the id of the listener session that
@@ -328,17 +375,9 @@ func workerActive(t *testing.T, ctx context.Context, workerId string) (active bo
 func workerListenerSession(t *testing.T, ctx context.Context, workerId string) (active bool, sessionId *uuid.UUID) {
 	t.Helper()
 
-	conn, err := pgx.Connect(ctx, os.Getenv("DATABASE_URL"))
-	require.NoError(t, err)
-	defer conn.Close(ctx)
+	w := getWorker(t, ctx, workerId)
 
-	err = conn.QueryRow(ctx,
-		`SELECT "isActive", "lastListenerSessionId" FROM "Worker" WHERE "id" = $1`,
-		uuid.MustParse(workerId),
-	).Scan(&active, &sessionId)
-	require.NoError(t, err)
-
-	return active, sessionId
+	return w.IsActive, w.LastListenerSessionId
 }
 
 // pollWorkerReconnected waits until the worker is active under a listener session other than
@@ -357,18 +396,11 @@ func pollWorkerReconnected(t *testing.T, ctx context.Context, workerId string, p
 	})
 }
 
-// workerPaused reads the worker's paused flag straight from the database.
+// workerPaused reads the worker's paused flag.
 func workerPaused(t *testing.T, ctx context.Context, workerId string) bool {
 	t.Helper()
 
-	conn, err := pgx.Connect(ctx, os.Getenv("DATABASE_URL"))
-	require.NoError(t, err)
-	defer conn.Close(ctx)
-
-	var paused bool
-	require.NoError(t, conn.QueryRow(ctx, `SELECT "isPaused" FROM "Worker" WHERE "id" = $1`, uuid.MustParse(workerId)).Scan(&paused))
-
-	return paused
+	return getWorker(t, ctx, workerId).IsPaused
 }
 
 func pollWorkerPaused(t *testing.T, ctx context.Context, workerId string, want bool) {
@@ -378,20 +410,16 @@ func pollWorkerPaused(t *testing.T, ctx context.Context, workerId string, want b
 	})
 }
 
-// workerActionHash reads the worker's action hash straight from the database. A delta clears
-// the hash and the session refreshes it at the end of the delta sequence, within its notify
-// window, so a NULL hash means the refresh is pending and the read waits for it.
+// workerActionHash reads the worker's action hash. A delta clears the hash and the session
+// refreshes it at the end of the delta sequence, within its notify window, so a NULL hash means
+// the refresh is pending and the read waits for it.
 func workerActionHash(t *testing.T, ctx context.Context, workerId string) []byte {
 	t.Helper()
-
-	conn, err := pgx.Connect(ctx, os.Getenv("DATABASE_URL"))
-	require.NoError(t, err)
-	defer conn.Close(ctx)
 
 	var hash []byte
 
 	require.Eventually(t, func() bool {
-		require.NoError(t, conn.QueryRow(ctx, `SELECT "actionHash" FROM "Worker" WHERE "id" = $1`, uuid.MustParse(workerId)).Scan(&hash))
+		hash = getWorker(t, ctx, workerId).ActionHash
 
 		return hash != nil
 	}, schedulerConvergence, pollInterval, "the worker's action hash was not refreshed after its delta")
@@ -399,33 +427,17 @@ func workerActionHash(t *testing.T, ctx context.Context, workerId string) []byte
 	return hash
 }
 
-// workerActions reads the worker's linked actions straight from the database,
-// sorted by action id.
+// workerActions reads the worker's linked actions, sorted by action id.
 func workerActions(t *testing.T, ctx context.Context, workerId string) []string {
 	t.Helper()
 
-	conn, err := pgx.Connect(ctx, os.Getenv("DATABASE_URL"))
-	require.NoError(t, err)
-	defer conn.Close(ctx)
+	w := getWorker(t, ctx, workerId)
 
-	rows, err := conn.Query(ctx,
-		`SELECT a."actionId"
-		FROM "_ActionToWorker" atw
-		JOIN "Action" a ON a."id" = atw."A"
-		WHERE atw."B" = $1
-		ORDER BY a."actionId"`,
-		uuid.MustParse(workerId),
-	)
+	actionsByWorker, err := dataLayer(t).V1.Workers().GetWorkerActionsForWorkers(ctx, w.TenantId, []sqlcv1.Worker{w})
 	require.NoError(t, err)
-	defer rows.Close()
 
-	actions := []string{}
-	for rows.Next() {
-		var action string
-		require.NoError(t, rows.Scan(&action))
-		actions = append(actions, action)
-	}
-	require.NoError(t, rows.Err())
+	actions := append([]string{}, actionsByWorker[w.ID.String()]...)
+	slices.Sort(actions)
 
 	return actions
 }

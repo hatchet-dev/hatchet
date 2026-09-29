@@ -4,7 +4,7 @@ import time
 import pytest
 from uuid import uuid4
 import json
-from typing import cast
+from typing import Any, cast
 from random import shuffle
 from datetime import datetime, timedelta, timezone
 
@@ -16,6 +16,7 @@ from examples.durable.worker import (
     durable_with_bulk_spawn,
     durable_with_spawn,
     durable_workflow,
+    durable_task,
     wait_for_sleep_twice,
     durable_spawn_dag,
     durable_non_determinism,
@@ -69,6 +70,33 @@ async def _wait_for_task_to_complete(
     )
 
 
+async def _push_event_until_task_completes(
+    hatchet: Hatchet,
+    workflow_run_id: str,
+    task_name: str,
+    event_key: str,
+    payload: dict[str, Any],
+    timeout: float = 90.0,
+    interval: float = 2.0,
+) -> None:
+    deadline = time.monotonic() + timeout
+
+    while time.monotonic() < deadline:
+        await hatchet.event.aio_push(event_key, payload)
+
+        try:
+            await _wait_for_task_to_complete(
+                hatchet, workflow_run_id, task_name, timeout=interval
+            )
+            return
+        except TimeoutError:
+            continue
+
+    raise TimeoutError(
+        f"{task_name} did not complete within {timeout}s for run {workflow_run_id}"
+    )
+
+
 @pytest.mark.asyncio(loop_scope="session")
 async def test_durable_workflow(hatchet: Hatchet) -> None:
     ref = await durable_workflow.aio_run(wait_for_result=False)
@@ -79,13 +107,23 @@ async def test_durable_workflow(hatchet: Hatchet) -> None:
     # worker has a durable slot free, so a fixed delay measured from the run
     # going RUNNING can land the event before that sleep is even registered.
     # Anchor on the sleep having fired instead: once wait_for_or_group_1 is
-    # COMPLETED the event can no longer beat it, and the lookback on
-    # durable_task and wait_for_or_group_2 still matches the event.
+    # COMPLETED the event can no longer beat it.
     await _wait_for_task_to_complete(
         hatchet, ref.workflow_run_id, wait_for_or_group_1.name
     )
 
-    await hatchet.event.aio_push(EVENT_KEY, AwaitedEvent(id=id).model_dump(mode="json"))
+    # durable_task registers its event wait only after its own SLEEP_TIME
+    # sleep, and that wait has no lookback, so a single push can land before
+    # the wait exists and never be seen. Push the same event until durable_task
+    # has completed; every push carries the same id, so the result is the same
+    # whichever push is matched, and wait_for_or_group_1 has already finished.
+    await _push_event_until_task_completes(
+        hatchet,
+        ref.workflow_run_id,
+        durable_task.name,
+        EVENT_KEY,
+        AwaitedEvent(id=id).model_dump(mode="json"),
+    )
 
     result = await ref.aio_result()
 

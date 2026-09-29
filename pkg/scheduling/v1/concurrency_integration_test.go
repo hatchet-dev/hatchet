@@ -759,10 +759,21 @@ func TestConcurrency_ColdStrategyScheduledPromptly(t *testing.T) {
 		deadline := time.NewTimer(coldStartDeadline)
 		defer deadline.Stop()
 
+		// The warm manager's first result proves the initial acquisition handed over its leases,
+		// but the acquisition releases the lease mutex only after that send, so a notification
+		// landing in that gap still finds the mutex held and is dropped. Notifying again while
+		// waiting closes the gap without changing what is measured: every notification takes the
+		// same on-demand path, and none of them can be answered by the periodic poll before the
+		// deadline.
+		renotify := time.NewTicker(500 * time.Millisecond)
+		defer renotify.Stop()
+
 		for {
 			select {
 			case <-ctx.Done():
 				t.Fatalf("context cancelled while waiting for cold strategy to be scheduled: %v", ctx.Err())
+			case <-renotify.C:
+				schedulingPool.NotifyConcurrency(ctx, tenantId, []int64{strat.ID})
 			case <-deadline.C:
 				t.Fatalf("cold concurrency strategy was not scheduled within %s; "+
 					"the on-demand manager was not created (fell back to the periodic lease poll)", coldStartDeadline)

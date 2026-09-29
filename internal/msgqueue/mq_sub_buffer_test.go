@@ -223,8 +223,6 @@ func TestMsgIdBufferMemoryLeak(t *testing.T) {
 	t.Logf("Memory growth: %.2f MB", memGrowthMB)
 }
 
-// waitUntil polls cond until it returns true or timeout elapses, failing the
-// test on timeout.
 func waitUntil(t *testing.T, timeout time.Duration, what string, cond func() bool) {
 	t.Helper()
 	deadline := time.Now().Add(timeout)

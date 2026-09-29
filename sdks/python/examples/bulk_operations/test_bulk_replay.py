@@ -125,7 +125,14 @@ async def test_bulk_replay(hatchet: Hatchet) -> None:
 
         return runs
 
-    await wait_for_all_failed()
+    before_replay = await wait_for_all_failed()
+
+    # A run that an internal retry already completed satisfies the post-replay
+    # status checks on its own, so remember every run's attempt count and
+    # require the replay to have moved each one forward.
+    attempts_before_replay = {
+        row.metadata.id: row.attempt or 0 for row in before_replay.rows or []
+    }
 
     await hatchet.runs.aio_bulk_replay(
         opts=BulkCancelReplayOpts(
@@ -172,6 +179,15 @@ async def test_bulk_replay(hatchet: Hatchet) -> None:
     runs = await wait_for_replayed_completed()
 
     assert len(runs.rows) == expected_total
+
+    not_replayed = [
+        row.metadata.id
+        for row in runs.rows
+        if (row.attempt or 0) <= attempts_before_replay.get(row.metadata.id, 0)
+    ]
+    assert (
+        not not_replayed
+    ), f"{len(not_replayed)} runs were not re-run by the bulk replay: {not_replayed}"
 
     for run in runs.rows:
         assert run.status == V1TaskStatus.COMPLETED
