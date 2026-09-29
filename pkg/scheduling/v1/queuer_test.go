@@ -94,7 +94,7 @@ func (r *lostWakeQueueRepo) ListQueueItems(context.Context, int) ([]*sqlcv1.V1Qu
 
 // GetTaskRateLimits runs right after refillQueue with the items it returned, so an empty
 // slice means the tick found nothing to assign.
-func (r *lostWakeQueueRepo) GetTaskRateLimits(_ context.Context, _ *v1repo.OptimisticTx, qis []*sqlcv1.V1QueueItem) (map[int64]map[string]int32, error) {
+func (r *lostWakeQueueRepo) GetTaskRateLimits(_ context.Context, _ *v1repo.OptimisticTx, qis []*sqlcv1.V1QueueItem) (map[int64]map[string]int32, map[string]v1repo.RateLimitDefinition, error) {
 	if len(qis) == 0 {
 		select {
 		case r.emptyRefill <- struct{}{}:
@@ -102,7 +102,7 @@ func (r *lostWakeQueueRepo) GetTaskRateLimits(_ context.Context, _ *v1repo.Optim
 		}
 	}
 
-	return nil, nil
+	return nil, nil, nil
 }
 
 func (r *lostWakeQueueRepo) MarkQueueItemsProcessed(_ context.Context, ar *v1repo.AssignResults) ([]*v1repo.AssignedItem, []*v1repo.AssignedItem, error) {
