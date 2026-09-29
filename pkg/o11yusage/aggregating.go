@@ -57,6 +57,10 @@ type Aggregator struct {
 	interval time.Duration
 	flushMu  sync.Mutex
 	stopOnce sync.Once
+	// afterLoad is test-only. When set, Add calls it between looking up a
+	// counter and incrementing it, so a test can park a writer across an
+	// eviction. It is nil in production, where it costs one nil check.
+	afterLoad func()
 }
 
 // NewAggregator returns an aggregator. If fn is nil, Start is a no-op.
@@ -94,8 +98,13 @@ func (a *Aggregator) Add(tenantID uuid.UUID, kind Kind, n int64) {
 	// Each pass retries only when snapshot evicted the counter between the
 	// lookup and the increment, which is rare, so the common case is one pass.
 	for {
-		if v, ok := a.counters.Load(key); ok && v.(*atomic.Int64).Add(n) > 0 {
-			return
+		if v, ok := a.counters.Load(key); ok {
+			if a.afterLoad != nil {
+				a.afterLoad()
+			}
+			if v.(*atomic.Int64).Add(n) > 0 {
+				return
+			}
 		}
 
 		c := &atomic.Int64{}

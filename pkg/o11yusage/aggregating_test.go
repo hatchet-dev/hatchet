@@ -165,6 +165,87 @@ func TestFlushEvictionRaceKeepsEveryByte(t *testing.T) {
 	}
 }
 
+func TestAddEvictedWriterRetriesIntoFreshCounter(t *testing.T) {
+	t.Parallel()
+
+	tenantID := uuid.New()
+	var mu sync.Mutex
+	var flushes []map[uuid.UUID]TenantBytes
+
+	l := zerolog.Nop()
+	a := NewAggregator(&l, time.Hour, func(tenants map[uuid.UUID]TenantBytes) error {
+		mu.Lock()
+		defer mu.Unlock()
+		flushes = append(flushes, tenants)
+		return nil
+	})
+
+	// Leave an idle counter behind so the next snapshot evicts it.
+	a.AddLogs(tenantID, 1)
+	a.flush()
+
+	// Park the writer between its lookup of the idle counter and its
+	// increment, evict and seal the counter underneath it, then let the
+	// increment land. It must be retried into a fresh counter. The waits
+	// are bounded so that a regression fails instead of hanging, and the
+	// release is idempotent and runs at cleanup so a failed assertion never
+	// leaves the writer blocked.
+	const barrierTimeout = 10 * time.Second
+	loaded := make(chan struct{})
+	resume := make(chan struct{})
+	done := make(chan struct{})
+	var releaseOnce sync.Once
+	release := func() { releaseOnce.Do(func() { close(resume) }) }
+	t.Cleanup(func() {
+		release()
+		select {
+		case <-done:
+		case <-time.After(barrierTimeout):
+			t.Error("parked writer did not finish after release")
+		}
+	})
+
+	var calls atomic.Int64
+	a.afterLoad = func() {
+		if calls.Add(1) == 1 {
+			close(loaded)
+			<-resume
+		}
+	}
+	go func() {
+		defer close(done)
+		a.AddLogs(tenantID, 5)
+	}()
+	select {
+	case <-loaded:
+	case <-time.After(barrierTimeout):
+		t.Fatal("writer never reached afterLoad between Load and Add")
+	}
+
+	a.flush()
+	release()
+	select {
+	case <-done:
+	case <-time.After(barrierTimeout):
+		t.Fatal("writer did not finish its Add after being released")
+	}
+	a.flush()
+
+	mu.Lock()
+	defer mu.Unlock()
+	// The eviction flush had nothing to report, so only two flushes ran the
+	// callback: the setup one and the one carrying the retried increment.
+	if len(flushes) != 2 {
+		t.Fatalf("got %d flushes, want 2: %v", len(flushes), flushes)
+	}
+	if flushes[1][tenantID] != (TenantBytes{Logs: 5}) {
+		t.Fatalf("retried increment flushed as %+v, want logs=5", flushes[1][tenantID])
+	}
+	if _, ok := a.counters.Load(counterKey{TenantID: tenantID, Kind: KindLogs}); !ok {
+		t.Fatal("expected the fresh counter to still be in the map after its flush")
+	}
+}
+
 var errFlush = errString("flush failed")
 
 type errString string

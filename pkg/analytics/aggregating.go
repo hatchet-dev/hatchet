@@ -142,18 +142,33 @@ func (a *Aggregator) Count(resource Resource, action Action, tenantID uuid.UUID,
 	// event time is taken right before each increment so that it stays
 	// close to the count it describes; it is still sampled separately from
 	// the count, so it can be stale relative to other writers.
+	//
+	// evicted records that this writer's increment landed on an entry that
+	// flush had already removed. Such a writer may republish its key even
+	// when the cap is reached, because dropping it would reintroduce the
+	// lost counts this retry exists to prevent. keyCount stays balanced:
+	// the eviction subtracted one and the republish adds one. The cap is
+	// therefore exceeded by up to one entry per Count that was between its
+	// lookup and its increment on an entry a flush evicted, on top of the
+	// admission race that already makes the cap approximate (keyCount is
+	// read separately from the map). That surplus is bounded by writer
+	// concurrency at eviction time, not by anything configured, and it is
+	// not necessarily temporary: republished entries stay until a flush
+	// finds them idle, and while they stay active further evictions can
+	// add to them. Each entry is small against the default cap of 500.
+	evicted := false
 	for {
 		if v, ok := a.counters.Load(key); ok {
 			if v.(*counterEntry).add(n, a.now().UnixNano()) {
 				return
 			}
 			// Another writer can already have published a replacement
-			// for this key, so look it up again before treating the
-			// event as a new key subject to the cap.
+			// for this key, so look it up again before republishing.
+			evicted = true
 			continue
 		}
 
-		if a.keyCount.Load() >= a.maxKeys {
+		if !evicted && a.keyCount.Load() >= a.maxKeys {
 			// The key can have been republished since the lookup above,
 			// in which case the event is not a new key and must not be
 			// dropped.
@@ -176,6 +191,7 @@ func (a *Aggregator) Count(resource Resource, action Action, tenantID uuid.UUID,
 		if existing.(*counterEntry).add(n, a.now().UnixNano()) {
 			return
 		}
+		evicted = true
 	}
 }
 
