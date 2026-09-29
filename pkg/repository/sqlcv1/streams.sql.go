@@ -170,8 +170,7 @@ type ListStreamMessagesAfterCursorParams struct {
 
 // Keyset pagination on id. xact_id < pg_snapshot_xmin(...) excludes rows
 // whose inserting transaction may still be in flight, so a concurrent batch
-// insert can't let a higher id become visible before a lower one commits and
-// get permanently skipped -- it shows up on a later poll instead.
+// insert can't let a higher id become visible before a lower one commits.
 func (q *Queries) ListStreamMessagesAfterCursor(ctx context.Context, db DBTX, arg ListStreamMessagesAfterCursorParams) ([]*V1StreamMessage, error) {
 	rows, err := db.Query(ctx, listStreamMessagesAfterCursor,
 		arg.Tenantid,

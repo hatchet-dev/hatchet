@@ -2215,8 +2215,6 @@ CREATE TABLE v1_stream_topic (
 -- when querying, we filter based on the minimum in-flight transaction number,
 -- thus all transactions started after the oldest in flight transaction are ignored
 -- strictly ordering messages by transaction *start* rather than commit.
--- producer_id/producer_seq have no default: every publish is required to
--- supply them (see api-contracts/v1/streams.proto).
 CREATE TABLE v1_stream_message (
     id BIGINT GENERATED ALWAYS AS IDENTITY,
     inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,

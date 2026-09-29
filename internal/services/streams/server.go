@@ -94,18 +94,14 @@ func (s *ServiceImpl) Publish(ctx context.Context, req *contracts.PublishStreamM
 	}
 
 	// STREAMS_QUEUE requires publisher confirms, see Queue.RequiresPublishConfirm).
-	// Return errors back to the publisher--firing and forgetting here can lead to the
-	// SDK not being aware of failed messages, which will back up queue because inserting must be
-	// in-order
+	// We need to return the error to the SDK if we cannot pub to rabbit so that the SDK
+	// does not continue blindly pubbing messages when there is a gap in the producer seq
 	if err := s.pubBuffer.Pub(ctx, msgqueue.STREAMS_QUEUE, msg, true); err != nil {
 		return nil, connect.NewError(connect.CodeUnavailable, fmt.Errorf("could not enqueue stream message: %w", err))
 	}
 
 	post()
 
-	// Best-effort wake for any consumer currently tailing this topic. Never
-	// the source of truth -- a dropped wake just means the tail loop's
-	// fallback ticker (subscribeTailPollInterval) picks it up shortly after.
 	if wakeMsg, err := msgqueue.NewTenantMessage(tenantId, msgqueue.MsgIDStreamMessage, true, false, struct{}{}); err == nil {
 		_ = s.pubsub.Pub(ctx, msgqueue.StreamTopic(tenantId, req.Namespace, req.Topic), wakeMsg)
 	}

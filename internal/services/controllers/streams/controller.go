@@ -22,12 +22,7 @@ import (
 
 // maxProducerGapWait bounds how long a producer-sequenced message can be held
 // back waiting for its predecessor to become durable (see
-// insertOrderedStreamMessage) before it's inserted out of order anyway. This
-// only matters when a predecessor is permanently lost (e.g. its own publish
-// failed client-side after the sequence number was already assigned) --
-// ordinary network/queue reordering between concurrent publishes resolves in
-// well under a second, since the predecessor is flowing through the same
-// queue.
+// insertOrderedStreamMessage) before it's inserted out of order anyway.
 const maxProducerGapWait = 30 * time.Second
 
 type StreamsController interface {

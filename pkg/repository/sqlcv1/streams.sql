@@ -80,8 +80,7 @@ VALUES (@tenantId::uuid, @namespace::text, @topic::text, @payload::bytea, @produ
 -- name: ListStreamMessagesAfterCursor :many
 -- Keyset pagination on id. xact_id < pg_snapshot_xmin(...) excludes rows
 -- whose inserting transaction may still be in flight, so a concurrent batch
--- insert can't let a higher id become visible before a lower one commits and
--- get permanently skipped -- it shows up on a later poll instead.
+-- insert can't let a higher id become visible before a lower one commits.
 SELECT *
 FROM v1_stream_message
 WHERE tenant_id = @tenantId::uuid
