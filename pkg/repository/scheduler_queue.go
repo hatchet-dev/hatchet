@@ -636,8 +636,9 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, tx *OptimisticT
 
 	// get all step run expression evals which correspond to rate limits, grouped by step run id
 	expressionEvals, err := d.queries.ListTaskExpressionEvals(ctx, queryTx, sqlcv1.ListTaskExpressionEvalsParams{
-		Taskids:         taskIds,
-		Taskinsertedats: taskInsertedAts,
+		Taskids:           taskIds,
+		Taskinsertedats:   taskInsertedAts,
+		Mintaskinsertedat: sqlchelpers.MinTimestamptz(taskInsertedAts),
 	})
 
 	if err != nil {

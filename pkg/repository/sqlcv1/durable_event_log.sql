@@ -208,7 +208,10 @@ WITH inputs AS MATERIALIZED (
         lt.inserted_at
     FROM inputs i
     JOIN v1_lookup_table lt ON lt.external_id = i.external_id
-    WHERE lt.tenant_id = @tenantId::UUID
+    WHERE
+        lt.tenant_id = @tenantId::UUID
+        AND lt.inserted_at >= @minTaskInsertedAt::TIMESTAMPTZ
+        AND lt.inserted_at <= @maxTaskInsertedAt::TIMESTAMPTZ
 ), satisfied_entries AS MATERIALIZED (
     SELECT
         e.*,
