@@ -875,20 +875,14 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 			Retries:           &numRetries,
 		}
 
-		// Tenant-scoped workflow-level entries become concurrency on the orchestrator
-		// task (in array order); workflow-scoped entries keep the parent fan-out below,
-		// which always gates first.
-		remaining := make([]CreateConcurrencyOpts, 0, len(opts.Concurrency))
-
-		for _, entry := range opts.Concurrency {
-			if entry.IsTenantScoped {
-				orchestrator.Concurrency = append(orchestrator.Concurrency, entry)
-			} else {
-				remaining = append(remaining, entry)
-			}
-		}
-
-		opts.Concurrency = remaining
+		// The orchestrator is the only task the scheduler gates per run, so workflow-level
+		// concurrency becomes step concurrency on it (in array order), the same way
+		// mergeWorkflowConcurrencyOntoSingleTask treats a one-task workflow. Keeping the
+		// parent/child fan-out here would leave a single child strategy with a
+		// parent_strategy_id, which forces the SQL Run*CancelInProgress path instead of
+		// the in-memory concurrency index.
+		orchestrator.Concurrency = append(orchestrator.Concurrency, opts.Concurrency...)
+		opts.Concurrency = nil
 		opts.Tasks = append(opts.Tasks, orchestrator)
 	}
 
