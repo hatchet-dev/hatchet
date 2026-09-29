@@ -465,7 +465,7 @@ func (t *tenantManager) notifyQueuers(ctx context.Context, queueNames []string) 
 
 	for _, q := range t.queuers {
 		if _, ok := wanted[q.queueName]; ok {
-			q.notifyCapacityRestored(ctx)
+			q.queue(ctx)
 		}
 	}
 }

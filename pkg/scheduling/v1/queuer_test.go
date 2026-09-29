@@ -124,7 +124,12 @@ func (r *blockingFlushQueueRepo) flush(i int) *v1repo.AssignResults {
 
 // A capacity wake that arrives while a batch's misses are still being flushed
 // finds them unacked and assigns nothing; the batch must re-queue once the
-// flush acks them instead of leaving them to the next poll.
+// flush acks them instead of leaving them to the next poll. This drives the
+// slots path end to end: a heuristic replenish rebuilds the starved action,
+// advances the capacity epoch and wakes the queue through the tenant manager;
+// the re-queue comes from loopQueue asking isWorkerCapacityUpdated after the
+// flush (TestQueuerReplaysWakeLostWhileMissedItemInFlight covers the same
+// question for a forced replenish that sends no wake at all).
 func TestQueuer_CapacityRestoredDuringFlushRequeuesMisses(t *testing.T) {
 	tenantId := uuid.New()
 	workerId := uuid.New()
@@ -281,7 +286,8 @@ func waitFor(t *testing.T, ch <-chan struct{}, what string) {
 // rebuilds the pools with a free slot. Whether the wake-up for that capacity was
 // consumed by a tick that could not see the item, or was never sent (the periodic
 // replenish does not notify), nothing would wake the queuer once the item came back.
-// The post-flush path wakes it when the pools changed during the flight, and only then.
+// The post-flush path wakes it when the capacity epoch moved during the flight
+// (isWorkerCapacityUpdated), and only then.
 func TestQueuerReplaysWakeLostWhileMissedItemInFlight(t *testing.T) {
 	for _, tc := range []struct {
 		name             string

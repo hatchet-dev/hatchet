@@ -101,10 +101,9 @@ type Scheduler struct {
 	// instead of on the next poll.
 	onCapacityRestored func(queues []string)
 
-	// poolGeneration is incremented every time a replenish installs rebuilt
-	// pools. Queuers read it without the run loop to tell whether capacity may
-	// have changed while a batch of theirs was in flight.
-	poolGeneration atomic.Uint64
+	// capacityEpoch is the worker capacity epoch; see isWorkerCapacityUpdated
+	// for the contract. Advanced on the run loop, read from any goroutine.
+	capacityEpoch atomic.Uint64
 
 	// warmedSlotTypes tracks (worker, slot type) pairs whose slots have appeared in the
 	// in-memory pool at least once. An empty pool is ambiguous — a worker which has not
@@ -363,10 +362,17 @@ func (s *Scheduler) handleNack(ids []int) []func() {
 
 		delete(s.unackedSlots, id)
 
+		released := false
+
 		for _, sl := range assigned.slots {
 			if sl.pool != nil {
 				sl.pool.release(sl)
+				released = true
 			}
+		}
+
+		if released {
+			s.markWorkerCapacityUpdated()
 		}
 
 		if assigned.rateLimitNack != nil {
@@ -375,6 +381,53 @@ func (s *Scheduler) handleNack(ids []int) []func() {
 	}
 
 	return callbacks
+}
+
+// capacityEpoch is a monotonic counter over the in-memory view of worker
+// capacity. It advances (markWorkerCapacityUpdated) exactly when that view may
+// have gained free slots:
+//
+//   - a replenish installed rebuilt pools, whether forced, heuristic or kicked
+//     by a miss; this is also the moment a starved action's requests are
+//     restored and the queues they came from are woken;
+//   - a nack returned assigned slots to their pools.
+//
+// It never advances for capacity being consumed, so a reader that saw no
+// change can conclude that everything it could have been placed on when it
+// missed is still all there is.
+//
+// A reader snapshots the epoch (capacityEpochNow) before it looks at the pools
+// and asks isWorkerCapacityUpdated once its missed items are retryable again.
+// A true answer justifies exactly one retry: capacity may have changed since
+// the snapshot, and a retry that misses again takes a fresh snapshot, so a
+// reader that re-queues at most once per epoch change cannot wake itself in a
+// loop. A true answer does not promise the retry will succeed (the change may
+// have been for other slot types or workers, or already consumed), and a false
+// answer does not mean the database has no capacity, only that this engine's
+// view of it has not moved.
+//
+// This one counter answers "did capacity change while I could not see my
+// items" for both the replay of a wake lost while a missed batch was in flight
+// and the retry after a restoring rebuild woke the queue during that flight.
+type capacityEpoch uint64
+
+// capacityEpochNow returns the current worker capacity epoch. Safe from any
+// goroutine.
+func (s *Scheduler) capacityEpochNow() capacityEpoch {
+	return capacityEpoch(s.capacityEpoch.Load())
+}
+
+// isWorkerCapacityUpdated reports whether the in-memory view of worker
+// capacity may have gained free slots since the given epoch was taken. See
+// capacityEpoch for what a reader may conclude. Safe from any goroutine.
+func (s *Scheduler) isWorkerCapacityUpdated(since capacityEpoch) bool {
+	return s.capacityEpochNow() != since
+}
+
+// markWorkerCapacityUpdated advances the capacity epoch. Called on the run
+// loop after pools were rebuilt or slots were released back to a pool.
+func (s *Scheduler) markWorkerCapacityUpdated() {
+	s.capacityEpoch.Add(1)
 }
 
 func (s *Scheduler) setWorkers(workers []*v1.ListActiveWorkersResult) {
@@ -725,7 +778,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 
 		s.pools = nextPools
 		s.poolsByWorker = nextPoolsByWorker
-		s.poolGeneration.Add(1)
+		s.markWorkerCapacityUpdated()
 
 		for actionId, storedAction := range s.actions {
 			actionWorkerIds := actionsToWorkerIds[actionId]

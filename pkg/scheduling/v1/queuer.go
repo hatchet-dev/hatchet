@@ -6,7 +6,6 @@ import (
 	"math/rand/v2"
 	"sort"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -69,12 +68,6 @@ type Queuer struct {
 	// consecutiveEmptyPolls counts loop iterations whose refill returned no items. It is only
 	// accessed from the loopQueue goroutine.
 	consecutiveEmptyPolls int
-
-	// capacityRestored counts notifyCapacityRestored calls. loopQueue compares it before and
-	// after a batch so a wake that arrives while the batch's misses are still being flushed
-	// (and so are filtered out of the refill it triggers) is not lost: the batch re-queues once
-	// its misses are retryable.
-	capacityRestored atomic.Uint64
 }
 
 // nextPollInterval returns the duration until the next poll of the queue. The interval doubles
@@ -179,13 +172,6 @@ func (q *Queuer) queue(ctx context.Context) {
 	}
 }
 
-// notifyCapacityRestored wakes the queue like queue does and records the wake, so a batch
-// whose misses are still in flight re-queues once they are retryable (see loopQueue).
-func (q *Queuer) notifyCapacityRestored(ctx context.Context) {
-	q.capacityRestored.Add(1)
-	q.queue(ctx)
-}
-
 func (q *Queuer) loopQueue(ctx context.Context) {
 	timer := time.NewTimer(q.nextPollInterval())
 	defer timer.Stop()
@@ -213,7 +199,10 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		case carrier = <-q.notifyQueueCh:
 		}
 
-		poolGen := q.s.poolGeneration.Load()
+		// anything that changes worker capacity from here on may happen while this
+		// tick's misses are unacked and invisible to a refill (see the re-queue after
+		// the flush below)
+		epoch := q.s.capacityEpochNow()
 
 		// re-arm immediately so early `continue` paths below can't stall the loop; re-armed
 		// again after the refill once the empty-poll streak is known
@@ -237,10 +226,6 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		checkpoint := start
 
 		q.requeueRateLimitedItems(ctx)
-
-		// wakes from here on may find this batch's misses still unacked (see the re-queue
-		// after the flush below)
-		capacityRestoredAtRefill := q.capacityRestored.Load()
 
 		qis, err := q.refillQueue(ctx)
 
@@ -503,15 +488,15 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 			countMu.Lock()
 			if len(prevQis) > 0 && count == len(prevQis) {
 				q.queue(context.Background())
-			} else if unassignedReturned > 0 && (q.s.poolGeneration.Load() != poolGen ||
-				q.capacityRestored.Load() != capacityRestoredAtRefill) {
+			} else if unassignedReturned > 0 && q.s.isWorkerCapacityUpdated(epoch) {
 				// Items that missed capacity were invisible to refillQueue (held in
-				// q.unacked) until their flush returned. When the pools were rebuilt
-				// meanwhile, any wake-up for the restored capacity either found
-				// nothing to assign or was never sent (the periodic replenish does
-				// not notify); wake the loop now that the items are back in
-				// q.unassigned instead of waiting for the next notify or poll. If a
-				// wake-up is still buffered this one coalesces with it.
+				// q.unacked) until their flush returned. When worker capacity changed
+				// meanwhile, any wake-up for it either found nothing to assign or was
+				// never sent (the periodic replenish does not notify); wake the loop
+				// now that the items are back in q.unassigned instead of waiting for
+				// the next notify or poll. If a wake-up is still buffered this one
+				// coalesces with it. At most one wake per tick per epoch change: a
+				// retry that misses again snapshots the new epoch.
 				q.queue(ctx)
 			}
 

@@ -339,6 +339,67 @@ func TestScheduler_AckNack(t *testing.T) {
 	})
 }
 
+// The capacity epoch advances only when the in-memory view of worker capacity
+// may have gained free slots: a replenish that installs rebuilt pools and a
+// nack that returns slots. Consuming a slot, acking it, nacking an unknown id
+// and a heuristic replenish that rebuilds nothing leave it alone, so a reader
+// that sees no change knows a retry would find the same pools.
+func TestScheduler_IsWorkerCapacityUpdated(t *testing.T) {
+	tenantId := uuid.New()
+	workerId := uuid.New()
+
+	s := newTestScheduler(t, tenantId, &mockAssignmentRepo{
+		listActionsForWorkersFn: func(context.Context, uuid.UUID, []uuid.UUID) ([]*sqlcv1.ListActionsForWorkersRow, error) {
+			return []*sqlcv1.ListActionsForWorkersRow{{WorkerId: workerId, ActionId: sqlchelpers.TextFromStr("A")}}, nil
+		},
+		listAvailableSlotsForWorkersFn: func(context.Context, uuid.UUID, sqlcv1.ListAvailableSlotsForWorkersParams) ([]*sqlcv1.ListAvailableSlotsForWorkersRow, error) {
+			return []*sqlcv1.ListAvailableSlotsForWorkersRow{{ID: workerId, AvailableSlots: 2}}, nil
+		},
+	})
+	s.setWorkers([]*repo.ListActiveWorkersResult{testWorker(workerId)})
+
+	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
+	sl := newSlot(w, repo.SlotTypeDefault)
+	sl2 := newSlot(w, repo.SlotTypeDefault)
+	a := seedActionPools(t, s, "A", sl, sl2)
+
+	epoch := s.capacityEpochNow()
+	require.False(t, s.isWorkerCapacityUpdated(epoch), "a fresh snapshot reports no change")
+
+	// consuming capacity is not a change for the better
+	res := assignOne(t, s, a, testQI(tenantId, "A", 1), nil, defaultRequest(), nil, nil)
+	require.True(t, res.succeeded)
+	require.False(t, s.isWorkerCapacityUpdated(epoch), "an assignment must not advance the epoch")
+
+	// nor is an ack: the slot stays used until a replenish observes the flush
+	s.ack([]int{res.ackId})
+	require.False(t, s.isWorkerCapacityUpdated(epoch), "an ack must not advance the epoch")
+
+	// a nack of an unknown id releases nothing
+	s.nack([]int{999})
+	require.False(t, s.isWorkerCapacityUpdated(epoch), "a nack that releases no slot must not advance the epoch")
+
+	// a nack that returns a slot to its pool is capacity a missed item can use
+	res = assignOne(t, s, a, testQI(tenantId, "A", 2), nil, defaultRequest(), nil, nil)
+	require.True(t, res.succeeded)
+	s.nack([]int{res.ackId})
+	require.True(t, s.isWorkerCapacityUpdated(epoch), "a nack that releases a slot must advance the epoch")
+
+	// a snapshot taken after the change reports no further change
+	epoch = s.capacityEpochNow()
+	require.False(t, s.isWorkerCapacityUpdated(epoch))
+
+	// a forced replenish installs rebuilt pools
+	require.NoError(t, s.replenish(context.Background(), true))
+	require.True(t, s.isWorkerCapacityUpdated(epoch), "installing rebuilt pools must advance the epoch")
+
+	// a heuristic replenish that finds nothing to rebuild (the action is above
+	// every threshold after the forced rebuild) installs nothing
+	epoch = s.capacityEpochNow()
+	require.NoError(t, s.replenish(context.Background(), false))
+	require.False(t, s.isWorkerCapacityUpdated(epoch), "a replenish that rebuilds nothing must not advance the epoch")
+}
+
 func TestScheduler_SetWorkers(t *testing.T) {
 	tenantId := uuid.New()
 
