@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -19,8 +20,108 @@ import (
 
 const concurrencyLeasesChBuffer = 1024
 
+const (
+	// pendingLeaseCapacity bounds each pending set. Hints beyond it are dropped and the periodic
+	// poll discovers those resources instead. The set only fills with distinct resources notified
+	// while the lease mutex is held, and one drain pass looks up every pending resource under a
+	// single pendingLeaseTimeout, so the cap also bounds the work of one pass.
+	pendingLeaseCapacity = 256
+
+	// pendingLeaseTimeout is the database budget for one drain pass: the lookups for every pending
+	// resource of one kind plus the single lease acquisition for all of them. It is a context
+	// deadline on those calls, not a wall-clock bound on the pass.
+	pendingLeaseTimeout = 1 * time.Second
+
+	// maxPendingLeasePasses caps how many consecutive passes one drainer runs. A pass repeats only
+	// when a hint arrived while the previous pass held the lease mutex, so a steady stream of hints
+	// for resources this scheduler cannot lease cannot pin the draining goroutine (which may be
+	// the poll). Anything left over is serviced by the next notification's drain or the next poll.
+	maxPendingLeasePasses = 4
+)
+
+// pendingLeases is a bounded, deduplicated set of resources that were notified while the lease
+// mutex for their kind was busy. A notification adds itself before it tries the mutex, so an entry
+// is serviced by whichever pass runs next: the holder's post-unlock pass, the notification's own
+// drain once the mutex is free, or the drain after the next poll. Entries left behind by the pass
+// cap or by a failed pass wait for the next notification or poll. Nobody ever waits for the mutex.
+type pendingLeases[K comparable] struct {
+	mu  sync.Mutex
+	set map[K]struct{}
+
+	// pollWaiting is set while the kind's poll waits for the lease mutex. A drain checks it before
+	// competing for the mutex and again once it holds the mutex, so a drainer that sees it set
+	// releases the mutex without a pass. The poll therefore waits for at most the pass that was
+	// already in progress when it announced itself, and then services the set itself.
+	pollWaiting atomic.Bool
+}
+
+// add records k and reports whether it is pending. It returns false when the set is full.
+func (p *pendingLeases[K]) add(k K) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if _, ok := p.set[k]; ok {
+		return true
+	}
+
+	if len(p.set) >= pendingLeaseCapacity {
+		return false
+	}
+
+	if p.set == nil {
+		p.set = make(map[K]struct{})
+	}
+
+	p.set[k] = struct{}{}
+
+	return true
+}
+
+// take removes and returns every pending key.
+func (p *pendingLeases[K]) take() []K {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if len(p.set) == 0 {
+		return nil
+	}
+
+	keys := make([]K, 0, len(p.set))
+
+	for k := range p.set {
+		keys = append(keys, k)
+	}
+
+	clear(p.set)
+
+	return keys
+}
+
+func (p *pendingLeases[K]) size() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	return len(p.set)
+}
+
+func (p *pendingLeases[K]) reset() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	p.set = nil
+}
+
 // LeaseManager is responsible for leases on multiple queues and multiplexing
 // queue results to callers. It is still tenant-scoped.
+//
+// Each lease kind has a mutex that the periodic poll holds for its whole body and a pending set
+// for on-demand notifications that arrive while it is held. Notifications never block on the
+// mutex: they record the resource and try to drain, and whoever releases the mutex drains what
+// accumulated in passes of at most maxPendingLeasePasses, each with a pendingLeaseTimeout
+// database budget. A waiting poll stops further passes from starting (a drainer that wins the
+// mutex after the poll announced itself releases it without a pass), so the poll waits for at most
+// the pass that was already in progress. Cleanup waits for the readers of processMu that are
+// already admitted, which are at most one poll body per kind and one drain pass per kind.
 type LeaseManager struct {
 	lr v1.LeaseRepository
 
@@ -32,14 +133,17 @@ type LeaseManager struct {
 	workerLeasesMu sync.Mutex
 	workerLeases   []*sqlcv1.Lease
 	workersCh      notifierCh[*v1.ListActiveWorkersResult]
+	pendingWorkers pendingLeases[uuid.UUID]
 
 	queueLeasesMu sync.Mutex
 	queueLeases   []*sqlcv1.Lease
 	queuesCh      notifierCh[string]
+	pendingQueues pendingLeases[string]
 
 	concurrencyLeasesMu sync.Mutex
 	concurrencyLeases   []*sqlcv1.Lease
 	concurrencyLeasesCh notifierCh[*sqlcv1.V1StepConcurrency]
+	pendingConcurrency  pendingLeases[int64]
 
 	batchLeases []*sqlcv1.Lease
 	batchesCh   chan []*sqlcv1.ListDistinctBatchResourcesRow
@@ -146,6 +250,74 @@ func (l *LeaseManager) sendBatches(batches []*sqlcv1.ListDistinctBatchResourcesR
 	}
 }
 
+// drainPendingLeases services the pending set for one lease kind. Each pass takes every pending
+// resource under the kind's lease mutex and leases them in one batch, and it repeats while entries
+// arrived during the pass, up to maxPendingLeasePasses. It returns without a pass when the mutex is
+// busy (the holder runs a pass after it unlocks) or when the kind's poll is waiting for the mutex
+// (the poll runs the drain after its own body). A failed pass returns its error; entries added
+// during that pass stay pending for the next notification or poll.
+func drainPendingLeases[K comparable](
+	ctx context.Context,
+	l *LeaseManager,
+	pending *pendingLeases[K],
+	leaseMu *sync.Mutex,
+	lease func(ctx context.Context, keys []K) error,
+) error {
+	for pass := 0; pass < maxPendingLeasePasses; pass++ {
+		if pending.size() == 0 || pending.pollWaiting.Load() {
+			return nil
+		}
+
+		ran, err := drainPass(ctx, l, pending, leaseMu, lease)
+
+		if err != nil || !ran {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// drainPass runs one pass under processMu's read side and the kind's lease mutex. It reports
+// false without taking entries when the manager is cleaned up, when the mutex is busy, or when
+// the kind's poll announced itself after the caller's pollWaiting check: the poll must not wait
+// behind another pass, so the entries are left to the drain the poll runs after its body.
+func drainPass[K comparable](
+	ctx context.Context,
+	l *LeaseManager,
+	pending *pendingLeases[K],
+	leaseMu *sync.Mutex,
+	lease func(ctx context.Context, keys []K) error,
+) (bool, error) {
+	l.processMu.RLock()
+	defer l.processMu.RUnlock()
+
+	if l.cleanedUp {
+		return false, nil
+	}
+
+	if !leaseMu.TryLock() {
+		return false, nil
+	}
+
+	defer leaseMu.Unlock()
+
+	if pending.pollWaiting.Load() {
+		return false, nil
+	}
+
+	keys := pending.take()
+
+	if len(keys) == 0 {
+		return true, nil
+	}
+
+	passCtx, cancel := context.WithTimeout(ctx, pendingLeaseTimeout)
+	defer cancel()
+
+	return true, lease(passCtx, keys)
+}
+
 func (l *LeaseManager) acquireWorkerLeases(ctx context.Context) error {
 	l.processMu.RLock()
 	defer l.processMu.RUnlock()
@@ -154,7 +326,9 @@ func (l *LeaseManager) acquireWorkerLeases(ctx context.Context) error {
 		return nil
 	}
 
+	l.pendingWorkers.pollWaiting.Store(true)
 	l.workerLeasesMu.Lock()
+	l.pendingWorkers.pollWaiting.Store(false)
 	defer l.workerLeasesMu.Unlock()
 
 	activeWorkers, err := l.lr.ListActiveWorkers(ctx, l.tenantId)
@@ -204,6 +378,9 @@ func (l *LeaseManager) acquireWorkerLeases(ctx context.Context) error {
 		for _, lease := range workerLeases {
 			successfullyAcquiredWorkerIds = append(successfullyAcquiredWorkerIds, activeWorkerIdsToResults[lease.ResourceId])
 		}
+	} else {
+		// every previously held lease is released below, so the cache must not keep any of them
+		l.workerLeases = nil
 	}
 
 	l.sendWorkerIds(successfullyAcquiredWorkerIds, false)
@@ -217,54 +394,82 @@ func (l *LeaseManager) acquireWorkerLeases(ctx context.Context) error {
 	return nil
 }
 
+// notifyNewWorker leases a worker on-demand. It never waits for workerLeasesMu: when the mutex is
+// busy the worker is recorded as pending and leased by whoever releases the mutex.
 func (l *LeaseManager) notifyNewWorker(ctx context.Context, workerId uuid.UUID) error {
-	l.processMu.RLock()
-	defer l.processMu.RUnlock()
-
-	if l.cleanedUp {
+	if !l.pendingWorkers.add(workerId) {
+		l.l.Debug().Str("worker_id", workerId.String()).Msg("pending worker leases are at capacity, leaving the worker to the periodic poll")
 		return nil
 	}
 
-	if !l.workerLeasesMu.TryLock() {
-		return nil
-	}
+	return l.drainPendingWorkers(ctx)
+}
 
-	defer l.workerLeasesMu.Unlock()
+func (l *LeaseManager) drainPendingWorkers(ctx context.Context) error {
+	return drainPendingLeases(ctx, l, &l.pendingWorkers, &l.workerLeasesMu, l.leasePendingWorkers)
+}
 
-	// check that we don't already have a lease for this worker
+// leasePendingWorkers acquires leases for the given workers in one query and hands the acquired
+// ones to the worker channel. The caller holds workerLeasesMu.
+func (l *LeaseManager) leasePendingWorkers(ctx context.Context, workerIds []uuid.UUID) error {
+	held := make(map[string]struct{}, len(l.workerLeases))
+
 	for _, lease := range l.workerLeases {
-		if lease.ResourceId == workerId.String() {
-			return nil
-		}
+		held[lease.ResourceId] = struct{}{}
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
-	defer cancel()
+	resourceIds := make([]string, 0, len(workerIds))
+	workers := make(map[string]*v1.ListActiveWorkersResult, len(workerIds))
 
-	worker, err := l.lr.GetActiveWorker(ctx, l.tenantId, workerId)
+	for _, workerId := range workerIds {
+		resourceId := workerId.String()
 
-	if err != nil {
-		// if the worker isn't active yet, just abort
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil
+		if _, ok := held[resourceId]; ok {
+			continue
 		}
 
-		return err
+		worker, err := l.lr.GetActiveWorker(ctx, l.tenantId, workerId)
+
+		if err != nil {
+			// a worker that is not active yet is discovered by the periodic poll once it is
+			if errors.Is(err, pgx.ErrNoRows) {
+				continue
+			}
+
+			return err
+		}
+
+		resourceIds = append(resourceIds, resourceId)
+		workers[resourceId] = worker
 	}
 
-	lease, err := l.lr.AcquireOrExtendLeases(ctx, l.tenantId, sqlcv1.LeaseKindWORKER, []string{workerId.String()}, []*sqlcv1.Lease{})
-
-	if err != nil {
-		return err
-	}
-
-	if len(lease) == 0 || lease[0].ResourceId == "" {
+	if len(resourceIds) == 0 {
 		return nil
 	}
 
-	l.workerLeases = append(l.workerLeases, lease...)
+	leases, err := l.lr.AcquireOrExtendLeases(ctx, l.tenantId, sqlcv1.LeaseKindWORKER, resourceIds, []*sqlcv1.Lease{})
 
-	l.sendWorkerIds([]*v1.ListActiveWorkersResult{worker}, true)
+	if err != nil {
+		return err
+	}
+
+	// leases that were not returned are owned by another scheduler, which manages those workers
+	acquired := make([]*v1.ListActiveWorkersResult, 0, len(leases))
+
+	for _, lease := range leases {
+		worker, ok := workers[lease.ResourceId]
+
+		if !ok {
+			continue
+		}
+
+		l.workerLeases = append(l.workerLeases, lease)
+		acquired = append(acquired, worker)
+	}
+
+	if len(acquired) != 0 {
+		l.sendWorkerIds(acquired, true)
+	}
 
 	return nil
 }
@@ -277,7 +482,9 @@ func (l *LeaseManager) acquireQueueLeases(ctx context.Context) error {
 		return nil
 	}
 
+	l.pendingQueues.pollWaiting.Store(true)
 	l.queueLeasesMu.Lock()
+	l.pendingQueues.pollWaiting.Store(false)
 	defer l.queueLeasesMu.Unlock()
 
 	queues, err := l.lr.ListQueues(ctx, l.tenantId)
@@ -324,6 +531,9 @@ func (l *LeaseManager) acquireQueueLeases(ctx context.Context) error {
 		for _, lease := range queueLeases {
 			successfullyAcquiredQueues = append(successfullyAcquiredQueues, lease.ResourceId)
 		}
+	} else {
+		// every previously held lease is released below, so the cache must not keep any of them
+		l.queueLeases = nil
 	}
 
 	l.sendQueues(successfullyAcquiredQueues, false)
@@ -337,50 +547,65 @@ func (l *LeaseManager) acquireQueueLeases(ctx context.Context) error {
 	return nil
 }
 
+// notifyNewQueue leases a queue on-demand. It never waits for queueLeasesMu: when the mutex is
+// busy the queue is recorded as pending and leased by whoever releases the mutex.
 func (l *LeaseManager) notifyNewQueue(ctx context.Context, queueName string) error {
-	l.l.Debug().Msgf("[notifyNewQueue] notifying new queue %s for tenant %s", queueName, l.tenantId)
-
-	l.processMu.RLock()
-	defer l.processMu.RUnlock()
-
-	if l.cleanedUp {
-		l.l.Debug().Msgf("[notifyNewQueue] lease manager already cleaned up, skipping notifying new queue %s for tenant %s", queueName, l.tenantId)
+	if !l.pendingQueues.add(queueName) {
+		l.l.Debug().Str("queue_name", queueName).Msg("pending queue leases are at capacity, leaving the queue to the periodic poll")
 		return nil
 	}
 
-	if !l.queueLeasesMu.TryLock() {
-		l.l.Debug().Msgf("[notifyNewQueue] could not acquire queueLeasesMu, skipping notifying new queue %s for tenant %s", queueName, l.tenantId)
-		return nil
-	}
+	return l.drainPendingQueues(ctx)
+}
 
-	defer l.queueLeasesMu.Unlock()
+func (l *LeaseManager) drainPendingQueues(ctx context.Context) error {
+	return drainPendingLeases(ctx, l, &l.pendingQueues, &l.queueLeasesMu, l.leasePendingQueues)
+}
 
-	// check that we don't already have a lease for this queue
+// leasePendingQueues acquires leases for the given queues in one query and hands the acquired ones
+// to the queue channel. The caller holds queueLeasesMu.
+func (l *LeaseManager) leasePendingQueues(ctx context.Context, queueNames []string) error {
+	held := make(map[string]struct{}, len(l.queueLeases))
+
 	for _, lease := range l.queueLeases {
-		if lease.ResourceId == queueName {
-			l.l.Debug().Msgf("[notifyNewQueue] already have lease for queue %s for tenant %s, skipping", queueName, l.tenantId)
-			return nil
-		}
+		held[lease.ResourceId] = struct{}{}
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
-	defer cancel()
+	resourceIds := make([]string, 0, len(queueNames))
 
-	lease, err := l.lr.AcquireOrExtendLeases(ctx, l.tenantId, sqlcv1.LeaseKindQUEUE, []string{queueName}, []*sqlcv1.Lease{})
+	for _, queueName := range queueNames {
+		if _, ok := held[queueName]; ok {
+			continue
+		}
+
+		resourceIds = append(resourceIds, queueName)
+	}
+
+	if len(resourceIds) == 0 {
+		return nil
+	}
+
+	leases, err := l.lr.AcquireOrExtendLeases(ctx, l.tenantId, sqlcv1.LeaseKindQUEUE, resourceIds, []*sqlcv1.Lease{})
 
 	if err != nil {
-		l.l.Debug().Err(err).Msgf("[notifyNewQueue] error acquiring lease for queue %s for tenant %s", queueName, l.tenantId)
 		return err
 	}
 
-	if len(lease) == 0 || lease[0].ResourceId == "" {
-		l.l.Debug().Msgf("[notifyNewQueue] did not acquire lease for queue %s for tenant %s, skipping", queueName, l.tenantId)
-		return nil
+	// leases that were not returned are owned by another scheduler, which manages those queues
+	acquired := make([]string, 0, len(leases))
+
+	for _, lease := range leases {
+		if lease.ResourceId == "" {
+			continue
+		}
+
+		l.queueLeases = append(l.queueLeases, lease)
+		acquired = append(acquired, lease.ResourceId)
 	}
 
-	l.queueLeases = append(l.queueLeases, lease...)
-
-	l.sendQueues([]string{queueName}, true)
+	if len(acquired) != 0 {
+		l.sendQueues(acquired, true)
+	}
 
 	return nil
 }
@@ -393,7 +618,9 @@ func (l *LeaseManager) acquireConcurrencyLeases(ctx context.Context) error {
 		return nil
 	}
 
+	l.pendingConcurrency.pollWaiting.Store(true)
 	l.concurrencyLeasesMu.Lock()
+	l.pendingConcurrency.pollWaiting.Store(false)
 	defer l.concurrencyLeasesMu.Unlock()
 
 	strats, err := l.lr.ListConcurrencyStrategies(ctx, l.tenantId)
@@ -444,6 +671,9 @@ func (l *LeaseManager) acquireConcurrencyLeases(ctx context.Context) error {
 		for _, lease := range concurrencyLeases {
 			successfullyAcquiredStrats = append(successfullyAcquiredStrats, activeStratIdsToStrategies[lease.ResourceId])
 		}
+	} else {
+		// every previously held lease is released below, so the cache must not keep any of them
+		l.concurrencyLeases = nil
 	}
 
 	l.sendConcurrencyLeases(successfullyAcquiredStrats, false)
@@ -457,53 +687,83 @@ func (l *LeaseManager) acquireConcurrencyLeases(ctx context.Context) error {
 	return nil
 }
 
-// notifyNewConcurrencyStrategy acquires a lease for a single strategy on-demand and hands it to the
-// lease channel, which spins up its ConcurrencyManager. Mirrors notifyNewQueue. No-op if we already
-// hold the lease.
+// notifyNewConcurrencyStrategy leases a strategy on-demand and hands it to the lease channel,
+// which spins up its ConcurrencyManager. It never waits for concurrencyLeasesMu: when the mutex
+// is busy the strategy is recorded as pending and leased by whoever releases the mutex.
 func (l *LeaseManager) notifyNewConcurrencyStrategy(ctx context.Context, strategyId int64) error {
-	l.processMu.RLock()
-	defer l.processMu.RUnlock()
-
-	if l.cleanedUp {
+	if !l.pendingConcurrency.add(strategyId) {
+		l.l.Debug().Int64("strategy_id", strategyId).Msg("pending concurrency strategy leases are at capacity, leaving the strategy to the periodic poll")
 		return nil
 	}
 
-	if !l.concurrencyLeasesMu.TryLock() {
-		return nil
-	}
+	return l.drainPendingConcurrencyStrategies(ctx)
+}
 
-	defer l.concurrencyLeasesMu.Unlock()
+func (l *LeaseManager) drainPendingConcurrencyStrategies(ctx context.Context) error {
+	return drainPendingLeases(ctx, l, &l.pendingConcurrency, &l.concurrencyLeasesMu, l.leasePendingConcurrencyStrategies)
+}
 
-	// check that we don't already have a lease for this concurrency strategy
+// leasePendingConcurrencyStrategies acquires leases for the given strategies in one query and
+// hands the acquired ones to the lease channel. The caller holds concurrencyLeasesMu.
+func (l *LeaseManager) leasePendingConcurrencyStrategies(ctx context.Context, strategyIds []int64) error {
+	held := make(map[string]struct{}, len(l.concurrencyLeases))
+
 	for _, lease := range l.concurrencyLeases {
-		if lease.ResourceId == fmt.Sprintf("%d", strategyId) {
-			return nil
+		held[lease.ResourceId] = struct{}{}
+	}
+
+	resourceIds := make([]string, 0, len(strategyIds))
+	strategies := make(map[string]*sqlcv1.V1StepConcurrency, len(strategyIds))
+
+	for _, strategyId := range strategyIds {
+		resourceId := fmt.Sprintf("%d", strategyId)
+
+		if _, ok := held[resourceId]; ok {
+			continue
 		}
+
+		strategy, err := l.lr.GetConcurrencyStrategy(ctx, l.tenantId, strategyId)
+
+		if err != nil {
+			// a strategy that no longer exists has nothing to lease
+			if errors.Is(err, pgx.ErrNoRows) {
+				continue
+			}
+
+			return err
+		}
+
+		resourceIds = append(resourceIds, resourceId)
+		strategies[resourceId] = strategy
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
-	defer cancel()
-
-	strategy, err := l.lr.GetConcurrencyStrategy(ctx, l.tenantId, strategyId)
-
-	if err != nil {
-		return err
-	}
-
-	lease, err := l.lr.AcquireOrExtendLeases(ctx, l.tenantId, sqlcv1.LeaseKindCONCURRENCYSTRATEGY, []string{fmt.Sprintf("%d", strategyId)}, []*sqlcv1.Lease{})
-
-	if err != nil {
-		return err
-	}
-
-	if len(lease) == 0 || lease[0].ResourceId == "" {
-		// the lease is owned by another scheduler; it will manage this strategy
+	if len(resourceIds) == 0 {
 		return nil
 	}
 
-	l.concurrencyLeases = append(l.concurrencyLeases, lease...)
+	leases, err := l.lr.AcquireOrExtendLeases(ctx, l.tenantId, sqlcv1.LeaseKindCONCURRENCYSTRATEGY, resourceIds, []*sqlcv1.Lease{})
 
-	l.sendConcurrencyLeases([]*sqlcv1.V1StepConcurrency{strategy}, true)
+	if err != nil {
+		return err
+	}
+
+	// leases that were not returned are owned by another scheduler, which manages those strategies
+	acquired := make([]*sqlcv1.V1StepConcurrency, 0, len(leases))
+
+	for _, lease := range leases {
+		strategy, ok := strategies[lease.ResourceId]
+
+		if !ok {
+			continue
+		}
+
+		l.concurrencyLeases = append(l.concurrencyLeases, lease)
+		acquired = append(acquired, strategy)
+	}
+
+	if len(acquired) != 0 {
+		l.sendConcurrencyLeases(acquired, true)
+	}
 
 	return nil
 }
@@ -579,6 +839,8 @@ func (l *LeaseManager) acquireBatchLeases(ctx context.Context) error {
 	return nil
 }
 
+// acquireAllLeases runs one poll of every lease kind. After each kind's poll releases its mutex it
+// drains the notifications that arrived while the poll held it.
 func (l *LeaseManager) acquireAllLeases(ctx context.Context) {
 	loopCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -593,6 +855,10 @@ func (l *LeaseManager) acquireAllLeases(ctx context.Context) {
 		if err := l.acquireWorkerLeases(loopCtx); err != nil {
 			l.l.Error().Err(err).Msg("error acquiring worker leases")
 		}
+
+		if err := l.drainPendingWorkers(loopCtx); err != nil {
+			l.l.Error().Err(err).Msg("error acquiring pending worker leases")
+		}
 	}()
 
 	go func() {
@@ -601,6 +867,10 @@ func (l *LeaseManager) acquireAllLeases(ctx context.Context) {
 		if err := l.acquireQueueLeases(loopCtx); err != nil {
 			l.l.Error().Err(err).Msg("error acquiring queue leases")
 		}
+
+		if err := l.drainPendingQueues(loopCtx); err != nil {
+			l.l.Error().Err(err).Msg("error acquiring pending queue leases")
+		}
 	}()
 
 	go func() {
@@ -608,6 +878,10 @@ func (l *LeaseManager) acquireAllLeases(ctx context.Context) {
 
 		if err := l.acquireConcurrencyLeases(loopCtx); err != nil {
 			l.l.Error().Err(err).Msg("error acquiring concurrency leases")
+		}
+
+		if err := l.drainPendingConcurrencyStrategies(loopCtx); err != nil {
+			l.l.Error().Err(err).Msg("error acquiring pending concurrency leases")
 		}
 	}()
 
@@ -649,6 +923,12 @@ func (l *LeaseManager) cleanup(ctx context.Context) error {
 	}
 
 	l.cleanedUp = true
+
+	// drains check cleanedUp under processMu before touching a pending set, so nothing is
+	// serviced after this point
+	l.pendingWorkers.reset()
+	l.pendingQueues.reset()
+	l.pendingConcurrency.reset()
 
 	eg := errgroup.Group{}
 
