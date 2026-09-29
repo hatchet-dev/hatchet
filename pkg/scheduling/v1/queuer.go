@@ -252,7 +252,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		refillTime := time.Since(checkpoint)
 		checkpoint = time.Now()
 
-		rls, err := q.repo.GetTaskRateLimits(ctx, nil, qis)
+		rls, rlDefinitions, err := q.repo.GetTaskRateLimits(ctx, nil, qis)
 
 		if err != nil {
 			span.RecordError(err)
@@ -263,6 +263,8 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 			q.unackedToUnassigned(qis)
 			continue
 		}
+
+		q.s.rl.addDefinitions(rlDefinitions)
 
 		rateLimitTime := time.Since(checkpoint)
 		checkpoint = time.Now()
@@ -854,11 +856,14 @@ func (q *Queuer) runOptimisticQueue(
 	qis []*sqlcv1.V1QueueItem,
 	localWorkerIds map[uuid.UUID]struct{},
 ) ([]*v1.AssignedItem, []*QueueResults, error) {
-	rls, err := q.repo.GetTaskRateLimits(ctx, tx, qis)
+	rls, rlDefinitions, err := q.repo.GetTaskRateLimits(ctx, tx, qis)
 
 	if err != nil {
 		return nil, nil, err
 	}
+
+	// not deferred to post-commit: a new key's row must exist before use() below, and a rolled-back trigger only leaves an unused row
+	q.s.rl.addDefinitions(rlDefinitions)
 
 	stepIds := make([]uuid.UUID, 0, len(qis))
 	taskIdToDesiredLabelsFromTrigger := make(map[int64][]*sqlcv1.GetDesiredLabelsRow)

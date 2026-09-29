@@ -22,8 +22,8 @@ type mockRateLimitRepo struct {
 	mock.Mock
 }
 
-func (m *mockRateLimitRepo) UpdateRateLimits(ctx context.Context, tenantId uuid.UUID, updates map[string]int) ([]*sqlcv1.ListRateLimitsForTenantWithMutateRow, *time.Time, error) {
-	args := m.Called(ctx, tenantId, updates)
+func (m *mockRateLimitRepo) FlushRateLimits(ctx context.Context, tenantId uuid.UUID, usage map[string]int, definitions map[string]v1.RateLimitDefinition) ([]*sqlcv1.ListRateLimitsForTenantWithMutateRow, *time.Time, error) {
+	args := m.Called(ctx, tenantId, usage, definitions)
 	return args.Get(0).([]*sqlcv1.ListRateLimitsForTenantWithMutateRow), args.Get(1).(*time.Time), args.Error(2)
 }
 
@@ -49,7 +49,7 @@ func TestRateLimiter_Use(t *testing.T) {
 		{Key: "key3", Value: 7},
 	}
 	nextRefill := time.Now().Add(2 * time.Second)
-	mockRateLimitRepo.On("UpdateRateLimits", context.Background(), mock.Anything, mock.Anything).Return(mockRows, &nextRefill, nil)
+	mockRateLimitRepo.On("FlushRateLimits", context.Background(), mock.Anything, mock.Anything, mock.Anything).Return(mockRows, &nextRefill, nil)
 
 	rateLimiter := &rateLimiter{
 		dbRateLimits: rateLimitSet{
@@ -85,7 +85,7 @@ func TestRateLimiter_Ack(t *testing.T) {
 		{Key: "key2", Value: 5},
 	}
 	nextRefill := time.Now().Add(2 * time.Second)
-	mockRateLimitRepo.On("UpdateRateLimits", context.Background(), mock.Anything, mock.Anything).Return(mockRows, &nextRefill, nil)
+	mockRateLimitRepo.On("FlushRateLimits", context.Background(), mock.Anything, mock.Anything, mock.Anything).Return(mockRows, &nextRefill, nil)
 
 	rateLimiter := &rateLimiter{
 		dbRateLimits: rateLimitSet{
@@ -115,7 +115,7 @@ func TestRateLimiter_Nack(t *testing.T) {
 		{Key: "key2", Value: 5},
 	}
 	nextRefill := time.Now().Add(2 * time.Second)
-	mockRateLimitRepo.On("UpdateRateLimits", context.Background(), mock.Anything, mock.Anything).Return(mockRows, &nextRefill, nil)
+	mockRateLimitRepo.On("FlushRateLimits", context.Background(), mock.Anything, mock.Anything, mock.Anything).Return(mockRows, &nextRefill, nil)
 
 	rateLimiter := &rateLimiter{
 		dbRateLimits: rateLimitSet{
@@ -145,7 +145,7 @@ func TestRateLimiter_Concurrency(t *testing.T) {
 		{Key: "key2", Value: 100},
 	}
 	nextRefill := time.Now().Add(2 * time.Second)
-	mockRateLimitRepo.On("UpdateRateLimits", context.Background(), mock.Anything, mock.Anything).Return(mockRows, &nextRefill, nil)
+	mockRateLimitRepo.On("FlushRateLimits", context.Background(), mock.Anything, mock.Anything, mock.Anything).Return(mockRows, &nextRefill, nil)
 
 	rateLimiter := &rateLimiter{
 		dbRateLimits: rateLimitSet{
@@ -189,7 +189,7 @@ func TestRateLimiter_FlushToDatabase(t *testing.T) {
 		{Key: "key2", Value: 5},
 	}
 	nextRefill := time.Now().Add(2 * time.Second)
-	mockRateLimitRepo.On("UpdateRateLimits", context.Background(), mock.Anything, mock.Anything).Return(mockRows, &nextRefill, nil)
+	mockRateLimitRepo.On("FlushRateLimits", context.Background(), mock.Anything, mock.Anything, mock.Anything).Return(mockRows, &nextRefill, nil)
 
 	rateLimiter := &rateLimiter{
 		dbRateLimits: rateLimitSet{
@@ -218,6 +218,64 @@ func TestRateLimiter_FlushToDatabase(t *testing.T) {
 	assert.Empty(t, rateLimiter.unflushed)
 }
 
+func TestRateLimiter_NewDefinitionFlushesBeforeRefill(t *testing.T) {
+	l := zerolog.Nop()
+
+	def := v1.RateLimitDefinition{LimitValue: 10, Window: "1 HOUR"}
+
+	mockRateLimitRepo := &mockRateLimitRepo{}
+	mockRows := []*sqlcv1.ListRateLimitsForTenantWithMutateRow{
+		{Key: "new", Value: 10, LimitValue: def.LimitValue, Window: def.Window},
+	}
+	nextRefill := time.Now().Add(2 * time.Second)
+	mockRateLimitRepo.On("FlushRateLimits", context.Background(), mock.Anything, mock.Anything, map[string]v1.RateLimitDefinition{"new": def}).Return(mockRows, &nextRefill, nil).Once()
+
+	// a refill deadline in the future would otherwise make flushToDatabase return early
+	future := time.Now().UTC().Add(time.Minute)
+
+	r := &rateLimiter{
+		dbRateLimits:  make(rateLimitSet),
+		unacked:       make(map[int64]rateLimitSet),
+		unflushed:     make(rateLimitSet),
+		nextRefillAt:  &future,
+		l:             &l,
+		rateLimitRepo: mockRateLimitRepo,
+	}
+
+	r.addDefinitions(map[string]v1.RateLimitDefinition{"new": def})
+
+	res := r.use(context.Background(), 1, map[string]int32{"new": 1})
+	assert.True(t, res.succeeded)
+
+	mockRateLimitRepo.AssertExpectations(t)
+}
+
+func TestRateLimiter_UnchangedDefinitionSkipsFlush(t *testing.T) {
+	l := zerolog.Nop()
+
+	def := v1.RateLimitDefinition{LimitValue: 10, Window: "1 HOUR"}
+
+	mockRateLimitRepo := &mockRateLimitRepo{}
+
+	future := time.Now().UTC().Add(time.Minute)
+
+	r := &rateLimiter{
+		dbRateLimits: rateLimitSet{
+			"key1": {key: "key1", val: 10, limitValue: def.LimitValue, window: def.Window},
+		},
+		unacked:       make(map[int64]rateLimitSet),
+		unflushed:     make(rateLimitSet),
+		nextRefillAt:  &future,
+		l:             &l,
+		rateLimitRepo: mockRateLimitRepo,
+	}
+
+	r.addDefinitions(map[string]v1.RateLimitDefinition{"key1": def})
+
+	assert.NoError(t, r.flushToDatabase(context.Background()))
+	mockRateLimitRepo.AssertNotCalled(t, "FlushRateLimits", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
+
 func BenchmarkRateLimiter(b *testing.B) {
 	l := zerolog.Nop()
 
@@ -227,7 +285,7 @@ func BenchmarkRateLimiter(b *testing.B) {
 		{Key: "key2", Value: 1000},
 	}
 	nextRefill := time.Now().Add(2 * time.Second)
-	mockRateLimitRepo.On("UpdateRateLimits", context.Background(), mock.Anything, mock.Anything).Return(mockRows, &nextRefill, nil)
+	mockRateLimitRepo.On("FlushRateLimits", context.Background(), mock.Anything, mock.Anything, mock.Anything).Return(mockRows, &nextRefill, nil)
 
 	r := rateLimiter{
 		unacked:       make(map[int64]rateLimitSet),
