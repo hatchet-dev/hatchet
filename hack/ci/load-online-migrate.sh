@@ -11,10 +11,11 @@
 #   4. stop the base engine, start this branch's engine on the migrated
 #      schema and run the same load test again
 #
-# Each load test phase fails on lost or duplicated events, so a new binary
-# that needs a schema object the migration has not created yet (the reverse
-# of production) can no longer be what this job tests, and a migration the
-# running engine cannot live with is caught in phase 3.
+# Each load test phase fails on lost or duplicated task runs (the load test
+# counts distinct (task, event) executions), so a new binary that needs a
+# schema object the migration has not created yet (the reverse of production)
+# can no longer be what this job tests, and a migration the running engine
+# cannot live with is caught in phase 3.
 #
 # Required environment:
 #   BASE_BIN                directory holding the base commit's hatchet-engine
@@ -64,9 +65,8 @@ dump_logs() {
   cat "$LOG_DIR/engine-$phase.log"
 }
 
-# start_engine <phase> <binary>: starts the engine in the background, records
-# its pid in $LOG_DIR/engine.pid (the workflow's teardown reads it) and waits
-# for the gRPC port.
+# The pid files are for the workflow's teardown step, which has to kill the
+# engine and the load test when this script is aborted by the job timeout.
 start_engine() {
   local phase="$1" binary="$2"
 
@@ -96,8 +96,8 @@ start_engine() {
   exit 1
 }
 
-# stop_engine <phase>: SIGTERM, wait for a graceful exit, SIGKILL as a last
-# resort, then wait for the port to be released so the next engine can bind it.
+# The next engine binds the same port, so stopping is not done until the
+# port is released, not merely when the process is gone.
 stop_engine() {
   local phase="$1"
 
@@ -128,8 +128,9 @@ stop_engine() {
   exit 1
 }
 
-# start_load <phase>: starts the load test against the running engine and a
-# watcher that aborts the load test if the engine dies underneath it.
+# Without the watcher an engine crash only surfaces minutes later, at the end
+# of the window, as lost events; the marker file lets wait_load tell the two
+# apart.
 start_load() {
   local phase="$1"
 
@@ -157,8 +158,6 @@ start_load() {
   WATCHER_PID=$!
 }
 
-# wait_load <phase>: waits for the load test and fails the run on a non-zero
-# exit, which is how the load test reports lost or duplicated events.
 wait_load() {
   local phase="$1" rc
 
