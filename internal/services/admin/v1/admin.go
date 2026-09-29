@@ -161,7 +161,7 @@ func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 		return nil, fmt.Errorf("pubsub is required. use WithPubSub")
 	}
 
-	pubBuffer := msgqueue.NewMQPubBuffer(opts.mq)
+	pubBuffer := msgqueue.NewMQPubBuffer(opts.mq, msgqueue.WithPubLogger(opts.l))
 	tw := trigger.NewTriggerWriter(opts.mq, opts.pubsub, opts.repo, opts.l, pubBuffer, opts.grpcTriggerSlots, opts.promGate)
 
 	var localScheduler *scheduler.Scheduler

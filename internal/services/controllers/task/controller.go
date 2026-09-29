@@ -227,7 +227,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 	a := hatcheterrors.NewWrapped(opts.alerter)
 	a.WithData(map[string]interface{}{"service": "tasks-controller"})
 
-	pubBuffer := msgqueue.NewMQPubBuffer(opts.mq)
+	pubBuffer := msgqueue.NewMQPubBuffer(opts.mq, msgqueue.WithPubLogger(opts.l))
 
 	signaler := signal.NewOLAPSignaler(opts.mq, opts.pubsub, opts.repov1, opts.l, pubBuffer, opts.promGate)
 	tw := trigger.NewTriggerWriter(opts.mq, opts.pubsub, opts.repov1, opts.l, pubBuffer, 0, opts.promGate)

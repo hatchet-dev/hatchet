@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/syncx"
 )
@@ -24,6 +25,8 @@ type PubFunc func(m *Message) error
 type MQPubBuffer struct {
 	mq MessageQueue
 
+	l *zerolog.Logger
+
 	// buffers is keyed on a composite (tenantId, msgId) and contains a buffer of messages for that tenantId and msgId.
 	buffers syncx.Map[string, *msgIdPubBuffer]
 
@@ -31,9 +34,24 @@ type MQPubBuffer struct {
 	cancel context.CancelFunc
 }
 
-func NewMQPubBuffer(mq MessageQueue) *MQPubBuffer {
+type mqPubBufferOpts struct {
+	l *zerolog.Logger
+}
+
+type mqPubBufferOptFunc func(*mqPubBufferOpts)
+
+func WithPubLogger(l *zerolog.Logger) mqPubBufferOptFunc {
+	return func(opts *mqPubBufferOpts) { opts.l = l }
+}
+
+func NewMQPubBuffer(mq MessageQueue, fs ...mqPubBufferOptFunc) *MQPubBuffer {
+	opts := &mqPubBufferOpts{l: &defaultLogger}
+	for _, f := range fs {
+		f(opts)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
-	m := &MQPubBuffer{mq: mq, ctx: ctx, cancel: cancel}
+	m := &MQPubBuffer{mq: mq, l: opts.l, ctx: ctx, cancel: cancel}
 	go m.runEvictor(ctx)
 	return m
 }
@@ -85,7 +103,7 @@ func (m *MQPubBuffer) Pub(ctx context.Context, queue Queue, msg *Message, wait b
 		msgBuf, ok = m.buffers.Load(k)
 
 		if !ok {
-			newBuf := newMsgIDPubBuffer(m.ctx, msg.TenantID, msg.ID, func(msg *Message) error {
+			newBuf := newMsgIDPubBuffer(m.ctx, m.l, queue, msg.TenantID, msg.ID, func(msg *Message) error {
 				msgCtx, cancel := context.WithTimeout(context.Background(), PUB_TIMEOUT)
 				defer cancel()
 				return m.mq.SendMessage(msgCtx, queue, msg)
@@ -112,7 +130,7 @@ func (m *MQPubBuffer) Pub(ctx context.Context, queue Queue, msg *Message, wait b
 		msgWithErr.errCh = make(chan error)
 	}
 
-	// Signal early flush if the channel is already at capacity — the send below may block.
+	// Signal early flush if the channel is already at capacity, since the send below may block.
 	if len(msgBuf.msgIdPubBufferCh) >= msgBuf.bufferSize {
 		select {
 		case msgBuf.capacityRelease <- struct{}{}:
@@ -139,17 +157,22 @@ func getPubKey(q Queue, tenantId uuid.UUID, msgId string) string {
 type msgIdPubBuffer struct {
 	*bufferCore
 
+	l *zerolog.Logger
+
+	queue            Queue
 	tenantId         uuid.UUID
 	msgId            string
 	msgIdPubBufferCh chan *msgWithErrCh
 	pub              PubFunc
 }
 
-func newMsgIDPubBuffer(ctx context.Context, tenantID uuid.UUID, msgID string, pub PubFunc) *msgIdPubBuffer {
+func newMsgIDPubBuffer(ctx context.Context, l *zerolog.Logger, queue Queue, tenantID uuid.UUID, msgID string, pub PubFunc) *msgIdPubBuffer {
 	ctx, stop := context.WithCancel(ctx)
 
 	b := &msgIdPubBuffer{
 		bufferCore:       newBufferCore(PUB_FLUSH_INTERVAL, PUB_BUFFER_SIZE, PUB_MAX_CONCURRENCY, false, true),
+		l:                l,
+		queue:            queue,
 		tenantId:         tenantID,
 		msgId:            msgID,
 		msgIdPubBufferCh: make(chan *msgWithErrCh, PUB_BUFFER_SIZE),
@@ -184,6 +207,7 @@ func (m *msgIdPubBuffer) flush() {
 	var isPersistent *bool
 	var immediatelyExpire *bool
 	var retries *int
+	numWaiters := 0
 
 	for _, item := range drained {
 		payloadBytes = append(payloadBytes, item.msg.Payloads...)
@@ -195,6 +219,9 @@ func (m *msgIdPubBuffer) flush() {
 		}
 		if retries == nil {
 			retries = &item.msg.Retries
+		}
+		if item.errCh != nil {
+			numWaiters++
 		}
 	}
 
@@ -214,6 +241,21 @@ func (m *msgIdPubBuffer) flush() {
 	}
 
 	err := m.pub(msgToSend)
+
+	// the batch is not retried: a backend error does not prove the broker
+	// rejected it (see the amqp091 publish contract and the chunked publish
+	// path), and OLAP ingestion has no durable dedupe. callers publishing with
+	// wait=false never see the error, so this log is the only record of the loss
+	if err != nil {
+		m.l.Error().
+			Err(err).
+			Str("queue", m.queue.Name()).
+			Str("tenant_id", m.tenantId.String()).
+			Str("message_id", m.msgId).
+			Int("num_payloads", len(payloadBytes)).
+			Int("num_waiters", numWaiters).
+			Msg("dropping buffered message after publish failure")
+	}
 
 	for _, item := range drained {
 		if item.errCh != nil {

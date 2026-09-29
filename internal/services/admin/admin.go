@@ -165,7 +165,7 @@ func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 		slots = opts.grpcTriggerSlots
 	}
 
-	pubBuffer := msgqueue.NewMQPubBuffer(opts.mqv1)
+	pubBuffer := msgqueue.NewMQPubBuffer(opts.mqv1, msgqueue.WithPubLogger(opts.l))
 	tw := trigger.NewTriggerWriter(opts.mqv1, opts.pubsub, opts.repov1, opts.l, pubBuffer, slots, opts.promGate)
 
 	var localScheduler *scheduler.Scheduler

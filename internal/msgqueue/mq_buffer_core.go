@@ -7,7 +7,14 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/hatchet-dev/hatchet/pkg/logger"
 )
+
+// defaultLogger is used by the buffers and helpers in this package that are
+// not handed a logger by their caller, so that a dropped message is never
+// silent.
+var defaultLogger = logger.NewDefaultLogger("msgqueue")
 
 // BUFFER_IDLE_TIMEOUT is how long a per-(tenantId, msgId) buffer can go
 // without an enqueue before it is evicted from its buffer map and its
@@ -219,7 +226,7 @@ func (c *bufferCore) startSemaphoreReleaser(ctx context.Context, bufLen func() i
 					}
 				}
 				<-c.semaphore
-				// Only self-trigger on an early release — the goroutine that filled the
+				// Only self-trigger on an early release: the goroutine that filled the
 				// buffer is blocked before its notifier send, so nothing else will fire.
 				if wasEarlyRelease && bufLen() > 0 {
 					go flush()

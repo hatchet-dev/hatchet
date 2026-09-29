@@ -190,7 +190,7 @@ func New(
 	a := hatcheterrors.NewWrapped(opts.alerter)
 	a.WithData(map[string]interface{}{"service": "scheduler"})
 
-	pubBuffer := msgqueue.NewMQPubBuffer(opts.mq)
+	pubBuffer := msgqueue.NewMQPubBuffer(opts.mq, msgqueue.WithPubLogger(opts.l))
 
 	// TODO: replace with config or pull into a constant
 	tasksWithNoWorkerCache := expirable.NewLRU(10000, func(string, struct{}) {}, 5*time.Minute)

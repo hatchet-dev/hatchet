@@ -26,6 +26,12 @@ var (
 	errWorkerPaused      = errors.New("worker session is paused, the task is returned to the queue")
 )
 
+// sendResultGrace is how long sendToWorkerWithStream waits for the result of a
+// stream write after the context has ended, so that a write which completed just
+// before the cancellation is reported as the completed send it is (cf.
+// rpcstream.closeGrace).
+const sendResultGrace = time.Second
+
 func (worker *subscribedWorker) StartTaskFromBulk(
 	ctx context.Context,
 	tenantId uuid.UUID,
@@ -181,10 +187,20 @@ func (worker *subscribedWorker) sendToWorkerWithStream(
 	}()
 
 	select {
-	case <-ctx.Done():
-		return fmt.Errorf("context done before send could complete: %w", ctx.Err())
 	case err := <-sentCh:
 		return err
+	case <-ctx.Done():
+	}
+
+	// the context ended while the write was in flight. a stream write that has
+	// already returned is a completed send, and reporting it as failed would
+	// requeue a task the worker was just sent. its result lands on sentCh a few
+	// instructions after the write returns, so give it a moment
+	select {
+	case err := <-sentCh:
+		return err
+	case <-time.After(sendResultGrace):
+		return fmt.Errorf("context done before send could complete: %w", ctx.Err())
 	}
 }
 

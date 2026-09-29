@@ -1,10 +1,16 @@
 package msgqueue
 
 import (
+	"bytes"
 	"context"
+	"errors"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/rs/zerolog"
 )
 
 // mockMessageQueue satisfies MessageQueue for tests. Only SendMessage is wired up.
@@ -99,7 +105,7 @@ func TestPubBufferFlushesWhenFull(t *testing.T) {
 		case m := <-received:
 			total += len(m.Payloads)
 		case <-deadline:
-			t.Fatalf("pub buffer flushed %d/%d buffered payloads within 2s; flush interval is 10s — capacityRelease did not trigger", total, bufSize)
+			t.Fatalf("pub buffer flushed %d/%d buffered payloads within 2s; flush interval is 10s, capacityRelease did not trigger", total, bufSize)
 		}
 	}
 
@@ -108,5 +114,86 @@ func TestPubBufferFlushesWhenFull(t *testing.T) {
 	case <-overflowDone:
 	case <-time.After(2 * time.Second):
 		t.Error("overflow Pub did not unblock after buffer was drained")
+	}
+}
+
+// syncBuffer is a goroutine-safe io.Writer for capturing log output from the
+// buffer's flush goroutines.
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
+// TestPubBufferLogsDroppedBatchOnce verifies that a failed flush is published
+// exactly once (no replay, since the backend may already have accepted it), is
+// dropped with exactly one error log line carrying enough context to pin it,
+// and hands the error to a waiter while a wait=false caller sees nil.
+func TestPubBufferLogsDroppedBatchOnce(t *testing.T) {
+	var callCount atomic.Int32
+	mq := &mockMessageQueue{
+		sendMessageFn: func(_ context.Context, _ Queue, _ *Message) error {
+			callCount.Add(1)
+			return errors.New("broker unavailable")
+		},
+	}
+
+	logs := &syncBuffer{}
+	l := zerolog.New(logs)
+
+	buf := NewMQPubBuffer(mq, WithPubLogger(&l))
+	defer buf.Stop()
+
+	msg := &Message{TenantID: testTenantID, ID: "test-msg", Payloads: [][]byte{[]byte("p")}}
+
+	if err := buf.Pub(context.Background(), OLAP_QUEUE, msg, false); err != nil {
+		t.Fatalf("wait=false Pub should not surface the publish error, got %v", err)
+	}
+
+	// the drop line is written after the single publish attempt, so it doubles
+	// as the flush-completion signal
+	deadline := time.After(2 * time.Second)
+	for !strings.Contains(logs.String(), "dropping buffered message") {
+		select {
+		case <-deadline:
+			t.Fatalf("no drop log line within 2s, got:\n%s", logs.String())
+		case <-time.After(time.Millisecond):
+		}
+	}
+
+	if got := callCount.Load(); got != 1 {
+		t.Fatalf("expected exactly one publish attempt, got %d", got)
+	}
+
+	out := logs.String()
+
+	if got := strings.Count(out, "dropping buffered message"); got != 1 {
+		t.Fatalf("expected exactly one drop log line, got %d in:\n%s", got, out)
+	}
+
+	for _, want := range []string{`"level":"error"`, `"queue":"olap_queue_v2"`, `"message_id":"test-msg"`, `"num_payloads":1`, `"num_waiters":0`, `"tenant_id":"` + testTenantID.String() + `"`, `"error":"broker unavailable"`} {
+		if !strings.Contains(out, want) {
+			t.Errorf("drop log should carry %s, got:\n%s", want, out)
+		}
+	}
+
+	// a waiter is the one caller that can see the failure directly
+	if err := buf.Pub(context.Background(), OLAP_QUEUE, msg, true); err == nil || err.Error() != "broker unavailable" {
+		t.Fatalf("waiter should receive the publish error, got %v", err)
+	}
+
+	if got := callCount.Load(); got != 2 {
+		t.Fatalf("expected the waiter's batch to be published exactly once more, got %d total attempts", got)
 	}
 }

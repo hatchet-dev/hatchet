@@ -321,7 +321,7 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 	a := hatcheterrors.NewWrapped(opts.alerter)
 	a.WithData(map[string]interface{}{"service": "dispatcher"})
 
-	pubBuffer := msgqueue.NewMQPubBuffer(opts.mqv1)
+	pubBuffer := msgqueue.NewMQPubBuffer(opts.mqv1, msgqueue.WithPubLogger(opts.l))
 
 	v := validator.NewDefaultValidator()
 

@@ -195,7 +195,7 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 	var pubBuffer *msgqueue.MQPubBuffer
 
 	if opts.grpcTriggersEnabled {
-		pubBuffer = msgqueue.NewMQPubBuffer(opts.mqv1)
+		pubBuffer = msgqueue.NewMQPubBuffer(opts.mqv1, msgqueue.WithPubLogger(opts.l))
 
 		tw = trigger.NewTriggerWriter(opts.mqv1, opts.pubsub, opts.repov1, opts.l, pubBuffer, opts.grpcTriggerSlots, opts.promGate)
 	}

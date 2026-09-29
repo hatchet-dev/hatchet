@@ -20,12 +20,23 @@ var (
 
 type DstFunc func(tenantId uuid.UUID, msgId string, payloads [][]byte) error
 
+// JSONConvert unmarshals each payload into a T. A payload that does not
+// unmarshal is logged and skipped so that one bad payload does not discard the
+// rest of the batch: the caller acks the whole batch on a nil error, so a
+// silently dropped batch is lost for good.
 func JSONConvert[T any](payloads [][]byte) []*T {
-	ret := make([]*T, 0)
-	for _, p := range payloads {
+	ret := make([]*T, 0, len(payloads))
+	for i, p := range payloads {
 		var t T
 		if err := json.Unmarshal(p, &t); err != nil {
-			return nil
+			defaultLogger.Error().
+				Err(err).
+				Str("payload_type", fmt.Sprintf("%T", t)).
+				Int("payload_index", i).
+				Int("num_payloads", len(payloads)).
+				Int("payload_bytes", len(p)).
+				Msg("dropping payload that could not be unmarshalled")
+			continue
 		}
 		ret = append(ret, &t)
 	}

@@ -26,12 +26,17 @@ const (
 	channelPoolMaxMetric      = "hatchet.msgqueue.rabbitmq.channel_pool.max"
 )
 
+// reconnectCheckInterval is how often a pool checks whether its connection is
+// still open. It is a variable so tests can shorten it.
+var reconnectCheckInterval = time.Second
+
 type channelPool struct {
 	*puddle.Pool[*amqp.Channel]
 
 	l *zerolog.Logger
 
-	url string
+	url  string
+	dial func(url string) (*amqp.Connection, error)
 
 	conn   *amqp.Connection
 	connMu sync.Mutex
@@ -51,7 +56,7 @@ func redactURL(raw string) string {
 }
 
 func (p *channelPool) newConnection() error {
-	conn, err := amqp.Dial(p.url)
+	conn, err := p.dial(p.url)
 
 	if err != nil {
 		p.l.Error().Msgf("cannot (re)dial: %v: %q", err, redactURL(p.url))
@@ -69,6 +74,23 @@ func (p *channelPool) getConnection() *amqp.Connection {
 	defer p.connMu.Unlock()
 
 	return p.conn
+}
+
+// reconnect replaces a closed connection and drops every pooled channel that was
+// opened on the old one. Those channels are closed with their connection, and
+// puddle hands out idle resources before constructing new ones, so without the
+// reset a publisher could acquire nothing but dead channels until each had
+// been discovered and destroyed one at a time. Reset also marks channels that
+// are acquired right now, so they are destroyed on release instead of returning
+// to the idle set.
+func (p *channelPool) reconnect() error {
+	if err := p.newConnection(); err != nil {
+		return err
+	}
+
+	p.Reset()
+
+	return nil
 }
 
 func (p *channelPool) hasActiveConnection() bool {
@@ -90,9 +112,14 @@ func (p *channelPool) Close() {
 }
 
 func newChannelPool(ctx context.Context, l *zerolog.Logger, url string, maxChannels int32, queue, role string) (*channelPool, error) {
+	return newChannelPoolWithDial(ctx, l, url, maxChannels, queue, role, amqp.Dial)
+}
+
+func newChannelPoolWithDial(ctx context.Context, l *zerolog.Logger, url string, maxChannels int32, queue, role string, dial func(string) (*amqp.Connection, error)) (*channelPool, error) {
 	p := &channelPool{
-		l:   l,
-		url: url,
+		l:    l,
+		url:  url,
+		dial: dial,
 	}
 
 	err := p.newConnection()
@@ -124,35 +151,6 @@ func newChannelPool(ctx context.Context, l *zerolog.Logger, url string, maxChann
 		}
 	}
 
-	// periodically check if the connection is still open
-	go func() {
-		retries := 0
-		ticker := time.NewTicker(1 * time.Second)
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-			}
-
-			conn := p.getConnection()
-
-			if conn.IsClosed() {
-				err := p.newConnection()
-
-				if err != nil {
-					l.Error().Msgf("cannot (re)dial: %v: %q", err, redactURL(p.url))
-					queueutils.SleepWithExponentialBackoff(10*time.Millisecond, 5*time.Second, retries)
-					retries++
-					continue
-				}
-
-				retries = 0
-			}
-		}
-	}()
-
 	// FIXME: this is probably too many channels
 	maxPoolSize := maxChannels
 
@@ -170,7 +168,44 @@ func newChannelPool(ctx context.Context, l *zerolog.Logger, url string, maxChann
 	p.Pool = pool
 	p.registerMetrics(queue, role)
 
+	// started last: reconnect resets the pool, so the pool must be assigned
+	// before the watcher can observe a closed connection
+	go p.watchConnection(ctx, role)
+
 	return p, nil
+}
+
+// watchConnection periodically checks whether the connection is still open and
+// redials it when it is not.
+func (p *channelPool) watchConnection(ctx context.Context, role string) {
+	retries := 0
+	ticker := time.NewTicker(reconnectCheckInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+
+		conn := p.getConnection()
+
+		if conn.IsClosed() {
+			p.l.Warn().Str("pool", role).Msg("rabbitmq connection is closed, redialing")
+
+			err := p.reconnect()
+
+			if err != nil {
+				p.l.Error().Msgf("cannot (re)dial: %v: %q", err, redactURL(p.url))
+				queueutils.SleepWithExponentialBackoff(10*time.Millisecond, 5*time.Second, retries)
+				retries++
+				continue
+			}
+
+			retries = 0
+		}
+	}
 }
 
 func (p *channelPool) registerMetrics(queue, role string) {

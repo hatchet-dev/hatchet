@@ -332,6 +332,7 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 		// we need to case on the channel being closed here, because the channel exception may be async (after a previous pub has been
 		// sent), so we might have acquired a closed channel from the pool
 		if pub.IsClosed() {
+			t.l.Warn().Str("queue_name", q.Name()).Msg("[pubMessage] acquired a closed channel, destroying it and retrying")
 			poolCh.Destroy()
 			acquireErr = fmt.Errorf("channel is closed")
 			pub = nil
@@ -343,6 +344,13 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 	}
 
 	if pub == nil {
+		t.l.Error().
+			Err(acquireErr).
+			Str("queue_name", q.Name()).
+			Str("tenant_id", msg.TenantID.String()).
+			Str("message_id", msg.ID).
+			Int("num_payloads", len(msg.Payloads)).
+			Msgf("[pubMessage] no open channel after %d attempts", PUB_ACQUIRE_CHANNEL_RETRIES)
 		return acquireErr
 	}
 
@@ -448,6 +456,13 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 		pubSpan.RecordError(err)
 		pubSpan.SetStatus(codes.Error, "error publishing message")
 		pubSpan.End()
+		t.l.Error().
+			Err(err).
+			Str("queue_name", q.Name()).
+			Str("tenant_id", msg.TenantID.String()).
+			Str("message_id", msg.ID).
+			Int("num_payloads", len(msg.Payloads)).
+			Msg("[pubMessage] error publishing message")
 		return err
 	}
 

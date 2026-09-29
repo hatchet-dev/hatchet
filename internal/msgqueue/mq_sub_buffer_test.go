@@ -3,12 +3,14 @@ package msgqueue
 import (
 	"context"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 )
 
 var testTenantID = uuid.MustParse("00000000-0000-0000-0000-000000000001")
@@ -94,7 +96,7 @@ func TestSubBufferFlushesWhenFull(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
-		t.Fatal("sub buffer did not flush all messages within 2s; flush interval is 10s — capacityRelease did not trigger")
+		t.Fatal("sub buffer did not flush all messages within 2s; flush interval is 10s, capacityRelease did not trigger")
 	}
 }
 
@@ -317,4 +319,39 @@ func TestConcurrentFlushesRateLimited(t *testing.T) {
 	}
 
 	t.Logf("Max concurrent flushes observed: %d (limit: %d)", maxConcurrent, maxConcurrency)
+}
+
+// TestJSONConvertSkipsBadPayload verifies that one payload that fails to
+// unmarshal is logged and skipped instead of discarding the whole batch.
+func TestJSONConvertSkipsBadPayload(t *testing.T) {
+	type payload struct {
+		Key string `json:"key"`
+	}
+
+	logs := &syncBuffer{}
+	orig := defaultLogger
+	defaultLogger = zerolog.New(logs)
+	defer func() { defaultLogger = orig }()
+
+	got := JSONConvert[payload]([][]byte{
+		[]byte(`{"key":"a"}`),
+		[]byte(`{"key":`),
+		[]byte(`{"key":"c"}`),
+	})
+
+	if len(got) != 2 || got[0].Key != "a" || got[1].Key != "c" {
+		t.Fatalf("expected the two valid payloads, got %+v", got)
+	}
+
+	out := logs.String()
+
+	if strings.Count(out, "dropping payload that could not be unmarshalled") != 1 {
+		t.Fatalf("expected exactly one drop log line, got:\n%s", out)
+	}
+
+	for _, want := range []string{`"payload_index":1`, `"num_payloads":3`, `"payload_type":"msgqueue.payload"`} {
+		if !strings.Contains(out, want) {
+			t.Errorf("drop log should carry %s, got:\n%s", want, out)
+		}
+	}
 }
