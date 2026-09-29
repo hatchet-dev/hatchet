@@ -38,7 +38,7 @@ describe('durable-streams-e2e', () => {
       });
     }, 200);
 
-    const received = await collect(events, publishedAfter.length+1);
+    const received = await collect(events, publishedAfter.length + 1);
 
     expect(received.map((e) => decode(e.payload))).toEqual([
       'published-before-consume',

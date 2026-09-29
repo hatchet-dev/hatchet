@@ -1,0 +1,182 @@
+import { Status } from 'nice-grpc';
+import { createGrpcClient } from '@hatchet/util/grpc-helpers';
+import { StreamsClient } from './streams';
+
+jest.mock('@hatchet/util/grpc-helpers', () => ({
+  createGrpcClient: jest.fn(),
+}));
+
+const mockedCreateGrpcClient = jest.mocked(createGrpcClient);
+
+function fakeHatchetClient(): any {
+  return { config: {} };
+}
+
+function entry(byte: number, cursor: string) {
+  return { payload: new Uint8Array([byte]), cursor, createdAt: undefined };
+}
+
+describe('StreamsClient.events cancellation', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('stops yielding, without error, as soon as the server sends a hangup message', async () => {
+    async function* subscribeStub() {
+      yield { entries: [entry(1, 'c1')], hangup: false };
+      yield { entries: [], hangup: true };
+      // events() must never reach this -- a hangup ends the iteration
+      yield { entries: [entry(2, 'c2')], hangup: false };
+    }
+
+    const subscribe = jest.fn(() => subscribeStub());
+    mockedCreateGrpcClient.mockReturnValue({ client: { subscribe } } as any);
+
+    const streams = new StreamsClient(fakeHatchetClient());
+
+    const received: number[] = [];
+    for await (const event of streams.events('topic')) {
+      received.push(event.payload[0]);
+    }
+
+    expect(received).toEqual([1]);
+  });
+
+  it('passes options.signal through to the underlying subscribe call', () => {
+    async function* subscribeStub() {}
+
+    const subscribe = jest.fn(() => subscribeStub());
+    mockedCreateGrpcClient.mockReturnValue({ client: { subscribe } } as any);
+
+    const streams = new StreamsClient(fakeHatchetClient());
+    const controller = new AbortController();
+
+    void streams.events('topic', { signal: controller.signal })[Symbol.asyncIterator]().next();
+
+    expect(subscribe).toHaveBeenCalledWith(
+      expect.objectContaining({ topic: 'topic' }),
+      expect.objectContaining({ signal: controller.signal })
+    );
+  });
+
+  it('ends the iteration cleanly on abort instead of rejecting the caller', async () => {
+    async function* subscribeStub(_req: unknown, options: { signal?: AbortSignal }) {
+      yield { entries: [entry(1, 'c1')], hangup: false };
+
+      // stands in for a real network call left pending until either the next
+      // message arrives or the caller cancels -- exactly what a quiet topic
+      // looks like without a cancel signal (see subscribeIdleHangupTimeout)
+      await new Promise((_resolve, reject) => {
+        options.signal?.addEventListener('abort', () => reject(new Error('call aborted')));
+      });
+    }
+
+    const subscribe = jest.fn((req: unknown, options: { signal?: AbortSignal }) =>
+      subscribeStub(req, options)
+    );
+    mockedCreateGrpcClient.mockReturnValue({ client: { subscribe } } as any);
+
+    const streams = new StreamsClient(fakeHatchetClient());
+    const controller = new AbortController();
+    const iterator = streams.events('topic', { signal: controller.signal })[Symbol.asyncIterator]();
+
+    const first = await iterator.next();
+    expect(first.done).toBe(false);
+    expect(first.value?.payload[0]).toBe(1);
+
+    const pending = iterator.next();
+    controller.abort();
+
+    const result = await pending;
+    expect(result.done).toBe(true);
+  });
+
+  it('still throws a non-abort error from the underlying stream', async () => {
+    async function* subscribeStub() {
+      yield { entries: [entry(1, 'c1')], hangup: false };
+      throw new Error('transport failure');
+    }
+
+    const subscribe = jest.fn(() => subscribeStub());
+    mockedCreateGrpcClient.mockReturnValue({ client: { subscribe } } as any);
+
+    const streams = new StreamsClient(fakeHatchetClient());
+
+    await expect(async () => {
+      for await (const _event of streams.events('topic')) {
+        // drain
+      }
+    }).rejects.toThrow('transport failure');
+  });
+
+  it('breaking a for-await loop stops consuming further events', async () => {
+    let yieldedAfterBreak = false;
+
+    async function* subscribeStub() {
+      yield { entries: [entry(1, 'c1'), entry(2, 'c2')], hangup: false };
+      yieldedAfterBreak = true;
+      yield { entries: [entry(3, 'c3')], hangup: false };
+    }
+
+    const subscribe = jest.fn(() => subscribeStub());
+    mockedCreateGrpcClient.mockReturnValue({ client: { subscribe } } as any);
+
+    const streams = new StreamsClient(fakeHatchetClient());
+
+    const received: number[] = [];
+    for await (const event of streams.events('topic')) {
+      received.push(event.payload[0]);
+      if (received.length === 1) {
+        break;
+      }
+    }
+
+    expect(received).toEqual([1]);
+    expect(yieldedAfterBreak).toBe(false);
+  });
+});
+
+describe('StreamsClient.publish producer sequencing', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  function setup(results: Array<Error | undefined>) {
+    const publish = jest.fn(async (_req: any) => {
+      const err = results.shift();
+      if (err) throw err;
+      return {};
+    });
+    mockedCreateGrpcClient.mockReturnValue({ client: { publish } } as any);
+    return { streams: new StreamsClient(fakeHatchetClient()), publish };
+  }
+
+  function grpcError(code: Status) {
+    return Object.assign(new Error('failed'), { code });
+  }
+
+  it('rotates the producer after an ambiguous failure so its seq is never reused', async () => {
+    const { streams, publish } = setup([undefined, grpcError(Status.DEADLINE_EXCEEDED)]);
+
+    await streams.publish('topic', 'a');
+    await expect(streams.publish('topic', 'b')).rejects.toThrow();
+    await streams.publish('topic', 'c');
+
+    const reqs = publish.mock.calls.map(([req]) => req);
+    expect(reqs[1].producerId).toBe(reqs[0].producerId);
+    expect(reqs[1].producerSeq).toBe(1);
+    expect(reqs[2].producerId).not.toBe(reqs[1].producerId);
+    expect(reqs[2].producerSeq).toBe(0);
+  });
+
+  it('reuses the seq when the server rejected the publish before enqueueing it', async () => {
+    const { streams, publish } = setup([grpcError(Status.RESOURCE_EXHAUSTED)]);
+
+    await expect(streams.publish('topic', 'a')).rejects.toThrow();
+    await streams.publish('topic', 'a');
+
+    const reqs = publish.mock.calls.map(([req]) => req);
+    expect(reqs[1].producerId).toBe(reqs[0].producerId);
+    expect(reqs[1].producerSeq).toBe(0);
+  });
+});

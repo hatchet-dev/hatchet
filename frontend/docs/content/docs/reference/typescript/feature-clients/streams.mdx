@@ -1,0 +1,55 @@
+---
+title: "Streams"
+---
+
+<a id="streamsclient"></a>
+
+### Streams Client
+
+StreamsClient provides methods for publishing to and reading from durable,
+topic-based streams. This is distinct from the ephemeral, per-run streaming
+exposed by `runs.subscribeToStream`, which is not durable, and tied to specific workflow runs.
+A durable stream topic is independent of any workflow run, and can be started from any point using cursors.
+
+#### Methods
+
+<a id="events"></a>
+
+##### `events()`
+
+Returns an async iterable of messages published to topic, starting from
+the given cursor (options.cursor) or from the beginning of the topic if
+none is supplied. Yields one message at a time.
+Stops when the server hangs up, options.signal aborts, or
+the caller stops iterating (e.g. `break`ing a `for await` loop).
+
+Parameters
+
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `topic` | `string` | the topic to read from |
+| `options?` | `StreamCallOptions` | optional namespace override, resume cursor, and abort signal |
+
+Returns
+
+`AsyncIterable`\<`StreamEvent`\>
+
+<a id="publish"></a>
+
+##### `publish()`
+
+Durably publishes a message to a topic. Messages from this client instance are delivered to
+events() in the order publish() was called, even under concurrent calls
+or network/queue reordering.
+
+Parameters
+
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `topic` | `string` | the topic to publish to |
+| `message` | `string` \| `Uint8Array`\<`ArrayBufferLike`\> | the message payload |
+| `options?` | `StreamCallOptions` | optional namespace override |
+
+Returns
+
+`Promise`\<`void`\>
