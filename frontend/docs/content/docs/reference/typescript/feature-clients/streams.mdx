@@ -25,9 +25,9 @@ the caller stops iterating (e.g. `break`ing a `for await` loop).
 
 Parameters
 
-| Parameter | Type | Description |
-| ------ | ------ | ------ |
-| `topic` | `string` | the topic to read from |
+| Parameter  | Type                | Description                                                  |
+| ---------- | ------------------- | ------------------------------------------------------------ |
+| `topic`    | `string`            | the topic to read from                                       |
 | `options?` | `StreamCallOptions` | optional namespace override, resume cursor, and abort signal |
 
 Returns
@@ -44,11 +44,11 @@ or network/queue reordering.
 
 Parameters
 
-| Parameter | Type | Description |
-| ------ | ------ | ------ |
-| `topic` | `string` | the topic to publish to |
-| `message` | `string` \| `Uint8Array`\<`ArrayBufferLike`\> | the message payload |
-| `options?` | `StreamCallOptions` | optional namespace override |
+| Parameter  | Type                                          | Description                 |
+| ---------- | --------------------------------------------- | --------------------------- |
+| `topic`    | `string`                                      | the topic to publish to     |
+| `message`  | `string` \| `Uint8Array`\<`ArrayBufferLike`\> | the message payload         |
+| `options?` | `StreamCallOptions`                           | optional namespace override |
 
 Returns
 

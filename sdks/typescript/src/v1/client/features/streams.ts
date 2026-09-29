@@ -40,9 +40,8 @@ export type StreamCallOptions = {
 /**
  * StreamsClient provides methods for publishing to and reading from durable,
  * topic-based streams. This is distinct from the ephemeral, per-run streaming
- * exposed by `runs.subscribeToStream`, which is fanout-only and never
- * persisted: a durable stream topic is independent of any workflow run, and a
- * late-connecting reader can resume from a cursor.
+ * exposed by `runs.subscribeToStream`, which is not durable, and tied to specific workflow runs.
+ * A durable stream topic is independent of any workflow run, and can be started from any point using cursors.
  */
 export class StreamsClient {
   private _config: ClientConfig;
@@ -104,11 +103,9 @@ export class StreamsClient {
   }
 
   /**
-   * Durably publishes a message to a topic. Topics are created implicitly on
-   * first publish. Messages from this client instance are delivered to
+   * Durably publishes a message to a topic. Messages from this client instance are delivered to
    * events() in the order publish() was called, even under concurrent calls
-   * or network/queue reordering. A publish that fails ambiguously (e.g. a
-   * timeout) may still be delivered, so retrying it can produce a duplicate.
+   * or network/queue reordering.
    * @param topic - the topic to publish to
    * @param message - the message payload
    * @param options - optional namespace override
@@ -136,9 +133,8 @@ export class StreamsClient {
   /**
    * Returns an async iterable of messages published to topic, starting from
    * the given cursor (options.cursor) or from the beginning of the topic if
-   * none is supplied. Yields one message at a time -- the server may batch
-   * several messages into one wire frame while catching up, transparently to
-   * this iterable. Stops when the server hangs up, options.signal aborts, or
+   * none is supplied. Yields one message at a time.
+   * Stops when the server hangs up, options.signal aborts, or
    * the caller stops iterating (e.g. `break`ing a `for await` loop).
    * @param topic - the topic to read from
    * @param options - optional namespace override, resume cursor, and abort signal
