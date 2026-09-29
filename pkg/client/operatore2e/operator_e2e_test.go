@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -32,9 +32,12 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/operatorclient"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
+	"github.com/hatchet-dev/hatchet/pkg/config/database"
+	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/operator/hostgrpc"
 	"github.com/hatchet-dev/hatchet/pkg/operator/operatortest"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/testing/harness"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
@@ -301,37 +304,100 @@ func assertStaysQueued(t *testing.T, ctx context.Context, sdk *hatchet.Client, r
 	}
 }
 
-// workerActive reads the worker's active flag straight from the database: the
-// harness runs the engine only, so there is no REST API to ask.
+// dataLayer returns a repository layer for the harness database, one per test. The harness
+// runs the engine only, so there is no REST API to ask, and the tests read worker state through
+// the same repository the engine uses rather than through hand-written SQL. The layer is
+// disconnected when the test ends so its background goroutines do not trip the harness's
+// goroutine leak check.
+func dataLayer(t *testing.T) *database.Layer {
+	t.Helper()
+
+	dataLayersMu.Lock()
+	defer dataLayersMu.Unlock()
+
+	if layer, ok := dataLayers[t]; ok {
+		return layer
+	}
+
+	confLoader := &loader.ConfigLoader{}
+	layer, err := confLoader.InitDataLayer()
+	require.NoError(t, err, "could not initialize the data layer for the harness database")
+
+	dataLayers[t] = layer
+	t.Cleanup(func() {
+		dataLayersMu.Lock()
+		delete(dataLayers, t)
+		dataLayersMu.Unlock()
+
+		_ = layer.Disconnect()
+	})
+
+	return layer
+}
+
+var (
+	dataLayersMu sync.Mutex
+	dataLayers   = map[*testing.T]*database.Layer{}
+)
+
+func getWorker(t *testing.T, ctx context.Context, workerId string) sqlcv1.Worker {
+	t.Helper()
+
+	row, err := dataLayer(t).V1.Workers().GetWorkerById(ctx, uuid.MustParse(workerId))
+	require.NoError(t, err)
+
+	return row.Worker
+}
+
+func timestampString(ts pgtype.Timestamp) string {
+	if !ts.Valid {
+		return "<nil>"
+	}
+
+	return ts.Time.String()
+}
+
 func workerActive(t *testing.T, ctx context.Context, workerId string) (active bool, state string) {
 	t.Helper()
 
-	conn, err := pgx.Connect(ctx, os.Getenv("DATABASE_URL"))
-	require.NoError(t, err)
-	defer conn.Close(ctx)
+	w := getWorker(t, ctx, workerId)
 
-	var listenerEstablished, lastHeartbeat *time.Time
-	err = conn.QueryRow(ctx,
-		`SELECT "isActive", "lastListenerEstablished", "lastHeartbeatAt" FROM "Worker" WHERE "id" = $1`,
-		uuid.MustParse(workerId),
-	).Scan(&active, &listenerEstablished, &lastHeartbeat)
-	require.NoError(t, err)
-
-	return active, fmt.Sprintf("isActive=%t lastListenerEstablished=%v lastHeartbeatAt=%v", active, listenerEstablished, lastHeartbeat)
+	return w.IsActive, fmt.Sprintf("isActive=%t lastListenerEstablished=%s lastHeartbeatAt=%s", w.IsActive, timestampString(w.LastListenerEstablished), timestampString(w.LastHeartbeatAt))
 }
 
-// workerPaused reads the worker's paused flag straight from the database.
+// workerListenerSession reads the worker's active flag and the id of the listener session that
+// last activated it. The engine stamps a fresh id on every Listen stream it accepts, so a
+// changed id is proof that a reconnect has been processed. The active flag alone is not: read
+// before the engine has seen the end of the old stream, it still says true for the session
+// being closed.
+func workerListenerSession(t *testing.T, ctx context.Context, workerId string) (active bool, sessionId *uuid.UUID) {
+	t.Helper()
+
+	w := getWorker(t, ctx, workerId)
+
+	return w.IsActive, w.LastListenerSessionId
+}
+
+// pollWorkerReconnected waits until the worker is active under a listener session other than
+// previous, which is when a reconnect has been accepted by the engine.
+func pollWorkerReconnected(t *testing.T, ctx context.Context, workerId string, previous *uuid.UUID) {
+	t.Helper()
+	polls := 0
+	pollUntil(t, ctx, func() (bool, error) {
+		active, sessionId := workerListenerSession(t, ctx, workerId)
+		polls++
+		reconnected := active && sessionId != nil && (previous == nil || *sessionId != *previous)
+		if !reconnected && polls%25 == 1 {
+			t.Logf("worker %s not reconnected yet: isActive=%t lastListenerSessionId=%v previous=%v", workerId, active, sessionId, previous)
+		}
+		return reconnected, nil
+	})
+}
+
 func workerPaused(t *testing.T, ctx context.Context, workerId string) bool {
 	t.Helper()
 
-	conn, err := pgx.Connect(ctx, os.Getenv("DATABASE_URL"))
-	require.NoError(t, err)
-	defer conn.Close(ctx)
-
-	var paused bool
-	require.NoError(t, conn.QueryRow(ctx, `SELECT "isPaused" FROM "Worker" WHERE "id" = $1`, uuid.MustParse(workerId)).Scan(&paused))
-
-	return paused
+	return getWorker(t, ctx, workerId).IsPaused
 }
 
 func pollWorkerPaused(t *testing.T, ctx context.Context, workerId string, want bool) {
@@ -341,20 +407,16 @@ func pollWorkerPaused(t *testing.T, ctx context.Context, workerId string, want b
 	})
 }
 
-// workerActionHash reads the worker's action hash straight from the database. A delta clears
-// the hash and the session refreshes it at the end of the delta sequence, within its notify
-// window, so a NULL hash means the refresh is pending and the read waits for it.
+// workerActionHash reads the worker's action hash. A delta clears the hash and the session
+// refreshes it at the end of the delta sequence, within its notify window, so a NULL hash means
+// the refresh is pending and the read waits for it.
 func workerActionHash(t *testing.T, ctx context.Context, workerId string) []byte {
 	t.Helper()
-
-	conn, err := pgx.Connect(ctx, os.Getenv("DATABASE_URL"))
-	require.NoError(t, err)
-	defer conn.Close(ctx)
 
 	var hash []byte
 
 	require.Eventually(t, func() bool {
-		require.NoError(t, conn.QueryRow(ctx, `SELECT "actionHash" FROM "Worker" WHERE "id" = $1`, uuid.MustParse(workerId)).Scan(&hash))
+		hash = getWorker(t, ctx, workerId).ActionHash
 
 		return hash != nil
 	}, schedulerConvergence, pollInterval, "the worker's action hash was not refreshed after its delta")
@@ -362,33 +424,16 @@ func workerActionHash(t *testing.T, ctx context.Context, workerId string) []byte
 	return hash
 }
 
-// workerActions reads the worker's linked actions straight from the database,
-// sorted by action id.
 func workerActions(t *testing.T, ctx context.Context, workerId string) []string {
 	t.Helper()
 
-	conn, err := pgx.Connect(ctx, os.Getenv("DATABASE_URL"))
-	require.NoError(t, err)
-	defer conn.Close(ctx)
+	w := getWorker(t, ctx, workerId)
 
-	rows, err := conn.Query(ctx,
-		`SELECT a."actionId"
-		FROM "_ActionToWorker" atw
-		JOIN "Action" a ON a."id" = atw."A"
-		WHERE atw."B" = $1
-		ORDER BY a."actionId"`,
-		uuid.MustParse(workerId),
-	)
+	actionsByWorker, err := dataLayer(t).V1.Workers().GetWorkerActionsForWorkers(ctx, w.TenantId, []sqlcv1.Worker{w})
 	require.NoError(t, err)
-	defer rows.Close()
 
-	actions := []string{}
-	for rows.Next() {
-		var action string
-		require.NoError(t, rows.Scan(&action))
-		actions = append(actions, action)
-	}
-	require.NoError(t, rows.Err())
+	actions := append([]string{}, actionsByWorker[w.ID.String()]...)
+	slices.Sort(actions)
 
 	return actions
 }
@@ -593,11 +638,15 @@ func TestReconnectResumesWorker(t *testing.T) {
 
 	closer, ok := session.(interface{ CloseListenStream() error })
 	require.True(t, ok, "session does not expose CloseListenStream")
+	_, before := workerListenerSession(t, ctx, workerId)
 	require.NoError(t, closer.CloseListenStream())
 
-	// The worker is deactivated when the stream ends, so it is only active
-	// once the automatic reconnect has resumed it.
-	pollWorkerActive(t, ctx, workerId, true)
+	// The end of the stream deactivates the worker and the automatic reconnect activates it
+	// again under a new listener session. Polling the active flag alone races the engine: a
+	// read that lands before it has processed the end of the old stream still sees the worker
+	// active under the old session, and the registration below is then read before the
+	// reconnect happened. The session id changes only once the reconnect has been accepted.
+	pollWorkerReconnected(t, ctx, workerId, before)
 
 	reg := session.Registration()
 	assert.Equal(t, workerId, reg.WorkerId, "reconnect must resume the same worker")

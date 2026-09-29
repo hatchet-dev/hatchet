@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import os
 import socket
@@ -71,31 +72,67 @@ def hatchet_worker(
     Thread(target=log_output, args=(proc.stdout, logging.info), daemon=True).start()
     Thread(target=log_output, args=(proc.stderr, logging.error), daemon=True).start()
 
-    wait_for_worker_health(healthcheck_port=healthcheck_port)
+    # The finally block also runs when the health check raises, so a worker
+    # that never came up is still torn down instead of leaking.
+    try:
+        wait_for_worker_health(healthcheck_port=healthcheck_port)
 
-    yield proc
+        yield proc
+    finally:
+        logging.info("Cleaning up background worker")
+        _terminate_worker(proc)
 
-    logging.info("Cleaning up background worker")
 
-    parent = psutil.Process(proc.pid)
-    children = parent.children(recursive=True)
+def _terminate_worker(proc: subprocess.Popen[bytes]) -> None:
+    """Terminate the worker and its descendants, force killing anything that lingers.
+
+    :param proc: The worker process handle owned by the fixture.
+    """
+    try:
+        children = psutil.Process(proc.pid).children(recursive=True)
+    except psutil.Error:
+        # The worker already exited (a test may have signalled it itself), so
+        # there is nothing left to enumerate under it.
+        children = []
 
     for child in children:
-        try:
+        with contextlib.suppress(psutil.Error):
             child.terminate()
-        except psutil.NoSuchProcess:
-            pass
 
+    with contextlib.suppress(ProcessLookupError):
+        proc.terminate()
+
+    # Wait on the Popen handle we own: that reaps our child with waitpid, which
+    # cannot hit the pidfd_open() EINVAL race psutil.wait_procs runs into on
+    # Linux 6.x when the worker has already exited (psutil issue 2715).
     try:
-        parent.terminate()
-    except psutil.NoSuchProcess:
-        pass
+        proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        logging.warning("Force killing worker %s", proc.pid)
+        proc.kill()
+        proc.wait(timeout=5)
 
-    _, alive = psutil.wait_procs([parent] + children, timeout=5)
+    _reap_descendants(children, timeout=5)
 
-    for p in alive:
-        logging.warning(f"Force killing process {p.pid}")
+
+def _reap_descendants(children: list[psutil.Process], timeout: float) -> None:
+    """Wait for the worker's descendants, force killing any that outlive the timeout.
+
+    :param children: Descendant processes that were already sent SIGTERM.
+    :param timeout: Total seconds to wait across all descendants.
+    """
+    deadline = time.monotonic() + timeout
+
+    for child in children:
+        remaining = max(0.0, deadline - time.monotonic())
+
         try:
-            p.kill()
-        except psutil.NoSuchProcess:
+            child.wait(timeout=remaining)
+        except psutil.TimeoutExpired:
+            logging.warning("Force killing process %s", child.pid)
+            with contextlib.suppress(psutil.Error):
+                child.kill()
+        except (psutil.Error, OSError):
+            # NoSuchProcess, or pidfd_open() failing on a process that already
+            # exited and was reaped by init: either way it is gone.
             pass

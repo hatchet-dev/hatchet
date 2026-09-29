@@ -1262,6 +1262,11 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 		}
 	}
 
+	// a COPY with zero rows still costs a round trip (CopyIn + CopyDone) and writes nothing
+	if len(matchConditionParams) == 0 {
+		return nil
+	}
+
 	_, err := m.queries.CreateMatchConditions(ctx, tx, matchConditionParams)
 
 	if err != nil {

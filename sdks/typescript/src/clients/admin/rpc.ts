@@ -5,7 +5,8 @@ import {
 import { WorkflowService } from '@hatchet/protoc-es/workflows/workflows_pb';
 import { AdminServiceClient, AdminServiceDefinition } from '@hatchet/protoc/v1/workflows';
 import { AdminService } from '@hatchet/protoc-es/v1/workflows_pb';
-import { createTsProtoClient, type Transport } from '@clients/transport';
+import { createTsProtoClient } from '@clients/transport/ts-proto-client';
+import type { Transport } from '@clients/transport/transport';
 
 /**
  * The `WorkflowService` client, every RPC of the generated `WorkflowServiceClient` interface,

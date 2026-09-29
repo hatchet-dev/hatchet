@@ -81,6 +81,10 @@ jobs:
         if: matrix.package-manager == 'pnpm'
         run: pnpm check:edge
 
+      - name: Check the core entry point is free of Node imports and gRPC packages
+        if: matrix.package-manager == 'pnpm'
+        run: pnpm check:core
+
       - name: Check the package exports map resolves from ESM and CJS
         if: matrix.package-manager == 'pnpm'
         run: pnpm check:exports

@@ -32,33 +32,62 @@ import (
 func TestRandomTicker(t *testing.T) {
 	t.Parallel()
 
-	minDuration := time.Duration(10)
-	maxDuration := time.Duration(20)
+	const (
+		minDuration = 10 * time.Millisecond
+		maxDuration = 20 * time.Millisecond
+		ticks       = 50
+		// The ticker sends without blocking, so a tick that fires while this
+		// goroutine is not parked on the channel is dropped and the next one
+		// lands up to maxDuration later. Ticks average well under maxDuration,
+		// so the cumulative bound leaves room for roughly twenty dropped ticks
+		// plus timer lateness on a loaded runner, while a ticker that ignores
+		// maxDuration (for example a fixed 30ms cadence, 1.5s in total) still
+		// fails.
+		slack = 10 * maxDuration
+	)
 
-	// tick can take a little longer since we're not adjusting it to account for
-	// processing.
-	precision := time.Duration(6)
+	// Every timer is armed after start and after the previous tick was
+	// delivered, so the k-th tick cannot arrive before k*minDuration. That
+	// bound is strict; the upper bound is checked once, cumulatively.
+	start := time.Now()
+	rt := randomticker.NewRandomTicker(minDuration, maxDuration)
 
-	rt := randomticker.NewRandomTicker(minDuration*time.Millisecond, maxDuration*time.Millisecond)
-	for i := 0; i < 5; i++ {
-		t0 := time.Now()
-		t1 := <-rt.C
-		td := t1.Sub(t0)
-		if td < minDuration*time.Millisecond {
-			t.Fatalf("tick was shorter than expected: %s", td)
-		} else if td > (maxDuration+precision)*time.Millisecond {
-			t.Fatalf("tick was longer than expected: %s", td)
+	for i := 1; i <= ticks; i++ {
+		select {
+		case <-rt.C:
+		case <-time.After(5 * time.Second):
+			t.Fatalf("no tick received for tick %d", i)
+		}
+
+		if elapsed := time.Since(start); elapsed < time.Duration(i)*minDuration {
+			t.Fatalf("tick %d arrived after %s, sooner than %d ticks of at least %s allow", i, elapsed, i, minDuration)
 		}
 	}
+
+	if elapsed := time.Since(start); elapsed > ticks*maxDuration+slack {
+		t.Fatalf("%d ticks took %s, longer than %d ticks of at most %s plus %s slack", ticks, elapsed, ticks, maxDuration, slack)
+	}
+
 	rt.Stop()
-	time.Sleep((maxDuration + precision) * time.Millisecond)
-	select {
-	case v, ok := <-rt.C:
-		if ok || !v.IsZero() {
-			t.Fatal("ticker did not shut down")
+
+	// The channel is closed by the ticker goroutine after Stop has been
+	// acknowledged, so it may close a moment after Stop returns.
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		select {
+		case v, ok := <-rt.C:
+			if ok || !v.IsZero() {
+				t.Fatal("ticker did not shut down")
+			}
+			return
+		default:
 		}
-	default:
-		t.Fatal("expected to receive close channel signal")
+
+		if time.Now().After(deadline) {
+			t.Fatal("expected the tick channel to be closed after Stop")
+		}
+
+		time.Sleep(time.Millisecond)
 	}
 }
 

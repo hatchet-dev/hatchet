@@ -577,6 +577,16 @@ func TestConcurrency_MultipleStrategiesContention(t *testing.T) {
 // This test reproduces the cold path through the full SchedulingPool and asserts the task is queued
 // well within the 5s lease-poll window. Run against the pre-fix commit and it waits ~5s and fails the
 // deadline; against the fix it completes in milliseconds.
+//
+// SetTenants starts the tenant's lease manager, whose initial lease acquisition runs asynchronously
+// and holds the concurrency lease mutex for several DB round trips. The on-demand path only
+// try-locks that mutex and silently gives up if it is held, so a NotifyConcurrency that races the
+// initial acquisition is dropped and the strategy is not picked up until the periodic poll. The
+// test therefore waits for the initial acquisition to finish before creating the task: a second,
+// warm strategy on the same tenant is leased by that initial acquisition, and its manager's first
+// result on the shared results channel proves the acquisition has handed over its leases. Only then
+// is the cold task created and notified, so the on-demand path is the only thing that can schedule
+// it before the periodic poll.
 func TestConcurrency_ColdStrategyScheduledPromptly(t *testing.T) {
 	runWithDatabase(t, func(conf *database.Layer) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -625,6 +635,29 @@ func TestConcurrency_ColdStrategyScheduledPromptly(t *testing.T) {
 		require.Len(t, strategies, 1)
 		strat := strategies[0]
 
+		// A second, warm strategy on the same tenant. It stays active, so the pool's initial lease
+		// acquisition leases it and starts a manager for it; that manager's results are the signal
+		// that the initial acquisition has completed (see below). It never receives a task.
+		warmDesc := "warm workflow for cold-start scheduling"
+		_, err = r.Workflows().PutWorkflowVersion(ctx, tenantId, &repo.CreateWorkflowVersionOpts{
+			Name:        "concurrency-cold-start-warm",
+			Description: &warmDesc,
+			Tasks: []repo.CreateStepOpts{
+				{
+					ReadableId: "warm-task",
+					Action:     "test:run",
+					Concurrency: []repo.CreateConcurrencyOpts{
+						{
+							MaxRuns:       &maxRuns,
+							LimitStrategy: &groupRR,
+							Expression:    "input.my_id",
+						},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+
 		concurrencyRepo := r.Scheduler().Concurrency()
 
 		// The stale-deactivation sweep only considers strategies whose last_active_at is over 25
@@ -640,9 +673,10 @@ func TestConcurrency_ColdStrategyScheduledPromptly(t *testing.T) {
 
 		activeAfterDeactivate, err := queries.ListActiveConcurrencyStrategies(ctx, conf.Pool, tenantId)
 		require.NoError(t, err)
-		require.Len(t, activeAfterDeactivate, 0, "strategy must be inactive so no manager is leased at pool start")
+		require.Len(t, activeAfterDeactivate, 1, "only the warm strategy must be active so no manager is leased for the cold one at pool start")
+		require.NotEqual(t, strat.ID, activeAfterDeactivate[0].ID, "the cold strategy must be inactive")
 
-		// Start the scheduling pool. Its initial lease acquisition runs now and finds no active
+		// Start the scheduling pool. Its initial lease acquisition runs now and finds only the warm
 		// strategy, so no ConcurrencyManager exists for our strategy -- it is genuinely cold.
 		l := zerolog.Nop()
 		outbox, err := pgoutbox.NewOutbox(ctx, conf.Pool, pgoutbox.WithAutoMigrate(false))
@@ -669,6 +703,20 @@ func TestConcurrency_ColdStrategyScheduledPromptly(t *testing.T) {
 
 		schedulingPool.SetTenants([]*sqlcv1.Tenant{tenant})
 		resultsChan := schedulingPool.GetConcurrencyResultsCh()
+
+		// Wait for the initial lease acquisition to complete before the cold task arrives. The only
+		// manager that can exist at this point is the warm strategy's, and it is created once the
+		// initial acquisition hands over its leases (it releases the concurrency lease mutex right
+		// after), so its first result proves the on-demand path below cannot collide with the
+		// initial acquisition and that the cold strategy was not leased by it. The manager runs once
+		// on creation, so this arrives after a single strategy run rather than a polling interval.
+		select {
+		case <-ctx.Done():
+			t.Fatalf("context cancelled while waiting for the initial lease acquisition: %v", ctx.Err())
+		case res := <-resultsChan:
+			require.False(t, res.RunConcurrencyResult.FailedAdvisoryLock)
+			require.Empty(t, res.RunConcurrencyResult.Queued, "the warm strategy has no tasks")
+		}
 
 		// A task arrives for the cold strategy. Creating the task inserts a concurrency slot, whose
 		// insert trigger reactivates the strategy in the DB (is_active=TRUE) -- but the scheduler does
@@ -702,22 +750,40 @@ func TestConcurrency_ColdStrategyScheduledPromptly(t *testing.T) {
 		start := time.Now()
 		schedulingPool.NotifyConcurrency(ctx, tenantId, []int64{strat.ID})
 
-		// The fix must schedule the waiting task without waiting for the 5s lease-acquisition poll.
-		const coldStartDeadline = 2 * time.Second
+		// The fix must schedule the waiting task without waiting for the lease-acquisition poll,
+		// which LeaseManager.loopForLeases runs every 5s from pool start. The notify above happens
+		// well under a second after pool start (right after the initial acquisition), so the poll
+		// cannot rescue the task before roughly 4s from now; 3s stays clearly below that while
+		// leaving headroom for the on-demand path's DB round trips on a loaded CI database (the
+		// path completes in about 20ms locally and stayed under 1.2s with every core saturated).
+		const coldStartDeadline = 3 * time.Second
 		deadline := time.NewTimer(coldStartDeadline)
 		defer deadline.Stop()
+
+		// The warm manager's first result proves the initial acquisition handed over its leases,
+		// but the acquisition releases the lease mutex only after that send, so a notification
+		// landing in that gap still finds the mutex held and is dropped. Notifying again while
+		// waiting closes the gap without changing what is measured: every notification takes the
+		// same on-demand path, and none of them can be answered by the periodic poll before the
+		// deadline.
+		renotify := time.NewTicker(500 * time.Millisecond)
+		defer renotify.Stop()
 
 		for {
 			select {
 			case <-ctx.Done():
 				t.Fatalf("context cancelled while waiting for cold strategy to be scheduled: %v", ctx.Err())
+			case <-renotify.C:
+				schedulingPool.NotifyConcurrency(ctx, tenantId, []int64{strat.ID})
 			case <-deadline.C:
 				t.Fatalf("cold concurrency strategy was not scheduled within %s; "+
 					"the on-demand manager was not created (fell back to the periodic lease poll)", coldStartDeadline)
 			case res := <-resultsChan:
+				// the warm manager keeps polling and emits empty results; skip those
 				require.False(t, res.RunConcurrencyResult.FailedAdvisoryLock)
 				if len(res.RunConcurrencyResult.Queued) > 0 {
 					require.Len(t, res.RunConcurrencyResult.Queued, 1, "the single waiting task should be queued")
+					require.Equal(t, tasks[0].ID, res.RunConcurrencyResult.Queued[0].Id, "the cold task should be the one queued")
 					t.Logf("cold strategy scheduled in %s", time.Since(start))
 					return nil
 				}
