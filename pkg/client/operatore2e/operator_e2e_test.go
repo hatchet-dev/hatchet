@@ -340,7 +340,6 @@ var (
 	dataLayers   = map[*testing.T]*database.Layer{}
 )
 
-// getWorker reads the worker row through the repository.
 func getWorker(t *testing.T, ctx context.Context, workerId string) sqlcv1.Worker {
 	t.Helper()
 
@@ -358,7 +357,6 @@ func timestampString(ts pgtype.Timestamp) string {
 	return ts.Time.String()
 }
 
-// workerActive reads the worker's active flag.
 func workerActive(t *testing.T, ctx context.Context, workerId string) (active bool, state string) {
 	t.Helper()
 
@@ -396,7 +394,6 @@ func pollWorkerReconnected(t *testing.T, ctx context.Context, workerId string, p
 	})
 }
 
-// workerPaused reads the worker's paused flag.
 func workerPaused(t *testing.T, ctx context.Context, workerId string) bool {
 	t.Helper()
 
@@ -427,7 +424,6 @@ func workerActionHash(t *testing.T, ctx context.Context, workerId string) []byte
 	return hash
 }
 
-// workerActions reads the worker's linked actions, sorted by action id.
 func workerActions(t *testing.T, ctx context.Context, workerId string) []string {
 	t.Helper()
 
