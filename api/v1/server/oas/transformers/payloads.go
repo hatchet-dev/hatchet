@@ -21,11 +21,3 @@ func applyPayloadOptions(opts []PayloadOption) payloadOptions {
 	}
 	return o
 }
-
-func boolPtr(v bool) *bool {
-	return &v
-}
-
-func emptyJSON() map[string]interface{} {
-	return map[string]interface{}{}
-}

@@ -5,6 +5,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/authz"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
@@ -77,6 +78,6 @@ func (t *WorkflowService) ScheduledWorkflowRunCreate(ctx echo.Context, request g
 	ctx.Set(constants.ResourceTypeKey.String(), constants.ResourceTypeScheduledWorkflow.String())
 
 	return gen.ScheduledWorkflowRunCreate200JSONResponse(
-		*transformers.ToScheduledWorkflowsFromSQLC(scheduled),
+		*transformers.ToScheduledWorkflowsFromSQLC(scheduled, transformers.WithPayloads(authz.CanViewPayloads(ctx))),
 	), nil
 }

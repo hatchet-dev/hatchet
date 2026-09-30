@@ -3,6 +3,7 @@ withTenant:
     x-resources: ["tenant"]
     description: Lists all rate limits for a tenant.
     operationId: rate-limit:list
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -71,6 +72,7 @@ withTenant:
     x-resources: ["tenant"]
     description: Delete a rate limit for a tenant.
     operationId: rate-limit:delete
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
