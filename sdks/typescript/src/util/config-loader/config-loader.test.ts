@@ -1,3 +1,6 @@
+import { copyFileSync, mkdtempSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import { ChannelCredentials } from 'nice-grpc';
 import { ConfigLoader } from './config-loader';
 import { HatchetClient } from '@hatchet/v1';
@@ -94,7 +97,7 @@ describe('ConfigLoader', () => {
     const config = ConfigLoader.loadClientConfig(
       {},
       {
-        path: './fixtures/.hatchet.yaml',
+        path: join(__dirname, 'fixtures/.hatchet.yaml'),
       }
     );
     expect(config).toEqual({
@@ -140,29 +143,16 @@ describe('ConfigLoader', () => {
     expect(client.config.cancellation_warning_threshold).toEqual(300);
   });
 
-  xit('should attempt to load the root .hatchet.yaml config', () => {
-    //  i'm not sure the best way to test this, maybe spy on readFileSync called with
-    const config = ConfigLoader.loadClientConfig(
-      {},
-      {
-        path: './fixtures/.hatchet.yaml',
-      }
-    );
-    expect(config).toEqual({
-      token:
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJncnBjX2Jyb2FkY2FzdF9hZGRyZXNzIjoiMTI3LjAuMC4xOjgwODAiLCJzZXJ2ZXJfdXJsIjoiaHR0cDovL2xvY2FsaG9zdDo4MDgwIiwic3ViIjoiNzA3ZDA4NTUtODBhYi00ZTFmLWExNTYtZjFjNDU0NmNiZjUyIn0K.abcdef',
-      host_port: 'HOST_PORT_YAML',
-      tls_config: {
-        tls_strategy: 'tls',
-        cert_file: 'TLS_CERT_FILE_YAML',
-        key_file: 'TLS_KEY_FILE_YAML',
-        ca_file: 'TLS_ROOT_CA_FILE_YAML',
-        server_name: 'TLS_SERVER_NAME_YAML',
-      },
-      healthcheck: {
-        enabled: true,
-        port: 8002,
-      },
-    });
+  it('should load .hatchet.yaml from the working directory by default', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'hatchet-config-'));
+    copyFileSync(join(__dirname, 'fixtures/.hatchet.yaml'), join(dir, '.hatchet.yaml'));
+    const cwd = jest.spyOn(process, 'cwd').mockReturnValue(dir);
+
+    try {
+      expect(ConfigLoader.loadClientConfig().host_port).toEqual('HOST_PORT_YAML');
+    } finally {
+      cwd.mockRestore();
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
