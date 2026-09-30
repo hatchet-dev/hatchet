@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
@@ -16,10 +15,6 @@ import (
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
-
-// subscribeCatchUpBatchSize bounds a single page of the catch-up/tail keyset
-// scan in Subscribe.
-const subscribeCatchUpBatchSize = 500
 
 // subscribeTailPollInterval is the fallback poll period in the shared
 // topicPoller's tail loop (see topic_poller.go). The pubsub wake hint (see
@@ -131,68 +126,12 @@ func (s *ServiceImpl) Subscribe(ctx context.Context, req *contracts.SubscribeStr
 	deregister := s.streamSessions.Register(cancel)
 	defer deregister()
 
-	// sendPage runs the keyset query from the current cursor, sending and
-	// paging until a batch returns fewer than subscribeCatchUpBatchSize rows.
-	// This same loop is used for both the initial catch-up (which may replay
-	// a large backlog if a real cursor was supplied) and every subsequent
-	// tail wake-up (which is normally a no-op since nothing new has arrived)
-	// -- there is deliberately no separate branch for "no cursor supplied":
-	// see the cursor default resolved above.
-	sendPage := func() error {
-		for {
-			msgs, err := s.repo.Streams().ListMessagesAfterCursor(ctx, tenantId, v1.ListStreamMessagesOpts{
-				Namespace: namespace,
-				Topic:     topic,
-				Cursor:    cursor,
-				Limit:     subscribeCatchUpBatchSize,
-			})
-
-			if err != nil {
-				return err
-			}
-
-			entries := make([]*contracts.StreamEntry, 0, len(msgs))
-
-			for _, m := range msgs {
-				next := v1.StreamCursor{Namespace: namespace, Topic: topic, CreatedAt: m.InsertedAt.Time, ID: m.ID}
-
-				encodedCursor, err := v1.EncodeStreamCursor(next)
-
-				if err != nil {
-					return err
-				}
-
-				entries = append(entries, &contracts.StreamEntry{
-					Payload:   m.Payload,
-					Cursor:    encodedCursor,
-					CreatedAt: timestamppb.New(m.InsertedAt.Time),
-				})
-
-				cursor = next
-			}
-
-			for _, chunk := range chunkStreamEntries(entries) {
-				if err := sender.Send(&contracts.StreamMessage{Entries: chunk}); err != nil {
-					return err
-				}
-			}
-
-			if len(msgs) < subscribeCatchUpBatchSize {
-				return nil
-			}
-		}
-	}
-
-	if err := sendPage(); err != nil {
-		return err
-	}
-
-	// all tails on the same topic are pooled together
-	unregister, err := s.topicPollers.Join(ctx, topicPollerKey{
+	key := topicPollerKey{
 		tenantId:  tenantId,
 		namespace: namespace,
 		topic:     topic,
-	}, cursor, &topicListener{
+	}
+	unregister, err := s.topicPollers.Join(ctx, key, cursor, &topicListener{
 		send:   sender.Send,
 		cancel: cancel,
 	})

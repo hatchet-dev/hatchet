@@ -15,6 +15,9 @@ import (
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
+// subscribeCatchUpBatchSize bounds a single page of the catch-up/tail keyset scan.
+const subscribeCatchUpBatchSize = 500
+
 // topicPollerKey identifies one durable-stream topic's shared tail poller.
 type topicPollerKey struct {
 	tenantId  uuid.UUID
@@ -212,103 +215,89 @@ func (p *topicPoller) hangUpIfIdleLocked() {
 // each batch out to every currently-registered listener, in order. Must be
 // called with p.mu held.
 func (p *topicPoller) pollLocked(ctx context.Context) error {
-	for {
-		entries, last, done, err := p.fetchPage(ctx, p.cursor, math.MaxInt64)
-
-		if err != nil {
-			return err
-		}
-
-		if len(entries) > 0 {
-			p.lastActivityAt = time.Now()
-		}
-
-		p.cursor = last
-
-		for _, chunk := range chunkStreamEntries(entries) {
-			out := &contracts.StreamMessage{Entries: chunk}
-
-			for id, l := range p.listeners {
-				if sendErr := l.send(out); sendErr != nil {
-					p.l.Debug().Ctx(ctx).Err(sendErr).Msg("removing stream listener after send failure")
-					delete(p.listeners, id)
-					l.cancel()
-				}
+	last, err := sendRange(ctx, p.streams, p.key, p.cursor, math.MaxInt64, func(out *contracts.StreamMessage) error {
+		for id, l := range p.listeners {
+			if sendErr := l.send(out); sendErr != nil {
+				p.l.Debug().Ctx(ctx).Err(sendErr).Msg("removing stream listener after send failure")
+				delete(p.listeners, id)
+				l.cancel()
 			}
 		}
 
-		if done {
-			return nil
-		}
+		return nil
+	})
+
+	if last.After(p.cursor) {
+		p.lastActivityAt = time.Now()
+		p.cursor = last
 	}
+
+	return err
 }
 
 // catchUpLocked sends listener every row in (from, p.cursor]. Must be called
 // with p.mu held.
 func (p *topicPoller) catchUpLocked(ctx context.Context, from v1.StreamCursor, listener *topicListener) error {
-	for p.cursor.After(from) {
-		entries, last, done, err := p.fetchPage(ctx, from, p.cursor.ID)
+	_, err := sendRange(ctx, p.streams, p.key, from, p.cursor.ID, listener.send)
+	return err
+}
+
+// sendRange pages through every row of key's topic in (from, maxID], sending
+// each page as size-bounded StreamMessage frames. It returns the cursor of the
+// last row sent, which is from if nothing was sent, even when it also returns
+// an error.
+func sendRange(ctx context.Context, repo v1.StreamsRepository, key topicPollerKey, from v1.StreamCursor, maxID int64, send func(*contracts.StreamMessage) error) (v1.StreamCursor, error) {
+	for {
+		msgs, err := repo.ListMessagesAfterCursor(ctx, key.tenantId, v1.ListStreamMessagesOpts{
+			Namespace: key.namespace,
+			Topic:     key.topic,
+			Cursor:    from,
+			Limit:     subscribeCatchUpBatchSize,
+		})
 
 		if err != nil {
-			return err
+			return from, err
+		}
+
+		entries := make([]*contracts.StreamEntry, 0, len(msgs))
+		pageEnd := from
+		done := len(msgs) < subscribeCatchUpBatchSize
+
+		for _, m := range msgs {
+			if m.ID > maxID {
+				done = true
+				break
+			}
+
+			next := v1.StreamCursor{Namespace: key.namespace, Topic: key.topic, CreatedAt: m.InsertedAt.Time, ID: m.ID}
+
+			encodedCursor, err := v1.EncodeStreamCursor(next)
+
+			if err != nil {
+				return from, err
+			}
+
+			entries = append(entries, &contracts.StreamEntry{
+				Payload:   m.Payload,
+				Cursor:    encodedCursor,
+				CreatedAt: timestamppb.New(m.InsertedAt.Time),
+			})
+
+			pageEnd = next
 		}
 
 		for _, chunk := range chunkStreamEntries(entries) {
-			if err := listener.send(&contracts.StreamMessage{Entries: chunk}); err != nil {
-				return err
+			if err := send(&contracts.StreamMessage{Entries: chunk}); err != nil {
+				return from, err
 			}
 		}
 
+		from = pageEnd
+
 		if done {
-			return nil
+			return from, nil
 		}
-
-		from = last
 	}
-
-	return nil
-}
-
-// fetchPage reads one keyset page after from, stopping early at the first row
-// past maxID. done reports that nothing further remains within bounds.
-func (p *topicPoller) fetchPage(ctx context.Context, from v1.StreamCursor, maxID int64) (entries []*contracts.StreamEntry, last v1.StreamCursor, done bool, err error) {
-	msgs, err := p.streams.ListMessagesAfterCursor(ctx, p.key.tenantId, v1.ListStreamMessagesOpts{
-		Namespace: p.key.namespace,
-		Topic:     p.key.topic,
-		Cursor:    from,
-		Limit:     subscribeCatchUpBatchSize,
-	})
-
-	if err != nil {
-		return nil, from, false, err
-	}
-
-	entries = make([]*contracts.StreamEntry, 0, len(msgs))
-	last = from
-
-	for _, m := range msgs {
-		if m.ID > maxID {
-			return entries, last, true, nil
-		}
-
-		next := v1.StreamCursor{Namespace: p.key.namespace, Topic: p.key.topic, CreatedAt: m.InsertedAt.Time, ID: m.ID}
-
-		encodedCursor, err := v1.EncodeStreamCursor(next)
-
-		if err != nil {
-			return nil, from, false, err
-		}
-
-		entries = append(entries, &contracts.StreamEntry{
-			Payload:   m.Payload,
-			Cursor:    encodedCursor,
-			CreatedAt: timestamppb.New(m.InsertedAt.Time),
-		})
-
-		last = next
-	}
-
-	return entries, last, len(msgs) < subscribeCatchUpBatchSize, nil
 }
 
 // topicPollerRegistry is the process-wide set of active topicPollers, one per
@@ -335,10 +324,18 @@ func newTopicPollerRegistry(streams v1.StreamsRepository, pubsub msgqueue.PubSub
 	}
 }
 
-// Join registers listener as a tail-subscriber of key's shared poller,
-// creating the poller if this is the first listener for it, and returns a
-// function that unregisters it.
+// Join sends listener every message after startCursor, then registers it as a
+// tail-subscriber of key's shared poller, creating the poller if this is the
+// first listener for it, and returns a function that unregisters it.
 func (r *topicPollerRegistry) Join(ctx context.Context, key topicPollerKey, startCursor v1.StreamCursor, listener *topicListener) (unregister func(), err error) {
+	// replayed before taking any lock so a long backlog can't stall live
+	// delivery to the topic's other listeners; join backfills the remainder
+	startCursor, err = sendRange(ctx, r.streams, key, startCursor, math.MaxInt64, listener.send)
+
+	if err != nil {
+		return nil, err
+	}
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
