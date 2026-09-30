@@ -66,6 +66,12 @@ type UserRepository interface {
 	// UpdateUser updates the user with the given email
 	UpdateUser(ctx context.Context, id uuid.UUID, opts *UpdateUserOpts) (*sqlcv1.User, error)
 
+	// UpdateUserFromOAuth updates an existing user after a Google or GitHub login.
+	// If this login is the first to verify the email, the user's password and
+	// sessions are deleted in the same transaction, since they were created
+	// before the email was verified.
+	UpdateUserFromOAuth(ctx context.Context, id uuid.UUID, opts *UpdateUserOpts) (*sqlcv1.User, error)
+
 	// ListTenantMemberships returns the list of tenant memberships for the given user
 	ListTenantMemberships(ctx context.Context, userId uuid.UUID) ([]*sqlcv1.PopulateTenantMembersRow, error)
 }
@@ -219,6 +225,20 @@ func (r *userRepository) CreateUser(ctx context.Context, opts *CreateUserOpts) (
 }
 
 func (r *userRepository) UpdateUser(ctx context.Context, id uuid.UUID, opts *UpdateUserOpts) (*sqlcv1.User, error) {
+	return r.updateUser(ctx, id, opts, false)
+}
+
+func (r *userRepository) UpdateUserFromOAuth(ctx context.Context, id uuid.UUID, opts *UpdateUserOpts) (*sqlcv1.User, error) {
+	return r.updateUser(ctx, id, opts, true)
+}
+
+// verifiesEmail reports whether opts marks the email of a user who was not
+// verified before as verified.
+func verifiesEmail(wasVerified bool, opts *UpdateUserOpts) bool {
+	return !wasVerified && opts.EmailVerified != nil && *opts.EmailVerified
+}
+
+func (r *userRepository) updateUser(ctx context.Context, id uuid.UUID, opts *UpdateUserOpts, fromOAuth bool) (*sqlcv1.User, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -242,6 +262,20 @@ func (r *userRepository) UpdateUser(ctx context.Context, id uuid.UUID, opts *Upd
 	}
 
 	defer rollback()
+
+	resetLogin := false
+
+	if fromOAuth {
+		// The row stays locked until commit, so of two overlapping logins only
+		// the first sees the email as unverified and resets the login.
+		wasVerified, err := r.queries.GetUserEmailVerifiedForUpdate(ctx, tx, id)
+
+		if err != nil {
+			return nil, err
+		}
+
+		resetLogin = verifiesEmail(wasVerified, opts)
+	}
 
 	user, err := r.queries.UpdateUser(ctx, tx, params)
 
@@ -276,6 +310,19 @@ func (r *userRepository) UpdateUser(ctx context.Context, id uuid.UUID, opts *Upd
 		_, err = r.queries.UpsertUserOAuth(ctx, tx, createOAuthParams)
 
 		if err != nil {
+			return nil, err
+		}
+	}
+
+	if resetLogin {
+		if err := r.queries.DeleteUserPassword(ctx, tx, id); err != nil {
+			return nil, err
+		}
+
+		// The OAuth callback saves the session for this login after the commit.
+		if _, err := r.queries.DeleteUserSessionsByUserId(ctx, tx, sqlcv1.DeleteUserSessionsByUserIdParams{
+			Userid: id,
+		}); err != nil {
 			return nil, err
 		}
 	}

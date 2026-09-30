@@ -201,6 +201,12 @@ func (a *AuthN) handleCookieAuth(c echo.Context) error {
 		return fmt.Errorf("error getting user by id: %w", err)
 	}
 
+	// If the user logged in before their email was verified, keep treating
+	// this session as unverified, even if they have been verified since.
+	if sessionKeepsUserUnverified(session) {
+		user.EmailVerified = false
+	}
+
 	c.Set("user", user)
 	c.Set("session", session)
 
