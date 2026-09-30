@@ -448,6 +448,12 @@ jobs:
       - name: Start CPU sampler
         run: hack/ci/cpu-sampler.sh start "$RUNNER_TEMP/cpu-samples.log"
 
+      # The load test binary hosts the engine, the worker and the load
+      # generator, and exposes pprof on this address while it runs; profiles
+      # pulled from it show where that process spent the CPU it got.
+      - name: Start pprof sampler
+        run: hack/ci/pprof-sampler.sh start "$RUNNER_TEMP/pprof" localhost:6060
+
       - name: Test
         id: run-tests
         run: |
@@ -460,6 +466,7 @@ jobs:
           TESTING_MATRIX_PG_VERSION: ${{ matrix.pg-version }}
           TESTING_MATRIX_OPTIMISTIC_SCHEDULING: ${{ matrix.optimistic-scheduling }}
           HATCHET_LOADTEST_STARTUP_SLEEP: 120s
+          HATCHET_LOADTEST_PPROF_ADDR: localhost:6060
 
       - name: CPU sampler summary
         if: always()
@@ -467,23 +474,40 @@ jobs:
           hack/ci/cpu-sampler.sh stop "$RUNNER_TEMP/cpu-samples.log"
           hack/ci/cpu-sampler.sh summarize "$RUNNER_TEMP/cpu-samples.log"
 
+      - name: pprof summary
+        if: always()
+        run: |
+          hack/ci/pprof-sampler.sh stop "$RUNNER_TEMP/pprof"
+          hack/ci/pprof-sampler.sh summarize "$RUNNER_TEMP/pprof" | tee "$RUNNER_TEMP/pprof/summary.txt"
+
       - name: Comment CPU chart on PR
         if: failure() && steps.run-tests.outcome == 'failure' && github.event_name == 'pull_request'
         run: |
-          hack/ci/cpu-sampler.sh comment "$RUNNER_TEMP/cpu-samples.log" \
-            "load (${{ matrix.migrate-strategy }}, ${{ matrix.rabbitmq-enabled }}, ${{ matrix.pg-version }}, ${{ matrix.optimistic-scheduling }})" \
-            "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-            > "$RUNNER_TEMP/cpu-comment.md"
+          {
+            hack/ci/cpu-sampler.sh comment "$RUNNER_TEMP/cpu-samples.log" \
+              "load (${{ matrix.migrate-strategy }}, ${{ matrix.rabbitmq-enabled }}, ${{ matrix.pg-version }}, ${{ matrix.optimistic-scheduling }})" \
+              "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            echo
+            echo "<details><summary>pprof: where the load test process spent its CPU</summary>"
+            echo
+            echo '```'
+            cat "$RUNNER_TEMP/pprof/summary.txt"
+            echo '```'
+            echo
+            echo "</details>"
+          } > "$RUNNER_TEMP/cpu-comment.md"
           gh pr comment ${{ github.event.pull_request.number }} --body-file "$RUNNER_TEMP/cpu-comment.md"
         env:
           GH_TOKEN: ${{ github.token }}
 
-      - name: Upload CPU samples
+      - name: Upload CPU samples and profiles
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v5.0.1
         with:
           name: load-cpu-samples-${{ matrix.migrate-strategy }}-rabbitmq-${{ matrix.rabbitmq-enabled }}-pg-${{ matrix.pg-version }}-optimistic-${{ matrix.optimistic-scheduling }}
-          path: ${{ runner.temp }}/cpu-samples.log
+          path: |
+            ${{ runner.temp }}/cpu-samples.log
+            ${{ runner.temp }}/pprof/
           if-no-files-found: warn
 
   load-deadlock:
