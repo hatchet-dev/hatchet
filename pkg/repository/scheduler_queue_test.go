@@ -104,10 +104,10 @@ func createSharedRepositoryForTest(pool *pgxpool.Pool) *sharedRepository {
 
 // insertQueuedTaskForTest inserts a v1_task row (the insert trigger creates its queue
 // item) and returns the queue item.
-func insertQueuedTaskForTest(t *testing.T, ctx context.Context, pool *pgxpool.Pool, tenantID uuid.UUID, taskID int64, stepTimeout string) *sqlcv1.V1QueueItem {
+func insertQueuedTaskForTest(t *testing.T, ctx context.Context, db sqlcv1.DBTX, tenantID uuid.UUID, taskID int64, stepTimeout string) *sqlcv1.V1QueueItem {
 	t.Helper()
 
-	_, err := pool.Exec(ctx, `
+	_, err := db.Exec(ctx, `
 		INSERT INTO v1_task (
 			id, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id,
 			workflow_version_id, workflow_run_id, schedule_timeout, sticky, external_id,
@@ -121,7 +121,7 @@ func insertQueuedTaskForTest(t *testing.T, ctx context.Context, pool *pgxpool.Po
 		)`, taskID, tenantID, stepTimeout)
 	require.NoError(t, err)
 
-	rows, err := pool.Query(ctx, `SELECT * FROM v1_queue_item WHERE task_id = $1`, taskID)
+	rows, err := db.Query(ctx, `SELECT * FROM v1_queue_item WHERE task_id = $1`, taskID)
 	require.NoError(t, err)
 
 	items, err := pgx.CollectRows(rows, pgx.RowToAddrOfStructByName[sqlcv1.V1QueueItem])
@@ -398,4 +398,64 @@ func TestMarkQueueItemsProcessedLocksRuntimesBeforeDeletingQueueItems(t *testing
 	assert.Equal(t, evictedItem.WorkerId, workerID)
 	require.NoError(t, pool.QueryRow(ctx, `SELECT worker_id FROM v1_task_runtime WHERE task_id = $1`, fresh.TaskID).Scan(&workerID))
 	assert.Equal(t, freshItem.WorkerId, workerID)
+}
+
+// A task the optimistic path flushes was inserted by the flushing transaction, so one that
+// has already reached its scheduling deadline has no runtime row for ReleaseTasks to
+// remove: its row comes back with a NULL worker_id, which scans as uuid.Nil. The flush must
+// succeed anyway, delete the queue item, leave the task row for the scheduling-timed-out
+// cancellation and assign the rest of the batch, as the poll path does.
+func TestMarkQueueItemsProcessedReleasesTimedOutTaskInsertedInSameTx(t *testing.T) {
+	pool, cleanup := setupPostgresWithMigration(t)
+	t.Cleanup(cleanup)
+
+	ctx := context.Background()
+	require.NoError(t, createTaskRepository(pool).UpdateTablePartitions(ctx))
+
+	repo := createSharedRepositoryForTest(pool)
+	tenantID := uuid.New()
+
+	tx, err := pool.Begin(ctx)
+	require.NoError(t, err)
+	defer tx.Rollback(ctx) // nolint: errcheck
+
+	timedOut := insertQueuedTaskForTest(t, ctx, tx, tenantID, 900001, "1h")
+	assigned := insertQueuedTaskForTest(t, ctx, tx, tenantID, 900002, "1h")
+	assignedItem := &AssignedItem{WorkerId: uuid.New(), QueueItem: assigned}
+
+	succeeded, failed, err := repo.markQueueItemsProcessed(ctx, tenantID, &AssignResults{
+		Assigned:           []*AssignedItem{assignedItem},
+		SchedulingTimedOut: []*sqlcv1.V1QueueItem{timedOut},
+	}, tx)
+	require.NoError(t, err)
+	require.NoError(t, tx.Commit(ctx))
+
+	require.Len(t, succeeded, 1)
+	require.Empty(t, failed)
+	assert.Same(t, assignedItem, succeeded[0])
+
+	var queued, runtimes, tasks int
+	require.NoError(t, pool.QueryRow(ctx, `SELECT count(*) FROM v1_queue_item WHERE task_id = $1`, timedOut.TaskID).Scan(&queued))
+	assert.Equal(t, 0, queued)
+	require.NoError(t, pool.QueryRow(ctx, `SELECT count(*) FROM v1_task_runtime WHERE task_id = $1`, timedOut.TaskID).Scan(&runtimes))
+	assert.Equal(t, 0, runtimes)
+	require.NoError(t, pool.QueryRow(ctx, `SELECT count(*) FROM v1_task WHERE id = $1`, timedOut.TaskID).Scan(&tasks))
+	assert.Equal(t, 1, tasks)
+
+	var workerID uuid.UUID
+	require.NoError(t, pool.QueryRow(ctx, `SELECT worker_id FROM v1_task_runtime WHERE task_id = $1`, assigned.TaskID).Scan(&workerID))
+	assert.Equal(t, assignedItem.WorkerId, workerID)
+
+	// the release itself, on a queued task with no runtime row, reports the task with a
+	// nil worker rather than failing; cancelling a queued task takes the same path
+	queuedOnly := insertQueuedTaskForTest(t, ctx, pool, tenantID, 900003, "1h")
+
+	released, err := repo.releaseTasks(ctx, pool, tenantID, []TaskIdInsertedAtRetryCount{{
+		Id:         queuedOnly.TaskID,
+		InsertedAt: queuedOnly.TaskInsertedAt,
+		RetryCount: queuedOnly.RetryCount,
+	}})
+	require.NoError(t, err)
+	require.Len(t, released, 1)
+	assert.Equal(t, uuid.Nil, released[0].WorkerID)
 }
