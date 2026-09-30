@@ -9,7 +9,7 @@ SELECT
     create_v1_range_partition('v1_durable_event_log_file', @date::date) AS v1_durable_event_log_file,
     create_v1_range_partition('v1_durable_event_log_entry', @date::date, 80) AS v1_durable_event_log_entry,
     create_v1_range_partition('v1_durable_event_log_branch_point', @date::date, 80) AS v1_durable_event_log_branch_point,
-    create_v1_range_partition('v1_stream_message', @date::date) AS v1_stream_message
+    create_v1_range_partition('v1_stream_producer_cursor', @date::date) AS v1_stream_producer_cursor
 ;
 
 -- name: EnsureTablePartitionsExist :one
@@ -67,8 +67,6 @@ WITH task_partitions AS (
     SELECT 'v1_durable_event_log_entry' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_durable_event_log_entry', @date::date) AS p
 ), durable_event_log_branch_point_partitions AS (
     SELECT 'v1_durable_event_log_branch_point' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_durable_event_log_branch_point', @date::date) AS p
-), stream_message_partitions AS (
-    SELECT 'v1_stream_message' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_stream_message', @date::date) AS p
 )
 
 SELECT
@@ -131,13 +129,6 @@ SELECT
     *
 FROM
     durable_event_log_branch_point_partitions
-
-UNION ALL
-
-SELECT
-    *
-FROM
-    stream_message_partitions
 ;
 
 -- name: DefaultTaskActivityGauge :one

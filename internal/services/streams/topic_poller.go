@@ -328,6 +328,10 @@ func newTopicPollerRegistry(streams v1.StreamsRepository, pubsub msgqueue.PubSub
 // tail-subscriber of key's shared poller, creating the poller if this is the
 // first listener for it, and returns a function that unregisters it.
 func (r *topicPollerRegistry) Join(ctx context.Context, key topicPollerKey, startCursor v1.StreamCursor, listener *topicListener) (unregister func(), err error) {
+	if err := r.streams.CheckCursorRetained(ctx, key.tenantId, startCursor); err != nil {
+		return nil, err
+	}
+
 	// replayed before taking any lock so a long backlog can't stall live
 	// delivery to the topic's other listeners; join backfills the remainder
 	startCursor, err = sendRange(ctx, r.streams, key, startCursor, math.MaxInt64, listener.send)

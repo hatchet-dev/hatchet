@@ -46,7 +46,8 @@ CREATE TYPE "LimitResource" AS ENUM (
     'SCHEDULE',
     'INCOMING_WEBHOOK',
     'STREAM_TOPIC',
-    'STREAM_MESSAGE'
+    'STREAM_MESSAGE',
+    'STREAM_RETENTION'
 );
 
 -- CreateEnum

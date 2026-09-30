@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/golang-lru/v2/expirable"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -33,9 +34,15 @@ type upsertAffectedFields struct {
 func createTenantLimitRepositoryForTest(t *testing.T, pool *pgxpool.Pool, config limits.LimitConfigFile) *tenantLimitRepository {
 	t.Helper()
 
+	repo := newTestTenantLimitRepository(pool, config)
+	t.Cleanup(repo.c.Stop)
+
+	return repo
+}
+
+func newTestTenantLimitRepository(pool *pgxpool.Pool, config limits.LimitConfigFile) *tenantLimitRepository {
 	logger := zerolog.Nop()
 	c := cache.New(time.Minute)
-	t.Cleanup(c.Stop)
 
 	return &tenantLimitRepository{
 		sharedRepository: &sharedRepository{
@@ -65,6 +72,7 @@ func defaultLimitTestConfig() limits.LimitConfigFile {
 		DefaultWorkerSlotAlarmLimit:      80,
 		DefaultIncomingWebhookLimit:      5,
 		DefaultIncomingWebhookAlarmLimit: 4,
+		DefaultStreamRetentionHours:      720,
 	}
 }
 
@@ -191,4 +199,46 @@ func TestCanCreate_MissingIncomingWebhook_ReReadsAndEnforcesDefault(t *testing.T
 	assert.Equal(t, cfg.DefaultIncomingWebhookLimit, webhook.LimitValue)
 	assert.True(t, webhook.AlarmValue.Valid)
 	assert.Equal(t, cfg.DefaultIncomingWebhookAlarmLimit, webhook.AlarmValue.Int32)
+}
+
+func setStreamRetentionHours(t *testing.T, pool *pgxpool.Pool, tenantID uuid.UUID, hours int32) {
+	t.Helper()
+
+	_, err := pool.Exec(context.Background(), `
+		INSERT INTO "TenantResourceLimit" ("id", "tenantId", "resource", "limitValue", "customValueMeter")
+		VALUES (gen_random_uuid(), $1, 'STREAM_RETENTION', $2, true)
+	`, tenantID, hours)
+	require.NoError(t, err)
+}
+
+// Topic creation isn't metered, so the limit must count live topics, including
+// the one EnsureTopic just inserted, and free capacity when topics are deleted.
+func TestEnsureTopic_EnforcesTopicLimitOnLiveCount(t *testing.T) {
+	pool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	config := defaultLimitTestConfig()
+	config.DefaultStreamTopicLimit = 2
+	config.DefaultStreamTopicAlarmLimit = 1
+
+	limitRepo := createTenantLimitRepositoryForTest(t, pool, config)
+	streams := createStreamsRepository(t, pool)
+	streams.m = limitRepo
+	streams.streamTopicSeenCache = expirable.NewLRU(100, func(streamTopicKey, struct{}) {}, time.Hour)
+
+	tenantID := createLimitTestTenant(t, pool)
+
+	require.NoError(t, streams.EnsureTopic(ctx, tenantID, "", "a"))
+	require.NoError(t, streams.EnsureTopic(ctx, tenantID, "", "b"))
+	require.ErrorIs(t, streams.EnsureTopic(ctx, tenantID, "", "c"), ErrResourceExhausted)
+
+	var count int
+	require.NoError(t, pool.QueryRow(ctx, `SELECT COUNT(*) FROM v1_stream_topic WHERE tenant_id = $1`, tenantID).Scan(&count))
+	assert.Equal(t, 2, count, "the rejected topic must be rolled back")
+
+	// retention deleting a topic frees its slot
+	_, err := pool.Exec(ctx, `DELETE FROM v1_stream_topic WHERE tenant_id = $1 AND topic = 'a'`, tenantID)
+	require.NoError(t, err)
+	require.NoError(t, streams.EnsureTopic(ctx, tenantID, "", "c"))
 }

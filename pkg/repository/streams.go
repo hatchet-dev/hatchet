@@ -2,8 +2,11 @@ package repository
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -83,6 +86,24 @@ type StreamsRepository interface {
 	// ListMessagesAfterCursor returns up to opts.Limit messages strictly after
 	// opts.Cursor, ordered by id ascending.
 	ListMessagesAfterCursor(ctx context.Context, tenantId uuid.UUID, opts ListStreamMessagesOpts) ([]*sqlcv1.V1StreamMessage, error)
+
+	// CheckCursorRetained returns a *StreamCursorExpiredError if cursor points
+	// past the tenant's retention or into a partition that has been dropped.
+	CheckCursorRetained(ctx context.Context, tenantId uuid.UUID, cursor StreamCursor) error
+}
+
+// StreamCursorExpiredError reports a cursor whose position has been deleted by
+// retention, so resuming from it would silently skip messages.
+type StreamCursorExpiredError struct {
+	CursorCreatedAt time.Time
+	RetentionStart  time.Time
+}
+
+func (e *StreamCursorExpiredError) Error() string {
+	return fmt.Sprintf(
+		"stream cursor has expired: it points to a message from %s, but messages before %s have been deleted by retention",
+		e.CursorCreatedAt.UTC().Format(time.RFC3339), e.RetentionStart.UTC().Format(time.RFC3339),
+	)
 }
 
 type streamsRepositoryImpl struct {
@@ -113,7 +134,8 @@ func (r *streamsRepositoryImpl) EnsureTopic(ctx context.Context, tenantId uuid.U
 	}
 
 	if row.Inserted {
-		canCreate, _, err := r.m.CanCreate(ctx, sqlcv1.LimitResourceSTREAMTOPIC, tenantId, 1)
+		// 0, not 1: the topic was just inserted, so the live count already includes it
+		canCreate, _, err := r.m.CanCreate(ctx, sqlcv1.LimitResourceSTREAMTOPIC, tenantId, 0)
 
 		if err != nil {
 			return err
@@ -187,11 +209,52 @@ func (r *streamsRepositoryImpl) ListMessagesAfterCursor(ctx context.Context, ten
 		limit = defaultListStreamMessagesLimit
 	}
 
+	retention, err := r.m.StreamRetention(ctx, tenantId)
+
+	if err != nil {
+		return nil, err
+	}
+
 	return r.queries.ListStreamMessagesAfterCursor(ctx, r.pool, sqlcv1.ListStreamMessagesAfterCursorParams{
 		Tenantid:  tenantId,
 		Namespace: opts.Namespace,
 		Topic:     opts.Topic,
 		Afterid:   opts.Cursor.ID,
-		Limit:     limit,
+		Retainedsince: pgtype.Timestamptz{
+			Time:  time.Now().Add(-retention),
+			Valid: true,
+		},
+		Limit: limit,
 	})
+}
+
+func (r *streamsRepositoryImpl) CheckCursorRetained(ctx context.Context, tenantId uuid.UUID, cursor StreamCursor) error {
+	// the zero cursor means "from the oldest retained message", which can't expire
+	if cursor.ID == 0 {
+		return nil
+	}
+
+	retention, err := r.m.StreamRetention(ctx, tenantId)
+
+	if err != nil {
+		return err
+	}
+
+	retainedSince := time.Now().Add(-retention)
+
+	partitionStart, err := r.queries.GetStreamMessageRetentionStart(ctx, r.pool)
+
+	if err != nil {
+		return err
+	}
+
+	if partitionStart.Valid && partitionStart.Time.After(retainedSince) {
+		retainedSince = partitionStart.Time
+	}
+
+	if cursor.CreatedAt.Before(retainedSince) {
+		return &StreamCursorExpiredError{CursorCreatedAt: cursor.CreatedAt, RetentionStart: retainedSince}
+	}
+
+	return nil
 }

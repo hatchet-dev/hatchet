@@ -333,6 +333,7 @@ const (
 	LimitResourceINCOMINGWEBHOOK LimitResource = "INCOMING_WEBHOOK"
 	LimitResourceSTREAMTOPIC     LimitResource = "STREAM_TOPIC"
 	LimitResourceSTREAMMESSAGE   LimitResource = "STREAM_MESSAGE"
+	LimitResourceSTREAMRETENTION LimitResource = "STREAM_RETENTION"
 )
 
 func (e *LimitResource) Scan(src interface{}) error {
@@ -3863,11 +3864,12 @@ type V1StreamMessage struct {
 }
 
 type V1StreamProducerCursor struct {
-	TenantID   uuid.UUID `json:"tenant_id"`
-	Namespace  string    `json:"namespace"`
-	Topic      string    `json:"topic"`
-	ProducerID string    `json:"producer_id"`
-	LastSeq    int64     `json:"last_seq"`
+	TenantID   uuid.UUID   `json:"tenant_id"`
+	Namespace  string      `json:"namespace"`
+	Topic      string      `json:"topic"`
+	ProducerID string      `json:"producer_id"`
+	Bucket     pgtype.Date `json:"bucket"`
+	LastSeq    int64       `json:"last_seq"`
 }
 
 type V1StreamTopic struct {

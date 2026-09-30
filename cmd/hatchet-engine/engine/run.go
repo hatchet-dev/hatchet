@@ -766,6 +766,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		streamsController, err := streamscontroller.New(
 			streamscontroller.WithAlerter(sc.Alerter),
 			streamscontroller.WithMessageQueueV1(sc.MessageQueueV1),
+			streamscontroller.WithPubSub(sc.PubSubV1),
 			streamscontroller.WithRepositoryV1(sc.V1),
 			streamscontroller.WithLogger(sc.Logger),
 		)

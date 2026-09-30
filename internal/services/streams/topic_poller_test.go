@@ -26,6 +26,17 @@ type fakeStreamsRepository struct {
 
 	mu       sync.Mutex
 	messages []*sqlcv1.V1StreamMessage
+
+	// cursors at or below this ID are reported expired
+	expiredThroughID int64
+}
+
+func (f *fakeStreamsRepository) CheckCursorRetained(_ context.Context, _ uuid.UUID, cursor v1.StreamCursor) error {
+	if cursor.ID > 0 && cursor.ID <= f.expiredThroughID {
+		return &v1.StreamCursorExpiredError{CursorCreatedAt: cursor.CreatedAt}
+	}
+
+	return nil
 }
 
 func newFakeStreamsRepository(tenantId uuid.UUID, namespace, topic string, n int, baseTime time.Time) *fakeStreamsRepository {
@@ -269,6 +280,23 @@ func TestTopicPollerRegistry_JoinReplaysHistoryToOnlyTheNewListener(t *testing.T
 
 	assert.Empty(t, listenerA.entryIDs(t))
 	assert.Equal(t, []int64{1, 2, 3}, listenerB.entryIDs(t))
+}
+
+func TestTopicPollerRegistry_JoinRejectsExpiredCursor(t *testing.T) {
+	tenantId := uuid.New()
+	repo := newFakeStreamsRepository(tenantId, "", "topic-a", 3, time.Now())
+	repo.expiredThroughID = 2
+	registry := newTopicPollerRegistry(repo, fakePubSub{}, testLogger(), time.Hour, time.Hour)
+
+	key := topicPollerKey{tenantId: tenantId, topic: "topic-a"}
+
+	listener := &collectingListener{}
+	_, err := registry.Join(context.Background(), key, v1.StreamCursor{ID: 1}, &topicListener{send: listener.send, cancel: func() {}})
+
+	var expired *v1.StreamCursorExpiredError
+	require.ErrorAs(t, err, &expired)
+	assert.Equal(t, 0, listener.count(), "an expired cursor must not replay anything")
+	assert.Empty(t, registry.pollers, "an expired cursor must not start a poller")
 }
 
 // A listener whose own catch-up ended behind the shared poller must still get

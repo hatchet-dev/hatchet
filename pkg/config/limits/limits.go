@@ -24,12 +24,14 @@ type LimitConfigFile struct {
 	DefaultIncomingWebhookLimit      int32 `mapstructure:"defaultIncomingWebhookLimit" json:"defaultIncomingWebhookLimit,omitempty" default:"5"`
 	DefaultIncomingWebhookAlarmLimit int32 `mapstructure:"defaultIncomingWebhookAlarmLimit" json:"defaultIncomingWebhookALarmLimit,omitempty" default:"4"`
 
-	DefaultStreamTopicLimit      int32 `mapstructure:"defaultStreamTopicLimit" json:"defaultStreamTopicLimit,omitempty" default:"1000"`
-	DefaultStreamTopicAlarmLimit int32 `mapstructure:"defaultStreamTopicAlarmLimit" json:"defaultStreamTopicAlarmLimit,omitempty" default:"800"`
+	DefaultStreamTopicLimit      int32 `mapstructure:"defaultStreamTopicLimit" json:"defaultStreamTopicLimit,omitempty" default:"100000"`
+	DefaultStreamTopicAlarmLimit int32 `mapstructure:"defaultStreamTopicAlarmLimit" json:"defaultStreamTopicAlarmLimit,omitempty" default:"80000"`
 
-	DefaultStreamMessageLimit      int32         `mapstructure:"defaultStreamMessageLimit" json:"defaultStreamMessageLimit,omitempty" default:"100000"`
-	DefaultStreamMessageAlarmLimit int32         `mapstructure:"defaultStreamMessageAlarmLimit" json:"defaultStreamMessageAlarmLimit,omitempty" default:"80000"`
+	DefaultStreamMessageLimit      int32         `mapstructure:"defaultStreamMessageLimit" json:"defaultStreamMessageLimit,omitempty" default:"10000000"`
+	DefaultStreamMessageAlarmLimit int32         `mapstructure:"defaultStreamMessageAlarmLimit" json:"defaultStreamMessageAlarmLimit,omitempty" default:"8000000"`
 	DefaultStreamMessageWindow     time.Duration `mapstructure:"defaultStreamMessageWindow" json:"defaultStreamMessageWindow,omitempty" default:"24h"`
+
+	DefaultStreamRetentionHours int32 `mapstructure:"defaultStreamRetentionHours" json:"defaultStreamRetentionHours,omitempty" default:"720"`
 }
 
 // CorePartitionRetentionOrDefault returns the core partition retention override or the tenant default.

@@ -107,15 +107,50 @@ func (f *fakeMessageQueue) count() int {
 	return len(f.sent)
 }
 
+// fakePubSub records every topic woken.
+type fakePubSub struct {
+	msgqueue.PubSub
+
+	mu    sync.Mutex
+	woken []msgqueue.Topic
+}
+
+func (f *fakePubSub) Pub(_ context.Context, topic msgqueue.Topic, _ *msgqueue.Message) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.woken = append(f.woken, topic)
+
+	return nil
+}
+
+func (f *fakePubSub) topics() []msgqueue.Topic {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return append([]msgqueue.Topic(nil), f.woken...)
+}
+
 func newTestController(repo *fakeStreamsRepo, mq *fakeMessageQueue) *ControllerImpl {
+	return newTestControllerWithPubSub(repo, mq, &fakePubSub{})
+}
+
+func newTestControllerWithPubSub(repo *fakeStreamsRepo, mq *fakeMessageQueue, pubsub *fakePubSub) *ControllerImpl {
 	l := zerolog.Nop()
 
 	return &ControllerImpl{
-		mq:   mq,
-		repo: &fakeRepository{streams: repo},
-		l:    &l,
-		a:    hatcheterrors.NewWrapped(hatcheterrors.NoOpAlerter{}),
+		mq:     mq,
+		pubsub: pubsub,
+		repo:   &fakeRepository{streams: repo},
+		l:      &l,
+		a:      hatcheterrors.NewWrapped(hatcheterrors.NoOpAlerter{}),
 	}
+}
+
+func requireApplied(t *testing.T, want bool, applied bool, err error) {
+	t.Helper()
+	require.NoError(t, err)
+	assert.Equal(t, want, applied)
 }
 
 func TestInsertOrderedStreamMessage_InOrderInsertsSequentially(t *testing.T) {
@@ -127,7 +162,8 @@ func TestInsertOrderedStreamMessage_InOrderInsertsSequentially(t *testing.T) {
 		msg := &tasktypes.StreamMessagePayload{
 			Topic: "t", ProducerID: "p1", ProducerSeq: seq, CreatedAt: time.Now(),
 		}
-		require.NoError(t, c.insertOrderedStreamMessage(context.Background(), tenantId, msg))
+		applied, err := c.insertOrderedStreamMessage(context.Background(), tenantId, msg)
+		requireApplied(t, true, applied, err)
 	}
 
 	require.Len(t, repo.ordered, 3)
@@ -146,7 +182,8 @@ func TestInsertOrderedStreamMessage_GapIsHeldAndRepublished(t *testing.T) {
 	msg := &tasktypes.StreamMessagePayload{
 		Topic: "t", ProducerID: "p1", ProducerSeq: 1, CreatedAt: time.Now(),
 	}
-	require.NoError(t, c.insertOrderedStreamMessage(context.Background(), tenantId, msg))
+	applied, err := c.insertOrderedStreamMessage(context.Background(), tenantId, msg)
+	requireApplied(t, false, applied, err)
 
 	assert.Empty(t, repo.ordered, "the out-of-order message must not be inserted")
 	assert.Empty(t, repo.forced, "the gap has not persisted long enough to force-insert")
@@ -160,11 +197,13 @@ func TestInsertOrderedStreamMessage_StaleDuplicateIsDroppedNotRepublished(t *tes
 	tenantId := uuid.New()
 
 	first := &tasktypes.StreamMessagePayload{Topic: "t", ProducerID: "p1", ProducerSeq: 0, CreatedAt: time.Now()}
-	require.NoError(t, c.insertOrderedStreamMessage(context.Background(), tenantId, first))
+	applied, err := c.insertOrderedStreamMessage(context.Background(), tenantId, first)
+	requireApplied(t, true, applied, err)
 	require.Len(t, repo.ordered, 1)
 
 	// a redelivery of the same, already-applied message
-	require.NoError(t, c.insertOrderedStreamMessage(context.Background(), tenantId, first))
+	applied, err = c.insertOrderedStreamMessage(context.Background(), tenantId, first)
+	requireApplied(t, false, applied, err)
 
 	assert.Len(t, repo.ordered, 1, "the duplicate must not be inserted a second time")
 	assert.Equal(t, 0, mq.count(), "a stale duplicate must be dropped, not retried forever")
@@ -180,7 +219,8 @@ func TestInsertOrderedStreamMessage_GivesUpAfterMaxWaitAndForceInserts(t *testin
 	msg := &tasktypes.StreamMessagePayload{
 		Topic: "t", ProducerID: "p1", ProducerSeq: 1, CreatedAt: time.Now().Add(-maxProducerGapWait - time.Second),
 	}
-	require.NoError(t, c.insertOrderedStreamMessage(context.Background(), tenantId, msg))
+	applied, err := c.insertOrderedStreamMessage(context.Background(), tenantId, msg)
+	requireApplied(t, true, applied, err)
 
 	assert.Empty(t, repo.ordered, "a forced insert does not go through the ordered path")
 	require.Len(t, repo.forced, 1, "the gap has persisted too long and must be force-inserted")
@@ -211,4 +251,33 @@ func TestHandleStreamMessages_InsertsEveryMessageInOneBatch(t *testing.T) {
 
 	require.Len(t, repo.ordered, 2)
 	assert.ElementsMatch(t, [][]byte{[]byte("p1-0"), []byte("p2-0")}, []([]byte){repo.ordered[0].Payload, repo.ordered[1].Payload})
+}
+
+func TestHandleStreamMessages_WakesEachWrittenTopicOnceAfterInsert(t *testing.T) {
+	repo := newFakeStreamsRepo()
+	pubsub := &fakePubSub{}
+	c := newTestControllerWithPubSub(repo, &fakeMessageQueue{}, pubsub)
+	tenantId := uuid.New()
+
+	msgs := []*tasktypes.StreamMessagePayload{
+		{Topic: "t1", ProducerID: "p1", ProducerSeq: 0, CreatedAt: time.Now()},
+		{Topic: "t1", ProducerID: "p1", ProducerSeq: 1, CreatedAt: time.Now()},
+		{Topic: "t2", ProducerID: "p2", ProducerSeq: 0, CreatedAt: time.Now()},
+		// a gap on t3: held back and requeued, so nothing was written to wake for
+		{Topic: "t3", ProducerID: "p3", ProducerSeq: 5, CreatedAt: time.Now()},
+	}
+
+	payloads := make([][]byte, 0, len(msgs))
+	for _, m := range msgs {
+		b, err := msgqueue.NewTenantMessage(tenantId, msgqueue.MsgIDStreamMessage, true, true, *m)
+		require.NoError(t, err)
+		payloads = append(payloads, b.Payloads...)
+	}
+
+	require.NoError(t, c.handleStreamMessages(context.Background(), tenantId, payloads))
+
+	assert.ElementsMatch(t, []msgqueue.Topic{
+		msgqueue.StreamTopic(tenantId, "", "t1"),
+		msgqueue.StreamTopic(tenantId, "", "t2"),
+	}, pubsub.topics())
 }

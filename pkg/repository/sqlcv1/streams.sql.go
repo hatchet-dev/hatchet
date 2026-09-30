@@ -23,6 +23,51 @@ func (q *Queries) CountStreamTopics(ctx context.Context, db DBTX, tenantid uuid.
 	return count, err
 }
 
+const createStreamMessagePartitions = `-- name: CreateStreamMessagePartitions :exec
+SELECT create_v1_hourly_range_partition('v1_stream_message', hours.hour_start)
+FROM generate_series($1::timestamptz, $2::timestamptz, INTERVAL '1 hour') AS hours(hour_start)
+`
+
+type CreateStreamMessagePartitionsParams struct {
+	Fromtime pgtype.Timestamptz `json:"fromtime"`
+	Totime   pgtype.Timestamptz `json:"totime"`
+}
+
+// Attaches an hourly partition for every hour from @fromTime through @toTime.
+func (q *Queries) CreateStreamMessagePartitions(ctx context.Context, db DBTX, arg CreateStreamMessagePartitionsParams) error {
+	_, err := db.Exec(ctx, createStreamMessagePartitions, arg.Fromtime, arg.Totime)
+	return err
+}
+
+const deleteIdleStreamTopics = `-- name: DeleteIdleStreamTopics :execrows
+DELETE FROM v1_stream_topic
+WHERE id IN (
+    SELECT t.id
+    FROM v1_stream_topic t
+    LEFT JOIN "TenantResourceLimit" l ON l."tenantId" = t.tenant_id AND l."resource" = 'STREAM_RETENTION'
+    WHERE t.last_published_at < NOW() - make_interval(hours => LEAST(COALESCE(l."limitValue", $1::integer), $2::integer))
+    ORDER BY t.id
+    LIMIT $3::integer
+)
+`
+
+type DeleteIdleStreamTopicsParams struct {
+	Defaultretentionhours int32 `json:"defaultretentionhours"`
+	Maxretentionhours     int32 `json:"maxretentionhours"`
+	Batchsize             int32 `json:"batchsize"`
+}
+
+// Removes topics nobody has published to within their tenant's retention, in
+// batches so one sweep never holds a long lock. last_published_at is
+// refreshed at least every streamTopicSeenCache TTL while a topic is in use.
+func (q *Queries) DeleteIdleStreamTopics(ctx context.Context, db DBTX, arg DeleteIdleStreamTopicsParams) (int64, error) {
+	result, err := db.Exec(ctx, deleteIdleStreamTopics, arg.Defaultretentionhours, arg.Maxretentionhours, arg.Batchsize)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteStreamTopic = `-- name: DeleteStreamTopic :exec
 DELETE FROM v1_stream_topic
 WHERE id = $1::bigint
@@ -36,11 +81,20 @@ func (q *Queries) DeleteStreamTopic(ctx context.Context, db DBTX, id int64) erro
 }
 
 const forceInsertOrderedStreamMessage = `-- name: ForceInsertOrderedStreamMessage :exec
-WITH bumped AS (
-    INSERT INTO v1_stream_producer_cursor (tenant_id, namespace, topic, producer_id, last_seq)
-    VALUES ($1::uuid, $2::text, $3::text, $5::text, $6::bigint)
-    ON CONFLICT (tenant_id, namespace, topic, producer_id) DO UPDATE
-    SET last_seq = GREATEST(v1_stream_producer_cursor.last_seq, $6::bigint)
+WITH latest AS (
+    SELECT last_seq
+    FROM v1_stream_producer_cursor
+    WHERE tenant_id = $1::uuid AND namespace = $2::text AND topic = $3::text AND producer_id = $5::text
+    ORDER BY bucket DESC
+    LIMIT 1
+), bumped AS (
+    INSERT INTO v1_stream_producer_cursor (tenant_id, namespace, topic, producer_id, bucket, last_seq)
+    SELECT $1::uuid, $2::text, $3::text, $5::text, (NOW() AT TIME ZONE 'UTC')::date,
+        GREATEST(COALESCE(latest.last_seq, -1), $6::bigint)
+    FROM (SELECT 1) AS one
+    LEFT JOIN latest ON true
+    ON CONFLICT (tenant_id, namespace, topic, producer_id, bucket) DO UPDATE
+    SET last_seq = GREATEST(v1_stream_producer_cursor.last_seq, EXCLUDED.last_seq)
 )
 INSERT INTO v1_stream_message (tenant_id, namespace, topic, payload, producer_id, producer_seq)
 VALUES ($1::uuid, $2::text, $3::text, $4::bytea, $5::text, $6::bigint)
@@ -72,32 +126,80 @@ func (q *Queries) ForceInsertOrderedStreamMessage(ctx context.Context, db DBTX, 
 	return err
 }
 
+const getMaxStreamRetentionHours = `-- name: GetMaxStreamRetentionHours :one
+SELECT GREATEST(COALESCE(MAX("limitValue"), 0), $1::integer)::integer AS max_hours
+FROM "TenantResourceLimit"
+WHERE "resource" = 'STREAM_RETENTION'
+`
+
+// Shared partitions can only be dropped once every tenant is done with them.
+// Tenants without a row use the default.
+func (q *Queries) GetMaxStreamRetentionHours(ctx context.Context, db DBTX, defaultretentionhours int32) (int32, error) {
+	row := db.QueryRow(ctx, getMaxStreamRetentionHours, defaultretentionhours)
+	var max_hours int32
+	err := row.Scan(&max_hours)
+	return max_hours, err
+}
+
+const getStreamMessageRetentionStart = `-- name: GetStreamMessageRetentionStart :one
+SELECT MIN(to_timestamp(substring(p::text, 'v1_stream_message_(\d{10})$'), 'YYYYMMDDHH24')::timestamp AT TIME ZONE 'UTC')::timestamptz AS retention_start
+FROM get_v1_hourly_partitions_before('v1_stream_message', 'infinity'::timestamptz) AS p
+`
+
+// The start of the oldest attached v1_stream_message partition: rows inserted
+// before it have been dropped. NULL if no partitions.
+func (q *Queries) GetStreamMessageRetentionStart(ctx context.Context, db DBTX) (pgtype.Timestamptz, error) {
+	row := db.QueryRow(ctx, getStreamMessageRetentionStart)
+	var retention_start pgtype.Timestamptz
+	err := row.Scan(&retention_start)
+	return retention_start, err
+}
+
 const insertOrderedStreamMessage = `-- name: InsertOrderedStreamMessage :one
-WITH advanced AS (
-    INSERT INTO v1_stream_producer_cursor (tenant_id, namespace, topic, producer_id, last_seq)
-    SELECT $1::uuid, $2::text, $3::text, $4::text, $5::bigint
-    WHERE $5::bigint = 0 OR EXISTS (
-        SELECT 1 FROM v1_stream_producer_cursor
-        WHERE tenant_id = $1::uuid AND namespace = $2::text AND topic = $3::text AND producer_id = $4::text
-    )
-    ON CONFLICT (tenant_id, namespace, topic, producer_id) DO UPDATE
+WITH latest AS (
+    SELECT bucket, last_seq
+    FROM v1_stream_producer_cursor
+    WHERE tenant_id = $1::uuid AND namespace = $2::text AND topic = $3::text AND producer_id = $4::text
+    ORDER BY bucket DESC
+    LIMIT 1
+), cas AS (
+    UPDATE v1_stream_producer_cursor c
     SET last_seq = $5::bigint
-    -- computed by the caller as producerSeq - 1, rather than written as an
-    -- expression here, so sqlc binds it as one plain parameter
-    WHERE v1_stream_producer_cursor.last_seq = $6::bigint
+    FROM latest
+    WHERE c.tenant_id = $1::uuid AND c.namespace = $2::text AND c.topic = $3::text AND c.producer_id = $4::text
+        AND c.bucket = latest.bucket
+        -- computed by the caller as producerSeq - 1 so sqlc binds one plain parameter
+        AND c.last_seq = $6::bigint
+    RETURNING c.bucket
+), first_message AS (
+    -- only seq 0 may create a producer's first row, so a reordered seq>0 can't claim it
+    INSERT INTO v1_stream_producer_cursor (tenant_id, namespace, topic, producer_id, bucket, last_seq)
+    SELECT $1::uuid, $2::text, $3::text, $4::text, (NOW() AT TIME ZONE 'UTC')::date, $5::bigint
+    WHERE $5::bigint = 0 AND NOT EXISTS (SELECT 1 FROM latest)
+    ON CONFLICT DO NOTHING
     RETURNING 1
+), carried_forward AS (
+    INSERT INTO v1_stream_producer_cursor (tenant_id, namespace, topic, producer_id, bucket, last_seq)
+    SELECT $1::uuid, $2::text, $3::text, $4::text, (NOW() AT TIME ZONE 'UTC')::date, $5::bigint
+    FROM cas
+    WHERE cas.bucket < (NOW() AT TIME ZONE 'UTC')::date
+    ON CONFLICT (tenant_id, namespace, topic, producer_id, bucket) DO UPDATE
+    SET last_seq = GREATEST(v1_stream_producer_cursor.last_seq, EXCLUDED.last_seq)
+), applied AS (
+    SELECT 1 FROM cas
+    UNION ALL
+    SELECT 1 FROM first_message
 ), inserted_row AS (
     INSERT INTO v1_stream_message (tenant_id, namespace, topic, payload, producer_id, producer_seq)
     SELECT $1::uuid, $2::text, $3::text, $7::bytea, $4::text, $5::bigint
-    WHERE EXISTS (SELECT 1 FROM advanced)
+    WHERE EXISTS (SELECT 1 FROM applied)
     RETURNING 1
 )
 SELECT
     EXISTS (SELECT 1 FROM inserted_row) AS inserted,
-    cur.last_seq AS current_last_seq
+    latest.last_seq AS current_last_seq
 FROM (SELECT 1) AS one
-LEFT JOIN v1_stream_producer_cursor cur
-    ON cur.tenant_id = $1::uuid AND cur.namespace = $2::text AND cur.topic = $3::text AND cur.producer_id = $4::text
+LEFT JOIN latest ON true
 `
 
 type InsertOrderedStreamMessageParams struct {
@@ -115,24 +217,18 @@ type InsertOrderedStreamMessageRow struct {
 	CurrentLastSeq pgtype.Int8 `json:"current_last_seq"`
 }
 
-// Atomically advances v1_stream_producer_cursor and inserts the message, but
+// Atomically advances the producer's watermark and inserts the message, but
 // only if producer_seq is exactly one past the producer's last durably
-// applied sequence -- the ON CONFLICT ... WHERE clause is a compare-and-swap
-// that also handles the very first message (no conflict, plain insert, but
-// only for producer_seq 0 so a reordered seq>0 can't claim the first slot).
+// applied sequence. The watermark is the producer's row in its latest
+// bucket; the compare-and-swap runs against that one row, so concurrent
+// attempts serialize on its row lock even across a UTC day boundary. The
+// first write of a new day also copies the watermark into today's bucket so
+// that an active producer's cursor outlives partition retention.
 // inserted=false means this message was NOT applied; current_last_seq (the
-// watermark as of this call) tells the caller whether that's a gap worth
-// retrying (current_last_seq < producer_seq - 1) or a stale redelivery of an
-// already-applied message (current_last_seq >= producer_seq).
-// current_last_seq is read via a LEFT JOIN, not a scalar subquery against
-// v1_stream_producer_cursor directly: per Postgres's WITH-clause semantics, a
-// plain subquery in the same statement as advanced cannot see the row
-// advanced just inserted (only ever-so-slightly stale reads are visible to
-// "other parts of the query"), which made this column spuriously NULL --
-// and therefore unscannable into a NOT NULL Go field -- on every producer's
-// very first message. The LEFT JOIN sees the same pre-statement snapshot but
-// sqlc correctly infers it as nullable, and NULL here is meaningful anyway:
-// it means this producer has never had a row at all.
+// watermark as of this call, NULL if the producer has no row) tells the
+// caller whether that's a gap worth retrying (current_last_seq <
+// producer_seq - 1) or a stale redelivery (current_last_seq >= producer_seq).
+// a LEFT JOIN rather than a scalar subquery so sqlc infers current_last_seq as nullable
 func (q *Queries) InsertOrderedStreamMessage(ctx context.Context, db DBTX, arg InsertOrderedStreamMessageParams) (*InsertOrderedStreamMessageRow, error) {
 	row := db.QueryRow(ctx, insertOrderedStreamMessage,
 		arg.Tenantid,
@@ -148,6 +244,38 @@ func (q *Queries) InsertOrderedStreamMessage(ctx context.Context, db DBTX, arg I
 	return &i, err
 }
 
+const listStreamMessagePartitionsBefore = `-- name: ListStreamMessagePartitionsBefore :many
+SELECT
+    'v1_stream_message' AS parent_table,
+    p::text AS partition_name
+FROM get_v1_hourly_partitions_before('v1_stream_message', $1::timestamptz) AS p
+`
+
+type ListStreamMessagePartitionsBeforeRow struct {
+	ParentTable   string `json:"parent_table"`
+	PartitionName string `json:"partition_name"`
+}
+
+func (q *Queries) ListStreamMessagePartitionsBefore(ctx context.Context, db DBTX, before pgtype.Timestamptz) ([]*ListStreamMessagePartitionsBeforeRow, error) {
+	rows, err := db.Query(ctx, listStreamMessagePartitionsBefore, before)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListStreamMessagePartitionsBeforeRow
+	for rows.Next() {
+		var i ListStreamMessagePartitionsBeforeRow
+		if err := rows.Scan(&i.ParentTable, &i.PartitionName); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listStreamMessagesAfterCursor = `-- name: ListStreamMessagesAfterCursor :many
 SELECT id, inserted_at, tenant_id, namespace, topic, payload, xact_id, producer_id, producer_seq
 FROM v1_stream_message
@@ -155,17 +283,20 @@ WHERE tenant_id = $1::uuid
     AND namespace = $2::text
     AND topic = $3::text
     AND id > $4::bigint
+    -- the tenant's retention; also prunes partitions outside it
+    AND inserted_at >= $5::timestamptz
     AND xact_id < pg_snapshot_xmin(pg_current_snapshot())
 ORDER BY id ASC
-LIMIT $5::integer
+LIMIT $6::integer
 `
 
 type ListStreamMessagesAfterCursorParams struct {
-	Tenantid  uuid.UUID `json:"tenantid"`
-	Namespace string    `json:"namespace"`
-	Topic     string    `json:"topic"`
-	Afterid   int64     `json:"afterid"`
-	Limit     int32     `json:"limit"`
+	Tenantid      uuid.UUID          `json:"tenantid"`
+	Namespace     string             `json:"namespace"`
+	Topic         string             `json:"topic"`
+	Afterid       int64              `json:"afterid"`
+	Retainedsince pgtype.Timestamptz `json:"retainedsince"`
+	Limit         int32              `json:"limit"`
 }
 
 // Keyset pagination on id. xact_id < pg_snapshot_xmin(...) excludes rows
@@ -177,6 +308,7 @@ func (q *Queries) ListStreamMessagesAfterCursor(ctx context.Context, db DBTX, ar
 		arg.Namespace,
 		arg.Topic,
 		arg.Afterid,
+		arg.Retainedsince,
 		arg.Limit,
 	)
 	if err != nil {
@@ -197,6 +329,40 @@ func (q *Queries) ListStreamMessagesAfterCursor(ctx context.Context, db DBTX, ar
 			&i.ProducerID,
 			&i.ProducerSeq,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listStreamProducerCursorPartitionsBeforeDate = `-- name: ListStreamProducerCursorPartitionsBeforeDate :many
+SELECT
+    'v1_stream_producer_cursor' AS parent_table,
+    p::text AS partition_name
+FROM get_v1_partitions_before_date('v1_stream_producer_cursor', $1::date) AS p
+`
+
+type ListStreamProducerCursorPartitionsBeforeDateRow struct {
+	ParentTable   string `json:"parent_table"`
+	PartitionName string `json:"partition_name"`
+}
+
+// Kept separate from ListPartitionsBeforeDate because producer cursors are
+// retained much longer than the messages they sequence.
+func (q *Queries) ListStreamProducerCursorPartitionsBeforeDate(ctx context.Context, db DBTX, date pgtype.Date) ([]*ListStreamProducerCursorPartitionsBeforeDateRow, error) {
+	rows, err := db.Query(ctx, listStreamProducerCursorPartitionsBeforeDate, date)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListStreamProducerCursorPartitionsBeforeDateRow
+	for rows.Next() {
+		var i ListStreamProducerCursorPartitionsBeforeDateRow
+		if err := rows.Scan(&i.ParentTable, &i.PartitionName); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

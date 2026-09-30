@@ -97,10 +97,6 @@ func (s *ServiceImpl) Publish(ctx context.Context, req *contracts.PublishStreamM
 
 	post()
 
-	if wakeMsg, err := msgqueue.NewTenantMessage(tenantId, msgqueue.MsgIDStreamMessage, true, false, struct{}{}); err == nil {
-		_ = s.pubsub.Pub(ctx, msgqueue.StreamTopic(tenantId, req.Namespace, req.Topic), wakeMsg)
-	}
-
 	return &contracts.PublishStreamMessageResponse{}, nil
 }
 
@@ -135,6 +131,12 @@ func (s *ServiceImpl) Subscribe(ctx context.Context, req *contracts.SubscribeStr
 		send:   sender.Send,
 		cancel: cancel,
 	})
+
+	var expired *v1.StreamCursorExpiredError
+
+	if errors.As(err, &expired) {
+		return connect.NewError(connect.CodeOutOfRange, fmt.Errorf("%w; subscribe without a cursor to start from the oldest retained message", expired))
+	}
 
 	if err != nil {
 		return err

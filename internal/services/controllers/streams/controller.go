@@ -33,6 +33,7 @@ type ControllerOptFunc func(*ControllerOpts)
 
 type ControllerOpts struct {
 	mq      msgqueue.MessageQueue
+	pubsub  msgqueue.PubSub
 	repo    v1.Repository
 	l       *zerolog.Logger
 	alerter hatcheterrors.Alerter
@@ -41,6 +42,12 @@ type ControllerOpts struct {
 func WithMessageQueueV1(mq msgqueue.MessageQueue) ControllerOptFunc {
 	return func(opts *ControllerOpts) {
 		opts.mq = mq
+	}
+}
+
+func WithPubSub(pubsub msgqueue.PubSub) ControllerOptFunc {
+	return func(opts *ControllerOpts) {
+		opts.pubsub = pubsub
 	}
 }
 
@@ -73,10 +80,11 @@ func defaultControllerOpts() *ControllerOpts {
 }
 
 type ControllerImpl struct {
-	mq   msgqueue.MessageQueue
-	repo v1.Repository
-	l    *zerolog.Logger
-	a    *hatcheterrors.Wrapped
+	mq     msgqueue.MessageQueue
+	pubsub msgqueue.PubSub
+	repo   v1.Repository
+	l      *zerolog.Logger
+	a      *hatcheterrors.Wrapped
 }
 
 func New(fs ...ControllerOptFunc) (StreamsController, error) {
@@ -90,15 +98,20 @@ func New(fs ...ControllerOptFunc) (StreamsController, error) {
 		return nil, fmt.Errorf("message queue is required. use WithMessageQueueV1")
 	}
 
+	if opts.pubsub == nil {
+		return nil, fmt.Errorf("pubsub is required. use WithPubSub")
+	}
+
 	if opts.repo == nil {
 		return nil, fmt.Errorf("repository is required. use WithRepositoryV1")
 	}
 
 	return &ControllerImpl{
-		mq:   opts.mq,
-		repo: opts.repo,
-		l:    opts.l,
-		a:    hatcheterrors.NewWrapped(opts.alerter),
+		mq:     opts.mq,
+		pubsub: opts.pubsub,
+		repo:   opts.repo,
+		l:      opts.l,
+		a:      hatcheterrors.NewWrapped(opts.alerter),
 	}, nil
 }
 
@@ -145,17 +158,53 @@ func (c *ControllerImpl) handleStreamMessages(ctx context.Context, tenantId uuid
 
 	var outerErr error
 
+	written := make(map[streamTopic]struct{})
+
 	for _, msg := range msgs {
-		if err := c.insertOrderedStreamMessage(ctx, tenantId, msg); err != nil {
+		applied, err := c.insertOrderedStreamMessage(ctx, tenantId, msg)
+
+		if err != nil {
 			outerErr = multierror.Append(outerErr, fmt.Errorf("could not insert ordered stream message: %w", err))
+			continue
 		}
+
+		if applied {
+			written[streamTopic{namespace: msg.Namespace, topic: msg.Topic}] = struct{}{}
+		}
+	}
+
+	// woken only once rows are committed, or a tailing poller would read
+	// nothing and fall back to its ticker
+	for t := range written {
+		c.wakeTopic(ctx, tenantId, t)
 	}
 
 	return outerErr
 }
 
-// insertOrderedStreamMessage uses the producer seq to requeue out-of-order messages coming from rabbit
-func (c *ControllerImpl) insertOrderedStreamMessage(ctx context.Context, tenantId uuid.UUID, msg *tasktypes.StreamMessagePayload) error {
+type streamTopic struct {
+	namespace string
+	topic     string
+}
+
+// wakeTopic is best-effort: a dropped wake only delays delivery until the
+// poller's fallback tick.
+func (c *ControllerImpl) wakeTopic(ctx context.Context, tenantId uuid.UUID, t streamTopic) {
+	wakeMsg, err := msgqueue.NewTenantMessage(tenantId, msgqueue.MsgIDStreamMessage, true, false, struct{}{})
+
+	if err != nil {
+		c.l.Debug().Ctx(ctx).Err(err).Msg("could not build stream topic wake")
+		return
+	}
+
+	if err := c.pubsub.Pub(ctx, msgqueue.StreamTopic(tenantId, t.namespace, t.topic), wakeMsg); err != nil {
+		c.l.Debug().Ctx(ctx).Err(err).Msg("could not publish stream topic wake")
+	}
+}
+
+// insertOrderedStreamMessage uses the producer seq to requeue out-of-order messages coming from rabbit.
+// applied reports whether a row was written.
+func (c *ControllerImpl) insertOrderedStreamMessage(ctx context.Context, tenantId uuid.UUID, msg *tasktypes.StreamMessagePayload) (applied bool, err error) {
 	opts := v1.CreateOrderedStreamMessageOpts{
 		Namespace:   msg.Namespace,
 		Topic:       msg.Topic,
@@ -167,11 +216,11 @@ func (c *ControllerImpl) insertOrderedStreamMessage(ctx context.Context, tenantI
 	res, err := c.repo.Streams().InsertOrderedStreamMessage(ctx, tenantId, opts)
 
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	if res.Inserted {
-		return nil
+		return true, nil
 	}
 
 	if res.CurrentSeq >= msg.ProducerSeq {
@@ -180,7 +229,7 @@ func (c *ControllerImpl) insertOrderedStreamMessage(ctx context.Context, tenantI
 			Int64("producer_seq", msg.ProducerSeq).
 			Msg("dropping stale redelivery of an already-applied ordered stream message")
 
-		return nil
+		return false, nil
 	}
 
 	if time.Since(msg.CreatedAt) > maxProducerGapWait {
@@ -190,14 +239,18 @@ func (c *ControllerImpl) insertOrderedStreamMessage(ctx context.Context, tenantI
 			Int64("last_applied_seq", res.CurrentSeq).
 			Msg("giving up waiting for a producer sequence gap to close; inserting out of order")
 
-		return c.repo.Streams().ForceInsertOrderedStreamMessage(ctx, tenantId, opts)
+		if err := c.repo.Streams().ForceInsertOrderedStreamMessage(ctx, tenantId, opts); err != nil {
+			return false, err
+		}
+
+		return true, nil
 	}
 
 	retryMsg, err := msgqueue.NewTenantMessage(tenantId, msgqueue.MsgIDStreamMessage, true, true, *msg)
 
 	if err != nil {
-		return err
+		return false, err
 	}
 
-	return c.mq.SendMessage(ctx, msgqueue.STREAMS_QUEUE, retryMsg)
+	return false, c.mq.SendMessage(ctx, msgqueue.STREAMS_QUEUE, retryMsg)
 }

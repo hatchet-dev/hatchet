@@ -548,6 +548,19 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		return err
 	}
 
+	err = r.queries.CreateStreamMessagePartitions(ctx, createPartitionsTx, sqlcv1.CreateStreamMessagePartitionsParams{
+		Fromtime: pgtype.Timestamptz{Time: today, Valid: true},
+		Totime:   pgtype.Timestamptz{Time: today.Add(streamMessagePartitionsAhead), Valid: true},
+	})
+
+	if err != nil {
+		releaseCreateConn()
+		if isLockNotAvailable(err) {
+			return ErrPartitionLockConflict
+		}
+		return err
+	}
+
 	var payloadDatesToCreateUniqueConstraints []time.Time
 
 	if todayCreations.V1Payload > 0 {
@@ -580,6 +593,38 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 
 	if err != nil {
 		return err
+	}
+
+	streamRetention, err := r.maxStreamRetention(ctx)
+
+	if err != nil {
+		return err
+	}
+
+	messagePartitions, err := r.queries.ListStreamMessagePartitionsBefore(ctx, r.ddlPool, pgtype.Timestamptz{
+		Time:  today.Add(-streamRetention),
+		Valid: true,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	for _, p := range messagePartitions {
+		partitions = append(partitions, &sqlcv1.ListPartitionsBeforeDateRow{ParentTable: p.ParentTable, PartitionName: p.PartitionName})
+	}
+
+	cursorPartitions, err := r.queries.ListStreamProducerCursorPartitionsBeforeDate(ctx, r.ddlPool, pgtype.Date{
+		Time:  today.Add(-streamProducerCursorRetentionMultiplier * streamRetention),
+		Valid: true,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	for _, p := range cursorPartitions {
+		partitions = append(partitions, &sqlcv1.ListPartitionsBeforeDateRow{ParentTable: p.ParentTable, PartitionName: p.PartitionName})
 	}
 
 	if len(partitions) > 0 {
@@ -660,6 +705,10 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		Valid: true,
 	}); err != nil {
 		return fmt.Errorf("failed to delete old payload offloaded block index rows: %w", err)
+	}
+
+	if err = r.deleteIdleStreamTopics(ctx); err != nil {
+		return fmt.Errorf("failed to delete idle stream topics: %w", err)
 	}
 
 	// Runs last, in its own transaction, so that if it gives up on a lock, partition creation
@@ -5341,4 +5390,48 @@ func (r *TaskRepositoryImpl) FilterValidTasks(ctx context.Context, tenantId uuid
 	}
 
 	return res, nil
+}
+
+const deleteIdleStreamTopicsBatchSize = 1000
+
+// streamMessagePartitionsAhead is how far ahead hourly stream message
+// partitions are created, so missed partition runs never leave inserts
+// without a partition.
+const streamMessagePartitionsAhead = 24 * time.Hour
+
+// streamProducerCursorRetentionMultiplier keeps producer cursors far longer
+// than messages, so a producer that goes quiet for a while can resume its
+// sequence instead of stalling on a gap (see maxProducerGapWait).
+const streamProducerCursorRetentionMultiplier = 4
+
+// deleteIdleStreamTopics removes each tenant's topics once they've gone
+// unpublished for longer than that tenant's stream retention.
+func (r *TaskRepositoryImpl) deleteIdleStreamTopics(ctx context.Context) error {
+	for {
+		deleted, err := r.queries.DeleteIdleStreamTopics(ctx, r.ddlPool, sqlcv1.DeleteIdleStreamTopicsParams{
+			Defaultretentionhours: r.m.DefaultStreamRetentionHours(),
+			Maxretentionhours:     maxStreamRetentionHours,
+			Batchsize:             deleteIdleStreamTopicsBatchSize,
+		})
+
+		if err != nil {
+			return err
+		}
+
+		if deleted < deleteIdleStreamTopicsBatchSize {
+			return nil
+		}
+	}
+}
+
+// maxStreamRetention is the longest any tenant keeps stream messages, which
+// bounds how long the shared partitions must be kept.
+func (r *TaskRepositoryImpl) maxStreamRetention(ctx context.Context) (time.Duration, error) {
+	hours, err := r.queries.GetMaxStreamRetentionHours(ctx, r.ddlPool, r.m.DefaultStreamRetentionHours())
+
+	if err != nil {
+		return 0, err
+	}
+
+	return time.Duration(clampStreamRetentionHours(hours, maxStreamRetentionHours)) * time.Hour, nil
 }
