@@ -2,6 +2,8 @@ package streams
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"math"
 	"sync"
 	"time"
@@ -40,7 +42,6 @@ type topicListener struct {
 // tailing it.
 type topicPoller struct {
 	streams           v1.StreamsRepository
-	pubsub            msgqueue.PubSub
 	l                 *zerolog.Logger
 	key               topicPollerKey
 	tailPollInterval  time.Duration
@@ -53,17 +54,28 @@ type topicPoller struct {
 	nextID         int
 	cancel         context.CancelFunc
 	lastActivityAt time.Time
+
+	// wake is signaled by the registry's shared wake subscription
+	wake chan struct{}
 }
 
-func newTopicPoller(streams v1.StreamsRepository, pubsub msgqueue.PubSub, l *zerolog.Logger, key topicPollerKey, tailPollInterval, idleHangupTimeout time.Duration) *topicPoller {
+func newTopicPoller(streams v1.StreamsRepository, l *zerolog.Logger, key topicPollerKey, tailPollInterval, idleHangupTimeout time.Duration) *topicPoller {
 	return &topicPoller{
 		streams:           streams,
-		pubsub:            pubsub,
 		l:                 l,
 		key:               key,
 		tailPollInterval:  tailPollInterval,
 		idleHangupTimeout: idleHangupTimeout,
 		listeners:         make(map[int]*topicListener),
+		wake:              make(chan struct{}, 1),
+	}
+}
+
+// wakeUp asks the tail loop to poll now; a wake already pending covers this one.
+func (p *topicPoller) wakeUp() {
+	select {
+	case p.wake <- struct{}{}:
+	default:
 	}
 }
 
@@ -123,27 +135,7 @@ func (p *topicPoller) startLocked() {
 	ctx, cancel := context.WithCancel(context.Background())
 	p.cancel = cancel
 
-	wake := make(chan struct{}, 1)
-
-	unsub, err := p.pubsub.Sub(msgqueue.StreamTopic(p.key.tenantId, p.key.namespace, p.key.topic), func(*msgqueue.Message) error {
-		select {
-		case wake <- struct{}{}:
-		default:
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		p.l.Warn().Ctx(ctx).Err(err).Msg("could not subscribe to stream topic wake channel; falling back to polling only")
-		unsub = func() error { return nil }
-	}
-
 	go func() {
-		defer func() {
-			_ = unsub()
-		}()
-
 		ticker := time.NewTicker(p.tailPollInterval)
 		defer ticker.Stop()
 
@@ -152,7 +144,7 @@ func (p *topicPoller) startLocked() {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-			case <-wake:
+			case <-p.wake:
 			}
 
 			p.mu.Lock()
@@ -304,8 +296,17 @@ func sendRange(ctx context.Context, repo v1.StreamsRepository, key topicPollerKe
 // (tenant, namespace, topic) currently being tailed by at least one Subscribe
 // call.
 type topicPollerRegistry struct {
-	mu                sync.Mutex
-	pollers           map[topicPollerKey]*topicPoller
+	mu      sync.Mutex
+	pollers map[topicPollerKey]*topicPoller
+
+	// wakeTargets mirrors pollers so the wake handler never waits on mu,
+	// which Join holds across database reads
+	wakeTargets sync.Map // topicPollerKey -> *topicPoller
+
+	// unsubWake ends the engine's single wake subscription, shared by every
+	// poller; nil until the first Join subscribes. Guarded by mu.
+	unsubWake func() error
+
 	streams           v1.StreamsRepository
 	pubsub            msgqueue.PubSub
 	l                 *zerolog.Logger
@@ -343,16 +344,23 @@ func (r *topicPollerRegistry) Join(ctx context.Context, key topicPollerKey, star
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	r.subscribeWakesLocked()
+
 	p, ok := r.pollers[key]
 
 	if !ok {
-		p = newTopicPoller(r.streams, r.pubsub, r.l, key, r.tailPollInterval, r.idleHangupTimeout)
+		p = newTopicPoller(r.streams, r.l, key, r.tailPollInterval, r.idleHangupTimeout)
 		r.pollers[key] = p
+		r.wakeTargets.Store(key, p)
 	}
 
 	id, err := p.join(ctx, startCursor, listener)
 
 	if err != nil {
+		if !ok {
+			r.removeLocked(key)
+		}
+
 		return nil, err
 	}
 
@@ -361,7 +369,60 @@ func (r *topicPollerRegistry) Join(ctx context.Context, key topicPollerKey, star
 		defer r.mu.Unlock()
 
 		if p.leave(id) {
-			delete(r.pollers, key)
+			r.removeLocked(key)
 		}
 	}, nil
+}
+
+func (r *topicPollerRegistry) removeLocked(key topicPollerKey) {
+	delete(r.pollers, key)
+	r.wakeTargets.Delete(key)
+}
+
+// subscribeWakesLocked subscribes this engine to stream wakes once. On
+// failure pollers still tick, and the next Join retries.
+func (r *topicPollerRegistry) subscribeWakesLocked() {
+	if r.unsubWake != nil {
+		return
+	}
+
+	unsub, err := r.pubsub.Sub(msgqueue.StreamWakeTopic(), r.handleWake)
+
+	if err != nil {
+		r.l.Warn().Err(err).Msg("could not subscribe to stream wakes; tailing topics will poll only")
+		return
+	}
+
+	r.unsubWake = unsub
+}
+
+func (r *topicPollerRegistry) handleWake(msg *msgqueue.Message) error {
+	for _, payload := range msg.Payloads {
+		var wake msgqueue.StreamWake
+
+		if err := json.Unmarshal(payload, &wake); err != nil {
+			return fmt.Errorf("could not decode stream wake: %w", err)
+		}
+
+		if p, ok := r.wakeTargets.Load(topicPollerKey{tenantId: msg.TenantID, namespace: wake.Namespace, topic: wake.Topic}); ok {
+			p.(*topicPoller).wakeUp()
+		}
+	}
+
+	return nil
+}
+
+// Close ends the engine's wake subscription.
+func (r *topicPollerRegistry) Close() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.unsubWake == nil {
+		return nil
+	}
+
+	err := r.unsubWake()
+	r.unsubWake = nil
+
+	return err
 }

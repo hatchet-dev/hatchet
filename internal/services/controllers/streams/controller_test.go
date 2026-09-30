@@ -2,6 +2,8 @@ package streams
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -26,12 +28,14 @@ type fakeStreamsRepo struct {
 
 	mu      sync.Mutex
 	cursors map[string]int64 // -1 means "no row yet"
-	ordered []v1.CreateOrderedStreamMessageOpts
-	forced  []v1.CreateOrderedStreamMessageOpts
+	// when each cursor last advanced
+	advancedAt map[string]time.Time
+	ordered    []v1.CreateOrderedStreamMessageOpts
+	forced     []v1.CreateOrderedStreamMessageOpts
 }
 
 func newFakeStreamsRepo() *fakeStreamsRepo {
-	return &fakeStreamsRepo{cursors: make(map[string]int64)}
+	return &fakeStreamsRepo{cursors: make(map[string]int64), advancedAt: make(map[string]time.Time)}
 }
 
 func cursorKey(tenantId uuid.UUID, opts v1.CreateOrderedStreamMessageOpts) string {
@@ -50,13 +54,14 @@ func (f *fakeStreamsRepo) InsertOrderedStreamMessage(_ context.Context, tenantId
 	}
 
 	if opts.ProducerSeq != current+1 {
-		return v1.OrderedStreamMessageResult{Inserted: false, CurrentSeq: current}, nil
+		return v1.OrderedStreamMessageResult{Inserted: false, CurrentSeq: current, CurrentSeqAdvancedAt: f.advancedAt[k]}, nil
 	}
 
 	f.cursors[k] = opts.ProducerSeq
+	f.advancedAt[k] = time.Now()
 	f.ordered = append(f.ordered, opts)
 
-	return v1.OrderedStreamMessageResult{Inserted: true, CurrentSeq: opts.ProducerSeq}, nil
+	return v1.OrderedStreamMessageResult{Inserted: true, CurrentSeq: opts.ProducerSeq, CurrentSeqAdvancedAt: f.advancedAt[k]}, nil
 }
 
 func (f *fakeStreamsRepo) ForceInsertOrderedStreamMessage(_ context.Context, tenantId uuid.UUID, opts v1.CreateOrderedStreamMessageOpts) error {
@@ -67,6 +72,7 @@ func (f *fakeStreamsRepo) ForceInsertOrderedStreamMessage(_ context.Context, ten
 
 	if current, ok := f.cursors[k]; !ok || opts.ProducerSeq > current {
 		f.cursors[k] = opts.ProducerSeq
+		f.advancedAt[k] = time.Now()
 	}
 
 	f.forced = append(f.forced, opts)
@@ -107,28 +113,42 @@ func (f *fakeMessageQueue) count() int {
 	return len(f.sent)
 }
 
-// fakePubSub records every topic woken.
+// fakePubSub records every wake published.
 type fakePubSub struct {
 	msgqueue.PubSub
 
-	mu    sync.Mutex
-	woken []msgqueue.Topic
+	mu       sync.Mutex
+	messages []*msgqueue.Message
 }
 
-func (f *fakePubSub) Pub(_ context.Context, topic msgqueue.Topic, _ *msgqueue.Message) error {
+func (f *fakePubSub) Pub(_ context.Context, topic msgqueue.Topic, msg *msgqueue.Message) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	f.woken = append(f.woken, topic)
+	if topic != msgqueue.StreamWakeTopic() {
+		return fmt.Errorf("unexpected topic %s", topic.Name())
+	}
+
+	f.messages = append(f.messages, msg)
 
 	return nil
 }
 
-func (f *fakePubSub) topics() []msgqueue.Topic {
+func (f *fakePubSub) wakes(t *testing.T) []msgqueue.StreamWake {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	return append([]msgqueue.Topic(nil), f.woken...)
+	var wakes []msgqueue.StreamWake
+
+	for _, msg := range f.messages {
+		for _, payload := range msg.Payloads {
+			var w msgqueue.StreamWake
+			require.NoError(t, json.Unmarshal(payload, &w))
+			wakes = append(wakes, w)
+		}
+	}
+
+	return wakes
 }
 
 func newTestController(repo *fakeStreamsRepo, mq *fakeMessageQueue) *ControllerImpl {
@@ -188,6 +208,7 @@ func TestInsertOrderedStreamMessage_GapIsHeldAndRepublished(t *testing.T) {
 	assert.Empty(t, repo.ordered, "the out-of-order message must not be inserted")
 	assert.Empty(t, repo.forced, "the gap has not persisted long enough to force-insert")
 	assert.Equal(t, 1, mq.count(), "the held-back message must be re-published for another attempt")
+	assert.False(t, mq.sent[0].ImmediatelyExpire, "an expiring requeue is dead-lettered through the DLQ backoff under a backlog")
 }
 
 func TestInsertOrderedStreamMessage_StaleDuplicateIsDroppedNotRepublished(t *testing.T) {
@@ -226,6 +247,53 @@ func TestInsertOrderedStreamMessage_GivesUpAfterMaxWaitAndForceInserts(t *testin
 	require.Len(t, repo.forced, 1, "the gap has persisted too long and must be force-inserted")
 	assert.Equal(t, int64(1), repo.forced[0].ProducerSeq)
 	assert.Equal(t, 0, mq.count(), "giving up must not also re-publish the message")
+}
+
+// Under a queue backlog every message is old on arrival; a gap must still be
+// waited out while the watermark keeps advancing, or the force insert jumps
+// the watermark and the late predecessor is then dropped as a duplicate.
+func TestInsertOrderedStreamMessage_BacklogGapIsHeldWhileWatermarkAdvances(t *testing.T) {
+	repo := newFakeStreamsRepo()
+	mq := &fakeMessageQueue{}
+	c := newTestController(repo, mq)
+	tenantId := uuid.New()
+	published := time.Now().Add(-maxProducerGapWait - time.Minute)
+
+	msg := func(seq int64) *tasktypes.StreamMessagePayload {
+		return &tasktypes.StreamMessagePayload{Topic: "t", ProducerID: "p1", ProducerSeq: seq, CreatedAt: published}
+	}
+
+	applied, err := c.insertOrderedStreamMessage(context.Background(), tenantId, msg(0))
+	requireApplied(t, true, applied, err)
+
+	applied, err = c.insertOrderedStreamMessage(context.Background(), tenantId, msg(2))
+	requireApplied(t, false, applied, err)
+
+	assert.Empty(t, repo.forced, "the watermark just advanced, so the gap isn't stalled")
+	assert.Equal(t, 1, mq.count(), "the early message must be requeued")
+
+	applied, err = c.insertOrderedStreamMessage(context.Background(), tenantId, msg(1))
+	requireApplied(t, true, applied, err)
+}
+
+func TestInsertOrderedStreamMessage_ForceInsertsOnceWatermarkStalls(t *testing.T) {
+	repo := newFakeStreamsRepo()
+	mq := &fakeMessageQueue{}
+	c := newTestController(repo, mq)
+	tenantId := uuid.New()
+
+	first := &tasktypes.StreamMessagePayload{Topic: "t", ProducerID: "p1", ProducerSeq: 0, CreatedAt: time.Now()}
+	applied, err := c.insertOrderedStreamMessage(context.Background(), tenantId, first)
+	requireApplied(t, true, applied, err)
+
+	// seq 1 never arrives
+	repo.advancedAt[cursorKey(tenantId, v1.CreateOrderedStreamMessageOpts{Topic: "t", ProducerID: "p1"})] = time.Now().Add(-maxProducerGapWait - time.Second)
+
+	applied, err = c.insertOrderedStreamMessage(context.Background(), tenantId, &tasktypes.StreamMessagePayload{Topic: "t", ProducerID: "p1", ProducerSeq: 2, CreatedAt: time.Now()})
+	requireApplied(t, true, applied, err)
+
+	require.Len(t, repo.forced, 1)
+	assert.Equal(t, 0, mq.count())
 }
 
 func TestHandleStreamMessages_InsertsEveryMessageInOneBatch(t *testing.T) {
@@ -276,8 +344,29 @@ func TestHandleStreamMessages_WakesEachWrittenTopicOnceAfterInsert(t *testing.T)
 
 	require.NoError(t, c.handleStreamMessages(context.Background(), tenantId, payloads))
 
-	assert.ElementsMatch(t, []msgqueue.Topic{
-		msgqueue.StreamTopic(tenantId, "", "t1"),
-		msgqueue.StreamTopic(tenantId, "", "t2"),
-	}, pubsub.topics())
+	assert.ElementsMatch(t, []msgqueue.StreamWake{{Topic: "t1"}, {Topic: "t2"}}, pubsub.wakes(t))
+	require.Len(t, pubsub.messages, 1, "one batch's wakes share a message")
+	assert.Equal(t, tenantId, pubsub.messages[0].TenantID)
+}
+
+func TestWakeTopics_SplitsLargeBatchesUnderTheSizeBudget(t *testing.T) {
+	pubsub := &fakePubSub{}
+	c := newTestControllerWithPubSub(newFakeStreamsRepo(), &fakeMessageQueue{}, pubsub)
+
+	wakes := make([]msgqueue.StreamWake, 100)
+	for i := range wakes {
+		wakes[i] = msgqueue.StreamWake{Namespace: "ns", Topic: fmt.Sprintf("%0250d", i)}
+	}
+
+	c.wakeTopics(context.Background(), uuid.New(), wakes)
+
+	require.Greater(t, len(pubsub.messages), 1)
+
+	for _, msg := range pubsub.messages {
+		body, err := json.Marshal(msg)
+		require.NoError(t, err)
+		assert.Less(t, len(body), 8000, "each wake must fit in one pg_notify")
+	}
+
+	assert.ElementsMatch(t, wakes, pubsub.wakes(t))
 }

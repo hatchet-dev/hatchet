@@ -94,7 +94,7 @@ WITH latest AS (
     FROM (SELECT 1) AS one
     LEFT JOIN latest ON true
     ON CONFLICT (tenant_id, namespace, topic, producer_id, bucket) DO UPDATE
-    SET last_seq = GREATEST(v1_stream_producer_cursor.last_seq, EXCLUDED.last_seq)
+    SET last_seq = GREATEST(v1_stream_producer_cursor.last_seq, EXCLUDED.last_seq), updated_at = NOW()
 )
 INSERT INTO v1_stream_message (tenant_id, namespace, topic, payload, producer_id, producer_seq)
 VALUES ($1::uuid, $2::text, $3::text, $4::bytea, $5::text, $6::bigint)
@@ -157,14 +157,14 @@ func (q *Queries) GetStreamMessageRetentionStart(ctx context.Context, db DBTX) (
 
 const insertOrderedStreamMessage = `-- name: InsertOrderedStreamMessage :one
 WITH latest AS (
-    SELECT bucket, last_seq
+    SELECT bucket, last_seq, updated_at
     FROM v1_stream_producer_cursor
     WHERE tenant_id = $1::uuid AND namespace = $2::text AND topic = $3::text AND producer_id = $4::text
     ORDER BY bucket DESC
     LIMIT 1
 ), cas AS (
     UPDATE v1_stream_producer_cursor c
-    SET last_seq = $5::bigint
+    SET last_seq = $5::bigint, updated_at = NOW()
     FROM latest
     WHERE c.tenant_id = $1::uuid AND c.namespace = $2::text AND c.topic = $3::text AND c.producer_id = $4::text
         AND c.bucket = latest.bucket
@@ -184,7 +184,7 @@ WITH latest AS (
     FROM cas
     WHERE cas.bucket < (NOW() AT TIME ZONE 'UTC')::date
     ON CONFLICT (tenant_id, namespace, topic, producer_id, bucket) DO UPDATE
-    SET last_seq = GREATEST(v1_stream_producer_cursor.last_seq, EXCLUDED.last_seq)
+    SET last_seq = GREATEST(v1_stream_producer_cursor.last_seq, EXCLUDED.last_seq), updated_at = NOW()
 ), applied AS (
     SELECT 1 FROM cas
     UNION ALL
@@ -197,7 +197,8 @@ WITH latest AS (
 )
 SELECT
     EXISTS (SELECT 1 FROM inserted_row) AS inserted,
-    latest.last_seq AS current_last_seq
+    latest.last_seq AS current_last_seq,
+    latest.updated_at AS current_updated_at
 FROM (SELECT 1) AS one
 LEFT JOIN latest ON true
 `
@@ -213,8 +214,9 @@ type InsertOrderedStreamMessageParams struct {
 }
 
 type InsertOrderedStreamMessageRow struct {
-	Inserted       bool        `json:"inserted"`
-	CurrentLastSeq pgtype.Int8 `json:"current_last_seq"`
+	Inserted         bool               `json:"inserted"`
+	CurrentLastSeq   pgtype.Int8        `json:"current_last_seq"`
+	CurrentUpdatedAt pgtype.Timestamptz `json:"current_updated_at"`
 }
 
 // Atomically advances the producer's watermark and inserts the message, but
@@ -227,7 +229,8 @@ type InsertOrderedStreamMessageRow struct {
 // inserted=false means this message was NOT applied; current_last_seq (the
 // watermark as of this call, NULL if the producer has no row) tells the
 // caller whether that's a gap worth retrying (current_last_seq <
-// producer_seq - 1) or a stale redelivery (current_last_seq >= producer_seq).
+// producer_seq - 1) or a stale redelivery (current_last_seq >= producer_seq),
+// and current_updated_at when that watermark last advanced.
 // a LEFT JOIN rather than a scalar subquery so sqlc infers current_last_seq as nullable
 func (q *Queries) InsertOrderedStreamMessage(ctx context.Context, db DBTX, arg InsertOrderedStreamMessageParams) (*InsertOrderedStreamMessageRow, error) {
 	row := db.QueryRow(ctx, insertOrderedStreamMessage,
@@ -240,7 +243,7 @@ func (q *Queries) InsertOrderedStreamMessage(ctx context.Context, db DBTX, arg I
 		arg.Payload,
 	)
 	var i InsertOrderedStreamMessageRow
-	err := row.Scan(&i.Inserted, &i.CurrentLastSeq)
+	err := row.Scan(&i.Inserted, &i.CurrentLastSeq, &i.CurrentUpdatedAt)
 	return &i, err
 }
 

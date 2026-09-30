@@ -2,6 +2,7 @@ package streams
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"sync"
 	"testing"
@@ -450,4 +451,79 @@ func TestSendRange_ReturnsStartCursorWhenNothingToSend(t *testing.T) {
 
 	assert.Equal(t, 0, sent)
 	assert.Equal(t, from, last)
+}
+
+// capturingPubSub records Sub calls and keeps the wake handler so tests can
+// deliver wakes directly.
+type capturingPubSub struct {
+	fakePubSub
+
+	mu      sync.Mutex
+	subs    []msgqueue.Topic
+	handler msgqueue.MsgHandler
+}
+
+func (c *capturingPubSub) Sub(topic msgqueue.Topic, handler msgqueue.MsgHandler) (func() error, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.subs = append(c.subs, topic)
+	c.handler = handler
+
+	return func() error { return nil }, nil
+}
+
+func (c *capturingPubSub) deliver(t *testing.T, tenantId uuid.UUID, wakes ...msgqueue.StreamWake) {
+	t.Helper()
+
+	msg, err := msgqueue.NewTenantMessage(tenantId, msgqueue.MsgIDStreamMessage, true, false, wakes...)
+	require.NoError(t, err)
+
+	c.mu.Lock()
+	handler := c.handler
+	c.mu.Unlock()
+
+	require.NoError(t, handler(msg))
+}
+
+func TestTopicPollerRegistry_AllTopicsShareOneWakeSubscription(t *testing.T) {
+	tenantId := uuid.New()
+	repo := newFakeStreamsRepository(tenantId, "", "topic", 0, time.Now())
+	pubsub := &capturingPubSub{}
+	registry := newTopicPollerRegistry(repo, pubsub, testLogger(), time.Hour, time.Hour)
+
+	for i := range 25 {
+		key := topicPollerKey{tenantId: tenantId, topic: fmt.Sprintf("topic-%d", i)}
+		unregister, err := registry.Join(context.Background(), key, v1.StreamCursor{}, &topicListener{send: (&collectingListener{}).send, cancel: func() {}})
+		require.NoError(t, err)
+		defer unregister()
+	}
+
+	assert.Equal(t, []msgqueue.Topic{msgqueue.StreamWakeTopic()}, pubsub.subs)
+}
+
+func TestTopicPollerRegistry_WakeReachesOnlyItsTopic(t *testing.T) {
+	tenantId := uuid.New()
+	base := time.Now()
+	repo := newFakeStreamsRepository(tenantId, "ns", "topic-a", 0, base)
+	pubsub := &capturingPubSub{}
+	// no ticks during the test, so any delivery must come from a wake
+	registry := newTopicPollerRegistry(repo, pubsub, testLogger(), time.Hour, time.Hour)
+
+	listener := &collectingListener{}
+	unregister, err := registry.Join(context.Background(), topicPollerKey{tenantId: tenantId, namespace: "ns", topic: "topic-a"}, v1.StreamCursor{}, &topicListener{send: listener.send, cancel: func() {}})
+	require.NoError(t, err)
+	defer unregister()
+
+	repo.appendMessage(1, base.Add(time.Millisecond))
+
+	pubsub.deliver(t, tenantId, msgqueue.StreamWake{Namespace: "ns", Topic: "topic-b"}, msgqueue.StreamWake{Topic: "topic-a"})
+	pubsub.deliver(t, uuid.New(), msgqueue.StreamWake{Namespace: "ns", Topic: "topic-a"})
+
+	time.Sleep(50 * time.Millisecond)
+	assert.Equal(t, 0, listener.count(), "wakes for other topics, namespaces, or tenants must not poll this one")
+
+	pubsub.deliver(t, tenantId, msgqueue.StreamWake{Namespace: "ns", Topic: "topic-a"})
+
+	require.Eventually(t, func() bool { return listener.count() == 1 }, time.Second, 5*time.Millisecond)
 }

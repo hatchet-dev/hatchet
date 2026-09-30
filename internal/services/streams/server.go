@@ -69,10 +69,12 @@ func (s *ServiceImpl) Publish(ctx context.Context, req *contracts.PublishStreamM
 
 	now := time.Now()
 
+	// must not expire in the queue: under a backlog an expired message is
+	// dead-lettered through the DLQ backoff and reordered
 	msg, err := msgqueue.NewTenantMessage(
 		tenantId,
 		msgqueue.MsgIDStreamMessage,
-		true,
+		false,
 		true,
 		tasktypes.StreamMessagePayload{
 			Namespace:   req.Namespace,

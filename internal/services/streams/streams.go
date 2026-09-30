@@ -99,8 +99,8 @@ func (s *ServiceImpl) CancelStreamSessions() {
 	s.streamSessions.CancelAll()
 }
 
-// Cleanup stops the pubBuffer's background goroutines.
+// Cleanup stops the pubBuffer's background goroutines and the wake subscription.
 func (s *ServiceImpl) Cleanup() error {
 	s.pubBuffer.Stop()
-	return nil
+	return s.topicPollers.Close()
 }

@@ -20,8 +20,8 @@ const (
 	// TopicKindSchedulerPartition wakes the scheduler owning a partition.
 	TopicKindSchedulerPartition TopicKind = "scheduler-partition"
 
-	// TopicKindStreamTopic wakes a durable-stream Consume RPC tailing a topic.
-	TopicKindStreamTopic TopicKind = "stream-topic"
+	// TopicKindStreamWake fans durable-stream wakes out to every engine.
+	TopicKindStreamWake TopicKind = "stream-wake"
 )
 
 // Topic identifies a best-effort pub/sub destination.
@@ -58,12 +58,22 @@ func SchedulerPartitionTopic(partitionId string) Topic {
 	}
 }
 
-// StreamTopic wakes any Consume RPC tailing this (tenant, namespace, topic).
-func StreamTopic(tenantId uuid.UUID, namespace, topic string) Topic {
+// StreamWakeTopic carries every durable-stream wake, each engine holding one
+// subscription for all of its tailed topics. The topics woken travel in the
+// payload (see StreamWake), so user-chosen names never reach a subject,
+// queue, or channel name.
+func StreamWakeTopic() Topic {
 	return Topic{
-		name: fmt.Sprintf("%s_%s_%s_stream_v1", tenantId, namespace, topic),
-		kind: TopicKindStreamTopic,
+		name: "stream_wake_v1",
+		kind: TopicKindStreamWake,
 	}
+}
+
+// StreamWake is one payload of a StreamWakeTopic message; the tenant is the
+// message's TenantID.
+type StreamWake struct {
+	Namespace string `json:"namespace"`
+	Topic     string `json:"topic"`
 }
 
 // PubSub is a best-effort, non-durable, at-most-once pub/sub mechanism.

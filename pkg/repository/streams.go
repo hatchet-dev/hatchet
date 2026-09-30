@@ -49,6 +49,10 @@ type OrderedStreamMessageResult struct {
 	// -1 means this producer has no prior row at all (never published to
 	// this topic before), which is itself always < seq-1 for any seq >= 0.
 	CurrentSeq int64
+
+	// CurrentSeqAdvancedAt is when CurrentSeq was last applied; zero when the
+	// producer has no row.
+	CurrentSeqAdvancedAt time.Time
 }
 
 type ListStreamMessagesOpts struct {
@@ -181,7 +185,7 @@ func (r *streamsRepositoryImpl) InsertOrderedStreamMessage(ctx context.Context, 
 		currentSeq = row.CurrentLastSeq.Int64
 	}
 
-	return OrderedStreamMessageResult{Inserted: row.Inserted, CurrentSeq: currentSeq}, nil
+	return OrderedStreamMessageResult{Inserted: row.Inserted, CurrentSeq: currentSeq, CurrentSeqAdvancedAt: row.CurrentUpdatedAt.Time}, nil
 }
 
 func (r *streamsRepositoryImpl) ForceInsertOrderedStreamMessage(ctx context.Context, tenantId uuid.UUID, opts CreateOrderedStreamMessageOpts) error {

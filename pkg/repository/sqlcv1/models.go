@@ -3864,12 +3864,13 @@ type V1StreamMessage struct {
 }
 
 type V1StreamProducerCursor struct {
-	TenantID   uuid.UUID   `json:"tenant_id"`
-	Namespace  string      `json:"namespace"`
-	Topic      string      `json:"topic"`
-	ProducerID string      `json:"producer_id"`
-	Bucket     pgtype.Date `json:"bucket"`
-	LastSeq    int64       `json:"last_seq"`
+	TenantID   uuid.UUID          `json:"tenant_id"`
+	Namespace  string             `json:"namespace"`
+	Topic      string             `json:"topic"`
+	ProducerID string             `json:"producer_id"`
+	Bucket     pgtype.Date        `json:"bucket"`
+	LastSeq    int64              `json:"last_seq"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
 }
 
 type V1StreamTopic struct {

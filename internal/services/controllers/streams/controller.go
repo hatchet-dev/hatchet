@@ -5,7 +5,10 @@ package streams
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
+	"maps"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -23,6 +26,8 @@ import (
 // maxProducerGapWait bounds how long a producer-sequenced message can be held
 // back waiting for its predecessor to become durable (see
 // insertOrderedStreamMessage) before it's inserted out of order anyway.
+// Measured from the watermark's last advance, since under a queue backlog
+// every message is already old on arrival.
 const maxProducerGapWait = 30 * time.Second
 
 type StreamsController interface {
@@ -158,7 +163,7 @@ func (c *ControllerImpl) handleStreamMessages(ctx context.Context, tenantId uuid
 
 	var outerErr error
 
-	written := make(map[streamTopic]struct{})
+	written := make(map[msgqueue.StreamWake]struct{})
 
 	for _, msg := range msgs {
 		applied, err := c.insertOrderedStreamMessage(ctx, tenantId, msg)
@@ -169,36 +174,53 @@ func (c *ControllerImpl) handleStreamMessages(ctx context.Context, tenantId uuid
 		}
 
 		if applied {
-			written[streamTopic{namespace: msg.Namespace, topic: msg.Topic}] = struct{}{}
+			written[msgqueue.StreamWake{Namespace: msg.Namespace, Topic: msg.Topic}] = struct{}{}
 		}
 	}
 
 	// woken only once rows are committed, or a tailing poller would read
 	// nothing and fall back to its ticker
-	for t := range written {
-		c.wakeTopic(ctx, tenantId, t)
-	}
+	c.wakeTopics(ctx, tenantId, slices.Collect(maps.Keys(written)))
 
 	return outerErr
 }
 
-type streamTopic struct {
-	namespace string
-	topic     string
+// maxStreamWakeBytes keeps each wake message well under pg_notify's 8KB
+// limit, past which the postgres pubsub delivers to only one subscriber.
+const maxStreamWakeBytes = 4 * 1024
+
+// streamWakeWireSize approximates w's size inside a published message: its
+// JSON, base64-encoded as a Message payload, plus separators.
+func streamWakeWireSize(w msgqueue.StreamWake) int {
+	const jsonOverhead = len(`{"namespace":"","topic":""}`)
+
+	return base64.StdEncoding.EncodedLen(len(w.Namespace)+len(w.Topic)+jsonOverhead) + 3
 }
 
-// wakeTopic is best-effort: a dropped wake only delays delivery until the
+// wakeTopics is best-effort: a dropped wake only delays delivery until the
 // poller's fallback tick.
-func (c *ControllerImpl) wakeTopic(ctx context.Context, tenantId uuid.UUID, t streamTopic) {
-	wakeMsg, err := msgqueue.NewTenantMessage(tenantId, msgqueue.MsgIDStreamMessage, true, false, struct{}{})
+func (c *ControllerImpl) wakeTopics(ctx context.Context, tenantId uuid.UUID, wakes []msgqueue.StreamWake) {
+	for len(wakes) > 0 {
+		n, size := 0, 0
 
-	if err != nil {
-		c.l.Debug().Ctx(ctx).Err(err).Msg("could not build stream topic wake")
-		return
-	}
+		// names are capped at 255 bytes, far below maxStreamWakeBytes, so n >= 1
+		for n < len(wakes) && (n == 0 || size+streamWakeWireSize(wakes[n]) <= maxStreamWakeBytes) {
+			size += streamWakeWireSize(wakes[n])
+			n++
+		}
 
-	if err := c.pubsub.Pub(ctx, msgqueue.StreamTopic(tenantId, t.namespace, t.topic), wakeMsg); err != nil {
-		c.l.Debug().Ctx(ctx).Err(err).Msg("could not publish stream topic wake")
+		wakeMsg, err := msgqueue.NewTenantMessage(tenantId, msgqueue.MsgIDStreamMessage, true, false, wakes[:n]...)
+
+		if err != nil {
+			c.l.Debug().Ctx(ctx).Err(err).Msg("could not build stream topic wake")
+			return
+		}
+
+		if err := c.pubsub.Pub(ctx, msgqueue.StreamWakeTopic(), wakeMsg); err != nil {
+			c.l.Debug().Ctx(ctx).Err(err).Msg("could not publish stream topic wake")
+		}
+
+		wakes = wakes[n:]
 	}
 }
 
@@ -232,7 +254,14 @@ func (c *ControllerImpl) insertOrderedStreamMessage(ctx context.Context, tenantI
 		return false, nil
 	}
 
-	if time.Since(msg.CreatedAt) > maxProducerGapWait {
+	// publish time is the only clock when the producer's first message is missing
+	stalledSince := msg.CreatedAt
+
+	if !res.CurrentSeqAdvancedAt.IsZero() {
+		stalledSince = res.CurrentSeqAdvancedAt
+	}
+
+	if time.Since(stalledSince) > maxProducerGapWait {
 		c.l.Warn().Ctx(ctx).
 			Str("producer_id", msg.ProducerID).
 			Int64("producer_seq", msg.ProducerSeq).
@@ -246,7 +275,7 @@ func (c *ControllerImpl) insertOrderedStreamMessage(ctx context.Context, tenantI
 		return true, nil
 	}
 
-	retryMsg, err := msgqueue.NewTenantMessage(tenantId, msgqueue.MsgIDStreamMessage, true, true, *msg)
+	retryMsg, err := msgqueue.NewTenantMessage(tenantId, msgqueue.MsgIDStreamMessage, false, true, *msg)
 
 	if err != nil {
 		return false, err
