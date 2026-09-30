@@ -267,6 +267,9 @@ func startPostgres(ctx context.Context, pgVersion string) (string, func() error)
 		postgres.WithUsername("user"),
 		postgres.WithPassword("password"),
 		testcontainers.WithHostPortAccess(pgPort),
+		// preloaded so CI can snapshot pg_stat_statements while the tests run;
+		// the extension itself is created by whoever reads it
+		testcontainers.WithCmdArgs("-c", "shared_preload_libraries=pg_stat_statements", "-c", "pg_stat_statements.track=all"),
 	)
 
 	if err != nil {

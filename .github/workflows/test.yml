@@ -454,6 +454,12 @@ jobs:
       - name: Start pprof sampler
         run: hack/ci/pprof-sampler.sh start "$RUNNER_TEMP/pprof" localhost:6060
 
+      # The harness's Postgres container preloads pg_stat_statements; snapshot
+      # it while the container lives so the summary can say where the database
+      # spent its time.
+      - name: Start pg_stat sampler
+        run: hack/ci/pgstat-sampler.sh start "$RUNNER_TEMP/pgstat" "postgres:${{ matrix.pg-version }}"
+
       - name: Test
         id: run-tests
         run: |
@@ -480,6 +486,12 @@ jobs:
           hack/ci/pprof-sampler.sh stop "$RUNNER_TEMP/pprof"
           hack/ci/pprof-sampler.sh summarize "$RUNNER_TEMP/pprof" | tee "$RUNNER_TEMP/pprof/summary.txt"
 
+      - name: pg_stat summary
+        if: always()
+        run: |
+          hack/ci/pgstat-sampler.sh stop "$RUNNER_TEMP/pgstat"
+          hack/ci/pgstat-sampler.sh summarize "$RUNNER_TEMP/pgstat" | tee "$RUNNER_TEMP/pgstat/summary.txt"
+
       - name: Comment CPU chart on PR
         if: failure() && steps.run-tests.outcome == 'failure' && github.event_name == 'pull_request'
         run: |
@@ -492,6 +504,14 @@ jobs:
             echo
             echo '```'
             cat "$RUNNER_TEMP/pprof/summary.txt"
+            echo '```'
+            echo
+            echo "</details>"
+            echo
+            echo "<details><summary>pg_stat: where Postgres spent its time</summary>"
+            echo
+            echo '```'
+            cat "$RUNNER_TEMP/pgstat/summary.txt"
             echo '```'
             echo
             echo "</details>"
@@ -508,6 +528,7 @@ jobs:
           path: |
             ${{ runner.temp }}/cpu-samples.log
             ${{ runner.temp }}/pprof/
+            ${{ runner.temp }}/pgstat/
           if-no-files-found: warn
 
   load-deadlock:
