@@ -214,6 +214,50 @@ func (q *Queries) DeleteUserSession(ctx context.Context, db DBTX, id uuid.UUID) 
 	return &i, err
 }
 
+const deleteUserSessionsByUserId = `-- name: DeleteUserSessionsByUserId :many
+DELETE FROM
+    "UserSession"
+WHERE
+    "userId" = $1::uuid
+    AND (
+        $2::uuid IS NULL
+        OR "id" != $2::uuid
+    )
+RETURNING id, "createdAt", "updatedAt", "userId", data, "expiresAt"
+`
+
+type DeleteUserSessionsByUserIdParams struct {
+	Userid   uuid.UUID  `json:"userid"`
+	ExceptId *uuid.UUID `json:"exceptId"`
+}
+
+func (q *Queries) DeleteUserSessionsByUserId(ctx context.Context, db DBTX, arg DeleteUserSessionsByUserIdParams) ([]*UserSession, error) {
+	rows, err := db.Query(ctx, deleteUserSessionsByUserId, arg.Userid, arg.ExceptId)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*UserSession
+	for rows.Next() {
+		var i UserSession
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.UserId,
+			&i.Data,
+			&i.ExpiresAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getUserByEmail = `-- name: GetUserByEmail :one
 SELECT
     id, "createdAt", "updatedAt", "deletedAt", email, "emailVerified", name
