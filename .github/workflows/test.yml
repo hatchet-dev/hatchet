@@ -67,7 +67,11 @@ jobs:
       - name: Generate
         run: |
           go run ./cmd/hatchet-migrate
-          sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" task pre-commit-install
+          # generate-all installs its own dependencies part way through, so
+          # warm every install it performs first, with retries; the installs it
+          # then runs find everything present and fetch nothing.
+          sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" task install-dependencies pre-commit-install
+          sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" sh -c 'cd sdks/typescript && pnpm install --frozen-lockfile'
           task generate-all
 
       - name: Check for diff
