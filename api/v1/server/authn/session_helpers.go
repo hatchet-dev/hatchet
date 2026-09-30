@@ -58,6 +58,25 @@ func (s *SessionHelpers) SaveUnauthenticated(c echo.Context) error {
 	return session.Save(c.Request(), c.Response())
 }
 
+// CurrentSessionID returns the ID of the persisted cookie session backing this request, or
+// nil when the request is not backed by a stored session (e.g. bearer-token auth, or a cookie
+// whose session row no longer exists).
+func (s *SessionHelpers) CurrentSessionID(c echo.Context) *uuid.UUID {
+	session, err := s.ss.Get(c.Request(), s.ss.GetName())
+
+	if err != nil || session == nil || session.IsNew || session.ID == "" {
+		return nil
+	}
+
+	id, err := uuid.Parse(session.ID)
+
+	if err != nil {
+		return nil
+	}
+
+	return &id
+}
+
 func (s *SessionHelpers) SaveKV(
 	c echo.Context,
 	k, v string,

@@ -155,6 +155,17 @@ WHERE
     "id" = @id::uuid
 RETURNING *;
 
+-- name: DeleteUserSessionsByUserId :many
+DELETE FROM
+    "UserSession"
+WHERE
+    "userId" = @userId::uuid
+    AND (
+        sqlc.narg('exceptId')::uuid IS NULL
+        OR "id" != sqlc.narg('exceptId')::uuid
+    )
+RETURNING *;
+
 -- name: CleanupUserSessions :execresult
 WITH sessions_to_delete AS (
     SELECT "id"
