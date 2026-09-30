@@ -295,7 +295,12 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 	succeeded = make([]*AssignedItem, 0, len(r.Assigned))
 	failed = make([]*AssignedItem, 0, len(r.Assigned))
 
-	// assign keys: removed from the queue and given a runtime row in one statement
+	// The statement takes two key sets because the keys leave the queue for different
+	// reasons: assigned keys need a runtime row and a slot for their worker, while the
+	// timed-out and buffered keys below only need their queue item gone (timed-out tasks
+	// are released, buffered tasks get a buffered runtime row instead). Both sets are
+	// keyed by (task_id, task_inserted_at, retry_count) rather than queue item id, so a
+	// restored copy of an item read earlier is deleted with it.
 	taskRetryToAssignedItem := make(map[taskIdRetryCount]*AssignedItem, len(r.Assigned))
 	taskIds := make([]int64, 0, len(r.Assigned))
 	taskInsertedAts := make([]pgtype.Timestamptz, 0, len(r.Assigned))
@@ -343,7 +348,6 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 		}
 	}
 
-	// remove keys: only taken out of the queue (released or buffered below)
 	removeCount := len(r.SchedulingTimedOut) + len(r.Buffered)
 	removeTaskIds := make([]int64, 0, removeCount)
 	removeTaskInsertedAts := make([]pgtype.Timestamptz, 0, removeCount)
