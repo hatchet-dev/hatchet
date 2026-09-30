@@ -29,6 +29,23 @@ type RunWindow = {
 // (onlyTasks: false) instead derive these timestamps from the OLAP write time
 // of the events, which lags and reorders under load and makes sequential
 // handoffs look like overlaps.
+// Returns the instant as integer microseconds since the epoch. Date only keeps
+// milliseconds, which would let a start and a finish that are microseconds
+// apart fall into the same instant and be read as a handoff; the API returns
+// the full fractional seconds, so keep them.
+function toMicros(timestamp: string): number {
+  const match = /^(.*T[^.Z+-]*)(?:\.(\d+))?(Z|[+-]\d\d:\d\d)$/.exec(timestamp);
+  if (!match) {
+    throw new Error(`unexpected timestamp format: ${timestamp}`);
+  }
+
+  const [, base, fraction = '', zone] = match;
+  const wholeSeconds = Math.floor(Date.parse(`${base}${zone}`) / 1000);
+  const micros = Number(`${fraction}000000`.slice(0, 6));
+
+  return wholeSeconds * 1_000_000 + micros;
+}
+
 function buildRunWindows(tasks: V1TaskSummary[]): RunWindow[] {
   const windows: Record<string, RunWindow> = {};
 
@@ -38,8 +55,8 @@ function buildRunWindows(tasks: V1TaskSummary[]): RunWindow[] {
     }
 
     const meta = (task.additionalMetadata || {}) as Record<string, string>;
-    const startedAt = new Date(task.startedAt).getTime();
-    const finishedAt = new Date(task.finishedAt).getTime();
+    const startedAt = toMicros(task.startedAt);
+    const finishedAt = toMicros(task.finishedAt);
     const existing = windows[task.workflowRunExternalId];
 
     if (existing) {
@@ -61,7 +78,8 @@ function buildRunWindows(tasks: V1TaskSummary[]): RunWindow[] {
 
 // Sweeps over the start and finish instants of the windows and returns the peak
 // number of windows that were open at the same time, per key. A window that
-// starts at the exact instant another one finishes is a handoff, not an overlap.
+// starts at the exact same microsecond another one finishes is a handoff, not
+// an overlap.
 function peakConcurrencyByKey(
   windows: RunWindow[],
   keyOf: (window: RunWindow) => string
