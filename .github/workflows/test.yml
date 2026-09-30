@@ -410,6 +410,9 @@ jobs:
   load:
     runs-on: ubicloud-standard-8
     timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: write
     strategy:
       matrix:
         migrate-strategy: ["latest"]
@@ -446,6 +449,7 @@ jobs:
         run: hack/ci/cpu-sampler.sh start "$RUNNER_TEMP/cpu-samples.log"
 
       - name: Test
+        id: run-tests
         run: |
           # Disable gzip compression for load tests to reduce CPU overhead
           # Compression adds overhead without benefit for 0kb payloads
@@ -462,6 +466,17 @@ jobs:
         run: |
           hack/ci/cpu-sampler.sh stop "$RUNNER_TEMP/cpu-samples.log"
           hack/ci/cpu-sampler.sh summarize "$RUNNER_TEMP/cpu-samples.log"
+
+      - name: Comment CPU chart on PR
+        if: failure() && steps.run-tests.outcome == 'failure' && github.event_name == 'pull_request'
+        run: |
+          hack/ci/cpu-sampler.sh comment "$RUNNER_TEMP/cpu-samples.log" \
+            "load (${{ matrix.migrate-strategy }}, ${{ matrix.rabbitmq-enabled }}, ${{ matrix.pg-version }}, ${{ matrix.optimistic-scheduling }})" \
+            "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            > "$RUNNER_TEMP/cpu-comment.md"
+          gh pr comment ${{ github.event.pull_request.number }} --body-file "$RUNNER_TEMP/cpu-comment.md"
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       - name: Upload CPU samples
         if: always()

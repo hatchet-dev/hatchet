@@ -102,8 +102,57 @@ case "${1:-}" in
       printf "load1: max %.1f\n", load1max
     }' "$log"
     ;;
+  comment)
+    # Markdown for a pull request comment: the summary plus a Mermaid chart of
+    # idle and steal over the run, which GitHub renders inline. Mermaid charts
+    # get unreadable past a few dozen points, so the samples are averaged into
+    # at most 40 buckets.
+    log="$2"
+    label="${3:-load test}"
+    run_url="${4:-}"
+    if [ ! -s "$log" ]; then
+      echo "No CPU samples were recorded for the $label run."
+      exit 0
+    fi
+    echo "### Runner CPU during the failed $label run"
+    echo
+    echo "Idle near zero means the runner was saturated; steal above a few percent means the host took CPU away from it. Either way the latency gate measured the runner, not the scheduler."
+    echo
+    echo '```'
+    "$0" summarize "$log" | grep -v '^# columns'
+    echo '```'
+    echo
+    awk '!/^#/ { n++; t[n] = $1; idle[n] = $6; steal[n] = $8; load[n] = $2 }
+    END {
+      if (n == 0) exit
+      buckets = n < 40 ? n : 40
+      per = n / buckets
+      printf "```mermaid\nxychart-beta\n    title \"Runner CPU (%d samples)\"\n", n
+      printf "    x-axis \"sample time\" ["
+      for (b = 0; b < buckets; b++) {
+        i = int(b * per) + 1
+        printf "%s\"%s\"", (b ? ", " : ""), t[i]
+      }
+      printf "]\n    y-axis \"percent\" 0 --> 100\n"
+      for (series = 1; series <= 2; series++) {
+        printf "    line \"%s\" [", (series == 1 ? "idle" : "steal")
+        for (b = 0; b < buckets; b++) {
+          lo = int(b * per) + 1; hi = int((b + 1) * per); if (hi < lo) hi = lo; if (hi > n) hi = n
+          sum = 0; count = 0
+          for (i = lo; i <= hi; i++) { sum += (series == 1 ? idle[i] : steal[i]); count++ }
+          printf "%s%.1f", (b ? ", " : ""), sum / count
+        }
+        printf "]\n"
+      }
+      printf "```\n"
+    }' "$log"
+    if [ -n "$run_url" ]; then
+      echo
+      echo "Raw samples are in the run's \`load-cpu-samples-*\` artifacts: $run_url"
+    fi
+    ;;
   *)
-    echo "usage: cpu-sampler.sh start|stop|summarize <log>" >&2
+    echo "usage: cpu-sampler.sh start|stop|summarize|comment <log> [label] [run-url]" >&2
     exit 2
     ;;
 esac
