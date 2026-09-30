@@ -16,7 +16,15 @@ import pprint
 import re  # noqa: F401
 import json
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictBool,
+    StrictInt,
+    StrictStr,
+    field_validator,
+)
 from typing import Any, ClassVar, Dict, List, Optional
 from hatchet_sdk.clients.rest.models.v1_cel_debug_response_status import (
     V1CELDebugResponseStatus,
@@ -33,12 +41,42 @@ class V1CELDebugResponse(BaseModel):
     status: V1CELDebugResponseStatus
     output: Optional[StrictBool] = Field(
         default=None,
-        description="The result of the CEL expression evaluation, if successful",
+        description="The result of the CEL expression evaluation, if the expression evaluated to a boolean",
+    )
+    output_str: Optional[StrictStr] = Field(
+        default=None,
+        description="The result of the CEL expression evaluation, if the expression evaluated to a string",
+        alias="outputStr",
+    )
+    output_int: Optional[StrictInt] = Field(
+        default=None,
+        description="The result of the CEL expression evaluation, if the expression evaluated to an integer",
+        alias="outputInt",
+    )
+    output_type: Optional[StrictStr] = Field(
+        default=None, description="The type of the output value", alias="outputType"
     )
     error: Optional[StrictStr] = Field(
         default=None, description="The error message if the evaluation failed"
     )
-    __properties: ClassVar[List[str]] = ["status", "output", "error"]
+    __properties: ClassVar[List[str]] = [
+        "status",
+        "output",
+        "outputStr",
+        "outputInt",
+        "outputType",
+        "error",
+    ]
+
+    @field_validator("output_type")
+    def output_type_validate_enum(cls, value):
+        """Validates the enum"""
+        if value is None:
+            return value
+
+        if value not in set(["bool", "string", "int"]):
+            raise ValueError("must be one of enum values ('bool', 'string', 'int')")
+        return value
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -92,6 +130,9 @@ class V1CELDebugResponse(BaseModel):
             {
                 "status": obj.get("status"),
                 "output": obj.get("output"),
+                "outputStr": obj.get("outputStr"),
+                "outputInt": obj.get("outputInt"),
+                "outputType": obj.get("outputType"),
                 "error": obj.get("error"),
             }
         )

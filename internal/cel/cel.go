@@ -3,6 +3,7 @@ package cel
 import (
 	"crypto/sha256"
 	"fmt"
+	"strconv"
 
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/checker/decls"
@@ -441,6 +442,55 @@ func (p *CELParser) EvaluateEventExpression(expr string, input Input) (bool, err
 	}
 
 	return out.Value().(bool), nil
+}
+
+// DebugOut holds the result of a debug CEL evaluation. Exactly one field is non-nil on success.
+type DebugOut struct {
+	StringVal *string
+	IntVal    *int64
+	BoolVal   *bool
+}
+
+// EvaluateDebugExpression evaluates expr against input using the event environment and returns
+// the result as a DebugOut regardless of the output type (bool, string, or int).
+func (p *CELParser) EvaluateDebugExpression(expr string, input Input) (*DebugOut, error) {
+	ast, issues := p.eventEnv.Compile(expr)
+	if issues != nil && issues.Err() != nil {
+		return nil, fmt.Errorf("failed to compile expression: %w", issues.Err())
+	}
+
+	program, err := p.eventEnv.Program(ast)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create program: %w", err)
+	}
+
+	var inMap map[string]interface{} = input
+
+	out, _, err := program.Eval(inMap)
+	if err != nil {
+		return nil, fmt.Errorf("failed to evaluate expression: %w", err)
+	}
+
+	res := &DebugOut{}
+
+	switch out.Type() {
+	case types.StringType:
+		s := out.Value().(string)
+		res.StringVal = &s
+	case types.IntType:
+		i := out.Value().(int64)
+		res.IntVal = &i
+	case types.DoubleType:
+		s := strconv.FormatFloat(out.Value().(float64), 'f', -1, 64)
+		res.StringVal = &s
+	case types.BoolType:
+		b := out.Value().(bool)
+		res.BoolVal = &b
+	default:
+		return nil, fmt.Errorf("expression evaluated to unsupported type: %s", out.Type().TypeName())
+	}
+
+	return res, nil
 }
 
 func (p *CELParser) EvaluateIncomingWebhookExpression(expr string, input Input) (string, error) {

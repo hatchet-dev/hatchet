@@ -221,6 +221,13 @@ const (
 	OR  V1AdditionalMetadataOperator = "OR"
 )
 
+// Defines values for V1CELDebugResponseOutputType.
+const (
+	Bool   V1CELDebugResponseOutputType = "bool"
+	Int    V1CELDebugResponseOutputType = "int"
+	String V1CELDebugResponseOutputType = "string"
+)
+
 // Defines values for V1CELDebugResponseStatus.
 const (
 	V1CELDebugResponseStatusERROR   V1CELDebugResponseStatus = "ERROR"
@@ -1569,12 +1576,24 @@ type V1CELDebugResponse struct {
 	// Error The error message if the evaluation failed
 	Error *string `json:"error,omitempty"`
 
-	// Output The result of the CEL expression evaluation, if successful
+	// Output The result of the CEL expression evaluation, if the expression evaluated to a boolean
 	Output *bool `json:"output,omitempty"`
+
+	// OutputInt The result of the CEL expression evaluation, if the expression evaluated to an integer
+	OutputInt *int `json:"outputInt,omitempty"`
+
+	// OutputStr The result of the CEL expression evaluation, if the expression evaluated to a string
+	OutputStr *string `json:"outputStr,omitempty"`
+
+	// OutputType The type of the output value
+	OutputType *V1CELDebugResponseOutputType `json:"outputType,omitempty"`
 
 	// Status The status of the CEL evaluation
 	Status V1CELDebugResponseStatus `json:"status"`
 }
+
+// V1CELDebugResponseOutputType The type of the output value
+type V1CELDebugResponseOutputType string
 
 // V1CELDebugResponseStatus The status of the CEL evaluation
 type V1CELDebugResponseStatus string

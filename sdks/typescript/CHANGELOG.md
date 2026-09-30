@@ -40,6 +40,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `HatchetClientOptions.credentials` applies to the streaming `nice-grpc` channel only; the unary transport derives its TLS settings from `tls_config`.
 - A token containing characters that cannot travel in an HTTP header (a stray line break in `HATCHET_CLIENT_TOKEN`, for example) now fails the first unary call with a fixed message instead of an error that quoted the token.
 
+## [1.33.3] - 2026-09-25
+
+### Fixed
+
+- `hatchet.cel.debug()` now accepts non-boolean CEL expressions. The response includes an `outputType` discriminator (`bool`, `string`, or `int`) and three typed output fields: `output` (boolean), `outputStr` (string), and `outputInt` (number). `CELSuccess` exposes `asBoolean()`, `asString()`, and `asNumber()` helpers for typed access.
+
 ## [1.33.2] - 2026-09-24
 
 ### Fixed
