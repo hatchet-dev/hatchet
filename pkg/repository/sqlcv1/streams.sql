@@ -124,21 +124,44 @@ INSERT INTO v1_stream_message (tenant_id, namespace, topic, payload, producer_id
 VALUES (@tenantId::uuid, @namespace::text, @topic::text, @payload::bytea, @producerId::text, @producerSeq::bigint);
 
 -- name: GetStreamMessageRetentionStart :one
--- The start of the oldest attached v1_stream_message partition: rows inserted
--- before it have been dropped. NULL if no partitions.
-SELECT MIN(to_timestamp(substring(p::text, 'v1_stream_message_(\d{10})$'), 'YYYYMMDDHH24')::timestamp AT TIME ZONE 'UTC')::timestamptz AS retention_start
-FROM get_v1_hourly_partitions_before('v1_stream_message', 'infinity'::timestamptz) AS p;
+-- The start of the tenant's oldest hourly partition: its rows inserted before
+-- it have been dropped. NULL if the tenant has no partitions.
+SELECT MIN(p.hour_start)::timestamptz AS retention_start
+FROM list_v1_stream_message_hour_partitions() AS p
+WHERE p.tenant_id = @tenantId::uuid;
 
--- name: CreateStreamMessagePartitions :exec
--- Attaches an hourly partition for every hour from @fromTime through @toTime.
-SELECT create_v1_hourly_range_partition('v1_stream_message', hours.hour_start)
-FROM generate_series(@fromTime::timestamptz, @toTime::timestamptz, INTERVAL '1 hour') AS hours(hour_start);
-
--- name: ListStreamMessagePartitionsBefore :many
+-- name: EnsureStreamMessagePartition :exec
+-- Creates the tenant's partitions for this hour and the next, for an insert
+-- that found none.
 SELECT
-    'v1_stream_message' AS parent_table,
-    p::text AS partition_name
-FROM get_v1_hourly_partitions_before('v1_stream_message', @before::timestamptz) AS p;
+    ensure_v1_stream_message_partition(@tenantId::uuid, NOW()),
+    ensure_v1_stream_message_partition(@tenantId::uuid, NOW() + INTERVAL '1 hour');
+
+-- name: EnsureActiveStreamMessagePartitions :exec
+-- Pre-creates this hour's and next hour's partitions for tenants that
+-- published recently, so their inserts rarely create one inline.
+SELECT ensure_v1_stream_message_partition(t.tenant_id, NOW() + hours.offset_hours * INTERVAL '1 hour')
+FROM (
+    SELECT DISTINCT tenant_id
+    FROM v1_stream_topic
+    WHERE last_published_at > NOW() - INTERVAL '2 hours'
+) AS t
+CROSS JOIN generate_series(0, 1) AS hours(offset_hours);
+
+-- name: ListStreamMessageHourPartitions :many
+SELECT
+    p.parent_table::text AS parent_table,
+    p.partition_name::text AS partition_name,
+    p.tenant_id::uuid AS tenant_id,
+    p.hour_start::timestamptz AS hour_start
+FROM list_v1_stream_message_hour_partitions() AS p;
+
+-- name: ListDroppableStreamMessageTenantPartitions :many
+-- Tenant partitions with no hourly partitions left and no topics, so nothing
+-- will write to them again before a new topic re-creates them.
+SELECT p.partition_name::text AS partition_name
+FROM list_v1_stream_message_empty_tenant_partitions() AS p
+WHERE NOT EXISTS (SELECT 1 FROM v1_stream_topic t WHERE t.tenant_id = p.tenant_id);
 
 -- name: GetMaxStreamRetentionHours :one
 -- Shared partitions can only be dropped once every tenant is done with them.

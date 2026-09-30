@@ -23,22 +23,6 @@ func (q *Queries) CountStreamTopics(ctx context.Context, db DBTX, tenantid uuid.
 	return count, err
 }
 
-const createStreamMessagePartitions = `-- name: CreateStreamMessagePartitions :exec
-SELECT create_v1_hourly_range_partition('v1_stream_message', hours.hour_start)
-FROM generate_series($1::timestamptz, $2::timestamptz, INTERVAL '1 hour') AS hours(hour_start)
-`
-
-type CreateStreamMessagePartitionsParams struct {
-	Fromtime pgtype.Timestamptz `json:"fromtime"`
-	Totime   pgtype.Timestamptz `json:"totime"`
-}
-
-// Attaches an hourly partition for every hour from @fromTime through @toTime.
-func (q *Queries) CreateStreamMessagePartitions(ctx context.Context, db DBTX, arg CreateStreamMessagePartitionsParams) error {
-	_, err := db.Exec(ctx, createStreamMessagePartitions, arg.Fromtime, arg.Totime)
-	return err
-}
-
 const deleteIdleStreamTopics = `-- name: DeleteIdleStreamTopics :execrows
 DELETE FROM v1_stream_topic
 WHERE id IN (
@@ -77,6 +61,36 @@ WHERE id = $1::bigint
 // violate the tenant's topic-count limit.
 func (q *Queries) DeleteStreamTopic(ctx context.Context, db DBTX, id int64) error {
 	_, err := db.Exec(ctx, deleteStreamTopic, id)
+	return err
+}
+
+const ensureActiveStreamMessagePartitions = `-- name: EnsureActiveStreamMessagePartitions :exec
+SELECT ensure_v1_stream_message_partition(t.tenant_id, NOW() + hours.offset_hours * INTERVAL '1 hour')
+FROM (
+    SELECT DISTINCT tenant_id
+    FROM v1_stream_topic
+    WHERE last_published_at > NOW() - INTERVAL '2 hours'
+) AS t
+CROSS JOIN generate_series(0, 1) AS hours(offset_hours)
+`
+
+// Pre-creates this hour's and next hour's partitions for tenants that
+// published recently, so their inserts rarely create one inline.
+func (q *Queries) EnsureActiveStreamMessagePartitions(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, ensureActiveStreamMessagePartitions)
+	return err
+}
+
+const ensureStreamMessagePartition = `-- name: EnsureStreamMessagePartition :exec
+SELECT
+    ensure_v1_stream_message_partition($1::uuid, NOW()),
+    ensure_v1_stream_message_partition($1::uuid, NOW() + INTERVAL '1 hour')
+`
+
+// Creates the tenant's partitions for this hour and the next, for an insert
+// that found none.
+func (q *Queries) EnsureStreamMessagePartition(ctx context.Context, db DBTX, tenantid uuid.UUID) error {
+	_, err := db.Exec(ctx, ensureStreamMessagePartition, tenantid)
 	return err
 }
 
@@ -142,14 +156,15 @@ func (q *Queries) GetMaxStreamRetentionHours(ctx context.Context, db DBTX, defau
 }
 
 const getStreamMessageRetentionStart = `-- name: GetStreamMessageRetentionStart :one
-SELECT MIN(to_timestamp(substring(p::text, 'v1_stream_message_(\d{10})$'), 'YYYYMMDDHH24')::timestamp AT TIME ZONE 'UTC')::timestamptz AS retention_start
-FROM get_v1_hourly_partitions_before('v1_stream_message', 'infinity'::timestamptz) AS p
+SELECT MIN(p.hour_start)::timestamptz AS retention_start
+FROM list_v1_stream_message_hour_partitions() AS p
+WHERE p.tenant_id = $1::uuid
 `
 
-// The start of the oldest attached v1_stream_message partition: rows inserted
-// before it have been dropped. NULL if no partitions.
-func (q *Queries) GetStreamMessageRetentionStart(ctx context.Context, db DBTX) (pgtype.Timestamptz, error) {
-	row := db.QueryRow(ctx, getStreamMessageRetentionStart)
+// The start of the tenant's oldest hourly partition: its rows inserted before
+// it have been dropped. NULL if the tenant has no partitions.
+func (q *Queries) GetStreamMessageRetentionStart(ctx context.Context, db DBTX, tenantid uuid.UUID) (pgtype.Timestamptz, error) {
+	row := db.QueryRow(ctx, getStreamMessageRetentionStart, tenantid)
 	var retention_start pgtype.Timestamptz
 	err := row.Scan(&retention_start)
 	return retention_start, err
@@ -247,28 +262,65 @@ func (q *Queries) InsertOrderedStreamMessage(ctx context.Context, db DBTX, arg I
 	return &i, err
 }
 
-const listStreamMessagePartitionsBefore = `-- name: ListStreamMessagePartitionsBefore :many
-SELECT
-    'v1_stream_message' AS parent_table,
-    p::text AS partition_name
-FROM get_v1_hourly_partitions_before('v1_stream_message', $1::timestamptz) AS p
+const listDroppableStreamMessageTenantPartitions = `-- name: ListDroppableStreamMessageTenantPartitions :many
+SELECT p.partition_name::text AS partition_name
+FROM list_v1_stream_message_empty_tenant_partitions() AS p
+WHERE NOT EXISTS (SELECT 1 FROM v1_stream_topic t WHERE t.tenant_id = p.tenant_id)
 `
 
-type ListStreamMessagePartitionsBeforeRow struct {
-	ParentTable   string `json:"parent_table"`
-	PartitionName string `json:"partition_name"`
-}
-
-func (q *Queries) ListStreamMessagePartitionsBefore(ctx context.Context, db DBTX, before pgtype.Timestamptz) ([]*ListStreamMessagePartitionsBeforeRow, error) {
-	rows, err := db.Query(ctx, listStreamMessagePartitionsBefore, before)
+// Tenant partitions with no hourly partitions left and no topics, so nothing
+// will write to them again before a new topic re-creates them.
+func (q *Queries) ListDroppableStreamMessageTenantPartitions(ctx context.Context, db DBTX) ([]string, error) {
+	rows, err := db.Query(ctx, listDroppableStreamMessageTenantPartitions)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*ListStreamMessagePartitionsBeforeRow
+	var items []string
 	for rows.Next() {
-		var i ListStreamMessagePartitionsBeforeRow
-		if err := rows.Scan(&i.ParentTable, &i.PartitionName); err != nil {
+		var partition_name string
+		if err := rows.Scan(&partition_name); err != nil {
+			return nil, err
+		}
+		items = append(items, partition_name)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listStreamMessageHourPartitions = `-- name: ListStreamMessageHourPartitions :many
+SELECT
+    p.parent_table::text AS parent_table,
+    p.partition_name::text AS partition_name,
+    p.tenant_id::uuid AS tenant_id,
+    p.hour_start::timestamptz AS hour_start
+FROM list_v1_stream_message_hour_partitions() AS p
+`
+
+type ListStreamMessageHourPartitionsRow struct {
+	ParentTable   string             `json:"parent_table"`
+	PartitionName string             `json:"partition_name"`
+	TenantID      uuid.UUID          `json:"tenant_id"`
+	HourStart     pgtype.Timestamptz `json:"hour_start"`
+}
+
+func (q *Queries) ListStreamMessageHourPartitions(ctx context.Context, db DBTX) ([]*ListStreamMessageHourPartitionsRow, error) {
+	rows, err := db.Query(ctx, listStreamMessageHourPartitions)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListStreamMessageHourPartitionsRow
+	for rows.Next() {
+		var i ListStreamMessageHourPartitionsRow
+		if err := rows.Scan(
+			&i.ParentTable,
+			&i.PartitionName,
+			&i.TenantID,
+			&i.HourStart,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

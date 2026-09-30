@@ -2,10 +2,14 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -165,14 +169,20 @@ func (r *streamsRepositoryImpl) InsertOrderedStreamMessage(ctx context.Context, 
 		return OrderedStreamMessageResult{}, err
 	}
 
-	row, err := r.queries.InsertOrderedStreamMessage(ctx, r.pool, sqlcv1.InsertOrderedStreamMessageParams{
-		Tenantid:        tenantId,
-		Namespace:       opts.Namespace,
-		Topic:           opts.Topic,
-		Payload:         opts.Payload,
-		Producerid:      opts.ProducerID,
-		Producerseq:     opts.ProducerSeq,
-		Expectedprevseq: opts.ProducerSeq - 1,
+	var row *sqlcv1.InsertOrderedStreamMessageRow
+
+	err := r.withStreamMessagePartition(ctx, tenantId, func() (err error) {
+		row, err = r.queries.InsertOrderedStreamMessage(ctx, r.pool, sqlcv1.InsertOrderedStreamMessageParams{
+			Tenantid:        tenantId,
+			Namespace:       opts.Namespace,
+			Topic:           opts.Topic,
+			Payload:         opts.Payload,
+			Producerid:      opts.ProducerID,
+			Producerseq:     opts.ProducerSeq,
+			Expectedprevseq: opts.ProducerSeq - 1,
+		})
+
+		return err
 	})
 
 	if err != nil {
@@ -193,14 +203,39 @@ func (r *streamsRepositoryImpl) ForceInsertOrderedStreamMessage(ctx context.Cont
 		return err
 	}
 
-	return r.queries.ForceInsertOrderedStreamMessage(ctx, r.pool, sqlcv1.ForceInsertOrderedStreamMessageParams{
-		Tenantid:    tenantId,
-		Namespace:   opts.Namespace,
-		Topic:       opts.Topic,
-		Payload:     opts.Payload,
-		Producerid:  opts.ProducerID,
-		Producerseq: opts.ProducerSeq,
+	return r.withStreamMessagePartition(ctx, tenantId, func() error {
+		return r.queries.ForceInsertOrderedStreamMessage(ctx, r.pool, sqlcv1.ForceInsertOrderedStreamMessageParams{
+			Tenantid:    tenantId,
+			Namespace:   opts.Namespace,
+			Topic:       opts.Topic,
+			Payload:     opts.Payload,
+			Producerid:  opts.ProducerID,
+			Producerseq: opts.ProducerSeq,
+		})
 	})
+}
+
+// withStreamMessagePartition runs insert, and if the tenant has no partition
+// for the current hour yet, creates it and retries once. The insert is a
+// single statement, so a failed attempt left nothing behind.
+func (r *streamsRepositoryImpl) withStreamMessagePartition(ctx context.Context, tenantId uuid.UUID, insert func() error) error {
+	err := insert()
+
+	if !isMissingPartition(err) {
+		return err
+	}
+
+	if err := r.queries.EnsureStreamMessagePartition(ctx, r.pool, tenantId); err != nil {
+		return fmt.Errorf("could not create stream message partition: %w", err)
+	}
+
+	return insert()
+}
+
+func isMissingPartition(err error) bool {
+	var pgErr *pgconn.PgError
+
+	return errors.As(err, &pgErr) && pgErr.Code == pgerrcode.CheckViolation && strings.Contains(pgErr.Message, "no partition of relation")
 }
 
 func (r *streamsRepositoryImpl) ListMessagesAfterCursor(ctx context.Context, tenantId uuid.UUID, opts ListStreamMessagesOpts) ([]*sqlcv1.V1StreamMessage, error) {
@@ -246,7 +281,7 @@ func (r *streamsRepositoryImpl) CheckCursorRetained(ctx context.Context, tenantI
 
 	retainedSince := time.Now().Add(-retention)
 
-	partitionStart, err := r.queries.GetStreamMessageRetentionStart(ctx, r.pool)
+	partitionStart, err := r.queries.GetStreamMessageRetentionStart(ctx, r.pool, tenantId)
 
 	if err != nil {
 		return err

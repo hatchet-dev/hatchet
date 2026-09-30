@@ -76,60 +76,92 @@ BEGIN
 END;
 $$;
 
--- create_v1_hourly_range_partition attaches a partition covering the UTC hour
--- containing targetTime, named <table>_YYYYMMDDHH.
-CREATE OR REPLACE FUNCTION create_v1_hourly_range_partition(
-    targetTableName text,
+-- ensure_v1_stream_message_partition makes sure tenantId has a partition of
+-- v1_stream_message (itself partitioned by hour) and an hourly partition for
+-- the UTC hour containing targetTime. Tables are created detached and then
+-- attached, which only takes SHARE UPDATE EXCLUSIVE on the parent so
+-- concurrent inserts are never blocked. Returns the number of tables created.
+CREATE OR REPLACE FUNCTION ensure_v1_stream_message_partition(
+    tenantId uuid,
     targetTime timestamptz
 ) RETURNS integer
     LANGUAGE plpgsql AS
 $$
 DECLARE
-    hourStart timestamptz;
-    newTableName varchar;
+    tenantTable text := 'v1_stream_message_' || replace(tenantId::text, '-', '');
+    hourStart timestamptz := date_trunc('hour', targetTime AT TIME ZONE 'UTC') AT TIME ZONE 'UTC';
+    hourTable text;
+    created integer := 0;
 BEGIN
-    hourStart := date_trunc('hour', targetTime AT TIME ZONE 'UTC') AT TIME ZONE 'UTC';
-    newTableName := lower(format('%s_%s', targetTableName, to_char(hourStart AT TIME ZONE 'UTC', 'YYYYMMDDHH24')));
+    hourTable := tenantTable || '_' || to_char(hourStart AT TIME ZONE 'UTC', 'YYYYMMDDHH24');
 
-    IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = newTableName) THEN
-        RETURN 0;
+    PERFORM set_config('lock_timeout', '5s', true);
+
+    IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = tenantTable) THEN
+        BEGIN
+            EXECUTE format('CREATE TABLE %I (LIKE v1_stream_message INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING INDEXES) PARTITION BY RANGE (inserted_at)', tenantTable);
+            EXECUTE format('ALTER TABLE v1_stream_message ATTACH PARTITION %I FOR VALUES IN (%L)', tenantTable, tenantId);
+            created := created + 1;
+        EXCEPTION WHEN duplicate_table OR unique_violation THEN
+            -- a concurrent caller created it first
+        END;
     END IF;
 
-    EXECUTE
-        format('CREATE TABLE %s (LIKE %s INCLUDING INDEXES INCLUDING CONSTRAINTS)', newTableName, targetTableName);
-    EXECUTE
-        format('ALTER TABLE %I SET (
-            autovacuum_vacuum_scale_factor = ''0.1'',
-            autovacuum_analyze_scale_factor=''0.05'',
-            autovacuum_vacuum_threshold=''25'',
-            autovacuum_analyze_threshold=''25'',
-            autovacuum_vacuum_cost_delay=''10'',
-            autovacuum_vacuum_cost_limit=''1000''
-        )', newTableName);
-    EXECUTE
-        format('ALTER TABLE %s ATTACH PARTITION %s FOR VALUES FROM (%L) TO (%L)', targetTableName, newTableName, hourStart, hourStart + INTERVAL '1 hour');
-    RETURN 1;
+    IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = hourTable) THEN
+        BEGIN
+            EXECUTE format('CREATE TABLE %I (LIKE v1_stream_message INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING INDEXES)', hourTable);
+            EXECUTE format('ALTER TABLE %I SET (
+                autovacuum_vacuum_scale_factor = ''0.1'',
+                autovacuum_analyze_scale_factor = ''0.05'',
+                autovacuum_vacuum_threshold = ''25'',
+                autovacuum_analyze_threshold = ''25''
+            )', hourTable);
+            EXECUTE format('ALTER TABLE %I ATTACH PARTITION %I FOR VALUES FROM (%L) TO (%L)', tenantTable, hourTable, hourStart, hourStart + INTERVAL '1 hour');
+            created := created + 1;
+        EXCEPTION WHEN duplicate_table OR unique_violation THEN
+            -- a concurrent caller created it first
+        END;
+    END IF;
+
+    RETURN created;
 END;
 $$;
 
--- get_v1_hourly_partitions_before lists hourly partitions whose whole hour
--- ends at or before targetTime.
-CREATE OR REPLACE FUNCTION get_v1_hourly_partitions_before(
-    targetTableName text,
-    targetTime timestamptz
-) RETURNS TABLE(partition_name text)
-    LANGUAGE plpgsql AS
+-- list_v1_stream_message_hour_partitions lists every hourly partition of
+-- v1_stream_message with its tenant and hour.
+CREATE OR REPLACE FUNCTION list_v1_stream_message_hour_partitions()
+RETURNS TABLE(parent_table text, partition_name text, tenant_id uuid, hour_start timestamptz)
+    LANGUAGE plpgsql STABLE AS
 $$
 BEGIN
     RETURN QUERY
     SELECT
-        inhrelid::regclass::text AS partition_name
-    FROM
-        pg_inherits
-    WHERE
-        inhparent = targetTableName::regclass
-        AND substring(inhrelid::regclass::text, format('%s_(\d{10})$', targetTableName)) ~ '^\d{10}$'
-        AND (to_timestamp(substring(inhrelid::regclass::text, format('%s_(\d{10})$', targetTableName)), 'YYYYMMDDHH24')::timestamp AT TIME ZONE 'UTC') + INTERVAL '1 hour' <= targetTime;
+        tp.relname::text,
+        hp.relname::text,
+        substring(tp.relname FROM 19)::uuid,
+        to_timestamp(right(hp.relname, 10), 'YYYYMMDDHH24')::timestamp AT TIME ZONE 'UTC'
+    FROM pg_inherits ti
+    JOIN pg_class tp ON tp.oid = ti.inhrelid
+    JOIN pg_inherits hi ON hi.inhparent = tp.oid AND NOT hi.inhdetachpending
+    JOIN pg_class hp ON hp.oid = hi.inhrelid
+    WHERE ti.inhparent = 'v1_stream_message'::regclass;
+END;
+$$;
+
+-- list_v1_stream_message_empty_tenant_partitions lists tenant partitions of
+-- v1_stream_message with no hourly partitions left.
+CREATE OR REPLACE FUNCTION list_v1_stream_message_empty_tenant_partitions()
+RETURNS TABLE(partition_name text, tenant_id uuid)
+    LANGUAGE plpgsql STABLE AS
+$$
+BEGIN
+    RETURN QUERY
+    SELECT tp.relname::text, substring(tp.relname FROM 19)::uuid
+    FROM pg_inherits ti
+    JOIN pg_class tp ON tp.oid = ti.inhrelid
+    WHERE ti.inhparent = 'v1_stream_message'::regclass
+        AND NOT ti.inhdetachpending
+        AND NOT EXISTS (SELECT 1 FROM pg_inherits hi WHERE hi.inhparent = tp.oid);
 END;
 $$;
 
@@ -2284,7 +2316,7 @@ CREATE TABLE v1_stream_message (
     producer_seq BIGINT NOT NULL,
 
     CONSTRAINT v1_stream_message_pkey PRIMARY KEY (tenant_id, namespace, topic, inserted_at, id)
-) PARTITION BY RANGE(inserted_at);
+) PARTITION BY LIST(tenant_id);
 
 -- v1_stream_producer_cursor tracks, per (tenant, namespace, topic,
 -- producer_id), the last producer_seq durably applied to v1_stream_message.
