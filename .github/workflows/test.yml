@@ -439,6 +439,12 @@ jobs:
       - name: Go deps
         run: go mod download
 
+      # The latency gate below measures the runner as much as the engine, so
+      # sample CPU pressure for the whole run: steal and idle time from
+      # /proc/stat say whether a slow result came from a constrained runner.
+      - name: Start CPU sampler
+        run: hack/ci/cpu-sampler.sh start "$RUNNER_TEMP/cpu-samples.log"
+
       - name: Test
         run: |
           # Disable gzip compression for load tests to reduce CPU overhead
@@ -450,6 +456,20 @@ jobs:
           TESTING_MATRIX_PG_VERSION: ${{ matrix.pg-version }}
           TESTING_MATRIX_OPTIMISTIC_SCHEDULING: ${{ matrix.optimistic-scheduling }}
           HATCHET_LOADTEST_STARTUP_SLEEP: 120s
+
+      - name: CPU sampler summary
+        if: always()
+        run: |
+          hack/ci/cpu-sampler.sh stop "$RUNNER_TEMP/cpu-samples.log"
+          hack/ci/cpu-sampler.sh summarize "$RUNNER_TEMP/cpu-samples.log"
+
+      - name: Upload CPU samples
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v5.0.1
+        with:
+          name: load-cpu-samples-${{ matrix.migrate-strategy }}-rabbitmq-${{ matrix.rabbitmq-enabled }}-pg-${{ matrix.pg-version }}-optimistic-${{ matrix.optimistic-scheduling }}
+          path: ${{ runner.temp }}/cpu-samples.log
+          if-no-files-found: warn
 
   load-deadlock:
     runs-on: ubicloud-standard-8
