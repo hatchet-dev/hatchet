@@ -26,8 +26,10 @@ import (
 // maxProducerGapWait bounds how long a producer-sequenced message can be held
 // back waiting for its predecessor to become durable (see
 // insertOrderedStreamMessage) before it's inserted out of order anyway.
-// Measured from the watermark's last advance, since under a queue backlog
-// every message is already old on arrival.
+// Measured from StreamMessagePayload.GapFirstDetectedAt -- the moment the
+// controller itself first saw this message as a gap, not from anything
+// upstream of that (queue backlog age, producer idle time) that would make it
+// look artificially expired before a gap has actually persisted.
 const maxProducerGapWait = 30 * time.Second
 
 type StreamsController interface {
@@ -254,14 +256,22 @@ func (c *ControllerImpl) insertOrderedStreamMessage(ctx context.Context, tenantI
 		return false, nil
 	}
 
-	// publish time is the only clock when the producer's first message is missing
-	stalledSince := msg.CreatedAt
+	if msg.GapFirstDetectedAt.IsZero() {
+		// first time this message has hit a gap -- give it a chance to
+		// resolve via ordinary retry before ever considering a force-insert
+		retryPayload := *msg
+		retryPayload.GapFirstDetectedAt = time.Now()
 
-	if !res.CurrentSeqAdvancedAt.IsZero() {
-		stalledSince = res.CurrentSeqAdvancedAt
+		retryMsg, err := msgqueue.NewTenantMessage(tenantId, msgqueue.MsgIDStreamMessage, false, true, retryPayload)
+
+		if err != nil {
+			return false, err
+		}
+
+		return false, c.mq.SendMessage(ctx, msgqueue.STREAMS_QUEUE, retryMsg)
 	}
 
-	if time.Since(stalledSince) > maxProducerGapWait {
+	if time.Since(msg.GapFirstDetectedAt) > maxProducerGapWait {
 		c.l.Warn().Ctx(ctx).
 			Str("producer_id", msg.ProducerID).
 			Int64("producer_seq", msg.ProducerSeq).

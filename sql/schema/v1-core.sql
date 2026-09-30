@@ -2335,8 +2335,6 @@ CREATE TABLE v1_stream_producer_cursor (
     producer_id TEXT NOT NULL,
     bucket DATE NOT NULL,
     last_seq BIGINT NOT NULL,
-    -- when last_seq last advanced; a gap only counts as permanent once this stalls
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT v1_stream_producer_cursor_pkey PRIMARY KEY (tenant_id, namespace, topic, producer_id, bucket)
 ) PARTITION BY RANGE(bucket);

@@ -50,17 +50,16 @@ SELECT COUNT(*) FROM v1_stream_topic WHERE tenant_id = @tenantId::uuid;
 -- inserted=false means this message was NOT applied; current_last_seq (the
 -- watermark as of this call, NULL if the producer has no row) tells the
 -- caller whether that's a gap worth retrying (current_last_seq <
--- producer_seq - 1) or a stale redelivery (current_last_seq >= producer_seq),
--- and current_updated_at when that watermark last advanced.
+-- producer_seq - 1) or a stale redelivery (current_last_seq >= producer_seq).
 WITH latest AS (
-    SELECT bucket, last_seq, updated_at
+    SELECT bucket, last_seq
     FROM v1_stream_producer_cursor
     WHERE tenant_id = @tenantId::uuid AND namespace = @namespace::text AND topic = @topic::text AND producer_id = @producerId::text
     ORDER BY bucket DESC
     LIMIT 1
 ), cas AS (
     UPDATE v1_stream_producer_cursor c
-    SET last_seq = @producerSeq::bigint, updated_at = NOW()
+    SET last_seq = @producerSeq::bigint
     FROM latest
     WHERE c.tenant_id = @tenantId::uuid AND c.namespace = @namespace::text AND c.topic = @topic::text AND c.producer_id = @producerId::text
         AND c.bucket = latest.bucket
@@ -80,7 +79,7 @@ WITH latest AS (
     FROM cas
     WHERE cas.bucket < (NOW() AT TIME ZONE 'UTC')::date
     ON CONFLICT (tenant_id, namespace, topic, producer_id, bucket) DO UPDATE
-    SET last_seq = GREATEST(v1_stream_producer_cursor.last_seq, EXCLUDED.last_seq), updated_at = NOW()
+    SET last_seq = GREATEST(v1_stream_producer_cursor.last_seq, EXCLUDED.last_seq)
 ), applied AS (
     SELECT 1 FROM cas
     UNION ALL
@@ -94,8 +93,7 @@ WITH latest AS (
 -- a LEFT JOIN rather than a scalar subquery so sqlc infers current_last_seq as nullable
 SELECT
     EXISTS (SELECT 1 FROM inserted_row) AS inserted,
-    latest.last_seq AS current_last_seq,
-    latest.updated_at AS current_updated_at
+    latest.last_seq AS current_last_seq
 FROM (SELECT 1) AS one
 LEFT JOIN latest ON true;
 
@@ -118,7 +116,7 @@ WITH latest AS (
     FROM (SELECT 1) AS one
     LEFT JOIN latest ON true
     ON CONFLICT (tenant_id, namespace, topic, producer_id, bucket) DO UPDATE
-    SET last_seq = GREATEST(v1_stream_producer_cursor.last_seq, EXCLUDED.last_seq), updated_at = NOW()
+    SET last_seq = GREATEST(v1_stream_producer_cursor.last_seq, EXCLUDED.last_seq)
 )
 INSERT INTO v1_stream_message (tenant_id, namespace, topic, payload, producer_id, producer_seq)
 VALUES (@tenantId::uuid, @namespace::text, @topic::text, @payload::bytea, @producerId::text, @producerSeq::bigint);

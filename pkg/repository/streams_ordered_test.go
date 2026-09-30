@@ -90,7 +90,6 @@ func TestInsertOrderedStreamMessage_GapAndDuplicateReportRealWatermark(t *testin
 	require.NoError(t, err)
 	assert.False(t, gap.Inserted)
 	assert.Equal(t, int64(0), gap.CurrentSeq, "watermark should reflect the real committed row, not NULL")
-	assert.WithinDuration(t, time.Now(), gap.CurrentSeqAdvancedAt, time.Minute, "the gap's watermark advanced when seq=0 applied")
 
 	// a stale redelivery of the already-applied seq=0
 	dup, err := repo.InsertOrderedStreamMessage(context.Background(), tenantId, opts(0))

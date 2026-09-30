@@ -50,4 +50,14 @@ type StreamMessagePayload struct {
 	CreatedAt   time.Time `json:"created_at" validate:"required"`
 	ProducerID  string    `json:"producer_id,omitempty"`
 	ProducerSeq int64     `json:"producer_seq,omitempty"`
+
+	// GapFirstDetectedAt is set by the streams controller the first time this
+	// message fails its compare-and-swap against a producer whose watermark
+	// hasn't reached it yet, and carried unchanged on every requeue. It is the
+	// only clock the gap-wait timeout (see maxProducerGapWait) can safely use:
+	// the message's own CreatedAt is poisoned by ordinary queue backlog, and
+	// the producer's last-watermark-advance time is poisoned by ordinary
+	// producer idle time -- both can already exceed the timeout before a real
+	// gap has existed for any length of time at all.
+	GapFirstDetectedAt time.Time `json:"gap_first_detected_at,omitempty"`
 }

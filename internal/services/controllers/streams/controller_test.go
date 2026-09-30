@@ -28,14 +28,12 @@ type fakeStreamsRepo struct {
 
 	mu      sync.Mutex
 	cursors map[string]int64 // -1 means "no row yet"
-	// when each cursor last advanced
-	advancedAt map[string]time.Time
-	ordered    []v1.CreateOrderedStreamMessageOpts
-	forced     []v1.CreateOrderedStreamMessageOpts
+	ordered []v1.CreateOrderedStreamMessageOpts
+	forced  []v1.CreateOrderedStreamMessageOpts
 }
 
 func newFakeStreamsRepo() *fakeStreamsRepo {
-	return &fakeStreamsRepo{cursors: make(map[string]int64), advancedAt: make(map[string]time.Time)}
+	return &fakeStreamsRepo{cursors: make(map[string]int64)}
 }
 
 func cursorKey(tenantId uuid.UUID, opts v1.CreateOrderedStreamMessageOpts) string {
@@ -54,14 +52,13 @@ func (f *fakeStreamsRepo) InsertOrderedStreamMessage(_ context.Context, tenantId
 	}
 
 	if opts.ProducerSeq != current+1 {
-		return v1.OrderedStreamMessageResult{Inserted: false, CurrentSeq: current, CurrentSeqAdvancedAt: f.advancedAt[k]}, nil
+		return v1.OrderedStreamMessageResult{Inserted: false, CurrentSeq: current}, nil
 	}
 
 	f.cursors[k] = opts.ProducerSeq
-	f.advancedAt[k] = time.Now()
 	f.ordered = append(f.ordered, opts)
 
-	return v1.OrderedStreamMessageResult{Inserted: true, CurrentSeq: opts.ProducerSeq, CurrentSeqAdvancedAt: f.advancedAt[k]}, nil
+	return v1.OrderedStreamMessageResult{Inserted: true, CurrentSeq: opts.ProducerSeq}, nil
 }
 
 func (f *fakeStreamsRepo) ForceInsertOrderedStreamMessage(_ context.Context, tenantId uuid.UUID, opts v1.CreateOrderedStreamMessageOpts) error {
@@ -72,7 +69,6 @@ func (f *fakeStreamsRepo) ForceInsertOrderedStreamMessage(_ context.Context, ten
 
 	if current, ok := f.cursors[k]; !ok || opts.ProducerSeq > current {
 		f.cursors[k] = opts.ProducerSeq
-		f.advancedAt[k] = time.Now()
 	}
 
 	f.forced = append(f.forced, opts)
@@ -230,15 +226,39 @@ func TestInsertOrderedStreamMessage_StaleDuplicateIsDroppedNotRepublished(t *tes
 	assert.Equal(t, 0, mq.count(), "a stale duplicate must be dropped, not retried forever")
 }
 
-func TestInsertOrderedStreamMessage_GivesUpAfterMaxWaitAndForceInserts(t *testing.T) {
+func TestInsertOrderedStreamMessage_FirstAttemptIsNeverForceInsertedRegardlessOfAge(t *testing.T) {
 	repo := newFakeStreamsRepo()
 	mq := &fakeMessageQueue{}
 	c := newTestController(repo, mq)
 	tenantId := uuid.New()
 
-	// seq=1 with no predecessor, but old enough to exceed maxProducerGapWait
+	// seq=1 with no predecessor, published a long time ago (e.g. drained from
+	// a queue backlog) -- but this is the controller's first time seeing it as
+	// a gap, so it must be given a chance to resolve via retry, not
+	// force-inserted on the spot. CreatedAt age must play no part in this
+	// decision (see GapFirstDetectedAt on StreamMessagePayload).
 	msg := &tasktypes.StreamMessagePayload{
-		Topic: "t", ProducerID: "p1", ProducerSeq: 1, CreatedAt: time.Now().Add(-maxProducerGapWait - time.Second),
+		Topic: "t", ProducerID: "p1", ProducerSeq: 1, CreatedAt: time.Now().Add(-maxProducerGapWait - time.Hour),
+	}
+	applied, err := c.insertOrderedStreamMessage(context.Background(), tenantId, msg)
+	requireApplied(t, false, applied, err)
+
+	assert.Empty(t, repo.forced, "a first-seen gap must be requeued, never force-inserted immediately")
+	assert.Equal(t, 1, mq.count())
+}
+
+func TestInsertOrderedStreamMessage_GivesUpOnceGapFirstDetectedAtExceedsMaxWait(t *testing.T) {
+	repo := newFakeStreamsRepo()
+	mq := &fakeMessageQueue{}
+	c := newTestController(repo, mq)
+	tenantId := uuid.New()
+
+	// this is what a real requeued message looks like on its Nth retry: the
+	// controller itself stamped GapFirstDetectedAt on the first attempt, and
+	// it has now persisted past maxProducerGapWait
+	msg := &tasktypes.StreamMessagePayload{
+		Topic: "t", ProducerID: "p1", ProducerSeq: 1, CreatedAt: time.Now(),
+		GapFirstDetectedAt: time.Now().Add(-maxProducerGapWait - time.Second),
 	}
 	applied, err := c.insertOrderedStreamMessage(context.Background(), tenantId, msg)
 	requireApplied(t, true, applied, err)
@@ -249,10 +269,11 @@ func TestInsertOrderedStreamMessage_GivesUpAfterMaxWaitAndForceInserts(t *testin
 	assert.Equal(t, 0, mq.count(), "giving up must not also re-publish the message")
 }
 
-// Under a queue backlog every message is old on arrival; a gap must still be
-// waited out while the watermark keeps advancing, or the force insert jumps
-// the watermark and the late predecessor is then dropped as a duplicate.
-func TestInsertOrderedStreamMessage_BacklogGapIsHeldWhileWatermarkAdvances(t *testing.T) {
+// Under a queue backlog every message is old (by CreatedAt) on arrival; a
+// first-seen gap must still be held for a retry rather than force-inserted
+// just because it happens to be stale, or the force-insert jumps the
+// watermark and the late predecessor is then dropped as a duplicate.
+func TestInsertOrderedStreamMessage_BacklogGapIsHeldOnFirstAttempt(t *testing.T) {
 	repo := newFakeStreamsRepo()
 	mq := &fakeMessageQueue{}
 	c := newTestController(repo, mq)
@@ -269,14 +290,22 @@ func TestInsertOrderedStreamMessage_BacklogGapIsHeldWhileWatermarkAdvances(t *te
 	applied, err = c.insertOrderedStreamMessage(context.Background(), tenantId, msg(2))
 	requireApplied(t, false, applied, err)
 
-	assert.Empty(t, repo.forced, "the watermark just advanced, so the gap isn't stalled")
+	assert.Empty(t, repo.forced, "a first-seen gap is held regardless of how old the message's CreatedAt is")
 	assert.Equal(t, 1, mq.count(), "the early message must be requeued")
 
 	applied, err = c.insertOrderedStreamMessage(context.Background(), tenantId, msg(1))
 	requireApplied(t, true, applied, err)
 }
 
-func TestInsertOrderedStreamMessage_ForceInsertsOnceWatermarkStalls(t *testing.T) {
+// Regression test for a real reordering/data-loss bug: a producer that pauses
+// for longer than maxProducerGapWait (normal for e.g. an agent between LLM
+// calls) then publishes two messages back to back, handled out of order by
+// two concurrent controller flushes. The later one must be held as a gap, not
+// force-inserted immediately just because the producer's watermark happens to
+// be old from the pause -- a premature force-insert would jump the watermark
+// past the earlier message, which then gets dropped as a stale duplicate on
+// arrival.
+func TestInsertOrderedStreamMessage_ProducerPauseDoesNotCausePrematureForceInsertOrLoss(t *testing.T) {
 	repo := newFakeStreamsRepo()
 	mq := &fakeMessageQueue{}
 	c := newTestController(repo, mq)
@@ -286,14 +315,36 @@ func TestInsertOrderedStreamMessage_ForceInsertsOnceWatermarkStalls(t *testing.T
 	applied, err := c.insertOrderedStreamMessage(context.Background(), tenantId, first)
 	requireApplied(t, true, applied, err)
 
-	// seq 1 never arrives
-	repo.advancedAt[cursorKey(tenantId, v1.CreateOrderedStreamMessageOpts{Topic: "t", ProducerID: "p1"})] = time.Now().Add(-maxProducerGapWait - time.Second)
+	// the producer now pauses for longer than maxProducerGapWait; nothing
+	// else touches this cursor in the meantime (no watermark-staleness
+	// bookkeeping exists to falsely trip here)
 
-	applied, err = c.insertOrderedStreamMessage(context.Background(), tenantId, &tasktypes.StreamMessagePayload{Topic: "t", ProducerID: "p1", ProducerSeq: 2, CreatedAt: time.Now()})
+	// N+2 is processed before N+1 by a concurrent flush
+	nPlus2 := &tasktypes.StreamMessagePayload{Topic: "t", ProducerID: "p1", ProducerSeq: 2, CreatedAt: time.Now()}
+	applied, err = c.insertOrderedStreamMessage(context.Background(), tenantId, nPlus2)
+	requireApplied(t, false, applied, err)
+
+	require.Empty(t, repo.forced, "must not force-insert ahead of a message that hasn't even had one retry yet")
+	require.Equal(t, 1, mq.count(), "N+2 must be held and requeued")
+
+	// N+1 now arrives and must apply normally, not get dropped as stale
+	nPlus1 := &tasktypes.StreamMessagePayload{Topic: "t", ProducerID: "p1", ProducerSeq: 1, CreatedAt: time.Now()}
+	applied, err = c.insertOrderedStreamMessage(context.Background(), tenantId, nPlus1)
 	requireApplied(t, true, applied, err)
 
-	require.Len(t, repo.forced, 1)
-	assert.Equal(t, 0, mq.count())
+	// N+2's retry (carrying the GapFirstDetectedAt the controller stamped on
+	// its first attempt) now closes cleanly via the ordinary CAS path
+	retried := mq.sent[0]
+	require.Len(t, retried.Payloads, 1)
+
+	var retriedPayload tasktypes.StreamMessagePayload
+	require.NoError(t, json.Unmarshal(retried.Payloads[0], &retriedPayload))
+	require.False(t, retriedPayload.GapFirstDetectedAt.IsZero(), "the requeued message must carry when its gap was first detected")
+
+	applied, err = c.insertOrderedStreamMessage(context.Background(), tenantId, &retriedPayload)
+	requireApplied(t, true, applied, err)
+
+	require.Empty(t, repo.forced, "the gap closed on retry; it must never have been force-inserted")
 }
 
 func TestHandleStreamMessages_InsertsEveryMessageInOneBatch(t *testing.T) {
