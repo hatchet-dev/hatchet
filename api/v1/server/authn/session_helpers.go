@@ -27,9 +27,6 @@ func NewSessionHelpers(ss *cookie.UserSessionStore) *SessionHelpers {
 
 const sessionEmailVerifiedKey = "email_verified"
 
-// SaveAuthenticated logs the user in and records whether their email was
-// verified at that point. A session saved as unverified stays unverified,
-// even if the user is verified later.
 func (s *SessionHelpers) SaveAuthenticated(c echo.Context, user *sqlcv1.User) error {
 	session, err := s.ss.Get(c.Request(), s.ss.GetName())
 
@@ -37,9 +34,7 @@ func (s *SessionHelpers) SaveAuthenticated(c echo.Context, user *sqlcv1.User) er
 		return err
 	}
 
-	// Set all three values in a single save. If email_verified were written
-	// separately, a request landing in between would find no value and fall
-	// back to the user's current verification status.
+	// email_verified must be saved with user_id: a session without it follows the user row.
 	session.Values["authenticated"] = true
 	session.Values["user_id"] = user.ID.String()
 	session.Values[sessionEmailVerifiedKey] = strconv.FormatBool(user.EmailVerified)
@@ -47,10 +42,6 @@ func (s *SessionHelpers) SaveAuthenticated(c echo.Context, user *sqlcv1.User) er
 	return session.Save(c.Request(), c.Response())
 }
 
-// sessionKeepsUserUnverified reports whether the user's email was unverified
-// the last time they logged in on this session. A session without the value
-// follows the user's current status. A value we don't recognize counts as
-// unverified.
 func sessionKeepsUserUnverified(session *sessions.Session) bool {
 	value, ok := session.Values[sessionEmailVerifiedKey]
 	if !ok || value == nil {
