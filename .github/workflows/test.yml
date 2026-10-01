@@ -595,7 +595,7 @@ jobs:
               -label "$label" \
               -repository "${{ github.repository }}" \
               -run-id "${{ github.run_id }}" \
-              > "$RUNNER_TEMP/performance-comment.md" || continue
+              > "$RUNNER_TEMP/performance-comment.md"
             gh pr comment "${{ github.event.pull_request.number }}" --body-file "$RUNNER_TEMP/performance-comment.md"
             posted=$((posted + 1))
           done
