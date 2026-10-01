@@ -18,6 +18,7 @@ V1Filter:
       type: string
       description: The expression associated with this filter.
     payload:
+      x-payload: true
       type: object
       description: Additional payload data associated with the filter
     isDeclarative:

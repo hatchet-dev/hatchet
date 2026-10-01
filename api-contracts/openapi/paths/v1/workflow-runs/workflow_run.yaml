@@ -3,6 +3,7 @@ listWorkflowRuns:
     x-resources: ["tenant"]
     description: Lists workflow runs for a tenant.
     operationId: v1-workflow-run:list
+    x-payloads: true
     parameters:
       - description: The tenant id
         in: path
@@ -161,6 +162,7 @@ listWorkflowRunDisplayNames:
     x-resources: ["tenant"]
     description: Lists displayable names of workflow runs for a tenant
     operationId: v1-workflow-run:display-names:list
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -216,6 +218,7 @@ listWorkflowRunExternalIds:
     x-resources: ["tenant"]
     description: Lists external ids for workflow runs matching filters
     operationId: v1-workflow-run:external-ids:list
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -307,6 +310,7 @@ listTaskEventsForWorkflowRun:
     x-resources: ["tenant", "v1-workflow-run"]
     description: List all tasks for a workflow run
     operationId: v1-workflow-run:task-events:list
+    x-payloads: true
     parameters:
       - description: The number to skip
         in: query
@@ -365,6 +369,7 @@ getWorkflowRunDetails:
     x-resources: ["tenant", "v1-workflow-run"]
     description: Get a workflow run and its metadata to display on the "detail" page
     operationId: v1-workflow-run:get
+    x-payloads: true
     parameters:
       - description: The workflow run id to get
         in: path
@@ -415,6 +420,7 @@ getWorkflowRunStatus:
     x-resources: ["tenant", "v1-workflow-run"]
     description: Get the status of a workflow run.
     operationId: v1-workflow-run:get-status
+    x-payloads: false
     parameters:
       - description: The workflow run id to get the status for
         in: path
@@ -465,6 +471,7 @@ trigger:
     x-resources: ["tenant"]
     description: Trigger a new workflow run
     operationId: v1-workflow-run:create
+    x-payloads: true
     parameters:
       - description: The tenant id
         in: path
@@ -511,6 +518,7 @@ branchDurableTask:
     x-resources: ["tenant"]
     description: Branch a durable task from a specific node, creating a new branch and re-processing its matches.
     operationId: v1-durable-task:branch
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -556,6 +564,7 @@ getTimings:
     x-resources: ["tenant", "v1-workflow-run"]
     description: Get the timings for a workflow run
     operationId: v1-workflow-run:get:timings
+    x-payloads: false
     parameters:
       - description: The workflow run id to get
         in: path
@@ -607,6 +616,7 @@ listDurableEventLog:
     x-resources: ["tenant", "durable-task"]
     description: Lists all event log entries for a durable task.
     operationId: v1-durable-task:event-log:list
+    x-payloads: true
     parameters:
       - description: The tenant id
         in: path
