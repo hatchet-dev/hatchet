@@ -3858,7 +3858,6 @@ type V1StreamMessage struct {
 	Namespace   string             `json:"namespace"`
 	Topic       string             `json:"topic"`
 	Payload     []byte             `json:"payload"`
-	XactID      interface{}        `json:"xact_id"`
 	ProducerID  string             `json:"producer_id"`
 	ProducerSeq int64              `json:"producer_seq"`
 }
@@ -3878,6 +3877,7 @@ type V1StreamTopic struct {
 	Topic           string             `json:"topic"`
 	InsertedAt      pgtype.Timestamptz `json:"inserted_at"`
 	LastPublishedAt pgtype.Timestamptz `json:"last_published_at"`
+	LastOffset      int64              `json:"last_offset"`
 }
 
 type V1Task struct {

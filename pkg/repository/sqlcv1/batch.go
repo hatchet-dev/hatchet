@@ -55,8 +55,9 @@ WITH latest AS (
     UNION ALL
     SELECT 1 FROM first_message
 ), inserted_row AS (
-    INSERT INTO v1_stream_message (tenant_id, namespace, topic, payload, producer_id, producer_seq)
-    SELECT $1::uuid, $2::text, $3::text, $8::bytea, $4::text, $6::bigint
+    INSERT INTO v1_stream_message (id, tenant_id, namespace, topic, payload, producer_id, producer_seq)
+    -- the offset reserved for this message by ReserveStreamTopicOffsets
+    SELECT $8::bigint, $1::uuid, $2::text, $3::text, $9::bytea, $4::text, $6::bigint
     WHERE EXISTS (SELECT 1 FROM applied)
     RETURNING 1
 )
@@ -81,6 +82,7 @@ type InsertOrderedStreamMessageParams struct {
 	Minbucket       pgtype.Date `json:"minbucket"`
 	Producerseq     int64       `json:"producerseq"`
 	Expectedprevseq int64       `json:"expectedprevseq"`
+	Messageoffset   int64       `json:"messageoffset"`
 	Payload         []byte      `json:"payload"`
 }
 
@@ -114,6 +116,7 @@ func (q *Queries) InsertOrderedStreamMessage(ctx context.Context, db DBTX, arg [
 			a.Minbucket,
 			a.Producerseq,
 			a.Expectedprevseq,
+			a.Messageoffset,
 			a.Payload,
 		}
 		batch.Queue(insertOrderedStreamMessage, vals...)
@@ -186,6 +189,71 @@ func (b *RegisterBatchBatchResults) Exec(f func(int, error)) {
 }
 
 func (b *RegisterBatchBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}
+
+const reserveStreamTopicOffsets = `-- name: ReserveStreamTopicOffsets :batchone
+INSERT INTO v1_stream_topic (tenant_id, namespace, topic, last_offset)
+VALUES ($1::uuid, $2::text, $3::text, $4::bigint)
+ON CONFLICT (tenant_id, namespace, topic) DO UPDATE
+SET last_offset = v1_stream_topic.last_offset + EXCLUDED.last_offset, last_published_at = NOW()
+RETURNING last_offset
+`
+
+type ReserveStreamTopicOffsetsBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type ReserveStreamTopicOffsetsParams struct {
+	Tenantid  uuid.UUID `json:"tenantid"`
+	Namespace string    `json:"namespace"`
+	Topic     string    `json:"topic"`
+	Count     int64     `json:"count"`
+}
+
+// Reserves @count consecutive offsets for a topic and returns the last. The
+// row lock it takes is held until the publishing transaction commits, so a
+// concurrent publisher to the topic waits, then takes strictly later offsets
+// and commits after it. Re-creates a topic the idle sweep removed; its
+// offsets restart, which is safe because every message it held had already
+// passed retention.
+func (q *Queries) ReserveStreamTopicOffsets(ctx context.Context, db DBTX, arg []ReserveStreamTopicOffsetsParams) *ReserveStreamTopicOffsetsBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.Tenantid,
+			a.Namespace,
+			a.Topic,
+			a.Count,
+		}
+		batch.Queue(reserveStreamTopicOffsets, vals...)
+	}
+	br := db.SendBatch(ctx, batch)
+	return &ReserveStreamTopicOffsetsBatchResults{br, len(arg), false}
+}
+
+func (b *ReserveStreamTopicOffsetsBatchResults) QueryRow(f func(int, int64, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		var last_offset int64
+		if b.closed {
+			if f != nil {
+				f(t, last_offset, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		row := b.br.QueryRow()
+		err := row.Scan(&last_offset)
+		if f != nil {
+			f(t, last_offset, err)
+		}
+	}
+}
+
+func (b *ReserveStreamTopicOffsetsBatchResults) Close() error {
 	b.closed = true
 	return b.br.Close()
 }

@@ -182,11 +182,11 @@ func (q *Queries) ListStreamMessageHourPartitions(ctx context.Context, db DBTX) 
 }
 
 const listStreamMessagesAfterCursor = `-- name: ListStreamMessagesAfterCursor :many
-SELECT id, inserted_at, tenant_id, namespace, topic, payload, xact_id, producer_id, producer_seq
+SELECT id, inserted_at, tenant_id, namespace, topic, payload, producer_id, producer_seq
 FROM (
-    SELECT page.id, page.inserted_at, page.tenant_id, page.namespace, page.topic, page.payload, page.xact_id, page.producer_id, page.producer_seq, SUM(octet_length(page.payload)) OVER (ORDER BY page.id) - octet_length(page.payload) AS bytes_before
+    SELECT page.id, page.inserted_at, page.tenant_id, page.namespace, page.topic, page.payload, page.producer_id, page.producer_seq, SUM(octet_length(page.payload)) OVER (ORDER BY page.id) - octet_length(page.payload) AS bytes_before
     FROM (
-        SELECT id, inserted_at, tenant_id, namespace, topic, payload, xact_id, producer_id, producer_seq
+        SELECT id, inserted_at, tenant_id, namespace, topic, payload, producer_id, producer_seq
         FROM v1_stream_message
         WHERE tenant_id = $1::uuid
             AND namespace = $2::text
@@ -194,7 +194,6 @@ FROM (
             AND id > $4::bigint
             -- the tenant's retention; also prunes partitions outside it
             AND inserted_at >= $5::timestamptz
-            AND xact_id < pg_snapshot_xmin(pg_current_snapshot())
         ORDER BY id ASC
         LIMIT $6::integer
     ) AS page
@@ -213,10 +212,9 @@ type ListStreamMessagesAfterCursorParams struct {
 	Maxbytes      int64              `json:"maxbytes"`
 }
 
-// Keyset pagination on id. xact_id < pg_snapshot_xmin(...) excludes rows
-// whose inserting transaction may still be in flight, so a concurrent batch
-// insert can't let a higher id become visible before a lower one commits.
-// A page also stops once its payloads reach @maxBytes (always keeping its
+// Keyset pagination on id, a topic's offset: offsets become visible strictly
+// in order (see ReserveStreamTopicOffsets), so nothing after the cursor can
+// appear later behind it. A page also stops once its payloads reach @maxBytes (always keeping its
 // first row). Payloads over ~2KB are stored out of line, and octet_length
 // reads their size without fetching them, so only the rows returned have
 // their payloads loaded.
@@ -244,7 +242,6 @@ func (q *Queries) ListStreamMessagesAfterCursor(ctx context.Context, db DBTX, ar
 			&i.Namespace,
 			&i.Topic,
 			&i.Payload,
-			&i.XactID,
 			&i.ProducerID,
 			&i.ProducerSeq,
 		); err != nil {
@@ -297,7 +294,7 @@ INSERT INTO v1_stream_topic (tenant_id, namespace, topic)
 VALUES ($1::uuid, $2::text, $3::text)
 ON CONFLICT (tenant_id, namespace, topic) DO UPDATE
 SET last_published_at = NOW()
-RETURNING v1_stream_topic.tenant_id, v1_stream_topic.namespace, v1_stream_topic.topic, v1_stream_topic.inserted_at, v1_stream_topic.last_published_at, (xmax = 0) AS inserted
+RETURNING v1_stream_topic.tenant_id, v1_stream_topic.namespace, v1_stream_topic.topic, v1_stream_topic.inserted_at, v1_stream_topic.last_published_at, v1_stream_topic.last_offset, (xmax = 0) AS inserted
 `
 
 type UpsertStreamTopicParams struct {
@@ -323,6 +320,7 @@ func (q *Queries) UpsertStreamTopic(ctx context.Context, db DBTX, arg UpsertStre
 		&i.V1StreamTopic.Topic,
 		&i.V1StreamTopic.InsertedAt,
 		&i.V1StreamTopic.LastPublishedAt,
+		&i.V1StreamTopic.LastOffset,
 		&i.Inserted,
 	)
 	return &i, err

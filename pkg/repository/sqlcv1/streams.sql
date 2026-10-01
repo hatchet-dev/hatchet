@@ -38,6 +38,19 @@ FROM get_v1_partitions_before_date('v1_stream_producer_cursor', @date::date) AS 
 -- name: CountStreamTopics :one
 SELECT COUNT(*) FROM v1_stream_topic WHERE tenant_id = @tenantId::uuid;
 
+-- name: ReserveStreamTopicOffsets :batchone
+-- Reserves @count consecutive offsets for a topic and returns the last. The
+-- row lock it takes is held until the publishing transaction commits, so a
+-- concurrent publisher to the topic waits, then takes strictly later offsets
+-- and commits after it. Re-creates a topic the idle sweep removed; its
+-- offsets restart, which is safe because every message it held had already
+-- passed retention.
+INSERT INTO v1_stream_topic (tenant_id, namespace, topic, last_offset)
+VALUES (@tenantId::uuid, @namespace::text, @topic::text, @count::bigint)
+ON CONFLICT (tenant_id, namespace, topic) DO UPDATE
+SET last_offset = v1_stream_topic.last_offset + EXCLUDED.last_offset, last_published_at = NOW()
+RETURNING last_offset;
+
 -- name: InsertOrderedStreamMessage :batchone
 -- Atomically advances the producer's watermark and inserts the message, but
 -- only if producer_seq is exactly one past the producer's last durably
@@ -88,8 +101,9 @@ WITH latest AS (
     UNION ALL
     SELECT 1 FROM first_message
 ), inserted_row AS (
-    INSERT INTO v1_stream_message (tenant_id, namespace, topic, payload, producer_id, producer_seq)
-    SELECT @tenantId::uuid, @namespace::text, @topic::text, @payload::bytea, @producerId::text, @producerSeq::bigint
+    INSERT INTO v1_stream_message (id, tenant_id, namespace, topic, payload, producer_id, producer_seq)
+    -- the offset reserved for this message by ReserveStreamTopicOffsets
+    SELECT @messageOffset::bigint, @tenantId::uuid, @namespace::text, @topic::text, @payload::bytea, @producerId::text, @producerSeq::bigint
     WHERE EXISTS (SELECT 1 FROM applied)
     RETURNING 1
 )
@@ -139,14 +153,13 @@ FROM list_v1_stream_message_empty_tenant_partitions() AS p
 WHERE NOT EXISTS (SELECT 1 FROM v1_stream_topic t WHERE t.tenant_id = p.tenant_id);
 
 -- name: ListStreamMessagesAfterCursor :many
--- Keyset pagination on id. xact_id < pg_snapshot_xmin(...) excludes rows
--- whose inserting transaction may still be in flight, so a concurrent batch
--- insert can't let a higher id become visible before a lower one commits.
--- A page also stops once its payloads reach @maxBytes (always keeping its
+-- Keyset pagination on id, a topic's offset: offsets become visible strictly
+-- in order (see ReserveStreamTopicOffsets), so nothing after the cursor can
+-- appear later behind it. A page also stops once its payloads reach @maxBytes (always keeping its
 -- first row). Payloads over ~2KB are stored out of line, and octet_length
 -- reads their size without fetching them, so only the rows returned have
 -- their payloads loaded.
-SELECT id, inserted_at, tenant_id, namespace, topic, payload, xact_id, producer_id, producer_seq
+SELECT id, inserted_at, tenant_id, namespace, topic, payload, producer_id, producer_seq
 FROM (
     SELECT page.*, SUM(octet_length(page.payload)) OVER (ORDER BY page.id) - octet_length(page.payload) AS bytes_before
     FROM (
@@ -158,7 +171,6 @@ FROM (
             AND id > @afterId::bigint
             -- the tenant's retention; also prunes partitions outside it
             AND inserted_at >= @retainedSince::timestamptz
-            AND xact_id < pg_snapshot_xmin(pg_current_snapshot())
         ORDER BY id ASC
         LIMIT sqlc.arg('limit')::integer
     ) AS page

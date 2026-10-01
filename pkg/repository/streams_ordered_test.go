@@ -228,8 +228,8 @@ func TestListMessagesAfterCursor_HidesMessagesPastTenantRetention(t *testing.T) 
 	require.NoError(t, err)
 
 	_, err = pool.Exec(ctx, `
-		INSERT INTO v1_stream_message (tenant_id, topic, payload, producer_id, producer_seq, inserted_at)
-		VALUES ($1, 't', 'old', 'p', 0, NOW() - INTERVAL '3 hours'), ($1, 't', 'new', 'p', 1, NOW())
+		INSERT INTO v1_stream_message (id, tenant_id, topic, payload, producer_id, producer_seq, inserted_at)
+		VALUES (1, $1, 't', 'old', 'p', 0, NOW() - INTERVAL '3 hours'), (2, $1, 't', 'new', 'p', 1, NOW())
 	`, tenantId)
 	require.NoError(t, err)
 

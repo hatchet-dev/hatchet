@@ -124,22 +124,25 @@ CREATE TABLE v1_stream_topic (
     topic TEXT NOT NULL,
     inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     last_published_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- the highest message offset handed out; publishers reserve offsets by
+    -- advancing it, holding the row lock until they commit (see v1_stream_message)
+    last_offset BIGINT NOT NULL DEFAULT 0,
 
     CONSTRAINT v1_stream_topic_pkey PRIMARY KEY (tenant_id, namespace, topic)
-);
+-- every publish batch updates its topic's row; leave room for that to stay on the page
+) WITH (fillfactor = 80);
 
--- xact_id stores the transaction id that this row was inserted with
--- when querying, we filter based on the minimum in-flight transaction number,
--- thus all transactions started after the oldest in flight transaction are ignored
--- strictly ordering messages by transaction *start* rather than commit.
+-- id is the message's offset within its topic, reserved from
+-- v1_stream_topic.last_offset under that topic's row lock and held until the
+-- publishing transaction commits. A later offset therefore can't become
+-- visible before an earlier one, so readers page on id > cursor alone.
 CREATE TABLE v1_stream_message (
-    id BIGINT GENERATED ALWAYS AS IDENTITY,
+    id BIGINT NOT NULL,
     inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     tenant_id UUID NOT NULL,
     namespace TEXT NOT NULL DEFAULT '',
     topic TEXT NOT NULL,
     payload BYTEA NOT NULL,
-    xact_id XID8 NOT NULL DEFAULT pg_current_xact_id(),
     producer_id TEXT NOT NULL,
     producer_seq BIGINT NOT NULL,
 

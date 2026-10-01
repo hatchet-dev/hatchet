@@ -286,6 +286,20 @@ func (r *streamsRepositoryImpl) InsertOrderedStreamMessages(ctx context.Context,
 		tenantIds = append(tenantIds, m.TenantID)
 	}
 
+	// one offset reservation per topic, in the same sorted order, so concurrent
+	// batches also take topic row locks (always before cursor rows) in one order
+	var reservations []sqlcv1.ReserveStreamTopicOffsetsParams
+	var groupStart []int
+
+	for i, p := range params {
+		if i == 0 || p.Tenantid != params[i-1].Tenantid || p.Namespace != params[i-1].Namespace || p.Topic != params[i-1].Topic {
+			reservations = append(reservations, sqlcv1.ReserveStreamTopicOffsetsParams{Tenantid: p.Tenantid, Namespace: p.Namespace, Topic: p.Topic})
+			groupStart = append(groupStart, i)
+		}
+
+		reservations[len(reservations)-1].Count++
+	}
+
 	results := make([]OrderedStreamMessageResult, len(msgs))
 
 	err := r.withStreamMessagePartition(ctx, tenantIds, func() error {
@@ -298,6 +312,23 @@ func (r *streamsRepositoryImpl) InsertOrderedStreamMessages(ctx context.Context,
 		defer rollback()
 
 		var batchErr error
+
+		r.queries.ReserveStreamTopicOffsets(ctx, tx, reservations).QueryRow(func(g int, lastOffset int64, err error) {
+			if err != nil {
+				batchErr = cmp.Or(batchErr, err)
+				return
+			}
+
+			first := lastOffset - reservations[g].Count + 1
+
+			for j := range reservations[g].Count {
+				params[groupStart[g]+int(j)].Messageoffset = first + j
+			}
+		})
+
+		if batchErr != nil {
+			return batchErr
+		}
 
 		r.queries.InsertOrderedStreamMessage(ctx, tx, params).QueryRow(func(i int, row *sqlcv1.InsertOrderedStreamMessageRow, err error) {
 			if err != nil {
