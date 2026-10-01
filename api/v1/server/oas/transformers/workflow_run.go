@@ -7,7 +7,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-func ToScheduledWorkflowsFromSQLC(scheduled *sqlcv1.ListScheduledWorkflowsRow) *gen.ScheduledWorkflows {
+func ToScheduledWorkflowsFromSQLC(scheduled *sqlcv1.ListScheduledWorkflowsRow, opts ...PayloadOption) *gen.ScheduledWorkflows {
+	o := applyPayloadOptions(opts)
 
 	var additionalMetadata map[string]interface{}
 
@@ -26,7 +27,7 @@ func ToScheduledWorkflowsFromSQLC(scheduled *sqlcv1.ListScheduledWorkflowsRow) *
 	}
 
 	input := make(map[string]interface{})
-	if scheduled.Input != nil {
+	if o.includePayloads && scheduled.Input != nil {
 		if err := json.Unmarshal(scheduled.Input, &input); err != nil {
 			return nil
 		}
@@ -52,7 +53,9 @@ func ToScheduledWorkflowsFromSQLC(scheduled *sqlcv1.ListScheduledWorkflowsRow) *
 	return res
 }
 
-func ToCronWorkflowsFromSQLC(cron *sqlcv1.ListCronWorkflowsRow) *gen.CronWorkflows {
+func ToCronWorkflowsFromSQLC(cron *sqlcv1.ListCronWorkflowsRow, opts ...PayloadOption) *gen.CronWorkflows {
+	o := applyPayloadOptions(opts)
+
 	var additionalMetadata map[string]interface{}
 
 	if cron.AdditionalMetadata != nil {
@@ -63,7 +66,7 @@ func ToCronWorkflowsFromSQLC(cron *sqlcv1.ListCronWorkflowsRow) *gen.CronWorkflo
 	}
 
 	input := make(map[string]interface{})
-	if cron.Input != nil {
+	if o.includePayloads && cron.Input != nil {
 		json.Unmarshal(cron.Input, &input) //nolint:errcheck
 	}
 

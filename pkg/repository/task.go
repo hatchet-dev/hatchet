@@ -5129,7 +5129,10 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 			rootExternalIds = append(rootExternalIds, child.ExternalID)
 		}
 
-		version, err := r.queries.GetWorkflowVersionById(ctx, r.pool, orchestrator.WorkflowVersionID)
+		version, err := r.queries.GetWorkflowVersionById(ctx, r.pool, sqlcv1.GetWorkflowVersionByIdParams{
+			ID:       orchestrator.WorkflowVersionID,
+			Tenantid: tenantId,
+		})
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to get workflow version: %w", err)

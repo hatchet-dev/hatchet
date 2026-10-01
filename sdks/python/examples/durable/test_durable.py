@@ -293,7 +293,19 @@ async def test_durable_non_determinism(hatchet: Hatchet) -> None:
 
     await hatchet.runs.aio_replay(ref.workflow_run_id)
 
-    replayed_result = await ref.aio_result()
+    # aio_result resolves at once when the run is already terminal, and the
+    # replay flips the run back to running only shortly after the request
+    # returns, so a single read can still hand back the first attempt. Keep
+    # asking until the second attempt is what comes back.
+    deadline = time.monotonic() + 60
+    while True:
+        replayed_result = await ref.aio_result()
+        if replayed_result.attempt_number >= 2:
+            break
+        assert (
+            time.monotonic() < deadline
+        ), f"the replayed attempt never produced a result; last attempt seen: {replayed_result.attempt_number}"
+        await asyncio.sleep(0.5)
 
     assert replayed_result.non_determinism_detected
     assert replayed_result.node_id == 1
