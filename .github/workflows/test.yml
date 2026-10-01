@@ -541,7 +541,7 @@ jobs:
 
       - name: Upload CPU samples and profiles
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v5.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: load-samples-optimistic-${{ matrix.optimistic-scheduling }}-race-${{ matrix.race }}
           path: |
@@ -577,7 +577,7 @@ jobs:
           go-version: "1.26"
 
       - name: Download load samples
-        uses: actions/download-artifact@3e0d4d5c3c1d6e8f0e4c5b5f0c3f6d2f1c4a8c7b # v6.0.0
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
           pattern: load-samples-*
           path: ${{ runner.temp }}/load-samples
