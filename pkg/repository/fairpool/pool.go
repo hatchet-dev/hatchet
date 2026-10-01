@@ -201,7 +201,7 @@ func (h *handle) pinConn(ctx context.Context) (*pgxpool.Conn, *slotHold, error) 
 		var acquireErr error
 		conn, acquireErr = h.pool.inner.Acquire(ctx)
 		return acquireErr
-	}, func() { conn.Release() })
+	})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -296,7 +296,7 @@ func (h *handle) BeginTx(ctx context.Context, txOptions pgx.TxOptions) (pgx.Tx, 
 		var beginErr error
 		tx, beginErr = h.pool.inner.BeginTx(ctx, txOptions)
 		return beginErr
-	}, func() { _ = tx.Rollback(ctx) })
+	})
 	if err != nil {
 		return nil, err
 	}

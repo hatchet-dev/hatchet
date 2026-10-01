@@ -157,8 +157,7 @@ func (g *gatingRows) Next() bool {
 		return true
 	}
 
-	// pgx releases the connection when Next returns false. Free the slot too,
-	// including when the caller never calls Close.
+	// Release the conn and slot for callers that never call Close.
 	g.finish()
 
 	return false

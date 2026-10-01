@@ -75,68 +75,67 @@ func newGate(limit int64, maxWait time.Duration, poolName string, l *zerolog.Log
 	}
 }
 
-// pin counts one connection against key. open must check out the connection.
-// The slot is taken only after open succeeds, and it is held until the caller
-// releases the returned hold. If the bucket is full, release runs and pin waits
-// up to MaxWait without keeping the connection.
-func (g *gate) pin(ctx context.Context, key string, tenantID uuid.UUID, open func() error, release func()) (*slotHold, error) {
+// pin reserves a slot for key (waiting up to MaxWait), then calls open to check
+// out the connection. The slot is held until the returned hold is released.
+//
+// The slot is taken before open on purpose. Checking out the connection first
+// would park a pool connection while waiting on the tenant cap.
+func (g *gate) pin(ctx context.Context, key string, tenantID uuid.UUID, open func() error) (*slotHold, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	slots := g.borrow(key)
 	defer g.releaseBorrow(key, slots)
 
-	deadline := time.Now().Add(g.maxWait)
-	var waited time.Duration
-
-	for {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-
-		if err := open(); err != nil {
-			return nil, err
-		}
-
-		if slots.sem.TryAcquire(1) {
-			if waited > 0 {
-				prometheus.FairpoolWait.WithLabelValues(g.poolName, "acquired").Observe(waited.Seconds())
-				g.warnLimited(key, slots, waited)
-			}
-
-			return g.take(key, slots), nil
-		}
-
-		release()
-
-		remaining := time.Until(deadline)
-		if remaining <= 0 {
-			return nil, g.reject(key, slots, tenantID, waited)
-		}
-
-		start := time.Now()
-		waitCtx, cancel := context.WithTimeout(ctx, remaining)
-		_, span := telemetry.NewSpan(ctx, "db.fairpool.wait")
-		err := slots.sem.Acquire(waitCtx, 1)
-		waited += time.Since(start)
-		telemetry.WithAttributes(span,
-			telemetry.AttributeKV{Key: "tenant_id", Value: key},
-			telemetry.AttributeKV{Key: "limit", Value: g.limit},
-			telemetry.AttributeKV{Key: "waited_ms", Value: waited.Milliseconds()},
-		)
-		span.End()
-		cancel()
-
-		if err != nil {
-			if ctx.Err() != nil {
-				prometheus.FairpoolWait.WithLabelValues(g.poolName, "canceled").Observe(waited.Seconds())
-				return nil, ctx.Err()
-			}
-
-			return nil, g.reject(key, slots, tenantID, waited)
-		}
-
-		// The slot was only a signal that one might be free. Give it back and
-		// check out a connection before counting it.
-		slots.sem.Release(1)
+	waited, err := g.reserve(ctx, key, slots, tenantID)
+	if err != nil {
+		return nil, err
 	}
+
+	if err := open(); err != nil {
+		slots.sem.Release(1)
+		return nil, err
+	}
+
+	if waited > 0 {
+		prometheus.FairpoolWait.WithLabelValues(g.poolName, "acquired").Observe(waited.Seconds())
+		g.warnLimited(key, slots, waited)
+	}
+
+	return g.take(key, slots), nil
+}
+
+// reserve acquires one slot, waiting up to MaxWait. The caller must take or release it.
+func (g *gate) reserve(ctx context.Context, key string, slots *tenantSlots, tenantID uuid.UUID) (time.Duration, error) {
+	if slots.sem.TryAcquire(1) {
+		return 0, nil
+	}
+
+	start := time.Now()
+	waitCtx, cancel := context.WithTimeout(ctx, g.maxWait)
+	defer cancel()
+
+	_, span := telemetry.NewSpan(ctx, "db.fairpool.wait")
+	err := slots.sem.Acquire(waitCtx, 1)
+	waited := time.Since(start)
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "tenant_id", Value: key},
+		telemetry.AttributeKV{Key: "limit", Value: g.limit},
+		telemetry.AttributeKV{Key: "waited_ms", Value: waited.Milliseconds()},
+	)
+	span.End()
+
+	if err == nil {
+		return waited, nil
+	}
+
+	if ctx.Err() != nil {
+		prometheus.FairpoolWait.WithLabelValues(g.poolName, "canceled").Observe(waited.Seconds())
+		return waited, ctx.Err()
+	}
+
+	return waited, g.reject(key, slots, tenantID, waited)
 }
 
 func (g *gate) reject(key string, slots *tenantSlots, tenantID uuid.UUID, waited time.Duration) error {

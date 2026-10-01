@@ -206,6 +206,61 @@ func TestTenantCapLetsOtherTenantsThrough(t *testing.T) {
 	requireGone(t, name, tenantA.String())
 }
 
+// Waiters on a full bucket must proceed one at a time as slots free, with
+// exactly one pool acquire each. Guards against checking out a connection
+// before owning a slot, which costs a pool acquire per failed attempt.
+func TestQueuedWaitersEachProceed(t *testing.T) {
+	const waiters = 5
+
+	pool, name := newPool(t, 50, 3*time.Second, nil)
+	ctx := context.Background()
+	tenantA := uuid.New()
+	dbA := pool.ForTenant(tenantA)
+
+	acquiresBefore := pool.Unwrap().Stat().AcquireCount()
+
+	tx1, err := dbA.Begin(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = tx1.Rollback(context.Background()) })
+	tx2, err := dbA.Begin(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = tx2.Rollback(context.Background()) })
+
+	acquired := make(chan pgx.Tx, waiters)
+	failed := make(chan error, waiters)
+	for i := 0; i < waiters; i++ {
+		go func() {
+			tx, err := dbA.Begin(ctx)
+			if err != nil {
+				failed <- err
+				return
+			}
+			acquired <- tx
+		}()
+	}
+
+	time.Sleep(100 * time.Millisecond)
+	require.NoError(t, tx1.Rollback(ctx))
+
+	for i := 0; i < waiters; i++ {
+		select {
+		case tx := <-acquired:
+			requireHeld(t, name, tenantA.String(), 2)
+			require.NoError(t, tx.Rollback(ctx))
+		case err := <-failed:
+			t.Fatalf("waiter %d failed instead of taking the freed slot: %v", i, err)
+		case <-time.After(2 * time.Second):
+			t.Fatalf("waiter %d did not proceed after a slot was released", i)
+		}
+	}
+
+	require.NoError(t, tx2.Rollback(ctx))
+	requireGone(t, name, tenantA.String())
+
+	acquires := pool.Unwrap().Stat().AcquireCount() - acquiresBefore
+	require.Equal(t, int64(2+waiters), acquires, "each Begin should check out exactly one pool connection")
+}
+
 func TestLimitErrorAndCancel(t *testing.T) {
 	pool, _ := newPool(t, 50, 150*time.Millisecond, nil)
 	ctx := context.Background()
