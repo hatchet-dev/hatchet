@@ -46,6 +46,7 @@ V1TaskSummary:
       format: date-time
       description: The timestamp the task run finished.
     input:
+      x-payload: true
       type: object
       x-go-type: openapi.NonNullableJSON
       x-go-type-import:
@@ -57,6 +58,7 @@ V1TaskSummary:
       type: integer
       description: The number of spawned children tasks
     output:
+      x-payload: true
       type: object
       x-go-type: openapi.NonNullableJSON
       x-go-type-import:
@@ -251,6 +253,7 @@ V1TaskEvent:
     errorMessage:
       type: string
     output:
+      x-payload: true
       type: string
     workerId:
       type: string

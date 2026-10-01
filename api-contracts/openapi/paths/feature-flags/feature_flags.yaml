@@ -3,6 +3,7 @@ evaluateFeatureFlag:
     x-resources: ["tenant"]
     description: Evaluate a feature flag for a tenant
     operationId: tenant:feature-flag:evaluate
+    x-payloads: false
     parameters:
       - description: The tenant ID
         in: path
