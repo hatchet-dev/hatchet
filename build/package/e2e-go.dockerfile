@@ -5,9 +5,7 @@ WORKDIR /hatchet
 
 COPY go.mod go.sum ./
 
-# Module downloads fail now and then on a dropped proxy stream; a retry inside
-# the image build is the only place that can catch it.
-RUN n=0; until go mod download; do n=$((n + 1)); [ "$n" -ge 3 ] && exit 1; sleep $((n * 10)); done
+RUN go mod download
 
 COPY /pkg ./pkg
 COPY /internal ./internal

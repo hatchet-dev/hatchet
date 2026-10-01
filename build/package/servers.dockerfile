@@ -9,13 +9,11 @@ RUN apk update && apk add --no-cache git protoc protobuf-dev
 
 RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28
 RUN go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2
-RUN n=0; until go install github.com/deepmap/oapi-codegen/v2/cmd/oapi-codegen@v2.0.0; do n=$((n + 1)); [ "$n" -ge 3 ] && exit 1; sleep $((n * 10)); done
+RUN go install github.com/deepmap/oapi-codegen/v2/cmd/oapi-codegen@v2.0.0
 
 COPY go.mod go.sum ./
 
-# Module downloads fail now and then on a dropped proxy stream; a retry inside
-# the image build is the only place that can catch it.
-RUN n=0; until go mod download; do n=$((n + 1)); [ "$n" -ge 3 ] && exit 1; sleep $((n * 10)); done
+RUN go mod download
 
 COPY /api ./api
 COPY /api-contracts ./api-contracts
