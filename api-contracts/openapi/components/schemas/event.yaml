@@ -38,6 +38,7 @@ Events:
 EventData:
   properties:
     data:
+      x-payload: true
       type: string
       description: The data for the event (JSON bytes).
   required:
