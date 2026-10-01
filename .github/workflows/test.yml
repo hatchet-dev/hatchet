@@ -511,14 +511,16 @@ jobs:
           # The load test package runs verbose so its per-subtest results are
           # in the log on a green run too; go test only shows a passing
           # package's output with -v, and -v cannot be given per package in
-          # one invocation. The other load-tagged packages run concurrently,
-          # as they did under -p 5, and stay quiet.
+          # one invocation. The other load-tagged packages run concurrently
+          # with it and stay quiet. The shell exits on error by default, so
+          # the foreground status is captured explicitly and the background
+          # load test is always waited for before the step reports.
           go test -tags load -v ./cmd/hatchet-loadtest/ ${{ matrix.race == 'true' && '-race' || '' }} -failfast -timeout 20m &
           loadtest=$!
-          go test -tags load $(go list -tags load ./... | grep -v '/cmd/hatchet-loadtest$') -p 4 ${{ matrix.race == 'true' && '-race' || '' }} -failfast -timeout 20m
-          others=$?
-          wait "$loadtest"
-          loadtest_status=$?
+          others=0
+          go test -tags load $(go list -tags load ./... | grep -v '/cmd/hatchet-loadtest$') -p 4 ${{ matrix.race == 'true' && '-race' || '' }} -failfast -timeout 20m || others=$?
+          loadtest_status=0
+          wait "$loadtest" || loadtest_status=$?
           exit $(( others || loadtest_status ))
         env:
           HATCHET_LOADTEST_STARTUP_SLEEP: 120s

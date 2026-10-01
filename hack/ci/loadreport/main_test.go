@@ -244,7 +244,9 @@ func TestGoldenCharts(t *testing.T) {
 			if !axisRE.MatchString(l) {
 				t.Errorf("bad axis %q", l)
 			}
-			// two quotes belong to the axis title
+			// Mermaid gets unreadable past a few dozen points, so the axis
+			// must hold exactly the bucket count; its own quoted title is not
+			// a point.
 			if n := strings.Count(l, "\"")/2 - 1; n != maxBuckets {
 				t.Errorf("axis has %d points", n)
 			}
@@ -290,8 +292,8 @@ func TestNoSamples(t *testing.T) {
 	}
 }
 
-// F3: a credential-shaped process name must not reach any sink, including
-// the chart series and the inline process list that bypass sanitizeBlock.
+// A credential-shaped process name must not reach any sink, including the
+// chart series and the inline process list that bypass sanitizeBlock.
 func TestProcessNameSecretsRedactedInEverySink(t *testing.T) {
 	p := writeFiles(t, map[string]string{"cpu.log": header +
 		"10:00:00 1.0 1.0 50.0 40 10 0.0 0.0 8000 ghp_abcdefghijklmnop123=60 postgresql://u:DemoPgPassword42@h=10\n" +
@@ -310,8 +312,8 @@ func TestProcessNameSecretsRedactedInEverySink(t *testing.T) {
 	}
 }
 
-// F5: the label is allowlisted but a bare host is still autolinkable, so it
-// is rendered inside a code span.
+// The label is allowlisted but a bare host is still autolinkable, so it is
+// rendered inside a code span.
 func TestLabelRendersInsideCodeSpan(t *testing.T) {
 	p := writeFiles(t, map[string]string{"cpu.log": synthLog(2)})
 	out, err := run(options{cpu: p["cpu.log"], label: "www.attacker.example", maxBytes: 60000})
@@ -329,7 +331,9 @@ func TestLabelRendersInsideCodeSpan(t *testing.T) {
 	}
 }
 
-// F7: inputs are bounded before they are read.
+// The reporter runs late in a job that is already failing, so an input a
+// test could make unbounded or unreadable, such as a FIFO, must be rejected
+// before it can stall the step or exhaust its memory.
 func TestInputBounds(t *testing.T) {
 	dir := t.TempDir()
 	huge := filepath.Join(dir, "huge.log")
