@@ -10,7 +10,6 @@
 #   cpu-sampler.sh start <log>                       sample in the background, pid in <log>.pid
 #   cpu-sampler.sh stop <log>                        stop sampling
 #   cpu-sampler.sh summarize <log>                   print a summary of the samples
-#   cpu-sampler.sh comment <log> [label] [run url]   markdown with charts for a PR comment
 #
 # Linux only (reads /proc). Samples every 2 seconds by default (CPU_SAMPLE_INTERVAL).
 
@@ -24,19 +23,23 @@ read_cpu() {
   awk '/^cpu / { print $2, $3, $4, $5, $6, $7, $8, $9 }' /proc/stat
 }
 
-# Prints "comm ticks" per command name, summing user and system time over all
-# processes with that name. The comm field is parenthesised and can contain
-# spaces, so the line is split on the last closing parenthesis.
+# Prints "pid ticks comm" per process, ticks being user plus system time. The
+# command name comes last so a name containing spaces cannot shift the numeric
+# fields. The comm field in /proc/<pid>/stat is parenthesised and may itself
+# contain spaces or parentheses, so the line is split on the first "(" and the
+# last ")".
 read_procs() {
   for f in /proc/[0-9]*/stat; do
     cat "$f" 2>/dev/null
-  done | awk -F '[()]' 'NF >= 3 {
-    # $2 is the command name; the last field holds the counters, where utime
-    # is field 12 and stime field 13 after the leading space
-    n = split($NF, fields, " ")
-    if (n >= 13) ticks[$2] += fields[12] + fields[13]
-  }
-  END { for (c in ticks) print c, ticks[c] }'
+  done | awk '{
+    lparen = index($0, "(")
+    rparen = 0
+    for (i = length($0); i > 0; i--) if (substr($0, i, 1) == ")") { rparen = i; break }
+    if (lparen == 0 || rparen == 0) next
+    comm = substr($0, lparen + 1, rparen - lparen - 1)
+    n = split(substr($0, rparen + 2), fields, " ")
+    if (n >= 13) print $1, fields[12] + fields[13], comm
+  }'
 }
 
 sample_loop() {
@@ -80,20 +83,26 @@ sample_loop() {
     total_ticks="${cpu_line##* }"
     cpu_line="${cpu_line% *}"
 
+    # Deltas are taken per pid and only for pids present in both samples, then
+    # summed by command name, so a process that exits and a new one with the
+    # same name that starts within an interval cannot be credited with each
+    # other's time. Processes shorter than one interval are not attributed.
     procs="$(awk -v total="$total_ticks" -v limit="$top_processes" '
       NR == FNR { prev[$1] = $2; next }
-      { delta = $2 - prev[$1]; if (delta > 0) pct[$1] = delta * 100 / total }
+      ($1 in prev) {
+        delta = $2 - prev[$1]
+        comm = substr($0, length($1 " " $2 " ") + 1)
+        gsub(/[ =]/, "_", comm)
+        if (delta > 0) pct[comm] += delta * 100 / total
+      }
       END {
         n = 0
         for (c in pct) { n++; names[n] = c }
-        # selection sort, descending by share
         for (i = 1; i <= n; i++)
           for (j = i + 1; j <= n; j++)
             if (pct[names[j]] > pct[names[i]]) { t = names[i]; names[i] = names[j]; names[j] = t }
-        for (i = 1; i <= n && i <= limit; i++) {
-          gsub(/[ =]/, "_", names[i])
+        for (i = 1; i <= n && i <= limit; i++)
           printf "%s%s=%.1f", (i > 1 ? " " : ""), names[i], pct[names[i]]
-        }
       }' "$prev_procs" "$cur_procs")"
 
     prev="$cur"
@@ -106,8 +115,6 @@ sample_loop() {
   done
 }
 
-# Prints "comm mean_pct" for the commands with the highest mean share over the
-# run, highest first, at most $1 of them.
 top_commands() {
   limit="$1"
   log="$2"
@@ -133,7 +140,8 @@ case "${1:-}" in
   start)
     log="$2"
     : > "$log"
-    sample_loop "$log" &
+    # detached from the step's output streams, which the runner waits on
+    sample_loop "$log" > /dev/null 2>&1 &
     echo $! > "$log.pid"
     echo "cpu sampler started (pid $!, every ${interval}s) -> $log"
     ;;
@@ -171,76 +179,8 @@ case "${1:-}" in
     echo "top processes by mean share of all CPUs:"
     top_commands 8 "$log" | awk '{ printf "  %-24s %5.1f%%\n", $1, $2 }'
     ;;
-  comment)
-    # Markdown for a pull request comment: the summary plus two Mermaid charts,
-    # runner pressure (busy, steal) and the top processes, which GitHub renders
-    # inline. Mermaid charts get unreadable past a few dozen points, so the
-    # samples are averaged into at most 40 buckets.
-    log="$2"
-    label="${3:-load test}"
-    run_url="${4:-}"
-    if [ ! -s "$log" ]; then
-      echo "No CPU samples were recorded for the $label run."
-      exit 0
-    fi
-    echo "### Runner CPU during the failed $label run"
-    echo
-    echo "Busy is 100 minus idle across all CPUs: near 100 means the runner was saturated. Steal is CPU the host took away from the runner: above a few percent means it was oversubscribed. Either way the latency gate measured the runner, not the scheduler."
-    echo
-    echo '```'
-    "$0" summarize "$log"
-    echo '```'
-    echo
-    tops="$(top_commands 5 "$log" | awk '{ printf "%s%s", (NR > 1 ? "," : ""), $1 }')"
-    awk -v tops="$tops" '
-    BEGIN { ntop = split(tops, top, ",") }
-    !/^#/ {
-      n++; t[n] = $1; busy[n] = $4; steal[n] = $8
-      for (i = 10; i <= NF; i++) { split($i, kv, "="); share[n, kv[1]] = kv[2] }
-    }
-    function series(name, buckets, per,    b, lo, hi, i, sum, count, key, out) {
-      out = ""
-      for (b = 0; b < buckets; b++) {
-        lo = int(b * per) + 1; hi = int((b + 1) * per); if (hi < lo) hi = lo; if (hi > n) hi = n
-        sum = 0; count = 0
-        for (i = lo; i <= hi; i++) {
-          if (name == "busy") sum += busy[i]
-          else if (name == "steal") sum += steal[i]
-          else { key = i SUBSEP name; sum += (key in share ? share[key] : 0) }
-          count++
-        }
-        out = out (b ? ", " : "") sprintf("%.1f", sum / count)
-      }
-      return out
-    }
-    function axis(buckets, per,    b, i, out) {
-      out = ""
-      for (b = 0; b < buckets; b++) { i = int(b * per) + 1; out = out (b ? ", " : "") "\"" t[i] "\"" }
-      return out
-    }
-    END {
-      if (n == 0) exit
-      buckets = n < 40 ? n : 40
-      per = n / buckets
-      printf "```mermaid\nxychart-beta\n    title \"Runner pressure (%d samples)\"\n", n
-      printf "    x-axis \"sample time\" [%s]\n    y-axis \"percent of all CPUs\" 0 --> 100\n", axis(buckets, per)
-      printf "    line \"busy\" [%s]\n    line \"steal\" [%s]\n```\n\n", series("busy", buckets, per), series("steal", buckets, per)
-      if (ntop == 0) exit
-      printf "```mermaid\nxychart-beta\n    title \"Top processes, share of all CPUs\"\n"
-      printf "    x-axis \"sample time\" [%s]\n    y-axis \"percent of all CPUs\" 0 --> 100\n", axis(buckets, per)
-      for (k = 1; k <= ntop; k++) printf "    line \"%s\" [%s]\n", top[k], series(top[k], buckets, per)
-      printf "```\n"
-      printf "\nProcess lines, in order: "
-      for (k = 1; k <= ntop; k++) printf "%s%s", (k > 1 ? ", " : ""), top[k]
-      printf "\n"
-    }' "$log"
-    if [ -n "$run_url" ]; then
-      echo
-      echo "Raw samples are in the run's \`load-cpu-samples-*\` artifacts: $run_url"
-    fi
-    ;;
   *)
-    echo "usage: cpu-sampler.sh start|stop|summarize|comment <log> [label] [run-url]" >&2
+    echo "usage: cpu-sampler.sh start|stop|summarize <log>" >&2
     exit 2
     ;;
 esac

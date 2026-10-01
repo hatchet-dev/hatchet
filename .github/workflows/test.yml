@@ -413,11 +413,6 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-    # Four variants: optimistic scheduling on and off, each with and without
-    # the race detector. Every variant runs with sync.Mutex rewritten to
-    # go-deadlock so lock ordering problems surface as failures. The race
-    # detector multiplies CPU cost and serializes the process, so those
-    # variants check correctness only; the latency gate applies without it.
     strategy:
       fail-fast: false
       matrix:
@@ -499,21 +494,12 @@ jobs:
           echo "Changed Go files (after patch):"
           git diff --name-only -- '*.go' || true
 
-      # The latency gate below measures the runner as much as the engine, so
-      # sample CPU pressure for the whole run: steal and idle time from
-      # /proc/stat say whether a slow result came from a constrained runner.
       - name: Start CPU sampler
         run: hack/ci/cpu-sampler.sh start "$RUNNER_TEMP/cpu-samples.log"
 
-      # The load test binary hosts the engine, the worker and the load
-      # generator, and exposes pprof on this address while it runs; profiles
-      # pulled from it show where that process spent the CPU it got.
       - name: Start pprof sampler
         run: hack/ci/pprof-sampler.sh start "$RUNNER_TEMP/pprof" localhost:6060
 
-      # The harness's Postgres container preloads pg_stat_statements; snapshot
-      # it while the container lives so the summary can say where the database
-      # spent its time.
       - name: Start pg_stat sampler
         run: hack/ci/pgstat-sampler.sh start "$RUNNER_TEMP/pgstat" "postgres:$TESTING_MATRIX_PG_VERSION"
 
@@ -550,31 +536,23 @@ jobs:
           hack/ci/pgstat-sampler.sh stop "$RUNNER_TEMP/pgstat"
           hack/ci/pgstat-sampler.sh summarize "$RUNNER_TEMP/pgstat" | tee "$RUNNER_TEMP/pgstat/summary.txt"
 
-      - name: Comment CPU chart on PR
-        if: failure() && steps.run-tests.outcome == 'failure' && github.event_name == 'pull_request'
+      # Only same-repository pull requests get a comment: the token is read-only
+      # on forks, and nothing here needs to run there. The body is produced by
+      # a Go program that validates every untrusted field before it reaches
+      # markdown, so sampler output can never carry links, mentions, HTML or
+      # secrets into the comment.
+      - name: Comment performance metrics on PR
+        if: failure() && steps.run-tests.outcome == 'failure' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        continue-on-error: true
         run: |
-          {
-            hack/ci/cpu-sampler.sh comment "$RUNNER_TEMP/cpu-samples.log" \
-              "load (optimistic ${{ matrix.optimistic-scheduling }}, race ${{ matrix.race }})" \
-              "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-            echo
-            echo "<details><summary>pprof: where the load test process spent its CPU</summary>"
-            echo
-            echo '```'
-            cat "$RUNNER_TEMP/pprof/summary.txt"
-            echo '```'
-            echo
-            echo "</details>"
-            echo
-            echo "<details><summary>pg_stat: where Postgres spent its time</summary>"
-            echo
-            echo '```'
-            cat "$RUNNER_TEMP/pgstat/summary.txt"
-            echo '```'
-            echo
-            echo "</details>"
-          } > "$RUNNER_TEMP/cpu-comment.md"
-          gh pr comment ${{ github.event.pull_request.number }} --body-file "$RUNNER_TEMP/cpu-comment.md"
+          go run ./hack/ci/loadreport \
+            -cpu "$RUNNER_TEMP/cpu-samples.log" \
+            -pprof "$RUNNER_TEMP/pprof/summary.txt" \
+            -pgstat "$RUNNER_TEMP/pgstat/summary.txt" \
+            -label "load (optimistic ${{ matrix.optimistic-scheduling }}, race ${{ matrix.race }})" \
+            -run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            > "$RUNNER_TEMP/performance-comment.md"
+          gh pr comment ${{ github.event.pull_request.number }} --body-file "$RUNNER_TEMP/performance-comment.md"
         env:
           GH_TOKEN: ${{ github.token }}
 

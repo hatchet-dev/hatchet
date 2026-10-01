@@ -31,8 +31,12 @@ sample_loop() {
   while :; do
     stamp="$(date -u +%H%M%S)"
     curl -sf -o "$dir/goroutines-$stamp.txt" "http://$addr/debug/pprof/goroutine?debug=1" || true
-    if ! curl -sf -o "$dir/cpu-$stamp.pb.gz" "http://$addr/debug/pprof/profile?seconds=$seconds"; then
-      rm -f "$dir/cpu-$stamp.pb.gz"
+    # written to a temporary name and renamed when complete, so a profile cut
+    # short by stop never reaches the merge
+    if curl -sf -o "$dir/cpu-$stamp.tmp" "http://$addr/debug/pprof/profile?seconds=$seconds"; then
+      mv "$dir/cpu-$stamp.tmp" "$dir/cpu-$stamp.pb.gz"
+    else
+      rm -f "$dir/cpu-$stamp.tmp"
       # the process is gone once the tests end
       if ! curl -sf -o /dev/null "http://$addr/debug/pprof/"; then
         echo "$(date -u +%H:%M:%S) pprof endpoint gone" >> "$dir/sampler.log"
@@ -48,7 +52,7 @@ case "${1:-}" in
     dir="$2"
     addr="$3"
     mkdir -p "$dir"
-    sample_loop "$dir" "$addr" &
+    sample_loop "$dir" "$addr" > /dev/null 2>&1 &
     echo $! > "$dir/sampler.pid"
     echo "pprof sampler started (pid $!, ${seconds}s profiles from $addr) -> $dir"
     ;;
@@ -59,7 +63,7 @@ case "${1:-}" in
       # the loop's in-flight curl is a child of the loop; stop both
       pkill -P "$pid" 2>/dev/null || true
       kill "$pid" 2>/dev/null || true
-      rm -f "$dir/sampler.pid"
+      rm -f "$dir/sampler.pid" "$dir"/cpu-*.tmp
     fi
     ;;
   summarize)

@@ -94,7 +94,7 @@ case "${1:-}" in
     dir="$2"
     image="${3:-postgres:17-alpine}"
     mkdir -p "$dir"
-    sample_loop "$dir" "$image" &
+    sample_loop "$dir" "$image" > /dev/null 2>&1 &
     echo $! > "$dir/sampler.pid"
     echo "pgstat sampler started (pid $!, every ${interval}s from $image) -> $dir"
     ;;
