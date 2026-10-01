@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgerrcode"
@@ -23,7 +24,51 @@ const defaultListStreamMessagesLimit = 500
 // by the Publish gRPC handler before a message ever reaches the queue; the
 // CreateOrderedStreamMessageOpts.Payload validate tag below is a second line
 // of defense and must be kept numerically in sync with this constant.
-const MaxStreamMessagePayloadBytes = 512 * 1024
+//
+// It sits just under gRPC's 4 MiB message limit, leaving room for the rest of
+// a publish request and of a delivered entry (worst case, its cursor); see
+// TestMaxPayloadFitsInGRPCMessages.
+const MaxStreamMessagePayloadBytes = 4*1024*1024 - 5*1024
+
+// MaxStreamNameLength caps a stream topic or namespace, in characters. The
+// validate tags below must stay in sync with it.
+const MaxStreamNameLength = 255
+
+// ValidateStreamAddress rejects a namespace or topic that couldn't be stored,
+// so a publish fails up front rather than after it has been accepted.
+func ValidateStreamAddress(namespace, topic string) error {
+	if topic == "" {
+		return errors.New("topic is required")
+	}
+
+	if err := validateStreamName("topic", topic); err != nil {
+		return err
+	}
+
+	return validateStreamName("namespace", namespace)
+}
+
+func validateStreamName(field, name string) error {
+	if !utf8.ValidString(name) {
+		return fmt.Errorf("%s must be valid UTF-8", field)
+	}
+
+	if n := utf8.RuneCountInString(name); n > MaxStreamNameLength {
+		return fmt.Errorf("%s is %d characters long, exceeding the maximum of %d", field, n, MaxStreamNameLength)
+	}
+
+	// Postgres text columns can't store NUL
+	if strings.ContainsRune(name, 0) {
+		return fmt.Errorf("%s must not contain NUL characters", field)
+	}
+
+	return nil
+}
+
+// MaxListStreamMessagesBytes bounds the payload bytes one ListMessagesAfterCursor
+// page loads, so catching up on large messages can't load the whole row limit's
+// worth into memory at once.
+const MaxListStreamMessagesBytes = 8 * 1024 * 1024
 
 // CreateOrderedStreamMessageOpts carries a published message plus the
 // producer_id/producer_seq every publish is required to supply, needed to
@@ -34,7 +79,7 @@ type CreateOrderedStreamMessageOpts struct {
 
 	Topic string `validate:"required,max=255"`
 
-	Payload []byte `validate:"required,max=524288"`
+	Payload []byte `validate:"required,max=4189184"`
 
 	ProducerID string `validate:"required"`
 
@@ -59,7 +104,7 @@ type ListStreamMessagesOpts struct {
 	// (optional) the namespace the topic belongs to; empty string is the default namespace
 	Namespace string
 
-	Topic string `validate:"required"`
+	Topic string `validate:"required,max=255"`
 
 	// (optional) resume from this cursor; the zero value starts from the
 	// beginning of retained history
@@ -259,7 +304,8 @@ func (r *streamsRepositoryImpl) ListMessagesAfterCursor(ctx context.Context, ten
 			Time:  time.Now().Add(-retention),
 			Valid: true,
 		},
-		Limit: limit,
+		Limit:    limit,
+		Maxbytes: MaxListStreamMessagesBytes,
 	})
 }
 

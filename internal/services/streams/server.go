@@ -33,8 +33,8 @@ func (s *ServiceImpl) Publish(ctx context.Context, req *contracts.PublishStreamM
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 
-	if req.Topic == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("topic is required"))
+	if err := v1.ValidateStreamAddress(req.Namespace, req.Topic); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 
 	if len(req.Payload) == 0 {
@@ -182,6 +182,10 @@ func resolveSubscribeAddressAndCursor(req *contracts.SubscribeStreamRequest) (na
 			return "", "", v1.StreamCursor{}, fmt.Errorf("topic is required unless cursor is supplied")
 		}
 
+		if err := v1.ValidateStreamAddress(decoded.Namespace, decoded.Topic); err != nil {
+			return "", "", v1.StreamCursor{}, err
+		}
+
 		return decoded.Namespace, decoded.Topic, decoded, nil
 	}
 
@@ -190,6 +194,10 @@ func resolveSubscribeAddressAndCursor(req *contracts.SubscribeStreamRequest) (na
 			"cursor belongs to namespace %q topic %q, not namespace %q topic %q; omit topic to resume the cursor's own topic",
 			decoded.Namespace, decoded.Topic, req.Namespace, req.Topic,
 		)
+	}
+
+	if err := v1.ValidateStreamAddress(req.Namespace, req.Topic); err != nil {
+		return "", "", v1.StreamCursor{}, err
 	}
 
 	return req.Namespace, req.Topic, decoded, nil

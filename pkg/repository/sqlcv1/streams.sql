@@ -172,14 +172,33 @@ WHERE "resource" = 'STREAM_RETENTION';
 -- Keyset pagination on id. xact_id < pg_snapshot_xmin(...) excludes rows
 -- whose inserting transaction may still be in flight, so a concurrent batch
 -- insert can't let a higher id become visible before a lower one commits.
-SELECT *
-FROM v1_stream_message
-WHERE tenant_id = @tenantId::uuid
-    AND namespace = @namespace::text
-    AND topic = @topic::text
-    AND id > @afterId::bigint
-    -- the tenant's retention; also prunes partitions outside it
-    AND inserted_at >= @retainedSince::timestamptz
-    AND xact_id < pg_snapshot_xmin(pg_current_snapshot())
-ORDER BY id ASC
-LIMIT sqlc.arg('limit')::integer;
+-- A page also stops once its payloads reach @maxBytes (always keeping its
+-- first row); octet_length reads the stored size without detoasting, so only
+-- the rows returned have their payloads loaded.
+WITH page AS (
+    SELECT id, inserted_at, octet_length(payload) AS payload_bytes
+    FROM v1_stream_message
+    WHERE tenant_id = @tenantId::uuid
+        AND namespace = @namespace::text
+        AND topic = @topic::text
+        AND id > @afterId::bigint
+        -- the tenant's retention; also prunes partitions outside it
+        AND inserted_at >= @retainedSince::timestamptz
+        AND xact_id < pg_snapshot_xmin(pg_current_snapshot())
+    ORDER BY id ASC
+    LIMIT sqlc.arg('limit')::integer
+), within_budget AS (
+    SELECT id, inserted_at
+    FROM (
+        SELECT id, inserted_at, SUM(payload_bytes) OVER (ORDER BY id) - payload_bytes AS bytes_before
+        FROM page
+    ) AS sized
+    WHERE bytes_before < @maxBytes::bigint
+)
+SELECT m.*
+FROM v1_stream_message m
+JOIN within_budget b ON m.id = b.id AND m.inserted_at = b.inserted_at
+WHERE m.tenant_id = @tenantId::uuid
+    AND m.namespace = @namespace::text
+    AND m.topic = @topic::text
+ORDER BY m.id ASC;

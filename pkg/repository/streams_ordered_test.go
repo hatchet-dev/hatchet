@@ -404,3 +404,33 @@ func TestDeleteIdleStreamTopics_UsesEachTenantsRetention(t *testing.T) {
 
 	assert.Equal(t, []string{"active", "idle-long"}, remaining)
 }
+
+// Catching up on large messages must page by bytes, not just rows.
+func TestListMessagesAfterCursor_PagesStopAtByteBudget(t *testing.T) {
+	pool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	repo := createStreamsRepository(t, pool)
+	tenantId := uuid.New()
+	payload := make([]byte, 3*1024*1024)
+
+	for seq := range int64(5) {
+		res, err := repo.InsertOrderedStreamMessage(ctx, tenantId, CreateOrderedStreamMessageOpts{
+			Topic: "t", Payload: payload, ProducerID: "p1", ProducerSeq: seq,
+		})
+		require.NoError(t, err)
+		require.True(t, res.Inserted)
+	}
+
+	// 3MB each against an 8MB budget: the first three start under it
+	first, err := repo.ListMessagesAfterCursor(ctx, tenantId, ListStreamMessagesOpts{Topic: "t"})
+	require.NoError(t, err)
+	require.Len(t, first, 3)
+
+	last := first[len(first)-1]
+	rest, err := repo.ListMessagesAfterCursor(ctx, tenantId, ListStreamMessagesOpts{Topic: "t", Cursor: StreamCursor{ID: last.ID, CreatedAt: last.InsertedAt.Time}})
+	require.NoError(t, err)
+	require.Len(t, rest, 2)
+	assert.Greater(t, rest[0].ID, last.ID)
+}

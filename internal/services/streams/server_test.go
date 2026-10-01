@@ -1,6 +1,7 @@
 package streams
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -56,4 +57,18 @@ func TestResolveSubscribeAddressAndCursor_RejectsMismatchedNamespace(t *testing.
 		Cursor:    &raw,
 	})
 	assert.Error(t, err, "a cursor from a different namespace must be rejected, not silently applied")
+}
+
+func TestResolveSubscribeAddressAndCursor_RejectsInvalidAddress(t *testing.T) {
+	tooLong := strings.Repeat("a", v1.MaxStreamNameLength+1)
+
+	_, _, _, err := resolveSubscribeAddressAndCursor(&contracts.SubscribeStreamRequest{Topic: tooLong})
+	assert.ErrorContains(t, err, "topic is 256 characters long")
+
+	// a cursor is client-supplied, so the address decoded from it is checked too
+	cursor, err := v1.EncodeStreamCursor(v1.StreamCursor{Namespace: tooLong, Topic: "orders", ID: 1})
+	require.NoError(t, err)
+
+	_, _, _, err = resolveSubscribeAddressAndCursor(&contracts.SubscribeStreamRequest{Cursor: &cursor})
+	assert.ErrorContains(t, err, "namespace is 256 characters long")
 }

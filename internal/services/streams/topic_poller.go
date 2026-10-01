@@ -253,7 +253,14 @@ func sendRange(ctx context.Context, repo v1.StreamsRepository, key topicPollerKe
 
 		entries := make([]*contracts.StreamEntry, 0, len(msgs))
 		pageEnd := from
-		done := len(msgs) < subscribeCatchUpBatchSize
+		pageBytes := 0
+
+		for _, m := range msgs {
+			pageBytes += len(m.Payload)
+		}
+
+		// a page cut short by the byte budget can hold fewer rows than the limit
+		done := len(msgs) < subscribeCatchUpBatchSize && pageBytes < v1.MaxListStreamMessagesBytes
 
 		for _, m := range msgs {
 			if m.ID > maxID {
