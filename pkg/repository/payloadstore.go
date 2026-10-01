@@ -286,11 +286,20 @@ func (p *payloadStoreRepositoryImpl) OverwriteExisting(ctx context.Context, tx s
 	params := sqlcv1.OverwritePayloadsParams{}
 
 	for _, payload := range uniquePayloads {
+		if isEmptyPayload(payload.Payload) {
+			continue
+		}
+
 		params.Ids = append(params.Ids, payload.Id)
 		params.Insertedats = append(params.Insertedats, payload.InsertedAt)
+		params.Externalids = append(params.Externalids, payload.ExternalId)
 		params.Types = append(params.Types, string(payload.Type))
 		params.Inlinecontents = append(params.Inlinecontents, payload.Payload)
 		params.Tenantids = append(params.Tenantids, payload.TenantId)
+	}
+
+	if len(params.Ids) == 0 {
+		return nil
 	}
 
 	err := p.queries.OverwritePayloads(ctx, tx, params)

@@ -32,6 +32,7 @@ V1WorkflowRun:
       type: string
       format: uuid
     output:
+      x-payload: true
       type: object
       x-go-type: openapi.NonNullableJSON
       x-go-type-import:
@@ -47,6 +48,7 @@ V1WorkflowRun:
       format: uuid
       description: The ID of the workflow version.
     input:
+      x-payload: true
       type: object
       x-go-type: openapi.NonNullableJSON
       x-go-type-import:
@@ -229,6 +231,7 @@ V1DurableEventLogEntry:
       format: date-time
       description: When this entry was inserted.
     userMessage:
+      x-payload: true
       type: string
       description: A user-provided message or label, sent when establishing a durable wait.
     taskExternalId:
