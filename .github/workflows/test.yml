@@ -412,7 +412,6 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
-      pull-requests: write
     strategy:
       fail-fast: false
       matrix:
@@ -536,26 +535,9 @@ jobs:
           hack/ci/pgstat-sampler.sh stop "$RUNNER_TEMP/pgstat"
           hack/ci/pgstat-sampler.sh summarize "$RUNNER_TEMP/pgstat" | tee "$RUNNER_TEMP/pgstat/summary.txt"
 
-      # Only same-repository pull requests get a comment: the token is read-only
-      # on forks, and nothing here needs to run there. The body is produced by
-      # a Go program that validates every untrusted field before it reaches
-      # markdown, so sampler output can never carry links, mentions, HTML or
-      # secrets into the comment.
-      - name: Comment performance metrics on PR
-        if: failure() && steps.run-tests.outcome == 'failure' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-        continue-on-error: true
-        run: |
-          go run ./hack/ci/loadreport \
-            -cpu "$RUNNER_TEMP/cpu-samples.log" \
-            -pprof "$RUNNER_TEMP/pprof/summary.txt" \
-            -pgstat "$RUNNER_TEMP/pgstat/summary.txt" \
-            -label "load (optimistic ${{ matrix.optimistic-scheduling }}, race ${{ matrix.race }})" \
-            -repository "${{ github.repository }}" \
-            -run-id "${{ github.run_id }}" \
-            > "$RUNNER_TEMP/performance-comment.md"
-          gh pr comment ${{ github.event.pull_request.number }} --body-file "$RUNNER_TEMP/performance-comment.md"
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Record the failure for the report job
+        if: failure() && steps.run-tests.outcome == 'failure'
+        run: echo "load (optimistic ${{ matrix.optimistic-scheduling }}, race ${{ matrix.race }})" > "$RUNNER_TEMP/failed-leg.txt"
 
       - name: Upload CPU samples and profiles
         if: always()
@@ -566,4 +548,57 @@ jobs:
             ${{ runner.temp }}/cpu-samples.log
             ${{ runner.temp }}/pprof/
             ${{ runner.temp }}/pgstat/
+            ${{ runner.temp }}/failed-leg.txt
           if-no-files-found: warn
+
+  # Posts the performance comment for failed load legs. It runs in its own
+  # job so the token that can write to pull requests never shares a process
+  # with the tests, and only for pull requests opened from a branch in this
+  # repository by an owner, member or collaborator. The reporter and the
+  # workflow steps below come from the pull request's base commit, not from
+  # the pull request, so the code that handles the token is the reviewed one.
+  load-report:
+    needs: load
+    if: always() && needs.load.result == 'failure' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.26"
+
+      - name: Download load samples
+        uses: actions/download-artifact@3e0d4d5c3c1d6e8f0e4c5b5f0c3f6d2f1c4a8c7b # v6.0.0
+        with:
+          pattern: load-samples-*
+          path: ${{ runner.temp }}/load-samples
+
+      - name: Comment performance metrics on PR
+        run: |
+          posted=0
+          for dir in "$RUNNER_TEMP"/load-samples/*/; do
+            [ -f "$dir/failed-leg.txt" ] || continue
+            label="$(head -c 120 "$dir/failed-leg.txt" | tr -d '\n')"
+            go run ./hack/ci/loadreport \
+              -cpu "$dir/cpu-samples.log" \
+              -pprof "$dir/pprof/summary.txt" \
+              -pgstat "$dir/pgstat/summary.txt" \
+              -label "$label" \
+              -repository "${{ github.repository }}" \
+              -run-id "${{ github.run_id }}" \
+              > "$RUNNER_TEMP/performance-comment.md" || continue
+            gh pr comment "${{ github.event.pull_request.number }}" --body-file "$RUNNER_TEMP/performance-comment.md"
+            posted=$((posted + 1))
+          done
+          echo "posted $posted comment(s)"
+        env:
+          GH_TOKEN: ${{ github.token }}

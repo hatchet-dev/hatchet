@@ -386,7 +386,8 @@ func chart(title string, labels []string, lines []series) string {
 	return b.String()
 }
 
-// fence closes every block it opens, truncating to limit lines first.
+// fence is the only way a block reaches the output, so a size cut can never
+// leave a block open for the text after it to be rendered as markdown.
 func fence(lines []string, limit int) string {
 	var b strings.Builder
 	b.WriteString("```\n")
