@@ -74,24 +74,60 @@ class TTLCache(Generic[K, V]):
                 del self.cache[key]
 
 
-class DurableInvocationCallbackCache(dict[tuple[str, int, int, int], V]):
+DurableInvocationCallbackKey = tuple[str, int, int, int]
+
+
+class DurableInvocationCallbackCache(dict[DurableInvocationCallbackKey, V]):
     def __init__(
-        self, on_evict: Callable[[tuple[str, int, int, int], V], None] | None = None
+        self, on_evict: Callable[[DurableInvocationCallbackKey, V], None] | None = None
     ) -> None:
         super().__init__()
         self._on_evict = on_evict
+        self._keys_by_task_and_invocation: dict[
+            str, dict[int, set[DurableInvocationCallbackKey]]
+        ] = {}
 
-    def __setitem__(self, key: tuple[str, int, int, int], value: V) -> None:
+    def __setitem__(self, key: DurableInvocationCallbackKey, value: V) -> None:
         task_external_id, invocation_count = key[0], key[1]
+        invocations = self._keys_by_task_and_invocation.setdefault(task_external_id, {})
 
-        superseded = [
-            k for k in self if k[0] == task_external_id and k[1] < invocation_count
-        ]
+        superseded_invocations = [inv for inv in invocations if inv < invocation_count]
+        for stale_invocation in superseded_invocations:
+            for stale_key in invocations.pop(stale_invocation):
+                stale_value = super().pop(stale_key)
+                if self._on_evict is not None:
+                    self._on_evict(stale_key, stale_value)
 
-        for stale_key in superseded:
-            stale_value = super().pop(stale_key)
-
-            if self._on_evict is not None:
-                self._on_evict(stale_key, stale_value)
-
+        invocations.setdefault(invocation_count, set()).add(key)
         super().__setitem__(key, value)
+
+    def __delitem__(self, key: DurableInvocationCallbackKey) -> None:
+        super().__delitem__(key)
+        self._forget_key(key)
+
+    def pop(self, key: DurableInvocationCallbackKey, *default: V) -> V:  # type: ignore[override]
+        if key not in self:
+            if default:
+                return default[0]
+            raise KeyError(key)
+        value = super().pop(key)
+        self._forget_key(key)
+        return value
+
+    def clear(self) -> None:
+        super().clear()
+        self._keys_by_task_and_invocation.clear()
+
+    def _forget_key(self, key: DurableInvocationCallbackKey) -> None:
+        task_external_id, invocation_count = key[0], key[1]
+        invocations = self._keys_by_task_and_invocation.get(task_external_id)
+        if invocations is None:
+            return
+        keys = invocations.get(invocation_count)
+        if keys is None:
+            return
+        keys.discard(key)
+        if not keys:
+            del invocations[invocation_count]
+        if not invocations:
+            del self._keys_by_task_and_invocation[task_external_id]

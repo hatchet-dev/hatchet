@@ -587,6 +587,9 @@ WITH input AS (
     WHERE
         e.tenant_id = @tenantId::uuid
         AND e.event_type = 'SIGNAL_CREATED'
+        -- filtering by key here keeps it in the index probe; a durable parent can have tens of
+        -- thousands of signal events, and matching keys afterwards rescanned the input per event
+        AND e.event_key = ANY(@eventKeys::TEXT[])
 )
 SELECT
 	e.id,
@@ -596,9 +599,7 @@ SELECT
     e.external_id,
     e.child_external_id
 FROM
-	events_to_lock e
-WHERE
-	e.event_key = ANY(SELECT event_key FROM input);
+	events_to_lock e;
 
 -- name: ListMatchingSignalEvents :many
 WITH input AS (

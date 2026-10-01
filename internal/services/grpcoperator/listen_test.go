@@ -230,42 +230,56 @@ func TestListenSupersededSessionLeavesWorkerActive(t *testing.T) {
 	assert.Equal(t, sessions[1], sessions[3], "the second stream deactivates with its own session id")
 }
 
+// Every delta here carries a sequence: its ack is written only after ApplyDelta returned, which
+// covers the store write and the notifier's request, so waiting on the ack is waiting for the
+// delta to be committed and for any immediate notify it caused. That makes each stage's
+// precondition exact instead of a poll on the store's size, which the first delta alone would
+// satisfy before the second one reverses part of it.
 func TestListenAppliesDeltasWithThrottledNotify(t *testing.T) {
+	// The assertion that the deltas were not notified immediately has to run
+	// before the deferred notification fires, so the window is long enough to
+	// absorb the scheduling delay of a loaded runner between the acks
+	// arriving and the assertion running.
+	const interval = time.Second
+
 	tenant := &sqlcv1.Tenant{ID: uuid.New()}
-	svc := newTestService(t, nil, operatorsvc.WithNotifyInterval(100*time.Millisecond))
+	svc := newTestService(t, nil, operatorsvc.WithNotifyInterval(interval))
 	ctx, op, worker := registeredOperator(t, svc, tenant)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	stream := newFakeListenStream(ctx, startMsg(worker.ID.String()))
+	// the deltas are queued behind the start so the protocol loop reads them straight after
+	// the opening notify, well inside the throttle window: they are deferred and folded into
+	// one notification
+	stream := newFakeListenStream(ctx,
+		startMsg(worker.ID.String()),
+		sequencedDeltaMsg(1, []string{"svc:a", "svc:b"}, nil),
+		sequencedDeltaMsg(2, []string{"svc:c"}, []string{"svc:b"}),
+	)
 	done := runListen(svc, stream, tenant, op)
 
-	eventually(t, func() bool { return svc.dispatcher.NotifyCount() == 1 }, "start did not notify")
-
-	// deltas right after the start notify are inside the throttle window, so they are deferred
-	// and folded into one notification
-	stream.push(deltaMsg([]string{"svc:a", "svc:b"}, nil))
-	stream.push(deltaMsg([]string{"svc:c"}, []string{"svc:b"}))
-
-	eventually(t, func() bool { return len(svc.workers.ActionSet(worker.ID)) == 2 }, "deltas did not reach the store")
+	eventually(t, func() bool { return len(svc.dispatcher.AckedSequences()) == 2 }, "deltas were not acknowledged")
 	assert.ElementsMatch(t, []string{"svc:a", "svc:c"}, svc.workers.ActionSet(worker.ID))
 	assert.Equal(t, 1, svc.dispatcher.NotifyCount(), "deltas inside the window are not notified immediately")
 
 	eventually(t, func() bool { return svc.dispatcher.NotifyCount() == 2 }, "deferred notify did not fire")
 
-	// no further notify without further changes
-	time.Sleep(150 * time.Millisecond)
+	// no further notify without further changes; the wait also closes the window, so the
+	// deltas below are outside it
+	time.Sleep(interval + 50*time.Millisecond)
 	assert.Equal(t, 2, svc.dispatcher.NotifyCount())
 
-	// a delta that changes nothing does not notify at all
-	stream.push(deltaMsg([]string{"svc:a"}, []string{"svc:never"}))
-	time.Sleep(150 * time.Millisecond)
-	assert.Equal(t, 2, svc.dispatcher.NotifyCount())
+	// a delta that changes nothing does not notify at all: outside the window, a change
+	// would have notified before the ack went out
+	stream.push(sequencedDeltaMsg(3, []string{"svc:a"}, []string{"svc:never"}))
+	eventually(t, func() bool { return len(svc.dispatcher.AckedSequences()) == 3 }, "no-op delta was not acknowledged")
+	assert.Equal(t, 2, svc.dispatcher.NotifyCount(), "a delta that changes nothing must not notify")
+	assert.ElementsMatch(t, []string{"svc:a", "svc:c"}, svc.workers.ActionSet(worker.ID))
 
-	// a delta outside the window notifies immediately
-	stream.push(deltaMsg(nil, []string{"svc:a"}))
-	eventually(t, func() bool { return svc.dispatcher.NotifyCount() == 3 }, "delta outside the window did not notify")
-	eventually(t, func() bool { return len(svc.workers.ActionSet(worker.ID)) == 1 }, "removal did not reach the store")
+	// a delta outside the window notifies immediately, before it is acknowledged
+	stream.push(sequencedDeltaMsg(4, nil, []string{"svc:a"}))
+	eventually(t, func() bool { return len(svc.dispatcher.AckedSequences()) == 4 }, "removal was not acknowledged")
+	assert.Equal(t, 3, svc.dispatcher.NotifyCount(), "delta outside the window did not notify")
 	assert.ElementsMatch(t, []string{"svc:c"}, svc.workers.ActionSet(worker.ID))
 
 	close(stream.recv)

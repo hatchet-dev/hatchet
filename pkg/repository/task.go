@@ -35,6 +35,20 @@ func isLockNotAvailable(err error) bool {
 	return errors.As(err, &pgErr) && pgErr.Code == pgerrcode.LockNotAvailable
 }
 
+func isDeadlockDetected(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == pgerrcode.DeadlockDetected
+}
+
+// isPartitionLockConflict reports whether partition maintenance gave up because other queries
+// were using the same tables. That happens in two ways: we waited longer than lock_timeout
+// (55P03), or Postgres saw two transactions each waiting for a lock the other holds and
+// cancelled ours to break the tie (40P01, a deadlock). Neither means anything is broken, so
+// callers retry on the next scheduled run.
+func isPartitionLockConflict(err error) bool {
+	return isLockNotAvailable(err) || isDeadlockDetected(err)
+}
+
 func isPendingDetach(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == pgerrcode.ObjectNotInPrerequisiteState && strings.Contains(pgErr.Message, "already pending detach")
@@ -394,7 +408,26 @@ func createExternalIdUniqueConstraintsOnDailyPartitions(ctx context.Context, db 
 	return nil
 }
 
+// reattachIndicesToParents repairs parent indexes that Postgres still marks invalid even though
+// every partition now has a valid copy of the index. Postgres only re-checks a parent when a
+// child is attached, so re-running ATTACH PARTITION on a child that is already attached makes
+// it re-check and mark the parent valid.
+//
+// Two things to know before touching this:
+//   - Each ATTACH locks the child index so nothing else can read or write through it until
+//     the transaction commits. Don't attach more than needed.
+//   - Older Postgres versions don't have the re-check (see reattachValidatesParent). There the
+//     statement leaves the parent invalid but still takes the lock, so we skip it entirely.
 func reattachIndicesToParents(ctx context.Context, queries *sqlcv1.Queries, db sqlcv1.DBTX, isOlap bool) error {
+	var serverVersionNum int
+	if err := db.QueryRow(ctx, "SELECT current_setting('server_version_num')::int").Scan(&serverVersionNum); err != nil {
+		return fmt.Errorf("failed to read server_version_num: %w", err)
+	}
+
+	if !reattachValidatesParent(serverVersionNum) {
+		return nil
+	}
+
 	invalidIndexes, err := queries.FindInvalidIndexes(ctx, db, isOlap)
 	if err != nil {
 		return fmt.Errorf("failed to list invalid partitioned indexes: %w", err)
@@ -409,6 +442,31 @@ func reattachIndicesToParents(ctx context.Context, queries *sqlcv1.Queries, db s
 	}
 
 	return nil
+}
+
+// reattachValidatesParentSinceMinor is the first minor release, per major version, in which
+// ALTER INDEX ... ATTACH PARTITION re-checks the parent when the child is already attached.
+// Every release from 19 on has it.
+var reattachValidatesParentSinceMinor = map[int]int{
+	14: 23,
+	15: 18,
+	16: 14,
+	17: 10,
+	18: 4,
+}
+
+// reattachValidatesParent takes server_version_num (for example 180003 for 18.3) and reports
+// whether re-attaching an already attached child index can mark its parent valid.
+func reattachValidatesParent(serverVersionNum int) bool {
+	major, minor := serverVersionNum/10000, serverVersionNum%10000
+
+	if major >= 19 {
+		return true
+	}
+
+	sinceMinor, ok := reattachValidatesParentSinceMinor[major]
+
+	return ok && minor >= sinceMinor
 }
 
 func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
@@ -502,14 +560,6 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	}
 
 	if err = createExternalIdUniqueConstraintsOnDailyPartitions(ctx, createPartitionsTx, "v1_payload", payloadDatesToCreateUniqueConstraints...); err != nil {
-		releaseCreateConn()
-		if isLockNotAvailable(err) {
-			return ErrPartitionLockConflict
-		}
-		return err
-	}
-
-	if err = reattachIndicesToParents(ctx, r.queries, createPartitionsTx, false); err != nil {
 		releaseCreateConn()
 		if isLockNotAvailable(err) {
 			return ErrPartitionLockConflict
@@ -613,7 +663,11 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		return fmt.Errorf("failed to delete old payload offloaded block index rows: %w", err)
 	}
 
-	return nil
+	// Runs last, in its own transaction, so that if it gives up on a lock, partition creation
+	// and cleanup above have already been committed.
+	return runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
+		return reattachIndicesToParents(ctx, r.queries, tx, false)
+	})
 }
 
 func (r *sharedRepository) GetTaskByExternalId(ctx context.Context, tenantId, taskExternalId uuid.UUID, skipCache bool) (*sqlcv1.FlattenExternalIdsRow, error) {
@@ -2220,6 +2274,12 @@ func (r *sharedRepository) upsertQueues(ctx context.Context, tx sqlcv1.DBTX, ten
 		uniqueQueues = append(uniqueQueues, queue)
 	}
 
+	// every queue is already known (5 minute cache): the statement would run with an empty
+	// name list and do nothing, so skip the round trip
+	if len(uniqueQueues) == 0 {
+		return func() {}, nil
+	}
+
 	err := r.queries.UpsertQueues(ctx, tx, sqlcv1.UpsertQueuesParams{
 		TenantID: tenantId,
 		Names:    uniqueQueues,
@@ -3625,6 +3685,12 @@ func (r *sharedRepository) createTaskEvents(
 
 	if childExternalIdsByIndex != nil && len(childExternalIdsByIndex) != len(tasks) {
 		return nil, fmt.Errorf("mismatched task and child external id lengths")
+	}
+
+	// the common insert path (every task born QUEUED) has no events to write: skip the
+	// statement and the payload store round trip
+	if len(tasks) == 0 {
+		return []InternalTaskEvent{}, nil
 	}
 
 	taskIds := make([]int64, len(tasks))
@@ -5161,7 +5227,10 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 			rootExternalIds = append(rootExternalIds, child.ExternalID)
 		}
 
-		version, err := r.queries.GetWorkflowVersionById(ctx, db, orchestrator.WorkflowVersionID)
+		version, err := r.queries.GetWorkflowVersionById(ctx, db, sqlcv1.GetWorkflowVersionByIdParams{
+			ID:       orchestrator.WorkflowVersionID,
+			Tenantid: tenantId,
+		})
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to get workflow version: %w", err)

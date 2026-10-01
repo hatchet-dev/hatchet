@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"os"
 	"strconv"
 	"testing"
 	"time"
@@ -22,6 +21,7 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-migrate/migrate"
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -56,12 +56,11 @@ func setupPostgresWithPgBouncer(t *testing.T) (directPool *pgxpool.Pool, pgbounc
 	pgPort, err := strconv.Atoi(u.Port())
 	require.NoError(t, err)
 
-	// Run migrations on direct postgres
-	originalDatabaseURL := os.Getenv("DATABASE_URL")
-	err = os.Setenv("DATABASE_URL", pgConnStr)
-	require.NoError(t, err)
+	// Run migrations on direct postgres. The URL is passed explicitly rather than
+	// through the process-global DATABASE_URL so parallel tests cannot migrate
+	// each other's containers.
 	t.Log("Running database migration...")
-	migrate.RunMigrations(ctx)
+	require.NoError(t, migrate.RunMigrations(ctx, migrate.WithDatabaseURL(pgConnStr)))
 	t.Log("Migration completed successfully")
 
 	// Create direct pool
@@ -139,11 +138,6 @@ func setupPostgresWithPgBouncer(t *testing.T) (directPool *pgxpool.Pool, pgbounc
 		directPool.Close()
 		pgBouncerContainer.Terminate(ctx) // nolint: errcheck
 		postgresContainer.Terminate(ctx)  // nolint: errcheck
-		if originalDatabaseURL != "" {
-			os.Setenv("DATABASE_URL", originalDatabaseURL)
-		} else {
-			os.Unsetenv("DATABASE_URL")
-		}
 	}
 
 	return directPool, pgbouncerPool, cleanup
@@ -184,7 +178,7 @@ func TestUpdateTablePartitions_PgBouncer(t *testing.T) {
 	logger := zerolog.New(zerolog.NewTestWriter(t))
 	repo := &TaskRepositoryImpl{
 		sharedRepository: &sharedRepository{
-			pool:    pgbouncerPool,
+			pool:    fairpool.Ungated(pgbouncerPool),
 			ddlPool: directPool,
 			l:       &logger,
 			queries: queries,
@@ -234,7 +228,7 @@ func TestUpdateTablePartitions_PgBouncer_CreateOnly(t *testing.T) {
 	logger := zerolog.New(zerolog.NewTestWriter(t))
 	repo := &TaskRepositoryImpl{
 		sharedRepository: &sharedRepository{
-			pool:    pgbouncerPool,
+			pool:    fairpool.Ungated(pgbouncerPool),
 			ddlPool: directPool,
 			l:       &logger,
 			queries: queries,

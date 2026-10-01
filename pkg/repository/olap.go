@@ -369,8 +369,12 @@ func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Durati
 	}
 }
 
-// Only CREATE TABLE / ALTER TABLE ATTACH PARTITION may be passed in fn. DETACH PARTITION
-// CONCURRENTLY cannot run inside a transaction and must use a raw connection instead.
+// runPartitionDDLWithLockTimeout runs fn in one transaction that waits at most a minute for
+// each lock. While we wait, other queries on the same tables queue up behind us, so if the wait
+// runs out we give up and try again on the next scheduled run rather than waiting forever.
+//
+// fn may only run statements that Postgres allows inside a transaction. DETACH PARTITION
+// CONCURRENTLY is not one of them, so it uses a plain connection instead.
 func runPartitionDDLWithLockTimeout(ctx context.Context, pool *pgxpool.Pool, logger *zerolog.Logger, fn func(tx pgx.Tx) error) error {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, pool, logger)
 
@@ -386,7 +390,7 @@ func runPartitionDDLWithLockTimeout(ctx context.Context, pool *pgxpool.Pool, log
 
 	err = fn(tx)
 
-	if err != nil && isLockNotAvailable(err) {
+	if err != nil && isPartitionLockConflict(err) {
 		return ErrPartitionLockConflict
 	} else if err != nil {
 		return err
@@ -496,12 +500,6 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		}
 	}
 
-	if err = runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
-		return reattachIndicesToParents(ctx, r.queries, tx, true)
-	}); err != nil {
-		return err
-	}
-
 	params := sqlcv1.ListOLAPPartitionsBeforeDateParams{
 		Shouldpartitioneventstables: r.shouldPartitionEventsTables,
 		Shouldpartitionoteltables:   r.shouldPartitionOtelTables,
@@ -597,7 +595,11 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		return fmt.Errorf("failed to delete old OLAP payload offloaded block index rows: %w", err)
 	}
 
-	return nil
+	// Runs last so that if it gives up on a lock, partition creation and cleanup above have
+	// already finished.
+	return runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
+		return reattachIndicesToParents(ctx, r.queries, tx, true)
+	})
 }
 
 func (r *OLAPRepositoryImpl) SetReadReplicaPool(pool *fairpool.Pool) {
@@ -1484,9 +1486,6 @@ func (r *OLAPRepositoryImpl) taskToWorkflowRunData(ctx context.Context, task *sq
 	if task.OutputEventExternalID != nil {
 		outputPayload, exists = payloads[*task.OutputEventExternalID]
 		if !exists {
-			if includePayloads && task.Status == sqlcv1.V1ReadableStatusOlapCOMPLETED {
-				r.l.Error().Ctx(ctx).Msgf("ListWorkflowRuns: task with external_id %s has empty output payload", task.ExternalID)
-			}
 			outputPayload = task.Output
 		}
 	} else {
@@ -1495,9 +1494,6 @@ func (r *OLAPRepositoryImpl) taskToWorkflowRunData(ctx context.Context, task *sq
 
 	inputPayload, exists := payloads[task.ExternalID]
 	if !exists {
-		if includePayloads && task.ExternalID != uuid.Nil {
-			r.l.Error().Ctx(ctx).Msgf("ListWorkflowRuns: task with external_id %s has empty input payload", task.ExternalID)
-		}
 		inputPayload = task.Input
 	}
 
@@ -3108,7 +3104,6 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 		payload, exists := externalIdToPayload[event.ExternalID]
 
 		if !exists {
-			r.l.Error().Ctx(ctx).Msgf("ListEvents: payload for event %s not found", event.ExternalID.String())
 			payload = event.Payload
 		}
 

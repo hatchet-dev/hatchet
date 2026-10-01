@@ -44,8 +44,14 @@ type UpsertRateLimitOpts struct {
 	Duration *string `validate:"omitnil,oneof=SECOND MINUTE HOUR DAY WEEK MONTH YEAR"`
 }
 
+type RateLimitDefinition struct {
+	LimitValue int32
+	Window     string
+}
+
 type RateLimitRepository interface {
-	UpdateRateLimits(ctx context.Context, tenantId uuid.UUID, updates map[string]int) ([]*sqlcv1.ListRateLimitsForTenantWithMutateRow, *time.Time, error)
+	// definitions are upserted under the same advisory lock as the usage charge, so dynamic rate limit rows have a single multi-row writer
+	FlushRateLimits(ctx context.Context, tenantId uuid.UUID, usage map[string]int, definitions map[string]RateLimitDefinition) ([]*sqlcv1.ListRateLimitsForTenantWithMutateRow, *time.Time, error)
 
 	UpsertRateLimit(ctx context.Context, tenantId uuid.UUID, key string, opts *UpsertRateLimitOpts) (*sqlcv1.RateLimit, error)
 
@@ -66,10 +72,8 @@ func newRateLimitRepository(shared *sharedRepository) *rateLimitRepository {
 	}
 }
 
-func (r *rateLimitRepository) UpdateRateLimits(ctx context.Context, tenantId uuid.UUID, updates map[string]int) ([]*sqlcv1.ListRateLimitsForTenantWithMutateRow, *time.Time, error) {
-	db := r.pool.ForTenant(tenantId)
-
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, db, r.l)
+func (r *rateLimitRepository) FlushRateLimits(ctx context.Context, tenantId uuid.UUID, usage map[string]int, definitions map[string]RateLimitDefinition) ([]*sqlcv1.ListRateLimitsForTenantWithMutateRow, *time.Time, error) {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool.ForTenant(tenantId), r.l)
 
 	if err != nil {
 		return nil, nil, err
@@ -77,13 +81,13 @@ func (r *rateLimitRepository) UpdateRateLimits(ctx context.Context, tenantId uui
 
 	defer rollback()
 
-	params := sqlcv1.BulkUpdateRateLimitsParams{
+	params := sqlcv1.ChargeRateLimitUsageParams{
 		Tenantid: tenantId,
-		Keys:     make([]string, 0, len(updates)),
-		Units:    make([]int32, 0, len(updates)),
+		Keys:     make([]string, 0, len(usage)),
+		Units:    make([]int32, 0, len(usage)),
 	}
 
-	for k, v := range updates {
+	for k, v := range usage {
 		params.Keys = append(params.Keys, k)
 		params.Units = append(params.Units, int32(v)) // nolint: gosec
 	}
@@ -96,7 +100,26 @@ func (r *rateLimitRepository) UpdateRateLimits(ctx context.Context, tenantId uui
 		return nil, nil, err
 	}
 
-	_, err = r.queries.BulkUpdateRateLimits(ctx, tx, params)
+	if len(definitions) > 0 {
+		upsertParams := sqlcv1.UpsertDynamicRateLimitDefinitionsParams{
+			Tenantid:    tenantId,
+			Keys:        make([]string, 0, len(definitions)),
+			Limitvalues: make([]int32, 0, len(definitions)),
+			Windows:     make([]string, 0, len(definitions)),
+		}
+
+		for k, def := range definitions {
+			upsertParams.Keys = append(upsertParams.Keys, k)
+			upsertParams.Limitvalues = append(upsertParams.Limitvalues, def.LimitValue)
+			upsertParams.Windows = append(upsertParams.Windows, def.Window)
+		}
+
+		if err := r.queries.UpsertDynamicRateLimitDefinitions(ctx, tx, upsertParams); err != nil {
+			return nil, nil, fmt.Errorf("could not bulk upsert dynamic rate limits: %w", err)
+		}
+	}
+
+	_, err = r.queries.ChargeRateLimitUsage(ctx, tx, params)
 
 	if err != nil {
 		return nil, nil, err

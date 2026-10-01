@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 
 	"github.com/google/uuid"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
@@ -45,6 +46,7 @@ func (worker *subscribedWorker) StartTaskFromBulk(
 	}
 
 	action := populateAssignedAction(tenantId, task.V1Task, task.Runtime, task.RetryCount, durableInvocationCount)
+	worker.setOperatorTaskInsertedAt(action, task.V1Task)
 
 	action.ActionType = contracts.ActionType_START_STEP_RUN
 	action.ActionPayload = string(inputBytes)
@@ -201,6 +203,7 @@ func (worker *subscribedWorker) CancelTask(
 	defer span.End()
 
 	action := populateAssignedAction(tenantId, task, nil, retryCount, durableTaskInvocationCount)
+	worker.setOperatorTaskInsertedAt(action, task)
 
 	action.ActionType = contracts.ActionType_CANCEL_STEP_RUN
 
@@ -322,4 +325,12 @@ func populateAssignedAction(tenantID uuid.UUID, task *sqlcv1.V1Task, runtime *sq
 	}
 
 	return action
+}
+
+func (worker *subscribedWorker) setOperatorTaskInsertedAt(action *contracts.AssignedAction, task *sqlcv1.V1Task) {
+	if worker.handler == nil || task == nil || !task.InsertedAt.Valid {
+		return
+	}
+
+	action.TaskInsertedAt = timestamppb.New(task.InsertedAt.Time)
 }
