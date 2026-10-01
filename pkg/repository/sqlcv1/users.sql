@@ -55,6 +55,15 @@ FROM
 WHERE
     "id" = @id::uuid;
 
+-- name: GetUserEmailVerifiedForUpdate :one
+SELECT
+    "emailVerified"
+FROM
+    "User"
+WHERE
+    "id" = @id::uuid
+FOR UPDATE;
+
 -- name: GetUserPassword :one
 SELECT
     *
@@ -81,6 +90,12 @@ SET
 WHERE
     "userId" = @userId::uuid
 RETURNING *;
+
+-- name: DeleteUserPassword :exec
+DELETE FROM
+    "UserPassword"
+WHERE
+    "userId" = @userId::uuid;
 
 -- name: UpsertUserOAuth :one
 INSERT INTO "UserOAuth" (

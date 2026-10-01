@@ -192,6 +192,18 @@ func (q *Queries) CreateUserSession(ctx context.Context, db DBTX, arg CreateUser
 	return &i, err
 }
 
+const deleteUserPassword = `-- name: DeleteUserPassword :exec
+DELETE FROM
+    "UserPassword"
+WHERE
+    "userId" = $1::uuid
+`
+
+func (q *Queries) DeleteUserPassword(ctx context.Context, db DBTX, userid uuid.UUID) error {
+	_, err := db.Exec(ctx, deleteUserPassword, userid)
+	return err
+}
+
 const deleteUserSession = `-- name: DeleteUserSession :one
 DELETE FROM
     "UserSession"
@@ -304,6 +316,23 @@ func (q *Queries) GetUserByID(ctx context.Context, db DBTX, id uuid.UUID) (*User
 		&i.Name,
 	)
 	return &i, err
+}
+
+const getUserEmailVerifiedForUpdate = `-- name: GetUserEmailVerifiedForUpdate :one
+SELECT
+    "emailVerified"
+FROM
+    "User"
+WHERE
+    "id" = $1::uuid
+FOR UPDATE
+`
+
+func (q *Queries) GetUserEmailVerifiedForUpdate(ctx context.Context, db DBTX, id uuid.UUID) (bool, error) {
+	row := db.QueryRow(ctx, getUserEmailVerifiedForUpdate, id)
+	var emailVerified bool
+	err := row.Scan(&emailVerified)
+	return emailVerified, err
 }
 
 const getUserPassword = `-- name: GetUserPassword :one
