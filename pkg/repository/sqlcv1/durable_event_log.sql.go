@@ -1114,6 +1114,33 @@ func (q *Queries) ListSatisfiedEntries(ctx context.Context, db DBTX, arg ListSat
 	return items, nil
 }
 
+const lockDurableEventLogFilesForSatisfy = `-- name: LockDurableEventLogFilesForSatisfy :exec
+SELECT 1
+FROM v1_durable_event_log_file
+WHERE
+    durable_task_id = ANY($1::BIGINT[])
+    AND durable_task_inserted_at = ANY($2::TIMESTAMPTZ[])
+    AND durable_task_inserted_at >= $3::TIMESTAMPTZ
+ORDER BY durable_task_id, durable_task_inserted_at
+FOR UPDATE
+`
+
+type LockDurableEventLogFilesForSatisfyParams struct {
+	Durabletaskids           []int64              `json:"durabletaskids"`
+	Durabletaskinsertedats   []pgtype.Timestamptz `json:"durabletaskinsertedats"`
+	Mindurabletaskinsertedat pgtype.Timestamptz   `json:"mindurabletaskinsertedat"`
+}
+
+// Locks the same log files as the locked_log_files CTE in UpdateDurableEventLogEntriesSatisfied, in the
+// same order, so that statement never waits on a concurrent writer. A wait there makes PostgreSQL 18 run
+// an EvalPlanQual recheck that leaves the statement's run-time partition pruning state pointing at freed
+// memory, and the backend segfaults. This statement has no run-time pruning: the = ANY filters only use
+// bound parameters.
+func (q *Queries) LockDurableEventLogFilesForSatisfy(ctx context.Context, db DBTX, arg LockDurableEventLogFilesForSatisfyParams) error {
+	_, err := db.Exec(ctx, lockDurableEventLogFilesForSatisfy, arg.Durabletaskids, arg.Durabletaskinsertedats, arg.Mindurabletaskinsertedat)
+	return err
+}
+
 const markDurableEventLogEntrySatisfied = `-- name: MarkDurableEventLogEntrySatisfied :one
 UPDATE v1_durable_event_log_entry
 SET
