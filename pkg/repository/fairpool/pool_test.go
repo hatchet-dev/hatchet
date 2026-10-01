@@ -80,7 +80,7 @@ func newPool(t *testing.T, percent int, maxWait time.Duration, tracer pgx.QueryT
 func gaugeValue(poolName, tenantID string) (float64, bool) {
 	ch := make(chan prometheus.Metric)
 	go func() {
-		prommetrics.TenantPoolHeldConns.Collect(ch)
+		prommetrics.FairpoolHeldConns.Collect(ch)
 		close(ch)
 	}()
 
@@ -128,6 +128,22 @@ func waitGone(t *testing.T, poolName, tenantID string) {
 		_, ok := gaugeValue(poolName, tenantID)
 		return !ok
 	}, 2*time.Second, 20*time.Millisecond)
+}
+
+func TestConnectionLimit(t *testing.T) {
+	capped, _ := newPool(t, 50, time.Second, nil)
+	require.Equal(t, int64(2), capped.ConnectionLimit())
+
+	open, _ := newPool(t, 100, time.Second, nil)
+	require.Equal(t, int64(0), open.ConnectionLimit())
+}
+
+func TestRejectsPercentOutsideRange(t *testing.T) {
+	cfg, err := pgxpool.ParseConfig("postgres://localhost/db")
+	require.NoError(t, err)
+
+	_, err = fairpool.NewWithConfig(context.Background(), cfg, fairpool.Options{MaxPercent: 101})
+	require.Error(t, err)
 }
 
 func TestTenantCapLetsOtherTenantsThrough(t *testing.T) {
@@ -267,9 +283,7 @@ func TestSharedCapLetsTenantsThrough(t *testing.T) {
 	require.Equal(t, "shared", limitErr.Key)
 	require.Equal(t, uuid.Nil, limitErr.TenantID)
 	require.Equal(t, int64(2), limitErr.Limit)
-	require.Equal(t, map[string]int{"begin": 2}, limitErr.Queries)
 	require.Contains(t, limitErr.Error(), "fairpool-exhausted:")
-	require.Contains(t, limitErr.Error(), "begin=2")
 
 	tenant := uuid.New()
 	txT, err := pool.ForTenant(tenant).Begin(ctx)
@@ -280,30 +294,6 @@ func TestSharedCapLetsTenantsThrough(t *testing.T) {
 	require.NoError(t, tx1.Rollback(ctx))
 	require.NoError(t, tx2.Rollback(ctx))
 	requireGone(t, name, "shared")
-}
-
-func TestLimitErrorListsHeldQueries(t *testing.T) {
-	pool, _ := newPool(t, 50, 150*time.Millisecond, nil)
-	ctx := context.Background()
-	db := pool.ForTenant(uuid.New())
-
-	tx, err := db.Begin(ctx)
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = tx.Rollback(context.Background()) })
-	_, err = tx.Exec(ctx, "-- name: Alpha :exec\nSELECT 1")
-	require.NoError(t, err)
-
-	rows, err := db.Query(ctx, "-- name: Beta :many\nSELECT 1")
-	require.NoError(t, err)
-	t.Cleanup(func() { rows.Close() })
-
-	_, err = db.Begin(ctx)
-	var limitErr *fairpool.LimitError
-	require.ErrorAs(t, err, &limitErr)
-	require.Equal(t, map[string]int{"Alpha": 1, "Beta": 1}, limitErr.Queries)
-	require.Contains(t, limitErr.Error(), "fairpool-exhausted:")
-	require.Contains(t, limitErr.Error(), "Alpha=1")
-	require.Contains(t, limitErr.Error(), "Beta=1")
 }
 
 func TestNilTenantUsesSharedBucket(t *testing.T) {
@@ -470,21 +460,21 @@ func TestAbandonedResultsReleaseSlots(t *testing.T) {
 	waitGone(t, name, id)
 }
 
-func abandonRows(t *testing.T, db fairpool.DB) {
+func abandonRows(t *testing.T, db fairpool.Handle) {
 	t.Helper()
 	rows, err := db.Query(context.Background(), "SELECT 1")
 	require.NoError(t, err)
 	runtime.KeepAlive(rows)
 }
 
-func abandonTx(t *testing.T, db fairpool.DB) {
+func abandonTx(t *testing.T, db fairpool.Handle) {
 	t.Helper()
 	tx, err := db.Begin(context.Background())
 	require.NoError(t, err)
 	runtime.KeepAlive(tx)
 }
 
-func abandonConn(t *testing.T, db fairpool.DB) {
+func abandonConn(t *testing.T, db fairpool.Handle) {
 	t.Helper()
 	conn, err := db.Acquire(context.Background())
 	require.NoError(t, err)

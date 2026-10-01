@@ -42,7 +42,7 @@ func newIdempotencyRepository(shared *sharedRepository) IdempotencyRepository {
 func NewIdempotencyRepository(pool *pgxpool.Pool) IdempotencyRepository {
 	logger := zerolog.Nop()
 	shared := &sharedRepository{
-		pool:    fairpool.Wrap(pool),
+		pool:    fairpool.Ungated(pool),
 		ddlPool: pool,
 		l:       &logger,
 		queries: sqlcv1.New(),

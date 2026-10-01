@@ -81,27 +81,22 @@ func (c *Conn) Hijack() *pgx.Conn {
 }
 
 func (c *Conn) Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error) {
-	c.hold.slot.retag(queryName(sql))
 	return c.hold.inner.Exec(ctx, sql, arguments...)
 }
 
 func (c *Conn) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
-	c.hold.slot.retag(queryName(sql))
 	return c.hold.inner.Query(ctx, sql, args...)
 }
 
 func (c *Conn) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
-	c.hold.slot.retag(queryName(sql))
 	return c.hold.inner.QueryRow(ctx, sql, args...)
 }
 
 func (c *Conn) SendBatch(ctx context.Context, b *pgx.Batch) pgx.BatchResults {
-	c.hold.slot.retag(batchLabel(b))
 	return c.hold.inner.SendBatch(ctx, b)
 }
 
 func (c *Conn) CopyFrom(ctx context.Context, tableName pgx.Identifier, columnNames []string, rowSrc pgx.CopyFromSource) (int64, error) {
-	c.hold.slot.retag("copy")
 	return c.hold.inner.CopyFrom(ctx, tableName, columnNames, rowSrc)
 }
 
@@ -260,31 +255,6 @@ func newGatingTx(tx pgx.Tx, slot *slotHold) pgx.Tx {
 	g.stop = runtime.AddCleanup(g, func(h *txHold) { _ = h.finish(context.Background(), false) }, hold)
 
 	return g
-}
-
-func (g *gatingTx) Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error) {
-	g.hold.slot.retag(queryName(sql))
-	return g.Tx.Exec(ctx, sql, arguments...)
-}
-
-func (g *gatingTx) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
-	g.hold.slot.retag(queryName(sql))
-	return g.Tx.Query(ctx, sql, args...)
-}
-
-func (g *gatingTx) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
-	g.hold.slot.retag(queryName(sql))
-	return g.Tx.QueryRow(ctx, sql, args...)
-}
-
-func (g *gatingTx) SendBatch(ctx context.Context, b *pgx.Batch) pgx.BatchResults {
-	g.hold.slot.retag(batchLabel(b))
-	return g.Tx.SendBatch(ctx, b)
-}
-
-func (g *gatingTx) CopyFrom(ctx context.Context, tableName pgx.Identifier, columnNames []string, rowSrc pgx.CopyFromSource) (int64, error) {
-	g.hold.slot.retag("copy")
-	return g.Tx.CopyFrom(ctx, tableName, columnNames, rowSrc)
 }
 
 func (g *gatingTx) Commit(ctx context.Context) error {

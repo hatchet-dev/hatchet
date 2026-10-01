@@ -18,6 +18,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/semaphore"
 
 	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/internal/listutils"
@@ -4733,9 +4734,23 @@ func (r *TaskRepositoryImpl) Cleanup(ctx context.Context) (bool, error) {
 	)
 	eg, ctx := errgroup.WithContext(ctx)
 
+	// Each cleanup transaction takes a shared-bucket slot. Starting more of them
+	// than that cap makes cleanup wait out MaxWait and fail its own cycle.
+	var cleanupSlots *semaphore.Weighted
+	if lim := r.pool.ConnectionLimit(); lim > 0 {
+		cleanupSlots = semaphore.NewWeighted(lim)
+	}
+
 	// Helper to run a cleanup operation with its own transaction and advisory lock
 	runCleanup := func(lockName string, cleanupFn func(ctx context.Context, tx sqlcv1.DBTX) error) func() error {
 		return func() error {
+			if cleanupSlots != nil {
+				if err := cleanupSlots.Acquire(ctx, 1); err != nil {
+					return err
+				}
+				defer cleanupSlots.Release(1)
+			}
+
 			tx, commit, rollback, err := sqlchelpers.PrepareTxWithStatementTimeout(ctx, r.pool.ForShared(), r.l, timeout)
 			if err != nil {
 				return fmt.Errorf("error beginning transaction for %s: %v", lockName, err)

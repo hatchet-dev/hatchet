@@ -26,7 +26,7 @@ import (
 func newBatchTestRepository(pool *pgxpool.Pool) *TaskRepositoryImpl {
 	logger := zerolog.Nop()
 	queries := sqlcv1.New()
-	payloadStore := NewPayloadStoreRepository(fairpool.Wrap(pool), &logger, queries, PayloadStoreRepositoryOpts{
+	payloadStore := NewPayloadStoreRepository(fairpool.Ungated(pool), &logger, queries, PayloadStoreRepositoryOpts{
 		ExternalCutoverProcessInterval: time.Second,
 		ExternalCutoverBatchSize:       1,
 	})
@@ -36,7 +36,7 @@ func newBatchTestRepository(pool *pgxpool.Pool) *TaskRepositoryImpl {
 	taskLookupCache, _ := lru.New[taskExternalIdTenantIdTuple, *sqlcv1.FlattenExternalIdsRow](1024)
 
 	shared := &sharedRepository{
-		pool:                fairpool.Wrap(pool),
+		pool:                fairpool.Ungated(pool),
 		ddlPool:             pool,
 		l:                   &logger,
 		v:                   validator.NewDefaultValidator(),

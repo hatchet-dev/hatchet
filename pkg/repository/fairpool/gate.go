@@ -18,34 +18,21 @@ import (
 // It uses the same connection limit as any single tenant.
 const sharedKey = "shared"
 
-// maxQueryLabels bounds how many distinct statement names one bucket remembers.
-// Further names fold into "other" so raw SQL cannot grow the map without limit.
-const maxQueryLabels = 64
-
-// LimitError is returned when a tenant or shared work waits MaxWait without getting a connection slot.
+// LimitError is returned when a tenant or shared work waits MaxWait without a free slot.
 type LimitError struct {
 	// Key is the gate bucket. Tenants use the tenant id string; shared work uses "shared".
 	Key      string
 	TenantID uuid.UUID
 	Limit    int64
 	Waited   time.Duration
-	// Queries counts statements currently holding a slot in this bucket, keyed by sqlc name.
-	Queries map[string]int
 }
 
 func (e *LimitError) Error() string {
-	var msg string
 	if e.Key == sharedKey {
-		msg = fmt.Sprintf("fairpool-exhausted: shared work held the maximum of %d database connections for %s", e.Limit, e.Waited)
-	} else {
-		msg = fmt.Sprintf("fairpool-exhausted: tenant %s held the maximum of %d database connections for %s", e.TenantID, e.Limit, e.Waited)
+		return fmt.Sprintf("fairpool-exhausted: shared work held the maximum of %d database connections for %s", e.Limit, e.Waited)
 	}
 
-	if counts := formatQueryCounts(e.Queries); counts != "" {
-		msg += " " + counts
-	}
-
-	return msg
+	return fmt.Sprintf("fairpool-exhausted: tenant %s held the maximum of %d database connections for %s", e.TenantID, e.Limit, e.Waited)
 }
 
 type gate struct {
@@ -61,18 +48,15 @@ type gate struct {
 type tenantSlots struct {
 	sem      *semaphore.Weighted
 	held     int64
-	queries  map[string]int
+	refs     int
 	lastWarn time.Time
 }
 
-// slotHold is one checked-out connection. retag moves its count when a transaction
-// runs a statement, so an exhaustion error names the statement rather than "begin".
+// slotHold is one checked-out connection counted against a bucket.
 type slotHold struct {
 	g     *gate
 	key   string
 	slots *tenantSlots
-	label string
-	done  bool
 	once  sync.Once
 }
 
@@ -91,67 +75,84 @@ func newGate(limit int64, maxWait time.Duration, poolName string, l *zerolog.Log
 	}
 }
 
-// enter takes one slot for key and counts it under label. tenantID is recorded on
-// LimitError for tenant buckets and is uuid.Nil for shared work. The timeout used
-// while waiting is not returned; callers must run the query with the context they were given.
-func (g *gate) enter(ctx context.Context, key, label string, tenantID uuid.UUID) (*slotHold, error) {
-	slots := g.slots(key)
+// pin counts one connection against key. open must check out the connection.
+// The slot is taken only after open succeeds, and it is held until the caller
+// releases the returned hold. If the bucket is full, release runs and pin waits
+// up to MaxWait without keeping the connection.
+func (g *gate) pin(ctx context.Context, key string, tenantID uuid.UUID, open func() error, release func()) (*slotHold, error) {
+	slots := g.borrow(key)
+	defer g.releaseBorrow(key, slots)
 
-	if slots.sem.TryAcquire(1) {
-		return g.take(key, label, slots), nil
-	}
+	deadline := time.Now().Add(g.maxWait)
+	var waited time.Duration
 
-	start := time.Now()
-	_, span := telemetry.NewSpan(ctx, "db.tenant-gate.wait")
-	defer span.End()
-
-	waitCtx, cancel := context.WithTimeout(ctx, g.maxWait)
-	defer cancel()
-
-	err := slots.sem.Acquire(waitCtx, 1)
-	waited := time.Since(start)
-
-	if err != nil {
-		if ctx.Err() != nil {
-			prometheus.TenantPoolGateWait.WithLabelValues(g.poolName, "canceled").Observe(waited.Seconds())
-			return nil, ctx.Err()
+	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
 		}
 
-		prometheus.TenantPoolGateWait.WithLabelValues(g.poolName, "rejected").Observe(waited.Seconds())
-		prometheus.TenantPoolGateRejections.WithLabelValues(g.poolName, key).Inc()
-		g.warnLimited(key, slots, waited)
+		if err := open(); err != nil {
+			return nil, err
+		}
 
+		if slots.sem.TryAcquire(1) {
+			if waited > 0 {
+				prometheus.FairpoolWait.WithLabelValues(g.poolName, "acquired").Observe(waited.Seconds())
+				g.warnLimited(key, slots, waited)
+			}
+
+			return g.take(key, slots), nil
+		}
+
+		release()
+
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			return nil, g.reject(key, slots, tenantID, waited)
+		}
+
+		start := time.Now()
+		waitCtx, cancel := context.WithTimeout(ctx, remaining)
+		_, span := telemetry.NewSpan(ctx, "db.fairpool.wait")
+		err := slots.sem.Acquire(waitCtx, 1)
+		waited += time.Since(start)
 		telemetry.WithAttributes(span,
 			telemetry.AttributeKV{Key: "tenant_id", Value: key},
 			telemetry.AttributeKV{Key: "limit", Value: g.limit},
 			telemetry.AttributeKV{Key: "waited_ms", Value: waited.Milliseconds()},
-			telemetry.AttributeKV{Key: "outcome", Value: "rejected"},
 		)
+		span.End()
+		cancel()
 
-		return nil, &LimitError{
-			Key:      key,
-			TenantID: tenantID,
-			Limit:    g.limit,
-			Waited:   waited,
-			Queries:  g.snapshotQueries(slots),
+		if err != nil {
+			if ctx.Err() != nil {
+				prometheus.FairpoolWait.WithLabelValues(g.poolName, "canceled").Observe(waited.Seconds())
+				return nil, ctx.Err()
+			}
+
+			return nil, g.reject(key, slots, tenantID, waited)
 		}
+
+		// The slot was only a signal that one might be free. Give it back and
+		// check out a connection before counting it.
+		slots.sem.Release(1)
 	}
-
-	prometheus.TenantPoolGateWait.WithLabelValues(g.poolName, "acquired").Observe(waited.Seconds())
-	hold := g.take(key, label, slots)
-	g.warnLimited(key, slots, waited)
-
-	telemetry.WithAttributes(span,
-		telemetry.AttributeKV{Key: "tenant_id", Value: key},
-		telemetry.AttributeKV{Key: "limit", Value: g.limit},
-		telemetry.AttributeKV{Key: "waited_ms", Value: waited.Milliseconds()},
-		telemetry.AttributeKV{Key: "outcome", Value: "acquired"},
-	)
-
-	return hold, nil
 }
 
-func (g *gate) slots(key string) *tenantSlots {
+func (g *gate) reject(key string, slots *tenantSlots, tenantID uuid.UUID, waited time.Duration) error {
+	prometheus.FairpoolWait.WithLabelValues(g.poolName, "rejected").Observe(waited.Seconds())
+	prometheus.FairpoolRejections.WithLabelValues(g.poolName).Inc()
+	g.warnLimited(key, slots, waited)
+
+	return &LimitError{
+		Key:      key,
+		TenantID: tenantID,
+		Limit:    g.limit,
+		Waited:   waited,
+	}
+}
+
+func (g *gate) borrow(key string) *tenantSlots {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
@@ -161,20 +162,28 @@ func (g *gate) slots(key string) *tenantSlots {
 		g.tenants[key] = slots
 	}
 
+	slots.refs++
+
 	return slots
 }
 
-func (g *gate) take(key, label string, slots *tenantSlots) *slotHold {
+func (g *gate) releaseBorrow(key string, slots *tenantSlots) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	slots.refs--
+	g.evictLocked(key, slots)
+}
+
+func (g *gate) take(key string, slots *tenantSlots) *slotHold {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
 	slots.held++
+	slots.refs++
 	g.noteHeldLocked(key, slots)
 
-	hold := &slotHold{g: g, key: key, slots: slots}
-	hold.label = slots.addQueryLocked(label)
-
-	return hold
+	return &slotHold{g: g, key: key, slots: slots}
 }
 
 func (h *slotHold) release() {
@@ -184,75 +193,30 @@ func (h *slotHold) release() {
 
 	h.once.Do(func() {
 		h.g.mu.Lock()
-		h.done = true
-		h.slots.dropQueryLocked(h.label)
 		h.slots.held--
+		h.slots.refs--
 		h.g.noteHeldLocked(h.key, h.slots)
+		h.g.evictLocked(h.key, h.slots)
 		h.g.mu.Unlock()
 
 		h.slots.sem.Release(1)
 	})
 }
 
-func (h *slotHold) retag(label string) {
-	if h == nil || label == "" {
-		return
+func (g *gate) evictLocked(key string, slots *tenantSlots) {
+	if slots.held <= 0 && slots.refs <= 0 {
+		delete(g.tenants, key)
 	}
-
-	h.g.mu.Lock()
-	defer h.g.mu.Unlock()
-
-	if h.done || h.label == label {
-		return
-	}
-
-	h.slots.dropQueryLocked(h.label)
-	h.label = h.slots.addQueryLocked(label)
-}
-
-func (s *tenantSlots) addQueryLocked(label string) string {
-	if s.queries == nil {
-		s.queries = make(map[string]int)
-	}
-	if _, ok := s.queries[label]; !ok && len(s.queries) >= maxQueryLabels {
-		label = "other"
-	}
-	s.queries[label]++
-
-	return label
-}
-
-func (s *tenantSlots) dropQueryLocked(label string) {
-	s.queries[label]--
-	if s.queries[label] <= 0 {
-		delete(s.queries, label)
-	}
-}
-
-func (g *gate) snapshotQueries(slots *tenantSlots) map[string]int {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-
-	if len(slots.queries) == 0 {
-		return nil
-	}
-
-	out := make(map[string]int, len(slots.queries))
-	for name, n := range slots.queries {
-		out[name] = n
-	}
-
-	return out
 }
 
 func (g *gate) noteHeldLocked(key string, slots *tenantSlots) {
 	if slots.held <= 0 {
 		slots.held = 0
-		prometheus.TenantPoolHeldConns.DeleteLabelValues(g.poolName, key)
+		prometheus.FairpoolHeldConns.DeleteLabelValues(g.poolName, key)
 		return
 	}
 
-	prometheus.TenantPoolHeldConns.WithLabelValues(g.poolName, key).Set(float64(slots.held))
+	prometheus.FairpoolHeldConns.WithLabelValues(g.poolName, key).Set(float64(slots.held))
 }
 
 func (g *gate) warnLimited(key string, slots *tenantSlots, waited time.Duration) {

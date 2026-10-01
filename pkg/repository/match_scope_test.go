@@ -31,7 +31,7 @@ func newUserEventScopeTestRepositories(t *testing.T, pool *pgxpool.Pool) userEve
 
 	logger := zerolog.Nop()
 	shared, cleanup := newSharedRepository(
-		fairpool.Wrap(pool),
+		fairpool.Ungated(pool),
 		pool,
 		validator.NewDefaultValidator(),
 		&logger,

@@ -40,7 +40,7 @@ func createTenantLimitRepositoryForTest(t *testing.T, pool *pgxpool.Pool, config
 
 	return &tenantLimitRepository{
 		sharedRepository: &sharedRepository{
-			pool:    fairpool.Wrap(pool),
+			pool:    fairpool.Ungated(pool),
 			ddlPool: pool,
 			l:       &logger,
 			queries: sqlcv1.New(),

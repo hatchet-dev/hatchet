@@ -22,7 +22,7 @@ import (
 func newAllocatedResourcesTestRepos(pool *pgxpool.Pool) (*workflowRepository, *workflowScheduleRepository, *sqlcv1.Queries) {
 	logger := zerolog.Nop()
 	shared := &sharedRepository{
-		pool:       fairpool.Wrap(pool),
+		pool:       fairpool.Ungated(pool),
 		ddlPool:    pool,
 		l:          &logger,
 		queries:    sqlcv1.New(),

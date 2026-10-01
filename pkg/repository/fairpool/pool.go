@@ -2,6 +2,7 @@ package fairpool
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -23,19 +24,20 @@ type Options struct {
 	L          *zerolog.Logger
 }
 
-// Pool is a pgx pool plus an optional connection cap. Call ForTenant to count an
-// acquire against a tenant, or ForShared to count it against shared engine work.
-// Both buckets use the same limit. Unwrap does not count.
+// Pool is a pgx pool plus an optional connection cap. ForTenant counts a
+// connection against a tenant after one is checked out. ForShared counts it
+// against shared engine work. Both buckets use the same limit. Ungated and
+// Unwrap do not count.
 type Pool struct {
 	inner  *pgxpool.Pool
 	gate   *gate
 	shared *handle
 }
 
-// DB is the handle sqlc and transaction helpers call. A handle from ForTenant
-// counts connections against that tenant. A handle from ForShared counts them
-// against shared engine work.
-type DB interface {
+// Handle is one tenant's checkout, or the shared checkout. sqlc accepts it
+// anywhere it accepts a DBTX. sqlchelpers.Pool is the smaller begin-a-transaction
+// view of a Handle.
+type Handle interface {
 	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
 	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
@@ -49,6 +51,10 @@ type DB interface {
 
 // NewWithConfig builds a pool from cfg. The tracer already set on cfg is left in place.
 func NewWithConfig(ctx context.Context, cfg *pgxpool.Config, opts Options) (*Pool, error) {
+	if err := checkPercent(opts.MaxPercent); err != nil {
+		return nil, err
+	}
+
 	inner, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		return nil, err
@@ -57,9 +63,9 @@ func NewWithConfig(ctx context.Context, cfg *pgxpool.Config, opts Options) (*Poo
 	return newPool(inner, opts), nil
 }
 
-// Wrap returns a pool around an existing pgx pool. With no MaxPercent in opts
-// the result is ungated; use NewWithConfig to install a cap.
-func Wrap(inner *pgxpool.Pool) *Pool {
+// Ungated returns a pool that does not cap connections. Tests and call sites
+// that must not take a slot use this instead of ForTenant or ForShared.
+func Ungated(inner *pgxpool.Pool) *Pool {
 	if inner == nil {
 		return nil
 	}
@@ -87,6 +93,15 @@ func newPool(inner *pgxpool.Pool, opts Options) *Pool {
 	return p
 }
 
+// checkPercent accepts 0 (no cap, used by Ungated) and 1 through 100 (100 installs no cap).
+func checkPercent(percent int) error {
+	if percent == 0 || (percent >= 1 && percent <= 100) {
+		return nil
+	}
+
+	return fmt.Errorf("fairpool max percent must be from 1 to 100, got %d", percent)
+}
+
 // connectionLimit is the number of connections one tenant, or shared engine work, may hold.
 // Zero means the gate is not installed.
 func connectionLimit(maxConns int32, percent int) int64 {
@@ -102,6 +117,16 @@ func connectionLimit(maxConns int32, percent int) int64 {
 	return limit
 }
 
+// ConnectionLimit is how many connections one tenant, or shared work, may hold.
+// Zero means the pool is ungated.
+func (p *Pool) ConnectionLimit() int64 {
+	if p == nil || p.gate == nil {
+		return 0
+	}
+
+	return p.gate.limit
+}
+
 // Unwrap returns the underlying pgx pool. Callers that hijack a connection,
 // such as LISTEN, use this so they never take a gate slot.
 func (p *Pool) Unwrap() *pgxpool.Pool {
@@ -115,7 +140,7 @@ func (p *Pool) Unwrap() *pgxpool.Pool {
 // ForShared returns the handle for engine work that is not tied to one tenant.
 // It counts against the same limit as any single tenant. A pool with no gate
 // returns a handle that does not count.
-func (p *Pool) ForShared() DB {
+func (p *Pool) ForShared() Handle {
 	if p == nil {
 		return nil
 	}
@@ -126,7 +151,7 @@ func (p *Pool) ForShared() DB {
 // ForTenant returns a handle that counts acquires against tenantID.
 // A nil id counts against the shared bucket. A pool with no gate returns a
 // handle that does not count.
-func (p *Pool) ForTenant(tenantID uuid.UUID) DB {
+func (p *Pool) ForTenant(tenantID uuid.UUID) Handle {
 	if p == nil {
 		return nil
 	}
@@ -161,41 +186,60 @@ type handle struct {
 	gated    bool
 }
 
-func (h *handle) enter(ctx context.Context, label string) (*slotHold, error) {
-	if !h.gated {
-		return nil, nil
+func releaseCheckedOut(hold *slotHold, releaseConn func()) {
+	if releaseConn != nil {
+		releaseConn()
 	}
 
-	return h.pool.gate.enter(ctx, h.key, label, h.tenantID)
+	hold.release()
+}
+
+func (h *handle) pinConn(ctx context.Context) (*pgxpool.Conn, *slotHold, error) {
+	var conn *pgxpool.Conn
+
+	hold, err := h.pool.gate.pin(ctx, h.key, h.tenantID, func() error {
+		var acquireErr error
+		conn, acquireErr = h.pool.inner.Acquire(ctx)
+		return acquireErr
+	}, func() { conn.Release() })
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return conn, hold, nil
 }
 
 func (h *handle) Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error) {
-	hold, err := h.enter(ctx, queryName(sql))
+	if !h.gated {
+		return h.pool.inner.Exec(ctx, sql, arguments...)
+	}
+
+	conn, hold, err := h.pinConn(ctx)
 	if err != nil {
 		return pgconn.CommandTag{}, err
 	}
-	defer hold.release()
+	defer releaseCheckedOut(hold, conn.Release)
 
-	return h.pool.inner.Exec(ctx, sql, arguments...)
+	return conn.Exec(ctx, sql, arguments...)
 }
 
 func (h *handle) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
-	hold, err := h.enter(ctx, queryName(sql))
-	if err != nil {
-		return nil, err
-	}
-
-	rows, err := h.pool.inner.Query(ctx, sql, args...)
-	if err != nil {
-		hold.release()
-		return nil, err
-	}
-
 	if !h.gated {
-		return rows, nil
+		return h.pool.inner.Query(ctx, sql, args...)
 	}
 
-	return newGatingRows(rows, hold.release), nil
+	conn, hold, err := h.pinConn(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := conn.Query(ctx, sql, args...)
+	if err != nil {
+		releaseCheckedOut(hold, conn.Release)
+		return nil, err
+	}
+
+	return newGatingRows(rows, func() { releaseCheckedOut(hold, conn.Release) }), nil
 }
 
 func (h *handle) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
@@ -212,27 +256,30 @@ func (h *handle) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row 
 }
 
 func (h *handle) CopyFrom(ctx context.Context, tableName pgx.Identifier, columnNames []string, rowSrc pgx.CopyFromSource) (int64, error) {
-	hold, err := h.enter(ctx, "copy")
+	if !h.gated {
+		return h.pool.inner.CopyFrom(ctx, tableName, columnNames, rowSrc)
+	}
+
+	conn, hold, err := h.pinConn(ctx)
 	if err != nil {
 		return 0, err
 	}
-	defer hold.release()
+	defer releaseCheckedOut(hold, conn.Release)
 
-	return h.pool.inner.CopyFrom(ctx, tableName, columnNames, rowSrc)
+	return conn.CopyFrom(ctx, tableName, columnNames, rowSrc)
 }
 
 func (h *handle) SendBatch(ctx context.Context, b *pgx.Batch) pgx.BatchResults {
-	hold, err := h.enter(ctx, batchLabel(b))
+	if !h.gated {
+		return h.pool.inner.SendBatch(ctx, b)
+	}
+
+	conn, hold, err := h.pinConn(ctx)
 	if err != nil {
 		return errBatchResults{err: err}
 	}
 
-	results := h.pool.inner.SendBatch(ctx, b)
-	if !h.gated {
-		return results
-	}
-
-	return newGatingBatch(results, hold.release)
+	return newGatingBatch(conn.SendBatch(ctx, b), func() { releaseCheckedOut(hold, conn.Release) })
 }
 
 func (h *handle) Begin(ctx context.Context) (pgx.Tx, error) {
@@ -240,38 +287,36 @@ func (h *handle) Begin(ctx context.Context) (pgx.Tx, error) {
 }
 
 func (h *handle) BeginTx(ctx context.Context, txOptions pgx.TxOptions) (pgx.Tx, error) {
-	hold, err := h.enter(ctx, "begin")
-	if err != nil {
-		return nil, err
-	}
-
-	tx, err := h.pool.inner.BeginTx(ctx, txOptions)
-	if err != nil {
-		hold.release()
-		return nil, err
-	}
-
 	if !h.gated {
-		return tx, nil
+		return h.pool.inner.BeginTx(ctx, txOptions)
+	}
+
+	var tx pgx.Tx
+	hold, err := h.pool.gate.pin(ctx, h.key, h.tenantID, func() error {
+		var beginErr error
+		tx, beginErr = h.pool.inner.BeginTx(ctx, txOptions)
+		return beginErr
+	}, func() { _ = tx.Rollback(ctx) })
+	if err != nil {
+		return nil, err
 	}
 
 	return newGatingTx(tx, hold), nil
 }
 
 func (h *handle) Acquire(ctx context.Context) (*Conn, error) {
-	hold, err := h.enter(ctx, "acquire")
-	if err != nil {
-		return nil, err
-	}
-
-	conn, err := h.pool.inner.Acquire(ctx)
-	if err != nil {
-		hold.release()
-		return nil, err
-	}
-
 	if !h.gated {
+		conn, err := h.pool.inner.Acquire(ctx)
+		if err != nil {
+			return nil, err
+		}
+
 		return newConn(conn, nil), nil
+	}
+
+	conn, hold, err := h.pinConn(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	return newConn(conn, hold), nil

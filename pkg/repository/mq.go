@@ -65,7 +65,7 @@ func newMessageQueueRepository(shared *sharedRepository) (*messageQueueRepositor
 // which must never share pooled resources with the repository layer.
 func NewMessageQueueRepositoryWithPool(l *zerolog.Logger, pool *pgxpool.Pool) (MessageQueueRepository, func() error) {
 	return newMessageQueueRepository(&sharedRepository{
-		pool:    fairpool.Wrap(pool),
+		pool:    fairpool.Ungated(pool),
 		l:       l,
 		queries: sqlcv1.New(),
 	})

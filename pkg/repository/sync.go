@@ -25,7 +25,7 @@ import (
 // no gen_random_uuid() or NOW() defaults are called server-side.
 type SyncRepository interface {
 	// Pool returns a handle capped with shared engine work so callers can start their own transactions.
-	Pool() fairpool.DB
+	Pool() fairpool.Handle
 
 	SyncUpsertTenant(ctx context.Context, db sqlcv1.DBTX, arg sqlcv1.SyncUpsertTenantParams) (*sqlcv1.Tenant, error)
 	SyncUpdateTenant(ctx context.Context, db sqlcv1.DBTX, arg sqlcv1.SyncUpdateTenantParams) (*sqlcv1.Tenant, error)
@@ -59,7 +59,7 @@ func NewSyncRepository(pool *fairpool.Pool, l *zerolog.Logger) SyncRepository {
 	}
 }
 
-func (r *syncRepository) Pool() fairpool.DB {
+func (r *syncRepository) Pool() fairpool.Handle {
 	return r.pool.ForShared()
 }
 

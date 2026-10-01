@@ -23,7 +23,7 @@ func createAssignmentRepositoryForTest(pool *pgxpool.Pool) *assignmentRepository
 	logger := zerolog.New(io.Discard)
 
 	return newAssignmentRepository(&sharedRepository{
-		pool:    fairpool.Wrap(pool),
+		pool:    fairpool.Ungated(pool),
 		l:       &logger,
 		queries: sqlcv1.New(),
 	})
@@ -33,7 +33,7 @@ func createWorkerRepositoryForTest(pool *pgxpool.Pool) WorkerRepository {
 	logger := zerolog.New(io.Discard)
 
 	return newWorkerRepository(&sharedRepository{
-		pool:    fairpool.Wrap(pool),
+		pool:    fairpool.Ungated(pool),
 		l:       &logger,
 		queries: sqlcv1.New(),
 	})

@@ -808,6 +808,11 @@ func (r *sharedRepository) triggerWorkflowsCore(
 	preflightTx := optTx.tx
 
 	if ownsTx {
+		// FIXME: preflight checks out a second connection while the optimistic
+		// transaction still holds one. Two concurrent owned triggers can each take
+		// the last slot and then both fail the second acquire. Preflight stays off
+		// that transaction on purpose; decide whether to finish it before Begin or
+		// reserve both slots first.
 		preflightTx = db
 	}
 

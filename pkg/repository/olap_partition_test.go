@@ -22,7 +22,7 @@ import (
 func createOLAPRepository(pool *pgxpool.Pool) *OLAPRepositoryImpl {
 	logger := zerolog.Nop()
 	shared := &sharedRepository{
-		pool:    fairpool.Wrap(pool),
+		pool:    fairpool.Ungated(pool),
 		ddlPool: pool,
 		l:       &logger,
 		queries: sqlcv1.New(),

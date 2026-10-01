@@ -19,7 +19,7 @@ import (
 func createUserSessionRepository(pool *pgxpool.Pool) *userSessionRepository {
 	logger := zerolog.Nop()
 	shared := &sharedRepository{
-		pool:    fairpool.Wrap(pool),
+		pool:    fairpool.Ungated(pool),
 		ddlPool: pool,
 		l:       &logger,
 		queries: sqlcv1.New(),

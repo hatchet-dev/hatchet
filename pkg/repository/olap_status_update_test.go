@@ -62,7 +62,7 @@ func createOLAPRepositoryWithPayloadStore(t *testing.T, pool *pgxpool.Pool) *OLA
 	logger := zerolog.Nop()
 
 	shared, cleanupShared := newSharedRepository(
-		fairpool.Wrap(pool),
+		fairpool.Ungated(pool),
 		pool,
 		validator.NewDefaultValidator(),
 		&logger,

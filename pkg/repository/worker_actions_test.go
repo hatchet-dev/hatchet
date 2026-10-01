@@ -43,7 +43,7 @@ func createWorkerActionsRepositoryForTest(pool *pgxpool.Pool) WorkerRepository {
 	logger := zerolog.New(io.Discard)
 
 	return newWorkerRepository(&sharedRepository{
-		pool:    fairpool.Wrap(pool),
+		pool:    fairpool.Ungated(pool),
 		l:       &logger,
 		v:       validator.NewDefaultValidator(),
 		queries: sqlcv1.New(),

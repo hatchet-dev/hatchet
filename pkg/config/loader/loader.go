@@ -156,6 +156,10 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		return nil, err
 	}
 
+	if cf.FairpoolTenantMaxPercent < 1 || cf.FairpoolTenantMaxPercent > 100 {
+		return nil, fmt.Errorf("DATABASE_FAIRPOOL_TENANT_MAX_PERCENT must be from 1 to 100, got %d", cf.FairpoolTenantMaxPercent)
+	}
+
 	serverSharedFilePath := filepath.Join(c.directory, "server.yaml")
 	serverConfigFileBytes, err := loaderutils.GetConfigBytes(serverSharedFilePath)
 
@@ -313,8 +317,8 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 	}
 
 	gatedPool, err := fairpool.NewWithConfig(context.Background(), config, fairpool.Options{
-		MaxPercent: cf.TenantPoolMaxPercent,
-		MaxWait:    cf.TenantPoolMaxWait,
+		MaxPercent: cf.FairpoolTenantMaxPercent,
+		MaxWait:    cf.FairpoolTenantMaxWait,
 		PoolName:   "main",
 		L:          &l,
 	})
@@ -369,8 +373,8 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		readReplicaConfig.AfterConnect = pgxpoolConnAfterConnect
 
 		readReplicaPool, err = fairpool.NewWithConfig(context.Background(), readReplicaConfig, fairpool.Options{
-			MaxPercent: cf.TenantPoolMaxPercent,
-			MaxWait:    cf.TenantPoolMaxWait,
+			MaxPercent: cf.FairpoolTenantMaxPercent,
+			MaxWait:    cf.FairpoolTenantMaxWait,
 			PoolName:   "read-replica",
 			L:          &l,
 		})

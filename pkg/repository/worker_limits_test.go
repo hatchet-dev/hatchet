@@ -27,7 +27,7 @@ func createMeteredWorkerRepositoryForTest(t *testing.T, pool *pgxpool.Pool) (Wor
 	limits := createTenantLimitRepositoryForTest(t, pool, defaultLimitTestConfig())
 
 	return newWorkerRepository(&sharedRepository{
-		pool:    fairpool.Wrap(pool),
+		pool:    fairpool.Ungated(pool),
 		l:       &logger,
 		v:       validator.NewDefaultValidator(),
 		queries: sqlcv1.New(),

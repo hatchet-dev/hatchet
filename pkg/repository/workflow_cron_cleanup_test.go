@@ -25,7 +25,7 @@ var internalTenantId = uuid.MustParse("8d420720-ef03-41dc-9c73-1c93f276db97")
 func newWorkflowTestRepository(pool *pgxpool.Pool) *workflowRepository {
 	logger := zerolog.Nop()
 	shared := &sharedRepository{
-		pool:       fairpool.Wrap(pool),
+		pool:       fairpool.Ungated(pool),
 		ddlPool:    pool,
 		l:          &logger,
 		queries:    sqlcv1.New(),
