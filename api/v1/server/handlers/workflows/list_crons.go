@@ -9,6 +9,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/authz"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
@@ -89,9 +90,11 @@ func (t *WorkflowService) CronWorkflowList(ctx echo.Context, request gen.CronWor
 
 	rows := make([]gen.CronWorkflows, len(crons))
 
+	canViewPayloads := transformers.WithPayloads(authz.CanViewPayloads(ctx))
+
 	for i, workflow := range crons {
 		workflowCp := workflow
-		rows[i] = *transformers.ToCronWorkflowsFromSQLC(workflowCp)
+		rows[i] = *transformers.ToCronWorkflowsFromSQLC(workflowCp, canViewPayloads)
 	}
 
 	// use the total rows and limit to calculate the total pages

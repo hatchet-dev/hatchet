@@ -34,6 +34,7 @@ V1Event:
       type: object
       description: Additional metadata for the event.
     payload:
+      x-payload: true
       type: object
       description: The payload of the event, which can be any JSON-serializable object.
     scope:

@@ -3,6 +3,7 @@ package users
 import (
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/authn"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
@@ -63,6 +64,15 @@ func (u *UserService) UserUpdatePassword(ctx echo.Context, request gen.UserUpdat
 	if err != nil {
 		u.config.Logger.Err(err).Msg("failed to update user password")
 		return gen.UserUpdatePassword400JSONResponse(apierrors.NewAPIErrors(ErrInvalidCredentials)), nil
+	}
+
+	// A password change must end any session an attacker may already hold. The session that
+	// issued this request is kept so the user is not signed out of the client they are using.
+	currentSession := authn.NewSessionHelpers(u.config.SessionStore).CurrentSessionID(ctx)
+
+	if _, err := u.config.V1.UserSession().DeleteByUserId(ctx.Request().Context(), userId, currentSession); err != nil {
+		u.config.Logger.Err(err).Msg("failed to revoke other sessions after password change")
+		return nil, err
 	}
 
 	return gen.UserUpdatePassword200JSONResponse(

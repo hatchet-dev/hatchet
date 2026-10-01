@@ -354,15 +354,28 @@ func TestDurableNonDeterminism(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	replayResult, err := ref.Result()
-	if err != nil {
-		assert.Contains(t, err.Error(), "non-determinism error")
-		return
-	}
-
+	// Result subscribes to the run and resolves at once when the run is
+	// already terminal, and the replay only flips the run back to running
+	// shortly after the request returns, so a single Result can still hand
+	// back the first attempt. Keep asking until the second attempt is what
+	// comes back, or the replay fails with the non-determinism error.
 	var replayOutput NonDeterminismOutput
-	err = replayResult.TaskOutput("durable-non-determinism").Into(&replayOutput)
-	require.NoError(t, err)
+	deadline := time.Now().Add(60 * time.Second)
+	for {
+		replayResult, err := ref.Result()
+		if err != nil {
+			assert.Contains(t, err.Error(), "non-determinism error")
+			return
+		}
+
+		require.NoError(t, replayResult.TaskOutput("durable-non-determinism").Into(&replayOutput))
+		if replayOutput.AttemptNumber >= 2 {
+			break
+		}
+
+		require.Less(t, time.Now(), deadline, "the replayed attempt never produced a result; last attempt seen: %d", replayOutput.AttemptNumber)
+		time.Sleep(500 * time.Millisecond)
+	}
 
 	assert.True(t, replayOutput.NonDeterminismDetected)
 	assert.NotNil(t, replayOutput.NodeID)
