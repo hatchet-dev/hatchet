@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"testing"
 	"time"
@@ -20,6 +21,17 @@ import (
 )
 
 func TestMain(m *testing.M) {
+	// The engine, the worker and the load generator all run inside this test
+	// binary, so one pprof endpoint covers everything the job measures. The
+	// handlers are registered by main.go's net/http/pprof import; CI samples
+	// them while the tests run so a slow run can be read from the inside.
+	if addr := os.Getenv("HATCHET_LOADTEST_PPROF_ADDR"); addr != "" {
+		go func() {
+			log.Printf("pprof listening on %s", addr)
+			log.Println(http.ListenAndServe(addr, nil)) // nolint: gosec
+		}()
+	}
+
 	harness.RunTestWithEngine(m)
 }
 

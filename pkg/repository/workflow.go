@@ -1768,7 +1768,10 @@ func (r *workflowRepository) GetWorkflowVersionWithTriggers(ctx context.Context,
 	row, err := r.queries.GetWorkflowVersionById(
 		ctx,
 		r.pool,
-		workflowVersionId,
+		sqlcv1.GetWorkflowVersionByIdParams{
+			ID:       workflowVersionId,
+			Tenantid: tenantId,
+		},
 	)
 
 	if err != nil {
