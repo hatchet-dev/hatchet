@@ -9,18 +9,22 @@
 //	go run ./hack/ci/loadreport -cpu cpu-samples.log \
 //	    -pprof pprof/summary.txt -pgstat pgstat/summary.txt \
 //	    -label "load (optimistic true, race false)" \
-//	    -run-url https://github.com/hatchet-dev/hatchet/actions/runs/1 \
+//	    -repository hatchet-dev/hatchet -run-id 1 \
 //	    [-max-bytes 60000]
 //
-// The summaries are optional and may be missing or empty. Everything read is
-// untrusted; sanitize.go documents the policy. On any input error a short
-// message goes to stderr, the exit code is 1 and nothing is written to stdout.
+// The summaries are optional and may be missing or empty. -repository and
+// -run-id come from the workflow's own context and only build the link to the
+// run; when either is missing or invalid the link is left out. Every file is
+// untrusted and must be a regular file of at most 8 MiB; sanitize.go
+// documents the policy. On any input error a short message goes to stderr,
+// the exit code is 1 and nothing is written to stdout.
 package main
 
 import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"io/fs"
 	"math"
 	"os"
@@ -30,14 +34,17 @@ import (
 )
 
 const (
-	maxBuckets   = 40
-	topInSummary = 8
-	topInChart   = 5
+	maxInputBytes = 8 << 20
+	maxSamples    = 20000
+	maxProcs      = 64
+	maxBuckets    = 40
+	topInSummary  = 8
+	topInChart    = 5
 )
 
 type options struct {
-	cpu, pprof, pgstat, label, runURL string
-	maxBytes                          int
+	cpu, pprof, pgstat, label, repository, runID string
+	maxBytes                                     int
 }
 
 type sample struct {
@@ -47,9 +54,9 @@ type sample struct {
 }
 
 type sampleLog struct {
-	header    []string
-	rows      []sample
-	malformed int
+	header             []string
+	rows               []sample
+	malformed, dropped int
 }
 
 type procShare struct {
@@ -79,7 +86,8 @@ func main() {
 	flag.StringVar(&o.pprof, "pprof", "", "pprof-sampler.sh summarize output (optional)")
 	flag.StringVar(&o.pgstat, "pgstat", "", "pgstat-sampler.sh summarize output (optional)")
 	flag.StringVar(&o.label, "label", "load test", "matrix label named in the heading")
-	flag.StringVar(&o.runURL, "run-url", "", "GitHub Actions run URL linked at the end")
+	flag.StringVar(&o.repository, "repository", "", "owner/name of the repository, from the workflow context")
+	flag.StringVar(&o.runID, "run-id", "", "numeric run id, from the workflow context")
 	flag.IntVar(&o.maxBytes, "max-bytes", 60000, "largest comment to emit")
 	flag.Parse()
 
@@ -100,7 +108,7 @@ func run(o options) (string, error) {
 	if o.cpu == "" {
 		return "", errors.New("-cpu is required")
 	}
-	data, err := os.ReadFile(o.cpu)
+	data, err := readInput(o.cpu)
 	if err != nil {
 		return "", errors.New("cannot read the cpu sample log")
 	}
@@ -114,10 +122,8 @@ func run(o options) (string, error) {
 	}
 
 	log := parseLog(string(data))
-	r := report{label: o.label, summary: summaryLines(log), pprof: pprof, pgstat: pgstat}
-	if runURLRE.MatchString(o.runURL) {
-		r.runURL = o.runURL
-	}
+	r := report{label: o.label, summary: summaryLines(log), pprof: pprof, pgstat: pgstat,
+		runURL: runLink(o.repository, o.runID)}
 	if len(log.rows) > 0 {
 		r.pressureChart, r.processChart, r.processNames = charts(log.rows)
 	}
@@ -130,7 +136,7 @@ func readSummary(path string) (block, error) {
 	if path == "" {
 		return block{}, nil
 	}
-	data, err := os.ReadFile(path)
+	data, err := readInput(path)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return block{}, err
 	}
@@ -139,6 +145,32 @@ func readSummary(path string) (block, error) {
 		text = "(no summary captured)"
 	}
 	return block{present: true, lines: sanitizeBlock(text)}, nil
+}
+
+// readInput refuses anything but a regular file, since a pipe would block
+// and a device or symlink could point anywhere, and never holds more than
+// maxInputBytes of it.
+func readInput(path string) ([]byte, error) {
+	fi, err := os.Lstat(path)
+	if err != nil {
+		return nil, err
+	}
+	if !fi.Mode().IsRegular() || fi.Size() > maxInputBytes {
+		return nil, errors.New("not a regular file within the size cap")
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	data, err := io.ReadAll(io.LimitReader(f, maxInputBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > maxInputBytes {
+		return nil, errors.New("input exceeds the size cap")
+	}
+	return data, nil
 }
 
 func parseLog(text string) sampleLog {
@@ -150,6 +182,8 @@ func parseLog(text string) sampleLog {
 			if !strings.HasPrefix(line, "# columns") {
 				log.header = append(log.header, line)
 			}
+		case len(log.rows) == maxSamples:
+			log.dropped++
 		default:
 			if s, ok := parseSample(line); ok {
 				log.rows = append(log.rows, s)
@@ -163,15 +197,17 @@ func parseLog(text string) sampleLog {
 
 // parseSample accepts only a line whose shape matches the sampler's columns
 // exactly: time load1 load5 busy user system iowait steal mem [name=pct ...].
+// A percentage outside 0 to 100 marks the line malformed rather than being
+// clamped, so a skewed sample shows up in the malformed count.
 func parseSample(line string) (sample, bool) {
 	f := strings.Fields(line)
-	if len(f) < 9 || !timeRE.MatchString(f[0]) {
+	if len(f) < 9 || len(f)-9 > maxProcs || !timeRE.MatchString(f[0]) {
 		return sample{}, false
 	}
 	var nums [8]float64
 	for i := range nums {
 		v, ok := finite(f[i+1])
-		if !ok {
+		if !ok || v < 0 || (i >= 2 && i <= 6 && v > 100) {
 			return sample{}, false
 		}
 		nums[i] = v
@@ -183,7 +219,7 @@ func parseSample(line string) (sample, bool) {
 			return sample{}, false
 		}
 		v, ok := finite(tok[eq+1:])
-		if !ok {
+		if !ok || v < 0 || v > 100 {
 			return sample{}, false
 		}
 		s.procs[safeName(tok[:eq])] += v
@@ -257,6 +293,9 @@ func summaryLines(log sampleLog) []string {
 	fn := float64(n)
 	fmt.Fprintf(&b, "samples: %d\n", n)
 	fmt.Fprintf(&b, "malformed samples: %d\n", log.malformed)
+	if log.dropped > 0 {
+		fmt.Fprintf(&b, "samples dropped past the cap: %d\n", log.dropped)
+	}
 	fmt.Fprintf(&b, "busy%%: mean %s, max %s, samples over 90%% busy: %d (%.0f%% of the run)\n",
 		num(busy/fn), num(busyMax), saturated, float64(saturated)*100/fn)
 	fmt.Fprintf(&b, "steal%%: mean %s, max %s, samples over 5%% steal: %d (%.0f%% of the run)\n",
@@ -401,7 +440,7 @@ func assemble(r report, maxBytes int) (string, error) {
 
 func render(r report, l layout) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "### Runner CPU during the failed %s run\n\n", r.label)
+	fmt.Fprintf(&b, "### Runner CPU during the failed `%s` run\n\n", r.label)
 	b.WriteString("Busy is 100 minus idle across all CPUs: near 100 means the runner was saturated. " +
 		"Steal is CPU the host took away from the runner: above a few percent means it was oversubscribed. " +
 		"Either way the latency gate measured the runner, not the scheduler.\n\n")

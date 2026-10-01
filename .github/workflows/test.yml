@@ -550,7 +550,8 @@ jobs:
             -pprof "$RUNNER_TEMP/pprof/summary.txt" \
             -pgstat "$RUNNER_TEMP/pgstat/summary.txt" \
             -label "load (optimistic ${{ matrix.optimistic-scheduling }}, race ${{ matrix.race }})" \
-            -run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            -repository "${{ github.repository }}" \
+            -run-id "${{ github.run_id }}" \
             > "$RUNNER_TEMP/performance-comment.md"
           gh pr comment ${{ github.event.pull_request.number }} --body-file "$RUNNER_TEMP/performance-comment.md"
         env:

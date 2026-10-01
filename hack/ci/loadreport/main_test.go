@@ -6,7 +6,9 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 )
 
 const header = "# host: Linux 6.8.0 x86_64\n# cpus: 4\n# columns: time load1 ...\n"
@@ -112,25 +114,36 @@ func TestRunRejectsBadLabelAndMissingLog(t *testing.T) {
 	}
 }
 
-func TestRunURLIsOmittedNotRewritten(t *testing.T) {
+func TestRunLinkIsBuiltOrOmitted(t *testing.T) {
 	p := writeFiles(t, map[string]string{"cpu.log": synthLog(2)})
-	for _, u := range []string{
-		"https://evil.example/hatchet-dev/hatchet/actions/runs/1",
-		"https://github.com@evil.example/hatchet/actions/runs/1",
-		"https://github.com/hatchet-dev/hatchet/actions/runs/1@evil",
-	} {
-		out, err := run(options{cpu: p["cpu.log"], label: "x", runURL: u, maxBytes: 60000})
+	bad := [][2]string{
+		{"evil.example/hatchet-dev/hatchet", "1"},
+		{"../hatchet", "1"},
+		{"hatchet-dev/..", "1"},
+		{"./hatchet", "1"},
+		{"hatchet-dev/hatchet/extra", "1"},
+		{"hatchet-dev@evil/hatchet", "1"},
+		{"hatchet-dev/hatchet", "1@evil"},
+		{"hatchet-dev/hatchet", "-1"},
+		{"hatchet-dev/hatchet", ""},
+		{"", "1"},
+	}
+	for _, c := range bad {
+		if got := runLink(c[0], c[1]); got != "" {
+			t.Errorf("runLink(%q, %q) = %q", c[0], c[1], got)
+		}
+		out, err := run(options{cpu: p["cpu.log"], label: "x", repository: c[0], runID: c[1], maxBytes: 60000})
 		if err != nil {
 			t.Fatal(err)
 		}
 		if strings.Contains(out, "evil") || strings.Contains(out, "Raw samples") {
-			t.Errorf("bad run url %q leaked into %q", u, out)
+			t.Errorf("bad run context %v leaked into %q", c, out)
 		}
 	}
 	good := "https://github.com/hatchet-dev/hatchet/actions/runs/1"
-	out, err := run(options{cpu: p["cpu.log"], label: "x", runURL: good, maxBytes: 60000})
+	out, err := run(options{cpu: p["cpu.log"], label: "x", repository: "hatchet-dev/hatchet", runID: "1", maxBytes: 60000})
 	if err != nil || !strings.HasSuffix(out, "artifacts: "+good+"\n") {
-		t.Errorf("good run url missing: %v %q", err, out)
+		t.Errorf("good run link missing: %v %q", err, out)
 	}
 }
 
@@ -170,7 +183,7 @@ func TestSizeDropOrder(t *testing.T) {
 	big := strings.Repeat(strings.Repeat("p", 300)+"\n", 150)
 	p := writeFiles(t, map[string]string{"cpu.log": synthLog(100), "pprof.txt": big, "pgstat.txt": big})
 	url := "https://github.com/hatchet-dev/hatchet/actions/runs/1"
-	full, err := run(options{cpu: p["cpu.log"], pprof: p["pprof.txt"], pgstat: p["pgstat.txt"], label: "x", runURL: url, maxBytes: 200000})
+	full, err := run(options{cpu: p["cpu.log"], pprof: p["pprof.txt"], pgstat: p["pgstat.txt"], label: "x", repository: "hatchet-dev/hatchet", runID: "1", maxBytes: 200000})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,7 +198,7 @@ func TestSizeDropOrder(t *testing.T) {
 		{1500, false, false, false, false},
 	}
 	for _, c := range cases {
-		out, err := run(options{cpu: p["cpu.log"], pprof: p["pprof.txt"], pgstat: p["pgstat.txt"], label: "x", runURL: url, maxBytes: c.max})
+		out, err := run(options{cpu: p["cpu.log"], pprof: p["pprof.txt"], pgstat: p["pgstat.txt"], label: "x", repository: "hatchet-dev/hatchet", runID: "1", maxBytes: c.max})
 		if err != nil {
 			t.Fatalf("max %d: %v", c.max, err)
 		}
@@ -215,7 +228,7 @@ func TestSizeDropOrder(t *testing.T) {
 func TestGoldenCharts(t *testing.T) {
 	p := writeFiles(t, map[string]string{"cpu.log": synthLog(100), "pprof.txt": "cpu profiles: 1\n", "pgstat.txt": ""})
 	out, err := run(options{cpu: p["cpu.log"], pprof: p["pprof.txt"], pgstat: p["pgstat.txt"],
-		label: "load (optimistic true, race false)", runURL: "https://github.com/hatchet-dev/hatchet/actions/runs/1", maxBytes: 60000})
+		label: "load (optimistic true, race false)", repository: "hatchet-dev/hatchet", runID: "1", maxBytes: 60000})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -249,7 +262,7 @@ func TestGoldenCharts(t *testing.T) {
 		t.Errorf("charts %d axes %d lines %d", charts, axes, lines)
 	}
 	want := []string{
-		"### Runner CPU during the failed load (optimistic true, race false) run\n",
+		"### Runner CPU during the failed `load (optimistic true, race false)` run\n",
 		"samples: 100\nmalformed samples: 0\nbusy%: mean 74.5, max 99.0, samples over 90% busy: 18 (18% of the run)\n",
 		"steal%: mean 4.5, max 9.0, samples over 5% steal: 40 (40% of the run)\niowait%: mean 1.0\nload1: max 3.1\n",
 		"top processes by mean share of all CPUs:\n  loadtest                  30.0%\n  postgres                  20.5%\n  ____url_removed_           1.0%\n  kworker/u8:1               0.2%\n```\n",
@@ -274,5 +287,108 @@ func TestNoSamples(t *testing.T) {
 	}
 	if strings.Contains(out, "mermaid") || !strings.Contains(out, "no cpu samples recorded\nmalformed samples: 1\n") || !fencesBalanced(out) {
 		t.Errorf("unexpected:\n%s", out)
+	}
+}
+
+// F3: a credential-shaped process name must not reach any sink, including
+// the chart series and the inline process list that bypass sanitizeBlock.
+func TestProcessNameSecretsRedactedInEverySink(t *testing.T) {
+	p := writeFiles(t, map[string]string{"cpu.log": header +
+		"10:00:00 1.0 1.0 50.0 40 10 0.0 0.0 8000 ghp_abcdefghijklmnop123=60 postgresql://u:DemoPgPassword42@h=10\n" +
+		"10:00:02 1.0 1.0 50.0 40 10 0.0 0.0 8000 ghp_abcdefghijklmnop123=60 postgresql://u:DemoPgPassword42@h=10\n"})
+	out, err := run(options{cpu: p["cpu.log"], label: "x", maxBytes: 60000})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, leak := range []string{"ghp_", "abcdefghijklmnop", "DemoPgPassword42"} {
+		if strings.Contains(out, leak) {
+			t.Errorf("%q leaked:\n%s", leak, out)
+		}
+	}
+	if strings.Count(out, "_redacted_") < 3 {
+		t.Errorf("expected the redacted name in the summary, the chart and the list:\n%s", out)
+	}
+}
+
+// F5: the label is allowlisted but a bare host is still autolinkable, so it
+// is rendered inside a code span.
+func TestLabelRendersInsideCodeSpan(t *testing.T) {
+	p := writeFiles(t, map[string]string{"cpu.log": synthLog(2)})
+	out, err := run(options{cpu: p["cpu.log"], label: "www.attacker.example", maxBytes: 60000})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(out, "### Runner CPU during the failed `www.attacker.example` run\n") {
+		t.Errorf("heading:\n%s", out)
+	}
+	if strings.Contains(outsideCode(out), "attacker") {
+		t.Errorf("label appears outside code:\n%s", out)
+	}
+	if n := regexp.MustCompile("`www\\.attacker\\.example`").FindAllString(out, -1); len(n) != 1 || strings.Count(out, "attacker") != 1 {
+		t.Errorf("label not confined to one code span:\n%s", out)
+	}
+}
+
+// F7: inputs are bounded before they are read.
+func TestInputBounds(t *testing.T) {
+	dir := t.TempDir()
+	huge := filepath.Join(dir, "huge.log")
+	f, err := os.Create(huge)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Truncate(9 << 20); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+	fifo := filepath.Join(dir, "fifo")
+	if err := syscall.Mkfifo(fifo, 0o600); err != nil {
+		t.Skip("mkfifo unavailable:", err)
+	}
+	link := filepath.Join(dir, "link")
+	if err := os.Symlink(huge, link); err != nil {
+		t.Fatal(err)
+	}
+	good := writeFiles(t, map[string]string{"cpu.log": synthLog(2)})
+
+	for _, path := range []string{huge, fifo, link, dir} {
+		start := time.Now()
+		if _, err := run(options{cpu: path, label: "x", maxBytes: 60000}); err == nil {
+			t.Errorf("%s accepted as -cpu", path)
+		}
+		if _, err := run(options{cpu: good["cpu.log"], pprof: path, label: "x", maxBytes: 60000}); err == nil {
+			t.Errorf("%s accepted as -pprof", path)
+		}
+		if time.Since(start) > 2*time.Second {
+			t.Errorf("%s took %s to reject", path, time.Since(start))
+		}
+	}
+
+	var b strings.Builder
+	b.WriteString(header)
+	for i := 0; i < maxSamples+5; i++ {
+		b.WriteString("10:00:00 1.0 1.0 50.0 40 10 0.0 0.0 8000 a=1\n")
+	}
+	many := strings.Repeat(" p=1", maxProcs+1)
+	b.WriteString("10:00:00 1.0 1.0 50.0 40 10 0.0 0.0 8000" + many + "\n")
+	b.WriteString("10:00:00 1.0 1.0 101.0 40 10 0.0 0.0 8000 a=1\n")
+	b.WriteString("10:00:00 1.0 1.0 50.0 40 10 0.0 -1.0 8000 a=1\n")
+	b.WriteString("10:00:00 1.0 1.0 50.0 40 10 0.0 0.0 8000 a=100.5\n")
+	b.WriteString("10:00:00 -1.0 1.0 50.0 40 10 0.0 0.0 8000 a=1\n")
+	log := parseLog(b.String())
+	if len(log.rows) != maxSamples || log.dropped != 10 {
+		t.Errorf("rows %d dropped %d malformed %d", len(log.rows), log.dropped, log.malformed)
+	}
+	log = parseLog(header + "10:00:00 1.0 1.0 50.0 40 10 0.0 0.0 8000" + many + "\n" +
+		"10:00:00 1.0 1.0 101.0 40 10 0.0 0.0 8000 a=1\n" +
+		"10:00:00 1.0 1.0 50.0 40 10 0.0 -1.0 8000 a=1\n" +
+		"10:00:00 1.0 1.0 50.0 40 10 0.0 0.0 8000 a=100.5\n" +
+		"10:00:00 -1.0 1.0 50.0 40 10 0.0 0.0 8000 a=1\n" +
+		"10:00:00 1.0 1.0 100.0 40 10 0.0 0.0 8000 a=100\n")
+	if len(log.rows) != 1 || log.malformed != 5 {
+		t.Errorf("rows %d malformed %d", len(log.rows), log.malformed)
+	}
+	if !contains(summaryLines(sampleLog{rows: log.rows, dropped: 3}), "samples dropped past the cap: 3") {
+		t.Error("dropped count not reported")
 	}
 }
