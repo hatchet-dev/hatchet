@@ -9,7 +9,7 @@ SELECT
     create_v1_range_partition('v1_durable_event_log_file', @date::date) AS v1_durable_event_log_file,
     create_v1_range_partition('v1_durable_event_log_entry', @date::date, 80) AS v1_durable_event_log_entry,
     create_v1_range_partition('v1_durable_event_log_branch_point', @date::date, 80) AS v1_durable_event_log_branch_point,
-    create_v1_range_partition('v1_stream_producer_cursor', @date::date) AS v1_stream_producer_cursor
+    create_v1_range_partition('v1_stream_producer_cursor', @date::date, 80) AS v1_stream_producer_cursor
 ;
 
 -- name: EnsureTablePartitionsExist :one

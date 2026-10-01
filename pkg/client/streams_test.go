@@ -65,3 +65,26 @@ func TestStreamsPublish_RejectedBeforeEnqueueReusesSeq(t *testing.T) {
 	assert.Equal(t, fake.reqs[0].ProducerId, fake.reqs[1].ProducerId)
 	assert.Equal(t, int64(0), fake.reqs[1].ProducerSeq)
 }
+
+func TestStreamsPublish_GapRetriesOnceAsANewProducer(t *testing.T) {
+	fake := &fakeV1StreamsClient{errs: []error{nil, status.Error(codes.FailedPrecondition, "gap")}}
+	s := newTestStreamsClient(fake)
+
+	require.NoError(t, s.Publish(context.Background(), "", "t", []byte("a")))
+	require.NoError(t, s.Publish(context.Background(), "", "t", []byte("b")), "a gap must be retried, not returned")
+
+	require.Len(t, fake.reqs, 3)
+	assert.Equal(t, int64(1), fake.reqs[1].ProducerSeq)
+	assert.NotEqual(t, fake.reqs[1].ProducerId, fake.reqs[2].ProducerId)
+	assert.Equal(t, int64(0), fake.reqs[2].ProducerSeq)
+	assert.Equal(t, []byte("b"), fake.reqs[2].Payload)
+}
+
+func TestStreamsPublish_RepeatedGapIsReturned(t *testing.T) {
+	gap := status.Error(codes.FailedPrecondition, "gap")
+	fake := &fakeV1StreamsClient{errs: []error{gap, gap}}
+	s := newTestStreamsClient(fake)
+
+	assert.Equal(t, codes.FailedPrecondition, status.Code(s.Publish(context.Background(), "", "t", []byte("a"))))
+	assert.Len(t, fake.reqs, 2, "only one retry")
+}

@@ -3873,7 +3873,6 @@ type V1StreamProducerCursor struct {
 }
 
 type V1StreamTopic struct {
-	ID              int64              `json:"id"`
 	TenantID        uuid.UUID          `json:"tenant_id"`
 	Namespace       string             `json:"namespace"`
 	Topic           string             `json:"topic"`

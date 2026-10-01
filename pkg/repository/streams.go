@@ -34,6 +34,18 @@ const defaultListStreamMessagesLimit = 500
 // TestMaxPayloadFitsInGRPCMessages.
 const MaxStreamMessagePayloadBytes = 4*1024*1024 - 5*1024
 
+// streamProducerCursorRetention is how long a producer's watermark survives
+// without a publish. Past it, the producer's next publish is rejected as a
+// sequence gap and the SDK resumes under a new producer ID.
+const streamProducerCursorRetention = 3 * 24 * time.Hour
+
+// streamProducerCursorMinBucket is the oldest producer cursor bucket still
+// within retention as of now: lookups read from it, and older partitions are
+// dropped.
+func streamProducerCursorMinBucket(now time.Time) pgtype.Date {
+	return pgtype.Date{Time: now.UTC().Add(-streamProducerCursorRetention).Truncate(24 * time.Hour), Valid: true}
+}
+
 // MaxStreamNameLength caps a stream topic or namespace, in characters. The
 // validate tags below must stay in sync with it.
 const MaxStreamNameLength = 255
@@ -197,7 +209,7 @@ func (r *streamsRepositoryImpl) EnsureTopic(ctx context.Context, tenantId uuid.U
 
 		if !canCreate {
 			// roll back the just-created row so the tenant's topic count stays accurate
-			if delErr := r.queries.DeleteStreamTopic(ctx, r.pool, row.V1StreamTopic.ID); delErr != nil {
+			if delErr := r.queries.DeleteStreamTopic(ctx, r.pool, sqlcv1.DeleteStreamTopicParams{Tenantid: tenantId, Namespace: namespace, Topic: topic}); delErr != nil {
 				r.l.Error().Ctx(ctx).Err(delErr).Msg("failed to roll back stream topic after topic limit exceeded")
 			}
 
@@ -254,6 +266,7 @@ func (r *streamsRepositoryImpl) InsertOrderedStreamMessages(ctx context.Context,
 	})
 
 	params := make([]sqlcv1.InsertOrderedStreamMessageParams, len(order))
+	minBucket := streamProducerCursorMinBucket(time.Now())
 	tenantIds := make([]uuid.UUID, 0, len(order))
 
 	for i, idx := range order {
@@ -267,6 +280,7 @@ func (r *streamsRepositoryImpl) InsertOrderedStreamMessages(ctx context.Context,
 			Producerid:      m.Opts.ProducerID,
 			Producerseq:     m.Opts.ProducerSeq,
 			Expectedprevseq: m.Opts.ProducerSeq - 1,
+			Minbucket:       minBucket,
 		}
 
 		tenantIds = append(tenantIds, m.TenantID)

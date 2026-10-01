@@ -582,16 +582,7 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		return err
 	}
 
-	streamRetention, err := r.maxStreamRetention(ctx)
-
-	if err != nil {
-		return err
-	}
-
-	cursorPartitions, err := r.queries.ListStreamProducerCursorPartitionsBeforeDate(ctx, r.ddlPool, pgtype.Date{
-		Time:  today.Add(-streamProducerCursorRetentionMultiplier * streamRetention),
-		Valid: true,
-	})
+	cursorPartitions, err := r.queries.ListStreamProducerCursorPartitionsBeforeDate(ctx, r.ddlPool, streamProducerCursorMinBucket(today))
 
 	if err != nil {
 		return err
@@ -5309,11 +5300,6 @@ func (r *TaskRepositoryImpl) FilterValidTasks(ctx context.Context, tenantId uuid
 
 const deleteIdleStreamTopicsBatchSize = 1000
 
-// streamProducerCursorRetentionMultiplier keeps producer cursors far longer
-// than messages, so a producer that goes quiet for a while can resume its
-// sequence instead of stalling on a gap (see maxProducerGapWait).
-const streamProducerCursorRetentionMultiplier = 4
-
 // detachAndDropPartition detaches partitionName from parentTable without
 // blocking writers to the parent, then drops it.
 func (r *TaskRepositoryImpl) detachAndDropPartition(ctx context.Context, parentTable, partitionName string) error {
@@ -5456,16 +5442,4 @@ func (r *TaskRepositoryImpl) deleteIdleStreamTopics(ctx context.Context) error {
 			return nil
 		}
 	}
-}
-
-// maxStreamRetention is the longest any tenant keeps stream messages, which
-// bounds how long the shared partitions must be kept.
-func (r *TaskRepositoryImpl) maxStreamRetention(ctx context.Context) (time.Duration, error) {
-	hours, err := r.queries.GetMaxStreamRetentionHours(ctx, r.ddlPool, r.m.DefaultStreamRetentionHours())
-
-	if err != nil {
-		return 0, err
-	}
-
-	return time.Duration(clampStreamRetentionHours(hours, maxStreamRetentionHours)) * time.Hour, nil
 }

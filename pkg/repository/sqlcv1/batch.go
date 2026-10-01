@@ -23,27 +23,29 @@ WITH latest AS (
     SELECT bucket, last_seq
     FROM v1_stream_producer_cursor
     WHERE tenant_id = $1::uuid AND namespace = $2::text AND topic = $3::text AND producer_id = $4::text
+        AND bucket >= $5::date
     ORDER BY bucket DESC
     LIMIT 1
 ), cas AS (
     UPDATE v1_stream_producer_cursor c
-    SET last_seq = $5::bigint
+    SET last_seq = $6::bigint
     FROM latest
     WHERE c.tenant_id = $1::uuid AND c.namespace = $2::text AND c.topic = $3::text AND c.producer_id = $4::text
         AND c.bucket = latest.bucket
+        AND c.bucket >= $5::date
         -- computed by the caller as producerSeq - 1 so sqlc binds one plain parameter
-        AND c.last_seq = $6::bigint
+        AND c.last_seq = $7::bigint
     RETURNING c.bucket
 ), first_message AS (
     -- only seq 0 may create a producer's first row, so a reordered seq>0 can't claim it
     INSERT INTO v1_stream_producer_cursor (tenant_id, namespace, topic, producer_id, bucket, last_seq)
-    SELECT $1::uuid, $2::text, $3::text, $4::text, (NOW() AT TIME ZONE 'UTC')::date, $5::bigint
-    WHERE $5::bigint = 0 AND NOT EXISTS (SELECT 1 FROM latest)
+    SELECT $1::uuid, $2::text, $3::text, $4::text, (NOW() AT TIME ZONE 'UTC')::date, $6::bigint
+    WHERE $6::bigint = 0 AND NOT EXISTS (SELECT 1 FROM latest)
     ON CONFLICT DO NOTHING
     RETURNING 1
 ), carried_forward AS (
     INSERT INTO v1_stream_producer_cursor (tenant_id, namespace, topic, producer_id, bucket, last_seq)
-    SELECT $1::uuid, $2::text, $3::text, $4::text, (NOW() AT TIME ZONE 'UTC')::date, $5::bigint
+    SELECT $1::uuid, $2::text, $3::text, $4::text, (NOW() AT TIME ZONE 'UTC')::date, $6::bigint
     FROM cas
     WHERE cas.bucket < (NOW() AT TIME ZONE 'UTC')::date
     ON CONFLICT (tenant_id, namespace, topic, producer_id, bucket) DO UPDATE
@@ -54,7 +56,7 @@ WITH latest AS (
     SELECT 1 FROM first_message
 ), inserted_row AS (
     INSERT INTO v1_stream_message (tenant_id, namespace, topic, payload, producer_id, producer_seq)
-    SELECT $1::uuid, $2::text, $3::text, $7::bytea, $4::text, $5::bigint
+    SELECT $1::uuid, $2::text, $3::text, $8::bytea, $4::text, $6::bigint
     WHERE EXISTS (SELECT 1 FROM applied)
     RETURNING 1
 )
@@ -72,13 +74,14 @@ type InsertOrderedStreamMessageBatchResults struct {
 }
 
 type InsertOrderedStreamMessageParams struct {
-	Tenantid        uuid.UUID `json:"tenantid"`
-	Namespace       string    `json:"namespace"`
-	Topic           string    `json:"topic"`
-	Producerid      string    `json:"producerid"`
-	Producerseq     int64     `json:"producerseq"`
-	Expectedprevseq int64     `json:"expectedprevseq"`
-	Payload         []byte    `json:"payload"`
+	Tenantid        uuid.UUID   `json:"tenantid"`
+	Namespace       string      `json:"namespace"`
+	Topic           string      `json:"topic"`
+	Producerid      string      `json:"producerid"`
+	Minbucket       pgtype.Date `json:"minbucket"`
+	Producerseq     int64       `json:"producerseq"`
+	Expectedprevseq int64       `json:"expectedprevseq"`
+	Payload         []byte      `json:"payload"`
 }
 
 type InsertOrderedStreamMessageRow struct {
@@ -92,7 +95,9 @@ type InsertOrderedStreamMessageRow struct {
 // bucket; the compare-and-swap runs against that one row, so concurrent
 // attempts serialize on its row lock even across a UTC day boundary. The
 // first write of a new day also copies the watermark into today's bucket so
-// that an active producer's cursor outlives partition retention.
+// that an active producer's cursor outlives partition retention. Only buckets
+// from @minBucket on are read, so planning and locking touch just the
+// partitions within cursor retention; an older watermark counts as none.
 // inserted=false means this message was NOT applied; current_last_seq (the
 // watermark as of this call, NULL if the producer has no row) tells the
 // caller whether that's a gap worth retrying (current_last_seq <
@@ -106,6 +111,7 @@ func (q *Queries) InsertOrderedStreamMessage(ctx context.Context, db DBTX, arg [
 			a.Namespace,
 			a.Topic,
 			a.Producerid,
+			a.Minbucket,
 			a.Producerseq,
 			a.Expectedprevseq,
 			a.Payload,

@@ -9,7 +9,7 @@ import {
 } from '@hatchet/protoc/v1/streams';
 import { HatchetClient } from '../client';
 
-// errors the server returns before the message could have reached the queue,
+// errors the server returns before it could have stored the message,
 // so its producer_seq was never used
 function publishRejectedBeforeEnqueue(err: unknown): boolean {
   const code = getGrpcErrorCode(err);
@@ -74,7 +74,8 @@ export class StreamsClient {
     key: string,
     namespace: string,
     topic: string,
-    payload: Uint8Array
+    payload: Uint8Array,
+    retryGap = true
   ): Promise<void> {
     let producer = this.producers.get(key);
     if (!producer) {
@@ -95,6 +96,11 @@ export class StreamsClient {
       // payload would get that payload dropped as a duplicate
       if (!publishRejectedBeforeEnqueue(err)) {
         this.producers.set(key, { producerId: randomUUID(), seq: 0 });
+      }
+      // a sequence gap stored nothing: this producer's watermark is gone (e.g. it
+      // was idle past the server's cursor retention), so resend as the new one
+      if (retryGap && getGrpcErrorCode(err) === Status.FAILED_PRECONDITION) {
+        return this.publishOrdered(key, namespace, topic, payload, false);
       }
       throw err;
     }

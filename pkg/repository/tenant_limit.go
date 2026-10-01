@@ -551,8 +551,7 @@ func (t *tenantLimitRepository) StreamRetention(ctx context.Context, tenantId uu
 }
 
 // maxStreamRetentionHours (~50 years) stands in for "unlimited" limit values
-// like MaxInt32; it keeps even streamProducerCursorRetentionMultiplier times
-// it within a time.Duration.
+// like MaxInt32, which would overflow a time.Duration.
 const maxStreamRetentionHours = 50 * 365 * 24
 
 // clampStreamRetentionHours treats non-positive hours as unset.

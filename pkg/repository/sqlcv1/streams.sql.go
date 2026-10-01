@@ -25,12 +25,11 @@ func (q *Queries) CountStreamTopics(ctx context.Context, db DBTX, tenantid uuid.
 
 const deleteIdleStreamTopics = `-- name: DeleteIdleStreamTopics :execrows
 DELETE FROM v1_stream_topic
-WHERE id IN (
-    SELECT t.id
+WHERE (tenant_id, namespace, topic) IN (
+    SELECT t.tenant_id, t.namespace, t.topic
     FROM v1_stream_topic t
     LEFT JOIN "TenantResourceLimit" l ON l."tenantId" = t.tenant_id AND l."resource" = 'STREAM_RETENTION'
     WHERE t.last_published_at < NOW() - make_interval(hours => LEAST(COALESCE(l."limitValue", $1::integer), $2::integer))
-    ORDER BY t.id
     LIMIT $3::integer
 )
 `
@@ -54,13 +53,19 @@ func (q *Queries) DeleteIdleStreamTopics(ctx context.Context, db DBTX, arg Delet
 
 const deleteStreamTopic = `-- name: DeleteStreamTopic :exec
 DELETE FROM v1_stream_topic
-WHERE id = $1::bigint
+WHERE tenant_id = $1::uuid AND namespace = $2::text AND topic = $3::text
 `
+
+type DeleteStreamTopicParams struct {
+	Tenantid  uuid.UUID `json:"tenantid"`
+	Namespace string    `json:"namespace"`
+	Topic     string    `json:"topic"`
+}
 
 // Used to roll back UpsertStreamTopic when a newly-created topic turns out to
 // violate the tenant's topic-count limit.
-func (q *Queries) DeleteStreamTopic(ctx context.Context, db DBTX, id int64) error {
-	_, err := db.Exec(ctx, deleteStreamTopic, id)
+func (q *Queries) DeleteStreamTopic(ctx context.Context, db DBTX, arg DeleteStreamTopicParams) error {
+	_, err := db.Exec(ctx, deleteStreamTopic, arg.Tenantid, arg.Namespace, arg.Topic)
 	return err
 }
 
@@ -94,25 +99,8 @@ func (q *Queries) EnsureStreamMessagePartition(ctx context.Context, db DBTX, ten
 	return err
 }
 
-const getMaxStreamRetentionHours = `-- name: GetMaxStreamRetentionHours :one
-SELECT GREATEST(COALESCE(MAX("limitValue"), 0), $1::integer)::integer AS max_hours
-FROM "TenantResourceLimit"
-WHERE "resource" = 'STREAM_RETENTION'
-`
-
-// Shared partitions can only be dropped once every tenant is done with them.
-// Tenants without a row use the default.
-func (q *Queries) GetMaxStreamRetentionHours(ctx context.Context, db DBTX, defaultretentionhours int32) (int32, error) {
-	row := db.QueryRow(ctx, getMaxStreamRetentionHours, defaultretentionhours)
-	var max_hours int32
-	err := row.Scan(&max_hours)
-	return max_hours, err
-}
-
 const getStreamMessageRetentionStart = `-- name: GetStreamMessageRetentionStart :one
-SELECT MIN(p.hour_start)::timestamptz AS retention_start
-FROM list_v1_stream_message_hour_partitions() AS p
-WHERE p.tenant_id = $1::uuid
+SELECT get_v1_stream_message_retention_start($1::uuid)::timestamptz AS retention_start
 `
 
 // The start of the tenant's oldest hourly partition: its rows inserted before
@@ -194,33 +182,25 @@ func (q *Queries) ListStreamMessageHourPartitions(ctx context.Context, db DBTX) 
 }
 
 const listStreamMessagesAfterCursor = `-- name: ListStreamMessagesAfterCursor :many
-WITH page AS (
-    SELECT id, inserted_at, octet_length(payload) AS payload_bytes
-    FROM v1_stream_message
-    WHERE tenant_id = $1::uuid
-        AND namespace = $2::text
-        AND topic = $3::text
-        AND id > $4::bigint
-        -- the tenant's retention; also prunes partitions outside it
-        AND inserted_at >= $5::timestamptz
-        AND xact_id < pg_snapshot_xmin(pg_current_snapshot())
-    ORDER BY id ASC
-    LIMIT $6::integer
-), within_budget AS (
-    SELECT id, inserted_at
+SELECT id, inserted_at, tenant_id, namespace, topic, payload, xact_id, producer_id, producer_seq
+FROM (
+    SELECT page.id, page.inserted_at, page.tenant_id, page.namespace, page.topic, page.payload, page.xact_id, page.producer_id, page.producer_seq, SUM(octet_length(page.payload)) OVER (ORDER BY page.id) - octet_length(page.payload) AS bytes_before
     FROM (
-        SELECT id, inserted_at, SUM(payload_bytes) OVER (ORDER BY id) - payload_bytes AS bytes_before
-        FROM page
-    ) AS sized
-    WHERE bytes_before < $7::bigint
-)
-SELECT m.id, m.inserted_at, m.tenant_id, m.namespace, m.topic, m.payload, m.xact_id, m.producer_id, m.producer_seq
-FROM v1_stream_message m
-JOIN within_budget b ON m.id = b.id AND m.inserted_at = b.inserted_at
-WHERE m.tenant_id = $1::uuid
-    AND m.namespace = $2::text
-    AND m.topic = $3::text
-ORDER BY m.id ASC
+        SELECT id, inserted_at, tenant_id, namespace, topic, payload, xact_id, producer_id, producer_seq
+        FROM v1_stream_message
+        WHERE tenant_id = $1::uuid
+            AND namespace = $2::text
+            AND topic = $3::text
+            AND id > $4::bigint
+            -- the tenant's retention; also prunes partitions outside it
+            AND inserted_at >= $5::timestamptz
+            AND xact_id < pg_snapshot_xmin(pg_current_snapshot())
+        ORDER BY id ASC
+        LIMIT $6::integer
+    ) AS page
+) AS sized
+WHERE bytes_before < $7::bigint
+ORDER BY id ASC
 `
 
 type ListStreamMessagesAfterCursorParams struct {
@@ -237,8 +217,9 @@ type ListStreamMessagesAfterCursorParams struct {
 // whose inserting transaction may still be in flight, so a concurrent batch
 // insert can't let a higher id become visible before a lower one commits.
 // A page also stops once its payloads reach @maxBytes (always keeping its
-// first row); octet_length reads the stored size without detoasting, so only
-// the rows returned have their payloads loaded.
+// first row). Payloads over ~2KB are stored out of line, and octet_length
+// reads their size without fetching them, so only the rows returned have
+// their payloads loaded.
 func (q *Queries) ListStreamMessagesAfterCursor(ctx context.Context, db DBTX, arg ListStreamMessagesAfterCursorParams) ([]*V1StreamMessage, error) {
 	rows, err := db.Query(ctx, listStreamMessagesAfterCursor,
 		arg.Tenantid,
@@ -289,8 +270,8 @@ type ListStreamProducerCursorPartitionsBeforeDateRow struct {
 	PartitionName string `json:"partition_name"`
 }
 
-// Kept separate from ListPartitionsBeforeDate because producer cursors are
-// retained much longer than the messages they sequence.
+// Kept separate from ListPartitionsBeforeDate because producer cursors have
+// their own retention.
 func (q *Queries) ListStreamProducerCursorPartitionsBeforeDate(ctx context.Context, db DBTX, date pgtype.Date) ([]*ListStreamProducerCursorPartitionsBeforeDateRow, error) {
 	rows, err := db.Query(ctx, listStreamProducerCursorPartitionsBeforeDate, date)
 	if err != nil {
@@ -316,7 +297,7 @@ INSERT INTO v1_stream_topic (tenant_id, namespace, topic)
 VALUES ($1::uuid, $2::text, $3::text)
 ON CONFLICT (tenant_id, namespace, topic) DO UPDATE
 SET last_published_at = NOW()
-RETURNING v1_stream_topic.id, v1_stream_topic.tenant_id, v1_stream_topic.namespace, v1_stream_topic.topic, v1_stream_topic.inserted_at, v1_stream_topic.last_published_at, (xmax = 0) AS inserted
+RETURNING v1_stream_topic.tenant_id, v1_stream_topic.namespace, v1_stream_topic.topic, v1_stream_topic.inserted_at, v1_stream_topic.last_published_at, (xmax = 0) AS inserted
 `
 
 type UpsertStreamTopicParams struct {
@@ -337,7 +318,6 @@ func (q *Queries) UpsertStreamTopic(ctx context.Context, db DBTX, arg UpsertStre
 	row := db.QueryRow(ctx, upsertStreamTopic, arg.Tenantid, arg.Namespace, arg.Topic)
 	var i UpsertStreamTopicRow
 	err := row.Scan(
-		&i.V1StreamTopic.ID,
 		&i.V1StreamTopic.TenantID,
 		&i.V1StreamTopic.Namespace,
 		&i.V1StreamTopic.Topic,

@@ -12,25 +12,24 @@ RETURNING sqlc.embed(v1_stream_topic), (xmax = 0) AS inserted;
 -- Used to roll back UpsertStreamTopic when a newly-created topic turns out to
 -- violate the tenant's topic-count limit.
 DELETE FROM v1_stream_topic
-WHERE id = @id::bigint;
+WHERE tenant_id = @tenantId::uuid AND namespace = @namespace::text AND topic = @topic::text;
 
 -- name: DeleteIdleStreamTopics :execrows
 -- Removes topics nobody has published to within their tenant's retention, in
 -- batches so one sweep never holds a long lock. last_published_at is
 -- refreshed at least every streamTopicSeenCache TTL while a topic is in use.
 DELETE FROM v1_stream_topic
-WHERE id IN (
-    SELECT t.id
+WHERE (tenant_id, namespace, topic) IN (
+    SELECT t.tenant_id, t.namespace, t.topic
     FROM v1_stream_topic t
     LEFT JOIN "TenantResourceLimit" l ON l."tenantId" = t.tenant_id AND l."resource" = 'STREAM_RETENTION'
     WHERE t.last_published_at < NOW() - make_interval(hours => LEAST(COALESCE(l."limitValue", @defaultRetentionHours::integer), @maxRetentionHours::integer))
-    ORDER BY t.id
     LIMIT @batchSize::integer
 );
 
 -- name: ListStreamProducerCursorPartitionsBeforeDate :many
--- Kept separate from ListPartitionsBeforeDate because producer cursors are
--- retained much longer than the messages they sequence.
+-- Kept separate from ListPartitionsBeforeDate because producer cursors have
+-- their own retention.
 SELECT
     'v1_stream_producer_cursor' AS parent_table,
     p::text AS partition_name
@@ -46,7 +45,9 @@ SELECT COUNT(*) FROM v1_stream_topic WHERE tenant_id = @tenantId::uuid;
 -- bucket; the compare-and-swap runs against that one row, so concurrent
 -- attempts serialize on its row lock even across a UTC day boundary. The
 -- first write of a new day also copies the watermark into today's bucket so
--- that an active producer's cursor outlives partition retention.
+-- that an active producer's cursor outlives partition retention. Only buckets
+-- from @minBucket on are read, so planning and locking touch just the
+-- partitions within cursor retention; an older watermark counts as none.
 -- inserted=false means this message was NOT applied; current_last_seq (the
 -- watermark as of this call, NULL if the producer has no row) tells the
 -- caller whether that's a gap worth retrying (current_last_seq <
@@ -55,6 +56,7 @@ WITH latest AS (
     SELECT bucket, last_seq
     FROM v1_stream_producer_cursor
     WHERE tenant_id = @tenantId::uuid AND namespace = @namespace::text AND topic = @topic::text AND producer_id = @producerId::text
+        AND bucket >= @minBucket::date
     ORDER BY bucket DESC
     LIMIT 1
 ), cas AS (
@@ -63,6 +65,7 @@ WITH latest AS (
     FROM latest
     WHERE c.tenant_id = @tenantId::uuid AND c.namespace = @namespace::text AND c.topic = @topic::text AND c.producer_id = @producerId::text
         AND c.bucket = latest.bucket
+        AND c.bucket >= @minBucket::date
         -- computed by the caller as producerSeq - 1 so sqlc binds one plain parameter
         AND c.last_seq = @expectedPrevSeq::bigint
     RETURNING c.bucket
@@ -100,9 +103,7 @@ LEFT JOIN latest ON true;
 -- name: GetStreamMessageRetentionStart :one
 -- The start of the tenant's oldest hourly partition: its rows inserted before
 -- it have been dropped. NULL if the tenant has no partitions.
-SELECT MIN(p.hour_start)::timestamptz AS retention_start
-FROM list_v1_stream_message_hour_partitions() AS p
-WHERE p.tenant_id = @tenantId::uuid;
+SELECT get_v1_stream_message_retention_start(@tenantId::uuid)::timestamptz AS retention_start;
 
 -- name: EnsureStreamMessagePartition :exec
 -- Creates the tenant's partitions for this hour and the next, for an insert
@@ -137,44 +138,30 @@ SELECT p.partition_name::text AS partition_name
 FROM list_v1_stream_message_empty_tenant_partitions() AS p
 WHERE NOT EXISTS (SELECT 1 FROM v1_stream_topic t WHERE t.tenant_id = p.tenant_id);
 
--- name: GetMaxStreamRetentionHours :one
--- Shared partitions can only be dropped once every tenant is done with them.
--- Tenants without a row use the default.
-SELECT GREATEST(COALESCE(MAX("limitValue"), 0), @defaultRetentionHours::integer)::integer AS max_hours
-FROM "TenantResourceLimit"
-WHERE "resource" = 'STREAM_RETENTION';
-
 -- name: ListStreamMessagesAfterCursor :many
 -- Keyset pagination on id. xact_id < pg_snapshot_xmin(...) excludes rows
 -- whose inserting transaction may still be in flight, so a concurrent batch
 -- insert can't let a higher id become visible before a lower one commits.
 -- A page also stops once its payloads reach @maxBytes (always keeping its
--- first row); octet_length reads the stored size without detoasting, so only
--- the rows returned have their payloads loaded.
-WITH page AS (
-    SELECT id, inserted_at, octet_length(payload) AS payload_bytes
-    FROM v1_stream_message
-    WHERE tenant_id = @tenantId::uuid
-        AND namespace = @namespace::text
-        AND topic = @topic::text
-        AND id > @afterId::bigint
-        -- the tenant's retention; also prunes partitions outside it
-        AND inserted_at >= @retainedSince::timestamptz
-        AND xact_id < pg_snapshot_xmin(pg_current_snapshot())
-    ORDER BY id ASC
-    LIMIT sqlc.arg('limit')::integer
-), within_budget AS (
-    SELECT id, inserted_at
+-- first row). Payloads over ~2KB are stored out of line, and octet_length
+-- reads their size without fetching them, so only the rows returned have
+-- their payloads loaded.
+SELECT id, inserted_at, tenant_id, namespace, topic, payload, xact_id, producer_id, producer_seq
+FROM (
+    SELECT page.*, SUM(octet_length(page.payload)) OVER (ORDER BY page.id) - octet_length(page.payload) AS bytes_before
     FROM (
-        SELECT id, inserted_at, SUM(payload_bytes) OVER (ORDER BY id) - payload_bytes AS bytes_before
-        FROM page
-    ) AS sized
-    WHERE bytes_before < @maxBytes::bigint
-)
-SELECT m.*
-FROM v1_stream_message m
-JOIN within_budget b ON m.id = b.id AND m.inserted_at = b.inserted_at
-WHERE m.tenant_id = @tenantId::uuid
-    AND m.namespace = @namespace::text
-    AND m.topic = @topic::text
-ORDER BY m.id ASC;
+        SELECT *
+        FROM v1_stream_message
+        WHERE tenant_id = @tenantId::uuid
+            AND namespace = @namespace::text
+            AND topic = @topic::text
+            AND id > @afterId::bigint
+            -- the tenant's retention; also prunes partitions outside it
+            AND inserted_at >= @retainedSince::timestamptz
+            AND xact_id < pg_snapshot_xmin(pg_current_snapshot())
+        ORDER BY id ASC
+        LIMIT sqlc.arg('limit')::integer
+    ) AS page
+) AS sized
+WHERE bytes_before < @maxBytes::bigint
+ORDER BY id ASC;

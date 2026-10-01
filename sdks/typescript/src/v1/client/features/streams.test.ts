@@ -169,6 +169,29 @@ describe('StreamsClient.publish producer sequencing', () => {
     expect(reqs[2].producerSeq).toBe(0);
   });
 
+  it('retries a sequence gap once as a new producer instead of failing', async () => {
+    const { streams, publish } = setup([undefined, grpcError(Status.FAILED_PRECONDITION)]);
+
+    await streams.publish('topic', 'a');
+    await streams.publish('topic', 'b');
+
+    const reqs = publish.mock.calls.map(([req]) => req);
+    expect(reqs).toHaveLength(3);
+    expect(reqs[1].producerSeq).toBe(1);
+    expect(reqs[2].producerId).not.toBe(reqs[1].producerId);
+    expect(reqs[2].producerSeq).toBe(0);
+  });
+
+  it('surfaces a second consecutive sequence gap', async () => {
+    const { streams, publish } = setup([
+      grpcError(Status.FAILED_PRECONDITION),
+      grpcError(Status.FAILED_PRECONDITION),
+    ]);
+
+    await expect(streams.publish('topic', 'a')).rejects.toThrow();
+    expect(publish).toHaveBeenCalledTimes(2);
+  });
+
   it('reuses the seq when the server rejected the publish before enqueueing it', async () => {
     const { streams, publish } = setup([grpcError(Status.RESOURCE_EXHAUSTED)]);
 

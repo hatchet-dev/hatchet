@@ -60,7 +60,7 @@ func newStreams(conn *grpc.ClientConn, opts *sharedClientOpts) StreamsClient {
 }
 
 // publishRejectedBeforeEnqueue reports whether err is one the server returns
-// before the message could have reached the queue, so its seq was never used.
+// before it could have stored the message, so its seq was never used.
 func publishRejectedBeforeEnqueue(err error) bool {
 	switch status.Code(err) {
 	case codes.InvalidArgument, codes.ResourceExhausted, codes.Unauthenticated, codes.PermissionDenied:
@@ -92,15 +92,20 @@ func (s *streamsClientImpl) Publish(ctx context.Context, namespace, topic string
 	state.mu.Lock()
 	defer state.mu.Unlock()
 
-	_, err := s.client.Publish(s.ctx.newContext(ctx), &sharedcontracts.PublishStreamMessageRequest{
-		Namespace:   namespace,
-		Topic:       topic,
-		Payload:     payload,
-		ProducerId:  state.producerID,
-		ProducerSeq: state.seq,
-	})
+	for attempt := 0; ; attempt++ {
+		_, err := s.client.Publish(s.ctx.newContext(ctx), &sharedcontracts.PublishStreamMessageRequest{
+			Namespace:   namespace,
+			Topic:       topic,
+			Payload:     payload,
+			ProducerId:  state.producerID,
+			ProducerSeq: state.seq,
+		})
 
-	if err != nil {
+		if err == nil {
+			state.seq++
+			return nil
+		}
+
 		// the message may still land, so reusing its seq for a different
 		// payload would get that payload dropped as a duplicate
 		if !publishRejectedBeforeEnqueue(err) {
@@ -108,12 +113,14 @@ func (s *streamsClientImpl) Publish(ctx context.Context, namespace, topic string
 			state.seq = 0
 		}
 
+		// a sequence gap stored nothing: this producer's watermark is gone (e.g.
+		// it was idle past the server's cursor retention), so resend as the new one
+		if status.Code(err) == codes.FailedPrecondition && attempt == 0 {
+			continue
+		}
+
 		return err
 	}
-
-	state.seq++
-
-	return nil
 }
 
 func (s *streamsClientImpl) Subscribe(ctx context.Context, namespace, topic string, cursor *string, handler StreamsHandler) error {

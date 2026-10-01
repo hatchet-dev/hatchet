@@ -55,6 +55,30 @@ BEGIN
 END;
 $$;
 
+-- get_v1_stream_message_retention_start returns the start of tenantId's oldest
+-- hourly partition, reading only that tenant's partitions. NULL if it has none.
+CREATE OR REPLACE FUNCTION get_v1_stream_message_retention_start(
+    tenantId uuid
+) RETURNS timestamptz
+    LANGUAGE plpgsql STABLE AS
+$$
+DECLARE
+    tenantTable regclass := to_regclass('v1_stream_message_' || replace(tenantId::text, '-', ''));
+BEGIN
+    IF tenantTable IS NULL THEN
+        RETURN NULL;
+    END IF;
+
+    RETURN (
+        SELECT MIN(to_timestamp(right(c.relname, 10), 'YYYYMMDDHH24')::timestamp AT TIME ZONE 'UTC')
+        FROM pg_inherits i
+        JOIN pg_class c ON c.oid = i.inhrelid
+        WHERE i.inhparent = tenantTable
+            AND NOT i.inhdetachpending
+    );
+END;
+$$;
+
 -- list_v1_stream_message_hour_partitions lists every hourly partition of
 -- v1_stream_message with its tenant and hour.
 CREATE OR REPLACE FUNCTION list_v1_stream_message_hour_partitions()
@@ -95,14 +119,13 @@ $$;
 
 -- metadata for streams
 CREATE TABLE v1_stream_topic (
-    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     tenant_id UUID NOT NULL,
     namespace TEXT NOT NULL DEFAULT '',
     topic TEXT NOT NULL,
     inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     last_published_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT v1_stream_topic_tenant_ns_topic_key UNIQUE (tenant_id, namespace, topic)
+    CONSTRAINT v1_stream_topic_pkey PRIMARY KEY (tenant_id, namespace, topic)
 );
 
 -- xact_id stores the transaction id that this row was inserted with
@@ -120,7 +143,9 @@ CREATE TABLE v1_stream_message (
     producer_id TEXT NOT NULL,
     producer_seq BIGINT NOT NULL,
 
-    CONSTRAINT v1_stream_message_pkey PRIMARY KEY (tenant_id, namespace, topic, inserted_at, id)
+    -- id before inserted_at, so a topic's index is in id order for keyset
+    -- reads (inserted_at is only here because every partition key must be)
+    CONSTRAINT v1_stream_message_pkey PRIMARY KEY (tenant_id, namespace, topic, id, inserted_at)
 ) PARTITION BY LIST(tenant_id);
 
 -- each tenant gets its own hourly-partitioned table on its first message (see
@@ -128,10 +153,9 @@ CREATE TABLE v1_stream_message (
 
 -- v1_stream_producer_cursor tracks, per (tenant, namespace, topic,
 -- producer_id), the last producer_seq durably applied to v1_stream_message.
--- Partitioned by the UTC day a row was written so idle producers age out,
--- retained several times longer than v1_stream_message; a producer's
--- watermark is its row in its latest bucket, copied forward on its first
--- write of each day.
+-- Partitioned by the UTC day a row was written so idle producers age out
+-- after a few days (streamProducerCursorRetention); a producer's watermark is
+-- its row in its latest bucket, copied forward on its first write of each day.
 CREATE TABLE v1_stream_producer_cursor (
     tenant_id UUID NOT NULL,
     namespace TEXT NOT NULL DEFAULT '',
@@ -143,8 +167,9 @@ CREATE TABLE v1_stream_producer_cursor (
     CONSTRAINT v1_stream_producer_cursor_pkey PRIMARY KEY (tenant_id, namespace, topic, producer_id, bucket)
 ) PARTITION BY RANGE(bucket);
 
-SELECT create_v1_range_partition('v1_stream_producer_cursor', (NOW() AT TIME ZONE 'UTC')::DATE);
-SELECT create_v1_range_partition('v1_stream_producer_cursor', (NOW() AT TIME ZONE 'UTC')::DATE + 1);
+-- headroom so each publish's last_seq update can stay on its page (HOT)
+SELECT create_v1_range_partition('v1_stream_producer_cursor', (NOW() AT TIME ZONE 'UTC')::DATE, 80);
+SELECT create_v1_range_partition('v1_stream_producer_cursor', (NOW() AT TIME ZONE 'UTC')::DATE + 1, 80);
 -- +goose StatementEnd
 
 -- +goose Down
@@ -154,5 +179,6 @@ DROP TABLE v1_stream_message;
 DROP TABLE v1_stream_topic;
 DROP FUNCTION IF EXISTS list_v1_stream_message_empty_tenant_partitions();
 DROP FUNCTION IF EXISTS list_v1_stream_message_hour_partitions();
+DROP FUNCTION IF EXISTS get_v1_stream_message_retention_start(uuid);
 DROP FUNCTION IF EXISTS ensure_v1_stream_message_partition(uuid, timestamptz);
 -- +goose StatementEnd

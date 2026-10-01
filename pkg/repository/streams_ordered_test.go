@@ -300,7 +300,7 @@ func TestStreamMessagePartitionsFollowEachTenantsRetention(t *testing.T) {
 		hourTable(shortTenant, -time.Hour):   true,
 		tenantTable(goneTenant):              false,
 		tenantTable(shortTenant):             true,
-		// cursors are kept 4x the longest retention (48h): 8 days
+		// cursors are kept streamProducerCursorRetention (3 days), whatever the message retention
 		"v1_stream_producer_cursor_" + today.AddDate(0, 0, -2).Format("20060102"):  true,
 		"v1_stream_producer_cursor_" + today.AddDate(0, 0, -10).Format("20060102"): false,
 	}
@@ -448,4 +448,28 @@ func TestInsertOrderedStreamMessages_AppliesABatchInProducerOrder(t *testing.T) 
 	require.Len(t, msgs, 2)
 	assert.Equal(t, []byte("p1-0"), msgs[0].Payload)
 	assert.Equal(t, []byte("p1-1"), msgs[1].Payload)
+}
+
+// Every publish updates its producer's cursor row, so its partitions leave room
+// for those updates to stay on the same page (HOT).
+func TestStreamProducerCursorPartitionsUseFillfactor80(t *testing.T) {
+	pool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	day := time.Now().UTC().AddDate(0, 0, 5)
+
+	// seeded by the migration
+	seeded := "v1_stream_producer_cursor_" + time.Now().UTC().Format("20060102")
+
+	_, err := sqlcv1.New().CreatePartitions(ctx, pool, pgtype.Date{Time: day, Valid: true})
+	require.NoError(t, err)
+
+	created := "v1_stream_producer_cursor_" + day.Format("20060102")
+
+	for _, partition := range []string{seeded, created} {
+		var options []string
+		require.NoError(t, pool.QueryRow(ctx, `SELECT COALESCE(reloptions, '{}') FROM pg_class WHERE relname = $1`, partition).Scan(&options))
+		assert.Contains(t, options, "fillfactor=80", partition)
+	}
 }

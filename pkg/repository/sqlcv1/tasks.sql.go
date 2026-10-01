@@ -259,7 +259,7 @@ SELECT
     create_v1_range_partition('v1_durable_event_log_file', $1::date) AS v1_durable_event_log_file,
     create_v1_range_partition('v1_durable_event_log_entry', $1::date, 80) AS v1_durable_event_log_entry,
     create_v1_range_partition('v1_durable_event_log_branch_point', $1::date, 80) AS v1_durable_event_log_branch_point,
-    create_v1_range_partition('v1_stream_producer_cursor', $1::date) AS v1_stream_producer_cursor
+    create_v1_range_partition('v1_stream_producer_cursor', $1::date, 80) AS v1_stream_producer_cursor
 `
 
 type CreatePartitionsRow struct {
