@@ -507,7 +507,19 @@ jobs:
         run: |
           # Disable gzip compression for load tests to reduce CPU overhead
           # Compression adds overhead without benefit for 0kb payloads
-          HATCHET_CLIENT_DISABLE_GZIP_COMPRESSION=true go test -tags load ./... -p 5 ${{ matrix.race == 'true' && '-race' || '' }} -failfast -timeout 20m
+          export HATCHET_CLIENT_DISABLE_GZIP_COMPRESSION=true
+          # The load test package runs verbose so its per-subtest results are
+          # in the log on a green run too; go test only shows a passing
+          # package's output with -v, and -v cannot be given per package in
+          # one invocation. The other load-tagged packages run concurrently,
+          # as they did under -p 5, and stay quiet.
+          go test -tags load -v ./cmd/hatchet-loadtest/ ${{ matrix.race == 'true' && '-race' || '' }} -failfast -timeout 20m &
+          loadtest=$!
+          go test -tags load $(go list -tags load ./... | grep -v '/cmd/hatchet-loadtest$') -p 4 ${{ matrix.race == 'true' && '-race' || '' }} -failfast -timeout 20m
+          others=$?
+          wait "$loadtest"
+          loadtest_status=$?
+          exit $(( others || loadtest_status ))
         env:
           HATCHET_LOADTEST_STARTUP_SLEEP: 120s
           HATCHET_LOADTEST_PPROF_ADDR: localhost:6060
