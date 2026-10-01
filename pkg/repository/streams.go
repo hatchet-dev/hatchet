@@ -1,9 +1,12 @@
 package repository
 
 import (
+	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -13,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -73,7 +77,7 @@ const MaxListStreamMessagesBytes = 8 * 1024 * 1024
 // CreateOrderedStreamMessageOpts carries a published message plus the
 // producer_id/producer_seq every publish is required to supply, needed to
 // enforce that single producer's emission order (see
-// InsertOrderedStreamMessage / internal/services/controllers/streams).
+// InsertOrderedStreamMessages).
 type CreateOrderedStreamMessageOpts struct {
 	Namespace string `validate:"max=255"`
 
@@ -127,10 +131,11 @@ type StreamsRepository interface {
 	// reported as not-inserted instead of breaking emission order.
 	InsertOrderedStreamMessage(ctx context.Context, tenantId uuid.UUID, opts CreateOrderedStreamMessageOpts) (OrderedStreamMessageResult, error)
 
-	// ForceInsertOrderedStreamMessage inserts unconditionally and bumps the
-	// producer's watermark forward, for a message InsertOrderedStreamMessage
-	// has been unable to apply for too long.
-	ForceInsertOrderedStreamMessage(ctx context.Context, tenantId uuid.UUID, opts CreateOrderedStreamMessageOpts) error
+	// InsertOrderedStreamMessages applies InsertOrderedStreamMessage to each
+	// message in one transaction and one round trip, returning results in the
+	// order given. A sequence gap is a result, not an error; an error means
+	// nothing was applied.
+	InsertOrderedStreamMessages(ctx context.Context, msgs []TenantStreamMessage) ([]OrderedStreamMessageResult, error)
 
 	// ListMessagesAfterCursor returns up to opts.Limit messages strictly after
 	// opts.Cursor, ordered by id ascending.
@@ -206,68 +211,131 @@ func (r *streamsRepositoryImpl) EnsureTopic(ctx context.Context, tenantId uuid.U
 }
 
 func (r *streamsRepositoryImpl) InsertOrderedStreamMessage(ctx context.Context, tenantId uuid.UUID, opts CreateOrderedStreamMessageOpts) (OrderedStreamMessageResult, error) {
-	if err := r.v.Validate(&opts); err != nil {
-		return OrderedStreamMessageResult{}, err
-	}
-
-	var row *sqlcv1.InsertOrderedStreamMessageRow
-
-	err := r.withStreamMessagePartition(ctx, tenantId, func() (err error) {
-		row, err = r.queries.InsertOrderedStreamMessage(ctx, r.pool, sqlcv1.InsertOrderedStreamMessageParams{
-			Tenantid:        tenantId,
-			Namespace:       opts.Namespace,
-			Topic:           opts.Topic,
-			Payload:         opts.Payload,
-			Producerid:      opts.ProducerID,
-			Producerseq:     opts.ProducerSeq,
-			Expectedprevseq: opts.ProducerSeq - 1,
-		})
-
-		return err
-	})
+	results, err := r.InsertOrderedStreamMessages(ctx, []TenantStreamMessage{{TenantID: tenantId, Opts: opts}})
 
 	if err != nil {
 		return OrderedStreamMessageResult{}, err
 	}
 
-	currentSeq := int64(-1)
-
-	if row.CurrentLastSeq.Valid {
-		currentSeq = row.CurrentLastSeq.Int64
-	}
-
-	return OrderedStreamMessageResult{Inserted: row.Inserted, CurrentSeq: currentSeq}, nil
+	return results[0], nil
 }
 
-func (r *streamsRepositoryImpl) ForceInsertOrderedStreamMessage(ctx context.Context, tenantId uuid.UUID, opts CreateOrderedStreamMessageOpts) error {
-	if err := r.v.Validate(&opts); err != nil {
-		return err
+// TenantStreamMessage is one message of an InsertOrderedStreamMessages batch.
+type TenantStreamMessage struct {
+	TenantID uuid.UUID
+	Opts     CreateOrderedStreamMessageOpts
+}
+
+func (r *streamsRepositoryImpl) InsertOrderedStreamMessages(ctx context.Context, msgs []TenantStreamMessage) ([]OrderedStreamMessageResult, error) {
+	for i := range msgs {
+		if err := r.v.Validate(&msgs[i].Opts); err != nil {
+			return nil, err
+		}
 	}
 
-	return r.withStreamMessagePartition(ctx, tenantId, func() error {
-		return r.queries.ForceInsertOrderedStreamMessage(ctx, r.pool, sqlcv1.ForceInsertOrderedStreamMessageParams{
-			Tenantid:    tenantId,
-			Namespace:   opts.Namespace,
-			Topic:       opts.Topic,
-			Payload:     opts.Payload,
-			Producerid:  opts.ProducerID,
-			Producerseq: opts.ProducerSeq,
-		})
+	// apply in a fixed (producer, seq) order: concurrent batches then always lock
+	// cursor rows in the same order and can't deadlock, and a producer's
+	// messages within a batch apply in sequence
+	order := make([]int, len(msgs))
+	for i := range order {
+		order[i] = i
+	}
+
+	slices.SortStableFunc(order, func(a, b int) int {
+		ma, mb := msgs[a], msgs[b]
+
+		return cmp.Or(
+			bytes.Compare(ma.TenantID[:], mb.TenantID[:]),
+			cmp.Compare(ma.Opts.Namespace, mb.Opts.Namespace),
+			cmp.Compare(ma.Opts.Topic, mb.Opts.Topic),
+			cmp.Compare(ma.Opts.ProducerID, mb.Opts.ProducerID),
+			cmp.Compare(ma.Opts.ProducerSeq, mb.Opts.ProducerSeq),
+		)
 	})
+
+	params := make([]sqlcv1.InsertOrderedStreamMessageParams, len(order))
+	tenantIds := make([]uuid.UUID, 0, len(order))
+
+	for i, idx := range order {
+		m := msgs[idx]
+
+		params[i] = sqlcv1.InsertOrderedStreamMessageParams{
+			Tenantid:        m.TenantID,
+			Namespace:       m.Opts.Namespace,
+			Topic:           m.Opts.Topic,
+			Payload:         m.Opts.Payload,
+			Producerid:      m.Opts.ProducerID,
+			Producerseq:     m.Opts.ProducerSeq,
+			Expectedprevseq: m.Opts.ProducerSeq - 1,
+		}
+
+		tenantIds = append(tenantIds, m.TenantID)
+	}
+
+	results := make([]OrderedStreamMessageResult, len(msgs))
+
+	err := r.withStreamMessagePartition(ctx, tenantIds, func() error {
+		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+
+		if err != nil {
+			return err
+		}
+
+		defer rollback()
+
+		var batchErr error
+
+		r.queries.InsertOrderedStreamMessage(ctx, tx, params).QueryRow(func(i int, row *sqlcv1.InsertOrderedStreamMessageRow, err error) {
+			if err != nil {
+				batchErr = cmp.Or(batchErr, err)
+				return
+			}
+
+			currentSeq := int64(-1)
+
+			if row.CurrentLastSeq.Valid {
+				currentSeq = row.CurrentLastSeq.Int64
+			}
+
+			results[order[i]] = OrderedStreamMessageResult{Inserted: row.Inserted, CurrentSeq: currentSeq}
+		})
+
+		if batchErr != nil {
+			return batchErr
+		}
+
+		return commit(ctx)
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return results, nil
 }
 
-// withStreamMessagePartition runs insert, and if the tenant has no partition
-// for the current hour yet, creates it and retries once. The insert is a
-// single statement, so a failed attempt left nothing behind.
-func (r *streamsRepositoryImpl) withStreamMessagePartition(ctx context.Context, tenantId uuid.UUID, insert func() error) error {
+// withStreamMessagePartition runs insert, and if a tenant has no partition for
+// the current hour yet, creates them and retries once. A failed insert rolled
+// back, so it left nothing behind.
+func (r *streamsRepositoryImpl) withStreamMessagePartition(ctx context.Context, tenantIds []uuid.UUID, insert func() error) error {
 	err := insert()
 
 	if !isMissingPartition(err) {
 		return err
 	}
 
-	if err := r.queries.EnsureStreamMessagePartition(ctx, r.pool, tenantId); err != nil {
-		return fmt.Errorf("could not create stream message partition: %w", err)
+	seen := make(map[uuid.UUID]struct{}, len(tenantIds))
+
+	for _, tenantId := range tenantIds {
+		if _, ok := seen[tenantId]; ok {
+			continue
+		}
+
+		seen[tenantId] = struct{}{}
+
+		if err := r.queries.EnsureStreamMessagePartition(ctx, r.pool, tenantId); err != nil {
+			return fmt.Errorf("could not create stream message partition: %w", err)
+		}
 	}
 
 	return insert()

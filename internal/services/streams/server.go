@@ -8,10 +8,8 @@ import (
 
 	"connectrpc.com/connect"
 
-	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/rpcstream"
-	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -67,34 +65,26 @@ func (s *ServiceImpl) Publish(ctx context.Context, req *contracts.PublishStreamM
 		return nil, err
 	}
 
-	now := time.Now()
-
-	// must not expire in the queue: under a backlog an expired message is
-	// dead-lettered through the DLQ backoff and reordered
-	msg, err := msgqueue.NewTenantMessage(
-		tenantId,
-		msgqueue.MsgIDStreamMessage,
-		false,
-		true,
-		tasktypes.StreamMessagePayload{
+	res, err := s.publisher.publish(ctx, v1.TenantStreamMessage{
+		TenantID: tenantId,
+		Opts: v1.CreateOrderedStreamMessageOpts{
 			Namespace:   req.Namespace,
 			Topic:       req.Topic,
 			Payload:     req.Payload,
-			CreatedAt:   now,
 			ProducerID:  req.ProducerId,
 			ProducerSeq: req.ProducerSeq,
 		},
-	)
+	})
 
 	if err != nil {
-		return nil, err
+		return nil, connect.NewError(connect.CodeUnavailable, fmt.Errorf("could not persist stream message: %w", err))
 	}
 
-	// STREAMS_QUEUE requires publisher confirms, see Queue.RequiresPublishConfirm).
-	// We need to return the error to the SDK if we cannot pub to rabbit so that the SDK
-	// does not continue blindly pubbing messages when there is a gap in the producer seq
-	if err := s.pubBuffer.Pub(ctx, msgqueue.STREAMS_QUEUE, msg, true); err != nil {
-		return nil, connect.NewError(connect.CodeUnavailable, fmt.Errorf("could not enqueue stream message: %w", err))
+	// a sequence at or below the watermark is a retry of a message already stored
+	if !res.Inserted && res.CurrentSeq < req.ProducerSeq {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf(
+			"producer %s skipped a sequence number: last stored %d, got %d", req.ProducerId, res.CurrentSeq, req.ProducerSeq,
+		))
 	}
 
 	post()

@@ -35,10 +35,6 @@ type Queue interface {
 
 	// IsExpirable refers to whether the queue itself is expirable
 	IsExpirable() bool
-
-	// RequiresPublishConfirm reports whether SendMessage must wait for the
-	// broker's publisher-confirm ack before returning success
-	RequiresPublishConfirm() bool
 }
 
 type staticQueue string
@@ -48,7 +44,6 @@ const (
 	OLAP_QUEUE                   staticQueue = "olap_queue_v2"
 	DISPATCHER_DEAD_LETTER_QUEUE staticQueue = "dispatcher_dlq_v2"
 	TICKER_UPDATE_QUEUE          staticQueue = "ticker_update_queue_v2"
-	STREAMS_QUEUE                staticQueue = "streams_queue_v1"
 )
 
 func (s staticQueue) Name() string {
@@ -86,10 +81,6 @@ func (s staticQueue) IsAutoDLQ() bool {
 
 func (s staticQueue) IsExpirable() bool {
 	return false
-}
-
-func (s staticQueue) RequiresPublishConfirm() bool {
-	return s == STREAMS_QUEUE
 }
 
 type dlq struct {
@@ -154,10 +145,6 @@ func (d dispatcherQueue) IsAutoDLQ() bool {
 
 func (d dispatcherQueue) IsExpirable() bool {
 	return true
-}
-
-func (d dispatcherQueue) RequiresPublishConfirm() bool {
-	return false
 }
 
 func QueueTypeFromDispatcherID(d uuid.UUID) dispatcherQueue {

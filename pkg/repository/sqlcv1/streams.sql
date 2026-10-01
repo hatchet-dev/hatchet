@@ -39,7 +39,7 @@ FROM get_v1_partitions_before_date('v1_stream_producer_cursor', @date::date) AS 
 -- name: CountStreamTopics :one
 SELECT COUNT(*) FROM v1_stream_topic WHERE tenant_id = @tenantId::uuid;
 
--- name: InsertOrderedStreamMessage :one
+-- name: InsertOrderedStreamMessage :batchone
 -- Atomically advances the producer's watermark and inserts the message, but
 -- only if producer_seq is exactly one past the producer's last durably
 -- applied sequence. The watermark is the producer's row in its latest
@@ -96,30 +96,6 @@ SELECT
     latest.last_seq AS current_last_seq
 FROM (SELECT 1) AS one
 LEFT JOIN latest ON true;
-
--- name: ForceInsertOrderedStreamMessage :exec
--- Used only once InsertOrderedStreamMessage has been unable to close a gap
--- for too long (see maxProducerGapWait in the streams controller): inserts
--- unconditionally and bumps the watermark forward with GREATEST so it never
--- regresses, accepting an out-of-order delivery rather than blocking this
--- producer's topic forever on a message that never arrived.
-WITH latest AS (
-    SELECT last_seq
-    FROM v1_stream_producer_cursor
-    WHERE tenant_id = @tenantId::uuid AND namespace = @namespace::text AND topic = @topic::text AND producer_id = @producerId::text
-    ORDER BY bucket DESC
-    LIMIT 1
-), bumped AS (
-    INSERT INTO v1_stream_producer_cursor (tenant_id, namespace, topic, producer_id, bucket, last_seq)
-    SELECT @tenantId::uuid, @namespace::text, @topic::text, @producerId::text, (NOW() AT TIME ZONE 'UTC')::date,
-        GREATEST(COALESCE(latest.last_seq, -1), @producerSeq::bigint)
-    FROM (SELECT 1) AS one
-    LEFT JOIN latest ON true
-    ON CONFLICT (tenant_id, namespace, topic, producer_id, bucket) DO UPDATE
-    SET last_seq = GREATEST(v1_stream_producer_cursor.last_seq, EXCLUDED.last_seq)
-)
-INSERT INTO v1_stream_message (tenant_id, namespace, topic, payload, producer_id, producer_seq)
-VALUES (@tenantId::uuid, @namespace::text, @topic::text, @payload::bytea, @producerId::text, @producerSeq::bigint);
 
 -- name: GetStreamMessageRetentionStart :one
 -- The start of the tenant's oldest hourly partition: its rows inserted before

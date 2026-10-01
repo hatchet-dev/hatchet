@@ -2320,10 +2320,10 @@ CREATE TABLE v1_stream_message (
 
 -- v1_stream_producer_cursor tracks, per (tenant, namespace, topic,
 -- producer_id), the last producer_seq durably applied to v1_stream_message.
--- The streams controller only advances this (and inserts the corresponding
--- row) when producer_seq is exactly last_seq + 1, so a message published
--- ahead of its predecessor is held back and retried rather than breaking
--- that producer's emission order -- see internal/services/controllers/streams.
+-- Publish only advances this (and inserts the corresponding row) when
+-- producer_seq is exactly last_seq + 1, rejecting a message published ahead
+-- of its predecessor rather than breaking that producer's emission order --
+-- see internal/services/streams/publish_batcher.go.
 -- Partitioned by the UTC day a row was written so idle producers age out,
 -- retained several times longer than v1_stream_message; a producer's
 -- watermark is its row in its latest bucket, copied forward on its first

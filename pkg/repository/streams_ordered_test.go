@@ -133,31 +133,6 @@ func TestInsertOrderedStreamMessage_FirstMessageArrivingOutOfOrderIsAGap(t *test
 	assert.Equal(t, []byte("second"), msgs[1].Payload)
 }
 
-func TestForceInsertOrderedStreamMessage_InsertsAndBumpsWatermark(t *testing.T) {
-	pool, cleanup := setupPostgresWithMigration(t)
-	defer cleanup()
-
-	repo := createStreamsRepository(t, pool)
-	tenantId := uuid.New()
-
-	err := repo.ForceInsertOrderedStreamMessage(context.Background(), tenantId, CreateOrderedStreamMessageOpts{
-		Topic: "t", Payload: []byte("forced"), ProducerID: "p1", ProducerSeq: 5,
-	})
-	require.NoError(t, err)
-
-	msgs, err := repo.ListMessagesAfterCursor(context.Background(), tenantId, ListStreamMessagesOpts{Topic: "t"})
-	require.NoError(t, err)
-	require.Len(t, msgs, 1)
-	assert.Equal(t, []byte("forced"), msgs[0].Payload)
-
-	// a later in-order message (seq=6) must see the forced watermark, not a gap
-	res, err := repo.InsertOrderedStreamMessage(context.Background(), tenantId, CreateOrderedStreamMessageOpts{
-		Topic: "t", Payload: []byte("next"), ProducerID: "p1", ProducerSeq: 6,
-	})
-	require.NoError(t, err)
-	assert.True(t, res.Inserted)
-}
-
 // An active producer's watermark is copied into today's bucket on its first
 // write of the day, so dropping older buckets (retention) must not reset it.
 func TestInsertOrderedStreamMessage_WatermarkSurvivesDroppingOldBuckets(t *testing.T) {
@@ -433,4 +408,44 @@ func TestListMessagesAfterCursor_PagesStopAtByteBudget(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, rest, 2)
 	assert.Greater(t, rest[0].ID, last.ID)
+}
+
+func TestInsertOrderedStreamMessages_AppliesABatchInProducerOrder(t *testing.T) {
+	pool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	repo := createStreamsRepository(t, pool)
+	// both new, so the batch has to create two tenants' partitions
+	tenantA, tenantB := uuid.New(), uuid.New()
+
+	msg := func(tenant uuid.UUID, producer string, seq int64) TenantStreamMessage {
+		return TenantStreamMessage{TenantID: tenant, Opts: CreateOrderedStreamMessageOpts{
+			Topic: "t", Payload: []byte(fmt.Sprintf("%s-%d", producer, seq)), ProducerID: producer, ProducerSeq: seq,
+		}}
+	}
+
+	results, err := repo.InsertOrderedStreamMessages(ctx, []TenantStreamMessage{
+		msg(tenantA, "p1", 1), // arrives before its predecessor in the same batch
+		msg(tenantB, "p2", 0),
+		msg(tenantA, "p1", 0),
+		msg(tenantA, "p1", 3), // gap: no seq 2
+		msg(tenantA, "p1", 0), // duplicate
+	})
+	require.NoError(t, err)
+	require.Len(t, results, 5)
+
+	assert.True(t, results[0].Inserted, "p1 seq 1, applied after seq 0")
+	assert.True(t, results[1].Inserted, "p2 seq 0")
+	assert.True(t, results[2].Inserted, "p1 seq 0")
+	assert.False(t, results[3].Inserted, "p1 seq 3 is a gap")
+	assert.Less(t, results[3].CurrentSeq, int64(2))
+	assert.False(t, results[4].Inserted, "p1 seq 0 again is a duplicate")
+	assert.GreaterOrEqual(t, results[4].CurrentSeq, int64(0))
+
+	msgs, err := repo.ListMessagesAfterCursor(ctx, tenantA, ListStreamMessagesOpts{Topic: "t"})
+	require.NoError(t, err)
+	require.Len(t, msgs, 2)
+	assert.Equal(t, []byte("p1-0"), msgs[0].Payload)
+	assert.Equal(t, []byte("p1-1"), msgs[1].Payload)
 }

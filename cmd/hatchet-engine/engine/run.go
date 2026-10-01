@@ -19,7 +19,6 @@ import (
 	metricscontroller "github.com/hatchet-dev/hatchet/internal/services/controllers/metrics"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/olap"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/retention"
-	streamscontroller "github.com/hatchet-dev/hatchet/internal/services/controllers/streams"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/task"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
 	"github.com/hatchet-dev/hatchet/internal/services/grpc"
@@ -763,29 +762,6 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			)
 		}
 
-		streamsController, err := streamscontroller.New(
-			streamscontroller.WithAlerter(sc.Alerter),
-			streamscontroller.WithMessageQueueV1(sc.MessageQueueV1),
-			streamscontroller.WithPubSub(sc.PubSubV1),
-			streamscontroller.WithRepositoryV1(sc.V1),
-			streamscontroller.WithLogger(sc.Logger),
-		)
-
-		if err != nil {
-			return fmt.Errorf("could not create streams controller: %w", err)
-		}
-
-		cleanupStreamsController, err := streamsController.Start()
-
-		if err != nil {
-			return fmt.Errorf("could not start streams controller: %w", err)
-		}
-
-		cleanup.Add(
-			cleanupStreamsController,
-			"streams controller",
-		)
-
 		cleanupTenantWorkerPartition, err := p.StartTenantWorkerPartition(ctx)
 
 		if err != nil {
@@ -950,7 +926,6 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		}
 
 		streamsSvc, err := streamssvc.NewService(
-			streamssvc.WithMessageQueueV1(sc.MessageQueueV1),
 			streamssvc.WithPubSub(sc.PubSubV1),
 			streamssvc.WithRepositoryV1(sc.V1),
 			streamssvc.WithLogger(sc.Logger),

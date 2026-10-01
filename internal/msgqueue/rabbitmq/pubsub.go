@@ -124,14 +124,14 @@ func NewPubSub(fs ...PubSubOpt) (func() error, *PubSub, error) {
 	newLogger := opts.l.With().Str("service", "rabbitmq-pubsub").Logger()
 	opts.l = &newLogger
 
-	pubChannelPool, err := newChannelPool(ctx, opts.l, opts.url, opts.maxPubChannels, channelPoolQueuePubSub, channelPoolRolePub, false)
+	pubChannelPool, err := newChannelPool(ctx, opts.l, opts.url, opts.maxPubChannels, channelPoolQueuePubSub, channelPoolRolePub)
 
 	if err != nil {
 		cancel()
 		return nil, nil, err
 	}
 
-	subChannelPool, err := newChannelPool(ctx, opts.l, opts.url, opts.maxSubChannels, channelPoolQueuePubSub, channelPoolRoleSub, false)
+	subChannelPool, err := newChannelPool(ctx, opts.l, opts.url, opts.maxSubChannels, channelPoolQueuePubSub, channelPoolRoleSub)
 
 	if err != nil {
 		pubChannelPool.Close()

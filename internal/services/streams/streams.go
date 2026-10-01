@@ -24,16 +24,9 @@ type Service interface {
 type ServiceOptFunc func(*ServiceOpts)
 
 type ServiceOpts struct {
-	mqv1   msgqueue.MessageQueue
 	pubsub msgqueue.PubSub
 	repov1 v1.Repository
 	l      *zerolog.Logger
-}
-
-func WithMessageQueueV1(mq msgqueue.MessageQueue) ServiceOptFunc {
-	return func(opts *ServiceOpts) {
-		opts.mqv1 = mq
-	}
 }
 
 func WithPubSub(pubsub msgqueue.PubSub) ServiceOptFunc {
@@ -65,12 +58,11 @@ func defaultServiceOpts() *ServiceOpts {
 type ServiceImpl struct {
 	v1connect.UnimplementedV1StreamsHandler
 
-	mqv1   msgqueue.MessageQueue
 	pubsub msgqueue.PubSub
 	repo   v1.Repository
 	l      *zerolog.Logger
 
-	pubBuffer      *msgqueue.MQPubBuffer
+	publisher      *publishBatcher
 	streamSessions *streams.Registry
 	topicPollers   *topicPollerRegistry
 }
@@ -83,11 +75,10 @@ func NewService(fs ...ServiceOptFunc) (Service, error) {
 	}
 
 	return &ServiceImpl{
-		mqv1:           opts.mqv1,
 		pubsub:         opts.pubsub,
 		repo:           opts.repov1,
 		l:              opts.l,
-		pubBuffer:      msgqueue.NewMQPubBuffer(opts.mqv1),
+		publisher:      newPublishBatcher(opts.repov1.Streams(), opts.pubsub, opts.l, publishBatchWorkers),
 		streamSessions: streams.NewRegistry(),
 		topicPollers:   newTopicPollerRegistry(opts.repov1.Streams(), opts.pubsub, opts.l, subscribeTailPollInterval, subscribeIdleHangupTimeout),
 	}, nil
@@ -99,8 +90,8 @@ func (s *ServiceImpl) CancelStreamSessions() {
 	s.streamSessions.CancelAll()
 }
 
-// Cleanup stops the pubBuffer's background goroutines and the wake subscription.
+// Cleanup stops the publisher's workers and the wake subscription.
 func (s *ServiceImpl) Cleanup() error {
-	s.pubBuffer.Stop()
+	s.publisher.stop()
 	return s.topicPollers.Close()
 }

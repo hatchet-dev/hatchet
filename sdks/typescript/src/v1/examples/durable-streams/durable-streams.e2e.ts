@@ -1,4 +1,3 @@
-import sleep from '@hatchet/util/sleep';
 import { makeE2EClient, makeTestScope } from '../__e2e__/harness';
 
 const decode = (payload: Uint8Array) => new TextDecoder().decode(payload);
@@ -22,12 +21,8 @@ describe('durable-streams-e2e', () => {
   it('a subscribe starts from beginning of queue, even when publish happened prior', async () => {
     const topic = makeTestScope('durable_streams_tail_from_now');
 
+    // publish returns once the message is committed
     await hatchet.streams.publish(topic, 'published-before-consume');
-
-    // give the streams controller a moment to durably persist the message
-    // above, so this test actually exercises "already-persisted messages are
-    // skipped", not just "nothing has arrived yet"
-    await sleep(500);
 
     const events = hatchet.streams.events(topic);
 
@@ -90,11 +85,8 @@ describe('durable-streams-e2e', () => {
     const namespaceA = 'ns-a';
     const namespaceB = 'ns-b';
 
+    // committed on return, so a consumer scoped to namespaceB could see it if scoping were broken
     await hatchet.streams.publish(topic, 'from-a', { namespace: namespaceA });
-
-    // give namespaceA's message a moment to land, then confirm a consumer
-    // scoped to namespaceB never sees it
-    await sleep(500);
 
     const events = hatchet.streams.events(topic, { namespace: namespaceB });
 

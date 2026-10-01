@@ -41,7 +41,7 @@ describe('durable-streams-e2e latency', () => {
     expect(latenciesMs).toHaveLength(messageCount);
 
     // a generous bound -- this guards against a pathological regression (e.g.
-    // every message tripping the controller's producer-gap wait) rather than
+    // every message waiting for the tail poller's fallback tick) rather than
     // asserting a strict performance SLA that would be flaky in CI
     expect(p99).toBeLessThan(10_000);
   }, 180_000);

@@ -2,6 +2,8 @@ package msgqueue
 
 import (
 	"context"
+	"encoding/base64"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -74,6 +76,45 @@ func StreamWakeTopic() Topic {
 type StreamWake struct {
 	Namespace string `json:"namespace"`
 	Topic     string `json:"topic"`
+}
+
+// maxStreamWakeBytes keeps each wake message well under pg_notify's 8KB
+// limit, past which the postgres pubsub delivers to only one subscriber.
+const maxStreamWakeBytes = 4 * 1024
+
+// streamWakeWireSize approximates w's size inside a published message: its
+// JSON, base64-encoded as a Message payload, plus separators.
+func streamWakeWireSize(w StreamWake) int {
+	const jsonOverhead = len(`{"namespace":"","topic":""}`)
+
+	return base64.StdEncoding.EncodedLen(len(w.Namespace)+len(w.Topic)+jsonOverhead) + 3
+}
+
+// PubStreamWakes wakes every engine tailing one of tenantId's wakes, in as
+// few messages as stay under maxStreamWakeBytes.
+func PubStreamWakes(ctx context.Context, ps PubSub, tenantId uuid.UUID, wakes []StreamWake) error {
+	var errs error
+
+	for len(wakes) > 0 {
+		n, size := 0, 0
+
+		// names are capped well below maxStreamWakeBytes, so n >= 1
+		for n < len(wakes) && (n == 0 || size+streamWakeWireSize(wakes[n]) <= maxStreamWakeBytes) {
+			size += streamWakeWireSize(wakes[n])
+			n++
+		}
+
+		wakeMsg, err := NewTenantMessage(tenantId, MsgIDStreamMessage, true, false, wakes[:n]...)
+
+		if err != nil {
+			return err
+		}
+
+		errs = errors.Join(errs, ps.Pub(ctx, StreamWakeTopic(), wakeMsg))
+		wakes = wakes[n:]
+	}
+
+	return errs
 }
 
 // PubSub is a best-effort, non-durable, at-most-once pub/sub mechanism.
