@@ -7,7 +7,7 @@ type payloadOptions struct {
 type PayloadOption func(*payloadOptions)
 
 // WithPayloads includes or omits input, output, and event payload fields.
-// Additional metadata is always included. Omitted options default to including payloads.
+// Additional metadata is always included. Omitting the option redacts payloads.
 func WithPayloads(include bool) PayloadOption {
 	return func(o *payloadOptions) {
 		o.includePayloads = include
@@ -15,7 +15,7 @@ func WithPayloads(include bool) PayloadOption {
 }
 
 func applyPayloadOptions(opts []PayloadOption) payloadOptions {
-	o := payloadOptions{includePayloads: true}
+	o := payloadOptions{includePayloads: false}
 	for _, opt := range opts {
 		opt(&o)
 	}

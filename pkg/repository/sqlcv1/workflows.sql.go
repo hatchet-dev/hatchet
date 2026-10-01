@@ -1357,17 +1357,23 @@ FROM
 JOIN "Workflow" as w on w."id" = wv."workflowId"
 WHERE
     wv."id" = $1::uuid AND
+    w."tenantId" = $2::uuid AND
     wv."deletedAt" IS NULL
 LIMIT 1
 `
+
+type GetWorkflowVersionByIdParams struct {
+	ID       uuid.UUID `json:"id"`
+	Tenantid uuid.UUID `json:"tenantid"`
+}
 
 type GetWorkflowVersionByIdRow struct {
 	WorkflowVersion WorkflowVersion `json:"workflow_version"`
 	Workflow        Workflow        `json:"workflow"`
 }
 
-func (q *Queries) GetWorkflowVersionById(ctx context.Context, db DBTX, id uuid.UUID) (*GetWorkflowVersionByIdRow, error) {
-	row := db.QueryRow(ctx, getWorkflowVersionById, id)
+func (q *Queries) GetWorkflowVersionById(ctx context.Context, db DBTX, arg GetWorkflowVersionByIdParams) (*GetWorkflowVersionByIdRow, error) {
+	row := db.QueryRow(ctx, getWorkflowVersionById, arg.ID, arg.Tenantid)
 	var i GetWorkflowVersionByIdRow
 	err := row.Scan(
 		&i.WorkflowVersion.ID,
