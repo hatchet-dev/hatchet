@@ -14,9 +14,9 @@ import (
 // once. The bound is per subscription so that one tenant's slow handlers
 // cannot starve another tenant's subscription. Handlers were written against
 // the rabbitmq backend, which runs every delivery on its own goroutine, and
-// rely on concurrency: the scheduler's replenish blocks on database reads, and
-// the dispatcher's buffered tenant reader only batches messages that arrive
-// while earlier ones wait for a flush.
+// rely on concurrency: scheduler handlers can block on database reads, and the
+// dispatcher's buffered tenant reader only batches messages that arrive while
+// earlier ones wait for a flush.
 //
 // The bounds are a safety limit rather than a throttle: about 2-3x the peak
 // concurrency the rabbitmq backend reached under synthetic load with 50ms
