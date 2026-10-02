@@ -173,7 +173,7 @@ func (r *budgetRepo) UpdateRegisteredActions(context.Context, uuid.UUID, []strin
 
 var budgetTenant = uuid.MustParse("00000000-0000-0000-0000-000000000001")
 
-// budgetRows builds n endpoints of one tenant with a actions each, all on shard 0, with ids
+// budgetRows builds n endpoints of one tenant with a actions each, all on partition 0, with ids
 // ordered so keyset paging visits them in order.
 func budgetRows(n, a int) []*sqlcv1.V1ServerlessEndpoint {
 	rows := make([]*sqlcv1.V1ServerlessEndpoint, n)

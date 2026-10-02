@@ -69,7 +69,7 @@ func seedServerlessUnits(t *testing.T, ctx context.Context, pool *pgxpool.Pool, 
 	units := make([]ServerlessUnit, 0, n)
 
 	for i := 0; i < n; i++ {
-		unit := ServerlessUnit{TenantId: uuid.New(), Shard: 0}
+		unit := ServerlessUnit{TenantId: uuid.New(), Partition: 0}
 		entitleServerless(t, ctx, pool, unit.TenantId)
 		require.NoError(t, repo.Leases().InsertIfAbsent(ctx, unit))
 		require.NoError(t, repo.Leases().IncrementEndpointCount(ctx, unit, int32(i+1))) // nolint: gosec
@@ -85,8 +85,8 @@ func leaseRow(t *testing.T, ctx context.Context, pool *pgxpool.Pool, unit Server
 	t.Helper()
 
 	err := pool.QueryRow(ctx,
-		"SELECT process_id, endpoint_count FROM v1_serverless_lease WHERE tenant_id = $1 AND shard = $2",
-		unit.TenantId, unit.Shard,
+		"SELECT process_id, endpoint_count FROM v1_serverless_lease WHERE tenant_id = $1 AND endpoint_partition = $2",
+		unit.TenantId, unit.Partition,
 	).Scan(&processId, &endpointCount)
 	require.NoError(t, err)
 
@@ -124,7 +124,7 @@ func claimAll(t *testing.T, ctx context.Context, repo ServerlessRepository, proc
 		}
 
 		for _, row := range rows {
-			claimed = append(claimed, ServerlessUnit{TenantId: row.TenantID, Shard: row.Shard})
+			claimed = append(claimed, ServerlessUnit{TenantId: row.TenantID, Partition: row.EndpointPartition})
 		}
 	}
 }
@@ -160,8 +160,8 @@ func TestServerlessRepository(t *testing.T) {
 		assert.Equal(t, defaultServerlessInlineWaitBudgetMs, created.InlineWaitBudgetMs)
 		assert.JSONEq(t, `{}`, string(created.Labels))
 		assert.True(t, created.Enabled)
-		// shard_count defaults to 1, so every endpoint lands on shard 0
-		assert.Equal(t, int32(0), created.Shard)
+		// endpoint_partition_count defaults to 1, so every endpoint lands on partition 0
+		assert.Equal(t, int32(0), created.EndpointPartition)
 		assert.False(t, created.Healthy.Valid)
 		assert.Empty(t, created.RegisteredActions)
 
@@ -207,10 +207,10 @@ func TestServerlessRepository(t *testing.T) {
 		assert.Equal(t, int32(5), updated.RequestTimeoutSeconds)
 		assert.False(t, updated.Enabled)
 		assert.JSONEq(t, `{"env": "test"}`, string(updated.Labels))
-		// untouched fields keep their values, and the shard cannot change
+		// untouched fields keep their values, and the partition cannot change
 		assert.Equal(t, created.HealthcheckUrl, updated.HealthcheckUrl)
 		assert.Equal(t, created.SigningSecretEnc, updated.SigningSecretEnc)
-		assert.Equal(t, created.Shard, updated.Shard)
+		assert.Equal(t, created.EndpointPartition, updated.EndpointPartition)
 		assert.True(t, updated.UpdatedAt.Time.After(created.UpdatedAt.Time))
 
 		// the incremental refresh sees the config change, keyed after the created row's version
@@ -367,7 +367,7 @@ func TestServerlessRepository(t *testing.T) {
 
 	t.Run("lease unit and endpoint_count follow endpoint create and delete", func(t *testing.T) {
 		tenantId := uuid.New()
-		unit := ServerlessUnit{TenantId: tenantId, Shard: 0}
+		unit := ServerlessUnit{TenantId: tenantId, Partition: 0}
 
 		// the tenant row is created alongside the first endpoint
 		_, err := repo.Tenants().Get(ctx, tenantId)
@@ -378,7 +378,7 @@ func TestServerlessRepository(t *testing.T) {
 
 		tenant, err := repo.Tenants().Get(ctx, tenantId)
 		require.NoError(t, err)
-		assert.Equal(t, int32(1), tenant.ShardCount)
+		assert.Equal(t, int32(1), tenant.EndpointPartitionCount)
 
 		processId, endpointCount := leaseRow(t, ctx, pool, unit)
 		assert.Nil(t, processId, "a new unit is unowned")
@@ -404,23 +404,23 @@ func TestServerlessRepository(t *testing.T) {
 		assert.Equal(t, int32(0), endpointCount, "the lease row is kept with a zero count")
 	})
 
-	t.Run("the configured shard_count is set with the first endpoint and decides the shard", func(t *testing.T) {
+	t.Run("the configured endpoint_partition_count is set with the first endpoint and decides the partition", func(t *testing.T) {
 		tenantId := uuid.New()
-		const shardCount = int32(8)
+		const endpointPartitionCount = int32(8)
 
 		const numEndpoints = 32
 		created := make(map[uuid.UUID]*sqlcv1.V1ServerlessEndpoint, numEndpoints)
-		shardsSeen := make(map[int32]int)
+		partitionsSeen := make(map[int32]int)
 
 		for i := 0; i < numEndpoints; i++ {
 			opts := serverlessEndpointOpts(fmt.Sprintf("endpoint-%d", i))
 
-			// the tenant row takes the shard count of the first endpoint's create; a later
+			// the tenant row takes the partition count of the first endpoint's create; a later
 			// create with another configured value leaves it alone
-			opts.ShardCount = shardCount
+			opts.EndpointPartitionCount = endpointPartitionCount
 
 			if i > 0 {
-				opts.ShardCount = 2
+				opts.EndpointPartitionCount = 2
 			}
 
 			endpoint, err := repo.Endpoints().Create(ctx, tenantId, opts)
@@ -428,37 +428,37 @@ func TestServerlessRepository(t *testing.T) {
 
 			tenant, err := repo.Tenants().Get(ctx, tenantId)
 			require.NoError(t, err)
-			assert.Equal(t, shardCount, tenant.ShardCount)
+			assert.Equal(t, endpointPartitionCount, tenant.EndpointPartitionCount)
 
-			require.GreaterOrEqual(t, endpoint.Shard, int32(0))
-			require.Less(t, endpoint.Shard, shardCount)
+			require.GreaterOrEqual(t, endpoint.EndpointPartition, int32(0))
+			require.Less(t, endpoint.EndpointPartition, endpointPartitionCount)
 
-			// the shard is the documented hash of the id
-			var expectedShard int32
-			require.NoError(t, pool.QueryRow(ctx, "SELECT (abs(hashtext($1::text)::bigint) % $2)::int", endpoint.ID, shardCount).Scan(&expectedShard))
-			assert.Equal(t, expectedShard, endpoint.Shard)
+			// the partition is the documented hash of the id
+			var expectedPartition int32
+			require.NoError(t, pool.QueryRow(ctx, "SELECT (abs(hashtext($1::text)::bigint) % $2)::int", endpoint.ID, endpointPartitionCount).Scan(&expectedPartition))
+			assert.Equal(t, expectedPartition, endpoint.EndpointPartition)
 
 			created[endpoint.ID] = endpoint
-			shardsSeen[endpoint.Shard]++
+			partitionsSeen[endpoint.EndpointPartition]++
 		}
 
-		assert.Greater(t, len(shardsSeen), 1, "32 endpoints over 8 shards should spread across more than one shard")
+		assert.Greater(t, len(partitionsSeen), 1, "32 endpoints over 8 partitions should spread across more than one partition")
 
-		// a shard's lease row is created with the first endpoint that lands on it
+		// a partition's lease row is created with the first endpoint that lands on it
 		var leaseRows int
 		require.NoError(t, pool.QueryRow(ctx, "SELECT count(*) FROM v1_serverless_lease WHERE tenant_id = $1", tenantId).Scan(&leaseRows))
-		assert.Equal(t, len(shardsSeen), leaseRows)
+		assert.Equal(t, len(partitionsSeen), leaseRows)
 
 		// endpoint_count per unit adds up to the endpoints created
-		for shard, want := range shardsSeen {
-			_, endpointCount := leaseRow(t, ctx, pool, ServerlessUnit{TenantId: tenantId, Shard: shard})
-			assert.Equal(t, int32(want), endpointCount, "shard %d", shard) // nolint: gosec
+		for partition, want := range partitionsSeen {
+			_, endpointCount := leaseRow(t, ctx, pool, ServerlessUnit{TenantId: tenantId, Partition: partition})
+			assert.Equal(t, int32(want), endpointCount, "partition %d", partition) // nolint: gosec
 		}
 
 		// ListForUnits pages every endpoint of the tenant's units exactly once
-		units := make([]ServerlessUnit, 0, shardCount)
-		for shard := int32(0); shard < shardCount; shard++ {
-			units = append(units, ServerlessUnit{TenantId: tenantId, Shard: shard})
+		units := make([]ServerlessUnit, 0, endpointPartitionCount)
+		for partition := int32(0); partition < endpointPartitionCount; partition++ {
+			units = append(units, ServerlessUnit{TenantId: tenantId, Partition: partition})
 		}
 
 		seen := make(map[uuid.UUID]bool)
@@ -484,17 +484,17 @@ func TestServerlessRepository(t *testing.T) {
 		assert.Len(t, seen, numEndpoints)
 
 		// a single unit returns only its own endpoints
-		someShard := units[0]
-		for shard := range shardsSeen {
-			someShard = ServerlessUnit{TenantId: tenantId, Shard: shard}
+		somePartition := units[0]
+		for partition := range partitionsSeen {
+			somePartition = ServerlessUnit{TenantId: tenantId, Partition: partition}
 			break
 		}
 
-		onlyShard, err := repo.Endpoints().ListForUnits(ctx, []ServerlessUnit{someShard}, uuid.Nil, 100)
+		onlyPartition, err := repo.Endpoints().ListForUnits(ctx, []ServerlessUnit{somePartition}, uuid.Nil, 100)
 		require.NoError(t, err)
-		assert.Len(t, onlyShard, shardsSeen[someShard.Shard])
-		for _, endpoint := range onlyShard {
-			assert.Equal(t, someShard.Shard, endpoint.Shard)
+		assert.Len(t, onlyPartition, partitionsSeen[somePartition.Partition])
+		for _, endpoint := range onlyPartition {
+			assert.Equal(t, somePartition.Partition, endpoint.EndpointPartition)
 		}
 
 		// ListForTenant pages by id: a page shorter than the limit is the last
@@ -527,7 +527,7 @@ func TestServerlessRepository(t *testing.T) {
 		resetServerlessLeases(t, ctx, pool)
 
 		entitled := seedServerlessUnits(t, ctx, pool, repo, 1)[0]
-		other := ServerlessUnit{TenantId: uuid.New(), Shard: 0}
+		other := ServerlessUnit{TenantId: uuid.New(), Partition: 0}
 		require.NoError(t, repo.Leases().InsertIfAbsent(ctx, other))
 		require.NoError(t, repo.Leases().IncrementEndpointCount(ctx, other, 1))
 
@@ -676,12 +676,12 @@ func TestServerlessRepository(t *testing.T) {
 		// Four empty units sort before the populated one; the count sample of four must
 		// skip them, and a claim must never take them.
 		for i := 0; i < 4; i++ {
-			unit := ServerlessUnit{TenantId: uuid.MustParse(fmt.Sprintf("00000000-0000-0000-0000-00000000000%d", i+1)), Shard: 0}
+			unit := ServerlessUnit{TenantId: uuid.MustParse(fmt.Sprintf("00000000-0000-0000-0000-00000000000%d", i+1)), Partition: 0}
 			entitleServerless(t, ctx, pool, unit.TenantId)
 			require.NoError(t, repo.Leases().InsertIfAbsent(ctx, unit))
 		}
 
-		populated := ServerlessUnit{TenantId: uuid.MustParse("00000000-0000-0000-0000-000000000009"), Shard: 0}
+		populated := ServerlessUnit{TenantId: uuid.MustParse("00000000-0000-0000-0000-000000000009"), Partition: 0}
 		entitleServerless(t, ctx, pool, populated.TenantId)
 		require.NoError(t, repo.Leases().InsertIfAbsent(ctx, populated))
 		require.NoError(t, repo.Leases().IncrementEndpointCount(ctx, populated, 3))
@@ -700,7 +700,7 @@ func TestServerlessRepository(t *testing.T) {
 		// An empty unit held by a dead process is not counted or claimed either.
 		dead := uuid.New()
 		heartbeat(t, ctx, repo, dead, time.Minute)
-		emptyDead := ServerlessUnit{TenantId: uuid.MustParse("00000000-0000-0000-0000-000000000005"), Shard: 0}
+		emptyDead := ServerlessUnit{TenantId: uuid.MustParse("00000000-0000-0000-0000-000000000005"), Partition: 0}
 		_, err = pool.Exec(ctx, "UPDATE v1_serverless_lease SET process_id = $1 WHERE tenant_id = $2", dead, emptyDead.TenantId)
 		require.NoError(t, err)
 		expireProcess(t, ctx, pool, dead, time.Minute)
@@ -721,7 +721,7 @@ func TestServerlessRepository(t *testing.T) {
 			heartbeat(t, ctx, repo, dead, time.Minute)
 
 			for j := 0; j < 4; j++ {
-				unit := ServerlessUnit{TenantId: uuid.New(), Shard: 0}
+				unit := ServerlessUnit{TenantId: uuid.New(), Partition: 0}
 				entitleServerless(t, ctx, pool, unit.TenantId)
 				require.NoError(t, repo.Leases().InsertIfAbsent(ctx, unit))
 				require.NoError(t, repo.Leases().IncrementEndpointCount(ctx, unit, 1))
@@ -863,7 +863,7 @@ func TestServerlessRepository(t *testing.T) {
 			out := make([]ServerlessUnit, 0, len(rows))
 
 			for _, row := range rows {
-				out = append(out, ServerlessUnit{TenantId: row.TenantID, Shard: row.Shard})
+				out = append(out, ServerlessUnit{TenantId: row.TenantID, Partition: row.EndpointPartition})
 			}
 
 			return out
@@ -1118,7 +1118,7 @@ func TestServerlessRepository(t *testing.T) {
 		heartbeat()
 
 		snapshotLeaseRowVersions := func() map[ServerlessUnit]string {
-			rows, err := pool.Query(ctx, "SELECT tenant_id, shard, xmin::text FROM v1_serverless_lease")
+			rows, err := pool.Query(ctx, "SELECT tenant_id, endpoint_partition, xmin::text FROM v1_serverless_lease")
 			require.NoError(t, err)
 			defer rows.Close()
 
@@ -1127,7 +1127,7 @@ func TestServerlessRepository(t *testing.T) {
 			for rows.Next() {
 				var unit ServerlessUnit
 				var xmin string
-				require.NoError(t, rows.Scan(&unit.TenantId, &unit.Shard, &xmin))
+				require.NoError(t, rows.Scan(&unit.TenantId, &unit.Partition, &xmin))
 				versions[unit] = xmin
 			}
 
@@ -1160,21 +1160,21 @@ func TestServerlessRepository(t *testing.T) {
 		assert.Len(t, owned, numUnits)
 	})
 
-	t.Run("tenant upsert keeps the existing shard_count", func(t *testing.T) {
+	t.Run("tenant upsert keeps the existing endpoint_partition_count", func(t *testing.T) {
 		tenantId := uuid.New()
 
 		first, err := repo.Tenants().Upsert(ctx, tenantId, 0)
 		require.NoError(t, err)
-		assert.Equal(t, int32(1), first.ShardCount, "a zero shard count means the default")
+		assert.Equal(t, int32(1), first.EndpointPartitionCount, "a zero partition count means the default")
 
 		again, err := repo.Tenants().Upsert(ctx, tenantId, 3)
 		require.NoError(t, err)
-		assert.Equal(t, int32(1), again.ShardCount, "upsert returns the existing row untouched")
+		assert.Equal(t, int32(1), again.EndpointPartitionCount, "upsert returns the existing row untouched")
 
 		other := uuid.New()
 
 		created, err := repo.Tenants().Upsert(ctx, other, 3)
 		require.NoError(t, err)
-		assert.Equal(t, int32(3), created.ShardCount, "a new row takes the configured count")
+		assert.Equal(t, int32(3), created.EndpointPartitionCount, "a new row takes the configured count")
 	})
 }

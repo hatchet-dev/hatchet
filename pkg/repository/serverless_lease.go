@@ -18,10 +18,10 @@ func (r *serverlessLeaseRepository) Claim(ctx context.Context, processId uuid.UU
 	}
 
 	return r.queries.ClaimServerlessLeases(ctx, r.pool, sqlcv1.ClaimServerlessLeasesParams{
-		Processid:     processId,
-		Aftertenantid: after.TenantId,
-		Aftershard:    after.Shard,
-		Claimlimit:    limit,
+		Processid:      processId,
+		Aftertenantid:  after.TenantId,
+		Afterpartition: after.Partition,
+		Claimlimit:     limit,
 	})
 }
 
@@ -30,12 +30,12 @@ func (r *serverlessLeaseRepository) Shed(ctx context.Context, processId uuid.UUI
 		return nil, nil
 	}
 
-	tenantIds, shards := unitArrays(units)
+	tenantIds, partitions := unitArrays(units)
 
 	return r.queries.ShedServerlessLeases(ctx, r.pool, sqlcv1.ShedServerlessLeasesParams{
-		Processid: processId,
-		Tenantids: tenantIds,
-		Shards:    shards,
+		Processid:  processId,
+		Tenantids:  tenantIds,
+		Partitions: partitions,
 	})
 }
 
@@ -61,15 +61,15 @@ func (r *serverlessLeaseRepository) CountClaimable(ctx context.Context, limit in
 
 func (r *serverlessLeaseRepository) InsertIfAbsent(ctx context.Context, unit ServerlessUnit) error {
 	return r.queries.InsertServerlessLeaseIfAbsent(ctx, r.pool, sqlcv1.InsertServerlessLeaseIfAbsentParams{
-		Tenantid: unit.TenantId,
-		Shard:    unit.Shard,
+		Tenantid:  unit.TenantId,
+		Partition: unit.Partition,
 	})
 }
 
 func (r *serverlessLeaseRepository) IncrementEndpointCount(ctx context.Context, unit ServerlessUnit, delta int32) error {
 	return r.queries.IncrementServerlessLeaseEndpointCount(ctx, r.pool, sqlcv1.IncrementServerlessLeaseEndpointCountParams{
-		Tenantid: unit.TenantId,
-		Shard:    unit.Shard,
-		Delta:    delta,
+		Tenantid:  unit.TenantId,
+		Partition: unit.Partition,
+		Delta:     delta,
 	})
 }

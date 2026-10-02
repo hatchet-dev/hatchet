@@ -101,7 +101,7 @@ func TestZeroWeightWindowDoesNotStrandBacklog(t *testing.T) {
 			weight = 3
 		}
 
-		_, err := pool.Exec(ctx, "INSERT INTO v1_serverless_lease (tenant_id, shard, process_id, endpoint_count) VALUES ($1, 0, $2, $3)", tenant, holder, weight)
+		_, err := pool.Exec(ctx, "INSERT INTO v1_serverless_lease (tenant_id, endpoint_partition, process_id, endpoint_count) VALUES ($1, 0, $2, $3)", tenant, holder, weight)
 		require.NoError(t, err)
 
 		_, err = pool.Exec(ctx, "INSERT INTO tenant_entitlement (tenant_id, serverless_operator) VALUES ($1, TRUE)", tenant)

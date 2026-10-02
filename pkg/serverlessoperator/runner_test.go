@@ -98,9 +98,9 @@ func TestHealthcheckChangeUpdatesActionsAndRegistration(t *testing.T) {
 	env := newTestEnv(t)
 	tenant := uuid.New()
 
-	// Two shards of one tenant, one endpoint each, served by the tenant's one registration.
-	a := healthyRow(endpointSpec{tenantId: tenant, name: "a", shard: 0, actions: []string{"svc:a"}})
-	b := healthyRow(endpointSpec{tenantId: tenant, name: "b", shard: 1, actions: []string{"svc:b"}})
+	// Two partitions of one tenant, one endpoint each, served by the tenant's one registration.
+	a := healthyRow(endpointSpec{tenantId: tenant, name: "a", partition: 0, actions: []string{"svc:a"}})
+	b := healthyRow(endpointSpec{tenantId: tenant, name: "b", partition: 1, actions: []string{"svc:b"}})
 	env.addEndpoint(a)
 	env.addEndpoint(b)
 

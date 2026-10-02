@@ -91,15 +91,15 @@ func (ts *tenantState) detachRegistration(reg *registration) bool {
 	return true
 }
 
-// ownedShards snapshots the owned shard set.
-func (ts *tenantState) ownedShards() map[int32]struct{} {
+// ownedPartitions snapshots the owned partition set.
+func (ts *tenantState) ownedPartitions() map[int32]struct{} {
 	ts.mu.Lock()
 	defer ts.mu.Unlock()
 
 	out := make(map[int32]struct{}, len(ts.units))
 
-	for shard := range ts.units {
-		out[shard] = struct{}{}
+	for partition := range ts.units {
+		out[partition] = struct{}{}
 	}
 
 	return out
@@ -170,7 +170,7 @@ func groupUnits(units []lease.Unit) map[uuid.UUID][]int32 {
 	out := map[uuid.UUID][]int32{}
 
 	for _, unit := range units {
-		out[unit.TenantId] = append(out[unit.TenantId], unit.Shard)
+		out[unit.TenantId] = append(out[unit.TenantId], unit.Partition)
 	}
 
 	return out
@@ -218,21 +218,21 @@ func (r *runner) forgetTenant(ts *tenantState) {
 
 // deferUnits records gained units whose tenant could not be loaded; maintenance retries
 // them, so a claimed unit is never left owned but unserved.
-func (r *runner) deferUnits(tenantId uuid.UUID, shards []int32) {
+func (r *runner) deferUnits(tenantId uuid.UUID, partitions []int32) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	for _, shard := range shards {
-		r.pending[lease.Unit{TenantId: tenantId, Shard: shard}] = struct{}{}
+	for _, partition := range partitions {
+		r.pending[lease.Unit{TenantId: tenantId, Partition: partition}] = struct{}{}
 	}
 }
 
-func (r *runner) clearPending(tenantId uuid.UUID, shards []int32) {
+func (r *runner) clearPending(tenantId uuid.UUID, partitions []int32) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	for _, shard := range shards {
-		delete(r.pending, lease.Unit{TenantId: tenantId, Shard: shard})
+	for _, partition := range partitions {
+		delete(r.pending, lease.Unit{TenantId: tenantId, Partition: partition})
 	}
 }
 
@@ -268,23 +268,23 @@ func (r *runner) gainGroups(ctx context.Context, groups map[uuid.UUID][]int32) {
 
 	var wg sync.WaitGroup
 
-	for tenantId, shards := range groups {
+	for tenantId, partitions := range groups {
 		wg.Add(1)
 
-		go func(tenantId uuid.UUID, shards []int32) {
+		go func(tenantId uuid.UUID, partitions []int32) {
 			defer wg.Done()
 
 			sem <- struct{}{}
 			defer func() { <-sem }()
 
-			r.gainUnits(ctx, tenantId, shards)
-		}(tenantId, shards)
+			r.gainUnits(ctx, tenantId, partitions)
+		}(tenantId, partitions)
 	}
 
 	wg.Wait()
 }
 
-func (r *runner) gainUnits(ctx context.Context, tenantId uuid.UUID, shards []int32) {
+func (r *runner) gainUnits(ctx context.Context, tenantId uuid.UUID, partitions []int32) {
 	for {
 		ts := r.tenantFor(tenantId)
 
@@ -297,7 +297,7 @@ func (r *runner) gainUnits(ctx context.Context, tenantId uuid.UUID, shards []int
 			continue
 		}
 
-		r.gainUnitsLocked(ctx, ts, shards)
+		r.gainUnitsLocked(ctx, ts, partitions)
 		ts.opMu.Unlock()
 
 		return
@@ -305,10 +305,10 @@ func (r *runner) gainUnits(ctx context.Context, tenantId uuid.UUID, shards []int
 }
 
 // gainUnitsLocked runs under ts.opMu.
-func (r *runner) gainUnitsLocked(ctx context.Context, ts *tenantState, shards []int32) {
-	if err := r.loadTenant(ctx, ts, shards); err != nil {
+func (r *runner) gainUnitsLocked(ctx context.Context, ts *tenantState, partitions []int32) {
+	if err := r.loadTenant(ctx, ts, partitions); err != nil {
 		r.l.Error().Err(err).Str("tenant_id", ts.tenantId.String()).Msg("could not load tenant routing cache; the gained units are retried by maintenance")
-		r.deferUnits(ts.tenantId, shards)
+		r.deferUnits(ts.tenantId, partitions)
 
 		if !ts.loaded && ts.unitCount() == 0 {
 			r.forgetTenant(ts)
@@ -317,12 +317,12 @@ func (r *runner) gainUnitsLocked(ctx context.Context, ts *tenantState, shards []
 		return
 	}
 
-	r.clearPending(ts.tenantId, shards)
+	r.clearPending(ts.tenantId, partitions)
 
 	ts.mu.Lock()
 
-	for _, shard := range shards {
-		ts.units[shard] = struct{}{}
+	for _, partition := range partitions {
+		ts.units[partition] = struct{}{}
 	}
 
 	ts.mu.Unlock()
@@ -338,7 +338,7 @@ func (r *runner) gainUnitsLocked(ctx context.Context, ts *tenantState, shards []
 
 // loadTenant loads the tenant's routing cache on first use, and afterwards refreshes the
 // gained units' endpoints so their pollers start from current rows. Runs under ts.opMu.
-func (r *runner) loadTenant(ctx context.Context, ts *tenantState, shards []int32) error {
+func (r *runner) loadTenant(ctx context.Context, ts *tenantState, partitions []int32) error {
 	if !ts.loaded {
 		if err := ts.cache.Load(ctx); err != nil {
 			return err
@@ -351,10 +351,10 @@ func (r *runner) loadTenant(ctx context.Context, ts *tenantState, shards []int32
 		return nil
 	}
 
-	units := make([]lease.Unit, 0, len(shards))
+	units := make([]lease.Unit, 0, len(partitions))
 
-	for _, shard := range shards {
-		units = append(units, lease.Unit{TenantId: ts.tenantId, Shard: shard})
+	for _, partition := range partitions {
+		units = append(units, lease.Unit{TenantId: ts.tenantId, Partition: partition})
 	}
 
 	return r.loadUnitEndpoints(ctx, ts, units)
@@ -390,8 +390,8 @@ func (r *runner) loadUnitEndpoints(ctx context.Context, ts *tenantState, units [
 // is not held for DrainTimeout, and released on the host once that is done. Action sets are
 // untouched.
 func (r *runner) UnitsLost(ctx context.Context, units []lease.Unit) {
-	for tenantId, shards := range groupUnits(units) {
-		r.clearPending(tenantId, shards)
+	for tenantId, partitions := range groupUnits(units) {
+		r.clearPending(tenantId, partitions)
 
 		ts := r.tenant(tenantId)
 
@@ -408,8 +408,8 @@ func (r *runner) UnitsLost(ctx context.Context, units []lease.Unit) {
 
 		ts.mu.Lock()
 
-		for _, shard := range shards {
-			delete(ts.units, shard)
+		for _, partition := range partitions {
+			delete(ts.units, partition)
 		}
 
 		remaining := len(ts.units)

@@ -372,10 +372,10 @@ func (r *runner) catalogLimits() catalogLimits {
 	return catalogLimits{maxWorkflows: r.cfg.MaxWorkflowsPerEndpoint, maxActions: r.cfg.MaxActionsPerEndpoint}
 }
 
-// ownedEndpoints are the tenant's endpoints on shards this process owns, in no particular
+// ownedEndpoints are the tenant's endpoints on partitions this process owns, in no particular
 // order: a snapshot of the tenant is never sorted just to filter it.
 func (ts *tenantState) ownedEndpoints() []*cachedEndpoint {
-	return ts.cache.endpointsOnShards(ts.ownedShards())
+	return ts.cache.endpointsOnPartitions(ts.ownedPartitions())
 }
 
 // reconcilePollers starts pollers for owned, enabled endpoints without one and stops pollers

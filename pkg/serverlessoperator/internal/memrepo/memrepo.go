@@ -203,12 +203,12 @@ func (r *Repo) AddEndpoint(ep *sqlcv1.V1ServerlessEndpoint) {
 	cp.UpdatedAt = pgtype.Timestamptz{Time: r.Now(), Valid: true}
 	r.endpoints[cp.ID] = &cp
 
-	unit := Unit{TenantId: cp.TenantID, Shard: cp.Shard}
+	unit := Unit{TenantId: cp.TenantID, Partition: cp.EndpointPartition}
 
 	lease, ok := r.leases[unit]
 
 	if !ok {
-		lease = &sqlcv1.V1ServerlessLease{TenantID: unit.TenantId, Shard: unit.Shard}
+		lease = &sqlcv1.V1ServerlessLease{TenantID: unit.TenantId, EndpointPartition: unit.Partition}
 		r.leases[unit] = lease
 	}
 
@@ -248,7 +248,7 @@ func (r *Repo) RemoveEndpoint(id uuid.UUID) {
 	ep.DeletedAt = pgtype.Timestamptz{Time: now, Valid: true}
 	ep.UpdatedAt = pgtype.Timestamptz{Time: now, Valid: true}
 
-	if lease, ok := r.leases[Unit{TenantId: ep.TenantID, Shard: ep.Shard}]; ok {
+	if lease, ok := r.leases[Unit{TenantId: ep.TenantID, Partition: ep.EndpointPartition}]; ok {
 		lease.EndpointCount--
 	}
 }
@@ -274,7 +274,7 @@ func (r *Repo) SetLease(unit Unit, owner *uuid.UUID, endpointCount int32) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	r.leases[unit] = &sqlcv1.V1ServerlessLease{TenantID: unit.TenantId, Shard: unit.Shard, ProcessID: owner, EndpointCount: endpointCount}
+	r.leases[unit] = &sqlcv1.V1ServerlessLease{TenantID: unit.TenantId, EndpointPartition: unit.Partition, ProcessID: owner, EndpointCount: endpointCount}
 }
 
 // Lease returns a copy of a lease row.
@@ -340,7 +340,7 @@ func (e *endpoints) ListForUnits(_ context.Context, units []Unit, afterId uuid.U
 	out := make([]*sqlcv1.V1ServerlessEndpoint, 0)
 
 	for _, ep := range e.r.endpoints {
-		if _, ok := want[Unit{TenantId: ep.TenantID, Shard: ep.Shard}]; !ok || ep.DeletedAt.Valid {
+		if _, ok := want[Unit{TenantId: ep.TenantID, Partition: ep.EndpointPartition}]; !ok || ep.DeletedAt.Valid {
 			continue
 		}
 
@@ -693,7 +693,7 @@ func lessUnit(a, b Unit) bool {
 		return a.TenantId.String() < b.TenantId.String()
 	}
 
-	return a.Shard < b.Shard
+	return a.Partition < b.Partition
 }
 
 // Claim takes claimable units in key order, unowned first from after (the database starts at
@@ -717,7 +717,7 @@ func (l *leases) Claim(_ context.Context, processId uuid.UUID, after Unit, limit
 		lease.ProcessID = &owner
 		lease.ClaimedAt = pgtype.Timestamptz{Time: l.r.Now(), Valid: true}
 
-		out = append(out, &sqlcv1.ClaimServerlessLeasesRow{TenantID: unit.TenantId, Shard: unit.Shard, EndpointCount: lease.EndpointCount})
+		out = append(out, &sqlcv1.ClaimServerlessLeasesRow{TenantID: unit.TenantId, EndpointPartition: unit.Partition, EndpointCount: lease.EndpointCount})
 	}
 
 	units := sortedUnits(l.r.leases)
@@ -771,7 +771,7 @@ func (l *leases) Shed(_ context.Context, processId uuid.UUID, units []Unit) ([]*
 		lease.ProcessID = nil
 		lease.ClaimedAt = pgtype.Timestamptz{}
 
-		out = append(out, &sqlcv1.ShedServerlessLeasesRow{TenantID: unit.TenantId, Shard: unit.Shard, EndpointCount: lease.EndpointCount})
+		out = append(out, &sqlcv1.ShedServerlessLeasesRow{TenantID: unit.TenantId, EndpointPartition: unit.Partition, EndpointCount: lease.EndpointCount})
 	}
 
 	return out, nil
@@ -793,7 +793,7 @@ func (l *leases) ReleaseUnentitled(_ context.Context, processId uuid.UUID) ([]*s
 		lease.ProcessID = nil
 		lease.ClaimedAt = pgtype.Timestamptz{}
 
-		out = append(out, &sqlcv1.ReleaseUnentitledServerlessLeasesRow{TenantID: unit.TenantId, Shard: unit.Shard, EndpointCount: lease.EndpointCount})
+		out = append(out, &sqlcv1.ReleaseUnentitledServerlessLeasesRow{TenantID: unit.TenantId, EndpointPartition: unit.Partition, EndpointCount: lease.EndpointCount})
 	}
 
 	return out, nil
@@ -865,7 +865,7 @@ func (l *leases) InsertIfAbsent(_ context.Context, unit Unit) error {
 	defer l.r.mu.Unlock()
 
 	if _, ok := l.r.leases[unit]; !ok {
-		l.r.leases[unit] = &sqlcv1.V1ServerlessLease{TenantID: unit.TenantId, Shard: unit.Shard}
+		l.r.leases[unit] = &sqlcv1.V1ServerlessLease{TenantID: unit.TenantId, EndpointPartition: unit.Partition}
 	}
 
 	return nil

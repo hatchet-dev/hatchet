@@ -11,10 +11,10 @@ import (
 
 func validConfig() ConfigFile {
 	return ConfigFile{
-		DatabaseUrl:   "postgres://localhost/hatchet",
-		TokenExchange: TokenExchangeStatic,
-		ClientToken:   "token",
-		ShardCount:    1,
+		DatabaseUrl:            "postgres://localhost/hatchet",
+		TokenExchange:          TokenExchangeStatic,
+		ClientToken:            "token",
+		EndpointPartitionCount: 1,
 	}
 }
 
@@ -75,24 +75,24 @@ func TestValidateTokenExchange(t *testing.T) {
 	}
 }
 
-func TestValidateRequiresDatabaseAndBoundsShardCount(t *testing.T) {
+func TestValidateRequiresDatabaseAndBoundsEndpointPartitionCount(t *testing.T) {
 	cf := validConfig()
 	cf.DatabaseUrl = ""
 	require.ErrorContains(t, cf.Validate(), "DATABASE_URL")
 
 	cf = validConfig()
-	cf.ShardCount = serverlessoperator.MaxShardCount + 1
-	require.ErrorContains(t, cf.Validate(), "shard count")
+	cf.EndpointPartitionCount = serverlessoperator.MaxEndpointPartitionCount + 1
+	require.ErrorContains(t, cf.Validate(), "partition count")
 
 	cf = validConfig()
-	cf.ShardCount = serverlessoperator.MaxShardCount
+	cf.EndpointPartitionCount = serverlessoperator.MaxEndpointPartitionCount
 	assert.NoError(t, cf.Validate())
 }
 
 func TestCoreConfigCarriesTheFile(t *testing.T) {
 	cf := validConfig()
 	cf.OperatorName = "custom"
-	cf.ShardCount = 4
+	cf.EndpointPartitionCount = 4
 	cf.HealthPort = 9090
 	cf.InfraBlockedCIDRs = " 10.0.0.0/8, ,192.168.0.0/16 "
 
@@ -100,7 +100,7 @@ func TestCoreConfigCarriesTheFile(t *testing.T) {
 
 	assert.Equal(t, "custom", core.OperatorName)
 	assert.Equal(t, serverlessoperator.DefaultLinkName, core.LinkName)
-	assert.Equal(t, int32(4), core.ShardCount)
+	assert.Equal(t, int32(4), core.EndpointPartitionCount)
 	assert.Equal(t, 9090, core.HealthPort)
 	assert.Equal(t, []string{"10.0.0.0/8", "192.168.0.0/16"}, cf.InfraBlockedCIDRList())
 }

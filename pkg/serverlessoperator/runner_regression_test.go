@@ -378,8 +378,8 @@ func TestUnitsOfOneTenantShareOneRegistration(t *testing.T) {
 	env := newTestEnv(t)
 	tenant := uuid.New()
 
-	a := healthyRow(endpointSpec{tenantId: tenant, name: "a", shard: 0, actions: []string{"svc:a"}})
-	b := healthyRow(endpointSpec{tenantId: tenant, name: "b", shard: 1, actions: []string{"svc:b"}})
+	a := healthyRow(endpointSpec{tenantId: tenant, name: "a", partition: 0, actions: []string{"svc:a"}})
+	b := healthyRow(endpointSpec{tenantId: tenant, name: "b", partition: 1, actions: []string{"svc:b"}})
 	env.addEndpoint(a)
 	env.addEndpoint(b)
 
@@ -420,8 +420,8 @@ func TestInFlightIsReportedOnTheTenantsLastUnitOnly(t *testing.T) {
 	env := newTestEnv(t)
 	tenant := uuid.New()
 
-	a := healthyRow(endpointSpec{tenantId: tenant, name: "a", shard: 0, actions: []string{"svc:a"}})
-	b := healthyRow(endpointSpec{tenantId: tenant, name: "b", shard: 1, actions: []string{"svc:b"}})
+	a := healthyRow(endpointSpec{tenantId: tenant, name: "a", partition: 0, actions: []string{"svc:a"}})
+	b := healthyRow(endpointSpec{tenantId: tenant, name: "b", partition: 1, actions: []string{"svc:b"}})
 	env.addEndpoint(a)
 	env.addEndpoint(b)
 

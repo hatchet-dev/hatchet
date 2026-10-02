@@ -176,7 +176,7 @@ func serverlessConfigFromServer(cf server.ServerlessOperatorConfigFile) serverle
 		LinkName:                     serverlessLinkName,
 		DefaultSlots:                 cf.DefaultSlots,
 		DurableSlots:                 cf.DurableSlots,
-		ShardCount:                   cf.ShardCount,
+		EndpointPartitionCount:       cf.EndpointPartitionCount,
 		LeaseTTL:                     cf.LeaseTTL,
 		HeartbeatInterval:            cf.HeartbeatInterval,
 		RebalanceInterval:            cf.RebalanceInterval,

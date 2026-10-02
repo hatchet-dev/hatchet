@@ -1,5 +1,5 @@
 // Package lease is the serverless operator's process membership and unit ownership: one
-// heartbeat row per process, fair-share claiming of (tenant, shard) units with FOR UPDATE SKIP
+// heartbeat row per process, fair-share claiming of (tenant, partition) units with FOR UPDATE SKIP
 // LOCKED, shedding above fair share, and a periodic sweep of expired process rows. The pattern
 // is pgoutbox's consumer session leasing with indexed candidate lookups instead of a table
 // scan.
@@ -458,7 +458,7 @@ func (s *Leaser) Tick(ctx context.Context) error {
 			}
 
 			for _, row := range rows {
-				delete(current, Unit{TenantId: row.TenantID, Shard: row.Shard})
+				delete(current, Unit{TenantId: row.TenantID, Partition: row.EndpointPartition})
 				shed++
 			}
 		}
@@ -515,7 +515,7 @@ func (s *Leaser) claim(ctx context.Context, current map[Unit]int32, unitBudget, 
 		}
 
 		for _, row := range rows {
-			unit := Unit{TenantId: row.TenantID, Shard: row.Shard}
+			unit := Unit{TenantId: row.TenantID, Partition: row.EndpointPartition}
 			current[unit] = row.EndpointCount
 			unitBudget--
 			// Every unit spends at least one weight unit so a run of empty units cannot keep
@@ -560,7 +560,7 @@ func (s *Leaser) listOwned(ctx context.Context) (map[Unit]int32, error) {
 	current := make(map[Unit]int32, len(rows))
 
 	for _, row := range rows {
-		current[Unit{TenantId: row.TenantID, Shard: row.Shard}] = row.EndpointCount
+		current[Unit{TenantId: row.TenantID, Partition: row.EndpointPartition}] = row.EndpointCount
 	}
 
 	return current, nil
@@ -685,7 +685,7 @@ func lessUnit(a, b Unit) bool {
 		return a.TenantId.String() < b.TenantId.String()
 	}
 
-	return a.Shard < b.Shard
+	return a.Partition < b.Partition
 }
 
 func sortUnits(units []Unit) {

@@ -43,8 +43,8 @@ func (f *fakeReconciler) InFlight(unit Unit) int {
 	return f.inflight[unit]
 }
 
-func unit(tenant uuid.UUID, shard int32) Unit {
-	return Unit{TenantId: tenant, Shard: shard}
+func unit(tenant uuid.UUID, partition int32) Unit {
+	return Unit{TenantId: tenant, Partition: partition}
 }
 
 // tenantIds are fixed so ordering (which the memrepo makes deterministic) is predictable.
