@@ -8,6 +8,7 @@ import (
 	"context"
 	"crypto/rand"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -130,8 +131,8 @@ func TestPubSubSchedulerTopicRoundtrip(t *testing.T) {
 
 // handlerSlots is how many handler calls a subscription runs at once, so a test
 // can block every one of them.
-func handlerSlots(msgqueue.Topic) int {
-	return 1
+func handlerSlots(topic msgqueue.Topic) int {
+	return handlerLimit(topic.Kind())
 }
 
 func TestPubSubSkipsStaleMessagesBehindBacklog(t *testing.T) {
@@ -357,7 +358,149 @@ func TestPubSubOversizedMessageIsChunked(t *testing.T) {
 	}
 
 	assert.Greater(t, numChunks, 1, "message should have been split into multiple chunks")
-	assert.Equal(t, want, got, "every payload should arrive exactly once, in order")
+	assert.ElementsMatch(t, want, got, "every payload should arrive exactly once; handlers run concurrently, so chunks may arrive in any order")
+}
+
+func TestPubSubHandlersRunConcurrently(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	ps := newTestPubSub(t)
+	topic := msgqueue.SchedulerPartitionTopic(uuid.NewString())
+
+	const n = 5
+
+	started := make(chan struct{}, n)
+	unblock := make(chan struct{})
+
+	cleanupSub, err := ps.Sub(topic, func(m *msgqueue.Message) error {
+		started <- struct{}{}
+		<-unblock
+		return nil
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = cleanupSub() })
+	defer close(unblock)
+
+	for range n {
+		msg, err := msgqueue.NewTenantMessage(uuid.New(), "check-tenant-queue", true, false, map[string]interface{}{"key": "value"})
+		require.NoError(t, err)
+		require.NoError(t, ps.Pub(ctx, topic, msg))
+	}
+
+	// every handler is blocked, so all n can only have started concurrently
+	for i := range n {
+		select {
+		case <-started:
+		case <-ctx.Done():
+			t.Fatalf("only %d of %d handlers started while the others were blocked", i, n)
+		}
+	}
+}
+
+func TestPubSubFullPoolDefersInsteadOfDropping(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	ps := newTestPubSub(t)
+	topic := msgqueue.TenantTopic(uuid.New())
+
+	limit := handlerLimit(topic.Kind())
+	total := limit + 10
+
+	var running, handled atomic.Int64
+	unblock := make(chan struct{})
+	var unblockOnce sync.Once
+	release := func() { unblockOnce.Do(func() { close(unblock) }) }
+
+	cleanupSub, err := ps.Sub(topic, func(m *msgqueue.Message) error {
+		running.Add(1)
+		<-unblock
+		running.Add(-1)
+		handled.Add(1)
+		return nil
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = cleanupSub() })
+	// registered after the sub cleanup so it runs first: cleanup waits for the
+	// blocked handlers if an assertion below fails
+	t.Cleanup(release)
+
+	for range total {
+		msg, err := msgqueue.NewTenantMessage(uuid.New(), "task-completed", true, false, map[string]interface{}{"key": "value"})
+		require.NoError(t, err)
+		require.NoError(t, ps.Pub(ctx, topic, msg))
+	}
+
+	require.Eventually(t, func() bool { return running.Load() == int64(limit) }, 5*time.Second, time.Millisecond)
+
+	time.Sleep(100 * time.Millisecond)
+	assert.EqualValues(t, limit, running.Load(), "no more than the limit run at once")
+	assert.EqualValues(t, 0, handled.Load())
+
+	release()
+
+	require.Eventually(t, func() bool { return handled.Load() == int64(total) }, 5*time.Second, time.Millisecond,
+		"messages beyond the limit are handled once slots free up")
+}
+
+func TestPubSubCleanupWaitsForRunningHandlers(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	ps := newTestPubSub(t)
+	topic := msgqueue.TenantTopic(uuid.New())
+
+	started := make(chan struct{}, 1)
+	unblock := make(chan struct{})
+	var finished, calls atomic.Int64
+
+	cleanupSub, err := ps.Sub(topic, func(m *msgqueue.Message) error {
+		calls.Add(1)
+		started <- struct{}{}
+		<-unblock
+		finished.Add(1)
+		return nil
+	})
+	require.NoError(t, err)
+
+	publish := func() {
+		msg, err := msgqueue.NewTenantMessage(uuid.New(), "task-completed", true, false, map[string]interface{}{"key": "value"})
+		require.NoError(t, err)
+		require.NoError(t, ps.Pub(ctx, topic, msg))
+	}
+
+	publish()
+
+	select {
+	case <-started:
+	case <-ctx.Done():
+		t.Fatal("handler did not start")
+	}
+
+	cleanupDone := make(chan error, 1)
+	go func() { cleanupDone <- cleanupSub() }()
+
+	select {
+	case <-cleanupDone:
+		t.Fatal("cleanup returned while a handler was still running")
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	close(unblock)
+
+	select {
+	case err := <-cleanupDone:
+		require.NoError(t, err)
+	case <-ctx.Done():
+		t.Fatal("cleanup did not return after the handler finished")
+	}
+
+	assert.EqualValues(t, 1, finished.Load())
+
+	publish()
+	time.Sleep(200 * time.Millisecond)
+	assert.EqualValues(t, 1, calls.Load(), "no handler runs after cleanup returns")
 }
 
 func TestPubSubCompressedRoundtrip(t *testing.T) {
