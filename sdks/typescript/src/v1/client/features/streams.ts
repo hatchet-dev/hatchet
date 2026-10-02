@@ -3,6 +3,7 @@ import { Status } from 'nice-grpc';
 import { ClientConfig } from '@hatchet/clients/hatchet-client';
 import { createGrpcClient } from '@hatchet/util/grpc-helpers';
 import { getGrpcErrorCode } from '@hatchet/util/grpc-error';
+import sleep from '@hatchet/util/sleep';
 import {
   V1StreamsClient as PbV1StreamsClient,
   V1StreamsDefinition,
@@ -18,6 +19,31 @@ function publishRejectedBeforeStoring(err: unknown): boolean {
     code === Status.UNAUTHENTICATED ||
     code === Status.PERMISSION_DENIED
   );
+}
+
+// retrying a subscribe that failed with these can't succeed
+const permanentSubscribeErrors = new Set<number>([
+  Status.INVALID_ARGUMENT,
+  Status.PERMISSION_DENIED,
+  Status.UNAUTHENTICATED,
+  Status.OUT_OF_RANGE,
+  Status.FAILED_PRECONDITION,
+  Status.NOT_FOUND,
+]);
+
+const resubscribeMinDelayMs = 250;
+const resubscribeMaxDelayMs = 10_000;
+
+function shouldResubscribe(err: unknown, attempt: number): boolean {
+  const code = getGrpcErrorCode(err);
+  if (code === undefined || permanentSubscribeErrors.has(code)) {
+    return false;
+  }
+  // proxies answer 404 while an engine restarts, but on a first attempt it means no streams support
+  if (code === Status.UNIMPLEMENTED) {
+    return attempt > 0;
+  }
+  return true;
 }
 
 export type StreamEvent = {
@@ -129,40 +155,57 @@ export class StreamsClient {
 
   /**
    * Yields topic's messages after options.cursor, or from the oldest retained.
-   * Ends when the server hangs up, options.signal aborts, or the caller stops iterating.
+   * If the connection drops, it resubscribes from the last message yielded, so
+   * nothing is skipped or repeated. Ends when the server hangs up an idle
+   * subscription, options.signal aborts, or the caller stops iterating; throws
+   * on errors a retry can't fix, such as an expired cursor.
    * @param topic - the topic to read from
    * @param options - optional namespace override, resume cursor, and abort signal
    */
   async *events(topic: string, options?: StreamCallOptions): AsyncIterable<StreamEvent> {
-    const stream = this.grpc.subscribe(
-      {
-        namespace: options?.namespace ?? '',
-        topic,
-        cursor: options?.cursor,
-      },
-      { signal: options?.signal }
-    );
+    const namespace = options?.namespace ?? '';
+    const signal = options?.signal;
+    let { cursor } = options ?? {};
+    let failures = 0;
 
-    try {
-      for await (const msg of stream) {
-        if (msg.hangup) {
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        const stream = this.grpc.subscribe({ namespace, topic, cursor }, { signal });
+
+        for await (const msg of stream) {
+          if (msg.hangup) {
+            return;
+          }
+
+          failures = 0;
+
+          for (const entry of msg.entries) {
+            ({ cursor } = entry);
+            yield {
+              payload: entry.payload,
+              cursor: entry.cursor,
+              createdAt: entry.createdAt,
+            };
+          }
+        }
+        // ending without a hangup means the engine went away, e.g. it is shutting down
+      } catch (err) {
+        if (signal?.aborted) {
           return;
         }
-
-        for (const entry of msg.entries) {
-          yield {
-            payload: entry.payload,
-            cursor: entry.cursor,
-            createdAt: entry.createdAt,
-          };
+        if (!shouldResubscribe(err, attempt)) {
+          throw err;
         }
       }
-    } catch (err) {
-      // an aborted signal is an intentional stop, not a failure
-      if (options?.signal?.aborted) {
+
+      const delayMs = Math.min(resubscribeMinDelayMs * 2 ** failures, resubscribeMaxDelayMs);
+      failures += 1;
+
+      try {
+        await sleep(delayMs * (0.5 + Math.random() / 2), signal);
+      } catch {
         return;
       }
-      throw err;
     }
   }
 }

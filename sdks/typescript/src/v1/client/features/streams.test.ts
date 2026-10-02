@@ -78,7 +78,7 @@ describe('StreamsClient.events cancellation', () => {
     expect(result.done).toBe(true);
   });
 
-  it('still throws a non-abort error from the underlying stream', async () => {
+  it('throws an error that is not a gRPC status instead of resubscribing', async () => {
     async function* subscribeStub() {
       yield { entries: [entry(1, 'c1')], hangup: false };
       throw new Error('transport failure');
@@ -237,5 +237,143 @@ describe('StreamsClient without the durable streams entitlement', () => {
       })()
     ).rejects.toMatchObject({ code: Status.PERMISSION_DENIED });
     expect(received).toEqual([]);
+  });
+});
+
+describe('StreamsClient.events reconnection', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  type Attempt = () => AsyncGenerator<{ entries: ReturnType<typeof entry>[]; hangup: boolean }>;
+
+  // each subscribe call runs the next attempt; the last one repeats
+  function setup(attempts: Attempt[]) {
+    let calls = 0;
+    const subscribe = jest.fn((_req: { cursor?: string }, _options: unknown) => {
+      calls += 1;
+      return attempts[Math.min(calls, attempts.length) - 1]();
+    });
+    mockedCreateGrpcClient.mockReturnValue({ client: { subscribe } } as any);
+    return { streams: new StreamsClient(fakeHatchetClient()), subscribe };
+  }
+
+  async function take(iter: AsyncIterable<{ payload: Uint8Array }>, count: number) {
+    const out: number[] = [];
+    for await (const event of iter) {
+      out.push(event.payload[0]);
+      if (out.length >= count) break;
+    }
+    return out;
+  }
+
+  async function* hangup() {
+    yield { entries: [], hangup: true };
+  }
+
+  it('resubscribes from the last cursor after the connection drops', async () => {
+    const { streams, subscribe } = setup([
+      async function* dropped() {
+        yield { entries: [entry(1, 'c1'), entry(2, 'c2')], hangup: false };
+        throw grpcError(Status.INTERNAL);
+      },
+      async function* resumed() {
+        yield { entries: [entry(3, 'c3')], hangup: false };
+        yield* hangup();
+      },
+    ]);
+
+    expect(await take(streams.events('topic', { cursor: 'c0' }), 10)).toEqual([1, 2, 3]);
+    expect(subscribe.mock.calls.map(([req]) => req.cursor)).toEqual(['c0', 'c2']);
+  });
+
+  it('resubscribes when the stream ends without a hangup, as on an engine shutdown', async () => {
+    const { streams, subscribe } = setup([
+      async function* shutdown() {
+        yield { entries: [entry(1, 'c1')], hangup: false };
+      },
+      async function* resumed() {
+        yield { entries: [entry(2, 'c2')], hangup: false };
+        yield* hangup();
+      },
+    ]);
+
+    expect(await take(streams.events('topic'), 10)).toEqual([1, 2]);
+    expect(subscribe.mock.calls.map(([req]) => req.cursor)).toEqual([undefined, 'c1']);
+  });
+
+  it('starts over from the original cursor when nothing was received before the drop', async () => {
+    const { streams, subscribe } = setup([
+      // eslint-disable-next-line require-yield
+      async function* unavailable() {
+        throw grpcError(Status.UNAVAILABLE);
+      },
+      async function* resumed() {
+        yield { entries: [entry(1, 'c1')], hangup: false };
+        yield* hangup();
+      },
+    ]);
+
+    expect(await take(streams.events('topic'), 10)).toEqual([1]);
+    expect(subscribe.mock.calls.map(([req]) => req.cursor)).toEqual([undefined, undefined]);
+  });
+
+  it('throws an error a retry cannot fix, such as a cursor expiring while disconnected', async () => {
+    const { streams, subscribe } = setup([
+      async function* dropped() {
+        yield { entries: [entry(1, 'c1')], hangup: false };
+        throw grpcError(Status.UNAVAILABLE);
+      },
+      // eslint-disable-next-line require-yield
+      async function* expired() {
+        throw grpcError(Status.OUT_OF_RANGE);
+      },
+    ]);
+
+    await expect(take(streams.events('topic'), 10)).rejects.toMatchObject({
+      code: Status.OUT_OF_RANGE,
+    });
+    expect(subscribe).toHaveBeenCalledTimes(2);
+  });
+
+  it('retries UNIMPLEMENTED only after a first attempt, since a restarting proxy answers 404', async () => {
+    // eslint-disable-next-line require-yield
+    async function* unimplemented(): AsyncGenerator<never> {
+      throw grpcError(Status.UNIMPLEMENTED);
+    }
+
+    const first = setup([unimplemented]);
+    await expect(take(first.streams.events('topic'), 10)).rejects.toMatchObject({
+      code: Status.UNIMPLEMENTED,
+    });
+    expect(first.subscribe).toHaveBeenCalledTimes(1);
+
+    const later = setup([
+      async function* dropped() {
+        yield { entries: [entry(1, 'c1')], hangup: false };
+        throw grpcError(Status.UNAVAILABLE);
+      },
+      unimplemented,
+      async function* resumed() {
+        yield { entries: [entry(2, 'c2')], hangup: false };
+        yield* hangup();
+      },
+    ]);
+    expect(await take(later.streams.events('topic'), 10)).toEqual([1, 2]);
+    expect(later.subscribe).toHaveBeenCalledTimes(3);
+  });
+
+  it('ends cleanly when aborted while waiting to resubscribe', async () => {
+    const controller = new AbortController();
+    const { streams, subscribe } = setup([
+      async function* dropped() {
+        yield { entries: [entry(1, 'c1')], hangup: false };
+        controller.abort();
+        throw grpcError(Status.UNAVAILABLE);
+      },
+    ]);
+
+    expect(await take(streams.events('topic', { signal: controller.signal }), 10)).toEqual([1]);
+    expect(subscribe).toHaveBeenCalledTimes(1);
   });
 });
