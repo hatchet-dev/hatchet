@@ -311,7 +311,9 @@ func TestUnknownProceduresGetAGRPCStatus(t *testing.T) {
 		"/Absent/Method":         "unknown service Absent",
 		// mounted on other servers, not on this one
 		"/NoSuchService/Push": "unknown service NoSuchService",
-		"/nomethod":           `malformed method name: "/nomethod"`,
+		// optional, and not given to this server as in the legacy engine config
+		"/v1.V1Streams/Subscribe": "unknown service v1.V1Streams",
+		"/nomethod":               `malformed method name: "/nomethod"`,
 	} {
 		req := rawGRPCRequest(t, context.Background(), env.addr, path, bytes.NewReader(grpcFrame(t, &dispatchercontracts.WorkerRegisterRequest{})))
 		req.Header.Del("Authorization")

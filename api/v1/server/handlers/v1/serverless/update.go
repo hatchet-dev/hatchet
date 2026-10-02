@@ -15,6 +15,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/contract"
 )
 
+// V1ServerlessEndpointUpdate applies the fields set in the request to an existing endpoint.
+// Fields omitted from the request keep their stored values.
 func (t *V1ServerlessService) V1ServerlessEndpointUpdate(ctx echo.Context, request gen.V1ServerlessEndpointUpdateRequestObject) (gen.V1ServerlessEndpointUpdateResponseObject, error) {
 	endpoint := ctx.Get("v1-serverless-endpoint").(*sqlcv1.V1ServerlessEndpoint)
 	body := request.Body

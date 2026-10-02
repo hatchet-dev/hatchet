@@ -186,6 +186,16 @@
         "ruby": "scheduled"
       }
     },
+    "streams": {
+      "title": "Streams",
+      "description": "Publish to and subscribe to durable, topic-based message streams",
+      "guide": null,
+      "guideTitle": null,
+      "slugs": {
+        "typescript": "streams",
+        "go": "streams"
+      }
+    },
     "stubs": {
       "title": "Stubs",
       "description": "Create typed stubs for tasks and workflows registered in another service",

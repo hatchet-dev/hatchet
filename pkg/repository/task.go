@@ -34,6 +34,20 @@ func isLockNotAvailable(err error) bool {
 	return errors.As(err, &pgErr) && pgErr.Code == pgerrcode.LockNotAvailable
 }
 
+func isDeadlockDetected(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == pgerrcode.DeadlockDetected
+}
+
+// isPartitionLockConflict reports whether partition maintenance gave up because other queries
+// were using the same tables. That happens in two ways: we waited longer than lock_timeout
+// (55P03), or Postgres saw two transactions each waiting for a lock the other holds and
+// cancelled ours to break the tie (40P01, a deadlock). Neither means anything is broken, so
+// callers retry on the next scheduled run.
+func isPartitionLockConflict(err error) bool {
+	return isLockNotAvailable(err) || isDeadlockDetected(err)
+}
+
 func isPendingDetach(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == pgerrcode.ObjectNotInPrerequisiteState && strings.Contains(pgErr.Message, "already pending detach")
@@ -393,7 +407,26 @@ func createExternalIdUniqueConstraintsOnDailyPartitions(ctx context.Context, db 
 	return nil
 }
 
+// reattachIndicesToParents repairs parent indexes that Postgres still marks invalid even though
+// every partition now has a valid copy of the index. Postgres only re-checks a parent when a
+// child is attached, so re-running ATTACH PARTITION on a child that is already attached makes
+// it re-check and mark the parent valid.
+//
+// Two things to know before touching this:
+//   - Each ATTACH locks the child index so nothing else can read or write through it until
+//     the transaction commits. Don't attach more than needed.
+//   - Older Postgres versions don't have the re-check (see reattachValidatesParent). There the
+//     statement leaves the parent invalid but still takes the lock, so we skip it entirely.
 func reattachIndicesToParents(ctx context.Context, queries *sqlcv1.Queries, db sqlcv1.DBTX, isOlap bool) error {
+	var serverVersionNum int
+	if err := db.QueryRow(ctx, "SELECT current_setting('server_version_num')::int").Scan(&serverVersionNum); err != nil {
+		return fmt.Errorf("failed to read server_version_num: %w", err)
+	}
+
+	if !reattachValidatesParent(serverVersionNum) {
+		return nil
+	}
+
 	invalidIndexes, err := queries.FindInvalidIndexes(ctx, db, isOlap)
 	if err != nil {
 		return fmt.Errorf("failed to list invalid partitioned indexes: %w", err)
@@ -408,6 +441,31 @@ func reattachIndicesToParents(ctx context.Context, queries *sqlcv1.Queries, db s
 	}
 
 	return nil
+}
+
+// reattachValidatesParentSinceMinor is the first minor release, per major version, in which
+// ALTER INDEX ... ATTACH PARTITION re-checks the parent when the child is already attached.
+// Every release from 19 on has it.
+var reattachValidatesParentSinceMinor = map[int]int{
+	14: 23,
+	15: 18,
+	16: 14,
+	17: 10,
+	18: 4,
+}
+
+// reattachValidatesParent takes server_version_num (for example 180003 for 18.3) and reports
+// whether re-attaching an already attached child index can mark its parent valid.
+func reattachValidatesParent(serverVersionNum int) bool {
+	major, minor := serverVersionNum/10000, serverVersionNum%10000
+
+	if major >= 19 {
+		return true
+	}
+
+	sinceMinor, ok := reattachValidatesParentSinceMinor[major]
+
+	return ok && minor >= sinceMinor
 }
 
 func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
@@ -508,14 +566,6 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		return err
 	}
 
-	if err = reattachIndicesToParents(ctx, r.queries, createPartitionsTx, false); err != nil {
-		releaseCreateConn()
-		if isLockNotAvailable(err) {
-			return ErrPartitionLockConflict
-		}
-		return err
-	}
-
 	if err = createPartitionsTx.Commit(ctx); err != nil {
 		releaseCreateConn()
 		return fmt.Errorf("failed to commit partition creation transaction: %w", err)
@@ -532,77 +582,24 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		return err
 	}
 
+	cursorPartitions, err := r.queries.ListStreamProducerCursorPartitionsBeforeDate(ctx, r.ddlPool, streamProducerCursorMinBucket(today))
+
+	if err != nil {
+		return err
+	}
+
+	for _, p := range cursorPartitions {
+		partitions = append(partitions, &sqlcv1.ListPartitionsBeforeDateRow{ParentTable: p.ParentTable, PartitionName: p.PartitionName})
+	}
+
 	if len(partitions) > 0 {
 		r.l.Warn().Ctx(ctx).Msgf("removing partitions before %s using retention period of %s", removeBefore.Format(time.RFC3339), r.taskRetentionPeriod)
 	}
 
 	for _, partition := range partitions {
-		r.l.Debug().Ctx(ctx).Msgf("detaching partition %s", partition.PartitionName)
-
-		conn, release, err := sqlchelpers.AcquireConnectionWithStatementTimeout(ctx, r.ddlPool, r.l, 30*60*1000) // nolint:govet
-
-		if err != nil {
+		if err := r.detachAndDropPartition(ctx, partition.ParentTable, partition.PartitionName); err != nil {
 			return err
 		}
-
-		// releaseConn resets lock_timeout to 0 before returning the connection to the pool so
-		// the setting doesn't bleed into subsequent users of the same ddlPool connection.
-		releaseConn := func() {
-			resetCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			if _, resetErr := conn.Exec(resetCtx, "SET lock_timeout = 0"); resetErr != nil {
-				r.l.Error().Err(resetErr).Msg("failed to reset lock_timeout on DDL connection")
-			}
-			release()
-		}
-
-		if _, err = conn.Exec(ctx, "SET lock_timeout = '1min'"); err != nil {
-			releaseConn()
-			return fmt.Errorf("failed to set lock_timeout for detach: %w", err)
-		}
-
-		// important: DETACH PARTITION CONCURRENTLY cannot run inside a transaction
-		_, err = conn.Exec(
-			ctx,
-			fmt.Sprintf("ALTER TABLE %s DETACH PARTITION %s CONCURRENTLY", partition.ParentTable, partition.PartitionName),
-		)
-
-		if err != nil && !isPendingDetach(err) {
-			releaseConn()
-			if isLockNotAvailable(err) {
-				return ErrPartitionLockConflict
-			}
-			return err
-		} else if isPendingDetach(err) {
-			if _, resetErr := conn.Exec(ctx, "SET lock_timeout = 0"); resetErr != nil {
-				r.l.Error().Err(resetErr).Msg("failed to reset lock_timeout on DDL connection")
-			}
-
-			_, err = conn.Exec(
-				ctx,
-				fmt.Sprintf("ALTER TABLE %s DETACH PARTITION %s FINALIZE", partition.ParentTable, partition.PartitionName),
-			)
-
-			if err != nil {
-				releaseConn()
-				return fmt.Errorf("failed to finalize pending detach for partition %s: %w", partition.PartitionName, err)
-			}
-		}
-
-		_, err = conn.Exec(
-			ctx,
-			fmt.Sprintf("DROP TABLE %s", partition.PartitionName),
-		)
-
-		if err != nil {
-			releaseConn()
-			if isLockNotAvailable(err) {
-				return ErrPartitionLockConflict
-			}
-			return err
-		}
-
-		releaseConn()
 	}
 
 	if err = r.queries.DeleteOldPayloadOffloadedBlockIndexRows(ctx, r.ddlPool, pgtype.Date{
@@ -612,7 +609,19 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		return fmt.Errorf("failed to delete old payload offloaded block index rows: %w", err)
 	}
 
-	return nil
+	if err = r.deleteIdleStreamTopics(ctx); err != nil {
+		return fmt.Errorf("failed to delete idle stream topics: %w", err)
+	}
+
+	if err = r.updateStreamMessagePartitions(ctx); err != nil {
+		return fmt.Errorf("failed to update stream message partitions: %w", err)
+	}
+
+	// Runs last, in its own transaction, so that if it gives up on a lock, partition creation
+	// and cleanup above have already been committed.
+	return runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
+		return reattachIndicesToParents(ctx, r.queries, tx, false)
+	})
 }
 
 func (r *sharedRepository) GetTaskByExternalId(ctx context.Context, tenantId, taskExternalId uuid.UUID, skipCache bool) (*sqlcv1.FlattenExternalIdsRow, error) {
@@ -2167,6 +2176,12 @@ func (r *sharedRepository) upsertQueues(ctx context.Context, tx sqlcv1.DBTX, ten
 		uniqueQueues = append(uniqueQueues, queue)
 	}
 
+	// every queue is already known (5 minute cache): the statement would run with an empty
+	// name list and do nothing, so skip the round trip
+	if len(uniqueQueues) == 0 {
+		return func() {}, nil
+	}
+
 	err := r.queries.UpsertQueues(ctx, tx, sqlcv1.UpsertQueuesParams{
 		TenantID: tenantId,
 		Names:    uniqueQueues,
@@ -3572,6 +3587,12 @@ func (r *sharedRepository) createTaskEvents(
 
 	if childExternalIdsByIndex != nil && len(childExternalIdsByIndex) != len(tasks) {
 		return nil, fmt.Errorf("mismatched task and child external id lengths")
+	}
+
+	// the common insert path (every task born QUEUED) has no events to write: skip the
+	// statement and the payload store round trip
+	if len(tasks) == 0 {
+		return []InternalTaskEvent{}, nil
 	}
 
 	taskIds := make([]int64, len(tasks))
@@ -5080,7 +5101,10 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 			rootExternalIds = append(rootExternalIds, child.ExternalID)
 		}
 
-		version, err := r.queries.GetWorkflowVersionById(ctx, r.pool, orchestrator.WorkflowVersionID)
+		version, err := r.queries.GetWorkflowVersionById(ctx, r.pool, sqlcv1.GetWorkflowVersionByIdParams{
+			ID:       orchestrator.WorkflowVersionID,
+			Tenantid: tenantId,
+		})
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to get workflow version: %w", err)
@@ -5275,4 +5299,179 @@ func (r *TaskRepositoryImpl) FilterValidTasks(ctx context.Context, tenantId uuid
 	}
 
 	return res, nil
+}
+
+const deleteIdleStreamTopicsBatchSize = 1000
+
+// small, since each deleted row can carry a ~4MB out-of-line payload
+const deleteExpiredStreamMessagesBatchSize = 100
+
+// so missed partition runs never leave inserts without a partition
+const streamMessagePartitionsAhead = 24 * time.Hour
+
+// detachAndDropPartition detaches concurrently so writers to the parent aren't blocked.
+func (r *TaskRepositoryImpl) detachAndDropPartition(ctx context.Context, parentTable, partitionName string) error {
+	r.l.Debug().Ctx(ctx).Msgf("detaching partition %s", partitionName)
+
+	conn, release, err := sqlchelpers.AcquireConnectionWithStatementTimeout(ctx, r.ddlPool, r.l, 30*60*1000) // nolint:govet
+
+	if err != nil {
+		return err
+	}
+
+	// releaseConn resets lock_timeout to 0 before returning the connection to the pool so
+	// the setting doesn't bleed into subsequent users of the same ddlPool connection.
+	releaseConn := func() {
+		resetCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if _, resetErr := conn.Exec(resetCtx, "SET lock_timeout = 0"); resetErr != nil {
+			r.l.Error().Err(resetErr).Msg("failed to reset lock_timeout on DDL connection")
+		}
+		release()
+	}
+
+	if _, err = conn.Exec(ctx, "SET lock_timeout = '1min'"); err != nil {
+		releaseConn()
+		return fmt.Errorf("failed to set lock_timeout for detach: %w", err)
+	}
+
+	// important: DETACH PARTITION CONCURRENTLY cannot run inside a transaction
+	_, err = conn.Exec(
+		ctx,
+		fmt.Sprintf("ALTER TABLE %s DETACH PARTITION %s CONCURRENTLY", parentTable, partitionName),
+	)
+
+	if err != nil && !isPendingDetach(err) {
+		releaseConn()
+		if isLockNotAvailable(err) {
+			return ErrPartitionLockConflict
+		}
+		return err
+	} else if isPendingDetach(err) {
+		if _, resetErr := conn.Exec(ctx, "SET lock_timeout = 0"); resetErr != nil {
+			r.l.Error().Err(resetErr).Msg("failed to reset lock_timeout on DDL connection")
+		}
+
+		_, err = conn.Exec(
+			ctx,
+			fmt.Sprintf("ALTER TABLE %s DETACH PARTITION %s FINALIZE", parentTable, partitionName),
+		)
+
+		if err != nil {
+			releaseConn()
+			return fmt.Errorf("failed to finalize pending detach for partition %s: %w", partitionName, err)
+		}
+	}
+
+	_, err = conn.Exec(
+		ctx,
+		fmt.Sprintf("DROP TABLE %s", partitionName),
+	)
+
+	if err != nil {
+		releaseConn()
+		if isLockNotAvailable(err) {
+			return ErrPartitionLockConflict
+		}
+		return err
+	}
+
+	releaseConn()
+
+	return nil
+}
+
+// updateStreamMessagePartitions drops shared partitions once the longest
+// retention passes them, and deletes expired messages of shorter-retention tenants.
+func (r *TaskRepositoryImpl) updateStreamMessagePartitions(ctx context.Context) error {
+	now := time.Now().UTC()
+
+	err := runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
+		return r.queries.CreateStreamMessagePartitions(ctx, tx, sqlcv1.CreateStreamMessagePartitionsParams{
+			Fromtime: pgtype.Timestamptz{Time: now, Valid: true},
+			Totime:   pgtype.Timestamptz{Time: now.Add(streamMessagePartitionsAhead), Valid: true},
+		})
+	})
+
+	if err != nil {
+		return err
+	}
+
+	defaultHours := r.m.DefaultStreamRetentionHours()
+
+	maxHours, err := r.queries.GetMaxStreamRetentionHours(ctx, r.ddlPool, defaultHours)
+
+	if err != nil {
+		return err
+	}
+
+	maxHours = clampStreamRetentionHours(maxHours, maxStreamRetentionHours)
+
+	expired, err := r.queries.ListStreamMessagePartitionsBefore(ctx, r.ddlPool, pgtype.Timestamptz{
+		Time:  now.Add(-time.Duration(maxHours) * time.Hour),
+		Valid: true,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	for _, p := range expired {
+		if err := r.detachAndDropPartition(ctx, p.ParentTable, p.PartitionName); err != nil {
+			return err
+		}
+	}
+
+	candidates, err := r.queries.ListStreamRetentionDeleteCandidates(ctx, r.ddlPool, sqlcv1.ListStreamRetentionDeleteCandidatesParams{
+		Maxretentionhours:     maxHours,
+		Defaultretentionhours: defaultHours,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	for _, c := range candidates {
+		if err := r.deleteExpiredStreamMessages(ctx, c.TenantID, now.Add(-time.Duration(c.RetentionHours)*time.Hour)); err != nil {
+			return fmt.Errorf("could not delete expired stream messages for tenant %s: %w", c.TenantID, err)
+		}
+	}
+
+	return nil
+}
+
+func (r *TaskRepositoryImpl) deleteExpiredStreamMessages(ctx context.Context, tenantId uuid.UUID, before time.Time) error {
+	for {
+		deleted, err := r.queries.DeleteExpiredStreamMessages(ctx, r.ddlPool, sqlcv1.DeleteExpiredStreamMessagesParams{
+			Tenantid:  tenantId,
+			Before:    pgtype.Timestamptz{Time: before, Valid: true},
+			Batchsize: deleteExpiredStreamMessagesBatchSize,
+		})
+
+		if err != nil {
+			return err
+		}
+
+		if deleted < deleteExpiredStreamMessagesBatchSize {
+			return nil
+		}
+	}
+}
+
+func (r *TaskRepositoryImpl) deleteIdleStreamTopics(ctx context.Context) error {
+	for {
+		deleted, err := r.queries.DeleteIdleStreamTopics(ctx, r.ddlPool, sqlcv1.DeleteIdleStreamTopicsParams{
+			Defaultretentionhours: r.m.DefaultStreamRetentionHours(),
+			Maxretentionhours:     maxStreamRetentionHours,
+			Batchsize:             deleteIdleStreamTopicsBatchSize,
+		})
+
+		if err != nil {
+			return err
+		}
+
+		if deleted < deleteIdleStreamTopicsBatchSize {
+			return nil
+		}
+	}
 }

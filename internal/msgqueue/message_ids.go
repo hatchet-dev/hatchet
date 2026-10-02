@@ -33,4 +33,5 @@ const (
 	MsgIDCronDelete                   = "cron-delete"
 	MsgIDBatchStart                   = "batch-start"
 	MsgIDTogglePauseWorkflow          = "toggle-pause-workflow"
+	MsgIDStreamMessage                = "stream-message"
 )

@@ -63,6 +63,11 @@ func ToTenantResourcePolicy(_limits []*sqlcv1.TenantResourceLimit) *gen.TenantRe
 			continue
 		}
 
+		// a retention period, not a usage limit
+		if limit.Resource == sqlcv1.LimitResourceSTREAMRETENTION {
+			continue
+		}
+
 		var alarmValue int
 		if limit.AlarmValue.Valid {
 			alarmValue = int(limit.AlarmValue.Int32)

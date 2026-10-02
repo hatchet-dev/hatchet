@@ -8,6 +8,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
+// V1ServerlessEndpointGet returns the serverless endpoint the authz middleware resolved
+// from the request path.
 func (t *V1ServerlessService) V1ServerlessEndpointGet(ctx echo.Context, request gen.V1ServerlessEndpointGetRequestObject) (gen.V1ServerlessEndpointGetResponseObject, error) {
 	endpoint := ctx.Get("v1-serverless-endpoint").(*sqlcv1.V1ServerlessEndpoint)
 
