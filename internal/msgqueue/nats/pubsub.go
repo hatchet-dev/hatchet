@@ -366,9 +366,6 @@ func (p *PubSub) Sub(topic msgqueue.Topic, handler msgqueue.MsgHandler) (func() 
 	}, nil
 }
 
-// skipIfStale reports whether msg should be skipped: it is past its topic
-// kind's max age and its subscription has a backlog. The skip is counted and
-// logged.
 func (p *PubSub) skipIfStale(topic msgqueue.Topic, natsMsg *natsgo.Msg, msg *msgqueue.Message) bool {
 	age, stale := isStale(topic.Kind(), msg.PublishedAt, time.Now())
 	if !stale {
