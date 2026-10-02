@@ -73,10 +73,26 @@ type Scheduler struct {
 	// and paying a full queue poll interval.
 	afterReplenish []func()
 
-	// poolGeneration is incremented every time a replenish installs rebuilt
-	// pools. Queuers read it without the run loop to tell whether capacity may
-	// have changed while a batch of theirs was in flight.
-	poolGeneration atomic.Uint64
+	// notifyReplenishCh wakes loopReplenish for a heuristic replenish when an
+	// assignment miss records a new starvation entry (see markActionStarved).
+	// One buffered slot, so requests that arrive while one is pending coalesce
+	// into it.
+	notifyReplenishCh chan struct{}
+
+	// forced replenish ticker bounds, settable by tests
+	replenishTickerMin time.Duration
+	replenishTickerMax time.Duration
+
+	// onCapacityRestored, when set, is called outside the run loop after a
+	// replenish rebuilds the pools of actions that had starved and now have
+	// the slots they were missing, with the queues whose items missed. The
+	// tenant manager wakes those queuers so the items are retried right away
+	// instead of on the next poll.
+	onCapacityRestored func(queues []string)
+
+	// capacityEpoch is the worker capacity epoch; see isWorkerCapacityUpdated
+	// for the contract. Advanced on the run loop, read from any goroutine.
+	capacityEpoch atomic.Uint64
 
 	// warmedSlotTypes tracks (worker, slot type) pairs whose slots have appeared in the
 	// in-memory pool at least once. An empty pool is ambiguous — a worker which has not
@@ -89,20 +105,60 @@ func newScheduler(cf *sharedConfig, tenantId uuid.UUID, rl *rateLimiter, exts *E
 	l := cf.l.With().Str("tenant_id", tenantId.String()).Logger()
 
 	return &Scheduler{
-		repo:            cf.repo.Assignment(),
-		tenantId:        tenantId,
-		l:               &l,
-		rl:              rl,
-		exts:            exts,
-		ops:             make(chan func(), 128),
-		runDone:         make(chan struct{}),
-		actions:         make(map[string]*action),
-		pools:           make(map[poolKey]*slotPool),
-		poolsByWorker:   make(map[uuid.UUID]map[string]*slotPool),
-		workers:         make(map[uuid.UUID]*worker),
-		unackedSlots:    make(map[int]*assignedSlots),
-		warmedSlotTypes: make(map[uuid.UUID]map[string]struct{}),
+		repo:               cf.repo.Assignment(),
+		tenantId:           tenantId,
+		l:                  &l,
+		rl:                 rl,
+		exts:               exts,
+		ops:                make(chan func(), 128),
+		runDone:            make(chan struct{}),
+		actions:            make(map[string]*action),
+		pools:              make(map[poolKey]*slotPool),
+		poolsByWorker:      make(map[uuid.UUID]map[string]*slotPool),
+		workers:            make(map[uuid.UUID]*worker),
+		unackedSlots:       make(map[int]*assignedSlots),
+		warmedSlotTypes:    make(map[uuid.UUID]map[string]struct{}),
+		notifyReplenishCh:  make(chan struct{}, 1),
+		replenishTickerMin: 1000 * time.Millisecond,
+		replenishTickerMax: 1500 * time.Millisecond,
 	}
+}
+
+// notifyReplenish asks loopReplenish for a one-time replenish. Non-blocking,
+// safe from the run loop.
+func (s *Scheduler) notifyReplenish() {
+	select {
+	case s.notifyReplenishCh <- struct{}{}:
+	default:
+	}
+}
+
+// markActionStarved runs on the run loop. It records a miss on the action and
+// requests a replenish only when the miss records a new (queue, slot-type set)
+// entry. Repeated misses on an existing entry do not: the entry outlives
+// fruitless rebuilds (see notifyReplenish), so sustained saturation pays for
+// one replenish per entry, while a miss on a type set the queue has not
+// recorded, including a fresh drain of one type while another stays drained,
+// requests one at once. Callers mark only when no worker has a free slot of
+// some requested type (see hasFreeSlotOfEachType): a request for more units
+// than any worker has free is not starvation while a slot is free, so it
+// neither requests a replenish nor records an entry, and the next miss that
+// does find the type drained still opens an episode of its own.
+func (s *Scheduler) markActionStarved(a *action, queue string, request map[string]int32) {
+	if a.MarkStarved(queue, request) {
+		s.notifyReplenish()
+	}
+}
+
+func (s *Scheduler) lookupActionAndMarkStarved(actionId, queue string, request map[string]int32) {
+	a := s.actions[actionId]
+
+	if a == nil {
+		a = new(action)
+		s.actions[actionId] = a
+	}
+
+	s.markActionStarved(a, queue, request)
 }
 
 func (s *Scheduler) start(ctx context.Context) {
@@ -273,6 +329,33 @@ func (s *Scheduler) handleNack(ids []int) []func() {
 	return callbacks
 }
 
+// capacityEpoch is a monotonic counter over the in-memory view of worker
+// capacity for the tenant. Each time worker capacities are updated through
+// replenish, the epoch is advanced.
+//
+// This allows for comparison of the epoch value to determine if capacity may
+// have changed and we should retry an assignment.
+type capacityEpoch uint64
+
+// capacityEpochNow returns the current worker capacity epoch. Safe from any
+// goroutine.
+func (s *Scheduler) capacityEpochNow() capacityEpoch {
+	return capacityEpoch(s.capacityEpoch.Load())
+}
+
+// isWorkerCapacityUpdated reports whether the in-memory view of worker
+// capacity may have gained free slots since the given epoch was taken. See
+// capacityEpoch for what a reader may conclude. Safe from any goroutine.
+func (s *Scheduler) isWorkerCapacityUpdated(since capacityEpoch) bool {
+	return s.capacityEpochNow() != since
+}
+
+// markWorkerCapacityUpdated advances the capacity epoch. Called on the run
+// loop when a replenish installs rebuilt pools, and nowhere else.
+func (s *Scheduler) markWorkerCapacityUpdated() {
+	s.capacityEpoch.Add(1)
+}
+
 func (s *Scheduler) setWorkers(workers []*v1.ListActiveWorkersResult) {
 	s.mustDo(func() {
 		newWorkers := make(map[uuid.UUID]*worker, len(workers))
@@ -417,6 +500,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	actionsToReplenish := make(map[string]struct{})
 	actionsScanned := 0
 	activeSlotsTotal := 0
+	starvedActions := 0
 
 	if ok := s.do(ctx, func() {
 		scanNow := time.Now()
@@ -443,6 +527,9 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 			activeSlotsTotal += activeCount
 
 			switch {
+			case storedAction.IsStarved():
+				starvedActions++
+				replenish = true
 			case activeCount == 0:
 				replenish = true
 			case activeCount <= (storedAction.lastReplenishedSlotCount / 2):
@@ -465,6 +552,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		telemetry.AttributeKV{Key: "replenish.actions_scanned", Value: actionsScanned},
 		telemetry.AttributeKV{Key: "replenish.active_slots", Value: activeSlotsTotal},
 		telemetry.AttributeKV{Key: "replenish.unique_actions", Value: len(actionsToWorkerIds)},
+		telemetry.AttributeKV{Key: "replenish.starved_actions", Value: starvedActions},
 	)
 	computeActionsSpan.End()
 
@@ -549,6 +637,8 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	actionsRemoved := 0
 	actionCount := 0
 	unackedEntries := 0
+	restoredActions := 0
+	restoredQueues := make(map[string]struct{})
 
 	if ok := s.do(ctx, func() {
 		// retain unacked slots in their worker-owned pools
@@ -614,7 +704,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 
 		s.pools = nextPools
 		s.poolsByWorker = nextPoolsByWorker
-		s.poolGeneration.Add(1)
+		s.markWorkerCapacityUpdated()
 
 		for actionId, storedAction := range s.actions {
 			actionWorkerIds := actionsToWorkerIds[actionId]
@@ -638,6 +728,19 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 				continue
 			}
 
+			if storedAction.IsStarved() {
+				// the pools were just built with refreshedAt, so none is stale at it
+				restored := storedAction.RestoreStarved(nextPoolsByWorker, actionWorkerIds, refreshedAt)
+
+				for _, queue := range restored {
+					restoredQueues[queue] = struct{}{}
+				}
+
+				if len(restored) > 0 {
+					restoredActions++
+				}
+			}
+
 			storedAction.workerIds = actionWorkerIds
 			storedAction.lastReplenishedSlotCount = totalSlots
 			storedAction.lastReplenishedWorkerCount = len(actionWorkerIds)
@@ -657,8 +760,18 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		telemetry.AttributeKV{Key: "replenish.slots_built", Value: totalSlotsBuilt},
 		telemetry.AttributeKV{Key: "replenish.max_slots_per_pool", Value: maxSlotsPerPool},
 		telemetry.AttributeKV{Key: "replenish.unacked_slot_entries", Value: unackedEntries},
+		telemetry.AttributeKV{Key: "replenish.restored_actions", Value: restoredActions},
 	)
 	buildSlotsSpan.End()
+
+	if len(restoredQueues) > 0 && s.onCapacityRestored != nil {
+		queues := make([]string, 0, len(restoredQueues))
+		for queue := range restoredQueues {
+			queues = append(queues, queue)
+		}
+
+		s.onCapacityRestored(queues)
+	}
 
 	telemetry.WithAttributes(span,
 		telemetry.AttributeKV{Key: "replenish.actions_with_new_slots", Value: actionCount},
@@ -676,22 +789,31 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	return nil
 }
 
+// loopReplenish runs a forced replenish on a 1 to 1.5 s ticker and a
+// heuristic one on demand when a miss requests it (notifyReplenish). Requests
+// are gated at their source (markActionStarved) and coalesce in notifyReplenishCh,
+// so the loop needs no pacing of its own.
 func (s *Scheduler) loopReplenish(ctx context.Context) {
-	ticker := randomticker.NewRandomTicker(1000*time.Millisecond, 1500*time.Millisecond)
+	ticker := randomticker.NewRandomTicker(s.replenishTickerMin, s.replenishTickerMax)
 	defer ticker.Stop()
+
+	run := func(mustReplenish bool) {
+		innerCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		defer cancel()
+
+		if err := s.replenish(innerCtx, mustReplenish); err != nil {
+			s.l.Error().Ctx(ctx).Err(err).Msg("error replenishing slots")
+		}
+	}
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			innerCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-			err := s.replenish(innerCtx, true)
-
-			if err != nil {
-				s.l.Error().Ctx(ctx).Err(err).Msg("error replenishing slots")
-			}
-			cancel()
+			run(true)
+		case <-s.notifyReplenishCh:
+			run(false)
 		}
 	}
 }
@@ -1031,9 +1153,25 @@ func (s *Scheduler) handleAssignBatch(
 		// moved to v1_batched_queue_item and the batch scheduler handles worker assignment.
 		// Marking them noSlots here would strand them in v1_queue_item indefinitely if the
 		// action isn't yet present in s.actions (e.g. replenish hasn't fired yet).
+		//
+		// The misses are recorded as starvation on a placeholder so that the
+		// replenish which discovers the action's workers (the first miss
+		// requests one) restores them and wakes their queues, exactly as a
+		// rebuild does for an action that starved with known workers. The
+		// restore is what retries a miss whose flush completed before that
+		// install: its post-flush epoch check sees no change.
 		for i := range res {
 			if res[i].rateLimitResult == nil && !res[i].toBatch {
 				res[i].noSlots = true
+
+				requests := map[string]int32{v1.SlotTypeDefault: 1}
+				if stepIdsToRequests != nil {
+					if req, ok := stepIdsToRequests[qis[i].StepID]; ok && len(req) > 0 {
+						requests = req
+					}
+				}
+
+				s.lookupActionAndMarkStarved(actionId, qis[i].Queue, requests)
 			}
 		}
 
@@ -1162,6 +1300,21 @@ func (s *Scheduler) assignSingleton(
 	}
 
 	if selected == nil {
+		// A miss alone proves nothing about the action: ranking drops workers
+		// (sticky HARD, required labels) that may have room, and a request can
+		// ask for more units than a worker with free slots has. Either is a
+		// constrained item; marking it would have every rebuild restore the
+		// queue and wake it only to miss again. Starvation is the drained type
+		// itself: no worker of the action, dropped ones included, has a free
+		// slot of some requested type. When ranking dropped nothing and every
+		// unit count is one, the miss loop above already proved that for every
+		// worker, so the scan is only paid for a filtered candidate set or a
+		// multi-unit request.
+		if (len(candidates) == len(a.workerIds) && isSingleUnitRequest(requests)) ||
+			!hasFreeSlotOfEachType(s.poolsByWorker, a.workerIds, requests, now) {
+			s.markActionStarved(a, qi.Queue, requests)
+		}
+
 		r.noSlots = true
 		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "assign.succeeded", Value: false})
 		return
@@ -1220,16 +1373,17 @@ func (s *Scheduler) tryAssignBatchQueueItem(
 	noop := func() {}
 
 	if ok := s.do(ctx, func() {
+		// Default to 1 standard slot, the same fallback as tryAssignBatch, since
+		// batch flush scheduling skips the regular slot-request lookup path.
+		requests := map[string]int32{v1.SlotTypeDefault: 1}
+
 		action, ok := s.actions[qi.ActionID]
 
 		if !ok || action == nil || len(action.workerIds) == 0 {
 			res.noSlots = true
+			s.lookupActionAndMarkStarved(qi.ActionID, qi.Queue, requests)
 			return
 		}
-
-		// Default to 1 standard slot — same fallback as tryAssignBatch — since batch flush
-		// scheduling skips the regular slot-request lookup path.
-		requests := map[string]int32{v1.SlotTypeDefault: 1}
 
 		s.assignSingleton(ctx, action, qi, &res, labels, requests, noop, noop, time.Now())
 	}); !ok {
@@ -1266,6 +1420,19 @@ func selectSlotsFromPools(poolsByType map[string]*slotPool, requests map[string]
 	}
 
 	return selected, true
+}
+
+// isSingleUnitRequest reports whether the request asks for at most one unit of
+// each slot type, so a worker that cannot place it has some requested type
+// drained.
+func isSingleUnitRequest(requests map[string]int32) bool {
+	for _, units := range requests {
+		if units > 1 {
+			return false
+		}
+	}
+
+	return true
 }
 
 // rankWorkerIds runs on the run loop (it reads s.workers for label affinity).
