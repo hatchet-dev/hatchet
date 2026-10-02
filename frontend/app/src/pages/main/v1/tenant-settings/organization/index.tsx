@@ -1408,6 +1408,7 @@ export function CloudOrganizationSettings({
             (organization as ControlPlaneOrganization | undefined)?.subscription
               ?.plan
           }
+          isEligibilityKnown={organizationQuery.isSuccess}
           onSuccess={async () => {
             await Promise.all([
               queryClient.invalidateQueries({ queryKey: ['user-universe'] }),

@@ -22,6 +22,9 @@ interface ArchiveOrganizationModalProps {
   organizationName: string;
   activeTenantCount: number;
   subscriptionPlan?: SubscriptionPlanCode;
+  // False until the organization details have loaded. An unknown subscription
+  // must not read as "no subscription", so confirmation stays unavailable.
+  isEligibilityKnown: boolean;
   onSuccess: () => void;
 }
 
@@ -32,6 +35,7 @@ export function ArchiveOrganizationModal({
   organizationName,
   activeTenantCount,
   subscriptionPlan,
+  isEligibilityKnown,
   onSuccess,
 }: ArchiveOrganizationModalProps) {
   const orgApi = useOrganizationApi();
@@ -47,7 +51,6 @@ export function ArchiveOrganizationModal({
     onError: handleApiError,
   });
 
-  // Reset typed name when modal opens/closes
   useEffect(() => {
     if (!open) {
       setTypedName('');
@@ -72,10 +75,11 @@ export function ArchiveOrganizationModal({
   }
 
   const isBlocked = blockers.length > 0;
+  const canConfirm = isEligibilityKnown && !isBlocked;
   const isNameMatch = typedName === organizationName;
 
   const handleSubmit = () => {
-    if (isNameMatch && !isBlocked) {
+    if (isNameMatch && canConfirm) {
       archiveOrganizationMutation.mutate();
     }
   };
@@ -116,15 +120,19 @@ export function ArchiveOrganizationModal({
               </Alert>
             )}
             <div className="space-y-2 pt-2">
-              <label className="text-sm font-medium">
+              <label
+                htmlFor="archive-organization-name"
+                className="text-sm font-medium"
+              >
                 To confirm, type <strong>{organizationName}</strong>:
               </label>
               <Input
+                id="archive-organization-name"
                 value={typedName}
                 onChange={(e) => setTypedName(e.target.value)}
                 placeholder={organizationName}
                 className="w-full"
-                disabled={isBlocked}
+                disabled={!canConfirm}
                 autoFocus
               />
             </div>
@@ -138,7 +146,7 @@ export function ArchiveOrganizationModal({
               onClick={handleSubmit}
               disabled={
                 !isNameMatch ||
-                isBlocked ||
+                !canConfirm ||
                 archiveOrganizationMutation.isPending
               }
             >
