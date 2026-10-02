@@ -34,6 +34,15 @@ protoc --proto_path=api-contracts \
     --connect-go_opt=module=github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1,simple=true \
     v1/workflows.proto
 
+protoc --proto_path=api-contracts \
+    --go_out=./internal/services/shared/proto/v1 \
+    --go_opt=module=github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1 \
+    --go-grpc_out=./internal/services/shared/proto/v1 \
+    --go-grpc_opt=module=github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1 \
+    --connect-go_out=./internal/services/shared/proto/v1 \
+    --connect-go_opt=module=github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1,simple=true \
+    v1/streams.proto
+
 # v1/operator.proto imports the package-less api-contracts/dispatcher/dispatcher.proto under its
 # registered name "dispatcher.proto", so that directory is a second proto path here.
 protoc --proto_path=api-contracts --proto_path=api-contracts/dispatcher \

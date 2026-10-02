@@ -582,77 +582,24 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		return err
 	}
 
+	cursorPartitions, err := r.queries.ListStreamProducerCursorPartitionsBeforeDate(ctx, r.ddlPool, streamProducerCursorMinBucket(today))
+
+	if err != nil {
+		return err
+	}
+
+	for _, p := range cursorPartitions {
+		partitions = append(partitions, &sqlcv1.ListPartitionsBeforeDateRow{ParentTable: p.ParentTable, PartitionName: p.PartitionName})
+	}
+
 	if len(partitions) > 0 {
 		r.l.Warn().Ctx(ctx).Msgf("removing partitions before %s using retention period of %s", removeBefore.Format(time.RFC3339), r.taskRetentionPeriod)
 	}
 
 	for _, partition := range partitions {
-		r.l.Debug().Ctx(ctx).Msgf("detaching partition %s", partition.PartitionName)
-
-		conn, release, err := sqlchelpers.AcquireConnectionWithStatementTimeout(ctx, r.ddlPool, r.l, 30*60*1000) // nolint:govet
-
-		if err != nil {
+		if err := r.detachAndDropPartition(ctx, partition.ParentTable, partition.PartitionName); err != nil {
 			return err
 		}
-
-		// releaseConn resets lock_timeout to 0 before returning the connection to the pool so
-		// the setting doesn't bleed into subsequent users of the same ddlPool connection.
-		releaseConn := func() {
-			resetCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			if _, resetErr := conn.Exec(resetCtx, "SET lock_timeout = 0"); resetErr != nil {
-				r.l.Error().Err(resetErr).Msg("failed to reset lock_timeout on DDL connection")
-			}
-			release()
-		}
-
-		if _, err = conn.Exec(ctx, "SET lock_timeout = '1min'"); err != nil {
-			releaseConn()
-			return fmt.Errorf("failed to set lock_timeout for detach: %w", err)
-		}
-
-		// important: DETACH PARTITION CONCURRENTLY cannot run inside a transaction
-		_, err = conn.Exec(
-			ctx,
-			fmt.Sprintf("ALTER TABLE %s DETACH PARTITION %s CONCURRENTLY", partition.ParentTable, partition.PartitionName),
-		)
-
-		if err != nil && !isPendingDetach(err) {
-			releaseConn()
-			if isLockNotAvailable(err) {
-				return ErrPartitionLockConflict
-			}
-			return err
-		} else if isPendingDetach(err) {
-			if _, resetErr := conn.Exec(ctx, "SET lock_timeout = 0"); resetErr != nil {
-				r.l.Error().Err(resetErr).Msg("failed to reset lock_timeout on DDL connection")
-			}
-
-			_, err = conn.Exec(
-				ctx,
-				fmt.Sprintf("ALTER TABLE %s DETACH PARTITION %s FINALIZE", partition.ParentTable, partition.PartitionName),
-			)
-
-			if err != nil {
-				releaseConn()
-				return fmt.Errorf("failed to finalize pending detach for partition %s: %w", partition.PartitionName, err)
-			}
-		}
-
-		_, err = conn.Exec(
-			ctx,
-			fmt.Sprintf("DROP TABLE %s", partition.PartitionName),
-		)
-
-		if err != nil {
-			releaseConn()
-			if isLockNotAvailable(err) {
-				return ErrPartitionLockConflict
-			}
-			return err
-		}
-
-		releaseConn()
 	}
 
 	if err = r.queries.DeleteOldPayloadOffloadedBlockIndexRows(ctx, r.ddlPool, pgtype.Date{
@@ -660,6 +607,14 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		Valid: true,
 	}); err != nil {
 		return fmt.Errorf("failed to delete old payload offloaded block index rows: %w", err)
+	}
+
+	if err = r.deleteIdleStreamTopics(ctx); err != nil {
+		return fmt.Errorf("failed to delete idle stream topics: %w", err)
+	}
+
+	if err = r.updateStreamMessagePartitions(ctx); err != nil {
+		return fmt.Errorf("failed to update stream message partitions: %w", err)
 	}
 
 	// Runs last, in its own transaction, so that if it gives up on a lock, partition creation
@@ -5344,4 +5299,179 @@ func (r *TaskRepositoryImpl) FilterValidTasks(ctx context.Context, tenantId uuid
 	}
 
 	return res, nil
+}
+
+const deleteIdleStreamTopicsBatchSize = 1000
+
+// small, since each deleted row can carry a ~4MB out-of-line payload
+const deleteExpiredStreamMessagesBatchSize = 100
+
+// so missed partition runs never leave inserts without a partition
+const streamMessagePartitionsAhead = 24 * time.Hour
+
+// detachAndDropPartition detaches concurrently so writers to the parent aren't blocked.
+func (r *TaskRepositoryImpl) detachAndDropPartition(ctx context.Context, parentTable, partitionName string) error {
+	r.l.Debug().Ctx(ctx).Msgf("detaching partition %s", partitionName)
+
+	conn, release, err := sqlchelpers.AcquireConnectionWithStatementTimeout(ctx, r.ddlPool, r.l, 30*60*1000) // nolint:govet
+
+	if err != nil {
+		return err
+	}
+
+	// releaseConn resets lock_timeout to 0 before returning the connection to the pool so
+	// the setting doesn't bleed into subsequent users of the same ddlPool connection.
+	releaseConn := func() {
+		resetCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if _, resetErr := conn.Exec(resetCtx, "SET lock_timeout = 0"); resetErr != nil {
+			r.l.Error().Err(resetErr).Msg("failed to reset lock_timeout on DDL connection")
+		}
+		release()
+	}
+
+	if _, err = conn.Exec(ctx, "SET lock_timeout = '1min'"); err != nil {
+		releaseConn()
+		return fmt.Errorf("failed to set lock_timeout for detach: %w", err)
+	}
+
+	// important: DETACH PARTITION CONCURRENTLY cannot run inside a transaction
+	_, err = conn.Exec(
+		ctx,
+		fmt.Sprintf("ALTER TABLE %s DETACH PARTITION %s CONCURRENTLY", parentTable, partitionName),
+	)
+
+	if err != nil && !isPendingDetach(err) {
+		releaseConn()
+		if isLockNotAvailable(err) {
+			return ErrPartitionLockConflict
+		}
+		return err
+	} else if isPendingDetach(err) {
+		if _, resetErr := conn.Exec(ctx, "SET lock_timeout = 0"); resetErr != nil {
+			r.l.Error().Err(resetErr).Msg("failed to reset lock_timeout on DDL connection")
+		}
+
+		_, err = conn.Exec(
+			ctx,
+			fmt.Sprintf("ALTER TABLE %s DETACH PARTITION %s FINALIZE", parentTable, partitionName),
+		)
+
+		if err != nil {
+			releaseConn()
+			return fmt.Errorf("failed to finalize pending detach for partition %s: %w", partitionName, err)
+		}
+	}
+
+	_, err = conn.Exec(
+		ctx,
+		fmt.Sprintf("DROP TABLE %s", partitionName),
+	)
+
+	if err != nil {
+		releaseConn()
+		if isLockNotAvailable(err) {
+			return ErrPartitionLockConflict
+		}
+		return err
+	}
+
+	releaseConn()
+
+	return nil
+}
+
+// updateStreamMessagePartitions drops shared partitions once the longest
+// retention passes them, and deletes expired messages of shorter-retention tenants.
+func (r *TaskRepositoryImpl) updateStreamMessagePartitions(ctx context.Context) error {
+	now := time.Now().UTC()
+
+	err := runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
+		return r.queries.CreateStreamMessagePartitions(ctx, tx, sqlcv1.CreateStreamMessagePartitionsParams{
+			Fromtime: pgtype.Timestamptz{Time: now, Valid: true},
+			Totime:   pgtype.Timestamptz{Time: now.Add(streamMessagePartitionsAhead), Valid: true},
+		})
+	})
+
+	if err != nil {
+		return err
+	}
+
+	defaultHours := r.m.DefaultStreamRetentionHours()
+
+	maxHours, err := r.queries.GetMaxStreamRetentionHours(ctx, r.ddlPool, defaultHours)
+
+	if err != nil {
+		return err
+	}
+
+	maxHours = clampStreamRetentionHours(maxHours, maxStreamRetentionHours)
+
+	expired, err := r.queries.ListStreamMessagePartitionsBefore(ctx, r.ddlPool, pgtype.Timestamptz{
+		Time:  now.Add(-time.Duration(maxHours) * time.Hour),
+		Valid: true,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	for _, p := range expired {
+		if err := r.detachAndDropPartition(ctx, p.ParentTable, p.PartitionName); err != nil {
+			return err
+		}
+	}
+
+	candidates, err := r.queries.ListStreamRetentionDeleteCandidates(ctx, r.ddlPool, sqlcv1.ListStreamRetentionDeleteCandidatesParams{
+		Maxretentionhours:     maxHours,
+		Defaultretentionhours: defaultHours,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	for _, c := range candidates {
+		if err := r.deleteExpiredStreamMessages(ctx, c.TenantID, now.Add(-time.Duration(c.RetentionHours)*time.Hour)); err != nil {
+			return fmt.Errorf("could not delete expired stream messages for tenant %s: %w", c.TenantID, err)
+		}
+	}
+
+	return nil
+}
+
+func (r *TaskRepositoryImpl) deleteExpiredStreamMessages(ctx context.Context, tenantId uuid.UUID, before time.Time) error {
+	for {
+		deleted, err := r.queries.DeleteExpiredStreamMessages(ctx, r.ddlPool, sqlcv1.DeleteExpiredStreamMessagesParams{
+			Tenantid:  tenantId,
+			Before:    pgtype.Timestamptz{Time: before, Valid: true},
+			Batchsize: deleteExpiredStreamMessagesBatchSize,
+		})
+
+		if err != nil {
+			return err
+		}
+
+		if deleted < deleteExpiredStreamMessagesBatchSize {
+			return nil
+		}
+	}
+}
+
+func (r *TaskRepositoryImpl) deleteIdleStreamTopics(ctx context.Context) error {
+	for {
+		deleted, err := r.queries.DeleteIdleStreamTopics(ctx, r.ddlPool, sqlcv1.DeleteIdleStreamTopicsParams{
+			Defaultretentionhours: r.m.DefaultStreamRetentionHours(),
+			Maxretentionhours:     maxStreamRetentionHours,
+			Batchsize:             deleteIdleStreamTopicsBatchSize,
+		})
+
+		if err != nil {
+			return err
+		}
+
+		if deleted < deleteIdleStreamTopicsBatchSize {
+			return nil
+		}
+	}
 }

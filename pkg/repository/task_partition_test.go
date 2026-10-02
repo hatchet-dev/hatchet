@@ -94,6 +94,8 @@ func createTaskRepository(pool *pgxpool.Pool) *TaskRepositoryImpl {
 		l:       &logger,
 		queries: sqlcv1.New(),
 	}
+	shared.m = newTestTenantLimitRepository(pool, defaultLimitTestConfig())
+
 	return &TaskRepositoryImpl{
 		sharedRepository:      shared,
 		taskRetentionPeriod:   24 * time.Hour,
