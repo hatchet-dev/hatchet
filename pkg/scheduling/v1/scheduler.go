@@ -829,13 +829,16 @@ func (s *Scheduler) loopReplenish(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			// a request taken here must still get a cycle if this one is skipped
+			requested := false
 			select {
 			case <-s.notifyReplenishCh:
+				requested = true
 			default:
 			}
 
 			lastForced = time.Now()
-			run(true, false)
+			run(true, requested)
 		case <-s.notifyReplenishCh:
 			forced := time.Since(lastForced) > s.replenishTickerMax
 			if forced {
