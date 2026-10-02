@@ -38,6 +38,7 @@ type Client interface {
 	Dispatcher() DispatcherClient
 	Operator() operatorclient.Client
 	Event() EventClient
+	Streams() StreamsClient
 	Subscribe() SubscribeClient
 	API() *rest.ClientWithResponses
 	CloudAPI() *cloudrest.ClientWithResponses
@@ -61,6 +62,7 @@ type clientImpl struct {
 	dispatcher DispatcherClient
 	operator   operatorclient.Client
 	event      EventClient
+	streams    StreamsClient
 	subscribe  SubscribeClient
 	rest       *rest.ClientWithResponses
 	cloudrest  *cloudrest.ClientWithResponses
@@ -401,6 +403,7 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 		return nil, err
 	}
 	event := newEvent(conn, shared)
+	streams := newStreams(conn, shared)
 
 	authEditor := func(ctx context.Context, req *http.Request) error {
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", opts.token))
@@ -460,6 +463,7 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 		operator:        operator,
 		subscribe:       subscribe,
 		event:           event,
+		streams:         streams,
 		v:               opts.v,
 		rest:            rest,
 		cloudrest:       cloudrest,
@@ -491,6 +495,10 @@ func (c *clientImpl) Operator() operatorclient.Client {
 
 func (c *clientImpl) Event() EventClient {
 	return c.event
+}
+
+func (c *clientImpl) Streams() StreamsClient {
+	return c.streams
 }
 
 func (c *clientImpl) Subscribe() SubscribeClient {

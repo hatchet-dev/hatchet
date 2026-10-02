@@ -199,6 +199,12 @@ export function useOrganizationApi() {
           ).data,
       }),
 
+      organizationArchiveMutation: (organization: string) => ({
+        mutationKey: ['organization:archive', organization] as const,
+        mutationFn: async () =>
+          (await controlPlaneApi.organizationArchive(organization)).data,
+      }),
+
       organizationCreateTenantMutation: (organization: string) => ({
         mutationKey: ['organization:create-tenant', organization] as const,
         mutationFn: async (data: OrganizationCreateTenantRequest) =>

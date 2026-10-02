@@ -5,11 +5,17 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.34.0-alpha.3] - 2026-09-28
+## [1.35.0-alpha.0] - 2026-10-02
 
 ### Added
 
 - The generated REST client covers the serverless endpoints API: `v1ServerlessEndpointList`, `v1ServerlessEndpointCreate`, `v1ServerlessEndpointGet`, `v1ServerlessEndpointUpdate` and `v1ServerlessEndpointDelete` on `Api`, with the `V1ServerlessEndpoint`, `V1ServerlessEndpointList`, `V1ServerlessEndpointStatus`, `V1ServerlessEndpointKind`, `V1CreateServerlessEndpointRequest` and `V1UpdateServerlessEndpointRequest` types. An endpoint is a deployed function the serverless operator polls for the workflows it serves and delivers tasks to; creating one requires the tenant's serverless operator entitlement.
+
+## [1.34.0] - 2026-10-02
+
+### Added
+
+- Added `hatchet.streams`, a client for durable streams. In preview, and subject to change.
 
 ## [1.34.0-alpha.2] - 2026-09-25
 

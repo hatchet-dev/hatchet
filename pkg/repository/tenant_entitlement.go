@@ -37,10 +37,16 @@ type TenantEntitlementRepository interface {
 	// DAG operator to orchestrate DAGs.
 	IsDagOperatorEnabled(ctx context.Context, tenantId uuid.UUID) (bool, error)
 
+	// IsDurableStreamsEnabled is false for tenants without an entitlement row.
+	IsDurableStreamsEnabled(ctx context.Context, tenantId uuid.UUID) (bool, error)
+
 	// IsServerlessOperatorEnabled reports whether the tenant is entitled to register
 	// serverless endpoints and be served by the serverless operator. Tenants without an
 	// entitlement row are treated as not entitled.
 	IsServerlessOperatorEnabled(ctx context.Context, tenantId uuid.UUID) (bool, error)
+
+	// GetEntitlements is all false for tenants without an entitlement row.
+	GetEntitlements(ctx context.Context, tenantId uuid.UUID) (TenantEntitlements, error)
 
 	// SetEntitlements upserts the full set of feature entitlements for the tenant.
 	SetEntitlements(ctx context.Context, tenantId uuid.UUID, entitlements TenantEntitlements) error
@@ -53,6 +59,7 @@ type TenantEntitlements struct {
 	PrometheusMetrics               bool
 	StrictAdditionalMetadataFilters bool
 	DAGOperator                     bool
+	DurableStreams                  bool
 	ServerlessOperator              bool
 }
 
@@ -130,6 +137,20 @@ func (t *tenantEntitlementRepository) IsDagOperatorEnabled(ctx context.Context, 
 	return entitlement.DagOperator, nil
 }
 
+func (t *tenantEntitlementRepository) IsDurableStreamsEnabled(ctx context.Context, tenantId uuid.UUID) (bool, error) {
+	entitlement, err := t.queries.GetTenantEntitlement(ctx, t.pool, tenantId)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	return entitlement.DurableStreams, nil
+}
+
 func (t *tenantEntitlementRepository) IsServerlessOperatorEnabled(ctx context.Context, tenantId uuid.UUID) (bool, error) {
 	entitlement, err := t.queries.GetTenantEntitlement(ctx, t.pool, tenantId)
 
@@ -144,6 +165,27 @@ func (t *tenantEntitlementRepository) IsServerlessOperatorEnabled(ctx context.Co
 	return entitlement.ServerlessOperator, nil
 }
 
+func (t *tenantEntitlementRepository) GetEntitlements(ctx context.Context, tenantId uuid.UUID) (TenantEntitlements, error) {
+	entitlement, err := t.queries.GetTenantEntitlement(ctx, t.pool, tenantId)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return TenantEntitlements{}, nil
+		}
+
+		return TenantEntitlements{}, err
+	}
+
+	return TenantEntitlements{
+		AuditLogs:                       entitlement.AuditLogs,
+		PrometheusMetrics:               entitlement.PrometheusMetrics,
+		StrictAdditionalMetadataFilters: entitlement.StrictAdditionalMetadataFilters,
+		DAGOperator:                     entitlement.DagOperator,
+		DurableStreams:                  entitlement.DurableStreams,
+		ServerlessOperator:              entitlement.ServerlessOperator,
+	}, nil
+}
+
 func (t *tenantEntitlementRepository) SetEntitlements(ctx context.Context, tenantId uuid.UUID, entitlements TenantEntitlements) error {
 	_, err := t.queries.UpsertTenantEntitlement(ctx, t.pool, sqlcv1.UpsertTenantEntitlementParams{
 		Tenantid:                        tenantId,
@@ -151,6 +193,7 @@ func (t *tenantEntitlementRepository) SetEntitlements(ctx context.Context, tenan
 		Prometheusmetrics:               entitlements.PrometheusMetrics,
 		Strictadditionalmetadatafilters: entitlements.StrictAdditionalMetadataFilters,
 		Dagoperator:                     entitlements.DAGOperator,
+		Durablestreams:                  entitlements.DurableStreams,
 		Serverlessoperator:              entitlements.ServerlessOperator,
 	})
 

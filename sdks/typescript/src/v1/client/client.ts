@@ -56,6 +56,7 @@ import {
   RatelimitsClient,
   RunsClient,
   ScheduleClient,
+  StreamsClient,
   TenantClient,
   WebhooksClient,
   WorkersClient,
@@ -720,6 +721,20 @@ export class HatchetClient<
       this._runs = new RunsClient(this);
     }
     return this._runs;
+  }
+
+  private _streams: StreamsClient | undefined;
+
+  /**
+   * Get the streams client for publishing to and reading from durable,
+   * topic-based streams
+   * @returns A streams client instance
+   */
+  get streams() {
+    if (!this._streams) {
+      this._streams = new StreamsClient(this);
+    }
+    return this._streams;
   }
 
   private _workflows: WorkflowsClient | undefined;

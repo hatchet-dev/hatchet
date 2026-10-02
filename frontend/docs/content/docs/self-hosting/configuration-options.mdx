@@ -246,22 +246,27 @@ Variables marked with ⚠️ are conditionally required when specific features a
 
 ## Limit Configuration
 
-| Variable                                        | Description                     | Default Value  |
-| ----------------------------------------------- | ------------------------------- | -------------- |
-| `SERVER_LIMITS_DEFAULT_TENANT_RETENTION_PERIOD` | Default tenant retention period | `720h`         |
-| `SERVER_LIMITS_CORE_PARTITION_RETENTION`        | Core partition retention period | Tenant default |
-| `SERVER_LIMITS_OLAP_PARTITION_RETENTION`        | OLAP partition retention period | Tenant default |
-| `SERVER_LIMITS_DEFAULT_WORKER_LIMIT`            | Default worker limit            | `3`            |
-| `SERVER_LIMITS_DEFAULT_WORKER_ALARM_LIMIT`      | Default worker alarm limit      | `2`            |
-| `SERVER_LIMITS_DEFAULT_EVENT_LIMIT`             | Default event limit             | `1000`         |
-| `SERVER_LIMITS_DEFAULT_EVENT_ALARM_LIMIT`       | Default event alarm limit       | `800`          |
-| `SERVER_LIMITS_DEFAULT_EVENT_WINDOW`            | Default event window            | `24h`          |
-| `SERVER_LIMITS_DEFAULT_TASK_RUN_LIMIT`          | Default task run limit          | `2000`         |
-| `SERVER_LIMITS_DEFAULT_TASK_RUN_ALARM_LIMIT`    | Default task run alarm limit    | `1600`         |
-| `SERVER_LIMITS_DEFAULT_TASK_RUN_WINDOW`         | Default task run window         | `24h`          |
-| `SERVER_LIMITS_DEFAULT_WORKER_SLOT_LIMIT`       | Default worker slot limit       | `2000`         |
-| `SERVER_LIMITS_DEFAULT_WORKER_SLOT_ALARM_LIMIT` | Default worker slot alarm limit | `1600`         |
-| `SERVER_LIMITS_DEFAULT_INCOMING_WEBHOOK_LIMIT`  | Default incoming webhook limit  | `5`            |
+| Variable                                           | Description                                | Default Value  |
+| -------------------------------------------------- | ------------------------------------------ | -------------- |
+| `SERVER_LIMITS_DEFAULT_TENANT_RETENTION_PERIOD`    | Default tenant retention period            | `720h`         |
+| `SERVER_LIMITS_CORE_PARTITION_RETENTION`           | Core partition retention period            | Tenant default |
+| `SERVER_LIMITS_OLAP_PARTITION_RETENTION`           | OLAP partition retention period            | Tenant default |
+| `SERVER_LIMITS_DEFAULT_WORKER_LIMIT`               | Default worker limit                       | `3`            |
+| `SERVER_LIMITS_DEFAULT_WORKER_ALARM_LIMIT`         | Default worker alarm limit                 | `2`            |
+| `SERVER_LIMITS_DEFAULT_EVENT_LIMIT`                | Default event limit                        | `1000`         |
+| `SERVER_LIMITS_DEFAULT_EVENT_ALARM_LIMIT`          | Default event alarm limit                  | `800`          |
+| `SERVER_LIMITS_DEFAULT_EVENT_WINDOW`               | Default event window                       | `24h`          |
+| `SERVER_LIMITS_DEFAULT_TASK_RUN_LIMIT`             | Default task run limit                     | `2000`         |
+| `SERVER_LIMITS_DEFAULT_TASK_RUN_ALARM_LIMIT`       | Default task run alarm limit               | `1600`         |
+| `SERVER_LIMITS_DEFAULT_TASK_RUN_WINDOW`            | Default task run window                    | `24h`          |
+| `SERVER_LIMITS_DEFAULT_WORKER_SLOT_LIMIT`          | Default worker slot limit                  | `2000`         |
+| `SERVER_LIMITS_DEFAULT_WORKER_SLOT_ALARM_LIMIT`    | Default worker slot alarm limit            | `1600`         |
+| `SERVER_LIMITS_DEFAULT_INCOMING_WEBHOOK_LIMIT`     | Default incoming webhook limit             | `5`            |
+| `SERVER_LIMITS_DEFAULT_STREAM_TOPIC_LIMIT`         | Default durable stream topic limit         | `100000`       |
+| `SERVER_LIMITS_DEFAULT_STREAM_TOPIC_ALARM_LIMIT`   | Default durable stream topic alarm limit   | `80000`        |
+| `SERVER_LIMITS_DEFAULT_STREAM_MESSAGE_LIMIT`       | Default durable stream message limit       | `10000000`     |
+| `SERVER_LIMITS_DEFAULT_STREAM_MESSAGE_ALARM_LIMIT` | Default durable stream message alarm limit | `8000000`      |
+| `SERVER_LIMITS_DEFAULT_STREAM_MESSAGE_WINDOW`      | Default durable stream message window      | `24h`          |
 
 ## Alerting Configuration
 

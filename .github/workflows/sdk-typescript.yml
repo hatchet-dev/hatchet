@@ -43,7 +43,7 @@ jobs:
 
       - name: Install pnpm
         if: matrix.package-manager == 'pnpm'
-        run: npm install -g pnpm@10.16.1
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" npm install -g pnpm@10.16.1
 
       - name: Get pnpm store directory
         if: matrix.package-manager == 'pnpm'
@@ -69,7 +69,7 @@ jobs:
           cache-dependency-path: sdks/typescript/pnpm-lock.yaml
 
       - name: Install dependencies
-        run: ${{ matrix.install-cmd }}
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" ${{ matrix.install-cmd }}
 
       - name: Lint
         run: ${{ matrix.lint-cmd }}
@@ -159,7 +159,7 @@ jobs:
 
       - name: Install pnpm
         if: matrix.package-manager == 'pnpm'
-        run: npm install -g pnpm@10.16.1
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" npm install -g pnpm@10.16.1
 
       - name: Get pnpm store directory
         if: matrix.package-manager == 'pnpm'
@@ -185,7 +185,7 @@ jobs:
           cache-dependency-path: sdks/typescript/pnpm-lock.yaml
 
       - name: Install dependencies
-        run: ${{ matrix.install-cmd }}
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" ${{ matrix.install-cmd }}
 
       - name: Unit tests
         run: ${{ matrix.unit-test-cmd }}
@@ -233,7 +233,7 @@ jobs:
 
       - name: Install pnpm
         if: matrix.package-manager == 'pnpm'
-        run: npm install -g pnpm@10.16.1
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" npm install -g pnpm@10.16.1
 
       - name: Get pnpm store directory
         if: matrix.package-manager == 'pnpm'
@@ -263,7 +263,7 @@ jobs:
         run: docker compose up -d
 
       - name: Install dependencies
-        run: ${{ matrix.install-cmd }}
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" ${{ matrix.install-cmd }}
 
       - name: Generate
         working-directory: .
@@ -286,6 +286,14 @@ jobs:
           export SERVER_SECURITY_CHECK_ENABLED=false
 
           go run ./cmd/hatchet-admin quickstart
+
+          # the durable streams e2e suites need the tenant entitled to durable streams
+          docker compose exec -T postgres psql -U hatchet -d hatchet -v ON_ERROR_STOP=1 <<'SQL'
+          INSERT INTO tenant_entitlement (tenant_id, durable_streams)
+          SELECT id, TRUE
+          FROM "Tenant"
+          ON CONFLICT (tenant_id) DO UPDATE SET durable_streams = TRUE;
+          SQL
 
           go run ./cmd/hatchet-engine --config ./generated/ 2>&1 | tee $GITHUB_WORKSPACE/engine.log &
           go run ./cmd/hatchet-api --config ./generated/ 2>&1 | tee $GITHUB_WORKSPACE/api.log &
@@ -327,7 +335,7 @@ jobs:
           submodules: recursive
 
       - name: Install pnpm
-        run: npm install -g pnpm@10.16.1
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" npm install -g pnpm@10.16.1
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -348,7 +356,7 @@ jobs:
             ${{ runner.os }}-pnpm-store-
 
       - name: Install dependencies
-        run: pnpm install
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" pnpm install
 
       - name: Build and Publish SDK
         run: |

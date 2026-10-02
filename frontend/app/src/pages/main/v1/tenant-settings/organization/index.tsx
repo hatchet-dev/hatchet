@@ -20,6 +20,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
 import { Input } from '@/components/v1/ui/input';
@@ -48,6 +49,7 @@ import {
   TenantStatusType,
 } from '@/lib/api/generated/cloud/data-contracts';
 import {
+  Organization as ControlPlaneOrganization,
   OrganizationAvailableShard,
   OrganizationAvailableShardClass,
   OrganizationInviteTenant,
@@ -70,6 +72,7 @@ import {
   TagList,
 } from '@/pages/main/v1/tenant-settings/organization/components/tag-badge';
 import { UserGroupsTab } from '@/pages/main/v1/tenant-settings/organization/components/user-groups-tab';
+import { ArchiveOrganizationModal } from '@/pages/organizations/$organization/components/archive-organization-modal';
 import { CancelInviteModal } from '@/pages/organizations/$organization/components/cancel-invite-modal';
 import { CreateTokenModal } from '@/pages/organizations/$organization/components/create-token-modal';
 import { DeleteMemberModal } from '@/pages/organizations/$organization/components/delete-member-modal';
@@ -326,6 +329,10 @@ export function CloudOrganizationSettings({
     ...orgApi.organizationSsoConfigGetQuery(orgId),
     enabled: !!orgId && canUseSso,
   });
+
+  const navigate = useNavigate();
+  const [showArchiveOrganizationModal, setShowArchiveOrganizationModal] =
+    useState(false);
 
   const ssoConfigUpdateMutation = useMutation({
     ...orgApi.organizationSsoConfigUpdateMutation(orgId),
@@ -862,6 +869,35 @@ export function CloudOrganizationSettings({
           </div>
         )}
 
+        {section === 'general' &&
+          isOrganizationOwner &&
+          isControlPlaneEnabled && (
+            <div className="mt-24 space-y-4">
+              <div>
+                <h3 className="text-base font-semibold text-destructive">
+                  Danger Zone
+                </h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Irreversible actions for this organization.
+                </p>
+              </div>
+              <Separator />
+              <SettingRow
+                label="Archive Organization"
+                description="Members lose access to this organization. Only organizations with no active subscription and no active tenants can be archived."
+              >
+                <Button
+                  variant="destructive"
+                  className="shrink-0"
+                  onClick={() => setShowArchiveOrganizationModal(true)}
+                  leftIcon={<TrashIcon className="size-4" />}
+                >
+                  Archive
+                </Button>
+              </SettingRow>
+            </div>
+          )}
+
         <div className="mt-2">
           {section === 'tenants' && (
             <TenantsSection
@@ -1363,6 +1399,30 @@ export function CloudOrganizationSettings({
         </div>
       </div>
 
+      {isOrganizationOwner && isControlPlaneEnabled && (
+        <ArchiveOrganizationModal
+          open={showArchiveOrganizationModal}
+          onOpenChange={setShowArchiveOrganizationModal}
+          organizationId={orgId}
+          organizationName={organizationName}
+          activeTenantCount={visibleTenants.length}
+          subscriptionPlan={
+            (organization as ControlPlaneOrganization | undefined)?.subscription
+              ?.plan
+          }
+          isEligibilityKnown={organizationQuery.isSuccess}
+          onSuccess={async () => {
+            await Promise.all([
+              queryClient.invalidateQueries({ queryKey: ['user-universe'] }),
+              queryClient.invalidateQueries({
+                queryKey: ['organization:list'],
+              }),
+            ]);
+            navigate({ to: appRoutes.authenticatedRoute.to });
+          }}
+        />
+      )}
+
       {isOrganizationOwner && memberToDelete && (
         <DeleteMemberModal
           open={!!memberToDelete}
@@ -1814,6 +1874,7 @@ function TenantActions({
             Edit Tags
           </DropdownMenuItem>
         )}
+        {canManageOrganization && <DropdownMenuSeparator />}
         {canManageOrganization && onTransfer && (
           <DropdownMenuItem onClick={() => onTransfer(row)}>
             <ArrowsRightLeftIcon className="mr-2 size-4" />
