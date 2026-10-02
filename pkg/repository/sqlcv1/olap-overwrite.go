@@ -32,10 +32,10 @@ import (
 //   - in window: rows with inserted_at >= since, in any of the requested statuses.
 //   - active before window: QUEUED/RUNNING rows with inserted_at in [activeSince, since).
 //     activeSince is the OLAP retention floor when the caller opts in and NULL
-//     otherwise, which turns the branch into a one-time false filter. The literal
-//     readable_status IN ('QUEUED', 'RUNNING') lets the planner prove the predicate
-//     of the partial ix_*_tenant_ins_at_active indexes, so the branch is an index
-//     range scan rather than a walk over the tenant's history.
+//     otherwise, which turns the branch into a one-time false filter. The
+//     readable_status IN ('QUEUED', 'RUNNING') literal is what keeps finished runs
+//     bound by since; it also lets the planner use a partial index on active
+//     rows if one is ever added.
 //
 // Two branches instead of an OR so each side is an ordered index scan that stops at
 // its LIMIT; an OR would force a bitmap scan and a sort of the whole window. The
