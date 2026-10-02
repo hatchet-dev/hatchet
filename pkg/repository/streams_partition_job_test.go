@@ -111,4 +111,11 @@ func TestStreamsPartitionJob(t *testing.T) {
 		require.NoError(t, pool.QueryRow(ctx, `SELECT COALESCE(reloptions, '{}') FROM pg_class WHERE relname = $1`, partition).Scan(&options))
 		assert.Contains(t, options, "fillfactor=80", partition)
 	}
+
+	// messages are insert-only apart from retention deletes, so they keep the default autovacuum settings
+	for _, partition := range []string{hourTable(0), hourTable(-streamMessagePartitionsAhead)} {
+		var options []string
+		require.NoError(t, pool.QueryRow(ctx, `SELECT COALESCE(reloptions, '{}') FROM pg_class WHERE relname = $1`, partition).Scan(&options))
+		assert.Empty(t, options, partition)
+	}
 }

@@ -9,6 +9,8 @@ ALTER TABLE tenant_entitlement ADD COLUMN durable_streams BOOLEAN NOT NULL DEFAU
 
 -- create_v1_hourly_range_partition attaches a partition covering the UTC hour
 -- containing targetTime, named <table>_YYYYMMDDHH.
+-- Partitions keep default autovacuum settings: v1_stream_message is insert-only
+-- apart from retention deletes.
 CREATE OR REPLACE FUNCTION create_v1_hourly_range_partition(
     targetTableName text,
     targetTime timestamptz
@@ -28,15 +30,6 @@ BEGIN
 
     EXECUTE
         format('CREATE TABLE %s (LIKE %s INCLUDING INDEXES INCLUDING CONSTRAINTS)', newTableName, targetTableName);
-    EXECUTE
-        format('ALTER TABLE %I SET (
-            autovacuum_vacuum_scale_factor = ''0.1'',
-            autovacuum_analyze_scale_factor=''0.05'',
-            autovacuum_vacuum_threshold=''25'',
-            autovacuum_analyze_threshold=''25'',
-            autovacuum_vacuum_cost_delay=''10'',
-            autovacuum_vacuum_cost_limit=''1000''
-        )', newTableName);
     EXECUTE
         format('ALTER TABLE %s ATTACH PARTITION %s FOR VALUES FROM (%L) TO (%L)', targetTableName, newTableName, hourStart, hourStart + INTERVAL '1 hour');
     RETURN 1;
