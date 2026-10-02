@@ -29,7 +29,7 @@ bash ./hack/ci/start-engine.sh &
 bash ./hack/ci/wait-for-http.sh http://127.0.0.1:8733/ready 120
 
 cd frontend/app
-pnpm run dev -- --host app.localtest.me --port 5173 &
+pnpm run dev -- --host app.localtest.me --port 5173 --strictPort &
 bash ../../hack/ci/wait-for-http.sh http://app.localtest.me:5173 120
 
 set +e
