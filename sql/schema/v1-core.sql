@@ -3070,6 +3070,8 @@ CREATE TABLE tenant_entitlement (
 
     dag_operator BOOLEAN NOT NULL DEFAULT FALSE,
 
+    durable_streams BOOLEAN NOT NULL DEFAULT FALSE,
+
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 

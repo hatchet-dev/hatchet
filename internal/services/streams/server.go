@@ -31,6 +31,10 @@ func (s *ServiceImpl) Publish(ctx context.Context, req *contracts.PublishStreamM
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 
+	if err := s.checkEntitled(ctx, tenantId); err != nil {
+		return nil, err
+	}
+
 	if err := v1.ValidateStreamAddress(req.Namespace, req.Topic); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
@@ -101,6 +105,10 @@ func (s *ServiceImpl) Subscribe(ctx context.Context, req *contracts.SubscribeStr
 
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
+
+	if err := s.checkEntitled(ctx, tenantId); err != nil {
+		return err
+	}
 
 	namespace, topic, cursor, err := resolveSubscribeAddressAndCursor(req)
 

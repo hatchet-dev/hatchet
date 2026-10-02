@@ -46,7 +46,8 @@ type TenantLimitRepository interface {
 	// from its STREAM_RETENTION limit (in hours) or the default.
 	StreamRetention(ctx context.Context, tenantId uuid.UUID) (time.Duration, error)
 
-	// DefaultStreamRetentionHours applies to tenants with no STREAM_RETENTION limit.
+	// DefaultStreamRetentionHours seeds a tenant's STREAM_RETENTION limit: the
+	// default tenant data retention period, in hours.
 	DefaultStreamRetentionHours() int32
 
 	Stop()
@@ -520,8 +521,18 @@ func (t *tenantLimitRepository) Stop() {
 }
 
 func (t *tenantLimitRepository) DefaultStreamRetentionHours() int32 {
-	return clampStreamRetentionHours(t.config.DefaultStreamRetentionHours, maxStreamRetentionHours)
+	// validated at startup (see loader), so a parse error only means it's unset
+	d, err := time.ParseDuration(t.config.DefaultTenantRetentionPeriod)
+
+	if err != nil {
+		return defaultStreamRetentionHours
+	}
+
+	return clampStreamRetentionHours(int32(min(d.Hours(), maxStreamRetentionHours)), defaultStreamRetentionHours)
 }
+
+// defaultStreamRetentionHours matches DefaultTenantRetentionPeriod's own default.
+const defaultStreamRetentionHours = 720
 
 func (t *tenantLimitRepository) StreamRetention(ctx context.Context, tenantId uuid.UUID) (time.Duration, error) {
 	key := meterKey{resource: sqlcv1.LimitResourceSTREAMRETENTION, tenantId: tenantId}.cacheKey()
@@ -540,7 +551,13 @@ func (t *tenantLimitRepository) StreamRetention(ctx context.Context, tenantId uu
 	switch {
 	case err == nil:
 		hours = clampStreamRetentionHours(limit.LimitValue, hours)
-	case !errors.Is(err, pgx.ErrNoRows):
+	case errors.Is(err, pgx.ErrNoRows):
+		// store the default so the tenant's retention lives in the database; a
+		// failure here shouldn't fail the read that needed it
+		if insertErr := t.insertDefaultLimitsIfMissing(ctx, t.pool, tenantId); insertErr != nil {
+			t.l.Warn().Ctx(ctx).Err(insertErr).Msg("could not store default stream retention limit")
+		}
+	default:
 		return 0, err
 	}
 

@@ -30,8 +30,6 @@ type LimitConfigFile struct {
 	DefaultStreamMessageLimit      int32         `mapstructure:"defaultStreamMessageLimit" json:"defaultStreamMessageLimit,omitempty" default:"10000000"`
 	DefaultStreamMessageAlarmLimit int32         `mapstructure:"defaultStreamMessageAlarmLimit" json:"defaultStreamMessageAlarmLimit,omitempty" default:"8000000"`
 	DefaultStreamMessageWindow     time.Duration `mapstructure:"defaultStreamMessageWindow" json:"defaultStreamMessageWindow,omitempty" default:"24h"`
-
-	DefaultStreamRetentionHours int32 `mapstructure:"defaultStreamRetentionHours" json:"defaultStreamRetentionHours,omitempty" default:"720"`
 }
 
 // CorePartitionRetentionOrDefault returns the core partition retention override or the tenant default.

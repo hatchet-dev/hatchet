@@ -72,7 +72,7 @@ func defaultLimitTestConfig() limits.LimitConfigFile {
 		DefaultWorkerSlotAlarmLimit:      80,
 		DefaultIncomingWebhookLimit:      5,
 		DefaultIncomingWebhookAlarmLimit: 4,
-		DefaultStreamRetentionHours:      720,
+		DefaultTenantRetentionPeriod:     "720h",
 	}
 }
 
@@ -241,4 +241,25 @@ func TestEnsureTopic_EnforcesTopicLimitOnLiveCount(t *testing.T) {
 	_, err := pool.Exec(ctx, `DELETE FROM v1_stream_topic WHERE tenant_id = $1 AND topic = 'a'`, tenantID)
 	require.NoError(t, err)
 	require.NoError(t, streams.EnsureTopic(ctx, tenantID, "", "c"))
+}
+
+// A tenant's stream retention defaults to the tenant data retention period and
+// is stored as its STREAM_RETENTION limit, so the database holds the value.
+func TestStreamRetention_DefaultsToTenantRetentionAndIsStored(t *testing.T) {
+	pool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	config := defaultLimitTestConfig()
+	config.DefaultTenantRetentionPeriod = "48h"
+	repo := createTenantLimitRepositoryForTest(t, pool, config)
+	tenantID := createLimitTestTenant(t, pool)
+
+	retention, err := repo.StreamRetention(ctx, tenantID)
+	require.NoError(t, err)
+	assert.Equal(t, 48*time.Hour, retention)
+
+	var stored int32
+	require.NoError(t, pool.QueryRow(ctx, `SELECT "limitValue" FROM "TenantResourceLimit" WHERE "tenantId" = $1 AND "resource" = 'STREAM_RETENTION'`, tenantID).Scan(&stored))
+	assert.Equal(t, int32(48), stored)
 }

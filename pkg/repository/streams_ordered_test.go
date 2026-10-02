@@ -246,7 +246,7 @@ func TestStreamMessagePartitionsFollowEachTenantsRetention(t *testing.T) {
 	ctx := context.Background()
 	repo := createTaskRepository(pool)
 	config := defaultLimitTestConfig()
-	config.DefaultStreamRetentionHours = 24
+	config.DefaultTenantRetentionPeriod = "24h"
 	repo.m = newTestTenantLimitRepository(pool, config)
 
 	shortTenant := createLimitTestTenant(t, pool)

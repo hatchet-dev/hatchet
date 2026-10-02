@@ -4,6 +4,9 @@ ALTER TYPE "LimitResource" ADD VALUE IF NOT EXISTS 'STREAM_TOPIC';
 ALTER TYPE "LimitResource" ADD VALUE IF NOT EXISTS 'STREAM_MESSAGE';
 ALTER TYPE "LimitResource" ADD VALUE IF NOT EXISTS 'STREAM_RETENTION';
 
+-- durable streams are off for a tenant until it's entitled to them
+ALTER TABLE tenant_entitlement ADD COLUMN durable_streams BOOLEAN NOT NULL DEFAULT FALSE;
+
 -- ensure_v1_stream_message_partition makes sure tenantId has a partition of
 -- v1_stream_message (itself partitioned by hour) and an hourly partition for
 -- the UTC hour containing targetTime. Tables are created detached and then
@@ -177,6 +180,7 @@ SELECT create_v1_range_partition('v1_stream_producer_cursor', (NOW() AT TIME ZON
 
 -- +goose Down
 -- +goose StatementBegin
+ALTER TABLE tenant_entitlement DROP COLUMN durable_streams;
 DROP TABLE v1_stream_producer_cursor;
 DROP TABLE v1_stream_message;
 DROP TABLE v1_stream_topic;

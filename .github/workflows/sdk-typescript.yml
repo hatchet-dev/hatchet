@@ -287,6 +287,14 @@ jobs:
 
           go run ./cmd/hatchet-admin quickstart
 
+          # the durable streams e2e suites need the tenant entitled to durable streams
+          docker compose exec -T postgres psql -U hatchet -d hatchet -v ON_ERROR_STOP=1 <<'SQL'
+          INSERT INTO tenant_entitlement (tenant_id, durable_streams)
+          SELECT id, TRUE
+          FROM "Tenant"
+          ON CONFLICT (tenant_id) DO UPDATE SET durable_streams = TRUE;
+          SQL
+
           go run ./cmd/hatchet-engine --config ./generated/ 2>&1 | tee $GITHUB_WORKSPACE/engine.log &
           go run ./cmd/hatchet-api --config ./generated/ 2>&1 | tee $GITHUB_WORKSPACE/api.log &
 

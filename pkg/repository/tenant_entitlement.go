@@ -37,6 +37,15 @@ type TenantEntitlementRepository interface {
 	// DAG operator to orchestrate DAGs.
 	IsDagOperatorEnabled(ctx context.Context, tenantId uuid.UUID) (bool, error)
 
+	// IsDurableStreamsEnabled reports whether the tenant may publish to and
+	// subscribe from durable streams. Tenants without an entitlement row are
+	// treated as not entitled.
+	IsDurableStreamsEnabled(ctx context.Context, tenantId uuid.UUID) (bool, error)
+
+	// GetEntitlements returns the tenant's full set of feature entitlements, all
+	// false if it has no entitlement row.
+	GetEntitlements(ctx context.Context, tenantId uuid.UUID) (TenantEntitlements, error)
+
 	// SetEntitlements upserts the full set of feature entitlements for the tenant.
 	SetEntitlements(ctx context.Context, tenantId uuid.UUID, entitlements TenantEntitlements) error
 }
@@ -48,6 +57,7 @@ type TenantEntitlements struct {
 	PrometheusMetrics               bool
 	StrictAdditionalMetadataFilters bool
 	DAGOperator                     bool
+	DurableStreams                  bool
 }
 
 type tenantEntitlementRepository struct {
@@ -124,6 +134,40 @@ func (t *tenantEntitlementRepository) IsDagOperatorEnabled(ctx context.Context, 
 	return entitlement.DagOperator, nil
 }
 
+func (t *tenantEntitlementRepository) IsDurableStreamsEnabled(ctx context.Context, tenantId uuid.UUID) (bool, error) {
+	entitlement, err := t.queries.GetTenantEntitlement(ctx, t.pool, tenantId)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	return entitlement.DurableStreams, nil
+}
+
+func (t *tenantEntitlementRepository) GetEntitlements(ctx context.Context, tenantId uuid.UUID) (TenantEntitlements, error) {
+	entitlement, err := t.queries.GetTenantEntitlement(ctx, t.pool, tenantId)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return TenantEntitlements{}, nil
+		}
+
+		return TenantEntitlements{}, err
+	}
+
+	return TenantEntitlements{
+		AuditLogs:                       entitlement.AuditLogs,
+		PrometheusMetrics:               entitlement.PrometheusMetrics,
+		StrictAdditionalMetadataFilters: entitlement.StrictAdditionalMetadataFilters,
+		DAGOperator:                     entitlement.DagOperator,
+		DurableStreams:                  entitlement.DurableStreams,
+	}, nil
+}
+
 func (t *tenantEntitlementRepository) SetEntitlements(ctx context.Context, tenantId uuid.UUID, entitlements TenantEntitlements) error {
 	_, err := t.queries.UpsertTenantEntitlement(ctx, t.pool, sqlcv1.UpsertTenantEntitlementParams{
 		Tenantid:                        tenantId,
@@ -131,6 +175,7 @@ func (t *tenantEntitlementRepository) SetEntitlements(ctx context.Context, tenan
 		Prometheusmetrics:               entitlements.PrometheusMetrics,
 		Strictadditionalmetadatafilters: entitlements.StrictAdditionalMetadataFilters,
 		Dagoperator:                     entitlements.DAGOperator,
+		Durablestreams:                  entitlements.DurableStreams,
 	})
 
 	return err
