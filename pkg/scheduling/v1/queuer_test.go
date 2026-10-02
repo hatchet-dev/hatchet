@@ -439,9 +439,10 @@ func (r *failingFlushQueueRepo) MarkQueueItemsProcessed(context.Context, *v1repo
 
 // A batch that assigns one item and misses another under a failing write nacks
 // the assignment, which returns its slot to the pool. That must not count as
-// capacity changing while the missed item was in flight: the tick would replay
-// itself, assign and fail again, and hammer the database once per failed flush
-// instead of waiting for the poll timer as it did before the epoch existed.
+// capacity changing while the missed item was in flight: only a replenish that
+// installs rebuilt pools advances the epoch, so the missed item waits for the
+// poll timer. Were a nack to advance it, the tick would replay itself, assign
+// and fail again, and hammer the database once per failed flush.
 func TestQueuer_FailedFlushDoesNotReplayItself(t *testing.T) {
 	tenantId := uuid.New()
 	workerId := uuid.New()

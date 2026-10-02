@@ -74,8 +74,8 @@ type Scheduler struct {
 	afterReplenish []func()
 
 	// notifyReplenishCh wakes loopReplenish for a heuristic replenish when an
-	// assignment miss newly marks an action starved (see markActionStarved). One
-	// buffered slot, so requests that arrive while one is pending coalesce
+	// assignment miss records a new starvation entry (see markActionStarved).
+	// One buffered slot, so requests that arrive while one is pending coalesce
 	// into it.
 	notifyReplenishCh chan struct{}
 
@@ -134,15 +134,16 @@ func (s *Scheduler) notifyReplenish() {
 }
 
 // markActionStarved runs on the run loop. It records a miss on the action and
-// requests a replenish only when the miss newly marks the action starved.
-// Repeated misses on an action already marked do not: the marker outlives
-// fruitless rebuilds (see notifyReplenish), so a fresh drain still gets an
-// immediate replenish while saturation pays for one per episode. Callers mark
-// only when no worker has a free slot of some requested type (see
-// hasFreeSlotOfEachType): a request for more units than any worker has free
-// is not starvation while a slot is free, so it neither requests a replenish
-// nor keeps its queue marked, and the next miss that does find the type
-// drained still opens an episode of its own.
+// requests a replenish only when the miss records a new (queue, slot-type set)
+// entry. Repeated misses on an existing entry do not: the entry outlives
+// fruitless rebuilds (see notifyReplenish), so sustained saturation pays for
+// one replenish per entry, while a miss on a type set the queue has not
+// recorded, including a fresh drain of one type while another stays drained,
+// requests one at once. Callers mark only when no worker has a free slot of
+// some requested type (see hasFreeSlotOfEachType): a request for more units
+// than any worker has free is not starvation while a slot is free, so it
+// neither requests a replenish nor records an entry, and the next miss that
+// does find the type drained still opens an episode of its own.
 func (s *Scheduler) markActionStarved(a *action, queue string, request map[string]int32) {
 	if a.MarkStarved(queue, request) {
 		s.notifyReplenish()
@@ -1156,9 +1157,9 @@ func (s *Scheduler) handleAssignBatch(
 		// The misses are recorded as starvation on a placeholder so that the
 		// replenish which discovers the action's workers (the first miss
 		// requests one) restores them and wakes their queues, exactly as a
-		// rebuild does for an action that starved with known workers. Without
-		// it a miss whose flush completed before that install saw no epoch
-		// change and waited for the next poll.
+		// rebuild does for an action that starved with known workers. The
+		// restore is what retries a miss whose flush completed before that
+		// install: its post-flush epoch check sees no change.
 		for i := range res {
 			if res[i].rateLimitResult == nil && !res[i].toBatch {
 				res[i].noSlots = true
