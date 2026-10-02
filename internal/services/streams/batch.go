@@ -6,11 +6,10 @@ import (
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 )
 
-// maxStreamMessageBatchBytes bounds the cumulative encoded size of one
-// StreamMessage frame during catch-up, less than 4mb gRPC limit
+// gRPC's default max message size
 const maxStreamMessageBatchBytes = 4 * 1024 * 1024
 
-// chunkStreamEntries chunks messages into batches while avoiding the gRPC max message size
+// chunkStreamEntries splits entries into frames within maxStreamMessageBatchBytes.
 func chunkStreamEntries(entries []*contracts.StreamEntry) [][]*contracts.StreamEntry {
 	if len(entries) == 0 {
 		return nil

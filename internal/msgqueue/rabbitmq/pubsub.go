@@ -421,9 +421,8 @@ func (p *PubSub) Sub(topic msgqueue.Topic, handler msgqueue.MsgHandler) (func() 
 	return cleanup, nil
 }
 
-// isFanout reports whether every subscriber must get each message; other
-// topics are a single queue on the default exchange, so concurrent
-// subscribers compete for messages.
+// isFanout topics reach every subscriber; others are one queue whose
+// subscribers compete.
 func isFanout(topic msgqueue.Topic) bool {
 	return topic.Kind() == msgqueue.TopicKindTenantStream || topic.Kind() == msgqueue.TopicKindStreamWake
 }

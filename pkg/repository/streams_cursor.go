@@ -8,17 +8,11 @@ import (
 	"time"
 )
 
-// streamCursorVersion prefixes every encoded cursor so the internal format can
-// change later without breaking clients holding an older cursor -- the cursor
-// is opaque to SDK callers by design.
+// lets the format change without breaking cursors clients already hold
 const streamCursorVersion = "v1"
 
-// StreamCursor identifies a position in a durable stream topic's message
-// history. It is never exposed to callers directly -- see EncodeStreamCursor
-// / DecodeStreamCursor.
-//
-// Namespace/Topic are embedded (not just CreatedAt/ID) so a cursor is fully
-// self-describing
+// StreamCursor is a position in a topic. It carries its topic so a cursor
+// alone can resume a subscription.
 type StreamCursor struct {
 	Namespace string    `json:"namespace"`
 	Topic     string    `json:"topic"`
@@ -26,13 +20,11 @@ type StreamCursor struct {
 	ID        int64     `json:"id"`
 }
 
-// After compares by ID only, matching ListStreamMessagesAfterCursor's ordering;
-// CreatedAt is transaction start time and isn't monotonic in ID.
+// After compares by ID only: CreatedAt is transaction start time, not ordered by ID.
 func (c StreamCursor) After(other StreamCursor) bool {
 	return c.ID > other.ID
 }
 
-// EncodeStreamCursor produces the opaque cursor string returned to callers.
 func EncodeStreamCursor(c StreamCursor) (string, error) {
 	body, err := json.Marshal(c)
 	if err != nil {
@@ -42,9 +34,6 @@ func EncodeStreamCursor(c StreamCursor) (string, error) {
 	return streamCursorVersion + ":" + base64.RawURLEncoding.EncodeToString(body), nil
 }
 
-// DecodeStreamCursor parses a cursor string previously returned by
-// EncodeStreamCursor. It returns a clear error for malformed or
-// unrecognized-version cursors rather than panicking.
 func DecodeStreamCursor(s string) (StreamCursor, error) {
 	version, encoded, ok := strings.Cut(s, ":")
 	if !ok || version != streamCursorVersion {

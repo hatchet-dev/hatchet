@@ -18,38 +18,26 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-// defaultListStreamMessagesLimit bounds a single ListMessagesAfterCursor page
-// when the caller doesn't specify one.
 const defaultListStreamMessagesLimit = 500
 
-// MaxStreamMessagePayloadBytes caps a single durable stream message. Enforced
-// by the Publish gRPC handler before a message ever reaches the queue; the
-// CreateOrderedStreamMessageOpts.Payload validate tag below is a second line
-// of defense and must be kept numerically in sync with this constant.
-//
-// It sits just under gRPC's 4 MiB message limit, leaving room for the rest of
-// a publish request and of a delivered entry (worst case, its cursor); see
-// TestMaxPayloadFitsInGRPCMessages.
+// MaxStreamMessagePayloadBytes leaves room under gRPC's 4 MiB limit for the
+// rest of a publish or delivered entry (see TestMaxPayloadFitsInGRPCMessages).
+// The Payload validate tag below must match it.
 const MaxStreamMessagePayloadBytes = 4*1024*1024 - 5*1024
 
-// streamProducerCursorRetention is how long a producer's watermark survives
-// without a publish. Past it, the producer's next publish is rejected as a
-// sequence gap and the SDK resumes under a new producer ID.
+// streamProducerCursorRetention is how long an idle producer's watermark is
+// kept. After that its next publish is a gap, and the SDK switches producer ID.
 const streamProducerCursorRetention = 3 * 24 * time.Hour
 
-// streamProducerCursorMinBucket is the oldest producer cursor bucket still
-// within retention as of now: lookups read from it, and older partitions are
-// dropped.
+// streamProducerCursorMinBucket is the oldest cursor bucket within retention.
 func streamProducerCursorMinBucket(now time.Time) pgtype.Date {
 	return pgtype.Date{Time: now.UTC().Add(-streamProducerCursorRetention).Truncate(24 * time.Hour), Valid: true}
 }
 
-// MaxStreamNameLength caps a stream topic or namespace, in characters. The
-// validate tags below must stay in sync with it.
+// MaxStreamNameLength is in characters. The validate tags below must match it.
 const MaxStreamNameLength = 255
 
-// ValidateStreamAddress rejects a namespace or topic that couldn't be stored,
-// so a publish fails up front rather than after it has been accepted.
+// ValidateStreamAddress rejects a namespace or topic that couldn't be stored.
 func ValidateStreamAddress(namespace, topic string) error {
 	if topic == "" {
 		return errors.New("topic is required")
@@ -79,15 +67,10 @@ func validateStreamName(field, name string) error {
 	return nil
 }
 
-// MaxListStreamMessagesBytes bounds the payload bytes one ListMessagesAfterCursor
-// page loads, so catching up on large messages can't load the whole row limit's
-// worth into memory at once.
+// MaxListStreamMessagesBytes ends a page once its payloads reach it, so a page
+// of large messages isn't loaded into memory at once.
 const MaxListStreamMessagesBytes = 8 * 1024 * 1024
 
-// CreateOrderedStreamMessageOpts carries a published message plus the
-// producer_id/producer_seq every publish is required to supply, needed to
-// enforce that single producer's emission order (see
-// InsertOrderedStreamMessages).
 type CreateOrderedStreamMessageOpts struct {
 	Namespace string `validate:"max=255"`
 
@@ -100,28 +83,21 @@ type CreateOrderedStreamMessageOpts struct {
 	ProducerSeq int64 `validate:"min=0"`
 }
 
-// OrderedStreamMessageResult reports the outcome of InsertOrderedStreamMessage.
 type OrderedStreamMessageResult struct {
-	// Inserted is true iff the message was durably applied.
 	Inserted bool
 
-	// CurrentSeq is the producer's watermark as of this call, valid whenever
-	// Inserted is false: CurrentSeq >= the attempted seq means it was a stale
-	// duplicate (already applied, safe to drop); CurrentSeq < seq-1 means a
-	// gap (the message arrived ahead of its predecessor, worth retrying).
-	// -1 means this producer has no prior row at all (never published to
-	// this topic before), which is itself always < seq-1 for any seq >= 0.
+	// the producer's watermark, set when not inserted: at or above the seq is
+	// a duplicate, below it a gap. -1 means none within retention.
 	CurrentSeq int64
 }
 
 type ListStreamMessagesOpts struct {
-	// (optional) the namespace the topic belongs to; empty string is the default namespace
+	// (optional) empty is the default namespace
 	Namespace string
 
 	Topic string `validate:"required,max=255"`
 
-	// (optional) resume from this cursor; the zero value starts from the
-	// beginning of retained history
+	// (optional) the zero value starts at the oldest retained message
 	Cursor StreamCursor
 
 	// (optional) defaults to defaultListStreamMessagesLimit
@@ -129,35 +105,28 @@ type ListStreamMessagesOpts struct {
 }
 
 type StreamsRepository interface {
-	// EnsureTopic implicitly registers a (tenant, namespace, topic) the first
-	// time it's published to, enforcing the tenant's topic-count limit on
-	// genuinely new topics. It is a cheap no-op for a topic already seen
-	// recently by this process (see sharedRepository.streamTopicSeenCache).
+	// EnsureTopic registers a topic on first publish, enforcing the tenant's
+	// topic limit. Topics this process saw recently skip the query.
 	EnsureTopic(ctx context.Context, tenantId uuid.UUID, namespace, topic string) error
 
-	// InsertOrderedStreamMessage atomically applies a producer-sequenced
-	// message only if ProducerSeq is exactly one past that producer's last
-	// applied sequence, so a message that commits ahead of its predecessor is
-	// reported as not-inserted instead of breaking emission order.
+	// InsertOrderedStreamMessage stores the message only if ProducerSeq is one
+	// past the producer's watermark, so a producer's messages stay in order.
 	InsertOrderedStreamMessage(ctx context.Context, tenantId uuid.UUID, opts CreateOrderedStreamMessageOpts) (OrderedStreamMessageResult, error)
 
-	// InsertOrderedStreamMessages applies InsertOrderedStreamMessage to each
-	// message in one transaction and one round trip, returning results in the
-	// order given. A sequence gap is a result, not an error; an error means
-	// nothing was applied.
+	// InsertOrderedStreamMessages inserts a batch in one transaction, with
+	// results in input order. A gap is a result; an error means nothing was stored.
 	InsertOrderedStreamMessages(ctx context.Context, msgs []TenantStreamMessage) ([]OrderedStreamMessageResult, error)
 
-	// ListMessagesAfterCursor returns up to opts.Limit messages strictly after
-	// opts.Cursor, ordered by id ascending.
+	// ListMessagesAfterCursor returns a page of the tenant's retained messages
+	// after opts.Cursor, by offset.
 	ListMessagesAfterCursor(ctx context.Context, tenantId uuid.UUID, opts ListStreamMessagesOpts) ([]*sqlcv1.V1StreamMessage, error)
 
-	// CheckCursorRetained returns a *StreamCursorExpiredError if cursor points
-	// past the tenant's retention or into a partition that has been dropped.
+	// CheckCursorRetained returns a *StreamCursorExpiredError if cursor is
+	// older than the tenant's retention or the oldest partition.
 	CheckCursorRetained(ctx context.Context, tenantId uuid.UUID, cursor StreamCursor) error
 }
 
-// StreamCursorExpiredError reports a cursor whose position has been deleted by
-// retention, so resuming from it would silently skip messages.
+// StreamCursorExpiredError: resuming from the cursor would skip deleted messages.
 type StreamCursorExpiredError struct {
 	CursorCreatedAt time.Time
 	RetentionStart  time.Time
@@ -206,7 +175,7 @@ func (r *streamsRepositoryImpl) EnsureTopic(ctx context.Context, tenantId uuid.U
 		}
 
 		if !canCreate {
-			// roll back the just-created row so the tenant's topic count stays accurate
+			// or the rejected topic would count against the limit
 			if delErr := r.queries.DeleteStreamTopic(ctx, r.pool, sqlcv1.DeleteStreamTopicParams{Tenantid: tenantId, Namespace: namespace, Topic: topic}); delErr != nil {
 				r.l.Error().Ctx(ctx).Err(delErr).Msg("failed to roll back stream topic after topic limit exceeded")
 			}

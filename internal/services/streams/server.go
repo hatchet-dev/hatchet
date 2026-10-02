@@ -14,17 +14,11 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-// subscribeTailPollInterval is the fallback poll period in the shared
-// topicPoller's tail loop (see topic_poller.go). The pubsub wake hint (see
-// internal/msgqueue.StreamTopic) usually beats this, but Postgres is always
-// re-queried as the source of truth regardless of which one fires.
+// subscribeTailPollInterval is the poller's fallback when a wake is lost.
 const subscribeTailPollInterval = 1 * time.Second
 
-// subscribeIdleHangupTimeout is how long a topicPoller waits with no new
-// messages before hanging up every listener currently tailing it, so an idle
-// topic doesn't hold its poll loop, listener goroutines, and HTTP/2 streams
-// open indefinitely. A hung-up caller can always reconnect from the cursor
-// it was sent.
+// subscribeIdleHangupTimeout frees an idle topic's poller and streams; a
+// hung-up caller resumes from its last cursor.
 const subscribeIdleHangupTimeout = 30 * time.Minute
 
 func (s *ServiceImpl) Publish(ctx context.Context, req *contracts.PublishStreamMessageRequest) (*contracts.PublishStreamMessageResponse, error) {
@@ -97,9 +91,7 @@ func (s *ServiceImpl) Publish(ctx context.Context, req *contracts.PublishStreamM
 }
 
 func (s *ServiceImpl) Subscribe(ctx context.Context, req *contracts.SubscribeStreamRequest, connectStream *connect.ServerStream[contracts.StreamMessage]) error {
-	// other goroutines could in principle send on this stream after this
-	// handler returns; Sender rejects those sends instead of racing the
-	// HTTP/2 server's panic-on-write-after-handler-return.
+	// the poller may send after this handler returns, which would panic on the raw stream
 	sender := rpcstream.NewSender[contracts.StreamMessage](ctx, connectStream)
 	defer sender.Close()
 
@@ -144,20 +136,15 @@ func (s *ServiceImpl) Subscribe(ctx context.Context, req *contracts.SubscribeStr
 
 	defer unregister()
 
-	// A topic has no natural end -- unlike workflow-run event streams, this
-	// RPC only returns via ctx.Done() (client cancel, a failed send on the
-	// shared poller calling cancel on our behalf, or graceful shutdown via
-	// CancelStreamSessions).
+	// a topic has no end: this returns on client cancel, a failed send, idle
+	// hangup or shutdown
 	<-ctx.Done()
 
 	return nil
 }
 
-// resolveSubscribeAddressAndCursor determines which (namespace, topic) to
-// subscribe to and the effective starting cursor for a Subscribe call.
 func resolveSubscribeAddressAndCursor(req *contracts.SubscribeStreamRequest) (namespace, topic string, cursor v1.StreamCursor, err error) {
-	// default cursor starts from the beginning of the topic; ordering is by id
-	// alone, so 0 is before every real row.
+	// offsets start at 1, so ID 0 is the start of the topic
 	decoded := v1.StreamCursor{
 		Namespace: req.Namespace,
 		Topic:     req.Topic,

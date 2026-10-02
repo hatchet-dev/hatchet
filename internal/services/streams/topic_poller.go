@@ -17,29 +17,23 @@ import (
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
-// subscribeCatchUpBatchSize bounds a single page of the catch-up/tail keyset scan.
+// rows per page read
 const subscribeCatchUpBatchSize = 500
 
-// topicPollerKey identifies one durable-stream topic's shared tail poller.
 type topicPollerKey struct {
 	tenantId  uuid.UUID
 	namespace string
 	topic     string
 }
 
-// topicListener is one Subscribe RPC's registration with a shared topicPoller.
-// send delivers a message to that RPC's own stream; cancel is that RPC's own
-// context.CancelFunc, called if send ever fails so the RPC goroutine (blocked
-// on <-ctx.Done()) notices and tears itself down, which in turn unregisters
-// this listener.
+// topicListener is one Subscribe RPC. cancel ends the RPC when a send fails,
+// which unregisters the listener.
 type topicListener struct {
 	send   func(*contracts.StreamMessage) error
 	cancel context.CancelFunc
 }
 
-// topicPoller runs a single tail loop (ticker + pubsub wake + Postgres poll)
-// for one (tenant, namespace, topic), shared by every Subscribe RPC currently
-// tailing it.
+// topicPoller is one topic's tail loop, shared by every Subscribe RPC on it.
 type topicPoller struct {
 	streams           v1.StreamsRepository
 	l                 *zerolog.Logger
@@ -55,7 +49,6 @@ type topicPoller struct {
 	cancel         context.CancelFunc
 	lastActivityAt time.Time
 
-	// wake is signaled by the registry's shared wake subscription
 	wake chan struct{}
 }
 
@@ -71,7 +64,7 @@ func newTopicPoller(streams v1.StreamsRepository, l *zerolog.Logger, key topicPo
 	}
 }
 
-// wakeUp asks the tail loop to poll now; a wake already pending covers this one.
+// a wake already pending covers this one
 func (p *topicPoller) wakeUp() {
 	select {
 	case p.wake <- struct{}{}:
@@ -130,7 +123,6 @@ func (p *topicPoller) leave(id int) (idle bool) {
 	return false
 }
 
-// startLocked launches the background tail loop.
 func (p *topicPoller) startLocked() {
 	ctx, cancel := context.WithCancel(context.Background())
 	p.cancel = cancel
@@ -157,17 +149,12 @@ func (p *topicPoller) startLocked() {
 			if err != nil {
 				p.l.Error().Ctx(ctx).Err(err).Msg("stream topic poll failed")
 			}
-
-			// hangUpIfIdleLocked's p.cancel() closes ctx, so an idle stop is
-			// picked up by the next loop iteration's ctx.Done() case.
 		}
 	}()
 }
 
-// hangUpIfIdleLocked sends a final hangup=true message (carrying the current
-// cursor) to every listener and stops the poller once idleHangupTimeout has
-// passed with no new messages, rather than polling an inactive topic
-// forever. Must be called with p.mu held.
+// hangUpIfIdleLocked stops the poller once its topic has been quiet for
+// idleHangupTimeout, sending each listener the cursor to resume from.
 func (p *topicPoller) hangUpIfIdleLocked() {
 	if p.idleHangupTimeout <= 0 || len(p.listeners) == 0 {
 		return
@@ -203,9 +190,7 @@ func (p *topicPoller) hangUpIfIdleLocked() {
 	}
 }
 
-// pollLocked runs the keyset query from the poller's current cursor and fans
-// each batch out to every currently-registered listener, in order. Must be
-// called with p.mu held.
+// pollLocked sends every listener the rows after the poller's cursor.
 func (p *topicPoller) pollLocked(ctx context.Context) error {
 	last, err := sendRange(ctx, p.streams, p.key, p.cursor, math.MaxInt64, func(out *contracts.StreamMessage) error {
 		for id, l := range p.listeners {
@@ -227,17 +212,15 @@ func (p *topicPoller) pollLocked(ctx context.Context) error {
 	return err
 }
 
-// catchUpLocked sends listener every row in (from, p.cursor]. Must be called
-// with p.mu held.
+// catchUpLocked sends listener the rows in (from, p.cursor] that the poller
+// fanned out before it joined.
 func (p *topicPoller) catchUpLocked(ctx context.Context, from v1.StreamCursor, listener *topicListener) error {
 	_, err := sendRange(ctx, p.streams, p.key, from, p.cursor.ID, listener.send)
 	return err
 }
 
-// sendRange pages through every row of key's topic in (from, maxID], sending
-// each page as size-bounded StreamMessage frames. It returns the cursor of the
-// last row sent, which is from if nothing was sent, even when it also returns
-// an error.
+// sendRange sends the rows in (from, maxID]. It returns the cursor of the last
+// row sent (from if none), even alongside an error.
 func sendRange(ctx context.Context, repo v1.StreamsRepository, key topicPollerKey, from v1.StreamCursor, maxID int64, send func(*contracts.StreamMessage) error) (v1.StreamCursor, error) {
 	for {
 		msgs, err := repo.ListMessagesAfterCursor(ctx, key.tenantId, v1.ListStreamMessagesOpts{
@@ -299,9 +282,7 @@ func sendRange(ctx context.Context, repo v1.StreamsRepository, key topicPollerKe
 	}
 }
 
-// topicPollerRegistry is the process-wide set of active topicPollers, one per
-// (tenant, namespace, topic) currently being tailed by at least one Subscribe
-// call.
+// topicPollerRegistry holds one topicPoller per topic with a listener.
 type topicPollerRegistry struct {
 	mu      sync.Mutex
 	pollers map[topicPollerKey]*topicPoller
@@ -310,8 +291,7 @@ type topicPollerRegistry struct {
 	// which Join holds across database reads
 	wakeTargets sync.Map // topicPollerKey -> *topicPoller
 
-	// unsubWake ends the engine's single wake subscription, shared by every
-	// poller; nil until the first Join subscribes. Guarded by mu.
+	// one wake subscription for every poller; nil until the first Join. Guarded by mu.
 	unsubWake func() error
 
 	streams           v1.StreamsRepository
@@ -332,9 +312,8 @@ func newTopicPollerRegistry(streams v1.StreamsRepository, pubsub msgqueue.PubSub
 	}
 }
 
-// Join sends listener every message after startCursor, then registers it as a
-// tail-subscriber of key's shared poller, creating the poller if this is the
-// first listener for it, and returns a function that unregisters it.
+// Join sends listener every message after startCursor, then attaches it to
+// key's poller.
 func (r *topicPollerRegistry) Join(ctx context.Context, key topicPollerKey, startCursor v1.StreamCursor, listener *topicListener) (unregister func(), err error) {
 	if err := r.streams.CheckCursorRetained(ctx, key.tenantId, startCursor); err != nil {
 		return nil, err
@@ -386,8 +365,7 @@ func (r *topicPollerRegistry) removeLocked(key topicPollerKey) {
 	r.wakeTargets.Delete(key)
 }
 
-// subscribeWakesLocked subscribes this engine to stream wakes once. On
-// failure pollers still tick, and the next Join retries.
+// on failure pollers still tick, and the next Join retries
 func (r *topicPollerRegistry) subscribeWakesLocked() {
 	if r.unsubWake != nil {
 		return
@@ -419,7 +397,6 @@ func (r *topicPollerRegistry) handleWake(msg *msgqueue.Message) error {
 	return nil
 }
 
-// Close ends the engine's wake subscription.
 func (r *topicPollerRegistry) Close() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()

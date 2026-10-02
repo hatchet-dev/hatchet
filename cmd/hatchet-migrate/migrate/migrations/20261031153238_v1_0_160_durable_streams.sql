@@ -43,8 +43,7 @@ BEGIN
 END;
 $$;
 
--- get_v1_hourly_partitions_before lists hourly partitions whose whole hour
--- ends at or before targetTime.
+-- get_v1_hourly_partitions_before lists hourly partitions ending at or before targetTime.
 CREATE OR REPLACE FUNCTION get_v1_hourly_partitions_before(
     targetTableName text,
     targetTime timestamptz
@@ -64,25 +63,22 @@ BEGIN
 END;
 $$;
 
--- metadata for streams
+-- fillfactor leaves room for every publish batch's last_offset update to stay HOT
 CREATE TABLE v1_stream_topic (
     tenant_id UUID NOT NULL,
     namespace TEXT NOT NULL DEFAULT '',
     topic TEXT NOT NULL,
     inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     last_published_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    -- the highest message offset handed out; publishers reserve offsets by
-    -- advancing it, holding the row lock until they commit (see v1_stream_message)
+    -- the last offset reserved (see v1_stream_message)
     last_offset BIGINT NOT NULL DEFAULT 0,
 
     CONSTRAINT v1_stream_topic_pkey PRIMARY KEY (tenant_id, namespace, topic)
--- every publish batch updates its topic's row; leave room for that to stay on the page
 ) WITH (fillfactor = 80);
 
--- id is the message's offset within its topic, reserved from
--- v1_stream_topic.last_offset under that topic's row lock and held until the
--- publishing transaction commits. A later offset therefore can't become
--- visible before an earlier one, so readers page on id > cursor alone.
+-- id is the message's offset in its topic, reserved from last_offset under a
+-- row lock held until commit, so offsets become visible in order and readers
+-- page on id alone.
 CREATE TABLE v1_stream_message (
     id BIGINT NOT NULL,
     inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -93,8 +89,7 @@ CREATE TABLE v1_stream_message (
     producer_id TEXT NOT NULL,
     producer_seq BIGINT NOT NULL,
 
-    -- id before inserted_at, so a topic's index is in id order for keyset
-    -- reads (inserted_at is only here because every partition key must be)
+    -- id first so reads seek by offset; inserted_at is required as the partition key
     CONSTRAINT v1_stream_message_pkey PRIMARY KEY (tenant_id, namespace, topic, id, inserted_at)
 ) PARTITION BY RANGE(inserted_at);
 
@@ -102,11 +97,9 @@ CREATE TABLE v1_stream_message (
 SELECT create_v1_hourly_range_partition('v1_stream_message', NOW() + make_interval(hours => h))
 FROM generate_series(0, 24) AS h;
 
--- v1_stream_producer_cursor tracks, per (tenant, namespace, topic,
--- producer_id), the last producer_seq durably applied to v1_stream_message.
--- Partitioned by the UTC day a row was written so idle producers age out
--- after a few days (streamProducerCursorRetention); a producer's watermark is
--- its row in its latest bucket, copied forward on its first write of each day.
+-- v1_stream_producer_cursor holds each producer's last stored producer_seq.
+-- Day buckets let idle producers age out; an active producer's watermark is
+-- copied into each new day's bucket.
 CREATE TABLE v1_stream_producer_cursor (
     tenant_id UUID NOT NULL,
     namespace TEXT NOT NULL DEFAULT '',
@@ -118,7 +111,7 @@ CREATE TABLE v1_stream_producer_cursor (
     CONSTRAINT v1_stream_producer_cursor_pkey PRIMARY KEY (tenant_id, namespace, topic, producer_id, bucket)
 ) PARTITION BY RANGE(bucket);
 
--- headroom so each publish's last_seq update can stay on its page (HOT)
+-- room for each publish's last_seq update to stay HOT
 SELECT create_v1_range_partition('v1_stream_producer_cursor', (NOW() AT TIME ZONE 'UTC')::DATE, 80);
 SELECT create_v1_range_partition('v1_stream_producer_cursor', (NOW() AT TIME ZONE 'UTC')::DATE + 1, 80);
 -- +goose StatementEnd

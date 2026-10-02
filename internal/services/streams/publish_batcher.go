@@ -25,9 +25,8 @@ const (
 
 var errPublishBatcherStopped = errors.New("stream publisher is shutting down")
 
-// publishBatcher writes published messages straight to Postgres. Each worker
-// takes every publish already waiting and commits them in one transaction, so
-// publishes are batched under load without waiting for a batch when idle.
+// publishBatcher commits publishes to Postgres. Each worker takes every
+// publish already waiting, so publishes batch under load without waiting when idle.
 type publishBatcher struct {
 	streams v1.StreamsRepository
 	pubsub  msgqueue.PubSub

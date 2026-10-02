@@ -33,7 +33,6 @@ type CreateStreamMessagePartitionsParams struct {
 	Totime   pgtype.Timestamptz `json:"totime"`
 }
 
-// Attaches an hourly partition for every hour from @fromTime through @toTime.
 func (q *Queries) CreateStreamMessagePartitions(ctx context.Context, db DBTX, arg CreateStreamMessagePartitionsParams) error {
 	_, err := db.Exec(ctx, createStreamMessagePartitions, arg.Fromtime, arg.Totime)
 	return err
@@ -57,8 +56,7 @@ type DeleteExpiredStreamMessagesParams struct {
 	Batchsize int32              `json:"batchsize"`
 }
 
-// Deletes up to @batchSize of the tenant's messages inserted before @before.
-// Payloads can be large, so batches stay small to bound each statement's work.
+// Small batches since payloads can be large.
 func (q *Queries) DeleteExpiredStreamMessages(ctx context.Context, db DBTX, arg DeleteExpiredStreamMessagesParams) (int64, error) {
 	result, err := db.Exec(ctx, deleteExpiredStreamMessages, arg.Before, arg.Tenantid, arg.Batchsize)
 	if err != nil {
@@ -84,9 +82,8 @@ type DeleteIdleStreamTopicsParams struct {
 	Batchsize             int32 `json:"batchsize"`
 }
 
-// Removes topics nobody has published to within their tenant's retention, in
-// batches so one sweep never holds a long lock. last_published_at is
-// refreshed at least every streamTopicSeenCache TTL while a topic is in use.
+// Topics with no publish within their tenant's retention, in batches to keep
+// each statement short.
 func (q *Queries) DeleteIdleStreamTopics(ctx context.Context, db DBTX, arg DeleteIdleStreamTopicsParams) (int64, error) {
 	result, err := db.Exec(ctx, deleteIdleStreamTopics, arg.Defaultretentionhours, arg.Maxretentionhours, arg.Batchsize)
 	if err != nil {
@@ -106,8 +103,7 @@ type DeleteStreamTopicParams struct {
 	Topic     string    `json:"topic"`
 }
 
-// Used to roll back UpsertStreamTopic when a newly-created topic turns out to
-// violate the tenant's topic-count limit.
+// Undoes UpsertStreamTopic for a topic over the limit.
 func (q *Queries) DeleteStreamTopic(ctx context.Context, db DBTX, arg DeleteStreamTopicParams) error {
 	_, err := db.Exec(ctx, deleteStreamTopic, arg.Tenantid, arg.Namespace, arg.Topic)
 	return err
@@ -133,8 +129,7 @@ SELECT MIN(to_timestamp(substring(p::text, 'v1_stream_message_(\d{10})$'), 'YYYY
 FROM get_v1_hourly_partitions_before('v1_stream_message', 'infinity'::timestamptz) AS p
 `
 
-// The start of the oldest attached v1_stream_message partition: rows inserted
-// before it have been dropped. NULL if no partitions.
+// The oldest partition's start: anything earlier was dropped. NULL if none.
 func (q *Queries) GetStreamMessageRetentionStart(ctx context.Context, db DBTX) (pgtype.Timestamptz, error) {
 	row := db.QueryRow(ctx, getStreamMessageRetentionStart)
 	var retention_start pgtype.Timestamptz
@@ -205,12 +200,10 @@ type ListStreamMessagesAfterCursorParams struct {
 	Maxbytes      int64              `json:"maxbytes"`
 }
 
-// Keyset pagination on id, a topic's offset: offsets become visible strictly
-// in order (see ReserveStreamTopicOffsets), so nothing after the cursor can
-// appear later behind it. A page also stops once its payloads reach @maxBytes (always keeping its
-// first row). Payloads over ~2KB are stored out of line, and octet_length
-// reads their size without fetching them, so only the rows returned have
-// their payloads loaded.
+// Pages by offset, which become visible in order (see ReserveStreamTopicOffsets),
+// so nothing can appear behind a cursor. A page ends once its payloads reach
+// @maxBytes, always keeping its first row; octet_length reads a TOASTed
+// payload's size without loading it.
 func (q *Queries) ListStreamMessagesAfterCursor(ctx context.Context, db DBTX, arg ListStreamMessagesAfterCursorParams) ([]*V1StreamMessage, error) {
 	rows, err := db.Query(ctx, listStreamMessagesAfterCursor,
 		arg.Tenantid,
@@ -260,8 +253,7 @@ type ListStreamProducerCursorPartitionsBeforeDateRow struct {
 	PartitionName string `json:"partition_name"`
 }
 
-// Kept separate from ListPartitionsBeforeDate because producer cursors have
-// their own retention.
+// Separate from ListPartitionsBeforeDate: producer cursors have their own retention.
 func (q *Queries) ListStreamProducerCursorPartitionsBeforeDate(ctx context.Context, db DBTX, date pgtype.Date) ([]*ListStreamProducerCursorPartitionsBeforeDateRow, error) {
 	rows, err := db.Query(ctx, listStreamProducerCursorPartitionsBeforeDate, date)
 	if err != nil {
@@ -308,9 +300,8 @@ type ListStreamRetentionDeleteCandidatesRow struct {
 	RetentionHours int32     `json:"retention_hours"`
 }
 
-// Tenants whose stream retention is shorter than @maxRetentionHours, so their
-// expired messages sit in partitions that can't be dropped yet and have to be
-// deleted. Tenants with streams but no STREAM_RETENTION row use the default.
+// Tenants with retention under @maxRetentionHours, whose expired messages sit
+// in partitions not yet droppable. Tenants without a row use the default.
 func (q *Queries) ListStreamRetentionDeleteCandidates(ctx context.Context, db DBTX, arg ListStreamRetentionDeleteCandidatesParams) ([]*ListStreamRetentionDeleteCandidatesRow, error) {
 	rows, err := db.Query(ctx, listStreamRetentionDeleteCandidates, arg.Maxretentionhours, arg.Defaultretentionhours)
 	if err != nil {
@@ -350,9 +341,7 @@ type UpsertStreamTopicRow struct {
 	Inserted      bool          `json:"inserted"`
 }
 
-// Implicitly creates a topic on first publish. The `inserted` column lets the
-// caller distinguish a brand-new topic (subject to a per-tenant topic-count
-// limit check) from a publish to an already-existing topic.
+// `inserted` marks a new topic, which counts against the topic limit.
 func (q *Queries) UpsertStreamTopic(ctx context.Context, db DBTX, arg UpsertStreamTopicParams) (*UpsertStreamTopicRow, error) {
 	row := db.QueryRow(ctx, upsertStreamTopic, arg.Tenantid, arg.Namespace, arg.Topic)
 	var i UpsertStreamTopicRow

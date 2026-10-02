@@ -9,8 +9,7 @@ import {
 } from '@hatchet/protoc/v1/streams';
 import { HatchetClient } from '../client';
 
-// errors the server returns before it could have stored the message,
-// so its producer_seq was never used
+// the server stored nothing, so the seq is unused
 function publishRejectedBeforeStoring(err: unknown): boolean {
   const code = getGrpcErrorCode(err);
   return (
@@ -24,38 +23,33 @@ function publishRejectedBeforeStoring(err: unknown): boolean {
 export type StreamEvent = {
   /** the message payload */
   payload: Uint8Array;
-  /** this event's own cursor -- checkpoint after any event, not just at the start of a call to events() */
+  /** resumes events() right after this event */
   cursor: string;
-  /** when the message was durably persisted */
+  /** when the message was stored */
   createdAt?: Date;
 };
 
 export type StreamCallOptions = {
   namespace?: string;
   cursor?: string;
-  /** aborts an in-progress events() call; the iteration then ends cleanly instead of throwing */
+  /** ends an events() iteration cleanly, without throwing */
   signal?: AbortSignal;
 };
 
 /**
- * StreamsClient provides methods for publishing to and reading from durable,
- * topic-based streams. This is distinct from the ephemeral, per-run streaming
- * exposed by `runs.subscribeToStream`, which is not durable, and tied to specific workflow runs.
- * A durable stream topic is independent of any workflow run, and can be started from any point using cursors.
+ * StreamsClient publishes to and reads from durable topics. Unlike
+ * `runs.subscribeToStream`, topics are stored, independent of any run, and
+ * readers can resume from a cursor.
  */
 export class StreamsClient {
   private _config: ClientConfig;
   private _grpc: PbV1StreamsClient | undefined;
 
-  // producer identity and next producer_seq per (namespace, topic), only
-  // advanced after a publish succeeds -- see publishChains.
+  // per (namespace, topic); seq only advances after a publish succeeds
   private producers = new Map<string, { producerId: string; seq: number }>();
 
-  // publishChains serializes publish() calls per (namespace, topic): each
-  // call waits for the previous one on the same key to settle before reading
-  // producers, so two calls never use the same seq. The stored promise always resolves, even when the publish it
-  // chains from failed, so one failure doesn't block every later call on
-  // that key.
+  // serializes publishes per (namespace, topic) so two never share a seq; the
+  // stored promise always resolves, so one failure doesn't block later calls
   private publishChains = new Map<string, Promise<void>>();
 
   constructor(client: HatchetClient) {
@@ -92,13 +86,11 @@ export class StreamsClient {
         producerSeq: producer.seq,
       });
     } catch (err) {
-      // the message may still land, so reusing its seq for a different
-      // payload would get that payload dropped as a duplicate
+      // it may still land, and a different payload under its seq would be dropped as a duplicate
       if (!publishRejectedBeforeStoring(err)) {
         this.producers.set(key, { producerId: randomUUID(), seq: 0 });
       }
-      // a sequence gap stored nothing: this producer's watermark is gone (e.g. it
-      // was idle past the server's cursor retention), so resend as the new one
+      // a gap stored nothing (e.g. the watermark passed cursor retention), so resend as the new producer
       if (retryGap && getGrpcErrorCode(err) === Status.FAILED_PRECONDITION) {
         return this.publishOrdered(key, namespace, topic, payload, false);
       }
@@ -109,9 +101,8 @@ export class StreamsClient {
   }
 
   /**
-   * Durably publishes a message to a topic. Messages from this client instance are delivered to
-   * events() in the order publish() was called, even under concurrent calls
-   * or network/queue reordering.
+   * Resolves once the message is stored. A client's messages to a topic are
+   * delivered in the order publish() was called.
    * @param topic - the topic to publish to
    * @param message - the message payload
    * @param options - optional namespace override
@@ -137,11 +128,8 @@ export class StreamsClient {
   }
 
   /**
-   * Returns an async iterable of messages published to topic, starting from
-   * the given cursor (options.cursor) or from the beginning of the topic if
-   * none is supplied. Yields one message at a time.
-   * Stops when the server hangs up, options.signal aborts, or
-   * the caller stops iterating (e.g. `break`ing a `for await` loop).
+   * Yields topic's messages after options.cursor, or from the oldest retained.
+   * Ends when the server hangs up, options.signal aborts, or the caller stops iterating.
    * @param topic - the topic to read from
    * @param options - optional namespace override, resume cursor, and abort signal
    */

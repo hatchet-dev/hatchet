@@ -19,9 +19,8 @@ import (
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
-// Service is the durable-streams gRPC service. It also exposes
-// CancelStreamSessions so the engine can hang up long-lived Subscribe RPCs
-// during graceful shutdown, matching dispatcher.Dispatcher.
+// Service is the durable streams gRPC service. CancelStreamSessions lets the
+// engine hang up Subscribe RPCs on shutdown.
 type Service interface {
 	v1connect.V1StreamsHandler
 	CancelStreamSessions()
@@ -73,13 +72,11 @@ type ServiceImpl struct {
 	streamSessions *streams.Registry
 	topicPollers   *topicPollerRegistry
 
-	// entitled caches each tenant's durable streams entitlement, so publishes
-	// don't each pay a query for it
+	// so each publish doesn't query the entitlement
 	entitled *expirable.LRU[uuid.UUID, bool]
 }
 
-// entitlementCacheTTL is how long a change to a tenant's durable streams
-// entitlement can take to apply.
+// how long an entitlement change can take to apply
 const entitlementCacheTTL = time.Minute
 
 func NewService(fs ...ServiceOptFunc) (Service, error) {
@@ -100,8 +97,7 @@ func NewService(fs ...ServiceOptFunc) (Service, error) {
 	}, nil
 }
 
-// CancelStreamSessions hangs up every registered long-lived Subscribe RPC. It is
-// safe to call multiple times or with no sessions registered.
+// CancelStreamSessions hangs up every Subscribe RPC. Safe to call repeatedly.
 func (s *ServiceImpl) CancelStreamSessions() {
 	s.streamSessions.CancelAll()
 }
@@ -112,7 +108,6 @@ func (s *ServiceImpl) Cleanup() error {
 	return s.topicPollers.Close()
 }
 
-// checkEntitled rejects tenants not entitled to durable streams.
 func (s *ServiceImpl) checkEntitled(ctx context.Context, tenantId uuid.UUID) error {
 	enabled, ok := s.entitled.Get(tenantId)
 

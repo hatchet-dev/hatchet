@@ -6,10 +6,9 @@ title: "Streams"
 
 ### Streams Client
 
-StreamsClient provides methods for publishing to and reading from durable,
-topic-based streams. This is distinct from the ephemeral, per-run streaming
-exposed by `runs.subscribeToStream`, which is not durable, and tied to specific workflow runs.
-A durable stream topic is independent of any workflow run, and can be started from any point using cursors.
+StreamsClient publishes to and reads from durable topics. Unlike
+`runs.subscribeToStream`, topics are stored, independent of any run, and
+readers can resume from a cursor.
 
 #### Methods
 
@@ -17,11 +16,8 @@ A durable stream topic is independent of any workflow run, and can be started fr
 
 ##### `events()`
 
-Returns an async iterable of messages published to topic, starting from
-the given cursor (options.cursor) or from the beginning of the topic if
-none is supplied. Yields one message at a time.
-Stops when the server hangs up, options.signal aborts, or
-the caller stops iterating (e.g. `break`ing a `for await` loop).
+Yields topic's messages after options.cursor, or from the oldest retained.
+Ends when the server hangs up, options.signal aborts, or the caller stops iterating.
 
 Parameters
 
@@ -38,9 +34,8 @@ Returns
 
 ##### `publish()`
 
-Durably publishes a message to a topic. Messages from this client instance are delivered to
-events() in the order publish() was called, even under concurrent calls
-or network/queue reordering.
+Resolves once the message is stored. A client's messages to a topic are
+delivered in the order publish() was called.
 
 Parameters
 

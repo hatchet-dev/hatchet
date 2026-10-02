@@ -5303,17 +5303,13 @@ func (r *TaskRepositoryImpl) FilterValidTasks(ctx context.Context, tenantId uuid
 
 const deleteIdleStreamTopicsBatchSize = 1000
 
-// deleteExpiredStreamMessagesBatchSize bounds each delete: payloads can be up to
-// 4MB, each stored out of line, so a batch's work grows with its row count.
+// small, since each deleted row can carry a ~4MB out-of-line payload
 const deleteExpiredStreamMessagesBatchSize = 100
 
-// streamMessagePartitionsAhead is how far ahead hourly stream message
-// partitions are created, so missed partition runs never leave inserts
-// without a partition.
+// so missed partition runs never leave inserts without a partition
 const streamMessagePartitionsAhead = 24 * time.Hour
 
-// detachAndDropPartition detaches partitionName from parentTable without
-// blocking writers to the parent, then drops it.
+// detachAndDropPartition detaches concurrently so writers to the parent aren't blocked.
 func (r *TaskRepositoryImpl) detachAndDropPartition(ctx context.Context, parentTable, partitionName string) error {
 	r.l.Debug().Ctx(ctx).Msgf("detaching partition %s", partitionName)
 
@@ -5385,9 +5381,8 @@ func (r *TaskRepositoryImpl) detachAndDropPartition(ctx context.Context, parentT
 	return nil
 }
 
-// updateStreamMessagePartitions keeps a day of hourly partitions ahead, drops
-// partitions once every tenant's retention has passed them, and deletes the
-// expired messages of tenants whose retention is shorter than that.
+// updateStreamMessagePartitions drops shared partitions once the longest
+// retention passes them, and deletes expired messages of shorter-retention tenants.
 func (r *TaskRepositoryImpl) updateStreamMessagePartitions(ctx context.Context) error {
 	now := time.Now().UTC()
 
@@ -5463,8 +5458,6 @@ func (r *TaskRepositoryImpl) deleteExpiredStreamMessages(ctx context.Context, te
 	}
 }
 
-// deleteIdleStreamTopics removes each tenant's topics once they've gone
-// unpublished for longer than that tenant's stream retention.
 func (r *TaskRepositoryImpl) deleteIdleStreamTopics(ctx context.Context) error {
 	for {
 		deleted, err := r.queries.DeleteIdleStreamTopics(ctx, r.ddlPool, sqlcv1.DeleteIdleStreamTopicsParams{

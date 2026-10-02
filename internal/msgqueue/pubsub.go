@@ -60,10 +60,8 @@ func SchedulerPartitionTopic(partitionId string) Topic {
 	}
 }
 
-// StreamWakeTopic carries every durable-stream wake, each engine holding one
-// subscription for all of its tailed topics. The topics woken travel in the
-// payload (see StreamWake), so user-chosen names never reach a subject,
-// queue, or channel name.
+// StreamWakeTopic is one topic for every stream wake, so each engine needs one
+// subscription and user-chosen names never reach a subject or queue name.
 func StreamWakeTopic() Topic {
 	return Topic{
 		name: "stream_wake_v1",
@@ -71,34 +69,30 @@ func StreamWakeTopic() Topic {
 	}
 }
 
-// StreamWake is one payload of a StreamWakeTopic message; the tenant is the
-// message's TenantID.
+// StreamWake's tenant is its message's TenantID.
 type StreamWake struct {
 	Namespace string `json:"namespace"`
 	Topic     string `json:"topic"`
 }
 
-// maxStreamWakeBytes keeps each wake message well under pg_notify's 8KB
-// limit, past which the postgres pubsub delivers to only one subscriber.
+// keeps wake messages small on every pubsub backend
 const maxStreamWakeBytes = 4 * 1024
 
-// streamWakeWireSize approximates w's size inside a published message: its
-// JSON, base64-encoded as a Message payload, plus separators.
+// streamWakeWireSize approximates w as a base64 JSON payload plus separators.
 func streamWakeWireSize(w StreamWake) int {
 	const jsonOverhead = len(`{"namespace":"","topic":""}`)
 
 	return base64.StdEncoding.EncodedLen(len(w.Namespace)+len(w.Topic)+jsonOverhead) + 3
 }
 
-// PubStreamWakes wakes every engine tailing one of tenantId's wakes, in as
-// few messages as stay under maxStreamWakeBytes.
+// PubStreamWakes batches wakes into messages under maxStreamWakeBytes.
 func PubStreamWakes(ctx context.Context, ps PubSub, tenantId uuid.UUID, wakes []StreamWake) error {
 	var errs error
 
 	for len(wakes) > 0 {
 		n, size := 0, 0
 
-		// names are capped well below maxStreamWakeBytes, so n >= 1
+		// the first wake always goes in, so a batch is never empty
 		for n < len(wakes) && (n == 0 || size+streamWakeWireSize(wakes[n]) <= maxStreamWakeBytes) {
 			size += streamWakeWireSize(wakes[n])
 			n++

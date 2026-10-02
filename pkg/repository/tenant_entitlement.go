@@ -37,13 +37,10 @@ type TenantEntitlementRepository interface {
 	// DAG operator to orchestrate DAGs.
 	IsDagOperatorEnabled(ctx context.Context, tenantId uuid.UUID) (bool, error)
 
-	// IsDurableStreamsEnabled reports whether the tenant may publish to and
-	// subscribe from durable streams. Tenants without an entitlement row are
-	// treated as not entitled.
+	// IsDurableStreamsEnabled is false for tenants without an entitlement row.
 	IsDurableStreamsEnabled(ctx context.Context, tenantId uuid.UUID) (bool, error)
 
-	// GetEntitlements returns the tenant's full set of feature entitlements, all
-	// false if it has no entitlement row.
+	// GetEntitlements is all false for tenants without an entitlement row.
 	GetEntitlements(ctx context.Context, tenantId uuid.UUID) (TenantEntitlements, error)
 
 	// SetEntitlements upserts the full set of feature entitlements for the tenant.

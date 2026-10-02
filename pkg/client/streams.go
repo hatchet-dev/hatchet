@@ -24,20 +24,16 @@ type StreamMessage struct {
 type StreamsHandler func(msg StreamMessage) error
 
 type StreamsClient interface {
-	// Publish durably publishes a message to a topic. Topics are created
-	// implicitly on first publish.
+	// Publish returns once the message is stored. A topic is created on first publish.
 	Publish(ctx context.Context, namespace, topic string, payload []byte) error
 
-	// Subscribe returns all existing messages from topic (from cursor-on) in batches
-	// and then tails the topic, until handler returns an error,
-	// the context is cancelled, or the server hangs up.
+	// Subscribe delivers every message after cursor (or from the oldest), then
+	// tails the topic until handler errors, ctx ends, or the server hangs up.
 	Subscribe(ctx context.Context, namespace, topic string, cursor *string, handler StreamsHandler) error
 }
 
-// producerSeqState guards the producer identity and next producer_seq for one
-// (namespace, topic): its lock is held for a whole Publish call, not just the
-// increment, so a concurrent call on the same key can never reuse a seq that a
-// still-in-flight call might yet succeed with.
+// producerSeqState is locked for a whole Publish, so a concurrent publish
+// can't reuse a seq an in-flight one may still store.
 type producerSeqState struct {
 	mu         sync.Mutex
 	producerID string
@@ -59,8 +55,7 @@ func newStreams(conn *grpc.ClientConn, opts *sharedClientOpts) StreamsClient {
 	}
 }
 
-// publishRejectedBeforeStoring reports whether err is one the server returns
-// before it could have stored the message, so its seq was never used.
+// publishRejectedBeforeStoring: the server stored nothing, so the seq is unused.
 func publishRejectedBeforeStoring(err error) bool {
 	switch status.Code(err) {
 	case codes.InvalidArgument, codes.ResourceExhausted, codes.Unauthenticated, codes.PermissionDenied:
@@ -106,15 +101,13 @@ func (s *streamsClientImpl) Publish(ctx context.Context, namespace, topic string
 			return nil
 		}
 
-		// the message may still land, so reusing its seq for a different
-		// payload would get that payload dropped as a duplicate
+		// it may still land, and a different payload under its seq would be dropped as a duplicate
 		if !publishRejectedBeforeStoring(err) {
 			state.producerID = uuid.NewString()
 			state.seq = 0
 		}
 
-		// a sequence gap stored nothing: this producer's watermark is gone (e.g.
-		// it was idle past the server's cursor retention), so resend as the new one
+		// a gap stored nothing (e.g. the watermark passed cursor retention), so resend as the new producer
 		if status.Code(err) == codes.FailedPrecondition && attempt == 0 {
 			continue
 		}

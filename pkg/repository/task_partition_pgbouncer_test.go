@@ -181,6 +181,8 @@ func TestUpdateTablePartitions_PgBouncer(t *testing.T) {
 			ddlPool: directPool,
 			l:       &logger,
 			queries: queries,
+			// stream retention falls back to the default retention on an empty config
+			m: &tenantLimitRepository{},
 		},
 		taskRetentionPeriod:   24 * time.Hour, // 1 day retention means 3-day-old partitions get detached
 		maxInternalRetryCount: 3,
@@ -231,6 +233,8 @@ func TestUpdateTablePartitions_PgBouncer_CreateOnly(t *testing.T) {
 			ddlPool: directPool,
 			l:       &logger,
 			queries: queries,
+			// stream retention falls back to the default retention on an empty config
+			m: &tenantLimitRepository{},
 		},
 		taskRetentionPeriod:   24 * time.Hour,
 		maxInternalRetryCount: 3,

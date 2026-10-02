@@ -91,19 +91,13 @@ type InsertOrderedStreamMessageRow struct {
 	CurrentLastSeq pgtype.Int8 `json:"current_last_seq"`
 }
 
-// Atomically advances the producer's watermark and inserts the message, but
-// only if producer_seq is exactly one past the producer's last durably
-// applied sequence. The watermark is the producer's row in its latest
-// bucket; the compare-and-swap runs against that one row, so concurrent
-// attempts serialize on its row lock even across a UTC day boundary. The
-// first write of a new day also copies the watermark into today's bucket so
-// that an active producer's cursor outlives partition retention. Only buckets
-// from @minBucket on are read, so planning and locking touch just the
-// partitions within cursor retention; an older watermark counts as none.
-// inserted=false means this message was NOT applied; current_last_seq (the
-// watermark as of this call, NULL if the producer has no row) tells the
-// caller whether that's a gap worth retrying (current_last_seq <
-// producer_seq - 1) or a stale redelivery (current_last_seq >= producer_seq).
+// Inserts the message only if producer_seq is one past the producer's
+// watermark: its row in the latest bucket, compare-and-swapped so concurrent
+// attempts serialize on one row lock. A day's first write copies the
+// watermark into today's bucket, so an active producer outlives cursor
+// retention. Reading only from @minBucket keeps planning to retained
+// partitions; an older watermark counts as none. current_last_seq is the
+// watermark (NULL if none), telling a gap from a duplicate.
 // a LEFT JOIN rather than a scalar subquery so sqlc infers current_last_seq as nullable
 func (q *Queries) InsertOrderedStreamMessage(ctx context.Context, db DBTX, arg []InsertOrderedStreamMessageParams) *InsertOrderedStreamMessageBatchResults {
 	batch := &pgx.Batch{}
@@ -214,12 +208,9 @@ type ReserveStreamTopicOffsetsParams struct {
 	Count     int64     `json:"count"`
 }
 
-// Reserves @count consecutive offsets for a topic and returns the last. The
-// row lock it takes is held until the publishing transaction commits, so a
-// concurrent publisher to the topic waits, then takes strictly later offsets
-// and commits after it. Re-creates a topic the idle sweep removed; its
-// offsets restart, which is safe because every message it held had already
-// passed retention.
+// Reserves @count offsets and returns the last. The row lock is held until
+// commit, so offsets become visible in order. A topic the idle sweep removed
+// restarts at 1, safe since all its messages had passed retention.
 func (q *Queries) ReserveStreamTopicOffsets(ctx context.Context, db DBTX, arg []ReserveStreamTopicOffsetsParams) *ReserveStreamTopicOffsetsBatchResults {
 	batch := &pgx.Batch{}
 	for _, a := range arg {
