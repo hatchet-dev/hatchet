@@ -249,7 +249,7 @@ func NewServer(fs ...ServerOpt) (*Server, error) {
 		return nil, fmt.Errorf("tls config is required. use WithTLSConfig")
 	}
 
-	// the engine always serves the whole API; only the OTel collector is optional
+	// the operator, streams and OTel collector services are optional
 	switch {
 	case opts.ingestor == nil:
 		return nil, fmt.Errorf("ingestor is required. use WithIngestor")
@@ -261,8 +261,6 @@ func NewServer(fs ...ServerOpt) (*Server, error) {
 		return nil, fmt.Errorf("admin service is required. use WithAdmin")
 	case opts.adminv1 == nil:
 		return nil, fmt.Errorf("v1 admin service is required. use WithAdminV1")
-	case opts.streamsv1 == nil:
-		return nil, fmt.Errorf("v1 streams service is required. use WithStreamsV1")
 	}
 
 	newLogger := opts.l.With().Str("service", "grpc").Logger()
@@ -359,8 +357,11 @@ func (s *Server) handler() (http.Handler, error) {
 	routes.addService(v1contracts.File_v1_workflows_proto.Services().ByName("AdminService"))
 	mux.Handle(v1connect.NewAdminServiceHandler(s.adminv1, opts...))
 
-	routes.addService(v1contracts.File_v1_streams_proto.Services().ByName("V1Streams"))
-	mux.Handle(v1connect.NewV1StreamsHandler(s.streamsv1, opts...))
+	// the legacy v0 engine config doesn't run the streams service
+	if s.streamsv1 != nil {
+		routes.addService(v1contracts.File_v1_streams_proto.Services().ByName("V1Streams"))
+		mux.Handle(v1connect.NewV1StreamsHandler(s.streamsv1, opts...))
+	}
 
 	if s.operatorSvc != nil {
 		routes.addService(v1contracts.File_v1_operator_proto.Services().ByName("OperatorService"))
