@@ -120,18 +120,21 @@ sampled `nats pubsub async error` warning log is the only drop signal.
 
 `hatchet_pubsub_stale_skipped_total` is labelled by `kind` and `topic_kind`, and
 is currently reported by the NATS backend only. A NATS subscriber that falls behind
-skips messages whose `published_at` stamp is older than a fixed max age instead
-of handling them: 5 seconds for `scheduler-partition` (wake-ups that the
-scheduler's polling loops have already covered) and 30 seconds for
-`tenant-stream` (matching the RabbitMQ backend's per-message TTL). A sustained
+(at least 100 messages waiting in the NATS client) skips messages whose
+`published_at` stamp is older than a fixed max age instead of handling them: 5
+seconds for `scheduler-partition` (wake-ups that the scheduler's polling loops
+have already covered) and 30 seconds for `tenant-stream` (the same as the
+RabbitMQ backend's per-message TTL). Without a backlog no message is skipped, so
+clock skew between pods cannot cause skips on its own. A sustained
 non-zero rate means a subscriber cannot keep up. Skipped messages are not
 observed in `hatchet_pubsub_transit_seconds`, so read the two together.
 Pub/sub delivery is at most once and consumers also poll on an interval, so a
 skipped message is usually covered by the next poll. Two cases are not: a
 skipped wake-up for an idle queue waits for that queue's backed-off poll (up to
-45 seconds), and a skipped task stream event is not resent. The RabbitMQ backend
-drops task stream events the same way once they pass its 30-second TTL. Like
-transit latency, the age is subject to clock skew between pods.
+45 seconds), and a skipped task stream event is not resent. RabbitMQ's
+30-second TTL instead expires tenant-stream events while they are still queued,
+not after delivery to a subscriber. Like transit latency, the age is subject to
+clock skew between pods.
 
 ### Example PromQL Queries
 

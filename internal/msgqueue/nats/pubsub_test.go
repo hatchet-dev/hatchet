@@ -7,6 +7,7 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/rand"
+	"sync"
 	"testing"
 	"time"
 
@@ -127,7 +128,13 @@ func TestPubSubSchedulerTopicRoundtrip(t *testing.T) {
 	require.NoError(t, cleanupSub())
 }
 
-func TestPubSubSkipsStaleMessages(t *testing.T) {
+// handlerSlots is how many handler calls a subscription runs at once, so a test
+// can block every one of them.
+func handlerSlots(msgqueue.Topic) int {
+	return 1
+}
+
+func TestPubSubSkipsStaleMessagesBehindBacklog(t *testing.T) {
 	tests := []struct {
 		name     string
 		topic    msgqueue.Topic
@@ -147,14 +154,27 @@ func TestPubSubSkipsStaleMessages(t *testing.T) {
 			skipped := prommetrics.PubSubStaleSkipped.WithLabelValues("nats", string(tt.topic.Kind()))
 			skippedBefore := counterValue(t, skipped)
 
-			received := make(chan *msgqueue.Message, 3)
+			plugs := handlerSlots(tt.topic)
+			backlog := 2 * minBacklogForStaleSkip
+
+			started := make(chan struct{}, plugs)
+			unblock := make(chan struct{})
+			var unblockOnce sync.Once
+			release := func() { unblockOnce.Do(func() { close(unblock) }) }
+			received := make(chan string, plugs+backlog+3)
 
 			cleanupSub, err := ps.Sub(tt.topic, func(m *msgqueue.Message) error {
-				received <- m
+				if m.ID == "plug" {
+					started <- struct{}{}
+					<-unblock
+				}
+				received <- m.ID
 				return nil
 			})
 			require.NoError(t, err)
 			t.Cleanup(func() { _ = cleanupSub() })
+			// registered after the sub cleanup so it runs first
+			t.Cleanup(release)
 
 			publish := func(id string, publishedAt time.Time) {
 				msg, err := msgqueue.NewTenantMessage(uuid.New(), id, true, false, map[string]interface{}{"key": "value"})
@@ -163,22 +183,79 @@ func TestPubSubSkipsStaleMessages(t *testing.T) {
 				require.NoError(t, ps.Pub(ctx, tt.topic, msg))
 			}
 
+			// block every handler so the messages below queue up behind them
+			for range plugs {
+				publish("plug", time.Now())
+			}
+			for range plugs {
+				select {
+				case <-started:
+				case <-ctx.Done():
+					t.Fatal("plug handlers did not start")
+				}
+			}
+
 			now := time.Now()
 			publish("stale", now.Add(-tt.staleAge))
 			publish("fresh", now.Add(-tt.freshAge))
 			publish("unstamped", time.Time{})
+			for range backlog {
+				publish("filler", time.Now())
+			}
+			require.NoError(t, ps.nc.Flush())
 
-			got := receiveN(t, ctx, received, 2)
-			assert.ElementsMatch(t, []string{"fresh", "unstamped"}, []string{got[0].ID, got[1].ID})
+			release()
+
+			counts := map[string]int{}
+			for range plugs + backlog + 2 {
+				select {
+				case id := <-received:
+					counts[id]++
+				case <-ctx.Done():
+					t.Fatalf("timed out waiting for deliveries: got %v", counts)
+				}
+			}
+
+			assert.Equal(t, map[string]int{"plug": plugs, "fresh": 1, "unstamped": 1, "filler": backlog}, counts)
 			assert.Equal(t, skippedBefore+1, counterValue(t, skipped))
 
 			select {
-			case m := <-received:
-				t.Fatalf("unexpected delivery of %q", m.ID)
+			case id := <-received:
+				t.Fatalf("unexpected delivery of %q", id)
 			case <-time.After(200 * time.Millisecond):
 			}
 		})
 	}
+}
+
+// A stale stamp on a subscription with no backlog can only come from clock
+// skew between pods, so the message is delivered.
+func TestPubSubDeliversStaleMessagesWithoutBacklog(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	ps := newTestPubSub(t)
+	topic := msgqueue.SchedulerPartitionTopic(uuid.NewString())
+	skipped := prommetrics.PubSubStaleSkipped.WithLabelValues("nats", string(topic.Kind()))
+	skippedBefore := counterValue(t, skipped)
+
+	received := make(chan *msgqueue.Message, 1)
+
+	cleanupSub, err := ps.Sub(topic, func(m *msgqueue.Message) error {
+		received <- m
+		return nil
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = cleanupSub() })
+
+	msg, err := msgqueue.NewTenantMessage(uuid.New(), "skewed", true, false, map[string]interface{}{"key": "value"})
+	require.NoError(t, err)
+	msg.PublishedAt = time.Now().Add(-time.Minute)
+	require.NoError(t, ps.Pub(ctx, topic, msg))
+
+	got := receiveN(t, ctx, received, 1)
+	assert.Equal(t, "skewed", got[0].ID)
+	assert.Equal(t, skippedBefore, counterValue(t, skipped))
 }
 
 func TestPubSubLargePayload(t *testing.T) {

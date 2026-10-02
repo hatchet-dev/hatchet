@@ -34,6 +34,12 @@ var maxMessageAge = map[msgqueue.TopicKind]time.Duration{
 	msgqueue.TopicKindTenantStream:       30 * time.Second,
 }
 
+// minBacklogForStaleSkip is how many messages a subscription must have pending,
+// counting the one being checked, before Sub skips stale ones. Without a
+// backlog a message is handled as soon as it arrives, so an old stamp can only
+// come from clock skew between the publishing and subscribing pods.
+const minBacklogForStaleSkip = 100
+
 // PubSub implements msgqueue.PubSub over core NATS. Subjects are
 // subjectPrefix + "." + topic.Name() (default prefix "hatchet.pubsub"),
 // delivery is best-effort at-most-once.
@@ -306,7 +312,8 @@ func (p *PubSub) Pub(ctx context.Context, topic msgqueue.Topic, msg *msgqueue.Me
 
 // Sub subscribes to a topic with plain Subscribe (fan-out to every subscriber).
 // Delivery is at-most-once: handler errors are logged, never redelivered, and
-// messages older than the topic kind's maxMessageAge are skipped.
+// while the subscription has a backlog, messages older than the topic kind's
+// maxMessageAge are skipped.
 func (p *PubSub) Sub(topic msgqueue.Topic, handler msgqueue.MsgHandler) (func() error, error) {
 	subject := p.subject(topic)
 
@@ -318,17 +325,7 @@ func (p *PubSub) Sub(topic msgqueue.Topic, handler msgqueue.MsgHandler) (func() 
 			return
 		}
 
-		if age, stale := isStale(topic.Kind(), msg.PublishedAt, time.Now()); stale {
-			prommetrics.PubSubStaleSkipped.WithLabelValues("nats", string(topic.Kind())).Inc()
-			// pending_msgs tells a backlog (high) apart from publisher clock
-			// skew (near zero while every message is stale).
-			e := p.staleL.Warn().Str("subject", subject).Str("message_id", msg.ID).Dur("age", age)
-			if e.Enabled() {
-				if pendingMsgs, _, err := natsMsg.Sub.Pending(); err == nil {
-					e = e.Int("pending_msgs", pendingMsgs)
-				}
-			}
-			e.Msg("skipping stale nats pubsub message")
+		if p.skipIfStale(topic, natsMsg, msg) {
 			return
 		}
 
@@ -369,10 +366,35 @@ func (p *PubSub) Sub(topic msgqueue.Topic, handler msgqueue.MsgHandler) (func() 
 	}, nil
 }
 
+// skipIfStale reports whether msg should be skipped: it is past its topic
+// kind's max age and its subscription has a backlog. The skip is counted and
+// logged.
+func (p *PubSub) skipIfStale(topic msgqueue.Topic, natsMsg *natsgo.Msg, msg *msgqueue.Message) bool {
+	age, stale := isStale(topic.Kind(), msg.PublishedAt, time.Now())
+	if !stale {
+		return false
+	}
+
+	pendingMsgs, _, err := natsMsg.Sub.Pending()
+	if err != nil || pendingMsgs < minBacklogForStaleSkip {
+		return false
+	}
+
+	prommetrics.PubSubStaleSkipped.WithLabelValues("nats", string(topic.Kind())).Inc()
+
+	p.staleL.Warn().
+		Str("subject", natsMsg.Subject).
+		Str("message_id", msg.ID).
+		Dur("age", age).
+		Int("pending_msgs", pendingMsgs).
+		Msg("skipping stale nats pubsub message")
+
+	return true
+}
+
 // isStale reports whether a message published at publishedAt is past the max
-// age for its topic kind at now, and its age. Unstamped messages (published by
-// engines that predate the stamp) and stamps in the future (clock skew) are
-// never stale.
+// age for its topic kind at now, and its age. Unstamped messages and stamps in
+// the future (clock skew) are never stale.
 func isStale(kind msgqueue.TopicKind, publishedAt, now time.Time) (time.Duration, bool) {
 	maxAge, ok := maxMessageAge[kind]
 	if !ok || publishedAt.IsZero() {
