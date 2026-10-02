@@ -22,8 +22,8 @@ import (
 // concurrency the rabbitmq backend reached under synthetic load with 50ms
 // handlers (3000 msgs/s on a scheduler partition, 1000 msgs/s on a tenant
 // stream). A scheduler-partition subscription multiplexes every tenant of the
-// partition, so it gets the larger bound; its handlers' database work is
-// already limited to one replenish per tenant at a time.
+// partition, so it gets the larger bound; the scheduler already limits its
+// handlers' database work per tenant.
 var maxConcurrentHandlers = map[msgqueue.TopicKind]int{
 	msgqueue.TopicKindSchedulerPartition: 512,
 	msgqueue.TopicKindTenantStream:       128,
