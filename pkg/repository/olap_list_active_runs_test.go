@@ -221,4 +221,37 @@ func TestOLAPListRuns_ActiveRunsOlderThanWindow(t *testing.T) {
 			})
 		})
 	}
+
+	// The count is capped at 20,000 rows. With older active runs included the cap applies
+	// to the union of both branches, not to each branch separately.
+	t.Run("count_cap_spans_both_branches", func(t *testing.T) {
+		capTenantId := uuid.New()
+		const perBranch = 10_025
+
+		_, err := pool.Exec(ctx, `
+			INSERT INTO v1_runs_olap (tenant_id, id, inserted_at, external_id, readable_status, kind, workflow_id, workflow_version_id)
+			SELECT $1::uuid, g, $2::timestamptz + (g * INTERVAL '1 millisecond'), gen_random_uuid(), 'COMPLETED'::v1_readable_status_olap, 'TASK'::v1_run_kind, $4::uuid, $4::uuid
+			FROM generate_series(1, $3::int) g
+			UNION ALL
+			SELECT $1::uuid, $3::int + g, $5::timestamptz + (g * INTERVAL '1 millisecond'), gen_random_uuid(), 'RUNNING'::v1_readable_status_olap, 'TASK'::v1_run_kind, $4::uuid, $4::uuid
+			FROM generate_series(1, $3::int) g
+		`, capTenantId, now.Add(-time.Hour), perBranch, uuid.New(), olderInsertedAt)
+		require.NoError(t, err)
+
+		count := func(includeOlderActive bool) int {
+			t.Helper()
+
+			_, count, err := repo.ListWorkflowRuns(ctx, capTenantId, ListWorkflowRunOpts{
+				CreatedAfter:           since,
+				Limit:                  1,
+				IncludeOlderActiveRuns: includeOlderActive,
+			})
+			require.NoError(t, err)
+
+			return count
+		}
+
+		assert.Equal(t, perBranch, count(false))
+		assert.Equal(t, 20_000, count(true))
+	})
 }

@@ -871,7 +871,7 @@ WHERE
         OR idempotency_key = ANY($13::TEXT[])
     )
 ORDER BY inserted_at DESC, id DESC
-LIMIT $9::integer + $8::integer
+LIMIT $9::integer::bigint + $8::integer::bigint
 )
 UNION ALL
 (
@@ -928,7 +928,7 @@ WHERE
         OR idempotency_key = ANY($13::TEXT[])
     )
 ORDER BY inserted_at DESC, id DESC
-LIMIT $9::integer + $8::integer
+LIMIT $9::integer::bigint + $8::integer::bigint
 )
 ) runs
 ORDER BY inserted_at DESC, id DESC
@@ -987,7 +987,7 @@ WHERE
         OR idempotency_key = ANY($13::TEXT[])
     )
 ORDER BY inserted_at DESC, id DESC
-LIMIT $9::integer + $8::integer
+LIMIT $9::integer::bigint + $8::integer::bigint
 )
 UNION ALL
 (
@@ -1041,7 +1041,7 @@ WHERE
         OR idempotency_key = ANY($13::TEXT[])
     )
 ORDER BY inserted_at DESC, id DESC
-LIMIT $9::integer + $8::integer
+LIMIT $9::integer::bigint + $8::integer::bigint
 )
 ) runs
 ORDER BY inserted_at DESC, id DESC
@@ -1100,7 +1100,7 @@ WHERE
         OR idempotency_key = ANY($13::TEXT[])
     )
 ORDER BY inserted_at DESC, id DESC
-LIMIT $9::integer + $8::integer
+LIMIT $9::integer::bigint + $8::integer::bigint
 )
 UNION ALL
 (
@@ -1154,7 +1154,7 @@ WHERE
         OR idempotency_key = ANY($13::TEXT[])
     )
 ORDER BY inserted_at DESC, id DESC
-LIMIT $9::integer + $8::integer
+LIMIT $9::integer::bigint + $8::integer::bigint
 )
 ) runs
 ORDER BY inserted_at DESC, id DESC
@@ -1300,7 +1300,7 @@ WHERE
     )
 ORDER BY
     inserted_at DESC
-LIMIT $10::integer + $9::integer
+LIMIT $10::integer::bigint + $9::integer::bigint
 )
 UNION ALL
 (
@@ -1359,7 +1359,7 @@ WHERE
     )
 ORDER BY
     inserted_at DESC
-LIMIT $10::integer + $9::integer
+LIMIT $10::integer::bigint + $9::integer::bigint
 )
 ) tasks
 ORDER BY
@@ -1423,7 +1423,7 @@ WHERE
     )
 ORDER BY
     inserted_at DESC
-LIMIT $10::integer + $9::integer
+LIMIT $10::integer::bigint + $9::integer::bigint
 )
 UNION ALL
 (
@@ -1479,7 +1479,7 @@ WHERE
     )
 ORDER BY
     inserted_at DESC
-LIMIT $10::integer + $9::integer
+LIMIT $10::integer::bigint + $9::integer::bigint
 )
 ) tasks
 ORDER BY
@@ -1543,7 +1543,7 @@ WHERE
 	)
 ORDER BY
     inserted_at DESC
-LIMIT $10::integer + $9::integer
+LIMIT $10::integer::bigint + $9::integer::bigint
 )
 UNION ALL
 (
@@ -1599,7 +1599,7 @@ WHERE
 	)
 ORDER BY
     inserted_at DESC
-LIMIT $10::integer + $9::integer
+LIMIT $10::integer::bigint + $9::integer::bigint
 )
 ) tasks
 ORDER BY
