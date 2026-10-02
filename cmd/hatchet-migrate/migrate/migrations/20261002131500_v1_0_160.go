@@ -9,15 +9,15 @@ import (
 )
 
 func init() {
-	goose.AddMigrationNoTxContext(upV10158, downV10158)
+	goose.AddMigrationNoTxContext(upV10160, downV10160)
 }
 
-// v10158Tables are the OLAP tables whose list/count queries have an "active runs older
+// v10160Tables are the OLAP tables whose list/count queries have an "active runs older
 // than the time window" branch. The partial index keeps that branch an index range scan
 // over only QUEUED/RUNNING rows, which is a small, self-pruning subset of each partition.
-var v10158Tables = []string{"v1_runs_olap", "v1_tasks_olap"}
+var v10160Tables = []string{"v1_runs_olap", "v1_tasks_olap"}
 
-func v10158IndexName(table string) string {
+func v10160IndexName(table string) string {
 	return fmt.Sprintf("ix_%s_tenant_ins_at_active", table)
 }
 
@@ -25,8 +25,8 @@ func v10158IndexName(table string) string {
 // concurrently on each leaf partition first and then created on the parent, which
 // attaches the matching partition indexes instead of rebuilding them. New partitions
 // inherit the parent index automatically.
-func upV10158(ctx context.Context, db *sql.DB) error {
-	for _, table := range v10158Tables {
+func upV10160(ctx context.Context, db *sql.DB) error {
+	for _, table := range v10160Tables {
 		partitions, err := listLeafPartitions(ctx, db, table, 1)
 
 		if err != nil {
@@ -37,7 +37,7 @@ func upV10158(ctx context.Context, db *sql.DB) error {
 			// #nosec G201 -- identifiers are quoted and derived from internal migration logic, not user input
 			stmt := fmt.Sprintf(
 				`CREATE INDEX CONCURRENTLY IF NOT EXISTS %s ON %s (tenant_id, inserted_at DESC) WHERE readable_status IN ('QUEUED', 'RUNNING');`,
-				quoteIdent(v10158IndexName(partition)),
+				quoteIdent(v10160IndexName(partition)),
 				quoteIdent(partition),
 			)
 
@@ -49,7 +49,7 @@ func upV10158(ctx context.Context, db *sql.DB) error {
 		// #nosec G201 -- identifiers are quoted and derived from internal migration logic, not user input
 		stmt := fmt.Sprintf(
 			`CREATE INDEX IF NOT EXISTS %s ON %s (tenant_id, inserted_at DESC) WHERE readable_status IN ('QUEUED', 'RUNNING');`,
-			quoteIdent(v10158IndexName(table)),
+			quoteIdent(v10160IndexName(table)),
 			quoteIdent(table),
 		)
 
@@ -61,9 +61,9 @@ func upV10158(ctx context.Context, db *sql.DB) error {
 	return nil
 }
 
-func downV10158(ctx context.Context, db *sql.DB) error {
-	for _, table := range v10158Tables {
-		stmt := fmt.Sprintf("DROP INDEX IF EXISTS %s", quoteIdent(v10158IndexName(table)))
+func downV10160(ctx context.Context, db *sql.DB) error {
+	for _, table := range v10160Tables {
+		stmt := fmt.Sprintf("DROP INDEX IF EXISTS %s", quoteIdent(v10160IndexName(table)))
 
 		if _, err := db.ExecContext(ctx, stmt); err != nil {
 			return fmt.Errorf("failed to drop index on %s: %w", table, err)
