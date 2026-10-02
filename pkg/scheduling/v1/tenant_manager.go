@@ -478,6 +478,12 @@ func (t *tenantManager) replenish(ctx context.Context) {
 	}
 }
 
+// requestReplenish is the non-blocking form of replenish, for callers that do
+// not act on the refreshed slots themselves.
+func (t *tenantManager) requestReplenish() {
+	t.scheduler.notifyReplenish()
+}
+
 func (t *tenantManager) notifyConcurrency(ctx context.Context, strategyIds []int64) {
 	strategyIdsMap := make(map[int64]struct{}, len(strategyIds))
 	unmatchedIds := make(map[int64]struct{}, len(strategyIds))

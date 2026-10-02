@@ -206,9 +206,9 @@ func (p *SchedulingPool) cleanupTenants(toCleanup []*tenantManager) {
 	wg.Wait()
 }
 
-func (p *SchedulingPool) Replenish(ctx context.Context, tenantId uuid.UUID) {
+func (p *SchedulingPool) Replenish(_ context.Context, tenantId uuid.UUID) {
 	if tm := p.getTenantManager(tenantId, false); tm != nil {
-		tm.replenish(ctx)
+		tm.requestReplenish()
 	}
 }
 
