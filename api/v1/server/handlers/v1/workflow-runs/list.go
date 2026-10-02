@@ -100,14 +100,10 @@ func normalizeWorkflowRunStatuses(statuses []gen.V1TaskStatus, runningFilter *ge
 	return normalized
 }
 
-// includeOlderActiveRuns maps the optional include_older_active_runs query param,
-// defaulting to true so in-flight runs stay visible regardless of the time window.
+// includeOlderActiveRuns maps the optional include_older_active_runs query param;
+// the strict since bound applies unless the caller opts in.
 func includeOlderActiveRuns(param *bool) bool {
-	if param == nil {
-		return true
-	}
-
-	return *param
+	return param != nil && *param
 }
 
 func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenantId uuid.UUID, useGinIndex bool, canViewPayloads bool) (gen.V1WorkflowRunListResponseObject, error) {

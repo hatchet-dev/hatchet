@@ -114,7 +114,7 @@ const createApiFilterSchema = (initialValues?: { workflowIds?: string[] }) =>
       .default(V1AdditionalMetadataOperator.AND),
     f: z.boolean().default(false), // flatten dags
     // also list QUEUED/RUNNING runs created before the time window
-    oa: z.boolean().default(true),
+    oa: z.boolean().default(false),
     rf: z.nativeEnum(V1RunningFilter).optional(), // running sub-filter (undefined = ALL)
     i: z.array(z.string()).optional(), // idempotency keys
   });

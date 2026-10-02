@@ -164,10 +164,8 @@ function FilterControl<TData>({
           <Checkbox
             id={`filter-${filter.columnId}`}
             checked={!!value}
-            // Store the explicit boolean so an unchecked switch survives a
-            // schema default of true (see includeOlderActiveRuns).
             onCheckedChange={(checked) =>
-              column?.setFilterValue(checked === true)
+              column?.setFilterValue(checked === true ? true : undefined)
             }
           />
         </div>
@@ -609,12 +607,10 @@ export function DataTableOptions<TData>({
           return false;
         }
 
-        if (f.id === flattenDAGsKey && !f.value) {
-          return false;
-        }
-
-        // checked is the default, so only an unchecked switch counts as a filter
-        if (f.id === includeOlderActiveRunsKey && f.value === true) {
+        if (
+          (f.id === flattenDAGsKey || f.id === includeOlderActiveRunsKey) &&
+          !f.value
+        ) {
           return false;
         }
 
