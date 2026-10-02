@@ -74,6 +74,11 @@ func RunTestWithEngine(m *testing.M) {
 			goleak.IgnoreTopFunction("github.com/hashicorp/golang-lru/v2/expirable.NewLRU[...].func1"),
 			goleak.IgnoreTopFunction("github.com/hatchet-dev/hatchet/internal/cache.NewTTL[...].func1"),
 			goleak.IgnoreTopFunction("google.golang.org/grpc/internal/resolver/dns.(*dnsResolver).watcher"),
+			// a CPU profile requested over net/http/pprof is usually still being
+			// collected when the tests finish; its handler and profile writer
+			// belong to the sampler, not to the code under test
+			goleak.IgnoreTopFunction("net/http/pprof.sleep"),
+			goleak.IgnoreTopFunction("runtime/pprof.readProfile"),
 			goleak.IgnoreTopFunction("github.com/testcontainers/testcontainers-go.(*Reaper).connect.func1"),
 			goleak.IgnoreTopFunction("go.opencensus.io/stats/view.(*worker).start"),
 			goleak.IgnoreTopFunction("google.golang.org/grpc/internal/grpcsync.(*CallbackSerializer).run"),
@@ -267,6 +272,9 @@ func startPostgres(ctx context.Context, pgVersion string) (string, func() error)
 		postgres.WithUsername("user"),
 		postgres.WithPassword("password"),
 		testcontainers.WithHostPortAccess(pgPort),
+		// preloaded so CI can snapshot pg_stat_statements while the tests run;
+		// the extension itself is created by whoever reads it
+		testcontainers.WithCmdArgs("-c", "shared_preload_libraries=pg_stat_statements", "-c", "pg_stat_statements.track=all"),
 	)
 
 	if err != nil {

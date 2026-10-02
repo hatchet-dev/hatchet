@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/authz"
 	v1handlers "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
@@ -126,8 +127,10 @@ func (t *LogsService) V1TenantLogLineList(ctx echo.Context, request gen.V1Tenant
 
 	rows := make([]gen.V1LogLine, len(logLines))
 
+	canViewPayloads := transformers.WithPayloads(authz.CanViewPayloads(ctx))
+
 	for i, log := range logLines {
-		rows[i] = *transformers.ToV1LogLine(log)
+		rows[i] = *transformers.ToV1LogLine(log, canViewPayloads)
 	}
 
 	totalPages := int64(0)
