@@ -202,6 +202,14 @@ export interface Organization {
    * @format int64
    */
   inactivity_timeout?: number;
+  /** The organization's current subscription. Omitted when the organization has no current subscription. */
+  subscription?: OrganizationCurrentSubscription;
+}
+
+export interface OrganizationCurrentSubscription {
+  metadata: APIResourceMeta;
+  /** The plan of the current subscription. */
+  plan: SubscriptionPlanCode;
 }
 
 export interface OrganizationForUser {
@@ -333,7 +341,7 @@ export interface CreateManagementTokenRequest {
   name: string;
   /** @default "30D" */
   duration?: ManagementTokenDuration;
-  /** Optional tags to scope this token. When set, the token can only access or create tenants whose tags are a subset of these tags. An empty or omitted list grants full access to the org. */
+  /** Optional tags to scope this token to tenants. Tags exist on tenants, not on the organization, its members, or its invites. When set, the token can only access or create tenants whose tags are a non-empty subset of these tags (a tenant tagged "*" is always in scope; a tenant with no tags never is). It cannot update the organization, change or remove members, or delete invites, because those resources have no tags to match against the token. An empty or omitted list grants full access to the organization. */
   tags?: string[];
 }
 
