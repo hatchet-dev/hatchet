@@ -19,12 +19,16 @@ import (
 // defaultSubjectPrefix is used when WithPubSubSubjectPrefix is unset or empty.
 const defaultSubjectPrefix = "hatchet.pubsub"
 
-// maxMessageAge defines what's the cutoff for not delivering a Pub/Sub message.
-// Pub/Sub messages are at most once, best-effort delivery. The consumers run
-// pooling loops as a backup. So older than maxMessageAge message has no value.
+// maxMessageAge is the cutoff past which Sub skips a pub/sub message instead of
+// delivering it. Pub/sub delivery is at most once and best effort, and consumers
+// run polling loops as a backup, so a message older than maxMessageAge has
+// little value. A buildup of such messages means the consumer can't keep up; a
+// hard cutoff bounds the backlog.
 //
-// A buildup of these messages suggests the consumer can't keep it. A hard
-// cutoff limits the backlog.
+// Two skips are not covered by a poll soon: a wake-up for an idle queue waits
+// for its backed-off poll (up to 45s), and task stream events have no other
+// delivery path, which is why the tenant-stream cutoff matches the rabbitmq
+// backend's per-message TTL.
 var maxMessageAge = map[msgqueue.TopicKind]time.Duration{
 	msgqueue.TopicKindSchedulerPartition: 5 * time.Second,
 	msgqueue.TopicKindTenantStream:       30 * time.Second,

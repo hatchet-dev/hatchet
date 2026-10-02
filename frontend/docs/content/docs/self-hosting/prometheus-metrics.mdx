@@ -126,9 +126,12 @@ scheduler's polling loops have already covered) and 30 seconds for
 `tenant-stream` (matching the RabbitMQ backend's per-message TTL). A sustained
 non-zero rate means a subscriber cannot keep up. Skipped messages are not
 observed in `hatchet_pubsub_transit_seconds`, so read the two together.
-A skipped message is never a problem, because Pub/Sub is at most once,
-and the consumer will pool on an interval. Like transit latency, the age is subject to
-clock skew between pods.
+Pub/sub delivery is at most once and consumers also poll on an interval, so a
+skipped message is usually covered by the next poll. Two cases are not: a
+skipped wake-up for an idle queue waits for that queue's backed-off poll (up to
+45 seconds), and a skipped task stream event is not resent. The RabbitMQ backend
+drops task stream events the same way once they pass its 30-second TTL. Like
+transit latency, the age is subject to clock skew between pods.
 
 ### Example PromQL Queries
 
