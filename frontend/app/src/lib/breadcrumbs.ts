@@ -42,6 +42,7 @@ type OrganizationPath =
   | '/organizations/:organization/settings/regions'
   | '/organizations/:organization/settings/sso'
   | '/organizations/:organization/settings/audit-log'
+  | '/organizations/:organization/settings/compliance'
   | '/organizations/:organization/settings/billing';
 
 export interface BreadcrumbItem {
@@ -142,7 +143,8 @@ const createOrganizationRouteLabel = (path: OrganizationPath): string => {
     case '/organizations/:organization/settings/sso':
       return 'SSO';
     case '/organizations/:organization/settings/audit-log':
-      return 'Audit Log';
+    case '/organizations/:organization/settings/compliance':
+      return 'Compliance';
     case '/organizations/:organization/settings/billing':
       return 'Billing & Usage';
     default:

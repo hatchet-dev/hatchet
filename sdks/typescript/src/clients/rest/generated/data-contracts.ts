@@ -1006,6 +1006,8 @@ export interface Tenant {
   serverUrl?: string;
   /** Control-plane shard region for the tenant (e.g. aws:us-west-2). */
   region?: string;
+  /** The data retention period for the tenant, e.g. 720h. */
+  dataRetentionPeriod?: string;
 }
 
 export interface V1EventWorkflowRunSummary {

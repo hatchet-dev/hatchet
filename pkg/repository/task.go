@@ -34,6 +34,20 @@ func isLockNotAvailable(err error) bool {
 	return errors.As(err, &pgErr) && pgErr.Code == pgerrcode.LockNotAvailable
 }
 
+func isDeadlockDetected(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == pgerrcode.DeadlockDetected
+}
+
+// isPartitionLockConflict reports whether partition maintenance gave up because other queries
+// were using the same tables. That happens in two ways: we waited longer than lock_timeout
+// (55P03), or Postgres saw two transactions each waiting for a lock the other holds and
+// cancelled ours to break the tie (40P01, a deadlock). Neither means anything is broken, so
+// callers retry on the next scheduled run.
+func isPartitionLockConflict(err error) bool {
+	return isLockNotAvailable(err) || isDeadlockDetected(err)
+}
+
 func isPendingDetach(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == pgerrcode.ObjectNotInPrerequisiteState && strings.Contains(pgErr.Message, "already pending detach")
@@ -269,6 +283,8 @@ type TaskRepository interface {
 
 	ListDurableOrchestratorChildExternalIds(ctx context.Context, tenantId, orchestratorExternalId uuid.UUID) ([]uuid.UUID, error)
 
+	ListUnfinishedDurableOrchestratorChildren(ctx context.Context, tenantId uuid.UUID, orchestratorExternalIds []uuid.UUID) ([]TaskIdInsertedAtRetryCount, error)
+
 	CompleteTasks(ctx context.Context, tenantId uuid.UUID, tasks []CompleteTaskOpts) (*FinalizedTaskResponse, error)
 
 	FailTasks(ctx context.Context, tenantId uuid.UUID, tasks []FailTaskOpts) (*FailTasksResponse, error)
@@ -389,6 +405,67 @@ func createExternalIdUniqueConstraintsOnDailyPartitions(ctx context.Context, db 
 	}
 
 	return nil
+}
+
+// reattachIndicesToParents repairs parent indexes that Postgres still marks invalid even though
+// every partition now has a valid copy of the index. Postgres only re-checks a parent when a
+// child is attached, so re-running ATTACH PARTITION on a child that is already attached makes
+// it re-check and mark the parent valid.
+//
+// Two things to know before touching this:
+//   - Each ATTACH locks the child index so nothing else can read or write through it until
+//     the transaction commits. Don't attach more than needed.
+//   - Older Postgres versions don't have the re-check (see reattachValidatesParent). There the
+//     statement leaves the parent invalid but still takes the lock, so we skip it entirely.
+func reattachIndicesToParents(ctx context.Context, queries *sqlcv1.Queries, db sqlcv1.DBTX, isOlap bool) error {
+	var serverVersionNum int
+	if err := db.QueryRow(ctx, "SELECT current_setting('server_version_num')::int").Scan(&serverVersionNum); err != nil {
+		return fmt.Errorf("failed to read server_version_num: %w", err)
+	}
+
+	if !reattachValidatesParent(serverVersionNum) {
+		return nil
+	}
+
+	invalidIndexes, err := queries.FindInvalidIndexes(ctx, db, isOlap)
+	if err != nil {
+		return fmt.Errorf("failed to list invalid partitioned indexes: %w", err)
+	}
+
+	for _, index := range invalidIndexes {
+		_, err := db.Exec(ctx, fmt.Sprintf("ALTER INDEX %s ATTACH PARTITION %s;", index.ParentIndexName, index.ExampleChildIndexName))
+
+		if err != nil {
+			return fmt.Errorf("failed to attach index %s to invalid parent index %s on %s: %w", index.ExampleChildIndexName, index.ParentIndexName, index.ParentTableName, err)
+		}
+	}
+
+	return nil
+}
+
+// reattachValidatesParentSinceMinor is the first minor release, per major version, in which
+// ALTER INDEX ... ATTACH PARTITION re-checks the parent when the child is already attached.
+// Every release from 19 on has it.
+var reattachValidatesParentSinceMinor = map[int]int{
+	14: 23,
+	15: 18,
+	16: 14,
+	17: 10,
+	18: 4,
+}
+
+// reattachValidatesParent takes server_version_num (for example 180003 for 18.3) and reports
+// whether re-attaching an already attached child index can mark its parent valid.
+func reattachValidatesParent(serverVersionNum int) bool {
+	major, minor := serverVersionNum/10000, serverVersionNum%10000
+
+	if major >= 19 {
+		return true
+	}
+
+	sinceMinor, ok := reattachValidatesParentSinceMinor[major]
+
+	return ok && minor >= sinceMinor
 }
 
 func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
@@ -585,7 +662,11 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		return fmt.Errorf("failed to delete old payload offloaded block index rows: %w", err)
 	}
 
-	return nil
+	// Runs last, in its own transaction, so that if it gives up on a lock, partition creation
+	// and cleanup above have already been committed.
+	return runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
+		return reattachIndicesToParents(ctx, r.queries, tx, false)
+	})
 }
 
 func (r *sharedRepository) GetTaskByExternalId(ctx context.Context, tenantId, taskExternalId uuid.UUID, skipCache bool) (*sqlcv1.FlattenExternalIdsRow, error) {
@@ -1371,6 +1452,29 @@ func (r *TaskRepositoryImpl) ListDurableOrchestratorChildExternalIds(ctx context
 	return r.queries.ListDurableOrchestratorChildTaskExternalIds(ctx, r.pool, []uuid.UUID{orchestratorExternalId})
 }
 
+func (r *TaskRepositoryImpl) ListUnfinishedDurableOrchestratorChildren(ctx context.Context, tenantId uuid.UUID, orchestratorExternalIds []uuid.UUID) ([]TaskIdInsertedAtRetryCount, error) {
+	rows, err := r.queries.ListUnfinishedDurableOrchestratorChildren(ctx, r.pool, sqlcv1.ListUnfinishedDurableOrchestratorChildrenParams{
+		Tenantid:                tenantId,
+		Orchestratorexternalids: orchestratorExternalIds,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	children := make([]TaskIdInsertedAtRetryCount, len(rows))
+
+	for i, row := range rows {
+		children[i] = TaskIdInsertedAtRetryCount{
+			Id:         row.ID,
+			InsertedAt: row.InsertedAt,
+			RetryCount: row.RetryCount,
+		}
+	}
+
+	return children, nil
+}
+
 func (r *TaskRepositoryImpl) listTaskOutputEvents(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, taskExternalIds []uuid.UUID) ([]*TaskOutputEvent, error) {
 	eventTypes := make([][]string, 0)
 
@@ -2115,6 +2219,12 @@ func (r *sharedRepository) upsertQueues(ctx context.Context, tx sqlcv1.DBTX, ten
 
 	for queue := range queuesToInsert {
 		uniqueQueues = append(uniqueQueues, queue)
+	}
+
+	// every queue is already known (5 minute cache): the statement would run with an empty
+	// name list and do nothing, so skip the round trip
+	if len(uniqueQueues) == 0 {
+		return func() {}, nil
 	}
 
 	err := r.queries.UpsertQueues(ctx, tx, sqlcv1.UpsertQueuesParams{
@@ -3524,6 +3634,12 @@ func (r *sharedRepository) createTaskEvents(
 		return nil, fmt.Errorf("mismatched task and child external id lengths")
 	}
 
+	// the common insert path (every task born QUEUED) has no events to write: skip the
+	// statement and the payload store round trip
+	if len(tasks) == 0 {
+		return []InternalTaskEvent{}, nil
+	}
+
 	taskIds := make([]int64, len(tasks))
 	taskInsertedAts := make([]pgtype.Timestamptz, len(tasks))
 	retryCounts := make([]int32, len(tasks))
@@ -4578,6 +4694,36 @@ func (r *TaskRepositoryImpl) AnalyzeTaskTables(ctx context.Context) error {
 		return fmt.Errorf("error analyzing v1_payload: %v", err)
 	}
 
+	err = r.queries.AnalyzeV1DurableEventLogEntry(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_durable_event_log_entry: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1DurableEventLogBranchPoint(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_durable_event_log_branch_point: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1DurableEventLogFile(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_durable_event_log_file: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1LogLine(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_log_line: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1Event(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_event: %v", err)
+	}
+
 	if err := commit(ctx); err != nil {
 		return fmt.Errorf("error committing transaction: %v", err)
 	}
@@ -5000,7 +5146,10 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 			rootExternalIds = append(rootExternalIds, child.ExternalID)
 		}
 
-		version, err := r.queries.GetWorkflowVersionById(ctx, r.pool, orchestrator.WorkflowVersionID)
+		version, err := r.queries.GetWorkflowVersionById(ctx, r.pool, sqlcv1.GetWorkflowVersionByIdParams{
+			ID:       orchestrator.WorkflowVersionID,
+			Tenantid: tenantId,
+		})
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to get workflow version: %w", err)

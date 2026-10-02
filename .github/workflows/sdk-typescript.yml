@@ -43,7 +43,7 @@ jobs:
 
       - name: Install pnpm
         if: matrix.package-manager == 'pnpm'
-        run: npm install -g pnpm@10.16.1
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" npm install -g pnpm@10.16.1
 
       - name: Get pnpm store directory
         if: matrix.package-manager == 'pnpm'
@@ -69,7 +69,7 @@ jobs:
           cache-dependency-path: sdks/typescript/pnpm-lock.yaml
 
       - name: Install dependencies
-        run: ${{ matrix.install-cmd }}
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" ${{ matrix.install-cmd }}
 
       - name: Lint
         run: ${{ matrix.lint-cmd }}
@@ -81,11 +81,37 @@ jobs:
         if: matrix.package-manager == 'pnpm'
         run: pnpm check:edge
 
+      - name: Check the core entry point is free of Node imports and gRPC packages
+        if: matrix.package-manager == 'pnpm'
+        run: pnpm check:core
+
+      - name: Check the package exports map resolves from ESM and CJS
+        if: matrix.package-manager == 'pnpm'
+        run: pnpm check:exports
+
       - name: Setup Go
         if: matrix.package-manager == 'pnpm'
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: "1.26"
+
+      - name: Install Protoc
+        if: matrix.package-manager == 'pnpm'
+        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3.0.0
+        with:
+          version: "29.6"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # The action matches the version by prefix and does not pin the archive, so the compiler
+      # that generates the bindings is checked to be exactly the one they are committed from.
+      - name: Check protoc version
+        if: matrix.package-manager == 'pnpm'
+        run: |
+          version="$(protoc --version)"
+          if [ "$version" != "libprotoc 29.6" ]; then
+            echo "::error::expected libprotoc 29.6, got $version"
+            exit 1
+          fi
 
       - name: Generate OpenAPI spec
         if: matrix.package-manager == 'pnpm'
@@ -97,13 +123,14 @@ jobs:
         run: |
           pnpm run generate-api
           ./generate-protoc.sh
+          ./generate-protoc-es.sh
 
       - name: Check generated bindings are up to date
         if: matrix.package-manager == 'pnpm'
         run: |
-          git add -A src/protoc src/clients/rest/generated
-          if ! git diff --cached --exit-code -- src/protoc src/clients/rest/generated; then
-            echo "::error::Generated protobuf/REST bindings are out of date. Run 'pnpm run generate-api' and 'sdks/typescript/generate-protoc.sh' and commit the changes."
+          git add -A src/protoc src/protoc-es src/clients/rest/generated
+          if ! git diff --cached --exit-code -- src/protoc src/protoc-es src/clients/rest/generated; then
+            echo "::error::Generated protobuf/REST bindings are out of date. Run 'pnpm run generate-api', 'sdks/typescript/generate-protoc.sh' and 'sdks/typescript/generate-protoc-es.sh' and commit the changes."
             exit 1
           fi
 
@@ -132,7 +159,7 @@ jobs:
 
       - name: Install pnpm
         if: matrix.package-manager == 'pnpm'
-        run: npm install -g pnpm@10.16.1
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" npm install -g pnpm@10.16.1
 
       - name: Get pnpm store directory
         if: matrix.package-manager == 'pnpm'
@@ -158,7 +185,7 @@ jobs:
           cache-dependency-path: sdks/typescript/pnpm-lock.yaml
 
       - name: Install dependencies
-        run: ${{ matrix.install-cmd }}
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" ${{ matrix.install-cmd }}
 
       - name: Unit tests
         run: ${{ matrix.unit-test-cmd }}
@@ -206,7 +233,7 @@ jobs:
 
       - name: Install pnpm
         if: matrix.package-manager == 'pnpm'
-        run: npm install -g pnpm@10.16.1
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" npm install -g pnpm@10.16.1
 
       - name: Get pnpm store directory
         if: matrix.package-manager == 'pnpm'
@@ -236,7 +263,7 @@ jobs:
         run: docker compose up -d
 
       - name: Install dependencies
-        run: ${{ matrix.install-cmd }}
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" ${{ matrix.install-cmd }}
 
       - name: Generate
         working-directory: .
@@ -300,7 +327,7 @@ jobs:
           submodules: recursive
 
       - name: Install pnpm
-        run: npm install -g pnpm@10.16.1
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" npm install -g pnpm@10.16.1
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -321,7 +348,7 @@ jobs:
             ${{ runner.os }}-pnpm-store-
 
       - name: Install dependencies
-        run: pnpm install
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" pnpm install
 
       - name: Build and Publish SDK
         run: |

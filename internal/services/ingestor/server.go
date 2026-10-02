@@ -2,9 +2,10 @@ package ingestor
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
+	"connectrpc.com/connect"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/google/uuid"
@@ -33,23 +34,23 @@ func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest
 	}
 
 	if err := v1.ValidateJSONB(additionalMeta, "additionalMetadata"); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("Invalid request: %s", err))
 	}
 
 	payloadBytes := []byte(req.Payload)
 
 	if err := v1.ValidateJSONB(payloadBytes, "payload"); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("Invalid request: %s", err))
 	}
 
 	if req.Priority != nil && (*req.Priority < 1 || *req.Priority > 3) {
-		return nil, status.Errorf(codes.InvalidArgument, "priority must be between 1 and 3, got %d", *req.Priority)
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("priority must be between 1 and 3, got %d", *req.Priority))
 	}
 
 	event, err := i.IngestEvent(ctx, tenant, req.Key, []byte(req.Payload), additionalMeta, req.Priority, req.Scope, nil)
 
 	if err == v1.ErrResourceExhausted {
-		return nil, status.Errorf(codes.ResourceExhausted, "resource exhausted: event limit exceeded for tenant")
+		return nil, connect.NewError(connect.CodeResourceExhausted, errors.New("resource exhausted: event limit exceeded for tenant"))
 	}
 
 	if err != nil {
@@ -96,11 +97,11 @@ func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEven
 
 	if len(req.Events) == 0 {
 
-		return nil, status.Errorf(codes.InvalidArgument, "No events to ingest")
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("No events to ingest"))
 	}
 
 	if len(req.Events) > 1000 {
-		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: too many events - %d is over maximum (1000)", len(req.Events))
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("Invalid request: too many events - %d is over maximum (1000)", len(req.Events)))
 	}
 
 	events := make([]*CreateEventOpts, 0)
@@ -112,17 +113,17 @@ func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEven
 		}
 
 		if err := v1.ValidateJSONB(additionalMeta, "additionalMetadata"); err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
+			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("Invalid request: %s", err))
 		}
 
 		payloadBytes := []byte(e.Payload)
 
 		if err := v1.ValidateJSONB(payloadBytes, "payload"); err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
+			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("Invalid request: %s", err))
 		}
 
 		if e.Priority != nil && (*e.Priority < 1 || *e.Priority > 3) {
-			return nil, status.Errorf(codes.InvalidArgument, "priority must be between 1 and 3, got %d", *e.Priority)
+			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("priority must be between 1 and 3, got %d", *e.Priority))
 		}
 
 		events = append(events, &CreateEventOpts{
@@ -141,20 +142,20 @@ func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEven
 	}
 
 	if err := i.v.Validate(opts); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("Invalid request: %s", err))
 	}
 
 	for _, e := range opts.Events {
 
 		if err := i.v.Validate(e); err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "Invalid request: events failing validation %s", err)
+			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("Invalid request: events failing validation %s", err))
 		}
 	}
 
 	createdEvents, err := i.BulkIngestEvent(ctx, tenant, events)
 
 	if err == v1.ErrResourceExhausted {
-		return nil, status.Errorf(codes.ResourceExhausted, "resource exhausted: event limit exceeded for tenant")
+		return nil, connect.NewError(connect.CodeResourceExhausted, errors.New("resource exhausted: event limit exceeded for tenant"))
 	}
 	if err != nil {
 		return nil, err
@@ -194,7 +195,7 @@ func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEven
 }
 
 func (i *IngestorImpl) ReplaySingleEvent(ctx context.Context, req *contracts.ReplayEventRequest) (*contracts.Event, error) {
-	return nil, status.Errorf(codes.Unimplemented, "ReplaySingleEvent is not implemented")
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("ReplaySingleEvent is not implemented"))
 }
 
 func (i *IngestorImpl) PutStreamEvent(ctx context.Context, req *contracts.PutStreamEventRequest) (*contracts.PutStreamEventResponse, error) {

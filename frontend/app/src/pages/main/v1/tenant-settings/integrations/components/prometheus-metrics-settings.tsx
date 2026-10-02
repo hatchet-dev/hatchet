@@ -6,11 +6,13 @@ import useControlPlane from '@/hooks/use-control-plane';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import api from '@/lib/api';
 import { useOrganizationApi } from '@/lib/api/organization-wrapper';
+import { OFFICE_HOURS_URL } from '@/lib/external-links';
+import { docsPages } from '@/lib/generated/docs';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { appRoutes } from '@/router';
 import { ChartBarIcon } from '@heroicons/react/24/outline';
 import { useQuery } from '@tanstack/react-query';
-import { Link, useNavigate, useParams } from '@tanstack/react-router';
+import { Link, useParams } from '@tanstack/react-router';
 
 const CONFIG_DOCS_URL =
   'https://docs.hatchet.run/self-hosting/configuration-options';
@@ -51,7 +53,7 @@ export function PrometheusMetricsSettings() {
     }
 
     if (entitlementsQuery.data?.prometheusMetrics !== true) {
-      return <MetricsUpgrade organizationId={organizationId} />;
+      return <MetricsUpgrade />;
     }
 
     return <MetricsEnabled tenantId={tenantId} />;
@@ -228,9 +230,7 @@ SERVER_PROMETHEUS_SERVER_TENANT_SCOPED=true`}
   );
 }
 
-function MetricsUpgrade({ organizationId }: { organizationId: string }) {
-  const navigate = useNavigate();
-
+function MetricsUpgrade() {
   return (
     <div className="py-12">
       <EmptyState
@@ -240,15 +240,23 @@ function MetricsUpgrade({ organizationId }: { organizationId: string }) {
           </div>
         }
         title="Unlock Prometheus Metrics"
-        description="Prometheus metrics let you federate this tenant's metrics into your own dashboards and alerting. Upgrade your plan to enable this feature."
+        description="Federate this tenant's metrics into your own Grafana, dashboards, and alerting. Included on Hatchet Custom plans."
         buttons={[
           {
-            label: 'View plans',
+            label: 'Talk to us',
+            variant: 'default',
+            size: 'default',
             onClick: () =>
-              navigate({
-                to: appRoutes.organizationBillingRoute.to,
-                params: { organization: organizationId },
-              }),
+              window.open(OFFICE_HOURS_URL, '_blank', 'noreferrer'),
+          },
+          {
+            label: "See what's exported",
+            onClick: () =>
+              window.open(
+                docsPages.v1['prometheus-metrics'].href,
+                '_blank',
+                'noreferrer',
+              ),
           },
         ]}
       />

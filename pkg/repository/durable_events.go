@@ -31,6 +31,28 @@ type TaskExternalIdNodeIdBranchId struct {
 	BranchId       int64     `validate:"required"`
 }
 
+// TaskInsertedAtRange is the inclusive inserted_at span of a set of tasks. An
+// invalid Min or Max means the set is empty.
+type TaskInsertedAtRange struct {
+	Min pgtype.Timestamptz
+	Max pgtype.Timestamptz
+}
+
+// Extend widens the range to include insertedAt.
+func (r *TaskInsertedAtRange) Extend(insertedAt pgtype.Timestamptz) {
+	if !insertedAt.Valid {
+		return
+	}
+
+	if !r.Min.Valid || insertedAt.Time.Before(r.Min.Time) {
+		r.Min = insertedAt
+	}
+
+	if !r.Max.Valid || insertedAt.Time.After(r.Max.Time) {
+		r.Max = insertedAt
+	}
+}
+
 type SatisfiedEventWithPayload struct {
 	Result                []byte
 	SatisfiedOrder        *int64
@@ -162,7 +184,10 @@ type DurableEventsRepository interface {
 	HandleBranchForDAGReplay(ctx context.Context, tenantId uuid.UUID, task *sqlcv1.FlattenExternalIdsRow, forcedChildExternalIds []uuid.UUID) (*HandleBranchResult, error)
 	TriggerPendingRunEntries(ctx context.Context, tenantId uuid.UUID, tasks []TriggerPendingRunEntriesOpt) ([]*V1TaskWithPayload, []*DAGWithData, []CELEvaluationFailure, error)
 
-	GetSatisfiedDurableEvents(ctx context.Context, tenantId uuid.UUID, events []TaskExternalIdNodeIdBranchId) ([]*SatisfiedEventWithPayload, error)
+	// GetSatisfiedDurableEvents returns the satisfied entries among events.
+	// taskInsertedAtRange must cover the inserted_at of every task referenced by
+	// events so the query can prune durable log partitions.
+	GetSatisfiedDurableEvents(ctx context.Context, tenantId uuid.UUID, events []TaskExternalIdNodeIdBranchId, taskInsertedAtRange TaskInsertedAtRange) ([]*SatisfiedEventWithPayload, error)
 	GetDurableTaskInvocationCounts(ctx context.Context, tenantId uuid.UUID, tasks []IdInsertedAt) (map[IdInsertedAt]*int32, error)
 	CompleteMemoEntry(ctx context.Context, opts CompleteMemoEntryOpts) error
 	ListDurableEventLog(ctx context.Context, tenantId uuid.UUID, taskInsertedAt pgtype.Timestamptz, taskId, limit, offset int64) ([]*sqlcv1.ListDurableEventLogForTaskRow, error)
@@ -696,8 +721,10 @@ type EventLogEntryWithResultPayload struct {
 	AlreadyExisted bool
 }
 
-func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context, tenantId uuid.UUID, events []TaskExternalIdNodeIdBranchId) ([]*SatisfiedEventWithPayload, error) {
-	if len(events) == 0 {
+func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context, tenantId uuid.UUID, events []TaskExternalIdNodeIdBranchId, taskInsertedAtRange TaskInsertedAtRange) ([]*SatisfiedEventWithPayload, error) {
+	// An empty range means no task in events resolved, so there is nothing to
+	// look up.
+	if len(events) == 0 || !taskInsertedAtRange.Min.Valid || !taskInsertedAtRange.Max.Valid {
 		return nil, nil
 	}
 
@@ -718,10 +745,12 @@ func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context,
 	}
 
 	rows, err := r.queries.ListSatisfiedEntries(ctx, r.pool, sqlcv1.ListSatisfiedEntriesParams{
-		Taskexternalids: taskExternalIds,
-		Nodeids:         nodeIds,
-		Branchids:       branchIds,
-		Tenantid:        tenantId,
+		Taskexternalids:   taskExternalIds,
+		Nodeids:           nodeIds,
+		Branchids:         branchIds,
+		Tenantid:          tenantId,
+		Mintaskinsertedat: taskInsertedAtRange.Min,
+		Maxtaskinsertedat: taskInsertedAtRange.Max,
 	})
 
 	if err != nil {
@@ -757,7 +786,7 @@ func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context,
 			ExternalId: row.ResultPayloadExternalID,
 		}
 
-		payload := payloads[retrieveOpt]
+		payload := payloadOrEmptyJSONObject(payloads[retrieveOpt])
 
 		var childTaskErrorMessage *string
 		if row.ChildTaskErrorMessage.Valid {
@@ -1312,13 +1341,19 @@ func (r *durableEventsRepository) getOrCreateEventLogEntriesForTasks(
 			return nil
 		}
 
-		return existingPayloads[RetrievePayloadOpts{
+		payload := existingPayloads[RetrievePayloadOpts{
 			Id:         e.ID,
 			InsertedAt: e.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
 			TenantId:   tenantId,
 			ExternalId: e.ResultPayloadExternalID,
 		}]
+
+		if !e.IsSatisfied {
+			return payload
+		}
+
+		return payloadOrEmptyJSONObject(payload)
 	}
 
 	for _, state := range survivingStates {
@@ -2678,12 +2713,7 @@ func (r *durableEventsRepository) handleEventLookback(ctx context.Context, tenan
 			ExternalId: row.ExternalID,
 		}
 
-		payload, ok := retrieveOptsToPayload[retrieveOpts]
-
-		if !ok {
-			r.l.Warn().Ctx(ctx).Msgf("payload not found for recent user event with id %d and seen_at %s", row.ID, row.SeenAt.Time)
-			payload = nil
-		}
+		payload := retrieveOptsToPayload[retrieveOpts]
 
 		var resourceHint *string
 		if row.Scope.Valid {

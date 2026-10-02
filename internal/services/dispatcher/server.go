@@ -11,17 +11,17 @@ import (
 	"sync"
 	"time"
 
+	"connectrpc.com/connect"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel/attribute"
 	telemetry_codes "go.opentelemetry.io/otel/codes"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	"github.com/hatchet-dev/hatchet/internal/services/shared/rpcstream"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
@@ -70,7 +70,7 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 	// fixme: deprecated remove in a future release feb6 2026
 	if request.Slots != nil {
 		if len(request.SlotConfig) > 0 {
-			return nil, status.Errorf(codes.InvalidArgument, "either slot_config or slots (deprecated) must be provided, not both")
+			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("either slot_config or slots (deprecated) must be provided, not both"))
 		}
 
 		opts.SlotConfig = map[string]int32{v1.SlotTypeDefault: *request.Slots}
@@ -79,14 +79,14 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 	if apiErrors, err := s.v.ValidateAPI(opts); err != nil {
 		return nil, err
 	} else if apiErrors != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", apiErrors.String())
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("Invalid request: %s", apiErrors.String()))
 	}
 
 	// create a worker in the database
 	worker, err := s.repov1.Workers().CreateNewWorker(ctx, tenantId, opts)
 
 	if err == v1.ErrResourceExhausted {
-		return nil, status.Errorf(codes.ResourceExhausted, "resource exhausted: tenant worker limit or concurrency limit exceeded")
+		return nil, connect.NewError(connect.CodeResourceExhausted, errors.New("resource exhausted: tenant worker limit or concurrency limit exceeded"))
 	}
 
 	if err != nil {
@@ -132,13 +132,13 @@ func (s *DispatcherImpl) UpsertWorkerLabels(ctx context.Context, request *contra
 	workerId, err := uuid.Parse(request.WorkerId)
 
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid worker ID format: %s", request.WorkerId)
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid worker ID format: %s", request.WorkerId))
 	}
 
 	// Confirm the worker belongs to the auth-tenant before mutating its labels.
 	if _, err := s.repov1.Workers().GetWorkerForEngine(ctx, tenant.ID, workerId); err != nil { //nolint
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, status.Errorf(codes.NotFound, "worker not found: %s", request.WorkerId)
+			return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("worker not found: %s", request.WorkerId))
 		}
 		return nil, err
 	}
@@ -163,7 +163,7 @@ func (s *DispatcherImpl) upsertLabels(ctx context.Context, workerId uuid.UUID, r
 		err := s.v.Validate(config)
 
 		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "Invalid affinity config: %s", err.Error())
+			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("Invalid affinity config: %s", err.Error()))
 		}
 
 		affinities = append(affinities, v1.UpsertWorkerLabelOpts{
@@ -184,8 +184,12 @@ func (s *DispatcherImpl) upsertLabels(ctx context.Context, workerId uuid.UUID, r
 }
 
 // Subscribe handles a subscribe request from a client
-func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream contracts.Dispatcher_ListenServer) error {
-	ctx := stream.Context()
+func (s *DispatcherImpl) Listen(ctx context.Context, request *contracts.WorkerListenRequest, connectStream *connect.ServerStream[contracts.AssignedAction]) error {
+	// other goroutines send on this stream; Close runs after every other deferred call and
+	// before the handler returns, so no send can reach the stream once the handler is done
+	stream := rpcstream.NewSender[contracts.AssignedAction](ctx, connectStream)
+	defer stream.Close()
+
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 	s.analytics.Count(ctx, analytics.Worker, analytics.Listen)
@@ -194,7 +198,7 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 
 	if err != nil {
 		s.l.Error().Ctx(ctx).Err(err).Msgf("invalid worker ID format: %s", request.WorkerId)
-		return status.Errorf(codes.InvalidArgument, "invalid worker ID format: %s", request.WorkerId)
+		return connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid worker ID format: %s", request.WorkerId))
 	}
 
 	s.l.Debug().Ctx(ctx).Msgf("Received subscribe request from ID: %s", request.WorkerId)
@@ -306,17 +310,21 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 
 // ListenV2 is like Listen, but implementation does not include heartbeats. This should only used by SDKs
 // against engine version v0.18.1+
-func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream contracts.Dispatcher_ListenV2Server) error {
-	ctx := stream.Context()
+func (s *DispatcherImpl) ListenV2(ctx context.Context, request *contracts.WorkerListenRequest, connectStream *connect.ServerStream[contracts.AssignedAction]) error {
+	// other goroutines send on this stream; Close runs after every other deferred call and
+	// before the handler returns, so no send can reach the stream once the handler is done
+	stream := rpcstream.NewSender[contracts.AssignedAction](ctx, connectStream)
+	defer stream.Close()
+
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
-	s.analytics.Count(stream.Context(), analytics.Worker, analytics.Listen)
+	s.analytics.Count(ctx, analytics.Worker, analytics.Listen)
 	sessionId := uuid.New()
 	workerId, err := uuid.Parse(request.WorkerId)
 
 	if err != nil {
 		s.l.Error().Ctx(ctx).Err(err).Msgf("invalid worker ID format: %s", request.WorkerId)
-		return status.Errorf(codes.InvalidArgument, "invalid worker ID format: %s", request.WorkerId)
+		return connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid worker ID format: %s", request.WorkerId))
 	}
 
 	s.l.Debug().Ctx(ctx).Msgf("Received subscribe request from ID: %s", request.WorkerId)
@@ -426,7 +434,7 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 
 	if err != nil {
 		s.l.Error().Ctx(ctx).Err(err).Msgf("invalid worker ID format: %s", req.WorkerId)
-		return nil, status.Errorf(codes.InvalidArgument, "invalid worker ID format: %s", req.WorkerId)
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid worker ID format: %s", req.WorkerId))
 	}
 
 	heartbeatAt := time.Now().UTC()
@@ -444,7 +452,7 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 		span.RecordError(err)
 		span.SetStatus(telemetry_codes.Error, "could not get worker")
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, status.Errorf(codes.NotFound, "worker not found: %s", req.WorkerId)
+			return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("worker not found: %s", req.WorkerId))
 		}
 
 		return nil, err
@@ -471,7 +479,7 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 	// worker.
 	if worker.LastListenerEstablished.Valid && !worker.IsActive {
 		span.SetStatus(telemetry_codes.Error, "worker stream is not active")
-		return nil, status.Errorf(codes.FailedPrecondition, "Heartbeat rejected: worker stream is not active: %s", req.WorkerId)
+		return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf("Heartbeat rejected: worker stream is not active: %s", req.WorkerId))
 	}
 
 	// if the worker doesn't have a previous heartbeat or hasn't heartbeat in 30 seconds, notify downstream components that a
@@ -496,11 +504,16 @@ func (s *DispatcherImpl) RestoreEvictedTask(ctx context.Context, req *contracts.
 	return s.restoreEvictedTask(ctx, tenant, req)
 }
 
-func (s *DispatcherImpl) SubscribeToWorkflowEvents(request *contracts.SubscribeToWorkflowEventsRequest, stream contracts.Dispatcher_SubscribeToWorkflowEventsServer) error {
-	if _, ok := stream.Context().Value("tenant").(*sqlcv1.Tenant); ok {
-		s.analytics.Count(stream.Context(), analytics.WorkflowRun, analytics.Subscribe)
+func (s *DispatcherImpl) SubscribeToWorkflowEvents(ctx context.Context, request *contracts.SubscribeToWorkflowEventsRequest, connectStream *connect.ServerStream[contracts.WorkflowEvent]) error {
+	// other goroutines send on this stream; Close runs after every other deferred call and
+	// before the handler returns, so no send can reach the stream once the handler is done
+	stream := rpcstream.NewSender[contracts.WorkflowEvent](ctx, connectStream)
+	defer stream.Close()
+
+	if _, ok := ctx.Value("tenant").(*sqlcv1.Tenant); ok {
+		s.analytics.Count(ctx, analytics.WorkflowRun, analytics.Subscribe)
 	}
-	return s.subscribeToWorkflowEventsV1(request, stream)
+	return s.subscribeToWorkflowEventsV1(ctx, request, stream)
 }
 
 // map of workflow run ids to whether the workflow runs are finished and have sent a message
@@ -600,9 +613,14 @@ func calculateResultsSize(results []*contracts.StepRunResult) (totalSize int, si
 	return
 }
 
-func (s *DispatcherImpl) SubscribeToWorkflowRuns(server contracts.Dispatcher_SubscribeToWorkflowRunsServer) error {
-	s.analytics.Count(server.Context(), analytics.WorkflowRun, analytics.Subscribe)
-	return s.subscribeToWorkflowRunsV1(server)
+func (s *DispatcherImpl) SubscribeToWorkflowRuns(ctx context.Context, connectStream *connect.BidiStream[contracts.SubscribeToWorkflowRunsRequest, contracts.WorkflowRunEvent]) error {
+	// other goroutines send on this stream; Close runs after every other deferred call and
+	// before the handler returns, so no send can reach the stream once the handler is done
+	stream := rpcstream.NewSender[contracts.WorkflowRunEvent](ctx, connectStream)
+	defer stream.Close()
+
+	s.analytics.Count(ctx, analytics.WorkflowRun, analytics.Subscribe)
+	return s.subscribeToWorkflowRunsV1(ctx, connectStream, stream)
 }
 
 func waitFor(wg *sync.WaitGroup, timeout time.Duration, l *zerolog.Logger) {
@@ -629,7 +647,7 @@ func (s *DispatcherImpl) SendBatchActionEvent(ctx context.Context, request *cont
 }
 
 func (s *DispatcherImpl) SendGroupKeyActionEvent(ctx context.Context, request *contracts.GroupKeyActionEvent) (*contracts.ActionEventResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "SendGroupKeyActionEvent is not implemented in engine version v1")
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("SendGroupKeyActionEvent is not implemented in engine version v1"))
 }
 
 func (s *DispatcherImpl) PutOverridesData(ctx context.Context, request *contracts.OverridesData) (*contracts.OverridesDataResponse, error) {
@@ -643,13 +661,13 @@ func (s *DispatcherImpl) Unsubscribe(ctx context.Context, request *contracts.Wor
 
 	workerId, err := uuid.Parse(request.WorkerId)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid worker ID format: %s", request.WorkerId)
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid worker ID format: %s", request.WorkerId))
 	}
 
 	// Confirm the worker belongs to the auth-tenant before unsubscribing.
 	if _, err := s.repov1.Workers().GetWorkerForEngine(ctx, tenant.ID, workerId); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, status.Errorf(codes.NotFound, "worker not found: %s", request.WorkerId)
+			return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("worker not found: %s", request.WorkerId))
 		}
 		return nil, err
 	}
@@ -1119,8 +1137,11 @@ func (b *StreamEventBuffer) sendReadyEvents(stepRunId uuid.UUID) {
 }
 
 // SubscribeToWorkflowEvents registers workflow events with the dispatcher
-func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_SubscribeToWorkflowRunsServer) error {
-	ctx := server.Context()
+func (s *DispatcherImpl) subscribeToWorkflowRunsV1(
+	ctx context.Context,
+	receiver *connect.BidiStream[contracts.SubscribeToWorkflowRunsRequest, contracts.WorkflowRunEvent],
+	sender *rpcstream.Sender[contracts.WorkflowRunEvent],
+) error {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 
@@ -1166,7 +1187,7 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 		shouldSend := acks.hasWorkflowRun(workflowRunId)
 
 		if shouldSend {
-			err := server.Send(e)
+			err := sender.Send(e)
 
 			if err != nil {
 				s.l.Error().Ctx(ctx).Err(err).Msgf("could not send workflow event for run %s", e.WorkflowRunId)
@@ -1271,11 +1292,11 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 	// start a new goroutine to handle client-side streaming
 	go func() {
 		for {
-			req, err := server.Recv()
+			req, err := receiver.Receive()
 
 			if err != nil {
 				cancel()
-				if errors.Is(err, io.EOF) || status.Code(err) == codes.Canceled {
+				if errors.Is(err, io.EOF) || connect.CodeOf(err) == connect.CodeCanceled {
 					return
 				}
 
@@ -1421,13 +1442,13 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 	taskExternalId, err := uuid.Parse(request.TaskRunExternalId)
 
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid task external run id %s: %v", request.TaskRunExternalId, err)
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid task external run id %s: %v", request.TaskRunExternalId, err))
 	}
 
 	task, err := s.repov1.Tasks().GetTaskByExternalId(ctx, tenant.ID, taskExternalId, skipCache)
 
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid task external run id %s: %v", request.TaskRunExternalId, err)
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid task external run id %s: %v", request.TaskRunExternalId, err))
 	}
 
 	retryCount := task.RetryCount
@@ -1482,7 +1503,7 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 		return s.handleTaskCancelledEvent(ctx, task, retryCount, request)
 	}
 
-	return nil, status.Errorf(codes.InvalidArgument, "invalid task external run id %s", request.TaskRunExternalId)
+	return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid task external run id %s", request.TaskRunExternalId))
 }
 
 // handleTaskCancelledEvent processes a worker/operator-reported cancellation for a single
@@ -1646,18 +1667,18 @@ func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, task *sqlcv1
 	}, nil
 }
 
-func (d *DispatcherImpl) CancelTaskEvent(ctx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
-	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
-	tenantId := tenant.ID
-
+// CancelTaskWithReason reports a cancelled task with a custom cancellation reason on behalf of
+// an engine-internal operator (operator.TaskEventWriter). It is not a gRPC handler: the tenant
+// is an argument, not the one the auth middleware puts on a request context.
+func (d *DispatcherImpl) CancelTaskWithReason(ctx context.Context, tenantId uuid.UUID, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	taskExternalId, err := uuid.Parse(request.TaskRunExternalId)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid task external run id %s: %v", request.TaskRunExternalId, err)
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid task external run id %s: %v", request.TaskRunExternalId, err))
 	}
 
 	task, err := d.repov1.Tasks().GetTaskByExternalId(ctx, tenantId, taskExternalId, false)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "could not get task %s: %v", request.TaskRunExternalId, err)
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("could not get task %s: %v", request.TaskRunExternalId, err))
 	}
 
 	retryCount := task.RetryCount
@@ -1714,7 +1735,7 @@ func (s *DispatcherImpl) sendBatchActionEventV1(ctx context.Context, request *co
 		id, err := uuid.Parse(item.TaskRunExternalId)
 
 		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "invalid task external run id %s: %v", item.TaskRunExternalId, err)
+			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid task external run id %s: %v", item.TaskRunExternalId, err))
 		}
 
 		externalIds = append(externalIds, id)
@@ -1738,7 +1759,7 @@ func (s *DispatcherImpl) sendBatchActionEventV1(ctx context.Context, request *co
 		return s.handleBatchTaskCancelled(ctx, tenantId, tasks, request)
 	}
 
-	return nil, status.Errorf(codes.InvalidArgument, "invalid batch action event type %s", request.EventType)
+	return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid batch action event type %s", request.EventType))
 }
 
 func (s *DispatcherImpl) handleBatchTaskStarted(
@@ -2097,7 +2118,7 @@ func (d *DispatcherImpl) refreshTimeoutV1(ctx context.Context, tenant *sqlcv1.Te
 	tenantId := tenant.ID
 	taskExternalId, err := uuid.Parse(request.TaskRunExternalId)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid task external run id %s: %v", request.TaskRunExternalId, err)
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid task external run id %s: %v", request.TaskRunExternalId, err))
 	}
 
 	opts := v1.RefreshTimeoutBy{
@@ -2108,12 +2129,12 @@ func (d *DispatcherImpl) refreshTimeoutV1(ctx context.Context, tenant *sqlcv1.Te
 	if apiErrors, validationErr := d.v.ValidateAPI(opts); validationErr != nil {
 		return nil, validationErr
 	} else if apiErrors != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", apiErrors.String())
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("Invalid request: %s", apiErrors.String()))
 	}
 
 	increment, err := time.ParseDuration(request.IncrementTimeoutBy)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid increment timeout by %s: %v", request.IncrementTimeoutBy, err)
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid increment timeout by %s: %v", request.IncrementTimeoutBy, err))
 	}
 
 	key := refreshTimeoutKey{
@@ -2144,7 +2165,7 @@ func (d *DispatcherImpl) flushRefreshTimeout(ctx context.Context, key refreshTim
 				_, err, _ := d.refreshTimeoutGroup.Do(k.String(), func() (interface{}, error) {
 					return d.flushRefreshTimeout(flushCtx, k)
 				})
-				if err != nil && status.Code(err) != codes.NotFound {
+				if err != nil && connect.CodeOf(err) != connect.CodeNotFound {
 					d.l.Error().Err(err).Str("key", k.String()).Msg("failed to flush buffered refresh timeout")
 				}
 			})
@@ -2163,7 +2184,7 @@ func (d *DispatcherImpl) flushRefreshTimeout(ctx context.Context, key refreshTim
 			if cached, ok := d.refreshTimeoutBuf.lastTimeout(key); ok {
 				return cached, nil
 			}
-			return time.Time{}, status.Errorf(codes.NotFound, "task run not found: %s", key.taskExternalId)
+			return time.Time{}, connect.NewError(connect.CodeNotFound, fmt.Errorf("task run not found: %s", key.taskExternalId))
 		}
 
 		taskRuntime, err := d.repov1.Tasks().RefreshTimeoutBy(ctx, key.tenantId, v1.RefreshTimeoutBy{
@@ -2173,7 +2194,7 @@ func (d *DispatcherImpl) flushRefreshTimeout(ctx context.Context, key refreshTim
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				// Runtime is already gone (completed, cancelled, or timed out).
-				return time.Time{}, status.Errorf(codes.NotFound, "task run not found: %s", key.taskExternalId)
+				return time.Time{}, connect.NewError(connect.CodeNotFound, fmt.Errorf("task run not found: %s", key.taskExternalId))
 			}
 
 			// Put the failed sum back so a retry can flush it.
@@ -2213,14 +2234,14 @@ func (d *DispatcherImpl) releaseSlot(ctx context.Context, tenant *sqlcv1.Tenant,
 	tenantId := tenant.ID
 	stepRunId, err := uuid.Parse(request.TaskRunExternalId)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid task external run id %s: %v", request.TaskRunExternalId, err)
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid task external run id %s: %v", request.TaskRunExternalId, err))
 	}
 
 	releasedSlot, err := d.repov1.Tasks().ReleaseSlot(ctx, tenantId, stepRunId)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, status.Errorf(codes.NotFound, "task run not found: %s", stepRunId)
+			return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("task run not found: %s", stepRunId))
 		}
 
 		return nil, err
@@ -2273,26 +2294,26 @@ func (d *DispatcherImpl) restoreEvictedTask(ctx context.Context, tenant *sqlcv1.
 	return &contracts.RestoreEvictedTaskResponse{Requeued: true}, nil
 }
 
-func (s *DispatcherImpl) subscribeToWorkflowEventsV1(request *contracts.SubscribeToWorkflowEventsRequest, stream contracts.Dispatcher_SubscribeToWorkflowEventsServer) error {
+func (s *DispatcherImpl) subscribeToWorkflowEventsV1(ctx context.Context, request *contracts.SubscribeToWorkflowEventsRequest, stream *rpcstream.Sender[contracts.WorkflowEvent]) error {
 	if request.WorkflowRunId != nil {
 		workflowRunId, err := uuid.Parse(*request.WorkflowRunId)
 		if err != nil {
-			return status.Errorf(codes.InvalidArgument, "invalid workflow run id %s: %v", *request.WorkflowRunId, err)
+			return connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid workflow run id %s: %v", *request.WorkflowRunId, err))
 		}
 
-		return s.subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunId, stream)
+		return s.subscribeToWorkflowEventsByWorkflowRunIdV1(ctx, workflowRunId, stream)
 	} else if request.AdditionalMetaKey != nil && request.AdditionalMetaValue != nil {
-		return s.subscribeToWorkflowEventsByAdditionalMetaV1(*request.AdditionalMetaKey, *request.AdditionalMetaValue, stream)
+		return s.subscribeToWorkflowEventsByAdditionalMetaV1(ctx, *request.AdditionalMetaKey, *request.AdditionalMetaValue, stream)
 	}
 
-	return status.Errorf(codes.InvalidArgument, "either workflow run id or additional meta key-value must be provided")
+	return connect.NewError(connect.CodeInvalidArgument, errors.New("either workflow run id or additional meta key-value must be provided"))
 }
 
-func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunId uuid.UUID, stream contracts.Dispatcher_SubscribeToWorkflowEventsServer) error {
-	tenant := stream.Context().Value("tenant").(*sqlcv1.Tenant)
+func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(ctx context.Context, workflowRunId uuid.UUID, stream *rpcstream.Sender[contracts.WorkflowEvent]) error {
+	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 
-	ctx, cancel := context.WithCancel(stream.Context())
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	deregister := s.streamSessions.Register(cancel)
@@ -2490,7 +2511,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 	}
 
 	if !foundWorkflowRun {
-		return status.Errorf(codes.NotFound, "workflow run %s not found", workflowRunId)
+		return connect.NewError(connect.CodeNotFound, fmt.Errorf("workflow run %s not found", workflowRunId))
 	}
 
 	<-ctx.Done()
@@ -2499,11 +2520,11 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 }
 
 // SubscribeToWorkflowEvents registers workflow events with the dispatcher
-func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMetaV1(key string, value string, stream contracts.Dispatcher_SubscribeToWorkflowEventsServer) error {
-	tenant := stream.Context().Value("tenant").(*sqlcv1.Tenant)
+func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMetaV1(ctx context.Context, key string, value string, stream *rpcstream.Sender[contracts.WorkflowEvent]) error {
+	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 
-	ctx, cancel := context.WithCancel(stream.Context())
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	deregister := s.streamSessions.Register(cancel)

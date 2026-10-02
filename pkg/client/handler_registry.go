@@ -3,8 +3,11 @@
 package client
 
 import (
+	"context"
 	"fmt"
 	"sync"
+
+	"github.com/hatchet-dev/hatchet/pkg/client/streaming"
 )
 
 // registration is one stored handler plus its optional permanent-failure
@@ -231,4 +234,47 @@ func (g *listenGate) active() bool {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	return g.listening
+}
+
+// errListenerClosed is the error every listener in this package returns once
+// it is closed.
+var errListenerClosed = streaming.ErrListenerClosed
+
+// gatedClassifier coordinates clean termination with the listen gate. When the
+// base classifier stops cleanly, keep is evaluated while holding the gate lock.
+// If keep returns true, the gate remains active and no-progress is returned so
+// streaming.Listen reconnects using its normal backoff and limit. Otherwise,
+// the gate is released and *released is set.
+//
+// Classification and deferred cleanup run on the same goroutine, so released
+// needs no synchronization. It prevents cleanup from clearing the gate after
+// another listen loop has acquired it.
+func gatedClassifier(base streaming.Classifier, gate *listenGate, keep func(context.Context) bool, released *bool) streaming.Classifier {
+	return func(ctx context.Context, err error) streaming.Verdict {
+		v := base(ctx, err)
+		if v != streaming.VerdictStopClean {
+			return v
+		}
+		if gate.release(func() bool { return keep(ctx) }) {
+			*released = true
+			return streaming.VerdictStopClean
+		}
+		return streaming.VerdictNoProgress
+	}
+}
+
+// finishGatedListen releases the gate after streaming.Listen returns unless
+// the classifier already released it. On error, registered handlers are
+// failed while the gate is still held, before another listen loop can
+// acquire it.
+func finishGatedListen(gate *listenGate, released bool, err error, fail func(error)) {
+	if released {
+		return
+	}
+	gate.release(func() bool {
+		if err != nil {
+			fail(err)
+		}
+		return false
+	})
 }

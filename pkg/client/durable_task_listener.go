@@ -105,6 +105,7 @@ type DurableTaskListener struct {
 	done                  chan struct{}
 	requestQueue          chan *v1.DurableTaskRequest
 	statusChanged         chan struct{}
+	stopCh                chan struct{}
 	bufferedCompletions   map[PendingCallbackKey]bufferedCompletion
 	pendingEventAcks      map[PendingAckKey]chan EventAckResult
 	pendingCallbacks      map[PendingCallbackKey]chan CallbackResult
@@ -164,6 +165,7 @@ func NewDurableTaskListener(
 		bufferedCompletions: make(map[PendingCallbackKey]bufferedCompletion),
 		requestQueue:        make(chan *v1.DurableTaskRequest, 100),
 		statusChanged:       make(chan struct{}, 1),
+		stopCh:              make(chan struct{}),
 	}
 
 	for _, opt := range opts {
@@ -218,6 +220,7 @@ func (l *DurableTaskListener) Start(ctx context.Context) {
 		l.cancel = cancel
 		l.done = done
 		l.running = true
+		l.stopCh = make(chan struct{})
 		l.mu.Unlock()
 		l.callbackStateMu.Unlock()
 
@@ -235,6 +238,11 @@ func (l *DurableTaskListener) Stop() {
 	l.running = false
 	cancel := l.cancel
 	l.cancel = nil
+	select {
+	case <-l.stopCh:
+	default:
+		close(l.stopCh)
+	}
 	l.mu.Unlock()
 	l.terminateCallbackStateLocked(errDurableTaskListenerStopped)
 	l.callbackStateMu.Unlock()
@@ -260,9 +268,32 @@ func (l *DurableTaskListener) StreamSeq() int {
 	return l.streamSeq
 }
 
-// SendRequest queues a DurableTaskRequest for sending on the stream.
-func (l *DurableTaskListener) SendRequest(req *v1.DurableTaskRequest) {
-	l.requestQueue <- req
+// SendRequest queues a DurableTaskRequest for sending on the stream. The queue is bounded,
+// so the call blocks while the engine is unreachable; it returns once the request is queued,
+// when ctx ends, or when the listener is stopped, so no caller stays blocked on a stopped
+// listener's full queue. A request queued before Start is sent by the first stream.
+func (l *DurableTaskListener) SendRequest(ctx context.Context, req *v1.DurableTaskRequest) error {
+	l.mu.Lock()
+	stopCh := l.stopCh
+	done := l.done
+	l.mu.Unlock()
+
+	select {
+	case <-stopCh:
+		return errDurableTaskListenerStopped
+	default:
+	}
+
+	select {
+	case l.requestQueue <- req:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-stopCh:
+		return errDurableTaskListenerStopped
+	case <-done:
+		return errDurableTaskListenerStopped
+	}
 }
 
 // AddPendingEventAck registers a pending event ack and returns a channel to wait on.
@@ -552,14 +583,17 @@ func (l *DurableTaskListener) SendEvictionRequest(ctx context.Context, stepRunID
 	key := PendingAckKey{TaskID: stepRunID, SignalKey: int64(invocationCount)}
 	ackCh := l.AddPendingEvictionAck(key)
 
-	l.SendRequest(&v1.DurableTaskRequest{
+	if err := l.SendRequest(ctx, &v1.DurableTaskRequest{
 		Message: &v1.DurableTaskRequest_EvictInvocation{
 			EvictInvocation: &v1.DurableTaskEvictInvocationRequest{
 				InvocationCount:       int32(invocationCount), // nolint:gosec
 				DurableTaskExternalId: stepRunID,
 			},
 		},
-	})
+	}); err != nil {
+		l.removePendingEvictionAck(key)
+		return err
+	}
 
 	timer := time.NewTimer(l.evictionAckTTL)
 	defer timer.Stop()
@@ -613,7 +647,7 @@ func (l *DurableTaskListener) SendTriggerRunsRequest(
 		Int("children", len(triggerOpts)).
 		Msg("DurableTaskListener: sending trigger_runs request")
 
-	l.SendRequest(&v1.DurableTaskRequest{
+	if err := l.SendRequest(ctx, &v1.DurableTaskRequest{
 		Message: &v1.DurableTaskRequest_TriggerRuns{
 			TriggerRuns: &v1.DurableTaskTriggerRunsRequest{
 				InvocationCount:       invocationCount,
@@ -621,7 +655,10 @@ func (l *DurableTaskListener) SendTriggerRunsRequest(
 				TriggerOpts:           triggerOpts,
 			},
 		},
-	})
+	}); err != nil {
+		l.removePendingEventAck(ackKey)
+		return nil, err
+	}
 
 	select {
 	case <-ctx.Done():
@@ -713,7 +750,7 @@ func (l *DurableTaskListener) SendWaitForRequest(
 		Int32("invocation_count", invocationCount).
 		Msg("DurableTaskListener: sending wait_for request")
 
-	l.SendRequest(&v1.DurableTaskRequest{
+	if err := l.SendRequest(ctx, &v1.DurableTaskRequest{
 		Message: &v1.DurableTaskRequest_WaitFor{
 			WaitFor: &v1.DurableTaskWaitForRequest{
 				InvocationCount:       invocationCount,
@@ -722,7 +759,10 @@ func (l *DurableTaskListener) SendWaitForRequest(
 				Label:                 labelPtr,
 			},
 		},
-	})
+	}); err != nil {
+		l.removePendingEventAck(ackKey)
+		return nil, err
+	}
 
 	var ackResp *v1.DurableTaskResponse
 	select {
@@ -764,7 +804,7 @@ func (l *DurableTaskListener) SendMemoRequest(
 	ackKey := PendingAckKey{TaskID: taskExternalID, SignalKey: int64(invocationCount)}
 	ackCh := l.AddPendingEventAck(ackKey)
 
-	l.SendRequest(&v1.DurableTaskRequest{
+	if err := l.SendRequest(ctx, &v1.DurableTaskRequest{
 		Message: &v1.DurableTaskRequest_Memo{
 			Memo: &v1.DurableTaskMemoRequest{
 				InvocationCount:       invocationCount,
@@ -772,7 +812,10 @@ func (l *DurableTaskListener) SendMemoRequest(
 				Key:                   memoKey,
 			},
 		},
-	})
+	}); err != nil {
+		l.removePendingEventAck(ackKey)
+		return nil, err
+	}
 
 	select {
 	case <-ctx.Done():
@@ -794,14 +837,16 @@ func (l *DurableTaskListener) SendMemoRequest(
 	}
 }
 
-// SendMemoCompleted sends a fire-and-forget completion notification carrying the
-// computed memo payload so the engine persists it for future replays.
+// SendMemoCompleted queues a completion notification carrying the computed memo payload so
+// the engine persists it for future replays. No ack is awaited; the error reports a request
+// that could not be queued before ctx ended or the listener stopped.
 func (l *DurableTaskListener) SendMemoCompleted(
+	ctx context.Context,
 	ref *v1.DurableEventLogEntryRef,
 	memoKey []byte,
 	payload []byte,
-) {
-	l.SendRequest(&v1.DurableTaskRequest{
+) error {
+	return l.SendRequest(ctx, &v1.DurableTaskRequest{
 		Message: &v1.DurableTaskRequest_CompleteMemo{
 			CompleteMemo: &v1.DurableTaskCompleteMemoRequest{
 				Ref:     ref,

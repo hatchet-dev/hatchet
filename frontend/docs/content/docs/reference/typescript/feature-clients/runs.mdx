@@ -98,7 +98,7 @@ Parameters
 
 Returns
 
-`Promise`\<`RunDetail`\>
+`Promise`\<[`RunDetail`](#rundetail)\>
 
 A promise resolving to GetRunDetailsResponse with task run statuses and outputs.
 
@@ -192,3 +192,34 @@ Returns
 `AsyncIterableIterator`\<`string`\>
 
 A promise that resolves to the stream of events.
+
+## Type Aliases
+
+<a id="rundetail"></a>
+
+### RunDetail
+
+```ts
+type RunDetail = object;
+```
+
+The state of a run, as `GetRunDetails` reports it. `taskRuns` is keyed by readable id.
+
+---
+
+<a id="taskrundetail"></a>
+
+### TaskRunDetail
+
+```ts
+type TaskRunDetail = object;
+```
+
+The state of one task of a run, as `GetRunDetails` reports it.
+
+Properties
+
+| Property                            | Type      | Description                                                                                       |
+| ----------------------------------- | --------- | ------------------------------------------------------------------------------------------------- |
+| <a id="output"></a> `output`        | `unknown` | The output decoded as JSON; `null` when the task stored nothing, `null` or text that is not JSON. |
+| <a id="rawoutput"></a> `rawOutput?` | `string`  | The output text as the engine stored it; absent when the task stored nothing.                     |

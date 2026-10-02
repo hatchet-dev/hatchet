@@ -841,6 +841,14 @@ func mergeWorkflowConcurrencyOntoSingleTask(opts *CreateWorkflowVersionOpts) {
 	opts.Concurrency = nil
 }
 
+// With the DAG operator, each workflow run is a single orchestrator task, so limiting
+// that task limits the whole run. Workflow-level settings would instead be stored as
+// parent strategies, which the in-memory concurrency index can't handle.
+func mergeWorkflowConcurrencyOntoOrchestrator(opts *CreateWorkflowVersionOpts, orchestrator *CreateStepOpts) {
+	orchestrator.Concurrency = append(orchestrator.Concurrency, opts.Concurrency...)
+	opts.Concurrency = nil
+}
+
 func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sqlcv1.DBTX, tenantId, workflowId uuid.UUID, opts *CreateWorkflowVersionOpts, oldWorkflowVersion *sqlcv1.GetWorkflowVersionForEngineRow) (*uuid.UUID, error) {
 	workflowVersionId := uuid.New()
 
@@ -867,7 +875,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 
 		orchestrator := CreateStepOpts{
 			ReadableId:        opts.Name,
-			Action:            strings.ToLower(fmt.Sprintf("%s_orchestrator", opts.Name)),
+			Action:            DAGOrchestratorActionId(opts.Name),
 			IsDurable:         true,
 			IsDagOrchestrator: true,
 			Timeout:           retentionPeriod,
@@ -875,20 +883,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 			Retries:           &numRetries,
 		}
 
-		// Tenant-scoped workflow-level entries become concurrency on the orchestrator
-		// task (in array order); workflow-scoped entries keep the parent fan-out below,
-		// which always gates first.
-		remaining := make([]CreateConcurrencyOpts, 0, len(opts.Concurrency))
-
-		for _, entry := range opts.Concurrency {
-			if entry.IsTenantScoped {
-				orchestrator.Concurrency = append(orchestrator.Concurrency, entry)
-			} else {
-				remaining = append(remaining, entry)
-			}
-		}
-
-		opts.Concurrency = remaining
+		mergeWorkflowConcurrencyOntoOrchestrator(opts, &orchestrator)
 		opts.Tasks = append(opts.Tasks, orchestrator)
 	}
 
@@ -1773,7 +1768,10 @@ func (r *workflowRepository) GetWorkflowVersionWithTriggers(ctx context.Context,
 	row, err := r.queries.GetWorkflowVersionById(
 		ctx,
 		r.pool,
-		workflowVersionId,
+		sqlcv1.GetWorkflowVersionByIdParams{
+			ID:       workflowVersionId,
+			Tenantid: tenantId,
+		},
 	)
 
 	if err != nil {

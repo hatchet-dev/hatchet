@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"connectrpc.com/connect"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/google/uuid"
@@ -21,9 +22,6 @@ import (
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
-
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	schedulingv1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 )
@@ -46,28 +44,25 @@ func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *v1contrac
 	}
 
 	if !canCreateTR {
-		return nil, status.Error(
-			codes.ResourceExhausted,
-			fmt.Sprintf("tenant has reached %d%% of its task runs limit", trLimit),
-		)
+		return nil, connect.NewError(connect.CodeResourceExhausted, fmt.Errorf("tenant has reached %d%% of its task runs limit", trLimit))
 	}
 
 	opt, err := a.newTriggerOpt(ctx, tenantId, req)
 
 	if err != nil {
 		if re, ok := err.(*v1.TriggerOptInvalidArgumentError); ok {
-			return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", re.Err)
+			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("Invalid request: %s", re.Err))
 		}
 
 		return nil, fmt.Errorf("could not create trigger opt: %w", err)
 	}
 
 	if err := v1.ValidateJSONB(opt.Data, "payload"); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("Invalid request: %s", err))
 	}
 
 	if err := v1.ValidateJSONB(opt.AdditionalMetadata, "additionalMetadata"); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("Invalid request: %s", err))
 	}
 
 	err = a.generateExternalIds(ctx, tenantId, []*v1.WorkflowNameTriggerOpts{opt})
@@ -83,8 +78,9 @@ func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *v1contrac
 	)
 
 	if err != nil {
-		if s, ok := status.FromError(err); ok {
-			return nil, s.Err()
+		var connectErr *connect.Error
+		if errors.As(err, &connectErr) {
+			return nil, connectErr
 		}
 
 		return nil, fmt.Errorf("could not trigger workflow: %w", err)
@@ -92,17 +88,20 @@ func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *v1contrac
 
 	for _, collision := range idempotencyKeyCollisions {
 		if collision.RequestedExternalId == opt.ExternalId {
-			st, stErr := status.New(codes.AlreadyExists, "idempotency key collision").WithDetails(
+			detail, detailErr := connect.NewErrorDetail(
 				&v1contracts.IdempotencyCollisionError{
 					ExistingRunExternalId: collision.ExistingExternalId.String(),
 				},
 			)
 
-			if stErr != nil {
-				return nil, status.Errorf(codes.Internal, "failed to build idempotency collision error: %v", stErr)
+			if detailErr != nil {
+				return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to build idempotency collision error: %v", detailErr))
 			}
 
-			return nil, st.Err()
+			collisionErr := connect.NewError(connect.CodeAlreadyExists, errors.New("idempotency key collision"))
+			collisionErr.AddDetail(detail)
+
+			return nil, collisionErr
 		}
 	}
 
@@ -138,18 +137,18 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contr
 
 		if err != nil {
 			if re, ok := err.(*v1.TriggerOptInvalidArgumentError); ok {
-				return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", re.Err)
+				return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("Invalid request: %s", re.Err))
 			}
 
 			return nil, fmt.Errorf("could not create trigger opt: %w", err)
 		}
 
 		if err := v1.ValidateJSONB(opt.Data, "payload"); err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
+			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("Invalid request: %s", err))
 		}
 
 		if err := v1.ValidateJSONB(opt.AdditionalMetadata, "additionalMetadata"); err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
+			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("Invalid request: %s", err))
 		}
 
 		opts[i] = opt
@@ -218,18 +217,21 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contr
 			})
 		}
 
-		st, stErr := status.New(codes.AlreadyExists, "idempotency key collision").WithDetails(
+		detail, detailErr := connect.NewErrorDetail(
 			&v1contracts.BulkTriggerIdempotencyCollisionError{
 				SuccessfulWorkflowRunExternalIds: successfullyTriggeredRunIds,
 				Collisions:                       collisions,
 			},
 		)
 
-		if stErr != nil {
-			return nil, status.Errorf(codes.Internal, "failed to build idempotency collision error: %v", stErr)
+		if detailErr != nil {
+			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to build idempotency collision error: %v", detailErr))
 		}
 
-		return nil, st.Err()
+		collisionErr := connect.NewError(connect.CodeAlreadyExists, errors.New("idempotency key collision"))
+		collisionErr.AddDetail(detail)
+
+		return nil, collisionErr
 	}
 
 	return &contracts.BulkTriggerWorkflowResponse{
@@ -257,7 +259,7 @@ func (i *AdminServiceImpl) newTriggerOpt(
 		parentTaskExternalId, err := uuid.Parse(*req.ParentTaskRunExternalId)
 
 		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "parentStepRunId must be a valid UUID: %s", err)
+			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("parentStepRunId must be a valid UUID: %s", err))
 		}
 
 		maybeParentTask, err := i.repov1.Tasks().GetTaskByExternalId(
@@ -384,7 +386,7 @@ func (i *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts 
 		idempotencyKeyCollisions, err := i.tw.TriggerFromWorkflowNamesWaiting(ctx, tenantId, optsToSend)
 		if err != nil {
 			if errors.Is(err, trigger.ErrNoTriggerSlots) {
-				return nil, status.Error(codes.ResourceExhausted, err.Error())
+				return nil, connect.NewError(connect.CodeResourceExhausted, err)
 			}
 
 			return nil, fmt.Errorf("could not trigger workflows: %w", err)
@@ -398,7 +400,7 @@ func (i *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts 
 		namesNotFound := &v1.ErrNamesNotFound{}
 
 		if errors.As(verifyErr, &namesNotFound) {
-			return nil, status.Error(codes.InvalidArgument, verifyErr.Error())
+			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New(verifyErr.Error()))
 		}
 
 		return nil, fmt.Errorf("could not verify workflow name opts: %w", verifyErr)

@@ -6,6 +6,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/authz"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
@@ -54,5 +55,5 @@ func (t *WorkflowService) WorkflowScheduledUpdate(ctx echo.Context, request gen.
 		return gen.WorkflowScheduledUpdate404JSONResponse(apierrors.NewAPIErrors("Scheduled workflow not found.")), nil
 	}
 
-	return gen.WorkflowScheduledUpdate200JSONResponse(*transformers.ToScheduledWorkflowsFromSQLC(updated)), nil
+	return gen.WorkflowScheduledUpdate200JSONResponse(*transformers.ToScheduledWorkflowsFromSQLC(updated, transformers.WithPayloads(authz.CanViewPayloads(ctx)))), nil
 }

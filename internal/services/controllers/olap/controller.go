@@ -1022,10 +1022,15 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 
 		if taskMeta.IsDagOrchestrator {
 			orchestratorUpdates = append(orchestratorUpdates, v1.OrchestratorDAGStatusUpdateOpt{
-				DagId:          msg.TaskId,
-				DagInsertedAt:  taskMeta.InsertedAt,
-				ReadableStatus: readableStatus,
-				RetryCount:     msg.RetryCount,
+				DagId:              msg.TaskId,
+				DagInsertedAt:      taskMeta.InsertedAt,
+				ReadableStatus:     readableStatus,
+				RetryCount:         msg.RetryCount,
+				ExternalId:         taskMeta.WorkflowRunID,
+				DisplayName:        taskMeta.DisplayName,
+				WorkflowId:         taskMeta.WorkflowID,
+				WorkflowVersionId:  taskMeta.WorkflowVersionID,
+				AdditionalMetadata: taskMeta.AdditionalMetadata,
 			})
 		}
 

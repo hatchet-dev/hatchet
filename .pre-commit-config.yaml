@@ -37,5 +37,6 @@ repos:
     rev: v2.12.2
     hooks:
       - id: golangci-lint
-        args: ["--config=.golangci.yml", "--allow-parallel-runners"]
+        entry: bash hack/dev/golangci-lint-changed-packages.sh
+        pass_filenames: true
         exclude: ^(examples/|sdks/guides/go/|sdks/go/examples/)

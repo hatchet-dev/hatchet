@@ -874,7 +874,15 @@ CREATE TABLE "Worker" (
     "runtimeExtra" TEXT,
     "sdkVersion" TEXT,
     "durableTaskDispatcherId" UUID,
+    -- The canonical digest of the worker's linked action set (ComputeWorkerActionHash). NULL
+    -- for workers registered before the column existed, and for operator workers between a
+    -- delta that changed their links and the refresh at the end of the delta sequence; the
+    -- scheduler reads such workers' actions through the join instead of the hash cache.
     "actionHash" BYTEA,
+    -- Count of the worker's "_ActionToWorker" rows, read only for operator workers.
+    "operatorActionCount" INTEGER NOT NULL DEFAULT 0,
+    -- Set at creation by the host: in-process operator workers are exempt, wire-registered ones are metered.
+    "isExemptFromLimits" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "Worker_pkey" PRIMARY KEY ("id")
 );
@@ -1453,6 +1461,7 @@ CREATE UNIQUE INDEX "UserPassword_userId_key" ON "UserPassword" ("userId" ASC);
 -- CreateIndex
 CREATE UNIQUE INDEX "UserSession_id_key" ON "UserSession" ("id" ASC);
 CREATE INDEX ix_user_session_cre_at_exp_at ON "UserSession" ("createdAt") INCLUDE ("expiresAt");
+CREATE INDEX ix_user_session_user_id ON "UserSession" ("userId") WHERE "userId" IS NOT NULL;
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WebhookWorker_id_key" ON "WebhookWorker" ("id" ASC);

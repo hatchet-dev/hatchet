@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -264,6 +265,29 @@ var (
 	countWorkflowRunsMetadataContainsAny = countWorkflowRunsQuery("CountWorkflowRunsMetadataContainsAny", workflowRunsMetadataContainsAnyClause)
 )
 
+// forceCustomPlan forces Postgres to generate a query plan using the parameter values.
+//
+// This is applicable to FetchWorkflowRunIds and CountWorkflowRuns, they have multiple optional filters written as
+// `$n IS NULL OR ...`; a generic plan won't simplify these.
+//
+// Example:
+//
+//	CREATE INDEX ix_v1_runs_olap_tenant_ins_at_status_wf ON v1_runs_olap (tenant_id, inserted_at DESC, readable_status, workflow_id);
+//
+// The workflow_id (param $3) can't be used with the filter `($3 IS NULL) OR (workflow_id = ANY ($3))` Custom plans will
+// look differently between these cases, but generic plan can't address both.
+//
+// With QueryExecModeCacheDescribe, pgx doesn't create a named prepared statement (the default behavior is to create it).
+// It re-sends Parse for the unnamed statement on every call, so Postgres gets a fresh statement whose execution count
+// starts at zero. Under the default plan_cache_mode = auto, a statement with fewer than five executions always gets
+// a custom plan.
+//
+// The tradeoff is the cost of a parse and a plan on every call (3-5 ms for a 7-day window).
+//
+// Why create multiple variants? FetchWorkflowRunIds and CountWorkflowRuns already have 3 variants each, and we want
+// to avoid adding more.
+const forceCustomPlan = pgx.QueryExecModeCacheDescribe
+
 type CountWorkflowRunsParams struct {
 	Tenantid                      uuid.UUID          `json:"tenantid"`
 	Statuses                      []string           `json:"statuses"`
@@ -295,7 +319,7 @@ func (q *Queries) CountWorkflowRuns(ctx context.Context, db DBTX, arg CountWorkf
 		metadataContains = arg.AdditionalMetadataContainsAny
 	}
 
-	row := db.QueryRow(ctx, query,
+	row := db.QueryRow(ctx, query, forceCustomPlan,
 		arg.Tenantid,
 		arg.Statuses,
 		arg.WorkflowIds,
@@ -387,7 +411,7 @@ func (q *Queries) FetchWorkflowRunIds(ctx context.Context, db DBTX, arg FetchWor
 		metadataContains = arg.AdditionalMetadataContainsAny
 	}
 
-	rows, err := db.Query(ctx, query,
+	rows, err := db.Query(ctx, query, forceCustomPlan,
 		arg.Tenantid,
 		arg.Statuses,
 		arg.WorkflowIds,
@@ -618,14 +642,19 @@ WITH partitions AS (
     JOIN pg_class parent ON pg_inherits.inhparent = parent.oid
     JOIN pg_class child ON pg_inherits.inhrelid = child.oid
     WHERE parent.relname = 'v1_payloads_olap'
-    ORDER BY child.relname ASC
-	LIMIT $1::INTEGER
 )
 
 SELECT partition_name, lower_bound AS partition_date
 FROM partitions
-WHERE lower_bound <= $2::DATE
-ORDER BY partition_date ASC -- ordering by the lower bound so we finish old partitions before starting new ones
+WHERE
+    lower_bound <= $2::DATE
+    AND NOT EXISTS (
+        SELECT 1
+        FROM v1_payloads_olap_cutover_job_offset offsets
+        WHERE offsets.key = partitions.lower_bound AND offsets.is_completed
+    )
+ORDER BY partition_date ASC -- finish old partitions before starting new ones
+LIMIT $1::INTEGER
 `
 
 type FindV1OLAPPayloadPartitionsBeforeDateRow struct {
@@ -881,7 +910,13 @@ ON CONFLICT (inserted_at, id) DO UPDATE SET
         WHEN v1_status_to_priority(EXCLUDED.readable_status) > v1_status_to_priority(v1_dags_olap.readable_status)
         THEN EXCLUDED.readable_status
         ELSE v1_dags_olap.readable_status
-    END
+    END,
+    display_name = EXCLUDED.display_name,
+    workflow_version_id = EXCLUDED.workflow_version_id,
+    additional_metadata = EXCLUDED.additional_metadata,
+    parent_task_external_id = EXCLUDED.parent_task_external_id,
+    total_tasks = EXCLUDED.total_tasks,
+    idempotency_key = EXCLUDED.idempotency_key
 `
 
 type CreateDAGsOLAPOverwriteParams struct {
