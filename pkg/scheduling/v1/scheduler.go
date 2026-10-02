@@ -150,7 +150,7 @@ func (s *Scheduler) markActionStarved(a *action, queue string, request map[strin
 	}
 }
 
-func (s *Scheduler) saveActionAndMarkStarved(actionId, queue string, request map[string]int32) {
+func (s *Scheduler) lookupActionAndMarkStarved(actionId, queue string, request map[string]int32) {
 	a := s.actions[actionId]
 
 	if a == nil {
@@ -1171,7 +1171,7 @@ func (s *Scheduler) handleAssignBatch(
 					}
 				}
 
-				s.saveActionAndMarkStarved(actionId, qis[i].Queue, requests)
+				s.lookupActionAndMarkStarved(actionId, qis[i].Queue, requests)
 			}
 		}
 
@@ -1381,7 +1381,7 @@ func (s *Scheduler) tryAssignBatchQueueItem(
 
 		if !ok || action == nil || len(action.workerIds) == 0 {
 			res.noSlots = true
-			s.saveActionAndMarkStarved(qi.ActionID, qi.Queue, requests)
+			s.lookupActionAndMarkStarved(qi.ActionID, qi.Queue, requests)
 			return
 		}
 
