@@ -18,15 +18,15 @@ import (
 // dispatcher's buffered tenant reader only batches messages that arrive while
 // earlier ones wait for a flush.
 //
-// The bounds are a safety limit rather than a throttle: about 2-3x the peak
-// concurrency the rabbitmq backend reached under synthetic load with 50ms
-// handlers (3000 msgs/s on a scheduler partition, 1000 msgs/s on a tenant
-// stream). A scheduler-partition subscription multiplexes every tenant of the
-// partition, so it gets the larger bound; the scheduler already limits its
-// handlers' database work per tenant.
+// A subscription sustains about limit / handler time messages per second, e.g.
+// 2560 msgs/s per scheduler partition and 640 msgs/s per tenant stream with
+// 50ms handlers; beyond that deliveries wait and eventually age out past
+// maxMessageAge. A scheduler-partition subscription multiplexes every tenant
+// of the partition, so it gets the larger bound. The tenant-stream bound stays
+// above the buffered tenant reader's batch size so that batches still fill.
 var maxConcurrentHandlers = map[msgqueue.TopicKind]int{
-	msgqueue.TopicKindSchedulerPartition: 512,
-	msgqueue.TopicKindTenantStream:       128,
+	msgqueue.TopicKindSchedulerPartition: 128,
+	msgqueue.TopicKindTenantStream:       32,
 }
 
 const defaultMaxConcurrentHandlers = 32
