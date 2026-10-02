@@ -68,7 +68,7 @@ type stagedChunk struct {
 // races a pending delta converges on the same final set either way.
 // NOTE: field order follows govet fieldalignment (enforced by the pre-commit
 // autofixer); mu guards desired, pending, order, unacked, nextSeq, inFlight,
-// lastErr and idle.
+// lastErr, idle, generation, replayedGeneration and replaying.
 type actionDeltaQueue struct {
 	stream     *streaming.ReconnectingStream[*listenClient]
 	l          *zerolog.Logger
@@ -84,11 +84,16 @@ type actionDeltaQueue struct {
 	ackTimeout time.Duration
 	nextSeq    uint64
 	generation uint64
+	// replayedGeneration is the generation of the last replay whose sends all
+	// completed; replaying is set while a replay has the unacked chunks on the
+	// wire. Together they tell finishChunk whether a replay took its chunk over.
+	replayedGeneration uint64
 
-	stopOnce sync.Once
-	mu       sync.Mutex
-	maxChunk int
-	inFlight bool
+	stopOnce  sync.Once
+	mu        sync.Mutex
+	maxChunk  int
+	inFlight  bool
+	replaying bool
 }
 
 func newActionDeltaQueue(l *zerolog.Logger, stream *streaming.ReconnectingStream[*listenClient], interval time.Duration, maxChunk int) *actionDeltaQueue {
@@ -230,6 +235,17 @@ func (q *actionDeltaQueue) replay(stream v1.OperatorService_ListenClient, resume
 
 	q.generation++
 
+	// The recorded send error belongs to the stream this replay replaces: every
+	// unacked chunk is resent below, so a flush that looks in while the chunks
+	// are on the wire must wait for their acks rather than report an error the
+	// replay has already superseded. replaying keeps finishChunk from recording
+	// one meanwhile. A replay whose own sends fail does not record that here:
+	// the flusher's reconnect attempt records its send error again through
+	// finishChunk, and a reconnect the heartbeat or receive loop started is
+	// retried by them, so a flush keeps waiting for the next replay.
+	q.lastErr = nil
+	q.replaying = true
+
 	if !resumed {
 		q.pending = map[string]actionDeltaOp{}
 		q.order = nil
@@ -259,6 +275,10 @@ func (q *actionDeltaQueue) replay(stream v1.OperatorService_ListenClient, resume
 		if err := stream.Send(&v1.OperatorListenRequest{
 			Message: &v1.OperatorListenRequest_Actions{Actions: chunk},
 		}); err != nil {
+			q.mu.Lock()
+			q.replaying = false
+			q.mu.Unlock()
+
 			return err
 		}
 	}
@@ -271,7 +291,8 @@ func (q *actionDeltaQueue) replay(stream v1.OperatorService_ListenClient, resume
 		q.unacked[i].sentAt = now
 	}
 
-	q.lastErr = nil
+	q.replaying = false
+	q.replayedGeneration = q.generation
 	q.markIdleLocked()
 	// pending ops queued while the stream was down go out now
 	q.signalLocked()
@@ -415,15 +436,15 @@ func (q *actionDeltaQueue) run() {
 				// error of a send the replay is about to repeat
 				if rerr := q.stream.ConnectOnceFrom(ctx, staged.generation); rerr != nil {
 					q.l.Warn().Err(rerr).Msg("could not reconnect operator listener after a failed delta send")
-					q.finishChunk(err)
+					q.finishChunk(staged, err)
 				} else {
-					q.finishChunk(nil)
+					q.finishChunk(staged, nil)
 				}
 
 				break
 			}
 
-			q.finishChunk(nil)
+			q.finishChunk(staged, nil)
 
 			select {
 			case <-q.done:
@@ -532,9 +553,20 @@ func (q *actionDeltaQueue) takeChunk() *stagedChunk {
 	return &stagedChunk{delta: chunk, generation: q.generation}
 }
 
-func (q *actionDeltaQueue) finishChunk(err error) {
+// finishChunk ends the flusher's attempt at staged. Its send error is recorded
+// for flush unless a replay took the chunk over after it was staged, either
+// one resending it right now or one whose sends completed since: the error
+// then describes a stream that replay replaced, and the chunk's fate is that
+// replay's acks. The flusher's own reconnect attempt is never such a replay:
+// it bumps generation but completes replayedGeneration only when it succeeds,
+// and it has returned before this runs, so its failure is still reported.
+func (q *actionDeltaQueue) finishChunk(staged *stagedChunk, err error) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
+
+	if err != nil && (q.replaying || q.replayedGeneration > staged.generation) {
+		err = nil
+	}
 
 	q.lastErr = err
 	q.inFlight = false
