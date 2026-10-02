@@ -39,7 +39,7 @@ export function ArchiveOrganizationModal({
   const [typedName, setTypedName] = useState('');
 
   const archiveOrganizationMutation = useMutation({
-    ...orgApi.organizationDeleteMutation(organizationId),
+    ...orgApi.organizationArchiveMutation(organizationId),
     onSuccess: () => {
       onOpenChange(false);
       onSuccess();

@@ -199,10 +199,10 @@ export function useOrganizationApi() {
           ).data,
       }),
 
-      organizationDeleteMutation: (organization: string) => ({
-        mutationKey: ['organization:delete', organization] as const,
+      organizationArchiveMutation: (organization: string) => ({
+        mutationKey: ['organization:archive', organization] as const,
         mutationFn: async () =>
-          (await controlPlaneApi.organizationDelete(organization)).data,
+          (await controlPlaneApi.organizationArchive(organization)).data,
       }),
 
       organizationCreateTenantMutation: (organization: string) => ({

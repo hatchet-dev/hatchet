@@ -418,15 +418,15 @@ export class Api<
       ...params,
     });
   /**
-   * @description Delete (archive) an organization
+   * @description Archive an organization
    *
    * @tags Management
-   * @name OrganizationDelete
-   * @summary Delete (Archive) Organization
+   * @name OrganizationArchive
+   * @summary Archive Organization
    * @request DELETE:/api/v1/control-plane/organizations/{organization}
    * @secure
    */
-  organizationDelete = (organization: string, params: RequestParams = {}) =>
+  organizationArchive = (organization: string, params: RequestParams = {}) =>
     this.request<Organization, APIError>({
       path: `/api/v1/control-plane/organizations/${organization}`,
       method: "DELETE",
