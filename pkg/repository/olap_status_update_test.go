@@ -58,6 +58,10 @@ func createEnumAwarePool(t *testing.T, basePool *pgxpool.Pool) *pgxpool.Pool {
 // initialized sharedRepository (including the payload store), which the task
 // and task-event write paths require.
 func createOLAPRepositoryWithPayloadStore(t *testing.T, pool *pgxpool.Pool) *OLAPRepositoryImpl {
+	return createOLAPRepositoryWithRetention(t, pool, 24*time.Hour)
+}
+
+func createOLAPRepositoryWithRetention(t *testing.T, pool *pgxpool.Pool, olapRetentionPeriod time.Duration) *OLAPRepositoryImpl {
 	logger := zerolog.Nop()
 
 	shared, cleanupShared := newSharedRepository(
@@ -74,7 +78,7 @@ func createOLAPRepositoryWithPayloadStore(t *testing.T, pool *pgxpool.Pool) *OLA
 
 	repo, ok := newOLAPRepository(
 		shared,
-		24*time.Hour,
+		olapRetentionPeriod,
 		false,
 		false,
 		StatusUpdateBatchSizeLimits{Task: 1000, DAG: 1000},

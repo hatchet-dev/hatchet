@@ -29,6 +29,7 @@ type UseRunsProps = {
   parentTaskExternalId: string | undefined;
   triggeringEventExternalId?: string | undefined;
   onlyTasks: boolean;
+  includeOlderActiveRuns?: boolean;
   disablePagination?: boolean;
 };
 
@@ -47,6 +48,7 @@ export const useRuns = ({
   parentTaskExternalId,
   triggeringEventExternalId,
   onlyTasks,
+  includeOlderActiveRuns,
   disablePagination = false,
 }: UseRunsProps) => {
   const { isSelfHosted } = useControlPlane();
@@ -67,6 +69,7 @@ export const useRuns = ({
       parentTaskExternalId,
       triggeringEventExternalId,
       onlyTasks,
+      includeOlderActiveRuns,
     ],
   });
 
@@ -104,6 +107,7 @@ export const useRuns = ({
           triggering_event_external_id: triggeringEventExternalId,
           include_payloads: false,
           running_filter: runningFilter,
+          include_older_active_runs: includeOlderActiveRuns,
         },
         isSelfHosted,
       ),

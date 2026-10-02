@@ -3,6 +3,7 @@ import {
   createdAtKey,
   flattenDAGsKey,
   idempotencyKeyKey,
+  includeOlderActiveRunsKey,
   runningFilterKey,
   statusKey,
   workflowKey,
@@ -152,6 +153,11 @@ export const useToolbarFilters = ({
         { value: 'true', label: 'Flatten' },
         { value: 'false', label: 'All' },
       ],
+    },
+    {
+      columnId: includeOlderActiveRunsKey,
+      title: 'Include active runs, even if older',
+      type: ToolbarType.Switch,
     },
     {
       columnId: idempotencyKeyKey,

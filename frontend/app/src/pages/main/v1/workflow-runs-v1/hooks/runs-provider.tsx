@@ -23,6 +23,7 @@ import {
 const ALWAYS_HIDDEN_RUN_COLUMNS: VisibilityState = {
   parentTaskExternalId: false,
   flattenDAGs: false,
+  includeOlderActiveRuns: false,
   runningFilter: false,
 };
 
@@ -230,6 +231,7 @@ export const RunsProvider = ({
     parentTaskExternalId,
     triggeringEventExternalId,
     onlyTasks: !!workerId || flattenDAGs,
+    includeOlderActiveRuns: filters.apiFilters.includeOlderActiveRuns,
   });
 
   const actionModalParams = useMemo(

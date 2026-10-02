@@ -32,6 +32,7 @@ import {
   flattenDAGsKey,
   createdAfterKey,
   finishedBeforeKey,
+  includeOlderActiveRunsKey,
   runningFilterKey,
   statusKey,
   isCustomTimeRangeKey,
@@ -606,7 +607,10 @@ export function DataTableOptions<TData>({
           return false;
         }
 
-        if (f.id === flattenDAGsKey && !f.value) {
+        if (
+          (f.id === flattenDAGsKey || f.id === includeOlderActiveRunsKey) &&
+          !f.value
+        ) {
           return false;
         }
 

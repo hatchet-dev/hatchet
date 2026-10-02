@@ -100,6 +100,12 @@ func normalizeWorkflowRunStatuses(statuses []gen.V1TaskStatus, runningFilter *ge
 	return normalized
 }
 
+// includeOlderActiveRuns maps the optional include_older_active_runs query param;
+// the strict since bound applies unless the caller opts in.
+func includeOlderActiveRuns(param *bool) bool {
+	return param != nil && *param
+}
+
 func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenantId uuid.UUID, useGinIndex bool, canViewPayloads bool) (gen.V1WorkflowRunListResponseObject, error) {
 	ctx, span := telemetry.NewSpan(ctx, "v1-workflow-runs-list-with-dags-tasks")
 	defer span.End()
@@ -136,13 +142,14 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 	}
 
 	opts := v1.ListWorkflowRunOpts{
-		CreatedAfter:    since,
-		Statuses:        statuses,
-		WorkflowIds:     workflowIds,
-		Limit:           limit,
-		Offset:          offset,
-		IncludePayloads: includePayloads,
-		IdempotencyKeys: request.Params.IdempotencyKeys,
+		CreatedAfter:           since,
+		Statuses:               statuses,
+		WorkflowIds:            workflowIds,
+		Limit:                  limit,
+		Offset:                 offset,
+		IncludePayloads:        includePayloads,
+		IdempotencyKeys:        request.Params.IdempotencyKeys,
+		IncludeOlderActiveRuns: includeOlderActiveRuns(request.Params.IncludeOlderActiveRuns),
 	}
 
 	additionalMetadataFilters := make(map[string]interface{})
@@ -286,14 +293,15 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 	}
 
 	opts := v1.ListTaskRunOpts{
-		CreatedAfter:    since,
-		Statuses:        statuses,
-		WorkflowIds:     workflowIds,
-		Limit:           limit,
-		Offset:          offset,
-		WorkerId:        request.Params.WorkerId,
-		IncludePayloads: includePayloads,
-		IdempotencyKeys: request.Params.IdempotencyKeys,
+		CreatedAfter:           since,
+		Statuses:               statuses,
+		WorkflowIds:            workflowIds,
+		Limit:                  limit,
+		Offset:                 offset,
+		WorkerId:               request.Params.WorkerId,
+		IncludePayloads:        includePayloads,
+		IdempotencyKeys:        request.Params.IdempotencyKeys,
+		IncludeOlderActiveRuns: includeOlderActiveRuns(request.Params.IncludeOlderActiveRuns),
 	}
 
 	additionalMetadataFilters := make(map[string]interface{})
