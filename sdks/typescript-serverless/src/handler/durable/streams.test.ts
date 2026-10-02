@@ -281,8 +281,12 @@ describe('RunWatcher', () => {
     const { received, streams, fromOperator, settle } = harness();
     const watcher = new RunWatcher(streams);
 
-    const a = watcher.awaitRun('run-a');
-    const b = watcher.awaitRun('run-b');
+    // the expectations attach their handlers before the close lands, so the rejections are
+    // never unhandled at a microtask checkpoint
+    const a = expect(watcher.awaitRun('run-a')).rejects.toBeInstanceOf(RunStreamClosedError);
+    const b = expect(watcher.awaitRun('run-b')).rejects.toThrow(
+      /run stream closed before run run-b finished \(code 14: the engine hung up\)/
+    );
     await settle();
 
     fromOperator({
@@ -290,10 +294,8 @@ describe('RunWatcher', () => {
     });
     await settle();
 
-    await expect(a).rejects.toBeInstanceOf(RunStreamClosedError);
-    await expect(b).rejects.toThrow(
-      /run stream closed before run run-b finished \(code 14: the engine hung up\)/
-    );
+    await a;
+    await b;
     expect(watcher.subscribed).toBe(false);
 
     const c = watcher.awaitRun('run-c');
@@ -343,16 +345,20 @@ describe('RunWatcher', () => {
       const watcher = new RunWatcher(streams);
       const controller = new AbortController();
 
-      const aborted = watcher.awaitRun('run-a', { signal: controller.signal });
-      const timedOut = watcher.awaitRun('run-b', { timeoutMs: 1_000 });
+      const aborted = expect(
+        watcher.awaitRun('run-a', { signal: controller.signal })
+      ).rejects.toMatchObject({ name: 'AbortError' });
+      const timedOut = expect(watcher.awaitRun('run-b', { timeoutMs: 1_000 })).rejects.toThrow(
+        /timed out after 1000 ms waiting for run run-b/
+      );
       const inTime = watcher.awaitRun('run-c', { timeoutMs: 5_000 });
       await vi.advanceTimersByTimeAsync(0);
 
       controller.abort();
-      await expect(aborted).rejects.toMatchObject({ name: 'AbortError' });
+      await aborted;
 
       await vi.advanceTimersByTimeAsync(1_000);
-      await expect(timedOut).rejects.toThrow(/timed out after 1000 ms waiting for run run-b/);
+      await timedOut;
 
       fromOperator({ streamMessage: { id: '1', message: finished('run-c', {}) } });
       await vi.advanceTimersByTimeAsync(0);
