@@ -11,6 +11,7 @@ const (
 	PubSubPublishDurationSeconds           PubSubHatchetMetric = "hatchet_pubsub_publish_duration_seconds"
 	PubSubTransitSeconds                   PubSubHatchetMetric = "hatchet_pubsub_transit_seconds"
 	PubSubNATSSchedulerPartitionDropsTotal PubSubHatchetMetric = "hatchet_pubsub_nats_scheduler_partition_drops_total"
+	PubSubStaleSkippedTotal                PubSubHatchetMetric = "hatchet_pubsub_stale_skipped_total"
 )
 
 var pubSubBuckets = []float64{0.01, 0.02, 0.05, 0.1, 0.5, 1, 2, 5, 15}
@@ -26,6 +27,11 @@ var (
 		Name:    string(PubSubTransitSeconds),
 		Help:    "Publish-to-delivery latency computed from the message's published_at stamp; subject to clock skew between publisher and subscriber pods; unstamped messages (older engines) are not observed.",
 		Buckets: pubSubBuckets,
+	}, []string{"kind", "topic_kind"})
+
+	PubSubStaleSkipped = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: string(PubSubStaleSkippedTotal),
+		Help: "Delivered messages skipped without running the handler because their published_at stamp was older than the topic kind's max age; subject to clock skew between publisher and subscriber pods.",
 	}, []string{"kind", "topic_kind"})
 )
 

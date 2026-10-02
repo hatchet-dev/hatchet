@@ -94,6 +94,7 @@ Restart your Hatchet server after setting these variables to apply the changes.
 | `hatchet_pubsub_publish_duration_seconds`             | Histogram | Publisher-side blocking time of a pub/sub `Pub` call                              |
 | `hatchet_pubsub_transit_seconds`                      | Histogram | Pub/sub publish-to-delivery latency, from the message's `published_at` stamp      |
 | `hatchet_pubsub_nats_scheduler_partition_drops_total` | Counter   | Messages dropped client-side by the NATS scheduler-partition subscription         |
+| `hatchet_pubsub_stale_skipped_total`                  | Counter   | Delivered pub/sub messages skipped because they were older than the max age       |
 
 The two pub/sub histograms are labelled by `kind` (the pub/sub backend:
 `rabbitmq`, `postgres`, or `nats`) and `topic_kind`;
@@ -116,6 +117,24 @@ read from the NATS client's `Subscription.Dropped()` at scrape time. Drops
 happen when a subscription exceeds the nats.go default pending limits (500,000
 messages / 64 MiB per subscription). For tenant-stream subscriptions the
 sampled `nats pubsub async error` warning log is the only drop signal.
+
+`hatchet_pubsub_stale_skipped_total` is labelled by `kind` and `topic_kind`, and
+is currently reported by the NATS backend only. A NATS subscriber that falls behind
+(at least 100 messages waiting in the NATS client) skips messages whose
+`published_at` stamp is older than a fixed max age instead of handling them: 5
+seconds for `scheduler-partition` (wake-ups that the scheduler's polling loops
+have already covered) and 30 seconds for `tenant-stream` (the same as the
+RabbitMQ backend's per-message TTL). Without a backlog no message is skipped, so
+clock skew between pods cannot cause skips on its own. A sustained
+non-zero rate means a subscriber cannot keep up. Skipped messages are not
+observed in `hatchet_pubsub_transit_seconds`, so read the two together.
+Pub/sub delivery is at most once and consumers also poll on an interval, so a
+skipped message is usually covered by the next poll. Two cases are not: a
+skipped wake-up for an idle queue waits for that queue's backed-off poll (up to
+45 seconds), and a skipped task stream event is not resent. RabbitMQ's
+30-second TTL instead expires tenant-stream events while they are still queued,
+not after delivery to a subscriber. Like transit latency, the age is subject to
+clock skew between pods.
 
 ### Example PromQL Queries
 
