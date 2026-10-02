@@ -16,6 +16,19 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
+// newRelease returns a channel that blocks fake database reads and a function
+// that closes it. The channel is also closed when the test ends, so a failed
+// assertion does not leave a cycle blocked on it.
+func newRelease(t *testing.T) (<-chan struct{}, func()) {
+	t.Helper()
+
+	release := make(chan struct{})
+	closeRelease := sync.OnceFunc(func() { close(release) })
+	t.Cleanup(closeRelease)
+
+	return release, closeRelease
+}
+
 // startReplenishLoop runs loopReplenish until the test ends, with ticks pushed
 // out of the test's reach so every cycle it sees is request-driven.
 func startReplenishLoop(t *testing.T, s *Scheduler) {
@@ -40,7 +53,7 @@ func startReplenishLoop(t *testing.T, s *Scheduler) {
 
 func TestScheduler_RequestReplenishDoesNotWaitForCycle(t *testing.T) {
 	var cycles atomic.Int64
-	release := make(chan struct{})
+	release, closeRelease := newRelease(t)
 
 	s := newTestScheduler(t, uuid.New(), &mockAssignmentRepo{
 		listActionsForWorkersFn: func(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListActionsForWorkersRow, error) {
@@ -64,7 +77,7 @@ func TestScheduler_RequestReplenishDoesNotWaitForCycle(t *testing.T) {
 	}
 	assert.Less(t, time.Since(start), 100*time.Millisecond)
 
-	close(release)
+	closeRelease()
 
 	// the 1000 requests made during the cycle merge into one follow-up cycle
 	require.Eventually(t, func() bool { return cycles.Load() == 2 }, time.Second, time.Millisecond)
@@ -74,12 +87,15 @@ func TestScheduler_RequestReplenishDoesNotWaitForCycle(t *testing.T) {
 
 func TestScheduler_RequestReplenishDuringSyncReplenishGetsFollowUp(t *testing.T) {
 	var cycles atomic.Int64
-	release := make(chan struct{})
+	release, closeRelease := newRelease(t)
 
 	s := newTestScheduler(t, uuid.New(), &mockAssignmentRepo{
 		listActionsForWorkersFn: func(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListActionsForWorkersRow, error) {
 			if cycles.Add(1) == 1 {
-				<-release
+				select {
+				case <-release:
+				case <-ctx.Done():
+				}
 			}
 			return nil, nil
 		},
@@ -100,7 +116,7 @@ func TestScheduler_RequestReplenishDuringSyncReplenishGetsFollowUp(t *testing.T)
 		return parked == 1
 	}, time.Second, time.Millisecond)
 
-	close(release)
+	closeRelease()
 	require.NoError(t, <-syncDone)
 
 	// once the synchronous cycle ends, the skipped request runs its own cycle
