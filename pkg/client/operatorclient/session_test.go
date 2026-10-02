@@ -731,9 +731,18 @@ func TestOperatorSessionFlushReportsLastSendError(t *testing.T) {
 	client.listenErr = nil
 	client.mu.Unlock()
 
+	// The heartbeat loop reconnects as soon as the engine is back and the
+	// replay resends the failed delta on the new stream. Until the engine
+	// acknowledges that replay, a flush can still observe the recorded send
+	// error, so the next delta goes out only once the replay has settled.
+	waitFor(t, func() bool { return len(s.actions.unackedSequences()) == 0 }, "the failed delta was not replayed once the engine came back")
+
 	s.AddActions("svc:two")
 	flushed(t, s)
 	assert.Contains(t, s.actions.desiredSet(), "svc:one", "a delta that could not be sent stays in the desired set for the next replay")
+
+	adds, _ := deltaIds(client.stream(1).deltas())
+	assert.Contains(t, adds, "svc:one", "the delta that could not be sent is replayed on the new stream")
 }
 
 func TestOperatorSessionFlushHonoursContext(t *testing.T) {
