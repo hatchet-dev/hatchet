@@ -62,8 +62,7 @@ func newHandlerPool(limit int, kind msgqueue.TopicKind) *handlerPool {
 	}
 }
 
-// acquire blocks until a slot is free. It reports false, holding no slot, once
-// the pool is closed.
+// A false result holds no slot, so the caller must not release or run.
 func (h *handlerPool) acquire() bool {
 	select {
 	case <-h.closed:
@@ -90,13 +89,11 @@ func (h *handlerPool) acquire() bool {
 	}
 }
 
-// release returns a slot taken by acquire without running anything on it.
 func (h *handlerPool) release() {
 	<-h.slots
 }
 
-// run calls fn on a new goroutine that owns a slot taken by acquire, and
-// releases the slot when fn returns.
+// run takes ownership of the slot from a successful acquire.
 func (h *handlerPool) run(fn func()) {
 	h.inFlight.Inc()
 
@@ -110,9 +107,9 @@ func (h *handlerPool) run(fn func()) {
 	}()
 }
 
-// close makes acquire fail and waits for every in-flight call to return, so no
-// call starts after close returns. It must not be called from a call running
-// on the pool, which would wait for itself.
+// close waits without a deadline, like the rabbitmq backend's cleanup, so that
+// no call starts or is still running once it returns. It must not be called
+// from a call running on the pool, which would wait for itself.
 func (h *handlerPool) close() {
 	h.closeOnce.Do(func() {
 		close(h.closed)
