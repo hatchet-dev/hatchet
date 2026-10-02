@@ -62,6 +62,16 @@ func WithTenant(ctx context.Context, tenant *sqlcv1.Tenant) context.Context {
 	return ctx
 }
 
+// contextWithAnalyticsTenant fills the analytics tenant id when the caller has a tenant but
+// no API token. PostHog rejects a capture whose distinct id is empty, and the tenant id is
+// the distinct id in that case. An id already on the context is left in place.
+func contextWithAnalyticsTenant(ctx context.Context, tenantID uuid.UUID) context.Context {
+	if tenantID == uuid.Nil || analytics.TenantIDFromContext(ctx) != nil {
+		return ctx
+	}
+	return context.WithValue(ctx, analytics.TenantIDKey, tenantID)
+}
+
 // durableChannel is one durable invocation's pipe over the dispatcher's channel-backed session,
 // the in-engine equivalent of the DurableTask stream. The session lives until Close cancels it;
 // the engine then deregisters the invocation and closes the response channel.

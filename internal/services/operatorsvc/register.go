@@ -88,6 +88,8 @@ func (s *Service) Register(ctx context.Context, tenant *sqlcv1.Tenant, opts Regi
 		return Registration{}, connect.NewError(connect.CodeUnauthenticated, errors.New("tenant not found in request context"))
 	}
 
+	ctx = contextWithAnalyticsTenant(ctx, tenant.ID)
+
 	var op *sqlcv1.V1Operator
 	var err error
 
