@@ -34,15 +34,21 @@ import (
 //     activeSince is the OLAP retention floor when the caller opts in and NULL
 //     otherwise, which turns the branch into a one-time false filter. The
 //     readable_status IN ('QUEUED', 'RUNNING') literal is what keeps finished runs
-//     bound by since; it also lets the planner use a partial index on active
-//     rows if one is ever added.
+//     bound by since.
 //
 // Two branches instead of an OR so each side is an ordered index scan that stops at
 // its LIMIT; an OR would force a bitmap scan and a sort of the whole window. The
 // count uses the same two branches so it always agrees with the list.
 
-const tasksSharedFilter = `
+const countTasks = `-- name: CountTasks :one
+WITH filtered AS (
+    SELECT
+        tenant_id, id, inserted_at, external_id, queue, action_id, step_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, display_name, input, additional_metadata, readable_status, latest_retry_count, latest_worker_id, dag_id, dag_inserted_at
+    FROM
+        v1_tasks_olap
+    WHERE
         tenant_id = $1::uuid
+        AND inserted_at >= $2::timestamptz
         AND readable_status = ANY($3::v1_readable_status_olap[])
         AND (
             $4::timestamptz IS NULL
@@ -66,66 +72,300 @@ const tasksSharedFilter = `
             )
         )
         AND (
-            $9::UUID IS NULL
-            OR (id, inserted_at) IN (
+            $10::jsonb IS NULL
+            OR additional_metadata @> $10::jsonb
+        )
+		AND (
+			$9::UUID IS NULL
+			OR (id, inserted_at) IN (
                 SELECT etr.run_id, etr.run_inserted_at
                 FROM v1_event_lookup_table_olap lt
                 JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
                 JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
-                WHERE
-                    lt.tenant_id = $1::uuid
-                    AND lt.external_id = $9::UUID
+    			WHERE
+					lt.tenant_id = $1::uuid
+					AND lt.external_id = $9::UUID
             )
-        )
-        AND (
-            $11::TEXT[] IS NULL
-            OR idempotency_key = ANY($11::TEXT[])
-        )`
-
-const (
-	tasksMetadataLegacyClause = `
-        AND (
-            $10::jsonb IS NULL
-            OR additional_metadata @> $10::jsonb
-        )`
-	tasksMetadataContainsAllClause = `
-        AND additional_metadata @> $10::jsonb`
-	tasksMetadataContainsAnyClause = `
-        AND additional_metadata @> ANY($10::jsonb[])`
-
-	tasksInWindowClause = `
-        AND inserted_at >= $2::timestamptz`
-	tasksActiveBeforeWindowClause = `
+		)
+		AND (
+			$11::TEXT[] IS NULL
+			OR idempotency_key = ANY($11::TEXT[])
+		)
+    UNION ALL
+    SELECT
+        tenant_id, id, inserted_at, external_id, queue, action_id, step_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, display_name, input, additional_metadata, readable_status, latest_retry_count, latest_worker_id, dag_id, dag_inserted_at
+    FROM
+        v1_tasks_olap
+    WHERE
+        tenant_id = $1::uuid
         AND readable_status IN ('QUEUED', 'RUNNING')
         AND $12::timestamptz IS NOT NULL
         AND inserted_at >= $12::timestamptz
-        AND inserted_at < $2::timestamptz`
-)
-
-func countTasksQuery(name, metadataClause string) string {
-	branch := func(windowClause string) string {
-		return `
-    SELECT id, inserted_at
-    FROM v1_tasks_olap
-    WHERE` + tasksSharedFilter + metadataClause + windowClause
-	}
-
-	return `-- name: ` + name + ` :one
-WITH filtered AS (` + branch(tasksInWindowClause) + `
-    UNION ALL` + branch(tasksActiveBeforeWindowClause) + `
+        AND inserted_at < $2::timestamptz
+        AND readable_status = ANY($3::v1_readable_status_olap[])
+        AND (
+            $4::timestamptz IS NULL
+            OR inserted_at <= $4::timestamptz
+        )
+        AND (
+            $5::uuid[] IS NULL OR workflow_id = ANY($5::uuid[])
+        )
+        AND (
+            $6::uuid IS NULL OR latest_worker_id = $6::uuid
+        )
+        AND (
+            $7::text[] IS NULL
+            OR $8::text[] IS NULL
+            OR EXISTS (
+                SELECT 1 FROM jsonb_each_text(additional_metadata) kv
+                JOIN LATERAL (
+                    SELECT unnest($7::text[]) AS k,
+                        unnest($8::text[]) AS v
+                ) AS u ON kv.key = u.k AND kv.value = u.v
+            )
+        )
+        AND (
+            $10::jsonb IS NULL
+            OR additional_metadata @> $10::jsonb
+        )
+		AND (
+			$9::UUID IS NULL
+			OR (id, inserted_at) IN (
+                SELECT etr.run_id, etr.run_inserted_at
+                FROM v1_event_lookup_table_olap lt
+                JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+                JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+    			WHERE
+					lt.tenant_id = $1::uuid
+					AND lt.external_id = $9::UUID
+            )
+		)
+		AND (
+			$11::TEXT[] IS NULL
+			OR idempotency_key = ANY($11::TEXT[])
+		)
+    ORDER BY
+        inserted_at DESC
     LIMIT 20000
 )
 
 SELECT COUNT(*)
 FROM filtered
 `
-}
 
-var (
-	countTasks                    = countTasksQuery("CountTasks", tasksMetadataLegacyClause)
-	countTasksMetadataContainsAll = countTasksQuery("CountTasksMetadataContainsAll", tasksMetadataContainsAllClause)
-	countTasksMetadataContainsAny = countTasksQuery("CountTasksMetadataContainsAny", tasksMetadataContainsAnyClause)
+const countTasksMetadataContainsAll = `-- name: CountTasksMetadataContainsAll :one
+WITH filtered AS (
+    SELECT
+        tenant_id, id, inserted_at, external_id, queue, action_id, step_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, display_name, input, additional_metadata, readable_status, latest_retry_count, latest_worker_id, dag_id, dag_inserted_at
+    FROM
+        v1_tasks_olap
+    WHERE
+        tenant_id = $1::uuid
+        AND inserted_at >= $2::timestamptz
+        AND readable_status = ANY($3::v1_readable_status_olap[])
+        AND (
+            $4::timestamptz IS NULL
+            OR inserted_at <= $4::timestamptz
+        )
+        AND (
+            $5::uuid[] IS NULL OR workflow_id = ANY($5::uuid[])
+        )
+        AND (
+            $6::uuid IS NULL OR latest_worker_id = $6::uuid
+        )
+        AND (
+            $7::text[] IS NULL
+            OR $8::text[] IS NULL
+            OR EXISTS (
+                SELECT 1 FROM jsonb_each_text(additional_metadata) kv
+                JOIN LATERAL (
+                    SELECT unnest($7::text[]) AS k,
+                        unnest($8::text[]) AS v
+                ) AS u ON kv.key = u.k AND kv.value = u.v
+            )
+        )
+        AND additional_metadata @> $10::jsonb
+		AND (
+			$9::UUID IS NULL
+			OR (id, inserted_at) IN (
+                SELECT etr.run_id, etr.run_inserted_at
+                FROM v1_event_lookup_table_olap lt
+                JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+                JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+    			WHERE
+					lt.tenant_id = $1::uuid
+					AND lt.external_id = $9::UUID
+            )
+		)
+		AND (
+			$11::TEXT[] IS NULL
+			OR idempotency_key = ANY($11::TEXT[])
+		)
+    UNION ALL
+    SELECT
+        tenant_id, id, inserted_at, external_id, queue, action_id, step_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, display_name, input, additional_metadata, readable_status, latest_retry_count, latest_worker_id, dag_id, dag_inserted_at
+    FROM
+        v1_tasks_olap
+    WHERE
+        tenant_id = $1::uuid
+        AND readable_status IN ('QUEUED', 'RUNNING')
+        AND $12::timestamptz IS NOT NULL
+        AND inserted_at >= $12::timestamptz
+        AND inserted_at < $2::timestamptz
+        AND readable_status = ANY($3::v1_readable_status_olap[])
+        AND (
+            $4::timestamptz IS NULL
+            OR inserted_at <= $4::timestamptz
+        )
+        AND (
+            $5::uuid[] IS NULL OR workflow_id = ANY($5::uuid[])
+        )
+        AND (
+            $6::uuid IS NULL OR latest_worker_id = $6::uuid
+        )
+        AND (
+            $7::text[] IS NULL
+            OR $8::text[] IS NULL
+            OR EXISTS (
+                SELECT 1 FROM jsonb_each_text(additional_metadata) kv
+                JOIN LATERAL (
+                    SELECT unnest($7::text[]) AS k,
+                        unnest($8::text[]) AS v
+                ) AS u ON kv.key = u.k AND kv.value = u.v
+            )
+        )
+        AND additional_metadata @> $10::jsonb
+		AND (
+			$9::UUID IS NULL
+			OR (id, inserted_at) IN (
+                SELECT etr.run_id, etr.run_inserted_at
+                FROM v1_event_lookup_table_olap lt
+                JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+                JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+    			WHERE
+					lt.tenant_id = $1::uuid
+					AND lt.external_id = $9::UUID
+            )
+		)
+		AND (
+			$11::TEXT[] IS NULL
+			OR idempotency_key = ANY($11::TEXT[])
+		)
+    ORDER BY
+        inserted_at DESC
+    LIMIT 20000
 )
+
+SELECT COUNT(*)
+FROM filtered
+`
+
+const countTasksMetadataContainsAny = `-- name: CountTasksMetadataContainsAny :one
+WITH filtered AS (
+    SELECT
+        tenant_id, id, inserted_at, external_id, queue, action_id, step_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, display_name, input, additional_metadata, readable_status, latest_retry_count, latest_worker_id, dag_id, dag_inserted_at
+    FROM
+        v1_tasks_olap
+    WHERE
+        tenant_id = $1::uuid
+        AND inserted_at >= $2::timestamptz
+        AND readable_status = ANY($3::v1_readable_status_olap[])
+        AND (
+            $4::timestamptz IS NULL
+            OR inserted_at <= $4::timestamptz
+        )
+        AND (
+            $5::uuid[] IS NULL OR workflow_id = ANY($5::uuid[])
+        )
+        AND (
+            $6::uuid IS NULL OR latest_worker_id = $6::uuid
+        )
+        AND (
+            $7::text[] IS NULL
+            OR $8::text[] IS NULL
+            OR EXISTS (
+                SELECT 1 FROM jsonb_each_text(additional_metadata) kv
+                JOIN LATERAL (
+                    SELECT unnest($7::text[]) AS k,
+                        unnest($8::text[]) AS v
+                ) AS u ON kv.key = u.k AND kv.value = u.v
+            )
+        )
+        AND additional_metadata @> ANY($10::jsonb[])
+		AND (
+			$9::UUID IS NULL
+			OR (id, inserted_at) IN (
+                SELECT etr.run_id, etr.run_inserted_at
+                FROM v1_event_lookup_table_olap lt
+                JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+                JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+    			WHERE
+					lt.tenant_id = $1::uuid
+					AND lt.external_id = $9::UUID
+            )
+		)
+		AND (
+			$11::TEXT[] IS NULL
+			OR idempotency_key = ANY($11::TEXT[])
+		)
+    UNION ALL
+    SELECT
+        tenant_id, id, inserted_at, external_id, queue, action_id, step_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, display_name, input, additional_metadata, readable_status, latest_retry_count, latest_worker_id, dag_id, dag_inserted_at
+    FROM
+        v1_tasks_olap
+    WHERE
+        tenant_id = $1::uuid
+        AND readable_status IN ('QUEUED', 'RUNNING')
+        AND $12::timestamptz IS NOT NULL
+        AND inserted_at >= $12::timestamptz
+        AND inserted_at < $2::timestamptz
+        AND readable_status = ANY($3::v1_readable_status_olap[])
+        AND (
+            $4::timestamptz IS NULL
+            OR inserted_at <= $4::timestamptz
+        )
+        AND (
+            $5::uuid[] IS NULL OR workflow_id = ANY($5::uuid[])
+        )
+        AND (
+            $6::uuid IS NULL OR latest_worker_id = $6::uuid
+        )
+        AND (
+            $7::text[] IS NULL
+            OR $8::text[] IS NULL
+            OR EXISTS (
+                SELECT 1 FROM jsonb_each_text(additional_metadata) kv
+                JOIN LATERAL (
+                    SELECT unnest($7::text[]) AS k,
+                        unnest($8::text[]) AS v
+                ) AS u ON kv.key = u.k AND kv.value = u.v
+            )
+        )
+        AND additional_metadata @> ANY($10::jsonb[])
+		AND (
+			$9::UUID IS NULL
+			OR (id, inserted_at) IN (
+                SELECT etr.run_id, etr.run_inserted_at
+                FROM v1_event_lookup_table_olap lt
+                JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+                JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+    			WHERE
+					lt.tenant_id = $1::uuid
+					AND lt.external_id = $9::UUID
+            )
+		)
+		AND (
+			$11::TEXT[] IS NULL
+			OR idempotency_key = ANY($11::TEXT[])
+		)
+    ORDER BY
+        inserted_at DESC
+    LIMIT 20000
+)
+
+SELECT COUNT(*)
+FROM filtered
+`
 
 type CountTasksParams struct {
 	Tenantid                      uuid.UUID          `json:"tenantid"`
@@ -177,13 +417,18 @@ func (q *Queries) CountTasks(ctx context.Context, db DBTX, arg CountTasksParams)
 	return count, err
 }
 
-const workflowRunsSharedFilter = `
+const countWorkflowRuns = `-- name: CountWorkflowRuns :one
+WITH filtered AS (
+    SELECT tenant_id, id, inserted_at, external_id, readable_status, kind, workflow_id, additional_metadata
+    FROM v1_runs_olap
+    WHERE
         tenant_id = $1::uuid
         AND readable_status = ANY($2::v1_readable_status_olap[])
         AND (
             $3::uuid[] IS NULL
             OR workflow_id = ANY($3::uuid[])
         )
+        AND inserted_at >= $4::timestamptz
         AND (
             $5::timestamptz IS NULL
             OR inserted_at <= $5::timestamptz
@@ -200,70 +445,304 @@ const workflowRunsSharedFilter = `
             )
         )
         AND (
-            $8::UUID IS NULL
-            OR parent_task_external_id = $8::UUID
+            $10::jsonb IS NULL
+            OR additional_metadata @> $10::jsonb
         )
-        AND (
-            $9::UUID IS NULL
-            OR (id, inserted_at) IN (
+		AND (
+			$8::UUID IS NULL
+			OR parent_task_external_id = $8::UUID
+		)
+
+		AND (
+			$9::UUID IS NULL
+			OR (id, inserted_at) IN (
                 SELECT etr.run_id, etr.run_inserted_at
                 FROM v1_event_lookup_table_olap lt
                 JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
                 JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
-                WHERE
-                    lt.tenant_id = $1::uuid
-                    AND lt.external_id = $9::UUID
+    			WHERE
+					lt.tenant_id = $1::uuid
+					AND lt.external_id = $9::UUID
             )
+		)
+		AND (
+			$11::TEXT[] IS NULL
+			OR idempotency_key = ANY($11::TEXT[])
+		)
+    UNION ALL
+    SELECT tenant_id, id, inserted_at, external_id, readable_status, kind, workflow_id, additional_metadata
+    FROM v1_runs_olap
+    WHERE
+        tenant_id = $1::uuid
+        AND readable_status = ANY($2::v1_readable_status_olap[])
+        AND (
+            $3::uuid[] IS NULL
+            OR workflow_id = ANY($3::uuid[])
         )
-        AND (
-            $11::TEXT[] IS NULL
-            OR idempotency_key = ANY($11::TEXT[])
-        )`
-
-const (
-	workflowRunsMetadataLegacyClause = `
-        AND (
-            $10::jsonb IS NULL
-            OR additional_metadata @> $10::jsonb
-        )`
-	workflowRunsMetadataContainsAllClause = `
-        AND additional_metadata @> $10::jsonb`
-	workflowRunsMetadataContainsAnyClause = `
-        AND additional_metadata @> ANY($10::jsonb[])`
-
-	workflowRunsInWindowClause = `
-        AND inserted_at >= $4::timestamptz`
-	workflowRunsActiveBeforeWindowClause = `
         AND readable_status IN ('QUEUED', 'RUNNING')
         AND $12::timestamptz IS NOT NULL
         AND inserted_at >= $12::timestamptz
-        AND inserted_at < $4::timestamptz`
-)
+        AND inserted_at < $4::timestamptz
+        AND (
+            $5::timestamptz IS NULL
+            OR inserted_at <= $5::timestamptz
+        )
+        AND (
+            $6::text[] IS NULL
+            OR $7::text[] IS NULL
+            OR EXISTS (
+                SELECT 1 FROM jsonb_each_text(additional_metadata) kv
+                JOIN LATERAL (
+                    SELECT unnest($6::text[]) AS k,
+                        unnest($7::text[]) AS v
+                ) AS u ON kv.key = u.k AND kv.value = u.v
+            )
+        )
+        AND (
+            $10::jsonb IS NULL
+            OR additional_metadata @> $10::jsonb
+        )
+		AND (
+			$8::UUID IS NULL
+			OR parent_task_external_id = $8::UUID
+		)
 
-func countWorkflowRunsQuery(name, metadataClause string) string {
-	branch := func(windowClause string) string {
-		return `
-    SELECT id, inserted_at
-    FROM v1_runs_olap
-    WHERE` + workflowRunsSharedFilter + metadataClause + windowClause
-	}
-
-	return `-- name: ` + name + ` :one
-WITH filtered AS (` + branch(workflowRunsInWindowClause) + `
-    UNION ALL` + branch(workflowRunsActiveBeforeWindowClause) + `
+		AND (
+			$9::UUID IS NULL
+			OR (id, inserted_at) IN (
+                SELECT etr.run_id, etr.run_inserted_at
+                FROM v1_event_lookup_table_olap lt
+                JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+                JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+    			WHERE
+					lt.tenant_id = $1::uuid
+					AND lt.external_id = $9::UUID
+            )
+		)
+		AND (
+			$11::TEXT[] IS NULL
+			OR idempotency_key = ANY($11::TEXT[])
+		)
     LIMIT 20000
 )
 
 SELECT COUNT(*)
 FROM filtered
 `
-}
 
-var (
-	countWorkflowRuns                    = countWorkflowRunsQuery("CountWorkflowRuns", workflowRunsMetadataLegacyClause)
-	countWorkflowRunsMetadataContainsAll = countWorkflowRunsQuery("CountWorkflowRunsMetadataContainsAll", workflowRunsMetadataContainsAllClause)
-	countWorkflowRunsMetadataContainsAny = countWorkflowRunsQuery("CountWorkflowRunsMetadataContainsAny", workflowRunsMetadataContainsAnyClause)
+const countWorkflowRunsMetadataContainsAll = `-- name: CountWorkflowRunsMetadataContainsAll :one
+WITH filtered AS (
+    SELECT tenant_id, id, inserted_at, external_id, readable_status, kind, workflow_id, additional_metadata
+    FROM v1_runs_olap
+    WHERE
+        tenant_id = $1::uuid
+        AND readable_status = ANY($2::v1_readable_status_olap[])
+        AND (
+            $3::uuid[] IS NULL
+            OR workflow_id = ANY($3::uuid[])
+        )
+        AND inserted_at >= $4::timestamptz
+        AND (
+            $5::timestamptz IS NULL
+            OR inserted_at <= $5::timestamptz
+        )
+        AND (
+            $6::text[] IS NULL
+            OR $7::text[] IS NULL
+            OR EXISTS (
+                SELECT 1 FROM jsonb_each_text(additional_metadata) kv
+                JOIN LATERAL (
+                    SELECT unnest($6::text[]) AS k,
+                        unnest($7::text[]) AS v
+                ) AS u ON kv.key = u.k AND kv.value = u.v
+            )
+        )
+        AND additional_metadata @> $10::jsonb
+		AND (
+			$8::UUID IS NULL
+			OR parent_task_external_id = $8::UUID
+		)
+
+		AND (
+			$9::UUID IS NULL
+			OR (id, inserted_at) IN (
+                SELECT etr.run_id, etr.run_inserted_at
+                FROM v1_event_lookup_table_olap lt
+                JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+                JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+    			WHERE
+					lt.tenant_id = $1::uuid
+					AND lt.external_id = $9::UUID
+            )
+		)
+		AND (
+			$11::TEXT[] IS NULL
+			OR idempotency_key = ANY($11::TEXT[])
+		)
+    UNION ALL
+    SELECT tenant_id, id, inserted_at, external_id, readable_status, kind, workflow_id, additional_metadata
+    FROM v1_runs_olap
+    WHERE
+        tenant_id = $1::uuid
+        AND readable_status = ANY($2::v1_readable_status_olap[])
+        AND (
+            $3::uuid[] IS NULL
+            OR workflow_id = ANY($3::uuid[])
+        )
+        AND readable_status IN ('QUEUED', 'RUNNING')
+        AND $12::timestamptz IS NOT NULL
+        AND inserted_at >= $12::timestamptz
+        AND inserted_at < $4::timestamptz
+        AND (
+            $5::timestamptz IS NULL
+            OR inserted_at <= $5::timestamptz
+        )
+        AND (
+            $6::text[] IS NULL
+            OR $7::text[] IS NULL
+            OR EXISTS (
+                SELECT 1 FROM jsonb_each_text(additional_metadata) kv
+                JOIN LATERAL (
+                    SELECT unnest($6::text[]) AS k,
+                        unnest($7::text[]) AS v
+                ) AS u ON kv.key = u.k AND kv.value = u.v
+            )
+        )
+        AND additional_metadata @> $10::jsonb
+		AND (
+			$8::UUID IS NULL
+			OR parent_task_external_id = $8::UUID
+		)
+
+		AND (
+			$9::UUID IS NULL
+			OR (id, inserted_at) IN (
+                SELECT etr.run_id, etr.run_inserted_at
+                FROM v1_event_lookup_table_olap lt
+                JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+                JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+    			WHERE
+					lt.tenant_id = $1::uuid
+					AND lt.external_id = $9::UUID
+            )
+		)
+		AND (
+			$11::TEXT[] IS NULL
+			OR idempotency_key = ANY($11::TEXT[])
+		)
+    LIMIT 20000
 )
+
+SELECT COUNT(*)
+FROM filtered
+`
+
+const countWorkflowRunsMetadataContainsAny = `-- name: CountWorkflowRunsMetadataContainsAny :one
+WITH filtered AS (
+    SELECT tenant_id, id, inserted_at, external_id, readable_status, kind, workflow_id, additional_metadata
+    FROM v1_runs_olap
+    WHERE
+        tenant_id = $1::uuid
+        AND readable_status = ANY($2::v1_readable_status_olap[])
+        AND (
+            $3::uuid[] IS NULL
+            OR workflow_id = ANY($3::uuid[])
+        )
+        AND inserted_at >= $4::timestamptz
+        AND (
+            $5::timestamptz IS NULL
+            OR inserted_at <= $5::timestamptz
+        )
+        AND (
+            $6::text[] IS NULL
+            OR $7::text[] IS NULL
+            OR EXISTS (
+                SELECT 1 FROM jsonb_each_text(additional_metadata) kv
+                JOIN LATERAL (
+                    SELECT unnest($6::text[]) AS k,
+                        unnest($7::text[]) AS v
+                ) AS u ON kv.key = u.k AND kv.value = u.v
+            )
+        )
+        AND additional_metadata @> ANY($10::jsonb[])
+		AND (
+			$8::UUID IS NULL
+			OR parent_task_external_id = $8::UUID
+		)
+
+		AND (
+			$9::UUID IS NULL
+			OR (id, inserted_at) IN (
+                SELECT etr.run_id, etr.run_inserted_at
+                FROM v1_event_lookup_table_olap lt
+                JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+                JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+    			WHERE
+					lt.tenant_id = $1::uuid
+					AND lt.external_id = $9::UUID
+            )
+		)
+		AND (
+			$11::TEXT[] IS NULL
+			OR idempotency_key = ANY($11::TEXT[])
+		)
+    UNION ALL
+    SELECT tenant_id, id, inserted_at, external_id, readable_status, kind, workflow_id, additional_metadata
+    FROM v1_runs_olap
+    WHERE
+        tenant_id = $1::uuid
+        AND readable_status = ANY($2::v1_readable_status_olap[])
+        AND (
+            $3::uuid[] IS NULL
+            OR workflow_id = ANY($3::uuid[])
+        )
+        AND readable_status IN ('QUEUED', 'RUNNING')
+        AND $12::timestamptz IS NOT NULL
+        AND inserted_at >= $12::timestamptz
+        AND inserted_at < $4::timestamptz
+        AND (
+            $5::timestamptz IS NULL
+            OR inserted_at <= $5::timestamptz
+        )
+        AND (
+            $6::text[] IS NULL
+            OR $7::text[] IS NULL
+            OR EXISTS (
+                SELECT 1 FROM jsonb_each_text(additional_metadata) kv
+                JOIN LATERAL (
+                    SELECT unnest($6::text[]) AS k,
+                        unnest($7::text[]) AS v
+                ) AS u ON kv.key = u.k AND kv.value = u.v
+            )
+        )
+        AND additional_metadata @> ANY($10::jsonb[])
+		AND (
+			$8::UUID IS NULL
+			OR parent_task_external_id = $8::UUID
+		)
+
+		AND (
+			$9::UUID IS NULL
+			OR (id, inserted_at) IN (
+                SELECT etr.run_id, etr.run_inserted_at
+                FROM v1_event_lookup_table_olap lt
+                JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+                JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+    			WHERE
+					lt.tenant_id = $1::uuid
+					AND lt.external_id = $9::UUID
+            )
+		)
+		AND (
+			$11::TEXT[] IS NULL
+			OR idempotency_key = ANY($11::TEXT[])
+		)
+    LIMIT 20000
+)
+
+SELECT COUNT(*)
+FROM filtered
+`
 
 // forceCustomPlan forces Postgres to generate a query plan using the parameter values.
 //
@@ -338,38 +817,350 @@ func (q *Queries) CountWorkflowRuns(ctx context.Context, db DBTX, arg CountWorkf
 	return count, err
 }
 
-// fetchWorkflowRunIdsQuery orders each branch and caps it at offset + limit rows, so
-// the outer sort only ever sees at most twice that many rows. $13 is the offset and
-// $14 the limit.
-func fetchWorkflowRunIdsQuery(name, metadataClause string) string {
-	branch := func(windowClause string) string {
-		return `(
-    SELECT id, inserted_at, kind, external_id
-    FROM v1_runs_olap
-    WHERE` + workflowRunsSharedFilter + metadataClause + windowClause + `
-    ORDER BY inserted_at DESC, id DESC
-    LIMIT $14::integer + $13::integer
-    )`
-	}
-
-	return `-- name: ` + name + ` :many
+const fetchWorkflowRunIds = `-- name: FetchWorkflowRunIds :many
 SELECT id, inserted_at, kind, external_id
 FROM (
-    ` + branch(workflowRunsInWindowClause) + `
-    UNION ALL
-    ` + branch(workflowRunsActiveBeforeWindowClause) + `
+(
+SELECT id, inserted_at, kind, external_id
+FROM v1_runs_olap
+WHERE
+    tenant_id = $1::uuid
+    AND readable_status = ANY($2::v1_readable_status_olap[])
+    AND (
+        $3::uuid[] IS NULL
+        OR workflow_id = ANY($3::uuid[])
+    )
+    AND inserted_at >= $4::timestamptz
+    AND (
+        $5::timestamptz IS NULL
+        OR inserted_at <= $5::timestamptz
+    )
+    AND (
+        $6::text[] IS NULL
+        OR $7::text[] IS NULL
+        OR EXISTS (
+            SELECT 1 FROM jsonb_each_text(additional_metadata) kv
+            JOIN LATERAL (
+                SELECT unnest($6::text[]) AS k,
+                    unnest($7::text[]) AS v
+            ) AS u ON kv.key = u.k AND kv.value = u.v
+        )
+    )
+    AND (
+        $12::jsonb IS NULL
+        OR additional_metadata @> $12::jsonb
+    )
+    AND (
+        $10::UUID IS NULL
+        OR parent_task_external_id = $10::UUID
+    )
+    AND (
+        $11::UUID IS NULL
+		OR (id, inserted_at) IN (
+			SELECT etr.run_id, etr.run_inserted_at
+			FROM v1_event_lookup_table_olap lt
+			JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+			JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+			WHERE
+				lt.tenant_id = $1::uuid
+				AND lt.external_id = $11::UUID
+		)
+    )
+    AND (
+        $13::TEXT[] IS NULL
+        OR idempotency_key = ANY($13::TEXT[])
+    )
+ORDER BY inserted_at DESC, id DESC
+LIMIT $9::integer + $8::integer
+)
+UNION ALL
+(
+SELECT id, inserted_at, kind, external_id
+FROM v1_runs_olap
+WHERE
+    tenant_id = $1::uuid
+    AND readable_status = ANY($2::v1_readable_status_olap[])
+    AND (
+        $3::uuid[] IS NULL
+        OR workflow_id = ANY($3::uuid[])
+    )
+    AND readable_status IN ('QUEUED', 'RUNNING')
+    AND $14::timestamptz IS NOT NULL
+    AND inserted_at >= $14::timestamptz
+    AND inserted_at < $4::timestamptz
+    AND (
+        $5::timestamptz IS NULL
+        OR inserted_at <= $5::timestamptz
+    )
+    AND (
+        $6::text[] IS NULL
+        OR $7::text[] IS NULL
+        OR EXISTS (
+            SELECT 1 FROM jsonb_each_text(additional_metadata) kv
+            JOIN LATERAL (
+                SELECT unnest($6::text[]) AS k,
+                    unnest($7::text[]) AS v
+            ) AS u ON kv.key = u.k AND kv.value = u.v
+        )
+    )
+    AND (
+        $12::jsonb IS NULL
+        OR additional_metadata @> $12::jsonb
+    )
+    AND (
+        $10::UUID IS NULL
+        OR parent_task_external_id = $10::UUID
+    )
+    AND (
+        $11::UUID IS NULL
+		OR (id, inserted_at) IN (
+			SELECT etr.run_id, etr.run_inserted_at
+			FROM v1_event_lookup_table_olap lt
+			JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+			JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+			WHERE
+				lt.tenant_id = $1::uuid
+				AND lt.external_id = $11::UUID
+		)
+    )
+    AND (
+        $13::TEXT[] IS NULL
+        OR idempotency_key = ANY($13::TEXT[])
+    )
+ORDER BY inserted_at DESC, id DESC
+LIMIT $9::integer + $8::integer
+)
 ) runs
 ORDER BY inserted_at DESC, id DESC
-LIMIT $14::integer
-OFFSET $13::integer
+LIMIT $9::integer
+OFFSET $8::integer
 `
-}
 
-var (
-	fetchWorkflowRunIds                    = fetchWorkflowRunIdsQuery("FetchWorkflowRunIds", workflowRunsMetadataLegacyClause)
-	fetchWorkflowRunIdsMetadataContainsAll = fetchWorkflowRunIdsQuery("FetchWorkflowRunIdsMetadataContainsAll", workflowRunsMetadataContainsAllClause)
-	fetchWorkflowRunIdsMetadataContainsAny = fetchWorkflowRunIdsQuery("FetchWorkflowRunIdsMetadataContainsAny", workflowRunsMetadataContainsAnyClause)
+const fetchWorkflowRunIdsMetadataContainsAll = `-- name: FetchWorkflowRunIdsMetadataContainsAll :many
+SELECT id, inserted_at, kind, external_id
+FROM (
+(
+SELECT id, inserted_at, kind, external_id
+FROM v1_runs_olap
+WHERE
+    tenant_id = $1::uuid
+    AND readable_status = ANY($2::v1_readable_status_olap[])
+    AND (
+        $3::uuid[] IS NULL
+        OR workflow_id = ANY($3::uuid[])
+    )
+    AND inserted_at >= $4::timestamptz
+    AND (
+        $5::timestamptz IS NULL
+        OR inserted_at <= $5::timestamptz
+    )
+    AND (
+        $6::text[] IS NULL
+        OR $7::text[] IS NULL
+        OR EXISTS (
+            SELECT 1 FROM jsonb_each_text(additional_metadata) kv
+            JOIN LATERAL (
+                SELECT unnest($6::text[]) AS k,
+                    unnest($7::text[]) AS v
+            ) AS u ON kv.key = u.k AND kv.value = u.v
+        )
+    )
+    AND additional_metadata @> $12::jsonb
+    AND (
+        $10::UUID IS NULL
+        OR parent_task_external_id = $10::UUID
+    )
+    AND (
+        $11::UUID IS NULL
+		OR (id, inserted_at) IN (
+			SELECT etr.run_id, etr.run_inserted_at
+			FROM v1_event_lookup_table_olap lt
+			JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+			JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+			WHERE
+				lt.tenant_id = $1::uuid
+				AND lt.external_id = $11::UUID
+		)
+    )
+    AND (
+        $13::TEXT[] IS NULL
+        OR idempotency_key = ANY($13::TEXT[])
+    )
+ORDER BY inserted_at DESC, id DESC
+LIMIT $9::integer + $8::integer
 )
+UNION ALL
+(
+SELECT id, inserted_at, kind, external_id
+FROM v1_runs_olap
+WHERE
+    tenant_id = $1::uuid
+    AND readable_status = ANY($2::v1_readable_status_olap[])
+    AND (
+        $3::uuid[] IS NULL
+        OR workflow_id = ANY($3::uuid[])
+    )
+    AND readable_status IN ('QUEUED', 'RUNNING')
+    AND $14::timestamptz IS NOT NULL
+    AND inserted_at >= $14::timestamptz
+    AND inserted_at < $4::timestamptz
+    AND (
+        $5::timestamptz IS NULL
+        OR inserted_at <= $5::timestamptz
+    )
+    AND (
+        $6::text[] IS NULL
+        OR $7::text[] IS NULL
+        OR EXISTS (
+            SELECT 1 FROM jsonb_each_text(additional_metadata) kv
+            JOIN LATERAL (
+                SELECT unnest($6::text[]) AS k,
+                    unnest($7::text[]) AS v
+            ) AS u ON kv.key = u.k AND kv.value = u.v
+        )
+    )
+    AND additional_metadata @> $12::jsonb
+    AND (
+        $10::UUID IS NULL
+        OR parent_task_external_id = $10::UUID
+    )
+    AND (
+        $11::UUID IS NULL
+		OR (id, inserted_at) IN (
+			SELECT etr.run_id, etr.run_inserted_at
+			FROM v1_event_lookup_table_olap lt
+			JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+			JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+			WHERE
+				lt.tenant_id = $1::uuid
+				AND lt.external_id = $11::UUID
+		)
+    )
+    AND (
+        $13::TEXT[] IS NULL
+        OR idempotency_key = ANY($13::TEXT[])
+    )
+ORDER BY inserted_at DESC, id DESC
+LIMIT $9::integer + $8::integer
+)
+) runs
+ORDER BY inserted_at DESC, id DESC
+LIMIT $9::integer
+OFFSET $8::integer
+`
+
+const fetchWorkflowRunIdsMetadataContainsAny = `-- name: FetchWorkflowRunIdsMetadataContainsAny :many
+SELECT id, inserted_at, kind, external_id
+FROM (
+(
+SELECT id, inserted_at, kind, external_id
+FROM v1_runs_olap
+WHERE
+    tenant_id = $1::uuid
+    AND readable_status = ANY($2::v1_readable_status_olap[])
+    AND (
+        $3::uuid[] IS NULL
+        OR workflow_id = ANY($3::uuid[])
+    )
+    AND inserted_at >= $4::timestamptz
+    AND (
+        $5::timestamptz IS NULL
+        OR inserted_at <= $5::timestamptz
+    )
+    AND (
+        $6::text[] IS NULL
+        OR $7::text[] IS NULL
+        OR EXISTS (
+            SELECT 1 FROM jsonb_each_text(additional_metadata) kv
+            JOIN LATERAL (
+                SELECT unnest($6::text[]) AS k,
+                    unnest($7::text[]) AS v
+            ) AS u ON kv.key = u.k AND kv.value = u.v
+        )
+    )
+    AND additional_metadata @> ANY($12::jsonb[])
+    AND (
+        $10::UUID IS NULL
+        OR parent_task_external_id = $10::UUID
+    )
+    AND (
+        $11::UUID IS NULL
+		OR (id, inserted_at) IN (
+			SELECT etr.run_id, etr.run_inserted_at
+			FROM v1_event_lookup_table_olap lt
+			JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+			JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+			WHERE
+				lt.tenant_id = $1::uuid
+				AND lt.external_id = $11::UUID
+		)
+    )
+    AND (
+        $13::TEXT[] IS NULL
+        OR idempotency_key = ANY($13::TEXT[])
+    )
+ORDER BY inserted_at DESC, id DESC
+LIMIT $9::integer + $8::integer
+)
+UNION ALL
+(
+SELECT id, inserted_at, kind, external_id
+FROM v1_runs_olap
+WHERE
+    tenant_id = $1::uuid
+    AND readable_status = ANY($2::v1_readable_status_olap[])
+    AND (
+        $3::uuid[] IS NULL
+        OR workflow_id = ANY($3::uuid[])
+    )
+    AND readable_status IN ('QUEUED', 'RUNNING')
+    AND $14::timestamptz IS NOT NULL
+    AND inserted_at >= $14::timestamptz
+    AND inserted_at < $4::timestamptz
+    AND (
+        $5::timestamptz IS NULL
+        OR inserted_at <= $5::timestamptz
+    )
+    AND (
+        $6::text[] IS NULL
+        OR $7::text[] IS NULL
+        OR EXISTS (
+            SELECT 1 FROM jsonb_each_text(additional_metadata) kv
+            JOIN LATERAL (
+                SELECT unnest($6::text[]) AS k,
+                    unnest($7::text[]) AS v
+            ) AS u ON kv.key = u.k AND kv.value = u.v
+        )
+    )
+    AND additional_metadata @> ANY($12::jsonb[])
+    AND (
+        $10::UUID IS NULL
+        OR parent_task_external_id = $10::UUID
+    )
+    AND (
+        $11::UUID IS NULL
+		OR (id, inserted_at) IN (
+			SELECT etr.run_id, etr.run_inserted_at
+			FROM v1_event_lookup_table_olap lt
+			JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+			JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+			WHERE
+				lt.tenant_id = $1::uuid
+				AND lt.external_id = $11::UUID
+		)
+    )
+    AND (
+        $13::TEXT[] IS NULL
+        OR idempotency_key = ANY($13::TEXT[])
+    )
+ORDER BY inserted_at DESC, id DESC
+LIMIT $9::integer + $8::integer
+)
+) runs
+ORDER BY inserted_at DESC, id DESC
+LIMIT $9::integer
+OFFSET $8::integer
+`
 
 type FetchWorkflowRunIdsParams struct {
 	Tenantid                      uuid.UUID          `json:"tenantid"`
@@ -419,13 +1210,13 @@ func (q *Queries) FetchWorkflowRunIds(ctx context.Context, db DBTX, arg FetchWor
 		arg.Until,
 		arg.Keys,
 		arg.Values,
+		arg.Listworkflowrunsoffset,
+		arg.Listworkflowrunslimit,
 		arg.ParentTaskExternalId,
 		arg.TriggeringEventExternalId,
 		metadataContains,
 		arg.IdempotencyKeys,
 		arg.ActiveSince,
-		arg.Listworkflowrunsoffset,
-		arg.Listworkflowrunslimit,
 	)
 
 	if err != nil {
@@ -451,37 +1242,371 @@ func (q *Queries) FetchWorkflowRunIds(ctx context.Context, db DBTX, arg FetchWor
 	return items, nil
 }
 
-// listTasksOlapQuery mirrors fetchWorkflowRunIdsQuery for v1_tasks_olap. $13 is the
-// offset and $14 the limit.
-func listTasksOlapQuery(name, metadataClause string) string {
-	branch := func(windowClause string) string {
-		return `(
-    SELECT id, inserted_at
-    FROM v1_tasks_olap
-    WHERE` + tasksSharedFilter + metadataClause + windowClause + `
-    ORDER BY inserted_at DESC, id DESC
-    LIMIT $14::integer + $13::integer
-    )`
-	}
-
-	return `-- name: ` + name + ` :many
-SELECT id, inserted_at
+const listTasksOlap = `-- name: ListTasksOlap :many
+SELECT
+    id,
+    inserted_at
 FROM (
-    ` + branch(tasksInWindowClause) + `
-    UNION ALL
-    ` + branch(tasksActiveBeforeWindowClause) + `
-) tasks
-ORDER BY inserted_at DESC, id DESC
-LIMIT $14::integer
-OFFSET $13::integer
-`
-}
-
-var (
-	listTasksOlap                    = listTasksOlapQuery("ListTasksOlap", tasksMetadataLegacyClause)
-	listTasksOlapMetadataContainsAll = listTasksOlapQuery("ListTasksOlapMetadataContainsAll", tasksMetadataContainsAllClause)
-	listTasksOlapMetadataContainsAny = listTasksOlapQuery("ListTasksOlapMetadataContainsAny", tasksMetadataContainsAnyClause)
+(
+SELECT
+    id,
+    inserted_at
+FROM
+    v1_tasks_olap
+WHERE
+    tenant_id = $1::uuid
+    AND inserted_at >= $2::timestamptz
+    AND readable_status = ANY($3::v1_readable_status_olap[])
+    AND (
+        $4::timestamptz IS NULL
+        OR inserted_at <= $4::timestamptz
+    )
+    AND (
+        $5::uuid[] IS NULL OR workflow_id = ANY($5::uuid[])
+    )
+    AND (
+        $6::uuid IS NULL OR latest_worker_id = $6::uuid
+    )
+    AND (
+        $7::text[] IS NULL
+        OR $8::text[] IS NULL
+        OR EXISTS (
+            SELECT 1 FROM jsonb_each_text(additional_metadata) kv
+            JOIN LATERAL (
+                SELECT unnest($7::text[]) AS k,
+                    unnest($8::text[]) AS v
+            ) AS u ON kv.key = u.k AND kv.value = u.v
+        )
+    )
+    AND (
+        $12::jsonb IS NULL
+        OR additional_metadata @> $12::jsonb
+    )
+    AND (
+        $11::UUID IS NULL
+		OR (id, inserted_at) IN (
+			SELECT etr.run_id, etr.run_inserted_at
+			FROM v1_event_lookup_table_olap lt
+			JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+			JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+			WHERE
+				lt.tenant_id = $1::uuid
+				AND lt.external_id = $11::UUID
+		)
+    )
+    AND (
+        $13::TEXT[] IS NULL
+        OR idempotency_key = ANY($13::TEXT[])
+    )
+ORDER BY
+    inserted_at DESC
+LIMIT $10::integer + $9::integer
 )
+UNION ALL
+(
+SELECT
+    id,
+    inserted_at
+FROM
+    v1_tasks_olap
+WHERE
+    tenant_id = $1::uuid
+    AND readable_status IN ('QUEUED', 'RUNNING')
+    AND $14::timestamptz IS NOT NULL
+    AND inserted_at >= $14::timestamptz
+    AND inserted_at < $2::timestamptz
+    AND readable_status = ANY($3::v1_readable_status_olap[])
+    AND (
+        $4::timestamptz IS NULL
+        OR inserted_at <= $4::timestamptz
+    )
+    AND (
+        $5::uuid[] IS NULL OR workflow_id = ANY($5::uuid[])
+    )
+    AND (
+        $6::uuid IS NULL OR latest_worker_id = $6::uuid
+    )
+    AND (
+        $7::text[] IS NULL
+        OR $8::text[] IS NULL
+        OR EXISTS (
+            SELECT 1 FROM jsonb_each_text(additional_metadata) kv
+            JOIN LATERAL (
+                SELECT unnest($7::text[]) AS k,
+                    unnest($8::text[]) AS v
+            ) AS u ON kv.key = u.k AND kv.value = u.v
+        )
+    )
+    AND (
+        $12::jsonb IS NULL
+        OR additional_metadata @> $12::jsonb
+    )
+    AND (
+        $11::UUID IS NULL
+		OR (id, inserted_at) IN (
+			SELECT etr.run_id, etr.run_inserted_at
+			FROM v1_event_lookup_table_olap lt
+			JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+			JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+			WHERE
+				lt.tenant_id = $1::uuid
+				AND lt.external_id = $11::UUID
+		)
+    )
+    AND (
+        $13::TEXT[] IS NULL
+        OR idempotency_key = ANY($13::TEXT[])
+    )
+ORDER BY
+    inserted_at DESC
+LIMIT $10::integer + $9::integer
+)
+) tasks
+ORDER BY
+    inserted_at DESC
+LIMIT $10::integer
+OFFSET $9::integer
+`
+
+const listTasksOlapMetadataContainsAll = `-- name: ListTasksOlapMetadataContainsAll :many
+SELECT
+    id,
+    inserted_at
+FROM (
+(
+SELECT
+    id,
+    inserted_at
+FROM
+    v1_tasks_olap
+WHERE
+    tenant_id = $1::uuid
+    AND inserted_at >= $2::timestamptz
+    AND readable_status = ANY($3::v1_readable_status_olap[])
+    AND (
+        $4::timestamptz IS NULL
+        OR inserted_at <= $4::timestamptz
+    )
+    AND (
+        $5::uuid[] IS NULL OR workflow_id = ANY($5::uuid[])
+    )
+    AND (
+        $6::uuid IS NULL OR latest_worker_id = $6::uuid
+    )
+    AND (
+        $7::text[] IS NULL
+        OR $8::text[] IS NULL
+        OR EXISTS (
+            SELECT 1 FROM jsonb_each_text(additional_metadata) kv
+            JOIN LATERAL (
+                SELECT unnest($7::text[]) AS k,
+                    unnest($8::text[]) AS v
+            ) AS u ON kv.key = u.k AND kv.value = u.v
+        )
+    )
+    AND additional_metadata @> $12::jsonb
+    AND (
+        $11::UUID IS NULL
+		OR (id, inserted_at) IN (
+			SELECT etr.run_id, etr.run_inserted_at
+			FROM v1_event_lookup_table_olap lt
+			JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+			JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+			WHERE
+				lt.tenant_id = $1::uuid
+				AND lt.external_id = $11::UUID
+		)
+    )
+    AND (
+        $13::TEXT[] IS NULL
+        OR idempotency_key = ANY($13::TEXT[])
+    )
+ORDER BY
+    inserted_at DESC
+LIMIT $10::integer + $9::integer
+)
+UNION ALL
+(
+SELECT
+    id,
+    inserted_at
+FROM
+    v1_tasks_olap
+WHERE
+    tenant_id = $1::uuid
+    AND readable_status IN ('QUEUED', 'RUNNING')
+    AND $14::timestamptz IS NOT NULL
+    AND inserted_at >= $14::timestamptz
+    AND inserted_at < $2::timestamptz
+    AND readable_status = ANY($3::v1_readable_status_olap[])
+    AND (
+        $4::timestamptz IS NULL
+        OR inserted_at <= $4::timestamptz
+    )
+    AND (
+        $5::uuid[] IS NULL OR workflow_id = ANY($5::uuid[])
+    )
+    AND (
+        $6::uuid IS NULL OR latest_worker_id = $6::uuid
+    )
+    AND (
+        $7::text[] IS NULL
+        OR $8::text[] IS NULL
+        OR EXISTS (
+            SELECT 1 FROM jsonb_each_text(additional_metadata) kv
+            JOIN LATERAL (
+                SELECT unnest($7::text[]) AS k,
+                    unnest($8::text[]) AS v
+            ) AS u ON kv.key = u.k AND kv.value = u.v
+        )
+    )
+    AND additional_metadata @> $12::jsonb
+    AND (
+        $11::UUID IS NULL
+		OR (id, inserted_at) IN (
+			SELECT etr.run_id, etr.run_inserted_at
+			FROM v1_event_lookup_table_olap lt
+			JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+			JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+			WHERE
+				lt.tenant_id = $1::uuid
+				AND lt.external_id = $11::UUID
+		)
+    )
+    AND (
+        $13::TEXT[] IS NULL
+        OR idempotency_key = ANY($13::TEXT[])
+    )
+ORDER BY
+    inserted_at DESC
+LIMIT $10::integer + $9::integer
+)
+) tasks
+ORDER BY
+    inserted_at DESC
+LIMIT $10::integer
+OFFSET $9::integer
+`
+
+const listTasksOlapMetadataContainsAny = `-- name: ListTasksOlapMetadataContainsAny :many
+SELECT
+    id,
+    inserted_at
+FROM (
+(
+SELECT
+    id,
+    inserted_at
+FROM
+    v1_tasks_olap
+WHERE
+    tenant_id = $1::uuid
+    AND inserted_at >= $2::timestamptz
+    AND readable_status = ANY($3::v1_readable_status_olap[])
+    AND (
+        $4::timestamptz IS NULL
+        OR inserted_at <= $4::timestamptz
+    )
+    AND (
+        $5::uuid[] IS NULL OR workflow_id = ANY($5::uuid[])
+    )
+    AND (
+        $6::uuid IS NULL OR latest_worker_id = $6::uuid
+    )
+    AND (
+        $7::text[] IS NULL
+        OR $8::text[] IS NULL
+        OR EXISTS (
+            SELECT 1 FROM jsonb_each_text(additional_metadata) kv
+            JOIN LATERAL (
+                SELECT unnest($7::text[]) AS k,
+                    unnest($8::text[]) AS v
+            ) AS u ON kv.key = u.k AND kv.value = u.v
+        )
+    )
+    AND additional_metadata @> ANY($12::jsonb[])
+    AND (
+        $11::UUID IS NULL
+		OR (id, inserted_at) IN (
+			SELECT etr.run_id, etr.run_inserted_at
+			FROM v1_event_lookup_table_olap lt
+			JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+			JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+			WHERE
+				lt.tenant_id = $1::uuid
+				AND lt.external_id = $11::UUID
+		)
+    )
+	AND (
+		$13::TEXT[] IS NULL
+		OR idempotency_key = ANY($13::TEXT[])
+	)
+ORDER BY
+    inserted_at DESC
+LIMIT $10::integer + $9::integer
+)
+UNION ALL
+(
+SELECT
+    id,
+    inserted_at
+FROM
+    v1_tasks_olap
+WHERE
+    tenant_id = $1::uuid
+    AND readable_status IN ('QUEUED', 'RUNNING')
+    AND $14::timestamptz IS NOT NULL
+    AND inserted_at >= $14::timestamptz
+    AND inserted_at < $2::timestamptz
+    AND readable_status = ANY($3::v1_readable_status_olap[])
+    AND (
+        $4::timestamptz IS NULL
+        OR inserted_at <= $4::timestamptz
+    )
+    AND (
+        $5::uuid[] IS NULL OR workflow_id = ANY($5::uuid[])
+    )
+    AND (
+        $6::uuid IS NULL OR latest_worker_id = $6::uuid
+    )
+    AND (
+        $7::text[] IS NULL
+        OR $8::text[] IS NULL
+        OR EXISTS (
+            SELECT 1 FROM jsonb_each_text(additional_metadata) kv
+            JOIN LATERAL (
+                SELECT unnest($7::text[]) AS k,
+                    unnest($8::text[]) AS v
+            ) AS u ON kv.key = u.k AND kv.value = u.v
+        )
+    )
+    AND additional_metadata @> ANY($12::jsonb[])
+    AND (
+        $11::UUID IS NULL
+		OR (id, inserted_at) IN (
+			SELECT etr.run_id, etr.run_inserted_at
+			FROM v1_event_lookup_table_olap lt
+			JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+			JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+			WHERE
+				lt.tenant_id = $1::uuid
+				AND lt.external_id = $11::UUID
+		)
+    )
+	AND (
+		$13::TEXT[] IS NULL
+		OR idempotency_key = ANY($13::TEXT[])
+	)
+ORDER BY
+    inserted_at DESC
+LIMIT $10::integer + $9::integer
+)
+) tasks
+ORDER BY
+    inserted_at DESC
+LIMIT $10::integer
+OFFSET $9::integer
+`
 
 type ListTasksOlapParams struct {
 	Tenantid                      uuid.UUID          `json:"tenantid"`
@@ -530,12 +1655,12 @@ func (q *Queries) ListTasksOlap(ctx context.Context, db DBTX, arg ListTasksOlapP
 		arg.WorkerId,
 		arg.Keys,
 		arg.Values,
+		arg.Taskoffset,
+		arg.Tasklimit,
 		arg.TriggeringEventExternalId,
 		metadataContains,
 		arg.IdempotencyKeys,
 		arg.ActiveSince,
-		arg.Taskoffset,
-		arg.Tasklimit,
 	)
 	if err != nil {
 		return nil, err
