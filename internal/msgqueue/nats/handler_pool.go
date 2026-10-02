@@ -12,9 +12,9 @@ import (
 
 // maxConcurrentHandlers bounds how many handler calls one subscription runs at
 // once. The bound is per subscription so that one tenant's slow handlers
-// cannot starve another tenant's subscription. Handlers were written against
-// the rabbitmq backend, which runs every delivery on its own goroutine, and
-// rely on concurrency: scheduler handlers can block on database reads, and the
+// cannot starve another tenant's subscription. Handlers need concurrent
+// delivery: scheduler handlers can block on database reads, which would
+// otherwise stall every later delivery on the subscription, and the
 // dispatcher's buffered tenant reader only batches messages that arrive while
 // earlier ones wait for a flush.
 //
@@ -107,9 +107,10 @@ func (h *handlerPool) run(fn func()) {
 	}()
 }
 
-// close waits without a deadline, like the rabbitmq backend's cleanup, so that
-// no call starts or is still running once it returns. It must not be called
-// from a call running on the pool, which would wait for itself.
+// close waits without a deadline so that no call starts or is still running
+// once it returns; a bounded wait would let a call keep running against state
+// its caller is tearing down. It must not be called from a call running on the
+// pool, which would wait for itself.
 func (h *handlerPool) close() {
 	h.closeOnce.Do(func() {
 		close(h.closed)
