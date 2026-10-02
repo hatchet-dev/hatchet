@@ -102,8 +102,9 @@ func createSharedRepositoryForTest(pool *pgxpool.Pool) *sharedRepository {
 	}
 }
 
-// insertQueuedTaskForTest inserts a v1_task row (the insert trigger creates its queue
-// item) and returns the queue item.
+// insertQueuedTaskForTest goes through v1_task rather than writing a v1_queue_item
+// directly so the queue item under test is the one the insert trigger derives from the
+// task row, with the same task key, timeouts and tenant the flush will join on.
 func insertQueuedTaskForTest(t *testing.T, ctx context.Context, db sqlcv1.DBTX, tenantID uuid.UUID, taskID int64, stepTimeout string) *sqlcv1.V1QueueItem {
 	t.Helper()
 
