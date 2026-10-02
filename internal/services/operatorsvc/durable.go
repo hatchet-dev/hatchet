@@ -11,6 +11,7 @@ import (
 	"github.com/rs/zerolog"
 
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -51,8 +52,24 @@ type DurableChannel = operator.DurableChannel
 
 // WithTenant puts the tenant on the context the way the gRPC auth middleware does, so the
 // dispatcher's and the admin service's handlers see the same value whichever host called them.
+// In-process callers have no API token, so the analytics tenant id is what becomes the
+// PostHog distinct id. Without it, captures such as durable-task:register are rejected.
 func WithTenant(ctx context.Context, tenant *sqlcv1.Tenant) context.Context {
-	return context.WithValue(ctx, tenantContextKey, tenant) //nolint:staticcheck // key must match the gRPC auth middleware's
+	ctx = context.WithValue(ctx, tenantContextKey, tenant) //nolint:staticcheck // key must match the gRPC auth middleware's
+	if tenant != nil && tenant.ID != uuid.Nil {
+		ctx = context.WithValue(ctx, analytics.TenantIDKey, tenant.ID)
+	}
+	return ctx
+}
+
+// contextWithAnalyticsTenant fills the analytics tenant id when the caller has a tenant but
+// no API token. PostHog rejects a capture whose distinct id is empty, and the tenant id is
+// the distinct id in that case. An id already on the context is left in place.
+func contextWithAnalyticsTenant(ctx context.Context, tenantID uuid.UUID) context.Context {
+	if tenantID == uuid.Nil || analytics.TenantIDFromContext(ctx) != nil {
+		return ctx
+	}
+	return context.WithValue(ctx, analytics.TenantIDKey, tenantID)
 }
 
 // durableChannel is one durable invocation's pipe over the dispatcher's channel-backed session,

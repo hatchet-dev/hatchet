@@ -13,8 +13,29 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/operatorsvc"
 	"github.com/hatchet-dev/hatchet/internal/services/operatorsvc/operatorsvctest"
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
+
+func TestWithTenantSetsAnalyticsTenantID(t *testing.T) {
+	tenantID := uuid.New()
+	tenant := &sqlcv1.Tenant{ID: tenantID}
+
+	ctx := operatorsvc.WithTenant(context.Background(), tenant)
+
+	assert.Equal(t, tenant, ctx.Value("tenant"))
+	got := analytics.TenantIDFromContext(ctx)
+	require.NotNil(t, got)
+	assert.Equal(t, tenantID, *got)
+}
+
+func TestWithTenantOmitsAnalyticsTenantIDWhenMissing(t *testing.T) {
+	ctx := operatorsvc.WithTenant(context.Background(), nil)
+	assert.Nil(t, analytics.TenantIDFromContext(ctx))
+
+	ctx = operatorsvc.WithTenant(context.Background(), &sqlcv1.Tenant{})
+	assert.Nil(t, analytics.TenantIDFromContext(ctx))
+}
 
 func entryRef(branchId, nodeId int64) *v1contracts.DurableEventLogEntryRef {
 	return &v1contracts.DurableEventLogEntryRef{BranchId: branchId, NodeId: nodeId}
