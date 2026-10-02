@@ -1999,14 +1999,14 @@ func TestScheduler_Replenish_RebuildsStarvedAction(t *testing.T) {
 	r := assignOne(t, s, a, testQI(tenantId, "A", 1), nil, defaultRequest(), nil, nil)
 	require.True(t, r.noSlots)
 	onLoop(t, s, func() {
-		require.NotNil(t, a.starved)
-		require.Equal(t, map[string][]map[string]int32{"q": {{repo.SlotTypeDefault: 1}}}, a.starved.requestsByQueue)
+		require.True(t, a.IsStarved())
+		require.Equal(t, map[string]map[string]struct{}{"q": {repo.SlotTypeDefault: {}}}, a.starved)
 	})
 
 	// the next heuristic replenish rebuilds it from the database
 	require.NoError(t, s.replenish(context.Background(), false))
 	require.Equal(t, 1, defaultFree())
-	onLoop(t, s, func() { require.Nil(t, s.actions["A"].starved) })
+	onLoop(t, s, func() { require.False(t, s.actions["A"].IsStarved()) })
 
 	// the queue the missed item came from is woken
 	restoredMu.Lock()
@@ -2019,8 +2019,9 @@ func TestScheduler_Replenish_RebuildsStarvedAction(t *testing.T) {
 	require.True(t, r.succeeded)
 }
 
-// A rebuild that still leaves the starved type without free slots clears the
-// marker (the next miss sets it again) but does not report restored capacity.
+// A rebuild that still leaves the starved type without free slots reports no
+// restored capacity and leaves the marker set, so the next rebuild keeps
+// trying and the misses in between request nothing.
 func TestScheduler_Replenish_StarvedActionWithoutCapacityIsNotRestored(t *testing.T) {
 	tenantId := uuid.New()
 	workerId := uuid.New()
@@ -2063,14 +2064,212 @@ func TestScheduler_Replenish_StarvedActionWithoutCapacityIsNotRestored(t *testin
 	require.NoError(t, s.replenish(context.Background(), false))
 
 	onLoop(t, s, func() {
-		require.Nil(t, s.actions["A"].starved)
+		require.True(t, s.actions["A"].IsStarved(), "a fruitless rebuild must leave the marker set")
 		require.Equal(t, 0, len(s.poolsByWorker[workerId][repo.SlotTypeDefault].free))
 	})
 	require.Equal(t, 0, restoredCalls)
 }
 
-// An assignment batch that misses kicks a replenish; one that assigns does not.
-func TestScheduler_TryAssignBatch_KicksReplenishOnMiss(t *testing.T) {
+// seedStickyConstrainedAction seeds action A on two workers: the sticky
+// worker's only default slot is used, the other worker has one free default
+// slot. It returns the action and a HARD sticky item pinned to the full worker.
+func seedStickyConstrainedAction(t *testing.T, s *Scheduler, tenantId, stickyWorkerId, otherWorkerId uuid.UUID) (*action, *sqlcv1.V1QueueItem) {
+	t.Helper()
+
+	wSticky := &worker{ListActiveWorkersResult: testWorker(stickyWorkerId)}
+	wOther := &worker{ListActiveWorkersResult: testWorker(otherWorkerId)}
+
+	usedSticky := newSlot(wSticky, repo.SlotTypeDefault)
+	usedSticky.used = true
+	a := seedActionPools(t, s, "A", usedSticky, newSlot(wOther, repo.SlotTypeDefault))
+
+	qi := testQI(tenantId, "A", 1)
+	qi.Sticky = sqlcv1.V1StickyStrategyHARD
+	qi.DesiredWorkerID = &stickyWorkerId
+
+	return a, qi
+}
+
+// A HARD sticky item whose worker is full misses while another worker of the
+// action has a free slot: the item is constrained, the action is not starved,
+// so nothing is marked and no replenish is requested.
+func TestScheduler_AssignSingleton_StickyHardMissWithFreeWorkerDoesNotStarve(t *testing.T) {
+	tenantId := uuid.New()
+	stickyWorkerId := uuid.New()
+	otherWorkerId := uuid.New()
+
+	s := newTestScheduler(t, tenantId, &mockAssignmentRepo{})
+	a, qi := seedStickyConstrainedAction(t, s, tenantId, stickyWorkerId, otherWorkerId)
+
+	r := assignOne(t, s, a, qi, nil, defaultRequest(), nil, nil)
+	require.True(t, r.noSlots)
+	require.False(t, r.succeeded)
+
+	onLoop(t, s, func() {
+		require.False(t, a.IsStarved(), "a miss on the sticky worker alone must not mark the action starved while another worker has room")
+	})
+	require.Len(t, s.notifyReplenishCh, 0, "a constrained miss must not request a replenish")
+
+	// the free slot is real: an unconstrained item on the same action takes it
+	free := assignOne(t, s, a, testQI(tenantId, "A", 2), nil, defaultRequest(), nil, nil)
+	require.True(t, free.succeeded)
+	require.Equal(t, otherWorkerId, free.workerId)
+}
+
+// The same sticky miss with every worker of the action full is starvation: the
+// action is marked and one replenish is requested.
+func TestScheduler_AssignSingleton_StickyHardMissWithAllWorkersFullStarves(t *testing.T) {
+	tenantId := uuid.New()
+	stickyWorkerId := uuid.New()
+	otherWorkerId := uuid.New()
+
+	s := newTestScheduler(t, tenantId, &mockAssignmentRepo{})
+	a, qi := seedStickyConstrainedAction(t, s, tenantId, stickyWorkerId, otherWorkerId)
+
+	for _, sl := range slotsForAction(t, s, a) {
+		if !sl.used {
+			takeSlot(t, s, sl)
+		}
+	}
+
+	r := assignOne(t, s, a, qi, nil, defaultRequest(), nil, nil)
+	require.True(t, r.noSlots)
+
+	onLoop(t, s, func() {
+		require.True(t, a.IsStarved())
+		require.Equal(t, map[string]map[string]struct{}{"q": {repo.SlotTypeDefault: {}}}, a.starved)
+	})
+	require.Len(t, s.notifyReplenishCh, 1)
+	<-s.notifyReplenishCh
+
+	// a repeat miss in the same episode adds no request
+	r = assignOne(t, s, a, qi, nil, defaultRequest(), nil, nil)
+	require.True(t, r.noSlots)
+	require.Len(t, s.notifyReplenishCh, 0)
+}
+
+// A required label drops the only worker with a free slot: the miss is a
+// constrained item, not starvation.
+func TestScheduler_AssignSingleton_RequiredLabelMissWithFreeWorkerDoesNotStarve(t *testing.T) {
+	tenantId := uuid.New()
+	matchingWorkerId := uuid.New()
+	otherWorkerId := uuid.New()
+
+	regionLabel := func(region string) []*sqlcv1.ListManyWorkerLabelsRow {
+		return []*sqlcv1.ListManyWorkerLabelsRow{{Key: "region", StrValue: sqlchelpers.TextFromStr(region)}}
+	}
+	matching := &repo.ListActiveWorkersResult{ID: matchingWorkerId, Name: "w", Labels: regionLabel("us-east-1")}
+	other := &repo.ListActiveWorkersResult{ID: otherWorkerId, Name: "w", Labels: regionLabel("eu-west-1")}
+
+	s := newTestScheduler(t, tenantId, &mockAssignmentRepo{})
+	s.setWorkers([]*repo.ListActiveWorkersResult{matching, other})
+
+	// the matching worker is full; the non-matching worker has a free slot
+	usedMatching := newSlot(&worker{ListActiveWorkersResult: matching}, repo.SlotTypeDefault)
+	usedMatching.used = true
+	a := seedActionPools(t, s, "A", usedMatching, newSlot(&worker{ListActiveWorkersResult: other}, repo.SlotTypeDefault))
+
+	required := []*sqlcv1.GetDesiredLabelsRow{{
+		Key:        "region",
+		StrValue:   sqlchelpers.TextFromStr("us-east-1"),
+		Comparator: sqlcv1.WorkerLabelComparatorEQUAL,
+		Required:   true,
+		Weight:     10,
+	}}
+
+	r := assignOne(t, s, a, testQI(tenantId, "A", 1), required, defaultRequest(), nil, nil)
+	require.True(t, r.noSlots)
+
+	onLoop(t, s, func() {
+		require.False(t, a.IsStarved(), "a miss on the label-matching workers alone must not mark the action starved while a dropped worker has room")
+	})
+	require.Len(t, s.notifyReplenishCh, 0)
+
+	// with the dropped worker full too, the same miss is starvation
+	takeSlot(t, s, slotsForAction(t, s, a)[1])
+	r = assignOne(t, s, a, testQI(tenantId, "A", 2), required, defaultRequest(), nil, nil)
+	require.True(t, r.noSlots)
+	onLoop(t, s, func() { require.True(t, a.IsStarved()) })
+	require.Len(t, s.notifyReplenishCh, 1)
+}
+
+// Regression for the replenish spin: a constrained sticky miss used to mark the
+// action starved, every rebuild then restored the need (the free slot on the
+// other worker satisfies it), woke the queue, the item missed again on its
+// sticky worker, re-marked and requested the next replenish. A heuristic rebuild
+// after a constrained miss must restore nothing, wake nothing, and the retry
+// must request nothing.
+func TestScheduler_Replenish_ConstrainedStickyMissDoesNotSpin(t *testing.T) {
+	tenantId := uuid.New()
+	stickyWorkerId := uuid.New()
+	otherWorkerId := uuid.New()
+
+	// the database agrees with the seeded pools: sticky worker full, other free
+	s := newTestScheduler(t, tenantId, &mockAssignmentRepo{
+		listActionsForWorkersFn: func(context.Context, uuid.UUID, []uuid.UUID) ([]*sqlcv1.ListActionsForWorkersRow, error) {
+			return []*sqlcv1.ListActionsForWorkersRow{
+				{WorkerId: stickyWorkerId, ActionId: sqlchelpers.TextFromStr("A")},
+				{WorkerId: otherWorkerId, ActionId: sqlchelpers.TextFromStr("A")},
+			}, nil
+		},
+		listWorkerSlotConfigsFn: func(context.Context, uuid.UUID, []uuid.UUID) ([]*sqlcv1.ListWorkerSlotConfigsRow, error) {
+			return []*sqlcv1.ListWorkerSlotConfigsRow{
+				{WorkerID: stickyWorkerId, SlotType: repo.SlotTypeDefault, MaxUnits: 1},
+				{WorkerID: otherWorkerId, SlotType: repo.SlotTypeDefault, MaxUnits: 1},
+			}, nil
+		},
+		listAvailableSlotsForWorkersAndTypesFn: func(context.Context, uuid.UUID, sqlcv1.ListAvailableSlotsForWorkersAndTypesParams) ([]*sqlcv1.ListAvailableSlotsForWorkersAndTypesRow, error) {
+			return []*sqlcv1.ListAvailableSlotsForWorkersAndTypesRow{
+				{ID: stickyWorkerId, SlotType: repo.SlotTypeDefault, AvailableSlots: 0},
+				{ID: otherWorkerId, SlotType: repo.SlotTypeDefault, AvailableSlots: 1},
+			}, nil
+		},
+	})
+	s.setWorkers([]*repo.ListActiveWorkersResult{testWorker(stickyWorkerId), testWorker(otherWorkerId)})
+
+	var restoredMu sync.Mutex
+	restoredCalls := 0
+	s.onCapacityRestored = func([]string) {
+		restoredMu.Lock()
+		defer restoredMu.Unlock()
+		restoredCalls++
+	}
+	restoredCount := func() int {
+		restoredMu.Lock()
+		defer restoredMu.Unlock()
+		return restoredCalls
+	}
+
+	a, qi := seedStickyConstrainedAction(t, s, tenantId, stickyWorkerId, otherWorkerId)
+	// one of two slots active trips the half-used threshold, so the heuristic
+	// replenish below rebuilds the action's pools whether or not it is marked
+	onLoop(t, s, func() {
+		a.lastReplenishedSlotCount = 2
+		a.lastReplenishedWorkerCount = 2
+	})
+
+	require.True(t, assignOne(t, s, a, qi, nil, defaultRequest(), nil, nil).noSlots)
+	require.Len(t, s.notifyReplenishCh, 0, "a constrained miss must not request a replenish")
+
+	for round := 1; round <= 2; round++ {
+		require.NoError(t, s.replenish(context.Background(), false))
+		require.Equal(t, 0, restoredCount(), "rebuild %d restored a queue for a constrained item", round)
+
+		var current *action
+		onLoop(t, s, func() {
+			current = s.actions["A"]
+			require.False(t, current.IsStarved())
+			require.Len(t, s.poolsByWorker[otherWorkerId][repo.SlotTypeDefault].free, 1, "the rebuilt pools still have the free slot the item cannot use")
+		})
+
+		require.True(t, assignOne(t, s, current, qi, nil, defaultRequest(), nil, nil).noSlots)
+		require.Len(t, s.notifyReplenishCh, 0, "retry after rebuild %d requested a replenish", round)
+	}
+}
+
+// An assignment batch that misses requests a replenish; one that assigns does
+// not.
+func TestScheduler_TryAssignBatch_NotifiesReplenishOnMiss(t *testing.T) {
 	tenantId := uuid.New()
 	workerId := uuid.New()
 
@@ -2083,25 +2282,31 @@ func TestScheduler_TryAssignBatch_KicksReplenishOnMiss(t *testing.T) {
 	res, err := s.tryAssignBatch(context.Background(), "A", []*sqlcv1.V1QueueItem{testQI(tenantId, "A", 1)}, nil, nil, nil, nil, nil)
 	require.NoError(t, err)
 	require.True(t, res[0].succeeded)
-	require.Len(t, s.replenishKick, 0, "a batch that assigns must not kick")
+	require.Len(t, s.notifyReplenishCh, 0, "a batch that assigns must not request a replenish")
 
-	// the pool is now drained: the next batch misses and kicks
+	// the pool is now drained: the next batch misses and requests one
 	res, err = s.tryAssignBatch(context.Background(), "A", []*sqlcv1.V1QueueItem{testQI(tenantId, "A", 2)}, nil, nil, nil, nil, nil)
 	require.NoError(t, err)
 	require.True(t, res[0].noSlots)
-	require.Len(t, s.replenishKick, 1)
+	require.Len(t, s.notifyReplenishCh, 1)
+	<-s.notifyReplenishCh
 
-	// an unknown action misses and kicks too (a replenish is what discovers it);
-	// the pending kick coalesces
-	res, err = s.tryAssignBatch(context.Background(), "B", []*sqlcv1.V1QueueItem{testQI(tenantId, "B", 3)}, nil, nil, nil, nil, nil)
+	// the action is already marked starved: a repeated miss does not request again
+	res, err = s.tryAssignBatch(context.Background(), "A", []*sqlcv1.V1QueueItem{testQI(tenantId, "A", 3)}, nil, nil, nil, nil, nil)
 	require.NoError(t, err)
 	require.True(t, res[0].noSlots)
-	require.Len(t, s.replenishKick, 1)
+	require.Len(t, s.notifyReplenishCh, 0, "a miss on an action already marked starved must not request a replenish")
+
+	// an unknown action misses and requests one too (a replenish is what discovers it)
+	res, err = s.tryAssignBatch(context.Background(), "B", []*sqlcv1.V1QueueItem{testQI(tenantId, "B", 4)}, nil, nil, nil, nil, nil)
+	require.NoError(t, err)
+	require.True(t, res[0].noSlots)
+	require.Len(t, s.notifyReplenishCh, 1)
 }
 
-// The batch-flush assignment path kicks a replenish on a miss like the regular
-// path does; a flush that assigns does not.
-func TestScheduler_TryAssignBatchQueueItem_KicksReplenishOnMiss(t *testing.T) {
+// The batch-flush assignment path requests a replenish on a miss like the
+// regular path does; a flush that assigns does not.
+func TestScheduler_TryAssignBatchQueueItem_NotifiesReplenishOnMiss(t *testing.T) {
 	tenantId := uuid.New()
 	workerId := uuid.New()
 
@@ -2112,236 +2317,262 @@ func TestScheduler_TryAssignBatchQueueItem_KicksReplenishOnMiss(t *testing.T) {
 	res, err := s.tryAssignBatchQueueItem(context.Background(), testQI(tenantId, "A", 1), nil)
 	require.NoError(t, err)
 	require.True(t, res.succeeded)
-	require.Len(t, s.replenishKick, 0, "a flush that assigns must not kick")
+	require.Len(t, s.notifyReplenishCh, 0, "a flush that assigns must not request a replenish")
 
-	// the only default slot is taken: the next flush misses and kicks
+	// the only default slot is taken: the next flush misses and requests one
 	res, err = s.tryAssignBatchQueueItem(context.Background(), testQI(tenantId, "A", 2), nil)
 	require.NoError(t, err)
 	require.True(t, res.noSlots)
-	require.Len(t, s.replenishKick, 1)
+	require.Len(t, s.notifyReplenishCh, 1)
+	<-s.notifyReplenishCh
 
-	// an unknown action kicks too; the pending kick coalesces
-	res, err = s.tryAssignBatchQueueItem(context.Background(), testQI(tenantId, "B", 3), nil)
+	// the action is already marked starved: a repeated miss does not request again
+	res, err = s.tryAssignBatchQueueItem(context.Background(), testQI(tenantId, "A", 3), nil)
 	require.NoError(t, err)
 	require.True(t, res.noSlots)
-	require.Len(t, s.replenishKick, 1)
+	require.Len(t, s.notifyReplenishCh, 0, "a miss on an action already marked starved must not request a replenish")
+
+	// an unknown action requests a replenish on its first miss and is recorded
+	// on a placeholder like the regular path does; a second miss on it does not
+	res, err = s.tryAssignBatchQueueItem(context.Background(), testQI(tenantId, "B", 4), nil)
+	require.NoError(t, err)
+	require.True(t, res.noSlots)
+	require.Len(t, s.notifyReplenishCh, 1)
+	<-s.notifyReplenishCh
+	onLoop(t, s, func() { require.True(t, s.actions["B"].IsStarved()) })
+
+	res, err = s.tryAssignBatchQueueItem(context.Background(), testQI(tenantId, "B", 5), nil)
+	require.NoError(t, err)
+	require.True(t, res.noSlots)
+	require.Len(t, s.notifyReplenishCh, 0)
 }
 
-// kickBackoff spaces kicked runs by min, doubling per fruitless run up to max,
-// and resets on a restore or on a kick a full max after the last run.
-func TestKickBackoff_Pacing(t *testing.T) {
-	const (
-		minInterval = 100 * time.Millisecond
-		maxInterval = 1500 * time.Millisecond
-		kickAfter   = 5 * time.Millisecond
-	)
-
-	b := kickBackoff{min: minInterval, max: maxInterval}
-	at := time.Now()
-
-	// the first kick runs at once
-	require.Equal(t, time.Duration(0), b.delay(at, 0))
-	b.ran(at, 0)
-
-	// every fruitless run doubles the spacing from the run's start, up to max
-	for _, spacing := range []time.Duration{200 * time.Millisecond, 400 * time.Millisecond, 800 * time.Millisecond, maxInterval, maxInterval} {
-		require.Equal(t, spacing-kickAfter, b.delay(at.Add(kickAfter), 0), "spacing %s", spacing)
-		at = at.Add(spacing)
-		b.ran(at, 0)
-	}
-
-	// a run that restores capacity resets the spacing to min
-	require.Equal(t, maxInterval-kickAfter, b.delay(at.Add(kickAfter), 0))
-	at = at.Add(maxInterval)
-	b.ran(at, 1)
-	require.Equal(t, minInterval-kickAfter, b.delay(at.Add(kickAfter), 1))
-	at = at.Add(minInterval)
-	b.ran(at, 1)
-
-	// so does a restore by another replenish between kicks
-	require.Equal(t, 2*minInterval-kickAfter, b.delay(at.Add(kickAfter), 1))
-	require.Equal(t, minInterval-kickAfter, b.delay(at.Add(kickAfter), 2))
-	at = at.Add(minInterval)
-	b.ran(at, 2)
-
-	// a kick a full max after the last run is a fresh miss and runs at once
-	require.Equal(t, 2*minInterval-kickAfter, b.delay(at.Add(kickAfter), 2))
-	require.Equal(t, time.Duration(0), b.delay(at.Add(maxInterval), 2))
-}
-
-// Under persistent saturation (misses keep arriving, no kicked run restores
-// capacity) the kicked runs back off instead of running once per
-// kickedReplenishMinInterval; a run that restores capacity resets the pacing.
-func TestScheduler_LoopReplenish_BacksOffFruitlessKicks(t *testing.T) {
+// Under saturation (misses keep arriving while no rebuild finds room) a
+// replenish is requested once per starvation episode, not once per miss or
+// per rebuild: the marker set by the first miss suppresses requests, a
+// fruitless rebuild leaves it set, and only a rebuild that fits the need
+// restores and clears it, after which the next miss requests exactly once. So
+// sustained saturation costs the one request that opened the episode, while
+// a fresh drain still gets an immediate replenish.
+func TestScheduler_NotifyReplenish_OncePerStarvationEpisode(t *testing.T) {
 	tenantId := uuid.New()
 	workerId := uuid.New()
 
 	// a saturated default pool next to an idle durable one keeps the action
-	// alive across rebuilds without giving the starved request room
-	var mu sync.Mutex
-	calls := 0
-	defaultAvailable := int32(0)
-	available := func() map[uuid.UUID]map[string]int32 {
-		mu.Lock()
-		defer mu.Unlock()
-		return map[uuid.UUID]map[string]int32{
-			workerId: {repo.SlotTypeDefault: defaultAvailable, repo.SlotTypeDurable: 1},
-		}
+	// alive across rebuilds without giving the starved need room
+	available := map[uuid.UUID]map[string]int32{
+		workerId: {repo.SlotTypeDefault: 0, repo.SlotTypeDurable: 1},
 	}
-	callCount := func() int {
-		mu.Lock()
-		defer mu.Unlock()
-		return calls
-	}
-
-	ar := &mockAssignmentRepo{
-		listActionsForWorkersFn: func(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListActionsForWorkersRow, error) {
-			mu.Lock()
-			calls++
-			mu.Unlock()
-			return starvedActionRepo(available()).listActionsForWorkersFn(ctx, tenantId, workerIds)
-		},
-		listWorkerSlotConfigsFn: func(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListWorkerSlotConfigsRow, error) {
-			return starvedActionRepo(available()).listWorkerSlotConfigsFn(ctx, tenantId, workerIds)
-		},
-		listAvailableSlotsForWorkersAndTypesFn: func(ctx context.Context, tenantId uuid.UUID, params sqlcv1.ListAvailableSlotsForWorkersAndTypesParams) ([]*sqlcv1.ListAvailableSlotsForWorkersAndTypesRow, error) {
-			return starvedActionRepo(available()).listAvailableSlotsForWorkersAndTypesFn(ctx, tenantId, params)
-		},
-	}
-
-	s := newTestScheduler(t, tenantId, ar)
+	s := newTestScheduler(t, tenantId, starvedActionRepo(available))
 	s.setWorkers([]*repo.ListActiveWorkersResult{testWorker(workerId)})
 
-	// a short spacing so the run count below is meaningful, a ticker that never
-	// fires so every run counted is a kicked one, and a cap far above the test
-	const interval = 20 * time.Millisecond
-	s.kickedReplenishMinInterval = interval
-	s.replenishTickerMin = time.Hour
-	s.replenishTickerMax = 2 * time.Hour
+	var restoredMu sync.Mutex
+	var restored []string
+	s.onCapacityRestored = func(queues []string) {
+		restoredMu.Lock()
+		defer restoredMu.Unlock()
+		restored = append(restored, queues...)
+	}
+	restoredQueues := func() []string {
+		restoredMu.Lock()
+		defer restoredMu.Unlock()
+		return append([]string(nil), restored...)
+	}
 
 	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
 	used := newSlot(w, repo.SlotTypeDefault)
 	used.used = true
-	a := seedActionPools(t, s, "A", used, newSlot(w, repo.SlotTypeDurable))
-	require.True(t, assignOne(t, s, a, testQI(tenantId, "A", 1), nil, defaultRequest(), nil, nil).noSlots)
+	seedActionPools(t, s, "A", used, newSlot(w, repo.SlotTypeDurable))
 
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-	loopDone := make(chan struct{})
-	go func() {
-		defer close(loopDone)
-		s.loopReplenish(ctx)
-	}()
-	t.Cleanup(func() {
-		cancel()
-		<-loopDone
-	})
-
-	// saturation: misses keep kicking for a second while no rebuild finds room
-	deadline := time.Now().Add(time.Second)
-	for time.Now().Before(deadline) {
-		s.kickReplenish()
-		time.Sleep(5 * time.Millisecond)
+	assign := func(taskId int64) *assignSingleResult {
+		t.Helper()
+		var current *action
+		onLoop(t, s, func() { current = s.actions["A"] })
+		return assignOne(t, s, current, testQI(tenantId, "A", taskId), nil, defaultRequest(), nil, nil)
+	}
+	miss := func(taskId int64) {
+		t.Helper()
+		require.True(t, assign(taskId).noSlots)
+	}
+	starved := func() bool {
+		var starved bool
+		onLoop(t, s, func() { starved = s.actions["A"].IsStarved() })
+		return starved
 	}
 
-	// spacing 20, 40, 80, 160, 320, 640 ms: six runs, not fifty
-	runs := callCount()
-	require.GreaterOrEqual(t, runs, 2, "kicks were not processed")
-	require.LessOrEqual(t, runs, 8, "kicked replenishes did not back off under saturation")
+	// the first miss marks the action starved and requests a replenish
+	miss(1)
+	require.Len(t, s.notifyReplenishCh, 1)
+	<-s.notifyReplenishCh
 
-	// the database frees a default slot: the next kicked run restores the
-	// starved request and resets the pacing
-	mu.Lock()
-	defaultAvailable = 1
-	mu.Unlock()
-	require.True(t, assignOne(t, s, a, testQI(tenantId, "A", 2), nil, defaultRequest(), nil, nil).noSlots)
-	s.kickReplenish()
-	require.Eventually(t, func() bool { return s.restoredRuns.Load() == 1 }, 5*time.Second, time.Millisecond)
+	// repeated misses while marked request nothing
+	for taskId := int64(2); taskId <= 4; taskId++ {
+		miss(taskId)
+		require.Len(t, s.notifyReplenishCh, 0, "miss %d requested a replenish while the action was already marked starved", taskId)
+	}
 
-	// the kick after a restore runs at the base spacing again
-	before := callCount()
-	time.Sleep(interval)
-	s.kickReplenish()
-	require.Eventually(t, func() bool { return callCount() == before+1 }, 500*time.Millisecond, time.Millisecond,
-		"the kick after a restore did not run at the base spacing")
+	// the requested (heuristic) replenish rebuilds the starved action and
+	// finds no room: nothing is restored and the marker stays set, so the
+	// misses that follow still request nothing
+	require.NoError(t, s.replenish(context.Background(), false))
+	require.Empty(t, restoredQueues())
+	require.True(t, starved(), "a fruitless rebuild must leave the marker set")
+	miss(5)
+	require.Len(t, s.notifyReplenishCh, 0, "a miss after a fruitless rebuild must not request a replenish")
+
+	// a fruitless forced rebuild (the ticker) behaves the same way
+	require.NoError(t, s.replenish(context.Background(), true))
+	require.Empty(t, restoredQueues())
+	require.True(t, starved())
+	miss(6)
+	require.Len(t, s.notifyReplenishCh, 0)
+
+	// the database frees a default slot: the next rebuild restores the need,
+	// clears the marker and wakes the queue
+	available[workerId][repo.SlotTypeDefault] = 1
+	require.NoError(t, s.replenish(context.Background(), true))
+	require.Equal(t, []string{"q"}, restoredQueues())
+	require.False(t, starved())
+
+	// the woken queue takes the slot; the miss after that opens a new episode
+	// and requests exactly once, the ones after it do not
+	require.True(t, assign(7).succeeded)
+	require.Len(t, s.notifyReplenishCh, 0, "an assignment must not request a replenish")
+	miss(8)
+	require.Len(t, s.notifyReplenishCh, 1)
+	<-s.notifyReplenishCh
+	miss(9)
+	require.Len(t, s.notifyReplenishCh, 0)
 }
 
-// Kicks run a heuristic replenish at most once per kickedReplenishMinInterval:
-// the first runs immediately, a burst that follows coalesces into one run at
-// the end of the spacing. The runs here restore nothing, so the spacing after
-// the first run is twice the interval (see kickBackoff).
-func TestScheduler_LoopReplenish_DebouncesKicks(t *testing.T) {
-	tenantId := uuid.New()
+// MarkStarved records, per queue, the slot types its missed items asked for
+// and reports only the transition into starvation.
+func TestAction_MarkStarved_RecordsSlotTypesPerQueue(t *testing.T) {
+	a := &action{}
+	require.False(t, a.IsStarved())
 
-	var mu sync.Mutex
-	calls := 0
-	ar := &mockAssignmentRepo{
-		listActionsForWorkersFn: func(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListActionsForWorkersRow, error) {
-			mu.Lock()
-			defer mu.Unlock()
-			calls++
-			return nil, nil
+	require.True(t, a.MarkStarved("q1", map[string]int32{repo.SlotTypeDefault: 2}), "the first miss sets the marker")
+	require.True(t, a.IsStarved())
+	require.False(t, a.MarkStarved("q1", map[string]int32{repo.SlotTypeDefault: 1}), "a repeat miss on a marked queue is not a new marking")
+	require.False(t, a.MarkStarved("q2", map[string]int32{repo.SlotTypeDurable: 1}), "another queue on a starved action is not a new marking")
+
+	// a queue whose items ask for different types records their union
+	require.False(t, a.MarkStarved("q2", map[string]int32{repo.SlotTypeDefault: 3, repo.SlotTypeDurable: 1}))
+
+	// a zero-unit type is not requested, so it is not recorded
+	require.False(t, a.MarkStarved("q1", map[string]int32{repo.SlotTypeDefault: 1, "gpu": 0}))
+
+	require.Equal(t, map[string]map[string]struct{}{
+		"q1": {repo.SlotTypeDefault: {}},
+		"q2": {repo.SlotTypeDefault: {}, repo.SlotTypeDurable: {}},
+	}, a.starved, "units are not kept, only the types")
+
+	// a request with no units records nothing and marks nothing
+	b := &action{}
+	require.False(t, b.MarkStarved("q", map[string]int32{repo.SlotTypeDefault: 0}))
+	require.False(t, b.MarkStarved("q", nil))
+	require.False(t, b.IsStarved())
+}
+
+// RestoreStarved restores a queue when one worker has a free slot of every
+// type the queue recorded, however many, and clears exactly the queues it
+// restores.
+func TestAction_RestoreStarved(t *testing.T) {
+	worker1 := uuid.New()
+	worker2 := uuid.New()
+	w1 := &worker{ListActiveWorkersResult: testWorker(worker1)}
+	w2 := &worker{ListActiveWorkersResult: testWorker(worker2)}
+	now := time.Now()
+
+	pool := func(w *worker, slotType string, free, used int) *slotPool {
+		p := &slotPool{worker: w, slotType: slotType}
+		slots := make([]*slot, 0, free+used)
+		for i := 0; i < free; i++ {
+			slots = append(slots, newSlot(w, slotType))
+		}
+		for i := 0; i < used; i++ {
+			sl := newSlot(w, slotType)
+			sl.used = true
+			slots = append(slots, sl)
+		}
+		p.reset(slots, now.Add(defaultSlotExpiry))
+		return p
+	}
+
+	// worker1 has one free default slot and a drained durable pool; worker2
+	// the reverse, so each type is free on exactly one worker
+	poolsByWorker := map[uuid.UUID]map[string]*slotPool{
+		worker1: {
+			repo.SlotTypeDefault: pool(w1, repo.SlotTypeDefault, 1, 2),
+			repo.SlotTypeDurable: pool(w1, repo.SlotTypeDurable, 0, 1),
+		},
+		worker2: {
+			repo.SlotTypeDefault: pool(w2, repo.SlotTypeDefault, 0, 1),
+			repo.SlotTypeDurable: pool(w2, repo.SlotTypeDurable, 1, 0),
 		},
 	}
-	callCount := func() int {
-		mu.Lock()
-		defer mu.Unlock()
-		return calls
+	workerIds := []uuid.UUID{worker1, worker2}
+
+	cases := []struct {
+		name       string
+		types      map[string]struct{}
+		workerIds  []uuid.UUID
+		at         time.Time
+		restorable bool
+	}{
+		{name: "single type free on the first worker", types: map[string]struct{}{repo.SlotTypeDefault: {}}, restorable: true},
+		{name: "single type free on the second worker", types: map[string]struct{}{repo.SlotTypeDurable: {}}, restorable: true},
+		{name: "type without a pool anywhere", types: map[string]struct{}{"gpu": {}}, restorable: false},
+		{name: "types free on different workers only", types: map[string]struct{}{repo.SlotTypeDefault: {}, repo.SlotTypeDurable: {}}, restorable: false},
+		{name: "free slot only on a worker outside the action", types: map[string]struct{}{repo.SlotTypeDefault: {}}, workerIds: []uuid.UUID{worker2}, restorable: false},
+		{name: "stale pools have no free slots", types: map[string]struct{}{repo.SlotTypeDefault: {}}, at: now.Add(2 * defaultSlotExpiry), restorable: false},
 	}
 
-	s := newTestScheduler(t, tenantId, ar)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ids := tc.workerIds
+			if ids == nil {
+				ids = workerIds
+			}
+			at := tc.at
+			if at.IsZero() {
+				at = now
+			}
 
-	// wide interval so the assertions below have margin on a loaded host, and
-	// a ticker that never fires so every run counted below is a kicked one
-	const interval = 1 * time.Second
-	s.kickedReplenishMinInterval = interval
-	s.replenishTickerMin = time.Hour
-	s.replenishTickerMax = 2 * time.Hour
+			a := &action{starved: map[string]map[string]struct{}{"q": tc.types}}
+			queues := a.RestoreStarved(poolsByWorker, ids, at)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-	loopDone := make(chan struct{})
-	go func() {
-		defer close(loopDone)
-		s.loopReplenish(ctx)
-	}()
-
-	// a burst of kicks merges into one immediate run
-	firstRun := time.Now()
-	for i := 0; i < 5; i++ {
-		s.kickReplenish()
+			if tc.restorable {
+				require.Equal(t, []string{"q"}, queues)
+				require.False(t, a.IsStarved(), "a restored queue is cleared")
+			} else {
+				require.Empty(t, queues)
+				require.True(t, a.IsStarved(), "a queue no worker can serve stays marked")
+			}
+		})
 	}
-	require.Eventually(t, func() bool { return callCount() == 1 }, time.Second, time.Millisecond)
-	time.Sleep(interval / 8)
-	require.Equal(t, 1, callCount())
 
-	// kicks inside the spacing run once at the end of it, not immediately
-	s.kickReplenish()
-	s.kickReplenish()
-	time.Sleep(interval / 8)
-	require.Equal(t, 1, callCount())
-	require.Eventually(t, func() bool { return callCount() == 2 }, 3*interval, time.Millisecond)
-	require.GreaterOrEqual(t, time.Since(firstRun), 2*interval-interval/8, "kicked replenish ran before the spacing elapsed")
-	time.Sleep(interval / 8)
-	require.Equal(t, 2, callCount())
+	t.Run("types free on one worker", func(t *testing.T) {
+		// give worker2 a free default slot next to its free durable one
+		poolsByWorker[worker2][repo.SlotTypeDefault] = pool(w2, repo.SlotTypeDefault, 1, 0)
+		defer func() { poolsByWorker[worker2][repo.SlotTypeDefault] = pool(w2, repo.SlotTypeDefault, 0, 1) }()
 
-	cancel()
-	<-loopDone
-}
+		a := &action{starved: map[string]map[string]struct{}{
+			"q": {repo.SlotTypeDefault: {}, repo.SlotTypeDurable: {}},
+		}}
+		require.Equal(t, []string{"q"}, a.RestoreStarved(poolsByWorker, workerIds, now))
+		require.False(t, a.IsStarved())
+	})
 
-// markStarved keeps one copy of each distinct request per queue.
-func TestAction_MarkStarved_KeepsDistinctRequestsPerQueue(t *testing.T) {
-	a := &action{}
+	t.Run("only the restored queues are cleared", func(t *testing.T) {
+		a := &action{}
+		a.MarkStarved("fits", map[string]int32{repo.SlotTypeDefault: 3})
+		a.MarkStarved("starve", map[string]int32{repo.SlotTypeDefault: 1})
+		a.MarkStarved("starve", map[string]int32{repo.SlotTypeDurable: 1})
 
-	a.markStarved("q1", map[string]int32{repo.SlotTypeDefault: 1})
-	a.markStarved("q1", map[string]int32{repo.SlotTypeDefault: 1})
-	a.markStarved("q1", map[string]int32{repo.SlotTypeDefault: 2})
-	a.markStarved("q2", map[string]int32{repo.SlotTypeDurable: 1})
-
-	require.Equal(t, map[string][]map[string]int32{
-		"q1": {{repo.SlotTypeDefault: 1}, {repo.SlotTypeDefault: 2}},
-		"q2": {{repo.SlotTypeDurable: 1}},
-	}, a.starved.requestsByQueue)
+		require.Equal(t, []string{"fits"}, a.RestoreStarved(poolsByWorker, workerIds, now), "one free slot restores a queue whatever its items' units")
+		require.Equal(t, map[string]map[string]struct{}{"starve": {repo.SlotTypeDefault: {}, repo.SlotTypeDurable: {}}}, a.starved)
+	})
 }
 
 // starvedActionRepo serves action "A" on every worker in available, with the
@@ -2417,27 +2648,30 @@ func TestScheduler_Replenish_RestoresQueuesPerRequest(t *testing.T) {
 	require.Equal(t, []string{"default-queue"}, restored, "only the queue whose request fits is woken")
 	restoredMu.Unlock()
 
-	onLoop(t, s, func() { require.Nil(t, s.actions["A"].starved) })
+	// no worker has a free durable slot, so the durable queue stays marked
+	onLoop(t, s, func() {
+		require.Equal(t, map[string]map[string]struct{}{"durable-queue": {repo.SlotTypeDurable: {}}}, s.actions["A"].starved)
+	})
 	require.True(t, assignOne(t, s, a, defaultItem, nil, defaultRequest(), nil, nil).succeeded)
 }
 
-// A starved request is restored only when one worker can satisfy all of it:
-// one free slot does not restore a two-unit request, nor do two free slots on
-// different workers.
-func TestScheduler_Replenish_StarvedRequestMustFitOnOneWorker(t *testing.T) {
+// An item asking for more units than any worker has free is not starvation
+// while a slot of its type is free: it must not mark the action or request a
+// replenish, rebuilds must not restore and wake its queue for it, and it must
+// not stand in the way of a later item that finds the type drained. With
+// unit-aware needs the 500-unit request was recorded, no rebuild could place
+// it, and the 1-unit miss after the pool drained found the action already
+// marked and requested nothing.
+func TestScheduler_AssignSingleton_OversizedRequestDoesNotPoisonStarvation(t *testing.T) {
 	tenantId := uuid.New()
-	worker1 := uuid.New()
-	worker2 := uuid.New()
+	workerId := uuid.New()
 
-	available := map[uuid.UUID]map[string]int32{
-		worker1: {repo.SlotTypeDefault: 1},
-		worker2: {repo.SlotTypeDefault: 1},
-	}
+	available := map[uuid.UUID]map[string]int32{workerId: {repo.SlotTypeDefault: 10}}
 	s := newTestScheduler(t, tenantId, starvedActionRepo(available))
-	s.setWorkers([]*repo.ListActiveWorkersResult{testWorker(worker1), testWorker(worker2)})
+	s.setWorkers([]*repo.ListActiveWorkersResult{testWorker(workerId)})
 
-	restoredCalls := 0
 	var restoredMu sync.Mutex
+	restoredCalls := 0
 	s.onCapacityRestored = func([]string) {
 		restoredMu.Lock()
 		defer restoredMu.Unlock()
@@ -2449,38 +2683,128 @@ func TestScheduler_Replenish_StarvedRequestMustFitOnOneWorker(t *testing.T) {
 		return restoredCalls
 	}
 
-	w1 := &worker{ListActiveWorkersResult: testWorker(worker1)}
-	w2 := &worker{ListActiveWorkersResult: testWorker(worker2)}
-	used1 := newSlot(w1, repo.SlotTypeDefault)
-	used1.used = true
-	used2 := newSlot(w2, repo.SlotTypeDefault)
-	used2.used = true
-	a := seedActionPools(t, s, "A", used1, used2)
+	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
+	slots := make([]*slot, 0, 10)
+	for i := 0; i < 10; i++ {
+		slots = append(slots, newSlot(w, repo.SlotTypeDefault))
+	}
+	seedActionPools(t, s, "A", slots...)
 
-	twoUnits := map[string]int32{repo.SlotTypeDefault: 2}
-	qi := testQI(tenantId, "A", 1)
+	assign := func(taskId int64, requests map[string]int32) *assignSingleResult {
+		t.Helper()
+		var current *action
+		onLoop(t, s, func() { current = s.actions["A"] })
+		return assignOne(t, s, current, testQI(tenantId, "A", taskId), nil, requests, nil, nil)
+	}
+	starved := func() bool {
+		var starved bool
+		onLoop(t, s, func() { starved = s.actions["A"].IsStarved() })
+		return starved
+	}
 
-	// one free slot per worker: the two-unit request still fits nowhere
-	require.True(t, assignOne(t, s, a, qi, nil, twoUnits, nil, nil).noSlots)
-	require.NoError(t, s.replenish(context.Background(), false))
-	require.Equal(t, 0, restoredCount(), "a request that fits on no single worker is not restored")
+	oversized := map[string]int32{repo.SlotTypeDefault: 500}
+
+	require.True(t, assign(1, oversized).noSlots)
+	require.False(t, starved(), "a miss with free slots of the requested type is not starvation")
+	require.Len(t, s.notifyReplenishCh, 0, "an oversized miss must not request a replenish")
+
+	// rebuilds, heuristic and forced, restore nothing and wake nothing for it,
+	// and its retries keep requesting nothing
+	for round, forced := range []bool{false, true} {
+		require.NoError(t, s.replenish(context.Background(), forced))
+		require.Equal(t, 0, restoredCount(), "rebuild %d restored a queue for an oversized item", round)
+		require.True(t, assign(int64(2+round), oversized).noSlots)
+		require.False(t, starved())
+		require.Len(t, s.notifyReplenishCh, 0, "retry after rebuild %d requested a replenish", round)
+	}
+
+	// 1-unit items drain the pool; the first miss that finds it drained opens
+	// an episode of its own
+	for taskId := int64(10); taskId < 20; taskId++ {
+		require.True(t, assign(taskId, defaultRequest()).succeeded)
+	}
+	require.Len(t, s.notifyReplenishCh, 0, "an assignment must not request a replenish")
+
+	require.True(t, assign(20, defaultRequest()).noSlots)
+	require.True(t, starved())
 	onLoop(t, s, func() {
-		require.Nil(t, s.actions["A"].starved)
-		require.Len(t, s.poolsByWorker[worker1][repo.SlotTypeDefault].free, 1)
-		require.Len(t, s.poolsByWorker[worker2][repo.SlotTypeDefault].free, 1)
+		require.Equal(t, map[string]map[string]struct{}{"q": {repo.SlotTypeDefault: {}}}, s.actions["A"].starved)
 	})
-
-	// the retry misses again and re-marks; now one worker has room for both units
-	require.True(t, assignOne(t, s, a, qi, nil, twoUnits, nil, nil).noSlots)
-	available[worker1][repo.SlotTypeDefault] = 2
-	require.NoError(t, s.replenish(context.Background(), false))
-	require.Equal(t, 1, restoredCount())
-
-	require.True(t, assignOne(t, s, a, qi, nil, twoUnits, nil, nil).succeeded)
+	require.Len(t, s.notifyReplenishCh, 1, "the first miss on the drained type must request a replenish")
 }
 
-// A miss on an action this scheduler has not discovered yet kicks a replenish
-// (TestScheduler_TryAssignBatch_KicksReplenishOnMiss). The replenish that then
+// A queue whose items need several slot types is restored only when one worker
+// has a free slot of each: a request is served by one worker, so types free on
+// different workers would only wake the queue to miss again.
+func TestScheduler_Replenish_MultiTypeRequestRestoresWhenOneWorkerHasEachType(t *testing.T) {
+	tenantId := uuid.New()
+	worker1 := uuid.New()
+	worker2 := uuid.New()
+
+	// after the first rebuild each type is free on a different worker
+	available := map[uuid.UUID]map[string]int32{
+		worker1: {repo.SlotTypeDefault: 1, repo.SlotTypeDurable: 0},
+		worker2: {repo.SlotTypeDefault: 0, repo.SlotTypeDurable: 1},
+	}
+	s := newTestScheduler(t, tenantId, starvedActionRepo(available))
+	s.setWorkers([]*repo.ListActiveWorkersResult{testWorker(worker1), testWorker(worker2)})
+
+	var restoredMu sync.Mutex
+	restoredCalls := 0
+	s.onCapacityRestored = func([]string) {
+		restoredMu.Lock()
+		defer restoredMu.Unlock()
+		restoredCalls++
+	}
+	restoredCount := func() int {
+		restoredMu.Lock()
+		defer restoredMu.Unlock()
+		return restoredCalls
+	}
+
+	// every pool starts drained
+	w1 := &worker{ListActiveWorkersResult: testWorker(worker1)}
+	w2 := &worker{ListActiveWorkersResult: testWorker(worker2)}
+	var slots []*slot
+	for _, w := range []*worker{w1, w2} {
+		for _, slotType := range []string{repo.SlotTypeDefault, repo.SlotTypeDurable} {
+			sl := newSlot(w, slotType)
+			sl.used = true
+			slots = append(slots, sl)
+		}
+	}
+	a := seedActionPools(t, s, "A", slots...)
+
+	both := map[string]int32{repo.SlotTypeDefault: 1, repo.SlotTypeDurable: 1}
+	qi := testQI(tenantId, "A", 1)
+
+	require.True(t, assignOne(t, s, a, qi, nil, both, nil, nil).noSlots)
+	require.Len(t, s.notifyReplenishCh, 1)
+	<-s.notifyReplenishCh
+
+	require.NoError(t, s.replenish(context.Background(), false))
+	require.Equal(t, 0, restoredCount(), "types free on different workers must not restore the queue")
+	onLoop(t, s, func() {
+		require.True(t, s.actions["A"].IsStarved())
+		require.Len(t, s.poolsByWorker[worker1][repo.SlotTypeDefault].free, 1)
+		require.Len(t, s.poolsByWorker[worker2][repo.SlotTypeDurable].free, 1)
+	})
+
+	// the retry misses without requesting; then worker1 frees a durable slot too
+	require.True(t, assignOne(t, s, a, qi, nil, both, nil, nil).noSlots)
+	require.Len(t, s.notifyReplenishCh, 0, "only the first miss of the episode requests a replenish")
+	available[worker1][repo.SlotTypeDurable] = 1
+	require.NoError(t, s.replenish(context.Background(), false))
+	require.Equal(t, 1, restoredCount())
+	onLoop(t, s, func() { require.False(t, s.actions["A"].IsStarved()) })
+
+	r := assignOne(t, s, a, qi, nil, both, nil, nil)
+	require.True(t, r.succeeded)
+	require.Equal(t, worker1, r.workerId)
+}
+
+// A miss on an action this scheduler has not discovered yet requests a replenish
+// (TestScheduler_TryAssignBatch_NotifiesReplenishOnMiss). The replenish that then
 // installs the action's pools must restore the miss and wake its queue like a
 // rebuild of a starved action does: the miss's flush may have completed before
 // the install, so the post-flush epoch check saw nothing and the item would
@@ -2511,35 +2835,33 @@ func TestScheduler_Replenish_RestoresQueueMissedOnUnknownAction(t *testing.T) {
 	res, err := s.tryAssignBatch(context.Background(), "A", []*sqlcv1.V1QueueItem{qi}, nil, nil, nil, nil, nil)
 	require.NoError(t, err)
 	require.True(t, res[0].noSlots)
-	require.Len(t, s.replenishKick, 1)
-	<-s.replenishKick
+	require.Len(t, s.notifyReplenishCh, 1)
+	<-s.notifyReplenishCh
 
-	// the kicked replenish finds no registration for the action yet: nothing
-	// is installed, nothing is woken, and the miss stays recorded
+	// the requested replenish finds no registration for the action yet:
+	// nothing is installed, nothing is woken, and the miss stays recorded
 	require.NoError(t, s.replenish(context.Background(), false))
 	require.Empty(t, restoredQueues())
-	require.Zero(t, s.restoredRuns.Load())
 	onLoop(t, s, func() {
 		require.NotNil(t, s.actions["A"])
 		require.Empty(t, s.actions["A"].workerIds, "a placeholder has no workers")
-		require.NotNil(t, s.actions["A"].starved)
+		require.True(t, s.actions["A"].IsStarved())
 	})
 
-	// still unknown to assignment: a second miss kicks again and adds nothing new
+	// still unknown to assignment and still marked: a second miss adds nothing
+	// new and requests nothing (the next rebuild discovers the registration)
 	res, err = s.tryAssignBatch(context.Background(), "A", []*sqlcv1.V1QueueItem{testQI(tenantId, "A", 2)}, nil, nil, nil, nil, nil)
 	require.NoError(t, err)
 	require.True(t, res[0].noSlots)
-	require.Len(t, s.replenishKick, 1)
-	<-s.replenishKick
+	require.Len(t, s.notifyReplenishCh, 0)
 
 	// the worker registers the action with one free slot: the replenish that
 	// discovers it restores the recorded request and wakes the queue
 	available[workerId] = map[string]int32{repo.SlotTypeDefault: 1}
 	require.NoError(t, s.replenish(context.Background(), false))
 	require.Equal(t, []string{qi.Queue}, restoredQueues())
-	require.EqualValues(t, 1, s.restoredRuns.Load())
 	onLoop(t, s, func() {
-		require.Nil(t, s.actions["A"].starved)
+		require.False(t, s.actions["A"].IsStarved())
 		require.Len(t, s.actions["A"].workerIds, 1)
 	})
 

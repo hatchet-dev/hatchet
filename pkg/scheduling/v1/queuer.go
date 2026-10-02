@@ -200,9 +200,8 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		}
 
 		// anything that changes worker capacity from here on may happen while this
-		// tick's misses are unacked and invisible to a refill (see the re-queue after
-		// the flush below)
-		epoch := q.s.capacityEpochNow()
+		// tick's misses are unacked, so we track this and requeue if the epoch changes
+		prevEpoch := q.s.capacityEpochNow()
 
 		// re-arm immediately so early `continue` paths below can't stall the loop; re-armed
 		// again after the refill once the empty-poll streak is known
@@ -490,15 +489,9 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 			countMu.Lock()
 			if len(prevQis) > 0 && count == len(prevQis) {
 				q.queue(context.Background())
-			} else if unassignedReturned > 0 && q.s.isWorkerCapacityUpdated(epoch) {
-				// Items that missed capacity were invisible to refillQueue (held in
-				// q.unacked) until their flush returned. When worker capacity changed
-				// meanwhile, any wake-up for it either found nothing to assign or was
-				// never sent (the periodic replenish does not notify); wake the loop
-				// now that the items are back in q.unassigned instead of waiting for
-				// the next notify or poll. If a wake-up is still buffered this one
-				// coalesces with it. At most one wake per tick per epoch change: a
-				// retry that misses again snapshots the new epoch.
+			} else if unassignedReturned > 0 && q.s.isWorkerCapacityUpdated(prevEpoch) {
+				// we might have missed a capacity update while trying to assign slots, so we requeue
+				// again
 				q.queue(ctx)
 			}
 
