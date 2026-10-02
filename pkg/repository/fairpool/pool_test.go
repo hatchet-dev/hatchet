@@ -5,9 +5,9 @@ package fairpool_test
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"runtime"
-	"sync"
 	"testing"
 	"time"
 
@@ -18,45 +18,54 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/modules/postgres"
+	"github.com/testcontainers/testcontainers-go/wait"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
-	"github.com/hatchet-dev/hatchet/internal/testutils"
 	prommetrics "github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 )
 
-var (
-	prepareMu sync.Mutex
-	prepared  bool
-)
+// databaseURL points at a Postgres container started once for the package.
+// The tests only issue ad hoc SQL, so no Hatchet schema is needed.
+var databaseURL string
 
-func prepareDB(t *testing.T) {
-	t.Helper()
+func TestMain(m *testing.M) {
+	ctx := context.Background()
 
-	prepareMu.Lock()
-	done := prepared
-	prepareMu.Unlock()
-	if done {
-		return
+	container, err := postgres.Run(ctx,
+		"postgres:15.6",
+		postgres.WithDatabase("hatchet"),
+		postgres.WithUsername("hatchet"),
+		postgres.WithPassword("hatchet"),
+		testcontainers.WithWaitStrategy(
+			wait.ForLog("database system is ready to accept connections").
+				WithOccurrence(2).
+				WithStartupTimeout(30*time.Second),
+		),
+	)
+	if err != nil {
+		log.Fatalf("could not start postgres container: %v", err)
 	}
 
-	// The dev config selects RabbitMQ. These tests only need a database, and the
-	// postgres queue uses the same local instance Prepare connects to.
-	t.Setenv("SERVER_MSGQUEUE_KIND", "postgres")
-	t.Setenv("SERVER_MSGQUEUE_PUBSUB_KIND", "postgres")
-	testutils.Prepare(t)
+	databaseURL, err = container.ConnectionString(ctx, "sslmode=disable")
+	if err != nil {
+		_ = container.Terminate(ctx)
+		log.Fatalf("could not read postgres connection string: %v", err)
+	}
 
-	prepareMu.Lock()
-	prepared = true
-	prepareMu.Unlock()
+	code := m.Run()
+
+	_ = container.Terminate(ctx)
+	os.Exit(code)
 }
 
 func newPool(t *testing.T, percent int, maxWait time.Duration, tracer pgx.QueryTracer) (*fairpool.Pool, string) {
 	t.Helper()
-	prepareDB(t)
 
-	cfg, err := pgxpool.ParseConfig(os.Getenv("DATABASE_URL"))
+	cfg, err := pgxpool.ParseConfig(databaseURL)
 	require.NoError(t, err)
 
 	cfg.MaxConns = 4
