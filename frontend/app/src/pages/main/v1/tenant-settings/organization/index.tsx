@@ -20,6 +20,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
 import { Input } from '@/components/v1/ui/input';
@@ -889,6 +890,7 @@ export function CloudOrganizationSettings({
                   variant="destructive"
                   className="shrink-0"
                   onClick={() => setShowArchiveOrganizationModal(true)}
+                  leftIcon={<TrashIcon className="size-4" />}
                 >
                   Archive
                 </Button>
@@ -1872,6 +1874,7 @@ function TenantActions({
             Edit Tags
           </DropdownMenuItem>
         )}
+        {canManageOrganization && <DropdownMenuSeparator />}
         {canManageOrganization && onTransfer && (
           <DropdownMenuItem onClick={() => onTransfer(row)}>
             <ArrowsRightLeftIcon className="mr-2 size-4" />
