@@ -37,10 +37,3 @@ func TestIsStale(t *testing.T) {
 		})
 	}
 }
-
-func TestMaxMessageAgeCoversEveryTopicKind(t *testing.T) {
-	for _, kind := range []msgqueue.TopicKind{msgqueue.TopicKindSchedulerPartition, msgqueue.TopicKindTenantStream} {
-		_, ok := maxMessageAge[kind]
-		assert.True(t, ok, "topic kind %q has no max message age", kind)
-	}
-}

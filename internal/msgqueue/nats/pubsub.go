@@ -27,10 +27,12 @@ const defaultSubjectPrefix = "hatchet.pubsub"
 //
 // Scheduler wake-ups only shortcut polling loops: replenish runs every
 // 1-1.5s, busy queues poll every 1s and leases are re-acquired every 5s, so a
-// wake-up older than 5s has almost always been covered by a poll. Tenant
-// streams carry data (task stream events have no other delivery path), so
-// their cutoff matches the rabbitmq backend's per-message TTL instead. Both
-// are well above clock skew between the publishing and subscribing pods.
+// wake-up older than 5s has almost always been covered by a poll. The worst
+// case is a queue idle long enough to back off to its 30s poll interval.
+// Tenant streams carry data (task stream events have no other delivery path),
+// so their cutoff matches the rabbitmq backend's per-message TTL instead. Both
+// cutoffs assume clock skew between the publishing and subscribing pods stays
+// well below them.
 var maxMessageAge = map[msgqueue.TopicKind]time.Duration{
 	msgqueue.TopicKindSchedulerPartition: 5 * time.Second,
 	msgqueue.TopicKindTenantStream:       30 * time.Second,
@@ -40,9 +42,13 @@ var maxMessageAge = map[msgqueue.TopicKind]time.Duration{
 // subjectPrefix + "." + topic.Name() (default prefix "hatchet.pubsub"),
 // delivery is best-effort at-most-once.
 type PubSub struct {
-	nc            *natsgo.Conn
-	l             *zerolog.Logger
-	staleL        *zerolog.Logger
+	nc *natsgo.Conn
+	l  *zerolog.Logger
+
+	// staleL is sampled per process rather than per subscription: a dispatcher
+	// holds one tenant-stream subscription per connected tenant.
+	staleL *zerolog.Logger
+
 	subjectPrefix string
 }
 
@@ -318,7 +324,15 @@ func (p *PubSub) Sub(topic msgqueue.Topic, handler msgqueue.MsgHandler) (func() 
 
 		if age, stale := isStale(topic.Kind(), msg.PublishedAt, time.Now()); stale {
 			prommetrics.PubSubStaleSkipped.WithLabelValues("nats", string(topic.Kind())).Inc()
-			p.staleL.Warn().Str("subject", subject).Str("message_id", msg.ID).Dur("age", age).Msg("skipping stale nats pubsub message")
+			// pending_msgs tells a backlog (high) apart from publisher clock
+			// skew (near zero while every message is stale).
+			e := p.staleL.Warn().Str("subject", subject).Str("message_id", msg.ID).Dur("age", age)
+			if e.Enabled() {
+				if pendingMsgs, _, err := natsMsg.Sub.Pending(); err == nil {
+					e = e.Int("pending_msgs", pendingMsgs)
+				}
+			}
+			e.Msg("skipping stale nats pubsub message")
 			return
 		}
 
