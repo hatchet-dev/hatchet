@@ -12,10 +12,13 @@ import (
 
 	"github.com/google/uuid"
 	natsgo "github.com/nats-io/nats.go"
+	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	prommetrics "github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 )
 
 const testNATSURL = "nats://127.0.0.1:4222"
@@ -50,6 +53,15 @@ func receiveN(t *testing.T, ctx context.Context, ch <-chan *msgqueue.Message, n 
 		}
 	}
 	return out
+}
+
+func counterValue(t *testing.T, c prometheus.Counter) float64 {
+	t.Helper()
+
+	m := &dto.Metric{}
+	require.NoError(t, c.Write(m))
+
+	return m.GetCounter().GetValue()
 }
 
 func TestPubSubTenantFanout(t *testing.T) {
@@ -113,6 +125,60 @@ func TestPubSubSchedulerTopicRoundtrip(t *testing.T) {
 	assert.Equal(t, msg.ID, got[0].ID)
 
 	require.NoError(t, cleanupSub())
+}
+
+func TestPubSubSkipsStaleMessages(t *testing.T) {
+	tests := []struct {
+		name     string
+		topic    msgqueue.Topic
+		staleAge time.Duration
+		freshAge time.Duration
+	}{
+		{"scheduler partition", msgqueue.SchedulerPartitionTopic(uuid.NewString()), 6 * time.Second, time.Second},
+		{"tenant stream", msgqueue.TenantTopic(uuid.New()), 31 * time.Second, 6 * time.Second},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+
+			ps := newTestPubSub(t)
+			skipped := prommetrics.PubSubStaleSkipped.WithLabelValues("nats", string(tt.topic.Kind()))
+			skippedBefore := counterValue(t, skipped)
+
+			received := make(chan *msgqueue.Message, 3)
+
+			cleanupSub, err := ps.Sub(tt.topic, func(m *msgqueue.Message) error {
+				received <- m
+				return nil
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = cleanupSub() })
+
+			publish := func(id string, publishedAt time.Time) {
+				msg, err := msgqueue.NewTenantMessage(uuid.New(), id, true, false, map[string]interface{}{"key": "value"})
+				require.NoError(t, err)
+				msg.PublishedAt = publishedAt
+				require.NoError(t, ps.Pub(ctx, tt.topic, msg))
+			}
+
+			now := time.Now()
+			publish("stale", now.Add(-tt.staleAge))
+			publish("fresh", now.Add(-tt.freshAge))
+			publish("unstamped", time.Time{})
+
+			got := receiveN(t, ctx, received, 2)
+			assert.ElementsMatch(t, []string{"fresh", "unstamped"}, []string{got[0].ID, got[1].ID})
+			assert.Equal(t, skippedBefore+1, counterValue(t, skipped))
+
+			select {
+			case m := <-received:
+				t.Fatalf("unexpected delivery of %q", m.ID)
+			case <-time.After(200 * time.Millisecond):
+			}
+		})
+	}
 }
 
 func TestPubSubLargePayload(t *testing.T) {

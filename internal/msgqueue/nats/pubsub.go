@@ -19,12 +19,30 @@ import (
 // defaultSubjectPrefix is used when WithPubSubSubjectPrefix is unset or empty.
 const defaultSubjectPrefix = "hatchet.pubsub"
 
+// maxMessageAge is how old a delivered message may be, by its published_at
+// stamp, before Sub skips it instead of running the handler. A subscriber that
+// falls behind otherwise works through a backlog oldest-first, and when the
+// backlog hits the nats.go pending limits the client drops the newest
+// messages, keeping exactly the ones least worth processing.
+//
+// Scheduler wake-ups only shortcut polling loops: replenish runs every
+// 1-1.5s, busy queues poll every 1s and leases are re-acquired every 5s, so a
+// wake-up older than 5s has almost always been covered by a poll. Tenant
+// streams carry data (task stream events have no other delivery path), so
+// their cutoff matches the rabbitmq backend's per-message TTL instead. Both
+// are well above clock skew between the publishing and subscribing pods.
+var maxMessageAge = map[msgqueue.TopicKind]time.Duration{
+	msgqueue.TopicKindSchedulerPartition: 5 * time.Second,
+	msgqueue.TopicKindTenantStream:       30 * time.Second,
+}
+
 // PubSub implements msgqueue.PubSub over core NATS. Subjects are
 // subjectPrefix + "." + topic.Name() (default prefix "hatchet.pubsub"),
 // delivery is best-effort at-most-once.
 type PubSub struct {
 	nc            *natsgo.Conn
 	l             *zerolog.Logger
+	staleL        *zerolog.Logger
 	subjectPrefix string
 }
 
@@ -214,9 +232,12 @@ func NewPubSub(fs ...PubSubOpt) (func() error, *PubSub, error) {
 		prefix = defaultSubjectPrefix
 	}
 
+	staleL := l.Sample(&zerolog.BurstSampler{Burst: 1, Period: time.Minute})
+
 	p := &PubSub{
 		nc:            nc,
 		l:             l,
+		staleL:        &staleL,
 		subjectPrefix: prefix,
 	}
 
@@ -282,7 +303,8 @@ func (p *PubSub) Pub(ctx context.Context, topic msgqueue.Topic, msg *msgqueue.Me
 }
 
 // Sub subscribes to a topic with plain Subscribe (fan-out to every subscriber).
-// Delivery is at-most-once: handler errors are logged, never redelivered.
+// Delivery is at-most-once: handler errors are logged, never redelivered, and
+// messages older than the topic kind's maxMessageAge are skipped.
 func (p *PubSub) Sub(topic msgqueue.Topic, handler msgqueue.MsgHandler) (func() error, error) {
 	subject := p.subject(topic)
 
@@ -291,6 +313,12 @@ func (p *PubSub) Sub(topic msgqueue.Topic, handler msgqueue.MsgHandler) (func() 
 
 		if err := json.Unmarshal(natsMsg.Data, msg); err != nil {
 			p.l.Error().Err(err).Msg("error unmarshalling pubsub message")
+			return
+		}
+
+		if age, stale := isStale(topic.Kind(), msg.PublishedAt, time.Now()); stale {
+			prommetrics.PubSubStaleSkipped.WithLabelValues("nats", string(topic.Kind())).Inc()
+			p.staleL.Warn().Str("subject", subject).Str("message_id", msg.ID).Dur("age", age).Msg("skipping stale nats pubsub message")
 			return
 		}
 
@@ -329,6 +357,21 @@ func (p *PubSub) Sub(topic msgqueue.Topic, handler msgqueue.MsgHandler) (func() 
 		unregisterDrops()
 		return sub.Unsubscribe()
 	}, nil
+}
+
+// isStale reports whether a message published at publishedAt is past the max
+// age for its topic kind at now, and its age. Unstamped messages (published by
+// engines that predate the stamp) and stamps in the future (clock skew) are
+// never stale.
+func isStale(kind msgqueue.TopicKind, publishedAt, now time.Time) (time.Duration, bool) {
+	maxAge, ok := maxMessageAge[kind]
+	if !ok || publishedAt.IsZero() {
+		return 0, false
+	}
+
+	age := now.Sub(publishedAt)
+
+	return age, age > maxAge
 }
 
 // registerDropsCounter republishes sub's cumulative Dropped() as a Prometheus
