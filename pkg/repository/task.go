@@ -5303,6 +5303,15 @@ func (r *TaskRepositoryImpl) FilterValidTasks(ctx context.Context, tenantId uuid
 
 const deleteIdleStreamTopicsBatchSize = 1000
 
+// deleteExpiredStreamMessagesBatchSize bounds each delete: payloads can be up to
+// 4MB, each stored out of line, so a batch's work grows with its row count.
+const deleteExpiredStreamMessagesBatchSize = 100
+
+// streamMessagePartitionsAhead is how far ahead hourly stream message
+// partitions are created, so missed partition runs never leave inserts
+// without a partition.
+const streamMessagePartitionsAhead = 24 * time.Hour
+
 // detachAndDropPartition detaches partitionName from parentTable without
 // blocking writers to the parent, then drops it.
 func (r *TaskRepositoryImpl) detachAndDropPartition(ctx context.Context, parentTable, partitionName string) error {
@@ -5376,55 +5385,82 @@ func (r *TaskRepositoryImpl) detachAndDropPartition(ctx context.Context, parentT
 	return nil
 }
 
-// updateStreamMessagePartitions pre-creates partitions for recently active
-// tenants, drops each tenant's hourly partitions once they pass that tenant's
-// retention, then drops tenant partitions left with nothing in them.
+// updateStreamMessagePartitions keeps a day of hourly partitions ahead, drops
+// partitions once every tenant's retention has passed them, and deletes the
+// expired messages of tenants whose retention is shorter than that.
 func (r *TaskRepositoryImpl) updateStreamMessagePartitions(ctx context.Context) error {
-	if err := r.queries.EnsureActiveStreamMessagePartitions(ctx, r.ddlPool); err != nil {
-		if isLockNotAvailable(err) {
-			return ErrPartitionLockConflict
-		}
-		return err
-	}
+	now := time.Now().UTC()
 
-	hours, err := r.queries.ListStreamMessageHourPartitions(ctx, r.ddlPool)
+	err := runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
+		return r.queries.CreateStreamMessagePartitions(ctx, tx, sqlcv1.CreateStreamMessagePartitionsParams{
+			Fromtime: pgtype.Timestamptz{Time: now, Valid: true},
+			Totime:   pgtype.Timestamptz{Time: now.Add(streamMessagePartitionsAhead), Valid: true},
+		})
+	})
 
 	if err != nil {
 		return err
 	}
 
-	now := time.Now()
+	defaultHours := r.m.DefaultStreamRetentionHours()
 
-	for _, hour := range hours {
-		retention, err := r.m.StreamRetention(ctx, hour.TenantID)
+	maxHours, err := r.queries.GetMaxStreamRetentionHours(ctx, r.ddlPool, defaultHours)
+
+	if err != nil {
+		return err
+	}
+
+	maxHours = clampStreamRetentionHours(maxHours, maxStreamRetentionHours)
+
+	expired, err := r.queries.ListStreamMessagePartitionsBefore(ctx, r.ddlPool, pgtype.Timestamptz{
+		Time:  now.Add(-time.Duration(maxHours) * time.Hour),
+		Valid: true,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	for _, p := range expired {
+		if err := r.detachAndDropPartition(ctx, p.ParentTable, p.PartitionName); err != nil {
+			return err
+		}
+	}
+
+	candidates, err := r.queries.ListStreamRetentionDeleteCandidates(ctx, r.ddlPool, sqlcv1.ListStreamRetentionDeleteCandidatesParams{
+		Maxretentionhours:     maxHours,
+		Defaultretentionhours: defaultHours,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	for _, c := range candidates {
+		if err := r.deleteExpiredStreamMessages(ctx, c.TenantID, now.Add(-time.Duration(c.RetentionHours)*time.Hour)); err != nil {
+			return fmt.Errorf("could not delete expired stream messages for tenant %s: %w", c.TenantID, err)
+		}
+	}
+
+	return nil
+}
+
+func (r *TaskRepositoryImpl) deleteExpiredStreamMessages(ctx context.Context, tenantId uuid.UUID, before time.Time) error {
+	for {
+		deleted, err := r.queries.DeleteExpiredStreamMessages(ctx, r.ddlPool, sqlcv1.DeleteExpiredStreamMessagesParams{
+			Tenantid:  tenantId,
+			Before:    pgtype.Timestamptz{Time: before, Valid: true},
+			Batchsize: deleteExpiredStreamMessagesBatchSize,
+		})
 
 		if err != nil {
 			return err
 		}
 
-		// only once the whole hour is past the tenant's retention
-		if hour.HourStart.Time.Add(time.Hour).After(now.Add(-retention)) {
-			continue
-		}
-
-		if err := r.detachAndDropPartition(ctx, hour.ParentTable, hour.PartitionName); err != nil {
-			return err
+		if deleted < deleteExpiredStreamMessagesBatchSize {
+			return nil
 		}
 	}
-
-	empty, err := r.queries.ListDroppableStreamMessageTenantPartitions(ctx, r.ddlPool)
-
-	if err != nil {
-		return err
-	}
-
-	for _, name := range empty {
-		if err := r.detachAndDropPartition(ctx, "v1_stream_message", name); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 // deleteIdleStreamTopics removes each tenant's topics once they've gone

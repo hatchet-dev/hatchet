@@ -115,42 +115,59 @@ FROM (SELECT 1) AS one
 LEFT JOIN latest ON true;
 
 -- name: GetStreamMessageRetentionStart :one
--- The start of the tenant's oldest hourly partition: its rows inserted before
--- it have been dropped. NULL if the tenant has no partitions.
-SELECT get_v1_stream_message_retention_start(@tenantId::uuid)::timestamptz AS retention_start;
+-- The start of the oldest attached v1_stream_message partition: rows inserted
+-- before it have been dropped. NULL if no partitions.
+SELECT MIN(to_timestamp(substring(p::text, 'v1_stream_message_(\d{10})$'), 'YYYYMMDDHH24')::timestamp AT TIME ZONE 'UTC')::timestamptz AS retention_start
+FROM get_v1_hourly_partitions_before('v1_stream_message', 'infinity'::timestamptz) AS p;
 
--- name: EnsureStreamMessagePartition :exec
--- Creates the tenant's partitions for this hour and the next, for an insert
--- that found none.
+-- name: CreateStreamMessagePartitions :exec
+-- Attaches an hourly partition for every hour from @fromTime through @toTime.
+SELECT create_v1_hourly_range_partition('v1_stream_message', hours.hour_start)
+FROM generate_series(@fromTime::timestamptz, @toTime::timestamptz, INTERVAL '1 hour') AS hours(hour_start);
+
+-- name: ListStreamMessagePartitionsBefore :many
 SELECT
-    ensure_v1_stream_message_partition(@tenantId::uuid, NOW()),
-    ensure_v1_stream_message_partition(@tenantId::uuid, NOW() + INTERVAL '1 hour');
+    'v1_stream_message' AS parent_table,
+    p::text AS partition_name
+FROM get_v1_hourly_partitions_before('v1_stream_message', @before::timestamptz) AS p;
 
--- name: EnsureActiveStreamMessagePartitions :exec
--- Pre-creates this hour's and next hour's partitions for tenants that
--- published recently, so their inserts rarely create one inline.
-SELECT ensure_v1_stream_message_partition(t.tenant_id, NOW() + hours.offset_hours * INTERVAL '1 hour')
-FROM (
-    SELECT DISTINCT tenant_id
-    FROM v1_stream_topic
-    WHERE last_published_at > NOW() - INTERVAL '2 hours'
-) AS t
-CROSS JOIN generate_series(0, 1) AS hours(offset_hours);
+-- name: GetMaxStreamRetentionHours :one
+-- Shared partitions can only be dropped once every tenant is done with them.
+-- Tenants without a row use the default.
+SELECT GREATEST(COALESCE(MAX("limitValue"), 0), @defaultRetentionHours::integer)::integer AS max_hours
+FROM "TenantResourceLimit"
+WHERE "resource" = 'STREAM_RETENTION';
 
--- name: ListStreamMessageHourPartitions :many
-SELECT
-    p.parent_table::text AS parent_table,
-    p.partition_name::text AS partition_name,
-    p.tenant_id::uuid AS tenant_id,
-    p.hour_start::timestamptz AS hour_start
-FROM list_v1_stream_message_hour_partitions() AS p;
+-- name: ListStreamRetentionDeleteCandidates :many
+-- Tenants whose stream retention is shorter than @maxRetentionHours, so their
+-- expired messages sit in partitions that can't be dropped yet and have to be
+-- deleted. Tenants with streams but no STREAM_RETENTION row use the default.
+SELECT "tenantId"::uuid AS tenant_id, "limitValue"::integer AS retention_hours
+FROM "TenantResourceLimit"
+WHERE "resource" = 'STREAM_RETENTION'
+    AND "limitValue" > 0
+    AND "limitValue" < @maxRetentionHours::integer
+UNION
+SELECT DISTINCT t.tenant_id, @defaultRetentionHours::integer
+FROM v1_stream_topic t
+WHERE @defaultRetentionHours::integer < @maxRetentionHours::integer
+    AND NOT EXISTS (
+        SELECT 1 FROM "TenantResourceLimit" l
+        WHERE l."tenantId" = t.tenant_id AND l."resource" = 'STREAM_RETENTION'
+    );
 
--- name: ListDroppableStreamMessageTenantPartitions :many
--- Tenant partitions with no hourly partitions left and no topics, so nothing
--- will write to them again before a new topic re-creates them.
-SELECT p.partition_name::text AS partition_name
-FROM list_v1_stream_message_empty_tenant_partitions() AS p
-WHERE NOT EXISTS (SELECT 1 FROM v1_stream_topic t WHERE t.tenant_id = p.tenant_id);
+-- name: DeleteExpiredStreamMessages :execrows
+-- Deletes up to @batchSize of the tenant's messages inserted before @before.
+-- Payloads can be large, so batches stay small to bound each statement's work.
+DELETE FROM v1_stream_message
+WHERE inserted_at < @before::timestamptz
+    AND (tenant_id, namespace, topic, id, inserted_at) IN (
+        SELECT tenant_id, namespace, topic, id, inserted_at
+        FROM v1_stream_message
+        WHERE tenant_id = @tenantId::uuid
+            AND inserted_at < @before::timestamptz
+        LIMIT @batchSize::integer
+    );
 
 -- name: ListStreamMessagesAfterCursor :many
 -- Keyset pagination on id, a topic's offset: offsets become visible strictly

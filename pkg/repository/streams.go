@@ -12,8 +12,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgerrcode"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
@@ -267,7 +265,6 @@ func (r *streamsRepositoryImpl) InsertOrderedStreamMessages(ctx context.Context,
 
 	params := make([]sqlcv1.InsertOrderedStreamMessageParams, len(order))
 	minBucket := streamProducerCursorMinBucket(time.Now())
-	tenantIds := make([]uuid.UUID, 0, len(order))
 
 	for i, idx := range order {
 		m := msgs[idx]
@@ -283,7 +280,6 @@ func (r *streamsRepositoryImpl) InsertOrderedStreamMessages(ctx context.Context,
 			Minbucket:       minBucket,
 		}
 
-		tenantIds = append(tenantIds, m.TenantID)
 	}
 
 	// one offset reservation per topic, in the same sorted order, so concurrent
@@ -302,7 +298,7 @@ func (r *streamsRepositoryImpl) InsertOrderedStreamMessages(ctx context.Context,
 
 	results := make([]OrderedStreamMessageResult, len(msgs))
 
-	err := r.withStreamMessagePartition(ctx, tenantIds, func() error {
+	err := func() error {
 		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
 
 		if err != nil {
@@ -350,46 +346,13 @@ func (r *streamsRepositoryImpl) InsertOrderedStreamMessages(ctx context.Context,
 		}
 
 		return commit(ctx)
-	})
+	}()
 
 	if err != nil {
 		return nil, err
 	}
 
 	return results, nil
-}
-
-// withStreamMessagePartition runs insert, and if a tenant has no partition for
-// the current hour yet, creates them and retries once. A failed insert rolled
-// back, so it left nothing behind.
-func (r *streamsRepositoryImpl) withStreamMessagePartition(ctx context.Context, tenantIds []uuid.UUID, insert func() error) error {
-	err := insert()
-
-	if !isMissingPartition(err) {
-		return err
-	}
-
-	seen := make(map[uuid.UUID]struct{}, len(tenantIds))
-
-	for _, tenantId := range tenantIds {
-		if _, ok := seen[tenantId]; ok {
-			continue
-		}
-
-		seen[tenantId] = struct{}{}
-
-		if err := r.queries.EnsureStreamMessagePartition(ctx, r.pool, tenantId); err != nil {
-			return fmt.Errorf("could not create stream message partition: %w", err)
-		}
-	}
-
-	return insert()
-}
-
-func isMissingPartition(err error) bool {
-	var pgErr *pgconn.PgError
-
-	return errors.As(err, &pgErr) && pgErr.Code == pgerrcode.CheckViolation && strings.Contains(pgErr.Message, "no partition of relation")
 }
 
 func (r *streamsRepositoryImpl) ListMessagesAfterCursor(ctx context.Context, tenantId uuid.UUID, opts ListStreamMessagesOpts) ([]*sqlcv1.V1StreamMessage, error) {
@@ -436,7 +399,7 @@ func (r *streamsRepositoryImpl) CheckCursorRetained(ctx context.Context, tenantI
 
 	retainedSince := time.Now().Add(-retention)
 
-	partitionStart, err := r.queries.GetStreamMessageRetentionStart(ctx, r.pool, tenantId)
+	partitionStart, err := r.queries.GetStreamMessageRetentionStart(ctx, r.pool)
 
 	if err != nil {
 		return err

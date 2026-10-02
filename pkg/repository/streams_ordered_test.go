@@ -5,8 +5,6 @@ package repository
 import (
 	"context"
 	"fmt"
-	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -191,11 +189,9 @@ func TestCheckCursorRetained(t *testing.T) {
 	defaultTenant := createLimitTestTenant(t, pool)
 	setStreamRetentionHours(t, pool, shortTenant, 1)
 
-	// each tenant's retained data starts at its oldest hourly partition
-	for _, tenant := range []uuid.UUID{shortTenant, defaultTenant} {
-		_, err := pool.Exec(ctx, `SELECT ensure_v1_stream_message_partition($1, NOW() - make_interval(hours => h)) FROM generate_series(0, 5) AS h`, tenant)
-		require.NoError(t, err)
-	}
+	// the migration only seeds partitions from the current hour on
+	_, err := pool.Exec(ctx, `SELECT create_v1_hourly_range_partition('v1_stream_message', NOW() - make_interval(hours => h)) FROM generate_series(1, 5) AS h`)
+	require.NoError(t, err)
 
 	hoursAgo := func(h int) StreamCursor {
 		return StreamCursor{ID: 5, CreatedAt: time.Now().Add(-time.Duration(h) * time.Hour)}
@@ -224,7 +220,7 @@ func TestListMessagesAfterCursor_HidesMessagesPastTenantRetention(t *testing.T) 
 	tenantId := createLimitTestTenant(t, pool)
 	setStreamRetentionHours(t, pool, tenantId, 1)
 
-	_, err := pool.Exec(ctx, `SELECT ensure_v1_stream_message_partition($1, NOW() - INTERVAL '3 hours'), ensure_v1_stream_message_partition($1, NOW())`, tenantId)
+	_, err := pool.Exec(ctx, `SELECT create_v1_hourly_range_partition('v1_stream_message', NOW() - INTERVAL '3 hours')`)
 	require.NoError(t, err)
 
 	_, err = pool.Exec(ctx, `
@@ -239,7 +235,9 @@ func TestListMessagesAfterCursor_HidesMessagesPastTenantRetention(t *testing.T) 
 	assert.Equal(t, []byte("new"), msgs[0].Payload)
 }
 
-func TestStreamMessagePartitionsFollowEachTenantsRetention(t *testing.T) {
+// Shared hourly partitions are dropped once the longest retention has passed
+// them; tenants with a shorter retention have their expired messages deleted.
+func TestStreamMessageRetention_DropsSharedPartitionsAndDeletesPerTenant(t *testing.T) {
 	pool, cleanup := setupPostgresWithMigration(t)
 	defer cleanup()
 
@@ -251,31 +249,26 @@ func TestStreamMessagePartitionsFollowEachTenantsRetention(t *testing.T) {
 
 	shortTenant := createLimitTestTenant(t, pool)
 	longTenant := createLimitTestTenant(t, pool)
-	goneTenant := createLimitTestTenant(t, pool)
+	defaultTenant := createLimitTestTenant(t, pool) // no STREAM_RETENTION row: the 24h default
 	setStreamRetentionHours(t, pool, shortTenant, 2)
 	setStreamRetentionHours(t, pool, longTenant, 48)
 
-	// shortTenant is still publishing; goneTenant has no topics left
-	_, err := pool.Exec(ctx, `INSERT INTO v1_stream_topic (tenant_id, topic) VALUES ($1, 't')`, shortTenant)
+	// a tenant without a retention row is found through its topics
+	_, err := pool.Exec(ctx, `INSERT INTO v1_stream_topic (tenant_id, topic) VALUES ($1, 't')`, defaultTenant)
 	require.NoError(t, err)
 
-	for _, tenant := range []uuid.UUID{shortTenant, longTenant} {
-		_, err := pool.Exec(ctx, `SELECT ensure_v1_stream_message_partition($1, NOW() - make_interval(hours => h)) FROM unnest(ARRAY[5, 30, 60]) AS h`, tenant)
-		require.NoError(t, err)
-	}
+	_, err = pool.Exec(ctx, `SELECT create_v1_hourly_range_partition('v1_stream_message', NOW() - make_interval(hours => h)) FROM unnest(ARRAY[5, 30, 60]) AS h`)
+	require.NoError(t, err)
 
-	_, err = pool.Exec(ctx, `SELECT ensure_v1_stream_message_partition($1, NOW() - INTERVAL '30 hours')`, goneTenant)
+	// one message per tenant, 5h, 30h and 60h old
+	_, err = pool.Exec(ctx, `
+		INSERT INTO v1_stream_message (id, tenant_id, topic, payload, producer_id, producer_seq, inserted_at)
+		SELECT row_number() OVER (), tenant, 't', 'm', 'p', 0, NOW() - make_interval(hours => h)
+		FROM unnest($1::uuid[]) AS tenant, unnest(ARRAY[5, 30, 60]) AS h`, []uuid.UUID{shortTenant, longTenant, defaultTenant})
 	require.NoError(t, err)
 
 	now := time.Now().UTC()
 	today := now.Truncate(24 * time.Hour)
-
-	tenantTable := func(tenant uuid.UUID) string {
-		return "v1_stream_message_" + strings.ReplaceAll(tenant.String(), "-", "")
-	}
-	hourTable := func(tenant uuid.UUID, ago time.Duration) string {
-		return tenantTable(tenant) + "_" + now.Add(-ago).Format("2006010215")
-	}
 
 	for _, d := range []int{-2, -10} {
 		_, err := sqlcv1.New().CreatePartitions(ctx, pool, pgtype.Date{Time: today.AddDate(0, 0, d), Valid: true})
@@ -284,22 +277,39 @@ func TestStreamMessagePartitionsFollowEachTenantsRetention(t *testing.T) {
 
 	require.NoError(t, repo.UpdateTablePartitions(ctx))
 
+	ages := func(tenant uuid.UUID) []int {
+		var out []int
+		rows, err := pool.Query(ctx, `SELECT round(extract(epoch FROM NOW() - inserted_at) / 3600)::int FROM v1_stream_message WHERE tenant_id = $1 ORDER BY 1`, tenant)
+		require.NoError(t, err)
+		for rows.Next() {
+			var h int
+			require.NoError(t, rows.Scan(&h))
+			out = append(out, h)
+		}
+		require.NoError(t, rows.Err())
+		return out
+	}
+
+	assert.Empty(t, ages(shortTenant), "2h retention: everything deleted or dropped")
+	assert.Equal(t, []int{5}, ages(defaultTenant), "24h default: the 30h message deleted")
+	assert.Equal(t, []int{5, 30}, ages(longTenant), "48h retention: kept, the 60h one went with its partition")
+
 	exists := func(name string) bool {
 		var ok bool
 		require.NoError(t, pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM pg_class WHERE relname = $1)`, name).Scan(&ok))
 		return ok
 	}
 
+	hourTable := func(ago time.Duration) string {
+		return "v1_stream_message_" + now.Add(-ago).Format("2006010215")
+	}
+
 	kept := map[string]bool{
-		hourTable(shortTenant, 5*time.Hour):  false,
-		hourTable(shortTenant, 30*time.Hour): false,
-		hourTable(longTenant, 5*time.Hour):   true,
-		hourTable(longTenant, 30*time.Hour):  true,
-		hourTable(longTenant, 60*time.Hour):  false,
-		hourTable(shortTenant, 0):            true, // pre-created: shortTenant published recently
-		hourTable(shortTenant, -time.Hour):   true,
-		tenantTable(goneTenant):              false,
-		tenantTable(shortTenant):             true,
+		// partitions follow the longest retention (48h)
+		hourTable(5 * time.Hour):                 true,
+		hourTable(30 * time.Hour):                true,
+		hourTable(60 * time.Hour):                false,
+		hourTable(-streamMessagePartitionsAhead): true,
 		// cursors are kept streamProducerCursorRetention (3 days), whatever the message retention
 		"v1_stream_producer_cursor_" + today.AddDate(0, 0, -2).Format("20060102"):  true,
 		"v1_stream_producer_cursor_" + today.AddDate(0, 0, -10).Format("20060102"): false,
@@ -310,35 +320,40 @@ func TestStreamMessagePartitionsFollowEachTenantsRetention(t *testing.T) {
 	}
 }
 
-func TestInsertOrderedStreamMessage_ConcurrentFirstInsertsCreateOnePartition(t *testing.T) {
+// The expired-message delete runs in batches until a tenant has none left,
+// touching nothing newer and no other tenant.
+func TestDeleteExpiredStreamMessages_DeletesInBatches(t *testing.T) {
 	pool, cleanup := setupPostgresWithMigration(t)
 	defer cleanup()
 
 	ctx := context.Background()
-	repo := createStreamsRepository(t, pool)
-	tenantId := uuid.New()
+	repo := createTaskRepository(pool)
+	tenant, other := uuid.New(), uuid.New()
 
-	// every producer's first insert races to create the tenant's partitions
-	var wg sync.WaitGroup
-	errs := make([]error, 10)
-
-	for i := range errs {
-		wg.Go(func() {
-			_, errs[i] = repo.InsertOrderedStreamMessage(ctx, tenantId, CreateOrderedStreamMessageOpts{
-				Topic: "t", Payload: []byte("m"), ProducerID: fmt.Sprintf("p%d", i), ProducerSeq: 0,
-			})
-		})
-	}
-
-	wg.Wait()
-
-	for _, err := range errs {
-		require.NoError(t, err)
-	}
-
-	msgs, err := repo.ListMessagesAfterCursor(ctx, tenantId, ListStreamMessagesOpts{Topic: "t"})
+	_, err := pool.Exec(ctx, `SELECT create_v1_hourly_range_partition('v1_stream_message', NOW() - INTERVAL '3 hours')`)
 	require.NoError(t, err)
-	assert.Len(t, msgs, len(errs))
+
+	expired := deleteExpiredStreamMessagesBatchSize*2 + 7
+
+	_, err = pool.Exec(ctx, `
+		INSERT INTO v1_stream_message (id, tenant_id, topic, payload, producer_id, producer_seq, inserted_at)
+		SELECT g, t, 't', 'm', 'p', g, NOW() - INTERVAL '3 hours'
+		FROM generate_series(1, $1) g, unnest($2::uuid[]) AS t`, expired, []uuid.UUID{tenant, other})
+	require.NoError(t, err)
+
+	_, err = pool.Exec(ctx, `INSERT INTO v1_stream_message (id, tenant_id, topic, payload, producer_id, producer_seq) VALUES ($1, $2, 't', 'm', 'p', 0)`, expired+1, tenant)
+	require.NoError(t, err)
+
+	require.NoError(t, repo.deleteExpiredStreamMessages(ctx, tenant, time.Now().Add(-time.Hour)))
+
+	count := func(tenant uuid.UUID) int {
+		var n int
+		require.NoError(t, pool.QueryRow(ctx, `SELECT COUNT(*) FROM v1_stream_message WHERE tenant_id = $1`, tenant).Scan(&n))
+		return n
+	}
+
+	assert.Equal(t, 1, count(tenant), "only the recent message is left")
+	assert.Equal(t, expired, count(other), "other tenants are untouched")
 }
 
 func TestDeleteIdleStreamTopics_UsesEachTenantsRetention(t *testing.T) {
