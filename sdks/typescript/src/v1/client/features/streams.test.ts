@@ -12,6 +12,10 @@ function fakeHatchetClient(): any {
   return { config: {} };
 }
 
+function grpcError(code: Status) {
+  return Object.assign(new Error('failed'), { code });
+}
+
 function entry(byte: number, cursor: string) {
   return { payload: new Uint8Array([byte]), cursor, createdAt: undefined };
 }
@@ -134,10 +138,6 @@ describe('StreamsClient.publish producer sequencing', () => {
     return { streams: new StreamsClient(fakeHatchetClient()), publish };
   }
 
-  function grpcError(code: Status) {
-    return Object.assign(new Error('failed'), { code });
-  }
-
   it('rotates the producer after an ambiguous failure so its seq is never reused', async () => {
     const { streams, publish } = setup([undefined, grpcError(Status.DEADLINE_EXCEEDED)]);
 
@@ -184,5 +184,58 @@ describe('StreamsClient.publish producer sequencing', () => {
     const reqs = publish.mock.calls.map(([req]) => req);
     expect(reqs[1].producerId).toBe(reqs[0].producerId);
     expect(reqs[1].producerSeq).toBe(0);
+  });
+});
+
+describe('StreamsClient without the durable streams entitlement', () => {
+  const denied = () =>
+    Object.assign(new Error('durable streams are not enabled for this tenant'), {
+      code: Status.PERMISSION_DENIED,
+    });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('rejects a publish without retrying, and keeps its seq for once the tenant is entitled', async () => {
+    const results: Array<Error | undefined> = [denied()];
+    const publish = jest.fn(async (_req: any) => {
+      const err = results.shift();
+      if (err) throw err;
+      return {};
+    });
+    mockedCreateGrpcClient.mockReturnValue({ client: { publish } } as any);
+    const streams = new StreamsClient(fakeHatchetClient());
+
+    await expect(streams.publish('topic', 'a')).rejects.toMatchObject({
+      code: Status.PERMISSION_DENIED,
+      message: 'durable streams are not enabled for this tenant',
+    });
+    expect(publish).toHaveBeenCalledTimes(1);
+
+    await streams.publish('topic', 'a');
+
+    const reqs = publish.mock.calls.map(([req]) => req);
+    expect(reqs[1].producerId).toBe(reqs[0].producerId);
+    expect(reqs[1].producerSeq).toBe(0);
+  });
+
+  it('throws from events() instead of ending the iteration as if the topic were quiet', async () => {
+    // eslint-disable-next-line require-yield
+    async function* subscribeStub(): AsyncGenerator<never> {
+      throw denied();
+    }
+    mockedCreateGrpcClient.mockReturnValue({ client: { subscribe: subscribeStub } } as any);
+    const streams = new StreamsClient(fakeHatchetClient());
+
+    const received: unknown[] = [];
+    await expect(
+      (async () => {
+        for await (const event of streams.events('topic')) {
+          received.push(event);
+        }
+      })()
+    ).rejects.toMatchObject({ code: Status.PERMISSION_DENIED });
+    expect(received).toEqual([]);
   });
 });
