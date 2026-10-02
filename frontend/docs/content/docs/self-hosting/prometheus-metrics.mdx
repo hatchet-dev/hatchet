@@ -119,16 +119,15 @@ messages / 64 MiB per subscription). For tenant-stream subscriptions the
 sampled `nats pubsub async error` warning log is the only drop signal.
 
 `hatchet_pubsub_stale_skipped_total` is labelled by `kind` and `topic_kind`, and
-is currently reported by the NATS backend only. A subscriber that falls behind
+is currently reported by the NATS backend only. A NATS subscriber that falls behind
 skips messages whose `published_at` stamp is older than a fixed max age instead
 of handling them: 5 seconds for `scheduler-partition` (wake-ups that the
 scheduler's polling loops have already covered) and 30 seconds for
 `tenant-stream` (matching the RabbitMQ backend's per-message TTL). A sustained
 non-zero rate means a subscriber cannot keep up. Skipped messages are not
-observed in `hatchet_pubsub_transit_seconds`, so read the two together. A
-skipped `scheduler-partition` wake-up is covered by the scheduler's polling
-loops, but workflow-event streams have no polling fallback, so a skipped
-`tenant-stream` event is not resent. Like transit latency, the age is subject to
+observed in `hatchet_pubsub_transit_seconds`, so read the two together.
+A skipped message is never a problem, because Pub/Sub is at most once,
+and the consumer will pool on an interval. Like transit latency, the age is subject to
 clock skew between pods.
 
 ### Example PromQL Queries

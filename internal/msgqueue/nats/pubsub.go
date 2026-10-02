@@ -19,20 +19,12 @@ import (
 // defaultSubjectPrefix is used when WithPubSubSubjectPrefix is unset or empty.
 const defaultSubjectPrefix = "hatchet.pubsub"
 
-// maxMessageAge is how old a delivered message may be, by its published_at
-// stamp, before Sub skips it instead of running the handler. A subscriber that
-// falls behind otherwise works through a backlog oldest-first, and when the
-// backlog hits the nats.go pending limits the client drops the newest
-// messages, keeping exactly the ones least worth processing.
+// maxMessageAge defines what's the cutoff for not delivering a Pub/Sub message.
+// Pub/Sub messages are at most once, best-effort delivery. The consumers run
+// pooling loops as a backup. So older than maxMessageAge message has no value.
 //
-// Scheduler wake-ups only shortcut polling loops: replenish runs every
-// 1-1.5s, busy queues poll every 1s and leases are re-acquired every 5s, so a
-// wake-up older than 5s has almost always been covered by a poll. The worst
-// case is a queue idle long enough to back off to its 30s poll interval.
-// Tenant streams carry data (task stream events have no other delivery path),
-// so their cutoff matches the rabbitmq backend's per-message TTL instead. Both
-// cutoffs assume clock skew between the publishing and subscribing pods stays
-// well below them.
+// A buildup of these messages suggests the consumer can't keep it. A hard
+// cutoff limits the backlog.
 var maxMessageAge = map[msgqueue.TopicKind]time.Duration{
 	msgqueue.TopicKindSchedulerPartition: 5 * time.Second,
 	msgqueue.TopicKindTenantStream:       30 * time.Second,
