@@ -353,89 +353,61 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	spanContext, span := telemetry.NewSpan(ctx, "TasksControllerImpl.Start")
-
 	_, err = tc.s.NewJob(
 		gocron.DurationJob(time.Minute*15),
 		gocron.NewTask(
-			tc.runTaskTablePartition(spanContext),
+			tc.runTaskTablePartition(ctx),
 		),
 		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	)
 
 	if err != nil {
-		wrappedErr := fmt.Errorf("could not schedule task partition method: %w", err)
-
 		cancel()
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "could not schedule task partition method")
-		span.End()
-
-		return nil, wrappedErr
+		return nil, fmt.Errorf("could not schedule task partition method: %w", err)
 	}
 
 	_, err = tc.s.NewJob(
 		gocron.DurationJob(tc.repov1.Payloads().ExternalCutoverProcessInterval()),
 		gocron.NewTask(
-			tc.processPayloadExternalCutovers(spanContext),
+			tc.processPayloadExternalCutovers(ctx),
 		),
 		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	)
 
 	if err != nil {
-		wrappedErr := fmt.Errorf("could not schedule process payload external cutovers: %w", err)
-
 		cancel()
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "could not run process payload external cutovers")
-		span.End()
-
-		return nil, wrappedErr
+		return nil, fmt.Errorf("could not schedule process payload external cutovers: %w", err)
 	}
 
 	_, err = tc.s.NewJob(
 		gocron.DurationJob(tc.analyzeCronInterval),
 		gocron.NewTask(
-			tc.runAnalyze(spanContext),
+			tc.runAnalyze(ctx),
 		),
 		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	)
 
 	if err != nil {
-		wrappedErr := fmt.Errorf("could not run analyze: %w", err)
-
 		cancel()
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "could not run analyze")
-		span.End()
-
-		return nil, wrappedErr
+		return nil, fmt.Errorf("could not run analyze: %w", err)
 	}
 
 	_, err = tc.s.NewJob(
 		gocron.DurationJob(1*time.Minute),
 		gocron.NewTask(
-			tc.runCleanup(spanContext),
+			tc.runCleanup(ctx),
 		),
 	)
 
 	if err != nil {
-		wrappedErr := fmt.Errorf("could not run cleanup: %w", err)
-
 		cancel()
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "could not run cleanup")
-		span.End()
-
-		return nil, wrappedErr
+		return nil, fmt.Errorf("could not run cleanup: %w", err)
 	}
 
 	cleanup := func() error {
 		cancel()
 
 		if err := cleanupBuffer(); err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, "could not cleanup buffer")
 			return err
 		}
 
@@ -451,14 +423,8 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 		tc.pubBuffer.Stop()
 
 		if err := tc.s.Shutdown(); err != nil {
-			err := fmt.Errorf("could not shutdown scheduler: %w", err)
-
-			span.RecordError(err)
-			span.SetStatus(codes.Error, "could not shutdown scheduler")
-			return err
+			return fmt.Errorf("could not shutdown scheduler: %w", err)
 		}
-
-		span.End()
 
 		return nil
 	}
