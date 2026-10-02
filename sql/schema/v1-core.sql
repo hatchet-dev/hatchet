@@ -2265,6 +2265,15 @@ CREATE TABLE v1_stream_topic (
     CONSTRAINT v1_stream_topic_pkey PRIMARY KEY (tenant_id, namespace, topic)
 ) WITH (fillfactor = 80);
 
+ALTER TABLE v1_stream_topic SET (
+    autovacuum_vacuum_scale_factor = '0.1',
+    autovacuum_analyze_scale_factor = '0.05',
+    autovacuum_vacuum_threshold = '25',
+    autovacuum_analyze_threshold = '25',
+    autovacuum_vacuum_cost_delay = '10',
+    autovacuum_vacuum_cost_limit = '1000'
+);
+
 -- id is the message's offset in its topic, reserved from last_offset under a
 -- row lock held until commit, so offsets become visible in order and readers
 -- page on id alone.
