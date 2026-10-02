@@ -76,28 +76,32 @@ Restart your Hatchet server after setting these variables to apply the changes.
 
 ## Global Metrics
 
-| Metric Name                                           | Type      | Description                                                                       |
-| ----------------------------------------------------- | --------- | --------------------------------------------------------------------------------- |
-| `hatchet_queue_invocations_total`                     | Counter   | The total number of invocations of the queuer function                            |
-| `hatchet_created_tasks_total`                         | Counter   | The total number of tasks created                                                 |
-| `hatchet_retried_tasks_total`                         | Counter   | The total number of tasks retried                                                 |
-| `hatchet_succeeded_tasks_total`                       | Counter   | The total number of tasks that succeeded                                          |
-| `hatchet_failed_tasks_total`                          | Counter   | The total number of tasks that failed (in a final state, not including retries)   |
-| `hatchet_skipped_tasks_total`                         | Counter   | The total number of tasks that were skipped                                       |
-| `hatchet_cancelled_tasks_total`                       | Counter   | The total number of tasks cancelled                                               |
-| `hatchet_assigned_tasks`                              | Counter   | The total number of tasks assigned to a worker                                    |
-| `hatchet_scheduling_timed_out`                        | Counter   | The total number of tasks that timed out while waiting to be scheduled            |
-| `hatchet_rate_limited`                                | Counter   | The total number of tasks that were rate limited                                  |
-| `hatchet_queued_to_assigned`                          | Counter   | The total number of unique tasks that were queued and later assigned to a worker  |
-| `hatchet_queued_to_assigned_time_seconds`             | Histogram | Buckets of time (in seconds) spent in the queue before being assigned to a worker |
-| `hatchet_reassigned_tasks`                            | Counter   | The total number of tasks that were reassigned to a worker                        |
-| `hatchet_pubsub_publish_duration_seconds`             | Histogram | Publisher-side blocking time of a pub/sub `Pub` call                              |
-| `hatchet_pubsub_transit_seconds`                      | Histogram | Pub/sub publish-to-delivery latency, from the message's `published_at` stamp      |
-| `hatchet_pubsub_nats_scheduler_partition_drops_total` | Counter   | Messages dropped client-side by the NATS scheduler-partition subscription         |
-| `hatchet_pubsub_stale_skipped_total`                  | Counter   | Delivered pub/sub messages skipped because they were older than the max age       |
+| Metric Name                                                | Type      | Description                                                                                 |
+| ---------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------- |
+| `hatchet_queue_invocations_total`                          | Counter   | The total number of invocations of the queuer function                                      |
+| `hatchet_created_tasks_total`                              | Counter   | The total number of tasks created                                                           |
+| `hatchet_retried_tasks_total`                              | Counter   | The total number of tasks retried                                                           |
+| `hatchet_succeeded_tasks_total`                            | Counter   | The total number of tasks that succeeded                                                    |
+| `hatchet_failed_tasks_total`                               | Counter   | The total number of tasks that failed (in a final state, not including retries)             |
+| `hatchet_skipped_tasks_total`                              | Counter   | The total number of tasks that were skipped                                                 |
+| `hatchet_cancelled_tasks_total`                            | Counter   | The total number of tasks cancelled                                                         |
+| `hatchet_assigned_tasks`                                   | Counter   | The total number of tasks assigned to a worker                                              |
+| `hatchet_scheduling_timed_out`                             | Counter   | The total number of tasks that timed out while waiting to be scheduled                      |
+| `hatchet_rate_limited`                                     | Counter   | The total number of tasks that were rate limited                                            |
+| `hatchet_queued_to_assigned`                               | Counter   | The total number of unique tasks that were queued and later assigned to a worker            |
+| `hatchet_queued_to_assigned_time_seconds`                  | Histogram | Buckets of time (in seconds) spent in the queue before being assigned to a worker           |
+| `hatchet_reassigned_tasks`                                 | Counter   | The total number of tasks that were reassigned to a worker                                  |
+| `hatchet_pubsub_publish_duration_seconds`                  | Histogram | Publisher-side blocking time of a pub/sub `Pub` call                                        |
+| `hatchet_pubsub_transit_seconds`                           | Histogram | Pub/sub publish-to-delivery latency, from the message's `published_at` stamp                |
+| `hatchet_pubsub_nats_scheduler_partition_drops_total`      | Counter   | Messages dropped client-side by the NATS scheduler-partition subscription                   |
+| `hatchet_pubsub_stale_skipped_total`                       | Counter   | Delivered pub/sub messages skipped because they were older than the max age                 |
+| `hatchet_pubsub_handlers_in_flight`                        | Gauge     | Pub/sub subscriber handler calls currently running                                          |
+| `hatchet_pubsub_handler_pool_full_total`                   | Counter   | Pub/sub deliveries that waited because their subscription's handler limit was reached       |
+| `hatchet_pubsub_handler_slot_wait_seconds`                 | Histogram | Time a pub/sub delivery waited for a free handler slot                                      |
+| `hatchet_pubsub_nats_scheduler_partition_pending_messages` | Gauge     | Messages buffered by the NATS scheduler-partition subscription, not yet handed to a handler |
 
-The two pub/sub histograms are labelled by `kind` (the pub/sub backend:
-`rabbitmq`, `postgres`, or `nats`) and `topic_kind`;
+The publish duration and transit histograms are labelled by `kind` (the
+pub/sub backend: `rabbitmq`, `postgres`, or `nats`) and `topic_kind`;
 `hatchet_pubsub_publish_duration_seconds` is additionally labelled by `result`.
 Two caveats when comparing backends:
 
@@ -135,6 +139,18 @@ skipped wake-up for an idle queue waits for that queue's backed-off poll (up to
 30-second TTL instead expires tenant-stream events while they are still queued,
 not after delivery to a subscriber. Like transit latency, the age is subject to
 clock skew between pods.
+
+The NATS backend runs each subscription's handlers concurrently, up to a fixed
+limit per subscription: 512 for `scheduler-partition` and 128 for
+`tenant-stream`. When a subscription reaches its limit, further deliveries wait
+in the NATS client's buffer (`hatchet_pubsub_nats_scheduler_partition_pending_messages`
+for the scheduler partition) until a handler returns.
+`hatchet_pubsub_handlers_in_flight`, `hatchet_pubsub_handler_pool_full_total`
+and `hatchet_pubsub_handler_slot_wait_seconds` are labelled by `kind` and
+`topic_kind`, and summed over a process's subscriptions of a topic kind. A
+steadily increasing `hatchet_pubsub_handler_pool_full_total` means handlers are
+too slow for the incoming rate. Transit latency is observed when a handler
+starts, so for NATS it includes the time spent waiting for a handler slot.
 
 ### Example PromQL Queries
 

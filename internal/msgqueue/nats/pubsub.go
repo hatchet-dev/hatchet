@@ -313,13 +313,20 @@ func (p *PubSub) Pub(ctx context.Context, topic msgqueue.Topic, msg *msgqueue.Me
 // Sub subscribes to a topic with plain Subscribe (fan-out to every subscriber).
 // Delivery is at-most-once: handler errors are logged, never redelivered, and
 // while the subscription has a backlog, messages older than the topic kind's
-// maxMessageAge are skipped.
+// maxMessageAge are skipped. Handlers run concurrently, up to the topic kind's
+// maxConcurrentHandlers, with no ordering between messages. When every slot is
+// busy the subscription callback waits, so the backlog stays in the nats.go
+// pending buffer. The returned cleanup waits for running handlers and must not
+// be called from a handler.
 func (p *PubSub) Sub(topic msgqueue.Topic, handler msgqueue.MsgHandler) (func() error, error) {
 	subject := p.subject(topic)
+	pool := newHandlerPool(handlerLimit(topic.Kind()), topic.Kind())
 
 	sub, err := p.nc.Subscribe(subject, func(natsMsg *natsgo.Msg) {
 		msg := &msgqueue.Message{}
 
+		// Unmarshalling on the delivery goroutine is serial per subscription,
+		// but it is what lets a stale backlog drain without taking slots.
 		if err := json.Unmarshal(natsMsg.Data, msg); err != nil {
 			p.l.Error().Err(err).Msg("error unmarshalling pubsub message")
 			return
@@ -329,24 +336,36 @@ func (p *PubSub) Sub(topic msgqueue.Topic, handler msgqueue.MsgHandler) (func() 
 			return
 		}
 
-		// NATS Pub never compresses, so Compressed is expected to be false here.
-		// We still honour the flag: compression is a per-message wire property
-		// that any publisher on this subject may set, and handlers require plain
-		// payloads either way (same contract as rabbitmq/pubsub.go Sub).
-		if msg.Compressed {
-			decompressed, err := msgqueue.DecompressPayloads(msg.Payloads)
-			if err != nil {
-				p.l.Error().Err(err).Msg("error decompressing pubsub payloads")
-				return
+		if !pool.acquire() {
+			return
+		}
+
+		// the message may have gone stale while waiting for a slot
+		if p.skipIfStale(topic, natsMsg, msg) {
+			pool.release()
+			return
+		}
+
+		pool.run(func() {
+			// NATS Pub never compresses, so Compressed is expected to be false here.
+			// We still honour the flag: compression is a per-message wire property
+			// that any publisher on this subject may set, and handlers require plain
+			// payloads either way (same contract as rabbitmq/pubsub.go Sub).
+			if msg.Compressed {
+				decompressed, err := msgqueue.DecompressPayloads(msg.Payloads)
+				if err != nil {
+					p.l.Error().Err(err).Msg("error decompressing pubsub payloads")
+					return
+				}
+
+				msg.Payloads = decompressed
+				msg.Compressed = false
 			}
 
-			msg.Payloads = decompressed
-			msg.Compressed = false
-		}
-
-		if err := handler(msg); err != nil {
-			p.l.Error().Err(err).Msgf("error handling pubsub message %s", msg.ID)
-		}
+			if err := handler(msg); err != nil {
+				p.l.Error().Err(err).Msgf("error handling pubsub message %s", msg.ID)
+			}
+		})
 	})
 	if err != nil {
 		return nil, fmt.Errorf("could not subscribe to %s: %w", subject, err)
@@ -355,14 +374,23 @@ func (p *PubSub) Sub(topic msgqueue.Topic, handler msgqueue.MsgHandler) (func() 
 	// Flush so interest is established before Sub returns.
 	if err := p.nc.Flush(); err != nil {
 		_ = sub.Unsubscribe()
+		pool.close()
 		return nil, fmt.Errorf("could not flush after subscribe to %s: %w", subject, err)
 	}
 
-	unregisterDrops := p.registerDropsCounter(topic, sub)
+	unregisterMetrics := p.registerSchedulerPartitionMetrics(topic, sub)
 
 	return func() error {
-		unregisterDrops()
-		return sub.Unsubscribe()
+		unregisterMetrics()
+
+		// nats.go does not wait for a running callback on Unsubscribe. Closing
+		// the pool fails a callback still waiting for a slot (or waits for the
+		// one handler it may still start) and waits for the handlers already
+		// started.
+		err := sub.Unsubscribe()
+		pool.close()
+
+		return err
 	}, nil
 }
 
@@ -403,18 +431,33 @@ func isStale(kind msgqueue.TopicKind, publishedAt, now time.Time) (time.Duration
 	return age, age > maxAge
 }
 
-// registerDropsCounter republishes sub's cumulative Dropped() as a Prometheus
-// counter, only for scheduler-partition topics: one long-lived subscription per scheduler pod (its partition).
-func (p *PubSub) registerDropsCounter(topic msgqueue.Topic, sub *natsgo.Subscription) func() {
+// registerSchedulerPartitionMetrics republishes sub's cumulative Dropped() as
+// a Prometheus counter and its Pending() as a gauge, only for
+// scheduler-partition topics: one long-lived subscription per scheduler pod
+// (its partition).
+func (p *PubSub) registerSchedulerPartitionMetrics(topic msgqueue.Topic, sub *natsgo.Subscription) func() {
 	if topic.Kind() != msgqueue.TopicKindSchedulerPartition {
 		return func() {}
 	}
 
-	return prommetrics.RegisterNATSSchedulerPartitionDrops(func() float64 {
+	unregisterDrops := prommetrics.RegisterNATSSchedulerPartitionDrops(func() float64 {
 		dropped, err := sub.Dropped()
 		if err != nil {
 			return 0
 		}
 		return float64(dropped)
 	})
+
+	unregisterPending := prommetrics.RegisterNATSSchedulerPartitionPending(func() float64 {
+		pendingMsgs, _, err := sub.Pending()
+		if err != nil {
+			return 0
+		}
+		return float64(pendingMsgs)
+	})
+
+	return func() {
+		unregisterDrops()
+		unregisterPending()
+	}
 }
