@@ -17,7 +17,10 @@ readers can resume from a cursor.
 ##### `events()`
 
 Yields topic's messages after options.cursor, or from the oldest retained.
-Ends when the server hangs up, options.signal aborts, or the caller stops iterating.
+If the connection drops, it resubscribes from the last message yielded, so
+nothing is skipped or repeated. Ends when the server hangs up an idle
+subscription, options.signal aborts, or the caller stops iterating; throws
+on errors a retry can't fix, such as an expired cursor.
 
 Parameters
 
