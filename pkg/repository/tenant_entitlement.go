@@ -61,7 +61,9 @@ func newTenantEntitlementRepository(shared *sharedRepository) TenantEntitlementR
 }
 
 func (t *tenantEntitlementRepository) IsAuditLogsEnabled(ctx context.Context, tenantId uuid.UUID) (bool, error) {
-	entitlement, err := t.queries.GetTenantEntitlement(ctx, t.pool, tenantId)
+	db := t.pool.ForTenant(tenantId)
+
+	entitlement, err := t.queries.GetTenantEntitlement(ctx, db, tenantId)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -79,11 +81,13 @@ func (t *tenantEntitlementRepository) AnyTenantHasAuditLogs(ctx context.Context,
 		return false, nil
 	}
 
-	return t.queries.AnyTenantHasAuditLogs(ctx, t.pool, tenantIds)
+	return t.queries.AnyTenantHasAuditLogs(ctx, t.pool.ForShared(), tenantIds)
 }
 
 func (t *tenantEntitlementRepository) IsPrometheusMetricsEnabled(ctx context.Context, tenantId uuid.UUID) (bool, error) {
-	entitlement, err := t.queries.GetTenantEntitlement(ctx, t.pool, tenantId)
+	db := t.pool.ForTenant(tenantId)
+
+	entitlement, err := t.queries.GetTenantEntitlement(ctx, db, tenantId)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -97,7 +101,9 @@ func (t *tenantEntitlementRepository) IsPrometheusMetricsEnabled(ctx context.Con
 }
 
 func (t *tenantEntitlementRepository) IsStrictAdditionalMetadataFiltersEnabled(ctx context.Context, tenantId uuid.UUID) (bool, error) {
-	entitlement, err := t.queries.GetTenantEntitlement(ctx, t.pool, tenantId)
+	db := t.pool.ForTenant(tenantId)
+
+	entitlement, err := t.queries.GetTenantEntitlement(ctx, db, tenantId)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -111,7 +117,9 @@ func (t *tenantEntitlementRepository) IsStrictAdditionalMetadataFiltersEnabled(c
 }
 
 func (t *tenantEntitlementRepository) IsDagOperatorEnabled(ctx context.Context, tenantId uuid.UUID) (bool, error) {
-	entitlement, err := t.queries.GetTenantEntitlement(ctx, t.pool, tenantId)
+	db := t.pool.ForTenant(tenantId)
+
+	entitlement, err := t.queries.GetTenantEntitlement(ctx, db, tenantId)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -125,7 +133,9 @@ func (t *tenantEntitlementRepository) IsDagOperatorEnabled(ctx context.Context, 
 }
 
 func (t *tenantEntitlementRepository) SetEntitlements(ctx context.Context, tenantId uuid.UUID, entitlements TenantEntitlements) error {
-	_, err := t.queries.UpsertTenantEntitlement(ctx, t.pool, sqlcv1.UpsertTenantEntitlementParams{
+	db := t.pool.ForTenant(tenantId)
+
+	_, err := t.queries.UpsertTenantEntitlement(ctx, db, sqlcv1.UpsertTenantEntitlementParams{
 		Tenantid:                        tenantId,
 		Auditlogs:                       entitlements.AuditLogs,
 		Prometheusmetrics:               entitlements.PrometheusMetrics,

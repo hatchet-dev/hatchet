@@ -118,6 +118,8 @@ type CreateWebhookOpts struct {
 }
 
 func (r *webhookRepository) CreateWebhook(ctx context.Context, tenantId uuid.UUID, opts CreateWebhookOpts) (*sqlcv1.V1IncomingWebhook, error) {
+	db := r.pool.ForTenant(tenantId)
+
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -178,7 +180,7 @@ func (r *webhookRepository) CreateWebhook(ctx context.Context, tenantId uuid.UUI
 		return nil, fmt.Errorf("unsupported auth type: %s", opts.AuthConfig.Type)
 	}
 
-	created, err := r.queries.CreateWebhook(ctx, r.pool, params)
+	created, err := r.queries.CreateWebhook(ctx, db, params)
 	if err != nil {
 		return nil, err
 	}
@@ -194,6 +196,8 @@ type ListWebhooksOpts struct {
 }
 
 func (r *webhookRepository) ListWebhooks(ctx context.Context, tenantId uuid.UUID, opts ListWebhooksOpts) ([]*sqlcv1.V1IncomingWebhook, error) {
+	db := r.pool.ForTenant(tenantId)
+
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -215,7 +219,7 @@ func (r *webhookRepository) ListWebhooks(ctx context.Context, tenantId uuid.UUID
 		}
 	}
 
-	return r.queries.ListWebhooks(ctx, r.pool, sqlcv1.ListWebhooksParams{
+	return r.queries.ListWebhooks(ctx, db, sqlcv1.ListWebhooksParams{
 		Tenantid:      tenantId,
 		Webhooknames:  opts.WebhookNames,
 		Sourcenames:   opts.WebhookSourceNames,
@@ -226,7 +230,9 @@ func (r *webhookRepository) ListWebhooks(ctx context.Context, tenantId uuid.UUID
 }
 
 func (r *webhookRepository) DeleteWebhook(ctx context.Context, tenantId uuid.UUID, name string) (*sqlcv1.V1IncomingWebhook, error) {
-	deleted, err := r.queries.DeleteWebhook(ctx, r.pool, sqlcv1.DeleteWebhookParams{
+	db := r.pool.ForTenant(tenantId)
+
+	deleted, err := r.queries.DeleteWebhook(ctx, db, sqlcv1.DeleteWebhookParams{
 		Tenantid: tenantId,
 		Name:     name,
 	})
@@ -238,14 +244,18 @@ func (r *webhookRepository) DeleteWebhook(ctx context.Context, tenantId uuid.UUI
 }
 
 func (r *webhookRepository) GetWebhook(ctx context.Context, tenantId uuid.UUID, name string) (*sqlcv1.V1IncomingWebhook, error) {
-	return r.queries.GetWebhook(ctx, r.pool, sqlcv1.GetWebhookParams{
+	db := r.pool.ForTenant(tenantId)
+
+	return r.queries.GetWebhook(ctx, db, sqlcv1.GetWebhookParams{
 		Tenantid: tenantId,
 		Name:     name,
 	})
 }
 
 func (r *webhookRepository) CanCreate(ctx context.Context, tenantId uuid.UUID, webhookLimit int32) (bool, error) {
-	return r.queries.CanCreateWebhook(ctx, r.pool, sqlcv1.CanCreateWebhookParams{
+	db := r.pool.ForTenant(tenantId)
+
+	return r.queries.CanCreateWebhook(ctx, db, sqlcv1.CanCreateWebhookParams{
 		Tenantid:     tenantId,
 		Webhooklimit: webhookLimit,
 	})
@@ -259,6 +269,8 @@ type UpdateWebhookOpts struct {
 }
 
 func (r *webhookRepository) UpdateWebhook(ctx context.Context, tenantId uuid.UUID, webhookName string, opts UpdateWebhookOpts) (*sqlcv1.V1IncomingWebhook, error) {
+	db := r.pool.ForTenant(tenantId)
+
 	params := sqlcv1.UpdateWebhookExpressionParams{
 		Tenantid:    tenantId,
 		Webhookname: webhookName,
@@ -289,5 +301,5 @@ func (r *webhookRepository) UpdateWebhook(ctx context.Context, tenantId uuid.UUI
 		}
 	}
 
-	return r.queries.UpdateWebhookExpression(ctx, r.pool, params)
+	return r.queries.UpdateWebhookExpression(ctx, db, params)
 }

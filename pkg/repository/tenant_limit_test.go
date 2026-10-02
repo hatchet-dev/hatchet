@@ -18,6 +18,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/config/limits"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -39,7 +40,7 @@ func createTenantLimitRepositoryForTest(t *testing.T, pool *pgxpool.Pool, config
 
 	return &tenantLimitRepository{
 		sharedRepository: &sharedRepository{
-			pool:    pool,
+			pool:    fairpool.Ungated(pool),
 			ddlPool: pool,
 			l:       &logger,
 			queries: sqlcv1.New(),

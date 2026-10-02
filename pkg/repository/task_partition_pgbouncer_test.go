@@ -21,6 +21,7 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-migrate/migrate"
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -177,7 +178,7 @@ func TestUpdateTablePartitions_PgBouncer(t *testing.T) {
 	logger := zerolog.New(zerolog.NewTestWriter(t))
 	repo := &TaskRepositoryImpl{
 		sharedRepository: &sharedRepository{
-			pool:    pgbouncerPool,
+			pool:    fairpool.Ungated(pgbouncerPool),
 			ddlPool: directPool,
 			l:       &logger,
 			queries: queries,
@@ -227,7 +228,7 @@ func TestUpdateTablePartitions_PgBouncer_CreateOnly(t *testing.T) {
 	logger := zerolog.New(zerolog.NewTestWriter(t))
 	repo := &TaskRepositoryImpl{
 		sharedRepository: &sharedRepository{
-			pool:    pgbouncerPool,
+			pool:    fairpool.Ungated(pgbouncerPool),
 			ddlPool: directPool,
 			l:       &logger,
 			queries: queries,

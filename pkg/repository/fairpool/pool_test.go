@@ -1,0 +1,568 @@
+//go:build !e2e && !load && !rampup && !integration
+
+package fairpool_test
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"os"
+	"runtime"
+	"testing"
+	"time"
+
+	"github.com/exaring/otelpgx"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
+	"github.com/stretchr/testify/require"
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/modules/postgres"
+	"github.com/testcontainers/testcontainers-go/wait"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+
+	prommetrics "github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
+)
+
+// databaseURL points at a Postgres container started once for the package.
+// The tests only issue ad hoc SQL, so no Hatchet schema is needed.
+var databaseURL string
+
+func TestMain(m *testing.M) {
+	ctx := context.Background()
+
+	container, err := postgres.Run(ctx,
+		"postgres:15.6",
+		postgres.WithDatabase("hatchet"),
+		postgres.WithUsername("hatchet"),
+		postgres.WithPassword("hatchet"),
+		testcontainers.WithWaitStrategy(
+			wait.ForLog("database system is ready to accept connections").
+				WithOccurrence(2).
+				WithStartupTimeout(30*time.Second),
+		),
+	)
+	if err != nil {
+		log.Fatalf("could not start postgres container: %v", err)
+	}
+
+	databaseURL, err = container.ConnectionString(ctx, "sslmode=disable")
+	if err != nil {
+		_ = container.Terminate(ctx)
+		log.Fatalf("could not read postgres connection string: %v", err)
+	}
+
+	code := m.Run()
+
+	_ = container.Terminate(ctx)
+	os.Exit(code)
+}
+
+func newPool(t *testing.T, percent int, maxWait time.Duration, tracer pgx.QueryTracer) (*fairpool.Pool, string) {
+	t.Helper()
+
+	cfg, err := pgxpool.ParseConfig(databaseURL)
+	require.NoError(t, err)
+
+	cfg.MaxConns = 4
+	cfg.MinConns = 0
+	if tracer != nil {
+		cfg.ConnConfig.Tracer = tracer
+	}
+
+	name := "fairpool-test-" + uuid.NewString()
+	pool, err := fairpool.NewWithConfig(context.Background(), cfg, fairpool.Options{
+		MaxPercent: percent,
+		MaxWait:    maxWait,
+		PoolName:   name,
+	})
+	require.NoError(t, err)
+	t.Cleanup(pool.Close)
+
+	return pool, name
+}
+
+func gaugeValue(poolName, tenantID string) (float64, bool) {
+	ch := make(chan prometheus.Metric)
+	go func() {
+		prommetrics.FairpoolHeldConns.Collect(ch)
+		close(ch)
+	}()
+
+	for metric := range ch {
+		var m dto.Metric
+		if err := metric.Write(&m); err != nil {
+			continue
+		}
+
+		var gotPool, gotTenant string
+		for _, label := range m.GetLabel() {
+			switch label.GetName() {
+			case "pool":
+				gotPool = label.GetValue()
+			case "tenant_id":
+				gotTenant = label.GetValue()
+			}
+		}
+
+		if gotPool == poolName && gotTenant == tenantID {
+			return m.GetGauge().GetValue(), true
+		}
+	}
+
+	return 0, false
+}
+
+func requireHeld(t *testing.T, poolName, tenantID string, want float64) {
+	t.Helper()
+	got, ok := gaugeValue(poolName, tenantID)
+	require.True(t, ok, "missing held-conn series for %s", tenantID)
+	require.Equal(t, want, got)
+}
+
+func requireGone(t *testing.T, poolName, tenantID string) {
+	t.Helper()
+	_, ok := gaugeValue(poolName, tenantID)
+	require.False(t, ok, "held-conn series still present for %s", tenantID)
+}
+
+func waitGone(t *testing.T, poolName, tenantID string) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		runtime.GC()
+		_, ok := gaugeValue(poolName, tenantID)
+		return !ok
+	}, 2*time.Second, 20*time.Millisecond)
+}
+
+func TestConnectionLimit(t *testing.T) {
+	capped, _ := newPool(t, 50, time.Second, nil)
+	require.Equal(t, int64(2), capped.ConnectionLimit())
+
+	open, _ := newPool(t, 100, time.Second, nil)
+	require.Equal(t, int64(0), open.ConnectionLimit())
+}
+
+func TestRejectsPercentOutsideRange(t *testing.T) {
+	cfg, err := pgxpool.ParseConfig("postgres://localhost/db")
+	require.NoError(t, err)
+
+	_, err = fairpool.NewWithConfig(context.Background(), cfg, fairpool.Options{MaxPercent: 101})
+	require.Error(t, err)
+}
+
+func TestTenantCapLetsOtherTenantsThrough(t *testing.T) {
+	pool, name := newPool(t, 50, 2*time.Second, nil)
+	ctx := context.Background()
+	tenantA := uuid.New()
+	tenantB := uuid.New()
+	dbA := pool.ForTenant(tenantA)
+
+	tx1, err := dbA.Begin(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = tx1.Rollback(context.Background()) })
+
+	tx2, err := dbA.Begin(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = tx2.Rollback(context.Background()) })
+	requireHeld(t, name, tenantA.String(), 2)
+
+	done := make(chan error, 1)
+	go func() {
+		tx3, err := dbA.Begin(ctx)
+		if err != nil {
+			done <- err
+			return
+		}
+		done <- tx3.Rollback(ctx)
+	}()
+
+	time.Sleep(50 * time.Millisecond)
+	select {
+	case err := <-done:
+		t.Fatalf("acquire past the cap returned early: %v", err)
+	default:
+	}
+
+	txB, err := pool.ForTenant(tenantB).Begin(ctx)
+	require.NoError(t, err)
+	require.NoError(t, txB.Rollback(ctx))
+	requireGone(t, name, tenantB.String())
+
+	sharedTx, err := pool.ForShared().Begin(ctx)
+	require.NoError(t, err)
+	require.NoError(t, sharedTx.Rollback(ctx))
+	requireGone(t, name, "shared")
+
+	shared, err := pool.Unwrap().Begin(ctx)
+	require.NoError(t, err)
+	require.NoError(t, shared.Rollback(ctx))
+
+	require.NoError(t, tx1.Commit(ctx))
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("capped acquire did not proceed after a slot was released")
+	}
+
+	require.NoError(t, tx2.Rollback(ctx))
+	requireGone(t, name, tenantA.String())
+}
+
+// Waiters on a full bucket must proceed one at a time as slots free, with
+// exactly one pool acquire each. Guards against checking out a connection
+// before owning a slot, which costs a pool acquire per failed attempt.
+func TestQueuedWaitersEachProceed(t *testing.T) {
+	const waiters = 5
+
+	pool, name := newPool(t, 50, 3*time.Second, nil)
+	ctx := context.Background()
+	tenantA := uuid.New()
+	dbA := pool.ForTenant(tenantA)
+
+	acquiresBefore := pool.Unwrap().Stat().AcquireCount()
+
+	tx1, err := dbA.Begin(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = tx1.Rollback(context.Background()) })
+	tx2, err := dbA.Begin(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = tx2.Rollback(context.Background()) })
+
+	acquired := make(chan pgx.Tx, waiters)
+	failed := make(chan error, waiters)
+	for i := 0; i < waiters; i++ {
+		go func() {
+			tx, err := dbA.Begin(ctx)
+			if err != nil {
+				failed <- err
+				return
+			}
+			acquired <- tx
+		}()
+	}
+
+	time.Sleep(100 * time.Millisecond)
+	require.NoError(t, tx1.Rollback(ctx))
+
+	for i := 0; i < waiters; i++ {
+		select {
+		case tx := <-acquired:
+			requireHeld(t, name, tenantA.String(), 2)
+			require.NoError(t, tx.Rollback(ctx))
+		case err := <-failed:
+			t.Fatalf("waiter %d failed instead of taking the freed slot: %v", i, err)
+		case <-time.After(2 * time.Second):
+			t.Fatalf("waiter %d did not proceed after a slot was released", i)
+		}
+	}
+
+	require.NoError(t, tx2.Rollback(ctx))
+	requireGone(t, name, tenantA.String())
+
+	acquires := pool.Unwrap().Stat().AcquireCount() - acquiresBefore
+	require.Equal(t, int64(2+waiters), acquires, "each Begin should check out exactly one pool connection")
+}
+
+func TestLimitErrorAndCancel(t *testing.T) {
+	pool, _ := newPool(t, 50, 150*time.Millisecond, nil)
+	ctx := context.Background()
+	tenantA := uuid.New()
+	dbA := pool.ForTenant(tenantA)
+
+	tx1, err := dbA.Begin(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = tx1.Rollback(context.Background()) })
+	tx2, err := dbA.Begin(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = tx2.Rollback(context.Background()) })
+
+	_, err = dbA.Begin(ctx)
+	var limitErr *fairpool.LimitError
+	require.ErrorAs(t, err, &limitErr)
+	require.Equal(t, tenantA.String(), limitErr.Key)
+	require.Equal(t, tenantA, limitErr.TenantID)
+	require.Equal(t, int64(2), limitErr.Limit)
+
+	cancelCtx, cancel := context.WithCancel(ctx)
+	done := make(chan error, 1)
+	go func() {
+		_, acquireErr := dbA.Begin(cancelCtx)
+		done <- acquireErr
+	}()
+	time.Sleep(30 * time.Millisecond)
+	cancel()
+
+	select {
+	case acquireErr := <-done:
+		require.ErrorIs(t, acquireErr, context.Canceled)
+	case <-time.After(2 * time.Second):
+		t.Fatal("canceled acquire did not return")
+	}
+}
+
+func TestUnwrapIsUngated(t *testing.T) {
+	pool, name := newPool(t, 50, time.Second, nil)
+	ctx := context.Background()
+	raw := pool.Unwrap()
+
+	var txs []pgx.Tx
+	for i := 0; i < 3; i++ {
+		tx, err := raw.Begin(ctx)
+		require.NoError(t, err)
+		txs = append(txs, tx)
+	}
+	_, sharedOK := gaugeValue(name, "shared")
+	require.False(t, sharedOK)
+	_, nilOK := gaugeValue(name, uuid.Nil.String())
+	require.False(t, nilOK)
+
+	for _, tx := range txs {
+		require.NoError(t, tx.Rollback(ctx))
+	}
+}
+
+func TestSharedCapLetsTenantsThrough(t *testing.T) {
+	pool, name := newPool(t, 50, 150*time.Millisecond, nil)
+	ctx := context.Background()
+	shared := pool.ForShared()
+
+	tx1, err := shared.Begin(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = tx1.Rollback(context.Background()) })
+	tx2, err := shared.Begin(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = tx2.Rollback(context.Background()) })
+	requireHeld(t, name, "shared", 2)
+
+	_, err = shared.Begin(ctx)
+	var limitErr *fairpool.LimitError
+	require.ErrorAs(t, err, &limitErr)
+	require.Equal(t, "shared", limitErr.Key)
+	require.Equal(t, uuid.Nil, limitErr.TenantID)
+	require.Equal(t, int64(2), limitErr.Limit)
+	require.Contains(t, limitErr.Error(), "fairpool-exhausted:")
+
+	tenant := uuid.New()
+	txT, err := pool.ForTenant(tenant).Begin(ctx)
+	require.NoError(t, err)
+	require.NoError(t, txT.Rollback(ctx))
+	requireGone(t, name, tenant.String())
+
+	require.NoError(t, tx1.Rollback(ctx))
+	require.NoError(t, tx2.Rollback(ctx))
+	requireGone(t, name, "shared")
+}
+
+func TestNilTenantUsesSharedBucket(t *testing.T) {
+	pool, name := newPool(t, 50, 150*time.Millisecond, nil)
+	ctx := context.Background()
+
+	tx1, err := pool.ForTenant(uuid.Nil).Begin(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = tx1.Rollback(context.Background()) })
+	tx2, err := pool.ForShared().Begin(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = tx2.Rollback(context.Background()) })
+	requireHeld(t, name, "shared", 2)
+
+	_, err = pool.ForTenant(uuid.Nil).Begin(ctx)
+	var limitErr *fairpool.LimitError
+	require.ErrorAs(t, err, &limitErr)
+	require.Equal(t, "shared", limitErr.Key)
+	require.Equal(t, uuid.Nil, limitErr.TenantID)
+
+	require.NoError(t, tx1.Rollback(ctx))
+	require.NoError(t, tx2.Rollback(ctx))
+	requireGone(t, name, "shared")
+}
+
+func TestSharedUngatedAtFullPercent(t *testing.T) {
+	pool, name := newPool(t, 100, time.Second, nil)
+	ctx := context.Background()
+
+	var txs []pgx.Tx
+	for i := 0; i < 3; i++ {
+		tx, err := pool.ForShared().Begin(ctx)
+		require.NoError(t, err)
+		txs = append(txs, tx)
+	}
+	_, ok := gaugeValue(name, "shared")
+	require.False(t, ok)
+
+	for _, tx := range txs {
+		require.NoError(t, tx.Rollback(ctx))
+	}
+}
+
+func TestQueryKeepsCallerDeadline(t *testing.T) {
+	pool, _ := newPool(t, 50, 100*time.Millisecond, nil)
+	ctx := context.Background()
+	tenantA := uuid.New()
+	db := pool.ForTenant(tenantA)
+
+	tx1, err := db.Begin(ctx)
+	require.NoError(t, err)
+	tx2, err := db.Begin(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = tx1.Rollback(context.Background())
+		_ = tx2.Rollback(context.Background())
+	})
+
+	go func() {
+		time.Sleep(30 * time.Millisecond)
+		_ = tx1.Rollback(context.Background())
+	}()
+
+	callerCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	_, err = db.Exec(callerCtx, "SELECT pg_sleep(0.25)")
+	require.NoError(t, err)
+	require.NoError(t, tx2.Rollback(ctx))
+}
+
+func TestSlotReleasedForEachOperation(t *testing.T) {
+	pool, name := newPool(t, 50, time.Second, nil)
+	ctx := context.Background()
+	tenantA := uuid.New()
+	db := pool.ForTenant(tenantA)
+	id := tenantA.String()
+
+	_, err := db.Exec(ctx, "SELECT 1")
+	require.NoError(t, err)
+	requireGone(t, name, id)
+
+	rows, err := db.Query(ctx, "SELECT 1")
+	require.NoError(t, err)
+	requireHeld(t, name, id, 1)
+	rows.Close()
+	requireGone(t, name, id)
+
+	rows, err = db.Query(ctx, "SELECT 1")
+	require.NoError(t, err)
+	for rows.Next() {
+	}
+	require.NoError(t, rows.Err())
+	requireGone(t, name, id)
+
+	var n int
+	err = db.QueryRow(ctx, "SELECT 1").Scan(&n)
+	require.NoError(t, err)
+	require.Equal(t, 1, n)
+	requireGone(t, name, id)
+
+	batch := &pgx.Batch{}
+	batch.Queue("SELECT 1")
+	results := db.SendBatch(ctx, batch)
+	_, err = results.Exec()
+	require.NoError(t, err)
+	require.NoError(t, results.Close())
+	requireGone(t, name, id)
+
+	table := "tp_copy_" + uuid.NewString()[:8]
+	_, err = pool.Unwrap().Exec(ctx, fmt.Sprintf("CREATE TABLE %s (n int)", table))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, _ = pool.Unwrap().Exec(context.Background(), "DROP TABLE IF EXISTS "+table)
+	})
+	copied, err := db.CopyFrom(ctx, pgx.Identifier{table}, []string{"n"}, pgx.CopyFromRows([][]any{{1}}))
+	require.NoError(t, err)
+	require.Equal(t, int64(1), copied)
+	requireGone(t, name, id)
+
+	tx, err := db.Begin(ctx)
+	require.NoError(t, err)
+	requireHeld(t, name, id, 1)
+	require.NoError(t, tx.Commit(ctx))
+	requireGone(t, name, id)
+
+	tx, err = db.BeginTx(ctx, pgx.TxOptions{})
+	require.NoError(t, err)
+	require.NoError(t, tx.Rollback(ctx))
+	requireGone(t, name, id)
+
+	conn, err := db.Acquire(ctx)
+	require.NoError(t, err)
+	requireHeld(t, name, id, 1)
+	conn.Release()
+	requireGone(t, name, id)
+
+	conn, err = db.Acquire(ctx)
+	require.NoError(t, err)
+	raw := conn.Hijack()
+	requireGone(t, name, id)
+	require.NoError(t, raw.Close(ctx))
+
+	tx, err = db.Begin(ctx)
+	require.NoError(t, err)
+	require.NoError(t, tx.Conn().Close(ctx))
+	_ = tx.Rollback(ctx)
+	requireGone(t, name, id)
+}
+
+func TestAbandonedResultsReleaseSlots(t *testing.T) {
+	pool, name := newPool(t, 50, time.Second, nil)
+	tenantA := uuid.New()
+	db := pool.ForTenant(tenantA)
+	id := tenantA.String()
+
+	abandonRows(t, db)
+	waitGone(t, name, id)
+
+	abandonTx(t, db)
+	waitGone(t, name, id)
+
+	abandonConn(t, db)
+	waitGone(t, name, id)
+}
+
+func abandonRows(t *testing.T, db fairpool.Handle) {
+	t.Helper()
+	rows, err := db.Query(context.Background(), "SELECT 1")
+	require.NoError(t, err)
+	runtime.KeepAlive(rows)
+}
+
+func abandonTx(t *testing.T, db fairpool.Handle) {
+	t.Helper()
+	tx, err := db.Begin(context.Background())
+	require.NoError(t, err)
+	runtime.KeepAlive(tx)
+}
+
+func abandonConn(t *testing.T, db fairpool.Handle) {
+	t.Helper()
+	conn, err := db.Acquire(context.Background())
+	require.NoError(t, err)
+	runtime.KeepAlive(conn)
+}
+
+func TestAcquireSpanStaysOnInnerPool(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	tracer := otelpgx.NewTracer(otelpgx.WithTracerProvider(provider))
+
+	pool, _ := newPool(t, 50, time.Second, tracer)
+	ctx, span := provider.Tracer("fairpool-test").Start(context.Background(), "parent")
+
+	rows, err := pool.ForTenant(uuid.New()).Query(ctx, "SELECT 1")
+	require.NoError(t, err)
+	rows.Close()
+	span.End()
+
+	var found bool
+	for _, recorded := range recorder.Ended() {
+		if recorded.Name() == "pool.acquire" {
+			found = true
+		}
+	}
+	require.True(t, found, "pool.acquire span was not recorded")
+}

@@ -15,13 +15,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func createOLAPRepository(pool *pgxpool.Pool) *OLAPRepositoryImpl {
 	logger := zerolog.Nop()
 	shared := &sharedRepository{
-		pool:    pool,
+		pool:    fairpool.Ungated(pool),
 		ddlPool: pool,
 		l:       &logger,
 		queries: sqlcv1.New(),

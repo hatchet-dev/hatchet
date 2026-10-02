@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -22,7 +23,7 @@ func createAssignmentRepositoryForTest(pool *pgxpool.Pool) *assignmentRepository
 	logger := zerolog.New(io.Discard)
 
 	return newAssignmentRepository(&sharedRepository{
-		pool:    pool,
+		pool:    fairpool.Ungated(pool),
 		l:       &logger,
 		queries: sqlcv1.New(),
 	})
@@ -32,7 +33,7 @@ func createWorkerRepositoryForTest(pool *pgxpool.Pool) WorkerRepository {
 	logger := zerolog.New(io.Discard)
 
 	return newWorkerRepository(&sharedRepository{
-		pool:    pool,
+		pool:    fairpool.Ungated(pool),
 		l:       &logger,
 		queries: sqlcv1.New(),
 	})
