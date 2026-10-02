@@ -141,7 +141,7 @@ not after delivery to a subscriber. Like transit latency, the age is subject to
 clock skew between pods.
 
 The NATS backend runs each subscription's handlers concurrently, up to a fixed
-limit per subscription: 512 for `scheduler-partition` and 128 for
+limit per subscription: 128 for `scheduler-partition` and 32 for
 `tenant-stream`. When a subscription reaches its limit, further deliveries wait
 in the NATS client's buffer (`hatchet_pubsub_nats_scheduler_partition_pending_messages`
 for the scheduler partition) until a handler returns.
