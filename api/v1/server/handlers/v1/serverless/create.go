@@ -13,6 +13,9 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/contract"
 )
 
+// V1ServerlessEndpointCreate registers a serverless endpoint for the tenant. It requires the
+// serverless operator entitlement, validates the URLs and signing secret, and stores the
+// secret encrypted.
 func (t *V1ServerlessService) V1ServerlessEndpointCreate(ctx echo.Context, request gen.V1ServerlessEndpointCreateRequestObject) (gen.V1ServerlessEndpointCreateResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
 	body := request.Body

@@ -13,6 +13,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
+// V1ServerlessEndpointDelete removes the endpoint from the tenant and returns its last
+// stored representation.
 func (t *V1ServerlessService) V1ServerlessEndpointDelete(ctx echo.Context, request gen.V1ServerlessEndpointDeleteRequestObject) (gen.V1ServerlessEndpointDeleteResponseObject, error) {
 	endpoint := ctx.Get("v1-serverless-endpoint").(*sqlcv1.V1ServerlessEndpoint)
 

@@ -27,10 +27,14 @@ const (
 	serverlessNotEntitledMessage = "the serverless operator is not enabled for this tenant"
 )
 
+// V1ServerlessService implements the serverless endpoint handlers of the v1 REST API. It
+// reads and writes endpoint configuration through the server's repository and encryption
+// providers.
 type V1ServerlessService struct {
 	config *server.ServerConfig
 }
 
+// NewV1ServerlessService returns a V1ServerlessService backed by the given server config.
 func NewV1ServerlessService(config *server.ServerConfig) *V1ServerlessService {
 	return &V1ServerlessService{
 		config: config,

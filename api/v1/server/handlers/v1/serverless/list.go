@@ -14,6 +14,8 @@ import (
 
 const defaultEndpointListLimit int64 = 50
 
+// V1ServerlessEndpointList returns a page of the tenant's serverless endpoints, using the
+// default page size when the request does not set a limit.
 func (t *V1ServerlessService) V1ServerlessEndpointList(ctx echo.Context, request gen.V1ServerlessEndpointListRequestObject) (gen.V1ServerlessEndpointListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
 

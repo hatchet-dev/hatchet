@@ -65,6 +65,8 @@ func ToV1ServerlessEndpoint(endpoint *sqlcv1.V1ServerlessEndpoint) gen.V1Serverl
 	}
 }
 
+// ToV1ServerlessEndpointList transforms a page of stored endpoints into the API list response,
+// deriving the pagination block from the total row count and the page's limit and offset.
 func ToV1ServerlessEndpointList(endpoints []*sqlcv1.V1ServerlessEndpoint, total, limit, offset int64) gen.V1ServerlessEndpointList {
 	rows := make([]gen.V1ServerlessEndpoint, len(endpoints))
 
