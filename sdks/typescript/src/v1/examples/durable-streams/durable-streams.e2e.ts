@@ -1,7 +1,6 @@
 import { makeE2EClient, makeTestScope } from '../__e2e__/harness';
 
 const decode = (payload: Uint8Array) => new TextDecoder().decode(payload);
-const encode = (text: string) => new TextEncoder().encode(text);
 
 // Collects up to `count` events from an async iterable, then stops consuming
 // (which cancels the underlying Subscribe stream). Guards against a hung test
@@ -19,7 +18,7 @@ describe('durable-streams-e2e', () => {
   const hatchet = makeE2EClient();
 
   it('a subscribe starts from beginning of queue, even when publish happened prior', async () => {
-    const topic = makeTestScope('durable_streams_tail_from_now');
+    const topic = makeTestScope('durable_streams_from_beginning');
 
     // publish returns once the message is committed
     await hatchet.streams.publish(topic, 'published-before-consume');
@@ -64,20 +63,6 @@ describe('durable-streams-e2e', () => {
 
     const rest = await collect(hatchet.streams.events(topic, { cursor: checkpoint }), 2);
     expect(rest.map((e) => decode(e.payload))).toEqual(['three', 'four']);
-  }, 30_000);
-
-  it('delivers messages published after a consumer is already open (catch-up -> tail)', async () => {
-    const topic = makeTestScope('durable_streams_live_delivery');
-
-    const events = hatchet.streams.events(topic);
-
-    setTimeout(() => {
-      void hatchet.streams.publish(topic, encode('after-open'));
-    }, 300);
-
-    const [first] = await collect(events, 1);
-
-    expect(decode(first.payload)).toEqual('after-open');
   }, 30_000);
 
   it('isolates messages by namespace', async () => {

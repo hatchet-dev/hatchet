@@ -2,7 +2,10 @@ import { makeE2EClient, makeTestScope } from '../__e2e__/harness';
 
 const decode = (payload: Uint8Array) => new TextDecoder().decode(payload);
 
-describe('durable-streams-e2e latency', () => {
+// a benchmark, run only when asked for (test_durable_streams.sh --bench)
+const describeBenchmark = process.env.HATCHET_E2E_BENCHMARKS ? describe : describe.skip;
+
+describeBenchmark('durable-streams-e2e latency', () => {
   const hatchet = makeE2EClient();
 
   it('measures end-to-end publish-to-receive latency across a large number of messages', async () => {

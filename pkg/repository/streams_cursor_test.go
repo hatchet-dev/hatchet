@@ -9,29 +9,31 @@ import (
 )
 
 func TestStreamCursorRoundTrip(t *testing.T) {
-	original := StreamCursor{
-		Namespace: "ns-a",
-		Topic:     "topic-a",
-		CreatedAt: time.Date(2026, 9, 23, 12, 0, 0, 0, time.UTC),
-		ID:        42,
+	cursors := map[string]StreamCursor{
+		"typical": {Namespace: "ns-a", Topic: "topic-a", CreatedAt: time.Date(2026, 9, 23, 12, 0, 0, 0, time.UTC), ID: 42},
+		// the zero value means the start of retained history, not an invalid cursor
+		"zero": {},
 	}
 
-	encoded, err := EncodeStreamCursor(original)
-	require.NoError(t, err)
-	assert.NotEmpty(t, encoded)
+	for label, original := range cursors {
+		t.Run(label, func(t *testing.T) {
+			encoded, err := EncodeStreamCursor(original)
+			require.NoError(t, err)
+			assert.NotEmpty(t, encoded)
 
-	decoded, err := DecodeStreamCursor(encoded)
-	require.NoError(t, err)
+			decoded, err := DecodeStreamCursor(encoded)
+			require.NoError(t, err)
 
-	assert.Equal(t, original.Namespace, decoded.Namespace)
-	assert.Equal(t, original.Topic, decoded.Topic)
-	assert.True(t, original.CreatedAt.Equal(decoded.CreatedAt))
-	assert.Equal(t, original.ID, decoded.ID)
+			assert.Equal(t, original.Namespace, decoded.Namespace)
+			assert.Equal(t, original.Topic, decoded.Topic)
+			assert.True(t, original.CreatedAt.Equal(decoded.CreatedAt))
+			assert.Equal(t, original.ID, decoded.ID)
 
-	// re-encoding the decoded cursor should be stable
-	reEncoded, err := EncodeStreamCursor(decoded)
-	require.NoError(t, err)
-	assert.Equal(t, encoded, reEncoded)
+			reEncoded, err := EncodeStreamCursor(decoded)
+			require.NoError(t, err)
+			assert.Equal(t, encoded, reEncoded, "re-encoding must be stable")
+		})
+	}
 }
 
 func TestStreamCursorDecodeMalformed(t *testing.T) {
@@ -47,20 +49,4 @@ func TestStreamCursorDecodeMalformed(t *testing.T) {
 		_, err := DecodeStreamCursor(c)
 		assert.Error(t, err, "expected an error decoding %q", c)
 	}
-}
-
-func TestStreamCursorZeroValueIsValidStartOfHistory(t *testing.T) {
-	// the zero value of StreamCursor (epoch time, id 0) is used to mean
-	// "the beginning of retained history" -- confirm it round-trips like any
-	// other cursor rather than being treated as a special/invalid case.
-	var zero StreamCursor
-
-	encoded, err := EncodeStreamCursor(zero)
-	require.NoError(t, err)
-
-	decoded, err := DecodeStreamCursor(encoded)
-	require.NoError(t, err)
-
-	assert.True(t, zero.CreatedAt.Equal(decoded.CreatedAt))
-	assert.Equal(t, zero.ID, decoded.ID)
 }

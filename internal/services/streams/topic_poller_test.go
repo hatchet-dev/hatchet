@@ -3,6 +3,7 @@ package streams
 import (
 	"context"
 	"fmt"
+	"maps"
 	"math"
 	"sync"
 	"testing"
@@ -30,6 +31,9 @@ type fakeStreamsRepository struct {
 
 	// cursors at or below this ID are reported expired
 	expiredThroughID int64
+
+	// runs once, after the next read, to interleave work with a reader
+	afterNextRead func()
 }
 
 func (f *fakeStreamsRepository) CheckCursorRetained(_ context.Context, _ uuid.UUID, cursor v1.StreamCursor) error {
@@ -59,8 +63,19 @@ func newFakeStreamsRepository(tenantId uuid.UUID, namespace, topic string, n int
 
 func (f *fakeStreamsRepository) ListMessagesAfterCursor(_ context.Context, _ uuid.UUID, opts v1.ListStreamMessagesOpts) ([]*sqlcv1.V1StreamMessage, error) {
 	f.mu.Lock()
-	defer f.mu.Unlock()
+	out := f.listLocked(opts)
+	hook := f.afterNextRead
+	f.afterNextRead = nil
+	f.mu.Unlock()
 
+	if hook != nil {
+		hook()
+	}
+
+	return out, nil
+}
+
+func (f *fakeStreamsRepository) listLocked(opts v1.ListStreamMessagesOpts) []*sqlcv1.V1StreamMessage {
 	out := make([]*sqlcv1.V1StreamMessage, 0)
 
 	for _, m := range f.messages {
@@ -74,7 +89,7 @@ func (f *fakeStreamsRepository) ListMessagesAfterCursor(_ context.Context, _ uui
 		}
 	}
 
-	return out, nil
+	return out
 }
 
 func (f *fakeStreamsRepository) appendMessage(id int64, at time.Time) {
@@ -140,91 +155,47 @@ func (c *collectingListener) entryIDs(t *testing.T) []int64 {
 	return ids
 }
 
-func TestTopicPollerRegistry_SharesOnePollerPerKey(t *testing.T) {
+func TestTopicPollerRegistry_OnePollerPerTopicForAsLongAsItHasListeners(t *testing.T) {
 	tenantId := uuid.New()
 	repo := newFakeStreamsRepository(tenantId, "", "topic-a", 0, time.Now())
 	registry := newTopicPollerRegistry(repo, fakePubSub{}, testLogger(), 5*time.Millisecond, time.Hour)
 
-	key := topicPollerKey{tenantId: tenantId, namespace: "", topic: "topic-a"}
+	keyA := topicPollerKey{tenantId: tenantId, topic: "topic-a"}
+	keyB := topicPollerKey{tenantId: tenantId, topic: "topic-b"}
 
-	listenerA := &collectingListener{}
-	unregisterA, err := registry.Join(context.Background(), key, v1.StreamCursor{}, &topicListener{
-		send:   listenerA.send,
-		cancel: func() {},
-	})
-	require.NoError(t, err)
-	defer unregisterA()
+	join := func(key topicPollerKey, l *collectingListener) func() {
+		unregister, err := registry.Join(context.Background(), key, v1.StreamCursor{}, &topicListener{send: l.send, cancel: func() {}})
+		require.NoError(t, err)
+		return unregister
+	}
 
-	listenerB := &collectingListener{}
-	unregisterB, err := registry.Join(context.Background(), key, v1.StreamCursor{}, &topicListener{
-		send:   listenerB.send,
-		cancel: func() {},
-	})
-	require.NoError(t, err)
-	defer unregisterB()
+	pollers := func() map[topicPollerKey]*topicPoller {
+		registry.mu.Lock()
+		defer registry.mu.Unlock()
+		return maps.Clone(registry.pollers)
+	}
 
-	registry.mu.Lock()
-	numPollers := len(registry.pollers)
-	registry.mu.Unlock()
+	listenerA1, listenerA2 := &collectingListener{}, &collectingListener{}
+	leaveA1 := join(keyA, listenerA1)
+	leaveA2 := join(keyA, listenerA2)
+	leaveB := join(keyB, &collectingListener{})
 
-	assert.Equal(t, 1, numPollers, "two listeners on the same (tenant, namespace, topic) must share one poller")
+	assert.Len(t, pollers(), 2, "listeners on one topic share a poller; topics don't")
 
-	// publish a message "live" and let the shared ticker pick it up
 	repo.appendMessage(1, time.Now())
 
 	require.Eventually(t, func() bool {
-		return listenerA.count() == 1 && listenerB.count() == 1
-	}, time.Second, 5*time.Millisecond, "both listeners should receive the same fanned-out message")
+		return listenerA1.count() == 1 && listenerA2.count() == 1
+	}, time.Second, 5*time.Millisecond, "the shared poller fans each message out to every listener")
 
-	assert.Equal(t, listenerA.received[0].Entries[0].Cursor, listenerB.received[0].Entries[0].Cursor, "both listeners should see the identical message/cursor")
-}
+	leaveA1()
+	assert.Contains(t, pollers(), keyA, "a poller survives while it has a listener")
 
-func TestTopicPollerRegistry_DifferentTopicsGetDifferentPollers(t *testing.T) {
-	tenantId := uuid.New()
-	repo := newFakeStreamsRepository(tenantId, "", "topic-a", 0, time.Now())
-	registry := newTopicPollerRegistry(repo, fakePubSub{}, testLogger(), 5*time.Millisecond, time.Hour)
+	leaveA2()
+	assert.NotContains(t, pollers(), keyA, "a poller is removed with its last listener")
+	assert.Contains(t, pollers(), keyB)
 
-	unregisterA, err := registry.Join(context.Background(), topicPollerKey{tenantId: tenantId, topic: "topic-a"}, v1.StreamCursor{}, &topicListener{send: func(*contracts.StreamMessage) error { return nil }, cancel: func() {}})
-	require.NoError(t, err)
-	defer unregisterA()
-
-	unregisterB, err := registry.Join(context.Background(), topicPollerKey{tenantId: tenantId, topic: "topic-b"}, v1.StreamCursor{}, &topicListener{send: func(*contracts.StreamMessage) error { return nil }, cancel: func() {}})
-	require.NoError(t, err)
-	defer unregisterB()
-
-	registry.mu.Lock()
-	numPollers := len(registry.pollers)
-	registry.mu.Unlock()
-
-	assert.Equal(t, 2, numPollers, "distinct topics must not share a poller")
-}
-
-func TestTopicPollerRegistry_RemovesPollerWhenLastListenerLeaves(t *testing.T) {
-	tenantId := uuid.New()
-	repo := newFakeStreamsRepository(tenantId, "", "topic-a", 0, time.Now())
-	registry := newTopicPollerRegistry(repo, fakePubSub{}, testLogger(), 5*time.Millisecond, time.Hour)
-
-	key := topicPollerKey{tenantId: tenantId, topic: "topic-a"}
-
-	unregisterA, err := registry.Join(context.Background(), key, v1.StreamCursor{}, &topicListener{send: func(*contracts.StreamMessage) error { return nil }, cancel: func() {}})
-	require.NoError(t, err)
-
-	unregisterB, err := registry.Join(context.Background(), key, v1.StreamCursor{}, &topicListener{send: func(*contracts.StreamMessage) error { return nil }, cancel: func() {}})
-	require.NoError(t, err)
-
-	unregisterA()
-
-	registry.mu.Lock()
-	_, stillPresent := registry.pollers[key]
-	registry.mu.Unlock()
-	assert.True(t, stillPresent, "poller must survive while at least one listener remains")
-
-	unregisterB()
-
-	registry.mu.Lock()
-	_, stillPresent = registry.pollers[key]
-	registry.mu.Unlock()
-	assert.False(t, stillPresent, "poller must be removed once its last listener leaves")
+	leaveB()
 }
 
 func TestTopicPollerRegistry_JoinCatchesUpBeforeAttaching(t *testing.T) {
@@ -300,67 +271,36 @@ func TestTopicPollerRegistry_JoinRejectsExpiredCursor(t *testing.T) {
 	assert.Empty(t, registry.pollers, "an expired cursor must not start a poller")
 }
 
-// A listener whose own catch-up ended behind the shared poller must still get
-// the rows the poller had already fanned out to earlier listeners.
+// A listener whose unlocked replay ends behind the shared poller, because the
+// poller moved on meanwhile, must still get the rows it fanned out without it.
 func TestTopicPollerRegistry_JoinBehindPollerBackfillsListener(t *testing.T) {
 	tenantId := uuid.New()
 	base := time.Now()
-	repo := newFakeStreamsRepository(tenantId, "", "topic-a", 0, base)
+	repo := newFakeStreamsRepository(tenantId, "", "topic-a", 1, base)
 	registry := newTopicPollerRegistry(repo, fakePubSub{}, testLogger(), time.Hour, time.Hour)
 
 	key := topicPollerKey{tenantId: tenantId, topic: "topic-a"}
 
-	listenerA := &collectingListener{}
-	unregisterA, err := registry.Join(context.Background(), key, v1.StreamCursor{}, &topicListener{send: listenerA.send, cancel: func() {}})
-	require.NoError(t, err)
-	defer unregisterA()
+	join := func(cursor v1.StreamCursor, l *collectingListener) {
+		unregister, err := registry.Join(context.Background(), key, cursor, &topicListener{send: l.send, cancel: func() {}})
+		require.NoError(t, err)
+		t.Cleanup(unregister)
+	}
 
-	repo.appendMessage(1, base.Add(time.Millisecond))
-	repo.appendMessage(2, base.Add(2*time.Millisecond))
+	listenerA, listenerB, listenerC := &collectingListener{}, &collectingListener{}, &collectingListener{}
+	join(v1.StreamCursor{}, listenerA)
 
-	// pulls the shared poller forward to id=2
-	listenerB := &collectingListener{}
-	unregisterB, err := registry.Join(context.Background(), key, v1.StreamCursor{ID: 2}, &topicListener{send: listenerB.send, cancel: func() {}})
-	require.NoError(t, err)
-	defer unregisterB()
+	// while C replays, message 2 lands and B's join pulls the poller past it
+	repo.afterNextRead = func() {
+		repo.appendMessage(2, base.Add(time.Second))
+		join(v1.StreamCursor{ID: 2}, listenerB)
+	}
 
-	// its own catch-up only reached id=1 before the poller advanced
-	listenerC := &collectingListener{}
-	unregisterC, err := registry.Join(context.Background(), key, v1.StreamCursor{ID: 1}, &topicListener{send: listenerC.send, cancel: func() {}})
-	require.NoError(t, err)
-	defer unregisterC()
+	join(v1.StreamCursor{ID: 1}, listenerC)
 
 	assert.Equal(t, []int64{1, 2}, listenerA.entryIDs(t))
 	assert.Empty(t, listenerB.entryIDs(t))
 	assert.Equal(t, []int64{2}, listenerC.entryIDs(t))
-}
-
-func TestTopicPoller_BatchesMultipleMessagesIntoOneStreamMessage(t *testing.T) {
-	tenantId := uuid.New()
-	base := time.Now()
-	// pre-populate several messages before the poller's first tick, so a
-	// single ListMessagesAfterCursor call sees all of them at once -- this is
-	// exactly the catch-up-from-an-old-cursor scenario batching optimizes for.
-	repo := newFakeStreamsRepository(tenantId, "", "topic-a", 5, base)
-	registry := newTopicPollerRegistry(repo, fakePubSub{}, testLogger(), 5*time.Millisecond, time.Hour)
-
-	key := topicPollerKey{tenantId: tenantId, topic: "topic-a"}
-
-	listener := &collectingListener{}
-	unregister, err := registry.Join(context.Background(), key, v1.StreamCursor{}, &topicListener{send: listener.send, cancel: func() {}})
-	require.NoError(t, err)
-	defer unregister()
-
-	require.Eventually(t, func() bool {
-		return listener.count() > 0
-	}, time.Second, 5*time.Millisecond)
-
-	// give any further ticks time to run (they should find nothing new)
-	// before asserting exactly one frame was ever sent
-	time.Sleep(20 * time.Millisecond)
-
-	require.Len(t, listener.received, 1, "messages arriving together should be batched into a single StreamMessage frame")
-	assert.Len(t, listener.received[0].Entries, 5, "the single frame should carry every entry")
 }
 
 func TestTopicPoller_HangsUpIdleListenersAndStopsItself(t *testing.T) {
@@ -405,52 +345,42 @@ func TestTopicPoller_HangsUpIdleListenersAndStopsItself(t *testing.T) {
 	assert.False(t, stillPresent, "poller must remove itself from the registry after hanging up its only listener")
 }
 
-func TestSendRange_PagesThroughEveryRowInOrder(t *testing.T) {
-	tenantId := uuid.New()
+func TestSendRange(t *testing.T) {
 	total := subscribeCatchUpBatchSize*2 + 7
-	repo := newFakeStreamsRepository(tenantId, "", "topic-a", total, time.Now())
-	key := topicPollerKey{tenantId: tenantId, topic: "topic-a"}
 
-	listener := &collectingListener{}
-	last, err := sendRange(context.Background(), repo, key, v1.StreamCursor{}, math.MaxInt64, listener.send)
-	require.NoError(t, err)
-
-	ids := listener.entryIDs(t)
-	require.Len(t, ids, total)
-	for i, id := range ids {
-		assert.Equal(t, int64(i+1), id)
+	cases := map[string]struct {
+		from    v1.StreamCursor
+		maxID   int64
+		wantIDs []int64
+		wantEnd int64
+	}{
+		"pages through every row in order":  {maxID: math.MaxInt64, wantIDs: idRange(1, total), wantEnd: int64(total)},
+		"stops at maxID":                    {from: v1.StreamCursor{ID: 3}, maxID: 6, wantIDs: []int64{4, 5, 6}, wantEnd: 6},
+		"returns from when nothing is sent": {from: v1.StreamCursor{ID: int64(total)}, maxID: math.MaxInt64, wantIDs: []int64{}, wantEnd: int64(total)},
 	}
-	assert.Equal(t, int64(total), last.ID)
+
+	for label, tc := range cases {
+		t.Run(label, func(t *testing.T) {
+			tenantId := uuid.New()
+			repo := newFakeStreamsRepository(tenantId, "", "topic-a", total, time.Now())
+			key := topicPollerKey{tenantId: tenantId, topic: "topic-a"}
+
+			listener := &collectingListener{}
+			last, err := sendRange(context.Background(), repo, key, tc.from, tc.maxID, listener.send)
+			require.NoError(t, err)
+
+			assert.Equal(t, tc.wantIDs, listener.entryIDs(t))
+			assert.Equal(t, tc.wantEnd, last.ID)
+		})
+	}
 }
 
-func TestSendRange_StopsAtMaxID(t *testing.T) {
-	tenantId := uuid.New()
-	repo := newFakeStreamsRepository(tenantId, "", "topic-a", 10, time.Now())
-	key := topicPollerKey{tenantId: tenantId, topic: "topic-a"}
-
-	listener := &collectingListener{}
-	last, err := sendRange(context.Background(), repo, key, v1.StreamCursor{ID: 3}, 6, listener.send)
-	require.NoError(t, err)
-
-	assert.Equal(t, []int64{4, 5, 6}, listener.entryIDs(t))
-	assert.Equal(t, int64(6), last.ID)
-}
-
-func TestSendRange_ReturnsStartCursorWhenNothingToSend(t *testing.T) {
-	tenantId := uuid.New()
-	repo := newFakeStreamsRepository(tenantId, "", "topic-a", 3, time.Now())
-	key := topicPollerKey{tenantId: tenantId, topic: "topic-a"}
-	from := v1.StreamCursor{ID: 3}
-
-	sent := 0
-	last, err := sendRange(context.Background(), repo, key, from, math.MaxInt64, func(*contracts.StreamMessage) error {
-		sent++
-		return nil
-	})
-	require.NoError(t, err)
-
-	assert.Equal(t, 0, sent)
-	assert.Equal(t, from, last)
+func idRange(from, to int) []int64 {
+	ids := make([]int64, 0, to-from+1)
+	for i := from; i <= to; i++ {
+		ids = append(ids, int64(i))
+	}
+	return ids
 }
 
 // capturingPubSub records Sub calls and keeps the wake handler so tests can

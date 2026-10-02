@@ -59,9 +59,9 @@ func newStreams(conn *grpc.ClientConn, opts *sharedClientOpts) StreamsClient {
 	}
 }
 
-// publishRejectedBeforeEnqueue reports whether err is one the server returns
+// publishRejectedBeforeStoring reports whether err is one the server returns
 // before it could have stored the message, so its seq was never used.
-func publishRejectedBeforeEnqueue(err error) bool {
+func publishRejectedBeforeStoring(err error) bool {
 	switch status.Code(err) {
 	case codes.InvalidArgument, codes.ResourceExhausted, codes.Unauthenticated, codes.PermissionDenied:
 		return true
@@ -108,7 +108,7 @@ func (s *streamsClientImpl) Publish(ctx context.Context, namespace, topic string
 
 		// the message may still land, so reusing its seq for a different
 		// payload would get that payload dropped as a duplicate
-		if !publishRejectedBeforeEnqueue(err) {
+		if !publishRejectedBeforeStoring(err) {
 			state.producerID = uuid.NewString()
 			state.seq = 0
 		}

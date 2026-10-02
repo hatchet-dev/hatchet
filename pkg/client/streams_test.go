@@ -39,52 +39,66 @@ func newTestStreamsClient(fake *fakeV1StreamsClient) *streamsClientImpl {
 	}
 }
 
-func TestStreamsPublish_AmbiguousFailureRotatesProducer(t *testing.T) {
-	fake := &fakeV1StreamsClient{errs: []error{nil, status.Error(codes.DeadlineExceeded, "timed out")}}
-	s := newTestStreamsClient(fake)
-
-	require.NoError(t, s.Publish(context.Background(), "", "t", []byte("a")))
-	require.Error(t, s.Publish(context.Background(), "", "t", []byte("b")))
-	require.NoError(t, s.Publish(context.Background(), "", "t", []byte("c")))
-
-	require.Len(t, fake.reqs, 3)
-	assert.Equal(t, fake.reqs[0].ProducerId, fake.reqs[1].ProducerId)
-	assert.Equal(t, int64(1), fake.reqs[1].ProducerSeq)
-	assert.NotEqual(t, fake.reqs[1].ProducerId, fake.reqs[2].ProducerId, "a seq that may have landed must not be reused for a different payload")
-	assert.Equal(t, int64(0), fake.reqs[2].ProducerSeq)
-}
-
-func TestStreamsPublish_RejectedBeforeEnqueueReusesSeq(t *testing.T) {
-	fake := &fakeV1StreamsClient{errs: []error{status.Error(codes.ResourceExhausted, "limit")}}
-	s := newTestStreamsClient(fake)
-
-	require.Error(t, s.Publish(context.Background(), "", "t", []byte("a")))
-	require.NoError(t, s.Publish(context.Background(), "", "t", []byte("a")))
-
-	require.Len(t, fake.reqs, 2)
-	assert.Equal(t, fake.reqs[0].ProducerId, fake.reqs[1].ProducerId)
-	assert.Equal(t, int64(0), fake.reqs[1].ProducerSeq)
-}
-
-func TestStreamsPublish_GapRetriesOnceAsANewProducer(t *testing.T) {
-	fake := &fakeV1StreamsClient{errs: []error{nil, status.Error(codes.FailedPrecondition, "gap")}}
-	s := newTestStreamsClient(fake)
-
-	require.NoError(t, s.Publish(context.Background(), "", "t", []byte("a")))
-	require.NoError(t, s.Publish(context.Background(), "", "t", []byte("b")), "a gap must be retried, not returned")
-
-	require.Len(t, fake.reqs, 3)
-	assert.Equal(t, int64(1), fake.reqs[1].ProducerSeq)
-	assert.NotEqual(t, fake.reqs[1].ProducerId, fake.reqs[2].ProducerId)
-	assert.Equal(t, int64(0), fake.reqs[2].ProducerSeq)
-	assert.Equal(t, []byte("b"), fake.reqs[2].Payload)
-}
-
-func TestStreamsPublish_RepeatedGapIsReturned(t *testing.T) {
+func TestStreamsPublish(t *testing.T) {
 	gap := status.Error(codes.FailedPrecondition, "gap")
-	fake := &fakeV1StreamsClient{errs: []error{gap, gap}}
-	s := newTestStreamsClient(fake)
 
-	assert.Equal(t, codes.FailedPrecondition, status.Code(s.Publish(context.Background(), "", "t", []byte("a"))))
-	assert.Len(t, fake.reqs, 2, "only one retry")
+	cases := map[string]struct {
+		errs []error
+		// what each Publish call returns, one payload per call
+		wantErrs []bool
+		check    func(t *testing.T, reqs []*sharedcontracts.PublishStreamMessageRequest)
+	}{
+		"an ambiguous failure rotates the producer": {
+			errs:     []error{nil, status.Error(codes.DeadlineExceeded, "timed out")},
+			wantErrs: []bool{false, true, false},
+			check: func(t *testing.T, reqs []*sharedcontracts.PublishStreamMessageRequest) {
+				require.Len(t, reqs, 3)
+				assert.Equal(t, reqs[0].ProducerId, reqs[1].ProducerId)
+				assert.Equal(t, int64(1), reqs[1].ProducerSeq)
+				assert.NotEqual(t, reqs[1].ProducerId, reqs[2].ProducerId, "a seq that may have landed must not be reused for a different payload")
+				assert.Equal(t, int64(0), reqs[2].ProducerSeq)
+			},
+		},
+		"a rejection before storing reuses the seq": {
+			errs:     []error{status.Error(codes.ResourceExhausted, "limit")},
+			wantErrs: []bool{true, false},
+			check: func(t *testing.T, reqs []*sharedcontracts.PublishStreamMessageRequest) {
+				require.Len(t, reqs, 2)
+				assert.Equal(t, reqs[0].ProducerId, reqs[1].ProducerId)
+				assert.Equal(t, int64(0), reqs[1].ProducerSeq)
+			},
+		},
+		"a gap is retried once as a new producer": {
+			errs:     []error{nil, gap},
+			wantErrs: []bool{false, false},
+			check: func(t *testing.T, reqs []*sharedcontracts.PublishStreamMessageRequest) {
+				require.Len(t, reqs, 3)
+				assert.Equal(t, int64(1), reqs[1].ProducerSeq)
+				assert.NotEqual(t, reqs[1].ProducerId, reqs[2].ProducerId)
+				assert.Equal(t, int64(0), reqs[2].ProducerSeq)
+				assert.Equal(t, reqs[1].Payload, reqs[2].Payload)
+			},
+		},
+		"a repeated gap is returned": {
+			errs:     []error{gap, gap},
+			wantErrs: []bool{true},
+			check: func(t *testing.T, reqs []*sharedcontracts.PublishStreamMessageRequest) {
+				assert.Len(t, reqs, 2, "only one retry")
+			},
+		},
+	}
+
+	for label, tc := range cases {
+		t.Run(label, func(t *testing.T) {
+			fake := &fakeV1StreamsClient{errs: tc.errs}
+			s := newTestStreamsClient(fake)
+
+			for i, wantErr := range tc.wantErrs {
+				err := s.Publish(context.Background(), "", "t", []byte{byte('a' + i)})
+				assert.Equal(t, wantErr, err != nil, "publish %d: %v", i, err)
+			}
+
+			tc.check(t, fake.reqs)
+		})
+	}
 }

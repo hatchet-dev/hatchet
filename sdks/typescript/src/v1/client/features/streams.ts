@@ -11,7 +11,7 @@ import { HatchetClient } from '../client';
 
 // errors the server returns before it could have stored the message,
 // so its producer_seq was never used
-function publishRejectedBeforeEnqueue(err: unknown): boolean {
+function publishRejectedBeforeStoring(err: unknown): boolean {
   const code = getGrpcErrorCode(err);
   return (
     code === Status.INVALID_ARGUMENT ||
@@ -94,7 +94,7 @@ export class StreamsClient {
     } catch (err) {
       // the message may still land, so reusing its seq for a different
       // payload would get that payload dropped as a duplicate
-      if (!publishRejectedBeforeEnqueue(err)) {
+      if (!publishRejectedBeforeStoring(err)) {
         this.producers.set(key, { producerId: randomUUID(), seq: 0 });
       }
       // a sequence gap stored nothing: this producer's watermark is gone (e.g. it

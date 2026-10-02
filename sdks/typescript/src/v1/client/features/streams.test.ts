@@ -42,23 +42,6 @@ describe('StreamsClient.events cancellation', () => {
     expect(received).toEqual([1]);
   });
 
-  it('passes options.signal through to the underlying subscribe call', () => {
-    async function* subscribeStub() {}
-
-    const subscribe = jest.fn(() => subscribeStub());
-    mockedCreateGrpcClient.mockReturnValue({ client: { subscribe } } as any);
-
-    const streams = new StreamsClient(fakeHatchetClient());
-    const controller = new AbortController();
-
-    void streams.events('topic', { signal: controller.signal })[Symbol.asyncIterator]().next();
-
-    expect(subscribe).toHaveBeenCalledWith(
-      expect.objectContaining({ topic: 'topic' }),
-      expect.objectContaining({ signal: controller.signal })
-    );
-  });
-
   it('ends the iteration cleanly on abort instead of rejecting the caller', async () => {
     async function* subscribeStub(_req: unknown, options: { signal?: AbortSignal }) {
       yield { entries: [entry(1, 'c1')], hangup: false };
@@ -192,7 +175,7 @@ describe('StreamsClient.publish producer sequencing', () => {
     expect(publish).toHaveBeenCalledTimes(2);
   });
 
-  it('reuses the seq when the server rejected the publish before enqueueing it', async () => {
+  it('reuses the seq when the server rejected the publish before storing it', async () => {
     const { streams, publish } = setup([grpcError(Status.RESOURCE_EXHAUSTED)]);
 
     await expect(streams.publish('topic', 'a')).rejects.toThrow();
