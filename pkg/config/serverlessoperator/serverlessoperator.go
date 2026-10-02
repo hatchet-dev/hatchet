@@ -43,9 +43,10 @@ type ConfigFile struct {
 	DefaultSlots int32  `mapstructure:"defaultSlots" default:"10000"`
 	DurableSlots int32  `mapstructure:"durableSlots" default:"10000"`
 
-	// ShardCount is the shard_count a tenant's v1_serverless_tenant row is created with; see
-	// serverlessoperator.Config.ShardCount for what it governs and when a change applies.
-	ShardCount int32 `mapstructure:"shardCount" default:"1"`
+	// EndpointPartitionCount is the endpoint_partition_count a tenant's v1_serverless_tenant row is
+	// created with; see serverlessoperator.Config.EndpointPartitionCount for what it governs and
+	// when a change applies.
+	EndpointPartitionCount int32 `mapstructure:"endpointPartitionCount" default:"1"`
 
 	LeaseTTL          time.Duration `mapstructure:"leaseTtl" default:"15s"`
 	HeartbeatInterval time.Duration `mapstructure:"heartbeatInterval" default:"5s"`
@@ -109,7 +110,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("operatorName", "SERVERLESS_OPERATOR_OPERATOR_NAME")
 	_ = v.BindEnv("defaultSlots", "SERVERLESS_OPERATOR_DEFAULT_SLOTS")
 	_ = v.BindEnv("durableSlots", "SERVERLESS_OPERATOR_DURABLE_SLOTS")
-	_ = v.BindEnv("shardCount", "SERVERLESS_OPERATOR_SHARD_COUNT")
+	_ = v.BindEnv("endpointPartitionCount", "SERVERLESS_OPERATOR_ENDPOINT_PARTITION_COUNT")
 
 	_ = v.BindEnv("leaseTtl", "SERVERLESS_OPERATOR_LEASE_TTL")
 	_ = v.BindEnv("heartbeatInterval", "SERVERLESS_OPERATOR_HEARTBEAT_INTERVAL")
@@ -156,7 +157,7 @@ func BindAllEnv(v *viper.Viper) {
 }
 
 // Validate checks the values that must be present or agree with each other: the database
-// URL, the token exchange mode with its variable and without the other mode's, and the shard
+// URL, the token exchange mode with its variable and without the other mode's, and the partition
 // count bounds. Everything else has a default.
 func (cf *ConfigFile) Validate() error {
 	if cf.DatabaseUrl == "" {
@@ -167,7 +168,7 @@ func (cf *ConfigFile) Validate() error {
 		return err
 	}
 
-	return serverlessoperator.ValidateShardCount(cf.ShardCount)
+	return serverlessoperator.ValidateEndpointPartitionCount(cf.EndpointPartitionCount)
 }
 
 // TokenExchangeMode is the normalized token exchange mode.
@@ -226,7 +227,7 @@ func (cf *ConfigFile) CoreConfig() serverlessoperator.Config {
 		LinkName:                     serverlessoperator.DefaultLinkName,
 		DefaultSlots:                 cf.DefaultSlots,
 		DurableSlots:                 cf.DurableSlots,
-		ShardCount:                   cf.ShardCount,
+		EndpointPartitionCount:       cf.EndpointPartitionCount,
 		LeaseTTL:                     cf.LeaseTTL,
 		HeartbeatInterval:            cf.HeartbeatInterval,
 		RebalanceInterval:            cf.RebalanceInterval,

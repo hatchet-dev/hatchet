@@ -2906,8 +2906,8 @@ CREATE TABLE v1_serverless_endpoint (
     inline_wait_budget_ms INT NOT NULL DEFAULT 5000,
     labels JSONB NOT NULL DEFAULT '{}'::jsonb,
     enabled BOOLEAN NOT NULL DEFAULT TRUE,
-    -- hashtext(id::text) % shard_count, set on insert
-    shard INT NOT NULL DEFAULT 0,
+    -- hashtext(id::text) % endpoint_partition_count, set on insert
+    endpoint_partition INT NOT NULL DEFAULT 0,
     -- status, written on transitions only
     healthy BOOLEAN,
     status_error TEXT,
@@ -2931,7 +2931,7 @@ CREATE TABLE v1_serverless_endpoint (
 CREATE UNIQUE INDEX v1_serverless_endpoint_tenant_name_key ON v1_serverless_endpoint (tenant_id, name) WHERE deleted_at IS NULL;
 
 -- endpoints of an owned unit (owner: polling) and of a served tenant (routing cache)
-CREATE INDEX v1_serverless_endpoint_unit_idx ON v1_serverless_endpoint (tenant_id, shard, id);
+CREATE INDEX v1_serverless_endpoint_unit_idx ON v1_serverless_endpoint (tenant_id, endpoint_partition, id);
 
 -- incremental refresh of the routing cache, keyed by row version: the later of updated_at
 -- (configuration and registered_actions writes) and status_changed_at (health transitions)
@@ -2940,7 +2940,7 @@ CREATE INDEX v1_serverless_endpoint_version_idx ON v1_serverless_endpoint (tenan
 CREATE TABLE v1_serverless_tenant (
     tenant_id UUID NOT NULL,
     -- > 1 splits a hot tenant across processes
-    shard_count INT NOT NULL DEFAULT 1,
+    endpoint_partition_count INT NOT NULL DEFAULT 1,
     CONSTRAINT v1_serverless_tenant_pkey PRIMARY KEY (tenant_id)
 );
 
@@ -2958,25 +2958,25 @@ CREATE TABLE v1_serverless_process (
     CONSTRAINT v1_serverless_process_pkey PRIMARY KEY (process_id)
 );
 
--- Lease unit (tenant, shard). One row per unit, created by the API with the tenant's first
--- endpoint (and per shard when shard_count grows). process_id NULL = unowned. Owner liveness
--- is resolved through v1_serverless_process (pgoutbox's "NULL expiry defers to the session"),
--- so holding a unit costs zero writes.
+-- Lease unit (tenant, partition). One row per unit, created by the API with the tenant's first
+-- endpoint (and per partition when endpoint_partition_count grows). process_id NULL = unowned.
+-- Owner liveness is resolved through v1_serverless_process (pgoutbox's "NULL expiry defers to the
+-- session"), so holding a unit costs zero writes.
 CREATE TABLE v1_serverless_lease (
     tenant_id UUID NOT NULL,
-    shard INT NOT NULL DEFAULT 0,
+    endpoint_partition INT NOT NULL DEFAULT 0,
     process_id UUID,
     claimed_at TIMESTAMPTZ,
     -- maintained by the API on endpoint create/delete; fair-share weight
     endpoint_count INT NOT NULL DEFAULT 0,
-    CONSTRAINT v1_serverless_lease_pkey PRIMARY KEY (tenant_id, shard)
+    CONSTRAINT v1_serverless_lease_pkey PRIMARY KEY (tenant_id, endpoint_partition)
 );
 
-CREATE INDEX v1_serverless_lease_owner_idx ON v1_serverless_lease (process_id, tenant_id, shard);
+CREATE INDEX v1_serverless_lease_owner_idx ON v1_serverless_lease (process_id, tenant_id, endpoint_partition);
 
 -- claims walk unowned units with endpoints in key order from a random start; covering so the
 -- claimable count is index only. Empty units are never claimed, so they are not in the index.
-CREATE INDEX v1_serverless_lease_claimable_idx ON v1_serverless_lease (tenant_id, shard) INCLUDE (endpoint_count) WHERE process_id IS NULL AND endpoint_count > 0;
+CREATE INDEX v1_serverless_lease_claimable_idx ON v1_serverless_lease (tenant_id, endpoint_partition) INCLUDE (endpoint_count) WHERE process_id IS NULL AND endpoint_count > 0;
 
 CREATE TABLE tenant_entitlement (
     tenant_id UUID NOT NULL,

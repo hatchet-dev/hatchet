@@ -4,7 +4,7 @@
 -- rows only on status transitions and workflow changes.
 
 -- name: CreateServerlessEndpoint :one
--- The shard is derived from the id so it is stable for the endpoint's lifetime. The cast to
+-- The partition is derived from the id so it is stable for the endpoint's lifetime. The cast to
 -- bigint before abs() avoids the integer overflow abs(-2147483648) would raise.
 INSERT INTO v1_serverless_endpoint (
     id,
@@ -19,7 +19,7 @@ INSERT INTO v1_serverless_endpoint (
     inline_wait_budget_ms,
     labels,
     enabled,
-    shard
+    endpoint_partition
 ) VALUES (
     @id::UUID,
     @tenantId::UUID,
@@ -33,7 +33,7 @@ INSERT INTO v1_serverless_endpoint (
     @inlineWaitBudgetMs::INT,
     @labels::JSONB,
     @enabled::BOOLEAN,
-    (abs(hashtext((@id::UUID)::text)::bigint) % @shardCount::INT)::INT
+    (abs(hashtext((@id::UUID)::text)::bigint) % @endpointPartitionCount::INT)::INT
 )
 RETURNING *;
 
@@ -72,7 +72,7 @@ WHERE
     AND deleted_at IS NULL;
 
 -- name: UpdateServerlessEndpoint :one
--- The shard is never updatable: it decides which lease unit owns the endpoint.
+-- The partition is never updatable: it decides which lease unit owns the endpoint.
 UPDATE v1_serverless_endpoint
 SET
     name = COALESCE(sqlc.narg('name')::TEXT, name),
@@ -113,17 +113,17 @@ DELETE FROM v1_serverless_endpoint
 WHERE deleted_at < @cutoff::TIMESTAMPTZ;
 
 -- name: ListServerlessEndpointsForUnits :many
--- Endpoints of the given (tenant, shard) units, keyset-paged by id through
--- v1_serverless_endpoint_unit_idx. tenantIds and shards are parallel arrays paired with unnest;
+-- Endpoints of the given (tenant, partition) units, keyset-paged by id through
+-- v1_serverless_endpoint_unit_idx. tenantIds and partitions are parallel arrays paired with unnest;
 -- pass afterId = '00000000-0000-0000-0000-000000000000' for the first page.
 SELECT e.*
 FROM v1_serverless_endpoint e
 JOIN (
-    -- parallel unnest zips the two arrays into (tenant_id, shard) pairs
+    -- parallel unnest zips the two arrays into (tenant_id, endpoint_partition) pairs
     SELECT
         unnest(@tenantIds::UUID[]) AS tenant_id,
-        unnest(@shards::INT[]) AS shard
-) AS u ON e.tenant_id = u.tenant_id AND e.shard = u.shard
+        unnest(@partitions::INT[]) AS endpoint_partition
+) AS u ON e.tenant_id = u.tenant_id AND e.endpoint_partition = u.endpoint_partition
 WHERE
     e.id > @afterId::UUID
     AND e.deleted_at IS NULL
@@ -207,12 +207,12 @@ SET
 WHERE id = @id::UUID;
 
 -- name: UpsertServerlessTenant :one
--- Creates the tenant's serverless row with the configured shard_count if it does not exist and
--- returns the current row either way: an existing row keeps its shard_count, so the configured
--- value applies only to tenants first seen after it was set. The no-op update makes RETURNING
--- work on conflict.
-INSERT INTO v1_serverless_tenant (tenant_id, shard_count)
-VALUES (@tenantId::UUID, @shardCount::INT)
+-- Creates the tenant's serverless row with the configured endpoint_partition_count if it does not
+-- exist and returns the current row either way: an existing row keeps its endpoint_partition_count,
+-- so the configured value applies only to tenants first seen after it was set. The no-op update
+-- makes RETURNING work on conflict.
+INSERT INTO v1_serverless_tenant (tenant_id, endpoint_partition_count)
+VALUES (@tenantId::UUID, @endpointPartitionCount::INT)
 ON CONFLICT (tenant_id) DO UPDATE
 SET tenant_id = EXCLUDED.tenant_id
 RETURNING *;
@@ -279,16 +279,17 @@ DELETE FROM v1_serverless_process
 WHERE process_id = @processId::UUID;
 
 -- name: InsertServerlessLeaseIfAbsent :exec
-INSERT INTO v1_serverless_lease (tenant_id, shard)
-VALUES (@tenantId::UUID, @shard::INT)
-ON CONFLICT (tenant_id, shard) DO NOTHING;
+INSERT INTO v1_serverless_lease (tenant_id, endpoint_partition)
+VALUES (@tenantId::UUID, @partition::INT)
+ON CONFLICT (tenant_id, endpoint_partition) DO NOTHING;
 
 -- name: ClaimServerlessLeases :many
 -- Claims up to @claimLimit units for @processId. Only units with endpoints of a tenant entitled
--- to the serverless operator are claimable: an empty unit (shard growth, every endpoint
+-- to the serverless operator are claimable: an empty unit (partition growth, every endpoint
 -- deleted) has nothing to poll and is left unowned until an endpoint lands on it, and a
--- tenant whose entitlement is off is not served. Unowned units come first, walked in (tenant_id, shard) order
--- from @afterTenantId/@afterShard through v1_serverless_lease_claimable_idx (the caller starts
+-- tenant whose entitlement is off is not served. Unowned units come first, walked in
+-- (tenant_id, endpoint_partition) order from @afterTenantId/@afterPartition through
+-- v1_serverless_lease_claimable_idx (the caller starts
 -- at a random key and wraps around), then units of processes whose heartbeat row has expired,
 -- walked per dead process through v1_serverless_lease_owner_idx. Neither walk sorts the
 -- candidate population. Liveness is decided here, in the statement's own snapshot, never from
@@ -297,25 +298,25 @@ ON CONFLICT (tenant_id, shard) DO NOTHING;
 -- expired or was swept cannot take units until its next heartbeat. FOR UPDATE SKIP LOCKED lets
 -- concurrent claimers race without blocking; a unit is claimed by exactly one of them.
 WITH unowned AS (
-    SELECT l.tenant_id, l.shard
+    SELECT l.tenant_id, l.endpoint_partition
     FROM v1_serverless_lease l
     WHERE
         l.process_id IS NULL
         AND l.endpoint_count > 0
-        AND (l.tenant_id, l.shard) > (@afterTenantId::UUID, @afterShard::INT)
+        AND (l.tenant_id, l.endpoint_partition) > (@afterTenantId::UUID, @afterPartition::INT)
         AND EXISTS (
             SELECT 1
             FROM tenant_entitlement te
             WHERE te.tenant_id = l.tenant_id AND te.serverless_operator
         )
-    ORDER BY l.tenant_id, l.shard
+    ORDER BY l.tenant_id, l.endpoint_partition
     LIMIT @claimLimit::INT
     FOR UPDATE SKIP LOCKED
 ), abandoned AS (
-    SELECT a.tenant_id, a.shard
+    SELECT a.tenant_id, a.endpoint_partition
     FROM v1_serverless_process p
     CROSS JOIN LATERAL (
-        SELECT l.tenant_id, l.shard
+        SELECT l.tenant_id, l.endpoint_partition
         FROM v1_serverless_lease l
         WHERE
             l.process_id = p.process_id
@@ -325,16 +326,16 @@ WITH unowned AS (
                 FROM tenant_entitlement te
                 WHERE te.tenant_id = l.tenant_id AND te.serverless_operator
             )
-        ORDER BY l.tenant_id, l.shard
+        ORDER BY l.tenant_id, l.endpoint_partition
         LIMIT @claimLimit::INT
         FOR UPDATE SKIP LOCKED
     ) a
     WHERE p.expires_at < now()
     LIMIT @claimLimit::INT
 ), claimable AS (
-    SELECT tenant_id, shard FROM unowned
+    SELECT tenant_id, endpoint_partition FROM unowned
     UNION ALL
-    SELECT tenant_id, shard FROM abandoned
+    SELECT tenant_id, endpoint_partition FROM abandoned
     LIMIT @claimLimit::INT
 )
 UPDATE v1_serverless_lease l
@@ -342,13 +343,13 @@ SET process_id = @processId::UUID, claimed_at = now()
 FROM claimable c
 WHERE
     l.tenant_id = c.tenant_id
-    AND l.shard = c.shard
+    AND l.endpoint_partition = c.endpoint_partition
     AND EXISTS (
         SELECT 1
         FROM v1_serverless_process me
         WHERE me.process_id = @processId::UUID AND me.expires_at >= now()
     )
-RETURNING l.tenant_id, l.shard, l.endpoint_count;
+RETURNING l.tenant_id, l.endpoint_partition, l.endpoint_count;
 
 -- name: ShedServerlessLeases :many
 -- Releases the given units. Guarded by process_id so a process that lost a unit to a takeover
@@ -358,13 +359,13 @@ SET process_id = NULL, claimed_at = NULL
 FROM (
     SELECT
         unnest(@tenantIds::UUID[]) AS tenant_id,
-        unnest(@shards::INT[]) AS shard
+        unnest(@partitions::INT[]) AS endpoint_partition
 ) AS u
 WHERE
     l.tenant_id = u.tenant_id
-    AND l.shard = u.shard
+    AND l.endpoint_partition = u.endpoint_partition
     AND l.process_id = @processId::UUID
-RETURNING l.tenant_id, l.shard, l.endpoint_count;
+RETURNING l.tenant_id, l.endpoint_partition, l.endpoint_count;
 
 -- name: ReleaseUnentitledServerlessLeases :many
 -- Releases the units @processId holds whose tenant is not entitled to the serverless operator,
@@ -379,7 +380,7 @@ WHERE
         FROM tenant_entitlement te
         WHERE te.tenant_id = l.tenant_id AND te.serverless_operator
     )
-RETURNING l.tenant_id, l.shard, l.endpoint_count;
+RETURNING l.tenant_id, l.endpoint_partition, l.endpoint_count;
 
 -- name: ReleaseAllServerlessLeases :execrows
 UPDATE v1_serverless_lease
@@ -390,7 +391,7 @@ WHERE process_id = @processId::UUID;
 SELECT *
 FROM v1_serverless_lease
 WHERE process_id = @processId::UUID
-ORDER BY tenant_id, shard;
+ORDER BY tenant_id, endpoint_partition;
 
 -- name: CountClaimableServerlessLeases :one
 -- Counts what a process may claim under the rules of ClaimServerlessLeases: unowned units
@@ -450,4 +451,4 @@ UPDATE v1_serverless_lease
 SET endpoint_count = endpoint_count + @delta::INT
 WHERE
     tenant_id = @tenantId::UUID
-    AND shard = @shard::INT;
+    AND endpoint_partition = @partition::INT;

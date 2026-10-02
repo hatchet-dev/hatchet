@@ -880,7 +880,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 	// The API server creates tenant rows with this value, so it is checked whether or not the
 	// in-engine operator is enabled.
-	if err := serverlessoperator.ValidateShardCount(cf.Runtime.ServerlessOperator.ShardCount); err != nil {
+	if err := serverlessoperator.ValidateEndpointPartitionCount(cf.Runtime.ServerlessOperator.EndpointPartitionCount); err != nil {
 		return nil, nil, err
 	}
 

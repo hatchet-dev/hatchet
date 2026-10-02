@@ -522,12 +522,12 @@ func healthcheckWithWorkflows(t *testing.T, workflows ...*v1.CreateWorkflowVersi
 }
 
 type endpointSpec struct {
-	tenantId uuid.UUID
-	shard    int32
-	name     string
-	actions  []string
-	enabled  bool
-	healthy  pgtype.Bool
+	tenantId  uuid.UUID
+	partition int32
+	name      string
+	actions   []string
+	enabled   bool
+	healthy   pgtype.Bool
 }
 
 // newEndpointRow builds an endpoint row with a fresh id. URLs derive from the
@@ -545,7 +545,7 @@ func newEndpointRow(spec endpointSpec) *sqlcv1.V1ServerlessEndpoint {
 		PollIntervalSeconds:   3600,
 		Labels:                []byte("{}"),
 		Enabled:               spec.enabled,
-		Shard:                 spec.shard,
+		EndpointPartition:     spec.partition,
 		Healthy:               spec.healthy,
 		RegisteredActions:     spec.actions,
 	}
@@ -600,7 +600,7 @@ func (e *testEnv) addEndpoint(row *sqlcv1.V1ServerlessEndpoint) {
 }
 
 func (e *testEnv) unit(row *sqlcv1.V1ServerlessEndpoint) memrepo.Unit {
-	return memrepo.Unit{TenantId: row.TenantID, Shard: row.Shard}
+	return memrepo.Unit{TenantId: row.TenantID, Partition: row.EndpointPartition}
 }
 
 // poller returns the running poller for an endpoint, or nil.

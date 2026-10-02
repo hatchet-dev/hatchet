@@ -42,10 +42,10 @@ type CreateServerlessEndpointOpts struct {
 	// Enabled defaults to true.
 	Enabled *bool
 
-	// ShardCount is the shard_count the tenant's row is created with when this is the tenant's
-	// first endpoint (the operator's configured value); an existing row keeps its own. Zero
-	// means 1.
-	ShardCount int32 `validate:"min=0,max=64"`
+	// EndpointPartitionCount is the endpoint_partition_count the tenant's row is created with when
+	// this is the tenant's first endpoint (the operator's configured value); an existing row keeps
+	// its own. Zero means 1.
+	EndpointPartitionCount int32 `validate:"min=0,max=64"`
 }
 
 type UpdateServerlessEndpointOpts struct {
@@ -125,28 +125,28 @@ func (r *serverlessEndpointRepository) Create(ctx context.Context, tenantId uuid
 
 	defer rollback()
 
-	// The tenant row is upserted first so the endpoint's shard is computed against the
-	// tenant's current shard_count within the same transaction.
-	tenant, err := r.queries.UpsertServerlessTenant(ctx, tx, upsertServerlessTenantParams(tenantId, opts.ShardCount))
+	// The tenant row is upserted first so the endpoint's partition is computed against the
+	// tenant's current endpoint_partition_count within the same transaction.
+	tenant, err := r.queries.UpsertServerlessTenant(ctx, tx, upsertServerlessTenantParams(tenantId, opts.EndpointPartitionCount))
 
 	if err != nil {
 		return nil, fmt.Errorf("could not upsert serverless tenant: %w", err)
 	}
 
 	endpoint, err := r.queries.CreateServerlessEndpoint(ctx, tx, sqlcv1.CreateServerlessEndpointParams{
-		ID:                    uuid.New(),
-		Tenantid:              tenantId,
-		Name:                  opts.Name,
-		Kind:                  kind,
-		Healthcheckurl:        opts.HealthcheckUrl,
-		Triggerurl:            opts.TriggerUrl,
-		Signingsecretenc:      opts.SigningSecretEnc,
-		Requesttimeoutseconds: int32OrDefault(opts.RequestTimeoutSeconds, defaultServerlessRequestTimeoutSeconds),
-		Pollintervalseconds:   int32OrDefault(opts.PollIntervalSeconds, defaultServerlessPollIntervalSeconds),
-		Inlinewaitbudgetms:    int32OrDefault(opts.InlineWaitBudgetMs, defaultServerlessInlineWaitBudgetMs),
-		Labels:                labels,
-		Enabled:               enabled,
-		Shardcount:            tenant.ShardCount,
+		ID:                     uuid.New(),
+		Tenantid:               tenantId,
+		Name:                   opts.Name,
+		Kind:                   kind,
+		Healthcheckurl:         opts.HealthcheckUrl,
+		Triggerurl:             opts.TriggerUrl,
+		Signingsecretenc:       opts.SigningSecretEnc,
+		Requesttimeoutseconds:  int32OrDefault(opts.RequestTimeoutSeconds, defaultServerlessRequestTimeoutSeconds),
+		Pollintervalseconds:    int32OrDefault(opts.PollIntervalSeconds, defaultServerlessPollIntervalSeconds),
+		Inlinewaitbudgetms:     int32OrDefault(opts.InlineWaitBudgetMs, defaultServerlessInlineWaitBudgetMs),
+		Labels:                 labels,
+		Enabled:                enabled,
+		Endpointpartitioncount: tenant.EndpointPartitionCount,
 	})
 
 	if err != nil {
@@ -154,8 +154,8 @@ func (r *serverlessEndpointRepository) Create(ctx context.Context, tenantId uuid
 	}
 
 	unit := sqlcv1.InsertServerlessLeaseIfAbsentParams{
-		Tenantid: tenantId,
-		Shard:    endpoint.Shard,
+		Tenantid:  tenantId,
+		Partition: endpoint.EndpointPartition,
 	}
 
 	if err := r.queries.InsertServerlessLeaseIfAbsent(ctx, tx, unit); err != nil {
@@ -163,9 +163,9 @@ func (r *serverlessEndpointRepository) Create(ctx context.Context, tenantId uuid
 	}
 
 	err = r.queries.IncrementServerlessLeaseEndpointCount(ctx, tx, sqlcv1.IncrementServerlessLeaseEndpointCountParams{
-		Tenantid: tenantId,
-		Shard:    endpoint.Shard,
-		Delta:    1,
+		Tenantid:  tenantId,
+		Partition: endpoint.EndpointPartition,
+		Delta:     1,
 	})
 
 	if err != nil {
@@ -274,9 +274,9 @@ func (r *serverlessEndpointRepository) Delete(ctx context.Context, tenantId, end
 	}
 
 	err = r.queries.IncrementServerlessLeaseEndpointCount(ctx, tx, sqlcv1.IncrementServerlessLeaseEndpointCountParams{
-		Tenantid: tenantId,
-		Shard:    endpoint.Shard,
-		Delta:    -1,
+		Tenantid:  tenantId,
+		Partition: endpoint.EndpointPartition,
+		Delta:     -1,
 	})
 
 	if err != nil {
@@ -299,11 +299,11 @@ func (r *serverlessEndpointRepository) ListForUnits(ctx context.Context, units [
 		return nil, nil
 	}
 
-	tenantIds, shards := unitArrays(units)
+	tenantIds, partitions := unitArrays(units)
 
 	return r.queries.ListServerlessEndpointsForUnits(ctx, r.pool, sqlcv1.ListServerlessEndpointsForUnitsParams{
 		Tenantids:     tenantIds,
-		Shards:        shards,
+		Partitions:    partitions,
 		Afterid:       afterId,
 		Endpointlimit: limit,
 	})

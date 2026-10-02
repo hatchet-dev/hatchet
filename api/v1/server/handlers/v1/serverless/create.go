@@ -54,16 +54,16 @@ func (t *V1ServerlessService) V1ServerlessEndpointCreate(ctx echo.Context, reque
 	}
 
 	opts := v1.CreateServerlessEndpointOpts{
-		Name:                  body.Name,
-		HealthcheckUrl:        body.HealthcheckUrl,
-		TriggerUrl:            body.TriggerUrl,
-		SigningSecretEnc:      encryptedSecret,
-		RequestTimeoutSeconds: body.RequestTimeoutSeconds,
-		PollIntervalSeconds:   body.PollIntervalSeconds,
-		InlineWaitBudgetMs:    body.InlineWaitBudgetMs,
-		Labels:                labels,
-		Enabled:               body.Enabled,
-		ShardCount:            t.config.Runtime.ServerlessOperator.ShardCount,
+		Name:                   body.Name,
+		HealthcheckUrl:         body.HealthcheckUrl,
+		TriggerUrl:             body.TriggerUrl,
+		SigningSecretEnc:       encryptedSecret,
+		RequestTimeoutSeconds:  body.RequestTimeoutSeconds,
+		PollIntervalSeconds:    body.PollIntervalSeconds,
+		InlineWaitBudgetMs:     body.InlineWaitBudgetMs,
+		Labels:                 labels,
+		Enabled:                body.Enabled,
+		EndpointPartitionCount: t.config.Runtime.ServerlessOperator.EndpointPartitionCount,
 	}
 
 	if body.Kind != nil {

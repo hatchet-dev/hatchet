@@ -25,10 +25,10 @@ type ServerlessRepository interface {
 	Leases() ServerlessLeaseRepository
 }
 
-// ServerlessUnit is one lease unit: the (tenant, shard) pair a process owns.
+// ServerlessUnit is one lease unit: the (tenant, partition) pair a process owns.
 type ServerlessUnit struct {
-	TenantId uuid.UUID
-	Shard    int32
+	TenantId  uuid.UUID
+	Partition int32
 }
 
 // ServerlessEndpointVersion is one endpoint's id and row version (the later of updated_at
@@ -40,16 +40,16 @@ type ServerlessEndpointVersion struct {
 
 type ServerlessEndpointRepository interface {
 	// Create inserts the endpoint and, in the same transaction, creates the tenant's row with
-	// opts.ShardCount if the tenant has none, creates the endpoint's lease unit if it is the
-	// first endpoint on that unit, and increments the unit's endpoint_count. The endpoint's
-	// shard is derived from its id and the tenant row's shard_count.
+	// opts.EndpointPartitionCount if the tenant has none, creates the endpoint's lease unit if it
+	// is the first endpoint on that unit, and increments the unit's endpoint_count. The endpoint's
+	// partition is derived from its id and the tenant row's endpoint_partition_count.
 	Create(ctx context.Context, tenantId uuid.UUID, opts CreateServerlessEndpointOpts) (*sqlcv1.V1ServerlessEndpoint, error)
 	Get(ctx context.Context, tenantId, endpointId uuid.UUID) (*sqlcv1.V1ServerlessEndpoint, error)
 	// GetById resolves an endpoint by id alone, for the API's resource populator, which sees
 	// the endpoint id before the tenant and checks the returned tenant against the caller's.
 	GetById(ctx context.Context, endpointId uuid.UUID) (*sqlcv1.V1ServerlessEndpoint, error)
 	List(ctx context.Context, tenantId uuid.UUID, opts ListServerlessEndpointsOpts) ([]*sqlcv1.V1ServerlessEndpoint, int64, error)
-	// Update changes configuration only; the shard is immutable.
+	// Update changes configuration only; the partition is immutable.
 	Update(ctx context.Context, tenantId, endpointId uuid.UUID, opts UpdateServerlessEndpointOpts) (*sqlcv1.V1ServerlessEndpoint, error)
 	// Delete marks the endpoint deleted and decrements its lease unit's endpoint_count in the
 	// same transaction. The row stays, versioned by the deletion, so every routing cache's
@@ -90,9 +90,9 @@ type ServerlessEndpointRepository interface {
 }
 
 type ServerlessTenantRepository interface {
-	// Upsert creates the tenant's row with shardCount if absent and returns the current row;
-	// an existing row keeps its shard_count.
-	Upsert(ctx context.Context, tenantId uuid.UUID, shardCount int32) (*sqlcv1.V1ServerlessTenant, error)
+	// Upsert creates the tenant's row with endpointPartitionCount if absent and returns the current
+	// row; an existing row keeps its endpoint_partition_count.
+	Upsert(ctx context.Context, tenantId uuid.UUID, endpointPartitionCount int32) (*sqlcv1.V1ServerlessTenant, error)
 	Get(ctx context.Context, tenantId uuid.UUID) (*sqlcv1.V1ServerlessTenant, error)
 }
 
@@ -112,7 +112,7 @@ type ServerlessProcessRepository interface {
 
 type ServerlessLeaseRepository interface {
 	// Claim takes up to limit units for processId, among the units of tenants entitled to the
-	// serverless operator: units with no owner, walked in (tenant, shard) order from after
+	// serverless operator: units with no owner, walked in (tenant, partition) order from after
 	// (exclusive; pass the zero unit to start from the beginning), then units owned by
 	// processes whose heartbeat row has expired. The statement decides
 	// liveness in its own snapshot and requires processId to be live itself, and uses
@@ -132,7 +132,7 @@ type ServerlessLeaseRepository interface {
 	// units. The claiming process sizes its fair share from it.
 	CountClaimable(ctx context.Context, limit int64) (*sqlcv1.CountClaimableServerlessLeasesRow, error)
 	// InsertIfAbsent creates the lease row of a unit. Endpoint creation does this itself; it is
-	// exposed for callers that add shards.
+	// exposed for callers that add partitions.
 	InsertIfAbsent(ctx context.Context, unit ServerlessUnit) error
 	// IncrementEndpointCount adjusts a unit's fair-share weight by delta.
 	IncrementEndpointCount(ctx context.Context, unit ServerlessUnit, delta int32) error
@@ -184,12 +184,12 @@ func (r *serverlessRepository) Leases() ServerlessLeaseRepository {
 // unitArrays splits units into the parallel arrays the unnest-based queries take.
 func unitArrays(units []ServerlessUnit) ([]uuid.UUID, []int32) {
 	tenantIds := make([]uuid.UUID, len(units))
-	shards := make([]int32, len(units))
+	partitions := make([]int32, len(units))
 
 	for i, u := range units {
 		tenantIds[i] = u.TenantId
-		shards[i] = u.Shard
+		partitions[i] = u.Partition
 	}
 
-	return tenantIds, shards
+	return tenantIds, partitions
 }

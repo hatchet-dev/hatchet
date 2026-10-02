@@ -14,25 +14,25 @@ import (
 
 const claimServerlessLeases = `-- name: ClaimServerlessLeases :many
 WITH unowned AS (
-    SELECT l.tenant_id, l.shard
+    SELECT l.tenant_id, l.endpoint_partition
     FROM v1_serverless_lease l
     WHERE
         l.process_id IS NULL
         AND l.endpoint_count > 0
-        AND (l.tenant_id, l.shard) > ($2::UUID, $3::INT)
+        AND (l.tenant_id, l.endpoint_partition) > ($2::UUID, $3::INT)
         AND EXISTS (
             SELECT 1
             FROM tenant_entitlement te
             WHERE te.tenant_id = l.tenant_id AND te.serverless_operator
         )
-    ORDER BY l.tenant_id, l.shard
+    ORDER BY l.tenant_id, l.endpoint_partition
     LIMIT $4::INT
     FOR UPDATE SKIP LOCKED
 ), abandoned AS (
-    SELECT a.tenant_id, a.shard
+    SELECT a.tenant_id, a.endpoint_partition
     FROM v1_serverless_process p
     CROSS JOIN LATERAL (
-        SELECT l.tenant_id, l.shard
+        SELECT l.tenant_id, l.endpoint_partition
         FROM v1_serverless_lease l
         WHERE
             l.process_id = p.process_id
@@ -42,16 +42,16 @@ WITH unowned AS (
                 FROM tenant_entitlement te
                 WHERE te.tenant_id = l.tenant_id AND te.serverless_operator
             )
-        ORDER BY l.tenant_id, l.shard
+        ORDER BY l.tenant_id, l.endpoint_partition
         LIMIT $4::INT
         FOR UPDATE SKIP LOCKED
     ) a
     WHERE p.expires_at < now()
     LIMIT $4::INT
 ), claimable AS (
-    SELECT tenant_id, shard FROM unowned
+    SELECT tenant_id, endpoint_partition FROM unowned
     UNION ALL
-    SELECT tenant_id, shard FROM abandoned
+    SELECT tenant_id, endpoint_partition FROM abandoned
     LIMIT $4::INT
 )
 UPDATE v1_serverless_lease l
@@ -59,33 +59,34 @@ SET process_id = $1::UUID, claimed_at = now()
 FROM claimable c
 WHERE
     l.tenant_id = c.tenant_id
-    AND l.shard = c.shard
+    AND l.endpoint_partition = c.endpoint_partition
     AND EXISTS (
         SELECT 1
         FROM v1_serverless_process me
         WHERE me.process_id = $1::UUID AND me.expires_at >= now()
     )
-RETURNING l.tenant_id, l.shard, l.endpoint_count
+RETURNING l.tenant_id, l.endpoint_partition, l.endpoint_count
 `
 
 type ClaimServerlessLeasesParams struct {
-	Processid     uuid.UUID `json:"processid"`
-	Aftertenantid uuid.UUID `json:"aftertenantid"`
-	Aftershard    int32     `json:"aftershard"`
-	Claimlimit    int32     `json:"claimlimit"`
+	Processid      uuid.UUID `json:"processid"`
+	Aftertenantid  uuid.UUID `json:"aftertenantid"`
+	Afterpartition int32     `json:"afterpartition"`
+	Claimlimit     int32     `json:"claimlimit"`
 }
 
 type ClaimServerlessLeasesRow struct {
-	TenantID      uuid.UUID `json:"tenant_id"`
-	Shard         int32     `json:"shard"`
-	EndpointCount int32     `json:"endpoint_count"`
+	TenantID          uuid.UUID `json:"tenant_id"`
+	EndpointPartition int32     `json:"endpoint_partition"`
+	EndpointCount     int32     `json:"endpoint_count"`
 }
 
 // Claims up to @claimLimit units for @processId. Only units with endpoints of a tenant entitled
-// to the serverless operator are claimable: an empty unit (shard growth, every endpoint
+// to the serverless operator are claimable: an empty unit (partition growth, every endpoint
 // deleted) has nothing to poll and is left unowned until an endpoint lands on it, and a
-// tenant whose entitlement is off is not served. Unowned units come first, walked in (tenant_id, shard) order
-// from @afterTenantId/@afterShard through v1_serverless_lease_claimable_idx (the caller starts
+// tenant whose entitlement is off is not served. Unowned units come first, walked in
+// (tenant_id, endpoint_partition) order from @afterTenantId/@afterPartition through
+// v1_serverless_lease_claimable_idx (the caller starts
 // at a random key and wraps around), then units of processes whose heartbeat row has expired,
 // walked per dead process through v1_serverless_lease_owner_idx. Neither walk sorts the
 // candidate population. Liveness is decided here, in the statement's own snapshot, never from
@@ -97,7 +98,7 @@ func (q *Queries) ClaimServerlessLeases(ctx context.Context, db DBTX, arg ClaimS
 	rows, err := db.Query(ctx, claimServerlessLeases,
 		arg.Processid,
 		arg.Aftertenantid,
-		arg.Aftershard,
+		arg.Afterpartition,
 		arg.Claimlimit,
 	)
 	if err != nil {
@@ -107,7 +108,7 @@ func (q *Queries) ClaimServerlessLeases(ctx context.Context, db DBTX, arg ClaimS
 	var items []*ClaimServerlessLeasesRow
 	for rows.Next() {
 		var i ClaimServerlessLeasesRow
-		if err := rows.Scan(&i.TenantID, &i.Shard, &i.EndpointCount); err != nil {
+		if err := rows.Scan(&i.TenantID, &i.EndpointPartition, &i.EndpointCount); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)
@@ -214,7 +215,7 @@ INSERT INTO v1_serverless_endpoint (
     inline_wait_budget_ms,
     labels,
     enabled,
-    shard
+    endpoint_partition
 ) VALUES (
     $1::UUID,
     $2::UUID,
@@ -230,30 +231,30 @@ INSERT INTO v1_serverless_endpoint (
     $12::BOOLEAN,
     (abs(hashtext(($1::UUID)::text)::bigint) % $13::INT)::INT
 )
-RETURNING id, tenant_id, name, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, shard, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at, stream_actions, deleted_at
+RETURNING id, tenant_id, name, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, endpoint_partition, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at, stream_actions, deleted_at
 `
 
 type CreateServerlessEndpointParams struct {
-	ID                    uuid.UUID                `json:"id"`
-	Tenantid              uuid.UUID                `json:"tenantid"`
-	Name                  string                   `json:"name"`
-	Kind                  V1ServerlessEndpointKind `json:"kind"`
-	Healthcheckurl        string                   `json:"healthcheckurl"`
-	Triggerurl            string                   `json:"triggerurl"`
-	Signingsecretenc      string                   `json:"signingsecretenc"`
-	Requesttimeoutseconds int32                    `json:"requesttimeoutseconds"`
-	Pollintervalseconds   int32                    `json:"pollintervalseconds"`
-	Inlinewaitbudgetms    int32                    `json:"inlinewaitbudgetms"`
-	Labels                []byte                   `json:"labels"`
-	Enabled               bool                     `json:"enabled"`
-	Shardcount            int32                    `json:"shardcount"`
+	ID                     uuid.UUID                `json:"id"`
+	Tenantid               uuid.UUID                `json:"tenantid"`
+	Name                   string                   `json:"name"`
+	Kind                   V1ServerlessEndpointKind `json:"kind"`
+	Healthcheckurl         string                   `json:"healthcheckurl"`
+	Triggerurl             string                   `json:"triggerurl"`
+	Signingsecretenc       string                   `json:"signingsecretenc"`
+	Requesttimeoutseconds  int32                    `json:"requesttimeoutseconds"`
+	Pollintervalseconds    int32                    `json:"pollintervalseconds"`
+	Inlinewaitbudgetms     int32                    `json:"inlinewaitbudgetms"`
+	Labels                 []byte                   `json:"labels"`
+	Enabled                bool                     `json:"enabled"`
+	Endpointpartitioncount int32                    `json:"endpointpartitioncount"`
 }
 
 // Serverless operator tables. Endpoints and tenants are written by the API server; processes and
 // leases by the serverless operator (out of process or in-engine). Steady-state writes are one
 // process heartbeat per process: lease rows are only written on ownership changes and endpoint
 // rows only on status transitions and workflow changes.
-// The shard is derived from the id so it is stable for the endpoint's lifetime. The cast to
+// The partition is derived from the id so it is stable for the endpoint's lifetime. The cast to
 // bigint before abs() avoids the integer overflow abs(-2147483648) would raise.
 func (q *Queries) CreateServerlessEndpoint(ctx context.Context, db DBTX, arg CreateServerlessEndpointParams) (*V1ServerlessEndpoint, error) {
 	row := db.QueryRow(ctx, createServerlessEndpoint,
@@ -269,7 +270,7 @@ func (q *Queries) CreateServerlessEndpoint(ctx context.Context, db DBTX, arg Cre
 		arg.Inlinewaitbudgetms,
 		arg.Labels,
 		arg.Enabled,
-		arg.Shardcount,
+		arg.Endpointpartitioncount,
 	)
 	var i V1ServerlessEndpoint
 	err := row.Scan(
@@ -285,7 +286,7 @@ func (q *Queries) CreateServerlessEndpoint(ctx context.Context, db DBTX, arg Cre
 		&i.InlineWaitBudgetMs,
 		&i.Labels,
 		&i.Enabled,
-		&i.Shard,
+		&i.EndpointPartition,
 		&i.Healthy,
 		&i.StatusError,
 		&i.StatusChangedAt,
@@ -339,7 +340,7 @@ WHERE
     tenant_id = $1::UUID
     AND id = $2::UUID
     AND deleted_at IS NULL
-RETURNING id, tenant_id, name, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, shard, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at, stream_actions, deleted_at
+RETURNING id, tenant_id, name, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, endpoint_partition, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at, stream_actions, deleted_at
 `
 
 type DeleteServerlessEndpointParams struct {
@@ -366,7 +367,7 @@ func (q *Queries) DeleteServerlessEndpoint(ctx context.Context, db DBTX, arg Del
 		&i.InlineWaitBudgetMs,
 		&i.Labels,
 		&i.Enabled,
-		&i.Shard,
+		&i.EndpointPartition,
 		&i.Healthy,
 		&i.StatusError,
 		&i.StatusChangedAt,
@@ -398,7 +399,7 @@ func (q *Queries) DeleteServerlessProcess(ctx context.Context, db DBTX, processi
 }
 
 const getServerlessEndpoint = `-- name: GetServerlessEndpoint :one
-SELECT id, tenant_id, name, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, shard, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at, stream_actions, deleted_at
+SELECT id, tenant_id, name, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, endpoint_partition, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at, stream_actions, deleted_at
 FROM v1_serverless_endpoint
 WHERE
     tenant_id = $1::UUID
@@ -427,7 +428,7 @@ func (q *Queries) GetServerlessEndpoint(ctx context.Context, db DBTX, arg GetSer
 		&i.InlineWaitBudgetMs,
 		&i.Labels,
 		&i.Enabled,
-		&i.Shard,
+		&i.EndpointPartition,
 		&i.Healthy,
 		&i.StatusError,
 		&i.StatusChangedAt,
@@ -441,7 +442,7 @@ func (q *Queries) GetServerlessEndpoint(ctx context.Context, db DBTX, arg GetSer
 }
 
 const getServerlessEndpointById = `-- name: GetServerlessEndpointById :one
-SELECT id, tenant_id, name, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, shard, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at, stream_actions, deleted_at
+SELECT id, tenant_id, name, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, endpoint_partition, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at, stream_actions, deleted_at
 FROM v1_serverless_endpoint
 WHERE
     id = $1::UUID
@@ -466,7 +467,7 @@ func (q *Queries) GetServerlessEndpointById(ctx context.Context, db DBTX, id uui
 		&i.InlineWaitBudgetMs,
 		&i.Labels,
 		&i.Enabled,
-		&i.Shard,
+		&i.EndpointPartition,
 		&i.Healthy,
 		&i.StatusError,
 		&i.StatusChangedAt,
@@ -480,7 +481,7 @@ func (q *Queries) GetServerlessEndpointById(ctx context.Context, db DBTX, id uui
 }
 
 const getServerlessTenant = `-- name: GetServerlessTenant :one
-SELECT tenant_id, shard_count
+SELECT tenant_id, endpoint_partition_count
 FROM v1_serverless_tenant
 WHERE tenant_id = $1::UUID
 `
@@ -488,7 +489,7 @@ WHERE tenant_id = $1::UUID
 func (q *Queries) GetServerlessTenant(ctx context.Context, db DBTX, tenantid uuid.UUID) (*V1ServerlessTenant, error) {
 	row := db.QueryRow(ctx, getServerlessTenant, tenantid)
 	var i V1ServerlessTenant
-	err := row.Scan(&i.TenantID, &i.ShardCount)
+	err := row.Scan(&i.TenantID, &i.EndpointPartitionCount)
 	return &i, err
 }
 
@@ -497,41 +498,41 @@ UPDATE v1_serverless_lease
 SET endpoint_count = endpoint_count + $1::INT
 WHERE
     tenant_id = $2::UUID
-    AND shard = $3::INT
+    AND endpoint_partition = $3::INT
 `
 
 type IncrementServerlessLeaseEndpointCountParams struct {
-	Delta    int32     `json:"delta"`
-	Tenantid uuid.UUID `json:"tenantid"`
-	Shard    int32     `json:"shard"`
+	Delta     int32     `json:"delta"`
+	Tenantid  uuid.UUID `json:"tenantid"`
+	Partition int32     `json:"partition"`
 }
 
 func (q *Queries) IncrementServerlessLeaseEndpointCount(ctx context.Context, db DBTX, arg IncrementServerlessLeaseEndpointCountParams) error {
-	_, err := db.Exec(ctx, incrementServerlessLeaseEndpointCount, arg.Delta, arg.Tenantid, arg.Shard)
+	_, err := db.Exec(ctx, incrementServerlessLeaseEndpointCount, arg.Delta, arg.Tenantid, arg.Partition)
 	return err
 }
 
 const insertServerlessLeaseIfAbsent = `-- name: InsertServerlessLeaseIfAbsent :exec
-INSERT INTO v1_serverless_lease (tenant_id, shard)
+INSERT INTO v1_serverless_lease (tenant_id, endpoint_partition)
 VALUES ($1::UUID, $2::INT)
-ON CONFLICT (tenant_id, shard) DO NOTHING
+ON CONFLICT (tenant_id, endpoint_partition) DO NOTHING
 `
 
 type InsertServerlessLeaseIfAbsentParams struct {
-	Tenantid uuid.UUID `json:"tenantid"`
-	Shard    int32     `json:"shard"`
+	Tenantid  uuid.UUID `json:"tenantid"`
+	Partition int32     `json:"partition"`
 }
 
 func (q *Queries) InsertServerlessLeaseIfAbsent(ctx context.Context, db DBTX, arg InsertServerlessLeaseIfAbsentParams) error {
-	_, err := db.Exec(ctx, insertServerlessLeaseIfAbsent, arg.Tenantid, arg.Shard)
+	_, err := db.Exec(ctx, insertServerlessLeaseIfAbsent, arg.Tenantid, arg.Partition)
 	return err
 }
 
 const listOwnedServerlessLeases = `-- name: ListOwnedServerlessLeases :many
-SELECT tenant_id, shard, process_id, claimed_at, endpoint_count
+SELECT tenant_id, endpoint_partition, process_id, claimed_at, endpoint_count
 FROM v1_serverless_lease
 WHERE process_id = $1::UUID
-ORDER BY tenant_id, shard
+ORDER BY tenant_id, endpoint_partition
 `
 
 func (q *Queries) ListOwnedServerlessLeases(ctx context.Context, db DBTX, processid uuid.UUID) ([]*V1ServerlessLease, error) {
@@ -545,7 +546,7 @@ func (q *Queries) ListOwnedServerlessLeases(ctx context.Context, db DBTX, proces
 		var i V1ServerlessLease
 		if err := rows.Scan(
 			&i.TenantID,
-			&i.Shard,
+			&i.EndpointPartition,
 			&i.ProcessID,
 			&i.ClaimedAt,
 			&i.EndpointCount,
@@ -617,7 +618,7 @@ func (q *Queries) ListServerlessEndpointVersions(ctx context.Context, db DBTX, a
 }
 
 const listServerlessEndpoints = `-- name: ListServerlessEndpoints :many
-SELECT id, tenant_id, name, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, shard, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at, stream_actions, deleted_at
+SELECT id, tenant_id, name, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, endpoint_partition, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at, stream_actions, deleted_at
 FROM v1_serverless_endpoint
 WHERE
     tenant_id = $1::UUID
@@ -655,7 +656,7 @@ func (q *Queries) ListServerlessEndpoints(ctx context.Context, db DBTX, arg List
 			&i.InlineWaitBudgetMs,
 			&i.Labels,
 			&i.Enabled,
-			&i.Shard,
+			&i.EndpointPartition,
 			&i.Healthy,
 			&i.StatusError,
 			&i.StatusChangedAt,
@@ -676,7 +677,7 @@ func (q *Queries) ListServerlessEndpoints(ctx context.Context, db DBTX, arg List
 }
 
 const listServerlessEndpointsByIds = `-- name: ListServerlessEndpointsByIds :many
-SELECT id, tenant_id, name, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, shard, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at, stream_actions, deleted_at
+SELECT id, tenant_id, name, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, endpoint_partition, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at, stream_actions, deleted_at
 FROM v1_serverless_endpoint
 WHERE
     id = ANY($1::UUID[])
@@ -706,7 +707,7 @@ func (q *Queries) ListServerlessEndpointsByIds(ctx context.Context, db DBTX, ids
 			&i.InlineWaitBudgetMs,
 			&i.Labels,
 			&i.Enabled,
-			&i.Shard,
+			&i.EndpointPartition,
 			&i.Healthy,
 			&i.StatusError,
 			&i.StatusChangedAt,
@@ -727,7 +728,7 @@ func (q *Queries) ListServerlessEndpointsByIds(ctx context.Context, db DBTX, ids
 }
 
 const listServerlessEndpointsForTenant = `-- name: ListServerlessEndpointsForTenant :many
-SELECT id, tenant_id, name, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, shard, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at, stream_actions, deleted_at
+SELECT id, tenant_id, name, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, endpoint_partition, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at, stream_actions, deleted_at
 FROM v1_serverless_endpoint
 WHERE
     tenant_id = $1::UUID
@@ -769,7 +770,7 @@ func (q *Queries) ListServerlessEndpointsForTenant(ctx context.Context, db DBTX,
 			&i.InlineWaitBudgetMs,
 			&i.Labels,
 			&i.Enabled,
-			&i.Shard,
+			&i.EndpointPartition,
 			&i.Healthy,
 			&i.StatusError,
 			&i.StatusChangedAt,
@@ -790,14 +791,14 @@ func (q *Queries) ListServerlessEndpointsForTenant(ctx context.Context, db DBTX,
 }
 
 const listServerlessEndpointsForUnits = `-- name: ListServerlessEndpointsForUnits :many
-SELECT e.id, e.tenant_id, e.name, e.kind, e.healthcheck_url, e.trigger_url, e.signing_secret_enc, e.request_timeout_seconds, e.poll_interval_seconds, e.inline_wait_budget_ms, e.labels, e.enabled, e.shard, e.healthy, e.status_error, e.status_changed_at, e.registered_actions, e.created_at, e.updated_at, e.stream_actions, e.deleted_at
+SELECT e.id, e.tenant_id, e.name, e.kind, e.healthcheck_url, e.trigger_url, e.signing_secret_enc, e.request_timeout_seconds, e.poll_interval_seconds, e.inline_wait_budget_ms, e.labels, e.enabled, e.endpoint_partition, e.healthy, e.status_error, e.status_changed_at, e.registered_actions, e.created_at, e.updated_at, e.stream_actions, e.deleted_at
 FROM v1_serverless_endpoint e
 JOIN (
-    -- parallel unnest zips the two arrays into (tenant_id, shard) pairs
+    -- parallel unnest zips the two arrays into (tenant_id, endpoint_partition) pairs
     SELECT
         unnest($1::UUID[]) AS tenant_id,
-        unnest($2::INT[]) AS shard
-) AS u ON e.tenant_id = u.tenant_id AND e.shard = u.shard
+        unnest($2::INT[]) AS endpoint_partition
+) AS u ON e.tenant_id = u.tenant_id AND e.endpoint_partition = u.endpoint_partition
 WHERE
     e.id > $3::UUID
     AND e.deleted_at IS NULL
@@ -807,18 +808,18 @@ LIMIT $4::BIGINT
 
 type ListServerlessEndpointsForUnitsParams struct {
 	Tenantids     []uuid.UUID `json:"tenantids"`
-	Shards        []int32     `json:"shards"`
+	Partitions    []int32     `json:"partitions"`
 	Afterid       uuid.UUID   `json:"afterid"`
 	Endpointlimit int64       `json:"endpointlimit"`
 }
 
-// Endpoints of the given (tenant, shard) units, keyset-paged by id through
-// v1_serverless_endpoint_unit_idx. tenantIds and shards are parallel arrays paired with unnest;
+// Endpoints of the given (tenant, partition) units, keyset-paged by id through
+// v1_serverless_endpoint_unit_idx. tenantIds and partitions are parallel arrays paired with unnest;
 // pass afterId = '00000000-0000-0000-0000-000000000000' for the first page.
 func (q *Queries) ListServerlessEndpointsForUnits(ctx context.Context, db DBTX, arg ListServerlessEndpointsForUnitsParams) ([]*V1ServerlessEndpoint, error) {
 	rows, err := db.Query(ctx, listServerlessEndpointsForUnits,
 		arg.Tenantids,
-		arg.Shards,
+		arg.Partitions,
 		arg.Afterid,
 		arg.Endpointlimit,
 	)
@@ -842,7 +843,7 @@ func (q *Queries) ListServerlessEndpointsForUnits(ctx context.Context, db DBTX, 
 			&i.InlineWaitBudgetMs,
 			&i.Labels,
 			&i.Enabled,
-			&i.Shard,
+			&i.EndpointPartition,
 			&i.Healthy,
 			&i.StatusError,
 			&i.StatusChangedAt,
@@ -863,7 +864,7 @@ func (q *Queries) ListServerlessEndpointsForUnits(ctx context.Context, db DBTX, 
 }
 
 const listServerlessEndpointsUpdatedSince = `-- name: ListServerlessEndpointsUpdatedSince :many
-SELECT id, tenant_id, name, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, shard, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at, stream_actions, deleted_at
+SELECT id, tenant_id, name, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, endpoint_partition, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at, stream_actions, deleted_at
 FROM v1_serverless_endpoint
 WHERE
     tenant_id = $1::UUID
@@ -904,7 +905,7 @@ func (q *Queries) ListServerlessEndpointsUpdatedSince(ctx context.Context, db DB
 			&i.InlineWaitBudgetMs,
 			&i.Labels,
 			&i.Enabled,
-			&i.Shard,
+			&i.EndpointPartition,
 			&i.Healthy,
 			&i.StatusError,
 			&i.StatusChangedAt,
@@ -1007,13 +1008,13 @@ WHERE
         FROM tenant_entitlement te
         WHERE te.tenant_id = l.tenant_id AND te.serverless_operator
     )
-RETURNING l.tenant_id, l.shard, l.endpoint_count
+RETURNING l.tenant_id, l.endpoint_partition, l.endpoint_count
 `
 
 type ReleaseUnentitledServerlessLeasesRow struct {
-	TenantID      uuid.UUID `json:"tenant_id"`
-	Shard         int32     `json:"shard"`
-	EndpointCount int32     `json:"endpoint_count"`
+	TenantID          uuid.UUID `json:"tenant_id"`
+	EndpointPartition int32     `json:"endpoint_partition"`
+	EndpointCount     int32     `json:"endpoint_count"`
 }
 
 // Releases the units @processId holds whose tenant is not entitled to the serverless operator,
@@ -1028,7 +1029,7 @@ func (q *Queries) ReleaseUnentitledServerlessLeases(ctx context.Context, db DBTX
 	var items []*ReleaseUnentitledServerlessLeasesRow
 	for rows.Next() {
 		var i ReleaseUnentitledServerlessLeasesRow
-		if err := rows.Scan(&i.TenantID, &i.Shard, &i.EndpointCount); err != nil {
+		if err := rows.Scan(&i.TenantID, &i.EndpointPartition, &i.EndpointCount); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)
@@ -1045,31 +1046,31 @@ SET process_id = NULL, claimed_at = NULL
 FROM (
     SELECT
         unnest($2::UUID[]) AS tenant_id,
-        unnest($3::INT[]) AS shard
+        unnest($3::INT[]) AS endpoint_partition
 ) AS u
 WHERE
     l.tenant_id = u.tenant_id
-    AND l.shard = u.shard
+    AND l.endpoint_partition = u.endpoint_partition
     AND l.process_id = $1::UUID
-RETURNING l.tenant_id, l.shard, l.endpoint_count
+RETURNING l.tenant_id, l.endpoint_partition, l.endpoint_count
 `
 
 type ShedServerlessLeasesParams struct {
-	Processid uuid.UUID   `json:"processid"`
-	Tenantids []uuid.UUID `json:"tenantids"`
-	Shards    []int32     `json:"shards"`
+	Processid  uuid.UUID   `json:"processid"`
+	Tenantids  []uuid.UUID `json:"tenantids"`
+	Partitions []int32     `json:"partitions"`
 }
 
 type ShedServerlessLeasesRow struct {
-	TenantID      uuid.UUID `json:"tenant_id"`
-	Shard         int32     `json:"shard"`
-	EndpointCount int32     `json:"endpoint_count"`
+	TenantID          uuid.UUID `json:"tenant_id"`
+	EndpointPartition int32     `json:"endpoint_partition"`
+	EndpointCount     int32     `json:"endpoint_count"`
 }
 
 // Releases the given units. Guarded by process_id so a process that lost a unit to a takeover
 // (after being declared dead) cannot release the new owner's lease.
 func (q *Queries) ShedServerlessLeases(ctx context.Context, db DBTX, arg ShedServerlessLeasesParams) ([]*ShedServerlessLeasesRow, error) {
-	rows, err := db.Query(ctx, shedServerlessLeases, arg.Processid, arg.Tenantids, arg.Shards)
+	rows, err := db.Query(ctx, shedServerlessLeases, arg.Processid, arg.Tenantids, arg.Partitions)
 	if err != nil {
 		return nil, err
 	}
@@ -1077,7 +1078,7 @@ func (q *Queries) ShedServerlessLeases(ctx context.Context, db DBTX, arg ShedSer
 	var items []*ShedServerlessLeasesRow
 	for rows.Next() {
 		var i ShedServerlessLeasesRow
-		if err := rows.Scan(&i.TenantID, &i.Shard, &i.EndpointCount); err != nil {
+		if err := rows.Scan(&i.TenantID, &i.EndpointPartition, &i.EndpointCount); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)
@@ -1106,7 +1107,7 @@ WHERE
     tenant_id = $11::UUID
     AND id = $12::UUID
     AND deleted_at IS NULL
-RETURNING id, tenant_id, name, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, shard, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at, stream_actions, deleted_at
+RETURNING id, tenant_id, name, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, endpoint_partition, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at, stream_actions, deleted_at
 `
 
 type UpdateServerlessEndpointParams struct {
@@ -1124,7 +1125,7 @@ type UpdateServerlessEndpointParams struct {
 	ID                    uuid.UUID                    `json:"id"`
 }
 
-// The shard is never updatable: it decides which lease unit owns the endpoint.
+// The partition is never updatable: it decides which lease unit owns the endpoint.
 func (q *Queries) UpdateServerlessEndpoint(ctx context.Context, db DBTX, arg UpdateServerlessEndpointParams) (*V1ServerlessEndpoint, error) {
 	row := db.QueryRow(ctx, updateServerlessEndpoint,
 		arg.Name,
@@ -1154,7 +1155,7 @@ func (q *Queries) UpdateServerlessEndpoint(ctx context.Context, db DBTX, arg Upd
 		&i.InlineWaitBudgetMs,
 		&i.Labels,
 		&i.Enabled,
-		&i.Shard,
+		&i.EndpointPartition,
 		&i.Healthy,
 		&i.StatusError,
 		&i.StatusChangedAt,
@@ -1255,25 +1256,25 @@ func (q *Queries) UpsertServerlessProcess(ctx context.Context, db DBTX, arg Upse
 }
 
 const upsertServerlessTenant = `-- name: UpsertServerlessTenant :one
-INSERT INTO v1_serverless_tenant (tenant_id, shard_count)
+INSERT INTO v1_serverless_tenant (tenant_id, endpoint_partition_count)
 VALUES ($1::UUID, $2::INT)
 ON CONFLICT (tenant_id) DO UPDATE
 SET tenant_id = EXCLUDED.tenant_id
-RETURNING tenant_id, shard_count
+RETURNING tenant_id, endpoint_partition_count
 `
 
 type UpsertServerlessTenantParams struct {
-	Tenantid   uuid.UUID `json:"tenantid"`
-	Shardcount int32     `json:"shardcount"`
+	Tenantid               uuid.UUID `json:"tenantid"`
+	Endpointpartitioncount int32     `json:"endpointpartitioncount"`
 }
 
-// Creates the tenant's serverless row with the configured shard_count if it does not exist and
-// returns the current row either way: an existing row keeps its shard_count, so the configured
-// value applies only to tenants first seen after it was set. The no-op update makes RETURNING
-// work on conflict.
+// Creates the tenant's serverless row with the configured endpoint_partition_count if it does not
+// exist and returns the current row either way: an existing row keeps its endpoint_partition_count,
+// so the configured value applies only to tenants first seen after it was set. The no-op update
+// makes RETURNING work on conflict.
 func (q *Queries) UpsertServerlessTenant(ctx context.Context, db DBTX, arg UpsertServerlessTenantParams) (*V1ServerlessTenant, error) {
-	row := db.QueryRow(ctx, upsertServerlessTenant, arg.Tenantid, arg.Shardcount)
+	row := db.QueryRow(ctx, upsertServerlessTenant, arg.Tenantid, arg.Endpointpartitioncount)
 	var i V1ServerlessTenant
-	err := row.Scan(&i.TenantID, &i.ShardCount)
+	err := row.Scan(&i.TenantID, &i.EndpointPartitionCount)
 	return &i, err
 }

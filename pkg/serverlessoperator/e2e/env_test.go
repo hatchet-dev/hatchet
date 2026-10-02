@@ -267,7 +267,7 @@ func uniqueName(prefix string) string {
 	return fmt.Sprintf("%s-%s", prefix, uuid.New().String()[:8])
 }
 
-// pinLease writes the lease row of (tenant, shard) with process_id = owner. Call it before the
+// pinLease writes the lease row of (tenant, partition) with process_id = owner. Call it before the
 // tenant's endpoints exist: endpoint creation only inserts the row when absent, and the leaser
 // only claims unowned or dead-process units, so a row pinned to a live process stays with it.
 // The owner discovers the unit on its next rebalance tick (ListOwned) and opens its
@@ -275,27 +275,27 @@ func uniqueName(prefix string) string {
 // only when its weight fits within the owner's excess over fair share, and with one weighted
 // unit the excess is always below that weight. This is how the scenarios decide which host
 // serves a tenant.
-func (e *testEnv) pinLease(tenantId uuid.UUID, shard int32, owner uuid.UUID) {
+func (e *testEnv) pinLease(tenantId uuid.UUID, partition int32, owner uuid.UUID) {
 	e.t.Helper()
 
 	_, err := e.pool.Exec(e.ctx, `
-		INSERT INTO v1_serverless_lease (tenant_id, shard, process_id, claimed_at)
+		INSERT INTO v1_serverless_lease (tenant_id, endpoint_partition, process_id, claimed_at)
 		VALUES ($1, $2, $3, now())
-		ON CONFLICT (tenant_id, shard) DO UPDATE
+		ON CONFLICT (tenant_id, endpoint_partition) DO UPDATE
 		SET process_id = EXCLUDED.process_id, claimed_at = now()`,
-		tenantId, shard, owner,
+		tenantId, partition, owner,
 	)
 	require.NoError(e.t, err)
 }
 
-func (e *testEnv) leaseOwner(tenantId uuid.UUID, shard int32) *uuid.UUID {
+func (e *testEnv) leaseOwner(tenantId uuid.UUID, partition int32) *uuid.UUID {
 	e.t.Helper()
 
 	var owner *uuid.UUID
 
 	err := e.pool.QueryRow(e.ctx,
-		`SELECT process_id FROM v1_serverless_lease WHERE tenant_id = $1 AND shard = $2`,
-		tenantId, shard,
+		`SELECT process_id FROM v1_serverless_lease WHERE tenant_id = $1 AND endpoint_partition = $2`,
+		tenantId, partition,
 	).Scan(&owner)
 	require.NoError(e.t, err)
 
@@ -305,7 +305,7 @@ func (e *testEnv) leaseOwner(tenantId uuid.UUID, shard int32) *uuid.UUID {
 // ownedUnit is one lease row as seen by the tests.
 type ownedUnit struct {
 	tenantId      uuid.UUID
-	shard         int32
+	partition     int32
 	endpointCount int32
 }
 
@@ -313,7 +313,7 @@ func (e *testEnv) unitsOwnedBy(processId uuid.UUID) []ownedUnit {
 	e.t.Helper()
 
 	rows, err := e.pool.Query(e.ctx,
-		`SELECT tenant_id, shard, endpoint_count FROM v1_serverless_lease WHERE process_id = $1 ORDER BY tenant_id, shard`,
+		`SELECT tenant_id, endpoint_partition, endpoint_count FROM v1_serverless_lease WHERE process_id = $1 ORDER BY tenant_id, endpoint_partition`,
 		processId,
 	)
 	require.NoError(e.t, err)
@@ -324,7 +324,7 @@ func (e *testEnv) unitsOwnedBy(processId uuid.UUID) []ownedUnit {
 
 	for rows.Next() {
 		var u ownedUnit
-		require.NoError(e.t, rows.Scan(&u.tenantId, &u.shard, &u.endpointCount))
+		require.NoError(e.t, rows.Scan(&u.tenantId, &u.partition, &u.endpointCount))
 		out = append(out, u)
 	}
 

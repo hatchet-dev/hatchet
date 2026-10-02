@@ -1,4 +1,4 @@
-// Package serverlessoperator is the serverless operator core: it owns (tenant, shard) lease
+// Package serverlessoperator is the serverless operator core: it owns (tenant, partition) lease
 // units, polls their endpoints' healthchecks, registers their workflows with the engine and
 // delivers assigned tasks to the endpoints over signed HTTP or, for durable tasks, over a
 // websocket relay.
@@ -67,7 +67,7 @@ func (d Deps) validate() error {
 		return errors.New("serverless operator: process id is required")
 	}
 
-	return ValidateShardCount(d.Config.ShardCount)
+	return ValidateEndpointPartitionCount(d.Config.EndpointPartitionCount)
 }
 
 // shutdownGrace is added to DrainTimeout to bound the whole shutdown sequence.

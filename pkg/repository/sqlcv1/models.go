@@ -3847,7 +3847,7 @@ type V1ServerlessEndpoint struct {
 	InlineWaitBudgetMs    int32                    `json:"inline_wait_budget_ms"`
 	Labels                []byte                   `json:"labels"`
 	Enabled               bool                     `json:"enabled"`
-	Shard                 int32                    `json:"shard"`
+	EndpointPartition     int32                    `json:"endpoint_partition"`
 	Healthy               pgtype.Bool              `json:"healthy"`
 	StatusError           pgtype.Text              `json:"status_error"`
 	StatusChangedAt       pgtype.Timestamptz       `json:"status_changed_at"`
@@ -3859,11 +3859,11 @@ type V1ServerlessEndpoint struct {
 }
 
 type V1ServerlessLease struct {
-	TenantID      uuid.UUID          `json:"tenant_id"`
-	Shard         int32              `json:"shard"`
-	ProcessID     *uuid.UUID         `json:"process_id"`
-	ClaimedAt     pgtype.Timestamptz `json:"claimed_at"`
-	EndpointCount int32              `json:"endpoint_count"`
+	TenantID          uuid.UUID          `json:"tenant_id"`
+	EndpointPartition int32              `json:"endpoint_partition"`
+	ProcessID         *uuid.UUID         `json:"process_id"`
+	ClaimedAt         pgtype.Timestamptz `json:"claimed_at"`
+	EndpointCount     int32              `json:"endpoint_count"`
 }
 
 type V1ServerlessProcess struct {
@@ -3877,8 +3877,8 @@ type V1ServerlessProcess struct {
 }
 
 type V1ServerlessTenant struct {
-	TenantID   uuid.UUID `json:"tenant_id"`
-	ShardCount int32     `json:"shard_count"`
+	TenantID               uuid.UUID `json:"tenant_id"`
+	EndpointPartitionCount int32     `json:"endpoint_partition_count"`
 }
 
 type V1StatusesOlap struct {

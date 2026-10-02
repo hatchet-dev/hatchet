@@ -31,7 +31,7 @@ func testServerlessEndpoint() *sqlcv1.V1ServerlessEndpoint {
 		InlineWaitBudgetMs:    5000,
 		Labels:                []byte(`{"region":"us-east-1","tier":2}`),
 		Enabled:               true,
-		Shard:                 3,
+		EndpointPartition:     3,
 		CreatedAt:             pgtype.Timestamptz{Time: now, Valid: true},
 		UpdatedAt:             pgtype.Timestamptz{Time: now, Valid: true},
 	}
@@ -45,7 +45,7 @@ func TestToV1ServerlessEndpointNeverExposesSecret(t *testing.T) {
 
 	assert.NotContains(t, string(encoded), testSigningSecretEnc)
 	assert.NotContains(t, string(encoded), "signingSecret")
-	assert.NotContains(t, string(encoded), "shard")
+	assert.NotContains(t, string(encoded), "partition")
 }
 
 func TestToV1ServerlessEndpointMapsConfiguration(t *testing.T) {

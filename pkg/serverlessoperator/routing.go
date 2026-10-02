@@ -198,11 +198,11 @@ func (cfg *endpointConfig) streams(actionId string) bool {
 // swapped under the cache lock. seenGen is the reconcile generation that last listed the
 // endpoint; only Reconcile, which runs one at a time per tenant, reads or writes it.
 type cachedEndpoint struct {
-	cfg      *endpointConfig
-	id       uuid.UUID
-	tenantId uuid.UUID
-	seenGen  uint64
-	shard    int32
+	cfg       *endpointConfig
+	id        uuid.UUID
+	tenantId  uuid.UUID
+	seenGen   uint64
+	partition int32
 }
 
 // routable reports whether a delivery may go to the endpoint: it is enabled and its last
@@ -618,9 +618,9 @@ func (c *routingCache) upsertLocked(b *batch, row *sqlcv1.V1ServerlessEndpoint) 
 
 	if !ok {
 		ep = &cachedEndpoint{
-			id:       row.ID,
-			tenantId: row.TenantID,
-			shard:    row.Shard,
+			id:        row.ID,
+			tenantId:  row.TenantID,
+			partition: row.EndpointPartition,
 		}
 
 		c.byId[row.ID] = ep
@@ -850,15 +850,15 @@ func sortedKeys(set map[string]struct{}) []string {
 	return out
 }
 
-// endpointsOnShards snapshots the endpoints on the given shards, in no particular order.
-func (c *routingCache) endpointsOnShards(shards map[int32]struct{}) []*cachedEndpoint {
+// endpointsOnPartitions snapshots the endpoints on the given partitions, in no particular order.
+func (c *routingCache) endpointsOnPartitions(partitions map[int32]struct{}) []*cachedEndpoint {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
 	out := make([]*cachedEndpoint, 0)
 
 	for _, ep := range c.byId {
-		if _, ok := shards[ep.shard]; ok {
+		if _, ok := partitions[ep.partition]; ok {
 			out = append(out, ep)
 		}
 	}

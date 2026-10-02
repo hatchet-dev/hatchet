@@ -11,7 +11,7 @@ import (
 )
 
 // ToV1ServerlessEndpoint transforms a stored endpoint into its API representation. The
-// encrypted signing secret and the internal shard assignment are intentionally left out.
+// encrypted signing secret and the internal partition assignment are intentionally left out.
 func ToV1ServerlessEndpoint(endpoint *sqlcv1.V1ServerlessEndpoint) gen.V1ServerlessEndpoint {
 	labels := map[string]interface{}{}
 
