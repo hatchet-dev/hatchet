@@ -3,6 +3,7 @@ V1ServerlessEndpointListCreate:
     x-resources: ["tenant"]
     description: Lists the serverless endpoints of a tenant.
     operationId: v1-serverless-endpoint:list
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -53,6 +54,7 @@ V1ServerlessEndpointListCreate:
     x-resources: ["tenant"]
     description: Create a serverless endpoint
     operationId: v1-serverless-endpoint:create
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -104,6 +106,7 @@ V1ServerlessEndpointGetUpdateDelete:
     x-resources: ["tenant", "v1-serverless-endpoint"]
     description: Get a serverless endpoint by its id
     operationId: v1-serverless-endpoint:get
+    x-payloads: false
     parameters:
       - description: The serverless endpoint id
         in: path
@@ -146,6 +149,7 @@ V1ServerlessEndpointGetUpdateDelete:
     x-resources: ["tenant", "v1-serverless-endpoint"]
     description: Update a serverless endpoint
     operationId: v1-serverless-endpoint:update
+    x-payloads: false
     parameters:
       - description: The id of the serverless endpoint to update
         in: path
@@ -195,6 +199,7 @@ V1ServerlessEndpointGetUpdateDelete:
     x-resources: ["tenant", "v1-serverless-endpoint"]
     description: Delete a serverless endpoint
     operationId: v1-serverless-endpoint:delete
+    x-payloads: false
     parameters:
       - description: The id of the serverless endpoint to delete
         in: path
