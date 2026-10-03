@@ -3,10 +3,9 @@ package tui
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
-	"github.com/charmbracelet/bubbles/key"
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
 	"github.com/google/uuid"
 
@@ -67,26 +66,54 @@ func (f *RunsListFilters) GetActiveStatuses() []rest.V1TaskStatus {
 	return statuses
 }
 
-// customFilterKeyMap creates a custom keymap where down arrow exits filter mode
-func customFilterKeyMap() *huh.KeyMap {
-	km := huh.NewDefaultKeyMap()
-	// Change SetFilter from "enter/esc" to "down" - this exits filter mode
-	km.MultiSelect.SetFilter = key.NewBinding(
-		key.WithKeys("down"),
-		key.WithHelp("↓", "exit filter"),
-		key.WithDisabled(),
-	)
-	return km
-}
-
 // BuildRunsListFiltersForm builds a huh.Form for editing filters
 // This form is meant to be embedded directly in the main tea.Program
 // Returns the form and a pointer to the status slice that will be modified
-func BuildRunsListFiltersForm(filters *RunsListFilters, workflows []WorkflowOption) (*huh.Form, *[]rest.V1TaskStatus) {
-	// Build workflow options
-	workflowOptions := []huh.Option[string]{}
+// The workflow list is searched server-side as the user types, like the
+// frontend does, instead of loading every workflow up front.
+func BuildRunsListFiltersForm(filters *RunsListFilters, workflows []WorkflowOption, client rest.ClientWithResponsesInterface, tenantID string) (*huh.Form, *[]rest.V1TaskStatus) {
+	search := ""
+
+	// Names for workflow IDs we've seen, so selected workflows keep their
+	// label even when the current search doesn't return them
+	var namesMu sync.Mutex
+	knownNames := map[string]string{}
 	for _, wf := range workflows {
-		workflowOptions = append(workflowOptions, huh.NewOption(wf.DisplayName, wf.ID))
+		knownNames[wf.ID] = wf.DisplayName
+	}
+
+	workflowOptions := func() []huh.Option[string] {
+		rows := []rest.Workflow{}
+		if tenantUUID, err := uuid.Parse(tenantID); err == nil {
+			if fetched, err := SearchWorkflows(context.Background(), client, tenantUUID, search); err == nil {
+				rows = fetched
+			}
+		}
+
+		namesMu.Lock()
+		defer namesMu.Unlock()
+		for _, wf := range rows {
+			knownNames[wf.Metadata.Id] = wf.Name
+		}
+
+		// Selected workflows always stay in the list, otherwise huh drops
+		// them from the value when a search narrows the options
+		options := []huh.Option[string]{}
+		seen := map[string]bool{}
+		for _, id := range filters.WorkflowIDs {
+			seen[id] = true
+			name := knownNames[id]
+			if name == "" {
+				name = id
+			}
+			options = append(options, huh.NewOption(name, id))
+		}
+		for _, wf := range rows {
+			if !seen[wf.Metadata.Id] {
+				options = append(options, huh.NewOption(wf.Name, wf.Metadata.Id))
+			}
+		}
+		return options
 	}
 
 	// Build time window options
@@ -101,15 +128,19 @@ func BuildRunsListFiltersForm(filters *RunsListFilters, workflows []WorkflowOpti
 	statusSlice := currentFiltersToSlice(filters)
 
 	form := huh.NewForm(
-		// Workflow multiselect - separate group
+		// Workflow search + multiselect - separate group
 		huh.NewGroup(
-			huh.NewMultiSelect[string]().
+			huh.NewInput().
 				Title("Workflows").
-				Description("x/space to toggle | / to filter, ↓ to exit filter | Enter to confirm").
-				Options(workflowOptions...).
+				Description("Type to search all workflows | Enter/Tab for list").
+				Placeholder("Search workflows...").
+				Value(&search),
+			huh.NewMultiSelect[string]().
+				Description("x/space to toggle | Enter to confirm").
+				OptionsFunc(workflowOptions, &search).
 				Value(&filters.WorkflowIDs).
-				Filterable(true). // Enable search with /
-				Height(10),       // Limit visible options
+				Filterable(false).
+				Height(10), // Limit visible options
 		),
 
 		// Time window selector - separate group
@@ -137,252 +168,10 @@ func BuildRunsListFiltersForm(filters *RunsListFilters, workflows []WorkflowOpti
 				Filterable(false),
 		),
 	).WithTheme(styles.HatchetTheme()).
-		WithKeyMap(customFilterKeyMap()).
 		WithShowHelp(false).
 		WithShowErrors(false)
 
 	return form, statusSlice
-}
-
-// RunFiltersFormProgram runs the filters form in a separate tea.Program
-// This ensures it takes full control of the terminal without interference
-func RunFiltersFormProgram(currentFilters *RunsListFilters, workflows []WorkflowOption) (*RunsListFilters, error) {
-	model := &filterFormModel{
-		currentFilters: currentFilters,
-		workflows:      workflows,
-		done:           false,
-	}
-
-	// Create a new program with input options to ensure it captures all input
-	p := tea.NewProgram(
-		model,
-		tea.WithFilter(func(m tea.Model, msg tea.Msg) tea.Msg {
-			// Only allow the filter form to receive messages
-			return msg
-		}),
-	)
-
-	finalModel, err := p.Run()
-	if err != nil {
-		return currentFilters, err
-	}
-
-	result := finalModel.(*filterFormModel)
-	if result.cancelled {
-		return currentFilters, fmt.Errorf("cancelled")
-	}
-
-	return result.newFilters, nil
-}
-
-// filterFormModel wraps the huh form to run in a tea.Program
-type filterFormModel struct {
-	form           *huh.Form
-	currentFilters *RunsListFilters
-	newFilters     *RunsListFilters
-	workflows      []WorkflowOption
-	done           bool
-	cancelled      bool
-}
-
-func (m *filterFormModel) Init() tea.Cmd {
-	// Build the form
-	newFilters := &RunsListFilters{
-		WorkflowIDs: append([]string{}, m.currentFilters.WorkflowIDs...),
-		Statuses:    make(map[rest.V1TaskStatus]bool),
-		TimeWindow:  m.currentFilters.TimeWindow,
-		Since:       m.currentFilters.Since,
-		Until:       m.currentFilters.Until,
-	}
-
-	// Copy status map
-	for k, v := range m.currentFilters.Statuses {
-		newFilters.Statuses[k] = v
-	}
-
-	m.newFilters = newFilters
-
-	// Build workflow options
-	workflowOptions := []huh.Option[string]{
-		huh.NewOption("All Workflows", ""),
-	}
-	for _, wf := range m.workflows {
-		workflowOptions = append(workflowOptions, huh.NewOption(wf.DisplayName, wf.ID))
-	}
-
-	// Build time window options
-	timeWindowOptions := []huh.Option[string]{
-		huh.NewOption("Last Hour", "1h"),
-		huh.NewOption("Last 6 Hours", "6h"),
-		huh.NewOption("Last 24 Hours", "1d"),
-		huh.NewOption("Last 7 Days", "7d"),
-	}
-
-	m.form = huh.NewForm(
-		// Workflow multiselect - separate group
-		huh.NewGroup(
-			huh.NewMultiSelect[string]().
-				Title("Workflows").
-				Description("x/space to toggle | / to filter, ↓ to exit filter | Enter to confirm").
-				Options(workflowOptions...).
-				Value(&m.newFilters.WorkflowIDs).
-				Filterable(true). // Enable search with /
-				Height(10),       // Limit visible options
-		),
-
-		// Time window selector - separate group
-		huh.NewGroup(
-			huh.NewSelect[string]().
-				Title("Time Range").
-				Description("Press Tab for next field").
-				Options(timeWindowOptions...).
-				Value(&m.newFilters.TimeWindow),
-		),
-
-		// Status checkboxes - separate group
-		huh.NewGroup(
-			huh.NewMultiSelect[rest.V1TaskStatus]().
-				Title("Statuses").
-				Description("x/space to toggle | Enter to confirm").
-				Options(
-					huh.NewOption("Completed", rest.V1TaskStatusCOMPLETED),
-					huh.NewOption("Failed", rest.V1TaskStatusFAILED),
-					huh.NewOption("Cancelled", rest.V1TaskStatusCANCELLED),
-					huh.NewOption("Running", rest.V1TaskStatusRUNNING),
-					huh.NewOption("Queued", rest.V1TaskStatusQUEUED),
-				).
-				Value(currentFiltersToSlice(m.currentFilters)).
-				Filterable(false),
-		),
-	).WithTheme(styles.HatchetTheme()).
-		WithKeyMap(customFilterKeyMap()).
-		WithShowHelp(false). // Disable help to reduce double-press confusion
-		WithShowErrors(false)
-
-	return m.form.Init()
-}
-
-func (m *filterFormModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if keyMsg, ok := msg.(tea.KeyMsg); ok {
-		switch keyMsg.String() {
-		case "esc", "ctrl+c":
-			m.cancelled = true
-			m.done = true
-			return m, tea.Quit
-		}
-	}
-
-	// Update the form
-	form, cmd := m.form.Update(msg)
-	if f, ok := form.(*huh.Form); ok {
-		m.form = f
-	}
-
-	// Check if form is complete
-	if m.form.State == huh.StateCompleted {
-		m.done = true
-
-		// Update time range based on window
-		if m.newFilters.TimeWindow != "custom" {
-			m.newFilters.Since = GetTimeRangeFromWindow(m.newFilters.TimeWindow)
-			m.newFilters.Until = nil
-		}
-
-		return m, tea.Quit
-	}
-
-	return m, cmd
-}
-
-func (m *filterFormModel) View() string {
-	if m.done {
-		return ""
-	}
-	return m.form.View()
-}
-
-// ShowFiltersForm displays a form to edit filters (deprecated, use RunFiltersFormProgram)
-func ShowFiltersForm(currentFilters *RunsListFilters, workflows []WorkflowOption) (*RunsListFilters, error) {
-	newFilters := &RunsListFilters{
-		WorkflowIDs: append([]string{}, currentFilters.WorkflowIDs...),
-		Statuses:    make(map[rest.V1TaskStatus]bool),
-		TimeWindow:  currentFilters.TimeWindow,
-		Since:       currentFilters.Since,
-		Until:       currentFilters.Until,
-	}
-
-	// Copy status map
-	for k, v := range currentFilters.Statuses {
-		newFilters.Statuses[k] = v
-	}
-
-	// Build workflow options
-	workflowOptions := []huh.Option[string]{
-		huh.NewOption("All Workflows", ""),
-	}
-	for _, wf := range workflows {
-		workflowOptions = append(workflowOptions, huh.NewOption(wf.DisplayName, wf.ID))
-	}
-
-	// Build time window options
-	timeWindowOptions := []huh.Option[string]{
-		huh.NewOption("Last Hour", "1h"),
-		huh.NewOption("Last 6 Hours", "6h"),
-		huh.NewOption("Last 24 Hours", "1d"),
-		huh.NewOption("Last 7 Days", "7d"),
-	}
-
-	form := huh.NewForm(
-		// Workflow multiselect - separate group
-		huh.NewGroup(
-			huh.NewMultiSelect[string]().
-				Title("Workflows").
-				Description("x/space to toggle | / to filter, ↓ to exit filter | Enter to confirm").
-				Options(workflowOptions...).
-				Value(&newFilters.WorkflowIDs).
-				Filterable(true). // Enable search with /
-				Height(10),       // Limit visible options
-		),
-
-		// Time window selector - separate group
-		huh.NewGroup(
-			huh.NewSelect[string]().
-				Title("Time Range").
-				Options(timeWindowOptions...).
-				Value(&newFilters.TimeWindow),
-		),
-
-		// Status checkboxes - separate group
-		huh.NewGroup(
-			huh.NewMultiSelect[rest.V1TaskStatus]().
-				Title("Statuses").
-				Options(
-					huh.NewOption("Completed", rest.V1TaskStatusCOMPLETED),
-					huh.NewOption("Failed", rest.V1TaskStatusFAILED),
-					huh.NewOption("Cancelled", rest.V1TaskStatusCANCELLED),
-					huh.NewOption("Running", rest.V1TaskStatusRUNNING),
-					huh.NewOption("Queued", rest.V1TaskStatusQUEUED),
-				).
-				Value(currentFiltersToSlice(currentFilters)).
-				Filterable(false),
-		),
-	).WithTheme(styles.HatchetTheme()).
-		WithKeyMap(customFilterKeyMap())
-
-	// Run the form directly - this will be called from a tea.Exec command
-	// which suspends the parent program
-	err := form.Run()
-	if err != nil {
-		return currentFilters, err
-	}
-
-	// Update time range based on window
-	if newFilters.TimeWindow != "custom" {
-		newFilters.Since = GetTimeRangeFromWindow(newFilters.TimeWindow)
-		newFilters.Until = nil
-	}
-
-	return newFilters, nil
 }
 
 // currentFiltersToSlice converts status map to slice for multiselect
@@ -402,6 +191,27 @@ type WorkflowOption struct {
 	DisplayName string
 }
 
+// SearchWorkflows fetches one page of workflows matching the search string,
+// using the same server-side search and page size as the frontend
+func SearchWorkflows(ctx context.Context, client rest.ClientWithResponsesInterface, tenantUUID uuid.UUID, name string) ([]rest.Workflow, error) {
+	limit := 200
+	params := &rest.WorkflowListParams{Limit: &limit}
+	if name != "" {
+		params.Name = &name
+	}
+
+	resp, err := client.WorkflowListWithResponse(ctx, tenantUUID, params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch workflows: %w", err)
+	}
+
+	if resp.JSON200 == nil || resp.JSON200.Rows == nil {
+		return nil, fmt.Errorf("unexpected response from API (status %d)", resp.StatusCode())
+	}
+
+	return *resp.JSON200.Rows, nil
+}
+
 // FetchWorkflows fetches available workflows for filtering
 func FetchWorkflows(ctx context.Context, client rest.ClientWithResponsesInterface, tenantID string) ([]WorkflowOption, error) {
 	// Parse tenant ID as UUID
@@ -410,17 +220,11 @@ func FetchWorkflows(ctx context.Context, client rest.ClientWithResponsesInterfac
 		return nil, fmt.Errorf("invalid tenant ID: %w", err)
 	}
 
-	// Fetch workflows list
-	resp, err := client.WorkflowListWithResponse(ctx, tenantUUID, &rest.WorkflowListParams{})
+	rows, err := SearchWorkflows(ctx, client, tenantUUID, "")
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch workflows: %w", err)
+		return nil, err
 	}
 
-	if resp.JSON200 == nil {
-		return nil, fmt.Errorf("unexpected response from API")
-	}
-
-	rows := *resp.JSON200.Rows
 	workflows := make([]WorkflowOption, 0, len(rows))
 	for _, wf := range rows {
 		workflows = append(workflows, WorkflowOption{

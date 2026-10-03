@@ -21,6 +21,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/config/cli"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/styles"
+	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/tui"
 	"github.com/hatchet-dev/hatchet/pkg/client" //nolint:staticcheck
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 )
@@ -974,18 +975,13 @@ func resolveWorkflowName(ctx context.Context, hatchetClient client.Client, nameO
 // Returns the selected workflow name, or "" if no workflows are found or the form is cancelled.
 func promptSelectWorkflow(ctx context.Context, hatchetClient client.Client) string { //nolint:staticcheck
 	tenantUUID := clientTenantUUID(hatchetClient)
-	limit := 200
-	offset := 0
-	resp, err := hatchetClient.API().WorkflowListWithResponse(ctx, tenantUUID, &rest.WorkflowListParams{
-		Limit:  &limit,
-		Offset: &offset,
-	})
-	if err != nil || resp.JSON200 == nil || resp.JSON200.Rows == nil || len(*resp.JSON200.Rows) == 0 {
+	rows, err := tui.SearchWorkflows(ctx, hatchetClient.API(), tenantUUID, "")
+	if err != nil || len(rows) == 0 {
 		return ""
 	}
 
 	var options []huh.Option[string]
-	for _, wf := range *resp.JSON200.Rows {
+	for _, wf := range rows {
 		options = append(options, huh.NewOption(wf.Name, wf.Name))
 	}
 
