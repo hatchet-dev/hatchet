@@ -730,25 +730,37 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId uu
 		Name:     opts.Name,
 	})
 
-	switch {
-	case err != nil && errors.Is(err, pgx.ErrNoRows):
-		// create the workflow
-		workflowId = uuid.New()
-
-		_, err = r.queries.CreateWorkflow(
+	if err != nil && errors.Is(err, pgx.ErrNoRows) {
+		// Concurrent registrations of the same name race to create the workflow: the insert
+		// yields to the one that wins, and the loser continues on the row it created.
+		created, createErr := r.queries.CreateWorkflow(
 			ctx,
 			tx,
 			sqlcv1.CreateWorkflowParams{
-				ID:          workflowId,
+				ID:          uuid.New(),
 				Tenantid:    tenantId,
 				Name:        opts.Name,
 				Description: *opts.Description,
 			},
 		)
 
-		if err != nil {
-			return nil, err
+		switch {
+		case createErr == nil:
+			existingWorkflow, err = nil, pgx.ErrNoRows
+			workflowId = created.ID
+		case errors.Is(createErr, pgx.ErrNoRows):
+			existingWorkflow, err = r.queries.GetWorkflowByName(ctx, tx, sqlcv1.GetWorkflowByNameParams{
+				Tenantid: tenantId,
+				Name:     opts.Name,
+			})
+		default:
+			return nil, createErr
 		}
+	}
+
+	switch {
+	case err != nil && errors.Is(err, pgx.ErrNoRows):
+		// the workflow was created above
 	case err != nil:
 		return nil, err
 	case existingWorkflow.ID == uuid.Nil:
