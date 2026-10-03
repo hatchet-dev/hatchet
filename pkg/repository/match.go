@@ -858,6 +858,19 @@ func (m *sharedRepository) processEventMatchesForTarget(ctx context.Context, tx 
 		}
 	}
 
+	// Take the log file locks in their own statement first; see LockDurableEventLogFilesForSatisfy.
+	if len(durableTaskIds) > 0 {
+		err := m.queries.LockDurableEventLogFilesForSatisfy(ctx, tx, sqlcv1.LockDurableEventLogFilesForSatisfyParams{
+			Durabletaskids:           durableTaskIds,
+			Durabletaskinsertedats:   durableTaskInsertedAts,
+			Mindurabletaskinsertedat: sqlchelpers.TimestamptzFromTime(minDurableTaskInsertedAt),
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to lock durable event log files: %w", err)
+		}
+	}
+
 	entries, err := m.queries.UpdateDurableEventLogEntriesSatisfied(ctx, tx, sqlcv1.UpdateDurableEventLogEntriesSatisfiedParams{
 		Nodeids:                  durableTaskNodeIds,
 		Branchids:                durableTaskBranchIds,

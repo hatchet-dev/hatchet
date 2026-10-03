@@ -4,6 +4,7 @@ package repository
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -305,4 +306,79 @@ func TestDurableUserEventScopesIsolateHistoricalLookback(t *testing.T) {
 	requireUserEventScopeTestWaiterState(t, ctx, repos, excludedTaskA, waitExcludedA.NodeId, waitExcludedA.BranchId, false)
 	requireUserEventScopeTestWaiterState(t, ctx, repos, excludedTaskB, waitExcludedB.NodeId, waitExcludedB.BranchId, false)
 	requireUserEventScopeTestWaiterState(t, ctx, repos, excludedUnscopedTask, waitExcludedUnscoped.NodeId, waitExcludedUnscoped.BranchId, false)
+}
+
+// When a concurrent transaction holds a durable task's log file row, the wait must happen in
+// LockDurableEventLogFilesForSatisfy, never in UpdateDurableEventLogEntriesSatisfied. If the
+// latter's locked_log_files CTE waits, PostgreSQL 18 runs an EvalPlanQual recheck that leaves the
+// statement's run-time partition pruning state pointing at freed memory and the backend segfaults
+// (https://github.com/hatchet-dev/hatchet/issues/5101). This checks which statement waits, so it
+// holds on any Postgres version without reproducing the crash.
+func TestSatisfyDurableEntriesWaitsOnLogFilePrelockOnly(t *testing.T) {
+	pool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	tenantID := uuid.New()
+	repos := newUserEventScopeTestRepositories(t, pool)
+	key := "prelock-user-event-key"
+	task := createUserEventScopeTestTask(t, ctx, repos, tenantID, 401)
+
+	wait := ingestUserEventScopeTestWaiter(t, ctx, repos.durable, tenantID, task, key, nil, nil, "true")
+	require.False(t, wait.IsSatisfied)
+
+	// a concurrent writer (e.g. another batch of completions for the same parent) holds the log file row
+	blocker, err := pool.Begin(ctx)
+	require.NoError(t, err)
+	defer blocker.Rollback(ctx) // nolint: errcheck
+
+	_, err = blocker.Exec(ctx, `SELECT 1 FROM v1_durable_event_log_file WHERE durable_task_id = $1 AND durable_task_inserted_at = $2 FOR UPDATE`, task.ID, task.InsertedAt)
+	require.NoError(t, err)
+
+	type processResult struct {
+		results *EventMatchResults
+		err     error
+	}
+
+	done := make(chan processResult, 1)
+
+	go func() {
+		results, err := repos.matches.ProcessUserEventMatches(ctx, tenantID, []CandidateEventMatch{{
+			ID:             uuid.New(),
+			EventTimestamp: time.Now().UTC(),
+			Key:            key,
+			Data:           []byte(`{}`),
+		}})
+		done <- processResult{results: results, err: err}
+	}()
+
+	var waitingQuery string
+
+	require.Eventually(t, func() bool {
+		err := pool.QueryRow(ctx, `
+			SELECT query
+			FROM pg_stat_activity
+			WHERE pid <> pg_backend_pid()
+			  AND datname = current_database()
+			  AND state = 'active'
+			  AND wait_event_type = 'Lock'
+			LIMIT 1`).Scan(&waitingQuery)
+
+		return err == nil
+	}, 10*time.Second, 20*time.Millisecond, "expected the satisfy path to wait on the log file lock")
+
+	require.True(t, strings.HasPrefix(waitingQuery, "-- name: LockDurableEventLogFilesForSatisfy"), "waiting statement: %s", waitingQuery)
+	require.NotContains(t, waitingQuery, "UpdateDurableEventLogEntriesSatisfied")
+
+	require.NoError(t, blocker.Rollback(ctx))
+
+	select {
+	case res := <-done:
+		require.NoError(t, res.err)
+		require.Len(t, res.results.SatisfiedDurableEventLogEntries, 1)
+	case <-time.After(10 * time.Second):
+		t.Fatal("ProcessUserEventMatches did not finish after the blocker released the log file")
+	}
+
+	requireUserEventScopeTestWaiterState(t, ctx, repos, task, wait.NodeId, wait.BranchId, true)
 }
