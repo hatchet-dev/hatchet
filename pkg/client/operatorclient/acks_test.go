@@ -358,12 +358,12 @@ func newStagedQueue(desired ...string) *actionDeltaQueue {
 // under the send lock: a chunk staged under an older stream generation is not sent.
 func sendStaged(q *actionDeltaQueue, stream v1.OperatorService_ListenClient, staged *stagedChunk) error {
 	if !q.currentGeneration(staged.generation) {
-		q.finishChunk(nil)
+		q.finishChunk(staged, nil)
 		return nil
 	}
 
 	err := stream.Send(&v1.OperatorListenRequest{Message: &v1.OperatorListenRequest_Actions{Actions: staged.delta}})
-	q.finishChunk(err)
+	q.finishChunk(staged, err)
 
 	return err
 }
