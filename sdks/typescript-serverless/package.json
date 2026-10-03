@@ -1,19 +1,118 @@
 {
   "name": "@hatchet-dev/serverless",
-  "version": "0.0.0",
-  "private": true,
-  "description": "Hatchet serverless endpoint package. Generation target for the serverless wire contract; not yet published.",
+  "version": "0.1.0-alpha.2",
+  "private": false,
+  "description": "Serve Hatchet tasks from serverless runtimes without a worker process",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hatchet-dev/hatchet.git",
+    "directory": "sdks/typescript-serverless"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md",
+    "LIMITATIONS.md"
+  ],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.js"
+    },
+    "./cloudflare": {
+      "types": "./dist/adapters/cloudflare.d.ts",
+      "workerd": "./dist/adapters/cloudflare.js",
+      "import": "./dist/adapters/cloudflare.js",
+      "require": "./dist/adapters/cloudflare.cjs",
+      "default": "./dist/adapters/cloudflare.js"
+    },
+    "./vercel": {
+      "types": "./dist/adapters/vercel.d.ts",
+      "node": "./dist/adapters/vercel.js",
+      "import": "./dist/adapters/vercel.js",
+      "require": "./dist/adapters/vercel.cjs",
+      "default": "./dist/adapters/vercel.js"
+    },
+    "./node": {
+      "types": "./dist/adapters/node.d.ts",
+      "node": "./dist/adapters/node.js",
+      "import": "./dist/adapters/node.js",
+      "require": "./dist/adapters/node.cjs",
+      "default": "./dist/adapters/node.js"
+    },
+    "./testing": {
+      "types": "./dist/testing/index.d.ts",
+      "import": "./dist/testing/index.js",
+      "require": "./dist/testing/index.cjs",
+      "default": "./dist/testing/index.js"
+    },
+    "./package.json": "./package.json"
+  },
   "scripts": {
-    "generate-proto": "./generate-proto.sh"
+    "build:sdk": "cd ../typescript && pnpm install --frozen-lockfile --config.strict-dep-builds=false && pnpm tsc:build && pnpm prepublish",
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check:edge": "pnpm run build && node scripts/check-edge-entry.mjs",
+    "lint": "pnpm run eslint:check && pnpm run prettier:check",
+    "lint:fix": "pnpm run eslint:fix && pnpm run prettier:fix",
+    "eslint:check": "eslint \"src/**/*.ts\" \"scripts/**/*.mjs\"",
+    "eslint:fix": "eslint \"src/**/*.ts\" \"scripts/**/*.mjs\" --fix",
+    "prettier:check": "prettier \"src/**/*.ts\" \"scripts/**/*.mjs\" \"*.md\" --list-different",
+    "prettier:fix": "prettier \"src/**/*.ts\" \"scripts/**/*.mjs\" \"*.md\" --write",
+    "generate-proto": "./generate-proto.sh",
+    "publish:alpha": "pnpm run build:sdk && pnpm install && pnpm run lint && pnpm run test && pnpm run build && pnpm publish --access public --tag alpha --no-git-checks"
+  },
+  "peerDependencies": {
+    "@hatchet-dev/typescript-sdk": "^1.34.0-alpha.2",
+    "@vercel/functions": ">=3.9.0",
+    "ws": ">=8",
+    "zod": "^3.25.0 || ^4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@vercel/functions": {
+      "optional": true
+    },
+    "ws": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "@bufbuild/protobuf": "^2.15.0"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250906.0",
+    "@connectrpc/connect": "~2.1.2",
+    "@eslint/js": "^10.0.1",
+    "@hatchet-dev/typescript-sdk": "file:../typescript/dist",
+    "@types/node": "^26.6.3",
+    "@types/ws": "^8.18.1",
+    "@vercel/functions": "^3.9.9",
+    "esbuild": "^0.27.0",
+    "eslint": "^10.0.3",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.5",
+    "eslint-plugin-unused-imports": "^4.4.1",
     "grpc-tools": "1.13.1",
-    "ts-proto": "2.12.0"
+    "prettier": "^3.8.1",
+    "ts-proto": "2.12.0",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.56.1",
+    "vitest": "^5.0.0",
+    "ws": "^8.22.0",
+    "zod": "^4.0.0"
   },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "grpc-tools"
-    ]
+  "publishConfig": {
+    "access": "public",
+    "tag": "alpha"
   }
 }

@@ -1,0 +1,11 @@
+node_modules/
+.next/
+.vercel/
+.env
+.env.local
+pnpm-lock.yaml
+next-env.d.ts
+*.tsbuildinfo
+
+# The repository root ignores "app" (a Go binary); this is the Next.js app directory.
+!app/
