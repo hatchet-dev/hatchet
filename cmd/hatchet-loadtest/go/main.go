@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"math/rand/v2"
@@ -10,16 +11,20 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/loadtest/eventkeys"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
+	"github.com/hatchet-dev/hatchet/sdks/go/features"
 )
 
 // LoadTestInput mirrors cmd/hatchet-loadtest's `Event` struct (emit.go)
 type LoadTestInput struct {
-	CreatedAt time.Time `json:"created_at"`
-	Payload   string    `json:"payload"`
-	ID        int64     `json:"id"`
+	CreatedAt       time.Time `json:"created_at"`
+	Payload         string    `json:"payload"`
+	ID              int64     `json:"id"`
+	RateLimitKeys   int       `json:"rate_limit_keys,omitempty"`
+	RateLimitPerKey int       `json:"rate_limit_per_key,omitempty"`
 }
 
 type LoadTestOutput struct {
@@ -111,6 +116,17 @@ func run() error {
 	dagNestedChildren := envInt("HATCHET_LOADTEST_DAG_NESTED_CHILDREN", 5)
 	dagNestedWorkflows := buildDagNestedWorkflows(client, dagNestedEventKey, dagShapeFailureRate, dagNestedChildren)
 
+	rateLimitedEventKey := envOr("HATCHET_LOADTEST_RATE_LIMITED_EVENT_KEY", eventkeys.EventKeyRateLimited.String())
+	// Best-effort so a rate limit API failure only breaks the rate-limited scenario.
+	rateLimitedTask, err := buildRateLimitedTask(client, rateLimitedEventKey)
+	if err != nil {
+		log.Printf("warning: not registering %s: %v", eventkeys.WorkflowRateLimitedName, err)
+	}
+
+	dagConcurrencyEventKey := envOr("HATCHET_LOADTEST_DAG_CONCURRENCY_EVENT_KEY", eventkeys.EventKeyDagConcurrency.String())
+	dagConcurrencyMaxRuns := envInt("HATCHET_LOADTEST_DAG_CONCURRENCY_MAX_RUNS", 1)
+	dagConcurrencyWorkflow := buildDagConcurrencyWorkflow(client, dagConcurrencyEventKey, dagConcurrencyMaxRuns)
+
 	task := client.NewStandaloneTask(taskName, func(ctx hatchet.Context, input LoadTestInput) (LoadTestOutput, error) {
 		took := time.Since(input.CreatedAt)
 		log.Printf("executing %d took %s", input.ID, took)
@@ -176,7 +192,10 @@ func run() error {
 		hatchet.WithExecutionTimeout(5*time.Minute),
 	)
 
-	workflows := []hatchet.WorkflowBase{task, batchTask, durableTask, durableChildTask, dagWorkflow}
+	workflows := []hatchet.WorkflowBase{task, batchTask, durableTask, durableChildTask, dagWorkflow, dagConcurrencyWorkflow}
+	if rateLimitedTask != nil {
+		workflows = append(workflows, rateLimitedTask)
+	}
 	for _, w := range dagShapeWorkflows {
 		workflows = append(workflows, w)
 	}
@@ -394,6 +413,107 @@ func buildDagNestedWorkflows(client *hatchet.Client, eventKey string, failureRat
 	)
 
 	return []*hatchet.Workflow{child, parent}
+}
+
+// buildRateLimitedTask returns a task gated by two rate limits at once: the
+// static RateLimitedStaticKey and a dynamic key bucketed by input id. Bucket
+// count and per-bucket limit come from the event so the driver can scale them
+// to --events.
+func buildRateLimitedTask(client *hatchet.Client, eventKey string) (*hatchet.StandaloneTask, error) {
+	if err := ensureRateLimit(client, eventkeys.RateLimitedStaticKey); err != nil {
+		return nil, err
+	}
+
+	units := 1
+	// input fields arrive as JSON numbers (CEL doubles), hence the int() casts.
+	dynamicKeyExpr := fmt.Sprintf(`"%s-" + string(int(input.id) %% int(input.rate_limit_keys))`, eventkeys.RateLimitedStaticKey)
+	dynamicLimit := "int(input.rate_limit_per_key)"
+	second := hatchet.Second
+
+	return client.NewStandaloneTask(eventkeys.WorkflowRateLimitedName, func(ctx hatchet.Context, input LoadTestInput) (LoadTestOutput, error) {
+		return LoadTestOutput{
+			Message: "This ran at: " + time.Now().Format(time.RFC3339Nano),
+		}, nil
+	},
+		hatchet.WithWorkflowEvents(eventKey),
+		hatchet.WithRateLimits(
+			&hatchet.RateLimit{
+				Key:   eventkeys.RateLimitedStaticKey,
+				Units: &units,
+			},
+			&hatchet.RateLimit{
+				Key:            eventkeys.RateLimitedStaticKey + "-dynamic",
+				KeyExpr:        &dynamicKeyExpr,
+				Units:          &units,
+				LimitValueExpr: &dynamicLimit,
+				Duration:       &second,
+			},
+		),
+		// Queueing behind the rate limit is expected, so don't let it time out.
+		hatchet.WithScheduleTimeout(60*time.Minute),
+	), nil
+}
+
+// ensureRateLimit creates key with a placeholder limit if it's missing. It must
+// not overwrite an existing value: a worker restarting mid-test would otherwise
+// reset the limit the driver sized to --events.
+func ensureRateLimit(client *hatchet.Client, key string) error {
+	limit := int64(1000)
+	existing, err := client.RateLimits().List(context.Background(), &rest.RateLimitListParams{Search: &key, Limit: &limit})
+	if err != nil {
+		return fmt.Errorf("failed to list rate limits: %w", err)
+	}
+	if existing.Rows != nil {
+		for _, rl := range *existing.Rows {
+			if rl.Key == key {
+				return nil
+			}
+		}
+	}
+
+	if err := client.RateLimits().Upsert(features.CreateRatelimitOpts{
+		Key:      key,
+		Limit:    100,
+		Duration: hatchet.Second,
+	}); err != nil {
+		return fmt.Errorf("failed to create rate limit %s: %w", key, err)
+	}
+	return nil
+}
+
+// buildDagConcurrencyWorkflow returns a 4-node diamond DAG with a workflow-level
+// concurrency key of (id+1)/2: consecutive runs pair up on a key (so each key is
+// actually contended) while the total number of distinct keys is maximised.
+func buildDagConcurrencyWorkflow(client *hatchet.Client, eventKey string, maxRuns int) *hatchet.Workflow {
+	if maxRuns < 1 {
+		maxRuns = 1
+	}
+	maxRuns32 := int32(maxRuns) //nolint:gosec // small env-configured value
+	strategy := hatchet.GroupRoundRobin
+
+	wf := client.NewWorkflow(eventkeys.WorkflowDagConcurrencyName,
+		hatchet.WithWorkflowEvents(eventKey),
+		hatchet.WithWorkflowConcurrency(hatchet.Concurrency{
+			// input.id arrives as a JSON number (a CEL double), hence the int() cast.
+			Expression:    "string((int(input.id) + 1) / 2)",
+			MaxRuns:       &maxRuns32,
+			LimitStrategy: &strategy,
+		}),
+	)
+
+	step := func(name string) func(ctx hatchet.Context, input LoadTestInput) (LoadTestOutput, error) {
+		return func(ctx hatchet.Context, input LoadTestInput) (LoadTestOutput, error) {
+			return LoadTestOutput{Message: name + " ran at: " + time.Now().Format(time.RFC3339Nano)}, nil
+		}
+	}
+
+	name := eventkeys.WorkflowDagConcurrencyName
+	root := wf.NewTask(name+"-root", step("root"))
+	left := wf.NewTask(name+"-left", step("left"), hatchet.WithParents(root))
+	right := wf.NewTask(name+"-right", step("right"), hatchet.WithParents(root))
+	_ = wf.NewTask(name+"-join", step("join"), hatchet.WithParents(left, right))
+
+	return wf
 }
 
 func main() {
