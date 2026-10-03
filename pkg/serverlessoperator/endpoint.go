@@ -6,7 +6,10 @@ import (
 	"fmt"
 	"time"
 
+	"connectrpc.com/connect"
 	"github.com/google/uuid"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -65,6 +68,30 @@ type catalogRejected struct{ err error }
 
 func (e catalogRejected) Error() string { return e.err.Error() }
 func (e catalogRejected) Unwrap() error { return e.err }
+
+// isWorkflowRefusal reports whether a PutWorkflow error is the engine refusing the workflow
+// as declared, which only a changed catalog can fix, as opposed to a failure of the call
+// itself (engine unavailable, timeout, a transient database error) that the next poll
+// retries with the same catalog. Both hosts carry the engine's code: the in-process host as
+// a connect error, the gRPC host as a gRPC status.
+func isWorkflowRefusal(err error) bool {
+	switch connect.CodeOf(err) {
+	case connect.CodeInvalidArgument, connect.CodeFailedPrecondition, connect.CodeAlreadyExists,
+		connect.CodePermissionDenied, connect.CodeUnauthenticated, connect.CodeUnimplemented,
+		connect.CodeOutOfRange:
+		return true
+	}
+
+	if st, ok := status.FromError(err); ok {
+		switch st.Code() {
+		case codes.InvalidArgument, codes.FailedPrecondition, codes.AlreadyExists,
+			codes.PermissionDenied, codes.Unauthenticated, codes.Unimplemented, codes.OutOfRange:
+			return true
+		}
+	}
+
+	return false
+}
 
 func newEndpointPoller(r *runner, ts *tenantState, ep *cachedEndpoint) *endpointPoller {
 	return &endpointPoller{r: r, ts: ts, ep: ep, done: make(chan struct{}), putHashes: map[string]string{}}
@@ -251,7 +278,11 @@ func (p *endpointPoller) applyChange(ctx context.Context, reg *registration, res
 		}
 
 		if _, err := reg.session.PutWorkflow(ctx, wf); err != nil {
-			return catalogRejected{err: fmt.Errorf("engine rejected workflow %s: %w", wf.Name, err)}
+			if isWorkflowRefusal(err) {
+				return catalogRejected{err: fmt.Errorf("engine rejected workflow %s: %w", wf.Name, err)}
+			}
+
+			return fmt.Errorf("could not put workflow %s: %w", wf.Name, err)
 		}
 
 		p.putHashes[wf.Name] = res.workflowHashes[i]

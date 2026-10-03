@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"connectrpc.com/connect"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
@@ -278,7 +279,7 @@ func TestEngineRejectedWorkflowMarksEndpoint(t *testing.T) {
 
 	reg := env.host.session(0)
 	reg.mu.Lock()
-	reg.putErr = assert.AnError
+	reg.putErr = connect.NewError(connect.CodeInvalidArgument, errors.New("bad action id"))
 	reg.mu.Unlock()
 
 	wf := &v1.CreateWorkflowVersionRequest{Name: "bad", Tasks: []*v1.CreateTaskOpts{{ReadableId: "t", Action: "svc:bad"}}}
@@ -289,6 +290,56 @@ func TestEngineRejectedWorkflowMarksEndpoint(t *testing.T) {
 	assert.False(t, env.repo.StatusWrites()[0].Healthy)
 	assert.Contains(t, *env.repo.StatusWrites()[0].Error, "engine rejected workflow")
 	assert.Empty(t, env.repo.ActionWrites(), "registered_actions is not written for a rejected workflow")
+
+	// The same catalog is not put again until the rejected backoff elapses.
+	reg.mu.Lock()
+	reg.putErr = nil
+	reg.mu.Unlock()
+	poller.pollOnce(context.Background())
+	assert.Empty(t, env.repo.ActionWrites(), "a refused catalog waits for its backoff")
+}
+
+// A PutWorkflow call that fails for a reason other than the engine refusing the workflow
+// (here an error carrying no code, like a transient database error) marks the endpoint
+// unhealthy but enters no backoff: the next poll puts the same catalog again.
+func TestTransientPutWorkflowErrorRetriesOnTheNextPoll(t *testing.T) {
+	env := newTestEnv(t)
+	tenant := uuid.New()
+
+	a := healthyRow(endpointSpec{tenantId: tenant, name: "a", actions: []string{"svc:a"}})
+	env.addEndpoint(a)
+
+	env.r.UnitsGained(context.Background(), []memrepo.Unit{env.unit(a)})
+	require.Eventually(t, func() bool { return len(env.sender.callsTo(a.HealthcheckUrl)) == 1 }, eventually, 10*time.Millisecond)
+
+	poller := env.poller(a)
+	poller.stop()
+
+	reg := env.host.session(0)
+	reg.mu.Lock()
+	reg.putErr = errors.New("duplicate key value violates unique constraint")
+	reg.mu.Unlock()
+
+	wf := &v1.CreateWorkflowVersionRequest{Name: "shared", Tasks: []*v1.CreateTaskOpts{{ReadableId: "t", Action: "svc:shared"}}}
+	env.sender.respond(a.HealthcheckUrl, http.StatusOK, healthcheckWithWorkflows(t, wf))
+	poller.pollOnce(context.Background())
+
+	require.Len(t, env.repo.StatusWrites(), 1)
+	assert.False(t, env.repo.StatusWrites()[0].Healthy)
+	assert.Contains(t, *env.repo.StatusWrites()[0].Error, "could not put workflow shared")
+	assert.Empty(t, env.repo.ActionWrites())
+
+	reg.mu.Lock()
+	reg.putErr = nil
+	reg.mu.Unlock()
+	poller.pollOnce(context.Background())
+
+	reg.mu.Lock()
+	puts := len(reg.puts)
+	reg.mu.Unlock()
+	assert.Equal(t, 1, puts, "the catalog is put again on the next poll")
+	require.NotEmpty(t, env.repo.ActionWrites(), "registered_actions is written once the put succeeds")
+	assert.True(t, env.repo.StatusWrites()[len(env.repo.StatusWrites())-1].Healthy)
 }
 
 func TestTokenlessTenant(t *testing.T) {
