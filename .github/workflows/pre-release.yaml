@@ -757,6 +757,49 @@ jobs:
           ADMIN_IMAGE: ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-amd64
           MIGRATE_IMAGE: ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-amd64
         run: bash hack/ci/assert-auth-enabled.sh
+  non-fips:
+    name: Verify non-fips images do not link the FIPS module
+    runs-on: ubuntu-latest
+    needs:
+      - build-push-hatchet-api-amd
+      - build-push-hatchet-api-arm
+      - build-push-hatchet-engine-amd
+      - build-push-hatchet-engine-arm
+      - build-push-hatchet-admin-amd
+      - build-push-hatchet-admin-arm
+      - build-push-hatchet-migrate-amd
+      - build-push-hatchet-migrate-arm
+      - build-push-hatchet-lite-amd
+      - build-push-hatchet-lite-arm
+      - build-push-hatchet-dashboard-amd
+      - build-push-hatchet-dashboard-arm
+      - build-push-hatchet-frontend-amd
+      - build-push-hatchet-frontend-arm
+    steps:
+      - name: Get tag name
+        id: tag_name
+        run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
+        env:
+          GITHUB_TAG: ${{ github.ref }}
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Login to GHCR
+        id: login-ghcr
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Assert no Go binary in a regular image, either architecture, links the FIPS module
+        run: |
+          r=ghcr.io/hatchet-dev/hatchet
+          for arch in amd64 arm64; do
+            t=${{steps.tag_name.outputs.tag}}-$arch
+            EXPECT_FIPS=false bash hack/ci/assert-fips.sh \
+              $r/hatchet-api:$t=/hatchet/hatchet-api \
+              $r/hatchet-engine:$t=/hatchet/hatchet-engine \
+              $r/hatchet-admin:$t=/hatchet/hatchet-admin \
+              $r/hatchet-migrate:$t=/hatchet/hatchet-migrate \
+              $r/hatchet-lite:$t=/hatchet-lite,/hatchet-admin,/hatchet-migrate \
+              $r/hatchet-dashboard:$t=/hatchet/hatchet-api,/hatchet/hatchet-staticfileserver \
+              $r/hatchet-frontend:$t=/app/hatchet-staticfileserver
+          done
   combine-hatchet-lite:
     name: Combine hatchet-lite
     runs-on: ubuntu-latest

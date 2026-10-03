@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
@@ -123,6 +124,10 @@ func NewUserSessionStore(fs ...UserSessionStoreOpt) (*UserSessionStore, error) {
 	keyPairs := [][]byte{}
 
 	for _, key := range opts.cookieSecrets {
+		if err := encryption.CheckHMACKey([]byte(key)); err != nil {
+			return nil, fmt.Errorf("cookie secret: %w", err)
+		}
+
 		keyPairs = append(keyPairs, []byte(key))
 	}
 
