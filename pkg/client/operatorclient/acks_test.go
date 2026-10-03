@@ -108,7 +108,7 @@ func newBufconnOperatorSession(t *testing.T, srv v1.OperatorServiceServer) *sess
 	require.NoError(t, err)
 
 	l := zerolog.Nop()
-	s := newSession(v1.NewOperatorServiceClient(conn), nil, newCallMetadata("token", nil), &l, &v1.OperatorRegisterRequest{Name: "acks"}, true)
+	s := newSession(v1.NewOperatorServiceClient(conn), nil, runStreamClients{}, newCallMetadata("token", nil), &l, &v1.OperatorRegisterRequest{Name: "acks"}, true)
 	s.heartbeatInterval = 10 * time.Millisecond
 	s.actions.interval = time.Millisecond
 	s.stream.SetSleep(func(context.Context, int) error { return nil })

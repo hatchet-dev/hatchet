@@ -620,7 +620,7 @@ func (s *DispatcherImpl) SubscribeToWorkflowRuns(ctx context.Context, connectStr
 	defer stream.Close()
 
 	s.analytics.Count(ctx, analytics.WorkflowRun, analytics.Subscribe)
-	return s.subscribeToWorkflowRunsV1(ctx, connectStream, stream)
+	return s.subscribeToWorkflowRunsV1(ctx, connectStream.Receive, stream)
 }
 
 func waitFor(wg *sync.WaitGroup, timeout time.Duration, l *zerolog.Logger) {
@@ -1136,10 +1136,13 @@ func (b *StreamEventBuffer) sendReadyEvents(stepRunId uuid.UUID) {
 	b.stepRunIdToExpectedIndex[stepRunId] = expectedIdx
 }
 
-// SubscribeToWorkflowEvents registers workflow events with the dispatcher
+// subscribeToWorkflowRunsV1 runs a SubscribeToWorkflowRuns session over the two halves of the
+// stream: receive yields the client's subscriptions (io.EOF or a Canceled code when the client
+// is done), sender takes the run events. It is shared by the gRPC handler and the channel-backed
+// RegisterRunStream.
 func (s *DispatcherImpl) subscribeToWorkflowRunsV1(
 	ctx context.Context,
-	receiver *connect.BidiStream[contracts.SubscribeToWorkflowRunsRequest, contracts.WorkflowRunEvent],
+	receive func() (*contracts.SubscribeToWorkflowRunsRequest, error),
 	sender *rpcstream.Sender[contracts.WorkflowRunEvent],
 ) error {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
@@ -1292,7 +1295,7 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(
 	// start a new goroutine to handle client-side streaming
 	go func() {
 		for {
-			req, err := receiver.Receive()
+			req, err := receive()
 
 			if err != nil {
 				cancel()

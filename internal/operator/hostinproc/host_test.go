@@ -433,6 +433,40 @@ func TestOpenDurable(t *testing.T) {
 	assert.NotNil(t, resp.GetMemoAck())
 }
 
+// OpenRunStream is the engine session's channel-backed stream: sends reach the dispatcher's
+// entry and the engine's responses come back; a closed session opens nothing.
+func TestOpenRunStream(t *testing.T) {
+	h := newTestHost(t, hostOpts{})
+
+	s, err := h.Open(t.Context(), operator.Identity{TenantId: h.tenant.ID, Name: "a"}, operator.OpenOpts{Handler: nopHandler{}})
+	require.NoError(t, err)
+
+	rs, err := s.OpenRunStream(t.Context(), operator.RunStreamDurableEvents, nil)
+	require.NoError(t, err)
+
+	t.Cleanup(func() { _ = rs.Close() })
+
+	streams := h.dispatcher.RunStreams()
+	require.Len(t, streams, 1)
+	assert.Equal(t, operator.RunStreamDurableEvents, streams[0].Kind)
+
+	require.NoError(t, rs.Send(t.Context(), &v1contracts.ListenForDurableEventRequest{TaskId: "t", SignalKey: "k"}))
+
+	sent := <-streams[0].Requests
+	assert.Equal(t, "k", sent.(*v1contracts.ListenForDurableEventRequest).SignalKey)
+
+	streams[0].Responses <- &v1contracts.DurableEvent{TaskId: "t", SignalKey: "k", Data: []byte("1")}
+
+	got, err := rs.Recv(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, []byte("1"), got.(*v1contracts.DurableEvent).Data)
+
+	require.NoError(t, s.Close(t.Context()))
+
+	_, err = s.OpenRunStream(t.Context(), operator.RunStreamDurableEvents, nil)
+	assert.ErrorIs(t, err, operator.ErrSessionClosed)
+}
+
 // The same handler the gRPC end-to-end suite hosts over OperatorService runs here unchanged:
 // the dispatcher hands it actions directly and its reports land on the dispatcher.
 func TestEchoThroughHost(t *testing.T) {

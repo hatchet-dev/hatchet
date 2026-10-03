@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/operatorsvc"
@@ -180,6 +181,15 @@ func (s *session) OpenDurable(ctx context.Context, taskExternalId uuid.UUID, inv
 	}
 
 	return s.ss.OpenDurable(ctx, taskExternalId, invocation)
+}
+
+// OpenRunStream implements operator.Session on the dispatcher's channel-backed entry.
+func (s *session) OpenRunStream(ctx context.Context, kind operator.RunStreamKind, first proto.Message) (operator.RunStream, error) {
+	if s.isClosed() {
+		return nil, operator.ErrSessionClosed
+	}
+
+	return s.ss.OpenRunStream(ctx, kind, first)
 }
 
 // Pause implements operator.Session.

@@ -40,6 +40,11 @@ type TenantEntitlementRepository interface {
 	// IsDurableStreamsEnabled is false for tenants without an entitlement row.
 	IsDurableStreamsEnabled(ctx context.Context, tenantId uuid.UUID) (bool, error)
 
+	// IsServerlessOperatorEnabled reports whether the tenant is entitled to register
+	// serverless endpoints and be served by the serverless operator. Tenants without an
+	// entitlement row are treated as not entitled.
+	IsServerlessOperatorEnabled(ctx context.Context, tenantId uuid.UUID) (bool, error)
+
 	// GetEntitlements is all false for tenants without an entitlement row.
 	GetEntitlements(ctx context.Context, tenantId uuid.UUID) (TenantEntitlements, error)
 
@@ -55,6 +60,7 @@ type TenantEntitlements struct {
 	StrictAdditionalMetadataFilters bool
 	DAGOperator                     bool
 	DurableStreams                  bool
+	ServerlessOperator              bool
 }
 
 type tenantEntitlementRepository struct {
@@ -145,6 +151,20 @@ func (t *tenantEntitlementRepository) IsDurableStreamsEnabled(ctx context.Contex
 	return entitlement.DurableStreams, nil
 }
 
+func (t *tenantEntitlementRepository) IsServerlessOperatorEnabled(ctx context.Context, tenantId uuid.UUID) (bool, error) {
+	entitlement, err := t.queries.GetTenantEntitlement(ctx, t.pool, tenantId)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	return entitlement.ServerlessOperator, nil
+}
+
 func (t *tenantEntitlementRepository) GetEntitlements(ctx context.Context, tenantId uuid.UUID) (TenantEntitlements, error) {
 	entitlement, err := t.queries.GetTenantEntitlement(ctx, t.pool, tenantId)
 
@@ -162,6 +182,7 @@ func (t *tenantEntitlementRepository) GetEntitlements(ctx context.Context, tenan
 		StrictAdditionalMetadataFilters: entitlement.StrictAdditionalMetadataFilters,
 		DAGOperator:                     entitlement.DagOperator,
 		DurableStreams:                  entitlement.DurableStreams,
+		ServerlessOperator:              entitlement.ServerlessOperator,
 	}, nil
 }
 
@@ -173,6 +194,7 @@ func (t *tenantEntitlementRepository) SetEntitlements(ctx context.Context, tenan
 		Strictadditionalmetadatafilters: entitlements.StrictAdditionalMetadataFilters,
 		Dagoperator:                     entitlements.DAGOperator,
 		Durablestreams:                  entitlements.DurableStreams,
+		Serverlessoperator:              entitlements.ServerlessOperator,
 	})
 
 	return err

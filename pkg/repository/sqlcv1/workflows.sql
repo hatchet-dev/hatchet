@@ -109,7 +109,9 @@ INSERT INTO "Workflow" (
     @tenantId::uuid,
     @name::text,
     @description::text
-) RETURNING *;
+)
+ON CONFLICT ("tenantId", "name") DO NOTHING
+RETURNING *;
 
 -- name: CreateWorkflowVersion :one
 INSERT INTO "WorkflowVersion" (

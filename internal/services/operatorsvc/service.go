@@ -22,6 +22,7 @@ import (
 	"connectrpc.com/connect"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
@@ -125,6 +126,10 @@ type DispatcherBackend interface {
 	NotifyNewWorker(ctx context.Context, tenant *sqlcv1.Tenant, workerId uuid.UUID)
 	SendStepActionEvent(ctx context.Context, req *contracts.StepActionEvent) (*contracts.ActionEventResponse, error)
 	RegisterDurableTask(ctx context.Context, externalId uuid.UUID) (chan<- *v1contracts.DurableTaskRequest, <-chan *v1contracts.DurableTaskResponse, error)
+	// RegisterRunStream is the channel-backed form of one run observation stream; see
+	// dispatcher.DispatcherImpl.RegisterRunStream. The request channel is nil for a server
+	// stream; the response channel closes when the stream ends.
+	RegisterRunStream(ctx context.Context, kind operator.RunStreamKind, first proto.Message) (chan<- proto.Message, <-chan proto.Message, error)
 }
 
 type Service struct {

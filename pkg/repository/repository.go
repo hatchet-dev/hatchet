@@ -41,6 +41,7 @@ type Repository interface {
 	Ticker() TickerRepository
 	Filters() FilterRepository
 	Operators() OperatorRepository
+	Serverless() ServerlessRepository
 	Webhooks() WebhookRepository
 	Idempotency() IdempotencyRepository
 	IntervalSettings() IntervalSettingsRepository
@@ -78,6 +79,7 @@ type repositoryImpl struct {
 	ticker            TickerRepository
 	filters           FilterRepository
 	operators         OperatorRepository
+	serverless        ServerlessRepository
 	webhooks          WebhookRepository
 	payloadStore      PayloadStoreRepository
 	idempotency       IdempotencyRepository
@@ -135,6 +137,7 @@ func NewRepository(
 		ticker:            newTickerRepository(shared),
 		filters:           newFilterRepository(shared),
 		operators:         newOperatorRepository(shared),
+		serverless:        newServerlessRepository(shared),
 		webhooks:          newWebhookRepository(shared),
 		payloadStore:      shared.payloadStore,
 		idempotency:       newIdempotencyRepository(shared),
@@ -255,6 +258,10 @@ func (r *repositoryImpl) Filters() FilterRepository {
 
 func (r *repositoryImpl) Operators() OperatorRepository {
 	return r.operators
+}
+
+func (r *repositoryImpl) Serverless() ServerlessRepository {
+	return r.serverless
 }
 
 func (r *repositoryImpl) Webhooks() WebhookRepository {

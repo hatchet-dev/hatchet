@@ -9,6 +9,7 @@ import (
 	"github.com/tink-crypto/tink-go/aead"
 	"github.com/tink-crypto/tink-go/core/registry"
 	"github.com/tink-crypto/tink-go/keyset"
+	"github.com/tink-crypto/tink-go/tink"
 	"google.golang.org/api/option"
 )
 
@@ -51,27 +52,24 @@ func generateJWTKeysetsWithClient(keyUri string, client registry.KMSClient) (pri
 	return generateJWTKeysets(remote)
 }
 
+// NewCloudKMSDataEncryption creates a GCP CloudKMS-backed encryption service for data encryption
+// only, the CloudKMS counterpart of NewLocalDataEncryption. GetPrivateJWTHandle and
+// GetPublicJWTHandle return nil.
+func NewCloudKMSDataEncryption(keyUri string, credentialsJSON []byte) (EncryptionService, error) {
+	client, err := gcpkms.NewClientWithOptions(context.Background(), keyUri, option.WithAuthCredentialsJSON(option.ServiceAccount, credentialsJSON))
+
+	if err != nil {
+		return nil, err
+	}
+
+	return newDataOnlyWithClient(client, keyUri)
+}
+
 func newWithClient(client registry.KMSClient, keyUri string, privateEc256, publicEc256 []byte) (*cloudkmsEncryptionService, error) {
-	registry.RegisterKMSClient(client)
-
-	dek := aead.AES128CTRHMACSHA256KeyTemplate()
-	template, err := aead.CreateKMSEnvelopeAEADKeyTemplate(keyUri, dek)
+	remote, envelope, err := newCloudKMSEnvelope(client, keyUri)
 
 	if err != nil {
 		return nil, err
-	}
-
-	// get the remote KEK from the client
-	remote, err := client.GetAEAD(keyUri)
-
-	if err != nil {
-		return nil, err
-	}
-
-	envelope := aead.NewKMSEnvelopeAEAD2(template, remote)
-
-	if envelope == nil {
-		return nil, fmt.Errorf("failed to create envelope")
 	}
 
 	privateEc256Handle, err := handleFromBytes(privateEc256, remote)
@@ -91,6 +89,47 @@ func newWithClient(client registry.KMSClient, keyUri string, privateEc256, publi
 		privateEc256Handle: privateEc256Handle,
 		publicEc256Handle:  publicEc256Handle,
 	}, nil
+}
+
+func newDataOnlyWithClient(client registry.KMSClient, keyUri string) (*cloudkmsEncryptionService, error) {
+	_, envelope, err := newCloudKMSEnvelope(client, keyUri)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &cloudkmsEncryptionService{
+		key: envelope,
+	}, nil
+}
+
+// newCloudKMSEnvelope registers the KMS client and builds the remote KEK AEAD plus the envelope
+// AEAD that wraps per-record keys with it. Shared by the full and data-only constructors so their
+// ciphertext is interchangeable.
+func newCloudKMSEnvelope(client registry.KMSClient, keyUri string) (tink.AEAD, *aead.KMSEnvelopeAEAD, error) {
+	registry.RegisterKMSClient(client)
+
+	dek := aead.AES128CTRHMACSHA256KeyTemplate()
+	template, err := aead.CreateKMSEnvelopeAEADKeyTemplate(keyUri, dek)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// get the remote KEK from the client
+	remote, err := client.GetAEAD(keyUri)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	envelope := aead.NewKMSEnvelopeAEAD2(template, remote)
+
+	if envelope == nil {
+		return nil, nil, fmt.Errorf("failed to create envelope")
+	}
+
+	return remote, envelope, nil
 }
 
 func (svc *cloudkmsEncryptionService) Encrypt(plaintext []byte, dataId string) ([]byte, error) {

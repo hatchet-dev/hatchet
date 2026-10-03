@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
@@ -90,6 +91,10 @@ func (s *Session) SendStepActionEvent(_ context.Context, ev *contracts.StepActio
 }
 
 func (s *Session) OpenDurable(context.Context, uuid.UUID, int32) (operator.DurableChannel, error) {
+	return nil, operator.ErrNotSupported
+}
+
+func (s *Session) OpenRunStream(context.Context, operator.RunStreamKind, proto.Message) (operator.RunStream, error) {
 	return nil, operator.ErrNotSupported
 }
 

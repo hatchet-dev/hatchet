@@ -13,6 +13,7 @@ import (
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/rpcstream"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/streams"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -31,6 +32,7 @@ func newTestDispatcher() *DispatcherServiceImpl {
 	return &DispatcherServiceImpl{
 		l:              &l,
 		streamSessions: streams.NewRegistry(),
+		analytics:      analytics.NoOpAnalytics{},
 	}
 }
 

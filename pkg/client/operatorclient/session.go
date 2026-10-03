@@ -131,6 +131,7 @@ func (b *actionInbox) pop() *dispatchercontracts.AssignedAction {
 type session struct {
 	client     v1.OperatorServiceClient
 	admin      v1.AdminServiceClient
+	streams    runStreamClients
 	md         *callMetadata
 	l          *zerolog.Logger
 	stream     *streaming.ReconnectingStream[*listenClient]
@@ -169,6 +170,7 @@ type session struct {
 func newSession(
 	client v1.OperatorServiceClient,
 	admin v1.AdminServiceClient,
+	streams runStreamClients,
 	md *callMetadata,
 	l *zerolog.Logger,
 	register *v1.OperatorRegisterRequest,
@@ -181,6 +183,7 @@ func newSession(
 	s := &session{
 		client:            client,
 		admin:             admin,
+		streams:           streams,
 		md:                md,
 		l:                 &sl,
 		register:          register,

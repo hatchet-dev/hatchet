@@ -14,6 +14,7 @@ from hatchet_sdk.clients.rest.api.metadata_api import MetadataApi
 from hatchet_sdk.clients.rest.api.observability_api import ObservabilityApi
 from hatchet_sdk.clients.rest.api.rate_limits_api import RateLimitsApi
 from hatchet_sdk.clients.rest.api.sns_api import SNSApi
+from hatchet_sdk.clients.rest.api.serverless_api import ServerlessApi
 from hatchet_sdk.clients.rest.api.slack_api import SlackApi
 from hatchet_sdk.clients.rest.api.step_run_api import StepRunApi
 from hatchet_sdk.clients.rest.api.task_api import TaskApi

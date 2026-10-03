@@ -859,7 +859,9 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 	createOpts, err := getCreateWorkflowOpts(req)
 
 	if err != nil {
-		return nil, err
+		// the request could not be turned into workflow options: a malformed duration,
+		// expression or reference the caller supplied
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 
 	// validate createOpts
@@ -882,6 +884,14 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 
 		if errors.As(err, &tenantConcurrencyErr) {
 			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New(tenantConcurrencyErr.Error()))
+		}
+
+		// a cycle among the tasks is a property of the workflow as declared; only a changed
+		// declaration can fix it
+		var cycleErr *v1.JobRunHasCycleError
+
+		if errors.As(err, &cycleErr) {
+			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New(cycleErr.Error()))
 		}
 
 		return nil, err

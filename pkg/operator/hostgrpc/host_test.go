@@ -24,6 +24,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
@@ -196,6 +197,8 @@ type fakeSession struct {
 	pauses   int
 	closed   bool
 
+	runStreams []runStreamOpen
+
 	actions chan *contracts.AssignedAction
 	errs    chan error
 	mu      sync.Mutex
@@ -313,6 +316,63 @@ func (f *fakeSession) Pause(context.Context) error {
 
 func (f *fakeSession) OpenDurableTaskStream(context.Context) (v1.V1Dispatcher_DurableTaskClient, error) {
 	return f.stream, nil
+}
+
+// runStreamOpen is one OpenRunStream call a fake session saw.
+type runStreamOpen struct {
+	first proto.Message
+	kind  operator.RunStreamKind
+}
+
+// OpenRunStream records the call and hands out a stream that echoes what is sent on it.
+func (f *fakeSession) OpenRunStream(_ context.Context, kind operator.RunStreamKind, first proto.Message) (operator.RunStream, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.closed {
+		return nil, operator.ErrSessionClosed
+	}
+
+	f.runStreams = append(f.runStreams, runStreamOpen{kind: kind, first: first})
+
+	return &echoRunStream{queue: make(chan proto.Message, 8)}, nil
+}
+
+func (f *fakeSession) openedRunStreams() []runStreamOpen {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return append([]runStreamOpen(nil), f.runStreams...)
+}
+
+// echoRunStream is a RunStream whose Recv yields what Send put in.
+type echoRunStream struct {
+	queue  chan proto.Message
+	closed bool
+	mu     sync.Mutex
+}
+
+func (e *echoRunStream) Send(_ context.Context, msg proto.Message) error {
+	e.queue <- msg
+	return nil
+}
+
+func (e *echoRunStream) Recv(ctx context.Context) (proto.Message, error) {
+	select {
+	case msg := <-e.queue:
+		return msg, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+func (e *echoRunStream) Close() error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	e.closed = true
+
+	return nil
 }
 
 func (f *fakeSession) Close(_ ...operatorclient.CloseOpt) error {
