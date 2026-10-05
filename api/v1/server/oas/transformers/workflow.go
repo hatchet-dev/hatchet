@@ -157,7 +157,7 @@ func ToV1Concurrency(workflowConcurrencies []*sqlcv1.ListWorkflowConcurrencyByVe
 
 	for _, c := range taskConcurrencies {
 		res = append(res, gen.ConcurrencySetting{
-			StepReadableId: &c.StepReadableID.String,
+			StepReadableId: &c.StepReadableID,
 			Expression:     c.Expression,
 			LimitStrategy:  gen.ConcurrencyLimitStrategy(c.Strategy),
 			MaxRuns:        c.MaxConcurrency,
