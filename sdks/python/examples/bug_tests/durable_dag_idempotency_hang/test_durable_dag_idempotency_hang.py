@@ -34,11 +34,17 @@ async def test_durable_dag_status_based_idempotency_key_is_released_on_completio
     workflow_input = IdempotencyHangInput(key=str(uuid4()))
 
     async with asyncio.timeout(20):
-        first_result = await durable_dag_status_based_idempotency_wf.aio_run(
-            workflow_input
+        first_ref = await durable_dag_status_based_idempotency_wf.aio_run(
+            workflow_input,
+            wait_for_result=False,
         )
-        second_result = await durable_dag_status_based_idempotency_wf.aio_run(
-            workflow_input
-        )
+        first_result = await first_ref.aio_result()
 
+        second_ref = await durable_dag_status_based_idempotency_wf.aio_run(
+            workflow_input,
+            wait_for_result=False,
+        )
+        second_result = await second_ref.aio_result()
+
+    assert first_ref.workflow_run_id != second_ref.workflow_run_id
     assert first_result == second_result
