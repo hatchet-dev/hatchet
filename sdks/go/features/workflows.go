@@ -126,7 +126,7 @@ func (w *WorkflowsClient) Delete(ctx context.Context, workflowName string) (*res
 
 // PauseWorkflowOpts contains the configuration for pausing a workflow.
 type PauseWorkflowOpts struct {
-	// QueueTTL is how long runs stay queued while the workflow is paused before they are dropped.
+	// (required) QueueTTL is how long runs stay queued while the workflow is paused before they are dropped.
 	QueueTTL time.Duration
 
 	// (optional) CronRunQueueBehavior is the behavior of cron runs triggered while the workflow is paused. Defaults to QUEUE.
