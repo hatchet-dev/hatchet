@@ -5,14 +5,20 @@ DECLARE
     current_month_start DATE := date_trunc('month', NOW())::DATE;
     next_month_start DATE := (date_trunc('month', NOW()) + INTERVAL '1 month')::DATE;
     legacy_partition_name TEXT := 'v1_lookup_table_' || to_char(current_month_start, 'YYYYMMDD');
+    legacy_partition_lower_bound TEXT := 'MINVALUE';
 BEGIN
     -- Postgres 17+ refuses to match a unique-constraint index to the parent's primary key on attach
     -- (15 and 16 allow it), so the legacy table's constraint types have to match the parent's.
     ALTER TABLE v1_lookup_table DROP CONSTRAINT v1_lookup_table_pkey;
     EXECUTE format('ALTER TABLE v1_lookup_table ADD CONSTRAINT %I PRIMARY KEY USING INDEX v1_lookup_table_external_id_inserted_at_idx', legacy_partition_name || '_pkey');
     EXECUTE format('ALTER TABLE v1_lookup_table ADD CONSTRAINT %I UNIQUE USING INDEX v1_lookup_table_external_id_idx', legacy_partition_name || '_external_id_uq');
+
+    IF NOT EXISTS (SELECT 1 FROM v1_lookup_table) THEN
+        legacy_partition_lower_bound := quote_literal(current_month_start);
+    END IF;
+
     EXECUTE format('ALTER TABLE v1_lookup_table RENAME TO %I', legacy_partition_name);
-    EXECUTE format('ALTER TABLE v1_lookup_table_partitioned ATTACH PARTITION %I FOR VALUES FROM (MINVALUE) TO (%L)', legacy_partition_name, next_month_start);
+    EXECUTE format('ALTER TABLE v1_lookup_table_partitioned ATTACH PARTITION %I FOR VALUES FROM (%s) TO (%L)', legacy_partition_name, legacy_partition_lower_bound, next_month_start);
     EXECUTE format('ALTER TABLE %I DROP CONSTRAINT v1_lookup_table_attach_bound', legacy_partition_name);
 END $$;
 
@@ -223,10 +229,16 @@ DECLARE
     today_start DATE := (NOW() AT TIME ZONE 'UTC')::DATE;
     tomorrow_start DATE := today_start + 1;
     legacy_partition_name TEXT := 'v1_dag_to_task_' || to_char(today_start, 'YYYYMMDD');
+    legacy_partition_lower_bound TEXT := 'MINVALUE';
 BEGIN
     EXECUTE format('ALTER TABLE v1_dag_to_task RENAME CONSTRAINT v1_dag_to_task_pkey TO %I', legacy_partition_name || '_pkey');
+
+    IF NOT EXISTS (SELECT 1 FROM v1_dag_to_task) THEN
+        legacy_partition_lower_bound := quote_literal(today_start);
+    END IF;
+
     EXECUTE format('ALTER TABLE v1_dag_to_task RENAME TO %I', legacy_partition_name);
-    EXECUTE format('ALTER TABLE v1_dag_to_task_partitioned ATTACH PARTITION %I FOR VALUES FROM (MINVALUE) TO (%L)', legacy_partition_name, tomorrow_start);
+    EXECUTE format('ALTER TABLE v1_dag_to_task_partitioned ATTACH PARTITION %I FOR VALUES FROM (%s) TO (%L)', legacy_partition_name, legacy_partition_lower_bound, tomorrow_start);
     EXECUTE format('ALTER TABLE %I DROP CONSTRAINT v1_dag_to_task_attach_bound', legacy_partition_name);
 END $$;
 
@@ -242,10 +254,16 @@ DECLARE
     today_start DATE := (NOW() AT TIME ZONE 'UTC')::DATE;
     tomorrow_start DATE := today_start + 1;
     legacy_partition_name TEXT := 'v1_dag_data_' || to_char(today_start, 'YYYYMMDD');
+    legacy_partition_lower_bound TEXT := 'MINVALUE';
 BEGIN
     EXECUTE format('ALTER TABLE v1_dag_data RENAME CONSTRAINT v1_dag_input_pkey TO %I', legacy_partition_name || '_pkey');
+
+    IF NOT EXISTS (SELECT 1 FROM v1_dag_data) THEN
+        legacy_partition_lower_bound := quote_literal(today_start);
+    END IF;
+
     EXECUTE format('ALTER TABLE v1_dag_data RENAME TO %I', legacy_partition_name);
-    EXECUTE format('ALTER TABLE v1_dag_data_partitioned ATTACH PARTITION %I FOR VALUES FROM (MINVALUE) TO (%L)', legacy_partition_name, tomorrow_start);
+    EXECUTE format('ALTER TABLE v1_dag_data_partitioned ATTACH PARTITION %I FOR VALUES FROM (%s) TO (%L)', legacy_partition_name, legacy_partition_lower_bound, tomorrow_start);
     EXECUTE format('ALTER TABLE %I DROP CONSTRAINT v1_dag_data_attach_bound', legacy_partition_name);
 END $$;
 
@@ -261,10 +279,16 @@ DECLARE
     today_start DATE := (NOW() AT TIME ZONE 'UTC')::DATE;
     tomorrow_start DATE := today_start + 1;
     legacy_partition_name TEXT := 'v1_task_expression_eval_' || to_char(today_start, 'YYYYMMDD');
+    legacy_partition_lower_bound TEXT := 'MINVALUE';
 BEGIN
     EXECUTE format('ALTER TABLE v1_task_expression_eval RENAME CONSTRAINT v1_task_expression_eval_pkey TO %I', legacy_partition_name || '_pkey');
+
+    IF NOT EXISTS (SELECT 1 FROM v1_task_expression_eval) THEN
+        legacy_partition_lower_bound := quote_literal(today_start);
+    END IF;
+
     EXECUTE format('ALTER TABLE v1_task_expression_eval RENAME TO %I', legacy_partition_name);
-    EXECUTE format('ALTER TABLE v1_task_expression_eval_partitioned ATTACH PARTITION %I FOR VALUES FROM (MINVALUE) TO (%L)', legacy_partition_name, tomorrow_start);
+    EXECUTE format('ALTER TABLE v1_task_expression_eval_partitioned ATTACH PARTITION %I FOR VALUES FROM (%s) TO (%L)', legacy_partition_name, legacy_partition_lower_bound, tomorrow_start);
     EXECUTE format('ALTER TABLE %I DROP CONSTRAINT v1_task_expression_eval_attach_bound', legacy_partition_name);
 END $$;
 
