@@ -23,3 +23,13 @@ func TestDAGOrchestratorActionId(t *testing.T) {
 		assert.False(t, IsDAGOrchestratorActionId(bad), bad)
 	}
 }
+
+func TestDAGOrchestratorReadableId(t *testing.T) {
+	assert.Equal(t, "my-workflow", dagOrchestratorReadableId("my-workflow", []string{"step_a", "step_b"}))
+	assert.Equal(t, "my-workflow_orchestrator", dagOrchestratorReadableId("my-workflow", []string{"my-workflow", "step_b"}))
+	assert.Equal(
+		t,
+		"my-workflow_orchestrator_orchestrator",
+		dagOrchestratorReadableId("my-workflow", []string{"my-workflow", "my-workflow_orchestrator"}),
+	)
+}
