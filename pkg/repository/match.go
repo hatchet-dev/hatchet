@@ -858,6 +858,7 @@ func (m *sharedRepository) processEventMatchesForTarget(ctx context.Context, tx 
 		}
 	}
 
+	// important: need an explicit lock here to prevent segfault caused by Postgres bug, see this issue: https://github.com/hatchet-dev/hatchet/issues/5101
 	if len(durableTaskIds) > 0 {
 		tenantIds := make([]uuid.UUID, len(durableTaskIds))
 		for i := range tenantIds {
