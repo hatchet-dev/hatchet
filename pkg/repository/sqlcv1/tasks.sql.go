@@ -298,7 +298,8 @@ SELECT
     create_v1_range_partition('v1_dag_to_task', $1::date) AS v1_dag_to_task,
     create_v1_range_partition('v1_dag_data', $1::date) AS v1_dag_data,
     create_v1_range_partition('v1_task_expression_eval', $1::date) AS v1_task_expression_eval,
-    create_v1_monthly_range_partition('v1_lookup_table', $1::date) AS v1_lookup_table
+    create_v1_monthly_range_partition('v1_lookup_table', $1::date) AS v1_lookup_table,
+    create_v1_range_partition('v1_stream_producer_cursor', $1::date, 80) AS v1_stream_producer_cursor
 `
 
 type CreatePartitionsRow struct {
@@ -315,6 +316,7 @@ type CreatePartitionsRow struct {
 	V1DagData                    int32 `json:"v1_dag_data"`
 	V1TaskExpressionEval         int32 `json:"v1_task_expression_eval"`
 	V1LookupTable                int32 `json:"v1_lookup_table"`
+	V1StreamProducerCursor       int32 `json:"v1_stream_producer_cursor"`
 }
 
 func (q *Queries) CreatePartitions(ctx context.Context, db DBTX, date pgtype.Date) (*CreatePartitionsRow, error) {
@@ -334,6 +336,7 @@ func (q *Queries) CreatePartitions(ctx context.Context, db DBTX, date pgtype.Dat
 		&i.V1DagData,
 		&i.V1TaskExpressionEval,
 		&i.V1LookupTable,
+		&i.V1StreamProducerCursor,
 	)
 	return &i, err
 }

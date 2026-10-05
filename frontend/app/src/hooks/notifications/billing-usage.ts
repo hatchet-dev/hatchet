@@ -1,6 +1,10 @@
 import { billingUsageDismissKey } from './dismissed';
 import { Notification, NotificationColor } from './types';
-import { isPeriodUsageFeature } from '@/components/v1/cloud/billing/usage-features';
+import {
+  dailyLimitAlerts,
+  isDailyLimitFeature,
+  isPeriodUsageFeature,
+} from '@/components/v1/cloud/billing/usage-features';
 import useControlPlane from '@/hooks/use-control-plane';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import { queries } from '@/lib/api';
@@ -35,8 +39,13 @@ const featureToNotification = (
   timestamp: string,
 ): Notification | null => {
   // Period included amounts for task runs / events are billing thresholds,
-  // not hard caps. Daily-limit features still notify.
-  if (isPeriodUsageFeature(feature.featureId)) {
+  // not hard caps. Daily caps notify from the shard meter. Tenant count stays
+  // on the billing page and does not raise the header alert.
+  if (
+    isPeriodUsageFeature(feature.featureId) ||
+    isDailyLimitFeature(feature.featureId) ||
+    feature.featureId === 'tenants'
+  ) {
     return null;
   }
 
@@ -90,6 +99,11 @@ export const useBillingUsageNotifications = () => {
     refetchInterval: TWO_MINUTES_MS,
     enabled: isControlPlaneEnabled && canBill && !!organizationId,
   });
+  const limitsQuery = useQuery({
+    ...queries.controlPlane.tenantResourceLimits(organizationId ?? ''),
+    refetchInterval: TWO_MINUTES_MS,
+    enabled: isControlPlaneEnabled && canBill && !!organizationId,
+  });
 
   const notifications = useMemo(() => {
     if (!organizationId) {
@@ -102,7 +116,7 @@ export const useBillingUsageNotifications = () => {
       new Date(0).toISOString();
     const organizationName = organization?.name ?? organizationId;
 
-    return (usageQuery.data?.features ?? [])
+    const autumnNotifications = (usageQuery.data?.features ?? [])
       .map((feature) =>
         featureToNotification(
           feature,
@@ -112,7 +126,37 @@ export const useBillingUsageNotifications = () => {
         ),
       )
       .filter((n): n is Notification => n !== null);
+
+    const meterNotifications = dailyLimitAlerts(
+      limitsQuery.data?.tenants ?? [],
+    ).map((alert): Notification => {
+      const subject = alert.tenantName ?? organizationName;
+
+      return {
+        color: statusToColor[alert.status],
+        shortTitle:
+          alert.status === 'exhausted' ? 'Limit reached' : 'Approaching limit',
+        title:
+          alert.status === 'exhausted'
+            ? `${alert.name} limit reached`
+            : `Approaching ${alert.name} limit`,
+        message: `${subject}: ${formatUsageCount(alert.usage)} / ${formatUsageCount(alert.includedUsage)} used`,
+        timestamp: alert.timestamp,
+        dismissKey: billingUsageDismissKey(
+          organizationId,
+          alert.featureId,
+          alert.status,
+        ),
+        url: appRoutes.organizationBillingRoute.to.replace(
+          '$organization',
+          organizationId,
+        ),
+      };
+    });
+
+    return [...autumnNotifications, ...meterNotifications];
   }, [
+    limitsQuery.data?.tenants,
     organization?.name,
     organizationId,
     usageQuery.data?.features,
@@ -122,6 +166,6 @@ export const useBillingUsageNotifications = () => {
 
   return {
     notifications,
-    isLoading: usageQuery.isLoading,
+    isLoading: usageQuery.isLoading || limitsQuery.isLoading,
   };
 };

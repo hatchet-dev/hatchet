@@ -326,7 +326,12 @@ function OrganizationBillingContent() {
           </p>
         </div>
 
-        <UsageThisPeriod organizationId={organization} />
+        <UsageThisPeriod
+          organizationId={organization}
+          plan={billingState.data?.plans?.find(
+            (item) => item.planCode === activePlanCode,
+          )}
+        />
       </div>
 
       <div className="mt-12 space-y-4">

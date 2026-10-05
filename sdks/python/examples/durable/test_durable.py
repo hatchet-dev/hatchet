@@ -4,7 +4,7 @@ import time
 import pytest
 from uuid import uuid4
 import json
-from typing import cast
+from typing import Any, cast
 from random import shuffle
 from datetime import datetime, timedelta, timezone
 
@@ -16,6 +16,7 @@ from examples.durable.worker import (
     durable_with_bulk_spawn,
     durable_with_spawn,
     durable_workflow,
+    durable_task,
     wait_for_sleep_twice,
     durable_spawn_dag,
     durable_non_determinism,
@@ -30,6 +31,7 @@ from examples.durable.worker import (
     wait_for_event_lookback,
     wait_for_or_event_lookback,
     wait_for_two_events_second_pushed_first,
+    wait_for_or_group_1,
     durable_spawn_many_dags,
     error_raising_durable_parent,
     error_raising_task,
@@ -44,16 +46,83 @@ TIMING_TOLERANCE = 2.0
 requires_durable_eviction = pytest.mark.usefixtures("_skip_unless_durable_eviction")
 
 
+async def _wait_for_task_to_complete(
+    hatchet: Hatchet, workflow_run_id: str, task_name: str, timeout: float = 90.0
+) -> None:
+    interval = 0.5
+    deadline = time.monotonic() + timeout
+
+    while time.monotonic() < deadline:
+        details = await hatchet.runs.aio_get(workflow_run_id)
+
+        # a task's display name is "<step readable id>-<unix timestamp>"
+        if any(
+            t.status == V1TaskStatus.COMPLETED
+            and t.display_name.startswith(f"{task_name}-")
+            for t in details.tasks
+        ):
+            return
+
+        await asyncio.sleep(interval)
+
+    raise TimeoutError(
+        f"{task_name} did not complete within {timeout}s for run {workflow_run_id}"
+    )
+
+
+async def _push_event_until_task_completes(
+    hatchet: Hatchet,
+    workflow_run_id: str,
+    task_name: str,
+    event_key: str,
+    payload: dict[str, Any],
+    timeout: float = 90.0,
+    interval: float = 2.0,
+) -> None:
+    deadline = time.monotonic() + timeout
+
+    while time.monotonic() < deadline:
+        await hatchet.event.aio_push(event_key, payload)
+
+        try:
+            await _wait_for_task_to_complete(
+                hatchet, workflow_run_id, task_name, timeout=interval
+            )
+            return
+        except TimeoutError:
+            continue
+
+    raise TimeoutError(
+        f"{task_name} did not complete within {timeout}s for run {workflow_run_id}"
+    )
+
+
 @pytest.mark.asyncio(loop_scope="session")
 async def test_durable_workflow(hatchet: Hatchet) -> None:
     ref = await durable_workflow.aio_run(wait_for_result=False)
     id = str(uuid4())
 
-    await wait_for_running_status(hatchet, ref.workflow_run_id)
-    await asyncio.sleep(SLEEP_TIME + 3)
+    # wait_for_or_group_1 races its SLEEP_TIME sleep against EVENT_KEY, and the
+    # test asserts the sleep wins. The durable tasks start whenever the shared
+    # worker has a durable slot free, so a fixed delay measured from the run
+    # going RUNNING can land the event before that sleep is even registered.
+    # Anchor on the sleep having fired instead: once wait_for_or_group_1 is
+    # COMPLETED the event can no longer beat it.
+    await _wait_for_task_to_complete(
+        hatchet, ref.workflow_run_id, wait_for_or_group_1.name
+    )
 
-    event = await hatchet.event.aio_push(
-        EVENT_KEY, AwaitedEvent(id=id).model_dump(mode="json")
+    # durable_task registers its event wait only after its own SLEEP_TIME
+    # sleep, and that wait has no lookback, so a single push can land before
+    # the wait exists and never be seen. Push the same event until durable_task
+    # has completed; every push carries the same id, so the result is the same
+    # whichever push is matched, and wait_for_or_group_1 has already finished.
+    await _push_event_until_task_completes(
+        hatchet,
+        ref.workflow_run_id,
+        durable_task.name,
+        EVENT_KEY,
+        AwaitedEvent(id=id).model_dump(mode="json"),
     )
 
     result = await ref.aio_result()
@@ -224,7 +293,19 @@ async def test_durable_non_determinism(hatchet: Hatchet) -> None:
 
     await hatchet.runs.aio_replay(ref.workflow_run_id)
 
-    replayed_result = await ref.aio_result()
+    # aio_result resolves at once when the run is already terminal, and the
+    # replay flips the run back to running only shortly after the request
+    # returns, so a single read can still hand back the first attempt. Keep
+    # asking until the second attempt is what comes back.
+    deadline = time.monotonic() + 60
+    while True:
+        replayed_result = await ref.aio_result()
+        if replayed_result.attempt_number >= 2:
+            break
+        assert (
+            time.monotonic() < deadline
+        ), f"the replayed attempt never produced a result; last attempt seen: {replayed_result.attempt_number}"
+        await asyncio.sleep(0.5)
 
     assert replayed_result.non_determinism_detected
     assert replayed_result.node_id == 1

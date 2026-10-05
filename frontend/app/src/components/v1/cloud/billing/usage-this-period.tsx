@@ -6,6 +6,7 @@ import {
   meterPercent,
   nextRefillAt,
   selectDailyMeters,
+  inventoryAllowancesFromPlan,
   shardUsageRows,
   sumUsageSeries,
   tenantUsageChart,
@@ -59,7 +60,10 @@ import {
 import useControlPlane from '@/hooks/use-control-plane';
 import { useOrganizationEntitlements } from '@/hooks/use-organization-entitlements';
 import { queries } from '@/lib/api';
-import { OrganizationUsageFeature } from '@/lib/api/generated/control-plane/data-contracts';
+import {
+  OrganizationUsageFeature,
+  SubscriptionPlan,
+} from '@/lib/api/generated/control-plane/data-contracts';
 import { cn } from '@/lib/utils';
 import { ArrowUpCircleIcon } from '@heroicons/react/24/outline';
 import { useQuery } from '@tanstack/react-query';
@@ -77,6 +81,7 @@ import {
 } from 'recharts';
 
 const GRAPHABLE_FEATURES = new Set(['task_runs', 'events']);
+const INVENTORY_FEATURES = new Set(['crons', 'scheduled_runs', 'webhooks']);
 
 type RangePreset = UsageRangePreset;
 
@@ -251,6 +256,19 @@ function metricValue(
   return featureId === 'events' ? point.events : point.taskRuns;
 }
 
+function inventoryCountKey(featureId: string) {
+  switch (featureId) {
+    case 'crons':
+      return 'crons' as const;
+    case 'scheduled_runs':
+      return 'scheduledRuns' as const;
+    case 'webhooks':
+      return 'webhooks' as const;
+    default:
+      return null;
+  }
+}
+
 function TenantUsageChart({
   points,
   series,
@@ -269,7 +287,7 @@ function TenantUsageChart({
 
   return (
     <ChartContainer config={config} className="aspect-auto h-[240px] w-full">
-      <BarChart data={points} margin={{ left: 0, right: 0, top: 8, bottom: 0 }}>
+      <BarChart data={points} margin={{ left: 8, right: 8, top: 8, bottom: 0 }}>
         <CartesianGrid vertical={false} />
         <XAxis
           dataKey="date"
@@ -288,14 +306,14 @@ function TenantUsageChart({
         <YAxis
           tickLine={false}
           axisLine={false}
-          tickMargin={4}
-          width={36}
+          tickMargin={8}
+          width={60}
           style={{ fontSize: '10px', userSelect: 'none' }}
         />
         <ChartTooltip
           content={
             <ChartTooltipContent
-              className="w-[180px] font-mono text-xs"
+              className="w-max max-w-xs font-mono text-xs"
               labelFormatter={(value) =>
                 new Date(value).toLocaleDateString([], {
                   month: 'short',
@@ -328,7 +346,7 @@ function UsageSparkline({ values }: { values: number[] }) {
       <ResponsiveContainer width="100%" height="100%">
         <LineChart
           data={data}
-          margin={{ top: 4, right: 0, bottom: 4, left: 0 }}
+          margin={{ top: 4, right: 2, bottom: 4, left: 2 }}
         >
           <Line
             type="monotone"
@@ -472,8 +490,10 @@ function UsageMeter({
 
 export function UsageThisPeriod({
   organizationId,
+  plan,
 }: {
   organizationId?: string | null;
+  plan?: SubscriptionPlan;
 }) {
   const { canBill, isControlPlaneEnabled } = useControlPlane();
   const [detailFeatureId, setDetailFeatureId] = useState<string | null>(null);
@@ -549,6 +569,8 @@ export function UsageThisPeriod({
         crons: sumLoadedCount(shardTenants, 'crons'),
         scheduledRuns: sumLoadedCount(shardTenants, 'scheduledRuns'),
         webhooks: sumLoadedCount(shardTenants, 'webhooks'),
+        allowances:
+          tenantId === 'all' ? inventoryAllowancesFromPlan(plan) : undefined,
         tenants: tenantId === 'all' ? entitlements?.tenants : undefined,
         users: tenantId === 'all' ? entitlements?.users : undefined,
       },
@@ -558,6 +580,7 @@ export function UsageThisPeriod({
     dailyMeters,
     entitlements?.tenants,
     entitlements?.users,
+    plan,
     tenantId,
     timeseries.data?.series,
     timeseries.data?.tenants,
@@ -595,6 +618,26 @@ export function UsageThisPeriod({
   const tenantRows = timeseries.data?.tenants ?? [];
   const tenantTotal = tenantRows.reduce(
     (sum, tenant) => sum + metricValue(detailFeatureId ?? 'task_runs', tenant),
+    0,
+  );
+  const inventoryKey = inventoryCountKey(detailFeatureId ?? '');
+  const inventoryTenants = useMemo(() => {
+    if (!inventoryKey) {
+      return [];
+    }
+    return (timeseries.data?.tenants ?? [])
+      .flatMap((tenant) => {
+        const value = tenant[inventoryKey];
+        return value == null ? [] : [{ tenant, value }];
+      })
+      .sort(
+        (a, b) =>
+          b.value - a.value ||
+          a.tenant.tenantName.localeCompare(b.tenant.tenantName),
+      );
+  }, [inventoryKey, timeseries.data?.tenants]);
+  const inventoryTotal = inventoryTenants.reduce(
+    (sum, entry) => sum + entry.value,
     0,
   );
 
@@ -685,6 +728,9 @@ export function UsageThisPeriod({
             <div className="divide-y divide-border/40">
               {rows.map((row) => {
                 const graphable = GRAPHABLE_FEATURES.has(row.feature.featureId);
+                const inventory =
+                  INVENTORY_FEATURES.has(row.feature.featureId) &&
+                  tenantId === 'all';
                 const sparkline = graphable
                   ? seriesByFeature[
                       row.feature.featureId as keyof typeof seriesByFeature
@@ -702,7 +748,7 @@ export function UsageThisPeriod({
                         : undefined
                     }
                     rangePreset={rangePreset}
-                    selectable={graphable}
+                    selectable={graphable || inventory}
                     onSelect={() => setDetailFeatureId(row.feature.featureId)}
                     onUpgrade={() =>
                       setUpgradeGate({
@@ -751,19 +797,66 @@ export function UsageThisPeriod({
             className="max-w-none"
             title={detailFeature?.name ?? 'Usage'}
             description={
-              <DialogDescription>
-                Daily usage
-                {formatRangeLabel(
-                  range.start.toISOString(),
-                  range.end.toISOString(),
-                )
-                  ? ` · ${formatRangeLabel(range.start.toISOString(), range.end.toISOString())}`
-                  : ''}
-                . Total {formatUsageCount(tenantChart?.total ?? chartTotal)}.
-              </DialogDescription>
+              inventoryKey ? (
+                <DialogDescription>
+                  Current count by tenant. Total{' '}
+                  {formatUsageCount(inventoryTotal)}.
+                </DialogDescription>
+              ) : (
+                <DialogDescription>
+                  Daily usage
+                  {formatRangeLabel(
+                    range.start.toISOString(),
+                    range.end.toISOString(),
+                  )
+                    ? ` · ${formatRangeLabel(range.start.toISOString(), range.end.toISOString())}`
+                    : ''}
+                  . Total {formatUsageCount(tenantChart?.total ?? chartTotal)}.
+                </DialogDescription>
+              )
             }
           >
-            {timeseries.isError ? (
+            {inventoryKey ? (
+              inventoryTenants.length > 0 ? (
+                <div className="-mx-6 divide-y divide-border/40">
+                  {inventoryTenants.map(({ tenant, value }) => {
+                    const percent =
+                      inventoryTotal > 0 ? (value / inventoryTotal) * 100 : 0;
+                    return (
+                      <div
+                        key={tenant.tenantId}
+                        className="flex w-full items-center justify-between gap-4 px-6 py-2"
+                      >
+                        <div className="min-w-0">
+                          <p
+                            className="truncate text-sm text-foreground"
+                            title={tenant.tenantName}
+                          >
+                            {tenant.tenantName}
+                          </p>
+                          <p
+                            className="truncate text-xs text-muted-foreground"
+                            title={tenant.tenantSlug}
+                          >
+                            {tenant.tenantSlug}
+                          </p>
+                        </div>
+                        <p className="shrink-0 whitespace-nowrap text-sm tabular-nums text-muted-foreground">
+                          {formatUsageCount(value)}
+                          {inventoryTotal > 0
+                            ? ` · ${percent.toFixed(1)}%`
+                            : ''}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No tenant counts loaded.
+                </p>
+              )
+            ) : timeseries.isError ? (
               <Alert variant="warn">
                 <AlertTitle>Usage graph unavailable</AlertTitle>
                 <AlertDescription>
@@ -787,7 +880,7 @@ export function UsageThisPeriod({
               />
             )}
 
-            {tenantRows.length > 0 ? (
+            {!inventoryKey && tenantRows.length > 0 ? (
               <div className="-mx-6 space-y-3">
                 <p className="px-6 text-sm font-medium text-foreground">
                   Usage by tenant
@@ -822,15 +915,21 @@ export function UsageThisPeriod({
                             style={{ backgroundColor: color }}
                           />
                           <div className="min-w-0">
-                            <p className="text-sm text-foreground">
+                            <p
+                              className="truncate text-sm text-foreground"
+                              title={tenant.tenantName}
+                            >
                               {tenant.tenantName}
                             </p>
-                            <p className="text-xs text-muted-foreground">
+                            <p
+                              className="truncate text-xs text-muted-foreground"
+                              title={tenant.tenantSlug}
+                            >
                               {tenant.tenantSlug}
                             </p>
                           </div>
                         </div>
-                        <p className="text-sm tabular-nums text-muted-foreground">
+                        <p className="shrink-0 whitespace-nowrap text-sm tabular-nums text-muted-foreground">
                           {formatUsageCount(value)}
                           {tenantTotal > 0 ? ` · ${percent.toFixed(1)}%` : ''}
                         </p>

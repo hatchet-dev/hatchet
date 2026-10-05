@@ -13,46 +13,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const bulkQueueItems = `-- name: BulkQueueItems :many
-WITH locked_qis AS (
-    SELECT
-        id
-    FROM
-        v1_queue_item
-    WHERE
-        id = ANY($1::bigint[])
-    ORDER BY
-        id ASC
-    FOR UPDATE
-)
-DELETE FROM
-    v1_queue_item
-WHERE
-    id = ANY($1::bigint[])
-RETURNING
-    id
-`
-
-func (q *Queries) BulkQueueItems(ctx context.Context, db DBTX, ids []int64) ([]int64, error) {
-	rows, err := db.Query(ctx, bulkQueueItems, ids)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []int64
-	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		items = append(items, id)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const cleanupV1QueueItem = `-- name: CleanupV1QueueItem :execresult
 WITH locked_qis as (
     SELECT qi.task_id, qi.task_inserted_at, qi.retry_count
@@ -196,6 +156,225 @@ type DeleteTasksFromQueueParams struct {
 func (q *Queries) DeleteTasksFromQueue(ctx context.Context, db DBTX, arg DeleteTasksFromQueueParams) error {
 	_, err := db.Exec(ctx, deleteTasksFromQueue, arg.Taskids, arg.Retrycounts)
 	return err
+}
+
+const flushAssignedQueueItems = `-- name: FlushAssignedQueueItems :many
+WITH assign_input AS (
+    SELECT
+        task_id,
+        task_inserted_at,
+        retry_count,
+        worker_id,
+        step_timeout
+    FROM
+        (
+            SELECT
+                UNNEST($1::bigint[]) AS task_id,
+                UNNEST($2::timestamptz[]) AS task_inserted_at,
+                UNNEST($3::integer[]) AS retry_count,
+                UNNEST($4::uuid[]) AS worker_id,
+                UNNEST($5::interval[]) AS step_timeout
+        ) AS subquery
+    ORDER BY task_id
+), remove_input AS (
+    SELECT
+        UNNEST($6::bigint[]) AS task_id,
+        UNNEST($7::timestamptz[]) AS task_inserted_at,
+        UNNEST($8::integer[]) AS retry_count
+), all_keys AS (
+    SELECT task_id, task_inserted_at, retry_count FROM assign_input
+    UNION ALL
+    SELECT task_id, task_inserted_at, retry_count FROM remove_input
+), locked_runtimes AS (
+    SELECT
+        r.task_id,
+        r.task_inserted_at,
+        r.retry_count
+    FROM
+        all_keys k
+    JOIN
+        v1_task_runtime r ON (r.task_id, r.task_inserted_at, r.retry_count) = (k.task_id, k.task_inserted_at, k.retry_count)
+    WHERE
+        r.tenant_id = $9::uuid
+    ORDER BY r.task_id, r.task_inserted_at, r.retry_count
+    FOR UPDATE OF r
+), keys_to_delete AS (
+    -- the CROSS JOIN on an aggregate of locked_runtimes is what makes that CTE run
+    -- (Postgres skips an unreferenced SELECT CTE), and it makes every runtime lock
+    -- precede the first delete
+    SELECT
+        k.task_id,
+        k.task_inserted_at,
+        k.retry_count
+    FROM
+        all_keys k
+    CROSS JOIN
+        (SELECT COUNT(*) AS locked FROM locked_runtimes) l
+), deleted AS (
+    DELETE FROM
+        v1_queue_item qi
+    USING
+        keys_to_delete k
+    WHERE
+        qi.task_id = k.task_id
+        AND qi.task_inserted_at = k.task_inserted_at
+        AND qi.retry_count = k.retry_count
+    RETURNING
+        qi.task_id, qi.task_inserted_at, qi.retry_count
+), to_assign AS (
+    SELECT
+        t.id,
+        t.inserted_at,
+        t.retry_count,
+        i.worker_id,
+        t.tenant_id,
+        t.batch_key,
+        t.step_id,
+        CURRENT_TIMESTAMP + i.step_timeout AS timeout_at,
+        t.is_durable
+    FROM
+        assign_input i
+    JOIN
+        deleted d ON (d.task_id, d.task_inserted_at, d.retry_count) = (i.task_id, i.task_inserted_at, i.retry_count)
+    JOIN
+        v1_task t ON (t.id, t.inserted_at, t.retry_count) = (i.task_id, i.task_inserted_at, i.retry_count)
+    WHERE
+        t.inserted_at >= $10::timestamptz
+    ORDER BY t.id
+), assigned_tasks AS (
+    INSERT INTO v1_task_runtime (
+        task_id,
+        task_inserted_at,
+        retry_count,
+        worker_id,
+        tenant_id,
+        batch_key,
+        timeout_at
+    )
+    SELECT
+        t.id,
+        t.inserted_at,
+        t.retry_count,
+        t.worker_id,
+        $9::uuid,
+        t.batch_key,
+        t.timeout_at
+    FROM
+        to_assign t
+    ON CONFLICT (task_id, task_inserted_at, retry_count) DO UPDATE
+    SET
+        evicted_at = NULL,
+        worker_id = EXCLUDED.worker_id,
+        timeout_at = EXCLUDED.timeout_at,
+        batch_key = EXCLUDED.batch_key
+    WHERE v1_task_runtime.evicted_at IS NOT NULL
+    -- only return the task ids that were successfully assigned
+    RETURNING task_id, task_inserted_at, retry_count, worker_id
+), assigned_slots AS (
+    INSERT INTO v1_task_runtime_slot (
+        tenant_id,
+        task_id,
+        task_inserted_at,
+        retry_count,
+        worker_id,
+        slot_type,
+        units
+    )
+    SELECT
+        t.tenant_id,
+        t.id,
+        t.inserted_at,
+        t.retry_count,
+        t.worker_id,
+        COALESCE(req.slot_type, 'default'::text),
+        COALESCE(req.units, 1)
+    FROM
+        to_assign t
+    LEFT JOIN
+        v1_step_slot_request req
+        ON req.step_id = t.step_id AND req.tenant_id = t.tenant_id
+    ON CONFLICT (task_id, task_inserted_at, retry_count, slot_type) DO NOTHING
+    RETURNING task_id
+)
+SELECT
+    d.task_id,
+    d.task_inserted_at,
+    d.retry_count,
+    a.worker_id,
+    ta.is_durable
+FROM
+    deleted d
+LEFT JOIN
+    assigned_tasks a ON (a.task_id, a.task_inserted_at, a.retry_count) = (d.task_id, d.task_inserted_at, d.retry_count)
+LEFT JOIN
+    to_assign ta ON (ta.id, ta.inserted_at, ta.retry_count) = (d.task_id, d.task_inserted_at, d.retry_count)
+`
+
+type FlushAssignedQueueItemsParams struct {
+	Taskids               []int64              `json:"taskids"`
+	Taskinsertedats       []pgtype.Timestamptz `json:"taskinsertedats"`
+	Taskretrycounts       []int32              `json:"taskretrycounts"`
+	Workerids             []uuid.UUID          `json:"workerids"`
+	Steptimeouts          []pgtype.Interval    `json:"steptimeouts"`
+	Removetaskids         []int64              `json:"removetaskids"`
+	Removetaskinsertedats []pgtype.Timestamptz `json:"removetaskinsertedats"`
+	Removeretrycounts     []int32              `json:"removeretrycounts"`
+	Tenantid              uuid.UUID            `json:"tenantid"`
+	Mintaskinsertedat     pgtype.Timestamptz   `json:"mintaskinsertedat"`
+}
+
+type FlushAssignedQueueItemsRow struct {
+	TaskID         int64              `json:"task_id"`
+	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
+	RetryCount     int32              `json:"retry_count"`
+	WorkerID       *uuid.UUID         `json:"worker_id"`
+	IsDurable      pgtype.Bool        `json:"is_durable"`
+}
+
+// FlushAssignedQueueItems deletes v1_queue_item entries and inserts v1_task_runtime entries
+// in a single statement. It locks existing v1_task_runtime entries in task_id order (the
+// same order as RestoreEvictedTasks and ReleaseTasks) before the first delete.
+//
+// Assign keys carry a worker id and a step timeout (an interval, see durationToInterval)
+// and get a runtime and slot row; remove keys are only deleted.
+//
+// Return values are task ids from successfully deleted v1_queue_items, with worker_id and
+// is_durable set on the ones that were assigned.
+func (q *Queries) FlushAssignedQueueItems(ctx context.Context, db DBTX, arg FlushAssignedQueueItemsParams) ([]*FlushAssignedQueueItemsRow, error) {
+	rows, err := db.Query(ctx, flushAssignedQueueItems,
+		arg.Taskids,
+		arg.Taskinsertedats,
+		arg.Taskretrycounts,
+		arg.Workerids,
+		arg.Steptimeouts,
+		arg.Removetaskids,
+		arg.Removetaskinsertedats,
+		arg.Removeretrycounts,
+		arg.Tenantid,
+		arg.Mintaskinsertedat,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*FlushAssignedQueueItemsRow
+	for rows.Next() {
+		var i FlushAssignedQueueItemsRow
+		if err := rows.Scan(
+			&i.TaskID,
+			&i.TaskInsertedAt,
+			&i.RetryCount,
+			&i.WorkerID,
+			&i.IsDurable,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getBatchedQueueItemsByIds = `-- name: GetBatchedQueueItemsByIds :many
@@ -1396,42 +1575,6 @@ func (q *Queries) ListWorkerActionSets(ctx context.Context, db DBTX, arg ListWor
 		return nil, err
 	}
 	return items, nil
-}
-
-const lockTaskRuntimesForFlush = `-- name: LockTaskRuntimesForFlush :exec
-WITH input AS (
-    SELECT
-        UNNEST($2::bigint[]) AS task_id,
-        UNNEST($3::timestamptz[]) AS task_inserted_at,
-        UNNEST($4::integer[]) AS retry_count
-)
-SELECT task_id, task_inserted_at, retry_count, worker_id, batch_id, batch_size, batch_index, batch_key, tenant_id, timeout_at, evicted_at
-FROM v1_task_runtime
-WHERE
-    (task_id, task_inserted_at, retry_count) IN (
-        SELECT task_id, task_inserted_at, retry_count
-        FROM input
-    )
-    AND tenant_id = $1::uuid
-ORDER BY task_id, task_inserted_at, retry_count
-FOR UPDATE
-`
-
-type LockTaskRuntimesForFlushParams struct {
-	Tenantid        uuid.UUID            `json:"tenantid"`
-	Taskids         []int64              `json:"taskids"`
-	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
-	Retrycounts     []int32              `json:"retrycounts"`
-}
-
-func (q *Queries) LockTaskRuntimesForFlush(ctx context.Context, db DBTX, arg LockTaskRuntimesForFlushParams) error {
-	_, err := db.Exec(ctx, lockTaskRuntimesForFlush,
-		arg.Tenantid,
-		arg.Taskids,
-		arg.Taskinsertedats,
-		arg.Retrycounts,
-	)
-	return err
 }
 
 const moveBatchedQueueItems = `-- name: MoveBatchedQueueItems :many

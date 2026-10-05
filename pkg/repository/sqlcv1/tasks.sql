@@ -12,7 +12,8 @@ SELECT
     create_v1_range_partition('v1_dag_to_task', @date::date) AS v1_dag_to_task,
     create_v1_range_partition('v1_dag_data', @date::date) AS v1_dag_data,
     create_v1_range_partition('v1_task_expression_eval', @date::date) AS v1_task_expression_eval,
-    create_v1_monthly_range_partition('v1_lookup_table', @date::date) AS v1_lookup_table
+    create_v1_monthly_range_partition('v1_lookup_table', @date::date) AS v1_lookup_table,
+    create_v1_range_partition('v1_stream_producer_cursor', @date::date, 80) AS v1_stream_producer_cursor
 ;
 
 -- name: EnsureTablePartitionsExist :one

@@ -4,7 +4,6 @@ package repository
 
 import (
 	"context"
-	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -24,6 +23,13 @@ import (
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-migrate/migrate"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
+
+// migrationMu serializes migrate.RunMigrations across tests. The migrate
+// package drives goose through its package-level API (SetBaseFS, SetDialect,
+// the registered migration list), which is process-global and not safe for
+// concurrent callers. Tests that call t.Parallel() would otherwise race inside
+// goose while each migrating its own container.
+var migrationMu sync.Mutex
 
 func setupPostgresWithMigration(t *testing.T) (*pgxpool.Pool, func()) {
 	ctx := context.Background()
@@ -46,12 +52,15 @@ func setupPostgresWithMigration(t *testing.T) (*pgxpool.Pool, func()) {
 
 	t.Logf("PostgreSQL container started with connection string: %s", connStr)
 
-	originalDatabaseURL := os.Getenv("DATABASE_URL")
-	err = os.Setenv("DATABASE_URL", connStr)
-	require.NoError(t, err)
-
+	// Pass the URL explicitly instead of through the process-global DATABASE_URL.
+	// Tests that call t.Parallel() run this helper concurrently, and a shared env
+	// var lets one test's migration land on another test's container while its
+	// own database stays empty.
 	t.Log("Running database migration...")
-	if err := migrate.RunMigrations(ctx); err != nil {
+	migrationMu.Lock()
+	err = migrate.RunMigrations(ctx, migrate.WithDatabaseURL(connStr))
+	migrationMu.Unlock()
+	if err != nil {
 		t.Fatalf("Failed to run migrations: %v", err)
 	}
 	t.Log("Migration completed successfully")
@@ -73,12 +82,7 @@ func setupPostgresWithMigration(t *testing.T) (*pgxpool.Pool, func()) {
 
 	cleanup := func() {
 		pool.Close()
-		postgresContainer.Terminate(ctx)
-		if originalDatabaseURL != "" {
-			os.Setenv("DATABASE_URL", originalDatabaseURL)
-		} else {
-			os.Unsetenv("DATABASE_URL")
-		}
+		postgresContainer.Terminate(ctx) // nolint: errcheck
 	}
 
 	return pool, cleanup
@@ -92,6 +96,8 @@ func createTaskRepository(pool *pgxpool.Pool) *TaskRepositoryImpl {
 		l:       &logger,
 		queries: sqlcv1.New(),
 	}
+	shared.m = newTestTenantLimitRepository(pool, defaultLimitTestConfig())
+
 	return &TaskRepositoryImpl{
 		sharedRepository:      shared,
 		taskRetentionPeriod:   24 * time.Hour,

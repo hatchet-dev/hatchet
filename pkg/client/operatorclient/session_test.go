@@ -28,19 +28,23 @@ import (
 // models the ways a stream dies: breakRecv (server hangup, Recv fails with
 // Unavailable) and breakSend (transport failure, Send fails too). CloseSend
 // ends Recv with EOF the way a server does after the client half-closes.
+// A deltaGate, when set, parks every Send of an action delta until the test
+// closes it; parkedDeltas counts the sends that reached the gate.
 type fakeOperatorListenStream struct {
 	ctx       context.Context
 	recvDead  chan struct{}
 	responses chan *v1.OperatorListenResponse
+	deltaGate chan struct{}
 	recvErr   error
 	requests  []*v1.OperatorListenRequest
 	// operatorId is the hatchet-operator-id metadata the stream was opened with
-	operatorId string
-	id         int
-	mu         sync.Mutex
-	recvOnce   sync.Once
-	sendDead   atomic.Bool
-	noAck      atomic.Bool
+	operatorId   string
+	id           int
+	mu           sync.Mutex
+	recvOnce     sync.Once
+	parkedDeltas atomic.Int32
+	sendDead     atomic.Bool
+	noAck        atomic.Bool
 	// noPauseAck makes the stream withhold pause acks
 	noPauseAck atomic.Bool
 }
@@ -48,6 +52,11 @@ type fakeOperatorListenStream struct {
 func (s *fakeOperatorListenStream) Send(req *v1.OperatorListenRequest) error {
 	if s.sendDead.Load() {
 		return status.Error(codes.Unavailable, "send on broken stream")
+	}
+
+	if req.GetActions() != nil && s.deltaGate != nil {
+		s.parkedDeltas.Add(1)
+		<-s.deltaGate
 	}
 
 	s.mu.Lock()
@@ -211,7 +220,9 @@ type fakeOperatorServiceClient struct {
 	stepEventOperatorId []string
 	registerErr         error
 	listenErr           error
-	mu                  sync.Mutex
+	// deltaGate is handed to every new stream (see fakeOperatorListenStream)
+	deltaGate chan struct{}
+	mu        sync.Mutex
 	// noAck makes every new stream withhold delta acks
 	noAck bool
 	// noPauseAck makes every new stream withhold pause acks
@@ -251,6 +262,7 @@ func (f *fakeOperatorServiceClient) Listen(ctx context.Context, opts ...grpc.Cal
 		operatorId: outgoingOperatorId(ctx),
 		recvDead:   make(chan struct{}),
 		responses:  make(chan *v1.OperatorListenResponse, 1024),
+		deltaGate:  f.deltaGate,
 	}
 	if f.noAck {
 		s.noAck.Store(true)
@@ -731,9 +743,236 @@ func TestOperatorSessionFlushReportsLastSendError(t *testing.T) {
 	client.listenErr = nil
 	client.mu.Unlock()
 
+	// The heartbeat loop reconnects as soon as the engine is back and the
+	// replay resends the failed delta on the new stream. Until the engine
+	// acknowledges that replay, a flush can still observe the recorded send
+	// error, so the next delta goes out only once the replay has settled.
+	waitFor(t, func() bool { return len(s.actions.unackedSequences()) == 0 }, "the failed delta was not replayed once the engine came back")
+
 	s.AddActions("svc:two")
 	flushed(t, s)
 	assert.Contains(t, s.actions.desiredSet(), "svc:one", "a delta that could not be sent stays in the desired set for the next replay")
+
+	adds, _ := deltaIds(client.stream(1).deltas())
+	assert.Contains(t, adds, "svc:one", "the delta that could not be sent is replayed on the new stream")
+}
+
+// TestOperatorSessionFlushWaitsForReplayInProgress pins the window between
+// the two locked sections of actionDeltaQueue.replay: the queue is settled,
+// the unacked chunks are being resent on the new stream, and the error the
+// flusher recorded before the reconnect is obsolete. A flush that looks in
+// then must wait for the replay's acks, not report that error.
+func TestOperatorSessionFlushWaitsForReplayInProgress(t *testing.T) {
+	client := &fakeOperatorServiceClient{registrations: []*v1.OperatorRegisterResponse{registeredAs("worker-1", false)}}
+	s, _ := connectTestOperatorSession(t, client, true)
+
+	gate := make(chan struct{})
+	var release sync.Once
+	// registered after the session's Close so it runs first: a replay parked
+	// at the gate holds the send lock Close needs
+	t.Cleanup(func() { release.Do(func() { close(gate) }) })
+
+	// the delta's send fails and the flusher's own reconnect attempt cannot
+	// open a stream, so the send error is recorded for flush; the constructor
+	// failure is installed first so the heartbeat cannot reconnect in between
+	client.mu.Lock()
+	client.listenErr = status.Error(codes.Unavailable, "engine down")
+	client.mu.Unlock()
+	client.stream(0).breakSend()
+
+	s.AddActions("svc:one")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err := s.Flush(ctx)
+	require.Error(t, err)
+	require.Equal(t, codes.Unavailable, status.Code(err), err)
+
+	// the engine is back: the heartbeat's reconnect opens the second stream
+	// and its replay parks mid-send on the gate, between replay's two locked
+	// sections
+	client.mu.Lock()
+	client.listenErr = nil
+	client.deltaGate = gate
+	client.mu.Unlock()
+
+	waitFor(t, func() bool {
+		return client.streamCount() >= 2 && client.stream(1).parkedDeltas.Load() >= 1
+	}, "replay did not start resending on the new stream")
+
+	second := client.stream(1)
+	require.Equal(t, int32(1), second.parkedDeltas.Load(), "one chunk is parked")
+	require.Empty(t, second.deltas(), "the parked chunk has not been recorded as sent")
+
+	// nothing can settle the queue while the chunk is parked, so a flush that
+	// waits can only end on its context; the stale error would end it at once
+	waitCtx, cancelWait := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	err = s.Flush(waitCtx)
+	cancelWait()
+	assert.ErrorIs(t, err, context.DeadlineExceeded, "flush must wait for the replay in progress, got: %v", err)
+
+	// a flush completes once the chunk is sent and acknowledged
+	result := make(chan error, 1)
+	go func() {
+		flushCtx, cancelFlush := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancelFlush()
+		result <- s.Flush(flushCtx)
+	}()
+
+	release.Do(func() { close(gate) })
+
+	select {
+	case err := <-result:
+		require.NoError(t, err, "flush must succeed once the replay is acknowledged")
+	case <-time.After(5 * time.Second):
+		t.Fatal("flush did not return after the replay completed")
+	}
+
+	require.Len(t, second.deltas(), 1, "the replay resent the desired set on the new stream")
+	assert.Equal(t, []string{"svc:one"}, second.deltas()[0].Add)
+	assert.Empty(t, s.actions.unackedSequences(), "nothing is left unacked after the flush")
+}
+
+// flusherWarnGate is a zerolog hook that parks the flusher at the warning it
+// logs after its own reconnect attempt failed, which is just before it
+// records the send error with finishChunk. It is the only way to hold the
+// flusher there without a hook in production code.
+type flusherWarnGate struct {
+	parked  chan struct{}
+	release chan struct{}
+}
+
+const flusherReconnectFailedMsg = "could not reconnect operator listener after a failed delta send"
+
+func (g *flusherWarnGate) Run(_ *zerolog.Event, _ zerolog.Level, message string) {
+	if message != flusherReconnectFailedMsg {
+		return
+	}
+
+	select {
+	case g.parked <- struct{}{}:
+	default:
+	}
+
+	<-g.release
+}
+
+// parkFlusherAfterFailedReconnect drives the session into the state where a
+// delta send failed, the flusher's own reconnect attempt failed too, and the
+// flusher is parked just before it records the send error. It returns the
+// function that lets the flusher continue and finish.
+func parkFlusherAfterFailedReconnect(t *testing.T, s *session, client *fakeOperatorServiceClient) func() {
+	t.Helper()
+
+	gate := &flusherWarnGate{parked: make(chan struct{}, 1), release: make(chan struct{})}
+	var release sync.Once
+	t.Cleanup(func() { release.Do(func() { close(gate.release) }) })
+
+	hooked := zerolog.New(io.Discard).Hook(gate)
+	s.actions.l = &hooked
+
+	client.mu.Lock()
+	client.listenErr = status.Error(codes.Unavailable, "engine down")
+	client.mu.Unlock()
+	client.stream(0).breakSend()
+
+	s.AddActions("svc:one")
+
+	select {
+	case <-gate.parked:
+	case <-time.After(5 * time.Second):
+		t.Fatal("flusher did not reach its failed-reconnect warning")
+	}
+
+	// the returned function lets the flusher continue and waits until it has
+	// recorded the outcome of its attempt, so the caller's assertions see the
+	// recorded state rather than an attempt still in flight
+	return func() {
+		release.Do(func() { close(gate.release) })
+
+		waitFor(t, func() bool {
+			s.actions.mu.Lock()
+			defer s.actions.mu.Unlock()
+
+			return !s.actions.inFlight
+		}, "flusher did not finish its failed attempt")
+	}
+}
+
+// TestOperatorSessionFlushIgnoresLateSendErrorDuringReplay pins the flusher
+// finishing a failed attempt after a later replay already took its chunk
+// over and is resending it: the send error it records then must not be
+// reported by a flush, which waits for the replay's ack instead.
+func TestOperatorSessionFlushIgnoresLateSendErrorDuringReplay(t *testing.T) {
+	client := &fakeOperatorServiceClient{registrations: []*v1.OperatorRegisterResponse{registeredAs("worker-1", false)}}
+	s, _ := connectTestOperatorSession(t, client, true)
+
+	deltaGate := make(chan struct{})
+	var release sync.Once
+	t.Cleanup(func() { release.Do(func() { close(deltaGate) }) })
+
+	continueFlusher := parkFlusherAfterFailedReconnect(t, s, client)
+
+	// the engine is back: the heartbeat's reconnect replays the chunk on the
+	// second stream and parks mid-send
+	client.mu.Lock()
+	client.listenErr = nil
+	client.deltaGate = deltaGate
+	client.mu.Unlock()
+
+	waitFor(t, func() bool {
+		return client.streamCount() >= 2 && client.stream(1).parkedDeltas.Load() >= 1
+	}, "replay did not start resending on the new stream")
+
+	// the flusher now records the outcome of its failed attempt while the
+	// replay has the chunk on the wire
+	continueFlusher()
+
+	waitCtx, cancelWait := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	err := s.Flush(waitCtx)
+	cancelWait()
+	assert.ErrorIs(t, err, context.DeadlineExceeded, "flush must wait for the replay in progress, got: %v", err)
+
+	release.Do(func() { close(deltaGate) })
+	flushed(t, s)
+
+	second := client.stream(1)
+	require.Len(t, second.deltas(), 1)
+	assert.Equal(t, []string{"svc:one"}, second.deltas()[0].Add)
+}
+
+// TestOperatorSessionFlushIgnoresLateSendErrorAfterReplay is the same late
+// finish once the later replay has completed its sends and the stream is
+// published, with the ack still outstanding.
+func TestOperatorSessionFlushIgnoresLateSendErrorAfterReplay(t *testing.T) {
+	client := &fakeOperatorServiceClient{registrations: []*v1.OperatorRegisterResponse{registeredAs("worker-1", false)}}
+	s, _ := connectTestOperatorSession(t, client, true)
+
+	continueFlusher := parkFlusherAfterFailedReconnect(t, s, client)
+
+	// the engine is back but withholds the ack of the replayed chunk
+	client.mu.Lock()
+	client.listenErr = nil
+	client.noAck = true
+	client.mu.Unlock()
+
+	waitFor(t, func() bool {
+		return client.streamCount() >= 2 && client.stream(1).heartbeats() >= 1
+	}, "the reconnected stream was not published")
+
+	second := client.stream(1)
+	require.Len(t, second.deltas(), 1, "the replay resent the chunk")
+
+	continueFlusher()
+
+	waitCtx, cancelWait := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	err := s.Flush(waitCtx)
+	cancelWait()
+	assert.ErrorIs(t, err, context.DeadlineExceeded, "flush must wait for the replayed chunk's ack, got: %v", err)
+
+	second.ack(second.deltas()[0].Sequence)
+	flushed(t, s)
+	assert.Empty(t, s.actions.unackedSequences())
 }
 
 func TestOperatorSessionFlushHonoursContext(t *testing.T) {
