@@ -166,6 +166,6 @@ Fields:
 
 | Name                        | Type                                              | Description                                                                                                                       |
 | --------------------------- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `QueueTTL`                  | `time.Duration`                                   | QueueTTL is how long runs stay queued while the workflow is paused before they are dropped.                                       |
+| `QueueTTL`                  | `time.Duration`                                   | (required) QueueTTL is how long runs stay queued while the workflow is paused before they are dropped.                            |
 | `CronRunQueueBehavior`      | `rest.WorkflowPauseScheduledCronRunQueueBehavior` | (optional) CronRunQueueBehavior is the behavior of cron runs triggered while the workflow is paused. Defaults to QUEUE.           |
 | `ScheduledRunQueueBehavior` | `rest.WorkflowPauseScheduledCronRunQueueBehavior` | (optional) ScheduledRunQueueBehavior is the behavior of scheduled runs triggered while the workflow is paused. Defaults to QUEUE. |
