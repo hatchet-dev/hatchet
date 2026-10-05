@@ -6,13 +6,125 @@ title: "Hatchet Python v2.0.0 Migration Guide"
 
 This guide will help you migrate Hatchet workflows from the V1 SDK to the V2 SDK.
 
-V2 is a focused cleanup release: it removes everything that was deprecated in V1 (primarily in V1.31.0), enforces types that were previously coerced or warned about, and makes async a first-class requirement for durable tasks. There are no new concepts to learn — the goal is to arrive at a codebase with no deprecation warnings.
+V2 is a focused cleanup release: it removes everything that was deprecated in V1 (primarily in V1.31.0), enforces types that were previously coerced or warned about, and makes async a first-class requirement for durable tasks. There are no new concepts to learn. The goal is to arrive at a codebase with no deprecation warnings.
+
+### How to migrate
+
+1. Upgrade to the latest V1 release first and run your test suite with deprecation warnings turned into errors (`python -W error::DeprecationWarning -m pytest`). Most of the removals in V2 emitted a `DeprecationWarning` in V1, so this finds the bulk of the work while your code still runs.
+2. Upgrade to V2 (`pip install "hatchet-sdk>=2,<3"`) on Python 3.11 or newer.
+3. Apply the renames in the [quick reference](#quick-reference) below. These are mechanical and safe to apply with find and replace.
+4. Work through the [removals](#removed-apis-and-their-replacements) and the detailed sections that follow. These need a small code change at each call site.
+5. Run a type checker (`mypy` or `pyright`) over your code. The SDK is fully typed, so nearly every remaining V1 usage shows up as a type error.
+6. Run your tests and check the [behavior changes](#behavior-changes-with-no-type-error) section, which lists the changes a type checker cannot catch.
+
+#### Migrating with a coding agent
+
+This page is written so that it can be handed to a coding agent as is. A prompt along these lines works well:
+
+```text
+Migrate this codebase from hatchet-sdk V1 to V2 by following the attached migration guide.
+
+1. Search the codebase for every pattern in the "Quick reference" and
+   "Removed APIs and their replacements" tables and apply the listed replacement.
+2. Read each detailed section and fix any remaining usages it describes.
+3. Run the type checker and the test suite, and fix what they report.
+4. Go through the "Behavior changes with no type error" section and check each
+   item by reading the code, since nothing will fail loudly for those.
+5. List anything you could not migrate mechanically so I can review it.
+
+Do not change any behavior beyond what the guide requires.
+```
+
+### Quick reference
+
+These are one-to-one renames. The left column is safe to search for directly.
+
+| V1                                                     | V2                                                       |
+| ------------------------------------------------------ | -------------------------------------------------------- |
+| `hatchet.event`                                        | `hatchet.events`                                         |
+| `hatchet.cron`                                         | `hatchet.crons`                                          |
+| `hatchet.get_current_context()`                        | `hatchet.current_context`                                |
+| `hatchet.runs.subscribe_to_stream(...)`                | `hatchet.runs.aio_subscribe_to_stream(...)`              |
+| `hatchet.runs.list_with_pagination(...)`               | `hatchet.runs.list(...)`                                 |
+| `hatchet.runs.aio_list_with_pagination(...)`           | `hatchet.runs.aio_list(...)`                             |
+| `workflow.run_no_wait(...)`                            | `workflow.run(..., wait_for_result=False)`               |
+| `workflow.aio_run_no_wait(...)`                        | `workflow.aio_run(..., wait_for_result=False)`           |
+| `workflow.run_many_no_wait(...)`                       | `workflow.run_many(..., wait_for_result=False)`          |
+| `workflow.aio_run_many_no_wait(...)`                   | `workflow.aio_run_many(..., wait_for_result=False)`      |
+| `workflow.create_bulk_run_item(key=...)`               | `workflow.create_bulk_run_item(child_key=...)`           |
+| `ctx.step_run_id`                                      | `ctx.task_run_id`                                        |
+| `ctx.done()`                                           | `ctx.is_cancelled`                                       |
+| `ctx.exit_flag`                                        | `ctx.is_cancelled`                                       |
+| `ctx.aio_task_output(task)`                            | `ctx.task_output(task)` (not awaited)                    |
+| `ctx.fetch_task_run_error(task)`                       | `ctx.get_task_run_error(task)`                           |
+| `ctx.worker.id()`                                      | `ctx.worker_id`                                          |
+| `ctx.worker.labels()`                                  | `ctx.worker_labels`                                      |
+| `ctx.worker.upsert_labels(labels)`                     | `ctx.upsert_worker_labels(labels)`                       |
+| `await ctx.worker.async_upsert_labels(labels)`         | `await ctx.aio_upsert_worker_labels(labels)`             |
+| `ConcurrencyExpression`                                | `ConcurrencyStrategy`                                    |
+| `ConcurrencyExpression(limit_strategy=...)`            | `ConcurrencyStrategy(strategy=...)`                      |
+| `ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS`          | `"CANCEL_IN_PROGRESS"` (same for every other member)     |
+| `StickyStrategy.SOFT`, `StickyStrategy.HARD`           | `"SOFT"`, `"HARD"`                                       |
+| `RateLimitDuration.MINUTE`                             | `"MINUTE"` (same for every other member)                 |
+| `MCPProvider.CLAUDE`, `MCPProvider.OPENAI`             | `"CLAUDE"`, `"OPENAI"`                                   |
+| `EmptyModel` (as an input type annotation)             | `None`                                                   |
+| `StepRunEvent`                                         | `TaskRunEvent`                                           |
+| `StepRunEventType.STEP_RUN_EVENT_TYPE_STREAM`          | `TaskRunEventType.STREAM` (same for every other member)  |
+| `TriggerWorkflowOptions(desired_worker_label=...)`     | `desired_worker_labels=[...]` passed to `run()` directly |
+| `HealthcheckConfig.event_loop_block_threshold_seconds` | `HealthcheckConfig.event_loop_block_threshold`           |
+| `event.event_timestamp`, `event.eventTimestamp`        | `event.seen_at`                                          |
+| `event.additionalMetadata`                             | `event.additional_metadata`                              |
+| `priority=1`, `priority=2`, `priority=3`               | `Priority.LOW`, `Priority.MEDIUM`, `Priority.HIGH`       |
+| `timeout="10s"` and other duration strings             | `timedelta(seconds=10)`                                  |
+
+### Removed APIs and their replacements
+
+These have no one-to-one rename. Each row links to the section that explains the change.
+
+| Removed in V2                                                                         | What to do instead                                                                                                   |
+| ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `options=TriggerWorkflowOptions(...)` on `run`, `run_many` items, and related methods | Pass the fields as keyword arguments. See [options objects](#options-objects-removed-in-favor-of-inline-parameters). |
+| `options=ScheduleTriggerWorkflowOptions(...)` on `schedule` and `aio_schedule`        | Pass the fields as keyword arguments.                                                                                |
+| `PushEventOptions`, `BulkPushEventOptions`                                            | Keyword arguments on `events.push`, and `BulkPushEventWithMetadata` for bulk pushes.                                 |
+| `EmptyModel`                                                                          | `None`. See [tasks with no input](#tasks-with-no-input-validator-now-receive-none).                                  |
+| `ctx.workflow_input`, `ctx.input`                                                     | The `input` argument to the task function.                                                                           |
+| `ctx.worker`, `WorkerContext`                                                         | `ctx.worker_id`, `ctx.worker_labels`, `ctx.upsert_worker_labels`.                                                    |
+| `ctx.log(..., raise_on_error=True)`                                                   | Drop the argument. `ctx.log` never raises.                                                                           |
+| `Hatchet(debug=True)`                                                                 | Set `HATCHET_CLIENT_DEBUG=true`.                                                                                     |
+| `Hatchet(client=...)`, `hatchet_sdk.client.Client`                                    | Pass `config=ClientConfig(...)`.                                                                                     |
+| `worker.start(options=WorkerStartOptions(...))`                                       | `worker.start()`.                                                                                                    |
+| `worker.register_workflow_from_opts(...)`                                             | `worker.register_workflow(workflow)`.                                                                                |
+| `hatchet.listener`, `hatchet.dispatcher`                                              | `hatchet.runs.aio_subscribe_to_stream(run_id)` or `hatchet.runs.get_run_ref(run_id).stream()`.                       |
+| `TaskRunRef.stream()` (the ref returned by a standalone task)                         | `hatchet.runs.aio_subscribe_to_stream(ref.workflow_run_id)`.                                                         |
+| Sync `durable_task` functions                                                         | Make the function `async def`.                                                                                       |
+| `desired_worker_labels={...}` as a `dict`                                             | A `list[DesiredWorkerLabel]` with `key` set. See [worker labels](#worker-labels-must-use-typed-objects).             |
+| `result["key"]` on the return value of `ctx.aio_wait_for`                             | Typed results. See [durable wait results](#durable-wait-results-are-now-typed).                                      |
+| `.rows` on the return value of any `list` or `aio_list` method                        | The return value is already the list.                                                                                |
+| `from hatchet_sdk.labels import ...`, `from hatchet_sdk.rate_limit import ...`        | `from hatchet_sdk import DesiredWorkerLabel, WorkerLabel, RateLimit`.                                                |
+| V0 REST models imported from `hatchet_sdk` (`StepRun`, `WorkflowRun`, `Tenant`, ...)  | Import from `hatchet_sdk.clients.rest.models`.                                                                       |
+
+### Behavior changes with no type error
+
+A type checker will not flag these, so check them by hand:
+
+- **Tasks with no input validator receive `None`**, not an `EmptyModel()` instance. Code that reads attributes off `input` in such a task, or checks `isinstance(input, EmptyModel)`, needs updating.
+- **Running a task that returns nothing gives `None`**, not an `EmptyModel()` instance.
+- **`str()` and f-strings on SDK enums give the raw value.** `f"{RunStatus.FAILED}"` is now `"FAILED"` instead of `"RunStatus.FAILED"`. Check log parsing, cache keys, and anything that compares against the old string.
+- **`Worker.register_workflow` raises on failure** instead of calling `sys.exit(1)`.
+- **`WorkflowRunRef.result` and `TaskRunRef.result` take `timeout` as their first positional parameter.** In V1.41 the only parameter was `poll_interval`, so a positional call such as `ref.result(2.0)` must become `ref.result(poll_interval=2.0)`.
+- **`from hatchet_sdk import Event` is a different class.** It is now the class returned by `hatchet.events.push()`, not the V0 REST model.
+- **`BulkPushEventWithMetadata.key` is required.** It previously defaulted to `""`.
+- **`ClientTLSConfig.strategy` is validated.** A value other than `"tls"`, `"mtls"`, or `"none"` now fails at construction time instead of being treated as insecure.
+- **The `HATCHET_CLIENT_WORKER_HEALTHCHECK_EVENT_LOOP_BLOCK_THRESHOLD_SECONDS` environment variable is no longer read.** Rename it to `HATCHET_CLIENT_WORKER_HEALTHCHECK_EVENT_LOOP_BLOCK_THRESHOLD`.
+- **`grpcio-tools` is no longer installed with the SDK.** Add it to your own dependencies if you import it.
+
+The rest of this page covers each change in detail.
 
 #### Python 3.11 or newer is required
 
 V2 requires Python 3.11+. Python 3.10 reaches end-of-life in October 2026 and is no longer supported.
 
-The SDK also no longer depends on `grpcio-tools` at runtime — it was only ever needed for code generation. If your project relied on the SDK pulling it in transitively, add it to your own dependencies.
+The SDK also no longer depends on `grpcio-tools` at runtime, since it was only ever needed for code generation. If your project relied on the SDK pulling it in transitively, add it to your own dependencies.
 
 #### Running without wait
 
@@ -38,7 +150,7 @@ refs = await workflow.aio_run_many([input1, input2], wait_for_result=False)
 
 #### Options objects removed in favor of inline parameters
 
-`PushEventOptions`, `BulkPushEventOptions`, and passing a `TriggerWorkflowOptions` or `ScheduleTriggerWorkflowOptions` instance to `run()`, `schedule()`, and related methods have all been removed. Pass the options as keyword arguments directly instead.
+`PushEventOptions`, `BulkPushEventOptions`, and passing a `TriggerWorkflowOptions` or `ScheduleTriggerWorkflowOptions` instance to `run()`, `schedule()`, `create_bulk_run_item()`, and related methods have all been removed. Pass the options as keyword arguments directly instead.
 
 **Events:**
 
@@ -46,7 +158,7 @@ refs = await workflow.aio_run_many([input1, input2], wait_for_result=False)
 # V1
 from hatchet_sdk import PushEventOptions
 
-hatchet.events.push("my-event", payload, options=PushEventOptions(additional_metadata={"key": "value"}))
+hatchet.event.push("my-event", payload, options=PushEventOptions(additional_metadata={"key": "value"}))
 ```
 
 ```python
@@ -54,13 +166,15 @@ hatchet.events.push("my-event", payload, options=PushEventOptions(additional_met
 hatchet.events.push("my-event", payload, additional_metadata={"key": "value"})
 ```
 
-`BulkPushEventOptions` has also been removed — use `BulkPushEventWithMetadata` directly, which now requires a `key` (it previously defaulted to `""`).
+`events.push` and `events.aio_push` accept `additional_metadata`, `priority`, and `scope` as keyword arguments.
+
+`BulkPushEventOptions` has also been removed. Use `BulkPushEventWithMetadata` directly, which now requires a `key` (it previously defaulted to `""`).
 
 **Running and scheduling workflows:**
 
 ```python
 # V1
-from hatchet_sdk import TriggerWorkflowOptions
+from hatchet_sdk import ScheduleTriggerWorkflowOptions, TriggerWorkflowOptions
 
 workflow.run(input, options=TriggerWorkflowOptions(additional_metadata={"key": "value"}, priority=1))
 workflow.schedule(run_at, input, options=ScheduleTriggerWorkflowOptions(additional_metadata={"key": "value"}))
@@ -68,11 +182,35 @@ workflow.schedule(run_at, input, options=ScheduleTriggerWorkflowOptions(addition
 
 ```python
 # V2
-workflow.run(input, additional_metadata={"key": "value"}, priority=1)
+from hatchet_sdk import Priority
+
+workflow.run(input, additional_metadata={"key": "value"}, priority=Priority.LOW)
 workflow.schedule(run_at, input, additional_metadata={"key": "value"})
 ```
 
-The internal `parent_id`, `parent_step_run_id`, `child_index`, and `key` fields on `TriggerWorkflowOptions` / `ScheduleTriggerWorkflowOptions` have also been removed — these were never intended for external use.
+The keyword arguments accepted by `run`, `aio_run`, and `create_bulk_run_item` are `child_key`, `additional_metadata`, `priority`, `desired_worker_id`, `sticky`, and `desired_worker_labels`.
+
+**Bulk run items:**
+
+```python
+# V1
+workflow.create_bulk_run_item(
+    input=input,
+    key="child-1",
+    options=TriggerWorkflowOptions(additional_metadata={"key": "value"}),
+)
+```
+
+```python
+# V2
+workflow.create_bulk_run_item(
+    input=input,
+    child_key="child-1",
+    additional_metadata={"key": "value"},
+)
+```
+
+The internal `parent_id`, `parent_step_run_id`, `child_index`, and `key` fields on `TriggerWorkflowOptions` / `ScheduleTriggerWorkflowOptions` have also been removed, along with the `key` field on `WorkflowRunTriggerConfig`. These were never intended for external use.
 
 The `namespace` field on these options has also been removed. The namespace always comes from the `ClientConfig` now.
 
@@ -92,24 +230,31 @@ hatchet.events.push("my-event", payload)
 hatchet.crons.create(...)
 ```
 
-The internal `log` and `stream` methods on the events client are no longer public. Use `ctx.log` and the streaming methods on `Context` instead.
+The internal `log`, `stream`, and `aio_stream` methods on the events client are no longer public. Use `ctx.log` and the streaming methods on `Context` instead.
 
 #### Context property renames
 
 Several properties on `Context` have been renamed or removed.
 
-| V1                               | V2                                             |
-| -------------------------------- | ---------------------------------------------- |
-| `ctx.step_run_id`                | `ctx.task_run_id`                              |
-| `ctx.workflow_input`             | The `input` argument to the task function      |
-| `ctx.input`                      | The `input` argument to the task function      |
-| `ctx.done`                       | `ctx.is_cancelled`                             |
-| `ctx.exit_flag`                  | `ctx.is_cancelled`                             |
-| `ctx.aio_task_output(task)`      | `ctx.task_output(task)`                        |
-| `ctx.fetch_task_run_error(task)` | `ctx.get_task_run_error(task)`                 |
-| `ctx.worker`                     | Use specific properties: `ctx.worker_id`, etc. |
+| V1                                       | V2                                        |
+| ---------------------------------------- | ----------------------------------------- |
+| `ctx.step_run_id`                        | `ctx.task_run_id`                         |
+| `ctx.workflow_input`                     | The `input` argument to the task function |
+| `ctx.input`                              | The `input` argument to the task function |
+| `ctx.done()`                             | `ctx.is_cancelled`                        |
+| `ctx.exit_flag`                          | `ctx.is_cancelled`                        |
+| `await ctx.aio_task_output(task)`        | `ctx.task_output(task)`                   |
+| `ctx.fetch_task_run_error(task)`         | `ctx.get_task_run_error(task)`            |
+| `ctx.worker.id()`                        | `ctx.worker_id`                           |
+| `ctx.worker.labels()`                    | `ctx.worker_labels`                       |
+| `ctx.worker.upsert_labels(labels)`       | `ctx.upsert_worker_labels(labels)`        |
+| `ctx.worker.async_upsert_labels(labels)` | `ctx.aio_upsert_worker_labels(labels)`    |
+
+Note that `ctx.done()` was a method and `ctx.is_cancelled` is a property, so drop the parentheses. `ctx.task_output` is synchronous, so drop the `await` when replacing `ctx.aio_task_output`.
 
 `ctx.priority` now returns a `Priority | None` instead of an `int | None`, consistent with priorities being represented by the `Priority` enum everywhere else.
+
+The `raise_on_error` parameter on `ctx.log` and `ctx.aio_log` has been removed. Logging never raises.
 
 Internal context properties (`ctx.data`, `ctx.action`, `ctx.dispatcher_client`, `ctx.admin_client`, `ctx.event_client`, `ctx.runs_client`, `ctx.log_sender`, `ctx.durable_event_listener`) have also been removed. These were never intended for external use.
 
@@ -133,43 +278,54 @@ The `debug` constructor parameter has been removed. Enable debug mode via the `H
 HATCHET_CLIENT_DEBUG=true
 ```
 
-The `client` constructor parameter has also been removed.
+The `client` constructor parameter has also been removed, along with the internal `hatchet_sdk.client.Client` class. Pass a `ClientConfig` via the `config` parameter instead.
 
 #### Durations must be `timedelta` objects
 
-Passing duration parameters such as `timeout`, `schedule_timeout`, and `execution_timeout` as strings (e.g. `"10s"`) is no longer supported. Use `datetime.timedelta` objects:
+Passing durations as strings (e.g. `"10s"`) is no longer supported. Use `datetime.timedelta` objects:
 
 ```python
 from datetime import timedelta
 
 # V1
-@workflow.task(timeout="10s", schedule_timeout="30m")
-def my_task(input: MyInput, ctx: Context) -> None: ...
+@workflow.task(execution_timeout="10s", schedule_timeout="30m")
+def my_task(input: MyInput, ctx: Context) -> None:
+    ctx.refresh_timeout("15s")
 
 # V2
-@workflow.task(timeout=timedelta(seconds=10), schedule_timeout=timedelta(minutes=30))
-def my_task(input: MyInput, ctx: Context) -> None: ...
+@workflow.task(execution_timeout=timedelta(seconds=10), schedule_timeout=timedelta(minutes=30))
+def my_task(input: MyInput, ctx: Context) -> None:
+    ctx.refresh_timeout(timedelta(seconds=15))
 ```
+
+This applies everywhere a duration is accepted:
+
+- `execution_timeout` and `schedule_timeout` on every task decorator (`task`, `durable_task`, `batch_task`, `on_failure_task`, `on_success_task`) and on `TaskDefaults`
+- `ctx.refresh_timeout` and `ctx.aio_refresh_timeout`
+- `ctx.aio_sleep_for`
+- `SleepCondition`
+
+The suffixes map as `s` to `seconds`, `m` to `minutes`, and `h` to `hours`.
 
 #### Priority must use the `Priority` enum
 
-Passing `priority` as an integer to task and workflow decorators is no longer supported. Use the `Priority` enum:
+Passing `priority` as an integer is no longer supported. Use the `Priority` enum:
 
 ```python
 from hatchet_sdk import Priority
 
 # V1
-@workflow.task(priority=1)
-def my_task(input: MyInput, ctx: Context) -> None: ...
+workflow = hatchet.workflow(name="MyWorkflow", default_priority=3)
+workflow.run(input, priority=1)
 
 # V2
-@workflow.task(priority=Priority.HIGH)
-def my_task(input: MyInput, ctx: Context) -> None: ...
+workflow = hatchet.workflow(name="MyWorkflow", default_priority=Priority.HIGH)
+workflow.run(input, priority=Priority.LOW)
 ```
 
 `Priority.LOW`, `Priority.MEDIUM`, and `Priority.HIGH` correspond to the integer values `1`, `2`, and `3` from V1.
 
-This applies everywhere a priority is accepted: `default_priority` on `workflow()` and `task()` decorators, the `priority` argument to `run()`, `schedule()`, `create_cron()`, and the replay methods, and the `priority` fields on trigger options and `BulkPushEventWithMetadata`.
+This applies everywhere a priority is accepted: `default_priority` on `workflow()` and `task()` decorators, the `priority` argument to `run()`, `schedule()`, `create_cron()`, `hatchet.crons.create()`, `hatchet.runs.create()`, and `hatchet.events.push()`, and the `priority` fields on `TaskDefaults` and `BulkPushEventWithMetadata`.
 
 #### `ConcurrencyExpression` renamed to `ConcurrencyStrategy`
 
@@ -177,14 +333,14 @@ This applies everywhere a priority is accepted: `default_priority` on `workflow(
 
 ```python
 # V1
-from hatchet_sdk import ConcurrencyStrategy
+from hatchet_sdk import ConcurrencyExpression, ConcurrencyLimitStrategy
 
 workflow = hatchet.workflow(
     name="MyWorkflow",
-    concurrency=ConcurrencyStrategy(
+    concurrency=ConcurrencyExpression(
         expression="input.user_id",
         max_runs=5,
-        strategy="CANCEL_IN_PROGRESS",
+        limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
     ),
 )
 ```
@@ -202,6 +358,8 @@ workflow = hatchet.workflow(
     ),
 )
 ```
+
+The accepted values are `"CANCEL_IN_PROGRESS"`, `"GROUP_ROUND_ROBIN"`, `"CANCEL_NEWEST"`, `"CANCEL_QUEUED_EXCEPT_NEWEST"`, and `"CANCEL_QUEUED_EXCEPT_OLDEST"`, which are the names of the old enum members.
 
 The `strategy` field is typed as a `Literal`, so type checkers still catch invalid values, and Pydantic validates them at construction time. The `QUEUE_NEWEST` and `QUEUE_OLDEST` members of the old enum have no replacement: the engine no longer supports those strategies.
 
@@ -230,6 +388,14 @@ limit = RateLimit(static_key="my-key", units=1, duration="MINUTE")
 tool = my_task.mcp_tool("CLAUDE")
 ```
 
+In every case the string is the name of the old enum member:
+
+| Enum                | Accepted strings                                                         |
+| ------------------- | ------------------------------------------------------------------------ |
+| `StickyStrategy`    | `"SOFT"`, `"HARD"`                                                       |
+| `RateLimitDuration` | `"SECOND"`, `"MINUTE"`, `"HOUR"`, `"DAY"`, `"WEEK"`, `"MONTH"`, `"YEAR"` |
+| `MCPProvider`       | `"CLAUDE"`, `"OPENAI"`                                                   |
+
 #### Worker labels must use typed objects
 
 Passing `desired_worker_labels` as a `dict` is no longer supported. Use a `list[DesiredWorkerLabel]` with the `key` field set:
@@ -256,9 +422,11 @@ def my_task(input: MyInput, ctx: Context) -> None: ...
 
 The `comparator` field on `DesiredWorkerLabel` must now be a `WorkerLabelComparator` enum value rather than an integer.
 
+The `labels` argument to `hatchet.worker(...)` is unchanged and still takes a `dict`.
+
 #### Durable tasks must be async
 
-Synchronous durable tasks are no longer supported. Convert durable task functions to `async def`:
+Synchronous durable tasks are no longer supported, and declaring one raises a `TypeError`. Convert durable task functions to `async def`:
 
 ```python
 # V1
@@ -283,10 +451,20 @@ from hatchet_sdk import EmptyModel
 @hatchet.task()
 def my_task(input: EmptyModel, ctx: Context) -> None: ...
 
+my_task.run(EmptyModel())
+
 # V2
 @hatchet.task()
 def my_task(input: None, ctx: Context) -> None: ...
+
+my_task.run()
 ```
+
+The same applies to results: running a task that returns nothing now gives `None` rather than an `EmptyModel()` instance.
+
+If you used `EmptyModel` as a base class for your own models, subclass `pydantic.BaseModel` instead.
+
+For a workflow declared without an `input_validator`, the `workflow.input_validator` and `workflow.input_validator_type` properties now return `None`.
 
 #### Durable wait results are now typed
 
@@ -297,17 +475,29 @@ def my_task(input: None, ctx: Context) -> None: ...
 result = await ctx.aio_wait_for("my-signal", UserEventCondition(event_key="my-event"))
 payload = result["my-event"]
 
+event = await ctx.aio_wait_for_event("my-event")
+user_id = event["user_id"]
+
 # V2
 from hatchet_sdk import EventWaitResult
 
 results = await ctx.aio_wait_for("my-signal", UserEventCondition(event_key="my-event"))
 event_result = next(r for r in results if isinstance(r, EventWaitResult))
 payload = event_result.payload
+
+event = await ctx.aio_wait_for_event("my-event")
+user_id = event.payload["user_id"]
 ```
+
+An `OrGroupResult` wraps whichever condition in the group was satisfied, available as `.result`.
 
 #### Internal `Worker` properties removed
 
-Several internal `Worker` properties that were never intended for external use have been removed: `worker.config`, `worker.slot_config`, `worker.debug`, `worker.labels`, `worker.handle_kill`, `worker.owned_loop`, `worker.action_registry`, `worker.killing`, and `worker.action_listener_process`. If your code accessed any of these, remove those usages.
+Several internal `Worker` properties that were never intended for external use have been removed: `worker.config`, `worker.client`, `worker.slot_config`, `worker.slots`, `worker.durable_slots`, `worker.debug`, `worker.labels`, `worker.lifespan`, `worker.loop`, `worker.handle_kill`, `worker.owned_loop`, `worker.action_registry`, `worker.killing`, and `worker.action_listener_process`. If your code accessed any of these, remove those usages.
+
+`worker.start()` no longer accepts an `options` argument, and `WorkerStartOptions` has been removed.
+
+The same applies to internals on the workflow and task objects: `workflow.config`, `workflow.client`, `task.fn`, `task.workflow`, `task.is_durable`, `task.is_async_function`, and `task.validators` are no longer public. Use `workflow.name` for the workflow's name, and `mock_run` / `aio_mock_run` to call a task's underlying function in unit tests.
 
 #### List methods now return plain lists
 
@@ -322,16 +512,30 @@ runs = result.rows  # V1TaskSummaryList
 runs = hatchet.runs.list(...)  # list[V1TaskSummary] directly
 ```
 
-This applies to all feature clients: `events`, `cron`, `filters`, `logs`, `rate_limits`, `runs`, `scheduled`, `webhooks`, `workers`, and `workflows`.
+This applies to all feature clients:
+
+| Client                | V1 return type           | V2 return type             |
+| --------------------- | ------------------------ | -------------------------- |
+| `hatchet.events`      | `V1EventList`            | `list[V1Event]`            |
+| `hatchet.crons`       | `CronWorkflowsList`      | `list[CronWorkflows]`      |
+| `hatchet.filters`     | `V1FilterList`           | `list[V1Filter]`           |
+| `hatchet.logs`        | `V1LogLineList`          | `list[V1LogLine]`          |
+| `hatchet.rate_limits` | `RateLimitList`          | `list[RateLimit]`          |
+| `hatchet.runs`        | `V1TaskSummaryList`      | `list[V1TaskSummary]`      |
+| `hatchet.scheduled`   | `ScheduledWorkflowsList` | `list[ScheduledWorkflows]` |
+| `hatchet.webhooks`    | `V1WebhookList`          | `list[V1Webhook]`          |
+| `hatchet.workers`     | `WorkerList`             | `list[Worker]`             |
+| `hatchet.workflows`   | `WorkflowList`           | `list[Workflow]`           |
+
+Since the wrappers are gone, patterns such as `result.rows or []` become just `result`, and `len(result.rows)` becomes `len(result)`.
 
 #### `runs.list_with_pagination` and `aio_list_with_pagination` removed
 
-The `list_with_pagination` and `aio_list_with_pagination` methods on the runs client have been removed. Use `list` and `aio_list` instead — they now handle pagination internally and return `list[V1TaskSummary]` directly:
+The `list_with_pagination` and `aio_list_with_pagination` methods on the runs client have been removed. Use `list` and `aio_list` instead. They now handle pagination internally and return `list[V1TaskSummary]` directly:
 
 ```python
 # V1
-result = await hatchet.runs.aio_list_with_pagination(since=..., until=...)
-runs = result  # already a list
+runs = await hatchet.runs.aio_list_with_pagination(since=..., until=...)
 
 # V2
 runs = await hatchet.runs.aio_list(since=..., until=...)
@@ -357,17 +561,35 @@ async for event in ref.stream():  # event: TaskRunEvent
         print(event.payload)
 ```
 
-The `WorkflowRunEventType` enum has been removed entirely — it was never actually yielded by the listener.
+| V1                                               | V2                           |
+| ------------------------------------------------ | ---------------------------- |
+| `StepRunEvent`                                   | `TaskRunEvent`               |
+| `StepRunEventType.STEP_RUN_EVENT_TYPE_STARTED`   | `TaskRunEventType.STARTED`   |
+| `StepRunEventType.STEP_RUN_EVENT_TYPE_COMPLETED` | `TaskRunEventType.COMPLETED` |
+| `StepRunEventType.STEP_RUN_EVENT_TYPE_FAILED`    | `TaskRunEventType.FAILED`    |
+| `StepRunEventType.STEP_RUN_EVENT_TYPE_CANCELLED` | `TaskRunEventType.CANCELLED` |
+| `StepRunEventType.STEP_RUN_EVENT_TYPE_TIMED_OUT` | `TaskRunEventType.TIMED_OUT` |
+| `StepRunEventType.STEP_RUN_EVENT_TYPE_STREAM`    | `TaskRunEventType.STREAM`    |
+
+The string values changed along with the names (`"STEP_RUN_EVENT_TYPE_STREAM"` is now `"STREAM"`), so update any code that compares against the raw strings.
+
+The `WorkflowRunEventType` enum has been removed entirely. It was never actually yielded by the listener.
+
+`stream()` is available on `WorkflowRunRef`, which is what `workflow.run(..., wait_for_result=False)` returns. The `TaskRunRef` returned by a standalone task no longer has a public `stream()` method. Use `hatchet.runs.aio_subscribe_to_stream(ref.workflow_run_id)` to read its stream chunks, or `hatchet.runs.get_run_ref(ref.workflow_run_id).stream()` for the full event stream.
+
+`hatchet.listener` (with its `stream`, `stream_by_run_id`, `stream_by_additional_metadata`, and `on` methods) is no longer public. Use the same two replacements.
 
 #### Top-level exports cleaned up
 
 `hatchet_sdk` no longer re-exports the V0-era REST API models (`StepRun`, `PullRequest`, `Job`, `JobRun`, `WorkflowRun`, `Tenant`, `User`, the invite/token request models, and similar), the pagination wrapper types (`EventList`, `WorkerList`, `WorkflowList`, ...), the raw `CreateWorkflowVersionOpts` protobuf, or `WorkerStartOptions`. If you need a REST model directly, import it from `hatchet_sdk.clients.rest.models`.
 
-`Worker.register_workflow_from_opts`, which took a raw protobuf, has been removed — use `worker.register_workflow(...)` with a workflow object instead. The internal `hatchet.dispatcher` and `hatchet.listener` properties are also no longer public.
+`Worker.register_workflow_from_opts`, which took a raw protobuf, has been removed. Use `worker.register_workflow(...)` with a workflow object instead. The internal `hatchet.dispatcher` and `hatchet.listener` properties are also no longer public.
 
-`from hatchet_sdk import Event` now resolves to the class actually returned by `hatchet.events.push()` (with `seen_at`, `additional_metadata`, etc.) rather than the V0 REST model. `V1Event` and `V1TaskSummary` — the types returned by `events.list()` and `runs.list()` — are now exported from the top level.
+`from hatchet_sdk import Event` now resolves to the class actually returned by `hatchet.events.push()` (with `seen_at`, `additional_metadata`, etc.) rather than the V0 REST model. `V1Event` and `V1TaskSummary`, the types returned by `events.list()` and `runs.list()`, are now exported from the top level.
 
 The `hatchet_sdk.labels` and `hatchet_sdk.rate_limit` modules (aliases for `hatchet_sdk.types.labels` and `hatchet_sdk.types.rate_limit`) have been removed. Import `DesiredWorkerLabel`, `WorkerLabel`, and `RateLimit` from `hatchet_sdk` directly. (`RateLimitDuration` is no longer exported at all; pass the duration as a plain string, as described above.)
+
+The `PARENT_ID`, `PARENT_STEP_RUN_ID`, and `CHILD_INDEX` members of `OTelAttribute` have been removed, since the SDK no longer sets those span attributes.
 
 #### `runs.subscribe_to_stream` renamed to `runs.aio_subscribe_to_stream`
 
@@ -379,6 +601,27 @@ async for chunk in hatchet.runs.subscribe_to_stream(run_id): ...
 
 # V2
 async for chunk in hatchet.runs.aio_subscribe_to_stream(run_id): ...
+```
+
+#### Waiting for results accepts a timeout
+
+`result` and `aio_result` on `WorkflowRunRef` and `TaskRunRef` accept an optional `timeout` (a `timedelta`) and raise `TimeoutError` when it elapses:
+
+```python
+from datetime import timedelta
+
+ref = workflow.run(input, wait_for_result=False)
+result = ref.result(timeout=timedelta(seconds=30))
+```
+
+`timeout` is the first positional parameter of `result`. In V1.41 the only parameter was `poll_interval`, so if you passed it positionally, pass it by keyword instead:
+
+```python
+# V1
+result = ref.result(2.0)
+
+# V2
+result = ref.result(poll_interval=2.0)
 ```
 
 #### Worker registration failures raise instead of exiting
