@@ -1175,16 +1175,6 @@ WITH inputs AS (
         UNNEST($4::BIGINT[]) AS branch_id,
         UNNEST($5::BOOLEAN[]) AS child_task_is_failure,
         UNNEST($6::TEXT[]) AS child_task_error_message
-), log_files AS (
-    -- the caller locks these rows with GetAndLockLogFilesWithBranchPoints earlier in the same transaction
-    SELECT tenant_id, durable_task_id, durable_task_inserted_at, latest_invocation_count, latest_inserted_at, latest_node_id, latest_branch_id, latest_satisfied_order
-    FROM v1_durable_event_log_file
-    WHERE
-        (durable_task_id, durable_task_inserted_at) IN (
-            SELECT durable_task_id, durable_task_inserted_at
-            FROM inputs
-        )
-        AND durable_task_inserted_at >= $7::TIMESTAMPTZ
 ), satisfied_orders_to_apply AS (
     SELECT
         e.durable_task_id,
@@ -1196,10 +1186,11 @@ WITH inputs AS (
             ORDER BY e.branch_id ASC, e.node_id ASC
         ) AS satisfied_order
     FROM v1_durable_event_log_entry e
-    JOIN log_files llf USING (durable_task_id, durable_task_inserted_at)
+    JOIN v1_durable_event_log_file llf USING (durable_task_id, durable_task_inserted_at)
     WHERE
         e.satisfied_order IS NULL
         AND e.durable_task_inserted_at >= $7::TIMESTAMPTZ
+        AND llf.durable_task_inserted_at >= $7::TIMESTAMPTZ
         AND (durable_task_id, durable_task_inserted_at, branch_id, node_id) IN (
             SELECT durable_task_id, durable_task_inserted_at, branch_id, node_id
             FROM inputs
@@ -1232,7 +1223,7 @@ WITH inputs AS (
 
 SELECT updated.tenant_id, updated.external_id, updated.result_payload_external_id, updated.child_task_external_id, updated.child_task_is_failure, updated.child_task_error_message, updated.inserted_at, updated.id, updated.durable_task_id, updated.durable_task_inserted_at, updated.kind, updated.node_id, updated.branch_id, updated.idempotency_key, updated.is_satisfied, updated.satisfied_at, updated.satisfied_order, updated.user_message, updated.wait_data, updated.triggered_at, llf.latest_invocation_count AS invocation_count
 FROM updated
-JOIN log_files llf ON (llf.durable_task_id, llf.durable_task_inserted_at) = (updated.durable_task_id, updated.durable_task_inserted_at)
+JOIN v1_durable_event_log_file llf ON (llf.durable_task_id, llf.durable_task_inserted_at) = (updated.durable_task_id, updated.durable_task_inserted_at)
 `
 
 type UpdateDurableEventLogEntriesSatisfiedParams struct {

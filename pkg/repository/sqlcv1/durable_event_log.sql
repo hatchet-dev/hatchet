@@ -132,16 +132,6 @@ WITH inputs AS (
         UNNEST(@branchIds::BIGINT[]) AS branch_id,
         UNNEST(@childTaskIsFailures::BOOLEAN[]) AS child_task_is_failure,
         UNNEST(@childTaskErrorMessages::TEXT[]) AS child_task_error_message
-), log_files AS (
-    -- the caller locks these rows with GetAndLockLogFilesWithBranchPoints earlier in the same transaction
-    SELECT *
-    FROM v1_durable_event_log_file
-    WHERE
-        (durable_task_id, durable_task_inserted_at) IN (
-            SELECT durable_task_id, durable_task_inserted_at
-            FROM inputs
-        )
-        AND durable_task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
 ), satisfied_orders_to_apply AS (
     SELECT
         e.durable_task_id,
@@ -153,10 +143,11 @@ WITH inputs AS (
             ORDER BY e.branch_id ASC, e.node_id ASC
         ) AS satisfied_order
     FROM v1_durable_event_log_entry e
-    JOIN log_files llf USING (durable_task_id, durable_task_inserted_at)
+    JOIN v1_durable_event_log_file llf USING (durable_task_id, durable_task_inserted_at)
     WHERE
         e.satisfied_order IS NULL
         AND e.durable_task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
+        AND llf.durable_task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
         AND (durable_task_id, durable_task_inserted_at, branch_id, node_id) IN (
             SELECT durable_task_id, durable_task_inserted_at, branch_id, node_id
             FROM inputs
@@ -189,7 +180,7 @@ WITH inputs AS (
 
 SELECT updated.*, llf.latest_invocation_count AS invocation_count
 FROM updated
-JOIN log_files llf ON (llf.durable_task_id, llf.durable_task_inserted_at) = (updated.durable_task_id, updated.durable_task_inserted_at)
+JOIN v1_durable_event_log_file llf ON (llf.durable_task_id, llf.durable_task_inserted_at) = (updated.durable_task_id, updated.durable_task_inserted_at)
 ;
 
 -- name: ListSatisfiedEntries :many
