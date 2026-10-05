@@ -101,6 +101,12 @@ streamPayload:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: The payload is too large
+      "429":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Resource limit exceeded
     summary: Upload stream payload
     tags:
       - Streams

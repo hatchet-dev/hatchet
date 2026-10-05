@@ -7,11 +7,13 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"go.opentelemetry.io/otel/trace"
 
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/rpcstream"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 // subscribeTailPollInterval is the poller's fallback when a wake is lost.
@@ -24,6 +26,14 @@ const subscribeIdleHangupTimeout = 30 * time.Minute
 func (s *ServiceImpl) Publish(ctx context.Context, req *contracts.PublishStreamMessageRequest) (*contracts.PublishStreamMessageResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
+
+	telemetry.WithAttributes(trace.SpanFromContext(ctx),
+		telemetry.AttributeKV{Key: "tenant.id", Value: tenantId},
+		telemetry.AttributeKV{Key: "stream.namespace", Value: req.Namespace},
+		telemetry.AttributeKV{Key: "stream.topic", Value: req.Topic},
+		telemetry.AttributeKV{Key: "stream.payload_bytes", Value: len(req.Payload)},
+		telemetry.AttributeKV{Key: "stream.payload_ref", Value: req.PayloadRef != ""},
+	)
 
 	if err := s.checkEntitled(ctx, tenantId); err != nil {
 		return nil, err
@@ -61,7 +71,12 @@ func (s *ServiceImpl) Publish(ctx context.Context, req *contracts.PublishStreamM
 
 	// readers would otherwise get a message whose payload can't be fetched
 	if payloadRef != nil {
-		if err := s.repo.Streams().CheckStreamPayloadExists(ctx, tenantId, *payloadRef); err != nil {
+		checkCtx, span := telemetry.NewSpan(ctx, "streams.publish.check-payload-ref")
+		err := s.repo.Streams().CheckStreamPayloadExists(checkCtx, tenantId, *payloadRef)
+		recordSpanError(span, err)
+		span.End()
+
+		if err != nil {
 			if errors.Is(err, v1.ErrStreamPayloadNotFound) {
 				return nil, connect.NewError(connect.CodeInvalidArgument, err)
 			}
@@ -70,7 +85,12 @@ func (s *ServiceImpl) Publish(ctx context.Context, req *contracts.PublishStreamM
 		}
 	}
 
-	if err := s.repo.Streams().EnsureTopic(ctx, tenantId, req.Namespace, req.Topic); err != nil {
+	ensureCtx, span := telemetry.NewSpan(ctx, "streams.publish.ensure-topic")
+	err := s.repo.Streams().EnsureTopic(ensureCtx, tenantId, req.Namespace, req.Topic)
+	recordSpanError(span, err)
+	span.End()
+
+	if err != nil {
 		if errors.Is(err, v1.ErrResourceExhausted) {
 			return nil, connect.NewError(connect.CodeResourceExhausted, errors.New("resource exhausted: stream topic limit exceeded for tenant"))
 		}
@@ -133,6 +153,13 @@ func (s *ServiceImpl) Subscribe(ctx context.Context, req *contracts.SubscribeStr
 	if err != nil {
 		return connect.NewError(connect.CodeInvalidArgument, err)
 	}
+
+	telemetry.WithAttributes(trace.SpanFromContext(ctx),
+		telemetry.AttributeKV{Key: "tenant.id", Value: tenantId},
+		telemetry.AttributeKV{Key: "stream.namespace", Value: namespace},
+		telemetry.AttributeKV{Key: "stream.topic", Value: topic},
+		telemetry.AttributeKV{Key: "stream.resumed", Value: cursor.ID > 0},
+	)
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()

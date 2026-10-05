@@ -40,3 +40,10 @@ func TestValidateStreamAddress(t *testing.T) {
 		})
 	}
 }
+
+func TestStreamPayloadMessageUnits(t *testing.T) {
+	assert.Equal(t, int32(1), StreamPayloadMessageUnits(1))
+	assert.Equal(t, int32(1), StreamPayloadMessageUnits(MaxStreamMessagePayloadBytes))
+	assert.Equal(t, int32(2), StreamPayloadMessageUnits(MaxStreamMessagePayloadBytes+1))
+	assert.Equal(t, int32(17), StreamPayloadMessageUnits(MaxStreamUploadedPayloadBytes))
+}

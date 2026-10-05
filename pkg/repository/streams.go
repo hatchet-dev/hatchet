@@ -29,6 +29,12 @@ const MaxStreamMessagePayloadBytes = 4*1024*1024 - 5*1024
 // MaxStreamUploadedPayloadBytes caps a payload uploaded ahead of its publish.
 const MaxStreamUploadedPayloadBytes = 64 * 1024 * 1024
 
+// StreamPayloadMessageUnits is what an upload of size bytes counts against the
+// STREAM_MESSAGE limit: as many max-size gRPC messages as it would take to send.
+func StreamPayloadMessageUnits(size int) int32 {
+	return int32((size + MaxStreamMessagePayloadBytes - 1) / MaxStreamMessagePayloadBytes) // nolint: gosec
+}
+
 // StreamPayloadRetentionGrace keeps uploaded payloads this much longer than
 // messages, since a payload is uploaded some time before the message that
 // references it.

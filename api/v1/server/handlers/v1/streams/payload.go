@@ -43,11 +43,21 @@ func (s *V1StreamsService) V1StreamPayloadUpload(ctx echo.Context, request gen.V
 		return gen.V1StreamPayloadUpload400JSONResponse(apierrors.NewAPIErrors("payload is required")), nil
 	}
 
+	pre, post := s.config.V1.TenantLimit().Meter(reqCtx, nil, sqlcv1.LimitResourceSTREAMMESSAGE, tenant.ID, repository.StreamPayloadMessageUnits(len(payload)))
+
+	if err := pre(); errors.Is(err, repository.ErrResourceExhausted) {
+		return gen.V1StreamPayloadUpload429JSONResponse(apierrors.NewAPIErrors("resource exhausted: stream message limit exceeded for tenant")), nil
+	} else if err != nil {
+		return nil, err
+	}
+
 	ref, err := s.config.V1.Streams().InsertStreamPayload(reqCtx, tenant.ID, payload)
 
 	if err != nil {
 		return nil, err
 	}
+
+	post()
 
 	encoded, err := repository.EncodeStreamPayloadRef(ref)
 

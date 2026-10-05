@@ -2284,11 +2284,14 @@ CREATE TABLE v1_stream_message (
     payload_inserted_at TIMESTAMPTZ,
 
     -- id first so reads seek by offset; inserted_at is required as the partition key
-    CONSTRAINT v1_stream_message_pkey PRIMARY KEY (tenant_id, namespace, topic, id, inserted_at)
+    CONSTRAINT v1_stream_message_pkey PRIMARY KEY (tenant_id, namespace, topic, id, inserted_at),
+    -- the pair together is the ref; one without the other can't be resolved
+    CONSTRAINT v1_stream_message_payload_ref_check CHECK ((payload_id IS NULL) = (payload_inserted_at IS NULL))
 ) PARTITION BY RANGE(inserted_at);
 
 -- Payloads too large for a gRPC publish. Insert-only; partitions are dropped
--- on the same schedule as v1_stream_message's, so an upload no publish
+-- StreamPayloadRetentionGrace after v1_stream_message's, since a payload is
+-- uploaded before the message referencing it, so an upload no publish
 -- references needs no cleanup of its own.
 CREATE TABLE v1_stream_payload (
     id UUID NOT NULL,

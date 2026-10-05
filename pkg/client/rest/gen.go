@@ -16154,6 +16154,7 @@ type V1StreamPayloadUploadResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON413      *APIErrors
+	JSON429      *APIErrors
 }
 
 // Status returns HTTPResponse.Status
@@ -21868,6 +21869,13 @@ func ParseV1StreamPayloadUploadResponse(rsp *http.Response) (*V1StreamPayloadUpl
 			return nil, err
 		}
 		response.JSON413 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
