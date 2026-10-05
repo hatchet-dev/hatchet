@@ -2354,6 +2354,14 @@ func (r *sharedRepository) evalMaxRunsExpression(strat *sqlcv1.V1StepConcurrency
 	return &v, nil
 }
 
+func taskDisplayNamePrefix(stepConfig *sqlcv1.ListStepsByIdsRow) string {
+	if stepConfig.IsDagOrchestrator {
+		return stepConfig.WorkflowName
+	}
+
+	return stepConfig.ReadableId.String
+}
+
 func (r *sharedRepository) insertTasks(
 	ctx context.Context,
 	tx sqlcv1.DBTX,
@@ -2436,7 +2444,7 @@ func (r *sharedRepository) insertTasks(
 		scheduleTimeouts[i] = stepConfig.ScheduleTimeout
 		stepTimeouts[i] = stepConfig.Timeout.String
 		externalIds[i] = task.ExternalId
-		displayNames[i] = fmt.Sprintf("%s-%d", stepConfig.ReadableId.String, unix)
+		displayNames[i] = fmt.Sprintf("%s-%d", taskDisplayNamePrefix(stepConfig), unix)
 		stepIndices[i] = int64(task.StepIndex)
 		retryBackoffFactors[i] = stepConfig.RetryBackoffFactor
 		retryMaxBackoffs[i] = stepConfig.RetryMaxBackoff

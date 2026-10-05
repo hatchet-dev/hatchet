@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -421,27 +423,33 @@ func (d *DispatcherServiceImpl) logDurableTaskRequestError(err error) {
 	d.l.Error().Err(err).Msg("error handling durable task request")
 }
 
-func (s *durableTaskInvocation) getRelease(key orderedReleaseKey) *orderedRelease {
+func (s *durableTaskInvocation) getRelease(key orderedReleaseKey) (rel *orderedRelease, wasReplacedByNewerInvocation bool) {
 	if s.releases == nil {
 		s.releases = make(map[orderedReleaseKey]*orderedRelease)
 	}
 
 	if rel, ok := s.releases[key]; ok {
-		return rel
+		return rel, false
 	}
 
 	for existing := range s.releases {
-		if existing.taskExternalId == key.taskExternalId && existing.invocationCount < key.invocationCount {
-			delete(s.releases, existing)
+		if existing.taskExternalId != key.taskExternalId {
+			continue
 		}
+
+		if existing.invocationCount > key.invocationCount {
+			return nil, true
+		}
+
+		delete(s.releases, existing)
 	}
 
-	rel := &orderedRelease{
+	rel = &orderedRelease{
 		bufferedCompletions: make(map[int64]*contracts.DurableTaskResponse),
 		lastActivityAt:      time.Now(),
 	}
 	s.releases[key] = rel
-	return rel
+	return rel, false
 }
 
 func (s *durableTaskInvocation) clearRelease(key orderedReleaseKey) {
@@ -476,8 +484,14 @@ func (s *durableTaskInvocation) deliverOrdered(taskExternalId uuid.UUID, invocat
 	order := *satisfiedOrder
 
 	s.releasesMu.Lock()
-	rel := s.getRelease(orderedReleaseKey{taskExternalId: taskExternalId, invocationCount: invocationCount})
+	rel, wasReplacedByNewerInvocation := s.getRelease(orderedReleaseKey{taskExternalId: taskExternalId, invocationCount: invocationCount})
 	s.releasesMu.Unlock()
+
+	if wasReplacedByNewerInvocation {
+		// the lower satisfied_orders of a replaced invocation will never arrive, so holding
+		// this completion would only end in a false timeout eviction
+		return s.send(resp)
+	}
 
 	rel.mu.Lock()
 	defer rel.mu.Unlock()
@@ -543,24 +557,35 @@ func (s *durableTaskInvocation) deliverOrdered(taskExternalId uuid.UUID, invocat
 	return nil
 }
 
-func (s *durableTaskInvocation) staleReleaseHolds(timeout time.Duration) []orderedReleaseKey {
+type timedOutOrderedRelease struct {
+	key                   orderedReleaseKey
+	missingSatisfiedOrder int64
+	heldSatisfiedOrders   []int64
+}
+
+func (s *durableTaskInvocation) timedOutOrderedReleases(timeout time.Duration) []timedOutOrderedRelease {
 	s.releasesMu.Lock()
 	defer s.releasesMu.Unlock()
 
 	now := time.Now()
-	var stale []orderedReleaseKey
+	var timedOut []timedOutOrderedRelease
 
 	for key, rel := range s.releases {
 		rel.mu.Lock()
-		isStale := len(rel.bufferedCompletions) > 0 && !rel.oldestBufferedAt.IsZero() && now.Sub(rel.oldestBufferedAt) > timeout
-		rel.mu.Unlock()
+		hasTimedOut := len(rel.bufferedCompletions) > 0 && !rel.oldestBufferedAt.IsZero() && now.Sub(rel.oldestBufferedAt) > timeout
 
-		if isStale {
-			stale = append(stale, key)
+		if hasTimedOut {
+			timedOut = append(timedOut, timedOutOrderedRelease{
+				key:                   key,
+				missingSatisfiedOrder: rel.maxSatisfiedOrderSentAlready + 1,
+				heldSatisfiedOrders:   slices.Sorted(maps.Keys(rel.bufferedCompletions)),
+			})
 		}
+
+		rel.mu.Unlock()
 	}
 
-	return stale
+	return timedOut
 }
 
 func (d *DispatcherServiceImpl) DurableTask(ctx context.Context, server *connect.BidiStream[contracts.DurableTaskRequest, contracts.DurableTaskResponse]) error {
@@ -1393,7 +1418,7 @@ func (d *DispatcherServiceImpl) evictDurableTask(
 		return nil, fmt.Errorf("task not found: %w", err)
 	}
 
-	// An eviction request from an older invocation (e.g. a stalled ordered release held by a
+	// An eviction request from an older invocation (e.g. a timed out ordered release held by a
 	// previous session) must not evict the newer invocation that replaced it: the notice would
 	// be dropped by the worker's invocation-count check, leaving the run evicted in the
 	// database while its worker keeps executing it.
@@ -1579,7 +1604,7 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 		d.evictIdleOperatorTasks(ctx, invocation, uniqueExternalIds, staleExternalIds, callbacks)
 	}
 
-	d.evictStalledOrderedReleases(ctx, invocation)
+	d.evictTimedOutOrderedReleases(ctx, invocation)
 	invocation.pruneIdleReleases(durableReleaseIdleTTL)
 
 	return nil
@@ -1637,17 +1662,17 @@ func (d *DispatcherServiceImpl) evictIdleOperatorTasks(
 const durableOrderedReleaseGapTimeout = 60 * time.Second
 const durableReleaseIdleTTL = 24 * time.Hour
 
-func (d *DispatcherServiceImpl) evictStalledOrderedReleases(ctx context.Context, invocation *durableTaskInvocation) {
-	for _, key := range invocation.staleReleaseHolds(durableOrderedReleaseGapTimeout) {
-		d.l.Error().Msgf(
-			"durable task %s (invocation %d): ordered release stalled waiting for a missing satisfied_order for over %s; evicting to restart. "+
-				"if this repeats, the task was likely forked with BranchDurableTask across an out-of-order satisfaction, which is not supported",
-			key.taskExternalId, key.invocationCount, durableOrderedReleaseGapTimeout,
+func (d *DispatcherServiceImpl) evictTimedOutOrderedReleases(ctx context.Context, invocation *durableTaskInvocation) {
+	for _, timedOut := range invocation.timedOutOrderedReleases(durableOrderedReleaseGapTimeout) {
+		key := timedOut.key
+		reason := fmt.Sprintf(
+			"completions with satisfied_order %v were held for over %s waiting for satisfied_order %d, which had not arrived when the hold timed out",
+			timedOut.heldSatisfiedOrders, durableOrderedReleaseGapTimeout, timedOut.missingSatisfiedOrder,
 		)
 
-		evictRes, err := d.evictDurableTask(ctx, invocation.tenantId, key.taskExternalId, key.invocationCount, "ordered durable completion release stalled on a missing entry")
+		evictRes, err := d.evictDurableTask(ctx, invocation.tenantId, key.taskExternalId, key.invocationCount, reason)
 		if err != nil {
-			d.l.Error().Err(err).Msgf("failed to evict durable task %s for stalled ordered release", key.taskExternalId)
+			d.l.Error().Err(err).Msgf("failed to evict durable task %s for timed out ordered release", key.taskExternalId)
 			continue
 		}
 
@@ -1656,16 +1681,18 @@ func (d *DispatcherServiceImpl) evictStalledOrderedReleases(ctx context.Context,
 			continue
 		}
 
+		d.l.Error().Msgf("durable task %s (invocation %d) evicted: %s", key.taskExternalId, key.invocationCount, reason)
+
 		if err := invocation.send(&contracts.DurableTaskResponse{
 			Message: &contracts.DurableTaskResponse_ServerEvict{
 				ServerEvict: &contracts.DurableTaskServerEvictNotice{
 					DurableTaskExternalId: key.taskExternalId.String(),
 					InvocationCount:       key.invocationCount,
-					Reason:                "ordered durable completion release stalled on a missing entry",
+					Reason:                reason,
 				},
 			},
 		}); err != nil {
-			d.l.Error().Err(err).Msgf("failed to send server eviction for stalled ordered release on task %s", key.taskExternalId)
+			d.l.Error().Err(err).Msgf("failed to send server eviction for timed out ordered release on task %s", key.taskExternalId)
 		}
 
 		invocation.clearRelease(key)
