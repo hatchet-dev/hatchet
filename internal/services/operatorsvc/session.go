@@ -85,7 +85,7 @@ func (s *Service) OpenSession(ctx context.Context, tenant *sqlcv1.Tenant, op *sq
 		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("tenant not found in request context"))
 	}
 
-	ctx = contextWithAnalyticsTenant(ctx, tenant.ID)
+	ctx = contextWithAnalyticsTenant(ctx, &tenant.ID)
 
 	if (opts.Stream == nil) == (opts.Handler == nil) {
 		return nil, fmt.Errorf("a session takes exactly one of a stream or a handler")

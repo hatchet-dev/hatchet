@@ -56,7 +56,7 @@ type DurableChannel = operator.DurableChannel
 // PostHog distinct id. Without it, captures such as durable-task:register are rejected.
 func WithTenant(ctx context.Context, tenant *sqlcv1.Tenant) context.Context {
 	ctx = context.WithValue(ctx, tenantContextKey, tenant) //nolint:staticcheck // key must match the gRPC auth middleware's
-	if tenant != nil && tenant.ID != uuid.Nil {
+	if tenant != nil {
 		ctx = context.WithValue(ctx, analytics.TenantIDKey, tenant.ID)
 	}
 	return ctx
@@ -65,11 +65,11 @@ func WithTenant(ctx context.Context, tenant *sqlcv1.Tenant) context.Context {
 // contextWithAnalyticsTenant fills the analytics tenant id when the caller has a tenant but
 // no API token. PostHog rejects a capture whose distinct id is empty, and the tenant id is
 // the distinct id in that case. An id already on the context is left in place.
-func contextWithAnalyticsTenant(ctx context.Context, tenantID uuid.UUID) context.Context {
-	if tenantID == uuid.Nil || analytics.TenantIDFromContext(ctx) != nil {
+func contextWithAnalyticsTenant(ctx context.Context, tenantID *uuid.UUID) context.Context {
+	if tenantID == nil || analytics.TenantIDFromContext(ctx) != nil {
 		return ctx
 	}
-	return context.WithValue(ctx, analytics.TenantIDKey, tenantID)
+	return context.WithValue(ctx, analytics.TenantIDKey, *tenantID)
 }
 
 // durableChannel is one durable invocation's pipe over the dispatcher's channel-backed session,
