@@ -194,6 +194,9 @@ from examples.webhook_with_scope.worker import (
 )
 from examples.webhooks.worker import webhook
 from examples.welcome_email.worker import welcome_email
+from examples.bug_tests.durable_dag_idempotency_hang.worker import (
+    durable_dag_idempotency_hang_bug_repro_wf,
+)
 from examples.workflow_pause.worker import pausable_workflow
 from hatchet_sdk import Hatchet
 
@@ -347,6 +350,7 @@ def main() -> None:
             callback_ordering_mid,
             callback_ordering_root,
             workflow_pause_concurrency_bug_task,
+            durable_dag_idempotency_hang_bug_repro_wf,
         ],
         lifespan=lifespan,
     )
