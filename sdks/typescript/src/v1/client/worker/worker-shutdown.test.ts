@@ -145,7 +145,7 @@ describe('durable worker shutdown', () => {
     expect(exit).not.toHaveBeenCalled();
   });
 
-  it('keeps the heartbeat running until in-flight tasks finish, then unregisters', async () => {
+  it('keeps the action stream and heartbeat running until in-flight tasks finish, then unregisters', async () => {
     const { stopStream, stopHeartbeat, unsubscribe } = registerOpenActionStream();
     const inFlightTask = gate();
     worker.futures['in-flight-task/0'] = { promise: inFlightTask.promise } as any;
@@ -155,15 +155,16 @@ describe('durable worker shutdown', () => {
 
     const stopping = worker.stop();
     await jest.advanceTimersByTimeAsync(60_000);
-    await starting;
 
-    expect(stopStream).toHaveBeenCalledTimes(1);
+    expect(stopStream).not.toHaveBeenCalled();
     expect(stopHeartbeat).not.toHaveBeenCalled();
     expect(unsubscribe).not.toHaveBeenCalled();
 
     inFlightTask.release();
     await stopping;
+    await starting;
 
+    expect(stopStream).toHaveBeenCalledTimes(1);
     expect(stopHeartbeat).toHaveBeenCalledTimes(1);
     expect(unsubscribe).toHaveBeenCalledTimes(1);
   });
