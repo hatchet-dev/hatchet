@@ -6,8 +6,11 @@ DECLARE
     next_month_start DATE := (date_trunc('month', NOW()) + INTERVAL '1 month')::DATE;
     legacy_partition_name TEXT := 'v1_lookup_table_' || to_char(current_month_start, 'YYYYMMDD');
 BEGIN
-    EXECUTE format('ALTER TABLE v1_lookup_table RENAME CONSTRAINT v1_lookup_table_external_id_inserted_at_uq TO %I', legacy_partition_name || '_pkey');
-    EXECUTE format('ALTER TABLE v1_lookup_table RENAME CONSTRAINT v1_lookup_table_pkey TO %I', legacy_partition_name || '_external_id_uq');
+    -- Postgres 17+ refuses to match a unique-constraint index to the parent's primary key on attach
+    -- (15 and 16 allow it), so the legacy table's constraint types have to match the parent's.
+    ALTER TABLE v1_lookup_table DROP CONSTRAINT v1_lookup_table_pkey;
+    EXECUTE format('ALTER TABLE v1_lookup_table ADD CONSTRAINT %I PRIMARY KEY USING INDEX v1_lookup_table_external_id_inserted_at_idx', legacy_partition_name || '_pkey');
+    EXECUTE format('ALTER TABLE v1_lookup_table ADD CONSTRAINT %I UNIQUE USING INDEX v1_lookup_table_external_id_idx', legacy_partition_name || '_external_id_uq');
     EXECUTE format('ALTER TABLE v1_lookup_table RENAME TO %I', legacy_partition_name);
     EXECUTE format('ALTER TABLE v1_lookup_table_partitioned ATTACH PARTITION %I FOR VALUES FROM (MINVALUE) TO (%L)', legacy_partition_name, next_month_start);
     EXECUTE format('ALTER TABLE %I DROP CONSTRAINT v1_lookup_table_attach_bound', legacy_partition_name);
@@ -424,8 +427,11 @@ BEGIN
     EXECUTE format('INSERT INTO %I SELECT tenant_id, external_id, task_id, dag_id, inserted_at FROM v1_lookup_table ON CONFLICT (external_id) DO NOTHING', legacy_partition_name);
     DROP TABLE v1_lookup_table;
     EXECUTE format('ALTER TABLE %I RENAME TO v1_lookup_table', legacy_partition_name);
-    EXECUTE format('ALTER TABLE v1_lookup_table RENAME CONSTRAINT %I TO v1_lookup_table_pkey', legacy_partition_name || '_external_id_uq');
-    EXECUTE format('ALTER TABLE v1_lookup_table RENAME CONSTRAINT %I TO v1_lookup_table_external_id_inserted_at_uq', legacy_partition_name || '_pkey');
+    EXECUTE format('ALTER TABLE v1_lookup_table DROP CONSTRAINT %I', legacy_partition_name || '_external_id_uq');
+    EXECUTE format('ALTER TABLE v1_lookup_table DROP CONSTRAINT %I', legacy_partition_name || '_pkey');
+    ALTER TABLE v1_lookup_table ADD CONSTRAINT v1_lookup_table_pkey PRIMARY KEY (external_id);
+    CREATE UNIQUE INDEX v1_lookup_table_external_id_inserted_at_idx ON v1_lookup_table (external_id, inserted_at);
+    CREATE UNIQUE INDEX v1_lookup_table_external_id_idx ON v1_lookup_table (external_id);
 END $$;
 
 CREATE OR REPLACE FUNCTION v1_task_insert_function()
