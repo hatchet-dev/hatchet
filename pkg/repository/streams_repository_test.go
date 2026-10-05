@@ -385,4 +385,42 @@ func TestStreamsRepository(t *testing.T) {
 
 		assert.Equal(t, []string{"active", "idle-long"}, remaining)
 	})
+
+	t.Run("an uploaded payload is published and read by ref", func(t *testing.T) {
+		repo := createStreamsRepository(t, pool)
+		tenantId, other := uuid.New(), uuid.New()
+
+		ref, err := repo.InsertStreamPayload(ctx, tenantId, []byte("large"))
+		require.NoError(t, err)
+
+		require.NoError(t, repo.CheckStreamPayloadExists(ctx, tenantId, ref))
+		assert.ErrorIs(t, repo.CheckStreamPayloadExists(ctx, other, ref), ErrStreamPayloadNotFound, "another tenant's payload")
+
+		res, err := repo.InsertOrderedStreamMessage(ctx, tenantId, CreateOrderedStreamMessageOpts{Topic: "t", ProducerID: "p1", ProducerSeq: 0, PayloadRef: &ref})
+		require.NoError(t, err)
+		require.True(t, res.Inserted)
+
+		msgs, err := repo.ListMessagesAfterCursor(ctx, tenantId, ListStreamMessagesOpts{Topic: "t"})
+		require.NoError(t, err)
+		require.Len(t, msgs, 1)
+		assert.Empty(t, msgs[0].Payload)
+		require.NotNil(t, msgs[0].PayloadID)
+		assert.Equal(t, ref.ID, *msgs[0].PayloadID)
+		assert.True(t, ref.CreatedAt.Equal(msgs[0].PayloadInsertedAt.Time))
+
+		encoded, err := EncodeStreamPayloadRef(ref)
+		require.NoError(t, err)
+		decoded, err := DecodeStreamPayloadRef(encoded)
+		require.NoError(t, err)
+
+		payload, err := repo.GetStreamPayload(ctx, tenantId, decoded)
+		require.NoError(t, err)
+		assert.Equal(t, "large", string(payload))
+
+		_, err = repo.GetStreamPayload(ctx, other, decoded)
+		assert.ErrorIs(t, err, ErrStreamPayloadNotFound, "another tenant's payload")
+
+		_, err = repo.InsertOrderedStreamMessage(ctx, tenantId, CreateOrderedStreamMessageOpts{Topic: "t", ProducerID: "p1", ProducerSeq: 1})
+		assert.Error(t, err, "a message needs a payload or a ref")
+	})
 }

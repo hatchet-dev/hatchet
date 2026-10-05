@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file v1/streams.proto.
  */
 export const file_v1_streams: GenFile = /*@__PURE__*/
-  fileDesc("ChB2MS9zdHJlYW1zLnByb3RvEgJ2MSJ7ChtQdWJsaXNoU3RyZWFtTWVzc2FnZVJlcXVlc3QSEQoJbmFtZXNwYWNlGAEgASgJEg0KBXRvcGljGAIgASgJEg8KB3BheWxvYWQYAyABKAwSEwoLcHJvZHVjZXJfaWQYBCABKAkSFAoMcHJvZHVjZXJfc2VxGAUgASgDIh4KHFB1Ymxpc2hTdHJlYW1NZXNzYWdlUmVzcG9uc2UiWgoWU3Vic2NyaWJlU3RyZWFtUmVxdWVzdBIRCgluYW1lc3BhY2UYASABKAkSDQoFdG9waWMYAiABKAkSEwoGY3Vyc29yGAMgASgJSACIAQFCCQoHX2N1cnNvciJRCg1TdHJlYW1NZXNzYWdlEiAKB2VudHJpZXMYASADKAsyDy52MS5TdHJlYW1FbnRyeRIOCgZoYW5ndXAYAiABKAgSDgoGY3Vyc29yGAMgASgJIl4KC1N0cmVhbUVudHJ5Eg8KB3BheWxvYWQYASABKAwSDgoGY3Vyc29yGAIgASgJEi4KCmNyZWF0ZWRfYXQYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wMpsBCglWMVN0cmVhbXMSTgoHUHVibGlzaBIfLnYxLlB1Ymxpc2hTdHJlYW1NZXNzYWdlUmVxdWVzdBogLnYxLlB1Ymxpc2hTdHJlYW1NZXNzYWdlUmVzcG9uc2UiABI+CglTdWJzY3JpYmUSGi52MS5TdWJzY3JpYmVTdHJlYW1SZXF1ZXN0GhEudjEuU3RyZWFtTWVzc2FnZSIAMAFCQlpAZ2l0aHViLmNvbS9oYXRjaGV0LWRldi9oYXRjaGV0L2ludGVybmFsL3NlcnZpY2VzL3NoYXJlZC9wcm90by92MWIGcHJvdG8z", [file_google_protobuf_timestamp]);
+  fileDesc("ChB2MS9zdHJlYW1zLnByb3RvEgJ2MSKQAQobUHVibGlzaFN0cmVhbU1lc3NhZ2VSZXF1ZXN0EhEKCW5hbWVzcGFjZRgBIAEoCRINCgV0b3BpYxgCIAEoCRIPCgdwYXlsb2FkGAMgASgMEhMKC3Byb2R1Y2VyX2lkGAQgASgJEhQKDHByb2R1Y2VyX3NlcRgFIAEoAxITCgtwYXlsb2FkX3JlZhgGIAEoCSIeChxQdWJsaXNoU3RyZWFtTWVzc2FnZVJlc3BvbnNlIloKFlN1YnNjcmliZVN0cmVhbVJlcXVlc3QSEQoJbmFtZXNwYWNlGAEgASgJEg0KBXRvcGljGAIgASgJEhMKBmN1cnNvchgDIAEoCUgAiAEBQgkKB19jdXJzb3IiUQoNU3RyZWFtTWVzc2FnZRIgCgdlbnRyaWVzGAEgAygLMg8udjEuU3RyZWFtRW50cnkSDgoGaGFuZ3VwGAIgASgIEg4KBmN1cnNvchgDIAEoCSJzCgtTdHJlYW1FbnRyeRIPCgdwYXlsb2FkGAEgASgMEg4KBmN1cnNvchgCIAEoCRIuCgpjcmVhdGVkX2F0GAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBITCgtwYXlsb2FkX3JlZhgEIAEoCTKbAQoJVjFTdHJlYW1zEk4KB1B1Ymxpc2gSHy52MS5QdWJsaXNoU3RyZWFtTWVzc2FnZVJlcXVlc3QaIC52MS5QdWJsaXNoU3RyZWFtTWVzc2FnZVJlc3BvbnNlIgASPgoJU3Vic2NyaWJlEhoudjEuU3Vic2NyaWJlU3RyZWFtUmVxdWVzdBoRLnYxLlN0cmVhbU1lc3NhZ2UiADABQkJaQGdpdGh1Yi5jb20vaGF0Y2hldC1kZXYvaGF0Y2hldC9pbnRlcm5hbC9zZXJ2aWNlcy9zaGFyZWQvcHJvdG8vdjFiBnByb3RvMw", [file_google_protobuf_timestamp]);
 
 /**
  * @generated from message v1.PublishStreamMessageRequest
@@ -42,6 +42,14 @@ export type PublishStreamMessageRequest = Message<"v1.PublishStreamMessageReques
    * @generated from field: int64 producer_seq = 5;
    */
   producerSeq: bigint;
+
+  /**
+   * instead of payload: a ref returned by the stream payload upload endpoint,
+   * for payloads too large for one gRPC message
+   *
+   * @generated from field: string payload_ref = 6;
+   */
+  payloadRef: string;
 };
 
 /**
@@ -136,6 +144,13 @@ export type StreamEntry = Message<"v1.StreamEntry"> & {
    * @generated from field: google.protobuf.Timestamp created_at = 3;
    */
   createdAt?: Timestamp | undefined;
+
+  /**
+   * instead of payload: fetch it from the stream payload endpoint by this ref
+   *
+   * @generated from field: string payload_ref = 4;
+   */
+  payloadRef: string;
 };
 
 /**

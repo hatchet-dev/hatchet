@@ -41,6 +41,13 @@ func TestStreamsPartitionJob(t *testing.T) {
 	_, err = pool.Exec(ctx, `SELECT create_v1_hourly_range_partition('v1_stream_message', NOW() - make_interval(hours => h)) FROM unnest(ARRAY[5, 30, 60]) AS h`)
 	require.NoError(t, err)
 
+	payloadAges := []time.Duration{30 * time.Hour, 60 * time.Hour, 80 * time.Hour}
+
+	for _, ago := range payloadAges {
+		_, err = pool.Exec(ctx, `SELECT create_v1_hourly_range_partition('v1_stream_payload', NOW() - make_interval(secs => $1))`, ago.Seconds())
+		require.NoError(t, err)
+	}
+
 	// one message per tenant, 5h, 30h and 60h old
 	_, err = pool.Exec(ctx, `
 		INSERT INTO v1_stream_message (id, tenant_id, topic, payload, producer_id, producer_seq, inserted_at)
@@ -85,6 +92,10 @@ func TestStreamsPartitionJob(t *testing.T) {
 		return "v1_stream_message_" + now.Add(-ago).Format("2006010215")
 	}
 
+	payloadTable := func(ago time.Duration) string {
+		return "v1_stream_payload_" + now.Add(-ago).Format("2006010215")
+	}
+
 	cursorTable := func(day time.Time) string {
 		return "v1_stream_producer_cursor_" + day.Format("20060102")
 	}
@@ -95,6 +106,11 @@ func TestStreamsPartitionJob(t *testing.T) {
 		hourTable(30 * time.Hour):                true,
 		hourTable(60 * time.Hour):                false,
 		hourTable(-streamMessagePartitionsAhead): true,
+		// payloads are kept StreamPayloadRetentionGrace (24h) past the longest retention, so 60h survives where messages don't
+		payloadTable(payloadAges[0]):                true,
+		payloadTable(payloadAges[1]):                true,
+		payloadTable(payloadAges[2]):                false,
+		payloadTable(-streamMessagePartitionsAhead): true,
 		// cursors are kept streamProducerCursorRetention (3 days), whatever the message retention
 		cursorTable(today.AddDate(0, 0, -2)):  true,
 		cursorTable(today.AddDate(0, 0, -10)): false,

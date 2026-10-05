@@ -20,6 +20,8 @@ import (
 
 var sqlcParam = regexp.MustCompile(`@(\w+)`)
 
+var sqlcFuncParam = regexp.MustCompile(`sqlc\.n?arg\('(\w+)'\)`)
+
 // namedQuery returns a query from streams.sql with its sqlc parameters made
 // positional, so a plan test always explains the query that actually ships.
 func namedQuery(t *testing.T, name string, args map[string]any) (string, []any) {
@@ -44,7 +46,7 @@ func namedQuery(t *testing.T, name string, args map[string]any) (string, []any) 
 		}
 	}
 
-	body = strings.ReplaceAll(strings.Join(lines, "\n"), "sqlc.arg('limit')", "@limit")
+	body = sqlcFuncParam.ReplaceAllString(strings.Join(lines, "\n"), "@$1")
 
 	positions := map[string]int{}
 	var ordered []any
@@ -155,6 +157,7 @@ func TestStreamsQueryPlans(t *testing.T) {
 		query, args := namedQuery(t, "InsertOrderedStreamMessage", map[string]any{
 			"tenantId": uuid.New(), "namespace": "", "topic": "t", "producerId": "p", "minBucket": streamProducerCursorMinBucket(time.Now()),
 			"producerSeq": int64(1), "expectedPrevSeq": int64(0), "payload": []byte("m"), "messageOffset": int64(1),
+			"payloadId": nil, "payloadInsertedAt": nil,
 		})
 
 		partitions := map[string]struct{}{}

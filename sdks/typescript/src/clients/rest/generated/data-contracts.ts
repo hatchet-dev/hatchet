@@ -862,6 +862,11 @@ export interface V1DurableEventLogEntry {
 
 export type V1DurableEventLogList = V1DurableEventLogEntry[];
 
+export interface V1StreamPayloadRef {
+  /** Publish the message with this as its payload_ref */
+  ref: string;
+}
+
 export interface OtelSpan {
   traceId: string;
   spanId: string;

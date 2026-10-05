@@ -259,11 +259,21 @@ func sendRange(ctx context.Context, repo v1.StreamsRepository, key topicPollerKe
 				return from, err
 			}
 
-			entries = append(entries, &contracts.StreamEntry{
+			entry := &contracts.StreamEntry{
 				Payload:   m.Payload,
 				Cursor:    encodedCursor,
 				CreatedAt: timestamppb.New(m.InsertedAt.Time),
-			})
+			}
+
+			if m.PayloadID != nil {
+				entry.PayloadRef, err = v1.EncodeStreamPayloadRef(v1.StreamPayloadRef{ID: *m.PayloadID, CreatedAt: m.PayloadInsertedAt.Time})
+
+				if err != nil {
+					return from, err
+				}
+			}
+
+			entries = append(entries, entry)
 
 			pageEnd = next
 		}

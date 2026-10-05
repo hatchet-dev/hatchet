@@ -38,6 +38,21 @@ func (q *Queries) CreateStreamMessagePartitions(ctx context.Context, db DBTX, ar
 	return err
 }
 
+const createStreamPayloadPartitions = `-- name: CreateStreamPayloadPartitions :exec
+SELECT create_v1_hourly_range_partition('v1_stream_payload', hours.hour_start)
+FROM generate_series($1::timestamptz, $2::timestamptz, INTERVAL '1 hour') AS hours(hour_start)
+`
+
+type CreateStreamPayloadPartitionsParams struct {
+	Fromtime pgtype.Timestamptz `json:"fromtime"`
+	Totime   pgtype.Timestamptz `json:"totime"`
+}
+
+func (q *Queries) CreateStreamPayloadPartitions(ctx context.Context, db DBTX, arg CreateStreamPayloadPartitionsParams) error {
+	_, err := db.Exec(ctx, createStreamPayloadPartitions, arg.Fromtime, arg.Totime)
+	return err
+}
+
 const deleteExpiredStreamMessages = `-- name: DeleteExpiredStreamMessages :execrows
 DELETE FROM v1_stream_message
 WHERE inserted_at < $1::timestamptz
@@ -137,6 +152,56 @@ func (q *Queries) GetStreamMessageRetentionStart(ctx context.Context, db DBTX) (
 	return retention_start, err
 }
 
+const getStreamPayload = `-- name: GetStreamPayload :one
+SELECT payload
+FROM v1_stream_payload
+WHERE tenant_id = $1::uuid
+    AND id = $2::uuid
+    AND inserted_at = $3::timestamptz
+    AND inserted_at >= $4::timestamptz
+`
+
+type GetStreamPayloadParams struct {
+	Tenantid      uuid.UUID          `json:"tenantid"`
+	ID            uuid.UUID          `json:"id"`
+	Insertedat    pgtype.Timestamptz `json:"insertedat"`
+	Retainedsince pgtype.Timestamptz `json:"retainedsince"`
+}
+
+// inserted_at is the partition key, so this reads one partition.
+func (q *Queries) GetStreamPayload(ctx context.Context, db DBTX, arg GetStreamPayloadParams) ([]byte, error) {
+	row := db.QueryRow(ctx, getStreamPayload,
+		arg.Tenantid,
+		arg.ID,
+		arg.Insertedat,
+		arg.Retainedsince,
+	)
+	var payload []byte
+	err := row.Scan(&payload)
+	return payload, err
+}
+
+const insertStreamPayload = `-- name: InsertStreamPayload :one
+INSERT INTO v1_stream_payload (id, tenant_id, payload)
+VALUES ($1::uuid, $2::uuid, $3::bytea)
+RETURNING inserted_at
+`
+
+type InsertStreamPayloadParams struct {
+	ID       uuid.UUID `json:"id"`
+	Tenantid uuid.UUID `json:"tenantid"`
+	Payload  []byte    `json:"payload"`
+}
+
+// A payload uploaded ahead of the publish that references it. One no publish
+// references is left for its partition to be dropped.
+func (q *Queries) InsertStreamPayload(ctx context.Context, db DBTX, arg InsertStreamPayloadParams) (pgtype.Timestamptz, error) {
+	row := db.QueryRow(ctx, insertStreamPayload, arg.ID, arg.Tenantid, arg.Payload)
+	var inserted_at pgtype.Timestamptz
+	err := row.Scan(&inserted_at)
+	return inserted_at, err
+}
+
 const listStreamMessagePartitionsBefore = `-- name: ListStreamMessagePartitionsBefore :many
 SELECT
     'v1_stream_message' AS parent_table,
@@ -170,11 +235,11 @@ func (q *Queries) ListStreamMessagePartitionsBefore(ctx context.Context, db DBTX
 }
 
 const listStreamMessagesAfterCursor = `-- name: ListStreamMessagesAfterCursor :many
-SELECT id, inserted_at, tenant_id, namespace, topic, payload, producer_id, producer_seq
+SELECT id, inserted_at, tenant_id, namespace, topic, payload, producer_id, producer_seq, payload_id, payload_inserted_at
 FROM (
-    SELECT page.id, page.inserted_at, page.tenant_id, page.namespace, page.topic, page.payload, page.producer_id, page.producer_seq, SUM(octet_length(page.payload)) OVER (ORDER BY page.id) - octet_length(page.payload) AS bytes_before
+    SELECT page.id, page.inserted_at, page.tenant_id, page.namespace, page.topic, page.payload, page.producer_id, page.producer_seq, page.payload_id, page.payload_inserted_at, SUM(octet_length(page.payload)) OVER (ORDER BY page.id) - octet_length(page.payload) AS bytes_before
     FROM (
-        SELECT id, inserted_at, tenant_id, namespace, topic, payload, producer_id, producer_seq
+        SELECT id, inserted_at, tenant_id, namespace, topic, payload, producer_id, producer_seq, payload_id, payload_inserted_at
         FROM v1_stream_message
         WHERE tenant_id = $1::uuid
             AND namespace = $2::text
@@ -230,7 +295,41 @@ func (q *Queries) ListStreamMessagesAfterCursor(ctx context.Context, db DBTX, ar
 			&i.Payload,
 			&i.ProducerID,
 			&i.ProducerSeq,
+			&i.PayloadID,
+			&i.PayloadInsertedAt,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listStreamPayloadPartitionsBefore = `-- name: ListStreamPayloadPartitionsBefore :many
+SELECT
+    'v1_stream_payload' AS parent_table,
+    p::text AS partition_name
+FROM get_v1_hourly_partitions_before('v1_stream_payload', $1::timestamptz) AS p
+`
+
+type ListStreamPayloadPartitionsBeforeRow struct {
+	ParentTable   string `json:"parent_table"`
+	PartitionName string `json:"partition_name"`
+}
+
+func (q *Queries) ListStreamPayloadPartitionsBefore(ctx context.Context, db DBTX, before pgtype.Timestamptz) ([]*ListStreamPayloadPartitionsBeforeRow, error) {
+	rows, err := db.Query(ctx, listStreamPayloadPartitionsBefore, before)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListStreamPayloadPartitionsBeforeRow
+	for rows.Next() {
+		var i ListStreamPayloadPartitionsBeforeRow
+		if err := rows.Scan(&i.ParentTable, &i.PartitionName); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)
@@ -320,6 +419,26 @@ func (q *Queries) ListStreamRetentionDeleteCandidates(ctx context.Context, db DB
 		return nil, err
 	}
 	return items, nil
+}
+
+const streamPayloadExists = `-- name: StreamPayloadExists :one
+SELECT EXISTS (
+    SELECT 1 FROM v1_stream_payload
+    WHERE tenant_id = $1::uuid AND id = $2::uuid AND inserted_at = $3::timestamptz
+) AS exists
+`
+
+type StreamPayloadExistsParams struct {
+	Tenantid   uuid.UUID          `json:"tenantid"`
+	ID         uuid.UUID          `json:"id"`
+	Insertedat pgtype.Timestamptz `json:"insertedat"`
+}
+
+func (q *Queries) StreamPayloadExists(ctx context.Context, db DBTX, arg StreamPayloadExistsParams) (bool, error) {
+	row := db.QueryRow(ctx, streamPayloadExists, arg.Tenantid, arg.ID, arg.Insertedat)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const upsertStreamTopic = `-- name: UpsertStreamTopic :one

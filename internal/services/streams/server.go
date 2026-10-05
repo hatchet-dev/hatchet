@@ -33,7 +33,21 @@ func (s *ServiceImpl) Publish(ctx context.Context, req *contracts.PublishStreamM
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 
-	if len(req.Payload) == 0 {
+	var payloadRef *v1.StreamPayloadRef
+
+	if req.PayloadRef != "" {
+		if len(req.Payload) > 0 {
+			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("payload and payload_ref are mutually exclusive"))
+		}
+
+		ref, err := v1.DecodeStreamPayloadRef(req.PayloadRef)
+
+		if err != nil {
+			return nil, connect.NewError(connect.CodeInvalidArgument, err)
+		}
+
+		payloadRef = &ref
+	} else if len(req.Payload) == 0 {
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("payload is required"))
 	}
 
@@ -43,6 +57,17 @@ func (s *ServiceImpl) Publish(ctx context.Context, req *contracts.PublishStreamM
 
 	if req.ProducerId == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("producer_id is required"))
+	}
+
+	// readers would otherwise get a message whose payload can't be fetched
+	if payloadRef != nil {
+		if err := s.repo.Streams().CheckStreamPayloadExists(ctx, tenantId, *payloadRef); err != nil {
+			if errors.Is(err, v1.ErrStreamPayloadNotFound) {
+				return nil, connect.NewError(connect.CodeInvalidArgument, err)
+			}
+
+			return nil, err
+		}
 	}
 
 	if err := s.repo.Streams().EnsureTopic(ctx, tenantId, req.Namespace, req.Topic); err != nil {
@@ -71,6 +96,7 @@ func (s *ServiceImpl) Publish(ctx context.Context, req *contracts.PublishStreamM
 			Payload:     req.Payload,
 			ProducerID:  req.ProducerId,
 			ProducerSeq: req.ProducerSeq,
+			PayloadRef:  payloadRef,
 		},
 	})
 

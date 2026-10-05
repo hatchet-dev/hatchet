@@ -3853,14 +3853,23 @@ type V1StepSlotRequest struct {
 }
 
 type V1StreamMessage struct {
-	ID          int64              `json:"id"`
-	InsertedAt  pgtype.Timestamptz `json:"inserted_at"`
-	TenantID    uuid.UUID          `json:"tenant_id"`
-	Namespace   string             `json:"namespace"`
-	Topic       string             `json:"topic"`
-	Payload     []byte             `json:"payload"`
-	ProducerID  string             `json:"producer_id"`
-	ProducerSeq int64              `json:"producer_seq"`
+	ID                int64              `json:"id"`
+	InsertedAt        pgtype.Timestamptz `json:"inserted_at"`
+	TenantID          uuid.UUID          `json:"tenant_id"`
+	Namespace         string             `json:"namespace"`
+	Topic             string             `json:"topic"`
+	Payload           []byte             `json:"payload"`
+	ProducerID        string             `json:"producer_id"`
+	ProducerSeq       int64              `json:"producer_seq"`
+	PayloadID         *uuid.UUID         `json:"payload_id"`
+	PayloadInsertedAt pgtype.Timestamptz `json:"payload_inserted_at"`
+}
+
+type V1StreamPayload struct {
+	ID         uuid.UUID          `json:"id"`
+	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
+	TenantID   uuid.UUID          `json:"tenant_id"`
+	Payload    []byte             `json:"payload"`
 }
 
 type V1StreamProducerCursor struct {

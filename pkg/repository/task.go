@@ -5387,7 +5387,14 @@ func (r *TaskRepositoryImpl) updateStreamMessagePartitions(ctx context.Context) 
 	now := time.Now().UTC()
 
 	err := runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
-		return r.queries.CreateStreamMessagePartitions(ctx, tx, sqlcv1.CreateStreamMessagePartitionsParams{
+		if err := r.queries.CreateStreamMessagePartitions(ctx, tx, sqlcv1.CreateStreamMessagePartitionsParams{
+			Fromtime: pgtype.Timestamptz{Time: now, Valid: true},
+			Totime:   pgtype.Timestamptz{Time: now.Add(streamMessagePartitionsAhead), Valid: true},
+		}); err != nil {
+			return err
+		}
+
+		return r.queries.CreateStreamPayloadPartitions(ctx, tx, sqlcv1.CreateStreamPayloadPartitionsParams{
 			Fromtime: pgtype.Timestamptz{Time: now, Valid: true},
 			Totime:   pgtype.Timestamptz{Time: now.Add(streamMessagePartitionsAhead), Valid: true},
 		})
@@ -5417,6 +5424,22 @@ func (r *TaskRepositoryImpl) updateStreamMessagePartitions(ctx context.Context) 
 	}
 
 	for _, p := range expired {
+		if err := r.detachAndDropPartition(ctx, p.ParentTable, p.PartitionName); err != nil {
+			return err
+		}
+	}
+
+	// payloads are uploaded before the messages that reference them, so they're kept longer
+	expiredPayloads, err := r.queries.ListStreamPayloadPartitionsBefore(ctx, r.ddlPool, pgtype.Timestamptz{
+		Time:  now.Add(-time.Duration(maxHours)*time.Hour - StreamPayloadRetentionGrace),
+		Valid: true,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	for _, p := range expiredPayloads {
 		if err := r.detachAndDropPartition(ctx, p.ParentTable, p.PartitionName); err != nil {
 			return err
 		}

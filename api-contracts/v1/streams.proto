@@ -17,6 +17,9 @@ message PublishStreamMessageRequest {
     bytes payload = 3;
     string producer_id = 4;
     int64 producer_seq = 5;
+    // instead of payload: a ref returned by the stream payload upload endpoint,
+    // for payloads too large for one gRPC message
+    string payload_ref = 6;
 }
 
 message PublishStreamMessageResponse {}
@@ -37,4 +40,6 @@ message StreamEntry {
     bytes payload = 1;
     string cursor = 2;
     google.protobuf.Timestamp created_at = 3;
+    // instead of payload: fetch it from the stream payload endpoint by this ref
+    string payload_ref = 4;
 }

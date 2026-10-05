@@ -17,6 +17,11 @@ export interface PublishStreamMessageRequest {
   payload: Uint8Array;
   producerId: string;
   producerSeq: number;
+  /**
+   * instead of payload: a ref returned by the stream payload upload endpoint,
+   * for payloads too large for one gRPC message
+   */
+  payloadRef: string;
 }
 
 export interface PublishStreamMessageResponse {}
@@ -37,10 +42,19 @@ export interface StreamEntry {
   payload: Uint8Array;
   cursor: string;
   createdAt: Date | undefined;
+  /** instead of payload: fetch it from the stream payload endpoint by this ref */
+  payloadRef: string;
 }
 
 function createBasePublishStreamMessageRequest(): PublishStreamMessageRequest {
-  return { namespace: '', topic: '', payload: new Uint8Array(0), producerId: '', producerSeq: 0 };
+  return {
+    namespace: '',
+    topic: '',
+    payload: new Uint8Array(0),
+    producerId: '',
+    producerSeq: 0,
+    payloadRef: '',
+  };
 }
 
 export const PublishStreamMessageRequest: MessageFns<PublishStreamMessageRequest> = {
@@ -62,6 +76,9 @@ export const PublishStreamMessageRequest: MessageFns<PublishStreamMessageRequest
     }
     if (message.producerSeq !== 0) {
       writer.uint32(40).int64(message.producerSeq);
+    }
+    if (message.payloadRef !== '') {
+      writer.uint32(50).string(message.payloadRef);
     }
     return writer;
   },
@@ -113,6 +130,14 @@ export const PublishStreamMessageRequest: MessageFns<PublishStreamMessageRequest
           message.producerSeq = longToNumber(reader.int64());
           continue;
         }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.payloadRef = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -137,6 +162,11 @@ export const PublishStreamMessageRequest: MessageFns<PublishStreamMessageRequest
         : isSet(object.producer_seq)
           ? globalThis.Number(object.producer_seq)
           : 0,
+      payloadRef: isSet(object.payloadRef)
+        ? globalThis.String(object.payloadRef)
+        : isSet(object.payload_ref)
+          ? globalThis.String(object.payload_ref)
+          : '',
     };
   },
 
@@ -157,6 +187,9 @@ export const PublishStreamMessageRequest: MessageFns<PublishStreamMessageRequest
     if (message.producerSeq !== 0) {
       obj.producerSeq = Math.round(message.producerSeq);
     }
+    if (message.payloadRef !== '') {
+      obj.payloadRef = message.payloadRef;
+    }
     return obj;
   },
 
@@ -170,6 +203,7 @@ export const PublishStreamMessageRequest: MessageFns<PublishStreamMessageRequest
     message.payload = object.payload ?? new Uint8Array(0);
     message.producerId = object.producerId ?? '';
     message.producerSeq = object.producerSeq ?? 0;
+    message.payloadRef = object.payloadRef ?? '';
     return message;
   },
 };
@@ -404,7 +438,7 @@ export const StreamMessage: MessageFns<StreamMessage> = {
 };
 
 function createBaseStreamEntry(): StreamEntry {
-  return { payload: new Uint8Array(0), cursor: '', createdAt: undefined };
+  return { payload: new Uint8Array(0), cursor: '', createdAt: undefined, payloadRef: '' };
 }
 
 export const StreamEntry: MessageFns<StreamEntry> = {
@@ -417,6 +451,9 @@ export const StreamEntry: MessageFns<StreamEntry> = {
     }
     if (message.createdAt !== undefined) {
       Timestamp.encode(toTimestamp(message.createdAt), writer.uint32(26).fork()).join();
+    }
+    if (message.payloadRef !== '') {
+      writer.uint32(34).string(message.payloadRef);
     }
     return writer;
   },
@@ -452,6 +489,14 @@ export const StreamEntry: MessageFns<StreamEntry> = {
           message.createdAt = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
           continue;
         }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.payloadRef = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -470,6 +515,11 @@ export const StreamEntry: MessageFns<StreamEntry> = {
         : isSet(object.created_at)
           ? fromJsonTimestamp(object.created_at)
           : undefined,
+      payloadRef: isSet(object.payloadRef)
+        ? globalThis.String(object.payloadRef)
+        : isSet(object.payload_ref)
+          ? globalThis.String(object.payload_ref)
+          : '',
     };
   },
 
@@ -484,6 +534,9 @@ export const StreamEntry: MessageFns<StreamEntry> = {
     if (message.createdAt !== undefined) {
       obj.createdAt = message.createdAt.toISOString();
     }
+    if (message.payloadRef !== '') {
+      obj.payloadRef = message.payloadRef;
+    }
     return obj;
   },
 
@@ -495,6 +548,7 @@ export const StreamEntry: MessageFns<StreamEntry> = {
     message.payload = object.payload ?? new Uint8Array(0);
     message.cursor = object.cursor ?? '';
     message.createdAt = object.createdAt ?? undefined;
+    message.payloadRef = object.payloadRef ?? '';
     return message;
   },
 };

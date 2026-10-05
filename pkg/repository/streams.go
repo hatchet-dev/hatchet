@@ -12,6 +12,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
@@ -24,6 +25,17 @@ const defaultListStreamMessagesLimit = 500
 // rest of a publish or delivered entry (see TestMaxPayloadFitsInGRPCMessages).
 // The Payload validate tag below must match it.
 const MaxStreamMessagePayloadBytes = 4*1024*1024 - 5*1024
+
+// MaxStreamUploadedPayloadBytes caps a payload uploaded ahead of its publish.
+const MaxStreamUploadedPayloadBytes = 64 * 1024 * 1024
+
+// StreamPayloadRetentionGrace keeps uploaded payloads this much longer than
+// messages, since a payload is uploaded some time before the message that
+// references it.
+const StreamPayloadRetentionGrace = 24 * time.Hour
+
+// ErrStreamPayloadNotFound: no uploaded payload for the ref, or it's past retention.
+var ErrStreamPayloadNotFound = errors.New("stream payload not found")
 
 // streamProducerCursorRetention is how long an idle producer's watermark is
 // kept. After that its next publish is a gap, and the SDK switches producer ID.
@@ -76,7 +88,11 @@ type CreateOrderedStreamMessageOpts struct {
 
 	Topic string `validate:"required,max=255"`
 
-	Payload []byte `validate:"required,max=4189184"`
+	// empty when PayloadRef is set
+	Payload []byte `validate:"required_without=PayloadRef,max=4189184"`
+
+	// (optional) a payload uploaded ahead of the publish
+	PayloadRef *StreamPayloadRef
 
 	ProducerID string `validate:"required"`
 
@@ -120,6 +136,15 @@ type StreamsRepository interface {
 	// ListMessagesAfterCursor returns a page of the tenant's retained messages
 	// after opts.Cursor, by offset.
 	ListMessagesAfterCursor(ctx context.Context, tenantId uuid.UUID, opts ListStreamMessagesOpts) ([]*sqlcv1.V1StreamMessage, error)
+
+	// InsertStreamPayload stores a payload ahead of the publish that will reference it.
+	InsertStreamPayload(ctx context.Context, tenantId uuid.UUID, payload []byte) (StreamPayloadRef, error)
+
+	// CheckStreamPayloadExists returns ErrStreamPayloadNotFound unless ref is an uploaded payload of the tenant's.
+	CheckStreamPayloadExists(ctx context.Context, tenantId uuid.UUID, ref StreamPayloadRef) error
+
+	// GetStreamPayload returns ErrStreamPayloadNotFound once it's past the tenant's retention.
+	GetStreamPayload(ctx context.Context, tenantId uuid.UUID, ref StreamPayloadRef) ([]byte, error)
 
 	// CheckCursorRetained returns a *StreamCursorExpiredError if cursor is
 	// older than the tenant's retention or the oldest partition.
@@ -238,6 +263,11 @@ func (r *streamsRepositoryImpl) InsertOrderedStreamMessages(ctx context.Context,
 	for i, idx := range order {
 		m := msgs[idx]
 
+		// pgx sends a nil slice as NULL, and a referenced payload's own payload is empty
+		if m.Opts.Payload == nil {
+			m.Opts.Payload = []byte{}
+		}
+
 		params[i] = sqlcv1.InsertOrderedStreamMessageParams{
 			Tenantid:        m.TenantID,
 			Namespace:       m.Opts.Namespace,
@@ -247,6 +277,11 @@ func (r *streamsRepositoryImpl) InsertOrderedStreamMessages(ctx context.Context,
 			Producerseq:     m.Opts.ProducerSeq,
 			Expectedprevseq: m.Opts.ProducerSeq - 1,
 			Minbucket:       minBucket,
+		}
+
+		if ref := m.Opts.PayloadRef; ref != nil {
+			params[i].PayloadId = &ref.ID
+			params[i].PayloadInsertedAt = pgtype.Timestamptz{Time: ref.CreatedAt, Valid: true}
 		}
 
 	}
@@ -352,6 +387,70 @@ func (r *streamsRepositoryImpl) ListMessagesAfterCursor(ctx context.Context, ten
 		Limit:    limit,
 		Maxbytes: MaxListStreamMessagesBytes,
 	})
+}
+
+func (r *streamsRepositoryImpl) InsertStreamPayload(ctx context.Context, tenantId uuid.UUID, payload []byte) (StreamPayloadRef, error) {
+	if len(payload) == 0 {
+		return StreamPayloadRef{}, errors.New("payload is required")
+	}
+
+	if len(payload) > MaxStreamUploadedPayloadBytes {
+		return StreamPayloadRef{}, fmt.Errorf("payload exceeds maximum size of %d bytes", MaxStreamUploadedPayloadBytes)
+	}
+
+	id := uuid.New()
+
+	insertedAt, err := r.queries.InsertStreamPayload(ctx, r.pool, sqlcv1.InsertStreamPayloadParams{
+		ID:       id,
+		Tenantid: tenantId,
+		Payload:  payload,
+	})
+
+	if err != nil {
+		return StreamPayloadRef{}, err
+	}
+
+	return StreamPayloadRef{ID: id, CreatedAt: insertedAt.Time}, nil
+}
+
+func (r *streamsRepositoryImpl) CheckStreamPayloadExists(ctx context.Context, tenantId uuid.UUID, ref StreamPayloadRef) error {
+	exists, err := r.queries.StreamPayloadExists(ctx, r.pool, sqlcv1.StreamPayloadExistsParams{
+		Tenantid:   tenantId,
+		ID:         ref.ID,
+		Insertedat: pgtype.Timestamptz{Time: ref.CreatedAt, Valid: true},
+	})
+
+	if err != nil {
+		return err
+	}
+
+	if !exists {
+		return ErrStreamPayloadNotFound
+	}
+
+	return nil
+}
+
+func (r *streamsRepositoryImpl) GetStreamPayload(ctx context.Context, tenantId uuid.UUID, ref StreamPayloadRef) ([]byte, error) {
+	retention, err := r.m.StreamRetention(ctx, tenantId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	payload, err := r.queries.GetStreamPayload(ctx, r.pool, sqlcv1.GetStreamPayloadParams{
+		Tenantid:   tenantId,
+		ID:         ref.ID,
+		Insertedat: pgtype.Timestamptz{Time: ref.CreatedAt, Valid: true},
+		// a payload predates its message, so it's kept past the message's retention
+		Retainedsince: pgtype.Timestamptz{Time: time.Now().Add(-retention - StreamPayloadRetentionGrace), Valid: true},
+	})
+
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrStreamPayloadNotFound
+	}
+
+	return payload, err
 }
 
 func (r *streamsRepositoryImpl) CheckCursorRetained(ctx context.Context, tenantId uuid.UUID, cursor StreamCursor) error {

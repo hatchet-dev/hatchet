@@ -87,9 +87,10 @@ WITH latest AS (
     UNION ALL
     SELECT 1 FROM first_message
 ), inserted_row AS (
-    INSERT INTO v1_stream_message (id, tenant_id, namespace, topic, payload, producer_id, producer_seq)
+    INSERT INTO v1_stream_message (id, tenant_id, namespace, topic, payload, producer_id, producer_seq, payload_id, payload_inserted_at)
     -- the offset reserved for this message by ReserveStreamTopicOffsets
-    SELECT @messageOffset::bigint, @tenantId::uuid, @namespace::text, @topic::text, @payload::bytea, @producerId::text, @producerSeq::bigint
+    SELECT @messageOffset::bigint, @tenantId::uuid, @namespace::text, @topic::text, @payload::bytea, @producerId::text, @producerSeq::bigint,
+        sqlc.narg('payloadId')::uuid, sqlc.narg('payloadInsertedAt')::timestamptz
     WHERE EXISTS (SELECT 1 FROM applied)
     RETURNING 1
 )
@@ -108,6 +109,16 @@ FROM get_v1_hourly_partitions_before('v1_stream_message', 'infinity'::timestampt
 -- name: CreateStreamMessagePartitions :exec
 SELECT create_v1_hourly_range_partition('v1_stream_message', hours.hour_start)
 FROM generate_series(@fromTime::timestamptz, @toTime::timestamptz, INTERVAL '1 hour') AS hours(hour_start);
+
+-- name: CreateStreamPayloadPartitions :exec
+SELECT create_v1_hourly_range_partition('v1_stream_payload', hours.hour_start)
+FROM generate_series(@fromTime::timestamptz, @toTime::timestamptz, INTERVAL '1 hour') AS hours(hour_start);
+
+-- name: ListStreamPayloadPartitionsBefore :many
+SELECT
+    'v1_stream_payload' AS parent_table,
+    p::text AS partition_name
+FROM get_v1_hourly_partitions_before('v1_stream_payload', @before::timestamptz) AS p;
 
 -- name: ListStreamMessagePartitionsBefore :many
 SELECT
@@ -156,7 +167,7 @@ WHERE inserted_at < @before::timestamptz
 -- so nothing can appear behind a cursor. A page ends once its payloads reach
 -- @maxBytes, always keeping its first row; octet_length reads a TOASTed
 -- payload's size without loading it.
-SELECT id, inserted_at, tenant_id, namespace, topic, payload, producer_id, producer_seq
+SELECT id, inserted_at, tenant_id, namespace, topic, payload, producer_id, producer_seq, payload_id, payload_inserted_at
 FROM (
     SELECT page.*, SUM(octet_length(page.payload)) OVER (ORDER BY page.id) - octet_length(page.payload) AS bytes_before
     FROM (
@@ -174,3 +185,25 @@ FROM (
 ) AS sized
 WHERE bytes_before < @maxBytes::bigint
 ORDER BY id ASC;
+
+-- name: InsertStreamPayload :one
+-- A payload uploaded ahead of the publish that references it. One no publish
+-- references is left for its partition to be dropped.
+INSERT INTO v1_stream_payload (id, tenant_id, payload)
+VALUES (@id::uuid, @tenantId::uuid, @payload::bytea)
+RETURNING inserted_at;
+
+-- name: StreamPayloadExists :one
+SELECT EXISTS (
+    SELECT 1 FROM v1_stream_payload
+    WHERE tenant_id = @tenantId::uuid AND id = @id::uuid AND inserted_at = @insertedAt::timestamptz
+) AS exists;
+
+-- name: GetStreamPayload :one
+-- inserted_at is the partition key, so this reads one partition.
+SELECT payload
+FROM v1_stream_payload
+WHERE tenant_id = @tenantId::uuid
+    AND id = @id::uuid
+    AND inserted_at = @insertedAt::timestamptz
+    AND inserted_at >= @retainedSince::timestamptz;
