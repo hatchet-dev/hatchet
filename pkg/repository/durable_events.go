@@ -423,7 +423,6 @@ type NonDeterminismError struct {
 	ActualIdempotencyKey                 []byte
 	NodeId                               int64
 	BranchId                             int64
-	ExistingEntryId                      int64
 	TaskExternalId                       uuid.UUID
 	ExistingEntryTenantId                uuid.UUID
 	ExistingEntryExternalId              uuid.UUID
@@ -1133,7 +1132,6 @@ func (r *durableEventsRepository) getOrCreateEventLogEntriesForTasks(
 					ActualIdempotencyKey:    o.IdempotencyKey,
 					ExpectedKind:            e.Kind,
 					ActualKind:              o.Kind,
-					ExistingEntryId:         e.ID,
 					ExistingEntryInsertedAt: e.InsertedAt,
 					ExistingEntryTenantId:   e.TenantID,
 				}
@@ -1290,7 +1288,6 @@ func (r *durableEventsRepository) getOrCreateEventLogEntriesForTasks(
 					ActualIdempotencyKey:    o.IdempotencyKey,
 					ExpectedKind:            e.Kind,
 					ActualKind:              o.Kind,
-					ExistingEntryId:         e.ID,
 					ExistingEntryInsertedAt: e.InsertedAt,
 					ExistingEntryTenantId:   e.TenantID,
 					ExistingEntryExternalId: e.ExternalID,

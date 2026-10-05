@@ -492,10 +492,8 @@ WITH inputs AS (
         UNNEST($2::TIMESTAMPTZ[]) AS inserted_at,
         UNNEST($3::UUID[]) AS external_id,
         UNNEST(CAST($4::TEXT[] AS v1_payload_type[])) AS type,
-        UNNEST(CAST($5::TEXT[] AS v1_payload_location[])) AS location,
-        UNNEST($6::TEXT[]) AS external_location_key,
-        UNNEST($7::JSONB[]) AS inline_content,
-        UNNEST($8::UUID[]) AS tenant_id
+        UNNEST($5::JSONB[]) AS inline_content,
+        UNNEST($6::UUID[]) AS tenant_id
 )
 
 INSERT INTO v1_payload (
@@ -514,8 +512,8 @@ SELECT
     i.inserted_at,
     i.external_id,
     i.type,
-    i.location,
-    CASE WHEN i.external_location_key = '' OR i.location != 'EXTERNAL' THEN NULL ELSE i.external_location_key END,
+    'INLINE',
+    NULL,
     i.inline_content
 FROM
     inputs i
@@ -524,14 +522,12 @@ ON CONFLICT DO NOTHING
 `
 
 type WritePayloadsParams struct {
-	Ids                  []int64              `json:"ids"`
-	Insertedats          []pgtype.Timestamptz `json:"insertedats"`
-	Externalids          []uuid.UUID          `json:"externalids"`
-	Types                []string             `json:"types"`
-	Locations            []string             `json:"locations"`
-	Externallocationkeys []string             `json:"externallocationkeys"`
-	Inlinecontents       [][]byte             `json:"inlinecontents"`
-	Tenantids            []uuid.UUID          `json:"tenantids"`
+	Ids            []int64              `json:"ids"`
+	Insertedats    []pgtype.Timestamptz `json:"insertedats"`
+	Externalids    []uuid.UUID          `json:"externalids"`
+	Types          []string             `json:"types"`
+	Inlinecontents [][]byte             `json:"inlinecontents"`
+	Tenantids      []uuid.UUID          `json:"tenantids"`
 }
 
 func (q *Queries) WritePayloads(ctx context.Context, db DBTX, arg WritePayloadsParams) error {
@@ -540,8 +536,6 @@ func (q *Queries) WritePayloads(ctx context.Context, db DBTX, arg WritePayloadsP
 		arg.Insertedats,
 		arg.Externalids,
 		arg.Types,
-		arg.Locations,
-		arg.Externallocationkeys,
 		arg.Inlinecontents,
 		arg.Tenantids,
 	)

@@ -1910,7 +1910,6 @@ const listTaskOutputEventIdsByTaskRunExternalIds = `-- name: ListTaskOutputEvent
 WITH task_outputs AS (
     SELECT
         lt.external_id AS task_run_external_id,
-        e.id AS task_event_id,
         e.inserted_at AS task_event_inserted_at,
         e.external_id AS output_event_external_id,
         e.retry_count
@@ -1931,7 +1930,6 @@ WITH task_outputs AS (
 SELECT
     o.task_run_external_id,
     o.output_event_external_id,
-    o.task_event_id,
     o.task_event_inserted_at
 FROM task_outputs o
 JOIN max_retry_counts mrc ON (o.task_run_external_id, o.retry_count) = (mrc.task_run_external_id, mrc.max_retry_count)
@@ -1940,7 +1938,6 @@ JOIN max_retry_counts mrc ON (o.task_run_external_id, o.retry_count) = (mrc.task
 type ListTaskOutputEventIdsByTaskRunExternalIdsRow struct {
 	TaskRunExternalID     uuid.UUID          `json:"task_run_external_id"`
 	OutputEventExternalID uuid.UUID          `json:"output_event_external_id"`
-	TaskEventID           int64              `json:"task_event_id"`
 	TaskEventInsertedAt   pgtype.Timestamptz `json:"task_event_inserted_at"`
 }
 
@@ -1953,12 +1950,7 @@ func (q *Queries) ListTaskOutputEventIdsByTaskRunExternalIds(ctx context.Context
 	var items []*ListTaskOutputEventIdsByTaskRunExternalIdsRow
 	for rows.Next() {
 		var i ListTaskOutputEventIdsByTaskRunExternalIdsRow
-		if err := rows.Scan(
-			&i.TaskRunExternalID,
-			&i.OutputEventExternalID,
-			&i.TaskEventID,
-			&i.TaskEventInsertedAt,
-		); err != nil {
+		if err := rows.Scan(&i.TaskRunExternalID, &i.OutputEventExternalID, &i.TaskEventInsertedAt); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)
@@ -1986,7 +1978,6 @@ WITH input AS (
         t.workflow_run_id,
         t.step_id,
         t.workflow_id,
-        e.id AS task_event_id,
         e.inserted_at AS task_event_inserted_at,
         e.data AS output,
         e.external_id AS output_event_external_id
@@ -2020,7 +2011,6 @@ WITH input AS (
 )
 SELECT
     DISTINCT ON (task_outputs.id, task_outputs.inserted_at, task_outputs.retry_count)
-    task_outputs.task_event_id,
     task_outputs.task_event_inserted_at,
     task_outputs.workflow_run_id,
     task_outputs.output,
@@ -2044,7 +2034,6 @@ type ListTaskParentOutputsParams struct {
 }
 
 type ListTaskParentOutputsRow struct {
-	TaskEventID           int64              `json:"task_event_id"`
 	TaskEventInsertedAt   pgtype.Timestamptz `json:"task_event_inserted_at"`
 	WorkflowRunID         uuid.UUID          `json:"workflow_run_id"`
 	Output                []byte             `json:"output"`
@@ -2063,7 +2052,6 @@ func (q *Queries) ListTaskParentOutputs(ctx context.Context, db DBTX, arg ListTa
 	for rows.Next() {
 		var i ListTaskParentOutputsRow
 		if err := rows.Scan(
-			&i.TaskEventID,
 			&i.TaskEventInsertedAt,
 			&i.WorkflowRunID,
 			&i.Output,

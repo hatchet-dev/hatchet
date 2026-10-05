@@ -2342,12 +2342,12 @@ CREATE TYPE v1_payload_location AS ENUM ('INLINE', 'EXTERNAL');
 
 CREATE TABLE v1_payload (
     tenant_id UUID NOT NULL,
-    id BIGINT NOT NULL,
+    id BIGINT NOT NULL, -- deprecated + unused, will remove in a future version
     inserted_at TIMESTAMPTZ NOT NULL,
     external_id UUID NOT NULL DEFAULT gen_random_uuid(), -- IMPORTANT: Each _partition_ of this table has a `UNIQUE` constraint on this column, but the parent does not
-    type v1_payload_type NOT NULL,
-    location v1_payload_location NOT NULL,
-    external_location_key TEXT,
+    type v1_payload_type NOT NULL, -- deprecated + unused, will remove in a future version
+    location v1_payload_location NOT NULL, -- deprecated, always 'INLINE', will remove in a future version
+    external_location_key TEXT, -- deprecated + unused, will remove in a future version
     inline_content JSONB,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 

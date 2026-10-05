@@ -20,8 +20,6 @@ WITH inputs AS (
         UNNEST(@insertedAts::TIMESTAMPTZ[]) AS inserted_at,
         UNNEST(@externalIds::UUID[]) AS external_id,
         UNNEST(CAST(@types::TEXT[] AS v1_payload_type[])) AS type,
-        UNNEST(CAST(@locations::TEXT[] AS v1_payload_location[])) AS location,
-        UNNEST(@externalLocationKeys::TEXT[]) AS external_location_key,
         UNNEST(@inlineContents::JSONB[]) AS inline_content,
         UNNEST(@tenantIds::UUID[]) AS tenant_id
 )
@@ -42,8 +40,8 @@ SELECT
     i.inserted_at,
     i.external_id,
     i.type,
-    i.location,
-    CASE WHEN i.external_location_key = '' OR i.location != 'EXTERNAL' THEN NULL ELSE i.external_location_key END,
+    'INLINE',
+    NULL,
     i.inline_content
 FROM
     inputs i

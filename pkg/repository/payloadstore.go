@@ -213,9 +213,7 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 	payloadTypes := make([]string, 0, len(payloads))
 	inlineContents := make([][]byte, 0, len(payloads))
 	tenantIds := make([]uuid.UUID, 0, len(payloads))
-	locations := make([]string, 0, len(payloads))
 	externalIds := make([]uuid.UUID, 0, len(payloads))
-	externalLocationKeys := make([]string, 0, len(payloads))
 
 	seenPayloadUniqueKeys := make(map[PayloadUniqueKey]struct{})
 
@@ -247,21 +245,17 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 		taskInsertedAts = append(taskInsertedAts, payload.InsertedAt)
 		payloadTypes = append(payloadTypes, string(payload.Type))
 		tenantIds = append(tenantIds, tenantId)
-		locations = append(locations, string(sqlcv1.V1PayloadLocationINLINE))
 		inlineContents = append(inlineContents, payload.Payload)
 		externalIds = append(externalIds, payload.ExternalId)
-		externalLocationKeys = append(externalLocationKeys, "")
 	}
 
 	err := p.queries.WritePayloads(ctx, tx, sqlcv1.WritePayloadsParams{
-		Ids:                  taskIds,
-		Insertedats:          taskInsertedAts,
-		Types:                payloadTypes,
-		Locations:            locations,
-		Tenantids:            tenantIds,
-		Inlinecontents:       inlineContents,
-		Externalids:          externalIds,
-		Externallocationkeys: externalLocationKeys,
+		Ids:            taskIds,
+		Insertedats:    taskInsertedAts,
+		Types:          payloadTypes,
+		Tenantids:      tenantIds,
+		Inlinecontents: inlineContents,
+		Externalids:    externalIds,
 	})
 
 	if err != nil {
@@ -523,28 +517,12 @@ func (p *payloadStoreRepositoryImpl) ExternalStore() ExternalStore {
 	return p.externalStore
 }
 
-type BulkCutOverPayload struct {
-	TenantID            uuid.UUID
-	Id                  int64
-	InsertedAt          pgtype.Timestamptz
-	ExternalId          uuid.UUID
-	Type                sqlcv1.V1PayloadType
-	ExternalLocationKey ExternalPayloadLocationKey
-}
-
 type CutoverBatchOutcome struct {
 	ShouldContinue bool
 	NextExternalId uuid.UUID
 }
 
 type PartitionDate pgtype.Date
-
-type PayloadMetadata struct {
-	InsertedAt pgtype.Timestamptz
-	Type       sqlcv1.V1PayloadType
-	ID         int64
-	TenantID   uuid.UUID
-}
 
 func (d PartitionDate) String() string {
 	return d.Time.Format("20060102")

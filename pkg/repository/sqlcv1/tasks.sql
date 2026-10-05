@@ -798,7 +798,6 @@ WITH input AS (
         t.workflow_run_id,
         t.step_id,
         t.workflow_id,
-        e.id AS task_event_id,
         e.inserted_at AS task_event_inserted_at,
         e.data AS output,
         e.external_id AS output_event_external_id
@@ -832,7 +831,6 @@ WITH input AS (
 )
 SELECT
     DISTINCT ON (task_outputs.id, task_outputs.inserted_at, task_outputs.retry_count)
-    task_outputs.task_event_id,
     task_outputs.task_event_inserted_at,
     task_outputs.workflow_run_id,
     task_outputs.output,
@@ -852,7 +850,6 @@ ORDER BY
 WITH task_outputs AS (
     SELECT
         lt.external_id AS task_run_external_id,
-        e.id AS task_event_id,
         e.inserted_at AS task_event_inserted_at,
         e.external_id AS output_event_external_id,
         e.retry_count
@@ -873,7 +870,6 @@ WITH task_outputs AS (
 SELECT
     o.task_run_external_id,
     o.output_event_external_id,
-    o.task_event_id,
     o.task_event_inserted_at
 FROM task_outputs o
 JOIN max_retry_counts mrc ON (o.task_run_external_id, o.retry_count) = (mrc.task_run_external_id, mrc.max_retry_count)
