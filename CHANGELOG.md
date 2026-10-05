@@ -1,6 +1,6 @@
-## [0.110.4] - 2026-10-05
+## [0.110.5] - 2026-10-05
 
-Hatchet v0.110.4 ships a new dashboard overview page and onboarding flow. It also includes a set of security hardening fixes and a large batch of scheduler and engine performance work.
+Hatchet v0.110.5 ships a new dashboard overview page and onboarding flow. It also includes a set of security hardening fixes and a large batch of scheduler and engine performance work.
 
 ### Highlights
 
