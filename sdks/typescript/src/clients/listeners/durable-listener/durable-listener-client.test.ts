@@ -628,6 +628,135 @@ describe('DurableListenerClient reconnection', () => {
     });
   });
 
+  describe('worker status', () => {
+    function nextEventLoopIteration(): Promise<void> {
+      return new Promise<void>((resolve) => {
+        setImmediate(resolve);
+      });
+    }
+
+    function takeWorkerStatusRequests(l: any): any[] {
+      const statusRequests = l._requestQueue.filter((r: any) => r.workerStatus);
+      l._requestQueue.length = 0;
+      return statusRequests;
+    }
+
+    async function registerWaiters(taskId: string, waiterCount: number): Promise<void> {
+      for (let nodeId = 0; nodeId < waiterCount; nodeId++) {
+        void listener.waitForCallback(taskId, 1, 0, nodeId);
+      }
+      await nextEventLoopIteration();
+    }
+
+    beforeEach(async () => {
+      const h = tracked(hangingStream());
+      grpcClient.durableTask.mockReturnValue(h.stream);
+      await listener.start('w1');
+      takeWorkerStatusRequests(listener);
+    });
+
+    it('sends one request for waiters registered in the same event loop iteration', async () => {
+      await registerWaiters('task-1', 500);
+
+      const statusRequests = takeWorkerStatusRequests(listener);
+
+      expect(statusRequests).toHaveLength(1);
+      expect(statusRequests[0].workerStatus.waitingEntries).toHaveLength(500);
+    });
+
+    it('lists only the newly registered waiters on later registrations', async () => {
+      await registerWaiters('task-1', 300);
+      takeWorkerStatusRequests(listener);
+
+      await registerWaiters('task-2', 50);
+      const statusRequests = takeWorkerStatusRequests(listener);
+
+      expect(statusRequests).toHaveLength(1);
+      const { waitingEntries } = statusRequests[0].workerStatus;
+      expect(waitingEntries).toHaveLength(50);
+      expect(new Set(waitingEntries.map((e: any) => e.durableTaskExternalId))).toEqual(
+        new Set(['task-2'])
+      );
+    });
+
+    it('skips recently registered waiters on the periodic resend', async () => {
+      const l = listener as any;
+      await registerWaiters('task-1', 10);
+      takeWorkerStatusRequests(l);
+
+      l._enqueueWorkerStatusForLongPendingWaiters();
+      expect(takeWorkerStatusRequests(l)).toEqual([]);
+
+      l._waitingSince.set('task-1:1:0:3', Date.now() - 60_000);
+      l._enqueueWorkerStatusForLongPendingWaiters();
+      const statusRequests = takeWorkerStatusRequests(l);
+
+      expect(statusRequests).toHaveLength(1);
+      expect(statusRequests[0].workerStatus.waitingEntries).toEqual([
+        { durableTaskExternalId: 'task-1', invocationCount: 1, branchId: 0, nodeId: 3 },
+      ]);
+    });
+
+    it('splits a status with many waiters across requests', async () => {
+      const l = listener as any;
+      await registerWaiters('task-1', 25);
+      takeWorkerStatusRequests(l);
+
+      l._enqueueWorkerStatusFor([...l._pendingCallbacks.keys()], 10);
+
+      expect(
+        takeWorkerStatusRequests(l).map((r: any) => r.workerStatus.waitingEntries.length)
+      ).toEqual([10, 10, 5]);
+    });
+  });
+
+  describe('run children', () => {
+    beforeEach(async () => {
+      const h = tracked(hangingStream());
+      grpcClient.durableTask.mockReturnValue(h.stream);
+      await listener.start('w1');
+    });
+
+    it('sends children in requests of at most 100 and merges the acks in order', async () => {
+      const l = listener as any;
+      const triggerOpts = Array.from({ length: 250 }, (_, i) => ({ name: `child-${i}` }));
+
+      const ackPromise = listener.sendEvent('task', 1, {
+        kind: 'runChildren',
+        triggerOpts: triggerOpts as any,
+      });
+
+      const requestSizes: number[] = [];
+      let nextNodeId = 0;
+      for (let requestIndex = 0; requestIndex < 3; requestIndex++) {
+        const request = l._requestQueue.find((r: any) => r.triggerRuns);
+        l._requestQueue.length = 0;
+        requestSizes.push(request.triggerRuns.triggerOpts.length);
+
+        l._handleResponse({
+          triggerRunsAck: {
+            durableTaskExternalId: 'task',
+            invocationCount: 1,
+            runEntries: request.triggerRuns.triggerOpts.map((opt: any) => ({
+              nodeId: nextNodeId++,
+              branchId: 0,
+              workflowRunExternalId: opt.name,
+            })),
+          },
+        });
+        await settle(0);
+      }
+
+      const ack = await ackPromise;
+
+      expect(requestSizes).toEqual([100, 100, 50]);
+      expect(ack.runEntries.map((e) => e.nodeId)).toEqual(triggerOpts.map((_, i) => i));
+      expect(ack.runEntries.map((e) => e.workflowRunExternalId)).toEqual(
+        triggerOpts.map((opt) => opt.name)
+      );
+    });
+  });
+
   // ── listener remains operational after reconnect ──
 
   describe('listener state after reconnect', () => {

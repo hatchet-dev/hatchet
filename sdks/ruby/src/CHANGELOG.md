@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added `pause` and `unpause` methods to the workflows client (`hatchet.workflows.pause(workflow_id, queue_ttl:)`) and to workflows (`workflow.pause(queue_ttl:)`). `queue_ttl` is how long runs stay queued while the workflow is paused, in seconds or as a duration string, and the behavior (`QUEUE` or `DROP`) for cron and scheduled runs triggered while paused can optionally be set, both defaulting to `QUEUE`.
 
+## [0.8.1] - 2026-10-05
+
+### Fixed
+
+- [Durable tasks](https://docs.hatchet.run/v1/durable-tasks) with many concurrent waits no longer flood the engine with worker status requests. The durable listener sent one worker status request per wait, each listing every pending wait, which was quadratic in the number of waits; each request now lists only the waits registered since the previous one.
+- The periodic worker status request lists only waits that have been pending for more than two seconds, is sent every five seconds instead of every second, and is split into requests of at most 10,000 entries so it stays under the gRPC message size limit.
+
 ## [0.8.0] - 2026-09-02
 
 ### Added

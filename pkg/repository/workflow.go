@@ -873,8 +873,14 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 		// big number of retries to make it very unlikely we exhaust them
 		numRetries := 10_000
 
+		taskReadableIds := make([]string, len(opts.Tasks))
+
+		for i, task := range opts.Tasks {
+			taskReadableIds[i] = task.ReadableId
+		}
+
 		orchestrator := CreateStepOpts{
-			ReadableId:        opts.Name,
+			ReadableId:        dagOrchestratorReadableId(opts.Name, taskReadableIds),
 			Action:            DAGOrchestratorActionId(opts.Name),
 			IsDurable:         true,
 			IsDagOrchestrator: true,
@@ -2133,6 +2139,10 @@ func orderWorkflowStepsV1(steps []CreateStepOpts) ([]CreateStepOpts, error) {
 	// Build a map of step id to step for quick lookup.
 	stepMap := make(map[string]CreateStepOpts)
 	for _, step := range steps {
+		if _, exists := stepMap[step.ReadableId]; exists {
+			return nil, fmt.Errorf("duplicate step name: %s", step.ReadableId)
+		}
+
 		stepMap[step.ReadableId] = step
 	}
 

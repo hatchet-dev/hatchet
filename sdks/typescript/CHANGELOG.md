@@ -11,6 +11,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added `pause` and `unpause` methods to the workflows client (`hatchet.workflows.pause(workflow, opts)`) and to workflow declarations (`workflow.pause(opts)`). `opts` requires a `queueTTL` for how long runs stay queued while the workflow is paused, and optionally takes the behavior (`QUEUE` or `DROP`) for cron and scheduled runs triggered while paused, both defaulting to `QUEUE`. The `WorkflowPauseScheduledCronRunQueueBehavior` enum is now exported from the package root.
 
+## [1.34.1] - 2026-10-05
+
+### Fixed
+
+- [Durable tasks](https://docs.hatchet.run/v1/durable-tasks) that fan out to thousands of children no longer flood the engine with worker status requests. The durable listener sent one worker status request per awaited child, each listing every pending child, which was quadratic in the fan-out size; it now sends one request per event loop iteration listing only the newly awaited children.
+- The periodic worker status request lists only children that have been pending for more than two seconds, is sent every five seconds instead of every second, and is split into requests of at most 10,000 entries so it stays under the gRPC message size limit.
+- Re-delivered child completions are matched against pending callbacks without scanning the pending queue.
+- Children spawned from a durable task over the gRPC durable listener are sent to the engine in requests of at most 100 children, instead of one request for the whole fan-out.
+- Concurrent signals and `worker.stop()` now share one shutdown operation, keeping the durable listener open until waiting runs finish eviction. A worker stopped while it is still starting no longer registers a listener or leaves a health server running afterwards.
+- Concurrent eviction requests for the same task invocation now share their acknowledgement, including timeout and disconnection errors, instead of leaving one caller to time out. The eviction timeout timer is cleared once the acknowledgement arrives.
+- A stopping worker keeps sending heartbeats until its running tasks finish, and only then unsubscribes from the engine. It used to stop the heartbeat and unsubscribe before waiting for those tasks, so the engine could treat the worker as dead and reassign tasks that were about to complete.
+
 ## [1.34.0] - 2026-10-02
 
 ### Added
