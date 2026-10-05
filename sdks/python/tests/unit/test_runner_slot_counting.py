@@ -3,6 +3,7 @@ import multiprocessing
 import threading
 from typing import Any
 from unittest.mock import MagicMock
+from uuid import uuid4
 
 import pytest
 
@@ -45,12 +46,12 @@ def _make_action(task: Any, action_type: ActionType, **batch_fields: Any) -> Act
     return Action(
         worker_id="worker-id",
         tenant_id="tenant-id",
-        workflow_run_id="workflow-run-id",
+        workflow_run_id=str(uuid4()),
         job_id="job-id",
         job_name="job-name",
         job_run_id="job-run-id",
         step_id="step-id",
-        step_run_id="step-run-id",
+        step_run_id=str(uuid4()),
         action_id=task.name,
         action_type=action_type,
         retry_count=0,
@@ -112,7 +113,7 @@ async def test_running_batch_is_counted_as_one_default_slot(hatchet: Hatchet) ->
     runner = _make_runner(hatchet, batched)
     batch_items = {
         BatchMemberId(f"member-{index}"): BatchItemData(
-            payload=ActionPayload(), workflow_run_id="workflow-run-id"
+            payload=ActionPayload(), workflow_run_id=str(uuid4())
         )
         for index in range(5)
     }
