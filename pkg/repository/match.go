@@ -858,11 +858,16 @@ func (m *sharedRepository) processEventMatchesForTarget(ctx context.Context, tx 
 		}
 	}
 
-	// Take the log file locks in their own statement first; see LockDurableEventLogFilesForSatisfy.
 	if len(durableTaskIds) > 0 {
-		err := m.queries.LockDurableEventLogFilesForSatisfy(ctx, tx, sqlcv1.LockDurableEventLogFilesForSatisfyParams{
+		tenantIds := make([]uuid.UUID, len(durableTaskIds))
+		for i := range tenantIds {
+			tenantIds[i] = tenantId
+		}
+
+		_, err := m.queries.GetAndLockLogFilesWithBranchPoints(ctx, tx, sqlcv1.GetAndLockLogFilesWithBranchPointsParams{
 			Durabletaskids:           durableTaskIds,
 			Durabletaskinsertedats:   durableTaskInsertedAts,
+			Tenantids:                tenantIds,
 			Mindurabletaskinsertedat: sqlchelpers.TimestamptzFromTime(minDurableTaskInsertedAt),
 		})
 

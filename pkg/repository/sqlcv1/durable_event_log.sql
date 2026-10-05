@@ -123,21 +123,6 @@ WHERE durable_task_id = @durableTaskId::BIGINT
   AND node_id < @nodeId::BIGINT
 ORDER BY node_id ASC, branch_id ASC;
 
--- name: LockDurableEventLogFilesForSatisfy :exec
--- Locks the same log files as the locked_log_files CTE in UpdateDurableEventLogEntriesSatisfied, in the
--- same order, so that statement never waits on a concurrent writer. A wait there makes PostgreSQL 18 run
--- an EvalPlanQual recheck that leaves the statement's run-time partition pruning state pointing at freed
--- memory, and the backend segfaults. This statement has no run-time pruning: the = ANY filters only use
--- bound parameters.
-SELECT 1
-FROM v1_durable_event_log_file
-WHERE
-    durable_task_id = ANY(@durableTaskIds::BIGINT[])
-    AND durable_task_inserted_at = ANY(@durableTaskInsertedAts::TIMESTAMPTZ[])
-    AND durable_task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
-ORDER BY durable_task_id, durable_task_inserted_at
-FOR UPDATE;
-
 -- name: UpdateDurableEventLogEntriesSatisfied :many
 WITH inputs AS (
     SELECT
