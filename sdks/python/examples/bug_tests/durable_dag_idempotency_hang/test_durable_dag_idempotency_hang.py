@@ -4,7 +4,7 @@ from hatchet_sdk import Hatchet
 from examples.bug_tests.durable_dag_idempotency_hang.worker import (
     durable_dag_idempotency_hang_bug_repro_wf,
     durable_dag_status_based_idempotency_wf,
-    IdempotencyHangInput,
+    IdempotencyHangPayload,
 )
 from uuid import uuid4
 
@@ -16,7 +16,7 @@ async def test_durable_idempotency_hang(hatchet: Hatchet) -> None:
 
     result = await durable_dag_idempotency_hang_bug_repro_wf.aio_run(
         wait_for_result=True,
-        input=IdempotencyHangInput(key=test_run_id),
+        input=IdempotencyHangPayload(key=test_run_id),
         additional_metadata={"test_run_id": test_run_id},
     )
 
@@ -30,7 +30,7 @@ async def test_durable_idempotency_hang(hatchet: Hatchet) -> None:
 async def test_durable_dag_status_based_idempotency_key_is_released_on_completion(
     hatchet: Hatchet,
 ) -> None:
-    workflow_input = IdempotencyHangInput(key=str(uuid4()))
+    workflow_input = IdempotencyHangPayload(key=str(uuid4()))
 
     first_ref = await durable_dag_status_based_idempotency_wf.aio_run(
         workflow_input,

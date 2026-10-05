@@ -11,7 +11,7 @@ from pydantic import BaseModel
 hatchet = Hatchet()
 
 
-class IdempotencyHangInput(BaseModel):
+class IdempotencyHangPayload(BaseModel):
     key: str
 
 
@@ -21,18 +21,18 @@ durable_dag_idempotency_hang_bug_repro_wf = hatchet.workflow(
         key_expression="input.key",
         ttl=timedelta(minutes=10),
     ),
-    input_validator=IdempotencyHangInput,
+    input_validator=IdempotencyHangPayload,
 )
 
 
 @durable_dag_idempotency_hang_bug_repro_wf.task()
-async def task_1(_i: IdempotencyHangInput, _c: Context) -> None:
-    pass
+async def task_1(input: IdempotencyHangPayload, _c: Context) -> IdempotencyHangPayload:
+    return input
 
 
 @durable_dag_idempotency_hang_bug_repro_wf.task()
-async def task_2(_i: IdempotencyHangInput, _c: Context) -> None:
-    pass
+async def task_2(input: IdempotencyHangPayload, _c: Context) -> IdempotencyHangPayload:
+    return input
 
 
 durable_dag_status_based_idempotency_wf = hatchet.workflow(
@@ -41,15 +41,19 @@ durable_dag_status_based_idempotency_wf = hatchet.workflow(
         key_expression="input.key",
         fallback_ttl=timedelta(minutes=10),
     ),
-    input_validator=IdempotencyHangInput,
+    input_validator=IdempotencyHangPayload,
 )
 
 
 @durable_dag_status_based_idempotency_wf.task()
-async def status_based_task_1(_i: IdempotencyHangInput, _c: Context) -> None:
-    pass
+async def status_based_task_1(
+    input: IdempotencyHangPayload, _c: Context
+) -> IdempotencyHangPayload:
+    return input
 
 
 @durable_dag_status_based_idempotency_wf.task()
-async def status_based_task_2(_i: IdempotencyHangInput, _c: Context) -> None:
-    pass
+async def status_based_task_2(
+    input: IdempotencyHangPayload, _c: Context
+) -> IdempotencyHangPayload:
+    return input
