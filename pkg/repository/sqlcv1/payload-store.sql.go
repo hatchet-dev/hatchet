@@ -277,14 +277,9 @@ WITH payloads AS (
 )
 SELECT
     tenant_id::UUID,
-    id::BIGINT,
     inserted_at::TIMESTAMPTZ,
     external_id::UUID,
-    type::v1_payload_type,
-    location::v1_payload_location,
-    COALESCE(external_location_key, '')::TEXT AS external_location_key,
-    inline_content::JSONB AS inline_content,
-    updated_at::TIMESTAMPTZ
+    inline_content::JSONB AS inline_content
 FROM payloads
 `
 
@@ -296,15 +291,10 @@ type ListPaginatedPayloadsForOffloadParams struct {
 }
 
 type ListPaginatedPayloadsForOffloadRow struct {
-	TenantID            uuid.UUID          `json:"tenant_id"`
-	ID                  int64              `json:"id"`
-	InsertedAt          pgtype.Timestamptz `json:"inserted_at"`
-	ExternalID          uuid.UUID          `json:"external_id"`
-	Type                V1PayloadType      `json:"type"`
-	Location            V1PayloadLocation  `json:"location"`
-	ExternalLocationKey string             `json:"external_location_key"`
-	InlineContent       []byte             `json:"inline_content"`
-	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+	TenantID      uuid.UUID          `json:"tenant_id"`
+	InsertedAt    pgtype.Timestamptz `json:"inserted_at"`
+	ExternalID    uuid.UUID          `json:"external_id"`
+	InlineContent []byte             `json:"inline_content"`
 }
 
 func (q *Queries) ListPaginatedPayloadsForOffload(ctx context.Context, db DBTX, arg ListPaginatedPayloadsForOffloadParams) ([]*ListPaginatedPayloadsForOffloadRow, error) {
@@ -323,14 +313,9 @@ func (q *Queries) ListPaginatedPayloadsForOffload(ctx context.Context, db DBTX, 
 		var i ListPaginatedPayloadsForOffloadRow
 		if err := rows.Scan(
 			&i.TenantID,
-			&i.ID,
 			&i.InsertedAt,
 			&i.ExternalID,
-			&i.Type,
-			&i.Location,
-			&i.ExternalLocationKey,
 			&i.InlineContent,
-			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -426,7 +411,11 @@ WITH inputs AS (
         UNNEST($4::UUID[]) AS external_id
 )
 
-SELECT tenant_id, id, inserted_at, external_id, type, location, external_location_key, inline_content, updated_at
+SELECT
+    tenant_id,
+    inserted_at,
+    external_id,
+    inline_content
 FROM v1_payload
 WHERE
     (external_id, tenant_id) IN (SELECT external_id, tenant_id FROM inputs)
@@ -441,7 +430,14 @@ type ReadPayloadsParams struct {
 	Externalids   []uuid.UUID        `json:"externalids"`
 }
 
-func (q *Queries) ReadPayloads(ctx context.Context, db DBTX, arg ReadPayloadsParams) ([]*V1Payload, error) {
+type ReadPayloadsRow struct {
+	TenantID      uuid.UUID          `json:"tenant_id"`
+	InsertedAt    pgtype.Timestamptz `json:"inserted_at"`
+	ExternalID    uuid.UUID          `json:"external_id"`
+	InlineContent []byte             `json:"inline_content"`
+}
+
+func (q *Queries) ReadPayloads(ctx context.Context, db DBTX, arg ReadPayloadsParams) ([]*ReadPayloadsRow, error) {
 	rows, err := db.Query(ctx, readPayloads,
 		arg.Mininsertedat,
 		arg.Maxinsertedat,
@@ -452,19 +448,14 @@ func (q *Queries) ReadPayloads(ctx context.Context, db DBTX, arg ReadPayloadsPar
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*V1Payload
+	var items []*ReadPayloadsRow
 	for rows.Next() {
-		var i V1Payload
+		var i ReadPayloadsRow
 		if err := rows.Scan(
 			&i.TenantID,
-			&i.ID,
 			&i.InsertedAt,
 			&i.ExternalID,
-			&i.Type,
-			&i.Location,
-			&i.ExternalLocationKey,
 			&i.InlineContent,
-			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}

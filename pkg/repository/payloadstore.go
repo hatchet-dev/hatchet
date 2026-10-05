@@ -195,7 +195,7 @@ func payloadOrEmptyJSONObject(payload []byte) []byte {
 	return payload
 }
 
-func payloadExternalIdKeyFromRow(payload *sqlcv1.V1Payload) PayloadExternalIdKey {
+func payloadExternalIdKeyFromRow(payload *sqlcv1.ReadPayloadsRow) PayloadExternalIdKey {
 	return PayloadExternalIdKey{
 		InsertedAtMicro: payload.InsertedAt.Time.UnixMicro(),
 		TenantId:        payload.TenantID,
@@ -403,18 +403,7 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 			}
 		}
 
-		if payload.Location == sqlcv1.V1PayloadLocationEXTERNAL {
-			key := ExternalPayloadLocationKey(payload.ExternalLocationKey.String)
-			retrieveFromExternalOpt := RetrieveFromExternalOpts{
-				Method: RetrieveFromExternalByKey,
-				ByKey:  &RetrieveFromExternalByKeyOpt{Key: key},
-			}
-
-			retrieveFromExternalOptsToOpts[retrieveFromExternalOpt] = opt
-			retrieveFromExternalOpts = append(retrieveFromExternalOpts, retrieveFromExternalOpt)
-		} else {
-			optsToPayload[opt] = payload.InlineContent
-		}
+		optsToPayload[opt] = payload.InlineContent
 	}
 
 	if p.externalStoreEnabled {
@@ -646,14 +635,12 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 					externalId = uuid.New()
 				}
 
-				if payload.Location == sqlcv1.V1PayloadLocationINLINE {
-					offloadToExternalStoreOptsInner = append(offloadToExternalStoreOptsInner, OffloadToExternalStoreOpts{
-						TenantId:   payload.TenantID,
-						ExternalID: externalId,
-						InsertedAt: payload.InsertedAt,
-						Payload:    payload.InlineContent,
-					})
-				}
+				offloadToExternalStoreOptsInner = append(offloadToExternalStoreOptsInner, OffloadToExternalStoreOpts{
+					TenantId:   payload.TenantID,
+					ExternalID: externalId,
+					InsertedAt: payload.InsertedAt,
+					Payload:    payload.InlineContent,
+				})
 			}
 
 			mu.Lock()

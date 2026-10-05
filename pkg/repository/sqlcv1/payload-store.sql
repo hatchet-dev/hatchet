@@ -5,7 +5,11 @@ WITH inputs AS (
         UNNEST(@externalIds::UUID[]) AS external_id
 )
 
-SELECT *
+SELECT
+    tenant_id,
+    inserted_at,
+    external_id,
+    inline_content
 FROM v1_payload
 WHERE
     (external_id, tenant_id) IN (SELECT external_id, tenant_id FROM inputs)
@@ -110,14 +114,9 @@ WITH payloads AS (
 )
 SELECT
     tenant_id::UUID,
-    id::BIGINT,
     inserted_at::TIMESTAMPTZ,
     external_id::UUID,
-    type::v1_payload_type,
-    location::v1_payload_location,
-    COALESCE(external_location_key, '')::TEXT AS external_location_key,
-    inline_content::JSONB AS inline_content,
-    updated_at::TIMESTAMPTZ
+    inline_content::JSONB AS inline_content
 FROM payloads;
 
 -- name: CreatePayloadRangeChunks :many

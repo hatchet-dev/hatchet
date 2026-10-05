@@ -1013,9 +1013,8 @@ WITH locked_qis AS (
         locked_qis lqi
     LEFT JOIN v1_payload p
         ON p.tenant_id = lqi.tenant_id
-        AND p.id = lqi.task_id
+        AND p.external_id = lqi.external_id
         AND p.inserted_at = lqi.task_inserted_at
-        AND p.type = 'TASK_INPUT'::v1_payload_type
     ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
     RETURNING task_id
 )
