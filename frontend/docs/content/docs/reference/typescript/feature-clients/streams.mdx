@@ -1,0 +1,53 @@
+---
+title: "Streams"
+---
+
+<a id="streamsclient"></a>
+
+### Streams Client
+
+StreamsClient publishes to and reads from durable topics. Unlike
+`runs.subscribeToStream`, topics are stored, independent of any run, and
+readers can resume from a cursor.
+
+#### Methods
+
+<a id="events"></a>
+
+##### `events()`
+
+Yields topic's messages after options.cursor, or from the oldest retained.
+If the connection drops, it resubscribes from the last message yielded, so
+nothing is skipped or repeated. Ends when the server hangs up an idle
+subscription, options.signal aborts, or the caller stops iterating; throws
+on errors a retry can't fix, such as an expired cursor.
+
+Parameters
+
+| Parameter  | Type                | Description                                                  |
+| ---------- | ------------------- | ------------------------------------------------------------ |
+| `topic`    | `string`            | the topic to read from                                       |
+| `options?` | `StreamCallOptions` | optional namespace override, resume cursor, and abort signal |
+
+Returns
+
+`AsyncIterable`\<`StreamEvent`\>
+
+<a id="publish"></a>
+
+##### `publish()`
+
+Resolves once the message is stored. A client's messages to a topic are
+delivered in the order publish() was called.
+
+Parameters
+
+| Parameter  | Type                                          | Description                 |
+| ---------- | --------------------------------------------- | --------------------------- |
+| `topic`    | `string`                                      | the topic to publish to     |
+| `message`  | `string` \| `Uint8Array`\<`ArrayBufferLike`\> | the message payload         |
+| `options?` | `StreamCallOptions`                           | optional namespace override |
+
+Returns
+
+`Promise`\<`void`\>

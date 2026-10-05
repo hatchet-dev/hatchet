@@ -258,7 +258,8 @@ SELECT
     create_v1_range_partition('v1_event', $1::date) AS v1_event,
     create_v1_range_partition('v1_durable_event_log_file', $1::date) AS v1_durable_event_log_file,
     create_v1_range_partition('v1_durable_event_log_entry', $1::date, 80) AS v1_durable_event_log_entry,
-    create_v1_range_partition('v1_durable_event_log_branch_point', $1::date, 80) AS v1_durable_event_log_branch_point
+    create_v1_range_partition('v1_durable_event_log_branch_point', $1::date, 80) AS v1_durable_event_log_branch_point,
+    create_v1_range_partition('v1_stream_producer_cursor', $1::date, 80) AS v1_stream_producer_cursor
 `
 
 type CreatePartitionsRow struct {
@@ -271,6 +272,7 @@ type CreatePartitionsRow struct {
 	V1DurableEventLogFile        int32 `json:"v1_durable_event_log_file"`
 	V1DurableEventLogEntry       int32 `json:"v1_durable_event_log_entry"`
 	V1DurableEventLogBranchPoint int32 `json:"v1_durable_event_log_branch_point"`
+	V1StreamProducerCursor       int32 `json:"v1_stream_producer_cursor"`
 }
 
 func (q *Queries) CreatePartitions(ctx context.Context, db DBTX, date pgtype.Date) (*CreatePartitionsRow, error) {
@@ -286,6 +288,7 @@ func (q *Queries) CreatePartitions(ctx context.Context, db DBTX, date pgtype.Dat
 		&i.V1DurableEventLogFile,
 		&i.V1DurableEventLogEntry,
 		&i.V1DurableEventLogBranchPoint,
+		&i.V1StreamProducerCursor,
 	)
 	return &i, err
 }

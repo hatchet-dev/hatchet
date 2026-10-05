@@ -49,7 +49,7 @@ func (e *BoolExprEvaluator) Compile(expr string) (celgo.Program, error) {
 		return nil, fmt.Errorf("failed to compile CEL expression %q: %w", expr, issues.Err())
 	}
 
-	program, err := e.env.Program(ast)
+	program, err := e.env.Program(ast, programOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create CEL program for %q: %w", expr, err)
 	}

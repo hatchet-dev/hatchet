@@ -33,6 +33,7 @@ type Repository interface {
 	OverwriteOLAPRepository(o OLAPRepository)
 	Logs() LogLineRepository
 	OverwriteLogsRepository(l LogLineRepository)
+	Streams() StreamsRepository
 	Payloads() PayloadStoreRepository
 	OverwriteExternalPayloadStore(o ExternalStore)
 	Workers() WorkerRepository
@@ -71,6 +72,7 @@ type repositoryImpl struct {
 	matches           MatchRepository
 	olap              OLAPRepository
 	logs              LogLineRepository
+	streams           StreamsRepository
 	workers           WorkerRepository
 	workflows         WorkflowRepository
 	ticker            TickerRepository
@@ -127,6 +129,7 @@ func NewRepository(
 		matches:           newMatchRepository(shared),
 		olap:              newOLAPRepository(shared, olapRetentionPeriod, true, true, statusUpdateBatchSizeLimits),
 		logs:              newLogLineRepository(shared),
+		streams:           newStreamsRepository(shared),
 		workers:           newWorkerRepository(shared),
 		workflows:         newWorkflowRepository(shared),
 		ticker:            newTickerRepository(shared),
@@ -216,6 +219,10 @@ func (r *repositoryImpl) OverwriteOLAPRepository(o OLAPRepository) {
 
 func (r *repositoryImpl) Logs() LogLineRepository {
 	return r.logs
+}
+
+func (r *repositoryImpl) Streams() StreamsRepository {
+	return r.streams
 }
 
 func (r *repositoryImpl) OverwriteLogsRepository(l LogLineRepository) {

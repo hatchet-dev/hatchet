@@ -27,6 +27,13 @@ type taskExternalIdTenantIdTuple struct {
 	tenantId   uuid.UUID
 }
 
+// implements comparable for the lru cache
+type streamTopicKey struct {
+	tenantId  uuid.UUID
+	namespace string
+	topic     string
+}
+
 type sharedRepository struct {
 	pool    *pgxpool.Pool
 	ddlPool *pgxpool.Pool // bypasses pgbouncer for DDL operations
@@ -48,6 +55,8 @@ type sharedRepository struct {
 	stepIdSlotRequestsCache     *expirable.LRU[uuid.UUID, map[string]int32]
 	stepIdHasBatchConfigCache   *expirable.LRU[uuid.UUID, bool]
 	stepIdMatchConditionsCache  *expirable.LRU[uuid.UUID, []*sqlcv1.V1StepMatchCondition]
+
+	streamTopicSeenCache *expirable.LRU[streamTopicKey, struct{}]
 
 	celParser         *cel.CELParser
 	boolExprEvaluator *cel.BoolExprEvaluator
@@ -81,6 +90,7 @@ func newSharedRepository(
 	stepIdSlotRequestsCache := expirable.NewLRU(10000, func(key uuid.UUID, value map[string]int32) {}, 5*time.Minute)
 	stepIdHasBatchConfigCache := expirable.NewLRU(10000, func(key uuid.UUID, value bool) {}, 5*time.Minute)
 	stepIdMatchConditionsCache := expirable.NewLRU(10000, func(key uuid.UUID, value []*sqlcv1.V1StepMatchCondition) {}, 5*time.Minute)
+	streamTopicSeenCache := expirable.NewLRU(10000, func(key streamTopicKey, value struct{}) {}, time.Hour)
 
 	celParser := cel.NewCELParser()
 
@@ -114,6 +124,7 @@ func newSharedRepository(
 		stepIdSlotRequestsCache:     stepIdSlotRequestsCache,
 		stepIdHasBatchConfigCache:   stepIdHasBatchConfigCache,
 		stepIdMatchConditionsCache:  stepIdMatchConditionsCache,
+		streamTopicSeenCache:        streamTopicSeenCache,
 		celParser:                   celParser,
 		boolExprEvaluator:           boolExprEvaluator,
 		taskLookupCache:             lookupCache,

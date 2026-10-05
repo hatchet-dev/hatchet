@@ -192,6 +192,7 @@ tasks:
       - task: install-dependencies
       - task: generate-api
       - task: generate-proto
+      - task: generate-proto-typescript-es
       - task: generate-sqlc
       - task: generate-docs
       - task: generate-sdk-docs
@@ -262,6 +263,12 @@ tasks:
   generate-proto:
     cmds:
       - bash ./hack/proto/proto.sh
+  generate-proto-typescript-es:
+    desc: Regenerate the TypeScript SDK's protobuf-es bindings (sdks/typescript/src/protoc-es)
+    dir: sdks/typescript
+    cmds:
+      - pnpm install --frozen-lockfile
+      - pnpm run generate-protoc-es
   generate-proto-python:
     dir: ./python-sdk
     cmds:
@@ -389,18 +396,19 @@ tasks:
     desc: Print the latest stable release tag (ignores pre-releases)
     silent: true
     cmds:
-      - git fetch --tags --quiet origin
+      - git fetch --tags origin
       - git tag --list 'v[0-9]*.[0-9]*.[0-9]*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1
 
   latest-alpha-tag:
     desc: Print the latest alpha tag, if any
     silent: true
     cmds:
-      - git fetch --tags --quiet origin
+      - git fetch --tags origin
       - git tag --list 'v[0-9]*-alpha.*' | sort -V | tail -1
 
   patch:
     desc: Bump patch version (e.g. v0.83.16 → v0.83.17) and push the tag
+    silent: true
     cmds:
       - |
         set -e
@@ -409,16 +417,17 @@ tasks:
           echo "Error: must be on 'main' to bump the version (currently on '${branch}')" >&2
           exit 1
         fi
-        git pull origin main
+        git pull --quiet origin main
         current=$(task latest-tag)
         IFS='.' read -r major minor patch <<< "${current#v}"
         next="v${major}.${minor}.$((patch + 1))"
         echo "Bumping ${current} → ${next}"
         git tag "${next}"
-        git push origin "${next}"
+        git push --no-progress origin "${next}"
 
   minor:
     desc: Bump minor version (e.g. v0.83.16 → v0.84.0) and push the tag
+    silent: true
     cmds:
       - |
         set -e
@@ -427,16 +436,17 @@ tasks:
           echo "Error: must be on 'main' to bump the version (currently on '${branch}')" >&2
           exit 1
         fi
-        git pull origin main
+        git pull --quiet origin main
         current=$(task latest-tag)
         IFS='.' read -r major minor patch <<< "${current#v}"
         next="v${major}.$((minor + 1)).0"
         echo "Bumping ${current} → ${next}"
         git tag "${next}"
-        git push origin "${next}"
+        git push --no-progress origin "${next}"
 
   alpha:
     desc: Cut the next alpha of the unreleased version (e.g. v0.83.16 → v0.83.17-alpha.0, or v0.83.17-alpha.0 → v0.83.17-alpha.1)
+    silent: true
     cmds:
       - |
         set -e
@@ -452,4 +462,4 @@ tasks:
         fi
         echo "Bumping ${stable} → ${next}"
         git tag "${next}"
-        git push origin "${next}"
+        git push --no-progress origin "${next}"

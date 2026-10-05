@@ -1,3 +1,7 @@
 minimumReleaseAge: 1440
 packages:
   - .
+onlyBuiltDependencies:
+  - esbuild
+  - grpc-tools
+  - protobufjs
