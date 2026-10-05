@@ -409,8 +409,8 @@ export function SearchBarWithFilters<
               type="text"
               value={localValue}
               onChange={(e) => {
-                // Only update local state for autocomplete
-                // Don't trigger parent onChange until Enter is pressed or value suggestion is selected
+                // Unless submitOnChange is set, only update local state for autocomplete and
+                // don't trigger parent onChange until Enter is pressed or value suggestion is selected
                 const newValue = e.target.value;
                 setLocalValue(newValue);
                 if (submitOnChange) {
@@ -441,7 +441,7 @@ export function SearchBarWithFilters<
               }}
               placeholder={placeholder}
               className={cn(
-                'pl-9 pr-8 focus-visible:ring-0',
+                'pl-9 pr-8 focus-visible:ring-0 focus-visible:border-ring',
                 hasColoredFilters && 'text-transparent',
               )}
               style={
