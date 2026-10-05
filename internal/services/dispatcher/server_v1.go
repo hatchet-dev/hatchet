@@ -1666,7 +1666,7 @@ func (d *DispatcherServiceImpl) evictTimedOutOrderedReleases(ctx context.Context
 	for _, timedOut := range invocation.timedOutOrderedReleases(durableOrderedReleaseGapTimeout) {
 		key := timedOut.key
 		reason := fmt.Sprintf(
-			"completions with satisfied_order %v were held for over %s waiting for satisfied_order %d, which was never delivered",
+			"completions with satisfied_order %v were held for over %s waiting for satisfied_order %d, which had not arrived when the hold timed out",
 			timedOut.heldSatisfiedOrders, durableOrderedReleaseGapTimeout, timedOut.missingSatisfiedOrder,
 		)
 
