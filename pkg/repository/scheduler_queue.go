@@ -1006,12 +1006,10 @@ func (d *queueRepository) RequeueRateLimitedItems(ctx context.Context, tenantId 
 		return nil, err
 	}
 
-	if len(rows) == 0 {
-		return rows, nil
-	}
-
-	// if we moved items in v1_queue_item, we need to update the active status of the queue, in case we've
-	// been rate limited for longer than a day and the queue has gone inactive
+	// This also keeps the queue's last_active fresh (cache-gated to once per 5 minutes) so a
+	// queue whose only pending work is rate limited for longer than a day stays in ListQueues
+	// and keeps its queuer; ReactivateInactiveQueuesWithItems does not look at
+	// v1_rate_limited_queue_items, so nothing else would requeue those items.
 	saveQueues, err := d.upsertQueues(ctx, d.pool, tenantId, []string{queueName})
 
 	if err != nil {
