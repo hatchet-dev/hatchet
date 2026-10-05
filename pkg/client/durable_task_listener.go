@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"sync"
 	"time"
 
@@ -17,10 +18,13 @@ import (
 )
 
 const (
-	defaultReconnectInterval    = 2 * time.Second
-	defaultWorkerStatusInterval = time.Second
-	defaultCompletionBufferTTL  = 10 * time.Second
-	evictionAckTimeout          = 30 * time.Second
+	defaultReconnectInterval         = 2 * time.Second
+	workerStatusResendInterval       = 5 * time.Second
+	workerStatusResendMinPendingTime = 2 * time.Second
+	workerStatusMaxEntriesPerRequest = 10_000
+	triggerRunsMaxChildrenPerRequest = 100
+	defaultCompletionBufferTTL       = 10 * time.Second
+	evictionAckTimeout               = 30 * time.Second
 )
 
 var errDurableTaskListenerStopped = errors.New("durable task listener stopped")
@@ -97,31 +101,33 @@ type ServerEvictCallback func(taskExternalID string, invocationCount int32, reas
 
 // DurableTaskListener manages a bidirectional gRPC stream for durable task operations.
 type DurableTaskListener struct {
-	onServerEvict         ServerEvictCallback
-	pendingEvictionAcks   map[PendingAckKey]chan error
-	l                     zerolog.Logger
-	connectFn             func(ctx context.Context) (v1.V1Dispatcher_DurableTaskClient, error)
-	cancel                context.CancelFunc
-	done                  chan struct{}
-	requestQueue          chan *v1.DurableTaskRequest
-	statusChanged         chan struct{}
-	stopCh                chan struct{}
-	bufferedCompletions   map[PendingCallbackKey]bufferedCompletion
-	pendingEventAcks      map[PendingAckKey]chan EventAckResult
-	pendingCallbacks      map[PendingCallbackKey]chan CallbackResult
-	callbackTerminalErr   error
-	workerID              string
-	streamSeq             int
-	reconnectInterval     time.Duration
-	evictionAckTTL        time.Duration
-	onServerEvictMu       sync.RWMutex
-	streamMu              sync.Mutex
-	callbackStateMu       sync.Mutex
-	callbacksTerminal     bool
-	pendingEvictionAcksMu sync.Mutex
-	pendingEventAcksMu    sync.Mutex
-	mu                    sync.Mutex
-	running               bool
+	onServerEvict               ServerEvictCallback
+	pendingEvictionAcks         map[PendingAckKey]chan error
+	l                           zerolog.Logger
+	connectFn                   func(ctx context.Context) (v1.V1Dispatcher_DurableTaskClient, error)
+	cancel                      context.CancelFunc
+	done                        chan struct{}
+	requestQueue                chan *v1.DurableTaskRequest
+	statusChanged               chan struct{}
+	stopCh                      chan struct{}
+	bufferedCompletions         map[PendingCallbackKey]bufferedCompletion
+	pendingEventAcks            map[PendingAckKey]chan EventAckResult
+	pendingCallbacks            map[PendingCallbackKey]chan CallbackResult
+	newlyPendingCallbackKeys    map[PendingCallbackKey]struct{}
+	pendingCallbackRegisteredAt map[PendingCallbackKey]time.Time
+	callbackTerminalErr         error
+	workerID                    string
+	streamSeq                   int
+	reconnectInterval           time.Duration
+	evictionAckTTL              time.Duration
+	onServerEvictMu             sync.RWMutex
+	streamMu                    sync.Mutex
+	callbackStateMu             sync.Mutex
+	callbacksTerminal           bool
+	pendingEvictionAcksMu       sync.Mutex
+	pendingEventAcksMu          sync.Mutex
+	mu                          sync.Mutex
+	running                     bool
 }
 
 // DurableTaskListenerOpt configures a DurableTaskListener.
@@ -154,18 +160,20 @@ func NewDurableTaskListener(
 	}
 
 	dtl := &DurableTaskListener{
-		workerID:            workerID,
-		l:                   logger,
-		reconnectInterval:   defaultReconnectInterval,
-		evictionAckTTL:      evictionAckTimeout,
-		connectFn:           connectFn,
-		pendingEventAcks:    make(map[PendingAckKey]chan EventAckResult),
-		pendingEvictionAcks: make(map[PendingAckKey]chan error),
-		pendingCallbacks:    make(map[PendingCallbackKey]chan CallbackResult),
-		bufferedCompletions: make(map[PendingCallbackKey]bufferedCompletion),
-		requestQueue:        make(chan *v1.DurableTaskRequest, 100),
-		statusChanged:       make(chan struct{}, 1),
-		stopCh:              make(chan struct{}),
+		workerID:                    workerID,
+		l:                           logger,
+		reconnectInterval:           defaultReconnectInterval,
+		evictionAckTTL:              evictionAckTimeout,
+		connectFn:                   connectFn,
+		pendingEventAcks:            make(map[PendingAckKey]chan EventAckResult),
+		pendingEvictionAcks:         make(map[PendingAckKey]chan error),
+		pendingCallbacks:            make(map[PendingCallbackKey]chan CallbackResult),
+		newlyPendingCallbackKeys:    make(map[PendingCallbackKey]struct{}),
+		pendingCallbackRegisteredAt: make(map[PendingCallbackKey]time.Time),
+		bufferedCompletions:         make(map[PendingCallbackKey]bufferedCompletion),
+		requestQueue:                make(chan *v1.DurableTaskRequest, 100),
+		statusChanged:               make(chan struct{}, 1),
+		stopCh:                      make(chan struct{}),
 	}
 
 	for _, opt := range opts {
@@ -334,6 +342,8 @@ func (l *DurableTaskListener) AddPendingCallback(key PendingCallbackKey) chan Ca
 		ch <- CallbackResult{Resp: buffered.resp}
 	} else {
 		l.pendingCallbacks[key] = ch
+		l.newlyPendingCallbackKeys[key] = struct{}{}
+		l.pendingCallbackRegisteredAt[key] = time.Now()
 	}
 	l.callbackStateMu.Unlock()
 
@@ -535,14 +545,14 @@ func (l *DurableTaskListener) sendStreamRequests(
 ) {
 	defer close(stopped)
 
-	ticker := time.NewTicker(defaultWorkerStatusInterval)
+	ticker := time.NewTicker(workerStatusResendInterval)
 	defer ticker.Stop()
 
 	select {
 	case <-l.statusChanged:
 	default:
 	}
-	if err := l.sendWorkerStatus(stream); err != nil {
+	if err := l.sendWorkerStatusFor(stream, l.takeAllPendingCallbackKeys()); err != nil {
 		sendFailed <- err
 		cancelStream()
 		return
@@ -561,13 +571,13 @@ func (l *DurableTaskListener) sendStreamRequests(
 				return
 			}
 		case <-l.statusChanged:
-			if err := l.sendWorkerStatus(stream); err != nil {
+			if err := l.sendWorkerStatusFor(stream, l.takeNewlyPendingCallbackKeys()); err != nil {
 				sendFailed <- err
 				cancelStream()
 				return
 			}
 		case <-ticker.C:
-			if err := l.sendWorkerStatus(stream); err != nil {
+			if err := l.sendWorkerStatusFor(stream, l.longPendingCallbackKeys(time.Now())); err != nil {
 				sendFailed <- err
 				cancelStream()
 				return
@@ -631,8 +641,30 @@ func (l *DurableTaskListener) removePendingCallback(key PendingCallbackKey) {
 	delete(l.pendingCallbacks, key)
 }
 
-// SendTriggerRunsRequest sends child workflow requests and waits for their event-log ack.
+// SendTriggerRunsRequest sends child workflow requests and waits for their event-log acks.
+// The children are sent in requests of at most triggerRunsMaxChildrenPerRequest, one after
+// the other, and the returned entries are in the order of triggerOpts.
 func (l *DurableTaskListener) SendTriggerRunsRequest(
+	ctx context.Context,
+	taskExternalID string,
+	invocationCount int32,
+	triggerOpts []*v1.TriggerWorkflowRequest,
+) ([]TriggerRunAckEntry, error) {
+	entries := make([]TriggerRunAckEntry, 0, len(triggerOpts))
+
+	for triggerOptsForRequest := range slices.Chunk(triggerOpts, triggerRunsMaxChildrenPerRequest) {
+		entriesForRequest, err := l.sendSingleTriggerRunsRequest(ctx, taskExternalID, invocationCount, triggerOptsForRequest)
+		if err != nil {
+			return nil, err
+		}
+
+		entries = append(entries, entriesForRequest...)
+	}
+
+	return entries, nil
+}
+
+func (l *DurableTaskListener) sendSingleTriggerRunsRequest(
 	ctx context.Context,
 	taskExternalID string,
 	invocationCount int32,
@@ -1039,48 +1071,105 @@ func (l *DurableTaskListener) dispatchError(errResp *v1.DurableTaskErrorResponse
 }
 
 func (l *DurableTaskListener) signalStatusChanged() {
-	// The signal carries no snapshot; the stream sender reads current callback
-	// state immediately before Send and coalesces any registration burst.
+	// The signal carries no snapshot; the stream sender reads the newly pending
+	// callbacks immediately before Send and coalesces any registration burst.
 	select {
 	case l.statusChanged <- struct{}{}:
 	default:
 	}
 }
 
-func (l *DurableTaskListener) sendWorkerStatus(stream v1.V1Dispatcher_DurableTaskClient) error {
-	req := l.workerStatusRequest()
-	if req == nil {
-		return nil
+func (l *DurableTaskListener) sendWorkerStatusFor(stream v1.V1Dispatcher_DurableTaskClient, keys []PendingCallbackKey) error {
+	for _, req := range workerStatusRequests(l.workerID, keys, workerStatusMaxEntriesPerRequest) {
+		if err := stream.Send(req); err != nil {
+			return err
+		}
 	}
-	return stream.Send(req)
+
+	return nil
 }
 
-func (l *DurableTaskListener) workerStatusRequest() *v1.DurableTaskRequest {
+func (l *DurableTaskListener) takeAllPendingCallbackKeys() []PendingCallbackKey {
 	l.callbackStateMu.Lock()
-	if l.callbacksTerminal || len(l.pendingCallbacks) == 0 {
-		l.callbackStateMu.Unlock()
-		return nil
+	defer l.callbackStateMu.Unlock()
+
+	clear(l.newlyPendingCallbackKeys)
+
+	keys := make([]PendingCallbackKey, 0, len(l.pendingCallbacks))
+	for key := range l.pendingCallbacks {
+		keys = append(keys, key)
 	}
 
-	waitingEntries := make([]*v1.DurableTaskAwaitedCompletedEntry, 0, len(l.pendingCallbacks))
-	for key := range l.pendingCallbacks {
-		waitingEntries = append(waitingEntries, &v1.DurableTaskAwaitedCompletedEntry{
-			DurableTaskExternalId: key.TaskID,
-			InvocationCount:       int32(key.SignalKey), //nolint:gosec
-			BranchId:              key.BranchID,
-			NodeId:                key.NodeID,
+	return keys
+}
+
+func (l *DurableTaskListener) takeNewlyPendingCallbackKeys() []PendingCallbackKey {
+	l.callbackStateMu.Lock()
+	defer l.callbackStateMu.Unlock()
+
+	keys := make([]PendingCallbackKey, 0, len(l.newlyPendingCallbackKeys))
+	for key := range l.newlyPendingCallbackKeys {
+		if _, isStillPending := l.pendingCallbacks[key]; isStillPending {
+			keys = append(keys, key)
+		}
+	}
+
+	clear(l.newlyPendingCallbackKeys)
+
+	return keys
+}
+
+// longPendingCallbackKeys returns the callbacks that have been pending for at least
+// workerStatusResendMinPendingTime, so the periodic resend skips callbacks the engine
+// was told about moments ago and is most likely still completing.
+func (l *DurableTaskListener) longPendingCallbackKeys(now time.Time) []PendingCallbackKey {
+	registeredBefore := now.Add(-workerStatusResendMinPendingTime)
+
+	l.callbackStateMu.Lock()
+	defer l.callbackStateMu.Unlock()
+
+	keys := make([]PendingCallbackKey, 0)
+	for key, registeredAt := range l.pendingCallbackRegisteredAt {
+		if _, isStillPending := l.pendingCallbacks[key]; !isStillPending {
+			delete(l.pendingCallbackRegisteredAt, key)
+			continue
+		}
+
+		if !registeredAt.After(registeredBefore) {
+			keys = append(keys, key)
+		}
+	}
+
+	return keys
+}
+
+// workerStatusRequests splits the keys over several requests so that a large fan-out
+// stays under the gRPC message size limit.
+func workerStatusRequests(workerID string, keys []PendingCallbackKey, maxEntriesPerRequest int) []*v1.DurableTaskRequest {
+	requests := make([]*v1.DurableTaskRequest, 0, len(keys)/maxEntriesPerRequest+1)
+
+	for keysForRequest := range slices.Chunk(keys, maxEntriesPerRequest) {
+		waitingEntries := make([]*v1.DurableTaskAwaitedCompletedEntry, 0, len(keysForRequest))
+		for _, key := range keysForRequest {
+			waitingEntries = append(waitingEntries, &v1.DurableTaskAwaitedCompletedEntry{
+				DurableTaskExternalId: key.TaskID,
+				InvocationCount:       int32(key.SignalKey), //nolint:gosec
+				BranchId:              key.BranchID,
+				NodeId:                key.NodeID,
+			})
+		}
+
+		requests = append(requests, &v1.DurableTaskRequest{
+			Message: &v1.DurableTaskRequest_WorkerStatus{
+				WorkerStatus: &v1.DurableTaskWorkerStatusRequest{
+					WorkerId:       workerID,
+					WaitingEntries: waitingEntries,
+				},
+			},
 		})
 	}
-	l.callbackStateMu.Unlock()
 
-	return &v1.DurableTaskRequest{
-		Message: &v1.DurableTaskRequest_WorkerStatus{
-			WorkerStatus: &v1.DurableTaskWorkerStatusRequest{
-				WorkerId:       l.workerID,
-				WaitingEntries: waitingEntries,
-			},
-		},
-	}
+	return requests
 }
 
 func (l *DurableTaskListener) cacheCompletionLocked(
@@ -1142,6 +1231,8 @@ func (l *DurableTaskListener) terminateCallbackStateLocked(err error) {
 	l.callbackTerminalErr = err
 	callbacks := l.pendingCallbacks
 	l.pendingCallbacks = make(map[PendingCallbackKey]chan CallbackResult)
+	l.newlyPendingCallbackKeys = make(map[PendingCallbackKey]struct{})
+	l.pendingCallbackRegisteredAt = make(map[PendingCallbackKey]time.Time)
 	l.bufferedCompletions = make(map[PendingCallbackKey]bufferedCompletion)
 
 	// Keep delivery inside the terminal transition so no detached waiter can

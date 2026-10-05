@@ -2,6 +2,7 @@
 
 require "json"
 require "monitor"
+require "set"
 require "timeout"
 
 module Hatchet
@@ -23,6 +24,9 @@ module Hatchet
       DEFAULT_RECONNECT_INTERVAL = 3 # seconds
       EVICTION_ACK_TIMEOUT_SECONDS = 30.0
       REGISTER_WORKER_ACK_TIMEOUT_SECONDS = 10.0
+      WORKER_STATUS_RESEND_INTERVAL_SECONDS = 5.0
+      WORKER_STATUS_RESEND_MIN_PENDING_SECONDS = 2.0
+      WORKER_STATUS_MAX_ENTRIES_PER_REQUEST = 10_000
 
       # Outgoing event sent via ``send_event``.
       #
@@ -61,6 +65,10 @@ module Hatchet
         @pending_eviction_acks = {}
         # (task_external_id, invocation_count, branch_id, node_id) => Queue
         @pending_callbacks = {}
+        # pending callback keys registered since the last worker status request
+        @newly_waiting_keys = Set.new
+        # pending callback key => monotonic time it was registered at
+        @waiting_since = {}
         # key -> [inserted_at, result] (rudimentary TTL cache)
         @buffered_completions = {}
 
@@ -158,6 +166,7 @@ module Hatchet
         end
 
         queue = @mu.synchronize do
+          register_waiting_key(key)
           @pending_callbacks[key] ||= Queue.new
         end
 
@@ -166,7 +175,7 @@ module Hatchet
           "task=#{durable_task_external_id} invocation=#{invocation_count} " \
           "branch_id=#{branch_id} node_id=#{node_id}",
         )
-        poll_worker_status
+        enqueue_worker_status_for_newly_waiting_keys
 
         result = await_queue(queue)
         @logger&.debug(
@@ -355,7 +364,7 @@ module Hatchet
         @stream = stub.durable_task(@request_enum, metadata: @config.auth_metadata)
 
         register_worker
-        poll_worker_status
+        enqueue_full_worker_status
 
         @logger&.info("durable event listener connected")
       end
@@ -436,34 +445,76 @@ module Hatchet
         )
       end
 
-      def poll_worker_status
-        return if @request_queue.nil? || @worker_id.nil?
+      def register_waiting_key(key)
+        @waiting_since[key] = monotonic_now
+        @newly_waiting_keys.add(key)
+      end
 
-        pending = @mu.synchronize { @pending_callbacks.keys.dup }
-        return if pending.empty?
-
-        waiting = pending.map do |(task_ext_id, inv_count, branch_id, node_id)|
-          ::V1::DurableTaskAwaitedCompletedEntry.new(
-            durable_task_external_id: task_ext_id,
-            invocation_count: inv_count,
-            node_id: node_id,
-            branch_id: branch_id,
-          )
+      # Waiters that register at the same time share one request: whichever
+      # thread gets here first reports all of them, and the rest find nothing
+      # left to report.
+      def enqueue_worker_status_for_newly_waiting_keys
+        keys = @mu.synchronize do
+          newly_waiting = @newly_waiting_keys.select { |key| @pending_callbacks.key?(key) }
+          @newly_waiting_keys.clear
+          newly_waiting
         end
 
-        @request_queue << ::V1::DurableTaskRequest.new(
-          worker_status: ::V1::DurableTaskWorkerStatusRequest.new(
-            worker_id: @worker_id,
-            waiting_entries: waiting,
-          ),
-        )
+        enqueue_worker_status_for(keys)
+      end
+
+      def enqueue_worker_status_for_long_pending_waiters
+        registered_before = monotonic_now - WORKER_STATUS_RESEND_MIN_PENDING_SECONDS
+
+        keys = @mu.synchronize do
+          @waiting_since.select! { |key, _| @pending_callbacks.key?(key) }
+          @waiting_since.select { |_, waiting_since| waiting_since <= registered_before }.keys
+        end
+
+        enqueue_worker_status_for(keys)
+      end
+
+      def enqueue_full_worker_status
+        keys = @mu.synchronize do
+          @newly_waiting_keys.clear
+          @pending_callbacks.keys
+        end
+
+        enqueue_worker_status_for(keys)
+      end
+
+      def enqueue_worker_status_for(keys)
+        request_queue = @request_queue
+        return if request_queue.nil? || @worker_id.nil?
+
+        keys.each_slice(WORKER_STATUS_MAX_ENTRIES_PER_REQUEST) do |keys_for_request|
+          waiting = keys_for_request.map do |(task_ext_id, inv_count, branch_id, node_id)|
+            ::V1::DurableTaskAwaitedCompletedEntry.new(
+              durable_task_external_id: task_ext_id,
+              invocation_count: inv_count,
+              node_id: node_id,
+              branch_id: branch_id,
+            )
+          end
+
+          request_queue << ::V1::DurableTaskRequest.new(
+            worker_status: ::V1::DurableTaskWorkerStatusRequest.new(
+              worker_id: @worker_id,
+              waiting_entries: waiting,
+            ),
+          )
+        end
+      end
+
+      def monotonic_now
+        Process.clock_gettime(Process::CLOCK_MONOTONIC)
       end
 
       def send_loop
         while @running
-          sleep 1
+          sleep WORKER_STATUS_RESEND_INTERVAL_SECONDS
           begin
-            poll_worker_status
+            enqueue_worker_status_for_long_pending_waiters
           rescue StandardError => e
             @logger&.error("durable event listener send_loop error: #{e.class}: #{e.message}")
           end
