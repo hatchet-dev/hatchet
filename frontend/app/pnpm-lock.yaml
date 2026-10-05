@@ -13,10 +13,10 @@ overrides:
   lodash: ^4.18.1
   lodash-es: ^4.18.1
   tar: ^7.5.8
-  axios: ^1.18.0
+  axios: ^1.20.0
   follow-redirects: ^1.16.0
-  brace-expansion@1: ^1.1.13
-  brace-expansion@2: ^2.1.3
+  brace-expansion@1: ^1.1.21
+  brace-expansion@2: ^2.1.7
   flatted: ^3.4.2
   '@opentelemetry/core': ^2.8.0
   protobufjs: ^7.6.3
@@ -24,7 +24,7 @@ overrides:
   '@babel/core': ^7.29.6
   tmp: ^0.2.6
   uuid@8: ^11.1.1
-  dompurify: ^3.4.13
+  dompurify: ^3.4.16
   nanoid: ^3.3.17
   immutable: ^5.1.8
   postcss: ^8.5.18
@@ -130,7 +130,7 @@ importers:
         specifier: ^2.1.0
         version: 2.1.0
       axios:
-        specifier: ^1.18.0
+        specifier: ^1.20.0
         version: 1.20.0
       better-emitter:
         specifier: ^4.0.1
@@ -2446,11 +2446,11 @@ packages:
   bluebird@3.7.2:
     resolution: {integrity: sha512-XpNj6GDQzdfW+r2Wnn7xiSAd7TM3jzkxGXBGTtWKuSXv1xUV+azxAm8jdWZN06QTQk+2N2XB9jRDkvbmQmcRtg==}
 
-  brace-expansion@1.1.16:
-    resolution: {integrity: sha512-IDw48K2/2kRkg9LdJxurvq3lV3aBgq0REY89duEqFRthjlPdXHKMj7EnQOXVckxzgisinf3nHfrcE2FufFLXMw==}
+  brace-expansion@1.1.21:
+    resolution: {integrity: sha512-9zeA+KLZNNzglF2TPKRQEDyx6Yby7daAkuy8MiPzpXPsYDWi/DRM8jmwUDxokQjYqBpv5DgPiwD4h4ZZSy1Ujw==}
 
-  brace-expansion@2.1.4:
-    resolution: {integrity: sha512-hGfVzPxthbf3+2yjg/RBs60cB0FhqBS/zvdV/4wn4/BmN0bNMMHPc4V/BbFieqf1TKAGGAHnY4eSjajCl0f2Xg==}
+  brace-expansion@2.1.7:
+    resolution: {integrity: sha512-uZbew1NqdmPDTMJ8ah1y+b+9QEJrfkXFk3RcTQw3X0jW/xRUvFKsg1CfQdSYGdTbXZWExtU3J3ccxtnfw1Fi0g==}
 
   braces@3.0.3:
     resolution: {integrity: sha512-yQbXgO/OSZVD2IsiLlro+7Hf6Q18EJrKSEsdoMzKePKXct3gvD8oLcOQdIzGupr5Fj+EDe8gO/lxc1BzfMpxvA==}
@@ -2802,9 +2802,6 @@ packages:
 
   dom-helpers@5.2.1:
     resolution: {integrity: sha512-nRCa7CK3VTrM2NmGkIy4cbK7IZlgBE/PYMn55rrXefr5xXDP0LdtfPnblFDoVdcAfslJ7or6iqAUnx0CCGIWQA==}
-
-  dompurify@3.4.13:
-    resolution: {integrity: sha512-2vmYIoqjze2d+kakP8S/nS5shfsl587kzwEjcGlTdiksUVgFHnFCsLYDVj/JNqJVOQZGSYBTmuycv0PodwmnMQ==}
 
   dompurify@3.4.16:
     resolution: {integrity: sha512-sqo+pNp3qRhCIpbgRi1y8Tgk27Bo2Ry7w0dC1NBeNTdZChWjz9Xb/KOoZbRP/R6pQZ80Qw8YhXw13hWWBbMRnQ==}
@@ -7010,12 +7007,12 @@ snapshots:
 
   bluebird@3.7.2: {}
 
-  brace-expansion@1.1.16:
+  brace-expansion@1.1.21:
     dependencies:
       balanced-match: 1.0.2
       concat-map: 0.0.1
 
-  brace-expansion@2.1.4:
+  brace-expansion@2.1.7:
     dependencies:
       balanced-match: 1.0.2
 
@@ -7390,10 +7387,6 @@ snapshots:
     dependencies:
       '@babel/runtime': 7.28.3
       csstype: 3.1.3
-
-  dompurify@3.4.13:
-    optionalDependencies:
-      '@types/trusted-types': 2.0.7
 
   dompurify@3.4.16:
     optionalDependencies:
@@ -8462,15 +8455,15 @@ snapshots:
 
   minimatch@3.1.4:
     dependencies:
-      brace-expansion: 1.1.16
+      brace-expansion: 1.1.21
 
   minimatch@8.0.7:
     dependencies:
-      brace-expansion: 2.1.4
+      brace-expansion: 2.1.7
 
   minimatch@9.0.9:
     dependencies:
-      brace-expansion: 2.1.4
+      brace-expansion: 2.1.7
 
   minimist@1.2.8: {}
 
@@ -8697,7 +8690,7 @@ snapshots:
       '@posthog/core': 1.25.2
       '@posthog/types': 1.369.2
       core-js: 3.49.0
-      dompurify: 3.4.13
+      dompurify: 3.4.16
       fflate: 0.4.9
       preact: 10.28.2
       query-selector-shadow-dom: 1.0.1
