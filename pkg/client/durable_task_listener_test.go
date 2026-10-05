@@ -697,8 +697,6 @@ func TestSendRequestReturnsOnContextOrStop(t *testing.T) {
 	require.ErrorIs(t, listener.SendRequest(context.Background(), req), errDurableTaskListenerStopped)
 }
 
-// --- Worker status ---
-
 func awaitWaitingEntries(t *testing.T, stream *mockDurableTaskStream, expectedCount int) []*v1.DurableTaskAwaitedCompletedEntry {
 	t.Helper()
 
