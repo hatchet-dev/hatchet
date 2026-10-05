@@ -8,7 +8,7 @@ from examples.bug_tests.dag_operator_task_named_like_workflow.worker import (
 )
 
 
-@pytest.mark.timeout(20)
+@pytest.mark.timeout(20, func_only=True)
 @pytest.mark.parametrize(
     "on_demand_worker",
     [
