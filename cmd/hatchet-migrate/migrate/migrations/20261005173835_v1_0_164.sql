@@ -266,7 +266,6 @@ BEGIN
             tenant_id UUID NOT NULL,
             id BIGINT NOT NULL,
             inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            external_id UUID NOT NULL DEFAULT gen_random_uuid(),
             task_id BIGINT NOT NULL,
             task_inserted_at TIMESTAMPTZ NOT NULL,
             event_type v1_event_type_olap NOT NULL,
@@ -279,6 +278,7 @@ BEGIN
             worker_id UUID,
             additional__event_data TEXT,
             additional__event_message TEXT,
+            external_id UUID NOT NULL DEFAULT gen_random_uuid(),
             durable_invocation_count INT NOT NULL DEFAULT 0,
             PRIMARY KEY (task_id, task_inserted_at, id)
         );
@@ -336,6 +336,7 @@ BEGIN
         DROP TABLE v1_statuses_olap;
         ALTER TABLE v1_statuses_olap_original RENAME TO v1_statuses_olap;
         ALTER INDEX v1_statuses_olap_original_pkey RENAME TO v1_statuses_olap_pkey;
+        CREATE INDEX idx_v1_statuses_olap_query_optim ON v1_statuses_olap (tenant_id, workflow_id);
         RETURN;
     END IF;
 
