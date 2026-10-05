@@ -393,7 +393,7 @@ func (l *DurableTaskListener) CleanupTaskState(taskExternalID string, invocation
 	l.callbackStateMu.Lock()
 	for k, ch := range l.pendingCallbacks {
 		if k.TaskID == taskExternalID && k.SignalKey <= int64(invocationCount) {
-			delete(l.pendingCallbacks, k)
+			l.forgetPendingCallbackLocked(k)
 			select {
 			case ch <- CallbackResult{Err: cancelErr}:
 			default:
@@ -638,7 +638,13 @@ func (l *DurableTaskListener) removePendingEventAck(key PendingAckKey) {
 func (l *DurableTaskListener) removePendingCallback(key PendingCallbackKey) {
 	l.callbackStateMu.Lock()
 	defer l.callbackStateMu.Unlock()
+	l.forgetPendingCallbackLocked(key)
+}
+
+func (l *DurableTaskListener) forgetPendingCallbackLocked(key PendingCallbackKey) {
 	delete(l.pendingCallbacks, key)
+	delete(l.newlyPendingCallbackKeys, key)
+	delete(l.pendingCallbackRegisteredAt, key)
 }
 
 // SendTriggerRunsRequest sends child workflow requests and waits for their event-log acks.
@@ -947,7 +953,7 @@ func (l *DurableTaskListener) dispatchResponse(resp *v1.DurableTaskResponse) {
 		l.pruneExpiredCompletionsLocked(time.Now())
 		ch, ok := l.pendingCallbacks[key]
 		if ok {
-			delete(l.pendingCallbacks, key)
+			l.forgetPendingCallbackLocked(key)
 			// Callback channels are buffered, so publishing while locked cannot
 			// block and ensures Stop cannot return before this delivery.
 			select {
@@ -1047,7 +1053,7 @@ func (l *DurableTaskListener) dispatchError(errResp *v1.DurableTaskErrorResponse
 	if !l.callbacksTerminal {
 		callbackCh, hasCallback := l.pendingCallbacks[cbKey]
 		if hasCallback {
-			delete(l.pendingCallbacks, cbKey)
+			l.forgetPendingCallbackLocked(cbKey)
 			select {
 			case callbackCh <- CallbackResult{Err: err}:
 			default:
@@ -1109,9 +1115,7 @@ func (l *DurableTaskListener) takeNewlyPendingCallbackKeys() []PendingCallbackKe
 
 	keys := make([]PendingCallbackKey, 0, len(l.newlyPendingCallbackKeys))
 	for key := range l.newlyPendingCallbackKeys {
-		if _, isStillPending := l.pendingCallbacks[key]; isStillPending {
-			keys = append(keys, key)
-		}
+		keys = append(keys, key)
 	}
 
 	clear(l.newlyPendingCallbackKeys)
@@ -1130,11 +1134,6 @@ func (l *DurableTaskListener) longPendingCallbackKeys(now time.Time) []PendingCa
 
 	keys := make([]PendingCallbackKey, 0)
 	for key, registeredAt := range l.pendingCallbackRegisteredAt {
-		if _, isStillPending := l.pendingCallbacks[key]; !isStillPending {
-			delete(l.pendingCallbackRegisteredAt, key)
-			continue
-		}
-
 		if !registeredAt.After(registeredBefore) {
 			keys = append(keys, key)
 		}

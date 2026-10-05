@@ -757,6 +757,11 @@ func TestPeriodicWorkerStatusSkipsRecentlyRegisteredCallbacks(t *testing.T) {
 		[]PendingCallbackKey{pendingKey},
 		h.listener.longPendingCallbackKeys(registeredAt.Add(time.Minute)),
 	)
+
+	h.listener.removePendingCallback(pendingKey)
+
+	assert.Empty(t, h.listener.pendingCallbackRegisteredAt)
+	assert.Empty(t, h.listener.newlyPendingCallbackKeys)
 }
 
 func TestWorkerStatusRequestsAreSplitByMaxEntries(t *testing.T) {
