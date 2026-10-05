@@ -20,6 +20,7 @@ V2 removes everything that was deprecated in V1 and tightens the types that were
 - String durations such as `"10s"`. `execution_timeout`, `schedule_timeout`, `ctx.refresh_timeout`, `ctx.aio_sleep_for`, and `SleepCondition` only accept a `timedelta`.
 - Integer priorities. Every `priority` and `default_priority` parameter and field only accepts a `Priority`.
 - `dict` values for `desired_worker_labels`, and integer `comparator` values on `DesiredWorkerLabel`. Use a `list[DesiredWorkerLabel]` and `WorkerLabelComparator`.
+- `dict` values for the `labels` argument to `hatchet.worker`. Use a `list[WorkerLabel]`.
 - Synchronous durable tasks. Declaring one raises a `TypeError`.
 - `ctx.step_run_id`, `ctx.workflow_input`, `ctx.input`, `ctx.done`, `ctx.exit_flag`, `ctx.aio_task_output`, `ctx.fetch_task_run_error`, and `ctx.worker`, along with the `WorkerContext` class. Use `ctx.task_run_id`, the task's `input` argument, `ctx.is_cancelled`, `ctx.task_output`, `ctx.get_task_run_error`, `ctx.worker_id`, `ctx.worker_labels`, and `ctx.upsert_worker_labels`.
 - The `raise_on_error` parameter on `ctx.log` and `ctx.aio_log`.
@@ -28,10 +29,11 @@ V2 removes everything that was deprecated in V1 and tightens the types that were
 - The `debug` and `client` parameters on the `Hatchet` constructor, and the internal `hatchet_sdk.client.Client` class. Set `HATCHET_CLIENT_DEBUG=true` and pass `config=ClientConfig(...)` instead.
 - The `hatchet.listener` and `hatchet.dispatcher` properties, and the `log`, `stream`, and `aio_stream` methods on the events client.
 - `runs.list_with_pagination` and `runs.aio_list_with_pagination`. `runs.list` and `runs.aio_list` now paginate internally.
-- `TaskRunRef.stream`. Use `hatchet.runs.aio_subscribe_to_stream(ref.workflow_run_id)`.
+- The `stream` method on `WorkflowRunRef` and `TaskRunRef`. Use `hatchet.runs.aio_subscribe_to_stream(ref.workflow_run_id)`.
+- The `create_traceparent`, `parse_carrier_from_metadata`, and `inject_traceparent_into_metadata` functions in `hatchet_sdk.opentelemetry.instrumentor`. `HatchetInstrumentor` has propagated the traceparent automatically since 1.11.0.
 - `WorkerStartOptions` and the `options` parameter on `Worker.start`, and `Worker.register_workflow_from_opts`.
 - Internal `Worker`, `Workflow`, and `Task` attributes, including `worker.config`, `worker.slot_config`, `worker.labels`, `worker.action_registry`, `workflow.config`, `workflow.client`, and `task.fn`.
-- The `WorkflowRunEventType` enum, which was never yielded by the listener.
+- The `StepRunEventType` and `WorkflowRunEventType` exports, and the `StepRunEvent` class. `runs.aio_subscribe_to_stream` yields plain `str` chunks, so there are no event types to match on.
 - The `event_timestamp` field on `Event` and its `eventTimestamp` and `additionalMetadata` aliases. Use `seen_at` and `additional_metadata`.
 - The `hatchet_sdk.labels` and `hatchet_sdk.rate_limit` module aliases.
 - Top-level `hatchet_sdk` exports of the V0 REST models, the pagination wrapper types, and `CreateWorkflowVersionOpts`. Import REST models from `hatchet_sdk.clients.rest.models`.
@@ -43,7 +45,6 @@ V2 removes everything that was deprecated in V1 and tightens the types that were
 - `hatchet.event` has been renamed to `hatchet.events`, and `hatchet.cron` has been renamed to `hatchet.crons`, consistent with the other (plural) feature clients.
 - `runs.subscribe_to_stream` has been renamed to `runs.aio_subscribe_to_stream`, consistent with the `aio_` prefix on every other async method.
 - `ConcurrencyExpression` has been renamed to `ConcurrencyStrategy`, and its `limit_strategy` field has been renamed to `strategy`.
-- `StepRunEvent` and `StepRunEventType` have been renamed to `TaskRunEvent` and `TaskRunEventType`, and the `STEP_RUN_EVENT_TYPE_` prefix has been dropped from the member names and values.
 - `TriggerWorkflowOptions.desired_worker_label` has been renamed to `desired_worker_labels` and only accepts a `list[DesiredWorkerLabel]`.
 - Every `list` and `aio_list` method on the feature clients returns a plain `list` instead of a paginated wrapper, so there is no `.rows` to unwrap.
 - `ctx.aio_wait_for` returns a `list[SleepResult | EventWaitResult | OrGroupResult]` instead of a `dict`, and `ctx.aio_wait_for_event` returns an `EventWaitResult` whose `.payload` holds the event data.
@@ -54,13 +55,13 @@ V2 removes everything that was deprecated in V1 and tightens the types that were
 - `Worker.register_workflow` now raises on registration failure instead of calling `sys.exit(1)`.
 - `HealthcheckConfig.event_loop_block_threshold_seconds` has been renamed to `event_loop_block_threshold`, and its environment variable to `HATCHET_CLIENT_WORKER_HEALTHCHECK_EVENT_LOOP_BLOCK_THRESHOLD`.
 - `ClientTLSConfig.strategy` is now typed as `Literal["tls", "mtls", "none"]`.
-- String-mixin enums (`RunStatus`, `TaskRunEventType`, `HTTPMethod`, `SlotType`, `OTelAttribute`, and others) are now `enum.StrEnum` subclasses, so `str(member)` returns the raw value.
+- String-mixin enums (`RunStatus`, `HTTPMethod`, `SlotType`, `OTelAttribute`, and others) are now `enum.StrEnum` subclasses, so `str(member)` returns the raw value.
 - `grpcio-tools` is no longer a runtime dependency.
 
 ### Added
 
 - `result` and `aio_result` on `WorkflowRunRef` and `TaskRunRef` accept an optional `timeout` (a `timedelta`) and raise `TimeoutError` when it elapses. `timeout` is the first positional parameter of `result`, so pass `poll_interval` by keyword.
-- `SleepResult`, `EventWaitResult`, `OrGroupResult`, `TaskRunEvent`, `TaskRunEventType`, `HTTPMethod`, `V1Event`, and `V1TaskSummary` are exported from `hatchet_sdk`.
+- `SleepResult`, `EventWaitResult`, `OrGroupResult`, `HTTPMethod`, `V1Event`, and `V1TaskSummary` are exported from `hatchet_sdk`.
 - `durable_task` decorators accept `slot_cost`, controlling how many durable slots the task consumes.
 - `hatchet.batch_task` accepts `on_events`, `on_crons`, `cron_input`, and `default_additional_metadata`, matching the other standalone task decorators.
 

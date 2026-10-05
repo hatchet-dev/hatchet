@@ -49,7 +49,7 @@ from hatchet_sdk.types.idempotency import (
     StatusBasedIdempotencyConfig,
     TTLBasedIdempotencyConfig,
 )
-from hatchet_sdk.types.labels import DesiredWorkerLabel
+from hatchet_sdk.types.labels import DesiredWorkerLabel, WorkerLabel
 from hatchet_sdk.types.priority import Priority
 from hatchet_sdk.types.rate_limit import RateLimit
 from hatchet_sdk.utils.slots import normalize_slot_config, resolve_worker_slot_config
@@ -270,7 +270,7 @@ class Hatchet:
         name: str,
         slots: int | None = None,
         durable_slots: int | None = None,
-        labels: dict[str, str | int] | None = None,
+        labels: list[WorkerLabel] | None = None,
         workflows: list[BaseWorkflow[Any]] | None = None,
         lifespan: LifespanFn | None = None,
     ) -> Worker:
@@ -280,7 +280,7 @@ class Hatchet:
         :param name: The name of the worker.
         :param slots: slot count for standard tasks.
         :param durable_slots: slot count for durable tasks.
-        :param labels: A dictionary of labels to assign to the worker. For more details, view examples on affinity and worker labels.
+        :param labels: A list of labels to assign to the worker. For more details, view examples on affinity and worker labels.
         :param workflows: A list of workflows to register on the worker, as a shorthand for calling `register_workflow` on each or `register_workflows` on all of them.
         :param lifespan: A lifespan function to run on the worker. This function will be called when the worker is started, and can be used to perform any setup or teardown tasks.
 

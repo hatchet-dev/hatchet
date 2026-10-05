@@ -78,7 +78,7 @@ Parameters:
 | `name`          | `str`                             | The name of the worker.                                                                                                                                    | _required_ |
 | `slots`         | `int \| None`                     | slot count for standard tasks.                                                                                                                             | `None`     |
 | `durable_slots` | `int \| None`                     | slot count for durable tasks.                                                                                                                              | `None`     |
-| `labels`        | `dict[str, str \| int] \| None`   | A dictionary of labels to assign to the worker. For more details, view examples on affinity and worker labels.                                             | `None`     |
+| `labels`        | `list[WorkerLabel] \| None`       | A list of labels to assign to the worker. For more details, view examples on affinity and worker labels.                                                   | `None`     |
 | `workflows`     | `list[BaseWorkflow[Any]] \| None` | A list of workflows to register on the worker, as a shorthand for calling `register_workflow` on each or `register_workflows` on all of them.              | `None`     |
 | `lifespan`      | `LifespanFn \| None`              | A lifespan function to run on the worker. This function will be called when the worker is started, and can be used to perform any setup or teardown tasks. | `None`     |
 

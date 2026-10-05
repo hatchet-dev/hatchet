@@ -37,12 +37,7 @@ class WorkflowRunRef:
     def workflow_run_id(self) -> str:
         return self._workflow_run_id
 
-    def stream(self) -> RunEventListener:
-        """
-        Subscribe to the events emitted by the run, such as stream chunks sent via `ctx.put_stream` and run state changes.
-
-        :return: A `RunEventListener` which can be iterated over asynchronously, yielding a `TaskRunEvent` per event.
-        """
+    def _stream(self) -> RunEventListener:
         return self._workflow_run_event_listener.stream(self.workflow_run_id)
 
     async def aio_result(

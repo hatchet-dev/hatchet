@@ -78,7 +78,7 @@ class Worker:
         name: str,
         config: ClientConfig,
         slot_config: dict[str, int],
-        labels: dict[str, str | int] | None = None,
+        labels: list[WorkerLabel] | None = None,
         handle_kill: bool = True,
         workflows: list[BaseWorkflow[Any]] | None = None,
         lifespan: LifespanFn | None = None,
@@ -89,9 +89,7 @@ class Worker:
         self._slots = slot_config.get("default", 0)
         self._durable_slots = slot_config.get("durable", 0)
 
-        self._labels = (
-            [WorkerLabel(key=k, value=v) for k, v in labels.items()] if labels else []
-        )
+        self._labels = labels or []
 
         self._handle_kill = handle_kill
 

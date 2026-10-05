@@ -15,11 +15,7 @@ from hatchet_sdk.clients.admin import (
     RunStatus,
 )
 from hatchet_sdk.clients.events import Event
-from hatchet_sdk.clients.listeners.run_event_listener import (
-    RunEventListener,
-    TaskRunEvent,
-    TaskRunEventType,
-)
+from hatchet_sdk.clients.listeners.run_event_listener import RunEventListener
 from hatchet_sdk.clients.rest.models.v1_event import V1Event
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
@@ -152,8 +148,6 @@ __all__ = [
     "Task",
     "TaskDefaults",
     "TaskRunError",
-    "TaskRunEvent",
-    "TaskRunEventType",
     "TaskRunRef",
     "TenacityConfig",
     "TriggerWorkflowOptions",

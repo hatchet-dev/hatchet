@@ -145,13 +145,6 @@ InstrumentKwargs = TracerProvider | MeterProvider | None
 OTEL_TRACEPARENT_KEY = "traceparent"
 
 
-def create_traceparent() -> str | None:
-    logger.warning(
-        "as of SDK version 1.11.0, you no longer need to call `create_traceparent` manually. The traceparent will be automatically created by the instrumentor and injected into the metadata of actions and events when appropriate. This method will be removed in a future version.",
-    )
-    return _create_traceparent()
-
-
 def _create_traceparent() -> str | None:
     """
     Creates and returns a W3C traceparent header value using OpenTelemetry's context propagation.
@@ -175,16 +168,6 @@ def _create_traceparent_from_span(span: ApiSpan) -> str | None:
     carrier: dict[str, str] = {}
     TraceContextTextMapPropagator().inject(carrier, context=set_span_in_context(span))
     return carrier.get(OTEL_TRACEPARENT_KEY)
-
-
-def parse_carrier_from_metadata(
-    metadata: JSONSerializableMapping | None,
-) -> Context | None:
-    logger.warning(
-        "as of SDK version 1.11.0, you no longer need to call `parse_carrier_from_metadata` manually. This method will be removed in a future version.",
-    )
-
-    return _parse_carrier_from_metadata(metadata)
 
 
 def _parse_carrier_from_metadata(
@@ -217,16 +200,6 @@ def _parse_carrier_from_metadata(
         return None
 
     return TraceContextTextMapPropagator().extract({OTEL_TRACEPARENT_KEY: traceparent})
-
-
-def inject_traceparent_into_metadata(
-    metadata: dict[str, str], traceparent: str | None = None
-) -> dict[str, str]:
-    logger.warning(
-        "as of SDK version 1.11.0, you no longer need to call `inject_traceparent_into_metadata` manually. The traceparent will automatically be injected by the instrumentor. This method will be removed in a future version.",
-    )
-
-    return _inject_traceparent_into_metadata(metadata, traceparent)
 
 
 def _inject_traceparent_into_metadata(

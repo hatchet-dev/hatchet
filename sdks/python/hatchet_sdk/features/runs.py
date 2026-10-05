@@ -754,7 +754,7 @@ class RunsClient(BaseRestClient):
         """
         ref = self.get_run_ref(workflow_run_id=workflow_run_id)
 
-        async for chunk in ref.stream():
+        async for chunk in ref._stream():
             if chunk.type == TaskRunEventType.STREAM:
                 yield chunk.payload
 

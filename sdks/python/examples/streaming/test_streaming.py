@@ -5,7 +5,6 @@ import pytest
 
 from examples.streaming.worker import chunks, stream_task
 from hatchet_sdk import Hatchet
-from hatchet_sdk import TaskRunEventType
 
 
 @pytest.mark.parametrize(

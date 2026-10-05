@@ -43,10 +43,10 @@ def main() -> None:
     worker = hatchet.worker(
         "affinity-worker",
         slots=10,
-        labels={
-            "model": "fancy-ai-model-v2",
-            "memory": 512,
-        },
+        labels=[
+            WorkerLabel(key="model", value="fancy-ai-model-v2"),
+            WorkerLabel(key="memory", value=512),
+        ],
         workflows=[affinity_worker_workflow],
     )
     worker.start()
