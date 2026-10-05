@@ -115,5 +115,5 @@ func (r *optimisticSchedulingRepositoryImpl) TriggerFromNames(ctx context.Contex
 }
 
 func (r *optimisticSchedulingRepositoryImpl) MarkQueueItemsProcessed(ctx context.Context, tx *OptimisticTx, tenantId uuid.UUID, r2 *AssignResults) (succeeded []*AssignedItem, failed []*AssignedItem, err error) {
-	return r.markQueueItemsProcessed(ctx, tenantId, r2, tx.tx, true)
+	return r.markQueueItemsProcessed(ctx, tenantId, r2, tx.tx)
 }

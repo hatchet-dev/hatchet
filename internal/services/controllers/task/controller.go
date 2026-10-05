@@ -1318,6 +1318,12 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 		eventIdToOpts[msg.EventExternalId] = opt
 	}
 
+	// every event in the batch was already triggered by the ingestor: TriggerFromEvents
+	// would open a transaction and run the whole trigger lookup for zero events
+	if len(eventIdToOpts) == 0 {
+		return nil
+	}
+
 	return tc.tw.TriggerFromEvents(ctx, tenantId, eventIdToOpts)
 }
 

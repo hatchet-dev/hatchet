@@ -22,6 +22,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/authz"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
 	"github.com/hatchet-dev/hatchet/internal/cel"
@@ -86,7 +87,7 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 	}
 
 	if isChallenge {
-		res, err := transformers.ToV1WebhookResponse(nil, challengeResponse, nil)
+		res, err := transformers.ToV1WebhookResponse(nil, challengeResponse, nil, transformers.WithPayloads(authz.CanViewPayloads(ctx)))
 		if err != nil {
 			return nil, fmt.Errorf("failed to transform response: %w", err)
 		}
@@ -331,6 +332,8 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 			}, nil
 		}
 
+		w.config.Logger.Err(err).Str("webhook", webhookName).Str("tenant", tenantId.String()).Msg("failed to ingest event on webhook receive")
+
 		return nil, fmt.Errorf("failed to ingest event")
 	}
 
@@ -338,7 +341,7 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 		return gen.V1WebhookReceive204Response{}, nil
 	}
 
-	res, err := transformers.ToV1WebhookResponse(repository.StringPtr("ok"), nil, ev)
+	res, err := transformers.ToV1WebhookResponse(repository.StringPtr("ok"), nil, ev, transformers.WithPayloads(authz.CanViewPayloads(ctx)))
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to transform response: %w", err)

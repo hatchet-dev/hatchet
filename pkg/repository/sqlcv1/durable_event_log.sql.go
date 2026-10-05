@@ -989,37 +989,54 @@ func (q *Queries) ListDurableEventLogForTask(ctx context.Context, db DBTX, arg L
 }
 
 const listSatisfiedEntries = `-- name: ListSatisfiedEntries :many
-WITH inputs AS (
+WITH inputs AS MATERIALIZED (
     SELECT
-        UNNEST($1::UUID[]) AS external_id,
-        UNNEST($2::BIGINT[]) AS node_id,
-        UNNEST($3::BIGINT[]) AS branch_id
-), tasks_with_nodes AS (
-    SELECT t.id, t.inserted_at, t.tenant_id, t.queue, t.action_id, t.step_id, t.step_readable_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.external_id, t.display_name, t.input, t.retry_count, t.internal_retry_count, t.app_retry_count, t.step_index, t.additional_metadata, t.dag_id, t.dag_inserted_at, t.parent_task_external_id, t.parent_task_id, t.parent_task_inserted_at, t.child_index, t.child_key, t.initial_state, t.initial_state_reason, t.concurrency_parent_strategy_ids, t.concurrency_strategy_ids, t.concurrency_keys, t.batch_key, t.retry_backoff_factor, t.retry_max_backoff, t.is_durable, t.desired_worker_label, t.triggering_event_external_id, t.triggering_event_key, t.idempotency_key, t.is_dag_orchestrator, t.concurrency_max_runs, i.node_id AS requested_node_id, i.branch_id AS requested_branch_id
+        UNNEST($3::UUID[]) AS external_id,
+        UNNEST($4::BIGINT[]) AS node_id,
+        UNNEST($5::BIGINT[]) AS branch_id
+), tasks AS MATERIALIZED (
+    SELECT
+        i.external_id AS external_id,
+        i.node_id AS node_id,
+        i.branch_id AS branch_id,
+        lt.task_id,
+        lt.inserted_at
     FROM inputs i
     JOIN v1_lookup_table lt ON lt.external_id = i.external_id
-    JOIN v1_task t ON (t.id, t.inserted_at) = (lt.task_id, lt.inserted_at)
-    WHERE lt.tenant_id = $4::UUID
+    WHERE lt.tenant_id = $6::UUID
+), satisfied_entries AS MATERIALIZED (
+    SELECT
+        e.tenant_id, e.external_id, e.result_payload_external_id, e.child_task_external_id, e.child_task_is_failure, e.child_task_error_message, e.inserted_at, e.id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.branch_id, e.idempotency_key, e.is_satisfied, e.satisfied_at, e.satisfied_order, e.user_message, e.wait_data, e.triggered_at,
+        t.external_id::UUID AS task_external_id
+    FROM tasks t
+    JOIN v1_durable_event_log_entry e
+        ON e.durable_task_id = t.task_id
+        AND e.durable_task_inserted_at = t.inserted_at
+        AND e.branch_id = t.branch_id
+        AND e.node_id = t.node_id
+    WHERE
+        e.is_satisfied
+        AND e.durable_task_inserted_at >= $1::TIMESTAMPTZ
+        AND e.durable_task_inserted_at <= $2::TIMESTAMPTZ
 )
 
 SELECT
-    e.tenant_id, e.external_id, e.result_payload_external_id, e.child_task_external_id, e.child_task_is_failure, e.child_task_error_message, e.inserted_at, e.id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.branch_id, e.idempotency_key, e.is_satisfied, e.satisfied_at, e.satisfied_order, e.user_message, e.wait_data, e.triggered_at,
-    twn.external_id AS task_external_id,
+    s.tenant_id, s.external_id, s.result_payload_external_id, s.child_task_external_id, s.child_task_is_failure, s.child_task_error_message, s.inserted_at, s.id, s.durable_task_id, s.durable_task_inserted_at, s.kind, s.node_id, s.branch_id, s.idempotency_key, s.is_satisfied, s.satisfied_at, s.satisfied_order, s.user_message, s.wait_data, s.triggered_at, s.task_external_id,
     lf.latest_invocation_count AS invocation_count
-FROM v1_durable_event_log_entry e
-JOIN tasks_with_nodes twn ON (twn.id, twn.inserted_at) = (e.durable_task_id, e.durable_task_inserted_at)
-JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_inserted_at) = (e.durable_task_id, e.durable_task_inserted_at)
+FROM satisfied_entries s
+JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_inserted_at) = (s.durable_task_id, s.durable_task_inserted_at)
 WHERE
-    e.branch_id = twn.requested_branch_id
-    AND e.node_id = twn.requested_node_id
-    AND e.is_satisfied
+    lf.durable_task_inserted_at >= $1::TIMESTAMPTZ
+    AND lf.durable_task_inserted_at <= $2::TIMESTAMPTZ
 `
 
 type ListSatisfiedEntriesParams struct {
-	Taskexternalids []uuid.UUID `json:"taskexternalids"`
-	Nodeids         []int64     `json:"nodeids"`
-	Branchids       []int64     `json:"branchids"`
-	Tenantid        uuid.UUID   `json:"tenantid"`
+	Mintaskinsertedat pgtype.Timestamptz `json:"mintaskinsertedat"`
+	Maxtaskinsertedat pgtype.Timestamptz `json:"maxtaskinsertedat"`
+	Taskexternalids   []uuid.UUID        `json:"taskexternalids"`
+	Nodeids           []int64            `json:"nodeids"`
+	Branchids         []int64            `json:"branchids"`
+	Tenantid          uuid.UUID          `json:"tenantid"`
 }
 
 type ListSatisfiedEntriesRow struct {
@@ -1049,6 +1066,8 @@ type ListSatisfiedEntriesRow struct {
 
 func (q *Queries) ListSatisfiedEntries(ctx context.Context, db DBTX, arg ListSatisfiedEntriesParams) ([]*ListSatisfiedEntriesRow, error) {
 	rows, err := db.Query(ctx, listSatisfiedEntries,
+		arg.Mintaskinsertedat,
+		arg.Maxtaskinsertedat,
 		arg.Taskexternalids,
 		arg.Nodeids,
 		arg.Branchids,
@@ -1156,17 +1175,6 @@ WITH inputs AS (
         UNNEST($4::BIGINT[]) AS branch_id,
         UNNEST($5::BOOLEAN[]) AS child_task_is_failure,
         UNNEST($6::TEXT[]) AS child_task_error_message
-), locked_log_files AS (
-    SELECT tenant_id, durable_task_id, durable_task_inserted_at, latest_invocation_count, latest_inserted_at, latest_node_id, latest_branch_id, latest_satisfied_order
-    FROM v1_durable_event_log_file
-    WHERE
-        (durable_task_id, durable_task_inserted_at) IN (
-            SELECT durable_task_id, durable_task_inserted_at
-            FROM inputs
-        )
-        AND durable_task_inserted_at >= $7::TIMESTAMPTZ
-    ORDER BY durable_task_id, durable_task_inserted_at
-    FOR UPDATE
 ), satisfied_orders_to_apply AS (
     SELECT
         e.durable_task_id,
@@ -1178,10 +1186,11 @@ WITH inputs AS (
             ORDER BY e.branch_id ASC, e.node_id ASC
         ) AS satisfied_order
     FROM v1_durable_event_log_entry e
-    JOIN locked_log_files llf USING (durable_task_id, durable_task_inserted_at)
+    JOIN v1_durable_event_log_file llf USING (durable_task_id, durable_task_inserted_at)
     WHERE
         e.satisfied_order IS NULL
         AND e.durable_task_inserted_at >= $7::TIMESTAMPTZ
+        AND llf.durable_task_inserted_at >= $7::TIMESTAMPTZ
         AND (durable_task_id, durable_task_inserted_at, branch_id, node_id) IN (
             SELECT durable_task_id, durable_task_inserted_at, branch_id, node_id
             FROM inputs
@@ -1214,7 +1223,7 @@ WITH inputs AS (
 
 SELECT updated.tenant_id, updated.external_id, updated.result_payload_external_id, updated.child_task_external_id, updated.child_task_is_failure, updated.child_task_error_message, updated.inserted_at, updated.id, updated.durable_task_id, updated.durable_task_inserted_at, updated.kind, updated.node_id, updated.branch_id, updated.idempotency_key, updated.is_satisfied, updated.satisfied_at, updated.satisfied_order, updated.user_message, updated.wait_data, updated.triggered_at, llf.latest_invocation_count AS invocation_count
 FROM updated
-JOIN locked_log_files llf ON (llf.durable_task_id, llf.durable_task_inserted_at) = (updated.durable_task_id, updated.durable_task_inserted_at)
+JOIN v1_durable_event_log_file llf ON (llf.durable_task_id, llf.durable_task_inserted_at) = (updated.durable_task_id, updated.durable_task_inserted_at)
 `
 
 type UpdateDurableEventLogEntriesSatisfiedParams struct {

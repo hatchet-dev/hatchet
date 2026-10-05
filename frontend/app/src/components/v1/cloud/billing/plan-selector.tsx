@@ -1,3 +1,4 @@
+import { isPayAsYouGoPlanCode } from './subscription-plan-code';
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
 import {
@@ -22,7 +23,6 @@ interface PlanSelectorProps {
   activePlanCode: string;
   activePlanAmountCents?: number;
   upcomingPlanCode: string | null;
-  showAnnual: boolean;
   onSelectPlan: (plan: SubscriptionPlan) => void;
   enterpriseContactUrl: string;
   loading?: string;
@@ -62,7 +62,6 @@ export function PlanSelector({
   activePlanCode,
   activePlanAmountCents,
   upcomingPlanCode,
-  showAnnual,
   onSelectPlan,
   enterpriseContactUrl,
   loading,
@@ -79,24 +78,13 @@ export function PlanSelector({
   const plans = plansQuery.data?.plans;
 
   const sortedPlans = useMemo(() => {
-    const nonLegacy = plans?.filter((v) => !v.legacy && v.planCode !== 'free');
-
-    const hasYearlyVariant = (planCode: string) =>
-      nonLegacy?.some(
-        (p) =>
-          p.planCode.startsWith(planCode.split('_')[0]) &&
-          p.period?.includes('yearly'),
-      );
-
-    return nonLegacy
-      ?.filter((v) => {
-        if (showAnnual) {
-          return v.period?.includes('yearly') || !hasYearlyVariant(v.planCode);
-        }
-        return v.period?.includes('monthly') || !v.period;
-      })
+    return plans
+      ?.filter(
+        (v) =>
+          !v.legacy && v.planCode !== 'free' && v.planCode !== activePlanCode,
+      )
       .sort((a, b) => a.amountCents - b.amountCents);
-  }, [plans, showAnnual]);
+  }, [plans, activePlanCode]);
 
   const isUpgrade = useCallback(
     (plan: SubscriptionPlan) => {
@@ -119,11 +107,19 @@ export function PlanSelector({
     );
   }
 
+  const cardCount = (visiblePlans?.length ?? 0) + 1;
+
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div
+      className={`grid grid-cols-1 gap-4 ${
+        cardCount > 1 ? 'lg:grid-cols-5' : ''
+      }`}
+    >
       {visiblePlans?.map((plan) => {
         const isActive = plan.planCode === activePlanCode;
         const isUpcoming = plan.planCode === upcomingPlanCode;
+        const usageBased =
+          isPayAsYouGoPlanCode(plan.planCode) || plan.amountCents === 0;
         const hasCoupon = activeCoupon && plan.amountCents > 0;
         const discountedCents = hasCoupon
           ? applyCoupon(plan.amountCents, activeCoupon)
@@ -132,7 +128,13 @@ export function PlanSelector({
           <PlanCard
             key={plan.planCode}
             name={plan.name}
-            price={formatCurrency(discountedCents, plan.period)}
+            price={
+              usageBased
+                ? undefined
+                : formatCurrency(discountedCents, plan.period)
+            }
+            usageBased={usageBased}
+            recommended={usageBased}
             originalPrice={
               hasCoupon && discountedCents !== plan.amountCents
                 ? formatCurrency(plan.amountCents, plan.period)
@@ -143,7 +145,6 @@ export function PlanSelector({
                 ? couponLabel(activeCoupon)
                 : undefined
             }
-            showAnnual={showAnnual}
             featureGroups={plan.featureGroups}
             isUpgrade={isUpgrade(plan)}
             isActive={isActive}
@@ -151,21 +152,28 @@ export function PlanSelector({
             isLoading={loading === plan.planCode}
             onSelect={() => onSelectPlan(plan)}
             selectLabel={selectLabel}
+            buttonLabel={usageBased ? 'Upgrade to Pay as you Go' : undefined}
+            className={cardCount > 1 ? 'lg:col-span-3' : undefined}
           />
         );
       })}
       <PlanCard
-        name="Enterprise"
+        name="Custom"
         description="Have technical or compliance requirements?"
         enterpriseHighlights={[
-          '100M+ runs per month',
+          'Volume usage discounts',
           'Custom SLAs & uptime guarantees',
           'Dedicated support & onboarding',
           'SSO & audit logging',
+          'Prometheus metrics',
+          'HIPAA & BAAs',
+          'VPC peering',
           'Bring your own cloud',
         ]}
         onSelect={() => window.open(enterpriseContactUrl, '_blank')}
-        buttonLabel="Contact Us"
+        buttonLabel="Schedule a Sales Call"
+        secondary
+        className={cardCount > 1 ? 'lg:col-span-2' : undefined}
       />
     </div>
   );
@@ -176,7 +184,6 @@ function PlanCard({
   price,
   originalPrice,
   couponBadge,
-  showAnnual,
   description,
   featureGroups,
   enterpriseHighlights,
@@ -187,12 +194,15 @@ function PlanCard({
   onSelect,
   buttonLabel,
   selectLabel,
+  usageBased,
+  recommended,
+  secondary,
+  className,
 }: {
   name: string;
   price?: string;
   originalPrice?: string;
   couponBadge?: string;
-  showAnnual?: boolean;
   description?: string;
   featureGroups?: SubscriptionPlanFeatureGroup[];
   enterpriseHighlights?: string[];
@@ -203,22 +213,42 @@ function PlanCard({
   onSelect: () => void;
   buttonLabel?: string;
   selectLabel?: string;
+  usageBased?: boolean;
+  recommended?: boolean;
+  secondary?: boolean;
+  className?: string;
 }) {
   return (
     <Card
       variant="light"
       className={`bg-transparent ring-1 border-none flex flex-col ${
-        isActive ? 'ring-primary' : 'ring-border/50'
-      }`}
+        isActive || recommended ? 'ring-primary' : 'ring-border/50'
+      } ${className ?? ''}`}
     >
       <CardHeader className="p-4 border-b border-border/50">
-        <CardTitle className="font-mono font-normal tracking-wider uppercase text-xs text-muted-foreground">
-          {name}
-        </CardTitle>
+        <div className="flex items-center justify-between gap-2">
+          <CardTitle className="font-mono font-normal tracking-wider uppercase text-xs text-muted-foreground">
+            {name}
+          </CardTitle>
+          {recommended ? (
+            <Badge variant="successful" className="text-[10px]">
+              Recommended
+            </Badge>
+          ) : null}
+        </div>
       </CardHeader>
       <CardContent className="p-4 flex flex-col flex-1 gap-4">
         <div>
-          {price ? (
+          {usageBased ? (
+            <div className="space-y-1">
+              <p className="text-xl font-semibold text-foreground">
+                Pay only for what you use
+              </p>
+              <p className="text-sm text-muted-foreground">
+                No monthly fee. Usage billed monthly.
+              </p>
+            </div>
+          ) : price ? (
             <>
               {originalPrice && (
                 <span className="text-sm text-muted-foreground line-through mr-2">
@@ -229,7 +259,7 @@ function PlanCard({
                 {price}
               </span>
               <span className="text-xs text-muted-foreground ml-1">
-                / mo {!showAnnual ? ' + usage' : ''}
+                / mo + usage
               </span>
               {couponBadge && (
                 <Badge
@@ -238,11 +268,6 @@ function PlanCard({
                 >
                   {couponBadge}
                 </Badge>
-              )}
-              {showAnnual && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  billed yearly + usage billed monthly
-                </p>
               )}
             </>
           ) : (
@@ -303,29 +328,38 @@ function PlanCard({
           </div>
         )}
 
-        <Button
-          variant={
-            isActive || isUpcoming
-              ? 'outline'
-              : isUpgrade
-                ? 'default'
-                : 'outline'
-          }
-          size="sm"
-          disabled={isActive || isUpcoming || isLoading}
-          onClick={onSelect}
-          className="w-full mt-auto"
-        >
-          {isLoading ? (
-            <Spinner />
-          ) : isActive ? (
-            'Current Plan'
-          ) : isUpcoming ? (
-            'Upcoming Plan'
-          ) : (
-            buttonLabel || selectLabel || (isUpgrade ? 'Upgrade' : 'Downgrade')
-          )}
-        </Button>
+        <div className="mt-auto space-y-2">
+          <Button
+            variant={
+              isActive || isUpcoming || secondary
+                ? 'outline'
+                : isUpgrade || usageBased
+                  ? 'default'
+                  : 'outline'
+            }
+            size="sm"
+            disabled={isActive || isUpcoming || isLoading}
+            onClick={onSelect}
+            className="w-full"
+          >
+            {isLoading ? (
+              <Spinner />
+            ) : isActive ? (
+              'Current Plan'
+            ) : isUpcoming ? (
+              'Upcoming Plan'
+            ) : (
+              buttonLabel ||
+              selectLabel ||
+              (isUpgrade ? 'Upgrade' : 'Downgrade')
+            )}
+          </Button>
+          {usageBased ? (
+            <p className="text-center text-xs text-muted-foreground">
+              No monthly fee. Usage billed monthly. Cancel anytime.
+            </p>
+          ) : null}
+        </div>
       </CardContent>
     </Card>
   );

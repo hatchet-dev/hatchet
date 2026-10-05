@@ -295,6 +295,10 @@ func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) error {
 		return migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "rewrite v1_0_153 goose version", err)
 	}
 
+	if err := rewriteV1_0_160GooseVersion(ctx, conn); err != nil {
+		return migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "rewrite v1_0_160 goose version", err)
+	}
+
 	err = locker.SessionUnlock(ctx, conn)
 
 	if err != nil {
@@ -382,6 +386,20 @@ SET version_id = 20260910122311
 WHERE version_id = 202609101223115
   AND NOT EXISTS (
       SELECT 1 FROM goose_db_version g2 WHERE g2.version_id = 20260910122311
+  )
+`)
+	return err
+}
+
+// rewriteV1_0_160GooseVersion remaps the future-dated version 160 originally
+// shipped under so later migrations are not treated as missing before it.
+func rewriteV1_0_160GooseVersion(ctx context.Context, conn *sql.Conn) error {
+	_, err := conn.ExecContext(ctx, `
+UPDATE goose_db_version
+SET version_id = 20261002182802
+WHERE version_id = 20261031153238
+  AND NOT EXISTS (
+      SELECT 1 FROM goose_db_version g2 WHERE g2.version_id = 20261002182802
   )
 `)
 	return err
@@ -536,6 +554,10 @@ func runDownMigrationImpl(ctx context.Context, targetVersion string, l *zerolog.
 
 	if err := rewriteV1_0_153GooseVersion(ctx, conn); err != nil {
 		return migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "rewrite v1_0_153 goose version", err)
+	}
+
+	if err := rewriteV1_0_160GooseVersion(ctx, conn); err != nil {
+		return migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "rewrite v1_0_160 goose version", err)
 	}
 
 	fsys, err := fs.Sub(embedMigrations, "migrations")

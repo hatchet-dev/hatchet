@@ -9,12 +9,138 @@ import (
 	"context"
 	"errors"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 var (
 	ErrBatchAlreadyClosed = errors.New("batch already closed")
 )
+
+const insertOrderedStreamMessage = `-- name: InsertOrderedStreamMessage :batchone
+WITH latest AS (
+    SELECT bucket, last_seq
+    FROM v1_stream_producer_cursor
+    WHERE tenant_id = $1::uuid AND namespace = $2::text AND topic = $3::text AND producer_id = $4::text
+        AND bucket >= $5::date
+    ORDER BY bucket DESC
+    LIMIT 1
+), cas AS (
+    UPDATE v1_stream_producer_cursor c
+    SET last_seq = $6::bigint
+    FROM latest
+    WHERE c.tenant_id = $1::uuid AND c.namespace = $2::text AND c.topic = $3::text AND c.producer_id = $4::text
+        AND c.bucket = latest.bucket
+        AND c.bucket >= $5::date
+        -- computed by the caller as producerSeq - 1 so sqlc binds one plain parameter
+        AND c.last_seq = $7::bigint
+    RETURNING c.bucket
+), first_message AS (
+    -- only seq 0 may create a producer's first row, so a reordered seq>0 can't claim it
+    INSERT INTO v1_stream_producer_cursor (tenant_id, namespace, topic, producer_id, bucket, last_seq)
+    SELECT $1::uuid, $2::text, $3::text, $4::text, (NOW() AT TIME ZONE 'UTC')::date, $6::bigint
+    WHERE $6::bigint = 0 AND NOT EXISTS (SELECT 1 FROM latest)
+    ON CONFLICT DO NOTHING
+    RETURNING 1
+), carried_forward AS (
+    INSERT INTO v1_stream_producer_cursor (tenant_id, namespace, topic, producer_id, bucket, last_seq)
+    SELECT $1::uuid, $2::text, $3::text, $4::text, (NOW() AT TIME ZONE 'UTC')::date, $6::bigint
+    FROM cas
+    WHERE cas.bucket < (NOW() AT TIME ZONE 'UTC')::date
+    ON CONFLICT (tenant_id, namespace, topic, producer_id, bucket) DO UPDATE
+    SET last_seq = GREATEST(v1_stream_producer_cursor.last_seq, EXCLUDED.last_seq)
+), applied AS (
+    SELECT 1 FROM cas
+    UNION ALL
+    SELECT 1 FROM first_message
+), inserted_row AS (
+    INSERT INTO v1_stream_message (id, tenant_id, namespace, topic, payload, producer_id, producer_seq)
+    -- the offset reserved for this message by ReserveStreamTopicOffsets
+    SELECT $8::bigint, $1::uuid, $2::text, $3::text, $9::bytea, $4::text, $6::bigint
+    WHERE EXISTS (SELECT 1 FROM applied)
+    RETURNING 1
+)
+SELECT
+    EXISTS (SELECT 1 FROM inserted_row) AS inserted,
+    latest.last_seq AS current_last_seq
+FROM (SELECT 1) AS one
+LEFT JOIN latest ON true
+`
+
+type InsertOrderedStreamMessageBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type InsertOrderedStreamMessageParams struct {
+	Tenantid        uuid.UUID   `json:"tenantid"`
+	Namespace       string      `json:"namespace"`
+	Topic           string      `json:"topic"`
+	Producerid      string      `json:"producerid"`
+	Minbucket       pgtype.Date `json:"minbucket"`
+	Producerseq     int64       `json:"producerseq"`
+	Expectedprevseq int64       `json:"expectedprevseq"`
+	Messageoffset   int64       `json:"messageoffset"`
+	Payload         []byte      `json:"payload"`
+}
+
+type InsertOrderedStreamMessageRow struct {
+	Inserted       bool        `json:"inserted"`
+	CurrentLastSeq pgtype.Int8 `json:"current_last_seq"`
+}
+
+// Inserts the message only if producer_seq is one past the producer's
+// watermark: its row in the latest bucket, compare-and-swapped so concurrent
+// attempts serialize on one row lock. A day's first write copies the
+// watermark into today's bucket, so an active producer outlives cursor
+// retention. Reading only from @minBucket keeps planning to retained
+// partitions; an older watermark counts as none. current_last_seq is the
+// watermark (NULL if none), telling a gap from a duplicate.
+// a LEFT JOIN rather than a scalar subquery so sqlc infers current_last_seq as nullable
+func (q *Queries) InsertOrderedStreamMessage(ctx context.Context, db DBTX, arg []InsertOrderedStreamMessageParams) *InsertOrderedStreamMessageBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.Tenantid,
+			a.Namespace,
+			a.Topic,
+			a.Producerid,
+			a.Minbucket,
+			a.Producerseq,
+			a.Expectedprevseq,
+			a.Messageoffset,
+			a.Payload,
+		}
+		batch.Queue(insertOrderedStreamMessage, vals...)
+	}
+	br := db.SendBatch(ctx, batch)
+	return &InsertOrderedStreamMessageBatchResults{br, len(arg), false}
+}
+
+func (b *InsertOrderedStreamMessageBatchResults) QueryRow(f func(int, *InsertOrderedStreamMessageRow, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		var i InsertOrderedStreamMessageRow
+		if b.closed {
+			if f != nil {
+				f(t, nil, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		row := b.br.QueryRow()
+		err := row.Scan(&i.Inserted, &i.CurrentLastSeq)
+		if f != nil {
+			f(t, &i, err)
+		}
+	}
+}
+
+func (b *InsertOrderedStreamMessageBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}
 
 const registerBatch = `-- name: RegisterBatch :batchexec
 SELECT id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, batch_key, retry_backoff_factor, retry_max_backoff, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key, idempotency_key, is_dag_orchestrator, concurrency_max_runs FROM v1_task WHERE id = $1
@@ -57,6 +183,68 @@ func (b *RegisterBatchBatchResults) Exec(f func(int, error)) {
 }
 
 func (b *RegisterBatchBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}
+
+const reserveStreamTopicOffsets = `-- name: ReserveStreamTopicOffsets :batchone
+INSERT INTO v1_stream_topic (tenant_id, namespace, topic, last_offset)
+VALUES ($1::uuid, $2::text, $3::text, $4::bigint)
+ON CONFLICT (tenant_id, namespace, topic) DO UPDATE
+SET last_offset = v1_stream_topic.last_offset + EXCLUDED.last_offset, last_published_at = NOW()
+RETURNING last_offset
+`
+
+type ReserveStreamTopicOffsetsBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type ReserveStreamTopicOffsetsParams struct {
+	Tenantid  uuid.UUID `json:"tenantid"`
+	Namespace string    `json:"namespace"`
+	Topic     string    `json:"topic"`
+	Count     int64     `json:"count"`
+}
+
+// Reserves @count offsets and returns the last. The row lock is held until
+// commit, so offsets become visible in order. A topic the idle sweep removed
+// restarts at 1, safe since all its messages had passed retention.
+func (q *Queries) ReserveStreamTopicOffsets(ctx context.Context, db DBTX, arg []ReserveStreamTopicOffsetsParams) *ReserveStreamTopicOffsetsBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.Tenantid,
+			a.Namespace,
+			a.Topic,
+			a.Count,
+		}
+		batch.Queue(reserveStreamTopicOffsets, vals...)
+	}
+	br := db.SendBatch(ctx, batch)
+	return &ReserveStreamTopicOffsetsBatchResults{br, len(arg), false}
+}
+
+func (b *ReserveStreamTopicOffsetsBatchResults) QueryRow(f func(int, int64, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		var last_offset int64
+		if b.closed {
+			if f != nil {
+				f(t, last_offset, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		row := b.br.QueryRow()
+		err := row.Scan(&last_offset)
+		if f != nil {
+			f(t, last_offset, err)
+		}
+	}
+}
+
+func (b *ReserveStreamTopicOffsetsBatchResults) Close() error {
 	b.closed = true
 	return b.br.Close()
 }
