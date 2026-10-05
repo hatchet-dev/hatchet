@@ -62,12 +62,12 @@ def build_run_windows(tasks: list[V1TaskSummary]) -> list[RunWindow]:
     windows: dict[str, RunWindow] = {}
 
     for task in tasks:
-        assert task.started_at is not None, (
-            f"task {task.task_external_id} has no started_at"
-        )
-        assert task.finished_at is not None, (
-            f"task {task.task_external_id} has no finished_at"
-        )
+        assert (
+            task.started_at is not None
+        ), f"task {task.task_external_id} has no started_at"
+        assert (
+            task.finished_at is not None
+        ), f"task {task.task_external_id} has no finished_at"
 
         meta = task.additional_metadata or {}
         existing = windows.get(task.workflow_run_external_id)
@@ -188,9 +188,9 @@ async def test_workflow_level_concurrency(hatchet: Hatchet, test_run_id: str) ->
         ):
             break
 
-        assert asyncio.get_running_loop().time() < deadline, (
-            f"timed out waiting for task rows with timestamps, have {len(tasks)}"
-        )
+        assert (
+            asyncio.get_running_loop().time() < deadline
+        ), f"timed out waiting for task rows with timestamps, have {len(tasks)}"
 
         await asyncio.sleep(0.5)
 

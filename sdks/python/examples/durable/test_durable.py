@@ -304,9 +304,9 @@ async def test_durable_non_determinism(hatchet: Hatchet) -> None:
         replayed_result = await ref.aio_result()
         if replayed_result.attempt_number >= 2:
             break
-        assert time.monotonic() < deadline, (
-            f"the replayed attempt never produced a result; last attempt seen: {replayed_result.attempt_number}"
-        )
+        assert (
+            time.monotonic() < deadline
+        ), f"the replayed attempt never produced a result; last attempt seen: {replayed_result.attempt_number}"
         await asyncio.sleep(0.5)
 
     assert replayed_result.non_determinism_detected
@@ -448,9 +448,9 @@ async def test_event_lookback_before_wait(hatchet: Hatchet) -> None:
 
     result = await wait_for_event_lookback.aio_run(EventLookbackInput(user_id=user_id))
 
-    assert result.elapsed < 1 + TIMING_TOLERANCE, (
-        "Event lookback should find the event that was pushed before the wait started, so should be basically instantaneous"
-    )
+    assert (
+        result.elapsed < 1 + TIMING_TOLERANCE
+    ), "Event lookback should find the event that was pushed before the wait started, so should be basically instantaneous"
     assert result.event.order == "first"
 
 

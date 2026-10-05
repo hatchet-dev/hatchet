@@ -115,9 +115,9 @@ async def test_bulk_replay(hatchet: Hatchet, test_run_id: str) -> None:
             for row in rows
             if row.status == V1TaskStatus.COMPLETED and not row.retry_count
         ]
-        assert not first_attempt_completed, (
-            f"{len(first_attempt_completed)} runs completed on their first attempt"
-        )
+        assert (
+            not first_attempt_completed
+        ), f"{len(first_attempt_completed)} runs completed on their first attempt"
 
         return runs
 
@@ -180,9 +180,9 @@ async def test_bulk_replay(hatchet: Hatchet, test_run_id: str) -> None:
         for row in runs
         if (row.attempt or 0) <= attempts_before_replay.get(row.metadata.id, 0)
     ]
-    assert not not_replayed, (
-        f"{len(not_replayed)} runs were not re-run by the bulk replay: {not_replayed}"
-    )
+    assert (
+        not not_replayed
+    ), f"{len(not_replayed)} runs were not re-run by the bulk replay: {not_replayed}"
 
     for run in runs:
         assert run.status == V1TaskStatus.COMPLETED

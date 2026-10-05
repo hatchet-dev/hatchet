@@ -65,9 +65,9 @@ async def test_workflow_pause_cancel_after_ttl(hatchet: Hatchet) -> None:
         if details.status == RunStatus.CANCELLED:
             return
 
-        assert details.status == RunStatus.QUEUED, (
-            f"Run {run_id} is not queued (status {details.status})."
-        )
+        assert (
+            details.status == RunStatus.QUEUED
+        ), f"Run {run_id} is not queued (status {details.status})."
 
         if time.time() - start_time > timeout:
             assert False, f"Run {run_id} was not cancelled within {timeout} seconds."
@@ -87,9 +87,9 @@ async def test_workflow_unpause(hatchet: Hatchet) -> None:
     for _ in range(3):
         details = await hatchet.runs.aio_get_details(run_id)
 
-        assert details.status == RunStatus.QUEUED, (
-            f"Run {run_id} is not queued (status {details.status})."
-        )
+        assert (
+            details.status == RunStatus.QUEUED
+        ), f"Run {run_id} is not queued (status {details.status})."
 
         await asyncio.sleep(1)
 
@@ -187,9 +187,9 @@ async def test_unpause_no_stranded_runs(hatchet: Hatchet) -> None:
     # window as test_workflow_unpause rather than a fixed few seconds.
     stranded = await wait_for_all_completed(hatchet, run_ids, timeout=60)
 
-    assert not stranded, (
-        f"{len(stranded)} of {len(run_ids)} runs did not complete after unpausing: {stranded}"
-    )
+    assert (
+        not stranded
+    ), f"{len(stranded)} of {len(run_ids)} runs did not complete after unpausing: {stranded}"
 
 
 @pytest.mark.asyncio(loop_scope="session")

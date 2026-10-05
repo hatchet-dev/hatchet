@@ -36,18 +36,18 @@ async def test_durable_child_key_duplicate_bug_second_unique(hatchet: Hatchet) -
 
     runs = await wait_for_child_runs(hatchet, res.workflow_run_id)
 
-    assert len(runs) == 2, (
-        "should have two children since the second `child_key` is unique"
-    )
+    assert (
+        len(runs) == 2
+    ), "should have two children since the second `child_key` is unique"
 
     first, second = runs.rows
 
     assert first.status == V1TaskStatus.COMPLETED
     assert second.status == V1TaskStatus.COMPLETED
 
-    assert first.workflow_run_external_id != second.workflow_run_external_id, (
-        "second should be different than first"
-    )
+    assert (
+        first.workflow_run_external_id != second.workflow_run_external_id
+    ), "second should be different than first"
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -60,15 +60,15 @@ async def test_durable_child_key_duplicate_bug_third_unique(hatchet: Hatchet) ->
 
     runs = await wait_for_child_runs(hatchet, res.workflow_run_id)
 
-    assert len(runs) == 2, (
-        "should only have two children since only the third `child_key` is unique"
-    )
+    assert (
+        len(runs) == 2
+    ), "should only have two children since only the third `child_key` is unique"
 
     first, second = runs
 
     assert first.status == V1TaskStatus.COMPLETED
     assert second.status == V1TaskStatus.COMPLETED
 
-    assert first.workflow_run_external_id != second.workflow_run_external_id, (
-        "second should be different than first"
-    )
+    assert (
+        first.workflow_run_external_id != second.workflow_run_external_id
+    ), "second should be different than first"
