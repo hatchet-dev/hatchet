@@ -112,10 +112,6 @@ async def test_durable_workflow(hatchet: Hatchet) -> None:
         hatchet, ref.workflow_run_id, wait_for_or_group_1.name
     )
 
-    event = await hatchet.events.aio_push(
-        EVENT_KEY, AwaitedEvent(id=id).model_dump(mode="json")
-    )
-
     # durable_task registers its event wait only after its own SLEEP_TIME
     # sleep, and that wait has no lookback, so a single push can land before
     # the wait exists and never be seen. Push the same event until durable_task

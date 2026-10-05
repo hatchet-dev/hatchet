@@ -119,7 +119,7 @@ async def test_bulk_replay(hatchet: Hatchet, test_run_id: str) -> None:
             not first_attempt_completed
         ), f"{len(first_attempt_completed)} runs completed on their first attempt"
 
-        return runs
+        return rows
 
     before_replay = await wait_for_all_failed()
 

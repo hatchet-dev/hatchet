@@ -15,7 +15,6 @@ from examples.concurrency_workflow_level.worker import (
     WorkflowInput,
     concurrency_workflow_level_workflow,
 )
-from examples.test_utils import poll_for_runs
 from hatchet_sdk import Hatchet
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 

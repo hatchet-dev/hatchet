@@ -7,7 +7,6 @@ from tenacity import stop_after_attempt, wait_exponential, wait_fixed
 
 from hatchet_sdk import Hatchet, RunStatus
 from hatchet_sdk.clients.rest.models.v1_event import V1Event
-from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 
