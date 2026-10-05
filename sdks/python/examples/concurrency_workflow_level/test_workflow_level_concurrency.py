@@ -172,16 +172,14 @@ async def test_workflow_level_concurrency(hatchet: Hatchet, test_run_id: str) ->
     deadline = asyncio.get_running_loop().time() + 60
 
     while True:
-        tasks = (
-            await hatchet.runs.aio_list(
-                workflow_ids=[workflow.metadata.id],
-                additional_metadata={
-                    "test_run_id": test_run_id,
-                },
-                limit=1_000,
-                only_tasks=True,
-            )
-        ).rows
+        tasks = await hatchet.runs.aio_list(
+            workflow_ids=[workflow.metadata.id],
+            additional_metadata={
+                "test_run_id": test_run_id,
+            },
+            limit=1_000,
+            only_tasks=True,
+        )
 
         if len(tasks) == NUM_RUNS * TASKS_PER_RUN and all(
             t.started_at is not None and t.finished_at is not None for t in tasks

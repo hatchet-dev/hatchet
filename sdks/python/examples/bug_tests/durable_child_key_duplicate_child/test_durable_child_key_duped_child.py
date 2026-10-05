@@ -40,7 +40,7 @@ async def test_durable_child_key_duplicate_bug_second_unique(hatchet: Hatchet) -
         len(runs) == 2
     ), "should have two children since the second `child_key` is unique"
 
-    first, second = runs.rows
+    first, second = runs
 
     assert first.status == V1TaskStatus.COMPLETED
     assert second.status == V1TaskStatus.COMPLETED

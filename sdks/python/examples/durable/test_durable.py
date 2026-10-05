@@ -82,7 +82,7 @@ async def _push_event_until_task_completes(
     deadline = time.monotonic() + timeout
 
     while time.monotonic() < deadline:
-        await hatchet.event.aio_push(event_key, payload)
+        await hatchet.events.aio_push(event_key, payload)
 
         try:
             await _wait_for_task_to_complete(

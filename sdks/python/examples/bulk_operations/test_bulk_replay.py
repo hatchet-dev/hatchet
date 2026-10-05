@@ -127,7 +127,7 @@ async def test_bulk_replay(hatchet: Hatchet, test_run_id: str) -> None:
     # status checks on its own, so remember every run's attempt count and
     # require the replay to have moved each one forward.
     attempts_before_replay = {
-        row.metadata.id: row.attempt or 0 for row in before_replay.rows or []
+        row.metadata.id: row.attempt or 0 for row in before_replay
     }
 
     await hatchet.runs.aio_bulk_replay(

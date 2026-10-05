@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from hatchet_sdk import Context, EmptyModel, Hatchet
+from hatchet_sdk import Context, Hatchet
 from hatchet_sdk.runnables.action import (
     Action,
     ActionPayload,
@@ -75,7 +75,7 @@ async def test_task_stops_being_counted_when_it_releases_its_slot(
     may_release = threading.Event()
     may_finish = threading.Event()
 
-    def releases_slot_midway(input: EmptyModel, ctx: Context) -> None:
+    def releases_slot_midway(input: None, ctx: Context) -> None:
         may_release.wait(timeout=10)
         ctx.release_slot()
         may_finish.wait(timeout=10)
@@ -104,7 +104,7 @@ async def test_running_batch_is_counted_as_one_default_slot(hatchet: Hatchet) ->
 
     @hatchet.workflow(name="batch-slot-counting").batch_task(batch_max_size=5)
     async def batched(
-        tasks: dict[BatchMemberId, EmptyModel], ctx: Context
+        tasks: dict[BatchMemberId, None], ctx: Context
     ) -> dict[BatchMemberId, dict[str, str]]:
         await may_finish.wait()
         return {member_id: {} for member_id in tasks}

@@ -34,12 +34,9 @@ async def _wait_for_task_to_complete(
             await asyncio.sleep(interval)
             continue
 
-        # a task's display name is "<step readable id>-<unix timestamp>"
-        if any(
-            t.status == V1TaskStatus.COMPLETED
-            and t.display_name.startswith(f"{task_name}-")
-            for t in details.tasks
-        ):
+        task_run = details.task_runs.get(task_name)
+
+        if task_run is not None and task_run.status == V1TaskStatus.COMPLETED:
             return
 
         await asyncio.sleep(interval)

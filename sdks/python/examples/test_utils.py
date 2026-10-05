@@ -8,7 +8,6 @@ from tenacity import stop_after_attempt, wait_exponential, wait_fixed
 from hatchet_sdk import Hatchet, RunStatus
 from hatchet_sdk.clients.rest.models.v1_event import V1Event
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
-from hatchet_sdk.clients.rest.models.v1_task_summary_list import V1TaskSummaryList
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 
@@ -78,7 +77,7 @@ async def wait_for_child_runs(
     min_count: int = 1,
     timeout: float = 30.0,
     **list_kwargs: Any,
-) -> V1TaskSummaryList:
+) -> list[V1TaskSummary]:
     interval = 0.5
     deadline = asyncio.get_running_loop().time() + timeout
     while True:
@@ -86,7 +85,7 @@ async def wait_for_child_runs(
             parent_task_external_id=parent_task_external_id, **list_kwargs
         )
 
-        if len(runs.rows) >= min_count or asyncio.get_running_loop().time() >= deadline:
+        if len(runs) >= min_count or asyncio.get_running_loop().time() >= deadline:
             return runs
 
         await asyncio.sleep(interval)
