@@ -1800,7 +1800,6 @@ class TaskRunRef(Generic[TWorkflowInput, R]):
             client ``sync_result_poll_interval`` (1 second). Values below 1 second are
             raised to 1 second.
         :returns: The extracted task output.
-        :raises TimeoutError: If the run does not complete within the timeout.
         """
         result = self._wrr.result(timeout=timeout, poll_interval=poll_interval)
         return self._s._extract_result(result)
