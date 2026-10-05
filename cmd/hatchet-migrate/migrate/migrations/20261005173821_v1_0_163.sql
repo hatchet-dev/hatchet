@@ -16,12 +16,7 @@ CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS v1_lookup_table_olap_external_id_
 -- +goose StatementEnd
 
 -- +goose StatementBegin
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'v1_lookup_table_olap_external_id_inserted_at_uq') THEN
-        ALTER TABLE v1_lookup_table_olap ADD CONSTRAINT v1_lookup_table_olap_external_id_inserted_at_uq UNIQUE USING INDEX v1_lookup_table_olap_external_id_inserted_at_idx;
-    END IF;
-END $$;
+CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS v1_lookup_table_olap_external_id_idx ON v1_lookup_table_olap (external_id);
 -- +goose StatementEnd
 
 -- +goose StatementBegin
@@ -149,7 +144,7 @@ DROP TABLE IF EXISTS v1_dag_to_task_olap_partitioned;
 
 -- +goose StatementBegin
 ALTER TABLE v1_lookup_table_olap DROP CONSTRAINT IF EXISTS v1_lookup_table_olap_attach_bound;
-ALTER TABLE v1_lookup_table_olap DROP CONSTRAINT IF EXISTS v1_lookup_table_olap_external_id_inserted_at_uq;
 DROP INDEX IF EXISTS v1_lookup_table_olap_external_id_inserted_at_idx;
+DROP INDEX IF EXISTS v1_lookup_table_olap_external_id_idx;
 DROP TABLE IF EXISTS v1_lookup_table_olap_partitioned;
 -- +goose StatementEnd
