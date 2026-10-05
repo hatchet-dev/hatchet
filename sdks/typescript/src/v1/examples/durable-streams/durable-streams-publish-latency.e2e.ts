@@ -1,8 +1,5 @@
 import { makeE2EClient, makeTestScope } from '../__e2e__/harness';
-import { formatPublishLatency, measurePublishLatency } from './publish-latency';
-
-// a benchmark, run only when asked for (test_durable_streams.sh --bench)
-const describeBenchmark = process.env.HATCHET_E2E_BENCHMARKS ? describe : describe.skip;
+import { describeBenchmark, formatPublishLatency, measurePublishLatency } from './benchmark';
 
 describeBenchmark('durable-streams-e2e publish latency', () => {
   const hatchet = makeE2EClient();

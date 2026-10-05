@@ -1,9 +1,7 @@
 import { makeE2EClient, makeTestScope } from '../__e2e__/harness';
+import { describeBenchmark, formatLatency, latencyStats } from './benchmark';
 
 const decode = (payload: Uint8Array) => new TextDecoder().decode(payload);
-
-// a benchmark, run only when asked for (test_durable_streams.sh --bench)
-const describeBenchmark = process.env.HATCHET_E2E_BENCHMARKS ? describe : describe.skip;
 
 describeBenchmark('durable-streams-e2e latency', () => {
   const hatchet = makeE2EClient();
@@ -32,20 +30,17 @@ describeBenchmark('durable-streams-e2e latency', () => {
 
     await publishAll;
 
-    latenciesMs.sort((a, b) => a - b);
-    const p50 = latenciesMs[Math.floor(latenciesMs.length * 0.5)];
-    const p99 = latenciesMs[Math.floor(latenciesMs.length * 0.99)];
-    const max = latenciesMs[latenciesMs.length - 1];
+    const stats = latencyStats(latenciesMs);
 
     console.log(
-      `durable streams e2e latency over ${messageCount} messages: p50=${p50}ms p99=${p99}ms max=${max}ms`
+      `durable streams e2e latency over ${messageCount} messages: ${formatLatency(stats, 0)}`
     );
 
-    expect(latenciesMs).toHaveLength(messageCount);
+    expect(stats.count).toBe(messageCount);
 
     // a generous bound -- this guards against a pathological regression (e.g.
     // every message waiting for the tail poller's fallback tick) rather than
     // asserting a strict performance SLA that would be flaky in CI
-    expect(p99).toBeLessThan(10_000);
+    expect(stats.p99Ms).toBeLessThan(10_000);
   }, 180_000);
 });

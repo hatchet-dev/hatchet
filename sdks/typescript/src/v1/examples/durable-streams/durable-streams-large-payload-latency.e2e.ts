@@ -1,12 +1,15 @@
 import { randomBytes } from 'crypto';
 import { performance } from 'perf_hooks';
-import { StreamEvent } from '@hatchet/v1/client/features/streams';
 import { makeE2EClient, makeTestScope } from '../__e2e__/harness';
-
-const MiB = 1024 * 1024;
-
-// the server's per-message gRPC limit (MaxStreamMessagePayloadBytes); anything larger is uploaded
-const maxInlinePayloadBytes = 4 * MiB - 5 * 1024;
+import {
+  describeBenchmark,
+  formatLatency,
+  formatSize,
+  latencyStats,
+  maxInlinePayloadBytes,
+  MiB,
+  openLiveSubscription,
+} from './benchmark';
 
 const cases = [
   { size: 1 * MiB, count: 10 },
@@ -29,22 +32,7 @@ type Sample = {
 // filled in by the API wrappers for the message in flight
 type HttpTrace = { uploadMs?: number; fetchMs?: number };
 
-function percentile(sorted: number[], p: number): number {
-  return sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * p))];
-}
-
-function summarize(values: number[]): string {
-  const sorted = [...values].sort((a, b) => a - b);
-  const avg = values.reduce((sum, v) => sum + v, 0) / values.length;
-  return `avg=${avg.toFixed(0)} p50=${percentile(sorted, 0.5).toFixed(0)} max=${sorted[sorted.length - 1].toFixed(0)}`;
-}
-
-function formatSize(bytes: number): string {
-  return bytes % MiB === 0 ? `${bytes / MiB}MiB` : `${(bytes / MiB).toFixed(2)}MiB`;
-}
-
-// a benchmark, run only when asked for (test_durable_streams.sh --bench)
-const describeBenchmark = process.env.HATCHET_E2E_BENCHMARKS ? describe : describe.skip;
+const summarize = (valuesMs: number[]) => formatLatency(latencyStats(valuesMs), 0);
 
 describeBenchmark('durable-streams-e2e large payload latency', () => {
   const hatchet = makeE2EClient();
@@ -79,24 +67,7 @@ describeBenchmark('durable-streams-e2e large payload latency', () => {
 
     for (const { size, count } of cases) {
       const topic = makeTestScope(`durable_streams_large_payload_${size}`);
-      const abort = new AbortController();
-      let onEvent: ((ev: StreamEvent) => void) | undefined;
-
-      const subscriber = (async () => {
-        for await (const ev of hatchet.streams.events(topic, { signal: abort.signal })) {
-          onEvent?.(ev);
-        }
-      })();
-
-      const nextEvent = () =>
-        new Promise<StreamEvent>((resolve) => {
-          onEvent = resolve;
-        });
-
-      // the subscription is live once a first message comes through
-      const ready = nextEvent();
-      await hatchet.streams.publish(topic, 'ready');
-      await ready;
+      const subscription = await openLiveSubscription(hatchet, topic);
 
       // random bytes, so compression can't hide the cost of large messages
       const payload = new Uint8Array(randomBytes(size));
@@ -105,7 +76,7 @@ describeBenchmark('durable-streams-e2e large payload latency', () => {
       // one unmeasured message absorbs topic and connection warmup at this size
       for (let i = 0; i < count + 1; i += 1) {
         trace = {};
-        const delivered = nextEvent();
+        const delivered = subscription.nextEvent();
 
         const start = performance.now();
         await hatchet.streams.publish(topic, payload);
@@ -120,8 +91,7 @@ describeBenchmark('durable-streams-e2e large payload latency', () => {
         }
       }
 
-      abort.abort();
-      await subscriber;
+      await subscription.close();
 
       results.push({ size, samples });
       console.log(`done ${formatSize(size)}`);
@@ -135,7 +105,7 @@ describeBenchmark('durable-streams-e2e large payload latency', () => {
           const uploads = samples.flatMap((s) => (s.uploadMs === undefined ? [] : [s.uploadMs]));
           const fetches = samples.flatMap((s) => (s.fetchMs === undefined ? [] : [s.fetchMs]));
           const delivered = samples.map((s) => s.deliveredMs);
-          const avgDelivered = delivered.reduce((sum, v) => sum + v, 0) / delivered.length;
+          const { avgMs: avgDelivered } = latencyStats(delivered);
 
           return [
             `  ${formatSize(size).padStart(9)} ${path.padEnd(6)} n=${samples.length}`,
