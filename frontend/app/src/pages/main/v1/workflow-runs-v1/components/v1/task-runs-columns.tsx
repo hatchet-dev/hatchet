@@ -127,6 +127,8 @@ export const columns: (
   onTaskRunIdClick: (taskRunId: string) => void,
   onAdditionalMetadataOpenChange: (rowId: string, open: boolean) => void,
   onIdempotencyKeyClick: (idempotencyKey: string) => void,
+  // omitted when the user can't view payloads, which hides the action
+  onRunAsNew?: (run: V1TaskSummary) => void,
 ) => ColumnDef<V1TaskSummary>[] = (
   tenantId,
   selectedAdditionalMetaRunId,
@@ -134,6 +136,7 @@ export const columns: (
   onTaskRunIdClick,
   onAdditionalMetadataOpenChange,
   onIdempotencyKeyClick,
+  onRunAsNew,
 ) => [
   {
     id: 'select',
@@ -441,6 +444,19 @@ export const columns: (
                 navigator.clipboard.writeText(row.original.metadata.id);
               },
             },
+            ...(onRunAsNew
+              ? [
+                  {
+                    label: 'Run as new',
+                    onClick: () => {
+                      onRunAsNew(row.original);
+                    },
+                    disabled:
+                      row.depth > 0 &&
+                      'Only top-level runs can be run as new. Use the parent run instead.',
+                  },
+                ]
+              : []),
           ]}
         />
       );
