@@ -1,6 +1,6 @@
 import argparse
 
-from hatchet_sdk import Context, Hatchet
+from hatchet_sdk import Context, Hatchet, WorkerLabel
 from pydantic import BaseModel
 import asyncio
 from random import random
@@ -90,7 +90,7 @@ def main() -> None:
 
     worker = hatchet.worker(
         "runtime-affinity-worker",
-        labels={"affinity": args.label},
+        labels=[WorkerLabel(key="affinity", value=args.label)],
         workflows=[runtime_affinity_workflow],
     )
 

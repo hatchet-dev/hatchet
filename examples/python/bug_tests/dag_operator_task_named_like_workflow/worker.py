@@ -1,4 +1,4 @@
-from hatchet_sdk import Context, EmptyModel, Hatchet
+from hatchet_sdk import Context, Hatchet
 
 hatchet = Hatchet()
 
@@ -9,12 +9,12 @@ task_named_like_workflow_dag = hatchet.workflow(name=WORKFLOW_NAME)
 
 
 @task_named_like_workflow_dag.task(name=TASK_NAMED_LIKE_WORKFLOW)
-async def first_step(input: EmptyModel, ctx: Context) -> None:
+async def first_step(input: None, ctx: Context) -> None:
     pass
 
 
 @task_named_like_workflow_dag.task(parents=[first_step])
-async def second_step(input: EmptyModel, ctx: Context) -> None:
+async def second_step(input: None, ctx: Context) -> None:
     pass
 
 
