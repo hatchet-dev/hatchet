@@ -13,11 +13,11 @@ import (
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
-func newDagChildInput(t *testing.T, taskId int64, parentExternalIds ...uuid.UUID) *dagChildTaskInput {
+func newDagChildInput(t *testing.T, parentExternalIds ...uuid.UUID) *dagChildTaskInput {
 	t.Helper()
 
 	return &dagChildTaskInput{
-		payloadKey: v1.RetrievePayloadOpts{Id: taskId},
+		payloadKey: v1.RetrievePayloadOpts{ExternalId: uuid.New()},
 		currInput: &v1.V1StepRunData{
 			DagParentTaskRunIds: parentExternalIds,
 		},
@@ -58,8 +58,8 @@ func TestResolveDagParentOutputs_PopulatesParentsFromBatch(t *testing.T) {
 	// taskX depends on both parentA and parentB; taskY depends only on parentB. This mirrors
 	// what populateTaskData builds: a single dagParentOutputs batch shared across every
 	// dag-child task in the dispatch batch, each pulling out only its own parents.
-	taskX := newDagChildInput(t, 1, parentA, parentB)
-	taskY := newDagChildInput(t, 2, parentB)
+	taskX := newDagChildInput(t, parentA, parentB)
+	taskY := newDagChildInput(t, parentB)
 
 	dagParentOutputs := map[uuid.UUID]*v1.TaskOutputEvent{
 		parentA: parentOutputEvent(t, parentA, "step_a", map[string]int{"random_number": 1}),
@@ -88,8 +88,8 @@ func TestResolveDagParentOutputs_DoesNotLeakAcrossDifferentDagRuns(t *testing.T)
 	runOneParent := uuid.New()
 	runTwoParent := uuid.New()
 
-	runOneChild := newDagChildInput(t, 1, runOneParent)
-	runTwoChild := newDagChildInput(t, 2, runTwoParent)
+	runOneChild := newDagChildInput(t, runOneParent)
+	runTwoChild := newDagChildInput(t, runTwoParent)
 
 	dagParentOutputs := map[uuid.UUID]*v1.TaskOutputEvent{
 		runOneParent: parentOutputEvent(t, runOneParent, "start", map[string]int{"random_number": 1}),
@@ -116,8 +116,8 @@ func TestResolveDagParentOutputs_IsolatesMissingOrUnparsableParents(t *testing.T
 	missingParent := uuid.New()
 	malformedParent := uuid.New()
 
-	affected := newDagChildInput(t, 1, goodParent, missingParent, malformedParent)
-	sibling := newDagChildInput(t, 2, goodParent)
+	affected := newDagChildInput(t, goodParent, missingParent, malformedParent)
+	sibling := newDagChildInput(t, goodParent)
 
 	dagParentOutputs := map[uuid.UUID]*v1.TaskOutputEvent{
 		goodParent: parentOutputEvent(t, goodParent, "good", map[string]int{"random_number": 7}),

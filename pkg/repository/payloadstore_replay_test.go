@@ -70,9 +70,7 @@ func TestReplayOverwritesOffloadedTaskInput(t *testing.T) {
 	require.NoError(t, err)
 
 	retrieveOpt := RetrievePayloadOpts{
-		Id:         task.ID,
 		InsertedAt: task.InsertedAt,
-		Type:       sqlcv1.V1PayloadTypeTASKINPUT,
 		TenantId:   internalTenantId,
 		ExternalId: task.ExternalID,
 	}

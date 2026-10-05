@@ -761,9 +761,7 @@ func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context,
 
 	for i, row := range rows {
 		retrievePayloadOpts[i] = RetrievePayloadOpts{
-			Id:         row.ID,
 			InsertedAt: row.InsertedAt,
-			Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
 			TenantId:   tenantId,
 			ExternalId: row.ResultPayloadExternalID,
 		}
@@ -779,9 +777,7 @@ func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context,
 
 	for _, row := range rows {
 		retrieveOpt := RetrievePayloadOpts{
-			Id:         row.ID,
 			InsertedAt: row.InsertedAt,
-			Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
 			TenantId:   tenantId,
 			ExternalId: row.ResultPayloadExternalID,
 		}
@@ -1308,9 +1304,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntriesForTasks(
 	for _, state := range survivingStates {
 		for _, entry := range state.existedEntries {
 			retrieveOpts = append(retrieveOpts, RetrievePayloadOpts{
-				Id:         entry.ID,
 				InsertedAt: entry.InsertedAt,
-				Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
 				TenantId:   state.opts.TenantId,
 				ExternalId: entry.ResultPayloadExternalID,
 			})
@@ -1318,9 +1312,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntriesForTasks(
 
 		for _, entry := range state.skipEntryByChildId {
 			retrieveOpts = append(retrieveOpts, RetrievePayloadOpts{
-				Id:         entry.ID,
 				InsertedAt: entry.InsertedAt,
-				Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
 				TenantId:   state.opts.TenantId,
 				ExternalId: entry.ResultPayloadExternalID,
 			})
@@ -1342,9 +1334,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntriesForTasks(
 		}
 
 		payload := existingPayloads[RetrievePayloadOpts{
-			Id:         e.ID,
 			InsertedAt: e.InsertedAt,
-			Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
 			TenantId:   tenantId,
 			ExternalId: e.ResultPayloadExternalID,
 		}]
@@ -2282,9 +2272,7 @@ func (r *durableEventsRepository) enrichNonDeterminismErrorDetail(ctx context.Co
 	}
 
 	retrieveOpts := RetrievePayloadOpts{
-		Id:         nde.ExistingEntryId,
 		InsertedAt: nde.ExistingEntryInsertedAt,
-		Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYDATA,
 		TenantId:   nde.ExistingEntryTenantId,
 		ExternalId: nde.ExistingEntryExternalId,
 	}
@@ -2688,9 +2676,7 @@ func (r *durableEventsRepository) handleEventLookback(ctx context.Context, tenan
 
 	for _, row := range previousEventsFound {
 		retrievePayloadOpts = append(retrievePayloadOpts, RetrievePayloadOpts{
-			Id:         row.ID,
 			InsertedAt: row.SeenAt,
-			Type:       sqlcv1.V1PayloadTypeUSEREVENTINPUT,
 			TenantId:   tenantId,
 			ExternalId: row.ExternalID,
 		})
@@ -2706,9 +2692,7 @@ func (r *durableEventsRepository) handleEventLookback(ctx context.Context, tenan
 
 	for _, row := range previousEventsFound {
 		retrieveOpts := RetrievePayloadOpts{
-			Id:         row.ID,
 			InsertedAt: row.SeenAt,
-			Type:       sqlcv1.V1PayloadTypeUSEREVENTINPUT,
 			TenantId:   tenantId,
 			ExternalId: row.ExternalID,
 		}

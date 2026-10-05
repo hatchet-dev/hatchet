@@ -759,9 +759,7 @@ func (d *DispatcherImpl) populateTaskData(
 
 	for i, task := range bulkDatas {
 		retrievePayloadOpts[i] = v1.RetrievePayloadOpts{
-			Id:         task.ID,
 			InsertedAt: task.InsertedAt,
-			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
 			TenantId:   task.TenantID,
 			ExternalId: task.ExternalID,
 		}
@@ -795,9 +793,7 @@ func (d *DispatcherImpl) populateTaskData(
 
 	for _, task := range bulkDatas {
 		payloadKey := v1.RetrievePayloadOpts{
-			Id:         task.ID,
 			InsertedAt: task.InsertedAt,
-			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
 			TenantId:   task.TenantID,
 			ExternalId: task.ExternalID,
 		}
@@ -890,9 +886,7 @@ func (d *DispatcherImpl) populateTaskData(
 
 	for _, task := range bulkDatas {
 		input, ok := inputs[v1.RetrievePayloadOpts{
-			Id:         task.ID,
 			InsertedAt: task.InsertedAt,
-			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
 			TenantId:   task.TenantID,
 			ExternalId: task.ExternalID,
 		}]
