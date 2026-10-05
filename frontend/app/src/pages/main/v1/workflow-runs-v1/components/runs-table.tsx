@@ -187,7 +187,6 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
 
   const handleRunAsNew = useCallback(
     async (run: V1TaskSummary) => {
-      // list rows are fetched without payloads, so load the original input
       try {
         const { input, payloadsRestricted } =
           run.type === V1WorkflowType.DAG
@@ -200,8 +199,6 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
                 queries.v1Tasks.get(run.metadata.id),
               );
 
-        // the server replaces withheld payloads with {}, which would trigger
-        // a run with the wrong input
         if (payloadsRestricted) {
           toast({
             title: 'You do not have permission to view this run input',

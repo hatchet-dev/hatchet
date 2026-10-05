@@ -127,7 +127,6 @@ export const columns: (
   onTaskRunIdClick: (taskRunId: string) => void,
   onAdditionalMetadataOpenChange: (rowId: string, open: boolean) => void,
   onIdempotencyKeyClick: (idempotencyKey: string) => void,
-  // omitted when the user can't view payloads, which hides the action
   onRunAsNew?: (run: V1TaskSummary) => void,
 ) => ColumnDef<V1TaskSummary>[] = (
   tenantId,
