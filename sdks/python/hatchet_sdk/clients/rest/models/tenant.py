@@ -56,6 +56,11 @@ class Tenant(BaseModel):
         default=None,
         description="Control-plane shard region for the tenant (e.g. aws:us-west-2).",
     )
+    data_retention_period: Optional[StrictStr] = Field(
+        default=None,
+        description="The data retention period for the tenant, e.g. 720h.",
+        alias="dataRetentionPeriod",
+    )
     __properties: ClassVar[List[str]] = [
         "metadata",
         "name",
@@ -66,6 +71,7 @@ class Tenant(BaseModel):
         "environment",
         "serverUrl",
         "region",
+        "dataRetentionPeriod",
     ]
 
     model_config = ConfigDict(
@@ -134,6 +140,7 @@ class Tenant(BaseModel):
                 "environment": obj.get("environment"),
                 "serverUrl": obj.get("serverUrl"),
                 "region": obj.get("region"),
+                "dataRetentionPeriod": obj.get("dataRetentionPeriod"),
             }
         )
         return _obj

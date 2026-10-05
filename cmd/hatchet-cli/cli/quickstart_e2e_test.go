@@ -11,6 +11,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/rs/zerolog"
+
 	cliconfig "github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/config/cli"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/config/worker"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/templater"
@@ -131,7 +134,7 @@ func testTemplate(t *testing.T, tt templateTestCase) {
 	}
 
 	// 5. Get the local profile (created by hatchet server start)
-	profile, err := cliconfig.GetProfile("local")
+	profile, err := cliconfig.Profiles.GetProfile("local")
 	if err != nil {
 		t.Fatalf("Failed to get local profile: %v", err)
 	}
@@ -159,6 +162,11 @@ func testWorkerDev(t *testing.T, workerConfig *worker.WorkerConfig, profile *pro
 	// Channel to signal when pre-commands complete
 	preCmdsComplete := make(chan struct{}, 1)
 	errChan := make(chan error, 1)
+
+	// Any worker the API reports as created after this instant belongs to this
+	// subtest (every earlier worker was created by a previous subtest, well
+	// before this line ran).
+	workerStartedAt := time.Now()
 
 	// Start the worker process using the CLI implementation in a goroutine
 	go func() {
@@ -188,17 +196,26 @@ func testWorkerDev(t *testing.T, workerConfig *worker.WorkerConfig, profile *pro
 		return fmt.Errorf("timeout waiting for pre-commands to complete")
 	}
 
-	// Wait 5 seconds for the worker to fully start
-	time.Sleep(5 * time.Second)
+	// Wait until the worker has actually registered before triggering. A fixed
+	// sleep is not enough: the go template's worker is compiled by `go run` and
+	// can take >15s to come up on a cold build cache, while every "simple"
+	// template registers a workflow named first-workflow in the shared tenant.
+	// A trigger racing the worker resolves the PREVIOUS subtest's workflow
+	// version (e.g. the typescript first-task/second-task DAG), whose actions
+	// no live worker serves, so the run sits unassigned until the 5-minute
+	// scheduling timeout. The SDKs register workflows before registering the
+	// worker, so observing this subtest's worker via the API proves the
+	// workflow version the trigger will resolve is the one just registered.
+	if err := waitForWorkerRegistration(ctx, t, profile, workerStartedAt, errChan); err != nil {
+		return err
+	}
+
+	// Give the worker's action listener a moment to establish
+	time.Sleep(2 * time.Second)
 
 	// Validate that there are no worker runner errors
-	select {
-	case err := <-errChan:
-		if err != nil {
-			return fmt.Errorf("worker exited during startup: %w", err)
-		}
-		return fmt.Errorf("worker exited unexpectedly during startup (no error)")
-	default:
+	if err := workerErr(errChan); err != nil {
+		return err
 	}
 
 	// Trigger the named workflow if it exists in the config
@@ -239,6 +256,70 @@ func testWorkerDev(t *testing.T, workerConfig *worker.WorkerConfig, profile *pro
 
 	t.Log("Worker ran successfully")
 	return nil
+}
+
+// waitForWorkerRegistration polls the tenant's worker list until a worker
+// created after since appears, i.e. until the worker started by this subtest
+// has completed registration (which the SDKs perform after registering their
+// workflows). It returns an error if no such worker appears within the
+// polling window.
+func waitForWorkerRegistration(ctx context.Context, t *testing.T, profile *profileconfig.Profile, since time.Time, errChan <-chan error) error {
+	logger := zerolog.Nop()
+
+	hatchetClient, err := NewClientFromProfile(profile, &logger)
+	if err != nil {
+		return fmt.Errorf("could not create client to poll for worker registration: %w", err)
+	}
+
+	tenantUUID, err := uuid.Parse(hatchetClient.TenantId())
+	if err != nil {
+		return fmt.Errorf("invalid tenant ID in profile token: %w", err)
+	}
+
+	deadline := time.Now().Add(2 * time.Minute)
+
+	for {
+		resp, err := hatchetClient.API().WorkerListWithResponse(ctx, tenantUUID, nil)
+		if err == nil && resp.JSON200 != nil && resp.JSON200.Rows != nil {
+			for _, w := range *resp.JSON200.Rows {
+				if w.Metadata.CreatedAt.After(since) {
+					t.Logf("Worker %q registered", w.Name)
+					return nil
+				}
+			}
+		} else if err != nil {
+			t.Logf("Worker list poll failed (will retry): %v", err)
+		}
+
+		if err := workerErr(errChan); err != nil {
+			return err
+		}
+
+		if time.Now().After(deadline) {
+			return fmt.Errorf("timed out waiting for the worker to register")
+		}
+
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("context cancelled while waiting for the worker to register: %w", ctx.Err())
+		case <-time.After(time.Second):
+		}
+	}
+}
+
+// workerErr reports a worker-process exit observed on errChan while waiting
+// for registration, so a crashed worker fails the test immediately instead of
+// after the polling window.
+func workerErr(errChan <-chan error) error {
+	select {
+	case err := <-errChan:
+		if err != nil {
+			return fmt.Errorf("worker exited during startup: %w", err)
+		}
+		return fmt.Errorf("worker exited unexpectedly during startup (no error)")
+	default:
+		return nil
+	}
 }
 
 func verifyProjectStructure(t *testing.T, projectDir string, tt templateTestCase) error {

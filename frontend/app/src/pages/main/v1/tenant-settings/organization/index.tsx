@@ -20,6 +20,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
 import { Input } from '@/components/v1/ui/input';
@@ -48,13 +49,15 @@ import {
   TenantStatusType,
 } from '@/lib/api/generated/cloud/data-contracts';
 import {
+  Organization as ControlPlaneOrganization,
   OrganizationAvailableShard,
   OrganizationAvailableShardClass,
   OrganizationInviteTenant,
   OrganizationTenant as ControlPlaneOrganizationTenant,
 } from '@/lib/api/generated/control-plane/data-contracts';
 import { useOrganizationApi } from '@/lib/api/organization-wrapper';
-import { OFFICE_HOURS_URL } from '@/lib/external-links';
+import { OFFICE_HOURS_URL, TRUST_CENTER_URL } from '@/lib/external-links';
+import { docsPages } from '@/lib/generated/docs';
 import { globalEmitter } from '@/lib/global-emitter';
 import {
   formatShardDeploymentKey,
@@ -69,6 +72,7 @@ import {
   TagList,
 } from '@/pages/main/v1/tenant-settings/organization/components/tag-badge';
 import { UserGroupsTab } from '@/pages/main/v1/tenant-settings/organization/components/user-groups-tab';
+import { ArchiveOrganizationModal } from '@/pages/organizations/$organization/components/archive-organization-modal';
 import { CancelInviteModal } from '@/pages/organizations/$organization/components/cancel-invite-modal';
 import { CreateTokenModal } from '@/pages/organizations/$organization/components/create-token-modal';
 import { DeleteMemberModal } from '@/pages/organizations/$organization/components/delete-member-modal';
@@ -83,9 +87,11 @@ import {
   PlusIcon,
   ArrowRightIcon,
   ArrowsRightLeftIcon,
+  ArrowTopRightOnSquareIcon,
   CheckIcon,
   EllipsisVerticalIcon,
   ExclamationTriangleIcon,
+  KeyIcon,
   PencilSquareIcon,
   TrashIcon,
   XMarkIcon,
@@ -148,7 +154,7 @@ type ManagementTokenWithTags = ManagementToken & {
 };
 
 export type OrganizationSettingsSection =
-  'general' | 'tenants' | 'team' | 'tokens' | 'regions' | 'sso' | 'audit-log';
+  'general' | 'tenants' | 'team' | 'tokens' | 'regions' | 'sso' | 'compliance';
 
 const SECTION_HEADERS: Record<
   OrganizationSettingsSection,
@@ -156,7 +162,7 @@ const SECTION_HEADERS: Record<
 > = {
   general: {
     title: 'General',
-    description: 'Update the organization name and inactivity timeout.',
+    description: 'Update the organization name.',
   },
   tenants: {
     title: 'Tenants',
@@ -178,14 +184,30 @@ const SECTION_HEADERS: Record<
       'Review the regions where new tenants can be deployed for this organization.',
   },
   sso: {
-    title: 'SSO',
-    description: 'Configure single sign-on for this organization.',
+    title: 'Single Sign-On',
+    description: 'Configure Single Sign-On for this organization.',
   },
-  'audit-log': {
-    title: 'Audit Log',
-    description: 'Review administrative actions taken in this organization.',
+  compliance: {
+    title: 'Compliance',
+    description:
+      'Compliance settings, certifications, reports, and audit logs for this organization.',
   },
 };
+
+const COMPLIANCE_DOCUMENTS = [
+  {
+    label: 'SOC 2 Type II',
+    href: `${TRUST_CENTER_URL}?tab=securityControls&frameworks=soc2_v1`,
+  },
+  {
+    label: 'HIPAA',
+    href: `${TRUST_CENTER_URL}?tab=securityControls&frameworks=hipaa_business_associate_v1`,
+  },
+  {
+    label: 'GDPR',
+    href: `${TRUST_CENTER_URL}?tab=securityControls&frameworks=gdpr_v1`,
+  },
+];
 
 function InviteTenantBadges({
   tenants,
@@ -307,6 +329,10 @@ export function CloudOrganizationSettings({
     ...orgApi.organizationSsoConfigGetQuery(orgId),
     enabled: !!orgId && canUseSso,
   });
+
+  const navigate = useNavigate();
+  const [showArchiveOrganizationModal, setShowArchiveOrganizationModal] =
+    useState(false);
 
   const ssoConfigUpdateMutation = useMutation({
     ...orgApi.organizationSsoConfigUpdateMutation(orgId),
@@ -840,101 +866,37 @@ export function CloudOrganizationSettings({
                 </div>
               )}
             </SettingRow>
-
-            {isControlPlaneEnabled && (
-              <SettingRow
-                label="Inactivity Timeout"
-                description="Automatically sign out members of this organization after this period of inactivity. Maximum 14 days."
-              >
-                {isEditingTimeout ? (
-                  <div className="flex flex-col items-end gap-1.5">
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="text"
-                        value={editedTimeout}
-                        onChange={(e) => setEditedTimeout(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            handleSaveTimeout();
-                          }
-                          if (e.key === 'Escape') {
-                            handleCancelEditingTimeout();
-                          }
-                        }}
-                        className="w-[220px]"
-                        placeholder="e.g. 30m, 1h, 1h30m, -1 to disable"
-                        disabled={updateOrganizationLoading}
-                        autoFocus
-                      />
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={handleCancelEditingTimeout}
-                        disabled={updateOrganizationLoading}
-                        hoverText="Cancel editing"
-                        aria-label="Cancel editing"
-                        className="shrink-0"
-                      >
-                        <XMarkIcon className="size-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={handleSaveTimeout}
-                        disabled={
-                          updateOrganizationLoading ||
-                          parsedEditedTimeout === null ||
-                          editedTimeoutExceedsMax
-                        }
-                        hoverText="Save inactivity timeout"
-                        aria-label="Save inactivity timeout"
-                        className="shrink-0"
-                      >
-                        {updateOrganizationLoading ? (
-                          <Spinner />
-                        ) : (
-                          <CheckIcon className="size-4" />
-                        )}
-                      </Button>
-                    </div>
-                    {editedTimeout.trim() !== '' && (
-                      <p
-                        className={`text-xs ${
-                          parsedEditedTimeout === null ||
-                          editedTimeoutExceedsMax
-                            ? 'text-destructive'
-                            : 'text-muted-foreground'
-                        }`}
-                      >
-                        {parsedEditedTimeout === null
-                          ? 'Invalid format — try 30m, 1h, 1h30m, 100ms'
-                          : editedTimeoutExceedsMax
-                            ? 'Inactivity timeout cannot exceed 14 days'
-                            : `→ ${formatTimeoutMs(parsedEditedTimeout)}`}
-                      </p>
-                    )}
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <span className="max-w-[220px] truncate text-sm">
-                      {formatTimeoutMs(currentInactivityTimeoutMs)}
-                    </span>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={handleStartEditingTimeout}
-                      hoverText="Edit inactivity timeout"
-                      aria-label="Edit inactivity timeout"
-                      className="shrink-0"
-                    >
-                      <PencilSquareIcon className="size-4" />
-                    </Button>
-                  </div>
-                )}
-              </SettingRow>
-            )}
           </div>
         )}
+
+        {section === 'general' &&
+          isOrganizationOwner &&
+          isControlPlaneEnabled && (
+            <div className="mt-24 space-y-4">
+              <div>
+                <h3 className="text-base font-semibold text-destructive">
+                  Danger Zone
+                </h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Irreversible actions for this organization.
+                </p>
+              </div>
+              <Separator />
+              <SettingRow
+                label="Archive Organization"
+                description="Members lose access to this organization. Only organizations with no active subscription and no active tenants can be archived."
+              >
+                <Button
+                  variant="destructive"
+                  className="shrink-0"
+                  onClick={() => setShowArchiveOrganizationModal(true)}
+                  leftIcon={<TrashIcon className="size-4" />}
+                >
+                  Archive
+                </Button>
+              </SettingRow>
+            </div>
+          )}
 
         <div className="mt-2">
           {section === 'tenants' && (
@@ -1148,10 +1110,12 @@ export function CloudOrganizationSettings({
                 {isOrganizationOwner && (
                   <div className="flex items-center justify-between rounded-lg border border-border/50 bg-muted/10 p-4">
                     <div className="space-y-0.5">
-                      <p className="text-sm font-medium">Force SSO</p>
+                      <p className="text-sm font-medium">
+                        Force Single Sign-On
+                      </p>
                       <p className="text-sm text-muted-foreground">
-                        Require all organization members to sign in with SSO.
-                        All other login methods will be disabled.
+                        Require all organization members to sign in with Single
+                        Sign On. All other login methods will be disabled.
                       </p>
                     </div>
                     <Switch
@@ -1171,11 +1135,13 @@ export function CloudOrganizationSettings({
                 {/* SSO Domains */}
                 <div className="space-y-4">
                   <div>
-                    <h3 className="text-base font-semibold">SSO Domains</h3>
+                    <h3 className="text-base font-semibold">
+                      Single Sign-On Domains
+                    </h3>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      Domains associated with your organization for SSO login.
-                      Members signing in with a verified domain will be
-                      automatically directed to your identity provider.
+                      Domains associated with your organization for Single Sign
+                      On login. Members signing in with a verified domain will
+                      be automatically directed to your identity provider.
                     </p>
                   </div>
                   {ssoIsConfigured &&
@@ -1186,12 +1152,14 @@ export function CloudOrganizationSettings({
                         <ExclamationTriangleIcon className="mt-0.5 h-4 w-4 shrink-0 text-yellow-500" />
                         <div>
                           <p className="font-medium text-yellow-600 dark:text-yellow-400">
-                            SSO is configured but no domains are set up.
+                            Single Sign-On is configured but no domains are set
+                            up.
                           </p>
                           <p className="mt-0.5 text-muted-foreground">
                             Without a verified domain, members will not be
                             automatically redirected to your identity provider.
-                            Add a domain below to complete your SSO setup.
+                            Add a domain below to complete your Single Sign-On
+                            setup.
                           </p>
                         </div>
                       </div>
@@ -1259,27 +1227,201 @@ export function CloudOrganizationSettings({
             ) : (
               <div className="py-12">
                 <EmptyState
-                  title="SSO is not enabled"
-                  description="Single sign-on is not enabled for this organization. Contact us to get access."
-                  links={[
+                  graphic={
+                    <div className="rounded-full bg-primary/10 p-3">
+                      <KeyIcon className="h-8 w-8 text-primary" />
+                    </div>
+                  }
+                  title="Unlock Single Sign-On"
+                  description="Let your team log in through your identity provider – Okta, Microsoft Entra, Google, OneLogin, JumpCloud or generic OIDC providers. Included on Hatchet Custom plans, alongside RBAC, audit logs, and HIPAA BAA."
+                  buttons={[
                     {
-                      href: OFFICE_HOURS_URL,
-                      label: 'Schedule office hours',
-                      external: true,
+                      label: 'Talk to us',
+                      variant: 'default',
+                      size: 'default',
+                      onClick: () =>
+                        window.open(OFFICE_HOURS_URL, '_blank', 'noreferrer'),
+                    },
+                    {
+                      label: 'Learn more',
+                      onClick: () =>
+                        window.open(
+                          docsPages.v1['single-sign-on'].href,
+                          '_blank',
+                          'noreferrer',
+                        ),
                     },
                   ]}
                 />
               </div>
             ))}
 
-          {section === 'audit-log' &&
+          {section === 'compliance' &&
             (isControlPlaneEnabled ? (
-              <AuditLogSettings orgId={orgId} />
+              <div className="divide-y divide-border">
+                {isOrganizationOwner && (
+                  <SettingRow
+                    label="Inactivity Timeout"
+                    description="Automatically sign out members of this organization after this period of inactivity (maximum 14 days)."
+                  >
+                    {isEditingTimeout ? (
+                      <div className="flex flex-col items-end gap-1.5">
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="text"
+                            value={editedTimeout}
+                            onChange={(e) => setEditedTimeout(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                handleSaveTimeout();
+                              }
+                              if (e.key === 'Escape') {
+                                handleCancelEditingTimeout();
+                              }
+                            }}
+                            className="w-[220px]"
+                            placeholder="e.g. 30m, 1h, 1h30m, -1 to disable"
+                            disabled={updateOrganizationLoading}
+                            autoFocus
+                          />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={handleCancelEditingTimeout}
+                            disabled={updateOrganizationLoading}
+                            hoverText="Cancel editing"
+                            aria-label="Cancel editing"
+                            className="shrink-0"
+                          >
+                            <XMarkIcon className="size-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={handleSaveTimeout}
+                            disabled={
+                              updateOrganizationLoading ||
+                              parsedEditedTimeout === null ||
+                              editedTimeoutExceedsMax
+                            }
+                            hoverText="Save inactivity timeout"
+                            aria-label="Save inactivity timeout"
+                            className="shrink-0"
+                          >
+                            {updateOrganizationLoading ? (
+                              <Spinner />
+                            ) : (
+                              <CheckIcon className="size-4" />
+                            )}
+                          </Button>
+                        </div>
+                        {editedTimeout.trim() !== '' && (
+                          <p
+                            className={`text-xs ${
+                              parsedEditedTimeout === null ||
+                              editedTimeoutExceedsMax
+                                ? 'text-destructive'
+                                : 'text-muted-foreground'
+                            }`}
+                          >
+                            {parsedEditedTimeout === null
+                              ? 'Invalid format — try 30m, 1h, 1h30m, 100ms'
+                              : editedTimeoutExceedsMax
+                                ? 'Inactivity timeout cannot exceed 14 days'
+                                : `→ ${formatTimeoutMs(parsedEditedTimeout)}`}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span className="max-w-[220px] truncate text-sm">
+                          {formatTimeoutMs(currentInactivityTimeoutMs)}
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={handleStartEditingTimeout}
+                          hoverText="Edit inactivity timeout"
+                          aria-label="Edit inactivity timeout"
+                          className="shrink-0"
+                        >
+                          <PencilSquareIcon className="size-4" />
+                        </Button>
+                      </div>
+                    )}
+                  </SettingRow>
+                )}
+
+                <AuditLogSettings orgId={orgId} />
+
+                <SettingRow
+                  label="Compliance Documents"
+                  description="Our certification and reports, available through the Hatchet Trust Center."
+                >
+                  <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                    {COMPLIANCE_DOCUMENTS.map((doc) => (
+                      <Button key={doc.label} variant="outline" asChild>
+                        <a href={doc.href} target="_blank" rel="noreferrer">
+                          {doc.label}
+                          <ArrowTopRightOnSquareIcon className="ml-1.5 size-3.5" />
+                        </a>
+                      </Button>
+                    ))}
+                  </div>
+                </SettingRow>
+
+                <SettingRow
+                  label="Need a BAA or DPA?"
+                  description="We offer Business Associate Agreements and Data Process Agreements for teams with regulatory requirements."
+                >
+                  <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                    <Button
+                      onClick={() =>
+                        window.open(OFFICE_HOURS_URL, '_blank', 'noreferrer')
+                      }
+                    >
+                      Talk to us
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() =>
+                        window.open(TRUST_CENTER_URL, '_blank', 'noreferrer')
+                      }
+                    >
+                      Visit the Trust Center
+                    </Button>
+                  </div>
+                </SettingRow>
+              </div>
             ) : (
               <SectionUnavailable />
             ))}
         </div>
       </div>
+
+      {isOrganizationOwner && isControlPlaneEnabled && (
+        <ArchiveOrganizationModal
+          open={showArchiveOrganizationModal}
+          onOpenChange={setShowArchiveOrganizationModal}
+          organizationId={orgId}
+          organizationName={organizationName}
+          activeTenantCount={visibleTenants.length}
+          subscriptionPlan={
+            (organization as ControlPlaneOrganization | undefined)?.subscription
+              ?.plan
+          }
+          isEligibilityKnown={organizationQuery.isSuccess}
+          onSuccess={async () => {
+            await Promise.all([
+              queryClient.invalidateQueries({ queryKey: ['user-universe'] }),
+              queryClient.invalidateQueries({
+                queryKey: ['organization:list'],
+              }),
+            ]);
+            navigate({ to: appRoutes.authenticatedRoute.to });
+          }}
+        />
+      )}
 
       {isOrganizationOwner && memberToDelete && (
         <DeleteMemberModal
@@ -1732,6 +1874,7 @@ function TenantActions({
             Edit Tags
           </DropdownMenuItem>
         )}
+        {canManageOrganization && <DropdownMenuSeparator />}
         {canManageOrganization && onTransfer && (
           <DropdownMenuItem onClick={() => onTransfer(row)}>
             <ArrowsRightLeftIcon className="mr-2 size-4" />

@@ -282,7 +282,7 @@ func runSkillsInstall() {
 	fmt.Println()
 	fmt.Println(styles.Section("Next steps"))
 	fmt.Println()
-	fmt.Println("  • Run " + styles.Code.Render("hatchet docs install") + " to add the Hatchet MCP server to your AI editor")
+	fmt.Println("  • Run " + styles.Code.Render("hatchet mcp install") + " to add the Hatchet MCP server to your AI coding agents")
 	fmt.Println("  • Commit " + styles.Code.Render("skills/") + " and " + styles.Code.Render("AGENTS.md") + " to version control")
 	fmt.Println()
 }

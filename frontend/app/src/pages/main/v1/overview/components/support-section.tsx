@@ -6,11 +6,18 @@ import {
 } from '@/components/v1/ui/card';
 import { Separator } from '@/components/v1/ui/separator';
 import { OFFICE_HOURS_URL } from '@/lib/external-links';
+import { appRoutes } from '@/router';
 import { ArrowRightIcon } from '@radix-ui/react-icons';
+import { Link } from '@tanstack/react-router';
 import { BiBook, BiMessageSquareDetail } from 'react-icons/bi';
-import { RiDiscordFill, RiGithubFill, RiSlackFill } from 'react-icons/ri';
+import {
+  RiDiscordFill,
+  RiGithubFill,
+  RiPlayLargeLine,
+  RiSlackFill,
+} from 'react-icons/ri';
 
-export function SupportSection() {
+export function SupportSection({ tenantId }: { tenantId: string }) {
   return (
     <div className="pb-6">
       <h2 className="text-md">Support</h2>
@@ -62,6 +69,15 @@ export function SupportSection() {
           </CardHeader>
           <CardContent className="p-4">
             <ul className="space-y-2">
+              <li>
+                <Link
+                  to={appRoutes.tenantOnboardingRoute.to}
+                  params={{ tenant: tenantId }}
+                  className="flex items-center gap-1 text-sm text-primary/70 hover:underline hover:text-primary"
+                >
+                  <RiPlayLargeLine className="mr-2" /> Run your first task
+                </Link>
+              </li>
               <li>
                 <a
                   href="https://docs.hatchet.run"

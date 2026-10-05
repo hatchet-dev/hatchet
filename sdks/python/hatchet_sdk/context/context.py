@@ -209,6 +209,7 @@ class Context:
         self._workflow_name = workflow_name
         self._task_name = task_name
         self._worker_labels = worker_labels
+        self._on_slot_released: Callable[[], object] = lambda: None
 
     @property
     def worker_id(self) -> str:
@@ -430,7 +431,8 @@ class Context:
 
         :return: None
         """
-        return self._dispatcher_client.release_slot(self._step_run_id)
+        self._dispatcher_client.release_slot(self._step_run_id)
+        self._on_slot_released()
 
     async def aio_release_slot(self) -> None:
         """
@@ -438,9 +440,8 @@ class Context:
 
         :return: None
         """
-        return await asyncio.to_thread(
-            self._dispatcher_client.release_slot, self.task_run_id
-        )
+        await self._dispatcher_client.aio_release_slot(self.task_run_id)
+        self._on_slot_released()
 
     def put_stream(self, data: str | bytes) -> None:
         """

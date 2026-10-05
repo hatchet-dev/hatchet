@@ -2,6 +2,12 @@ import pytest
 
 from examples.fanout.worker import ParentInput, parent_wf
 from examples.test_utils import poll_for_runs
+from uuid import uuid4
+
+import pytest
+
+from examples.fanout.worker import ParentInput, parent_wf
+from examples.test_utils import wait_for_child_runs
 from hatchet_sdk import Hatchet
 
 
@@ -29,10 +35,9 @@ async def test_additional_metadata_propagation(
 
     await ref.aio_result()
 
-    runs = await poll_for_runs(
+    runs = await wait_for_child_runs(
         hatchet,
-        expected_count=1,
-        parent_task_external_id=ref.workflow_run_id,
+        ref.workflow_run_id,
         additional_metadata={"test_run_id": test_run_id},
     )
 

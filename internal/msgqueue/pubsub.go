@@ -2,6 +2,8 @@ package msgqueue
 
 import (
 	"context"
+	"encoding/base64"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -19,6 +21,9 @@ const (
 
 	// TopicKindSchedulerPartition wakes the scheduler owning a partition.
 	TopicKindSchedulerPartition TopicKind = "scheduler-partition"
+
+	// TopicKindStreamWake fans durable-stream wakes out to every engine.
+	TopicKindStreamWake TopicKind = "stream-wake"
 )
 
 // Topic identifies a best-effort pub/sub destination.
@@ -53,6 +58,57 @@ func SchedulerPartitionTopic(partitionId string) Topic {
 		name: fmt.Sprintf("%s_scheduler_v1", partitionId),
 		kind: TopicKindSchedulerPartition,
 	}
+}
+
+// StreamWakeTopic is one topic for every stream wake, so each engine needs one
+// subscription and user-chosen names never reach a subject or queue name.
+func StreamWakeTopic() Topic {
+	return Topic{
+		name: "stream_wake_v1",
+		kind: TopicKindStreamWake,
+	}
+}
+
+// StreamWake's tenant is its message's TenantID.
+type StreamWake struct {
+	Namespace string `json:"namespace"`
+	Topic     string `json:"topic"`
+}
+
+// keeps wake messages small on every pubsub backend
+const maxStreamWakeBytes = 4 * 1024
+
+// streamWakeWireSize approximates w as a base64 JSON payload plus separators.
+func streamWakeWireSize(w StreamWake) int {
+	const jsonOverhead = len(`{"namespace":"","topic":""}`)
+
+	return base64.StdEncoding.EncodedLen(len(w.Namespace)+len(w.Topic)+jsonOverhead) + 3
+}
+
+// PubStreamWakes batches wakes into messages under maxStreamWakeBytes.
+func PubStreamWakes(ctx context.Context, ps PubSub, tenantId uuid.UUID, wakes []StreamWake) error {
+	var errs error
+
+	for len(wakes) > 0 {
+		n, size := 0, 0
+
+		// the first wake always goes in, so a batch is never empty
+		for n < len(wakes) && (n == 0 || size+streamWakeWireSize(wakes[n]) <= maxStreamWakeBytes) {
+			size += streamWakeWireSize(wakes[n])
+			n++
+		}
+
+		wakeMsg, err := NewTenantMessage(tenantId, MsgIDStreamMessage, true, false, wakes[:n]...)
+
+		if err != nil {
+			return err
+		}
+
+		errs = errors.Join(errs, ps.Pub(ctx, StreamWakeTopic(), wakeMsg))
+		wakes = wakes[n:]
+	}
+
+	return errs
 }
 
 // PubSub is a best-effort, non-durable, at-most-once pub/sub mechanism.

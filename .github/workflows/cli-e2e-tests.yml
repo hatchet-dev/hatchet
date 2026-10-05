@@ -51,22 +51,22 @@ jobs:
           node-version: "24"
 
       - name: Install Poetry
-        run: pipx install poetry
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" pipx install poetry
 
       - name: Install uv
-        run: pip install uv
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" pip install uv
 
       - name: Install pnpm
-        run: npm install -g pnpm
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" npm install -g pnpm
 
       - name: Install Yarn
-        run: npm install -g yarn
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" npm install -g yarn
 
       - name: Install Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
 
       - name: Install tmux
-        run: sudo apt-get install -y tmux
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" sudo apt-get install -y tmux
 
       - name: Build CLI
         run: |

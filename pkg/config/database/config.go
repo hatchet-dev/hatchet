@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
 	"github.com/spf13/viper"
 
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
@@ -84,6 +85,25 @@ type Layer struct {
 	V1 v1.Repository
 
 	Seed SeedConfigFile
+
+	// Logger is the configured database logger. Consumers should read it via
+	// GetLogger, which falls back to a disabled logger when the layer was
+	// constructed without one.
+	Logger *zerolog.Logger
+}
+
+// GetLogger returns the layer's configured logger, or a disabled logger if the
+// layer was constructed without one. Library code writing diagnostics should
+// use this rather than printing to stdout/stderr directly, so that embedders
+// keep control over the output.
+func (l *Layer) GetLogger() *zerolog.Logger {
+	if l == nil || l.Logger == nil {
+		nop := zerolog.Nop()
+
+		return &nop
+	}
+
+	return l.Logger
 }
 
 func BindAllEnv(v *viper.Viper) {

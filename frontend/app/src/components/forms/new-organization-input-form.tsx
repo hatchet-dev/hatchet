@@ -131,23 +131,25 @@ export function NewOrganizationInputForm({
         />
       </div>
 
-      <Button
-        type="submit"
-        className="w-full"
-        disabled={isSaving || cannotSubmitRegion}
-      >
-        {isSaving ? (
-          <>
-            <Spinner />
-            Getting started...
-          </>
-        ) : (
-          <>
-            {submitLabel}
-            <ArrowRightIcon className="ml-2 size-4" />
-          </>
-        )}
-      </Button>
+      <div className="flex justify-end">
+        <Button
+          type="submit"
+          size="sm"
+          disabled={isSaving || cannotSubmitRegion}
+        >
+          {isSaving ? (
+            <>
+              <Spinner />
+              Getting started...
+            </>
+          ) : (
+            <>
+              {submitLabel}
+              <ArrowRightIcon className="ml-2 size-4" />
+            </>
+          )}
+        </Button>
+      </div>
     </form>
   );
 }

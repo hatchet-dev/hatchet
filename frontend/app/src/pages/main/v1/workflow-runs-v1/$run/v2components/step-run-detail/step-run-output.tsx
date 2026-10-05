@@ -1,6 +1,7 @@
 import { RestrictedPayloads } from '@/components/v1/shared/restricted-payloads';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { queries, V1TaskStatus } from '@/lib/api';
+import { prettyPrintIfValidJson } from '@/lib/utils';
 import { useQuery } from '@tanstack/react-query';
 
 export const V1StepRunOutput = (props: { taskRunId: string }) => {
@@ -18,7 +19,7 @@ export const V1StepRunOutput = (props: { taskRunId: string }) => {
 
   const outputData =
     (data.status === V1TaskStatus.FAILED
-      ? data.errorMessage
+      ? prettyPrintIfValidJson(data.errorMessage || '')
       : JSON.stringify(data.output, null, 2)) || '';
 
   return <CodeHighlighter className="my-4" language="json" code={outputData} />;

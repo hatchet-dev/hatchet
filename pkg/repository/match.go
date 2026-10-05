@@ -549,6 +549,10 @@ func (m *sharedRepository) processEventMatchesForTarget(ctx context.Context, tx 
 	satisfiedMatches := make([]*sqlcv1.SaveSatisfiedMatchConditionsRow, 0)
 
 	if len(satisfiedMatchIds) > 0 {
+		if err := sqlchelpers.DisableJITForTransaction(ctx, tx); err != nil {
+			return nil, err
+		}
+
 		satisfiedMatches, err = m.queries.SaveSatisfiedMatchConditions(
 			ctx,
 			tx,
@@ -851,6 +855,25 @@ func (m *sharedRepository) processEventMatchesForTarget(ctx context.Context, tx 
 			if minDurableTaskInsertedAt.IsZero() || durableTaskInsertedAt.Time.Before(minDurableTaskInsertedAt) {
 				minDurableTaskInsertedAt = durableTaskInsertedAt.Time
 			}
+		}
+	}
+
+	// NOTE: need an explicit lock here to prevent segfault caused by Postgres bug, see this issue: https://github.com/hatchet-dev/hatchet/issues/5101
+	if len(durableTaskIds) > 0 {
+		tenantIds := make([]uuid.UUID, len(durableTaskIds))
+		for i := range tenantIds {
+			tenantIds[i] = tenantId
+		}
+
+		_, err := m.queries.GetAndLockLogFilesWithBranchPoints(ctx, tx, sqlcv1.GetAndLockLogFilesWithBranchPointsParams{
+			Durabletaskids:           durableTaskIds,
+			Durabletaskinsertedats:   durableTaskInsertedAts,
+			Tenantids:                tenantIds,
+			Mindurabletaskinsertedat: sqlchelpers.TimestamptzFromTime(minDurableTaskInsertedAt),
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to lock durable event log files: %w", err)
 		}
 	}
 
@@ -1297,6 +1320,11 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 				matchConditionParams = append(matchConditionParams, getConditionParam(tenantId, createdMatch.ID, condition))
 			}
 		}
+	}
+
+	// a COPY with zero rows still costs a round trip (CopyIn + CopyDone) and writes nothing
+	if len(matchConditionParams) == 0 {
+		return nil
 	}
 
 	_, err := m.queries.CreateMatchConditions(ctx, tx, matchConditionParams)

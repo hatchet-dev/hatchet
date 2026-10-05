@@ -33,6 +33,48 @@ import { pipeline } from 'stream/promises';
 
 const REPO_URL = 'https://github.com/hatchet-dev/hatchet-embedded';
 const DEFAULT_READY_TIMEOUT_MS = 300_000;
+const SLOW_NOTICE_DELAY_MS = 2_000;
+const HEARTBEAT_INTERVAL_MS = 30_000;
+
+// first-contact progress goes to stderr (like the engine's own output) so it
+// never corrupts program output; warm starts print at most one line
+function logProgress(message: string): void {
+  process.stderr.write(`hatchet embedded: ${message}\n`);
+}
+
+// prints startMsg only if fn is still running after SLOW_NOTICE_DELAY_MS (and
+// doneMsg once it finishes), so fast warm-start network calls stay quiet while
+// a blocked one explains what the process is waiting on
+async function withSlowNotice<T>(
+  startMsg: string,
+  doneMsg: string,
+  fn: () => Promise<T>
+): Promise<T> {
+  let noticed = false;
+  let finished = false;
+  const timer = setTimeout(() => {
+    // guards a callback already queued when fn settles, so a stale start
+    // message can never print after completion
+    if (finished) {
+      return;
+    }
+    noticed = true;
+    logProgress(startMsg);
+  }, SLOW_NOTICE_DELAY_MS);
+  timer.unref?.();
+  let result: T;
+  try {
+    result = await fn();
+  } finally {
+    finished = true;
+    clearTimeout(timer);
+  }
+  // only reached when fn succeeded
+  if (noticed) {
+    logProgress(doneMsg);
+  }
+  return result;
+}
 
 /**
  * Options for the embedded engine sidecar. All fields are optional; by default the
@@ -175,14 +217,24 @@ async function resolveExpectedChecksum(
 }
 
 async function ensureSidecarBinary(version?: string, checksum?: string): Promise<string> {
-  const tag = await resolveVersion(version);
+  const tag = await withSlowNotice(
+    `resolving the latest hatchet-embedded release from ${REPO_URL}`,
+    'resolved the latest hatchet-embedded release',
+    () => resolveVersion(version)
+  );
   const asset = sidecarAssetName();
   const binPath = path.join(os.homedir(), '.hatchet', 'embedded', tag, asset);
   await fs.mkdir(path.dirname(binPath), { recursive: true });
 
   // verified on every start, not just at download; a cached binary that no
   // longer matches the expected checksum is re-downloaded
-  const expected = checksum ?? (await resolveExpectedChecksum(tag, asset, binPath));
+  const expected =
+    checksum ??
+    (await withSlowNotice(
+      `resolving the expected checksum for ${tag} (the cached checksum is used if the release cannot be reached)`,
+      'expected checksum resolved',
+      () => resolveExpectedChecksum(tag, asset, binPath)
+    ));
 
   const cached = await fs.access(binPath).then(
     () => true,
@@ -191,6 +243,10 @@ async function ensureSidecarBinary(version?: string, checksum?: string): Promise
   if (cached && (await sha256File(binPath)) === expected) {
     return binPath;
   }
+
+  logProgress(
+    `downloading the embedded engine sidecar ${tag} to ${binPath} (tens of MB, cached for later runs)`
+  );
 
   const url = `${REPO_URL}/releases/download/${tag}/${asset}`;
   const res = await fetch(url);
@@ -217,6 +273,7 @@ async function ensureSidecarBinary(version?: string, checksum?: string): Promise
   } finally {
     await fs.rm(tmpPath, { force: true });
   }
+  logProgress(`sidecar ${tag} downloaded`);
   return binPath;
 }
 
@@ -225,7 +282,9 @@ async function waitForHandshake(
   handshakePath: string,
   timeoutMs: number
 ): Promise<Handshake> {
-  const deadline = Date.now() + timeoutMs;
+  const start = Date.now();
+  const deadline = start + timeoutMs;
+  let nextHeartbeat = start + HEARTBEAT_INTERVAL_MS;
   let exited: Error | undefined;
   child.once('exit', (code) => {
     exited = new Error(`hatchet embedded sidecar exited with code ${code} before becoming ready`);
@@ -234,6 +293,11 @@ async function waitForHandshake(
   while (Date.now() < deadline) {
     if (exited) {
       throw exited;
+    }
+    if (Date.now() >= nextHeartbeat) {
+      const elapsed = Math.round((Date.now() - start) / 1000);
+      logProgress(`still waiting for the embedded engine (${elapsed}s elapsed)`);
+      nextHeartbeat += HEARTBEAT_INTERVAL_MS;
     }
     try {
       const handshake = JSON.parse(await fs.readFile(handshakePath, 'utf8')) as Handshake;
@@ -255,6 +319,9 @@ async function waitForHandshake(
 // sidecars started in this process that have not been stopped yet
 const activeSidecars = new Set<EmbeddedSidecar>();
 
+// the ambient-token warning is printed at most once per process
+let warnedAmbientToken = false;
+
 /**
  * Gracefully stops every sidecar started in this process by
  * `HatchetEmbeddedClient.init()` (or `startEmbeddedSidecar`) and resolves once
@@ -274,6 +341,13 @@ export async function stopEmbeddedSidecar(): Promise<void> {
  * Use {@link HatchetEmbeddedClient.init} unless you need the raw connection details.
  */
 export async function startEmbeddedSidecar(opts: EmbeddedOptions = {}): Promise<EmbeddedSidecar> {
+  if (process.env.HATCHET_CLIENT_TOKEN && !warnedAmbientToken) {
+    warnedAmbientToken = true;
+    logProgress(
+      'warning: HATCHET_CLIENT_TOKEN is set in the environment. Hatchet clients created with the standard constructor in this process will NOT use the embedded engine; unset HATCHET_CLIENT_TOKEN for embedded runs.'
+    );
+  }
+
   const suppliedPath = opts.binaryPath ?? process.env.HATCHET_CLIENT_EMBEDDED_BINARY_PATH;
 
   let binPath: string;
@@ -327,6 +401,12 @@ export async function startEmbeddedSidecar(opts: EmbeddedOptions = {}): Promise<
   const child = spawn(binPath, args, { stdio: ['pipe', 'ignore', 'inherit'] });
   const killChild = () => child.kill();
   process.once('exit', killChild);
+
+  logProgress(
+    opts.databaseUrl
+      ? 'starting the embedded engine'
+      : 'starting the embedded engine (first run initializes a bundled Postgres and can take a minute)'
+  );
 
   let handshake: Handshake;
   try {

@@ -4,6 +4,7 @@ import { UpdateTenantForm } from './components/update-tenant-form';
 import { TenantSwitcher } from '@/components/v1/molecules/nav-bar/tenant-switcher';
 import { Button } from '@/components/v1/ui/button';
 import { Spinner } from '@/components/v1/ui/loading';
+import { Separator } from '@/components/v1/ui/separator';
 import { Switch } from '@/components/v1/ui/switch';
 import useCanWrite from '@/hooks/use-can-write';
 import useControlPlane from '@/hooks/use-control-plane';
@@ -11,6 +12,7 @@ import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 import api, { UpdateTenantRequest } from '@/lib/api';
+import { TenantStatusType } from '@/lib/api/generated/cloud/data-contracts';
 import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useApiError } from '@/lib/hooks';
 import { MembershipsContextType } from '@/lib/outlet';
@@ -21,9 +23,13 @@ import {
 } from '@/pages/main/v1/overview/components/onboarding-state';
 import { type OrganizationTenantWithRegion } from '@/pages/main/v1/tenant-settings/organization';
 import { TagBadge } from '@/pages/main/v1/tenant-settings/organization/components/tag-badge';
+import { DeleteTenantModal } from '@/pages/organizations/$organization/components/delete-tenant-modal';
 import { EditTenantTagsModal } from '@/pages/organizations/$organization/components/edit-tenant-tags-modal';
+import { TransferTenantModal } from '@/pages/organizations/$organization/components/transfer-tenant-modal';
+import { appRoutes } from '@/router';
+import { ArrowsRightLeftIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from '@tanstack/react-router';
+import { useNavigate, useParams } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
 
 export default function TenantSettings() {
@@ -54,6 +60,8 @@ export default function TenantSettings() {
           </SettingRow>
           <OnboardingSettingRow />
         </div>
+
+        <TenantDangerZone />
       </div>
     </div>
   );
@@ -217,6 +225,102 @@ const TenantTags: React.FC = () => {
   );
 };
 
+// Archiving and moving a tenant are organization-owner actions, the same ones
+// offered from the organization's Tenants list.
+const TenantDangerZone: React.FC = () => {
+  const { tenant, organizationId } = useTenantDetails();
+  const { tenant: tenantId } = useParams({ from: appRoutes.tenantRoute.to });
+  const { isControlPlaneEnabled } = useControlPlane();
+  const { organizations } = useOrganizations();
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const [showArchiveModal, setShowArchiveModal] = useState(false);
+  const [showTransferModal, setShowTransferModal] = useState(false);
+
+  const organization = organizations.find(
+    (o) => o.metadata.id === organizationId,
+  );
+
+  if (!organizationId || !organization?.isOwner) {
+    return null;
+  }
+
+  const tenantName = tenant?.name || tenantId;
+
+  return (
+    <div className="mt-24 space-y-4">
+      <div>
+        <h3 className="text-base font-semibold text-destructive">
+          Danger Zone
+        </h3>
+        <p className="mt-1 text-sm text-muted-foreground">
+          These actions affect everyone with access to this tenant.
+        </p>
+      </div>
+      <Separator />
+      <div className="divide-y divide-border">
+        {isControlPlaneEnabled && (
+          <SettingRow
+            label="Move Tenant"
+            description="Move this tenant to another organization you own. Its members are added to that organization."
+          >
+            <Button
+              variant="outline"
+              className="shrink-0"
+              onClick={() => setShowTransferModal(true)}
+              leftIcon={<ArrowsRightLeftIcon className="size-4" />}
+            >
+              Move
+            </Button>
+          </SettingRow>
+        )}
+        <SettingRow
+          label="Archive Tenant"
+          description="The tenant is kept for 30 days before being permanently deleted."
+        >
+          <Button
+            variant="destructive"
+            className="shrink-0"
+            onClick={() => setShowArchiveModal(true)}
+            leftIcon={<TrashIcon className="size-4" />}
+          >
+            Archive
+          </Button>
+        </SettingRow>
+      </div>
+
+      {isControlPlaneEnabled && (
+        <TransferTenantModal
+          open={showTransferModal}
+          onOpenChange={setShowTransferModal}
+          organizationId={organizationId}
+          organizationName={organization.name}
+          tenantId={tenantId}
+          tenantName={tenantName}
+          ownedDestinationOrganizations={organizations.filter(
+            (o) => o.isOwner && o.metadata.id !== organizationId,
+          )}
+          onSuccess={() =>
+            queryClient.invalidateQueries({ queryKey: ['user-universe'] })
+          }
+        />
+      )}
+
+      <DeleteTenantModal
+        open={showArchiveModal}
+        onOpenChange={setShowArchiveModal}
+        tenant={{ id: tenantId, status: TenantStatusType.ACTIVE }}
+        tenantName={tenantName}
+        organizationName={organization.name}
+        onSuccess={async () => {
+          await queryClient.invalidateQueries({ queryKey: ['user-universe'] });
+          navigate({ to: appRoutes.authenticatedRoute.to });
+        }}
+      />
+    </div>
+  );
+};
+
 const UpdateTenant: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { tenantId } = useCurrentTenantId();
@@ -302,7 +406,7 @@ const OnboardingSettingRow: React.FC = () => {
   return (
     <SettingRow
       label="Onboarding"
-      description="Restart the onboarding guide on the Overview page. This clears onboarding progress for this tenant in this browser."
+      description="Restart the onboarding guide. This clears onboarding progress for this tenant in this browser."
     >
       <Button
         variant="outline"
@@ -310,7 +414,7 @@ const OnboardingSettingRow: React.FC = () => {
         onClick={() => {
           setStoredOnboarding(defaultOnboardingState());
           navigate({
-            to: '/tenants/$tenant/overview',
+            to: '/tenants/$tenant/onboarding',
             params: { tenant: tenantId },
           });
         }}

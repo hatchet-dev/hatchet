@@ -7,7 +7,6 @@ import {
   SearchBarWithFilters,
   type SearchSuggestion,
 } from '@/components/v1/molecules/search-bar-with-filters/search-bar-with-filters';
-import { Loading } from '@/components/v1/ui/loading.tsx';
 import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { docsPages } from '@/lib/generated/docs';
 import { appRoutes } from '@/router';
@@ -44,6 +43,7 @@ function WorkflowTable() {
     numWorkflows,
     isLoading,
     isRefetching,
+    isPlaceholderData,
     pagination,
     setPagination,
     setPageSize,
@@ -59,15 +59,12 @@ function WorkflowTable() {
 
   const autocompleteContext = useMemo(() => ({}), []);
 
-  if (isLoading) {
-    return <Loading />;
-  }
-
   const searchBar = (
     <SearchBarWithFilters
       value={search}
       onChange={setSearch}
       onSubmit={setSearch}
+      submitOnChange
       getAutocomplete={noopAutocomplete}
       applySuggestion={noopApplySuggestion}
       autocompleteContext={autocompleteContext}
@@ -97,6 +94,7 @@ function WorkflowTable() {
       showSelectedRows={false}
       pageCount={numWorkflows}
       isLoading={isLoading}
+      isPlaceholderData={isPlaceholderData}
       showColumnToggle={true}
       columnKeyToName={WorkflowColumn}
       refetchProps={{

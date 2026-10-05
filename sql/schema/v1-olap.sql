@@ -249,6 +249,7 @@ CREATE TABLE v1_dags_olap (
     total_tasks INT NOT NULL DEFAULT 1,
     idempotency_key TEXT,
     latest_retry_count INT NOT NULL DEFAULT 0,
+    is_dag_operator BOOLEAN NOT NULL DEFAULT FALSE,
     PRIMARY KEY (inserted_at, id)
 ) PARTITION BY RANGE(inserted_at);
 
@@ -276,6 +277,7 @@ CREATE TABLE v1_runs_olap (
 
 CREATE INDEX ix_v1_runs_olap_parent_task_external_id ON v1_runs_olap (parent_task_external_id) WHERE parent_task_external_id IS NOT NULL;
 CREATE INDEX ix_v1_runs_olap_tenant_ins_at_status ON v1_runs_olap (tenant_id, inserted_at DESC, readable_status);
+CREATE INDEX ix_v1_runs_olap_tenant_ins_at_status_wf ON v1_runs_olap (tenant_id, inserted_at DESC, readable_status, workflow_id);
 CREATE INDEX ix_v1_runs_olap_idempotency_key ON v1_runs_olap (idempotency_key, inserted_at) WHERE idempotency_key IS NOT NULL;
 
 -- Backs additional_metadata containment filters (@> / @> ANY). jsonb_path_ops only
@@ -434,7 +436,7 @@ CREATE TYPE v1_payload_location_olap AS ENUM ('INLINE', 'EXTERNAL');
 
 CREATE TABLE v1_payloads_olap (
     tenant_id UUID NOT NULL,
-    external_id UUID NOT NULL,
+    external_id UUID NOT NULL, -- IMPORTANT: Each _partition_ of this table has a `UNIQUE` constraint on this column, but the parent does not
 
     location v1_payload_location_olap NOT NULL,
     external_location_key TEXT,
@@ -819,7 +821,9 @@ BEGIN
     UPDATE
         v1_runs_olap r
     SET
-        readable_status = n.readable_status
+        readable_status = n.readable_status,
+        parent_task_external_id = n.parent_task_external_id,
+        idempotency_key = n.idempotency_key
     FROM new_rows n
     WHERE
         r.id = n.id

@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/authz"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -95,8 +96,10 @@ func (t *TasksService) V1LogLineList(ctx echo.Context, request gen.V1LogLineList
 
 	rows := make([]gen.V1LogLine, len(logLines))
 
+	canViewPayloads := transformers.WithPayloads(authz.CanViewPayloads(ctx))
+
 	for i, log := range logLines {
-		rows[i] = *transformers.ToV1LogLine(log)
+		rows[i] = *transformers.ToV1LogLine(log, canViewPayloads)
 	}
 
 	totalPages := int64(0)

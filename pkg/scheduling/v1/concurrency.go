@@ -12,6 +12,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/services/shared/timeout_lock"
 
+	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/randomticker"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -261,7 +262,9 @@ func (c *ConcurrencyManager) loopConcurrency(ctx context.Context) {
 		c.releaseStrategyLocks()
 		if err != nil {
 			span.End()
-			c.l.Error().Ctx(ctx).Err(err).Msg("error running concurrency strategy")
+
+			logger.ShutdownAware(ctx, c.l, err, zerolog.ErrorLevel).Ctx(ctx).Err(err).Msg("error running concurrency strategy")
+
 			continue
 		}
 

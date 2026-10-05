@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"sync"
 	"testing"
@@ -283,14 +284,14 @@ func TestConnectFailurePreservesPendingAcksAndQueuedRequests(t *testing.T) {
 
 	key := PendingAckKey{TaskID: "task1", SignalKey: 1}
 	ackCh := listener.AddPendingEventAck(key)
-	listener.SendRequest(&v1.DurableTaskRequest{
+	require.NoError(t, listener.SendRequest(ctx, &v1.DurableTaskRequest{
 		Message: &v1.DurableTaskRequest_TriggerRuns{
 			TriggerRuns: &v1.DurableTaskTriggerRunsRequest{
 				DurableTaskExternalId: key.TaskID,
 				InvocationCount:       int32(key.SignalKey),
 			},
 		},
-	})
+	}))
 
 	listener.Start(ctx)
 	defer listener.Stop()
@@ -654,4 +655,188 @@ func TestDurableTaskListenerCancellationDuringSleep(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return !listener.IsRunning()
 	}, 2*time.Second, 10*time.Millisecond)
+}
+
+// SendRequest returns when its context ends or the listener is stopped, so a caller is never
+// held on a stopped listener's full queue.
+func TestSendRequestReturnsOnContextOrStop(t *testing.T) {
+	l := zerolog.Nop()
+	listener := NewDurableTaskListener("test-worker", func(context.Context) (v1.V1Dispatcher_DurableTaskClient, error) {
+		return nil, status.Error(codes.Unavailable, "down")
+	}, &l)
+
+	req := &v1.DurableTaskRequest{Message: &v1.DurableTaskRequest_WaitFor{WaitFor: &v1.DurableTaskWaitForRequest{DurableTaskExternalId: "task"}}}
+
+	// fill the bounded queue; the listener is not started so nothing drains it
+	for i := 0; i < cap(listener.requestQueue); i++ {
+		require.NoError(t, listener.SendRequest(context.Background(), req))
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	require.ErrorIs(t, listener.SendRequest(ctx, req), context.DeadlineExceeded)
+
+	blocked := make(chan error, 1)
+	go func() { blocked <- listener.SendRequest(context.Background(), req) }()
+
+	select {
+	case err := <-blocked:
+		t.Fatalf("send returned early: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	listener.Stop()
+
+	select {
+	case err := <-blocked:
+		require.ErrorIs(t, err, errDurableTaskListenerStopped)
+	case <-time.After(time.Second):
+		t.Fatal("send stayed blocked after Stop")
+	}
+
+	require.ErrorIs(t, listener.SendRequest(context.Background(), req), errDurableTaskListenerStopped)
+}
+
+func awaitWaitingEntries(t *testing.T, stream *mockDurableTaskStream, expectedCount int) []*v1.DurableTaskAwaitedCompletedEntry {
+	t.Helper()
+
+	entries := make([]*v1.DurableTaskAwaitedCompletedEntry, 0, expectedCount)
+	for len(entries) < expectedCount {
+		statusReq := awaitRequest(t, stream).GetWorkerStatus()
+		require.NotNil(t, statusReq)
+		entries = append(entries, statusReq.GetWaitingEntries()...)
+	}
+
+	return entries
+}
+
+func TestWorkerStatusListsOnlyNewlyPendingCallbacks(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	h := newTestHarness()
+	stream := h.addHangingStream(ctx)
+	h.listener.Start(ctx)
+	defer h.listener.Stop()
+
+	require.NotNil(t, awaitRequest(t, stream).GetRegisterWorker())
+
+	for nodeID := range 300 {
+		h.listener.AddPendingCallback(PendingCallbackKey{TaskID: "task1", SignalKey: 1, NodeID: int64(nodeID)})
+	}
+	require.Len(t, awaitWaitingEntries(t, stream, 300), 300)
+
+	for nodeID := range 50 {
+		h.listener.AddPendingCallback(PendingCallbackKey{TaskID: "task2", SignalKey: 1, NodeID: int64(nodeID)})
+	}
+	entries := awaitWaitingEntries(t, stream, 50)
+
+	require.Len(t, entries, 50)
+	for _, entry := range entries {
+		assert.Equal(t, "task2", entry.GetDurableTaskExternalId())
+	}
+}
+
+func TestPeriodicWorkerStatusSkipsRecentlyRegisteredCallbacks(t *testing.T) {
+	h := newTestHarness()
+	registeredAt := time.Now()
+
+	completedKey := PendingCallbackKey{TaskID: "task1", SignalKey: 1, NodeID: 1}
+	pendingKey := PendingCallbackKey{TaskID: "task1", SignalKey: 1, NodeID: 2}
+	h.listener.AddPendingCallback(completedKey)
+	h.listener.AddPendingCallback(pendingKey)
+
+	assert.Empty(t, h.listener.longPendingCallbackKeys(registeredAt))
+
+	h.listener.removePendingCallback(completedKey)
+
+	assert.Equal(
+		t,
+		[]PendingCallbackKey{pendingKey},
+		h.listener.longPendingCallbackKeys(registeredAt.Add(time.Minute)),
+	)
+
+	h.listener.removePendingCallback(pendingKey)
+
+	assert.Empty(t, h.listener.pendingCallbackRegisteredAt)
+	assert.Empty(t, h.listener.newlyPendingCallbackKeys)
+}
+
+func TestWorkerStatusRequestsAreSplitByMaxEntries(t *testing.T) {
+	keys := make([]PendingCallbackKey, 25)
+	for nodeID := range keys {
+		keys[nodeID] = PendingCallbackKey{TaskID: "task1", SignalKey: 1, NodeID: int64(nodeID)}
+	}
+
+	requests := workerStatusRequests("test-worker", keys, 10)
+
+	require.Len(t, requests, 3)
+	assert.Len(t, requests[0].GetWorkerStatus().GetWaitingEntries(), 10)
+	assert.Len(t, requests[1].GetWorkerStatus().GetWaitingEntries(), 10)
+	assert.Len(t, requests[2].GetWorkerStatus().GetWaitingEntries(), 5)
+	assert.Empty(t, workerStatusRequests("test-worker", nil, 10))
+}
+
+// --- Trigger runs ---
+
+func TestSendTriggerRunsRequestSplitsChildrenAcrossRequests(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	h := newTestHarness()
+	stream := h.addHangingStream(ctx)
+	h.listener.Start(ctx)
+	defer h.listener.Stop()
+
+	require.NotNil(t, awaitRequest(t, stream).GetRegisterWorker())
+
+	childCount := 2*triggerRunsMaxChildrenPerRequest + 50
+	triggerOpts := make([]*v1.TriggerWorkflowRequest, childCount)
+	for i := range triggerOpts {
+		triggerOpts[i] = &v1.TriggerWorkflowRequest{Name: fmt.Sprintf("child-%d", i)}
+	}
+
+	requestSizes := make(chan int, 3)
+	go func() {
+		nextNodeID := int64(0)
+		for range 3 {
+			var triggerRuns *v1.DurableTaskTriggerRunsRequest
+			select {
+			case req := <-stream.sendCh:
+				triggerRuns = req.GetTriggerRuns()
+			case <-ctx.Done():
+				return
+			}
+
+			runEntries := make([]*v1.DurableTaskRunAckEntry, len(triggerRuns.GetTriggerOpts()))
+			for i, opt := range triggerRuns.GetTriggerOpts() {
+				runEntries[i] = &v1.DurableTaskRunAckEntry{NodeId: nextNodeID, WorkflowRunExternalId: opt.GetName()}
+				nextNodeID++
+			}
+			requestSizes <- len(runEntries)
+
+			stream.recvCh <- &v1.DurableTaskResponse{
+				Message: &v1.DurableTaskResponse_TriggerRunsAck{
+					TriggerRunsAck: &v1.DurableTaskEventTriggerRunsAckResponse{
+						DurableTaskExternalId: triggerRuns.GetDurableTaskExternalId(),
+						InvocationCount:       triggerRuns.GetInvocationCount(),
+						RunEntries:            runEntries,
+					},
+				},
+			}
+		}
+	}()
+
+	entries, err := h.listener.SendTriggerRunsRequest(ctx, "task1", 1, triggerOpts)
+	require.NoError(t, err)
+
+	assert.Equal(t, triggerRunsMaxChildrenPerRequest, <-requestSizes)
+	assert.Equal(t, triggerRunsMaxChildrenPerRequest, <-requestSizes)
+	assert.Equal(t, 50, <-requestSizes)
+
+	require.Len(t, entries, childCount)
+	for i, entry := range entries {
+		assert.Equal(t, int64(i), entry.NodeID)
+		assert.Equal(t, fmt.Sprintf("child-%d", i), entry.WorkflowRunID)
+	}
 }

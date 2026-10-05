@@ -8,12 +8,12 @@ from hatchet_sdk.clients.listeners.run_event_listener import (
     RunEventListenerClient,
 )
 from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
+from hatchet_sdk.config import DEFAULT_SYNC_RESULT_POLL_INTERVAL_SECONDS
 from hatchet_sdk.exceptions import FailedTaskRunExceptionGroup, TaskRunError
 
 if TYPE_CHECKING:
     from hatchet_sdk.clients.admin import AdminClient
 
-POLL_INTERVAL_SECONDS = 1
 MAX_FETCH_RETRIES = 10
 
 
@@ -68,11 +68,16 @@ class WorkflowRunRef:
                 f"Timed out waiting for workflow run {self.workflow_run_id} to complete after {timeout}."
             ) from None
 
-    def result(self, timeout: timedelta | None = None) -> dict[str, Any]:
+    def result(
+        self, timeout: timedelta | None = None, poll_interval: float | None = None
+    ) -> dict[str, Any]:
         """
         Wait for the workflow run to complete and return its result, polling for completion.
 
         :param timeout: The maximum time to wait for the run to complete. Waits indefinitely if not provided.
+        :param poll_interval: Seconds between GetRunDetails polls. Defaults to the
+            client ``sync_result_poll_interval`` (1 second). Values below 1 second are
+            raised to 1 second.
         :return: A dictionary mapping each task name in the run to its output.
         :raises TimeoutError: If the run does not complete within the timeout.
         :raises RuntimeError: If fetching the run's status fails repeatedly.
@@ -85,6 +90,15 @@ class WorkflowRunRef:
             time.monotonic() + timeout.total_seconds() if timeout is not None else None
         )
         fetch_failures = 0
+
+        interval = max(
+            DEFAULT_SYNC_RESULT_POLL_INTERVAL_SECONDS,
+            (
+                poll_interval
+                if poll_interval is not None
+                else self._admin_client.config.sync_result_poll_interval
+            ),
+        )
 
         while True:
             if deadline is not None and time.monotonic() > deadline:
@@ -102,14 +116,14 @@ class WorkflowRunRef:
                         f"Failed to fetch workflow run {self.workflow_run_id} after {MAX_FETCH_RETRIES} attempts."
                     ) from e
 
-                time.sleep(POLL_INTERVAL_SECONDS)
+                time.sleep(interval)
                 continue
 
             if (
                 details.status in [RunStatus.QUEUED, RunStatus.RUNNING]
                 or details.done is False
             ):
-                time.sleep(POLL_INTERVAL_SECONDS)
+                time.sleep(interval)
                 continue
 
             if details.status == RunStatus.FAILED:

@@ -128,12 +128,12 @@ export function useTenantDetails() {
     },
   });
 
+  // Shares its key with every other reader of the resource policy, so it has
+  // to cache the same shape they do: caching the bare `limits` array here left
+  // the others reading `undefined` whenever this observer fetched last.
   const resourcePolicyQuery = useQuery({
-    queryKey: ['tenant-resource-policy:get', tenant?.metadata.id],
-    queryFn: async () => {
-      return (await api.tenantResourcePolicyGet(tenant?.metadata.id ?? '')).data
-        .limits;
-    },
+    ...queries.tenantResourcePolicy.get(tenant?.metadata.id ?? ''),
+    select: (policy) => policy.limits,
     enabled: !!tenant?.metadata.id,
   });
 

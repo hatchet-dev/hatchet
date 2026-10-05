@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"os"
 	"slices"
 	"sort"
 	"strings"
@@ -18,6 +19,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/config/cli"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/styles"
@@ -52,6 +54,9 @@ hatchet profile list
 
 # Show details of a specific profile
 hatchet profile show --name [name] [--show-token]
+
+# Print shell exports for a profile's HATCHET_CLIENT_ variables
+eval "$(hatchet profile env --name [name])"
 
 # Update an existing profile (interactive)
 hatchet profile update
@@ -119,7 +124,7 @@ var profileAddCmd = &cobra.Command{
 			}
 		}
 
-		err = cli.AddProfile(name, profile)
+		err = cli.Profiles.AddProfile(name, profile)
 
 		if err != nil {
 			cli.Logger.Fatalf("could not add profile: %v", err)
@@ -153,7 +158,7 @@ var profileRemoveCmd = &cobra.Command{
 			}
 		}
 
-		err := cli.RemoveProfile(name)
+		err := cli.Profiles.RemoveProfile(name)
 		if err != nil {
 			cli.Logger.Fatalf("could not remove profile: %v", err)
 		}
@@ -170,7 +175,7 @@ var profileListCmd = &cobra.Command{
 	Example: `  # List all configured profiles
   hatchet profile list`,
 	Run: func(cmd *cobra.Command, args []string) {
-		profileNames := cli.ListProfiles()
+		profileNames := cli.Profiles.ListProfiles()
 
 		fmt.Println(profileListView(profileNames))
 	},
@@ -197,13 +202,96 @@ var profileShowCmd = &cobra.Command{
 			name = selectProfileForm(false)
 		}
 
-		profile, err := cli.GetProfile(name)
+		profile, err := cli.Profiles.GetProfile(name)
 		if err != nil {
 			cli.Logger.Fatalf("could not get profile: %v", err)
 		}
 
 		fmt.Println(profileView(name, profile.Token, profile.ApiServerURL, profile.GrpcHostPort, showToken))
 	},
+}
+
+// profileEnvCmd exists so credentials can be loaded by command substitution,
+// never by the user reading, printing, or pasting the token themselves.
+var profileEnvCmd = &cobra.Command{
+	Use:   "env",
+	Short: "Print shell exports for a profile's HATCHET_CLIENT_ variables",
+	Long: `Print a shell export block of the HATCHET_CLIENT_ environment variables for a profile, so credentials can be loaded without reading or pasting the token.
+
+In scripts, prefer the two-step form below over 'eval "$(...)"'. Command
+substitution discards this command's exit code, so a failed profile lookup would
+evaluate to an empty string and succeed (even under 'set -e'), silently leaving
+any previously loaded credentials in effect.`,
+	Example: `  # Load the default profile into the current shell
+  eval "$(hatchet profile env)"
+
+  # Load a specific profile
+  eval "$(hatchet profile env --name production)"
+
+  # In a script, fail loudly if the profile cannot be loaded
+  env_block=$(hatchet profile env --name production) || exit $?
+  eval "$env_block"`,
+	Run: func(cmd *cobra.Command, args []string) {
+		name, _ := cmd.Flags().GetString("name")
+		noExport, _ := cmd.Flags().GetBool("no-export")
+
+		// No interactive selection here: this command feeds eval "$(...)", so
+		// stdout must stay clean and it must never block on a prompt.
+		if name == "" {
+			name = cli.Profiles.GetDefaultProfile()
+			if name == "" {
+				cli.Logger.Fatalf("no profile specified and no default profile set; pass --name")
+			}
+		}
+
+		profile, err := cli.Profiles.GetProfile(name)
+		if err != nil {
+			cli.Logger.Fatalf("could not get profile: %v", err)
+		}
+
+		block, err := renderProfileEnv(name, *profile, noExport)
+		if err != nil {
+			cli.Logger.Fatalf("could not render profile env: %v", err)
+		}
+
+		// When stdout is a terminal the command was run directly rather than
+		// captured by `eval "$(...)"` or a redirect, so printing the block would
+		// dump the token onto the screen. Show how to use it instead of leaking
+		// it. Command substitution and file redirects make stdout a pipe/file,
+		// not a TTY, so the normal path still emits the block for them.
+		if term.IsTerminal(int(os.Stdout.Fd())) {
+			printProfileEnvTTYHint(cmd, name)
+			return
+		}
+
+		fmt.Print(block)
+	},
+}
+
+// printProfileEnvTTYHint explains, on stderr, how to consume `profile env`
+// output. It runs only when stdout is an interactive terminal, where emitting
+// the raw export block would print the profile's token in the clear.
+func printProfileEnvTTYHint(cmd *cobra.Command, name string) {
+	out := cmd.ErrOrStderr()
+
+	// Profile names are unrestricted (they can come from tenant names), so the
+	// name is single-quoted before it goes into a command the user is told to
+	// copy. An unquoted name with spaces or shell metacharacters would select
+	// the wrong profile or run arbitrary commands when the hint is pasted.
+	nameFlag := ""
+	if name != "" {
+		nameFlag = " --name " + shellSingleQuote(name)
+	}
+
+	fmt.Fprintln(out, styles.Bold.Render("hatchet profile env prints credentials meant for your shell, not the screen."))
+	fmt.Fprintln(out)
+	fmt.Fprintln(out, "Load this profile into your current shell:")
+	fmt.Fprintln(out, "  "+styles.Code.Render(fmt.Sprintf("eval \"$(hatchet profile env%s)\"", nameFlag)))
+	// Deliberately no "redirect to a file" suggestion: `> file` would create a
+	// world-readable (umask-dependent, typically 0644) file holding the token,
+	// and would follow a pre-existing symlink or reuse a destination's
+	// permissions. Anyone who wants a file can redirect it themselves and own
+	// that risk; the tool does not recommend leaking the token to disk.
 }
 
 // profileUpdateCmd represents the profile update command
@@ -235,7 +323,7 @@ var profileUpdateCmd = &cobra.Command{
 			cli.Logger.Fatalf("could not get profile from token: %v", err)
 		}
 
-		err = cli.UpdateProfile(name, profile)
+		err = cli.Profiles.UpdateProfile(name, profile)
 
 		if err != nil {
 			cli.Logger.Fatalf("could not update profile: %v", err)
@@ -267,7 +355,7 @@ var profileSetDefaultCmd = &cobra.Command{
 			}
 		}
 
-		err := cli.SetDefaultProfile(name)
+		err := cli.Profiles.SetDefaultProfile(name)
 		if err != nil {
 			cli.Logger.Fatalf("could not set default profile: %v", err)
 		}
@@ -284,14 +372,14 @@ var profileUnsetDefaultCmd = &cobra.Command{
 	Example: `  # Unset the default profile
   hatchet profile unset-default`,
 	Run: func(cmd *cobra.Command, args []string) {
-		currentDefault := cli.GetDefaultProfile()
+		currentDefault := cli.Profiles.GetDefaultProfile()
 
 		if currentDefault == "" {
 			fmt.Println(styles.InfoMessage("No default profile is currently set"))
 			return
 		}
 
-		err := cli.ClearDefaultProfile()
+		err := cli.Profiles.ClearDefaultProfile()
 		if err != nil {
 			cli.Logger.Fatalf("could not unset default profile: %v", err)
 		}
@@ -309,6 +397,7 @@ func init() {
 	profileCmd.AddCommand(profileRemoveCmd)
 	profileCmd.AddCommand(profileListCmd)
 	profileCmd.AddCommand(profileShowCmd)
+	profileCmd.AddCommand(profileEnvCmd)
 	profileCmd.AddCommand(profileUpdateCmd)
 	profileCmd.AddCommand(profileSetDefaultCmd)
 	profileCmd.AddCommand(profileUnsetDefaultCmd)
@@ -323,6 +412,10 @@ func init() {
 	// Add flags to profile show command
 	profileShowCmd.Flags().StringP("name", "n", "", "Name of the profile to show (prompted if not provided)")
 	profileShowCmd.Flags().Bool("show-token", false, "Show the full token (default: masked)")
+
+	// Add flags to profile env command
+	profileEnvCmd.Flags().StringP("name", "n", "", "Name of the profile (uses the default profile if not provided)")
+	profileEnvCmd.Flags().Bool("no-export", false, "Emit VAR='value' lines without the leading 'export '")
 
 	// Add flags to profile update command
 	profileUpdateCmd.Flags().StringP("token", "t", "", "Authentication token (prompted if not provided)")
@@ -433,7 +526,7 @@ func addProfileFromToken(cmd *cobra.Command) (string, error) {
 	}
 
 	// Save the profile
-	err = cli.AddProfile(name, profile)
+	err = cli.Profiles.AddProfile(name, profile)
 	if err != nil {
 		return "", fmt.Errorf("could not add profile: %w", err)
 	}
@@ -599,7 +692,7 @@ func probeTLSEndpoint(hostPort string) (string, error) {
 }
 
 func selectProfileForm(useDefault bool) string {
-	profiles := cli.GetProfiles()
+	profiles := cli.Profiles.GetProfiles()
 
 	if len(profiles) == 0 {
 		cli.Logger.Info("No profiles configured")
@@ -613,7 +706,7 @@ func selectProfileForm(useDefault bool) string {
 	}
 	sort.Strings(names)
 
-	if name, ok := resolveProfileWithoutForm(names, cli.GetDefaultProfile(), useDefault); ok {
+	if name, ok := resolveProfileWithoutForm(names, cli.Profiles.GetDefaultProfile(), useDefault); ok {
 		return name
 	}
 
@@ -677,6 +770,68 @@ func profileSelectionFailureMessage(err error, names []string) string {
 	)
 }
 
+// renderProfileEnv turns a profile into the block that `hatchet profile env`
+// emits. Two decisions are worth calling out. The API URL is emitted twice, as
+// HATCHET_CLIENT_SERVER_URL (read by the Go and Ruby SDKs) and
+// HATCHET_CLIENT_API_URL (read by the TypeScript SDK), so a loaded profile
+// resolves the same endpoint whichever SDK consumes it. And in export mode an
+// empty optional field is `unset` rather than skipped: switching profiles with
+// `eval "$(...)"` must clear the previous profile's endpoint and tenant, which
+// would otherwise stay set and override the values embedded in the new token.
+// A --no-export dump is a fresh file snapshot with nothing to clear, so it just
+// omits empty fields.
+func renderProfileEnv(name string, p cliconfig.Profile, noExport bool) (string, error) {
+	if p.Token == "" {
+		return "", fmt.Errorf("profile '%s' has no token", name)
+	}
+
+	// The SDKs assume TLS when the strategy is unset, so a profile that turned
+	// TLS off has to say so explicitly rather than fall through to that default.
+	tlsStrategy := p.TLSStrategy
+	if tlsStrategy == "" {
+		tlsStrategy = "tls"
+	}
+
+	pairs := []struct {
+		key   string
+		value string
+	}{
+		{"HATCHET_CLIENT_TOKEN", p.Token},
+		{"HATCHET_CLIENT_TLS_STRATEGY", tlsStrategy},
+		{"HATCHET_CLIENT_HOST_PORT", p.GrpcHostPort},
+		{"HATCHET_CLIENT_SERVER_URL", p.ApiServerURL},
+		{"HATCHET_CLIENT_API_URL", p.ApiServerURL},
+		{"HATCHET_CLIENT_TENANT_ID", p.TenantId},
+	}
+
+	prefix := "export "
+	if noExport {
+		prefix = ""
+	}
+
+	var b strings.Builder
+	for _, pair := range pairs {
+		if pair.value == "" {
+			if !noExport {
+				fmt.Fprintf(&b, "unset %s\n", pair.key)
+			}
+			continue
+		}
+		fmt.Fprintf(&b, "%s%s=%s\n", prefix, pair.key, shellSingleQuote(pair.value))
+	}
+
+	return b.String(), nil
+}
+
+// shellSingleQuote makes an emitted value a single shell literal so a token or
+// URL that contains spaces or metacharacters cannot break out of, or inject
+// into, the block the caller eval's. Single quotes suppress all shell
+// interpretation; an embedded single quote (the one character that cannot
+// appear inside them) is closed, escaped, and reopened.
+func shellSingleQuote(v string) string {
+	return "'" + strings.ReplaceAll(v, "'", `'\''`) + "'"
+}
+
 // profileView renders a profile view with details
 func profileView(name, token, apiURL, grpcHost string, showToken bool) string {
 	var lines []string
@@ -705,7 +860,7 @@ func profileListView(profiles []string) string {
 		return styles.InfoMessage("No profiles configured")
 	}
 
-	defaultProfile := cli.GetDefaultProfile()
+	defaultProfile := cli.Profiles.GetDefaultProfile()
 
 	var lines []string
 	// Use Primary.Bold instead of Section to avoid the MarginBottom spacing

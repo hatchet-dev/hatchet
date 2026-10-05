@@ -1,11 +1,14 @@
 import asyncio
 from datetime import datetime
+from typing import Any
 
 import tenacity
 from tenacity import stop_after_attempt, wait_exponential, wait_fixed
 
 from hatchet_sdk import Hatchet, RunStatus
 from hatchet_sdk.clients.rest.models.v1_event import V1Event
+from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
+from hatchet_sdk.clients.rest.models.v1_task_summary_list import V1TaskSummaryList
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 
@@ -65,6 +68,27 @@ async def wait_for_replay(hatchet: Hatchet, run_id: str, timeout: float = 30.0) 
         run = await hatchet.runs.aio_get_details(run_id)
         if run.status != RunStatus.COMPLETED:
             return
+
+        await asyncio.sleep(interval)
+
+
+async def wait_for_child_runs(
+    hatchet: Hatchet,
+    parent_task_external_id: str,
+    min_count: int = 1,
+    timeout: float = 30.0,
+    **list_kwargs: Any,
+) -> V1TaskSummaryList:
+    interval = 0.5
+    deadline = asyncio.get_running_loop().time() + timeout
+    while True:
+        runs = await hatchet.runs.aio_list(
+            parent_task_external_id=parent_task_external_id, **list_kwargs
+        )
+
+        if len(runs.rows) >= min_count or asyncio.get_running_loop().time() >= deadline:
+            return runs
+
         await asyncio.sleep(interval)
 
 

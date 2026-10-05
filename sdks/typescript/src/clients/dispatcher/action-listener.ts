@@ -188,14 +188,20 @@ export class ActionListener {
     }
   }
 
-  async unregister() {
+  // Leaves the heartbeat running: tasks that are already in flight still need
+  // the engine to see this worker as alive until they finish.
+  stopStream() {
     this.done = true;
-    this.heartbeat.stop();
 
     // Abort the gRPC stream to immediately cancel the generator
     if (this.abortController) {
       this.abortController.abort('Worker stopping');
     }
+  }
+
+  async unregister() {
+    this.stopStream();
+    this.heartbeat.stop();
 
     try {
       return await this.client.unsubscribe({

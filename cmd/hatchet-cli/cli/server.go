@@ -182,14 +182,14 @@ func startLocalServer(cmd *cobra.Command, profileName string, opts ...docker.Hat
 		return nil, fmt.Errorf("could not get profile from token: %w", err)
 	}
 
-	err = cli.AddProfile(profileName, profile)
+	err = cli.Profiles.AddProfile(profileName, profile)
 	if err != nil {
 		return nil, fmt.Errorf("could not add profile: %w", err)
 	}
 
 	// A non-interactive session cannot answer the profile-selection form, so the profile
 	// created here becomes the default unless the user already chose one.
-	defaultSet, err := cli.SetDefaultProfileIfUnset(profileName)
+	defaultSet, err := cli.Profiles.SetDefaultProfileIfUnset(profileName)
 	if err != nil {
 		return nil, fmt.Errorf("could not set default profile: %w", err)
 	}

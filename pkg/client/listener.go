@@ -16,6 +16,7 @@ import (
 
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	sharedcontracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/pkg/client/streaming"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
@@ -94,7 +95,7 @@ type WorkflowRunEventHandler func(event WorkflowRunEvent) error
 // WorkflowRunsListener streams workflow run completion events and dispatches
 // them to per-run session handlers.
 type WorkflowRunsListener struct {
-	stream *reconnectingStream[dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient]
+	stream *streaming.ReconnectingStream[dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient]
 	reg    handlerRegistry[string, WorkflowRunEvent]
 	gate   listenGate
 	l      *zerolog.Logger
@@ -108,7 +109,7 @@ func newWorkflowRunsListener(
 		reg: newHandlerRegistry[string, WorkflowRunEvent](),
 		l:   l,
 	}
-	w.stream = newReconnectingStream(
+	w.stream = streaming.NewReconnectingStream(
 		l,
 		"workflow run listener",
 		constructor,
@@ -134,7 +135,7 @@ func (r *subscribeClientImpl) getWorkflowRunsListener(
 		return r.client.SubscribeToWorkflowRuns(r.ctx.newContext(ctx), grpc_retry.Disable())
 	})
 
-	if err := l.stream.connectSync(ctx); err != nil {
+	if err := l.stream.ConnectSync(ctx); err != nil {
 		return nil, err
 	}
 
@@ -147,7 +148,7 @@ func (r *subscribeClientImpl) getWorkflowRunsListener(
 	}
 
 	if err := l.startBackground(onExit); err != nil {
-		_ = l.stream.closeStream()
+		_ = l.stream.CloseStream()
 		return nil, err
 	}
 
@@ -167,11 +168,11 @@ func (l *WorkflowRunsListener) addWorkflowRun(
 	handler WorkflowRunEventHandler,
 	onError func(error),
 ) error {
-	if l.stream.isClosed() {
+	if l.stream.IsClosed() {
 		return errListenerClosed
 	}
 
-	lifecycle := l.stream.lifecycleContext()
+	lifecycle := l.stream.LifecycleContext()
 	if err := l.ensureListening(lifecycle); err != nil {
 		return err
 	}
@@ -201,7 +202,7 @@ func (l *WorkflowRunsListener) RemoveWorkflowRun(workflowRunId, sessionId string
 }
 
 func (l *WorkflowRunsListener) retrySend(workflowRunId string) error {
-	return l.stream.retrySend(l.stream.lifecycleContext(),
+	return l.stream.RetrySend(l.stream.LifecycleContext(),
 		func(c dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient) error {
 			return c.Send(&dispatchercontracts.SubscribeToWorkflowRunsRequest{WorkflowRunId: workflowRunId})
 		})
@@ -244,12 +245,12 @@ func (l *WorkflowRunsListener) dispatch(event *dispatchercontracts.WorkflowRunEv
 }
 
 func (l *WorkflowRunsListener) shouldReconnectOnEOF(ctx context.Context) bool {
-	return ctx.Err() == nil && !l.stream.isClosed() && l.reg.hasAny()
+	return ctx.Err() == nil && !l.stream.IsClosed() && l.reg.hasAny()
 }
 
 func (l *WorkflowRunsListener) failHandlers(err error) {
 	n := l.reg.failAll(err)
-	l.l.Error().Err(err).Str("stream", l.stream.name).Int("handlers", n).
+	l.l.Error().Err(err).Str("stream", l.stream.Name()).Int("handlers", n).
 		Msg("stream listener terminated; failing registered handlers")
 }
 
@@ -258,51 +259,51 @@ func (l *WorkflowRunsListener) runLoop(ctx context.Context) (err error) {
 	released := false
 	defer func() { finishGatedListen(&l.gate, released, err, l.failHandlers) }()
 
-	return listenStream(ctx, l.stream,
+	return streaming.Listen(ctx, l.stream,
 		func(c dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient) (*dispatchercontracts.WorkflowRunEvent, error) {
 			return c.Recv()
 		},
 		l.dispatch,
-		gatedClassifier(newStreamClassifier(keep), &l.gate, keep, &released),
+		gatedClassifier(streaming.NewClassifier(keep), &l.gate, keep, &released),
 	)
 }
 
 func (l *WorkflowRunsListener) ensureListening(ctx context.Context) error {
-	if l.stream.isClosed() {
+	if l.stream.IsClosed() {
 		return errListenerClosed
 	}
 	if l.gate.active() {
 		return nil
 	}
-	if err := l.stream.connectSync(ctx); err != nil {
+	if err := l.stream.ConnectSync(ctx); err != nil {
 		return err
 	}
-	if !l.gate.tryStart(l.stream.isClosed()) {
-		if l.stream.isClosed() {
+	if !l.gate.tryStart(l.stream.IsClosed()) {
+		if l.stream.IsClosed() {
 			return errListenerClosed
 		}
 		return nil
 	}
-	go func() { _ = l.runLoop(l.stream.lifecycleContext()) }()
+	go func() { _ = l.runLoop(l.stream.LifecycleContext()) }()
 	return nil
 }
 
 func (l *WorkflowRunsListener) startBackground(onExit func()) error {
-	if !l.gate.tryStart(l.stream.isClosed()) {
-		if l.stream.isClosed() {
+	if !l.gate.tryStart(l.stream.IsClosed()) {
+		if l.stream.IsClosed() {
 			return errListenerClosed
 		}
 		return nil
 	}
 	go func() {
 		defer onExit()
-		_ = l.runLoop(l.stream.lifecycleContext())
+		_ = l.runLoop(l.stream.LifecycleContext())
 	}()
 	return nil
 }
 
 func (l *WorkflowRunsListener) listen(ctx context.Context) error {
-	if !l.gate.tryStart(l.stream.isClosed()) {
+	if !l.gate.tryStart(l.stream.IsClosed()) {
 		return nil
 	}
 	return l.runLoop(ctx)
@@ -431,8 +432,8 @@ func (r *subscribeClientImpl) Stream(ctx context.Context, workflowRunId string, 
 	}
 }
 
-func (r *subscribeClientImpl) newMetadataStream(ctx context.Context, key, value string) *reconnectingStream[dispatchercontracts.Dispatcher_SubscribeToWorkflowEventsClient] {
-	return newReconnectingStreamWithLifecycle(
+func (r *subscribeClientImpl) newMetadataStream(ctx context.Context, key, value string) *streaming.ReconnectingStream[dispatchercontracts.Dispatcher_SubscribeToWorkflowEventsClient] {
+	return streaming.NewReconnectingStreamWithLifecycle(
 		ctx,
 		r.l,
 		"metadata stream listener",
@@ -449,22 +450,22 @@ func (r *subscribeClientImpl) newMetadataStream(ctx context.Context, key, value 
 	)
 }
 
-func metadataStreamClassifier() streamClassifier {
-	base := newStreamClassifier(func(ctx context.Context) bool { return ctx.Err() == nil })
-	return func(ctx context.Context, err error) streamVerdict {
-		if v := base(ctx, err); v != verdictNoProgress {
+func metadataStreamClassifier() streaming.Classifier {
+	base := streaming.NewClassifier(func(ctx context.Context) bool { return ctx.Err() == nil })
+	return func(ctx context.Context, err error) streaming.Verdict {
+		if v := base(ctx, err); v != streaming.VerdictNoProgress {
 			return v
 		}
-		return verdictStopError
+		return streaming.VerdictStopError
 	}
 }
 
 func runMetadataStream(
 	ctx context.Context,
-	stream *reconnectingStream[dispatchercontracts.Dispatcher_SubscribeToWorkflowEventsClient],
+	stream *streaming.ReconnectingStream[dispatchercontracts.Dispatcher_SubscribeToWorkflowEventsClient],
 	handler StreamHandler,
 ) error {
-	return listenStream(
+	return streaming.Listen(
 		ctx,
 		stream,
 		func(client dispatchercontracts.Dispatcher_SubscribeToWorkflowEventsClient) (*dispatchercontracts.WorkflowEvent, error) {

@@ -11,6 +11,7 @@ from hatchet_sdk.types.labels import WorkerLabel
 from hatchet_sdk.utils.typing import STOP_LOOP, STOP_LOOP_TYPE
 from hatchet_sdk.worker.runner.runner import Runner
 from hatchet_sdk.worker.runner.utils.capture_logs import AsyncLogSender, capture_logs
+from hatchet_sdk.worker.slot_usage import SharedSlotUsageByPool
 
 if TYPE_CHECKING:
     from multiprocessing import Queue
@@ -38,7 +39,9 @@ class WorkerActionRunLoopManager:
         labels: list[WorkerLabel],
         lifespan_context: Any | None,  # noqa: ANN401
         engine_version: str | None = None,
+        shared_slot_usage_by_pool: SharedSlotUsageByPool | None = None,
     ) -> None:
+        self.shared_slot_usage_by_pool = shared_slot_usage_by_pool
         self.name = name
         self.action_registry = action_registry
         self.slots = slots
@@ -112,6 +115,7 @@ class WorkerActionRunLoopManager:
             self.lifespan_context,
             self.log_sender,
             engine_version=self.engine_version,
+            shared_slot_usage_by_pool=self.shared_slot_usage_by_pool,
         )
 
         logger.debug(

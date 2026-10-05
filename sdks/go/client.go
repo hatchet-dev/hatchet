@@ -43,6 +43,7 @@ type Client struct {
 	workflows  *features.WorkflowsClient
 	logs       *features.LogsClient
 	webhooks   *features.WebhooksClient
+	streams    *features.StreamsClient
 }
 
 // ClientOpt configures the client created by NewClient.
@@ -200,6 +201,10 @@ func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error
 	for _, opt := range options {
 		opt(config)
 	}
+
+	// Worker log output follows the client's configured level and format by
+	// default; an explicit WithLogger on the worker takes precedence.
+	config.logger = resolveWorkerLogger(config.logger, c.legacyClient.Logger())
 
 	dumps := gatherWorkflowDumps(config.workflows)
 
@@ -1227,6 +1232,16 @@ func (c *Client) Runs() *features.RunsClient {
 	}
 
 	return c.runs
+}
+
+// Streams returns a client for publishing to and reading from durable,
+// topic-based streams.
+func (c *Client) Streams() *features.StreamsClient {
+	if c.streams == nil {
+		c.streams = features.NewStreamsClient(c.legacyClient)
+	}
+
+	return c.streams
 }
 
 // Workers returns a client for managing workers.

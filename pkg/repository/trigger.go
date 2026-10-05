@@ -1093,7 +1093,7 @@ func (r *sharedRepository) triggerWorkflowsCore(
 
 			operatorDagTuples[tuple.externalId] = tuple
 
-			nonDagTaskOpts = append(nonDagTaskOpts, CreateTaskOpts{
+			orchestratorTaskOpts := CreateTaskOpts{
 				ExternalId:                tuple.externalId,
 				WorkflowRunId:             tuple.externalId,
 				StepId:                    orchestratorStep.ID,
@@ -1109,7 +1109,13 @@ func (r *sharedRepository) triggerWorkflowsCore(
 				Priority:                  tuple.priority,
 				TriggeringEventExternalId: tuple.triggeringEventExternalId,
 				TriggeringEventKey:        tuple.triggeringEventKey,
-			})
+			}
+
+			if idempotencyKey, ok := externalIdToIdempotencyKey[tuple.externalId]; ok {
+				orchestratorTaskOpts.IdempotencyKey = &idempotencyKey
+			}
+
+			nonDagTaskOpts = append(nonDagTaskOpts, orchestratorTaskOpts)
 		}
 
 		for stepIndex, step := range orderSteps(regularSteps) {
@@ -2603,17 +2609,23 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 		scopes = append(scopes, pair.Scope)
 	}
 
-	filters, err := r.queries.ListFiltersForEventTriggers(ctx, tx, sqlcv1.ListFiltersForEventTriggersParams{
-		Tenantid:    tenantId,
-		Workflowids: workflowIds,
-		Scopes:      scopes,
-	})
-
-	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to list filters: %w", err)
-	}
-
 	workflowIdAndScopeToFilters := make(map[WorkflowAndScope][]*sqlcv1.V1Filter)
+
+	// the query joins on (workflow id, scope) pairs, so it can only return rows when at least
+	// one event was pushed with a scope; skip the round trip otherwise
+	var filters []*sqlcv1.V1Filter
+
+	if len(workflowIds) > 0 {
+		filters, err = r.queries.ListFiltersForEventTriggers(ctx, tx, sqlcv1.ListFiltersForEventTriggersParams{
+			Tenantid:    tenantId,
+			Workflowids: workflowIds,
+			Scopes:      scopes,
+		})
+
+		if err != nil {
+			return nil, nil, nil, nil, fmt.Errorf("failed to list filters: %w", err)
+		}
+	}
 
 	for _, filter := range filters {
 		key := WorkflowAndScope{
@@ -2624,16 +2636,21 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 		workflowIdAndScopeToFilters[key] = append(workflowIdAndScopeToFilters[key], filter)
 	}
 
-	filterCounts, err := r.queries.ListFilterCountsForWorkflows(ctx, tx, sqlcv1.ListFilterCountsForWorkflowsParams{
-		Tenantid:    tenantId,
-		Workflowids: workflowIdsForFilterCounts,
-	})
-
-	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to list filter counts: %w", err)
-	}
-
 	workflowIdToCount := make(map[uuid.UUID]int64)
+
+	// no workflow is subscribed to any of these event keys: nothing to count
+	var filterCounts []*sqlcv1.ListFilterCountsForWorkflowsRow
+
+	if len(workflowIdsForFilterCounts) > 0 {
+		filterCounts, err = r.queries.ListFilterCountsForWorkflows(ctx, tx, sqlcv1.ListFilterCountsForWorkflowsParams{
+			Tenantid:    tenantId,
+			Workflowids: workflowIdsForFilterCounts,
+		})
+
+		if err != nil {
+			return nil, nil, nil, nil, fmt.Errorf("failed to list filter counts: %w", err)
+		}
+	}
 
 	for _, count := range filterCounts {
 		workflowIdToCount[count.WorkflowID] = count.Count
@@ -2774,14 +2791,6 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 				return nil, fmt.Errorf("failed to get pinned workflow version %s", *opt.WorkflowVersionId)
 			}
 
-			var idempotency *IdempotencyConfig
-			if pinned.IdempotencyKeyExpression.Valid && pinned.IdempotencyKeyTtlMs.Valid {
-				idempotency = &IdempotencyConfig{
-					Expression: pinned.IdempotencyKeyExpression.String,
-					TTLMs:      pinned.IdempotencyKeyTtlMs.Int64,
-				}
-			}
-
 			triggerOpts = append(triggerOpts, triggerTuple{
 				workflowVersionId:    pinned.ID,
 				workflowId:           pinned.WorkflowId,
@@ -2797,7 +2806,6 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 				childKey:             opt.ChildKey,
 				priority:             opt.Priority,
 				desiredWorkerLabels:  opt.DesiredWorkerLabels,
-				idempotency:          idempotency,
 				dagParentTaskRunIds:  opt.DagParentTaskRunIds,
 				targetActionId:       opt.TargetActionId,
 				isSkipped:            opt.IsSkipped,

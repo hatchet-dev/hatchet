@@ -15,7 +15,8 @@ export class HatchetLogger implements Logger {
   }
 
   private log(level: LogLevel, message: string, color: string = '37'): void {
-    if (LogLevelEnum[level] >= LogLevelEnum[this.logLevel]) {
+    // OFF disables all logger output, regardless of message level.
+    if (this.logLevel !== 'OFF' && LogLevelEnum[level] >= LogLevelEnum[this.logLevel]) {
       const time = new Date().toLocaleString('en-US', {
         month: '2-digit',
         day: '2-digit',

@@ -165,6 +165,8 @@ function toTaskEventLogLines(
       level = 'EVICTION_NOTICE';
     } else if (event.eventType === 'DURABLE_RESTORING') {
       level = 'RESTORE_NOTICE';
+    } else if (event.eventType === 'CANCELLED') {
+      level = 'CANCELLATION_NOTICE';
     } else {
       switch (severity) {
         case 'CRITICAL':

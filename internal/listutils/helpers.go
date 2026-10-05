@@ -21,7 +21,7 @@ func Uniq[T comparable](xs []T) []T {
 }
 
 // inspiration: uniq_by/2 https://elixir.hexdocs.pm/Enum.html#uniq_by/2
-func UniqBy[T comparable, K comparable](xs []T, fn func(x T) K) []T {
+func UniqBy[T any, K comparable](xs []T, fn func(x T) K) []T {
 	seen := make(map[K]struct{})
 	result := make([]T, 0)
 

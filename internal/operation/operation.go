@@ -9,6 +9,7 @@ import (
 
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
@@ -149,7 +150,9 @@ func (o *SerialOperation) Run(l *zerolog.Logger) {
 			shouldContinue, err := o.method(ctx, o.id)
 
 			if err != nil {
-				l.Err(err).Msgf("could not %s", o.description)
+				// note: the check is against runningCtx, not the per-run timeout ctx,
+				// so a genuine operation timeout still logs at its original level
+				logger.ShutdownAware(o.runningCtx, l, err, zerolog.ErrorLevel).Err(err).Msgf("could not %s", o.description)
 				return
 			}
 

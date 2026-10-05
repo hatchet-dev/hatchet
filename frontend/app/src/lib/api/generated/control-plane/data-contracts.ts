@@ -46,6 +46,7 @@ export enum SubscriptionPlanCode {
   Developer = "developer",
   Team = "team",
   Scale = "scale",
+  PayAsYouGo = "pay-as-you-go",
   Dedicated = "dedicated",
 }
 
@@ -92,6 +93,21 @@ export enum TenantStatusType {
 export enum OrganizationMemberRoleType {
   OWNER = "OWNER",
   MEMBER = "MEMBER",
+}
+
+export enum OrganizationSignupAttribution {
+  Search = "search",
+  XTwitter = "x_twitter",
+  Linkedin = "linkedin",
+  HackerNews = "hacker_news",
+  Reddit = "reddit",
+  Github = "github",
+  BlogArticle = "blog_article",
+  FriendColleague = "friend_colleague",
+  ConferenceEvent = "conference_event",
+  AiAssistant = "ai_assistant",
+  SearchForAlternative = "search_for_alternative",
+  Other = "other",
 }
 
 export enum OrganizationOnboardingSDK {
@@ -186,6 +202,14 @@ export interface Organization {
    * @format int64
    */
   inactivity_timeout?: number;
+  /** The organization's current subscription. Omitted when the organization has no current subscription. */
+  subscription?: OrganizationCurrentSubscription;
+}
+
+export interface OrganizationCurrentSubscription {
+  metadata: APIResourceMeta;
+  /** The plan of the current subscription. */
+  plan: SubscriptionPlanCode;
 }
 
 export interface OrganizationForUser {
@@ -200,6 +224,8 @@ export interface OrganizationForUser {
 export interface OrganizationForUserList {
   rows: OrganizationForUser[];
   pagination: PaginationResponse;
+  /** Whether this user can create another free organization they would own. */
+  canCreateOrganization?: boolean;
 }
 
 export interface CreateOrganizationRequest {
@@ -216,6 +242,17 @@ export interface CreateOrganizationRequest {
   whatToBuild?: string;
   /** Which SDK the user is planning to use */
   sdk?: OrganizationOnboardingSDK;
+  /**
+   * How the user first heard about Hatchet, every option they selected
+   * @maxItems 12
+   * @uniqueItems true
+   */
+  attribution?: OrganizationSignupAttribution[];
+  /**
+   * Free-text answer when attribution includes "other"
+   * @maxLength 500
+   */
+  attributionOther?: string;
 }
 
 export interface UpdateOrganizationRequest {
@@ -304,7 +341,7 @@ export interface CreateManagementTokenRequest {
   name: string;
   /** @default "30D" */
   duration?: ManagementTokenDuration;
-  /** Optional tags to scope this token. When set, the token can only access or create tenants whose tags are a subset of these tags. An empty or omitted list grants full access to the org. */
+  /** Optional tags to scope this token to tenants. Tags exist on tenants, not on the organization, its members, or its invites. When set, the token can only access or create tenants whose tags are a non-empty subset of these tags (a tenant tagged "*" is always in scope; a tenant with no tags never is). It cannot update the organization, change or remove members, or delete invites, because those resources have no tags to match against the token. An empty or omitted list grants full access to the organization. */
   tags?: string[];
 }
 
@@ -839,6 +876,205 @@ export interface Coupon {
   percent?: number;
 }
 
+export interface OrganizationInvoiceLineItemDiscount {
+  /** Discount amount in cents. */
+  amountOffCents: number;
+  /**
+   * Percentage discount, when the reward is a percent-off coupon.
+   * @format float
+   */
+  percentOff?: number;
+  /** Display name of the applied reward, when available. */
+  rewardName?: string;
+}
+
+export interface OrganizationInvoiceLineItem {
+  /** Plan or feature name to display for this line item. */
+  displayName: string;
+  /** Detailed description of the line item. */
+  description: string;
+  /** Amount before discounts and tax, in cents. */
+  subtotalCents: number;
+  /** Amount after discounts and tax, in cents. */
+  totalCents: number;
+  /** Autumn plan ID this line item belongs to. */
+  planId: string;
+  /** Autumn feature ID for usage line items, when present. */
+  featureId?: string;
+  /**
+   * Quantity billed for this line item.
+   * @format double
+   */
+  quantity: number;
+  /**
+   * Start of the usage or billing period for this line item.
+   * @format date-time
+   */
+  periodStart?: string;
+  /**
+   * End of the usage or billing period for this line item.
+   * @format date-time
+   */
+  periodEnd?: string;
+  /** Discounts applied to this line item. */
+  discounts?: OrganizationInvoiceLineItemDiscount[];
+}
+
+export interface OrganizationInvoicePreview {
+  /** Plan IDs contributing line items to this upcoming invoice. */
+  planIds: string[];
+  /**
+   * When this invoice will be created.
+   * @format date-time
+   */
+  invoiceAt: string;
+  /** ISO currency code for the invoice amounts. */
+  currency: string;
+  /** Total before discounts, in cents. */
+  subtotalCents: number;
+  /** Total after discounts, in cents. */
+  totalCents: number;
+  /** Usage accrued in the closing cycle plus recurring charges for the opening cycle. */
+  lineItems: OrganizationInvoiceLineItem[];
+}
+
+export interface OrganizationInvoice {
+  /** Plan IDs included on this invoice. */
+  planIds: string[];
+  /** Stripe invoice ID. */
+  stripeId: string;
+  /** Billing processor that owns this invoice. */
+  processorType?: string;
+  /** Invoice status (paid, open, draft, void, uncollectible). */
+  status: string;
+  /** Invoice total in cents. */
+  totalCents: number;
+  /** ISO currency code for the invoice amounts. */
+  currency: string;
+  /**
+   * When the invoice was created.
+   * @format date-time
+   */
+  createdAt: string;
+  /** URL to open the hosted invoice page. */
+  hostedInvoiceUrl?: string;
+}
+
+export interface OrganizationInvoices {
+  /** Upcoming invoices for the organization's subscriptions. */
+  invoicePreviews: OrganizationInvoicePreview[];
+  /** Previously issued invoices, most recent first. */
+  invoices: OrganizationInvoice[];
+}
+
+export interface OrganizationUsageFeature {
+  /** Autumn feature identifier. */
+  featureId: string;
+  /** Human-readable feature name. */
+  name: string;
+  /**
+   * Usage consumed in the current billing period.
+   * @format int64
+   */
+  usage: number;
+  /**
+   * Included or granted usage for this feature in the current period.
+   * @format int64
+   */
+  includedUsage: number;
+  /** Whether this feature has unlimited usage. */
+  unlimited: boolean;
+}
+
+export interface OrganizationUsage {
+  /** Current-period usage versus included balances, one row per feature. */
+  features: OrganizationUsageFeature[];
+  /**
+   * Start of the current billing period, when known.
+   * @format date-time
+   */
+  periodStart?: string;
+  /**
+   * End of the current billing period, when known.
+   * @format date-time
+   */
+  periodEnd?: string;
+}
+
+export interface OrganizationUsageTimeseriesPoint {
+  /**
+   * UTC calendar day for this bucket.
+   * @format date
+   */
+  date: string;
+  /**
+   * Billable task runs on this day.
+   * @format int64
+   */
+  taskRuns: number;
+  /**
+   * Billable external events on this day.
+   * @format int64
+   */
+  events: number;
+}
+
+export interface OrganizationUsageTimeseriesTenant {
+  /**
+   * Tenant identifier.
+   * @format uuid
+   */
+  tenantId: string;
+  /** Tenant display name. */
+  tenantName: string;
+  /** Tenant slug. */
+  tenantSlug: string;
+  /**
+   * Billable task runs for this tenant in the requested window.
+   * @format int64
+   */
+  taskRuns: number;
+  /**
+   * Billable external events for this tenant in the requested window.
+   * @format int64
+   */
+  events: number;
+  /**
+   * Live cron count on the shard. Omitted when the shard count could not be loaded.
+   * @format int64
+   */
+  crons?: number;
+  /**
+   * Live pending scheduled-run count on the shard. Omitted when the shard count could not be loaded.
+   * @format int64
+   */
+  scheduledRuns?: number;
+  /**
+   * Live webhook endpoint count on the shard. Omitted when the shard count could not be loaded.
+   * @format int64
+   */
+  webhooks?: number;
+  /** Daily usage for this tenant, including zero days. Same calendar as the organization series. */
+  series?: OrganizationUsageTimeseriesPoint[];
+}
+
+export interface OrganizationUsageTimeseries {
+  /**
+   * Inclusive start of the queried window.
+   * @format date-time
+   */
+  start: string;
+  /**
+   * Exclusive end of the queried window.
+   * @format date-time
+   */
+  end: string;
+  /** Organization-wide daily usage, including zero days. */
+  series: OrganizationUsageTimeseriesPoint[];
+  /** Per-tenant totals for the same window. */
+  tenants: OrganizationUsageTimeseriesTenant[];
+}
+
 export interface OrganizationEntitlements {
   /** @example false */
   canSSO: boolean;
@@ -846,6 +1082,33 @@ export interface OrganizationEntitlements {
   prometheusMetrics: boolean;
   /** @example false */
   auditLogs: boolean;
+  users: OrganizationResourceLimit;
+  tenants: OrganizationResourceLimit;
+}
+
+export interface OrganizationResourceLimit {
+  /**
+   * The maximum number of this resource allowed. -1 when unlimited.
+   * @format int64
+   * @example 1
+   */
+  limit: number;
+  /**
+   * The current number of this resource counted toward the limit.
+   * @format int64
+   * @example 1
+   */
+  used: number;
+  /**
+   * Whether this resource has no limit.
+   * @example false
+   */
+  unlimited: boolean;
+  /**
+   * Whether another resource of this type can be created or invited.
+   * @example false
+   */
+  canCreate: boolean;
 }
 
 /**

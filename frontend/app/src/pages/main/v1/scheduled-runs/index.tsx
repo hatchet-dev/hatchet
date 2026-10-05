@@ -101,6 +101,7 @@ function ScheduledRunsTable({
     setColumnFilters,
     workflowKeyFilters,
     isRefetching,
+    isPlaceholderData,
     resetFilters,
     selectedWorkflowIds,
     selectedStatuses,
@@ -331,6 +332,7 @@ function ScheduledRunsTable({
         }
         error={error}
         isLoading={isLoading}
+        isPlaceholderData={isPlaceholderData}
         columns={tableColumns}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}

@@ -49,6 +49,13 @@ const levelToStyle = (
       dot: 'bg-indigo-500',
       content: 'info',
     };
+  } else if (level == 'CANCELLATION_NOTICE') {
+    return {
+      bg: 'bg-orange-500/10',
+      text: 'text-orange-600 dark:text-orange-400',
+      dot: 'bg-orange-500',
+      content: 'info',
+    };
   } else {
     switch (level) {
       case V1LogLineLevel.ERROR:

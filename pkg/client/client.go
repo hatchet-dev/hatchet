@@ -22,6 +22,7 @@ import (
 
 	cloudrest "github.com/hatchet-dev/hatchet/pkg/client/cloud/rest"
 
+	"github.com/hatchet-dev/hatchet/pkg/client/operatorclient"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/config/client"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
@@ -35,7 +36,9 @@ type Client interface {
 	Cron() CronClient
 	Schedule() ScheduleClient
 	Dispatcher() DispatcherClient
+	Operator() operatorclient.Client
 	Event() EventClient
+	Streams() StreamsClient
 	Subscribe() SubscribeClient
 	API() *rest.ClientWithResponses
 	CloudAPI() *cloudrest.ClientWithResponses
@@ -44,6 +47,10 @@ type Client interface {
 	Namespace() string
 	CloudRegisterID() *string
 	RunnableActions() []string
+
+	// Close closes the client's gRPC connection. Streams and calls in flight on it fail, so
+	// call it once the workers and listeners built on the client are stopped.
+	Close() error
 }
 
 type clientImpl struct {
@@ -53,7 +60,9 @@ type clientImpl struct {
 	cron       CronClient
 	schedule   ScheduleClient
 	dispatcher DispatcherClient
+	operator   operatorclient.Client
 	event      EventClient
+	streams    StreamsClient
 	subscribe  SubscribeClient
 	rest       *rest.ClientWithResponses
 	cloudrest  *cloudrest.ClientWithResponses
@@ -287,6 +296,41 @@ func NewFromConfigFile(cf *client.ClientConfigFile, fs ...ClientOpt) (Client, er
 	return newFromOpts(opts)
 }
 
+// NewFromConfig creates a client from a fully resolved client configuration.
+// Unlike New and NewFromConfigFile, it performs no environment or file
+// loading: the supplied configuration is authoritative for the token, tenant,
+// endpoints, and TLS settings. Callers that resolve their configuration from a
+// trusted source (e.g. the CLI's profile store) use this so ambient
+// HATCHET_CLIENT_* variables cannot override it.
+func NewFromConfig(cfg *client.ClientConfig, fs ...ClientOpt) (Client, error) {
+	l := logger.NewStdErr(&cfg.Logger, "client")
+
+	opts := &ClientOpts{
+		tenantId:               cfg.TenantId,
+		token:                  cfg.Token,
+		l:                      &l,
+		v:                      validator.NewDefaultValidator(),
+		tls:                    cfg.TLSConfig,
+		hostPort:               cfg.GRPCBroadcastAddress,
+		serverURL:              cfg.ServerURL,
+		filesLoader:            types.DefaultLoader,
+		namespace:              cfg.Namespace,
+		cloudRegisterID:        cfg.CloudRegisterID,
+		runnableActions:        cfg.RunnableActions,
+		noGrpcRetry:            cfg.NoGrpcRetry,
+		noRetry:                cfg.NoRetry,
+		sharedMeta:             make(map[string]string),
+		presetWorkerLabels:     cfg.PresetWorkerLabels,
+		disableGzipCompression: cfg.DisableGzipCompression,
+	}
+
+	for _, f := range fs {
+		f(opts)
+	}
+
+	return newFromOpts(opts)
+}
+
 func newFromOpts(opts *ClientOpts) (Client, error) {
 	if opts.token == "" {
 		return nil, fmt.Errorf("token is required")
@@ -347,7 +391,19 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 	subscribe := newSubscribe(conn, shared)
 	admin := newAdmin(conn, shared, subscribe)
 	dispatcher := newDispatcher(conn, shared, opts.presetWorkerLabels)
+	operator, err := operatorclient.New(conn,
+		operatorclient.WithToken(opts.token),
+		operatorclient.WithHeaders(opts.grpcHeaders),
+		operatorclient.WithLogger(opts.l),
+		operatorclient.WithValidator(opts.v),
+		operatorclient.WithPresetWorkerLabels(opts.presetWorkerLabels),
+	)
+
+	if err != nil {
+		return nil, err
+	}
 	event := newEvent(conn, shared)
+	streams := newStreams(conn, shared)
 
 	authEditor := func(ctx context.Context, req *http.Request) error {
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", opts.token))
@@ -404,8 +460,10 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 		cron:            cronClient,
 		schedule:        scheduleClient,
 		dispatcher:      dispatcher,
+		operator:        operator,
 		subscribe:       subscribe,
 		event:           event,
+		streams:         streams,
 		v:               opts.v,
 		rest:            rest,
 		cloudrest:       cloudrest,
@@ -431,8 +489,16 @@ func (c *clientImpl) Dispatcher() DispatcherClient {
 	return c.dispatcher
 }
 
+func (c *clientImpl) Operator() operatorclient.Client {
+	return c.operator
+}
+
 func (c *clientImpl) Event() EventClient {
 	return c.event
+}
+
+func (c *clientImpl) Streams() StreamsClient {
+	return c.streams
 }
 
 func (c *clientImpl) Subscribe() SubscribeClient {
@@ -457,6 +523,15 @@ func (c *clientImpl) TenantId() string {
 
 func (c *clientImpl) Namespace() string {
 	return c.namespace
+}
+
+// Close implements Client.
+func (c *clientImpl) Close() error {
+	if c.conn == nil {
+		return nil
+	}
+
+	return c.conn.Close()
 }
 
 func (c *clientImpl) CloudRegisterID() *string {

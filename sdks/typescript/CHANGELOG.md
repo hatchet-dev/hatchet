@@ -5,6 +5,78 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.35.0] - 2026-10-05
+
+### Added
+
+- Added `pause` and `unpause` methods to the workflows client (`hatchet.workflows.pause(workflow, opts)`) and to workflow declarations (`workflow.pause(opts)`). `opts` requires a `queueTTL` for how long runs stay queued while the workflow is paused, and optionally takes the behavior (`QUEUE` or `DROP`) for cron and scheduled runs triggered while paused, both defaulting to `QUEUE`. The `WorkflowPauseScheduledCronRunQueueBehavior` enum is now exported from the package root.
+
+## [1.34.1] - 2026-10-05
+
+### Fixed
+
+- [Durable tasks](https://docs.hatchet.run/v1/durable-tasks) that fan out to thousands of children no longer flood the engine with worker status requests. The durable listener sent one worker status request per awaited child, each listing every pending child, which was quadratic in the fan-out size; it now sends one request per event loop iteration listing only the newly awaited children.
+- The periodic worker status request lists only children that have been pending for more than two seconds, is sent every five seconds instead of every second, and is split into requests of at most 10,000 entries so it stays under the gRPC message size limit.
+- Re-delivered child completions are matched against pending callbacks without scanning the pending queue.
+- Children spawned from a durable task over the gRPC durable listener are sent to the engine in requests of at most 100 children, instead of one request for the whole fan-out.
+- Concurrent signals and `worker.stop()` now share one shutdown operation, keeping the durable listener open until waiting runs finish eviction. A worker stopped while it is still starting no longer registers a listener or leaves a health server running afterwards.
+- Concurrent eviction requests for the same task invocation now share their acknowledgement, including timeout and disconnection errors, instead of leaving one caller to time out. The eviction timeout timer is cleared once the acknowledgement arrives.
+- A stopping worker keeps sending heartbeats until its running tasks finish, and only then unsubscribes from the engine. It used to stop the heartbeat and unsubscribe before waiting for those tasks, so the engine could treat the worker as dead and reassign tasks that were about to complete.
+
+## [1.34.0] - 2026-10-02
+
+### Added
+
+- Added `hatchet.streams`, a client for durable streams. In preview, and subject to change.
+
+## [1.34.0-alpha.2] - 2026-09-25
+
+### Added
+
+- The `@hatchet-dev/typescript-sdk/core` entry now exports `HatchetCore` (also as `Hatchet`), the application client for runtimes without gRPC: Cloudflare Workers, Vercel Functions, Deno, Bun, browsers and Node. It issues unary Connect calls over the runtime's `fetch` through `createFetchTransport` (binary protobuf bodies, HTTP/1.1 or HTTP/2 as the runtime negotiates) and is configured from an explicit object only: `{ token, serverUrl?, hostPort?, tls?: { strategy: 'none' | 'tls', serverName? }, namespace?, transport?, fetch?, maxReceiveMessageBytes?, maxSendMessageBytes?, retrier?, logger?, logLevel? }`. A `serverUrl` must be an absolute `http://` or `https://` URL with no username, password, query string or fragment, and its scheme must agree with `tls`: `http://` is refused unless `tls` is `{ strategy: 'none' }`, since the token travels on every call, and `https://` is refused with `'none'`; `hostPort` takes its scheme from `tls` as the Node client does. With only a `token`, the engine address comes from the token's `grpc_broadcast_address` claim; no other claim is needed, and a token without it fails at construction with an error naming the claim and the `serverUrl`/`hostPort` fields to set instead. A caller-supplied `transport` owns its base URL, auth and limits, so no address is resolved or validated for it. It owns `run`, `runNoWait`, `runMany` and `runManyNoWait` (over `TriggerWorkflow` and `BulkTriggerWorkflow`, with the Node client's options and namespacing, accepting the declarations from `/edge`; a bulk trigger that fails after one of its batches was accepted rejects with `BulkTriggerPartialError`, whose `refs` are the runs created so far, `failedBatchIndex` the batch that failed and `cause` its error, so a caller can keep or cancel those runs instead of retrying the whole request and creating them twice), `events.push` and `bulkPush`, `workflows.put`, `rateLimits.put`, `runs.get`, `getDetails`, `cancel` and `replay` (`GetRunDetails`, `CancelTasks` and `ReplayTasks` on the v1 `AdminService`), `logs.put` and `streams.put`. `runMany` honors `returnExceptions` on its `RunManyOpt` entries the way a declaration's `runMany` does: with it set, a failed run's slot holds an `Error` instead of rejecting the whole wait. `logs.put` rejects a line over 1,000 characters with a `HatchetError` stating the length, the limit the Node client's `putLog` drops such lines at; since the core call acknowledges the write, it does not drop silently. Its `WorkflowRunRef.result()` polls `GetRunDetails` with backoff (250 ms doubling to 5 s, jitter included), takes `{ timeoutMs, signal }`, and reads outputs and failures the way the Node client's `result()` does: an absent output is `{}`, a stored `null` is `null`, an output that is not JSON rejects with its `SyntaxError`, a run rejects with the tasks' error messages when any task reported one, and a failed or cancelled run whose tasks carry no error resolves with their outputs. `runs.get` also returns each task's `rawOutput`, the stored text, next to the decoded `output`. The REST-backed features of the Node client (`crons`, `schedules`, `runs.list`, `workflows.get`, `events.list`) are not on this entry, since the generated REST client depends on `axios`.
+- Added `createFetchTransport` to `clients/transport`. Its `hostPort` takes the gRPC target forms the Node client takes (`host:port`, `dns:///host:port`, `ipv4:`, `ipv6:`), the bearer token is checked to be header-safe the same way, requests and responses are held to the Node transport's 4 MiB message limits (a request over `maxSendMessageBytes` is refused before it is sent and a response over `maxReceiveMessageBytes`, counted after HTTP decompression, is cancelled; both reject with a `ConnectError` of code `ResourceExhausted`; a caller-supplied `transport` owns its own limits), and the core client's calls go through the same generated client adapters as the Node client's, so `runs.get`/`getDetails` accept the per-call `signal`, `deadline` and `metadata` options and `WorkflowRunRef.result()` cancels the poll in flight when its signal fires or its `timeoutMs` runs out, passing the remaining time to the call as a Connect timeout.
+- `scripts/check-edge-entry.mjs` also rejects packages named with `--forbid` and SDK modules that use the `process` or `Buffer` globals, `setImmediate`, a timer's `.unref()`, `AbortSignal.timeout` or `AbortSignal.any` without feature-detecting them; `pnpm check:core` runs it against the core entry in CI, next to `check:edge`. A Go e2e (`pkg/testing/e2e/tscore`, `go test -tags e2e`) runs the core client from the built package over HTTP/1.1 against the harness engine.
+
+### Changed
+
+- `runs.getDetails` on the Node client issues `GetRunDetails` through the Connect transport, the same code path the core client uses; its request and response types are unchanged. The trigger and event requests are built by modules both clients share (`clients/admin/trigger-request`, `clients/event/rpc`), with no change to what is sent.
+- `util/batch` measures payloads with `TextEncoder` instead of `Buffer`, so it runs outside Node.
+
+## [1.34.0-alpha.1] - 2026-09-25
+
+### Fixed
+
+- `HatchetClient` and `HatchetLogger` no longer write log lines when the log level is `OFF`.
+
+## [1.34.0-alpha.0] - 2026-09-22
+
+### Added
+
+- Added a package `exports` map, so `import { HatchetClient } from '@hatchet-dev/typescript-sdk/v1'` now resolves under native Node ESM instead of failing with `ERR_UNSUPPORTED_DIR_IMPORT` (fixes #3613; supersedes #3650 by @dhimanAbhi, whose `.` and `./v1` entries it folds in). The map lists `.`, `/v1`, `/edge`, `/core` and every directory that ships an `index.js` explicitly, and wildcard entries keep every existing deep import resolving with or without the `.js` suffix, including a type import of an explicit `.d.ts` path. `scripts/check-exports.mjs` (`pnpm check:exports`) resolves each documented path from an ESM and a CommonJS scratch module against the built package in CI and compiles a TypeScript consumer of the declarations under the `node16` and `bundler` resolvers.
+- Added the `@hatchet-dev/typescript-sdk/core` entry point. It currently exports only `CORE_ENTRY_VERSION`; the application client for runtimes without gRPC is built on it.
+- Added protobuf-es bindings for the SDK's protos (`src/protoc-es`, generated by `protoc-gen-es` through `pnpm run generate-protoc-es`) next to the `ts-proto` bindings, which remain the SDK's public message types.
+- Added a Connect `Transport` seam in `clients/transport`: `createNodeTransport(config)` speaks the gRPC protocol over HTTP/2 through `@connectrpc/connect-node`, derives its TLS settings from `tls_config` (`none`, `tls`, `mtls`, `ca_file`, `cert_file`, `key_file`, `server_name`) with the same trust precedence as the grpc-js channel (`ca_file`, else the bundle `GRPC_DEFAULT_SSL_ROOTS_FILE_PATH` names, else the platform roots; `GRPC_SSL_CIPHER_SUITES` applies when set) and attaches the bearer token to every call. It dials the endpoint `host_port` names in the target forms grpc-js accepts (`host:port`, `dns:host:port`, `dns:///host:port`, `ipv4:address:port`, `ipv6:[address]:port`); a `unix:` socket target is refused at the first call with a clear error. `HatchetClientOptions.transport` injects a transport into the client.
+
+### Changed
+
+- The admin, event and v1 admin clients issue their unary RPCs through the Connect transport. The public client properties (`admin.client`, `admin.v1Client`, `events.client`, and `admin.workflowsGrpc` and `admin.adminGrpc` on the v1 client) keep their generated `WorkflowServiceClient`, `AdminServiceClient` and `EventsServiceClient` types: every RPC of each service is served, and the `nice-grpc` call options (`signal`, `metadata`, `onHeader`, `onTrailer`) plus an absolute `deadline` (`Date` or epoch milliseconds) are honored on each call, with an aborted signal rejecting with the same `AbortError` as before. The wire protocol, the request and response types and the status-code classification are unchanged; the streaming clients, the worker and the run listeners stay on `nice-grpc`. Errors from these calls are `ConnectError`s: `code` is the same numeric gRPC status code, the server's message is in `rawMessage`, and `message` reads `[already_exists] ...` where it used to read `/WorkflowService/TriggerWorkflow ALREADY_EXISTS: ...`.
+- `EventClient` and the legacy `AdminClient` keep their positional constructor parameters and take an optional `transport` last.
+- `HatchetClientOptions.credentials` applies to the streaming `nice-grpc` channel only; the unary transport derives its TLS settings from `tls_config`.
+- A token containing characters that cannot travel in an HTTP header (a stray line break in `HATCHET_CLIENT_TOKEN`, for example) now fails the first unary call with a fixed message instead of an error that quoted the token.
+
+## [1.33.2] - 2026-09-24
+
+### Fixed
+
+- Importing the SDK no longer prints the v0 deprecation warnings. The root entry re-exports the v0 `workflow` and `step` modules, and the SDK itself imported them internally, so every v1 user saw `HATCHET_V0_REMOVED` twice plus a note about `ConcurrencyLimitStrategy` on startup. The warning is now emitted once, when a v0 workflow is registered or put to the engine.
+
+## [1.33.1] - 2026-09-09
+
+### Changed
+
+- Embedded mode now reports first-run progress on stderr: a line when the sidecar download starts (with version and destination) and completes, a notice when a slow release or checksum fetch blocks startup, a startup line before waiting for the engine, and a heartbeat every 30 seconds while the engine is still becoming ready. Warm starts print at most one startup line.
+- `HatchetEmbeddedClient.init()` now warns once when `HATCHET_CLIENT_TOKEN` is set in the environment, since Hatchet clients created with the standard constructor in the same process will not use the embedded engine.
+
 ## [1.33.0] - 2026-09-08
 
 ### Added
@@ -381,7 +453,7 @@ Moved optional dependencies from `optionalDependencies` to `peerDependencies`.
 
 - Improved cancellation log messages: cancellation-related logs now use `debug` level instead of `error` level since cancellation is expected behavior, not a failure.
 - Updated terminology in log messages from "step run" to "task run" for consistency.
-- Added link to cancellation docs (https://docs.hatchet.run/home/cancellation) in error messages when task completion fails.
+- Added link to cancellation docs (https://docs.hatchet.run/v1/cancellation) in error messages when task completion fails.
 
 ## [1.10.7] - 2026-01-27
 

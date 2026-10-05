@@ -88,6 +88,12 @@ from hatchet_sdk.worker.runner.utils.capture_logs import (
     ContextVarToCopyStr,
     copy_context_vars,
 )
+from hatchet_sdk.worker.slot_usage import (
+    SharedSlotUsageByPool,
+    add_slot_requests,
+    publish_slot_usage,
+    subtract_slot_requests,
+)
 
 if TYPE_CHECKING:
     from multiprocessing import Queue
@@ -122,9 +128,13 @@ class Runner:
         lifespan_context: Any | None,  # noqa: ANN401
         log_sender: AsyncLogSender,
         engine_version: str | None = None,
+        shared_slot_usage_by_pool: SharedSlotUsageByPool | None = None,
     ) -> None:
         self.config = config
         self.engine_version = engine_version
+        self.shared_slot_usage_by_pool = shared_slot_usage_by_pool or {}
+        self.slot_requests_by_running_task: dict[ActionKey, dict[str, int]] = {}
+        self.used_slots_by_pool: dict[str, int] = {}
 
         self.slots = slots
         self.durable_slots = durable_slots
@@ -499,6 +509,8 @@ class Runner:
         task_inputs = self._create_batch_input(task, action)
         context = self.create_context(action=action, task=task, is_durable=False)
 
+        self._start_counting_slots(action.key, {"default": 1})
+
         try:
             if task._is_async_function:
                 outputs = await cast("Any", task._fn)(task_inputs, context)
@@ -641,6 +653,8 @@ class Runner:
                     ],
                 )
             )
+        finally:
+            self._stop_counting_slots(action.key)
 
     async def log_thread_pool_status(self) -> None:
         thread_pool_details = {
@@ -683,9 +697,35 @@ class Runner:
         self.monitoring_task = loop.create_task(self._start_monitoring())
         logger.debug("started thread pool monitoring background task")
 
+    def _start_counting_slots(
+        self, key: ActionKey, slot_requests: dict[str, int]
+    ) -> None:
+        if not self.shared_slot_usage_by_pool:
+            return
+
+        self._stop_counting_slots(key)
+        self.slot_requests_by_running_task[key] = slot_requests
+        self.used_slots_by_pool = add_slot_requests(
+            self.used_slots_by_pool, slot_requests
+        )
+        publish_slot_usage(self.shared_slot_usage_by_pool, self.used_slots_by_pool)
+
+    def _stop_counting_slots(self, key: ActionKey) -> None:
+        slot_requests = self.slot_requests_by_running_task.pop(key, None)
+
+        if slot_requests is None:
+            return
+
+        self.used_slots_by_pool = subtract_slot_requests(
+            self.used_slots_by_pool, slot_requests
+        )
+        publish_slot_usage(self.shared_slot_usage_by_pool, self.used_slots_by_pool)
+
     def cleanup_run_id(self, key: ActionKey) -> None:
         if key in self.tasks:
             del self.tasks[key]
+
+        self._stop_counting_slots(key)
 
         if key in self.threads:
             del self.threads[key]
@@ -756,6 +796,11 @@ class Runner:
             )
         )
 
+        loop = asyncio.get_running_loop()
+        ctx._on_slot_released = lambda: loop.call_soon_threadsafe(
+            self._stop_counting_slots, action.key
+        )
+
         ctx_hatchet_context.set(ctx)
 
         return ctx
@@ -799,6 +844,7 @@ class Runner:
 
             task.add_done_callback(self.step_run_callback(action, action_func))
             self.tasks[action.key] = task
+            self._start_counting_slots(action.key, action_func._slot_requests)
 
             task_count.increment()
 
@@ -902,14 +948,16 @@ class Runner:
         # This matches the literal "\u0000" preceded by an odd number of backslashes, rejecting payloads
         # that will decode to the null char.
         if re.search(r"(?<!\\)(\\\\)*\\u0000", serialized_output):
-            raise IllegalTaskOutputError(dedent(f"""
+            raise IllegalTaskOutputError(
+                dedent(f"""
                 Task outputs cannot contain the unicode null character \\u0000
 
                 Please see this Discord thread: https://discord.com/channels/1088927970518909068/1384324576166678710/1386714014565928992
                 Relevant Postgres documentation: https://www.postgresql.org/docs/current/datatype-json.html
 
                 Use `hatchet_sdk.{remove_null_unicode_character.__name__}` to sanitize your output if you'd like to remove the character.
-                """))
+                """)
+            )
 
         return serialized_output
 
