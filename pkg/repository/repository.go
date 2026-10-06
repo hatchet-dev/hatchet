@@ -116,6 +116,8 @@ func NewRepository(
 
 	mq, cleanupMq := newMessageQueueRepository(shared)
 
+	tenantEntitlement, cleanupTenantEntitlement := newTenantEntitlementRepository(shared)
+
 	impl := &repositoryImpl{
 		apiToken:          newAPITokenRepository(shared, cacheDuration),
 		dispatcher:        newDispatcherRepository(shared),
@@ -145,7 +147,7 @@ func NewRepository(
 		sns:               newSNSRepository(shared),
 		tenantInvite:      newTenantInviteRepository(shared),
 		tenantLimit:       shared.m,
-		tenantEntitlement: newTenantEntitlementRepository(shared),
+		tenantEntitlement: tenantEntitlement,
 		tenantAlerting:    newTenantAlertingRepository(shared, cacheDuration),
 		tenant:            newTenantRepository(shared, cacheDuration),
 		user:              newUserRepository(shared),
@@ -156,6 +158,8 @@ func NewRepository(
 
 	return impl, func() error {
 		var multiErr error
+
+		cleanupTenantEntitlement()
 
 		if err := cleanupMq(); err != nil {
 			multiErr = fmt.Errorf("failed to cleanup message queue repository: %w", err)

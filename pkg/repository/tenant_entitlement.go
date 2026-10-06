@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hashicorp/golang-lru/v2/expirable"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/hatchet-dev/hatchet/internal/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -46,7 +46,7 @@ const (
 
 // Entitlements only change on plan changes fanned out from the control plane,
 // so this bounds how long a change takes to apply on hot paths.
-const entitlementCacheTTL = time.Minute
+const entitlementCacheTTL = 5 * time.Minute
 
 // TenantEntitlements is the full set of per-tenant feature entitlements that are
 // fanned out from upstream into the engine database in a single upsert.
@@ -78,14 +78,16 @@ func (e TenantEntitlements) Has(entitlement Entitlement) (bool, error) {
 type tenantEntitlementRepository struct {
 	*sharedRepository
 
-	cache *expirable.LRU[uuid.UUID, TenantEntitlements]
+	cache *cache.TTLCache[uuid.UUID, TenantEntitlements]
 }
 
-func newTenantEntitlementRepository(shared *sharedRepository) TenantEntitlementRepository {
+func newTenantEntitlementRepository(shared *sharedRepository) (TenantEntitlementRepository, func()) {
+	c := cache.NewTTL[uuid.UUID, TenantEntitlements]()
+
 	return &tenantEntitlementRepository{
 		sharedRepository: shared,
-		cache:            expirable.NewLRU[uuid.UUID, TenantEntitlements](10000, nil, entitlementCacheTTL),
-	}
+		cache:            c,
+	}, c.Stop
 }
 
 func (t *tenantEntitlementRepository) HasEntitlement(ctx context.Context, tenantId uuid.UUID, entitlement Entitlement) (bool, error) {
@@ -98,7 +100,7 @@ func (t *tenantEntitlementRepository) HasEntitlement(ctx context.Context, tenant
 			return false, err
 		}
 
-		t.cache.Add(tenantId, entitlements)
+		t.cache.Set(tenantId, entitlements, entitlementCacheTTL)
 	}
 
 	return entitlements.Has(entitlement)
