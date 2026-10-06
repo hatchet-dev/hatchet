@@ -227,6 +227,53 @@ func TestStreamsRepository(t *testing.T) {
 		assert.WithinDuration(t, time.Now().Add(-5*time.Hour), expired.RetentionStart, time.Hour)
 	})
 
+	t.Run("topic metadata covers only retained messages", func(t *testing.T) {
+		repo := createStreamsRepository(t, pool)
+		tenant := createLimitTestTenant(t, pool)
+		setStreamRetentionHours(t, pool, tenant, 1)
+
+		_, err := pool.Exec(ctx, `SELECT create_v1_hourly_range_partition('v1_stream_message', NOW() - make_interval(hours => h)) FROM generate_series(1, 5) AS h`)
+		require.NoError(t, err)
+
+		_, err = pool.Exec(ctx, `
+			INSERT INTO v1_stream_topic (tenant_id, namespace, topic) VALUES ($1, '', 't'), ($1, 'ns', 't'), ($1, '', 'expired')
+		`, tenant)
+		require.NoError(t, err)
+
+		latestAt := time.Now().Add(-time.Minute).Truncate(time.Microsecond)
+
+		_, err = pool.Exec(ctx, `
+			INSERT INTO v1_stream_message (id, tenant_id, namespace, topic, payload, producer_id, producer_seq, inserted_at)
+			VALUES
+				(1, $1, '', 't', 'old', 'p', 0, NOW() - INTERVAL '3 hours'),
+				(2, $1, '', 't', 'm', 'p', 1, NOW() - INTERVAL '2 minutes'),
+				(3, $1, '', 't', 'm', 'p', 2, $2),
+				(1, $1, 'ns', 't', 'm', 'p', 0, NOW()),
+				(1, $1, '', 'expired', 'old', 'p', 0, NOW() - INTERVAL '3 hours')
+		`, tenant, latestAt)
+		require.NoError(t, err)
+
+		md, err := repo.GetTopicMetadata(ctx, tenant, "", "t")
+		require.NoError(t, err)
+		assert.Equal(t, int64(2), md.MessageCount, "the 3h-old message is past the 1h retention")
+		require.NotNil(t, md.LatestCursor)
+		assert.Equal(t, int64(3), md.LatestCursor.ID)
+		assert.Equal(t, "t", md.LatestCursor.Topic)
+		assert.True(t, latestAt.Equal(md.LatestCursor.CreatedAt))
+
+		other, err := repo.GetTopicMetadata(ctx, tenant, "ns", "t")
+		require.NoError(t, err)
+		assert.Equal(t, int64(1), other.MessageCount, "the same topic name in another namespace is its own topic")
+
+		expired, err := repo.GetTopicMetadata(ctx, tenant, "", "expired")
+		require.NoError(t, err)
+		assert.Zero(t, expired.MessageCount)
+		assert.Nil(t, expired.LatestCursor)
+
+		_, err = repo.GetTopicMetadata(ctx, tenant, "", "missing")
+		assert.ErrorIs(t, err, ErrStreamTopicNotFound)
+	})
+
 	t.Run("pages stop at the byte budget", func(t *testing.T) {
 		repo := createStreamsRepository(t, pool)
 		tenantId := uuid.New()

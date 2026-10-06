@@ -68,6 +68,18 @@ export type StreamEvent = {
   createdAt?: Date;
 };
 
+/** Covers only messages within the tenant's retention. */
+export type StreamTopicMetadata = {
+  namespace: string;
+  topic: string;
+  tenantId: string;
+  messageCount: number;
+  /** resumes events() after the newest retained message; undefined when none is retained */
+  latestCursor?: string;
+  /** when the newest retained message was stored; undefined when none is retained */
+  lastPublishedAt?: Date;
+};
+
 export type StreamCallOptions = {
   namespace?: string;
   cursor?: string;
@@ -217,6 +229,28 @@ export class StreamsClient {
     );
 
     return publishPromise;
+  }
+
+  /**
+   * Describes topic's retained messages. Rejects with a NOT_FOUND gRPC error
+   * for a topic nothing was published to.
+   * @param topic - the topic to describe
+   * @param options - optional namespace override
+   */
+  async topicMetadata(
+    topic: string,
+    options?: Pick<StreamCallOptions, 'namespace'>
+  ): Promise<StreamTopicMetadata> {
+    const res = await this.grpc.getTopicMetadata({ namespace: options?.namespace ?? '', topic });
+
+    return {
+      namespace: res.namespace,
+      topic: res.topic,
+      tenantId: res.tenantId,
+      messageCount: res.messageCount,
+      latestCursor: res.latestCursor,
+      lastPublishedAt: res.lastPublishedAt,
+    };
   }
 
   /**

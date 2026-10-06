@@ -377,3 +377,43 @@ describe('StreamsClient.events reconnection', () => {
     expect(subscribe).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('StreamsClient.topicMetadata', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('defaults the namespace and leaves the cursor and publish time unset when nothing is retained', async () => {
+    const getTopicMetadata = jest.fn(async (req: { namespace: string; topic: string }) => ({
+      namespace: req.namespace,
+      topic: req.topic,
+      tenantId: 'tenant',
+      messageCount: 0,
+      latestCursor: undefined,
+      lastPublishedAt: undefined,
+    }));
+    mockedCreateGrpcClient.mockReturnValue({ client: { getTopicMetadata } } as any);
+
+    const md = await new StreamsClient(fakeHatchetClient()).topicMetadata('topic');
+
+    expect(getTopicMetadata).toHaveBeenCalledWith({ namespace: '', topic: 'topic' });
+    expect(md).toEqual({
+      namespace: '',
+      topic: 'topic',
+      tenantId: 'tenant',
+      messageCount: 0,
+      latestCursor: undefined,
+      lastPublishedAt: undefined,
+    });
+  });
+
+  it('surfaces a missing topic as a NOT_FOUND error', async () => {
+    const getTopicMetadata = jest.fn().mockRejectedValue(grpcError(Status.NOT_FOUND));
+    mockedCreateGrpcClient.mockReturnValue({ client: { getTopicMetadata } } as any);
+
+    await expect(
+      new StreamsClient(fakeHatchetClient()).topicMetadata('missing', { namespace: 'ns' })
+    ).rejects.toMatchObject({ code: Status.NOT_FOUND });
+    expect(getTopicMetadata).toHaveBeenCalledWith({ namespace: 'ns', topic: 'missing' });
+  });
+});

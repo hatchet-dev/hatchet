@@ -3,12 +3,14 @@ package client
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	sharedcontracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 )
@@ -18,6 +20,8 @@ type fakeV1StreamsClient struct {
 
 	errs []error
 	reqs []*sharedcontracts.PublishStreamMessageRequest
+
+	metadata map[string]*sharedcontracts.StreamTopicMetadata
 }
 
 func (f *fakeV1StreamsClient) Publish(_ context.Context, req *sharedcontracts.PublishStreamMessageRequest, _ ...grpc.CallOption) (*sharedcontracts.PublishStreamMessageResponse, error) {
@@ -101,4 +105,33 @@ func TestStreamsPublish(t *testing.T) {
 			tc.check(t, fake.reqs)
 		})
 	}
+}
+
+func (f *fakeV1StreamsClient) GetTopicMetadata(_ context.Context, req *sharedcontracts.GetStreamTopicMetadataRequest, _ ...grpc.CallOption) (*sharedcontracts.StreamTopicMetadata, error) {
+	return f.metadata[req.Topic], nil
+}
+
+func TestStreamsTopicMetadata(t *testing.T) {
+	cursor := "v1:abc"
+	publishedAt := time.Date(2026, 10, 6, 12, 0, 0, 0, time.UTC)
+
+	fake := &fakeV1StreamsClient{metadata: map[string]*sharedcontracts.StreamTopicMetadata{
+		"busy":    {Namespace: "ns", Topic: "busy", TenantId: "tenant", MessageCount: 3, LatestCursor: &cursor, LastPublishedAt: timestamppb.New(publishedAt)},
+		"expired": {Namespace: "ns", Topic: "expired", TenantId: "tenant"},
+	}}
+	s := newTestStreamsClient(fake)
+
+	busy, err := s.TopicMetadata(context.Background(), "ns", "busy")
+	require.NoError(t, err)
+	assert.Equal(t, int64(3), busy.MessageCount)
+	require.NotNil(t, busy.LatestCursor)
+	assert.Equal(t, cursor, *busy.LatestCursor)
+	require.NotNil(t, busy.LastPublishedAt)
+	assert.True(t, publishedAt.Equal(*busy.LastPublishedAt))
+
+	expired, err := s.TopicMetadata(context.Background(), "ns", "expired")
+	require.NoError(t, err)
+	assert.Zero(t, expired.MessageCount)
+	assert.Nil(t, expired.LatestCursor, "no retained message to resume after")
+	assert.Nil(t, expired.LastPublishedAt)
 }

@@ -40,6 +40,17 @@ func StreamPayloadMessageUnits(size int) int32 {
 // references it.
 const StreamPayloadRetentionGrace = 24 * time.Hour
 
+// ErrStreamTopicNotFound: nothing was ever published to the topic, or it was removed after going idle past retention.
+var ErrStreamTopicNotFound = errors.New("stream topic not found")
+
+// StreamTopicMetadata covers only messages within the tenant's retention.
+type StreamTopicMetadata struct {
+	MessageCount int64
+
+	// the newest retained message's position; nil when none is retained
+	LatestCursor *StreamCursor
+}
+
 // ErrStreamPayloadNotFound: no uploaded payload for the ref, or it's past retention.
 var ErrStreamPayloadNotFound = errors.New("stream payload not found")
 
@@ -151,6 +162,9 @@ type StreamsRepository interface {
 
 	// GetStreamPayload returns ErrStreamPayloadNotFound once it's past the tenant's retention.
 	GetStreamPayload(ctx context.Context, tenantId uuid.UUID, ref StreamPayloadRef) ([]byte, error)
+
+	// GetTopicMetadata returns ErrStreamTopicNotFound for a topic that doesn't exist.
+	GetTopicMetadata(ctx context.Context, tenantId uuid.UUID, namespace, topic string) (*StreamTopicMetadata, error)
 
 	// CheckCursorRetained returns a *StreamCursorExpiredError if cursor is
 	// older than the tenant's retention or the oldest partition.
@@ -457,6 +471,37 @@ func (r *streamsRepositoryImpl) GetStreamPayload(ctx context.Context, tenantId u
 	}
 
 	return payload, err
+}
+
+func (r *streamsRepositoryImpl) GetTopicMetadata(ctx context.Context, tenantId uuid.UUID, namespace, topic string) (*StreamTopicMetadata, error) {
+	retention, err := r.m.StreamRetention(ctx, tenantId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	row, err := r.queries.GetStreamTopicMetadata(ctx, r.pool, sqlcv1.GetStreamTopicMetadataParams{
+		Tenantid:      tenantId,
+		Namespace:     namespace,
+		Topic:         topic,
+		Retainedsince: pgtype.Timestamptz{Time: time.Now().Add(-retention), Valid: true},
+	})
+
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrStreamTopicNotFound
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	md := &StreamTopicMetadata{MessageCount: row.MessageCount}
+
+	if row.LatestID > 0 {
+		md.LatestCursor = &StreamCursor{Namespace: namespace, Topic: topic, CreatedAt: row.LatestInsertedAt.Time, ID: row.LatestID}
+	}
+
+	return md, nil
 }
 
 func (r *streamsRepositoryImpl) CheckCursorRetained(ctx context.Context, tenantId uuid.UUID, cursor StreamCursor) error {

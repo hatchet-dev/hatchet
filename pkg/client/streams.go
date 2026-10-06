@@ -23,6 +23,16 @@ type StreamMessage struct {
 
 type StreamsHandler func(msg StreamMessage) error
 
+// StreamTopicMetadata covers only messages within the tenant's retention.
+type StreamTopicMetadata struct {
+	Namespace       string
+	Topic           string
+	TenantID        string
+	MessageCount    int64
+	LatestCursor    *string
+	LastPublishedAt *time.Time
+}
+
 type StreamsClient interface {
 	// Publish returns once the message is stored. A topic is created on first publish.
 	Publish(ctx context.Context, namespace, topic string, payload []byte) error
@@ -30,6 +40,9 @@ type StreamsClient interface {
 	// Subscribe delivers every message after cursor (or from the oldest), then
 	// tails the topic until handler errors, ctx ends, or the server hangs up.
 	Subscribe(ctx context.Context, namespace, topic string, cursor *string, handler StreamsHandler) error
+
+	// TopicMetadata returns a NotFound status error for a topic nothing was published to.
+	TopicMetadata(ctx context.Context, namespace, topic string) (*StreamTopicMetadata, error)
 }
 
 // producerSeqState is locked for a whole Publish, so a concurrent publish
@@ -158,4 +171,30 @@ func (s *streamsClientImpl) Subscribe(ctx context.Context, namespace, topic stri
 			}
 		}
 	}
+}
+
+func (s *streamsClientImpl) TopicMetadata(ctx context.Context, namespace, topic string) (*StreamTopicMetadata, error) {
+	resp, err := s.client.GetTopicMetadata(s.ctx.newContext(ctx), &sharedcontracts.GetStreamTopicMetadataRequest{
+		Namespace: namespace,
+		Topic:     topic,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	md := &StreamTopicMetadata{
+		Namespace:    resp.Namespace,
+		Topic:        resp.Topic,
+		TenantID:     resp.TenantId,
+		MessageCount: resp.MessageCount,
+		LatestCursor: resp.LatestCursor,
+	}
+
+	if resp.LastPublishedAt != nil {
+		publishedAt := resp.LastPublishedAt.AsTime()
+		md.LastPublishedAt = &publishedAt
+	}
+
+	return md, nil
 }

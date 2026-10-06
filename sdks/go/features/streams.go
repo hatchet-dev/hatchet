@@ -16,13 +16,16 @@ type StreamEvent struct {
 	CreatedAt time.Time
 }
 
+// StreamTopicMetadata describes a topic's messages within the tenant's retention.
+type StreamTopicMetadata = client.StreamTopicMetadata
+
 type streamCallOpts struct {
 	namespace string
 	// Events only
 	cursor *string
 }
 
-// StreamCallOpt configures a call to StreamsClient.Publish or StreamsClient.Events.
+// StreamCallOpt configures a call to StreamsClient.Publish, StreamsClient.Events or StreamsClient.TopicMetadata.
 type StreamCallOpt func(*streamCallOpts)
 
 // WithNamespace sets the namespace; the default is "".
@@ -33,7 +36,7 @@ func WithNamespace(namespace string) StreamCallOpt {
 }
 
 // WithCursor resumes Events after the StreamEvent the cursor came from.
-// Without it, Events starts at the oldest retained message. Ignored by Publish.
+// Without it, Events starts at the oldest retained message. Ignored by Publish and TopicMetadata.
 func WithCursor(cursor string) StreamCallOpt {
 	return func(o *streamCallOpts) {
 		o.cursor = &cursor
@@ -104,4 +107,15 @@ func (s *StreamsClient) Events(ctx context.Context, topic string, opts ...Stream
 	}()
 
 	return ch
+}
+
+// TopicMetadata returns a NotFound status error for a topic nothing was published to.
+func (s *StreamsClient) TopicMetadata(ctx context.Context, topic string, opts ...StreamCallOpt) (*StreamTopicMetadata, error) {
+	o := &streamCallOpts{}
+
+	for _, opt := range opts {
+		opt(o)
+	}
+
+	return s.v0Client.Streams().TopicMetadata(ctx, o.namespace, topic)
 }

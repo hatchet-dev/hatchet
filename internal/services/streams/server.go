@@ -9,6 +9,7 @@ import (
 	"connectrpc.com/connect"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/rpcstream"
@@ -195,6 +196,55 @@ func (s *ServiceImpl) Subscribe(ctx context.Context, req *contracts.SubscribeStr
 	<-ctx.Done()
 
 	return nil
+}
+
+func (s *ServiceImpl) GetTopicMetadata(ctx context.Context, req *contracts.GetStreamTopicMetadataRequest) (*contracts.StreamTopicMetadata, error) {
+	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
+	tenantId := tenant.ID
+
+	telemetry.WithAttributes(trace.SpanFromContext(ctx),
+		telemetry.AttributeKV{Key: "tenant.id", Value: tenantId},
+		telemetry.AttributeKV{Key: "stream.namespace", Value: req.Namespace},
+		telemetry.AttributeKV{Key: "stream.topic", Value: req.Topic},
+	)
+
+	if err := s.checkEntitled(ctx, tenantId); err != nil {
+		return nil, err
+	}
+
+	if err := v1.ValidateStreamAddress(req.Namespace, req.Topic); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+
+	md, err := s.repo.Streams().GetTopicMetadata(ctx, tenantId, req.Namespace, req.Topic)
+
+	if errors.Is(err, v1.ErrStreamTopicNotFound) {
+		return nil, connect.NewError(connect.CodeNotFound, err)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	resp := &contracts.StreamTopicMetadata{
+		Namespace:    req.Namespace,
+		Topic:        req.Topic,
+		TenantId:     tenantId.String(),
+		MessageCount: md.MessageCount,
+	}
+
+	if md.LatestCursor != nil {
+		cursor, err := v1.EncodeStreamCursor(*md.LatestCursor)
+
+		if err != nil {
+			return nil, err
+		}
+
+		resp.LatestCursor = &cursor
+		resp.LastPublishedAt = timestamppb.New(md.LatestCursor.CreatedAt)
+	}
+
+	return resp, nil
 }
 
 func recordSpanError(span trace.Span, err error) {

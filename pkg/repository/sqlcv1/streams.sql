@@ -207,3 +207,30 @@ WHERE tenant_id = @tenantId::uuid
     AND id = @id::uuid
     AND inserted_at = @insertedAt::timestamptz
     AND inserted_at >= @retainedSince::timestamptz;
+
+-- name: GetStreamTopicMetadata :one
+SELECT
+    COALESCE(latest.id, 0)::bigint AS latest_id,
+    latest.inserted_at AS latest_inserted_at,
+    (
+        SELECT COUNT(*)
+        FROM v1_stream_message m
+        WHERE m.tenant_id = @tenantId::uuid
+            AND m.namespace = @namespace::text
+            AND m.topic = @topic::text
+            AND m.inserted_at >= @retainedSince::timestamptz
+    )::bigint AS message_count
+FROM v1_stream_topic t
+LEFT JOIN LATERAL (
+    SELECT m.id, m.inserted_at
+    FROM v1_stream_message m
+    WHERE m.tenant_id = @tenantId::uuid
+        AND m.namespace = @namespace::text
+        AND m.topic = @topic::text
+        AND m.inserted_at >= @retainedSince::timestamptz
+    ORDER BY m.id DESC
+    LIMIT 1
+) AS latest ON true
+WHERE t.tenant_id = @tenantId::uuid
+    AND t.namespace = @namespace::text
+    AND t.topic = @topic::text;
