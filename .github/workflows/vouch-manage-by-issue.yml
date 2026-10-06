@@ -12,7 +12,7 @@ permissions: {}
 
 jobs:
   manage:
-    if: contains(github.event.comment.body, '!vouch') || contains(github.event.comment.body, '!denounce')
+    if: contains(github.event.comment.body, '!vouch') || contains(github.event.comment.body, '!denounce') || contains(github.event.comment.body, '!unvouch')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
