@@ -386,12 +386,8 @@ func TestStreamsRepository(t *testing.T) {
 		ref, err := repo.InsertStreamPayload(ctx, tenantId, []byte("large"))
 		require.NoError(t, err)
 
-		retained, err := repo.RetainStreamPayloadForPublish(ctx, tenantId, ref)
-		require.NoError(t, err)
-		assert.Equal(t, ref, retained, "a fresh upload is referenced as is")
-
-		_, err = repo.RetainStreamPayloadForPublish(ctx, other, ref)
-		assert.ErrorIs(t, err, ErrStreamPayloadNotFound, "another tenant's payload")
+		require.NoError(t, repo.CheckStreamPayloadExists(ctx, tenantId, ref))
+		assert.ErrorIs(t, repo.CheckStreamPayloadExists(ctx, other, ref), ErrStreamPayloadNotFound, "another tenant's payload")
 
 		res, err := repo.InsertOrderedStreamMessage(ctx, tenantId, CreateOrderedStreamMessageOpts{Topic: "t", ProducerID: "p1", ProducerSeq: 0, PayloadRef: &ref})
 		require.NoError(t, err)
@@ -421,7 +417,7 @@ func TestStreamsRepository(t *testing.T) {
 		assert.Error(t, err, "a message needs a payload or a ref")
 	})
 
-	t.Run("an upload too old to outlive its message is copied on publish", func(t *testing.T) {
+	t.Run("a stored message gets its own copy of an upload too old to outlive it", func(t *testing.T) {
 		repo := createStreamsRepository(t, pool)
 		tenantId := uuid.New()
 
@@ -430,17 +426,28 @@ func TestStreamsRepository(t *testing.T) {
 
 		// a cutoff in the future treats the fresh upload as too old
 		tooOld := time.Now().Add(time.Hour)
+		msg := TenantStreamMessage{TenantID: tenantId, Opts: CreateOrderedStreamMessageOpts{Topic: "t", ProducerID: "p", PayloadRef: &ref}}
 
-		copied, err := repo.retainStreamPayloadForPublish(ctx, tenantId, ref, tooOld)
+		results, err := repo.insertOrderedStreamMessages(ctx, []TenantStreamMessage{msg}, tooOld)
 		require.NoError(t, err)
-		assert.NotEqual(t, ref.ID, copied.ID)
-		assert.False(t, copied.CreatedAt.Before(ref.CreatedAt), "the copy lands in the current partition")
+		require.True(t, results[0].Inserted)
 
-		payload, err := repo.GetStreamPayload(ctx, tenantId, copied)
+		msgs, err := repo.ListMessagesAfterCursor(ctx, tenantId, ListStreamMessagesOpts{Topic: "t"})
+		require.NoError(t, err)
+		require.Len(t, msgs, 1)
+		require.NotNil(t, msgs[0].PayloadID)
+
+		stored := StreamPayloadRef{ID: *msgs[0].PayloadID, CreatedAt: msgs[0].PayloadInsertedAt.Time}
+		assert.NotEqual(t, ref.ID, stored.ID)
+		assert.True(t, stored.CreatedAt.Equal(msgs[0].InsertedAt.Time), "the copy shares the message's partition hour")
+
+		payload, err := repo.GetStreamPayload(ctx, tenantId, stored)
 		require.NoError(t, err)
 		assert.Equal(t, "large", string(payload))
 
-		_, err = repo.retainStreamPayloadForPublish(ctx, uuid.New(), ref, tooOld)
-		assert.ErrorIs(t, err, ErrStreamPayloadNotFound, "another tenant's payload isn't copied")
+		// a duplicate stores no message, so it gets no copy either
+		dup, err := repo.insertOrderedStreamMessages(ctx, []TenantStreamMessage{msg}, tooOld)
+		require.NoError(t, err)
+		assert.False(t, dup[0].Inserted)
 	})
 }

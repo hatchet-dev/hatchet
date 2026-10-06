@@ -29,8 +29,8 @@ type CopyStreamPayloadParams struct {
 	Insertedat pgtype.Timestamptz `json:"insertedat"`
 }
 
-// Copies an upload into a new row, so it lands in the current partition and
-// lives as long as a message published now. No row when the original is gone.
+// Copies an upload into a new row in the publishing transaction, so it lands
+// in the message's own partition hour. No row when the original is gone.
 func (q *Queries) CopyStreamPayload(ctx context.Context, db DBTX, arg CopyStreamPayloadParams) (pgtype.Timestamptz, error) {
 	row := db.QueryRow(ctx, copyStreamPayload,
 		arg.Newid,
@@ -520,6 +520,40 @@ func (q *Queries) ListStreamRetentionDeleteCandidates(ctx context.Context, db DB
 		return nil, err
 	}
 	return items, nil
+}
+
+const setStreamMessagePayloadRef = `-- name: SetStreamMessagePayloadRef :exec
+UPDATE v1_stream_message
+SET payload_id = $1::uuid, payload_inserted_at = $2::timestamptz
+WHERE tenant_id = $3::uuid
+    AND namespace = $4::text
+    AND topic = $5::text
+    AND id = $6::bigint
+    AND inserted_at = $7::timestamptz
+`
+
+type SetStreamMessagePayloadRefParams struct {
+	Payloadid         uuid.UUID          `json:"payloadid"`
+	Payloadinsertedat pgtype.Timestamptz `json:"payloadinsertedat"`
+	Tenantid          uuid.UUID          `json:"tenantid"`
+	Namespace         string             `json:"namespace"`
+	Topic             string             `json:"topic"`
+	ID                int64              `json:"id"`
+	Insertedat        pgtype.Timestamptz `json:"insertedat"`
+}
+
+// Points a message just stored in this transaction at a copy of its payload.
+func (q *Queries) SetStreamMessagePayloadRef(ctx context.Context, db DBTX, arg SetStreamMessagePayloadRefParams) error {
+	_, err := db.Exec(ctx, setStreamMessagePayloadRef,
+		arg.Payloadid,
+		arg.Payloadinsertedat,
+		arg.Tenantid,
+		arg.Namespace,
+		arg.Topic,
+		arg.ID,
+		arg.Insertedat,
+	)
+	return err
 }
 
 const streamPayloadExists = `-- name: StreamPayloadExists :one

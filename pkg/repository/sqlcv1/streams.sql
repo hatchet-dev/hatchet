@@ -211,8 +211,8 @@ SELECT EXISTS (
 ) AS exists;
 
 -- name: CopyStreamPayload :one
--- Copies an upload into a new row, so it lands in the current partition and
--- lives as long as a message published now. No row when the original is gone.
+-- Copies an upload into a new row in the publishing transaction, so it lands
+-- in the message's own partition hour. No row when the original is gone.
 INSERT INTO v1_stream_payload (id, tenant_id, payload)
 SELECT @newId::uuid, tenant_id, payload
 FROM v1_stream_payload
@@ -220,6 +220,16 @@ WHERE tenant_id = @tenantId::uuid
     AND id = @id::uuid
     AND inserted_at = @insertedAt::timestamptz
 RETURNING inserted_at;
+
+-- name: SetStreamMessagePayloadRef :exec
+-- Points a message just stored in this transaction at a copy of its payload.
+UPDATE v1_stream_message
+SET payload_id = @payloadId::uuid, payload_inserted_at = @payloadInsertedAt::timestamptz
+WHERE tenant_id = @tenantId::uuid
+    AND namespace = @namespace::text
+    AND topic = @topic::text
+    AND id = @id::bigint
+    AND inserted_at = @insertedAt::timestamptz;
 
 -- name: GetStreamPayload :one
 -- inserted_at is the partition key, so this reads one partition.

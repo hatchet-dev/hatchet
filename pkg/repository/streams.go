@@ -152,6 +152,8 @@ type StreamsRepository interface {
 
 	// InsertOrderedStreamMessages inserts a batch in one transaction, with
 	// results in input order. A gap is a result; an error means nothing was stored.
+	// A stored message whose upload is too old to outlive it gets a copy of the
+	// payload in the same transaction.
 	InsertOrderedStreamMessages(ctx context.Context, msgs []TenantStreamMessage) ([]OrderedStreamMessageResult, error)
 
 	// ListMessagesAfterCursor returns a page of the tenant's retained messages
@@ -161,10 +163,8 @@ type StreamsRepository interface {
 	// InsertStreamPayload stores a payload ahead of the publish that will reference it.
 	InsertStreamPayload(ctx context.Context, tenantId uuid.UUID, payload []byte) (StreamPayloadRef, error)
 
-	// RetainStreamPayloadForPublish returns the ref a message published now
-	// should store: ref itself, or for an upload too old to outlive the
-	// message, a copy's. ErrStreamPayloadNotFound unless ref is the tenant's.
-	RetainStreamPayloadForPublish(ctx context.Context, tenantId uuid.UUID, ref StreamPayloadRef) (StreamPayloadRef, error)
+	// CheckStreamPayloadExists returns ErrStreamPayloadNotFound unless ref is an uploaded payload of the tenant's.
+	CheckStreamPayloadExists(ctx context.Context, tenantId uuid.UUID, ref StreamPayloadRef) error
 
 	// GetStreamPayload returns ErrStreamPayloadNotFound once it's past the tenant's retention.
 	GetStreamPayload(ctx context.Context, tenantId uuid.UUID, ref StreamPayloadRef) ([]byte, error)
@@ -257,6 +257,11 @@ type TenantStreamMessage struct {
 }
 
 func (r *streamsRepositoryImpl) InsertOrderedStreamMessages(ctx context.Context, msgs []TenantStreamMessage) ([]OrderedStreamMessageResult, error) {
+	return r.insertOrderedStreamMessages(ctx, msgs, time.Now().Add(-streamPayloadCopyAge))
+}
+
+// insertOrderedStreamMessages copies the payloads of stored messages uploaded before copyBefore.
+func (r *streamsRepositoryImpl) insertOrderedStreamMessages(ctx context.Context, msgs []TenantStreamMessage, copyBefore time.Time) ([]OrderedStreamMessageResult, error) {
 	for i := range msgs {
 		if err := r.v.Validate(&msgs[i].Opts); err != nil {
 			return nil, err
@@ -375,6 +380,19 @@ func (r *streamsRepositoryImpl) InsertOrderedStreamMessages(ctx context.Context,
 			return batchErr
 		}
 
+		// only stored messages get a copy, so a rejected publish can't leave one behind
+		for i, p := range params {
+			ref := msgs[order[i]].Opts.PayloadRef
+
+			if ref == nil || !ref.CreatedAt.Before(copyBefore) || !results[order[i]].Inserted {
+				continue
+			}
+
+			if err := r.copyPayloadForMessage(ctx, tx, p, *ref); err != nil {
+				return err
+			}
+		}
+
 		return commit(ctx)
 	}()
 
@@ -383,6 +401,37 @@ func (r *streamsRepositoryImpl) InsertOrderedStreamMessages(ctx context.Context,
 	}
 
 	return results, nil
+}
+
+// copyPayloadForMessage runs in the publishing transaction, so the copy and the
+// message share an inserted_at and therefore a partition hour.
+func (r *streamsRepositoryImpl) copyPayloadForMessage(ctx context.Context, tx sqlcv1.DBTX, msg sqlcv1.InsertOrderedStreamMessageParams, ref StreamPayloadRef) error {
+	copyID := uuid.New()
+
+	insertedAt, err := r.queries.CopyStreamPayload(ctx, tx, sqlcv1.CopyStreamPayloadParams{
+		Newid:      copyID,
+		Tenantid:   msg.Tenantid,
+		ID:         ref.ID,
+		Insertedat: pgtype.Timestamptz{Time: ref.CreatedAt, Valid: true},
+	})
+
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrStreamPayloadNotFound
+	}
+
+	if err != nil {
+		return err
+	}
+
+	return r.queries.SetStreamMessagePayloadRef(ctx, tx, sqlcv1.SetStreamMessagePayloadRefParams{
+		Payloadid:         copyID,
+		Payloadinsertedat: insertedAt,
+		Tenantid:          msg.Tenantid,
+		Namespace:         msg.Namespace,
+		Topic:             msg.Topic,
+		ID:                msg.Messageoffset,
+		Insertedat:        insertedAt,
+	})
 }
 
 func (r *streamsRepositoryImpl) ListMessagesAfterCursor(ctx context.Context, tenantId uuid.UUID, opts ListStreamMessagesOpts) ([]*sqlcv1.V1StreamMessage, error) {
@@ -439,52 +488,22 @@ func (r *streamsRepositoryImpl) InsertStreamPayload(ctx context.Context, tenantI
 	return StreamPayloadRef{ID: id, CreatedAt: insertedAt.Time}, nil
 }
 
-func (r *streamsRepositoryImpl) RetainStreamPayloadForPublish(ctx context.Context, tenantId uuid.UUID, ref StreamPayloadRef) (StreamPayloadRef, error) {
-	return r.retainStreamPayloadForPublish(ctx, tenantId, ref, time.Now().Add(-streamPayloadCopyAge))
-}
-
-// retainStreamPayloadForPublish copies uploads made before copyBefore.
-func (r *streamsRepositoryImpl) retainStreamPayloadForPublish(ctx context.Context, tenantId uuid.UUID, ref StreamPayloadRef, copyBefore time.Time) (StreamPayloadRef, error) {
-	key := pgtype.Timestamptz{Time: ref.CreatedAt, Valid: true}
-
-	if !ref.CreatedAt.Before(copyBefore) {
-		exists, err := r.queries.StreamPayloadExists(ctx, r.pool, sqlcv1.StreamPayloadExistsParams{
-			Tenantid:   tenantId,
-			ID:         ref.ID,
-			Insertedat: key,
-		})
-
-		if err != nil {
-			return StreamPayloadRef{}, err
-		}
-
-		if !exists {
-			return StreamPayloadRef{}, ErrStreamPayloadNotFound
-		}
-
-		return ref, nil
-	}
-
-	copied := StreamPayloadRef{ID: uuid.New()}
-
-	insertedAt, err := r.queries.CopyStreamPayload(ctx, r.pool, sqlcv1.CopyStreamPayloadParams{
-		Newid:      copied.ID,
+func (r *streamsRepositoryImpl) CheckStreamPayloadExists(ctx context.Context, tenantId uuid.UUID, ref StreamPayloadRef) error {
+	exists, err := r.queries.StreamPayloadExists(ctx, r.pool, sqlcv1.StreamPayloadExistsParams{
 		Tenantid:   tenantId,
 		ID:         ref.ID,
-		Insertedat: key,
+		Insertedat: pgtype.Timestamptz{Time: ref.CreatedAt, Valid: true},
 	})
 
-	if errors.Is(err, pgx.ErrNoRows) {
-		return StreamPayloadRef{}, ErrStreamPayloadNotFound
-	}
-
 	if err != nil {
-		return StreamPayloadRef{}, err
+		return err
 	}
 
-	copied.CreatedAt = insertedAt.Time
+	if !exists {
+		return ErrStreamPayloadNotFound
+	}
 
-	return copied, nil
+	return nil
 }
 
 func (r *streamsRepositoryImpl) GetStreamPayload(ctx context.Context, tenantId uuid.UUID, ref StreamPayloadRef) ([]byte, error) {

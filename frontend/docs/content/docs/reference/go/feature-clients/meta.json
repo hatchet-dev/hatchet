@@ -8,7 +8,6 @@
     "ratelimits",
     "runs",
     "schedules",
-    "streams",
     "webhooks",
     "workers",
     "workflows"
