@@ -164,7 +164,7 @@ DECLARE
 BEGIN
     EXECUTE format('ALTER TABLE v1_dag_to_task_olap RENAME CONSTRAINT v1_dag_to_task_olap_pkey TO %I', legacy_partition_name || '_pkey');
 
-    IF NOT EXISTS (SELECT 1 FROM v1_dags_olap) THEN
+    IF NOT EXISTS (SELECT 1 FROM v1_dags_olap) AND NOT EXISTS (SELECT 1 FROM v1_dag_to_task_olap) THEN
         legacy_partition_lower_bound := quote_literal(today_start);
     END IF;
 
