@@ -19,8 +19,7 @@ func TestHasEntitlement(t *testing.T) {
 
 	ctx := context.Background()
 	logger := zerolog.Nop()
-	repo, cleanupRepo := newTenantEntitlementRepository(&sharedRepository{pool: pool, l: &logger, queries: sqlcv1.New()})
-	defer cleanupRepo()
+	repo := newTenantEntitlementRepository(&sharedRepository{pool: pool, l: &logger, queries: sqlcv1.New()})
 	tenantID := createLimitTestTenant(t, pool)
 
 	enabled, err := repo.HasEntitlement(ctx, tenantID, EntitlementDurableStreams)

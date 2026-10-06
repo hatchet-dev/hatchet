@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/hatchet-dev/hatchet/internal/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -48,6 +48,8 @@ const (
 // so this bounds how long a change takes to apply on hot paths.
 const entitlementCacheTTL = 5 * time.Minute
 
+const entitlementCacheSize = 10000
+
 // TenantEntitlements is the full set of per-tenant feature entitlements that are
 // fanned out from upstream into the engine database in a single upsert.
 type TenantEntitlements struct {
@@ -78,30 +80,43 @@ func (e TenantEntitlements) Has(entitlement Entitlement) (bool, error) {
 type tenantEntitlementRepository struct {
 	*sharedRepository
 
-	cache *cache.TTLCache[uuid.UUID, TenantEntitlements]
+	// expiry is checked on read so there's no sweeper goroutine to outlive the repo
+	cache *lru.Cache[uuid.UUID, cachedEntitlements]
 }
 
-func newTenantEntitlementRepository(shared *sharedRepository) (TenantEntitlementRepository, func()) {
-	c := cache.NewTTL[uuid.UUID, TenantEntitlements]()
+type cachedEntitlements struct {
+	entitlements TenantEntitlements
+	expiresAt    time.Time
+}
+
+func newTenantEntitlementRepository(shared *sharedRepository) TenantEntitlementRepository {
+	c, err := lru.New[uuid.UUID, cachedEntitlements](entitlementCacheSize)
+
+	if err != nil {
+		panic(err)
+	}
 
 	return &tenantEntitlementRepository{
 		sharedRepository: shared,
 		cache:            c,
-	}, c.Stop
+	}
 }
 
 func (t *tenantEntitlementRepository) HasEntitlement(ctx context.Context, tenantId uuid.UUID, entitlement Entitlement) (bool, error) {
-	entitlements, ok := t.cache.Get(tenantId)
-
-	if !ok {
-		var err error
-
-		if entitlements, err = t.GetEntitlements(ctx, tenantId); err != nil {
-			return false, err
-		}
-
-		t.cache.Set(tenantId, entitlements, entitlementCacheTTL)
+	if cached, ok := t.cache.Get(tenantId); ok && time.Now().Before(cached.expiresAt) {
+		return cached.entitlements.Has(entitlement)
 	}
+
+	entitlements, err := t.GetEntitlements(ctx, tenantId)
+
+	if err != nil {
+		return false, err
+	}
+
+	t.cache.Add(tenantId, cachedEntitlements{
+		entitlements: entitlements,
+		expiresAt:    time.Now().Add(entitlementCacheTTL),
+	})
 
 	return entitlements.Has(entitlement)
 }
