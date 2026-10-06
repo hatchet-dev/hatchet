@@ -97,14 +97,16 @@ describe('durable worker shutdown', () => {
     jest.restoreAllMocks();
   });
 
-  // Mirrors a real task run: the future leaves `worker.futures` once its work settles.
+  // Mirrors handleStartStepRun: the future leaves `worker.futures` as soon as its cancelable
+  // wrapper settles, which on cancellation is before the underlying work finishes.
   function registerRunningTask(key: ActionKey) {
     const work = gate();
-    const future = new HatchetPromise<void>(
-      work.promise.finally(() => {
+    const future = new HatchetPromise<void>(work.promise);
+    future.promise
+      .catch(() => undefined)
+      .finally(() => {
         delete worker.futures[key];
-      })
-    );
+      });
     worker.futures[key] = future;
     return { future, finish: work.release };
   }
@@ -191,9 +193,9 @@ describe('durable worker shutdown', () => {
     const stopping = worker.stop();
     await jest.advanceTimersByTimeAsync(0);
 
-    inFlightTask.future.promise.catch(() => undefined);
     inFlightTask.future.cancel();
     await jest.advanceTimersByTimeAsync(60_000);
+    expect(worker.futures).toEqual({});
     expect(unsubscribe).not.toHaveBeenCalled();
 
     inFlightTask.finish();
