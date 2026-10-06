@@ -4825,8 +4825,7 @@ func (r *TaskRepositoryImpl) Cleanup(ctx context.Context) (bool, error) {
 			return fmt.Errorf("error reactivating inactive queues: %v", err)
 		}
 		if result.RowsAffected() > 0 {
-			// FIXME: this is an error because there is an underlying bug that needs to be fixed
-			r.l.Error().Ctx(ctx).Msgf("reactivated %d inactive queues with pending items", result.RowsAffected())
+			r.l.Info().Ctx(ctx).Msgf("reactivated %d inactive queues with pending items", result.RowsAffected())
 		}
 		return nil
 	}))
