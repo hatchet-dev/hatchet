@@ -3,11 +3,8 @@
 package streams
 
 import (
-	"context"
 	"errors"
 
-	"connectrpc.com/connect"
-	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
@@ -93,22 +90,10 @@ func (s *ServiceImpl) CancelStreamSessions() {
 	s.streamSessions.CancelAll()
 }
 
+var errNotEntitled = errors.New("durable streams are not enabled for this tenant")
+
 // Cleanup stops the publisher's workers and the wake subscription.
 func (s *ServiceImpl) Cleanup() error {
 	s.publisher.stop()
 	return s.topicPollers.Close()
-}
-
-func (s *ServiceImpl) checkEntitled(ctx context.Context, tenantId uuid.UUID) error {
-	enabled, err := s.repo.TenantEntitlement().HasEntitlement(ctx, tenantId, v1.EntitlementDurableStreams)
-
-	if err != nil {
-		return err
-	}
-
-	if !enabled {
-		return connect.NewError(connect.CodePermissionDenied, errors.New("durable streams are not enabled for this tenant"))
-	}
-
-	return nil
 }

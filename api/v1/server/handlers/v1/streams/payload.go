@@ -7,7 +7,6 @@ import (
 	"io"
 	"mime/multipart"
 
-	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/authz"
@@ -23,10 +22,14 @@ func (s *V1StreamsService) V1StreamPayloadUpload(ctx echo.Context, request gen.V
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
 	reqCtx := ctx.Request().Context()
 
-	if err := s.checkEntitled(ctx, tenant.ID); errors.Is(err, errNotEntitled) {
-		return gen.V1StreamPayloadUpload403JSONResponse(apierrors.NewAPIErrors(err.Error())), nil
-	} else if err != nil {
+	entitled, err := s.config.V1.TenantEntitlement().HasEntitlement(reqCtx, tenant.ID, repository.EntitlementDurableStreams)
+
+	if err != nil {
 		return nil, err
+	}
+
+	if !entitled {
+		return gen.V1StreamPayloadUpload403JSONResponse(apierrors.NewAPIErrors(errNotEntitled.Error())), nil
 	}
 
 	payload, err := readPayloadPart(request.Body)
@@ -75,10 +78,14 @@ func (s *V1StreamsService) V1StreamPayloadGet(ctx echo.Context, request gen.V1St
 		return gen.V1StreamPayloadGet403JSONResponse(apierrors.NewAPIErrors("not permitted to view payloads")), nil
 	}
 
-	if err := s.checkEntitled(ctx, tenant.ID); errors.Is(err, errNotEntitled) {
-		return gen.V1StreamPayloadGet403JSONResponse(apierrors.NewAPIErrors(err.Error())), nil
-	} else if err != nil {
+	entitled, err := s.config.V1.TenantEntitlement().HasEntitlement(ctx.Request().Context(), tenant.ID, repository.EntitlementDurableStreams)
+
+	if err != nil {
 		return nil, err
+	}
+
+	if !entitled {
+		return gen.V1StreamPayloadGet403JSONResponse(apierrors.NewAPIErrors(errNotEntitled.Error())), nil
 	}
 
 	ref, err := repository.DecodeStreamPayloadRef(request.Params.Ref)
@@ -101,20 +108,6 @@ func (s *V1StreamsService) V1StreamPayloadGet(ctx echo.Context, request gen.V1St
 		Body:          bytes.NewReader(payload),
 		ContentLength: int64(len(payload)),
 	}, nil
-}
-
-func (s *V1StreamsService) checkEntitled(ctx echo.Context, tenantId uuid.UUID) error {
-	enabled, err := s.config.V1.TenantEntitlement().IsDurableStreamsEnabled(ctx.Request().Context(), tenantId)
-
-	if err != nil {
-		return err
-	}
-
-	if !enabled {
-		return errNotEntitled
-	}
-
-	return nil
 }
 
 func readPayloadPart(reader *multipart.Reader) ([]byte, error) {

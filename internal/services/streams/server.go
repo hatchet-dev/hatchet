@@ -37,8 +37,14 @@ func (s *ServiceImpl) Publish(ctx context.Context, req *contracts.PublishStreamM
 		telemetry.AttributeKV{Key: "stream.payload_ref", Value: req.PayloadRef != ""},
 	)
 
-	if err := s.checkEntitled(ctx, tenantId); err != nil {
+	entitled, err := s.repo.TenantEntitlement().HasEntitlement(ctx, tenantId, v1.EntitlementDurableStreams)
+
+	if err != nil {
 		return nil, err
+	}
+
+	if !entitled {
+		return nil, connect.NewError(connect.CodePermissionDenied, errNotEntitled)
 	}
 
 	if err := v1.ValidateStreamAddress(req.Namespace, req.Topic); err != nil {
@@ -88,7 +94,7 @@ func (s *ServiceImpl) Publish(ctx context.Context, req *contracts.PublishStreamM
 	}
 
 	ensureCtx, span := telemetry.NewSpan(ctx, "streams.publish.ensure-topic")
-	err := s.repo.Streams().EnsureTopic(ensureCtx, tenantId, req.Namespace, req.Topic)
+	err = s.repo.Streams().EnsureTopic(ensureCtx, tenantId, req.Namespace, req.Topic)
 	recordSpanError(span, err)
 	span.End()
 
@@ -146,8 +152,14 @@ func (s *ServiceImpl) Subscribe(ctx context.Context, req *contracts.SubscribeStr
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 
-	if err := s.checkEntitled(ctx, tenantId); err != nil {
+	entitled, err := s.repo.TenantEntitlement().HasEntitlement(ctx, tenantId, v1.EntitlementDurableStreams)
+
+	if err != nil {
 		return err
+	}
+
+	if !entitled {
+		return connect.NewError(connect.CodePermissionDenied, errNotEntitled)
 	}
 
 	namespace, topic, cursor, err := resolveSubscribeAddressAndCursor(req)
@@ -208,8 +220,14 @@ func (s *ServiceImpl) GetTopicMetadata(ctx context.Context, req *contracts.GetSt
 		telemetry.AttributeKV{Key: "stream.topic", Value: req.Topic},
 	)
 
-	if err := s.checkEntitled(ctx, tenantId); err != nil {
+	entitled, err := s.repo.TenantEntitlement().HasEntitlement(ctx, tenantId, v1.EntitlementDurableStreams)
+
+	if err != nil {
 		return nil, err
+	}
+
+	if !entitled {
+		return nil, connect.NewError(connect.CodePermissionDenied, errNotEntitled)
 	}
 
 	if err := v1.ValidateStreamAddress(req.Namespace, req.Topic); err != nil {
