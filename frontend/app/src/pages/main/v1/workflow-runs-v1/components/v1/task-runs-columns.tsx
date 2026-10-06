@@ -16,6 +16,7 @@ import {
   TooltipTrigger,
 } from '@/components/v1/ui/tooltip';
 import { V1TaskStatus, V1TaskSummary } from '@/lib/api';
+import { isStandaloneRun } from '@/lib/task-runs';
 import { cn } from '@/lib/utils';
 import { appRoutes } from '@/router';
 import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
@@ -451,7 +452,7 @@ export const columns: (
                       onRunAsNew(row.original);
                     },
                     disabled:
-                      row.depth > 0 &&
+                      !isStandaloneRun(row.original) &&
                       'Only top-level runs can be run as new. Use the parent run instead.',
                   },
                 ]
