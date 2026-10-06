@@ -413,12 +413,15 @@ func (d *DAGOperator) run(action *contracts.AssignedAction) error {
 		if errors.Is(dagErr, context.Canceled) {
 			return d.handleRunCancellation(span, action, tasks, dagErr)
 		}
-		// A child task failing, an engine-reported durable task error (e.g. nondeterminism), or a
-		// nondeterministic ingestion are all terminal DAG outcomes that replay reproduces
-		// deterministically, so they must not be retried; anything else (operational errors)
-		// remains retriable.
+		// A child task failing, an engine-reported durable task error (e.g. nondeterminism), a
+		// nondeterministic ingestion, or a condition that cannot be evaluated against its parent's
+		// output are all terminal DAG outcomes that replay reproduces deterministically, so they
+		// must not be retried; anything else (operational errors) remains retriable.
 		var nonDeterminismErr *repository.NonDeterminismError
-		shouldNotRetry := isDagChildFailedErr(dagErr) || isDagEngineErr(dagErr) || errors.As(dagErr, &nonDeterminismErr)
+		shouldNotRetry := isDagChildFailedErr(dagErr) ||
+			isDagEngineErr(dagErr) ||
+			isDagConditionEvalErr(dagErr) ||
+			errors.As(dagErr, &nonDeterminismErr)
 
 		return d.fail(span, action, fmt.Errorf("dag failed: %w", dagErr), shouldNotRetry)
 	}

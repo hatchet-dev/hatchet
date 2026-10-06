@@ -47,6 +47,25 @@ func isDagChildFailedErr(err error) bool {
 	return errors.As(err, &e)
 }
 
+type dagConditionEvalError struct {
+	taskActionId string
+	expression   string
+	err          error
+}
+
+func (e *dagConditionEvalError) Error() string {
+	return fmt.Sprintf("CEL eval error for task %q condition %q: %v", e.taskActionId, e.expression, e.err)
+}
+
+func (e *dagConditionEvalError) Unwrap() error {
+	return e.err
+}
+
+func isDagConditionEvalErr(err error) bool {
+	var e *dagConditionEvalError
+	return errors.As(err, &e)
+}
+
 type dagEngineError struct {
 	errorType    string
 	errorMessage string
@@ -743,7 +762,7 @@ func (d *dag) evaluateConditionsForParent(ctx context.Context, parent *task) err
 
 			matched, err := d.evalBoolExpr(ctx, expr, map[string]interface{}{"output": parent.output})
 			if err != nil {
-				return fmt.Errorf("CEL eval error for task %q condition %q: %w", t.actionId, expr, err)
+				return &dagConditionEvalError{taskActionId: t.actionId, expression: expr, err: err}
 			}
 
 			d.conditionMatches[cond] = matched
