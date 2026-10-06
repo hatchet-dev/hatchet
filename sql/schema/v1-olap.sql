@@ -408,7 +408,7 @@ CREATE TABLE v1_task_events_olap (
     durable_invocation_count INT NOT NULL DEFAULT 0,
 
     PRIMARY KEY (task_id, task_inserted_at, id)
-) PARTITION BY RANGE (task_inserted_at);
+);
 
 CREATE INDEX v1_task_events_olap_task_id_idx ON v1_task_events_olap (task_id);
 
