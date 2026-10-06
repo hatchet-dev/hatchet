@@ -12,10 +12,11 @@ StreamsClient publishes to and reads from durable topics. Unlike ctx.PutStream s
 
 Methods:
 
-| Name      | Description                                                   |
-| --------- | ------------------------------------------------------------- |
-| `Events`  | Events streams topic's messages from the start or WithCursor. |
-| `Publish` | Publish returns once the message is stored.                   |
+| Name            | Description                                                                         |
+| --------------- | ----------------------------------------------------------------------------------- |
+| `Events`        | Events streams topic's messages from the start or WithCursor.                       |
+| `Publish`       | Publish returns once the message is stored.                                         |
+| `TopicMetadata` | TopicMetadata returns a NotFound status error for a topic nothing was published to. |
 
 ### Functions
 
@@ -64,6 +65,29 @@ Returns:
 | ------- |
 | `error` |
 
+#### `TopicMetadata`
+
+TopicMetadata returns a NotFound status error for a topic nothing was published to.
+
+```go
+func (s *StreamsClient) TopicMetadata(ctx context.Context, topic string, opts ...StreamCallOpt) (*StreamTopicMetadata, error)
+```
+
+Parameters:
+
+| Name    | Type               |
+| ------- | ------------------ |
+| `ctx`   | `context.Context`  |
+| `topic` | `string`           |
+| `opts`  | `...StreamCallOpt` |
+
+Returns:
+
+| Type                   |
+| ---------------------- |
+| `*StreamTopicMetadata` |
+| `error`                |
+
 ## Related types
 
 ### StreamEvent
@@ -78,15 +102,19 @@ Fields:
 | `Cursor`    | `string`    |             |
 | `CreatedAt` | `time.Time` |             |
 
+### StreamTopicMetadata
+
+StreamTopicMetadata describes a topic's messages within the tenant's retention.
+
 ### StreamCallOpt
 
-StreamCallOpt configures a call to StreamsClient.Publish or StreamsClient.Events.
+StreamCallOpt configures a call to StreamsClient.Publish, StreamsClient.Events or StreamsClient.TopicMetadata.
 
 #### Functions
 
 ##### `WithCursor`
 
-WithCursor resumes Events after the StreamEvent the cursor came from. Without it, Events starts at the oldest retained message. Ignored by Publish.
+WithCursor resumes Events after the StreamEvent the cursor came from. Without it, Events starts at the oldest retained message. Ignored by Publish and TopicMetadata.
 
 ```go
 func WithCursor(cursor string) StreamCallOpt
