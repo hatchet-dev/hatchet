@@ -4702,7 +4702,7 @@ func (r *TaskRepositoryImpl) Cleanup(ctx context.Context) (bool, error) {
 		mu             sync.Mutex
 		shouldContinue bool
 	)
-	// Not errgroup.WithContext: a failing subtask must not cancel queue reactivation.
+	// A failing cleanup subtask must not cancel queue reactivation.
 	var eg errgroup.Group
 
 	// Helper to run a cleanup operation with its own transaction and advisory lock
