@@ -43,6 +43,26 @@ jobs:
               }
             }
 
+            let vouched;
+            async function isVouched(login) {
+              if (!vouched) {
+                const { data } = await github.rest.repos.getContent({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  path: '.github/VOUCHED.td',
+                });
+                vouched = new Set(
+                  Buffer.from(data.content, 'base64').toString('utf8')
+                    .split('\n')
+                    .map(line => line.trim().split(/\s+/)[0].toLowerCase())
+                    .filter(handle => handle && !handle.startsWith('#') && !handle.startsWith('-'))
+                    .filter(handle => !handle.includes(':') || handle.startsWith('github:'))
+                    .map(handle => handle.replace(/^github:/, ''))
+                );
+              }
+              return vouched.has(login.toLowerCase());
+            }
+
             const message = [
               MARKER,
               "Thanks for taking the time to open this pull request! :heart:",
@@ -63,6 +83,11 @@ jobs:
                 "issue to you.",
               "3. Link the issue from this PR using a closing keyword (e.g. `Closes #123`) in the " +
                 "description, then reopen the PR.",
+              "",
+              "Contributors we've built a track record with are " +
+                "[vouched](https://github.com/hatchet-dev/hatchet/blob/main/CONTRIBUTING.md#building-trust-vouching) " +
+                "and can skip this step.",
+              "",
               "Thanks again for contributing to Hatchet! :axe:",
             ].join('\n');
 
@@ -126,6 +151,10 @@ jobs:
               }
               if (maintainer) {
                 core.info(`#${number}: author is a maintainer, skipping`);
+                return;
+              }
+              if (await isVouched(author)) {
+                core.info(`#${number}: author is vouched, skipping`);
                 return;
               }
               if ((pr.labels || []).some(l => l.name.toLowerCase() === ACCEPTED_LABEL)) {

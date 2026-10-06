@@ -1,0 +1,34 @@
+name: "Vouch: manage by comment"
+
+on:
+  issue_comment:
+    types: [created]
+
+concurrency:
+  group: vouch-manage
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  manage:
+    if: contains(github.event.comment.body, 'vouch') || contains(github.event.comment.body, 'denounce')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: app-token
+        with:
+          client-id: ${{ vars.VOUCH_APP_CLIENT_ID }}
+          private-key: ${{ secrets.VOUCH_APP_PRIVATE_KEY }}
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+
+      - uses: mitchellh/vouch/action/manage-by-issue@d66fa29a64600490892131ad87597c30c91fcac4 # v1.5.0
+        with:
+          issue-id: ${{ github.event.issue.number }}
+          comment-id: ${{ github.event.comment.id }}
+          roles: admin,maintain,write
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
