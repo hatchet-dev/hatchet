@@ -1163,13 +1163,54 @@ RETURNING id, tenant_id, task_id, task_inserted_at, retry_count;
 
 -- name: ReactivateInactiveQueuesWithItems :execresult
 -- Reactivates queues that have been marked inactive (last_active > 1 day ago)
--- but still have pending items in v1_queue_item or v1_rate_limited_queue_items.
--- This is a fallback mechanism to ensure queues don't get stuck inactive while
--- they have work to do.
-WITH queues_with_items AS (
-    SELECT DISTINCT tenant_id, queue FROM v1_queue_item
+-- but still have pending items in v1_queue_item, or rate limited items in
+-- v1_rate_limited_queue_items that are due. This is a fallback mechanism to
+-- ensure queues don't get stuck inactive while they have work to do.
+--
+-- NOTE: v1_queue is mostly inactive rows and far larger than the item tables, so the
+-- distinct queues are collected with recursive loose index scans (one index probe per
+-- queue). Their low row estimate keeps the join to v1_queue on primary key probes;
+-- a plain DISTINCT over either item table lets the planner pick a hash join that
+-- seq scans all of v1_queue.
+WITH RECURSIVE ready_queues AS (
+    (
+        SELECT tenant_id, queue
+        FROM v1_queue_item
+        ORDER BY tenant_id, queue
+        LIMIT 1
+    )
+    UNION ALL
+    SELECT n.tenant_id, n.queue
+    FROM ready_queues c
+    CROSS JOIN LATERAL (
+        SELECT tenant_id, queue
+        FROM v1_queue_item
+        WHERE (tenant_id, queue) > (c.tenant_id, c.queue)
+        ORDER BY tenant_id, queue
+        LIMIT 1
+    ) n
+), rate_limited_queues AS (
+    -- one row per queue, carrying its earliest requeue_after
+    (
+        SELECT tenant_id, queue, requeue_after
+        FROM v1_rate_limited_queue_items
+        ORDER BY tenant_id, queue, requeue_after
+        LIMIT 1
+    )
+    UNION ALL
+    SELECT n.tenant_id, n.queue, n.requeue_after
+    FROM rate_limited_queues c
+    CROSS JOIN LATERAL (
+        SELECT tenant_id, queue, requeue_after
+        FROM v1_rate_limited_queue_items
+        WHERE (tenant_id, queue) > (c.tenant_id, c.queue)
+        ORDER BY tenant_id, queue, requeue_after
+        LIMIT 1
+    ) n
+), queues_with_items AS (
+    SELECT tenant_id, queue FROM ready_queues
     UNION
-    SELECT DISTINCT tenant_id, queue FROM v1_rate_limited_queue_items
+    SELECT tenant_id, queue FROM rate_limited_queues WHERE requeue_after <= NOW()
 ), inactive_queues_with_items AS (
     SELECT q.tenant_id, q.name
     FROM v1_queue q
