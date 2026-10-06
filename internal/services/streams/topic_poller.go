@@ -202,6 +202,24 @@ func (p *topicPoller) hangUpIfIdleLocked() {
 	}
 }
 
+// sendStats counts what a send callback delivered, once per frame however many listeners it fans out to.
+type sendStats struct {
+	entries      int
+	payloadBytes int
+}
+
+func (s *sendStats) counting(send func(*contracts.StreamMessage) error) func(*contracts.StreamMessage) error {
+	return func(out *contracts.StreamMessage) error {
+		s.entries += len(out.Entries)
+
+		for _, e := range out.Entries {
+			s.payloadBytes += len(e.Payload)
+		}
+
+		return send(out)
+	}
+}
+
 func (p *topicPoller) recordPoll(startedAt time.Time, trigger string, listeners int, stats sendStats, err error) {
 	_, span := telemetry.NewSpanAt(context.Background(), "streams.topic-poller.poll", startedAt)
 	defer span.End()
