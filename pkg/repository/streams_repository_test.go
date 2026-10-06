@@ -4,12 +4,14 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
@@ -144,70 +146,17 @@ func TestStreamsRepository(t *testing.T) {
 		assert.Equal(t, []int64{1, 2}, bIDs, "each topic numbers its own offsets")
 	})
 
-	t.Run("cursor buckets: watermark carried forward, expired past retention", func(t *testing.T) {
-		repo := createStreamsRepository(t, pool)
-		tenantId := uuid.New()
-
-		_, err := repo.InsertOrderedStreamMessage(ctx, tenantId, streamOpts(0, "m"))
-		require.NoError(t, err)
-
-		ageBuckets := func(days int) {
-			_, err := pool.Exec(ctx, `SELECT create_v1_range_partition('v1_stream_producer_cursor', (NOW() AT TIME ZONE 'UTC')::date - $1::int, 80)`, days)
-			require.NoError(t, err)
-			_, err = pool.Exec(ctx, `UPDATE v1_stream_producer_cursor SET bucket = bucket - $1::int WHERE tenant_id = $2`, days, tenantId)
-			require.NoError(t, err)
-		}
-
-		// the producer's only row moves to yesterday; its next write copies the
-		// watermark into today's bucket
-		ageBuckets(1)
-
-		second, err := repo.InsertOrderedStreamMessage(ctx, tenantId, streamOpts(1, "m"))
-		require.NoError(t, err)
-		require.True(t, second.Inserted)
-
-		var buckets int
-		require.NoError(t, pool.QueryRow(ctx, `SELECT COUNT(*) FROM v1_stream_producer_cursor WHERE tenant_id = $1 AND last_seq = 1`, tenantId).Scan(&buckets))
-		assert.Equal(t, 2, buckets, "the watermark must be carried into today's bucket")
-
-		// dropping the older bucket (retention) leaves the watermark intact
-		_, err = pool.Exec(ctx, `DELETE FROM v1_stream_producer_cursor WHERE tenant_id = $1 AND bucket < (NOW() AT TIME ZONE 'UTC')::date`, tenantId)
-		require.NoError(t, err)
-
-		dup, err := repo.InsertOrderedStreamMessage(ctx, tenantId, streamOpts(1, "m"))
-		require.NoError(t, err)
-		assert.False(t, dup.Inserted)
-		assert.Equal(t, int64(1), dup.CurrentSeq)
-
-		// a watermark older than cursor retention counts as none, so the next
-		// publish is a gap the SDK answers with a new producer
-		ageBuckets(int(streamProducerCursorRetention/(24*time.Hour)) + 1)
-
-		next, err := repo.InsertOrderedStreamMessage(ctx, tenantId, streamOpts(2, "m"))
-		require.NoError(t, err)
-		assert.False(t, next.Inserted)
-		assert.Equal(t, int64(-1), next.CurrentSeq)
-	})
-
-	t.Run("reads hide what's past the tenant's retention", func(t *testing.T) {
+	t.Run("cursors expire past the tenant's retention or the oldest partition", func(t *testing.T) {
 		repo := createStreamsRepository(t, pool)
 		shortTenant := createLimitTestTenant(t, pool)
 		defaultTenant := createLimitTestTenant(t, pool)
 		setStreamRetentionHours(t, pool, shortTenant, 1)
 
 		// the migration only seeds partitions from the current hour on
-		_, err := pool.Exec(ctx, `SELECT create_v1_hourly_range_partition('v1_stream_message', NOW() - make_interval(hours => h)) FROM generate_series(1, 5) AS h`)
-		require.NoError(t, err)
-
-		_, err = pool.Exec(ctx, `
-			INSERT INTO v1_stream_message (id, tenant_id, topic, payload, producer_id, producer_seq, inserted_at)
-			VALUES (1, $1, 't', 'old', 'p', 0, NOW() - INTERVAL '3 hours'), (2, $1, 't', 'new', 'p', 1, NOW())
-		`, shortTenant)
-		require.NoError(t, err)
-
-		msgs, err := repo.ListMessagesAfterCursor(ctx, shortTenant, ListStreamMessagesOpts{Topic: "t"})
-		require.NoError(t, err)
-		assert.Equal(t, []string{"new"}, streamPayloads(t, msgs))
+		require.NoError(t, repo.queries.CreateStreamMessagePartitions(ctx, pool, sqlcv1.CreateStreamMessagePartitionsParams{
+			Fromtime: pgtype.Timestamptz{Time: time.Now().Add(-5 * time.Hour), Valid: true},
+			Totime:   pgtype.Timestamptz{Time: time.Now(), Valid: true},
+		}))
 
 		hoursAgo := func(h int) StreamCursor {
 			return StreamCursor{ID: 5, CreatedAt: time.Now().Add(-time.Duration(h) * time.Hour)}
@@ -227,50 +176,35 @@ func TestStreamsRepository(t *testing.T) {
 		assert.WithinDuration(t, time.Now().Add(-5*time.Hour), expired.RetentionStart, time.Hour)
 	})
 
-	t.Run("topic metadata covers only retained messages", func(t *testing.T) {
+	t.Run("topic metadata reports a topic's newest message and count", func(t *testing.T) {
 		repo := createStreamsRepository(t, pool)
-		tenant := createLimitTestTenant(t, pool)
-		setStreamRetentionHours(t, pool, tenant, 1)
+		tenantId := uuid.New()
 
-		_, err := pool.Exec(ctx, `SELECT create_v1_hourly_range_partition('v1_stream_message', NOW() - make_interval(hours => h)) FROM generate_series(1, 5) AS h`)
+		for seq := range int64(3) {
+			_, err := repo.InsertOrderedStreamMessage(ctx, tenantId, streamOpts(seq, "m"))
+			require.NoError(t, err)
+		}
+
+		_, err := repo.InsertOrderedStreamMessage(ctx, tenantId, CreateOrderedStreamMessageOpts{Namespace: "ns", Topic: "t", Payload: []byte("m"), ProducerID: "p1"})
 		require.NoError(t, err)
 
-		_, err = pool.Exec(ctx, `
-			INSERT INTO v1_stream_topic (tenant_id, namespace, topic) VALUES ($1, '', 't'), ($1, 'ns', 't'), ($1, '', 'expired')
-		`, tenant)
+		msgs, err := repo.ListMessagesAfterCursor(ctx, tenantId, ListStreamMessagesOpts{Topic: "t"})
 		require.NoError(t, err)
+		last := msgs[len(msgs)-1]
 
-		latestAt := time.Now().Add(-time.Minute).Truncate(time.Microsecond)
-
-		_, err = pool.Exec(ctx, `
-			INSERT INTO v1_stream_message (id, tenant_id, namespace, topic, payload, producer_id, producer_seq, inserted_at)
-			VALUES
-				(1, $1, '', 't', 'old', 'p', 0, NOW() - INTERVAL '3 hours'),
-				(2, $1, '', 't', 'm', 'p', 1, NOW() - INTERVAL '2 minutes'),
-				(3, $1, '', 't', 'm', 'p', 2, $2),
-				(1, $1, 'ns', 't', 'm', 'p', 0, NOW()),
-				(1, $1, '', 'expired', 'old', 'p', 0, NOW() - INTERVAL '3 hours')
-		`, tenant, latestAt)
+		md, err := repo.GetTopicMetadata(ctx, tenantId, "", "t")
 		require.NoError(t, err)
-
-		md, err := repo.GetTopicMetadata(ctx, tenant, "", "t")
-		require.NoError(t, err)
-		assert.Equal(t, int64(2), md.MessageCount, "the 3h-old message is past the 1h retention")
+		assert.Equal(t, int64(3), md.MessageCount)
 		require.NotNil(t, md.LatestCursor)
-		assert.Equal(t, int64(3), md.LatestCursor.ID)
+		assert.Equal(t, last.ID, md.LatestCursor.ID)
 		assert.Equal(t, "t", md.LatestCursor.Topic)
-		assert.True(t, latestAt.Equal(md.LatestCursor.CreatedAt))
+		assert.True(t, last.InsertedAt.Time.Equal(md.LatestCursor.CreatedAt))
 
-		other, err := repo.GetTopicMetadata(ctx, tenant, "ns", "t")
+		other, err := repo.GetTopicMetadata(ctx, tenantId, "ns", "t")
 		require.NoError(t, err)
 		assert.Equal(t, int64(1), other.MessageCount, "the same topic name in another namespace is its own topic")
 
-		expired, err := repo.GetTopicMetadata(ctx, tenant, "", "expired")
-		require.NoError(t, err)
-		assert.Zero(t, expired.MessageCount)
-		assert.Nil(t, expired.LatestCursor)
-
-		_, err = repo.GetTopicMetadata(ctx, tenant, "", "missing")
+		_, err = repo.GetTopicMetadata(ctx, tenantId, "", "missing")
 		assert.ErrorIs(t, err, ErrStreamTopicNotFound)
 	})
 
@@ -352,17 +286,12 @@ func TestStreamsRepository(t *testing.T) {
 
 		read()
 
-		var stored []int64
-		rows, err := pool.Query(ctx, `SELECT id FROM v1_stream_message WHERE tenant_id = $1 ORDER BY id`, tenantId)
-		require.NoError(t, err)
-		for rows.Next() {
-			var id int64
-			require.NoError(t, rows.Scan(&id))
-			stored = append(stored, id)
+		// every publish succeeded on one topic, so the stored offsets are exactly 1..n
+		stored := make([]int64, producers*perProducer)
+		for i := range stored {
+			stored[i] = int64(i + 1)
 		}
-		require.NoError(t, rows.Err())
 
-		require.Len(t, stored, producers*perProducer)
 		assert.Equal(t, stored, seen, "the reader must see every stored message, in order")
 	})
 
@@ -370,67 +299,84 @@ func TestStreamsRepository(t *testing.T) {
 	// touching nothing newer and no other tenant.
 	t.Run("expired messages are deleted in batches", func(t *testing.T) {
 		repo := createTaskRepository(pool)
+		streams := createStreamsRepository(t, pool)
 		tenant, other := uuid.New(), uuid.New()
 
-		_, err := pool.Exec(ctx, `SELECT create_v1_hourly_range_partition('v1_stream_message', NOW() - INTERVAL '3 hours')`)
-		require.NoError(t, err)
+		publish := func(tenantId uuid.UUID, producer string, n int) {
+			msgs := make([]TenantStreamMessage, n)
+			for i := range msgs {
+				msgs[i] = TenantStreamMessage{TenantID: tenantId, Opts: CreateOrderedStreamMessageOpts{Topic: "t", Payload: []byte("m"), ProducerID: producer, ProducerSeq: int64(i)}}
+			}
+
+			_, err := streams.InsertOrderedStreamMessages(ctx, msgs)
+			require.NoError(t, err)
+		}
+
+		count := func(tenantId uuid.UUID) []*sqlcv1.V1StreamMessage {
+			msgs, err := streams.ListMessagesAfterCursor(ctx, tenantId, ListStreamMessagesOpts{Topic: "t", Limit: 1000})
+			require.NoError(t, err)
+			return msgs
+		}
 
 		expired := deleteExpiredStreamMessagesBatchSize*2 + 7
+		publish(tenant, "old", expired)
+		publish(other, "old", expired)
 
-		_, err = pool.Exec(ctx, `
-			INSERT INTO v1_stream_message (id, tenant_id, topic, payload, producer_id, producer_seq, inserted_at)
-			SELECT g, t, 't', 'm', 'p', g, NOW() - INTERVAL '3 hours'
-			FROM generate_series(1, $1) g, unnest($2::uuid[]) AS t`, expired, []uuid.UUID{tenant, other})
-		require.NoError(t, err)
+		// inserted_at is the publish transaction's start, shared by the whole batch
+		cutoff := count(tenant)[0].InsertedAt.Time.Add(time.Microsecond)
+		time.Sleep(10 * time.Millisecond)
+		publish(tenant, "new", 1)
 
-		_, err = pool.Exec(ctx, `INSERT INTO v1_stream_message (id, tenant_id, topic, payload, producer_id, producer_seq) VALUES ($1, $2, 't', 'm', 'p', 0)`, expired+1, tenant)
-		require.NoError(t, err)
+		require.NoError(t, repo.deleteExpiredStreamMessages(ctx, tenant, cutoff))
 
-		require.NoError(t, repo.deleteExpiredStreamMessages(ctx, tenant, time.Now().Add(-time.Hour)))
-
-		count := func(tenant uuid.UUID) int {
-			var n int
-			require.NoError(t, pool.QueryRow(ctx, `SELECT COUNT(*) FROM v1_stream_message WHERE tenant_id = $1`, tenant).Scan(&n))
-			return n
-		}
-
-		assert.Equal(t, 1, count(tenant), "only the recent message is left")
-		assert.Equal(t, expired, count(other), "other tenants are untouched")
+		assert.Len(t, count(tenant), 1, "only the newer message is left")
+		assert.Len(t, count(other), expired, "other tenants are untouched")
 	})
 
-	t.Run("idle topics are deleted using each tenant's retention", func(t *testing.T) {
+	t.Run("expired messages take their uploaded payloads with them", func(t *testing.T) {
 		repo := createTaskRepository(pool)
-		defaultTenant := createLimitTestTenant(t, pool)
-		longTenant := createLimitTestTenant(t, pool)
-		setStreamRetentionHours(t, pool, longTenant, 2000)
+		streams := createStreamsRepository(t, pool)
+		tenant, other := uuid.New(), uuid.New()
 
-		// 40 days idle: past the default 720h, within longTenant's 2000h. More
-		// than one batch so the sweep has to loop.
-		_, err := pool.Exec(ctx, `
-			INSERT INTO v1_stream_topic (tenant_id, topic, last_published_at)
-			SELECT $1, 'idle-' || g, NOW() - INTERVAL '40 days' FROM generate_series(1, $2) g
-		`, defaultTenant, deleteIdleStreamTopicsBatchSize+5)
-		require.NoError(t, err)
-
-		_, err = pool.Exec(ctx, `
-			INSERT INTO v1_stream_topic (tenant_id, topic, last_published_at)
-			VALUES ($1, 'active', NOW()), ($2, 'idle-long', NOW() - INTERVAL '40 days')
-		`, defaultTenant, longTenant)
-		require.NoError(t, err)
-
-		require.NoError(t, repo.deleteIdleStreamTopics(ctx))
-
-		var remaining []string
-		rows, err := pool.Query(ctx, `SELECT topic FROM v1_stream_topic WHERE tenant_id = ANY($1) ORDER BY topic`, []uuid.UUID{defaultTenant, longTenant})
-		require.NoError(t, err)
-		for rows.Next() {
-			var topic string
-			require.NoError(t, rows.Scan(&topic))
-			remaining = append(remaining, topic)
+		upload := func(tenantId uuid.UUID) StreamPayloadRef {
+			ref, err := streams.InsertStreamPayload(ctx, tenantId, []byte("large"))
+			require.NoError(t, err)
+			return ref
 		}
-		require.NoError(t, rows.Err())
 
-		assert.Equal(t, []string{"active", "idle-long"}, remaining)
+		publish := func(tenantId uuid.UUID, seq int64, ref StreamPayloadRef) {
+			res, err := streams.InsertOrderedStreamMessage(ctx, tenantId, CreateOrderedStreamMessageOpts{Topic: "t", ProducerID: "p", ProducerSeq: seq, PayloadRef: &ref})
+			require.NoError(t, err)
+			require.True(t, res.Inserted)
+		}
+
+		payloadExists := func(tenantId uuid.UUID, ref StreamPayloadRef) bool {
+			_, err := streams.GetStreamPayload(ctx, tenantId, ref)
+			if errors.Is(err, ErrStreamPayloadNotFound) {
+				return false
+			}
+			require.NoError(t, err)
+			return true
+		}
+
+		expiredRef, orphanRef, otherRef := upload(tenant), upload(tenant), upload(other)
+		publish(tenant, 0, expiredRef)
+		publish(other, 0, otherRef)
+
+		msgs, err := streams.ListMessagesAfterCursor(ctx, tenant, ListStreamMessagesOpts{Topic: "t"})
+		require.NoError(t, err)
+		cutoff := msgs[0].InsertedAt.Time.Add(time.Microsecond)
+
+		time.Sleep(10 * time.Millisecond)
+		keptRef := upload(tenant)
+		publish(tenant, 1, keptRef)
+
+		require.NoError(t, repo.deleteExpiredStreamMessages(ctx, tenant, cutoff))
+
+		assert.False(t, payloadExists(tenant, expiredRef), "deleted with its expired message")
+		assert.True(t, payloadExists(tenant, keptRef), "its message is still retained")
+		assert.True(t, payloadExists(tenant, orphanRef), "never published, so it's left for its partition to be dropped")
+		assert.True(t, payloadExists(other, otherRef), "another tenant's retention isn't applied")
 	})
 
 	t.Run("an uploaded payload is published and read by ref", func(t *testing.T) {

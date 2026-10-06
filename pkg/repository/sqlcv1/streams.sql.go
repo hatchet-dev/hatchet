@@ -53,16 +53,26 @@ func (q *Queries) CreateStreamPayloadPartitions(ctx context.Context, db DBTX, ar
 	return err
 }
 
-const deleteExpiredStreamMessages = `-- name: DeleteExpiredStreamMessages :execrows
-DELETE FROM v1_stream_message
-WHERE inserted_at < $1::timestamptz
-    AND (tenant_id, namespace, topic, id, inserted_at) IN (
-        SELECT tenant_id, namespace, topic, id, inserted_at
-        FROM v1_stream_message
-        WHERE tenant_id = $2::uuid
-            AND inserted_at < $1::timestamptz
-        LIMIT $3::integer
-    )
+const deleteExpiredStreamMessages = `-- name: DeleteExpiredStreamMessages :one
+WITH deleted AS (
+    DELETE FROM v1_stream_message
+    WHERE inserted_at < $1::timestamptz
+        AND (tenant_id, namespace, topic, id, inserted_at) IN (
+            SELECT tenant_id, namespace, topic, id, inserted_at
+            FROM v1_stream_message
+            WHERE tenant_id = $2::uuid
+                AND inserted_at < $1::timestamptz
+            LIMIT $3::integer
+        )
+    RETURNING tenant_id, payload_id, payload_inserted_at
+), deleted_payloads AS (
+    DELETE FROM v1_stream_payload p
+    USING deleted d
+    WHERE p.tenant_id = d.tenant_id
+        AND p.id = d.payload_id
+        AND p.inserted_at = d.payload_inserted_at
+)
+SELECT COUNT(*)::bigint AS deleted_messages FROM deleted
 `
 
 type DeleteExpiredStreamMessagesParams struct {
@@ -71,13 +81,13 @@ type DeleteExpiredStreamMessagesParams struct {
 	Batchsize int32              `json:"batchsize"`
 }
 
-// Small batches since payloads can be large.
+// Small batches since payloads can be large. Uploaded payloads go with the
+// messages referencing them, one each; returns how many messages were deleted.
 func (q *Queries) DeleteExpiredStreamMessages(ctx context.Context, db DBTX, arg DeleteExpiredStreamMessagesParams) (int64, error) {
-	result, err := db.Exec(ctx, deleteExpiredStreamMessages, arg.Before, arg.Tenantid, arg.Batchsize)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
+	row := db.QueryRow(ctx, deleteExpiredStreamMessages, arg.Before, arg.Tenantid, arg.Batchsize)
+	var deleted_messages int64
+	err := row.Scan(&deleted_messages)
+	return deleted_messages, err
 }
 
 const deleteIdleStreamTopics = `-- name: DeleteIdleStreamTopics :execrows
@@ -222,9 +232,6 @@ type GetStreamTopicMetadataRow struct {
 	MessageCount     int64              `json:"message_count"`
 }
 
-// No row when the topic doesn't exist. The newest message and the count cover
-// only what's within the tenant's retention; latest_id is 0 when nothing is,
-// since offsets start at 1.
 func (q *Queries) GetStreamTopicMetadata(ctx context.Context, db DBTX, arg GetStreamTopicMetadataParams) (*GetStreamTopicMetadataRow, error) {
 	row := db.QueryRow(ctx, getStreamTopicMetadata,
 		arg.Tenantid,

@@ -150,17 +150,28 @@ WHERE @defaultRetentionHours::integer < @maxRetentionHours::integer
         WHERE l."tenantId" = t.tenant_id AND l."resource" = 'STREAM_RETENTION'
     );
 
--- name: DeleteExpiredStreamMessages :execrows
--- Small batches since payloads can be large.
-DELETE FROM v1_stream_message
-WHERE inserted_at < @before::timestamptz
-    AND (tenant_id, namespace, topic, id, inserted_at) IN (
-        SELECT tenant_id, namespace, topic, id, inserted_at
-        FROM v1_stream_message
-        WHERE tenant_id = @tenantId::uuid
-            AND inserted_at < @before::timestamptz
-        LIMIT @batchSize::integer
-    );
+-- name: DeleteExpiredStreamMessages :one
+-- Small batches since payloads can be large. Uploaded payloads go with the
+-- messages referencing them, one each; returns how many messages were deleted.
+WITH deleted AS (
+    DELETE FROM v1_stream_message
+    WHERE inserted_at < @before::timestamptz
+        AND (tenant_id, namespace, topic, id, inserted_at) IN (
+            SELECT tenant_id, namespace, topic, id, inserted_at
+            FROM v1_stream_message
+            WHERE tenant_id = @tenantId::uuid
+                AND inserted_at < @before::timestamptz
+            LIMIT @batchSize::integer
+        )
+    RETURNING tenant_id, payload_id, payload_inserted_at
+), deleted_payloads AS (
+    DELETE FROM v1_stream_payload p
+    USING deleted d
+    WHERE p.tenant_id = d.tenant_id
+        AND p.id = d.payload_id
+        AND p.inserted_at = d.payload_inserted_at
+)
+SELECT COUNT(*)::bigint AS deleted_messages FROM deleted;
 
 -- name: ListStreamMessagesAfterCursor :many
 -- Pages by offset, which become visible in order (see ReserveStreamTopicOffsets),
