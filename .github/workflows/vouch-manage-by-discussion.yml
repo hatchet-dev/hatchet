@@ -1,7 +1,7 @@
-name: "Vouch: manage by issue comment"
+name: "Vouch: manage by discussion comment"
 
 on:
-  issue_comment:
+  discussion_comment:
     types: [created]
 
 concurrency:
@@ -25,10 +25,10 @@ jobs:
         with:
           token: ${{ steps.app-token.outputs.token }}
 
-      - uses: mitchellh/vouch/action/manage-by-issue@d66fa29a64600490892131ad87597c30c91fcac4 # v1.5.0
+      - uses: mitchellh/vouch/action/manage-by-discussion@d66fa29a64600490892131ad87597c30c91fcac4 # v1.5.0
         with:
-          issue-id: ${{ github.event.issue.number }}
-          comment-id: ${{ github.event.comment.id }}
+          discussion-number: ${{ github.event.discussion.number }}
+          comment-node-id: ${{ github.event.comment.node_id }}
           vouch-keyword: "!vouch"
           denounce-keyword: "!denounce"
           unvouch-keyword: "!unvouch"

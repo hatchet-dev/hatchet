@@ -7,10 +7,10 @@ This guide will help you understand how to contribute effectively to the Hatchet
 
 The following requirements apply to all contributions.
 
-- First-time contributors may have at most one open pull request at a time.
+- You must be [vouched](#building-trust-vouching) before opening a pull request. Pull requests from unvouched authors are closed automatically.
+- New contributors start with small pull requests and may have at most one open at a time. Changes to Hatchet's core come after we have worked together on a few of those.
 - Issues labeled [![good first issue](https://img.shields.io/github/labels/hatchet-dev/hatchet/good%20first%20issue)](https://github.com/hatchet-dev/hatchet/issues?q=is%3Aissue%20state%3Aopen%20label%3A%22good%20first%20issue%22) are reserved for first-time contributors.
-- Pull requests must reference a corresponding issue labeled [![accepted](https://img.shields.io/github/labels/hatchet-dev/hatchet/accepted)](https://github.com/hatchet-dev/hatchet/issues?q=is%3Aissue%20state%3Aopen%20label%3Aaccepted) **and assigned to you**. Pull requests that do not meet this requirement will be automatically closed. This requirement is lifted once you are [vouched](#building-trust-vouching).
-- Changes to Hatchet's core are only open to [vouched](#building-trust-vouching) contributors. Start with small pull requests.
+- Pull requests should reference an issue labeled [![accepted](https://img.shields.io/github/labels/hatchet-dev/hatchet/accepted)](https://github.com/hatchet-dev/hatchet/issues?q=is%3Aissue%20state%3Aopen%20label%3Aaccepted). Open one first for anything non-trivial.
 - Your GitHub account's [Activity Overview](https://docs.github.com/en/account-and-profile/how-tos/contribution-settings/showing-an-overview-of-your-activity-on-your-profile) must be public.
 - AI usage must be disclosed and comply with [AI_POLICY.md](./AI_POLICY.md) (see [AI Usage](#ai-usage)).
 
@@ -33,29 +33,26 @@ Pull requests, issues, and discussions that use AI require explicit disclosure. 
 
 ## Building Trust (Vouching)
 
-Hatchet is maintained by a small team, and reviewing a change to the core of a distributed system takes far longer than writing one. We would rather build a relationship with contributors over time than review large changes from people we have not worked with before. We use [vouch](https://github.com/mitchellh/vouch) to keep an explicit list of trusted contributors in [`.github/VOUCHED.td`](.github/VOUCHED.td).
+Hatchet is maintained by a small team, and reviewing a change to the core of a distributed system takes far longer than writing one. Open source works on trust, and AI has made it too easy to produce plausible-looking but low-quality contributions for us to trust by default. We use [vouch](https://github.com/mitchellh/vouch) to keep an explicit list of trusted contributors in [`.github/VOUCHED.td`](.github/VOUCHED.td). Pull requests from anyone not on that list are closed automatically.
 
-**Everyone starts unvouched.** At this stage:
+**To get vouched:**
 
-- Contribute through small, focused pull requests for `accepted` issues that are assigned to you: documentation, examples, SDK fixes, dashboard polish, and well-scoped bug fixes.
-- Keep these pull requests light on AI. We want to see that you understand the code you are changing and can discuss and revise it yourself during review. A pull request that is mostly generated does not tell us that, even when it is disclosed in line with [AI_POLICY.md](./AI_POLICY.md).
-- Changes to Hatchet's core (the engine, API, scheduling, database migrations, and CI/release tooling) are not assigned to unvouched contributors.
+1. Open a [Vouch Request discussion](https://github.com/hatchet-dev/hatchet/discussions/new?category=vouch-request) describing the first change you want to make and why. Follow the template.
+2. Keep it short, and write it in your own voice. Do not have an AI write it.
+3. A maintainer will comment `!vouch` if approved. You can then open pull requests.
 
-**After a few merged pull requests**, a maintainer may vouch for you. There is no fixed number and no application process; maintainers vouch based on the quality of your work and how the reviews went. Once vouched:
+**Once vouched, start small.** We would rather build a relationship over a few small, focused pull requests (documentation, examples, SDK fixes, dashboard polish, well-scoped bug fixes) than review a large change from someone we have not worked with. Keep those early pull requests light on AI: we want to see that you understand the code you are changing and can discuss and revise it yourself in review. A pull request that is mostly generated does not tell us that, even when it is disclosed in line with [AI_POLICY.md](./AI_POLICY.md). Changes to Hatchet's core (the engine, API, scheduling, database migrations, and CI/release tooling) come after that.
 
-- You can be assigned core issues and open pull requests against core.
-- Your pull requests are no longer closed for lacking an `accepted` issue. We still expect an issue or discussion first for anything non-trivial.
-
-Contributors who repeatedly ignore these guidelines, or who do not disclose AI usage, may be denounced. Pull requests from denounced accounts are closed automatically.
+Contributors who repeatedly ignore these guidelines, submit low-quality work, or do not disclose AI usage will be **denounced**. The list is public, and all future pull requests from denounced accounts are closed automatically.
 
 <details>
 <summary>For maintainers</summary>
 
-Anyone with write access can manage the list by commenting on an issue or pull request:
+Anyone with write access can manage the list by commenting on a discussion, issue, or pull request:
 
-- `vouch` vouches for the author, `vouch @user` for a specific user.
-- `denounce <reason>` or `denounce @user <reason>` blocks a user.
-- `unvouch` or `unvouch @user` removes a user from the list.
+- `!vouch` vouches for the author; `!vouch @user` for any user.
+- `!denounce <reason>` or `!denounce @user <reason>` blocks a user.
+- `!unvouch` or `!unvouch @user` removes a user from the list.
 
 </details>
 
@@ -91,13 +88,11 @@ We recommend installing these tools individually using your preferred package ma
 
 ## Pull Requests
 
-To keep our review queue focused, **we only accept pull requests that are linked to an issue the Hatchet team has already triaged, labeled `accepted`, and assigned to you.** [Vouched](#building-trust-vouching) contributors are exempt from this requirement.
-
-If you want to contribute a change, please follow these steps before opening a PR:
+You need to be [vouched](#building-trust-vouching) before opening a pull request. Then, to keep our review queue focused:
 
 1. **Find or open an issue:** Check our [backlog](https://github.com/hatchet-dev/hatchet/issues) for a related issue, or open a new one describing your proposed change, and comment on the issue stating that you'd like to take it on.
-2. **Wait for assignment:** Wait for a maintainer to add the `accepted` label and assign the issue to you.
-3. **Link the issue:** When you open your pull request, you must link the issue from the PR description using a closing keyword (e.g., `Closes #123`).
+2. **Wait for the `accepted` label:** This tells you the team agrees with the change and nobody else is working on it.
+3. **Link the issue:** Link the issue from the PR description using a closing keyword (e.g., `Closes #123`).
 
 Next, ensure all changes are:
 
