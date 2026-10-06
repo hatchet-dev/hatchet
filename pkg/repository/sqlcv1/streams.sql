@@ -210,6 +210,17 @@ SELECT EXISTS (
     WHERE tenant_id = @tenantId::uuid AND id = @id::uuid AND inserted_at = @insertedAt::timestamptz
 ) AS exists;
 
+-- name: CopyStreamPayload :one
+-- Copies an upload into a new row, so it lands in the current partition and
+-- lives as long as a message published now. No row when the original is gone.
+INSERT INTO v1_stream_payload (id, tenant_id, payload)
+SELECT @newId::uuid, tenant_id, payload
+FROM v1_stream_payload
+WHERE tenant_id = @tenantId::uuid
+    AND id = @id::uuid
+    AND inserted_at = @insertedAt::timestamptz
+RETURNING inserted_at;
+
 -- name: GetStreamPayload :one
 -- inserted_at is the partition key, so this reads one partition.
 SELECT payload

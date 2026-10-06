@@ -12,6 +12,37 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const copyStreamPayload = `-- name: CopyStreamPayload :one
+INSERT INTO v1_stream_payload (id, tenant_id, payload)
+SELECT $1::uuid, tenant_id, payload
+FROM v1_stream_payload
+WHERE tenant_id = $2::uuid
+    AND id = $3::uuid
+    AND inserted_at = $4::timestamptz
+RETURNING inserted_at
+`
+
+type CopyStreamPayloadParams struct {
+	Newid      uuid.UUID          `json:"newid"`
+	Tenantid   uuid.UUID          `json:"tenantid"`
+	ID         uuid.UUID          `json:"id"`
+	Insertedat pgtype.Timestamptz `json:"insertedat"`
+}
+
+// Copies an upload into a new row, so it lands in the current partition and
+// lives as long as a message published now. No row when the original is gone.
+func (q *Queries) CopyStreamPayload(ctx context.Context, db DBTX, arg CopyStreamPayloadParams) (pgtype.Timestamptz, error) {
+	row := db.QueryRow(ctx, copyStreamPayload,
+		arg.Newid,
+		arg.Tenantid,
+		arg.ID,
+		arg.Insertedat,
+	)
+	var inserted_at pgtype.Timestamptz
+	err := row.Scan(&inserted_at)
+	return inserted_at, err
+}
+
 const countStreamTopics = `-- name: CountStreamTopics :one
 SELECT COUNT(*) FROM v1_stream_topic WHERE tenant_id = $1::uuid
 `

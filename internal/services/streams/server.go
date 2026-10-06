@@ -77,10 +77,14 @@ func (s *ServiceImpl) Publish(ctx context.Context, req *contracts.PublishStreamM
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("producer_id is required"))
 	}
 
-	// readers would otherwise get a message whose payload can't be fetched
+	// the message must reference a payload that exists and outlives it
 	if payloadRef != nil {
-		checkCtx, span := telemetry.NewSpan(ctx, "streams.publish.check-payload-ref")
-		err := s.repo.Streams().CheckStreamPayloadExists(checkCtx, tenantId, *payloadRef)
+		retainCtx, span := telemetry.NewSpan(ctx, "streams.publish.retain-payload")
+		retained, err := s.repo.Streams().RetainStreamPayloadForPublish(retainCtx, tenantId, *payloadRef)
+		if err == nil {
+			telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "copied", Value: retained.ID != payloadRef.ID})
+		}
+
 		recordSpanError(span, err)
 		span.End()
 
@@ -91,6 +95,8 @@ func (s *ServiceImpl) Publish(ctx context.Context, req *contracts.PublishStreamM
 
 			return nil, err
 		}
+
+		payloadRef = &retained
 	}
 
 	ensureCtx, span := telemetry.NewSpan(ctx, "streams.publish.ensure-topic")

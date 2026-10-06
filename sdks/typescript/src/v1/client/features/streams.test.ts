@@ -417,3 +417,87 @@ describe('StreamsClient.topicMetadata', () => {
     expect(getTopicMetadata).toHaveBeenCalledWith({ namespace: 'ns', topic: 'missing' });
   });
 });
+
+describe('StreamsClient.events large payloads', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  function httpError(status: number) {
+    return Object.assign(new Error(`status ${status}`), {
+      isAxiosError: true,
+      response: { status },
+    });
+  }
+
+  function refEntry(cursor: string) {
+    return { payload: new Uint8Array(), cursor, createdAt: undefined, payloadRef: 'p1:ref' };
+  }
+
+  function setup(
+    attempts: Array<() => AsyncGenerator<unknown>>,
+    fetchResults: Array<Error | number>
+  ) {
+    let calls = 0;
+    const subscribe = jest.fn((_req: { cursor?: string }, _options: unknown) => {
+      calls += 1;
+      return attempts[Math.min(calls, attempts.length) - 1]();
+    });
+    mockedCreateGrpcClient.mockReturnValue({ client: { subscribe } } as any);
+
+    const v1StreamPayloadGet = jest.fn(async () => {
+      const next = fetchResults.shift();
+      if (next instanceof Error) {
+        throw next;
+      }
+      return { data: new Uint8Array([next ?? 0]).buffer };
+    });
+
+    const client: any = { config: {}, api: { v1StreamPayloadGet } };
+    return { streams: new StreamsClient(client), subscribe, v1StreamPayloadGet };
+  }
+
+  it('reconnects from the last delivered cursor when a payload fetch fails temporarily', async () => {
+    const unavailable = httpError(503);
+    const { streams, subscribe } = setup(
+      [
+        async function* first() {
+          yield { entries: [entry(1, 'c1'), refEntry('c2')], hangup: false };
+        },
+        async function* second() {
+          yield { entries: [refEntry('c2')], hangup: false };
+        },
+      ],
+      // fetchPayload's own attempts all fail, then the reconnect's fetch succeeds
+      [unavailable, unavailable, unavailable, 7]
+    );
+
+    const received: number[] = [];
+    for await (const event of streams.events('topic')) {
+      received.push(event.payload[0]);
+      if (received.length >= 2) break;
+    }
+
+    expect(received).toEqual([1, 7]);
+    expect(subscribe).toHaveBeenCalledTimes(2);
+    expect(subscribe.mock.calls[1][0].cursor).toBe('c1');
+  });
+
+  it('ends with the error when the payload is gone, since a retry cannot fix it', async () => {
+    const { streams, subscribe } = setup(
+      [
+        async function* only() {
+          yield { entries: [refEntry('c1')], hangup: false };
+        },
+      ],
+      [httpError(404)]
+    );
+
+    await expect(async () => {
+      for await (const _event of streams.events('topic')) {
+        // a 404 must not be delivered as an empty event
+      }
+    }).rejects.toMatchObject({ response: { status: 404 } });
+    expect(subscribe).toHaveBeenCalledTimes(1);
+  });
+});

@@ -386,8 +386,12 @@ func TestStreamsRepository(t *testing.T) {
 		ref, err := repo.InsertStreamPayload(ctx, tenantId, []byte("large"))
 		require.NoError(t, err)
 
-		require.NoError(t, repo.CheckStreamPayloadExists(ctx, tenantId, ref))
-		assert.ErrorIs(t, repo.CheckStreamPayloadExists(ctx, other, ref), ErrStreamPayloadNotFound, "another tenant's payload")
+		retained, err := repo.RetainStreamPayloadForPublish(ctx, tenantId, ref)
+		require.NoError(t, err)
+		assert.Equal(t, ref, retained, "a fresh upload is referenced as is")
+
+		_, err = repo.RetainStreamPayloadForPublish(ctx, other, ref)
+		assert.ErrorIs(t, err, ErrStreamPayloadNotFound, "another tenant's payload")
 
 		res, err := repo.InsertOrderedStreamMessage(ctx, tenantId, CreateOrderedStreamMessageOpts{Topic: "t", ProducerID: "p1", ProducerSeq: 0, PayloadRef: &ref})
 		require.NoError(t, err)
@@ -415,5 +419,28 @@ func TestStreamsRepository(t *testing.T) {
 
 		_, err = repo.InsertOrderedStreamMessage(ctx, tenantId, CreateOrderedStreamMessageOpts{Topic: "t", ProducerID: "p1", ProducerSeq: 1})
 		assert.Error(t, err, "a message needs a payload or a ref")
+	})
+
+	t.Run("an upload too old to outlive its message is copied on publish", func(t *testing.T) {
+		repo := createStreamsRepository(t, pool)
+		tenantId := uuid.New()
+
+		ref, err := repo.InsertStreamPayload(ctx, tenantId, []byte("large"))
+		require.NoError(t, err)
+
+		// a cutoff in the future treats the fresh upload as too old
+		tooOld := time.Now().Add(time.Hour)
+
+		copied, err := repo.retainStreamPayloadForPublish(ctx, tenantId, ref, tooOld)
+		require.NoError(t, err)
+		assert.NotEqual(t, ref.ID, copied.ID)
+		assert.False(t, copied.CreatedAt.Before(ref.CreatedAt), "the copy lands in the current partition")
+
+		payload, err := repo.GetStreamPayload(ctx, tenantId, copied)
+		require.NoError(t, err)
+		assert.Equal(t, "large", string(payload))
+
+		_, err = repo.retainStreamPayloadForPublish(ctx, uuid.New(), ref, tooOld)
+		assert.ErrorIs(t, err, ErrStreamPayloadNotFound, "another tenant's payload isn't copied")
 	})
 }

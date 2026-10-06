@@ -40,6 +40,10 @@ func StreamPayloadMessageUnits(size int) int32 {
 // references it.
 const StreamPayloadRetentionGrace = 24 * time.Hour
 
+// streamPayloadCopyAge is the oldest an upload can be and still outlive a
+// message published now; the hour covers both rounding down to hourly partitions.
+const streamPayloadCopyAge = StreamPayloadRetentionGrace - time.Hour
+
 // ErrStreamTopicNotFound: nothing was ever published to the topic, or it was removed after going idle past retention.
 var ErrStreamTopicNotFound = errors.New("stream topic not found")
 
@@ -157,8 +161,10 @@ type StreamsRepository interface {
 	// InsertStreamPayload stores a payload ahead of the publish that will reference it.
 	InsertStreamPayload(ctx context.Context, tenantId uuid.UUID, payload []byte) (StreamPayloadRef, error)
 
-	// CheckStreamPayloadExists returns ErrStreamPayloadNotFound unless ref is an uploaded payload of the tenant's.
-	CheckStreamPayloadExists(ctx context.Context, tenantId uuid.UUID, ref StreamPayloadRef) error
+	// RetainStreamPayloadForPublish returns the ref a message published now
+	// should store: ref itself, or for an upload too old to outlive the
+	// message, a copy's. ErrStreamPayloadNotFound unless ref is the tenant's.
+	RetainStreamPayloadForPublish(ctx context.Context, tenantId uuid.UUID, ref StreamPayloadRef) (StreamPayloadRef, error)
 
 	// GetStreamPayload returns ErrStreamPayloadNotFound once it's past the tenant's retention.
 	GetStreamPayload(ctx context.Context, tenantId uuid.UUID, ref StreamPayloadRef) ([]byte, error)
@@ -433,22 +439,52 @@ func (r *streamsRepositoryImpl) InsertStreamPayload(ctx context.Context, tenantI
 	return StreamPayloadRef{ID: id, CreatedAt: insertedAt.Time}, nil
 }
 
-func (r *streamsRepositoryImpl) CheckStreamPayloadExists(ctx context.Context, tenantId uuid.UUID, ref StreamPayloadRef) error {
-	exists, err := r.queries.StreamPayloadExists(ctx, r.pool, sqlcv1.StreamPayloadExistsParams{
+func (r *streamsRepositoryImpl) RetainStreamPayloadForPublish(ctx context.Context, tenantId uuid.UUID, ref StreamPayloadRef) (StreamPayloadRef, error) {
+	return r.retainStreamPayloadForPublish(ctx, tenantId, ref, time.Now().Add(-streamPayloadCopyAge))
+}
+
+// retainStreamPayloadForPublish copies uploads made before copyBefore.
+func (r *streamsRepositoryImpl) retainStreamPayloadForPublish(ctx context.Context, tenantId uuid.UUID, ref StreamPayloadRef, copyBefore time.Time) (StreamPayloadRef, error) {
+	key := pgtype.Timestamptz{Time: ref.CreatedAt, Valid: true}
+
+	if !ref.CreatedAt.Before(copyBefore) {
+		exists, err := r.queries.StreamPayloadExists(ctx, r.pool, sqlcv1.StreamPayloadExistsParams{
+			Tenantid:   tenantId,
+			ID:         ref.ID,
+			Insertedat: key,
+		})
+
+		if err != nil {
+			return StreamPayloadRef{}, err
+		}
+
+		if !exists {
+			return StreamPayloadRef{}, ErrStreamPayloadNotFound
+		}
+
+		return ref, nil
+	}
+
+	copied := StreamPayloadRef{ID: uuid.New()}
+
+	insertedAt, err := r.queries.CopyStreamPayload(ctx, r.pool, sqlcv1.CopyStreamPayloadParams{
+		Newid:      copied.ID,
 		Tenantid:   tenantId,
 		ID:         ref.ID,
-		Insertedat: pgtype.Timestamptz{Time: ref.CreatedAt, Valid: true},
+		Insertedat: key,
 	})
 
+	if errors.Is(err, pgx.ErrNoRows) {
+		return StreamPayloadRef{}, ErrStreamPayloadNotFound
+	}
+
 	if err != nil {
-		return err
+		return StreamPayloadRef{}, err
 	}
 
-	if !exists {
-		return ErrStreamPayloadNotFound
-	}
+	copied.CreatedAt = insertedAt.Time
 
-	return nil
+	return copied, nil
 }
 
 func (r *streamsRepositoryImpl) GetStreamPayload(ctx context.Context, tenantId uuid.UUID, ref StreamPayloadRef) ([]byte, error) {

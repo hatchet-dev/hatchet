@@ -47,7 +47,19 @@ function httpStatus(err: unknown): number | undefined {
   return isAxiosError(err) ? err.response?.status : undefined;
 }
 
+// a payload fetch that got no response, a 5xx or a 429 may succeed later
+function isTemporaryHttpError(err: unknown): boolean {
+  if (!isAxiosError(err)) {
+    return false;
+  }
+  const status = httpStatus(err);
+  return status === undefined || status >= 500 || status === 429;
+}
+
 function shouldResubscribe(err: unknown, attempt: number): boolean {
+  if (isTemporaryHttpError(err)) {
+    return true;
+  }
   const code = getGrpcErrorCode(err);
   if (code === undefined || permanentSubscribeErrors.has(code)) {
     return false;
@@ -277,13 +289,13 @@ export class StreamsClient {
             return;
           }
 
-          failures = 0;
-
           for (const entry of msg.entries) {
             const payload = entry.payloadRef
               ? await this.fetchPayload(entry.payloadRef, signal)
               : entry.payload;
             ({ cursor } = entry);
+            // reset only on delivery, so a payload fetch failing on every reconnect still backs off
+            failures = 0;
             yield {
               payload,
               cursor: entry.cursor,
