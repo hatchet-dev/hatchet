@@ -147,10 +147,23 @@ in the NATS client's buffer (`hatchet_pubsub_nats_scheduler_partition_pending_me
 for the scheduler partition) until a handler returns.
 `hatchet_pubsub_handlers_in_flight`, `hatchet_pubsub_handler_pool_full_total`
 and `hatchet_pubsub_handler_slot_wait_seconds` are labelled by `kind` and
-`topic_kind`, and summed over a process's subscriptions of a topic kind. A
-steadily increasing `hatchet_pubsub_handler_pool_full_total` means handlers are
-too slow for the incoming rate. Transit latency is observed when a handler
-starts, so for NATS it includes the time spent waiting for a handler slot.
+`topic_kind`, and summed over a process's subscriptions of a topic kind.
+Transit latency is observed when a handler starts, so for NATS it includes the
+time spent waiting for a handler slot.
+
+A steadily increasing `hatchet_pubsub_handler_pool_full_total` means handlers are
+too slow for the incoming rate. The limits are not configurable. Handlers are
+usually slow because they wait on the database, so more concurrent handlers
+would mostly add database load. Instead:
+
+- Check database CPU and query latency.
+- For `scheduler-partition`, run more scheduler instances. Each scheduler
+  instance owns a partition and tenants are spread across the active
+  partitions, so each subscription serves fewer tenants.
+- For `tenant-stream`, run more `grpc-api` instances. A tenant-stream
+  subscription calls the handlers of every client of that tenant connected to
+  the instance, one after another, so spreading clients across instances
+  shortens each call.
 
 ### Example PromQL Queries
 

@@ -17,13 +17,6 @@ import (
 // otherwise stall every later delivery on the subscription, and the
 // dispatcher's buffered tenant reader only batches messages that arrive while
 // earlier ones wait for a flush.
-//
-// A subscription sustains about limit / handler time messages per second, e.g.
-// 2560 msgs/s per scheduler partition and 640 msgs/s per tenant stream with
-// 50ms handlers; beyond that deliveries wait and eventually age out past
-// maxMessageAge. A scheduler-partition subscription multiplexes every tenant
-// of the partition, so it gets the larger bound. The tenant-stream bound stays
-// above the buffered tenant reader's batch size so that batches still fill.
 var maxConcurrentHandlers = map[msgqueue.TopicKind]int{
 	msgqueue.TopicKindSchedulerPartition: 128,
 	msgqueue.TopicKindTenantStream:       32,
