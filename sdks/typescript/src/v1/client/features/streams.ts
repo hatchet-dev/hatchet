@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import { isAxiosError } from 'axios';
 import { Status } from 'nice-grpc';
 import { ClientConfig } from '@hatchet/clients/hatchet-client';
 import { createGrpcClient } from '@hatchet/util/grpc-helpers';
@@ -34,7 +35,31 @@ const permanentSubscribeErrors = new Set<number>([
 const resubscribeMinDelayMs = 250;
 const resubscribeMaxDelayMs = 10_000;
 
+// the server's limit for a payload sent over gRPC (MaxStreamMessagePayloadBytes)
+const maxInlinePayloadBytes = 4 * 1024 * 1024 - 5 * 1024;
+
+// the server's limit for an uploaded payload (MaxStreamUploadedPayloadBytes)
+const maxUploadedPayloadBytes = 64 * 1024 * 1024;
+
+const payloadRequestAttempts = 3;
+
+function httpStatus(err: unknown): number | undefined {
+  return isAxiosError(err) ? err.response?.status : undefined;
+}
+
+// a payload fetch that got no response, a 5xx or a 429 may succeed later
+function isTemporaryHttpError(err: unknown): boolean {
+  if (!isAxiosError(err)) {
+    return false;
+  }
+  const status = httpStatus(err);
+  return status === undefined || status >= 500 || status === 429;
+}
+
 function shouldResubscribe(err: unknown, attempt: number): boolean {
+  if (isTemporaryHttpError(err)) {
+    return true;
+  }
   const code = getGrpcErrorCode(err);
   if (code === undefined || permanentSubscribeErrors.has(code)) {
     return false;
@@ -55,6 +80,18 @@ export type StreamEvent = {
   createdAt?: Date;
 };
 
+/** Covers only messages within the tenant's retention. */
+export type StreamTopicMetadata = {
+  namespace: string;
+  topic: string;
+  tenantId: string;
+  messageCount: number;
+  /** resumes events() after the newest retained message; undefined when none is retained */
+  latestCursor?: string;
+  /** when the newest retained message was stored; undefined when none is retained */
+  lastPublishedAt?: Date;
+};
+
 export type StreamCallOptions = {
   namespace?: string;
   cursor?: string;
@@ -69,6 +106,7 @@ export type StreamCallOptions = {
  */
 export class StreamsClient {
   private _config: ClientConfig;
+  private _client: HatchetClient;
   private _grpc: PbV1StreamsClient | undefined;
 
   // per (namespace, topic); seq only advances after a publish succeeds
@@ -80,6 +118,7 @@ export class StreamsClient {
 
   constructor(client: HatchetClient) {
     this._config = client.config;
+    this._client = client;
   }
 
   private get grpc(): PbV1StreamsClient {
@@ -90,11 +129,45 @@ export class StreamsClient {
     return this._grpc;
   }
 
+  // retries a 5xx or network failure; a 4xx won't succeed on retry
+  private static async withRetries<T>(request: () => Promise<T>): Promise<T> {
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        return await request();
+      } catch (err) {
+        const status = httpStatus(err);
+        if ((status !== undefined && status < 500) || attempt >= payloadRequestAttempts) {
+          throw err;
+        }
+      }
+    }
+  }
+
+  private async uploadPayload(payload: Uint8Array): Promise<string> {
+    const res = await StreamsClient.withRetries(() =>
+      this._client.api.v1StreamPayloadUpload(this._config.tenant_id, {
+        payload: new Blob([payload]) as File,
+      })
+    );
+    return res.data.ref;
+  }
+
+  private async fetchPayload(payloadRef: string, signal?: AbortSignal): Promise<Uint8Array> {
+    const res = await StreamsClient.withRetries(() =>
+      this._client.api.v1StreamPayloadGet(
+        this._config.tenant_id,
+        { ref: payloadRef },
+        { format: 'arraybuffer', signal }
+      )
+    );
+    return new Uint8Array(res.data as unknown as ArrayBuffer);
+  }
+
   private async publishOrdered(
     key: string,
     namespace: string,
     topic: string,
-    payload: Uint8Array,
+    body: { payload: Uint8Array } | { payloadRef: string },
     retryGap = true
   ): Promise<void> {
     let producer = this.producers.get(key);
@@ -107,7 +180,7 @@ export class StreamsClient {
       await this.grpc.publish({
         namespace,
         topic,
-        payload,
+        ...body,
         producerId: producer.producerId,
         producerSeq: producer.seq,
       });
@@ -118,7 +191,7 @@ export class StreamsClient {
       }
       // a gap stored nothing (e.g. the watermark passed cursor retention), so resend as the new producer
       if (retryGap && getGrpcErrorCode(err) === Status.FAILED_PRECONDITION) {
-        return this.publishOrdered(key, namespace, topic, payload, false);
+        return this.publishOrdered(key, namespace, topic, body, false);
       }
       throw err;
     }
@@ -142,8 +215,25 @@ export class StreamsClient {
     const namespace = options?.namespace ?? '';
     const key = `${namespace}\u0000${topic}`;
 
+    if (payload.byteLength > maxUploadedPayloadBytes) {
+      throw new Error(`payload exceeds maximum size of ${maxUploadedPayloadBytes} bytes`);
+    }
+
+    // uploaded before taking its place in the topic's order, so uploads overlap
+    const uploaded =
+      payload.byteLength > maxInlinePayloadBytes ? this.uploadPayload(payload) : undefined;
+    // awaited in order below; this only keeps an early failure from reporting as unhandled
+    uploaded?.catch(() => {});
+
     const previous = this.publishChains.get(key) ?? Promise.resolve();
-    const publishPromise = previous.then(() => this.publishOrdered(key, namespace, topic, payload));
+    const publishPromise = previous.then(async () =>
+      this.publishOrdered(
+        key,
+        namespace,
+        topic,
+        uploaded ? { payloadRef: await uploaded } : { payload }
+      )
+    );
 
     this.publishChains.set(
       key,
@@ -151,6 +241,28 @@ export class StreamsClient {
     );
 
     return publishPromise;
+  }
+
+  /**
+   * Describes topic's retained messages. Rejects with a NOT_FOUND gRPC error
+   * for a topic nothing was published to.
+   * @param topic - the topic to describe
+   * @param options - optional namespace override
+   */
+  async topicMetadata(
+    topic: string,
+    options?: Pick<StreamCallOptions, 'namespace'>
+  ): Promise<StreamTopicMetadata> {
+    const res = await this.grpc.getTopicMetadata({ namespace: options?.namespace ?? '', topic });
+
+    return {
+      namespace: res.namespace,
+      topic: res.topic,
+      tenantId: res.tenantId,
+      messageCount: res.messageCount,
+      latestCursor: res.latestCursor,
+      lastPublishedAt: res.lastPublishedAt,
+    };
   }
 
   /**
@@ -177,12 +289,15 @@ export class StreamsClient {
             return;
           }
 
-          failures = 0;
-
           for (const entry of msg.entries) {
+            const payload = entry.payloadRef
+              ? await this.fetchPayload(entry.payloadRef, signal)
+              : entry.payload;
             ({ cursor } = entry);
+            // reset only on delivery, so a payload fetch failing on every reconnect still backs off
+            failures = 0;
             yield {
-              payload: entry.payload,
+              payload,
               cursor: entry.cursor,
               createdAt: entry.createdAt,
             };

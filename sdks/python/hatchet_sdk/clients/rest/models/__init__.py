@@ -314,6 +314,7 @@ from hatchet_sdk.clients.rest.models.v1_restore_task_response import (
 )
 from hatchet_sdk.clients.rest.models.v1_running_detail_count import V1RunningDetailCount
 from hatchet_sdk.clients.rest.models.v1_running_filter import V1RunningFilter
+from hatchet_sdk.clients.rest.models.v1_stream_payload_ref import V1StreamPayloadRef
 from hatchet_sdk.clients.rest.models.v1_task_event import V1TaskEvent
 from hatchet_sdk.clients.rest.models.v1_task_event_list import V1TaskEventList
 from hatchet_sdk.clients.rest.models.v1_task_event_type import V1TaskEventType

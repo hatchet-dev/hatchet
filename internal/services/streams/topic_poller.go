@@ -15,6 +15,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 // rows per page read
@@ -83,7 +84,7 @@ func (p *topicPoller) join(ctx context.Context, startCursor v1.StreamCursor, lis
 		p.startLocked()
 	} else {
 		if startCursor.After(p.cursor) {
-			if err := p.pollLocked(ctx); err != nil {
+			if _, err := p.pollLocked(ctx); err != nil {
 				return 0, err
 			}
 		}
@@ -132,19 +133,30 @@ func (p *topicPoller) startLocked() {
 		defer ticker.Stop()
 
 		for {
+			trigger := "tick"
+
 			select {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
 			case <-p.wake:
+				trigger = "wake"
 			}
 
+			startedAt := time.Now()
+
 			p.mu.Lock()
-			err := p.pollLocked(ctx)
+			listeners := len(p.listeners)
+			stats, err := p.pollLocked(ctx)
 			if err == nil {
 				p.hangUpIfIdleLocked()
 			}
 			p.mu.Unlock()
+
+			// most polls find nothing, so only ones that delivered or failed are recorded
+			if err != nil || stats.entries > 0 {
+				p.recordPoll(startedAt, trigger, listeners, stats, err)
+			}
 
 			if err != nil {
 				p.l.Error().Ctx(ctx).Err(err).Msg("stream topic poll failed")
@@ -190,9 +202,46 @@ func (p *topicPoller) hangUpIfIdleLocked() {
 	}
 }
 
+// sendStats counts what a send callback delivered, once per frame however many listeners it fans out to.
+type sendStats struct {
+	entries      int
+	payloadBytes int
+}
+
+func (s *sendStats) counting(send func(*contracts.StreamMessage) error) func(*contracts.StreamMessage) error {
+	return func(out *contracts.StreamMessage) error {
+		s.entries += len(out.Entries)
+
+		for _, e := range out.Entries {
+			s.payloadBytes += len(e.Payload)
+		}
+
+		return send(out)
+	}
+}
+
+func (p *topicPoller) recordPoll(startedAt time.Time, trigger string, listeners int, stats sendStats, err error) {
+	_, span := telemetry.NewSpanAt(context.Background(), "streams.topic-poller.poll", startedAt)
+	defer span.End()
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "tenant.id", Value: p.key.tenantId},
+		telemetry.AttributeKV{Key: "stream.namespace", Value: p.key.namespace},
+		telemetry.AttributeKV{Key: "stream.topic", Value: p.key.topic},
+		telemetry.AttributeKV{Key: "trigger", Value: trigger},
+		telemetry.AttributeKV{Key: "listeners", Value: listeners},
+		telemetry.AttributeKV{Key: "entries", Value: stats.entries},
+		telemetry.AttributeKV{Key: "stream.payload_bytes", Value: stats.payloadBytes},
+	)
+
+	recordSpanError(span, err)
+}
+
 // pollLocked sends every listener the rows after the poller's cursor.
-func (p *topicPoller) pollLocked(ctx context.Context) error {
-	last, err := sendRange(ctx, p.streams, p.key, p.cursor, math.MaxInt64, func(out *contracts.StreamMessage) error {
+func (p *topicPoller) pollLocked(ctx context.Context) (sendStats, error) {
+	var stats sendStats
+
+	last, err := sendRange(ctx, p.streams, p.key, p.cursor, math.MaxInt64, stats.counting(func(out *contracts.StreamMessage) error {
 		for id, l := range p.listeners {
 			if sendErr := l.send(out); sendErr != nil {
 				p.l.Debug().Ctx(ctx).Err(sendErr).Msg("removing stream listener after send failure")
@@ -202,14 +251,14 @@ func (p *topicPoller) pollLocked(ctx context.Context) error {
 		}
 
 		return nil
-	})
+	}))
 
 	if last.After(p.cursor) {
 		p.lastActivityAt = time.Now()
 		p.cursor = last
 	}
 
-	return err
+	return stats, err
 }
 
 // catchUpLocked sends listener the rows in (from, p.cursor] that the poller
@@ -259,11 +308,21 @@ func sendRange(ctx context.Context, repo v1.StreamsRepository, key topicPollerKe
 				return from, err
 			}
 
-			entries = append(entries, &contracts.StreamEntry{
+			entry := &contracts.StreamEntry{
 				Payload:   m.Payload,
 				Cursor:    encodedCursor,
 				CreatedAt: timestamppb.New(m.InsertedAt.Time),
-			})
+			}
+
+			if m.PayloadID != nil {
+				entry.PayloadRef, err = v1.EncodeStreamPayloadRef(v1.StreamPayloadRef{ID: *m.PayloadID, CreatedAt: m.PayloadInsertedAt.Time})
+
+				if err != nil {
+					return from, err
+				}
+			}
+
+			entries = append(entries, entry)
 
 			pageEnd = next
 		}
@@ -315,13 +374,26 @@ func newTopicPollerRegistry(streams v1.StreamsRepository, pubsub msgqueue.PubSub
 // Join sends listener every message after startCursor, then attaches it to
 // key's poller.
 func (r *topicPollerRegistry) Join(ctx context.Context, key topicPollerKey, startCursor v1.StreamCursor, listener *topicListener) (unregister func(), err error) {
+	ctx, span := telemetry.NewSpan(ctx, "streams.topic-poller.join")
+	defer func() {
+		recordSpanError(span, err)
+		span.End()
+	}()
+
 	if err := r.streams.CheckCursorRetained(ctx, key.tenantId, startCursor); err != nil {
 		return nil, err
 	}
 
+	var replayed sendStats
+
 	// replayed before taking any lock so a long backlog can't stall live
 	// delivery to the topic's other listeners; join backfills the remainder
-	startCursor, err = sendRange(ctx, r.streams, key, startCursor, math.MaxInt64, listener.send)
+	startCursor, err = sendRange(ctx, r.streams, key, startCursor, math.MaxInt64, replayed.counting(listener.send))
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "replayed_entries", Value: replayed.entries},
+		telemetry.AttributeKV{Key: "replayed_payload_bytes", Value: replayed.payloadBytes},
+	)
 
 	if err != nil {
 		return nil, err

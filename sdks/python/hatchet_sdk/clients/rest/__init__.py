@@ -31,6 +31,7 @@ from hatchet_sdk.clients.rest.api.rate_limits_api import RateLimitsApi
 from hatchet_sdk.clients.rest.api.sns_api import SNSApi
 from hatchet_sdk.clients.rest.api.slack_api import SlackApi
 from hatchet_sdk.clients.rest.api.step_run_api import StepRunApi
+from hatchet_sdk.clients.rest.api.streams_api import StreamsApi
 from hatchet_sdk.clients.rest.api.task_api import TaskApi
 from hatchet_sdk.clients.rest.api.tenant_api import TenantApi
 from hatchet_sdk.clients.rest.api.user_api import UserApi
@@ -354,6 +355,7 @@ from hatchet_sdk.clients.rest.models.v1_restore_task_response import (
 )
 from hatchet_sdk.clients.rest.models.v1_running_detail_count import V1RunningDetailCount
 from hatchet_sdk.clients.rest.models.v1_running_filter import V1RunningFilter
+from hatchet_sdk.clients.rest.models.v1_stream_payload_ref import V1StreamPayloadRef
 from hatchet_sdk.clients.rest.models.v1_task_event import V1TaskEvent
 from hatchet_sdk.clients.rest.models.v1_task_event_list import V1TaskEventList
 from hatchet_sdk.clients.rest.models.v1_task_event_type import V1TaskEventType

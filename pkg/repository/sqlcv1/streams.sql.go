@@ -12,6 +12,37 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const copyStreamPayload = `-- name: CopyStreamPayload :one
+INSERT INTO v1_stream_payload (id, tenant_id, payload)
+SELECT $1::uuid, tenant_id, payload
+FROM v1_stream_payload
+WHERE tenant_id = $2::uuid
+    AND id = $3::uuid
+    AND inserted_at = $4::timestamptz
+RETURNING inserted_at
+`
+
+type CopyStreamPayloadParams struct {
+	Newid      uuid.UUID          `json:"newid"`
+	Tenantid   uuid.UUID          `json:"tenantid"`
+	ID         uuid.UUID          `json:"id"`
+	Insertedat pgtype.Timestamptz `json:"insertedat"`
+}
+
+// Copies an upload into a new row in the publishing transaction, so it lands
+// in the message's own partition hour. No row when the original is gone.
+func (q *Queries) CopyStreamPayload(ctx context.Context, db DBTX, arg CopyStreamPayloadParams) (pgtype.Timestamptz, error) {
+	row := db.QueryRow(ctx, copyStreamPayload,
+		arg.Newid,
+		arg.Tenantid,
+		arg.ID,
+		arg.Insertedat,
+	)
+	var inserted_at pgtype.Timestamptz
+	err := row.Scan(&inserted_at)
+	return inserted_at, err
+}
+
 const countStreamTopics = `-- name: CountStreamTopics :one
 SELECT COUNT(*) FROM v1_stream_topic WHERE tenant_id = $1::uuid
 `
@@ -38,16 +69,41 @@ func (q *Queries) CreateStreamMessagePartitions(ctx context.Context, db DBTX, ar
 	return err
 }
 
-const deleteExpiredStreamMessages = `-- name: DeleteExpiredStreamMessages :execrows
-DELETE FROM v1_stream_message
-WHERE inserted_at < $1::timestamptz
-    AND (tenant_id, namespace, topic, id, inserted_at) IN (
-        SELECT tenant_id, namespace, topic, id, inserted_at
-        FROM v1_stream_message
-        WHERE tenant_id = $2::uuid
-            AND inserted_at < $1::timestamptz
-        LIMIT $3::integer
-    )
+const createStreamPayloadPartitions = `-- name: CreateStreamPayloadPartitions :exec
+SELECT create_v1_hourly_range_partition('v1_stream_payload', hours.hour_start)
+FROM generate_series($1::timestamptz, $2::timestamptz, INTERVAL '1 hour') AS hours(hour_start)
+`
+
+type CreateStreamPayloadPartitionsParams struct {
+	Fromtime pgtype.Timestamptz `json:"fromtime"`
+	Totime   pgtype.Timestamptz `json:"totime"`
+}
+
+func (q *Queries) CreateStreamPayloadPartitions(ctx context.Context, db DBTX, arg CreateStreamPayloadPartitionsParams) error {
+	_, err := db.Exec(ctx, createStreamPayloadPartitions, arg.Fromtime, arg.Totime)
+	return err
+}
+
+const deleteExpiredStreamMessages = `-- name: DeleteExpiredStreamMessages :one
+WITH deleted AS (
+    DELETE FROM v1_stream_message
+    WHERE inserted_at < $1::timestamptz
+        AND (tenant_id, namespace, topic, id, inserted_at) IN (
+            SELECT tenant_id, namespace, topic, id, inserted_at
+            FROM v1_stream_message
+            WHERE tenant_id = $2::uuid
+                AND inserted_at < $1::timestamptz
+            LIMIT $3::integer
+        )
+    RETURNING tenant_id, payload_id, payload_inserted_at
+), deleted_payloads AS (
+    DELETE FROM v1_stream_payload p
+    USING deleted d
+    WHERE p.tenant_id = d.tenant_id
+        AND p.id = d.payload_id
+        AND p.inserted_at = d.payload_inserted_at
+)
+SELECT COUNT(*)::bigint AS deleted_messages FROM deleted
 `
 
 type DeleteExpiredStreamMessagesParams struct {
@@ -56,13 +112,13 @@ type DeleteExpiredStreamMessagesParams struct {
 	Batchsize int32              `json:"batchsize"`
 }
 
-// Small batches since payloads can be large.
+// Small batches since payloads can be large. Uploaded payloads go with the
+// messages referencing them, one each; returns how many messages were deleted.
 func (q *Queries) DeleteExpiredStreamMessages(ctx context.Context, db DBTX, arg DeleteExpiredStreamMessagesParams) (int64, error) {
-	result, err := db.Exec(ctx, deleteExpiredStreamMessages, arg.Before, arg.Tenantid, arg.Batchsize)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
+	row := db.QueryRow(ctx, deleteExpiredStreamMessages, arg.Before, arg.Tenantid, arg.Batchsize)
+	var deleted_messages int64
+	err := row.Scan(&deleted_messages)
+	return deleted_messages, err
 }
 
 const deleteIdleStreamTopics = `-- name: DeleteIdleStreamTopics :execrows
@@ -137,6 +193,116 @@ func (q *Queries) GetStreamMessageRetentionStart(ctx context.Context, db DBTX) (
 	return retention_start, err
 }
 
+const getStreamPayload = `-- name: GetStreamPayload :one
+SELECT payload
+FROM v1_stream_payload
+WHERE tenant_id = $1::uuid
+    AND id = $2::uuid
+    AND inserted_at = $3::timestamptz
+    AND inserted_at >= $4::timestamptz
+`
+
+type GetStreamPayloadParams struct {
+	Tenantid      uuid.UUID          `json:"tenantid"`
+	ID            uuid.UUID          `json:"id"`
+	Insertedat    pgtype.Timestamptz `json:"insertedat"`
+	Retainedsince pgtype.Timestamptz `json:"retainedsince"`
+}
+
+// inserted_at is the partition key, so this reads one partition.
+func (q *Queries) GetStreamPayload(ctx context.Context, db DBTX, arg GetStreamPayloadParams) ([]byte, error) {
+	row := db.QueryRow(ctx, getStreamPayload,
+		arg.Tenantid,
+		arg.ID,
+		arg.Insertedat,
+		arg.Retainedsince,
+	)
+	var payload []byte
+	err := row.Scan(&payload)
+	return payload, err
+}
+
+const getStreamTopicMetadata = `-- name: GetStreamTopicMetadata :one
+WITH topic AS (
+    SELECT 1
+    FROM v1_stream_topic
+    WHERE tenant_id = $1::uuid
+        AND namespace = $2::text
+        AND topic = $3::text
+), latest AS (
+    SELECT id, inserted_at
+    FROM v1_stream_message
+    WHERE tenant_id = $1::uuid
+        AND namespace = $2::text
+        AND topic = $3::text
+        AND inserted_at >= $4::timestamptz
+    ORDER BY id DESC
+    LIMIT 1
+), retained AS (
+    SELECT COUNT(*) AS message_count
+    FROM v1_stream_message
+    WHERE tenant_id = $1::uuid
+        AND namespace = $2::text
+        AND topic = $3::text
+        AND inserted_at >= $4::timestamptz
+)
+SELECT
+    COALESCE(latest.id, 0)::bigint AS latest_id,
+    latest.inserted_at AS latest_inserted_at,
+    retained.message_count::bigint AS message_count
+FROM retained
+LEFT JOIN latest ON true
+WHERE EXISTS (SELECT 1 FROM topic)
+`
+
+type GetStreamTopicMetadataParams struct {
+	Tenantid      uuid.UUID          `json:"tenantid"`
+	Namespace     string             `json:"namespace"`
+	Topic         string             `json:"topic"`
+	Retainedsince pgtype.Timestamptz `json:"retainedsince"`
+}
+
+type GetStreamTopicMetadataRow struct {
+	LatestID         int64              `json:"latest_id"`
+	LatestInsertedAt pgtype.Timestamptz `json:"latest_inserted_at"`
+	MessageCount     int64              `json:"message_count"`
+}
+
+// No row when the topic doesn't exist. latest_id is 0 when no message is
+// retained, since offsets start at 1.
+func (q *Queries) GetStreamTopicMetadata(ctx context.Context, db DBTX, arg GetStreamTopicMetadataParams) (*GetStreamTopicMetadataRow, error) {
+	row := db.QueryRow(ctx, getStreamTopicMetadata,
+		arg.Tenantid,
+		arg.Namespace,
+		arg.Topic,
+		arg.Retainedsince,
+	)
+	var i GetStreamTopicMetadataRow
+	err := row.Scan(&i.LatestID, &i.LatestInsertedAt, &i.MessageCount)
+	return &i, err
+}
+
+const insertStreamPayload = `-- name: InsertStreamPayload :one
+INSERT INTO v1_stream_payload (id, tenant_id, payload)
+VALUES ($1::uuid, $2::uuid, $3::bytea)
+RETURNING inserted_at
+`
+
+type InsertStreamPayloadParams struct {
+	ID       uuid.UUID `json:"id"`
+	Tenantid uuid.UUID `json:"tenantid"`
+	Payload  []byte    `json:"payload"`
+}
+
+// A payload uploaded ahead of the publish that references it. One no publish
+// references is left for its partition to be dropped.
+func (q *Queries) InsertStreamPayload(ctx context.Context, db DBTX, arg InsertStreamPayloadParams) (pgtype.Timestamptz, error) {
+	row := db.QueryRow(ctx, insertStreamPayload, arg.ID, arg.Tenantid, arg.Payload)
+	var inserted_at pgtype.Timestamptz
+	err := row.Scan(&inserted_at)
+	return inserted_at, err
+}
+
 const listStreamMessagePartitionsBefore = `-- name: ListStreamMessagePartitionsBefore :many
 SELECT
     'v1_stream_message' AS parent_table,
@@ -170,11 +336,11 @@ func (q *Queries) ListStreamMessagePartitionsBefore(ctx context.Context, db DBTX
 }
 
 const listStreamMessagesAfterCursor = `-- name: ListStreamMessagesAfterCursor :many
-SELECT id, inserted_at, tenant_id, namespace, topic, payload, producer_id, producer_seq
+SELECT id, inserted_at, tenant_id, namespace, topic, payload, producer_id, producer_seq, payload_id, payload_inserted_at
 FROM (
-    SELECT page.id, page.inserted_at, page.tenant_id, page.namespace, page.topic, page.payload, page.producer_id, page.producer_seq, SUM(octet_length(page.payload)) OVER (ORDER BY page.id) - octet_length(page.payload) AS bytes_before
+    SELECT page.id, page.inserted_at, page.tenant_id, page.namespace, page.topic, page.payload, page.producer_id, page.producer_seq, page.payload_id, page.payload_inserted_at, SUM(octet_length(page.payload)) OVER (ORDER BY page.id) - octet_length(page.payload) AS bytes_before
     FROM (
-        SELECT id, inserted_at, tenant_id, namespace, topic, payload, producer_id, producer_seq
+        SELECT id, inserted_at, tenant_id, namespace, topic, payload, producer_id, producer_seq, payload_id, payload_inserted_at
         FROM v1_stream_message
         WHERE tenant_id = $1::uuid
             AND namespace = $2::text
@@ -230,7 +396,41 @@ func (q *Queries) ListStreamMessagesAfterCursor(ctx context.Context, db DBTX, ar
 			&i.Payload,
 			&i.ProducerID,
 			&i.ProducerSeq,
+			&i.PayloadID,
+			&i.PayloadInsertedAt,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listStreamPayloadPartitionsBefore = `-- name: ListStreamPayloadPartitionsBefore :many
+SELECT
+    'v1_stream_payload' AS parent_table,
+    p::text AS partition_name
+FROM get_v1_hourly_partitions_before('v1_stream_payload', $1::timestamptz) AS p
+`
+
+type ListStreamPayloadPartitionsBeforeRow struct {
+	ParentTable   string `json:"parent_table"`
+	PartitionName string `json:"partition_name"`
+}
+
+func (q *Queries) ListStreamPayloadPartitionsBefore(ctx context.Context, db DBTX, before pgtype.Timestamptz) ([]*ListStreamPayloadPartitionsBeforeRow, error) {
+	rows, err := db.Query(ctx, listStreamPayloadPartitionsBefore, before)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListStreamPayloadPartitionsBeforeRow
+	for rows.Next() {
+		var i ListStreamPayloadPartitionsBeforeRow
+		if err := rows.Scan(&i.ParentTable, &i.PartitionName); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)
@@ -320,6 +520,60 @@ func (q *Queries) ListStreamRetentionDeleteCandidates(ctx context.Context, db DB
 		return nil, err
 	}
 	return items, nil
+}
+
+const setStreamMessagePayloadRef = `-- name: SetStreamMessagePayloadRef :exec
+UPDATE v1_stream_message
+SET payload_id = $1::uuid, payload_inserted_at = $2::timestamptz
+WHERE tenant_id = $3::uuid
+    AND namespace = $4::text
+    AND topic = $5::text
+    AND id = $6::bigint
+    AND inserted_at = $7::timestamptz
+`
+
+type SetStreamMessagePayloadRefParams struct {
+	Payloadid         uuid.UUID          `json:"payloadid"`
+	Payloadinsertedat pgtype.Timestamptz `json:"payloadinsertedat"`
+	Tenantid          uuid.UUID          `json:"tenantid"`
+	Namespace         string             `json:"namespace"`
+	Topic             string             `json:"topic"`
+	ID                int64              `json:"id"`
+	Insertedat        pgtype.Timestamptz `json:"insertedat"`
+}
+
+// Points a message just stored in this transaction at a copy of its payload.
+func (q *Queries) SetStreamMessagePayloadRef(ctx context.Context, db DBTX, arg SetStreamMessagePayloadRefParams) error {
+	_, err := db.Exec(ctx, setStreamMessagePayloadRef,
+		arg.Payloadid,
+		arg.Payloadinsertedat,
+		arg.Tenantid,
+		arg.Namespace,
+		arg.Topic,
+		arg.ID,
+		arg.Insertedat,
+	)
+	return err
+}
+
+const streamPayloadExists = `-- name: StreamPayloadExists :one
+SELECT EXISTS (
+    SELECT 1 FROM v1_stream_payload
+    WHERE tenant_id = $1::uuid AND id = $2::uuid AND inserted_at = $3::timestamptz
+) AS exists
+`
+
+type StreamPayloadExistsParams struct {
+	Tenantid   uuid.UUID          `json:"tenantid"`
+	ID         uuid.UUID          `json:"id"`
+	Insertedat pgtype.Timestamptz `json:"insertedat"`
+}
+
+func (q *Queries) StreamPayloadExists(ctx context.Context, db DBTX, arg StreamPayloadExistsParams) (bool, error) {
+	row := db.QueryRow(ctx, streamPayloadExists, arg.Tenantid, arg.ID, arg.Insertedat)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const upsertStreamTopic = `-- name: UpsertStreamTopic :one

@@ -1,3 +1,4 @@
+import { Status } from 'nice-grpc';
 import { makeE2EClient, makeTestScope } from '../__e2e__/harness';
 
 const decode = (payload: Uint8Array) => new TextDecoder().decode(payload);
@@ -83,4 +84,27 @@ describe('durable-streams-e2e', () => {
 
     expect(decode(received.payload)).toEqual('from-b');
   }, 30_000);
+
+  it('topic metadata reports the newest message, which resumes a subscription after it', async () => {
+    const topic = makeTestScope('durable_streams_metadata');
+
+    for (const msg of ['first', 'second', 'third']) {
+      await hatchet.streams.publish(topic, msg);
+    }
+
+    const md = await hatchet.streams.topicMetadata(topic);
+
+    expect(md).toMatchObject({ namespace: '', topic, messageCount: 3 });
+    expect(md.tenantId).toEqual(hatchet.config.tenant_id);
+    expect(md.lastPublishedAt).toBeInstanceOf(Date);
+
+    const events = await collect(hatchet.streams.events(topic), 3);
+    expect(md.latestCursor).toEqual(events[2].cursor);
+
+    await expect(
+      hatchet.streams.topicMetadata(makeTestScope('durable_streams_missing'))
+    ).rejects.toMatchObject({
+      code: Status.NOT_FOUND,
+    });
+  });
 });

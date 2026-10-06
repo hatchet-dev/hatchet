@@ -24,6 +24,7 @@ roles:
       - WorkflowScheduledBulkUpdate
       - SnsCreate
       - V1TaskCancel
+      - V1StreamPayloadUpload
       - V1WebhookDelete
       - V1WebhookUpdate
       - CronWorkflowTriggerCreate
@@ -77,6 +78,7 @@ roles:
       - ReadinessGet
       - TenantInviteReject
       - V1LogLineList
+      - V1StreamPayloadGet
       - V1WebhookGet
       - V1WebhookReceive
       - V1WorkflowRunList
