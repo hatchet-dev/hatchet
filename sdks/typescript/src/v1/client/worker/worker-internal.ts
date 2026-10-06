@@ -867,8 +867,9 @@ export class InternalWorker {
 
     this.logger.info('Gracefully exiting hatchet worker, running tasks will attempt to finish...');
 
-    // attempt to wait for futures to finish
-    await Promise.all(Object.values(this.futures).map(({ promise }) => promise));
+    // Awaits the underlying work rather than the cancelable wrapper, which rejects as soon as a
+    // cancellation arrives while the task is still winding down.
+    await Promise.allSettled(Object.values(this.futures).map(({ inner }) => inner));
 
     this.logger.info('Successfully finished pending tasks.');
 
