@@ -233,7 +233,7 @@ DECLARE
 BEGIN
     EXECUTE format('ALTER TABLE v1_dag_to_task RENAME CONSTRAINT v1_dag_to_task_pkey TO %I', legacy_partition_name || '_pkey');
 
-    IF NOT EXISTS (SELECT 1 FROM v1_dag_to_task) THEN
+    IF NOT EXISTS (SELECT 1 FROM v1_dag) THEN
         legacy_partition_lower_bound := quote_literal(today_start);
     END IF;
 
