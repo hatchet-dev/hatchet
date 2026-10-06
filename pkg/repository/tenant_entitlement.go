@@ -60,6 +60,7 @@ type TenantEntitlements struct {
 	DurableStreams                  bool
 }
 
+// Has reports whether this set includes the named entitlement.
 func (e TenantEntitlements) Has(entitlement Entitlement) (bool, error) {
 	switch entitlement {
 	case EntitlementAuditLogs:
