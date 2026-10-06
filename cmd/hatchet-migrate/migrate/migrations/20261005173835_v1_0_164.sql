@@ -164,7 +164,7 @@ DECLARE
 BEGIN
     EXECUTE format('ALTER TABLE v1_dag_to_task_olap RENAME CONSTRAINT v1_dag_to_task_olap_pkey TO %I', legacy_partition_name || '_pkey');
 
-    IF NOT EXISTS (SELECT 1 FROM v1_dag_to_task_olap) THEN
+    IF NOT EXISTS (SELECT 1 FROM v1_dags_olap) THEN
         legacy_partition_lower_bound := quote_literal(today_start);
     END IF;
 
@@ -211,18 +211,19 @@ DECLARE
     tomorrow_start DATE := today_start + 1;
     legacy_partition_name TEXT := 'v1_task_events_olap_' || to_char(today_start, 'YYYYMMDD');
     legacy_partition_lower_bound TEXT := 'MINVALUE';
-    next_id BIGINT;
 BEGIN
-    SELECT CASE WHEN is_called THEN last_value + 1 ELSE last_value END INTO next_id FROM v1_task_events_olap_id_seq;
+    -- the lock has to come first: an insert between reading the old sequence and dropping it
+    -- would take an id that the parent's sequence then hands out again
+    LOCK TABLE v1_task_events_olap IN ACCESS EXCLUSIVE MODE;
+    PERFORM setval('v1_task_events_olap_partitioned_id_seq', nextval('v1_task_events_olap_id_seq'));
 
-    -- the parent's identity assigns ids for every partition, so the legacy table's own identity
-    -- (and its sequence, which holds the name the parent's sequence takes below) goes away
+    -- the parent's identity assigns ids for every partition, so the legacy table's own identity goes away
     ALTER TABLE v1_task_events_olap ALTER COLUMN id DROP IDENTITY;
 
     EXECUTE format('ALTER TABLE v1_task_events_olap RENAME CONSTRAINT v1_task_events_olap_pkey TO %I', legacy_partition_name || '_pkey');
     EXECUTE format('ALTER INDEX v1_task_events_olap_task_id_idx RENAME TO %I', legacy_partition_name || '_task_id_idx');
 
-    IF NOT EXISTS (SELECT 1 FROM v1_task_events_olap) THEN
+    IF NOT EXISTS (SELECT 1 FROM v1_tasks_olap) THEN
         legacy_partition_lower_bound := quote_literal(today_start);
     END IF;
 
@@ -233,9 +234,6 @@ BEGIN
     ALTER TABLE v1_task_events_olap_partitioned RENAME TO v1_task_events_olap;
     ALTER INDEX v1_task_events_olap_partitioned_pkey RENAME TO v1_task_events_olap_pkey;
     ALTER INDEX v1_task_events_olap_partitioned_task_id_idx RENAME TO v1_task_events_olap_task_id_idx;
-
-    ALTER SEQUENCE v1_task_events_olap_partitioned_id_seq RENAME TO v1_task_events_olap_id_seq;
-    EXECUTE format('ALTER SEQUENCE v1_task_events_olap_id_seq RESTART WITH %s', next_id);
 END $$;
 
 SELECT create_v1_range_partition('v1_task_events_olap', ((NOW() AT TIME ZONE 'UTC')::DATE + 1));
@@ -252,7 +250,8 @@ BEGIN
         RETURN;
     END IF;
 
-    SELECT CASE WHEN is_called THEN last_value + 1 ELSE last_value END INTO next_id FROM v1_task_events_olap_id_seq;
+    LOCK TABLE v1_task_events_olap IN ACCESS EXCLUSIVE MODE;
+    next_id := nextval('v1_task_events_olap_partitioned_id_seq');
 
     SELECT c.relname
     INTO legacy_partition_name
