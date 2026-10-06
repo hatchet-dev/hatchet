@@ -188,8 +188,6 @@ export class ActionListener {
     }
   }
 
-  // Leaves the heartbeat running: tasks that are already in flight still need
-  // the engine to see this worker as alive until they finish.
   stopStream() {
     this.done = true;
 

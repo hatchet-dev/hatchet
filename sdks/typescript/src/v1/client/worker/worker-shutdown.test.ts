@@ -1,8 +1,9 @@
 import { DurableTaskResponse } from '@hatchet/protoc/v1/dispatcher';
-import { ActionListener } from '@hatchet/clients/dispatcher/action-listener';
+import { ActionListener, ActionKey } from '@hatchet/clients/dispatcher/action-listener';
 import { HatchetClient } from '../client';
 import { TenantClient } from '../features/tenant';
 import { DurableEvictionManager } from './eviction/eviction-manager';
+import HatchetPromise from '@util/hatchet-promise/hatchet-promise';
 import { InternalWorker } from './worker-internal';
 import { HealthServer } from './health-server';
 
@@ -96,6 +97,20 @@ describe('durable worker shutdown', () => {
     jest.restoreAllMocks();
   });
 
+  // Mirrors handleStartStepRun: the future leaves `worker.futures` as soon as its cancelable
+  // wrapper settles, which on cancellation is before the underlying work finishes.
+  function registerRunningTask(key: ActionKey) {
+    const work = gate();
+    const future = new HatchetPromise<void>(work.promise);
+    future.promise
+      .catch(() => undefined)
+      .finally(() => {
+        delete worker.futures[key];
+      });
+    worker.futures[key] = future;
+    return { future, finish: work.release };
+  }
+
   function registerOpenActionStream() {
     const streamClosed = gate();
     const listener = new ActionListener(client.dispatcher, 'registered-worker');
@@ -145,26 +160,48 @@ describe('durable worker shutdown', () => {
     expect(exit).not.toHaveBeenCalled();
   });
 
-  it('keeps the heartbeat running until in-flight tasks finish, then unregisters', async () => {
+  it('keeps the action stream and heartbeat running until in-flight tasks finish, then unregisters', async () => {
     const { stopStream, stopHeartbeat, unsubscribe } = registerOpenActionStream();
-    const inFlightTask = gate();
-    worker.futures['in-flight-task/0'] = { promise: inFlightTask.promise } as any;
+    const inFlightTask = registerRunningTask('in-flight-task/0' as ActionKey);
 
     const starting = worker.start();
     await jest.advanceTimersByTimeAsync(0);
 
     const stopping = worker.stop();
     await jest.advanceTimersByTimeAsync(60_000);
-    await starting;
 
-    expect(stopStream).toHaveBeenCalledTimes(1);
+    expect(stopStream).not.toHaveBeenCalled();
     expect(stopHeartbeat).not.toHaveBeenCalled();
     expect(unsubscribe).not.toHaveBeenCalled();
 
-    inFlightTask.release();
+    inFlightTask.finish();
     await stopping;
+    await starting;
 
+    expect(stopStream).toHaveBeenCalledTimes(1);
     expect(stopHeartbeat).toHaveBeenCalledTimes(1);
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it('still unregisters when an in-flight task is cancelled during shutdown', async () => {
+    const { unsubscribe } = registerOpenActionStream();
+    const inFlightTask = registerRunningTask('in-flight-task/0' as ActionKey);
+
+    const starting = worker.start();
+    await jest.advanceTimersByTimeAsync(0);
+
+    const stopping = worker.stop();
+    await jest.advanceTimersByTimeAsync(0);
+
+    inFlightTask.future.cancel();
+    await jest.advanceTimersByTimeAsync(60_000);
+    expect(worker.futures).toEqual({});
+    expect(unsubscribe).not.toHaveBeenCalled();
+
+    inFlightTask.finish();
+    await expect(stopping).resolves.toBeUndefined();
+    await starting;
+
     expect(unsubscribe).toHaveBeenCalledTimes(1);
   });
 
@@ -182,8 +219,7 @@ describe('durable worker shutdown', () => {
 
   it('waits for in-flight tasks to finish before stop resolves', async () => {
     registerOpenActionStream();
-    const inFlightTask = gate();
-    worker.futures['in-flight-task/0'] = { promise: inFlightTask.promise } as any;
+    const inFlightTask = registerRunningTask('in-flight-task/0' as ActionKey);
 
     const starting = worker.start();
     await jest.advanceTimersByTimeAsync(0);
@@ -195,7 +231,7 @@ describe('durable worker shutdown', () => {
     await jest.advanceTimersByTimeAsync(60_000);
     expect(stopped).toBe(false);
 
-    inFlightTask.release();
+    inFlightTask.finish();
     await stopping;
     await starting;
 

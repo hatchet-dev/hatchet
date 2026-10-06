@@ -865,17 +865,18 @@ export class InternalWorker {
       this.logger.error(`Could not stop durable listener: ${e.message}`);
     }
 
-    this.listener?.stopStream();
-
     this.logger.info('Gracefully exiting hatchet worker, running tasks will attempt to finish...');
 
-    // attempt to wait for futures to finish
-    await Promise.all(Object.values(this.futures).map(({ promise }) => promise));
+    // Awaits the underlying work rather than the cancelable wrapper, which rejects as soon as a
+    // cancellation arrives while the task is still winding down.
+    await Promise.allSettled(Object.values(this.futures).map(({ inner }) => inner));
 
     this.logger.info('Successfully finished pending tasks.');
 
-    // Unregistering stops the heartbeat, so it has to wait until the running tasks are done:
-    // otherwise the engine sees a dead worker and reassigns tasks that are about to complete.
+    // Unregistering closes the action stream and stops the heartbeat, so it has to wait until
+    // the running tasks are done. Stopping the heartbeat earlier lets the engine treat the worker
+    // as dead and reassign tasks that are about to complete, and closing the stream earlier makes
+    // the engine reject every heartbeat sent while those tasks finish.
     try {
       await this.listener?.unregister();
     } catch (e: any) {
