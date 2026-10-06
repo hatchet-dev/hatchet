@@ -93,6 +93,7 @@ export class InternalWorker {
 
   private healthServer: HealthServer | undefined;
   private status: WorkerStatus = workerStatus.INITIALIZED;
+  private shutdownPromise: Promise<void> | undefined;
 
   constructor(
     client: HatchetClient,
@@ -821,6 +822,17 @@ export class InternalWorker {
   }
 
   async exitGracefully(handleKill: boolean) {
+    // Signals and an explicit stop must await the same eviction and listener teardown.
+    this.shutdownPromise ??= this.shutdown();
+    await this.shutdownPromise;
+
+    if (handleKill) {
+      this.logger.info('Exiting hatchet worker...');
+      process.exit(0);
+    }
+  }
+
+  private async shutdown(): Promise<void> {
     this.killing = true;
     this.setStatus(workerStatus.UNHEALTHY);
 
@@ -853,18 +865,23 @@ export class InternalWorker {
       this.logger.error(`Could not stop durable listener: ${e.message}`);
     }
 
+    this.logger.info('Gracefully exiting hatchet worker, running tasks will attempt to finish...');
+
+    // Awaits the underlying work rather than the cancelable wrapper, which rejects as soon as a
+    // cancellation arrives while the task is still winding down.
+    await Promise.allSettled(Object.values(this.futures).map(({ inner }) => inner));
+
+    this.logger.info('Successfully finished pending tasks.');
+
+    // Unregistering closes the action stream and stops the heartbeat, so it has to wait until
+    // the running tasks are done. Stopping the heartbeat earlier lets the engine treat the worker
+    // as dead and reassign tasks that are about to complete, and closing the stream earlier makes
+    // the engine reject every heartbeat sent while those tasks finish.
     try {
       await this.listener?.unregister();
     } catch (e: any) {
       this.logger.error(`Could not unregister listener: ${e.message}`);
     }
-
-    this.logger.info('Gracefully exiting hatchet worker, running tasks will attempt to finish...');
-
-    // attempt to wait for futures to finish
-    await Promise.all(Object.values(this.futures).map(({ promise }) => promise));
-
-    this.logger.info('Successfully finished pending tasks.');
 
     if (this.healthServer) {
       try {
@@ -872,11 +889,6 @@ export class InternalWorker {
       } catch (e: any) {
         this.logger.error(`Could not stop health server: ${e.message}`);
       }
-    }
-
-    if (handleKill) {
-      this.logger.info('Exiting hatchet worker...');
-      process.exit(0);
     }
   }
 
@@ -895,11 +907,19 @@ export class InternalWorker {
   }
 
   async start() {
+    if (this.killing) {
+      return;
+    }
     this.setStatus(workerStatus.STARTING);
 
     if (this.healthServer) {
       try {
         await this.healthServer.start();
+        if (this.killing) {
+          await this.shutdownPromise;
+          await this.healthServer.stop();
+          return;
+        }
       } catch (e: any) {
         this.logger.error(`Could not start health server: ${e.message}`);
         this.setStatus(workerStatus.UNHEALTHY);
@@ -910,12 +930,18 @@ export class InternalWorker {
     // ensure all workflows are registered
     await Promise.all(this.registeredWorkflowPromises);
 
-    if (Object.keys(this.action_registry).length === 0) {
+    if (this.killing || Object.keys(this.action_registry).length === 0) {
       return;
     }
 
     try {
-      this.listener = await this.createListener();
+      const listener = await this.createListener();
+      if (this.killing) {
+        // Shutdown cannot clean up a listener that registration has not returned yet.
+        await listener.unregister();
+        return;
+      }
+      this.listener = listener;
 
       this.workerId = this.listener.workerId;
       this.setStatus(workerStatus.HEALTHY);

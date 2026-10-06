@@ -119,6 +119,76 @@ RSpec.describe Hatchet::WorkerRuntime::DurableEventListener do
     end
   end
 
+  describe "worker status" do
+    def listener_with_request_queue
+      listener = build_listener
+      listener.instance_variable_set(:@worker_id, "worker-1")
+      listener.instance_variable_set(:@request_queue, Queue.new)
+      listener
+    end
+
+    def register_waiters(listener, task_id, node_ids)
+      node_ids.each do |node_id|
+        key = [task_id, 1, 0, node_id]
+        listener.instance_variable_get(:@pending_callbacks)[key] = Queue.new
+        listener.send(:register_waiting_key, key)
+      end
+    end
+
+    def take_worker_status_requests(listener)
+      request_queue = listener.instance_variable_get(:@request_queue)
+      Array.new(request_queue.size) { request_queue.pop }.select(&:has_worker_status?)
+    end
+
+    it "lists only the waiters registered since the last request" do
+      listener = listener_with_request_queue
+
+      register_waiters(listener, "task-1", 0...300)
+      listener.send(:enqueue_worker_status_for_newly_waiting_keys)
+      first_requests = take_worker_status_requests(listener)
+
+      register_waiters(listener, "task-2", 0...50)
+      listener.send(:enqueue_worker_status_for_newly_waiting_keys)
+      listener.send(:enqueue_worker_status_for_newly_waiting_keys)
+      second_requests = take_worker_status_requests(listener)
+
+      expect(first_requests.map { |r| r.worker_status.waiting_entries.length }).to eq([300])
+      expect(second_requests.length).to eq(1)
+      entries = second_requests.first.worker_status.waiting_entries
+      expect(entries.length).to eq(50)
+      expect(entries.map(&:durable_task_external_id).uniq).to eq(["task-2"])
+    end
+
+    it "skips recently registered waiters on the periodic resend" do
+      listener = listener_with_request_queue
+      register_waiters(listener, "task-1", 0...10)
+
+      listener.send(:enqueue_worker_status_for_long_pending_waiters)
+      expect(take_worker_status_requests(listener)).to be_empty
+
+      listener.instance_variable_get(:@waiting_since)[["task-1", 1, 0, 3]] -= 60
+      listener.instance_variable_get(:@pending_callbacks).delete(["task-1", 1, 0, 4])
+      listener.send(:enqueue_worker_status_for_long_pending_waiters)
+      requests = take_worker_status_requests(listener)
+
+      expect(requests.length).to eq(1)
+      expect(requests.first.worker_status.waiting_entries.map(&:node_id)).to eq([3])
+      expect(listener.instance_variable_get(:@waiting_since)).not_to have_key(["task-1", 1, 0, 4])
+    end
+
+    it "splits a full status with many waiters across requests" do
+      stub_const("#{described_class}::WORKER_STATUS_MAX_ENTRIES_PER_REQUEST", 10)
+      listener = listener_with_request_queue
+      register_waiters(listener, "task-1", 0...25)
+
+      listener.send(:enqueue_full_worker_status)
+      sizes = take_worker_status_requests(listener).map { |r| r.worker_status.waiting_entries.length }
+
+      expect(sizes).to eq([10, 10, 5])
+      expect(listener.instance_variable_get(:@newly_waiting_keys)).to be_empty
+    end
+  end
+
   describe "#build_event_request" do
     it "raises ArgumentError for unknown event types" do
       listener = build_listener

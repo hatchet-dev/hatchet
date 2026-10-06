@@ -32,6 +32,7 @@ import {
 } from './task';
 import { Duration } from './client/duration';
 import { MetricsClient } from './client/features/metrics';
+import type { PauseWorkflowOpts } from './client/features/workflows';
 import { InputType, OutputType, UnknownInputType, JsonObject, Resolved } from './types';
 import { Context, DurableContext } from './client/worker/context';
 import { parentRunContextManager } from './parent-run-context-vars';
@@ -810,32 +811,32 @@ export class BaseWorkflowDeclaration<
     return this.client.workflows.get(this);
   }
 
-  // // gets the pause state of the workflow
-  // isPaused() {
-  //   if (!this.client) {
-  //     throw UNBOUND_ERR;
-  //   }
+  /**
+   * Pause the workflow. While paused, new runs of the workflow are queued but not started.
+   * @param opts - The options for the pause operation.
+   * @returns A promise that resolves to the updated workflow.
+   * @throws Error if the workflow is not bound to a Hatchet client.
+   */
+  pause(opts: PauseWorkflowOpts) {
+    if (!this.client) {
+      throw UNBOUND_ERR;
+    }
 
-  //   return this.client.workflows.isPaused(this);
-  // }
+    return this.client.workflows.pause(this, opts);
+  }
 
-  // // pause assignment of workflow
-  // pause() {
-  //   if (!this.client) {
-  //     throw UNBOUND_ERR;
-  //   }
+  /**
+   * Unpause the workflow.
+   * @returns A promise that resolves to the updated workflow.
+   * @throws Error if the workflow is not bound to a Hatchet client.
+   */
+  unpause() {
+    if (!this.client) {
+      throw UNBOUND_ERR;
+    }
 
-  //   return this.client.workflows.pause(this);
-  // }
-
-  // // unpause assignment of workflow
-  // unpause() {
-  //   if (!this.client) {
-  //     throw UNBOUND_ERR;
-  //   }
-
-  //   return this.client.workflows.unpause(this);
-  // }
+    return this.client.workflows.unpause(this);
+  }
 
   /**
    * @deprecated use definition.name instead

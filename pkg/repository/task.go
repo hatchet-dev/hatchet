@@ -2396,6 +2396,14 @@ func (r *sharedRepository) evalMaxRunsExpression(strat *sqlcv1.V1StepConcurrency
 	return &v, nil
 }
 
+func taskDisplayNamePrefix(stepConfig *sqlcv1.ListStepsByIdsRow) string {
+	if stepConfig.IsDagOrchestrator {
+		return stepConfig.WorkflowName
+	}
+
+	return stepConfig.ReadableId.String
+}
+
 func (r *sharedRepository) insertTasks(
 	ctx context.Context,
 	tx sqlcv1.DBTX,
@@ -2478,7 +2486,7 @@ func (r *sharedRepository) insertTasks(
 		scheduleTimeouts[i] = stepConfig.ScheduleTimeout
 		stepTimeouts[i] = stepConfig.Timeout.String
 		externalIds[i] = task.ExternalId
-		displayNames[i] = fmt.Sprintf("%s-%d", stepConfig.ReadableId.String, unix)
+		displayNames[i] = fmt.Sprintf("%s-%d", taskDisplayNamePrefix(stepConfig), unix)
 		stepIndices[i] = int64(task.StepIndex)
 		retryBackoffFactors[i] = stepConfig.RetryBackoffFactor
 		retryMaxBackoffs[i] = stepConfig.RetryMaxBackoff
@@ -4770,7 +4778,8 @@ func (r *TaskRepositoryImpl) Cleanup(ctx context.Context) (bool, error) {
 		mu             sync.Mutex
 		shouldContinue bool
 	)
-	eg, ctx := errgroup.WithContext(ctx)
+	// A failing cleanup subtask must not cancel queue reactivation.
+	var eg errgroup.Group
 
 	// Helper to run a cleanup operation with its own transaction and advisory lock
 	runCleanup := func(lockName string, cleanupFn func(ctx context.Context, tx sqlcv1.DBTX) error) func() error {
@@ -4893,8 +4902,7 @@ func (r *TaskRepositoryImpl) Cleanup(ctx context.Context) (bool, error) {
 			return fmt.Errorf("error reactivating inactive queues: %v", err)
 		}
 		if result.RowsAffected() > 0 {
-			// FIXME: this is an error because there is an underlying bug that needs to be fixed
-			r.l.Error().Ctx(ctx).Msgf("reactivated %d inactive queues with pending items", result.RowsAffected())
+			r.l.Info().Ctx(ctx).Msgf("reactivated %d inactive queues with pending items", result.RowsAffected())
 		}
 		return nil
 	}))

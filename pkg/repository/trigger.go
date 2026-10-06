@@ -1093,7 +1093,7 @@ func (r *sharedRepository) triggerWorkflowsCore(
 
 			operatorDagTuples[tuple.externalId] = tuple
 
-			nonDagTaskOpts = append(nonDagTaskOpts, CreateTaskOpts{
+			orchestratorTaskOpts := CreateTaskOpts{
 				ExternalId:                tuple.externalId,
 				WorkflowRunId:             tuple.externalId,
 				StepId:                    orchestratorStep.ID,
@@ -1109,7 +1109,13 @@ func (r *sharedRepository) triggerWorkflowsCore(
 				Priority:                  tuple.priority,
 				TriggeringEventExternalId: tuple.triggeringEventExternalId,
 				TriggeringEventKey:        tuple.triggeringEventKey,
-			})
+			}
+
+			if idempotencyKey, ok := externalIdToIdempotencyKey[tuple.externalId]; ok {
+				orchestratorTaskOpts.IdempotencyKey = &idempotencyKey
+			}
+
+			nonDagTaskOpts = append(nonDagTaskOpts, orchestratorTaskOpts)
 		}
 
 		for stepIndex, step := range orderSteps(regularSteps) {
@@ -2785,14 +2791,6 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 				return nil, fmt.Errorf("failed to get pinned workflow version %s", *opt.WorkflowVersionId)
 			}
 
-			var idempotency *IdempotencyConfig
-			if pinned.IdempotencyKeyExpression.Valid && pinned.IdempotencyKeyTtlMs.Valid {
-				idempotency = &IdempotencyConfig{
-					Expression: pinned.IdempotencyKeyExpression.String,
-					TTLMs:      pinned.IdempotencyKeyTtlMs.Int64,
-				}
-			}
-
 			triggerOpts = append(triggerOpts, triggerTuple{
 				workflowVersionId:    pinned.ID,
 				workflowId:           pinned.WorkflowId,
@@ -2808,7 +2806,6 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 				childKey:             opt.ChildKey,
 				priority:             opt.Priority,
 				desiredWorkerLabels:  opt.DesiredWorkerLabels,
-				idempotency:          idempotency,
 				dagParentTaskRunIds:  opt.DagParentTaskRunIds,
 				targetActionId:       opt.TargetActionId,
 				isSkipped:            opt.IsSkipped,

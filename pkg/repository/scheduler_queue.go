@@ -995,15 +995,10 @@ func (d *queueRepository) ListWorkflowNamesByIds(ctx context.Context, workflowId
 }
 
 func (d *queueRepository) RequeueRateLimitedItems(ctx context.Context, tenantId uuid.UUID, queueName string) ([]*sqlcv1.RequeueRateLimitedQueueItemsRow, error) {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l)
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer rollback()
-
-	rows, err := d.queries.RequeueRateLimitedQueueItems(ctx, tx, sqlcv1.RequeueRateLimitedQueueItemsParams{
+	// NOTE: this runs on every tick of every queue loop, and nearly always moves nothing. The
+	// statement is a single atomic CTE, so it runs without a transaction to keep the pooled
+	// connection for one round trip instead of BEGIN / statement / COMMIT.
+	rows, err := d.queries.RequeueRateLimitedQueueItems(ctx, d.pool, sqlcv1.RequeueRateLimitedQueueItemsParams{
 		Tenantid: tenantId,
 		Queue:    queueName,
 	})
@@ -1012,16 +1007,16 @@ func (d *queueRepository) RequeueRateLimitedItems(ctx context.Context, tenantId 
 		return nil, err
 	}
 
-	// if we moved items in v1_queue_item, we need to update the active status of the queue, in case we've
-	// been rate limited for longer than a day and the queue has gone inactive
-	saveQueues, err := d.upsertQueues(ctx, tx, tenantId, []string{queueName})
-
-	if err != nil {
-		return nil, err
+	// Runs on every queue-loop tick: refreshing last_active unconditionally would keep every
+	// polled queue active forever.
+	if len(rows) == 0 {
+		return rows, nil
 	}
 
-	if err := commit(ctx); err != nil {
-		return nil, err
+	saveQueues, err := d.upsertQueues(ctx, d.pool, tenantId, []string{queueName})
+
+	if err != nil {
+		return rows, err
 	}
 
 	saveQueues()
