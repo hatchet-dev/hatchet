@@ -3,11 +3,9 @@ package streams
 import (
 	"context"
 	"testing"
-	"time"
 
 	"connectrpc.com/connect"
 	"github.com/google/uuid"
-	"github.com/hashicorp/golang-lru/v2/expirable"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -18,12 +16,10 @@ type fakeEntitlements struct {
 	v1.TenantEntitlementRepository
 
 	entitled map[uuid.UUID]bool
-	calls    int
 }
 
-func (f *fakeEntitlements) IsDurableStreamsEnabled(_ context.Context, tenantId uuid.UUID) (bool, error) {
-	f.calls++
-	return f.entitled[tenantId], nil
+func (f *fakeEntitlements) HasEntitlement(_ context.Context, tenantId uuid.UUID, entitlement v1.Entitlement) (bool, error) {
+	return entitlement == v1.EntitlementDurableStreams && f.entitled[tenantId], nil
 }
 
 type entitlementRepository struct {
@@ -40,16 +36,12 @@ func TestCheckEntitled(t *testing.T) {
 	entitlements := &fakeEntitlements{entitled: map[uuid.UUID]bool{entitledTenant: true}}
 
 	s := &ServiceImpl{
-		repo:     &entitlementRepository{entitlements: entitlements},
-		entitled: expirable.NewLRU[uuid.UUID, bool](10, nil, time.Minute),
+		repo: &entitlementRepository{entitlements: entitlements},
 	}
 
-	require.NoError(t, s.checkEntitled(context.Background(), entitledTenant))
 	require.NoError(t, s.checkEntitled(context.Background(), entitledTenant))
 
 	err := s.checkEntitled(context.Background(), otherTenant)
 	assert.Equal(t, connect.CodePermissionDenied, connect.CodeOf(err))
 	assert.ErrorContains(t, err, "durable streams are not enabled")
-
-	assert.Equal(t, 2, entitlements.calls, "each tenant's entitlement is looked up once, then cached")
 }

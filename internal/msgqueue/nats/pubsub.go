@@ -19,12 +19,38 @@ import (
 // defaultSubjectPrefix is used when WithPubSubSubjectPrefix is unset or empty.
 const defaultSubjectPrefix = "hatchet.pubsub"
 
+// maxMessageAge is the cutoff past which Sub skips a pub/sub message instead of
+// delivering it. Pub/sub delivery is at most once and best effort, and consumers
+// run polling loops as a backup, so a message older than maxMessageAge has
+// little value. A buildup of such messages means the consumer can't keep up; a
+// hard cutoff bounds the backlog.
+//
+// Two skips are not covered by a poll soon: a wake-up for an idle queue waits
+// for its backed-off poll (up to 45s), and task stream events have no other
+// delivery path, which is why the tenant-stream cutoff matches the rabbitmq
+// backend's per-message TTL.
+var maxMessageAge = map[msgqueue.TopicKind]time.Duration{
+	msgqueue.TopicKindSchedulerPartition: 5 * time.Second,
+	msgqueue.TopicKindTenantStream:       30 * time.Second,
+}
+
+// minBacklogForStaleSkip is how many messages a subscription must have pending,
+// counting the one being checked, before Sub skips stale ones. Without a
+// backlog a message is handled as soon as it arrives, so an old stamp can only
+// come from clock skew between the publishing and subscribing pods.
+const minBacklogForStaleSkip = 100
+
 // PubSub implements msgqueue.PubSub over core NATS. Subjects are
 // subjectPrefix + "." + topic.Name() (default prefix "hatchet.pubsub"),
 // delivery is best-effort at-most-once.
 type PubSub struct {
-	nc            *natsgo.Conn
-	l             *zerolog.Logger
+	nc *natsgo.Conn
+	l  *zerolog.Logger
+
+	// staleL is sampled per process rather than per subscription: a dispatcher
+	// holds one tenant-stream subscription per connected tenant.
+	staleL *zerolog.Logger
+
 	subjectPrefix string
 }
 
@@ -214,9 +240,12 @@ func NewPubSub(fs ...PubSubOpt) (func() error, *PubSub, error) {
 		prefix = defaultSubjectPrefix
 	}
 
+	staleL := l.Sample(&zerolog.BurstSampler{Burst: 1, Period: time.Minute})
+
 	p := &PubSub{
 		nc:            nc,
 		l:             l,
+		staleL:        &staleL,
 		subjectPrefix: prefix,
 	}
 
@@ -282,36 +311,61 @@ func (p *PubSub) Pub(ctx context.Context, topic msgqueue.Topic, msg *msgqueue.Me
 }
 
 // Sub subscribes to a topic with plain Subscribe (fan-out to every subscriber).
-// Delivery is at-most-once: handler errors are logged, never redelivered.
+// Delivery is at-most-once: handler errors are logged, never redelivered, and
+// while the subscription has a backlog, messages older than the topic kind's
+// maxMessageAge are skipped. Handlers run concurrently, up to the topic kind's
+// maxConcurrentHandlers, with no ordering between messages. When every slot is
+// busy the subscription callback waits, so the backlog stays in the nats.go
+// pending buffer. The returned cleanup waits for running handlers and must not
+// be called from a handler.
 func (p *PubSub) Sub(topic msgqueue.Topic, handler msgqueue.MsgHandler) (func() error, error) {
 	subject := p.subject(topic)
+	pool := newHandlerPool(handlerLimit(topic.Kind()), topic.Kind())
 
 	sub, err := p.nc.Subscribe(subject, func(natsMsg *natsgo.Msg) {
 		msg := &msgqueue.Message{}
 
+		// Unmarshalling on the delivery goroutine is serial per subscription,
+		// but it is what lets a stale backlog drain without taking slots.
 		if err := json.Unmarshal(natsMsg.Data, msg); err != nil {
 			p.l.Error().Err(err).Msg("error unmarshalling pubsub message")
 			return
 		}
 
-		// NATS Pub never compresses, so Compressed is expected to be false here.
-		// We still honour the flag: compression is a per-message wire property
-		// that any publisher on this subject may set, and handlers require plain
-		// payloads either way (same contract as rabbitmq/pubsub.go Sub).
-		if msg.Compressed {
-			decompressed, err := msgqueue.DecompressPayloads(msg.Payloads)
-			if err != nil {
-				p.l.Error().Err(err).Msg("error decompressing pubsub payloads")
-				return
+		if p.skipIfStale(topic, natsMsg, msg) {
+			return
+		}
+
+		if !pool.acquire() {
+			return
+		}
+
+		// the message may have gone stale while waiting for a slot
+		if p.skipIfStale(topic, natsMsg, msg) {
+			pool.release()
+			return
+		}
+
+		pool.run(func() {
+			// NATS Pub never compresses, so Compressed is expected to be false here.
+			// We still honour the flag: compression is a per-message wire property
+			// that any publisher on this subject may set, and handlers require plain
+			// payloads either way (same contract as rabbitmq/pubsub.go Sub).
+			if msg.Compressed {
+				decompressed, err := msgqueue.DecompressPayloads(msg.Payloads)
+				if err != nil {
+					p.l.Error().Err(err).Msg("error decompressing pubsub payloads")
+					return
+				}
+
+				msg.Payloads = decompressed
+				msg.Compressed = false
 			}
 
-			msg.Payloads = decompressed
-			msg.Compressed = false
-		}
-
-		if err := handler(msg); err != nil {
-			p.l.Error().Err(err).Msgf("error handling pubsub message %s", msg.ID)
-		}
+			if err := handler(msg); err != nil {
+				p.l.Error().Err(err).Msgf("error handling pubsub message %s", msg.ID)
+			}
+		})
 	})
 	if err != nil {
 		return nil, fmt.Errorf("could not subscribe to %s: %w", subject, err)
@@ -320,29 +374,90 @@ func (p *PubSub) Sub(topic msgqueue.Topic, handler msgqueue.MsgHandler) (func() 
 	// Flush so interest is established before Sub returns.
 	if err := p.nc.Flush(); err != nil {
 		_ = sub.Unsubscribe()
+		pool.close()
 		return nil, fmt.Errorf("could not flush after subscribe to %s: %w", subject, err)
 	}
 
-	unregisterDrops := p.registerDropsCounter(topic, sub)
+	unregisterMetrics := p.registerSchedulerPartitionMetrics(topic, sub)
 
 	return func() error {
-		unregisterDrops()
-		return sub.Unsubscribe()
+		unregisterMetrics()
+
+		// nats.go does not wait for a running callback on Unsubscribe. Closing
+		// the pool fails a callback still waiting for a slot (or waits for the
+		// one handler it may still start) and waits for the handlers already
+		// started.
+		err := sub.Unsubscribe()
+		pool.close()
+
+		return err
 	}, nil
 }
 
-// registerDropsCounter republishes sub's cumulative Dropped() as a Prometheus
-// counter, only for scheduler-partition topics: one long-lived subscription per scheduler pod (its partition).
-func (p *PubSub) registerDropsCounter(topic msgqueue.Topic, sub *natsgo.Subscription) func() {
+func (p *PubSub) skipIfStale(topic msgqueue.Topic, natsMsg *natsgo.Msg, msg *msgqueue.Message) bool {
+	age, stale := isStale(topic.Kind(), msg.PublishedAt, time.Now())
+	if !stale {
+		return false
+	}
+
+	pendingMsgs, _, err := natsMsg.Sub.Pending()
+	if err != nil || pendingMsgs < minBacklogForStaleSkip {
+		return false
+	}
+
+	prommetrics.PubSubStaleSkipped.WithLabelValues("nats", string(topic.Kind())).Inc()
+
+	p.staleL.Warn().
+		Str("subject", natsMsg.Subject).
+		Str("message_id", msg.ID).
+		Dur("age", age).
+		Int("pending_msgs", pendingMsgs).
+		Msg("skipping stale nats pubsub message")
+
+	return true
+}
+
+// isStale reports whether a message published at publishedAt is past the max
+// age for its topic kind at now, and its age. Unstamped messages and stamps in
+// the future (clock skew) are never stale.
+func isStale(kind msgqueue.TopicKind, publishedAt, now time.Time) (time.Duration, bool) {
+	maxAge, ok := maxMessageAge[kind]
+	if !ok || publishedAt.IsZero() {
+		return 0, false
+	}
+
+	age := now.Sub(publishedAt)
+
+	return age, age > maxAge
+}
+
+// registerSchedulerPartitionMetrics republishes sub's cumulative Dropped() as
+// a Prometheus counter and its Pending() as a gauge, only for
+// scheduler-partition topics: one long-lived subscription per scheduler pod
+// (its partition).
+func (p *PubSub) registerSchedulerPartitionMetrics(topic msgqueue.Topic, sub *natsgo.Subscription) func() {
 	if topic.Kind() != msgqueue.TopicKindSchedulerPartition {
 		return func() {}
 	}
 
-	return prommetrics.RegisterNATSSchedulerPartitionDrops(func() float64 {
+	unregisterDrops := prommetrics.RegisterNATSSchedulerPartitionDrops(func() float64 {
 		dropped, err := sub.Dropped()
 		if err != nil {
 			return 0
 		}
 		return float64(dropped)
 	})
+
+	unregisterPending := prommetrics.RegisterNATSSchedulerPartitionPending(func() float64 {
+		pendingMsgs, _, err := sub.Pending()
+		if err != nil {
+			return 0
+		}
+		return float64(pendingMsgs)
+	})
+
+	return func() {
+		unregisterDrops()
+		unregisterPending()
+	}
 }

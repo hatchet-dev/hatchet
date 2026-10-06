@@ -2,6 +2,7 @@ package repository
 
 import (
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -27,4 +28,16 @@ func DAGOrchestratorActionId(workflowName string) string {
 // DAGOrchestratorActionId produces it.
 func IsDAGOrchestratorActionId(id string) bool {
 	return dagOrchestratorActionRegex.MatchString(id)
+}
+
+// Step names must be unique within a workflow, so the orchestrator can only take the workflow
+// name when no task in the workflow already has it.
+func dagOrchestratorReadableId(workflowName string, taskReadableIds []string) string {
+	readableId := workflowName
+
+	for slices.Contains(taskReadableIds, readableId) {
+		readableId += dagOrchestratorActionSuffix
+	}
+
+	return readableId
 }
