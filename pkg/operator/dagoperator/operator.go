@@ -418,10 +418,18 @@ func (d *DAGOperator) run(action *contracts.AssignedAction) error {
 		// output are all terminal DAG outcomes that replay reproduces deterministically, so they
 		// must not be retried; anything else (operational errors) remains retriable.
 		var nonDeterminismErr *repository.NonDeterminismError
+		isConditionEvalErr := isDagConditionEvalErr(dagErr)
 		shouldNotRetry := isDagChildFailedErr(dagErr) ||
 			isDagEngineErr(dagErr) ||
-			isDagConditionEvalErr(dagErr) ||
+			isConditionEvalErr ||
 			errors.As(dagErr, &nonDeterminismErr)
+
+		if isConditionEvalErr {
+			d.Logger().Error().Err(dagErr).
+				Str("task_run_external_id", action.TaskRunExternalId).
+				Str("workflow_version_id", action.GetWorkflowVersionId()).
+				Msg("dag step condition could not be evaluated against its parent output")
+		}
 
 		return d.fail(span, action, fmt.Errorf("dag failed: %w", dagErr), shouldNotRetry)
 	}
