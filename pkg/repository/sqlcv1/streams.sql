@@ -220,28 +220,35 @@ WHERE tenant_id = @tenantId::uuid
     AND inserted_at >= @retainedSince::timestamptz;
 
 -- name: GetStreamTopicMetadata :one
+-- No row when the topic doesn't exist. latest_id is 0 when no message is
+-- retained, since offsets start at 1.
+WITH topic AS (
+    SELECT 1
+    FROM v1_stream_topic
+    WHERE tenant_id = @tenantId::uuid
+        AND namespace = @namespace::text
+        AND topic = @topic::text
+), latest AS (
+    SELECT id, inserted_at
+    FROM v1_stream_message
+    WHERE tenant_id = @tenantId::uuid
+        AND namespace = @namespace::text
+        AND topic = @topic::text
+        AND inserted_at >= @retainedSince::timestamptz
+    ORDER BY id DESC
+    LIMIT 1
+), retained AS (
+    SELECT COUNT(*) AS message_count
+    FROM v1_stream_message
+    WHERE tenant_id = @tenantId::uuid
+        AND namespace = @namespace::text
+        AND topic = @topic::text
+        AND inserted_at >= @retainedSince::timestamptz
+)
 SELECT
     COALESCE(latest.id, 0)::bigint AS latest_id,
     latest.inserted_at AS latest_inserted_at,
-    (
-        SELECT COUNT(*)
-        FROM v1_stream_message m
-        WHERE m.tenant_id = @tenantId::uuid
-            AND m.namespace = @namespace::text
-            AND m.topic = @topic::text
-            AND m.inserted_at >= @retainedSince::timestamptz
-    )::bigint AS message_count
-FROM v1_stream_topic t
-LEFT JOIN LATERAL (
-    SELECT m.id, m.inserted_at
-    FROM v1_stream_message m
-    WHERE m.tenant_id = @tenantId::uuid
-        AND m.namespace = @namespace::text
-        AND m.topic = @topic::text
-        AND m.inserted_at >= @retainedSince::timestamptz
-    ORDER BY m.id DESC
-    LIMIT 1
-) AS latest ON true
-WHERE t.tenant_id = @tenantId::uuid
-    AND t.namespace = @namespace::text
-    AND t.topic = @topic::text;
+    retained.message_count::bigint AS message_count
+FROM retained
+LEFT JOIN latest ON true
+WHERE EXISTS (SELECT 1 FROM topic);

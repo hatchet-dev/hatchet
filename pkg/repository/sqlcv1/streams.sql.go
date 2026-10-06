@@ -192,31 +192,36 @@ func (q *Queries) GetStreamPayload(ctx context.Context, db DBTX, arg GetStreamPa
 }
 
 const getStreamTopicMetadata = `-- name: GetStreamTopicMetadata :one
+WITH topic AS (
+    SELECT 1
+    FROM v1_stream_topic
+    WHERE tenant_id = $1::uuid
+        AND namespace = $2::text
+        AND topic = $3::text
+), latest AS (
+    SELECT id, inserted_at
+    FROM v1_stream_message
+    WHERE tenant_id = $1::uuid
+        AND namespace = $2::text
+        AND topic = $3::text
+        AND inserted_at >= $4::timestamptz
+    ORDER BY id DESC
+    LIMIT 1
+), retained AS (
+    SELECT COUNT(*) AS message_count
+    FROM v1_stream_message
+    WHERE tenant_id = $1::uuid
+        AND namespace = $2::text
+        AND topic = $3::text
+        AND inserted_at >= $4::timestamptz
+)
 SELECT
     COALESCE(latest.id, 0)::bigint AS latest_id,
     latest.inserted_at AS latest_inserted_at,
-    (
-        SELECT COUNT(*)
-        FROM v1_stream_message m
-        WHERE m.tenant_id = $1::uuid
-            AND m.namespace = $2::text
-            AND m.topic = $3::text
-            AND m.inserted_at >= $4::timestamptz
-    )::bigint AS message_count
-FROM v1_stream_topic t
-LEFT JOIN LATERAL (
-    SELECT m.id, m.inserted_at
-    FROM v1_stream_message m
-    WHERE m.tenant_id = $1::uuid
-        AND m.namespace = $2::text
-        AND m.topic = $3::text
-        AND m.inserted_at >= $4::timestamptz
-    ORDER BY m.id DESC
-    LIMIT 1
-) AS latest ON true
-WHERE t.tenant_id = $1::uuid
-    AND t.namespace = $2::text
-    AND t.topic = $3::text
+    retained.message_count::bigint AS message_count
+FROM retained
+LEFT JOIN latest ON true
+WHERE EXISTS (SELECT 1 FROM topic)
 `
 
 type GetStreamTopicMetadataParams struct {
@@ -232,6 +237,8 @@ type GetStreamTopicMetadataRow struct {
 	MessageCount     int64              `json:"message_count"`
 }
 
+// No row when the topic doesn't exist. latest_id is 0 when no message is
+// retained, since offsets start at 1.
 func (q *Queries) GetStreamTopicMetadata(ctx context.Context, db DBTX, arg GetStreamTopicMetadataParams) (*GetStreamTopicMetadataRow, error) {
 	row := db.QueryRow(ctx, getStreamTopicMetadata,
 		arg.Tenantid,
