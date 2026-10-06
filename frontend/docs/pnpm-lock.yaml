@@ -6,7 +6,6 @@ settings:
 
 overrides:
   nanoid: ^3.3.17
-  katex: ^0.18.2
   prismjs: ^1.30.0
   mdast-util-to-hast: '>=13.2.1'
   tar: ^7.5.8
@@ -26,6 +25,7 @@ overrides:
   form-data: ^4.0.6
   postcss: ^8.5.18
   sharp: ^0.35.0
+  katex: ^0.19.0
   source-map-js: ^1.2.2
 
 importers:
@@ -75,8 +75,8 @@ importers:
         specifier: ^4.3.1
         version: 4.3.2
       katex:
-        specifier: ^0.18.2
-        version: 0.18.11
+        specifier: ^0.19.0
+        version: 0.19.0
       loops:
         specifier: ^5.0.1
         version: 5.0.1
@@ -2342,9 +2342,8 @@ packages:
     resolution: {integrity: sha512-SFNOvSJ+Dgf/9An904Yx+CgSlIPCkIpao4qo51lpee25TIRejdH3rhR4EZMGoNx3/TP3O+wzWuiTFl4sqbltzA==}
     hasBin: true
 
-  katex@0.18.11:
-    resolution: {integrity: sha512-yvyz/2VMKqoho/35Hat5w37wIEdWJ5ElVMidTAlWrxr5uW4aBGsEpveTmKh18/zw08v/7lGswCPon4OhqmqrTA==}
-    deprecated: Accidentally published with breaking changes. Use 0.19.0 instead.
+  katex@0.19.0:
+    resolution: {integrity: sha512-v6Tznz3zJ7u3niRCoDTsumM2+HA2XXcCu+WAacCeHD2z3p9A9Ks987o5FzfTGBN0e8A0vjEgIDvLbICrXpdw/Q==}
     hasBin: true
 
   khroma@2.1.0:
@@ -5215,7 +5214,7 @@ snapshots:
     dependencies:
       argparse: 2.0.1
 
-  katex@0.18.11:
+  katex@0.19.0:
     dependencies:
       commander: 15.0.0
 
@@ -5489,7 +5488,7 @@ snapshots:
       dayjs: 1.11.21
       dompurify: 3.4.16
       es-toolkit: 1.50.0
-      katex: 0.18.11
+      katex: 0.19.0
       khroma: 2.1.0
       marked: 16.4.2
       roughjs: 4.6.6
