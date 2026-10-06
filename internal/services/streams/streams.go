@@ -5,11 +5,9 @@ package streams
 import (
 	"context"
 	"errors"
-	"time"
 
 	"connectrpc.com/connect"
 	"github.com/google/uuid"
-	"github.com/hashicorp/golang-lru/v2/expirable"
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
@@ -71,13 +69,7 @@ type ServiceImpl struct {
 	publisher      *publishBatcher
 	streamSessions *streams.Registry
 	topicPollers   *topicPollerRegistry
-
-	// so each publish doesn't query the entitlement
-	entitled *expirable.LRU[uuid.UUID, bool]
 }
-
-// how long an entitlement change can take to apply
-const entitlementCacheTTL = time.Minute
 
 func NewService(fs ...ServiceOptFunc) (Service, error) {
 	opts := defaultServiceOpts()
@@ -93,7 +85,6 @@ func NewService(fs ...ServiceOptFunc) (Service, error) {
 		publisher:      newPublishBatcher(opts.repov1.Streams(), opts.pubsub, opts.l, publishBatchWorkers),
 		streamSessions: streams.NewRegistry(),
 		topicPollers:   newTopicPollerRegistry(opts.repov1.Streams(), opts.pubsub, opts.l, subscribeTailPollInterval, subscribeIdleHangupTimeout),
-		entitled:       expirable.NewLRU[uuid.UUID, bool](10000, nil, entitlementCacheTTL),
 	}, nil
 }
 
@@ -109,16 +100,10 @@ func (s *ServiceImpl) Cleanup() error {
 }
 
 func (s *ServiceImpl) checkEntitled(ctx context.Context, tenantId uuid.UUID) error {
-	enabled, ok := s.entitled.Get(tenantId)
+	enabled, err := s.repo.TenantEntitlement().HasEntitlement(ctx, tenantId, v1.EntitlementDurableStreams)
 
-	if !ok {
-		var err error
-
-		if enabled, err = s.repo.TenantEntitlement().IsDurableStreamsEnabled(ctx, tenantId); err != nil {
-			return err
-		}
-
-		s.entitled.Add(tenantId, enabled)
+	if err != nil {
+		return err
 	}
 
 	if !enabled {
