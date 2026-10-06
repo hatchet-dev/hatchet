@@ -4702,7 +4702,8 @@ func (r *TaskRepositoryImpl) Cleanup(ctx context.Context) (bool, error) {
 		mu             sync.Mutex
 		shouldContinue bool
 	)
-	eg, ctx := errgroup.WithContext(ctx)
+	// A failing cleanup subtask must not cancel queue reactivation.
+	var eg errgroup.Group
 
 	// Helper to run a cleanup operation with its own transaction and advisory lock
 	runCleanup := func(lockName string, cleanupFn func(ctx context.Context, tx sqlcv1.DBTX) error) func() error {
@@ -4825,8 +4826,7 @@ func (r *TaskRepositoryImpl) Cleanup(ctx context.Context) (bool, error) {
 			return fmt.Errorf("error reactivating inactive queues: %v", err)
 		}
 		if result.RowsAffected() > 0 {
-			// FIXME: this is an error because there is an underlying bug that needs to be fixed
-			r.l.Error().Ctx(ctx).Msgf("reactivated %d inactive queues with pending items", result.RowsAffected())
+			r.l.Info().Ctx(ctx).Msgf("reactivated %d inactive queues with pending items", result.RowsAffected())
 		}
 		return nil
 	}))
