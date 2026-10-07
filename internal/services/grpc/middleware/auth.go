@@ -45,6 +45,14 @@ func (a *GRPCAuthN) Middleware(ctx context.Context, header http.Header) (context
 		return nil, forbidden
 	}
 
+	dbToken, err := a.config.V1.APIToken().GetAPITokenById(ctx, tokenUUID)
+	if err != nil {
+		return nil, forbidden
+	}
+	if dbToken.ReadOnly {
+		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("read-only tokens cannot use gRPC"))
+	}
+
 	ctx = context.WithValue(ctx, analytics.APITokenIDKey, tokenUUID)
 	ctx = context.WithValue(ctx, analytics.TenantIDKey, tenantId)
 

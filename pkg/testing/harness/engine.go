@@ -501,6 +501,7 @@ func setAPIToken(ctx context.Context, cf *loader.ConfigLoader, tenantID uuid.UUI
 		tenantID,
 		"testing",
 		false,
+		false,
 		&expiresAt,
 	)
 

@@ -12,11 +12,17 @@ This guide covers common issues when deploying and operating Hatchet workers.
 
 Before diving into specific issues, run through these checks:
 
-1. **Verify your API token** — make sure `HATCHET_CLIENT_TOKEN` matches the token generated in the Hatchet dashboard for your tenant.
+1. **Verify your API token** — make sure `HATCHET_CLIENT_TOKEN` matches an unrestricted token generated in the Hatchet dashboard for your tenant. Read-only tokens cannot connect workers.
 2. **Check worker logs** — look for connection errors, heartbeat failures, or crash traces in your worker output.
 3. **Check the dashboard** — navigate to the Workers tab to see if your worker is registered and healthy.
 4. **Confirm network connectivity** — workers need to reach the Hatchet engine over gRPC. Firewalls, VPNs, or missing TLS configuration can block this.
 5. **Check SDK version** — ensure your SDK version is compatible with your engine version. Mismatches can cause subtle failures.
+
+## PermissionDenied with a read-only token
+
+Read-only API tokens can use viewer-authorized REST endpoints, but every gRPC call returns `PermissionDenied`, including worker registration and task completion.
+
+Check the token's **Access** column under **Settings > API Tokens**. If it is **Read-only**, create an unrestricted replacement with **Read-only** unchecked, update `HATCHET_CLIENT_TOKEN` or your SDK token configuration, and restart the worker. A token's access level cannot be edited. See [API Tokens](/v1/api-tokens) for permissions and rotation details.
 
 ## Could not send task to worker
 
