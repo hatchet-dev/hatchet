@@ -6,10 +6,17 @@ DECLARE
     next_month_start DATE := (date_trunc('month', NOW()) + INTERVAL '1 month')::DATE;
     legacy_partition_name TEXT := 'v1_lookup_table_' || to_char(current_month_start, 'YYYYMMDD');
     legacy_partition_lower_bound TEXT := 'MINVALUE';
+    -- Older databases carry the primary key under a different name (e.g. v1_lookup_table_new_pkey)
+    legacy_primary_key_name TEXT := (
+        SELECT conname FROM pg_constraint
+        WHERE conrelid = 'v1_lookup_table'::regclass AND contype = 'p'
+    );
 BEGIN
     -- Postgres 17+ refuses to match a unique-constraint index to the parent's primary key on attach
     -- (15 and 16 allow it), so the legacy table's constraint types have to match the parent's.
-    ALTER TABLE v1_lookup_table DROP CONSTRAINT v1_lookup_table_pkey;
+    IF legacy_primary_key_name IS NOT NULL THEN
+        EXECUTE format('ALTER TABLE v1_lookup_table DROP CONSTRAINT %I', legacy_primary_key_name);
+    END IF;
     EXECUTE format('ALTER TABLE v1_lookup_table ADD CONSTRAINT %I PRIMARY KEY USING INDEX v1_lookup_table_external_id_inserted_at_idx', legacy_partition_name || '_pkey');
     EXECUTE format('ALTER TABLE v1_lookup_table ADD CONSTRAINT %I UNIQUE USING INDEX v1_lookup_table_external_id_idx', legacy_partition_name || '_external_id_uq');
 
@@ -230,8 +237,14 @@ DECLARE
     tomorrow_start DATE := today_start + 1;
     legacy_partition_name TEXT := 'v1_dag_to_task_' || to_char(today_start, 'YYYYMMDD');
     legacy_partition_lower_bound TEXT := 'MINVALUE';
+    legacy_primary_key_name TEXT := (
+        SELECT conname FROM pg_constraint
+        WHERE conrelid = 'v1_dag_to_task'::regclass AND contype = 'p'
+    );
 BEGIN
-    EXECUTE format('ALTER TABLE v1_dag_to_task RENAME CONSTRAINT v1_dag_to_task_pkey TO %I', legacy_partition_name || '_pkey');
+    IF legacy_primary_key_name IS NOT NULL THEN
+        EXECUTE format('ALTER TABLE v1_dag_to_task RENAME CONSTRAINT %I TO %I', legacy_primary_key_name, legacy_partition_name || '_pkey');
+    END IF;
 
     IF NOT EXISTS (SELECT 1 FROM v1_dag) AND NOT EXISTS (SELECT 1 FROM v1_dag_to_task) THEN
         legacy_partition_lower_bound := quote_literal(today_start);
@@ -255,8 +268,14 @@ DECLARE
     tomorrow_start DATE := today_start + 1;
     legacy_partition_name TEXT := 'v1_dag_data_' || to_char(today_start, 'YYYYMMDD');
     legacy_partition_lower_bound TEXT := 'MINVALUE';
+    legacy_primary_key_name TEXT := (
+        SELECT conname FROM pg_constraint
+        WHERE conrelid = 'v1_dag_data'::regclass AND contype = 'p'
+    );
 BEGIN
-    EXECUTE format('ALTER TABLE v1_dag_data RENAME CONSTRAINT v1_dag_input_pkey TO %I', legacy_partition_name || '_pkey');
+    IF legacy_primary_key_name IS NOT NULL THEN
+        EXECUTE format('ALTER TABLE v1_dag_data RENAME CONSTRAINT %I TO %I', legacy_primary_key_name, legacy_partition_name || '_pkey');
+    END IF;
 
     IF NOT EXISTS (SELECT 1 FROM v1_dag_data) THEN
         legacy_partition_lower_bound := quote_literal(today_start);
@@ -280,8 +299,14 @@ DECLARE
     tomorrow_start DATE := today_start + 1;
     legacy_partition_name TEXT := 'v1_task_expression_eval_' || to_char(today_start, 'YYYYMMDD');
     legacy_partition_lower_bound TEXT := 'MINVALUE';
+    legacy_primary_key_name TEXT := (
+        SELECT conname FROM pg_constraint
+        WHERE conrelid = 'v1_task_expression_eval'::regclass AND contype = 'p'
+    );
 BEGIN
-    EXECUTE format('ALTER TABLE v1_task_expression_eval RENAME CONSTRAINT v1_task_expression_eval_pkey TO %I', legacy_partition_name || '_pkey');
+    IF legacy_primary_key_name IS NOT NULL THEN
+        EXECUTE format('ALTER TABLE v1_task_expression_eval RENAME CONSTRAINT %I TO %I', legacy_primary_key_name, legacy_partition_name || '_pkey');
+    END IF;
 
     IF NOT EXISTS (SELECT 1 FROM v1_task_expression_eval) THEN
         legacy_partition_lower_bound := quote_literal(today_start);
