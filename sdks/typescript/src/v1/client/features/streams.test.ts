@@ -377,3 +377,127 @@ describe('StreamsClient.events reconnection', () => {
     expect(subscribe).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('StreamsClient.topicMetadata', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('defaults the namespace and leaves the cursor and publish time unset when nothing is retained', async () => {
+    const getTopicMetadata = jest.fn(async (req: { namespace: string; topic: string }) => ({
+      namespace: req.namespace,
+      topic: req.topic,
+      tenantId: 'tenant',
+      messageCount: 0,
+      latestCursor: undefined,
+      lastPublishedAt: undefined,
+    }));
+    mockedCreateGrpcClient.mockReturnValue({ client: { getTopicMetadata } } as any);
+
+    const md = await new StreamsClient(fakeHatchetClient()).topicMetadata('topic');
+
+    expect(getTopicMetadata).toHaveBeenCalledWith({ namespace: '', topic: 'topic' });
+    expect(md).toEqual({
+      namespace: '',
+      topic: 'topic',
+      tenantId: 'tenant',
+      messageCount: 0,
+      latestCursor: undefined,
+      lastPublishedAt: undefined,
+    });
+  });
+
+  it('surfaces a missing topic as a NOT_FOUND error', async () => {
+    const getTopicMetadata = jest.fn().mockRejectedValue(grpcError(Status.NOT_FOUND));
+    mockedCreateGrpcClient.mockReturnValue({ client: { getTopicMetadata } } as any);
+
+    await expect(
+      new StreamsClient(fakeHatchetClient()).topicMetadata('missing', { namespace: 'ns' })
+    ).rejects.toMatchObject({ code: Status.NOT_FOUND });
+    expect(getTopicMetadata).toHaveBeenCalledWith({ namespace: 'ns', topic: 'missing' });
+  });
+});
+
+describe('StreamsClient.events large payloads', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  function httpError(status: number) {
+    return Object.assign(new Error(`status ${status}`), {
+      isAxiosError: true,
+      response: { status },
+    });
+  }
+
+  function refEntry(cursor: string) {
+    return { payload: new Uint8Array(), cursor, createdAt: undefined, payloadRef: 'p1:ref' };
+  }
+
+  function setup(
+    attempts: Array<() => AsyncGenerator<unknown>>,
+    fetchResults: Array<Error | number>
+  ) {
+    let calls = 0;
+    const subscribe = jest.fn((_req: { cursor?: string }, _options: unknown) => {
+      calls += 1;
+      return attempts[Math.min(calls, attempts.length) - 1]();
+    });
+    mockedCreateGrpcClient.mockReturnValue({ client: { subscribe } } as any);
+
+    const v1StreamPayloadGet = jest.fn(async () => {
+      const next = fetchResults.shift();
+      if (next instanceof Error) {
+        throw next;
+      }
+      return { data: new Uint8Array([next ?? 0]).buffer };
+    });
+
+    const client: any = { config: {}, api: { v1StreamPayloadGet } };
+    return { streams: new StreamsClient(client), subscribe, v1StreamPayloadGet };
+  }
+
+  it('reconnects from the last delivered cursor when a payload fetch fails temporarily', async () => {
+    const unavailable = httpError(503);
+    const { streams, subscribe } = setup(
+      [
+        async function* first() {
+          yield { entries: [entry(1, 'c1'), refEntry('c2')], hangup: false };
+        },
+        async function* second() {
+          yield { entries: [refEntry('c2')], hangup: false };
+        },
+      ],
+      // fetchPayload's own attempts all fail, then the reconnect's fetch succeeds
+      [unavailable, unavailable, unavailable, 7]
+    );
+
+    const received: number[] = [];
+    for await (const event of streams.events('topic')) {
+      received.push(event.payload[0]);
+      if (received.length >= 2) break;
+    }
+
+    expect(received).toEqual([1, 7]);
+    expect(subscribe).toHaveBeenCalledTimes(2);
+    expect(subscribe.mock.calls[1][0].cursor).toBe('c1');
+  });
+
+  it('ends with the error when the payload is gone, since a retry cannot fix it', async () => {
+    const { streams, subscribe } = setup(
+      [
+        async function* only() {
+          yield { entries: [refEntry('c1')], hangup: false };
+        },
+      ],
+      [httpError(404)]
+    );
+
+    await expect(async () => {
+      for await (const _event of streams.events('topic')) {
+        // a 404 must not be delivered as an empty event
+      }
+    }).rejects.toMatchObject({ response: { status: 404 } });
+    expect(subscribe).toHaveBeenCalledTimes(1);
+  });
+});

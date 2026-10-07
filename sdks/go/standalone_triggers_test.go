@@ -24,7 +24,6 @@ func (s *stubV0Client) Schedule() v0Client.ScheduleClient        { return nil }
 func (s *stubV0Client) Dispatcher() v0Client.DispatcherClient    { return nil }
 func (s *stubV0Client) Operator() operatorclient.Client          { return nil }
 func (s *stubV0Client) Event() v0Client.EventClient              { return nil }
-func (s *stubV0Client) Streams() v0Client.StreamsClient          { return nil }
 func (s *stubV0Client) Subscribe() v0Client.SubscribeClient      { return nil }
 func (s *stubV0Client) API() *rest.ClientWithResponses           { return nil }
 func (s *stubV0Client) CloudAPI() *cloudrest.ClientWithResponses { return nil }

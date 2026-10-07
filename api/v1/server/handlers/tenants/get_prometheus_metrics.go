@@ -9,6 +9,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -17,7 +18,7 @@ func (t *TenantService) TenantGetPrometheusMetrics(ctx echo.Context, request gen
 	tenantId := tenant.ID
 
 	if t.config.Prometheus.TenantScoped {
-		enabled, err := t.config.V1.TenantEntitlement().IsPrometheusMetricsEnabled(ctx.Request().Context(), tenantId)
+		enabled, err := t.config.V1.TenantEntitlement().HasEntitlement(ctx.Request().Context(), tenantId, v1.EntitlementPrometheusMetrics)
 		if err != nil {
 			return nil, err
 		}

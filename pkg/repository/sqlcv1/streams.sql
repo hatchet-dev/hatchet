@@ -87,9 +87,10 @@ WITH latest AS (
     UNION ALL
     SELECT 1 FROM first_message
 ), inserted_row AS (
-    INSERT INTO v1_stream_message (id, tenant_id, namespace, topic, payload, producer_id, producer_seq)
+    INSERT INTO v1_stream_message (id, tenant_id, namespace, topic, payload, producer_id, producer_seq, payload_id, payload_inserted_at)
     -- the offset reserved for this message by ReserveStreamTopicOffsets
-    SELECT @messageOffset::bigint, @tenantId::uuid, @namespace::text, @topic::text, @payload::bytea, @producerId::text, @producerSeq::bigint
+    SELECT @messageOffset::bigint, @tenantId::uuid, @namespace::text, @topic::text, @payload::bytea, @producerId::text, @producerSeq::bigint,
+        sqlc.narg('payloadId')::uuid, sqlc.narg('payloadInsertedAt')::timestamptz
     WHERE EXISTS (SELECT 1 FROM applied)
     RETURNING 1
 )
@@ -108,6 +109,16 @@ FROM get_v1_hourly_partitions_before('v1_stream_message', 'infinity'::timestampt
 -- name: CreateStreamMessagePartitions :exec
 SELECT create_v1_hourly_range_partition('v1_stream_message', hours.hour_start)
 FROM generate_series(@fromTime::timestamptz, @toTime::timestamptz, INTERVAL '1 hour') AS hours(hour_start);
+
+-- name: CreateStreamPayloadPartitions :exec
+SELECT create_v1_hourly_range_partition('v1_stream_payload', hours.hour_start)
+FROM generate_series(@fromTime::timestamptz, @toTime::timestamptz, INTERVAL '1 hour') AS hours(hour_start);
+
+-- name: ListStreamPayloadPartitionsBefore :many
+SELECT
+    'v1_stream_payload' AS parent_table,
+    p::text AS partition_name
+FROM get_v1_hourly_partitions_before('v1_stream_payload', @before::timestamptz) AS p;
 
 -- name: ListStreamMessagePartitionsBefore :many
 SELECT
@@ -139,24 +150,35 @@ WHERE @defaultRetentionHours::integer < @maxRetentionHours::integer
         WHERE l."tenantId" = t.tenant_id AND l."resource" = 'STREAM_RETENTION'
     );
 
--- name: DeleteExpiredStreamMessages :execrows
--- Small batches since payloads can be large.
-DELETE FROM v1_stream_message
-WHERE inserted_at < @before::timestamptz
-    AND (tenant_id, namespace, topic, id, inserted_at) IN (
-        SELECT tenant_id, namespace, topic, id, inserted_at
-        FROM v1_stream_message
-        WHERE tenant_id = @tenantId::uuid
-            AND inserted_at < @before::timestamptz
-        LIMIT @batchSize::integer
-    );
+-- name: DeleteExpiredStreamMessages :one
+-- Small batches since payloads can be large. Uploaded payloads go with the
+-- messages referencing them, one each; returns how many messages were deleted.
+WITH deleted AS (
+    DELETE FROM v1_stream_message
+    WHERE inserted_at < @before::timestamptz
+        AND (tenant_id, namespace, topic, id, inserted_at) IN (
+            SELECT tenant_id, namespace, topic, id, inserted_at
+            FROM v1_stream_message
+            WHERE tenant_id = @tenantId::uuid
+                AND inserted_at < @before::timestamptz
+            LIMIT @batchSize::integer
+        )
+    RETURNING tenant_id, payload_id, payload_inserted_at
+), deleted_payloads AS (
+    DELETE FROM v1_stream_payload p
+    USING deleted d
+    WHERE p.tenant_id = d.tenant_id
+        AND p.id = d.payload_id
+        AND p.inserted_at = d.payload_inserted_at
+)
+SELECT COUNT(*)::bigint AS deleted_messages FROM deleted;
 
 -- name: ListStreamMessagesAfterCursor :many
 -- Pages by offset, which become visible in order (see ReserveStreamTopicOffsets),
 -- so nothing can appear behind a cursor. A page ends once its payloads reach
 -- @maxBytes, always keeping its first row; octet_length reads a TOASTed
 -- payload's size without loading it.
-SELECT id, inserted_at, tenant_id, namespace, topic, payload, producer_id, producer_seq
+SELECT id, inserted_at, tenant_id, namespace, topic, payload, producer_id, producer_seq, payload_id, payload_inserted_at
 FROM (
     SELECT page.*, SUM(octet_length(page.payload)) OVER (ORDER BY page.id) - octet_length(page.payload) AS bytes_before
     FROM (
@@ -174,3 +196,80 @@ FROM (
 ) AS sized
 WHERE bytes_before < @maxBytes::bigint
 ORDER BY id ASC;
+
+-- name: InsertStreamPayload :one
+-- A payload uploaded ahead of the publish that references it. One no publish
+-- references is left for its partition to be dropped.
+INSERT INTO v1_stream_payload (id, tenant_id, payload)
+VALUES (@id::uuid, @tenantId::uuid, @payload::bytea)
+RETURNING inserted_at;
+
+-- name: StreamPayloadExists :one
+SELECT EXISTS (
+    SELECT 1 FROM v1_stream_payload
+    WHERE tenant_id = @tenantId::uuid AND id = @id::uuid AND inserted_at = @insertedAt::timestamptz
+) AS exists;
+
+-- name: CopyStreamPayload :one
+-- Copies an upload into a new row in the publishing transaction, so it lands
+-- in the message's own partition hour. No row when the original is gone.
+INSERT INTO v1_stream_payload (id, tenant_id, payload)
+SELECT @newId::uuid, tenant_id, payload
+FROM v1_stream_payload
+WHERE tenant_id = @tenantId::uuid
+    AND id = @id::uuid
+    AND inserted_at = @insertedAt::timestamptz
+RETURNING inserted_at;
+
+-- name: SetStreamMessagePayloadRef :exec
+-- Points a message just stored in this transaction at a copy of its payload.
+UPDATE v1_stream_message
+SET payload_id = @payloadId::uuid, payload_inserted_at = @payloadInsertedAt::timestamptz
+WHERE tenant_id = @tenantId::uuid
+    AND namespace = @namespace::text
+    AND topic = @topic::text
+    AND id = @id::bigint
+    AND inserted_at = @insertedAt::timestamptz;
+
+-- name: GetStreamPayload :one
+-- inserted_at is the partition key, so this reads one partition.
+SELECT payload
+FROM v1_stream_payload
+WHERE tenant_id = @tenantId::uuid
+    AND id = @id::uuid
+    AND inserted_at = @insertedAt::timestamptz
+    AND inserted_at >= @retainedSince::timestamptz;
+
+-- name: GetStreamTopicMetadata :one
+-- No row when the topic doesn't exist. latest_id is 0 when no message is
+-- retained, since offsets start at 1.
+WITH topic AS (
+    SELECT 1
+    FROM v1_stream_topic
+    WHERE tenant_id = @tenantId::uuid
+        AND namespace = @namespace::text
+        AND topic = @topic::text
+), latest AS (
+    SELECT id, inserted_at
+    FROM v1_stream_message
+    WHERE tenant_id = @tenantId::uuid
+        AND namespace = @namespace::text
+        AND topic = @topic::text
+        AND inserted_at >= @retainedSince::timestamptz
+    ORDER BY id DESC
+    LIMIT 1
+), retained AS (
+    SELECT COUNT(*) AS message_count
+    FROM v1_stream_message
+    WHERE tenant_id = @tenantId::uuid
+        AND namespace = @namespace::text
+        AND topic = @topic::text
+        AND inserted_at >= @retainedSince::timestamptz
+)
+SELECT
+    COALESCE(latest.id, 0)::bigint AS latest_id,
+    latest.inserted_at AS latest_inserted_at,
+    retained.message_count::bigint AS message_count
+FROM retained
+LEFT JOIN latest ON true
+WHERE EXISTS (SELECT 1 FROM topic);

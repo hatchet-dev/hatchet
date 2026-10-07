@@ -12,6 +12,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
@@ -24,6 +25,38 @@ const defaultListStreamMessagesLimit = 500
 // rest of a publish or delivered entry (see TestMaxPayloadFitsInGRPCMessages).
 // The Payload validate tag below must match it.
 const MaxStreamMessagePayloadBytes = 4*1024*1024 - 5*1024
+
+// MaxStreamUploadedPayloadBytes caps a payload uploaded ahead of its publish.
+const MaxStreamUploadedPayloadBytes = 64 * 1024 * 1024
+
+// StreamPayloadMessageUnits is what an upload of size bytes counts against the
+// STREAM_MESSAGE limit: as many max-size gRPC messages as it would take to send.
+func StreamPayloadMessageUnits(size int) int32 {
+	return int32((size + MaxStreamMessagePayloadBytes - 1) / MaxStreamMessagePayloadBytes) // nolint: gosec
+}
+
+// StreamPayloadRetentionGrace keeps uploaded payloads this much longer than
+// messages, since a payload is uploaded some time before the message that
+// references it.
+const StreamPayloadRetentionGrace = 24 * time.Hour
+
+// streamPayloadCopyAge is the oldest an upload can be and still outlive a
+// message published now; the hour covers both rounding down to hourly partitions.
+const streamPayloadCopyAge = StreamPayloadRetentionGrace - time.Hour
+
+// ErrStreamTopicNotFound: nothing was ever published to the topic, or it was removed after going idle past retention.
+var ErrStreamTopicNotFound = errors.New("stream topic not found")
+
+// StreamTopicMetadata covers only messages within the tenant's retention.
+type StreamTopicMetadata struct {
+	MessageCount int64
+
+	// the newest retained message's position; nil when none is retained
+	LatestCursor *StreamCursor
+}
+
+// ErrStreamPayloadNotFound: no uploaded payload for the ref, or it's past retention.
+var ErrStreamPayloadNotFound = errors.New("stream payload not found")
 
 // streamProducerCursorRetention is how long an idle producer's watermark is
 // kept. After that its next publish is a gap, and the SDK switches producer ID.
@@ -76,7 +109,11 @@ type CreateOrderedStreamMessageOpts struct {
 
 	Topic string `validate:"required,max=255"`
 
-	Payload []byte `validate:"required,max=4189184"`
+	// empty when PayloadRef is set
+	Payload []byte `validate:"required_without=PayloadRef,max=4189184"`
+
+	// (optional) a payload uploaded ahead of the publish
+	PayloadRef *StreamPayloadRef
 
 	ProducerID string `validate:"required"`
 
@@ -115,11 +152,25 @@ type StreamsRepository interface {
 
 	// InsertOrderedStreamMessages inserts a batch in one transaction, with
 	// results in input order. A gap is a result; an error means nothing was stored.
+	// A stored message whose upload is too old to outlive it gets a copy of the
+	// payload in the same transaction.
 	InsertOrderedStreamMessages(ctx context.Context, msgs []TenantStreamMessage) ([]OrderedStreamMessageResult, error)
 
 	// ListMessagesAfterCursor returns a page of the tenant's retained messages
 	// after opts.Cursor, by offset.
 	ListMessagesAfterCursor(ctx context.Context, tenantId uuid.UUID, opts ListStreamMessagesOpts) ([]*sqlcv1.V1StreamMessage, error)
+
+	// InsertStreamPayload stores a payload ahead of the publish that will reference it.
+	InsertStreamPayload(ctx context.Context, tenantId uuid.UUID, payload []byte) (StreamPayloadRef, error)
+
+	// CheckStreamPayloadExists returns ErrStreamPayloadNotFound unless ref is an uploaded payload of the tenant's.
+	CheckStreamPayloadExists(ctx context.Context, tenantId uuid.UUID, ref StreamPayloadRef) error
+
+	// GetStreamPayload returns ErrStreamPayloadNotFound once it's past the tenant's retention.
+	GetStreamPayload(ctx context.Context, tenantId uuid.UUID, ref StreamPayloadRef) ([]byte, error)
+
+	// GetTopicMetadata returns ErrStreamTopicNotFound for a topic that doesn't exist.
+	GetTopicMetadata(ctx context.Context, tenantId uuid.UUID, namespace, topic string) (*StreamTopicMetadata, error)
 
 	// CheckCursorRetained returns a *StreamCursorExpiredError if cursor is
 	// older than the tenant's retention or the oldest partition.
@@ -206,6 +257,11 @@ type TenantStreamMessage struct {
 }
 
 func (r *streamsRepositoryImpl) InsertOrderedStreamMessages(ctx context.Context, msgs []TenantStreamMessage) ([]OrderedStreamMessageResult, error) {
+	return r.insertOrderedStreamMessages(ctx, msgs, time.Now().Add(-streamPayloadCopyAge))
+}
+
+// insertOrderedStreamMessages copies the payloads of stored messages uploaded before copyBefore.
+func (r *streamsRepositoryImpl) insertOrderedStreamMessages(ctx context.Context, msgs []TenantStreamMessage, copyBefore time.Time) ([]OrderedStreamMessageResult, error) {
 	for i := range msgs {
 		if err := r.v.Validate(&msgs[i].Opts); err != nil {
 			return nil, err
@@ -238,6 +294,11 @@ func (r *streamsRepositoryImpl) InsertOrderedStreamMessages(ctx context.Context,
 	for i, idx := range order {
 		m := msgs[idx]
 
+		// pgx sends a nil slice as NULL, and a referenced payload's own payload is empty
+		if m.Opts.Payload == nil {
+			m.Opts.Payload = []byte{}
+		}
+
 		params[i] = sqlcv1.InsertOrderedStreamMessageParams{
 			Tenantid:        m.TenantID,
 			Namespace:       m.Opts.Namespace,
@@ -247,6 +308,11 @@ func (r *streamsRepositoryImpl) InsertOrderedStreamMessages(ctx context.Context,
 			Producerseq:     m.Opts.ProducerSeq,
 			Expectedprevseq: m.Opts.ProducerSeq - 1,
 			Minbucket:       minBucket,
+		}
+
+		if ref := m.Opts.PayloadRef; ref != nil {
+			params[i].PayloadId = &ref.ID
+			params[i].PayloadInsertedAt = pgtype.Timestamptz{Time: ref.CreatedAt, Valid: true}
 		}
 
 	}
@@ -314,6 +380,19 @@ func (r *streamsRepositoryImpl) InsertOrderedStreamMessages(ctx context.Context,
 			return batchErr
 		}
 
+		// only stored messages get a copy, so a rejected publish can't leave one behind
+		for i, p := range params {
+			ref := msgs[order[i]].Opts.PayloadRef
+
+			if ref == nil || !ref.CreatedAt.Before(copyBefore) || !results[order[i]].Inserted {
+				continue
+			}
+
+			if err := r.copyPayloadForMessage(ctx, tx, p, *ref); err != nil {
+				return err
+			}
+		}
+
 		return commit(ctx)
 	}()
 
@@ -322,6 +401,37 @@ func (r *streamsRepositoryImpl) InsertOrderedStreamMessages(ctx context.Context,
 	}
 
 	return results, nil
+}
+
+// copyPayloadForMessage runs in the publishing transaction, so the copy and the
+// message share an inserted_at and therefore a partition hour.
+func (r *streamsRepositoryImpl) copyPayloadForMessage(ctx context.Context, tx sqlcv1.DBTX, msg sqlcv1.InsertOrderedStreamMessageParams, ref StreamPayloadRef) error {
+	copyID := uuid.New()
+
+	insertedAt, err := r.queries.CopyStreamPayload(ctx, tx, sqlcv1.CopyStreamPayloadParams{
+		Newid:      copyID,
+		Tenantid:   msg.Tenantid,
+		ID:         ref.ID,
+		Insertedat: pgtype.Timestamptz{Time: ref.CreatedAt, Valid: true},
+	})
+
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrStreamPayloadNotFound
+	}
+
+	if err != nil {
+		return err
+	}
+
+	return r.queries.SetStreamMessagePayloadRef(ctx, tx, sqlcv1.SetStreamMessagePayloadRefParams{
+		Payloadid:         copyID,
+		Payloadinsertedat: insertedAt,
+		Tenantid:          msg.Tenantid,
+		Namespace:         msg.Namespace,
+		Topic:             msg.Topic,
+		ID:                msg.Messageoffset,
+		Insertedat:        insertedAt,
+	})
 }
 
 func (r *streamsRepositoryImpl) ListMessagesAfterCursor(ctx context.Context, tenantId uuid.UUID, opts ListStreamMessagesOpts) ([]*sqlcv1.V1StreamMessage, error) {
@@ -352,6 +462,101 @@ func (r *streamsRepositoryImpl) ListMessagesAfterCursor(ctx context.Context, ten
 		Limit:    limit,
 		Maxbytes: MaxListStreamMessagesBytes,
 	})
+}
+
+func (r *streamsRepositoryImpl) InsertStreamPayload(ctx context.Context, tenantId uuid.UUID, payload []byte) (StreamPayloadRef, error) {
+	if len(payload) == 0 {
+		return StreamPayloadRef{}, errors.New("payload is required")
+	}
+
+	if len(payload) > MaxStreamUploadedPayloadBytes {
+		return StreamPayloadRef{}, fmt.Errorf("payload exceeds maximum size of %d bytes", MaxStreamUploadedPayloadBytes)
+	}
+
+	id := uuid.New()
+
+	insertedAt, err := r.queries.InsertStreamPayload(ctx, r.pool, sqlcv1.InsertStreamPayloadParams{
+		ID:       id,
+		Tenantid: tenantId,
+		Payload:  payload,
+	})
+
+	if err != nil {
+		return StreamPayloadRef{}, err
+	}
+
+	return StreamPayloadRef{ID: id, CreatedAt: insertedAt.Time}, nil
+}
+
+func (r *streamsRepositoryImpl) CheckStreamPayloadExists(ctx context.Context, tenantId uuid.UUID, ref StreamPayloadRef) error {
+	exists, err := r.queries.StreamPayloadExists(ctx, r.pool, sqlcv1.StreamPayloadExistsParams{
+		Tenantid:   tenantId,
+		ID:         ref.ID,
+		Insertedat: pgtype.Timestamptz{Time: ref.CreatedAt, Valid: true},
+	})
+
+	if err != nil {
+		return err
+	}
+
+	if !exists {
+		return ErrStreamPayloadNotFound
+	}
+
+	return nil
+}
+
+func (r *streamsRepositoryImpl) GetStreamPayload(ctx context.Context, tenantId uuid.UUID, ref StreamPayloadRef) ([]byte, error) {
+	retention, err := r.m.StreamRetention(ctx, tenantId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	payload, err := r.queries.GetStreamPayload(ctx, r.pool, sqlcv1.GetStreamPayloadParams{
+		Tenantid:   tenantId,
+		ID:         ref.ID,
+		Insertedat: pgtype.Timestamptz{Time: ref.CreatedAt, Valid: true},
+		// a payload predates its message, so it's kept past the message's retention
+		Retainedsince: pgtype.Timestamptz{Time: time.Now().Add(-retention - StreamPayloadRetentionGrace), Valid: true},
+	})
+
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrStreamPayloadNotFound
+	}
+
+	return payload, err
+}
+
+func (r *streamsRepositoryImpl) GetTopicMetadata(ctx context.Context, tenantId uuid.UUID, namespace, topic string) (*StreamTopicMetadata, error) {
+	retention, err := r.m.StreamRetention(ctx, tenantId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	row, err := r.queries.GetStreamTopicMetadata(ctx, r.pool, sqlcv1.GetStreamTopicMetadataParams{
+		Tenantid:      tenantId,
+		Namespace:     namespace,
+		Topic:         topic,
+		Retainedsince: pgtype.Timestamptz{Time: time.Now().Add(-retention), Valid: true},
+	})
+
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrStreamTopicNotFound
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	md := &StreamTopicMetadata{MessageCount: row.MessageCount}
+
+	if row.LatestID > 0 {
+		md.LatestCursor = &StreamCursor{Namespace: namespace, Topic: topic, CreatedAt: row.LatestInsertedAt.Time, ID: row.LatestID}
+	}
+
+	return md, nil
 }
 
 func (r *streamsRepositoryImpl) CheckCursorRetained(ctx context.Context, tenantId uuid.UUID, cursor StreamCursor) error {

@@ -51,3 +51,40 @@ Parameters
 Returns
 
 `Promise`\<`void`\>
+
+<a id="topicmetadata"></a>
+
+##### `topicMetadata()`
+
+Describes topic's retained messages. Rejects with a NOT_FOUND gRPC error
+for a topic nothing was published to.
+
+Parameters
+
+| Parameter  | Type                                         | Description                 |
+| ---------- | -------------------------------------------- | --------------------------- |
+| `topic`    | `string`                                     | the topic to describe       |
+| `options?` | `Pick`\<`StreamCallOptions`, `"namespace"`\> | optional namespace override |
+
+Returns
+
+`Promise`\<[`StreamTopicMetadata`](#streamtopicmetadata)\>
+
+## Type Aliases
+
+<a id="streamtopicmetadata"></a>
+
+### StreamTopicMetadata
+
+```ts
+type StreamTopicMetadata = object;
+```
+
+Covers only messages within the tenant's retention.
+
+Properties
+
+| Property                                        | Type     | Description                                                                         |
+| ----------------------------------------------- | -------- | ----------------------------------------------------------------------------------- |
+| <a id="lastpublishedat"></a> `lastPublishedAt?` | `Date`   | when the newest retained message was stored; undefined when none is retained        |
+| <a id="latestcursor"></a> `latestCursor?`       | `string` | resumes events() after the newest retained message; undefined when none is retained |

@@ -13,7 +13,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-func TestIsDurableStreamsEnabled(t *testing.T) {
+func TestHasEntitlement(t *testing.T) {
 	pool, cleanup := setupPostgresWithMigration(t)
 	defer cleanup()
 
@@ -22,7 +22,7 @@ func TestIsDurableStreamsEnabled(t *testing.T) {
 	repo := newTenantEntitlementRepository(&sharedRepository{pool: pool, l: &logger, queries: sqlcv1.New()})
 	tenantID := createLimitTestTenant(t, pool)
 
-	enabled, err := repo.IsDurableStreamsEnabled(ctx, tenantID)
+	enabled, err := repo.HasEntitlement(ctx, tenantID, EntitlementDurableStreams)
 	require.NoError(t, err)
 	assert.False(t, enabled, "tenants without an entitlement row aren't entitled")
 
@@ -33,11 +33,18 @@ func TestIsDurableStreamsEnabled(t *testing.T) {
 	want := TenantEntitlements{DurableStreams: true, DAGOperator: true}
 	require.NoError(t, repo.SetEntitlements(ctx, tenantID, want))
 
-	enabled, err = repo.IsDurableStreamsEnabled(ctx, tenantID)
+	enabled, err = repo.HasEntitlement(ctx, tenantID, EntitlementDurableStreams)
 	require.NoError(t, err)
 	assert.True(t, enabled)
+
+	enabled, err = repo.HasEntitlement(ctx, tenantID, EntitlementAuditLogs)
+	require.NoError(t, err)
+	assert.False(t, enabled)
 
 	got, err := repo.GetEntitlements(ctx, tenantID)
 	require.NoError(t, err)
 	assert.Equal(t, want, got)
+
+	_, err = repo.HasEntitlement(ctx, tenantID, Entitlement("nope"))
+	assert.Error(t, err)
 }

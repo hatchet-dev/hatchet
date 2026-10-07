@@ -33,6 +33,7 @@ var memberOnlyOps = []string{
 	"WorkflowScheduledBulkUpdate",
 	"SnsCreate",
 	"V1TaskCancel",
+	"V1StreamPayloadUpload",
 	"V1WebhookDelete",
 	"V1WebhookUpdate",
 	"CronWorkflowTriggerCreate",

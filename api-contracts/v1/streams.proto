@@ -9,6 +9,7 @@ import "google/protobuf/timestamp.proto";
 service V1Streams {
     rpc Publish(PublishStreamMessageRequest) returns (PublishStreamMessageResponse) {}
     rpc Subscribe(SubscribeStreamRequest) returns (stream StreamMessage) {}
+    rpc GetTopicMetadata(GetStreamTopicMetadataRequest) returns (StreamTopicMetadata) {}
 }
 
 message PublishStreamMessageRequest {
@@ -17,6 +18,9 @@ message PublishStreamMessageRequest {
     bytes payload = 3;
     string producer_id = 4;
     int64 producer_seq = 5;
+    // instead of payload: a ref returned by the stream payload upload endpoint,
+    // for payloads too large for one gRPC message
+    string payload_ref = 6;
 }
 
 message PublishStreamMessageResponse {}
@@ -37,4 +41,23 @@ message StreamEntry {
     bytes payload = 1;
     string cursor = 2;
     google.protobuf.Timestamp created_at = 3;
+    // instead of payload: fetch it from the stream payload endpoint by this ref
+    string payload_ref = 4;
+}
+
+message GetStreamTopicMetadataRequest {
+    string namespace = 1;
+    string topic = 2;
+}
+
+// Counts and the latest message cover only what's within the tenant's retention.
+message StreamTopicMetadata {
+    string namespace = 1;
+    string topic = 2;
+    string tenant_id = 3;
+    // resumes a subscription after the newest retained message; unset when none is retained
+    optional string latest_cursor = 4;
+    int64 message_count = 5;
+    // when the newest retained message was stored; unset when none is retained
+    google.protobuf.Timestamp last_published_at = 6;
 }
