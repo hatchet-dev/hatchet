@@ -73,8 +73,9 @@ type Scheduler struct {
 	// and paying a full queue poll interval.
 	afterReplenish []func()
 
-	// notifyReplenishCh wakes loopReplenish for a heuristic replenish when an
-	// assignment miss records a new starvation entry (see markActionStarved).
+	// notifyReplenishCh wakes loopReplenish for a heuristic replenish: when an
+	// assignment miss records a new starvation entry (see markActionStarved),
+	// when slots are released, and when worker or batch leases change.
 	// One buffered slot, so requests that arrive while one is pending coalesce
 	// into it.
 	notifyReplenishCh chan struct{}
@@ -397,13 +398,6 @@ func (s *Scheduler) endReplenishCycle() {
 // pools. All database reads run outside the run loop, so assignment continues
 // while they are in flight.
 func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
-	return s.runReplenish(ctx, mustReplenish, false)
-}
-
-// runReplenish is replenish. With rerequestIfBusy, a cycle skipped because
-// another is in flight calls notifyReplenish once that one ends, so a request
-// is never served only by a cycle that started before it.
-func (s *Scheduler) runReplenish(ctx context.Context, mustReplenish, rerequestIfBusy bool) error {
 	ctx, span := telemetry.NewSpan(ctx, "replenish")
 	defer span.End()
 
@@ -421,11 +415,6 @@ func (s *Scheduler) runReplenish(ctx context.Context, mustReplenish, rerequestIf
 	if ok := s.do(ctx, func() {
 		if s.replenishing {
 			skipped = true
-
-			if rerequestIfBusy {
-				s.afterReplenish = append(s.afterReplenish, s.notifyReplenish)
-			}
-
 			return
 		}
 
@@ -802,50 +791,30 @@ func (s *Scheduler) runReplenish(ctx context.Context, mustReplenish, rerequestIf
 }
 
 // loopReplenish runs a forced replenish on a 1 to 1.5 s ticker and a
-// heuristic one on demand (notifyReplenish), requested by assignment misses
-// (markActionStarved) and slot-released wake-ups (Pool.Replenish). Requests
-// coalesce in notifyReplenishCh. A forced cycle does everything a heuristic one
-// does, so a tick also clears the pending request; a request made while a cycle
-// runs gets one more cycle after it.
+// heuristic one on demand (notifyReplenish). It is the only caller of
+// replenish outside tests, so cycles never overlap: requests coalesce in
+// notifyReplenishCh, and one made while a cycle runs gets the next cycle.
 func (s *Scheduler) loopReplenish(ctx context.Context) {
 	ticker := randomticker.NewRandomTicker(s.replenishTickerMin, s.replenishTickerMax)
 	defer ticker.Stop()
 
-	run := func(mustReplenish, rerequestIfBusy bool) {
+	run := func(mustReplenish bool) {
 		innerCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 		defer cancel()
 
-		if err := s.runReplenish(innerCtx, mustReplenish, rerequestIfBusy); err != nil {
+		if err := s.replenish(innerCtx, mustReplenish); err != nil {
 			s.l.Error().Ctx(ctx).Err(err).Msg("error replenishing slots")
 		}
 	}
-
-	// the ticker drops ticks while a cycle runs, so under a steady stream of
-	// requests one of them is upgraded to a forced cycle at the tick interval
-	lastForced := time.Now()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			// a request taken here must still get a cycle if this one is skipped
-			requested := false
-			select {
-			case <-s.notifyReplenishCh:
-				requested = true
-			default:
-			}
-
-			lastForced = time.Now()
-			run(true, requested)
+			run(true)
 		case <-s.notifyReplenishCh:
-			forced := time.Since(lastForced) > s.replenishTickerMax
-			if forced {
-				lastForced = time.Now()
-			}
-
-			run(forced, true)
+			run(false)
 		}
 	}
 }

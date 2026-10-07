@@ -85,44 +85,6 @@ func TestScheduler_RequestReplenishDoesNotWaitForCycle(t *testing.T) {
 	assert.EqualValues(t, 2, cycles.Load())
 }
 
-func TestScheduler_RequestReplenishDuringSyncReplenishGetsFollowUp(t *testing.T) {
-	var cycles atomic.Int64
-	release, closeRelease := newRelease(t)
-
-	s := newTestScheduler(t, uuid.New(), &mockAssignmentRepo{
-		listActionsForWorkersFn: func(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListActionsForWorkersRow, error) {
-			if cycles.Add(1) == 1 {
-				select {
-				case <-release:
-				case <-ctx.Done():
-				}
-			}
-			return nil, nil
-		},
-	})
-	startReplenishLoop(t, s)
-
-	// a synchronous cycle, as the worker and batch lease paths run, holds the
-	// replenishing flag
-	syncDone := make(chan error, 1)
-	go func() { syncDone <- s.replenish(context.Background(), false) }()
-	require.Eventually(t, func() bool { return cycles.Load() == 1 }, time.Second, time.Millisecond)
-
-	// the request-driven cycle finds it in flight and is skipped
-	s.notifyReplenish()
-	require.Eventually(t, func() bool {
-		parked := 0
-		onLoop(t, s, func() { parked = len(s.afterReplenish) })
-		return parked == 1
-	}, time.Second, time.Millisecond)
-
-	closeRelease()
-	require.NoError(t, <-syncDone)
-
-	// once the synchronous cycle ends, the skipped request runs its own cycle
-	require.Eventually(t, func() bool { return cycles.Load() == 2 }, 500*time.Millisecond, time.Millisecond)
-}
-
 func TestScheduler_RequestReplenishMergesBurstAndServesLastRequest(t *testing.T) {
 	const (
 		cycleTime = 20 * time.Millisecond
