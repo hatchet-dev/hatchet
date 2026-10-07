@@ -114,6 +114,7 @@ import {
   V1ReplayedTasks,
   V1RestoreTaskResponse,
   V1RunningFilter,
+  V1StreamPayloadRef,
   V1TaskEventList,
   V1TaskPointMetrics,
   V1TaskRunMetrics,
@@ -695,6 +696,58 @@ export class Api<
       ...params,
       xResources: ["tenant", "durable-task"],
     }), { resources: new Set<string>(["tenant", "durable-task"]) });
+  /**
+   * @description Get a durable stream payload uploaded ahead of its publish, by the payload_ref of the message that references it.
+   *
+   * @tags Streams
+   * @name V1StreamPayloadGet
+   * @summary Get stream payload
+   * @request GET:/api/v1/stable/tenants/{tenant}/streams/payloads
+   * @secure
+   */
+  v1StreamPayloadGet = Object.assign((
+    tenant: string,
+    query: {
+      /** The payload_ref of the stream message */
+      ref: string;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<File, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/streams/payloads`,
+      method: "GET",
+      query: query,
+      secure: true,
+      ...params,
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
+  /**
+   * @description Upload a payload too large for a gRPC publish, then publish the message with the returned ref as its payload_ref.
+   *
+   * @tags Streams
+   * @name V1StreamPayloadUpload
+   * @summary Upload stream payload
+   * @request POST:/api/v1/stable/tenants/{tenant}/streams/payloads
+   * @secure
+   */
+  v1StreamPayloadUpload = Object.assign((
+    tenant: string,
+    data: {
+      /** @format binary */
+      payload: File;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<V1StreamPayloadRef, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/streams/payloads`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.FormData,
+      format: "json",
+      ...params,
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Get a workflow run and its metadata to display on the "detail" page
    *

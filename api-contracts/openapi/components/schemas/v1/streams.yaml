@@ -1,0 +1,8 @@
+V1StreamPayloadRef:
+  properties:
+    ref:
+      type: string
+      description: Publish the message with this as its payload_ref
+  required:
+    - ref
+  type: object
