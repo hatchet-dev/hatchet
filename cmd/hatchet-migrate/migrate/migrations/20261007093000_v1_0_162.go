@@ -11,21 +11,21 @@ import (
 )
 
 func init() {
-	goose.AddMigrationNoTxContext(upV10159, downV10159)
+	goose.AddMigrationNoTxContext(upV10162, downV10162)
 }
 
 const (
-	v10159ParentIndex = "ix_v1_runs_olap_tenant_ins_at_status"
-	v10159Columns     = "(tenant_id, inserted_at DESC, readable_status)"
+	v10162ParentIndex = "ix_v1_runs_olap_tenant_ins_at_status"
+	v10162Columns     = "(tenant_id, inserted_at DESC, readable_status)"
 )
 
-func v10159IndexName(partition string) string {
+func v10162IndexName(partition string) string {
 	return fmt.Sprintf("ix_%s_tenant_ins_at_status", partition)
 }
 
-// upV10159 drops ix_v1_runs_olap_tenant_ins_at_status. ix_v1_runs_olap_tenant_ins_at_status_wf leads with the same
+// upV10162 drops ix_v1_runs_olap_tenant_ins_at_status. ix_v1_runs_olap_tenant_ins_at_status_wf leads with the same
 // columns in the same order, so it serves tenant, insertion-time and status queries.
-func upV10159(ctx context.Context, db *sql.DB) error {
+func upV10162(ctx context.Context, db *sql.DB) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
@@ -38,21 +38,21 @@ func upV10159(ctx context.Context, db *sql.DB) error {
 	stmts := []string{
 		`SET LOCAL lock_timeout = '5s'`,
 		`SET LOCAL statement_timeout = '15s'`,
-		fmt.Sprintf(`DROP INDEX IF EXISTS %s`, quoteIdent(v10159ParentIndex)),
+		fmt.Sprintf(`DROP INDEX IF EXISTS %s`, quoteIdent(v10162ParentIndex)),
 	}
 
 	for _, stmt := range stmts {
 		if _, err := tx.ExecContext(ctx, stmt); err != nil {
-			return fmt.Errorf("failed to drop %s: %w", v10159ParentIndex, err)
+			return fmt.Errorf("failed to drop %s: %w", v10162ParentIndex, err)
 		}
 	}
 
 	return tx.Commit()
 }
 
-// downV10159 builds the index CONCURRENTLY on each partition, then creates the parent index, which attaches them,
+// downV10162 builds the index CONCURRENTLY on each partition, then creates the parent index, which attaches them,
 // so a rollback does not block writes to v1_runs_olap for the length of the build.
-func downV10159(ctx context.Context, db *sql.DB) error {
+func downV10162(ctx context.Context, db *sql.DB) error {
 	partitions, err := listLeafPartitions(ctx, db, "v1_runs_olap", 1)
 	if err != nil {
 		return err
@@ -67,7 +67,7 @@ func downV10159(ctx context.Context, db *sql.DB) error {
 	// Session settings would otherwise stay on the pooled connection for later migrations.
 	defer func() {
 		if _, err := conn.ExecContext(context.Background(), `RESET statement_timeout; RESET lock_timeout;`); err != nil {
-			log.Printf("v1_0_159: failed to reset session settings: %v", err)
+			log.Printf("v1_0_162: failed to reset session settings: %v", err)
 		}
 	}()
 
@@ -77,7 +77,7 @@ func downV10159(ctx context.Context, db *sql.DB) error {
 	}
 
 	for i, partition := range partitions {
-		indexName := v10159IndexName(partition)
+		indexName := v10162IndexName(partition)
 
 		valid, err := indexIsValid(ctx, db, indexName)
 		if err != nil {
@@ -88,7 +88,7 @@ func downV10159(ctx context.Context, db *sql.DB) error {
 			continue
 		}
 
-		log.Printf("v1_0_159: building %s (partition %d/%d)", indexName, i+1, len(partitions))
+		log.Printf("v1_0_162: building %s (partition %d/%d)", indexName, i+1, len(partitions))
 		start := time.Now()
 
 		if _, err := conn.ExecContext(ctx, fmt.Sprintf(`DROP INDEX CONCURRENTLY IF EXISTS %s;`, quoteIdent(indexName))); err != nil {
@@ -99,14 +99,14 @@ func downV10159(ctx context.Context, db *sql.DB) error {
 			`CREATE INDEX CONCURRENTLY %s ON %s %s;`,
 			quoteIdent(indexName),
 			quoteIdent(partition),
-			v10159Columns,
+			v10162Columns,
 		)
 
 		if _, err := conn.ExecContext(ctx, stmt); err != nil {
 			return fmt.Errorf("failed to create index concurrently on %s: %w", partition, err)
 		}
 
-		log.Printf("v1_0_159: built %s in %s", indexName, time.Since(start).Round(time.Second))
+		log.Printf("v1_0_162: built %s in %s", indexName, time.Since(start).Round(time.Second))
 	}
 
 	// The parent create takes SHARE locks on v1_runs_olap, so waiting behind a long transaction would queue every
@@ -115,7 +115,7 @@ func downV10159(ctx context.Context, db *sql.DB) error {
 		return fmt.Errorf("failed to set lock_timeout: %w", err)
 	}
 
-	stmt := fmt.Sprintf(`CREATE INDEX IF NOT EXISTS %s ON v1_runs_olap %s;`, quoteIdent(v10159ParentIndex), v10159Columns)
+	stmt := fmt.Sprintf(`CREATE INDEX IF NOT EXISTS %s ON v1_runs_olap %s;`, quoteIdent(v10162ParentIndex), v10162Columns)
 
 	if _, err := conn.ExecContext(ctx, stmt); err != nil {
 		return fmt.Errorf("failed to create index on %s: %w", "v1_runs_olap", err)
