@@ -564,15 +564,12 @@ export class InternalWorker {
     }
   }
 
-  private warnedRetryAfterActions = new Set<string>();
-
   private retryAfterMs(error: unknown, actionId: string): number | undefined {
     if (!(error instanceof RetryAfterError)) {
       return undefined;
     }
 
-    if (!supportsRetryAfter(this.engineVersion) && !this.warnedRetryAfterActions.has(actionId)) {
-      this.warnedRetryAfterActions.add(actionId);
+    if (!supportsRetryAfter(this.engineVersion)) {
       this.logger.warn(
         `RetryAfterError requires engine >= ${MinEngineVersion.RETRY_AFTER} ` +
           `(connected: ${this.engineVersion ?? 'unknown'}). Task ${actionId} threw it, so the engine ` +

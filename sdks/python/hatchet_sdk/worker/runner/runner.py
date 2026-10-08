@@ -180,7 +180,6 @@ class Runner:
             engine_version
             and not semver_less_than(engine_version, MinEngineVersion.RETRY_AFTER)
         )
-        self._warned_retry_after_actions: set[str] = set()
 
         self.durable_event_listener: (
             DurableEventListener | PreEvictionDurableEventListener | None
@@ -295,11 +294,7 @@ class Runner:
         if not isinstance(e, RetryAfterException):
             return None
 
-        if (
-            not self._supports_retry_after
-            and action_id not in self._warned_retry_after_actions
-        ):
-            self._warned_retry_after_actions.add(action_id)
+        if not self._supports_retry_after:
             logger.warning(
                 f"RetryAfterException requires engine >= {MinEngineVersion.RETRY_AFTER.value} "
                 f"(connected: {self.engine_version or 'unknown'}). Task {action_id} raised it, so the engine "
@@ -975,14 +970,16 @@ class Runner:
         # This matches the literal "\u0000" preceded by an odd number of backslashes, rejecting payloads
         # that will decode to the null char.
         if re.search(r"(?<!\\)(\\\\)*\\u0000", serialized_output):
-            raise IllegalTaskOutputError(dedent(f"""
+            raise IllegalTaskOutputError(
+                dedent(f"""
                 Task outputs cannot contain the unicode null character \\u0000
 
                 Please see this Discord thread: https://discord.com/channels/1088927970518909068/1384324576166678710/1386714014565928992
                 Relevant Postgres documentation: https://www.postgresql.org/docs/current/datatype-json.html
 
                 Use `hatchet_sdk.{remove_null_unicode_character.__name__}` to sanitize your output if you'd like to remove the character.
-                """))
+                """)
+            )
 
         return serialized_output
 

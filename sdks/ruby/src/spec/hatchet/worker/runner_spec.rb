@@ -97,12 +97,12 @@ RSpec.describe Hatchet::WorkerRuntime::Runner do
       )
     end
 
-    it "warns once per action on an engine that ignores the delay" do
+    it "warns on every failure on an engine that ignores the delay" do
       old_runner = runner_for("v0.110.0")
 
       2.times { old_runner.send(:warn_retry_after_unsupported, action) }
 
-      expect(logger).to have_received(:warn).with(/RetryAfterError requires engine/).once
+      expect(logger).to have_received(:warn).with(/RetryAfterError requires engine/).twice
     ensure
       old_runner&.send(:stop_step_action_event_thread)
     end

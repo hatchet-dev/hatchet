@@ -62,7 +62,6 @@ module Hatchet
         @client = client
         @engine_version = engine_version
         @worker_id = worker_id
-        @warned_retry_after_actions = Concurrent::Map.new
 
         @pool = Concurrent::FixedThreadPool.new(slots)
         @semaphore = Concurrent::Semaphore.new(slots)
@@ -554,7 +553,6 @@ module Hatchet
 
       def warn_retry_after_unsupported(action)
         return if @engine_version && !EngineVersion.semver_less_than?(@engine_version, MinEngineVersion::RETRY_AFTER)
-        return unless @warned_retry_after_actions.put_if_absent(action.action_id, true).nil?
 
         @logger.warn(
           "RetryAfterError requires engine #{MinEngineVersion::RETRY_AFTER} or newer " \

@@ -181,9 +181,6 @@ type Worker struct {
 	// engineVersion is resolved at start; empty when the engine does not report one.
 	engineVersion string
 
-	// warnedRetryAfterActions holds the action IDs already warned about an engine that ignores RetryAfterError.
-	warnedRetryAfterActions sync.Map
-
 	hasDurable bool
 	logger     *zerolog.Logger
 }
@@ -556,7 +553,7 @@ func (w *Worker) checkEvictionSupport(ctx context.Context) error {
 	return nil
 }
 
-// warnUnsupportedRetryAfter logs once per task when it returns a RetryAfterError to an engine that ignores the delay.
+// warnUnsupportedRetryAfter logs when a task returns a RetryAfterError to an engine that ignores the delay.
 func (w *Worker) warnUnsupportedRetryAfter(ctx worker.HatchetContext, next func(worker.HatchetContext) error) error {
 	err := next(ctx)
 
@@ -564,15 +561,11 @@ func (w *Worker) warnUnsupportedRetryAfter(ctx worker.HatchetContext, next func(
 		return err
 	}
 
-	actionID := ctx.ActionId()
-
-	if _, warned := w.warnedRetryAfterActions.LoadOrStore(actionID, struct{}{}); !warned {
-		w.logger.Warn().
-			Str("engine_version", w.engineVersion).
-			Str("required_version", MinEngineVersion.RetryAfter).
-			Str("action", actionID).
-			Msg("engine does not support RetryAfterError; the failure is handled by the task's retry policy instead of the requested delay")
-	}
+	w.logger.Warn().
+		Str("engine_version", w.engineVersion).
+		Str("required_version", MinEngineVersion.RetryAfter).
+		Str("action", ctx.ActionId()).
+		Msg("engine does not support RetryAfterError; the failure is handled by the task's retry policy instead of the requested delay")
 
 	return err
 }
