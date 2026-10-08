@@ -9,16 +9,17 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 const (
 	// stuckEvictedOrchestratorGrace is how long a durable orchestrator's runtime must have been
-	// evicted, with every durable event log entry satisfied, before this sweep restores it.
+	// evicted, with every durable event log entry satisfied, before this pass restores it.
 	// Generous so it never races a normal callback-driven restore.
 	stuckEvictedOrchestratorGrace = 5 * time.Minute
 
-	stuckEvictedOrchestratorBatch = 200
+	evictedTaskRuntimeWindowSize = 2000
 )
 
 // processStuckEvictedDurableOrchestrators restores DAG-orchestrator durable tasks that were
@@ -37,16 +38,25 @@ func (tc *TasksControllerImpl) processStuckEvictedDurableOrchestrators(ctx conte
 		return false, fmt.Errorf("invalid tenant id %q: %w", tenantId, err)
 	}
 
-	rows, err := tc.repov1.Tasks().ListStuckEvictedDurableOrchestrators(ctx, tenantIdUUID, stuckEvictedOrchestratorGrace, stuckEvictedOrchestratorBatch)
+	cursor, _ := tc.evictedTaskRuntimeCursors.Load(tenantIdUUID)
+
+	rows, err := tc.repov1.Tasks().ListEvictedTaskRuntimeWindow(ctx, tenantIdUUID, cursor, stuckEvictedOrchestratorGrace, evictedTaskRuntimeWindowSize)
+
 	if err != nil {
-		return false, fmt.Errorf("could not list stuck evicted durable orchestrators for tenant %s: %w", tenantId, err)
+		return false, fmt.Errorf("could not list evicted task runtime window for tenant %s: %w", tenantId, err)
 	}
 
-	if len(rows) == 0 {
-		return false, nil
+	if len(rows) < evictedTaskRuntimeWindowSize {
+		tc.evictedTaskRuntimeCursors.Delete(tenantIdUUID)
+	} else {
+		tc.evictedTaskRuntimeCursors.Store(tenantIdUUID, v1.EvictedTaskRuntimeCursorFromRow(rows[len(rows)-1]))
 	}
 
 	for _, row := range rows {
+		if !row.IsStuckDurableOrchestrator {
+			continue
+		}
+
 		msg, err := tasktypes.DurableRestoreTaskMessage(
 			tenantIdUUID,
 			row.ExternalID,

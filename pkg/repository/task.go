@@ -337,7 +337,7 @@ type TaskRepository interface {
 
 	RestoreEvictedTasks(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) ([]*sqlcv1.RestoreEvictedTasksRow, error)
 
-	ListStuckEvictedDurableOrchestrators(ctx context.Context, tenantId uuid.UUID, grace time.Duration, maxTasks int32) ([]*sqlcv1.ListStuckEvictedDurableOrchestratorsRow, error)
+	ListEvictedTaskRuntimeWindow(ctx context.Context, tenantId uuid.UUID, after EvictedTaskRuntimeCursor, grace time.Duration, windowSize int32) ([]*sqlcv1.ListEvictedTaskRuntimeWindowRow, error)
 
 	ListSignalCompletedEvents(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtSignalKey) ([]*V1TaskEventWithPayload, error)
 
@@ -2139,14 +2139,34 @@ func (r *TaskRepositoryImpl) RestoreEvictedTasks(ctx context.Context, tenantId u
 	return rows, nil
 }
 
-func (r *TaskRepositoryImpl) ListStuckEvictedDurableOrchestrators(ctx context.Context, tenantId uuid.UUID, grace time.Duration, maxTasks int32) ([]*sqlcv1.ListStuckEvictedDurableOrchestratorsRow, error) {
-	return r.queries.ListStuckEvictedDurableOrchestrators(ctx, r.pool, sqlcv1.ListStuckEvictedDurableOrchestratorsParams{
+type EvictedTaskRuntimeCursor struct {
+	EvictedAt      time.Time
+	TaskID         int64
+	TaskInsertedAt time.Time
+	RetryCount     int32
+}
+
+func EvictedTaskRuntimeCursorFromRow(row *sqlcv1.ListEvictedTaskRuntimeWindowRow) EvictedTaskRuntimeCursor {
+	return EvictedTaskRuntimeCursor{
+		EvictedAt:      row.EvictedAt.Time,
+		TaskID:         row.ID,
+		TaskInsertedAt: row.InsertedAt.Time,
+		RetryCount:     row.RetryCount,
+	}
+}
+
+func (r *TaskRepositoryImpl) ListEvictedTaskRuntimeWindow(ctx context.Context, tenantId uuid.UUID, after EvictedTaskRuntimeCursor, grace time.Duration, windowSize int32) ([]*sqlcv1.ListEvictedTaskRuntimeWindowRow, error) {
+	return r.queries.ListEvictedTaskRuntimeWindow(ctx, r.pool, sqlcv1.ListEvictedTaskRuntimeWindowParams{
 		Tenantid: tenantId,
 		Graceperiod: pgtype.Interval{
 			Microseconds: grace.Microseconds(),
 			Valid:        true,
 		},
-		Maxtasks: maxTasks,
+		Afterevictedat:      sqlchelpers.TimestamptzFromTime(after.EvictedAt),
+		Aftertaskid:         after.TaskID,
+		Aftertaskinsertedat: sqlchelpers.TimestamptzFromTime(after.TaskInsertedAt),
+		Afterretrycount:     after.RetryCount,
+		Windowsize:          windowSize,
 	})
 }
 
