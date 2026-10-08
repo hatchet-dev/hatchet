@@ -16,16 +16,14 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-// measureHeap returns the live heap bytes retained by building the index via fn(n).
+// measureHeap returns the live heap retained by an index of n slots.
 func measureHeap(t *testing.T, n int, trackTimeouts bool) int64 {
 	t.Helper()
 
 	now := time.Now().UTC()
 	timeout := now.Add(time.Hour)
 
-	runtime.GC()
-	var before runtime.MemStats
-	runtime.ReadMemStats(&before)
+	before := liveHeap()
 
 	idx := newInMemorySlotIndex(trackTimeouts)
 	for i := 0; i < n; i++ {
@@ -38,12 +36,9 @@ func measureHeap(t *testing.T, n int, trackTimeouts bool) int64 {
 		})
 	}
 
-	runtime.GC()
-	var after runtime.MemStats
-	runtime.ReadMemStats(&after)
-
+	after := liveHeap()
 	runtime.KeepAlive(idx)
-	return int64(after.HeapAlloc) - int64(before.HeapAlloc)
+	return after - before
 }
 
 // measureSingleHeap builds one heap + one taskId->index map of n elements, storing either slot
@@ -57,9 +52,7 @@ func measureSingleHeap(t *testing.T, n int, usePointers bool) int64 {
 		return slot{priority: int32(i % 100), taskId: int64(i), taskInsertedAtNs: now.UnixNano(), scheduleTimeoutAtMs: timeout.UnixMilli()}
 	}
 
-	runtime.GC()
-	var before runtime.MemStats
-	runtime.ReadMemStats(&before)
+	before := liveHeap()
 
 	var keep any
 	if usePointers {
@@ -97,12 +90,9 @@ func measureSingleHeap(t *testing.T, n int, usePointers bool) int64 {
 		keep = h
 	}
 
-	runtime.GC()
-	var after runtime.MemStats
-	runtime.ReadMemStats(&after)
-
+	after := liveHeap()
 	runtime.KeepAlive(keep)
-	return int64(after.HeapAlloc) - int64(before.HeapAlloc)
+	return after - before
 }
 
 func TestSlotPointerVsValue(t *testing.T) {
