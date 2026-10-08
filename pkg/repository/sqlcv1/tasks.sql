@@ -408,7 +408,8 @@ RETURNING
 -- Fails a task due to an application-level error with a task-requested delay before its next attempt.
 -- These retries count against the task's retry budget like any other application failure.
 WITH input AS (
-    SELECT
+    -- a re-sent failure report can put the same attempt in the batch twice; keep one so it gets one retry queue item
+    SELECT DISTINCT ON (task_id, task_inserted_at, task_retry_count)
         *
     FROM
         (
@@ -418,6 +419,8 @@ WITH input AS (
                 unnest(@taskRetryCounts::integer[]) AS task_retry_count,
                 unnest(@retryAfterMs::bigint[]) AS retry_after_ms
         ) AS subquery
+    ORDER BY
+        task_id, task_inserted_at, task_retry_count
 ), locked_tasks AS (
     SELECT
         t.id,

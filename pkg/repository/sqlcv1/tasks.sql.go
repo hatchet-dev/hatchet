@@ -761,7 +761,8 @@ func (q *Queries) FailTaskInternalFailure(ctx context.Context, db DBTX, arg Fail
 
 const failTaskRetryAfter = `-- name: FailTaskRetryAfter :many
 WITH input AS (
-    SELECT
+    -- a re-sent failure report can put the same attempt in the batch twice; keep one so it gets one retry queue item
+    SELECT DISTINCT ON (task_id, task_inserted_at, task_retry_count)
         task_id, task_inserted_at, task_retry_count, retry_after_ms
     FROM
         (
@@ -771,6 +772,8 @@ WITH input AS (
                 unnest($3::integer[]) AS task_retry_count,
                 unnest($4::bigint[]) AS retry_after_ms
         ) AS subquery
+    ORDER BY
+        task_id, task_inserted_at, task_retry_count
 ), locked_tasks AS (
     SELECT
         t.id,

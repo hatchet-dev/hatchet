@@ -1014,11 +1014,13 @@ func (w *Worker) sendBatchFailureEventForAll(ctx HatchetContext, assignedAction 
 
 func (w *Worker) sendBatchFailureEventForAllIDs(ctx context.Context, assignedAction *client.Action, memberIDs []string, taskErr error) error {
 	items := make([]*client.BatchActionEventItem, len(memberIDs))
+	delay := retryAfterMs(taskErr)
 
 	for i, id := range memberIDs {
 		items[i] = &client.BatchActionEventItem{
 			TaskRunExternalId: id,
 			EventPayload:      taskErr.Error(),
+			RetryAfterMs:      delay,
 		}
 	}
 
@@ -1122,9 +1124,8 @@ func (w *Worker) sendFailureEvent(ctx HatchetContext, taskErr error) error {
 	if IsNonRetryableError(taskErr) {
 		shouldNotRetry := true
 		failureEvent.ShouldNotRetry = &shouldNotRetry
-	} else if retryAfterErr, ok := AsRetryAfterError(taskErr); ok {
-		retryAfterMs := max(retryAfterErr.After.Milliseconds(), 0)
-		failureEvent.RetryAfterMs = &retryAfterMs
+	} else {
+		failureEvent.RetryAfterMs = retryAfterMs(taskErr)
 	}
 
 	innerCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -1148,4 +1149,16 @@ func getHostName() string {
 		hostName = "Unknown"
 	}
 	return hostName
+}
+
+// retryAfterMs returns the delay a RetryAfterError requested, or nil for any other error.
+func retryAfterMs(err error) *int64 {
+	retryAfterErr, ok := AsRetryAfterError(err)
+	if !ok {
+		return nil
+	}
+
+	ms := max(retryAfterErr.After.Milliseconds(), 0)
+
+	return &ms
 }

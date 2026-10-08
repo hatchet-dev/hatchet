@@ -429,7 +429,14 @@ module Hatchet
 
       def send_batch_failure_for_all(action, member_ids, error)
         payload = JSON.generate({ "error" => error.message })
-        items = member_ids.map { |id| { task_run_external_id: id, event_payload: payload, should_not_retry: true } }
+        failure = { should_not_retry: true }
+
+        if error.is_a?(RetryAfterError)
+          warn_retry_after_unsupported(action)
+          failure = { should_not_retry: false, retry_after_ms: error.after_ms }
+        end
+
+        items = member_ids.map { |id| { task_run_external_id: id, event_payload: payload, **failure } }
         @dispatcher_client.send_batch_action_event(action: action, event_type: :STEP_EVENT_TYPE_FAILED, items: items)
       end
 

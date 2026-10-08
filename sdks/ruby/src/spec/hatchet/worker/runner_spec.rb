@@ -263,6 +263,34 @@ RSpec.describe Hatchet::WorkerRuntime::Runner do
       batch_runner&.send(:stop_step_action_event_thread)
     end
 
+    it "retries every member after the requested delay when the handler raises RetryAfterError" do
+      workflow = Hatchet::Workflow.new(name: "BatchWorkflow", client: client)
+      workflow.batch_task(
+        "rate_limited",
+        batch: Hatchet::BatchTaskConfig.new(max_size: 3),
+      ) { |_inputs, _ctx| raise Hatchet::RetryAfterError.new("rate limited", after: 2) }
+
+      batch_runner = build_batch_runner(workflow)
+
+      action = batch_action(
+        action_id: "batchworkflow:rate_limited",
+        payload: {
+          "id-1" => { "payload" => { "input" => {} }, "workflow_run_id" => "wr-1" },
+          "id-2" => { "payload" => { "input" => {} }, "workflow_run_id" => "wr-2" },
+        },
+      )
+
+      events = []
+      allow(dispatcher_client).to receive(:send_batch_action_event) { |**kwargs| events << kwargs }
+
+      batch_runner.send(:execute_batch_task, action)
+
+      failed = events.find { |e| e[:event_type] == :STEP_EVENT_TYPE_FAILED }
+      expect(failed[:items]).to all(include(should_not_retry: false, retry_after_ms: 2000))
+    ensure
+      batch_runner&.send(:stop_step_action_event_thread)
+    end
+
     it "fails every member uniformly when the handler raises" do
       workflow = Hatchet::Workflow.new(name: "BatchWorkflow", client: client)
       workflow.batch_task(

@@ -176,7 +176,7 @@ module Hatchet
         # @param action [AssignedAction] The assigned START_BATCH action
         # @param event_type [Symbol] Protobuf enum value (e.g., :STEP_EVENT_TYPE_COMPLETED)
         # @param items [Array<Hash>] Per-member items, each with :task_run_external_id, and
-        #   optionally :event_payload, :retry_count, :should_not_retry
+        #   optionally :event_payload, :retry_count, :should_not_retry, :retry_after_ms
         # @return [ActionEventResponse]
         def send_batch_action_event(action:, event_type:, items:)
           ensure_connected!
@@ -194,6 +194,7 @@ module Hatchet
             }
             item_args[:retry_count] = item[:retry_count] unless item[:retry_count].nil?
             item_args[:should_not_retry] = item[:should_not_retry] unless item[:should_not_retry].nil?
+            item_args[:retry_after_ms] = item[:retry_after_ms] unless item[:retry_after_ms].nil?
 
             ::BatchActionEventItem.new(**item_args)
           end

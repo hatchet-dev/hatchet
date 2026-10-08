@@ -713,7 +713,12 @@ export class InternalWorker {
     error: any
   ): Promise<void> {
     const payload = JSON.stringify({ message: error?.message, stack: error?.stack });
-    const items = memberIds.map((id) => ({ taskRunExternalId: id, eventPayload: payload }));
+    const retryAfterMs = this.retryAfterMs(error, action.actionId);
+    const items = memberIds.map((id) => ({
+      taskRunExternalId: id,
+      eventPayload: payload,
+      retryAfterMs,
+    }));
 
     try {
       await this.client.dispatcher.sendBatchActionEvent(
@@ -727,7 +732,7 @@ export class InternalWorker {
   getBatchActionEvent(
     action: Action,
     eventType: StepActionEventType,
-    items: { taskRunExternalId: string; eventPayload: string }[]
+    items: { taskRunExternalId: string; eventPayload: string; retryAfterMs?: number }[]
   ): BatchActionEvent {
     return {
       workerId: this.name,
