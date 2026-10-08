@@ -9,14 +9,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-func recountResident(c *ConcurrencyStrategy) residentSize {
-	var size residentSize
-	for _, sq := range c.subQueues {
-		size = size.plus(sq.size())
-	}
-	return size
-}
-
 // The resident counts behind the index gauges must match the sub-queues after a build, the
 // post-build pass, committed batches and rolled back batches.
 func TestResidentCountsMatchSubQueues(t *testing.T) {
@@ -36,7 +28,7 @@ func TestResidentCountsMatchSubQueues(t *testing.T) {
 
 	check := func(step string) {
 		t.Helper()
-		if got, want := c.resident.load(), recountResident(c); got != want {
+		if got, want := c.resident.load(), c.countResident(); got != want {
 			t.Fatalf("%s: resident = %+v, want %+v", step, got, want)
 		}
 	}

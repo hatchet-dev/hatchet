@@ -5,37 +5,6 @@ import (
 	"time"
 )
 
-// slotIndex is a data structure for efficiently querying concurrency slots.
-//
-// the basic idea here is: the queued runs could potentially be huge, and there are lots of strategies
-// to store this type of index (local disk, compression, database, etc) all with different tradeoffs.
-// i'd like to make it super easy to swap out this index.
-type slotIndex interface {
-	// write operations
-	insert(slot)
-	delete(taskId int64) (slot, bool)
-	pop(n int) []slot
-	popTimedOut(now time.Time) []slot
-
-	// read operations
-	get(taskId int64) (slot, bool)
-
-	// peek returns the slot at the head of the index (the smallest under its comparator) without
-	// removing it; ok is false if the index is empty.
-	peek() (slot, bool)
-
-	len() int
-
-	// undo log: begin opens a scope in which write operations are recorded; commit discards the log
-	// (writes are durable downstream), rollback reverses every recorded write to restore the index to
-	// its state at begin().
-	begin()
-	commit()
-	rollback()
-}
-
-var _ slotIndex = (*inMemorySlotIndex)(nil)
-
 // timeoutEntry is the timeout queue's element: just the key (taskId) and the schedule timeout it is
 // ordered by. The full slot lives in the priority queue; popTimedOut fetches it from there, so the
 // timeout heap stays small (16 bytes/entry vs a full slot copy).
@@ -52,8 +21,9 @@ type slotLocation struct {
 	toIdx  int32 // 1-based index into timedOutQueue.values; 0 = absent (always 0 when timeouts untracked)
 }
 
-// inMemorySlotIndex is an implementation of the slotIndex interface using a indexed heap and a map for
-// quick lookups. A nil *inMemorySlotIndex is an empty index for everything but insert and the undo log.
+// inMemorySlotIndex indexes concurrency slots using an indexed heap and a map for quick lookups.
+// begin opens an undo scope: rollback reverses every write made since, and commit discards the log.
+// A nil *inMemorySlotIndex is an empty index for everything but insert and the undo log.
 // important: inMemorySlotIndex is NOT concurrency safe; callers must ensure appropriate synchronization.
 type inMemorySlotIndex struct {
 	priorityQueue *heap[slot]
@@ -230,6 +200,8 @@ func (q *inMemorySlotIndex) pop(n int) []slot {
 	return popped
 }
 
+// peek returns the slot at the head of the index (the smallest under its comparator) without
+// removing it; ok is false if the index is empty.
 func (q *inMemorySlotIndex) peek() (slot, bool) {
 	if q == nil {
 		return slot{}, false
