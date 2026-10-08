@@ -86,7 +86,49 @@ END $$;
 ALTER TABLE v1_statuses_olap VALIDATE CONSTRAINT v1_statuses_olap_attach_bound;
 -- +goose StatementEnd
 
+-- +goose StatementBegin
+CREATE TABLE IF NOT EXISTS v1_task_events_olap_partitioned (
+    tenant_id UUID NOT NULL,
+    id BIGINT GENERATED ALWAYS AS IDENTITY,
+    inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    external_id UUID NOT NULL DEFAULT gen_random_uuid(),
+    task_id BIGINT NOT NULL,
+    task_inserted_at TIMESTAMPTZ NOT NULL,
+    event_type v1_event_type_olap NOT NULL,
+    workflow_id UUID NOT NULL,
+    event_timestamp TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    readable_status v1_readable_status_olap NOT NULL,
+    retry_count INT NOT NULL DEFAULT 0,
+    error_message TEXT,
+    output JSONB,
+    worker_id UUID,
+    additional__event_data TEXT,
+    additional__event_message TEXT,
+    durable_invocation_count INT NOT NULL DEFAULT 0,
+    PRIMARY KEY (task_id, task_inserted_at, id)
+) PARTITION BY RANGE (task_inserted_at);
+-- +goose StatementEnd
+
+-- +goose StatementBegin
+DO $$
+DECLARE
+    tomorrow_start TIMESTAMPTZ := date_trunc('day', NOW() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' + INTERVAL '1 day';
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'v1_task_events_olap_attach_bound') THEN
+        EXECUTE format('ALTER TABLE v1_task_events_olap ADD CONSTRAINT v1_task_events_olap_attach_bound CHECK (task_inserted_at < %L) NOT VALID', tomorrow_start);
+    END IF;
+END $$;
+-- +goose StatementEnd
+
+-- +goose StatementBegin
+ALTER TABLE v1_task_events_olap VALIDATE CONSTRAINT v1_task_events_olap_attach_bound;
+-- +goose StatementEnd
+
 -- +goose Down
+-- +goose StatementBegin
+ALTER TABLE v1_task_events_olap DROP CONSTRAINT IF EXISTS v1_task_events_olap_attach_bound;
+DROP TABLE IF EXISTS v1_task_events_olap_partitioned;
+-- +goose StatementEnd
 -- +goose StatementBegin
 ALTER TABLE v1_statuses_olap DROP CONSTRAINT IF EXISTS v1_statuses_olap_attach_bound;
 DROP TABLE IF EXISTS v1_statuses_olap_partitioned;

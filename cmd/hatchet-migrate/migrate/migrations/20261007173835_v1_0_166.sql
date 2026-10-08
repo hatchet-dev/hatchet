@@ -223,7 +223,107 @@ ALTER INDEX v1_statuses_olap_partitioned_pkey RENAME TO v1_statuses_olap_pkey;
 SELECT create_v1_monthly_range_partition('v1_statuses_olap', (date_trunc('month', NOW()) + INTERVAL '1 month')::DATE);
 -- +goose StatementEnd
 
+-- +goose StatementBegin
+DO $$
+DECLARE
+    today_start DATE := (NOW() AT TIME ZONE 'UTC')::DATE;
+    tomorrow_start DATE := today_start + 1;
+    legacy_partition_name TEXT := 'v1_task_events_olap_' || to_char(today_start, 'YYYYMMDD');
+    legacy_partition_lower_bound TEXT := 'MINVALUE';
+    legacy_primary_key_name TEXT := (
+        SELECT conname FROM pg_constraint
+        WHERE conrelid = 'v1_task_events_olap'::regclass AND contype = 'p'
+    );
+BEGIN
+    -- the lock has to come first: an insert between reading the old sequence and dropping it
+    -- would take an id that the parent's sequence then hands out again
+    LOCK TABLE v1_task_events_olap IN ACCESS EXCLUSIVE MODE;
+    PERFORM setval('v1_task_events_olap_partitioned_id_seq', nextval('v1_task_events_olap_id_seq'));
+
+    -- the parent's identity assigns ids for every partition, so the legacy table's own identity goes away
+    ALTER TABLE v1_task_events_olap ALTER COLUMN id DROP IDENTITY;
+    ALTER SEQUENCE v1_task_events_olap_partitioned_id_seq RENAME TO v1_task_events_olap_id_seq;
+
+    IF legacy_primary_key_name IS NOT NULL THEN
+        EXECUTE format('ALTER TABLE v1_task_events_olap RENAME CONSTRAINT %I TO %I', legacy_primary_key_name, legacy_partition_name || '_pkey');
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM v1_tasks_olap) AND NOT EXISTS (SELECT 1 FROM v1_task_events_olap) THEN
+        legacy_partition_lower_bound := quote_literal(today_start);
+    END IF;
+
+    EXECUTE format('ALTER TABLE v1_task_events_olap RENAME TO %I', legacy_partition_name);
+    EXECUTE format('ALTER TABLE v1_task_events_olap_partitioned ATTACH PARTITION %I FOR VALUES FROM (%s) TO (%L)', legacy_partition_name, legacy_partition_lower_bound, tomorrow_start);
+    EXECUTE format('ALTER TABLE %I DROP CONSTRAINT v1_task_events_olap_attach_bound', legacy_partition_name);
+END $$;
+
+ALTER TABLE v1_task_events_olap_partitioned RENAME TO v1_task_events_olap;
+ALTER INDEX v1_task_events_olap_partitioned_pkey RENAME TO v1_task_events_olap_pkey;
+
+SELECT create_v1_range_partition('v1_task_events_olap', ((NOW() AT TIME ZONE 'UTC')::DATE + 1));
+-- +goose StatementEnd
+
 -- +goose Down
+-- +goose StatementBegin
+DO $$
+DECLARE
+    legacy_partition_name TEXT;
+    next_id BIGINT;
+BEGIN
+    IF (SELECT relkind FROM pg_class WHERE oid = 'v1_task_events_olap'::regclass) <> 'p' THEN
+        RETURN;
+    END IF;
+
+    LOCK TABLE v1_task_events_olap IN ACCESS EXCLUSIVE MODE;
+    next_id := nextval('v1_task_events_olap_id_seq');
+
+    SELECT c.relname
+    INTO legacy_partition_name
+    FROM pg_inherits i
+    JOIN pg_class c ON c.oid = i.inhrelid
+    WHERE i.inhparent = 'v1_task_events_olap'::regclass
+    AND pg_get_expr(c.relpartbound, c.oid) LIKE 'FOR VALUES FROM (MINVALUE)%';
+
+    IF legacy_partition_name IS NULL THEN
+        CREATE TABLE v1_task_events_olap_original (
+            tenant_id UUID NOT NULL,
+            id BIGINT NOT NULL,
+            inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            external_id UUID NOT NULL DEFAULT gen_random_uuid(),
+            task_id BIGINT NOT NULL,
+            task_inserted_at TIMESTAMPTZ NOT NULL,
+            event_type v1_event_type_olap NOT NULL,
+            workflow_id UUID NOT NULL,
+            event_timestamp TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            readable_status v1_readable_status_olap NOT NULL,
+            retry_count INT NOT NULL DEFAULT 0,
+            error_message TEXT,
+            output JSONB,
+            worker_id UUID,
+            additional__event_data TEXT,
+            additional__event_message TEXT,
+            durable_invocation_count INT NOT NULL DEFAULT 0,
+            PRIMARY KEY (task_id, task_inserted_at, id)
+        );
+
+        INSERT INTO v1_task_events_olap_original (tenant_id, id, inserted_at, external_id, task_id, task_inserted_at, event_type, workflow_id, event_timestamp, readable_status, retry_count, error_message, output, worker_id, additional__event_data, additional__event_message, durable_invocation_count)
+        SELECT tenant_id, id, inserted_at, external_id, task_id, task_inserted_at, event_type, workflow_id, event_timestamp, readable_status, retry_count, error_message, output, worker_id, additional__event_data, additional__event_message, durable_invocation_count FROM v1_task_events_olap;
+
+        DROP TABLE v1_task_events_olap;
+        ALTER TABLE v1_task_events_olap_original RENAME TO v1_task_events_olap;
+        ALTER INDEX v1_task_events_olap_original_pkey RENAME TO v1_task_events_olap_pkey;
+    ELSE
+        EXECUTE format('ALTER TABLE v1_task_events_olap DETACH PARTITION %I', legacy_partition_name);
+        EXECUTE format('INSERT INTO %I (tenant_id, id, inserted_at, external_id, task_id, task_inserted_at, event_type, workflow_id, event_timestamp, readable_status, retry_count, error_message, output, worker_id, additional__event_data, additional__event_message, durable_invocation_count) SELECT tenant_id, id, inserted_at, external_id, task_id, task_inserted_at, event_type, workflow_id, event_timestamp, readable_status, retry_count, error_message, output, worker_id, additional__event_data, additional__event_message, durable_invocation_count FROM v1_task_events_olap ON CONFLICT DO NOTHING', legacy_partition_name);
+        DROP TABLE v1_task_events_olap;
+        EXECUTE format('ALTER TABLE %I RENAME TO v1_task_events_olap', legacy_partition_name);
+        EXECUTE format('ALTER TABLE v1_task_events_olap RENAME CONSTRAINT %I TO v1_task_events_olap_pkey', legacy_partition_name || '_pkey');
+    END IF;
+
+    EXECUTE format('ALTER TABLE v1_task_events_olap ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (START WITH %s)', next_id);
+END $$;
+-- +goose StatementEnd
+
 -- +goose StatementBegin
 DO $$
 DECLARE

@@ -15,6 +15,7 @@ SELECT
     create_v1_weekly_range_partition('v1_event_lookup_table_olap'::text, @date::date) AS v1_event_lookup_table_olap,
     create_v1_range_partition('v1_incoming_webhook_validation_failures_olap'::text, @date::date) AS v1_incoming_webhook_validation_failures_olap,
     create_v1_range_partition('v1_cel_evaluation_failures_olap'::text, @date::date) AS v1_cel_evaluation_failures_olap,
+    create_v1_range_partition('v1_task_events_olap'::text, @date::date) AS v1_task_events_olap,
     create_v1_range_partition('v1_dag_to_task_olap'::text, @date::date) AS v1_dag_to_task_olap,
     create_v1_monthly_range_partition('v1_lookup_table_olap'::text, @date::date) AS v1_lookup_table_olap,
     create_v1_monthly_range_partition('v1_statuses_olap'::text, @date::date) AS v1_statuses_olap
@@ -88,6 +89,8 @@ WITH task_partitions AS (
     SELECT 'v1_otel_trace_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_otel_trace_olap', @date::date) AS p
 ), otel_trace_lookup_partitions AS (
     SELECT 'v1_otel_trace_lookup_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_otel_trace_lookup_olap', @date::date) AS p
+), task_events_partitions AS (
+    SELECT 'v1_task_events_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_task_events_olap', @date::date) AS p
 ), dag_to_task_partitions AS (
     SELECT 'v1_dag_to_task_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_dag_to_task_olap', @date::date) AS p
 ), lookup_table_partitions AS (
@@ -175,6 +178,13 @@ WITH task_partitions AS (
     SELECT
         *
     FROM
+        task_events_partitions
+
+    UNION ALL
+
+    SELECT
+        *
+    FROM
         dag_to_task_partitions
 
     UNION ALL
@@ -203,6 +213,7 @@ WHERE
             'v1_event_lookup_table_olap',
             'v1_cel_evaluation_failures_olap',
             'v1_incoming_webhook_validation_failures_olap',
+            'v1_task_events_olap',
             'v1_dag_to_task_olap',
             'v1_lookup_table_olap',
             'v1_statuses_olap'
