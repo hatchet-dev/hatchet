@@ -847,16 +847,16 @@ SELECT DISTINCT key
 FROM v1_concurrency_slot
 WHERE tenant_id = $1::UUID
 AND strategy_id = $2::BIGINT
-AND key > $3::TEXT
+AND ($3::TEXT IS NULL OR key > $3::TEXT)
 ORDER BY key ASC
 LIMIT $4::int
 `
 
 type ListDistinctConcurrencyKeysAfterParams struct {
-	Tenantid   uuid.UUID `json:"tenantid"`
-	Strategyid int64     `json:"strategyid"`
-	LastKey    string    `json:"lastKey"`
-	Limit      int32     `json:"limit"`
+	Tenantid   uuid.UUID   `json:"tenantid"`
+	Strategyid int64       `json:"strategyid"`
+	LastKey    pgtype.Text `json:"lastKey"`
+	Limit      int32       `json:"limit"`
 }
 
 func (q *Queries) ListDistinctConcurrencyKeysAfter(ctx context.Context, db DBTX, arg ListDistinctConcurrencyKeysAfterParams) ([]string, error) {

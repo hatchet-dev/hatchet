@@ -1409,7 +1409,7 @@ SELECT DISTINCT key
 FROM v1_concurrency_slot
 WHERE tenant_id = @tenantId::UUID
 AND strategy_id = @strategyId::BIGINT
-AND key > sqlc.arg('lastKey')::TEXT
+AND (sqlc.narg('lastKey')::TEXT IS NULL OR key > sqlc.narg('lastKey')::TEXT)
 ORDER BY key ASC
 LIMIT sqlc.arg('limit')::int;
 

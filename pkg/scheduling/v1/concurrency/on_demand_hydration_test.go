@@ -206,6 +206,120 @@ func TestOnDemandInitialQueueingScansKeysAcrossRuns(t *testing.T) {
 	}
 }
 
+func TestOnDemandInitialQueueingIncludesEmptyKey(t *testing.T) {
+	now := time.Now().UTC()
+	future := now.Add(time.Hour)
+
+	repo := &mockConcurrencyRepo{
+		indexRows: []*sqlcv1.ListConcurrencySlotsForIndexingRow{
+			indexRow("", 1, 5, 0, now, future, false),
+			indexRow("a", 2, 5, 0, now, future, false),
+		},
+	}
+	c := newOnDemandCancelQueuedExceptNewestStrategy(repo, 1, 1)
+	c.hydrateOnDemand = true
+
+	if _, err := c.runInitialQueueing(context.Background()); err != nil {
+		t.Fatalf("runInitialQueueing: %v", err)
+	}
+
+	filled := filledIDs(repo.lastFilled)
+	if len(filled) != 2 || !containsID(filled, 1) {
+		t.Fatalf("filled = %v, want the empty-key task 1 and task 2", filled)
+	}
+}
+
+// A page failing after earlier pages committed must not drop those pages' results: the cancelled
+// tasks' messages are published from them. The scan resumes from the cursor on the next Run.
+func TestOnDemandInitialQueueingKeepsCommittedResultsWhenLaterPageFails(t *testing.T) {
+	now := time.Now().UTC()
+	future := now.Add(time.Hour)
+
+	rows := make([]*sqlcv1.ListConcurrencySlotsForIndexingRow, 0)
+	for i := range 3 * onDemandInitialScanKeysPerPage {
+		key := fmt.Sprintf("key-%06d", i)
+		rows = append(rows,
+			indexRow(key, int64(2*i+1), 5, 0, now, future, true),
+			indexRow(key, int64(2*i+2), 5, 0, now.Add(time.Second), future, false),
+			indexRow(key, int64(2*i+3), 5, 0, now.Add(2*time.Second), future, false),
+		)
+	}
+
+	cancelledPerPage := onDemandInitialScanKeysPerPage
+	repo := &mockConcurrencyRepo{
+		indexRows:           rows,
+		updateErr:           errors.New("db unavailable"),
+		updateSucceedsFirst: 2,
+		updateResult: &repository.RunConcurrencyResult{
+			Cancelled: make([]repository.TaskWithCancelledReason, cancelledPerPage),
+		},
+	}
+	c := newOnDemandCancelQueuedExceptNewestStrategy(repo, 1, 1)
+	c.hydrateOnDemand = true
+
+	res, err := c.runInitialQueueing(context.Background())
+	if err != nil {
+		t.Fatalf("expected the committed pages' results, got error: %v", err)
+	}
+	if len(res.Cancelled) != 2*cancelledPerPage {
+		t.Fatalf("cancelled results = %d, want %d from the two committed pages", len(res.Cancelled), 2*cancelledPerPage)
+	}
+	if c.initialQueued {
+		t.Fatalf("scan marked complete although the third page failed")
+	}
+	if !c.initialScanLastKey.Valid || c.initialScanLastKey.String != fmt.Sprintf("key-%06d", 2*onDemandInitialScanKeysPerPage-1) {
+		t.Fatalf("cursor = %q, want the last key of the second page", c.initialScanLastKey.String)
+	}
+}
+
+// An eagerly hydrated index that grows past the bound after build switches to on-demand mode,
+// dropping its sub-queues and re-arming the paged scan.
+func TestEagerIndexSwitchesToOnDemandWhenItOutgrowsBound(t *testing.T) {
+	now := time.Now().UTC()
+	future := now.Add(time.Hour)
+
+	repo := &mockConcurrencyRepo{}
+	c := newOnDemandCancelQueuedExceptNewestStrategy(repo, 1, 3)
+	c.initialQueued = true
+
+	msgs := []walMessage{
+		walInsert("a", 1, 5, now, future),
+		walInsert("b", 2, 5, now, future),
+	}
+	if _, err := c.processWALMessages(context.Background(), nil, msgs); err != nil {
+		t.Fatalf("processWALMessages: %v", err)
+	}
+	c.finalizeCommittedSubQueues(c.commitScopes())
+
+	if c.eagerIndexOutgrewBound() {
+		t.Fatalf("two keys should be under a bound of three")
+	}
+
+	if _, err := c.processWALMessages(context.Background(), nil, []walMessage{walInsert("c", 3, 5, now, future)}); err != nil {
+		t.Fatalf("processWALMessages: %v", err)
+	}
+	c.finalizeCommittedSubQueues(c.commitScopes())
+
+	if !c.eagerIndexOutgrewBound() {
+		t.Fatalf("three keys should reach a bound of three")
+	}
+
+	c.switchToOnDemandHydration()
+
+	if !c.hydrateOnDemand {
+		t.Fatalf("expected on-demand hydration after the switch")
+	}
+	if len(c.subQueues) != 0 {
+		t.Fatalf("expected hydrated sub-queues dropped, got %d", len(c.subQueues))
+	}
+	if c.initialQueued || c.initialScanLastKey.Valid {
+		t.Fatalf("expected the initial scan re-armed from the start")
+	}
+	if c.eagerIndexOutgrewBound() {
+		t.Fatalf("bound check must be inert once on demand")
+	}
+}
+
 func TestOnDemandInitialQueueingResumesFromCursorAfterFailure(t *testing.T) {
 	now := time.Now().UTC()
 	future := now.Add(time.Hour)
@@ -225,8 +339,8 @@ func TestOnDemandInitialQueueingResumesFromCursorAfterFailure(t *testing.T) {
 	if c.initialQueued {
 		t.Fatalf("scan marked complete despite flush failure")
 	}
-	if c.initialScanLastKey != "" {
-		t.Fatalf("cursor advanced past a page whose flush failed: %q", c.initialScanLastKey)
+	if c.initialScanLastKey.Valid {
+		t.Fatalf("cursor advanced past a page whose flush failed: %q", c.initialScanLastKey.String)
 	}
 	if len(c.subQueues) != 0 {
 		t.Fatalf("expected failed page evicted, got %d sub-queues", len(c.subQueues))

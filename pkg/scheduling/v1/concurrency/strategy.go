@@ -11,6 +11,7 @@ import (
 	"github.com/hatchet-dev/pgoutbox"
 	outboxsqlc "github.com/hatchet-dev/pgoutbox/sqlc"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
@@ -47,11 +48,13 @@ type ConcurrencyStrategy struct {
 	strategy  *sqlcv1.V1StepConcurrency
 
 	eagerIndexMaxSlots int32
-	// hydrateOnDemand is decided once by buildIndex (under buildingMu) and only read afterwards.
+	// hydrateOnDemand is set by buildIndex, or later by switchToOnDemandHydration when an eager
+	// index outgrows the bound; both run under buildingMu, and Run only reads it between batches.
 	hydrateOnDemand bool
 	// initialScanLastKey is the on-demand initial scan's cursor over the strategy's distinct keys;
 	// the scan is spread across Runs so each one only holds a bounded number of keys in memory.
-	initialScanLastKey string
+	// Invalid means the scan has not started, so the first page includes the empty-string key.
+	initialScanLastKey pgtype.Text
 	// immutable copies of the strategy identity, safe to read without holding any lock
 	// (strategy itself is swapped in place by UpdateStrategy under buildingMu + mu)
 	strategyId       int64
@@ -176,6 +179,7 @@ func NewConcurrencyStrategy(
 	return c
 }
 
+// StrategyOption configures a ConcurrencyStrategy at construction.
 type StrategyOption func(*ConcurrencyStrategy)
 
 // WithEagerIndexMaxSlots sets the slot count at or above which the strategy hydrates keys on demand
@@ -305,6 +309,10 @@ func (c *ConcurrencyStrategy) Run(ctx context.Context) (*repository.RunConcurren
 		// batch no longer needs in memory.
 		c.finalizeCommittedSubQueues(c.commitScopes())
 
+		if c.eagerIndexOutgrewBound() {
+			c.switchToOnDemandHydration()
+		}
+
 		// no more messages queued for this topic; we've drained it
 		if len(msgs) == 0 {
 			break
@@ -370,33 +378,60 @@ func (c *ConcurrencyStrategy) queueNextKeyPages(ctx context.Context) (*repositor
 	results := make([]*repository.RunConcurrencyResult, 0, onDemandInitialScanPagesPerRun)
 
 	for range onDemandInitialScanPagesPerRun {
-		keys, err := c.repo.ListDistinctConcurrencyKeysAfter(ctx, c.strategy.TenantID, c.strategy.ID, c.initialScanLastKey, onDemandInitialScanKeysPerPage)
+		res, scanComplete, err := c.queueNextKeyPage(ctx)
 
 		if err != nil {
-			return nil, false, err
+			// Earlier pages in this call have already committed and advanced the cursor, so their
+			// results must still reach the caller (cancelled-task messages are published from them).
+			// Surface the error only when nothing was committed; otherwise the scan simply resumes
+			// from the cursor on the next Run.
+			if len(results) == 0 {
+				return nil, false, err
+			}
+
+			c.l.Error().Err(err).Msgf("initial concurrency queueing scan for topic %s stopped early, will resume on the next run", c.topic)
+
+			return mergeResults(results), false, nil
 		}
 
-		if len(keys) == 0 {
+		if scanComplete {
 			return mergeResults(results), true, nil
 		}
 
-		rows, err := c.repo.ListConcurrencySlotsForKeys(ctx, c.strategy.TenantID, c.strategy.ID, keys)
-
-		if err != nil {
-			return nil, false, err
-		}
-
-		res, err := c.decideAndFlushHydratedKeys(ctx, keys, rows)
-
-		if err != nil {
-			return nil, false, err
-		}
-
 		results = append(results, res)
-		c.initialScanLastKey = keys[len(keys)-1]
 	}
 
 	return mergeResults(results), false, nil
+}
+
+// queueNextKeyPage processes the page of keys after the scan cursor and advances the cursor past it.
+// It reports scanComplete when no keys remain.
+func (c *ConcurrencyStrategy) queueNextKeyPage(ctx context.Context) (res *repository.RunConcurrencyResult, scanComplete bool, err error) {
+	keys, err := c.repo.ListDistinctConcurrencyKeysAfter(ctx, c.strategy.TenantID, c.strategy.ID, c.initialScanLastKey, onDemandInitialScanKeysPerPage)
+
+	if err != nil {
+		return nil, false, err
+	}
+
+	if len(keys) == 0 {
+		return nil, true, nil
+	}
+
+	rows, err := c.repo.ListConcurrencySlotsForKeys(ctx, c.strategy.TenantID, c.strategy.ID, keys)
+
+	if err != nil {
+		return nil, false, err
+	}
+
+	res, err = c.decideAndFlushHydratedKeys(ctx, keys, rows)
+
+	if err != nil {
+		return nil, false, err
+	}
+
+	c.initialScanLastKey = pgtype.Text{String: keys[len(keys)-1], Valid: true}
+
+	return res, false, nil
 }
 
 // decideAndFlushHydratedKeys hydrates rows into the given keys' sub-queues, runs the decide step over
@@ -1157,7 +1192,42 @@ func (c *ConcurrencyStrategy) UpdateStrategy(next *sqlcv1.V1StepConcurrency) {
 	}
 
 	c.initialQueued = false
-	c.initialScanLastKey = ""
+	c.initialScanLastKey = pgtype.Text{}
+}
+
+// switchToOnDemandHydration converts an eager index that has outgrown the bound into on-demand mode:
+// every hydrated sub-queue is dropped and the paged initial scan is re-armed so the backlog is
+// re-decided from the database, a page at a time, on the following Runs. Run calls this between
+// batches, so no batch observes a half-switched index. Lock order matches UpdateStrategy.
+func (c *ConcurrencyStrategy) switchToOnDemandHydration() {
+	c.initialQueueMu.Lock()
+	defer c.initialQueueMu.Unlock()
+	c.buildingMu.Lock()
+	defer c.buildingMu.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.l.Warn().Msgf("concurrency strategy %d grew to %d hydrated keys; switching to hydrating keys on demand", c.strategy.ID, len(c.subQueues))
+
+	c.hydrateOnDemand = true
+	c.subQueues = make(map[string]*subQueue)
+	c.initialQueued = false
+	c.initialScanLastKey = pgtype.Text{}
+}
+
+// eagerIndexOutgrewBound reports whether an eagerly hydrated index now holds at least
+// eagerIndexMaxSlots keys. Keys are compared against the slot bound because each key carries a fixed
+// per-sub-queue cost that dominates memory, and a key count is a lower bound on the slot count, so
+// this trips no earlier than a slot count would.
+func (c *ConcurrencyStrategy) eagerIndexOutgrewBound() bool {
+	if c.hydrateOnDemand {
+		return false
+	}
+
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return len(c.subQueues) >= int(c.eagerIndexMaxSlots)
 }
 
 func (c *ConcurrencyStrategy) getOrCreateSubQueue(key string) *subQueue {

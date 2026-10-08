@@ -24,6 +24,8 @@ type mockConcurrencyRepo struct {
 
 	updateResult *repository.RunConcurrencyResult
 	updateErr    error
+	// updateSucceedsFirst, when > 0, lets that many flushes succeed before updateErr applies
+	updateSucceedsFirst int
 
 	// captured from the most recent UpdateConcurrencySlots call
 	lastFilled    []repository.TaskIdInsertedAtRetryCount
@@ -69,10 +71,10 @@ func (m *mockConcurrencyRepo) ListConcurrencySlotsForKeysTx(ctx context.Context,
 	return m.ListConcurrencySlotsForKeys(ctx, tenantId, strategyId, keys)
 }
 
-func (m *mockConcurrencyRepo) ListDistinctConcurrencyKeysAfter(ctx context.Context, tenantId uuid.UUID, strategyId int64, lastKey string, limit int32) ([]string, error) {
+func (m *mockConcurrencyRepo) ListDistinctConcurrencyKeysAfter(ctx context.Context, tenantId uuid.UUID, strategyId int64, lastKey pgtype.Text, limit int32) ([]string, error) {
 	distinct := make(map[string]struct{})
 	for _, r := range m.indexRows {
-		if r.Key > lastKey {
+		if !lastKey.Valid || r.Key > lastKey.String {
 			distinct[r.Key] = struct{}{}
 		}
 	}
@@ -96,7 +98,7 @@ func (m *mockConcurrencyRepo) UpdateConcurrencySlotsTx(ctx context.Context, tx p
 	m.updateCalls++
 	m.lastFilled = filledSlots
 	m.lastCancelled = cancelledSlots
-	if m.updateErr != nil {
+	if m.updateErr != nil && m.updateCalls > m.updateSucceedsFirst {
 		return nil, m.updateErr
 	}
 	if m.updateResult != nil {

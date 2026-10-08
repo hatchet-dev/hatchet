@@ -96,8 +96,9 @@ type ConcurrencyRepository interface {
 	ListConcurrencySlotsForKeysTx(ctx context.Context, tx pgx.Tx, tenantId uuid.UUID, strategyId int64, keys []string) ([]*sqlcv1.ListConcurrencySlotsForIndexingRow, error)
 
 	// ListDistinctConcurrencyKeysAfter returns up to limit distinct concurrency keys greater than
-	// lastKey in ascending order, for paging over a strategy's keys without loading its slots.
-	ListDistinctConcurrencyKeysAfter(ctx context.Context, tenantId uuid.UUID, strategyId int64, lastKey string, limit int32) ([]string, error)
+	// lastKey in ascending order, for paging over a strategy's keys without loading its slots. An
+	// invalid (NULL) lastKey starts from the first key, which may be the empty string.
+	ListDistinctConcurrencyKeysAfter(ctx context.Context, tenantId uuid.UUID, strategyId int64, lastKey pgtype.Text, limit int32) ([]string, error)
 
 	// UpdateConcurrencySlots manages its own transaction, for callers (e.g. the post-build queueing
 	// pass) that have no transaction to attach to. Callers that already hold a transaction (e.g. the
@@ -1617,7 +1618,7 @@ func (c *ConcurrencyRepositoryImpl) listConcurrencySlotsForKeys(ctx context.Cont
 	}), nil
 }
 
-func (c *ConcurrencyRepositoryImpl) ListDistinctConcurrencyKeysAfter(ctx context.Context, tenantId uuid.UUID, strategyId int64, lastKey string, limit int32) ([]string, error) {
+func (c *ConcurrencyRepositoryImpl) ListDistinctConcurrencyKeysAfter(ctx context.Context, tenantId uuid.UUID, strategyId int64, lastKey pgtype.Text, limit int32) ([]string, error) {
 	return c.queries.ListDistinctConcurrencyKeysAfter(ctx, c.pool, sqlcv1.ListDistinctConcurrencyKeysAfterParams{
 		Tenantid:   tenantId,
 		Strategyid: strategyId,
