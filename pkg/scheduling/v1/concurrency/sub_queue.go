@@ -17,6 +17,14 @@ type subQueue struct {
 	// these scalars, so rollback restores them explicitly.
 	maxRunsAtBegin     int32
 	maxRunsFromAtBegin int64
+
+	// countedSlots is the running + queued size last added into the strategy's resident slot
+	// total, so the total can be adjusted by the delta when this sub-queue's batch is finalized.
+	countedSlots int
+}
+
+func (s *subQueue) size() int {
+	return s.running.len() + s.queued.len()
 }
 
 func newSubQueue(key string, maxRuns int32, compare func(a, b slot) int) *subQueue {

@@ -63,6 +63,9 @@ type ConcurrencyStrategy struct {
 	strategy  *sqlcv1.V1StepConcurrency
 
 	eagerIndexMaxSlots int32
+	// residentSlots is the number of slots held across all hydrated sub-queues on the eager path,
+	// kept current from each finalized batch's sub-queue size deltas. Guarded by mu.
+	residentSlots int
 	// hydrateOnDemand is set by buildIndex, or later by switchToOnDemandHydration when an eager
 	// index outgrows the bound; both run under buildingMu, and Run only reads it between batches.
 	hydrateOnDemand bool
@@ -114,6 +117,7 @@ func (c *ConcurrencyStrategy) rollbackScopes() {
 		sq.rollback()
 	}
 	c.evictIfHydratedOnDemand(c.openScopes)
+	c.recountResidentSlots(c.openScopes)
 	c.openScopes = nil
 }
 
@@ -126,7 +130,26 @@ func (c *ConcurrencyStrategy) finalizeCommittedSubQueues(committed []*subQueue) 
 		return
 	}
 
+	c.recountResidentSlots(committed)
 	c.pruneEmpty(committed)
+}
+
+// recountResidentSlots folds each sub-queue's size change since it was last counted into the eager
+// index's resident slot total. Only the sub-queues a batch touched can have changed, so this is
+// O(touched) per batch rather than a scan of every key.
+func (c *ConcurrencyStrategy) recountResidentSlots(subQueues []*subQueue) {
+	if c.hydrateOnDemand {
+		return
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	for _, sq := range subQueues {
+		size := sq.size()
+		c.residentSlots += size - sq.countedSlots
+		sq.countedSlots = size
+	}
 }
 
 func (c *ConcurrencyStrategy) evictIfHydratedOnDemand(subQueues []*subQueue) {
@@ -367,9 +390,11 @@ func (c *ConcurrencyStrategy) Run(ctx context.Context) (*repository.RunConcurren
 		if err != nil {
 			// the outbox transaction rolled back (flush, message-delete, or commit failure), so undo
 			// this batch's in-memory mutations to keep the index consistent with the database. the
-			// messages are not deleted and will be redelivered on a later Run.
+			// messages are not deleted and will be redelivered on a later Run. Earlier batches in this
+			// Run did commit, so their results are returned alongside the error: the caller publishes
+			// the cancelled-task messages from them and they must not be lost to the failed batch.
 			c.rollbackScopes()
-			return nil, fmt.Errorf("failed to process outbox messages for topic %s: %w", c.topic, err)
+			return mergeResults(append(c.takePending(), initialResult, revisitResult)), fmt.Errorf("failed to process outbox messages for topic %s: %w", c.topic, err)
 		}
 
 		// ProcessMessages only returns without error once the transaction has committed, so the
@@ -734,6 +759,13 @@ func (c *ConcurrencyStrategy) buildIndex(ctx context.Context) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+
+	c.mu.Lock()
+	for _, sq := range c.subQueues {
+		sq.countedSlots = sq.size()
+		c.residentSlots += sq.countedSlots
+	}
+	c.mu.Unlock()
 
 	return nil
 }
@@ -1442,14 +1474,14 @@ func (c *ConcurrencyStrategy) switchToOnDemandHydration() {
 	}
 
 	c.subQueues = make(map[string]*subQueue)
+	c.residentSlots = 0
 	c.initialQueued = false
 	c.initialScanLastKey = pgtype.Text{}
 }
 
 // eagerIndexOutgrewBound reports whether an eagerly hydrated index now holds at least
-// eagerIndexMaxSlots keys. Keys are compared against the slot bound because each key carries a fixed
-// per-sub-queue cost that dominates memory, and a key count is a lower bound on the slot count, so
-// this trips no earlier than a slot count would.
+// eagerIndexMaxSlots slots, or as many keys (each key carries a fixed per-sub-queue cost that
+// dominates memory, so a key count on its own is enough to trip the bound).
 func (c *ConcurrencyStrategy) eagerIndexOutgrewBound() bool {
 	if c.hydrateOnDemand {
 		return false
@@ -1458,7 +1490,9 @@ func (c *ConcurrencyStrategy) eagerIndexOutgrewBound() bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	return len(c.subQueues) >= int(c.eagerIndexMaxSlots)
+	bound := int(c.eagerIndexMaxSlots)
+
+	return len(c.subQueues) >= bound || c.residentSlots >= bound
 }
 
 func (c *ConcurrencyStrategy) getOrCreateSubQueue(key string) *subQueue {

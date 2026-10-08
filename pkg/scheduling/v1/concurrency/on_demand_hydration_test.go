@@ -648,6 +648,62 @@ func TestOnDemandExpiredSlotWithEqualTimestampDoesNotRaiseLimit(t *testing.T) {
 	}
 }
 
+// A single deep key growing past the bound must also trip the switch: the resident slot count is kept
+// current from each finalized batch and restored when a batch rolls back.
+func TestEagerIndexSwitchesToOnDemandWhenResidentSlotsOutgrowBound(t *testing.T) {
+	now := time.Now().UTC()
+	future := now.Add(time.Hour)
+
+	repo := &mockConcurrencyRepo{}
+	c := newTestStrategyKind(repo, 10, sqlcv1.V1ConcurrencyStrategyGROUPROUNDROBIN)
+	c.eagerIndexMaxSlots = 5
+	c.initialQueued = true
+
+	insert := func(from, to int64) []walMessage {
+		msgs := make([]walMessage, 0, to-from+1)
+		for i := from; i <= to; i++ {
+			msgs = append(msgs, walInsert("a", i, 5, now.Add(time.Duration(i)*time.Second), future))
+		}
+		return msgs
+	}
+
+	if _, err := c.processWALMessages(context.Background(), nil, insert(1, 3)); err != nil {
+		t.Fatalf("processWALMessages: %v", err)
+	}
+	c.finalizeCommittedSubQueues(c.commitScopes())
+
+	if c.residentSlots != 3 || c.eagerIndexOutgrewBound() {
+		t.Fatalf("resident slots = %d, outgrew = %v; want 3 and false", c.residentSlots, c.eagerIndexOutgrewBound())
+	}
+
+	// a batch that fails must not count its slots
+	repo.updateErr = errors.New("db unavailable")
+	if _, err := c.processWALMessages(context.Background(), nil, insert(4, 6)); err == nil {
+		t.Fatalf("expected flush error")
+	}
+	c.rollbackScopes()
+
+	if c.residentSlots != 3 {
+		t.Fatalf("resident slots after rollback = %d, want 3", c.residentSlots)
+	}
+
+	repo.updateErr = nil
+	if _, err := c.processWALMessages(context.Background(), nil, insert(4, 6)); err != nil {
+		t.Fatalf("processWALMessages: %v", err)
+	}
+	c.finalizeCommittedSubQueues(c.commitScopes())
+
+	if c.residentSlots != 6 || !c.eagerIndexOutgrewBound() {
+		t.Fatalf("resident slots = %d, outgrew = %v; want 6 and true on one key", c.residentSlots, c.eagerIndexOutgrewBound())
+	}
+
+	c.switchToOnDemandHydration()
+
+	if c.residentSlots != 0 || len(c.subQueues) != 0 || !c.hydrateOnDemand {
+		t.Fatalf("switch left resident slots %d, sub-queues %d, on demand %v", c.residentSlots, len(c.subQueues), c.hydrateOnDemand)
+	}
+}
+
 func TestOnDemandInitialQueueingResumesFromCursorAfterFailure(t *testing.T) {
 	now := time.Now().UTC()
 	future := now.Add(time.Hour)

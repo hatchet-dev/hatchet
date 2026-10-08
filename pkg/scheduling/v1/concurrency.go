@@ -260,6 +260,16 @@ func (c *ConcurrencyManager) loopConcurrency(ctx context.Context) {
 			results, err = c.repo.RunConcurrencyStrategy(ctx, c.tenantId, c.strategy)
 		}
 		c.releaseStrategyLocks()
+
+		// the in-memory strategy returns the results of the batches that committed before a later
+		// batch failed, so publish them before handling the error or their cancellations are lost
+		if results != nil {
+			c.resultsCh <- &ConcurrencyResults{
+				RunConcurrencyResult: results,
+				TenantId:             c.tenantId,
+			}
+		}
+
 		if err != nil {
 			span.End()
 
@@ -271,10 +281,6 @@ func (c *ConcurrencyManager) loopConcurrency(ctx context.Context) {
 		if time.Since(start) > 100*time.Millisecond {
 			c.l.Warn().Ctx(ctx).
 				Msgf("concurrency strategy %d took longer than 100ms (%s) to process %d items", c.strategy.ID, time.Since(start), len(results.Queued))
-		}
-		c.resultsCh <- &ConcurrencyResults{
-			RunConcurrencyResult: results,
-			TenantId:             c.tenantId,
 		}
 
 		span.End()
