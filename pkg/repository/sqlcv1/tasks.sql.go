@@ -212,8 +212,14 @@ WITH locked_trs AS (
     ORDER BY vtr.task_id ASC
     LIMIT $1::int
     FOR UPDATE SKIP LOCKED
+), deleted_slots AS (
+    DELETE FROM v1_task_runtime_slot
+    WHERE (task_id, task_inserted_at, retry_count) IN (
+        SELECT task_id, task_inserted_at, retry_count
+        FROM locked_trs
+    )
 )
-DELETE FROM v1_task_runtime_slot
+DELETE FROM v1_task_runtime
 WHERE (task_id, task_inserted_at, retry_count) IN (
     SELECT task_id, task_inserted_at, retry_count
     FROM locked_trs
@@ -1485,6 +1491,109 @@ func (q *Queries) ListAllTasksInDags(ctx context.Context, db DBTX, arg ListAllTa
 	return items, nil
 }
 
+const listEvictedTaskRuntimeWindow = `-- name: ListEvictedTaskRuntimeWindow :many
+WITH evicted_runtime_window AS (
+    SELECT
+        rt.task_id,
+        rt.task_inserted_at,
+        rt.retry_count,
+        rt.evicted_at
+    FROM v1_task_runtime rt
+    WHERE
+        rt.tenant_id = $1::UUID
+        AND rt.evicted_at < NOW() - $2::INTERVAL
+        AND (rt.evicted_at, rt.task_id, rt.task_inserted_at, rt.retry_count) > (
+            $3::TIMESTAMPTZ,
+            $4::BIGINT,
+            $5::TIMESTAMPTZ,
+            $6::INTEGER
+        )
+    ORDER BY rt.evicted_at, rt.task_id, rt.task_inserted_at, rt.retry_count
+    LIMIT $7::INTEGER
+)
+SELECT
+    w.task_id,
+    w.task_inserted_at,
+    w.retry_count,
+    w.evicted_at,
+    t.external_id,
+    COALESCE(
+        t.is_dag_orchestrator
+        AND EXISTS (
+            SELECT 1 FROM v1_durable_event_log_entry e
+            WHERE (e.durable_task_id, e.durable_task_inserted_at) = (t.id, t.inserted_at)
+        )
+        AND NOT EXISTS (
+            SELECT 1 FROM v1_durable_event_log_entry e
+            WHERE (e.durable_task_id, e.durable_task_inserted_at) = (t.id, t.inserted_at)
+              AND NOT e.is_satisfied
+        ),
+        FALSE
+    )::BOOLEAN AS is_stuck_durable_orchestrator
+FROM evicted_runtime_window w
+LEFT JOIN v1_task t ON (t.id, t.inserted_at) = (w.task_id, w.task_inserted_at)
+ORDER BY w.evicted_at, w.task_id, w.task_inserted_at, w.retry_count
+`
+
+type ListEvictedTaskRuntimeWindowParams struct {
+	Tenantid          uuid.UUID          `json:"tenantid"`
+	Graceperiod       pgtype.Interval    `json:"graceperiod"`
+	Minevictedast     pgtype.Timestamptz `json:"minevictedast"`
+	Mintaskid         int64              `json:"mintaskid"`
+	Mintaskinsertedat pgtype.Timestamptz `json:"mintaskinsertedat"`
+	Minretrycount     int32              `json:"minretrycount"`
+	Windowsize        int32              `json:"windowsize"`
+}
+
+type ListEvictedTaskRuntimeWindowRow struct {
+	TaskID                     int64              `json:"task_id"`
+	TaskInsertedAt             pgtype.Timestamptz `json:"task_inserted_at"`
+	RetryCount                 int32              `json:"retry_count"`
+	EvictedAt                  pgtype.Timestamptz `json:"evicted_at"`
+	ExternalID                 *uuid.UUID         `json:"external_id"`
+	IsStuckDurableOrchestrator bool               `json:"is_stuck_durable_orchestrator"`
+}
+
+// DAG-orchestrator tasks whose runtime has been evicted past the grace period and whose durable
+// event log entries are ALL satisfied -- the orchestrator is ready to resume but the
+// edge-triggered restore (a child callback arriving while evicted -> DurableRestoreTask) never
+// fired: the callback was lost on an engine roll, or every entry was satisfied before the
+// eviction so there was no later callback. The caller re-queues these via DurableRestoreTask.
+func (q *Queries) ListEvictedTaskRuntimeWindow(ctx context.Context, db DBTX, arg ListEvictedTaskRuntimeWindowParams) ([]*ListEvictedTaskRuntimeWindowRow, error) {
+	rows, err := db.Query(ctx, listEvictedTaskRuntimeWindow,
+		arg.Tenantid,
+		arg.Graceperiod,
+		arg.Minevictedast,
+		arg.Mintaskid,
+		arg.Mintaskinsertedat,
+		arg.Minretrycount,
+		arg.Windowsize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListEvictedTaskRuntimeWindowRow
+	for rows.Next() {
+		var i ListEvictedTaskRuntimeWindowRow
+		if err := rows.Scan(
+			&i.TaskID,
+			&i.TaskInsertedAt,
+			&i.RetryCount,
+			&i.EvictedAt,
+			&i.ExternalID,
+			&i.IsStuckDurableOrchestrator,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listMatchingSignalEvents = `-- name: ListMatchingSignalEvents :many
 WITH input AS (
     SELECT
@@ -1788,73 +1897,6 @@ func (q *Queries) ListPartitionsBeforeDate(ctx context.Context, db DBTX, date pg
 	for rows.Next() {
 		var i ListPartitionsBeforeDateRow
 		if err := rows.Scan(&i.ParentTable, &i.PartitionName); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listStuckEvictedDurableOrchestrators = `-- name: ListStuckEvictedDurableOrchestrators :many
-SELECT
-    t.id,
-    t.inserted_at,
-    t.external_id,
-    rt.retry_count
-FROM v1_task_runtime rt
-JOIN v1_task t ON (t.id, t.inserted_at) = (rt.task_id, rt.task_inserted_at)
-WHERE rt.tenant_id = $1::uuid
-    AND rt.evicted_at < NOW() - $2::interval
-    AND t.is_dag_orchestrator
-    AND EXISTS (
-        SELECT 1 FROM v1_durable_event_log_entry e
-        WHERE (e.durable_task_id, e.durable_task_inserted_at) = (t.id, t.inserted_at)
-    )
-    AND NOT EXISTS (
-        SELECT 1 FROM v1_durable_event_log_entry e
-        WHERE (e.durable_task_id, e.durable_task_inserted_at) = (t.id, t.inserted_at)
-          AND NOT e.is_satisfied
-    )
-ORDER BY rt.evicted_at
-LIMIT $3::int
-`
-
-type ListStuckEvictedDurableOrchestratorsParams struct {
-	Tenantid    uuid.UUID       `json:"tenantid"`
-	Graceperiod pgtype.Interval `json:"graceperiod"`
-	Maxtasks    int32           `json:"maxtasks"`
-}
-
-type ListStuckEvictedDurableOrchestratorsRow struct {
-	ID         int64              `json:"id"`
-	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
-	ExternalID uuid.UUID          `json:"external_id"`
-	RetryCount int32              `json:"retry_count"`
-}
-
-// DAG-orchestrator tasks whose runtime has been evicted past the grace period and whose durable
-// event log entries are ALL satisfied -- the orchestrator is ready to resume but the
-// edge-triggered restore (a child callback arriving while evicted -> DurableRestoreTask) never
-// fired: the callback was lost on an engine roll, or every entry was satisfied before the
-// eviction so there was no later callback. The caller re-queues these via DurableRestoreTask.
-func (q *Queries) ListStuckEvictedDurableOrchestrators(ctx context.Context, db DBTX, arg ListStuckEvictedDurableOrchestratorsParams) ([]*ListStuckEvictedDurableOrchestratorsRow, error) {
-	rows, err := db.Query(ctx, listStuckEvictedDurableOrchestrators, arg.Tenantid, arg.Graceperiod, arg.Maxtasks)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*ListStuckEvictedDurableOrchestratorsRow
-	for rows.Next() {
-		var i ListStuckEvictedDurableOrchestratorsRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.InsertedAt,
-			&i.ExternalID,
-			&i.RetryCount,
-		); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

@@ -1257,33 +1257,53 @@ SELECT
           AND NOT is_satisfied
     ) AS has_unsatisfied_durable_events;
 
--- name: ListStuckEvictedDurableOrchestrators :many
+-- name: ListEvictedTaskRuntimeWindow :many
 -- DAG-orchestrator tasks whose runtime has been evicted past the grace period and whose durable
 -- event log entries are ALL satisfied -- the orchestrator is ready to resume but the
 -- edge-triggered restore (a child callback arriving while evicted -> DurableRestoreTask) never
 -- fired: the callback was lost on an engine roll, or every entry was satisfied before the
 -- eviction so there was no later callback. The caller re-queues these via DurableRestoreTask.
+WITH evicted_runtime_window AS (
+    SELECT
+        rt.task_id,
+        rt.task_inserted_at,
+        rt.retry_count,
+        rt.evicted_at
+    FROM v1_task_runtime rt
+    WHERE
+        rt.tenant_id = @tenantId::UUID
+        AND rt.evicted_at < NOW() - @gracePeriod::INTERVAL
+        AND (rt.evicted_at, rt.task_id, rt.task_inserted_at, rt.retry_count) > (
+            @minEvictedAst::TIMESTAMPTZ,
+            @minTaskId::BIGINT,
+            @minTaskInsertedAt::TIMESTAMPTZ,
+            @minRetryCount::INTEGER
+        )
+    ORDER BY rt.evicted_at, rt.task_id, rt.task_inserted_at, rt.retry_count
+    LIMIT @windowSize::INTEGER
+)
 SELECT
-    t.id,
-    t.inserted_at,
+    w.task_id,
+    w.task_inserted_at,
+    w.retry_count,
+    w.evicted_at,
     t.external_id,
-    rt.retry_count
-FROM v1_task_runtime rt
-JOIN v1_task t ON (t.id, t.inserted_at) = (rt.task_id, rt.task_inserted_at)
-WHERE rt.tenant_id = @tenantId::uuid
-    AND rt.evicted_at < NOW() - @gracePeriod::interval
-    AND t.is_dag_orchestrator
-    AND EXISTS (
-        SELECT 1 FROM v1_durable_event_log_entry e
-        WHERE (e.durable_task_id, e.durable_task_inserted_at) = (t.id, t.inserted_at)
-    )
-    AND NOT EXISTS (
-        SELECT 1 FROM v1_durable_event_log_entry e
-        WHERE (e.durable_task_id, e.durable_task_inserted_at) = (t.id, t.inserted_at)
-          AND NOT e.is_satisfied
-    )
-ORDER BY rt.evicted_at
-LIMIT @maxTasks::int;
+    COALESCE(
+        t.is_dag_orchestrator
+        AND EXISTS (
+            SELECT 1 FROM v1_durable_event_log_entry e
+            WHERE (e.durable_task_id, e.durable_task_inserted_at) = (t.id, t.inserted_at)
+        )
+        AND NOT EXISTS (
+            SELECT 1 FROM v1_durable_event_log_entry e
+            WHERE (e.durable_task_id, e.durable_task_inserted_at) = (t.id, t.inserted_at)
+              AND NOT e.is_satisfied
+        ),
+        FALSE
+    )::BOOLEAN AS is_stuck_durable_orchestrator
+FROM evicted_runtime_window w
+LEFT JOIN v1_task t ON (t.id, t.inserted_at) = (w.task_id, w.task_inserted_at)
+ORDER BY w.evicted_at, w.task_id, w.task_inserted_at, w.retry_count;
 
 -- name: ListUnfinishedDurableOrchestratorChildren :many
 SELECT DISTINCT
@@ -1441,13 +1461,13 @@ WITH locked_trs AS (
     ORDER BY vtr.task_id ASC
     LIMIT @batchSize::int
     FOR UPDATE SKIP LOCKED
+), deleted_slots AS (
+    DELETE FROM v1_task_runtime_slot
+    WHERE (task_id, task_inserted_at, retry_count) IN (
+        SELECT task_id, task_inserted_at, retry_count
+        FROM locked_trs
+    )
 )
-DELETE FROM v1_task_runtime_slot
-WHERE (task_id, task_inserted_at, retry_count) IN (
-    SELECT task_id, task_inserted_at, retry_count
-    FROM locked_trs
-);
-
 DELETE FROM v1_task_runtime
 WHERE (task_id, task_inserted_at, retry_count) IN (
     SELECT task_id, task_inserted_at, retry_count
