@@ -4,12 +4,15 @@ package repository
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	lru "github.com/hashicorp/golang-lru/v2"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
@@ -31,11 +34,11 @@ func createOLAPRepository(pool *pgxpool.Pool) *OLAPRepositoryImpl {
 		panic(err)
 	}
 	return &OLAPRepositoryImpl{
-		sharedRepository:            shared,
-		eventCache:                  eventCache,
-		olapRetentionPeriod:         24 * time.Hour,
-		shouldPartitionEventsTables: false,
-		shouldPartitionOtelTables:   false,
+		sharedRepository:                    shared,
+		eventCache:                          eventCache,
+		olapRetentionPeriod:                 24 * time.Hour,
+		shouldManageOptionalTablePartitions: false,
+		shouldPartitionOtelTables:           false,
 	}
 }
 
@@ -228,4 +231,46 @@ func TestOLAPUpdateTablePartitions_LockContention(t *testing.T) {
 
 	assert.Equal(t, int64(0), finalErrorCount, "No errors should occur under contention")
 	assert.Equal(t, int64(numRepositories), finalSuccessCount, "All repositories should complete successfully")
+}
+
+func TestOLAPUpdateTablePartitions_LookupTablePartitionsHaveUniqueExternalId(t *testing.T) {
+	pool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	queries := sqlcv1.New()
+	twoMonthsAhead := time.Now().UTC().AddDate(0, 2, 0)
+
+	creations, err := queries.CreateOLAPOptionalTablePartitions(ctx, pool, pgtype.Date{Time: twoMonthsAhead, Valid: true})
+	require.NoError(t, err)
+	require.Equal(t, int32(1), creations.V1LookupTableOlap, "should create a new monthly lookup table partition")
+	require.Equal(t, int32(1), creations.V1StatusesOlap, "should create a new monthly statuses partition")
+
+	err = createExternalIdUniqueConstraintsOnMonthlyPartitions(ctx, pool, "v1_lookup_table_olap", twoMonthsAhead)
+	require.NoError(t, err)
+
+	rows, err := pool.Query(ctx, `
+		SELECT c.relname
+		FROM pg_inherits i
+		JOIN pg_class c ON i.inhrelid = c.oid
+		WHERE i.inhparent = 'v1_lookup_table_olap'::regclass
+	`)
+	require.NoError(t, err)
+
+	partitionNames, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	require.NoError(t, err)
+	require.Contains(t, partitionNames, "v1_lookup_table_olap_"+twoMonthsAhead.Format("200601")+"01")
+
+	for _, partitionName := range partitionNames {
+		var constraintDefinition string
+		err = pool.QueryRow(ctx, `
+			SELECT pg_get_constraintdef(oid)
+			FROM pg_constraint
+			WHERE conrelid = $1::regclass AND conname = $2
+		`, partitionName, partitionName+"_external_id_uq").Scan(&constraintDefinition)
+		require.NoError(t, err, "partition %s should have a unique constraint on external_id", partitionName)
+		assert.True(t, strings.HasSuffix(constraintDefinition, "(external_id)"), "unexpected constraint definition %q on %s", constraintDefinition, partitionName)
+	}
 }
