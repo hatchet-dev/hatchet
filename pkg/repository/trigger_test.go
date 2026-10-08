@@ -8,7 +8,34 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
+
+func Test_meteredTaskCount(t *testing.T) {
+	step := &sqlcv1.ListStepsByWorkflowVersionIdsRow{ActionId: "wf:step"}
+	onFailure := &sqlcv1.ListStepsByWorkflowVersionIdsRow{ActionId: "wf:on-failure", JobKind: sqlcv1.JobKindONFAILURE}
+	orchestrator := &sqlcv1.ListStepsByWorkflowVersionIdsRow{ActionId: "wf:orchestrator", IsDagOrchestrator: true}
+	target := "wf:step"
+
+	tests := []struct {
+		name   string
+		tuple  triggerTuple
+		steps  []*sqlcv1.ListStepsByWorkflowVersionIdsRow
+		expect int
+	}{
+		{"single task", triggerTuple{}, []*sqlcv1.ListStepsByWorkflowVersionIdsRow{step}, 1},
+		{"dag without operator", triggerTuple{}, []*sqlcv1.ListStepsByWorkflowVersionIdsRow{step, step, onFailure}, 3},
+		{"operator dag start", triggerTuple{}, []*sqlcv1.ListStepsByWorkflowVersionIdsRow{step, step, onFailure, orchestrator}, 3},
+		{"operator dag step", triggerTuple{targetActionId: &target}, []*sqlcv1.ListStepsByWorkflowVersionIdsRow{step, step, onFailure, orchestrator}, 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expect, meteredTaskCount(tt.tuple, tt.steps))
+		})
+	}
+}
 
 func Test_cleanAdditionalMetadataTableTest(t *testing.T) {
 

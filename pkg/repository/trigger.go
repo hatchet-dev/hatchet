@@ -933,7 +933,7 @@ func (r *sharedRepository) triggerWorkflowsCore(
 			continue
 		}
 
-		countTasks += len(steps)
+		countTasks += meteredTaskCount(tuple, steps)
 	}
 
 	preTask, postTask := r.m.Meter(ctx, preflightTx, sqlcv1.LimitResourceTASKRUN, tenantId, int32(countTasks)) // nolint: gosec
@@ -2316,6 +2316,16 @@ func spawnsAsOperatorRun(tuple triggerTuple, steps []*sqlcv1.ListStepsByWorkflow
 	}
 
 	return false
+}
+
+// meteredTaskCount returns how many task runs to meter for a trigger. A DAG is metered
+// for all its steps when it starts, so the DAG operator's per-step triggers are not.
+func meteredTaskCount(tuple triggerTuple, steps []*sqlcv1.ListStepsByWorkflowVersionIdsRow) int {
+	if tuple.targetActionId != nil {
+		return 0
+	}
+
+	return len(regularUserSteps(steps))
 }
 
 func regularUserSteps(steps []*sqlcv1.ListStepsByWorkflowVersionIdsRow) []*sqlcv1.ListStepsByWorkflowVersionIdsRow {

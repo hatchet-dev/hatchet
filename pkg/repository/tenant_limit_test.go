@@ -270,3 +270,15 @@ func TestStreamRetention_DefaultsToTenantRetentionAndIsStored(t *testing.T) {
 	require.NotNil(t, retentionLimit)
 	assert.Equal(t, int32(48), retentionLimit.LimitValue)
 }
+
+func TestMeter_ZeroChargePassesAtCap(t *testing.T) {
+	repo := createTenantLimitRepositoryForTest(t, nil, defaultLimitTestConfig())
+	tenantID := uuid.New()
+	repo.c.Set(meterKey{tenantId: tenantID, resource: sqlcv1.LimitResourceTASKRUN}.cacheKey(), false)
+
+	zero, _ := repo.Meter(context.Background(), nil, sqlcv1.LimitResourceTASKRUN, tenantID, 0)
+	require.NoError(t, zero())
+
+	one, _ := repo.Meter(context.Background(), nil, sqlcv1.LimitResourceTASKRUN, tenantID, 1)
+	require.ErrorIs(t, one(), ErrResourceExhausted)
+}
