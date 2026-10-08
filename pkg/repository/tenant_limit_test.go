@@ -271,8 +271,6 @@ func TestStreamRetention_DefaultsToTenantRetentionAndIsStored(t *testing.T) {
 	assert.Equal(t, int32(48), retentionLimit.LimitValue)
 }
 
-// The cached canCreate result ignores the requested amount, so a zero charge must
-// skip the check or a tenant at its cap rejects work that was already paid for.
 func TestMeter_ZeroChargePassesAtCap(t *testing.T) {
 	repo := createTenantLimitRepositoryForTest(t, nil, defaultLimitTestConfig())
 	tenantID := uuid.New()
