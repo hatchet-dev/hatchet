@@ -212,8 +212,14 @@ WITH locked_trs AS (
     ORDER BY vtr.task_id ASC
     LIMIT $1::int
     FOR UPDATE SKIP LOCKED
+), deleted_slots AS (
+    DELETE FROM v1_task_runtime_slot
+    WHERE (task_id, task_inserted_at, retry_count) IN (
+        SELECT task_id, task_inserted_at, retry_count
+        FROM locked_trs
+    )
 )
-DELETE FROM v1_task_runtime_slot
+DELETE FROM v1_task_runtime
 WHERE (task_id, task_inserted_at, retry_count) IN (
     SELECT task_id, task_inserted_at, retry_count
     FROM locked_trs
@@ -1506,12 +1512,12 @@ WITH evicted_runtime_window AS (
     LIMIT $7::INTEGER
 )
 SELECT
-    t.id,
-    t.inserted_at,
-    t.external_id,
+    w.task_id,
+    w.task_inserted_at,
     w.retry_count,
     w.evicted_at,
-    (
+    t.external_id,
+    COALESCE(
         t.is_dag_orchestrator
         AND EXISTS (
             SELECT 1 FROM v1_durable_event_log_entry e
@@ -1521,10 +1527,11 @@ SELECT
             SELECT 1 FROM v1_durable_event_log_entry e
             WHERE (e.durable_task_id, e.durable_task_inserted_at) = (t.id, t.inserted_at)
               AND NOT e.is_satisfied
-        )
+        ),
+        FALSE
     )::BOOLEAN AS is_stuck_durable_orchestrator
 FROM evicted_runtime_window w
-JOIN v1_task t ON (t.id, t.inserted_at) = (w.task_id, w.task_inserted_at)
+LEFT JOIN v1_task t ON (t.id, t.inserted_at) = (w.task_id, w.task_inserted_at)
 ORDER BY w.evicted_at, w.task_id, w.task_inserted_at, w.retry_count
 `
 
@@ -1539,11 +1546,11 @@ type ListEvictedTaskRuntimeWindowParams struct {
 }
 
 type ListEvictedTaskRuntimeWindowRow struct {
-	ID                         int64              `json:"id"`
-	InsertedAt                 pgtype.Timestamptz `json:"inserted_at"`
-	ExternalID                 uuid.UUID          `json:"external_id"`
+	TaskID                     int64              `json:"task_id"`
+	TaskInsertedAt             pgtype.Timestamptz `json:"task_inserted_at"`
 	RetryCount                 int32              `json:"retry_count"`
 	EvictedAt                  pgtype.Timestamptz `json:"evicted_at"`
+	ExternalID                 *uuid.UUID         `json:"external_id"`
 	IsStuckDurableOrchestrator bool               `json:"is_stuck_durable_orchestrator"`
 }
 
@@ -1570,11 +1577,11 @@ func (q *Queries) ListEvictedTaskRuntimeWindow(ctx context.Context, db DBTX, arg
 	for rows.Next() {
 		var i ListEvictedTaskRuntimeWindowRow
 		if err := rows.Scan(
-			&i.ID,
-			&i.InsertedAt,
-			&i.ExternalID,
+			&i.TaskID,
+			&i.TaskInsertedAt,
 			&i.RetryCount,
 			&i.EvictedAt,
+			&i.ExternalID,
 			&i.IsStuckDurableOrchestrator,
 		); err != nil {
 			return nil, err

@@ -2149,8 +2149,8 @@ type EvictedTaskRuntimeCursor struct {
 func EvictedTaskRuntimeCursorFromRow(row *sqlcv1.ListEvictedTaskRuntimeWindowRow) EvictedTaskRuntimeCursor {
 	return EvictedTaskRuntimeCursor{
 		EvictedAt:      row.EvictedAt.Time,
-		TaskID:         row.ID,
-		TaskInsertedAt: row.InsertedAt.Time,
+		TaskID:         row.TaskID,
+		TaskInsertedAt: row.TaskInsertedAt.Time,
 		RetryCount:     row.RetryCount,
 	}
 }
@@ -2162,9 +2162,9 @@ func (r *TaskRepositoryImpl) ListEvictedTaskRuntimeWindow(ctx context.Context, t
 			Microseconds: grace.Microseconds(),
 			Valid:        true,
 		},
-		Minevictedast:     sqlchelpers.TimestamptzFromTime(after.EvictedAt),
+		Minevictedast:     pgtype.Timestamptz{Time: after.EvictedAt, Valid: true},
 		Mintaskid:         after.TaskID,
-		Mintaskinsertedat: sqlchelpers.TimestamptzFromTime(after.TaskInsertedAt),
+		Mintaskinsertedat: pgtype.Timestamptz{Time: after.TaskInsertedAt, Valid: true},
 		Minretrycount:     after.RetryCount,
 		Windowsize:        windowSize,
 	})

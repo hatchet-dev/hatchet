@@ -53,26 +53,26 @@ func (tc *TasksControllerImpl) processStuckEvictedDurableOrchestrators(ctx conte
 	}
 
 	for _, row := range rows {
-		if !row.IsStuckDurableOrchestrator {
+		if !row.IsStuckDurableOrchestrator || row.ExternalID == nil {
 			continue
 		}
 
 		msg, err := tasktypes.DurableRestoreTaskMessage(
 			tenantId,
-			row.ExternalID,
+			*row.ExternalID,
 			"periodic restore: durable orchestrator evicted with all durable events satisfied",
 		)
 		if err != nil {
-			tc.l.Error().Ctx(ctx).Err(err).Msgf("could not build durable restore message for task %s", row.ExternalID)
+			tc.l.Error().Ctx(ctx).Err(err).Msgf("could not build durable restore message for task %s", *row.ExternalID)
 			continue
 		}
 
 		if err := tc.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
-			tc.l.Error().Ctx(ctx).Err(err).Msgf("could not publish durable restore message for task %s", row.ExternalID)
+			tc.l.Error().Ctx(ctx).Err(err).Msgf("could not publish durable restore message for task %s", *row.ExternalID)
 			continue
 		}
 
-		tc.l.Warn().Ctx(ctx).Msgf("restoring stuck evicted durable orchestrator %s (evicted, all durable events satisfied)", row.ExternalID)
+		tc.l.Warn().Ctx(ctx).Msgf("restoring stuck evicted durable orchestrator %s (evicted, all durable events satisfied)", *row.ExternalID)
 	}
 
 	return false, nil
