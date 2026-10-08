@@ -530,16 +530,7 @@ func (c *ConcurrencyStrategy) buildIndex(ctx context.Context) error {
 		return ctx.Err()
 	}
 
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	var size residentSize
-
-	for _, sq := range c.subQueues {
-		size = size.plus(sq.size())
-	}
-
-	c.resident.set(size)
+	c.resident.set(c.countResident())
 
 	return nil
 }
@@ -953,8 +944,8 @@ func (c *ConcurrencyStrategy) UpdateStrategy(next *sqlcv1.V1StepConcurrency) {
 	for _, sq := range c.subQueues {
 		// only groups still on the static default move to the new static limit; a
 		// dynamically observed value (maxRunsFrom set) stays until a newer task's
-		// evaluation replaces it. The begin-scope snapshot moves too so a rollback of an
-		// in-flight batch restores the new static value rather than the old one.
+		// evaluation replaces it. The undo state moves too so a rollback of an in-flight
+		// batch restores the new static value rather than the old one.
 		if sq.maxRunsFrom == 0 {
 			sq.maxRuns = next.MaxConcurrency
 

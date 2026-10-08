@@ -72,6 +72,20 @@ func (r *residentCounts) load() residentSize {
 	}
 }
 
+// countResident sums what every sub-queue holds.
+func (c *ConcurrencyStrategy) countResident() residentSize {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	var size residentSize
+
+	for _, sq := range c.subQueues {
+		size = size.plus(sq.size())
+	}
+
+	return size
+}
+
 var (
 	trackedMu  sync.Mutex
 	tracked    = make(map[*ConcurrencyStrategy]struct{})
