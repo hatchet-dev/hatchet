@@ -2,9 +2,12 @@ package cli
 
 import (
 	"fmt"
+	"log"
 	"os"
 
 	"github.com/spf13/cobra"
+
+	"github.com/hatchet-dev/hatchet/pkg/encryption"
 )
 
 // Version will be linked by an ldflag during build
@@ -22,6 +25,11 @@ var rootCmd = &cobra.Command{
 		if printVersion {
 			fmt.Println(Version)
 			os.Exit(0)
+		}
+
+		if err := encryption.RequireFIPSBuild(); err != nil {
+			log.Printf("Fatal: %v", err)
+			os.Exit(1)
 		}
 
 		// var err error

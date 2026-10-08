@@ -12,7 +12,8 @@ var ErrHMACKeyTooShort = errors.New("HMAC keys shorter than 112 bits are not per
 
 // CheckHMACKey reports whether key may be used with HMAC under the current FIPS mode.
 func CheckHMACKey(key []byte) error {
-	if fips140.Enabled() && len(key) < 14 {
+	// SP 800-131A: HMAC keys must be at least 112 bits in approved mode (Go panics below this in fips140=only).
+	if fips140.Enabled() && len(key) < 112/8 {
 		return ErrHMACKeyTooShort
 	}
 

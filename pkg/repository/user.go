@@ -81,6 +81,8 @@ type UserRepository interface {
 	ListTenantMemberships(ctx context.Context, userId uuid.UUID) ([]*sqlcv1.PopulateTenantMembersRow, error)
 }
 
+// The $pbkdf2-sha256$iterations$salt$hash layout resembles passlib's but is not compatible with it:
+// passlib uses a custom base64 alphabet, this uses standard raw base64. Do not align either side.
 const (
 	pbkdf2Prefix     = "$pbkdf2-sha256$"
 	pbkdf2Iterations = 600000
