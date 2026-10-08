@@ -27,29 +27,29 @@ const (
 // the edge-triggered DurableRestoreTask -- the child callback that would have published it was
 // lost (engine roll), or every entry was already satisfied at eviction time so no later callback
 // arrived. Without this they sit evicted forever and their DAG stays RUNNING.
-func (tc *TasksControllerImpl) processStuckEvictedDurableOrchestrators(ctx context.Context, tenantId string) (bool, error) {
+func (tc *TasksControllerImpl) processStuckEvictedDurableOrchestrators(ctx context.Context, tenantIdStr string) (bool, error) {
 	ctx, span := telemetry.NewSpan(ctx, "process-stuck-evicted-durable-orchestrators")
 	defer span.End()
 
-	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantIdStr})
 
-	tenantIdUUID, err := uuid.Parse(tenantId)
+	tenantId, err := uuid.Parse(tenantIdStr)
 	if err != nil {
 		return false, fmt.Errorf("invalid tenant id %q: %w", tenantId, err)
 	}
 
-	cursor, _ := tc.evictedTaskRuntimeCursors.Load(tenantIdUUID)
+	cursor, _ := tc.evictedTaskRuntimeCursors.Load(tenantId)
 
-	rows, err := tc.repov1.Tasks().ListEvictedTaskRuntimeWindow(ctx, tenantIdUUID, cursor, stuckEvictedOrchestratorGrace, evictedTaskRuntimeWindowSize)
+	rows, err := tc.repov1.Tasks().ListEvictedTaskRuntimeWindow(ctx, tenantId, cursor, stuckEvictedOrchestratorGrace, evictedTaskRuntimeWindowSize)
 
 	if err != nil {
 		return false, fmt.Errorf("could not list evicted task runtime window for tenant %s: %w", tenantId, err)
 	}
 
 	if len(rows) < evictedTaskRuntimeWindowSize {
-		tc.evictedTaskRuntimeCursors.Delete(tenantIdUUID)
+		tc.evictedTaskRuntimeCursors.Delete(tenantId)
 	} else {
-		tc.evictedTaskRuntimeCursors.Store(tenantIdUUID, v1.EvictedTaskRuntimeCursorFromRow(rows[len(rows)-1]))
+		tc.evictedTaskRuntimeCursors.Store(tenantId, v1.EvictedTaskRuntimeCursorFromRow(rows[len(rows)-1]))
 	}
 
 	for _, row := range rows {
@@ -58,7 +58,7 @@ func (tc *TasksControllerImpl) processStuckEvictedDurableOrchestrators(ctx conte
 		}
 
 		msg, err := tasktypes.DurableRestoreTaskMessage(
-			tenantIdUUID,
+			tenantId,
 			row.ExternalID,
 			"periodic restore: durable orchestrator evicted with all durable events satisfied",
 		)
