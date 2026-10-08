@@ -706,6 +706,8 @@ CREATE INDEX v1_task_runtime_tenantId_timeoutAt_idx ON v1_task_runtime (tenant_i
 
 CREATE INDEX v1_task_runtime_tenant_worker_not_evicted_idx ON v1_task_runtime (tenant_id, worker_id) WHERE evicted_at IS NULL;
 
+CREATE INDEX v1_task_runtime_tenant_evicted_at_idx ON v1_task_runtime (tenant_id, evicted_at, task_id, task_inserted_at, retry_count) WHERE evicted_at IS NOT NULL;
+
 CREATE INDEX v1_task_runtime_batch_id_idx ON v1_task_runtime (batch_id) WHERE batch_id IS NOT NULL;
 
 -- Cleanup v1_batch_runtime reservations when the last v1_task_runtime row for a batch_id is deleted.
