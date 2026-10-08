@@ -610,6 +610,44 @@ func TestOnDemandWindowWidensToEvaluatedLimitOnFirstVisit(t *testing.T) {
 	}
 }
 
+// Slots created together share a timestamp. An older expired slot that evaluated a higher limit must not
+// overwrite the newest slot's lower limit just because expired rows are loaded last.
+func TestOnDemandExpiredSlotWithEqualTimestampDoesNotRaiseLimit(t *testing.T) {
+	now := time.Now().UTC()
+	past := now.Add(-time.Minute)
+	future := now.Add(time.Hour)
+
+	withMaxRuns := func(row *sqlcv1.ListConcurrencySlotsForIndexingRow, maxRuns int32) *sqlcv1.ListConcurrencySlotsForIndexingRow {
+		row.MaxRuns = pgtype.Int4{Int32: maxRuns, Valid: true}
+		return row
+	}
+
+	repo := &mockConcurrencyRepo{
+		indexRows: []*sqlcv1.ListConcurrencySlotsForIndexingRow{
+			withMaxRuns(indexRow("a", 1, 5, 0, now, future, true), 3),  // running
+			withMaxRuns(indexRow("a", 2, 5, 0, now, past, false), 3),   // expired, same timestamp as the newest
+			withMaxRuns(indexRow("a", 3, 5, 0, now, future, false), 1), // newest by task id: limit 1
+			withMaxRuns(indexRow("a", 4, 5, 0, now.Add(-time.Second), future, false), 3),
+		},
+	}
+	c := newTestStrategyKind(repo, 1, sqlcv1.V1ConcurrencyStrategyGROUPROUNDROBIN)
+	c.strategy.MaxRunsExpression = pgtype.Text{String: "input.limit", Valid: true}
+	c.hydrateOnDemand = true
+
+	if _, err := c.processWALMessages(context.Background(), nil, []walMessage{{Operation: "DELETE", Key: "a", TaskId: 99}}); err != nil {
+		t.Fatalf("processWALMessages: %v", err)
+	}
+
+	// limit 1 with one running slot: nothing fills, the expired slot times out
+	if len(repo.lastFilled) != 0 {
+		t.Fatalf("filled %v: the expired slot's limit of 3 overwrote the newest slot's limit of 1", filledIDs(repo.lastFilled))
+	}
+	timedOut := cancelledByReason(repo.lastCancelled, repository.CancelledReasonSchedulingTimedOut)
+	if len(timedOut) != 1 || !containsID(timedOut, 2) {
+		t.Fatalf("SCHEDULING_TIMED_OUT cancels = %v, want [2]", timedOut)
+	}
+}
+
 func TestOnDemandInitialQueueingResumesFromCursorAfterFailure(t *testing.T) {
 	now := time.Now().UTC()
 	future := now.Add(time.Hour)

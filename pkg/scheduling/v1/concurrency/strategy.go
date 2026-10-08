@@ -854,17 +854,19 @@ func (c *ConcurrencyStrategy) hydrateKeysFromDatabase(ctx context.Context, tx pg
 		return hydratedKeys{}, fmt.Errorf("failed to hydrate concurrency keys for topic %s: %w", c.topic, err)
 	}
 
-	// the newest slot's evaluation is the key's effective limit even when that slot is outside the
-	// window, so apply it before the window rows (whose own values are older and cannot override it)
-	for key, newest := range window.NewestLimitByKey {
-		c.getOrCreateSubQueue(key).observeMaxRuns(newest.MaxRuns, newest.TaskInsertedAt.UnixNano())
-	}
-
 	toCancel := c.hydrateSubQueuesFromRows(window.InWindow)
 
 	// expired slots are loaded so popTimedOut cancels them with SCHEDULING_TIMED_OUT, exactly as on
 	// the eager path, rather than being lumped in with the outside-window CONCURRENCY_LIMIT cancels
 	toCancel = append(toCancel, c.hydrateSubQueuesFromRows(window.Expired)...)
+
+	// The newest slot's evaluation is the key's effective limit even when that slot is outside the
+	// window. It is applied after every row so it is the final observation: observeMaxRuns lets an
+	// equal timestamp overwrite, and slots created together share one, so a row loaded later with the
+	// same timestamp would otherwise win the tie the query already resolved by task id.
+	for key, newest := range window.NewestLimitByKey {
+		c.getOrCreateSubQueue(key).observeMaxRuns(newest.MaxRuns, newest.TaskInsertedAt.UnixNano())
+	}
 
 	for _, row := range window.OutsideWindow {
 		toCancel = append(toCancel, walMessageToSlot(indexRowToWALMessage(row)))

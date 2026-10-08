@@ -83,7 +83,7 @@ func (m *mockConcurrencyRepo) ListConcurrencySlotWindowForKeys(ctx context.Conte
 		if r.MaxRuns.Valid {
 			limitByKey[r.Key] = max(limitByKey[r.Key], r.MaxRuns.Int32)
 		}
-		if newest := newestByKey[r.Key]; newest == nil || r.TaskInsertedAt.Time.After(newest.TaskInsertedAt.Time) {
+		if newest := newestByKey[r.Key]; newest == nil || isNewerSlotRow(r, newest) {
 			newestByKey[r.Key] = r
 		}
 		switch {
@@ -143,6 +143,14 @@ func comparatorForOrdering(ordering repository.ConcurrencySlotOrdering) func(a, 
 	default:
 		return cancelQueuedExceptCompare
 	}
+}
+
+// isNewerSlotRow mirrors the window query's newest-slot ordering: task_inserted_at, then task_id.
+func isNewerSlotRow(a, b *sqlcv1.ListConcurrencySlotsForIndexingRow) bool {
+	if !a.TaskInsertedAt.Time.Equal(b.TaskInsertedAt.Time) {
+		return a.TaskInsertedAt.Time.After(b.TaskInsertedAt.Time)
+	}
+	return a.TaskID > b.TaskID
 }
 
 func indexRowToSlot(row *sqlcv1.ListConcurrencySlotsForIndexingRow) slot {
