@@ -406,6 +406,12 @@ func (t *tenantLimitRepository) cachedCanCreate(ctx context.Context, dbtx sqlcv1
 
 func (t *tenantLimitRepository) Meter(ctx context.Context, dbtx sqlcv1.DBTX, resource sqlcv1.LimitResource, tenantId uuid.UUID, numberOfResources int32) (precommit func() error, postcommit func()) {
 	return func() error {
+			// skip the limit check when there's nothing to meter, so a running DAG can
+			// still trigger its steps after the tenant reaches its limit
+			if numberOfResources == 0 {
+				return nil
+			}
+
 			canCreate, _, err := t.cachedCanCreate(ctx, dbtx, resource, tenantId, numberOfResources)
 
 			if err != nil {
