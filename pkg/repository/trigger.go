@@ -2318,9 +2318,9 @@ func spawnsAsOperatorRun(tuple triggerTuple, steps []*sqlcv1.ListStepsByWorkflow
 	return false
 }
 
-// meteredTaskCount is the TASK_RUN charge for one trigger tuple. A DAG run is charged for its
-// user steps once, when the run is admitted; the DAG operator's per-step triggers run inside an
-// already-charged run, and the engine-generated orchestrator step is never charged.
+// meteredTaskCount is how many task runs a trigger counts against the tenant's limit.
+// The DAG operator triggers a DAG once to start it, then once per step. The first
+// trigger pays for every step, so the per-step triggers must count zero.
 func meteredTaskCount(tuple triggerTuple, steps []*sqlcv1.ListStepsByWorkflowVersionIdsRow) int {
 	if tuple.targetActionId != nil {
 		return 0
