@@ -559,10 +559,10 @@ func (q *Queries) ListActiveTenantConcurrencyStrategies(ctx context.Context, db 
 }
 
 const listConcurrencySlotWindowForKeys = `-- name: ListConcurrencySlotWindowForKeys :many
-WITH key_windows AS (
+WITH key_limits AS (
     SELECT
         unnest($1::TEXT[]) AS key,
-        unnest($2::INT[]) AS window_size
+        unnest($2::INT[]) AS caller_limit
 ), key_slots AS (
     SELECT
         s.sort_id,
@@ -576,47 +576,52 @@ WITH key_windows AS (
         s.is_filled,
         s.schedule_timeout_at,
         s.max_runs,
-        kw.window_size,
+        (s.is_filled = FALSE AND s.schedule_timeout_at < NOW()) AS is_expired,
+        GREATEST(kl.caller_limit, COALESCE(max(s.max_runs) OVER (PARTITION BY s.key), 0)) * $3::INT AS window_size,
+        COALESCE(first_value(s.max_runs) OVER (PARTITION BY s.key ORDER BY s.task_inserted_at DESC, s.task_id DESC), 0)::INT AS newest_max_runs,
+        (first_value(s.task_inserted_at) OVER (PARTITION BY s.key ORDER BY s.task_inserted_at DESC, s.task_id DESC))::TIMESTAMPTZ AS newest_task_inserted_at,
         count(*) OVER (PARTITION BY s.key, s.task_id) AS task_slot_count
     FROM v1_concurrency_slot s
-    JOIN key_windows kw ON kw.key = s.key
-    WHERE s.tenant_id = $3::UUID
-    AND s.strategy_id = $4::BIGINT
+    JOIN key_limits kl ON kl.key = s.key
+    WHERE s.tenant_id = $4::UUID
+    AND s.strategy_id = $5::BIGINT
 ), ranked_queued AS (
     SELECT
-        sort_id, task_id, task_inserted_at, task_retry_count, key, priority, tenant_id, strategy_id, is_filled, schedule_timeout_at, max_runs, window_size, task_slot_count,
+        sort_id, task_id, task_inserted_at, task_retry_count, key, priority, tenant_id, strategy_id, is_filled, schedule_timeout_at, max_runs, is_expired, window_size, newest_max_runs, newest_task_inserted_at, task_slot_count,
         row_number() OVER (
             PARTITION BY key
             ORDER BY
-                CASE WHEN $5::BOOLEAN THEN priority END DESC,
-                CASE WHEN $6::BOOLEAN THEN task_inserted_at END DESC,
-                CASE WHEN NOT $6::BOOLEAN THEN task_inserted_at END ASC,
-                CASE WHEN $6::BOOLEAN THEN task_id END DESC,
-                CASE WHEN NOT $6::BOOLEAN THEN task_id END ASC
+                CASE WHEN $6::BOOLEAN THEN priority END DESC,
+                CASE WHEN $7::BOOLEAN THEN task_inserted_at END DESC,
+                CASE WHEN NOT $7::BOOLEAN THEN task_inserted_at END ASC,
+                CASE WHEN $7::BOOLEAN THEN task_id END DESC,
+                CASE WHEN NOT $7::BOOLEAN THEN task_id END ASC
         ) AS best_rank,
         row_number() OVER (
             PARTITION BY key
             ORDER BY
-                CASE WHEN $5::BOOLEAN THEN priority END ASC,
-                CASE WHEN $6::BOOLEAN THEN task_inserted_at END ASC,
-                CASE WHEN NOT $6::BOOLEAN THEN task_inserted_at END DESC,
-                CASE WHEN $6::BOOLEAN THEN task_id END ASC,
-                CASE WHEN NOT $6::BOOLEAN THEN task_id END DESC
+                CASE WHEN $6::BOOLEAN THEN priority END ASC,
+                CASE WHEN $7::BOOLEAN THEN task_inserted_at END ASC,
+                CASE WHEN NOT $7::BOOLEAN THEN task_inserted_at END DESC,
+                CASE WHEN $7::BOOLEAN THEN task_id END ASC,
+                CASE WHEN NOT $7::BOOLEAN THEN task_id END DESC
         ) AS worst_rank
     FROM key_slots
-    WHERE is_filled = FALSE
+    WHERE is_filled = FALSE AND is_expired = FALSE
 )
 SELECT
     sort_id, task_id, task_inserted_at, task_retry_count, key, priority,
     tenant_id, strategy_id, is_filled, schedule_timeout_at, max_runs,
-    FALSE::BOOLEAN AS outside_window
+    newest_max_runs, newest_task_inserted_at,
+    FALSE::BOOLEAN AS is_expired, FALSE::BOOLEAN AS outside_window
 FROM key_slots
 WHERE is_filled = TRUE
 UNION ALL
 SELECT
     sort_id, task_id, task_inserted_at, task_retry_count, key, priority,
     tenant_id, strategy_id, is_filled, schedule_timeout_at, max_runs,
-    FALSE::BOOLEAN AS outside_window
+    newest_max_runs, newest_task_inserted_at,
+    FALSE::BOOLEAN AS is_expired, FALSE::BOOLEAN AS outside_window
 FROM ranked_queued
 WHERE best_rank <= window_size OR worst_rank <= window_size OR task_slot_count > 1
 UNION ALL
@@ -624,52 +629,77 @@ UNION ALL
     SELECT
         sort_id, task_id, task_inserted_at, task_retry_count, key, priority,
         tenant_id, strategy_id, is_filled, schedule_timeout_at, max_runs,
-        TRUE::BOOLEAN AS outside_window
+        newest_max_runs, newest_task_inserted_at,
+        TRUE::BOOLEAN AS is_expired, FALSE::BOOLEAN AS outside_window
+    FROM key_slots
+    WHERE is_expired = TRUE
+    LIMIT $8::INT
+)
+UNION ALL
+(
+    SELECT
+        sort_id, task_id, task_inserted_at, task_retry_count, key, priority,
+        tenant_id, strategy_id, is_filled, schedule_timeout_at, max_runs,
+        newest_max_runs, newest_task_inserted_at,
+        FALSE::BOOLEAN AS is_expired, TRUE::BOOLEAN AS outside_window
     FROM ranked_queued
     WHERE best_rank > window_size AND worst_rank > window_size AND task_slot_count = 1
-    LIMIT $7::INT
+    LIMIT $9::INT
 )
 ORDER BY key ASC, sort_id ASC
 `
 
 type ListConcurrencySlotWindowForKeysParams struct {
 	Keys            []string  `json:"keys"`
-	Windowsizes     []int32   `json:"windowsizes"`
+	Limits          []int32   `json:"limits"`
+	Limitfactor     int32     `json:"limitfactor"`
 	Tenantid        uuid.UUID `json:"tenantid"`
 	Strategyid      int64     `json:"strategyid"`
 	Orderbypriority bool      `json:"orderbypriority"`
 	Newestfirst     bool      `json:"newestfirst"`
+	Expiredlimit    int32     `json:"expiredlimit"`
 	Outsidelimit    int32     `json:"outsidelimit"`
 }
 
 type ListConcurrencySlotWindowForKeysRow struct {
-	SortID            pgtype.Int8        `json:"sort_id"`
-	TaskID            int64              `json:"task_id"`
-	TaskInsertedAt    pgtype.Timestamptz `json:"task_inserted_at"`
-	TaskRetryCount    int32              `json:"task_retry_count"`
-	Key               string             `json:"key"`
-	Priority          int32              `json:"priority"`
-	TenantID          uuid.UUID          `json:"tenant_id"`
-	StrategyID        int64              `json:"strategy_id"`
-	IsFilled          bool               `json:"is_filled"`
-	ScheduleTimeoutAt pgtype.Timestamp   `json:"schedule_timeout_at"`
-	MaxRuns           pgtype.Int4        `json:"max_runs"`
-	OutsideWindow     bool               `json:"outside_window"`
+	SortID               pgtype.Int8        `json:"sort_id"`
+	TaskID               int64              `json:"task_id"`
+	TaskInsertedAt       pgtype.Timestamptz `json:"task_inserted_at"`
+	TaskRetryCount       int32              `json:"task_retry_count"`
+	Key                  string             `json:"key"`
+	Priority             int32              `json:"priority"`
+	TenantID             uuid.UUID          `json:"tenant_id"`
+	StrategyID           int64              `json:"strategy_id"`
+	IsFilled             bool               `json:"is_filled"`
+	ScheduleTimeoutAt    pgtype.Timestamp   `json:"schedule_timeout_at"`
+	MaxRuns              pgtype.Int4        `json:"max_runs"`
+	NewestMaxRuns        int32              `json:"newest_max_runs"`
+	NewestTaskInsertedAt pgtype.Timestamptz `json:"newest_task_inserted_at"`
+	IsExpired            bool               `json:"is_expired"`
+	OutsideWindow        bool               `json:"outside_window"`
 }
 
-// Per key: every filled slot, the windowSize best and windowSize worst queued slots under the
-// strategy's ordering, and any queued slot whose task also holds another slot in the key (so a retry's
-// stale slot is always visible to the superseded check). Queued slots outside that window are returned
-// separately (outside_window = TRUE), capped at outsideLimit across all keys, for strategies that
-// cancel them. The ordering flags select the comparator: priority first or not, newest first or not.
+// Per key: every filled slot, a window of the best and worst unexpired queued slots under the strategy's
+// ordering, and any queued slot whose task also holds another slot in the key (so a retry's stale slot is
+// always visible to the superseded check). The window size is the larger of the caller's per-key limit
+// and the largest evaluated max_runs among the key's slots, times limitFactor, so a dynamic limit the
+// caller has not observed yet still gets a wide enough window. Expired queued slots (schedule_timeout_at
+// in the past) never take a window position; they are returned with is_expired = TRUE, capped at
+// expiredLimit, so the caller cancels them with the timeout reason. Unexpired queued slots outside the
+// window are returned with outside_window = TRUE, capped at outsideLimit, for strategies that cancel
+// them. Every row also carries the key's newest slot's max_runs and task_inserted_at, which is the key's
+// effective dynamic limit regardless of whether that slot made the window. The ordering flags select the
+// comparator: priority first or not, newest first or not.
 func (q *Queries) ListConcurrencySlotWindowForKeys(ctx context.Context, db DBTX, arg ListConcurrencySlotWindowForKeysParams) ([]*ListConcurrencySlotWindowForKeysRow, error) {
 	rows, err := db.Query(ctx, listConcurrencySlotWindowForKeys,
 		arg.Keys,
-		arg.Windowsizes,
+		arg.Limits,
+		arg.Limitfactor,
 		arg.Tenantid,
 		arg.Strategyid,
 		arg.Orderbypriority,
 		arg.Newestfirst,
+		arg.Expiredlimit,
 		arg.Outsidelimit,
 	)
 	if err != nil {
@@ -691,6 +721,9 @@ func (q *Queries) ListConcurrencySlotWindowForKeys(ctx context.Context, db DBTX,
 			&i.IsFilled,
 			&i.ScheduleTimeoutAt,
 			&i.MaxRuns,
+			&i.NewestMaxRuns,
+			&i.NewestTaskInsertedAt,
+			&i.IsExpired,
 			&i.OutsideWindow,
 		); err != nil {
 			return nil, err

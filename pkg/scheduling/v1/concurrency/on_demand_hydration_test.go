@@ -342,8 +342,8 @@ func TestOnDemandDeepKeyLoadsBoundedWindowAndCancelsOutside(t *testing.T) {
 		t.Fatalf("processWALMessages: %v", err)
 	}
 
-	if got := repo.lastWindowQuery.WindowSizes; len(got) != 1 || got[0] != 1 {
-		t.Fatalf("window sizes = %v, want [1]", got)
+	if got := repo.lastWindowQuery.Limits; len(got) != 1 || got[0] != 1 || repo.lastWindowQuery.LimitFactor != 1 {
+		t.Fatalf("limits = %v, factor = %d, want [1] and 1", got, repo.lastWindowQuery.LimitFactor)
 	}
 	if repo.lastWindowQuery.OutsideLimit != onDemandOutsideWindowCancelLimit {
 		t.Fatalf("outside limit = %d, want %d", repo.lastWindowQuery.OutsideLimit, onDemandOutsideWindowCancelLimit)
@@ -417,8 +417,8 @@ func TestOnDemandCancelQueuedExceptOldestDoublesWindow(t *testing.T) {
 		t.Fatalf("processWALMessages: %v", err)
 	}
 
-	if got := repo.lastWindowQuery.WindowSizes; len(got) != 1 || got[0] != 4 {
-		t.Fatalf("window sizes = %v, want [4] (twice the limit)", got)
+	if got := repo.lastWindowQuery.Limits; len(got) != 1 || got[0] != 2 || repo.lastWindowQuery.LimitFactor != 2 {
+		t.Fatalf("limits = %v, factor = %d, want [2] and 2 (twice the limit)", got, repo.lastWindowQuery.LimitFactor)
 	}
 
 	// the two oldest fill, the next two oldest stay queued, the remaining six are cancelled
@@ -539,6 +539,74 @@ func TestOnDemandDynamicLimitSurvivesEviction(t *testing.T) {
 
 	if _, ok := c.observedMaxRuns["a"]; ok {
 		t.Fatalf("observation retained for a key with no slots")
+	}
+}
+
+// An expired queued slot must not take a window position: CANCEL_NEWEST with limit 1, an expired
+// high-priority task, a valid middle-priority task and a valid low-priority task must run the middle
+// one, cancel the low one with CONCURRENCY_LIMIT and time out the expired one.
+func TestOnDemandExpiredSlotsDoNotDisplaceValidWork(t *testing.T) {
+	now := time.Now().UTC()
+	past := now.Add(-time.Minute)
+	future := now.Add(time.Hour)
+
+	repo := &mockConcurrencyRepo{
+		indexRows: []*sqlcv1.ListConcurrencySlotsForIndexingRow{
+			indexRow("a", 1, 9, 0, now, past, false),   // expired, highest priority
+			indexRow("a", 2, 5, 0, now, future, false), // valid, middle priority: should run
+			indexRow("a", 3, 1, 0, now, future, false), // valid, lowest priority: cancelled
+		},
+	}
+	c := newTestStrategyKind(repo, 1, sqlcv1.V1ConcurrencyStrategyCANCELNEWEST)
+	c.hydrateOnDemand = true
+
+	if _, err := c.processWALMessages(context.Background(), nil, []walMessage{walInsert("a", 3, 1, now, future)}); err != nil {
+		t.Fatalf("processWALMessages: %v", err)
+	}
+
+	filled := filledIDs(repo.lastFilled)
+	if len(filled) != 1 || !containsID(filled, 2) {
+		t.Fatalf("filled = %v, want [2]", filled)
+	}
+	limited := cancelledByReason(repo.lastCancelled, repository.CancelledReasonConcurrencyLimit)
+	if len(limited) != 1 || !containsID(limited, 3) {
+		t.Fatalf("CONCURRENCY_LIMIT cancels = %v, want [3]", limited)
+	}
+	timedOut := cancelledByReason(repo.lastCancelled, repository.CancelledReasonSchedulingTimedOut)
+	if len(timedOut) != 1 || !containsID(timedOut, 1) {
+		t.Fatalf("SCHEDULING_TIMED_OUT cancels = %v, want [1]", timedOut)
+	}
+}
+
+// On a dynamic strategy the first visit of a key knows only the static limit; the window must still be
+// sized by the limit the key's own slots evaluated, or valid work gets cancelled.
+func TestOnDemandWindowWidensToEvaluatedLimitOnFirstVisit(t *testing.T) {
+	now := time.Now().UTC()
+	future := now.Add(time.Hour)
+
+	rows := make([]*sqlcv1.ListConcurrencySlotsForIndexingRow, 0, 5)
+	for i := range 5 {
+		row := indexRow("a", int64(i+1), 5, 0, now.Add(time.Duration(i)*time.Second), future, false)
+		row.MaxRuns = pgtype.Int4{Int32: 3, Valid: true}
+		rows = append(rows, row)
+	}
+
+	repo := &mockConcurrencyRepo{indexRows: rows}
+	c := newTestStrategyKind(repo, 1, sqlcv1.V1ConcurrencyStrategyCANCELNEWEST)
+	c.strategy.MaxRunsExpression = pgtype.Text{String: "input.limit", Valid: true}
+	c.hydrateOnDemand = true
+
+	if _, err := c.runInitialQueueing(context.Background()); err != nil {
+		t.Fatalf("runInitialQueueing: %v", err)
+	}
+
+	filled := filledIDs(repo.lastFilled)
+	if len(filled) != 3 || !containsID(filled, 1) || !containsID(filled, 2) || !containsID(filled, 3) {
+		t.Fatalf("filled = %v, want the three oldest under the evaluated limit of 3", filled)
+	}
+	cancelled := cancelledByReason(repo.lastCancelled, repository.CancelledReasonConcurrencyLimit)
+	if len(cancelled) != 2 {
+		t.Fatalf("cancelled = %v, want the two newest", cancelled)
 	}
 }
 

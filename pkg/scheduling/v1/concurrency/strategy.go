@@ -38,7 +38,10 @@ const (
 	// onDemandOutsideWindowCancelLimit caps how many queued slots outside the hydration window a single
 	// batch cancels; keys whose cap was hit are revisited on the next Run.
 	onDemandOutsideWindowCancelLimit = 10000
-	onDemandRevisitKeysPerRun        = 1000
+	// onDemandExpiredLoadLimit caps how many expired queued slots a single batch loads (and so times
+	// out); keys whose cap was hit are revisited on the next Run.
+	onDemandExpiredLoadLimit  = 1000
+	onDemandRevisitKeysPerRun = 1000
 )
 
 // maxRunsObservation is a sub-queue's dynamically observed limit, retained across on-demand evictions
@@ -166,6 +169,10 @@ func (c *ConcurrencyStrategy) retainObservedMaxRunsLocked(sq *subQueue) {
 func (c *ConcurrencyStrategy) observeMaxRunsForKey(key string, maxRuns int32, taskInsertedAtNs int64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
+	if !c.strategy.MaxRunsExpression.Valid {
+		return
+	}
 
 	if current, ok := c.observedMaxRuns[key]; ok && taskInsertedAtNs < current.from {
 		return
@@ -347,10 +354,11 @@ func (c *ConcurrencyStrategy) Run(ctx context.Context) (*repository.RunConcurren
 		return nil, err
 	}
 
+	// a failed revisit re-marks its keys and must not discard the already-committed scan results above
 	revisitResult, err := c.revisitKeys(ctx)
 
 	if err != nil {
-		return nil, err
+		c.l.Error().Err(err).Msgf("failed to revisit concurrency keys for topic %s, will retry on the next run", c.topic)
 	}
 
 	for {
@@ -826,8 +834,10 @@ type hydratedKeys struct {
 func (c *ConcurrencyStrategy) hydrateKeysFromDatabase(ctx context.Context, tx pgx.Tx, keys []string) (hydratedKeys, error) {
 	query := repository.ConcurrencySlotWindowQuery{
 		Keys:         keys,
-		WindowSizes:  listutils.Map(keys, c.windowSizeForKey),
+		Limits:       listutils.Map(keys, c.knownLimitForKey),
+		LimitFactor:  c.windowLimitFactor(),
 		Ordering:     slotOrderingForStrategy(c.strategy.Strategy),
+		ExpiredLimit: onDemandExpiredLoadLimit,
 		OutsideLimit: c.outsideWindowCancelLimit(),
 	}
 
@@ -844,13 +854,24 @@ func (c *ConcurrencyStrategy) hydrateKeysFromDatabase(ctx context.Context, tx pg
 		return hydratedKeys{}, fmt.Errorf("failed to hydrate concurrency keys for topic %s: %w", c.topic, err)
 	}
 
+	// the newest slot's evaluation is the key's effective limit even when that slot is outside the
+	// window, so apply it before the window rows (whose own values are older and cannot override it)
+	for key, newest := range window.NewestLimitByKey {
+		c.getOrCreateSubQueue(key).observeMaxRuns(newest.MaxRuns, newest.TaskInsertedAt.UnixNano())
+	}
+
 	toCancel := c.hydrateSubQueuesFromRows(window.InWindow)
+
+	// expired slots are loaded so popTimedOut cancels them with SCHEDULING_TIMED_OUT, exactly as on
+	// the eager path, rather than being lumped in with the outside-window CONCURRENCY_LIMIT cancels
+	toCancel = append(toCancel, c.hydrateSubQueuesFromRows(window.Expired)...)
 
 	for _, row := range window.OutsideWindow {
 		toCancel = append(toCancel, walMessageToSlot(indexRowToWALMessage(row)))
 	}
 
-	truncated := query.OutsideLimit > 0 && len(window.OutsideWindow) >= int(query.OutsideLimit)
+	truncated := len(window.Expired) >= int(query.ExpiredLimit) ||
+		(query.OutsideLimit > 0 && len(window.OutsideWindow) >= int(query.OutsideLimit))
 
 	if truncated {
 		c.markKeysForRevisit(keys)
@@ -873,24 +894,31 @@ func slotOrderingForStrategy(kind sqlcv1.V1ConcurrencyStrategy) repository.Concu
 	}
 }
 
-// windowSizeForKey is how many queued slots to load from each end of the comparator for a key: the
-// key's effective limit, or the static one if that is larger (loading more than needed is always
-// safe). CANCEL_QUEUED_EXCEPT_OLDEST keeps the maxRuns queued slots directly after the ones it fills,
-// so it needs twice the limit from the best end.
-func (c *ConcurrencyStrategy) windowSizeForKey(key string) int32 {
+// knownLimitForKey is the lower bound this process knows for a key's concurrency limit: the static
+// limit, or a retained dynamic observation if larger. The window query widens it further from the
+// key's own rows, so loading more than needed is the only possible error, and that is always safe.
+func (c *ConcurrencyStrategy) knownLimitForKey(key string) int32 {
 	limit := max(c.strategy.MaxConcurrency, 0)
 
 	c.mu.RLock()
+	defer c.mu.RUnlock()
+
 	if observed, ok := c.observedMaxRuns[key]; ok {
 		limit = max(limit, observed.maxRuns)
 	}
-	c.mu.RUnlock()
-
-	if c.strategy.Strategy == sqlcv1.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTOLDEST {
-		return 2 * limit
-	}
 
 	return limit
+}
+
+// windowLimitFactor is how many multiples of the limit to load from each end of the comparator.
+// CANCEL_QUEUED_EXCEPT_OLDEST keeps the maxRuns queued slots directly after the ones it fills, so it
+// needs twice the limit from the best end.
+func (c *ConcurrencyStrategy) windowLimitFactor() int32 {
+	if c.strategy.Strategy == sqlcv1.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTOLDEST {
+		return 2
+	}
+
+	return 1
 }
 
 func (c *ConcurrencyStrategy) outsideWindowCancelLimit() int32 {
@@ -1406,6 +1434,11 @@ func (c *ConcurrencyStrategy) switchToOnDemandHydration() {
 	c.l.Warn().Msgf("concurrency strategy %d grew to %d hydrated keys; switching to hydrating keys on demand", c.strategy.ID, len(c.subQueues))
 
 	c.hydrateOnDemand = true
+
+	for _, sq := range c.subQueues {
+		c.retainObservedMaxRunsLocked(sq)
+	}
+
 	c.subQueues = make(map[string]*subQueue)
 	c.initialQueued = false
 	c.initialScanLastKey = pgtype.Text{}

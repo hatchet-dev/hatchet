@@ -60,28 +60,47 @@ func (m *mockConcurrencyRepo) ListConcurrencySlotWindowForKeys(ctx context.Conte
 	m.lastWindowQuery = query
 
 	compare := comparatorForOrdering(query.Ordering)
+	now := time.Now().UTC()
 
-	windowSizeByKey := make(map[string]int, len(query.Keys))
+	limitByKey := make(map[string]int32, len(query.Keys))
 	for i, key := range query.Keys {
-		windowSizeByKey[key] = int(query.WindowSizes[i])
+		limitByKey[key] = query.Limits[i]
 	}
 
-	window := &repository.ConcurrencySlotWindow{}
+	window := &repository.ConcurrencySlotWindow{NewestLimitByKey: make(map[string]repository.ConcurrencySlotNewestLimit)}
 	queuedByKey := make(map[string][]*sqlcv1.ListConcurrencySlotsForIndexingRow)
 	slotsPerTask := make(map[string]map[int64]int)
+	newestByKey := make(map[string]*sqlcv1.ListConcurrencySlotsForIndexingRow)
 
 	for _, r := range m.indexRows {
-		if _, ok := windowSizeByKey[r.Key]; !ok {
+		if _, ok := limitByKey[r.Key]; !ok {
 			continue
 		}
 		if slotsPerTask[r.Key] == nil {
 			slotsPerTask[r.Key] = make(map[int64]int)
 		}
 		slotsPerTask[r.Key][r.TaskID]++
-		if r.IsFilled {
+		if r.MaxRuns.Valid {
+			limitByKey[r.Key] = max(limitByKey[r.Key], r.MaxRuns.Int32)
+		}
+		if newest := newestByKey[r.Key]; newest == nil || r.TaskInsertedAt.Time.After(newest.TaskInsertedAt.Time) {
+			newestByKey[r.Key] = r
+		}
+		switch {
+		case r.IsFilled:
 			window.InWindow = append(window.InWindow, r)
-		} else {
+		case r.ScheduleTimeoutAt.Time.Before(now):
+			if len(window.Expired) < int(query.ExpiredLimit) {
+				window.Expired = append(window.Expired, r)
+			}
+		default:
 			queuedByKey[r.Key] = append(queuedByKey[r.Key], r)
+		}
+	}
+
+	for key, newest := range newestByKey {
+		if newest.MaxRuns.Valid && newest.MaxRuns.Int32 > 0 {
+			window.NewestLimitByKey[key] = repository.ConcurrencySlotNewestLimit{MaxRuns: newest.MaxRuns.Int32, TaskInsertedAt: newest.TaskInsertedAt.Time}
 		}
 	}
 
@@ -97,7 +116,7 @@ func (m *mockConcurrencyRepo) ListConcurrencySlotWindowForKeys(ctx context.Conte
 			return compare(indexRowToSlot(queued[i]), indexRowToSlot(queued[j])) < 0
 		})
 
-		n := windowSizeByKey[key]
+		n := int(limitByKey[key] * query.LimitFactor)
 		for i, r := range queued {
 			fromWorstEnd := len(queued) - 1 - i
 			if i < n || fromWorstEnd < n || slotsPerTask[key][r.TaskID] > 1 {

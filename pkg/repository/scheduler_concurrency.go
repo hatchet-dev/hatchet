@@ -72,17 +72,38 @@ type ConcurrencySlotOrdering struct {
 	NewestFirst     bool
 }
 
+// ConcurrencySlotWindowQuery describes which keys to hydrate and how much of each key's queued backlog
+// to load (see ConcurrencyRepository.ListConcurrencySlotWindowForKeys).
 type ConcurrencySlotWindowQuery struct {
 	Keys []string
-	// WindowSizes[i] is the number of best and of worst queued slots to return for Keys[i].
-	WindowSizes  []int32
-	Ordering     ConcurrencySlotOrdering
+	// Limits[i] is the caller's lower bound on Keys[i]'s concurrency limit. The query widens it to the
+	// largest evaluated max_runs among the key's slots, then multiplies by LimitFactor to get the number
+	// of best and of worst unexpired queued slots it returns.
+	Limits      []int32
+	LimitFactor int32
+	Ordering    ConcurrencySlotOrdering
+	// ExpiredLimit caps the expired queued slots returned across all keys; OutsideLimit caps the
+	// unexpired queued slots outside the window.
+	ExpiredLimit int32
 	OutsideLimit int32
 }
 
+// ConcurrencySlotNewestLimit is a key's effective dynamic limit: the max_runs evaluated for the key's
+// most recently created slot, whether or not that slot made the window.
+type ConcurrencySlotNewestLimit struct {
+	MaxRuns        int32
+	TaskInsertedAt time.Time
+}
+
+// ConcurrencySlotWindow is the result of ListConcurrencySlotWindowForKeys. InWindow holds the filled
+// slots and the queued slots the decide step ranks; Expired holds queued slots past their scheduling
+// timeout, which the caller cancels with the timeout reason; OutsideWindow holds unexpired queued slots
+// the window excluded. NewestLimitByKey is only populated for keys whose slots carry a max_runs value.
 type ConcurrencySlotWindow struct {
-	InWindow      []*sqlcv1.ListConcurrencySlotsForIndexingRow
-	OutsideWindow []*sqlcv1.ListConcurrencySlotsForIndexingRow
+	InWindow         []*sqlcv1.ListConcurrencySlotsForIndexingRow
+	Expired          []*sqlcv1.ListConcurrencySlotsForIndexingRow
+	OutsideWindow    []*sqlcv1.ListConcurrencySlotsForIndexingRow
+	NewestLimitByKey map[string]ConcurrencySlotNewestLimit
 }
 
 type ConcurrencyRepository interface {
@@ -1613,17 +1634,19 @@ func (c *ConcurrencyRepositoryImpl) listConcurrencySlotWindowForKeys(ctx context
 		return &ConcurrencySlotWindow{}, nil
 	}
 
-	if len(query.Keys) != len(query.WindowSizes) {
-		return nil, fmt.Errorf("concurrency slot window query has %d keys but %d window sizes", len(query.Keys), len(query.WindowSizes))
+	if len(query.Keys) != len(query.Limits) {
+		return nil, fmt.Errorf("concurrency slot window query has %d keys but %d limits", len(query.Keys), len(query.Limits))
 	}
 
 	rows, err := c.queries.ListConcurrencySlotWindowForKeys(ctx, db, sqlcv1.ListConcurrencySlotWindowForKeysParams{
 		Tenantid:        tenantId,
 		Strategyid:      strategyId,
 		Keys:            query.Keys,
-		Windowsizes:     query.WindowSizes,
+		Limits:          query.Limits,
+		Limitfactor:     query.LimitFactor,
 		Orderbypriority: query.Ordering.OrderByPriority,
 		Newestfirst:     query.Ordering.NewestFirst,
+		Expiredlimit:    query.ExpiredLimit,
 		Outsidelimit:    query.OutsideLimit,
 	})
 
@@ -1632,11 +1655,20 @@ func (c *ConcurrencyRepositoryImpl) listConcurrencySlotWindowForKeys(ctx context
 	}
 
 	window := &ConcurrencySlotWindow{
-		InWindow:      make([]*sqlcv1.ListConcurrencySlotsForIndexingRow, 0, len(rows)),
-		OutsideWindow: make([]*sqlcv1.ListConcurrencySlotsForIndexingRow, 0),
+		InWindow:         make([]*sqlcv1.ListConcurrencySlotsForIndexingRow, 0, len(rows)),
+		Expired:          make([]*sqlcv1.ListConcurrencySlotsForIndexingRow, 0),
+		OutsideWindow:    make([]*sqlcv1.ListConcurrencySlotsForIndexingRow, 0),
+		NewestLimitByKey: make(map[string]ConcurrencySlotNewestLimit),
 	}
 
 	for _, row := range rows {
+		if row.NewestMaxRuns > 0 {
+			window.NewestLimitByKey[row.Key] = ConcurrencySlotNewestLimit{
+				MaxRuns:        row.NewestMaxRuns,
+				TaskInsertedAt: row.NewestTaskInsertedAt.Time,
+			}
+		}
+
 		indexingRow := &sqlcv1.ListConcurrencySlotsForIndexingRow{
 			SortID:            row.SortID,
 			TaskID:            row.TaskID,
@@ -1651,9 +1683,12 @@ func (c *ConcurrencyRepositoryImpl) listConcurrencySlotWindowForKeys(ctx context
 			MaxRuns:           row.MaxRuns,
 		}
 
-		if row.OutsideWindow {
+		switch {
+		case row.OutsideWindow:
 			window.OutsideWindow = append(window.OutsideWindow, indexingRow)
-		} else {
+		case row.IsExpired:
+			window.Expired = append(window.Expired, indexingRow)
+		default:
 			window.InWindow = append(window.InWindow, indexingRow)
 		}
 	}
