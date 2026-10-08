@@ -34,7 +34,7 @@ def retry_after_exponential_backoff(
     if ctx.retry_count < input.failing_attempts:
         raise RetryAfterException(
             "upstream unavailable",
-            after=random.uniform(0, min(2**ctx.retry_count, 60)),
+            after=timedelta(seconds=random.uniform(0, min(2**ctx.retry_count, 60))),
         )
 
     return {"attempt": ctx.retry_count}

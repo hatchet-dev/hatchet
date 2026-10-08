@@ -111,7 +111,7 @@ func defaultTasksControllerOpts() *TasksControllerOpts {
 		opsPoolJitter:       1500 * time.Millisecond,
 		opsPoolPollInterval: 2 * time.Second,
 		replayEnabled:       true, // default to enabled for backward compatibility
-		maxRetryAfter:       7 * 24 * time.Hour,
+		maxRetryAfter:       30 * 24 * time.Hour,
 		analyzeCronInterval: 3 * time.Hour,
 	}
 }
@@ -1563,7 +1563,6 @@ func (tc *TasksControllerImpl) processInternalEvents(ctx context.Context, tenant
 	return nil
 }
 
-// clampRetryAfter bounds a worker-supplied retry delay so a single attempt can't park a task indefinitely.
 func (tc *TasksControllerImpl) clampRetryAfter(retryAfterMs *int64) *time.Duration {
 	if retryAfterMs == nil {
 		return nil

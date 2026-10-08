@@ -41,12 +41,12 @@ class RetryAfterException(Exception):  # noqa: N818
     The retry counts against the task's `retries` like any other failure; only the delay before the next attempt changes.
 
     :param message: The error message recorded for this attempt.
-    :param after: The delay before the next attempt, as a `timedelta` or a number of seconds.
+    :param after: The delay before the next attempt.
     """
 
-    def __init__(self, message: str = "", *, after: timedelta | float) -> None:
+    def __init__(self, message: str = "", *, after: timedelta) -> None:
         super().__init__(message)
-        self.after = after if isinstance(after, timedelta) else timedelta(seconds=after)
+        self.after = after
 
     @property
     def after_ms(self) -> int:
