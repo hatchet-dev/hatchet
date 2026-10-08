@@ -5,7 +5,6 @@ import (
 	"slices"
 )
 
-// maxSmallRunning is the most running slots a sub-queue keeps in a sorted slice.
 const maxSmallRunning = 64
 
 // runningSlots holds a sub-queue's running slots. Most keys run a few slots, which are kept in a
