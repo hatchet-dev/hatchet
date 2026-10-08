@@ -1626,7 +1626,7 @@ Returns:
 
 ### `NewRetryAfterError`
 
-NewRetryAfterError wraps err to request a delay of after before the task run's next retry, if it has retries left. The engine caps this delay at its configured limit (30 days by default), so longer requests are shortened.
+NewRetryAfterError wraps err so that the task run's next retry, if it has retries left, runs no earlier than after from now.
 
 ```go
 func NewRetryAfterError(after time.Duration, err error) error
