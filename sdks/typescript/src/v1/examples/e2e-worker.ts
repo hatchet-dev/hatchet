@@ -59,6 +59,7 @@ import {
 import { durableSleep } from './durable_sleep/workflow';
 import { createLoggingWorkflow } from './logger/workflow';
 import { nonRetryableWorkflow } from './non_retryable/workflow';
+import { retryAfterExponentialBackoff, retryAfterUpstreamDelay } from './retry_after/workflow';
 import { failureWorkflow } from './on_failure/workflow';
 import { idempotentTask, idempotentTaskShortWindow } from './idempotency/workflow';
 import { lower } from './on_event/workflow';
@@ -150,6 +151,8 @@ const workflows = [
   evictableChildBulkSpawn,
   createLoggingWorkflow(hatchet),
   nonRetryableWorkflow,
+  retryAfterUpstreamDelay,
+  retryAfterExponentialBackoff,
   failureWorkflow,
   idempotentTask,
   idempotentTaskShortWindow,

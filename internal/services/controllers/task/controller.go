@@ -68,6 +68,7 @@ type TasksControllerImpl struct {
 	evictedTaskRuntimeCursors                syncx.Map[uuid.UUID, v1.EvictedTaskRuntimeCursor]
 
 	replayEnabled       bool
+	maxRetryAfter       time.Duration
 	analyzeCronInterval time.Duration
 	signaler            *signal.OLAPSignaler
 	tw                  *trigger.TriggerWriter
@@ -89,6 +90,7 @@ type TasksControllerOpts struct {
 	opsPoolJitter       time.Duration
 	opsPoolPollInterval time.Duration
 	replayEnabled       bool
+	maxRetryAfter       time.Duration
 	analyzeCronInterval time.Duration
 	promGate            *prometheus.Gate
 }
@@ -109,6 +111,7 @@ func defaultTasksControllerOpts() *TasksControllerOpts {
 		opsPoolJitter:       1500 * time.Millisecond,
 		opsPoolPollInterval: 2 * time.Second,
 		replayEnabled:       true, // default to enabled for backward compatibility
+		maxRetryAfter:       7 * 24 * time.Hour,
 		analyzeCronInterval: 3 * time.Hour,
 	}
 }
@@ -182,6 +185,12 @@ func WithReplayEnabled(enabled bool) TasksControllerOpt {
 	}
 }
 
+func WithMaxRetryAfter(d time.Duration) TasksControllerOpt {
+	return func(opts *TasksControllerOpts) {
+		opts.maxRetryAfter = d
+	}
+}
+
 func WithAnalyzeCronInterval(interval time.Duration) TasksControllerOpt {
 	return func(opts *TasksControllerOpts) {
 		opts.analyzeCronInterval = interval
@@ -250,6 +259,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		opsPoolJitter:       opts.opsPoolJitter,
 		opsPoolPollInterval: opts.opsPoolPollInterval,
 		replayEnabled:       opts.replayEnabled,
+		maxRetryAfter:       opts.maxRetryAfter,
 		analyzeCronInterval: opts.analyzeCronInterval,
 		signaler:            signaler,
 		tw:                  tw,
@@ -747,6 +757,7 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId uu
 			IsAppError:     msg.IsAppError,
 			ErrorMessage:   msg.ErrorMsg,
 			IsNonRetryable: msg.IsNonRetryable,
+			RetryAfter:     tc.clampRetryAfter(msg.RetryAfterMs),
 		})
 
 		if msg.ErrorMsg != "" {
@@ -1552,12 +1563,30 @@ func (tc *TasksControllerImpl) processInternalEvents(ctx context.Context, tenant
 	return nil
 }
 
+// clampRetryAfter bounds a worker-supplied retry delay so a single attempt can't park a task indefinitely.
+func (tc *TasksControllerImpl) clampRetryAfter(retryAfterMs *int64) *time.Duration {
+	if retryAfterMs == nil {
+		return nil
+	}
+
+	d := time.Duration(max(*retryAfterMs, 0)) * time.Millisecond
+
+	if tc.maxRetryAfter > 0 && d > tc.maxRetryAfter {
+		d = tc.maxRetryAfter
+	}
+
+	return &d
+}
+
 func (tc *TasksControllerImpl) pubRetryEvent(ctx context.Context, tenantId uuid.UUID, task v1.RetriedTask) error {
 	taskId := task.Id
 
 	retryMsg := fmt.Sprintf("This is retry number %d.", task.AppRetryCount)
 
-	if task.RetryBackoffFactor.Valid && task.RetryMaxBackoff.Valid {
+	if task.RetryAfter != nil {
+		retryDur := time.Until(*task.RetryAfter).Round(time.Millisecond)
+		retryMsg = fmt.Sprintf("%s The task requested a retry in %s (%s).", retryMsg, retryDur.String(), task.RetryAfter.Format(time.RFC3339))
+	} else if task.RetryBackoffFactor.Valid && task.RetryMaxBackoff.Valid {
 		maxBackoffSeconds := int(task.RetryMaxBackoff.Int32)
 		backoffFactor := task.RetryBackoffFactor.Float64
 
@@ -1595,7 +1624,8 @@ func (tc *TasksControllerImpl) pubRetryEvent(ctx context.Context, tenantId uuid.
 		return fmt.Errorf("could not publish monitoring event message: %w", err)
 	}
 
-	if !task.RetryBackoffFactor.Valid {
+	// delayed retries are marked QUEUED when their retry queue item is processed
+	if !task.RetryBackoffFactor.Valid && task.RetryAfter == nil {
 		olapMsg, err = tasktypes.MonitoringEventMessageFromInternal(
 			tenantId,
 			tasktypes.CreateMonitoringEventPayload{

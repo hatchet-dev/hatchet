@@ -1,6 +1,6 @@
 import { ConcurrencyLimitStrategy, RateLimitDuration } from '@hatchet/protoc/v1/workflows';
 import { Conditions } from './conditions';
-import { Duration } from './client/duration';
+import { Duration, durationToMs } from './client/duration';
 import { InputType, OutputType, UnknownInputType } from './types';
 import { Context, DurableContext } from './client/worker/context';
 import { EvictionPolicy } from './client/worker/eviction/eviction-policy';
@@ -111,6 +111,32 @@ export class NonRetryableError extends Error {
   constructor(message?: string) {
     super(message);
     this.name = 'NonRetryableError';
+
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+}
+
+export type RetryAfterOpts = {
+  /**
+   * The delay before the next attempt, e.g. `'90s'`, `{ minutes: 5 }`, or a number of milliseconds.
+   */
+  after: Duration;
+};
+
+/**
+ * Throw from a task to retry it after a delay of the task's choosing, e.g. the value of an
+ * upstream `Retry-After` header.
+ *
+ * The retry counts against the task's `retries` like any other failure; only the delay before
+ * the next attempt changes.
+ */
+export class RetryAfterError extends Error {
+  readonly afterMs: number;
+
+  constructor(message: string | undefined, opts: RetryAfterOpts) {
+    super(message);
+    this.name = 'RetryAfterError';
+    this.afterMs = Math.max(Math.round(durationToMs(opts.after)), 0);
 
     Object.setPrototypeOf(this, new.target.prototype);
   }

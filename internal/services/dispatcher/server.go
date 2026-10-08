@@ -1639,16 +1639,22 @@ func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, task *sqlcv1
 		shouldNotRetry = *request.ShouldNotRetry
 	}
 
-	msg, err := tasktypes.FailedTaskMessage(
+	msg, err := msgqueue.NewTenantMessage(
 		tenantId,
-		task.ID,
-		task.InsertedAt,
-		task.ExternalID,
-		task.WorkflowRunID,
-		retryCount,
+		msgqueue.MsgIDTaskFailed,
+		false,
 		true,
-		request.EventPayload,
-		shouldNotRetry,
+		tasktypes.FailedTaskPayload{
+			TaskId:         task.ID,
+			InsertedAt:     task.InsertedAt,
+			ExternalId:     task.ExternalID,
+			WorkflowRunId:  task.WorkflowRunID,
+			RetryCount:     retryCount,
+			IsAppError:     true,
+			ErrorMsg:       request.EventPayload,
+			IsNonRetryable: shouldNotRetry,
+			RetryAfterMs:   request.RetryAfterMs,
+		},
 	)
 
 	if err != nil {
@@ -2042,6 +2048,7 @@ func (s *DispatcherImpl) handleBatchTaskFailed(
 			IsAppError:     true,
 			ErrorMsg:       item.EventPayload,
 			IsNonRetryable: shouldNotRetry,
+			RetryAfterMs:   item.RetryAfterMs,
 		})
 	}
 

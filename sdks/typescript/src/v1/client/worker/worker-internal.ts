@@ -17,7 +17,7 @@ import {
 import HatchetPromise, { CancellationReason } from '@util/hatchet-promise/hatchet-promise';
 import { actionMap, Logger, taskRunLog } from '@hatchet/util/logger';
 import { BaseWorkflowDeclaration, WorkflowDefinition, HatchetClient } from '@hatchet/v1';
-import { NonRetryableError } from '@hatchet/v1/task';
+import { NonRetryableError, RetryAfterError } from '@hatchet/v1/task';
 
 import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
@@ -32,7 +32,7 @@ import { SlotConfig } from '../../slot-types';
 import { DurableEvictionManager } from './eviction/eviction-manager';
 import { EvictionPolicy, DEFAULT_DURABLE_TASK_EVICTION_POLICY } from './eviction/eviction-policy';
 import { DurableRunRecord } from './eviction/eviction-cache';
-import { supportsEviction } from './engine-version';
+import { MinEngineVersion, supportsEviction, supportsRetryAfter } from './engine-version';
 
 export {
   assertValidConcurrencyArr,
@@ -465,6 +465,7 @@ export class InternalWorker {
 
       const failure = async (error: any) => {
         const shouldNotRetry = error instanceof NonRetryableError;
+        const retryAfterMs = this.retryAfterMs(error, actionId);
 
         try {
           if (context.cancelled) {
@@ -493,6 +494,7 @@ export class InternalWorker {
             },
             action.retryCount
           );
+          event.retryAfterMs = retryAfterMs;
           await this.client.dispatcher.sendStepActionEvent(event);
         } catch (e: any) {
           this.logger.error(`Could not send action event: ${e.message}`);
@@ -560,6 +562,25 @@ export class InternalWorker {
       this.logger.error('Could not send action event (outer): ', e);
       return e instanceof Error ? e : new Error(String(e));
     }
+  }
+
+  private warnedRetryAfterActions = new Set<string>();
+
+  private retryAfterMs(error: unknown, actionId: string): number | undefined {
+    if (!(error instanceof RetryAfterError)) {
+      return undefined;
+    }
+
+    if (!supportsRetryAfter(this.engineVersion) && !this.warnedRetryAfterActions.has(actionId)) {
+      this.warnedRetryAfterActions.add(actionId);
+      this.logger.warn(
+        `RetryAfterError requires engine >= ${MinEngineVersion.RETRY_AFTER} ` +
+          `(connected: ${this.engineVersion ?? 'unknown'}). Task ${actionId} threw it, so the engine ` +
+          `will handle the failure with the task's retry policy instead of the requested delay.`
+      );
+    }
+
+    return error.afterMs;
   }
 
   getStepActionEvent(

@@ -14,6 +14,7 @@ require_relative "on_success/worker"
 require_relative "timeout/worker"
 require_relative "retries/worker"
 require_relative "non_retryable/worker"
+require_relative "retry_after/worker"
 require_relative "logger/worker"
 require_relative "delayed/worker"
 require_relative "priority/worker"
@@ -63,6 +64,7 @@ ALL_WORKFLOWS = [
   TIMEOUT_WF, REFRESH_TIMEOUT_WF,
   SIMPLE_RETRY_WORKFLOW, BACKOFF_WORKFLOW,
   NON_RETRYABLE_WORKFLOW,
+  RETRY_AFTER_UPSTREAM_DELAY, RETRY_AFTER_EXPONENTIAL_BACKOFF,
   LOGGING_WORKFLOW,
   PRINT_SCHEDULE_WF, PRINT_PRINTER_WF,
   PRIORITY_WORKFLOW,

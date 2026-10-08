@@ -233,6 +233,9 @@ type ActionEvent struct {
 
 	// If this is an error, whether to retry on failure
 	ShouldNotRetry *bool
+
+	// If this is an error, the delay in milliseconds the task requested before its next attempt
+	RetryAfterMs *int64
 }
 
 type ActionEventResponse struct {
@@ -412,6 +415,7 @@ func (d *dispatcherClientImpl) SendStepActionEvent(ctx context.Context, in *Acti
 		EventPayload:      string(payloadBytes),
 		RetryCount:        &in.RetryCount,
 		ShouldNotRetry:    in.ShouldNotRetry,
+		RetryAfterMs:      in.RetryAfterMs,
 	})
 
 	if err != nil {

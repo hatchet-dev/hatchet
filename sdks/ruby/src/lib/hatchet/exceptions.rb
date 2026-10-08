@@ -10,6 +10,25 @@ module Hatchet
     end
   end
 
+  # Raised to retry a task after a delay of its choosing. The retry counts against the task's
+  # retries like any other failure; only the delay before the next attempt changes.
+  class RetryAfterError < Error
+    # @return [Numeric] Seconds to wait before the next attempt
+    attr_reader :after
+
+    # @param message [String] The error message recorded for this attempt
+    # @param after [Numeric] Seconds to wait before the next attempt
+    def initialize(message = "This task requested a delayed retry", after:)
+      @after = after
+      super(message)
+    end
+
+    # @return [Integer] The delay in milliseconds, never negative
+    def after_ms
+      [(after * 1000).round, 0].max
+    end
+  end
+
   # Raised when the tenant has exceeded its resource limits (e.g. task run quota)
   class ResourceExhaustedError < Error
     def initialize(message = "Resource exhausted: tenant has reached its task runs limit")

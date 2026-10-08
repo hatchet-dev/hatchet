@@ -1122,6 +1122,9 @@ func (w *Worker) sendFailureEvent(ctx HatchetContext, taskErr error) error {
 	if IsNonRetryableError(taskErr) {
 		shouldNotRetry := true
 		failureEvent.ShouldNotRetry = &shouldNotRetry
+	} else if retryAfterErr, ok := AsRetryAfterError(taskErr); ok {
+		retryAfterMs := max(retryAfterErr.After.Milliseconds(), 0)
+		failureEvent.RetryAfterMs = &retryAfterMs
 	}
 
 	innerCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

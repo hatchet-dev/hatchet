@@ -57,6 +57,7 @@ class ActionEvent:
     type: Any  # TODO type
     payload: str | None
     should_not_retry: bool
+    retry_after_ms: int | None = None
 
 
 @dataclass
@@ -507,6 +508,7 @@ class WorkerActionListenerProcess:
                             event.type,
                             event.payload,
                             event.should_not_retry,
+                            event.retry_after_ms,
                         )
                     )
 

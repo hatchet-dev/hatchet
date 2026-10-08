@@ -62,6 +62,7 @@ module Hatchet
         @client = client
         @engine_version = engine_version
         @worker_id = worker_id
+        @warned_retry_after_actions = Concurrent::Map.new
 
         @pool = Concurrent::FixedThreadPool.new(slots)
         @semaphore = Concurrent::Semaphore.new(slots)
@@ -247,6 +248,10 @@ module Hatchet
       rescue NonRetryableError => e
         @logger.error("Non-retryable error in task #{action.action_id}: #{e.message}")
         send_failure(action, e, retryable: false)
+      rescue RetryAfterError => e
+        @logger.info("Task #{action.action_id} requested a retry in #{e.after}s: #{e.message}")
+        warn_retry_after_unsupported(action)
+        send_failure(action, e, retryable: true, retry_after_ms: e.after_ms)
       rescue StandardError => e
         @logger.error("Error in task #{action.action_id}: #{e.message}")
         send_failure(action, e, retryable: true)
@@ -527,7 +532,7 @@ module Hatchet
         )
       end
 
-      def send_failure(action, error, retryable:)
+      def send_failure(action, error, retryable:, retry_after_ms: nil)
         payload = JSON.generate({ "error" => error.message })
 
         @dispatcher_client.send_step_action_event(
@@ -536,6 +541,18 @@ module Hatchet
           payload: payload,
           retry_count: action.retry_count,
           should_not_retry: !retryable,
+          retry_after_ms: retry_after_ms,
+        )
+      end
+
+      def warn_retry_after_unsupported(action)
+        return if @engine_version && !EngineVersion.semver_less_than?(@engine_version, MinEngineVersion::RETRY_AFTER)
+        return unless @warned_retry_after_actions.put_if_absent(action.action_id, true).nil?
+
+        @logger.warn(
+          "RetryAfterError requires engine #{MinEngineVersion::RETRY_AFTER} or newer " \
+          "(engine reports #{@engine_version || "unknown"}). Task #{action.action_id} raised it, so the engine " \
+          "will handle the failure with the task's retry policy instead of the requested delay.",
         )
       end
 

@@ -178,6 +178,12 @@ type Worker struct {
 	// false, they fall back to the legacy RegisterDurableEvent RPC path.
 	supportsDurableEviction bool
 
+	// engineVersion is resolved at start; empty when the engine does not report one.
+	engineVersion string
+
+	// warnedRetryAfterActions holds the action IDs already warned about an engine that ignores RetryAfterError.
+	warnedRetryAfterActions sync.Map
+
 	hasDurable bool
 	logger     *zerolog.Logger
 }
@@ -511,6 +517,8 @@ func (w *Worker) checkEvictionSupport(ctx context.Context) error {
 		return nil
 	}
 
+	w.engineVersion = engineVersion
+
 	if engineVersion != "" {
 		if supported, verr := SupportsDurableEviction(engineVersion); verr == nil && supported {
 			w.supportsDurableEviction = true
@@ -546,6 +554,27 @@ func (w *Worker) checkEvictionSupport(ctx context.Context) error {
 	w.evictionManager = nil
 
 	return nil
+}
+
+// warnUnsupportedRetryAfter logs once per task when it returns a RetryAfterError to an engine that ignores the delay.
+func (w *Worker) warnUnsupportedRetryAfter(ctx worker.HatchetContext, next func(worker.HatchetContext) error) error {
+	err := next(ctx)
+
+	if _, ok := AsRetryAfterError(err); !ok || w.logger == nil {
+		return err
+	}
+
+	actionID := ctx.ActionId()
+
+	if _, warned := w.warnedRetryAfterActions.LoadOrStore(actionID, struct{}{}); !warned {
+		w.logger.Warn().
+			Str("engine_version", w.engineVersion).
+			Str("required_version", MinEngineVersion.RetryAfter).
+			Str("action", actionID).
+			Msg("engine does not support RetryAfterError; the failure is handled by the task's retry policy instead of the requested delay")
+	}
+
+	return err
 }
 
 func (w *Worker) fetchEngineVersion(ctx context.Context) (string, error) {
@@ -586,6 +615,10 @@ func (w *Worker) Start() (func() error, error) {
 
 	if err := w.checkEvictionSupport(context.Background()); err != nil {
 		return nil, err
+	}
+
+	if !SupportsRetryAfter(w.engineVersion) {
+		w.Use(w.warnUnsupportedRetryAfter)
 	}
 
 	// Track cleanup functions with a mutex to safely access from multiple goroutines

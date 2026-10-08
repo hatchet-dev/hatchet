@@ -2,6 +2,7 @@ package hatchet
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
@@ -21,6 +22,24 @@ func NewNonRetryableError(err error) error {
 // IsNonRetryableError reports whether err is (or wraps) a NonRetryableError.
 func IsNonRetryableError(err error) bool {
 	return worker.IsNonRetryableError(err) //nolint:staticcheck // SA1019
+}
+
+// RetryAfterError marks a task failure as retryable after a delay of the task's choosing,
+// e.g. the value of an upstream Retry-After header. The retry counts against the task's
+// retries like any other failure; only the delay before the next attempt changes.
+//
+//nolint:staticcheck // SA1019: bridges to the v0 type so errors.As works across old and new code
+type RetryAfterError = worker.RetryAfterError
+
+// NewRetryAfterError wraps err so that the task run's next retry, if it has retries left,
+// runs no earlier than after from now.
+func NewRetryAfterError(after time.Duration, err error) error {
+	return worker.NewRetryAfterError(after, err) //nolint:staticcheck // SA1019
+}
+
+// AsRetryAfterError reports whether err is (or wraps) a RetryAfterError and returns it if so.
+func AsRetryAfterError(err error) (*RetryAfterError, bool) {
+	return worker.AsRetryAfterError(err) //nolint:staticcheck // SA1019
 }
 
 // NonDeterminismError is returned when a durable task replay detects non-deterministic behavior.

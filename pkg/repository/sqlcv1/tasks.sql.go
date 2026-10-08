@@ -759,6 +759,146 @@ func (q *Queries) FailTaskInternalFailure(ctx context.Context, db DBTX, arg Fail
 	return items, nil
 }
 
+const failTaskRetryAfter = `-- name: FailTaskRetryAfter :many
+WITH input AS (
+    SELECT
+        task_id, task_inserted_at, task_retry_count, retry_after_ms
+    FROM
+        (
+            SELECT
+                unnest($1::bigint[]) AS task_id,
+                unnest($2::timestamptz[]) AS task_inserted_at,
+                unnest($3::integer[]) AS task_retry_count,
+                unnest($4::bigint[]) AS retry_after_ms
+        ) AS subquery
+), locked_tasks AS (
+    SELECT
+        t.id,
+        t.inserted_at,
+        t.step_id
+    FROM
+        v1_task t
+    JOIN
+        input i ON i.task_id = t.id AND i.task_inserted_at = t.inserted_at AND i.task_retry_count = t.retry_count
+    WHERE
+        t.tenant_id = $5::uuid
+        -- only fail tasks which still have a v1_task_runtime for the current retry count.
+        -- a cancellation deletes the v1_task_runtime, so a late failure event should not trigger a retry.
+        AND EXISTS (
+            SELECT 1 FROM v1_task_runtime tr
+            WHERE tr.task_id = t.id AND tr.task_inserted_at = t.inserted_at AND tr.retry_count = t.retry_count
+        )
+    -- order by the task id to get a stable lock order
+    ORDER BY
+        id
+    FOR UPDATE
+), updated_tasks AS (
+    UPDATE
+        v1_task
+    SET
+        retry_count = v1_task.retry_count + 1,
+        app_retry_count = v1_task.app_retry_count + 1
+    FROM
+        locked_tasks lt
+    JOIN
+        "Step" s ON s."id" = lt.step_id
+    WHERE
+        v1_task.id = lt.id
+        AND v1_task.inserted_at = lt.inserted_at
+        AND s."retries" > v1_task.app_retry_count
+    RETURNING
+        v1_task.id,
+        v1_task.inserted_at,
+        v1_task.retry_count,
+        v1_task.app_retry_count,
+        v1_task.tenant_id
+), retry_queue_items AS (
+    -- v1_task_update_trigger runs at the end of this statement and skips tasks that have this row
+    INSERT INTO v1_retry_queue_item (
+        task_id,
+        task_inserted_at,
+        task_retry_count,
+        retry_after,
+        tenant_id
+    )
+    SELECT
+        ut.id,
+        ut.inserted_at,
+        ut.retry_count,
+        NOW() + i.retry_after_ms * interval '1 millisecond',
+        ut.tenant_id
+    FROM
+        updated_tasks ut
+    JOIN
+        input i ON i.task_id = ut.id AND i.task_inserted_at = ut.inserted_at
+    RETURNING
+        task_id,
+        task_inserted_at,
+        task_retry_count,
+        retry_after
+)
+SELECT
+    ut.id,
+    ut.inserted_at,
+    ut.retry_count,
+    ut.app_retry_count,
+    rqi.retry_after::timestamptz AS retry_after
+FROM
+    updated_tasks ut
+JOIN
+    retry_queue_items rqi ON rqi.task_id = ut.id AND rqi.task_inserted_at = ut.inserted_at
+`
+
+type FailTaskRetryAfterParams struct {
+	Taskids         []int64              `json:"taskids"`
+	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
+	Taskretrycounts []int32              `json:"taskretrycounts"`
+	Retryafterms    []int64              `json:"retryafterms"`
+	Tenantid        uuid.UUID            `json:"tenantid"`
+}
+
+type FailTaskRetryAfterRow struct {
+	ID            int64              `json:"id"`
+	InsertedAt    pgtype.Timestamptz `json:"inserted_at"`
+	RetryCount    int32              `json:"retry_count"`
+	AppRetryCount int32              `json:"app_retry_count"`
+	RetryAfter    pgtype.Timestamptz `json:"retry_after"`
+}
+
+// Fails a task due to an application-level error with a task-requested delay before its next attempt.
+// These retries count against the task's retry budget like any other application failure.
+func (q *Queries) FailTaskRetryAfter(ctx context.Context, db DBTX, arg FailTaskRetryAfterParams) ([]*FailTaskRetryAfterRow, error) {
+	rows, err := db.Query(ctx, failTaskRetryAfter,
+		arg.Taskids,
+		arg.Taskinsertedats,
+		arg.Taskretrycounts,
+		arg.Retryafterms,
+		arg.Tenantid,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*FailTaskRetryAfterRow
+	for rows.Next() {
+		var i FailTaskRetryAfterRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.InsertedAt,
+			&i.RetryCount,
+			&i.AppRetryCount,
+			&i.RetryAfter,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const filterValidTasks = `-- name: FilterValidTasks :many
 WITH inputs AS (
     SELECT

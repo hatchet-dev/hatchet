@@ -274,6 +274,9 @@ type ConfigFileRuntime struct {
 	// MaxInternalRetryCount is the maximum number of internal retries before a step run is considered failed (default: 10)
 	MaxInternalRetryCount int32 `mapstructure:"maxInternalRetryCount" json:"maxInternalRetryCount,omitempty" default:"10"`
 
+	// MaxRetryAfter caps the delay a task can request before its next attempt when it fails with a retry-after error (default: 7 days)
+	MaxRetryAfter time.Duration `mapstructure:"maxRetryAfter" json:"maxRetryAfter,omitempty" default:"168h"`
+
 	Monitoring ConfigFileMonitoring `mapstructure:"monitoring" json:"monitoring,omitempty"`
 
 	// PreventTenantVersionUpgrade controls whether the server prevents tenant version upgrades
@@ -883,6 +886,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.apiTrustPrivateProxies", "SERVER_API_TRUST_PRIVATE_PROXIES")
 	_ = v.BindEnv("runtime.disableTenantPubs", "SERVER_DISABLE_TENANT_PUBS")
 	_ = v.BindEnv("runtime.maxInternalRetryCount", "SERVER_MAX_INTERNAL_RETRY_COUNT")
+	_ = v.BindEnv("runtime.maxRetryAfter", "SERVER_MAX_RETRY_AFTER")
 	_ = v.BindEnv("runtime.preventTenantVersionUpgrade", "SERVER_PREVENT_TENANT_VERSION_UPGRADE")
 	_ = v.BindEnv("runtime.replayEnabled", "SERVER_REPLAY_ENABLED")
 	_ = v.BindEnv("runtime.allowedOriginsString", "SERVER_ALLOWED_ORIGINS")

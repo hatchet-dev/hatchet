@@ -1,5 +1,6 @@
 import json
 import traceback
+from datetime import timedelta
 from typing import cast
 
 from hatchet_sdk.engine_version import MinEngineVersion
@@ -31,6 +32,25 @@ class InvalidDependencyError(Exception):
 
 class NonRetryableException(Exception):  # noqa: N818
     pass
+
+
+class RetryAfterException(Exception):  # noqa: N818
+    """
+    Raise from a task to retry it after a delay of the task's choosing, e.g. the value of an upstream `Retry-After` header.
+
+    The retry counts against the task's `retries` like any other failure; only the delay before the next attempt changes.
+
+    :param message: The error message recorded for this attempt.
+    :param after: The delay before the next attempt, as a `timedelta` or a number of seconds.
+    """
+
+    def __init__(self, message: str = "", *, after: timedelta | float) -> None:
+        super().__init__(message)
+        self.after = after if isinstance(after, timedelta) else timedelta(seconds=after)
+
+    @property
+    def after_ms(self) -> int:
+        return max(int(self.after.total_seconds() * 1000), 0)
 
 
 class DedupeViolationError(Exception):

@@ -138,8 +138,10 @@ module Hatchet
         # @param payload [String] JSON-serialized event payload
         # @param retry_count [Integer, nil] Current retry count
         # @param should_not_retry [Boolean, nil] Whether to suppress further retries
+        # @param retry_after_ms [Integer, nil] Delay the task requested before its next attempt
         # @return [ActionEventResponse]
-        def send_step_action_event(action:, event_type:, payload: "{}", retry_count: nil, should_not_retry: nil)
+        def send_step_action_event(action:, event_type:, payload: "{}", retry_count: nil, should_not_retry: nil,
+                                   retry_after_ms: nil)
           ensure_connected!
 
           now = Time.now
@@ -162,6 +164,7 @@ module Hatchet
 
           event_args[:retry_count] = retry_count unless retry_count.nil?
           event_args[:should_not_retry] = should_not_retry unless should_not_retry.nil?
+          event_args[:retry_after_ms] = retry_after_ms unless retry_after_ms.nil?
 
           request = ::StepActionEvent.new(**event_args)
           @stub.send_step_action_event(request, metadata: @config.auth_metadata)
