@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
+
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -317,6 +319,226 @@ func TestEagerIndexSwitchesToOnDemandWhenItOutgrowsBound(t *testing.T) {
 	}
 	if c.eagerIndexOutgrewBound() {
 		t.Fatalf("bound check must be inert once on demand")
+	}
+}
+
+// A deep key is hydrated through a bounded window: only the best and worst maxRuns queued slots are
+// loaded, and the queued slots outside that window are cancelled straight from the rows.
+func TestOnDemandDeepKeyLoadsBoundedWindowAndCancelsOutside(t *testing.T) {
+	now := time.Now().UTC()
+	future := now.Add(time.Hour)
+
+	queuedCount := 50
+	rows := make([]*sqlcv1.ListConcurrencySlotsForIndexingRow, 0, queuedCount)
+	for i := range queuedCount {
+		rows = append(rows, indexRow("a", int64(i+1), 5, 0, now.Add(time.Duration(i)*time.Second), future, false))
+	}
+
+	repo := &mockConcurrencyRepo{indexRows: rows}
+	c := newOnDemandCancelQueuedExceptNewestStrategy(repo, 1, 1)
+	c.hydrateOnDemand = true
+
+	if _, err := c.processWALMessages(context.Background(), nil, []walMessage{walInsert("a", 50, 5, now, future)}); err != nil {
+		t.Fatalf("processWALMessages: %v", err)
+	}
+
+	if got := repo.lastWindowQuery.WindowSizes; len(got) != 1 || got[0] != 1 {
+		t.Fatalf("window sizes = %v, want [1]", got)
+	}
+	if repo.lastWindowQuery.OutsideLimit != onDemandOutsideWindowCancelLimit {
+		t.Fatalf("outside limit = %d, want %d", repo.lastWindowQuery.OutsideLimit, onDemandOutsideWindowCancelLimit)
+	}
+
+	// oldest fills the slot, newest survives queued, the 48 in between are cancelled
+	filled := filledIDs(repo.lastFilled)
+	if len(filled) != 1 || !containsID(filled, 1) {
+		t.Fatalf("filled = %v, want [1]", filled)
+	}
+	cancelled := cancelledByReason(repo.lastCancelled, repository.CancelledReasonConcurrencyLimit)
+	if len(cancelled) != queuedCount-2 {
+		t.Fatalf("cancelled %d slots, want %d", len(cancelled), queuedCount-2)
+	}
+	if containsID(cancelled, 1) || containsID(cancelled, 50) {
+		t.Fatalf("cancelled the filled or the surviving slot: %v", cancelled)
+	}
+
+	sq := c.getOrCreateSubQueue("a")
+	if sq.running.len() != 1 || sq.queued.len() != 1 {
+		t.Fatalf("in-memory running %d, queued %d, want 1, 1: the window must hold two queued slots at most", sq.running.len(), sq.queued.len())
+	}
+	if len(c.keysToRevisit) != 0 {
+		t.Fatalf("no revisit expected when the outside cap was not reached")
+	}
+}
+
+func TestOnDemandGroupRoundRobinLeavesOutsideWindowQueued(t *testing.T) {
+	now := time.Now().UTC()
+	future := now.Add(time.Hour)
+
+	rows := make([]*sqlcv1.ListConcurrencySlotsForIndexingRow, 0)
+	for i := range 20 {
+		rows = append(rows, indexRow("a", int64(i+1), 5, 0, now.Add(time.Duration(i)*time.Second), future, false))
+	}
+
+	repo := &mockConcurrencyRepo{indexRows: rows}
+	c := newTestStrategyKind(repo, 2, sqlcv1.V1ConcurrencyStrategyGROUPROUNDROBIN)
+	c.hydrateOnDemand = true
+
+	if _, err := c.processWALMessages(context.Background(), nil, []walMessage{walInsert("a", 20, 5, now, future)}); err != nil {
+		t.Fatalf("processWALMessages: %v", err)
+	}
+
+	if repo.lastWindowQuery.OutsideLimit != 0 {
+		t.Fatalf("outside limit = %d, want 0: round robin never cancels queued backlog", repo.lastWindowQuery.OutsideLimit)
+	}
+	filled := filledIDs(repo.lastFilled)
+	if len(filled) != 2 || !containsID(filled, 1) || !containsID(filled, 2) {
+		t.Fatalf("filled = %v, want the two oldest [1 2]", filled)
+	}
+	if len(repo.lastCancelled) != 0 {
+		t.Fatalf("cancelled %d slots, want 0", len(repo.lastCancelled))
+	}
+}
+
+func TestOnDemandCancelQueuedExceptOldestDoublesWindow(t *testing.T) {
+	now := time.Now().UTC()
+	future := now.Add(time.Hour)
+
+	rows := make([]*sqlcv1.ListConcurrencySlotsForIndexingRow, 0)
+	for i := range 10 {
+		rows = append(rows, indexRow("a", int64(i+1), 5, 0, now.Add(time.Duration(i)*time.Second), future, false))
+	}
+
+	repo := &mockConcurrencyRepo{indexRows: rows}
+	c := newTestStrategyKind(repo, 2, sqlcv1.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTOLDEST)
+	c.hydrateOnDemand = true
+
+	if _, err := c.processWALMessages(context.Background(), nil, []walMessage{walInsert("a", 10, 5, now, future)}); err != nil {
+		t.Fatalf("processWALMessages: %v", err)
+	}
+
+	if got := repo.lastWindowQuery.WindowSizes; len(got) != 1 || got[0] != 4 {
+		t.Fatalf("window sizes = %v, want [4] (twice the limit)", got)
+	}
+
+	// the two oldest fill, the next two oldest stay queued, the remaining six are cancelled
+	filled := filledIDs(repo.lastFilled)
+	if len(filled) != 2 || !containsID(filled, 1) || !containsID(filled, 2) {
+		t.Fatalf("filled = %v, want [1 2]", filled)
+	}
+	cancelled := cancelledByReason(repo.lastCancelled, repository.CancelledReasonConcurrencyLimit)
+	if len(cancelled) != 6 || containsID(cancelled, 3) || containsID(cancelled, 4) {
+		t.Fatalf("cancelled = %v, want the six newest", cancelled)
+	}
+}
+
+// When a batch's outside-window cancellations hit the cap, its keys are revisited on the next Run so
+// the rest of the backlog is cancelled in further bounded passes.
+func TestOnDemandCappedOutsideCancelsAreRevisited(t *testing.T) {
+	now := time.Now().UTC()
+	future := now.Add(time.Hour)
+
+	// 3 keys x (cap + 5) queued: the first batch can cancel at most cap slots across the keys
+	cap := onDemandOutsideWindowCancelLimit
+	rows := make([]*sqlcv1.ListConcurrencySlotsForIndexingRow, 0)
+	taskId := int64(0)
+	for _, key := range []string{"a", "b", "c"} {
+		for i := range cap + 5 {
+			taskId++
+			rows = append(rows, indexRow(key, taskId, 5, 0, now.Add(time.Duration(i)*time.Millisecond), future, false))
+		}
+	}
+
+	repo := &mockConcurrencyRepo{indexRows: rows}
+	c := newOnDemandCancelQueuedExceptNewestStrategy(repo, 1, 1)
+	c.hydrateOnDemand = true
+	c.initialQueued = true
+
+	msgs := []walMessage{walInsert("a", 1, 5, now, future), walInsert("b", 2, 5, now, future), walInsert("c", 3, 5, now, future)}
+	if _, err := c.processWALMessages(context.Background(), nil, msgs); err != nil {
+		t.Fatalf("processWALMessages: %v", err)
+	}
+	c.finalizeCommittedSubQueues(c.commitScopes())
+
+	if got := cancelledByReason(repo.lastCancelled, repository.CancelledReasonConcurrencyLimit); len(got) != cap {
+		t.Fatalf("first batch cancelled %d, want the cap %d", len(got), cap)
+	}
+	if len(c.keysToRevisit) != 3 {
+		t.Fatalf("keys to revisit = %d, want all 3 touched keys", len(c.keysToRevisit))
+	}
+
+	// the mock does not delete rows, so a revisit sees the same backlog and is capped again: the keys
+	// must re-enter the set rather than be dropped
+	res, err := c.revisitKeys(context.Background())
+	if err != nil {
+		t.Fatalf("revisitKeys: %v", err)
+	}
+	if res == nil {
+		t.Fatalf("expected results from the revisit pass")
+	}
+	if len(c.keysToRevisit) != 3 {
+		t.Fatalf("keys to revisit after a still-capped pass = %d, want 3", len(c.keysToRevisit))
+	}
+	if len(c.subQueues) != 0 {
+		t.Fatalf("revisited keys must be evicted, got %d sub-queues", len(c.subQueues))
+	}
+}
+
+// A dynamic limit observed from the newest task must survive that task's slot disappearing between
+// batches: on reload, the older slots' higher evaluation must not win back the limit.
+func TestOnDemandDynamicLimitSurvivesEviction(t *testing.T) {
+	now := time.Now().UTC()
+	future := now.Add(time.Hour)
+
+	withMaxRuns := func(row *sqlcv1.ListConcurrencySlotsForIndexingRow, maxRuns int32) *sqlcv1.ListConcurrencySlotsForIndexingRow {
+		row.MaxRuns = pgtype.Int4{Int32: maxRuns, Valid: true}
+		return row
+	}
+
+	running := withMaxRuns(indexRow("a", 1, 5, 0, now, future, true), 3)
+	olderQueued := withMaxRuns(indexRow("a", 2, 5, 0, now.Add(time.Second), future, false), 3)
+	newerQueued := withMaxRuns(indexRow("a", 3, 5, 0, now.Add(2*time.Second), future, false), 1)
+
+	repo := &mockConcurrencyRepo{indexRows: []*sqlcv1.ListConcurrencySlotsForIndexingRow{running, olderQueued, newerQueued}}
+	c := newTestStrategyKind(repo, 5, sqlcv1.V1ConcurrencyStrategyGROUPROUNDROBIN)
+	c.strategy.MaxRunsExpression = pgtype.Text{String: "input.limit", Valid: true}
+	c.hydrateOnDemand = true
+
+	// newest task says the limit is 1 and one slot is already running: nothing fills
+	if _, err := c.processWALMessages(context.Background(), nil, []walMessage{walInsert("a", 3, 5, now.Add(2*time.Second), future)}); err != nil {
+		t.Fatalf("processWALMessages (first): %v", err)
+	}
+	c.finalizeCommittedSubQueues(c.commitScopes())
+
+	if len(repo.lastFilled) != 0 {
+		t.Fatalf("filled %v with limit 1 and one running", filledIDs(repo.lastFilled))
+	}
+	if observed, ok := c.observedMaxRuns["a"]; !ok || observed.maxRuns != 1 {
+		t.Fatalf("observed limit = %+v, want 1 retained across eviction", observed)
+	}
+
+	// the newest task's slot is gone (finished or timed out); only the older slots remain
+	repo.indexRows = []*sqlcv1.ListConcurrencySlotsForIndexingRow{running, olderQueued}
+
+	if _, err := c.processWALMessages(context.Background(), nil, []walMessage{{Operation: "DELETE", Key: "a", TaskId: 3}}); err != nil {
+		t.Fatalf("processWALMessages (second): %v", err)
+	}
+	c.finalizeCommittedSubQueues(c.commitScopes())
+
+	if len(repo.lastFilled) != 0 {
+		t.Fatalf("filled %v: a deleted newer task must not raise the limit back to 3", filledIDs(repo.lastFilled))
+	}
+
+	// once the key holds no slots the observation is forgotten, as pruneEmpty does on the eager path
+	repo.indexRows = nil
+
+	if _, err := c.processWALMessages(context.Background(), nil, []walMessage{{Operation: "DELETE", Key: "a", TaskId: 1}}); err != nil {
+		t.Fatalf("processWALMessages (third): %v", err)
+	}
+	c.finalizeCommittedSubQueues(c.commitScopes())
+
+	if _, ok := c.observedMaxRuns["a"]; ok {
+		t.Fatalf("observation retained for a key with no slots")
 	}
 }
 
