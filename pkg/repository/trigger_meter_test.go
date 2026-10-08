@@ -14,6 +14,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 
+	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -166,11 +167,35 @@ func TestTaskRunMeter_SingleTask(t *testing.T) {
 	require.Equal(t, []int32{1}, meterChargesForRun(t, dagSteps(wv, 1, false, false), wv))
 }
 
-func TestTenantLimitMeter_ZeroChargeSkipsLimitCheck(t *testing.T) {
-	// nil cache and queries: any limit lookup would panic
-	repo := &tenantLimitRepository{enforceLimits: true}
+func TestTaskRunMeter_MixedBatchChargesOnlyUntargetedTuples(t *testing.T) {
+	wv := uuid.New()
+	steps := dagSteps(wv, 3, false, true)
+	meter := &recordingMeter{}
+	repo := newMeterTestRepo(meter, wv, steps)
 
-	precommit, _ := repo.Meter(context.Background(), nil, sqlcv1.LimitResourceTASKRUN, uuid.New(), 0)
+	tuples := []triggerTuple{{externalId: uuid.New(), workflowVersionId: wv}}
 
-	require.NoError(t, precommit())
+	for _, s := range regularUserSteps(steps) {
+		actionId := s.ActionId
+		tuples = append(tuples, triggerTuple{externalId: uuid.New(), workflowVersionId: wv, targetActionId: &actionId})
+	}
+
+	_, _, _, _, _, _, err := repo.triggerWorkflowsCore(context.Background(), &OptimisticTx{}, uuid.New(), tuples, nil, false)
+	require.ErrorIs(t, err, errStopAfterMeter)
+
+	require.Equal(t, []int32{3}, meter.charges)
+}
+
+func TestTenantLimitMeter_ZeroChargePassesAtCap(t *testing.T) {
+	tenantId := uuid.New()
+	repo := &tenantLimitRepository{enforceLimits: true, c: cache.New(time.Minute)}
+
+	// the cached canCreate result is a plain boolean that ignores the requested amount
+	repo.c.Set(meterKey{tenantId: tenantId, resource: sqlcv1.LimitResourceTASKRUN}.cacheKey(), false)
+
+	zero, _ := repo.Meter(context.Background(), nil, sqlcv1.LimitResourceTASKRUN, tenantId, 0)
+	require.NoError(t, zero())
+
+	one, _ := repo.Meter(context.Background(), nil, sqlcv1.LimitResourceTASKRUN, tenantId, 1)
+	require.ErrorIs(t, one(), ErrResourceExhausted)
 }
