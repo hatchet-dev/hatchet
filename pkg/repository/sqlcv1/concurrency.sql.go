@@ -159,6 +159,30 @@ func (q *Queries) CheckTenantStrategyActive(ctx context.Context, db DBTX, arg Ch
 	return isActive, err
 }
 
+const countConcurrencySlotsUpToLimit = `-- name: CountConcurrencySlotsUpToLimit :one
+SELECT count(*)
+FROM (
+    SELECT 1
+    FROM v1_concurrency_slot
+    WHERE tenant_id = $1::UUID
+    AND strategy_id = $2::BIGINT
+    LIMIT $3::int
+) AS bounded_slots
+`
+
+type CountConcurrencySlotsUpToLimitParams struct {
+	Tenantid   uuid.UUID `json:"tenantid"`
+	Strategyid int64     `json:"strategyid"`
+	Limit      int32     `json:"limit"`
+}
+
+func (q *Queries) CountConcurrencySlotsUpToLimit(ctx context.Context, db DBTX, arg CountConcurrencySlotsUpToLimitParams) (int64, error) {
+	row := db.QueryRow(ctx, countConcurrencySlotsUpToLimit, arg.Tenantid, arg.Strategyid, arg.Limit)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createParentTempTable = `-- name: CreateParentTempTable :exec
 CREATE TEMP TABLE tmp_workflow_concurrency_slot ON COMMIT DROP AS
 SELECT sort_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, completed_child_strategy_ids, child_strategy_ids, priority, key, is_filled
@@ -615,6 +639,78 @@ func (q *Queries) ListConcurrencySlotsForIndexing(ctx context.Context, db DBTX, 
 	return items, nil
 }
 
+const listConcurrencySlotsForKeys = `-- name: ListConcurrencySlotsForKeys :many
+SELECT
+    sort_id,
+    task_id,
+    task_inserted_at,
+    task_retry_count,
+    key,
+    priority,
+    tenant_id,
+    strategy_id,
+    is_filled,
+    schedule_timeout_at,
+    max_runs
+FROM v1_concurrency_slot
+WHERE tenant_id = $1::UUID
+AND strategy_id = $2::BIGINT
+AND key = ANY($3::TEXT[])
+ORDER BY key ASC, sort_id ASC
+`
+
+type ListConcurrencySlotsForKeysParams struct {
+	Tenantid   uuid.UUID `json:"tenantid"`
+	Strategyid int64     `json:"strategyid"`
+	Keys       []string  `json:"keys"`
+}
+
+type ListConcurrencySlotsForKeysRow struct {
+	SortID            pgtype.Int8        `json:"sort_id"`
+	TaskID            int64              `json:"task_id"`
+	TaskInsertedAt    pgtype.Timestamptz `json:"task_inserted_at"`
+	TaskRetryCount    int32              `json:"task_retry_count"`
+	Key               string             `json:"key"`
+	Priority          int32              `json:"priority"`
+	TenantID          uuid.UUID          `json:"tenant_id"`
+	StrategyID        int64              `json:"strategy_id"`
+	IsFilled          bool               `json:"is_filled"`
+	ScheduleTimeoutAt pgtype.Timestamp   `json:"schedule_timeout_at"`
+	MaxRuns           pgtype.Int4        `json:"max_runs"`
+}
+
+func (q *Queries) ListConcurrencySlotsForKeys(ctx context.Context, db DBTX, arg ListConcurrencySlotsForKeysParams) ([]*ListConcurrencySlotsForKeysRow, error) {
+	rows, err := db.Query(ctx, listConcurrencySlotsForKeys, arg.Tenantid, arg.Strategyid, arg.Keys)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListConcurrencySlotsForKeysRow
+	for rows.Next() {
+		var i ListConcurrencySlotsForKeysRow
+		if err := rows.Scan(
+			&i.SortID,
+			&i.TaskID,
+			&i.TaskInsertedAt,
+			&i.TaskRetryCount,
+			&i.Key,
+			&i.Priority,
+			&i.TenantID,
+			&i.StrategyID,
+			&i.IsFilled,
+			&i.ScheduleTimeoutAt,
+			&i.MaxRuns,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listConcurrencyStrategiesByStepId = `-- name: ListConcurrencyStrategiesByStepId :many
 SELECT
     id, parent_strategy_id, workflow_id, workflow_version_id, step_id, is_active, last_active_at, strategy, expression, tenant_id, max_concurrency, tenant_strategy_id, max_runs_expression
@@ -739,6 +835,48 @@ func (q *Queries) ListConcurrencyStrategiesByWorkflowVersionId(ctx context.Conte
 			return nil, err
 		}
 		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDistinctConcurrencyKeysAfter = `-- name: ListDistinctConcurrencyKeysAfter :many
+SELECT DISTINCT key
+FROM v1_concurrency_slot
+WHERE tenant_id = $1::UUID
+AND strategy_id = $2::BIGINT
+AND key > $3::TEXT
+ORDER BY key ASC
+LIMIT $4::int
+`
+
+type ListDistinctConcurrencyKeysAfterParams struct {
+	Tenantid   uuid.UUID `json:"tenantid"`
+	Strategyid int64     `json:"strategyid"`
+	LastKey    string    `json:"lastKey"`
+	Limit      int32     `json:"limit"`
+}
+
+func (q *Queries) ListDistinctConcurrencyKeysAfter(ctx context.Context, db DBTX, arg ListDistinctConcurrencyKeysAfterParams) ([]string, error) {
+	rows, err := db.Query(ctx, listDistinctConcurrencyKeysAfter,
+		arg.Tenantid,
+		arg.Strategyid,
+		arg.LastKey,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var key string
+		if err := rows.Scan(&key); err != nil {
+			return nil, err
+		}
+		items = append(items, key)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

@@ -75,7 +75,7 @@ func newConcurrencyManager(conf *sharedConfig, tenantId uuid.UUID, strategy *sql
 	// max-runs strategies (MaxRunsExpression set) are only supported by the in-memory
 	// index, so they always take that path regardless of the config flag.
 	if (conf.concurrencyInMemoryIndexEnabled || strategy.TenantStrategyID.Valid || strategy.MaxRunsExpression.Valid) && !strategy.ParentStrategyID.Valid {
-		concurrencyStrategy = concurrency.NewConcurrencyStrategy(ctx, repo, strategy, conf.outbox, &l)
+		concurrencyStrategy = concurrency.NewConcurrencyStrategy(ctx, repo, strategy, conf.outbox, &l, concurrency.WithEagerIndexMaxSlots(conf.concurrencyInMemoryIndexMaxEagerSlots))
 	} else {
 		concurrency.NewNoOpFlusher(ctx, conf.outbox, strategy, &l)
 	}

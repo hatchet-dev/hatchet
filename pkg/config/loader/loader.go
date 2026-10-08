@@ -907,6 +907,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		cf.Runtime.OptimisticSchedulingEnabled,
 		cf.Runtime.OptimisticSchedulingSlots,
 		cf.Runtime.ConcurrencyInMemoryIndexEnabled,
+		cf.Runtime.ConcurrencyInMemoryIndexMaxEagerSlots,
 		promGate,
 	)
 

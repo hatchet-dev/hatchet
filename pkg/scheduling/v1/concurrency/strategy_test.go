@@ -3,6 +3,7 @@ package concurrency
 import (
 	"context"
 	"errors"
+	"sort"
 	"testing"
 	"time"
 
@@ -29,6 +30,8 @@ type mockConcurrencyRepo struct {
 	lastCancelled []repository.CancelledSlotInput
 	updateCalls   int
 
+	listForKeysCalls int
+
 	// flushLatency, when > 0, is slept on every flush to model the cost of writing concurrency
 	// updates to disk (used by the throughput benchmark; otherwise zero).
 	flushLatency time.Duration
@@ -39,6 +42,51 @@ func (m *mockConcurrencyRepo) ReadConcurrencySlotsForIndexing(ctx context.Contex
 		writeCh <- r
 	}
 	return nil
+}
+
+func (m *mockConcurrencyRepo) CountConcurrencySlotsUpToLimit(ctx context.Context, tenantId uuid.UUID, strategyId int64, limit int32) (int64, error) {
+	return min(int64(len(m.indexRows)), int64(limit)), nil
+}
+
+func (m *mockConcurrencyRepo) ListConcurrencySlotsForKeys(ctx context.Context, tenantId uuid.UUID, strategyId int64, keys []string) ([]*sqlcv1.ListConcurrencySlotsForIndexingRow, error) {
+	m.listForKeysCalls++
+
+	wanted := make(map[string]struct{}, len(keys))
+	for _, key := range keys {
+		wanted[key] = struct{}{}
+	}
+
+	rows := make([]*sqlcv1.ListConcurrencySlotsForIndexingRow, 0)
+	for _, r := range m.indexRows {
+		if _, ok := wanted[r.Key]; ok {
+			rows = append(rows, r)
+		}
+	}
+	return rows, nil
+}
+
+func (m *mockConcurrencyRepo) ListConcurrencySlotsForKeysTx(ctx context.Context, tx pgx.Tx, tenantId uuid.UUID, strategyId int64, keys []string) ([]*sqlcv1.ListConcurrencySlotsForIndexingRow, error) {
+	return m.ListConcurrencySlotsForKeys(ctx, tenantId, strategyId, keys)
+}
+
+func (m *mockConcurrencyRepo) ListDistinctConcurrencyKeysAfter(ctx context.Context, tenantId uuid.UUID, strategyId int64, lastKey string, limit int32) ([]string, error) {
+	distinct := make(map[string]struct{})
+	for _, r := range m.indexRows {
+		if r.Key > lastKey {
+			distinct[r.Key] = struct{}{}
+		}
+	}
+
+	keys := make([]string, 0, len(distinct))
+	for key := range distinct {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	if len(keys) > int(limit) {
+		keys = keys[:limit]
+	}
+	return keys, nil
 }
 
 func (m *mockConcurrencyRepo) UpdateConcurrencySlotsTx(ctx context.Context, tx pgx.Tx, tenantId uuid.UUID, strategyId int64, filledSlots []repository.TaskIdInsertedAtRetryCount, cancelledSlots []repository.CancelledSlotInput) (*repository.RunConcurrencyResult, error) {
@@ -85,12 +133,13 @@ func newTestStrategy(repo repository.ConcurrencyRepository, maxConcurrency int32
 func newTestStrategyKind(repo repository.ConcurrencyRepository, maxConcurrency int32, kind sqlcv1.V1ConcurrencyStrategy) *ConcurrencyStrategy {
 	l := zerolog.Nop()
 	return &ConcurrencyStrategy{
-		subQueues: make(map[string]*subQueue),
-		strategy:  &sqlcv1.V1StepConcurrency{MaxConcurrency: maxConcurrency, Strategy: kind},
-		repo:      repo,
-		l:         &l,
-		compare:   comparatorForStrategy(kind),
-		built:     make(chan struct{}),
+		subQueues:          make(map[string]*subQueue),
+		strategy:           &sqlcv1.V1StepConcurrency{MaxConcurrency: maxConcurrency, Strategy: kind},
+		repo:               repo,
+		l:                  &l,
+		compare:            comparatorForStrategy(kind),
+		built:              make(chan struct{}),
+		eagerIndexMaxSlots: DefaultEagerIndexMaxSlots,
 	}
 }
 

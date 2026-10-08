@@ -327,6 +327,44 @@ func TestConcurrency_CancelNewest_InMemory(t *testing.T) {
 	})
 }
 
+// TestConcurrency_CancelQueuedExceptNewest_OnDemandHydration exercises the in-memory index when the
+// strategy's backlog is already too large to load at build time (the threshold is forced to one slot).
+// The first Run must find the backlog through the paged key scan rather than a full hydration, and
+// later WAL batches must reload the touched key from the database before deciding.
+func TestConcurrency_CancelQueuedExceptNewest_OnDemandHydration(t *testing.T) {
+	runWithDatabase(t, func(conf *database.Layer) error {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		requireSchedulerSchema(t, ctx, conf)
+
+		// the backlog exists before the index is built
+		s := setupStepConcurrencyTest(t, ctx, conf, "cqen-ondemand-test", "CANCEL_QUEUED_EXCEPT_NEWEST", 1, 5)
+
+		l := zerolog.Nop()
+		outbox := newTestOutbox(t, conf)
+		cs := concurrency.NewConcurrencyStrategy(ctx, s.concurrencyRepo, s.strategy, outbox, &l, concurrency.WithEagerIndexMaxSlots(1))
+
+		// the oldest task fills the single slot, the newest stays queued, the three in between are cancelled
+		res, err := cs.Run(ctx)
+		require.NoError(t, err)
+		require.Len(t, res.Queued, 1, "one task should fill the single slot")
+		require.Len(t, res.Cancelled, 3, "all queued tasks but the newest should be cancelled")
+		for _, c := range res.Cancelled {
+			require.Equal(t, repo.CancelledReasonConcurrencyLimit, c.CancelledReason)
+		}
+
+		// two more arrivals: the key now holds one running and three queued, so the two oldest queued go
+		createConcurrencyTasks(t, ctx, conf, s, 2)
+
+		res, err = cs.Run(ctx)
+		require.NoError(t, err)
+		require.Len(t, res.Queued, 0, "the slot is still taken by the running task")
+		require.Len(t, res.Cancelled, 2, "only the newest queued task should survive")
+
+		return nil
+	})
+}
+
 // --- Chained strategy regression test ---
 
 // TestConcurrency_ChainedStrategiesDoNotContaminate verifies that when two concurrency
@@ -499,6 +537,7 @@ func TestConcurrency_MultipleStrategiesContention(t *testing.T) {
 			false,
 			1,
 			true,
+			concurrency.DefaultEagerIndexMaxSlots,
 			nil,
 		)
 		require.NoError(t, err)
@@ -695,6 +734,7 @@ func TestConcurrency_ColdStrategyScheduledPromptly(t *testing.T) {
 			false,
 			1,
 			true,
+			concurrency.DefaultEagerIndexMaxSlots,
 			nil,
 		)
 		require.NoError(t, err)

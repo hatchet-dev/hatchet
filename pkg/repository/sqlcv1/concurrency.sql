@@ -1375,6 +1375,44 @@ AND (key, sort_id) > (sqlc.arg('lastKey')::TEXT, sqlc.arg('lastSortId')::BIGINT)
 ORDER BY key ASC, sort_id ASC
 LIMIT sqlc.arg('limit')::int;
 
+-- name: CountConcurrencySlotsUpToLimit :one
+SELECT count(*)
+FROM (
+    SELECT 1
+    FROM v1_concurrency_slot
+    WHERE tenant_id = @tenantId::UUID
+    AND strategy_id = @strategyId::BIGINT
+    LIMIT sqlc.arg('limit')::int
+) AS bounded_slots;
+
+-- name: ListConcurrencySlotsForKeys :many
+SELECT
+    sort_id,
+    task_id,
+    task_inserted_at,
+    task_retry_count,
+    key,
+    priority,
+    tenant_id,
+    strategy_id,
+    is_filled,
+    schedule_timeout_at,
+    max_runs
+FROM v1_concurrency_slot
+WHERE tenant_id = @tenantId::UUID
+AND strategy_id = @strategyId::BIGINT
+AND key = ANY(@keys::TEXT[])
+ORDER BY key ASC, sort_id ASC;
+
+-- name: ListDistinctConcurrencyKeysAfter :many
+SELECT DISTINCT key
+FROM v1_concurrency_slot
+WHERE tenant_id = @tenantId::UUID
+AND strategy_id = @strategyId::BIGINT
+AND key > sqlc.arg('lastKey')::TEXT
+ORDER BY key ASC
+LIMIT sqlc.arg('limit')::int;
+
 -- name: UpdateConcurrencySlotIsFilled :one
 UPDATE v1_concurrency_slot
 SET is_filled = $1

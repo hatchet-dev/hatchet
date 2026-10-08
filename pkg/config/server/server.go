@@ -344,6 +344,11 @@ type ConfigFileRuntime struct {
 	// ConcurrencyInMemoryIndexEnabled controls whether the in-memory index + outbox approach is used for concurrency strategies
 	ConcurrencyInMemoryIndexEnabled bool `mapstructure:"concurrencyInMemoryIndexEnabled" json:"concurrencyInMemoryIndexEnabled,omitempty" default:"true"`
 
+	// ConcurrencyInMemoryIndexMaxEagerSlots is the number of concurrency slots at or above which a
+	// strategy stops loading its whole backlog into the in-memory index at startup and instead loads
+	// only the keys each batch touches from the database.
+	ConcurrencyInMemoryIndexMaxEagerSlots int32 `mapstructure:"concurrencyInMemoryIndexMaxEagerSlots" json:"concurrencyInMemoryIndexMaxEagerSlots,omitempty" default:"1000000"`
+
 	// LogIngestionEnabled controls whether the server enables log ingestion for tasks
 	LogIngestionEnabled bool `mapstructure:"logIngestionEnabled" json:"logIngestionEnabled,omitempty" default:"true"`
 
@@ -867,6 +872,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.schedulerCheckActiveMaxInterval", "SCHEDULER_CHECK_ACTIVE_MAX_INTERVAL")
 	_ = v.BindEnv("runtime.schedulerAdvisoryLockTimeout", "SCHEDULER_ADVISORY_LOCK_TIMEOUT")
 	_ = v.BindEnv("runtime.concurrencyInMemoryIndexEnabled", "SERVER_CONCURRENCY_IN_MEMORY_INDEX_ENABLED")
+	_ = v.BindEnv("runtime.concurrencyInMemoryIndexMaxEagerSlots", "SERVER_CONCURRENCY_IN_MEMORY_INDEX_MAX_EAGER_SLOTS")
 	_ = v.BindEnv("servicesString", "SERVER_SERVICES")
 	_ = v.BindEnv("pausedControllers", "SERVER_PAUSED_CONTROLLERS")
 	_ = v.BindEnv("enableDataRetention", "SERVER_ENABLE_DATA_RETENTION")

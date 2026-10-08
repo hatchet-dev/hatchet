@@ -41,6 +41,8 @@ type sharedConfig struct {
 	schedulerAdvisoryLockTimeout time.Duration
 
 	concurrencyInMemoryIndexEnabled bool
+
+	concurrencyInMemoryIndexMaxEagerSlots int32
 }
 
 // SchedulingPool is responsible for managing a pool of tenantManagers.
@@ -78,6 +80,7 @@ func NewSchedulingPool(
 	optimisticSchedulingEnabled bool,
 	optimisticSlots int,
 	concurrencyInMemoryIndexEnabled bool,
+	concurrencyInMemoryIndexMaxEagerSlots int32,
 	promGate *prometheus.Gate,
 ) (*SchedulingPool, func() error, error) {
 	resultsCh := make(chan *QueueResults, 1000)
@@ -99,6 +102,7 @@ func NewSchedulingPool(
 			schedulerCheckActiveMaxInterval:        schedulerCheckActiveMaxInterval,
 			schedulerAdvisoryLockTimeout:           schedulerAdvisoryLockTimeout,
 			concurrencyInMemoryIndexEnabled:        concurrencyInMemoryIndexEnabled,
+			concurrencyInMemoryIndexMaxEagerSlots:  concurrencyInMemoryIndexMaxEagerSlots,
 			taskRepo:                               taskRepo,
 		},
 		resultsCh:                   resultsCh,

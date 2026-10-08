@@ -19,6 +19,7 @@ import (
 	repo "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	schedv1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
+	"github.com/hatchet-dev/hatchet/pkg/scheduling/v1/concurrency"
 )
 
 type snapshotEvent struct {
@@ -278,6 +279,7 @@ func TestScheduler_ReplenishIntegration_SingleActionUtilizationEqualsMaxRuns(t *
 			false,                // optimisticSchedulingEnabled
 			1,                    // optimisticSlots
 			true,
+			concurrency.DefaultEagerIndexMaxSlots,
 			nil, // promGate
 		)
 		require.NoError(t, err)
@@ -330,6 +332,7 @@ func TestScheduler_ReplenishIntegration_MultipleActionsDoesNotMultiplySlots(t *t
 			false,
 			1,
 			true,
+			concurrency.DefaultEagerIndexMaxSlots,
 			nil,
 		)
 		require.NoError(t, err)
@@ -378,6 +381,7 @@ func TestScheduler_ReplenishIntegration_IsSafeUnderConcurrentSnapshots(t *testin
 			false,
 			1,
 			true,
+			concurrency.DefaultEagerIndexMaxSlots,
 			nil,
 		)
 		require.NoError(t, err)
@@ -440,6 +444,7 @@ func TestScheduler_PoolIntegration_RemovingTenantStopsSnapshots(t *testing.T) {
 			false,
 			1,
 			true,
+			concurrency.DefaultEagerIndexMaxSlots,
 			nil,
 		)
 		require.NoError(t, err)

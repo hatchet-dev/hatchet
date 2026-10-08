@@ -26,15 +26,32 @@ const (
 	maxBackoffDuration = 10 * time.Second
 )
 
+const (
+	// DefaultEagerIndexMaxSlots is the slot count at or above which a strategy stops hydrating its
+	// whole backlog into memory at build time and switches to on-demand hydration.
+	DefaultEagerIndexMaxSlots int32 = 1_000_000
+
+	onDemandInitialScanKeysPerPage = 1000
+	onDemandInitialScanPagesPerRun = 10
+)
+
 type ConcurrencyStrategy struct {
 	outbox pgoutbox.Outbox
 	repo   repository.ConcurrencyRepository
-	// TODO(memory): buildIndex reads every queued slot (and its schedule timeout) into memory. Empty
-	// sub-queues are pruned after each batch (see pruneEmpty), so idle keys don't accumulate, but a
-	// large live backlog still grows this without limit - we eventually need a bounded or evicting
-	// strategy (e.g. spill to disk/db) for very high key cardinality. Not critical yet.
+	// subQueues holds the hydrated keys. With eager hydration (the default) buildIndex loads every slot
+	// of the strategy and pruneEmpty drops keys once they empty out. With on-demand hydration (chosen
+	// at build time when the strategy holds at least eagerIndexMaxSlots slots) only the keys touched by
+	// the current batch are loaded from the database, and all of them are evicted once the batch is
+	// finalized, so memory is bounded by the batch size rather than the backlog.
 	subQueues map[string]*subQueue
 	strategy  *sqlcv1.V1StepConcurrency
+
+	eagerIndexMaxSlots int32
+	// hydrateOnDemand is decided once by buildIndex (under buildingMu) and only read afterwards.
+	hydrateOnDemand bool
+	// initialScanLastKey is the on-demand initial scan's cursor over the strategy's distinct keys;
+	// the scan is spread across Runs so each one only holds a bounded number of keys in memory.
+	initialScanLastKey string
 	// immutable copies of the strategy identity, safe to read without holding any lock
 	// (strategy itself is swapped in place by UpdateStrategy under buildingMu + mu)
 	strategyId       int64
@@ -71,7 +88,35 @@ func (c *ConcurrencyStrategy) rollbackScopes() {
 	for _, sq := range c.openScopes {
 		sq.rollback()
 	}
+	c.evictIfHydratedOnDemand(c.openScopes)
 	c.openScopes = nil
+}
+
+// finalizeCommittedSubQueues drops the sub-queues a committed batch no longer needs in memory: all of
+// them under on-demand hydration (the next batch that touches a key reloads it from the database),
+// otherwise only the ones the batch emptied.
+func (c *ConcurrencyStrategy) finalizeCommittedSubQueues(committed []*subQueue) {
+	if c.hydrateOnDemand {
+		c.evictIfHydratedOnDemand(committed)
+		return
+	}
+
+	c.pruneEmpty(committed)
+}
+
+func (c *ConcurrencyStrategy) evictIfHydratedOnDemand(subQueues []*subQueue) {
+	if !c.hydrateOnDemand || len(subQueues) == 0 {
+		return
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	for _, sq := range subQueues {
+		if existing, ok := c.subQueues[sq.key]; ok && existing == sq {
+			delete(c.subQueues, sq.key)
+		}
+	}
 }
 
 // appendPending records a single batch's result for the in-flight Run to collect.
@@ -104,18 +149,24 @@ func NewConcurrencyStrategy(
 	strategy *sqlcv1.V1StepConcurrency,
 	outbox pgoutbox.Outbox,
 	l *zerolog.Logger,
+	opts ...StrategyOption,
 ) *ConcurrencyStrategy {
 	c := &ConcurrencyStrategy{
-		subQueues:        make(map[string]*subQueue),
-		strategy:         strategy,
-		strategyId:       strategy.ID,
-		strategyTenantId: strategy.TenantID,
-		repo:             repo,
-		l:                l,
-		compare:          comparatorForStrategy(strategy.Strategy),
-		outbox:           outbox,
-		topic:            getTopic(strategy),
-		built:            make(chan struct{}),
+		subQueues:          make(map[string]*subQueue),
+		strategy:           strategy,
+		strategyId:         strategy.ID,
+		strategyTenantId:   strategy.TenantID,
+		repo:               repo,
+		l:                  l,
+		compare:            comparatorForStrategy(strategy.Strategy),
+		outbox:             outbox,
+		topic:              getTopic(strategy),
+		built:              make(chan struct{}),
+		eagerIndexMaxSlots: DefaultEagerIndexMaxSlots,
+	}
+
+	for _, opt := range opts {
+		opt(c)
 	}
 
 	outbox.AddFlusher(c.topic, c)
@@ -123,6 +174,18 @@ func NewConcurrencyStrategy(
 	go c.buildIndexLoop(ctx)
 
 	return c
+}
+
+type StrategyOption func(*ConcurrencyStrategy)
+
+// WithEagerIndexMaxSlots sets the slot count at or above which the strategy hydrates keys on demand
+// instead of loading its whole backlog at build time. Zero or negative keeps the default.
+func WithEagerIndexMaxSlots(maxSlots int32) StrategyOption {
+	return func(c *ConcurrencyStrategy) {
+		if maxSlots > 0 {
+			c.eagerIndexMaxSlots = maxSlots
+		}
+	}
 }
 
 func NewNoOpFlusher(
@@ -238,10 +301,9 @@ func (c *ConcurrencyStrategy) Run(ctx context.Context) (*repository.RunConcurren
 		}
 
 		// ProcessMessages only returns without error once the transaction has committed, so the
-		// in-memory mutations are now durable - discard the undo log and prune any sub-queue this
-		// batch emptied (its slots were all deleted/cancelled), keeping the index from accumulating
-		// idle keys.
-		c.pruneEmpty(c.commitScopes())
+		// in-memory mutations are now durable - discard the undo log and drop the sub-queues this
+		// batch no longer needs in memory.
+		c.finalizeCommittedSubQueues(c.commitScopes())
 
 		// no more messages queued for this topic; we've drained it
 		if len(msgs) == 0 {
@@ -263,6 +325,18 @@ func (c *ConcurrencyStrategy) runInitialQueueing(ctx context.Context) (*reposito
 		return nil, nil
 	}
 
+	if c.hydrateOnDemand {
+		res, scanComplete, err := c.queueNextKeyPages(ctx)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to run initial concurrency queueing scan for topic %s: %w", c.topic, err)
+		}
+
+		c.initialQueued = scanComplete
+
+		return res, nil
+	}
+
 	res, err := c.queueAllSubQueues(ctx)
 
 	if err != nil {
@@ -272,6 +346,77 @@ func (c *ConcurrencyStrategy) runInitialQueueing(ctx context.Context) (*reposito
 	c.initialQueued = true
 
 	return res, nil
+}
+
+// queueNextKeyPages is the on-demand counterpart of queueAllSubQueues. The whole backlog cannot be
+// held in memory, so the pass walks the strategy's distinct keys from initialScanLastKey, a page of
+// keys at a time: each page is hydrated from the database, decided, flushed in its own transaction
+// and evicted again before the next page is loaded. It processes a bounded number of pages per call
+// so a Run returns promptly and interleaves with WAL processing (which is safe under on-demand
+// hydration, since every batch reloads the keys it touches from the database). It reports whether
+// the scan reached the end of the key space.
+func (c *ConcurrencyStrategy) queueNextKeyPages(ctx context.Context) (*repository.RunConcurrencyResult, bool, error) {
+	ctx, span := telemetry.NewSpan(ctx, "concurrency-initial-queueing-scan")
+	defer span.End()
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "concurrency.strategy.id", Value: c.strategy.ID},
+		telemetry.AttributeKV{Key: "tenant.id", Value: c.strategy.TenantID},
+	)
+
+	c.buildingMu.Lock()
+	defer c.buildingMu.Unlock()
+
+	results := make([]*repository.RunConcurrencyResult, 0, onDemandInitialScanPagesPerRun)
+
+	for range onDemandInitialScanPagesPerRun {
+		keys, err := c.repo.ListDistinctConcurrencyKeysAfter(ctx, c.strategy.TenantID, c.strategy.ID, c.initialScanLastKey, onDemandInitialScanKeysPerPage)
+
+		if err != nil {
+			return nil, false, err
+		}
+
+		if len(keys) == 0 {
+			return mergeResults(results), true, nil
+		}
+
+		rows, err := c.repo.ListConcurrencySlotsForKeys(ctx, c.strategy.TenantID, c.strategy.ID, keys)
+
+		if err != nil {
+			return nil, false, err
+		}
+
+		res, err := c.decideAndFlushHydratedKeys(ctx, keys, rows)
+
+		if err != nil {
+			return nil, false, err
+		}
+
+		results = append(results, res)
+		c.initialScanLastKey = keys[len(keys)-1]
+	}
+
+	return mergeResults(results), false, nil
+}
+
+// decideAndFlushHydratedKeys hydrates rows into the given keys' sub-queues, runs the decide step over
+// them with no WAL messages, flushes in its own transaction and evicts the sub-queues afterwards
+// regardless of the outcome.
+func (c *ConcurrencyStrategy) decideAndFlushHydratedKeys(ctx context.Context, keys []string, rows []*sqlcv1.ListConcurrencySlotsForIndexingRow) (*repository.RunConcurrencyResult, error) {
+	superseded := c.hydrateSubQueuesFromRows(rows)
+
+	grouped := make(map[string][]walMessage, len(keys))
+	for _, key := range keys {
+		grouped[key] = nil
+	}
+
+	touched, slotsToSetFilled, slotsToDelete, slotsToTimeout := c.decideSubQueues(ctx, grouped, time.Now().UTC(), c.decide())
+
+	defer c.evictIfHydratedOnDemand(touched)
+
+	tasksToSetFilled, cancelledSlots := buildSlotInputs(slotsToSetFilled, append(superseded, slotsToDelete...), slotsToTimeout)
+
+	return c.repo.UpdateConcurrencySlots(ctx, c.strategy.TenantID, c.strategy.ID, tasksToSetFilled, cancelledSlots)
 }
 
 // queueAllSubQueues runs the decide step over every sub-queue hydrated by buildIndex and flushes the
@@ -445,6 +590,18 @@ func (c *ConcurrencyStrategy) buildIndex(ctx context.Context) error {
 		}
 	}
 
+	slotCount, err := c.repo.CountConcurrencySlotsUpToLimit(ctx, c.strategy.TenantID, c.strategy.ID, c.eagerIndexMaxSlots)
+
+	if err != nil {
+		return fmt.Errorf("failed to count concurrency slots for topic %s: %w", c.topic, err)
+	}
+
+	if slotCount >= int64(c.eagerIndexMaxSlots) {
+		c.hydrateOnDemand = true
+		c.l.Warn().Msgf("concurrency strategy %d holds at least %d slots; hydrating keys on demand instead of loading the whole index", c.strategy.ID, c.eagerIndexMaxSlots)
+		return nil
+	}
+
 	writeCh := make(chan *sqlcv1.ListConcurrencySlotsForIndexingRow, 10000)
 	done := make(chan struct{})
 
@@ -459,32 +616,12 @@ func (c *ConcurrencyStrategy) buildIndex(ctx context.Context) error {
 					return // channel closed and drained
 				}
 
-				sq := c.getOrCreateSubQueue(row.Key)
-
-				// the timestamp guard makes page order irrelevant: each group converges to
-				// the value evaluated for its most recently created live slot
-				if row.MaxRuns.Valid {
-					sq.observeMaxRuns(row.MaxRuns.Int32, row.TaskInsertedAt.Time.UnixNano())
-				}
-
-				s := slot{
-					priority:            row.Priority,
-					taskId:              row.TaskID,
-					taskInsertedAtNs:    row.TaskInsertedAt.Time.UnixNano(),
-					taskRetryCount:      row.TaskRetryCount,
-					scheduleTimeoutAtMs: row.ScheduleTimeoutAt.Time.UnixMilli(),
-				}
-
-				if row.IsFilled {
-					sq.running.insert(s)
-				} else {
-					sq.queued.insert(s)
-				}
+				c.insertIndexRow(row)
 			}
 		}
 	}()
 
-	err := c.repo.ReadConcurrencySlotsForIndexing(ctx, c.strategy.TenantID, c.strategy.ID, writeCh)
+	err = c.repo.ReadConcurrencySlotsForIndexing(ctx, c.strategy.TenantID, c.strategy.ID, writeCh)
 	if err != nil {
 		return err
 	}
@@ -500,6 +637,70 @@ func (c *ConcurrencyStrategy) buildIndex(ctx context.Context) error {
 	return nil
 }
 
+// insertIndexRow places a database slot row into its sub-queue's running or queued index. Rows are
+// inserted one at a time, in any order: the timestamp guard in observeMaxRuns makes each group
+// converge to the value evaluated for its most recently created live slot.
+func (c *ConcurrencyStrategy) insertIndexRow(row *sqlcv1.ListConcurrencySlotsForIndexingRow) {
+	sq := c.getOrCreateSubQueue(row.Key)
+
+	if row.MaxRuns.Valid {
+		sq.observeMaxRuns(row.MaxRuns.Int32, row.TaskInsertedAt.Time.UnixNano())
+	}
+
+	s := slot{
+		priority:            row.Priority,
+		taskId:              row.TaskID,
+		taskInsertedAtNs:    row.TaskInsertedAt.Time.UnixNano(),
+		taskRetryCount:      row.TaskRetryCount,
+		scheduleTimeoutAtMs: row.ScheduleTimeoutAt.Time.UnixMilli(),
+	}
+
+	if row.IsFilled {
+		sq.running.insert(s)
+	} else {
+		sq.queued.insert(s)
+	}
+}
+
+// hydrateSubQueuesFromRows loads the given slot rows into fresh sub-queues. It is the on-demand
+// counterpart of buildIndex: callers pass the rows of exactly the keys the current batch touches,
+// and evict those sub-queues again once the batch is finalized. Rows are applied as INSERT
+// messages (filled rows as UPDATE messages) so a retry's superseded slot is detected and cancelled
+// exactly as it would be on the live WAL path; the returned slots are those superseded slots.
+func (c *ConcurrencyStrategy) hydrateSubQueuesFromRows(rows []*sqlcv1.ListConcurrencySlotsForIndexingRow) []slot {
+	superseded := make([]slot, 0)
+
+	for _, row := range rows {
+		sq := c.getOrCreateSubQueue(row.Key)
+
+		if row.MaxRuns.Valid {
+			sq.observeMaxRuns(row.MaxRuns.Int32, row.TaskInsertedAt.Time.UnixNano())
+		}
+
+		superseded = append(superseded, applyWAL(sq, []walMessage{indexRowToWALMessage(row)})...)
+	}
+
+	return superseded
+}
+
+func indexRowToWALMessage(row *sqlcv1.ListConcurrencySlotsForIndexingRow) walMessage {
+	operation := "INSERT"
+	if row.IsFilled {
+		operation = "UPDATE"
+	}
+
+	return walMessage{
+		Operation:           operation,
+		Key:                 row.Key,
+		TaskId:              row.TaskID,
+		TaskInsertedAt:      row.TaskInsertedAt.Time,
+		TaskRetryCount:      row.TaskRetryCount,
+		Priority:            row.Priority,
+		ScheduleTimeoutAtMs: row.ScheduleTimeoutAt.Time.UnixMilli(),
+		IsFilled:            row.IsFilled,
+	}
+}
+
 func (c *ConcurrencyStrategy) processWALMessages(ctx context.Context, tx pgx.Tx, messages []walMessage) (*repository.RunConcurrencyResult, error) {
 	// wait until we can acquire a lock on the strategy
 	// (so we don't process WAL messages while we're building the index)
@@ -507,6 +708,26 @@ func (c *ConcurrencyStrategy) processWALMessages(ctx context.Context, tx pgx.Tx,
 	defer c.buildingMu.Unlock()
 
 	return c.processStrategy(ctx, tx, messages, c.decide())
+}
+
+// hydrateKeysFromDatabase loads the slots of every key in grouped into fresh sub-queues within the
+// outbox transaction, so the decide step runs against the committed state the batch's messages
+// describe. Keys touched by this batch were evicted when the previous batch was finalized, so none of
+// them are expected to be hydrated already; any that are get reloaded over in place (insert replaces
+// an existing entry for the same task).
+func (c *ConcurrencyStrategy) hydrateKeysFromDatabase(ctx context.Context, tx pgx.Tx, grouped map[string][]walMessage) ([]slot, error) {
+	keys := make([]string, 0, len(grouped))
+	for key := range grouped {
+		keys = append(keys, key)
+	}
+
+	rows, err := c.repo.ListConcurrencySlotsForKeysTx(ctx, tx, c.strategy.TenantID, c.strategy.ID, keys)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to hydrate concurrency keys for topic %s: %w", c.topic, err)
+	}
+
+	return c.hydrateSubQueuesFromRows(rows), nil
 }
 
 // decideFn runs after a sub-queue's WAL has been applied and timed-out queued slots evicted. It
@@ -729,10 +950,32 @@ func applyWAL(sq *subQueue, msgs []walMessage) []slot {
 func (c *ConcurrencyStrategy) processStrategy(ctx context.Context, tx pgx.Tx, msgs []walMessage, decide decideFn) (*repository.RunConcurrencyResult, error) {
 	grouped := groupMessagesBySubQueue(msgs)
 
+	superseded := make([]slot, 0)
+
+	if c.hydrateOnDemand {
+		// The touched keys are reloaded from the database inside the outbox transaction, which sees
+		// every slot change the messages describe (and any later ones), so the rows are the truth
+		// and the messages only tell us which keys to look at. Applying them on top would reintroduce
+		// slots whose DELETE is still queued behind this batch.
+		hydratedSuperseded, err := c.hydrateKeysFromDatabase(ctx, tx, grouped)
+
+		if err != nil {
+			return nil, err
+		}
+
+		superseded = hydratedSuperseded
+
+		for key := range grouped {
+			grouped[key] = nil
+		}
+	}
+
 	// single "now" so every sub-queue evaluates scheduling timeouts against the same instant
 	now := time.Now().UTC()
 
 	touched, slotsToSetFilled, slotsToDelete, slotsToTimeout := c.decideSubQueues(ctx, grouped, now, decide)
+
+	slotsToDelete = append(superseded, slotsToDelete...)
 
 	// Hand the open undo scopes to Run, which finalizes them once ProcessMessages returns. We must
 	// not commit/rollback here: pgoutbox still deletes the messages and commits the transaction
@@ -914,6 +1157,7 @@ func (c *ConcurrencyStrategy) UpdateStrategy(next *sqlcv1.V1StepConcurrency) {
 	}
 
 	c.initialQueued = false
+	c.initialScanLastKey = ""
 }
 
 func (c *ConcurrencyStrategy) getOrCreateSubQueue(key string) *subQueue {
