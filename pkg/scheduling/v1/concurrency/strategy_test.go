@@ -33,6 +33,7 @@ type mockConcurrencyRepo struct {
 	updateCalls   int
 
 	listForKeysCalls int
+	lastWindowQuery  repository.ConcurrencySlotWindowQuery
 
 	// flushLatency, when > 0, is slept on every flush to model the cost of writing concurrency
 	// updates to disk (used by the throughput benchmark; otherwise zero).
@@ -50,25 +51,83 @@ func (m *mockConcurrencyRepo) CountConcurrencySlotsUpToLimit(ctx context.Context
 	return min(int64(len(m.indexRows)), int64(limit)), nil
 }
 
-func (m *mockConcurrencyRepo) ListConcurrencySlotsForKeys(ctx context.Context, tenantId uuid.UUID, strategyId int64, keys []string) ([]*sqlcv1.ListConcurrencySlotsForIndexingRow, error) {
+// ListConcurrencySlotWindowForKeys mirrors the SQL window query over indexRows: per key every filled
+// row, the window-size best and worst queued rows under the comparator the ordering flags select, and
+// any queued row whose task holds another row in the key; the remaining queued rows are outside the
+// window, capped at OutsideLimit.
+func (m *mockConcurrencyRepo) ListConcurrencySlotWindowForKeys(ctx context.Context, tenantId uuid.UUID, strategyId int64, query repository.ConcurrencySlotWindowQuery) (*repository.ConcurrencySlotWindow, error) {
 	m.listForKeysCalls++
+	m.lastWindowQuery = query
 
-	wanted := make(map[string]struct{}, len(keys))
-	for _, key := range keys {
-		wanted[key] = struct{}{}
+	compare := comparatorForOrdering(query.Ordering)
+
+	windowSizeByKey := make(map[string]int, len(query.Keys))
+	for i, key := range query.Keys {
+		windowSizeByKey[key] = int(query.WindowSizes[i])
 	}
 
-	rows := make([]*sqlcv1.ListConcurrencySlotsForIndexingRow, 0)
+	window := &repository.ConcurrencySlotWindow{}
+	queuedByKey := make(map[string][]*sqlcv1.ListConcurrencySlotsForIndexingRow)
+	slotsPerTask := make(map[string]map[int64]int)
+
 	for _, r := range m.indexRows {
-		if _, ok := wanted[r.Key]; ok {
-			rows = append(rows, r)
+		if _, ok := windowSizeByKey[r.Key]; !ok {
+			continue
+		}
+		if slotsPerTask[r.Key] == nil {
+			slotsPerTask[r.Key] = make(map[int64]int)
+		}
+		slotsPerTask[r.Key][r.TaskID]++
+		if r.IsFilled {
+			window.InWindow = append(window.InWindow, r)
+		} else {
+			queuedByKey[r.Key] = append(queuedByKey[r.Key], r)
 		}
 	}
-	return rows, nil
+
+	keys := make([]string, 0, len(queuedByKey))
+	for key := range queuedByKey {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	for _, key := range keys {
+		queued := queuedByKey[key]
+		sort.SliceStable(queued, func(i, j int) bool {
+			return compare(indexRowToSlot(queued[i]), indexRowToSlot(queued[j])) < 0
+		})
+
+		n := windowSizeByKey[key]
+		for i, r := range queued {
+			fromWorstEnd := len(queued) - 1 - i
+			if i < n || fromWorstEnd < n || slotsPerTask[key][r.TaskID] > 1 {
+				window.InWindow = append(window.InWindow, r)
+			} else if len(window.OutsideWindow) < int(query.OutsideLimit) {
+				window.OutsideWindow = append(window.OutsideWindow, r)
+			}
+		}
+	}
+
+	return window, nil
 }
 
-func (m *mockConcurrencyRepo) ListConcurrencySlotsForKeysTx(ctx context.Context, tx pgx.Tx, tenantId uuid.UUID, strategyId int64, keys []string) ([]*sqlcv1.ListConcurrencySlotsForIndexingRow, error) {
-	return m.ListConcurrencySlotsForKeys(ctx, tenantId, strategyId, keys)
+func (m *mockConcurrencyRepo) ListConcurrencySlotWindowForKeysTx(ctx context.Context, tx pgx.Tx, tenantId uuid.UUID, strategyId int64, query repository.ConcurrencySlotWindowQuery) (*repository.ConcurrencySlotWindow, error) {
+	return m.ListConcurrencySlotWindowForKeys(ctx, tenantId, strategyId, query)
+}
+
+func comparatorForOrdering(ordering repository.ConcurrencySlotOrdering) func(a, b slot) int {
+	switch {
+	case ordering.OrderByPriority && ordering.NewestFirst:
+		return cancelInProgressCompare
+	case ordering.OrderByPriority:
+		return priorityCompare
+	default:
+		return cancelQueuedExceptCompare
+	}
+}
+
+func indexRowToSlot(row *sqlcv1.ListConcurrencySlotsForIndexingRow) slot {
+	return walMessageToSlot(indexRowToWALMessage(row))
 }
 
 func (m *mockConcurrencyRepo) ListDistinctConcurrencyKeysAfter(ctx context.Context, tenantId uuid.UUID, strategyId int64, lastKey pgtype.Text, limit int32) ([]string, error) {
@@ -142,6 +201,8 @@ func newTestStrategyKind(repo repository.ConcurrencyRepository, maxConcurrency i
 		compare:            comparatorForStrategy(kind),
 		built:              make(chan struct{}),
 		eagerIndexMaxSlots: DefaultEagerIndexMaxSlots,
+		keysToRevisit:      make(map[string]struct{}),
+		observedMaxRuns:    make(map[string]maxRunsObservation),
 	}
 }
 

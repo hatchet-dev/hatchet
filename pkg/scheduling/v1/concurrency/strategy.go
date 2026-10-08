@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/hatchet-dev/hatchet/internal/listutils"
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
@@ -34,7 +35,18 @@ const (
 
 	onDemandInitialScanKeysPerPage = 1000
 	onDemandInitialScanPagesPerRun = 10
+	// onDemandOutsideWindowCancelLimit caps how many queued slots outside the hydration window a single
+	// batch cancels; keys whose cap was hit are revisited on the next Run.
+	onDemandOutsideWindowCancelLimit = 10000
+	onDemandRevisitKeysPerRun        = 1000
 )
+
+// maxRunsObservation is a sub-queue's dynamically observed limit, retained across on-demand evictions
+// so a deleted newer task cannot hand the limit back to an older slot's value (see observeMaxRuns).
+type maxRunsObservation struct {
+	maxRuns int32
+	from    int64
+}
 
 type ConcurrencyStrategy struct {
 	outbox pgoutbox.Outbox
@@ -55,6 +67,13 @@ type ConcurrencyStrategy struct {
 	// the scan is spread across Runs so each one only holds a bounded number of keys in memory.
 	// Invalid means the scan has not started, so the first page includes the empty-string key.
 	initialScanLastKey pgtype.Text
+	// keysToRevisit are keys whose outside-window cancellations were capped in a batch; each Run
+	// re-decides a bounded number of them. Guarded by mu.
+	keysToRevisit map[string]struct{}
+	// observedMaxRuns keeps each key's dynamic limit while its sub-queue is evicted. Only populated
+	// for strategies with a max_runs_expression, and dropped once the key holds no slots, mirroring
+	// pruneEmpty on the eager path. Guarded by mu.
+	observedMaxRuns map[string]maxRunsObservation
 	// immutable copies of the strategy identity, safe to read without holding any lock
 	// (strategy itself is swapped in place by UpdateStrategy under buildingMu + mu)
 	strategyId       int64
@@ -119,7 +138,40 @@ func (c *ConcurrencyStrategy) evictIfHydratedOnDemand(subQueues []*subQueue) {
 		if existing, ok := c.subQueues[sq.key]; ok && existing == sq {
 			delete(c.subQueues, sq.key)
 		}
+
+		c.retainObservedMaxRunsLocked(sq)
 	}
+}
+
+// retainObservedMaxRunsLocked carries a dynamic strategy's observed limit across the sub-queue's
+// eviction. A key with no slots left forgets its observation, as pruneEmpty does on the eager path.
+// Requires mu.
+func (c *ConcurrencyStrategy) retainObservedMaxRunsLocked(sq *subQueue) {
+	if !c.strategy.MaxRunsExpression.Valid {
+		return
+	}
+
+	if sq.running.len() == 0 && sq.queued.len() == 0 {
+		delete(c.observedMaxRuns, sq.key)
+		return
+	}
+
+	if sq.maxRunsFrom != 0 {
+		c.observedMaxRuns[sq.key] = maxRunsObservation{maxRuns: sq.maxRuns, from: sq.maxRunsFrom}
+	}
+}
+
+// observeMaxRunsForKey records a dynamic limit observation for a key that may not be hydrated, so the
+// value is available when the key's sub-queue is next created. Newest task wins, as in observeMaxRuns.
+func (c *ConcurrencyStrategy) observeMaxRunsForKey(key string, maxRuns int32, taskInsertedAtNs int64) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if current, ok := c.observedMaxRuns[key]; ok && taskInsertedAtNs < current.from {
+		return
+	}
+
+	c.observedMaxRuns[key] = maxRunsObservation{maxRuns: maxRuns, from: taskInsertedAtNs}
 }
 
 // appendPending records a single batch's result for the in-flight Run to collect.
@@ -166,6 +218,8 @@ func NewConcurrencyStrategy(
 		topic:              getTopic(strategy),
 		built:              make(chan struct{}),
 		eagerIndexMaxSlots: DefaultEagerIndexMaxSlots,
+		keysToRevisit:      make(map[string]struct{}),
+		observedMaxRuns:    make(map[string]maxRunsObservation),
 	}
 
 	for _, opt := range opts {
@@ -293,6 +347,12 @@ func (c *ConcurrencyStrategy) Run(ctx context.Context) (*repository.RunConcurren
 		return nil, err
 	}
 
+	revisitResult, err := c.revisitKeys(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
 	for {
 		msgs, err := c.outbox.ProcessMessages(ctx, c.topic)
 
@@ -319,7 +379,7 @@ func (c *ConcurrencyStrategy) Run(ctx context.Context) (*repository.RunConcurren
 		}
 	}
 
-	return mergeResults(append(c.takePending(), initialResult)), nil
+	return mergeResults(append(c.takePending(), initialResult, revisitResult)), nil
 }
 
 // runInitialQueueing runs the post-build queueing pass exactly once. It is idempotent across Runs:
@@ -417,13 +477,7 @@ func (c *ConcurrencyStrategy) queueNextKeyPage(ctx context.Context) (res *reposi
 		return nil, true, nil
 	}
 
-	rows, err := c.repo.ListConcurrencySlotsForKeys(ctx, c.strategy.TenantID, c.strategy.ID, keys)
-
-	if err != nil {
-		return nil, false, err
-	}
-
-	res, err = c.decideAndFlushHydratedKeys(ctx, keys, rows)
+	res, err = c.decideAndFlushHydratedKeys(ctx, keys)
 
 	if err != nil {
 		return nil, false, err
@@ -434,11 +488,15 @@ func (c *ConcurrencyStrategy) queueNextKeyPage(ctx context.Context) (res *reposi
 	return res, false, nil
 }
 
-// decideAndFlushHydratedKeys hydrates rows into the given keys' sub-queues, runs the decide step over
-// them with no WAL messages, flushes in its own transaction and evicts the sub-queues afterwards
-// regardless of the outcome.
-func (c *ConcurrencyStrategy) decideAndFlushHydratedKeys(ctx context.Context, keys []string, rows []*sqlcv1.ListConcurrencySlotsForIndexingRow) (*repository.RunConcurrencyResult, error) {
-	superseded := c.hydrateSubQueuesFromRows(rows)
+// decideAndFlushHydratedKeys hydrates the given keys from the database (outside any transaction), runs
+// the decide step over them with no WAL messages, flushes in its own transaction and evicts the
+// sub-queues afterwards regardless of the outcome.
+func (c *ConcurrencyStrategy) decideAndFlushHydratedKeys(ctx context.Context, keys []string) (*repository.RunConcurrencyResult, error) {
+	hydrated, err := c.hydrateKeysFromDatabase(ctx, nil, keys)
+
+	if err != nil {
+		return nil, err
+	}
 
 	grouped := make(map[string][]walMessage, len(keys))
 	for _, key := range keys {
@@ -449,7 +507,7 @@ func (c *ConcurrencyStrategy) decideAndFlushHydratedKeys(ctx context.Context, ke
 
 	defer c.evictIfHydratedOnDemand(touched)
 
-	tasksToSetFilled, cancelledSlots := buildSlotInputs(slotsToSetFilled, append(superseded, slotsToDelete...), slotsToTimeout)
+	tasksToSetFilled, cancelledSlots := buildSlotInputs(slotsToSetFilled, append(hydrated.toCancel, slotsToDelete...), slotsToTimeout)
 
 	return c.repo.UpdateConcurrencySlots(ctx, c.strategy.TenantID, c.strategy.ID, tasksToSetFilled, cancelledSlots)
 }
@@ -745,24 +803,151 @@ func (c *ConcurrencyStrategy) processWALMessages(ctx context.Context, tx pgx.Tx,
 	return c.processStrategy(ctx, tx, messages, c.decide())
 }
 
-// hydrateKeysFromDatabase loads the slots of every key in grouped into fresh sub-queues within the
-// outbox transaction, so the decide step runs against the committed state the batch's messages
-// describe. Keys touched by this batch were evicted when the previous batch was finalized, so none of
-// them are expected to be hydrated already; any that are get reloaded over in place (insert replaces
-// an existing entry for the same task).
-func (c *ConcurrencyStrategy) hydrateKeysFromDatabase(ctx context.Context, tx pgx.Tx, grouped map[string][]walMessage) ([]slot, error) {
-	keys := make([]string, 0, len(grouped))
-	for key := range grouped {
-		keys = append(keys, key)
+// hydratedKeys is the outcome of loading a batch's keys from the database: the slots the hydration
+// itself decided to cancel (a retry's superseded slot, or a queued slot outside the window on a
+// strategy that cancels everything it does not keep), and whether some key's outside-window
+// cancellations were capped and so need another pass.
+type hydratedKeys struct {
+	toCancel  []slot
+	truncated bool
+}
+
+// hydrateKeysFromDatabase loads a bounded window of each key's slots into fresh sub-queues. With a nil
+// tx it reads from the pool; the WAL path passes the outbox transaction so the decide step runs against
+// the committed state the batch's messages describe. Keys touched by a batch were evicted when the
+// previous batch was finalized, so none are expected to be hydrated already; any that are get reloaded
+// over in place (insert replaces an existing entry for the same task).
+//
+// The window per key is every filled slot plus the best and worst windowSizeForKey queued slots under
+// the strategy's comparator. For every decide function the slots it fills come from the best end and
+// the slots it keeps queued come from one end or the other, so queued slots outside the window never
+// change a decision: GROUP_ROUND_ROBIN leaves them queued and every cancel strategy cancels them, which
+// is done here from the rows rather than by loading them.
+func (c *ConcurrencyStrategy) hydrateKeysFromDatabase(ctx context.Context, tx pgx.Tx, keys []string) (hydratedKeys, error) {
+	query := repository.ConcurrencySlotWindowQuery{
+		Keys:         keys,
+		WindowSizes:  listutils.Map(keys, c.windowSizeForKey),
+		Ordering:     slotOrderingForStrategy(c.strategy.Strategy),
+		OutsideLimit: c.outsideWindowCancelLimit(),
 	}
 
-	rows, err := c.repo.ListConcurrencySlotsForKeysTx(ctx, tx, c.strategy.TenantID, c.strategy.ID, keys)
+	var window *repository.ConcurrencySlotWindow
+	var err error
+
+	if tx != nil {
+		window, err = c.repo.ListConcurrencySlotWindowForKeysTx(ctx, tx, c.strategy.TenantID, c.strategy.ID, query)
+	} else {
+		window, err = c.repo.ListConcurrencySlotWindowForKeys(ctx, c.strategy.TenantID, c.strategy.ID, query)
+	}
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to hydrate concurrency keys for topic %s: %w", c.topic, err)
+		return hydratedKeys{}, fmt.Errorf("failed to hydrate concurrency keys for topic %s: %w", c.topic, err)
 	}
 
-	return c.hydrateSubQueuesFromRows(rows), nil
+	toCancel := c.hydrateSubQueuesFromRows(window.InWindow)
+
+	for _, row := range window.OutsideWindow {
+		toCancel = append(toCancel, walMessageToSlot(indexRowToWALMessage(row)))
+	}
+
+	truncated := query.OutsideLimit > 0 && len(window.OutsideWindow) >= int(query.OutsideLimit)
+
+	if truncated {
+		c.markKeysForRevisit(keys)
+	}
+
+	return hydratedKeys{toCancel: toCancel, truncated: truncated}, nil
+}
+
+// slotOrderingForStrategy maps the strategy's comparator (see comparatorForStrategy) onto the flags the
+// window query ranks by. "Best first" under every comparator is highest priority (when the comparator
+// uses priority), then oldest or newest.
+func slotOrderingForStrategy(kind sqlcv1.V1ConcurrencyStrategy) repository.ConcurrencySlotOrdering {
+	switch kind {
+	case sqlcv1.V1ConcurrencyStrategyCANCELINPROGRESS:
+		return repository.ConcurrencySlotOrdering{OrderByPriority: true, NewestFirst: true}
+	case sqlcv1.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTNEWEST, sqlcv1.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTOLDEST:
+		return repository.ConcurrencySlotOrdering{OrderByPriority: false, NewestFirst: false}
+	default:
+		return repository.ConcurrencySlotOrdering{OrderByPriority: true, NewestFirst: false}
+	}
+}
+
+// windowSizeForKey is how many queued slots to load from each end of the comparator for a key: the
+// key's effective limit, or the static one if that is larger (loading more than needed is always
+// safe). CANCEL_QUEUED_EXCEPT_OLDEST keeps the maxRuns queued slots directly after the ones it fills,
+// so it needs twice the limit from the best end.
+func (c *ConcurrencyStrategy) windowSizeForKey(key string) int32 {
+	limit := max(c.strategy.MaxConcurrency, 0)
+
+	c.mu.RLock()
+	if observed, ok := c.observedMaxRuns[key]; ok {
+		limit = max(limit, observed.maxRuns)
+	}
+	c.mu.RUnlock()
+
+	if c.strategy.Strategy == sqlcv1.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTOLDEST {
+		return 2 * limit
+	}
+
+	return limit
+}
+
+func (c *ConcurrencyStrategy) outsideWindowCancelLimit() int32 {
+	if c.strategy.Strategy == sqlcv1.V1ConcurrencyStrategyGROUPROUNDROBIN {
+		return 0
+	}
+
+	return onDemandOutsideWindowCancelLimit
+}
+
+func (c *ConcurrencyStrategy) markKeysForRevisit(keys []string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	for _, key := range keys {
+		c.keysToRevisit[key] = struct{}{}
+	}
+}
+
+func (c *ConcurrencyStrategy) takeKeysToRevisit(limit int) []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	keys := make([]string, 0, min(limit, len(c.keysToRevisit)))
+
+	for key := range c.keysToRevisit {
+		if len(keys) == limit {
+			break
+		}
+
+		keys = append(keys, key)
+		delete(c.keysToRevisit, key)
+	}
+
+	return keys
+}
+
+// revisitKeys re-decides keys whose outside-window cancellations were capped in an earlier batch. Each
+// pass handles a bounded number of keys; any that are still capped re-enter the set.
+func (c *ConcurrencyStrategy) revisitKeys(ctx context.Context) (*repository.RunConcurrencyResult, error) {
+	keys := c.takeKeysToRevisit(onDemandRevisitKeysPerRun)
+
+	if len(keys) == 0 {
+		return nil, nil
+	}
+
+	c.buildingMu.Lock()
+	defer c.buildingMu.Unlock()
+
+	res, err := c.decideAndFlushHydratedKeys(ctx, keys)
+
+	if err != nil {
+		c.markKeysForRevisit(keys)
+		return nil, fmt.Errorf("failed to revisit concurrency keys for topic %s: %w", c.topic, err)
+	}
+
+	return res, nil
 }
 
 // decideFn runs after a sub-queue's WAL has been applied and timed-out queued slots evicted. It
@@ -985,24 +1170,35 @@ func applyWAL(sq *subQueue, msgs []walMessage) []slot {
 func (c *ConcurrencyStrategy) processStrategy(ctx context.Context, tx pgx.Tx, msgs []walMessage, decide decideFn) (*repository.RunConcurrencyResult, error) {
 	grouped := groupMessagesBySubQueue(msgs)
 
-	superseded := make([]slot, 0)
+	cancelledByHydration := make([]slot, 0)
 
 	if c.hydrateOnDemand {
 		// The touched keys are reloaded from the database inside the outbox transaction, which sees
 		// every slot change the messages describe (and any later ones), so the rows are the truth
 		// and the messages only tell us which keys to look at. Applying them on top would reintroduce
-		// slots whose DELETE is still queued behind this batch.
-		hydratedSuperseded, err := c.hydrateKeysFromDatabase(ctx, tx, grouped)
+		// slots whose DELETE is still queued behind this batch. The one thing kept from the messages
+		// is a dynamic limit evaluation, which the rows cannot carry once that task's slot is gone.
+		keys := make([]string, 0, len(grouped))
+
+		for key, keyMsgs := range grouped {
+			keys = append(keys, key)
+
+			for _, msg := range keyMsgs {
+				if msg.Operation == "INSERT" && msg.MaxRuns != nil {
+					c.observeMaxRunsForKey(key, *msg.MaxRuns, msg.TaskInsertedAt.UnixNano())
+				}
+			}
+
+			grouped[key] = nil
+		}
+
+		hydrated, err := c.hydrateKeysFromDatabase(ctx, tx, keys)
 
 		if err != nil {
 			return nil, err
 		}
 
-		superseded = hydratedSuperseded
-
-		for key := range grouped {
-			grouped[key] = nil
-		}
+		cancelledByHydration = hydrated.toCancel
 	}
 
 	// single "now" so every sub-queue evaluates scheduling timeouts against the same instant
@@ -1010,7 +1206,7 @@ func (c *ConcurrencyStrategy) processStrategy(ctx context.Context, tx pgx.Tx, ms
 
 	touched, slotsToSetFilled, slotsToDelete, slotsToTimeout := c.decideSubQueues(ctx, grouped, now, decide)
 
-	slotsToDelete = append(superseded, slotsToDelete...)
+	slotsToDelete = append(cancelledByHydration, slotsToDelete...)
 
 	// Hand the open undo scopes to Run, which finalizes them once ProcessMessages returns. We must
 	// not commit/rollback here: pgoutbox still deletes the messages and commits the transaction
@@ -1246,6 +1442,11 @@ func (c *ConcurrencyStrategy) getOrCreateSubQueue(key string) *subQueue {
 		return sq
 	}
 	sq = newSubQueue(key, c.strategy.MaxConcurrency, c.compare)
+
+	if observed, ok := c.observedMaxRuns[key]; ok {
+		sq.observeMaxRuns(observed.maxRuns, observed.from)
+	}
+
 	c.subQueues[key] = sq
 	return sq
 }

@@ -558,6 +558,151 @@ func (q *Queries) ListActiveTenantConcurrencyStrategies(ctx context.Context, db 
 	return items, nil
 }
 
+const listConcurrencySlotWindowForKeys = `-- name: ListConcurrencySlotWindowForKeys :many
+WITH key_windows AS (
+    SELECT
+        unnest($1::TEXT[]) AS key,
+        unnest($2::INT[]) AS window_size
+), key_slots AS (
+    SELECT
+        s.sort_id,
+        s.task_id,
+        s.task_inserted_at,
+        s.task_retry_count,
+        s.key,
+        s.priority,
+        s.tenant_id,
+        s.strategy_id,
+        s.is_filled,
+        s.schedule_timeout_at,
+        s.max_runs,
+        kw.window_size,
+        count(*) OVER (PARTITION BY s.key, s.task_id) AS task_slot_count
+    FROM v1_concurrency_slot s
+    JOIN key_windows kw ON kw.key = s.key
+    WHERE s.tenant_id = $3::UUID
+    AND s.strategy_id = $4::BIGINT
+), ranked_queued AS (
+    SELECT
+        sort_id, task_id, task_inserted_at, task_retry_count, key, priority, tenant_id, strategy_id, is_filled, schedule_timeout_at, max_runs, window_size, task_slot_count,
+        row_number() OVER (
+            PARTITION BY key
+            ORDER BY
+                CASE WHEN $5::BOOLEAN THEN priority END DESC,
+                CASE WHEN $6::BOOLEAN THEN task_inserted_at END DESC,
+                CASE WHEN NOT $6::BOOLEAN THEN task_inserted_at END ASC,
+                CASE WHEN $6::BOOLEAN THEN task_id END DESC,
+                CASE WHEN NOT $6::BOOLEAN THEN task_id END ASC
+        ) AS best_rank,
+        row_number() OVER (
+            PARTITION BY key
+            ORDER BY
+                CASE WHEN $5::BOOLEAN THEN priority END ASC,
+                CASE WHEN $6::BOOLEAN THEN task_inserted_at END ASC,
+                CASE WHEN NOT $6::BOOLEAN THEN task_inserted_at END DESC,
+                CASE WHEN $6::BOOLEAN THEN task_id END ASC,
+                CASE WHEN NOT $6::BOOLEAN THEN task_id END DESC
+        ) AS worst_rank
+    FROM key_slots
+    WHERE is_filled = FALSE
+)
+SELECT
+    sort_id, task_id, task_inserted_at, task_retry_count, key, priority,
+    tenant_id, strategy_id, is_filled, schedule_timeout_at, max_runs,
+    FALSE::BOOLEAN AS outside_window
+FROM key_slots
+WHERE is_filled = TRUE
+UNION ALL
+SELECT
+    sort_id, task_id, task_inserted_at, task_retry_count, key, priority,
+    tenant_id, strategy_id, is_filled, schedule_timeout_at, max_runs,
+    FALSE::BOOLEAN AS outside_window
+FROM ranked_queued
+WHERE best_rank <= window_size OR worst_rank <= window_size OR task_slot_count > 1
+UNION ALL
+(
+    SELECT
+        sort_id, task_id, task_inserted_at, task_retry_count, key, priority,
+        tenant_id, strategy_id, is_filled, schedule_timeout_at, max_runs,
+        TRUE::BOOLEAN AS outside_window
+    FROM ranked_queued
+    WHERE best_rank > window_size AND worst_rank > window_size AND task_slot_count = 1
+    LIMIT $7::INT
+)
+ORDER BY key ASC, sort_id ASC
+`
+
+type ListConcurrencySlotWindowForKeysParams struct {
+	Keys            []string  `json:"keys"`
+	Windowsizes     []int32   `json:"windowsizes"`
+	Tenantid        uuid.UUID `json:"tenantid"`
+	Strategyid      int64     `json:"strategyid"`
+	Orderbypriority bool      `json:"orderbypriority"`
+	Newestfirst     bool      `json:"newestfirst"`
+	Outsidelimit    int32     `json:"outsidelimit"`
+}
+
+type ListConcurrencySlotWindowForKeysRow struct {
+	SortID            pgtype.Int8        `json:"sort_id"`
+	TaskID            int64              `json:"task_id"`
+	TaskInsertedAt    pgtype.Timestamptz `json:"task_inserted_at"`
+	TaskRetryCount    int32              `json:"task_retry_count"`
+	Key               string             `json:"key"`
+	Priority          int32              `json:"priority"`
+	TenantID          uuid.UUID          `json:"tenant_id"`
+	StrategyID        int64              `json:"strategy_id"`
+	IsFilled          bool               `json:"is_filled"`
+	ScheduleTimeoutAt pgtype.Timestamp   `json:"schedule_timeout_at"`
+	MaxRuns           pgtype.Int4        `json:"max_runs"`
+	OutsideWindow     bool               `json:"outside_window"`
+}
+
+// Per key: every filled slot, the windowSize best and windowSize worst queued slots under the
+// strategy's ordering, and any queued slot whose task also holds another slot in the key (so a retry's
+// stale slot is always visible to the superseded check). Queued slots outside that window are returned
+// separately (outside_window = TRUE), capped at outsideLimit across all keys, for strategies that
+// cancel them. The ordering flags select the comparator: priority first or not, newest first or not.
+func (q *Queries) ListConcurrencySlotWindowForKeys(ctx context.Context, db DBTX, arg ListConcurrencySlotWindowForKeysParams) ([]*ListConcurrencySlotWindowForKeysRow, error) {
+	rows, err := db.Query(ctx, listConcurrencySlotWindowForKeys,
+		arg.Keys,
+		arg.Windowsizes,
+		arg.Tenantid,
+		arg.Strategyid,
+		arg.Orderbypriority,
+		arg.Newestfirst,
+		arg.Outsidelimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListConcurrencySlotWindowForKeysRow
+	for rows.Next() {
+		var i ListConcurrencySlotWindowForKeysRow
+		if err := rows.Scan(
+			&i.SortID,
+			&i.TaskID,
+			&i.TaskInsertedAt,
+			&i.TaskRetryCount,
+			&i.Key,
+			&i.Priority,
+			&i.TenantID,
+			&i.StrategyID,
+			&i.IsFilled,
+			&i.ScheduleTimeoutAt,
+			&i.MaxRuns,
+			&i.OutsideWindow,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listConcurrencySlotsForIndexing = `-- name: ListConcurrencySlotsForIndexing :many
 SELECT
     sort_id,
@@ -616,78 +761,6 @@ func (q *Queries) ListConcurrencySlotsForIndexing(ctx context.Context, db DBTX, 
 	var items []*ListConcurrencySlotsForIndexingRow
 	for rows.Next() {
 		var i ListConcurrencySlotsForIndexingRow
-		if err := rows.Scan(
-			&i.SortID,
-			&i.TaskID,
-			&i.TaskInsertedAt,
-			&i.TaskRetryCount,
-			&i.Key,
-			&i.Priority,
-			&i.TenantID,
-			&i.StrategyID,
-			&i.IsFilled,
-			&i.ScheduleTimeoutAt,
-			&i.MaxRuns,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listConcurrencySlotsForKeys = `-- name: ListConcurrencySlotsForKeys :many
-SELECT
-    sort_id,
-    task_id,
-    task_inserted_at,
-    task_retry_count,
-    key,
-    priority,
-    tenant_id,
-    strategy_id,
-    is_filled,
-    schedule_timeout_at,
-    max_runs
-FROM v1_concurrency_slot
-WHERE tenant_id = $1::UUID
-AND strategy_id = $2::BIGINT
-AND key = ANY($3::TEXT[])
-ORDER BY key ASC, sort_id ASC
-`
-
-type ListConcurrencySlotsForKeysParams struct {
-	Tenantid   uuid.UUID `json:"tenantid"`
-	Strategyid int64     `json:"strategyid"`
-	Keys       []string  `json:"keys"`
-}
-
-type ListConcurrencySlotsForKeysRow struct {
-	SortID            pgtype.Int8        `json:"sort_id"`
-	TaskID            int64              `json:"task_id"`
-	TaskInsertedAt    pgtype.Timestamptz `json:"task_inserted_at"`
-	TaskRetryCount    int32              `json:"task_retry_count"`
-	Key               string             `json:"key"`
-	Priority          int32              `json:"priority"`
-	TenantID          uuid.UUID          `json:"tenant_id"`
-	StrategyID        int64              `json:"strategy_id"`
-	IsFilled          bool               `json:"is_filled"`
-	ScheduleTimeoutAt pgtype.Timestamp   `json:"schedule_timeout_at"`
-	MaxRuns           pgtype.Int4        `json:"max_runs"`
-}
-
-func (q *Queries) ListConcurrencySlotsForKeys(ctx context.Context, db DBTX, arg ListConcurrencySlotsForKeysParams) ([]*ListConcurrencySlotsForKeysRow, error) {
-	rows, err := db.Query(ctx, listConcurrencySlotsForKeys, arg.Tenantid, arg.Strategyid, arg.Keys)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*ListConcurrencySlotsForKeysRow
-	for rows.Next() {
-		var i ListConcurrencySlotsForKeysRow
 		if err := rows.Scan(
 			&i.SortID,
 			&i.TaskID,

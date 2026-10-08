@@ -66,6 +66,25 @@ type RunConcurrencyResult struct {
 	FailedAdvisoryLock bool
 }
 
+// ConcurrencySlotOrdering selects which in-memory comparator a slot window query ranks by.
+type ConcurrencySlotOrdering struct {
+	OrderByPriority bool
+	NewestFirst     bool
+}
+
+type ConcurrencySlotWindowQuery struct {
+	Keys []string
+	// WindowSizes[i] is the number of best and of worst queued slots to return for Keys[i].
+	WindowSizes  []int32
+	Ordering     ConcurrencySlotOrdering
+	OutsideLimit int32
+}
+
+type ConcurrencySlotWindow struct {
+	InWindow      []*sqlcv1.ListConcurrencySlotsForIndexingRow
+	OutsideWindow []*sqlcv1.ListConcurrencySlotsForIndexingRow
+}
+
 type ConcurrencyRepository interface {
 	// Checks whether the concurrency strategy is active, and if not, sets is_active=False
 	UpdateConcurrencyStrategyIsActive(ctx context.Context, tenantId uuid.UUID, strategy *sqlcv1.V1StepConcurrency) error
@@ -88,12 +107,15 @@ type ConcurrencyRepository interface {
 	// seen, so the cost is bounded by limit rather than by the size of the strategy's backlog.
 	CountConcurrencySlotsUpToLimit(ctx context.Context, tenantId uuid.UUID, strategyId int64, limit int32) (int64, error)
 
-	// ListConcurrencySlotsForKeys reads every slot (filled and queued) for the given concurrency keys,
-	// ordered by key then sort_id, in the same row shape as ReadConcurrencySlotsForIndexing.
-	ListConcurrencySlotsForKeys(ctx context.Context, tenantId uuid.UUID, strategyId int64, keys []string) ([]*sqlcv1.ListConcurrencySlotsForIndexingRow, error)
+	// ListConcurrencySlotWindowForKeys reads, per requested key, every filled slot plus a bounded window
+	// of queued slots: the WindowSizes[i] best and worst queued slots under Ordering, and any queued
+	// slot whose task holds another slot in the key. Queued slots outside the window are returned
+	// separately, capped at OutsideLimit across all keys. Rows use the ReadConcurrencySlotsForIndexing
+	// row shape and are ordered by key then sort_id.
+	ListConcurrencySlotWindowForKeys(ctx context.Context, tenantId uuid.UUID, strategyId int64, query ConcurrencySlotWindowQuery) (*ConcurrencySlotWindow, error)
 
-	// ListConcurrencySlotsForKeysTx is ListConcurrencySlotsForKeys within the caller's transaction.
-	ListConcurrencySlotsForKeysTx(ctx context.Context, tx pgx.Tx, tenantId uuid.UUID, strategyId int64, keys []string) ([]*sqlcv1.ListConcurrencySlotsForIndexingRow, error)
+	// ListConcurrencySlotWindowForKeysTx is ListConcurrencySlotWindowForKeys within the caller's transaction.
+	ListConcurrencySlotWindowForKeysTx(ctx context.Context, tx pgx.Tx, tenantId uuid.UUID, strategyId int64, query ConcurrencySlotWindowQuery) (*ConcurrencySlotWindow, error)
 
 	// ListDistinctConcurrencyKeysAfter returns up to limit distinct concurrency keys greater than
 	// lastKey in ascending order, for paging over a strategy's keys without loading its slots. An
@@ -1578,31 +1600,44 @@ func (c *ConcurrencyRepositoryImpl) CountConcurrencySlotsUpToLimit(ctx context.C
 	})
 }
 
-func (c *ConcurrencyRepositoryImpl) ListConcurrencySlotsForKeys(ctx context.Context, tenantId uuid.UUID, strategyId int64, keys []string) ([]*sqlcv1.ListConcurrencySlotsForIndexingRow, error) {
-	return c.listConcurrencySlotsForKeys(ctx, c.pool, tenantId, strategyId, keys)
+func (c *ConcurrencyRepositoryImpl) ListConcurrencySlotWindowForKeys(ctx context.Context, tenantId uuid.UUID, strategyId int64, query ConcurrencySlotWindowQuery) (*ConcurrencySlotWindow, error) {
+	return c.listConcurrencySlotWindowForKeys(ctx, c.pool, tenantId, strategyId, query)
 }
 
-func (c *ConcurrencyRepositoryImpl) ListConcurrencySlotsForKeysTx(ctx context.Context, tx pgx.Tx, tenantId uuid.UUID, strategyId int64, keys []string) ([]*sqlcv1.ListConcurrencySlotsForIndexingRow, error) {
-	return c.listConcurrencySlotsForKeys(ctx, tx, tenantId, strategyId, keys)
+func (c *ConcurrencyRepositoryImpl) ListConcurrencySlotWindowForKeysTx(ctx context.Context, tx pgx.Tx, tenantId uuid.UUID, strategyId int64, query ConcurrencySlotWindowQuery) (*ConcurrencySlotWindow, error) {
+	return c.listConcurrencySlotWindowForKeys(ctx, tx, tenantId, strategyId, query)
 }
 
-func (c *ConcurrencyRepositoryImpl) listConcurrencySlotsForKeys(ctx context.Context, db sqlcv1.DBTX, tenantId uuid.UUID, strategyId int64, keys []string) ([]*sqlcv1.ListConcurrencySlotsForIndexingRow, error) {
-	if len(keys) == 0 {
-		return nil, nil
+func (c *ConcurrencyRepositoryImpl) listConcurrencySlotWindowForKeys(ctx context.Context, db sqlcv1.DBTX, tenantId uuid.UUID, strategyId int64, query ConcurrencySlotWindowQuery) (*ConcurrencySlotWindow, error) {
+	if len(query.Keys) == 0 {
+		return &ConcurrencySlotWindow{}, nil
 	}
 
-	rows, err := c.queries.ListConcurrencySlotsForKeys(ctx, db, sqlcv1.ListConcurrencySlotsForKeysParams{
-		Tenantid:   tenantId,
-		Strategyid: strategyId,
-		Keys:       keys,
+	if len(query.Keys) != len(query.WindowSizes) {
+		return nil, fmt.Errorf("concurrency slot window query has %d keys but %d window sizes", len(query.Keys), len(query.WindowSizes))
+	}
+
+	rows, err := c.queries.ListConcurrencySlotWindowForKeys(ctx, db, sqlcv1.ListConcurrencySlotWindowForKeysParams{
+		Tenantid:        tenantId,
+		Strategyid:      strategyId,
+		Keys:            query.Keys,
+		Windowsizes:     query.WindowSizes,
+		Orderbypriority: query.Ordering.OrderByPriority,
+		Newestfirst:     query.Ordering.NewestFirst,
+		Outsidelimit:    query.OutsideLimit,
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("error reading concurrency slots for keys: %w", err)
+		return nil, fmt.Errorf("error reading concurrency slot window for keys: %w", err)
 	}
 
-	return listutils.Map(rows, func(row *sqlcv1.ListConcurrencySlotsForKeysRow) *sqlcv1.ListConcurrencySlotsForIndexingRow {
-		return &sqlcv1.ListConcurrencySlotsForIndexingRow{
+	window := &ConcurrencySlotWindow{
+		InWindow:      make([]*sqlcv1.ListConcurrencySlotsForIndexingRow, 0, len(rows)),
+		OutsideWindow: make([]*sqlcv1.ListConcurrencySlotsForIndexingRow, 0),
+	}
+
+	for _, row := range rows {
+		indexingRow := &sqlcv1.ListConcurrencySlotsForIndexingRow{
 			SortID:            row.SortID,
 			TaskID:            row.TaskID,
 			TaskInsertedAt:    row.TaskInsertedAt,
@@ -1615,7 +1650,15 @@ func (c *ConcurrencyRepositoryImpl) listConcurrencySlotsForKeys(ctx context.Cont
 			ScheduleTimeoutAt: row.ScheduleTimeoutAt,
 			MaxRuns:           row.MaxRuns,
 		}
-	}), nil
+
+		if row.OutsideWindow {
+			window.OutsideWindow = append(window.OutsideWindow, indexingRow)
+		} else {
+			window.InWindow = append(window.InWindow, indexingRow)
+		}
+	}
+
+	return window, nil
 }
 
 func (c *ConcurrencyRepositoryImpl) ListDistinctConcurrencyKeysAfter(ctx context.Context, tenantId uuid.UUID, strategyId int64, lastKey pgtype.Text, limit int32) ([]string, error) {

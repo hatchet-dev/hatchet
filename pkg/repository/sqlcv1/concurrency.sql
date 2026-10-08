@@ -1385,23 +1385,82 @@ FROM (
     LIMIT sqlc.arg('limit')::int
 ) AS bounded_slots;
 
--- name: ListConcurrencySlotsForKeys :many
+-- name: ListConcurrencySlotWindowForKeys :many
+-- Per key: every filled slot, the windowSize best and windowSize worst queued slots under the
+-- strategy's ordering, and any queued slot whose task also holds another slot in the key (so a retry's
+-- stale slot is always visible to the superseded check). Queued slots outside that window are returned
+-- separately (outside_window = TRUE), capped at outsideLimit across all keys, for strategies that
+-- cancel them. The ordering flags select the comparator: priority first or not, newest first or not.
+WITH key_windows AS (
+    SELECT
+        unnest(@keys::TEXT[]) AS key,
+        unnest(@windowSizes::INT[]) AS window_size
+), key_slots AS (
+    SELECT
+        s.sort_id,
+        s.task_id,
+        s.task_inserted_at,
+        s.task_retry_count,
+        s.key,
+        s.priority,
+        s.tenant_id,
+        s.strategy_id,
+        s.is_filled,
+        s.schedule_timeout_at,
+        s.max_runs,
+        kw.window_size,
+        count(*) OVER (PARTITION BY s.key, s.task_id) AS task_slot_count
+    FROM v1_concurrency_slot s
+    JOIN key_windows kw ON kw.key = s.key
+    WHERE s.tenant_id = @tenantId::UUID
+    AND s.strategy_id = @strategyId::BIGINT
+), ranked_queued AS (
+    SELECT
+        *,
+        row_number() OVER (
+            PARTITION BY key
+            ORDER BY
+                CASE WHEN @orderByPriority::BOOLEAN THEN priority END DESC,
+                CASE WHEN @newestFirst::BOOLEAN THEN task_inserted_at END DESC,
+                CASE WHEN NOT @newestFirst::BOOLEAN THEN task_inserted_at END ASC,
+                CASE WHEN @newestFirst::BOOLEAN THEN task_id END DESC,
+                CASE WHEN NOT @newestFirst::BOOLEAN THEN task_id END ASC
+        ) AS best_rank,
+        row_number() OVER (
+            PARTITION BY key
+            ORDER BY
+                CASE WHEN @orderByPriority::BOOLEAN THEN priority END ASC,
+                CASE WHEN @newestFirst::BOOLEAN THEN task_inserted_at END ASC,
+                CASE WHEN NOT @newestFirst::BOOLEAN THEN task_inserted_at END DESC,
+                CASE WHEN @newestFirst::BOOLEAN THEN task_id END ASC,
+                CASE WHEN NOT @newestFirst::BOOLEAN THEN task_id END DESC
+        ) AS worst_rank
+    FROM key_slots
+    WHERE is_filled = FALSE
+)
 SELECT
-    sort_id,
-    task_id,
-    task_inserted_at,
-    task_retry_count,
-    key,
-    priority,
-    tenant_id,
-    strategy_id,
-    is_filled,
-    schedule_timeout_at,
-    max_runs
-FROM v1_concurrency_slot
-WHERE tenant_id = @tenantId::UUID
-AND strategy_id = @strategyId::BIGINT
-AND key = ANY(@keys::TEXT[])
+    sort_id, task_id, task_inserted_at, task_retry_count, key, priority,
+    tenant_id, strategy_id, is_filled, schedule_timeout_at, max_runs,
+    FALSE::BOOLEAN AS outside_window
+FROM key_slots
+WHERE is_filled = TRUE
+UNION ALL
+SELECT
+    sort_id, task_id, task_inserted_at, task_retry_count, key, priority,
+    tenant_id, strategy_id, is_filled, schedule_timeout_at, max_runs,
+    FALSE::BOOLEAN AS outside_window
+FROM ranked_queued
+WHERE best_rank <= window_size OR worst_rank <= window_size OR task_slot_count > 1
+UNION ALL
+(
+    SELECT
+        sort_id, task_id, task_inserted_at, task_retry_count, key, priority,
+        tenant_id, strategy_id, is_filled, schedule_timeout_at, max_runs,
+        TRUE::BOOLEAN AS outside_window
+    FROM ranked_queued
+    WHERE best_rank > window_size AND worst_rank > window_size AND task_slot_count = 1
+    LIMIT @outsideLimit::INT
+)
 ORDER BY key ASC, sort_id ASC;
 
 -- name: ListDistinctConcurrencyKeysAfter :many
