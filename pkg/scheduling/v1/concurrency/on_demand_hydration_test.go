@@ -704,6 +704,65 @@ func TestEagerIndexSwitchesToOnDemandWhenResidentSlotsOutgrowBound(t *testing.T)
 	}
 }
 
+// A batch's result only reaches pending once its outbox transaction has committed; a transaction that
+// fails after Flush returned must not leak the batch's cancellations to the caller.
+func TestInFlightResultIsDroppedWhenTheBatchFailsToCommit(t *testing.T) {
+	c := newTestStrategy(&mockConcurrencyRepo{}, 1)
+
+	failed := &repository.RunConcurrencyResult{Cancelled: make([]repository.TaskWithCancelledReason, 1)}
+	c.setInFlight(failed)
+	c.discardInFlight()
+
+	if got := c.takePending(); len(got) != 0 {
+		t.Fatalf("pending = %d results after a failed commit, want 0", len(got))
+	}
+
+	committed := &repository.RunConcurrencyResult{Cancelled: make([]repository.TaskWithCancelledReason, 2)}
+	c.setInFlight(committed)
+	c.commitInFlight()
+
+	got := c.takePending()
+	if len(got) != 1 || got[0] != committed {
+		t.Fatalf("pending after commit = %v, want the committed result only", got)
+	}
+	if c.inFlight != nil {
+		t.Fatalf("in-flight result not cleared after commit")
+	}
+}
+
+// The eager initial pass cancels and prunes slots that buildIndex counted, so it must fold its size
+// changes into the resident total or the bound trips on slots that no longer exist.
+func TestEagerInitialQueueingRecountsResidentSlots(t *testing.T) {
+	now := time.Now().UTC()
+	future := now.Add(time.Hour)
+
+	repo := &mockConcurrencyRepo{
+		indexRows: []*sqlcv1.ListConcurrencySlotsForIndexingRow{
+			indexRow("a", 1, 5, 0, now, future, false),
+			indexRow("a", 2, 5, 0, now.Add(time.Second), future, false),
+			indexRow("a", 3, 5, 0, now.Add(2*time.Second), future, false),
+			indexRow("b", 4, 5, 0, now, future, false),
+		},
+	}
+	c := newTestStrategyKind(repo, 1, sqlcv1.V1ConcurrencyStrategyCANCELNEWEST)
+	c.eagerIndexMaxSlots = 10
+
+	if err := c.buildIndex(context.Background()); err != nil {
+		t.Fatalf("buildIndex: %v", err)
+	}
+	if c.residentSlots != 4 {
+		t.Fatalf("resident slots after build = %d, want 4", c.residentSlots)
+	}
+
+	// key a: one fills, two are cancelled; key b: one fills. Two slots remain resident.
+	if _, err := c.queueAllSubQueues(context.Background()); err != nil {
+		t.Fatalf("queueAllSubQueues: %v", err)
+	}
+	if c.residentSlots != 2 {
+		t.Fatalf("resident slots after the initial pass = %d, want 2", c.residentSlots)
+	}
+}
+
 func TestOnDemandInitialQueueingResumesFromCursorAfterFailure(t *testing.T) {
 	now := time.Now().UTC()
 	future := now.Add(time.Hour)

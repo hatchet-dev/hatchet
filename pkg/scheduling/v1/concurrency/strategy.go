@@ -89,6 +89,7 @@ type ConcurrencyStrategy struct {
 	built            chan struct{}
 	topic            string
 	pending          []*repository.RunConcurrencyResult
+	inFlight         *repository.RunConcurrencyResult
 	openScopes       []*subQueue
 	mu               sync.RWMutex
 	pendingMu        sync.Mutex
@@ -204,12 +205,31 @@ func (c *ConcurrencyStrategy) observeMaxRunsForKey(key string, maxRuns int32, ta
 	c.observedMaxRuns[key] = maxRunsObservation{maxRuns: maxRuns, from: taskInsertedAtNs}
 }
 
-// appendPending records a single batch's result for the in-flight Run to collect.
-func (c *ConcurrencyStrategy) appendPending(res *repository.RunConcurrencyResult) {
+// setInFlight holds the result of the batch whose outbox transaction is still open. It only joins
+// pending once Run sees that transaction commit (commitInFlight); if the transaction fails after
+// Flush returned, discardInFlight drops it so a rolled-back batch's cancellations are never published.
+func (c *ConcurrencyStrategy) setInFlight(res *repository.RunConcurrencyResult) {
 	c.pendingMu.Lock()
 	defer c.pendingMu.Unlock()
 
-	c.pending = append(c.pending, res)
+	c.inFlight = res
+}
+
+func (c *ConcurrencyStrategy) commitInFlight() {
+	c.pendingMu.Lock()
+	defer c.pendingMu.Unlock()
+
+	if c.inFlight != nil {
+		c.pending = append(c.pending, c.inFlight)
+		c.inFlight = nil
+	}
+}
+
+func (c *ConcurrencyStrategy) discardInFlight() {
+	c.pendingMu.Lock()
+	defer c.pendingMu.Unlock()
+
+	c.inFlight = nil
 }
 
 // takePending returns the results accumulated since the last call and clears the buffer.
@@ -393,13 +413,15 @@ func (c *ConcurrencyStrategy) Run(ctx context.Context) (*repository.RunConcurren
 			// messages are not deleted and will be redelivered on a later Run. Earlier batches in this
 			// Run did commit, so their results are returned alongside the error: the caller publishes
 			// the cancelled-task messages from them and they must not be lost to the failed batch.
+			c.discardInFlight()
 			c.rollbackScopes()
 			return mergeResults(append(c.takePending(), initialResult, revisitResult)), fmt.Errorf("failed to process outbox messages for topic %s: %w", c.topic, err)
 		}
 
 		// ProcessMessages only returns without error once the transaction has committed, so the
-		// in-memory mutations are now durable - discard the undo log and drop the sub-queues this
-		// batch no longer needs in memory.
+		// in-memory mutations are now durable - promote the batch's result, discard the undo log and
+		// drop the sub-queues this batch no longer needs in memory.
+		c.commitInFlight()
 		c.finalizeCommittedSubQueues(c.commitScopes())
 
 		if c.eagerIndexOutgrewBound() {
@@ -591,6 +613,7 @@ func (c *ConcurrencyStrategy) queueAllSubQueues(ctx context.Context) (*repositor
 		for _, sq := range touched {
 			sq.rollback()
 		}
+		c.recountResidentSlots(touched)
 		return nil, err
 	}
 
@@ -598,7 +621,9 @@ func (c *ConcurrencyStrategy) queueAllSubQueues(ctx context.Context) (*repositor
 		sq.commit()
 	}
 
-	// drop any sub-queue this pass emptied (e.g. all slots cancelled), same as the WAL path.
+	// fold the pass's size changes into the resident total before dropping the sub-queues it emptied
+	// (e.g. all slots cancelled), same as the WAL path.
+	c.recountResidentSlots(touched)
 	c.pruneEmpty(touched)
 
 	return res, nil
@@ -656,7 +681,7 @@ func (c *ConcurrencyStrategy) Flush(ctx pgoutbox.FlushContext, msgs []*outboxsql
 		return err
 	}
 
-	c.appendPending(res)
+	c.setInFlight(res)
 
 	return nil
 }
