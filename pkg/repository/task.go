@@ -2162,11 +2162,11 @@ func (r *TaskRepositoryImpl) ListEvictedTaskRuntimeWindow(ctx context.Context, t
 			Microseconds: grace.Microseconds(),
 			Valid:        true,
 		},
-		Afterevictedat:      sqlchelpers.TimestamptzFromTime(after.EvictedAt),
-		Aftertaskid:         after.TaskID,
-		Aftertaskinsertedat: sqlchelpers.TimestamptzFromTime(after.TaskInsertedAt),
-		Afterretrycount:     after.RetryCount,
-		Windowsize:          windowSize,
+		Minevictedast:     sqlchelpers.TimestamptzFromTime(after.EvictedAt),
+		Mintaskid:         after.TaskID,
+		Mintaskinsertedat: sqlchelpers.TimestamptzFromTime(after.TaskInsertedAt),
+		Minretrycount:     after.RetryCount,
+		Windowsize:        windowSize,
 	})
 }
 
