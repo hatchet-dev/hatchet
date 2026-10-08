@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -142,6 +143,10 @@ func TestEmitOrchestratorTerminalEvents_PayloadRouting(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, int64(1), mq.sends.Load())
 		require.Equal(t, msgqueue.OLAP_QUEUE.Name(), *mq.lastQueue.Load())
+
+		payload := lastMonitoringPayload(t, mq)
+		assert.Equal(t, `{"ok":true}`, payload.EventPayload)
+		assert.Empty(t, payload.EventMessage)
 	})
 
 	t.Run("CANCELLED puts detail in EventMessage", func(t *testing.T) {
@@ -153,7 +158,43 @@ func TestEmitOrchestratorTerminalEvents_PayloadRouting(t *testing.T) {
 		)
 		require.NoError(t, err)
 		require.Equal(t, int64(1), mq.sends.Load())
+
+		payload := lastMonitoringPayload(t, mq)
+		assert.Equal(t, "cancelled by user", payload.EventMessage)
+		assert.Empty(t, payload.EventPayload)
 	})
+
+	for _, eventType := range []sqlcv1.V1EventTypeOlap{
+		sqlcv1.V1EventTypeOlapFINISHED,
+		sqlcv1.V1EventTypeOlapFAILED,
+		sqlcv1.V1EventTypeOlapCANCELLED,
+	} {
+		t.Run(string(eventType)+" is status-only", func(t *testing.T) {
+			mq := &fakeMQ{}
+			c := newTestController(mq)
+
+			err := c.emitOrchestratorTerminalEvent(context.Background(), tenantId, 42, 1, eventType, "detail")
+			require.NoError(t, err)
+
+			payload := lastMonitoringPayload(t, mq)
+			assert.True(t, payload.StatusOnly)
+			assert.Equal(t, eventType, payload.EventType)
+			assert.Equal(t, int64(42), payload.TaskId)
+			assert.Equal(t, int32(1), payload.RetryCount)
+		})
+	}
+}
+
+func lastMonitoringPayload(t *testing.T, mq *fakeMQ) *tasktypes.CreateMonitoringEventPayload {
+	t.Helper()
+
+	msg := mq.lastMsg.Load()
+	require.NotNil(t, msg)
+
+	payloads := msgqueue.JSONConvert[tasktypes.CreateMonitoringEventPayload](msg.Payloads)
+	require.Len(t, payloads, 1)
+
+	return payloads[0]
 }
 
 func TestEmitOrchestratorTerminalEvent_RetriesThenSucceeds(t *testing.T) {
