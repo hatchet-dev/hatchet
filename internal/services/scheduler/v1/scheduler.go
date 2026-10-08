@@ -838,6 +838,7 @@ func (s *Scheduler) internalRetry(ctx context.Context, tenantId uuid.UUID, assig
 			false,
 			"could not assign step run to worker",
 			false,
+			nil,
 		)
 
 		if err != nil {
@@ -1386,6 +1387,7 @@ func (s *Scheduler) handleDeadLetteredTaskBulkAssigned(ctx context.Context, msg 
 			false,
 			"Could not send task to worker",
 			false,
+			nil,
 		)
 
 		if err != nil {
@@ -1436,6 +1438,7 @@ func (s *Scheduler) handleDeadLetteredBatchStart(ctx context.Context, msg *msgqu
 			false,
 			"Could not send task to worker",
 			false,
+			nil,
 		)
 
 		if err != nil {

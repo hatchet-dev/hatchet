@@ -126,6 +126,7 @@ func FailedTaskMessage(
 	isAppError bool,
 	errorMsg string,
 	isNonRetryable bool,
+	retryAfterMs *int64,
 ) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
@@ -141,6 +142,7 @@ func FailedTaskMessage(
 			IsAppError:     isAppError,
 			ErrorMsg:       errorMsg,
 			IsNonRetryable: isNonRetryable,
+			RetryAfterMs:   retryAfterMs,
 		},
 	)
 }
