@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -17,9 +18,11 @@ import (
 
 // fakeOutbox feeds scripted batches to the strategy's Flush, one batch per ProcessMessages call. A
 // batch with commitErr fails after Flush returns, like a failed message delete or commit.
+// afterFlush, if set, runs between Flush and the commit.
 type fakeOutbox struct {
-	flusher pgoutbox.Flusher
-	batches []fakeBatch
+	flusher    pgoutbox.Flusher
+	batches    []fakeBatch
+	afterFlush func()
 }
 
 type fakeBatch struct {
@@ -52,6 +55,10 @@ func (o *fakeOutbox) ProcessMessages(ctx context.Context, topic string, opts ...
 
 	if err := o.flusher.Flush(fakeFlushContext{ctx}, msgs); err != nil {
 		return nil, err
+	}
+
+	if o.afterFlush != nil {
+		o.afterFlush()
 	}
 
 	if b.commitErr != nil {
@@ -123,5 +130,40 @@ func TestRunReturnsCommittedResultsWhenALaterBatchFails(t *testing.T) {
 
 	if _, ok := c.getOrCreateSubQueue("a").running.get(3); ok {
 		t.Fatalf("the failed batch's slot was not rolled back")
+	}
+}
+
+// UpdateStrategy can run on another goroutine while a batch's scopes are still open, between Flush
+// and Run committing or rolling them back. Run with -race.
+func TestUpdateStrategyDuringOpenBatch(t *testing.T) {
+	now := time.Now().UTC()
+	future := now.Add(time.Hour)
+
+	for _, commitErr := range []error{nil, errors.New("commit failed")} {
+		var wg sync.WaitGroup
+
+		outbox := &fakeOutbox{
+			batches: []fakeBatch{{msgs: []walMessage{walInsert("a", 1, 5, now, future)}, commitErr: commitErr}},
+		}
+
+		c := newTestStrategy(&mockConcurrencyRepo{}, 1)
+		c.outbox = outbox
+		outbox.AddFlusher(c.topic, c)
+		close(c.built)
+
+		outbox.afterFlush = func() {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				c.UpdateStrategy(&sqlcv1.V1StepConcurrency{MaxConcurrency: 2, Strategy: c.strategy.Strategy})
+			}()
+		}
+
+		_, _ = c.Run(context.Background())
+		wg.Wait()
+
+		if got := c.getOrCreateSubQueue("a").maxRuns; got != 2 {
+			t.Fatalf("commitErr %v: maxRuns = %d after the update, want 2", commitErr, got)
+		}
 	}
 }
