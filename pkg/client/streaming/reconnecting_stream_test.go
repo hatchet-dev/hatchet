@@ -430,3 +430,33 @@ func TestRetrySendShortCircuitsOnPermanentReconnectError(t *testing.T) {
 		assert.ErrorIs(t, err, ErrListenerClosed)
 	})
 }
+
+// A reconnect asked for from a generation that was already replaced opens nothing, whether the
+// replacement happened before the call or during a concurrent attempt.
+func TestConnectOnceFromOpensOneStreamPerGeneration(t *testing.T) {
+	constructorCalls := atomic.Int32{}
+	stream := newTestListenStream(t, &testListenClient{}, func(ctx context.Context) (*testListenClient, error) {
+		constructorCalls.Add(1)
+		time.Sleep(2 * time.Millisecond)
+		return &testListenClient{}, nil
+	})
+	_, observed, _ := stream.Snapshot()
+
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			assert.NoError(t, stream.ConnectOnceFrom(context.Background(), observed))
+		}()
+	}
+	wg.Wait()
+	assert.Equal(t, int32(1), constructorCalls.Load(), "concurrent callers coalesce")
+
+	assert.NoError(t, stream.ConnectOnceFrom(context.Background(), observed))
+	assert.Equal(t, int32(1), constructorCalls.Load(), "a late caller from the replaced generation adopts")
+
+	_, current, _ := stream.Snapshot()
+	assert.NoError(t, stream.ConnectOnceFrom(context.Background(), current))
+	assert.Equal(t, int32(2), constructorCalls.Load(), "a failure of the current generation reconnects")
+}

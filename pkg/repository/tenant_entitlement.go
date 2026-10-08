@@ -3,8 +3,11 @@ package repository
 import (
 	"context"
 	"errors"
+	"fmt"
+	"time"
 
 	"github.com/google/uuid"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -15,31 +18,37 @@ import (
 // plane) and fanned out into the engine database so that engine and API
 // components can gate features locally without reaching across databases.
 type TenantEntitlementRepository interface {
-	// IsAuditLogsEnabled reports whether audit logging is entitled for the tenant.
-	// Tenants without an entitlement row are treated as not entitled.
-	IsAuditLogsEnabled(ctx context.Context, tenantId uuid.UUID) (bool, error)
+	// HasEntitlement is false for tenants without an entitlement row. Reads are
+	// cached for up to entitlementCacheTTL.
+	HasEntitlement(ctx context.Context, tenantId uuid.UUID, entitlement Entitlement) (bool, error)
 
 	// AnyTenantHasAuditLogs reports whether any of the given tenants is entitled
 	// to audit logging.
 	AnyTenantHasAuditLogs(ctx context.Context, tenantIds []uuid.UUID) (bool, error)
 
-	// IsPrometheusMetricsEnabled reports whether Prometheus metrics are entitled
-	// for the tenant. Tenants without an entitlement row are treated as not entitled.
-	IsPrometheusMetricsEnabled(ctx context.Context, tenantId uuid.UUID) (bool, error)
-
-	// IsStrictAdditionalMetadataFiltersEnabled reports whether the tenant is opted
-	// into AND-semantics additional_metadata filters (jsonb containment backed by
-	// the OLAP GIN indexes). Tenants without an entitlement row are treated as not
-	// entitled.
-	IsStrictAdditionalMetadataFiltersEnabled(ctx context.Context, tenantId uuid.UUID) (bool, error)
-
-	// IsDagOperatorEnabled reports whether the tenant is entitled to use the
-	// DAG operator to orchestrate DAGs.
-	IsDagOperatorEnabled(ctx context.Context, tenantId uuid.UUID) (bool, error)
+	// GetEntitlements is uncached and all false for tenants without an entitlement row.
+	GetEntitlements(ctx context.Context, tenantId uuid.UUID) (TenantEntitlements, error)
 
 	// SetEntitlements upserts the full set of feature entitlements for the tenant.
 	SetEntitlements(ctx context.Context, tenantId uuid.UUID, entitlements TenantEntitlements) error
 }
+
+// Entitlement names a per-tenant feature; values match the tenant_entitlement columns.
+type Entitlement string
+
+const (
+	EntitlementAuditLogs                       Entitlement = "audit_logs"
+	EntitlementPrometheusMetrics               Entitlement = "prometheus_metrics"
+	EntitlementStrictAdditionalMetadataFilters Entitlement = "strict_additional_metadata_filters"
+	EntitlementDAGOperator                     Entitlement = "dag_operator"
+	EntitlementDurableStreams                  Entitlement = "durable_streams"
+)
+
+// Entitlements only change on plan changes fanned out from the control plane,
+// so this bounds how long a change takes to apply on hot paths.
+const entitlementCacheTTL = 5 * time.Minute
+
+const entitlementCacheSize = 10000
 
 // TenantEntitlements is the full set of per-tenant feature entitlements that are
 // fanned out from upstream into the engine database in a single upsert.
@@ -48,30 +57,69 @@ type TenantEntitlements struct {
 	PrometheusMetrics               bool
 	StrictAdditionalMetadataFilters bool
 	DAGOperator                     bool
+	DurableStreams                  bool
+}
+
+// Has reports whether this set includes the named entitlement.
+func (e TenantEntitlements) Has(entitlement Entitlement) (bool, error) {
+	switch entitlement {
+	case EntitlementAuditLogs:
+		return e.AuditLogs, nil
+	case EntitlementPrometheusMetrics:
+		return e.PrometheusMetrics, nil
+	case EntitlementStrictAdditionalMetadataFilters:
+		return e.StrictAdditionalMetadataFilters, nil
+	case EntitlementDAGOperator:
+		return e.DAGOperator, nil
+	case EntitlementDurableStreams:
+		return e.DurableStreams, nil
+	default:
+		return false, fmt.Errorf("unknown entitlement %q", entitlement)
+	}
 }
 
 type tenantEntitlementRepository struct {
 	*sharedRepository
+
+	// expiry is checked on read so there's no sweeper goroutine to outlive the repo
+	cache *lru.Cache[uuid.UUID, cachedEntitlements]
+}
+
+type cachedEntitlements struct {
+	entitlements TenantEntitlements
+	expiresAt    time.Time
 }
 
 func newTenantEntitlementRepository(shared *sharedRepository) TenantEntitlementRepository {
+	c, err := lru.New[uuid.UUID, cachedEntitlements](entitlementCacheSize)
+
+	if err != nil {
+		panic(err)
+	}
+
 	return &tenantEntitlementRepository{
 		sharedRepository: shared,
+		cache:            c,
 	}
 }
 
-func (t *tenantEntitlementRepository) IsAuditLogsEnabled(ctx context.Context, tenantId uuid.UUID) (bool, error) {
-	entitlement, err := t.queries.GetTenantEntitlement(ctx, t.pool, tenantId)
+func (t *tenantEntitlementRepository) HasEntitlement(ctx context.Context, tenantId uuid.UUID, entitlement Entitlement) (bool, error) {
+	if cached, ok := t.cache.Get(tenantId); ok && time.Now().Before(cached.expiresAt) {
+		return cached.entitlements.Has(entitlement)
+	}
+
+	entitlements, err := t.GetEntitlements(ctx, tenantId)
 
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return false, nil
-		}
-
 		return false, err
 	}
 
-	return entitlement.AuditLogs, nil
+	t.cache.Add(tenantId, cachedEntitlements{
+		entitlements: entitlements,
+		expiresAt:    time.Now().Add(entitlementCacheTTL),
+	})
+
+	return entitlements.Has(entitlement)
 }
 
 func (t *tenantEntitlementRepository) AnyTenantHasAuditLogs(ctx context.Context, tenantIds []uuid.UUID) (bool, error) {
@@ -82,46 +130,24 @@ func (t *tenantEntitlementRepository) AnyTenantHasAuditLogs(ctx context.Context,
 	return t.queries.AnyTenantHasAuditLogs(ctx, t.pool, tenantIds)
 }
 
-func (t *tenantEntitlementRepository) IsPrometheusMetricsEnabled(ctx context.Context, tenantId uuid.UUID) (bool, error) {
+func (t *tenantEntitlementRepository) GetEntitlements(ctx context.Context, tenantId uuid.UUID) (TenantEntitlements, error) {
 	entitlement, err := t.queries.GetTenantEntitlement(ctx, t.pool, tenantId)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return false, nil
+			return TenantEntitlements{}, nil
 		}
 
-		return false, err
+		return TenantEntitlements{}, err
 	}
 
-	return entitlement.PrometheusMetrics, nil
-}
-
-func (t *tenantEntitlementRepository) IsStrictAdditionalMetadataFiltersEnabled(ctx context.Context, tenantId uuid.UUID) (bool, error) {
-	entitlement, err := t.queries.GetTenantEntitlement(ctx, t.pool, tenantId)
-
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return false, nil
-		}
-
-		return false, err
-	}
-
-	return entitlement.StrictAdditionalMetadataFilters, nil
-}
-
-func (t *tenantEntitlementRepository) IsDagOperatorEnabled(ctx context.Context, tenantId uuid.UUID) (bool, error) {
-	entitlement, err := t.queries.GetTenantEntitlement(ctx, t.pool, tenantId)
-
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return false, nil
-		}
-
-		return false, err
-	}
-
-	return entitlement.DagOperator, nil
+	return TenantEntitlements{
+		AuditLogs:                       entitlement.AuditLogs,
+		PrometheusMetrics:               entitlement.PrometheusMetrics,
+		StrictAdditionalMetadataFilters: entitlement.StrictAdditionalMetadataFilters,
+		DAGOperator:                     entitlement.DagOperator,
+		DurableStreams:                  entitlement.DurableStreams,
+	}, nil
 }
 
 func (t *tenantEntitlementRepository) SetEntitlements(ctx context.Context, tenantId uuid.UUID, entitlements TenantEntitlements) error {
@@ -131,7 +157,14 @@ func (t *tenantEntitlementRepository) SetEntitlements(ctx context.Context, tenan
 		Prometheusmetrics:               entitlements.PrometheusMetrics,
 		Strictadditionalmetadatafilters: entitlements.StrictAdditionalMetadataFilters,
 		Dagoperator:                     entitlements.DAGOperator,
+		Durablestreams:                  entitlements.DurableStreams,
 	})
 
-	return err
+	if err != nil {
+		return err
+	}
+
+	t.cache.Remove(tenantId)
+
+	return nil
 }

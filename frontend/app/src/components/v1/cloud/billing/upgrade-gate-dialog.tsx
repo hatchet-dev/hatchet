@@ -26,8 +26,15 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/v1/ui/table';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/v1/ui/tooltip';
 import useControlPlane from '@/hooks/use-control-plane';
 import { useOrganizationEntitlements } from '@/hooks/use-organization-entitlements';
+import { useOrganizations } from '@/hooks/use-organizations';
 import {
   getPlanChangeErrorMessage,
   useSubscriptionUpgrade,
@@ -44,11 +51,14 @@ import {
 import { OFFICE_HOURS_URL, PRICING_URL } from '@/lib/external-links';
 import { cn } from '@/lib/utils';
 import { formatRetentionPeriod } from '@/lib/utils/retention';
+import { appRoutes } from '@/router';
 import { ChevronDownIcon } from '@radix-ui/react-icons';
 import { useQuery } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
 
-export type UpgradeGate = 'tenants' | 'users' | 'retention' | 'usage';
+export type UpgradeGate =
+  'tenants' | 'users' | 'retention' | 'usage' | 'organizations';
 
 export type UpgradeGateProps = {
   gate: UpgradeGate;
@@ -61,6 +71,11 @@ export type UpgradeGateProps = {
    */
   featureId?: string;
   retentionPeriod?: string;
+  /**
+   * Name of the organization the upgrade applies to. Used by the
+   * organizations gate so the copy names the current organization.
+   */
+  organizationName?: string;
 };
 
 // ---------------------------------------------------------------------------
@@ -75,6 +90,13 @@ const COPY = {
       title: "You've hit your tenant limit",
       description:
         'Upgrade to pay-as-you-go to add more tenants and separate dev, staging, and prod.',
+    },
+    organizations: {
+      title: 'Upgrade your current organization',
+      description: (name?: string) =>
+        name
+          ? `Upgrade ${name} to pay-as-you-go to create another organization.`
+          : 'Upgrade your current organization to pay-as-you-go to create another one.',
     },
     users: {
       title: "You've hit your member limit",
@@ -119,6 +141,8 @@ const COPY = {
   },
   actions: {
     upgrade: 'Upgrade',
+    ownerOnly: 'Only organization owners can upgrade.',
+    billing: 'View billing',
     dismiss: 'Not now',
     contact: 'Contact us',
     footnote:
@@ -383,10 +407,16 @@ function buildComparison(input: {
 function buildHeader(
   gate: UpgradeGate,
   row: ComparisonRow | undefined,
+  organizationName?: string,
 ): GateHeader {
   switch (gate) {
     case 'tenants':
       return COPY.header.tenants;
+    case 'organizations':
+      return {
+        title: COPY.header.organizations.title,
+        description: COPY.header.organizations.description(organizationName),
+      };
     case 'users':
       return COPY.header.users;
     case 'retention':
@@ -436,9 +466,16 @@ function useUpgradeGate({
   organizationId,
   featureId,
   retentionPeriod,
-}: Omit<UpgradeGateProps, 'onDismiss'>) {
+  organizationName,
+  onUpgraded,
+}: Omit<UpgradeGateProps, 'onDismiss'> & {
+  // A saved card updates the plan in place. Close the dialog only then;
+  // a checkout URL navigates away on its own.
+  onUpgraded?: () => void;
+}) {
   const { canBill, isControlPlaneEnabled } = useControlPlane();
   const { tenant, billing } = useTenantDetails();
+  const { organizations, isUserUniverseLoaded } = useOrganizations();
   const { entitlements } = useOrganizationEntitlements(organizationId);
   const plansQuery = useQuery({
     ...queries.controlPlane.subscriptionPlans(),
@@ -482,6 +519,21 @@ function useUpgradeGate({
   const planName = planCode
     ? currentPlanDisplayName(billing?.state?.plans, planCode)
     : COPY.planName;
+  // Ownership comes from the loaded org list. Until that list is in, keep
+  // Upgrade disabled so it does not flash as clickable for a member.
+  const ownerKnown = isUserUniverseLoaded && isControlPlaneEnabled;
+  const isOrganizationOwner =
+    ownerKnown &&
+    organizations.some(
+      (org) => org.metadata.id === organizationId && org.isOwner,
+    );
+  const billingReady = isControlPlaneEnabled && canBill && !!paygPlan;
+  // A missing plan (still loading, or a member who cannot read billing) stays
+  // on the upgrade action. A known non-free plan has nothing to self-serve
+  // here, so the button sends them to billing instead.
+  const planPending =
+    isControlPlaneEnabled && canBill && !!billing?.isLoading && !planCode;
+  const linkToBilling = !!planCode && planCodeBase(planCode) !== 'free';
 
   return {
     header:
@@ -498,14 +550,31 @@ function useUpgradeGate({
                 retentionLabel,
               ),
             }
-          : buildHeader(gate, highlighted),
+          : buildHeader(gate, highlighted, organizationName),
     comparison,
     currentPlan:
       mode === 'custom' ? { name: planName, retention: retentionLabel } : null,
     mode,
     upgrade,
-    canUpgrade: isControlPlaneEnabled && canBill && !!paygPlan,
-    onUpgrade: () => paygPlan && upgrade.mutate(paygPlan.planCode),
+    canUpgrade:
+      billingReady && isOrganizationOwner && !linkToBilling && !planPending,
+    ownerOnlyUpgrade:
+      billingReady &&
+      ownerKnown &&
+      !isOrganizationOwner &&
+      !linkToBilling &&
+      !planPending,
+    linkToBilling,
+    organizationId,
+    onUpgrade: () =>
+      paygPlan &&
+      upgrade.mutate(paygPlan.planCode, {
+        onSuccess: (data) => {
+          if (!data.checkoutUrl) {
+            onUpgraded?.();
+          }
+        },
+      }),
     salesHref: salesUrl(tenant?.name, tenant?.metadata?.id),
   };
 }
@@ -778,6 +847,40 @@ function UpgradeGateBody({ state }: { state: UpgradeGateState }) {
   );
 }
 
+function UpgradeButton({
+  disabled,
+  pending,
+  ownerOnly,
+  onUpgrade,
+}: {
+  disabled: boolean;
+  pending: boolean;
+  ownerOnly: boolean;
+  onUpgrade: () => void;
+}) {
+  const button = (
+    <Button type="button" size="sm" disabled={disabled} onClick={onUpgrade}>
+      {pending ? <Spinner /> : COPY.actions.upgrade}
+    </Button>
+  );
+
+  // A disabled button does not receive hover, so the tooltip sits on a span.
+  if (!ownerOnly) {
+    return button;
+  }
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="inline-flex">{button}</span>
+        </TooltipTrigger>
+        <TooltipContent>{COPY.actions.ownerOnly}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
 function UpgradeGateFooter({
   state,
   onDismiss,
@@ -785,7 +888,16 @@ function UpgradeGateFooter({
   state: UpgradeGateState;
   onDismiss?: () => void;
 }) {
-  const { upgrade, canUpgrade, onUpgrade, mode, salesHref } = state;
+  const {
+    upgrade,
+    canUpgrade,
+    ownerOnlyUpgrade,
+    linkToBilling,
+    organizationId,
+    onUpgrade,
+    mode,
+    salesHref,
+  } = state;
 
   if (mode === 'loading') {
     return onDismiss ? (
@@ -819,14 +931,24 @@ function UpgradeGateFooter({
           {COPY.actions.dismiss}
         </Button>
       ) : null}
-      <Button
-        type="button"
-        size="sm"
-        disabled={!canUpgrade || upgrade.isPending}
-        onClick={onUpgrade}
-      >
-        {upgrade.isPending ? <Spinner /> : COPY.actions.upgrade}
-      </Button>
+      {linkToBilling ? (
+        <Button type="button" size="sm" asChild>
+          <Link
+            to={appRoutes.organizationBillingRoute.to}
+            params={{ organization: organizationId }}
+            onClick={onDismiss}
+          >
+            {COPY.actions.billing}
+          </Link>
+        </Button>
+      ) : (
+        <UpgradeButton
+          disabled={!canUpgrade || upgrade.isPending}
+          pending={upgrade.isPending}
+          ownerOnly={ownerOnlyUpgrade}
+          onUpgrade={onUpgrade}
+        />
+      )}
     </>
   );
 }
@@ -855,7 +977,7 @@ export function UpgradeGateDialog({
   onDismiss,
   ...props
 }: UpgradeGateProps & { open: boolean; onDismiss: () => void }) {
-  const state = useUpgradeGate(props);
+  const state = useUpgradeGate({ ...props, onUpgraded: onDismiss });
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onDismiss()}>

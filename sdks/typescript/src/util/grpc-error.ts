@@ -33,12 +33,20 @@ export function getGrpcErrorCode(e: unknown): number | undefined {
 }
 
 /**
- * Returns the gRPC error details string from an unknown value (e.g. from a catch block).
+ * Returns the gRPC status message from an unknown value (e.g. from a catch block): the
+ * `details` string of a `nice-grpc` or `@grpc/grpc-js` error, or the `rawMessage` of a
+ * `ConnectError`, which carries the same server-provided text without the code prefix.
  */
 export function getGrpcErrorDetails(e: unknown): string | undefined {
-  if (e != null && typeof e === 'object' && 'details' in e) {
-    const { details } = e as { details: unknown };
-    return typeof details === 'string' ? details : undefined;
+  if (e != null && typeof e === 'object') {
+    if ('rawMessage' in e) {
+      const { rawMessage } = e as { rawMessage: unknown };
+      if (typeof rawMessage === 'string') return rawMessage;
+    }
+    if ('details' in e) {
+      const { details } = e as { details: unknown };
+      return typeof details === 'string' ? details : undefined;
+    }
   }
   return undefined;
 }

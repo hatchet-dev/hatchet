@@ -1,6 +1,7 @@
 package analytics
 
 import (
+	"bytes"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -522,6 +523,188 @@ func TestFlush_ConcurrentCountsKeepMarkerInvariants(t *testing.T) {
 	}
 }
 
+// barrierTimeout bounds every wait in the deterministic eviction tests. The
+// channels establish the ordering; the bound only turns a regression that
+// stops the writer from reaching a phase into a failure instead of a hang.
+const barrierTimeout = 10 * time.Second
+
+// parkedWriter is one Count running on its own goroutine, parked inside the
+// first now() call, which Count makes between loading an entry and
+// incrementing it. Release is idempotent and also runs at cleanup, so a
+// failed assertion never leaves the writer blocked.
+type parkedWriter struct {
+	parked chan struct{}
+	resume chan struct{}
+	done   chan struct{}
+	once   sync.Once
+}
+
+// parkWriter installs the parking clock on agg, then starts count on a
+// goroutine. Call it after any setup Counts and before any other Count that
+// should run while the writer is parked.
+func parkWriter(t *testing.T, agg *Aggregator, count func()) *parkedWriter {
+	t.Helper()
+	w := &parkedWriter{
+		parked: make(chan struct{}),
+		resume: make(chan struct{}),
+		done:   make(chan struct{}),
+	}
+	var calls atomic.Int64
+	agg.now = func() time.Time {
+		if calls.Add(1) == 1 {
+			close(w.parked)
+			<-w.resume
+		}
+		return time.Now()
+	}
+	go func() {
+		defer close(w.done)
+		count()
+	}()
+	t.Cleanup(func() {
+		w.release()
+		select {
+		case <-w.done:
+		case <-time.After(barrierTimeout):
+			t.Error("parked writer did not finish after release")
+		}
+	})
+	return w
+}
+
+func (w *parkedWriter) release() {
+	w.once.Do(func() { close(w.resume) })
+}
+
+// awaitParked blocks until the writer sits between its Load and its Add.
+func (w *parkedWriter) awaitParked(t *testing.T) {
+	t.Helper()
+	select {
+	case <-w.parked:
+	case <-time.After(barrierTimeout):
+		t.Fatal("writer never reached now() between Load and Add")
+	}
+}
+
+// resumeAndJoin lets the writer's Add land and waits for its Count to return.
+func (w *parkedWriter) resumeAndJoin(t *testing.T) {
+	t.Helper()
+	w.release()
+	select {
+	case <-w.done:
+	case <-time.After(barrierTimeout):
+		t.Fatal("writer did not finish its Count after being released")
+	}
+}
+
+func TestCount_RetryAtMaxKeysUsesReplacementEntry(t *testing.T) {
+	rec := &flushRecorder{}
+	// One key and room for exactly one key. A writer that loaded the entry
+	// just before flush evicted it must count into the replacement that
+	// another writer published in the meantime, not be dropped as a new
+	// key at capacity.
+	agg := NewAggregator(&nopLogger, true, time.Hour, 1, rec.record)
+
+	tenantID := uuid.New()
+	agg.Count(Event, Create, tenantID, nil, 1)
+	agg.flush()
+
+	w := parkWriter(t, agg, func() { agg.Count(Event, Create, tenantID, nil, 1) })
+	w.awaitParked(t)
+
+	// Evict the idle entry, then republish the key from another writer.
+	agg.flush()
+	agg.Count(Event, Create, tenantID, nil, 1)
+
+	w.resumeAndJoin(t)
+	agg.flush()
+
+	var total int64
+	for _, e := range rec.getEvents() {
+		total += e.Count
+	}
+	if total != 3 {
+		t.Errorf("expected total count 3, got %d (keyCount=%d)", total, agg.keyCount.Load())
+	}
+}
+
+func TestCount_EvictedWriterRetriesIntoFreshEntry(t *testing.T) {
+	rec := &flushRecorder{}
+	agg := NewAggregator(&nopLogger, true, time.Hour, 0, rec.record)
+
+	tenantID := uuid.New()
+	// Leave an idle entry behind so the next flush evicts it.
+	agg.Count(Event, Create, tenantID, nil, 1)
+	agg.flush()
+
+	// Park the writer between its Load of the idle entry and its Add, evict
+	// and seal the entry underneath it, then let the Add land on the sealed
+	// entry. The writer must retry into a fresh entry.
+	w := parkWriter(t, agg, func() { agg.Count(Event, Create, tenantID, nil, 1) })
+	w.awaitParked(t)
+	agg.flush()
+	if got := agg.keyCount.Load(); got != 0 {
+		t.Fatalf("expected the idle entry to be evicted, keyCount=%d", got)
+	}
+	w.resumeAndJoin(t)
+	agg.flush()
+
+	events := rec.getEvents()
+	// The eviction flush emitted nothing, so there is the setup event and
+	// the retried one, each with count 1.
+	if len(events) != 2 || events[1].Count != 1 {
+		t.Fatalf("expected two events of count 1, got %+v", events)
+	}
+	if got := agg.keyCount.Load(); got != 1 {
+		t.Errorf("expected the fresh entry to be counted once, keyCount=%d", got)
+	}
+}
+
+func TestCount_EvictedWriterRepublishesAtMaxKeys(t *testing.T) {
+	rec := &flushRecorder{}
+	var logs bytes.Buffer
+	logger := zerolog.New(&logs)
+	// Room for exactly one key. A writer whose entry is evicted while it is
+	// mid-Count keeps the right to republish its key even if another key
+	// took the slot in the meantime, so the cap is exceeded by one.
+	agg := NewAggregator(&logger, true, time.Hour, 1, rec.record)
+
+	tenantID := uuid.New()
+	otherTenant := uuid.New()
+	agg.Count(Event, Create, tenantID, nil, 1)
+	agg.flush()
+
+	w := parkWriter(t, agg, func() { agg.Count(Event, Create, tenantID, nil, 1) })
+	w.awaitParked(t)
+
+	// Evict the idle entry, then fill the freed slot with a different key.
+	agg.flush()
+	agg.Count(Event, Create, otherTenant, nil, 1)
+	if got := agg.keyCount.Load(); got != 1 {
+		t.Fatalf("expected the other key to hold the only slot, keyCount=%d", got)
+	}
+
+	w.resumeAndJoin(t)
+	agg.flush()
+
+	totals := map[uuid.UUID]int64{}
+	for _, e := range rec.getEvents() {
+		totals[e.TenantID] += e.Count
+	}
+	if totals[tenantID] != 2 || totals[otherTenant] != 1 {
+		t.Errorf("expected tenant=2 other=1, got tenant=%d other=%d", totals[tenantID], totals[otherTenant])
+	}
+	if logs.Len() != 0 {
+		t.Errorf("expected no drop log, got %s", logs.String())
+	}
+	// Both keys were live, so both stayed above the cap. The surplus only
+	// goes away once the keys are idle and a flush evicts them.
+	agg.flush()
+	if got := agg.keyCount.Load(); got != 0 {
+		t.Errorf("expected all keys evicted after an idle flush, keyCount=%d", got)
+	}
+}
+
 func TestProps(t *testing.T) {
 	got := Props(
 		"worker_name", "my-worker",
@@ -580,5 +763,55 @@ func TestProps_BooleanFlags(t *testing.T) {
 	}
 	if got["has_additional_meta"] != true {
 		t.Error("expected has_additional_meta=true")
+	}
+}
+
+func TestFlush_EvictionRaceKeepsEveryCount(t *testing.T) {
+	rec := &flushRecorder{}
+	// A long interval keeps the ticker out of the way. The test drives flush
+	// directly so that it laps the writers constantly and the zero-count
+	// eviction branch runs while Count calls are in flight.
+	agg := NewAggregator(&nopLogger, true, time.Hour, 0, rec.record)
+
+	tenantID := uuid.New()
+	const goroutines = 8
+	const countsPerGoroutine = 2000
+
+	stop := make(chan struct{})
+	var flusher sync.WaitGroup
+	flusher.Add(1)
+	go func() {
+		defer flusher.Done()
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+				agg.flush()
+			}
+		}
+	}()
+
+	var writers sync.WaitGroup
+	writers.Add(goroutines)
+	for i := 0; i < goroutines; i++ {
+		go func() {
+			defer writers.Done()
+			for j := 0; j < countsPerGoroutine; j++ {
+				agg.Count(Event, Create, tenantID, nil, 1)
+			}
+		}()
+	}
+	writers.Wait()
+	close(stop)
+	flusher.Wait()
+	agg.flush()
+
+	var total int64
+	for _, e := range rec.getEvents() {
+		total += e.Count
+	}
+	if total != goroutines*countsPerGoroutine {
+		t.Errorf("expected total count %d, got %d", goroutines*countsPerGoroutine, total)
 	}
 }

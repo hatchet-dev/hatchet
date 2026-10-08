@@ -376,7 +376,7 @@ func (t *V1WorkflowRunsService) V1WorkflowRunList(ctx echo.Context, request gen.
 	useGinIndex := false
 
 	if request.Params.AdditionalMetadata != nil && len(*request.Params.AdditionalMetadata) > 0 {
-		enabled, err := t.config.V1.TenantEntitlement().IsStrictAdditionalMetadataFiltersEnabled(spanContext, tenantId)
+		enabled, err := t.config.V1.TenantEntitlement().HasEntitlement(spanContext, tenantId, v1.EntitlementStrictAdditionalMetadataFilters)
 
 		if err != nil {
 			return nil, err

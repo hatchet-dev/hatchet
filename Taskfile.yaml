@@ -192,6 +192,7 @@ tasks:
       - task: install-dependencies
       - task: generate-api
       - task: generate-proto
+      - task: generate-proto-typescript-es
       - task: generate-sqlc
       - task: generate-docs
       - task: generate-sdk-docs
@@ -262,6 +263,12 @@ tasks:
   generate-proto:
     cmds:
       - bash ./hack/proto/proto.sh
+  generate-proto-typescript-es:
+    desc: Regenerate the TypeScript SDK's protobuf-es bindings (sdks/typescript/src/protoc-es)
+    dir: sdks/typescript
+    cmds:
+      - pnpm install --frozen-lockfile
+      - pnpm run generate-protoc-es
   generate-proto-python:
     dir: ./python-sdk
     cmds:
@@ -415,7 +422,7 @@ tasks:
         IFS='.' read -r major minor patch <<< "${current#v}"
         next="v${major}.${minor}.$((patch + 1))"
         echo "Bumping ${current} → ${next}"
-        git tag "${next}"
+        git tag --no-sign "${next}"
         git push --no-progress origin "${next}"
 
   minor:
@@ -434,7 +441,7 @@ tasks:
         IFS='.' read -r major minor patch <<< "${current#v}"
         next="v${major}.$((minor + 1)).0"
         echo "Bumping ${current} → ${next}"
-        git tag "${next}"
+        git tag --no-sign "${next}"
         git push --no-progress origin "${next}"
 
   alpha:
@@ -454,5 +461,5 @@ tasks:
           next="v${major}.${minor}.$((patch + 1))-alpha.0"
         fi
         echo "Bumping ${stable} → ${next}"
-        git tag "${next}"
+        git tag --no-sign "${next}"
         git push --no-progress origin "${next}"

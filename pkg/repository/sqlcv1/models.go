@@ -331,6 +331,9 @@ const (
 	LimitResourceCRON            LimitResource = "CRON"
 	LimitResourceSCHEDULE        LimitResource = "SCHEDULE"
 	LimitResourceINCOMINGWEBHOOK LimitResource = "INCOMING_WEBHOOK"
+	LimitResourceSTREAMTOPIC     LimitResource = "STREAM_TOPIC"
+	LimitResourceSTREAMMESSAGE   LimitResource = "STREAM_MESSAGE"
+	LimitResourceSTREAMRETENTION LimitResource = "STREAM_RETENTION"
 )
 
 func (e *LimitResource) Scan(src interface{}) error {
@@ -3129,6 +3132,7 @@ type TenantEntitlement struct {
 	PrometheusMetrics               bool               `json:"prometheus_metrics"`
 	StrictAdditionalMetadataFilters bool               `json:"strict_additional_metadata_filters"`
 	DagOperator                     bool               `json:"dag_operator"`
+	DurableStreams                  bool               `json:"durable_streams"`
 	CreatedAt                       pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                       pgtype.Timestamptz `json:"updated_at"`
 }
@@ -3846,6 +3850,44 @@ type V1StepSlotRequest struct {
 	Units     int32              `json:"units"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+type V1StreamMessage struct {
+	ID                int64              `json:"id"`
+	InsertedAt        pgtype.Timestamptz `json:"inserted_at"`
+	TenantID          uuid.UUID          `json:"tenant_id"`
+	Namespace         string             `json:"namespace"`
+	Topic             string             `json:"topic"`
+	Payload           []byte             `json:"payload"`
+	ProducerID        string             `json:"producer_id"`
+	ProducerSeq       int64              `json:"producer_seq"`
+	PayloadID         *uuid.UUID         `json:"payload_id"`
+	PayloadInsertedAt pgtype.Timestamptz `json:"payload_inserted_at"`
+}
+
+type V1StreamPayload struct {
+	ID         uuid.UUID          `json:"id"`
+	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
+	TenantID   uuid.UUID          `json:"tenant_id"`
+	Payload    []byte             `json:"payload"`
+}
+
+type V1StreamProducerCursor struct {
+	TenantID   uuid.UUID   `json:"tenant_id"`
+	Namespace  string      `json:"namespace"`
+	Topic      string      `json:"topic"`
+	ProducerID string      `json:"producer_id"`
+	Bucket     pgtype.Date `json:"bucket"`
+	LastSeq    int64       `json:"last_seq"`
+}
+
+type V1StreamTopic struct {
+	TenantID        uuid.UUID          `json:"tenant_id"`
+	Namespace       string             `json:"namespace"`
+	Topic           string             `json:"topic"`
+	InsertedAt      pgtype.Timestamptz `json:"inserted_at"`
+	LastPublishedAt pgtype.Timestamptz `json:"last_published_at"`
+	LastOffset      int64              `json:"last_offset"`
 }
 
 type V1Task struct {

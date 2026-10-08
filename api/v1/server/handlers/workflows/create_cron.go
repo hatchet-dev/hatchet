@@ -6,6 +6,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/authz"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
@@ -79,6 +80,6 @@ func (t *WorkflowService) CronWorkflowTriggerCreate(ctx echo.Context, request ge
 	}
 
 	return gen.CronWorkflowTriggerCreate200JSONResponse(
-		*transformers.ToCronWorkflowsFromSQLC(cronTrigger),
+		*transformers.ToCronWorkflowsFromSQLC(cronTrigger, transformers.WithPayloads(authz.CanViewPayloads(ctx))),
 	), nil
 }

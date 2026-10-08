@@ -1,9 +1,11 @@
 import {
+  dailyLimitAlerts,
   dailyMeterSeverity,
   formatObservedUsage,
   formatTimeUntil,
   nextRefillAt,
   selectDailyMeters,
+  inventoryAllowancesFromPlan,
   shardUsageRows,
   sumUsageSeries,
   tenantUsageChart,
@@ -12,6 +14,8 @@ import {
 import {
   OrganizationTenantResourceLimits,
   OrganizationUsageFeature,
+  SubscriptionPlan,
+  SubscriptionPlanFeature,
   TenantResource,
   TenantResourceLimit,
 } from '@/lib/api/generated/control-plane/data-contracts';
@@ -77,6 +81,50 @@ describe('observed usage', () => {
   });
 });
 
+function planFeature(
+  featureId: string,
+  overrides: Partial<SubscriptionPlanFeature> = {},
+): SubscriptionPlanFeature {
+  return {
+    featureId,
+    name: featureId,
+    featureType: 'continuous_use',
+    included: true,
+    includedUsage: 0,
+    unlimited: false,
+    ...overrides,
+  };
+}
+
+function plan(features: SubscriptionPlanFeature[]): SubscriptionPlan {
+  return {
+    planCode: 'growth_monthly',
+    name: 'Growth',
+    description: '',
+    amountCents: 0,
+    featureGroups: [{ name: 'Usage', features }],
+  };
+}
+
+describe('inventoryAllowancesFromPlan', () => {
+  it('keeps finite caps and skips a zero grant', () => {
+    assert.deepEqual(
+      inventoryAllowancesFromPlan(
+        plan([
+          planFeature('crons', { includedUsage: 5 }),
+          planFeature('scheduled_runs', { unlimited: true, includedUsage: 0 }),
+          planFeature('webhooks', { includedUsage: 0 }),
+          planFeature('task_runs', { includedUsage: 1000 }),
+        ]),
+      ),
+      {
+        crons: { limit: 5, unlimited: false },
+        scheduled_runs: { limit: 0, unlimited: true },
+      },
+    );
+  });
+});
+
 describe('shardUsageRows', () => {
   it('builds the table from shard counts and skips inventory that did not load', () => {
     const rows = shardUsageRows({
@@ -135,6 +183,48 @@ describe('shardUsageRows', () => {
           unlimited: false,
           included: 3,
           period: false,
+          countOnly: false,
+        },
+      ],
+    );
+  });
+
+  it('draws inventory against the plan cap', () => {
+    const rows = shardUsageRows({
+      taskRuns: 0,
+      events: 0,
+      crons: 4,
+      webhooks: 2,
+      allowances: {
+        crons: { limit: 5, unlimited: false },
+        webhooks: { limit: 0, unlimited: true },
+      },
+    });
+
+    assert.deepEqual(
+      rows
+        .filter((row) => row.feature.featureId !== 'task_runs')
+        .filter((row) => row.feature.featureId !== 'events')
+        .map((row) => ({
+          id: row.feature.featureId,
+          usage: row.feature.usage,
+          unlimited: row.feature.unlimited,
+          included: row.feature.includedUsage,
+          countOnly: row.countOnly ?? false,
+        })),
+      [
+        {
+          id: 'crons',
+          usage: 4,
+          unlimited: false,
+          included: 5,
+          countOnly: false,
+        },
+        {
+          id: 'webhooks',
+          usage: 2,
+          unlimited: true,
+          included: 0,
           countOnly: false,
         },
       ],
@@ -328,6 +418,79 @@ describe('dailyMeterSeverity', () => {
       dailyMeterSeverity({ value: 600, limitValue: 1000, alarmValue: 500 }),
       'warn',
     );
+  });
+});
+
+describe('dailyLimitAlerts', () => {
+  it('stays quiet while the shard meter is under the warn threshold', () => {
+    const alerts = dailyLimitAlerts([
+      tenant('t1', 'ci', [
+        limit(TenantResource.TASK_RUN, { value: 8, limitValue: 2000 }),
+        limit(TenantResource.EVENT, { value: 8, limitValue: 1000 }),
+      ]),
+    ]);
+
+    assert.deepEqual(alerts, []);
+  });
+
+  it('reports the shard meter once it reaches the cap', () => {
+    const alerts = dailyLimitAlerts([
+      tenant('t1', 'ci', [
+        limit(TenantResource.TASK_RUN, {
+          value: 2000,
+          limitValue: 2000,
+          metadata: {
+            id: 'task-limit',
+            createdAt: '2026-09-28T00:00:00.000Z',
+            updatedAt: '2026-09-28T15:00:00.000Z',
+          },
+        }),
+        limit(TenantResource.EVENT, { value: 1000, limitValue: 1000 }),
+      ]),
+    ]);
+
+    assert.deepEqual(
+      alerts.map((alert) => ({
+        featureId: alert.featureId,
+        usage: alert.usage,
+        includedUsage: alert.includedUsage,
+        status: alert.status,
+        tenantName: alert.tenantName,
+      })),
+      [
+        {
+          featureId: 'task_runs_daily_limit',
+          usage: 2000,
+          includedUsage: 2000,
+          status: 'exhausted',
+          tenantName: undefined,
+        },
+        {
+          featureId: 'events_daily_limit',
+          usage: 1000,
+          includedUsage: 1000,
+          status: 'exhausted',
+          tenantName: undefined,
+        },
+      ],
+    );
+    assert.equal(alerts[0]?.timestamp, '2026-09-28T15:00:00.000Z');
+  });
+
+  it('names the tenant that is closest to its cap', () => {
+    const alerts = dailyLimitAlerts([
+      tenant('low', 'low', [
+        limit(TenantResource.TASK_RUN, { value: 8, limitValue: 2000 }),
+      ]),
+      tenant('high', 'high', [
+        limit(TenantResource.TASK_RUN, { value: 1600, limitValue: 2000 }),
+      ]),
+    ]);
+
+    assert.equal(alerts.length, 1);
+    assert.equal(alerts[0]?.status, 'warn');
+    assert.equal(alerts[0]?.usage, 1600);
+    assert.equal(alerts[0]?.tenantName, 'high');
   });
 });
 

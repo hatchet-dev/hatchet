@@ -408,6 +408,7 @@ func do(config LoadTestConfig) error {
 
 	executed := <-ch
 	uniques := <-ch
+	duplicates := executed - uniques
 
 	finalDurationResult := <-durationsResult
 	finalScheduledByKey := <-scheduledResult
@@ -490,10 +491,11 @@ func do(config LoadTestConfig) error {
 		// NOTE: `emit()` returns successfully pushed events (not merely generated IDs),
 		// so `emitted` here is effectively "pushed".
 		log.Printf(
-			"ℹ️ pushed %d, executed %d, uniques %d, using %d events/s (fanout=%d dagSteps=%d expected=%d)",
+			"ℹ️ pushed %d, executed %d, uniques %d, duplicates %d, using %d events/s (fanout=%d dagSteps=%d expected=%d)",
 			emitted,
 			executed,
 			uniques,
+			duplicates,
 			config.Events,
 			config.EventFanout,
 			config.DagSteps,
@@ -610,7 +612,11 @@ func do(config LoadTestConfig) error {
 		}
 
 		if expected != uniques {
-			return fmt.Errorf("❌ pushed and unique executed counts do not match: expected=%d got=%d (fanout=%d pushed=%d dagSteps=%d)", expected, uniques, config.EventFanout, emitted, config.DagSteps)
+			return fmt.Errorf("❌ pushed and unique executed counts do not match: expected=%d got=%d (fanout=%d pushed=%d dagSteps=%d duplicates=%d)", expected, uniques, config.EventFanout, emitted, config.DagSteps, duplicates)
+		}
+
+		if duplicates > 0 {
+			return fmt.Errorf("❌ %d task runs executed more than once (executed=%d uniques=%d)", duplicates, executed, uniques)
 		}
 
 		if finalDurationResult.avg > thresholdWithTolerance {

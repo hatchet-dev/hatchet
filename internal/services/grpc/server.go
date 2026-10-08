@@ -69,6 +69,7 @@ type Server struct {
 	admin         admin.AdminService
 	adminv1       adminv1.AdminService
 	operatorSvc   v1connect.OperatorServiceHandler
+	streamsv1     v1connect.V1StreamsHandler
 	otelCollector otelcol.OTelCollector
 	tls           *tls.Config
 	insecure      bool
@@ -94,6 +95,7 @@ type ServerOpts struct {
 	admin         admin.AdminService
 	adminv1       adminv1.AdminService
 	operatorSvc   v1connect.OperatorServiceHandler
+	streamsv1     v1connect.V1StreamsHandler
 	otelCollector otelcol.OTelCollector
 	tls           *tls.Config
 	insecure      bool
@@ -220,6 +222,12 @@ func WithOperatorService(o v1connect.OperatorServiceHandler) ServerOpt {
 	}
 }
 
+func WithStreamsV1(s v1connect.V1StreamsHandler) ServerOpt {
+	return func(opts *ServerOpts) {
+		opts.streamsv1 = s
+	}
+}
+
 func WithOTelCollector(oc otelcol.OTelCollector) ServerOpt {
 	return func(opts *ServerOpts) {
 		opts.otelCollector = oc
@@ -241,7 +249,7 @@ func NewServer(fs ...ServerOpt) (*Server, error) {
 		return nil, fmt.Errorf("tls config is required. use WithTLSConfig")
 	}
 
-	// the engine always serves the whole API; only the OTel collector is optional
+	// the operator, streams and OTel collector services are optional
 	switch {
 	case opts.ingestor == nil:
 		return nil, fmt.Errorf("ingestor is required. use WithIngestor")
@@ -271,6 +279,7 @@ func NewServer(fs ...ServerOpt) (*Server, error) {
 		admin:         opts.admin,
 		adminv1:       opts.adminv1,
 		operatorSvc:   opts.operatorSvc,
+		streamsv1:     opts.streamsv1,
 		otelCollector: opts.otelCollector,
 		tls:           opts.tls,
 		insecure:      opts.insecure,
@@ -347,6 +356,12 @@ func (s *Server) handler() (http.Handler, error) {
 
 	routes.addService(v1contracts.File_v1_workflows_proto.Services().ByName("AdminService"))
 	mux.Handle(v1connect.NewAdminServiceHandler(s.adminv1, opts...))
+
+	// the legacy v0 engine config doesn't run the streams service
+	if s.streamsv1 != nil {
+		routes.addService(v1contracts.File_v1_streams_proto.Services().ByName("V1Streams"))
+		mux.Handle(v1connect.NewV1StreamsHandler(s.streamsv1, opts...))
+	}
 
 	if s.operatorSvc != nil {
 		routes.addService(v1contracts.File_v1_operator_proto.Services().ByName("OperatorService"))

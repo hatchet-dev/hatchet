@@ -841,6 +841,14 @@ func mergeWorkflowConcurrencyOntoSingleTask(opts *CreateWorkflowVersionOpts) {
 	opts.Concurrency = nil
 }
 
+// With the DAG operator, each workflow run is a single orchestrator task, so limiting
+// that task limits the whole run. Workflow-level settings would instead be stored as
+// parent strategies, which the in-memory concurrency index can't handle.
+func mergeWorkflowConcurrencyOntoOrchestrator(opts *CreateWorkflowVersionOpts, orchestrator *CreateStepOpts) {
+	orchestrator.Concurrency = append(orchestrator.Concurrency, opts.Concurrency...)
+	opts.Concurrency = nil
+}
+
 func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sqlcv1.DBTX, tenantId, workflowId uuid.UUID, opts *CreateWorkflowVersionOpts, oldWorkflowVersion *sqlcv1.GetWorkflowVersionForEngineRow) (*uuid.UUID, error) {
 	workflowVersionId := uuid.New()
 
@@ -853,7 +861,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 	}
 
 	// todo: maybe don't need `len` check here?
-	isUsingDagOperator := dagOperatorEnabled && len(opts.Tasks) > 1
+	isUsingDagOperator := dagOperatorEnabled && (len(opts.Tasks) > 1 || opts.OnFailure != nil)
 
 	if isUsingDagOperator {
 		var retentionPeriod *string
@@ -865,8 +873,14 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 		// big number of retries to make it very unlikely we exhaust them
 		numRetries := 10_000
 
+		taskReadableIds := make([]string, len(opts.Tasks))
+
+		for i, task := range opts.Tasks {
+			taskReadableIds[i] = task.ReadableId
+		}
+
 		orchestrator := CreateStepOpts{
-			ReadableId:        opts.Name,
+			ReadableId:        dagOrchestratorReadableId(opts.Name, taskReadableIds),
 			Action:            DAGOrchestratorActionId(opts.Name),
 			IsDurable:         true,
 			IsDagOrchestrator: true,
@@ -875,20 +889,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 			Retries:           &numRetries,
 		}
 
-		// Tenant-scoped workflow-level entries become concurrency on the orchestrator
-		// task (in array order); workflow-scoped entries keep the parent fan-out below,
-		// which always gates first.
-		remaining := make([]CreateConcurrencyOpts, 0, len(opts.Concurrency))
-
-		for _, entry := range opts.Concurrency {
-			if entry.IsTenantScoped {
-				orchestrator.Concurrency = append(orchestrator.Concurrency, entry)
-			} else {
-				remaining = append(remaining, entry)
-			}
-		}
-
-		opts.Concurrency = remaining
+		mergeWorkflowConcurrencyOntoOrchestrator(opts, &orchestrator)
 		opts.Tasks = append(opts.Tasks, orchestrator)
 	}
 
@@ -1773,7 +1774,10 @@ func (r *workflowRepository) GetWorkflowVersionWithTriggers(ctx context.Context,
 	row, err := r.queries.GetWorkflowVersionById(
 		ctx,
 		r.pool,
-		workflowVersionId,
+		sqlcv1.GetWorkflowVersionByIdParams{
+			ID:       workflowVersionId,
+			Tenantid: tenantId,
+		},
 	)
 
 	if err != nil {
@@ -2135,6 +2139,10 @@ func orderWorkflowStepsV1(steps []CreateStepOpts) ([]CreateStepOpts, error) {
 	// Build a map of step id to step for quick lookup.
 	stepMap := make(map[string]CreateStepOpts)
 	for _, step := range steps {
+		if _, exists := stepMap[step.ReadableId]; exists {
+			return nil, fmt.Errorf("duplicate step name: %s", step.ReadableId)
+		}
+
 		stepMap[step.ReadableId] = step
 	}
 
