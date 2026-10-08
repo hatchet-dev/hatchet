@@ -30,4 +30,14 @@ while kill -0 "$HATCHET_API_PID" 2>/dev/null && kill -0 "$STATIC_PID" 2>/dev/nul
   sleep 1
 done
 
-shutdown
+if ! kill -0 "$HATCHET_API_PID" 2>/dev/null; then
+  wait "$HATCHET_API_PID"; rc=$?
+  echo "hatchet-api exited with status $rc"
+  kill -TERM "$STATIC_PID" 2>/dev/null; wait "$STATIC_PID"
+else
+  wait "$STATIC_PID"; rc=$?
+  echo "static file server exited with status $rc"
+  kill -TERM "$HATCHET_API_PID" 2>/dev/null; wait "$HATCHET_API_PID"
+fi
+
+exit "$rc"

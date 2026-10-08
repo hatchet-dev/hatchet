@@ -29,7 +29,7 @@ docker run -d --name fipssmoke-pg --network "$NET" \
 for _ in $(seq 1 30); do docker exec fipssmoke-pg pg_isready -U hatchet >/dev/null 2>&1 && break; sleep 2; done
 
 docker run -d --name fipssmoke-lite --network "$NET" \
-  -e GODEBUG=fips140=only \
+  -e GODEBUG=fips140=only -e SERVER_SECURITY_CHECK_ENABLED=false \
   -e DATABASE_URL="postgresql://hatchet:hatchet@fipssmoke-pg:5432/hatchet?sslmode=disable" \
   -e SERVER_GRPC_BIND_ADDRESS=0.0.0.0 -e SERVER_GRPC_BROADCAST_ADDRESS=localhost:7070 \
   -e SERVER_GRPC_INSECURE=true -e SERVER_AUTH_COOKIE_INSECURE=true -e SERVER_AUTH_COOKIE_DOMAIN=localhost \
@@ -58,6 +58,8 @@ printf '%s\n' 'R3set-Passw0rd-FIPS' | docker exec -i fipssmoke-lite ./hatchet-ad
 code=$(curl -s -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' -X POST "$base/api/v1/users/login" \
   -d '{"email":"fips-smoke@example.com","password":"R3set-Passw0rd-FIPS"}')
 [ "$code" = 200 ] && echo "login with reset password: $code" || { echo "::error::login with reset password returned $code"; fail=1; }
+code=$(curl -s -o /dev/null -w '%{http_code}' -b "$ck" "$base/api/v1/users/current")
+[ "$code" = 401 ] || [ "$code" = 403 ] && echo "old session revoked by reset: $code" || { echo "::error::old session still valid after reset: $code"; fail=1; }
 rm -f "$ck"
 
 if docker logs fipssmoke-lite 2>&1 | grep -q 'panic:'; then

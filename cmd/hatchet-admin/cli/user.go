@@ -90,7 +90,13 @@ func runSetPassword(cf *loader.ConfigLoader, email string, in io.Reader) error {
 		return fmt.Errorf("could not update user %s: %w", email, err)
 	}
 
-	fmt.Printf("password updated for %s\n", email)
+	sessions, err := dc.V1.UserSession().DeleteByUserId(ctx, user.ID, nil)
+
+	if err != nil {
+		return fmt.Errorf("password updated but could not revoke sessions for %s: %w", email, err)
+	}
+
+	fmt.Printf("password updated for %s, %d session(s) revoked\n", email, len(sessions))
 
 	return nil
 }
