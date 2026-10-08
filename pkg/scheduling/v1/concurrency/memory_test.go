@@ -137,7 +137,6 @@ func (r *generatedRowsRepo) ReadConcurrencySlotsForIndexing(ctx context.Context,
 	return nil
 }
 
-// keyShape describes the slots every key holds when the index is built.
 type keyShape struct {
 	kind    sqlcv1.V1ConcurrencyStrategy
 	maxRuns int32
@@ -145,8 +144,7 @@ type keyShape struct {
 	queued  int
 }
 
-// shapeRows emits keys keys of the given shape, with task ids and insert times increasing in
-// emission order.
+// shapeRows emits task ids and insert times in increasing order, as hydration reads them.
 func shapeRows(keys int, shape keyShape) func(emit func(*sqlcv1.ListConcurrencySlotsForIndexingRow)) {
 	return func(emit func(*sqlcv1.ListConcurrencySlotsForIndexingRow)) {
 		start := time.Now().UTC()
@@ -217,7 +215,6 @@ func BenchmarkKeyMemory(b *testing.B) {
 	}
 }
 
-// sampleHeapPeak records the largest HeapAlloc seen until the returned stop func is called.
 func sampleHeapPeak() (stop func() int64) {
 	var peak atomic.Int64
 	done := make(chan struct{})

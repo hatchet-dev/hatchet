@@ -14,76 +14,64 @@ import (
 // Approximate heap cost of each part of the index, measured with BenchmarkKeyMemory and
 // TestIndexMemoryFootprint. Used only for the estimated bytes gauge.
 const (
-	keyBytes         = 145
-	runningSlotBytes = 32
-	queuedKeyBytes   = 400
-	queuedSlotBytes  = 88
+	keyBytes              = 145
+	runningSlotBytes      = 32
+	largeRunningSlotBytes = 70
+	queuedKeyBytes        = 400
+	queuedSlotBytes       = 88
 )
 
-// residentSize is what one or more sub-queues hold in memory. queuedKeys counts the sub-queues
-// with a queued index, which has a fixed cost of its own.
+// residentSize is what one or more sub-queues hold in memory. largeRunning counts the running
+// slots kept in a heap index, which cost more than slots in a slice; queuedKeys counts the
+// sub-queues with a queued index, which has a fixed cost of its own.
 type residentSize struct {
-	running    int64
-	queued     int64
-	queuedKeys int64
+	running      int64
+	largeRunning int64
+	queued       int64
+	queuedKeys   int64
 }
 
 func (r residentSize) plus(o residentSize) residentSize {
 	return residentSize{
-		running:    r.running + o.running,
-		queued:     r.queued + o.queued,
-		queuedKeys: r.queuedKeys + o.queuedKeys,
+		running:      r.running + o.running,
+		largeRunning: r.largeRunning + o.largeRunning,
+		queued:       r.queued + o.queued,
+		queuedKeys:   r.queuedKeys + o.queuedKeys,
 	}
 }
 
 func (r residentSize) minus(o residentSize) residentSize {
 	return residentSize{
-		running:    r.running - o.running,
-		queued:     r.queued - o.queued,
-		queuedKeys: r.queuedKeys - o.queuedKeys,
+		running:      r.running - o.running,
+		largeRunning: r.largeRunning - o.largeRunning,
+		queued:       r.queued - o.queued,
+		queuedKeys:   r.queuedKeys - o.queuedKeys,
 	}
 }
 
 // residentCounts is a strategy's residentSize, readable by the gauge callback while the strategy
 // runs.
 type residentCounts struct {
-	running    atomic.Int64
-	queued     atomic.Int64
-	queuedKeys atomic.Int64
-}
-
-func (r *residentCounts) set(size residentSize) {
-	r.running.Store(size.running)
-	r.queued.Store(size.queued)
-	r.queuedKeys.Store(size.queuedKeys)
+	running      atomic.Int64
+	largeRunning atomic.Int64
+	queued       atomic.Int64
+	queuedKeys   atomic.Int64
 }
 
 func (r *residentCounts) add(delta residentSize) {
 	r.running.Add(delta.running)
+	r.largeRunning.Add(delta.largeRunning)
 	r.queued.Add(delta.queued)
 	r.queuedKeys.Add(delta.queuedKeys)
 }
 
 func (r *residentCounts) load() residentSize {
 	return residentSize{
-		running:    r.running.Load(),
-		queued:     r.queued.Load(),
-		queuedKeys: r.queuedKeys.Load(),
+		running:      r.running.Load(),
+		largeRunning: r.largeRunning.Load(),
+		queued:       r.queued.Load(),
+		queuedKeys:   r.queuedKeys.Load(),
 	}
-}
-
-// countResident sums what every sub-queue holds.
-func (c *ConcurrencyStrategy) countResident() residentSize {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	var size residentSize
-
-	for _, sq := range c.subQueues {
-		size = size.plus(sq.size())
-	}
-
-	return size
 }
 
 var (
@@ -172,7 +160,8 @@ func registerGauges(l *zerolog.Logger) {
 
 func estimatedBytes(keys int64, size residentSize) int64 {
 	return keys*keyBytes +
-		size.running*runningSlotBytes +
+		(size.running-size.largeRunning)*runningSlotBytes +
+		size.largeRunning*largeRunningSlotBytes +
 		size.queuedKeys*queuedKeyBytes +
 		size.queued*queuedSlotBytes
 }

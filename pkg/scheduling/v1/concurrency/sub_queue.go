@@ -120,11 +120,12 @@ func (s *subQueue) commit() residentSize {
 }
 
 // rollback reverts every mutation made since begin, restoring the in-memory index to match the
-// database after a failed flush. A queued index created during the scope is dropped.
-func (s *subQueue) rollback() {
+// database after a failed flush. A queued index created during the scope is dropped, but running
+// slots that moved to a heap index stay there, so it returns how the sub-queue's size changed.
+func (s *subQueue) rollback() residentSize {
 	u := s.undo
 	if u == nil {
-		return
+		return residentSize{}
 	}
 
 	s.undo = nil
@@ -145,12 +146,18 @@ func (s *subQueue) rollback() {
 
 	s.maxRuns = u.maxRuns
 	s.maxRunsFrom = u.maxRunsFrom
+
+	return s.size().minus(u.size)
 }
 
 func (s *subQueue) size() residentSize {
 	size := residentSize{
 		running: int64(s.running.len()),
 		queued:  int64(s.queued.len()),
+	}
+
+	if s.running.large != nil {
+		size.largeRunning = size.running
 	}
 
 	if s.queued != nil {

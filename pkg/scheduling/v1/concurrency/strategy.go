@@ -90,10 +90,18 @@ func (c *ConcurrencyStrategy) rollbackScopes() {
 	c.buildingMu.Lock()
 	defer c.buildingMu.Unlock()
 
-	for _, sq := range c.openScopes {
-		sq.rollback()
-	}
+	c.rollback(c.openScopes)
 	c.openScopes = nil
+}
+
+func (c *ConcurrencyStrategy) rollback(subQueues []*subQueue) {
+	var delta residentSize
+
+	for _, sq := range subQueues {
+		delta = delta.plus(sq.rollback())
+	}
+
+	c.resident.add(delta)
 }
 
 // appendPending records a single batch's result for the in-flight Run to collect.
@@ -352,9 +360,7 @@ func (c *ConcurrencyStrategy) queueAllSubQueues(ctx context.Context) (*repositor
 	if err != nil {
 		// the transaction rolled back, so undo the in-memory mutations to keep the index consistent
 		// with the database; the pass will retry on the next Run.
-		for _, sq := range touched {
-			sq.rollback()
-		}
+		c.rollback(touched)
 		return nil, err
 	}
 
@@ -493,6 +499,7 @@ func (c *ConcurrencyStrategy) buildIndex(ctx context.Context) error {
 				}
 
 				sq := c.getOrCreateSubQueue(row.Key)
+				before := sq.size()
 
 				// the timestamp guard makes page order irrelevant: each group converges to
 				// the value evaluated for its most recently created live slot
@@ -513,6 +520,9 @@ func (c *ConcurrencyStrategy) buildIndex(ctx context.Context) error {
 				} else {
 					sq.enqueue(s)
 				}
+
+				// counted per row so the gauges show a build in progress, or a failed one
+				c.resident.add(sq.size().minus(before))
 			}
 		}
 	}()
@@ -529,8 +539,6 @@ func (c *ConcurrencyStrategy) buildIndex(ctx context.Context) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	}
-
-	c.resident.set(c.countResident())
 
 	return nil
 }
