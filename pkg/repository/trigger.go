@@ -933,7 +933,7 @@ func (r *sharedRepository) triggerWorkflowsCore(
 			continue
 		}
 
-		countTasks += len(steps)
+		countTasks += meteredTaskCount(tuple, steps)
 	}
 
 	preTask, postTask := r.m.Meter(ctx, preflightTx, sqlcv1.LimitResourceTASKRUN, tenantId, int32(countTasks)) // nolint: gosec
@@ -2316,6 +2316,17 @@ func spawnsAsOperatorRun(tuple triggerTuple, steps []*sqlcv1.ListStepsByWorkflow
 	}
 
 	return false
+}
+
+// meteredTaskCount is the TASK_RUN charge for one trigger tuple. A DAG run is charged for its
+// user steps once, when the run is admitted; the DAG operator's per-step triggers run inside an
+// already-charged run, and the engine-generated orchestrator step is never charged.
+func meteredTaskCount(tuple triggerTuple, steps []*sqlcv1.ListStepsByWorkflowVersionIdsRow) int {
+	if tuple.targetActionId != nil {
+		return 0
+	}
+
+	return len(regularUserSteps(steps))
 }
 
 func regularUserSteps(steps []*sqlcv1.ListStepsByWorkflowVersionIdsRow) []*sqlcv1.ListStepsByWorkflowVersionIdsRow {

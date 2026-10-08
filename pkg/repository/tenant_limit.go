@@ -406,6 +406,12 @@ func (t *tenantLimitRepository) cachedCanCreate(ctx context.Context, dbtx sqlcv1
 
 func (t *tenantLimitRepository) Meter(ctx context.Context, dbtx sqlcv1.DBTX, resource sqlcv1.LimitResource, tenantId uuid.UUID, numberOfResources int32) (precommit func() error, postcommit func()) {
 	return func() error {
+			// a zero charge must pass even when the meter is over its limit: canCreate rejects
+			// any request once value >= limit, which would fail DAG step triggers mid-run
+			if numberOfResources == 0 {
+				return nil
+			}
+
 			canCreate, _, err := t.cachedCanCreate(ctx, dbtx, resource, tenantId, numberOfResources)
 
 			if err != nil {
