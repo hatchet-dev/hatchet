@@ -106,7 +106,7 @@ jobs:
       - name: Generate docs snippets and examples
         working-directory: frontend/snippets
         run: python3 generate.py
-      - name: Build servers (fips)
+      - name: Build api, engine, admin, migrate and lite binaries (fips)
         run: |
           for target in api engine admin migrate lite; do
             DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
@@ -114,12 +114,12 @@ jobs:
               -t hatchet-$target-fips-tmp . &
           done
           wait
-      - name: Build lite, dashboard and frontend (fips)
+      - name: Build lite, dashboard and frontend images (fips)
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/lite.dockerfile \
             --build-arg HATCHET_LITE_IMAGE=hatchet-lite-fips-tmp \
             --build-arg HATCHET_ADMIN_IMAGE=hatchet-admin-fips-tmp \
-            --build-arg HATCHET_MIGRATE_IMAGE=hatchet-migrate-fips-tmp \
+            --build-arg HATCHET_MIGRATE_IMAGE=hatchet-migrate-fips-tmp --build-arg FIPS=true \
             -t hatchet-lite-fips:ci .
           DOCKER_BUILDKIT=1 docker build -f ./build/package/dashboard.dockerfile \
             --build-arg HATCHET_API_IMAGE=hatchet-api-fips-tmp --build-arg FIPS=true \
@@ -136,6 +136,8 @@ jobs:
             hatchet-lite-fips:ci=/hatchet-lite,/hatchet-admin,/hatchet-migrate \
             hatchet-dashboard-fips:ci=/hatchet/hatchet-api,/hatchet/hatchet-staticfileserver \
             hatchet-frontend-fips:ci=/app/hatchet-staticfileserver
+      - name: Boot hatchet-lite-fips under fips140=only against SCRAM Postgres, register and log in
+        run: LITE_IMAGE=hatchet-lite-fips:ci bash hack/ci/smoke-fips.sh
 
   admin:
     runs-on: ubuntu-latest

@@ -26,4 +26,8 @@ HATCHET_API_PID=$!
 ./hatchet-staticfileserver -port 80 -static-asset-dir ./html -api-proxy "http://localhost:${SERVER_PORT:-8080}" &
 STATIC_PID=$!
 
-wait "$HATCHET_API_PID" "$STATIC_PID"
+while kill -0 "$HATCHET_API_PID" 2>/dev/null && kill -0 "$STATIC_PID" 2>/dev/null; do
+  sleep 1
+done
+
+shutdown

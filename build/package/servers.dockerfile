@@ -66,10 +66,10 @@ RUN oapi-codegen -config ./api/v1/server/oas/gen/codegen.yaml ./bin/oas/openapi.
 
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=$GOPATH/pkg/mod \
-    if [ "$FIPS" = "true" ]; then export GOFIPS140=v1.0.0; LDFLAGS="-w"; else LDFLAGS="-w -s"; fi && \
-    go build -tags="${GO_BUILD_TAGS}" -ldflags="${LDFLAGS} -X 'main.Version=${VERSION}'" -a -o ./bin/hatchet-${SERVER_TARGET} ./cmd/hatchet-${SERVER_TARGET} && \
+    if [ "$FIPS" = "true" ]; then export GOFIPS140=v1.0.0; fi && \
+    go build -tags="${GO_BUILD_TAGS}" -ldflags="-w -s -X 'main.Version=${VERSION}'" -a -o ./bin/hatchet-${SERVER_TARGET} ./cmd/hatchet-${SERVER_TARGET} && \
     if [ "$FIPS" = "true" ]; then \
-      go version -m ./bin/hatchet-${SERVER_TARGET} | grep -Ec 'GOFIPS140=v1.0.0|DefaultGODEBUG=.*fips140=only' | grep -qx 2 || { echo "hatchet-${SERVER_TARGET} is not linked against the validated FIPS module"; exit 1; }; \
+      go version -m ./bin/hatchet-${SERVER_TARGET} | grep -q 'GOFIPS140=v1.0.0-c2097c7c$' && go version -m ./bin/hatchet-${SERVER_TARGET} | grep -Eq 'DefaultGODEBUG=.*fips140=on(,|$)' || { echo "hatchet-${SERVER_TARGET} is not linked against the validated FIPS module"; exit 1; }; \
     fi
 
 # Deployment environment
@@ -85,8 +85,8 @@ LABEL run.hatchet.fips=${FIPS}
 
 WORKDIR /hatchet
 
-# openssl and bash needed for admin build
-RUN apk update && apk add --no-cache openssl bash ca-certificates tzdata
+# openssl is used by hatchet-admin quickstart to generate dev certs; FIPS images do not ship it
+RUN apk update && apk add --no-cache bash ca-certificates tzdata $([ "$FIPS" = "true" ] || echo openssl)
 
 COPY --from=build-go /hatchet/bin/hatchet-${SERVER_TARGET} /hatchet/
 

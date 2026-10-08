@@ -52,7 +52,7 @@ func NewLocalEncryption(masterKey []byte, privateEc256 []byte, publicEc256 []byt
 		return nil, err
 	}
 
-	envelope := aead.NewKMSEnvelopeAEAD2(envelopeKeyTemplate(), a)
+	envelope := aead.NewKMSEnvelopeAEAD2(envelopeKeyTemplate(masterHandle), a)
 
 	if envelope == nil {
 		return nil, fmt.Errorf("failed to create envelope")
@@ -65,12 +65,14 @@ func NewLocalEncryption(masterKey []byte, privateEc256 []byte, publicEc256 []byt
 	}, nil
 }
 
-func envelopeKeyTemplate() *tinkpb.KeyTemplate {
-	if fips140.Enabled() {
-		return aead.AES128CTRHMACSHA256KeyTemplate()
+func envelopeKeyTemplate(master *keyset.Handle) *tinkpb.KeyTemplate {
+	for _, k := range master.KeysetInfo().GetKeyInfo() {
+		if k.GetTypeUrl() == aesGCMKeyTypeURL {
+			return aead.AES128GCMKeyTemplate()
+		}
 	}
 
-	return aead.AES128GCMKeyTemplate()
+	return aead.AES128CTRHMACSHA256KeyTemplate()
 }
 
 func masterKeyTemplate() *tinkpb.KeyTemplate {
@@ -112,7 +114,7 @@ func checkFIPSKeyset(h *keyset.Handle) error {
 
 	for _, k := range h.KeysetInfo().GetKeyInfo() {
 		if k.GetTypeUrl() == aesGCMKeyTypeURL {
-			return fmt.Errorf("master keyset uses AES-GCM, which is not FIPS-approved: regenerate the keysets with a FIPS build of hatchet-admin; secrets encrypted under the old keyset (OAuth tokens, Slack and inbound webhook credentials) must be re-created")
+			return fmt.Errorf("master keyset uses AES-GCM, which is not FIPS-approved: run `hatchet-admin keyset create-local-keys` from a FIPS build to regenerate the master and JWT keysets together, then re-create secrets encrypted under the old master key (OAuth tokens, Slack and inbound webhook credentials)")
 		}
 	}
 

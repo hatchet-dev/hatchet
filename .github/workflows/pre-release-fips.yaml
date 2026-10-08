@@ -124,6 +124,7 @@ jobs:
             --build-arg HATCHET_LITE_IMAGE=hatchet-lite-fips-tmp:${{ matrix.arch }} \
             --build-arg HATCHET_ADMIN_IMAGE=hatchet-admin-fips-tmp:${{ matrix.arch }} \
             --build-arg HATCHET_MIGRATE_IMAGE=hatchet-migrate-fips-tmp:${{ matrix.arch }} \
+            --build-arg FIPS=true \
             .
       - name: Push to GHCR
         run: docker push $REGISTRY/hatchet-lite-fips:${{ steps.tag_name.outputs.tag }}-${{ matrix.arch }}
@@ -202,6 +203,8 @@ jobs:
               $r/hatchet-dashboard-fips:$t=/hatchet/hatchet-api,/hatchet/hatchet-staticfileserver \
               $r/hatchet-frontend-fips:$t=/app/hatchet-staticfileserver
           done
+      - name: Boot hatchet-lite-fips under fips140=only against SCRAM Postgres, register and log in
+        run: LITE_IMAGE=$REGISTRY/hatchet-lite-fips:${{ steps.tag_name.outputs.tag }}-amd64 bash hack/ci/smoke-fips.sh
 
   combine:
     name: Combine hatchet-${{ matrix.image }}-fips

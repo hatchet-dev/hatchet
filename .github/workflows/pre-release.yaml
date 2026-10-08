@@ -61,6 +61,7 @@ jobs:
       - build-push-hatchet-api-amd
       - build-push-hatchet-api-arm
       - auth-enabled
+      - non-fips
     steps:
       - name: Get tag name
         id: tag_name
@@ -209,6 +210,7 @@ jobs:
     needs:
       - build-push-hatchet-admin-amd
       - build-push-hatchet-admin-arm
+      - non-fips
     steps:
       - name: Get tag name
         id: tag_name
@@ -357,6 +359,7 @@ jobs:
     needs:
       - build-push-hatchet-engine-amd
       - build-push-hatchet-engine-arm
+      - non-fips
     steps:
       - name: Get tag name
         id: tag_name
@@ -507,6 +510,7 @@ jobs:
     needs:
       - build-push-hatchet-migrate-amd
       - build-push-hatchet-migrate-arm
+      - non-fips
     steps:
       - name: Get tag name
         id: tag_name
@@ -592,6 +596,7 @@ jobs:
     needs:
       - build-push-hatchet-frontend-amd
       - build-push-hatchet-frontend-arm
+      - non-fips
     steps:
       - name: Get tag name
         id: tag_name
@@ -807,6 +812,7 @@ jobs:
       - build-push-hatchet-lite-amd
       - build-push-hatchet-lite-arm
       - auth-enabled
+      - non-fips
     steps:
       - name: Get tag name
         id: tag_name
@@ -1060,6 +1066,7 @@ jobs:
       - build-push-hatchet-dashboard-amd
       - build-push-hatchet-dashboard-arm
       - auth-enabled
+      - non-fips
     steps:
       - name: Get tag name
         id: tag_name
