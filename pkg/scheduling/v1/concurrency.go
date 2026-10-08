@@ -261,20 +261,18 @@ func (c *ConcurrencyManager) loopConcurrency(ctx context.Context) {
 		}
 		c.releaseStrategyLocks()
 		if err != nil {
-			span.End()
-
 			logger.ShutdownAware(ctx, c.l, err, zerolog.ErrorLevel).Ctx(ctx).Err(err).Msg("error running concurrency strategy")
-
-			continue
-		}
-
-		if time.Since(start) > 100*time.Millisecond {
+		} else if time.Since(start) > 100*time.Millisecond {
 			c.l.Warn().Ctx(ctx).
 				Msgf("concurrency strategy %d took longer than 100ms (%s) to process %d items", c.strategy.ID, time.Since(start), len(results.Queued))
 		}
-		c.resultsCh <- &ConcurrencyResults{
-			RunConcurrencyResult: results,
-			TenantId:             c.tenantId,
+
+		// a failed run can still return results for the batches it committed before the error
+		if results != nil {
+			c.resultsCh <- &ConcurrencyResults{
+				RunConcurrencyResult: results,
+				TenantId:             c.tenantId,
+			}
 		}
 
 		span.End()
