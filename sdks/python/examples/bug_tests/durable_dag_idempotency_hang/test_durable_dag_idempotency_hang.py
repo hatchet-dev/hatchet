@@ -9,7 +9,7 @@ from examples.bug_tests.durable_dag_idempotency_hang.worker import (
 from uuid import uuid4
 
 
-@pytest.mark.timeout(5)
+@pytest.mark.timeout(5, func_only=True)
 @pytest.mark.asyncio(loop_scope="session")
 async def test_durable_idempotency_hang(hatchet: Hatchet) -> None:
     test_run_id = str(uuid4())
@@ -25,7 +25,7 @@ async def test_durable_idempotency_hang(hatchet: Hatchet) -> None:
     }
 
 
-@pytest.mark.timeout(5)
+@pytest.mark.timeout(5, func_only=True)
 @pytest.mark.asyncio(loop_scope="session")
 async def test_durable_dag_status_based_idempotency_key_is_released_on_completion(
     hatchet: Hatchet,
