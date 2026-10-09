@@ -35,7 +35,7 @@ BEGIN
             AND nt.retry_backoff_factor IS NOT NULL
             AND ot.app_retry_count IS DISTINCT FROM nt.app_retry_count
             AND nt.app_retry_count != 0
-            -- a retry-after failure writes its own retry queue item with the task-requested delay
+            -- retry-after failures insert their own retry queue item
             AND NOT EXISTS (
                 SELECT 1
                 FROM v1_retry_queue_item rqi
@@ -98,7 +98,7 @@ BEGIN
             AND nt.concurrency_strategy_ids[1] IS NOT NULL
             AND (nt.retry_backoff_factor IS NULL OR ot.app_retry_count IS NOT DISTINCT FROM nt.app_retry_count OR nt.app_retry_count = 0)
             AND ot.retry_count IS DISTINCT FROM nt.retry_count
-            -- a retry-after failure writes its retry queue item in the same statement; the slot is created when it is processed
+            -- retry-after failures get a slot when their retry queue item is processed
             AND NOT EXISTS (
                 SELECT 1
                 FROM v1_retry_queue_item rqi
@@ -218,7 +218,7 @@ BEGIN
         AND nt.concurrency_strategy_ids[1] IS NULL
         AND (nt.retry_backoff_factor IS NULL OR ot.app_retry_count IS NOT DISTINCT FROM nt.app_retry_count OR nt.app_retry_count = 0)
         AND ot.retry_count IS DISTINCT FROM nt.retry_count
-        -- a retry-after failure writes its retry queue item in the same statement; the task is queued when it is processed
+        -- retry-after failures are queued when their retry queue item is processed
         AND NOT EXISTS (
             SELECT 1
             FROM v1_retry_queue_item rqi

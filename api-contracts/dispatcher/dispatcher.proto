@@ -314,8 +314,7 @@ message StepActionEvent {
     // a flag indicating if the task should _not_ be retried
     optional bool should_not_retry = 11;
 
-    // the delay in milliseconds the task requested before its next attempt (FAILED only).
-    // the retry counts against the task's retry budget like any other failure.
+    // the delay in milliseconds before the next attempt (FAILED only)
     optional int64 retry_after_ms = 12;
 }
 
@@ -332,7 +331,7 @@ message BatchActionEventItem {
     // a flag indicating if the task should _not_ be retried (FAILED only)
     optional bool should_not_retry = 4;
 
-    // the delay in milliseconds the task requested before its next attempt (FAILED only)
+    // the delay in milliseconds before the next attempt (FAILED only)
     optional int64 retry_after_ms = 5;
 }
 

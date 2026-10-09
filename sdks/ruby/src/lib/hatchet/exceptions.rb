@@ -10,8 +10,7 @@ module Hatchet
     end
   end
 
-  # Raised to retry a task after a delay of its choosing. The retry counts against the task's
-  # retries like any other failure; only the delay before the next attempt changes.
+  # Raised to retry a task after a delay of its choosing. The retry counts against the task's retries.
   class RetryAfterError < Error
     # @return [Numeric] Seconds to wait before the next attempt
     attr_reader :after

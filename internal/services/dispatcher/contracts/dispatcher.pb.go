@@ -1460,8 +1460,7 @@ type StepActionEvent struct {
 	RetryCount *int32 `protobuf:"varint,10,opt,name=retry_count,json=retryCount,proto3,oneof" json:"retry_count,omitempty"`
 	// a flag indicating if the task should _not_ be retried
 	ShouldNotRetry *bool `protobuf:"varint,11,opt,name=should_not_retry,json=shouldNotRetry,proto3,oneof" json:"should_not_retry,omitempty"`
-	// the delay in milliseconds the task requested before its next attempt (FAILED only).
-	// the retry counts against the task's retry budget like any other failure.
+	// the delay in milliseconds before the next attempt (FAILED only)
 	RetryAfterMs *int64 `protobuf:"varint,12,opt,name=retry_after_ms,json=retryAfterMs,proto3,oneof" json:"retry_after_ms,omitempty"`
 }
 
@@ -1594,7 +1593,7 @@ type BatchActionEventItem struct {
 	RetryCount *int32 `protobuf:"varint,3,opt,name=retry_count,json=retryCount,proto3,oneof" json:"retry_count,omitempty"`
 	// a flag indicating if the task should _not_ be retried (FAILED only)
 	ShouldNotRetry *bool `protobuf:"varint,4,opt,name=should_not_retry,json=shouldNotRetry,proto3,oneof" json:"should_not_retry,omitempty"`
-	// the delay in milliseconds the task requested before its next attempt (FAILED only)
+	// the delay in milliseconds before the next attempt (FAILED only)
 	RetryAfterMs *int64 `protobuf:"varint,5,opt,name=retry_after_ms,json=retryAfterMs,proto3,oneof" json:"retry_after_ms,omitempty"`
 }
 

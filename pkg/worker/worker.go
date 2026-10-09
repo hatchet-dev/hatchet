@@ -1151,7 +1151,6 @@ func getHostName() string {
 	return hostName
 }
 
-// retryAfterMs returns the delay a RetryAfterError requested, or nil for any other error.
 func retryAfterMs(err error) *int64 {
 	retryAfterErr, ok := AsRetryAfterError(err)
 	if !ok {

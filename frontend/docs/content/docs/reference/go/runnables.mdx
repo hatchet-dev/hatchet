@@ -1341,7 +1341,7 @@ RateLimitDuration is the window over which a rate limit applies.
 
 ### RetryAfterError
 
-RetryAfterError marks a task failure as retryable after a delay of the task's choosing, e.g. the value of an upstream Retry-After header. The retry counts against the task's retries like any other failure; only the delay before the next attempt changes.
+RetryAfterError marks a task failure as retryable after a delay of the task's choosing.
 
 #### Functions
 
@@ -1626,7 +1626,7 @@ Returns:
 
 ### `NewRetryAfterError`
 
-NewRetryAfterError wraps err so that the task run's next retry, if it has retries left, runs no earlier than after from now.
+NewRetryAfterError wraps err so that the task's next retry runs after the given delay.
 
 ```go
 func NewRetryAfterError(after time.Duration, err error) error

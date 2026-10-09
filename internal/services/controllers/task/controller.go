@@ -1568,7 +1568,7 @@ func (tc *TasksControllerImpl) clampRetryAfter(retryAfterMs *int64) *time.Durati
 		return nil
 	}
 
-	// cap in milliseconds first: converting a huge value to time.Duration overflows to a negative delay
+	// cap in milliseconds first, since large values overflow time.Duration
 	limitMs := math.MaxInt64 / int64(time.Millisecond)
 
 	if tc.maxRetryAfter > 0 {

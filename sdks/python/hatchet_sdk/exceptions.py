@@ -36,9 +36,7 @@ class NonRetryableException(Exception):  # noqa: N818
 
 class RetryAfterException(Exception):  # noqa: N818
     """
-    Raise from a task to retry it after a delay of the task's choosing, e.g. the value of an upstream `Retry-After` header.
-
-    The retry counts against the task's `retries` like any other failure; only the delay before the next attempt changes.
+    Raise from a task to retry it after a delay of its choosing. The retry counts against the task's `retries`.
 
     :param message: The error message recorded for this attempt.
     :param after: The delay before the next attempt.

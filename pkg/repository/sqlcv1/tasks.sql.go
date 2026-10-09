@@ -761,7 +761,7 @@ func (q *Queries) FailTaskInternalFailure(ctx context.Context, db DBTX, arg Fail
 
 const failTaskRetryAfter = `-- name: FailTaskRetryAfter :many
 WITH input AS (
-    -- a re-sent failure report can put the same attempt in the batch twice; keep one so it gets one retry queue item
+    -- a re-sent failure report can duplicate an attempt in the batch
     SELECT DISTINCT ON (task_id, task_inserted_at, task_retry_count)
         task_id, task_inserted_at, task_retry_count, retry_after_ms
     FROM
@@ -868,8 +868,7 @@ type FailTaskRetryAfterRow struct {
 	RetryAfter    pgtype.Timestamptz `json:"retry_after"`
 }
 
-// Fails a task due to an application-level error with a task-requested delay before its next attempt.
-// These retries count against the task's retry budget like any other application failure.
+// Fails a task due to an application-level error, retrying it after a task-requested delay
 func (q *Queries) FailTaskRetryAfter(ctx context.Context, db DBTX, arg FailTaskRetryAfterParams) ([]*FailTaskRetryAfterRow, error) {
 	rows, err := db.Query(ctx, failTaskRetryAfter,
 		arg.Taskids,

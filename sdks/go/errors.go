@@ -24,15 +24,12 @@ func IsNonRetryableError(err error) bool {
 	return worker.IsNonRetryableError(err) //nolint:staticcheck // SA1019
 }
 
-// RetryAfterError marks a task failure as retryable after a delay of the task's choosing,
-// e.g. the value of an upstream Retry-After header. The retry counts against the task's
-// retries like any other failure; only the delay before the next attempt changes.
+// RetryAfterError marks a task failure as retryable after a delay of the task's choosing.
 //
 //nolint:staticcheck // SA1019: bridges to the v0 type so errors.As works across old and new code
 type RetryAfterError = worker.RetryAfterError
 
-// NewRetryAfterError wraps err so that the task run's next retry, if it has retries left,
-// runs no earlier than after from now.
+// NewRetryAfterError wraps err so that the task's next retry runs after the given delay.
 func NewRetryAfterError(after time.Duration, err error) error {
 	return worker.NewRetryAfterError(after, err) //nolint:staticcheck // SA1019
 }

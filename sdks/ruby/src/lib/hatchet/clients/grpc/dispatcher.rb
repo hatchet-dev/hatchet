@@ -138,7 +138,7 @@ module Hatchet
         # @param payload [String] JSON-serialized event payload
         # @param retry_count [Integer, nil] Current retry count
         # @param should_not_retry [Boolean, nil] Whether to suppress further retries
-        # @param retry_after_ms [Integer, nil] Delay the task requested before its next attempt
+        # @param retry_after_ms [Integer, nil] Delay in milliseconds before the next attempt
         # @return [ActionEventResponse]
         def send_step_action_event(action:, event_type:, payload: "{}", retry_count: nil, should_not_retry: nil,
                                    retry_after_ms: nil)

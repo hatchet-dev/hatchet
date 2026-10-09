@@ -199,7 +199,7 @@ type FailTaskOpts struct {
 	// (optional) A boolean flag to indicate whether the error is non-retryable, meaning it should _not_ be retried. Defaults to false.
 	IsNonRetryable bool
 
-	// (optional) the delay the task requested before its next attempt. Only applies to app errors that are retryable.
+	// (optional) the delay before the next attempt. Ignored when IsNonRetryable is set.
 	RetryAfter *time.Duration
 }
 
@@ -238,7 +238,7 @@ type RetriedTask struct {
 
 	RetryMaxBackoff pgtype.Int4
 
-	// set when the task requested the time of its next attempt
+	// set when the task requested a delayed retry
 	RetryAfter *time.Time
 }
 

@@ -124,11 +124,7 @@ export type RetryAfterOpts = {
 };
 
 /**
- * Throw from a task to retry it after a delay of the task's choosing, e.g. the value of an
- * upstream `Retry-After` header.
- *
- * The retry counts against the task's `retries` like any other failure; only the delay before
- * the next attempt changes.
+ * Throw from a task to retry it after a delay of its choosing. The retry counts against the task's `retries`.
  */
 export class RetryAfterError extends Error {
   readonly afterMs: number;

@@ -178,7 +178,6 @@ type Worker struct {
 	// false, they fall back to the legacy RegisterDurableEvent RPC path.
 	supportsDurableEviction bool
 
-	// engineVersion is resolved at start; empty when the engine does not report one.
 	engineVersion string
 
 	hasDurable bool
@@ -553,7 +552,6 @@ func (w *Worker) checkEvictionSupport(ctx context.Context) error {
 	return nil
 }
 
-// warnUnsupportedRetryAfter logs when a task returns a RetryAfterError to an engine that ignores the delay.
 func (w *Worker) warnUnsupportedRetryAfter(ctx worker.HatchetContext, next func(worker.HatchetContext) error) error {
 	err := next(ctx)
 

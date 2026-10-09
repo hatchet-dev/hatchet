@@ -405,10 +405,9 @@ RETURNING
     v1_task.retry_max_backoff;
 
 -- name: FailTaskRetryAfter :many
--- Fails a task due to an application-level error with a task-requested delay before its next attempt.
--- These retries count against the task's retry budget like any other application failure.
+-- Fails a task due to an application-level error, retrying it after a task-requested delay
 WITH input AS (
-    -- a re-sent failure report can put the same attempt in the batch twice; keep one so it gets one retry queue item
+    -- a re-sent failure report can duplicate an attempt in the batch
     SELECT DISTINCT ON (task_id, task_inserted_at, task_retry_count)
         *
     FROM

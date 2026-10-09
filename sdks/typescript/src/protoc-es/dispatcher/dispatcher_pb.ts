@@ -672,8 +672,7 @@ export type StepActionEvent = Message<"StepActionEvent"> & {
   shouldNotRetry?: boolean | undefined;
 
   /**
-   * the delay in milliseconds the task requested before its next attempt (FAILED only).
-   * the retry counts against the task's retry budget like any other failure.
+   * the delay in milliseconds before the next attempt (FAILED only)
    *
    * @generated from field: optional int64 retry_after_ms = 12;
    */
@@ -720,7 +719,7 @@ export type BatchActionEventItem = Message<"BatchActionEventItem"> & {
   shouldNotRetry?: boolean | undefined;
 
   /**
-   * the delay in milliseconds the task requested before its next attempt (FAILED only)
+   * the delay in milliseconds before the next attempt (FAILED only)
    *
    * @generated from field: optional int64 retry_after_ms = 5;
    */

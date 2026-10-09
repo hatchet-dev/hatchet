@@ -113,7 +113,7 @@ type BatchActionEventItem struct {
 	// a flag indicating if the task should _not_ be retried (FAILED only)
 	ShouldNotRetry *bool
 
-	// the delay in milliseconds the task requested before its next attempt (FAILED only)
+	// the delay in milliseconds before the next attempt (FAILED only)
 	RetryAfterMs *int64
 }
 
@@ -237,7 +237,7 @@ type ActionEvent struct {
 	// If this is an error, whether to retry on failure
 	ShouldNotRetry *bool
 
-	// If this is an error, the delay in milliseconds the task requested before its next attempt
+	// If this is an error, the delay in milliseconds before the next attempt
 	RetryAfterMs *int64
 }
 
