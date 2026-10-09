@@ -178,7 +178,7 @@ func (t *tenantManager) listenForWorkerLeases(ctx context.Context) {
 					t.scheduler.addWorker(worker)
 				}
 
-				t.replenish(ctx)
+				t.requestReplenish()
 
 				// notify all queues to check if the new worker can take any tasks
 				t.queuersMu.RLock()
@@ -246,7 +246,7 @@ func (t *tenantManager) listenForBatchLeases(ctx context.Context) {
 			if !ok {
 				return
 			}
-			t.replenish(ctx)
+			t.requestReplenish()
 
 			t.setBatchSchedulers(ctx, batches)
 		}
@@ -470,12 +470,10 @@ func (t *tenantManager) notifyQueuers(ctx context.Context, queueNames []string) 
 	}
 }
 
-func (t *tenantManager) replenish(ctx context.Context) {
-	err := t.scheduler.replenish(ctx, false)
-
-	if err != nil {
-		t.l.Error().Err(err).Msg("error replenishing scheduler")
-	}
+// requestReplenish asks the scheduler's replenish loop for a cycle and returns
+// without waiting for it.
+func (t *tenantManager) requestReplenish() {
+	t.scheduler.notifyReplenish()
 }
 
 func (t *tenantManager) notifyConcurrency(ctx context.Context, strategyIds []int64) {
