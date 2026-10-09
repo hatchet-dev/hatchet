@@ -2,6 +2,10 @@ import { V1RunIndicator } from '../../../components/run-statuses';
 import { RunsTable } from '../../../components/runs-table';
 import { RunsProvider } from '../../../hooks/runs-provider';
 import { useIsTaskRunSkipped } from '../../../hooks/use-is-task-run-skipped';
+import {
+  replayAsNewDisabledReason,
+  useReplayAsNew,
+} from '../../../hooks/use-replay-as-new';
 import { useRunDetailSearch } from '../../../hooks/use-run-detail-search';
 import { isTerminalState } from '../../../hooks/use-workflow-details';
 import { TaskRunMiniMap } from '../mini-map';
@@ -25,6 +29,7 @@ import {
 import { V1TaskStatus, V1TaskSummary, queries } from '@/lib/api';
 import { emptyGolangUUID, formatDuration } from '@/lib/utils';
 import { TaskRunActionButton } from '@/pages/main/v1/task-runs-v1/actions';
+import { ReplaySplitButton } from '@/pages/main/v1/task-runs-v1/replay-split-button';
 import { WorkflowDefinitionLink } from '@/pages/main/workflow-runs/$run/v2components/workflow-definition';
 import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
@@ -129,6 +134,7 @@ export const TaskRunDetail = ({
   });
 
   const { isSkipped } = useIsTaskRunSkipped({ taskRunId });
+  const { canReplayAsNew, replayAsNew, dialog } = useReplayAsNew();
   const taskRun = taskRunQuery.data;
 
   if (taskRunQuery.isLoading) {
@@ -141,6 +147,7 @@ export const TaskRunDetail = ({
 
   return (
     <div className="flex w-full flex-col gap-4 h-full">
+      {dialog}
       <div className="flex flex-row items-center justify-between">
         <div className="flex w-full flex-row items-center justify-between">
           <div className="flex flex-row items-center gap-4">
@@ -164,12 +171,15 @@ export const TaskRunDetail = ({
         <div className="side-responsive-inner flex w-full flex-col items-start gap-2">
           <div className="flex flex-row items-center gap-2">
             <RunsProvider tableKey="task-run-detail">
-              <TaskRunActionButton
-                actionType="replay"
-                paramOverrides={{ externalIds: [taskRunId] }}
-                disabled={!TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
-                showModal={false}
-                showLabel
+              <ReplaySplitButton
+                externalId={taskRunId}
+                replayDisabled={
+                  !TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)
+                }
+                onReplayAsNew={
+                  canReplayAsNew ? () => replayAsNew(taskRun) : undefined
+                }
+                replayAsNewDisabledReason={replayAsNewDisabledReason(taskRun)}
               />
               <TaskRunActionButton
                 actionType="cancel"

@@ -1,6 +1,7 @@
 import { TabOption } from '../$run/v2components/step-run-detail/step-run-detail';
 import { TriggerWorkflowForm } from '../../workflows/$workflow/components/trigger-workflow-form';
 import { useRunsContext } from '../hooks/runs-provider';
+import { useReplayAsNew } from '../hooks/use-replay-as-new';
 import { AdditionalMetadataProp } from '../hooks/use-runs-table-filters';
 import { RunsEmptyGraphic } from './runs-empty-graphic';
 import { RequestTimeoutCloudCTAEmptyState } from './runs-timeout-empty-state';
@@ -171,6 +172,12 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
     [filters],
   );
 
+  const {
+    canReplayAsNew,
+    replayAsNew,
+    dialog: replayAsNewDialog,
+  } = useReplayAsNew();
+
   const tableColumns = useMemo(
     () =>
       columns(
@@ -180,6 +187,7 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
         handleTaskRunIdClick,
         handleAdditionalMetadataOpenChange,
         handleIdempotencyKeyClick,
+        canReplayAsNew ? replayAsNew : undefined,
       ),
     [
       tenantId,
@@ -188,6 +196,8 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
       handleTaskRunIdClick,
       handleAdditionalMetadataOpenChange,
       handleIdempotencyKeyClick,
+      canReplayAsNew,
+      replayAsNew,
     ],
   );
 
@@ -253,6 +263,8 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
         show={showTriggerWorkflow}
         onClose={() => setShowTriggerWorkflow(false)}
       />
+
+      {replayAsNewDialog}
 
       {!hideMetrics && (
         <Dialog open={showQueueMetrics} onOpenChange={setShowQueueMetrics}>

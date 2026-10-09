@@ -1,11 +1,13 @@
 import { TaskRunActionButton } from '../../../task-runs-v1/actions';
+import { ReplaySplitButton } from '../../../task-runs-v1/replay-split-button';
+import { useReplayAsNew } from '../../hooks/use-replay-as-new';
 import { useWorkflowDetails } from '../../hooks/use-workflow-details';
 import { TASK_RUN_TERMINAL_STATUSES } from './step-run-detail/step-run-detail';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
 import { Toaster } from '@/components/v1/ui/toaster';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { V1TaskStatus, queries } from '@/lib/api';
+import { V1TaskStatus, V1WorkflowType, queries } from '@/lib/api';
 import { formatDuration } from '@/lib/utils';
 import { WorkflowDefinitionLink } from '@/pages/main/workflow-runs/$run/v2components/workflow-definition';
 import { appRoutes } from '@/router';
@@ -20,6 +22,7 @@ export const V1RunDetailHeader = () => {
     workflowConfig,
     isLoading: loading,
   } = useWorkflowDetails();
+  const { canReplayAsNew, replayAsNew, dialog } = useReplayAsNew();
 
   if (loading || !workflowRun) {
     return <div>Loading...</div>;
@@ -28,6 +31,7 @@ export const V1RunDetailHeader = () => {
   return (
     <div className="flex flex-col gap-4">
       <Toaster />
+      {dialog}
       <div className="flex flex-row items-center justify-between">
         <div className="flex w-full flex-row items-center justify-between">
           <div>
@@ -39,14 +43,20 @@ export const V1RunDetailHeader = () => {
           <div className="flex flex-row items-center gap-2">
             <CopyWorkflowConfigButton workflowConfig={workflowConfig} />
             <WorkflowDefinitionLink workflowId={workflowRun.workflowId} />
-            <TaskRunActionButton
-              actionType="replay"
-              paramOverrides={{ externalIds: [workflowRun.metadata.id] }}
-              disabled={
+            <ReplaySplitButton
+              externalId={workflowRun.metadata.id}
+              replayDisabled={
                 !TASK_RUN_TERMINAL_STATUSES.includes(workflowRun.status)
               }
-              showModal={false}
-              showLabel
+              onReplayAsNew={
+                canReplayAsNew
+                  ? () =>
+                      replayAsNew({
+                        ...workflowRun,
+                        type: V1WorkflowType.DAG,
+                      })
+                  : undefined
+              }
             />
             <TaskRunActionButton
               actionType="cancel"
