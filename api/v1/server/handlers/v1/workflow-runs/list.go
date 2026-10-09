@@ -3,6 +3,7 @@ package workflowruns
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -100,22 +101,144 @@ func normalizeWorkflowRunStatuses(statuses []gen.V1TaskStatus, runningFilter *ge
 	return normalized
 }
 
+type workflowRunFilters struct {
+	Statuses                   *[]gen.V1TaskStatus
+	RunningFilter              *gen.V1RunningFilter
+	Since                      time.Time
+	Until                      *time.Time
+	AdditionalMetadata         *[]string
+	AdditionalMetadataOperator *gen.V1AdditionalMetadataOperator
+	WorkflowIds                *[]uuid.UUID
+	WorkerId                   *uuid.UUID
+	ParentTaskExternalId       *uuid.UUID
+	TriggeringEventExternalId  *uuid.UUID
+	IdempotencyKeys            *[]string
+}
+
+func workflowRunFiltersFromListParams(params gen.V1WorkflowRunListParams) workflowRunFilters {
+	return workflowRunFilters{
+		Statuses:                   params.Statuses,
+		RunningFilter:              params.RunningFilter,
+		Since:                      params.Since,
+		Until:                      params.Until,
+		AdditionalMetadata:         params.AdditionalMetadata,
+		AdditionalMetadataOperator: params.AdditionalMetadataOperator,
+		WorkflowIds:                params.WorkflowIds,
+		WorkerId:                   params.WorkerId,
+		ParentTaskExternalId:       params.ParentTaskExternalId,
+		TriggeringEventExternalId:  params.TriggeringEventExternalId,
+		IdempotencyKeys:            params.IdempotencyKeys,
+	}
+}
+
+func workflowRunFiltersFromCountParams(params gen.V1WorkflowRunCountGetParams) workflowRunFilters {
+	return workflowRunFilters{
+		Statuses:                   params.Statuses,
+		RunningFilter:              params.RunningFilter,
+		Since:                      params.Since,
+		Until:                      params.Until,
+		AdditionalMetadata:         params.AdditionalMetadata,
+		AdditionalMetadataOperator: params.AdditionalMetadataOperator,
+		WorkflowIds:                params.WorkflowIds,
+		WorkerId:                   params.WorkerId,
+		ParentTaskExternalId:       params.ParentTaskExternalId,
+		TriggeringEventExternalId:  params.TriggeringEventExternalId,
+		IdempotencyKeys:            params.IdempotencyKeys,
+	}
+}
+
+func includeNumPages(params gen.V1WorkflowRunListParams) bool {
+	return params.IncludeNumPages == nil || *params.IncludeNumPages
+}
+
+func olapStatusesFromFilters(filters workflowRunFilters) []sqlcv1.V1ReadableStatusOlap {
+	if filters.Statuses != nil && len(*filters.Statuses) > 0 {
+		return normalizeWorkflowRunStatuses(*filters.Statuses, filters.RunningFilter)
+	}
+
+	return allOlapStatuses(filters.RunningFilter)
+}
+
+func workflowIdsFromFilters(filters workflowRunFilters) []uuid.UUID {
+	if filters.WorkflowIds != nil {
+		return *filters.WorkflowIds
+	}
+
+	return []uuid.UUID{}
+}
+
+func additionalMetadataFromFilters(filters workflowRunFilters) map[string]interface{} {
+	if filters.AdditionalMetadata == nil {
+		return nil
+	}
+
+	additionalMetadata := make(map[string]interface{})
+
+	for _, v := range *filters.AdditionalMetadata {
+		kv_pairs := strings.SplitN(v, ":", 2)
+		if len(kv_pairs) == 2 {
+			additionalMetadata[kv_pairs[0]] = kv_pairs[1]
+		}
+	}
+
+	return additionalMetadata
+}
+
+func listWorkflowRunOptsFromFilters(filters workflowRunFilters, useGinIndex bool) v1.ListWorkflowRunOpts {
+	additionalMetadata := additionalMetadataFromFilters(filters)
+
+	return v1.ListWorkflowRunOpts{
+		CreatedAfter:               filters.Since,
+		FinishedBefore:             filters.Until,
+		Statuses:                   olapStatusesFromFilters(filters),
+		WorkflowIds:                workflowIdsFromFilters(filters),
+		AdditionalMetadata:         additionalMetadata,
+		AdditionalMetadataOperator: additionalMetadataOperator(filters.AdditionalMetadataOperator, len(additionalMetadata), useGinIndex),
+		ParentTaskExternalId:       filters.ParentTaskExternalId,
+		TriggeringEventExternalId:  filters.TriggeringEventExternalId,
+		IdempotencyKeys:            filters.IdempotencyKeys,
+	}
+}
+
+func listTaskRunOptsFromFilters(filters workflowRunFilters, useGinIndex bool) v1.ListTaskRunOpts {
+	additionalMetadata := additionalMetadataFromFilters(filters)
+
+	return v1.ListTaskRunOpts{
+		CreatedAfter:               filters.Since,
+		FinishedBefore:             filters.Until,
+		Statuses:                   olapStatusesFromFilters(filters),
+		WorkflowIds:                workflowIdsFromFilters(filters),
+		WorkerId:                   filters.WorkerId,
+		AdditionalMetadata:         additionalMetadata,
+		AdditionalMetadataOperator: additionalMetadataOperator(filters.AdditionalMetadataOperator, len(additionalMetadata), useGinIndex),
+		TriggeringEventExternalId:  filters.TriggeringEventExternalId,
+		IdempotencyKeys:            filters.IdempotencyKeys,
+	}
+}
+
+func (t *V1WorkflowRunsService) shouldUseGinIndexForAdditionalMetadata(ctx context.Context, tenantId uuid.UUID, additionalMetadata *[]string) (bool, error) {
+	if additionalMetadata == nil || len(*additionalMetadata) == 0 {
+		return false, nil
+	}
+
+	enabled, err := t.config.V1.TenantEntitlement().HasEntitlement(ctx, tenantId, v1.EntitlementStrictAdditionalMetadataFilters)
+
+	if err != nil {
+		return false, err
+	}
+
+	// if there's only one filter, we should always use the `AND` path with the index, since it's the most performant and all methods are equivalent in that case
+	return enabled || len(*additionalMetadata) == 1, nil
+}
+
 func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenantId uuid.UUID, useGinIndex bool, canViewPayloads bool) (gen.V1WorkflowRunListResponseObject, error) {
 	ctx, span := telemetry.NewSpan(ctx, "v1-workflow-runs-list-with-dags-tasks")
 	defer span.End()
 
 	var (
-		statuses       = allOlapStatuses(request.Params.RunningFilter)
-		since          = request.Params.Since
-		limit    int64 = 50
-		offset   int64
+		limit  int64 = 50
+		offset int64
 	)
-
-	if request.Params.Statuses != nil {
-		if len(*request.Params.Statuses) > 0 {
-			statuses = normalizeWorkflowRunStatuses(*request.Params.Statuses, request.Params.RunningFilter)
-		}
-	}
 
 	if request.Params.Limit != nil {
 		limit = *request.Params.Limit
@@ -125,52 +248,16 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 		offset = *request.Params.Offset
 	}
 
-	workflowIds := make([]uuid.UUID, 0)
-	if request.Params.WorkflowIds != nil {
-		workflowIds = *request.Params.WorkflowIds
-	}
-
 	includePayloads := false
 	if request.Params.IncludePayloads != nil {
 		includePayloads = *request.Params.IncludePayloads
 	}
 
-	opts := v1.ListWorkflowRunOpts{
-		CreatedAfter:    since,
-		Statuses:        statuses,
-		WorkflowIds:     workflowIds,
-		Limit:           limit,
-		Offset:          offset,
-		IncludePayloads: includePayloads,
-		IdempotencyKeys: request.Params.IdempotencyKeys,
-	}
-
-	additionalMetadataFilters := make(map[string]interface{})
-
-	if request.Params.AdditionalMetadata != nil {
-		for _, v := range *request.Params.AdditionalMetadata {
-			kv_pairs := strings.SplitN(v, ":", 2)
-			if len(kv_pairs) == 2 {
-				additionalMetadataFilters[kv_pairs[0]] = kv_pairs[1]
-			}
-		}
-
-		opts.AdditionalMetadata = additionalMetadataFilters
-	}
-
-	opts.AdditionalMetadataOperator = additionalMetadataOperator(request.Params.AdditionalMetadataOperator, len(opts.AdditionalMetadata), useGinIndex)
-
-	if request.Params.Until != nil {
-		opts.FinishedBefore = request.Params.Until
-	}
-
-	if request.Params.ParentTaskExternalId != nil {
-		opts.ParentTaskExternalId = request.Params.ParentTaskExternalId
-	}
-
-	if request.Params.TriggeringEventExternalId != nil {
-		opts.TriggeringEventExternalId = request.Params.TriggeringEventExternalId
-	}
+	opts := listWorkflowRunOptsFromFilters(workflowRunFiltersFromListParams(request.Params), useGinIndex)
+	opts.Limit = limit
+	opts.Offset = offset
+	opts.IncludePayloads = includePayloads
+	opts.IncludeTotalCount = includeNumPages(request.Params)
 
 	dags, total, err := t.config.V1.OLAP().ListWorkflowRuns(
 		ctx,
@@ -255,18 +342,9 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 	defer span.End()
 
 	var (
-		statuses          = allOlapStatuses(request.Params.RunningFilter)
-		since             = request.Params.Since
-		workflowIds       = []uuid.UUID{}
-		limit       int64 = 50
-		offset      int64
+		limit  int64 = 50
+		offset int64
 	)
-
-	if request.Params.Statuses != nil {
-		if len(*request.Params.Statuses) > 0 {
-			statuses = normalizeWorkflowRunStatuses(*request.Params.Statuses, request.Params.RunningFilter)
-		}
-	}
 
 	if request.Params.Limit != nil {
 		limit = *request.Params.Limit
@@ -276,48 +354,16 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 		offset = *request.Params.Offset
 	}
 
-	if request.Params.WorkflowIds != nil {
-		workflowIds = *request.Params.WorkflowIds
-	}
-
 	includePayloads := false
 	if request.Params.IncludePayloads != nil {
 		includePayloads = *request.Params.IncludePayloads
 	}
 
-	opts := v1.ListTaskRunOpts{
-		CreatedAfter:    since,
-		Statuses:        statuses,
-		WorkflowIds:     workflowIds,
-		Limit:           limit,
-		Offset:          offset,
-		WorkerId:        request.Params.WorkerId,
-		IncludePayloads: includePayloads,
-		IdempotencyKeys: request.Params.IdempotencyKeys,
-	}
-
-	additionalMetadataFilters := make(map[string]interface{})
-
-	if request.Params.AdditionalMetadata != nil {
-		for _, v := range *request.Params.AdditionalMetadata {
-			kv_pairs := strings.SplitN(v, ":", 2)
-			if len(kv_pairs) == 2 {
-				additionalMetadataFilters[kv_pairs[0]] = kv_pairs[1]
-			}
-		}
-
-		opts.AdditionalMetadata = additionalMetadataFilters
-	}
-
-	opts.AdditionalMetadataOperator = additionalMetadataOperator(request.Params.AdditionalMetadataOperator, len(opts.AdditionalMetadata), useGinIndex)
-
-	if request.Params.Until != nil {
-		opts.FinishedBefore = request.Params.Until
-	}
-
-	if request.Params.TriggeringEventExternalId != nil {
-		opts.TriggeringEventExternalId = request.Params.TriggeringEventExternalId
-	}
+	opts := listTaskRunOptsFromFilters(workflowRunFiltersFromListParams(request.Params), useGinIndex)
+	opts.Limit = limit
+	opts.Offset = offset
+	opts.IncludePayloads = includePayloads
+	opts.IncludeTotalCount = includeNumPages(request.Params)
 
 	tasks, total, err := t.config.V1.OLAP().ListTasks(
 		ctx,
@@ -373,17 +419,10 @@ func (t *V1WorkflowRunsService) V1WorkflowRunList(ctx echo.Context, request gen.
 	spanContext, span := telemetry.NewSpan(ctx.Request().Context(), "v1-workflow-runs-list")
 	defer span.End()
 
-	useGinIndex := false
+	useGinIndex, err := t.shouldUseGinIndexForAdditionalMetadata(spanContext, tenantId, request.Params.AdditionalMetadata)
 
-	if request.Params.AdditionalMetadata != nil && len(*request.Params.AdditionalMetadata) > 0 {
-		enabled, err := t.config.V1.TenantEntitlement().HasEntitlement(spanContext, tenantId, v1.EntitlementStrictAdditionalMetadataFilters)
-
-		if err != nil {
-			return nil, err
-		}
-
-		// if there's only one filter, we should always use the `AND` path with the index, since it's the most performant and all methods are equivalent in that case
-		useGinIndex = enabled || len(*request.Params.AdditionalMetadata) == 1
+	if err != nil {
+		return nil, err
 	}
 
 	canViewPayloads := authz.CanViewPayloads(ctx)
@@ -393,6 +432,40 @@ func (t *V1WorkflowRunsService) V1WorkflowRunList(ctx echo.Context, request gen.
 	}
 
 	return t.WithDags(spanContext, request, tenantId, useGinIndex, canViewPayloads)
+}
+
+func (t *V1WorkflowRunsService) V1WorkflowRunCountGet(ctx echo.Context, request gen.V1WorkflowRunCountGetRequestObject) (gen.V1WorkflowRunCountGetResponseObject, error) {
+	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
+	tenantId := tenant.ID
+
+	spanContext, span := telemetry.NewSpan(ctx.Request().Context(), "v1-workflow-runs-count")
+	defer span.End()
+
+	useGinIndex, err := t.shouldUseGinIndexForAdditionalMetadata(spanContext, tenantId, request.Params.AdditionalMetadata)
+
+	if err != nil {
+		return nil, err
+	}
+
+	filters := workflowRunFiltersFromCountParams(request.Params)
+
+	count, err := t.countWorkflowRunsOrTasks(spanContext, tenantId, filters, request.Params.OnlyTasks, useGinIndex)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return gen.V1WorkflowRunCountGet200JSONResponse{
+		Count: int64(count),
+	}, nil
+}
+
+func (t *V1WorkflowRunsService) countWorkflowRunsOrTasks(ctx context.Context, tenantId uuid.UUID, filters workflowRunFilters, onlyTasks bool, useGinIndex bool) (int, error) {
+	if onlyTasks {
+		return t.config.V1.OLAP().CountTasks(ctx, tenantId, listTaskRunOptsFromFilters(filters, useGinIndex))
+	}
+
+	return t.config.V1.OLAP().CountWorkflowRuns(ctx, tenantId, listWorkflowRunOptsFromFilters(filters, useGinIndex))
 }
 
 // additionalMetadataOperator maps the optional additional_metadata_operator query

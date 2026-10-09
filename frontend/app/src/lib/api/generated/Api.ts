@@ -129,6 +129,7 @@ import {
   V1WebhookList,
   V1WebhookResponse,
   V1WebhookSourceName,
+  V1WorkflowRunCount,
   V1WorkflowRunDetails,
   V1WorkflowRunDisplayNameList,
   V1WorkflowRunExternalIdList,
@@ -533,11 +534,82 @@ export class Api<
       running_filter?: V1RunningFilter;
       /** The idempotency key(s) to filter for */
       idempotency_keys?: string[];
+      /** A flag for whether or not to count the matching runs in order to populate `pagination.num_pages`. Defaults to `true` if unset. When `false`, `pagination.num_pages` is `0`, and the count can be fetched separately from the count endpoint. */
+      include_num_pages?: boolean;
     },
     params: RequestParams = {},
   ) =>
     this.request<V1TaskSummaryList, APIErrors>({
       path: `/api/v1/stable/tenants/${tenant}/workflow-runs`,
+      method: "GET",
+      query: query,
+      secure: true,
+      format: "json",
+      ...params,
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
+  /**
+   * @description Counts the workflow runs for a tenant matching the provided filters. The count is capped, so it is a lower bound when it reaches the cap.
+   *
+   * @tags Workflow Runs
+   * @name V1WorkflowRunCountGet
+   * @summary Count workflow runs
+   * @request GET:/api/v1/stable/tenants/{tenant}/workflow-runs/count
+   * @secure
+   */
+  v1WorkflowRunCountGet = Object.assign((
+    tenant: string,
+    query: {
+      /** A list of statuses to filter by */
+      statuses?: V1TaskStatus[];
+      /**
+       * The earliest date to filter by
+       * @format date-time
+       */
+      since: string;
+      /**
+       * The latest date to filter by
+       * @format date-time
+       */
+      until?: string;
+      /** Additional metadata k-v pairs to filter by */
+      additional_metadata?: string[];
+      /** How to combine multiple additional_metadata pairs. OR matches runs containing any pair, AND matches runs containing all pairs. Defaults to OR. */
+      additional_metadata_operator?: V1AdditionalMetadataOperator;
+      /** The workflow ids to find runs for */
+      workflow_ids?: string[];
+      /**
+       * The worker id to filter by
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      worker_id?: string;
+      /** Whether to include DAGs or only to include tasks */
+      only_tasks: boolean;
+      /**
+       * The parent task external id to filter by
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      parent_task_external_id?: string;
+      /**
+       * The external id of the event that triggered the workflow run
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      triggering_event_external_id?: string;
+      /** Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL. */
+      running_filter?: V1RunningFilter;
+      /** The idempotency key(s) to filter for */
+      idempotency_keys?: string[];
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<V1WorkflowRunCount, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/workflow-runs/count`,
       method: "GET",
       query: query,
       secure: true,

@@ -6,6 +6,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/v1/ui/select';
+import { isPageCountKnown } from '@/lib/pagination';
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -29,6 +30,8 @@ export function DataTablePagination<TData>({
   isLoading = false,
 }: DataTablePaginationProps<TData>) {
   const pagination = table.getState().pagination;
+  const pageCount = table.getPageCount();
+  const hasKnownPageCount = isPageCountKnown(pageCount);
 
   return (
     <div className="flex items-center justify-between">
@@ -76,9 +79,9 @@ export function DataTablePagination<TData>({
           </Select>
         </div>
         <div className="flex w-[100px] items-center justify-center text-sm font-medium">
-          {isLoading
+          {isLoading || !hasKnownPageCount
             ? `Page ${pagination.pageIndex + 1}`
-            : `Page ${pagination.pageIndex + 1} of ${Math.max(table.getPageCount(), 1)}`}
+            : `Page ${pagination.pageIndex + 1} of ${Math.max(pageCount, 1)}`}
         </div>
         <div className="flex items-center space-x-1">
           <Button
@@ -113,8 +116,10 @@ export function DataTablePagination<TData>({
             variant="outline"
             size="sm"
             className="hidden lg:flex"
-            onClick={() => table.setPageIndex(table.getPageCount() - 1)}
-            disabled={isLoading || !table.getCanNextPage()}
+            onClick={() => table.setPageIndex(pageCount - 1)}
+            disabled={
+              isLoading || !hasKnownPageCount || !table.getCanNextPage()
+            }
           >
             <span className="sr-only">Go to last page</span>
             <DoubleArrowRightIcon className="size-4" />
