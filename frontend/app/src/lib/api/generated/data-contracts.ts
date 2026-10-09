@@ -1644,6 +1644,8 @@ export interface APIToken {
    * @maxLength 255
    */
   name: string;
+  /** Whether the token is limited to viewer access over REST and cannot use gRPC. */
+  readOnly: boolean;
   /**
    * When the API token expires.
    * @format date-time
@@ -1662,6 +1664,8 @@ export interface CreateAPITokenRequest {
    * @maxLength 255
    */
   name: string;
+  /** Limit the token to viewer access over REST and deny all gRPC calls. Defaults to false. */
+  readOnly?: boolean;
   /** The duration for which the token is valid. */
   expiresIn?: string;
 }

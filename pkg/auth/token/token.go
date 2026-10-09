@@ -13,7 +13,7 @@ import (
 )
 
 type JWTManager interface {
-	GenerateTenantToken(ctx context.Context, tenantId uuid.UUID, name string, internal bool, expires *time.Time) (*Token, error)
+	GenerateTenantToken(ctx context.Context, tenantId uuid.UUID, name string, internal bool, readOnly bool, expires *time.Time) (*Token, error)
 	ValidateTenantToken(ctx context.Context, token string) (uuid.UUID, uuid.UUID, error)
 }
 
@@ -81,7 +81,7 @@ func (j *jwtManagerImpl) createToken(ctx context.Context, tenantId uuid.UUID, na
 	}, nil
 }
 
-func (j *jwtManagerImpl) GenerateTenantToken(ctx context.Context, tenantId uuid.UUID, name string, internal bool, expires *time.Time) (*Token, error) {
+func (j *jwtManagerImpl) GenerateTenantToken(ctx context.Context, tenantId uuid.UUID, name string, internal bool, readOnly bool, expires *time.Time) (*Token, error) {
 	token, err := j.createToken(ctx, tenantId, name, nil, expires)
 	if err != nil {
 		return nil, err
@@ -94,6 +94,7 @@ func (j *jwtManagerImpl) GenerateTenantToken(ctx context.Context, tenantId uuid.
 		TenantId:  &tenantId,
 		Name:      &name,
 		Internal:  internal,
+		ReadOnly:  readOnly,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to write token to database: %v", err)

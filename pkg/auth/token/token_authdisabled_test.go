@@ -72,7 +72,7 @@ func TestAuthDisabledKeysetIsolation(t *testing.T) {
 	ctx := context.Background()
 	tenantID := uuid.New()
 
-	adTok, err := adMgr.GenerateTenantToken(ctx, tenantID, "authdisabled", false, nil)
+	adTok, err := adMgr.GenerateTenantToken(ctx, tenantID, "authdisabled", false, false, nil)
 	require.NoError(t, err)
 
 	gotTenant, _, err := adMgr.ValidateTenantToken(ctx, adTok.Token)
@@ -82,7 +82,7 @@ func TestAuthDisabledKeysetIsolation(t *testing.T) {
 	_, _, err = mainMgr.ValidateTenantToken(ctx, adTok.Token)
 	assert.Error(t, err, "the main JWT manager must reject the embedded-keyset token")
 
-	mainTok, err := mainMgr.GenerateTenantToken(ctx, tenantID, "main", false, nil)
+	mainTok, err := mainMgr.GenerateTenantToken(ctx, tenantID, "main", false, false, nil)
 	require.NoError(t, err)
 
 	_, _, err = adMgr.ValidateTenantToken(ctx, mainTok.Token)

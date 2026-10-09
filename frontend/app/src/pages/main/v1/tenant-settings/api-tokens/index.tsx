@@ -39,6 +39,12 @@ export default function APITokens() {
         cellRenderer: (token: APIToken) => <div>{token.name}</div>,
       },
       {
+        columnLabel: 'Access',
+        cellRenderer: (token: APIToken) => (
+          <div>{token.readOnly ? 'Read-only' : 'Unrestricted'}</div>
+        ),
+      },
+      {
         columnLabel: 'Created',
         cellRenderer: (token: APIToken) => (
           <RelativeDate date={token.metadata.createdAt} />

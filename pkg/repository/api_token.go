@@ -25,6 +25,7 @@ type CreateAPITokenOpts struct {
 	Name *string `validate:"omitempty,max=255"`
 
 	Internal bool
+	ReadOnly bool
 }
 
 type APITokenGenerator func(ctx context.Context, tenantId uuid.UUID, name string, internal bool, expires *time.Time) (string, error)
@@ -69,6 +70,7 @@ func (a *apiTokenRepository) CreateAPIToken(ctx context.Context, opts *CreateAPI
 		ID:        opts.ID,
 		Expiresat: sqlchelpers.TimestampFromTime(opts.ExpiresAt),
 		Internal:  sqlchelpers.BoolFromBoolean(opts.Internal),
+		Readonly:  opts.ReadOnly,
 	}
 
 	if opts.TenantId != nil {
