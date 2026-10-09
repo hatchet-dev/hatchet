@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -19,7 +20,7 @@ func TestHasEntitlement(t *testing.T) {
 
 	ctx := context.Background()
 	logger := zerolog.Nop()
-	repo := newTenantEntitlementRepository(&sharedRepository{pool: pool, l: &logger, queries: sqlcv1.New()})
+	repo := newTenantEntitlementRepository(&sharedRepository{pool: fairpool.Ungated(pool), l: &logger, queries: sqlcv1.New()})
 	tenantID := createLimitTestTenant(t, pool)
 
 	enabled, err := repo.HasEntitlement(ctx, tenantID, EntitlementDurableStreams)

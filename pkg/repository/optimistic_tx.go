@@ -3,6 +3,8 @@ package repository
 import (
 	"context"
 
+	"github.com/google/uuid"
+
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -14,8 +16,8 @@ type OptimisticTx struct {
 	postCommit []func()
 }
 
-func (s *sharedRepository) PrepareOptimisticTx(ctx context.Context) (*OptimisticTx, error) {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l)
+func (s *sharedRepository) PrepareOptimisticTx(ctx context.Context, tenantId uuid.UUID) (*OptimisticTx, error) {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool.ForTenant(tenantId), s.l)
 
 	if err != nil {
 		return nil, err

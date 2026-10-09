@@ -207,7 +207,7 @@ func (r *streamsRepositoryImpl) EnsureTopic(ctx context.Context, tenantId uuid.U
 		return nil
 	}
 
-	row, err := r.queries.UpsertStreamTopic(ctx, r.pool, sqlcv1.UpsertStreamTopicParams{
+	row, err := r.queries.UpsertStreamTopic(ctx, r.pool.ForTenant(tenantId), sqlcv1.UpsertStreamTopicParams{
 		Tenantid:  tenantId,
 		Namespace: namespace,
 		Topic:     topic,
@@ -227,7 +227,7 @@ func (r *streamsRepositoryImpl) EnsureTopic(ctx context.Context, tenantId uuid.U
 
 		if !canCreate {
 			// or the rejected topic would count against the limit
-			if delErr := r.queries.DeleteStreamTopic(ctx, r.pool, sqlcv1.DeleteStreamTopicParams{Tenantid: tenantId, Namespace: namespace, Topic: topic}); delErr != nil {
+			if delErr := r.queries.DeleteStreamTopic(ctx, r.pool.ForTenant(tenantId), sqlcv1.DeleteStreamTopicParams{Tenantid: tenantId, Namespace: namespace, Topic: topic}); delErr != nil {
 				r.l.Error().Ctx(ctx).Err(delErr).Msg("failed to roll back stream topic after topic limit exceeded")
 			}
 
@@ -334,7 +334,7 @@ func (r *streamsRepositoryImpl) insertOrderedStreamMessages(ctx context.Context,
 	results := make([]OrderedStreamMessageResult, len(msgs))
 
 	err := func() error {
-		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool.ForShared(), r.l)
 
 		if err != nil {
 			return err
@@ -450,7 +450,7 @@ func (r *streamsRepositoryImpl) ListMessagesAfterCursor(ctx context.Context, ten
 		return nil, err
 	}
 
-	return r.queries.ListStreamMessagesAfterCursor(ctx, r.pool, sqlcv1.ListStreamMessagesAfterCursorParams{
+	return r.queries.ListStreamMessagesAfterCursor(ctx, r.pool.ForTenant(tenantId), sqlcv1.ListStreamMessagesAfterCursorParams{
 		Tenantid:  tenantId,
 		Namespace: opts.Namespace,
 		Topic:     opts.Topic,
@@ -475,7 +475,7 @@ func (r *streamsRepositoryImpl) InsertStreamPayload(ctx context.Context, tenantI
 
 	id := uuid.New()
 
-	insertedAt, err := r.queries.InsertStreamPayload(ctx, r.pool, sqlcv1.InsertStreamPayloadParams{
+	insertedAt, err := r.queries.InsertStreamPayload(ctx, r.pool.ForTenant(tenantId), sqlcv1.InsertStreamPayloadParams{
 		ID:       id,
 		Tenantid: tenantId,
 		Payload:  payload,
@@ -489,7 +489,7 @@ func (r *streamsRepositoryImpl) InsertStreamPayload(ctx context.Context, tenantI
 }
 
 func (r *streamsRepositoryImpl) CheckStreamPayloadExists(ctx context.Context, tenantId uuid.UUID, ref StreamPayloadRef) error {
-	exists, err := r.queries.StreamPayloadExists(ctx, r.pool, sqlcv1.StreamPayloadExistsParams{
+	exists, err := r.queries.StreamPayloadExists(ctx, r.pool.ForTenant(tenantId), sqlcv1.StreamPayloadExistsParams{
 		Tenantid:   tenantId,
 		ID:         ref.ID,
 		Insertedat: pgtype.Timestamptz{Time: ref.CreatedAt, Valid: true},
@@ -513,7 +513,7 @@ func (r *streamsRepositoryImpl) GetStreamPayload(ctx context.Context, tenantId u
 		return nil, err
 	}
 
-	payload, err := r.queries.GetStreamPayload(ctx, r.pool, sqlcv1.GetStreamPayloadParams{
+	payload, err := r.queries.GetStreamPayload(ctx, r.pool.ForTenant(tenantId), sqlcv1.GetStreamPayloadParams{
 		Tenantid:   tenantId,
 		ID:         ref.ID,
 		Insertedat: pgtype.Timestamptz{Time: ref.CreatedAt, Valid: true},
@@ -535,7 +535,7 @@ func (r *streamsRepositoryImpl) GetTopicMetadata(ctx context.Context, tenantId u
 		return nil, err
 	}
 
-	row, err := r.queries.GetStreamTopicMetadata(ctx, r.pool, sqlcv1.GetStreamTopicMetadataParams{
+	row, err := r.queries.GetStreamTopicMetadata(ctx, r.pool.ForTenant(tenantId), sqlcv1.GetStreamTopicMetadataParams{
 		Tenantid:      tenantId,
 		Namespace:     namespace,
 		Topic:         topic,
@@ -573,7 +573,7 @@ func (r *streamsRepositoryImpl) CheckCursorRetained(ctx context.Context, tenantI
 
 	retainedSince := time.Now().Add(-retention)
 
-	partitionStart, err := r.queries.GetStreamMessageRetentionStart(ctx, r.pool)
+	partitionStart, err := r.queries.GetStreamMessageRetentionStart(ctx, r.pool.ForTenant(tenantId))
 
 	if err != nil {
 		return err
