@@ -21,6 +21,13 @@ const (
 	// fan-out task spawns N child DAG runs and waits for them (see
 	// DagNestedWorkflowNames).
 	EventKeyDagNested EventKey = "load-test:dag-nested-event"
+	// EventKeyRateLimited triggers WorkflowRateLimitedName, a task gated by
+	// both a static and a dynamic (per-input-key) rate limit.
+	EventKeyRateLimited EventKey = "load-test:rate-limited-event"
+	// EventKeyDagConcurrency triggers WorkflowDagConcurrencyName, a DAG with a
+	// workflow-level concurrency key that changes every other run, to stress
+	// the DAG operator with a high concurrency-key cardinality.
+	EventKeyDagConcurrency EventKey = "load-test:dag-concurrency-event"
 )
 
 const workflowNamePrefix = "load-test-"
@@ -44,6 +51,13 @@ const (
 	// fan-out task spawns runs of the child, which is not event-triggered.
 	WorkflowDagShapeNestedParentName = workflowNamePrefix + "dag-shape-nested-parent"
 	WorkflowDagShapeNestedChildName  = workflowNamePrefix + "dag-shape-nested-child"
+
+	WorkflowRateLimitedName    = workflowNamePrefix + "rate-limited"
+	WorkflowDagConcurrencyName = workflowNamePrefix + "dag-concurrency"
+
+	// RateLimitedStaticKey is created by the worker (the step references it via
+	// FK) and resized by the driver to match --events.
+	RateLimitedStaticKey = WorkflowRateLimitedName
 )
 
 // DagShapeWorkflowNames is the ordered set of workflows triggered by
@@ -65,7 +79,7 @@ func WorkflowStandardName(i int) string {
 	return fmt.Sprintf("%s%d", workflowNamePrefix, i)
 }
 
-var All = []EventKey{EventKeyDefault, EventKeyBatch, EventKeyDurable, EventKeyDag, EventKeyDagShapes, EventKeyDagNested}
+var All = []EventKey{EventKeyDefault, EventKeyBatch, EventKeyDurable, EventKeyDag, EventKeyDagShapes, EventKeyDagNested, EventKeyRateLimited, EventKeyDagConcurrency}
 
 func IsKnown(key EventKey) bool {
 	return slices.Contains(All, key)
@@ -85,6 +99,10 @@ func (k EventKey) Name() string {
 		return "dag-shapes"
 	case EventKeyDagNested:
 		return "dag-nested"
+	case EventKeyRateLimited:
+		return "rate-limited"
+	case EventKeyDagConcurrency:
+		return "dag-concurrency"
 	default:
 		return string(k)
 	}

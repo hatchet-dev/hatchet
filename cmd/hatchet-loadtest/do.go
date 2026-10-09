@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"path/filepath"
 	"slices"
@@ -14,8 +15,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/vicanso/go-charts/v2"
 
+	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/loadtest/eventkeys"
-	v1 "github.com/hatchet-dev/hatchet/pkg/v1" //nolint:staticcheck // SA1019: used only for REST timing queries in --externalWorker mode
+	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
+	"github.com/hatchet-dev/hatchet/pkg/v1/features" //nolint:staticcheck // SA1019: timingClient is the deprecated v1 client //nolint:staticcheck // SA1019: used only for REST timing queries in --externalWorker mode
 )
 
 type LatencySnapshot struct {
@@ -120,6 +123,10 @@ func workflowNamesForKey(key eventkeys.EventKey, namespace string, fanout int) [
 			names = append(names, applyNamespace(n, namespace))
 		}
 		return names
+	case eventkeys.EventKeyRateLimited:
+		return []string{applyNamespace(eventkeys.WorkflowRateLimitedName, namespace)}
+	case eventkeys.EventKeyDagConcurrency:
+		return []string{applyNamespace(eventkeys.WorkflowDagConcurrencyName, namespace)}
 	default:
 		return nil
 	}
@@ -134,6 +141,26 @@ const dagShapesExecutedSteps = 10 + 5 + 7 + 7
 // this only tunes a soft sample-count check.
 const dagNestedExecutedSteps = 3 + 5*4
 
+const dagConcurrencyExecutedSteps = 4
+
+type rateLimitSizing struct {
+	static int
+	keys   int
+	perKey int
+}
+
+// newRateLimitSizing scales the rate-limited scenario to the emit rate. Runs
+// are bucketed by id % keys, so each dynamic key sees eventsPerSecond/keys.
+func newRateLimitSizing(eventsPerSecond, keys int, ratio float64) rateLimitSizing {
+	keys = max(keys, 1)
+	target := float64(eventsPerSecond) * ratio
+	return rateLimitSizing{
+		static: max(int(math.Round(target)), 1),
+		keys:   keys,
+		perKey: max(int(math.Round(target/float64(keys))), 1),
+	}
+}
+
 func executionsPerPush(key eventkeys.EventKey, fanout, dagSteps int) int64 {
 	switch key {
 	case eventkeys.EventKeyDefault:
@@ -144,6 +171,8 @@ func executionsPerPush(key eventkeys.EventKey, fanout, dagSteps int) int64 {
 		return dagShapesExecutedSteps
 	case eventkeys.EventKeyDagNested:
 		return dagNestedExecutedSteps
+	case eventkeys.EventKeyDagConcurrency:
+		return dagConcurrencyExecutedSteps
 	default:
 		return 1
 	}
@@ -394,7 +423,20 @@ func do(config LoadTestConfig) error {
 		}()
 	}
 
-	pushedByKey := emit(ctx, config.Namespace, config.Events, config.Duration, scheduled, config.PayloadSize, config.EmitWorkers, config.EventKeys)
+	var rl rateLimitSizing
+	if config.ExternalWorker && slices.Contains(config.EventKeys, eventkeys.EventKeyRateLimited) {
+		rl = newRateLimitSizing(config.Events, config.RateLimitKeys, config.RateLimitRatio)
+		if err := timingClient.RateLimits().Upsert(features.CreateRatelimitOpts{
+			Key:      eventkeys.RateLimitedStaticKey,
+			Limit:    rl.static,
+			Duration: types.Second,
+		}); err != nil {
+			return fmt.Errorf("❌ failed to size rate limit %s: %w", eventkeys.RateLimitedStaticKey, err)
+		}
+		l.Info().Msgf("rate-limited: static limit %d/s, %d dynamic keys at %d/s each (events=%d/s ratio=%.2f)", rl.static, rl.keys, rl.perKey, config.Events, config.RateLimitRatio)
+	}
+
+	pushedByKey := emit(ctx, config.Namespace, config.Events, config.Duration, scheduled, config.PayloadSize, config.EmitWorkers, config.EventKeys, rl)
 	close(scheduled)
 
 	pbkj, err := json.MarshalIndent(pushedByKey, "", "  ")
