@@ -1483,6 +1483,10 @@ func workflowRunCountParams(tenantId uuid.UUID, opts ListWorkflowRunOpts) (sqlcv
 	return params, nil
 }
 
+// countWorkflowRunsTimeoutMs bounds CountWorkflowRuns well below the pool's statement timeout: the count backs
+// a polled UI hint, and without a selective index it scans every run in the time range.
+const countWorkflowRunsTimeoutMs = 5000
+
 // CountWorkflowRuns counts the runs ListWorkflowRuns would return for opts, ignoring Limit and Offset. The count
 // stops at sqlcv1.CountWorkflowRunsLimit; capped is true when it reaches it.
 func (r *OLAPRepositoryImpl) CountWorkflowRuns(ctx context.Context, tenantId uuid.UUID, opts ListWorkflowRunOpts) (count int64, capped bool, err error) {
@@ -1494,8 +1498,19 @@ func (r *OLAPRepositoryImpl) CountWorkflowRuns(ctx context.Context, tenantId uui
 		return 0, false, err
 	}
 
-	count, err = r.queries.CountWorkflowRuns(ctx, r.readPool, params)
+	tx, commit, rollback, err := sqlchelpers.PrepareTxWithStatementTimeout(ctx, r.readPool, r.l, countWorkflowRunsTimeoutMs)
 	if err != nil {
+		return 0, false, err
+	}
+
+	defer rollback()
+
+	count, err = r.queries.CountWorkflowRuns(ctx, tx, params)
+	if err != nil {
+		return 0, false, err
+	}
+
+	if err := commit(ctx); err != nil {
 		return 0, false, err
 	}
 
