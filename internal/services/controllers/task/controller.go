@@ -523,6 +523,7 @@ func (tc *TasksControllerImpl) emitOrchestratorTerminalEvent(
 		RetryCount:     retryCount,
 		EventType:      eventType,
 		EventTimestamp: time.Now().UTC(),
+		StatusOnly:     true,
 	}
 
 	// CANCELLED carries its human-readable reason in EventMessage; FINISHED/FAILED carry the
@@ -570,10 +571,10 @@ func (tc *TasksControllerImpl) emitOrchestratorTerminalEvent(
 
 // emitOrchestratorTerminalEvents fans emitOrchestratorTerminalEvent over the DAG-orchestrator
 // tasks among released. skipRetried is nil for COMPLETED/CANCELLED; for FAILED it holds task ids
-// that were retried (still running) and so must not be marked terminal. Re-running this on a
-// source-message redelivery is safe: releaseTasks is row-count-stable, CreateTaskEvents dedupes
-// terminal events on ON CONFLICT DO NOTHING, and UpdateDAGStatusesFromOrchestratorEvents is a
-// monotonic upsert.
+// that were retried (still running) and so must not be marked terminal. The events are status-only:
+// the regular reporting path already writes the orchestrator's OLAP task event, and a second one
+// would double-count it. Re-running this on a source-message redelivery is safe: releaseTasks is
+// row-count-stable and UpdateDAGStatusesFromOrchestratorEvents is a monotonic upsert.
 func (tc *TasksControllerImpl) emitOrchestratorTerminalEvents(
 	ctx context.Context,
 	tenantId uuid.UUID,

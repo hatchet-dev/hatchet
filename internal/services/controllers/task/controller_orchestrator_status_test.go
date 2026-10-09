@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -142,6 +143,10 @@ func TestEmitOrchestratorTerminalEvents_PayloadRouting(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, int64(1), mq.sends.Load())
 		require.Equal(t, msgqueue.OLAP_QUEUE.Name(), *mq.lastQueue.Load())
+
+		payloads := msgqueue.JSONConvert[tasktypes.CreateMonitoringEventPayload](mq.lastMsg.Load().Payloads)
+		require.Len(t, payloads, 1)
+		assert.True(t, payloads[0].StatusOnly)
 	})
 
 	t.Run("CANCELLED puts detail in EventMessage", func(t *testing.T) {
