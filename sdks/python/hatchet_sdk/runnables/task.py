@@ -24,7 +24,6 @@ from typing import (
     get_type_hints,
 )
 from uuid import uuid4
-from warnings import warn
 
 from pydantic import BaseModel, TypeAdapter
 from typing_inspection.typing_objects import is_typealiastype
