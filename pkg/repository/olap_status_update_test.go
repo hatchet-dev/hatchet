@@ -396,14 +396,17 @@ func TestOLAPStatusUpdate_RetriedFailureIsNotTerminal(t *testing.T) {
 	assertOLAPTaskStatus(t, ctx, pool, f, "RUNNING", 0)
 	assertOLAPRunStatus(t, ctx, pool, f, "RUNNING")
 
-	var failedEvents int
-	err := pool.QueryRow(ctx, `
-		SELECT COUNT(*)
-		FROM v1_task_events_olap
-		WHERE tenant_id = $1 AND task_id = $2 AND event_type = 'FAILED' AND retry_count = 0
-	`, f.tenantId, f.taskId).Scan(&failedEvents)
+	eventLimit := int64(100)
+	events, err := repo.ListTaskRunEvents(ctx, f.tenantId, f.taskId, f.insertedAt, &eventLimit, nil)
 	require.NoError(t, err)
-	assert.Equal(t, 1, failedEvents, "the retried failure is still recorded as an event")
+
+	var failedEvents int64
+	for _, e := range events {
+		if e.EventType == sqlcv1.V1EventTypeOlapFAILED && e.RetryCount == 0 {
+			failedEvents += e.Count
+		}
+	}
+	assert.Equal(t, int64(1), failedEvents, "the retried failure is still recorded as an event")
 
 	applyBatch(t, []sqlcv1.CreateTaskEventsOLAPParams{
 		f.event(sqlcv1.V1EventTypeOlapRETRYING, sqlcv1.V1ReadableStatusOlapQUEUED, 1),
