@@ -18,7 +18,6 @@ from examples.conditions.worker import (
 )
 from examples.test_utils import wait_for_running_status
 from hatchet_sdk import Hatchet, RunStatus, V1TaskStatus
-from hatchet_sdk.clients.rest.exceptions import NotFoundException
 
 
 async def _wait_for_task_to_complete(
@@ -28,15 +27,14 @@ async def _wait_for_task_to_complete(
     deadline = time.monotonic() + timeout
 
     while time.monotonic() < deadline:
-        try:
-            details = await hatchet.runs.aio_get_details(workflow_run_id)
-        except NotFoundException:
-            await asyncio.sleep(interval)
-            continue
+        details = await hatchet.runs.aio_get(workflow_run_id)
 
-        task_run = details.task_runs.get(task_name)
-
-        if task_run is not None and task_run.status == V1TaskStatus.COMPLETED:
+        # a task's display name is "<step readable id>-<unix timestamp>"
+        if any(
+            t.status == V1TaskStatus.COMPLETED
+            and t.display_name.startswith(f"{task_name}-")
+            for t in details.tasks
+        ):
             return
 
         await asyncio.sleep(interval)
