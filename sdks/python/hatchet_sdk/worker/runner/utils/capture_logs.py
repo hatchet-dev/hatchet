@@ -4,6 +4,7 @@ import queue
 import threading
 from collections.abc import Awaitable, Callable
 from contextlib import suppress
+from contextvars import Context
 from dataclasses import dataclass
 from typing import Any, Literal, ParamSpec, TypeVar
 
@@ -152,7 +153,8 @@ class AsyncLogSender:
         try:
             self.q.put_nowait(record)
         except queue.Full:
-            logger.warning("log queue is full, dropping log message")
+            # logged outside the task's context so that `LogForwardingHandler` does not forward the warning back into this full queue
+            Context().run(logger.warning, "log queue is full, dropping log message")
 
     def start(self) -> None:
         self._thread = threading.Thread(target=self._consume, daemon=True)
