@@ -33,7 +33,7 @@ func (r *serverlessProcessRepository) Upsert(ctx context.Context, opts UpsertSer
 		return err
 	}
 
-	return r.queries.UpsertServerlessProcess(ctx, r.pool, sqlcv1.UpsertServerlessProcessParams{
+	return r.queries.UpsertServerlessProcess(ctx, r.pool.ForShared(), sqlcv1.UpsertServerlessProcessParams{
 		Processid:     opts.ProcessId,
 		Ttl:           sqlchelpers.DurationToPgInterval(opts.TTL),
 		Unitcount:     opts.UnitCount,
@@ -44,7 +44,7 @@ func (r *serverlessProcessRepository) Upsert(ctx context.Context, opts UpsertSer
 }
 
 func (r *serverlessProcessRepository) ListLive(ctx context.Context) ([]*sqlcv1.V1ServerlessProcess, []*sqlcv1.V1ServerlessProcess, error) {
-	rows, err := r.queries.ListServerlessProcesses(ctx, r.pool)
+	rows, err := r.queries.ListServerlessProcesses(ctx, r.pool.ForShared())
 
 	if err != nil {
 		return nil, nil, err
@@ -68,7 +68,7 @@ func (r *serverlessProcessRepository) ListLive(ctx context.Context) ([]*sqlcv1.V
 }
 
 func (r *serverlessProcessRepository) DeleteExpired(ctx context.Context, cutoff time.Time) (int64, int64, error) {
-	row, err := r.queries.DeleteExpiredServerlessProcesses(ctx, r.pool, sqlchelpers.TimestamptzFromTime(cutoff))
+	row, err := r.queries.DeleteExpiredServerlessProcesses(ctx, r.pool.ForShared(), sqlchelpers.TimestamptzFromTime(cutoff))
 
 	if err != nil {
 		return 0, 0, err
@@ -78,5 +78,5 @@ func (r *serverlessProcessRepository) DeleteExpired(ctx context.Context, cutoff 
 }
 
 func (r *serverlessProcessRepository) Delete(ctx context.Context, processId uuid.UUID) error {
-	return r.queries.DeleteServerlessProcess(ctx, r.pool, processId)
+	return r.queries.DeleteServerlessProcess(ctx, r.pool.ForShared(), processId)
 }

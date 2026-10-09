@@ -19,6 +19,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/pkg/config/limits"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
@@ -27,7 +28,7 @@ import (
 func newBatchTestRepository(pool *pgxpool.Pool) *TaskRepositoryImpl {
 	logger := zerolog.Nop()
 	queries := sqlcv1.New()
-	payloadStore := NewPayloadStoreRepository(pool, &logger, queries, PayloadStoreRepositoryOpts{
+	payloadStore := NewPayloadStoreRepository(fairpool.Ungated(pool), &logger, queries, PayloadStoreRepositoryOpts{
 		ExternalCutoverProcessInterval: time.Second,
 		ExternalCutoverBatchSize:       1,
 	})
@@ -42,7 +43,7 @@ func newBatchTestRepository(pool *pgxpool.Pool) *TaskRepositoryImpl {
 	}
 
 	shared := &sharedRepository{
-		pool:                        pool,
+		pool:                        fairpool.Ungated(pool),
 		ddlPool:                     pool,
 		l:                           &logger,
 		v:                           validator.NewDefaultValidator(),
@@ -137,7 +138,7 @@ func TestInsertTasksPersistsBatchKeys(t *testing.T) {
 		makeTask("2"),
 	}
 
-	_, err = repo.sharedRepository.insertTasks(ctx, repo.pool, tenantID, tasks, stepIdsToConfig)
+	_, err = repo.sharedRepository.insertTasks(ctx, repo.pool.ForShared(), tenantID, tasks, stepIdsToConfig)
 	require.NoError(t, err)
 
 	_, err = pool.Exec(ctx, `
@@ -261,7 +262,7 @@ func insertTaskWithRetries(t *testing.T, ctx context.Context, repo *TaskReposito
 	wf, err := workflows.PutWorkflowVersion(ctx, internalTenantId, opts)
 	require.NoError(t, err)
 
-	steps, err := repo.queries.ListStepsByWorkflowVersionIds(ctx, repo.pool, sqlcv1.ListStepsByWorkflowVersionIdsParams{
+	steps, err := repo.queries.ListStepsByWorkflowVersionIds(ctx, repo.pool.ForShared(), sqlcv1.ListStepsByWorkflowVersionIdsParams{
 		Ids:      []uuid.UUID{wf.WorkflowVersion.ID},
 		Tenantid: internalTenantId,
 	})
@@ -270,11 +271,11 @@ func insertTaskWithRetries(t *testing.T, ctx context.Context, repo *TaskReposito
 
 	stepID := steps[0].ID
 
-	stepIdsToConfig, err := repo.sharedRepository.listStepsByIds(ctx, repo.pool, internalTenantId, []uuid.UUID{stepID})
+	stepIdsToConfig, err := repo.sharedRepository.listStepsByIds(ctx, repo.pool.ForShared(), internalTenantId, []uuid.UUID{stepID})
 	require.NoError(t, err)
 	require.Contains(t, stepIdsToConfig, stepID)
 
-	insertedTasks, err := repo.sharedRepository.insertTasks(ctx, repo.pool, internalTenantId, []CreateTaskOpts{
+	insertedTasks, err := repo.sharedRepository.insertTasks(ctx, repo.pool.ForShared(), internalTenantId, []CreateTaskOpts{
 		{
 			ExternalId:    uuid.New(),
 			WorkflowRunId: uuid.New(),
@@ -345,7 +346,7 @@ func TestFailTasksRetryDecisionIsPerTask(t *testing.T) {
 		}
 	}
 
-	require.NoError(t, repo.queries.InsertBufferedTaskRuntimes(ctx, repo.pool, runtimes))
+	require.NoError(t, repo.queries.InsertBufferedTaskRuntimes(ctx, repo.pool.ForShared(), runtimes))
 
 	res, err := repo.FailTasks(ctx, internalTenantId, opts)
 	require.NoError(t, err)

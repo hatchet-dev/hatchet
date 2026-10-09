@@ -53,11 +53,13 @@ func newAPITokenRepository(shared *sharedRepository, cacheDuration time.Duration
 }
 
 func (a *apiTokenRepository) RevokeAPIToken(ctx context.Context, id uuid.UUID) error {
-	return a.queries.RevokeAPIToken(ctx, a.pool, id)
+	return a.queries.RevokeAPIToken(ctx, a.pool.ForShared(), id)
 }
 
 func (a *apiTokenRepository) ListAPITokensByTenant(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.APIToken, error) {
-	return a.queries.ListAPITokensByTenant(ctx, a.pool, tenantId)
+	db := a.pool.ForTenant(tenantId)
+
+	return a.queries.ListAPITokensByTenant(ctx, db, tenantId)
 }
 
 func (a *apiTokenRepository) CreateAPIToken(ctx context.Context, opts *CreateAPITokenOpts) (*sqlcv1.APIToken, error) {
@@ -80,17 +82,24 @@ func (a *apiTokenRepository) CreateAPIToken(ctx context.Context, opts *CreateAPI
 		createParams.Name = sqlchelpers.TextFromStr(*opts.Name)
 	}
 
-	return a.queries.CreateAPIToken(ctx, a.pool, createParams)
+	db := a.pool.ForShared()
+	if opts.TenantId != nil {
+		db = a.pool.ForTenant(*opts.TenantId)
+	}
+
+	return a.queries.CreateAPIToken(ctx, db, createParams)
 }
 
 func (a *apiTokenRepository) GetAPITokenById(ctx context.Context, id uuid.UUID) (*sqlcv1.APIToken, error) {
 	return cache.MakeCacheable[sqlcv1.APIToken](a.c, id.String(), func() (*sqlcv1.APIToken, error) {
-		return a.queries.GetAPITokenById(ctx, a.pool, id)
+		return a.queries.GetAPITokenById(ctx, a.pool.ForShared(), id)
 	})
 }
 
 func (a *apiTokenRepository) DeleteAPIToken(ctx context.Context, tenantId, id uuid.UUID) error {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, a.pool, a.l)
+	db := a.pool.ForTenant(tenantId)
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, db, a.l)
 
 	if err != nil {
 		return err
