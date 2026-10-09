@@ -146,6 +146,7 @@ type Scheduler struct {
 	signaler *signal.OLAPSignaler
 
 	tasksWithNoWorkerCache *expirable.LRU[string, struct{}]
+	rateLimitedTasksCache  *expirable.LRU[string, struct{}]
 
 	promGate *prometheus.Gate
 
@@ -194,6 +195,7 @@ func New(
 
 	// TODO: replace with config or pull into a constant
 	tasksWithNoWorkerCache := expirable.NewLRU(10000, func(string, struct{}) {}, 5*time.Minute)
+	rateLimitedTasksCache := expirable.NewLRU(10000, func(string, struct{}) {}, 1*time.Minute)
 
 	signaler := signal.NewOLAPSignaler(opts.mq, opts.pubsub, opts.repov1, opts.l, pubBuffer, opts.promGate)
 
@@ -210,6 +212,7 @@ func New(
 		ql:                     opts.queueLogger,
 		pool:                   opts.pool,
 		tasksWithNoWorkerCache: tasksWithNoWorkerCache,
+		rateLimitedTasksCache:  rateLimitedTasksCache,
 		signaler:               signaler,
 		promGate:               opts.promGate,
 		queueMetrics:           newQueueMetricsPoller(opts.repov1.Tasks(), opts.l),
@@ -610,6 +613,12 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 
 	if len(res.RateLimited) > 0 {
 		for _, rateLimited := range res.RateLimited {
+			cacheKey := fmt.Sprintf("%d:%d", rateLimited.TaskId, rateLimited.RetryCount)
+
+			if _, ok := s.rateLimitedTasksCache.Get(cacheKey); ok {
+				continue
+			}
+
 			message := fmt.Sprintf(
 				"Rate limit exceeded for key %s, attempting to consume %d units, but only had %d remaining",
 				rateLimited.ExceededKey,
@@ -643,6 +652,8 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 			if err != nil {
 				outerErr = multierror.Append(outerErr, fmt.Errorf("could not send cancelled task: %w", err))
 			}
+
+			s.rateLimitedTasksCache.Add(cacheKey, struct{}{})
 		}
 	}
 
