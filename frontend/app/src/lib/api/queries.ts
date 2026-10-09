@@ -24,6 +24,7 @@ type WorkflowRunEventsMetrics = Parameters<
 type WorkflowScheduledQuery = Parameters<typeof api.workflowScheduledList>[1];
 type CronWorkflowsQuery = Parameters<typeof api.cronWorkflowList>[1];
 type V2ListWorkflowRunsQuery = Parameters<typeof api.v1WorkflowRunList>[1];
+type V1CountWorkflowRunsQuery = Parameters<typeof api.v1WorkflowRunCountGet>[1];
 type V1EventListQuery = Parameters<typeof api.v1EventList>[1];
 export type V1LogLineListQuery = Parameters<typeof api.v1LogLineList>[1];
 type V2TaskGetPointMetricsQuery = Parameters<
@@ -334,8 +335,34 @@ export const queries = createQueryKeyStore({
 
         try {
           return (
-            await api.v1WorkflowRunList(tenant, query, { timeout, signal })
+            await api.v1WorkflowRunList(
+              tenant,
+              { ...query, include_num_pages: false },
+              { timeout, signal },
+            )
           ).data;
+        } catch (e) {
+          if (e instanceof AxiosError && e.code === 'ECONNABORTED') {
+            return 'timeout';
+          }
+
+          throw e;
+        }
+      },
+    }),
+    count: (
+      tenant: string,
+      query: V1CountWorkflowRunsQuery,
+      isSelfHosted: boolean,
+    ) => ({
+      queryKey: ['v1:workflow-run:count', tenant, query],
+      queryFn: async ({ signal }): Promise<number | 'timeout'> => {
+        const timeout = isSelfHosted ? SELF_HOSTED_LIST_TIMEOUT_MS : undefined;
+
+        try {
+          return (
+            await api.v1WorkflowRunCountGet(tenant, query, { timeout, signal })
+          ).data.count;
         } catch (e) {
           if (e instanceof AxiosError && e.code === 'ECONNABORTED') {
             return 'timeout';
