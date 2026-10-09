@@ -45,7 +45,11 @@ async def test_no_retry(hatchet: Hatchet) -> None:
     runs = None
     for _ in range(60):
         runs = await hatchet.runs.aio_get(ref.workflow_run_id)
-        if runs.task_events:
+        event_types = [e.event_type for e in runs.task_events]
+        if (
+            event_types.count(V1TaskEventType.FAILED) >= 3
+            and V1TaskEventType.RETRYING in event_types
+        ):
             break
         await asyncio.sleep(0.5)
 

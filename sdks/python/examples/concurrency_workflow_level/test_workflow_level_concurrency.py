@@ -147,6 +147,7 @@ async def test_workflow_level_concurrency(hatchet: Hatchet, test_run_id: str) ->
         wait_for_result=False,
     )
 
+    await asyncio.sleep(10)
     await asyncio.gather(*[r.aio_result() for r in run_refs])
 
     workflows = await hatchet.workflows.aio_list(

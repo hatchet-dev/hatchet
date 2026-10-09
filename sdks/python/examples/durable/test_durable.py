@@ -362,9 +362,8 @@ async def test_durable_branching_off_branch(hatchet: Hatchet) -> None:
     await hatchet.runs.aio_reset_durable_task(
         ref.workflow_run_id, node_id=reset_from_node_id, branch_id=1
     )
-    await wait_for_replay(hatchet, ref.workflow_run_id)
-
     start = time.time()
+    await wait_for_replay(hatchet, ref.workflow_run_id)
     reset_result = await ref.aio_result()
     reset_elapsed = time.time() - start
 
@@ -382,9 +381,8 @@ async def test_durable_branching_off_branch(hatchet: Hatchet) -> None:
         node_id=reset_from_node_id,
         branch_id=2,
     )
-    await wait_for_replay(hatchet, ref.workflow_run_id)
-
     start = time.time()
+    await wait_for_replay(hatchet, ref.workflow_run_id)
     reset_result = await ref.aio_result()
     reset_elapsed = time.time() - start
 

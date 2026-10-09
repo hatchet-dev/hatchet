@@ -603,6 +603,7 @@ async def test_multi_scope_bug(hatchet: Hatchet, test_run_id: str) -> None:
                 hatchet,
                 expected_count=100,
                 additional_metadata={"test_run_id": test_run_id},
+                workflow_ids=[event_workflow.id],
                 timeout=60.0,
             )
 

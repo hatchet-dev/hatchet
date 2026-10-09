@@ -1,4 +1,5 @@
 import asyncio
+import time
 from collections.abc import Callable
 from typing import Any
 from uuid import uuid4
@@ -12,7 +13,7 @@ from examples.bug_tests.payload_bug_on_replay.worker import (
     step1,
     step2,
 )
-from hatchet_sdk import Hatchet, V1TaskStatus
+from hatchet_sdk import Hatchet, V1TaskStatus, WorkflowRunRef
 from hatchet_sdk.clients.rest.models.v1_workflow_run_details import V1WorkflowRunDetails
 
 
@@ -30,6 +31,23 @@ async def _poll_run_until_tasks(
         await asyncio.sleep(0.5)
     assert run is not None
     return run
+
+
+async def _wait_for_replayed_result(
+    ref: WorkflowRunRef, timeout: float = 60.0
+) -> dict[str, Any]:
+    # aio_result resolves at once when the run is already terminal, and the
+    # replay flips the run back to running only shortly after the request
+    # returns, so a single read can still hand back the pre-replay result.
+    deadline = time.monotonic() + timeout
+    while True:
+        result = await ref.aio_result()
+        if step2.name in result and not result[step1.name]["should_cancel"]:
+            return result
+        assert (
+            time.monotonic() < deadline
+        ), f"the replayed run never produced a result; last result seen: {result}"
+        await asyncio.sleep(0.5)
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -73,7 +91,7 @@ async def test_payload_replay_bug(hatchet: Hatchet, test_run_id: str) -> None:
 
     await hatchet.runs.aio_replay(run_id=ref.workflow_run_id)
 
-    result = await ref.aio_result()
+    result = await _wait_for_replayed_result(ref)
 
     step_1_output = StepOutput.model_validate(result[step1.name])
     step_2_output = StepOutput.model_validate(result[step2.name])
