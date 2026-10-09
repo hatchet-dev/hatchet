@@ -1,0 +1,112 @@
+streamPayload:
+  get:
+    x-resources: ["tenant"]
+    description: Get a durable stream payload uploaded ahead of its publish, by the payload_ref of the message that references it.
+    operationId: v1-stream-payload:get
+    x-payloads: true
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The payload_ref of the stream message
+        in: query
+        name: ref
+        required: true
+        schema:
+          type: string
+    responses:
+      "200":
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+        description: The payload
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: No payload for this ref, or it is past retention
+    summary: Get stream payload
+    tags:
+      - Streams
+  post:
+    x-resources: ["tenant"]
+    description: Upload a payload too large for a gRPC publish, then publish the message with the returned ref as its payload_ref.
+    operationId: v1-stream-payload:upload
+    x-payloads: false
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    requestBody:
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            properties:
+              payload:
+                type: string
+                format: binary
+            required:
+              - payload
+      required: true
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1StreamPayloadRef"
+        description: Successfully uploaded the payload
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "413":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: The payload is too large
+      "429":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Resource limit exceeded
+    summary: Upload stream payload
+    tags:
+      - Streams

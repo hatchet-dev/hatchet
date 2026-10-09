@@ -1003,7 +1003,10 @@ WITH inputs AS MATERIALIZED (
         lt.inserted_at
     FROM inputs i
     JOIN v1_lookup_table lt ON lt.external_id = i.external_id
-    WHERE lt.tenant_id = $6::UUID
+    WHERE
+        lt.tenant_id = $6::UUID
+        AND lt.inserted_at >= $1::TIMESTAMPTZ
+        AND lt.inserted_at <= $2::TIMESTAMPTZ
 ), satisfied_entries AS MATERIALIZED (
     SELECT
         e.tenant_id, e.external_id, e.result_payload_external_id, e.child_task_external_id, e.child_task_is_failure, e.child_task_error_message, e.inserted_at, e.id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.branch_id, e.idempotency_key, e.is_satisfied, e.satisfied_at, e.satisfied_order, e.user_message, e.wait_data, e.triggered_at,

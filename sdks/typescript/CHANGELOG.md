@@ -5,6 +5,19 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.36.0] - 2026-10-06
+
+### Added
+
+- `hatchet.streams.publish` accepts payloads up to 64 MiB.
+- Added `hatchet.streams.topicMetadata(topic, { namespace })`, which returns a topic's tenant, message count, latest cursor and last publish time, counting only messages within the tenant's retention.
+
+## [1.35.1] - 2026-10-05
+
+### Fixed
+
+- A stopping worker keeps its action stream open until its running tasks finish, and only then closes it and unsubscribes from the engine. Since 1.34.1 it closed the stream before waiting for those tasks, so the engine rejected every heartbeat sent in the meantime and the worker logged `Heartbeat rejected: worker stream is not active` every four seconds until shutdown completed. Task cancellations now also reach tasks that are still running during shutdown.
+
 ## [1.35.0] - 2026-10-05
 
 ### Added

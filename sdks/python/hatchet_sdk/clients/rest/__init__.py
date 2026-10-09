@@ -237,6 +237,7 @@ if TYPE_CHECKING:
         StepRunEventSeverity,
     )
     from hatchet_sdk.clients.rest.models.step_run_status import StepRunStatus
+    from hatchet_sdk.clients.rest.api.streams_api import StreamsApi
     from hatchet_sdk.clients.rest.api.task_api import TaskApi
     from hatchet_sdk.clients.rest.models.task_stat import TaskStat
     from hatchet_sdk.clients.rest.models.task_status_stat import TaskStatusStat
@@ -386,6 +387,9 @@ if TYPE_CHECKING:
         V1RunningDetailCount,
     )
     from hatchet_sdk.clients.rest.models.v1_running_filter import V1RunningFilter
+    from hatchet_sdk.clients.rest.models.v1_stream_payload_ref import (
+        V1StreamPayloadRef,
+    )
     from hatchet_sdk.clients.rest.models.v1_task_event import V1TaskEvent
     from hatchet_sdk.clients.rest.models.v1_task_event_list import V1TaskEventList
     from hatchet_sdk.clients.rest.models.v1_task_event_type import V1TaskEventType
@@ -655,6 +659,7 @@ _LAZY_IMPORTS: dict[str, str] = {
     "StepRunEventReason": "hatchet_sdk.clients.rest.models.step_run_event_reason",
     "StepRunEventSeverity": "hatchet_sdk.clients.rest.models.step_run_event_severity",
     "StepRunStatus": "hatchet_sdk.clients.rest.models.step_run_status",
+    "StreamsApi": "hatchet_sdk.clients.rest.api.streams_api",
     "TaskApi": "hatchet_sdk.clients.rest.api.task_api",
     "TaskStat": "hatchet_sdk.clients.rest.models.task_stat",
     "TaskStatusStat": "hatchet_sdk.clients.rest.models.task_status_stat",
@@ -728,6 +733,7 @@ _LAZY_IMPORTS: dict[str, str] = {
     "V1RestoreTaskResponse": "hatchet_sdk.clients.rest.models.v1_restore_task_response",
     "V1RunningDetailCount": "hatchet_sdk.clients.rest.models.v1_running_detail_count",
     "V1RunningFilter": "hatchet_sdk.clients.rest.models.v1_running_filter",
+    "V1StreamPayloadRef": "hatchet_sdk.clients.rest.models.v1_stream_payload_ref",
     "V1TaskEvent": "hatchet_sdk.clients.rest.models.v1_task_event",
     "V1TaskEventList": "hatchet_sdk.clients.rest.models.v1_task_event_list",
     "V1TaskEventType": "hatchet_sdk.clients.rest.models.v1_task_event_type",

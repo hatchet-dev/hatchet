@@ -24,6 +24,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
+	"github.com/hatchet-dev/hatchet/internal/syncx"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
@@ -64,6 +65,7 @@ type TasksControllerImpl struct {
 	deactivateStaleStepConcurrencyOperations *operation.TenantOperationPool
 	expirePausedWorkflowQueueItemsOperations *operation.TenantOperationPool
 	restoreEvictedOrchestratorsOperations    *operation.TenantOperationPool
+	evictedTaskRuntimeCursors                syncx.Map[uuid.UUID, v1.EvictedTaskRuntimeCursor]
 
 	replayEnabled       bool
 	analyzeCronInterval time.Duration

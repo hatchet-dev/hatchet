@@ -9,6 +9,10 @@ SELECT
     create_v1_range_partition('v1_durable_event_log_file', @date::date) AS v1_durable_event_log_file,
     create_v1_range_partition('v1_durable_event_log_entry', @date::date, 80) AS v1_durable_event_log_entry,
     create_v1_range_partition('v1_durable_event_log_branch_point', @date::date, 80) AS v1_durable_event_log_branch_point,
+    create_v1_range_partition('v1_dag_to_task', @date::date) AS v1_dag_to_task,
+    create_v1_range_partition('v1_dag_data', @date::date) AS v1_dag_data,
+    create_v1_range_partition('v1_task_expression_eval', @date::date) AS v1_task_expression_eval,
+    create_v1_monthly_range_partition('v1_lookup_table', @date::date) AS v1_lookup_table,
     create_v1_range_partition('v1_stream_producer_cursor', @date::date, 80) AS v1_stream_producer_cursor
 ;
 
@@ -67,6 +71,14 @@ WITH task_partitions AS (
     SELECT 'v1_durable_event_log_entry' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_durable_event_log_entry', @date::date) AS p
 ), durable_event_log_branch_point_partitions AS (
     SELECT 'v1_durable_event_log_branch_point' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_durable_event_log_branch_point', @date::date) AS p
+), dag_to_task_partitions AS (
+    SELECT 'v1_dag_to_task' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dag_to_task', @date::date) AS p
+), dag_data_partitions AS (
+    SELECT 'v1_dag_data' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dag_data', @date::date) AS p
+), task_expression_eval_partitions AS (
+    SELECT 'v1_task_expression_eval' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_task_expression_eval', @date::date) AS p
+), lookup_table_partitions AS (
+    SELECT 'v1_lookup_table' AS parent_table, p::text as partition_name FROM get_v1_monthly_partitions_before_date('v1_lookup_table', @date::date) AS p
 )
 
 SELECT
@@ -129,6 +141,34 @@ SELECT
     *
 FROM
     durable_event_log_branch_point_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    dag_to_task_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    dag_data_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    task_expression_eval_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    lookup_table_partitions
 ;
 
 -- name: DefaultTaskActivityGauge :one
@@ -141,7 +181,7 @@ WHERE
     AND last_active > @activeSince::timestamptz;
 
 -- name: FlattenExternalIds :many
-WITH lookup_rows AS (
+WITH lookup_rows AS MATERIALIZED (
     SELECT
         *
     FROM
@@ -178,6 +218,8 @@ WITH lookup_rows AS (
         v1_task t ON t.id = dt.task_id AND t.inserted_at = dt.task_inserted_at
     WHERE
         l.dag_id IS NOT NULL
+        AND dt.dag_inserted_at >= (SELECT MIN(inserted_at) FROM lookup_rows WHERE dag_id IS NOT NULL)
+        AND t.inserted_at >= (SELECT MIN(inserted_at) FROM lookup_rows WHERE dag_id IS NOT NULL)
 )
 -- Union the tasks from the lookup table with the tasks from the DAGs
 SELECT
@@ -206,6 +248,7 @@ JOIN
     v1_task t ON t.id = l.task_id AND t.inserted_at = l.inserted_at
 WHERE
     l.task_id IS NOT NULL
+    AND t.inserted_at >= (SELECT MIN(inserted_at) FROM lookup_rows WHERE task_id IS NOT NULL)
 
 UNION ALL
 
@@ -554,7 +597,9 @@ JOIN
 JOIN
     input i ON i.task_external_id = l.external_id AND e.event_type::text = ANY(i.event_types)
 WHERE
-    e.retry_count = -1 OR e.retry_count = t.retry_count;
+    (e.retry_count = -1 OR e.retry_count = t.retry_count)
+    AND t.inserted_at >= (SELECT MIN(inserted_at) FROM looked_up)
+    AND e.task_inserted_at >= (SELECT MIN(inserted_at) FROM looked_up);
 
 -- name: LockSignalCreatedEvents :many
 -- Places a lock on the SIGNAL_CREATED events to make sure concurrent operations don't
@@ -657,8 +702,7 @@ WHERE
 -- name: ListTasksForReplay :many
 -- Lists tasks for replay by recursively selecting all tasks that are children of the input tasks,
 -- then locks the tasks for replay.
-WITH RECURSIVE augmented_tasks AS (
-    -- First, select the tasks from the input
+WITH RECURSIVE input_tasks AS MATERIALIZED (
     SELECT
         id,
         inserted_at,
@@ -675,6 +719,18 @@ WITH RECURSIVE augmented_tasks AS (
                 unnest(@taskInsertedAts::timestamptz[])
         )
         AND tenant_id = @tenantId::uuid
+        AND inserted_at >= @minTaskInsertedAt::timestamptz
+), augmented_tasks AS (
+    -- First, select the tasks from the input
+    SELECT
+        id,
+        inserted_at,
+        tenant_id,
+        dag_id,
+        dag_inserted_at,
+        step_id
+    FROM
+        input_tasks
 
     UNION
 
@@ -698,6 +754,9 @@ WITH RECURSIVE augmented_tasks AS (
         "Step" s2 ON s2."id" = t.step_id
     JOIN
         "_StepOrder" so ON so."B" = s2."id" AND so."A" = s1."id"
+    WHERE
+        dt.dag_inserted_at >= (SELECT MIN(dag_inserted_at) FROM input_tasks)
+        AND t.inserted_at >= (SELECT MIN(dag_inserted_at) FROM input_tasks)
 ), locked_tasks AS (
     SELECT
         t.id,
@@ -730,6 +789,7 @@ WITH RECURSIVE augmented_tasks AS (
                 augmented_tasks
         )
         AND t.tenant_id = @tenantId::uuid
+        AND t.inserted_at >= (SELECT MIN(inserted_at) FROM augmented_tasks)
     -- order by the task id to get a stable lock order
     ORDER BY
         id
@@ -820,6 +880,10 @@ WITH input AS (
         )
         AND t1.tenant_id = @tenantId::uuid
         AND t1.dag_id IS NOT NULL
+        AND t1.inserted_at >= @minTaskInsertedAt::timestamptz
+        AND dt.dag_inserted_at >= @minDagInsertedAt::timestamptz
+        AND t.inserted_at >= @minDagInsertedAt::timestamptz
+        AND e.task_inserted_at >= @minDagInsertedAt::timestamptz
 ), max_retry_counts AS (
     SELECT
         id,
@@ -929,6 +993,8 @@ WITH input AS (
         "Step" s ON s."jobId" = j."id"
     WHERE
         d.tenant_id = @tenantId::uuid
+        AND d.inserted_at >= @minDagInsertedAt::timestamptz
+        AND dt.dag_inserted_at >= @minDagInsertedAt::timestamptz
     GROUP BY
         d.id,
         d.inserted_at
@@ -999,6 +1065,11 @@ WHERE
 ;
 
 -- name: ListAllTasksInDags :many
+WITH input AS (
+    SELECT
+        UNNEST(@dagIds::bigint[]) AS dag_id,
+        UNNEST(@dagInsertedAts::timestamptz[]) AS dag_inserted_at
+)
 SELECT
     t.id,
     t.inserted_at,
@@ -1010,12 +1081,14 @@ SELECT
     t.workflow_id,
     t.external_id
 FROM
-    v1_task t
+    input i
 JOIN
-    v1_dag_to_task dt ON dt.task_id = t.id
+    v1_dag_to_task dt ON dt.dag_id = i.dag_id AND dt.dag_inserted_at = i.dag_inserted_at
+JOIN
+    v1_task t ON t.id = dt.task_id AND t.inserted_at = dt.task_inserted_at
 WHERE
     t.tenant_id = @tenantId::uuid
-    AND dt.dag_id = ANY(@dagIds::bigint[]);
+    AND dt.dag_inserted_at >= @minDagInsertedAt::timestamptz;
 
 -- name: ListTaskExpressionEvals :many
 WITH input AS (
@@ -1039,7 +1112,8 @@ WHERE
             task_inserted_at
         FROM
             input
-    );
+    )
+    AND te.task_inserted_at >= @minTaskInsertedAt::timestamptz;
 
 -- name: RefreshTimeoutBy :one
 WITH task AS MATERIALIZED (
@@ -1183,33 +1257,53 @@ SELECT
           AND NOT is_satisfied
     ) AS has_unsatisfied_durable_events;
 
--- name: ListStuckEvictedDurableOrchestrators :many
+-- name: ListEvictedTaskRuntimeWindow :many
 -- DAG-orchestrator tasks whose runtime has been evicted past the grace period and whose durable
 -- event log entries are ALL satisfied -- the orchestrator is ready to resume but the
 -- edge-triggered restore (a child callback arriving while evicted -> DurableRestoreTask) never
 -- fired: the callback was lost on an engine roll, or every entry was satisfied before the
 -- eviction so there was no later callback. The caller re-queues these via DurableRestoreTask.
+WITH evicted_runtime_window AS (
+    SELECT
+        rt.task_id,
+        rt.task_inserted_at,
+        rt.retry_count,
+        rt.evicted_at
+    FROM v1_task_runtime rt
+    WHERE
+        rt.tenant_id = @tenantId::UUID
+        AND rt.evicted_at < NOW() - @gracePeriod::INTERVAL
+        AND (rt.evicted_at, rt.task_id, rt.task_inserted_at, rt.retry_count) > (
+            @minEvictedAst::TIMESTAMPTZ,
+            @minTaskId::BIGINT,
+            @minTaskInsertedAt::TIMESTAMPTZ,
+            @minRetryCount::INTEGER
+        )
+    ORDER BY rt.evicted_at, rt.task_id, rt.task_inserted_at, rt.retry_count
+    LIMIT @windowSize::INTEGER
+)
 SELECT
-    t.id,
-    t.inserted_at,
+    w.task_id,
+    w.task_inserted_at,
+    w.retry_count,
+    w.evicted_at,
     t.external_id,
-    rt.retry_count
-FROM v1_task_runtime rt
-JOIN v1_task t ON (t.id, t.inserted_at) = (rt.task_id, rt.task_inserted_at)
-WHERE rt.tenant_id = @tenantId::uuid
-    AND rt.evicted_at < NOW() - @gracePeriod::interval
-    AND t.is_dag_orchestrator
-    AND EXISTS (
-        SELECT 1 FROM v1_durable_event_log_entry e
-        WHERE (e.durable_task_id, e.durable_task_inserted_at) = (t.id, t.inserted_at)
-    )
-    AND NOT EXISTS (
-        SELECT 1 FROM v1_durable_event_log_entry e
-        WHERE (e.durable_task_id, e.durable_task_inserted_at) = (t.id, t.inserted_at)
-          AND NOT e.is_satisfied
-    )
-ORDER BY rt.evicted_at
-LIMIT @maxTasks::int;
+    COALESCE(
+        t.is_dag_orchestrator
+        AND EXISTS (
+            SELECT 1 FROM v1_durable_event_log_entry e
+            WHERE (e.durable_task_id, e.durable_task_inserted_at) = (t.id, t.inserted_at)
+        )
+        AND NOT EXISTS (
+            SELECT 1 FROM v1_durable_event_log_entry e
+            WHERE (e.durable_task_id, e.durable_task_inserted_at) = (t.id, t.inserted_at)
+              AND NOT e.is_satisfied
+        ),
+        FALSE
+    )::BOOLEAN AS is_stuck_durable_orchestrator
+FROM evicted_runtime_window w
+LEFT JOIN v1_task t ON (t.id, t.inserted_at) = (w.task_id, w.task_inserted_at)
+ORDER BY w.evicted_at, w.task_id, w.task_inserted_at, w.retry_count;
 
 -- name: ListUnfinishedDurableOrchestratorChildren :many
 SELECT DISTINCT
@@ -1342,6 +1436,18 @@ ANALYZE v1_log_line;
 -- name: AnalyzeV1Event :exec
 ANALYZE v1_event;
 
+-- name: AnalyzeV1DAGToTask :exec
+ANALYZE v1_dag_to_task;
+
+-- name: AnalyzeV1DagData :exec
+ANALYZE v1_dag_data;
+
+-- name: AnalyzeV1TaskExpressionEval :exec
+ANALYZE v1_task_expression_eval;
+
+-- name: AnalyzeV1LookupTable :exec
+ANALYZE v1_lookup_table;
+
 -- name: CleanupV1TaskRuntime :execresult
 WITH locked_trs AS (
     SELECT vtr.task_id, vtr.task_inserted_at, vtr.retry_count
@@ -1355,13 +1461,13 @@ WITH locked_trs AS (
     ORDER BY vtr.task_id ASC
     LIMIT @batchSize::int
     FOR UPDATE SKIP LOCKED
+), deleted_slots AS (
+    DELETE FROM v1_task_runtime_slot
+    WHERE (task_id, task_inserted_at, retry_count) IN (
+        SELECT task_id, task_inserted_at, retry_count
+        FROM locked_trs
+    )
 )
-DELETE FROM v1_task_runtime_slot
-WHERE (task_id, task_inserted_at, retry_count) IN (
-    SELECT task_id, task_inserted_at, retry_count
-    FROM locked_trs
-);
-
 DELETE FROM v1_task_runtime
 WHERE (task_id, task_inserted_at, retry_count) IN (
     SELECT task_id, task_inserted_at, retry_count

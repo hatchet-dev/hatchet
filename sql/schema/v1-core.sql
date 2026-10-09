@@ -38,6 +38,26 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION get_v1_monthly_partitions_before_date(
+    targetTableName text,
+    targetDate date
+) RETURNS TABLE(partition_name text)
+    LANGUAGE plpgsql AS
+$$
+BEGIN
+    RETURN QUERY
+    SELECT
+        inhrelid::regclass::text AS partition_name
+    FROM
+        pg_inherits
+    WHERE
+        inhparent = targetTableName::regclass
+        AND substring(inhrelid::regclass::text, format('%s_(\d{8})', targetTableName)) ~ '^\d{8}'
+        AND (substring(inhrelid::regclass::text, format('%s_(\d{8})', targetTableName))::date + INTERVAL '1 month') <= targetDate
+    ;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION create_v1_range_partition(
     targetTableName text,
     targetDate date,
@@ -157,6 +177,42 @@ BEGIN
         )', newTableName);
     EXECUTE
         format('ALTER TABLE %s ATTACH PARTITION %s FOR VALUES FROM (''%s'') TO (''%s'')', targetTableName, newTableName, targetDateStr, targetDatePlusOneWeekStr);
+    RETURN 1;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION create_v1_monthly_range_partition(
+    targetTableName text,
+    targetDate date
+) RETURNS integer
+    LANGUAGE plpgsql AS
+$$
+DECLARE
+    monthStartStr varchar;
+    nextMonthStartStr varchar;
+    newTableName varchar;
+BEGIN
+    SELECT to_char(date_trunc('month', targetDate), 'YYYYMMDD') INTO monthStartStr;
+    SELECT to_char(date_trunc('month', targetDate) + INTERVAL '1 month', 'YYYYMMDD') INTO nextMonthStartStr;
+    SELECT lower(format('%s_%s', targetTableName, monthStartStr)) INTO newTableName;
+    -- exit if the table exists
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = newTableName) THEN
+        RETURN 0;
+    END IF;
+
+    EXECUTE
+        format('CREATE TABLE %s (LIKE %s INCLUDING INDEXES)', newTableName, targetTableName);
+    EXECUTE
+        format('ALTER TABLE %s SET (
+            autovacuum_vacuum_scale_factor = ''0.1'',
+            autovacuum_analyze_scale_factor=''0.05'',
+            autovacuum_vacuum_threshold=''25'',
+            autovacuum_analyze_threshold=''25'',
+            autovacuum_vacuum_cost_delay=''10'',
+            autovacuum_vacuum_cost_limit=''1000''
+        )', newTableName);
+    EXECUTE
+        format('ALTER TABLE %s ATTACH PARTITION %s FOR VALUES FROM (''%s'') TO (''%s'')', targetTableName, newTableName, monthStartStr, nextMonthStartStr);
     RETURN 1;
 END;
 $$;
@@ -525,13 +581,13 @@ CREATE TABLE v1_task (
 
 CREATE TABLE v1_lookup_table (
     tenant_id UUID NOT NULL,
-    external_id UUID NOT NULL,
+    external_id UUID NOT NULL, -- IMPORTANT: Each _partition_ of this table has a `UNIQUE` constraint on this column, but the parent does not
     task_id BIGINT,
     dag_id BIGINT,
     inserted_at TIMESTAMPTZ NOT NULL,
 
-    PRIMARY KEY (external_id)
-);
+    PRIMARY KEY (external_id, inserted_at)
+) PARTITION BY RANGE (inserted_at);
 
 CREATE TYPE v1_task_event_type AS ENUM (
     'COMPLETED',
@@ -579,7 +635,7 @@ CREATE TABLE v1_task_expression_eval (
     kind "StepExpressionKind" NOT NULL,
 
     CONSTRAINT v1_task_expression_eval_pkey PRIMARY KEY (task_id, task_inserted_at, kind, key)
-);
+) PARTITION BY RANGE(task_inserted_at);
 
 -- CreateTable
 -- NOTE: changes to v1_queue_item should be reflected in v1_rate_limited_queue_items
@@ -649,6 +705,8 @@ CREATE INDEX v1_task_runtime_tenantId_workerId_idx ON v1_task_runtime (tenant_id
 CREATE INDEX v1_task_runtime_tenantId_timeoutAt_idx ON v1_task_runtime (tenant_id ASC, timeout_at ASC);
 
 CREATE INDEX v1_task_runtime_tenant_worker_not_evicted_idx ON v1_task_runtime (tenant_id, worker_id) WHERE evicted_at IS NULL;
+
+CREATE INDEX v1_task_runtime_tenant_evicted_at_idx ON v1_task_runtime (tenant_id, evicted_at, task_id, task_inserted_at, retry_count) WHERE evicted_at IS NOT NULL;
 
 CREATE INDEX v1_task_runtime_batch_id_idx ON v1_task_runtime (batch_id) WHERE batch_id IS NOT NULL;
 
@@ -1135,15 +1193,15 @@ CREATE TABLE v1_dag_to_task (
     task_id BIGINT NOT NULL,
     task_inserted_at TIMESTAMPTZ NOT NULL,
     CONSTRAINT v1_dag_to_task_pkey PRIMARY KEY (dag_id, dag_inserted_at, task_id, task_inserted_at)
-);
+) PARTITION BY RANGE(dag_inserted_at);
 
 CREATE TABLE v1_dag_data (
     dag_id BIGINT NOT NULL,
     dag_inserted_at TIMESTAMPTZ NOT NULL,
     input JSONB NOT NULL,
     additional_metadata JSONB,
-    CONSTRAINT v1_dag_input_pkey PRIMARY KEY (dag_id, dag_inserted_at)
-);
+    PRIMARY KEY (dag_id, dag_inserted_at)
+) PARTITION BY RANGE(dag_inserted_at);
 
 -- CreateTable
 CREATE TABLE v1_workflow_concurrency_slot (
@@ -1660,7 +1718,7 @@ BEGIN
         id,
         inserted_at
     FROM new_table
-    ON CONFLICT (external_id) DO NOTHING;
+    ON CONFLICT (external_id, inserted_at) DO NOTHING;
 
     RETURN NULL;
 END;
@@ -2212,7 +2270,7 @@ BEGIN
         id,
         inserted_at
     FROM new_table
-    ON CONFLICT (external_id) DO NOTHING;
+    ON CONFLICT (external_id, inserted_at) DO NOTHING;
 
     RETURN NULL;
 END;
@@ -2279,9 +2337,27 @@ CREATE TABLE v1_stream_message (
     payload BYTEA NOT NULL,
     producer_id TEXT NOT NULL,
     producer_seq BIGINT NOT NULL,
+    -- set when the payload was uploaded ahead of the publish (see v1_stream_payload)
+    payload_id UUID,
+    payload_inserted_at TIMESTAMPTZ,
 
     -- id first so reads seek by offset; inserted_at is required as the partition key
-    CONSTRAINT v1_stream_message_pkey PRIMARY KEY (tenant_id, namespace, topic, id, inserted_at)
+    CONSTRAINT v1_stream_message_pkey PRIMARY KEY (tenant_id, namespace, topic, id, inserted_at),
+    -- the pair together is the ref; one without the other can't be resolved
+    CONSTRAINT v1_stream_message_payload_ref_check CHECK ((payload_id IS NULL) = (payload_inserted_at IS NULL))
+) PARTITION BY RANGE(inserted_at);
+
+-- Payloads too large for a gRPC publish. Insert-only; partitions are dropped
+-- StreamPayloadRetentionGrace after v1_stream_message's, since a payload is
+-- uploaded before the message referencing it, so an upload no publish
+-- references needs no cleanup of its own.
+CREATE TABLE v1_stream_payload (
+    id UUID NOT NULL,
+    inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    tenant_id UUID NOT NULL,
+    payload BYTEA NOT NULL,
+
+    CONSTRAINT v1_stream_payload_pkey PRIMARY KEY (tenant_id, id, inserted_at)
 ) PARTITION BY RANGE(inserted_at);
 
 -- v1_stream_producer_cursor holds each producer's last stored producer_seq.

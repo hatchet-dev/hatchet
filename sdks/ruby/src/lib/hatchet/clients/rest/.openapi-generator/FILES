@@ -25,6 +25,7 @@ lib/hatchet-sdk-rest/api/rate_limits_api.rb
 lib/hatchet-sdk-rest/api/slack_api.rb
 lib/hatchet-sdk-rest/api/sns_api.rb
 lib/hatchet-sdk-rest/api/step_run_api.rb
+lib/hatchet-sdk-rest/api/streams_api.rb
 lib/hatchet-sdk-rest/api/task_api.rb
 lib/hatchet-sdk-rest/api/tenant_api.rb
 lib/hatchet-sdk-rest/api/user_api.rb
@@ -207,6 +208,7 @@ lib/hatchet-sdk-rest/models/v1_replayed_tasks.rb
 lib/hatchet-sdk-rest/models/v1_restore_task_response.rb
 lib/hatchet-sdk-rest/models/v1_running_detail_count.rb
 lib/hatchet-sdk-rest/models/v1_running_filter.rb
+lib/hatchet-sdk-rest/models/v1_stream_payload_ref.rb
 lib/hatchet-sdk-rest/models/v1_task_event.rb
 lib/hatchet-sdk-rest/models/v1_task_event_list.rb
 lib/hatchet-sdk-rest/models/v1_task_event_type.rb

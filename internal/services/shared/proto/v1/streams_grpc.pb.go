@@ -24,6 +24,7 @@ const _ = grpc.SupportPackageIsVersion7
 type V1StreamsClient interface {
 	Publish(ctx context.Context, in *PublishStreamMessageRequest, opts ...grpc.CallOption) (*PublishStreamMessageResponse, error)
 	Subscribe(ctx context.Context, in *SubscribeStreamRequest, opts ...grpc.CallOption) (V1Streams_SubscribeClient, error)
+	GetTopicMetadata(ctx context.Context, in *GetStreamTopicMetadataRequest, opts ...grpc.CallOption) (*StreamTopicMetadata, error)
 }
 
 type v1StreamsClient struct {
@@ -75,12 +76,22 @@ func (x *v1StreamsSubscribeClient) Recv() (*StreamMessage, error) {
 	return m, nil
 }
 
+func (c *v1StreamsClient) GetTopicMetadata(ctx context.Context, in *GetStreamTopicMetadataRequest, opts ...grpc.CallOption) (*StreamTopicMetadata, error) {
+	out := new(StreamTopicMetadata)
+	err := c.cc.Invoke(ctx, "/v1.V1Streams/GetTopicMetadata", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // V1StreamsServer is the server API for V1Streams service.
 // All implementations must embed UnimplementedV1StreamsServer
 // for forward compatibility
 type V1StreamsServer interface {
 	Publish(context.Context, *PublishStreamMessageRequest) (*PublishStreamMessageResponse, error)
 	Subscribe(*SubscribeStreamRequest, V1Streams_SubscribeServer) error
+	GetTopicMetadata(context.Context, *GetStreamTopicMetadataRequest) (*StreamTopicMetadata, error)
 	mustEmbedUnimplementedV1StreamsServer()
 }
 
@@ -93,6 +104,9 @@ func (UnimplementedV1StreamsServer) Publish(context.Context, *PublishStreamMessa
 }
 func (UnimplementedV1StreamsServer) Subscribe(*SubscribeStreamRequest, V1Streams_SubscribeServer) error {
 	return status.Errorf(codes.Unimplemented, "method Subscribe not implemented")
+}
+func (UnimplementedV1StreamsServer) GetTopicMetadata(context.Context, *GetStreamTopicMetadataRequest) (*StreamTopicMetadata, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetTopicMetadata not implemented")
 }
 func (UnimplementedV1StreamsServer) mustEmbedUnimplementedV1StreamsServer() {}
 
@@ -146,6 +160,24 @@ func (x *v1StreamsSubscribeServer) Send(m *StreamMessage) error {
 	return x.ServerStream.SendMsg(m)
 }
 
+func _V1Streams_GetTopicMetadata_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetStreamTopicMetadataRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(V1StreamsServer).GetTopicMetadata(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/v1.V1Streams/GetTopicMetadata",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(V1StreamsServer).GetTopicMetadata(ctx, req.(*GetStreamTopicMetadataRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // V1Streams_ServiceDesc is the grpc.ServiceDesc for V1Streams service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -156,6 +188,10 @@ var V1Streams_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Publish",
 			Handler:    _V1Streams_Publish_Handler,
+		},
+		{
+			MethodName: "GetTopicMetadata",
+			Handler:    _V1Streams_GetTopicMetadata_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

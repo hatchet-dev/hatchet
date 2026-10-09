@@ -151,6 +151,8 @@ Class | Method | HTTP request | Description
 *HatchetSdkRest::StepRunApi* | [**step_run_update_cancel**](docs/StepRunApi.md#step_run_update_cancel) | **POST** /api/v1/tenants/{tenant}/step-runs/{step-run}/cancel | Attempts to cancel a step run
 *HatchetSdkRest::StepRunApi* | [**step_run_update_rerun**](docs/StepRunApi.md#step_run_update_rerun) | **POST** /api/v1/tenants/{tenant}/step-runs/{step-run}/rerun | Rerun step run
 *HatchetSdkRest::StepRunApi* | [**workflow_run_list_step_run_events**](docs/StepRunApi.md#workflow_run_list_step_run_events) | **GET** /api/v1/tenants/{tenant}/workflow-runs/{workflow-run}/step-run-events | List events for all step runs for a workflow run
+*HatchetSdkRest::StreamsApi* | [**v1_stream_payload_get**](docs/StreamsApi.md#v1_stream_payload_get) | **GET** /api/v1/stable/tenants/{tenant}/streams/payloads | Get stream payload
+*HatchetSdkRest::StreamsApi* | [**v1_stream_payload_upload**](docs/StreamsApi.md#v1_stream_payload_upload) | **POST** /api/v1/stable/tenants/{tenant}/streams/payloads | Upload stream payload
 *HatchetSdkRest::TaskApi* | [**v1_dag_list_tasks**](docs/TaskApi.md#v1_dag_list_tasks) | **GET** /api/v1/stable/dags/tasks | List tasks
 *HatchetSdkRest::TaskApi* | [**v1_task_cancel**](docs/TaskApi.md#v1_task_cancel) | **POST** /api/v1/stable/tenants/{tenant}/tasks/cancel | Cancel tasks
 *HatchetSdkRest::TaskApi* | [**v1_task_event_list**](docs/TaskApi.md#v1_task_event_list) | **GET** /api/v1/stable/tasks/{task}/task-events | List events for a task
@@ -414,6 +416,7 @@ Class | Method | HTTP request | Description
  - [HatchetSdkRest::V1RestoreTaskResponse](docs/V1RestoreTaskResponse.md)
  - [HatchetSdkRest::V1RunningDetailCount](docs/V1RunningDetailCount.md)
  - [HatchetSdkRest::V1RunningFilter](docs/V1RunningFilter.md)
+ - [HatchetSdkRest::V1StreamPayloadRef](docs/V1StreamPayloadRef.md)
  - [HatchetSdkRest::V1TaskEvent](docs/V1TaskEvent.md)
  - [HatchetSdkRest::V1TaskEventList](docs/V1TaskEventList.md)
  - [HatchetSdkRest::V1TaskEventType](docs/V1TaskEventType.md)

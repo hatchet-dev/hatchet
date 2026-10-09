@@ -194,6 +194,13 @@ func NewSpanWithLinks(ctx context.Context, name string, links []trace.Link) (con
 	return ctx, span
 }
 
+// NewSpanAt starts a span that began at start, for work only worth recording
+// once it's known what it did.
+func NewSpanAt(ctx context.Context, name string, start time.Time) (context.Context, trace.Span) {
+	ctx, span := otel.Tracer("").Start(ctx, prefixSpanKey(name), trace.WithTimestamp(start))
+	return ctx, span
+}
+
 func NewRootSpan(ctx context.Context, name string) (context.Context, trace.Span) {
 	ctx = trace.ContextWithSpanContext(ctx, trace.SpanContext{})
 	ctx, span := otel.Tracer("").Start(ctx, prefixSpanKey(name))

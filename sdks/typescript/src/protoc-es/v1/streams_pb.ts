@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file v1/streams.proto.
  */
 export const file_v1_streams: GenFile = /*@__PURE__*/
-  fileDesc("ChB2MS9zdHJlYW1zLnByb3RvEgJ2MSJ7ChtQdWJsaXNoU3RyZWFtTWVzc2FnZVJlcXVlc3QSEQoJbmFtZXNwYWNlGAEgASgJEg0KBXRvcGljGAIgASgJEg8KB3BheWxvYWQYAyABKAwSEwoLcHJvZHVjZXJfaWQYBCABKAkSFAoMcHJvZHVjZXJfc2VxGAUgASgDIh4KHFB1Ymxpc2hTdHJlYW1NZXNzYWdlUmVzcG9uc2UiWgoWU3Vic2NyaWJlU3RyZWFtUmVxdWVzdBIRCgluYW1lc3BhY2UYASABKAkSDQoFdG9waWMYAiABKAkSEwoGY3Vyc29yGAMgASgJSACIAQFCCQoHX2N1cnNvciJRCg1TdHJlYW1NZXNzYWdlEiAKB2VudHJpZXMYASADKAsyDy52MS5TdHJlYW1FbnRyeRIOCgZoYW5ndXAYAiABKAgSDgoGY3Vyc29yGAMgASgJIl4KC1N0cmVhbUVudHJ5Eg8KB3BheWxvYWQYASABKAwSDgoGY3Vyc29yGAIgASgJEi4KCmNyZWF0ZWRfYXQYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wMpsBCglWMVN0cmVhbXMSTgoHUHVibGlzaBIfLnYxLlB1Ymxpc2hTdHJlYW1NZXNzYWdlUmVxdWVzdBogLnYxLlB1Ymxpc2hTdHJlYW1NZXNzYWdlUmVzcG9uc2UiABI+CglTdWJzY3JpYmUSGi52MS5TdWJzY3JpYmVTdHJlYW1SZXF1ZXN0GhEudjEuU3RyZWFtTWVzc2FnZSIAMAFCQlpAZ2l0aHViLmNvbS9oYXRjaGV0LWRldi9oYXRjaGV0L2ludGVybmFsL3NlcnZpY2VzL3NoYXJlZC9wcm90by92MWIGcHJvdG8z", [file_google_protobuf_timestamp]);
+  fileDesc("ChB2MS9zdHJlYW1zLnByb3RvEgJ2MSKQAQobUHVibGlzaFN0cmVhbU1lc3NhZ2VSZXF1ZXN0EhEKCW5hbWVzcGFjZRgBIAEoCRINCgV0b3BpYxgCIAEoCRIPCgdwYXlsb2FkGAMgASgMEhMKC3Byb2R1Y2VyX2lkGAQgASgJEhQKDHByb2R1Y2VyX3NlcRgFIAEoAxITCgtwYXlsb2FkX3JlZhgGIAEoCSIeChxQdWJsaXNoU3RyZWFtTWVzc2FnZVJlc3BvbnNlIloKFlN1YnNjcmliZVN0cmVhbVJlcXVlc3QSEQoJbmFtZXNwYWNlGAEgASgJEg0KBXRvcGljGAIgASgJEhMKBmN1cnNvchgDIAEoCUgAiAEBQgkKB19jdXJzb3IiUQoNU3RyZWFtTWVzc2FnZRIgCgdlbnRyaWVzGAEgAygLMg8udjEuU3RyZWFtRW50cnkSDgoGaGFuZ3VwGAIgASgIEg4KBmN1cnNvchgDIAEoCSJzCgtTdHJlYW1FbnRyeRIPCgdwYXlsb2FkGAEgASgMEg4KBmN1cnNvchgCIAEoCRIuCgpjcmVhdGVkX2F0GAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBITCgtwYXlsb2FkX3JlZhgEIAEoCSJBCh1HZXRTdHJlYW1Ub3BpY01ldGFkYXRhUmVxdWVzdBIRCgluYW1lc3BhY2UYASABKAkSDQoFdG9waWMYAiABKAkixgEKE1N0cmVhbVRvcGljTWV0YWRhdGESEQoJbmFtZXNwYWNlGAEgASgJEg0KBXRvcGljGAIgASgJEhEKCXRlbmFudF9pZBgDIAEoCRIaCg1sYXRlc3RfY3Vyc29yGAQgASgJSACIAQESFQoNbWVzc2FnZV9jb3VudBgFIAEoAxI1ChFsYXN0X3B1Ymxpc2hlZF9hdBgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXBCEAoOX2xhdGVzdF9jdXJzb3Iy7QEKCVYxU3RyZWFtcxJOCgdQdWJsaXNoEh8udjEuUHVibGlzaFN0cmVhbU1lc3NhZ2VSZXF1ZXN0GiAudjEuUHVibGlzaFN0cmVhbU1lc3NhZ2VSZXNwb25zZSIAEj4KCVN1YnNjcmliZRIaLnYxLlN1YnNjcmliZVN0cmVhbVJlcXVlc3QaES52MS5TdHJlYW1NZXNzYWdlIgAwARJQChBHZXRUb3BpY01ldGFkYXRhEiEudjEuR2V0U3RyZWFtVG9waWNNZXRhZGF0YVJlcXVlc3QaFy52MS5TdHJlYW1Ub3BpY01ldGFkYXRhIgBCQlpAZ2l0aHViLmNvbS9oYXRjaGV0LWRldi9oYXRjaGV0L2ludGVybmFsL3NlcnZpY2VzL3NoYXJlZC9wcm90by92MWIGcHJvdG8z", [file_google_protobuf_timestamp]);
 
 /**
  * @generated from message v1.PublishStreamMessageRequest
@@ -42,6 +42,14 @@ export type PublishStreamMessageRequest = Message<"v1.PublishStreamMessageReques
    * @generated from field: int64 producer_seq = 5;
    */
   producerSeq: bigint;
+
+  /**
+   * instead of payload: a ref returned by the stream payload upload endpoint,
+   * for payloads too large for one gRPC message
+   *
+   * @generated from field: string payload_ref = 6;
+   */
+  payloadRef: string;
 };
 
 /**
@@ -136,6 +144,13 @@ export type StreamEntry = Message<"v1.StreamEntry"> & {
    * @generated from field: google.protobuf.Timestamp created_at = 3;
    */
   createdAt?: Timestamp | undefined;
+
+  /**
+   * instead of payload: fetch it from the stream payload endpoint by this ref
+   *
+   * @generated from field: string payload_ref = 4;
+   */
+  payloadRef: string;
 };
 
 /**
@@ -144,6 +159,76 @@ export type StreamEntry = Message<"v1.StreamEntry"> & {
  */
 export const StreamEntrySchema: GenMessage<StreamEntry> = /*@__PURE__*/
   messageDesc(file_v1_streams, 4);
+
+/**
+ * @generated from message v1.GetStreamTopicMetadataRequest
+ */
+export type GetStreamTopicMetadataRequest = Message<"v1.GetStreamTopicMetadataRequest"> & {
+  /**
+   * @generated from field: string namespace = 1;
+   */
+  namespace: string;
+
+  /**
+   * @generated from field: string topic = 2;
+   */
+  topic: string;
+};
+
+/**
+ * Describes the message v1.GetStreamTopicMetadataRequest.
+ * Use `create(GetStreamTopicMetadataRequestSchema)` to create a new message.
+ */
+export const GetStreamTopicMetadataRequestSchema: GenMessage<GetStreamTopicMetadataRequest> = /*@__PURE__*/
+  messageDesc(file_v1_streams, 5);
+
+/**
+ * Counts and the latest message cover only what's within the tenant's retention.
+ *
+ * @generated from message v1.StreamTopicMetadata
+ */
+export type StreamTopicMetadata = Message<"v1.StreamTopicMetadata"> & {
+  /**
+   * @generated from field: string namespace = 1;
+   */
+  namespace: string;
+
+  /**
+   * @generated from field: string topic = 2;
+   */
+  topic: string;
+
+  /**
+   * @generated from field: string tenant_id = 3;
+   */
+  tenantId: string;
+
+  /**
+   * resumes a subscription after the newest retained message; unset when none is retained
+   *
+   * @generated from field: optional string latest_cursor = 4;
+   */
+  latestCursor?: string | undefined;
+
+  /**
+   * @generated from field: int64 message_count = 5;
+   */
+  messageCount: bigint;
+
+  /**
+   * when the newest retained message was stored; unset when none is retained
+   *
+   * @generated from field: google.protobuf.Timestamp last_published_at = 6;
+   */
+  lastPublishedAt?: Timestamp | undefined;
+};
+
+/**
+ * Describes the message v1.StreamTopicMetadata.
+ * Use `create(StreamTopicMetadataSchema)` to create a new message.
+ */
+export const StreamTopicMetadataSchema: GenMessage<StreamTopicMetadata> = /*@__PURE__*/
+  messageDesc(file_v1_streams, 6);
 
 /**
  * @generated from service v1.V1Streams
@@ -164,6 +249,14 @@ export const V1Streams: GenService<{
     methodKind: "server_streaming";
     input: typeof SubscribeStreamRequestSchema;
     output: typeof StreamMessageSchema;
+  },
+  /**
+   * @generated from rpc v1.V1Streams.GetTopicMetadata
+   */
+  getTopicMetadata: {
+    methodKind: "unary";
+    input: typeof GetStreamTopicMetadataRequestSchema;
+    output: typeof StreamTopicMetadataSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_v1_streams, 0);

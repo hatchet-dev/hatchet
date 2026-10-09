@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from hatchet_sdk.clients.rest.api.sns_api import SNSApi
     from hatchet_sdk.clients.rest.api.slack_api import SlackApi
     from hatchet_sdk.clients.rest.api.step_run_api import StepRunApi
+    from hatchet_sdk.clients.rest.api.streams_api import StreamsApi
     from hatchet_sdk.clients.rest.api.task_api import TaskApi
     from hatchet_sdk.clients.rest.api.tenant_api import TenantApi
     from hatchet_sdk.clients.rest.api.user_api import UserApi
@@ -48,6 +49,7 @@ _LAZY_IMPORTS: dict[str, str] = {
     "SNSApi": "hatchet_sdk.clients.rest.api.sns_api",
     "SlackApi": "hatchet_sdk.clients.rest.api.slack_api",
     "StepRunApi": "hatchet_sdk.clients.rest.api.step_run_api",
+    "StreamsApi": "hatchet_sdk.clients.rest.api.streams_api",
     "TaskApi": "hatchet_sdk.clients.rest.api.task_api",
     "TenantApi": "hatchet_sdk.clients.rest.api.tenant_api",
     "UserApi": "hatchet_sdk.clients.rest.api.user_api",

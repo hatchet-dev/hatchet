@@ -617,8 +617,9 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, tx *OptimisticT
 
 	// get all step run expression evals which correspond to rate limits, grouped by step run id
 	expressionEvals, err := d.queries.ListTaskExpressionEvals(ctx, queryTx, sqlcv1.ListTaskExpressionEvalsParams{
-		Taskids:         taskIds,
-		Taskinsertedats: taskInsertedAts,
+		Taskids:           taskIds,
+		Taskinsertedats:   taskInsertedAts,
+		Mintaskinsertedat: sqlchelpers.MinTimestamptz(taskInsertedAts),
 	})
 
 	if err != nil {
@@ -1006,10 +1007,12 @@ func (d *queueRepository) RequeueRateLimitedItems(ctx context.Context, tenantId 
 		return nil, err
 	}
 
-	// This also keeps the queue's last_active fresh (cache-gated to once per 5 minutes) so a
-	// queue whose only pending work is rate limited for longer than a day stays in ListQueues
-	// and keeps its queuer; ReactivateInactiveQueuesWithItems does not look at
-	// v1_rate_limited_queue_items, so nothing else would requeue those items.
+	// Runs on every queue-loop tick: refreshing last_active unconditionally would keep every
+	// polled queue active forever.
+	if len(rows) == 0 {
+		return rows, nil
+	}
+
 	saveQueues, err := d.upsertQueues(ctx, d.pool, tenantId, []string{queueName})
 
 	if err != nil {

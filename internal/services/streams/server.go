@@ -7,11 +7,15 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/rpcstream"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 // subscribeTailPollInterval is the poller's fallback when a wake is lost.
@@ -25,15 +29,43 @@ func (s *ServiceImpl) Publish(ctx context.Context, req *contracts.PublishStreamM
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 
-	if err := s.checkEntitled(ctx, tenantId); err != nil {
+	telemetry.WithAttributes(trace.SpanFromContext(ctx),
+		telemetry.AttributeKV{Key: "tenant.id", Value: tenantId},
+		telemetry.AttributeKV{Key: "stream.namespace", Value: req.Namespace},
+		telemetry.AttributeKV{Key: "stream.topic", Value: req.Topic},
+		telemetry.AttributeKV{Key: "stream.payload_bytes", Value: len(req.Payload)},
+		telemetry.AttributeKV{Key: "stream.payload_ref", Value: req.PayloadRef != ""},
+	)
+
+	entitled, err := s.repo.TenantEntitlement().HasEntitlement(ctx, tenantId, v1.EntitlementDurableStreams)
+
+	if err != nil {
 		return nil, err
+	}
+
+	if !entitled {
+		return nil, connect.NewError(connect.CodePermissionDenied, errNotEntitled)
 	}
 
 	if err := v1.ValidateStreamAddress(req.Namespace, req.Topic); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 
-	if len(req.Payload) == 0 {
+	var payloadRef *v1.StreamPayloadRef
+
+	if req.PayloadRef != "" {
+		if len(req.Payload) > 0 {
+			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("payload and payload_ref are mutually exclusive"))
+		}
+
+		ref, err := v1.DecodeStreamPayloadRef(req.PayloadRef)
+
+		if err != nil {
+			return nil, connect.NewError(connect.CodeInvalidArgument, err)
+		}
+
+		payloadRef = &ref
+	} else if len(req.Payload) == 0 {
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("payload is required"))
 	}
 
@@ -45,7 +77,28 @@ func (s *ServiceImpl) Publish(ctx context.Context, req *contracts.PublishStreamM
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("producer_id is required"))
 	}
 
-	if err := s.repo.Streams().EnsureTopic(ctx, tenantId, req.Namespace, req.Topic); err != nil {
+	// readers would otherwise get a message whose payload can't be fetched
+	if payloadRef != nil {
+		checkCtx, span := telemetry.NewSpan(ctx, "streams.publish.check-payload-ref")
+		err := s.repo.Streams().CheckStreamPayloadExists(checkCtx, tenantId, *payloadRef)
+		recordSpanError(span, err)
+		span.End()
+
+		if err != nil {
+			if errors.Is(err, v1.ErrStreamPayloadNotFound) {
+				return nil, connect.NewError(connect.CodeInvalidArgument, err)
+			}
+
+			return nil, err
+		}
+	}
+
+	ensureCtx, span := telemetry.NewSpan(ctx, "streams.publish.ensure-topic")
+	err = s.repo.Streams().EnsureTopic(ensureCtx, tenantId, req.Namespace, req.Topic)
+	recordSpanError(span, err)
+	span.End()
+
+	if err != nil {
 		if errors.Is(err, v1.ErrResourceExhausted) {
 			return nil, connect.NewError(connect.CodeResourceExhausted, errors.New("resource exhausted: stream topic limit exceeded for tenant"))
 		}
@@ -71,6 +124,7 @@ func (s *ServiceImpl) Publish(ctx context.Context, req *contracts.PublishStreamM
 			Payload:     req.Payload,
 			ProducerID:  req.ProducerId,
 			ProducerSeq: req.ProducerSeq,
+			PayloadRef:  payloadRef,
 		},
 	})
 
@@ -98,8 +152,14 @@ func (s *ServiceImpl) Subscribe(ctx context.Context, req *contracts.SubscribeStr
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 
-	if err := s.checkEntitled(ctx, tenantId); err != nil {
+	entitled, err := s.repo.TenantEntitlement().HasEntitlement(ctx, tenantId, v1.EntitlementDurableStreams)
+
+	if err != nil {
 		return err
+	}
+
+	if !entitled {
+		return connect.NewError(connect.CodePermissionDenied, errNotEntitled)
 	}
 
 	namespace, topic, cursor, err := resolveSubscribeAddressAndCursor(req)
@@ -107,6 +167,13 @@ func (s *ServiceImpl) Subscribe(ctx context.Context, req *contracts.SubscribeStr
 	if err != nil {
 		return connect.NewError(connect.CodeInvalidArgument, err)
 	}
+
+	telemetry.WithAttributes(trace.SpanFromContext(ctx),
+		telemetry.AttributeKV{Key: "tenant.id", Value: tenantId},
+		telemetry.AttributeKV{Key: "stream.namespace", Value: namespace},
+		telemetry.AttributeKV{Key: "stream.topic", Value: topic},
+		telemetry.AttributeKV{Key: "stream.resumed", Value: cursor.ID > 0},
+	)
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -141,6 +208,70 @@ func (s *ServiceImpl) Subscribe(ctx context.Context, req *contracts.SubscribeStr
 	<-ctx.Done()
 
 	return nil
+}
+
+func (s *ServiceImpl) GetTopicMetadata(ctx context.Context, req *contracts.GetStreamTopicMetadataRequest) (*contracts.StreamTopicMetadata, error) {
+	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
+	tenantId := tenant.ID
+
+	telemetry.WithAttributes(trace.SpanFromContext(ctx),
+		telemetry.AttributeKV{Key: "tenant.id", Value: tenantId},
+		telemetry.AttributeKV{Key: "stream.namespace", Value: req.Namespace},
+		telemetry.AttributeKV{Key: "stream.topic", Value: req.Topic},
+	)
+
+	entitled, err := s.repo.TenantEntitlement().HasEntitlement(ctx, tenantId, v1.EntitlementDurableStreams)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if !entitled {
+		return nil, connect.NewError(connect.CodePermissionDenied, errNotEntitled)
+	}
+
+	if err := v1.ValidateStreamAddress(req.Namespace, req.Topic); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+
+	md, err := s.repo.Streams().GetTopicMetadata(ctx, tenantId, req.Namespace, req.Topic)
+
+	if errors.Is(err, v1.ErrStreamTopicNotFound) {
+		return nil, connect.NewError(connect.CodeNotFound, err)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	resp := &contracts.StreamTopicMetadata{
+		Namespace:    req.Namespace,
+		Topic:        req.Topic,
+		TenantId:     tenantId.String(),
+		MessageCount: md.MessageCount,
+	}
+
+	if md.LatestCursor != nil {
+		cursor, err := v1.EncodeStreamCursor(*md.LatestCursor)
+
+		if err != nil {
+			return nil, err
+		}
+
+		resp.LatestCursor = &cursor
+		resp.LastPublishedAt = timestamppb.New(md.LatestCursor.CreatedAt)
+	}
+
+	return resp, nil
+}
+
+func recordSpanError(span trace.Span, err error) {
+	if err == nil {
+		return
+	}
+
+	span.RecordError(err)
+	span.SetStatus(codes.Error, err.Error())
 }
 
 func resolveSubscribeAddressAndCursor(req *contracts.SubscribeStreamRequest) (namespace, topic string, cursor v1.StreamCursor, err error) {

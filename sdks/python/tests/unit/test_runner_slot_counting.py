@@ -2,6 +2,7 @@ import asyncio
 import multiprocessing
 import threading
 from typing import Any
+from uuid import uuid4
 from unittest.mock import MagicMock
 from uuid import uuid4
 
@@ -44,13 +45,13 @@ def _make_runner(hatchet: Hatchet, task: Any) -> Runner:
 
 def _make_action(task: Any, action_type: ActionType, **batch_fields: Any) -> Action:
     return Action(
-        worker_id="worker-id",
-        tenant_id="tenant-id",
+        worker_id=str(uuid4()),
+        tenant_id=str(uuid4()),
         workflow_run_id=str(uuid4()),
-        job_id="job-id",
+        job_id=str(uuid4()),
         job_name="job-name",
-        job_run_id="job-run-id",
-        step_id="step-id",
+        job_run_id=str(uuid4()),
+        step_id=str(uuid4()),
         step_run_id=str(uuid4()),
         action_id=task.name,
         action_type=action_type,

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/exaring/otelpgx"
+	"github.com/google/uuid"
 	"github.com/hatchet-dev/pgoutbox"
 	pgxzero "github.com/jackc/pgx-zerolog"
 	"github.com/jackc/pgx/v5"
@@ -881,7 +882,9 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 	v := validator.NewDefaultValidator()
 
-	promGate := prometheus.NewGate(dc.V1.TenantEntitlement(), cf.Prometheus.TenantScoped, &l)
+	promGate := prometheus.NewGate(func(ctx context.Context, tenantId uuid.UUID) (bool, error) {
+		return dc.V1.TenantEntitlement().HasEntitlement(ctx, tenantId, repov1.EntitlementPrometheusMetrics)
+	}, cf.Prometheus.TenantScoped, &l)
 
 	concurrencyOutbox, cleanupConcurrencyOutbox, err := newConcurrencyOutbox(dc.Pool, l)
 

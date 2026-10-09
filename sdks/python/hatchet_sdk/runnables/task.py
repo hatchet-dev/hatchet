@@ -23,6 +23,8 @@ from typing import (
     get_origin,
     get_type_hints,
 )
+from uuid import uuid4
+from warnings import warn
 
 from pydantic import BaseModel, TypeAdapter
 from typing_inspection.typing_objects import is_typealiastype
@@ -537,13 +539,13 @@ class Task(Generic[TWorkflowInput, R]):
 
         action = Action(
             tenant_id=self._workflow._client.config.tenant_id,
-            worker_id="mock-worker-id",
-            workflow_run_id="mock-workflow-run-id",
-            job_id="mock-job-id",
+            worker_id=str(uuid4()),
+            workflow_run_id=str(uuid4()),
+            job_id=str(uuid4()),
             job_name="mock-job-name",
-            job_run_id="mock-job-run-id",
-            step_id="mock-step-id",
-            step_run_id="mock-step-run-id",
+            job_run_id=str(uuid4()),
+            step_id=str(uuid4()),
+            step_run_id=str(uuid4()),
             action_id="mock:action",
             action_payload=action_payload,
             action_type=ActionType.START_STEP_RUN,
@@ -553,8 +555,8 @@ class Task(Generic[TWorkflowInput, R]):
             child_workflow_key=None,
             parent_workflow_run_id=None,
             priority=Priority.LOW,
-            workflow_version_id="mock-workflow-version-id",
-            workflow_id="mock-workflow-id",
+            workflow_version_id=str(uuid4()),
+            workflow_id=str(uuid4()),
         )
 
         constructor = DurableContext if self._is_durable else Context
