@@ -237,6 +237,7 @@ lib/hatchet-sdk-rest/models/v1_webhook_list.rb
 lib/hatchet-sdk-rest/models/v1_webhook_response.rb
 lib/hatchet-sdk-rest/models/v1_webhook_source_name.rb
 lib/hatchet-sdk-rest/models/v1_workflow_run.rb
+lib/hatchet-sdk-rest/models/v1_workflow_run_count.rb
 lib/hatchet-sdk-rest/models/v1_workflow_run_details.rb
 lib/hatchet-sdk-rest/models/v1_workflow_run_display_name.rb
 lib/hatchet-sdk-rest/models/v1_workflow_run_display_name_list.rb
