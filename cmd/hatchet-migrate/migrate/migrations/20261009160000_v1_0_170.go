@@ -62,6 +62,16 @@ func upV10170(ctx context.Context, db *sql.DB) error {
 			continue
 		}
 
+		// Retention cleanup can drop a partition after it was listed.
+		var exists bool
+		if err := conn.QueryRowContext(ctx, `SELECT to_regclass($1) IS NOT NULL`, partition).Scan(&exists); err != nil {
+			return fmt.Errorf("failed to check partition %s: %w", partition, err)
+		}
+
+		if !exists {
+			continue
+		}
+
 		log.Printf("v1_0_170: building %s (partition %d/%d)", indexName, i+1, len(partitions))
 		start := time.Now()
 
@@ -96,6 +106,17 @@ func upV10170(ctx context.Context, db *sql.DB) error {
 
 	if _, err := conn.ExecContext(ctx, stmt); err != nil {
 		return fmt.Errorf("failed to create index on %s: %w", "v1_runs_olap", err)
+	}
+
+	// IF NOT EXISTS skips a parent index that already exists, which is only invalid if it was created by hand with
+	// ON ONLY. Queries still use the partition indexes in that case.
+	valid, err := indexIsValid(ctx, db, v10170ParentIndex)
+	if err != nil {
+		return err
+	}
+
+	if !valid {
+		log.Printf("v1_0_170: %s exists but is invalid; queries still use the partition indexes", v10170ParentIndex)
 	}
 
 	return nil
