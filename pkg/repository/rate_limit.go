@@ -85,7 +85,7 @@ func newRateLimitRepository(shared *sharedRepository) *rateLimitRepository {
 }
 
 func (r *rateLimitRepository) FlushRateLimits(ctx context.Context, tenantId uuid.UUID, usage map[string]int, definitions map[string]RateLimitDefinition) ([]*sqlcv1.ListRateLimitsForTenantWithMutateRow, *time.Time, error) {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool.ForTenant(tenantId), r.l)
 
 	if err != nil {
 		return nil, nil, err
@@ -179,6 +179,8 @@ func (r *rateLimitRepository) FlushRateLimits(ctx context.Context, tenantId uuid
 }
 
 func (r *rateLimitRepository) UpsertRateLimit(ctx context.Context, tenantId uuid.UUID, key string, opts *UpsertRateLimitOpts) (*sqlcv1.RateLimit, error) {
+	db := r.pool.ForTenant(tenantId)
+
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -193,7 +195,7 @@ func (r *rateLimitRepository) UpsertRateLimit(ctx context.Context, tenantId uuid
 		upsertParams.Window = sqlchelpers.TextFromStr(getWindowParamFromDurString(*opts.Duration))
 	}
 
-	rateLimit, err := r.queries.UpsertRateLimit(ctx, r.pool, upsertParams)
+	rateLimit, err := r.queries.UpsertRateLimit(ctx, db, upsertParams)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not upsert rate limit: %w", err)
@@ -203,6 +205,8 @@ func (r *rateLimitRepository) UpsertRateLimit(ctx context.Context, tenantId uuid
 }
 
 func (r *rateLimitRepository) ListRateLimits(ctx context.Context, tenantId uuid.UUID, opts *ListRateLimitOpts) (*ListRateLimitsResult, error) {
+	db := r.pool.ForTenant(tenantId)
+
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -244,7 +248,7 @@ func (r *rateLimitRepository) ListRateLimits(ctx context.Context, tenantId uuid.
 	queryParams.Orderby = orderByField + " " + orderByDirection
 	countParams.Orderby = orderByField + " " + orderByDirection
 
-	tx, err := r.pool.Begin(context.Background())
+	tx, err := db.Begin(context.Background())
 
 	if err != nil {
 		return nil, err
@@ -285,7 +289,9 @@ func (r *rateLimitRepository) ListRateLimits(ctx context.Context, tenantId uuid.
 }
 
 func (r *rateLimitRepository) DeleteRateLimits(ctx context.Context, tenantId uuid.UUID, key string) error {
-	return r.queries.DeleteRateLimitForTenant(ctx, r.pool,
+	db := r.pool.ForTenant(tenantId)
+
+	return r.queries.DeleteRateLimitForTenant(ctx, db,
 		sqlcv1.DeleteRateLimitForTenantParams{
 			Tenantid: tenantId,
 			Key:      key,
@@ -304,7 +310,7 @@ func (r *rateLimitRepository) PauseRateLimit(ctx context.Context, tenantId uuid.
 		return nil, errors.New("rate limit key is required")
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool.ForTenant(tenantId), r.l)
 
 	if err != nil {
 		return nil, err
@@ -344,7 +350,7 @@ func (r *rateLimitRepository) PauseRateLimit(ctx context.Context, tenantId uuid.
 }
 
 func (r *rateLimitRepository) HoldRateLimitPausedQueuedTasks(ctx context.Context, tenantId uuid.UUID) error {
-	rows, err := r.queries.ListRateLimitPausedQueuedTasks(ctx, r.pool, tenantId)
+	rows, err := r.queries.ListRateLimitPausedQueuedTasks(ctx, r.pool.ForTenant(tenantId), tenantId)
 
 	if err != nil {
 		return fmt.Errorf("could not list tasks behind paused rate limits: %w", err)
@@ -413,7 +419,7 @@ func (s *sharedRepository) holdPausedTasksInBatches(ctx context.Context, tenantI
 }
 
 func (s *sharedRepository) holdPausedTasksBatch(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) error {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool.ForTenant(tenantId), s.l)
 
 	if err != nil {
 		return err

@@ -14,12 +14,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/internal/enumerables"
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -290,7 +290,7 @@ type PayloadStoreRepository interface {
 }
 
 type payloadStoreRepositoryImpl struct {
-	pool                                 *pgxpool.Pool
+	pool                                 *fairpool.Pool
 	l                                    *zerolog.Logger
 	queries                              *sqlcv1.Queries
 	externalStoreEnabled                 bool
@@ -314,7 +314,7 @@ type PayloadStoreRepositoryOpts struct {
 }
 
 func NewPayloadStoreRepository(
-	pool *pgxpool.Pool,
+	pool *fairpool.Pool,
 	l *zerolog.Logger,
 	queries *sqlcv1.Queries,
 	opts PayloadStoreRepositoryOpts,
@@ -463,10 +463,26 @@ func (p *payloadStoreRepositoryImpl) OverwriteExisting(ctx context.Context, tx s
 
 func (p *payloadStoreRepositoryImpl) Retrieve(ctx context.Context, tx sqlcv1.DBTX, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error) {
 	if tx == nil {
-		tx = p.pool
+		tx = p.defaultRetrieveHandle(opts)
 	}
 
 	return p.retrieve(ctx, tx, opts...)
+}
+
+func (p *payloadStoreRepositoryImpl) defaultRetrieveHandle(opts []RetrievePayloadOpts) sqlcv1.DBTX {
+	if len(opts) == 0 {
+		return p.pool.ForShared()
+	}
+
+	tenantId := opts[0].TenantId
+
+	for _, opt := range opts[1:] {
+		if opt.TenantId != tenantId {
+			return p.pool.ForShared()
+		}
+	}
+
+	return p.pool.ForTenant(tenantId)
 }
 
 func (p *payloadStoreRepositoryImpl) TaskInputs() TypedPayloadStore[TaskInputShape] {
@@ -774,7 +790,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 	ctx, span := telemetry.NewSpan(ctx, "PayloadStoreRepository.ProcessPayloadCutoverBatch")
 	defer span.End()
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool.ForShared(), p.l)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare transaction for copying offloaded payloads: %w", err)
@@ -833,7 +849,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 	for _, payloadRange := range payloadRanges {
 		pr := payloadRange
 		eg.Go(func() error {
-			payloads, err := p.queries.ListPaginatedPayloadsForOffload(ctx, p.pool, sqlcv1.ListPaginatedPayloadsForOffloadParams{
+			payloads, err := p.queries.ListPaginatedPayloadsForOffload(ctx, p.pool.ForShared(), sqlcv1.ListPaginatedPayloadsForOffloadParams{
 				Partitiondate:  pgtype.Date(partitionDate),
 				Lastexternalid: pr.LowerExternalID,
 				Nextexternalid: pr.UpperExternalID,
@@ -886,7 +902,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 
 	span.SetAttributes(attribute.Int("num_payloads_read", numPayloads))
 
-	leaseTx, leaseCommit, leaseRollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l)
+	leaseTx, leaseCommit, leaseRollback, err := sqlchelpers.PrepareTx(ctx, p.pool.ForShared(), p.l)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare transaction for extending cutover job lease: %w", err)
@@ -985,7 +1001,7 @@ func (p *payloadStoreRepositoryImpl) prepareCutoverTableJob(ctx context.Context,
 		return nil, fmt.Errorf("inline store TTL is not set")
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool.ForShared(), p.l)
 
 	if err != nil {
 		return nil, err
@@ -1053,7 +1069,7 @@ func (p *payloadStoreRepositoryImpl) processSinglePartition(ctx context.Context,
 		lastExternalId = outcome.NextExternalId
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool.ForShared(), p.l)
 
 	if err != nil {
 		return fmt.Errorf("failed to prepare transaction for swapping payload cutover temp table: %w", err)
@@ -1097,7 +1113,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutovers(ctx context.Context)
 		Valid: true,
 	}
 
-	partitions, err := p.queries.FindV1PayloadPartitionsBeforeDate(ctx, p.pool, MAX_PARTITIONS_TO_OFFLOAD, mostRecentPartitionToOffload)
+	partitions, err := p.queries.FindV1PayloadPartitionsBeforeDate(ctx, p.pool.ForShared(), MAX_PARTITIONS_TO_OFFLOAD, mostRecentPartitionToOffload)
 
 	if err != nil {
 		return fmt.Errorf("failed to find payload partitions before date %s: %w", mostRecentPartitionToOffload.Time.String(), err)
