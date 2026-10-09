@@ -22,6 +22,8 @@ components:
       scheme: bearer
   schemas:
     $ref: "./components/schemas/_index.yaml"
+  responses:
+    $ref: "./components/responses/_index.yaml"
 paths:
   /api/v1/stable/tasks/{task}:
     $ref: "./paths/v1/tasks/tasks.yaml#/getTask"
