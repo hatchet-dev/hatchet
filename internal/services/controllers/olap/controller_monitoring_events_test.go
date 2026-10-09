@@ -38,11 +38,13 @@ func (f *fakeMonitoringTasks) ListTaskMetas(_ context.Context, _ uuid.UUID, _ []
 type fakeMonitoringOLAP struct {
 	v1.OLAPRepository
 	events              int
+	retriedEvents       int
 	orchestratorUpdates int
 }
 
-func (f *fakeMonitoringOLAP) CreateTaskEvents(_ context.Context, _ uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams, _ map[uuid.UUID]uuid.UUID, orchestratorUpdates []v1.OrchestratorDAGStatusUpdateOpt, _ map[uuid.UUID]struct{}) (*v1.StatusUpdateResult, map[uuid.UUID]struct{}, error) {
+func (f *fakeMonitoringOLAP) CreateTaskEvents(_ context.Context, _ uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams, _ map[uuid.UUID]uuid.UUID, retriedEventIds map[uuid.UUID]struct{}, orchestratorUpdates []v1.OrchestratorDAGStatusUpdateOpt, _ map[uuid.UUID]struct{}) (*v1.StatusUpdateResult, map[uuid.UUID]struct{}, error) {
 	f.events += len(events)
+	f.retriedEvents += len(retriedEventIds)
 	f.orchestratorUpdates += len(orchestratorUpdates)
 	return nil, nil, nil
 }
@@ -64,10 +66,19 @@ func TestHandleCreateMonitoringEvent_OrchestratorStatusOnly(t *testing.T) {
 		}
 	}
 
+	failed := func(willRetry bool) tasktypes.CreateMonitoringEventPayload {
+		return tasktypes.CreateMonitoringEventPayload{
+			TaskId:         orchestrator.ID,
+			EventType:      sqlcv1.V1EventTypeOlapFAILED,
+			EventTimestamp: time.Now(),
+			WillRetry:      willRetry,
+		}
+	}
+
 	tests := []struct {
-		name                    string
-		msgs                    []tasktypes.CreateMonitoringEventPayload
-		wantEvents, wantUpdates int
+		name                                 string
+		msgs                                 []tasktypes.CreateMonitoringEventPayload
+		wantEvents, wantRetried, wantUpdates int
 	}{
 		{
 			name:        "regular and status-only terminal events write one task event",
@@ -79,6 +90,20 @@ func TestHandleCreateMonitoringEvent_OrchestratorStatusOnly(t *testing.T) {
 			name:        "status-only batch still updates the DAG",
 			msgs:        []tasktypes.CreateMonitoringEventPayload{finished(true)},
 			wantEvents:  0,
+			wantUpdates: 1,
+		},
+		{
+			name:        "retried failure writes its event without a terminal update",
+			msgs:        []tasktypes.CreateMonitoringEventPayload{failed(true)},
+			wantEvents:  1,
+			wantRetried: 1,
+			wantUpdates: 0,
+		},
+		{
+			name:        "final failure updates the DAG",
+			msgs:        []tasktypes.CreateMonitoringEventPayload{failed(false)},
+			wantEvents:  1,
+			wantRetried: 0,
 			wantUpdates: 1,
 		},
 	}
@@ -101,6 +126,7 @@ func TestHandleCreateMonitoringEvent_OrchestratorStatusOnly(t *testing.T) {
 
 			require.NoError(t, tc.handleCreateMonitoringEvent(context.Background(), uuid.New(), payloads))
 			assert.Equal(t, tt.wantEvents, olap.events)
+			assert.Equal(t, tt.wantRetried, olap.retriedEvents)
 			assert.Equal(t, tt.wantUpdates, olap.orchestratorUpdates)
 		})
 	}

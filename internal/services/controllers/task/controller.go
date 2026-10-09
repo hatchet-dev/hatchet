@@ -764,8 +764,28 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId uu
 		if msg.ErrorMsg != "" {
 			idsToErrorMsg[msg.TaskId] = msg.ErrorMsg
 		}
+	}
 
-		// send failed tasks to the olap repository
+	res, err := tc.repov1.Tasks().FailTasks(ctx, tenantId, opts)
+
+	if err != nil {
+		err = fmt.Errorf("could not fail tasks: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "could not fail tasks")
+		return err
+	}
+
+	// a retried task is still running, so only orchestrators that reached terminal FAILED get the
+	// reliable OLAP publish
+	retried := make(map[int64]struct{}, len(res.RetriedTasks))
+	for _, r := range res.RetriedTasks {
+		retried[r.Id] = struct{}{}
+	}
+
+	// published after FailTasks so the event can say whether this attempt is being retried
+	for _, msg := range msgs {
+		_, willRetry := retried[msg.TaskId]
+
 		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
 			tenantId,
 			tasktypes.CreateMonitoringEventPayload{
@@ -774,6 +794,7 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId uu
 				EventType:      sqlcv1.V1EventTypeOlapFAILED,
 				EventTimestamp: time.Now().UTC(),
 				EventPayload:   msg.ErrorMsg,
+				WillRetry:      willRetry,
 			},
 		)
 
@@ -796,15 +817,6 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId uu
 		}
 	}
 
-	res, err := tc.repov1.Tasks().FailTasks(ctx, tenantId, opts)
-
-	if err != nil {
-		err = fmt.Errorf("could not fail tasks: %w", err)
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "could not fail tasks")
-		return err
-	}
-
 	err = tc.processFailTasksResponse(ctx, tenantId, res)
 
 	if err != nil {
@@ -812,13 +824,6 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId uu
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "could not process fail tasks response")
 		return err
-	}
-
-	// a retried task is still running, so only orchestrators that reached terminal FAILED get the
-	// reliable OLAP publish
-	retried := make(map[int64]struct{}, len(res.RetriedTasks))
-	for _, r := range res.RetriedTasks {
-		retried[r.Id] = struct{}{}
 	}
 
 	if err := tc.emitOrchestratorTerminalEvents(

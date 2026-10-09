@@ -106,6 +106,9 @@ type CreateMonitoringEventPayload struct {
 	// event, for publishes that duplicate an event already sent by the regular reporting path.
 	// Ignored for other tasks.
 	StatusOnly bool `json:"status_only,omitempty"`
+
+	// WillRetry records the failure event but leaves the task and its run non-terminal.
+	WillRetry bool `json:"will_retry,omitempty"`
 }
 
 func MonitoringEventMessageFromActionEvent(tenantId uuid.UUID, taskId int64, retryCount int32, durableInvocationCount int32, request *contracts.StepActionEvent) (*msgqueue.Message, error) {

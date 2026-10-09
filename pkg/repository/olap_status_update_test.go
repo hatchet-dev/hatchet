@@ -283,7 +283,7 @@ func TestOLAPStatusUpdate_ReplayOfCompletedTask(t *testing.T) {
 
 			eventExternalIdToWorkflowRunId := map[uuid.UUID]uuid.UUID{f.externalId: f.externalId}
 
-			_, locksNotAcquired, err := repo.CreateTaskEvents(ctx, f.tenantId, events, eventExternalIdToWorkflowRunId, nil, nil)
+			_, locksNotAcquired, err := repo.CreateTaskEvents(ctx, f.tenantId, events, eventExternalIdToWorkflowRunId, nil, nil, nil)
 			require.NoError(t, err)
 			require.Empty(t, locksNotAcquired)
 		}
@@ -321,7 +321,7 @@ func TestOLAPStatusUpdate_ReplayOfCompletedTask(t *testing.T) {
 		batches := replayEventBatches(f)
 
 		eventExternalIdToWorkflowRunId := map[uuid.UUID]uuid.UUID{f.externalId: f.externalId}
-		_, locksNotAcquired, err := repo.CreateTaskEvents(ctx, f.tenantId, batches[0], eventExternalIdToWorkflowRunId, nil, nil)
+		_, locksNotAcquired, err := repo.CreateTaskEvents(ctx, f.tenantId, batches[0], eventExternalIdToWorkflowRunId, nil, nil, nil)
 		require.NoError(t, err)
 		require.Empty(t, locksNotAcquired)
 		assertOLAPTaskStatus(t, ctx, pool, f, "COMPLETED", 1)
@@ -348,4 +348,75 @@ func TestOLAPStatusUpdate_ReplayOfCompletedTask(t *testing.T) {
 		assertOLAPTaskStatus(t, ctx, pool, f, "COMPLETED", 2)
 		assertOLAPRunStatus(t, ctx, pool, f, "COMPLETED")
 	})
+}
+
+// TestOLAPStatusUpdate_RetriedFailureIsNotTerminal checks that a failure the engine is retrying is
+// recorded as an event without making the task terminal, so only the final failure is reported.
+func TestOLAPStatusUpdate_RetriedFailureIsNotTerminal(t *testing.T) {
+	basePool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+
+	pool := createEnumAwarePool(t, basePool)
+	repo := createOLAPRepositoryWithPayloadStore(t, pool)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	require.NoError(t, repo.UpdateTablePartitions(ctx))
+
+	f := seedReplayTask(t, ctx, repo, 1)
+
+	applyBatch := func(t *testing.T, events []sqlcv1.CreateTaskEventsOLAPParams, retried map[uuid.UUID]struct{}) *StatusUpdateResult {
+		t.Helper()
+
+		eventExternalIdToWorkflowRunId := make(map[uuid.UUID]uuid.UUID, len(events))
+		for _, e := range events {
+			eventExternalIdToWorkflowRunId[e.ExternalID] = f.externalId
+		}
+
+		result, locksNotAcquired, err := repo.CreateTaskEvents(ctx, f.tenantId, events, eventExternalIdToWorkflowRunId, retried, nil, nil)
+		require.NoError(t, err)
+		require.Empty(t, locksNotAcquired)
+
+		return result
+	}
+
+	applyBatch(t, []sqlcv1.CreateTaskEventsOLAPParams{
+		f.event(sqlcv1.V1EventTypeOlapQUEUED, sqlcv1.V1ReadableStatusOlapQUEUED, 0),
+		f.event(sqlcv1.V1EventTypeOlapASSIGNED, sqlcv1.V1ReadableStatusOlapRUNNING, 0),
+		f.event(sqlcv1.V1EventTypeOlapSTARTED, sqlcv1.V1ReadableStatusOlapRUNNING, 0),
+	}, nil)
+	assertOLAPTaskStatus(t, ctx, pool, f, "RUNNING", 0)
+
+	retriedFailure := f.event(sqlcv1.V1EventTypeOlapFAILED, sqlcv1.V1ReadableStatusOlapFAILED, 0)
+	retriedFailure.ExternalID = uuid.New()
+
+	result := applyBatch(t, []sqlcv1.CreateTaskEventsOLAPParams{retriedFailure}, map[uuid.UUID]struct{}{retriedFailure.ExternalID: {}})
+	require.True(t, result == nil || len(result.TaskRows) == 0, "a retried failure must not report a status change")
+	assertOLAPTaskStatus(t, ctx, pool, f, "RUNNING", 0)
+	assertOLAPRunStatus(t, ctx, pool, f, "RUNNING")
+
+	var failedEvents int
+	err := pool.QueryRow(ctx, `
+		SELECT COUNT(*)
+		FROM v1_task_events_olap
+		WHERE tenant_id = $1 AND task_id = $2 AND event_type = 'FAILED' AND retry_count = 0
+	`, f.tenantId, f.taskId).Scan(&failedEvents)
+	require.NoError(t, err)
+	assert.Equal(t, 1, failedEvents, "the retried failure is still recorded as an event")
+
+	applyBatch(t, []sqlcv1.CreateTaskEventsOLAPParams{
+		f.event(sqlcv1.V1EventTypeOlapRETRYING, sqlcv1.V1ReadableStatusOlapQUEUED, 1),
+		f.event(sqlcv1.V1EventTypeOlapASSIGNED, sqlcv1.V1ReadableStatusOlapRUNNING, 1),
+	}, nil)
+	assertOLAPTaskStatus(t, ctx, pool, f, "RUNNING", 1)
+
+	result = applyBatch(t, []sqlcv1.CreateTaskEventsOLAPParams{
+		f.event(sqlcv1.V1EventTypeOlapFAILED, sqlcv1.V1ReadableStatusOlapFAILED, 1),
+	}, nil)
+	require.NotNil(t, result)
+	require.Len(t, result.TaskRows, 1)
+	assert.Equal(t, sqlcv1.V1ReadableStatusOlapFAILED, result.TaskRows[0].ReadableStatus)
+	assertOLAPTaskStatus(t, ctx, pool, f, "FAILED", 1)
+	assertOLAPRunStatus(t, ctx, pool, f, "FAILED")
 }
