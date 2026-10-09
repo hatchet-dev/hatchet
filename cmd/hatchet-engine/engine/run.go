@@ -262,6 +262,12 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 	}
 
 	if sc.HasService("queue") || sc.HasService("jobscontroller") || sc.HasService("workflowscontroller") {
+		retention, err := corePartitionRetention(sc)
+
+		if err != nil {
+			return err
+		}
+
 		tasks, err := task.New(
 			task.WithAlerter(sc.Alerter),
 			task.WithMessageQueue(sc.MessageQueueV1),
@@ -271,6 +277,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			task.WithPartition(p),
 			task.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
 			task.WithPgxStatsLoggerConfig(&sc.AdditionalLoggers.PgxStats),
+			task.WithMaxRetryAfter(retention),
 			task.WithAnalyzeCronInterval(sc.CronOperations.TaskAnalyzeCronInterval),
 			task.WithPrometheusGate(sc.PrometheusGate),
 		)
@@ -692,6 +699,12 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		)
 
 		if isControllerActive(sc.PausedControllers, TaskController) {
+			retention, err := corePartitionRetention(sc)
+
+			if err != nil {
+				return err
+			}
+
 			tasks, err := task.New(
 				task.WithAlerter(sc.Alerter),
 				task.WithMessageQueue(sc.MessageQueueV1),
@@ -703,6 +716,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 				task.WithPgxStatsLoggerConfig(&sc.AdditionalLoggers.PgxStats),
 				task.WithOpsPoolJitter(sc.Operations),
 				task.WithReplayEnabled(sc.Runtime.ReplayEnabled),
+				task.WithMaxRetryAfter(retention),
 				task.WithAnalyzeCronInterval(sc.CronOperations.TaskAnalyzeCronInterval),
 				task.WithPrometheusGate(sc.PrometheusGate),
 			)
@@ -1144,4 +1158,15 @@ func isControllerActive(pausedControllers map[string]bool, controllerName Contro
 	}
 
 	return false
+}
+
+// corePartitionRetention caps task-requested retry delays, since a task's rows are dropped once its partition ages out.
+func corePartitionRetention(sc *server.ServerConfig) (time.Duration, error) {
+	retention, err := time.ParseDuration(sc.Runtime.Limits.CorePartitionRetentionOrDefault())
+
+	if err != nil {
+		return 0, fmt.Errorf("could not parse core partition retention: %w", err)
+	}
+
+	return retention, nil
 }

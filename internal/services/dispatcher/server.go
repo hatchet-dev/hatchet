@@ -1649,6 +1649,7 @@ func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, task *sqlcv1
 		true,
 		request.EventPayload,
 		shouldNotRetry,
+		request.RetryAfterMs,
 	)
 
 	if err != nil {
@@ -2042,6 +2043,7 @@ func (s *DispatcherImpl) handleBatchTaskFailed(
 			IsAppError:     true,
 			ErrorMsg:       item.EventPayload,
 			IsNonRetryable: shouldNotRetry,
+			RetryAfterMs:   item.RetryAfterMs,
 		})
 	}
 

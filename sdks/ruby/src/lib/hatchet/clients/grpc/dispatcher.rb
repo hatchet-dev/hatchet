@@ -138,8 +138,10 @@ module Hatchet
         # @param payload [String] JSON-serialized event payload
         # @param retry_count [Integer, nil] Current retry count
         # @param should_not_retry [Boolean, nil] Whether to suppress further retries
+        # @param retry_after_ms [Integer, nil] Delay in milliseconds before the next attempt
         # @return [ActionEventResponse]
-        def send_step_action_event(action:, event_type:, payload: "{}", retry_count: nil, should_not_retry: nil)
+        def send_step_action_event(action:, event_type:, payload: "{}", retry_count: nil, should_not_retry: nil,
+                                   retry_after_ms: nil)
           ensure_connected!
 
           now = Time.now
@@ -162,6 +164,7 @@ module Hatchet
 
           event_args[:retry_count] = retry_count unless retry_count.nil?
           event_args[:should_not_retry] = should_not_retry unless should_not_retry.nil?
+          event_args[:retry_after_ms] = retry_after_ms unless retry_after_ms.nil?
 
           request = ::StepActionEvent.new(**event_args)
           @stub.send_step_action_event(request, metadata: @config.auth_metadata)
@@ -173,7 +176,7 @@ module Hatchet
         # @param action [AssignedAction] The assigned START_BATCH action
         # @param event_type [Symbol] Protobuf enum value (e.g., :STEP_EVENT_TYPE_COMPLETED)
         # @param items [Array<Hash>] Per-member items, each with :task_run_external_id, and
-        #   optionally :event_payload, :retry_count, :should_not_retry
+        #   optionally :event_payload, :retry_count, :should_not_retry, :retry_after_ms
         # @return [ActionEventResponse]
         def send_batch_action_event(action:, event_type:, items:)
           ensure_connected!
@@ -191,6 +194,7 @@ module Hatchet
             }
             item_args[:retry_count] = item[:retry_count] unless item[:retry_count].nil?
             item_args[:should_not_retry] = item[:should_not_retry] unless item[:should_not_retry].nil?
+            item_args[:retry_after_ms] = item[:retry_after_ms] unless item[:retry_after_ms].nil?
 
             ::BatchActionEventItem.new(**item_args)
           end

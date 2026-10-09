@@ -111,6 +111,9 @@ type FailedTaskPayload struct {
 
 	// (optional) A boolean flag to indicate whether the error is non-retryable, meaning it should _not_ be retried. Defaults to false.
 	IsNonRetryable bool `json:"is_non_retryable"`
+
+	// (optional) the delay in milliseconds before the next attempt. Ignored when IsNonRetryable is set.
+	RetryAfterMs *int64 `json:"retry_after_ms,omitempty"`
 }
 
 func FailedTaskMessage(
@@ -123,6 +126,7 @@ func FailedTaskMessage(
 	isAppError bool,
 	errorMsg string,
 	isNonRetryable bool,
+	retryAfterMs *int64,
 ) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
@@ -138,6 +142,7 @@ func FailedTaskMessage(
 			IsAppError:     isAppError,
 			ErrorMsg:       errorMsg,
 			IsNonRetryable: isNonRetryable,
+			RetryAfterMs:   retryAfterMs,
 		},
 	)
 }

@@ -158,6 +158,7 @@ from hatchet_sdk.exceptions import (
     IdempotencyCollisionError,
     NonDeterminismError,
     NonRetryableException,
+    RetryAfterException,
     TaskRunError,
 )
 from hatchet_sdk.features.cel import CELEvaluationResult, CELFailure, CELSuccess
@@ -284,6 +285,7 @@ __all__ = [
     "RejectInviteRequest",
     "ReplayEventRequest",
     "RerunStepRunRequest",
+    "RetryAfterException",
     "RunEventListener",
     "RunFilter",
     "RunStatus",

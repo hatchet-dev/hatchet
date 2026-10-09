@@ -404,6 +404,99 @@ RETURNING
     v1_task.retry_backoff_factor,
     v1_task.retry_max_backoff;
 
+-- name: FailTaskRetryAfter :many
+-- Fails a task due to an application-level error, retrying it after a task-requested delay
+WITH input AS (
+    -- a re-sent failure report can duplicate an attempt in the batch
+    SELECT DISTINCT ON (task_id, task_inserted_at, task_retry_count)
+        *
+    FROM
+        (
+            SELECT
+                unnest(@taskIds::bigint[]) AS task_id,
+                unnest(@taskInsertedAts::timestamptz[]) AS task_inserted_at,
+                unnest(@taskRetryCounts::integer[]) AS task_retry_count,
+                unnest(@retryAfterMs::bigint[]) AS retry_after_ms
+        ) AS subquery
+    ORDER BY
+        task_id, task_inserted_at, task_retry_count
+), locked_tasks AS (
+    SELECT
+        t.id,
+        t.inserted_at,
+        t.step_id
+    FROM
+        v1_task t
+    JOIN
+        input i ON i.task_id = t.id AND i.task_inserted_at = t.inserted_at AND i.task_retry_count = t.retry_count
+    WHERE
+        t.tenant_id = @tenantId::uuid
+        -- only fail tasks which still have a v1_task_runtime for the current retry count.
+        -- a cancellation deletes the v1_task_runtime, so a late failure event should not trigger a retry.
+        AND EXISTS (
+            SELECT 1 FROM v1_task_runtime tr
+            WHERE tr.task_id = t.id AND tr.task_inserted_at = t.inserted_at AND tr.retry_count = t.retry_count
+        )
+    -- order by the task id to get a stable lock order
+    ORDER BY
+        id
+    FOR UPDATE
+), updated_tasks AS (
+    UPDATE
+        v1_task
+    SET
+        retry_count = v1_task.retry_count + 1,
+        app_retry_count = v1_task.app_retry_count + 1
+    FROM
+        locked_tasks lt
+    JOIN
+        "Step" s ON s."id" = lt.step_id
+    WHERE
+        v1_task.id = lt.id
+        AND v1_task.inserted_at = lt.inserted_at
+        AND s."retries" > v1_task.app_retry_count
+    RETURNING
+        v1_task.id,
+        v1_task.inserted_at,
+        v1_task.retry_count,
+        v1_task.app_retry_count,
+        v1_task.tenant_id
+), retry_queue_items AS (
+    -- v1_task_update_trigger runs at the end of this statement and skips tasks that have this row
+    INSERT INTO v1_retry_queue_item (
+        task_id,
+        task_inserted_at,
+        task_retry_count,
+        retry_after,
+        tenant_id
+    )
+    SELECT
+        ut.id,
+        ut.inserted_at,
+        ut.retry_count,
+        NOW() + i.retry_after_ms * interval '1 millisecond',
+        ut.tenant_id
+    FROM
+        updated_tasks ut
+    JOIN
+        input i ON i.task_id = ut.id AND i.task_inserted_at = ut.inserted_at
+    RETURNING
+        task_id,
+        task_inserted_at,
+        task_retry_count,
+        retry_after
+)
+SELECT
+    ut.id,
+    ut.inserted_at,
+    ut.retry_count,
+    ut.app_retry_count,
+    rqi.retry_after::timestamptz AS retry_after
+FROM
+    updated_tasks ut
+JOIN
+    retry_queue_items rqi ON rqi.task_id = ut.id AND rqi.task_inserted_at = ut.inserted_at;
+
 -- name: FailTaskInternalFailure :many
 -- Fails a task due to an internal error
 WITH input AS (
