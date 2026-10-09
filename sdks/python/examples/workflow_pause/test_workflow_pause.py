@@ -231,7 +231,7 @@ async def test_workflow_pause_drop_crons_and_schedules(hatchet: Hatchet) -> None
 
             await asyncio.sleep(1)
     finally:
-        await hatchet.cron.aio_delete(cron.metadata.id)
+        await hatchet.crons.aio_delete(cron.metadata.id)
         # The engine reloads user crons every 15 seconds, so the deleted cron can
         # keep firing until the next reload. Stay paused (its runs are dropped)
         # until it has stopped, otherwise the late fires keep refreshing the

@@ -2,7 +2,7 @@ import asyncio
 from collections import OrderedDict
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Generic, TypeVar
 
 K = TypeVar("K")
@@ -10,7 +10,7 @@ V = TypeVar("V")
 
 
 class BoundedDict(OrderedDict[K, V]):
-    def __init__(self, maxsize: int):
+    def __init__(self, maxsize: int) -> None:
         super().__init__()
         self.maxsize = maxsize
 
@@ -39,7 +39,7 @@ class TTLCache(Generic[K, V]):
 
     def __setitem__(self, key: K, value: V) -> None:
         self.cache[key] = TTLCacheEntry(
-            value=value, expires_at=datetime.now(tz=timezone.utc) + self.ttl
+            value=value, expires_at=datetime.now(tz=UTC) + self.ttl
         )
 
     def __getitem__(self, key: K) -> V:
@@ -67,7 +67,7 @@ class TTLCache(Generic[K, V]):
         while True:
             await asyncio.sleep(self.ttl.total_seconds())
 
-            now = datetime.now(tz=timezone.utc)
+            now = datetime.now(tz=UTC)
             expired = [k for k, entry in self.cache.items() if entry.expires_at <= now]
 
             for key in expired:

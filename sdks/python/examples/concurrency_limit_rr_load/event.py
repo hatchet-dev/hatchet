@@ -10,4 +10,4 @@ random.shuffle(events)
 
 # Send the shuffled events
 for group in events:
-    hatchet.event.push("concurrency-test", {"group": group})
+    hatchet.events.push("concurrency-test", {"group": group})

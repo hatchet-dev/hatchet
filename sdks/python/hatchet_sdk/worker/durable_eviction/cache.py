@@ -1,17 +1,17 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
-from enum import Enum
+from datetime import datetime, timedelta  # noqa: TC003
+from enum import StrEnum
+from typing import assert_never
 
 from pydantic import BaseModel
-from typing_extensions import assert_never
 
 from hatchet_sdk.logger import logger
-from hatchet_sdk.runnables.action import ActionKey
-from hatchet_sdk.runnables.eviction import EvictionPolicy
+from hatchet_sdk.runnables.action import ActionKey  # noqa: TC001
+from hatchet_sdk.runnables.eviction import EvictionPolicy  # noqa: TC001
 
 
-class EvictionCause(str, Enum):
+class EvictionCause(StrEnum):
     TTL_EXCEEDED = "ttl_exceeded"
     CAPACITY_PRESSURE = "capacity_pressure"
     WORKER_SHUTDOWN = "worker_shutdown"
@@ -92,7 +92,7 @@ class DurableEvictionCache:
         rec.wait_kind = wait_kind
         rec.wait_resource_id = resource_id
 
-    def mark_active(self, key: ActionKey, now: datetime) -> None:
+    def mark_active(self, key: ActionKey) -> None:
         rec = self._runs.get(key)
         if not rec:
             return

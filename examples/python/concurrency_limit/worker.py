@@ -4,8 +4,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from hatchet_sdk import (
-    ConcurrencyExpression,
-    ConcurrencyLimitStrategy,
+    ConcurrencyStrategy,
     Context,
     Hatchet,
 )
@@ -21,10 +20,10 @@ class WorkflowInput(BaseModel):
 
 concurrency_limit_workflow = hatchet.workflow(
     name="ConcurrencyDemoWorkflow",
-    concurrency=ConcurrencyExpression(
+    concurrency=ConcurrencyStrategy(
         expression="input.group_key",
         max_runs=5,
-        limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
+        strategy="CANCEL_IN_PROGRESS",
     ),
     input_validator=WorkflowInput,
 )

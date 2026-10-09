@@ -8,7 +8,9 @@ from hatchet_sdk import (
     Context,
     DurableContext,
     Hatchet,
+    OrGroupResult,
     SleepCondition,
+    SleepResult,
     UserEventCondition,
     or_,
 )
@@ -154,10 +156,10 @@ async def support_agent(
         ),
     )
 
-    # The or-group result is {"CREATE": {"<condition_key>": ...}}.
-    # Check whether the reply event condition was the one that resolved.
-    resolved_key = list(wait_result["CREATE"].keys())[0]
-    customer_replied = resolved_key == REPLY_EVENT_KEY
+    or_result = next((r for r in wait_result if isinstance(r, OrGroupResult)), None)
+    customer_replied = or_result is not None and not isinstance(
+        or_result.result, SleepResult
+    )
 
     if not customer_replied:
         # Step 4a: Timeout -> escalate

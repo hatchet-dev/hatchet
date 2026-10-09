@@ -38,11 +38,7 @@ async def test_run(hatchet: Hatchet) -> None:
     await asyncio.sleep(5)
 
     runs = sorted(
-        (
-            await hatchet.runs.aio_list(
-                additional_metadata={"test_run_id": test_run_id}
-            )
-        ).rows,
+        (await hatchet.runs.aio_list(additional_metadata={"test_run_id": test_run_id})),
         key=lambda r: int((r.additional_metadata or {}).get("i", "0")),
     )
 

@@ -32,7 +32,7 @@ class TTLBasedIdempotencyConfig(BaseIdemotencyConfig):
         return IdempotencyConfigProto(
             expression=self.key_expression,
             ttl_ms=int(self.ttl.total_seconds() * 1000),
-            method=convert_python_enum_to_proto(  # type: ignore[arg-type]
+            method=convert_python_enum_to_proto(
                 IdempotencyMethod.TTL, IdempotencyMethodProto
             ),
         )
@@ -45,7 +45,7 @@ class StatusBasedIdempotencyConfig(BaseIdemotencyConfig):
         return IdempotencyConfigProto(
             expression=self.key_expression,
             ttl_ms=int(self.fallback_ttl.total_seconds() * 1000),
-            method=convert_python_enum_to_proto(  # type: ignore[arg-type]
+            method=convert_python_enum_to_proto(
                 IdempotencyMethod.STATUS, IdempotencyMethodProto
             ),
         )

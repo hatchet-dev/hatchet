@@ -49,7 +49,7 @@ async def test_cancel_queued_except_newest_keeps_only_the_newest_queued_run(
     ## wait for the olap repo to catch up
     await asyncio.sleep(5)
     runs = sorted(
-        hatchet.runs.list(additional_metadata={"test_run_id": test_run_id}).rows,
+        hatchet.runs.list(additional_metadata={"test_run_id": test_run_id}),
         key=lambda r: int((r.additional_metadata or {}).get("i", "0")),
     )
 

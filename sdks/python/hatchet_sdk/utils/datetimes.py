@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import TypeVar
 
 T = TypeVar("T")
@@ -7,9 +7,9 @@ R = TypeVar("R")
 
 def _to_utc(dt: datetime) -> datetime:
     if not dt.tzinfo:
-        return dt.replace(tzinfo=timezone.utc)
+        return dt.replace(tzinfo=UTC)
 
-    return dt.astimezone(timezone.utc)
+    return dt.astimezone(UTC)
 
 
 def partition_date_range(

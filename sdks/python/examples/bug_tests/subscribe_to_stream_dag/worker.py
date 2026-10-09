@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 
-from hatchet_sdk import Context, EmptyModel, Hatchet
+from hatchet_sdk import Context, Hatchet
 
 hatchet = Hatchet()
 
@@ -14,7 +14,7 @@ long_stream = hatchet.workflow(name="subscribe-stream-long")
 
 
 @long_stream.task()
-async def long_streamer(_: EmptyModel, ctx: Context) -> None:
+async def long_streamer(_: None, ctx: Context) -> None:
     await asyncio.sleep(PRE_STREAM_SLEEP_S)
     for chunk in STREAM_CHUNKS:
         await ctx.aio_put_stream(chunk)
@@ -28,14 +28,14 @@ dag_stream = hatchet.workflow(name="subscribe-stream-dag")
 
 
 @dag_stream.task()
-async def dag_streamer(_: EmptyModel, ctx: Context) -> None:
+async def dag_streamer(_: None, ctx: Context) -> None:
     await asyncio.sleep(PRE_STREAM_SLEEP_S)
     for chunk in STREAM_CHUNKS:
         await ctx.aio_put_stream(chunk)
 
 
 @dag_stream.on_failure_task()
-async def on_failure(_: EmptyModel, _ctx: Context) -> None:
+async def on_failure(_: None, _ctx: Context) -> None:
     pass
 
 

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import TYPE_CHECKING, ParamSpec, TypeVar
 
 import grpc
@@ -14,6 +13,8 @@ from hatchet_sdk.clients.rest.exceptions import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from hatchet_sdk.config import TenacityConfig
 
 P = ParamSpec("P")

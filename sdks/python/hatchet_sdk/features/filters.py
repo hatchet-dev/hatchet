@@ -1,12 +1,14 @@
 import asyncio
+from typing import TYPE_CHECKING
 
-from hatchet_sdk.clients.rest.api.filter_api import FilterApi
+if TYPE_CHECKING:
+    from hatchet_sdk.clients.rest.api.filter_api import FilterApi
+
 from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.models.v1_create_filter_request import (
     V1CreateFilterRequest,
 )
 from hatchet_sdk.clients.rest.models.v1_filter import V1Filter
-from hatchet_sdk.clients.rest.models.v1_filter_list import V1FilterList
 from hatchet_sdk.clients.rest.models.v1_update_filter_request import (
     V1UpdateFilterRequest,
 )
@@ -20,7 +22,9 @@ class FiltersClient(BaseRestClient):
     The filters client is a client for interacting with Hatchet's filters API.
     """
 
-    def _fa(self, client: ApiClient) -> FilterApi:
+    def _fa(self, client: ApiClient) -> "FilterApi":
+        from hatchet_sdk.clients.rest.api.filter_api import FilterApi
+
         return FilterApi(client)
 
     async def aio_list(
@@ -29,7 +33,7 @@ class FiltersClient(BaseRestClient):
         offset: int | None = None,
         workflow_ids: list[str] | None = None,
         scopes: list[str] | None = None,
-    ) -> V1FilterList:
+    ) -> list[V1Filter]:
         """
         List filters for a given tenant.
 
@@ -48,7 +52,7 @@ class FiltersClient(BaseRestClient):
         offset: int | None = None,
         workflow_ids: list[str] | None = None,
         scopes: list[str] | None = None,
-    ) -> V1FilterList:
+    ) -> list[V1Filter]:
         """
         List filters for a given tenant.
 
@@ -63,13 +67,15 @@ class FiltersClient(BaseRestClient):
             v1_filter_list = tenacity_retry(
                 self._fa(client).v1_filter_list, self.client_config.tenacity
             )
-            return v1_filter_list(
+            fl = v1_filter_list(
                 tenant=self.tenant_id,
                 limit=limit,
                 offset=offset,
                 workflow_ids=workflow_ids,
                 scopes=scopes,
             )
+
+            return fl.rows or []
 
     def get(
         self,

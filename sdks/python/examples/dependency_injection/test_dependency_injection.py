@@ -14,7 +14,6 @@ from examples.dependency_injection.worker import (
     sync_task_with_dependencies,
     task_with_type_aliases,
 )
-from hatchet_sdk import EmptyModel
 from hatchet_sdk.runnables.workflow import Standalone
 
 
@@ -28,7 +27,7 @@ from hatchet_sdk.runnables.workflow import Standalone
 )
 @pytest.mark.asyncio(loop_scope="session")
 async def test_di_standalones(
-    task: Standalone[EmptyModel, Output],
+    task: Standalone[None, Output],
 ) -> None:
     result = await task.aio_run()
 
@@ -67,7 +66,7 @@ async def test_di_workflows() -> None:
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_type_aliases() -> None:
-    result = await task_with_type_aliases.aio_run(EmptyModel())
+    result = await task_with_type_aliases.aio_run()
     assert result
     for key in result:
         assert result[key] is True

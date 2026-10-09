@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 
 from hatchet_sdk import Context, Hatchet
-from hatchet_sdk.rate_limit import RateLimit
+from hatchet_sdk import RateLimit
 
 hatchet = Hatchet()
 

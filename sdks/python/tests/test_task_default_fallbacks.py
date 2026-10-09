@@ -21,16 +21,14 @@ from typing import Any
 
 import pytest
 
-from hatchet_sdk import Context, DurableContext, EmptyModel, Hatchet, Task, TaskDefaults
+from hatchet_sdk import Context, DurableContext, Hatchet, Task, TaskDefaults
 
 
-def dummy_task(input: EmptyModel, context: Context) -> dict[str, str]:
+def dummy_task(input: None, context: Context) -> dict[str, str]:
     return {"foo": "bar"}
 
 
-async def dummy_durable_task(
-    input: EmptyModel, context: DurableContext
-) -> dict[str, str]:
+async def dummy_durable_task(input: None, context: DurableContext) -> dict[str, str]:
     return {"foo": "bar"}
 
 
@@ -46,7 +44,7 @@ def task(
     is_durable: bool,
     task_defaults: TaskDefaults,
     **kwargs: Any,
-) -> Task[EmptyModel, dict[str, str]]:
+) -> Task[None, dict[str, str]]:
     workflow = hatchet.workflow(
         name="foo",
         task_defaults=task_defaults,
@@ -61,7 +59,7 @@ def standalone_task(
     hatchet: Hatchet,
     is_durable: bool,
     **kwargs: Any,
-) -> Task[EmptyModel, dict[str, str]]:
+) -> Task[None, dict[str, str]]:
     task_fn = hatchet.durable_task if is_durable else hatchet.task
 
     return task_fn(**kwargs)(dummy_durable_task if is_durable else task)._task  # type: ignore

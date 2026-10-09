@@ -29,7 +29,7 @@ TResponse = TypeVar("TResponse")
 
 
 class ReadWithInterruptResult(Generic[TResponse]):
-    def __init__(self, data: TResponse, key: str):
+    def __init__(self, data: TResponse, key: str) -> None:
         self.data = data
         self.key = key
 
@@ -61,7 +61,7 @@ async def read_with_interrupt(
     key_generator: Callable[[TResponse], str] | None = None,
 ) -> ReadWithInterruptResult[TResponse] | UnexpectedEOF:
     try:
-        result = cast(TResponse, await listener.read())
+        result = cast("TResponse", await listener.read())
 
         if result is cygrpc.EOF:
             logger.warning("received EOF from engine")

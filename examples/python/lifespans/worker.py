@@ -5,7 +5,7 @@ from uuid import UUID
 from psycopg_pool import ConnectionPool
 from pydantic import BaseModel, ConfigDict
 
-from hatchet_sdk import Context, EmptyModel, Hatchet
+from hatchet_sdk import Context, Hatchet
 
 hatchet = Hatchet()
 
@@ -20,7 +20,7 @@ lifespan_workflow = hatchet.workflow(name="LifespanWorkflow")
 
 
 @lifespan_workflow.task()
-def sync_lifespan_task(input: EmptyModel, ctx: Context) -> TaskOutput:
+def sync_lifespan_task(input: None, ctx: Context) -> TaskOutput:
     pool = cast(Lifespan, ctx.lifespan).pool
 
     with pool.connection() as conn:
@@ -41,7 +41,7 @@ def sync_lifespan_task(input: EmptyModel, ctx: Context) -> TaskOutput:
 
 
 @lifespan_workflow.task()
-async def async_lifespan_task(input: EmptyModel, ctx: Context) -> TaskOutput:
+async def async_lifespan_task(input: None, ctx: Context) -> TaskOutput:
     pool = cast(Lifespan, ctx.lifespan).pool
 
     with pool.connection() as conn:

@@ -6,15 +6,15 @@ from hatchet_sdk import (
     ClientConfig,
     Context,
     EmbeddedHatchetConfig,
-    EmptyModel,
     Hatchet,
 )
+from pydantic import BaseModel
 
 # > Create an embedded client
 hatchet = Hatchet.from_embedded()
 
 
-class GreetInput(EmptyModel):
+class GreetInput(BaseModel):
     name: str = "embed"
 
 

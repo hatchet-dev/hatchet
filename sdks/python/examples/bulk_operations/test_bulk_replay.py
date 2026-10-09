@@ -1,5 +1,4 @@
 from datetime import datetime, timezone
-from uuid import uuid4
 
 import pytest
 import tenacity
@@ -13,12 +12,10 @@ from examples.bulk_operations.worker import (
 from hatchet_sdk import BulkCancelReplayOpts, Hatchet, RunFilter
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
-from hatchet_sdk.clients.rest.models.v1_task_summary_list import V1TaskSummaryList
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_bulk_replay(hatchet: Hatchet) -> None:
-    test_run_id = str(uuid4())
+async def test_bulk_replay(hatchet: Hatchet, test_run_id: str) -> None:
     n = 100
     expected_total = n + 1 + (n // 2 - 1) + (n // 2 - 2)
     test_start = datetime.now(tz=timezone.utc)
@@ -30,7 +27,7 @@ async def test_bulk_replay(hatchet: Hatchet) -> None:
     ]
     additional_metadata = {"test_run_id": test_run_id}
 
-    async def list_filtered_runs() -> V1TaskSummaryList:
+    async def list_filtered_runs() -> list[V1TaskSummary]:
         return await hatchet.runs.aio_list(
             workflow_ids=workflow_ids,
             since=test_start,
@@ -80,9 +77,8 @@ async def test_bulk_replay(hatchet: Hatchet) -> None:
     @tenacity.retry(
         stop=stop_after_attempt(10), wait=wait_exponential(multiplier=1, min=4, max=10)
     )
-    async def wait_for_all_failed() -> V1TaskSummaryList:
-        runs = await list_filtered_runs()
-        rows = runs.rows or []
+    async def wait_for_all_failed() -> list[V1TaskSummary]:
+        rows = await list_filtered_runs()
 
         if len(rows) != expected_total:
             raise AssertionError(
@@ -123,7 +119,7 @@ async def test_bulk_replay(hatchet: Hatchet) -> None:
             not first_attempt_completed
         ), f"{len(first_attempt_completed)} runs completed on their first attempt"
 
-        return runs
+        return rows
 
     before_replay = await wait_for_all_failed()
 
@@ -131,7 +127,7 @@ async def test_bulk_replay(hatchet: Hatchet) -> None:
     # status checks on its own, so remember every run's attempt count and
     # require the replay to have moved each one forward.
     attempts_before_replay = {
-        row.metadata.id: row.attempt or 0 for row in before_replay.rows or []
+        row.metadata.id: row.attempt or 0 for row in before_replay
     }
 
     await hatchet.runs.aio_bulk_replay(
@@ -147,9 +143,8 @@ async def test_bulk_replay(hatchet: Hatchet) -> None:
     @tenacity.retry(
         stop=stop_after_attempt(10), wait=wait_exponential(multiplier=1, min=4, max=10)
     )
-    async def wait_for_replayed_completed() -> V1TaskSummaryList:
-        runs = await list_filtered_runs()
-        rows = runs.rows or []
+    async def wait_for_replayed_completed() -> list[V1TaskSummary]:
+        rows = await list_filtered_runs()
 
         if len(rows) != expected_total:
             raise AssertionError(
@@ -174,34 +169,30 @@ async def test_bulk_replay(hatchet: Hatchet) -> None:
                 f"(statuses: {summarize_statuses(rows)})"
             )
 
-        return runs
+        return rows
 
     runs = await wait_for_replayed_completed()
 
-    assert len(runs.rows) == expected_total
+    assert len(runs) == expected_total
 
     not_replayed = [
         row.metadata.id
-        for row in runs.rows
+        for row in runs
         if (row.attempt or 0) <= attempts_before_replay.get(row.metadata.id, 0)
     ]
     assert (
         not not_replayed
     ), f"{len(not_replayed)} runs were not re-run by the bulk replay: {not_replayed}"
 
-    for run in runs.rows:
+    for run in runs:
         assert run.status == V1TaskStatus.COMPLETED
         assert run.retry_count and run.retry_count >= 1
         assert run.attempt and run.attempt >= 2
 
+    assert len([r for r in runs if r.workflow_id == bulk_replay_test_1.id]) == n + 1
     assert (
-        len([r for r in runs.rows if r.workflow_id == bulk_replay_test_1.id]) == n + 1
+        len([r for r in runs if r.workflow_id == bulk_replay_test_2.id]) == n // 2 - 1
     )
     assert (
-        len([r for r in runs.rows if r.workflow_id == bulk_replay_test_2.id])
-        == n // 2 - 1
-    )
-    assert (
-        len([r for r in runs.rows if r.workflow_id == bulk_replay_test_3.id])
-        == n // 2 - 2
+        len([r for r in runs if r.workflow_id == bulk_replay_test_3.id]) == n // 2 - 2
     )

@@ -1,6 +1,7 @@
+import asyncio
 import time
+from datetime import timedelta
 from typing import TYPE_CHECKING, Any
-from warnings import warn
 
 from hatchet_sdk.clients.listeners.run_event_listener import (
     RunEventListener,
@@ -13,6 +14,8 @@ from hatchet_sdk.exceptions import FailedTaskRunExceptionGroup, TaskRunError
 if TYPE_CHECKING:
     from hatchet_sdk.clients.admin import AdminClient
 
+MAX_FETCH_RETRIES = 10
+
 
 class WorkflowRunRef:
     def __init__(
@@ -21,7 +24,7 @@ class WorkflowRunRef:
         workflow_run_listener: PooledWorkflowRunListener,
         workflow_run_event_listener: RunEventListenerClient,
         admin_client: "AdminClient",
-    ):
+    ) -> None:
         self._workflow_run_id = workflow_run_id
         self._workflow_run_listener = workflow_run_listener
         self._workflow_run_event_listener = workflow_run_event_listener
@@ -34,68 +37,54 @@ class WorkflowRunRef:
     def workflow_run_id(self) -> str:
         return self._workflow_run_id
 
-    @property
-    def workflow_run_listener(self) -> PooledWorkflowRunListener:
-        warn(
-            "The workflow_run_listener property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._workflow_run_listener
-
-    @property
-    def workflow_run_event_listener(self) -> RunEventListenerClient:
-        warn(
-            "The workflow_run_event_listener property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._workflow_run_event_listener
-
-    @property
-    def admin_client(self) -> "AdminClient":
-        warn(
-            "The admin_client property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._admin_client
-
     def _stream(self) -> RunEventListener:
         return self._workflow_run_event_listener.stream(self.workflow_run_id)
 
-    def stream(self) -> RunEventListener:
-        warn(
-            "The stream method is internal and should not be used directly. It will be removed in v2.0.0. Use `hatchet.runs.subscribe_to_stream` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._stream()
+    async def aio_result(
+        self,
+        timeout: timedelta | None = None,  # noqa: ASYNC109
+    ) -> dict[str, Any]:
+        """
+        Wait for the workflow run to complete and return its result.
 
-    async def aio_result(self) -> dict[str, Any]:
-        return await self._workflow_run_listener.aio_result(self.workflow_run_id)
+        :param timeout: The maximum time to wait for the run to complete. Waits indefinitely if not provided.
+        :return: A dictionary mapping each task name in the run to its output.
+        :raises TimeoutError: If the run does not complete within the timeout.
+        """
+        coro = self._workflow_run_listener.aio_result(self.workflow_run_id)
 
-    def _safely_get_action_name(self, action_id: str | None) -> str | None:
-        if not action_id:
-            return None
+        if timeout is None:
+            return await coro
 
         try:
-            return action_id.split(":", maxsplit=1)[1]
-        except IndexError:
-            return None
+            return await asyncio.wait_for(coro, timeout=timeout.total_seconds())
+        except TimeoutError:
+            raise TimeoutError(
+                f"Timed out waiting for workflow run {self.workflow_run_id} to complete after {timeout}."
+            ) from None
 
-    def result(self, poll_interval: float | None = None) -> dict[str, Any]:
+    def result(
+        self, timeout: timedelta | None = None, poll_interval: float | None = None
+    ) -> dict[str, Any]:
         """
-        Poll until the workflow run reaches a terminal state and return its outputs.
+        Wait for the workflow run to complete and return its result, polling for completion.
 
+        :param timeout: The maximum time to wait for the run to complete. Waits indefinitely if not provided.
         :param poll_interval: Seconds between GetRunDetails polls. Defaults to the
             client ``sync_result_poll_interval`` (1 second). Values below 1 second are
             raised to 1 second.
-        :returns: Task outputs keyed by readable id.
-        :raises FailedTaskRunExceptionGroup: If the workflow run failed.
-        :raises ValueError: If the workflow run is not found, was cancelled, or is not complete.
+        :return: A dictionary mapping each task name in the run to its output.
+        :raises TimeoutError: If the run does not complete within the timeout.
+        :raises RuntimeError: If fetching the run's status fails repeatedly.
+        :raises FailedTaskRunExceptionGroup: If the run fails.
+        :raises ValueError: If the run is cancelled or in an unexpected state.
         """
         from hatchet_sdk.clients.admin import RunStatus
+
+        deadline = (
+            time.monotonic() + timeout.total_seconds() if timeout is not None else None
+        )
+        fetch_failures = 0
 
         interval = max(
             DEFAULT_SYNC_RESULT_POLL_INTERVAL_SECONDS,
@@ -106,17 +95,20 @@ class WorkflowRunRef:
             ),
         )
 
-        retries = 0
-
         while True:
+            if deadline is not None and time.monotonic() > deadline:
+                raise TimeoutError(
+                    f"Timed out waiting for workflow run {self.workflow_run_id} to complete after {timeout}."
+                )
+
             try:
                 details = self._admin_client.get_details(self.workflow_run_id)
             except Exception as e:
-                retries += 1
+                fetch_failures += 1
 
-                if retries > 10:
-                    raise ValueError(
-                        f"Workflow run {self.workflow_run_id} not found"
+                if fetch_failures > MAX_FETCH_RETRIES:
+                    raise RuntimeError(
+                        f"Failed to fetch workflow run {self.workflow_run_id} after {MAX_FETCH_RETRIES} attempts."
                     ) from e
 
                 time.sleep(interval)

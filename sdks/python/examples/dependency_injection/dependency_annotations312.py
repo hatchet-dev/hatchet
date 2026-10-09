@@ -1,14 +1,13 @@
 from hatchet_sdk.runnables.task import Depends
 from hatchet_sdk import Context
-from hatchet_sdk.runnables.types import EmptyModel
 from typing import Annotated, TypeAlias
 
 
-async def async_dep(input: EmptyModel, ctx: Context) -> bool:
+async def async_dep(input: None, ctx: Context) -> bool:
     return True
 
 
-def sync_dep(input: EmptyModel, ctx: Context) -> bool:
+def sync_dep(input: None, ctx: Context) -> bool:
     return True
 
 

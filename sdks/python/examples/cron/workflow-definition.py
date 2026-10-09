@@ -1,4 +1,4 @@
-from hatchet_sdk import Context, EmptyModel, Hatchet
+from hatchet_sdk import Context, Hatchet
 
 hatchet = Hatchet()
 
@@ -12,7 +12,7 @@ cron_workflow = hatchet.workflow(name="CronWorkflow", on_crons=["* * * * *"])
 
 
 @cron_workflow.task()
-def step1(input: EmptyModel, ctx: Context) -> dict[str, str]:
+def step1(input: None, ctx: Context) -> dict[str, str]:
     return {
         "time": "step1",
     }

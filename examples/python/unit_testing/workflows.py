@@ -2,7 +2,7 @@ from typing import cast
 
 from pydantic import BaseModel
 
-from hatchet_sdk import Context, DurableContext, EmptyModel, Hatchet
+from hatchet_sdk import Context, DurableContext, Hatchet
 
 
 class UnitTestInput(BaseModel):

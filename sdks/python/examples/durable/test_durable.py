@@ -38,8 +38,8 @@ from examples.durable.worker import (
     ErrorRaisingTaskInput,
 )
 from hatchet_sdk import Hatchet, V1TaskStatus
-from hatchet_sdk.clients.rest.models.v1_task_summary_list import V1TaskSummaryList
-from examples.test_utils import wait_for_running_status
+
+from examples.test_utils import poll_for_runs, wait_for_replay, wait_for_running_status
 
 TIMING_TOLERANCE = 2.0
 
@@ -82,7 +82,7 @@ async def _push_event_until_task_completes(
     deadline = time.monotonic() + timeout
 
     while time.monotonic() < deadline:
-        await hatchet.event.aio_push(event_key, payload)
+        await hatchet.events.aio_push(event_key, payload)
 
         try:
             await _wait_for_task_to_complete(
@@ -129,9 +129,9 @@ async def test_durable_workflow(hatchet: Hatchet) -> None:
 
     workers = await hatchet.workers.aio_list()
 
-    assert workers.rows
+    assert workers
 
-    active_workers = [w for w in workers.rows if w.status == "ACTIVE"]
+    active_workers = [w for w in workers if w.status == "ACTIVE"]
 
     assert any(
         w.name == hatchet.config.apply_namespace("e2e-test-worker")
@@ -150,10 +150,8 @@ async def test_durable_workflow(hatchet: Hatchet) -> None:
     wait_group_1 = result["wait_for_or_group_1"]
     wait_group_2 = result["wait_for_or_group_2"]
 
-    assert wait_group_1["key"] == wait_group_2["key"]
-    assert wait_group_1["key"] == "CREATE"
-    assert "sleep" in wait_group_1["event_id"]
-    assert "event" in wait_group_2["event_id"]
+    assert wait_group_1["resolved"] == "sleep"
+    assert "event" in wait_group_2["resolved"]
 
 
 @requires_durable_eviction
@@ -207,7 +205,7 @@ async def test_durable_sleep_event_spawn_replay(hatchet: Hatchet) -> None:
 
     await wait_for_running_status(hatchet, ref.workflow_run_id)
     await asyncio.sleep(SLEEP_TIME + 3)
-    hatchet.event.push(EVENT_KEY, {"test": "test"})
+    hatchet.events.push(EVENT_KEY, {"test": "test"})
 
     result = await ref.aio_result()
     first_elapsed = time.time() - start
@@ -236,7 +234,7 @@ async def test_durable_child_key_dedup_replay(hatchet: Hatchet) -> None:
     assert result.child_3_output == result.child_1_output
 
     await hatchet.runs.aio_replay(ref.workflow_run_id)
-    await asyncio.sleep(5)
+    await wait_for_replay(hatchet, ref.workflow_run_id)
 
     replayed_result = await ref.aio_result()
 
@@ -364,9 +362,8 @@ async def test_durable_branching_off_branch(hatchet: Hatchet) -> None:
     await hatchet.runs.aio_reset_durable_task(
         ref.workflow_run_id, node_id=reset_from_node_id, branch_id=1
     )
-
     start = time.time()
-    await asyncio.sleep(1)
+    await wait_for_replay(hatchet, ref.workflow_run_id)
     reset_result = await ref.aio_result()
     reset_elapsed = time.time() - start
 
@@ -384,9 +381,8 @@ async def test_durable_branching_off_branch(hatchet: Hatchet) -> None:
         node_id=reset_from_node_id,
         branch_id=2,
     )
-
     start = time.time()
-    await asyncio.sleep(1)
+    await wait_for_replay(hatchet, ref.workflow_run_id)
     reset_result = await ref.aio_result()
     reset_elapsed = time.time() - start
 
@@ -436,7 +432,7 @@ async def test_durable_memo_now_caching(hatchet: Hatchet) -> None:
 async def test_event_lookback_before_wait(hatchet: Hatchet) -> None:
     user_id = 1234
 
-    hatchet.event.push(
+    hatchet.events.push(
         "user:create",
         {"order": "first", "user_id": user_id},
         scope=f"user_id:{user_id}",
@@ -456,7 +452,7 @@ async def test_event_lookback_before_wait(hatchet: Hatchet) -> None:
 async def test_or_group_event_lookback_before_wait(hatchet: Hatchet) -> None:
     scope = str(uuid4())
 
-    hatchet.event.push(EVENT_KEY, {"order": "first"}, scope=scope)
+    hatchet.events.push(EVENT_KEY, {"order": "first"}, scope=scope)
     await asyncio.sleep(1)
 
     result = await wait_for_or_event_lookback.aio_run(EventLookbackInput(scope=scope))
@@ -468,7 +464,7 @@ async def test_or_group_event_lookback_before_wait(hatchet: Hatchet) -> None:
 async def test_two_event_waits_second_pushed_first(hatchet: Hatchet) -> None:
     scope = str(uuid4())
 
-    hatchet.event.push(
+    hatchet.events.push(
         "key2",
         {"order": "second"},
         scope=scope,
@@ -481,7 +477,7 @@ async def test_two_event_waits_second_pushed_first(hatchet: Hatchet) -> None:
 
     await asyncio.sleep(3)
 
-    hatchet.event.push("key1", {"order": "first"}, scope=scope)
+    hatchet.events.push("key1", {"order": "first"}, scope=scope)
 
     result = await ref.aio_result()
 
@@ -500,7 +496,7 @@ async def test_engine_picks_most_recent_event(hatchet: Hatchet) -> None:
     shuffle(iters)
 
     for i in iters:
-        event = hatchet.event.push(
+        event = hatchet.events.push(
             "user:create",
             {"order": str(i), "user_id": user_id},
             scope=f"user_id:{user_id}",
@@ -525,8 +521,7 @@ async def test_dag_spawn_returns_full_output(hatchet: Hatchet) -> None:
     assert all(singleton.has_both_child_outputs for singleton in result.results)
 
     await hatchet.runs.aio_replay(ref.workflow_run_id)
-
-    await asyncio.sleep(5)
+    await wait_for_replay(hatchet, ref.workflow_run_id)
 
     replayed_result = await ref.aio_result()
 
@@ -539,8 +534,9 @@ async def test_dag_spawn_returns_full_output(hatchet: Hatchet) -> None:
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_durable_error_on_error_in_child(hatchet: Hatchet) -> None:
-    test_run_id = str(uuid4())
+async def test_durable_error_on_error_in_child(
+    hatchet: Hatchet, test_run_id: str
+) -> None:
     error_msg = f"error in child task {test_run_id}"
     res = await error_raising_durable_parent.aio_run(
         input=ErrorRaisingTaskInput(error_message=error_msg),
@@ -551,37 +547,23 @@ async def test_durable_error_on_error_in_child(hatchet: Hatchet) -> None:
     assert res.child_error_str is not None
     assert error_msg in res.child_error_str
 
-    runs: V1TaskSummaryList | None = None
-
-    for _ in range(15):
-        runs = await hatchet.runs.aio_list(
-            since=datetime.now(timezone.utc) - timedelta(minutes=10),
-            additional_metadata={"test_run_id": test_run_id},
-        )
-
-        if len(runs.rows) < 2:
-            await asyncio.sleep(1)
-            continue
-
-        if any(
-            r.status in [V1TaskStatus.QUEUED, V1TaskStatus.RUNNING] for r in runs.rows
-        ):
-            await asyncio.sleep(1)
-            continue
-
-        break
+    runs = await poll_for_runs(
+        hatchet,
+        expected_count=2,
+        additional_metadata={"test_run_id": test_run_id},
+    )
 
     assert runs
-    assert len(runs.rows) == 2
+    assert len(runs) == 2
 
     child = next(
-        (r for r in runs.rows if error_raising_task.name in (r.workflow_name or "")),
+        (r for r in runs if error_raising_task.name in (r.workflow_name or "")),
         None,
     )
     parent = next(
         (
             r
-            for r in runs.rows
+            for r in runs
             if error_raising_durable_parent.name in (r.workflow_name or "")
         ),
         None,

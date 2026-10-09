@@ -16,4 +16,4 @@ print("Sleeping")
 time.sleep(SLEEP_TIME + 2)
 
 print("Pushing event")
-hatchet.event.push(EVENT_KEY, AwaitedEvent(id="123").model_dump(mode="json"))
+hatchet.events.push(EVENT_KEY, AwaitedEvent(id="123").model_dump(mode="json"))

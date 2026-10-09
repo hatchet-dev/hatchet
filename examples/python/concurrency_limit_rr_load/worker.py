@@ -4,8 +4,7 @@ import time
 from pydantic import BaseModel
 
 from hatchet_sdk import (
-    ConcurrencyExpression,
-    ConcurrencyLimitStrategy,
+    ConcurrencyStrategy,
     Context,
     Hatchet,
 )
@@ -20,10 +19,10 @@ class LoadRRInput(BaseModel):
 load_rr_workflow = hatchet.workflow(
     name="LoadRoundRobin",
     on_events=["concurrency-test"],
-    concurrency=ConcurrencyExpression(
+    concurrency=ConcurrencyStrategy(
         expression="input.group",
         max_runs=1,
-        limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
+        strategy="GROUP_ROUND_ROBIN",
     ),
     input_validator=LoadRRInput,
 )

@@ -42,7 +42,7 @@ Flow control:
 Python SDK reference (overview: https://docs.hatchet.run/reference/python.md):
 
 - CEL: https://docs.hatchet.run/reference/python/feature-clients/cel.md (guide: https://docs.hatchet.run/v1/cel-expressions.md)
-- Crons: https://docs.hatchet.run/reference/python/feature-clients/cron.md (guide: https://docs.hatchet.run/v1/cron-runs.md)
+- Crons: https://docs.hatchet.run/reference/python/feature-clients/crons.md (guide: https://docs.hatchet.run/v1/cron-runs.md)
 - Filters: https://docs.hatchet.run/reference/python/feature-clients/filters.md (guide: https://docs.hatchet.run/v1/events.md)
 - Logs: https://docs.hatchet.run/reference/python/feature-clients/logs.md (guide: https://docs.hatchet.run/v1/logging.md)
 - Metrics: https://docs.hatchet.run/reference/python/feature-clients/metrics.md (guide: https://docs.hatchet.run/v1/prometheus-metrics.md)

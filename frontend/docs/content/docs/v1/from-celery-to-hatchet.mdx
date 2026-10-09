@@ -144,9 +144,10 @@ What changed:
 
 <Callout type="warning">
   If your Celery tasks use positional arguments, `*args`, or `**kwargs`, you
-  will need to define a Pydantic model that captures the expected fields. For
-  tasks that take no meaningful input, use `EmptyModel` from `hatchet_sdk`. This
-  input-model conversion is the main mechanical cost of the migration.
+  will need to define a Pydantic model that captures the expected fields. Tasks
+  that take no meaningful input can omit the `input_validator` and declare their
+  input as `None`. This input-model conversion is the main mechanical cost of
+  the migration.
 </Callout>
 
 ### Serialization
@@ -365,7 +366,7 @@ What changed:
 - **The schedule moves onto the task.** Replace the `beat_schedule` entry with `on_crons=["0 9 * * *"]`.
 - **Celery `crontab(...)` becomes a cron expression.** Use standard 5-field or 6-field cron syntax.
 - **Non-crontab schedules need review.** Interval, solar, or custom Beat schedules may not convert directly to a cron expression.
-- **Runtime schedule management moves to the cron client.** If your application creates, lists, or deletes schedules dynamically, use the [`hatchet.cron` client](/reference/python/feature-clients/cron).
+- **Runtime schedule management moves to the cron client.** If your application creates, lists, or deletes schedules dynamically, use the [`hatchet.crons` client](/reference/python/feature-clients/crons).
 
 ## Step 8: Migrate chains, groups, and chords
 

@@ -7,7 +7,7 @@ hatchet = Hatchet()
 
 async def main() -> None:
     workflow_list = await hatchet.workflows.aio_list()
-    rows = workflow_list.rows or []
+    rows = workflow_list or []
 
     for workflow in rows:
         print(workflow.name)

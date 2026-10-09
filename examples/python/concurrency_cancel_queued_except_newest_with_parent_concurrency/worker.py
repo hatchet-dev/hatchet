@@ -3,8 +3,7 @@ import asyncio
 from pydantic import BaseModel
 
 from hatchet_sdk import (
-    ConcurrencyExpression,
-    ConcurrencyLimitStrategy,
+    ConcurrencyStrategy,
     Context,
     Hatchet,
 )
@@ -20,10 +19,10 @@ concurrency_cancel_queued_except_newest_with_parent_concurrency_workflow = (
     hatchet.workflow(
         name="ConcurrencyCancelQueuedExceptNewestWithParentConcurrency",
         input_validator=WorkflowInput,
-        concurrency=ConcurrencyExpression(
+        concurrency=ConcurrencyStrategy(
             expression="input.group",
             max_runs=1,
-            limit_strategy=ConcurrencyLimitStrategy.CANCEL_QUEUED_EXCEPT_NEWEST,
+            strategy="CANCEL_QUEUED_EXCEPT_NEWEST",
         ),
     )
 )

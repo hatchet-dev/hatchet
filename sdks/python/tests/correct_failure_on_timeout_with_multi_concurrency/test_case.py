@@ -1,7 +1,6 @@
 import asyncio
 from subprocess import Popen
 from typing import Any
-from uuid import uuid4
 
 import pytest
 
@@ -21,9 +20,8 @@ from tests.correct_failure_on_timeout_with_multi_concurrency.workflow import (
 )
 @pytest.mark.asyncio(loop_scope="session")
 async def test_failure_on_timeout(
-    hatchet: Hatchet, on_demand_worker: Popen[Any]
+    hatchet: Hatchet, on_demand_worker: Popen[Any], test_run_id: str
 ) -> None:
-    test_run_id = str(uuid4())
     runs = await multiple_concurrent_cancellations_test_workflow.aio_run_many(
         [
             multiple_concurrent_cancellations_test_workflow.create_bulk_run_item(
@@ -44,12 +42,19 @@ async def test_failure_on_timeout(
     except Exception:
         pass
 
-    await asyncio.sleep(4 * TIMEOUT_SECONDS)
+    results = {}
+    for _ in range(int((TIMEOUT_SECONDS * 6) / 0.5)):
+        results = {
+            r.workflow_run_id: await hatchet.runs.aio_get(r.workflow_run_id)
+            for r in runs
+        }
+        if all(
+            run.run.status == V1TaskStatus.FAILED and len(run.task_events) > 1
+            for run in results.values()
+        ):
+            break
+        await asyncio.sleep(0.5)
 
-    results = {
-        r.workflow_run_id: await hatchet.runs.aio_get(r.workflow_run_id) for r in runs
-    }
-
-    for id, run in results.items():
+    for run in results.values():
         assert run.run.status == V1TaskStatus.FAILED
         assert len(run.task_events) > 1

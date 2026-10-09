@@ -62,7 +62,7 @@ def patch_contract_import_paths(content: str) -> str:
 def patch_grpc_dispatcher_import(content: str) -> str:
     return apply_patch(
         content,
-        r"\bimport dispatcher_pb2 as dispatcher__pb2\b",
+        r"(?m)^import dispatcher_pb2 as dispatcher__pb2\b",
         "from hatchet_sdk.contracts import dispatcher_pb2 as dispatcher__pb2",
     )
 
@@ -70,7 +70,7 @@ def patch_grpc_dispatcher_import(content: str) -> str:
 def patch_grpc_events_import(content: str) -> str:
     return apply_patch(
         content,
-        r"\bimport events_pb2 as events__pb2\b",
+        r"(?m)^import events_pb2 as events__pb2\b",
         "from hatchet_sdk.contracts import events_pb2 as events__pb2",
     )
 
@@ -78,7 +78,7 @@ def patch_grpc_events_import(content: str) -> str:
 def patch_grpc_workflows_import(content: str) -> str:
     return apply_patch(
         content,
-        r"\bimport workflows_pb2 as workflows__pb2\b",
+        r"(?m)^import workflows_pb2 as workflows__pb2\b",
         "from hatchet_sdk.contracts import workflows_pb2 as workflows__pb2",
     )
 
@@ -624,6 +624,68 @@ def patch_workflows_pyi_reexport(content: str) -> str:
     return content + reexport
 
 
+def rewrite_generated_init_with_lazy_imports(content: str) -> str:
+    """Rewrite a generated `__init__.py` so each re-exported name is imported on
+    first attribute access (PEP 562) instead of eagerly at package import.
+
+    The generated `__init__.py` files import every API class and every model,
+    which makes `import hatchet_sdk` pay for the entire generated REST client
+    even though only a handful of models are ever loaded.
+    """
+    if "_LAZY_IMPORTS" in content:
+        return content
+
+    import_pattern = re.compile(
+        r"^from (hatchet_sdk\.clients\.rest[\w.]*) import \(?([\w,\s]+?)\)?$",
+        re.MULTILINE,
+    )
+
+    matches = list(import_pattern.finditer(content))
+    name_to_module: dict[str, str] = {}
+    for match in matches:
+        module, names = match.groups()
+        for name in names.split(","):
+            if name := name.strip():
+                name_to_module[name] = module
+
+    if not name_to_module:
+        return content
+
+    header = content[: matches[0].start()].rstrip("\n")
+    original_imports = "\n".join(
+        f"    from {module} import {name}"
+        for name, module in sorted(name_to_module.items())
+    )
+    lazy_imports = "\n".join(
+        f'    "{name}": "{module}",' for name, module in sorted(name_to_module.items())
+    )
+
+    return f"""{header}
+
+import importlib
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+{original_imports}
+
+_LAZY_IMPORTS: dict[str, str] = {{
+{lazy_imports}
+}}
+
+__all__ = list(_LAZY_IMPORTS)
+
+
+def __getattr__(name: str) -> object:
+    if name not in _LAZY_IMPORTS:
+        raise AttributeError(f"module {{__name__!r}} has no attribute {{name!r}}")
+    return getattr(importlib.import_module(_LAZY_IMPORTS[name]), name)
+
+
+def __dir__() -> list[str]:
+    return sorted(set(globals()) | set(_LAZY_IMPORTS))
+"""
+
+
 if __name__ == "__main__":
     atomically_patch_file(
         "hatchet_sdk/clients/rest/api_client.py",
@@ -667,3 +729,13 @@ if __name__ == "__main__":
         "hatchet_sdk/contracts/workflows_pb2.pyi",
         [patch_workflows_pyi_reexport],
     )
+
+    for generated_init in (
+        "hatchet_sdk/clients/rest/__init__.py",
+        "hatchet_sdk/clients/rest/api/__init__.py",
+        "hatchet_sdk/clients/rest/models/__init__.py",
+    ):
+        atomically_patch_file(
+            generated_init,
+            [rewrite_generated_init_with_lazy_imports],
+        )

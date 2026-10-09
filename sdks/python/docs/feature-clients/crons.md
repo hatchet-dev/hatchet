@@ -1,3 +1,3 @@
-# Cron Client
+# Crons Client
 
 ::: features.cron.CronClient
