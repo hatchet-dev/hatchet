@@ -324,6 +324,8 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		debug.Setup(pool)
 	}
 
+	warnIfTimeoutsDisabled(pool, &l)
+
 	// a pool for read replicas, if enabled
 	var readReplicaPool *pgxpool.Pool
 
@@ -1329,6 +1331,78 @@ func checkDatabaseTimezone(connConfig *pgx.ConnConfig, dbName string, dbLabel st
 
 	l.Info().Msgf("%s instance timezone verified: %s", dbLabel, dbTimezone)
 	return nil
+}
+
+const timeoutProbeConns = 4
+
+// warnIfTimeoutsDisabled logs a warning when pooled connections run without a statement or
+// idle-in-transaction timeout. All connections are acquired before any transaction starts, so
+// their AfterConnect SETs land before a transaction pooler has to serve the concurrent
+// transactions from different server connections.
+func warnIfTimeoutsDisabled(pool *pgxpool.Pool, l *zerolog.Logger) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	n := min(int32(timeoutProbeConns), pool.Config().MaxConns)
+	conns := make([]*pgxpool.Conn, 0, n)
+
+	defer func() {
+		for _, conn := range conns {
+			conn.Release()
+		}
+	}()
+
+	for range n {
+		conn, err := pool.Acquire(ctx)
+		if err != nil {
+			l.Warn().Err(err).Msg("could not check database timeouts")
+			return
+		}
+
+		conns = append(conns, conn)
+	}
+
+	txs := make([]pgx.Tx, 0, n)
+
+	defer func() {
+		for _, tx := range txs {
+			_ = tx.Rollback(context.Background())
+		}
+	}()
+
+	disabled := 0
+
+	for _, conn := range conns {
+		tx, err := conn.Begin(ctx)
+		if err != nil {
+			l.Warn().Err(err).Msg("could not check database timeouts")
+			return
+		}
+
+		txs = append(txs, tx)
+
+		var statementTimeout, idleInTxTimeout string
+
+		err = tx.QueryRow(
+			ctx,
+			"SELECT current_setting('statement_timeout'), current_setting('idle_in_transaction_session_timeout')",
+		).Scan(&statementTimeout, &idleInTxTimeout)
+		if err != nil {
+			l.Warn().Err(err).Msg("could not check database timeouts")
+			return
+		}
+
+		if statementTimeout == "0" || idleInTxTimeout == "0" {
+			disabled++
+		}
+	}
+
+	if disabled > 0 {
+		l.Warn().Int("disabled", disabled).Int32("checked", n).Msg(
+			"statement_timeout or idle_in_transaction_session_timeout is disabled on some database connections, " +
+				"see https://docs.hatchet.run/self-hosting/using-pgbouncer",
+		)
+	}
 }
 
 // setPgxApplicationName sets application_name on the pool config unless the
