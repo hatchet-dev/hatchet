@@ -3,6 +3,10 @@ import {
   BaseTaskRunActionParams,
 } from '../../task-runs-v1/actions';
 import { TaskRunColumnKeys } from '../components/v1/task-runs-columns';
+import {
+  ActiveRunsBeforeWindow,
+  useActiveRunsBeforeWindow,
+} from './use-active-runs-before-window';
 import { useMetrics } from './use-metrics';
 import { useRuns } from './use-runs';
 import { useRunsTableFilters } from './use-runs-table-filters';
@@ -38,6 +42,7 @@ type DisplayProps = {
   hideCancelAndReplayButtons?: boolean;
   hideColumnToggle?: boolean;
   hiddenFilters?: TaskRunColumnKeys[];
+  showActiveRunsBeforeWindow?: boolean;
 };
 
 type RunFilteringProps = {
@@ -98,6 +103,7 @@ type RunsContextType = {
   showTriggerWorkflow: boolean;
   showQueueMetrics: boolean;
   fetchTimedOut: boolean;
+  activeRunsBeforeWindow: ActiveRunsBeforeWindow | null;
 };
 
 const RunsContext = createContext<RunsContextType | null>(null);
@@ -183,6 +189,7 @@ export const RunsProvider = ({
     hideCancelAndReplayButtons = false,
     hideColumnToggle = false,
     hiddenFilters = [],
+    showActiveRunsBeforeWindow = false,
   } = display ?? {};
 
   const effectiveHideTriggerRunButton = hideTriggerRunButton || !canWrite;
@@ -263,6 +270,11 @@ export const RunsProvider = ({
     showQueueMetrics,
   });
 
+  const activeRunsBeforeWindow = useActiveRunsBeforeWindow({
+    enabled: showActiveRunsBeforeWindow && !flattenDAGs,
+    filters,
+  });
+
   const isRefetching = isRunsRefetching || isStatusCountsRefetching;
 
   const value = useMemo<RunsContextType>(
@@ -311,6 +323,7 @@ export const RunsProvider = ({
         setShowTriggerWorkflow,
       },
       fetchTimedOut,
+      activeRunsBeforeWindow,
     }),
     [
       filters,
@@ -353,6 +366,7 @@ export const RunsProvider = ({
       rowSelection,
       showTriggerWorkflow,
       fetchTimedOut,
+      activeRunsBeforeWindow,
     ],
   );
 

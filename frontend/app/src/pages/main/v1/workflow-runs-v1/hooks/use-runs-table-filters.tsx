@@ -84,6 +84,7 @@ export type FilterActions = {
   setColumnFilters: (filters: ColumnFiltersState) => void;
   resetFilters: () => void;
   searchAllRetainedHistory: () => void;
+  showActiveRunsSince: (since: string, statuses: V1TaskStatus[]) => void;
   retentionPeriod?: string;
   retentionGate: ReturnType<typeof useRetentionGate>;
   isDefaultOneDayWindow: boolean;
@@ -267,6 +268,18 @@ export const useRunsTableFilters = (
     setZodState,
   ]);
 
+  const showActiveRunsSince = useCallback(
+    (since: string, statuses: V1TaskStatus[]) => {
+      setZodState({
+        ctr: true,
+        s: since,
+        u: undefined,
+        st: statuses,
+      });
+    },
+    [setZodState],
+  );
+
   const setStatuses = useCallback(
     (statuses: V1TaskStatus[]) => {
       const finalStatuses =
@@ -366,6 +379,7 @@ export const useRunsTableFilters = (
     resetFilters,
     searchAllRetainedHistory: () =>
       setTimeWindow(largestAllowedTimeWindow(retentionPeriod)),
+    showActiveRunsSince,
     retentionPeriod,
     retentionGate,
     isDefaultOneDayWindow:

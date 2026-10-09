@@ -66,6 +66,7 @@ export default function RunsPage() {
       <RunsProvider
         tableKey="workflow-runs-main"
         persistColumnVisibilityKey="workflow-runs-main"
+        display={{ showActiveRunsBeforeWindow: true }}
       >
         <RunsTable />
       </RunsProvider>

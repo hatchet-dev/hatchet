@@ -2,6 +2,7 @@ import { TabOption } from '../$run/v2components/step-run-detail/step-run-detail'
 import { TriggerWorkflowForm } from '../../workflows/$workflow/components/trigger-workflow-form';
 import { useRunsContext } from '../hooks/runs-provider';
 import { AdditionalMetadataProp } from '../hooks/use-runs-table-filters';
+import { ActiveRunsBeforeWindowNote } from './active-runs-before-window-note';
 import { RunsEmptyGraphic } from './runs-empty-graphic';
 import { RequestTimeoutCloudCTAEmptyState } from './runs-timeout-empty-state';
 import { V1WorkflowRunsMetricsView } from './task-runs-metrics';
@@ -125,6 +126,7 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
       setShowQueueMetrics,
     },
     fetchTimedOut,
+    activeRunsBeforeWindow,
   } = useRunsContext();
 
   const [selectedAdditionalMetaRunId, setSelectedAdditionalMetaRunId] =
@@ -275,6 +277,10 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
       )}
 
       {!hideMetrics && <GetWorkflowChart />}
+
+      {activeRunsBeforeWindow && (
+        <ActiveRunsBeforeWindowNote activeRuns={activeRunsBeforeWindow} />
+      )}
 
       <RetentionUpgradeDialog
         attempt={filters.retentionGate.attempt}
