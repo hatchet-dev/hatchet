@@ -40,6 +40,8 @@ V1CELDebug:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../../components/responses/_index.yaml#/TooManyRequests"
     summary: Debug a CEL expression
     tags:
       - CEL

@@ -107,6 +107,8 @@ withTenant:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: List events
     tags:
       - Event
@@ -152,11 +154,7 @@ withTenant:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
       "429":
-        content:
-          application/json:
-            schema:
-              $ref: "../../components/schemas/_index.yaml#/APIErrors"
-        description: Resource limit exceeded
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Create event
     tags:
       - Event
@@ -205,11 +203,7 @@ bulkCreateEvents:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
       "429":
-        content:
-          application/json:
-            schema:
-              $ref: "../../components/schemas/_index.yaml#/APIErrors"
-        description: Resource limit exceeded
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Bulk Create events
     tags:
       - Event
@@ -250,6 +244,8 @@ withEvent:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get event data
     tags:
       - Event
@@ -289,6 +285,8 @@ eventData:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get event data
     tags:
       - Event
@@ -337,6 +335,8 @@ eventDataWithTenant:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get event data
     tags:
       - Event
@@ -376,6 +376,8 @@ keys:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: List event keys
     tags:
       - Event
@@ -423,11 +425,7 @@ replayEvents:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
       "429":
-        content:
-          application/json:
-            schema:
-              $ref: "../../components/schemas/_index.yaml#/APIErrors"
-        description: Resource limit exceeded
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Replay events
     tags:
       - Event
@@ -483,11 +481,7 @@ cancelEvents:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
       "429":
-        content:
-          application/json:
-            schema:
-              $ref: "../../components/schemas/_index.yaml#/APIErrors"
-        description: Resource limit exceeded
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Replay events
     tags:
       - Event

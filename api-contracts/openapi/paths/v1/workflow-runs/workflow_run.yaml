@@ -153,6 +153,8 @@ listWorkflowRuns:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Not implemented
+      "429":
+        $ref: "../../../components/responses/_index.yaml#/TooManyRequests"
     summary: List workflow runs
     tags:
       - Workflow Runs
@@ -209,6 +211,8 @@ listWorkflowRunDisplayNames:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Not implemented
+      "429":
+        $ref: "../../../components/responses/_index.yaml#/TooManyRequests"
     summary: List workflow runs
     tags:
       - Workflow Runs
@@ -301,6 +305,8 @@ listWorkflowRunExternalIds:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Not implemented
+      "429":
+        $ref: "../../../components/responses/_index.yaml#/TooManyRequests"
     summary: List workflow run external ids
     tags:
       - Workflow Runs
@@ -360,6 +366,8 @@ listTaskEventsForWorkflowRun:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Not implemented
+      "429":
+        $ref: "../../../components/responses/_index.yaml#/TooManyRequests"
     summary: List tasks
     tags:
       - Workflow Runs
@@ -411,6 +419,8 @@ getWorkflowRunDetails:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Not implemented
+      "429":
+        $ref: "../../../components/responses/_index.yaml#/TooManyRequests"
     summary: List tasks
     tags:
       - Workflow Runs
@@ -462,6 +472,8 @@ getWorkflowRunStatus:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Not implemented
+      "429":
+        $ref: "../../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get workflow run status
     tags:
       - Workflow Runs
@@ -508,6 +520,8 @@ trigger:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../../components/responses/_index.yaml#/TooManyRequests"
     summary: Create workflow run
     tags:
       - Workflow Runs
@@ -555,6 +569,8 @@ branchDurableTask:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../../components/responses/_index.yaml#/TooManyRequests"
     summary: Branch durable task
     tags:
       - Workflow Runs
@@ -607,6 +623,8 @@ getTimings:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Not implemented
+      "429":
+        $ref: "../../../components/responses/_index.yaml#/TooManyRequests"
     summary: List timings for a workflow run
     tags:
       - Workflow Runs
@@ -675,6 +693,8 @@ listDurableEventLog:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Not found
+      "429":
+        $ref: "../../../components/responses/_index.yaml#/TooManyRequests"
     summary: List durable event log
     tags:
       - Durable Tasks
