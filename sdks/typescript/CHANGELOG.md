@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Adds `RetryAfterError`, which allows for custom retry strategies.
 
+### Fixed
+
+- Duration strings now accept fractional units, e.g. `'0.5s'`, which the `Duration` type already allowed but failed to parse at runtime.
+
 ## [1.36.0] - 2026-10-06
 
 ### Added

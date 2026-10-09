@@ -12,6 +12,10 @@ description: "Release notes for every Hatchet TypeScript SDK release, newest fir
 
 - Adds `RetryAfterError`, which allows for custom retry strategies.
 
+### Fixed
+
+- Duration strings now accept fractional units, e.g. `'0.5s'`, which the `Duration` type already allowed but failed to parse at runtime.
+
 ## v1.36.0 - 2026-10-06
 
 ### Added
