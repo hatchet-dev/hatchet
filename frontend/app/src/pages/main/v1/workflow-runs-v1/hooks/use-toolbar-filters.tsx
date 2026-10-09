@@ -83,7 +83,7 @@ export const useToolbarFilters = ({
       }
     },
     onCreatedAfterChange: (date?: string) => {
-      if (filterActions.isCustomTimeRange && filterActions.apiFilters.until) {
+      if (filterActions.isCustomTimeRange) {
         filterActions.setCustomTimeRange({
           start:
             date || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),

@@ -17,10 +17,7 @@ export function ActiveRunsBeforeWindowNote({
   const isSingular = count === 1 && !capped;
 
   return (
-    <div
-      role="status"
-      className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-blue-200 bg-blue-50/50 px-3 py-1.5 text-sm dark:border-blue-900 dark:bg-blue-950/30"
-    >
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-blue-200 bg-blue-50/50 px-3 py-1.5 text-sm dark:border-blue-900 dark:bg-blue-950/30">
       <Info className="size-4 shrink-0 text-blue-600 dark:text-blue-400" />
       <span>
         {countLabel} {isSingular ? 'run' : 'runs'} started before this window{' '}

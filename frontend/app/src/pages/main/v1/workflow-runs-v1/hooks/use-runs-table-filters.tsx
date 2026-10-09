@@ -73,7 +73,7 @@ export type FilterActions = {
   isCustomTimeRange: boolean;
   apiFilters: APIFilters;
   setTimeWindow: (timeWindow: TimeWindow) => void;
-  setCustomTimeRange: (range: { start: string; end: string } | null) => void;
+  setCustomTimeRange: (range: { start: string; end?: string } | null) => void;
   updateCurrentTimeWindow: () => void;
   setStatuses: (statuses: V1TaskStatus[]) => void;
   setAdditionalMetadata: (metadata: AdditionalMetadataProp) => void;
@@ -211,7 +211,7 @@ export const useRunsTableFilters = (
   }, [isCustomTimeRange, timeWindow, setZodState, zodState]);
 
   const setCustomTimeRange = useCallback(
-    (range: { start: string; end: string } | null) => {
+    (range: { start: string; end?: string } | null) => {
       if (range) {
         retentionGate.trySince(range.start, () => {
           setZodState({

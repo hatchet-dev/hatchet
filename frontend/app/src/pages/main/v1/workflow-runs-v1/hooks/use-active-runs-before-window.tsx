@@ -9,6 +9,8 @@ import { useCallback, useMemo } from 'react';
 
 const ACTIVE_STATUSES = [V1TaskStatus.QUEUED, V1TaskStatus.RUNNING];
 
+// NOTE: for preset windows `since` moves every minute, which changes the
+// query key and refetches regardless of this interval.
 const MIN_REFETCH_INTERVAL_MS = 60 * 1000;
 
 // The boundary is rounded so the query key only changes once per minute.
@@ -89,7 +91,8 @@ export const useActiveRunsBeforeWindow = ({
     }
   }, [retentionStart, showActiveRunsSince, statuses]);
 
-  if (!isEnabled || !query.data) {
+  // After a failed refetch, data may still hold the count for other filters.
+  if (!isEnabled || query.isError || !query.data) {
     return null;
   }
 
