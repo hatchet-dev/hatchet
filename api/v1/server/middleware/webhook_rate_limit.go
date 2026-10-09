@@ -9,6 +9,8 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/rs/zerolog"
 	"golang.org/x/time/rate"
+
+	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 )
 
 func WebhookRateLimitMiddleware(rateLimit rate.Limit, burst int, l *zerolog.Logger) echo.MiddlewareFunc {
@@ -47,6 +49,10 @@ func WebhookRateLimitMiddleware(rateLimit rate.Limit, burst int, l *zerolog.Logg
 			}
 
 			return fmt.Sprintf("%s-%s", tenantId, webhookName), nil
+		},
+
+		DenyHandler: func(c echo.Context, _ string, _ error) error {
+			return c.JSON(http.StatusTooManyRequests, apierrors.NewAPIErrors("rate limit exceeded, retry shortly"))
 		},
 	}
 
