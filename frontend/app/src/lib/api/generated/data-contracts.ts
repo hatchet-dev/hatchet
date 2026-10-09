@@ -655,6 +655,16 @@ export interface V1TaskSummaryList {
   rows: V1TaskSummary[];
 }
 
+export interface V1WorkflowRunActiveCount {
+  /**
+   * The number of matching runs, up to the count limit
+   * @format int64
+   */
+  count: number;
+  /** Whether the count reached the limit, in which case more runs may match */
+  capped: boolean;
+}
+
 export interface V1WorkflowRunDisplayName {
   metadata: APIResourceMeta;
   displayName: string;

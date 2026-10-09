@@ -204,6 +204,20 @@ V1WorkflowRunExternalIdList:
     maxLength: 36
   description: The list of external IDs
 
+V1WorkflowRunActiveCount:
+  type: object
+  properties:
+    count:
+      type: integer
+      format: int64
+      description: The number of matching runs, up to the count limit
+    capped:
+      type: boolean
+      description: Whether the count reached the limit, in which case more runs may match
+  required:
+    - count
+    - capped
+
 V1TaskEventList:
   properties:
     pagination:

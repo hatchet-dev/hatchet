@@ -348,6 +348,8 @@ V1WorkflowRunDisplayNameList:
   $ref: "./v1/task.yaml#/V1WorkflowRunDisplayNameList"
 V1WorkflowRunExternalIdList:
   $ref: "./v1/task.yaml#/V1WorkflowRunExternalIdList"
+V1WorkflowRunActiveCount:
+  $ref: "./v1/task.yaml#/V1WorkflowRunActiveCount"
 V1TaskSummary:
   $ref: "./v1/task.yaml#/V1TaskSummary"
 V1DagChildren:

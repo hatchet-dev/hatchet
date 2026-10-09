@@ -129,6 +129,7 @@ import {
   V1WebhookList,
   V1WebhookResponse,
   V1WebhookSourceName,
+  V1WorkflowRunActiveCount,
   V1WorkflowRunDetails,
   V1WorkflowRunDisplayNameList,
   V1WorkflowRunExternalIdList,
@@ -538,6 +539,52 @@ export class Api<
   ) =>
     this.request<V1TaskSummaryList, APIErrors>({
       path: `/api/v1/stable/tenants/${tenant}/workflow-runs`,
+      method: "GET",
+      query: query,
+      secure: true,
+      format: "json",
+      ...params,
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
+  /**
+   * @description Counts workflow runs that are still queued or running and were created in the given time range. Filters have the same meaning as in the workflow run list. The count stops at a limit; `capped` is set when it does.
+   *
+   * @tags Workflow Runs
+   * @name V1WorkflowRunActiveCount
+   * @summary Count active workflow runs
+   * @request GET:/api/v1/stable/tenants/{tenant}/workflow-runs/active-count
+   * @secure
+   */
+  v1WorkflowRunActiveCount = Object.assign((
+    tenant: string,
+    query: {
+      /**
+       * The earliest creation time to count runs from (inclusive)
+       * @format date-time
+       */
+      since: string;
+      /**
+       * The creation time to count runs up to (exclusive)
+       * @format date-time
+       */
+      before: string;
+      /** Statuses to count. Only QUEUED and RUNNING are counted; other statuses are ignored. Defaults to QUEUED and RUNNING. */
+      statuses?: V1TaskStatus[];
+      /** Filter within the RUNNING status bucket. ALL counts both on-worker and evicted runs, ON_WORKER counts only runs on a worker, EVICTED counts only evicted runs. Defaults to ALL. */
+      running_filter?: V1RunningFilter;
+      /** Additional metadata k-v pairs to filter by */
+      additional_metadata?: string[];
+      /** How to combine multiple additional_metadata pairs. OR matches runs containing any pair, AND matches runs containing all pairs. Defaults to OR. */
+      additional_metadata_operator?: V1AdditionalMetadataOperator;
+      /** The workflow ids to count runs for */
+      workflow_ids?: string[];
+      /** The idempotency key(s) to filter for */
+      idempotency_keys?: string[];
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<V1WorkflowRunActiveCount, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/workflow-runs/active-count`,
       method: "GET",
       query: query,
       secure: true,

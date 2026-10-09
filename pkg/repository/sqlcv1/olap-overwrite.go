@@ -440,6 +440,9 @@ FROM filtered
 // to avoid adding more.
 const forceCustomPlan = pgx.QueryExecModeCacheDescribe
 
+// CountWorkflowRunsLimit is the LIMIT inside the CountWorkflowRuns query variants; keep them in sync.
+const CountWorkflowRunsLimit = 20000
+
 type CountWorkflowRunsParams struct {
 	Tenantid                      uuid.UUID          `json:"tenantid"`
 	Statuses                      []string           `json:"statuses"`

@@ -2335,6 +2335,15 @@ type V1WorkflowRun struct {
 	WorkflowVersionId *openapi_types.UUID `json:"workflowVersionId,omitempty"`
 }
 
+// V1WorkflowRunActiveCount defines model for V1WorkflowRunActiveCount.
+type V1WorkflowRunActiveCount struct {
+	// Capped Whether the count reached the limit, in which case more runs may match
+	Capped bool `json:"capped"`
+
+	// Count The number of matching runs, up to the count limit
+	Count int64 `json:"count"`
+}
+
 // V1WorkflowRunDetails defines model for V1WorkflowRunDetails.
 type V1WorkflowRunDetails struct {
 	Run   V1WorkflowRun                         `json:"run"`
@@ -3034,6 +3043,33 @@ type V1WorkflowRunListParams struct {
 
 	// RunningFilter Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL.
 	RunningFilter *V1RunningFilter `form:"running_filter,omitempty" json:"running_filter,omitempty"`
+
+	// IdempotencyKeys The idempotency key(s) to filter for
+	IdempotencyKeys *[]string `form:"idempotency_keys,omitempty" json:"idempotency_keys,omitempty"`
+}
+
+// V1WorkflowRunActiveCountParams defines parameters for V1WorkflowRunActiveCount.
+type V1WorkflowRunActiveCountParams struct {
+	// Since The earliest creation time to count runs from (inclusive)
+	Since time.Time `form:"since" json:"since"`
+
+	// Before The creation time to count runs up to (exclusive)
+	Before time.Time `form:"before" json:"before"`
+
+	// Statuses Statuses to count. Only QUEUED and RUNNING are counted; other statuses are ignored. Defaults to QUEUED and RUNNING.
+	Statuses *[]V1TaskStatus `form:"statuses,omitempty" json:"statuses,omitempty"`
+
+	// RunningFilter Filter within the RUNNING status bucket. ALL counts both on-worker and evicted runs, ON_WORKER counts only runs on a worker, EVICTED counts only evicted runs. Defaults to ALL.
+	RunningFilter *V1RunningFilter `form:"running_filter,omitempty" json:"running_filter,omitempty"`
+
+	// AdditionalMetadata Additional metadata k-v pairs to filter by
+	AdditionalMetadata *[]string `form:"additional_metadata,omitempty" json:"additional_metadata,omitempty"`
+
+	// AdditionalMetadataOperator How to combine multiple additional_metadata pairs. OR matches runs containing any pair, AND matches runs containing all pairs. Defaults to OR.
+	AdditionalMetadataOperator *V1AdditionalMetadataOperator `form:"additional_metadata_operator,omitempty" json:"additional_metadata_operator,omitempty"`
+
+	// WorkflowIds The workflow ids to count runs for
+	WorkflowIds *[]openapi_types.UUID `form:"workflow_ids,omitempty" json:"workflow_ids,omitempty"`
 
 	// IdempotencyKeys The idempotency key(s) to filter for
 	IdempotencyKeys *[]string `form:"idempotency_keys,omitempty" json:"idempotency_keys,omitempty"`
@@ -3873,6 +3909,9 @@ type ClientInterface interface {
 
 	// V1WorkflowRunList request
 	V1WorkflowRunList(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1WorkflowRunActiveCount request
+	V1WorkflowRunActiveCount(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunActiveCountParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1WorkflowRunDisplayNamesList request
 	V1WorkflowRunDisplayNamesList(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunDisplayNamesListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -4884,6 +4923,18 @@ func (c *Client) V1WebhookReceiveWithBody(ctx context.Context, tenant openapi_ty
 
 func (c *Client) V1WorkflowRunList(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewV1WorkflowRunListRequest(c.Server, tenant, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1WorkflowRunActiveCount(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunActiveCountParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1WorkflowRunActiveCountRequest(c.Server, tenant, params)
 	if err != nil {
 		return nil, err
 	}
@@ -9405,6 +9456,166 @@ func NewV1WorkflowRunListRequest(server string, tenant openapi_types.UUID, param
 		if params.RunningFilter != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "running_filter", runtime.ParamLocationQuery, *params.RunningFilter); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.IdempotencyKeys != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "idempotency_keys", runtime.ParamLocationQuery, *params.IdempotencyKeys); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1WorkflowRunActiveCountRequest generates requests for V1WorkflowRunActiveCount
+func NewV1WorkflowRunActiveCountRequest(server string, tenant openapi_types.UUID, params *V1WorkflowRunActiveCountParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/workflow-runs/active-count", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "since", runtime.ParamLocationQuery, params.Since); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "before", runtime.ParamLocationQuery, params.Before); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if params.Statuses != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "statuses", runtime.ParamLocationQuery, *params.Statuses); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.RunningFilter != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "running_filter", runtime.ParamLocationQuery, *params.RunningFilter); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.AdditionalMetadata != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additional_metadata", runtime.ParamLocationQuery, *params.AdditionalMetadata); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.AdditionalMetadataOperator != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additional_metadata_operator", runtime.ParamLocationQuery, *params.AdditionalMetadataOperator); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.WorkflowIds != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflow_ids", runtime.ParamLocationQuery, *params.WorkflowIds); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
@@ -14995,6 +15206,9 @@ type ClientWithResponsesInterface interface {
 	// V1WorkflowRunListWithResponse request
 	V1WorkflowRunListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunListParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunListResponse, error)
 
+	// V1WorkflowRunActiveCountWithResponse request
+	V1WorkflowRunActiveCountWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunActiveCountParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunActiveCountResponse, error)
+
 	// V1WorkflowRunDisplayNamesListWithResponse request
 	V1WorkflowRunDisplayNamesListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunDisplayNamesListParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunDisplayNamesListResponse, error)
 
@@ -16467,6 +16681,30 @@ func (r V1WorkflowRunListResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r V1WorkflowRunListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1WorkflowRunActiveCountResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1WorkflowRunActiveCount
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1WorkflowRunActiveCountResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1WorkflowRunActiveCountResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -19367,6 +19605,15 @@ func (c *ClientWithResponses) V1WorkflowRunListWithResponse(ctx context.Context,
 		return nil, err
 	}
 	return ParseV1WorkflowRunListResponse(rsp)
+}
+
+// V1WorkflowRunActiveCountWithResponse request returning *V1WorkflowRunActiveCountResponse
+func (c *ClientWithResponses) V1WorkflowRunActiveCountWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunActiveCountParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunActiveCountResponse, error) {
+	rsp, err := c.V1WorkflowRunActiveCount(ctx, tenant, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1WorkflowRunActiveCountResponse(rsp)
 }
 
 // V1WorkflowRunDisplayNamesListWithResponse request returning *V1WorkflowRunDisplayNamesListResponse
@@ -22440,6 +22687,46 @@ func ParseV1WorkflowRunListResponse(rsp *http.Response) (*V1WorkflowRunListRespo
 			return nil, err
 		}
 		response.JSON501 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1WorkflowRunActiveCountResponse parses an HTTP response from a V1WorkflowRunActiveCountWithResponse call
+func ParseV1WorkflowRunActiveCountResponse(rsp *http.Response) (*V1WorkflowRunActiveCountResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1WorkflowRunActiveCountResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1WorkflowRunActiveCount
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	}
 

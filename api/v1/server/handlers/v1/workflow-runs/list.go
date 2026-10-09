@@ -373,17 +373,9 @@ func (t *V1WorkflowRunsService) V1WorkflowRunList(ctx echo.Context, request gen.
 	spanContext, span := telemetry.NewSpan(ctx.Request().Context(), "v1-workflow-runs-list")
 	defer span.End()
 
-	useGinIndex := false
-
-	if request.Params.AdditionalMetadata != nil && len(*request.Params.AdditionalMetadata) > 0 {
-		enabled, err := t.config.V1.TenantEntitlement().HasEntitlement(spanContext, tenantId, v1.EntitlementStrictAdditionalMetadataFilters)
-
-		if err != nil {
-			return nil, err
-		}
-
-		// if there's only one filter, we should always use the `AND` path with the index, since it's the most performant and all methods are equivalent in that case
-		useGinIndex = enabled || len(*request.Params.AdditionalMetadata) == 1
+	useGinIndex, err := t.useGinIndex(spanContext, tenantId, request.Params.AdditionalMetadata)
+	if err != nil {
+		return nil, err
 	}
 
 	canViewPayloads := authz.CanViewPayloads(ctx)
@@ -393,6 +385,21 @@ func (t *V1WorkflowRunsService) V1WorkflowRunList(ctx echo.Context, request gen.
 	}
 
 	return t.WithDags(spanContext, request, tenantId, useGinIndex, canViewPayloads)
+}
+
+func (t *V1WorkflowRunsService) useGinIndex(ctx context.Context, tenantId uuid.UUID, additionalMetadata *[]string) (bool, error) {
+	if additionalMetadata == nil || len(*additionalMetadata) == 0 {
+		return false, nil
+	}
+
+	enabled, err := t.config.V1.TenantEntitlement().HasEntitlement(ctx, tenantId, v1.EntitlementStrictAdditionalMetadataFilters)
+
+	if err != nil {
+		return false, err
+	}
+
+	// if there's only one filter, we should always use the `AND` path with the index, since it's the most performant and all methods are equivalent in that case
+	return enabled || len(*additionalMetadata) == 1, nil
 }
 
 // additionalMetadataOperator maps the optional additional_metadata_operator query

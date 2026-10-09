@@ -82,6 +82,7 @@ roles:
       - V1WebhookGet
       - V1WebhookReceive
       - V1WorkflowRunList
+      - V1WorkflowRunActiveCount
       - V1EventKeyList
       - V1WorkflowRunExternalIdsList
       - V1WorkflowRunTaskEventsList
