@@ -30,6 +30,8 @@ tenants:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIError"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Create tenant
     tags:
       - Tenant
@@ -75,6 +77,8 @@ updateTenants:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIError"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Update tenant
     tags:
       - Tenant
@@ -118,6 +122,8 @@ updateTenants:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Tenant does not exist
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get tenant
     tags:
       - Tenant
@@ -157,6 +163,8 @@ tenantAlertingSettings:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIError"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get tenant alerting settings
     tags:
       - Tenant
@@ -202,6 +210,8 @@ alertEmailGroup:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIError"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Update tenant alert email group
     tags:
       - Tenant
@@ -235,6 +245,8 @@ alertEmailGroup:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIError"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Delete tenant alert email group
     tags:
       - Tenant
@@ -280,6 +292,8 @@ tenantAlertEmailGroups:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIError"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Create tenant alert email group
     tags:
       - Tenant
@@ -317,6 +331,8 @@ tenantAlertEmailGroups:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIError"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: List tenant alert email groups
     tags:
       - Tenant
@@ -356,6 +372,8 @@ tenantResourcePolicy:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIError"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Create tenant alert email group
     tags:
       - Tenant
@@ -409,6 +427,8 @@ invites:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Rate limit exceeded
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Create tenant invite
     tags:
       - Tenant
@@ -446,6 +466,8 @@ invites:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIError"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: List tenant invites
     tags:
       - Tenant
@@ -495,6 +517,8 @@ inviteScoped:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: A malformed or bad request
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
   delete:
     x-resources: ["tenant", "tenant-invite"]
     description: Deletes a tenant invite
@@ -533,6 +557,8 @@ inviteScoped:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: A malformed or bad request
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
 members:
   get:
     x-resources: ["tenant"]
@@ -568,6 +594,8 @@ members:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIError"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: List tenant members
     tags:
       - Tenant
@@ -628,6 +656,8 @@ member:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Not found
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Update a tenant member
     tags:
       - Tenant
@@ -680,6 +710,8 @@ member:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Not found
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Delete a tenant member
     tags:
       - Tenant
@@ -741,6 +773,8 @@ getQueueMetrics:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Not found
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get workflow metrics
     tags:
       - Workflow
@@ -786,6 +820,8 @@ getStepRunQueueMetrics:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Not found
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get step run metrics
     tags:
       - Tenant
@@ -831,6 +867,8 @@ getPrometheusMetrics:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Not found
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get prometheus metrics
     tags:
       - Tenant
@@ -885,6 +923,8 @@ getTaskStats:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Not found
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get task stats for tenant
     tags:
       - Tenant
