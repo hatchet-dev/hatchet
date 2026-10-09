@@ -72,7 +72,7 @@ func (h *pgHealthRepository) PGStatStatementsEnabled(ctx context.Context) (bool,
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	count, err := h.queries.CheckPGStatStatementsEnabled(ctx, h.pool)
+	count, err := h.queries.CheckPGStatStatementsEnabled(ctx, h.pool.ForShared())
 	if err != nil {
 		return false, err
 	}
@@ -94,7 +94,7 @@ func (h *pgHealthRepository) TrackCountsEnabled(ctx context.Context) (bool, erro
 	defer cancel()
 
 	var setting string
-	err := h.pool.QueryRow(ctx, "SHOW track_counts").Scan(&setting)
+	err := h.pool.ForShared().QueryRow(ctx, "SHOW track_counts").Scan(&setting)
 	if err != nil {
 		return false, err
 	}
@@ -120,7 +120,7 @@ func (h *pgHealthRepository) CheckBloat(ctx context.Context) (PGHealthError, int
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	rows, err := h.queries.CheckBloat(ctx, h.pool)
+	rows, err := h.queries.CheckBloat(ctx, h.pool.ForShared())
 	if err != nil {
 		return PGHealthOK, 0, err
 	}
@@ -146,7 +146,7 @@ func (h *pgHealthRepository) GetBloatDetails(ctx context.Context) ([]*sqlcv1.Che
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	return h.queries.CheckBloat(ctx, h.pool)
+	return h.queries.CheckBloat(ctx, h.pool.ForShared())
 }
 
 func (h *pgHealthRepository) CheckLongRunningQueries(ctx context.Context) (PGHealthError, int, error) {
@@ -164,7 +164,7 @@ func (h *pgHealthRepository) CheckLongRunningQueries(ctx context.Context) (PGHea
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	rows, err := h.queries.CheckLongRunningQueries(ctx, h.pool)
+	rows, err := h.queries.CheckLongRunningQueries(ctx, h.pool.ForShared())
 	if err != nil {
 		return PGHealthOK, 0, err
 	}
@@ -186,7 +186,7 @@ func (h *pgHealthRepository) CheckQueryCache(ctx context.Context) (PGHealthError
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	tables, err := h.queries.CheckQueryCaches(ctx, h.pool)
+	tables, err := h.queries.CheckQueryCaches(ctx, h.pool.ForShared())
 	if err != nil {
 		return PGHealthOK, 0, err
 	}
@@ -222,7 +222,7 @@ func (h *pgHealthRepository) CheckQueryCaches(ctx context.Context) ([]*sqlcv1.Ch
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	return h.queries.CheckQueryCaches(ctx, h.pool)
+	return h.queries.CheckQueryCaches(ctx, h.pool.ForShared())
 }
 
 func (h *pgHealthRepository) CheckLongRunningVacuum(ctx context.Context) (PGHealthError, int, error) {
@@ -240,7 +240,7 @@ func (h *pgHealthRepository) CheckLongRunningVacuum(ctx context.Context) (PGHeal
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	rows, err := h.queries.LongRunningVacuum(ctx, h.pool)
+	rows, err := h.queries.LongRunningVacuum(ctx, h.pool.ForShared())
 	if err != nil {
 		return PGHealthOK, 0, err
 	}
@@ -262,12 +262,12 @@ func (h *pgHealthRepository) CheckLastAutovacuumForPartitionedTables(ctx context
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	return h.queries.CheckLastAutovacuumForPartitionedTables(ctx, h.pool)
+	return h.queries.CheckLastAutovacuumForPartitionedTables(ctx, h.pool.ForShared())
 }
 
 func (h *pgHealthRepository) CheckLastAutovacuumForPartitionedTablesCoreDB(ctx context.Context) ([]*sqlcv1.CheckLastAutovacuumForPartitionedTablesCoreDBRow, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	return h.queries.CheckLastAutovacuumForPartitionedTablesCoreDB(ctx, h.pool)
+	return h.queries.CheckLastAutovacuumForPartitionedTablesCoreDB(ctx, h.pool.ForShared())
 }

@@ -94,7 +94,7 @@ func newTenantLimitRepository(shared *sharedRepository, s limits.LimitConfigFile
 }
 
 func (t *tenantLimitRepository) ResolveAllTenantResourceLimits(ctx context.Context) error {
-	_, err := t.queries.ResolveAllLimitsIfWindowPassed(ctx, t.pool)
+	_, err := t.queries.ResolveAllLimitsIfWindowPassed(ctx, t.pool.ForShared())
 	return err
 }
 
@@ -157,11 +157,13 @@ func (t *tenantLimitRepository) DefaultLimits() []Limit {
 }
 
 func (t *tenantLimitRepository) GetLimits(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.TenantResourceLimit, error) {
+	db := t.pool.ForTenant(tenantId)
+
 	if !t.enforceLimits {
 		return []*sqlcv1.TenantResourceLimit{}, nil
 	}
 
-	limits, err := t.queries.ListTenantResourceLimits(ctx, t.pool, tenantId)
+	limits, err := t.queries.ListTenantResourceLimits(ctx, db, tenantId)
 
 	if err != nil {
 		return nil, err
@@ -171,7 +173,7 @@ func (t *tenantLimitRepository) GetLimits(ctx context.Context, tenantId uuid.UUI
 	for _, limit := range limits {
 
 		if limit.Resource == sqlcv1.LimitResourceWORKER {
-			workerCount, err := t.queries.CountTenantWorkers(ctx, t.pool, tenantId)
+			workerCount, err := t.queries.CountTenantWorkers(ctx, db, tenantId)
 			if err != nil {
 				return nil, err
 			}
@@ -179,7 +181,7 @@ func (t *tenantLimitRepository) GetLimits(ctx context.Context, tenantId uuid.UUI
 		}
 
 		if limit.Resource == sqlcv1.LimitResourceWORKERSLOT {
-			totalSlotsRows, err := t.queries.ListTotalActiveSlotsPerTenant(ctx, t.pool)
+			totalSlotsRows, err := t.queries.ListTotalActiveSlotsPerTenant(ctx, db)
 			if err != nil {
 				return nil, err
 			}
@@ -203,12 +205,14 @@ func (t *tenantLimitRepository) CanCreate(ctx context.Context, resource sqlcv1.L
 }
 
 func (t *tenantLimitRepository) canCreate(ctx context.Context, dbtx sqlcv1.DBTX, resource sqlcv1.LimitResource, tenantId uuid.UUID, numberOfResources int32) (bool, int, error) {
+	db := t.pool.ForTenant(tenantId)
+
 	if !t.enforceLimits {
 		return true, 0, nil
 	}
 
 	if dbtx == nil {
-		dbtx = t.pool
+		dbtx = db
 	}
 
 	limit, err := t.queries.GetTenantResourceLimit(ctx, dbtx, sqlcv1.GetTenantResourceLimitParams{
@@ -347,7 +351,7 @@ func (t *tenantLimitRepository) flushToDatabase(ctx context.Context) error {
 		numResources = append(numResources, n)
 	}
 
-	limits, err := t.queries.BulkMeterTenantResources(ctx, t.pool, sqlcv1.BulkMeterTenantResourcesParams{
+	limits, err := t.queries.BulkMeterTenantResources(ctx, t.pool.ForShared(), sqlcv1.BulkMeterTenantResourcesParams{
 		Tenantids:    tenantIds,
 		Resources:    resources,
 		Numresources: numResources,
@@ -465,12 +469,14 @@ func prepareTenantResourceLimitParams(limits []Limit) (resources []string, limit
 }
 
 func (t *tenantLimitRepository) updateLimits(ctx context.Context, dbtx sqlcv1.DBTX, tenantId uuid.UUID, limits []Limit) error {
+	db := t.pool.ForTenant(tenantId)
+
 	if len(limits) == 0 {
 		return nil
 	}
 
 	if dbtx == nil {
-		dbtx = t.pool
+		dbtx = db
 	}
 
 	resources, limitValues, alarmValues, windows, customValueMeters := prepareTenantResourceLimitParams(limits)
@@ -547,7 +553,7 @@ func (t *tenantLimitRepository) StreamRetention(ctx context.Context, tenantId uu
 
 	hours := t.DefaultStreamRetentionHours()
 
-	limit, err := t.queries.GetTenantResourceLimit(ctx, t.pool, sqlcv1.GetTenantResourceLimitParams{
+	limit, err := t.queries.GetTenantResourceLimit(ctx, t.pool.ForTenant(tenantId), sqlcv1.GetTenantResourceLimitParams{
 		Tenantid: tenantId,
 		Resource: sqlcv1.NullLimitResource{LimitResource: sqlcv1.LimitResourceSTREAMRETENTION, Valid: true},
 	})
@@ -557,7 +563,7 @@ func (t *tenantLimitRepository) StreamRetention(ctx context.Context, tenantId uu
 		hours = clampStreamRetentionHours(limit.LimitValue, hours)
 	case errors.Is(err, pgx.ErrNoRows):
 		// best-effort, so the retention becomes editable in the database
-		if insertErr := t.insertDefaultLimitsIfMissing(ctx, t.pool, tenantId); insertErr != nil {
+		if insertErr := t.insertDefaultLimitsIfMissing(ctx, t.pool.ForTenant(tenantId), tenantId); insertErr != nil {
 			t.l.Warn().Ctx(ctx).Err(insertErr).Msg("could not store default stream retention limit")
 		}
 	default:
