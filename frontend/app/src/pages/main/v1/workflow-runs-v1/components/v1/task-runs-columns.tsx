@@ -3,6 +3,7 @@ import {
   AdditionalMetadataClick,
 } from '../../../events/components/additional-metadata';
 import { V1RunStatus } from '../../../workflow-runs/components/run-statuses';
+import { replayAsNewDisabledReason } from '../../hooks/use-replay-as-new';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import { TableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
 import RelativeDate from '@/components/v1/molecules/relative-date';
@@ -16,7 +17,6 @@ import {
   TooltipTrigger,
 } from '@/components/v1/ui/tooltip';
 import { V1TaskStatus, V1TaskSummary } from '@/lib/api';
-import { isStandaloneRun } from '@/lib/task-runs';
 import { cn } from '@/lib/utils';
 import { appRoutes } from '@/router';
 import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
@@ -128,7 +128,7 @@ export const columns: (
   onTaskRunIdClick: (taskRunId: string) => void,
   onAdditionalMetadataOpenChange: (rowId: string, open: boolean) => void,
   onIdempotencyKeyClick: (idempotencyKey: string) => void,
-  onRunAsNew?: (run: V1TaskSummary) => void,
+  onReplayAsNew?: (run: V1TaskSummary) => void,
 ) => ColumnDef<V1TaskSummary>[] = (
   tenantId,
   selectedAdditionalMetaRunId,
@@ -136,7 +136,7 @@ export const columns: (
   onTaskRunIdClick,
   onAdditionalMetadataOpenChange,
   onIdempotencyKeyClick,
-  onRunAsNew,
+  onReplayAsNew,
 ) => [
   {
     id: 'select',
@@ -444,16 +444,14 @@ export const columns: (
                 navigator.clipboard.writeText(row.original.metadata.id);
               },
             },
-            ...(onRunAsNew
+            ...(onReplayAsNew
               ? [
                   {
-                    label: 'Run as new',
+                    label: 'Replay as new',
                     onClick: () => {
-                      onRunAsNew(row.original);
+                      onReplayAsNew(row.original);
                     },
-                    disabled:
-                      !isStandaloneRun(row.original) &&
-                      'Only top-level runs can be run as new. Use the parent run instead.',
+                    disabled: replayAsNewDisabledReason(row.original) ?? false,
                   },
                 ]
               : []),

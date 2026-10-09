@@ -1,12 +1,12 @@
 import { TabOption } from '../$run/v2components/step-run-detail/step-run-detail';
 import { TriggerWorkflowForm } from '../../workflows/$workflow/components/trigger-workflow-form';
 import { useRunsContext } from '../hooks/runs-provider';
+import { useReplayAsNew } from '../hooks/use-replay-as-new';
 import { AdditionalMetadataProp } from '../hooks/use-runs-table-filters';
 import { RunsEmptyGraphic } from './runs-empty-graphic';
 import { RequestTimeoutCloudCTAEmptyState } from './runs-timeout-empty-state';
 import { V1WorkflowRunsMetricsView } from './task-runs-metrics';
 import { columns, TaskRunColumn } from './v1/task-runs-columns';
-import { useToast } from '@/components/v1/hooks/use-toast';
 import {
   DataPoint,
   ZoomableChart,
@@ -26,20 +26,13 @@ import { Separator } from '@/components/v1/ui/separator';
 import { Skeleton } from '@/components/v1/ui/skeleton';
 import { Toaster } from '@/components/v1/ui/toaster';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
-import useCanViewPayloads from '@/hooks/use-can-view-payloads';
-import useCanWrite from '@/hooks/use-can-write';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
-import {
-  queries,
-  V1TaskStatus,
-  V1TaskSummary,
-  V1WorkflowType,
-} from '@/lib/api';
+import { queries, V1TaskStatus } from '@/lib/api';
 import { withPolling } from '@/lib/api/polling';
 import { docsPages } from '@/lib/generated/docs';
 import { formatRetentionPeriod } from '@/lib/utils/retention';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 const GetWorkflowChart = () => {
@@ -179,44 +172,11 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
     [filters],
   );
 
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
-  const canViewPayloads = useCanViewPayloads();
-  const canWrite = useCanWrite();
-  const [runAsNew, setRunAsNew] = useState<V1TaskSummary | null>(null);
-
-  const handleRunAsNew = useCallback(
-    async (run: V1TaskSummary) => {
-      try {
-        const { input, payloadsRestricted } =
-          run.type === V1WorkflowType.DAG
-            ? (
-                await queryClient.fetchQuery(
-                  queries.v1WorkflowRuns.details(run.metadata.id),
-                )
-              ).run
-            : await queryClient.fetchQuery(
-                queries.v1Tasks.get(run.metadata.id),
-              );
-
-        if (payloadsRestricted) {
-          toast({
-            title: 'You do not have permission to view this run input',
-            variant: 'destructive',
-          });
-          return;
-        }
-
-        setRunAsNew({ ...run, input });
-      } catch {
-        toast({
-          title: 'Failed to load run input',
-          variant: 'destructive',
-        });
-      }
-    },
-    [queryClient, toast],
-  );
+  const {
+    canReplayAsNew,
+    replayAsNew,
+    dialog: replayAsNewDialog,
+  } = useReplayAsNew();
 
   const tableColumns = useMemo(
     () =>
@@ -227,7 +187,7 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
         handleTaskRunIdClick,
         handleAdditionalMetadataOpenChange,
         handleIdempotencyKeyClick,
-        canViewPayloads && canWrite ? handleRunAsNew : undefined,
+        canReplayAsNew ? replayAsNew : undefined,
       ),
     [
       tenantId,
@@ -236,9 +196,8 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
       handleTaskRunIdClick,
       handleAdditionalMetadataOpenChange,
       handleIdempotencyKeyClick,
-      handleRunAsNew,
-      canViewPayloads,
-      canWrite,
+      canReplayAsNew,
+      replayAsNew,
     ],
   );
 
@@ -305,20 +264,7 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
         onClose={() => setShowTriggerWorkflow(false)}
       />
 
-      {runAsNew && (
-        <TriggerWorkflowForm
-          key={runAsNew.metadata.id}
-          defaultWorkflowId={runAsNew.workflowId}
-          defaultInput={JSON.stringify(runAsNew.input ?? {}, null, 2)}
-          defaultAddlMeta={JSON.stringify(
-            runAsNew.additionalMetadata ?? {},
-            null,
-            2,
-          )}
-          show
-          onClose={() => setRunAsNew(null)}
-        />
-      )}
+      {replayAsNewDialog}
 
       {!hideMetrics && (
         <Dialog open={showQueueMetrics} onOpenChange={setShowQueueMetrics}>
