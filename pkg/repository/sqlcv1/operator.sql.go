@@ -35,8 +35,9 @@ WITH operators_on_inactive_dispatchers AS (
     JOIN "Worker" w ON w."id" = v1_operator.worker_id
     WHERE w."dispatcherId" = $1::UUID
 )
-SELECT id, tenant_id, name, kind, leasing_manager, config, worker_id, created_at, updated_at
+SELECT v1_operator.id, v1_operator.tenant_id, v1_operator.name, v1_operator.kind, v1_operator.leasing_manager, v1_operator.config, v1_operator.worker_id, v1_operator.created_at, v1_operator.updated_at
 FROM v1_operator
+JOIN "Tenant" t ON t."id" = v1_operator.tenant_id AND t."deletedAt" IS NULL
 WHERE
     -- Only DISPATCHER rows are claimed, whatever their kind. A SELF row keeps itself alive
     -- (a Listen stream out of process, its own leaser in process) and registers its own
