@@ -103,7 +103,7 @@ func (r *userSessionRepository) Create(ctx context.Context, opts *CreateSessionO
 
 	session, err := r.queries.CreateUserSession(
 		ctx,
-		r.pool,
+		r.pool.ForShared(),
 		params,
 	)
 
@@ -134,7 +134,7 @@ func (r *userSessionRepository) Update(ctx context.Context, sessionId uuid.UUID,
 
 	session, err := r.queries.UpdateUserSession(
 		ctx,
-		r.pool,
+		r.pool.ForShared(),
 		params,
 	)
 
@@ -152,7 +152,7 @@ func (r *userSessionRepository) Update(ctx context.Context, sessionId uuid.UUID,
 func (r *userSessionRepository) Delete(ctx context.Context, sessionId uuid.UUID) (*sqlcv1.UserSession, error) {
 	session, err := r.queries.DeleteUserSession(
 		ctx,
-		r.pool,
+		r.pool.ForShared(),
 		sessionId,
 	)
 
@@ -170,7 +170,7 @@ func (r *userSessionRepository) Delete(ctx context.Context, sessionId uuid.UUID)
 func (r *userSessionRepository) DeleteByUserId(ctx context.Context, userId uuid.UUID, exceptSessionId *uuid.UUID) ([]*sqlcv1.UserSession, error) {
 	sessions, err := r.queries.DeleteUserSessionsByUserId(
 		ctx,
-		r.pool,
+		r.pool.ForShared(),
 		sqlcv1.DeleteUserSessionsByUserIdParams{
 			Userid:   userId,
 			ExceptId: exceptSessionId,
@@ -193,7 +193,7 @@ func (r *userSessionRepository) DeleteByUserId(ctx context.Context, userId uuid.
 func (r *userSessionRepository) GetById(ctx context.Context, sessionId uuid.UUID) (*sqlcv1.UserSession, error) {
 	return r.queries.GetUserSession(
 		ctx,
-		r.pool,
+		r.pool.ForShared(),
 		sessionId,
 	)
 }
@@ -202,7 +202,7 @@ func (r *userSessionRepository) CleanupUserSessions(ctx context.Context) error {
 	const batchSize int32 = 1000
 
 	for {
-		result, err := r.queries.CleanupUserSessions(ctx, r.pool, batchSize)
+		result, err := r.queries.CleanupUserSessions(ctx, r.pool.ForShared(), batchSize)
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return nil
