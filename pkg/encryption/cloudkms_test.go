@@ -3,16 +3,33 @@
 package encryption
 
 import (
+	"bytes"
+	"encoding/base64"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/tink-crypto/tink-go/aead"
+	"github.com/tink-crypto/tink-go/insecurecleartextkeyset"
+	"github.com/tink-crypto/tink-go/keyset"
 	"github.com/tink-crypto/tink-go/testing/fakekms"
 )
 
 var (
-	fakeKeyURI          = "fake-kms://CM2b3_MDElQKSAowdHlwZS5nb29nbGVhcGlzLmNvbS9nb29nbGUuY3J5cHRvLnRpbmsuQWVzR2NtS2V5EhIaEIK75t5L-adlUwVhWvRuWUwYARABGM2b3_MDIAE"
+	fakeKeyURI          = fakeCTRHMACKeyURI()
 	fakeCredentialsJSON = []byte(`{}`)
 )
+
+func fakeCTRHMACKeyURI() string {
+	h, err := keyset.NewHandle(aead.AES256CTRHMACSHA256KeyTemplate())
+	if err != nil {
+		panic(err)
+	}
+	buf := new(bytes.Buffer)
+	if err := insecurecleartextkeyset.Write(h, keyset.NewBinaryWriter(buf)); err != nil {
+		panic(err)
+	}
+	return "fake-kms://" + base64.RawURLEncoding.EncodeToString(buf.Bytes())
+}
 
 func TestNewCloudKMSEncryptionValid(t *testing.T) {
 	// Using fake KMS client for testing

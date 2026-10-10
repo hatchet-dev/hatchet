@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"crypto/fips140"
 	_ "embed"
 	"fmt"
 	"os"
@@ -84,6 +85,10 @@ func runQuickstart() error {
 	}
 
 	if !shouldSkip(StageCerts) {
+		if fips140.Enabled() {
+			return fmt.Errorf("certificate generation uses openssl, which FIPS builds do not ship: provide certificates in %s or pass --skip certs", certDir)
+		}
+
 		err := setupCerts(generated)
 
 		if err != nil {
