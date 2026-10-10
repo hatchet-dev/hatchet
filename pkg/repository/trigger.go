@@ -460,7 +460,7 @@ func (s *sharedRepository) triggerFromWorkflowNames(ctx context.Context, tx *Opt
 		return nil, nil, nil, nil, nil, fmt.Errorf("failed to prepare trigger from workflow names: %w", err)
 	}
 
-	tasks, dags, idempotencyKeyCollisions, celEvaluationFailures, storePayloadOpts, operatorDagTuples, err := s.triggerWorkflowsCore(ctx, tx, tenantId, triggerOpts, nil, false)
+	tasks, dags, idempotencyKeyCollisions, celEvaluationFailures, storePayloadOpts, operatorDagTuples, err := s.triggerWorkflowsCore(ctx, tx, tenantId, triggerOpts, nil)
 
 	if err != nil {
 		return nil, nil, nil, nil, nil, err
@@ -785,24 +785,31 @@ func (r *sharedRepository) evalIdempotencyKey(tuple triggerTuple) (string, error
 	return key, nil
 }
 
-func (r *sharedRepository) triggerWorkflowsCore(
+// triggerPreflight is everything triggerWorkflowsCore reads before it writes: idempotency
+// claims, step metadata, metering and step match conditions.
+type triggerPreflight struct {
+	tuples                     []triggerTuple
+	pausedWorkflowIds          map[uuid.UUID]struct{}
+	workflowVersionToSteps     map[uuid.UUID][]*sqlcv1.ListStepsByWorkflowVersionIdsRow
+	stepIdsToReadableIds       map[uuid.UUID]string
+	stepsToAdditionalMatches   map[uuid.UUID][]*sqlcv1.V1StepMatchCondition
+	idempotencyCollisions      []IdempotencyCollision
+	celEvaluationFailures      []CELEvaluationFailure
+	externalIdToIdempotencyKey map[uuid.UUID]string
+	postTask                   func()
+}
+
+// triggerWorkflowsPreflight runs the read-and-claim half of a trigger on preflightTx.
+//
+// The pool is a valid preflightTx: each query checks out and returns its own connection. An
+// owned trigger runs this before PrepareOptimisticTx so that it never holds the transaction's
+// connection while checking out a second one.
+func (r *sharedRepository) triggerWorkflowsPreflight(
 	ctx context.Context,
-	optTx *OptimisticTx,
+	preflightTx sqlcv1.DBTX,
 	tenantId uuid.UUID,
 	triggerCandidateTuples []triggerTuple,
-	coreEvents *createCoreUserEventOpts,
-	ownsTx bool,
-) ([]*V1TaskWithPayload, []*DAGWithData, []IdempotencyCollision, []CELEvaluationFailure, []StorePayloadOpts, map[uuid.UUID]triggerTuple, error) {
-	if optTx == nil {
-		return nil, nil, nil, nil, nil, nil, fmt.Errorf("triggerWorkflowsCore requires a non-nil transaction")
-	}
-
-	preflightTx := optTx.tx
-
-	if ownsTx {
-		preflightTx = r.pool
-	}
-
+) (*triggerPreflight, error) {
 	tuples := make([]triggerTuple, 0, len(triggerCandidateTuples))
 
 	keys := make([]string, 0, len(triggerCandidateTuples))
@@ -849,7 +856,7 @@ func (r *sharedRepository) triggerWorkflowsCore(
 		})
 
 		if err != nil {
-			return nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to claim idempotency keys: %w", err)
+			return nil, fmt.Errorf("failed to claim idempotency keys: %w", err)
 		}
 
 		idempotencyKeyToLockHolder := make(map[string]uuid.UUID, len(claims))
@@ -904,7 +911,7 @@ func (r *sharedRepository) triggerWorkflowsCore(
 	workflowVersionToSteps, err := r.listStepsByWorkflowVersionIds(ctx, preflightTx, tenantId, workflowVersionIds)
 
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to get workflow versions for engine: %w", err)
+		return nil, fmt.Errorf("failed to get workflow versions for engine: %w", err)
 	}
 
 	// group steps by workflow version ids
@@ -939,7 +946,7 @@ func (r *sharedRepository) triggerWorkflowsCore(
 	preTask, postTask := r.m.Meter(ctx, preflightTx, sqlcv1.LimitResourceTASKRUN, tenantId, int32(countTasks)) // nolint: gosec
 
 	if err := preTask(); err != nil {
-		return nil, nil, nil, nil, nil, nil, err
+		return nil, err
 	}
 
 	stepsToAdditionalMatches := make(map[uuid.UUID][]*sqlcv1.V1StepMatchCondition)
@@ -951,7 +958,7 @@ func (r *sharedRepository) triggerWorkflowsCore(
 		})
 
 		if err != nil {
-			return nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to list step match conditions: %w", err)
+			return nil, fmt.Errorf("failed to list step match conditions: %w", err)
 		}
 
 		for _, match := range additionalMatches {
@@ -960,6 +967,59 @@ func (r *sharedRepository) triggerWorkflowsCore(
 			stepsToAdditionalMatches[stepId] = append(stepsToAdditionalMatches[stepId], match)
 		}
 	}
+
+	return &triggerPreflight{
+		tuples:                     tuples,
+		pausedWorkflowIds:          pausedWorkflowIds,
+		workflowVersionToSteps:     workflowVersionToSteps,
+		stepIdsToReadableIds:       stepIdsToReadableIds,
+		stepsToAdditionalMatches:   stepsToAdditionalMatches,
+		idempotencyCollisions:      idempotencyKeyCollisions,
+		celEvaluationFailures:      celEvaluationFailures,
+		externalIdToIdempotencyKey: externalIdToIdempotencyKey,
+		postTask:                   postTask,
+	}, nil
+}
+
+// triggerWorkflowsCore runs preflight and write on the same optimistic transaction.
+func (r *sharedRepository) triggerWorkflowsCore(
+	ctx context.Context,
+	optTx *OptimisticTx,
+	tenantId uuid.UUID,
+	triggerCandidateTuples []triggerTuple,
+	coreEvents *createCoreUserEventOpts,
+) ([]*V1TaskWithPayload, []*DAGWithData, []IdempotencyCollision, []CELEvaluationFailure, []StorePayloadOpts, map[uuid.UUID]triggerTuple, error) {
+	if optTx == nil {
+		return nil, nil, nil, nil, nil, nil, fmt.Errorf("triggerWorkflowsCore requires a non-nil transaction")
+	}
+
+	pf, err := r.triggerWorkflowsPreflight(ctx, optTx.tx, tenantId, triggerCandidateTuples)
+
+	if err != nil {
+		return nil, nil, nil, nil, nil, nil, err
+	}
+
+	return r.triggerWorkflowsWrite(ctx, optTx, tenantId, pf, coreEvents)
+}
+
+// triggerWorkflowsWrite creates the DAGs, tasks, matches and events for a preflighted trigger
+// on optTx.
+func (r *sharedRepository) triggerWorkflowsWrite(
+	ctx context.Context,
+	optTx *OptimisticTx,
+	tenantId uuid.UUID,
+	pf *triggerPreflight,
+	coreEvents *createCoreUserEventOpts,
+) ([]*V1TaskWithPayload, []*DAGWithData, []IdempotencyCollision, []CELEvaluationFailure, []StorePayloadOpts, map[uuid.UUID]triggerTuple, error) {
+	tuples := pf.tuples
+	pausedWorkflowIds := pf.pausedWorkflowIds
+	workflowVersionToSteps := pf.workflowVersionToSteps
+	stepIdsToReadableIds := pf.stepIdsToReadableIds
+	stepsToAdditionalMatches := pf.stepsToAdditionalMatches
+	idempotencyKeyCollisions := pf.idempotencyCollisions
+	celEvaluationFailures := pf.celEvaluationFailures
+	externalIdToIdempotencyKey := pf.externalIdToIdempotencyKey
+	postTask := pf.postTask
 
 	// start constructing options for creating tasks, DAGs, and triggers. logic is as follows:
 	//
@@ -1668,11 +1728,28 @@ func (r *sharedRepository) triggerWorkflows(
 	triggerCandidateTuples []triggerTuple,
 	coreEvents *createCoreUserEventOpts,
 ) ([]*V1TaskWithPayload, []*DAGWithData, []IdempotencyCollision, []CELEvaluationFailure, error) {
-	tx := existingTx
-	ownsTx := false
+	var (
+		tx                = existingTx
+		tasks             []*V1TaskWithPayload
+		dags              []*DAGWithData
+		collisions        []IdempotencyCollision
+		celFailures       []CELEvaluationFailure
+		storePayloadOpts  []StorePayloadOpts
+		operatorDagTuples map[uuid.UUID]triggerTuple
+		err               error
+		ownsTx            = existingTx == nil
+	)
 
-	if tx == nil {
-		var err error
+	if ownsTx {
+		// Preflight runs on the pool before the transaction begins, so each query returns its
+		// connection before the transaction takes one. Running it after would hold two
+		// connections per trigger.
+		pf, preflightErr := r.triggerWorkflowsPreflight(ctx, r.pool, tenantId, triggerCandidateTuples)
+
+		if preflightErr != nil {
+			return nil, nil, nil, nil, preflightErr
+		}
+
 		tx, err = r.PrepareOptimisticTx(ctx)
 
 		if err != nil {
@@ -1680,10 +1757,11 @@ func (r *sharedRepository) triggerWorkflows(
 		}
 
 		defer tx.Rollback()
-		ownsTx = true
-	}
 
-	tasks, dags, idempotencyKeyCollisions, celEvaluationFailures, storePayloadOpts, operatorDagTuples, err := r.triggerWorkflowsCore(ctx, tx, tenantId, triggerCandidateTuples, coreEvents, ownsTx)
+		tasks, dags, collisions, celFailures, storePayloadOpts, operatorDagTuples, err = r.triggerWorkflowsWrite(ctx, tx, tenantId, pf, coreEvents)
+	} else {
+		tasks, dags, collisions, celFailures, storePayloadOpts, operatorDagTuples, err = r.triggerWorkflowsCore(ctx, tx, tenantId, triggerCandidateTuples, coreEvents)
+	}
 
 	if err != nil {
 		return nil, nil, nil, nil, err
@@ -1704,7 +1782,7 @@ func (r *sharedRepository) triggerWorkflows(
 		}
 	}
 
-	return tasks, dags, idempotencyKeyCollisions, celEvaluationFailures, nil
+	return tasks, dags, collisions, celFailures, nil
 }
 
 type DAGWithData struct {
