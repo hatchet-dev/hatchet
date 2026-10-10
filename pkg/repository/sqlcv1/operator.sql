@@ -110,7 +110,7 @@ WHERE
         v1_operator.id IN (SELECT id FROM operators_already_assigned_to_dispatcher)
     )
 ORDER BY v1_operator.id
-FOR UPDATE SKIP LOCKED;
+FOR UPDATE OF v1_operator SKIP LOCKED;
 
 -- name: UpsertOperator :one
 -- Registers an operator by (tenant, name, kind), the row a session registers under by name. The

@@ -49,7 +49,7 @@ WHERE
         v1_operator.id IN (SELECT id FROM operators_already_assigned_to_dispatcher)
     )
 ORDER BY v1_operator.id
-FOR UPDATE SKIP LOCKED
+FOR UPDATE OF v1_operator SKIP LOCKED
 `
 
 func (q *Queries) ClaimOperators(ctx context.Context, db DBTX, dispatcherid uuid.UUID) ([]*V1Operator, error) {
