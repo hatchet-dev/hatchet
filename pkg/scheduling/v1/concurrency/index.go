@@ -5,37 +5,6 @@ import (
 	"time"
 )
 
-// slotIndex is a data structure for efficiently querying concurrency slots.
-//
-// the basic idea here is: the queued runs could potentially be huge, and there are lots of strategies
-// to store this type of index (local disk, compression, database, etc) all with different tradeoffs.
-// i'd like to make it super easy to swap out this index.
-type slotIndex interface {
-	// write operations
-	insert(slot)
-	delete(taskId int64) (slot, bool)
-	pop(n int) []slot
-	popTimedOut(now time.Time) []slot
-
-	// read operations
-	get(taskId int64) (slot, bool)
-
-	// peek returns the slot at the head of the index (the smallest under its comparator) without
-	// removing it; ok is false if the index is empty. The cancel strategies use it to inspect the
-	// best queued slot and the worst running slot (the running index is built with the reversed
-	// comparator) while merging, so they never snapshot-and-sort.
-	peek() (slot, bool)
-
-	len() int
-
-	// undo log: begin opens a scope in which write operations are recorded; commit discards the log
-	// (writes are durable downstream), rollback reverses every recorded write to restore the index to
-	// its state at begin().
-	begin()
-	commit()
-	rollback()
-}
-
 // timeoutEntry is the timeout queue's element: just the key (taskId) and the schedule timeout it is
 // ordered by. The full slot lives in the priority queue; popTimedOut fetches it from there, so the
 // timeout heap stays small (16 bytes/entry vs a full slot copy).
@@ -48,12 +17,13 @@ type timeoutEntry struct {
 // 1-based so the zero value means "absent from that heap" - this disambiguates a genuine index 0
 // from a missing entry, and lets us drop the map entry exactly when the task leaves both heaps.
 type slotLocation struct {
-	priIdx int // 1-based index into priorityQueue.values; 0 = absent
-	toIdx  int // 1-based index into timedOutQueue.values; 0 = absent (always 0 when timeouts untracked)
+	priIdx int32 // 1-based index into priorityQueue.values; 0 = absent
+	toIdx  int32 // 1-based index into timedOutQueue.values; 0 = absent (always 0 when timeouts untracked)
 }
 
-// inMemorySlotIndex is an implementation of the slotIndex interface using a indexed heap and a map for
-// quick lookups.
+// inMemorySlotIndex indexes concurrency slots using an indexed heap and a map for quick lookups.
+// begin opens an undo scope: rollback reverses every write made since, and commit discards the log.
+// A nil *inMemorySlotIndex is an empty index for everything but insert and the undo log.
 // important: inMemorySlotIndex is NOT concurrency safe; callers must ensure appropriate synchronization.
 type inMemorySlotIndex struct {
 	priorityQueue *heap[slot]
@@ -168,6 +138,10 @@ func (q *inMemorySlotIndex) insert(s slot) {
 }
 
 func (q *inMemorySlotIndex) delete(taskId int64) (slot, bool) {
+	if q == nil {
+		return slot{}, false
+	}
+
 	i, ok := q.priorityIndex(taskId)
 	if !ok {
 		return slot{}, false
@@ -179,6 +153,10 @@ func (q *inMemorySlotIndex) delete(taskId int64) (slot, bool) {
 }
 
 func (q *inMemorySlotIndex) get(taskId int64) (slot, bool) {
+	if q == nil {
+		return slot{}, false
+	}
+
 	i, ok := q.priorityIndex(taskId)
 	if !ok {
 		return slot{}, false
@@ -187,7 +165,7 @@ func (q *inMemorySlotIndex) get(taskId int64) (slot, bool) {
 }
 
 func (q *inMemorySlotIndex) popTimedOut(now time.Time) []slot {
-	if q.timedOutQueue == nil {
+	if q == nil || q.timedOutQueue == nil {
 		return nil
 	}
 
@@ -211,6 +189,10 @@ func (q *inMemorySlotIndex) popTimedOut(now time.Time) []slot {
 }
 
 func (q *inMemorySlotIndex) pop(n int) []slot {
+	if q == nil {
+		return nil
+	}
+
 	popped := q.priorityQueue.pop(n)
 	for _, s := range popped {
 		q.removeFromTimedOut(s.taskId)
@@ -218,11 +200,21 @@ func (q *inMemorySlotIndex) pop(n int) []slot {
 	return popped
 }
 
+// peek returns the slot at the head of the index (the smallest under its comparator) without
+// removing it; ok is false if the index is empty.
 func (q *inMemorySlotIndex) peek() (slot, bool) {
+	if q == nil {
+		return slot{}, false
+	}
+
 	return q.priorityQueue.peek()
 }
 
 func (q *inMemorySlotIndex) len() int {
+	if q == nil {
+		return 0
+	}
+
 	return q.priorityQueue.len()
 }
 
@@ -270,7 +262,7 @@ func (q *inMemorySlotIndex) priorityIndex(taskId int64) (int, bool) {
 	if !ok || loc.priIdx == 0 {
 		return 0, false
 	}
-	return loc.priIdx - 1, true
+	return int(loc.priIdx) - 1, true
 }
 
 // timeoutIndex returns the task's index in the timeout queue, or ok=false if absent.
@@ -279,14 +271,14 @@ func (q *inMemorySlotIndex) timeoutIndex(taskId int64) (int, bool) {
 	if !ok || loc.toIdx == 0 {
 		return 0, false
 	}
-	return loc.toIdx - 1, true
+	return int(loc.toIdx) - 1, true
 }
 
 // setPriorityIndex records (i>=0) or clears (i<0) the task's priority-queue index, dropping the map
 // entry once the task is absent from both heaps.
 func (q *inMemorySlotIndex) setPriorityIndex(taskId int64, i int) {
 	loc := q.byTaskID[taskId]
-	loc.priIdx = i + 1 // i<0 -> 0 (absent)
+	loc.priIdx = int32(i + 1) //nolint:gosec // i<0 -> 0 (absent); a heap never holds 2^31 slots
 	if loc.priIdx == 0 && loc.toIdx == 0 {
 		delete(q.byTaskID, taskId)
 		return
@@ -298,7 +290,7 @@ func (q *inMemorySlotIndex) setPriorityIndex(taskId int64, i int) {
 // entry once the task is absent from both heaps.
 func (q *inMemorySlotIndex) setTimeoutIndex(taskId int64, i int) {
 	loc := q.byTaskID[taskId]
-	loc.toIdx = i + 1 // i<0 -> 0 (absent)
+	loc.toIdx = int32(i + 1) //nolint:gosec // i<0 -> 0 (absent); a heap never holds 2^31 slots
 	if loc.priIdx == 0 && loc.toIdx == 0 {
 		delete(q.byTaskID, taskId)
 		return
