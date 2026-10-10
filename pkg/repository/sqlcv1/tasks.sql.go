@@ -2207,7 +2207,7 @@ WITH task_outputs AS (
     JOIN v1_task_event e ON (lt.task_id, lt.inserted_at) = (e.task_id, e.task_inserted_at)
     WHERE
         lt.external_id = ANY($1::uuid[])
-        AND e.event_type = 'COMPLETED'
+        AND e.event_type IN ('COMPLETED', 'FAILED')
 ), max_retry_counts AS (
     SELECT
         task_run_external_id,
