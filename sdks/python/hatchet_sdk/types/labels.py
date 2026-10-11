@@ -28,7 +28,7 @@ class WorkerLabel(BaseModel):
 class DesiredWorkerLabel(WorkerLabel):
     required: bool = False
     weight: int | None = None
-    comparator: int | WorkerLabelComparator | None = None
+    comparator: WorkerLabelComparator | None = None
 
     def to_proto(self) -> DesiredWorkerLabels:  # type: ignore[override]
         return DesiredWorkerLabels(

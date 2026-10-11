@@ -9,6 +9,7 @@
     "runs",
     "scheduled",
     "stubs",
+    "tenant",
     "webhooks",
     "workers",
     "workflows"

@@ -65,15 +65,8 @@ class CreateCronTriggerConfig(BaseModel):
         parts = v.split()
         if len(parts) not in (5, 6):
             raise ValueError(
-                "Cron expression must have 5 or 6 parts parts: minute hour day month weekday"
+                "Cron expression must have 5 or 6 parts: minute hour day month weekday"
             )
-
-        for part in parts:
-            if not (
-                part == "*"
-                or part.replace("*/", "").replace("-", "").replace(",", "").isdigit()
-            ):
-                raise ValueError(f"Invalid cron expression part: {part}")
 
         return v
 

@@ -109,6 +109,11 @@ A type checker will not flag these, so check them by hand:
 
 - **Tasks with no input validator receive `None`**, not an `EmptyModel()` instance. Code that reads attributes off `input` in such a task, or checks `isinstance(input, EmptyModel)`, needs updating.
 - **Running a task that returns nothing gives `None`**, not an `EmptyModel()` instance.
+- **A positional `options` argument is no longer rejected at runtime.** `options` was the second positional parameter of `run` and `aio_run`, and the third of `schedule` and `aio_schedule`. A call such as `task.run(input, TriggerWorkflowOptions(...))` now passes the options object as `wait_for_result`, and its contents are ignored. A type checker reports this, but nothing fails at runtime, so search for positional uses as well as `options=`.
+- **Passing an input to a task or workflow with no `input_validator` raises a `TypeError`.** V1 dropped the input silently. Declare `input_validator=dict[str, Any]` if you need to pass untyped input.
+- **`limit` and `offset` on `runs.list` and `runs.aio_list` apply to the whole time range.** See [the section on `runs.list`](#runslist_with_pagination-and-aio_list_with_pagination-removed).
+- **`from hatchet_sdk import Workflow` is a different class.** It is now the workflow class returned by `hatchet.workflow()`, not the REST model.
+- **An explicit `retries=0`, `execution_timeout=timedelta(seconds=60)`, or `schedule_timeout=timedelta(minutes=5)` on `Workflow.task` and `Workflow.durable_task` is no longer replaced by the workflow's `task_defaults`.** V1 could not tell these values apart from the parameter defaults. Remove the argument if you were relying on `task_defaults` taking over.
 - **`str()` and f-strings on SDK enums give the raw value.** `f"{RunStatus.FAILED}"` is now `"FAILED"` instead of `"RunStatus.FAILED"`. Check log parsing, cache keys, and anything that compares against the old string.
 - **`Worker.register_workflow` raises on failure** instead of calling `sys.exit(1)`.
 - **`WorkflowRunRef.result` and `TaskRunRef.result` take `timeout` as their first positional parameter.** In V1.41 the only parameter was `poll_interval`, so a positional call such as `ref.result(2.0)` must become `ref.result(poll_interval=2.0)`.
@@ -562,6 +567,8 @@ runs = await hatchet.runs.aio_list_with_pagination(since=..., until=...)
 runs = await hatchet.runs.aio_list(since=..., until=...)
 ```
 
+`limit` and `offset` now count across the whole `since` to `until` range, newest run first. In V1, `list_with_pagination` applied them to each day in the range separately, so `limit=10` over three days could return 30 runs. Leaving `limit` unset returns every matching run, so pass a `limit` or a narrow time range when you only need the most recent runs.
+
 #### `ref.stream()` and the streaming event types removed
 
 The `stream()` method on `WorkflowRunRef` and `TaskRunRef` has been removed. It was marked internal in V1. Use `hatchet.runs.aio_subscribe_to_stream`, which yields the payload of each stream chunk as a `str`:
@@ -616,6 +623,8 @@ workflow.run(input, additional_metadata={"key": "value"})
 `Worker.register_workflow_from_opts`, which took a raw protobuf, has been removed. Use `worker.register_workflow(...)` with a workflow object instead. The internal `hatchet.dispatcher` and `hatchet.listener` properties are also no longer public.
 
 `from hatchet_sdk import Event` now resolves to the class actually returned by `hatchet.events.push()` (with `seen_at`, `additional_metadata`, etc.) rather than the V0 REST model. `V1Event` and `V1TaskSummary`, the types returned by `events.list()` and `runs.list()`, are now exported from the top level.
+
+`from hatchet_sdk import Workflow` now resolves to the workflow class returned by `hatchet.workflow()`, and `Standalone`, the class returned by the `hatchet.task` family of decorators, is exported alongside it. The `Workflow` and `WorkflowVersion` REST models are no longer exported from the top level; import them from `hatchet_sdk.clients.rest.models`.
 
 The `hatchet_sdk.labels` and `hatchet_sdk.rate_limit` modules (aliases for `hatchet_sdk.types.labels` and `hatchet_sdk.types.rate_limit`) have been removed. Import `DesiredWorkerLabel`, `WorkerLabel`, and `RateLimit` from `hatchet_sdk` directly. (`RateLimitDuration` is no longer exported at all; pass the duration as a plain string, as described above.)
 

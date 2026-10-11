@@ -57,6 +57,12 @@ V2 removes everything that was deprecated in V1 and tightens the types that were
 - `ClientTLSConfig.strategy` is now typed as `Literal["tls", "mtls", "none"]`.
 - String-mixin enums (`RunStatus`, `HTTPMethod`, `SlotType`, `OTelAttribute`, and others) are now `enum.StrEnum` subclasses, so `str(member)` returns the raw value.
 - `grpcio-tools` is no longer a runtime dependency.
+- `limit` and `offset` on `runs.list` and `runs.aio_list` now apply to the whole time range instead of to each day within it, and leaving `limit` unset returns every matching run instead of the first 50 per day.
+- `from hatchet_sdk import Workflow` now resolves to the workflow class returned by `hatchet.workflow()` instead of the REST model, and the `WorkflowVersion` REST model is no longer exported from `hatchet_sdk`.
+- Passing an input when running, scheduling, or bulk running a task or workflow that has no `input_validator` raises a `TypeError` instead of silently dropping the input. Declare `input_validator=dict[str, Any]` to accept untyped input.
+- `schedule_timeout`, `execution_timeout`, and `retries` on `Workflow.task`, `Workflow.durable_task`, and `Workflow.batch_task` default to `None`, which falls back to the workflow's `task_defaults` and then to the built-in defaults (5 minutes, 60 seconds, and 0). An explicit value that equals a built-in default, such as `retries=0`, is no longer replaced by `task_defaults`.
+- `IdempotencyCollisionError` and `BulkTriggerIdempotencyCollisionError` now carry a message naming the colliding runs.
+- Scheduling a run with a timezone-aware, non-UTC datetime no longer logs a warning. The datetime was already converted correctly.
 
 ### Added
 
@@ -64,6 +70,16 @@ V2 removes everything that was deprecated in V1 and tightens the types that were
 - `SleepResult`, `EventWaitResult`, `OrGroupResult`, `HTTPMethod`, `V1Event`, and `V1TaskSummary` are exported from `hatchet_sdk`.
 - `durable_task` decorators accept `slot_cost`, controlling how many durable slots the task consumes.
 - `hatchet.batch_task` accepts `on_events`, `on_crons`, `cron_input`, and `default_additional_metadata`, matching the other standalone task decorators.
+- `hatchet.tenant`, a client for reading details about the current tenant.
+- `Standalone`, the class returned by the `hatchet.task`, `hatchet.durable_task`, and `hatchet.batch_task` decorators, is exported from `hatchet_sdk`.
+
+### Fixed
+
+- Running a standalone task that returned `{}` or `None` no longer gives the caller a dictionary keyed by the task name. A task annotated to return a `dict` gives `{}`, and a task with no return annotation or one that allows `None` gives `None`.
+- A `hatchet.batch_task` with no `input_validator` now receives `None` for each item, like every other task with no input validator.
+- Passing a tuple of `ConcurrencyStrategy` objects as `concurrency` to `hatchet.task` or `hatchet.durable_task` no longer discards them.
+- `mock_run` and `aio_mock_run` now pass a `dict` input through to the task instead of replacing it with `{}`.
+- Cron expressions that use day or month names, or ranges with steps, such as `0 9 * * MON-FRI`, are no longer rejected before they reach the engine.
 
 ## [1.41.1] - 2026-09-24
 

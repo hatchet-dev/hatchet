@@ -39,7 +39,9 @@ class DedupeViolationError(Exception):
 
 class IdempotencyCollisionError(Exception):
     def __init__(self, existing_run_external_id: str) -> None:
-        super().__init__()
+        super().__init__(
+            f"A run with this idempotency key already exists: {existing_run_external_id}"
+        )
         self.existing_run_external_id = existing_run_external_id
 
 
@@ -49,7 +51,11 @@ class BulkTriggerIdempotencyCollisionError(Exception):
         successful_workflow_run_external_ids: list[str],
         collisions: list[IdempotencyCollisionError],
     ) -> None:
-        super().__init__()
+        super().__init__(
+            f"{len(collisions)} of {len(collisions) + len(successful_workflow_run_external_ids)} "
+            "runs collided with an existing idempotency key: "
+            + ", ".join(collision.existing_run_external_id for collision in collisions)
+        )
         self.successful_workflow_run_external_ids = successful_workflow_run_external_ids
         self.collisions = collisions
 

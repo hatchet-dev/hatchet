@@ -26,8 +26,6 @@ from hatchet_sdk.clients.rest.models.v1_webhook_hmac_encoding import (
     V1WebhookHMACEncoding,
 )
 from hatchet_sdk.clients.rest.models.v1_webhook_source_name import V1WebhookSourceName
-from hatchet_sdk.clients.rest.models.workflow import Workflow
-from hatchet_sdk.clients.rest.models.workflow_version import WorkflowVersion
 from hatchet_sdk.conditions import (
     Condition,
     OrGroup,
@@ -72,7 +70,7 @@ from hatchet_sdk.runnables.types import (
     TaskDefaults,
     WorkflowConfig,
 )
-from hatchet_sdk.runnables.workflow import TaskRunRef
+from hatchet_sdk.runnables.workflow import Standalone, TaskRunRef, Workflow
 from hatchet_sdk.serde import is_in_hatchet_serialization_context
 from hatchet_sdk.types.concurrency import (
     ConcurrencyStrategy,
@@ -143,6 +141,7 @@ __all__ = [
     "SleepCondition",
     "SleepResult",
     "SlotType",
+    "Standalone",
     "StatusBasedIdempotencyConfig",
     "TTLBasedIdempotencyConfig",
     "Task",
@@ -166,7 +165,6 @@ __all__ = [
     "WorkflowConfig",
     "WorkflowRunRef",
     "WorkflowRunTriggerConfig",
-    "WorkflowVersion",
     "is_in_hatchet_serialization_context",
     "or_",
     "remove_null_unicode_character",

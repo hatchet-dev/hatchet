@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from typing import Literal
 
 from pydantic import BaseModel, field_validator, model_validator
@@ -104,3 +105,18 @@ class ConcurrencyStrategy(BaseModel):
             max_runs=max_runs,
             strategy="GROUP_ROUND_ROBIN",
         )
+
+
+def normalize_concurrency_to_strategies(
+    concurrency: int | ConcurrencyStrategy | Sequence[ConcurrencyStrategy] | None,
+) -> list[ConcurrencyStrategy]:
+    if concurrency is None:
+        return []
+
+    if isinstance(concurrency, int):
+        return [ConcurrencyStrategy.from_int(concurrency)]
+
+    if isinstance(concurrency, ConcurrencyStrategy):
+        return [concurrency]
+
+    return list(concurrency)

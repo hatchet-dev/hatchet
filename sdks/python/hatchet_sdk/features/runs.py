@@ -112,6 +112,40 @@ class BulkCancelReplayOpts(BaseModel):
             )
 
 
+LIST_RUNS_PAGE_SIZE = 100
+
+
+def _max_rows_needed_per_date_range(
+    offset: int | None, limit: int | None
+) -> int | None:
+    if limit is None:
+        return None
+
+    return (offset or 0) + limit
+
+
+def _merge_runs_across_date_ranges(
+    runs_per_date_range: list[list[V1TaskSummary]],
+    offset: int | None,
+    limit: int | None,
+) -> list[V1TaskSummary]:
+    ## a run can be returned for two adjacent date ranges
+    run_id_to_run = {
+        run.metadata.id: run for runs in runs_per_date_range for run in runs
+    }
+
+    newest_first = sorted(
+        run_id_to_run.values(),
+        key=lambda run: run.created_at,
+        reverse=True,
+    )
+
+    start = offset or 0
+    end = None if limit is None else start + limit
+
+    return newest_first[start:end]
+
+
 class RunsClient(BaseRestClient):
     """
     The runs client is a client for interacting with task and workflow runs within Hatchet.
@@ -413,6 +447,53 @@ class RunsClient(BaseRestClient):
             workflow_ids=workflow_ids,
         )
 
+    def _list_runs_in_date_range(
+        self,
+        since: datetime,
+        until: datetime,
+        max_rows: int | None,
+        only_tasks: bool,
+        statuses: list[V1TaskStatus] | None,
+        additional_metadata: dict[str, str] | None,
+        workflow_ids: list[str] | None,
+        worker_id: str | None,
+        parent_task_external_id: str | None,
+        triggering_event_external_id: str | None,
+        include_payloads: bool,
+    ) -> list[V1TaskSummary]:
+        with self.client() as client:
+            v1_workflow_run_list = tenacity_retry(
+                self._wra(client).v1_workflow_run_list, self.client_config.tenacity
+            )
+
+            runs: list[V1TaskSummary] = []
+
+            while max_rows is None or len(runs) < max_rows:
+                page = v1_workflow_run_list(
+                    tenant=self.client_config.tenant_id,
+                    since=since,
+                    until=until,
+                    only_tasks=only_tasks,
+                    offset=len(runs),
+                    limit=LIST_RUNS_PAGE_SIZE,
+                    statuses=statuses,
+                    additional_metadata=maybe_additional_metadata_to_kv(
+                        additional_metadata
+                    ),
+                    workflow_ids=workflow_ids,
+                    worker_id=worker_id,
+                    parent_task_external_id=parent_task_external_id,
+                    triggering_event_external_id=triggering_event_external_id,
+                    include_payloads=include_payloads,
+                ).rows
+
+                runs.extend(page)
+
+                if len(page) < LIST_RUNS_PAGE_SIZE:
+                    break
+
+            return runs
+
     async def aio_list(
         self,
         since: datetime | None = None,
@@ -429,12 +510,12 @@ class RunsClient(BaseRestClient):
         include_payloads: bool = True,
     ) -> list[V1TaskSummary]:
         """
-        List task runs according to a set of filters, paginating through days
+        List task runs according to a set of filters, newest first.
 
         :param since: The start time for filtering task runs.
         :param only_tasks: Whether to only list task runs.
-        :param offset: The offset for pagination.
-        :param limit: The maximum number of task runs to return.
+        :param offset: The number of task runs to skip, counted across the whole time range.
+        :param limit: The maximum number of task runs to return, counted across the whole time range. Returns every matching task run if not set.
         :param statuses: The statuses to filter task runs by.
         :param until: The end time for filtering task runs.
         :param additional_metadata: Additional metadata to filter task runs by.
@@ -452,24 +533,16 @@ class RunsClient(BaseRestClient):
             until=until or datetime.now(tz=UTC),
         )
 
-        with self.client() as client:
-            v1_workflow_run_list = tenacity_retry(
-                self._wra(client).v1_workflow_run_list, self.client_config.tenacity
-            )
-
-            coros = [
+        runs_per_date_range = await gather_max_concurrency(
+            *[
                 asyncio.to_thread(
-                    v1_workflow_run_list,
-                    tenant=self.client_config.tenant_id,
+                    self._list_runs_in_date_range,
                     since=s,
                     until=u,
+                    max_rows=_max_rows_needed_per_date_range(offset, limit),
                     only_tasks=only_tasks,
-                    offset=offset,
-                    limit=limit,
                     statuses=statuses,
-                    additional_metadata=maybe_additional_metadata_to_kv(
-                        additional_metadata
-                    ),
+                    additional_metadata=additional_metadata,
                     workflow_ids=workflow_ids,
                     worker_id=worker_id,
                     parent_task_external_id=parent_task_external_id,
@@ -477,23 +550,11 @@ class RunsClient(BaseRestClient):
                     include_payloads=include_payloads,
                 )
                 for s, u in date_ranges
-            ]
+            ],
+            max_concurrency=3,
+        )
 
-            responses = await gather_max_concurrency(
-                *coros,
-                max_concurrency=3,
-            )
-
-            ## Hack for uniqueness
-            run_id_to_run = {
-                run.metadata.id: run for record in responses for run in record.rows
-            }
-
-            return sorted(
-                run_id_to_run.values(),
-                key=lambda x: x.created_at,
-                reverse=True,
-            )
+        return _merge_runs_across_date_ranges(runs_per_date_range, offset, limit)
 
     def list(
         self,
@@ -511,12 +572,12 @@ class RunsClient(BaseRestClient):
         include_payloads: bool = True,
     ) -> list[V1TaskSummary]:
         """
-        List task runs according to a set of filters, paginating through days
+        List task runs according to a set of filters, newest first.
 
         :param since: The start time for filtering task runs.
         :param only_tasks: Whether to only list task runs.
-        :param offset: The offset for pagination.
-        :param limit: The maximum number of task runs to return.
+        :param offset: The number of task runs to skip, counted across the whole time range.
+        :param limit: The maximum number of task runs to return, counted across the whole time range. Returns every matching task run if not set.
         :param statuses: The statuses to filter task runs by.
         :param until: The end time for filtering task runs.
         :param additional_metadata: Additional metadata to filter task runs by.
@@ -534,41 +595,24 @@ class RunsClient(BaseRestClient):
             until=until or datetime.now(tz=UTC),
         )
 
-        with self.client() as client:
-            v1_workflow_run_list = tenacity_retry(
-                self._wra(client).v1_workflow_run_list, self.client_config.tenacity
+        runs_per_date_range = [
+            self._list_runs_in_date_range(
+                since=s,
+                until=u,
+                max_rows=_max_rows_needed_per_date_range(offset, limit),
+                only_tasks=only_tasks,
+                statuses=statuses,
+                additional_metadata=additional_metadata,
+                workflow_ids=workflow_ids,
+                worker_id=worker_id,
+                parent_task_external_id=parent_task_external_id,
+                triggering_event_external_id=triggering_event_external_id,
+                include_payloads=include_payloads,
             )
-            responses = [
-                v1_workflow_run_list(
-                    tenant=self.client_config.tenant_id,
-                    since=s,
-                    until=u,
-                    only_tasks=only_tasks,
-                    offset=offset,
-                    limit=limit,
-                    statuses=statuses,
-                    additional_metadata=maybe_additional_metadata_to_kv(
-                        additional_metadata
-                    ),
-                    workflow_ids=workflow_ids,
-                    worker_id=worker_id,
-                    parent_task_external_id=parent_task_external_id,
-                    triggering_event_external_id=triggering_event_external_id,
-                    include_payloads=include_payloads,
-                )
-                for s, u in date_ranges
-            ]
+            for s, u in date_ranges
+        ]
 
-            ## Hack for uniqueness
-            run_id_to_run = {
-                run.metadata.id: run for record in responses for run in record.rows
-            }
-
-            return sorted(
-                run_id_to_run.values(),
-                key=lambda x: x.created_at,
-                reverse=True,
-            )
+        return _merge_runs_across_date_ranges(runs_per_date_range, offset, limit)
 
     def create(
         self,

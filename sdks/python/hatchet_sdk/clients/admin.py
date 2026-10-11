@@ -236,11 +236,7 @@ class AdminClient:
         if isinstance(schedule, datetime):
             if not schedule.tzinfo:
                 logger.warning(
-                    "Timezone-naive datetime provided for schedule. Assuming UTC timezone."
-                )
-            elif schedule.tzinfo.fromutc(schedule) != schedule:
-                logger.warning(
-                    "Non-UTC datetime provided for schedule. Assuming UTC timezone. Note: This is a bug which will be fixed in v2.0.0 of the SDK to support non-UTC datetimes. For now, convert your datetime to UTC to avoid this warning and ensure correct scheduling."
+                    "Timezone-naive datetime provided for schedule. Interpreting it in this machine's local timezone."
                 )
             t = schedule.timestamp()
             seconds = int(t)

@@ -50,6 +50,7 @@ Python SDK reference (overview: https://docs.hatchet.run/reference/python.md):
 - Runs: https://docs.hatchet.run/reference/python/feature-clients/runs.md (guide: https://docs.hatchet.run/v1/running-your-task.md)
 - Scheduled Runs: https://docs.hatchet.run/reference/python/feature-clients/scheduled.md (guide: https://docs.hatchet.run/v1/scheduled-runs.md)
 - Stubs: https://docs.hatchet.run/reference/python/feature-clients/stubs.md (guide: https://docs.hatchet.run/v1/inter-service-triggering.md)
+- Tenant: https://docs.hatchet.run/reference/python/feature-clients/tenant.md
 - Webhooks: https://docs.hatchet.run/reference/python/feature-clients/webhooks.md (guide: https://docs.hatchet.run/v1/webhooks.md)
 - Workers: https://docs.hatchet.run/reference/python/feature-clients/workers.md (guide: https://docs.hatchet.run/v1/workers.md)
 - Workflows: https://docs.hatchet.run/reference/python/feature-clients/workflows.md (guide: https://docs.hatchet.run/v1/tasks.md)

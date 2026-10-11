@@ -19,7 +19,13 @@ from typing import (
     overload,
 )
 
-from pydantic import BaseModel, ConfigDict, SkipValidation, TypeAdapter, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    SkipValidation,
+    TypeAdapter,
+    ValidationError,
+)
 
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListener
 from hatchet_sdk.clients.rest.models.cron_workflows import CronWorkflows
@@ -82,57 +88,66 @@ P = ParamSpec("P")
 MCPProvider = Literal["CLAUDE", "OPENAI"]
 
 
-def fall_back_to_default(value: T, param_default: T, fallback_value: T | None) -> T:
-    ## If the value is not the param default, it's set
-    if value != param_default:
-        return value
+def _does_validator_accept_none(
+    validator: TypeAdapter[TaskPayloadForInternalUse],
+) -> bool:
+    try:
+        validator.validate_python(None)
+    except ValidationError:
+        return False
 
-    ## Otherwise, it's unset, so return the fallback value if it's set
-    if fallback_value is not None:
-        return fallback_value
+    return True
 
-    ## Otherwise return the param value
-    return value
+
+DEFAULT_SCHEDULE_TIMEOUT = timedelta(minutes=5)
+DEFAULT_EXECUTION_TIMEOUT = timedelta(seconds=60)
+DEFAULT_RETRIES = 0
 
 
 class ComputedTaskParameters(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
     schedule_timeout: timedelta
     execution_timeout: timedelta
     retries: int
     backoff_factor: float | None
     backoff_max_seconds: int | None
 
-    task_defaults: TaskDefaults
 
-    @model_validator(mode="after")
-    def validate_params(self) -> "ComputedTaskParameters":
-        self.execution_timeout = fall_back_to_default(
-            value=self.execution_timeout,
-            param_default=timedelta(seconds=60),
-            fallback_value=self.task_defaults.execution_timeout,
-        )
-        self.schedule_timeout = fall_back_to_default(
-            value=self.schedule_timeout,
-            param_default=timedelta(minutes=5),
-            fallback_value=self.task_defaults.schedule_timeout,
-        )
-        self.backoff_factor = fall_back_to_default(
-            value=self.backoff_factor,
-            param_default=None,
-            fallback_value=self.task_defaults.backoff_factor,
-        )
-        self.backoff_max_seconds = fall_back_to_default(
-            value=self.backoff_max_seconds,
-            param_default=None,
-            fallback_value=self.task_defaults.backoff_max_seconds,
-        )
-        self.retries = fall_back_to_default(
-            value=self.retries,
-            param_default=0,
-            fallback_value=self.task_defaults.retries,
-        )
+def _first_set(*candidates: T | None, otherwise: T) -> T:
+    return next(
+        (candidate for candidate in candidates if candidate is not None), otherwise
+    )
 
-        return self
+
+def compute_task_parameters(
+    *,
+    schedule_timeout: timedelta | None,
+    execution_timeout: timedelta | None,
+    retries: int | None,
+    backoff_factor: float | None,
+    backoff_max_seconds: int | None,
+    task_defaults: TaskDefaults,
+) -> ComputedTaskParameters:
+    return ComputedTaskParameters(
+        schedule_timeout=_first_set(
+            schedule_timeout,
+            task_defaults.schedule_timeout,
+            otherwise=DEFAULT_SCHEDULE_TIMEOUT,
+        ),
+        execution_timeout=_first_set(
+            execution_timeout,
+            task_defaults.execution_timeout,
+            otherwise=DEFAULT_EXECUTION_TIMEOUT,
+        ),
+        retries=_first_set(retries, task_defaults.retries, otherwise=DEFAULT_RETRIES),
+        backoff_factor=_first_set(
+            backoff_factor, task_defaults.backoff_factor, otherwise=None
+        ),
+        backoff_max_seconds=_first_set(
+            backoff_max_seconds, task_defaults.backoff_max_seconds, otherwise=None
+        ),
+    )
 
 
 class TypedTriggerWorkflowRunConfig(BaseModel, Generic[TWorkflowInput]):
@@ -374,20 +389,35 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             ),
         )
 
-    def _serialize_input_to_bytes(self, input: TWorkflowInput | None) -> str:
-        if self._config.input_validator is None:
-            return "{}"
+    @overload
+    def _serialize_input(
+        self, input: TWorkflowInput | None, target: Literal["bytes"] = "bytes"
+    ) -> str: ...
 
-        return self._config.input_validator.dump_json(
-            input,  # type: ignore[arg-type]
-            context=HATCHET_PYDANTIC_SENTINEL,
-        ).decode("utf-8")
+    @overload
+    def _serialize_input(
+        self, input: TWorkflowInput | None, target: Literal["dict"]
+    ) -> JSONSerializableMapping: ...
 
-    def _serialize_input_to_dict(
-        self, input: TWorkflowInput | None
-    ) -> JSONSerializableMapping:
+    def _serialize_input(
+        self,
+        input: TWorkflowInput | None,
+        target: Literal["bytes", "dict"] = "bytes",
+    ) -> JSONSerializableMapping | str:
+        if not input:
+            return "{}" if target == "bytes" else {}
+
         if self._config.input_validator is None:
-            return {}
+            raise TypeError(
+                f"`{self.name}` has no `input_validator`, so it cannot be given an input. "
+                "Declare one (e.g. `input_validator=dict[str, Any]`) to pass it an input."
+            )
+
+        if target == "bytes":
+            return self._config.input_validator.dump_json(
+                input,  # type: ignore[arg-type]
+                context=HATCHET_PYDANTIC_SENTINEL,
+            ).decode("utf-8")
 
         return cast(
             "JSONSerializableMapping",
@@ -397,32 +427,6 @@ class BaseWorkflow(Generic[TWorkflowInput]):
                 context=HATCHET_PYDANTIC_SENTINEL,
             ),
         )
-
-    @overload
-    def _serialize_input(
-        self, input: TWorkflowInput | None, target: Literal["bytes"] = "bytes"
-    ) -> str: ...
-
-    @overload
-    def _serialize_input(
-        self, input: TWorkflowInput | None, target: Literal["dict"] = "dict"
-    ) -> JSONSerializableMapping: ...
-
-    def _serialize_input(
-        self,
-        input: TWorkflowInput | None,
-        target: Literal["bytes"] | Literal["dict"] = "bytes",
-    ) -> JSONSerializableMapping | str:
-        if not input:
-            return "{}" if target == "bytes" else {}
-
-        if target == "bytes":
-            return self._serialize_input_to_bytes(input)
-
-        if target == "dict":
-            return self._serialize_input_to_dict(input)
-
-        raise ValueError(f"Invalid target for input serialization: {target}")
 
     @cached_property
     def id(self) -> str:
@@ -1217,10 +1221,10 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     def task(
         self,
         name: str | None = None,
-        schedule_timeout: timedelta = timedelta(minutes=5),
-        execution_timeout: timedelta = timedelta(seconds=60),
+        schedule_timeout: timedelta | None = None,
+        execution_timeout: timedelta | None = None,
         parents: list[Task[TWorkflowInput, Any]] | None = None,
-        retries: int = 0,
+        retries: int | None = None,
         rate_limits: list[RateLimit] | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
@@ -1274,7 +1278,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         slot_requests = {"default": slot_cost} if slot_cost is not None else None
 
-        computed_params = ComputedTaskParameters(
+        computed_params = compute_task_parameters(
             schedule_timeout=schedule_timeout,
             execution_timeout=execution_timeout,
             retries=retries,
@@ -1327,8 +1331,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         batch_group_key: str | None = None,
         batch_group_max_runs: int | None = None,
         broadcast_output: Literal[True],
-        schedule_timeout: timedelta = timedelta(minutes=5),
-        execution_timeout: timedelta = timedelta(seconds=60),
+        schedule_timeout: timedelta | None = None,
+        execution_timeout: timedelta | None = None,
         parents: list[Task[TWorkflowInput, Any]] | None = None,
         rate_limits: list[RateLimit] | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
@@ -1354,8 +1358,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         batch_group_key: str | None = None,
         batch_group_max_runs: int | None = None,
         broadcast_output: Literal[False] = False,
-        schedule_timeout: timedelta = timedelta(minutes=5),
-        execution_timeout: timedelta = timedelta(seconds=60),
+        schedule_timeout: timedelta | None = None,
+        execution_timeout: timedelta | None = None,
         parents: list[Task[TWorkflowInput, Any]] | None = None,
         rate_limits: list[RateLimit] | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
@@ -1380,8 +1384,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         batch_group_key: str | None = None,
         batch_group_max_runs: int | None = None,
         broadcast_output: bool = False,
-        schedule_timeout: timedelta = timedelta(minutes=5),
-        execution_timeout: timedelta = timedelta(seconds=60),
+        schedule_timeout: timedelta | None = None,
+        execution_timeout: timedelta | None = None,
         parents: list[Task[TWorkflowInput, Any]] | None = None,
         rate_limits: list[RateLimit] | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
@@ -1422,11 +1426,11 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 "batch_group_max_runs must be a positive integer when provided"
             )
 
-        computed_params = ComputedTaskParameters(
+        computed_params = compute_task_parameters(
             schedule_timeout=schedule_timeout,
             execution_timeout=execution_timeout,
             backoff_factor=backoff_factor,
-            retries=0,
+            retries=None,
             backoff_max_seconds=backoff_max_seconds,
             task_defaults=self._config.task_defaults,
         )
@@ -1479,10 +1483,10 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     def durable_task(
         self,
         name: str | None = None,
-        schedule_timeout: timedelta = timedelta(minutes=5),
-        execution_timeout: timedelta = timedelta(seconds=60),
+        schedule_timeout: timedelta | None = None,
+        execution_timeout: timedelta | None = None,
         parents: list[Task[TWorkflowInput, Any]] | None = None,
-        retries: int = 0,
+        retries: int | None = None,
         rate_limits: list[RateLimit] | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
@@ -1547,7 +1551,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         slot_requests = {"durable": slot_cost} if slot_cost is not None else None
 
-        computed_params = ComputedTaskParameters(
+        computed_params = compute_task_parameters(
             schedule_timeout=schedule_timeout,
             execution_timeout=execution_timeout,
             retries=retries,
@@ -1833,6 +1837,14 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
             normalize_validator(return_type)
         )
 
+        is_return_type_unannotated = return_type is None
+        self._payload_when_task_returned_nothing: dict[str, Any] | None = (
+            None
+            if is_return_type_unannotated
+            or _does_validator_accept_none(self._output_validator)
+            else {}
+        )
+
     @overload
     def _extract_result(self, result: dict[str, Any]) -> R: ...
 
@@ -1848,14 +1860,15 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         if self._task_returns_none:
             return cast("R", None)
 
-        # if a task is cancelled, we can get `None` back here
-        ## this is a bit of an edge case since both `None` and an empty dict
-        ## would cause Pydantic validation errors, but if you were expecting a `dict`
-        ## return, then the empty dict would not error and would work correctly
-
         # Durable child callbacks can return the task payload directly, while
         # non-durable child runs typically return {task_name: payload}.
-        output = result.get(self._task.name) or result or {}
+        payload = result.get(self._task.name, result)
+
+        # A task that returned `None` or `{}`, or that was cancelled, has no stored output.
+        output = payload or self._payload_when_task_returned_nothing
+
+        if output is None:
+            return cast("R", None)
 
         return cast(
             "R",

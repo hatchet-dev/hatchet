@@ -41,10 +41,12 @@ from hatchet_sdk.runnables.types import (
     TaskDefaults,
     TWorkflowInput,
     WorkflowConfig,
-    normalize_validator,
 )
 from hatchet_sdk.runnables.workflow import BaseWorkflow, Standalone, Workflow
-from hatchet_sdk.types.concurrency import ConcurrencyStrategy
+from hatchet_sdk.types.concurrency import (
+    ConcurrencyStrategy,
+    normalize_concurrency_to_strategies,
+)
 from hatchet_sdk.types.idempotency import (
     StatusBasedIdempotencyConfig,
     TTLBasedIdempotencyConfig,
@@ -204,6 +206,13 @@ class Hatchet:
         The scheduled client is a client for managing scheduled workflows within Hatchet.
         """
         return self._scheduled_client
+
+    @property
+    def tenant(self) -> TenantClient:
+        """
+        The tenant client is a client for interacting with your Tenant.
+        """
+        return self._tenant_client
 
     @property
     def webhooks(self) -> WebhooksClient:
@@ -622,14 +631,7 @@ class Hatchet:
                 self,
             )
 
-            if isinstance(concurrency, list):
-                _concurrency = concurrency
-            elif isinstance(concurrency, ConcurrencyStrategy):
-                _concurrency = [concurrency]
-            elif isinstance(concurrency, int):
-                _concurrency = [ConcurrencyStrategy.from_int(concurrency)]
-            else:
-                _concurrency = []
+            _concurrency = normalize_concurrency_to_strategies(concurrency)
 
             task_wrapper = workflow.task(
                 name=inferred_name,
@@ -871,7 +873,11 @@ class Hatchet:
                     cron_input=cron_input,
                     sticky=sticky,
                     default_priority=default_priority,
-                    input_validator=TypeAdapter(normalize_validator(input_validator)),
+                    input_validator=(
+                        TypeAdapter(input_validator)
+                        if input_validator is not None
+                        else None
+                    ),
                     default_filters=default_filters or [],
                     default_additional_metadata=default_additional_metadata or {},
                 ),
@@ -1128,14 +1134,7 @@ class Hatchet:
                 self,
             )
 
-            if isinstance(concurrency, list):
-                _concurrency = concurrency
-            elif isinstance(concurrency, ConcurrencyStrategy):
-                _concurrency = [concurrency]
-            elif isinstance(concurrency, int):
-                _concurrency = [ConcurrencyStrategy.from_int(concurrency)]
-            else:
-                _concurrency = []
+            _concurrency = normalize_concurrency_to_strategies(concurrency)
 
             task_wrapper = workflow.durable_task(
                 name=inferred_name,
