@@ -128,6 +128,12 @@ listWorkflowRuns:
           type: array
           items:
             type: string
+      - description: A flag for whether or not to count the matching runs in order to populate `pagination.num_pages`. Defaults to `true` if unset. When `false`, `pagination.num_pages` is `0`, and the count can be fetched separately from the count endpoint.
+        in: query
+        name: include_num_pages
+        required: false
+        schema:
+          type: boolean
     responses:
       "200":
         content:
@@ -154,6 +160,139 @@ listWorkflowRuns:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Not implemented
     summary: List workflow runs
+    tags:
+      - Workflow Runs
+
+countWorkflowRuns:
+  get:
+    x-resources: ["tenant"]
+    description: Counts the workflow runs for a tenant matching the provided filters. The count is capped, so it is a lower bound when it reaches the cap.
+    operationId: v1-workflow-run:count:get
+    x-payloads: false
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: A list of statuses to filter by
+        in: query
+        name: statuses
+        required: false
+        schema:
+          type: array
+          items:
+            $ref: "../../../components/schemas/_index.yaml#/V1TaskStatus"
+      - description: The earliest date to filter by
+        in: query
+        name: since
+        required: true
+        schema:
+          type: string
+          format: date-time
+      - description: The latest date to filter by
+        in: query
+        name: until
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - description: Additional metadata k-v pairs to filter by
+        in: query
+        name: additional_metadata
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+      - description: How to combine multiple additional_metadata pairs. OR matches runs containing any pair, AND matches runs containing all pairs. Defaults to OR.
+        in: query
+        name: additional_metadata_operator
+        required: false
+        schema:
+          $ref: "../../../components/schemas/_index.yaml#/V1AdditionalMetadataOperator"
+      - description: The workflow ids to find runs for
+        in: query
+        name: workflow_ids
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+            format: uuid
+            minLength: 36
+            maxLength: 36
+      - description: The worker id to filter by
+        in: query
+        name: worker_id
+        required: false
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: Whether to include DAGs or only to include tasks
+        in: query
+        name: only_tasks
+        required: true
+        schema:
+          type: boolean
+      - description: The parent task external id to filter by
+        in: query
+        name: parent_task_external_id
+        required: false
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The external id of the event that triggered the workflow run
+        in: query
+        name: triggering_event_external_id
+        required: false
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL.
+        in: query
+        name: running_filter
+        required: false
+        schema:
+          $ref: "../../../components/schemas/_index.yaml#/V1RunningFilter"
+      - description: The idempotency key(s) to filter for
+        in: query
+        name: idempotency_keys
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1WorkflowRunCount"
+        description: Successfully counted the workflow runs
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: Count workflow runs
     tags:
       - Workflow Runs
 

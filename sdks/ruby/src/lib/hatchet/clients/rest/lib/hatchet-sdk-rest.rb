@@ -217,6 +217,7 @@ HatchetSdkRest.autoload :V1WebhookList, 'hatchet-sdk-rest/models/v1_webhook_list
 HatchetSdkRest.autoload :V1WebhookResponse, 'hatchet-sdk-rest/models/v1_webhook_response'
 HatchetSdkRest.autoload :V1WebhookSourceName, 'hatchet-sdk-rest/models/v1_webhook_source_name'
 HatchetSdkRest.autoload :V1WorkflowRun, 'hatchet-sdk-rest/models/v1_workflow_run'
+HatchetSdkRest.autoload :V1WorkflowRunCount, 'hatchet-sdk-rest/models/v1_workflow_run_count'
 HatchetSdkRest.autoload :V1WorkflowRunDetails, 'hatchet-sdk-rest/models/v1_workflow_run_details'
 HatchetSdkRest.autoload :V1WorkflowRunDisplayName, 'hatchet-sdk-rest/models/v1_workflow_run_display_name'
 HatchetSdkRest.autoload :V1WorkflowRunDisplayNameList, 'hatchet-sdk-rest/models/v1_workflow_run_display_name_list'

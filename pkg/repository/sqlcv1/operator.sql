@@ -96,8 +96,9 @@ WITH operators_on_inactive_dispatchers AS (
     JOIN "Worker" w ON w."id" = v1_operator.worker_id
     WHERE w."dispatcherId" = @dispatcherId::UUID
 )
-SELECT *
+SELECT v1_operator.*
 FROM v1_operator
+JOIN "Tenant" t ON t."id" = v1_operator.tenant_id AND t."deletedAt" IS NULL
 WHERE
     -- Only DISPATCHER rows are claimed, whatever their kind. A SELF row keeps itself alive
     -- (a Listen stream out of process, its own leaser in process) and registers its own
@@ -109,7 +110,7 @@ WHERE
         v1_operator.id IN (SELECT id FROM operators_already_assigned_to_dispatcher)
     )
 ORDER BY v1_operator.id
-FOR UPDATE SKIP LOCKED;
+FOR UPDATE OF v1_operator SKIP LOCKED;
 
 -- name: UpsertOperator :one
 -- Registers an operator by (tenant, name, kind), the row a session registers under by name. The

@@ -430,6 +430,9 @@ if TYPE_CHECKING:
         V1WebhookSourceName,
     )
     from hatchet_sdk.clients.rest.models.v1_workflow_run import V1WorkflowRun
+    from hatchet_sdk.clients.rest.models.v1_workflow_run_count import (
+        V1WorkflowRunCount,
+    )
     from hatchet_sdk.clients.rest.models.v1_workflow_run_details import (
         V1WorkflowRunDetails,
     )
@@ -760,6 +763,7 @@ _LAZY_IMPORTS: dict[str, str] = {
     "V1WebhookResponse": "hatchet_sdk.clients.rest.models.v1_webhook_response",
     "V1WebhookSourceName": "hatchet_sdk.clients.rest.models.v1_webhook_source_name",
     "V1WorkflowRun": "hatchet_sdk.clients.rest.models.v1_workflow_run",
+    "V1WorkflowRunCount": "hatchet_sdk.clients.rest.models.v1_workflow_run_count",
     "V1WorkflowRunDetails": "hatchet_sdk.clients.rest.models.v1_workflow_run_details",
     "V1WorkflowRunDisplayName": "hatchet_sdk.clients.rest.models.v1_workflow_run_display_name",
     "V1WorkflowRunDisplayNameList": "hatchet_sdk.clients.rest.models.v1_workflow_run_display_name_list",

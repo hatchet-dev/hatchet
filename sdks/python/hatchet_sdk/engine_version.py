@@ -8,3 +8,4 @@ class MinEngineVersion(StrEnum):
     DURABLE_EVICTION = "v0.80.0"
     OBSERVABILITY = "v0.82.0"
     BATCHING = "v0.88.1"
+    RETRY_AFTER = "v0.111.0"

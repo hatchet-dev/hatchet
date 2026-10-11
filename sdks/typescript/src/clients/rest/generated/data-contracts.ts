@@ -655,6 +655,14 @@ export interface V1TaskSummaryList {
   rows: V1TaskSummary[];
 }
 
+export interface V1WorkflowRunCount {
+  /**
+   * The number of workflow runs matching the filters
+   * @format int64
+   */
+  count: number;
+}
+
 export interface V1WorkflowRunDisplayName {
   metadata: APIResourceMeta;
   displayName: string;

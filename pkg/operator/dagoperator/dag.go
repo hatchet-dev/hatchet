@@ -845,9 +845,10 @@ func (d *dag) evaluateOnFailure(ctx context.Context) (bool, error) {
 		attribute.Bool("dag.on_failure_skipped", skip),
 	)
 
+	// Failed parents are included so the dispatcher can populate step_run_errors for the on-failure task.
 	var parentTaskRunIds []uuid.UUID
 	for _, p := range d.tasks {
-		if p.isCompleted && !p.isFailed && p.workflowRunExternalId != nil {
+		if p.isCompleted && p.workflowRunExternalId != nil {
 			parentTaskRunIds = append(parentTaskRunIds, *p.workflowRunExternalId)
 		}
 	}

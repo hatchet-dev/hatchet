@@ -25,6 +25,7 @@ import (
 	tracev1 "go.opentelemetry.io/proto/otlp/trace/v1"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/hatchet-dev/hatchet/internal/listutils"
 	"github.com/hatchet-dev/hatchet/pkg/config/limits"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -67,6 +68,8 @@ type ListTaskRunOpts struct {
 
 	IncludePayloads bool
 
+	IncludeTotalCount bool
+
 	IdempotencyKeys *[]string
 }
 
@@ -94,6 +97,8 @@ type ListWorkflowRunOpts struct {
 	TriggeringEventExternalId *uuid.UUID
 
 	IncludePayloads bool
+
+	IncludeTotalCount bool
 
 	IdempotencyKeys *[]string
 }
@@ -257,6 +262,8 @@ type OLAPRepository interface {
 
 	ListTasks(ctx context.Context, tenantId uuid.UUID, opts ListTaskRunOpts) ([]*TaskWithPayloads, int, error)
 	ListWorkflowRuns(ctx context.Context, tenantId uuid.UUID, opts ListWorkflowRunOpts) ([]*WorkflowRunData, int, error)
+	CountTasks(ctx context.Context, tenantId uuid.UUID, opts ListTaskRunOpts) (int, error)
+	CountWorkflowRuns(ctx context.Context, tenantId uuid.UUID, opts ListWorkflowRunOpts) (int, error)
 	ListTaskRunEvents(ctx context.Context, tenantId uuid.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz, limit, offset *int64) ([]*sqlcv1.ListTaskEventsRow, error)
 	ListTaskRunEventsByWorkflowRunId(ctx context.Context, tenantId uuid.UUID, workflowRunId uuid.UUID, includeOrchestratorEvents bool) ([]*TaskEventWithPayloads, error)
 	ListWorkflowRunDisplayNames(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID) ([]*sqlcv1.ListWorkflowRunDisplayNamesRow, error)
@@ -874,75 +881,10 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, 
 
 	defer rollback()
 
-	params := sqlcv1.ListTasksOlapParams{
-		Tenantid:                  tenantId,
-		Since:                     sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
-		Tasklimit:                 int32(opts.Limit),  // #nosec G115 -- pagination param, worst case is a bounded/wrong page size, not exploitable
-		Taskoffset:                int32(opts.Offset), // #nosec G115 -- pagination param, worst case is a bounded/wrong page offset, not exploitable
-		TriggeringEventExternalId: opts.TriggeringEventExternalId,
-		WorkerId:                  opts.WorkerId,
-		IdempotencyKeys:           opts.IdempotencyKeys,
-	}
+	params, err := listTasksParamsFromOpts(tenantId, opts)
 
-	countParams := sqlcv1.CountTasksParams{
-		Tenantid:                  tenantId,
-		Since:                     sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
-		TriggeringEventExternalId: opts.TriggeringEventExternalId,
-		WorkerId:                  opts.WorkerId,
-		IdempotencyKeys:           opts.IdempotencyKeys,
-	}
-
-	statuses := make([]string, 0)
-
-	for _, status := range opts.Statuses {
-		statuses = append(statuses, string(status))
-	}
-
-	if len(statuses) == 0 {
-		statuses = []string{
-			string(sqlcv1.V1ReadableStatusOlapQUEUED),
-			string(sqlcv1.V1ReadableStatusOlapRUNNING),
-			string(sqlcv1.V1ReadableStatusOlapCOMPLETED),
-			string(sqlcv1.V1ReadableStatusOlapCANCELLED),
-			string(sqlcv1.V1ReadableStatusOlapFAILED),
-		}
-	}
-
-	params.Statuses = statuses
-	countParams.Statuses = statuses
-
-	if len(opts.WorkflowIds) > 0 {
-		workflowIdParams := make([]uuid.UUID, 0)
-
-		workflowIdParams = append(workflowIdParams, opts.WorkflowIds...)
-
-		params.WorkflowIds = workflowIdParams
-		countParams.WorkflowIds = workflowIdParams
-	}
-
-	until := opts.FinishedBefore
-
-	if until != nil {
-		params.Until = sqlchelpers.TimestamptzFromTime(*until)
-		countParams.Until = sqlchelpers.TimestamptzFromTime(*until)
-	}
-
-	if opts.AdditionalMetadataOperator == AdditionalMetadataOperatorAnd && len(opts.AdditionalMetadata) > 0 {
-		containsAll, marshalErr := json.Marshal(opts.AdditionalMetadata)
-
-		if marshalErr != nil {
-			return nil, 0, marshalErr
-		}
-
-		params.AdditionalMetadataContainsAll = containsAll
-		countParams.AdditionalMetadataContainsAll = containsAll
-	} else {
-		for key, value := range opts.AdditionalMetadata {
-			params.Keys = append(params.Keys, key)
-			params.Values = append(params.Values, value.(string))
-			countParams.Keys = append(countParams.Keys, key)
-			countParams.Values = append(countParams.Values, value.(string))
-		}
+	if err != nil {
+		return nil, 0, err
 	}
 
 	var (
@@ -956,10 +898,12 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, 
 		return nil, 0, err
 	}
 
-	count, err = r.queries.CountTasks(ctx, tx, countParams)
+	if opts.IncludeTotalCount {
+		count, err = r.queries.CountTasks(ctx, tx, countTasksParamsFromListTasksParams(params))
 
-	if err != nil {
-		return nil, 0, err
+		if err != nil {
+			return nil, 0, err
+		}
 	}
 
 	idsInsertedAts := make([]IdInsertedAt, 0, len(rows))
@@ -1224,6 +1168,186 @@ func (r *OLAPRepositoryImpl) ListTasksByIdAndInsertedAt(ctx context.Context, ten
 	return result, nil
 }
 
+func readableStatusesOrDefault(statuses []sqlcv1.V1ReadableStatusOlap) []string {
+	if len(statuses) == 0 {
+		return []string{
+			string(sqlcv1.V1ReadableStatusOlapQUEUED),
+			string(sqlcv1.V1ReadableStatusOlapRUNNING),
+			string(sqlcv1.V1ReadableStatusOlapCOMPLETED),
+			string(sqlcv1.V1ReadableStatusOlapCANCELLED),
+			string(sqlcv1.V1ReadableStatusOlapFAILED),
+		}
+	}
+
+	return listutils.Map(statuses, func(status sqlcv1.V1ReadableStatusOlap) string {
+		return string(status)
+	})
+}
+
+type additionalMetadataFilterParams struct {
+	ContainsAll []byte
+	Keys        []string
+	Values      []string
+}
+
+func additionalMetadataFilterParamsFromOpts(additionalMetadata map[string]interface{}, operator AdditionalMetadataOperator) (additionalMetadataFilterParams, error) {
+	if operator == AdditionalMetadataOperatorAnd && len(additionalMetadata) > 0 {
+		containsAll, err := json.Marshal(additionalMetadata)
+
+		if err != nil {
+			return additionalMetadataFilterParams{}, err
+		}
+
+		return additionalMetadataFilterParams{ContainsAll: containsAll}, nil
+	}
+
+	// Keys and Values must stay nil when there are no filters, since the queries skip the filter on `IS NULL`
+	var keys, values []string
+
+	for key, value := range additionalMetadata {
+		keys = append(keys, key)
+		values = append(values, value.(string))
+	}
+
+	return additionalMetadataFilterParams{Keys: keys, Values: values}, nil
+}
+
+func listTasksParamsFromOpts(tenantId uuid.UUID, opts ListTaskRunOpts) (sqlcv1.ListTasksOlapParams, error) {
+	metadataFilters, err := additionalMetadataFilterParamsFromOpts(opts.AdditionalMetadata, opts.AdditionalMetadataOperator)
+
+	if err != nil {
+		return sqlcv1.ListTasksOlapParams{}, err
+	}
+
+	params := sqlcv1.ListTasksOlapParams{
+		Tenantid:                      tenantId,
+		Since:                         sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
+		Statuses:                      readableStatusesOrDefault(opts.Statuses),
+		Tasklimit:                     int32(opts.Limit),  // #nosec G115 -- pagination param, worst case is a bounded/wrong page size, not exploitable
+		Taskoffset:                    int32(opts.Offset), // #nosec G115 -- pagination param, worst case is a bounded/wrong page offset, not exploitable
+		TriggeringEventExternalId:     opts.TriggeringEventExternalId,
+		WorkerId:                      opts.WorkerId,
+		IdempotencyKeys:               opts.IdempotencyKeys,
+		AdditionalMetadataContainsAll: metadataFilters.ContainsAll,
+		Keys:                          metadataFilters.Keys,
+		Values:                        metadataFilters.Values,
+	}
+
+	if len(opts.WorkflowIds) > 0 {
+		params.WorkflowIds = opts.WorkflowIds
+	}
+
+	if opts.FinishedBefore != nil {
+		params.Until = sqlchelpers.TimestamptzFromTime(*opts.FinishedBefore)
+	}
+
+	return params, nil
+}
+
+func countTasksParamsFromListTasksParams(listTasksParams sqlcv1.ListTasksOlapParams) sqlcv1.CountTasksParams {
+	return sqlcv1.CountTasksParams{
+		Tenantid:                      listTasksParams.Tenantid,
+		Since:                         listTasksParams.Since,
+		Statuses:                      listTasksParams.Statuses,
+		Until:                         listTasksParams.Until,
+		WorkflowIds:                   listTasksParams.WorkflowIds,
+		WorkerId:                      listTasksParams.WorkerId,
+		Keys:                          listTasksParams.Keys,
+		Values:                        listTasksParams.Values,
+		TriggeringEventExternalId:     listTasksParams.TriggeringEventExternalId,
+		AdditionalMetadataContainsAny: listTasksParams.AdditionalMetadataContainsAny,
+		AdditionalMetadataContainsAll: listTasksParams.AdditionalMetadataContainsAll,
+		IdempotencyKeys:               listTasksParams.IdempotencyKeys,
+	}
+}
+
+func fetchWorkflowRunIdsParamsFromOpts(tenantId uuid.UUID, opts ListWorkflowRunOpts) (sqlcv1.FetchWorkflowRunIdsParams, error) {
+	metadataFilters, err := additionalMetadataFilterParamsFromOpts(opts.AdditionalMetadata, opts.AdditionalMetadataOperator)
+
+	if err != nil {
+		return sqlcv1.FetchWorkflowRunIdsParams{}, err
+	}
+
+	params := sqlcv1.FetchWorkflowRunIdsParams{
+		Tenantid:                      tenantId,
+		Since:                         sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
+		Statuses:                      readableStatusesOrDefault(opts.Statuses),
+		Listworkflowrunslimit:         int32(opts.Limit),  // #nosec G115 -- pagination param, worst case is a bounded/wrong page size, not exploitable
+		Listworkflowrunsoffset:        int32(opts.Offset), // #nosec G115 -- pagination param, worst case is a bounded/wrong page offset, not exploitable
+		ParentTaskExternalId:          opts.ParentTaskExternalId,
+		TriggeringEventExternalId:     opts.TriggeringEventExternalId,
+		IdempotencyKeys:               opts.IdempotencyKeys,
+		AdditionalMetadataContainsAll: metadataFilters.ContainsAll,
+		Keys:                          metadataFilters.Keys,
+		Values:                        metadataFilters.Values,
+	}
+
+	if len(opts.WorkflowIds) > 0 {
+		params.WorkflowIds = opts.WorkflowIds
+	}
+
+	if opts.FinishedBefore != nil {
+		params.Until = sqlchelpers.TimestamptzFromTime(*opts.FinishedBefore)
+	}
+
+	return params, nil
+}
+
+func countWorkflowRunsParamsFromFetchWorkflowRunIdsParams(fetchWorkflowRunIdsParams sqlcv1.FetchWorkflowRunIdsParams) sqlcv1.CountWorkflowRunsParams {
+	return sqlcv1.CountWorkflowRunsParams{
+		Tenantid:                      fetchWorkflowRunIdsParams.Tenantid,
+		Statuses:                      fetchWorkflowRunIdsParams.Statuses,
+		WorkflowIds:                   fetchWorkflowRunIdsParams.WorkflowIds,
+		Since:                         fetchWorkflowRunIdsParams.Since,
+		Until:                         fetchWorkflowRunIdsParams.Until,
+		Keys:                          fetchWorkflowRunIdsParams.Keys,
+		Values:                        fetchWorkflowRunIdsParams.Values,
+		ParentTaskExternalId:          fetchWorkflowRunIdsParams.ParentTaskExternalId,
+		TriggeringEventExternalId:     fetchWorkflowRunIdsParams.TriggeringEventExternalId,
+		AdditionalMetadataContainsAny: fetchWorkflowRunIdsParams.AdditionalMetadataContainsAny,
+		AdditionalMetadataContainsAll: fetchWorkflowRunIdsParams.AdditionalMetadataContainsAll,
+		IdempotencyKeys:               fetchWorkflowRunIdsParams.IdempotencyKeys,
+	}
+}
+
+func (r *OLAPRepositoryImpl) CountTasks(ctx context.Context, tenantId uuid.UUID, opts ListTaskRunOpts) (int, error) {
+	ctx, span := telemetry.NewSpan(ctx, "count-tasks-olap")
+	defer span.End()
+
+	listTasksParams, err := listTasksParamsFromOpts(tenantId, opts)
+
+	if err != nil {
+		return 0, err
+	}
+
+	count, err := r.queries.CountTasks(ctx, r.readPool, countTasksParamsFromListTasksParams(listTasksParams))
+
+	if err != nil {
+		return 0, err
+	}
+
+	return int(count), nil
+}
+
+func (r *OLAPRepositoryImpl) CountWorkflowRuns(ctx context.Context, tenantId uuid.UUID, opts ListWorkflowRunOpts) (int, error) {
+	ctx, span := telemetry.NewSpan(ctx, "count-workflow-runs-olap")
+	defer span.End()
+
+	fetchWorkflowRunIdsParams, err := fetchWorkflowRunIdsParamsFromOpts(tenantId, opts)
+
+	if err != nil {
+		return 0, err
+	}
+
+	count, err := r.queries.CountWorkflowRuns(ctx, r.readPool, countWorkflowRunsParamsFromFetchWorkflowRunIdsParams(fetchWorkflowRunIdsParams))
+
+	if err != nil {
+		return 0, err
+	}
+
+	return int(count), nil
+}
+
 func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid.UUID, opts ListWorkflowRunOpts) ([]*WorkflowRunData, int, error) {
 	ctx, span := telemetry.NewSpan(ctx, "list-workflow-runs-olap")
 	defer span.End()
@@ -1236,75 +1360,10 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 
 	defer rollback()
 
-	params := sqlcv1.FetchWorkflowRunIdsParams{
-		Tenantid:                  tenantId,
-		Since:                     sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
-		Listworkflowrunslimit:     int32(opts.Limit),  // #nosec G115 -- pagination param, worst case is a bounded/wrong page size, not exploitable
-		Listworkflowrunsoffset:    int32(opts.Offset), // #nosec G115 -- pagination param, worst case is a bounded/wrong page offset, not exploitable
-		ParentTaskExternalId:      opts.ParentTaskExternalId,
-		TriggeringEventExternalId: opts.TriggeringEventExternalId,
-		IdempotencyKeys:           opts.IdempotencyKeys,
-	}
+	params, err := fetchWorkflowRunIdsParamsFromOpts(tenantId, opts)
 
-	countParams := sqlcv1.CountWorkflowRunsParams{
-		Tenantid:                  tenantId,
-		Since:                     sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
-		ParentTaskExternalId:      opts.ParentTaskExternalId,
-		TriggeringEventExternalId: opts.TriggeringEventExternalId,
-		IdempotencyKeys:           opts.IdempotencyKeys,
-	}
-
-	statuses := make([]string, 0)
-
-	for _, status := range opts.Statuses {
-		statuses = append(statuses, string(status))
-	}
-
-	if len(statuses) == 0 {
-		statuses = []string{
-			string(sqlcv1.V1ReadableStatusOlapQUEUED),
-			string(sqlcv1.V1ReadableStatusOlapRUNNING),
-			string(sqlcv1.V1ReadableStatusOlapCOMPLETED),
-			string(sqlcv1.V1ReadableStatusOlapCANCELLED),
-			string(sqlcv1.V1ReadableStatusOlapFAILED),
-		}
-	}
-
-	params.Statuses = statuses
-	countParams.Statuses = statuses
-
-	if len(opts.WorkflowIds) > 0 {
-		workflowIdParams := make([]uuid.UUID, 0)
-
-		workflowIdParams = append(workflowIdParams, opts.WorkflowIds...)
-
-		params.WorkflowIds = workflowIdParams
-		countParams.WorkflowIds = workflowIdParams
-	}
-
-	until := opts.FinishedBefore
-
-	if until != nil {
-		params.Until = sqlchelpers.TimestamptzFromTime(*until)
-		countParams.Until = sqlchelpers.TimestamptzFromTime(*until)
-	}
-
-	if opts.AdditionalMetadataOperator == AdditionalMetadataOperatorAnd && len(opts.AdditionalMetadata) > 0 {
-		containsAll, marshalErr := json.Marshal(opts.AdditionalMetadata)
-
-		if marshalErr != nil {
-			return nil, 0, marshalErr
-		}
-
-		params.AdditionalMetadataContainsAll = containsAll
-		countParams.AdditionalMetadataContainsAll = containsAll
-	} else {
-		for key, value := range opts.AdditionalMetadata {
-			params.Keys = append(params.Keys, key)
-			params.Values = append(params.Values, value.(string))
-			countParams.Keys = append(countParams.Keys, key)
-			countParams.Values = append(countParams.Values, value.(string))
-		}
+	if err != nil {
+		return nil, 0, err
 	}
 
 	var (
@@ -1317,9 +1376,12 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 		return nil, 0, err
 	}
 
-	count, err = r.queries.CountWorkflowRuns(ctx, tx, countParams)
-	if err != nil {
-		return nil, 0, err
+	if opts.IncludeTotalCount {
+		count, err = r.queries.CountWorkflowRuns(ctx, tx, countWorkflowRunsParamsFromFetchWorkflowRunIdsParams(params))
+
+		if err != nil {
+			return nil, 0, err
+		}
 	}
 
 	runIdsWithDAGs := make([]int64, 0)

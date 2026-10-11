@@ -58,6 +58,7 @@ from hatchet_sdk.exceptions import (
     IdempotencyCollisionError,
     NonDeterminismError,
     NonRetryableException,
+    RetryAfterException,
     TaskRunError,
 )
 from hatchet_sdk.features.cel import CELEvaluationResult, CELFailure, CELSuccess
@@ -134,6 +135,7 @@ __all__ = [
     "ParentCondition",
     "Priority",
     "RateLimit",
+    "RetryAfterException",
     "RunEventListener",
     "RunFilter",
     "RunStatus",
