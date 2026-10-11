@@ -36,6 +36,11 @@ func (tc *TasksControllerImpl) processTaskTimeouts(ctx context.Context, tenantId
 		return false, fmt.Errorf("could not process fail tasks response: %w", err)
 	}
 
+	retried := make(map[int64]struct{}, len(res.RetriedTasks))
+	for _, r := range res.RetriedTasks {
+		retried[r.Id] = struct{}{}
+	}
+
 	cancellationSignals := make([]tasktypes.SignalTaskCancelledPayload, 0, len(res.TimeoutTasks))
 
 	for _, task := range res.TimeoutTasks {
@@ -51,6 +56,8 @@ func (tc *TasksControllerImpl) processTaskTimeouts(ctx context.Context, tenantId
 			WorkerId:   workerId,
 		})
 
+		_, willRetry := retried[task.ID]
+
 		// send failed tasks to the olap repository
 		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
 			tenantIdUUID,
@@ -60,6 +67,7 @@ func (tc *TasksControllerImpl) processTaskTimeouts(ctx context.Context, tenantId
 				EventType:      sqlcv1.V1EventTypeOlapTIMEDOUT,
 				EventTimestamp: time.Now(),
 				EventMessage:   fmt.Sprintf("Task exceeded timeout of %s", task.StepTimeout),
+				WillRetry:      willRetry,
 			},
 		)
 
