@@ -5,33 +5,10 @@
 package hatchet
 
 import (
-	"encoding/json"
-
 	"github.com/hatchet-dev/hatchet/pkg/client/create"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 	"github.com/hatchet-dev/hatchet/sdks/go/internal"
 )
-
-// decodeTaskInput converts the raw workflow input (typically a map[string]any decoded
-// from JSON) into the task's declared input type I, without reflection. A direct type
-// assertion covers the common case; otherwise a JSON round-trip fills a fresh I.
-func decodeTaskInput[I any](input any) (I, error) {
-	var out I
-	if input == nil {
-		return out, nil
-	}
-	if v, ok := input.(I); ok {
-		return v, nil
-	}
-	b, err := json.Marshal(input)
-	if err != nil {
-		return out, err
-	}
-	if err := json.Unmarshal(b, &out); err != nil {
-		return out, err
-	}
-	return out, nil
-}
 
 // NewTask transforms a typed function into a Hatchet task that runs as part of a workflow.
 //
@@ -55,9 +32,9 @@ func (w *Workflow) NewTask[I, O any](name string, fn func(ctx Context, input I) 
 		opt(config)
 	}
 
-	wrapper := func(ctx Context, input any) (any, error) {
-		in, err := decodeTaskInput[I](input)
-		if err != nil {
+	wrapper := func(ctx Context, _ any) (any, error) {
+		var in I
+		if err := ctx.WorkflowInput(&in); err != nil {
 			return nil, err
 		}
 		return fn(ctx, in)
@@ -103,9 +80,9 @@ func (w *Workflow) NewDurableTask[I, O any](name string, fn func(ctx DurableCont
 		opt(config)
 	}
 
-	durableWrapper := func(ctx worker.DurableHatchetContext, input any) (any, error) {
-		in, err := decodeTaskInput[I](input)
-		if err != nil {
+	durableWrapper := func(ctx worker.DurableHatchetContext, _ any) (any, error) {
+		var in I
+		if err := ctx.WorkflowInput(&in); err != nil {
 			return nil, err
 		}
 		return fn(ctx, in)
@@ -145,9 +122,9 @@ func (w *Workflow) NewDurableTask[I, O any](name string, fn func(ctx DurableCont
 //
 //	func(ctx hatchet.Context, input In) (Out, error)
 func (w *Workflow) OnFailure[I, O any](fn func(ctx Context, input I) (O, error)) {
-	wrapper := func(ctx Context, input any) (any, error) {
-		in, err := decodeTaskInput[I](input)
-		if err != nil {
+	wrapper := func(ctx Context, _ any) (any, error) {
+		var in I
+		if err := ctx.WorkflowInput(&in); err != nil {
 			return nil, err
 		}
 		return fn(ctx, in)

@@ -245,7 +245,7 @@ type JobRunLookupData struct {
 // Deprecated: StepRunData is an internal type used by the new Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type StepRunData struct {
-	Input              map[string]interface{}            `json:"input"`
+	Input              json.RawMessage                   `json:"input"`
 	TriggeredBy        TriggeredBy                       `json:"triggered_by"`
 	Parents            map[string]StepData               `json:"parents"`
 	Triggers           map[string]map[string]interface{} `json:"triggers,omitempty"`
@@ -415,7 +415,10 @@ func (h *hatchetContext) TriggeredByEvent() bool {
 // Deprecated: WorkflowInput is an internal method used by the new Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) WorkflowInput(target interface{}) error {
-	return toTarget(h.stepData.Input, target)
+	if len(h.stepData.Input) == 0 {
+		return nil
+	}
+	return json.Unmarshal(h.stepData.Input, target)
 }
 
 // BatchInputInto decodes the buffered items of a batch task's START_BATCH action into
@@ -877,16 +880,12 @@ func (h *hatchetContext) populateStepDataForGroupKeyRun() error {
 		return nil
 	}
 
-	inputData := map[string]interface{}{}
-
-	err := json.Unmarshal(h.a.ActionPayload, &inputData)
-
-	if err != nil {
-		return err
+	if !json.Valid(h.a.ActionPayload) {
+		return fmt.Errorf("group key run payload is not valid JSON")
 	}
 
 	h.stepData = &StepRunData{
-		Input: inputData,
+		Input: h.a.ActionPayload,
 	}
 
 	return nil
