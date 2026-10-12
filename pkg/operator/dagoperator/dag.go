@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx/v5/pgconn"
 	"go.opentelemetry.io/otel/attribute"
 
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
@@ -78,6 +80,31 @@ func (e *dagEngineError) Error() string {
 func isDagEngineErr(err error) bool {
 	var e *dagEngineError
 	return errors.As(err, &e)
+}
+
+// these errors can be returned to the client verbatim. everything else is an
+// internal failure whose details stay in the engine logs.
+func isUserFacingDagErr(err error) bool {
+	var nonDeterminismErr *repository.NonDeterminismError
+	var celFailureErr *operator.DAGStepCELFailureError
+
+	return isDagChildFailedErr(err) ||
+		isDagConditionEvalErr(err) ||
+		isDagEngineErr(err) ||
+		errors.As(err, &celFailureErr) ||
+		errors.As(err, &nonDeterminismErr)
+}
+
+func isDagNonRetryablePgErr(err error) bool {
+	var pgErr *pgconn.PgError
+
+	if !errors.As(err, &pgErr) {
+		return false
+	}
+
+	return pgerrcode.IsIntegrityConstraintViolation(pgErr.Code) ||
+		pgerrcode.IsDataException(pgErr.Code) ||
+		pgerrcode.IsProgramLimitExceeded(pgErr.Code)
 }
 
 type dagEvictedError struct {

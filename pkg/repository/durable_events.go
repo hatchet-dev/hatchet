@@ -1456,6 +1456,7 @@ func (r *durableEventsRepository) resolveOrphanedChildDedupes(
 
 	childOnActiveBranch := make(map[uuid.UUID]bool)
 	latestEntryByChild := make(map[uuid.UUID]*sqlcv1.GetDurableEventLogEntriesByChildTaskExternalIdsRow)
+	childTriggeredOnAnyBranch := make(map[uuid.UUID]bool)
 
 	for _, row := range rows {
 		if row.ChildTaskExternalID == nil {
@@ -1464,6 +1465,12 @@ func (r *durableEventsRepository) resolveOrphanedChildDedupes(
 
 		if resolveBranchForNode(row.NodeID, logFile.LatestBranchID, nextBranchIdToBranchPoint) == row.BranchID {
 			childOnActiveBranch[*row.ChildTaskExternalID] = true
+		}
+
+		// an entry written for an in-place replay of the child never gets triggered_at set, so
+		// the task rows exist as long as any branch's entry for the child was triggered
+		if row.TriggeredAt.Valid {
+			childTriggeredOnAnyBranch[*row.ChildTaskExternalID] = true
 		}
 
 		// node ids restart every re-invocation, so a child's newest entry is on the highest branch
@@ -1501,7 +1508,7 @@ func (r *durableEventsRepository) resolveOrphanedChildDedupes(
 			// as a fresh run (under the same child external id). this is safe to do repeatedly, since the trigger path
 			// only claims entries where `triggered_at` is still null (in the same tx that spawns the child), which
 			// means we'll end up recovering instead of hanging
-			if latestEntry.TriggeredAt.Valid {
+			if childTriggeredOnAnyBranch[to.ExternalId] {
 				childrenToReplay[to.ExternalId] = true
 			}
 		} else {

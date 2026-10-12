@@ -62,6 +62,15 @@ type DAGStepTriggerRequest struct {
 	ParentReExecuted bool
 }
 
+type DAGStepCELFailureError struct {
+	ActionId string
+	Message  string
+}
+
+func (e *DAGStepCELFailureError) Error() string {
+	return fmt.Sprintf("dag step trigger for %q did not create its child run: %s", e.ActionId, e.Message)
+}
+
 type DAGStepTriggerResult struct {
 	NodeId                int64
 	BranchId              int64
