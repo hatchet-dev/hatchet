@@ -39,6 +39,12 @@ from hatchet_sdk.utils.api_auth import create_authorization_header
 
 DEFAULT_REGISTER_TIMEOUT = 30
 
+# grpc.aio returns `None` instead of raising when it can't deserialize a
+# response, so a missing ack is retried like a transient error.
+_retry_on_error_or_missing_ack = tenacity.retry_if_exception(
+    tenacity_should_retry
+) | tenacity.retry_if_result(lambda response: response is None)
+
 
 class DispatcherClient:
     def __init__(self, config: ClientConfig):
@@ -171,7 +177,7 @@ class DispatcherClient:
         wait=tenacity.wait_exponential_jitter(initial=0.5, max=10),
         stop=tenacity.stop_after_attempt(20),
         before_sleep=tenacity_before_sleep,
-        retry=tenacity.retry_if_exception(tenacity_should_retry),
+        retry=_retry_on_error_or_missing_ack,
     )
     async def _try_send_step_action_event(
         self,
@@ -295,7 +301,7 @@ class DispatcherClient:
         wait=tenacity.wait_exponential_jitter(initial=0.5, max=10),
         stop=tenacity.stop_after_attempt(20),
         before_sleep=tenacity_before_sleep,
-        retry=tenacity.retry_if_exception(tenacity_should_retry),
+        retry=_retry_on_error_or_missing_ack,
     )
     async def _try_aio_send_batch_action_event(
         self,
