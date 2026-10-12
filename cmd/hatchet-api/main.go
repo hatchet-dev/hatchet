@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -28,6 +29,8 @@ var rootCmd = &cobra.Command{
 			fmt.Println(Version)
 			os.Exit(0)
 		}
+
+		cmdutils.SetMemoryLimit(context.Background())
 
 		cf := loader.NewConfigLoader(configDirectory)
 		interruptChan := cmdutils.InterruptChan()

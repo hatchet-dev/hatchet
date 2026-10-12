@@ -1,0 +1,36 @@
+package cmdutils
+
+import (
+	"context"
+	"errors"
+	"log/slog"
+	"time"
+
+	"github.com/KimMachineGun/automemlimit/memlimit"
+)
+
+const memLimitRefreshInterval = time.Minute
+
+// SetMemoryLimit
+// FROM: https://github.com/KimMachineGun/automemlimit#usage
+// // Importing this package sets GOMEMLIMIT automatically from the cgroup memory limit.
+// // By default, it sets GOMEMLIMIT to 90% of the cgroup memory limit.
+// // Set the AUTOMEMLIMIT environment variable to a ratio in (0.0, 1.0], or "off".
+// re-reads the limit every minute ( to support VPA in place resize).
+func SetMemoryLimit(ctx context.Context) {
+	_, _ = memlimit.Set(
+		memlimit.WithProvider(cgroupOrNoLimit),
+		memlimit.WithRefreshInterval(ctx, memLimitRefreshInterval),
+		memlimit.WithLogger(slog.Default()),
+	)
+}
+
+// cgroupOrNoLimit keeps the Go default (no limit) instead of logging an error on every
+// start when running outside a cgroup, e.g. a native dev build.
+func cgroupOrNoLimit() (uint64, error) {
+	limit, err := memlimit.FromCgroup()
+	if errors.Is(err, memlimit.ErrCgroupsNotSupported) || errors.Is(err, memlimit.ErrNoCgroup) {
+		return 0, memlimit.ErrNoLimit
+	}
+	return limit, err
+}
