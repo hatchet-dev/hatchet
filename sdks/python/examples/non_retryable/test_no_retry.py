@@ -34,7 +34,7 @@ async def test_no_retry(hatchet: Hatchet) -> None:
     non_retries = [
         e
         for e in exc_text
-        if "This task should retry because it's not a NonRetryableException" in e
+        if "This task should retry because it's not a NonRetryableError" in e
     ]
 
     other_errors = [e for e in exc_text if "This task should not retry" in e]

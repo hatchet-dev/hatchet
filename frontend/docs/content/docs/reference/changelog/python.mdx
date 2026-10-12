@@ -53,7 +53,8 @@ V2 removes everything that was deprecated in V1 and tightens the types that were
 - Every `list` and `aio_list` method on the feature clients returns a plain `list` instead of a paginated wrapper, so there is no `.rows` to unwrap.
 - `ctx.aio_wait_for` returns a `list[SleepResult | EventWaitResult | OrGroupResult]` instead of a `dict`, and `ctx.aio_wait_for_event` returns an `EventWaitResult` whose `.payload` holds the event data.
 - `ctx.priority` now returns `Priority | None` instead of `int | None`.
-- `from hatchet_sdk import Event` now resolves to the class returned by `hatchet.events.push()` instead of the V0 REST model.
+- `from hatchet_sdk import Event` now resolves to the SDK's own event class instead of the V0 REST model. Every method on the events client returns it: `push`, `bulk_push`, `get`, and `list`, along with their `aio_` variants. `get` and `list` previously returned the `V1Event` REST model, so read `event.event_id` instead of `event.metadata.id`.
+- `Event.payload` and `Event.additional_metadata` are now dictionaries instead of JSON strings, so there is no need to call `json.loads` on them. `additional_metadata` is an empty dictionary when the event has none.
 - `BulkPushEventWithMetadata.key` is now required.
 - `workflow.input_validator` and `workflow.input_validator_type` return `None` for a workflow with no input validator.
 - `Worker.register_workflow` now raises on registration failure instead of calling `sys.exit(1)`.
@@ -66,6 +67,11 @@ V2 removes everything that was deprecated in V1 and tightens the types that were
 - The `parent_step_run_id` parameter on `scheduled.bulk_delete` and `scheduled.aio_bulk_delete` has been renamed to `parent_task_external_id`.
 - The `STEP_NAME`, `STEP_ID`, and `STEP_RUN_ID` members of `OTelAttribute` have been renamed to `TASK_NAME`, `TASK_ID`, and `TASK_RUN_ID`. The span attribute names they produce are unchanged.
 - Worker log messages and error messages refer to tasks instead of steps.
+- `NonRetryableException` has been renamed to `NonRetryableError`, and `RetryAfterException` has been renamed to `RetryAfterError`.
+- `ctx.task_run_errors` returns a `dict[str, TaskRunError]` instead of a dictionary of serialized error strings, and no longer logs an error when there are no upstream errors.
+- `BulkCancelReplayOpts` has been renamed to `BulkCancelReplayOptions`, and the `opts` parameter on `runs.bulk_cancel`, `runs.bulk_replay`, and `workers.update` has been renamed to `options`.
+- The `run_at` parameter on `schedule` and `aio_schedule` has been renamed to `trigger_at`, matching the scheduled runs client and the `trigger_at` field on scheduled runs.
+- Run ID parameters now use one name per kind of ID. `runs.get_result`, `runs.get_details`, and the `get_run_ref`, `get_result`, and `aio_get_result` methods on a standalone task take `workflow_run_id`. `runs.reset_durable_task` takes `task_run_id` instead of `task_external_id`. `runs.cancel` and `runs.replay` keep `run_id`, since they accept either kind.
 - `limit` and `offset` on `runs.list` and `runs.aio_list` now apply to the whole time range instead of to each day within it, and leaving `limit` unset returns every matching run instead of the first 50 per day.
 - `from hatchet_sdk import Workflow` now resolves to the workflow class returned by `hatchet.workflow()` instead of the REST model, and the `WorkflowVersion` REST model is no longer exported from `hatchet_sdk`.
 - Passing an input when running, scheduling, or bulk running a task or workflow that has no `input_validator` raises a `TypeError` instead of silently dropping the input. Declare `input_validator=dict[str, Any]` to accept untyped input.
@@ -76,7 +82,7 @@ V2 removes everything that was deprecated in V1 and tightens the types that were
 ### Added
 
 - `result` and `aio_result` on `WorkflowRunRef` and `TaskRunRef` accept an optional `timeout` (a `timedelta`) and raise `TimeoutError` when it elapses. `timeout` is the first positional parameter of `result`, so pass `poll_interval` by keyword.
-- `SleepResult`, `EventWaitResult`, `OrGroupResult`, `HTTPMethod`, `V1Event`, and `V1TaskSummary` are exported from `hatchet_sdk`.
+- `SleepResult`, `EventWaitResult`, `OrGroupResult`, `HTTPMethod`, and `V1TaskSummary` are exported from `hatchet_sdk`.
 - `durable_task` decorators accept `slot_cost`, controlling how many durable slots the task consumes.
 - `hatchet.batch_task` accepts `on_events`, `on_crons`, `cron_input`, and `default_additional_metadata`, matching the other standalone task decorators.
 - `hatchet.tenant`, a client for reading details about the current tenant.

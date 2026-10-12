@@ -68,14 +68,8 @@ async def fetch_runs_for_event(
 ) -> tuple[ProcessedEvent, list[V1TaskSummary]]:
     runs = await hatchet.runs.aio_list(triggering_event_external_id=event.event_id)
 
-    meta = (
-        cast(dict[str, str | int | bool], json.loads(event.additional_metadata))
-        if event.additional_metadata
-        else {}
-    )
-    payload = (
-        cast(dict[str, str | bool], json.loads(event.payload)) if event.payload else {}
-    )
+    meta = cast(dict[str, str | int | bool], event.additional_metadata)
+    payload = cast(dict[str, str | bool], event.payload)
 
     processed_event = ProcessedEvent(
         id=event.event_id,
@@ -114,7 +108,7 @@ async def wait_for_result(
         iters += 1
 
         persisted = (await hatchet.events.aio_list(limit=100, since=since)) or []
-        if not event_ids.issubset({e.metadata.id for e in persisted}):
+        if not event_ids.issubset({e.event_id for e in persisted}):
             await asyncio.sleep(1)
             continue
 
@@ -163,12 +157,7 @@ async def wait_for_result_and_assert(hatchet: Hatchet, events: list[Event]) -> N
     unique_events_with_runs = {
         event.event_id
         for event in events
-        if (
-            json.loads(event.additional_metadata)
-            if isinstance(event.additional_metadata, str)
-            else {}
-        ).get("should_have_runs", False)
-        is True
+        if event.additional_metadata.get("should_have_runs", False) is True
     }
 
     unique_events_with_runs_in_results = {

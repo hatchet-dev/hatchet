@@ -9,7 +9,7 @@ from examples.bulk_operations.worker import (
     bulk_replay_test_2,
     bulk_replay_test_3,
 )
-from hatchet_sdk import BulkCancelReplayOpts, Hatchet, RunFilter
+from hatchet_sdk import BulkCancelReplayOptions, Hatchet, RunFilter
 from hatchet_sdk.types.run_status import RunStatus
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 
@@ -131,7 +131,7 @@ async def test_bulk_replay(hatchet: Hatchet, test_run_id: str) -> None:
     }
 
     await hatchet.runs.aio_bulk_replay(
-        opts=BulkCancelReplayOpts(
+        options=BulkCancelReplayOptions(
             filters=RunFilter(
                 workflow_ids=workflow_ids,
                 since=test_start,

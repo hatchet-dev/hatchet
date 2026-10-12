@@ -33,8 +33,8 @@ from hatchet_sdk.deprecated.deprecation import semver_less_than
 from hatchet_sdk.engine_version import MinEngineVersion
 from hatchet_sdk.exceptions import (
     IllegalTaskOutputError,
-    NonRetryableException,
-    RetryAfterException,
+    NonRetryableError,
+    RetryAfterError,
     TaskRunError,
 )
 from hatchet_sdk.features.events import EventClient
@@ -292,12 +292,12 @@ class Runner:
     def _retry_after_ms(
         self, e: BaseException, action_id: str, retries: int
     ) -> int | None:
-        if not isinstance(e, RetryAfterException):
+        if not isinstance(e, RetryAfterError):
             return None
 
         if not self._supports_retry_after:
             logger.warning(
-                f"RetryAfterException requires engine >= {MinEngineVersion.RETRY_AFTER.value} "
+                f"RetryAfterError requires engine >= {MinEngineVersion.RETRY_AFTER.value} "
                 f"(connected: {self.engine_version or 'unknown'}). Task {action_id} raised it, so the engine "
                 f"will handle the failure with the task's retry policy (retries={retries}) instead of the requested delay."
             )
@@ -317,7 +317,7 @@ class Runner:
             try:
                 output = task.result()
             except Exception as e:
-                should_not_retry = isinstance(e, NonRetryableException)
+                should_not_retry = isinstance(e, NonRetryableError)
                 retry_after_ms = self._retry_after_ms(e, action.action_id, t.retries)
 
                 exc = TaskRunError.from_exception(e, action.task_run_external_id)
@@ -562,7 +562,7 @@ class Runner:
                             f"Batch task {action_id} returned empty broadcast output"
                         )
                 except Exception as e:
-                    should_not_retry = isinstance(e, NonRetryableException)
+                    should_not_retry = isinstance(e, NonRetryableError)
                     retry_after_ms = self._retry_after_ms(e, action_id, task.retries)
                     self.event_queue.put(
                         QueuedBatchActionEvent(
@@ -664,7 +664,7 @@ class Runner:
             logger.exception(
                 f"Batch task '{action_id}' failed for batch {action.batch_id}"
             )
-            should_not_retry = isinstance(e, NonRetryableException)
+            should_not_retry = isinstance(e, NonRetryableError)
             retry_after_ms = self._retry_after_ms(e, action_id, task.retries)
             self.event_queue.put(
                 QueuedBatchActionEvent(

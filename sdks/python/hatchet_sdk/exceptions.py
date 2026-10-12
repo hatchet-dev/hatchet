@@ -30,11 +30,11 @@ class InvalidDependencyError(Exception):
     pass
 
 
-class NonRetryableException(Exception):  # noqa: N818
+class NonRetryableError(Exception):
     pass
 
 
-class RetryAfterException(Exception):  # noqa: N818
+class RetryAfterError(Exception):
     """
     Raise from a task to retry it after a delay of its choosing. The retry counts against the task's `retries`.
 
@@ -235,7 +235,7 @@ class LifespanSetupError(Exception):
     pass
 
 
-class EvictionNotSupportedError(NonRetryableException):
+class EvictionNotSupportedError(NonRetryableError):
     """Raised when an eviction policy is configured against an engine version
     that does not support durable-task eviction."""
 

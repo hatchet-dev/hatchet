@@ -144,9 +144,9 @@ A helper intended to be used in an on-failure task to retrieve the errors that o
 
 Returns:
 
-| Type             | Description                                              |
-| ---------------- | -------------------------------------------------------- |
-| `dict[str, str]` | A dictionary mapping task names to their error messages. |
+| Type                      | Description                                                                                                |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `dict[str, TaskRunError]` | A dictionary mapping the name of each failed upstream task to its error. Empty if no upstream task failed. |
 
 ### Functions
 
@@ -278,9 +278,9 @@ Parameters:
 
 Returns:
 
-| Type                   | Description                                                      |
-| ---------------------- | ---------------------------------------------------------------- |
-| `TaskRunError \| None` | The error message of the task run, or None if no error occurred. |
+| Type                   | Description                                              |
+| ---------------------- | -------------------------------------------------------- |
+| `TaskRunError \| None` | The error of the task run, or None if no error occurred. |
 
 ## DurableContext
 

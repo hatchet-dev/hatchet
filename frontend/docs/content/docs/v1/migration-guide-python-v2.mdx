@@ -39,45 +39,56 @@ Do not change any behavior beyond what the guide requires.
 
 These are one-to-one renames. The left column is safe to search for directly.
 
-| V1                                                                              | V2                                                                              |
-| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| `hatchet.event`                                                                 | `hatchet.events`                                                                |
-| `hatchet.cron`                                                                  | `hatchet.crons`                                                                 |
-| `hatchet.get_current_context()`                                                 | `hatchet.current_context`                                                       |
-| `hatchet.runs.subscribe_to_stream(...)`                                         | `hatchet.runs.aio_subscribe_to_stream(...)`                                     |
-| `hatchet.runs.list_with_pagination(...)`                                        | `hatchet.runs.list(...)`                                                        |
-| `hatchet.runs.aio_list_with_pagination(...)`                                    | `hatchet.runs.aio_list(...)`                                                    |
-| `workflow.run_no_wait(...)`                                                     | `workflow.run(..., wait_for_result=False)`                                      |
-| `workflow.aio_run_no_wait(...)`                                                 | `workflow.aio_run(..., wait_for_result=False)`                                  |
-| `workflow.run_many_no_wait(...)`                                                | `workflow.run_many(..., wait_for_result=False)`                                 |
-| `workflow.aio_run_many_no_wait(...)`                                            | `workflow.aio_run_many(..., wait_for_result=False)`                             |
-| `workflow.create_bulk_run_item(key=...)`                                        | `workflow.create_bulk_run_item(child_key=...)`                                  |
-| `ctx.step_run_id`                                                               | `ctx.task_run_id`                                                               |
-| `ctx.done()`                                                                    | `ctx.is_cancelled`                                                              |
-| `ctx.exit_flag`                                                                 | `ctx.is_cancelled`                                                              |
-| `ctx.aio_task_output(task)`                                                     | `ctx.task_output(task)` (not awaited)                                           |
-| `ctx.fetch_task_run_error(task)`                                                | `ctx.get_task_run_error(task)`                                                  |
-| `ctx.worker.id()`                                                               | `ctx.worker_id`                                                                 |
-| `ctx.worker.labels()`                                                           | `ctx.worker_labels`                                                             |
-| `ctx.worker.upsert_labels(labels)`                                              | `ctx.upsert_worker_labels(labels)`                                              |
-| `await ctx.worker.async_upsert_labels(labels)`                                  | `await ctx.aio_upsert_worker_labels(labels)`                                    |
-| `ConcurrencyExpression`                                                         | `ConcurrencyStrategy`                                                           |
-| `ConcurrencyExpression(limit_strategy=...)`                                     | `ConcurrencyStrategy(strategy=...)`                                             |
-| `ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS`                                   | `"CANCEL_IN_PROGRESS"` (same for every other member)                            |
-| `StickyStrategy.SOFT`, `StickyStrategy.HARD`                                    | `"SOFT"`, `"HARD"`                                                              |
-| `RateLimitDuration.MINUTE`                                                      | `"MINUTE"` (same for every other member)                                        |
-| `MCPProvider.CLAUDE`, `MCPProvider.OPENAI`                                      | `"CLAUDE"`, `"OPENAI"`                                                          |
-| `EmptyModel` (as an input type annotation)                                      | `None`                                                                          |
-| `TriggerWorkflowOptions(desired_worker_label=...)`                              | `desired_worker_labels=[...]` passed to `run()` directly                        |
-| `HealthcheckConfig.event_loop_block_threshold_seconds`                          | `HealthcheckConfig.event_loop_block_threshold`                                  |
-| `event.event_timestamp`, `event.eventTimestamp`                                 | `event.seen_at`                                                                 |
-| `event.additionalMetadata`                                                      | `event.additional_metadata`                                                     |
-| `priority=1`, `priority=2`, `priority=3`                                        | `Priority.LOW`, `Priority.MEDIUM`, `Priority.HIGH`                              |
-| `timeout="10s"` and other duration strings                                      | `timedelta(seconds=10)`                                                         |
-| `V1TaskStatus`                                                                  | `RunStatus`                                                                     |
-| `from hatchet_sdk.clients.events import ...`                                    | `from hatchet_sdk.features.events import ...`                                   |
-| `hatchet.scheduled.bulk_delete(parent_step_run_id=...)`                         | `hatchet.scheduled.bulk_delete(parent_task_external_id=...)`                    |
-| `OTelAttribute.STEP_NAME`, `OTelAttribute.STEP_ID`, `OTelAttribute.STEP_RUN_ID` | `OTelAttribute.TASK_NAME`, `OTelAttribute.TASK_ID`, `OTelAttribute.TASK_RUN_ID` |
+| V1                                                                                                   | V2                                                                               |
+| ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `hatchet.event`                                                                                      | `hatchet.events`                                                                 |
+| `hatchet.cron`                                                                                       | `hatchet.crons`                                                                  |
+| `hatchet.get_current_context()`                                                                      | `hatchet.current_context`                                                        |
+| `hatchet.runs.subscribe_to_stream(...)`                                                              | `hatchet.runs.aio_subscribe_to_stream(...)`                                      |
+| `hatchet.runs.list_with_pagination(...)`                                                             | `hatchet.runs.list(...)`                                                         |
+| `hatchet.runs.aio_list_with_pagination(...)`                                                         | `hatchet.runs.aio_list(...)`                                                     |
+| `workflow.run_no_wait(...)`                                                                          | `workflow.run(..., wait_for_result=False)`                                       |
+| `workflow.aio_run_no_wait(...)`                                                                      | `workflow.aio_run(..., wait_for_result=False)`                                   |
+| `workflow.run_many_no_wait(...)`                                                                     | `workflow.run_many(..., wait_for_result=False)`                                  |
+| `workflow.aio_run_many_no_wait(...)`                                                                 | `workflow.aio_run_many(..., wait_for_result=False)`                              |
+| `workflow.create_bulk_run_item(key=...)`                                                             | `workflow.create_bulk_run_item(child_key=...)`                                   |
+| `ctx.step_run_id`                                                                                    | `ctx.task_run_id`                                                                |
+| `ctx.done()`                                                                                         | `ctx.is_cancelled`                                                               |
+| `ctx.exit_flag`                                                                                      | `ctx.is_cancelled`                                                               |
+| `ctx.aio_task_output(task)`                                                                          | `ctx.task_output(task)` (not awaited)                                            |
+| `ctx.fetch_task_run_error(task)`                                                                     | `ctx.get_task_run_error(task)`                                                   |
+| `ctx.worker.id()`                                                                                    | `ctx.worker_id`                                                                  |
+| `ctx.worker.labels()`                                                                                | `ctx.worker_labels`                                                              |
+| `ctx.worker.upsert_labels(labels)`                                                                   | `ctx.upsert_worker_labels(labels)`                                               |
+| `await ctx.worker.async_upsert_labels(labels)`                                                       | `await ctx.aio_upsert_worker_labels(labels)`                                     |
+| `ConcurrencyExpression`                                                                              | `ConcurrencyStrategy`                                                            |
+| `ConcurrencyExpression(limit_strategy=...)`                                                          | `ConcurrencyStrategy(strategy=...)`                                              |
+| `ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS`                                                        | `"CANCEL_IN_PROGRESS"` (same for every other member)                             |
+| `StickyStrategy.SOFT`, `StickyStrategy.HARD`                                                         | `"SOFT"`, `"HARD"`                                                               |
+| `RateLimitDuration.MINUTE`                                                                           | `"MINUTE"` (same for every other member)                                         |
+| `MCPProvider.CLAUDE`, `MCPProvider.OPENAI`                                                           | `"CLAUDE"`, `"OPENAI"`                                                           |
+| `EmptyModel` (as an input type annotation)                                                           | `None`                                                                           |
+| `TriggerWorkflowOptions(desired_worker_label=...)`                                                   | `desired_worker_labels=[...]` passed to `run()` directly                         |
+| `HealthcheckConfig.event_loop_block_threshold_seconds`                                               | `HealthcheckConfig.event_loop_block_threshold`                                   |
+| `event.event_timestamp`, `event.eventTimestamp`                                                      | `event.seen_at`                                                                  |
+| `event.additionalMetadata`                                                                           | `event.additional_metadata`                                                      |
+| `priority=1`, `priority=2`, `priority=3`                                                             | `Priority.LOW`, `Priority.MEDIUM`, `Priority.HIGH`                               |
+| `timeout="10s"` and other duration strings                                                           | `timedelta(seconds=10)`                                                          |
+| `V1TaskStatus`                                                                                       | `RunStatus`                                                                      |
+| `from hatchet_sdk.clients.events import ...`                                                         | `from hatchet_sdk.features.events import ...`                                    |
+| `NonRetryableException`                                                                              | `NonRetryableError`                                                              |
+| `RetryAfterException`                                                                                | `RetryAfterError`                                                                |
+| `BulkCancelReplayOpts`                                                                               | `BulkCancelReplayOptions`                                                        |
+| `hatchet.runs.bulk_cancel(opts=...)`, `hatchet.runs.bulk_replay(opts=...)`                           | `hatchet.runs.bulk_cancel(options=...)`, `hatchet.runs.bulk_replay(options=...)` |
+| `hatchet.workers.update(worker_id, opts=...)`                                                        | `hatchet.workers.update(worker_id, options=...)`                                 |
+| `workflow.schedule(run_at=...)`                                                                      | `workflow.schedule(trigger_at=...)`                                              |
+| `hatchet.runs.get_result(run_id=...)`, `task.get_result(run_id=...)`, `task.get_run_ref(run_id=...)` | The same call with `workflow_run_id=...`                                         |
+| `hatchet.runs.get_details(external_id=...)`                                                          | `hatchet.runs.get_details(workflow_run_id=...)`                                  |
+| `hatchet.runs.reset_durable_task(task_external_id=...)`                                              | `hatchet.runs.reset_durable_task(task_run_id=...)`                               |
+| `event.metadata.id` on the result of `events.get` or `events.list`                                   | `event.event_id`                                                                 |
+| `json.loads(event.payload)`, `json.loads(event.additional_metadata)`                                 | `event.payload`, `event.additional_metadata`                                     |
+| `hatchet.scheduled.bulk_delete(parent_step_run_id=...)`                                              | `hatchet.scheduled.bulk_delete(parent_task_external_id=...)`                     |
+| `OTelAttribute.STEP_NAME`, `OTelAttribute.STEP_ID`, `OTelAttribute.STEP_RUN_ID`                      | `OTelAttribute.TASK_NAME`, `OTelAttribute.TASK_ID`, `OTelAttribute.TASK_RUN_ID`  |
 
 ### Removed APIs and their replacements
 
@@ -121,7 +132,9 @@ A type checker will not flag these, so check them by hand:
 - **`str()` and f-strings on SDK enums give the raw value.** `f"{RunStatus.FAILED}"` is now `"FAILED"` instead of `"RunStatus.FAILED"`. Check log parsing, cache keys, and anything that compares against the old string.
 - **`Worker.register_workflow` raises on failure** instead of calling `sys.exit(1)`.
 - **`WorkflowRunRef.result` and `TaskRunRef.result` take `timeout` as their first positional parameter.** In V1.41 the only parameter was `poll_interval`, so a positional call such as `ref.result(2.0)` must become `ref.result(poll_interval=2.0)`.
-- **`from hatchet_sdk import Event` is a different class.** It is now the class returned by `hatchet.events.push()`, not the V0 REST model.
+- **`from hatchet_sdk import Event` is a different class.** It is now the SDK's own event class, returned by every method on the events client, not the V0 REST model.
+- **`Event.payload` and `Event.additional_metadata` are dictionaries, not JSON strings.** A leftover `json.loads(event.payload)` raises a `TypeError` at runtime. See [the `Event` class](#event-class-field-and-property-changes).
+- **`ctx.task_run_errors` holds `TaskRunError` objects, not strings.** Code that logs or string-matches the values still runs, but sees the formatted error rather than the raw serialized one. See [task run errors](#ctxtask_run_errors-returns-parsed-errors).
 - **`BulkPushEventWithMetadata.key` is required.** It previously defaulted to `""`.
 - **`ClientTLSConfig.strategy` is validated.** A value other than `"tls"`, `"mtls"`, or `"none"` now fails at construction time instead of being treated as insecure.
 - **The `HATCHET_CLIENT_WORKER_HEALTHCHECK_EVENT_LOOP_BLOCK_THRESHOLD_SECONDS` environment variable is no longer read.** Rename it to `HATCHET_CLIENT_WORKER_HEALTHCHECK_EVENT_LOOP_BLOCK_THRESHOLD`.
@@ -546,7 +559,7 @@ This applies to all feature clients:
 
 | Client                | V1 return type           | V2 return type             |
 | --------------------- | ------------------------ | -------------------------- |
-| `hatchet.events`      | `V1EventList`            | `list[V1Event]`            |
+| `hatchet.events`      | `V1EventList`            | `list[Event]`              |
 | `hatchet.crons`       | `CronWorkflowsList`      | `list[CronWorkflows]`      |
 | `hatchet.filters`     | `V1FilterList`           | `list[V1Filter]`           |
 | `hatchet.logs`        | `V1LogLineList`          | `list[V1LogLine]`          |
@@ -626,7 +639,7 @@ workflow.run(input, additional_metadata={"key": "value"})
 
 `Worker.register_workflow_from_opts`, which took a raw protobuf, has been removed. Use `worker.register_workflow(...)` with a workflow object instead. The internal `hatchet.dispatcher` and `hatchet.listener` properties are also no longer public.
 
-`from hatchet_sdk import Event` now resolves to the class actually returned by `hatchet.events.push()` (with `seen_at`, `additional_metadata`, etc.) rather than the V0 REST model. `V1Event` and `V1TaskSummary`, the types returned by `events.list()` and `runs.list()`, are now exported from the top level.
+`from hatchet_sdk import Event` now resolves to the SDK's own event class (with `seen_at`, `additional_metadata`, etc.) rather than the V0 REST model. Every method on the events client returns it. See [the `Event` class](#event-class-field-and-property-changes). `V1TaskSummary`, the type returned by `runs.list()`, is now exported from the top level.
 
 `from hatchet_sdk import Workflow` now resolves to the workflow class returned by `hatchet.workflow()`, and `Standalone`, the class returned by the `hatchet.task` family of decorators, is exported alongside it. The `Workflow` and `WorkflowVersion` REST models are no longer exported from the top level; import them from `hatchet_sdk.clients.rest.models`.
 
@@ -659,6 +672,46 @@ is_done = details.status == RunStatus.COMPLETED
 ```
 
 `V1TaskStatus` is no longer exported from `hatchet_sdk`, and the `RunStatus.from_proto`, `RunStatus.from_v1_task_status`, and `RunStatus.to_v1_task_status` conversion methods have been removed, since there is nothing left to convert between.
+
+#### Exceptions renamed to use the `Error` suffix
+
+`NonRetryableException` is now `NonRetryableError`, and `RetryAfterException` is now `RetryAfterError`, matching the rest of the SDK's exceptions and the names used by the other Hatchet SDKs. Their behavior is unchanged.
+
+```python
+# V1
+from hatchet_sdk import NonRetryableException, RetryAfterException
+
+raise NonRetryableException("Bad request")
+raise RetryAfterException("Rate limited", after=timedelta(seconds=30))
+
+# V2
+from hatchet_sdk import NonRetryableError, RetryAfterError
+
+raise NonRetryableError("Bad request")
+raise RetryAfterError("Rate limited", after=timedelta(seconds=30))
+```
+
+#### `ctx.task_run_errors` returns parsed errors
+
+In an on-failure task, `ctx.task_run_errors` now returns a `dict[str, TaskRunError]` keyed by task name, the same type `ctx.get_task_run_error(task)` returns. In V1 the values were serialized error strings. It also no longer logs an error when no upstream task failed, and returns an empty dictionary instead.
+
+```python
+# V1
+for task_name, serialized_error in ctx.task_run_errors.items():
+    print(task_name, serialized_error)
+
+# V2
+for task_name, error in ctx.task_run_errors.items():
+    print(task_name, error.exc_type, error.exc, error.trace)
+```
+
+#### Parameter names made consistent
+
+A few parameters were renamed so that the same concept has the same name everywhere. These only affect calls that pass the argument by keyword.
+
+- **Options.** `BulkCancelReplayOpts` is now `BulkCancelReplayOptions`, and the `opts` parameter on `runs.bulk_cancel`, `runs.bulk_replay`, and `workers.update` is now `options`.
+- **Scheduling.** The `run_at` parameter on `schedule` and `aio_schedule` is now `trigger_at`, matching `hatchet.scheduled.create(trigger_at=...)` and the `trigger_at` field on scheduled runs.
+- **Run IDs.** Methods that take a workflow run's ID call it `workflow_run_id`: `runs.get_result`, `runs.get_details`, and `get_run_ref`, `get_result`, and `aio_get_result` on a standalone task. Methods that take a task run's ID call it `task_run_id`, which now includes `runs.reset_durable_task`. `runs.cancel` and `runs.replay` keep `run_id`, since they accept either kind.
 
 #### "Step" names renamed to "task"
 
@@ -716,7 +769,29 @@ Enums that mixed in `str` (`RunStatus`, `HTTPMethod`, `SlotType`, `OTelAttribute
 
 #### `Event` class field and property changes
 
-The `event_timestamp` field and its deprecated camelCase aliases (`eventTimestamp`, `additionalMetadata`) have been removed from the `Event` class. Use the snake_case fields directly:
+V1 had two event classes: `Event`, returned by `events.push` and `events.bulk_push`, and the `V1Event` REST model, returned by `events.get` and `events.list`. In V2 every method on the events client returns `Event`, and `V1Event` is no longer exported from `hatchet_sdk`.
+
+`payload` and `additional_metadata` are now dictionaries rather than JSON strings, and `additional_metadata` is an empty dictionary when the event has none:
+
+```python
+# V1
+event = hatchet.events.push("user:create", {"user_id": "1"})
+payload = json.loads(event.payload)
+
+listed = hatchet.events.list(event_ids=[event.event_id])
+listed_id = listed[0].metadata.id
+
+# V2
+event = hatchet.events.push("user:create", {"user_id": "1"})
+payload = event.payload
+
+listed = hatchet.events.list(event_ids=[event.event_id])
+listed_id = listed[0].event_id
+```
+
+`workflow_run_summary` and `triggered_runs` are only set on events read back with `get` or `list`. They are `None` on the result of a push, since the runs have not been created yet.
+
+The `event_timestamp` field and its deprecated camelCase aliases (`eventTimestamp`, `additionalMetadata`) have also been removed. Use the snake_case fields directly:
 
 | V1                         | V2                          |
 | -------------------------- | --------------------------- |

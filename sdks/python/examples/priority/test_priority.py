@@ -158,7 +158,7 @@ async def test_priority_via_scheduling(
     versions = await asyncio.gather(
         *[
             priority_workflow.aio_schedule(
-                run_at=run_at,
+                trigger_at=run_at,
                 priority=(priority_to_enum(pr)),
                 additional_metadata={
                     "priority": pr,

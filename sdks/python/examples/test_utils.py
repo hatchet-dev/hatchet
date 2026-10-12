@@ -5,8 +5,7 @@ from typing import Any
 import tenacity
 from tenacity import stop_after_attempt, wait_exponential, wait_fixed
 
-from hatchet_sdk import Hatchet, RunStatus
-from hatchet_sdk.clients.rest.models.v1_event import V1Event
+from hatchet_sdk import Event, Hatchet, RunStatus
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 
 
@@ -93,9 +92,9 @@ async def wait_for_event(
     hatchet: Hatchet,
     webhook_name: str,
     test_start: datetime,
-) -> V1Event | None:
+) -> Event | None:
     @tenacity.retry(stop=stop_after_attempt(10), wait=wait_fixed(3))
-    async def get_events() -> V1Event | None:
+    async def get_events() -> Event | None:
         events = await hatchet.events.aio_list(since=test_start)
         if not events:
             raise Exception()

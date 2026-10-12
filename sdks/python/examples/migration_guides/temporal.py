@@ -94,7 +94,7 @@ async def trigger_process_order(order_id: str) -> FulfillOutput:
     schedule_timeout=timedelta(minutes=10),
 )
 async def charge_order_with_retries(input: OrderInput, ctx: Context) -> ChargeOutput:
-    # Raising `NonRetryableException` here would stop Hatchet from retrying at all.
+    # Raising `NonRetryableError` here would stop Hatchet from retrying at all.
     if ctx.retry_count < 2:
         raise RuntimeError(f"payment provider unavailable for {input.order_id}")
 

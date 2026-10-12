@@ -15,7 +15,7 @@ class WorkflowInput(BaseModel):
     group: str
 
 
-# The concurrency is declared on the TASK (step-level), not on the workflow. Step-level concurrency
+# The concurrency is declared on the TASK, not on the workflow. Task-level concurrency
 # is the only path served by the in-memory concurrency index, so this exercises that code path
 # rather than the legacy workflow-level DB path.
 concurrency_cancel_newest_task_level_workflow = hatchet.workflow(

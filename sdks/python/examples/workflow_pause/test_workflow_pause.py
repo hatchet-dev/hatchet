@@ -216,7 +216,7 @@ async def test_workflow_pause_drop_crons_and_schedules(hatchet: Hatchet) -> None
     # invisible for a few seconds. Always delete it, even when an assertion fails.
     try:
         await pausable_workflow.aio_schedule(
-            run_at=datetime.now(timezone.utc) + timedelta(seconds=1),
+            trigger_at=datetime.now(timezone.utc) + timedelta(seconds=1),
             additional_metadata={
                 "test_run_id": test_run_id,
             },

@@ -3,7 +3,7 @@ import datetime
 import json
 from typing import TYPE_CHECKING, cast
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 if TYPE_CHECKING:
     from hatchet_sdk.clients.rest.api.event_api import EventApi
@@ -11,6 +11,10 @@ if TYPE_CHECKING:
 
 from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.models.v1_event import V1Event
+from hatchet_sdk.clients.rest.models.v1_event_triggered_run import V1EventTriggeredRun
+from hatchet_sdk.clients.rest.models.v1_event_workflow_run_summary import (
+    V1EventWorkflowRunSummary,
+)
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 from hatchet_sdk.clients.v1.api_client import (
     BaseRestClient,
@@ -63,30 +67,57 @@ def _inject_source_info(
 
 
 class Event(BaseModel):
-    tenant_id: str
     event_id: str
+    tenant_id: str
     key: str
-    payload: str
-    additional_metadata: str | None = None
+    payload: JSONSerializableMapping
+    additional_metadata: JSONSerializableMapping
     scope: str | None = None
     seen_at: datetime.datetime
     triggering_webhook_name: str | None = None
+    workflow_run_summary: V1EventWorkflowRunSummary | None = Field(
+        default=None,
+        description="Counts of the runs this event triggered, by status. Only set on events read back from Hatchet, not on the result of a push.",
+    )
+    triggered_runs: list[V1EventTriggeredRun] | None = Field(
+        default=None,
+        description="The runs this event triggered. Only set on events read back from Hatchet, not on the result of a push.",
+    )
+    payloads_restricted: bool = Field(
+        default=False,
+        description="True when the payload was omitted because the caller cannot view payloads.",
+    )
 
     @classmethod
     def from_proto(cls, proto: EventProto) -> "Event":
-        additional_metadata = (
-            proto.additional_metadata if proto.HasField("additional_metadata") else None
-        )
-        scope = proto.scope if proto.HasField("scope") else None
-
         return cls(
-            tenant_id=proto.tenant_id,
             event_id=proto.event_id,
+            tenant_id=proto.tenant_id,
             key=proto.key,
-            payload=proto.payload,
-            additional_metadata=additional_metadata,
-            scope=scope,
+            payload=json.loads(proto.payload) if proto.payload else {},
+            additional_metadata=(
+                json.loads(proto.additional_metadata)
+                if proto.HasField("additional_metadata") and proto.additional_metadata
+                else {}
+            ),
+            scope=proto.scope if proto.HasField("scope") else None,
             seen_at=proto.event_timestamp.ToDatetime(tzinfo=datetime.UTC),
+        )
+
+    @classmethod
+    def from_rest_model(cls, rest_event: V1Event) -> "Event":
+        return cls(
+            event_id=rest_event.metadata.id,
+            tenant_id=rest_event.tenant_id,
+            key=rest_event.key,
+            payload=rest_event.payload or {},
+            additional_metadata=rest_event.additional_metadata or {},
+            scope=rest_event.scope,
+            seen_at=rest_event.seen_at or rest_event.metadata.created_at,
+            triggering_webhook_name=rest_event.triggering_webhook_name,
+            workflow_run_summary=rest_event.workflow_run_summary,
+            triggered_runs=rest_event.triggered_runs,
+            payloads_restricted=rest_event.payloads_restricted is True,
         )
 
 
@@ -418,7 +449,7 @@ class EventClient(BaseRestClient):
         event_ids: list[str] | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
         scopes: list[str] | None = None,
-    ) -> list[V1Event]:
+    ) -> list[Event]:
         """
         List events that were pushed to the tenant.
 
@@ -460,7 +491,7 @@ class EventClient(BaseRestClient):
         event_ids: list[str] | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
         scopes: list[str] | None = None,
-    ) -> list[V1Event]:
+    ) -> list[Event]:
         """
         List events that were pushed to the tenant.
 
@@ -493,12 +524,12 @@ class EventClient(BaseRestClient):
                 scopes=scopes,
             )
 
-            return el.rows or []
+            return [Event.from_rest_model(rest_event) for rest_event in el.rows or []]
 
     def get(
         self,
         event_id: str,
-    ) -> V1Event:
+    ) -> Event:
         """
         Retrieve an event by its ID.
 
@@ -506,15 +537,17 @@ class EventClient(BaseRestClient):
         :return: The requested event.
         """
         with self.client() as client:
-            return self._ea(client).v1_event_get(
-                tenant=self.client_config.tenant_id,
-                v1_event=event_id,
+            return Event.from_rest_model(
+                self._ea(client).v1_event_get(
+                    tenant=self.client_config.tenant_id,
+                    v1_event=event_id,
+                )
             )
 
     async def aio_get(
         self,
         event_id: str,
-    ) -> V1Event:
+    ) -> Event:
         """
         Retrieve an event by its ID.
 

@@ -598,20 +598,17 @@ class Context:
         return self._action.workflow_version_id
 
     @property
-    def task_run_errors(self) -> dict[str, str]:
+    def task_run_errors(self) -> dict[str, TaskRunError]:
         """
         A helper intended to be used in an on-failure task to retrieve the errors that occurred in upstream task runs.
 
-        :return: A dictionary mapping task names to their error messages.
+        :return: A dictionary mapping the name of each failed upstream task to its error. Empty if no upstream task failed.
         """
-        errors = self._data.task_run_errors
-
-        if not errors:
-            logger.error(
-                "no task run errors found. `context.task_run_errors` is intended to be run in an on-failure task"
-            )
-
-        return errors
+        return {
+            task_name: TaskRunError.deserialize(serialized_error)
+            for task_name, serialized_error in self._data.task_run_errors.items()
+            if serialized_error
+        }
 
     @property
     def workflow_name(self) -> str:
@@ -637,16 +634,9 @@ class Context:
         A helper intended to be used in an on-failure task to retrieve the error that occurred in a specific upstream task run.
 
         :param task: The task whose error you want to retrieve.
-        :return: The error message of the task run, or None if no error occurred.
+        :return: The error of the task run, or None if no error occurred.
         """
-        errors = self._data.task_run_errors
-
-        error = errors.get(task.name)
-
-        if not error:
-            return None
-
-        return TaskRunError.deserialize(error)
+        return self.task_run_errors.get(task.name)
 
 
 @dataclass

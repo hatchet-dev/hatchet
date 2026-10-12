@@ -14,7 +14,7 @@ def step1(input: None, ctx: Context) -> dict[str, str]:
     print("RESOURCE INTENSIVE PROCESS")
     time.sleep(10)
 
-    # 👀 Release the slot after the resource-intensive process, so that other steps can run
+    # 👀 Release the slot after the resource-intensive process, so that other tasks can run
     ctx.release_slot()
 
     print("NON RESOURCE INTENSIVE PROCESS")

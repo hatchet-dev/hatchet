@@ -507,7 +507,7 @@ async def test_engine_picks_most_recent_event(hatchet: Hatchet) -> None:
 
     res = await wait_for_event_lookback.aio_run(EventLookbackInput(user_id=user_id))
 
-    payload = cast(dict[str, str], json.loads(event.payload))
+    payload = cast(dict[str, str], event.payload)
 
     assert res.event.order == payload["order"]
 

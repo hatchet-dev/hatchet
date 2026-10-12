@@ -179,7 +179,7 @@ async def assert_has_runs(
     assert triggered_event.payload == expected_payload
 
     workflow_run = await wait_for_workflow_run(
-        hatchet, triggered_event.metadata.id, test_start
+        hatchet, triggered_event.event_id, test_start
     )
     assert workflow_run is not None
     assert workflow_run.status == RunStatus.COMPLETED
@@ -187,7 +187,7 @@ async def assert_has_runs(
 
     assert (
         workflow_run.additional_metadata["hatchet__event_id"]
-        == triggered_event.metadata.id
+        == triggered_event.event_id
     )
     assert workflow_run.additional_metadata["hatchet__event_key"] == triggered_event.key
 
@@ -230,7 +230,7 @@ async def test_scope_expression_from_payload(
             hatchet, incoming_webhook.name, test_start
         )
         assert triggered_event is not None
-        assert triggered_event.metadata.id == data["event"]["metadata"]["id"]
+        assert triggered_event.event_id == data["event"]["metadata"]["id"]
         assert triggered_event.scope == webhook_body_with_scope.scope
 
 
@@ -265,7 +265,7 @@ async def test_scope_expression_from_headers(
             hatchet, incoming_webhook.name, test_start
         )
         assert triggered_event is not None
-        assert triggered_event.metadata.id == data["event"]["metadata"]["id"]
+        assert triggered_event.event_id == data["event"]["metadata"]["id"]
         assert triggered_event.scope == "header-scope-value"
 
 
@@ -445,5 +445,5 @@ async def test_webhook_update_scope_expression(
             hatchet, incoming_webhook.name, test_start
         )
         assert triggered_event is not None
-        assert triggered_event.metadata.id == data["event"]["metadata"]["id"]
+        assert triggered_event.event_id == data["event"]["metadata"]["id"]
         assert triggered_event.scope == webhook_body_with_scope.scope

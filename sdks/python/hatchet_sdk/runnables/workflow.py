@@ -579,7 +579,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
     def schedule(
         self,
-        run_at: datetime,
+        trigger_at: datetime,
         input: TWorkflowInput = cast("TWorkflowInput", None),
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
@@ -588,7 +588,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         """
         Schedule a workflow to run at a specific time.
 
-        :param run_at: The time at which to schedule the workflow.
+        :param trigger_at: The time at which to schedule the workflow.
         :param input: The input data for the workflow.
         :param child_key: An optional key for deduplicating child workflow runs.
         :param additional_metadata: Additional metadata to attach to the workflow run.
@@ -596,7 +596,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         :returns: A `WorkflowVersion` object representing the scheduled workflow.
         """
-        opts = self._create_schedule_options_with_combined_metadata(
+        options = self._create_schedule_options_with_combined_metadata(
             child_key=child_key,
             additional_metadata=additional_metadata,
             priority=priority,
@@ -604,14 +604,14 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         return self._client._admin_client.schedule_workflow(
             name=self._config.name,
-            schedules=[run_at],
+            schedules=[trigger_at],
             input=self._serialize_input(input, target="bytes"),
-            options=opts,
+            options=options,
         )
 
     async def aio_schedule(
         self,
-        run_at: datetime,
+        trigger_at: datetime,
         input: TWorkflowInput = cast("TWorkflowInput", None),
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
@@ -620,7 +620,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         """
         Schedule a workflow to run at a specific time.
 
-        :param run_at: The time at which to schedule the workflow.
+        :param trigger_at: The time at which to schedule the workflow.
         :param input: The input data for the workflow.
         :param child_key: An optional key for deduplicating child workflow runs.
         :param additional_metadata: Additional metadata to attach to the workflow run.
@@ -630,7 +630,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         """
         return await asyncio.to_thread(
             self.schedule,
-            run_at=run_at,
+            trigger_at=trigger_at,
             input=input,
             child_key=child_key,
             additional_metadata=additional_metadata,
@@ -1016,7 +1016,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :raises RuntimeError: If the workflow is triggered within a durable context that supports durable eviction but fails to spawn a durable child workflow.
         """
 
-        opts = self._create_trigger_run_options_with_combined_additional_meta(
+        options = self._create_trigger_run_options_with_combined_additional_meta(
             child_key=child_key,
             additional_metadata=additional_metadata,
             priority=priority,
@@ -1030,7 +1030,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
             config = WorkflowRunTriggerConfig(
                 workflow_name=self._config.name,
                 input=self._serialize_input(input, target="bytes"),
-                options=opts,
+                options=options,
             )
             durable_spawn_results = await durable_ctx._spawn_children_no_wait([config])
             if not durable_spawn_results:
@@ -1054,7 +1054,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         ref = await self._client._admin_client.aio_run_workflow(
             workflow_name=self._config.name,
             input=self._serialize_input(input, target="bytes"),
-            options=opts,
+            options=options,
         )
 
         if not wait_for_result:
@@ -2217,35 +2217,35 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         """
         return self._task._is_async_function
 
-    def get_run_ref(self, run_id: str) -> TaskRunRef[TWorkflowInput, R]:
+    def get_run_ref(self, workflow_run_id: str) -> TaskRunRef[TWorkflowInput, R]:
         """
         Get a reference to a task run by its run ID.
 
-        :param run_id: The ID of the run to get the reference for.
+        :param workflow_run_id: The ID of the run to get the reference for.
         :returns: A `TaskRunRef` object representing the reference to the task run.
         """
-        wrr = self._workflow._client._runs_client.get_run_ref(run_id)
+        wrr = self._workflow._client._runs_client.get_run_ref(workflow_run_id)
         return TaskRunRef[TWorkflowInput, R](self, wrr)
 
-    async def aio_get_result(self, run_id: str) -> R:
+    async def aio_get_result(self, workflow_run_id: str) -> R:
         """
         Get the result of a task run by its run ID.
 
-        :param run_id: The ID of the run to get the result for.
+        :param workflow_run_id: The ID of the run to get the result for.
         :returns: The result of the task run.
         """
-        run_ref = self.get_run_ref(run_id)
+        run_ref = self.get_run_ref(workflow_run_id)
 
         return await run_ref.aio_result()
 
-    def get_result(self, run_id: str) -> R:
+    def get_result(self, workflow_run_id: str) -> R:
         """
         Get the result of a task run by its run ID.
 
-        :param run_id: The ID of the run to get the result for.
+        :param workflow_run_id: The ID of the run to get the result for.
         :returns: The result of the task run.
         """
-        run_ref = self.get_run_ref(run_id)
+        run_ref = self.get_run_ref(workflow_run_id)
 
         return run_ref.result()
 

@@ -590,7 +590,7 @@ class AdminClient:
             workflow_run_listener=self.workflow_run_listener,
         )
 
-    def get_details(self, external_id: str) -> WorkflowRunDetail:
+    def get_details(self, workflow_run_id: str) -> WorkflowRunDetail:
         client = self._get_or_create_v1_client()
         get_run_payloads = tenacity_retry(
             client.GetRunDetails,
@@ -600,13 +600,13 @@ class AdminClient:
         response = cast(
             "workflow_protos.GetRunDetailsResponse",
             get_run_payloads(
-                workflow_protos.GetRunDetailsRequest(external_id=external_id),
+                workflow_protos.GetRunDetailsRequest(external_id=workflow_run_id),
                 metadata=create_authorization_header(self.token),
             ),
         )
 
         return WorkflowRunDetail(
-            external_id=external_id,
+            external_id=workflow_run_id,
             input=(
                 json.loads(response.input.decode("utf-8")) if response.input else None
             ),

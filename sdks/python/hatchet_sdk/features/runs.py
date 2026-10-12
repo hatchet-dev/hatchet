@@ -61,12 +61,12 @@ class RunFilter(BaseModel):
     additional_metadata: dict[str, str] | None = None
 
 
-class BulkCancelReplayOpts(BaseModel):
+class BulkCancelReplayOptions(BaseModel):
     ids: list[str] | None = None
     filters: RunFilter | None = None
 
     @model_validator(mode="after")
-    def validate_model(self) -> BulkCancelReplayOpts:
+    def validate_model(self) -> BulkCancelReplayOptions:
         if not self.ids and not self.filters:
             raise ValueError("ids or filters must be set")
 
@@ -288,8 +288,8 @@ class RunsClient(BaseRestClient):
                 f"processing chunk {ix + 1}/{len(chunks)} of {len(chunk)} ids"  # noqa: G004
             )
 
-            opts = BulkCancelReplayOpts(ids=chunk)
-            func(opts=opts)
+            options = BulkCancelReplayOptions(ids=chunk)
+            func(options=options)
 
             time.sleep(sleep_time)
 
@@ -674,7 +674,7 @@ class RunsClient(BaseRestClient):
         :param run_id: The external ID of the task or workflow run to replay.
         :return: None
         """
-        self.bulk_replay(opts=BulkCancelReplayOpts(ids=[run_id]))
+        self.bulk_replay(options=BulkCancelReplayOptions(ids=[run_id]))
 
     async def aio_replay(self, run_id: str) -> None:
         """
@@ -685,27 +685,27 @@ class RunsClient(BaseRestClient):
         """
         return await asyncio.to_thread(self.replay, run_id)
 
-    def bulk_replay(self, opts: BulkCancelReplayOpts) -> None:
+    def bulk_replay(self, options: BulkCancelReplayOptions) -> None:
         """
         Replay task or workflow runs in bulk, according to a set of filters.
 
-        :param opts: Options for bulk replay, including filters and IDs.
+        :param options: Options for bulk replay, including filters and IDs.
         :return: None
         """
         with self.client() as client:
             self._ta(client).v1_task_replay(
                 tenant=self.client_config.tenant_id,
-                v1_replay_task_request=opts.to_request("replay"),
+                v1_replay_task_request=options.to_request("replay"),
             )
 
-    async def aio_bulk_replay(self, opts: BulkCancelReplayOpts) -> None:
+    async def aio_bulk_replay(self, options: BulkCancelReplayOptions) -> None:
         """
         Replay task or workflow runs in bulk, according to a set of filters.
 
-        :param opts: Options for bulk replay, including filters and IDs.
+        :param options: Options for bulk replay, including filters and IDs.
         :return: None
         """
-        return await asyncio.to_thread(self.bulk_replay, opts)
+        return await asyncio.to_thread(self.bulk_replay, options)
 
     def cancel(self, run_id: str) -> None:
         """
@@ -714,7 +714,7 @@ class RunsClient(BaseRestClient):
         :param run_id: The external ID of the task or workflow run to cancel.
         :return: None
         """
-        self.bulk_cancel(opts=BulkCancelReplayOpts(ids=[run_id]))
+        self.bulk_cancel(options=BulkCancelReplayOptions(ids=[run_id]))
 
     async def aio_cancel(self, run_id: str) -> None:
         """
@@ -725,47 +725,47 @@ class RunsClient(BaseRestClient):
         """
         return await asyncio.to_thread(self.cancel, run_id)
 
-    def bulk_cancel(self, opts: BulkCancelReplayOpts) -> None:
+    def bulk_cancel(self, options: BulkCancelReplayOptions) -> None:
         """
         Cancel task or workflow runs in bulk, according to a set of filters.
 
-        :param opts: Options for bulk cancel, including filters and IDs.
+        :param options: Options for bulk cancel, including filters and IDs.
         :return: None
         """
         with self.client() as client:
             self._ta(client).v1_task_cancel(
                 tenant=self.client_config.tenant_id,
-                v1_cancel_task_request=opts.to_request("cancel"),
+                v1_cancel_task_request=options.to_request("cancel"),
             )
 
-    async def aio_bulk_cancel(self, opts: BulkCancelReplayOpts) -> None:
+    async def aio_bulk_cancel(self, options: BulkCancelReplayOptions) -> None:
         """
         Cancel task or workflow runs in bulk, according to a set of filters.
 
-        :param opts: Options for bulk cancel, including filters and IDs.
+        :param options: Options for bulk cancel, including filters and IDs.
         :return: None
         """
-        return await asyncio.to_thread(self.bulk_cancel, opts)
+        return await asyncio.to_thread(self.bulk_cancel, options)
 
-    def get_result(self, run_id: str) -> JSONSerializableMapping:
+    def get_result(self, workflow_run_id: str) -> JSONSerializableMapping:
         """
         Get the result of a workflow run by its external ID.
 
-        :param run_id: The external ID of the workflow run to retrieve the result for.
+        :param workflow_run_id: The external ID of the workflow run to retrieve the result for.
         :return: The result of the workflow run.
         """
-        details = self.get(run_id)
+        details = self.get(workflow_run_id)
 
         return details.run.output
 
-    async def aio_get_result(self, run_id: str) -> JSONSerializableMapping:
+    async def aio_get_result(self, workflow_run_id: str) -> JSONSerializableMapping:
         """
         Get the result of a workflow run by its external ID.
 
-        :param run_id: The external ID of the workflow run to retrieve the result for.
+        :param workflow_run_id: The external ID of the workflow run to retrieve the result for.
         :return: The result of the workflow run.
         """
-        details = await asyncio.to_thread(self.get, run_id)
+        details = await asyncio.to_thread(self.get, workflow_run_id)
 
         return details.run.output
 
@@ -803,12 +803,12 @@ class RunsClient(BaseRestClient):
                 yield chunk.payload
 
     def reset_durable_task(
-        self, task_external_id: str, node_id: int, branch_id: int
+        self, task_run_id: str, node_id: int, branch_id: int
     ) -> V1BranchDurableTaskResponse:
         """
         Reset a durable task from a specific node id, creating a new branch.
 
-        :param task_external_id: The external ID (UUID) of the durable task to reset.
+        :param task_run_id: The external ID (UUID) of the durable task run to reset.
         :param node_id: The node ID to replay from.
         :param branch_id: The branch ID to replay from.
         :return: The reset response containing the new node_id and branch_id.
@@ -817,27 +817,27 @@ class RunsClient(BaseRestClient):
             return self._wra(client).v1_durable_task_branch(
                 tenant=self.client_config.tenant_id,
                 v1_branch_durable_task_request=V1BranchDurableTaskRequest(
-                    taskExternalId=task_external_id, nodeId=node_id, branchId=branch_id
+                    taskExternalId=task_run_id, nodeId=node_id, branchId=branch_id
                 ),
             )
 
     async def aio_reset_durable_task(
-        self, task_external_id: str, node_id: int, branch_id: int
+        self, task_run_id: str, node_id: int, branch_id: int
     ) -> V1BranchDurableTaskResponse:
         """
         Reset a durable task from a specific node id, creating a new branch.
 
-        :param task_external_id: The external ID (UUID) of the durable task to reset.
+        :param task_run_id: The external ID (UUID) of the durable task run to reset.
         :param node_id: The node ID to replay from.
         :param branch_id: The branch ID to replay from.
         :return: The reset response containing the new node_id and branch_id.
         """
         return await asyncio.to_thread(
-            self.reset_durable_task, task_external_id, node_id, branch_id
+            self.reset_durable_task, task_run_id, node_id, branch_id
         )
 
-    def get_details(self, external_id: str) -> WorkflowRunDetail:
-        return self._admin_client.get_details(external_id=external_id)
+    def get_details(self, workflow_run_id: str) -> WorkflowRunDetail:
+        return self._admin_client.get_details(workflow_run_id=workflow_run_id)
 
-    async def aio_get_details(self, external_id: str) -> WorkflowRunDetail:
-        return await asyncio.to_thread(self._admin_client.get_details, external_id)
+    async def aio_get_details(self, workflow_run_id: str) -> WorkflowRunDetail:
+        return await asyncio.to_thread(self._admin_client.get_details, workflow_run_id)

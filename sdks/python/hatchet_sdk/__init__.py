@@ -11,7 +11,6 @@ os.environ.setdefault("GRPC_ENABLE_FORK_SUPPORT", "true" if _grpc_fork else "fal
 if _grpc_fork:
     os.environ.setdefault("GRPC_POLL_STRATEGY", "poll")
 
-from hatchet_sdk.clients.rest.models.v1_event import V1Event
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 from hatchet_sdk.clients.rest.models.v1_webhook_hmac_algorithm import (
     V1WebhookHMACAlgorithm,
@@ -51,13 +50,13 @@ from hatchet_sdk.exceptions import (
     FailedTaskRunExceptionGroup,
     IdempotencyCollisionError,
     NonDeterminismError,
-    NonRetryableException,
-    RetryAfterException,
+    NonRetryableError,
+    RetryAfterError,
     TaskRunError,
 )
 from hatchet_sdk.features.cel import CELEvaluationResult, CELFailure, CELSuccess
 from hatchet_sdk.features.events import Event
-from hatchet_sdk.features.runs import BulkCancelReplayOpts, RunFilter
+from hatchet_sdk.features.runs import BulkCancelReplayOptions, RunFilter
 from hatchet_sdk.hatchet import Hatchet
 from hatchet_sdk.runnables.eviction import EvictionPolicy
 from hatchet_sdk.runnables.task import Depends, Task
@@ -93,7 +92,7 @@ from hatchet_sdk.worker.worker import Worker, WorkerStatus
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
 __all__ = [
-    "BulkCancelReplayOpts",
+    "BulkCancelReplayOptions",
     "BulkPushEventWithMetadata",
     "BulkTriggerIdempotencyCollisionError",
     "CELEvaluationResult",
@@ -120,7 +119,7 @@ __all__ = [
     "HealthcheckConfig",
     "IdempotencyCollisionError",
     "NonDeterminismError",
-    "NonRetryableException",
+    "NonRetryableError",
     "OTelAttribute",
     "OpenTelemetryConfig",
     "OrGroup",
@@ -128,7 +127,7 @@ __all__ = [
     "ParentCondition",
     "Priority",
     "RateLimit",
-    "RetryAfterException",
+    "RetryAfterError",
     "RunFilter",
     "RunStatus",
     "SleepCondition",
@@ -143,7 +142,6 @@ __all__ = [
     "TaskRunRef",
     "TenacityConfig",
     "UserEventCondition",
-    "V1Event",
     "V1TaskSummary",
     "V1WebhookHMACAlgorithm",
     "V1WebhookHMACEncoding",
