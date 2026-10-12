@@ -40,11 +40,17 @@ type TimingOption = 'now' | 'schedule' | 'cron';
 
 export function TriggerWorkflowForm({
   defaultWorkflow,
+  defaultWorkflowId = defaultWorkflow?.metadata.id,
+  defaultInput = '{}',
+  defaultAddlMeta = '{}',
   show,
   onClose,
   defaultTimingOption = 'now',
 }: {
   defaultWorkflow?: Workflow;
+  defaultWorkflowId?: string;
+  defaultInput?: string;
+  defaultAddlMeta?: string;
   show: boolean;
   onClose: () => void;
   defaultTimingOption?: TimingOption;
@@ -54,8 +60,8 @@ export function TriggerWorkflowForm({
   const navigate = useNavigate();
   const canWrite = useCanWrite();
 
-  const [input, setInput] = useState<string | undefined>('{}');
-  const [addlMeta, setAddlMeta] = useState<string | undefined>('{}');
+  const [input, setInput] = useState<string | undefined>(defaultInput);
+  const [addlMeta, setAddlMeta] = useState<string | undefined>(defaultAddlMeta);
   const [errors, setErrors] = useState<string[]>([]);
 
   const [timingOption, setTimingOption] =
@@ -66,9 +72,8 @@ export function TriggerWorkflowForm({
   const [cronExpression, setCronExpression] = useState<string>('* * * * *');
   const [cronName, setCronName] = useState<string>('');
 
-  const [selectedWorkflowId, setSelectedWorkflowId] = useState(
-    defaultWorkflow?.metadata.id,
-  );
+  const [selectedWorkflowId, setSelectedWorkflowId] =
+    useState(defaultWorkflowId);
 
   const [workflowSearch, setWorkflowSearch] = useState('');
   const [debouncedWorkflowSearch, setDebouncedWorkflowSearch] = useState('');
@@ -101,10 +106,10 @@ export function TriggerWorkflowForm({
 
   const handleClose = useCallback(() => {
     onClose();
-    setInput('{}');
-    setAddlMeta('{}');
+    setInput(defaultInput);
+    setAddlMeta(defaultAddlMeta);
     setErrors([]);
-    setSelectedWorkflowId(defaultWorkflow?.metadata.id);
+    setSelectedWorkflowId(defaultWorkflowId);
     setTimingOption(defaultTimingOption);
     setScheduleTime(new Date());
     setCronExpression('* * * * *');
@@ -112,7 +117,14 @@ export function TriggerWorkflowForm({
     setWorkflowSearch('');
     setDebouncedWorkflowSearch('');
     debouncedSetSearch.cancel();
-  }, [onClose, defaultWorkflow, defaultTimingOption, debouncedSetSearch]);
+  }, [
+    onClose,
+    defaultWorkflowId,
+    defaultInput,
+    defaultAddlMeta,
+    defaultTimingOption,
+    debouncedSetSearch,
+  ]);
 
   const cronPretty = useMemo(() => {
     try {
