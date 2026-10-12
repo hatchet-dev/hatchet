@@ -14,14 +14,12 @@ import (
 
 const memLimitRefreshInterval = time.Minute
 
-// SetMemoryLimit
-// FROM: https://github.com/KimMachineGun/automemlimit#usage
-// // Importing this package sets GOMEMLIMIT automatically from the cgroup memory limit.
-// // By default, it sets GOMEMLIMIT to 90% of the cgroup memory limit.
-// // Set the AUTOMEMLIMIT environment variable to a ratio in (0.0, 1.0], or "off".
-// re-reads the limit every minute ( to support VPA in place resize).
+// SetMemoryLimit sets GOMEMLIMIT to 90% of the cgroup memory limit and refreshes it every
+// minute to follow in-place pod resizes. A GOMEMLIMIT env var takes precedence;
+// AUTOMEMLIMIT=<ratio> changes the ratio and AUTOMEMLIMIT=off disables it.
 func SetMemoryLimit(ctx context.Context) {
-	// Info level drops the "GOMEMLIMIT is unchanged" debug line logged on every refresh.
+	// automemlimit logs "GOMEMLIMIT is unchanged" at debug on every refresh; capping at info
+	// keeps only startup and actual-change lines.
 	l := logger.NewDefaultLogger("memlimit").Level(zerolog.InfoLevel)
 
 	_, _ = memlimit.Set(
