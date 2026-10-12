@@ -96,7 +96,13 @@ func runSetPassword(cf *loader.ConfigLoader, email string, in io.Reader) error {
 		return fmt.Errorf("%d session(s) revoked but could not update password for %s: %w", len(sessions), email, err)
 	}
 
-	fmt.Printf("%d session(s) revoked, password updated for %s\n", len(sessions), email)
+	late, err := dc.V1.UserSession().DeleteByUserId(ctx, user.ID, nil)
+
+	if err != nil {
+		return fmt.Errorf("password updated for %s but could not revoke sessions created during the reset: %w", email, err)
+	}
+
+	fmt.Printf("%d session(s) revoked, password updated for %s\n", len(sessions)+len(late), email)
 
 	return nil
 }

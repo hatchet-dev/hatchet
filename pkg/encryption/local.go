@@ -114,7 +114,7 @@ func checkFIPSKeyset(h *keyset.Handle) error {
 
 	for _, k := range h.KeysetInfo().GetKeyInfo() {
 		if k.GetTypeUrl() == aesGCMKeyTypeURL {
-			return fmt.Errorf("master keyset uses AES-GCM, which is not FIPS-approved: run `hatchet-admin keyset create-local-keys` from a FIPS build to regenerate the master and JWT keysets together, then re-create secrets encrypted under the old master key (OAuth tokens, Slack and inbound webhook credentials)")
+			return fmt.Errorf("master keyset uses AES-GCM, which is not FIPS-approved: run `hatchet-admin keyset create-local-keys` from a FIPS build to regenerate the master and JWT keysets together; secrets encrypted under the old master key (OAuth tokens, Slack and inbound webhook credentials) must be re-created and every API token must be reissued, see https://docs.hatchet.run/self-hosting/fips")
 		}
 	}
 
