@@ -52,8 +52,8 @@ from hatchet_sdk.runnables.types import (
     BatchMemberId,
     BatchTaskConfig,
     R,
-    StepType,
     TaskIOValidator,
+    TaskType,
     TWorkflowInput,
     TWorkflowInput_contra,
     is_async_fn,
@@ -154,7 +154,7 @@ class Task(Generic[TWorkflowInput, R]):
             )
         ),
         is_durable: bool,
-        type: StepType,
+        type: TaskType,
         workflow: "Workflow[TWorkflowInput]",
         name: str,
         execution_timeout: timedelta,
@@ -219,7 +219,7 @@ class Task(Generic[TWorkflowInput, R]):
 
         self._validators: TaskIOValidator = TaskIOValidator(
             workflow_input=workflow._config.input_validator,
-            step_output=TypeAdapter(normalize_validator(return_type)),
+            task_output=TypeAdapter(normalize_validator(return_type)),
         )
 
         if not self._is_async_function and self._is_durable:
@@ -545,8 +545,8 @@ class Task(Generic[TWorkflowInput, R]):
             job_id=str(uuid4()),
             job_name="mock-job-name",
             job_run_id=str(uuid4()),
-            step_id=str(uuid4()),
-            step_run_id=str(uuid4()),
+            task_id=str(uuid4()),
+            task_run_external_id=str(uuid4()),
             action_id="mock:action",
             action_payload=action_payload,
             action_type=ActionType.START_STEP_RUN,
@@ -593,7 +593,7 @@ class Task(Generic[TWorkflowInput, R]):
 
         :param input: The input to the task.
         :param additional_metadata: Additional metadata to attach to the task.
-        :param parent_outputs: Outputs from parent tasks, if any. This is useful for mimicking DAG functionality. For instance, if you have a task `step_2` that has a `parent` which is `step_1`, you can pass `parent_outputs={"step_1": {"result": "Hello, world!"}}` to `step_2.mock_run()` to be able to access `ctx.task_output(step_1)` in `step_2`.
+        :param parent_outputs: Outputs from parent tasks, if any. This is useful for mimicking DAG functionality. For instance, if you have a task `task_2` that has a `parent` which is `task_1`, you can pass `parent_outputs={"task_1": {"result": "Hello, world!"}}` to `task_2.mock_run()` to be able to access `ctx.task_output(task_1)` in `task_2`.
         :param retry_count: The number of times the task has been retried.
         :param lifespan: The lifespan to be used in the task, which is useful if one was set on the worker. This will allow you to access `ctx.lifespan` inside of your task.
         :param dependencies: Dependencies to be injected into the task. This is useful for tasks that have dependencies defined using `Depends`. **IMPORTANT**: You must pass the dependencies _directly_, **not** the `Depends` objects themselves. For example, if you have a task that has a dependency `config: Annotated[str, Depends(get_config)]`, you should pass `dependencies={"config": "config_value"}` to `aio_mock_run`.
@@ -629,7 +629,7 @@ class Task(Generic[TWorkflowInput, R]):
 
         :param input: The input to the task.
         :param additional_metadata: Additional metadata to attach to the task.
-        :param parent_outputs: Outputs from parent tasks, if any. This is useful for mimicking DAG functionality. For instance, if you have a task `step_2` that has a `parent` which is `step_1`, you can pass `parent_outputs={"step_1": {"result": "Hello, world!"}}` to `step_2.mock_run()` to be able to access `ctx.task_output(step_1)` in `step_2`.
+        :param parent_outputs: Outputs from parent tasks, if any. This is useful for mimicking DAG functionality. For instance, if you have a task `task_2` that has a `parent` which is `task_1`, you can pass `parent_outputs={"task_1": {"result": "Hello, world!"}}` to `task_2.mock_run()` to be able to access `ctx.task_output(task_1)` in `task_2`.
         :param retry_count: The number of times the task has been retried.
         :param lifespan: The lifespan to be used in the task, which is useful if one was set on the worker. This will allow you to access `ctx.lifespan` inside of your task.
         :param dependencies: Dependencies to be injected into the task. This is useful for tasks that have dependencies defined using `Depends`. **IMPORTANT**: You must pass the dependencies _directly_, **not** the `Depends` objects themselves. For example, if you have a task that has a dependency `config: Annotated[str, Depends(get_config)]`, you should pass `dependencies={"config": "config_value"}` to `aio_mock_run`.
@@ -655,8 +655,8 @@ class Task(Generic[TWorkflowInput, R]):
 
     @property
     def output_validator(self) -> TypeAdapter[R]:
-        return cast("TypeAdapter[R]", self._validators.step_output)
+        return cast("TypeAdapter[R]", self._validators.task_output)
 
     @property
     def output_validator_type(self) -> type[R]:
-        return cast("type[R]", self._validators.step_output._type)
+        return cast("type[R]", self._validators.task_output._type)

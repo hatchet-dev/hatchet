@@ -7,7 +7,7 @@ from examples.concurrency_cancel_newest.worker import (
     concurrency_cancel_newest_workflow,
 )
 from examples.test_utils import poll_for_runs
-from hatchet_sdk import Hatchet, V1TaskStatus
+from hatchet_sdk import Hatchet, RunStatus
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -46,14 +46,14 @@ async def test_run(hatchet: Hatchet, test_run_id: str) -> None:
         hatchet,
         expected_count=11,
         additional_metadata={"test_run_id": test_run_id},
-        statuses=[V1TaskStatus.COMPLETED, V1TaskStatus.CANCELLED],
+        statuses=[RunStatus.COMPLETED, RunStatus.CANCELLED],
     )
 
     successful_run = hatchet.runs.get(to_run.workflow_run_id)
 
-    assert successful_run.run.status == V1TaskStatus.COMPLETED
+    assert successful_run.run.status == RunStatus.COMPLETED
     assert all(
-        r.status == V1TaskStatus.CANCELLED
+        r.status == RunStatus.CANCELLED
         for r in hatchet.runs.list(additional_metadata={"test_run_id": test_run_id})
         if r.metadata.id != to_run.workflow_run_id
     )

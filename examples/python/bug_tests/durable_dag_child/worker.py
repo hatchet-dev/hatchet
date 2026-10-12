@@ -4,7 +4,6 @@ from hatchet_sdk import (
     Context,
     DurableContext,
     Hatchet,
-    TriggerWorkflowOptions,
 )
 
 hatchet = Hatchet()

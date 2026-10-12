@@ -17,11 +17,11 @@ from examples.events.worker import (
     event_workflow,
 )
 from examples.test_utils import poll_for_runs
-from hatchet_sdk.clients.events import (
+from hatchet_sdk.features.events import (
     BulkPushEventWithMetadata,
     Event,
 )
-from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
+from hatchet_sdk.types.run_status import RunStatus
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 from hatchet_sdk import Hatchet, Priority
 
@@ -87,8 +87,7 @@ async def fetch_runs_for_event(
 
     if not all(
         [
-            r.status
-            in [V1TaskStatus.COMPLETED, V1TaskStatus.FAILED, V1TaskStatus.CANCELLED]
+            r.status in [RunStatus.COMPLETED, RunStatus.FAILED, RunStatus.CANCELLED]
             for r in runs
         ]
     ):
@@ -128,9 +127,9 @@ async def wait_for_result(
             or any(
                 e.status
                 not in [
-                    V1TaskStatus.COMPLETED,
-                    V1TaskStatus.FAILED,
-                    V1TaskStatus.CANCELLED,
+                    RunStatus.COMPLETED,
+                    RunStatus.FAILED,
+                    RunStatus.CANCELLED,
                 ]
                 for e in event_run
             )
@@ -144,7 +143,7 @@ async def wait_for_result(
         event_id_to_runs = {event_id: runs for (event_id, runs) in event_runs}
 
         any_queued_or_running = any(
-            run.status in [V1TaskStatus.QUEUED, V1TaskStatus.RUNNING]
+            run.status in [RunStatus.QUEUED, RunStatus.RUNNING]
             for runs in event_id_to_runs.values()
             for run in runs
         )
@@ -196,7 +195,7 @@ async def assert_event_runs_processed(
         assert len(runs) > 0
 
         for run in runs:
-            assert run.status == V1TaskStatus.COMPLETED
+            assert run.status == RunStatus.COMPLETED
 
             meta = run.additional_metadata or {}
             assert meta.get("test_run_id") == event.test_run_id

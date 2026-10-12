@@ -14,7 +14,6 @@ from pydantic import BaseModel, TypeAdapter
 
 from hatchet_sdk.clients.admin import AdminClient
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
-from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.clients.listeners.durable_event_listener import (
     DurableEventListener,
 )
@@ -38,6 +37,7 @@ from hatchet_sdk.exceptions import (
     RetryAfterException,
     TaskRunError,
 )
+from hatchet_sdk.features.events import EventClient
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import (
@@ -52,8 +52,8 @@ from hatchet_sdk.runnables.contextvars import (
     ctx_durable_context,
     ctx_hatchet_context,
     ctx_hatchet_span_attributes,
-    ctx_step_run_id,
     ctx_task_retry_count,
+    ctx_task_run_external_id,
     ctx_worker_id,
     ctx_workflow_run_id,
     spawn_index_lock,
@@ -229,11 +229,13 @@ class Runner:
         t: asyncio.Task[Exception | None] | None = None
         match action.action_type:
             case ActionType.START_STEP_RUN:
-                log = f"run: start step: {action.action_id}/{action.step_run_id}"
+                log = (
+                    f"run: start task: {action.action_id}/{action.task_run_external_id}"
+                )
                 logger.info(log)
-                t = asyncio.create_task(self.handle_start_step_run(action))
+                t = asyncio.create_task(self.handle_start_task_run(action))
             case ActionType.CANCEL_STEP_RUN:
-                log = f"cancel: step run:  {action.action_id}/{action.step_run_id}/{action.retry_count}"
+                log = f"cancel: task run:  {action.action_id}/{action.task_run_external_id}/{action.retry_count}"
                 logger.info(log)
                 t = asyncio.create_task(self.handle_cancel_action(action))
             case ActionType.START_BATCH:
@@ -257,7 +259,7 @@ class Runner:
                 self.durable_event_listener, DurableEventListener
             ) and isinstance(ctx, DurableContext):
                 self.durable_event_listener.cleanup_task_state(
-                    ctx._step_run_id, ctx.invocation_count
+                    ctx._task_run_external_id, ctx.invocation_count
                 )
             self.cancellations[key] = True
         if key in self.tasks:
@@ -282,7 +284,7 @@ class Runner:
             if isinstance(ctx, DurableContext):
                 invocation_count = ctx.invocation_count
         await self.durable_event_listener.send_evict_invocation(
-            durable_task_external_id=rec.step_run_id,
+            durable_task_external_id=rec.task_run_external_id,
             invocation_count=invocation_count,
             reason=rec.eviction_reason,
         )
@@ -302,7 +304,7 @@ class Runner:
 
         return e.after_ms
 
-    def step_run_callback(
+    def task_run_callback(
         self, action: Action, t: Task[TWorkflowInput, R]
     ) -> Callable[[asyncio.Task[Any]], None]:
         def inner_callback(task: asyncio.Task[Any]) -> None:
@@ -318,7 +320,7 @@ class Runner:
                 should_not_retry = isinstance(e, NonRetryableException)
                 retry_after_ms = self._retry_after_ms(e, action.action_id, t.retries)
 
-                exc = TaskRunError.from_exception(e, action.step_run_id)
+                exc = TaskRunError.from_exception(e, action.task_run_external_id)
 
                 # This except is coming from the application itself, so we want to send that to the Hatchet instance
                 self.event_queue.put(
@@ -338,13 +340,13 @@ class Runner:
                 log_with_level = logger.info if log_as_info else logger.exception
 
                 log_with_level(
-                    f"failed step run: {action.action_id}/{action.step_run_id}\n{exc.serialize(include_metadata=False)}"
+                    f"failed task run: {action.action_id}/{action.task_run_external_id}\n{exc.serialize(include_metadata=False)}"
                 )
 
                 return
 
             try:
-                output = self.serialize_output(t._validators.step_output, output)
+                output = self.serialize_output(t._validators.task_output, output)
 
                 self.event_queue.put(
                     ActionEvent(
@@ -355,7 +357,7 @@ class Runner:
                     )
                 )
             except IllegalTaskOutputError as e:
-                exc = TaskRunError.from_exception(e, action.step_run_id)
+                exc = TaskRunError.from_exception(e, action.task_run_external_id)
                 self.event_queue.put(
                     ActionEvent(
                         action=action,
@@ -366,12 +368,14 @@ class Runner:
                 )
 
                 logger.exception(
-                    f"failed step run: {action.action_id}/{action.step_run_id}\n{exc.serialize(include_metadata=False)}"
+                    f"failed task run: {action.action_id}/{action.task_run_external_id}\n{exc.serialize(include_metadata=False)}"
                 )
 
                 return
 
-            logger.info(f"finished step run: {action.action_id}/{action.step_run_id}")
+            logger.info(
+                f"finished task run: {action.action_id}/{action.task_run_external_id}"
+            )
 
         return inner_callback
 
@@ -382,7 +386,7 @@ class Runner:
         action: Action,
         dependencies: dict[str, Any],
     ) -> R:
-        if action.step_run_id:
+        if action.task_run_external_id:
             self.threads[action.key] = current_thread()
 
         return task.call(ctx, dependencies)
@@ -394,7 +398,7 @@ class Runner:
         task: Task[TWorkflowInput, R],
         action: Action,
     ) -> R:
-        ctx_step_run_id.set(action.step_run_id)
+        ctx_task_run_external_id.set(action.task_run_external_id)
         ctx_workflow_run_id.set(action.workflow_run_id)
         ctx_worker_id.set(action.worker_id)
         ctx_action_key.set(action.key)
@@ -416,8 +420,8 @@ class Runner:
                     [
                         ContextVarToCopy(
                             var=ContextVarToCopyStr(
-                                name="ctx_step_run_id",
-                                value=action.step_run_id,
+                                name="ctx_task_run_external_id",
+                                value=action.task_run_external_id,
                             )
                         ),
                         ContextVarToCopy(
@@ -551,7 +555,7 @@ class Runner:
             if broadcast:
                 try:
                     serialized = self.serialize_output(
-                        task._validators.step_output, outputs
+                        task._validators.task_output, outputs
                     )
                     if not serialized:
                         raise ValueError(
@@ -605,26 +609,26 @@ class Runner:
                 input_ids = set(action.batch_items)
                 if diff := output_ids.difference(input_ids):
                     raise ValueError(
-                        f"Batch task '{action_id}' returned outputs for unknown step run ids: {diff}"
+                        f"Batch task '{action_id}' returned outputs for unknown task run ids: {diff}"
                     )
 
                 completed_items: list[BatchEventItem] = []
                 failed_items: list[BatchEventItem] = []
 
-                for step_run_id, output in outputs.items():
+                for task_run_external_id, output in outputs.items():
                     try:
                         serialized = self.serialize_output(
-                            task._validators.step_output, output
+                            task._validators.task_output, output
                         )
                         if not serialized:
                             raise ValueError(
-                                f"Batch task {action_id} has step run id {step_run_id} with empty output"
+                                f"Batch task {action_id} has task run id {task_run_external_id} with empty output"
                             )
                     except Exception as e:
-                        exc = TaskRunError.from_exception(e, step_run_id)
+                        exc = TaskRunError.from_exception(e, task_run_external_id)
                         failed_items.append(
                             BatchEventItem(
-                                task_run_external_id=step_run_id,
+                                task_run_external_id=task_run_external_id,
                                 payload=exc.serialize(include_metadata=True),
                                 should_not_retry=False,
                             )
@@ -633,7 +637,7 @@ class Runner:
 
                     completed_items.append(
                         BatchEventItem(
-                            task_run_external_id=step_run_id,
+                            task_run_external_id=task_run_external_id,
                             payload=serialized,
                         )
                     )
@@ -764,7 +768,7 @@ class Runner:
                 self.durable_event_listener, DurableEventListener
             ) and isinstance(ctx, DurableContext):
                 self.durable_event_listener.cleanup_task_state(
-                    ctx._step_run_id, ctx.invocation_count
+                    ctx._task_run_external_id, ctx.invocation_count
                 )
             del self.contexts[key]
 
@@ -831,7 +835,7 @@ class Runner:
 
         return ctx
 
-    async def handle_start_step_run(self, action: Action) -> Exception | None:
+    async def handle_start_task_run(self, action: Action) -> Exception | None:
         action_name = action.action_id
 
         # Find the corresponding action function from the registry
@@ -857,7 +861,7 @@ class Runner:
             if action_func._is_durable and self.durable_eviction_manager is not None:
                 self.durable_eviction_manager.register_run(
                     action.key,
-                    step_run_id=action.step_run_id,
+                    task_run_external_id=action.task_run_external_id,
                     # FIXME: why is the engine returning nil for this?
                     invocation_count=action.durable_task_invocation_count or 1,
                     eviction_policy=action_func.eviction_policy,
@@ -868,7 +872,7 @@ class Runner:
                 self.async_wrapped_action_func(context, action_func, action)
             )
 
-            task.add_done_callback(self.step_run_callback(action, action_func))
+            task.add_done_callback(self.task_run_callback(action, action_func))
             self.tasks[action.key] = task
             self._start_counting_slots(action.key, action_func._slot_requests)
 
@@ -882,7 +886,7 @@ class Runner:
                 ## Used for the OTel instrumentor to capture exceptions
                 return e
 
-        ## Once the step run completes, we need to remove the workflow spawn index
+        ## Once the task run completes, we need to remove the workflow spawn index
         ## so we don't leak memory
         if action.key in workflow_spawn_indices:
             async with spawn_index_lock:

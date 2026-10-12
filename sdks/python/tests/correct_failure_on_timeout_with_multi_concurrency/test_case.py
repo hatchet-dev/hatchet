@@ -4,8 +4,8 @@ from typing import Any
 
 import pytest
 
-from hatchet_sdk import Hatchet, TriggerWorkflowOptions
-from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
+from hatchet_sdk import Hatchet
+from hatchet_sdk.types.run_status import RunStatus
 from tests.correct_failure_on_timeout_with_multi_concurrency.workflow import (
     TIMEOUT_SECONDS,
     InputModel,
@@ -49,12 +49,12 @@ async def test_failure_on_timeout(
             for r in runs
         }
         if all(
-            run.run.status == V1TaskStatus.FAILED and len(run.task_events) > 1
+            run.run.status == RunStatus.FAILED and len(run.task_events) > 1
             for run in results.values()
         ):
             break
         await asyncio.sleep(0.5)
 
     for run in results.values():
-        assert run.run.status == V1TaskStatus.FAILED
+        assert run.run.status == RunStatus.FAILED
         assert len(run.task_events) > 1

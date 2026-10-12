@@ -624,6 +624,20 @@ def patch_workflows_pyi_reexport(content: str) -> str:
     return content + reexport
 
 
+def replace_generated_task_status_enum_with_run_status(content: str) -> str:
+    reexport = "from hatchet_sdk.types.run_status import RunStatus as V1TaskStatus"
+
+    if reexport in content:
+        return content
+
+    return (
+        "# The generated REST models refer to this enum as `V1TaskStatus`. Re-exporting the SDK's\n"
+        "# `RunStatus` under that name means API responses carry `RunStatus` members directly.\n"
+        f"{reexport}\n\n"
+        '__all__ = ["V1TaskStatus"]\n'
+    )
+
+
 def rewrite_generated_init_with_lazy_imports(content: str) -> str:
     """Rewrite a generated `__init__.py` so each re-exported name is imported on
     first attribute access (PEP 562) instead of eagerly at package import.
@@ -694,6 +708,11 @@ if __name__ == "__main__":
     atomically_patch_file(
         "hatchet_sdk/clients/rest/models/workflow_runs_metrics.py",
         [patch_workflow_run_metrics_counts_return_type],
+    )
+
+    atomically_patch_file(
+        "hatchet_sdk/clients/rest/models/v1_task_status.py",
+        [replace_generated_task_status_enum_with_run_status],
     )
 
     atomically_patch_file(

@@ -2,8 +2,8 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING, Any, TypeVar
 
-from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.config import ClientConfig
+from hatchet_sdk.features.events import EventClient
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import Action
 from hatchet_sdk.runnables.task import Task

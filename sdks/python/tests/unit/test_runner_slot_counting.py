@@ -50,8 +50,8 @@ def _make_action(task: Any, action_type: ActionType, **batch_fields: Any) -> Act
         job_id=str(uuid4()),
         job_name="job-name",
         job_run_id=str(uuid4()),
-        step_id=str(uuid4()),
-        step_run_id=str(uuid4()),
+        task_id=str(uuid4()),
+        task_run_external_id=str(uuid4()),
         action_id=task.name,
         action_type=action_type,
         retry_count=0,
@@ -85,7 +85,7 @@ async def test_task_stops_being_counted_when_it_releases_its_slot(
     runner = _make_runner(hatchet, task)
 
     run = asyncio.create_task(
-        runner.handle_start_step_run(_make_action(task, ActionType.START_STEP_RUN))
+        runner.handle_start_task_run(_make_action(task, ActionType.START_STEP_RUN))
     )
 
     await _wait_until_used_default_slots(runner, 3)

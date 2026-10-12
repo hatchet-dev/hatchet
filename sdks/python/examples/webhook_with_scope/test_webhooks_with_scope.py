@@ -14,7 +14,7 @@ from examples.webhook_with_scope.worker import (
     WebhookInputWithStaticPayload,
 )
 from hatchet_sdk import Hatchet
-from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
+from hatchet_sdk.types.run_status import RunStatus
 from hatchet_sdk.clients.rest.models.v1_webhook import V1Webhook
 from hatchet_sdk.clients.rest.models.v1_webhook_basic_auth import V1WebhookBasicAuth
 from hatchet_sdk.clients.rest.models.v1_webhook_source_name import V1WebhookSourceName
@@ -182,7 +182,7 @@ async def assert_has_runs(
         hatchet, triggered_event.metadata.id, test_start
     )
     assert workflow_run is not None
-    assert workflow_run.status == V1TaskStatus.COMPLETED
+    assert workflow_run.status == RunStatus.COMPLETED
     assert workflow_run.additional_metadata is not None
 
     assert (

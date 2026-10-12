@@ -9,13 +9,13 @@ from pydantic import TypeAdapter
 from hatchet_sdk import Context, DurableContext
 from hatchet_sdk.clients.admin import AdminClient
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
-from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
 from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.config import ClientConfig, EmbeddedHatchetConfig
 from hatchet_sdk.embedded import resolve_embedded_connection
 from hatchet_sdk.features.cel import CELClient
 from hatchet_sdk.features.cron import CronClient
+from hatchet_sdk.features.events import EventClient
 from hatchet_sdk.features.filters import FiltersClient
 from hatchet_sdk.features.logs import LogsClient
 from hatchet_sdk.features.metrics import MetricsClient
@@ -847,9 +847,9 @@ class Hatchet:
         A decorator to transform a function into a Hatchet *batch* task that runs as part of a workflow.
 
         Batch tasks buffer individual executions until Hatchet flushes the batch (size reached or flush interval),
-        then invoke the handler once with all buffered inputs keyed by step run ID.
+        then invoke the handler once with all buffered inputs keyed by task run ID.
 
-        The handler must return a dict mapping each step run ID to its output, or use `broadcast_output` to return the same result to all callsites.
+        The handler must return a dict mapping each task run ID to its output, or use `broadcast_output` to return the same result to all callsites.
         """
 
         def inner(

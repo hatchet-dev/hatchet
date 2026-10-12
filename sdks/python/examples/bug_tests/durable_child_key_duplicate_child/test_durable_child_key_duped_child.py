@@ -5,7 +5,7 @@ from examples.bug_tests.durable_child_key_duplicate_child.worker import (
     Input,
 )
 from examples.test_utils import wait_for_child_runs
-from hatchet_sdk import Hatchet, V1TaskStatus
+from hatchet_sdk import Hatchet, RunStatus
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -22,7 +22,7 @@ async def test_durable_child_key_duplicate_bug_all_duped(hatchet: Hatchet) -> No
 
     run = runs[0]
 
-    assert run.status == V1TaskStatus.COMPLETED
+    assert run.status == RunStatus.COMPLETED
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -41,8 +41,8 @@ async def test_durable_child_key_duplicate_bug_second_unique(hatchet: Hatchet) -
 
     first, second = runs
 
-    assert first.status == V1TaskStatus.COMPLETED
-    assert second.status == V1TaskStatus.COMPLETED
+    assert first.status == RunStatus.COMPLETED
+    assert second.status == RunStatus.COMPLETED
 
     assert (
         first.workflow_run_external_id != second.workflow_run_external_id
@@ -65,8 +65,8 @@ async def test_durable_child_key_duplicate_bug_third_unique(hatchet: Hatchet) ->
 
     first, second = runs
 
-    assert first.status == V1TaskStatus.COMPLETED
-    assert second.status == V1TaskStatus.COMPLETED
+    assert first.status == RunStatus.COMPLETED
+    assert second.status == RunStatus.COMPLETED
 
     assert (
         first.workflow_run_external_id != second.workflow_run_external_id

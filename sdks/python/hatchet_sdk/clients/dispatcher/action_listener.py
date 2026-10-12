@@ -12,7 +12,6 @@ from hatchet_sdk.clients.event_ts import (
     UnexpectedEOF,
     read_with_interrupt,
 )
-from hatchet_sdk.clients.events import proto_timestamp_now
 from hatchet_sdk.clients.listeners.run_event_listener import (
     DEFAULT_ACTION_LISTENER_RETRY_INTERVAL,
 )
@@ -35,6 +34,7 @@ from hatchet_sdk.runnables.action import (
 )
 from hatchet_sdk.utils.api_auth import create_authorization_header
 from hatchet_sdk.utils.backoff import exp_backoff_sleep
+from hatchet_sdk.utils.datetimes import proto_timestamp_now
 from hatchet_sdk.utils.proto_enums import convert_proto_enum_to_python
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
@@ -244,10 +244,10 @@ class ActionListener:
                         job_id=assigned_action.job_id,
                         job_name=assigned_action.job_name,
                         job_run_id=assigned_action.job_run_id,
-                        step_id=assigned_action.task_id,
-                        step_run_id=assigned_action.task_run_external_id,
+                        task_id=assigned_action.task_id,
+                        task_run_external_id=assigned_action.task_run_external_id,
                         action_id=assigned_action.action_id,
-                        step_name=assigned_action.task_name,
+                        task_name=assigned_action.task_name,
                         action_payload=action_payload,
                         action_type=action_type,
                         retry_count=assigned_action.retry_count,

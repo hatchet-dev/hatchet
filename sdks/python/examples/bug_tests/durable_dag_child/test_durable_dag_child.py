@@ -11,7 +11,7 @@ from examples.bug_tests.durable_dag_child.worker import (
     multi_spawner_dag,
     parent_dag,
 )
-from hatchet_sdk import Hatchet, RunStatus, V1TaskStatus
+from hatchet_sdk import Hatchet, RunStatus
 from hatchet_sdk.clients.admin import WorkflowRunDetail
 from hatchet_sdk.runnables.workflow import Workflow
 
@@ -57,7 +57,7 @@ async def run_dag_to_completion(
     assert details.status == RunStatus.COMPLETED
     assert set(details.task_runs.keys()) == expected_steps
     assert all(
-        task.status == V1TaskStatus.COMPLETED for task in details.task_runs.values()
+        task.status == RunStatus.COMPLETED for task in details.task_runs.values()
     )
 
     step_external_ids = {task.external_id for task in details.task_runs.values()}

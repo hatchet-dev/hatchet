@@ -21,7 +21,7 @@ RateLimitDuration = Literal[
 
 class RateLimit(BaseModel):
     """
-    Represents a rate limit configuration for a step in a workflow.
+    Represents a rate limit configuration for a task in a workflow.
 
     This class allows for both static and dynamic rate limiting based on various parameters.
     It supports both simple integer values and Common Expression Language (CEL) expressions
@@ -37,7 +37,7 @@ class RateLimit(BaseModel):
     Usage:
         1. Static rate limit:
            rate_limit = RateLimit(static_key="external-api", units=100)
-           > NOTE: if you want to use a static key, you must first put the rate limit: hatchet.admin.put_rate_limit("external-api", 200, "SECOND")
+           > NOTE: if you want to use a static key, you must first put the rate limit: hatchet.rate_limits.put("external-api", 200, "SECOND")
 
         2. Dynamic rate limit with CEL expressions:
            rate_limit = RateLimit(

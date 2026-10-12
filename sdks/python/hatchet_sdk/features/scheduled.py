@@ -186,7 +186,7 @@ class ScheduledClient(BaseRestClient):
         scheduled_ids: list[str] | None = None,
         workflow_id: str | None = None,
         parent_workflow_run_id: str | None = None,
-        parent_step_run_id: str | None = None,
+        parent_task_external_id: str | None = None,
         statuses: list[ScheduledRunStatus] | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
     ) -> ScheduledWorkflowsBulkDeleteResponse:
@@ -195,13 +195,13 @@ class ScheduledClient(BaseRestClient):
 
         Provide either:
         - `scheduled_ids` (explicit list of scheduled run IDs), or
-        - one or more filter fields (`workflow_id`, `parent_workflow_run_id`, `parent_step_run_id`,
+        - one or more filter fields (`workflow_id`, `parent_workflow_run_id`, `parent_task_external_id`,
           `statuses`, `additional_metadata`)
 
         :param scheduled_ids: Explicit list of scheduled workflow run IDs to delete.
         :param workflow_id: Filter by workflow ID.
         :param parent_workflow_run_id: Filter by parent workflow run ID.
-        :param parent_step_run_id: Filter by parent step run ID.
+        :param parent_task_external_id: Filter by the external ID of the parent task run.
         :param statuses: Filter by scheduled run statuses.
         :param additional_metadata: Filter by additional metadata key/value pairs.
         :return: The bulk delete response containing deleted IDs and per-item errors.
@@ -218,7 +218,7 @@ class ScheduledClient(BaseRestClient):
             for v in (
                 workflow_id,
                 parent_workflow_run_id,
-                parent_step_run_id,
+                parent_task_external_id,
                 additional_metadata,
             )
         )
@@ -233,7 +233,7 @@ class ScheduledClient(BaseRestClient):
             filter_obj = ScheduledWorkflowsBulkDeleteFilter(
                 workflowId=workflow_id,
                 parentWorkflowRunId=parent_workflow_run_id,
-                parentStepRunId=parent_step_run_id,
+                parentStepRunId=parent_task_external_id,
                 additionalMetadata=maybe_additional_metadata_to_kv(additional_metadata),
             )
 
@@ -252,7 +252,7 @@ class ScheduledClient(BaseRestClient):
         scheduled_ids: list[str] | None = None,
         workflow_id: str | None = None,
         parent_workflow_run_id: str | None = None,
-        parent_step_run_id: str | None = None,
+        parent_task_external_id: str | None = None,
         statuses: list[ScheduledRunStatus] | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
     ) -> ScheduledWorkflowsBulkDeleteResponse:
@@ -262,7 +262,7 @@ class ScheduledClient(BaseRestClient):
         :param scheduled_ids: Explicit list of scheduled workflow run IDs to delete.
         :param workflow_id: Filter by workflow ID.
         :param parent_workflow_run_id: Filter by parent workflow run ID.
-        :param parent_step_run_id: Filter by parent step run ID.
+        :param parent_task_external_id: Filter by the external ID of the parent task run.
         :param statuses: Filter by scheduled run statuses.
         :param additional_metadata: Filter by additional metadata key/value pairs.
         :return: The bulk delete response containing deleted IDs and per-item errors.
@@ -273,7 +273,7 @@ class ScheduledClient(BaseRestClient):
             for v in (
                 workflow_id,
                 parent_workflow_run_id,
-                parent_step_run_id,
+                parent_task_external_id,
                 statuses,
                 additional_metadata,
             )
@@ -289,7 +289,7 @@ class ScheduledClient(BaseRestClient):
             scheduled_ids=scheduled_ids,
             workflow_id=workflow_id,
             parent_workflow_run_id=parent_workflow_run_id,
-            parent_step_run_id=parent_step_run_id,
+            parent_task_external_id=parent_task_external_id,
             statuses=statuses,
             additional_metadata=additional_metadata,
         )

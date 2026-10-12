@@ -13,14 +13,15 @@ class OTelAttribute(StrEnum):
     ACTION_PAYLOAD = "payload"
 
     ## Action
+    ## The `step_*` values are the attribute names the Hatchet dashboard reads, so they cannot be renamed here
     ACTION_NAME = "action_name"
-    STEP_NAME = "step_name"
+    TASK_NAME = "step_name"
     CHILD_WORKFLOW_INDEX = "child_workflow_index"
     CHILD_WORKFLOW_KEY = "child_workflow_key"
     PARENT_WORKFLOW_RUN_ID = "parent_workflow_run_id"
     RETRY_COUNT = "retry_count"
-    STEP_ID = "step_id"
-    STEP_RUN_ID = "step_run_id"
+    TASK_ID = "step_id"
+    TASK_RUN_ID = "step_run_id"
     TENANT_ID = "tenant_id"
     WORKER_ID = "worker_id"
     WORKFLOW_ID = "workflow_id"

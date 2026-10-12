@@ -1,6 +1,8 @@
 from datetime import UTC, datetime, timedelta
 from typing import TypeVar
 
+from google.protobuf import timestamp_pb2
+
 T = TypeVar("T")
 R = TypeVar("R")
 
@@ -33,3 +35,11 @@ def partition_date_range(
         current_start = next_day
 
     return ranges
+
+
+def proto_timestamp_now() -> timestamp_pb2.Timestamp:
+    t = datetime.now(tz=UTC).timestamp()
+    seconds = int(t)
+    nanos = int(t % 1 * 1e9)
+
+    return timestamp_pb2.Timestamp(seconds=seconds, nanos=nanos)

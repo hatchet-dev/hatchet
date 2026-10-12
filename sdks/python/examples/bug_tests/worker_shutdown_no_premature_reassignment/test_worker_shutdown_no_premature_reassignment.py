@@ -11,7 +11,7 @@ from examples.bug_tests.worker_shutdown_no_premature_reassignment.worker import 
     drain_task,
 )
 from examples.test_utils import wait_for_running_status
-from hatchet_sdk import Hatchet, RunStatus, V1TaskStatus
+from hatchet_sdk import Hatchet, RunStatus
 from tests.worker_fixture import get_free_port, hatchet_worker
 
 WORKER_A_NAME = "shutdown-drain-worker-a"
@@ -88,6 +88,6 @@ async def test_in_flight_task_completes_on_original_worker_without_reassignment(
     assert len(completed_run.tasks) == 1
 
     task = completed_run.tasks[0]
-    assert task.status == V1TaskStatus.COMPLETED
+    assert task.status == RunStatus.COMPLETED
     assert task.attempt == 1, "task must not have been retried/reassigned"
     assert task.retry_count == 0, "task must not have been retried/reassigned"

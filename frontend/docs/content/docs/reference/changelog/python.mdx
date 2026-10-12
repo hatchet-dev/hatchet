@@ -39,6 +39,9 @@ V2 removes everything that was deprecated in V1 and tightens the types that were
 - The `hatchet_sdk.labels` and `hatchet_sdk.rate_limit` module aliases.
 - Top-level `hatchet_sdk` exports of the V0 REST models, the pagination wrapper types, and `CreateWorkflowVersionOpts`. Import REST models from `hatchet_sdk.clients.rest.models`.
 - The `PARENT_ID`, `PARENT_STEP_RUN_ID`, and `CHILD_INDEX` members of `OTelAttribute`.
+- The `V1TaskStatus` export from `hatchet_sdk`. Use `RunStatus` instead.
+- `RunStatus.from_proto`, `RunStatus.from_v1_task_status`, and `RunStatus.to_v1_task_status`.
+- The `TriggerWorkflowOptions`, `ScheduleTriggerWorkflowOptions`, `RunEventListener`, and `WorkflowConfig` exports from `hatchet_sdk`. These are internal now that the `options` parameters are gone.
 
 ### Changed
 
@@ -58,6 +61,11 @@ V2 removes everything that was deprecated in V1 and tightens the types that were
 - `ClientTLSConfig.strategy` is now typed as `Literal["tls", "mtls", "none"]`.
 - String-mixin enums (`RunStatus`, `HTTPMethod`, `SlotType`, `OTelAttribute`, and others) are now `enum.StrEnum` subclasses, so `str(member)` returns the raw value.
 - `grpcio-tools` is no longer a runtime dependency.
+- `RunStatus` is now the only run status enum. Every status the SDK accepts or returns is a `RunStatus`, including the `status` field on REST models such as `V1TaskSummary` and the `statuses` filters on `runs.list` and `events.list`.
+- The events client module has moved from `hatchet_sdk.clients.events` to `hatchet_sdk.features.events`, alongside the other feature clients.
+- The `parent_step_run_id` parameter on `scheduled.bulk_delete` and `scheduled.aio_bulk_delete` has been renamed to `parent_task_external_id`.
+- The `STEP_NAME`, `STEP_ID`, and `STEP_RUN_ID` members of `OTelAttribute` have been renamed to `TASK_NAME`, `TASK_ID`, and `TASK_RUN_ID`. The span attribute names they produce are unchanged.
+- Worker log messages and error messages refer to tasks instead of steps.
 - `limit` and `offset` on `runs.list` and `runs.aio_list` now apply to the whole time range instead of to each day within it, and leaving `limit` unset returns every matching run instead of the first 50 per day.
 - `from hatchet_sdk import Workflow` now resolves to the workflow class returned by `hatchet.workflow()` instead of the REST model, and the `WorkflowVersion` REST model is no longer exported from `hatchet_sdk`.
 - Passing an input when running, scheduling, or bulk running a task or workflow that has no `input_validator` raises a `TypeError` instead of silently dropping the input. Declare `input_validator=dict[str, Any]` to accept untyped input.
@@ -81,6 +89,7 @@ V2 removes everything that was deprecated in V1 and tightens the types that were
 - Passing a tuple of `ConcurrencyStrategy` objects as `concurrency` to `hatchet.task` or `hatchet.durable_task` no longer discards them.
 - `mock_run` and `aio_mock_run` now pass a `dict` input through to the task instead of replacing it with `{}`.
 - Cron expressions that use day or month names, or ranges with steps, such as `0 9 * * MON-FRI`, are no longer rejected before they reach the engine.
+
 ## v1.42.1 - 2026-10-09
 
 ### Fixed

@@ -1,5 +1,5 @@
 from hatchet_sdk import Hatchet
-from hatchet_sdk.clients.events import BulkPushEventWithMetadata
+from hatchet_sdk.features.events import BulkPushEventWithMetadata
 
 hatchet = Hatchet()
 

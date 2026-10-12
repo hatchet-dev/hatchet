@@ -34,7 +34,7 @@ async def aio_wait_for_pre_eviction(
             f"{type(ctx._durable_event_listener).__name__}"
         )
 
-    task_id = ctx._step_run_id
+    task_id = ctx._task_run_external_id
 
     request = RegisterDurableEventRequest(
         task_id=task_id,

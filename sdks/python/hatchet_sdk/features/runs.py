@@ -17,7 +17,6 @@ from hatchet_sdk.clients.rest.models.v1_branch_durable_task_request import (
 from hatchet_sdk.clients.rest.models.v1_cancel_task_request import V1CancelTaskRequest
 from hatchet_sdk.clients.rest.models.v1_replay_task_request import V1ReplayTaskRequest
 from hatchet_sdk.clients.rest.models.v1_task_filter import V1TaskFilter
-from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.models.v1_trigger_workflow_run_request import (
     V1TriggerWorkflowRunRequest,
 )
@@ -26,6 +25,7 @@ from hatchet_sdk.clients.v1.api_client import (
     BaseRestClient,
     maybe_additional_metadata_to_kv,
 )
+from hatchet_sdk.types.run_status import RunStatus
 from hatchet_sdk.utils.aio import gather_max_concurrency
 from hatchet_sdk.utils.datetimes import partition_date_range
 from hatchet_sdk.utils.iterables import create_chunks
@@ -56,7 +56,7 @@ if TYPE_CHECKING:
 class RunFilter(BaseModel):
     since: datetime
     until: datetime | None = None
-    statuses: list[V1TaskStatus] | None = None
+    statuses: list[RunStatus] | None = None
     workflow_ids: list[str] | None = None
     additional_metadata: dict[str, str] | None = None
 
@@ -218,7 +218,7 @@ class RunsClient(BaseRestClient):
         """
         return await asyncio.to_thread(self.get, workflow_run_id)
 
-    def get_status(self, workflow_run_id: str) -> V1TaskStatus:
+    def get_status(self, workflow_run_id: str) -> RunStatus:
         """
         Get workflow run status for a given workflow run ID.
 
@@ -226,9 +226,9 @@ class RunsClient(BaseRestClient):
         :return: The task status
         """
         details = self.get_details(workflow_run_id)
-        return details.status.to_v1_task_status()
+        return details.status
 
-    async def aio_get_status(self, workflow_run_id: str) -> V1TaskStatus:
+    async def aio_get_status(self, workflow_run_id: str) -> RunStatus:
         """
         Get workflow run status for a given workflow run ID.
 
@@ -240,7 +240,7 @@ class RunsClient(BaseRestClient):
     def _perform_action_with_pagination(
         self,
         action: Literal["cancel", "replay"],
-        statuses: list[V1TaskStatus],
+        statuses: list[RunStatus],
         sleep_time: int = 3,
         chunk_size: int = 500,
         since: datetime | None = None,
@@ -299,7 +299,7 @@ class RunsClient(BaseRestClient):
         chunk_size: int = 500,
         since: datetime | None = None,
         until: datetime | None = None,
-        statuses: list[V1TaskStatus] | None = None,
+        statuses: list[RunStatus] | None = None,
         additional_metadata: dict[str, str] | None = None,
         workflow_ids: list[str] | None = None,
     ) -> None:
@@ -326,7 +326,7 @@ class RunsClient(BaseRestClient):
             sleep_time=sleep_time,
             chunk_size=chunk_size,
             until=until,
-            statuses=statuses or [V1TaskStatus.FAILED, V1TaskStatus.CANCELLED],
+            statuses=statuses or [RunStatus.FAILED, RunStatus.CANCELLED],
             additional_metadata=additional_metadata,
             workflow_ids=workflow_ids,
         )
@@ -337,7 +337,7 @@ class RunsClient(BaseRestClient):
         chunk_size: int = 500,
         since: datetime | None = None,
         until: datetime | None = None,
-        statuses: list[V1TaskStatus] | None = None,
+        statuses: list[RunStatus] | None = None,
         additional_metadata: dict[str, str] | None = None,
         workflow_ids: list[str] | None = None,
     ) -> None:
@@ -364,7 +364,7 @@ class RunsClient(BaseRestClient):
             sleep_time=sleep_time,
             chunk_size=chunk_size,
             until=until,
-            statuses=statuses or [V1TaskStatus.RUNNING, V1TaskStatus.QUEUED],
+            statuses=statuses or [RunStatus.RUNNING, RunStatus.QUEUED],
             additional_metadata=additional_metadata,
             workflow_ids=workflow_ids,
         )
@@ -375,7 +375,7 @@ class RunsClient(BaseRestClient):
         chunk_size: int = 500,
         since: datetime | None = None,
         until: datetime | None = None,
-        statuses: list[V1TaskStatus] | None = None,
+        statuses: list[RunStatus] | None = None,
         additional_metadata: dict[str, str] | None = None,
         workflow_ids: list[str] | None = None,
     ) -> None:
@@ -403,7 +403,7 @@ class RunsClient(BaseRestClient):
             sleep_time=sleep_time,
             chunk_size=chunk_size,
             until=until,
-            statuses=statuses or [V1TaskStatus.FAILED, V1TaskStatus.CANCELLED],
+            statuses=statuses or [RunStatus.FAILED, RunStatus.CANCELLED],
             additional_metadata=additional_metadata,
             workflow_ids=workflow_ids,
         )
@@ -414,7 +414,7 @@ class RunsClient(BaseRestClient):
         chunk_size: int = 500,
         since: datetime | None = None,
         until: datetime | None = None,
-        statuses: list[V1TaskStatus] | None = None,
+        statuses: list[RunStatus] | None = None,
         additional_metadata: dict[str, str] | None = None,
         workflow_ids: list[str] | None = None,
     ) -> None:
@@ -442,7 +442,7 @@ class RunsClient(BaseRestClient):
             sleep_time=sleep_time,
             chunk_size=chunk_size,
             until=until,
-            statuses=statuses or [V1TaskStatus.RUNNING, V1TaskStatus.QUEUED],
+            statuses=statuses or [RunStatus.RUNNING, RunStatus.QUEUED],
             additional_metadata=additional_metadata,
             workflow_ids=workflow_ids,
         )
@@ -453,7 +453,7 @@ class RunsClient(BaseRestClient):
         until: datetime,
         max_rows: int | None,
         only_tasks: bool,
-        statuses: list[V1TaskStatus] | None,
+        statuses: list[RunStatus] | None,
         additional_metadata: dict[str, str] | None,
         workflow_ids: list[str] | None,
         worker_id: str | None,
@@ -500,7 +500,7 @@ class RunsClient(BaseRestClient):
         only_tasks: bool = False,
         offset: int | None = None,
         limit: int | None = None,
-        statuses: list[V1TaskStatus] | None = None,
+        statuses: list[RunStatus] | None = None,
         until: datetime | None = None,
         additional_metadata: dict[str, str] | None = None,
         workflow_ids: list[str] | None = None,
@@ -562,7 +562,7 @@ class RunsClient(BaseRestClient):
         only_tasks: bool = False,
         offset: int | None = None,
         limit: int | None = None,
-        statuses: list[V1TaskStatus] | None = None,
+        statuses: list[RunStatus] | None = None,
         until: datetime | None = None,
         additional_metadata: dict[str, str] | None = None,
         workflow_ids: list[str] | None = None,

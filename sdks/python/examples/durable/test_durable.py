@@ -37,7 +37,7 @@ from examples.durable.worker import (
     error_raising_task,
     ErrorRaisingTaskInput,
 )
-from hatchet_sdk import Hatchet, V1TaskStatus
+from hatchet_sdk import Hatchet, RunStatus
 
 from examples.test_utils import poll_for_runs, wait_for_replay, wait_for_running_status
 
@@ -57,7 +57,7 @@ async def _wait_for_task_to_complete(
 
         # a task's display name is "<step readable id>-<unix timestamp>"
         if any(
-            t.status == V1TaskStatus.COMPLETED
+            t.status == RunStatus.COMPLETED
             and t.display_name.startswith(f"{task_name}-")
             for t in details.tasks
         ):
@@ -571,5 +571,5 @@ async def test_durable_error_on_error_in_child(
 
     assert parent
     assert child
-    assert parent.status == V1TaskStatus.COMPLETED
-    assert child.status == V1TaskStatus.FAILED
+    assert parent.status == RunStatus.COMPLETED
+    assert child.status == RunStatus.FAILED

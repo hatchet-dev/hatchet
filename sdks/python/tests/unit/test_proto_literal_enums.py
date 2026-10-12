@@ -31,7 +31,7 @@ DEPRECATED_PROTO_VALUES: dict[str, set[str]] = {
 
 # Every Literal-backed proto enum in the SDK must be registered here, paired
 # with each proto enum it is converted against at runtime. RateLimitDuration
-# appears twice because `put_rate_limit` builds a v0 request while `RateLimit`
+# appears twice because `hatchet.rate_limits.put` builds a v0 request while `RateLimit`
 # builds a v1 one, and the same Literal must stay valid for both.
 LITERAL_TO_PROTO_ENUM: list[tuple[str, Any, Any]] = [
     (

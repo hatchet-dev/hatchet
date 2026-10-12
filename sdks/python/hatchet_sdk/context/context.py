@@ -72,10 +72,10 @@ if TYPE_CHECKING:
         Action,
         DispatcherClient,
     )
-    from hatchet_sdk.clients.events import EventClient
     from hatchet_sdk.clients.listeners.legacy.pre_eviction_durable_event_listener import (
         PreEvictionDurableEventListener,
     )
+    from hatchet_sdk.features.events import EventClient
     from hatchet_sdk.features.runs import RunsClient
     from hatchet_sdk.runnables.task import Task
     from hatchet_sdk.worker.durable_eviction.manager import DurableEvictionManager
@@ -190,7 +190,7 @@ class Context:
 
         self._action = action
 
-        self._step_run_id = action.step_run_id
+        self._task_run_external_id = action.task_run_external_id
         self._exit_flag = False
         self._dispatcher_client = dispatcher_client
         self._admin_client = admin_client
@@ -268,7 +268,7 @@ class Context:
 
         :param task: The task whose output you want to retrieve.
         :return: The output of the parent task, validated against the task's validators.
-        :raises ValueError: If the task was skipped or if the step output for the task is not found.
+        :raises ValueError: If the task was skipped or if the task output for the task is not found.
         """
         from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
 
@@ -276,14 +276,14 @@ class Context:
             raise ValueError(f"{task.name} was skipped")
 
         try:
-            parent_step_data = cast("R", self._data.parents[task.name])
+            parent_task_output = cast("R", self._data.parents[task.name])
         except KeyError as e:
-            raise ValueError(f"Step output for '{task.name}' not found") from e
+            raise ValueError(f"Task output for '{task.name}' not found") from e
 
         return cast(
             "R",
-            task._validators.step_output.validate_python(
-                parent_step_data, context=HATCHET_PYDANTIC_SENTINEL
+            task._validators.task_output.validate_python(
+                parent_task_output, context=HATCHET_PYDANTIC_SENTINEL
             ),
         )
 
@@ -334,18 +334,18 @@ class Context:
 
         :return: The id of the current task run.
         """
-        return self._action.step_run_id
+        return self._action.task_run_external_id
 
     def _set_cancellation_flag(self) -> None:
         self._exit_flag = True
 
     def cancel(self) -> None:
         """
-        Cancel the current task run. This will call the Hatchet API to cancel the step run and set the exit flag to True.
+        Cancel the current task run. This will call the Hatchet API to cancel the task run and set the exit flag to True.
 
         :return: None
         """
-        logger.debug("cancelling step...")
+        logger.debug("cancelling task...")
         if self._action.batch_items:
             self._dispatcher_client.send_batch_action_event(
                 self._action,
@@ -356,16 +356,16 @@ class Context:
                 ],
             )
         else:
-            self._runs_client.cancel(self._step_run_id)
+            self._runs_client.cancel(self._task_run_external_id)
         self._set_cancellation_flag()
 
     async def aio_cancel(self) -> None:
         """
-        Cancel the current task run. This will call the Hatchet API to cancel the step run and set the exit flag to True.
+        Cancel the current task run. This will call the Hatchet API to cancel the task run and set the exit flag to True.
 
         :return: None
         """
-        logger.debug("cancelling step...")
+        logger.debug("cancelling task...")
         if self._action.batch_items:
             await self._dispatcher_client._try_aio_send_batch_action_event(
                 self._action,
@@ -376,7 +376,7 @@ class Context:
                 ],
             )
         else:
-            await self._runs_client.aio_cancel(self._step_run_id)
+            await self._runs_client.aio_cancel(self._task_run_external_id)
         self._set_cancellation_flag()
 
     @property
@@ -396,7 +396,7 @@ class Context:
         :return: None
         """
 
-        if self._step_run_id == "":
+        if self._task_run_external_id == "":
             return
 
         if not isinstance(line, str):
@@ -409,7 +409,7 @@ class Context:
         self._log_sender.publish(
             LogRecord(
                 message=line,
-                step_run_id=self._step_run_id,
+                task_run_external_id=self._task_run_external_id,
                 level=LogLevel.INFO,
                 task_retry_count=self.retry_count,
             )
@@ -427,16 +427,16 @@ class Context:
 
     def release_slot(self) -> None:
         """
-        Manually release the slot for the current step run to free up a slot on the worker. Note that this is an advanced feature and should be used with caution.
+        Manually release the slot for the current task run to free up a slot on the worker. Note that this is an advanced feature and should be used with caution.
 
         :return: None
         """
-        self._dispatcher_client.release_slot(self._step_run_id)
+        self._dispatcher_client.release_slot(self._task_run_external_id)
         self._on_slot_released()
 
     async def aio_release_slot(self) -> None:
         """
-        Manually release the slot for the current step run to free up a slot on the worker. Note that this is an advanced feature and should be used with caution.
+        Manually release the slot for the current task run to free up a slot on the worker. Note that this is an advanced feature and should be used with caution.
 
         :return: None
         """
@@ -455,7 +455,7 @@ class Context:
 
             self._event_client._stream(
                 data=data,
-                step_run_id=self._step_run_id,
+                task_run_external_id=self._task_run_external_id,
                 index=ix,
             )
         except Exception:
@@ -473,7 +473,7 @@ class Context:
 
             await self._event_client._aio_stream(
                 data=data,
-                step_run_id=self._step_run_id,
+                task_run_external_id=self._task_run_external_id,
                 index=ix,
             )
         except Exception:
@@ -489,7 +489,7 @@ class Context:
 
         try:
             return self._dispatcher_client.refresh_timeout(
-                step_run_id=self._step_run_id,
+                task_run_external_id=self._task_run_external_id,
                 increment_by=timedelta_to_expr(increment_by),
             )
         except Exception:
@@ -600,15 +600,15 @@ class Context:
     @property
     def task_run_errors(self) -> dict[str, str]:
         """
-        A helper intended to be used in an on-failure step to retrieve the errors that occurred in upstream task runs.
+        A helper intended to be used in an on-failure task to retrieve the errors that occurred in upstream task runs.
 
         :return: A dictionary mapping task names to their error messages.
         """
-        errors = self._data.step_run_errors
+        errors = self._data.task_run_errors
 
         if not errors:
             logger.error(
-                "no step run errors found. `context.task_run_errors` is intended to be run in an on-failure step, and will only work on engine versions more recent than v0.53.10"
+                "no task run errors found. `context.task_run_errors` is intended to be run in an on-failure task"
             )
 
         return errors
@@ -634,12 +634,12 @@ class Context:
         task: Task[TWorkflowInput, R],
     ) -> TaskRunError | None:
         """
-        A helper intended to be used in an on-failure step to retrieve the error that occurred in a specific upstream task run.
+        A helper intended to be used in an on-failure task to retrieve the error that occurred in a specific upstream task run.
 
         :param task: The task whose error you want to retrieve.
         :return: The error message of the task run, or None if no error occurred.
         """
-        errors = self._data.step_run_errors
+        errors = self._data.task_run_errors
 
         error = errors.get(task.name)
 
@@ -766,7 +766,7 @@ class DurableContext(Context):
         )
         async with self._send_event_lock:
             ack = await listener.send_event(
-                durable_task_external_id=self._step_run_id,
+                durable_task_external_id=self._task_run_external_id,
                 invocation_count=self.invocation_count,
                 event=WaitForEvent(wait_for_conditions=conditions_proto, label=label),
             )
@@ -784,7 +784,7 @@ class DurableContext(Context):
             eviction_manager=self._durable_eviction_manager,
         ):
             callback_result = await listener.wait_for_callback(
-                durable_task_external_id=self._step_run_id,
+                durable_task_external_id=self._task_run_external_id,
                 node_id=node_id,
                 branch_id=branch_id,
                 invocation_count=self.invocation_count,
@@ -912,7 +912,7 @@ class DurableContext(Context):
 
         async with self._send_event_lock:
             ack = await listener.send_event(
-                durable_task_external_id=self._step_run_id,
+                durable_task_external_id=self._task_run_external_id,
                 invocation_count=self.invocation_count,
                 event=RunChildrenEvent(
                     children=[
@@ -954,7 +954,7 @@ class DurableContext(Context):
             eviction_manager=self._durable_eviction_manager,
         ):
             result = await listener.wait_for_callback(
-                durable_task_external_id=self._step_run_id,
+                durable_task_external_id=self._task_run_external_id,
                 node_id=node_id,
                 branch_id=branch_id,
                 invocation_count=self.invocation_count,
@@ -1010,10 +1010,10 @@ class DurableContext(Context):
 
         listener = self._durable_listener
 
-        run_external_id = self._step_run_id
+        run_external_id = self._task_run_external_id
         adapter = TypeAdapter(result_validator)
 
-        key = _compute_memo_key(self._step_run_id, *args, **kwargs)
+        key = _compute_memo_key(self._task_run_external_id, *args, **kwargs)
 
         async with self._send_event_lock:
             ack = await listener.send_event(

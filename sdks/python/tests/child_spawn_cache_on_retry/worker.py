@@ -1,7 +1,7 @@
 import asyncio
 from datetime import timedelta
 
-from hatchet_sdk import Context, Hatchet, TriggerWorkflowOptions
+from hatchet_sdk import Context, Hatchet
 
 PARENT_EXECUTION_TIMEOUT_SECONDS = 5
 PARENT_RETRIES = 2

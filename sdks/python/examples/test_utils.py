@@ -7,7 +7,6 @@ from tenacity import stop_after_attempt, wait_exponential, wait_fixed
 
 from hatchet_sdk import Hatchet, RunStatus
 from hatchet_sdk.clients.rest.models.v1_event import V1Event
-from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 
 
@@ -34,14 +33,14 @@ async def poll_for_runs(
     workflow_ids: list[str] | None = None,
     parent_task_external_id: str | None = None,
     triggering_event_external_id: str | None = None,
-    statuses: list[V1TaskStatus] | None = None,
+    statuses: list[RunStatus] | None = None,
     timeout: float = 60.0,
     interval: float = 0.5,
 ) -> list[V1TaskSummary]:
     terminal = statuses or [
-        V1TaskStatus.COMPLETED,
-        V1TaskStatus.FAILED,
-        V1TaskStatus.CANCELLED,
+        RunStatus.COMPLETED,
+        RunStatus.FAILED,
+        RunStatus.CANCELLED,
     ]
     max_iters = int(timeout / interval)
     runs: list[V1TaskSummary] = []
@@ -132,7 +131,7 @@ async def wait_for_workflow_run(
             },
         )
         for row in runs:
-            if row.status == V1TaskStatus.COMPLETED:
+            if row.status == RunStatus.COMPLETED:
                 return row
         raise Exception()
 

@@ -1,0 +1,178 @@
+---
+title: "Events"
+---
+
+# Events Client
+
+Bases: `BaseRestClient`
+
+The events client is a client for pushing events to Hatchet and reading the events that were pushed.
+
+Methods:
+
+| Name            | Description                                                                 |
+| --------------- | --------------------------------------------------------------------------- |
+| `aio_bulk_push` | Push many events to Hatchet in a single request.                            |
+| `aio_get`       | Retrieve an event by its ID.                                                |
+| `aio_list`      | List events that were pushed to the tenant.                                 |
+| `aio_push`      | Push an event to Hatchet, triggering any workflows that listen for its key. |
+| `bulk_push`     | Push many events to Hatchet in a single request.                            |
+| `get`           | Retrieve an event by its ID.                                                |
+| `list`          | List events that were pushed to the tenant.                                 |
+| `push`          | Push an event to Hatchet, triggering any workflows that listen for its key. |
+
+### Functions
+
+#### `aio_bulk_push`
+
+Push many events to Hatchet in a single request.
+
+Parameters:
+
+| Name     | Type                              | Description         | Default    |
+| -------- | --------------------------------- | ------------------- | ---------- |
+| `events` | `list[BulkPushEventWithMetadata]` | The events to push. | _required_ |
+
+Returns:
+
+| Type          | Description                  |
+| ------------- | ---------------------------- |
+| `list[Event]` | The events that were pushed. |
+
+#### `aio_get`
+
+Retrieve an event by its ID.
+
+Parameters:
+
+| Name       | Type  | Description                      | Default    |
+| ---------- | ----- | -------------------------------- | ---------- |
+| `event_id` | `str` | The ID of the event to retrieve. | _required_ |
+
+Returns:
+
+| Type      | Description          |
+| --------- | -------------------- |
+| `V1Event` | The requested event. |
+
+#### `aio_list`
+
+List events that were pushed to the tenant.
+
+Parameters:
+
+| Name                    | Type                              | Description                                                                  | Default |
+| ----------------------- | --------------------------------- | ---------------------------------------------------------------------------- | ------- |
+| `offset`                | `int \| None`                     | The number of events to skip.                                                | `None`  |
+| `limit`                 | `int \| None`                     | The maximum number of events to return.                                      | `None`  |
+| `keys`                  | `list[str] \| None`               | Only return events with one of these keys.                                   | `None`  |
+| `since`                 | `datetime \| None`                | Only return events seen at or after this time.                               | `None`  |
+| `until`                 | `datetime \| None`                | Only return events seen at or before this time.                              | `None`  |
+| `workflow_ids`          | `list[str] \| None`               | Only return events that triggered one of these workflows.                    | `None`  |
+| `workflow_run_statuses` | `list[RunStatus] \| None`         | Only return events that triggered a run in one of these statuses.            | `None`  |
+| `event_ids`             | `list[str] \| None`               | Only return events with one of these IDs.                                    | `None`  |
+| `additional_metadata`   | `JSONSerializableMapping \| None` | Only return events whose additional metadata contains these key-value pairs. | `None`  |
+| `scopes`                | `list[str] \| None`               | Only return events with one of these scopes.                                 | `None`  |
+
+Returns:
+
+| Type            | Description          |
+| --------------- | -------------------- |
+| `list[V1Event]` | The matching events. |
+
+#### `aio_push`
+
+Push an event to Hatchet, triggering any workflows that listen for its key.
+
+Parameters:
+
+| Name                  | Type                              | Description                                                                          | Default    |
+| --------------------- | --------------------------------- | ------------------------------------------------------------------------------------ | ---------- |
+| `event_key`           | `str`                             | The key of the event. Workflows declared with this key in `on_events` are triggered. | _required_ |
+| `payload`             | `JSONSerializableMapping`         | The payload of the event, which becomes the input of the triggered runs.             | _required_ |
+| `additional_metadata` | `JSONSerializableMapping \| None` | Additional metadata to attach to the event and to the runs it triggers.              | `None`     |
+| `priority`            | `Priority \| None`                | The priority to give the runs triggered by the event.                                | `None`     |
+| `scope`               | `str \| None`                     | The scope of the event, used to match it against event filters.                      | `None`     |
+
+Returns:
+
+| Type    | Description                |
+| ------- | -------------------------- |
+| `Event` | The event that was pushed. |
+
+#### `bulk_push`
+
+Push many events to Hatchet in a single request.
+
+Parameters:
+
+| Name     | Type                              | Description         | Default    |
+| -------- | --------------------------------- | ------------------- | ---------- |
+| `events` | `list[BulkPushEventWithMetadata]` | The events to push. | _required_ |
+
+Returns:
+
+| Type          | Description                  |
+| ------------- | ---------------------------- |
+| `list[Event]` | The events that were pushed. |
+
+#### `get`
+
+Retrieve an event by its ID.
+
+Parameters:
+
+| Name       | Type  | Description                      | Default    |
+| ---------- | ----- | -------------------------------- | ---------- |
+| `event_id` | `str` | The ID of the event to retrieve. | _required_ |
+
+Returns:
+
+| Type      | Description          |
+| --------- | -------------------- |
+| `V1Event` | The requested event. |
+
+#### `list`
+
+List events that were pushed to the tenant.
+
+Parameters:
+
+| Name                    | Type                              | Description                                                                  | Default |
+| ----------------------- | --------------------------------- | ---------------------------------------------------------------------------- | ------- |
+| `offset`                | `int \| None`                     | The number of events to skip.                                                | `None`  |
+| `limit`                 | `int \| None`                     | The maximum number of events to return.                                      | `None`  |
+| `keys`                  | `list[str] \| None`               | Only return events with one of these keys.                                   | `None`  |
+| `since`                 | `datetime \| None`                | Only return events seen at or after this time.                               | `None`  |
+| `until`                 | `datetime \| None`                | Only return events seen at or before this time.                              | `None`  |
+| `workflow_ids`          | `list[str] \| None`               | Only return events that triggered one of these workflows.                    | `None`  |
+| `workflow_run_statuses` | `list[RunStatus] \| None`         | Only return events that triggered a run in one of these statuses.            | `None`  |
+| `event_ids`             | `list[str] \| None`               | Only return events with one of these IDs.                                    | `None`  |
+| `additional_metadata`   | `JSONSerializableMapping \| None` | Only return events whose additional metadata contains these key-value pairs. | `None`  |
+| `scopes`                | `list[str] \| None`               | Only return events with one of these scopes.                                 | `None`  |
+
+Returns:
+
+| Type            | Description          |
+| --------------- | -------------------- |
+| `list[V1Event]` | The matching events. |
+
+#### `push`
+
+Push an event to Hatchet, triggering any workflows that listen for its key.
+
+Parameters:
+
+| Name                  | Type                              | Description                                                                          | Default    |
+| --------------------- | --------------------------------- | ------------------------------------------------------------------------------------ | ---------- |
+| `event_key`           | `str`                             | The key of the event. Workflows declared with this key in `on_events` are triggered. | _required_ |
+| `payload`             | `JSONSerializableMapping`         | The payload of the event, which becomes the input of the triggered runs.             | _required_ |
+| `additional_metadata` | `JSONSerializableMapping \| None` | Additional metadata to attach to the event and to the runs it triggers.              | `None`     |
+| `priority`            | `Priority \| None`                | The priority to give the runs triggered by the event.                                | `None`     |
+| `scope`               | `str \| None`                     | The scope of the event, used to match it against event filters.                      | `None`     |
+
+Returns:
+
+| Type    | Description                |
+| ------- | -------------------------- |
+| `Event` | The event that was pushed. |

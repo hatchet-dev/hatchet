@@ -55,13 +55,13 @@ from hatchet_sdk.clients.admin import (
     ScheduleTriggerWorkflowOptions,
     WorkflowRunTriggerConfig,
 )
-from hatchet_sdk.clients.events import (
+from hatchet_sdk.context.context import DurableContext, DurableSpawnResult
+from hatchet_sdk.features.events import (
     BulkPushEventWithMetadata,
     Event,
     EventClient,
     _inject_source_info,
 )
-from hatchet_sdk.context.context import DurableContext, DurableSpawnResult
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import Action
 from hatchet_sdk.runnables.contextvars import ctx_hatchet_span_attributes
@@ -120,7 +120,7 @@ def _is_grpc_unimplemented(exc: Exception) -> bool:
 
 class _HatchetAttributeSpanProcessor(BatchSpanProcessor):
     """SpanProcessor that injects hatchet.* attributes into every span
-    created within a step run context, so that child spans are queryable
+    created within a task run context, so that child spans are queryable
     by the same attributes (e.g. hatchet.step_run_id) as the parent."""
 
     def __init__(
@@ -357,8 +357,8 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
         wrap_function_wrapper(
             hatchet_sdk,
-            "worker.runner.runner.Runner.handle_start_step_run",
-            self._wrap_handle_start_step_run,
+            "worker.runner.runner.Runner.handle_start_task_run",
+            self._wrap_handle_start_task_run,
         )
 
         wrap_function_wrapper(
@@ -369,25 +369,25 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
         wrap_function_wrapper(
             hatchet_sdk,
-            "clients.events.EventClient.push",
+            "features.events.EventClient.push",
             self._wrap_push_event,
         )
 
         wrap_function_wrapper(
             hatchet_sdk,
-            "clients.events.EventClient.bulk_push",
+            "features.events.EventClient.bulk_push",
             self._wrap_bulk_push_event,
         )
 
         wrap_function_wrapper(
             hatchet_sdk,
-            "clients.events.EventClient.aio_push",
+            "features.events.EventClient.aio_push",
             self._wrap_aio_push_event,
         )
 
         wrap_function_wrapper(
             hatchet_sdk,
-            "clients.events.EventClient.aio_bulk_push",
+            "features.events.EventClient.aio_bulk_push",
             self._wrap_aio_bulk_push_event,
         )
 
@@ -459,7 +459,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
         return list(bound_args.arguments.values())
 
-    async def _wrap_handle_start_step_run(
+    async def _wrap_handle_start_task_run(
         self,
         wrapped: Callable[[Action], Coroutine[None, None, Exception | None]],
         _instance: Runner,
@@ -509,7 +509,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             "hatchet.cancel_step_run",
             attributes={
                 "instrumentor": "hatchet",
-                "hatchet.step_run_id": action.step_run_id,
+                "hatchet.step_run_id": action.task_run_external_id,
             },
             kind=SpanKind.CONSUMER,
         ):
@@ -1067,7 +1067,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         attributes: dict[OTelAttribute, str | int | None] = {
             OTelAttribute.SIGNAL_KEY: signal_key,
             OTelAttribute.NUM_CONDITIONS: len(conditions),
-            OTelAttribute.STEP_RUN_ID: instance._step_run_id,
+            OTelAttribute.TASK_RUN_ID: instance._task_run_external_id,
         }
 
         with self._tracer.start_as_current_span(
@@ -1153,10 +1153,10 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         self.tracer_provider = NoOpTracerProvider()
         self.meter_provider = NoOpMeterProvider()
 
-        unwrap(hatchet_sdk, "worker.runner.runner.Runner.handle_start_step_run")
+        unwrap(hatchet_sdk, "worker.runner.runner.Runner.handle_start_task_run")
         unwrap(hatchet_sdk, "worker.runner.runner.Runner.handle_cancel_action")
-        unwrap(hatchet_sdk, "clients.events.EventClient.push")
-        unwrap(hatchet_sdk, "clients.events.EventClient.bulk_push")
+        unwrap(hatchet_sdk, "features.events.EventClient.push")
+        unwrap(hatchet_sdk, "features.events.EventClient.bulk_push")
         unwrap(hatchet_sdk, "clients.admin.AdminClient.run_workflow")
         unwrap(hatchet_sdk, "clients.admin.AdminClient.aio_run_workflow")
         unwrap(hatchet_sdk, "clients.admin.AdminClient.schedule_workflow")

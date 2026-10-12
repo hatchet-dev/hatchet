@@ -111,6 +111,7 @@
       "guide": "/v1/events",
       "guideTitle": "Events",
       "slugs": {
+        "python": "events",
         "ruby": "events"
       }
     },

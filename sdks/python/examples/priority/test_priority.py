@@ -12,7 +12,7 @@ from pydantic import BaseModel
 
 from examples.priority.worker import DEFAULT_PRIORITY, SLEEP_TIME, priority_workflow
 from hatchet_sdk import Hatchet, Priority as PriorityEnum
-from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
+from hatchet_sdk.types.run_status import RunStatus
 
 Priority = Literal["low", "medium", "high", "default"]
 
@@ -194,10 +194,10 @@ async def test_priority_via_scheduling(
         if not runs:
             continue
 
-        if any(r.status in [V1TaskStatus.FAILED, V1TaskStatus.CANCELLED] for r in runs):
+        if any(r.status in [RunStatus.FAILED, RunStatus.CANCELLED] for r in runs):
             raise ValueError("One or more runs failed or were cancelled")
 
-        if all(r.status == V1TaskStatus.COMPLETED for r in runs):
+        if all(r.status == RunStatus.COMPLETED for r in runs):
             break
 
     runs_ids_started_ats: list[RunPriorityStartedAt] = sorted(
@@ -304,10 +304,10 @@ async def test_priority_via_cron(
         if not runs:
             continue
 
-        if any(r.status in [V1TaskStatus.FAILED, V1TaskStatus.CANCELLED] for r in runs):
+        if any(r.status in [RunStatus.FAILED, RunStatus.CANCELLED] for r in runs):
             raise ValueError("One or more runs failed or were cancelled")
 
-        if all(r.status == V1TaskStatus.COMPLETED for r in runs):
+        if all(r.status == RunStatus.COMPLETED for r in runs):
             break
 
     runs_ids_started_ats: list[RunPriorityStartedAt] = sorted(

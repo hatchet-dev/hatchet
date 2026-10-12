@@ -166,10 +166,10 @@ class Worker:
             logger.exception(f"failed to register workflow: {workflow.name}")
             raise
 
-        for step in workflow.tasks:
-            action_name = workflow.create_action_name(step)
+        for task in workflow.tasks:
+            action_name = workflow.create_action_name(task)
 
-            self._action_registry[action_name] = step
+            self._action_registry[action_name] = task
 
     async def aio_register_workflow(self, workflow: BaseWorkflow[Any]) -> None:
         await asyncio.to_thread(self.register_workflow, workflow)

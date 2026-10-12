@@ -2,6 +2,7 @@
   "pages": [
     "cel",
     "crons",
+    "events",
     "filters",
     "logs",
     "metrics",

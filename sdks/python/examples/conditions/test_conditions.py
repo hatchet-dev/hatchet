@@ -17,7 +17,7 @@ from examples.conditions.worker import (
     wait_for_event_only_workflow,
 )
 from examples.test_utils import wait_for_running_status
-from hatchet_sdk import Hatchet, RunStatus, V1TaskStatus
+from hatchet_sdk import Hatchet, RunStatus
 
 
 async def _wait_for_task_to_complete(
@@ -31,7 +31,7 @@ async def _wait_for_task_to_complete(
 
         # a task's display name is "<step readable id>-<unix timestamp>"
         if any(
-            t.status == V1TaskStatus.COMPLETED
+            t.status == RunStatus.COMPLETED
             and t.display_name.startswith(f"{task_name}-")
             for t in details.tasks
         ):

@@ -6,7 +6,7 @@ from uuid import uuid4
 
 from hatchet_sdk.clients.rest.api.observability_api import ObservabilityApi
 from hatchet_sdk.clients.rest.models.otel_span import OtelSpan
-from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
+from hatchet_sdk.types.run_status import RunStatus
 from hatchet_sdk import Hatchet
 from examples.opentelemetry_instrumentation.worker import (
     otel_simple_task,
@@ -154,7 +154,7 @@ async def test_otel_spans_on_event_triggered_run(
     run_id = None
     for _ in range(15):
         runs = await hatchet.runs.aio_list(triggering_event_external_id=event.event_id)
-        completed = [r for r in runs if r.status == V1TaskStatus.COMPLETED]
+        completed = [r for r in runs if r.status == RunStatus.COMPLETED]
         if completed:
             run_id = completed[0].task_external_id
             break

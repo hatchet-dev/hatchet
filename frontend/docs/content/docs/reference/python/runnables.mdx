@@ -56,8 +56,8 @@ Methods:
 | `task`                 | A decorator to transform a function into a Hatchet task that runs as part of a workflow.                                                         |
 | `batch_task`           | .. note::                                                                                                                                        |
 | `durable_task`         | A decorator to transform a function into a durable Hatchet task that runs as part of a workflow.                                                 |
-| `on_failure_task`      | A decorator to transform a function into a Hatchet on-failure task that runs as the last step in a workflow that had at least one task fail.     |
-| `on_success_task`      | A decorator to transform a function into a Hatchet on-success task that runs as the last step in a workflow that had all upstream tasks succeed. |
+| `on_failure_task`      | A decorator to transform a function into a Hatchet on-failure task that runs as the last task in a workflow that had at least one task fail.     |
+| `on_success_task`      | A decorator to transform a function into a Hatchet on-success task that runs as the last task in a workflow that had all upstream tasks succeed. |
 | `run`                  | Run the workflow synchronously and wait for it to complete.                                                                                      |
 | `aio_run`              | Run the workflow asynchronously and wait for it to complete.                                                                                     |
 | `run_many`             | Run a workflow in bulk.                                                                                                                          |
@@ -141,9 +141,9 @@ Raises:
 A decorator to transform a function into a Hatchet _batch_ task that runs as part of a workflow.
 
 Batch tasks buffer individual executions until Hatchet flushes the batch (size reached or flush interval),
-then invoke the handler once with all buffered inputs keyed by step run ID.
+then invoke the handler once with all buffered inputs keyed by task run ID.
 
-The handler must return a dict mapping each step run ID to its output, or use `broadcast_output` to return the same result to all callsites.
+The handler must return a dict mapping each task run ID to its output, or use `broadcast_output` to return the same result to all callsites.
 
 #### `durable_task`
 
@@ -187,7 +187,7 @@ Raises:
 
 #### `on_failure_task`
 
-A decorator to transform a function into a Hatchet on-failure task that runs as the last step in a workflow that had at least one task fail.
+A decorator to transform a function into a Hatchet on-failure task that runs as the last task in a workflow that had at least one task fail.
 
 Parameters:
 
@@ -210,7 +210,7 @@ Returns:
 
 #### `on_success_task`
 
-A decorator to transform a function into a Hatchet on-success task that runs as the last step in a workflow that had all upstream tasks succeed.
+A decorator to transform a function into a Hatchet on-success task that runs as the last task in a workflow that had all upstream tasks succeed.
 
 Parameters:
 
@@ -431,18 +431,18 @@ List runs of the workflow.
 
 Parameters:
 
-| Name                           | Type                         | Description                                 | Default |
-| ------------------------------ | ---------------------------- | ------------------------------------------- | ------- |
-| `since`                        | `datetime \| None`           | The start time for the runs to be listed.   | `None`  |
-| `until`                        | `datetime \| None`           | The end time for the runs to be listed.     | `None`  |
-| `limit`                        | `int`                        | The maximum number of runs to be listed.    | `100`   |
-| `offset`                       | `int \| None`                | The offset for pagination.                  | `None`  |
-| `statuses`                     | `list[V1TaskStatus] \| None` | The statuses of the runs to be listed.      | `None`  |
-| `additional_metadata`          | `dict[str, str] \| None`     | Additional metadata for filtering the runs. | `None`  |
-| `worker_id`                    | `str \| None`                | The ID of the worker that ran the tasks.    | `None`  |
-| `parent_task_external_id`      | `str \| None`                | The external ID of the parent task.         | `None`  |
-| `only_tasks`                   | `bool`                       | Whether to list only task runs.             | `False` |
-| `triggering_event_external_id` | `str \| None`                | The event id that triggered the task run.   | `None`  |
+| Name                           | Type                      | Description                                 | Default |
+| ------------------------------ | ------------------------- | ------------------------------------------- | ------- |
+| `since`                        | `datetime \| None`        | The start time for the runs to be listed.   | `None`  |
+| `until`                        | `datetime \| None`        | The end time for the runs to be listed.     | `None`  |
+| `limit`                        | `int`                     | The maximum number of runs to be listed.    | `100`   |
+| `offset`                       | `int \| None`             | The offset for pagination.                  | `None`  |
+| `statuses`                     | `list[RunStatus] \| None` | The statuses of the runs to be listed.      | `None`  |
+| `additional_metadata`          | `dict[str, str] \| None`  | Additional metadata for filtering the runs. | `None`  |
+| `worker_id`                    | `str \| None`             | The ID of the worker that ran the tasks.    | `None`  |
+| `parent_task_external_id`      | `str \| None`             | The external ID of the parent task.         | `None`  |
+| `only_tasks`                   | `bool`                    | Whether to list only task runs.             | `False` |
+| `triggering_event_external_id` | `str \| None`             | The event id that triggered the task run.   | `None`  |
 
 Returns:
 
@@ -456,18 +456,18 @@ List runs of the workflow.
 
 Parameters:
 
-| Name                           | Type                         | Description                                 | Default |
-| ------------------------------ | ---------------------------- | ------------------------------------------- | ------- |
-| `since`                        | `datetime \| None`           | The start time for the runs to be listed.   | `None`  |
-| `until`                        | `datetime \| None`           | The end time for the runs to be listed.     | `None`  |
-| `limit`                        | `int`                        | The maximum number of runs to be listed.    | `100`   |
-| `offset`                       | `int \| None`                | The offset for pagination.                  | `None`  |
-| `statuses`                     | `list[V1TaskStatus] \| None` | The statuses of the runs to be listed.      | `None`  |
-| `additional_metadata`          | `dict[str, str] \| None`     | Additional metadata for filtering the runs. | `None`  |
-| `worker_id`                    | `str \| None`                | The ID of the worker that ran the tasks.    | `None`  |
-| `parent_task_external_id`      | `str \| None`                | The external ID of the parent task.         | `None`  |
-| `only_tasks`                   | `bool`                       | Whether to list only task runs.             | `False` |
-| `triggering_event_external_id` | `str \| None`                | The event id that triggered the task run.   | `None`  |
+| Name                           | Type                      | Description                                 | Default |
+| ------------------------------ | ------------------------- | ------------------------------------------- | ------- |
+| `since`                        | `datetime \| None`        | The start time for the runs to be listed.   | `None`  |
+| `until`                        | `datetime \| None`        | The end time for the runs to be listed.     | `None`  |
+| `limit`                        | `int`                     | The maximum number of runs to be listed.    | `100`   |
+| `offset`                       | `int \| None`             | The offset for pagination.                  | `None`  |
+| `statuses`                     | `list[RunStatus] \| None` | The statuses of the runs to be listed.      | `None`  |
+| `additional_metadata`          | `dict[str, str] \| None`  | Additional metadata for filtering the runs. | `None`  |
+| `worker_id`                    | `str \| None`             | The ID of the worker that ran the tasks.    | `None`  |
+| `parent_task_external_id`      | `str \| None`             | The external ID of the parent task.         | `None`  |
+| `only_tasks`                   | `bool`                    | Whether to list only task runs.             | `False` |
+| `triggering_event_external_id` | `str \| None`             | The event id that triggered the task run.   | `None`  |
 
 Returns:
 
@@ -536,7 +536,7 @@ Parameters:
 | --------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
 | `input`               | `TWorkflowInput \| None`                     | The input to the task.                                                                                                                                                                                                                                                                                                                                                                                    | `None`  |
 | `additional_metadata` | `JSONSerializableMapping \| None`            | Additional metadata to attach to the task.                                                                                                                                                                                                                                                                                                                                                                | `None`  |
-| `parent_outputs`      | `dict[str, JSONSerializableMapping] \| None` | Outputs from parent tasks, if any. This is useful for mimicking DAG functionality. For instance, if you have a task `step_2` that has a `parent` which is `step_1`, you can pass `parent_outputs={"step_1": {"result": "Hello, world!"}}` to `step_2.mock_run()` to be able to access `ctx.task_output(step_1)` in `step_2`.                                                                              | `None`  |
+| `parent_outputs`      | `dict[str, JSONSerializableMapping] \| None` | Outputs from parent tasks, if any. This is useful for mimicking DAG functionality. For instance, if you have a task `task_2` that has a `parent` which is `task_1`, you can pass `parent_outputs={"task_1": {"result": "Hello, world!"}}` to `task_2.mock_run()` to be able to access `ctx.task_output(task_1)` in `task_2`.                                                                              | `None`  |
 | `retry_count`         | `int`                                        | The number of times the task has been retried.                                                                                                                                                                                                                                                                                                                                                            | `0`     |
 | `lifespan`            | `Any`                                        | The lifespan to be used in the task, which is useful if one was set on the worker. This will allow you to access `ctx.lifespan` inside of your task.                                                                                                                                                                                                                                                      | `None`  |
 | `dependencies`        | `dict[str, Any] \| None`                     | Dependencies to be injected into the task. This is useful for tasks that have dependencies defined using `Depends`. **IMPORTANT**: You must pass the dependencies _directly_, **not** the `Depends` objects themselves. For example, if you have a task that has a dependency `config: Annotated[str, Depends(get_config)]`, you should pass `dependencies={"config": "config_value"}` to `aio_mock_run`. | `None`  |
@@ -565,7 +565,7 @@ Parameters:
 | --------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
 | `input`               | `TWorkflowInput \| None`                     | The input to the task.                                                                                                                                                                                                                                                                                                                                                                                    | `None`  |
 | `additional_metadata` | `JSONSerializableMapping \| None`            | Additional metadata to attach to the task.                                                                                                                                                                                                                                                                                                                                                                | `None`  |
-| `parent_outputs`      | `dict[str, JSONSerializableMapping] \| None` | Outputs from parent tasks, if any. This is useful for mimicking DAG functionality. For instance, if you have a task `step_2` that has a `parent` which is `step_1`, you can pass `parent_outputs={"step_1": {"result": "Hello, world!"}}` to `step_2.mock_run()` to be able to access `ctx.task_output(step_1)` in `step_2`.                                                                              | `None`  |
+| `parent_outputs`      | `dict[str, JSONSerializableMapping] \| None` | Outputs from parent tasks, if any. This is useful for mimicking DAG functionality. For instance, if you have a task `task_2` that has a `parent` which is `task_1`, you can pass `parent_outputs={"task_1": {"result": "Hello, world!"}}` to `task_2.mock_run()` to be able to access `ctx.task_output(task_1)` in `task_2`.                                                                              | `None`  |
 | `retry_count`         | `int`                                        | The number of times the task has been retried.                                                                                                                                                                                                                                                                                                                                                            | `0`     |
 | `lifespan`            | `Any`                                        | The lifespan to be used in the task, which is useful if one was set on the worker. This will allow you to access `ctx.lifespan` inside of your task.                                                                                                                                                                                                                                                      | `None`  |
 | `dependencies`        | `dict[str, Any] \| None`                     | Dependencies to be injected into the task. This is useful for tasks that have dependencies defined using `Depends`. **IMPORTANT**: You must pass the dependencies _directly_, **not** the `Depends` objects themselves. For example, if you have a task that has a dependency `config: Annotated[str, Depends(get_config)]`, you should pass `dependencies={"config": "config_value"}` to `aio_mock_run`. | `None`  |
@@ -807,18 +807,18 @@ List runs of the workflow.
 
 Parameters:
 
-| Name                           | Type                         | Description                                 | Default |
-| ------------------------------ | ---------------------------- | ------------------------------------------- | ------- |
-| `since`                        | `datetime \| None`           | The start time for the runs to be listed.   | `None`  |
-| `until`                        | `datetime \| None`           | The end time for the runs to be listed.     | `None`  |
-| `limit`                        | `int`                        | The maximum number of runs to be listed.    | `100`   |
-| `offset`                       | `int \| None`                | The offset for pagination.                  | `None`  |
-| `statuses`                     | `list[V1TaskStatus] \| None` | The statuses of the runs to be listed.      | `None`  |
-| `additional_metadata`          | `dict[str, str] \| None`     | Additional metadata for filtering the runs. | `None`  |
-| `worker_id`                    | `str \| None`                | The ID of the worker that ran the tasks.    | `None`  |
-| `parent_task_external_id`      | `str \| None`                | The external ID of the parent task.         | `None`  |
-| `only_tasks`                   | `bool`                       | Whether to list only task runs.             | `False` |
-| `triggering_event_external_id` | `str \| None`                | The event id that triggered the task run.   | `None`  |
+| Name                           | Type                      | Description                                 | Default |
+| ------------------------------ | ------------------------- | ------------------------------------------- | ------- |
+| `since`                        | `datetime \| None`        | The start time for the runs to be listed.   | `None`  |
+| `until`                        | `datetime \| None`        | The end time for the runs to be listed.     | `None`  |
+| `limit`                        | `int`                     | The maximum number of runs to be listed.    | `100`   |
+| `offset`                       | `int \| None`             | The offset for pagination.                  | `None`  |
+| `statuses`                     | `list[RunStatus] \| None` | The statuses of the runs to be listed.      | `None`  |
+| `additional_metadata`          | `dict[str, str] \| None`  | Additional metadata for filtering the runs. | `None`  |
+| `worker_id`                    | `str \| None`             | The ID of the worker that ran the tasks.    | `None`  |
+| `parent_task_external_id`      | `str \| None`             | The external ID of the parent task.         | `None`  |
+| `only_tasks`                   | `bool`                    | Whether to list only task runs.             | `False` |
+| `triggering_event_external_id` | `str \| None`             | The event id that triggered the task run.   | `None`  |
 
 Returns:
 
@@ -832,18 +832,18 @@ List runs of the workflow.
 
 Parameters:
 
-| Name                           | Type                         | Description                                 | Default |
-| ------------------------------ | ---------------------------- | ------------------------------------------- | ------- |
-| `since`                        | `datetime \| None`           | The start time for the runs to be listed.   | `None`  |
-| `until`                        | `datetime \| None`           | The end time for the runs to be listed.     | `None`  |
-| `limit`                        | `int`                        | The maximum number of runs to be listed.    | `100`   |
-| `offset`                       | `int \| None`                | The offset for pagination.                  | `None`  |
-| `statuses`                     | `list[V1TaskStatus] \| None` | The statuses of the runs to be listed.      | `None`  |
-| `additional_metadata`          | `dict[str, str] \| None`     | Additional metadata for filtering the runs. | `None`  |
-| `worker_id`                    | `str \| None`                | The ID of the worker that ran the tasks.    | `None`  |
-| `parent_task_external_id`      | `str \| None`                | The external ID of the parent task.         | `None`  |
-| `only_tasks`                   | `bool`                       | Whether to list only task runs.             | `False` |
-| `triggering_event_external_id` | `str \| None`                | The event id that triggered the task run.   | `None`  |
+| Name                           | Type                      | Description                                 | Default |
+| ------------------------------ | ------------------------- | ------------------------------------------- | ------- |
+| `since`                        | `datetime \| None`        | The start time for the runs to be listed.   | `None`  |
+| `until`                        | `datetime \| None`        | The end time for the runs to be listed.     | `None`  |
+| `limit`                        | `int`                     | The maximum number of runs to be listed.    | `100`   |
+| `offset`                       | `int \| None`             | The offset for pagination.                  | `None`  |
+| `statuses`                     | `list[RunStatus] \| None` | The statuses of the runs to be listed.      | `None`  |
+| `additional_metadata`          | `dict[str, str] \| None`  | Additional metadata for filtering the runs. | `None`  |
+| `worker_id`                    | `str \| None`             | The ID of the worker that ran the tasks.    | `None`  |
+| `parent_task_external_id`      | `str \| None`             | The external ID of the parent task.         | `None`  |
+| `only_tasks`                   | `bool`                    | Whether to list only task runs.             | `False` |
+| `triggering_event_external_id` | `str \| None`             | The event id that triggered the task run.   | `None`  |
 
 Returns:
 
@@ -959,7 +959,7 @@ Parameters:
 | --------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
 | `input`               | `TWorkflowInput \| None`                     | The input to the task.                                                                                                                                                                                                                                                                                                                                                                                    | `None`  |
 | `additional_metadata` | `JSONSerializableMapping \| None`            | Additional metadata to attach to the task.                                                                                                                                                                                                                                                                                                                                                                | `None`  |
-| `parent_outputs`      | `dict[str, JSONSerializableMapping] \| None` | Outputs from parent tasks, if any. This is useful for mimicking DAG functionality. For instance, if you have a task `step_2` that has a `parent` which is `step_1`, you can pass `parent_outputs={"step_1": {"result": "Hello, world!"}}` to `step_2.mock_run()` to be able to access `ctx.task_output(step_1)` in `step_2`.                                                                              | `None`  |
+| `parent_outputs`      | `dict[str, JSONSerializableMapping] \| None` | Outputs from parent tasks, if any. This is useful for mimicking DAG functionality. For instance, if you have a task `task_2` that has a `parent` which is `task_1`, you can pass `parent_outputs={"task_1": {"result": "Hello, world!"}}` to `task_2.mock_run()` to be able to access `ctx.task_output(task_1)` in `task_2`.                                                                              | `None`  |
 | `retry_count`         | `int`                                        | The number of times the task has been retried.                                                                                                                                                                                                                                                                                                                                                            | `0`     |
 | `lifespan`            | `Any`                                        | The lifespan to be used in the task, which is useful if one was set on the worker. This will allow you to access `ctx.lifespan` inside of your task.                                                                                                                                                                                                                                                      | `None`  |
 | `dependencies`        | `dict[str, Any] \| None`                     | Dependencies to be injected into the task. This is useful for tasks that have dependencies defined using `Depends`. **IMPORTANT**: You must pass the dependencies _directly_, **not** the `Depends` objects themselves. For example, if you have a task that has a dependency `config: Annotated[str, Depends(get_config)]`, you should pass `dependencies={"config": "config_value"}` to `aio_mock_run`. | `None`  |
@@ -982,7 +982,7 @@ Parameters:
 | --------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
 | `input`               | `TWorkflowInput \| None`                     | The input to the task.                                                                                                                                                                                                                                                                                                                                                                                    | `None`  |
 | `additional_metadata` | `JSONSerializableMapping \| None`            | Additional metadata to attach to the task.                                                                                                                                                                                                                                                                                                                                                                | `None`  |
-| `parent_outputs`      | `dict[str, JSONSerializableMapping] \| None` | Outputs from parent tasks, if any. This is useful for mimicking DAG functionality. For instance, if you have a task `step_2` that has a `parent` which is `step_1`, you can pass `parent_outputs={"step_1": {"result": "Hello, world!"}}` to `step_2.mock_run()` to be able to access `ctx.task_output(step_1)` in `step_2`.                                                                              | `None`  |
+| `parent_outputs`      | `dict[str, JSONSerializableMapping] \| None` | Outputs from parent tasks, if any. This is useful for mimicking DAG functionality. For instance, if you have a task `task_2` that has a `parent` which is `task_1`, you can pass `parent_outputs={"task_1": {"result": "Hello, world!"}}` to `task_2.mock_run()` to be able to access `ctx.task_output(task_1)` in `task_2`.                                                                              | `None`  |
 | `retry_count`         | `int`                                        | The number of times the task has been retried.                                                                                                                                                                                                                                                                                                                                                            | `0`     |
 | `lifespan`            | `Any`                                        | The lifespan to be used in the task, which is useful if one was set on the worker. This will allow you to access `ctx.lifespan` inside of your task.                                                                                                                                                                                                                                                      | `None`  |
 | `dependencies`        | `dict[str, Any] \| None`                     | Dependencies to be injected into the task. This is useful for tasks that have dependencies defined using `Depends`. **IMPORTANT**: You must pass the dependencies _directly_, **not** the `Depends` objects themselves. For example, if you have a task that has a dependency `config: Annotated[str, Depends(get_config)]`, you should pass `dependencies={"config": "config_value"}` to `aio_mock_run`. | `None`  |

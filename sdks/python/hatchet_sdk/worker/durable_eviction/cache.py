@@ -19,7 +19,7 @@ class EvictionCause(StrEnum):
 
 class DurableRunRecord(BaseModel):
     key: ActionKey
-    step_run_id: str
+    task_run_external_id: str
     invocation_count: int
     eviction_policy: EvictionPolicy | None
     registered_at: datetime
@@ -47,14 +47,14 @@ class DurableEvictionCache:
     def register_run(
         self,
         key: ActionKey,
-        step_run_id: str,
+        task_run_external_id: str,
         invocation_count: int,
         now: datetime,
         eviction_policy: EvictionPolicy | None,
     ) -> None:
         self._runs[key] = DurableRunRecord(
             key=key,
-            step_run_id=step_run_id,
+            task_run_external_id=task_run_external_id,
             invocation_count=invocation_count,
             eviction_policy=eviction_policy,
             registered_at=now,
@@ -69,9 +69,11 @@ class DurableEvictionCache:
     def get_all_waiting(self) -> list[DurableRunRecord]:
         return [r for r in self._runs.values() if r.is_waiting]
 
-    def find_key_by_step_run_id(self, step_run_id: str) -> ActionKey | None:
+    def find_key_by_task_run_external_id(
+        self, task_run_external_id: str
+    ) -> ActionKey | None:
         for key, rec in self._runs.items():
-            if rec.step_run_id == step_run_id:
+            if rec.task_run_external_id == task_run_external_id:
                 return key
         return None
 
@@ -155,7 +157,7 @@ class DurableEvictionCache:
             )
             logger.debug(
                 "DurableEvictionCache: TTL eviction candidate selected "
-                f"step_run_id={chosen.step_run_id} kind={chosen.wait_kind}"
+                f"task_run_external_id={chosen.task_run_external_id} kind={chosen.wait_kind}"
             )
             return chosen.key
 
@@ -192,7 +194,7 @@ class DurableEvictionCache:
         )
         logger.debug(
             "DurableEvictionCache: capacity eviction candidate selected "
-            f"step_run_id={chosen.step_run_id} kind={chosen.wait_kind}"
+            f"task_run_external_id={chosen.task_run_external_id} kind={chosen.wait_kind}"
         )
         return chosen.key
 

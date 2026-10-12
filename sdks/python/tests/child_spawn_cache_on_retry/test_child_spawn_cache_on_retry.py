@@ -4,8 +4,8 @@ from uuid import uuid4
 
 import pytest
 
-from hatchet_sdk import Hatchet, TriggerWorkflowOptions
-from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
+from hatchet_sdk import Hatchet
+from hatchet_sdk.types.run_status import RunStatus
 from tests.child_spawn_cache_on_retry.worker import (
     spawn_cache_on_retry_child,
     spawn_cache_on_retry_parent,
@@ -36,4 +36,4 @@ async def test_spawn_caching_on_retry(
 
     run = runs[0]
 
-    assert run.status == V1TaskStatus.COMPLETED
+    assert run.status == RunStatus.COMPLETED

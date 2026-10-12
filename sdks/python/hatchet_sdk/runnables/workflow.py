@@ -30,7 +30,6 @@ from pydantic import (
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListener
 from hatchet_sdk.clients.rest.models.cron_workflows import CronWorkflows
 from hatchet_sdk.clients.rest.models.v1_filter import V1Filter
-from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 from hatchet_sdk.clients.rest.models.workflow import Workflow as WorkflowModel
 from hatchet_sdk.conditions import Condition, OrGroup
@@ -52,9 +51,9 @@ from hatchet_sdk.runnables.types import (
     BatchMemberId,
     BatchTaskConfig,
     R,
-    StepType,
     TaskDefaults,
     TaskPayloadForInternalUse,
+    TaskType,
     TWorkflowInput,
     WorkflowConfig,
     normalize_validator,
@@ -64,6 +63,7 @@ from hatchet_sdk.types.concurrency import ConcurrencyStrategy
 from hatchet_sdk.types.labels import DesiredWorkerLabel
 from hatchet_sdk.types.priority import Priority
 from hatchet_sdk.types.rate_limit import RateLimit
+from hatchet_sdk.types.run_status import RunStatus
 from hatchet_sdk.types.trigger import (
     ScheduleTriggerWorkflowOptions,
     TriggerWorkflowOptions,
@@ -169,8 +169,8 @@ class BaseWorkflow(Generic[TWorkflowInput]):
     def service_name(self) -> str:
         return self._client.config.apply_namespace(self._config.name.lower())
 
-    def create_action_name(self, step: Task[TWorkflowInput, Any]) -> str:
-        return self.service_name + ":" + step.name
+    def create_action_name(self, task: Task[TWorkflowInput, Any]) -> str:
+        return self.service_name + ":" + task.name
 
     def _is_leaf_task(self, task: Task[TWorkflowInput, Any]) -> bool:
         return not any(task in t.parents for t in self.tasks if task != t)
@@ -189,7 +189,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             self._on_success_task.parents = [
                 task
                 for task in self.tasks
-                if task.type == StepType.DEFAULT and self._is_leaf_task(task)
+                if task.type == TaskType.DEFAULT and self._is_leaf_task(task)
             ]
 
         on_success_task = (
@@ -199,7 +199,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         tasks = [
             task.to_proto(service_name)
             for task in self.tasks
-            if task.type == StepType.DEFAULT
+            if task.type == TaskType.DEFAULT
         ]
 
         if on_success_task:
@@ -453,7 +453,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         until: datetime | None = None,
         limit: int = 100,
         offset: int | None = None,
-        statuses: list[V1TaskStatus] | None = None,
+        statuses: list[RunStatus] | None = None,
         additional_metadata: dict[str, str] | None = None,
         worker_id: str | None = None,
         parent_task_external_id: str | None = None,
@@ -496,7 +496,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         until: datetime | None = None,
         limit: int = 100,
         offset: int | None = None,
-        statuses: list[V1TaskStatus] | None = None,
+        statuses: list[RunStatus] | None = None,
         additional_metadata: dict[str, str] | None = None,
         worker_id: str | None = None,
         parent_task_external_id: str | None = None,
@@ -1298,7 +1298,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 _fn=func,
                 is_durable=False,
                 workflow=self,
-                type=StepType.DEFAULT,
+                type=TaskType.DEFAULT,
                 name=self._parse_task_name(name, func),
                 execution_timeout=computed_params.execution_timeout,
                 schedule_timeout=computed_params.schedule_timeout,
@@ -1410,9 +1410,9 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         A decorator to transform a function into a Hatchet *batch* task that runs as part of a workflow.
 
         Batch tasks buffer individual executions until Hatchet flushes the batch (size reached or flush interval),
-        then invoke the handler once with all buffered inputs keyed by step run ID.
+        then invoke the handler once with all buffered inputs keyed by task run ID.
 
-        The handler must return a dict mapping each step run ID to its output, or use `broadcast_output` to return the same result to all callsites.
+        The handler must return a dict mapping each task run ID to its output, or use `broadcast_output` to return the same result to all callsites.
         """
 
         if batch_max_size <= 0:
@@ -1451,7 +1451,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 ),
                 is_durable=False,
                 workflow=self,
-                type=StepType.DEFAULT,
+                type=TaskType.DEFAULT,
                 name=self._parse_task_name(name, func),
                 execution_timeout=computed_params.execution_timeout,
                 schedule_timeout=computed_params.schedule_timeout,
@@ -1571,7 +1571,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 _fn=func,
                 is_durable=True,
                 workflow=self,
-                type=StepType.DEFAULT,
+                type=TaskType.DEFAULT,
                 name=self._parse_task_name(name, func),
                 execution_timeout=computed_params.execution_timeout,
                 schedule_timeout=computed_params.schedule_timeout,
@@ -1610,7 +1610,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         Task[TWorkflowInput, R],
     ]:
         """
-        A decorator to transform a function into a Hatchet on-failure task that runs as the last step in a workflow that had at least one task fail.
+        A decorator to transform a function into a Hatchet on-failure task that runs as the last task in a workflow that had at least one task fail.
 
         :param name: The name of the on-failure task. If not specified, defaults to the name of the function being wrapped by the `on_failure_task` decorator.
 
@@ -1640,7 +1640,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 is_durable=False,
                 _fn=func,
                 workflow=self,
-                type=StepType.ON_FAILURE,
+                type=TaskType.ON_FAILURE,
                 name=self._parse_task_name(name, func) + "-on-failure",
                 execution_timeout=execution_timeout,
                 schedule_timeout=schedule_timeout,
@@ -1680,7 +1680,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         Task[TWorkflowInput, R],
     ]:
         """
-        A decorator to transform a function into a Hatchet on-success task that runs as the last step in a workflow that had all upstream tasks succeed.
+        A decorator to transform a function into a Hatchet on-success task that runs as the last task in a workflow that had all upstream tasks succeed.
 
         :param name: The name of the on-success task. If not specified, defaults to the name of the function being wrapped by the `on_success_task` decorator.
 
@@ -1710,7 +1710,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 is_durable=False,
                 _fn=func,
                 workflow=self,
-                type=StepType.ON_SUCCESS,
+                type=TaskType.ON_SUCCESS,
                 name=self._parse_task_name(name, func) + "-on-success",
                 execution_timeout=execution_timeout,
                 schedule_timeout=schedule_timeout,
@@ -1755,14 +1755,14 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         _task = task._task
 
         match _task.type:
-            case StepType.DEFAULT:
+            case TaskType.DEFAULT:
                 self._default_tasks.append(_task)
-            case StepType.ON_FAILURE:
+            case TaskType.ON_FAILURE:
                 if self._on_failure_task:
                     raise ValueError("Only one on-failure task is allowed")
 
                 self._on_failure_task = _task
-            case StepType.ON_SUCCESS:
+            case TaskType.ON_SUCCESS:
                 if self._on_success_task:
                     raise ValueError("Only one on-success task is allowed")
 
@@ -2158,7 +2158,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
         :param input: The input to the task.
         :param additional_metadata: Additional metadata to attach to the task.
-        :param parent_outputs: Outputs from parent tasks, if any. This is useful for mimicking DAG functionality. For instance, if you have a task `step_2` that has a `parent` which is `step_1`, you can pass `parent_outputs={"step_1": {"result": "Hello, world!"}}` to `step_2.mock_run()` to be able to access `ctx.task_output(step_1)` in `step_2`.
+        :param parent_outputs: Outputs from parent tasks, if any. This is useful for mimicking DAG functionality. For instance, if you have a task `task_2` that has a `parent` which is `task_1`, you can pass `parent_outputs={"task_1": {"result": "Hello, world!"}}` to `task_2.mock_run()` to be able to access `ctx.task_output(task_1)` in `task_2`.
         :param retry_count: The number of times the task has been retried.
         :param lifespan: The lifespan to be used in the task, which is useful if one was set on the worker. This will allow you to access `ctx.lifespan` inside of your task.
         :param dependencies: Dependencies to be injected into the task. This is useful for tasks that have dependencies defined using `Depends`. **IMPORTANT**: You must pass the dependencies _directly_, **not** the `Depends` objects themselves. For example, if you have a task that has a dependency `config: Annotated[str, Depends(get_config)]`, you should pass `dependencies={"config": "config_value"}` to `aio_mock_run`.
@@ -2191,7 +2191,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
         :param input: The input to the task.
         :param additional_metadata: Additional metadata to attach to the task.
-        :param parent_outputs: Outputs from parent tasks, if any. This is useful for mimicking DAG functionality. For instance, if you have a task `step_2` that has a `parent` which is `step_1`, you can pass `parent_outputs={"step_1": {"result": "Hello, world!"}}` to `step_2.mock_run()` to be able to access `ctx.task_output(step_1)` in `step_2`.
+        :param parent_outputs: Outputs from parent tasks, if any. This is useful for mimicking DAG functionality. For instance, if you have a task `task_2` that has a `parent` which is `task_1`, you can pass `parent_outputs={"task_1": {"result": "Hello, world!"}}` to `task_2.mock_run()` to be able to access `ctx.task_output(task_1)` in `task_2`.
         :param retry_count: The number of times the task has been retried.
         :param lifespan: The lifespan to be used in the task, which is useful if one was set on the worker. This will allow you to access `ctx.lifespan` inside of your task.
         :param dependencies: Dependencies to be injected into the task. This is useful for tasks that have dependencies defined using `Depends`. **IMPORTANT**: You must pass the dependencies _directly_, **not** the `Depends` objects themselves. For example, if you have a task that has a dependency `config: Annotated[str, Depends(get_config)]`, you should pass `dependencies={"config": "config_value"}` to `aio_mock_run`.

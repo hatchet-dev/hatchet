@@ -58,7 +58,7 @@ def _subprocess_target(
 
     mock_dispatcher = MagicMock()
     mock_dispatcher.get_action_listener = AsyncMock(return_value=listener)
-    mock_dispatcher.send_step_action_event = AsyncMock()
+    mock_dispatcher.send_task_action_event = AsyncMock()
 
     with patch(
         "hatchet_sdk.worker.action_listener_process.DispatcherClient",

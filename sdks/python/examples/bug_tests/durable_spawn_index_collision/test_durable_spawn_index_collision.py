@@ -4,7 +4,7 @@ from examples.bug_tests.durable_spawn_index_collision.worker import (
     SpawnIndexCollisionInput,
     durable_spawn_index_collision,
 )
-from hatchet_sdk import Hatchet, V1TaskStatus
+from hatchet_sdk import Hatchet, RunStatus
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -35,4 +35,4 @@ async def test_spawn_index_self_dedupe_returns_cached_result(hatchet: Hatchet) -
     runs = await hatchet.runs.aio_list(parent_task_external_id=ref.workflow_run_id)
 
     assert len(runs) == 2, "the deduped spawn must not create a third child"
-    assert all(run.status == V1TaskStatus.COMPLETED for run in runs)
+    assert all(run.status == RunStatus.COMPLETED for run in runs)

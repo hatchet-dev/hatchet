@@ -2,7 +2,6 @@ import asyncio
 import json
 from collections.abc import Generator
 from datetime import datetime
-from enum import StrEnum
 from typing import Any, TypeVar, cast
 
 import grpc
@@ -12,7 +11,6 @@ from pydantic import BaseModel, ConfigDict, field_validator
 
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
 from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
-from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
@@ -30,7 +28,7 @@ from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.contextvars import (
     ctx_action_key,
     ctx_additional_metadata,
-    ctx_step_run_id,
+    ctx_task_run_external_id,
     ctx_worker_id,
     ctx_workflow_run_id,
     spawn_index_lock,
@@ -40,7 +38,7 @@ from hatchet_sdk.types.labels import (
     DesiredWorkerLabel,
 )
 from hatchet_sdk.types.priority import Priority
-from hatchet_sdk.types.rate_limit import RateLimitDuration
+from hatchet_sdk.types.run_status import RunStatus
 from hatchet_sdk.types.trigger import (
     ScheduleTriggerWorkflowOptions as ScheduleTriggerWorkflowOptions,
 )
@@ -51,7 +49,7 @@ from hatchet_sdk.types.trigger import (
     WorkflowRunTriggerConfig as WorkflowRunTriggerConfig,
 )
 from hatchet_sdk.utils.api_auth import create_authorization_header
-from hatchet_sdk.utils.proto_enums import convert_python_literal_to_proto
+from hatchet_sdk.utils.proto_enums import convert_proto_enum_to_python
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
@@ -60,65 +58,12 @@ T = TypeVar("T")
 MAX_BULK_WORKFLOW_RUN_BATCH_SIZE = 1000
 
 
-class RunStatus(StrEnum):
-    QUEUED = "QUEUED"
-    RUNNING = "RUNNING"
-    COMPLETED = "COMPLETED"
-    CANCELLED = "CANCELLED"
-    FAILED = "FAILED"
-
-    @staticmethod
-    def from_proto(proto_status: workflow_protos.RunStatus) -> "RunStatus":
-        if proto_status == workflow_protos.RunStatus.COMPLETED:
-            return RunStatus.COMPLETED
-        if proto_status == workflow_protos.RunStatus.CANCELLED:
-            return RunStatus.CANCELLED
-        if proto_status == workflow_protos.RunStatus.FAILED:
-            return RunStatus.FAILED
-        if proto_status == workflow_protos.RunStatus.RUNNING:
-            return RunStatus.RUNNING
-        if proto_status == workflow_protos.RunStatus.QUEUED:
-            return RunStatus.QUEUED
-        raise ValueError(f"Unknown proto status: {proto_status}")
-
-    @staticmethod
-    def from_v1_task_status(
-        v1_task_status: V1TaskStatus,
-    ) -> "RunStatus":
-        if v1_task_status == V1TaskStatus.COMPLETED:
-            return RunStatus.COMPLETED
-        if v1_task_status == V1TaskStatus.CANCELLED:
-            return RunStatus.CANCELLED
-        if v1_task_status == V1TaskStatus.FAILED:
-            return RunStatus.FAILED
-        if v1_task_status == V1TaskStatus.RUNNING:
-            return RunStatus.RUNNING
-        if v1_task_status == V1TaskStatus.QUEUED:
-            return RunStatus.QUEUED
-
-        raise ValueError(f"Unknown V1TaskStatus: {v1_task_status}")
-
-    def to_v1_task_status(self) -> V1TaskStatus:
-        if self == RunStatus.COMPLETED:
-            return V1TaskStatus.COMPLETED
-        if self == RunStatus.CANCELLED:
-            return V1TaskStatus.CANCELLED
-        if self == RunStatus.FAILED:
-            return V1TaskStatus.FAILED
-        if self == RunStatus.RUNNING:
-            return V1TaskStatus.RUNNING
-        if self == RunStatus.QUEUED:
-            return V1TaskStatus.QUEUED
-
-        raise ValueError(f"Unknown RunStatus: {self}")
-
-
 class TaskRunDetail(BaseModel):
     external_id: str
     readable_id: str
     output: JSONSerializableMapping | None = None
     error: str | None = None
-    status: V1TaskStatus
+    status: RunStatus
     is_evicted: bool = False
 
 
@@ -166,7 +111,7 @@ class AdminClient:
         model_config = ConfigDict(extra="ignore")
 
         parent_id: str | None = None
-        parent_step_run_id: str | None = None
+        parent_task_run_external_id: str | None = None
         child_index: int | None = None
         child_key: str | None = None
         additional_metadata: str | None = None
@@ -194,14 +139,14 @@ class AdminClient:
         options: TriggerWorkflowOptions,
     ) -> trigger_protos.TriggerWorkflowRequest:
         workflow_run_id = ctx_workflow_run_id.get()
-        step_run_id = ctx_step_run_id.get()
+        task_run_external_id = ctx_task_run_external_id.get()
         action_key = ctx_action_key.get()
         spawn_index = workflow_spawn_indices[action_key] if action_key else 0
 
         _options = self.TriggerWorkflowRequest.model_validate(options.model_dump())
         _options.child_index = spawn_index
         _options.parent_id = workflow_run_id
-        _options.parent_step_run_id = step_run_id
+        _options.parent_task_run_external_id = task_run_external_id
 
         desired_worker_labels = None
         if _options.desired_worker_labels:
@@ -223,7 +168,7 @@ class AdminClient:
             name=workflow_name,
             input=input,
             parent_id=_options.parent_id,
-            parent_task_run_external_id=_options.parent_step_run_id,
+            parent_task_run_external_id=_options.parent_task_run_external_id,
             child_index=_options.child_index,
             child_key=_options.child_key,
             additional_metadata=_options.additional_metadata,
@@ -256,7 +201,7 @@ class AdminClient:
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
     ) -> v0_workflow_protos.ScheduleWorkflowRequest:
         workflow_run_id = ctx_workflow_run_id.get()
-        step_run_id = ctx_step_run_id.get()
+        task_run_external_id = ctx_task_run_external_id.get()
         action_key = ctx_action_key.get()
         spawn_index = workflow_spawn_indices[action_key] if action_key else 0
 
@@ -265,7 +210,7 @@ class AdminClient:
             schedules=[self._parse_schedule(schedule) for schedule in schedules],
             input=input,
             parent_id=workflow_run_id,
-            parent_task_run_external_id=step_run_id,
+            parent_task_run_external_id=task_run_external_id,
             child_index=spawn_index,
             child_key=options.child_key,
             additional_metadata=json.dumps(options.additional_metadata),
@@ -277,14 +222,6 @@ class AdminClient:
         workflow: workflow_protos.CreateWorkflowVersionRequest,
     ) -> workflow_protos.CreateWorkflowVersionResponse:
         return await asyncio.to_thread(self.put_workflow, workflow)
-
-    async def aio_put_rate_limit(
-        self,
-        key: str,
-        limit: int,
-        duration: RateLimitDuration = "SECOND",
-    ) -> None:
-        return await asyncio.to_thread(self.put_rate_limit, key, limit, duration)
 
     async def aio_schedule_workflow(
         self,
@@ -309,28 +246,6 @@ class AdminClient:
                 workflow,
                 metadata=create_authorization_header(self.token),
             ),
-        )
-
-    def put_rate_limit(
-        self,
-        key: str,
-        limit: int,
-        duration: RateLimitDuration = "SECOND",
-    ) -> None:
-        duration_proto = convert_python_literal_to_proto(
-            duration, v0_workflow_protos.RateLimitDuration
-        )
-
-        client = self._get_or_create_v0_client()
-        put_rate_limit = tenacity_retry(client.PutRateLimit, self.config.tenacity)
-
-        put_rate_limit(
-            v0_workflow_protos.PutRateLimitRequest(
-                key=key,
-                limit=limit,
-                duration=duration_proto,
-            ),
-            metadata=create_authorization_header(self.token),
         )
 
     def schedule_workflow(
@@ -700,7 +615,9 @@ class AdminClient:
                 if response.additional_metadata
                 else None
             ),
-            status=RunStatus.from_proto(response.status),
+            status=convert_proto_enum_to_python(
+                response.status, RunStatus, workflow_protos.RunStatus
+            ),
             task_runs={
                 readable_id: TaskRunDetail(
                     readable_id=readable_id,
@@ -711,7 +628,9 @@ class AdminClient:
                         else None
                     ),
                     error=details.error if details.error else None,
-                    status=RunStatus.from_proto(details.status).to_v1_task_status(),
+                    status=convert_proto_enum_to_python(
+                        details.status, RunStatus, workflow_protos.RunStatus
+                    ),
                     is_evicted=getattr(details, "is_evicted", False),
                 )
                 for readable_id, details in response.task_runs.items()

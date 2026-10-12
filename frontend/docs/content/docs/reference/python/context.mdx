@@ -22,13 +22,13 @@ Methods:
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `was_skipped`        | Check if a given task was skipped. You can read about skipping in [the docs](/v1/directed-acyclic-graphs#checking-if-a-parent-was-skipped).                              |
 | `task_output`        | Get the output of a parent task in a DAG.                                                                                                                                |
-| `cancel`             | Cancel the current task run. This will call the Hatchet API to cancel the step run and set the exit flag to True.                                                        |
-| `aio_cancel`         | Cancel the current task run. This will call the Hatchet API to cancel the step run and set the exit flag to True.                                                        |
+| `cancel`             | Cancel the current task run. This will call the Hatchet API to cancel the task run and set the exit flag to True.                                                        |
+| `aio_cancel`         | Cancel the current task run. This will call the Hatchet API to cancel the task run and set the exit flag to True.                                                        |
 | `log`                | Log a line to the Hatchet API. This will send the log line to the Hatchet API and return immediately.                                                                    |
-| `release_slot`       | Manually release the slot for the current step run to free up a slot on the worker. Note that this is an advanced feature and should be used with caution.               |
+| `release_slot`       | Manually release the slot for the current task run to free up a slot on the worker. Note that this is an advanced feature and should be used with caution.               |
 | `put_stream`         | Put a stream event to the Hatchet API. This will send the data to the Hatchet API and return immediately. You can then subscribe to the stream from a separate consumer. |
 | `refresh_timeout`    | Refresh the timeout for the current task run. You can read about refreshing timeouts in [the docs](/v1/timeouts#refreshing-timeouts).                                    |
-| `get_task_run_error` | A helper intended to be used in an on-failure step to retrieve the error that occurred in a specific upstream task run.                                                  |
+| `get_task_run_error` | A helper intended to be used in an on-failure task to retrieve the error that occurred in a specific upstream task run.                                                  |
 
 ### Attributes
 
@@ -140,7 +140,7 @@ Returns:
 
 #### `task_run_errors`
 
-A helper intended to be used in an on-failure step to retrieve the errors that occurred in upstream task runs.
+A helper intended to be used in an on-failure task to retrieve the errors that occurred in upstream task runs.
 
 Returns:
 
@@ -186,11 +186,11 @@ Raises:
 
 | Type         | Description                                                              |
 | ------------ | ------------------------------------------------------------------------ |
-| `ValueError` | If the task was skipped or if the step output for the task is not found. |
+| `ValueError` | If the task was skipped or if the task output for the task is not found. |
 
 #### `cancel`
 
-Cancel the current task run. This will call the Hatchet API to cancel the step run and set the exit flag to True.
+Cancel the current task run. This will call the Hatchet API to cancel the task run and set the exit flag to True.
 
 Returns:
 
@@ -200,7 +200,7 @@ Returns:
 
 #### `aio_cancel`
 
-Cancel the current task run. This will call the Hatchet API to cancel the step run and set the exit flag to True.
+Cancel the current task run. This will call the Hatchet API to cancel the task run and set the exit flag to True.
 
 Returns:
 
@@ -226,7 +226,7 @@ Returns:
 
 #### `release_slot`
 
-Manually release the slot for the current step run to free up a slot on the worker. Note that this is an advanced feature and should be used with caution.
+Manually release the slot for the current task run to free up a slot on the worker. Note that this is an advanced feature and should be used with caution.
 
 Returns:
 
@@ -268,7 +268,7 @@ Returns:
 
 #### `get_task_run_error`
 
-A helper intended to be used in an on-failure step to retrieve the error that occurred in a specific upstream task run.
+A helper intended to be used in an on-failure task to retrieve the error that occurred in a specific upstream task run.
 
 Parameters:
 

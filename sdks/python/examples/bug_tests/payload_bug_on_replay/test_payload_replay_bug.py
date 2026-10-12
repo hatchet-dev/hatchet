@@ -13,7 +13,7 @@ from examples.bug_tests.payload_bug_on_replay.worker import (
     step1,
     step2,
 )
-from hatchet_sdk import Hatchet, V1TaskStatus, WorkflowRunRef
+from hatchet_sdk import Hatchet, RunStatus, WorkflowRunRef
 from hatchet_sdk.clients.rest.models.v1_workflow_run_details import V1WorkflowRunDetails
 
 
@@ -76,8 +76,7 @@ async def test_payload_replay_bug(hatchet: Hatchet, test_run_id: str) -> None:
         lambda tasks: (
             len(tasks) >= 2
             and all(
-                t.status in [V1TaskStatus.COMPLETED, V1TaskStatus.CANCELLED]
-                for t in tasks
+                t.status in [RunStatus.COMPLETED, RunStatus.CANCELLED] for t in tasks
             )
         ),
     )
@@ -86,8 +85,8 @@ async def test_payload_replay_bug(hatchet: Hatchet, test_run_id: str) -> None:
 
     assert len(tasks) == 2
 
-    assert tasks[0].status == V1TaskStatus.COMPLETED
-    assert tasks[1].status == V1TaskStatus.CANCELLED
+    assert tasks[0].status == RunStatus.COMPLETED
+    assert tasks[1].status == RunStatus.CANCELLED
 
     await hatchet.runs.aio_replay(run_id=ref.workflow_run_id)
 
@@ -103,12 +102,12 @@ async def test_payload_replay_bug(hatchet: Hatchet, test_run_id: str) -> None:
         hatchet,
         ref.workflow_run_id,
         lambda tasks: (
-            len(tasks) >= 2 and all(t.status == V1TaskStatus.COMPLETED for t in tasks)
+            len(tasks) >= 2 and all(t.status == RunStatus.COMPLETED for t in tasks)
         ),
     )
 
     tasks = sorted(run.tasks, key=lambda t: t.metadata.created_at)
 
     assert len(tasks) == 2
-    assert tasks[0].status == V1TaskStatus.COMPLETED
-    assert tasks[1].status == V1TaskStatus.COMPLETED
+    assert tasks[0].status == RunStatus.COMPLETED
+    assert tasks[1].status == RunStatus.COMPLETED

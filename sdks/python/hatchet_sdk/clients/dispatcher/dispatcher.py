@@ -136,7 +136,7 @@ class DispatcherClient:
 
         return response.version
 
-    async def send_step_action_event(
+    async def send_task_action_event(
         self,
         action: Action,
         event_type: StepActionEventType,
@@ -145,14 +145,14 @@ class DispatcherClient:
         retry_after_ms: int | None = None,
     ) -> ActionEventResponse | None:
         try:
-            return await self._try_send_step_action_event(
+            return await self._try_send_task_action_event(
                 action, event_type, payload, should_not_retry, retry_after_ms
             )
         except Exception:
             was_completed = event_type == STEP_EVENT_TYPE_COMPLETED
             was_failed = event_type == STEP_EVENT_TYPE_FAILED
 
-            message = f"failed to send step action event {event_type} for action {action.action_id}."
+            message = f"failed to send task action event {event_type} for action {action.action_id}."
 
             if was_completed:
                 message += "**IMPORTANT**: the task completed successfully on the worker, but the engine failed to receive the completed event."
@@ -173,7 +173,7 @@ class DispatcherClient:
         before_sleep=tenacity_before_sleep,
         retry=tenacity.retry_if_exception(tenacity_should_retry),
     )
-    async def _try_send_step_action_event(
+    async def _try_send_task_action_event(
         self,
         action: Action,
         event_type: StepActionEventType,
@@ -190,8 +190,8 @@ class DispatcherClient:
             worker_id=action.worker_id,
             job_id=action.job_id,
             job_run_id=action.job_run_id,
-            task_id=action.step_id,
-            task_run_external_id=action.step_run_id,
+            task_id=action.task_id,
+            task_run_external_id=action.task_run_external_id,
             action_id=action.action_id,
             event_timestamp=event_timestamp,
             event_type=event_type,
@@ -333,30 +333,30 @@ class DispatcherClient:
             ),
         )
 
-    def release_slot(self, step_run_id: str) -> None:
+    def release_slot(self, task_run_external_id: str) -> None:
         client = self._get_or_create_client()
 
         client.ReleaseSlot(
-            ReleaseSlotRequest(task_run_external_id=step_run_id),
+            ReleaseSlotRequest(task_run_external_id=task_run_external_id),
             timeout=DEFAULT_REGISTER_TIMEOUT,
             metadata=create_authorization_header(self.token),
         )
 
-    async def aio_release_slot(self, step_run_id: str) -> None:
+    async def aio_release_slot(self, task_run_external_id: str) -> None:
         aio_client = self._get_or_create_aio_client()
 
         await aio_client.ReleaseSlot(
-            ReleaseSlotRequest(task_run_external_id=step_run_id),
+            ReleaseSlotRequest(task_run_external_id=task_run_external_id),
             timeout=DEFAULT_REGISTER_TIMEOUT,
             metadata=create_authorization_header(self.token),
         )
 
-    def refresh_timeout(self, step_run_id: str, increment_by: str) -> None:
+    def refresh_timeout(self, task_run_external_id: str, increment_by: str) -> None:
         client = self._get_or_create_client()
 
         client.RefreshTimeout(
             RefreshTimeoutRequest(
-                task_run_external_id=step_run_id,
+                task_run_external_id=task_run_external_id,
                 increment_timeout_by=increment_by,
             ),
             timeout=DEFAULT_REGISTER_TIMEOUT,

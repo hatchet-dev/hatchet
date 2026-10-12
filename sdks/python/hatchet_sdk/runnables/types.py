@@ -85,10 +85,10 @@ class TaskIOValidator:
     def __init__(
         self,
         workflow_input: TypeAdapter[TaskPayloadForInternalUse] | None,
-        step_output: TypeAdapter[TaskPayloadForInternalUse],
+        task_output: TypeAdapter[TaskPayloadForInternalUse],
     ) -> None:
         self.workflow_input = workflow_input
-        self.step_output = step_output
+        self.task_output = task_output
 
 
 class WorkflowConfig(BaseModel):
@@ -127,7 +127,7 @@ BatchMemberId = NewType("BatchMemberId", str)
 """The key identifying a single item within a batch task's input/output dict (its task run external id)."""
 
 
-class StepType(StrEnum):
+class TaskType(StrEnum):
     DEFAULT = "default"
     ON_FAILURE = "on_failure"
     ON_SUCCESS = "on_success"

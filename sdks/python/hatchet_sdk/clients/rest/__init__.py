@@ -430,9 +430,7 @@ if TYPE_CHECKING:
         V1WebhookSourceName,
     )
     from hatchet_sdk.clients.rest.models.v1_workflow_run import V1WorkflowRun
-    from hatchet_sdk.clients.rest.models.v1_workflow_run_count import (
-        V1WorkflowRunCount,
-    )
+    from hatchet_sdk.clients.rest.models.v1_workflow_run_count import V1WorkflowRunCount
     from hatchet_sdk.clients.rest.models.v1_workflow_run_details import (
         V1WorkflowRunDetails,
     )

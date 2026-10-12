@@ -10,6 +10,7 @@ from hatchet_sdk.clients.listeners.run_event_listener import (
 from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.config import DEFAULT_SYNC_RESULT_POLL_INTERVAL_SECONDS
 from hatchet_sdk.exceptions import FailedTaskRunExceptionGroup, TaskRunError
+from hatchet_sdk.types.run_status import RunStatus
 
 if TYPE_CHECKING:
     from hatchet_sdk.clients.admin import AdminClient
@@ -79,8 +80,6 @@ class WorkflowRunRef:
         :raises FailedTaskRunExceptionGroup: If the run fails.
         :raises ValueError: If the run is cancelled or in an unexpected state.
         """
-        from hatchet_sdk.clients.admin import RunStatus
-
         deadline = (
             time.monotonic() + timeout.total_seconds() if timeout is not None else None
         )
