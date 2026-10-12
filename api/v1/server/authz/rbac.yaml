@@ -84,6 +84,7 @@ roles:
       - V1WorkflowRunList
       - V1EventKeyList
       - V1WorkflowRunExternalIdsList
+      - V1WorkflowRunCountGet
       - V1WorkflowRunTaskEventsList
       - WebhookRequestsList
       - UserCreate

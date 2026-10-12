@@ -233,6 +233,7 @@ Class | Method | HTTP request | Description
 *HatchetSdkRest::WorkflowRunApi* | [**workflow_run_get_input**](docs/WorkflowRunApi.md#workflow_run_get_input) | **GET** /api/v1/tenants/{tenant}/workflow-runs/{workflow-run}/input | Get workflow run input
 *HatchetSdkRest::WorkflowRunApi* | [**workflow_run_update_replay**](docs/WorkflowRunApi.md#workflow_run_update_replay) | **POST** /api/v1/tenants/{tenant}/workflow-runs/replay | Replay workflow runs
 *HatchetSdkRest::WorkflowRunsApi* | [**v1_durable_task_branch**](docs/WorkflowRunsApi.md#v1_durable_task_branch) | **POST** /api/v1/stable/tenants/{tenant}/durable-tasks/branch | Branch durable task
+*HatchetSdkRest::WorkflowRunsApi* | [**v1_workflow_run_count_get**](docs/WorkflowRunsApi.md#v1_workflow_run_count_get) | **GET** /api/v1/stable/tenants/{tenant}/workflow-runs/count | Count workflow runs
 *HatchetSdkRest::WorkflowRunsApi* | [**v1_workflow_run_create**](docs/WorkflowRunsApi.md#v1_workflow_run_create) | **POST** /api/v1/stable/tenants/{tenant}/workflow-runs/trigger | Create workflow run
 *HatchetSdkRest::WorkflowRunsApi* | [**v1_workflow_run_display_names_list**](docs/WorkflowRunsApi.md#v1_workflow_run_display_names_list) | **GET** /api/v1/stable/tenants/{tenant}/workflow-runs/display-names | List workflow runs
 *HatchetSdkRest::WorkflowRunsApi* | [**v1_workflow_run_external_ids_list**](docs/WorkflowRunsApi.md#v1_workflow_run_external_ids_list) | **GET** /api/v1/stable/tenants/{tenant}/workflow-runs/external-ids | List workflow run external ids
@@ -445,6 +446,7 @@ Class | Method | HTTP request | Description
  - [HatchetSdkRest::V1WebhookResponse](docs/V1WebhookResponse.md)
  - [HatchetSdkRest::V1WebhookSourceName](docs/V1WebhookSourceName.md)
  - [HatchetSdkRest::V1WorkflowRun](docs/V1WorkflowRun.md)
+ - [HatchetSdkRest::V1WorkflowRunCount](docs/V1WorkflowRunCount.md)
  - [HatchetSdkRest::V1WorkflowRunDetails](docs/V1WorkflowRunDetails.md)
  - [HatchetSdkRest::V1WorkflowRunDisplayName](docs/V1WorkflowRunDisplayName.md)
  - [HatchetSdkRest::V1WorkflowRunDisplayNameList](docs/V1WorkflowRunDisplayNameList.md)

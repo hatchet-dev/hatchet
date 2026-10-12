@@ -3041,9 +3041,15 @@ func (r *sharedRepository) lookupParentOutputsByWorkflowRunIds(ctx context.Conte
 			continue
 		}
 
-		if e.IsCompleted() {
-			result[e.TaskExternalId] = e
+		if !e.IsCompleted() && !e.IsFailed() {
+			continue
 		}
+
+		if existing, ok := result[e.TaskExternalId]; ok && existing.IsCompleted() {
+			continue
+		}
+
+		result[e.TaskExternalId] = e
 	}
 
 	return result, nil

@@ -2,15 +2,19 @@ package token
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/tink-crypto/tink-go/jwt"
 
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
+
+var ErrCouldNotReadTokenFromDatabase = errors.New("could not read token from database")
 
 type JWTManager interface {
 	GenerateTenantToken(ctx context.Context, tenantId uuid.UUID, name string, internal bool, expires *time.Time) (*Token, error)
@@ -156,8 +160,12 @@ func (j *jwtManagerImpl) ValidateTenantToken(ctx context.Context, token string) 
 	// read the token from the database
 	dbToken, err := j.tokenRepo.GetAPITokenById(ctx, tokenIdUuid)
 
+	if errors.Is(err, pgx.ErrNoRows) {
+		return uuid.Nil, uuid.Nil, fmt.Errorf("token does not exist: %w", err)
+	}
+
 	if err != nil {
-		return uuid.Nil, uuid.Nil, fmt.Errorf("failed to read token from database: %v", err)
+		return uuid.Nil, uuid.Nil, fmt.Errorf("%w: %w", ErrCouldNotReadTokenFromDatabase, err)
 	}
 
 	if dbToken.Revoked {

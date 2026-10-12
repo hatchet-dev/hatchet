@@ -404,6 +404,99 @@ RETURNING
     v1_task.retry_backoff_factor,
     v1_task.retry_max_backoff;
 
+-- name: FailTaskRetryAfter :many
+-- Fails a task due to an application-level error, retrying it after a task-requested delay
+WITH input AS (
+    -- a re-sent failure report can duplicate an attempt in the batch
+    SELECT DISTINCT ON (task_id, task_inserted_at, task_retry_count)
+        *
+    FROM
+        (
+            SELECT
+                unnest(@taskIds::bigint[]) AS task_id,
+                unnest(@taskInsertedAts::timestamptz[]) AS task_inserted_at,
+                unnest(@taskRetryCounts::integer[]) AS task_retry_count,
+                unnest(@retryAfterMs::bigint[]) AS retry_after_ms
+        ) AS subquery
+    ORDER BY
+        task_id, task_inserted_at, task_retry_count
+), locked_tasks AS (
+    SELECT
+        t.id,
+        t.inserted_at,
+        t.step_id
+    FROM
+        v1_task t
+    JOIN
+        input i ON i.task_id = t.id AND i.task_inserted_at = t.inserted_at AND i.task_retry_count = t.retry_count
+    WHERE
+        t.tenant_id = @tenantId::uuid
+        -- only fail tasks which still have a v1_task_runtime for the current retry count.
+        -- a cancellation deletes the v1_task_runtime, so a late failure event should not trigger a retry.
+        AND EXISTS (
+            SELECT 1 FROM v1_task_runtime tr
+            WHERE tr.task_id = t.id AND tr.task_inserted_at = t.inserted_at AND tr.retry_count = t.retry_count
+        )
+    -- order by the task id to get a stable lock order
+    ORDER BY
+        id
+    FOR UPDATE
+), updated_tasks AS (
+    UPDATE
+        v1_task
+    SET
+        retry_count = v1_task.retry_count + 1,
+        app_retry_count = v1_task.app_retry_count + 1
+    FROM
+        locked_tasks lt
+    JOIN
+        "Step" s ON s."id" = lt.step_id
+    WHERE
+        v1_task.id = lt.id
+        AND v1_task.inserted_at = lt.inserted_at
+        AND s."retries" > v1_task.app_retry_count
+    RETURNING
+        v1_task.id,
+        v1_task.inserted_at,
+        v1_task.retry_count,
+        v1_task.app_retry_count,
+        v1_task.tenant_id
+), retry_queue_items AS (
+    -- v1_task_update_trigger runs at the end of this statement and skips tasks that have this row
+    INSERT INTO v1_retry_queue_item (
+        task_id,
+        task_inserted_at,
+        task_retry_count,
+        retry_after,
+        tenant_id
+    )
+    SELECT
+        ut.id,
+        ut.inserted_at,
+        ut.retry_count,
+        NOW() + i.retry_after_ms * interval '1 millisecond',
+        ut.tenant_id
+    FROM
+        updated_tasks ut
+    JOIN
+        input i ON i.task_id = ut.id AND i.task_inserted_at = ut.inserted_at
+    RETURNING
+        task_id,
+        task_inserted_at,
+        task_retry_count,
+        retry_after
+)
+SELECT
+    ut.id,
+    ut.inserted_at,
+    ut.retry_count,
+    ut.app_retry_count,
+    rqi.retry_after::timestamptz AS retry_after
+FROM
+    updated_tasks ut
+JOIN
+    retry_queue_items rqi ON rqi.task_id = ut.id AND rqi.task_inserted_at = ut.inserted_at;
+
 -- name: FailTaskInternalFailure :many
 -- Fails a task due to an internal error
 WITH input AS (
@@ -924,7 +1017,7 @@ WITH task_outputs AS (
     JOIN v1_task_event e ON (lt.task_id, lt.inserted_at) = (e.task_id, e.task_inserted_at)
     WHERE
         lt.external_id = ANY(@taskExternalIds::uuid[])
-        AND e.event_type = 'COMPLETED'
+        AND e.event_type IN ('COMPLETED', 'FAILED')
 ), max_retry_counts AS (
     SELECT
         task_run_external_id,
@@ -1257,33 +1350,53 @@ SELECT
           AND NOT is_satisfied
     ) AS has_unsatisfied_durable_events;
 
--- name: ListStuckEvictedDurableOrchestrators :many
+-- name: ListEvictedTaskRuntimeWindow :many
 -- DAG-orchestrator tasks whose runtime has been evicted past the grace period and whose durable
 -- event log entries are ALL satisfied -- the orchestrator is ready to resume but the
 -- edge-triggered restore (a child callback arriving while evicted -> DurableRestoreTask) never
 -- fired: the callback was lost on an engine roll, or every entry was satisfied before the
 -- eviction so there was no later callback. The caller re-queues these via DurableRestoreTask.
+WITH evicted_runtime_window AS (
+    SELECT
+        rt.task_id,
+        rt.task_inserted_at,
+        rt.retry_count,
+        rt.evicted_at
+    FROM v1_task_runtime rt
+    WHERE
+        rt.tenant_id = @tenantId::UUID
+        AND rt.evicted_at < NOW() - @gracePeriod::INTERVAL
+        AND (rt.evicted_at, rt.task_id, rt.task_inserted_at, rt.retry_count) > (
+            @minEvictedAst::TIMESTAMPTZ,
+            @minTaskId::BIGINT,
+            @minTaskInsertedAt::TIMESTAMPTZ,
+            @minRetryCount::INTEGER
+        )
+    ORDER BY rt.evicted_at, rt.task_id, rt.task_inserted_at, rt.retry_count
+    LIMIT @windowSize::INTEGER
+)
 SELECT
-    t.id,
-    t.inserted_at,
+    w.task_id,
+    w.task_inserted_at,
+    w.retry_count,
+    w.evicted_at,
     t.external_id,
-    rt.retry_count
-FROM v1_task_runtime rt
-JOIN v1_task t ON (t.id, t.inserted_at) = (rt.task_id, rt.task_inserted_at)
-WHERE rt.tenant_id = @tenantId::uuid
-    AND rt.evicted_at < NOW() - @gracePeriod::interval
-    AND t.is_dag_orchestrator
-    AND EXISTS (
-        SELECT 1 FROM v1_durable_event_log_entry e
-        WHERE (e.durable_task_id, e.durable_task_inserted_at) = (t.id, t.inserted_at)
-    )
-    AND NOT EXISTS (
-        SELECT 1 FROM v1_durable_event_log_entry e
-        WHERE (e.durable_task_id, e.durable_task_inserted_at) = (t.id, t.inserted_at)
-          AND NOT e.is_satisfied
-    )
-ORDER BY rt.evicted_at
-LIMIT @maxTasks::int;
+    COALESCE(
+        t.is_dag_orchestrator
+        AND EXISTS (
+            SELECT 1 FROM v1_durable_event_log_entry e
+            WHERE (e.durable_task_id, e.durable_task_inserted_at) = (t.id, t.inserted_at)
+        )
+        AND NOT EXISTS (
+            SELECT 1 FROM v1_durable_event_log_entry e
+            WHERE (e.durable_task_id, e.durable_task_inserted_at) = (t.id, t.inserted_at)
+              AND NOT e.is_satisfied
+        ),
+        FALSE
+    )::BOOLEAN AS is_stuck_durable_orchestrator
+FROM evicted_runtime_window w
+LEFT JOIN v1_task t ON (t.id, t.inserted_at) = (w.task_id, w.task_inserted_at)
+ORDER BY w.evicted_at, w.task_id, w.task_inserted_at, w.retry_count;
 
 -- name: ListUnfinishedDurableOrchestratorChildren :many
 SELECT DISTINCT
@@ -1441,13 +1554,13 @@ WITH locked_trs AS (
     ORDER BY vtr.task_id ASC
     LIMIT @batchSize::int
     FOR UPDATE SKIP LOCKED
+), deleted_slots AS (
+    DELETE FROM v1_task_runtime_slot
+    WHERE (task_id, task_inserted_at, retry_count) IN (
+        SELECT task_id, task_inserted_at, retry_count
+        FROM locked_trs
+    )
 )
-DELETE FROM v1_task_runtime_slot
-WHERE (task_id, task_inserted_at, retry_count) IN (
-    SELECT task_id, task_inserted_at, retry_count
-    FROM locked_trs
-);
-
 DELETE FROM v1_task_runtime
 WHERE (task_id, task_inserted_at, retry_count) IN (
     SELECT task_id, task_inserted_at, retry_count

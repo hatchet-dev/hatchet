@@ -706,6 +706,8 @@ CREATE INDEX v1_task_runtime_tenantId_timeoutAt_idx ON v1_task_runtime (tenant_i
 
 CREATE INDEX v1_task_runtime_tenant_worker_not_evicted_idx ON v1_task_runtime (tenant_id, worker_id) WHERE evicted_at IS NULL;
 
+CREATE INDEX v1_task_runtime_tenant_evicted_at_idx ON v1_task_runtime (tenant_id, evicted_at, task_id, task_inserted_at, retry_count) WHERE evicted_at IS NOT NULL;
+
 CREATE INDEX v1_task_runtime_batch_id_idx ON v1_task_runtime (batch_id) WHERE batch_id IS NOT NULL;
 
 -- Cleanup v1_batch_runtime reservations when the last v1_task_runtime row for a batch_id is deleted.
@@ -1764,6 +1766,14 @@ BEGIN
             AND nt.retry_backoff_factor IS NOT NULL
             AND ot.app_retry_count IS DISTINCT FROM nt.app_retry_count
             AND nt.app_retry_count != 0
+            -- retry-after failures insert their own retry queue item
+            AND NOT EXISTS (
+                SELECT 1
+                FROM v1_retry_queue_item rqi
+                WHERE rqi.task_id = nt.id
+                    AND rqi.task_inserted_at = nt.inserted_at
+                    AND rqi.task_retry_count = nt.retry_count
+            )
     )
     INSERT INTO v1_retry_queue_item (
         task_id,
@@ -1819,6 +1829,14 @@ BEGIN
             AND nt.concurrency_strategy_ids[1] IS NOT NULL
             AND (nt.retry_backoff_factor IS NULL OR ot.app_retry_count IS NOT DISTINCT FROM nt.app_retry_count OR nt.app_retry_count = 0)
             AND ot.retry_count IS DISTINCT FROM nt.retry_count
+            -- retry-after failures get a slot when their retry queue item is processed
+            AND NOT EXISTS (
+                SELECT 1
+                FROM v1_retry_queue_item rqi
+                WHERE rqi.task_id = nt.id
+                    AND rqi.task_inserted_at = nt.inserted_at
+                    AND rqi.task_retry_count = nt.retry_count
+            )
     ), updated_slot AS (
         UPDATE
             v1_concurrency_slot cs
@@ -1931,6 +1949,14 @@ BEGIN
         AND nt.concurrency_strategy_ids[1] IS NULL
         AND (nt.retry_backoff_factor IS NULL OR ot.app_retry_count IS NOT DISTINCT FROM nt.app_retry_count OR nt.app_retry_count = 0)
         AND ot.retry_count IS DISTINCT FROM nt.retry_count
+        -- retry-after failures are queued when their retry queue item is processed
+        AND NOT EXISTS (
+            SELECT 1
+            FROM v1_retry_queue_item rqi
+            WHERE rqi.task_id = nt.id
+                AND rqi.task_inserted_at = nt.inserted_at
+                AND rqi.task_retry_count = nt.retry_count
+        )
     ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
     ;
 

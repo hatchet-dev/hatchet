@@ -198,6 +198,9 @@ type FailTaskOpts struct {
 
 	// (optional) A boolean flag to indicate whether the error is non-retryable, meaning it should _not_ be retried. Defaults to false.
 	IsNonRetryable bool
+
+	// (optional) the delay before the next attempt. Ignored when IsNonRetryable is set.
+	RetryAfter *time.Duration
 }
 
 type TaskIdEventKeyTuple struct {
@@ -234,6 +237,9 @@ type RetriedTask struct {
 	RetryBackoffFactor pgtype.Float8
 
 	RetryMaxBackoff pgtype.Int4
+
+	// set when the task requested a delayed retry
+	RetryAfter *time.Time
 }
 
 type FailTasksResponse struct {
@@ -337,7 +343,7 @@ type TaskRepository interface {
 
 	RestoreEvictedTasks(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) ([]*sqlcv1.RestoreEvictedTasksRow, error)
 
-	ListStuckEvictedDurableOrchestrators(ctx context.Context, tenantId uuid.UUID, grace time.Duration, maxTasks int32) ([]*sqlcv1.ListStuckEvictedDurableOrchestratorsRow, error)
+	ListEvictedTaskRuntimeWindow(ctx context.Context, tenantId uuid.UUID, after EvictedTaskRuntimeCursor, grace time.Duration, windowSize int32) ([]*sqlcv1.ListEvictedTaskRuntimeWindowRow, error)
 
 	ListSignalCompletedEvents(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtSignalKey) ([]*V1TaskEventWithPayload, error)
 
@@ -1019,6 +1025,11 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 	appFailureTaskRetryCounts := make([]int32, 0)
 	appFailureIsNonRetryableStatuses := make([]bool, 0)
 
+	retryAfterTaskIds := make([]int64, 0)
+	retryAfterTaskInsertedAts := make([]pgtype.Timestamptz, 0)
+	retryAfterTaskRetryCounts := make([]int32, 0)
+	retryAfterMs := make([]int64, 0)
+
 	internalFailureTaskIds := make([]int64, 0)
 	internalFailureInsertedAts := make([]pgtype.Timestamptz, 0)
 	internalFailureTaskRetryCounts := make([]int32, 0)
@@ -1027,12 +1038,18 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 		tasks[i] = *failureOpt.TaskIdInsertedAtRetryCount
 		errorMessageByTaskKey[fmt.Sprintf("%d:%d", failureOpt.Id, failureOpt.RetryCount)] = failureOpt.ErrorMessage
 
-		if failureOpt.IsAppError {
+		switch {
+		case failureOpt.IsAppError && !failureOpt.IsNonRetryable && failureOpt.RetryAfter != nil:
+			retryAfterTaskIds = append(retryAfterTaskIds, failureOpt.Id)
+			retryAfterTaskInsertedAts = append(retryAfterTaskInsertedAts, failureOpt.InsertedAt)
+			retryAfterTaskRetryCounts = append(retryAfterTaskRetryCounts, failureOpt.RetryCount)
+			retryAfterMs = append(retryAfterMs, failureOpt.RetryAfter.Milliseconds())
+		case failureOpt.IsAppError:
 			appFailureTaskIds = append(appFailureTaskIds, failureOpt.Id)
 			appFailureTaskInsertedAts = append(appFailureTaskInsertedAts, failureOpt.InsertedAt)
 			appFailureTaskRetryCounts = append(appFailureTaskRetryCounts, failureOpt.RetryCount)
 			appFailureIsNonRetryableStatuses = append(appFailureIsNonRetryableStatuses, failureOpt.IsNonRetryable)
-		} else {
+		default:
 			internalFailureTaskIds = append(internalFailureTaskIds, failureOpt.Id)
 			internalFailureInsertedAts = append(internalFailureInsertedAts, failureOpt.InsertedAt)
 			internalFailureTaskRetryCounts = append(internalFailureTaskRetryCounts, failureOpt.RetryCount)
@@ -1076,6 +1093,42 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 				RetryMaxBackoff:    task.RetryMaxBackoff,
 			},
 			)
+		}
+	}
+
+	// write retry-after failures
+	if len(retryAfterTaskIds) > 0 {
+		span.SetAttributes(
+			attribute.KeyValue{
+				Key:   "tasks_repository_impl.fail_tasks_tx.fail_task_retry_after.batch_size",
+				Value: attribute.IntValue(len(retryAfterTaskIds)),
+			},
+		)
+		retryAfterRetries, err := r.queries.FailTaskRetryAfter(ctx, tx, sqlcv1.FailTaskRetryAfterParams{
+			Tenantid:        tenantId,
+			Taskids:         retryAfterTaskIds,
+			Taskinsertedats: retryAfterTaskInsertedAts,
+			Taskretrycounts: retryAfterTaskRetryCounts,
+			Retryafterms:    retryAfterMs,
+		})
+
+		if err != nil {
+			return nil, err
+		}
+
+		for _, task := range retryAfterRetries {
+			retryAfter := task.RetryAfter.Time
+
+			retriedTasks = append(retriedTasks, RetriedTask{
+				TaskIdInsertedAtRetryCount: &TaskIdInsertedAtRetryCount{
+					Id:         task.ID,
+					InsertedAt: task.InsertedAt,
+					RetryCount: task.RetryCount,
+				},
+				IsAppError:    true,
+				AppRetryCount: task.AppRetryCount,
+				RetryAfter:    &retryAfter,
+			})
 		}
 	}
 
@@ -2139,14 +2192,34 @@ func (r *TaskRepositoryImpl) RestoreEvictedTasks(ctx context.Context, tenantId u
 	return rows, nil
 }
 
-func (r *TaskRepositoryImpl) ListStuckEvictedDurableOrchestrators(ctx context.Context, tenantId uuid.UUID, grace time.Duration, maxTasks int32) ([]*sqlcv1.ListStuckEvictedDurableOrchestratorsRow, error) {
-	return r.queries.ListStuckEvictedDurableOrchestrators(ctx, r.pool, sqlcv1.ListStuckEvictedDurableOrchestratorsParams{
+type EvictedTaskRuntimeCursor struct {
+	EvictedAt      time.Time
+	TaskID         int64
+	TaskInsertedAt time.Time
+	RetryCount     int32
+}
+
+func EvictedTaskRuntimeCursorFromRow(row *sqlcv1.ListEvictedTaskRuntimeWindowRow) EvictedTaskRuntimeCursor {
+	return EvictedTaskRuntimeCursor{
+		EvictedAt:      row.EvictedAt.Time,
+		TaskID:         row.TaskID,
+		TaskInsertedAt: row.TaskInsertedAt.Time,
+		RetryCount:     row.RetryCount,
+	}
+}
+
+func (r *TaskRepositoryImpl) ListEvictedTaskRuntimeWindow(ctx context.Context, tenantId uuid.UUID, after EvictedTaskRuntimeCursor, grace time.Duration, windowSize int32) ([]*sqlcv1.ListEvictedTaskRuntimeWindowRow, error) {
+	return r.queries.ListEvictedTaskRuntimeWindow(ctx, r.pool, sqlcv1.ListEvictedTaskRuntimeWindowParams{
 		Tenantid: tenantId,
 		Graceperiod: pgtype.Interval{
 			Microseconds: grace.Microseconds(),
 			Valid:        true,
 		},
-		Maxtasks: maxTasks,
+		Minevictedast:     pgtype.Timestamptz{Time: after.EvictedAt, Valid: true},
+		Mintaskid:         after.TaskID,
+		Mintaskinsertedat: pgtype.Timestamptz{Time: after.TaskInsertedAt, Valid: true},
+		Minretrycount:     after.RetryCount,
+		Windowsize:        windowSize,
 	})
 }
 

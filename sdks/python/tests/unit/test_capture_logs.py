@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from io import StringIO
 from types import SimpleNamespace
 from typing import cast
 
@@ -53,3 +52,46 @@ async def test_log_forwarding_handler_enqueues_correct_record() -> None:
         ctx_task_retry_count.reset(retry_token)
         target_logger.removeHandler(handler)
         target_logger.setLevel(previous_level)
+
+
+def test_publish_drops_records_once_queue_is_full() -> None:
+    event_client = FakeEventClient()
+    log_sender = AsyncLogSender(cast(EventClient, event_client))
+    log_queue_size = event_client.client_config.log_queue_size
+
+    for index in range(log_queue_size + 5):
+        log_sender.publish(
+            LogRecord(
+                message=f"message-{index}",
+                step_run_id="step-run-id",
+                level=LogLevel.INFO,
+                task_retry_count=0,
+            )
+        )
+
+    queued_messages = [
+        cast(LogRecord, log_sender.q.get_nowait()).message
+        for _ in range(log_sender.q.qsize())
+    ]
+
+    assert queued_messages == [f"message-{index}" for index in range(log_queue_size)]
+
+
+def test_dropped_log_warning_does_not_recurse_when_sdk_logger_is_captured() -> None:
+    event_client = FakeEventClient()
+    event_client.client_config.log_queue_size = 1
+    log_sender = AsyncLogSender(cast(EventClient, event_client))
+
+    sdk_logger = logging.getLogger("hatchet")
+    handler = LogForwardingHandler(log_sender)
+    sdk_logger.addHandler(handler)
+    step_token = ctx_step_run_id.set("step-run-id")
+
+    try:
+        for index in range(3):
+            sdk_logger.info("message-%d", index)
+    finally:
+        ctx_step_run_id.reset(step_token)
+        sdk_logger.removeHandler(handler)
+
+    assert log_sender.q.qsize() == 1

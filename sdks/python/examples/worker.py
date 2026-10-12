@@ -174,6 +174,11 @@ from examples.opentelemetry_instrumentation.worker import (
     otel_workflow,
 )
 from examples.pdf_pipeline.worker import pdf_pipeline
+from examples.retry_after.worker import (
+    retry_after_exponential_backoff,
+    retry_after_overrides_backoff,
+    retry_after_upstream_delay,
+)
 from examples.return_exceptions.worker import (
     exception_parsing_workflow,
     return_exceptions_task,
@@ -252,6 +257,9 @@ def main() -> None:
             sync_fanout_parent,
             sync_fanout_child,
             non_retryable_workflow,
+            retry_after_upstream_delay,
+            retry_after_exponential_backoff,
+            retry_after_overrides_backoff,
             concurrency_workflow_level_workflow,
             concurrency_cancel_newest_workflow,
             concurrency_cancel_in_progress_workflow,

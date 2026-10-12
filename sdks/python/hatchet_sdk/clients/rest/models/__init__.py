@@ -353,6 +353,7 @@ from hatchet_sdk.clients.rest.models.v1_webhook_list import V1WebhookList
 from hatchet_sdk.clients.rest.models.v1_webhook_response import V1WebhookResponse
 from hatchet_sdk.clients.rest.models.v1_webhook_source_name import V1WebhookSourceName
 from hatchet_sdk.clients.rest.models.v1_workflow_run import V1WorkflowRun
+from hatchet_sdk.clients.rest.models.v1_workflow_run_count import V1WorkflowRunCount
 from hatchet_sdk.clients.rest.models.v1_workflow_run_details import V1WorkflowRunDetails
 from hatchet_sdk.clients.rest.models.v1_workflow_run_display_name import (
     V1WorkflowRunDisplayName,

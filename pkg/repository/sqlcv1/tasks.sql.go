@@ -212,8 +212,14 @@ WITH locked_trs AS (
     ORDER BY vtr.task_id ASC
     LIMIT $1::int
     FOR UPDATE SKIP LOCKED
+), deleted_slots AS (
+    DELETE FROM v1_task_runtime_slot
+    WHERE (task_id, task_inserted_at, retry_count) IN (
+        SELECT task_id, task_inserted_at, retry_count
+        FROM locked_trs
+    )
 )
-DELETE FROM v1_task_runtime_slot
+DELETE FROM v1_task_runtime
 WHERE (task_id, task_inserted_at, retry_count) IN (
     SELECT task_id, task_inserted_at, retry_count
     FROM locked_trs
@@ -743,6 +749,148 @@ func (q *Queries) FailTaskInternalFailure(ctx context.Context, db DBTX, arg Fail
 	for rows.Next() {
 		var i FailTaskInternalFailureRow
 		if err := rows.Scan(&i.ID, &i.InsertedAt, &i.RetryCount); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const failTaskRetryAfter = `-- name: FailTaskRetryAfter :many
+WITH input AS (
+    -- a re-sent failure report can duplicate an attempt in the batch
+    SELECT DISTINCT ON (task_id, task_inserted_at, task_retry_count)
+        task_id, task_inserted_at, task_retry_count, retry_after_ms
+    FROM
+        (
+            SELECT
+                unnest($1::bigint[]) AS task_id,
+                unnest($2::timestamptz[]) AS task_inserted_at,
+                unnest($3::integer[]) AS task_retry_count,
+                unnest($4::bigint[]) AS retry_after_ms
+        ) AS subquery
+    ORDER BY
+        task_id, task_inserted_at, task_retry_count
+), locked_tasks AS (
+    SELECT
+        t.id,
+        t.inserted_at,
+        t.step_id
+    FROM
+        v1_task t
+    JOIN
+        input i ON i.task_id = t.id AND i.task_inserted_at = t.inserted_at AND i.task_retry_count = t.retry_count
+    WHERE
+        t.tenant_id = $5::uuid
+        -- only fail tasks which still have a v1_task_runtime for the current retry count.
+        -- a cancellation deletes the v1_task_runtime, so a late failure event should not trigger a retry.
+        AND EXISTS (
+            SELECT 1 FROM v1_task_runtime tr
+            WHERE tr.task_id = t.id AND tr.task_inserted_at = t.inserted_at AND tr.retry_count = t.retry_count
+        )
+    -- order by the task id to get a stable lock order
+    ORDER BY
+        id
+    FOR UPDATE
+), updated_tasks AS (
+    UPDATE
+        v1_task
+    SET
+        retry_count = v1_task.retry_count + 1,
+        app_retry_count = v1_task.app_retry_count + 1
+    FROM
+        locked_tasks lt
+    JOIN
+        "Step" s ON s."id" = lt.step_id
+    WHERE
+        v1_task.id = lt.id
+        AND v1_task.inserted_at = lt.inserted_at
+        AND s."retries" > v1_task.app_retry_count
+    RETURNING
+        v1_task.id,
+        v1_task.inserted_at,
+        v1_task.retry_count,
+        v1_task.app_retry_count,
+        v1_task.tenant_id
+), retry_queue_items AS (
+    -- v1_task_update_trigger runs at the end of this statement and skips tasks that have this row
+    INSERT INTO v1_retry_queue_item (
+        task_id,
+        task_inserted_at,
+        task_retry_count,
+        retry_after,
+        tenant_id
+    )
+    SELECT
+        ut.id,
+        ut.inserted_at,
+        ut.retry_count,
+        NOW() + i.retry_after_ms * interval '1 millisecond',
+        ut.tenant_id
+    FROM
+        updated_tasks ut
+    JOIN
+        input i ON i.task_id = ut.id AND i.task_inserted_at = ut.inserted_at
+    RETURNING
+        task_id,
+        task_inserted_at,
+        task_retry_count,
+        retry_after
+)
+SELECT
+    ut.id,
+    ut.inserted_at,
+    ut.retry_count,
+    ut.app_retry_count,
+    rqi.retry_after::timestamptz AS retry_after
+FROM
+    updated_tasks ut
+JOIN
+    retry_queue_items rqi ON rqi.task_id = ut.id AND rqi.task_inserted_at = ut.inserted_at
+`
+
+type FailTaskRetryAfterParams struct {
+	Taskids         []int64              `json:"taskids"`
+	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
+	Taskretrycounts []int32              `json:"taskretrycounts"`
+	Retryafterms    []int64              `json:"retryafterms"`
+	Tenantid        uuid.UUID            `json:"tenantid"`
+}
+
+type FailTaskRetryAfterRow struct {
+	ID            int64              `json:"id"`
+	InsertedAt    pgtype.Timestamptz `json:"inserted_at"`
+	RetryCount    int32              `json:"retry_count"`
+	AppRetryCount int32              `json:"app_retry_count"`
+	RetryAfter    pgtype.Timestamptz `json:"retry_after"`
+}
+
+// Fails a task due to an application-level error, retrying it after a task-requested delay
+func (q *Queries) FailTaskRetryAfter(ctx context.Context, db DBTX, arg FailTaskRetryAfterParams) ([]*FailTaskRetryAfterRow, error) {
+	rows, err := db.Query(ctx, failTaskRetryAfter,
+		arg.Taskids,
+		arg.Taskinsertedats,
+		arg.Taskretrycounts,
+		arg.Retryafterms,
+		arg.Tenantid,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*FailTaskRetryAfterRow
+	for rows.Next() {
+		var i FailTaskRetryAfterRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.InsertedAt,
+			&i.RetryCount,
+			&i.AppRetryCount,
+			&i.RetryAfter,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)
@@ -1485,6 +1633,109 @@ func (q *Queries) ListAllTasksInDags(ctx context.Context, db DBTX, arg ListAllTa
 	return items, nil
 }
 
+const listEvictedTaskRuntimeWindow = `-- name: ListEvictedTaskRuntimeWindow :many
+WITH evicted_runtime_window AS (
+    SELECT
+        rt.task_id,
+        rt.task_inserted_at,
+        rt.retry_count,
+        rt.evicted_at
+    FROM v1_task_runtime rt
+    WHERE
+        rt.tenant_id = $1::UUID
+        AND rt.evicted_at < NOW() - $2::INTERVAL
+        AND (rt.evicted_at, rt.task_id, rt.task_inserted_at, rt.retry_count) > (
+            $3::TIMESTAMPTZ,
+            $4::BIGINT,
+            $5::TIMESTAMPTZ,
+            $6::INTEGER
+        )
+    ORDER BY rt.evicted_at, rt.task_id, rt.task_inserted_at, rt.retry_count
+    LIMIT $7::INTEGER
+)
+SELECT
+    w.task_id,
+    w.task_inserted_at,
+    w.retry_count,
+    w.evicted_at,
+    t.external_id,
+    COALESCE(
+        t.is_dag_orchestrator
+        AND EXISTS (
+            SELECT 1 FROM v1_durable_event_log_entry e
+            WHERE (e.durable_task_id, e.durable_task_inserted_at) = (t.id, t.inserted_at)
+        )
+        AND NOT EXISTS (
+            SELECT 1 FROM v1_durable_event_log_entry e
+            WHERE (e.durable_task_id, e.durable_task_inserted_at) = (t.id, t.inserted_at)
+              AND NOT e.is_satisfied
+        ),
+        FALSE
+    )::BOOLEAN AS is_stuck_durable_orchestrator
+FROM evicted_runtime_window w
+LEFT JOIN v1_task t ON (t.id, t.inserted_at) = (w.task_id, w.task_inserted_at)
+ORDER BY w.evicted_at, w.task_id, w.task_inserted_at, w.retry_count
+`
+
+type ListEvictedTaskRuntimeWindowParams struct {
+	Tenantid          uuid.UUID          `json:"tenantid"`
+	Graceperiod       pgtype.Interval    `json:"graceperiod"`
+	Minevictedast     pgtype.Timestamptz `json:"minevictedast"`
+	Mintaskid         int64              `json:"mintaskid"`
+	Mintaskinsertedat pgtype.Timestamptz `json:"mintaskinsertedat"`
+	Minretrycount     int32              `json:"minretrycount"`
+	Windowsize        int32              `json:"windowsize"`
+}
+
+type ListEvictedTaskRuntimeWindowRow struct {
+	TaskID                     int64              `json:"task_id"`
+	TaskInsertedAt             pgtype.Timestamptz `json:"task_inserted_at"`
+	RetryCount                 int32              `json:"retry_count"`
+	EvictedAt                  pgtype.Timestamptz `json:"evicted_at"`
+	ExternalID                 *uuid.UUID         `json:"external_id"`
+	IsStuckDurableOrchestrator bool               `json:"is_stuck_durable_orchestrator"`
+}
+
+// DAG-orchestrator tasks whose runtime has been evicted past the grace period and whose durable
+// event log entries are ALL satisfied -- the orchestrator is ready to resume but the
+// edge-triggered restore (a child callback arriving while evicted -> DurableRestoreTask) never
+// fired: the callback was lost on an engine roll, or every entry was satisfied before the
+// eviction so there was no later callback. The caller re-queues these via DurableRestoreTask.
+func (q *Queries) ListEvictedTaskRuntimeWindow(ctx context.Context, db DBTX, arg ListEvictedTaskRuntimeWindowParams) ([]*ListEvictedTaskRuntimeWindowRow, error) {
+	rows, err := db.Query(ctx, listEvictedTaskRuntimeWindow,
+		arg.Tenantid,
+		arg.Graceperiod,
+		arg.Minevictedast,
+		arg.Mintaskid,
+		arg.Mintaskinsertedat,
+		arg.Minretrycount,
+		arg.Windowsize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListEvictedTaskRuntimeWindowRow
+	for rows.Next() {
+		var i ListEvictedTaskRuntimeWindowRow
+		if err := rows.Scan(
+			&i.TaskID,
+			&i.TaskInsertedAt,
+			&i.RetryCount,
+			&i.EvictedAt,
+			&i.ExternalID,
+			&i.IsStuckDurableOrchestrator,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listMatchingSignalEvents = `-- name: ListMatchingSignalEvents :many
 WITH input AS (
     SELECT
@@ -1798,73 +2049,6 @@ func (q *Queries) ListPartitionsBeforeDate(ctx context.Context, db DBTX, date pg
 	return items, nil
 }
 
-const listStuckEvictedDurableOrchestrators = `-- name: ListStuckEvictedDurableOrchestrators :many
-SELECT
-    t.id,
-    t.inserted_at,
-    t.external_id,
-    rt.retry_count
-FROM v1_task_runtime rt
-JOIN v1_task t ON (t.id, t.inserted_at) = (rt.task_id, rt.task_inserted_at)
-WHERE rt.tenant_id = $1::uuid
-    AND rt.evicted_at < NOW() - $2::interval
-    AND t.is_dag_orchestrator
-    AND EXISTS (
-        SELECT 1 FROM v1_durable_event_log_entry e
-        WHERE (e.durable_task_id, e.durable_task_inserted_at) = (t.id, t.inserted_at)
-    )
-    AND NOT EXISTS (
-        SELECT 1 FROM v1_durable_event_log_entry e
-        WHERE (e.durable_task_id, e.durable_task_inserted_at) = (t.id, t.inserted_at)
-          AND NOT e.is_satisfied
-    )
-ORDER BY rt.evicted_at
-LIMIT $3::int
-`
-
-type ListStuckEvictedDurableOrchestratorsParams struct {
-	Tenantid    uuid.UUID       `json:"tenantid"`
-	Graceperiod pgtype.Interval `json:"graceperiod"`
-	Maxtasks    int32           `json:"maxtasks"`
-}
-
-type ListStuckEvictedDurableOrchestratorsRow struct {
-	ID         int64              `json:"id"`
-	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
-	ExternalID uuid.UUID          `json:"external_id"`
-	RetryCount int32              `json:"retry_count"`
-}
-
-// DAG-orchestrator tasks whose runtime has been evicted past the grace period and whose durable
-// event log entries are ALL satisfied -- the orchestrator is ready to resume but the
-// edge-triggered restore (a child callback arriving while evicted -> DurableRestoreTask) never
-// fired: the callback was lost on an engine roll, or every entry was satisfied before the
-// eviction so there was no later callback. The caller re-queues these via DurableRestoreTask.
-func (q *Queries) ListStuckEvictedDurableOrchestrators(ctx context.Context, db DBTX, arg ListStuckEvictedDurableOrchestratorsParams) ([]*ListStuckEvictedDurableOrchestratorsRow, error) {
-	rows, err := db.Query(ctx, listStuckEvictedDurableOrchestrators, arg.Tenantid, arg.Graceperiod, arg.Maxtasks)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*ListStuckEvictedDurableOrchestratorsRow
-	for rows.Next() {
-		var i ListStuckEvictedDurableOrchestratorsRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.InsertedAt,
-			&i.ExternalID,
-			&i.RetryCount,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listTaskExpressionEvals = `-- name: ListTaskExpressionEvals :many
 WITH input AS (
     SELECT
@@ -2023,7 +2207,7 @@ WITH task_outputs AS (
     JOIN v1_task_event e ON (lt.task_id, lt.inserted_at) = (e.task_id, e.task_inserted_at)
     WHERE
         lt.external_id = ANY($1::uuid[])
-        AND e.event_type = 'COMPLETED'
+        AND e.event_type IN ('COMPLETED', 'FAILED')
 ), max_retry_counts AS (
     SELECT
         task_run_external_id,
