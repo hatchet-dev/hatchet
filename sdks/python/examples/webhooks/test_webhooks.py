@@ -205,17 +205,12 @@ async def assert_has_runs(
     )
     assert triggered_event.payload == webhook_body.model_dump()
 
-    workflow_run = await wait_for_workflow_run(
-        hatchet, triggered_event.event_id, test_start
-    )
+    workflow_run = await wait_for_workflow_run(hatchet, triggered_event.id, test_start)
     assert workflow_run is not None
     assert workflow_run.status == RunStatus.COMPLETED
     assert workflow_run.additional_metadata is not None
 
-    assert (
-        workflow_run.additional_metadata["hatchet__event_id"]
-        == triggered_event.event_id
-    )
+    assert workflow_run.additional_metadata["hatchet__event_id"] == triggered_event.id
     assert workflow_run.additional_metadata["hatchet__event_key"] == triggered_event.key
     assert workflow_run.status == RunStatus.COMPLETED
 

@@ -29,7 +29,7 @@ def test_pushed_event_has_parsed_payload_and_metadata() -> None:
         )
     )
 
-    assert event.event_id == "event"
+    assert event.id == "event"
     assert event.payload == PAYLOAD
     assert event.additional_metadata == ADDITIONAL_METADATA
     assert event.scope == "user:1"
@@ -66,7 +66,7 @@ def test_event_read_from_the_api_matches_the_pushed_shape() -> None:
         )
     )
 
-    assert event.event_id == "event"
+    assert event.id == "event"
     assert event.tenant_id == "tenant"
     assert event.payload == PAYLOAD
     assert event.additional_metadata == ADDITIONAL_METADATA

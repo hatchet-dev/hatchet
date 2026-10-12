@@ -85,7 +85,8 @@ These are one-to-one renames. The left column is safe to search for directly.
 | `hatchet.runs.get_result(run_id=...)`, `task.get_result(run_id=...)`, `task.get_run_ref(run_id=...)` | The same call with `workflow_run_id=...`                                         |
 | `hatchet.runs.get_details(external_id=...)`                                                          | `hatchet.runs.get_details(workflow_run_id=...)`                                  |
 | `hatchet.runs.reset_durable_task(task_external_id=...)`                                              | `hatchet.runs.reset_durable_task(task_run_id=...)`                               |
-| `event.metadata.id` on the result of `events.get` or `events.list`                                   | `event.event_id`                                                                 |
+| `event.event_id` on the result of `events.push` or `events.bulk_push`                                | `event.id`                                                                       |
+| `event.metadata.id` on the result of `events.get` or `events.list`                                   | `event.id`                                                                       |
 | `json.loads(event.payload)`, `json.loads(event.additional_metadata)`                                 | `event.payload`, `event.additional_metadata`                                     |
 | `hatchet.scheduled.bulk_delete(parent_step_run_id=...)`                                              | `hatchet.scheduled.bulk_delete(parent_task_external_id=...)`                     |
 | `OTelAttribute.STEP_NAME`, `OTelAttribute.STEP_ID`, `OTelAttribute.STEP_RUN_ID`                      | `OTelAttribute.TASK_NAME`, `OTelAttribute.TASK_ID`, `OTelAttribute.TASK_RUN_ID`  |
@@ -771,7 +772,7 @@ Enums that mixed in `str` (`RunStatus`, `HTTPMethod`, `SlotType`, `OTelAttribute
 
 V1 had two event classes: `Event`, returned by `events.push` and `events.bulk_push`, and the `V1Event` REST model, returned by `events.get` and `events.list`. In V2 every method on the events client returns `Event`, and `V1Event` is no longer exported from `hatchet_sdk`.
 
-`payload` and `additional_metadata` are now dictionaries rather than JSON strings, and `additional_metadata` is an empty dictionary when the event has none:
+The event's ID is now `event.id` everywhere. It replaces `event.event_id` on pushed events and `event.metadata.id` on events read back with `get` or `list`. `payload` and `additional_metadata` are now dictionaries rather than JSON strings, and `additional_metadata` is an empty dictionary when the event has none:
 
 ```python
 # V1
@@ -785,8 +786,8 @@ listed_id = listed[0].metadata.id
 event = hatchet.events.push("user:create", {"user_id": "1"})
 payload = event.payload
 
-listed = hatchet.events.list(event_ids=[event.event_id])
-listed_id = listed[0].event_id
+listed = hatchet.events.list(event_ids=[event.id])
+listed_id = listed[0].id
 ```
 
 `workflow_run_summary` and `triggered_runs` are only set on events read back with `get` or `list`. They are `None` on the result of a push, since the runs have not been created yet.

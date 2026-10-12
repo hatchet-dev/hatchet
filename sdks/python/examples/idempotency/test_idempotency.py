@@ -390,7 +390,7 @@ async def test_idempotency_keys_prevent_duplicate_runs_event_trigger(
     await asyncio.sleep(1)
 
     details = await hatchet.events.aio_list(
-        event_ids=[e1.event_id, e2.event_id],
+        event_ids=[e1.id, e2.id],
     )
 
     assert details

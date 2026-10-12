@@ -67,7 +67,7 @@ def _inject_source_info(
 
 
 class Event(BaseModel):
-    event_id: str
+    id: str
     tenant_id: str
     key: str
     payload: JSONSerializableMapping
@@ -91,7 +91,7 @@ class Event(BaseModel):
     @classmethod
     def from_proto(cls, proto: EventProto) -> "Event":
         return cls(
-            event_id=proto.event_id,
+            id=proto.event_id,
             tenant_id=proto.tenant_id,
             key=proto.key,
             payload=json.loads(proto.payload) if proto.payload else {},
@@ -107,7 +107,7 @@ class Event(BaseModel):
     @classmethod
     def from_rest_model(cls, rest_event: V1Event) -> "Event":
         return cls(
-            event_id=rest_event.metadata.id,
+            id=rest_event.metadata.id,
             tenant_id=rest_event.tenant_id,
             key=rest_event.key,
             payload=rest_event.payload or {},

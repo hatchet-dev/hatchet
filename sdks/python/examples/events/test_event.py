@@ -66,13 +66,13 @@ async def event_filter(
 async def fetch_runs_for_event(
     hatchet: Hatchet, event: Event
 ) -> tuple[ProcessedEvent, list[V1TaskSummary]]:
-    runs = await hatchet.runs.aio_list(triggering_event_external_id=event.event_id)
+    runs = await hatchet.runs.aio_list(triggering_event_external_id=event.id)
 
     meta = cast(dict[str, str | int | bool], event.additional_metadata)
     payload = cast(dict[str, str | bool], event.payload)
 
     processed_event = ProcessedEvent(
-        id=event.event_id,
+        id=event.id,
         payload=payload,
         meta=meta,
         should_have_runs=meta.get("should_have_runs", False) is True,
@@ -97,7 +97,7 @@ async def wait_for_result(
     hatchet: Hatchet, events: list[Event]
 ) -> dict[ProcessedEvent, list[V1TaskSummary]]:
     since = datetime.now(tz=timezone.utc) - timedelta(minutes=2)
-    event_ids = {e.event_id for e in events}
+    event_ids = {e.id for e in events}
 
     iters = 0
     while True:
@@ -108,7 +108,7 @@ async def wait_for_result(
         iters += 1
 
         persisted = (await hatchet.events.aio_list(limit=100, since=since)) or []
-        if not event_ids.issubset({e.event_id for e in persisted}):
+        if not event_ids.issubset({e.id for e in persisted}):
             await asyncio.sleep(1)
             continue
 
@@ -155,7 +155,7 @@ async def wait_for_result_and_assert(hatchet: Hatchet, events: list[Event]) -> N
     event_to_runs = await wait_for_result(hatchet, events)
 
     unique_events_with_runs = {
-        event.event_id
+        event.id
         for event in events
         if event.additional_metadata.get("should_have_runs", False) is True
     }
@@ -224,14 +224,14 @@ def cp(should_skip: bool) -> dict[str, bool]:
 async def test_event_push(hatchet: Hatchet) -> None:
     e = hatchet.events.push(EVENT_KEY, cp(False))
 
-    assert e.event_id is not None
+    assert e.id is not None
 
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_async_event_push(hatchet: Hatchet) -> None:
     e = await hatchet.events.aio_push(EVENT_KEY, cp(False))
 
-    assert e.event_id is not None
+    assert e.id is not None
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -597,7 +597,7 @@ async def test_multi_scope_bug(hatchet: Hatchet, test_run_id: str) -> None:
 
             for event in events:
                 runs = await hatchet.runs.aio_list(
-                    triggering_event_external_id=event.event_id,
+                    triggering_event_external_id=event.id,
                     additional_metadata={"test_run_id": test_run_id},
                     workflow_ids=[event_workflow.id],
                 )

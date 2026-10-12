@@ -52,7 +52,8 @@ V2 removes everything that was deprecated in V1 and tightens the types that were
 - Every `list` and `aio_list` method on the feature clients returns a plain `list` instead of a paginated wrapper, so there is no `.rows` to unwrap.
 - `ctx.aio_wait_for` returns a `list[SleepResult | EventWaitResult | OrGroupResult]` instead of a `dict`, and `ctx.aio_wait_for_event` returns an `EventWaitResult` whose `.payload` holds the event data.
 - `ctx.priority` now returns `Priority | None` instead of `int | None`.
-- `from hatchet_sdk import Event` now resolves to the SDK's own event class instead of the V0 REST model. Every method on the events client returns it: `push`, `bulk_push`, `get`, and `list`, along with their `aio_` variants. `get` and `list` previously returned the `V1Event` REST model, so read `event.event_id` instead of `event.metadata.id`.
+- `from hatchet_sdk import Event` now resolves to the SDK's own event class instead of the V0 REST model. Every method on the events client returns it: `push`, `bulk_push`, `get`, and `list`, along with their `aio_` variants. `get` and `list` previously returned the `V1Event` REST model, so read `event.id` instead of `event.metadata.id`.
+- `Event.event_id` has been renamed to `Event.id`.
 - `Event.payload` and `Event.additional_metadata` are now dictionaries instead of JSON strings, so there is no need to call `json.loads` on them. `additional_metadata` is an empty dictionary when the event has none.
 - `BulkPushEventWithMetadata.key` is now required.
 - `workflow.input_validator` and `workflow.input_validator_type` return `None` for a workflow with no input validator.
