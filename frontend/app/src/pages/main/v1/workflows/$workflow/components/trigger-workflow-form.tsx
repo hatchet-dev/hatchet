@@ -33,10 +33,22 @@ import { appRoutes } from '@/router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { debounce } from 'lodash';
-import { useCallback, useMemo, useState, useEffect } from 'react';
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useMemo,
+  useState,
+  useEffect,
+} from 'react';
 import { BiDownArrowCircle } from 'react-icons/bi';
 
+const JsonSchemaForm = lazy(
+  () => import('@/components/v1/molecules/json-schema-form/json-schema-form'),
+);
+
 type TimingOption = 'now' | 'schedule' | 'cron';
+type InputMode = 'editor' | 'form';
 
 export function TriggerWorkflowForm({
   defaultWorkflow,
@@ -63,6 +75,10 @@ export function TriggerWorkflowForm({
   const [input, setInput] = useState<string | undefined>(defaultInput);
   const [addlMeta, setAddlMeta] = useState<string | undefined>(defaultAddlMeta);
   const [errors, setErrors] = useState<string[]>([]);
+
+  const [inputMode, setInputMode] = useState<InputMode>('editor');
+  // the form only reads its value on mount, so snapshot the input on switch
+  const [formInitialValue, setFormInitialValue] = useState<unknown>({});
 
   const [timingOption, setTimingOption] =
     useState<TimingOption>(defaultTimingOption);
@@ -109,6 +125,7 @@ export function TriggerWorkflowForm({
     setInput(defaultInput);
     setAddlMeta(defaultAddlMeta);
     setErrors([]);
+    setInputMode('editor');
     setSelectedWorkflowId(defaultWorkflowId);
     setTimingOption(defaultTimingOption);
     setScheduleTime(new Date());
@@ -161,6 +178,25 @@ export function TriggerWorkflowForm({
   });
 
   const jsonSchema = selectedWorkflow?.inputJsonSchema;
+  const hasJsonSchema = !!jsonSchema && Object.keys(jsonSchema).length > 0;
+
+  const handleInputModeChange = (mode: InputMode) => {
+    if (mode === 'form') {
+      try {
+        setFormInitialValue(JSON.parse(input || '{}'));
+      } catch {
+        setErrors(['Input must be valid JSON to switch to the form.']);
+        return;
+      }
+    }
+
+    setErrors([]);
+    setInputMode(mode);
+  };
+
+  const handleFormChange = useCallback((value: unknown) => {
+    setInput(JSON.stringify(value ?? {}, null, 2));
+  }, []);
 
   const triggerNowMutation = useMutation({
     mutationKey: ['workflow-run:create', selectedWorkflow?.metadata.id],
@@ -344,7 +380,10 @@ export function TriggerWorkflowForm({
         <div className="font-bold">Workflow</div>
         <Combobox
           values={selectedWorkflowId ? [selectedWorkflowId] : []}
-          setValues={(values) => setSelectedWorkflowId(values[0])}
+          setValues={(values) => {
+            setSelectedWorkflowId(values[0]);
+            setInputMode('editor');
+          }}
           title="Select Workflow"
           options={workflowKeys?.rows?.map((w) => ({
             value: w.metadata.id,
@@ -362,16 +401,40 @@ export function TriggerWorkflowForm({
               : 'No workflows found'
           }
         />
-        <div className="font-bold">
-          Input
-          {isLoadingWorkflow && (
-            <span className="ml-2 text-sm font-normal text-muted-foreground">
-              (Loading schema...)
-            </span>
+        <div className="flex items-center justify-between">
+          <div className="font-bold">
+            Input
+            {isLoadingWorkflow && (
+              <span className="ml-2 text-sm font-normal text-muted-foreground">
+                (Loading schema...)
+              </span>
+            )}
+          </div>
+          {hasJsonSchema && !isLoadingWorkflow && (
+            <Tabs
+              value={inputMode}
+              onValueChange={(value) =>
+                handleInputModeChange(value as InputMode)
+              }
+            >
+              <TabsList>
+                <TabsTrigger value="editor">Editor</TabsTrigger>
+                <TabsTrigger value="form">Form</TabsTrigger>
+              </TabsList>
+            </Tabs>
           )}
         </div>
         {isLoadingWorkflow ? (
           <Skeleton className="h-[180px] w-full" />
+        ) : hasJsonSchema && inputMode === 'form' ? (
+          <Suspense fallback={<Skeleton className="h-[180px] w-full" />}>
+            <JsonSchemaForm
+              key={selectedWorkflowId}
+              schema={jsonSchema}
+              initialValue={formInitialValue}
+              onChange={handleFormChange}
+            />
+          </Suspense>
         ) : (
           <CodeEditor
             code={input || '{}'}
