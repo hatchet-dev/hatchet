@@ -33,6 +33,8 @@ var rootCmd = &cobra.Command{
 			os.Exit(0)
 		}
 
+		cmdutils.SetMemoryLimit(context.Background())
+
 		cf := loader.NewConfigLoader(configDirectory)
 
 		context := context.Background()
