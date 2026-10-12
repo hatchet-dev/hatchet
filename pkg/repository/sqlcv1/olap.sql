@@ -460,7 +460,8 @@ FROM aggregated_events a
 JOIN v1_task_events_olap e ON (e.task_id, e.task_inserted_at, e.tenant_id, e.id) = (a.task_id, a.task_inserted_at, a.tenant_id, a.first_id)
 LEFT JOIN v1_tasks_olap t ON (t.inserted_at, t.id, t.tenant_id) = (e.task_inserted_at, e.task_id, e.tenant_id)
 LEFT JOIN v1_dags_olap d ON (d.inserted_at, d.id, d.tenant_id) = (a.dag_inserted_at, a.dag_id, a.tenant_id)
-ORDER BY a.time_first_seen DESC, e.event_timestamp DESC;
+ORDER BY a.time_first_seen DESC, e.event_timestamp DESC
+LIMIT @eventLimit::bigint;
 
 -- name: PopulateSingleTaskRunData :one
 WITH selected_retry_count AS (
