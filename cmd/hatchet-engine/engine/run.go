@@ -22,11 +22,13 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/task"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
 	"github.com/hatchet-dev/hatchet/internal/services/grpc"
+	"github.com/hatchet-dev/hatchet/internal/services/grpcoperator"
 	"github.com/hatchet-dev/hatchet/internal/services/health"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	"github.com/hatchet-dev/hatchet/internal/services/otelcol"
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	schedulerv1 "github.com/hatchet-dev/hatchet/internal/services/scheduler/v1"
+	streamssvc "github.com/hatchet-dev/hatchet/internal/services/streams"
 	"github.com/hatchet-dev/hatchet/internal/services/ticker"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
@@ -260,6 +262,12 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 	}
 
 	if sc.HasService("queue") || sc.HasService("jobscontroller") || sc.HasService("workflowscontroller") {
+		retention, err := corePartitionRetention(sc)
+
+		if err != nil {
+			return err
+		}
+
 		tasks, err := task.New(
 			task.WithAlerter(sc.Alerter),
 			task.WithMessageQueue(sc.MessageQueueV1),
@@ -269,6 +277,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			task.WithPartition(p),
 			task.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
 			task.WithPgxStatsLoggerConfig(&sc.AdditionalLoggers.PgxStats),
+			task.WithMaxRetryAfter(retention),
 			task.WithAnalyzeCronInterval(sc.CronOperations.TaskAnalyzeCronInterval),
 			task.WithPrometheusGate(sc.PrometheusGate),
 		)
@@ -369,7 +378,6 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			dispatcher.WithStreamEventBufferTimeout(sc.Runtime.StreamEventBufferTimeout),
 			dispatcher.WithVersion(sc.Version),
 			dispatcher.WithAnalytics(sc.Analytics),
-			dispatcher.WithDAGOperatorDefaultSlots(sc.Runtime.DagOperatorDefaultSlots),
 			dispatcher.WithPrometheusGate(sc.PrometheusGate),
 		)
 
@@ -435,6 +443,14 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			return fmt.Errorf("could not create admin service (v1): %w", err)
 		}
 
+		// the operators this dispatcher claims (the DAG operator) are hosted in process, on
+		// the local dispatcher, from here
+		stopOperators, err := startOperatorClaimer(sc, d, adminv1Svc)
+
+		if err != nil {
+			return fmt.Errorf("could not start operator claimer: %w", err)
+		}
+
 		grpcOpts := []grpc.ServerOpt{
 			grpc.WithConfig(sc),
 			grpc.WithIngestor(ei),
@@ -470,6 +486,26 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			grpcOpts = append(grpcOpts, grpc.WithInsecure())
 		}
 
+		var operatorSvc *grpcoperator.OperatorServiceImpl
+
+		if sc.Runtime.GRPCOperatorsEnabled {
+			operatorSvc, err = grpcoperator.New(
+				grpcoperator.WithDispatcher(d),
+				grpcoperator.WithRepository(sc.V1),
+				grpcoperator.WithLogger(sc.Logger),
+				grpcoperator.WithAnalytics(sc.Analytics),
+				grpcoperator.WithValidator(sc.Validator),
+				grpcoperator.WithMaxListenStreamsPerOperator(sc.Runtime.GRPCOperatorMaxListenStreamsPerOperator),
+				grpcoperator.WithMaxActionsPerOperator(sc.Runtime.GRPCOperatorMaxActionsPerOperator),
+			)
+
+			if err != nil {
+				return fmt.Errorf("could not create grpc operator service: %w", err)
+			}
+
+			grpcOpts = append(grpcOpts, grpc.WithOperatorService(operatorSvc))
+		}
+
 		// create the grpc server
 		s, err := grpc.NewServer(
 			grpcOpts...,
@@ -484,6 +520,12 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		}
 
 		cleanupGrpcApi := func() error {
+			// the claimed operators are paused, drained and closed before the dispatcher
+			// drains, while their events can still be reported
+			if err := stopOperators(); err != nil {
+				return err
+			}
+
 			// hang up long-lived subscriber streams first so that GracefulStop does not
 			// block on them until the pod is killed
 			d.CancelStreamSessions()
@@ -506,6 +548,11 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 				}
 				if err := adminv1Svc.Cleanup(); err != nil {
 					return fmt.Errorf("failed to cleanup adminv1 service: %w", err)
+				}
+				if operatorSvc != nil {
+					if err := operatorSvc.Cleanup(); err != nil {
+						return fmt.Errorf("failed to cleanup grpc operator service: %w", err)
+					}
 				}
 				if err := ei.Cleanup(); err != nil {
 					return fmt.Errorf("failed to cleanup ingestor: %w", err)
@@ -652,6 +699,12 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		)
 
 		if isControllerActive(sc.PausedControllers, TaskController) {
+			retention, err := corePartitionRetention(sc)
+
+			if err != nil {
+				return err
+			}
+
 			tasks, err := task.New(
 				task.WithAlerter(sc.Alerter),
 				task.WithMessageQueue(sc.MessageQueueV1),
@@ -663,6 +716,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 				task.WithPgxStatsLoggerConfig(&sc.AdditionalLoggers.PgxStats),
 				task.WithOpsPoolJitter(sc.Operations),
 				task.WithReplayEnabled(sc.Runtime.ReplayEnabled),
+				task.WithMaxRetryAfter(retention),
 				task.WithAnalyzeCronInterval(sc.CronOperations.TaskAnalyzeCronInterval),
 				task.WithPrometheusGate(sc.PrometheusGate),
 			)
@@ -818,7 +872,6 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			dispatcher.WithStreamEventBufferTimeout(sc.Runtime.StreamEventBufferTimeout),
 			dispatcher.WithVersion(sc.Version),
 			dispatcher.WithAnalytics(sc.Analytics),
-			dispatcher.WithDAGOperatorDefaultSlots(sc.Runtime.DagOperatorDefaultSlots),
 			dispatcher.WithPrometheusGate(sc.PrometheusGate),
 		)
 
@@ -886,6 +939,24 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			return fmt.Errorf("could not create admin service (v1): %w", err)
 		}
 
+		streamsSvc, err := streamssvc.NewService(
+			streamssvc.WithPubSub(sc.PubSubV1),
+			streamssvc.WithRepositoryV1(sc.V1),
+			streamssvc.WithLogger(sc.Logger),
+		)
+
+		if err != nil {
+			return fmt.Errorf("could not create streams service: %w", err)
+		}
+
+		// the operators this dispatcher claims (the DAG operator) are hosted in process, on
+		// the local dispatcher, from here
+		stopOperators, err := startOperatorClaimer(sc, d, adminv1Svc)
+
+		if err != nil {
+			return fmt.Errorf("could not start operator claimer: %w", err)
+		}
+
 		grpcOpts := []grpc.ServerOpt{
 			grpc.WithConfig(sc),
 			grpc.WithIngestor(ei),
@@ -893,6 +964,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			grpc.WithDispatcherV1(d.V1()),
 			grpc.WithAdmin(adminSvc),
 			grpc.WithAdminV1(adminv1Svc),
+			grpc.WithStreamsV1(streamsSvc),
 			grpc.WithLogger(sc.Logger),
 			grpc.WithAlerter(sc.Alerter),
 			grpc.WithTLSConfig(sc.TLSConfig),
@@ -921,6 +993,26 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			grpcOpts = append(grpcOpts, grpc.WithInsecure())
 		}
 
+		var operatorSvc *grpcoperator.OperatorServiceImpl
+
+		if sc.Runtime.GRPCOperatorsEnabled {
+			operatorSvc, err = grpcoperator.New(
+				grpcoperator.WithDispatcher(d),
+				grpcoperator.WithRepository(sc.V1),
+				grpcoperator.WithLogger(sc.Logger),
+				grpcoperator.WithAnalytics(sc.Analytics),
+				grpcoperator.WithValidator(sc.Validator),
+				grpcoperator.WithMaxListenStreamsPerOperator(sc.Runtime.GRPCOperatorMaxListenStreamsPerOperator),
+				grpcoperator.WithMaxActionsPerOperator(sc.Runtime.GRPCOperatorMaxActionsPerOperator),
+			)
+
+			if err != nil {
+				return fmt.Errorf("could not create grpc operator service: %w", err)
+			}
+
+			grpcOpts = append(grpcOpts, grpc.WithOperatorService(operatorSvc))
+		}
+
 		// create the grpc server
 		s, err := grpc.NewServer(
 			grpcOpts...,
@@ -935,9 +1027,16 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		}
 
 		grpcApiCleanup := func() error {
+			// the claimed operators are paused, drained and closed before the dispatcher
+			// drains, while their events can still be reported
+			if err := stopOperators(); err != nil {
+				return err
+			}
+
 			// hang up long-lived subscriber streams first so that GracefulStop does not
 			// block on them until the pod is killed
 			d.CancelStreamSessions()
+			streamsSvc.CancelStreamSessions()
 
 			g := new(errgroup.Group)
 
@@ -958,8 +1057,16 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 				if err := adminv1Svc.Cleanup(); err != nil {
 					return fmt.Errorf("failed to cleanup adminv1 service: %w", err)
 				}
+				if operatorSvc != nil {
+					if err := operatorSvc.Cleanup(); err != nil {
+						return fmt.Errorf("failed to cleanup grpc operator service: %w", err)
+					}
+				}
 				if err := ei.Cleanup(); err != nil {
 					return fmt.Errorf("failed to cleanup ingestor: %w", err)
+				}
+				if err := streamsSvc.Cleanup(); err != nil {
+					return fmt.Errorf("failed to cleanup streams service: %w", err)
 				}
 				return nil
 			})
@@ -1051,4 +1158,15 @@ func isControllerActive(pausedControllers map[string]bool, controllerName Contro
 	}
 
 	return false
+}
+
+// corePartitionRetention caps task-requested retry delays, since a task's rows are dropped once its partition ages out.
+func corePartitionRetention(sc *server.ServerConfig) (time.Duration, error) {
+	retention, err := time.ParseDuration(sc.Runtime.Limits.CorePartitionRetentionOrDefault())
+
+	if err != nil {
+		return 0, fmt.Errorf("could not parse core partition retention: %w", err)
+	}
+
+	return retention, nil
 }

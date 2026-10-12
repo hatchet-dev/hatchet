@@ -775,6 +775,7 @@ FROM
 JOIN "Workflow" as w on w."id" = wv."workflowId"
 WHERE
     wv."id" = @id::uuid AND
+    w."tenantId" = @tenantId::uuid AND
     wv."deletedAt" IS NULL
 LIMIT 1;
 

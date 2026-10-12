@@ -48,9 +48,15 @@ export function SidebarLanguageSelect() {
   const current = resolve(selectedLanguage);
   const pathname = usePathname();
 
-  // The reference section is organized per language already, so a global SDK
-  // selector is confusing there. Language tabs on individual pages stay usable.
-  if (pathname === "/reference" || pathname.startsWith("/reference/")) {
+  // The reference section is organized per language already, and the
+  // self-hosting section is language-agnostic, so a global SDK selector is
+  // confusing in both. Language tabs on individual pages stay usable.
+  if (
+    pathname === "/reference" ||
+    pathname.startsWith("/reference/") ||
+    pathname === "/self-hosting" ||
+    pathname.startsWith("/self-hosting/")
+  ) {
     return null;
   }
 

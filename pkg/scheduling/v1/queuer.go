@@ -12,6 +12,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
+	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -48,9 +49,11 @@ type Queuer struct {
 
 	resultsCh chan<- *QueueResults
 
+	// notifyQueueCh carries wake-ups to loopQueue. Its buffer of one is the coalescing
+	// state: queue drops a wake-up only while one is already buffered, and the tick that
+	// consumes the buffered one refills after the drop, so it sees everything the dropped
+	// wake-up was about.
 	notifyQueueCh chan map[string]string
-
-	queueMu mutex
 
 	cleanup func()
 
@@ -61,8 +64,6 @@ type Queuer struct {
 
 	unassigned   map[int64]*sqlcv1.V1QueueItem
 	unassignedMu mutex
-
-	hasRateLimits bool
 
 	// consecutiveEmptyPolls counts loop iterations whose refill returned no items. It is only
 	// accessed from the loopQueue goroutine.
@@ -122,7 +123,6 @@ func newQueuer(conf *sharedConfig, tenantId uuid.UUID, queueName string, s *Sche
 		limit:         defaultLimit,
 		resultsCh:     resultsCh,
 		notifyQueueCh: notifyQueueCh,
-		queueMu:       newMu(&queueLogger),
 		unackedMu:     newRWMu(&queueLogger),
 		unacked:       make(map[int64]struct{}),
 		unassigned:    make(map[int64]*sqlcv1.V1QueueItem),
@@ -154,24 +154,22 @@ func (q *Queuer) Cleanup() {
 	q.cleanup()
 }
 
+// queue wakes loopQueue. It never blocks: when a wake-up is already buffered the new one
+// is dropped, which is safe because the buffered one has not been consumed yet, so the tick
+// it starts refills after this call returns.
 func (q *Queuer) queue(ctx context.Context) {
-	if ok := q.queueMu.TryLock(); !ok {
-		return
+	telemetryCtx, span := telemetry.NewSpan(ctx, "notify-queue")
+	defer span.End()
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "tenant.id", Value: q.tenantId.String()},
+		telemetry.AttributeKV{Key: "queue.name", Value: q.queueName},
+	)
+
+	select {
+	case q.notifyQueueCh <- telemetry.GetCarrier(telemetryCtx):
+	default:
 	}
-
-	go func() {
-		defer q.queueMu.Unlock()
-
-		telemetryCtx, span := telemetry.NewSpan(ctx, "notify-queue")
-		defer span.End()
-
-		telemetry.WithAttributes(span,
-			telemetry.AttributeKV{Key: "tenant.id", Value: q.tenantId.String()},
-			telemetry.AttributeKV{Key: "queue.name", Value: q.queueName},
-		)
-
-		q.notifyQueueCh <- telemetry.GetCarrier(telemetryCtx)
-	}()
 }
 
 func (q *Queuer) loopQueue(ctx context.Context) {
@@ -201,6 +199,10 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		case carrier = <-q.notifyQueueCh:
 		}
 
+		// anything that changes worker capacity from here on may happen while this
+		// tick's misses are unacked, so we track this and requeue if the epoch changes
+		prevEpoch := q.s.capacityEpochNow()
+
 		// re-arm immediately so early `continue` paths below can't stall the loop; re-armed
 		// again after the refill once the empty-poll streak is known
 		resetTimer()
@@ -221,22 +223,17 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 
 		start := time.Now()
 		checkpoint := start
-		var err error
 
-		if q.hasRateLimits {
-			_, err := q.repo.RequeueRateLimitedItems(ctx, q.tenantId, q.queueName)
-
-			if err != nil {
-				q.l.Error().Ctx(ctx).Err(err).Msg("error requeuing rate limited items")
-			}
-		}
+		q.requeueRateLimitedItems(ctx)
 
 		qis, err := q.refillQueue(ctx)
 
 		if err != nil {
 			span.RecordError(err)
 			span.End()
-			q.l.Error().Ctx(ctx).Err(err).Msg("error refilling queue")
+
+			logger.ShutdownAware(ctx, q.l, err, zerolog.ErrorLevel).Ctx(ctx).Err(err).Msg("error refilling queue")
+
 			continue
 		}
 
@@ -258,21 +255,19 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		refillTime := time.Since(checkpoint)
 		checkpoint = time.Now()
 
-		rls, err := q.repo.GetTaskRateLimits(ctx, nil, qis)
+		rls, rlDefinitions, err := q.repo.GetTaskRateLimits(ctx, nil, qis)
 
 		if err != nil {
 			span.RecordError(err)
 			span.End()
 
-			q.l.Error().Ctx(ctx).Err(err).Msg("error getting rate limits")
+			logger.ShutdownAware(ctx, q.l, err, zerolog.ErrorLevel).Ctx(ctx).Err(err).Msg("error getting rate limits")
 
 			q.unackedToUnassigned(qis)
 			continue
 		}
 
-		if len(rls) > 0 {
-			q.hasRateLimits = true
-		}
+		q.s.rl.addDefinitions(rlDefinitions)
 
 		rateLimitTime := time.Since(checkpoint)
 		checkpoint = time.Now()
@@ -301,7 +296,8 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		if err != nil {
 			span.RecordError(err)
 			span.End()
-			q.l.Error().Ctx(ctx).Err(err).Msg("error getting desired labels")
+
+			logger.ShutdownAware(ctx, q.l, err, zerolog.ErrorLevel).Ctx(ctx).Err(err).Msg("error getting desired labels")
 
 			q.unackedToUnassigned(qis)
 			continue
@@ -315,7 +311,8 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		if err != nil {
 			span.RecordError(err)
 			span.End()
-			q.l.Error().Err(err).Msg("error getting batch configs")
+
+			logger.ShutdownAware(ctx, q.l, err, zerolog.ErrorLevel).Err(err).Msg("error getting batch configs")
 
 			q.unackedToUnassigned(qis)
 			continue
@@ -329,7 +326,8 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		if err != nil {
 			span.RecordError(err)
 			span.End()
-			q.l.Error().Ctx(ctx).Err(err).Msg("error getting step slot requests")
+
+			logger.ShutdownAware(ctx, q.l, err, zerolog.ErrorLevel).Ctx(ctx).Err(err).Msg("error getting step slot requests")
 
 			q.unackedToUnassigned(qis)
 			continue
@@ -346,6 +344,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 
 		startingQiLength := len(qis)
 		processedQiLength := 0
+		unassignedReturned := 0
 
 		for r := range assignCh {
 			wg.Add(1)
@@ -360,6 +359,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 
 				countMu.Lock()
 				count += numFlushed
+				unassignedReturned += len(ar.unassigned)
 				processedQiLength += len(ar.assigned) + len(ar.buffered) + len(ar.batched) + len(ar.unassigned) + len(ar.schedulingTimedOut) + len(ar.rateLimited) + len(ar.rateLimitedToMove)
 				countMu.Unlock()
 
@@ -489,6 +489,10 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 			countMu.Lock()
 			if len(prevQis) > 0 && count == len(prevQis) {
 				q.queue(context.Background())
+			} else if unassignedReturned > 0 && q.s.isWorkerCapacityUpdated(prevEpoch) {
+				// we might have missed a capacity update while trying to assign slots, so we requeue
+				// again
+				q.queue(ctx)
 			}
 
 			if startingQiLength != processedQiLength {
@@ -503,6 +507,14 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 				).Int("item_count", len(prevQis)).Msg("queue took longer than 100ms to process and flush items")
 			}
 		}(start)
+	}
+}
+
+func (q *Queuer) requeueRateLimitedItems(ctx context.Context) {
+	_, err := q.repo.RequeueRateLimitedItems(ctx, q.tenantId, q.queueName)
+
+	if err != nil {
+		logger.ShutdownAware(ctx, q.l, err, zerolog.ErrorLevel).Ctx(ctx).Err(err).Msg("error requeuing rate limited items")
 	}
 }
 
@@ -853,11 +865,14 @@ func (q *Queuer) runOptimisticQueue(
 	qis []*sqlcv1.V1QueueItem,
 	localWorkerIds map[uuid.UUID]struct{},
 ) ([]*v1.AssignedItem, []*QueueResults, error) {
-	rls, err := q.repo.GetTaskRateLimits(ctx, tx, qis)
+	rls, rlDefinitions, err := q.repo.GetTaskRateLimits(ctx, tx, qis)
 
 	if err != nil {
 		return nil, nil, err
 	}
+
+	// not deferred to post-commit: a new key's row must exist before use() below, and a rolled-back trigger only leaves an unused row
+	q.s.rl.addDefinitions(rlDefinitions)
 
 	stepIds := make([]uuid.UUID, 0, len(qis))
 	taskIdToDesiredLabelsFromTrigger := make(map[int64][]*sqlcv1.GetDesiredLabelsRow)

@@ -6,7 +6,7 @@ import tseslint from 'typescript-eslint';
 
 export default [
   {
-    ignores: ['dist/**', '**/generated/**/*', 'node_modules/**', '**/*.test-d.ts'],
+    ignores: ['dist/**', '**/generated/**/*', 'src/protoc-es/**', 'node_modules/**', '**/*.test-d.ts'],
   },
 
   eslint.configs.recommended,
@@ -57,6 +57,8 @@ export default [
       'src/legacy/workflow.ts',
       'src/legacy/legacy-transformer.ts',
       'src/v1/client/worker/worker-internal.ts',
+      'src/v1/client/worker/workflow-proto.ts',
+      'src/edge/declarations.ts',
       'src/v1/client/worker/context.ts',
       'src/v1/client/worker/slot-utils.ts',
       'src/v1/client/admin.ts',

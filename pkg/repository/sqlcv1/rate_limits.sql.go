@@ -12,7 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const bulkUpdateRateLimits = `-- name: BulkUpdateRateLimits :many
+const chargeRateLimitUsage = `-- name: ChargeRateLimitUsage :many
 WITH input AS (
     SELECT
         "key", "units"
@@ -37,13 +37,8 @@ WITH input AS (
 UPDATE
     "RateLimit" rl
 SET
-    "value" = get_refill_value(rl) - (SELECT "units" FROM input WHERE "key" = rl."key"),
-    "lastRefill" = CASE
-        WHEN NOW() - rl."lastRefill" >= (rl."window"::INTERVAL - INTERVAL '10 milliseconds') THEN
-            CURRENT_TIMESTAMP
-        ELSE
-            rl."lastRefill"
-    END
+    -- units are charged to the window they were spent in; ListRateLimitsForTenantWithMutate refills afterwards
+    "value" = rl."value" - (SELECT "units" FROM input WHERE "key" = rl."key")
 FROM
     rls_to_update rl2
 WHERE
@@ -52,14 +47,14 @@ WHERE
 RETURNING rl."tenantId", rl.key, rl."limitValue", rl.value, rl."window", rl."lastRefill"
 `
 
-type BulkUpdateRateLimitsParams struct {
+type ChargeRateLimitUsageParams struct {
 	Keys     []string  `json:"keys"`
 	Units    []int32   `json:"units"`
 	Tenantid uuid.UUID `json:"tenantid"`
 }
 
-func (q *Queries) BulkUpdateRateLimits(ctx context.Context, db DBTX, arg BulkUpdateRateLimitsParams) ([]*RateLimit, error) {
-	rows, err := db.Query(ctx, bulkUpdateRateLimits, arg.Keys, arg.Units, arg.Tenantid)
+func (q *Queries) ChargeRateLimitUsage(ctx context.Context, db DBTX, arg ChargeRateLimitUsageParams) ([]*RateLimit, error) {
+	rows, err := db.Query(ctx, chargeRateLimitUsage, arg.Keys, arg.Units, arg.Tenantid)
 	if err != nil {
 		return nil, err
 	}
@@ -355,6 +350,61 @@ func (q *Queries) ListRateLimitsForTenantWithMutate(ctx context.Context, db DBTX
 	return items, nil
 }
 
+const upsertDynamicRateLimitDefinitions = `-- name: UpsertDynamicRateLimitDefinitions :exec
+WITH input_values AS (
+    SELECT
+        "key", "limitValue", "window"
+    FROM
+        (
+            SELECT
+                unnest($2::text[]) AS "key",
+                unnest($3::int[]) AS "limitValue",
+                unnest($4::text[]) AS "window"
+        ) AS subquery
+    ORDER BY
+        "key"
+)
+INSERT INTO "RateLimit" (
+    "tenantId",
+    "key",
+    "limitValue",
+    "value",
+    "window"
+)
+SELECT
+    $1::uuid,
+    iv."key",
+    iv."limitValue",
+    iv."limitValue",
+    iv."window"
+FROM
+    input_values iv
+ON CONFLICT ("tenantId", "key") DO UPDATE SET
+    "limitValue" = EXCLUDED."limitValue",
+    "window" = EXCLUDED."window",
+    "value" = CASE WHEN EXCLUDED."limitValue" < "RateLimit"."value" THEN EXCLUDED."limitValue" ELSE "RateLimit"."value" END
+WHERE
+    ("RateLimit"."limitValue", "RateLimit"."window") IS DISTINCT FROM (EXCLUDED."limitValue", EXCLUDED."window")
+`
+
+type UpsertDynamicRateLimitDefinitionsParams struct {
+	Tenantid    uuid.UUID `json:"tenantid"`
+	Keys        []string  `json:"keys"`
+	Limitvalues []int32   `json:"limitvalues"`
+	Windows     []string  `json:"windows"`
+}
+
+// skip rewriting rows whose definition hasn't changed
+func (q *Queries) UpsertDynamicRateLimitDefinitions(ctx context.Context, db DBTX, arg UpsertDynamicRateLimitDefinitionsParams) error {
+	_, err := db.Exec(ctx, upsertDynamicRateLimitDefinitions,
+		arg.Tenantid,
+		arg.Keys,
+		arg.Limitvalues,
+		arg.Windows,
+	)
+	return err
+}
+
 const upsertRateLimit = `-- name: UpsertRateLimit :one
 INSERT INTO "RateLimit" (
     "tenantId",
@@ -399,56 +449,4 @@ func (q *Queries) UpsertRateLimit(ctx context.Context, db DBTX, arg UpsertRateLi
 		&i.LastRefill,
 	)
 	return &i, err
-}
-
-const upsertRateLimitsBulk = `-- name: UpsertRateLimitsBulk :exec
-WITH input_values AS (
-    SELECT
-        "key", "limitValue", "window"
-    FROM
-        (
-            SELECT
-                unnest($2::text[]) AS "key",
-                unnest($3::int[]) AS "limitValue",
-                unnest($4::text[]) AS "window"
-        ) AS subquery
-    ORDER BY
-        "key"
-)
-INSERT INTO "RateLimit" (
-    "tenantId",
-    "key",
-    "limitValue",
-    "value",
-    "window"
-)
-SELECT
-    $1::uuid,
-    iv."key",
-    iv."limitValue",
-    iv."limitValue",
-    iv."window"
-FROM
-    input_values iv
-ON CONFLICT ("tenantId", "key") DO UPDATE SET
-    "limitValue" = EXCLUDED."limitValue",
-    "window" = EXCLUDED."window",
-    "value" = CASE WHEN EXCLUDED."limitValue" < "RateLimit"."value" THEN EXCLUDED."limitValue" ELSE "RateLimit"."value" END
-`
-
-type UpsertRateLimitsBulkParams struct {
-	Tenantid    uuid.UUID `json:"tenantid"`
-	Keys        []string  `json:"keys"`
-	Limitvalues []int32   `json:"limitvalues"`
-	Windows     []string  `json:"windows"`
-}
-
-func (q *Queries) UpsertRateLimitsBulk(ctx context.Context, db DBTX, arg UpsertRateLimitsBulkParams) error {
-	_, err := db.Exec(ctx, upsertRateLimitsBulk,
-		arg.Tenantid,
-		arg.Keys,
-		arg.Limitvalues,
-		arg.Windows,
-	)
-	return err
 }

@@ -46,7 +46,7 @@ var rootCmd = &cobra.Command{
 }
 
 // Version will be linked by an ldflag during build
-var Version = "v0.94.16"
+var Version = engine.DefaultVersion
 
 func main() {
 	rootCmd.PersistentFlags().BoolVar(

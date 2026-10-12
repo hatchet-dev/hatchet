@@ -50,10 +50,50 @@ SELECT
 FROM
     inputs i
 ORDER BY i.tenant_id, i.inserted_at, i.id, i.type
-ON CONFLICT (tenant_id, id, inserted_at, type)
-DO UPDATE SET
-    location = EXCLUDED.location,
-    external_location_key = CASE WHEN EXCLUDED.external_location_key = '' OR EXCLUDED.location != 'EXTERNAL' THEN NULL ELSE EXCLUDED.external_location_key END,
+ON CONFLICT DO NOTHING
+;
+
+-- name: OverwritePayloads :exec
+-- NOTE: this is an upsert rather than an UPDATE because the row being overwritten may have
+-- already been offloaded out of v1_payload (e.g. a task replayed after its partition was cut over
+-- to external storage). A plain UPDATE would silently no-op and readers would keep resolving the
+-- stale offloaded copy via the block index instead of the new content.
+WITH inputs AS (
+    SELECT DISTINCT
+        UNNEST(@ids::BIGINT[]) AS id,
+        UNNEST(@insertedAts::TIMESTAMPTZ[]) AS inserted_at,
+        UNNEST(@externalIds::UUID[]) AS external_id,
+        UNNEST(CAST(@types::TEXT[] AS v1_payload_type[])) AS type,
+        UNNEST(@inlineContents::JSONB[]) AS inline_content,
+        UNNEST(@tenantIds::UUID[]) AS tenant_id
+)
+
+INSERT INTO v1_payload (
+    tenant_id,
+    id,
+    inserted_at,
+    external_id,
+    type,
+    location,
+    external_location_key,
+    inline_content
+)
+SELECT
+    i.tenant_id,
+    i.id,
+    i.inserted_at,
+    i.external_id,
+    i.type,
+    'INLINE',
+    NULL,
+    i.inline_content
+FROM
+    inputs i
+ORDER BY i.tenant_id, i.inserted_at, i.id, i.type
+ON CONFLICT (tenant_id, inserted_at, id, type) DO UPDATE
+SET
+    location = 'INLINE',
+    external_location_key = NULL,
     inline_content = EXCLUDED.inline_content,
     updated_at = NOW()
 ;

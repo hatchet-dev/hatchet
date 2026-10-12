@@ -17,7 +17,7 @@ INSERT INTO "RateLimit" (
     "value" = CASE WHEN EXCLUDED."limitValue" < "RateLimit"."value" THEN EXCLUDED."limitValue" ELSE "RateLimit"."value" END
 RETURNING *;
 
--- name: UpsertRateLimitsBulk :exec
+-- name: UpsertDynamicRateLimitDefinitions :exec
 WITH input_values AS (
     SELECT
         "key", "limitValue", "window"
@@ -49,7 +49,10 @@ FROM
 ON CONFLICT ("tenantId", "key") DO UPDATE SET
     "limitValue" = EXCLUDED."limitValue",
     "window" = EXCLUDED."window",
-    "value" = CASE WHEN EXCLUDED."limitValue" < "RateLimit"."value" THEN EXCLUDED."limitValue" ELSE "RateLimit"."value" END;
+    "value" = CASE WHEN EXCLUDED."limitValue" < "RateLimit"."value" THEN EXCLUDED."limitValue" ELSE "RateLimit"."value" END
+-- skip rewriting rows whose definition hasn't changed
+WHERE
+    ("RateLimit"."limitValue", "RateLimit"."window") IS DISTINCT FROM (EXCLUDED."limitValue", EXCLUDED."window");
 
 -- name: CountRateLimits :one
 WITH rate_limits AS (
@@ -174,7 +177,7 @@ WHERE
     srl."stepId" = ANY(@stepIds::uuid[])
     AND srl."tenantId" = @tenantId::uuid;
 
--- name: BulkUpdateRateLimits :many
+-- name: ChargeRateLimitUsage :many
 WITH input AS (
     SELECT
         "key", "units"
@@ -199,13 +202,8 @@ WITH input AS (
 UPDATE
     "RateLimit" rl
 SET
-    "value" = get_refill_value(rl) - (SELECT "units" FROM input WHERE "key" = rl."key"),
-    "lastRefill" = CASE
-        WHEN NOW() - rl."lastRefill" >= (rl."window"::INTERVAL - INTERVAL '10 milliseconds') THEN
-            CURRENT_TIMESTAMP
-        ELSE
-            rl."lastRefill"
-    END
+    -- units are charged to the window they were spent in; ListRateLimitsForTenantWithMutate refills afterwards
+    "value" = rl."value" - (SELECT "units" FROM input WHERE "key" = rl."key")
 FROM
     rls_to_update rl2
 WHERE

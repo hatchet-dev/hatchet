@@ -1,147 +1,28 @@
 import HatchetError from '@util/errors/hatchet-error';
 import { IdempotencyCollisionError } from '@util/errors/idempotency-collision-error';
-import { BulkTriggerIdempotencyCollisionError } from '@util/errors/bulk-trigger-idempotency-collision-error';
 import { ClientConfig } from '@clients/hatchet-client/client-config';
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
-import { ServiceError, status as GrpcStatus } from '@grpc/grpc-js';
-import { Status as RpcStatus } from '@hatchet/protoc/google/rpc/status';
-import {
-  IdempotencyCollisionError as IdempotencyCollisionErrorProto,
-  BulkTriggerIdempotencyCollisionError as BulkTriggerIdempotencyCollisionErrorProto,
-} from '@hatchet/protoc/v1/workflows';
-import {
-  ClientError,
-  Metadata as NiceGrpcMetadata,
-  Status as NiceGrpcStatus,
-} from 'nice-grpc-common';
+import { createClientFactory } from 'nice-grpc';
 
-import { Priority, RateLimitDuration, RunsClient, WorkerLabelComparator } from '@hatchet/v1';
-import { createGrpcClient } from '@hatchet/util/grpc-helpers';
+import { RateLimitDuration, RunsClient } from '@hatchet/v1';
+import { addTokenMiddleware, channelFactory } from '@hatchet/util/grpc-helpers';
+import { ConfigLoader } from '@hatchet/util/config-loader';
 import { RunListenerClient } from '@hatchet/clients/listeners/run-listener/child-listener-client';
 import { Api } from '@hatchet/clients/rest/generated/Api';
+import { BulkTriggerWorkflowRequest, WorkflowServiceClient } from '@hatchet/protoc/workflows';
+import { AdminServiceClient, CreateWorkflowVersionRequest } from '@hatchet/protoc/v1/workflows';
+import { createV1AdminRpc, createWorkflowsRpc } from '@hatchet/clients/admin/rpc';
 import {
-  BulkTriggerWorkflowRequest,
-  WorkflowServiceClient,
-  WorkflowServiceDefinition,
-} from '@hatchet/protoc/workflows';
-import {
-  AdminServiceClient,
-  AdminServiceDefinition,
-  CreateWorkflowVersionRequest,
-} from '@hatchet/protoc/v1/workflows';
+  buildTriggerWorkflowRequest,
+  extractBulkTriggerCollision,
+  extractExistingRunId,
+  isAlreadyExists,
+} from '@hatchet/clients/admin/trigger-request';
+import { createNodeTransport, type Transport } from '@hatchet/clients/transport';
+import type { TriggerRun, TriggerRunOptions } from '@hatchet/core/types';
 import { Logger } from '@hatchet/util/logger';
 import { retrier } from '@hatchet/util/retrier';
 import { batch } from '@hatchet/util/batch';
-import { applyNamespace } from '@hatchet/util/apply-namespace';
-import { DesiredWorkerLabels } from '@hatchet-dev/typescript-sdk/protoc/v1/shared/trigger';
-
-function isGrpcServiceError(e: unknown): e is ServiceError {
-  return e instanceof Error && 'code' in e && 'metadata' in e;
-}
-
-function extractExistingRunIdFromGrpcError(e: ServiceError): string {
-  try {
-    const [binData] = e.metadata.get('grpc-status-details-bin');
-    if (!binData) return '';
-
-    const status = RpcStatus.decode(binData instanceof Buffer ? binData : Buffer.from(binData));
-    for (const detail of status.details) {
-      if (detail.typeUrl.includes('IdempotencyCollisionError')) {
-        return IdempotencyCollisionErrorProto.decode(detail.value).existingRunExternalId ?? '';
-      }
-    }
-  } catch {
-    // ignore decoding errors
-  }
-  return '';
-}
-
-function isNiceGrpcAlreadyExists(e: unknown): e is ClientError {
-  return e instanceof ClientError && e.code === NiceGrpcStatus.ALREADY_EXISTS;
-}
-
-function decodeBulkTriggerCollision(
-  status: ReturnType<typeof RpcStatus.decode>
-): BulkTriggerIdempotencyCollisionError | null {
-  for (const detail of status.details) {
-    if (detail.typeUrl.includes('BulkTriggerIdempotencyCollisionError')) {
-      const proto = BulkTriggerIdempotencyCollisionErrorProto.decode(detail.value);
-      return new BulkTriggerIdempotencyCollisionError(
-        proto.successfulWorkflowRunExternalIds,
-        proto.collisions.map((c) => new IdempotencyCollisionError(c.existingRunExternalId))
-      );
-    }
-  }
-  return null;
-}
-
-function extractBulkTriggerCollisionFromGrpcError(
-  e: ServiceError
-): BulkTriggerIdempotencyCollisionError | null {
-  try {
-    const [binData] = e.metadata.get('grpc-status-details-bin');
-    if (!binData) return null;
-    const status = RpcStatus.decode(binData instanceof Buffer ? binData : Buffer.from(binData));
-    return decodeBulkTriggerCollision(status);
-  } catch {
-    return null;
-  }
-}
-
-function extractBulkTriggerCollisionFromNiceGrpcMetadata(
-  metadata: NiceGrpcMetadata | undefined
-): BulkTriggerIdempotencyCollisionError | null {
-  if (!metadata) return null;
-  try {
-    const binData = metadata.get('grpc-status-details-bin');
-    if (!binData) return null;
-    const status = RpcStatus.decode(binData);
-    return decodeBulkTriggerCollision(status);
-  } catch {
-    return null;
-  }
-}
-
-function extractRunIdFromNiceGrpcMetadata(metadata: NiceGrpcMetadata | undefined): string {
-  if (!metadata) return '';
-  try {
-    const binData = metadata.get('grpc-status-details-bin');
-    if (!binData) return '';
-    const status = RpcStatus.decode(binData);
-    for (const detail of status.details) {
-      if (detail.typeUrl.includes('IdempotencyCollisionError')) {
-        return IdempotencyCollisionErrorProto.decode(detail.value).existingRunExternalId ?? '';
-      }
-    }
-  } catch {
-    // ignore decoding errors
-  }
-  return '';
-}
-
-type DesiredWorkerLabelOpt = {
-  value: string | number;
-  required?: boolean;
-  weight?: number;
-  comparator?: WorkerLabelComparator;
-};
-
-function convertDesiredWorkerLabels(
-  labels: Record<string, DesiredWorkerLabelOpt>
-): Record<string, DesiredWorkerLabels> {
-  return Object.fromEntries(
-    Object.entries(labels).map(([key, label]) => [
-      key,
-      {
-        strValue: typeof label.value === 'string' ? label.value : undefined,
-        intValue: typeof label.value === 'number' ? label.value : undefined,
-        required: label.required,
-        weight: label.weight,
-        comparator: label.comparator,
-      } satisfies DesiredWorkerLabels,
-    ])
-  );
-}
 
 export type WorkflowRun<T = object> = {
   workflowName: string;
@@ -173,13 +54,21 @@ export class AdminClient {
   runs: RunsClient;
   logger: Logger;
 
-  constructor(config: ClientConfig, api: Api, runs: RunsClient) {
+  constructor(
+    config: ClientConfig,
+    api: Api,
+    runs: RunsClient,
+    transport: Transport = createNodeTransport(config)
+  ) {
     this.config = config;
     this.logger = config.logger(`Admin`, config.log_level);
 
-    const { client, channel, factory } = createGrpcClient(config, WorkflowServiceDefinition);
-    this.workflowsGrpc = client;
-    this.adminGrpc = factory.create(AdminServiceDefinition, channel);
+    this.workflowsGrpc = createWorkflowsRpc(transport);
+    this.adminGrpc = createV1AdminRpc(transport);
+
+    // The run listener streams, which stay on the nice-grpc channel.
+    const channel = channelFactory(config, ConfigLoader.createCredentials(config.tls_config));
+    const factory = createClientFactory().use(addTokenMiddleware(config.token));
     this.listenerClient = new RunListenerClient(config, channel, factory, api);
     this.runs = runs;
   }
@@ -210,66 +99,20 @@ export class AdminClient {
   async runWorkflow<Q = object, P = object>(
     workflowName: string,
     input: Q,
-    options?: {
-      parentId?: string | undefined;
-      /**
-       * (optional) the parent task run external id.
-       *
-       * This is the field understood by the workflows gRPC API (`parent_task_run_external_id`).
-       */
-      parentTaskRunExternalId?: string | undefined;
-      /**
-       * @deprecated Use `parentTaskRunExternalId` instead.
-       * Kept for backward compatibility; will be mapped to `parentTaskRunExternalId`.
-       */
-      parentStepRunId?: string | undefined;
-      childIndex?: number | undefined;
-      childKey?: string | undefined;
-      additionalMetadata?: Record<string, string> | undefined;
-      desiredWorkerId?: string | undefined;
-      priority?: Priority;
-      desiredWorkerLabels?: Record<string, DesiredWorkerLabelOpt>;
-      _standaloneTaskName?: string | undefined;
-    }
+    options?: TriggerRunOptions
   ) {
-    let trailerMetadata: NiceGrpcMetadata | undefined;
-
     try {
-      const computedName = applyNamespace(workflowName, this.config.namespace).toLowerCase();
-
-      const inputStr = JSON.stringify(input);
-
-      const opts = options ?? {};
-      const {
-        additionalMetadata,
-        parentStepRunId,
-        parentTaskRunExternalId,
-        desiredWorkerLabels,
-        ...rest
-      } = opts;
-
-      const request = {
-        name: computedName,
-        input: inputStr,
-        ...rest,
-        // API expects `parentTaskRunExternalId`; accept old names as aliases.
-        parentTaskRunExternalId: parentTaskRunExternalId ?? parentStepRunId,
-        additionalMetadata: additionalMetadata ? JSON.stringify(additionalMetadata) : undefined,
-        priority: opts.priority,
-        desiredWorkerLabels: desiredWorkerLabels
-          ? convertDesiredWorkerLabels(desiredWorkerLabels)
-          : {},
-      };
+      const request = buildTriggerWorkflowRequest(
+        workflowName,
+        input,
+        options,
+        this.config.namespace
+      );
 
       const resp = await retrier(
-        async () =>
-          this.workflowsGrpc.triggerWorkflow(request, {
-            onTrailer: (trailer) => {
-              trailerMetadata = trailer;
-            },
-          }),
+        async () => this.workflowsGrpc.triggerWorkflow(request),
         this.logger,
-        { ...this.config.retrier, shouldRetry: (e) => !isNiceGrpcAlreadyExists(e) }
+        { ...this.config.retrier, shouldRetry: (e) => !isAlreadyExists(e) }
       );
 
       const id = resp.workflowRunId;
@@ -285,11 +128,8 @@ export class AdminClient {
       await ref.getWorkflowRunId();
       return ref;
     } catch (e: unknown) {
-      if (isGrpcServiceError(e) && e.code === GrpcStatus.ALREADY_EXISTS) {
-        throw new IdempotencyCollisionError(extractExistingRunIdFromGrpcError(e));
-      }
-      if (isNiceGrpcAlreadyExists(e)) {
-        throw new IdempotencyCollisionError(extractRunIdFromNiceGrpcMetadata(trailerMetadata));
+      if (isAlreadyExists(e)) {
+        throw new IdempotencyCollisionError(extractExistingRunId(e));
       }
       throw new HatchetError(e instanceof Error ? e.message : String(e));
     }
@@ -305,59 +145,13 @@ export class AdminClient {
    * Keep the signature in sync with the instrumentor wrapper.
    */
   async runWorkflows<Q = object, P = object>(
-    workflowRuns: Array<{
-      workflowName: string;
-      input: Q;
-      options?: {
-        parentId?: string | undefined;
-        /**
-         * (optional) the parent task run external id.
-         *
-         * This is the field understood by the workflows gRPC API (`parent_task_run_external_id`).
-         */
-        parentTaskRunExternalId?: string | undefined;
-        /**
-         * @deprecated Use `parentTaskRunExternalId` instead.
-         * Kept for backward compatibility; will be mapped to `parentTaskRunExternalId`.
-         */
-        parentStepRunId?: string | undefined;
-        childIndex?: number | undefined;
-        childKey?: string | undefined;
-        additionalMetadata?: Record<string, string> | undefined;
-        desiredWorkerId?: string | undefined;
-        priority?: Priority;
-        desiredWorkerLabels?: Record<string, DesiredWorkerLabelOpt>;
-        _standaloneTaskName?: string | undefined;
-      };
-    }>,
+    workflowRuns: Array<TriggerRun<Q>>,
     batchSize: number = 500
   ): Promise<WorkflowRunRef<P>[]> {
     // Prepare workflows to be triggered in bulk
-    const workflowRequests = workflowRuns.map(({ workflowName, input, options }) => {
-      const computedName = applyNamespace(workflowName, this.config.namespace).toLowerCase();
-      const inputStr = JSON.stringify(input);
-
-      const opts = options ?? {};
-      const {
-        additionalMetadata,
-        parentStepRunId,
-        parentTaskRunExternalId,
-        desiredWorkerLabels,
-        ...rest
-      } = opts;
-
-      return {
-        name: computedName,
-        input: inputStr,
-        ...rest,
-        // API expects `parentTaskRunExternalId`; accept old names as aliases.
-        parentTaskRunExternalId: parentTaskRunExternalId ?? parentStepRunId,
-        additionalMetadata: additionalMetadata ? JSON.stringify(additionalMetadata) : undefined,
-        desiredWorkerLabels: desiredWorkerLabels
-          ? convertDesiredWorkerLabels(desiredWorkerLabels)
-          : {},
-      };
-    });
+    const workflowRequests = workflowRuns.map(({ workflowName, input, options }) =>
+      buildTriggerWorkflowRequest(workflowName, input, options, this.config.namespace)
+    );
 
     const batches = batch(
       workflowRequests,
@@ -366,8 +160,6 @@ export class AdminClient {
     );
 
     this.logger.debug(`batching ${batches.length} batches`);
-
-    let bulkTrailerMetadata: NiceGrpcMetadata | undefined;
 
     try {
       const results: WorkflowRunRef<P>[] = [];
@@ -380,19 +172,9 @@ export class AdminClient {
 
         // Call the bulk trigger workflow method for this batch
         const bulkTriggerWorkflowResponse = await retrier(
-          async () =>
-            this.workflowsGrpc.bulkTriggerWorkflow(request, {
-              onTrailer: (trailer) => {
-                bulkTrailerMetadata = trailer;
-              },
-            }),
+          async () => this.workflowsGrpc.bulkTriggerWorkflow(request),
           this.logger,
-          {
-            ...this.config.retrier,
-            shouldRetry: (e) =>
-              !isNiceGrpcAlreadyExists(e) &&
-              !(isGrpcServiceError(e) && e.code === GrpcStatus.ALREADY_EXISTS),
-          }
+          { ...this.config.retrier, shouldRetry: (e) => !isAlreadyExists(e) }
         );
 
         this.logger.debug(`batch ${batchIndex + 1} of ${batches.length}`);
@@ -415,12 +197,8 @@ export class AdminClient {
       }
       return results;
     } catch (e: unknown) {
-      if (isGrpcServiceError(e) && e.code === GrpcStatus.ALREADY_EXISTS) {
-        const collision = extractBulkTriggerCollisionFromGrpcError(e);
-        if (collision) throw collision;
-      }
-      if (isNiceGrpcAlreadyExists(e)) {
-        const collision = extractBulkTriggerCollisionFromNiceGrpcMetadata(bulkTrailerMetadata);
+      if (isAlreadyExists(e)) {
+        const collision = extractBulkTriggerCollision(e);
         if (collision) throw collision;
       }
       throw new HatchetError(e instanceof Error ? (e as Error).message : String(e));

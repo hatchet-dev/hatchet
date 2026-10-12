@@ -16,84 +16,12 @@ import (
 
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/pkg/client/streaming"
 )
 
-func disableStreamBackoff[C any](t *testing.T, s *reconnectingStream[C]) {
+func disableStreamBackoff[C any](t *testing.T, s *streaming.ReconnectingStream[C]) {
 	t.Helper()
-	s.sleep = func(context.Context, int) error { return nil }
-}
-
-func newTestWorkflowStream(
-	t *testing.T,
-	client dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient,
-	constructor func(context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error),
-) *reconnectingStream[dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient] {
-	t.Helper()
-
-	logger := zerolog.Nop()
-	stream := newReconnectingStream(
-		&logger,
-		"workflow run listener",
-		constructor,
-		func(c dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient) error {
-			return c.CloseSend()
-		},
-		nil,
-	)
-	disableStreamBackoff(t, stream)
-	if client != nil {
-		stream.setInitialClient(client)
-	}
-	return stream
-}
-
-type testListenEvent struct {
-	value string
-}
-
-type testListenClient struct {
-	recvFn      func() (testListenEvent, error)
-	closeSendFn func() error
-	closeCalled atomic.Bool
-}
-
-func (c *testListenClient) Recv() (testListenEvent, error) {
-	if c.recvFn != nil {
-		return c.recvFn()
-	}
-	return testListenEvent{}, io.EOF
-}
-
-func (c *testListenClient) CloseSend() error {
-	c.closeCalled.Store(true)
-	if c.closeSendFn != nil {
-		return c.closeSendFn()
-	}
-	return nil
-}
-
-func newTestListenStream(
-	t *testing.T,
-	initial *testListenClient,
-	constructor func(context.Context) (*testListenClient, error),
-) *reconnectingStream[*testListenClient] {
-	t.Helper()
-
-	logger := zerolog.Nop()
-	stream := newReconnectingStream(
-		&logger,
-		"test listener",
-		constructor,
-		func(client *testListenClient) error {
-			return client.CloseSend()
-		},
-		nil,
-	)
-	disableStreamBackoff(t, stream)
-	if initial != nil {
-		stream.setInitialClient(initial)
-	}
-	return stream
+	s.SetSleep(func(context.Context, int) error { return nil })
 }
 
 // mockSubscribeClient implements dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient
@@ -266,7 +194,7 @@ func newTestWorkflowRunsListener(
 
 	l := newWorkflowRunsListener(logger, constructor)
 	if client != nil {
-		l.stream.setInitialClient(client)
+		l.stream.SetInitialClient(client)
 	}
 	disableStreamBackoff(t, l.stream)
 	return l
@@ -359,7 +287,7 @@ func newTestDurableEventsListener(
 
 	l := newDurableEventsListener(logger, constructor)
 	if client != nil {
-		l.stream.setInitialClient(client)
+		l.stream.SetInitialClient(client)
 	}
 	disableStreamBackoff(t, l.stream)
 	return l

@@ -111,15 +111,16 @@ async def callback_ordering_mid(params: MidInput, context: DurableContext) -> Mi
     )
 
 
+# The root is never evicted. The ordering property under test lives in the
+# mids, and the worker evicts one waiting run per server round trip, oldest
+# wait first: evictable roots register before every mid and would consume the
+# sweep for as long as it takes to ack all of them before any mid is reached.
 @hatchet.durable_task(
     name=f"{WORKFLOW_PREFIX}-root",
     input_validator=RootInput,
     execution_timeout=timedelta(minutes=10),
     retries=0,
-    eviction_policy=EvictionPolicy(
-        ttl=timedelta(milliseconds=250),
-        allow_capacity_eviction=True,
-    ),
+    eviction_policy=None,
 )
 async def callback_ordering_root(
     params: RootInput, context: DurableContext

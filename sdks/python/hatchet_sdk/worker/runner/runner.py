@@ -38,6 +38,7 @@ from hatchet_sdk.engine_version import MinEngineVersion
 from hatchet_sdk.exceptions import (
     IllegalTaskOutputError,
     NonRetryableException,
+    RetryAfterException,
     TaskRunError,
 )
 from hatchet_sdk.features.runs import RunsClient
@@ -91,6 +92,12 @@ from hatchet_sdk.worker.runner.utils.capture_logs import (
     ContextVarToCopyStr,
     copy_context_vars,
 )
+from hatchet_sdk.worker.slot_usage import (
+    SharedSlotUsageByPool,
+    add_slot_requests,
+    publish_slot_usage,
+    subtract_slot_requests,
+)
 
 try:
     from opentelemetry import context as otel_context
@@ -120,9 +127,13 @@ class Runner:
         lifespan_context: Any | None,
         log_sender: AsyncLogSender,
         engine_version: str | None = None,
+        shared_slot_usage_by_pool: SharedSlotUsageByPool | None = None,
     ):
         self.config = config
         self.engine_version = engine_version
+        self.shared_slot_usage_by_pool = shared_slot_usage_by_pool or {}
+        self.slot_requests_by_running_task: dict[ActionKey, dict[str, int]] = {}
+        self.used_slots_by_pool: dict[str, int] = {}
 
         self.slots = slots
         self.durable_slots = durable_slots
@@ -164,6 +175,10 @@ class Runner:
         self._supports_durable_eviction = bool(
             engine_version
             and not semver_less_than(engine_version, MinEngineVersion.DURABLE_EVICTION)
+        )
+        self._supports_retry_after = bool(
+            engine_version
+            and not semver_less_than(engine_version, MinEngineVersion.RETRY_AFTER)
         )
 
         self.durable_event_listener: (
@@ -273,6 +288,21 @@ class Runner:
             reason=rec.eviction_reason,
         )
 
+    def _retry_after_ms(
+        self, e: BaseException, action_id: str, retries: int
+    ) -> int | None:
+        if not isinstance(e, RetryAfterException):
+            return None
+
+        if not self._supports_retry_after:
+            logger.warning(
+                f"RetryAfterException requires engine >= {MinEngineVersion.RETRY_AFTER.value} "
+                f"(connected: {self.engine_version or 'unknown'}). Task {action_id} raised it, so the engine "
+                f"will handle the failure with the task's retry policy (retries={retries}) instead of the requested delay."
+            )
+
+        return e.after_ms
+
     def step_run_callback(
         self, action: Action, t: Task[TWorkflowInput, R]
     ) -> Callable[[asyncio.Task[Any]], None]:
@@ -287,6 +317,7 @@ class Runner:
                 output = task.result()
             except Exception as e:
                 should_not_retry = isinstance(e, NonRetryableException)
+                retry_after_ms = self._retry_after_ms(e, action.action_id, t.retries)
 
                 exc = TaskRunError.from_exception(e, action.step_run_id)
 
@@ -297,6 +328,7 @@ class Runner:
                         type=STEP_EVENT_TYPE_FAILED,
                         payload=exc.serialize(include_metadata=True),
                         should_not_retry=should_not_retry,
+                        retry_after_ms=retry_after_ms,
                     )
                 )
 
@@ -495,6 +527,8 @@ class Runner:
         task_inputs = self._create_batch_input(task, action)
         context = self.create_context(action=action, task=task, is_durable=False)
 
+        self._start_counting_slots(action.key, {"default": 1})
+
         try:
             if task._is_async_function:
                 outputs = await cast(Any, task._fn)(task_inputs, context)
@@ -521,6 +555,7 @@ class Runner:
                         )
                 except Exception as e:
                     should_not_retry = isinstance(e, NonRetryableException)
+                    retry_after_ms = self._retry_after_ms(e, action_id, task.retries)
                     self.event_queue.put(
                         QueuedBatchActionEvent(
                             action=action,
@@ -532,6 +567,7 @@ class Runner:
                                         e, ext_id
                                     ).serialize(include_metadata=True),
                                     should_not_retry=should_not_retry,
+                                    retry_after_ms=retry_after_ms,
                                 )
                                 for ext_id in action.batch_items
                             ],
@@ -621,6 +657,7 @@ class Runner:
                 f"Batch task '{action_id}' failed for batch {action.batch_id}"
             )
             should_not_retry = isinstance(e, NonRetryableException)
+            retry_after_ms = self._retry_after_ms(e, action_id, task.retries)
             self.event_queue.put(
                 QueuedBatchActionEvent(
                     action=action,
@@ -632,11 +669,14 @@ class Runner:
                                 include_metadata=True
                             ),
                             should_not_retry=should_not_retry,
+                            retry_after_ms=retry_after_ms,
                         )
                         for ext_id in action.batch_items
                     ],
                 )
             )
+        finally:
+            self._stop_counting_slots(action.key)
 
     async def log_thread_pool_status(self) -> None:
         thread_pool_details = {
@@ -679,9 +719,35 @@ class Runner:
         self.monitoring_task = loop.create_task(self._start_monitoring())
         logger.debug("started thread pool monitoring background task")
 
+    def _start_counting_slots(
+        self, key: ActionKey, slot_requests: dict[str, int]
+    ) -> None:
+        if not self.shared_slot_usage_by_pool:
+            return
+
+        self._stop_counting_slots(key)
+        self.slot_requests_by_running_task[key] = slot_requests
+        self.used_slots_by_pool = add_slot_requests(
+            self.used_slots_by_pool, slot_requests
+        )
+        publish_slot_usage(self.shared_slot_usage_by_pool, self.used_slots_by_pool)
+
+    def _stop_counting_slots(self, key: ActionKey) -> None:
+        slot_requests = self.slot_requests_by_running_task.pop(key, None)
+
+        if slot_requests is None:
+            return
+
+        self.used_slots_by_pool = subtract_slot_requests(
+            self.used_slots_by_pool, slot_requests
+        )
+        publish_slot_usage(self.shared_slot_usage_by_pool, self.used_slots_by_pool)
+
     def cleanup_run_id(self, key: ActionKey) -> None:
         if key in self.tasks:
             del self.tasks[key]
+
+        self._stop_counting_slots(key)
 
         if key in self.threads:
             del self.threads[key]
@@ -754,6 +820,11 @@ class Runner:
             )
         )
 
+        loop = asyncio.get_running_loop()
+        ctx._on_slot_released = lambda: loop.call_soon_threadsafe(
+            self._stop_counting_slots, action.key
+        )
+
         ctx_hatchet_context.set(ctx)
 
         return ctx
@@ -797,6 +868,7 @@ class Runner:
 
             task.add_done_callback(self.step_run_callback(action, action_func))
             self.tasks[action.key] = task
+            self._start_counting_slots(action.key, action_func._slot_requests)
 
             task_count.increment()
 

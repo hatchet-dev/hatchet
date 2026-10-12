@@ -2,6 +2,7 @@ login:
   post:
     description: Logs in a user.
     operationId: user:update:login
+    x-payloads: false
     requestBody:
       content:
         application/json:
@@ -47,6 +48,7 @@ update-password:
   post:
     description: Update a user password.
     operationId: user:update:password
+    x-payloads: false
     requestBody:
       content:
         application/json:
@@ -93,6 +95,7 @@ current:
   get:
     description: Gets the current user
     operationId: user:get:current
+    x-payloads: false
     responses:
       "200":
         content:
@@ -127,6 +130,7 @@ register:
   post:
     description: Registers a user.
     operationId: user:create
+    x-payloads: false
     requestBody:
       content:
         application/json:
@@ -172,6 +176,7 @@ oauth-start-google:
   get:
     description: Starts the OAuth flow
     operationId: user:update:google-oauth-start
+    x-payloads: false
     responses:
       "302":
         description: Successfully started the OAuth flow
@@ -188,6 +193,7 @@ oauth-callback-google:
   get:
     description: Completes the OAuth flow
     operationId: user:update:google-oauth-callback
+    x-payloads: false
     responses:
       "302":
         description: Successfully completed the OAuth flow
@@ -204,6 +210,7 @@ oauth-start-github:
   get:
     description: Starts the OAuth flow
     operationId: user:update:github-oauth-start
+    x-payloads: false
     responses:
       "302":
         description: Successfully started the OAuth flow
@@ -220,6 +227,7 @@ oauth-callback-github:
   get:
     description: Completes the OAuth flow
     operationId: user:update:github-oauth-callback
+    x-payloads: false
     responses:
       "302":
         description: Successfully completed the OAuth flow
@@ -237,6 +245,7 @@ oauth-start-slack:
     x-resources: ["tenant"]
     description: Starts the OAuth flow
     operationId: user:update:slack-oauth-start
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -266,6 +275,7 @@ oauth-callback-slack:
   get:
     description: Completes the OAuth flow
     operationId: user:update:slack-oauth-callback
+    x-payloads: false
     responses:
       "302":
         description: Successfully completed the OAuth flow
@@ -285,6 +295,7 @@ logout:
   post:
     description: Logs out a user.
     operationId: user:update:logout
+    x-payloads: false
     responses:
       "200":
         content:
@@ -320,6 +331,7 @@ memberships:
   get:
     description: Lists all tenant memberships for the current user
     operationId: tenant-memberships:list
+    x-payloads: false
     responses:
       "200":
         content:
@@ -348,6 +360,7 @@ invites:
   get:
     description: Lists all tenant invites for the current user
     operationId: user:list:tenant-invites
+    x-payloads: false
     responses:
       "200":
         content:
@@ -376,6 +389,7 @@ acceptInvite:
   post:
     description: Accepts a tenant invite
     operationId: tenant-invite:accept
+    x-payloads: false
     requestBody:
       content:
         application/json:
@@ -403,6 +417,7 @@ rejectInvite:
   post:
     description: Rejects a tenant invite
     operationId: tenant-invite:reject
+    x-payloads: false
     requestBody:
       content:
         application/json:

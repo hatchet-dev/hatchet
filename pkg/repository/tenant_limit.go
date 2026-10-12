@@ -42,6 +42,12 @@ type TenantLimitRepository interface {
 
 	Meter(ctx context.Context, dbtx sqlcv1.DBTX, resource sqlcv1.LimitResource, tenantId uuid.UUID, numberOfResources int32) (precommit func() error, postcommit func())
 
+	// StreamRetention comes from the STREAM_RETENTION limit, in hours, or the default.
+	StreamRetention(ctx context.Context, tenantId uuid.UUID) (time.Duration, error)
+
+	// DefaultStreamRetentionHours is the default tenant retention period, in hours.
+	DefaultStreamRetentionHours() int32
+
 	Stop()
 }
 
@@ -95,7 +101,7 @@ func (t *tenantLimitRepository) ResolveAllTenantResourceLimits(ctx context.Conte
 // FIXME(mnafees): WE NEED TO GET RID OF CUSTOM VALUE METERS
 func hasCustomValueMeter(resource sqlcv1.LimitResource) bool {
 	switch resource {
-	case sqlcv1.LimitResourceWORKER, sqlcv1.LimitResourceWORKERSLOT, sqlcv1.LimitResourceINCOMINGWEBHOOK:
+	case sqlcv1.LimitResourceWORKER, sqlcv1.LimitResourceWORKERSLOT, sqlcv1.LimitResourceINCOMINGWEBHOOK, sqlcv1.LimitResourceSTREAMTOPIC, sqlcv1.LimitResourceSTREAMRETENTION:
 		return true
 	}
 
@@ -130,6 +136,22 @@ func (t *tenantLimitRepository) DefaultLimits() []Limit {
 			Resource: sqlcv1.LimitResourceINCOMINGWEBHOOK,
 			Limit:    t.config.DefaultIncomingWebhookLimit,                // nolint: gosec
 			Alarm:    Int32Ptr(t.config.DefaultIncomingWebhookAlarmLimit), // nolint: gosec
+		},
+		{
+			Resource: sqlcv1.LimitResourceSTREAMTOPIC,
+			Limit:    t.config.DefaultStreamTopicLimit,                // nolint: gosec
+			Alarm:    Int32Ptr(t.config.DefaultStreamTopicAlarmLimit), // nolint: gosec
+		},
+		{
+			Resource: sqlcv1.LimitResourceSTREAMMESSAGE,
+			Limit:    t.config.DefaultStreamMessageLimit,                // nolint: gosec
+			Alarm:    Int32Ptr(t.config.DefaultStreamMessageAlarmLimit), // nolint: gosec
+			Window:   &t.config.DefaultStreamMessageWindow,
+		},
+		{
+			// hours, not a count; nothing meters it
+			Resource: sqlcv1.LimitResourceSTREAMRETENTION,
+			Limit:    t.DefaultStreamRetentionHours(),
 		},
 	}
 }
@@ -225,6 +247,16 @@ func (t *tenantLimitRepository) canCreate(ctx context.Context, dbtx sqlcv1.DBTX,
 	// patch custom worker limits aggregate methods
 	if resource == sqlcv1.LimitResourceWORKER {
 		count, err := t.queries.CountTenantWorkers(ctx, dbtx, tenantId)
+		value = int32(count) // nolint: gosec
+
+		if err != nil {
+			return false, 0, err
+		}
+	}
+
+	// counted live: nothing meters topic creation, and the idle sweep deletes topics
+	if resource == sqlcv1.LimitResourceSTREAMTOPIC {
+		count, err := t.queries.CountStreamTopics(ctx, dbtx, tenantId)
 		value = int32(count) // nolint: gosec
 
 		if err != nil {
@@ -374,6 +406,12 @@ func (t *tenantLimitRepository) cachedCanCreate(ctx context.Context, dbtx sqlcv1
 
 func (t *tenantLimitRepository) Meter(ctx context.Context, dbtx sqlcv1.DBTX, resource sqlcv1.LimitResource, tenantId uuid.UUID, numberOfResources int32) (precommit func() error, postcommit func()) {
 	return func() error {
+			// skip the limit check when there's nothing to meter, so a running DAG can
+			// still trigger its steps after the tenant reaches its limit
+			if numberOfResources == 0 {
+				return nil
+			}
+
 			canCreate, _, err := t.cachedCanCreate(ctx, dbtx, resource, tenantId, numberOfResources)
 
 			if err != nil {
@@ -484,4 +522,62 @@ func (t *tenantLimitRepository) Stop() {
 	}
 
 	t.c.Stop()
+}
+
+func (t *tenantLimitRepository) DefaultStreamRetentionHours() int32 {
+	// the loader validates it, so this only fails for configs built without it
+	d, err := time.ParseDuration(t.config.DefaultTenantRetentionPeriod)
+
+	if err != nil {
+		return defaultStreamRetentionHours
+	}
+
+	return clampStreamRetentionHours(int32(min(d.Hours(), maxStreamRetentionHours)), defaultStreamRetentionHours)
+}
+
+// defaultStreamRetentionHours matches DefaultTenantRetentionPeriod's own default.
+const defaultStreamRetentionHours = 720
+
+func (t *tenantLimitRepository) StreamRetention(ctx context.Context, tenantId uuid.UUID) (time.Duration, error) {
+	key := meterKey{resource: sqlcv1.LimitResourceSTREAMRETENTION, tenantId: tenantId}.cacheKey()
+
+	if v, ok := t.c.Get(key); ok {
+		return v.(time.Duration), nil
+	}
+
+	hours := t.DefaultStreamRetentionHours()
+
+	limit, err := t.queries.GetTenantResourceLimit(ctx, t.pool, sqlcv1.GetTenantResourceLimitParams{
+		Tenantid: tenantId,
+		Resource: sqlcv1.NullLimitResource{LimitResource: sqlcv1.LimitResourceSTREAMRETENTION, Valid: true},
+	})
+
+	switch {
+	case err == nil:
+		hours = clampStreamRetentionHours(limit.LimitValue, hours)
+	case errors.Is(err, pgx.ErrNoRows):
+		// best-effort, so the retention becomes editable in the database
+		if insertErr := t.insertDefaultLimitsIfMissing(ctx, t.pool, tenantId); insertErr != nil {
+			t.l.Warn().Ctx(ctx).Err(insertErr).Msg("could not store default stream retention limit")
+		}
+	default:
+		return 0, err
+	}
+
+	retention := time.Duration(hours) * time.Hour
+	t.c.Set(key, retention)
+
+	return retention, nil
+}
+
+// ~50 years: "unlimited" values like MaxInt32 hours overflow a time.Duration
+const maxStreamRetentionHours = 50 * 365 * 24
+
+// non-positive hours mean unset
+func clampStreamRetentionHours(hours, fallback int32) int32 {
+	if hours <= 0 {
+		return fallback
+	}
+
+	return min(hours, maxStreamRetentionHours)
 }

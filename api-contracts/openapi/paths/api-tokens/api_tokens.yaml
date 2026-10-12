@@ -3,6 +3,7 @@ withTenant:
     x-resources: ["tenant"]
     description: Create an API token for a tenant
     operationId: api-token:create
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -44,6 +45,7 @@ withTenant:
     x-resources: ["tenant"]
     description: List API tokens for a tenant
     operationId: api-token:list
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -81,6 +83,7 @@ revoke:
     x-resources: ["tenant", "api-token"]
     description: Revoke an API token for a tenant
     operationId: api-token:update:revoke
+    x-payloads: false
     parameters:
       - description: The API token
         in: path

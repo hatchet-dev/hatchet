@@ -12,10 +12,12 @@ var MinEngineVersion = struct {
 	SlotConfig      string
 	DurableEviction string
 	Observability   string
+	RetryAfter      string
 }{
 	SlotConfig:      "v0.78.23",
 	DurableEviction: "v0.80.0",
 	Observability:   "v0.82.0",
+	RetryAfter:      "v0.111.0",
 }
 
 // GetEngineVersion retrieves the engine version from the server.
@@ -30,6 +32,11 @@ func (c *Client) GetEngineVersion(ctx context.Context) (string, error) {
 // SupportsDurableEviction checks whether the engine version supports durable eviction.
 func SupportsDurableEviction(engineVersion string) (bool, error) {
 	return !semverLessThan(engineVersion, MinEngineVersion.DurableEviction), nil
+}
+
+// SupportsRetryAfter checks whether the engine version honors RetryAfterError delays.
+func SupportsRetryAfter(engineVersion string) bool {
+	return engineVersion != "" && !semverLessThan(engineVersion, MinEngineVersion.RetryAfter)
 }
 
 // parseSemver parses a semver string like "v0.80.0" into (major, minor, patch).

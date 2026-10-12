@@ -2,37 +2,22 @@ package prometheus
 
 import (
 	"context"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
-
-	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 )
 
-// entitlementCacheTTL bounds how stale a tenant's prometheus_metrics
-// entitlement can be on the hot emission paths. Entitlements change rarely
-// (only on plan changes fanned out from the control plane), so a short TTL
-// keeps collection off the database without meaningfully delaying gating
-// changes.
-const entitlementCacheTTL = 1 * time.Minute
-
 // EntitlementChecker reports whether Prometheus metrics are entitled for a
-// tenant. It is satisfied structurally by
-// repository.TenantEntitlementRepository; defining it locally avoids importing
-// pkg/repository (and the resulting import cycle).
-type EntitlementChecker interface {
-	IsPrometheusMetricsEnabled(ctx context.Context, tenantId uuid.UUID) (bool, error)
-}
+// tenant. It's a func rather than repository.TenantEntitlementRepository to
+// avoid importing pkg/repository (and the resulting import cycle).
+type EntitlementChecker func(ctx context.Context, tenantId uuid.UUID) (bool, error)
 
 // Gate decides whether per-tenant Prometheus metrics should be collected. When
 // tenantScoped is false (self-hosted/OSS default) every tenant is enabled and
 // the gate is a no-op. When tenantScoped is true, collection is gated on each
-// tenant's prometheus_metrics entitlement, read through a short-lived cache to
-// keep the hot emission paths off the database.
+// tenant's prometheus_metrics entitlement.
 type Gate struct {
 	checker      EntitlementChecker
-	cache        cache.Cacheable
 	l            *zerolog.Logger
 	tenantScoped bool
 }
@@ -43,7 +28,6 @@ func NewGate(checker EntitlementChecker, tenantScoped bool, l *zerolog.Logger) *
 	return &Gate{
 		checker:      checker,
 		tenantScoped: tenantScoped,
-		cache:        cache.New(entitlementCacheTTL),
 		l:            l,
 	}
 }
@@ -57,14 +41,7 @@ func (g *Gate) Enabled(ctx context.Context, tenantId uuid.UUID) bool {
 		return true
 	}
 
-	enabled, err := cache.MakeCacheable(g.cache, tenantId.String(), func() (*bool, error) {
-		v, err := g.checker.IsPrometheusMetricsEnabled(ctx, tenantId)
-		if err != nil {
-			return nil, err
-		}
-
-		return &v, nil
-	})
+	enabled, err := g.checker(ctx, tenantId)
 
 	if err != nil {
 		if g.l != nil {
@@ -74,5 +51,5 @@ func (g *Gate) Enabled(ctx context.Context, tenantId uuid.UUID) bool {
 		return false
 	}
 
-	return *enabled
+	return enabled
 }

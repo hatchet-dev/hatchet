@@ -2,6 +2,7 @@ sns:
   post:
     description: SNS event
     operationId: sns:update
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -49,6 +50,7 @@ snsIntegration:
   get:
     description: List SNS integrations
     operationId: sns:list
+    x-payloads: false
     x-resources: ["tenant"]
     parameters:
       - description: The tenant id
@@ -91,6 +93,7 @@ snsIntegration:
   post:
     description: Create SNS integration
     operationId: sns:create
+    x-payloads: false
     x-resources: ["tenant"]
     parameters:
       - description: The tenant id
@@ -139,6 +142,7 @@ deleteSNS:
   delete:
     description: Delete SNS integration
     operationId: sns:delete
+    x-payloads: false
     x-resources: ["tenant", "sns"]
     parameters:
       - description: The SNS integration id

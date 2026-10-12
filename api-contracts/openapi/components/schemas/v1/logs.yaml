@@ -5,9 +5,11 @@ V1LogLine:
       format: date-time
       description: The creation date of the log line.
     message:
+      x-payload: true
       type: string
       description: The log message.
     metadata:
+      x-payload: true
       type: object
       description: The log metadata.
     taskExternalId:

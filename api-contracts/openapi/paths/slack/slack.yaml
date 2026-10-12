@@ -2,6 +2,7 @@ slackWebhook:
   get:
     description: List Slack webhooks
     operationId: slack-webhook:list
+    x-payloads: false
     x-resources: ["tenant"]
     parameters:
       - description: The tenant id
@@ -45,6 +46,7 @@ deleteSlack:
   delete:
     description: Delete Slack webhook
     operationId: slack-webhook:delete
+    x-payloads: false
     x-resources: ["tenant", "slack"]
     parameters:
       - description: The Slack webhook id

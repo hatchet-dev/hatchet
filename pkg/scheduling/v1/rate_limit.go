@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
@@ -16,6 +17,8 @@ const MAX_RATE_LIMIT_UPDATE_FREQUENCY = 500 * time.Millisecond // avoid boundary
 type rateLimit struct {
 	key          string
 	val          int
+	limitValue   int32
+	window       string
 	nextRefillAt *time.Time
 }
 
@@ -41,6 +44,10 @@ type rateLimiter struct {
 	dbRateLimitsMu sync.RWMutex
 	dbRateLimits   rateLimitSet
 
+	// dynamic rate limit definitions read by the queuers, written on the next flush
+	pendingDefinitionsMu sync.Mutex
+	pendingDefinitions   map[string]v1.RateLimitDefinition
+
 	cleanup func()
 }
 
@@ -48,12 +55,13 @@ func newRateLimiter(conf *sharedConfig, tenantId uuid.UUID) *rateLimiter {
 	l := conf.l.With().Str("tenant_id", tenantId.String()).Logger()
 
 	rl := &rateLimiter{
-		rateLimitRepo: conf.repo.RateLimit(),
-		tenantId:      tenantId,
-		l:             &l,
-		unacked:       make(map[int64]rateLimitSet),
-		unflushed:     make(rateLimitSet),
-		dbRateLimits:  make(rateLimitSet),
+		rateLimitRepo:      conf.repo.RateLimit(),
+		tenantId:           tenantId,
+		l:                  &l,
+		unacked:            make(map[int64]rateLimitSet),
+		unflushed:          make(rateLimitSet),
+		dbRateLimits:       make(rateLimitSet),
+		pendingDefinitions: make(map[string]v1.RateLimitDefinition),
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -80,7 +88,7 @@ func (r *rateLimiter) loopFlush(ctx context.Context) {
 			err := r.flushToDatabase(ctx)
 
 			if err != nil {
-				r.l.Error().Ctx(ctx).Err(err).Msg("error flushing rate limits to database")
+				logger.ShutdownAware(ctx, r.l, err, zerolog.ErrorLevel).Ctx(ctx).Err(err).Msg("error flushing rate limits to database")
 			}
 		}
 	}
@@ -109,7 +117,8 @@ func (r *rateLimiter) use(ctx context.Context, taskId int64, rls map[string]int3
 		err := r.flushToDatabase(ctx)
 
 		if err != nil {
-			r.l.Error().Ctx(ctx).Err(err).Msg("error flushing rate limits to database")
+			logger.ShutdownAware(ctx, r.l, err, zerolog.ErrorLevel).Ctx(ctx).Err(err).Msg("error flushing rate limits to database")
+
 			return res
 		}
 
@@ -120,7 +129,8 @@ func (r *rateLimiter) use(ctx context.Context, taskId int64, rls map[string]int3
 		err := r.flushToDatabase(ctx)
 
 		if err != nil {
-			r.l.Error().Ctx(ctx).Err(err).Msg("error flushing rate limits to database")
+			logger.ShutdownAware(ctx, r.l, err, zerolog.ErrorLevel).Ctx(ctx).Err(err).Msg("error flushing rate limits to database")
+
 			return res
 		}
 	}
@@ -281,6 +291,59 @@ func (r *rateLimiter) nack(taskId int64) {
 	delete(r.unacked, taskId)
 }
 
+func (r *rateLimiter) addDefinitions(definitions map[string]v1.RateLimitDefinition) {
+	if r == nil || len(definitions) == 0 {
+		return
+	}
+
+	r.pendingDefinitionsMu.Lock()
+	defer r.pendingDefinitionsMu.Unlock()
+
+	if r.pendingDefinitions == nil {
+		r.pendingDefinitions = make(map[string]v1.RateLimitDefinition)
+	}
+
+	for k, def := range definitions {
+		r.pendingDefinitions[k] = def
+	}
+}
+
+// takeChangedDefinitions drains the pending definitions, keeping only those that differ from the database. Callers must hold dbRateLimitsMu.
+func (r *rateLimiter) takeChangedDefinitions() map[string]v1.RateLimitDefinition {
+	r.pendingDefinitionsMu.Lock()
+	defer r.pendingDefinitionsMu.Unlock()
+
+	changed := make(map[string]v1.RateLimitDefinition)
+
+	for k, def := range r.pendingDefinitions {
+		if curr, ok := r.dbRateLimits[k]; ok && curr.limitValue == def.LimitValue && curr.window == def.Window {
+			continue
+		}
+
+		changed[k] = def
+	}
+
+	r.pendingDefinitions = make(map[string]v1.RateLimitDefinition)
+
+	return changed
+}
+
+// restoreDefinitions requeues definitions from a failed flush; definitions added since the flush started are newer and win.
+func (r *rateLimiter) restoreDefinitions(definitions map[string]v1.RateLimitDefinition) {
+	r.pendingDefinitionsMu.Lock()
+	defer r.pendingDefinitionsMu.Unlock()
+
+	if r.pendingDefinitions == nil {
+		r.pendingDefinitions = make(map[string]v1.RateLimitDefinition)
+	}
+
+	for k, def := range definitions {
+		if _, ok := r.pendingDefinitions[k]; !ok {
+			r.pendingDefinitions[k] = def
+		}
+	}
+}
+
 // flushToDatabase involves writing the rate limits and reading new rate limits from the
 // database
 func (r *rateLimiter) flushToDatabase(ctx context.Context) error {
@@ -293,23 +356,27 @@ func (r *rateLimiter) flushToDatabase(ctx context.Context) error {
 	r.nextRefillAtMu.Lock()
 	defer r.nextRefillAtMu.Unlock()
 
-	// check the refill time to avoid unnecessary database calls
-	if r.nextRefillAt != nil {
+	definitions := r.takeChangedDefinitions()
+
+	// check the refill time to avoid unnecessary database calls; new or changed definitions can't wait,
+	// since use() treats a key with no row as unavailable
+	if r.nextRefillAt != nil && len(definitions) == 0 {
 		if r.nextRefillAt.After(time.Now().UTC()) {
 			return nil
 		}
 	}
 
 	// copy the unflushed rate limits to a new map
-	updates := make(map[string]int)
+	usage := make(map[string]int)
 
 	for k, v := range r.unflushed {
-		updates[k] = v.val
+		usage[k] = v.val
 	}
 
-	newRateLimits, nextRefillAt, err := r.rateLimitRepo.UpdateRateLimits(ctx, r.tenantId, updates)
+	newRateLimits, nextRefillAt, err := r.rateLimitRepo.FlushRateLimits(ctx, r.tenantId, usage, definitions)
 
 	if err != nil {
+		r.restoreDefinitions(definitions)
 		return err
 	}
 
@@ -334,6 +401,8 @@ func (r *rateLimiter) flushToDatabase(ctx context.Context) error {
 		r.dbRateLimits[key] = &rateLimit{
 			key:          key,
 			val:          int(newVal.Value),
+			limitValue:   newVal.LimitValue,
+			window:       newVal.Window,
 			nextRefillAt: &next,
 		}
 	}

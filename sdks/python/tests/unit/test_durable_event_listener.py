@@ -442,3 +442,120 @@ async def test_send_event_eviction_cancel_propagates_not_timeout(
 
     with pytest.raises(asyncio.CancelledError):
         await send_task
+
+
+async def test_concurrent_waiters_send_single_worker_status(
+    harness: _Harness,
+) -> None:
+    harness.add_hanging_stream()
+    await harness.start()
+
+    assert harness.listener._request_queue is not None
+    _drain_queue(harness.listener._request_queue)
+
+    waiter_count = 500
+    waiters = [
+        asyncio.create_task(harness.listener.wait_for_callback("task-1", 1, 0, node))
+        for node in range(waiter_count)
+    ]
+    await asyncio.sleep(0)
+    await asyncio.sleep(0)
+
+    status_requests = [
+        r
+        for r in _drain_queue(harness.listener._request_queue)
+        if r.HasField("worker_status")
+    ]
+
+    assert len(status_requests) == 1
+    assert len(status_requests[0].worker_status.waiting_entries) == waiter_count
+
+    for w in waiters:
+        w.cancel()
+
+
+async def _register_waiters(
+    listener: DurableEventListener, task_id: str, nodes: range
+) -> list[asyncio.Task[Any]]:
+    waiters = [
+        asyncio.create_task(listener.wait_for_callback(task_id, 1, 0, node))
+        for node in nodes
+    ]
+    await asyncio.sleep(0)
+    await asyncio.sleep(0)
+    return waiters
+
+
+def _status_requests(
+    queue: asyncio.Queue[DurableTaskRequest],
+) -> list[DurableTaskRequest]:
+    return [r for r in _drain_queue(queue) if r.HasField("worker_status")]
+
+
+async def test_later_registrations_send_only_new_waiters(harness: _Harness) -> None:
+    harness.add_hanging_stream()
+    await harness.start()
+    assert harness.listener._request_queue is not None
+    _drain_queue(harness.listener._request_queue)
+
+    first = await _register_waiters(harness.listener, "task-1", range(300))
+    _status_requests(harness.listener._request_queue)
+
+    second = await _register_waiters(harness.listener, "task-2", range(50))
+    requests = _status_requests(harness.listener._request_queue)
+
+    assert len(requests) == 1
+    entries = requests[0].worker_status.waiting_entries
+    assert len(entries) == 50
+    assert {e.durable_task_external_id for e in entries} == {"task-2"}
+
+    for w in first + second:
+        w.cancel()
+
+
+async def test_periodic_status_resend_skips_recently_registered_waiters(
+    harness: _Harness,
+) -> None:
+    harness.add_hanging_stream()
+    await harness.start()
+    assert harness.listener._request_queue is not None
+    _drain_queue(harness.listener._request_queue)
+
+    waiters = await _register_waiters(harness.listener, "task-1", range(10))
+    _status_requests(harness.listener._request_queue)
+
+    harness.listener._enqueue_worker_status_for_long_pending_waiters()
+    assert _status_requests(harness.listener._request_queue) == []
+
+    old_key = ("task-1", 1, 0, 3)
+    harness.listener._waiting_since[old_key] -= 60
+    harness.listener._enqueue_worker_status_for_long_pending_waiters()
+    requests = _status_requests(harness.listener._request_queue)
+
+    assert len(requests) == 1
+    assert [e.node_id for e in requests[0].worker_status.waiting_entries] == [3]
+
+    for w in waiters:
+        w.cancel()
+
+
+async def test_full_status_is_chunked(harness: _Harness) -> None:
+    harness.add_hanging_stream()
+    await harness.start()
+    assert harness.listener._request_queue is not None
+    _drain_queue(harness.listener._request_queue)
+
+    waiters = await _register_waiters(harness.listener, "task-1", range(25))
+    _status_requests(harness.listener._request_queue)
+
+    with patch(f"{_MODULE}.WORKER_STATUS_MAX_ENTRIES_PER_REQUEST", 10):
+        harness.listener._enqueue_worker_status()
+
+    sizes = [
+        len(r.worker_status.waiting_entries)
+        for r in _status_requests(harness.listener._request_queue)
+    ]
+    assert sizes == [10, 10, 5]
+
+    for w in waiters:
+        w.cancel()

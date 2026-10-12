@@ -15,11 +15,7 @@ func (u *MetadataService) collectHealthErrors(ctx context.Context) []error {
 	errs := []error{}
 
 	if !u.config.V1.Health().IsHealthy(ctx) {
-		errs = append(errs, errors.New("api repository is not healthy"))
-	}
-
-	if !u.config.V1.Health().IsHealthy(ctx) {
-		errs = append(errs, errors.New("engine repository is not healthy"))
+		errs = append(errs, errors.New("repository is not healthy"))
 	}
 
 	if !u.config.MessageQueueV1.IsReady() {
@@ -36,24 +32,6 @@ func (u *MetadataService) logHealthErrors(errs []error) {
 }
 
 func (u *MetadataService) LivenessGet(ctx echo.Context, request gen.LivenessGetRequestObject) (gen.LivenessGetResponseObject, error) {
-	gCtx, cancel := context.WithTimeout(ctx.Request().Context(), 5*time.Second)
-	defer cancel()
-
-	allErrors := u.collectHealthErrors(gCtx)
-
-	if len(allErrors) > 0 {
-		u.logHealthErrors(allErrors)
-
-		allErrors = append(allErrors, fmt.Errorf(
-			"pg connections - acquired: %d, idle: %d, total: %d",
-			u.config.V1.Health().PgStat().AcquiredConns(),
-			u.config.V1.Health().PgStat().IdleConns(),
-			u.config.V1.Health().PgStat().TotalConns(),
-		))
-
-		return gen.LivenessGet500JSONResponse(gen.APIErrors{Errors: errorsToAPIErrors(allErrors)}), nil
-	}
-
 	return gen.LivenessGet200Response{}, nil
 }
 

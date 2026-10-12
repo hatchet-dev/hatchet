@@ -52,6 +52,12 @@ func (p *Proxy[in, out]) Do(ctx context.Context, tenant *sqlcv1.Tenant, input *i
 		return nil, err
 	}
 
+	defer func() {
+		if closeErr := c.Close(); closeErr != nil {
+			p.config.Logger.Error().Err(closeErr).Msg("failed to close grpc client")
+		}
+	}()
+
 	grpcCtx := client.AuthContext(ctx, tok.Token)
 
 	if source := analytics.SourceFromContext(ctx); source != "" {

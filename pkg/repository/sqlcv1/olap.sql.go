@@ -93,12 +93,57 @@ func (q *Queries) AnalyzeV1DAGsOLAP(ctx context.Context, db DBTX) error {
 	return err
 }
 
+const analyzeV1EventLookupTableOLAP = `-- name: AnalyzeV1EventLookupTableOLAP :exec
+ANALYZE v1_event_lookup_table_olap
+`
+
+func (q *Queries) AnalyzeV1EventLookupTableOLAP(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1EventLookupTableOLAP)
+	return err
+}
+
+const analyzeV1EventToRunOLAP = `-- name: AnalyzeV1EventToRunOLAP :exec
+ANALYZE v1_event_to_run_olap
+`
+
+func (q *Queries) AnalyzeV1EventToRunOLAP(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1EventToRunOLAP)
+	return err
+}
+
+const analyzeV1EventsOLAP = `-- name: AnalyzeV1EventsOLAP :exec
+ANALYZE v1_events_olap
+`
+
+func (q *Queries) AnalyzeV1EventsOLAP(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1EventsOLAP)
+	return err
+}
+
 const analyzeV1LookupTableOLAP = `-- name: AnalyzeV1LookupTableOLAP :exec
 ANALYZE v1_lookup_table_olap
 `
 
 func (q *Queries) AnalyzeV1LookupTableOLAP(ctx context.Context, db DBTX) error {
 	_, err := db.Exec(ctx, analyzeV1LookupTableOLAP)
+	return err
+}
+
+const analyzeV1OtelTraceLookupOLAP = `-- name: AnalyzeV1OtelTraceLookupOLAP :exec
+ANALYZE v1_otel_trace_lookup_olap
+`
+
+func (q *Queries) AnalyzeV1OtelTraceLookupOLAP(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1OtelTraceLookupOLAP)
+	return err
+}
+
+const analyzeV1OtelTraceOLAP = `-- name: AnalyzeV1OtelTraceOLAP :exec
+ANALYZE v1_otel_trace_olap
+`
+
+func (q *Queries) AnalyzeV1OtelTraceOLAP(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1OtelTraceOLAP)
 	return err
 }
 
@@ -117,6 +162,24 @@ ANALYZE v1_runs_olap
 
 func (q *Queries) AnalyzeV1RunsOLAP(ctx context.Context, db DBTX) error {
 	_, err := db.Exec(ctx, analyzeV1RunsOLAP)
+	return err
+}
+
+const analyzeV1StatusesOLAP = `-- name: AnalyzeV1StatusesOLAP :exec
+ANALYZE v1_statuses_olap
+`
+
+func (q *Queries) AnalyzeV1StatusesOLAP(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1StatusesOLAP)
+	return err
+}
+
+const analyzeV1TaskEventsOLAP = `-- name: AnalyzeV1TaskEventsOLAP :exec
+ANALYZE v1_task_events_olap
+`
+
+func (q *Queries) AnalyzeV1TaskEventsOLAP(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1TaskEventsOLAP)
 	return err
 }
 
@@ -421,20 +484,6 @@ func (q *Queries) CreateIncomingWebhookValidationFailureLogs(ctx context.Context
 	return err
 }
 
-const createOLAPEventPartitions = `-- name: CreateOLAPEventPartitions :exec
-SELECT
-    create_v1_range_partition('v1_events_olap'::text, $1::date),
-    create_v1_range_partition('v1_event_to_run_olap'::text, $1::date),
-    create_v1_weekly_range_partition('v1_event_lookup_table_olap'::text, $1::date),
-    create_v1_range_partition('v1_incoming_webhook_validation_failures_olap'::text, $1::date),
-    create_v1_range_partition('v1_cel_evaluation_failures_olap'::text, $1::date)
-`
-
-func (q *Queries) CreateOLAPEventPartitions(ctx context.Context, db DBTX, date pgtype.Date) error {
-	_, err := db.Exec(ctx, createOLAPEventPartitions, date)
-	return err
-}
-
 const createOLAPOffloadedPayloadIndexBlock = `-- name: CreateOLAPOffloadedPayloadIndexBlock :exec
 INSERT INTO v1_payloads_olap_offloaded_block_index (
     payload_inserted_at_date,
@@ -466,6 +515,48 @@ func (q *Queries) CreateOLAPOffloadedPayloadIndexBlock(ctx context.Context, db D
 	return err
 }
 
+const createOLAPOptionalTablePartitions = `-- name: CreateOLAPOptionalTablePartitions :one
+SELECT
+    create_v1_range_partition('v1_events_olap'::text, $1::date) AS v1_events_olap,
+    create_v1_range_partition('v1_event_to_run_olap'::text, $1::date) AS v1_event_to_run_olap,
+    create_v1_weekly_range_partition('v1_event_lookup_table_olap'::text, $1::date) AS v1_event_lookup_table_olap,
+    create_v1_range_partition('v1_incoming_webhook_validation_failures_olap'::text, $1::date) AS v1_incoming_webhook_validation_failures_olap,
+    create_v1_range_partition('v1_cel_evaluation_failures_olap'::text, $1::date) AS v1_cel_evaluation_failures_olap,
+    create_v1_range_partition('v1_task_events_olap'::text, $1::date) AS v1_task_events_olap,
+    create_v1_range_partition('v1_dag_to_task_olap'::text, $1::date) AS v1_dag_to_task_olap,
+    create_v1_monthly_range_partition('v1_lookup_table_olap'::text, $1::date) AS v1_lookup_table_olap,
+    create_v1_monthly_range_partition('v1_statuses_olap'::text, $1::date) AS v1_statuses_olap
+`
+
+type CreateOLAPOptionalTablePartitionsRow struct {
+	V1EventsOlap                            int32 `json:"v1_events_olap"`
+	V1EventToRunOlap                        int32 `json:"v1_event_to_run_olap"`
+	V1EventLookupTableOlap                  int32 `json:"v1_event_lookup_table_olap"`
+	V1IncomingWebhookValidationFailuresOlap int32 `json:"v1_incoming_webhook_validation_failures_olap"`
+	V1CelEvaluationFailuresOlap             int32 `json:"v1_cel_evaluation_failures_olap"`
+	V1TaskEventsOlap                        int32 `json:"v1_task_events_olap"`
+	V1DagToTaskOlap                         int32 `json:"v1_dag_to_task_olap"`
+	V1LookupTableOlap                       int32 `json:"v1_lookup_table_olap"`
+	V1StatusesOlap                          int32 `json:"v1_statuses_olap"`
+}
+
+func (q *Queries) CreateOLAPOptionalTablePartitions(ctx context.Context, db DBTX, date pgtype.Date) (*CreateOLAPOptionalTablePartitionsRow, error) {
+	row := db.QueryRow(ctx, createOLAPOptionalTablePartitions, date)
+	var i CreateOLAPOptionalTablePartitionsRow
+	err := row.Scan(
+		&i.V1EventsOlap,
+		&i.V1EventToRunOlap,
+		&i.V1EventLookupTableOlap,
+		&i.V1IncomingWebhookValidationFailuresOlap,
+		&i.V1CelEvaluationFailuresOlap,
+		&i.V1TaskEventsOlap,
+		&i.V1DagToTaskOlap,
+		&i.V1LookupTableOlap,
+		&i.V1StatusesOlap,
+	)
+	return &i, err
+}
+
 const createOLAPOtelPartitions = `-- name: CreateOLAPOtelPartitions :exec
 SELECT
     create_v1_range_partition('v1_otel_trace_olap'::text, $1::date),
@@ -477,14 +568,14 @@ func (q *Queries) CreateOLAPOtelPartitions(ctx context.Context, db DBTX, date pg
 	return err
 }
 
-const createOLAPPartitions = `-- name: CreateOLAPPartitions :exec
+const createOLAPPartitions = `-- name: CreateOLAPPartitions :one
 SELECT
-    create_v1_hash_partitions('v1_task_events_olap_tmp'::text, $1::int),
-    create_v1_hash_partitions('v1_task_status_updates_tmp'::text, $1::int),
-    create_v1_range_partition('v1_tasks_olap'::text, $2::date),
-    create_v1_range_partition('v1_runs_olap'::text, $2::date),
-    create_v1_range_partition('v1_dags_olap'::text, $2::date),
-    create_v1_range_partition('v1_payloads_olap'::text, $2::date)
+    create_v1_hash_partitions('v1_task_events_olap_tmp'::text, $1::int) AS v1_task_events_olap_tmp,
+    create_v1_hash_partitions('v1_task_status_updates_tmp'::text, $1::int) AS v1_task_status_updates_tmp,
+    create_v1_range_partition('v1_tasks_olap'::text, $2::date) AS v1_tasks_olap,
+    create_v1_range_partition('v1_runs_olap'::text, $2::date) AS v1_runs_olap,
+    create_v1_range_partition('v1_dags_olap'::text, $2::date) AS v1_dags_olap,
+    create_v1_range_partition('v1_payloads_olap'::text, $2::date) AS v1_payloads_olap
 `
 
 type CreateOLAPPartitionsParams struct {
@@ -492,9 +583,27 @@ type CreateOLAPPartitionsParams struct {
 	Date       pgtype.Date `json:"date"`
 }
 
-func (q *Queries) CreateOLAPPartitions(ctx context.Context, db DBTX, arg CreateOLAPPartitionsParams) error {
-	_, err := db.Exec(ctx, createOLAPPartitions, arg.Partitions, arg.Date)
-	return err
+type CreateOLAPPartitionsRow struct {
+	V1TaskEventsOlapTmp    int32 `json:"v1_task_events_olap_tmp"`
+	V1TaskStatusUpdatesTmp int32 `json:"v1_task_status_updates_tmp"`
+	V1TasksOlap            int32 `json:"v1_tasks_olap"`
+	V1RunsOlap             int32 `json:"v1_runs_olap"`
+	V1DagsOlap             int32 `json:"v1_dags_olap"`
+	V1PayloadsOlap         int32 `json:"v1_payloads_olap"`
+}
+
+func (q *Queries) CreateOLAPPartitions(ctx context.Context, db DBTX, arg CreateOLAPPartitionsParams) (*CreateOLAPPartitionsRow, error) {
+	row := db.QueryRow(ctx, createOLAPPartitions, arg.Partitions, arg.Date)
+	var i CreateOLAPPartitionsRow
+	err := row.Scan(
+		&i.V1TaskEventsOlapTmp,
+		&i.V1TaskStatusUpdatesTmp,
+		&i.V1TasksOlap,
+		&i.V1RunsOlap,
+		&i.V1DagsOlap,
+		&i.V1PayloadsOlap,
+	)
+	return &i, err
 }
 
 const createOLAPPayloadRangeChunks = `-- name: CreateOLAPPayloadRangeChunks :many
@@ -656,7 +765,7 @@ func (q *Queries) FindMinInsertedAtForTaskStatusUpdates(ctx context.Context, db 
 }
 
 const flattenTasksByExternalIds = `-- name: FlattenTasksByExternalIds :many
-WITH lookups AS (
+WITH lookups AS MATERIALIZED (
     SELECT
         tenant_id, external_id, task_id, dag_id, inserted_at
     FROM
@@ -675,6 +784,7 @@ WITH lookups AS (
         v1_dag_to_task_olap dt ON l.dag_id = dt.dag_id AND l.inserted_at = dt.dag_inserted_at
     WHERE
         l.dag_id IS NOT NULL
+        AND dt.dag_inserted_at >= (SELECT MIN(inserted_at) FROM lookups WHERE dag_id IS NOT NULL)
 ), unioned_tasks AS (
     SELECT
         l.tenant_id AS tenant_id,
@@ -758,6 +868,8 @@ JOIN
 WHERE lt.external_id = ANY($1::UUID[])
     AND lt.tenant_id = $2::UUID
     AND d.inserted_at >= $3::TIMESTAMPTZ
+    AND dt.dag_inserted_at >= $3::TIMESTAMPTZ
+    AND e.task_inserted_at >= $3::TIMESTAMPTZ
 GROUP BY lt.external_id
 `
 
@@ -1037,6 +1149,8 @@ WITH input AS (
         task_data td
     JOIN
         v1_task_events_olap e ON (e.tenant_id, e.task_id, e.task_inserted_at, e.retry_count) = (td.tenant_id, td.task_id, td.inserted_at, td.latest_retry_count)
+    WHERE
+        e.task_inserted_at >= (SELECT MIN(inserted_at) FROM input)
 ), task_times AS (
     SELECT
         task_id,
@@ -1162,15 +1276,17 @@ WHERE
     AND (task_id, task_inserted_at, retry_count) IN (
         SELECT UNNEST($2::bigint[]), UNNEST($3::timestamptz[]), UNNEST($4::int[])
     )
+    AND task_inserted_at >= $5::timestamptz
     AND event_type = 'STARTED'
 GROUP BY task_id, task_inserted_at, retry_count
 `
 
 type GetTaskStartedTimestampsParams struct {
-	Tenantid       uuid.UUID            `json:"tenantid"`
-	Taskids        []int64              `json:"taskids"`
-	Taskinsertedat []pgtype.Timestamptz `json:"taskinsertedat"`
-	Retrycounts    []int32              `json:"retrycounts"`
+	Tenantid          uuid.UUID            `json:"tenantid"`
+	Taskids           []int64              `json:"taskids"`
+	Taskinsertedat    []pgtype.Timestamptz `json:"taskinsertedat"`
+	Retrycounts       []int32              `json:"retrycounts"`
+	Mintaskinsertedat pgtype.Timestamptz   `json:"mintaskinsertedat"`
 }
 
 type GetTaskStartedTimestampsRow struct {
@@ -1186,6 +1302,7 @@ func (q *Queries) GetTaskStartedTimestamps(ctx context.Context, db DBTX, arg Get
 		arg.Taskids,
 		arg.Taskinsertedat,
 		arg.Retrycounts,
+		arg.Mintaskinsertedat,
 	)
 	if err != nil {
 		return nil, err
@@ -1508,6 +1625,14 @@ WITH task_partitions AS (
     SELECT 'v1_otel_trace_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_otel_trace_olap', $3::date) AS p
 ), otel_trace_lookup_partitions AS (
     SELECT 'v1_otel_trace_lookup_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_otel_trace_lookup_olap', $3::date) AS p
+), task_events_partitions AS (
+    SELECT 'v1_task_events_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_task_events_olap', $3::date) AS p
+), dag_to_task_partitions AS (
+    SELECT 'v1_dag_to_task_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_dag_to_task_olap', $3::date) AS p
+), lookup_table_partitions AS (
+    SELECT 'v1_lookup_table_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_monthly_partitions_before_date('v1_lookup_table_olap', $3::date) AS p
+), statuses_partitions AS (
+    SELECT 'v1_statuses_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_monthly_partitions_before_date('v1_statuses_olap', $3::date) AS p
 ), candidates AS (
     SELECT
         parent_table, partition_name
@@ -1584,6 +1709,33 @@ WITH task_partitions AS (
     FROM
         otel_trace_lookup_partitions
 
+    UNION ALL
+
+    SELECT
+        parent_table, partition_name
+    FROM
+        task_events_partitions
+
+    UNION ALL
+
+    SELECT
+        parent_table, partition_name
+    FROM
+        dag_to_task_partitions
+
+    UNION ALL
+
+    SELECT
+        parent_table, partition_name
+    FROM
+        lookup_table_partitions
+
+    UNION ALL
+
+    SELECT
+        parent_table, partition_name
+    FROM
+        statuses_partitions
 )
 
 SELECT parent_table, partition_name
@@ -1591,7 +1743,17 @@ FROM candidates
 WHERE
     CASE
         WHEN $1::BOOLEAN THEN TRUE
-        ELSE parent_table NOT IN ('v1_events_olap', 'v1_event_to_run_olap', 'v1_cel_evaluation_failures_olap', 'v1_incoming_webhook_validation_failures_olap')
+        ELSE parent_table NOT IN (
+            'v1_events_olap',
+            'v1_event_to_run_olap',
+            'v1_event_lookup_table_olap',
+            'v1_cel_evaluation_failures_olap',
+            'v1_incoming_webhook_validation_failures_olap',
+            'v1_task_events_olap',
+            'v1_dag_to_task_olap',
+            'v1_lookup_table_olap',
+            'v1_statuses_olap'
+        )
     END
     AND CASE
         WHEN $2::BOOLEAN THEN TRUE
@@ -1600,9 +1762,9 @@ WHERE
 `
 
 type ListOLAPPartitionsBeforeDateParams struct {
-	Shouldpartitioneventstables bool        `json:"shouldpartitioneventstables"`
-	Shouldpartitionoteltables   bool        `json:"shouldpartitionoteltables"`
-	Date                        pgtype.Date `json:"date"`
+	Shouldmanageoptionaltablepartitions bool        `json:"shouldmanageoptionaltablepartitions"`
+	Shouldpartitionoteltables           bool        `json:"shouldpartitionoteltables"`
+	Date                                pgtype.Date `json:"date"`
 }
 
 type ListOLAPPartitionsBeforeDateRow struct {
@@ -1611,7 +1773,7 @@ type ListOLAPPartitionsBeforeDateRow struct {
 }
 
 func (q *Queries) ListOLAPPartitionsBeforeDate(ctx context.Context, db DBTX, arg ListOLAPPartitionsBeforeDateParams) ([]*ListOLAPPartitionsBeforeDateRow, error) {
-	rows, err := db.Query(ctx, listOLAPPartitionsBeforeDate, arg.Shouldpartitioneventstables, arg.Shouldpartitionoteltables, arg.Date)
+	rows, err := db.Query(ctx, listOLAPPartitionsBeforeDate, arg.Shouldmanageoptionaltablepartitions, arg.Shouldpartitionoteltables, arg.Date)
 	if err != nil {
 		return nil, err
 	}
@@ -1868,6 +2030,7 @@ WITH tasks AS (
     JOIN tasks t ON t.task_id = e.task_id AND t.task_inserted_at = e.task_inserted_at
     WHERE
         e.tenant_id = $2::uuid
+        AND e.task_inserted_at >= (SELECT MIN(task_inserted_at) FROM tasks)
     GROUP BY e.tenant_id, e.task_id, e.task_inserted_at, t.dag_id, t.dag_inserted_at, e.retry_count, e.event_type, e.durable_invocation_count
 )
 SELECT
@@ -1969,19 +2132,30 @@ func (q *Queries) ListTaskEventsForWorkflowRun(ctx context.Context, db DBTX, arg
 }
 
 const listTasksByDAGIds = `-- name: ListTasksByDAGIds :many
+WITH lookups AS MATERIALIZED (
+    SELECT
+        external_id,
+        dag_id,
+        inserted_at
+    FROM
+        v1_lookup_table_olap
+    WHERE
+        external_id = ANY($1::uuid[])
+        AND tenant_id = $2::uuid
+)
 SELECT
     DISTINCT ON (t.external_id)
     dt.dag_id, dt.dag_inserted_at, dt.task_id, dt.task_inserted_at,
     lt.external_id AS dag_external_id
 FROM
-    v1_lookup_table_olap lt
+    lookups lt
 JOIN
     v1_dag_to_task_olap dt ON (lt.dag_id, lt.inserted_at)= (dt.dag_id, dt.dag_inserted_at)
 JOIN
     v1_tasks_olap t ON (t.id, t.inserted_at) = (dt.task_id, dt.task_inserted_at)
 WHERE
-    lt.external_id = ANY($1::uuid[])
-    AND lt.tenant_id = $2::uuid
+    dt.dag_inserted_at >= (SELECT MIN(inserted_at) FROM lookups)
+    AND t.inserted_at >= (SELECT MIN(inserted_at) FROM lookups)
 ORDER BY
     t.external_id, t.inserted_at DESC
 `
@@ -2286,7 +2460,10 @@ WITH input AS (
     FROM runs r
     JOIN v1_dag_to_task_olap dt ON (r.dag_id, r.inserted_at) = (dt.dag_id, dt.dag_inserted_at)
     JOIN v1_task_events_olap e ON (e.task_id, e.task_inserted_at) = (dt.task_id, dt.task_inserted_at)
-    WHERE e.tenant_id = $4::uuid
+    WHERE
+        e.tenant_id = $4::uuid
+        AND dt.dag_inserted_at >= (SELECT MIN(inserted_at) FROM input)
+        AND e.task_inserted_at >= (SELECT MIN(inserted_at) FROM input)
 ), max_retry_count AS (
     SELECT run_id, MAX(retry_count) AS max_retry_count
     FROM relevant_events
@@ -2753,6 +2930,8 @@ WITH input AS (
         v1_task_events_olap e
     JOIN
         tasks t ON t.id = e.task_id AND t.tenant_id = e.tenant_id AND t.inserted_at = e.task_inserted_at
+    WHERE
+        e.task_inserted_at >= (SELECT MIN(inserted_at) FROM input)
 ), max_retry_counts AS (
     SELECT
         e.tenant_id,
@@ -3021,12 +3200,7 @@ SELECT
         ELSE NULL
     END AS inline_content
 FROM inputs i
-ON CONFLICT (tenant_id, external_id, inserted_at) DO UPDATE
-SET
-    location = EXCLUDED.location,
-    external_location_key = EXCLUDED.external_location_key,
-    inline_content = EXCLUDED.inline_content,
-    updated_at = NOW()
+ON CONFLICT DO NOTHING
 `
 
 type PutPayloadsParams struct {
@@ -3062,7 +3236,7 @@ WITH lookup_task AS (
         external_id = $1::uuid
 )
 SELECT
-    d.id, d.inserted_at, d.tenant_id, d.external_id, d.display_name, d.workflow_id, d.workflow_version_id, d.readable_status, d.input, d.additional_metadata, d.parent_task_external_id, d.total_tasks, d.idempotency_key, d.latest_retry_count
+    d.id, d.inserted_at, d.tenant_id, d.external_id, d.display_name, d.workflow_id, d.workflow_version_id, d.readable_status, d.input, d.additional_metadata, d.parent_task_external_id, d.total_tasks, d.idempotency_key, d.latest_retry_count, d.is_dag_operator
 FROM
     v1_dags_olap d
 JOIN
@@ -3087,6 +3261,7 @@ func (q *Queries) ReadDAGByExternalID(ctx context.Context, db DBTX, externalid u
 		&i.TotalTasks,
 		&i.IdempotencyKey,
 		&i.LatestRetryCount,
+		&i.IsDagOperator,
 	)
 	return &i, err
 }
@@ -3153,7 +3328,9 @@ FROM
 JOIN
     lookup_task lt ON lt.tenant_id = t.tenant_id AND lt.task_id = t.id AND lt.inserted_at = t.inserted_at
 JOIN
-    v1_task_events_olap e ON (e.tenant_id, e.task_id, e.readable_status, e.retry_count) = (t.tenant_id, t.id, t.readable_status, t.latest_retry_count)
+    v1_task_events_olap e ON (e.tenant_id, e.task_id, e.task_inserted_at, e.readable_status, e.retry_count) = (t.tenant_id, t.id, t.inserted_at, t.readable_status, t.latest_retry_count)
+WHERE
+    e.task_inserted_at >= (SELECT MIN(inserted_at) FROM lookup_task)
 `
 
 type ReadTaskByExternalIDRow struct {
@@ -3284,7 +3461,10 @@ WITH runs AS (
     FROM runs r
     JOIN v1_dag_to_task_olap dt ON r.dag_id = dt.dag_id AND r.inserted_at = dt.dag_inserted_at
     JOIN v1_task_events_olap e ON (e.task_id, e.task_inserted_at) = (dt.task_id, dt.task_inserted_at)
-    WHERE r.dag_id IS NOT NULL
+    WHERE
+        r.dag_id IS NOT NULL
+        AND dt.dag_inserted_at >= (SELECT MIN(inserted_at) FROM runs)
+        AND e.task_inserted_at >= (SELECT MIN(inserted_at) FROM runs)
 
     UNION ALL
 
@@ -3292,7 +3472,9 @@ WITH runs AS (
         e.tenant_id, e.id, e.inserted_at, e.external_id, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message, e.durable_invocation_count
     FROM runs r
     JOIN v1_task_events_olap e ON e.task_id = r.task_id AND e.task_inserted_at = r.inserted_at
-    WHERE r.task_id IS NOT NULL
+    WHERE
+        r.task_id IS NOT NULL
+        AND e.task_inserted_at >= (SELECT MIN(inserted_at) FROM runs)
 ), max_retry_counts AS (
     SELECT task_id, MAX(retry_count) AS max_retry_count
     FROM relevant_events
@@ -3412,6 +3594,7 @@ WITH inputs AS (
     FROM v1_task_events_olap e
     -- dag operator task ids are the same as the dag ids
     JOIN inputs i ON (e.task_id, e.task_inserted_at) = (i.dag_id, i.dag_inserted_at)
+    WHERE e.task_inserted_at >= (SELECT MIN(dag_inserted_at) FROM inputs)
     ORDER BY
         e.task_id,
         e.task_inserted_at,
@@ -3636,13 +3819,7 @@ WITH tenants AS (
                 distinct_dags dd
         )
         -- see UpdateDAGStatusesFromMQ
-        AND NOT EXISTS (
-            SELECT 1
-            FROM v1_dag_to_task_olap dt
-            WHERE
-                (dt.dag_id, dt.dag_inserted_at) = (d.id, d.inserted_at)
-                AND (dt.task_id, dt.task_inserted_at) = (d.id, d.inserted_at)
-        )
+        AND NOT d.is_dag_operator
     ORDER BY
         d.inserted_at, d.id
     FOR UPDATE
@@ -3662,7 +3839,8 @@ WITH tenants AS (
         v1_tasks_olap t ON
             (dt.task_id, dt.task_inserted_at) = (t.id, t.inserted_at)
     WHERE
-        t.inserted_at >= $4::TIMESTAMPTZ
+        dt.dag_inserted_at >= $4::TIMESTAMPTZ
+        AND t.inserted_at >= $4::TIMESTAMPTZ
     -- Note that the ORDER BY seems to help the query planner by pruning partitions earlier. We
     -- have previously seen Postgres use an index-only scan on partitions older than the minInsertedAt,
     -- each of which can take a long time to scan. This can be very pathological since we partition on
@@ -3903,24 +4081,15 @@ WITH inputs AS (
         UNNEST($2::BIGINT[]) AS dag_id,
         UNNEST($3::TIMESTAMPTZ[]) AS dag_inserted_at
 ), locked_dags AS (
-    SELECT id, inserted_at, tenant_id, external_id, display_name, workflow_id, workflow_version_id, readable_status, input, additional_metadata, parent_task_external_id, total_tasks, idempotency_key, latest_retry_count
+    SELECT id, inserted_at, tenant_id, external_id, display_name, workflow_id, workflow_version_id, readable_status, input, additional_metadata, parent_task_external_id, total_tasks, idempotency_key, latest_retry_count, is_dag_operator
     FROM v1_dags_olap d
     WHERE
         (d.inserted_at, d.id, d.tenant_id) IN (
             SELECT dag_inserted_at, dag_id, tenant_id
             FROM inputs
         )
-    -- this is a trick to figure out if the dag is an operator (dag-as-durable-task)
-    -- operator dags are updated by the separate UpdateDAGStatusesFromOrchestratorEvents. the
-    -- orchestrator's self-mapping row is what marks them, and older binaries already write it, so
-    -- this classifies correctly even for dags created by a pod that predates this change
-    AND NOT EXISTS (
-        SELECT 1
-        FROM v1_dag_to_task_olap dt
-        WHERE
-            (dt.dag_id, dt.dag_inserted_at) = (d.id, d.inserted_at)
-            AND (dt.task_id, dt.task_inserted_at) = (d.id, d.inserted_at)
-    )
+    -- operator dags are updated by the separate UpdateDAGStatusesFromOrchestratorEvents
+    AND NOT d.is_dag_operator
     ORDER BY inserted_at, id
     FOR UPDATE
 ), dag_task_counts AS (
@@ -3943,6 +4112,9 @@ WITH inputs AS (
         v1_dag_to_task_olap dt ON (d.id, d.inserted_at) = (dt.dag_id, dt.dag_inserted_at)
     JOIN
         v1_tasks_olap t ON (dt.task_id, dt.task_inserted_at) = (t.id, t.inserted_at)
+    WHERE
+        dt.dag_inserted_at >= $4::TIMESTAMPTZ
+        AND t.inserted_at >= $4::TIMESTAMPTZ
     GROUP BY
         d.id, d.inserted_at, d.readable_status, d.tenant_id, d.total_tasks
 ), dag_new_statuses AS (
@@ -3990,9 +4162,10 @@ FROM updated_dags ud
 `
 
 type UpdateDAGStatusesFromMQParams struct {
-	Tenantids      []uuid.UUID          `json:"tenantids"`
-	Dagids         []int64              `json:"dagids"`
-	Daginsertedats []pgtype.Timestamptz `json:"daginsertedats"`
+	Tenantids        []uuid.UUID          `json:"tenantids"`
+	Dagids           []int64              `json:"dagids"`
+	Daginsertedats   []pgtype.Timestamptz `json:"daginsertedats"`
+	Mindaginsertedat pgtype.Timestamptz   `json:"mindaginsertedat"`
 }
 
 type UpdateDAGStatusesFromMQRow struct {
@@ -4005,7 +4178,12 @@ type UpdateDAGStatusesFromMQRow struct {
 }
 
 func (q *Queries) UpdateDAGStatusesFromMQ(ctx context.Context, db DBTX, arg UpdateDAGStatusesFromMQParams) ([]*UpdateDAGStatusesFromMQRow, error) {
-	rows, err := db.Query(ctx, updateDAGStatusesFromMQ, arg.Tenantids, arg.Dagids, arg.Daginsertedats)
+	rows, err := db.Query(ctx, updateDAGStatusesFromMQ,
+		arg.Tenantids,
+		arg.Dagids,
+		arg.Daginsertedats,
+		arg.Mindaginsertedat,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -4034,67 +4212,91 @@ func (q *Queries) UpdateDAGStatusesFromMQ(ctx context.Context, db DBTX, arg Upda
 const updateDAGStatusesFromOrchestratorEvents = `-- name: UpdateDAGStatusesFromOrchestratorEvents :many
 WITH inputs AS (
     SELECT
-        UNNEST($1::BIGINT[]) AS dag_id,
-        UNNEST($2::TIMESTAMPTZ[]) AS dag_inserted_at,
-        UNNEST($3::v1_readable_status_olap[]) AS new_readable_status,
-        UNNEST($4::INTEGER[]) AS retry_count
-), locked_dags AS (
-    SELECT
-        d.id,
-        d.inserted_at,
-        d.tenant_id,
-        i.new_readable_status,
-        i.retry_count AS new_retry_count
-    FROM v1_dags_olap d
-    JOIN inputs i ON (d.id, d.inserted_at) = (i.dag_id, i.dag_inserted_at)
-    WHERE
-        d.tenant_id = $5::UUID
-        AND (
-            -- a newer attempt always applies, so a replay revives a terminal DAG and a straggler
-            -- from the previous attempt can no longer clobber it
-            (
-                i.retry_count > d.latest_retry_count
-            ) OR
-            -- within an attempt, only move forward through QUEUED -> RUNNING -> terminal
-            (
-                i.retry_count = d.latest_retry_count
-                AND v1_status_to_priority(i.new_readable_status) > v1_status_to_priority(d.readable_status)
-            ) OR
-            -- EVICTED is reversible (a durable restore moves it back to RUNNING) but outranks
-            -- RUNNING by priority, so it needs an explicit escape hatch
-            (
-                i.retry_count = d.latest_retry_count
-                AND d.readable_status = 'EVICTED'
-                AND i.new_readable_status != 'EVICTED'
-            )
-        )
-    ORDER BY d.inserted_at, d.id
-    FOR UPDATE OF d
-), updated_dags AS (
-    UPDATE v1_dags_olap d
-    SET
-        readable_status = ld.new_readable_status,
-        latest_retry_count = ld.new_retry_count
-    FROM locked_dags ld
-    WHERE (d.inserted_at, d.id, d.tenant_id) = (ld.inserted_at, ld.id, ld.tenant_id)
-    RETURNING d.tenant_id, d.id, d.inserted_at, d.external_id, d.readable_status, d.workflow_id
+        UNNEST($2::BIGINT[]) AS dag_id,
+        UNNEST($3::TIMESTAMPTZ[]) AS dag_inserted_at,
+        UNNEST($4::v1_readable_status_olap[]) AS new_readable_status,
+        UNNEST($5::INTEGER[]) AS retry_count,
+        UNNEST($6::UUID[]) AS external_id,
+        UNNEST($7::TEXT[]) AS display_name,
+        UNNEST($8::UUID[]) AS workflow_id,
+        UNNEST($9::UUID[]) AS workflow_version_id,
+        UNNEST($10::JSONB[]) AS additional_metadata
+)
+INSERT INTO v1_dags_olap (
+    tenant_id,
+    id,
+    inserted_at,
+    external_id,
+    display_name,
+    workflow_id,
+    workflow_version_id,
+    input,
+    additional_metadata,
+    total_tasks,
+    readable_status,
+    latest_retry_count,
+    is_dag_operator
 )
 SELECT
-    ud.tenant_id::UUID AS tenant_id,
-    ud.id::BIGINT AS dag_id,
-    ud.inserted_at::TIMESTAMPTZ AS dag_inserted_at,
-    ud.external_id::UUID AS external_id,
-    ud.readable_status::v1_readable_status_olap AS readable_status,
-    ud.workflow_id::UUID AS workflow_id
-FROM updated_dags ud
+    $1::UUID,
+    i.dag_id,
+    i.dag_inserted_at,
+    i.external_id,
+    i.display_name,
+    i.workflow_id,
+    i.workflow_version_id,
+    '{}'::JSONB,
+    i.additional_metadata,
+    0,
+    i.new_readable_status,
+    i.retry_count,
+    TRUE
+FROM inputs i
+ORDER BY i.dag_inserted_at, i.dag_id
+ON CONFLICT (inserted_at, id) DO UPDATE SET
+    readable_status = EXCLUDED.readable_status,
+    latest_retry_count = EXCLUDED.latest_retry_count
+WHERE
+    v1_dags_olap.tenant_id = $1::UUID
+    AND (
+        -- a newer attempt always applies, so a replay revives a terminal DAG and a straggler
+        -- from the previous attempt can no longer clobber it
+        (
+            EXCLUDED.latest_retry_count > v1_dags_olap.latest_retry_count
+        ) OR
+        -- within an attempt, only move forward through QUEUED -> RUNNING -> terminal
+        (
+            EXCLUDED.latest_retry_count = v1_dags_olap.latest_retry_count
+            AND v1_status_to_priority(EXCLUDED.readable_status) > v1_status_to_priority(v1_dags_olap.readable_status)
+        ) OR
+        -- EVICTED is reversible (a durable restore moves it back to RUNNING) but outranks
+        -- RUNNING by priority, so it needs an explicit escape hatch
+        (
+            EXCLUDED.latest_retry_count = v1_dags_olap.latest_retry_count
+            AND v1_dags_olap.readable_status = 'EVICTED'
+            AND EXCLUDED.readable_status != 'EVICTED'
+        )
+    )
+RETURNING
+    tenant_id::UUID AS tenant_id,
+    id::BIGINT AS dag_id,
+    inserted_at::TIMESTAMPTZ AS dag_inserted_at,
+    external_id::UUID AS external_id,
+    readable_status::v1_readable_status_olap AS readable_status,
+    workflow_id::UUID AS workflow_id
 `
 
 type UpdateDAGStatusesFromOrchestratorEventsParams struct {
-	Dagids         []int64                `json:"dagids"`
-	Daginsertedats []pgtype.Timestamptz   `json:"daginsertedats"`
-	Statuses       []V1ReadableStatusOlap `json:"statuses"`
-	Retrycounts    []int32                `json:"retrycounts"`
-	Tenantid       uuid.UUID              `json:"tenantid"`
+	Tenantid            uuid.UUID              `json:"tenantid"`
+	Dagids              []int64                `json:"dagids"`
+	Daginsertedats      []pgtype.Timestamptz   `json:"daginsertedats"`
+	Statuses            []V1ReadableStatusOlap `json:"statuses"`
+	Retrycounts         []int32                `json:"retrycounts"`
+	Externalids         []uuid.UUID            `json:"externalids"`
+	Displaynames        []string               `json:"displaynames"`
+	Workflowids         []uuid.UUID            `json:"workflowids"`
+	Workflowversionids  []uuid.UUID            `json:"workflowversionids"`
+	Additionalmetadatas [][]byte               `json:"additionalmetadatas"`
 }
 
 type UpdateDAGStatusesFromOrchestratorEventsRow struct {
@@ -4110,11 +4312,16 @@ type UpdateDAGStatusesFromOrchestratorEventsRow struct {
 // sure each dag only gets one candidate update per call
 func (q *Queries) UpdateDAGStatusesFromOrchestratorEvents(ctx context.Context, db DBTX, arg UpdateDAGStatusesFromOrchestratorEventsParams) ([]*UpdateDAGStatusesFromOrchestratorEventsRow, error) {
 	rows, err := db.Query(ctx, updateDAGStatusesFromOrchestratorEvents,
+		arg.Tenantid,
 		arg.Dagids,
 		arg.Daginsertedats,
 		arg.Statuses,
 		arg.Retrycounts,
-		arg.Tenantid,
+		arg.Externalids,
+		arg.Displaynames,
+		arg.Workflowids,
+		arg.Workflowversionids,
+		arg.Additionalmetadatas,
 	)
 	if err != nil {
 		return nil, err

@@ -6,7 +6,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/task/trigger"
-	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1/v1connect"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/streams"
 	"github.com/hatchet-dev/hatchet/internal/syncx"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
@@ -19,8 +19,11 @@ type durableInvocationsKey struct {
 	tenantId uuid.UUID
 	taskId   uuid.UUID
 }
+
+var _ v1connect.V1DispatcherHandler = (*DispatcherServiceImpl)(nil)
+
 type DispatcherServiceImpl struct {
-	contracts.UnimplementedV1DispatcherServer
+	v1connect.UnimplementedV1DispatcherHandler
 	repo               v1.Repository
 	mq                 msgqueue.MessageQueue
 	v                  validator.Validator

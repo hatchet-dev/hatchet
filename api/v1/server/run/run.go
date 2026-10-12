@@ -37,6 +37,7 @@ import (
 	filtersv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/filters"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/logs"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/observability"
+	streamsv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/streams"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/tasks"
 	webhooksv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/webhooks"
 	workflowrunsv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/workflow-runs"
@@ -82,6 +83,7 @@ type apiService struct {
 	*observability.V1ObservabilityService
 	*featureflagsv1.V1FeatureFlagsService
 	*durabletasksv1.DurableTasksService
+	*streamsv1.V1StreamsService
 }
 
 func newAPIService(config *server.ServerConfig) *apiService {
@@ -111,6 +113,7 @@ func newAPIService(config *server.ServerConfig) *apiService {
 		V1ObservabilityService: observability.NewV1ObservabilityService(config),
 		V1FeatureFlagsService:  featureflagsv1.NewV1FeatureFlagsService(config),
 		DurableTasksService:    durabletasksv1.NewDurableTasksService(config),
+		V1StreamsService:       streamsv1.NewV1StreamsService(config),
 	}
 }
 

@@ -41,7 +41,7 @@ jobs:
           virtualenvs-in-project: true
 
       - name: Install linting tools
-        run: poetry install --all-extras
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" poetry install --all-extras
 
       - name: Run Black
         run: poetry run black . --check --verbose --diff --color
@@ -75,10 +75,10 @@ jobs:
           fi
 
       - name: Test install
-        run: pip install -e .
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" pip install -e .
 
   test:
-    runs-on: ubicloud-standard-4
+    runs-on: ubicloud-standard-8
     strategy:
       fail-fast: false
       matrix:
@@ -164,7 +164,7 @@ jobs:
           virtualenvs-in-project: true
 
       - name: Install dependencies
-        run: poetry install --no-interaction --all-extras
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" poetry install --no-interaction --all-extras
 
       - name: Generate Env File
         working-directory: .
@@ -183,7 +183,7 @@ jobs:
         run: |
           echo "Using HATCHET_CLIENT_NAMESPACE: $HATCHET_CLIENT_NAMESPACE"
           export HATCHET_CLIENT_SERVER_URL=http://localhost:8080
-          poetry run pytest -s -vvv --maxfail=5 --capture=no --retries 3 --retry-delay 2 -n 8 --timeout 180
+          poetry run pytest -s -vvv --maxfail=5 --capture=no --retries 3 --retry-delay 2 -n 12 --timeout 180
 
       - name: Test with wheel
         run: |
@@ -225,7 +225,7 @@ jobs:
 
       - name: Install Poetry
         run: |
-          pipx install poetry==2.3.0
+          sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" pipx install poetry==2.3.0
 
       - name: Run publish.sh script
         run: |

@@ -344,6 +344,8 @@ WebhookWorkerListResponse:
   $ref: "./webhook_worker.yaml#/WebhookWorkerListResponse"
 V1TaskSummaryList:
   $ref: "./v1/task.yaml#/V1TaskSummaryList"
+V1WorkflowRunCount:
+  $ref: "./v1/task.yaml#/V1WorkflowRunCount"
 V1WorkflowRunDisplayNameList:
   $ref: "./v1/task.yaml#/V1WorkflowRunDisplayNameList"
 V1WorkflowRunExternalIdList:
@@ -394,6 +396,8 @@ V1BranchDurableTaskResponse:
   $ref: "./v1/workflow_run.yaml#/V1BranchDurableTaskResponse"
 V1DurableEventLogKind:
   $ref: "./v1/workflow_run.yaml#/V1DurableEventLogKind"
+V1StreamPayloadRef:
+  $ref: "./v1/streams.yaml#/V1StreamPayloadRef"
 V1DurableEventLogEntry:
   $ref: "./v1/workflow_run.yaml#/V1DurableEventLogEntry"
 V1DurableEventLogList:

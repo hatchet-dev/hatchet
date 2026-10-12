@@ -3,6 +3,7 @@ stepRunScoped:
     x-resources: ["tenant", "step-run"]
     description: Get a step run by id
     operationId: step-run:get
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -56,6 +57,7 @@ rerunStepRun:
     x-resources: ["tenant", "step-run"]
     description: Reruns a step run
     operationId: step-run:update:rerun
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -110,6 +112,7 @@ cancelStepRun:
     x-resources: ["tenant", "step-run"]
     description: Attempts to cancel a step run
     operationId: step-run:update:cancel
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -157,6 +160,7 @@ getSchema:
     x-resources: ["tenant", "step-run"]
     description: Get the schema for a step run
     operationId: step-run:get:schema
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -209,6 +213,7 @@ listEvents:
     x-resources: ["tenant", "step-run"]
     description: List events for a step run
     operationId: step-run:list:events
+    x-payloads: false
     parameters:
       - description: The step run id
         in: path
@@ -267,6 +272,7 @@ listStepRunEventsForWorkflowRun:
     x-resources: ["tenant"]
     description: List events for all step runs for a workflow run
     operationId: workflow-run:list:step-run-events
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -326,6 +332,7 @@ listArchives:
     x-resources: ["tenant", "step-run"]
     description: List archives for a step run
     operationId: step-run:list:archives
+    x-payloads: false
     parameters:
       - description: The step run id
         in: path

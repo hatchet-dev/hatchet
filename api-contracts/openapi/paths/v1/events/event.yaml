@@ -3,6 +3,7 @@ V1EventGet:
     x-resources: ["tenant", "v1-event"]
     description: Get an event by its id
     operationId: v1-event:get
+    x-payloads: true
     parameters:
       - description: The tenant id
         in: path
@@ -50,6 +51,7 @@ V1EventList:
     x-resources: ["tenant"]
     description: Lists all events for a tenant.
     operationId: v1-event:list
+    x-payloads: true
     parameters:
       - description: The tenant id
         in: path
@@ -167,6 +169,7 @@ keys:
     x-resources: ["tenant"]
     description: Lists all event keys for a tenant.
     operationId: v1:event-key:list
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path

@@ -3,6 +3,7 @@ listLogs:
     x-resources: ["tenant"]
     description: Lists log lines for a tenant
     operationId: v1-tenant-log-line:list
+    x-payloads: true
     parameters:
       - description: The tenant id
         in: path
@@ -121,6 +122,7 @@ getLogPointMetrics:
     x-resources: ["tenant"]
     description: Get a minute by minute breakdown of log metrics for a tenant
     operationId: v1-tenant-log-line:get:point-metrics
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path

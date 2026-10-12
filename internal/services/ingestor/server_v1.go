@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
+	"connectrpc.com/connect"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
@@ -15,8 +17,6 @@ import (
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -26,7 +26,7 @@ func (i *IngestorImpl) putStreamEventV1(ctx context.Context, tenant *sqlcv1.Tena
 	taskExternalId, err := uuid.Parse(req.TaskRunExternalId)
 
 	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, "task external run id is not a valid uuid")
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("task external run id is not a valid uuid"))
 	}
 
 	// get single task
@@ -34,7 +34,7 @@ func (i *IngestorImpl) putStreamEventV1(ctx context.Context, tenant *sqlcv1.Tena
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, status.Errorf(codes.NotFound, "task run not found: %s", taskExternalId)
+			return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("task run not found: %s", taskExternalId))
 		}
 
 		return nil, err
@@ -73,7 +73,7 @@ func (i *IngestorImpl) putLogV1(ctx context.Context, tenant *sqlcv1.Tenant, req 
 	taskExternalId, err := uuid.Parse(req.TaskRunExternalId)
 
 	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, "task external run id is not a valid uuid")
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("task external run id is not a valid uuid"))
 	}
 
 	if !i.isLogIngestionEnabled {
@@ -84,7 +84,7 @@ func (i *IngestorImpl) putLogV1(ctx context.Context, tenant *sqlcv1.Tenant, req 
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, status.Errorf(codes.NotFound, "task run not found: %s", taskExternalId)
+			return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("task run not found: %s", taskExternalId))
 		}
 
 		return nil, err
@@ -102,13 +102,13 @@ func (i *IngestorImpl) putLogV1(ctx context.Context, tenant *sqlcv1.Tenant, req 
 		// Validate that metadata is valid JSON
 		var metadataMap map[string]interface{}
 		if err := json.Unmarshal([]byte(req.Metadata), &metadataMap); err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "Invalid metadata JSON: %v", err)
+			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("Invalid metadata JSON: %v", err))
 		}
 
 		// Re-marshal to ensure consistent formatting
 		metadata, err = json.Marshal(metadataMap)
 		if err != nil {
-			return nil, status.Errorf(codes.Internal, "Failed to marshal metadata: %v", err)
+			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("Failed to marshal metadata: %v", err))
 		}
 	}
 
@@ -136,11 +136,11 @@ func (i *IngestorImpl) putLogV1(ctx context.Context, tenant *sqlcv1.Tenant, req 
 	if apiErrors, err := i.v.ValidateAPI(opts); err != nil {
 		return nil, err
 	} else if apiErrors != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", apiErrors.String())
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("Invalid request: %s", apiErrors.String()))
 	}
 
 	if err := v1.ValidateJSONB(opts.Metadata, "additionalMetadata"); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("Invalid request: %s", err))
 	}
 
 	err = i.repov1.Logs().PutLog(ctx, tenantId, opts)

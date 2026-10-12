@@ -151,6 +151,8 @@ Class | Method | HTTP request | Description
 *HatchetSdkRest::StepRunApi* | [**step_run_update_cancel**](docs/StepRunApi.md#step_run_update_cancel) | **POST** /api/v1/tenants/{tenant}/step-runs/{step-run}/cancel | Attempts to cancel a step run
 *HatchetSdkRest::StepRunApi* | [**step_run_update_rerun**](docs/StepRunApi.md#step_run_update_rerun) | **POST** /api/v1/tenants/{tenant}/step-runs/{step-run}/rerun | Rerun step run
 *HatchetSdkRest::StepRunApi* | [**workflow_run_list_step_run_events**](docs/StepRunApi.md#workflow_run_list_step_run_events) | **GET** /api/v1/tenants/{tenant}/workflow-runs/{workflow-run}/step-run-events | List events for all step runs for a workflow run
+*HatchetSdkRest::StreamsApi* | [**v1_stream_payload_get**](docs/StreamsApi.md#v1_stream_payload_get) | **GET** /api/v1/stable/tenants/{tenant}/streams/payloads | Get stream payload
+*HatchetSdkRest::StreamsApi* | [**v1_stream_payload_upload**](docs/StreamsApi.md#v1_stream_payload_upload) | **POST** /api/v1/stable/tenants/{tenant}/streams/payloads | Upload stream payload
 *HatchetSdkRest::TaskApi* | [**v1_dag_list_tasks**](docs/TaskApi.md#v1_dag_list_tasks) | **GET** /api/v1/stable/dags/tasks | List tasks
 *HatchetSdkRest::TaskApi* | [**v1_task_cancel**](docs/TaskApi.md#v1_task_cancel) | **POST** /api/v1/stable/tenants/{tenant}/tasks/cancel | Cancel tasks
 *HatchetSdkRest::TaskApi* | [**v1_task_event_list**](docs/TaskApi.md#v1_task_event_list) | **GET** /api/v1/stable/tasks/{task}/task-events | List events for a task
@@ -231,6 +233,7 @@ Class | Method | HTTP request | Description
 *HatchetSdkRest::WorkflowRunApi* | [**workflow_run_get_input**](docs/WorkflowRunApi.md#workflow_run_get_input) | **GET** /api/v1/tenants/{tenant}/workflow-runs/{workflow-run}/input | Get workflow run input
 *HatchetSdkRest::WorkflowRunApi* | [**workflow_run_update_replay**](docs/WorkflowRunApi.md#workflow_run_update_replay) | **POST** /api/v1/tenants/{tenant}/workflow-runs/replay | Replay workflow runs
 *HatchetSdkRest::WorkflowRunsApi* | [**v1_durable_task_branch**](docs/WorkflowRunsApi.md#v1_durable_task_branch) | **POST** /api/v1/stable/tenants/{tenant}/durable-tasks/branch | Branch durable task
+*HatchetSdkRest::WorkflowRunsApi* | [**v1_workflow_run_count_get**](docs/WorkflowRunsApi.md#v1_workflow_run_count_get) | **GET** /api/v1/stable/tenants/{tenant}/workflow-runs/count | Count workflow runs
 *HatchetSdkRest::WorkflowRunsApi* | [**v1_workflow_run_create**](docs/WorkflowRunsApi.md#v1_workflow_run_create) | **POST** /api/v1/stable/tenants/{tenant}/workflow-runs/trigger | Create workflow run
 *HatchetSdkRest::WorkflowRunsApi* | [**v1_workflow_run_display_names_list**](docs/WorkflowRunsApi.md#v1_workflow_run_display_names_list) | **GET** /api/v1/stable/tenants/{tenant}/workflow-runs/display-names | List workflow runs
 *HatchetSdkRest::WorkflowRunsApi* | [**v1_workflow_run_external_ids_list**](docs/WorkflowRunsApi.md#v1_workflow_run_external_ids_list) | **GET** /api/v1/stable/tenants/{tenant}/workflow-runs/external-ids | List workflow run external ids
@@ -414,6 +417,7 @@ Class | Method | HTTP request | Description
  - [HatchetSdkRest::V1RestoreTaskResponse](docs/V1RestoreTaskResponse.md)
  - [HatchetSdkRest::V1RunningDetailCount](docs/V1RunningDetailCount.md)
  - [HatchetSdkRest::V1RunningFilter](docs/V1RunningFilter.md)
+ - [HatchetSdkRest::V1StreamPayloadRef](docs/V1StreamPayloadRef.md)
  - [HatchetSdkRest::V1TaskEvent](docs/V1TaskEvent.md)
  - [HatchetSdkRest::V1TaskEventList](docs/V1TaskEventList.md)
  - [HatchetSdkRest::V1TaskEventType](docs/V1TaskEventType.md)
@@ -442,6 +446,7 @@ Class | Method | HTTP request | Description
  - [HatchetSdkRest::V1WebhookResponse](docs/V1WebhookResponse.md)
  - [HatchetSdkRest::V1WebhookSourceName](docs/V1WebhookSourceName.md)
  - [HatchetSdkRest::V1WorkflowRun](docs/V1WorkflowRun.md)
+ - [HatchetSdkRest::V1WorkflowRunCount](docs/V1WorkflowRunCount.md)
  - [HatchetSdkRest::V1WorkflowRunDetails](docs/V1WorkflowRunDetails.md)
  - [HatchetSdkRest::V1WorkflowRunDisplayName](docs/V1WorkflowRunDisplayName.md)
  - [HatchetSdkRest::V1WorkflowRunDisplayNameList](docs/V1WorkflowRunDisplayNameList.md)

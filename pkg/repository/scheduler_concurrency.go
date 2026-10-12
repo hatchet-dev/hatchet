@@ -328,6 +328,10 @@ func (c *ConcurrencyRepositoryImpl) runGroupRoundRobin(
 
 	defer rollback()
 
+	if err := sqlchelpers.DisableJITForTransaction(ctx, tx); err != nil {
+		return nil, fmt.Errorf("strategy ID: %d: %w", strategy.ID, err)
+	}
+
 	err = c.queries.AdvisoryLock(ctx, tx, strategy.ID)
 
 	if err != nil {
@@ -474,6 +478,10 @@ func (c *ConcurrencyRepositoryImpl) runCancelInProgress(
 	}
 
 	defer rollback()
+
+	if err := sqlchelpers.DisableJITForTransaction(ctx, tx); err != nil {
+		return nil, fmt.Errorf("strategy ID: %d: %w", strategy.ID, err)
+	}
 
 	acquired, err := c.queries.TryAdvisoryLock(ctx, tx, strategy.ID)
 
@@ -694,6 +702,10 @@ func (c *ConcurrencyRepositoryImpl) runCancelQueuedExceptNewest(
 	}
 
 	defer rollback()
+
+	if err := sqlchelpers.DisableJITForTransaction(ctx, tx); err != nil {
+		return nil, fmt.Errorf("strategy ID: %d: %w", strategy.ID, err)
+	}
 
 	// Use TryAdvisoryLock instead of blocking lock to reduce contention
 	acquired, err := c.queries.TryAdvisoryLock(ctx, tx, strategy.ID)
@@ -947,6 +959,10 @@ func (c *ConcurrencyRepositoryImpl) runCancelQueuedExceptOldest(
 	}
 
 	defer rollback()
+
+	if err := sqlchelpers.DisableJITForTransaction(ctx, tx); err != nil {
+		return nil, fmt.Errorf("strategy ID: %d: %w", strategy.ID, err)
+	}
 
 	// Use TryAdvisoryLock instead of blocking lock to reduce contention
 	acquired, err := c.queries.TryAdvisoryLock(ctx, tx, strategy.ID)
@@ -1202,6 +1218,10 @@ func (c *ConcurrencyRepositoryImpl) runCancelNewest(
 	}
 
 	defer rollback()
+
+	if err := sqlchelpers.DisableJITForTransaction(ctx, tx); err != nil {
+		return nil, fmt.Errorf("strategy ID: %d: %w", strategy.ID, err)
+	}
 
 	// Use TryAdvisoryLock instead of blocking lock to reduce contention
 	acquired, err := c.queries.TryAdvisoryLock(ctx, tx, strategy.ID)

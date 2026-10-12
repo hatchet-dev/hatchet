@@ -4,6 +4,7 @@ probe:
     description: Triggers a workflow to check the status of the instance
     summary: Detailed Health Probe For the Instance
     operationId: monitoring:post:runProbe
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path

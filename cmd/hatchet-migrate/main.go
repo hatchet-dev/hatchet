@@ -9,6 +9,8 @@ import (
 
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-migrate/migrate"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
+	"github.com/hatchet-dev/hatchet/pkg/config/shared"
+	"github.com/hatchet-dev/hatchet/pkg/logger"
 )
 
 var printVersion bool
@@ -30,15 +32,19 @@ var rootCmd = &cobra.Command{
 		ctx, cancel := cmdutils.NewInterruptContext()
 		defer cancel()
 
+		// the standalone command prints every migration diagnostic, so it runs
+		// at debug level with the human-readable console writer
+		l := logger.NewStdErr(&shared.LoggerConfigFile{Level: "debug", Format: "console"}, "migrate")
+
 		if migrateDown != "" {
-			migrate.RunDownMigration(ctx, migrateDown)
+			migrate.RunDownMigration(ctx, migrateDown, migrate.WithLogger(&l))
 		} else {
 			if upToPenultimate && upToVersion != "" {
 				fmt.Println("cannot use --up-to-penultimate and --up-to together")
 				os.Exit(1)
 			}
 
-			var opts []migrate.RunMigrationsOpt
+			opts := []migrate.RunMigrationsOpt{migrate.WithLogger(&l)}
 			if upToPenultimate {
 				opts = append(opts, migrate.WithUpToPenultimate())
 			}

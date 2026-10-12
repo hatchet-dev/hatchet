@@ -3,6 +3,7 @@ V1CELDebug:
     x-resources: ["tenant"]
     description: Evaluate a CEL expression against provided input data.
     operationId: v1-cel:debug
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path

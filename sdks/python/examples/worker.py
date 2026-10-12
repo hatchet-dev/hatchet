@@ -174,6 +174,11 @@ from examples.opentelemetry_instrumentation.worker import (
     otel_workflow,
 )
 from examples.pdf_pipeline.worker import pdf_pipeline
+from examples.retry_after.worker import (
+    retry_after_exponential_backoff,
+    retry_after_overrides_backoff,
+    retry_after_upstream_delay,
+)
 from examples.return_exceptions.worker import (
     exception_parsing_workflow,
     return_exceptions_task,
@@ -194,6 +199,10 @@ from examples.webhook_with_scope.worker import (
 )
 from examples.webhooks.worker import webhook
 from examples.welcome_email.worker import welcome_email
+from examples.bug_tests.durable_dag_idempotency_hang.worker import (
+    durable_dag_idempotency_hang_bug_repro_wf,
+    durable_dag_status_based_idempotency_wf,
+)
 from examples.workflow_pause.worker import pausable_workflow
 from hatchet_sdk import Hatchet
 
@@ -248,6 +257,9 @@ def main() -> None:
             sync_fanout_parent,
             sync_fanout_child,
             non_retryable_workflow,
+            retry_after_upstream_delay,
+            retry_after_exponential_backoff,
+            retry_after_overrides_backoff,
             concurrency_workflow_level_workflow,
             concurrency_cancel_newest_workflow,
             concurrency_cancel_in_progress_workflow,
@@ -347,6 +359,8 @@ def main() -> None:
             callback_ordering_mid,
             callback_ordering_root,
             workflow_pause_concurrency_bug_task,
+            durable_dag_idempotency_hang_bug_repro_wf,
+            durable_dag_status_based_idempotency_wf,
         ],
         lifespan=lifespan,
     )

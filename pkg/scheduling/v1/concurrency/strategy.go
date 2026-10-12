@@ -193,7 +193,8 @@ func (c *ConcurrencyStrategy) buildIndexLoop(ctx context.Context) {
 
 // Run drains the strategy's outbox topic, replaying every WAL message into the in-memory
 // index and flushing the resulting slot decisions to the database. It returns the merged
-// *repository.RunConcurrencyResult across all batches processed this tick.
+// *repository.RunConcurrencyResult across all batches processed this tick. If a batch fails, the
+// results of the batches that committed before it are returned alongside the error.
 func (c *ConcurrencyStrategy) Run(ctx context.Context) (*repository.RunConcurrencyResult, error) {
 	ctx, span := telemetry.NewSpan(ctx, "concurrency-strategy-run")
 	defer span.End()
@@ -226,21 +227,26 @@ func (c *ConcurrencyStrategy) Run(ctx context.Context) (*repository.RunConcurren
 		return nil, err
 	}
 
+	committed := []*repository.RunConcurrencyResult{initialResult}
+
 	for {
 		msgs, err := c.outbox.ProcessMessages(ctx, c.topic)
 
 		if err != nil {
-			// the outbox transaction rolled back (flush, message-delete, or commit failure), so undo
-			// this batch's in-memory mutations to keep the index consistent with the database. the
-			// messages are not deleted and will be redelivered on a later Run.
+			// the outbox transaction rolled back (flush, message-delete, or commit failure), so drop
+			// this batch's result and undo its in-memory mutations to keep the index consistent with
+			// the database. the messages are not deleted and will be redelivered on a later Run.
+			// Earlier batches did commit, so their results are still returned.
+			c.takePending()
 			c.rollbackScopes()
-			return nil, fmt.Errorf("failed to process outbox messages for topic %s: %w", c.topic, err)
+			return mergeResults(committed), fmt.Errorf("failed to process outbox messages for topic %s: %w", c.topic, err)
 		}
 
 		// ProcessMessages only returns without error once the transaction has committed, so the
-		// in-memory mutations are now durable - discard the undo log and prune any sub-queue this
-		// batch emptied (its slots were all deleted/cancelled), keeping the index from accumulating
-		// idle keys.
+		// batch's result and in-memory mutations are now durable - discard the undo log and prune
+		// any sub-queue this batch emptied (its slots were all deleted/cancelled), keeping the index
+		// from accumulating idle keys.
+		committed = append(committed, c.takePending()...)
 		c.pruneEmpty(c.commitScopes())
 
 		// no more messages queued for this topic; we've drained it
@@ -249,7 +255,7 @@ func (c *ConcurrencyStrategy) Run(ctx context.Context) (*repository.RunConcurren
 		}
 	}
 
-	return mergeResults(append(c.takePending(), initialResult)), nil
+	return mergeResults(committed), nil
 }
 
 // runInitialQueueing runs the post-build queueing pass exactly once. It is idempotent across Runs:

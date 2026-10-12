@@ -37,7 +37,14 @@ WITH filled_parent_slots AS (
         tenant_id = $1::uuid AND
         strategy_id = $3::bigint AND
         schedule_timeout_at < NOW() AND
-        is_filled = FALSE
+        NOT EXISTS (
+            SELECT 1
+            FROM v1_task_runtime tr
+            WHERE
+                tr.task_id = v1_concurrency_slot.task_id AND
+                tr.task_inserted_at = v1_concurrency_slot.task_inserted_at AND
+                tr.retry_count = v1_concurrency_slot.task_retry_count
+        )
     ORDER BY
         task_id, task_inserted_at
     FOR UPDATE
@@ -264,7 +271,9 @@ WITH slots AS (
     FROM
         v1_concurrency_slot
     WHERE
-        (task_inserted_at, task_id, task_retry_count, tenant_id, strategy_id) IN (
+        tenant_id = $1::uuid AND
+        strategy_id = $2::bigint AND
+        ((task_inserted_at, task_id, task_retry_count, tenant_id, strategy_id) IN (
             SELECT
                 ers.task_inserted_at,
                 ers.task_id,
@@ -276,8 +285,6 @@ WITH slots AS (
             ORDER BY
                 rn, seqnum
         ) OR (
-            tenant_id = $1::uuid AND
-            strategy_id = $2::bigint AND
             (task_inserted_at, task_id, task_retry_count) NOT IN (
                 SELECT
                     ers.task_inserted_at,
@@ -290,7 +297,7 @@ WITH slots AS (
                 SELECT wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id
                 FROM tmp_workflow_concurrency_slot wcs
             )
-        )
+        ))
     ORDER BY task_id ASC, task_inserted_at ASC, task_retry_count ASC
     FOR UPDATE
 ), updated_slots AS (
@@ -518,7 +525,9 @@ WITH slots AS (
     FROM
         v1_concurrency_slot cs
     WHERE
-        (cs.task_inserted_at, cs.task_id, cs.task_retry_count, cs.tenant_id, cs.strategy_id) IN (
+        cs.tenant_id = $1::uuid AND
+        cs.strategy_id = $2::bigint AND
+        ((cs.task_inserted_at, cs.task_id, cs.task_retry_count, cs.tenant_id, cs.strategy_id) IN (
             SELECT
                 ers.task_inserted_at,
                 ers.task_id,
@@ -530,8 +539,6 @@ WITH slots AS (
             ORDER BY
                 rn, seqnum
         ) OR (
-            cs.tenant_id = $1::uuid AND
-            cs.strategy_id = $2::bigint AND
             (cs.task_inserted_at, cs.task_id, cs.task_retry_count) NOT IN (
                 SELECT
                     ers.task_inserted_at,
@@ -544,7 +551,7 @@ WITH slots AS (
                 SELECT wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id
                 FROM tmp_workflow_concurrency_slot wcs
             )
-        )
+        ))
     ORDER BY
         cs.task_id ASC, cs.task_inserted_at ASC, cs.task_retry_count ASC
     FOR UPDATE
@@ -817,7 +824,9 @@ WITH slots AS (
     FROM
         v1_concurrency_slot cs
     WHERE
-        (cs.task_inserted_at, cs.task_id, cs.task_retry_count, cs.tenant_id, cs.strategy_id) IN (
+        cs.tenant_id = $1::uuid AND
+        cs.strategy_id = $2::bigint AND
+        ((cs.task_inserted_at, cs.task_id, cs.task_retry_count, cs.tenant_id, cs.strategy_id) IN (
             SELECT
                 ers.task_inserted_at,
                 ers.task_id,
@@ -829,8 +838,6 @@ WITH slots AS (
             ORDER BY
                 rn, seqnum
         ) OR (
-            cs.tenant_id = $1::uuid AND
-            cs.strategy_id = $2::bigint AND
             (cs.task_inserted_at, cs.task_id, cs.task_retry_count) NOT IN (
                 SELECT
                     ers.task_inserted_at,
@@ -851,7 +858,7 @@ WITH slots AS (
                 SELECT wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id
                 FROM tmp_workflow_concurrency_slot wcs
             )
-        )
+        ))
     ORDER BY
         cs.task_id ASC, cs.task_inserted_at ASC, cs.task_retry_count ASC
     FOR UPDATE
@@ -1131,7 +1138,9 @@ WITH slots AS (
     FROM
         v1_concurrency_slot cs
     WHERE
-        (cs.task_inserted_at, cs.task_id, cs.task_retry_count, cs.tenant_id, cs.strategy_id) IN (
+        cs.tenant_id = $1::uuid AND
+        cs.strategy_id = $2::bigint AND
+        ((cs.task_inserted_at, cs.task_id, cs.task_retry_count, cs.tenant_id, cs.strategy_id) IN (
             SELECT
                 ers.task_inserted_at,
                 ers.task_id,
@@ -1143,8 +1152,6 @@ WITH slots AS (
             ORDER BY
                 rn, seqnum
         ) OR (
-            cs.tenant_id = $1::uuid AND
-            cs.strategy_id = $2::bigint AND
             (cs.task_inserted_at, cs.task_id, cs.task_retry_count) NOT IN (
                 SELECT
                     ers.task_inserted_at,
@@ -1165,7 +1172,7 @@ WITH slots AS (
                 SELECT wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id
                 FROM tmp_workflow_concurrency_slot wcs
             )
-        )
+        ))
     ORDER BY
         cs.task_id ASC, cs.task_inserted_at ASC, cs.task_retry_count ASC
     FOR UPDATE

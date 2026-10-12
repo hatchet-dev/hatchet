@@ -24,6 +24,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
+	"github.com/hatchet-dev/hatchet/internal/syncx"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
@@ -64,8 +65,10 @@ type TasksControllerImpl struct {
 	deactivateStaleStepConcurrencyOperations *operation.TenantOperationPool
 	expirePausedWorkflowQueueItemsOperations *operation.TenantOperationPool
 	restoreEvictedOrchestratorsOperations    *operation.TenantOperationPool
+	evictedTaskRuntimeCursors                syncx.Map[uuid.UUID, v1.EvictedTaskRuntimeCursor]
 
 	replayEnabled       bool
+	maxRetryAfter       time.Duration
 	analyzeCronInterval time.Duration
 	signaler            *signal.OLAPSignaler
 	tw                  *trigger.TriggerWriter
@@ -87,6 +90,7 @@ type TasksControllerOpts struct {
 	opsPoolJitter       time.Duration
 	opsPoolPollInterval time.Duration
 	replayEnabled       bool
+	maxRetryAfter       time.Duration
 	analyzeCronInterval time.Duration
 	promGate            *prometheus.Gate
 }
@@ -107,6 +111,7 @@ func defaultTasksControllerOpts() *TasksControllerOpts {
 		opsPoolJitter:       1500 * time.Millisecond,
 		opsPoolPollInterval: 2 * time.Second,
 		replayEnabled:       true, // default to enabled for backward compatibility
+		maxRetryAfter:       30 * 24 * time.Hour,
 		analyzeCronInterval: 3 * time.Hour,
 	}
 }
@@ -180,6 +185,12 @@ func WithReplayEnabled(enabled bool) TasksControllerOpt {
 	}
 }
 
+func WithMaxRetryAfter(d time.Duration) TasksControllerOpt {
+	return func(opts *TasksControllerOpts) {
+		opts.maxRetryAfter = d
+	}
+}
+
 func WithAnalyzeCronInterval(interval time.Duration) TasksControllerOpt {
 	return func(opts *TasksControllerOpts) {
 		opts.analyzeCronInterval = interval
@@ -248,6 +259,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		opsPoolJitter:       opts.opsPoolJitter,
 		opsPoolPollInterval: opts.opsPoolPollInterval,
 		replayEnabled:       opts.replayEnabled,
+		maxRetryAfter:       opts.maxRetryAfter,
 		analyzeCronInterval: opts.analyzeCronInterval,
 		signaler:            signaler,
 		tw:                  tw,
@@ -521,6 +533,7 @@ func (tc *TasksControllerImpl) emitOrchestratorTerminalEvent(
 		RetryCount:     retryCount,
 		EventType:      eventType,
 		EventTimestamp: time.Now().UTC(),
+		StatusOnly:     true,
 	}
 
 	// CANCELLED carries its human-readable reason in EventMessage; FINISHED/FAILED carry the
@@ -568,10 +581,10 @@ func (tc *TasksControllerImpl) emitOrchestratorTerminalEvent(
 
 // emitOrchestratorTerminalEvents fans emitOrchestratorTerminalEvent over the DAG-orchestrator
 // tasks among released. skipRetried is nil for COMPLETED/CANCELLED; for FAILED it holds task ids
-// that were retried (still running) and so must not be marked terminal. Re-running this on a
-// source-message redelivery is safe: releaseTasks is row-count-stable, CreateTaskEvents dedupes
-// terminal events on ON CONFLICT DO NOTHING, and UpdateDAGStatusesFromOrchestratorEvents is a
-// monotonic upsert.
+// that were retried (still running) and so must not be marked terminal. The events are status-only:
+// the regular reporting path already writes the orchestrator's OLAP task event, and a second one
+// would double-count it. Re-running this on a source-message redelivery is safe: releaseTasks is
+// row-count-stable and UpdateDAGStatusesFromOrchestratorEvents is a monotonic upsert.
 func (tc *TasksControllerImpl) emitOrchestratorTerminalEvents(
 	ctx context.Context,
 	tenantId uuid.UUID,
@@ -600,6 +613,72 @@ func (tc *TasksControllerImpl) emitOrchestratorTerminalEvents(
 
 	// errs is nil unless a publish failed above
 	return errs
+}
+
+// orchestratorIdsWithoutWorker returns the orchestrators released with no worker (evicted), whose
+// children nothing else cancels. With a worker the operator does, and a second cancel duplicates
+// the children's CANCELLED events.
+func orchestratorIdsWithoutWorker(released []*sqlcv1.ReleaseTasksRow) []uuid.UUID {
+	var ids []uuid.UUID
+
+	for _, rt := range released {
+		if rt == nil || !rt.IsDagOrchestrator || !rt.IsCurrentRetry || rt.WorkerID != uuid.Nil {
+			continue
+		}
+
+		ids = append(ids, rt.ExternalID)
+	}
+
+	return ids
+}
+
+// cancelChildrenOfOrchestratorsWithoutWorker cancels those orchestrators' unfinished children.
+func (tc *TasksControllerImpl) cancelChildrenOfOrchestratorsWithoutWorker(
+	ctx context.Context,
+	tenantId uuid.UUID,
+	released []*sqlcv1.ReleaseTasksRow,
+) error {
+	orchestratorExternalIds := orchestratorIdsWithoutWorker(released)
+
+	if len(orchestratorExternalIds) == 0 {
+		return nil
+	}
+
+	children, err := tc.repov1.Tasks().ListUnfinishedDurableOrchestratorChildren(ctx, tenantId, orchestratorExternalIds)
+
+	if err != nil {
+		return fmt.Errorf("could not list unfinished orchestrator children: %w", err)
+	}
+
+	return tc.publishChildCancellations(ctx, tenantId, children)
+}
+
+// publishChildCancellations batches the children: a payload is published whole, so one holding them
+// all could exceed msgqueue.MaxMessageSize.
+func (tc *TasksControllerImpl) publishChildCancellations(
+	ctx context.Context,
+	tenantId uuid.UUID,
+	children []v1.TaskIdInsertedAtRetryCount,
+) error {
+	return queueutils.BatchLinear(BULK_MSG_BATCH_SIZE, children, func(batch []v1.TaskIdInsertedAtRetryCount) error {
+		msg, err := msgqueue.NewTenantMessage(
+			tenantId,
+			msgqueue.MsgIDCancelTasks,
+			false,
+			true,
+			tasktypes.CancelTasksPayload{Tasks: batch},
+		)
+
+		if err != nil {
+			return fmt.Errorf("could not create cancel message for orchestrator children: %w", err)
+		}
+
+		if err := tc.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
+			return fmt.Errorf("could not publish cancel message for orchestrator children: %w", err)
+		}
+
+		return nil
+	})
 }
 
 func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
@@ -679,6 +758,7 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId uu
 			IsAppError:     msg.IsAppError,
 			ErrorMessage:   msg.ErrorMsg,
 			IsNonRetryable: msg.IsNonRetryable,
+			RetryAfter:     tc.clampRetryAfter(msg.RetryAfterMs),
 		})
 
 		if msg.ErrorMsg != "" {
@@ -931,6 +1011,12 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 		outerErr = multierror.Append(outerErr, emitErr)
 	}
 
+	if cancelErr := tc.cancelChildrenOfOrchestratorsWithoutWorker(ctx, tenantId, res.ReleasedTasks); cancelErr != nil {
+		span.RecordError(cancelErr)
+		span.SetStatus(codes.Error, "could not cancel orchestrator children")
+		outerErr = multierror.Append(outerErr, cancelErr)
+	}
+
 	// instrumentation
 	tenantMetricsEnabled := tc.promGate.Enabled(ctx, tenantId)
 
@@ -942,7 +1028,8 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 	}
 
 	// outerErr accumulates every per-task publish failure above (including the orchestrator
-	// terminal events); returning it lets the source message redeliver on any failure
+	// terminal events and the child cancellations); returning it lets the source message
+	// redeliver on any failure
 	return outerErr
 }
 
@@ -1245,6 +1332,12 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 		eventIdToOpts[msg.EventExternalId] = opt
 	}
 
+	// every event in the batch was already triggered by the ingestor: TriggerFromEvents
+	// would open a transaction and run the whole trigger lookup for zero events
+	if len(eventIdToOpts) == 0 {
+		return nil
+	}
+
 	return tc.tw.TriggerFromEvents(ctx, tenantId, eventIdToOpts)
 }
 
@@ -1471,12 +1564,32 @@ func (tc *TasksControllerImpl) processInternalEvents(ctx context.Context, tenant
 	return nil
 }
 
+func (tc *TasksControllerImpl) clampRetryAfter(retryAfterMs *int64) *time.Duration {
+	if retryAfterMs == nil {
+		return nil
+	}
+
+	// cap in milliseconds first, since large values overflow time.Duration
+	limitMs := math.MaxInt64 / int64(time.Millisecond)
+
+	if tc.maxRetryAfter > 0 {
+		limitMs = tc.maxRetryAfter.Milliseconds()
+	}
+
+	d := time.Duration(min(max(*retryAfterMs, 0), limitMs)) * time.Millisecond
+
+	return &d
+}
+
 func (tc *TasksControllerImpl) pubRetryEvent(ctx context.Context, tenantId uuid.UUID, task v1.RetriedTask) error {
 	taskId := task.Id
 
 	retryMsg := fmt.Sprintf("This is retry number %d.", task.AppRetryCount)
 
-	if task.RetryBackoffFactor.Valid && task.RetryMaxBackoff.Valid {
+	if task.RetryAfter != nil {
+		retryDur := time.Until(*task.RetryAfter).Round(time.Millisecond)
+		retryMsg = fmt.Sprintf("%s The task requested a retry in %s (%s).", retryMsg, retryDur.String(), task.RetryAfter.Format(time.RFC3339))
+	} else if task.RetryBackoffFactor.Valid && task.RetryMaxBackoff.Valid {
 		maxBackoffSeconds := int(task.RetryMaxBackoff.Int32)
 		backoffFactor := task.RetryBackoffFactor.Float64
 
@@ -1514,7 +1627,8 @@ func (tc *TasksControllerImpl) pubRetryEvent(ctx context.Context, tenantId uuid.
 		return fmt.Errorf("could not publish monitoring event message: %w", err)
 	}
 
-	if !task.RetryBackoffFactor.Valid {
+	// delayed retries are marked QUEUED when their retry queue item is processed
+	if !task.RetryBackoffFactor.Valid && task.RetryAfter == nil {
 		olapMsg, err = tasktypes.MonitoringEventMessageFromInternal(
 			tenantId,
 			tasktypes.CreateMonitoringEventPayload{

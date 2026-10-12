@@ -6,9 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	"connectrpc.com/connect"
 	"github.com/jackc/pgx/v5"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
@@ -61,10 +60,7 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 	if apiErrors, err := a.v.ValidateAPI(createOpts); err != nil {
 		return nil, err
 	} else if apiErrors != nil {
-		return nil, status.Error(
-			codes.InvalidArgument,
-			apiErrors.String(),
-		)
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New(apiErrors.String()))
 	}
 
 	currWorkflow, err := a.repov1.Workflows().PutWorkflowVersion(
@@ -138,10 +134,7 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, status.Error(
-				codes.NotFound,
-				"workflow not found",
-			)
+			return nil, connect.NewError(connect.CodeNotFound, errors.New("workflow not found"))
 		}
 
 		return nil, fmt.Errorf("could not get workflow by name: %w", err)
@@ -167,17 +160,11 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 
 	if isParentTriggered {
 		if req.ParentTaskRunExternalId == nil {
-			return nil, status.Error(
-				codes.InvalidArgument,
-				"parent task run id is required when parent id is provided",
-			)
+			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("parent task run id is required when parent id is provided"))
 		}
 
 		if req.ChildIndex == nil {
-			return nil, status.Error(
-				codes.InvalidArgument,
-				"child index is required when parent id is provided",
-			)
+			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("child index is required when parent id is provided"))
 		}
 
 		// FIXME: should check whether the scheduled workflow already exists for this parent/child index combo
@@ -196,17 +183,17 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 	}
 
 	if err := v1.ValidateJSONB(additionalMetadata, "additionalMetadata"); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("Invalid request: %s", err))
 	}
 
 	payloadBytes := []byte(req.Input)
 
 	if err := v1.ValidateJSONB(payloadBytes, "payload"); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("Invalid request: %s", err))
 	}
 
 	if req.Priority != nil && (*req.Priority < 1 || *req.Priority > 3) {
-		return nil, status.Errorf(codes.InvalidArgument, "priority must be between 1 and 3, got %d", *req.Priority)
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("priority must be between 1 and 3, got %d", *req.Priority))
 	}
 
 	dbSchedules := make([]*sqlcv1.ListScheduledWorkflowsRow, 0)
@@ -242,10 +229,7 @@ func (a *AdminServiceImpl) PutRateLimit(ctx context.Context, req *contracts.PutR
 	a.analytics.Count(ctx, analytics.RateLimit, analytics.Create)
 
 	if req.Key == "" {
-		return nil, status.Error(
-			codes.InvalidArgument,
-			"key is required",
-		)
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("key is required"))
 	}
 
 	limit := int(req.Limit)
@@ -279,10 +263,7 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*v1.CreateWorkflo
 	tasks, err := getCreateTaskOpts(allSteps, req.Opts.ScheduleTimeout)
 	if err != nil {
 		if errors.Is(err, v1.ErrDagParentNotFound) {
-			return nil, status.Error(
-				codes.InvalidArgument,
-				err.Error(),
-			)
+			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New(err.Error()))
 		}
 		return nil, err
 	}
@@ -312,10 +293,7 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*v1.CreateWorkflo
 	// behavior of the v1 PutWorkflow endpoint
 	if req.Opts.Concurrency != nil && req.Opts.Concurrency.Action == nil {
 		if req.Opts.Concurrency.Expression == nil {
-			return nil, status.Error(
-				codes.InvalidArgument,
-				"CEL expression is required for concurrency",
-			)
+			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("CEL expression is required for concurrency"))
 		}
 
 		var limitStrategy *string

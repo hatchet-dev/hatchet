@@ -40,6 +40,11 @@ type UserSessionRepository interface {
 	Delete(ctx context.Context, sessionId uuid.UUID) (*sqlcv1.UserSession, error)
 	GetById(ctx context.Context, sessionId uuid.UUID) (*sqlcv1.UserSession, error)
 
+	// DeleteByUserId revokes every session belonging to the user. When exceptSessionId is
+	// set, that session is left intact so the caller (for example a password change) stays
+	// signed in while all other sessions are invalidated.
+	DeleteByUserId(ctx context.Context, userId uuid.UUID, exceptSessionId *uuid.UUID) ([]*sqlcv1.UserSession, error)
+
 	CleanupUserSessions(ctx context.Context) error
 }
 
@@ -160,6 +165,29 @@ func (r *userSessionRepository) Delete(ctx context.Context, sessionId uuid.UUID)
 	}
 
 	return session, nil
+}
+
+func (r *userSessionRepository) DeleteByUserId(ctx context.Context, userId uuid.UUID, exceptSessionId *uuid.UUID) ([]*sqlcv1.UserSession, error) {
+	sessions, err := r.queries.DeleteUserSessionsByUserId(
+		ctx,
+		r.pool,
+		sqlcv1.DeleteUserSessionsByUserIdParams{
+			Userid:   userId,
+			ExceptId: exceptSessionId,
+		},
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	for _, session := range sessions {
+		for _, cb := range r.deleteCallbacks {
+			cb.Do(r.l, session)
+		}
+	}
+
+	return sessions, nil
 }
 
 func (r *userSessionRepository) GetById(ctx context.Context, sessionId uuid.UUID) (*sqlcv1.UserSession, error) {

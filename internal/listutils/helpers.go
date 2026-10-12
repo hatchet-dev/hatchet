@@ -21,7 +21,7 @@ func Uniq[T comparable](xs []T) []T {
 }
 
 // inspiration: uniq_by/2 https://elixir.hexdocs.pm/Enum.html#uniq_by/2
-func UniqBy[T comparable, K comparable](xs []T, fn func(x T) K) []T {
+func UniqBy[T any, K comparable](xs []T, fn func(x T) K) []T {
 	seen := make(map[K]struct{})
 	result := make([]T, 0)
 
@@ -115,4 +115,15 @@ func AreSetEqual[T comparable](a, b []T) bool {
 	}
 
 	return true
+}
+
+// inspiration: map/2 https://elixir.hexdocs.pm/Enum.html#map/2
+func Map[T any, R any](xs []T, fn func(x T) R) []R {
+	result := make([]R, 0, len(xs))
+
+	for _, x := range xs {
+		result = append(result, fn(x))
+	}
+
+	return result
 }

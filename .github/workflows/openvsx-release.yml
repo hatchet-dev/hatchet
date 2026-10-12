@@ -44,7 +44,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: frontend/vscode-extension
-        run: pnpm install --frozen-lockfile
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" pnpm install --frozen-lockfile
 
       - name: Build VS Code extension
         working-directory: frontend/vscode-extension
@@ -64,7 +64,7 @@ jobs:
         run: pnpm package --out hatchet-${{ steps.version.outputs.VERSION }}.vsix
 
       - name: Install ovsx
-        run: npm install -g ovsx
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" npm install -g ovsx
 
       - name: Publish to Open VSX Registry
         working-directory: frontend/vscode-extension

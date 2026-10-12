@@ -15,8 +15,8 @@ import {
   BaseWorkflowDeclaration as WorkflowV1,
 } from '@hatchet/v1/declaration';
 import HatchetError from '@util/errors/hatchet-error';
-import type { Action } from '@hatchet/clients/dispatcher/action-listener';
-import { workflowNameFromAction } from '@hatchet/clients/dispatcher/action-listener';
+import type { Action } from '@hatchet/clients/dispatcher/action';
+import { workflowNameFromAction } from '@hatchet/clients/dispatcher/action';
 import { Logger, LogLevel } from '@hatchet/util/logger';
 import { parseJSON } from '@hatchet/util/parse';
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
@@ -25,22 +25,27 @@ import { conditionsToPb } from '@hatchet/v1/conditions/transformer';
 import { CreateWorkflowDurableTaskOpts, CreateWorkflowTaskOpts } from '@hatchet/v1/task';
 import { JsonObject, OutputType } from '@hatchet/v1/types';
 import { Action as ConditionAction } from '@hatchet/protoc/v1/shared/condition';
-import { HatchetClient } from '@hatchet/v1';
-import { StepActionEventType } from '@hatchet/protoc/dispatcher';
+import type { HatchetClient } from '@hatchet/v1/client/client';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { createAbortError, rethrowIfAborted } from '@hatchet/util/abort-error';
-import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
 import { parentRunContextManager } from '@hatchet/v1/parent-run-context-vars';
-import { NextStep } from '@hatchet-dev/typescript-sdk/legacy/step';
-import { DurableListenerClient } from '@hatchet/clients/listeners/durable-listener/durable-listener-client';
-import { createHash } from 'crypto';
+import type { NextStep } from '@hatchet-dev/typescript-sdk/legacy/step';
+import type { DurableListenerClient } from '@hatchet/clients/listeners/durable-listener/durable-listener-client';
 import { z } from 'zod/v4';
-import { InternalWorker } from './worker-internal';
+import type { InternalWorker } from './worker-internal';
 import { Duration, durationToMs, durationToString } from '../duration';
-import { DurableEvictionManager } from './eviction/eviction-manager';
-import { ActionKey } from './eviction/eviction-cache';
+import type { DurableEvictionManager } from './eviction/eviction-manager';
+import type { ActionKey } from './eviction/eviction-cache';
 import { supportsEviction } from './engine-version';
-import { waitForPreEviction } from './deprecated/pre-eviction';
+import { isLegacyDurableTransport, waitForPreEviction } from './deprecated/pre-eviction';
+import {
+  ContextRuntime,
+  DurableContextOptions,
+  DurableTransport,
+  WorkerLabels,
+  isContextRuntime,
+} from './runtime';
+import { createWorkerContextRuntime, WorkerContextRuntime } from './worker-runtime';
 // TODO remove this once we have a proper next step type
 
 type TriggerData = Record<string, Record<string, any>>;
@@ -74,12 +79,12 @@ interface ContextData<T, K> {
 }
 
 /**
- * ContextWorker is a wrapper around the V1Worker class that provides a more user-friendly interface for the worker from the context of a run.
+ * ContextWorker is a user-friendly view of the worker running the task, from the context of a run.
  */
 export class ContextWorker {
-  private worker: InternalWorker;
-  constructor(worker: InternalWorker) {
-    this.worker = worker;
+  private runtime: ContextRuntime;
+  constructor(runtime: ContextRuntime) {
+    this.runtime = runtime;
   }
 
   /**
@@ -87,7 +92,7 @@ export class ContextWorker {
    * @returns The ID of the worker.
    */
   id() {
-    return this.worker.workerId;
+    return this.runtime.workerId();
   }
 
   /**
@@ -96,9 +101,7 @@ export class ContextWorker {
    * @returns True if the workflow is registered, otherwise false.
    */
   hasWorkflow(workflowName: string) {
-    return !!this.worker.workflow_registry.find((workflow) =>
-      'id' in workflow ? workflow.id === workflowName : workflow.name === workflowName
-    );
+    return this.runtime.hasWorkflow(workflowName);
   }
 
   /**
@@ -106,7 +109,7 @@ export class ContextWorker {
    * @returns The labels of the worker.
    */
   labels() {
-    return this.worker.labels;
+    return this.runtime.workerLabels();
   }
 
   /**
@@ -115,8 +118,18 @@ export class ContextWorker {
    * @returns A promise that resolves when the labels have been upserted.
    */
   upsertLabels(labels: WorkerLabels) {
-    return this.worker.upsertLabels(labels);
+    return this.runtime.upsertWorkerLabels(labels);
   }
+}
+
+function resolveRuntime(
+  runtimeOrClient: ContextRuntime | HatchetClient,
+  worker?: InternalWorker
+): ContextRuntime {
+  if (isContextRuntime(runtimeOrClient)) {
+    return runtimeOrClient;
+  }
+  return createWorkerContextRuntime(runtimeOrClient, worker as InternalWorker);
 }
 
 export class Context<T, K = {}> {
@@ -127,7 +140,14 @@ export class Context<T, K = {}> {
   // @deprecated use ctx.abortController instead
   controller = new AbortController();
   action: Action;
+  /**
+   * The Hatchet client of the worker running the task. Only set when the context was
+   * created by a worker; a runtime without a client (see {@link ContextRuntime}) leaves
+   * it undefined.
+   */
   v1: HatchetClient;
+  /** The runtime the context performs engine-facing operations through. */
+  runtime: ContextRuntime;
 
   worker: ContextWorker;
 
@@ -146,14 +166,33 @@ export class Context<T, K = {}> {
     return idx;
   }
 
-  constructor(action: Action, v1: HatchetClient, worker: InternalWorker) {
+  /**
+   * Creates a context on top of a runtime.
+   * @param action - The action assigned to the task.
+   * @param runtime - The runtime the context performs engine-facing operations through.
+   */
+  constructor(action: Action, runtime: ContextRuntime);
+  /**
+   * Creates a context for a task running on a worker.
+   * @param action - The action assigned to the task.
+   * @param v1 - The worker's Hatchet client.
+   * @param worker - The worker running the task.
+   */
+  constructor(action: Action, v1: HatchetClient, worker: InternalWorker);
+  constructor(
+    action: Action,
+    runtimeOrClient: ContextRuntime | HatchetClient,
+    worker?: InternalWorker
+  ) {
     try {
+      const runtime = resolveRuntime(runtimeOrClient, worker);
       const data = parseJSON(action.actionPayload);
       this.data = data;
       this.action = action;
-      this.v1 = v1;
-      this.worker = new ContextWorker(worker);
-      this._logger = v1.config.logger(`Context Logger`, v1.config.log_level);
+      this.runtime = runtime;
+      this.v1 = (runtime as Partial<WorkerContextRuntime>).client as HatchetClient;
+      this.worker = new ContextWorker(runtime);
+      this._logger = runtime.logger(`Context Logger`);
 
       // if this is a getGroupKeyRunId, the data is the workflow input
       if (action.getGroupKeyRunId !== '') {
@@ -201,19 +240,15 @@ export class Context<T, K = {}> {
       // the raw batch-items map for a START_BATCH action, keyed by each member's
       // task-run external id.
       const memberIds = Object.keys(this.data ?? {});
-      await this.v1.dispatcher.sendBatchActionEvent({
+      await this.runtime.cancelBatch({
         workerId: this.worker.id() ?? '',
         jobId: this.action.jobId,
         actionId: this.action.actionId,
         batchId: this.action.batchId,
-        eventTimestamp: new Date(),
-        eventType: StepActionEventType.STEP_EVENT_TYPE_CANCELLED,
-        items: memberIds.map((id) => ({ taskRunExternalId: id, eventPayload: '' })),
+        memberIds,
       });
     } else {
-      await this.v1.runs.cancel({
-        ids: [this.action.taskRunExternalId],
-      });
+      await this.runtime.cancelRun(this.action.taskRunExternalId);
     }
 
     // optimistically abort the run
@@ -395,7 +430,7 @@ export class Context<T, K = {}> {
       return Promise.resolve();
     }
 
-    const logger = this.v1.config.logger('ctx', this.v1.config.log_level);
+    const logger = this.runtime.logger('ctx');
     const contextExtra = {
       workflowRunId: this.action.workflowRunId,
       taskRunExternalId: this.action.taskRunExternalId,
@@ -418,13 +453,7 @@ export class Context<T, K = {}> {
 
     // FIXME: this is a hack to get around the fact that the log level is not typed
     promises.push(
-      this.v1.event.putLog(
-        taskRunExternalId,
-        message,
-        level as any,
-        this.retryCount(),
-        extra?.extra
-      )
+      this.runtime.putLog(taskRunExternalId, message, level, this.retryCount(), extra?.extra)
     );
 
     return Promise.all(promises);
@@ -445,7 +474,7 @@ export class Context<T, K = {}> {
         return this.log(message, 'ERROR', extra);
       },
       util: (key: string, message: string, extra?: LogExtra) => {
-        const logger = this.v1.config.logger('ctx', this.v1.config.log_level);
+        const logger = this.runtime.logger('ctx');
         if (!logger.util) {
           return Promise.resolve();
         }
@@ -468,7 +497,7 @@ export class Context<T, K = {}> {
       return;
     }
 
-    await this.v1.dispatcher.refreshTimeout(durationToString(incrementBy), taskRunExternalId);
+    await this.runtime.refreshTimeout(taskRunExternalId, durationToString(incrementBy));
   }
 
   /**
@@ -477,9 +506,7 @@ export class Context<T, K = {}> {
    * @returns A promise that resolves when the slot has been released.
    */
   async releaseSlot(): Promise<void> {
-    await this.v1.dispatcher.client.releaseSlot({
-      taskRunExternalId: this.action.taskRunExternalId,
-    });
+    await this.runtime.releaseSlot(this.action.taskRunExternalId);
   }
 
   /**
@@ -498,7 +525,7 @@ export class Context<T, K = {}> {
 
     const index = this._incrementStreamIndex();
 
-    await this.v1.events.putStream(taskRunExternalId, data, index);
+    await this.runtime.putStream(taskRunExternalId, data, index);
   }
 
   protected spawnOptions(workflow: string | WorkflowV1<any, any>, options?: ChildRunOpts) {
@@ -545,7 +572,7 @@ export class Context<T, K = {}> {
     options?: ChildRunOpts
   ) {
     const { workflowName, opts } = this.spawnOptions(workflow, options);
-    return this.v1.admin.runWorkflow<Q, P>(workflowName, input, opts);
+    return this.runtime.runWorkflow<Q, P>(workflowName, input, opts);
   }
 
   private spawnBulk<Q extends JsonObject, P extends JsonObject>(
@@ -556,14 +583,12 @@ export class Context<T, K = {}> {
     }>
   ) {
     this.throwIfCancelled();
-    const workflows: Parameters<typeof this.v1.admin.runWorkflows<Q, P>>[0] = children.map(
-      (child) => {
-        const { workflowName, opts } = this.spawnOptions(child.workflow, child.options);
-        return { workflowName, input: child.input, options: opts };
-      }
-    );
+    const workflows = children.map((child) => {
+      const { workflowName, opts } = this.spawnOptions(child.workflow, child.options);
+      return { workflowName, input: child.input, options: opts };
+    });
 
-    return this.v1.admin.runWorkflows<Q, P>(workflows);
+    return this.runtime.runWorkflows<Q, P>(workflows);
   }
 
   /**
@@ -772,7 +797,7 @@ export class Context<T, K = {}> {
         workflowName = workflow.name;
       }
 
-      const name = applyNamespace(workflowName, this.v1.config.namespace).toLowerCase();
+      const name = applyNamespace(workflowName, this.runtime.namespace).toLowerCase();
 
       const opts = options || {};
       const { sticky } = opts;
@@ -810,7 +835,7 @@ export class Context<T, K = {}> {
       let resp: WorkflowRunRef<P>[] = [];
       for (let i = 0; i < workflowRuns.length; i += batchSize) {
         const batch = workflowRuns.slice(i, i + batchSize);
-        const batchResp = await this.v1.admin.runWorkflows<Q, P>(batch);
+        const batchResp = await this.runtime.runWorkflows<Q, P>(batch);
         resp = resp.concat(batchResp);
       }
 
@@ -849,7 +874,7 @@ export class Context<T, K = {}> {
 
     const workflowName = typeof workflow === 'string' ? workflow : workflow.name;
 
-    const name = applyNamespace(workflowName, this.v1.config.namespace).toLowerCase();
+    const name = applyNamespace(workflowName, this.runtime.namespace).toLowerCase();
 
     const opts = options || {};
     const { sticky } = opts;
@@ -863,7 +888,7 @@ export class Context<T, K = {}> {
     try {
       const childIndex = this.nextChildIndex();
 
-      const resp = await this.v1.admin.runWorkflow<Q, P>(name, input, {
+      const resp = await this.runtime.runWorkflow<Q, P>(name, input, {
         parentId: workflowRunId,
         parentTaskRunExternalId: taskRunExternalId,
         childIndex,
@@ -894,7 +919,7 @@ export class Context<T, K = {}> {
  * It extends the Context class and includes additional methods for durable execution like sleepFor and waitFor.
  */
 export class DurableContext<T, K = {}> extends Context<T, K> {
-  private _durableListener: DurableListenerClient;
+  private _durableListener: DurableTransport;
   private _evictionManager: DurableEvictionManager | undefined;
   private _engineVersion: string | undefined;
   private _waitKey: number = 0;
@@ -922,6 +947,28 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
     return result;
   }
 
+  /**
+   * Creates a durable context on top of a runtime and a durable transport.
+   * @param action - The action assigned to the task.
+   * @param runtime - The runtime the context performs engine-facing operations through.
+   * @param transport - The transport durable events travel over.
+   * @param options - Engine version and eviction settings.
+   */
+  constructor(
+    action: Action,
+    runtime: ContextRuntime,
+    transport: DurableTransport,
+    options?: DurableContextOptions & { evictionManager?: DurableEvictionManager }
+  );
+  /**
+   * Creates a durable context for a task running on a worker.
+   * @param action - The action assigned to the task.
+   * @param v1 - The worker's Hatchet client.
+   * @param worker - The worker running the task.
+   * @param durableListener - The worker's durable listener.
+   * @param evictionManager - The worker's eviction manager, when the engine supports eviction.
+   * @param engineVersion - The engine version the worker is connected to.
+   */
   constructor(
     action: Action,
     v1: HatchetClient,
@@ -929,18 +976,39 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
     durableListener: DurableListenerClient,
     evictionManager?: DurableEvictionManager,
     engineVersion?: string
+  );
+  constructor(
+    action: Action,
+    runtimeOrClient: ContextRuntime | HatchetClient,
+    workerOrTransport: InternalWorker | DurableTransport,
+    listenerOrOptions?:
+      | DurableListenerClient
+      | (DurableContextOptions & { evictionManager?: DurableEvictionManager }),
+    evictionManager?: DurableEvictionManager,
+    engineVersion?: string
   ) {
-    super(action, v1, worker);
-    this._durableListener = durableListener;
-    this._evictionManager = evictionManager;
-    this._engineVersion = engineVersion;
+    // The base constructor tells a runtime apart from a client itself, so the worker
+    // argument is ignored on the runtime path.
+    super(action, runtimeOrClient as HatchetClient, workerOrTransport as InternalWorker);
+    if (isContextRuntime(runtimeOrClient)) {
+      const options = listenerOrOptions as
+        (DurableContextOptions & { evictionManager?: DurableEvictionManager }) | undefined;
+      this._durableListener = workerOrTransport as DurableTransport;
+      this._evictionManager = options?.evictionManager;
+      this._engineVersion = options?.engineVersion;
+    } else {
+      this._durableListener = listenerOrOptions as DurableListenerClient;
+      this._evictionManager = evictionManager;
+      this._engineVersion = engineVersion;
+    }
   }
 
   get supportsEviction(): boolean {
     return supportsEviction(this._engineVersion);
   }
 
-  get durableListener(): DurableListenerClient {
+  /** The transport durable events travel over. */
+  get durableListener(): DurableTransport {
     return this._durableListener;
   }
 
@@ -1040,7 +1108,7 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
     }
 
     const rendered = Render(ConditionAction.CREATE, conditions);
-    const pbConditions = conditionsToPb(rendered, this.v1.config.namespace);
+    const pbConditions = conditionsToPb(rendered, this.runtime.namespace);
 
     const ack = await this._serializeSendEvent(() =>
       this._durableListener.sendEvent(this.action.taskRunExternalId, this.invocationCount, {
@@ -1169,12 +1237,17 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
   private async _waitForPreEviction(
     conditions: Conditions | Conditions[]
   ): Promise<Record<string, any>> {
+    if (!isLegacyDurableTransport(this._durableListener)) {
+      throw new HatchetError(
+        `Engine ${this._engineVersion || 'unknown'} does not support durable eviction and the durable transport has no legacy fallback. Upgrade the Hatchet engine.`
+      );
+    }
     const { result, nextWaitKey } = await waitForPreEviction(
       this._durableListener,
       this.action.taskRunExternalId,
       this._waitKey,
       conditions,
-      this.v1.config.namespace,
+      this.runtime.namespace,
       this.abortController.signal
     );
     this._waitKey = nextWaitKey;
@@ -1193,7 +1266,7 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
       workflowName = workflow.name;
     }
 
-    workflowName = applyNamespace(workflowName, this.v1.config.namespace).toLowerCase();
+    workflowName = applyNamespace(workflowName, this.runtime.namespace).toLowerCase();
 
     const childIndex = this.nextChildIndex();
 
@@ -1229,7 +1302,7 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
   ): Promise<P> {
     if (!this.supportsEviction) {
       const { workflowName, opts } = this.spawnOptions(workflow, options);
-      const ref = await this.v1.admin.runWorkflow(workflowName, (input || {}) as Q, opts);
+      const ref = await this.runtime.runWorkflow<Q, P>(workflowName, (input || {}) as Q, opts);
       ref.defaultSignal = this.abortController.signal;
       return ref.output as Promise<P>;
     }
@@ -1259,7 +1332,7 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
         const { workflowName, opts } = this.spawnOptions(c.workflow, c.options);
         return { workflowName, input: c.input, options: opts };
       });
-      const refs = await this.v1.admin.runWorkflows(workflows);
+      const refs = await this.runtime.runWorkflows<Q, P>(workflows);
       for (const r of refs) {
         r.defaultSignal = this.abortController.signal;
       }
@@ -1313,7 +1386,7 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
       return fn();
     }
 
-    const memoKey = computeMemoKey(this.action.taskRunExternalId, deps);
+    const memoKey = await computeMemoKey(this.action.taskRunExternalId, deps);
 
     const ack = await this._serializeSendEvent(() =>
       this._durableListener.sendEvent(this.action.taskRunExternalId, this.invocationCount, {
@@ -1350,9 +1423,22 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
   }
 }
 
-function computeMemoKey(taskRunExternalId: string, args: readonly unknown[]): Uint8Array {
-  const h = createHash('sha256');
-  h.update(taskRunExternalId);
-  h.update(JSON.stringify(args));
-  return new Uint8Array(h.digest());
+/**
+ * Derives the memo key for a task run and its dependency values: the SHA-256 of the task
+ * run id followed by the JSON-serialised dependencies, over WebCrypto so it works in
+ * every runtime. The bytes are identical to the previous Node `createHash` version, so
+ * event logs recorded by older SDKs keep replaying.
+ */
+export async function computeMemoKey(
+  taskRunExternalId: string,
+  args: readonly unknown[]
+): Promise<Uint8Array> {
+  const { subtle } = globalThis.crypto ?? {};
+  if (!subtle) {
+    throw new HatchetError(
+      'WebCrypto is not available in this runtime. Durable tasks need globalThis.crypto.subtle (Node 20 or newer).'
+    );
+  }
+  const data = new TextEncoder().encode(taskRunExternalId + JSON.stringify(args));
+  return new Uint8Array(await subtle.digest('SHA-256', data));
 }

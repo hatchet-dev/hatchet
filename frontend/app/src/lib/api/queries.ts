@@ -24,6 +24,7 @@ type WorkflowRunEventsMetrics = Parameters<
 type WorkflowScheduledQuery = Parameters<typeof api.workflowScheduledList>[1];
 type CronWorkflowsQuery = Parameters<typeof api.cronWorkflowList>[1];
 type V2ListWorkflowRunsQuery = Parameters<typeof api.v1WorkflowRunList>[1];
+type V1CountWorkflowRunsQuery = Parameters<typeof api.v1WorkflowRunCountGet>[1];
 type V1EventListQuery = Parameters<typeof api.v1EventList>[1];
 export type V1LogLineListQuery = Parameters<typeof api.v1LogLineList>[1];
 type V2TaskGetPointMetricsQuery = Parameters<
@@ -63,6 +64,35 @@ export const queries = createQueryKeyStore({
       queryFn: async () =>
         (await controlPlaneApi.organizationPaymentMethodsGet(organization))
           .data,
+    }),
+    invoices: (organization: string) => ({
+      queryKey: ['organization-invoices:get', organization],
+      queryFn: async () =>
+        (await controlPlaneApi.organizationInvoicesGet(organization)).data,
+    }),
+    usage: (organization: string) => ({
+      queryKey: ['organization-usage:get', organization],
+      queryFn: async () =>
+        (await controlPlaneApi.organizationUsageGet(organization)).data,
+    }),
+    usageTimeseries: (
+      organization: string,
+      params?: { start?: string; end?: string; tenantId?: string },
+    ) => ({
+      queryKey: [
+        'organization-usage-timeseries:get',
+        organization,
+        params?.start,
+        params?.end,
+        params?.tenantId,
+      ],
+      queryFn: async () =>
+        (
+          await controlPlaneApi.organizationUsageTimeseriesGet(
+            organization,
+            params,
+          )
+        ).data,
     }),
   },
   cloud: {
@@ -273,11 +303,14 @@ export const queries = createQueryKeyStore({
   v1Events: {
     list: (tenant: string, query: V1EventListQuery, isSelfHosted: boolean) => ({
       queryKey: ['v1:events:list', tenant, query],
-      queryFn: async (): Promise<V1EventList | 'timeout' | undefined> => {
+      queryFn: async ({
+        signal,
+      }): Promise<V1EventList | 'timeout' | undefined> => {
         const timeout = isSelfHosted ? SELF_HOSTED_LIST_TIMEOUT_MS : undefined;
 
         try {
-          return (await api.v1EventList(tenant, query, { timeout })).data;
+          return (await api.v1EventList(tenant, query, { timeout, signal }))
+            .data;
         } catch (e) {
           if (e instanceof AxiosError && e.code === 'ECONNABORTED') {
             return 'timeout';
@@ -295,11 +328,41 @@ export const queries = createQueryKeyStore({
       isSelfHosted: boolean,
     ) => ({
       queryKey: ['v1:workflow-run:list', tenant, query],
-      queryFn: async (): Promise<V1TaskSummaryList | 'timeout' | undefined> => {
+      queryFn: async ({
+        signal,
+      }): Promise<V1TaskSummaryList | 'timeout' | undefined> => {
         const timeout = isSelfHosted ? SELF_HOSTED_LIST_TIMEOUT_MS : undefined;
 
         try {
-          return (await api.v1WorkflowRunList(tenant, query, { timeout })).data;
+          return (
+            await api.v1WorkflowRunList(
+              tenant,
+              { ...query, include_num_pages: false },
+              { timeout, signal },
+            )
+          ).data;
+        } catch (e) {
+          if (e instanceof AxiosError && e.code === 'ECONNABORTED') {
+            return 'timeout';
+          }
+
+          throw e;
+        }
+      },
+    }),
+    count: (
+      tenant: string,
+      query: V1CountWorkflowRunsQuery,
+      isSelfHosted: boolean,
+    ) => ({
+      queryKey: ['v1:workflow-run:count', tenant, query],
+      queryFn: async ({ signal }): Promise<number | 'timeout'> => {
+        const timeout = isSelfHosted ? SELF_HOSTED_LIST_TIMEOUT_MS : undefined;
+
+        try {
+          return (
+            await api.v1WorkflowRunCountGet(tenant, query, { timeout, signal })
+          ).data.count;
         } catch (e) {
           if (e instanceof AxiosError && e.code === 'ECONNABORTED') {
             return 'timeout';
@@ -401,13 +464,13 @@ export const queries = createQueryKeyStore({
   v1TaskRuns: {
     metrics: (tenant: string, query: GetTaskMetricsQuery) => ({
       queryKey: ['v1:task-run:metrics', tenant, query],
-      queryFn: async () =>
-        (await api.v1TaskListStatusMetrics(tenant, query)).data,
+      queryFn: async ({ signal }) =>
+        (await api.v1TaskListStatusMetrics(tenant, query, { signal })).data,
     }),
     pointMetrics: (tenant: string, query: V2TaskGetPointMetricsQuery) => ({
       queryKey: ['v1-task:metrics', tenant, query],
-      queryFn: async () =>
-        (await api.v1TaskGetPointMetrics(tenant, query)).data,
+      queryFn: async ({ signal }) =>
+        (await api.v1TaskGetPointMetrics(tenant, query, { signal })).data,
     }),
   },
   metrics: {
@@ -417,8 +480,8 @@ export const queries = createQueryKeyStore({
     }),
     getStepRunQueueMetrics: (tenant: string) => ({
       queryKey: ['queue-metrics:get:step-run', tenant],
-      queryFn: async () =>
-        (await api.tenantGetStepRunQueueMetrics(tenant)).data,
+      queryFn: async ({ signal }) =>
+        (await api.tenantGetStepRunQueueMetrics(tenant, { signal })).data,
     }),
   },
   stepRuns: {
@@ -470,7 +533,8 @@ export const queries = createQueryKeyStore({
   workers: {
     list: (tenant: string, query?: ListWorkersQuery) => ({
       queryKey: ['worker:list', tenant, query],
-      queryFn: async () => (await api.workerList(tenant, query)).data,
+      queryFn: async ({ signal }) =>
+        (await api.workerList(tenant, query, { signal })).data,
     }),
     get: (worker: string) => ({
       queryKey: ['worker:get', worker],

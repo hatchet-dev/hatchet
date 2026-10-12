@@ -41,6 +41,9 @@ module HatchetSdkRest
     # Control-plane shard region for the tenant (e.g. aws:us-west-2).
     attr_accessor :region
 
+    # The data retention period for the tenant, e.g. 720h.
+    attr_accessor :data_retention_period
+
     class EnumAttributeValidator
       attr_reader :datatype
       attr_reader :allowable_values
@@ -74,7 +77,8 @@ module HatchetSdkRest
         :'alert_member_emails' => :'alertMemberEmails',
         :'environment' => :'environment',
         :'server_url' => :'serverUrl',
-        :'region' => :'region'
+        :'region' => :'region',
+        :'data_retention_period' => :'dataRetentionPeriod'
       }
     end
 
@@ -99,7 +103,8 @@ module HatchetSdkRest
         :'alert_member_emails' => :'Boolean',
         :'environment' => :'TenantEnvironment',
         :'server_url' => :'String',
-        :'region' => :'String'
+        :'region' => :'String',
+        :'data_retention_period' => :'String'
       }
     end
 
@@ -167,6 +172,10 @@ module HatchetSdkRest
 
       if attributes.key?(:'region')
         self.region = attributes[:'region']
+      end
+
+      if attributes.key?(:'data_retention_period')
+        self.data_retention_period = attributes[:'data_retention_period']
       end
     end
 
@@ -258,7 +267,8 @@ module HatchetSdkRest
           alert_member_emails == o.alert_member_emails &&
           environment == o.environment &&
           server_url == o.server_url &&
-          region == o.region
+          region == o.region &&
+          data_retention_period == o.data_retention_period
     end
 
     # @see the `==` method
@@ -270,7 +280,7 @@ module HatchetSdkRest
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [metadata, name, slug, version, analytics_opt_out, alert_member_emails, environment, server_url, region].hash
+      [metadata, name, slug, version, analytics_opt_out, alert_member_emails, environment, server_url, region, data_retention_period].hash
     end
 
     # Builds the object from hash

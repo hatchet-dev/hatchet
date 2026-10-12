@@ -1,12 +1,15 @@
-import TopNav from '@/components/v1/nav/top-nav';
+import { SetupCard, SetupScreen } from '@/components/layout/setup-card';
+import { Button } from '@/components/v1/ui/button';
 import { Loading } from '@/components/v1/ui/loading';
 import { useAnalytics } from '@/hooks/use-analytics';
 import api from '@/lib/api';
 import { controlPlaneApi, fetchControlPlaneStatus } from '@/lib/api/api';
+import { useUserApi } from '@/lib/api/user-wrapper';
 import { AppContextProvider } from '@/providers/app-context';
 import queryClient from '@/query-client';
 import { appRoutes } from '@/router';
-import { redirect, useLoaderData } from '@tanstack/react-router';
+import { useMutation } from '@tanstack/react-query';
+import { redirect, useLoaderData, useNavigate } from '@tanstack/react-router';
 import { useEffect } from 'react';
 
 export async function loader({ request }: { request: Request }) {
@@ -47,6 +50,18 @@ function VerifyEmailInner() {
     from: appRoutes.onboardingVerifyRoute.to,
   }) as Awaited<ReturnType<typeof loader>>;
   const { capture } = useAnalytics();
+  const navigate = useNavigate();
+  const { userUpdateLogoutMutation } = useUserApi();
+
+  // The full-screen card replaces the top nav (and its account menu), so the
+  // page carries its own sign-out, matching the other setup screens.
+  const logoutMutation = useMutation({
+    ...userUpdateLogoutMutation(),
+    onSettled: () => {
+      queryClient.clear();
+      navigate({ to: appRoutes.authLoginRoute.to });
+    },
+  });
 
   useEffect(() => {
     capture('onboarding_verify_email_viewed');
@@ -57,24 +72,33 @@ function VerifyEmailInner() {
   }
 
   return (
-    <div className="flex h-full w-full flex-1 flex-col">
-      <TopNav user={res.user} tenantMemberships={[]} />
-      <div className="container relative hidden flex-1 flex-col items-center justify-center md:grid lg:max-w-none lg:grid-cols-2 lg:px-0 -mt-48">
-        <div className="mx-auto w-screen lg:p-8">
-          <div className="mx-auto flex w-40 flex-col justify-center space-y-6 sm:w-[350px]">
-            <div className="flex flex-col space-y-2 text-center">
-              <h1 className="text-2xl font-semibold tracking-tight">
-                Verify your email
-              </h1>
-            </div>
-            <div className="my-4 text-sm">
-              Please contact your Hatchet instance administrator to verify your
-              email. Refresh this page once your email has been verified.
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <SetupScreen
+      topRight={
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => logoutMutation.mutate()}
+          disabled={logoutMutation.isPending}
+        >
+          Sign out
+        </Button>
+      }
+    >
+      <SetupCard
+        title="Verify your email"
+        description={`Signed in as ${res.user.email}.`}
+        footer={
+          <Button size="sm" onClick={() => window.location.reload()}>
+            Refresh
+          </Button>
+        }
+      >
+        <p className="text-sm text-muted-foreground">
+          Please contact your Hatchet instance administrator to verify your
+          email. Refresh this page once your email has been verified.
+        </p>
+      </SetupCard>
+    </SetupScreen>
   );
 }
 

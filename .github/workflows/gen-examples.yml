@@ -31,7 +31,9 @@ jobs:
         with:
           python-version: "3.14"
       - name: Generate snippets
-        run: task install-dependencies pre-commit-install generate-docs -v
+        run: |
+          sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" task install-dependencies pre-commit-install
+          task generate-docs -v
 
       - name: Check for changes in examples directory
         id: verify-changed-files

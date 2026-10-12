@@ -3,6 +3,7 @@ replayWorkflowRuns:
     x-resources: ["tenant"]
     description: Replays a list of workflow runs.
     operationId: workflow-run:update:replay
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -53,6 +54,7 @@ getWorkflowRunInput:
     x-resources: ["tenant", "workflow-run"]
     description: Get the input for a workflow run.
     operationId: workflow-run:get:input
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path

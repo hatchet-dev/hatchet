@@ -1,6 +1,6 @@
 import * as z from 'zod/v4';
 
-import { CreateStep, CreateStepSchema } from '../step';
+import { CreateStep, CreateStepSchema } from './step';
 import {
   ConcurrencyLimitStrategy as PbConcurrencyLimitStrategy,
   StickyStrategy as PbStickyStrategy,

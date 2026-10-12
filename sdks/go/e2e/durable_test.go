@@ -125,8 +125,16 @@ func TestDurableSleepCancelReplay(t *testing.T) {
 	err = result.TaskOutput("wait-for-sleep-twice").Into(&output)
 	require.NoError(t, err)
 
-	assert.Less(t, output["runtime"], float64(sleepTime)+timingTolerance)
-	assert.LessOrEqual(t, replayElapsed, float64(sleepTime)+timingTolerance)
+	// The replayed invocation has to wait out the interrupted durable sleep once, so
+	// its runtime and the wall-clock replay time both sit near sleepTime plus
+	// scheduling, sleep-poller (1s interval plus jitter) and result-propagation
+	// overhead. The regression this guards against is waiting the sleep out twice,
+	// which cannot finish in under 2*sleepTime, so bound against that rather than
+	// against a fixed tolerance the overhead alone can exceed.
+	doubleSleep := float64(2 * sleepTime)
+	assert.Greater(t, output["runtime"], 0.0, "durable SleepFor returned an error on replay")
+	assert.Less(t, output["runtime"], doubleSleep, "replayed durable sleep ran for %.2fs, expected a single %ds sleep", output["runtime"], sleepTime)
+	assert.Less(t, replayElapsed, doubleSleep, "replay took %.2fs, expected a single %ds sleep plus overhead", replayElapsed, sleepTime)
 }
 
 func TestDurableChildSpawn(t *testing.T) {
@@ -346,15 +354,28 @@ func TestDurableNonDeterminism(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	replayResult, err := ref.Result()
-	if err != nil {
-		assert.Contains(t, err.Error(), "non-determinism error")
-		return
-	}
-
+	// Result subscribes to the run and resolves at once when the run is
+	// already terminal, and the replay only flips the run back to running
+	// shortly after the request returns, so a single Result can still hand
+	// back the first attempt. Keep asking until the second attempt is what
+	// comes back, or the replay fails with the non-determinism error.
 	var replayOutput NonDeterminismOutput
-	err = replayResult.TaskOutput("durable-non-determinism").Into(&replayOutput)
-	require.NoError(t, err)
+	deadline := time.Now().Add(60 * time.Second)
+	for {
+		replayResult, err := ref.Result()
+		if err != nil {
+			assert.Contains(t, err.Error(), "non-determinism error")
+			return
+		}
+
+		require.NoError(t, replayResult.TaskOutput("durable-non-determinism").Into(&replayOutput))
+		if replayOutput.AttemptNumber >= 2 {
+			break
+		}
+
+		require.Less(t, time.Now(), deadline, "the replayed attempt never produced a result; last attempt seen: %d", replayOutput.AttemptNumber)
+		time.Sleep(500 * time.Millisecond)
+	}
 
 	assert.True(t, replayOutput.NonDeterminismDetected)
 	assert.NotNil(t, replayOutput.NodeID)
