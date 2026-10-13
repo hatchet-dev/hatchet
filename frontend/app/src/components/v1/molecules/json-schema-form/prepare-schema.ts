@@ -85,7 +85,16 @@ function seedStringDefaults(node: unknown): void {
   }
   for (const key of ['items', 'additionalProperties']) {
     const child = node[key];
-    if (isNode(child) && child.type === 'string' && !('default' in child)) {
+    if (!isNode(child) || child.type !== 'string' || 'default' in child) {
+      continue;
+    }
+    // '' is not an allowed value of an enum (e.g. a list of Literals), so
+    // those start on their first allowed value instead
+    if ('const' in child) {
+      child.default = child.const;
+    } else if (Array.isArray(child.enum) && child.enum.length > 0) {
+      child.default = child.enum[0];
+    } else {
       child.default = '';
     }
   }

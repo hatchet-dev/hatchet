@@ -122,6 +122,27 @@ test('string array items and map values default to an empty string', () => {
   assert.deepEqual(props.counts.items, { type: 'integer' });
 });
 
+test('enum array items and map values default to their first allowed value', () => {
+  const enumItem = { type: 'string', enum: ['us-east-1', 'eu-west-1'] };
+  const constItem = { type: 'string', const: 'eu-west-1' };
+  const { schema } = prepareSchema({
+    type: 'object',
+    properties: {
+      regions: { type: 'array', items: enumItem },
+      pinned: { type: 'array', items: constItem },
+      tiers: { type: 'object', additionalProperties: enumItem },
+    },
+  });
+
+  const props = schema.properties as Record<string, Record<string, object>>;
+  assert.deepEqual(props.regions.items, { ...enumItem, default: 'us-east-1' });
+  assert.deepEqual(props.pinned.items, { ...constItem, default: 'eu-west-1' });
+  assert.deepEqual(props.tiers.additionalProperties, {
+    ...enumItem,
+    default: 'us-east-1',
+  });
+});
+
 test('the input schema is not mutated', () => {
   const input = {
     title: 'Input',
