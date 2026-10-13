@@ -378,6 +378,22 @@ describe('StreamsClient.events reconnection', () => {
   });
 });
 
+describe('StreamsClient.reset', () => {
+  it('resets the topic in the default namespace unless one is given', async () => {
+    const reset = jest.fn().mockResolvedValue({});
+    mockedCreateGrpcClient.mockReturnValue({ client: { reset } } as any);
+
+    const streams = new StreamsClient(fakeHatchetClient());
+    await streams.reset('topic');
+    await streams.reset('topic', { namespace: 'ns' });
+
+    expect(reset.mock.calls.map(([req]) => req)).toEqual([
+      { namespace: '', topic: 'topic' },
+      { namespace: 'ns', topic: 'topic' },
+    ]);
+  });
+});
+
 describe('StreamsClient.topicMetadata', () => {
   beforeEach(() => {
     jest.clearAllMocks();

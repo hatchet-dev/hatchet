@@ -3888,6 +3888,7 @@ type V1StreamTopic struct {
 	InsertedAt      pgtype.Timestamptz `json:"inserted_at"`
 	LastPublishedAt pgtype.Timestamptz `json:"last_published_at"`
 	LastOffset      int64              `json:"last_offset"`
+	StartingOffset  int64              `json:"starting_offset"`
 }
 
 type V1Task struct {
