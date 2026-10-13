@@ -1,9 +1,9 @@
 import { hatchet } from '../hatchet-client';
-import { progressTask } from './workflow';
+import { progressTask, retryingProgressTask } from './workflow';
 
 async function main() {
   const worker = await hatchet.worker('durable-streams-worker', {
-    workflows: [progressTask],
+    workflows: [progressTask, retryingProgressTask],
   });
 
   await worker.start();
