@@ -599,6 +599,8 @@ func (r *streamsRepositoryImpl) CheckCursorRetained(ctx context.Context, tenantI
 	return nil
 }
 
+// ResetTopic sets the topic's reset offset to its last reserved offset. It waits
+// on in-flight publishes' row lock, so every message up to that offset is stored.
 func (r *streamsRepositoryImpl) ResetTopic(ctx context.Context, tenantId uuid.UUID, namespace, topic string) error {
 	return r.queries.ResetStreamTopic(ctx, r.pool, sqlcv1.ResetStreamTopicParams{
 		Tenantid:  tenantId,
@@ -607,6 +609,8 @@ func (r *streamsRepositoryImpl) ResetTopic(ctx context.Context, tenantId uuid.UU
 	})
 }
 
+// TopicStartCursor returns a cursor at the topic's reset offset, or its start for
+// a topic never reset or published to. It has no time, so it never expires.
 func (r *streamsRepositoryImpl) TopicStartCursor(ctx context.Context, tenantId uuid.UUID, namespace, topic string) (StreamCursor, error) {
 	resetOffset, err := r.queries.GetStreamTopicResetOffset(ctx, r.pool, sqlcv1.GetStreamTopicResetOffsetParams{
 		Tenantid:  tenantId,

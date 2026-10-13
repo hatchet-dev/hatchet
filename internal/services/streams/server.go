@@ -216,6 +216,8 @@ func (s *ServiceImpl) Subscribe(ctx context.Context, req *contracts.SubscribeStr
 	return nil
 }
 
+// Reset makes subscribers without a cursor start after the topic's latest
+// message. Subscriptions already open, and any with a cursor, are unaffected.
 func (s *ServiceImpl) Reset(ctx context.Context, req *contracts.ResetStreamTopicRequest) (*contracts.ResetStreamTopicResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
