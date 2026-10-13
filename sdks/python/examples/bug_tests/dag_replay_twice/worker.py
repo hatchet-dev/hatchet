@@ -1,14 +1,23 @@
 import asyncio
 
-from hatchet_sdk import Context, EmptyModel, Hatchet
+from pydantic import BaseModel
+
+from hatchet_sdk import Context, Hatchet
 
 hatchet = Hatchet()
 
-dag_replay_twice = hatchet.workflow(name="dag-replay-twice")
+
+class DagReplayTwiceInput(BaseModel):
+    second_duration_seconds: float = 1
+
+
+dag_replay_twice = hatchet.workflow(
+    name="dag-replay-twice", input_validator=DagReplayTwiceInput
+)
 
 
 @dag_replay_twice.task()
-async def first(input: EmptyModel, ctx: Context) -> dict[str, int]:
+async def first(input: DagReplayTwiceInput, ctx: Context) -> dict[str, int]:
     await asyncio.sleep(1)
 
     if ctx.retry_count == 0:
@@ -18,8 +27,8 @@ async def first(input: EmptyModel, ctx: Context) -> dict[str, int]:
 
 
 @dag_replay_twice.task(parents=[first])
-async def second(input: EmptyModel, ctx: Context) -> dict[str, int]:
-    await asyncio.sleep(1)
+async def second(input: DagReplayTwiceInput, ctx: Context) -> dict[str, int]:
+    await asyncio.sleep(input.second_duration_seconds)
 
     return {"retry_count": ctx.retry_count}
 
