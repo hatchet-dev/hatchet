@@ -1,0 +1,12 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "rules": {
+    "files": "off",
+    "exports": "off",
+    "nsExports": "off",
+    "types": "off",
+    "nsTypes": "off",
+    "enumMembers": "off",
+    "duplicates": "off"
+  }
+}
