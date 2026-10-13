@@ -120,6 +120,12 @@ func workflowNamesForKey(key eventkeys.EventKey, namespace string, fanout int) [
 			names = append(names, applyNamespace(n, namespace))
 		}
 		return names
+	case eventkeys.EventKeyConcurrency:
+		names := make([]string, 0, len(eventkeys.ConcurrencyWorkflowNames))
+		for _, n := range eventkeys.ConcurrencyWorkflowNames {
+			names = append(names, applyNamespace(n, namespace))
+		}
+		return names
 	default:
 		return nil
 	}
@@ -134,6 +140,10 @@ const dagShapesExecutedSteps = 10 + 5 + 7 + 7
 // this only tunes a soft sample-count check.
 const dagNestedExecutedSteps = 3 + 5*4
 
+// concurrencyExecutedSteps is an upper bound: runs cancelled by the cancel
+// strategies never complete, so they don't produce timing samples.
+var concurrencyExecutedSteps = len(eventkeys.ConcurrencyWorkflowNames)
+
 func executionsPerPush(key eventkeys.EventKey, fanout, dagSteps int) int64 {
 	switch key {
 	case eventkeys.EventKeyDefault:
@@ -144,6 +154,8 @@ func executionsPerPush(key eventkeys.EventKey, fanout, dagSteps int) int64 {
 		return dagShapesExecutedSteps
 	case eventkeys.EventKeyDagNested:
 		return dagNestedExecutedSteps
+	case eventkeys.EventKeyConcurrency:
+		return int64(concurrencyExecutedSteps)
 	default:
 		return 1
 	}

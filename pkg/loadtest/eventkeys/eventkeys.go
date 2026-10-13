@@ -21,6 +21,10 @@ const (
 	// fan-out task spawns N child DAG runs and waits for them (see
 	// DagNestedWorkflowNames).
 	EventKeyDagNested EventKey = "load-test:dag-nested-event"
+	// EventKeyConcurrency triggers the ConcurrencyWorkflowNames set: one
+	// workflow per concurrency strategy family, all keyed on the event id
+	// modulo a key count, for exercising the scheduler's concurrency index.
+	EventKeyConcurrency EventKey = "load-test:concurrency-event"
 )
 
 const workflowNamePrefix = "load-test-"
@@ -56,6 +60,19 @@ var DagShapeWorkflowNames = []string{
 }
 
 // DagNestedWorkflowNames is the parent + child pair for the nested-DAG scenario.
+// The EventKeyConcurrency workflows, one per concurrency strategy family.
+const (
+	WorkflowConcurrencyRoundRobinName   = workflowNamePrefix + "concurrency-round-robin"
+	WorkflowConcurrencyCancelInProgName = workflowNamePrefix + "concurrency-cancel-in-progress"
+	WorkflowConcurrencyCancelQueuedName = workflowNamePrefix + "concurrency-cancel-queued"
+)
+
+var ConcurrencyWorkflowNames = []string{
+	WorkflowConcurrencyRoundRobinName,
+	WorkflowConcurrencyCancelInProgName,
+	WorkflowConcurrencyCancelQueuedName,
+}
+
 var DagNestedWorkflowNames = []string{
 	WorkflowDagShapeNestedParentName,
 	WorkflowDagShapeNestedChildName,
@@ -65,7 +82,7 @@ func WorkflowStandardName(i int) string {
 	return fmt.Sprintf("%s%d", workflowNamePrefix, i)
 }
 
-var All = []EventKey{EventKeyDefault, EventKeyBatch, EventKeyDurable, EventKeyDag, EventKeyDagShapes, EventKeyDagNested}
+var All = []EventKey{EventKeyDefault, EventKeyBatch, EventKeyDurable, EventKeyDag, EventKeyDagShapes, EventKeyDagNested, EventKeyConcurrency}
 
 func IsKnown(key EventKey) bool {
 	return slices.Contains(All, key)
@@ -85,6 +102,8 @@ func (k EventKey) Name() string {
 		return "dag-shapes"
 	case EventKeyDagNested:
 		return "dag-nested"
+	case EventKeyConcurrency:
+		return "concurrency"
 	default:
 		return string(k)
 	}
