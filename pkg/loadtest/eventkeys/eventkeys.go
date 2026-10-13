@@ -59,20 +59,21 @@ var DagShapeWorkflowNames = []string{
 	WorkflowDagShapeDeepRetryName,
 }
 
-// DagNestedWorkflowNames is the parent + child pair for the nested-DAG scenario.
-// The EventKeyConcurrency workflows, one per concurrency strategy family.
 const (
 	WorkflowConcurrencyRoundRobinName   = workflowNamePrefix + "concurrency-round-robin"
 	WorkflowConcurrencyCancelInProgName = workflowNamePrefix + "concurrency-cancel-in-progress"
 	WorkflowConcurrencyCancelQueuedName = workflowNamePrefix + "concurrency-cancel-queued"
 )
 
+// ConcurrencyWorkflowNames is shared by the worker, which registers these
+// workflows, and the driver, which resolves them to attribute timing samples.
 var ConcurrencyWorkflowNames = []string{
 	WorkflowConcurrencyRoundRobinName,
 	WorkflowConcurrencyCancelInProgName,
 	WorkflowConcurrencyCancelQueuedName,
 }
 
+// DagNestedWorkflowNames is the parent + child pair for the nested-DAG scenario.
 var DagNestedWorkflowNames = []string{
 	WorkflowDagShapeNestedParentName,
 	WorkflowDagShapeNestedChildName,

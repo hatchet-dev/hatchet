@@ -140,10 +140,6 @@ const dagShapesExecutedSteps = 10 + 5 + 7 + 7
 // this only tunes a soft sample-count check.
 const dagNestedExecutedSteps = 3 + 5*4
 
-// concurrencyExecutedSteps is an upper bound: runs cancelled by the cancel
-// strategies never complete, so they don't produce timing samples.
-var concurrencyExecutedSteps = len(eventkeys.ConcurrencyWorkflowNames)
-
 func executionsPerPush(key eventkeys.EventKey, fanout, dagSteps int) int64 {
 	switch key {
 	case eventkeys.EventKeyDefault:
@@ -154,8 +150,6 @@ func executionsPerPush(key eventkeys.EventKey, fanout, dagSteps int) int64 {
 		return dagShapesExecutedSteps
 	case eventkeys.EventKeyDagNested:
 		return dagNestedExecutedSteps
-	case eventkeys.EventKeyConcurrency:
-		return int64(concurrencyExecutedSteps)
 	default:
 		return 1
 	}
@@ -476,8 +470,18 @@ func do(config LoadTestConfig) error {
 		}
 
 		var expectedAllKeys int64
+		observedSampled := phases.overall.execution.count
+		checkedKeys := 0
 		for _, k := range config.EventKeys {
+			if k == eventkeys.EventKeyConcurrency {
+				// The cancel strategies cancel a load-dependent share of runs,
+				// and cancelled runs produce no samples, so this key has no
+				// fixed expected count.
+				observedSampled -= phases.byKey[k].execution.count
+				continue
+			}
 			expectedAllKeys += pushedByKey[k] * executionsPerPush(k, config.EventFanout, config.DagSteps)
+			checkedKeys++
 		}
 		expectedSampled := int64(float64(expectedAllKeys) * sampleRate)
 
@@ -495,8 +499,8 @@ func do(config LoadTestConfig) error {
 
 		if expectedSampled > 0 {
 			lower, upper := expectedSampled/2, expectedSampled+expectedSampled/2
-			if phases.overall.execution.count < lower || phases.overall.execution.count > upper {
-				log.Printf("⚠️ warning: engine-observed sample count is well outside the expected range: expected≈%d (%.0f%% sample of %d pushed across %d key(s)) got=%d", expectedSampled, sampleRate*100, expectedAllKeys, len(config.EventKeys), phases.overall.execution.count)
+			if observedSampled < lower || observedSampled > upper {
+				log.Printf("⚠️ warning: engine-observed sample count is well outside the expected range: expected≈%d (%.0f%% sample of %d pushed across %d key(s)) got=%d", expectedSampled, sampleRate*100, expectedAllKeys, checkedKeys, observedSampled)
 			}
 		}
 	} else {
