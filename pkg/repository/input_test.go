@@ -4,7 +4,6 @@ package repository
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 
 	"github.com/google/uuid"
@@ -64,18 +63,6 @@ func TestUserInputFromTaskInputPayload_DoesNotUnwrapAUserInputThatHasItsOwnInput
 	userInput := []byte(`{"input": "hello", "parents": ["a", "b"]}`)
 
 	assert.JSONEq(t, string(userInput), string(UserInputFromTaskInputPayload(userInput)))
-}
-
-func TestTriggersColumn_IsNullWhenTriggersOnlyHoldAnEmptyFilterPayload(t *testing.T) {
-	stepRunData := &V1StepRunData{
-		Input:    json.RawMessage(`{"order_id": 1}`),
-		Triggers: map[string]map[string]interface{}{"filter_payload": nil},
-	}
-
-	triggers, err := stepRunData.triggersColumn()
-	require.NoError(t, err)
-
-	assert.Nil(t, triggers)
 }
 
 func TestCreatedTaskStoresOnlyTheUserInputAndKeepsTheRestOnTheTask(t *testing.T) {

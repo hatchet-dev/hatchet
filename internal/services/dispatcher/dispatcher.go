@@ -827,10 +827,7 @@ func (d *DispatcherImpl) populateTaskData(
 			parentOutputs, stepRunErrors := splitParentOutputsAndStepRunErrors(ctx, d.l, task.ID, parentData)
 
 			currInput.Parents = parentOutputs
-
-			if len(stepRunErrors) > 0 {
-				currInput.StepRunErrors = stepRunErrors
-			}
+			currInput.StepRunErrors = stepRunErrors
 		}
 
 		inputs[payloadKey] = currInput.Bytes()

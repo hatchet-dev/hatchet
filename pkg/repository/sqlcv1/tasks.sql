@@ -934,8 +934,8 @@ LEFT JOIN
 
 -- name: ListTaskParentOutputs :many
 -- Lists the outputs of parent steps for a list of tasks. This is recursive because it looks at all grandparents
--- of the tasks as well. A FAILED event is only returned when it is the task's most recent terminal event, so a
--- task that failed and then succeeded on a retry is not reported as failed.
+-- of the tasks as well. Only each task's most recent terminal event is returned, so a task that failed and then
+-- succeeded on a retry is reported with its output, and a task that was cancelled is not reported at all.
 WITH input AS (
     SELECT
         UNNEST(@taskIds::BIGINT[]) AS task_id,
@@ -979,21 +979,6 @@ WITH input AS (
         AND dt.dag_inserted_at >= @minDagInsertedAt::timestamptz
         AND t.inserted_at >= @minDagInsertedAt::timestamptz
         AND e.task_inserted_at >= @minDagInsertedAt::timestamptz
-), latest_completed_events AS (
-    SELECT DISTINCT ON (id, inserted_at)
-        task_event_id,
-        task_event_inserted_at,
-        workflow_run_id,
-        output,
-        output_event_external_id
-    FROM
-        task_terminal_events
-    WHERE
-        event_type = 'COMPLETED'
-    ORDER BY
-        id,
-        inserted_at,
-        retry_count DESC
 ), latest_terminal_events AS (
     SELECT DISTINCT ON (id, inserted_at)
         task_event_id,
@@ -1010,18 +995,6 @@ WITH input AS (
         retry_count DESC,
         task_event_id DESC
 )
-
-SELECT
-    task_event_id,
-    task_event_inserted_at,
-    workflow_run_id,
-    output,
-    output_event_external_id
-FROM
-    latest_completed_events
-
-UNION ALL
-
 SELECT
     task_event_id,
     task_event_inserted_at,
@@ -1031,7 +1004,7 @@ SELECT
 FROM
     latest_terminal_events
 WHERE
-    event_type = 'FAILED';
+    event_type IN ('COMPLETED', 'FAILED');
 
 -- name: ListTaskOutputEventIdsByTaskRunExternalIds :many
 WITH task_outputs AS (

@@ -123,7 +123,9 @@ func (s *sharedRepository) ToV1StepRunData(t *TaskInput) *V1StepRunData {
 		}
 	}
 
-	triggers["filter_payload"] = t.FilterPayload
+	if t.FilterPayload != nil {
+		triggers["filter_payload"] = t.FilterPayload
+	}
 
 	input, err := json.Marshal(t.Input)
 
@@ -237,13 +239,7 @@ func (v1 *V1StepRunData) userInput() []byte {
 }
 
 func (v1 *V1StepRunData) triggersColumn() ([]byte, error) {
-	if v1 == nil {
-		return nil, nil
-	}
-
-	hasOnlyAnEmptyFilterPayload := len(v1.Triggers) == 1 && v1.Triggers["filter_payload"] == nil
-
-	if hasOnlyAnEmptyFilterPayload {
+	if v1 == nil || len(v1.Triggers) == 0 {
 		return nil, nil
 	}
 
