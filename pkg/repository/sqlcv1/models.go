@@ -3936,6 +3936,9 @@ type V1Task struct {
 	IdempotencyKey               pgtype.Text        `json:"idempotency_key"`
 	IsDagOrchestrator            bool               `json:"is_dag_orchestrator"`
 	ConcurrencyMaxRuns           []pgtype.Int4      `json:"concurrency_max_runs"`
+	Triggers                     []byte             `json:"triggers"`
+	DagParentTaskRunIds          []uuid.UUID        `json:"dag_parent_task_run_ids"`
+	ChildTaskDesiredWorkerLabels []byte             `json:"child_task_desired_worker_labels"`
 }
 
 type V1TaskEvent struct {
