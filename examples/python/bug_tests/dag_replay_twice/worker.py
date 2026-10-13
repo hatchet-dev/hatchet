@@ -12,8 +12,7 @@ class DagReplayTwiceInput(BaseModel):
 
 
 dag_replay_twice = hatchet.workflow(
-    name="dag-replay-twice",
-    input_validator=DagReplayTwiceInput,
+    name="dag-replay-twice", input_validator=DagReplayTwiceInput
 )
 
 
