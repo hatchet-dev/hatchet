@@ -95,26 +95,24 @@ func (s *sharedRepository) ToV1StepRunData(t *TaskInput) *V1StepRunData {
 
 	parents := make(map[string]map[string]interface{})
 	triggers := make(map[string]map[string]interface{})
-	stepRunErrors := make(map[string]string)
 
 	if t.TriggerData != nil {
 		for _, stepReadableId := range t.TriggerData.DataKeys() {
 			data := t.TriggerData.DataValueAsTaskOutputEvent(stepReadableId)
 
-			switch {
-			case data.IsCompleted():
-				dataMap := make(map[string]interface{})
-
-				err := json.Unmarshal(data.Output, &dataMap)
-
-				if err != nil {
-					s.l.Warn().Err(err).Msg("failed to unmarshal output")
-				}
-
-				parents[stepReadableId] = dataMap
-			case data.IsFailed():
-				stepRunErrors[stepReadableId] = data.ErrorMessage
+			if !data.IsCompleted() {
+				continue
 			}
+
+			dataMap := make(map[string]interface{})
+
+			err := json.Unmarshal(data.Output, &dataMap)
+
+			if err != nil {
+				s.l.Warn().Err(err).Msg("failed to unmarshal output")
+			}
+
+			parents[stepReadableId] = dataMap
 		}
 
 		for _, key := range t.TriggerData.TriggerDataKeys() {
@@ -128,10 +126,8 @@ func (s *sharedRepository) ToV1StepRunData(t *TaskInput) *V1StepRunData {
 
 	return &V1StepRunData{
 		Input:               t.Input,
-		TriggeredBy:         "manual",
 		Parents:             parents,
 		Triggers:            triggers,
-		StepRunErrors:       stepRunErrors,
 		DagParentTaskRunIds: t.DagParentTaskRunIds,
 		DesiredWorkerLabels: t.DesiredWorkerLabels,
 	}
@@ -154,19 +150,11 @@ func (r *sharedRepository) V1StepRunDataFromBytes(b []byte) (*V1StepRunData, err
 }
 
 type V1StepRunData struct {
-	Input       map[string]interface{}            `json:"input"`
-	TriggeredBy string                            `json:"triggered_by"`
-	Parents     map[string]map[string]interface{} `json:"parents"`
-
+	Input    map[string]interface{}            `json:"input"`
+	Parents  map[string]map[string]interface{} `json:"parents"`
 	Triggers map[string]map[string]interface{} `json:"triggers"`
 
-	// custom-set user data for the step
-	UserData map[string]interface{} `json:"user_data"`
-
-	// overrides set from the playground
-	Overrides map[string]interface{} `json:"overrides"`
-
-	// errors in upstream steps (only used in on-failure step)
+	// errors in upstream steps, read from their task events when the task is dispatched
 	StepRunErrors map[string]string `json:"step_run_errors,omitempty"`
 
 	// task run external IDs of parent tasks in a durable DAG orchestration
