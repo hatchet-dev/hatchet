@@ -301,12 +301,6 @@ export class StreamsClient {
             return;
           }
 
-          // the first message is where this subscription started, so a
-          // resubscribe before any entry arrives isn't moved by a reset
-          if (msg.cursor) {
-            ({ cursor } = msg);
-          }
-
           for (const entry of msg.entries) {
             const payload = entry.payloadRef
               ? await this.fetchPayload(entry.payloadRef, signal)

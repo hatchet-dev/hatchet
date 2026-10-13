@@ -181,17 +181,6 @@ func (s *ServiceImpl) Subscribe(ctx context.Context, req *contracts.SubscribeStr
 		}
 	}
 
-	encodedStart, err := v1.EncodeStreamCursor(cursor)
-
-	if err != nil {
-		return err
-	}
-
-	// a client that reconnects before any entry arrives resumes here, not from a later reset
-	if err := sender.Send(&contracts.StreamMessage{Cursor: encodedStart}); err != nil {
-		return err
-	}
-
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
