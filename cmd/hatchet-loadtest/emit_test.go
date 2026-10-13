@@ -7,20 +7,30 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/loadtest/eventkeys"
 )
 
-func TestWithConcurrencyWorkload(t *testing.T) {
-	selected := []eventkeys.EventKey{eventkeys.EventKeyDefault, eventkeys.EventKeyDag}
+func TestConcurrencyEventKeyIsOptIn(t *testing.T) {
+	available := availableEventKeys(true)
 
-	got := withConcurrencyWorkload(slices.Clone(selected), nil)
-	want := []eventkeys.EventKey{eventkeys.EventKeyDefault, eventkeys.EventKeyDag, eventkeys.EventKeyConcurrency}
-	if !slices.Equal(got, want) {
-		t.Fatalf("got %v, want %v", got, want)
+	got, err := resolveEventKeys(nil, nil, available)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []eventkeys.EventKey{eventkeys.EventKeyDefault}; !slices.Equal(got, want) {
+		t.Fatalf("no flags: got %v, want %v", got, want)
 	}
 
-	if got := withConcurrencyWorkload(slices.Clone(want), nil); !slices.Equal(got, want) {
-		t.Fatalf("already selected: got %v, want %v", got, want)
+	got, err = resolveEventKeys([]string{"default", "dag"}, nil, available)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if slices.Contains(got, eventkeys.EventKeyConcurrency) {
+		t.Fatalf("--select without concurrency published it: %v", got)
 	}
 
-	if got := withConcurrencyWorkload(slices.Clone(selected), []string{" concurrency "}); !slices.Equal(got, selected) {
-		t.Fatalf("excluded: got %v, want %v", got, selected)
+	got, err = resolveEventKeys([]string{"default", "concurrency"}, nil, available)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []eventkeys.EventKey{eventkeys.EventKeyDefault, eventkeys.EventKeyConcurrency}; !slices.Equal(got, want) {
+		t.Fatalf("--select with concurrency: got %v, want %v", got, want)
 	}
 }

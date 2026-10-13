@@ -71,16 +71,6 @@ func resolveEventKeys(selected, excluded []string, available []eventkeys.EventKe
 	panic("unreachable: both selectedKeys and excludedKeys are empty but selected/excluded were not")
 }
 
-// withConcurrencyWorkload adds the concurrency event key unless the caller
-// excluded it, so --externalWorker runs exercise the scheduler's concurrency
-// index without each caller having to select it.
-func withConcurrencyWorkload(keys []eventkeys.EventKey, excluded []string) []eventkeys.EventKey {
-	if slices.Contains(keys, eventkeys.EventKeyConcurrency) || slices.Contains(trimEmpty(excluded), eventkeys.EventKeyConcurrency.Name()) {
-		return keys
-	}
-	return append(keys, eventkeys.EventKeyConcurrency)
-}
-
 func parseEventKeys(raw []string, available []eventkeys.EventKey) ([]eventkeys.EventKey, error) {
 	out := make([]eventkeys.EventKey, 0, len(raw))
 	for _, s := range raw {

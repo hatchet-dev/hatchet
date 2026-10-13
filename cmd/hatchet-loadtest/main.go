@@ -46,10 +46,6 @@ type LoadTestConfig struct {
 	ExcludeEventKeys []string
 	EventKeys        []eventkeys.EventKey
 
-	// ConcurrencyWorkload, in --externalWorker mode, publishes the concurrency
-	// event key on top of the selected keys.
-	ConcurrencyWorkload bool
-
 	// ExternalWorker, if set, skips registering a workflow and starting an
 	// in-process worker altogether - it assumes a separately-running SDK
 	// worker (e.g. cmd/hatchet-loadtest/go) has already registered a
@@ -91,9 +87,6 @@ func main() {
 				log.Println(err)
 				panic("load test failed")
 			}
-			if config.ExternalWorker && config.ConcurrencyWorkload {
-				eventKeys = withConcurrencyWorkload(eventKeys, config.ExcludeEventKeys)
-			}
 			config.EventKeys = eventKeys
 			l.Info().Msgf("publishing event keys: %v", config.EventKeys)
 
@@ -128,7 +121,6 @@ func main() {
 	loadtest.Flags().StringVar(&config.PlotDir, "plotDirectory", "", "plotDirectory specifies where to put the generated plots for latency and task duration")
 	loadtest.Flags().StringSliceVar(&config.SelectEventKeys, "select", nil, fmt.Sprintf("select specifies which event keys to publish (comma-separated or repeated), e.g. --select %s. Known keys: %s. Mutually exclusive with --exclude; passing neither publishes only the standard key %q (batch/durable canaries are opt-in)", strings.Join(eventKeyNames, ","), strings.Join(eventKeyNames, ", "), eventkeys.EventKeyDefault.Name()))
 	loadtest.Flags().StringSliceVar(&config.ExcludeEventKeys, "exclude", nil, "exclude specifies which event keys to skip (comma-separated or repeated); all other available keys are published. Mutually exclusive with --select")
-	loadtest.Flags().BoolVar(&config.ConcurrencyWorkload, "concurrencyWorkload", true, fmt.Sprintf("in --externalWorker mode, also publish the %q key even when --select omits it; turn off with --concurrencyWorkload=false or --exclude %s", eventkeys.EventKeyConcurrency.Name(), eventkeys.EventKeyConcurrency.Name()))
 	loadtest.Flags().BoolVar(&config.ExternalWorker, "externalWorker", false, "externalWorker skips registering a workflow and starting an in-process worker, assuming a separately-running SDK worker (e.g. cmd/hatchet-loadtest/go) has already registered a compatible workflow; worker/workflow flags (slots, dagSteps, eventFanout, rlKeys, workerDelay, failureRate, delay) are ignored in this mode")
 	loadtest.Flags().Float64Var(&config.TimingSampleRate, "timingSampleRate", 1, "fetch full task timings for this proportion (0, 1] of completed runs instead of every one - e.g. 0.3 samples 30% of runs. The average still converges, at a fraction of the REST load on the engine; 1 (the default) fetches every run")
 	cmd := &cobra.Command{Use: "app"}
