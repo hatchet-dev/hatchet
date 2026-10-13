@@ -1481,36 +1481,28 @@ func (r *durableEventsRepository) resolveOrphanedChildDedupes(
 			continue
 		}
 
-		if latestEntryByChild[to.ExternalId] == nil {
+		latestEntry := latestEntryByChild[to.ExternalId]
+
+		if latestEntry == nil || !to.ReplayOrphanedChildren {
 			to.ShouldSkip = false
 			to.ExternalId = uuid.New()
 			continue
 		}
 
-		if to.ReplayOrphanedChildren {
-			latestEntry := latestEntryByChild[to.ExternalId]
-			forced := forcedReplayChildren[to.ExternalId] || to.ParentReExecuted
+		forced := forcedReplayChildren[to.ExternalId] || to.ParentReExecuted
 
-			if forcedReplayChildren != nil && !forced && latestEntry.IsSatisfied {
-				// untouched subtree: the skip path returns the cached result without re-running
-				continue
-			}
+		if forcedReplayChildren != nil && !forced && latestEntry.IsSatisfied {
+			// untouched subtree: the skip path returns the cached result without re-running
+			continue
+		}
 
-			to.ShouldSkip = false
+		to.ShouldSkip = false
 
-			// important: there's a case here where we mark the durable event log as having a child run, but
-			// then we crash, get backlogged, etc. before the trigger path (second tx) can actually pick up the run,
-			// trigger it, and mark `triggered_at` with a timestamp. in this case, there are no task rows to replay,
-			// so we should leave the child out of `childrenToReplay` and let it go through the pending trigger path
-			// as a fresh run (under the same child external id). this is safe to do repeatedly, since the trigger path
-			// only claims entries where `triggered_at` is still null (in the same tx that spawns the child), which
-			// means we'll end up recovering instead of hanging
-			if latestEntry.TriggeredAt.Valid {
-				childrenToReplay[to.ExternalId] = true
-			}
-		} else {
-			to.ShouldSkip = false
-			to.ExternalId = uuid.New()
+		// an untriggered latest entry means the child task was never created (a crash between
+		// committing the entry and the trigger tx), so it is left to the trigger path, which
+		// creates it under the same child external id
+		if latestEntry.TriggeredAt.Valid {
+			childrenToReplay[to.ExternalId] = true
 		}
 	}
 
@@ -1609,11 +1601,8 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		pendingEntryKeys := make(map[NodeIdBranchIdTuple]bool)
 
 		for _, le := range logEntries {
-			// a skip reference with triggered_at unset points at a run that was never actually
-			// triggered (e.g. a crash between committing the entry and triggering the run), so it
-			// is re-triggered here like any other untriggered entry; this is safe because
-			// TriggerPendingRunEntries only claims entries where triggered_at is still null, in
-			// the same tx that spawns the child
+			// an untriggered entry, new or deduped, has no child run yet; TriggerPendingRunEntries
+			// claims it in the same tx that creates the child, so re-triggering is idempotent
 			if le.Entry.TriggeredAt.Valid {
 				continue
 			}
