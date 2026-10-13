@@ -1,4 +1,5 @@
 import asyncio
+from typing import Any
 
 import pytest
 
@@ -76,7 +77,7 @@ async def run_until_first_step_fails(
 
 async def replay_and_await_completion(
     hatchet: Hatchet, run_id: str, replay_target_id: str
-) -> dict[str, dict[str, int]]:
+) -> dict[str, dict[str, Any] | None]:
     await hatchet.runs.aio_replay(replay_target_id)
     await wait_for_running_status(hatchet, run_id)
     await wait_for_run_status(hatchet, run_id, RunStatus.COMPLETED, timeout=90)
