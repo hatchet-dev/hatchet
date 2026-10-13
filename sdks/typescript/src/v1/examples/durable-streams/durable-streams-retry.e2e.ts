@@ -1,4 +1,4 @@
-import { makeE2EClient, makeTestScope, startWorker, stopWorker } from '../__e2e__/harness';
+import { makeE2EClient, makeTestScope } from '../__e2e__/harness';
 import { retryingProgressTask } from './workflow';
 
 type ProgressMessage = { attempt?: number; chunk?: number; done?: boolean; ready?: boolean };
@@ -30,19 +30,6 @@ const chunksOf = (attempt: number) => [0, 1, 2].map((chunk) => ({ attempt, chunk
 
 describe('durable-streams-e2e retries', () => {
   const hatchet = makeE2EClient();
-  let worker: Awaited<ReturnType<typeof startWorker>> | undefined;
-
-  beforeAll(async () => {
-    worker = await startWorker({
-      client: hatchet,
-      name: 'durable-streams-retry-e2e',
-      workflows: [retryingProgressTask],
-    });
-  });
-
-  afterAll(async () => {
-    await stopWorker(worker);
-  });
 
   it('readers follow a retried task by topic alone, and new readers skip the failed attempt', async () => {
     const topic = makeTestScope('durable_streams_retry');

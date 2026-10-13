@@ -1,4 +1,4 @@
-import sleep from '../../../util/sleep';
+import sleep from '@hatchet/util/sleep';
 import { hatchet } from '../hatchet-client';
 
 // > Publishing
