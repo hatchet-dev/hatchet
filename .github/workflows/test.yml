@@ -208,6 +208,8 @@ jobs:
           SERVER_INTERNAL_CLIENT_BASE_STRATEGY=none
           SERVER_INTERNAL_CLIENT_BASE_INHERIT_BASE=false
           SERVER_SECURITY_CHECK_ENABLED=false
+          SERVER_PROMETHEUS_ENABLED=true
+          SERVER_PROMETHEUS_ADDRESS=127.0.0.1:9999
           EOF
 
       - name: Generate
@@ -266,6 +268,7 @@ jobs:
         run: |
           echo "HATCHET_CLIENT_TOKEN=$(go run ./cmd/hatchet-admin token create --config ./generated/ --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52)" >> $GITHUB_ENV
           echo "HATCHET_CLIENT_TLS_STRATEGY=none" >> $GITHUB_ENV
+          echo "HATCHET_E2E_PROMETHEUS_URL=http://127.0.0.1:9999/metrics" >> $GITHUB_ENV
 
       - name: Test
         run: |
@@ -345,6 +348,8 @@ jobs:
           SERVER_INTERNAL_CLIENT_BASE_STRATEGY=none
           SERVER_INTERNAL_CLIENT_BASE_INHERIT_BASE=false
           SERVER_SECURITY_CHECK_ENABLED=false
+          SERVER_PROMETHEUS_ENABLED=true
+          SERVER_PROMETHEUS_ADDRESS=127.0.0.1:9999
           EOF
 
       - name: Generate
@@ -403,6 +408,7 @@ jobs:
         run: |
           echo "HATCHET_CLIENT_TOKEN=$(go run ./cmd/hatchet-admin token create --config ./generated/ --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52)" >> $GITHUB_ENV
           echo "HATCHET_CLIENT_TLS_STRATEGY=none" >> $GITHUB_ENV
+          echo "HATCHET_E2E_PROMETHEUS_URL=http://127.0.0.1:9999/metrics" >> $GITHUB_ENV
 
       - name: Test
         run: |

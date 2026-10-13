@@ -50,6 +50,7 @@ require (
 	github.com/posthog/posthog-go v1.27.0
 	github.com/pressly/goose/v3 v3.28.0
 	github.com/prometheus/client_model v0.6.3
+	github.com/prometheus/common v0.70.1
 	github.com/sashabaranov/go-openai v1.42.1
 	github.com/sethvargo/go-retry v0.4.0
 	github.com/spf13/cobra v1.10.2
@@ -213,7 +214,6 @@ require (
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
-	github.com/prometheus/common v0.70.1 // indirect
 	github.com/prometheus/procfs v0.22.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
