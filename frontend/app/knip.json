@@ -1,7 +1,9 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
+  "ignore": [
+    "**/*.local.*"
+  ],
   "rules": {
-    "files": "off",
     "exports": "off",
     "nsExports": "off",
     "types": "off",
