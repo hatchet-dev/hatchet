@@ -21,7 +21,7 @@
     "typecheck:build": "tsc -p tsconfig.build.json",
     "typecheck:cypress": "tsc -p tsconfig.cypress.json",
     "docs:gen": "cd ../snippets && python3 -X utf8 generate.py",
-    "knip": "knip"
+    "knip": "knip --no-config-hints"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
