@@ -3355,8 +3355,6 @@ func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, te
 	tenantIds := make([]uuid.UUID, 0, len(putPayloadOpts))
 	externalIds := make([]uuid.UUID, 0, len(putPayloadOpts))
 	payloads := make([][]byte, 0, len(putPayloadOpts))
-	locations := make([]string, 0, len(putPayloadOpts))
-	externalKeys := make([]string, 0, len(putPayloadOpts))
 
 	for _, opt := range putPayloadOpts {
 		if isEmptyPayload(opt.Payload.Bytes()) {
@@ -3367,8 +3365,6 @@ func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, te
 		insertedAts = append(insertedAts, opt.InsertedAt)
 		tenantIds = append(tenantIds, tenantId)
 		payloads = append(payloads, opt.Payload.Bytes())
-		locations = append(locations, string(sqlcv1.V1PayloadLocationOlapINLINE))
-		externalKeys = append(externalKeys, "")
 	}
 
 	if len(externalIds) == 0 {
@@ -3376,12 +3372,10 @@ func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, te
 	}
 
 	err = r.queries.PutPayloads(ctx, tx, sqlcv1.PutPayloadsParams{
-		Externalids:          externalIds,
-		Insertedats:          insertedAts,
-		Tenantids:            tenantIds,
-		Payloads:             payloads,
-		Locations:            locations,
-		Externallocationkeys: externalKeys,
+		Externalids: externalIds,
+		Insertedats: insertedAts,
+		Tenantids:   tenantIds,
+		Payloads:    payloads,
 	})
 
 	if err != nil {

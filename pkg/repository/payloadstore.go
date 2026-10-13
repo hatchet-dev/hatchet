@@ -659,15 +659,6 @@ func (p *payloadStoreRepositoryImpl) ExternalStore() ExternalStore {
 	return p.externalStore
 }
 
-type BulkCutOverPayload struct {
-	TenantID            uuid.UUID
-	Id                  int64
-	InsertedAt          pgtype.Timestamptz
-	ExternalId          uuid.UUID
-	Type                sqlcv1.V1PayloadType
-	ExternalLocationKey ExternalPayloadLocationKey
-}
-
 type CutoverBatchOutcome struct {
 	ShouldContinue bool
 	NextExternalId uuid.UUID

@@ -3179,9 +3179,7 @@ WITH inputs AS (
         UNNEST($1::UUID[]) AS external_id,
         UNNEST($2::TIMESTAMPTZ[]) AS inserted_at,
         UNNEST($3::JSONB[]) AS payload,
-        UNNEST($4::UUID[]) AS tenant_id,
-        UNNEST(CAST($5::TEXT[] AS v1_payload_location_olap[])) AS location,
-        UNNEST($6::TEXT[]) AS external_location_key
+        UNNEST($4::UUID[]) AS tenant_id
 )
 
 INSERT INTO v1_payloads_olap (
@@ -3197,26 +3195,18 @@ SELECT
     i.tenant_id,
     i.external_id,
     i.inserted_at,
-    i.location,
-    CASE
-        WHEN i.location = 'EXTERNAL' THEN i.external_location_key
-        ELSE NULL
-    END,
-    CASE
-        WHEN i.location = 'INLINE' THEN i.payload
-        ELSE NULL
-    END AS inline_content
+    'INLINE',
+    NULL,
+    i.payload
 FROM inputs i
 ON CONFLICT DO NOTHING
 `
 
 type PutPayloadsParams struct {
-	Externalids          []uuid.UUID          `json:"externalids"`
-	Insertedats          []pgtype.Timestamptz `json:"insertedats"`
-	Payloads             [][]byte             `json:"payloads"`
-	Tenantids            []uuid.UUID          `json:"tenantids"`
-	Locations            []string             `json:"locations"`
-	Externallocationkeys []string             `json:"externallocationkeys"`
+	Externalids []uuid.UUID          `json:"externalids"`
+	Insertedats []pgtype.Timestamptz `json:"insertedats"`
+	Payloads    [][]byte             `json:"payloads"`
+	Tenantids   []uuid.UUID          `json:"tenantids"`
 }
 
 func (q *Queries) PutPayloads(ctx context.Context, db DBTX, arg PutPayloadsParams) error {
@@ -3225,8 +3215,6 @@ func (q *Queries) PutPayloads(ctx context.Context, db DBTX, arg PutPayloadsParam
 		arg.Insertedats,
 		arg.Payloads,
 		arg.Tenantids,
-		arg.Locations,
-		arg.Externallocationkeys,
 	)
 	return err
 }
