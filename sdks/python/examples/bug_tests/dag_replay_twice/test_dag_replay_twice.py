@@ -85,7 +85,7 @@ async def replay_and_await_completion(
     assert details.task_runs[first.name].status == V1TaskStatus.COMPLETED
     assert details.task_runs[second.name].status == V1TaskStatus.COMPLETED
 
-    return await hatchet.runs.aio_get_result(run_id)
+    return {name: task_run.output for name, task_run in details.task_runs.items()}
 
 
 @pytest.mark.timeout(120, func_only=True)
