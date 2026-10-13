@@ -3439,18 +3439,7 @@ func (r *OLAPRepositoryImpl) readPayloads(ctx context.Context, tx sqlcv1.DBTX, t
 	retrieveFromExternalOpts := make([]RetrieveFromExternalOpts, 0)
 
 	for _, payload := range payloads {
-		if payload.Location == sqlcv1.V1PayloadLocationOlapINLINE {
-			externalIdToPayload[payload.ExternalID] = payload.InlineContent
-		} else {
-			key := ExternalPayloadLocationKey(payload.ExternalLocationKey.String)
-			retrieveFromExternalOpt := RetrieveFromExternalOpts{
-				Method: RetrieveFromExternalByKey,
-				ByKey:  &RetrieveFromExternalByKeyOpt{Key: key},
-			}
-
-			externalIdToRetrieveFromExternalOpt[payload.ExternalID] = retrieveFromExternalOpt
-			retrieveFromExternalOpts = append(retrieveFromExternalOpts, retrieveFromExternalOpt)
-		}
+		externalIdToPayload[payload.ExternalID] = payload.InlineContent
 	}
 
 	if r.payloadStore.ExternalStoreEnabled() {
@@ -3481,11 +3470,8 @@ func (r *OLAPRepositoryImpl) readPayloads(ctx context.Context, tx sqlcv1.DBTX, t
 
 			for _, k := range indexFileKeys {
 				retrieveFromExternalOpt := RetrieveFromExternalOpts{
-					Method: RetrieveFromExternalByIndexFile,
-					ByIndexFile: &RetrieveFromExternalByIndexFileOpt{
-						IndexFileKey: ExternalIndexFileLocationKey(k.IndexFileKey),
-						ExternalId:   k.ExternalID,
-					},
+					IndexFileKey: ExternalIndexFileLocationKey(k.IndexFileKey),
+					ExternalId:   k.ExternalID,
 				}
 
 				externalIdToRetrieveFromExternalOpt[k.ExternalID] = retrieveFromExternalOpt

@@ -167,11 +167,9 @@ func (s TypedPayloadStore[S]) RetrieveOne(ctx context.Context, tx sqlcv1.DBTX, r
 }
 
 func (s TypedPayloadStore[S]) Retrieve(ctx context.Context, tx sqlcv1.DBTX, refs ...PayloadRef[S]) (map[PayloadRef[S]]Payload[S], error) {
-	opts := make([]RetrievePayloadOpts, len(refs))
-
-	for i, ref := range refs {
-		opts[i] = ref.retrieveOpts()
-	}
+	opts := listutils.Map(refs, func(ref PayloadRef[S]) RetrievePayloadOpts {
+		return ref.retrieveOpts()
+	})
 
 	optsToBytes, err := s.store.Retrieve(ctx, tx, opts...)
 
@@ -224,37 +222,9 @@ type RetrievePayloadOpts struct {
 	ExternalId uuid.UUID
 }
 
-type RetrieveFromExternalByKeyOpt struct {
-	Key ExternalPayloadLocationKey
-}
-
-type RetrieveFromExternalByIndexFileOpt struct {
+type RetrieveFromExternalOpts struct {
 	IndexFileKey ExternalIndexFileLocationKey
 	ExternalId   uuid.UUID
-}
-
-type RetrieveFromExternalMethod int
-
-const (
-	RetrieveFromExternalByKey RetrieveFromExternalMethod = iota
-	RetrieveFromExternalByIndexFile
-)
-
-func (m RetrieveFromExternalMethod) String() string {
-	switch m {
-	case RetrieveFromExternalByKey:
-		return "key"
-	case RetrieveFromExternalByIndexFile:
-		return "index_file"
-	default:
-		return "unknown"
-	}
-}
-
-type RetrieveFromExternalOpts struct {
-	Method      RetrieveFromExternalMethod
-	ByKey       *RetrieveFromExternalByKeyOpt
-	ByIndexFile *RetrieveFromExternalByIndexFileOpt
 }
 
 type PayloadLocation string
@@ -589,18 +559,7 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 			}
 		}
 
-		if payload.Location == sqlcv1.V1PayloadLocationEXTERNAL {
-			key := ExternalPayloadLocationKey(payload.ExternalLocationKey.String)
-			retrieveFromExternalOpt := RetrieveFromExternalOpts{
-				Method: RetrieveFromExternalByKey,
-				ByKey:  &RetrieveFromExternalByKeyOpt{Key: key},
-			}
-
-			retrieveFromExternalOptsToOpts[retrieveFromExternalOpt] = opt
-			retrieveFromExternalOpts = append(retrieveFromExternalOpts, retrieveFromExternalOpt)
-		} else {
-			optsToPayload[opt] = payload.InlineContent
-		}
+		optsToPayload[opt] = payload.InlineContent
 	}
 
 	if p.externalStoreEnabled {
@@ -635,11 +594,8 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 
 			for _, k := range indexFileKeys {
 				retrieveFromExternalOpt := RetrieveFromExternalOpts{
-					Method: RetrieveFromExternalByIndexFile,
-					ByIndexFile: &RetrieveFromExternalByIndexFileOpt{
-						IndexFileKey: ExternalIndexFileLocationKey(k.IndexFileKey),
-						ExternalId:   k.ExternalID,
-					},
+					IndexFileKey: ExternalIndexFileLocationKey(k.IndexFileKey),
+					ExternalId:   k.ExternalID,
 				}
 				opt, ok := externalIdToOpt[k.ExternalID]
 

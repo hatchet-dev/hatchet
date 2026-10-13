@@ -233,12 +233,16 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 		if lockedEvent.ChildExternalID != nil {
 			childExternalId = *lockedEvent.ChildExternalID
 		} else {
-			payload := RetrievePayloadOrFallback(payloads, PayloadRef[ChildWorkflowSignalCreatedShape]{
-				Id:         lockedEvent.ID,
-				InsertedAt: lockedEvent.InsertedAt,
-				TenantId:   tenantId,
-				ExternalId: lockedEvent.ExternalID,
-			}, lockedEvent.Data)
+			payload := RetrievePayloadOrFallback(
+				payloads,
+				PayloadRef[ChildWorkflowSignalCreatedShape]{
+					Id:         lockedEvent.ID,
+					InsertedAt: lockedEvent.InsertedAt,
+					TenantId:   tenantId,
+					ExternalId: lockedEvent.ExternalID,
+				},
+				lockedEvent.Data,
+			)
 
 			c, err := DecodeChildWorkflowSignalCreatedPayload(payload)
 
