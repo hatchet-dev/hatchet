@@ -187,8 +187,8 @@ type task struct {
 	errorMessage string
 	output       map[string]interface{}
 
-	// reExecuted is true when the task actually ran this invocation rather than being satisfied
-	// from the log; children of a re-executed parent must re-run during a replay
+	// reExecuted is true when the task ran as part of the current replay rather than being a
+	// cached result from an earlier branch; children of a re-executed parent must re-run too
 	reExecuted bool
 
 	isWaiting       bool
