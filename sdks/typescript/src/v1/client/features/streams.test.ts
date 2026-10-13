@@ -318,6 +318,23 @@ describe('StreamsClient.events reconnection', () => {
     expect(subscribe.mock.calls.map(([req]) => req.cursor)).toEqual([undefined, undefined]);
   });
 
+  it('resubscribes from the start cursor the server sent, so a reset while disconnected skips nothing', async () => {
+    const { streams, subscribe } = setup([
+      async function* dropped() {
+        yield { entries: [], hangup: false, cursor: 'start' };
+        throw grpcError(Status.INTERNAL);
+      },
+      async function* resumed() {
+        yield { entries: [], hangup: false, cursor: 'start' };
+        yield { entries: [entry(1, 'c1')], hangup: false };
+        yield* hangup();
+      },
+    ]);
+
+    expect(await take(streams.events('topic'), 10)).toEqual([1]);
+    expect(subscribe.mock.calls.map(([req]) => req.cursor)).toEqual([undefined, 'start']);
+  });
+
   it('throws an error a retry cannot fix, such as a cursor expiring while disconnected', async () => {
     const { streams, subscribe } = setup([
       async function* dropped() {
@@ -375,6 +392,22 @@ describe('StreamsClient.events reconnection', () => {
 
     expect(await take(streams.events('topic', { signal: controller.signal }), 10)).toEqual([1]);
     expect(subscribe).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('StreamsClient.reset', () => {
+  it('resets the topic in the default namespace unless one is given', async () => {
+    const reset = jest.fn().mockResolvedValue({});
+    mockedCreateGrpcClient.mockReturnValue({ client: { reset } } as any);
+
+    const streams = new StreamsClient(fakeHatchetClient());
+    await streams.reset('topic');
+    await streams.reset('topic', { namespace: 'ns' });
+
+    expect(reset.mock.calls.map(([req]) => req)).toEqual([
+      { namespace: '', topic: 'topic' },
+      { namespace: 'ns', topic: 'topic' },
+    ]);
   });
 });
 

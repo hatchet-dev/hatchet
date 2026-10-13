@@ -273,3 +273,15 @@ SELECT
 FROM retained
 LEFT JOIN latest ON true
 WHERE EXISTS (SELECT 1 FROM topic);
+
+-- name: ResetStreamTopic :exec
+-- Waits on the row lock a publish holds until commit (see
+-- ReserveStreamTopicOffsets), so every offset up to last_offset is stored.
+UPDATE v1_stream_topic
+SET reset_offset = last_offset
+WHERE tenant_id = @tenantId::uuid AND namespace = @namespace::text AND topic = @topic::text;
+
+-- name: GetStreamTopicResetOffset :one
+SELECT reset_offset
+FROM v1_stream_topic
+WHERE tenant_id = @tenantId::uuid AND namespace = @namespace::text AND topic = @topic::text;

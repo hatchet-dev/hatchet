@@ -10,6 +10,7 @@ service V1Streams {
     rpc Publish(PublishStreamMessageRequest) returns (PublishStreamMessageResponse) {}
     rpc Subscribe(SubscribeStreamRequest) returns (stream StreamMessage) {}
     rpc GetTopicMetadata(GetStreamTopicMetadataRequest) returns (StreamTopicMetadata) {}
+    rpc Reset(ResetStreamTopicRequest) returns (ResetStreamTopicResponse) {}
 }
 
 message PublishStreamMessageRequest {
@@ -61,3 +62,10 @@ message StreamTopicMetadata {
     // when the newest retained message was stored; unset when none is retained
     google.protobuf.Timestamp last_published_at = 6;
 }
+
+message ResetStreamTopicRequest {
+    string namespace = 1;
+    string topic = 2;
+}
+
+message ResetStreamTopicResponse {}

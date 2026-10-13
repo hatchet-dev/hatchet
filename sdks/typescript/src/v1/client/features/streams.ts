@@ -266,7 +266,19 @@ export class StreamsClient {
   }
 
   /**
-   * Yields topic's messages after options.cursor, or from the oldest retained.
+   * Makes events() calls without a cursor start after the topic's latest
+   * message. Readers already iterating, and any call with a cursor, are
+   * unaffected.
+   * @param topic - the topic to reset
+   * @param options - optional namespace override
+   */
+  async reset(topic: string, options?: Pick<StreamCallOptions, 'namespace'>): Promise<void> {
+    await this.grpc.reset({ namespace: options?.namespace ?? '', topic });
+  }
+
+  /**
+   * Yields topic's messages after options.cursor, or from the oldest retained
+   * (or, once the topic is reset, after the reset).
    * If the connection drops, it resubscribes from the last message yielded, so
    * nothing is skipped or repeated. Ends when the server hangs up an idle
    * subscription, options.signal aborts, or the caller stops iterating; throws
@@ -287,6 +299,12 @@ export class StreamsClient {
         for await (const msg of stream) {
           if (msg.hangup) {
             return;
+          }
+
+          // the first message is where this subscription started, so a
+          // resubscribe before any entry arrives isn't moved by a reset
+          if (msg.cursor) {
+            ({ cursor } = msg);
           }
 
           for (const entry of msg.entries) {

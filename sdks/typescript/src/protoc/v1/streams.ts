@@ -63,6 +63,13 @@ export interface StreamTopicMetadata {
   lastPublishedAt: Date | undefined;
 }
 
+export interface ResetStreamTopicRequest {
+  namespace: string;
+  topic: string;
+}
+
+export interface ResetStreamTopicResponse {}
+
 function createBasePublishStreamMessageRequest(): PublishStreamMessageRequest {
   return {
     namespace: '',
@@ -812,6 +819,128 @@ export const StreamTopicMetadata: MessageFns<StreamTopicMetadata> = {
   },
 };
 
+function createBaseResetStreamTopicRequest(): ResetStreamTopicRequest {
+  return { namespace: '', topic: '' };
+}
+
+export const ResetStreamTopicRequest: MessageFns<ResetStreamTopicRequest> = {
+  encode(
+    message: ResetStreamTopicRequest,
+    writer: BinaryWriter = new BinaryWriter()
+  ): BinaryWriter {
+    if (message.namespace !== '') {
+      writer.uint32(10).string(message.namespace);
+    }
+    if (message.topic !== '') {
+      writer.uint32(18).string(message.topic);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ResetStreamTopicRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseResetStreamTopicRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.namespace = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.topic = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ResetStreamTopicRequest {
+    return {
+      namespace: isSet(object.namespace) ? globalThis.String(object.namespace) : '',
+      topic: isSet(object.topic) ? globalThis.String(object.topic) : '',
+    };
+  },
+
+  toJSON(message: ResetStreamTopicRequest): unknown {
+    const obj: any = {};
+    if (message.namespace !== '') {
+      obj.namespace = message.namespace;
+    }
+    if (message.topic !== '') {
+      obj.topic = message.topic;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<ResetStreamTopicRequest>): ResetStreamTopicRequest {
+    return ResetStreamTopicRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ResetStreamTopicRequest>): ResetStreamTopicRequest {
+    const message = createBaseResetStreamTopicRequest();
+    message.namespace = object.namespace ?? '';
+    message.topic = object.topic ?? '';
+    return message;
+  },
+};
+
+function createBaseResetStreamTopicResponse(): ResetStreamTopicResponse {
+  return {};
+}
+
+export const ResetStreamTopicResponse: MessageFns<ResetStreamTopicResponse> = {
+  encode(_: ResetStreamTopicResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ResetStreamTopicResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseResetStreamTopicResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(_: any): ResetStreamTopicResponse {
+    return {};
+  },
+
+  toJSON(_: ResetStreamTopicResponse): unknown {
+    const obj: any = {};
+    return obj;
+  },
+
+  create(base?: DeepPartial<ResetStreamTopicResponse>): ResetStreamTopicResponse {
+    return ResetStreamTopicResponse.fromPartial(base ?? {});
+  },
+  fromPartial(_: DeepPartial<ResetStreamTopicResponse>): ResetStreamTopicResponse {
+    const message = createBaseResetStreamTopicResponse();
+    return message;
+  },
+};
+
 export type V1StreamsDefinition = typeof V1StreamsDefinition;
 export const V1StreamsDefinition = {
   name: 'V1Streams',
@@ -841,6 +970,14 @@ export const V1StreamsDefinition = {
       responseStream: false,
       options: {},
     },
+    reset: {
+      name: 'Reset',
+      requestType: ResetStreamTopicRequest as typeof ResetStreamTopicRequest,
+      requestStream: false,
+      responseType: ResetStreamTopicResponse as typeof ResetStreamTopicResponse,
+      responseStream: false,
+      options: {},
+    },
   },
 } as const;
 
@@ -857,6 +994,10 @@ export interface V1StreamsServiceImplementation<CallContextExt = {}> {
     request: GetStreamTopicMetadataRequest,
     context: CallContext & CallContextExt
   ): Promise<DeepPartial<StreamTopicMetadata>>;
+  reset(
+    request: ResetStreamTopicRequest,
+    context: CallContext & CallContextExt
+  ): Promise<DeepPartial<ResetStreamTopicResponse>>;
 }
 
 export interface V1StreamsClient<CallOptionsExt = {}> {
@@ -872,6 +1013,10 @@ export interface V1StreamsClient<CallOptionsExt = {}> {
     request: DeepPartial<GetStreamTopicMetadataRequest>,
     options?: CallOptions & CallOptionsExt
   ): Promise<StreamTopicMetadata>;
+  reset(
+    request: DeepPartial<ResetStreamTopicRequest>,
+    options?: CallOptions & CallOptionsExt
+  ): Promise<ResetStreamTopicResponse>;
 }
 
 function bytesFromBase64(b64: string): Uint8Array {

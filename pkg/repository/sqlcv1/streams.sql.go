@@ -282,6 +282,25 @@ func (q *Queries) GetStreamTopicMetadata(ctx context.Context, db DBTX, arg GetSt
 	return &i, err
 }
 
+const getStreamTopicResetOffset = `-- name: GetStreamTopicResetOffset :one
+SELECT reset_offset
+FROM v1_stream_topic
+WHERE tenant_id = $1::uuid AND namespace = $2::text AND topic = $3::text
+`
+
+type GetStreamTopicResetOffsetParams struct {
+	Tenantid  uuid.UUID `json:"tenantid"`
+	Namespace string    `json:"namespace"`
+	Topic     string    `json:"topic"`
+}
+
+func (q *Queries) GetStreamTopicResetOffset(ctx context.Context, db DBTX, arg GetStreamTopicResetOffsetParams) (int64, error) {
+	row := db.QueryRow(ctx, getStreamTopicResetOffset, arg.Tenantid, arg.Namespace, arg.Topic)
+	var reset_offset int64
+	err := row.Scan(&reset_offset)
+	return reset_offset, err
+}
+
 const insertStreamPayload = `-- name: InsertStreamPayload :one
 INSERT INTO v1_stream_payload (id, tenant_id, payload)
 VALUES ($1::uuid, $2::uuid, $3::bytea)
@@ -522,6 +541,25 @@ func (q *Queries) ListStreamRetentionDeleteCandidates(ctx context.Context, db DB
 	return items, nil
 }
 
+const resetStreamTopic = `-- name: ResetStreamTopic :exec
+UPDATE v1_stream_topic
+SET reset_offset = last_offset
+WHERE tenant_id = $1::uuid AND namespace = $2::text AND topic = $3::text
+`
+
+type ResetStreamTopicParams struct {
+	Tenantid  uuid.UUID `json:"tenantid"`
+	Namespace string    `json:"namespace"`
+	Topic     string    `json:"topic"`
+}
+
+// Waits on the row lock a publish holds until commit (see
+// ReserveStreamTopicOffsets), so every offset up to last_offset is stored.
+func (q *Queries) ResetStreamTopic(ctx context.Context, db DBTX, arg ResetStreamTopicParams) error {
+	_, err := db.Exec(ctx, resetStreamTopic, arg.Tenantid, arg.Namespace, arg.Topic)
+	return err
+}
+
 const setStreamMessagePayloadRef = `-- name: SetStreamMessagePayloadRef :exec
 UPDATE v1_stream_message
 SET payload_id = $1::uuid, payload_inserted_at = $2::timestamptz
@@ -581,7 +619,7 @@ INSERT INTO v1_stream_topic (tenant_id, namespace, topic)
 VALUES ($1::uuid, $2::text, $3::text)
 ON CONFLICT (tenant_id, namespace, topic) DO UPDATE
 SET last_published_at = NOW()
-RETURNING v1_stream_topic.tenant_id, v1_stream_topic.namespace, v1_stream_topic.topic, v1_stream_topic.inserted_at, v1_stream_topic.last_published_at, v1_stream_topic.last_offset, (xmax = 0) AS inserted
+RETURNING v1_stream_topic.tenant_id, v1_stream_topic.namespace, v1_stream_topic.topic, v1_stream_topic.inserted_at, v1_stream_topic.last_published_at, v1_stream_topic.last_offset, v1_stream_topic.reset_offset, (xmax = 0) AS inserted
 `
 
 type UpsertStreamTopicParams struct {
@@ -606,6 +644,7 @@ func (q *Queries) UpsertStreamTopic(ctx context.Context, db DBTX, arg UpsertStre
 		&i.V1StreamTopic.InsertedAt,
 		&i.V1StreamTopic.LastPublishedAt,
 		&i.V1StreamTopic.LastOffset,
+		&i.V1StreamTopic.ResetOffset,
 		&i.Inserted,
 	)
 	return &i, err
