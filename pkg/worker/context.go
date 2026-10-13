@@ -880,10 +880,6 @@ func (h *hatchetContext) populateStepDataForGroupKeyRun() error {
 		return nil
 	}
 
-	if !json.Valid(h.a.ActionPayload) {
-		return fmt.Errorf("group key run payload is not valid JSON")
-	}
-
 	h.stepData = &StepRunData{
 		Input: h.a.ActionPayload,
 	}

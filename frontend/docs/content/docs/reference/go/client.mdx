@@ -205,14 +205,6 @@ func(ctx hatchet.DurableContext, input In) (Out, error)
 
 Options can be any combination of WorkflowOption and TaskOption.
 
-**Go 1.26 and earlier**
-
-```go
-func (c *Client) NewStandaloneDurableTask(name string, fn any, options ...StandaloneTaskOption) *StandaloneTask
-```
-
-**Go 1.27 and later**
-
 ```go
 func (c *Client) NewStandaloneDurableTask[I, O any](name string, fn func(ctx DurableContext, input I) (O, error), options ...StandaloneTaskOption) *StandaloneTask
 ```
@@ -244,14 +236,6 @@ func(ctx hatchet.Context, input In) (Out, error)
 The input and output types are type parameters, checked at compile time and invoked without reflection. They are inferred from the function, so existing call sites are unchanged.
 
 Options can be any combination of WorkflowOption and TaskOption.
-
-**Go 1.26 and earlier**
-
-```go
-func (c *Client) NewStandaloneTask(name string, fn any, options ...StandaloneTaskOption) *StandaloneTask
-```
-
-**Go 1.27 and later**
 
 ```go
 func (c *Client) NewStandaloneTask[I, O any](name string, fn func(ctx Context, input I) (O, error), options ...StandaloneTaskOption) *StandaloneTask

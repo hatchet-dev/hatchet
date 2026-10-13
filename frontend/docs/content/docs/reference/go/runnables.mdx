@@ -85,19 +85,11 @@ Returns:
 
 #### `NewDurableTask`
 
-NewDurableTask transforms a typed function into a durable Hatchet task that runs as part of a workflow. Like NewTask, the input and output types are type parameters checked at compile time and invoked without reflection.
+NewDurableTask transforms a typed function into a durable Hatchet task that runs as part of a workflow. Like NewTask, the input and output types are type parameters checked at compile time. On Go 1.26 and earlier, fn is typed any and validated at runtime instead.
 
 ```go
 func(ctx hatchet.DurableContext, input In) (Out, error)
 ```
-
-**Go 1.26 and earlier**
-
-```go
-func (w *Workflow) NewDurableTask(name string, fn any, options ...TaskOption) *Task
-```
-
-**Go 1.27 and later**
 
 ```go
 func (w *Workflow) NewDurableTask[I, O any](name string, fn func(ctx DurableContext, input I) (O, error), options ...TaskOption) *Task
@@ -121,19 +113,11 @@ Returns:
 
 NewTask transforms a typed function into a Hatchet task that runs as part of a workflow.
 
-The input and output types are captured as type parameters, so the function signature is checked at compile time and invoked directly — no reflection. Type parameters are inferred from the function literal, so existing call sites need no changes.
+The input and output types are type parameters inferred from the function, so the signature is checked at compile time and invoked directly. On Go 1.26 and earlier, fn is typed any and validated at runtime instead.
 
 ```go
 func(ctx hatchet.Context, input In) (Out, error)
 ```
-
-**Go 1.26 and earlier**
-
-```go
-func (w *Workflow) NewTask(name string, fn any, options ...TaskOption) *Task
-```
-
-**Go 1.27 and later**
 
 ```go
 func (w *Workflow) NewTask[I, O any](name string, fn func(ctx Context, input I) (O, error), options ...TaskOption) *Task
@@ -155,19 +139,11 @@ Returns:
 
 #### `OnFailure`
 
-OnFailure sets a typed failure handler for the workflow. It runs when any task in the workflow fails and receives the same input the workflow was triggered with. The input and output types are type parameters, inferred from the handler and invoked without reflection.
+OnFailure sets a typed failure handler for the workflow. It runs when any task in the workflow fails and receives the same input the workflow was triggered with. On Go 1.26 and earlier, fn is typed any and validated at runtime instead.
 
 ```go
 func(ctx hatchet.Context, input In) (Out, error)
 ```
-
-**Go 1.26 and earlier**
-
-```go
-func (w *Workflow) OnFailure(fn any)
-```
-
-**Go 1.27 and later**
 
 ```go
 func (w *Workflow) OnFailure[I, O any](fn func(ctx Context, input I) (O, error))
@@ -280,14 +256,6 @@ Returns:
 #### `OnFailure`
 
 OnFailure sets a typed failure handler for the standalone task. It runs when the task fails and receives the same input the task was triggered with. The input and output types are type parameters, inferred from the handler and invoked without reflection.
-
-**Go 1.26 and earlier**
-
-```go
-func (st *StandaloneTask) OnFailure(fn any)
-```
-
-**Go 1.27 and later**
 
 ```go
 func (st *StandaloneTask) OnFailure[I, O any](fn func(ctx Context, input I) (O, error))

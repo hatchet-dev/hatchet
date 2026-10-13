@@ -26,9 +26,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -292,8 +290,7 @@ func verifyMetaCoverage(files map[string]string) error {
 type pkgDocs struct {
 	pkg       *doc.Package
 	fset      *token.FileSet
-	fileDecls map[string][]string     // base file name -> top-level exported decl names, in declaration order
-	variants  map[string][]sigVariant // symbol key -> per-Go-version signatures (see funcSymKey)
+	fileDecls map[string][]string // base file name -> top-level exported decl names, in declaration order
 }
 
 func loadPackage(dir, importPath string) (*pkgDocs, error) {
@@ -302,11 +299,8 @@ func loadPackage(dir, importPath string) (*pkgDocs, error) {
 	if err != nil {
 		return nil, err
 	}
-	// The primary doc set is the files the running toolchain compiles (build.Default honors
-	// //go:build tags). Version-gated files it excludes — the other side of a go1.N split —
-	// are collected separately as signature variants so the reference shows both. Run the
-	// generator on the newest supported Go so its parser can read every variant's syntax.
-	variants := map[string][]sigVariant{}
+	// build.Default honors //go:build tags, so only the files the running toolchain compiles
+	// are documented. Run the generator on the newest supported Go.
 	var fileNames []string
 	for _, e := range entries {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".go") || strings.HasSuffix(e.Name(), "_test.go") {
@@ -318,14 +312,6 @@ func loadPackage(dir, importPath string) (*pkgDocs, error) {
 		}
 		if matched {
 			fileNames = append(fileNames, e.Name())
-			continue
-		}
-		// Excluded, version-gated file: record its signatures as the older-Go variant.
-		// Its syntax may be unparseable by an older toolchain, so tolerate parse errors.
-		if label, gated := goVersionLabel(dir, e.Name()); gated {
-			if af, err := parser.ParseFile(fset, filepath.Join(dir, e.Name()), nil, parser.ParseComments); err == nil {
-				collectVariants(af, label, variants)
-			}
 		}
 	}
 	sort.Strings(fileNames)
@@ -338,10 +324,6 @@ func loadPackage(dir, importPath string) (*pkgDocs, error) {
 			return nil, err
 		}
 		files = append(files, f)
-		// Included, version-gated file: record its signatures as the newer-Go variant.
-		if label, gated := goVersionLabel(dir, name); gated {
-			collectVariants(f, label, variants)
-		}
 		for _, decl := range f.Decls {
 			switch d := decl.(type) {
 			case *ast.FuncDecl:
@@ -362,7 +344,7 @@ func loadPackage(dir, importPath string) (*pkgDocs, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &pkgDocs{pkg: p, fset: fset, fileDecls: fileDecls, variants: variants}, nil
+	return &pkgDocs{pkg: p, fset: fset, fileDecls: fileDecls}, nil
 }
 
 // ---------- doc comment helpers ----------
@@ -496,14 +478,10 @@ func renderFieldList(fl *ast.FieldList, forceParens bool) string {
 }
 
 func recvString(fn *doc.Func) string {
-	return recvStringDecl(fn.Decl)
-}
-
-func recvStringDecl(d *ast.FuncDecl) string {
-	if d.Recv == nil || len(d.Recv.List) == 0 {
+	if fn.Decl.Recv == nil || len(fn.Decl.Recv.List) == 0 {
 		return ""
 	}
-	f := d.Recv.List[0]
+	f := fn.Decl.Recv.List[0]
 	typ := exprString(f.Type)
 	if len(f.Names) > 0 {
 		return f.Names[0].Name + " " + typ
@@ -530,87 +508,6 @@ func renderTypeParams(fl *ast.FieldList) string {
 		parts = append(parts, strings.Join(names, ", ")+" "+typ)
 	}
 	return "[" + strings.Join(parts, ", ") + "]"
-}
-
-// ---------- Go-version build-tag variants ----------
-//
-// Some SDK methods (the generic constructors and OnFailure) are declared in two files
-// gated on a go1.N build tag: a typed generic form for the newer toolchain and a
-// reflection (fn any) form for older ones. So users on either Go version see the right
-// signature, the reference documents every version-specific variant, labeled by Go version.
-
-// sigVariant is one build-tag-gated form of a symbol's signature.
-type sigVariant struct {
-	label string // e.g. "Go 1.27 and later"
-	sig   string
-}
-
-var goBuildTagRe = regexp.MustCompile(`(!?)\bgo1\.(\d+)\b`)
-
-// goVersionLabel reads a file's //go:build line and returns a human label for the Go
-// version range it applies to (e.g. "Go 1.27 and later", "Go 1.26 and earlier"), plus
-// whether the file is gated on a go1.N tag at all.
-func goVersionLabel(dir, name string) (string, bool) {
-	data, err := os.ReadFile(filepath.Join(dir, name))
-	if err != nil {
-		return "", false
-	}
-	for _, line := range strings.Split(string(data), "\n") {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "//go:build") {
-			m := goBuildTagRe.FindStringSubmatch(line)
-			if m == nil {
-				return "", false
-			}
-			n, _ := strconv.Atoi(m[2])
-			if m[1] == "!" {
-				return fmt.Sprintf("Go 1.%d and earlier", n-1), true
-			}
-			return fmt.Sprintf("Go 1.%d and later", n), true
-		}
-		// Build constraints must precede the package clause; stop once past the header.
-		if line == "package" || strings.HasPrefix(line, "package ") {
-			break
-		}
-	}
-	return "", false
-}
-
-// funcSymKey identifies a func/method across build variants by receiver type and name.
-func funcSymKey(d *ast.FuncDecl) string {
-	if d.Recv != nil && len(d.Recv.List) > 0 {
-		return recvTypeName(d.Recv.List[0].Type) + "." + d.Name.Name
-	}
-	return "." + d.Name.Name
-}
-
-func recvTypeName(e ast.Expr) string {
-	switch t := e.(type) {
-	case *ast.StarExpr:
-		return recvTypeName(t.X)
-	case *ast.IndexExpr:
-		return recvTypeName(t.X)
-	case *ast.IndexListExpr:
-		return recvTypeName(t.X)
-	case *ast.Ident:
-		return t.Name
-	default:
-		return exprString(e)
-	}
-}
-
-// collectVariants records the signature of every exported func/method in a build-tagged
-// file under the given Go-version label.
-func collectVariants(f *ast.File, label string, into map[string][]sigVariant) {
-	for _, decl := range f.Decls {
-		d, ok := decl.(*ast.FuncDecl)
-		if !ok || !d.Name.IsExported() {
-			continue
-		}
-		key := funcSymKey(d)
-		sig := signature(recvStringDecl(d), d.Name.Name, d.Type)
-		into[key] = append(into[key], sigVariant{label: label, sig: sig})
-	}
 }
 
 // ---------- markdown table helpers ----------
@@ -692,31 +589,13 @@ func returnsTable(ft *ast.FuncType) string {
 
 // ---------- section rendering ----------
 
-// writeSignatureBlocks emits the code block for a func/method. When the symbol has more
-// than one distinct signature across Go-version build tags, each is emitted under its own
-// version label; otherwise a single block is emitted.
-func writeSignatureBlocks(b *strings.Builder, p *pkgDocs, fn *doc.Func) {
-	vs := p.variants[funcSymKey(fn.Decl)]
-	distinct := map[string]bool{}
-	for _, v := range vs {
-		distinct[v.sig] = true
-	}
-	if len(distinct) < 2 {
-		fmt.Fprintf(b, "```go\n%s\n```\n\n", signature(recvString(fn), fn.Name, fn.Decl.Type))
-		return
-	}
-	for _, v := range vs {
-		fmt.Fprintf(b, "**%s**\n\n```go\n%s\n```\n\n", v.label, v.sig)
-	}
-}
-
 func writeFuncSection(b *strings.Builder, p *pkgDocs, fn *doc.Func, level int) {
 	heading := strings.Repeat("#", level)
 	fmt.Fprintf(b, "%s `%s`\n\n", heading, fn.Name)
 	if d := mdDoc(p, fn.Doc); d != "" {
 		b.WriteString(d + "\n")
 	}
-	writeSignatureBlocks(b, p, fn)
+	fmt.Fprintf(b, "```go\n%s\n```\n\n", signature(recvString(fn), fn.Name, fn.Decl.Type))
 	if t := paramsTable(fn.Decl.Type); t != "" {
 		b.WriteString(t + "\n")
 	}

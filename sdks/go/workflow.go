@@ -345,6 +345,34 @@ type taskConfig struct {
 	slotCost               *int32
 }
 
+func (c *taskConfig) createOpts(name string) create.WorkflowTask[any, any] {
+	return create.WorkflowTask[any, any]{
+		Name:                   name,
+		Retries:                c.retries,
+		RetryBackoffFactor:     c.retryBackoffFactor,
+		RetryMaxBackoffSeconds: c.retryMaxBackoffSeconds,
+		ExecutionTimeout:       c.executionTimeout,
+		ScheduleTimeout:        c.scheduleTimeout,
+		Concurrency:            c.concurrency,
+		RateLimits:             c.rateLimits,
+		Parents:                c.parents,
+		WaitFor:                c.waitFor,
+		SkipIf:                 c.skipIf,
+		SlotCost:               c.slotCost,
+	}
+}
+
+func (c *taskConfig) evictionOpts() *internal.EvictionPolicyOpts {
+	if c.evictionPolicy == nil {
+		return nil
+	}
+	return &internal.EvictionPolicyOpts{
+		TTL:                   c.evictionPolicy.TTL,
+		AllowCapacityEviction: c.evictionPolicy.AllowCapacityEviction,
+		Priority:              c.evictionPolicy.Priority,
+	}
+}
+
 // WithRetries sets the number of retry attempts for failed tasks.
 func WithRetries(retries int) TaskOption {
 	return func(config *taskConfig) {
