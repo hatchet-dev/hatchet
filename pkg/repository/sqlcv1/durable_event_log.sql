@@ -278,6 +278,7 @@ WITH inputs AS (
         UNNEST(@branchIds::BIGINT[]) AS branch_id,
         UNNEST(@idempotencyKeys::BYTEA[]) AS idempotency_key,
         UNNEST(@isSatisfieds::BOOLEAN[]) AS is_satisfied,
+        UNNEST(@isTriggereds::BOOLEAN[]) AS is_triggered,
         UNNEST(@userMessages::TEXT[]) AS user_message,
         UNNEST(@waitDatas::TEXT[]) AS wait_data
 ), ordered_inputs AS (
@@ -310,8 +311,9 @@ WITH inputs AS (
         satisfied_order,
         user_message,
         wait_data,
-        -- !!IMPORTANT: Writing the `triggered_at` explicitly as `NULL` since it has a `DEFAULT CURRENT_TIMESTAMP`,
-        -- so we write the explicit null to avoid it being set to the current timestamp on insert
+        -- !!IMPORTANT: `triggered_at` has a `DEFAULT CURRENT_TIMESTAMP`, so it is written explicitly: NULL
+        -- for an entry whose run the trigger path still has to spawn, NOW() for an entry whose child
+        -- already exists (an in-place replay)
         triggered_at
     )
     SELECT
@@ -330,7 +332,7 @@ WITH inputs AS (
         i.satisfied_order,
         NULLIF(i.user_message, ''),
         NULLIF(i.wait_data, '')::JSONB,
-        NULL::TIMESTAMPTZ
+        CASE WHEN i.is_triggered THEN NOW() END
     FROM ordered_inputs i
     ON CONFLICT (durable_task_id, durable_task_inserted_at, branch_id, node_id) DO NOTHING
     RETURNING *

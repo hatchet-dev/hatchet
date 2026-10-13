@@ -81,8 +81,8 @@ type DAGStepTriggerResult struct {
 	IsFailure     bool
 	ErrorMessage  *string
 
-	// ReExecuted is true when the step actually runs this invocation rather than being
-	// satisfied from the log.
+	// ReExecuted is true when the step's entry is on the log's current branch, i.e. it ran as
+	// part of the current replay rather than being a cached result from an earlier branch.
 	ReExecuted bool
 }
 
