@@ -16,6 +16,7 @@ type timeoutEntry struct {
 // slotLocation tracks a task's position in both heaps in a single map entry. Indices are stored
 // 1-based so the zero value means "absent from that heap" - this disambiguates a genuine index 0
 // from a missing entry, and lets us drop the map entry exactly when the task leaves both heaps.
+// Indices are int32 rather than int to keep the map value at 8 bytes instead of 16.
 type slotLocation struct {
 	priIdx int32 // 1-based index into priorityQueue.values; 0 = absent
 	toIdx  int32 // 1-based index into timedOutQueue.values; 0 = absent (always 0 when timeouts untracked)
