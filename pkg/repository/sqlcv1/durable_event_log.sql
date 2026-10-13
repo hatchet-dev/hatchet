@@ -133,6 +133,8 @@ WITH inputs AS (
         UNNEST(@childTaskIsFailures::BOOLEAN[]) AS child_task_is_failure,
         UNNEST(@childTaskErrorMessages::TEXT[]) AS child_task_error_message
 ), satisfied_orders_to_apply AS (
+    -- an entry on a branch that a later branch point replaced is never replayed, so stamping it
+    -- would leave a gap in the live branch's order sequence that no delivery could ever close
     SELECT
         e.durable_task_id,
         e.durable_task_inserted_at,
@@ -151,6 +153,14 @@ WITH inputs AS (
         AND (durable_task_id, durable_task_inserted_at, branch_id, node_id) IN (
             SELECT durable_task_id, durable_task_inserted_at, branch_id, node_id
             FROM inputs
+        )
+        AND NOT EXISTS (
+            SELECT 1
+            FROM v1_durable_event_log_branch_point bp
+            WHERE bp.durable_task_id = e.durable_task_id
+              AND bp.durable_task_inserted_at = e.durable_task_inserted_at
+              AND bp.parent_branch_id = e.branch_id
+              AND bp.first_node_id_in_new_branch <= e.node_id
         )
 ), updated AS (
     UPDATE v1_durable_event_log_entry e
