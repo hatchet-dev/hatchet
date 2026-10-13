@@ -301,7 +301,6 @@ type OLAPRepository interface {
 	ReadPayload(ctx context.Context, tenantId uuid.UUID, opt ReadOLAPPayloadOpts) ([]byte, error)
 
 	AnalyzeOLAPTables(ctx context.Context) error
-	OffloadPayloads(ctx context.Context, tenantId uuid.UUID, payloads []OffloadPayloadOpts) error
 
 	PayloadStore() PayloadStoreRepository
 	StatusUpdateBatchSizeLimits() StatusUpdateBatchSizeLimits
@@ -3322,11 +3321,6 @@ func (r *OLAPRepositoryImpl) StoreCELEvaluationFailures(ctx context.Context, ten
 	})
 }
 
-type OffloadPayloadOpts struct {
-	ExternalId          uuid.UUID
-	ExternalLocationKey string
-}
-
 func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, putPayloadOpts ...StoreOLAPPayloadOpts) error {
 	ctx, span := telemetry.NewSpan(ctx, "OLAPRepository.PutPayloads")
 	defer span.End()
@@ -3487,42 +3481,6 @@ func (r *OLAPRepositoryImpl) readPayloads(ctx context.Context, tx sqlcv1.DBTX, t
 	}
 
 	return externalIdToPayload, nil
-}
-
-func (r *OLAPRepositoryImpl) OffloadPayloads(ctx context.Context, tenantId uuid.UUID, payloads []OffloadPayloadOpts) error {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
-
-	if err != nil {
-		return fmt.Errorf("error beginning transaction: %v", err)
-	}
-
-	defer rollback()
-
-	tenantIds := make([]uuid.UUID, len(payloads))
-	externalIds := make([]uuid.UUID, len(payloads))
-	externalLocationKeys := make([]string, len(payloads))
-
-	for i, opt := range payloads {
-		externalIds[i] = opt.ExternalId
-		tenantIds[i] = tenantId
-		externalLocationKeys[i] = opt.ExternalLocationKey
-	}
-
-	err = r.queries.OffloadPayloads(ctx, tx, sqlcv1.OffloadPayloadsParams{
-		Externalids:          externalIds,
-		Tenantids:            tenantIds,
-		Externallocationkeys: externalLocationKeys,
-	})
-
-	if err != nil {
-		return fmt.Errorf("error offloading payloads: %v", err)
-	}
-
-	if err := commit(ctx); err != nil {
-		return fmt.Errorf("error committing transaction: %v", err)
-	}
-
-	return nil
 }
 
 func (r *OLAPRepositoryImpl) AnalyzeOLAPTables(ctx context.Context) error {
@@ -3716,13 +3674,6 @@ func (r *OLAPRepositoryImpl) ListYesterdayRunCountsByStatus(ctx context.Context)
 	}
 
 	return statusToCount, nil
-}
-
-type BulkCutOverOLAPPayload struct {
-	TenantID            uuid.UUID
-	InsertedAt          pgtype.Timestamptz
-	ExternalId          uuid.UUID
-	ExternalLocationKey ExternalPayloadLocationKey
 }
 
 type OLAPCutoverJobRunMetadata struct {

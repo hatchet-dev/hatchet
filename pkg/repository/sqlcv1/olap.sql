@@ -2251,27 +2251,6 @@ FROM inputs i
 ON CONFLICT DO NOTHING
 ;
 
--- name: OffloadPayloads :exec
-WITH inputs AS (
-    SELECT
-        UNNEST(@externalIds::UUID[]) AS external_id,
-        UNNEST(@tenantIds::UUID[]) AS tenant_id,
-        UNNEST(@externalLocationKeys::TEXT[]) AS external_location_key
-)
-
-UPDATE v1_payloads_olap
-SET
-    location = 'EXTERNAL',
-    external_location_key = i.external_location_key,
-    inline_content = NULL,
-    updated_at = NOW()
-FROM inputs i
-WHERE
-    (v1_payloads_olap.tenant_id, v1_payloads_olap.external_id) = (i.tenant_id, i.external_id)
-    AND v1_payloads_olap.location = 'INLINE'
-    AND v1_payloads_olap.external_location_key IS NULL
-;
-
 -- name: ReadPayloadsOLAP :many
 SELECT *
 FROM v1_payloads_olap

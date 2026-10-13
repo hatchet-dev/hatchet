@@ -525,30 +525,9 @@ func (tc *OLAPControllerImpl) handleBufferedMsgs(tenantId uuid.UUID, msgId strin
 		return tc.handleFailedWebhookValidation(ctx, tenantId, payloads)
 	case "cel-evaluation-failure":
 		return tc.handleCelEvaluationFailure(ctx, tenantId, payloads)
-	case "offload-payload":
-		return tc.handlePayloadOffload(ctx, tenantId, payloads)
 	}
 
 	return fmt.Errorf("unknown message id: %s", msgId)
-}
-
-func (tc *OLAPControllerImpl) handlePayloadOffload(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
-	offloads := make([]v1.OffloadPayloadOpts, 0)
-
-	msgs := msgqueue.JSONConvert[v1.OLAPPayloadsToOffload](payloads)
-
-	for _, msg := range msgs {
-		for _, payload := range msg.Payloads {
-			if !tc.sample(payload.ExternalId.String()) {
-				tc.l.Debug().Ctx(ctx).Msgf("skipping payload offload external id %s", payload.ExternalId)
-				continue
-			}
-
-			offloads = append(offloads, v1.OffloadPayloadOpts(payload))
-		}
-	}
-
-	return tc.repo.OLAP().OffloadPayloads(ctx, tenantId, offloads)
 }
 
 func (tc *OLAPControllerImpl) handleCelEvaluationFailure(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {

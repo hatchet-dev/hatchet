@@ -228,7 +228,6 @@ type RetrieveFromExternalOpts struct {
 }
 
 type PayloadLocation string
-type ExternalPayloadLocationKey string
 type ExternalIndexFileLocationKey string
 
 type CreateIndexBlockOpts struct {
@@ -360,9 +359,7 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 	payloadTypes := make([]string, 0, len(payloads))
 	inlineContents := make([][]byte, 0, len(payloads))
 	tenantIds := make([]uuid.UUID, 0, len(payloads))
-	locations := make([]string, 0, len(payloads))
 	externalIds := make([]uuid.UUID, 0, len(payloads))
-	externalLocationKeys := make([]string, 0, len(payloads))
 
 	seenPayloadUniqueKeys := make(map[PayloadUniqueKey]struct{})
 
@@ -388,21 +385,17 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 		taskInsertedAts = append(taskInsertedAts, payload.key.InsertedAt)
 		payloadTypes = append(payloadTypes, string(payload.key.Type))
 		tenantIds = append(tenantIds, payload.key.TenantId)
-		locations = append(locations, string(sqlcv1.V1PayloadLocationINLINE))
 		inlineContents = append(inlineContents, payload.payload)
 		externalIds = append(externalIds, payload.key.ExternalId)
-		externalLocationKeys = append(externalLocationKeys, "")
 	}
 
 	err := p.queries.WritePayloads(ctx, tx, sqlcv1.WritePayloadsParams{
-		Ids:                  taskIds,
-		Insertedats:          taskInsertedAts,
-		Types:                payloadTypes,
-		Locations:            locations,
-		Tenantids:            tenantIds,
-		Inlinecontents:       inlineContents,
-		Externalids:          externalIds,
-		Externallocationkeys: externalLocationKeys,
+		Ids:            taskIds,
+		Insertedats:    taskInsertedAts,
+		Types:          payloadTypes,
+		Tenantids:      tenantIds,
+		Inlinecontents: inlineContents,
+		Externalids:    externalIds,
 	})
 
 	if err != nil {
