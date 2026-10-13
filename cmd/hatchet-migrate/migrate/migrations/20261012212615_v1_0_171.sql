@@ -3,7 +3,6 @@
 WITH replayed_tasks AS (
     SELECT DISTINCT durable_task_id, durable_task_inserted_at
     FROM v1_durable_event_log_branch_point
-    WHERE durable_task_inserted_at >= '2026-08-20'
 )
 
 UPDATE v1_durable_event_log_entry e
