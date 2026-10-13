@@ -241,7 +241,8 @@ INSERT INTO v1_task_events_olap (
     additional__event_data,
     additional__event_message,
     external_id,
-    durable_invocation_count
+    durable_invocation_count,
+    is_dag_orchestrator
 ) VALUES (
     $1,
     $2,
@@ -257,7 +258,8 @@ INSERT INTO v1_task_events_olap (
     $12,
     $13,
     $14,
-    $15
+    $15,
+    $16
 );
 
 -- name: ReadTaskByExternalID :one

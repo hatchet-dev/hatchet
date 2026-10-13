@@ -1108,6 +1108,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 			WorkerID:               workerId,
 			AdditionalEventMessage: sqlchelpers.TextFromStr(eventMessages[i]),
 			ExternalID:             eventExternalIds[i],
+			IsDagOrchestrator:      taskIdsToMetas[taskId].IsDagOrchestrator,
 		}
 
 		switch eventTypes[i] {
