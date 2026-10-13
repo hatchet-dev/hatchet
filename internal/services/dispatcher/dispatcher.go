@@ -810,13 +810,11 @@ func (d *DispatcherImpl) populateTaskData(
 			input = task.Input
 		}
 
-		currInput := &v1.V1StepRunData{}
+		currInput, err := v1.NewV1StepRunDataFromTaskAndInputPayload(task, input)
 
-		if input != nil {
-			if err := json.Unmarshal(input, currInput); err != nil {
-				d.l.Warn().Ctx(ctx).Err(err).Msg("failed to unmarshal input")
-				continue
-			}
+		if err != nil {
+			d.l.Warn().Ctx(ctx).Err(err).Msg("failed to unmarshal input")
+			continue
 		}
 
 		if len(currInput.DagParentTaskRunIds) > 0 {
@@ -833,9 +831,9 @@ func (d *DispatcherImpl) populateTaskData(
 			if len(stepRunErrors) > 0 {
 				currInput.StepRunErrors = stepRunErrors
 			}
-
-			inputs[payloadKey] = currInput.Bytes()
 		}
+
+		inputs[payloadKey] = currInput.Bytes()
 	}
 
 	if len(dagChildInputs) > 0 {
