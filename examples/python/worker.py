@@ -14,6 +14,7 @@ from examples.batch_assign.worker import (
     child,
     child_batch,
 )
+from examples.bug_tests.dag_replay_twice.worker import dag_replay_twice
 from examples.bug_tests.durable_callback_ordering.worker import (
     callback_ordering_leaf,
     callback_ordering_mid,
@@ -275,6 +276,7 @@ def main() -> None:
             concurrency_cancel_in_progress_task_level_workflow,
             di_workflow,
             payload_initial_cancel_bug_workflow,
+            dag_replay_twice,
             run_detail_test_workflow,
             lifespan_task,
             simple,

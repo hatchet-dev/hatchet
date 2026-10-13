@@ -115,11 +115,9 @@ type IngestTriggerRunsEntry struct {
 
 	ChildNeedsReplay bool
 
-	// ReExecuted is true when the child actually runs during this invocation rather than being
-	// satisfied from a cached log entry. This is not the same as !AlreadyExisted: an entry can
-	// already exist but have a null triggered_at (its run was never spawned, e.g. a crash between
-	// committing the entry and triggering the run), in which case this ingest re-publishes the
-	// run and children of the step must be treated as having a re-executed parent on replay.
+	// ReExecuted is true when the entry lives on the log's current branch, meaning the child ran
+	// (or is running) as part of the current replay rather than being a cached result carried
+	// over from an earlier branch. Children of such a step must re-run on replay too.
 	ReExecuted bool
 }
 
@@ -223,7 +221,7 @@ type durableTaskId int64
 type appendDurableEventLogResult struct {
 	logEntries                   []*EventLogEntryWithResultPayload
 	childExternalIdToTriggerOpts map[uuid.UUID]*WorkflowNameTriggerOpts
-	childrenToReplay             map[uuid.UUID]bool
+	latestBranchId               int64
 }
 
 type durableEventIngestResponse struct {
@@ -697,6 +695,9 @@ type GetOrCreateLogEntryOpt struct {
 	WaitData             string // JSON-encoded WaitData, empty string means no wait data
 	ChildTaskExternalId  uuid.UUID
 	ShouldSkip           bool
+	// IsTriggered creates the entry with triggered_at already set: the child's task rows exist
+	// (an in-place replay), so there is no run left for the trigger path to spawn.
+	IsTriggered bool
 }
 
 func (o GetOrCreateLogEntryOpt) idempotencyKeyMatches(existingKey []byte) bool {
@@ -1163,6 +1164,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntriesForTasks(
 		Branchids:              make([]int64, 0),
 		Idempotencykeys:        make([][]byte, 0),
 		Issatisfieds:           make([]bool, 0),
+		Istriggereds:           make([]bool, 0),
 		Usermessages:           make([]string, 0),
 		Waitdatas:              make([]string, 0),
 	}
@@ -1179,6 +1181,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntriesForTasks(
 			createParams.Branchids = append(createParams.Branchids, entry.BranchId)
 			createParams.Idempotencykeys = append(createParams.Idempotencykeys, entry.IdempotencyKey)
 			createParams.Issatisfieds = append(createParams.Issatisfieds, entry.IsSatisfied)
+			createParams.Istriggereds = append(createParams.Istriggereds, entry.IsTriggered)
 
 			if entry.UserMessage != nil {
 				createParams.Usermessages = append(createParams.Usermessages, *entry.UserMessage)
@@ -1376,6 +1379,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntriesForTasks(
 						IdempotencyKey:        created.IdempotencyKey,
 						IsSatisfied:           created.IsSatisfied,
 						SatisfiedOrder:        created.SatisfiedOrder,
+						TriggeredAt:           created.TriggeredAt,
 						InvocationCount:       created.InvocationCount,
 					},
 					ResultPayload:  o.ResultPayload,
@@ -1470,36 +1474,28 @@ func (r *durableEventsRepository) resolveOrphanedChildDedupes(
 			continue
 		}
 
-		if latestEntryByChild[to.ExternalId] == nil {
+		latestEntry := latestEntryByChild[to.ExternalId]
+
+		if latestEntry == nil || !to.ReplayOrphanedChildren {
 			to.ShouldSkip = false
 			to.ExternalId = uuid.New()
 			continue
 		}
 
-		if to.ReplayOrphanedChildren {
-			latestEntry := latestEntryByChild[to.ExternalId]
-			forced := forcedReplayChildren[to.ExternalId] || to.ParentReExecuted
+		forced := forcedReplayChildren[to.ExternalId] || to.ParentReExecuted
 
-			if forcedReplayChildren != nil && !forced && latestEntry.IsSatisfied {
-				// untouched subtree: the skip path returns the cached result without re-running
-				continue
-			}
+		if forcedReplayChildren != nil && !forced && latestEntry.IsSatisfied {
+			// untouched subtree: the skip path returns the cached result without re-running
+			continue
+		}
 
-			to.ShouldSkip = false
+		to.ShouldSkip = false
 
-			// important: there's a case here where we mark the durable event log as having a child run, but
-			// then we crash, get backlogged, etc. before the trigger path (second tx) can actually pick up the run,
-			// trigger it, and mark `triggered_at` with a timestamp. in this case, there are no task rows to replay,
-			// so we should leave the child out of `childrenToReplay` and let it go through the pending trigger path
-			// as a fresh run (under the same child external id). this is safe to do repeatedly, since the trigger path
-			// only claims entries where `triggered_at` is still null (in the same tx that spawns the child), which
-			// means we'll end up recovering instead of hanging
-			if latestEntry.TriggeredAt.Valid {
-				childrenToReplay[to.ExternalId] = true
-			}
-		} else {
-			to.ShouldSkip = false
-			to.ExternalId = uuid.New()
+		// an untriggered latest entry means the child task was never created (a crash between
+		// committing the entry and the trigger tx), so it is left to the trigger path, which
+		// creates it under the same child external id
+		if latestEntry.TriggeredAt.Valid {
+			childrenToReplay[to.ExternalId] = true
 		}
 	}
 
@@ -1546,7 +1542,6 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 
 	logEntries := appendResult.logEntries
 	childExternalIdToTriggerOpts := appendResult.childExternalIdToTriggerOpts
-	childrenToReplay := appendResult.childrenToReplay
 
 	var memoResult *IngestMemoResult
 	var waitForResult *IngestWaitForResult
@@ -1573,8 +1568,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 
 			childNeedsReplay := !entry.AlreadyExisted &&
 				!entry.Entry.IsSatisfied &&
-				entry.Entry.ChildTaskExternalID != nil &&
-				childrenToReplay[*entry.Entry.ChildTaskExternalID]
+				entry.Entry.TriggeredAt.Valid
 
 			entries[i] = &IngestTriggerRunsEntry{
 				NodeId:                entry.Entry.NodeID,
@@ -1587,7 +1581,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 				ChildTaskIsFailure:    entry.Entry.ChildTaskIsFailure,
 				ChildTaskErrorMessage: childTaskErrorMessage,
 				ChildNeedsReplay:      childNeedsReplay,
-				ReExecuted:            !entry.Entry.TriggeredAt.Valid,
+				ReExecuted:            entry.Entry.BranchID == appendResult.latestBranchId,
 			}
 		}
 
@@ -1600,11 +1594,8 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		pendingEntryKeys := make(map[NodeIdBranchIdTuple]bool)
 
 		for _, le := range logEntries {
-			// a skip reference with triggered_at unset points at a run that was never actually
-			// triggered (e.g. a crash between committing the entry and triggering the run), so it
-			// is re-triggered here like any other untriggered entry; this is safe because
-			// TriggerPendingRunEntries only claims entries where triggered_at is still null, in
-			// the same tx that spawns the child
+			// an untriggered entry, new or deduped, has no child run yet; TriggerPendingRunEntries
+			// claims it in the same tx that creates the child, so re-triggering is idempotent
 			if le.Entry.TriggeredAt.Valid {
 				continue
 			}
@@ -1616,12 +1607,6 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 
 			if le.Entry.ChildTaskExternalID == nil {
 				return nil, fmt.Errorf("untriggered RUN log entry at nodeId %d branchId %d is missing child_task_external_id", le.Entry.NodeID, le.Entry.BranchID)
-			}
-
-			// Re-executed children already have task rows; they are replayed by the caller
-			// rather than triggered as new runs.
-			if childrenToReplay[*le.Entry.ChildTaskExternalID] {
-				continue
 			}
 
 			// child external id is stable across replays so use that to get triggerOpts
@@ -1955,22 +1940,18 @@ func (r *durableEventsRepository) appendDurableEventLogBatch(ctx context.Context
 	for _, taskId := range taskIds {
 		plan, ok := planByTaskId[taskId]
 
-		if !ok || len(plan.childrenToReplay) == 0 {
+		if !ok {
 			continue
 		}
 
 		task := plan.opts.Task
 
 		for _, le := range logEntriesByTaskId[taskId] {
-			if le.AlreadyExisted || le.Entry.IsSatisfied || le.Entry.ChildTaskExternalID == nil {
+			if le.AlreadyExisted || le.Entry.IsSatisfied || !le.Entry.TriggeredAt.Valid || le.Entry.ChildTaskExternalID == nil {
 				continue
 			}
 
 			childExternalId := *le.Entry.ChildTaskExternalID
-
-			if !plan.childrenToReplay[childExternalId] {
-				continue
-			}
 
 			childHint := childExternalId.String()
 			orGroupId := uuid.New()
@@ -2074,7 +2055,7 @@ func (r *durableEventsRepository) appendDurableEventLogBatch(ctx context.Context
 		results[taskId] = &appendDurableEventLogResult{
 			logEntries:                   logEntriesByTaskId[taskId],
 			childExternalIdToTriggerOpts: plan.childExternalIdToTriggerOpts,
-			childrenToReplay:             plan.childrenToReplay,
+			latestBranchId:               logFileByTaskId[taskId].LatestBranchID,
 		}
 	}
 
@@ -2085,7 +2066,6 @@ type durableEventLogAppendPlan struct {
 	opts                         IngestDurableTaskEventOpts
 	getOrCreateOpts              GetOrCreateLogEntryOpts
 	childExternalIdToTriggerOpts map[uuid.UUID]*WorkflowNameTriggerOpts
-	childrenToReplay             map[uuid.UUID]bool
 }
 
 // planDurableEventLogAppend builds the log entries to get-or-create for one task in the batch. A
@@ -2194,6 +2174,7 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 				WaitData:             marshalWaitData(waitDataFromTriggerOpt(triggerOpts)),
 				UserMessage:          triggerOpts.UserMessage,
 				IsSatisfied:          isSatisfied,
+				IsTriggered:          childrenToReplay[triggerOpts.ExternalId],
 			}
 		}
 
@@ -2264,7 +2245,6 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 		opts:                         opts,
 		getOrCreateOpts:              getOrCreateOpts,
 		childExternalIdToTriggerOpts: childExternalIdToTriggerOpts,
-		childrenToReplay:             childrenToReplay,
 	}, nil, nil
 }
 

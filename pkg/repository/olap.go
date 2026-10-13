@@ -1679,11 +1679,14 @@ func (r *OLAPRepositoryImpl) ListTaskRunEvents(ctx context.Context, tenantId uui
 	return rows, nil
 }
 
+const maxTaskEventsPerWorkflowRun = 1000
+
 func (r *OLAPRepositoryImpl) ListTaskRunEventsByWorkflowRunId(ctx context.Context, tenantId uuid.UUID, workflowRunId uuid.UUID, includeOrchestratorEvents bool) ([]*TaskEventWithPayloads, error) {
 	rows, err := r.queries.ListTaskEventsForWorkflowRun(ctx, r.readPool, sqlcv1.ListTaskEventsForWorkflowRunParams{
 		Tenantid:                  tenantId,
 		Workflowrunid:             workflowRunId,
 		IncludeOrchestratorEvents: sqlchelpers.BoolFromBoolean(includeOrchestratorEvents),
+		Eventlimit:                maxTaskEventsPerWorkflowRun,
 	})
 
 	if err != nil {

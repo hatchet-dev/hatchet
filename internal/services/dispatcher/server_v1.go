@@ -1413,7 +1413,7 @@ func (d *DispatcherServiceImpl) evictDurableTask(
 
 	d.analytics.Count(ctx, analytics.DurableTask, analytics.Evict)
 
-	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, tenantId, taskExternalId, false)
+	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, tenantId, taskExternalId, true)
 	if err != nil {
 		return nil, fmt.Errorf("task not found: %w", err)
 	}
@@ -1872,7 +1872,7 @@ func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uui
 		}
 
 		if len(celFailures) > 0 {
-			return nil, fmt.Errorf("dag step trigger for %q did not create its child run: %s", req.ActionId, celFailures[0].ErrorMessage)
+			return nil, &operator.DAGStepCELFailureError{ActionId: req.ActionId, Message: celFailures[0].ErrorMessage}
 		}
 
 		tasks = createdTasks

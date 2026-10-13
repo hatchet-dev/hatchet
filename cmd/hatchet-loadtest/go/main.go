@@ -111,6 +111,14 @@ func run() error {
 	dagNestedChildren := envInt("HATCHET_LOADTEST_DAG_NESTED_CHILDREN", 5)
 	dagNestedWorkflows := buildDagNestedWorkflows(client, dagNestedEventKey, dagShapeFailureRate, dagNestedChildren)
 
+	// concurrency scenario: one workflow per strategy family, spreading events
+	// over HATCHET_LOADTEST_CONCURRENCY_KEYS keys. Fewer keys or longer tasks
+	// build deeper per-key queues; more keys grow the index's key count.
+	concurrencyEventKey := envOr("HATCHET_LOADTEST_CONCURRENCY_EVENT_KEY", eventkeys.EventKeyConcurrency.String())
+	concurrencyKeys := envInt("HATCHET_LOADTEST_CONCURRENCY_KEYS", 100)
+	concurrencyTaskMs := envInt("HATCHET_LOADTEST_CONCURRENCY_TASK_MS", 1000)
+	concurrencyWorkflows := buildConcurrencyWorkflows(client, concurrencyEventKey, concurrencyKeys, time.Duration(concurrencyTaskMs)*time.Millisecond)
+
 	task := client.NewStandaloneTask(taskName, func(ctx hatchet.Context, input LoadTestInput) (LoadTestOutput, error) {
 		took := time.Since(input.CreatedAt)
 		log.Printf("executing %d took %s", input.ID, took)
@@ -181,6 +189,9 @@ func run() error {
 		workflows = append(workflows, w)
 	}
 	for _, w := range dagNestedWorkflows {
+		workflows = append(workflows, w)
+	}
+	for _, w := range concurrencyWorkflows {
 		workflows = append(workflows, w)
 	}
 
@@ -394,6 +405,54 @@ func buildDagNestedWorkflows(client *hatchet.Client, eventKey string, failureRat
 	)
 
 	return []*hatchet.Workflow{child, parent}
+}
+
+// buildConcurrencyWorkflows returns one task per concurrency strategy family,
+// each keyed on the event id modulo keys. The limits are small so that keys
+// hold running slots and queue the rest, and the cancel strategies cancel.
+func buildConcurrencyWorkflows(client *hatchet.Client, eventKey string, keys int, taskDuration time.Duration) []*hatchet.StandaloneTask {
+	if keys < 1 {
+		keys = 1
+	}
+	expression := fmt.Sprintf("string(int(input.id) %% %d)", keys)
+
+	strategies := []struct {
+		name     string
+		strategy hatchet.ConcurrencyLimitStrategy
+		maxRuns  int32
+	}{
+		{eventkeys.WorkflowConcurrencyRoundRobinName, hatchet.GroupRoundRobin, 4},
+		{eventkeys.WorkflowConcurrencyCancelInProgName, hatchet.CancelInProgress, 2},
+		{eventkeys.WorkflowConcurrencyCancelQueuedName, hatchet.CancelQueuedExceptNewest, 1},
+	}
+
+	tasks := make([]*hatchet.StandaloneTask, 0, len(strategies))
+	for _, s := range strategies {
+		maxRuns := s.maxRuns
+		strategy := s.strategy
+
+		tasks = append(tasks, client.NewStandaloneTask(s.name, func(ctx hatchet.Context, input LoadTestInput) (LoadTestOutput, error) {
+			select {
+			case <-time.After(taskDuration):
+			case <-ctx.Done():
+				// CANCEL_IN_PROGRESS cancels running tasks
+				return LoadTestOutput{}, ctx.Err()
+			}
+
+			return LoadTestOutput{
+				Message: "This ran at: " + time.Now().Format(time.RFC3339Nano),
+			}, nil
+		},
+			hatchet.WithWorkflowEvents(eventKey),
+			hatchet.WithConcurrency(&hatchet.Concurrency{
+				Expression:    expression,
+				MaxRuns:       &maxRuns,
+				LimitStrategy: &strategy,
+			}),
+		))
+	}
+
+	return tasks
 }
 
 func main() {
