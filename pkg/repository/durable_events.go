@@ -224,6 +224,9 @@ type appendDurableEventLogResult struct {
 	logEntries                   []*EventLogEntryWithResultPayload
 	childExternalIdToTriggerOpts map[uuid.UUID]*WorkflowNameTriggerOpts
 	childrenToReplay             map[uuid.UUID]bool
+	// childrenWithTaskRows are the deduped children whose run was already triggered on some
+	// branch, so their task rows exist and they must never be triggered as new runs again.
+	childrenWithTaskRows map[uuid.UUID]bool
 }
 
 type durableEventIngestResponse struct {
@@ -1419,8 +1422,9 @@ func (r *durableEventsRepository) resolveOrphanedChildDedupes(
 	logFile *sqlcv1.V1DurableEventLogFile,
 	nextBranchIdToBranchPoint map[int64]*sqlcv1.V1DurableEventLogBranchPoint,
 	triggerOpts []*WorkflowNameTriggerOpts,
-) (map[uuid.UUID]bool, error) {
-	childrenToReplay := make(map[uuid.UUID]bool)
+) (childrenToReplay map[uuid.UUID]bool, childrenWithTaskRows map[uuid.UUID]bool, err error) {
+	childrenToReplay = make(map[uuid.UUID]bool)
+	childrenWithTaskRows = make(map[uuid.UUID]bool)
 	skipChildIds := make([]uuid.UUID, 0)
 
 	for _, to := range triggerOpts {
@@ -1430,7 +1434,7 @@ func (r *durableEventsRepository) resolveOrphanedChildDedupes(
 	}
 
 	if len(skipChildIds) == 0 {
-		return childrenToReplay, nil
+		return childrenToReplay, childrenWithTaskRows, nil
 	}
 
 	rows, err := r.queries.GetDurableEventLogEntriesByChildTaskExternalIds(ctx, tx, sqlcv1.GetDurableEventLogEntriesByChildTaskExternalIdsParams{
@@ -1440,7 +1444,7 @@ func (r *durableEventsRepository) resolveOrphanedChildDedupes(
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to get log entries for deduped child runs: %w", err)
+		return nil, nil, fmt.Errorf("failed to get log entries for deduped child runs: %w", err)
 	}
 
 	// A NULL forced set (pre-column branch points, or worker-initiated HandleBranch) means every
@@ -1456,7 +1460,6 @@ func (r *durableEventsRepository) resolveOrphanedChildDedupes(
 
 	childOnActiveBranch := make(map[uuid.UUID]bool)
 	latestEntryByChild := make(map[uuid.UUID]*sqlcv1.GetDurableEventLogEntriesByChildTaskExternalIdsRow)
-	childTriggeredOnAnyBranch := make(map[uuid.UUID]bool)
 
 	for _, row := range rows {
 		if row.ChildTaskExternalID == nil {
@@ -1470,7 +1473,7 @@ func (r *durableEventsRepository) resolveOrphanedChildDedupes(
 		// an entry written for an in-place replay of the child never gets triggered_at set, so
 		// the task rows exist as long as any branch's entry for the child was triggered
 		if row.TriggeredAt.Valid {
-			childTriggeredOnAnyBranch[*row.ChildTaskExternalID] = true
+			childrenWithTaskRows[*row.ChildTaskExternalID] = true
 		}
 
 		// node ids restart every re-invocation, so a child's newest entry is on the highest branch
@@ -1508,7 +1511,7 @@ func (r *durableEventsRepository) resolveOrphanedChildDedupes(
 			// as a fresh run (under the same child external id). this is safe to do repeatedly, since the trigger path
 			// only claims entries where `triggered_at` is still null (in the same tx that spawns the child), which
 			// means we'll end up recovering instead of hanging
-			if childTriggeredOnAnyBranch[to.ExternalId] {
+			if childrenWithTaskRows[to.ExternalId] {
 				childrenToReplay[to.ExternalId] = true
 			}
 		} else {
@@ -1517,7 +1520,7 @@ func (r *durableEventsRepository) resolveOrphanedChildDedupes(
 		}
 	}
 
-	return childrenToReplay, nil
+	return childrenToReplay, childrenWithTaskRows, nil
 }
 
 type PendingDurableRunTrigger struct {
@@ -1561,6 +1564,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	logEntries := appendResult.logEntries
 	childExternalIdToTriggerOpts := appendResult.childExternalIdToTriggerOpts
 	childrenToReplay := appendResult.childrenToReplay
+	childrenWithTaskRows := appendResult.childrenWithTaskRows
 
 	var memoResult *IngestMemoResult
 	var waitForResult *IngestWaitForResult
@@ -1635,6 +1639,13 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 			// Re-executed children already have task rows; they are replayed by the caller
 			// rather than triggered as new runs.
 			if childrenToReplay[*le.Entry.ChildTaskExternalID] {
+				continue
+			}
+
+			// An in-place replay entry keeps triggered_at null for good, so a later invocation that
+			// dedupes onto it must not treat it as an untriggered run: the task rows already exist
+			// and spawning the child again would collide on its external id.
+			if childrenWithTaskRows[*le.Entry.ChildTaskExternalID] {
 				continue
 			}
 
@@ -2089,6 +2100,7 @@ func (r *durableEventsRepository) appendDurableEventLogBatch(ctx context.Context
 			logEntries:                   logEntriesByTaskId[taskId],
 			childExternalIdToTriggerOpts: plan.childExternalIdToTriggerOpts,
 			childrenToReplay:             plan.childrenToReplay,
+			childrenWithTaskRows:         plan.childrenWithTaskRows,
 		}
 	}
 
@@ -2100,6 +2112,7 @@ type durableEventLogAppendPlan struct {
 	getOrCreateOpts              GetOrCreateLogEntryOpts
 	childExternalIdToTriggerOpts map[uuid.UUID]*WorkflowNameTriggerOpts
 	childrenToReplay             map[uuid.UUID]bool
+	childrenWithTaskRows         map[uuid.UUID]bool
 }
 
 // planDurableEventLogAppend builds the log entries to get-or-create for one task in the batch. A
@@ -2121,15 +2134,17 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 
 	childExternalIdToTriggerOpts := make(map[uuid.UUID]*WorkflowNameTriggerOpts)
 	childrenToReplay := make(map[uuid.UUID]bool)
+	childrenWithTaskRows := make(map[uuid.UUID]bool)
 
 	switch opts.Kind {
 	case sqlcv1.V1DurableEventLogKindRUN:
-		resolvedChildrenToReplay, dedupeErr := r.resolveOrphanedChildDedupes(ctx, tx, logFile, nextBranchIdToBranchPoint, opts.TriggerRuns.TriggerOpts)
+		resolvedChildrenToReplay, resolvedChildrenWithTaskRows, dedupeErr := r.resolveOrphanedChildDedupes(ctx, tx, logFile, nextBranchIdToBranchPoint, opts.TriggerRuns.TriggerOpts)
 		if dedupeErr != nil {
 			return nil, nil, dedupeErr
 		}
 
 		childrenToReplay = resolvedChildrenToReplay
+		childrenWithTaskRows = resolvedChildrenWithTaskRows
 
 		innerOpts := make([]GetOrCreateLogEntryOpt, len(opts.TriggerRuns.TriggerOpts))
 
@@ -2279,6 +2294,7 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 		getOrCreateOpts:              getOrCreateOpts,
 		childExternalIdToTriggerOpts: childExternalIdToTriggerOpts,
 		childrenToReplay:             childrenToReplay,
+		childrenWithTaskRows:         childrenWithTaskRows,
 	}, nil, nil
 }
 
