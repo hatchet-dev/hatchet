@@ -139,8 +139,7 @@ func insertUserEventScopeTestEvent(
 		Id:         createdEvents[0].ID,
 		InsertedAt: eventSeenAt,
 		ExternalId: eventExternalID,
-		Type:       sqlcv1.V1PayloadTypeUSEREVENTINPUT,
-		Payload:    payload,
+		Payload:    NewPayload[UserEventInputShape](payload),
 		TenantId:   tenantID,
 	}))
 }

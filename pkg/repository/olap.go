@@ -2041,7 +2041,7 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId u
 		payloadsToWrite = append(payloadsToWrite, StoreOLAPPayloadOpts{
 			ExternalId: event.ExternalID,
 			InsertedAt: sqlchelpers.TimestamptzFromTime(dummyInsertedAt),
-			Payload:    output,
+			Payload:    NewPayload[TaskOutputShape](output),
 		})
 	}
 
@@ -2459,7 +2459,7 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 		putPayloadOpts = append(putPayloadOpts, StoreOLAPPayloadOpts{
 			ExternalId: task.ExternalID,
 			InsertedAt: task.InsertedAt,
-			Payload:    payload,
+			Payload:    NewPayload[TaskInputShape](payload),
 		})
 	}
 
@@ -2592,7 +2592,7 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId uuid.UU
 		putPayloadOpts = append(putPayloadOpts, StoreOLAPPayloadOpts{
 			ExternalId: dag.ExternalID,
 			InsertedAt: dag.InsertedAt,
-			Payload:    dag.Input,
+			Payload:    NewPayload[DAGInputShape](dag.Input),
 		})
 	}
 
@@ -2941,7 +2941,7 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 		tenantIdToPutPayloadOpts[event.TenantID] = append(tenantIdToPutPayloadOpts[event.TenantID], StoreOLAPPayloadOpts{
 			ExternalId: event.ExternalID,
 			InsertedAt: event.SeenAt,
-			Payload:    payload,
+			Payload:    NewPayload[UserEventInputShape](payload),
 		})
 	}
 
@@ -3356,14 +3356,14 @@ func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, te
 	externalKeys := make([]string, 0, len(putPayloadOpts))
 
 	for _, opt := range putPayloadOpts {
-		if isEmptyPayload(opt.Payload) {
+		if isEmptyPayload(opt.Payload.Bytes()) {
 			continue
 		}
 
 		externalIds = append(externalIds, opt.ExternalId)
 		insertedAts = append(insertedAts, opt.InsertedAt)
 		tenantIds = append(tenantIds, tenantId)
-		payloads = append(payloads, opt.Payload)
+		payloads = append(payloads, opt.Payload.Bytes())
 		locations = append(locations, string(sqlcv1.V1PayloadLocationOlapINLINE))
 		externalKeys = append(externalKeys, "")
 	}

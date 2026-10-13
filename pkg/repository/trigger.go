@@ -1614,8 +1614,7 @@ func (r *sharedRepository) triggerWorkflowsCore(
 			Id:         task.ID,
 			InsertedAt: task.InsertedAt,
 			ExternalId: task.ExternalID,
-			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
-			Payload:    task.Payload,
+			Payload:    NewPayload[TaskInputShape](task.Payload),
 			TenantId:   tenantId,
 		})
 	}
@@ -1625,8 +1624,7 @@ func (r *sharedRepository) triggerWorkflowsCore(
 			Id:         dag.ID,
 			InsertedAt: dag.InsertedAt,
 			ExternalId: dag.ExternalID,
-			Type:       sqlcv1.V1PayloadTypeDAGINPUT,
-			Payload:    dag.Input,
+			Payload:    NewPayload[DAGInputShape](dag.Input),
 			TenantId:   tenantId,
 		})
 	}
@@ -1649,8 +1647,7 @@ func (r *sharedRepository) triggerWorkflowsCore(
 				Id:         e.ID,
 				InsertedAt: e.SeenAt,
 				ExternalId: e.ExternalID,
-				Type:       sqlcv1.V1PayloadTypeUSEREVENTINPUT,
-				Payload:    payload,
+				Payload:    NewPayload[UserEventInputShape](payload),
 				TenantId:   tenantId,
 			})
 		}
@@ -1947,26 +1944,25 @@ func (r *sharedRepository) registerChildWorkflows(
 	}
 
 	// only need to hit the payload store for events created before the child_external_id column existed
-	retrievePayloadOpts := make([]RetrievePayloadOpts, 0, len(matchingEvents))
+	retrievePayloadOpts := make([]PayloadRef[TaskEventDataShape], 0, len(matchingEvents))
 
 	for _, event := range matchingEvents {
 		if event.ChildExternalID != nil {
 			continue
 		}
 
-		retrievePayloadOpts = append(retrievePayloadOpts, RetrievePayloadOpts{
+		retrievePayloadOpts = append(retrievePayloadOpts, PayloadRef[TaskEventDataShape]{
 			Id:         event.ID,
 			InsertedAt: event.InsertedAt,
-			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 			TenantId:   tenantId,
 			ExternalId: event.ExternalID,
 		})
 	}
 
-	var payloads map[RetrievePayloadOpts][]byte
+	var payloads map[PayloadRef[TaskEventDataShape]]Payload[TaskEventDataShape]
 
 	if len(retrievePayloadOpts) > 0 {
-		payloads, err = r.payloadStore.Retrieve(ctx, tx, retrievePayloadOpts...)
+		payloads, err = r.payloadStore.TaskEventData().Retrieve(ctx, tx, retrievePayloadOpts...)
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to retrieve payloads for signal created events: %w", err)
@@ -1983,19 +1979,14 @@ func (r *sharedRepository) registerChildWorkflows(
 		if event.ChildExternalID != nil {
 			childExternalId = *event.ChildExternalID
 		} else {
-			payload, ok := payloads[RetrievePayloadOpts{
+			payload := RetrievePayloadOrFallback(payloads, PayloadRef[TaskEventDataShape]{
 				Id:         event.ID,
 				InsertedAt: event.InsertedAt,
-				Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 				TenantId:   tenantId,
 				ExternalId: event.ExternalID,
-			}]
+			}, event.Data)
 
-			if !ok {
-				payload = event.Data
-			}
-
-			c, err := newChildWorkflowSignalCreatedDataFromBytes(payload)
+			c, err := DecodeChildWorkflowSignalCreatedPayload(payload)
 
 			if err != nil {
 				r.l.Error().Msgf("failed to unmarshal child workflow signal created data: %s", err)
@@ -3015,19 +3006,18 @@ func (r *sharedRepository) lookupParentOutputsByWorkflowRunIds(ctx context.Conte
 		return nil, err
 	}
 
-	retrieveOpts := make([]RetrievePayloadOpts, 0, len(rows))
+	retrieveOpts := make([]PayloadRef[TaskEventDataShape], 0, len(rows))
 
 	for _, row := range rows {
-		retrieveOpts = append(retrieveOpts, RetrievePayloadOpts{
+		retrieveOpts = append(retrieveOpts, PayloadRef[TaskEventDataShape]{
 			Id:         row.TaskEventID,
 			InsertedAt: row.TaskEventInsertedAt,
-			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 			TenantId:   tenantId,
 			ExternalId: row.OutputEventExternalID,
 		})
 	}
 
-	payloads, err := r.payloadStore.Retrieve(ctx, r.pool, retrieveOpts...)
+	payloads, err := r.payloadStore.TaskEventData().Retrieve(ctx, r.pool, retrieveOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve parent output payloads: %w", err)
 	}
@@ -3035,7 +3025,7 @@ func (r *sharedRepository) lookupParentOutputsByWorkflowRunIds(ctx context.Conte
 	result := make(map[uuid.UUID]*TaskOutputEvent, len(rows))
 
 	for _, payload := range payloads {
-		e, err := newTaskEventFromBytes(payload)
+		e, err := DecodeTaskOutputEventPayload(payload)
 		if err != nil {
 			r.l.Warn().Ctx(ctx).Msgf("failed to parse parent task output: %v", err)
 			continue

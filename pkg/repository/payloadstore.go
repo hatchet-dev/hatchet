@@ -27,15 +27,14 @@ type StorePayloadOpts struct {
 	Id         int64
 	InsertedAt pgtype.Timestamptz
 	ExternalId uuid.UUID
-	Type       sqlcv1.V1PayloadType
-	Payload    []byte
+	Payload    AnyPayload
 	TenantId   uuid.UUID
 }
 
 type StoreOLAPPayloadOpts struct {
 	ExternalId uuid.UUID
 	InsertedAt pgtype.Timestamptz
-	Payload    []byte
+	Payload    AnyPayload
 }
 
 type OffloadToExternalStoreOpts struct {
@@ -106,7 +105,13 @@ type PayloadStoreRepository interface {
 	Store(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) error
 	OverwriteExisting(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) error
 	Retrieve(ctx context.Context, tx sqlcv1.DBTX, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
-	RetrieveSingle(ctx context.Context, tx sqlcv1.DBTX, opt RetrievePayloadOpts) ([]byte, error)
+	TaskInputs() TypedPayloadStore[TaskInputShape]
+	DAGInputs() TypedPayloadStore[DAGInputShape]
+	TaskOutputs() TypedPayloadStore[TaskOutputShape]
+	TaskEventData() TypedPayloadStore[TaskEventDataShape]
+	UserEventInputs() TypedPayloadStore[UserEventInputShape]
+	DurableEventLogEntryData() TypedPayloadStore[DurableEventLogEntryDataShape]
+	DurableEventLogEntryResultData() TypedPayloadStore[DurableEventLogEntryResultDataShape]
 	RetrieveFromExternal(ctx context.Context, opts ...RetrieveFromExternalOpts) (map[RetrieveFromExternalOpts][]byte, error)
 	OverwriteExternalStore(store ExternalStore)
 	ExternalCutoverProcessInterval() time.Duration
@@ -223,7 +228,7 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 	})
 
 	for _, payload := range payloads {
-		if isEmptyPayload(payload.Payload) {
+		if isEmptyPayload(payload.Payload.Bytes()) {
 			continue
 		}
 
@@ -232,7 +237,7 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 			ID:              payload.Id,
 			InsertedAtMicro: payload.InsertedAt.Time.UnixMicro(),
 			TenantId:        tenantId,
-			Type:            payload.Type,
+			Type:            payload.Payload.PayloadType(),
 		}
 
 		if _, exists := seenPayloadUniqueKeys[uniqueKey]; exists {
@@ -243,10 +248,10 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 
 		taskIds = append(taskIds, payload.Id)
 		taskInsertedAts = append(taskInsertedAts, payload.InsertedAt)
-		payloadTypes = append(payloadTypes, string(payload.Type))
+		payloadTypes = append(payloadTypes, string(payload.Payload.PayloadType()))
 		tenantIds = append(tenantIds, tenantId)
 		locations = append(locations, string(sqlcv1.V1PayloadLocationINLINE))
-		inlineContents = append(inlineContents, payload.Payload)
+		inlineContents = append(inlineContents, payload.Payload.Bytes())
 		externalIds = append(externalIds, payload.ExternalId)
 		externalLocationKeys = append(externalLocationKeys, "")
 	}
@@ -279,22 +284,22 @@ func (p *payloadStoreRepositoryImpl) OverwriteExisting(ctx context.Context, tx s
 			ID:              payload.Id,
 			InsertedAtMicro: payload.InsertedAt.Time.UnixMicro(),
 			TenantId:        payload.TenantId,
-			Type:            payload.Type,
+			Type:            payload.Payload.PayloadType(),
 		}
 	})
 
 	params := sqlcv1.OverwritePayloadsParams{}
 
 	for _, payload := range uniquePayloads {
-		if isEmptyPayload(payload.Payload) {
+		if isEmptyPayload(payload.Payload.Bytes()) {
 			continue
 		}
 
 		params.Ids = append(params.Ids, payload.Id)
 		params.Insertedats = append(params.Insertedats, payload.InsertedAt)
 		params.Externalids = append(params.Externalids, payload.ExternalId)
-		params.Types = append(params.Types, string(payload.Type))
-		params.Inlinecontents = append(params.Inlinecontents, payload.Payload)
+		params.Types = append(params.Types, string(payload.Payload.PayloadType()))
+		params.Inlinecontents = append(params.Inlinecontents, payload.Payload.Bytes())
 		params.Tenantids = append(params.Tenantids, payload.TenantId)
 	}
 
@@ -319,22 +324,32 @@ func (p *payloadStoreRepositoryImpl) Retrieve(ctx context.Context, tx sqlcv1.DBT
 	return p.retrieve(ctx, tx, opts...)
 }
 
-func (p *payloadStoreRepositoryImpl) RetrieveSingle(ctx context.Context, tx sqlcv1.DBTX, opt RetrievePayloadOpts) ([]byte, error) {
-	if tx == nil {
-		tx = p.pool
-	}
+func (p *payloadStoreRepositoryImpl) TaskInputs() TypedPayloadStore[TaskInputShape] {
+	return TypedPayloadStore[TaskInputShape]{store: p}
+}
 
-	optsToPayload, err := p.retrieve(ctx, tx, opt)
+func (p *payloadStoreRepositoryImpl) DAGInputs() TypedPayloadStore[DAGInputShape] {
+	return TypedPayloadStore[DAGInputShape]{store: p}
+}
 
-	if err != nil && err != pgx.ErrNoRows {
-		return nil, err
-	}
+func (p *payloadStoreRepositoryImpl) TaskOutputs() TypedPayloadStore[TaskOutputShape] {
+	return TypedPayloadStore[TaskOutputShape]{store: p}
+}
 
-	if len(optsToPayload) == 0 || err == pgx.ErrNoRows {
-		return nil, nil
-	}
+func (p *payloadStoreRepositoryImpl) TaskEventData() TypedPayloadStore[TaskEventDataShape] {
+	return TypedPayloadStore[TaskEventDataShape]{store: p}
+}
 
-	return optsToPayload[opt], nil
+func (p *payloadStoreRepositoryImpl) UserEventInputs() TypedPayloadStore[UserEventInputShape] {
+	return TypedPayloadStore[UserEventInputShape]{store: p}
+}
+
+func (p *payloadStoreRepositoryImpl) DurableEventLogEntryData() TypedPayloadStore[DurableEventLogEntryDataShape] {
+	return TypedPayloadStore[DurableEventLogEntryDataShape]{store: p}
+}
+
+func (p *payloadStoreRepositoryImpl) DurableEventLogEntryResultData() TypedPayloadStore[DurableEventLogEntryResultDataShape] {
+	return TypedPayloadStore[DurableEventLogEntryResultDataShape]{store: p}
 }
 
 func (p *payloadStoreRepositoryImpl) RetrieveFromExternal(ctx context.Context, opts ...RetrieveFromExternalOpts) (map[RetrieveFromExternalOpts][]byte, error) {

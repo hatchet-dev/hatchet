@@ -17,7 +17,7 @@ func newDagChildInput(t *testing.T, taskId int64, parentExternalIds ...uuid.UUID
 	t.Helper()
 
 	return &dagChildTaskInput{
-		payloadKey: v1.RetrievePayloadOpts{Id: taskId},
+		payloadKey: v1.PayloadRef[v1.TaskInputShape]{Id: taskId},
 		currInput: &v1.V1StepRunData{
 			DagParentTaskRunIds: parentExternalIds,
 		},
@@ -39,14 +39,14 @@ func parentOutputEvent(t *testing.T, externalId uuid.UUID, stepReadableId string
 
 // unmarshalParents round-trips inputs[key] the same way a worker would when it receives the
 // dispatched task, confirming resolveDagParentOutputs' effect actually survives serialization.
-func unmarshalParents(t *testing.T, inputs map[v1.RetrievePayloadOpts][]byte, key v1.RetrievePayloadOpts) map[string]map[string]interface{} {
+func unmarshalParents(t *testing.T, inputs map[v1.PayloadRef[v1.TaskInputShape]]v1.Payload[v1.TaskInputShape], key v1.PayloadRef[v1.TaskInputShape]) map[string]map[string]interface{} {
 	t.Helper()
 
 	raw, ok := inputs[key]
 	require.True(t, ok, "expected inputs to contain an entry for %+v", key)
 
 	var data v1.V1StepRunData
-	require.NoError(t, json.Unmarshal(raw, &data))
+	require.NoError(t, json.Unmarshal(raw.Bytes(), &data))
 
 	return data.Parents
 }
@@ -66,7 +66,7 @@ func TestResolveDagParentOutputs_PopulatesParentsFromBatch(t *testing.T) {
 		parentB: parentOutputEvent(t, parentB, "step_b", map[string]int{"random_number": 2}),
 	}
 
-	inputs := make(map[v1.RetrievePayloadOpts][]byte)
+	inputs := make(map[v1.PayloadRef[v1.TaskInputShape]]v1.Payload[v1.TaskInputShape])
 
 	resolveDagParentOutputs(context.Background(), zerologNop(), []*dagChildTaskInput{taskX, taskY}, dagParentOutputs, inputs)
 
@@ -96,7 +96,7 @@ func TestResolveDagParentOutputs_DoesNotLeakAcrossDifferentDagRuns(t *testing.T)
 		runTwoParent: parentOutputEvent(t, runTwoParent, "start", map[string]int{"random_number": 99}),
 	}
 
-	inputs := make(map[v1.RetrievePayloadOpts][]byte)
+	inputs := make(map[v1.PayloadRef[v1.TaskInputShape]]v1.Payload[v1.TaskInputShape])
 
 	resolveDagParentOutputs(context.Background(), zerologNop(), []*dagChildTaskInput{runOneChild, runTwoChild}, dagParentOutputs, inputs)
 
@@ -129,7 +129,7 @@ func TestResolveDagParentOutputs_IsolatesMissingOrUnparsableParents(t *testing.T
 		// missingParent intentionally absent, simulating a lookup that never resolved it.
 	}
 
-	inputs := make(map[v1.RetrievePayloadOpts][]byte)
+	inputs := make(map[v1.PayloadRef[v1.TaskInputShape]]v1.Payload[v1.TaskInputShape])
 
 	resolveDagParentOutputs(context.Background(), zerologNop(), []*dagChildTaskInput{affected, sibling}, dagParentOutputs, inputs)
 
