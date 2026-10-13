@@ -282,23 +282,26 @@ func (q *Queries) GetStreamTopicMetadata(ctx context.Context, db DBTX, arg GetSt
 	return &i, err
 }
 
-const getStreamTopicResetOffset = `-- name: GetStreamTopicResetOffset :one
-SELECT reset_offset
-FROM v1_stream_topic
-WHERE tenant_id = $1::uuid AND namespace = $2::text AND topic = $3::text
+const getStreamTopicStartingOffset = `-- name: GetStreamTopicStartingOffset :one
+SELECT COALESCE((
+    SELECT starting_offset
+    FROM v1_stream_topic
+    WHERE tenant_id = $1::uuid AND namespace = $2::text AND topic = $3::text
+), 0)::bigint AS starting_offset
 `
 
-type GetStreamTopicResetOffsetParams struct {
+type GetStreamTopicStartingOffsetParams struct {
 	Tenantid  uuid.UUID `json:"tenantid"`
 	Namespace string    `json:"namespace"`
 	Topic     string    `json:"topic"`
 }
 
-func (q *Queries) GetStreamTopicResetOffset(ctx context.Context, db DBTX, arg GetStreamTopicResetOffsetParams) (int64, error) {
-	row := db.QueryRow(ctx, getStreamTopicResetOffset, arg.Tenantid, arg.Namespace, arg.Topic)
-	var reset_offset int64
-	err := row.Scan(&reset_offset)
-	return reset_offset, err
+// 0 for a topic not yet published to, so it starts at its beginning.
+func (q *Queries) GetStreamTopicStartingOffset(ctx context.Context, db DBTX, arg GetStreamTopicStartingOffsetParams) (int64, error) {
+	row := db.QueryRow(ctx, getStreamTopicStartingOffset, arg.Tenantid, arg.Namespace, arg.Topic)
+	var starting_offset int64
+	err := row.Scan(&starting_offset)
+	return starting_offset, err
 }
 
 const insertStreamPayload = `-- name: InsertStreamPayload :one
@@ -543,7 +546,7 @@ func (q *Queries) ListStreamRetentionDeleteCandidates(ctx context.Context, db DB
 
 const resetStreamTopic = `-- name: ResetStreamTopic :exec
 UPDATE v1_stream_topic
-SET reset_offset = last_offset
+SET starting_offset = last_offset
 WHERE tenant_id = $1::uuid AND namespace = $2::text AND topic = $3::text
 `
 
@@ -619,7 +622,7 @@ INSERT INTO v1_stream_topic (tenant_id, namespace, topic)
 VALUES ($1::uuid, $2::text, $3::text)
 ON CONFLICT (tenant_id, namespace, topic) DO UPDATE
 SET last_published_at = NOW()
-RETURNING v1_stream_topic.tenant_id, v1_stream_topic.namespace, v1_stream_topic.topic, v1_stream_topic.inserted_at, v1_stream_topic.last_published_at, v1_stream_topic.last_offset, v1_stream_topic.reset_offset, (xmax = 0) AS inserted
+RETURNING v1_stream_topic.tenant_id, v1_stream_topic.namespace, v1_stream_topic.topic, v1_stream_topic.inserted_at, v1_stream_topic.last_published_at, v1_stream_topic.last_offset, v1_stream_topic.starting_offset, (xmax = 0) AS inserted
 `
 
 type UpsertStreamTopicParams struct {
@@ -644,7 +647,7 @@ func (q *Queries) UpsertStreamTopic(ctx context.Context, db DBTX, arg UpsertStre
 		&i.V1StreamTopic.InsertedAt,
 		&i.V1StreamTopic.LastPublishedAt,
 		&i.V1StreamTopic.LastOffset,
-		&i.V1StreamTopic.ResetOffset,
+		&i.V1StreamTopic.StartingOffset,
 		&i.Inserted,
 	)
 	return &i, err

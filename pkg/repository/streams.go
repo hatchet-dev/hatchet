@@ -599,7 +599,7 @@ func (r *streamsRepositoryImpl) CheckCursorRetained(ctx context.Context, tenantI
 	return nil
 }
 
-// ResetTopic sets the topic's reset offset to its last reserved offset. It waits
+// ResetTopic sets the topic's starting offset to its last reserved offset. It waits
 // on in-flight publishes' row lock, so every message up to that offset is stored.
 func (r *streamsRepositoryImpl) ResetTopic(ctx context.Context, tenantId uuid.UUID, namespace, topic string) error {
 	return r.queries.ResetStreamTopic(ctx, r.pool, sqlcv1.ResetStreamTopicParams{
@@ -609,19 +609,18 @@ func (r *streamsRepositoryImpl) ResetTopic(ctx context.Context, tenantId uuid.UU
 	})
 }
 
-// TopicStartCursor returns a cursor at the topic's reset offset, or its start for
-// a topic never reset or published to. It has no time, so it never expires.
+// TopicStartCursor returns a cursor at the topic's starting offset, 0 until it's
+// reset. It has no time, so it never expires.
 func (r *streamsRepositoryImpl) TopicStartCursor(ctx context.Context, tenantId uuid.UUID, namespace, topic string) (StreamCursor, error) {
-	resetOffset, err := r.queries.GetStreamTopicResetOffset(ctx, r.pool, sqlcv1.GetStreamTopicResetOffsetParams{
+	startingOffset, err := r.queries.GetStreamTopicStartingOffset(ctx, r.pool, sqlcv1.GetStreamTopicStartingOffsetParams{
 		Tenantid:  tenantId,
 		Namespace: namespace,
 		Topic:     topic,
 	})
 
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+	if err != nil {
 		return StreamCursor{}, err
 	}
 
-	// offsets start at 1, so ID 0 is the start of the topic
-	return StreamCursor{Namespace: namespace, Topic: topic, ID: resetOffset}, nil
+	return StreamCursor{Namespace: namespace, Topic: topic, ID: startingOffset}, nil
 }
