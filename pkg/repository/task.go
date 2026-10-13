@@ -1546,12 +1546,12 @@ func (r *TaskRepositoryImpl) listTaskOutputEvents(ctx context.Context, tx sqlcv1
 		return nil, err
 	}
 
-	retrieveOpts := make([]PayloadRef[TaskEventDataShape], len(matchedEvents))
-	retrieveOptsToEventData := make(map[PayloadRef[TaskEventDataShape]][]byte)
-	matchedEventToRetrieveOpts := make(map[*sqlcv1.ListMatchingTaskEventsRow]PayloadRef[TaskEventDataShape])
+	retrieveOpts := make([]PayloadRef[TaskCompletionEventShape], len(matchedEvents))
+	retrieveOptsToEventData := make(map[PayloadRef[TaskCompletionEventShape]][]byte)
+	matchedEventToRetrieveOpts := make(map[*sqlcv1.ListMatchingTaskEventsRow]PayloadRef[TaskCompletionEventShape])
 
 	for i, event := range matchedEvents {
-		opt := PayloadRef[TaskEventDataShape]{
+		opt := PayloadRef[TaskCompletionEventShape]{
 			Id:         event.ID,
 			InsertedAt: event.InsertedAt,
 			TenantId:   tenantId,
@@ -1563,7 +1563,7 @@ func (r *TaskRepositoryImpl) listTaskOutputEvents(ctx context.Context, tx sqlcv1
 		matchedEventToRetrieveOpts[event] = opt
 	}
 
-	payloads, err := r.payloadStore.TaskEventData().Retrieve(ctx, tx, retrieveOpts...)
+	payloads, err := r.payloadStore.TaskCompletionEvents().Retrieve(ctx, tx, retrieveOpts...)
 
 	if err != nil {
 		return nil, err
@@ -1575,7 +1575,7 @@ func (r *TaskRepositoryImpl) listTaskOutputEvents(ctx context.Context, tx sqlcv1
 		retrieveOpts := matchedEventToRetrieveOpts[event]
 		payload := RetrievePayloadOrFallback(payloads, retrieveOpts, retrieveOptsToEventData[retrieveOpts])
 
-		o, err := DecodeTaskOutputEventPayload(payload)
+		o, err := DecodeTaskCompletionEventPayload(payload)
 
 		if err != nil {
 			return nil, err
@@ -1936,13 +1936,12 @@ func (r *TaskRepositoryImpl) ProcessDurableSleeps(ctx context.Context, tenantId 
 
 	storePayloadOpts := make([]StorePayloadOpts, len(results.CreatedTasks))
 	for i, task := range results.CreatedTasks {
-		storePayloadOpts[i] = StorePayloadOpts{
+		storePayloadOpts[i] = PayloadRef[TaskInputShape]{
 			Id:         task.ID,
 			InsertedAt: task.InsertedAt,
 			ExternalId: task.ExternalID,
-			Payload:    NewPayload[TaskInputShape](task.Payload),
 			TenantId:   task.TenantID,
-		}
+		}.StoreOpts(NewPayload[TaskInputShape](task.Payload))
 	}
 
 	if len(storePayloadOpts) > 0 {
@@ -3343,13 +3342,12 @@ func (r *sharedRepository) replayTasks(
 
 		stepIdsToParams[task.StepId] = params
 
-		storePayloadOpts := StorePayloadOpts{
+		storePayloadOpts := PayloadRef[TaskInputShape]{
 			Id:         taskIds[i],
 			InsertedAt: taskInsertedAts[i],
 			ExternalId: task.ExternalId,
-			Payload:    NewPayload[TaskInputShape](input),
 			TenantId:   tenantId,
-		}
+		}.StoreOpts(NewPayload[TaskInputShape](input))
 
 		stepIdsToStorePayloadOpts[task.StepId] = append(stepIdsToStorePayloadOpts[task.StepId], storePayloadOpts)
 	}
@@ -3685,6 +3683,32 @@ func (r *sharedRepository) releaseIdempotencyKeysForStatusPolicies(
 	})
 }
 
+func taskEventDataStoreOpts(tenantId uuid.UUID, taskEvent *sqlcv1.V1TaskEvent, data []byte) StorePayloadOpts {
+	switch taskEvent.EventType {
+	case sqlcv1.V1TaskEventTypeSIGNALCREATED:
+		return PayloadRef[ChildWorkflowSignalCreatedShape]{
+			Id:         taskEvent.ID,
+			InsertedAt: taskEvent.InsertedAt,
+			ExternalId: taskEvent.ExternalID,
+			TenantId:   tenantId,
+		}.StoreOpts(NewPayload[ChildWorkflowSignalCreatedShape](data))
+	case sqlcv1.V1TaskEventTypeSIGNALCOMPLETED:
+		return PayloadRef[SignalCompletedMatchDataShape]{
+			Id:         taskEvent.ID,
+			InsertedAt: taskEvent.InsertedAt,
+			ExternalId: taskEvent.ExternalID,
+			TenantId:   tenantId,
+		}.StoreOpts(NewPayload[SignalCompletedMatchDataShape](data))
+	default:
+		return PayloadRef[TaskCompletionEventShape]{
+			Id:         taskEvent.ID,
+			InsertedAt: taskEvent.InsertedAt,
+			ExternalId: taskEvent.ExternalID,
+			TenantId:   tenantId,
+		}.StoreOpts(NewPayload[TaskCompletionEventShape](data))
+	}
+}
+
 func (r *sharedRepository) createTaskEvents(
 	ctx context.Context,
 	dbtx sqlcv1.DBTX,
@@ -3801,15 +3825,7 @@ func (r *sharedRepository) createTaskEvents(
 	storePayloadOpts := make([]StorePayloadOpts, len(taskEvents))
 
 	for i, taskEvent := range taskEvents {
-		data := externalIdToData[taskEvent.ExternalID]
-
-		storePayloadOpts[i] = StorePayloadOpts{
-			Id:         taskEvent.ID,
-			InsertedAt: taskEvent.InsertedAt,
-			ExternalId: taskEvent.ExternalID,
-			Payload:    NewPayload[TaskEventDataShape](data),
-			TenantId:   tenantId,
-		}
+		storePayloadOpts[i] = taskEventDataStoreOpts(tenantId, taskEvent, externalIdToData[taskEvent.ExternalID])
 	}
 
 	err = r.payloadStore.Store(ctx, dbtx, storePayloadOpts...)
@@ -4586,16 +4602,16 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 		return nil, err
 	}
 
-	retrieveOpts := make([]PayloadRef[TaskEventDataShape], 0, len(res))
-	retrieveOptsToWorkflowRunId := make(map[PayloadRef[TaskEventDataShape]]uuid.UUID, len(res))
-	retrieveOptToPayload := make(map[PayloadRef[TaskEventDataShape]][]byte)
+	retrieveOpts := make([]PayloadRef[TaskCompletionEventShape], 0, len(res))
+	retrieveOptsToWorkflowRunId := make(map[PayloadRef[TaskCompletionEventShape]]uuid.UUID, len(res))
+	retrieveOptToPayload := make(map[PayloadRef[TaskCompletionEventShape]][]byte)
 
 	for _, outputTask := range res {
 		if outputTask.WorkflowRunID == uuid.Nil {
 			continue
 		}
 
-		opt := PayloadRef[TaskEventDataShape]{
+		opt := PayloadRef[TaskCompletionEventShape]{
 			Id:         outputTask.TaskEventID,
 			InsertedAt: outputTask.TaskEventInsertedAt,
 			TenantId:   tenantId,
@@ -4607,7 +4623,7 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 		retrieveOptToPayload[opt] = outputTask.Output
 	}
 
-	payloads, err := r.payloadStore.TaskEventData().Retrieve(ctx, r.pool, retrieveOpts...)
+	payloads, err := r.payloadStore.TaskCompletionEvents().Retrieve(ctx, r.pool, retrieveOpts...)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve task output payloads: %w", err)
@@ -4619,7 +4635,7 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 		wrId := workflowRunId.String()
 		payload := RetrievePayloadOrFallback(payloads, retrieveOpts, retrieveOptToPayload[retrieveOpts])
 
-		e, err := DecodeTaskOutputEventPayload(payload)
+		e, err := DecodeTaskCompletionEventPayload(payload)
 
 		if err != nil {
 			r.l.Warn().Ctx(ctx).Msgf("failed to parse task output: %v", err)
@@ -4669,10 +4685,10 @@ func (r *TaskRepositoryImpl) ListSignalCompletedEvents(ctx context.Context, tena
 		return nil, fmt.Errorf("failed to list matching signal events: %w", err)
 	}
 
-	retrieveOpts := make([]PayloadRef[TaskEventDataShape], len(signalEvents))
+	retrieveOpts := make([]PayloadRef[SignalCompletedMatchDataShape], len(signalEvents))
 
 	for i, event := range signalEvents {
-		retrieveOpt := PayloadRef[TaskEventDataShape]{
+		retrieveOpt := PayloadRef[SignalCompletedMatchDataShape]{
 			Id:         event.ID,
 			InsertedAt: event.InsertedAt,
 			TenantId:   tenantId,
@@ -4682,7 +4698,7 @@ func (r *TaskRepositoryImpl) ListSignalCompletedEvents(ctx context.Context, tena
 		retrieveOpts[i] = retrieveOpt
 	}
 
-	payloads, err := r.payloadStore.TaskEventData().Retrieve(ctx, r.pool, retrieveOpts...)
+	payloads, err := r.payloadStore.SignalCompletedMatchData().Retrieve(ctx, r.pool, retrieveOpts...)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve task event payloads: %w", err)
@@ -4691,7 +4707,7 @@ func (r *TaskRepositoryImpl) ListSignalCompletedEvents(ctx context.Context, tena
 	res := make([]*V1TaskEventWithPayload, len(signalEvents))
 
 	for i, event := range signalEvents {
-		retrieveOpt := PayloadRef[TaskEventDataShape]{
+		retrieveOpt := PayloadRef[SignalCompletedMatchDataShape]{
 			Id:         event.ID,
 			InsertedAt: event.InsertedAt,
 			TenantId:   tenantId,

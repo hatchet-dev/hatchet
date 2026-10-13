@@ -24,32 +24,67 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
+type PayloadKind int
+
+const (
+	PayloadKindTaskInput PayloadKind = iota
+	PayloadKindDAGInput
+	PayloadKindUserEventInput
+	PayloadKindTaskOutput
+	PayloadKindTaskCompletionEvent
+	PayloadKindChildWorkflowSignalCreated
+	PayloadKindSignalCompletedMatchData
+	PayloadKindDurableEventLogEntryData
+	PayloadKindDurableEventLogEntryResultData
+)
+
+func (k PayloadKind) V1PayloadType() sqlcv1.V1PayloadType {
+	switch k {
+	case PayloadKindTaskInput:
+		return sqlcv1.V1PayloadTypeTASKINPUT
+	case PayloadKindDAGInput:
+		return sqlcv1.V1PayloadTypeDAGINPUT
+	case PayloadKindUserEventInput:
+		return sqlcv1.V1PayloadTypeUSEREVENTINPUT
+	case PayloadKindTaskOutput:
+		return sqlcv1.V1PayloadTypeTASKOUTPUT
+	case PayloadKindTaskCompletionEvent, PayloadKindChildWorkflowSignalCreated, PayloadKindSignalCompletedMatchData:
+		return sqlcv1.V1PayloadTypeTASKEVENTDATA
+	case PayloadKindDurableEventLogEntryData:
+		return sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYDATA
+	case PayloadKindDurableEventLogEntryResultData:
+		return sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA
+	default:
+		panic(fmt.Sprintf("unknown payload kind %d", k))
+	}
+}
+
 type PayloadShape interface {
-	payloadType() sqlcv1.V1PayloadType
+	kind() PayloadKind
 }
 
 type TaskInputShape struct{}
 type DAGInputShape struct{}
-type TaskOutputShape struct{}
-type TaskEventDataShape struct{}
 type UserEventInputShape struct{}
+type TaskOutputShape struct{}
+type TaskCompletionEventShape struct{}
+type ChildWorkflowSignalCreatedShape struct{}
+type SignalCompletedMatchDataShape struct{}
 type DurableEventLogEntryDataShape struct{}
 type DurableEventLogEntryResultDataShape struct{}
 
-func (TaskInputShape) payloadType() sqlcv1.V1PayloadType  { return sqlcv1.V1PayloadTypeTASKINPUT }
-func (DAGInputShape) payloadType() sqlcv1.V1PayloadType   { return sqlcv1.V1PayloadTypeDAGINPUT }
-func (TaskOutputShape) payloadType() sqlcv1.V1PayloadType { return sqlcv1.V1PayloadTypeTASKOUTPUT }
-func (TaskEventDataShape) payloadType() sqlcv1.V1PayloadType {
-	return sqlcv1.V1PayloadTypeTASKEVENTDATA
+func (TaskInputShape) kind() PayloadKind           { return PayloadKindTaskInput }
+func (DAGInputShape) kind() PayloadKind            { return PayloadKindDAGInput }
+func (UserEventInputShape) kind() PayloadKind      { return PayloadKindUserEventInput }
+func (TaskOutputShape) kind() PayloadKind          { return PayloadKindTaskOutput }
+func (TaskCompletionEventShape) kind() PayloadKind { return PayloadKindTaskCompletionEvent }
+func (ChildWorkflowSignalCreatedShape) kind() PayloadKind {
+	return PayloadKindChildWorkflowSignalCreated
 }
-func (UserEventInputShape) payloadType() sqlcv1.V1PayloadType {
-	return sqlcv1.V1PayloadTypeUSEREVENTINPUT
-}
-func (DurableEventLogEntryDataShape) payloadType() sqlcv1.V1PayloadType {
-	return sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYDATA
-}
-func (DurableEventLogEntryResultDataShape) payloadType() sqlcv1.V1PayloadType {
-	return sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA
+func (SignalCompletedMatchDataShape) kind() PayloadKind { return PayloadKindSignalCompletedMatchData }
+func (DurableEventLogEntryDataShape) kind() PayloadKind { return PayloadKindDurableEventLogEntryData }
+func (DurableEventLogEntryResultDataShape) kind() PayloadKind {
+	return PayloadKindDurableEventLogEntryResultData
 }
 
 type Payload[S PayloadShape] struct {
@@ -60,17 +95,11 @@ func NewPayload[S PayloadShape](raw []byte) Payload[S] {
 	return Payload[S]{raw: raw}
 }
 
-func (p Payload[S]) PayloadType() sqlcv1.V1PayloadType {
-	var shape S
-	return shape.payloadType()
-}
-
 func (p Payload[S]) Bytes() []byte {
 	return p.raw
 }
 
 type AnyPayload interface {
-	PayloadType() sqlcv1.V1PayloadType
 	Bytes() []byte
 }
 
@@ -92,11 +121,11 @@ func DecodeTaskInputPayload(p Payload[TaskInputShape]) (*V1StepRunData, error) {
 	return data, nil
 }
 
-func DecodeTaskOutputEventPayload(p Payload[TaskEventDataShape]) (*TaskOutputEvent, error) {
+func DecodeTaskCompletionEventPayload(p Payload[TaskCompletionEventShape]) (*TaskOutputEvent, error) {
 	return newTaskEventFromBytes(p.raw)
 }
 
-func DecodeChildWorkflowSignalCreatedPayload(p Payload[TaskEventDataShape]) (*ChildWorkflowSignalCreatedData, error) {
+func DecodeChildWorkflowSignalCreatedPayload(p Payload[ChildWorkflowSignalCreatedShape]) (*ChildWorkflowSignalCreatedData, error) {
 	return newChildWorkflowSignalCreatedDataFromBytes(p.raw)
 }
 
@@ -108,13 +137,19 @@ type PayloadRef[S PayloadShape] struct {
 }
 
 func (r PayloadRef[S]) retrieveOpts() RetrievePayloadOpts {
+	var shape S
+
 	return RetrievePayloadOpts{
 		TenantId:   r.TenantId,
 		Id:         r.Id,
 		InsertedAt: r.InsertedAt,
-		Type:       Payload[S]{}.PayloadType(),
+		Type:       shape.kind().V1PayloadType(),
 		ExternalId: r.ExternalId,
 	}
+}
+
+func (r PayloadRef[S]) StoreOpts(payload Payload[S]) StorePayloadOpts {
+	return StorePayloadOpts{key: r.retrieveOpts(), payload: payload.raw}
 }
 
 type TypedPayloadStore[S PayloadShape] struct {
@@ -164,11 +199,8 @@ func RetrievePayloadOrFallback[S PayloadShape](payloads map[PayloadRef[S]]Payloa
 }
 
 type StorePayloadOpts struct {
-	Id         int64
-	InsertedAt pgtype.Timestamptz
-	ExternalId uuid.UUID
-	Payload    AnyPayload
-	TenantId   uuid.UUID
+	key     RetrievePayloadOpts
+	payload []byte
 }
 
 type StoreOLAPPayloadOpts struct {
@@ -247,9 +279,11 @@ type PayloadStoreRepository interface {
 	Retrieve(ctx context.Context, tx sqlcv1.DBTX, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
 	TaskInputs() TypedPayloadStore[TaskInputShape]
 	DAGInputs() TypedPayloadStore[DAGInputShape]
-	TaskOutputs() TypedPayloadStore[TaskOutputShape]
-	TaskEventData() TypedPayloadStore[TaskEventDataShape]
 	UserEventInputs() TypedPayloadStore[UserEventInputShape]
+	TaskOutputs() TypedPayloadStore[TaskOutputShape]
+	TaskCompletionEvents() TypedPayloadStore[TaskCompletionEventShape]
+	ChildWorkflowSignalCreatedEvents() TypedPayloadStore[ChildWorkflowSignalCreatedShape]
+	SignalCompletedMatchData() TypedPayloadStore[SignalCompletedMatchDataShape]
 	DurableEventLogEntryData() TypedPayloadStore[DurableEventLogEntryDataShape]
 	DurableEventLogEntryResultData() TypedPayloadStore[DurableEventLogEntryResultDataShape]
 	RetrieveFromExternal(ctx context.Context, opts ...RetrieveFromExternalOpts) (map[RetrieveFromExternalOpts][]byte, error)
@@ -364,21 +398,15 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 
 	sort.Slice(payloads, func(i, j int) bool {
 		// sort payloads descending by inserted at to deduplicate operations
-		return payloads[i].InsertedAt.Time.After(payloads[j].InsertedAt.Time)
+		return payloads[i].key.InsertedAt.Time.After(payloads[j].key.InsertedAt.Time)
 	})
 
 	for _, payload := range payloads {
-		if isEmptyPayload(payload.Payload.Bytes()) {
+		if isEmptyPayload(payload.payload) {
 			continue
 		}
 
-		tenantId := payload.TenantId
-		uniqueKey := PayloadUniqueKey{
-			ID:              payload.Id,
-			InsertedAtMicro: payload.InsertedAt.Time.UnixMicro(),
-			TenantId:        tenantId,
-			Type:            payload.Payload.PayloadType(),
-		}
+		uniqueKey := payloadUniqueKeyFromRetrieveOpt(payload.key)
 
 		if _, exists := seenPayloadUniqueKeys[uniqueKey]; exists {
 			continue
@@ -386,13 +414,13 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 
 		seenPayloadUniqueKeys[uniqueKey] = struct{}{}
 
-		taskIds = append(taskIds, payload.Id)
-		taskInsertedAts = append(taskInsertedAts, payload.InsertedAt)
-		payloadTypes = append(payloadTypes, string(payload.Payload.PayloadType()))
-		tenantIds = append(tenantIds, tenantId)
+		taskIds = append(taskIds, payload.key.Id)
+		taskInsertedAts = append(taskInsertedAts, payload.key.InsertedAt)
+		payloadTypes = append(payloadTypes, string(payload.key.Type))
+		tenantIds = append(tenantIds, payload.key.TenantId)
 		locations = append(locations, string(sqlcv1.V1PayloadLocationINLINE))
-		inlineContents = append(inlineContents, payload.Payload.Bytes())
-		externalIds = append(externalIds, payload.ExternalId)
+		inlineContents = append(inlineContents, payload.payload)
+		externalIds = append(externalIds, payload.key.ExternalId)
 		externalLocationKeys = append(externalLocationKeys, "")
 	}
 
@@ -420,27 +448,22 @@ func (p *payloadStoreRepositoryImpl) OverwriteExisting(ctx context.Context, tx s
 	}
 
 	uniquePayloads := listutils.UniqBy(payloads, func(payload StorePayloadOpts) PayloadUniqueKey {
-		return PayloadUniqueKey{
-			ID:              payload.Id,
-			InsertedAtMicro: payload.InsertedAt.Time.UnixMicro(),
-			TenantId:        payload.TenantId,
-			Type:            payload.Payload.PayloadType(),
-		}
+		return payloadUniqueKeyFromRetrieveOpt(payload.key)
 	})
 
 	params := sqlcv1.OverwritePayloadsParams{}
 
 	for _, payload := range uniquePayloads {
-		if isEmptyPayload(payload.Payload.Bytes()) {
+		if isEmptyPayload(payload.payload) {
 			continue
 		}
 
-		params.Ids = append(params.Ids, payload.Id)
-		params.Insertedats = append(params.Insertedats, payload.InsertedAt)
-		params.Externalids = append(params.Externalids, payload.ExternalId)
-		params.Types = append(params.Types, string(payload.Payload.PayloadType()))
-		params.Inlinecontents = append(params.Inlinecontents, payload.Payload.Bytes())
-		params.Tenantids = append(params.Tenantids, payload.TenantId)
+		params.Ids = append(params.Ids, payload.key.Id)
+		params.Insertedats = append(params.Insertedats, payload.key.InsertedAt)
+		params.Externalids = append(params.Externalids, payload.key.ExternalId)
+		params.Types = append(params.Types, string(payload.key.Type))
+		params.Inlinecontents = append(params.Inlinecontents, payload.payload)
+		params.Tenantids = append(params.Tenantids, payload.key.TenantId)
 	}
 
 	if len(params.Ids) == 0 {
@@ -472,16 +495,24 @@ func (p *payloadStoreRepositoryImpl) DAGInputs() TypedPayloadStore[DAGInputShape
 	return TypedPayloadStore[DAGInputShape]{store: p}
 }
 
+func (p *payloadStoreRepositoryImpl) UserEventInputs() TypedPayloadStore[UserEventInputShape] {
+	return TypedPayloadStore[UserEventInputShape]{store: p}
+}
+
 func (p *payloadStoreRepositoryImpl) TaskOutputs() TypedPayloadStore[TaskOutputShape] {
 	return TypedPayloadStore[TaskOutputShape]{store: p}
 }
 
-func (p *payloadStoreRepositoryImpl) TaskEventData() TypedPayloadStore[TaskEventDataShape] {
-	return TypedPayloadStore[TaskEventDataShape]{store: p}
+func (p *payloadStoreRepositoryImpl) TaskCompletionEvents() TypedPayloadStore[TaskCompletionEventShape] {
+	return TypedPayloadStore[TaskCompletionEventShape]{store: p}
 }
 
-func (p *payloadStoreRepositoryImpl) UserEventInputs() TypedPayloadStore[UserEventInputShape] {
-	return TypedPayloadStore[UserEventInputShape]{store: p}
+func (p *payloadStoreRepositoryImpl) ChildWorkflowSignalCreatedEvents() TypedPayloadStore[ChildWorkflowSignalCreatedShape] {
+	return TypedPayloadStore[ChildWorkflowSignalCreatedShape]{store: p}
+}
+
+func (p *payloadStoreRepositoryImpl) SignalCompletedMatchData() TypedPayloadStore[SignalCompletedMatchDataShape] {
+	return TypedPayloadStore[SignalCompletedMatchDataShape]{store: p}
 }
 
 func (p *payloadStoreRepositoryImpl) DurableEventLogEntryData() TypedPayloadStore[DurableEventLogEntryDataShape] {

@@ -59,13 +59,12 @@ func TestReplayOverwritesOffloadedTaskInput(t *testing.T) {
 	task := inserted[0]
 
 	// Mirror processEventMatches, which stores whatever payload the created task carries.
-	err = shared.payloadStore.Store(ctx, pool, StorePayloadOpts{
+	err = shared.payloadStore.Store(ctx, pool, PayloadRef[TaskInputShape]{
 		Id:         task.ID,
 		InsertedAt: task.InsertedAt,
 		ExternalId: task.ExternalID,
-		Payload:    NewPayload[TaskInputShape](task.Payload),
 		TenantId:   internalTenantId,
-	})
+	}.StoreOpts(NewPayload[TaskInputShape](task.Payload)))
 	require.NoError(t, err)
 
 	retrieveOpt := PayloadRef[TaskInputShape]{

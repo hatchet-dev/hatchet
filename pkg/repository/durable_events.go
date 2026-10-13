@@ -1215,22 +1215,20 @@ func (r *durableEventsRepository) getOrCreateEventLogEntriesForTasks(
 				continue
 			}
 			if len(opt.InputPayload) > 0 {
-				pendingStorePayloadOpts = append(pendingStorePayloadOpts, StorePayloadOpts{
+				pendingStorePayloadOpts = append(pendingStorePayloadOpts, PayloadRef[DurableEventLogEntryDataShape]{
 					Id:         createdRow.ID,
 					InsertedAt: createdRow.InsertedAt,
 					ExternalId: createdRow.ExternalID,
-					Payload:    NewPayload[DurableEventLogEntryDataShape](opt.InputPayload),
 					TenantId:   state.opts.TenantId,
-				})
+				}.StoreOpts(NewPayload[DurableEventLogEntryDataShape](opt.InputPayload)))
 			}
 			if len(opt.ResultPayload) > 0 {
-				pendingStorePayloadOpts = append(pendingStorePayloadOpts, StorePayloadOpts{
+				pendingStorePayloadOpts = append(pendingStorePayloadOpts, PayloadRef[DurableEventLogEntryResultDataShape]{
 					Id:         createdRow.ID,
 					InsertedAt: createdRow.InsertedAt,
 					ExternalId: createdRow.ResultPayloadExternalID,
-					Payload:    NewPayload[DurableEventLogEntryResultDataShape](opt.ResultPayload),
 					TenantId:   state.opts.TenantId,
-				})
+				}.StoreOpts(NewPayload[DurableEventLogEntryResultDataShape](opt.ResultPayload)))
 			}
 		}
 	}
@@ -2824,13 +2822,12 @@ func (r *durableEventsRepository) CompleteMemoEntry(ctx context.Context, opts Co
 	}
 
 	if len(opts.Payload) > 0 {
-		err = r.payloadStore.Store(ctx, r.pool, StorePayloadOpts{
+		err = r.payloadStore.Store(ctx, r.pool, PayloadRef[DurableEventLogEntryResultDataShape]{
 			Id:         entry.ID,
 			InsertedAt: entry.InsertedAt,
 			ExternalId: entry.ResultPayloadExternalID,
-			Payload:    NewPayload[DurableEventLogEntryResultDataShape](opts.Payload),
 			TenantId:   opts.TenantId,
-		})
+		}.StoreOpts(NewPayload[DurableEventLogEntryResultDataShape](opts.Payload)))
 
 		if err != nil {
 			return fmt.Errorf("failed to store memo result payload: %w", err)

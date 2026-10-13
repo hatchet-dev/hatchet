@@ -1610,23 +1610,21 @@ func (r *sharedRepository) triggerWorkflowsCore(
 	storePayloadOpts := make([]StorePayloadOpts, 0, len(tasks)+len(dags))
 
 	for _, task := range tasks {
-		storePayloadOpts = append(storePayloadOpts, StorePayloadOpts{
+		storePayloadOpts = append(storePayloadOpts, PayloadRef[TaskInputShape]{
 			Id:         task.ID,
 			InsertedAt: task.InsertedAt,
 			ExternalId: task.ExternalID,
-			Payload:    NewPayload[TaskInputShape](task.Payload),
 			TenantId:   tenantId,
-		})
+		}.StoreOpts(NewPayload[TaskInputShape](task.Payload)))
 	}
 
 	for _, dag := range dags {
-		storePayloadOpts = append(storePayloadOpts, StorePayloadOpts{
+		storePayloadOpts = append(storePayloadOpts, PayloadRef[DAGInputShape]{
 			Id:         dag.ID,
 			InsertedAt: dag.InsertedAt,
 			ExternalId: dag.ExternalID,
-			Payload:    NewPayload[DAGInputShape](dag.Input),
 			TenantId:   tenantId,
-		})
+		}.StoreOpts(NewPayload[DAGInputShape](dag.Input)))
 	}
 
 	if coreEvents != nil {
@@ -1643,13 +1641,12 @@ func (r *sharedRepository) triggerWorkflowsCore(
 				continue
 			}
 
-			storePayloadOpts = append(storePayloadOpts, StorePayloadOpts{
+			storePayloadOpts = append(storePayloadOpts, PayloadRef[UserEventInputShape]{
 				Id:         e.ID,
 				InsertedAt: e.SeenAt,
 				ExternalId: e.ExternalID,
-				Payload:    NewPayload[UserEventInputShape](payload),
 				TenantId:   tenantId,
-			})
+			}.StoreOpts(NewPayload[UserEventInputShape](payload)))
 		}
 	}
 
@@ -1944,14 +1941,14 @@ func (r *sharedRepository) registerChildWorkflows(
 	}
 
 	// only need to hit the payload store for events created before the child_external_id column existed
-	retrievePayloadOpts := make([]PayloadRef[TaskEventDataShape], 0, len(matchingEvents))
+	retrievePayloadOpts := make([]PayloadRef[ChildWorkflowSignalCreatedShape], 0, len(matchingEvents))
 
 	for _, event := range matchingEvents {
 		if event.ChildExternalID != nil {
 			continue
 		}
 
-		retrievePayloadOpts = append(retrievePayloadOpts, PayloadRef[TaskEventDataShape]{
+		retrievePayloadOpts = append(retrievePayloadOpts, PayloadRef[ChildWorkflowSignalCreatedShape]{
 			Id:         event.ID,
 			InsertedAt: event.InsertedAt,
 			TenantId:   tenantId,
@@ -1959,10 +1956,10 @@ func (r *sharedRepository) registerChildWorkflows(
 		})
 	}
 
-	var payloads map[PayloadRef[TaskEventDataShape]]Payload[TaskEventDataShape]
+	var payloads map[PayloadRef[ChildWorkflowSignalCreatedShape]]Payload[ChildWorkflowSignalCreatedShape]
 
 	if len(retrievePayloadOpts) > 0 {
-		payloads, err = r.payloadStore.TaskEventData().Retrieve(ctx, tx, retrievePayloadOpts...)
+		payloads, err = r.payloadStore.ChildWorkflowSignalCreatedEvents().Retrieve(ctx, tx, retrievePayloadOpts...)
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to retrieve payloads for signal created events: %w", err)
@@ -1979,7 +1976,7 @@ func (r *sharedRepository) registerChildWorkflows(
 		if event.ChildExternalID != nil {
 			childExternalId = *event.ChildExternalID
 		} else {
-			payload := RetrievePayloadOrFallback(payloads, PayloadRef[TaskEventDataShape]{
+			payload := RetrievePayloadOrFallback(payloads, PayloadRef[ChildWorkflowSignalCreatedShape]{
 				Id:         event.ID,
 				InsertedAt: event.InsertedAt,
 				TenantId:   tenantId,
@@ -3006,10 +3003,10 @@ func (r *sharedRepository) lookupParentOutputsByWorkflowRunIds(ctx context.Conte
 		return nil, err
 	}
 
-	retrieveOpts := make([]PayloadRef[TaskEventDataShape], 0, len(rows))
+	retrieveOpts := make([]PayloadRef[TaskCompletionEventShape], 0, len(rows))
 
 	for _, row := range rows {
-		retrieveOpts = append(retrieveOpts, PayloadRef[TaskEventDataShape]{
+		retrieveOpts = append(retrieveOpts, PayloadRef[TaskCompletionEventShape]{
 			Id:         row.TaskEventID,
 			InsertedAt: row.TaskEventInsertedAt,
 			TenantId:   tenantId,
@@ -3017,7 +3014,7 @@ func (r *sharedRepository) lookupParentOutputsByWorkflowRunIds(ctx context.Conte
 		})
 	}
 
-	payloads, err := r.payloadStore.TaskEventData().Retrieve(ctx, r.pool, retrieveOpts...)
+	payloads, err := r.payloadStore.TaskCompletionEvents().Retrieve(ctx, r.pool, retrieveOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve parent output payloads: %w", err)
 	}
@@ -3025,7 +3022,7 @@ func (r *sharedRepository) lookupParentOutputsByWorkflowRunIds(ctx context.Conte
 	result := make(map[uuid.UUID]*TaskOutputEvent, len(rows))
 
 	for _, payload := range payloads {
-		e, err := DecodeTaskOutputEventPayload(payload)
+		e, err := DecodeTaskCompletionEventPayload(payload)
 		if err != nil {
 			r.l.Warn().Ctx(ctx).Msgf("failed to parse parent task output: %v", err)
 			continue

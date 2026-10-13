@@ -314,13 +314,12 @@ func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, t
 	storePayloadOpts := make([]StorePayloadOpts, len(res.CreatedTasks))
 
 	for i, task := range res.CreatedTasks {
-		storePayloadOpts[i] = StorePayloadOpts{
+		storePayloadOpts[i] = PayloadRef[TaskInputShape]{
 			Id:         task.ID,
 			InsertedAt: task.InsertedAt,
 			ExternalId: task.ExternalID,
-			Payload:    NewPayload[TaskInputShape](task.Payload),
 			TenantId:   task.TenantID,
-		}
+		}.StoreOpts(NewPayload[TaskInputShape](task.Payload))
 	}
 
 	if len(storePayloadOpts) > 0 {
@@ -356,13 +355,12 @@ func (m *MatchRepositoryImpl) ProcessUserEventMatches(ctx context.Context, tenan
 
 	storePayloadOpts := make([]StorePayloadOpts, len(res.CreatedTasks))
 	for i, task := range res.CreatedTasks {
-		storePayloadOpts[i] = StorePayloadOpts{
+		storePayloadOpts[i] = PayloadRef[TaskInputShape]{
 			Id:         task.ID,
 			InsertedAt: task.InsertedAt,
 			ExternalId: task.ExternalID,
-			Payload:    NewPayload[TaskInputShape](task.Payload),
 			TenantId:   task.TenantID,
-		}
+		}.StoreOpts(NewPayload[TaskInputShape](task.Payload))
 	}
 
 	if len(storePayloadOpts) > 0 {
@@ -912,13 +910,12 @@ func (m *sharedRepository) processEventMatchesForTarget(ctx context.Context, tx 
 		initialEntry.SatisfiedOrder = satisfiedOrderPtr(cb.SatisfiedOrder)
 
 		if len(initialEntry.Data) > 0 {
-			payloadsToStore = append(payloadsToStore, StorePayloadOpts{
+			payloadsToStore = append(payloadsToStore, PayloadRef[DurableEventLogEntryResultDataShape]{
 				Id:         cb.ID,
 				InsertedAt: cb.InsertedAt,
-				Payload:    NewPayload[DurableEventLogEntryResultDataShape](initialEntry.Data),
 				ExternalId: cb.ResultPayloadExternalID,
 				TenantId:   tenantId,
-			})
+			}.StoreOpts(NewPayload[DurableEventLogEntryResultDataShape](initialEntry.Data)))
 		}
 
 		satisfiedEntries = append(satisfiedEntries, initialEntry)

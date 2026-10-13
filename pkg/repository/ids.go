@@ -199,14 +199,14 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 	}
 
 	// only need to hit the payload store for events created before the child_external_id column existed
-	retrievePayloadOpts := make([]PayloadRef[TaskEventDataShape], 0, len(lockedEvents))
+	retrievePayloadOpts := make([]PayloadRef[ChildWorkflowSignalCreatedShape], 0, len(lockedEvents))
 
 	for _, lockedEvent := range lockedEvents {
 		if lockedEvent.ChildExternalID != nil {
 			continue
 		}
 
-		retrievePayloadOpts = append(retrievePayloadOpts, PayloadRef[TaskEventDataShape]{
+		retrievePayloadOpts = append(retrievePayloadOpts, PayloadRef[ChildWorkflowSignalCreatedShape]{
 			Id:         lockedEvent.ID,
 			InsertedAt: lockedEvent.InsertedAt,
 			TenantId:   tenantId,
@@ -214,10 +214,10 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 		})
 	}
 
-	var payloads map[PayloadRef[TaskEventDataShape]]Payload[TaskEventDataShape]
+	var payloads map[PayloadRef[ChildWorkflowSignalCreatedShape]]Payload[ChildWorkflowSignalCreatedShape]
 
 	if len(retrievePayloadOpts) > 0 {
-		payloads, err = s.payloadStore.TaskEventData().Retrieve(ctx, tx, retrievePayloadOpts...)
+		payloads, err = s.payloadStore.ChildWorkflowSignalCreatedEvents().Retrieve(ctx, tx, retrievePayloadOpts...)
 
 		if err != nil {
 			return err
@@ -233,7 +233,7 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 		if lockedEvent.ChildExternalID != nil {
 			childExternalId = *lockedEvent.ChildExternalID
 		} else {
-			payload := RetrievePayloadOrFallback(payloads, PayloadRef[TaskEventDataShape]{
+			payload := RetrievePayloadOrFallback(payloads, PayloadRef[ChildWorkflowSignalCreatedShape]{
 				Id:         lockedEvent.ID,
 				InsertedAt: lockedEvent.InsertedAt,
 				TenantId:   tenantId,
