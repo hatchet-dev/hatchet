@@ -32,6 +32,7 @@ module Hatchet
     def cancel: () -> void
     def refresh_timeout: (Integer | String duration) -> void
     def release_slot: () -> void
+    def pause_rate_limit: (String key, until_time: Time) -> Time
     def put_stream: (String data) -> void
     def task_run_errors: () -> Array[TaskRunError]
     def get_task_run_error: (Task | Symbol | String task_ref) -> TaskRunError?

@@ -88,24 +88,26 @@ DELETE FROM "RateLimit" rl WHERE
 -- name: ListRateLimitsForTenantNoMutate :many
 -- Returns the same results as ListRateLimitsForTenantWithMutate but does not update the rate limit values
 SELECT
-    "tenantId",
-    "key",
-    "limitValue",
+    rl."tenantId",
+    rl."key",
+    rl."limitValue",
     (CASE
-        WHEN NOW() - rl."lastRefill" >= rl."window"::INTERVAL THEN
+        WHEN NOW() - rl."lastRefill" >= rl."window"::INTERVAL AND p.key IS NULL THEN
             get_refill_value(rl)
         ELSE
             rl."value"
     END)::int AS "value",
-    "window",
+    rl."window",
     (CASE
-        WHEN NOW() - rl."lastRefill" >= rl."window"::INTERVAL THEN
+        WHEN NOW() - rl."lastRefill" >= rl."window"::INTERVAL AND p.key IS NULL THEN
             CURRENT_TIMESTAMP
         ELSE
             rl."lastRefill"
     END)::timestamp AS "lastRefill"
 FROM
     "RateLimit" rl
+LEFT JOIN
+    v1_rate_limit_pause p ON p.tenant_id = rl."tenantId" AND p.key = rl."key" AND p.paused_until > NOW()
 WHERE
     "tenantId" = @tenantId::uuid
     AND (
@@ -134,6 +136,12 @@ WITH rls_to_update AS (
     WHERE
         rl."tenantId" = @tenantId::uuid
         AND NOW() - rl."lastRefill" >= (rl."window"::INTERVAL - INTERVAL '10 milliseconds')
+        -- a paused key keeps the units it had left when the pause started
+        AND NOT EXISTS (
+            SELECT 1
+            FROM v1_rate_limit_pause p
+            WHERE p.tenant_id = rl."tenantId" AND p.key = rl."key" AND p.paused_until > NOW()
+        )
     ORDER BY
         rl."tenantId" ASC, rl."key" ASC
     FOR UPDATE
@@ -168,11 +176,30 @@ SELECT
     refill.*,
     -- return the next refill time
     (refill."lastRefill" + refill."window"::INTERVAL - INTERVAL '10 milliseconds')::timestamp AS "nextRefillAt",
-    p.paused_until AS "pausedUntil"
+    -- paused keys are never refilled
+    NULL::timestamptz AS "pausedUntil"
 FROM
-    refill
-LEFT JOIN
-    v1_rate_limit_pause p ON p.tenant_id = refill."tenantId" AND p.key = refill."key" AND p.paused_until > NOW();
+    refill;
+
+-- name: SettleExpiredRateLimitPauses :exec
+WITH expired AS (
+    DELETE FROM v1_rate_limit_pause
+    WHERE
+        tenant_id = @tenantId::uuid
+        AND paused_until <= NOW()
+    RETURNING key, paused_at, paused_until
+)
+UPDATE
+    "RateLimit" rl
+SET
+    -- the window resumes where it was when the pause started
+    "lastRefill" = rl."lastRefill" + (e.paused_until - GREATEST(e.paused_at, rl."lastRefill"::timestamptz))
+FROM
+    expired e
+WHERE
+    rl."tenantId" = @tenantId::uuid
+    AND rl."key" = e.key
+    AND e.paused_until > rl."lastRefill"::timestamptz;
 
 -- name: PauseRateLimit :one
 INSERT INTO v1_rate_limit_pause (

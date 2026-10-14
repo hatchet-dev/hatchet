@@ -1,7 +1,9 @@
 import { Code, ConnectError, createRouterTransport } from '@connectrpc/connect';
 import type { MessageInitShape } from '@bufbuild/protobuf';
+import { timestampDate, timestampFromDate } from '@bufbuild/protobuf/wkt';
 import {
   BulkTriggerWorkflowRequest,
+  PauseRateLimitRequest,
   WorkflowService,
 } from '@hatchet/protoc-es/workflows/workflows_pb';
 import {
@@ -83,6 +85,7 @@ function fakeEngine() {
   const pushes: PushEventRequest[] = [];
   const logs: PutLogRequest[] = [];
   const cancels: CancelTasksRequest[] = [];
+  const pauses: PauseRateLimitRequest[] = [];
   const detailsQueue: RunDetails[] = [];
   const detailsTimeouts: Array<number | undefined> = [];
   let detailsCalls = 0;
@@ -102,6 +105,12 @@ function fakeEngine() {
         bulkTriggers.push(req);
         const offset = bulkTriggers.slice(0, -1).reduce((n, b) => n + b.workflows.length, 0);
         return { workflowRunIds: req.workflows.map((_, i) => `bulk-${offset + i}`) };
+      },
+      pauseRateLimit: (req) => {
+        pauses.push(req);
+        // the key was already paused for an hour longer than requested
+        const requested = timestampDate(req.pausedUntil!);
+        return { pausedUntil: timestampFromDate(new Date(requested.getTime() + 60 * 60 * 1000)) };
       },
     });
     service(AdminService, {
@@ -161,6 +170,7 @@ function fakeEngine() {
     pushes,
     logs,
     cancels,
+    pauses,
     detailsQueue,
     detailsTimeouts,
     get detailsCalls() {
@@ -428,6 +438,21 @@ describe('HatchetCore.runNoWait', () => {
     await expect(client.runNoWait('wf', {})).rejects.toMatchObject({
       existingRunExternalId: 'existing-run',
     });
+  });
+});
+
+describe('HatchetCore.rateLimits.pause', () => {
+  it('sends the key and time and returns the time the engine reports', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    const until = new Date('2030-01-01T00:00:00.000Z');
+
+    const pausedUntil = await client.rateLimits.pause({ key: 'upstream-api:tenant-123', until });
+
+    expect(engine.pauses).toHaveLength(1);
+    expect(engine.pauses[0].key).toBe('upstream-api:tenant-123');
+    expect(timestampDate(engine.pauses[0].pausedUntil!)).toEqual(until);
+    expect(pausedUntil).toEqual(new Date('2030-01-01T01:00:00.000Z'));
   });
 });
 

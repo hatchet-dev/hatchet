@@ -139,6 +139,13 @@ export type CreateRateLimitOpts = {
   duration?: RateLimitDuration;
 };
 
+export type PauseRateLimitOpts = {
+  /** The rendered rate limit key to pause. */
+  key: string;
+  /** Queued runs that consume the key stay queued until this time. An earlier time never shortens an existing pause. */
+  until: Date;
+};
+
 /** The state of one task of a run, as `GetRunDetails` reports it. */
 export type TaskRunDetail = {
   externalId: string;

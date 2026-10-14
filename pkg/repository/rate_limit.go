@@ -128,6 +128,10 @@ func (r *rateLimitRepository) FlushRateLimits(ctx context.Context, tenantId uuid
 		return nil, nil, err
 	}
 
+	if err := r.queries.SettleExpiredRateLimitPauses(ctx, tx, tenantId); err != nil {
+		return nil, nil, fmt.Errorf("could not settle expired rate limit pauses: %w", err)
+	}
+
 	newRls, err := r.queries.ListRateLimitsForTenantWithMutate(ctx, tx, tenantId)
 
 	if err != nil {
@@ -149,8 +153,15 @@ func (r *rateLimitRepository) FlushRateLimits(ctx context.Context, tenantId uuid
 	if len(newRls) > 0 {
 		// get min of all next refill times
 		for _, rl := range newRls {
-			if rl.NextRefillAt.Time.Before(nextRefillAt) {
-				nextRefillAt = rl.NextRefillAt.Time
+			next := rl.NextRefillAt.Time
+
+			// a paused key doesn't refill, and its window resumes when the pause ends
+			if rl.PausedUntil.Valid {
+				next = rl.PausedUntil.Time
+			}
+
+			if next.Before(nextRefillAt) {
+				nextRefillAt = next
 			}
 		}
 	}

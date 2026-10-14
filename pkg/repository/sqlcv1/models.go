@@ -3755,6 +3755,7 @@ type V1QueueItem struct {
 type V1RateLimitPause struct {
 	TenantID    uuid.UUID          `json:"tenant_id"`
 	Key         string             `json:"key"`
+	PausedAt    pgtype.Timestamptz `json:"paused_at"`
 	PausedUntil pgtype.Timestamptz `json:"paused_until"`
 }
 

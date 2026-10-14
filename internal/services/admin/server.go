@@ -249,6 +249,50 @@ func (a *AdminServiceImpl) PutRateLimit(ctx context.Context, req *contracts.PutR
 	return &contracts.PutRateLimitResponse{}, nil
 }
 
+func (a *AdminServiceImpl) PauseRateLimit(ctx context.Context, req *contracts.PauseRateLimitRequest) (*contracts.PauseRateLimitResponse, error) {
+	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
+	tenantId := tenant.ID
+
+	if req.Key == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("key is required"))
+	}
+
+	if req.PausedUntil == nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("paused_until is required"))
+	}
+
+	pause, err := a.repov1.RateLimit().PauseRateLimit(ctx, tenantId, req.Key, req.PausedUntil.AsTime())
+
+	if err != nil {
+		return nil, err
+	}
+
+	if tenant.SchedulerPartitionId.Valid {
+		go func() { // #nosec G118 -- intentionally decoupled from request context so notification survives the response, bounded by its own timeout
+			notifyCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			msg, err := tasktypes.NotifyRateLimitsChanged(tenantId)
+
+			if err != nil {
+				a.l.Err(err).Ctx(ctx).Msg("could not create message for notifying rate limits changed")
+				return
+			}
+
+			// the scheduler picks up the pause on its next flush anyway, so this only makes it apply sooner
+			err = a.pubsub.Pub(notifyCtx, msgqueue.SchedulerPartitionTopic(tenant.SchedulerPartitionId.String), msg)
+
+			if err != nil {
+				a.l.Err(err).Ctx(ctx).Msg("could not publish message to scheduler partition topic")
+			}
+		}()
+	}
+
+	return &contracts.PauseRateLimitResponse{
+		PausedUntil: timestamppb.New(pause.PausedUntil.Time),
+	}, nil
+}
+
 func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*v1.CreateWorkflowVersionOpts, error) {
 	// Flatten Jobs[].Steps[] into a single list of tasks
 	allSteps := make([]*contracts.CreateWorkflowStepOpts, 0)
