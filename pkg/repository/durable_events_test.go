@@ -307,28 +307,17 @@ func TestCreateIdempotencyKey_DagStepsOfSameWorkflowDiffer(t *testing.T) {
 	assert.NotEqual(t, stepA, stepB)
 }
 
-func TestIdempotencyKeyMatches_AcceptsLegacyDagStepKey(t *testing.T) {
-	r := &durableEventsRepository{}
-	triggerOpts := dagStepTriggerOpts("my-dag:step-a", 9)
+func TestMatchesExistingEntry_DagStepIsNeverCheckedForNonDeterminism(t *testing.T) {
+	opt := GetOrCreateLogEntryOpt{IdempotencyKey: []byte("key-hashed-from-compact-input"), IsDagStepTrigger: true}
 
-	current, err := r.createIdempotencyKey(sqlcv1.V1DurableEventLogKindRUN, triggerOpts, nil)
-	assert.NoError(t, err)
+	assert.True(t, opt.matchesExistingEntry(&sqlcv1.BulkGetDurableEventLogEntriesRow{IdempotencyKey: []byte("key-hashed-from-spaced-input")}))
+}
 
-	legacy, err := r.createLegacyDagStepIdempotencyKey(triggerOpts)
-	assert.NoError(t, err)
+func TestMatchesExistingEntry_ChildRunMatchesByKey(t *testing.T) {
+	opt := GetOrCreateLogEntryOpt{IdempotencyKey: []byte("key")}
 
-	preUpgrade := keyFromKind(t, sqlcv1.V1DurableEventLogKindRUN, &WorkflowNameTriggerOpts{
-		TriggerTaskData: &TriggerTaskData{WorkflowName: "my-dag", Data: []byte(`{"x":1}`)},
-	}, nil)
-
-	assert.Equal(t, preUpgrade, string(legacy))
-	assert.NotEqual(t, string(current), string(legacy))
-
-	opt := GetOrCreateLogEntryOpt{IdempotencyKey: current, LegacyIdempotencyKey: legacy}
-
-	assert.True(t, opt.idempotencyKeyMatches(current))
-	assert.True(t, opt.idempotencyKeyMatches(legacy))
-	assert.False(t, opt.idempotencyKeyMatches([]byte(keyFromKind(t, sqlcv1.V1DurableEventLogKindRUN, dagStepTriggerOpts("my-dag:step-b", 13), nil))))
+	assert.True(t, opt.matchesExistingEntry(&sqlcv1.BulkGetDurableEventLogEntriesRow{IdempotencyKey: []byte("key")}))
+	assert.False(t, opt.matchesExistingEntry(&sqlcv1.BulkGetDurableEventLogEntriesRow{IdempotencyKey: []byte("other key")}))
 }
 
 func int32Ptr(i int32) *int32 { return &i }
