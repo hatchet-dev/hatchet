@@ -2336,6 +2336,8 @@ CREATE TABLE v1_stream_topic (
     last_published_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     -- the last offset reserved (see v1_stream_message)
     last_offset BIGINT NOT NULL DEFAULT 0,
+    -- subscribers without a cursor start after this offset (see ResetStreamTopic)
+    starting_offset BIGINT NOT NULL DEFAULT 0,
 
     CONSTRAINT v1_stream_topic_pkey PRIMARY KEY (tenant_id, namespace, topic)
 ) WITH (fillfactor = 80);

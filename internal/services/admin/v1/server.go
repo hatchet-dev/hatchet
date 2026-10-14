@@ -10,8 +10,6 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/google/uuid"
-	"github.com/jackc/pgerrcode"
-	"github.com/jackc/pgx/v5/pgconn"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/internal/listutils"
@@ -895,12 +893,6 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 		}
 	}
 
-	if currWorkflow.WorkflowVersion.IsUsingDagOperator {
-		if err := a.ensureDAGOperator(ctx, tenantId); err != nil {
-			a.l.Err(err).Ctx(ctx).Msg("could not ensure DAG operator for tenant")
-		}
-	}
-
 	// notify that a new set of queues have been created
 	// important: this assumes that actions correspond 1:1 with queues, which they do at the moment
 	// but might not in the future
@@ -943,50 +935,6 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 		Id:         currWorkflow.WorkflowVersion.ID.String(),
 		WorkflowId: currWorkflow.WorkflowVersion.WorkflowId.String(),
 	}, nil
-}
-
-func (a *AdminServiceImpl) ensureDAGOperator(ctx context.Context, tenantId uuid.UUID) error {
-	exists, err := a.repo.Operators().HasDAGOperator(ctx, tenantId)
-
-	if err != nil {
-		return fmt.Errorf("could not check for DAG operator: %w", err)
-	}
-
-	if exists {
-		return nil
-	}
-
-	config, err := json.Marshal(struct{}{})
-
-	if err != nil {
-		return fmt.Errorf("could not marshal DAG operator config: %w", err)
-	}
-
-	// The DAG operator is engine-leased: the claimer assigns the row to a dispatcher and
-	// builds the operator there.
-	_, err = a.repo.Operators().CreateOperator(ctx, tenantId, v1.CreateOperatorOpts{
-		Name:           "default",
-		Kind:           sqlcv1.V1OperatorKindDAG,
-		LeasingManager: sqlcv1.V1OperatorLeasingManagerDISPATCHER,
-		Config:         config,
-	})
-
-	// Two workflows put at once both see no operator and both create one; the row is unique
-	// per (tenant, name, kind), so the second insert loses and the tenant has its operator
-	// either way.
-	if isUniqueViolation(err) {
-		return nil
-	}
-
-	return err
-}
-
-// isUniqueViolation reports whether err is Postgres refusing a row that duplicates a unique
-// index.
-func isUniqueViolation(err error) bool {
-	var pgErr *pgconn.PgError
-
-	return errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation
 }
 
 func getActionsForTasks(tasks []*contracts.CreateTaskOpts) ([]string, error) {

@@ -1,0 +1,25 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "cypress": {
+    "config": [],
+    "entry": [
+      "cypress.config.ts",
+      "cypress/e2e/**/*.cy.{ts,tsx,js,jsx}",
+      "cypress/support/e2e.ts"
+    ]
+  },
+  "ignoreUnresolved": [
+    "@/lib/generated/docs",
+    "./seeded-users.generated",
+    "../seeded-users.generated",
+    "../../support/seeded-users.generated"
+  ],
+  "rules": {
+    "exports": "off",
+    "nsExports": "off",
+    "types": "off",
+    "nsTypes": "off",
+    "enumMembers": "off",
+    "duplicates": "off"
+  }
+}

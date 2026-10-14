@@ -634,6 +634,8 @@ func (d *DispatcherServiceImpl) durableTask(
 
 	var reqWg sync.WaitGroup
 
+	statuses := newWorkerStatusCoalescer()
+
 	defer func() {
 		for taskId := range registeredTasks {
 			d.durableInvocations.CompareAndDelete(durableInvocationsKey{
@@ -724,6 +726,36 @@ func (d *DispatcherServiceImpl) durableTask(
 				for _, entry := range msg.WorkerStatus.WaitingEntries {
 					registerTask(entry.DurableTaskExternalId)
 				}
+			}
+
+			// At most one worker-status handler runs per stream; statuses that arrive
+			// meanwhile are merged and handled next, so a stalled stream holds one payload
+			// batch. merge and reqWg.Add stay on this goroutine so Add never races Wait; the
+			// runner exits between batches once ctx ends.
+			if msg, isWorkerStatus := r.req.GetMessage().(*contracts.DurableTaskRequest_WorkerStatus); isWorkerStatus {
+				if statuses.merge(msg.WorkerStatus) {
+					reqWg.Add(1)
+					go func() {
+						defer reqWg.Done()
+
+						for ctx.Err() == nil {
+							status := statuses.next()
+							if status == nil {
+								return
+							}
+
+							req := &contracts.DurableTaskRequest{
+								Message: &contracts.DurableTaskRequest_WorkerStatus{WorkerStatus: status},
+							}
+
+							if err := d.handleDurableTaskRequest(ctx, invocation, req); err != nil {
+								d.logDurableTaskRequestError(err)
+							}
+						}
+					}()
+				}
+
+				continue
 			}
 
 			reqWg.Add(1)
@@ -1413,7 +1445,7 @@ func (d *DispatcherServiceImpl) evictDurableTask(
 
 	d.analytics.Count(ctx, analytics.DurableTask, analytics.Evict)
 
-	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, tenantId, taskExternalId, false)
+	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, tenantId, taskExternalId, true)
 	if err != nil {
 		return nil, fmt.Errorf("task not found: %w", err)
 	}
@@ -1872,7 +1904,7 @@ func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uui
 		}
 
 		if len(celFailures) > 0 {
-			return nil, fmt.Errorf("dag step trigger for %q did not create its child run: %s", req.ActionId, celFailures[0].ErrorMessage)
+			return nil, &operator.DAGStepCELFailureError{ActionId: req.ActionId, Message: celFailures[0].ErrorMessage}
 		}
 
 		tasks = createdTasks

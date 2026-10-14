@@ -57,6 +57,7 @@ import {
   callbackOrderingRoot,
 } from './durable_callback_ordering/workflow';
 import { durableSleep } from './durable_sleep/workflow';
+import { progressTask, retryingProgressTask } from './durable-streams/workflow';
 import { createLoggingWorkflow } from './logger/workflow';
 import { nonRetryableWorkflow } from './non_retryable/workflow';
 import { retryAfterExponentialBackoff, retryAfterUpstreamDelay } from './retry_after/workflow';
@@ -140,6 +141,8 @@ const workflows = [
   callbackOrderingMid,
   callbackOrderingRoot,
   durableSleep,
+  progressTask,
+  retryingProgressTask,
   evictableSleep,
   evictableWaitForEvent,
   evictableMemoThenWaitForEvent,

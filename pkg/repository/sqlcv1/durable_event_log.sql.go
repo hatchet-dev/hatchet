@@ -25,13 +25,14 @@ WITH inputs AS (
         UNNEST($8::BIGINT[]) AS branch_id,
         UNNEST($9::BYTEA[]) AS idempotency_key,
         UNNEST($10::BOOLEAN[]) AS is_satisfied,
-        UNNEST($11::TEXT[]) AS user_message,
-        UNNEST($12::TEXT[]) AS wait_data
+        UNNEST($11::BOOLEAN[]) AS is_triggered,
+        UNNEST($12::TEXT[]) AS user_message,
+        UNNEST($13::TEXT[]) AS wait_data
 ), ordered_inputs AS (
     -- a RUN entry created already satisfied (a skipped or cancelled DAG step) takes its place in
     -- the satisfaction order here, since nothing will satisfy it later
     SELECT
-        i.tenant_id, i.external_id, i.child_task_external_id, i.durable_task_id, i.durable_task_inserted_at, i.kind, i.node_id, i.branch_id, i.idempotency_key, i.is_satisfied, i.user_message, i.wait_data,
+        i.tenant_id, i.external_id, i.child_task_external_id, i.durable_task_id, i.durable_task_inserted_at, i.kind, i.node_id, i.branch_id, i.idempotency_key, i.is_satisfied, i.is_triggered, i.user_message, i.wait_data,
         CASE WHEN i.is_satisfied AND i.kind = 'RUN' THEN
             lf.latest_satisfied_order + ROW_NUMBER() OVER (
                 PARTITION BY i.durable_task_id, i.durable_task_inserted_at, (i.is_satisfied AND i.kind = 'RUN')
@@ -57,8 +58,9 @@ WITH inputs AS (
         satisfied_order,
         user_message,
         wait_data,
-        -- !!IMPORTANT: Writing the ` + "`" + `triggered_at` + "`" + ` explicitly as ` + "`" + `NULL` + "`" + ` since it has a ` + "`" + `DEFAULT CURRENT_TIMESTAMP` + "`" + `,
-        -- so we write the explicit null to avoid it being set to the current timestamp on insert
+        -- !!IMPORTANT: ` + "`" + `triggered_at` + "`" + ` has a ` + "`" + `DEFAULT CURRENT_TIMESTAMP` + "`" + `, so it is written explicitly: NULL
+        -- for an entry whose run the trigger path still has to spawn, NOW() for an entry whose child
+        -- already exists (an in-place replay)
         triggered_at
     )
     SELECT
@@ -77,7 +79,7 @@ WITH inputs AS (
         i.satisfied_order,
         NULLIF(i.user_message, ''),
         NULLIF(i.wait_data, '')::JSONB,
-        NULL::TIMESTAMPTZ
+        CASE WHEN i.is_triggered THEN NOW() END
     FROM ordered_inputs i
     ON CONFLICT (durable_task_id, durable_task_inserted_at, branch_id, node_id) DO NOTHING
     RETURNING tenant_id, external_id, result_payload_external_id, child_task_external_id, child_task_is_failure, child_task_error_message, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, branch_id, idempotency_key, is_satisfied, satisfied_at, satisfied_order, user_message, wait_data, triggered_at
@@ -109,6 +111,7 @@ type BulkCreateDurableEventLogEntriesParams struct {
 	Branchids              []int64              `json:"branchids"`
 	Idempotencykeys        [][]byte             `json:"idempotencykeys"`
 	Issatisfieds           []bool               `json:"issatisfieds"`
+	Istriggereds           []bool               `json:"istriggereds"`
 	Usermessages           []string             `json:"usermessages"`
 	Waitdatas              []string             `json:"waitdatas"`
 }
@@ -149,6 +152,7 @@ func (q *Queries) BulkCreateDurableEventLogEntries(ctx context.Context, db DBTX,
 		arg.Branchids,
 		arg.Idempotencykeys,
 		arg.Issatisfieds,
+		arg.Istriggereds,
 		arg.Usermessages,
 		arg.Waitdatas,
 	)

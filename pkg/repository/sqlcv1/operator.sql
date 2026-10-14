@@ -12,6 +12,7 @@ INSERT INTO v1_operator (
     @leasing_manager::v1_operator_leasing_manager,
     @config::JSONB
 )
+ON CONFLICT (tenant_id, name, kind) DO NOTHING
 RETURNING *;
 
 -- name: GetOperator :one
@@ -136,15 +137,6 @@ SET
     leasing_manager = EXCLUDED.leasing_manager,
     updated_at = NOW()
 RETURNING *;
-
--- name: TenantHasDAGOperator :one
-SELECT EXISTS(
-    SELECT 1
-    FROM v1_operator
-    WHERE
-        tenant_id = @tenantId::UUID
-        AND kind = 'DAG'
-) AS has_operator;
 
 -- name: ListDAGOrchestrationActionsForTenant :many
 SELECT DISTINCT s."actionId"::text AS action
