@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# Build DATABASE_URL from DATABASE_POSTGRES_* vars if unset
+if [ -z "${DATABASE_URL:-}" ]; then
+  export DATABASE_URL="postgresql://${DATABASE_POSTGRES_USERNAME:-hatchet}:${DATABASE_POSTGRES_PASSWORD:-hatchet}@${DATABASE_POSTGRES_HOST:-127.0.0.1}:${DATABASE_POSTGRES_PORT:-5431}/${DATABASE_POSTGRES_DB_NAME:-hatchet}?sslmode=${DATABASE_POSTGRES_SSL_MODE:-disable}"
+fi
+
 # Run migration script
 ./hatchet-migrate
 if [ $? -ne 0 ]; then

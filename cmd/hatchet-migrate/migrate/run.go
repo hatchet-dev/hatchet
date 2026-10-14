@@ -88,6 +88,48 @@ func WithLogger(l *zerolog.Logger) RunMigrationsOpt {
 	}
 }
 
+func resolveDatabaseURL(configuredURL string) string {
+	if configuredURL != "" {
+		return configuredURL
+	}
+
+	if envURL := os.Getenv("DATABASE_URL"); envURL != "" {
+		return envURL
+	}
+
+	// Fall back to building from DATABASE_POSTGRES_* if available
+	host := os.Getenv("DATABASE_POSTGRES_HOST")
+	user := os.Getenv("DATABASE_POSTGRES_USERNAME")
+	dbName := os.Getenv("DATABASE_POSTGRES_DB_NAME")
+	if host != "" || user != "" || dbName != "" {
+		port := os.Getenv("DATABASE_POSTGRES_PORT")
+		if port == "" {
+			port = "5431"
+		}
+		if user == "" {
+			user = "hatchet"
+		}
+		pass := os.Getenv("DATABASE_POSTGRES_PASSWORD")
+		if pass == "" {
+			pass = "hatchet"
+		}
+		if dbName == "" {
+			dbName = "hatchet"
+		}
+		sslMode := os.Getenv("DATABASE_POSTGRES_SSL_MODE")
+		if sslMode == "" {
+			sslMode = "disable"
+		}
+		if host == "" {
+			host = "127.0.0.1"
+		}
+
+		return fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=%s", user, pass, host, port, dbName, sslMode)
+	}
+
+	return ""
+}
+
 func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) error {
 	// Set default options
 	options := &runMigrationsOpt{}
@@ -103,10 +145,7 @@ func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) error {
 		phaseName      = "oss"
 	)
 
-	rawURL := options.databaseURL
-	if rawURL == "" {
-		rawURL = os.Getenv(databaseEnvVar)
-	}
+	rawURL := resolveDatabaseURL(options.databaseURL)
 	if rawURL == "" {
 		return migratediag.MissingEnvError(databaseEnvVar, phaseName)
 	}
@@ -511,7 +550,7 @@ func runDownMigrationImpl(ctx context.Context, targetVersion string, l *zerolog.
 		phaseName      = "oss-down"
 	)
 
-	rawURL := os.Getenv(databaseEnvVar)
+	rawURL := resolveDatabaseURL("")
 	if rawURL == "" {
 		return migratediag.MissingEnvError(databaseEnvVar, phaseName)
 	}
