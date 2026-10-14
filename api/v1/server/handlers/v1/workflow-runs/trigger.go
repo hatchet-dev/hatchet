@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/authz"
+	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/proxy"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
@@ -73,20 +74,7 @@ func (t *V1WorkflowRunsService) V1WorkflowRunCreate(ctx echo.Context, request ge
 	)
 
 	if err != nil {
-		if e, ok := status.FromError(err); ok {
-			switch e.Code() { // nolint: gocritic
-			case codes.InvalidArgument:
-				return gen.V1WorkflowRunCreate400JSONResponse(
-					apierrors.NewAPIErrors(e.Message()),
-				), nil
-			case codes.ResourceExhausted:
-				return gen.V1WorkflowRunCreate400JSONResponse(
-					apierrors.NewAPIErrors(e.Message()),
-				), nil
-			}
-		}
-
-		return nil, err
+		return triggerErrorResponse(err)
 	}
 
 	if request.Body.ReturnOnlyId != nil && *request.Body.ReturnOnlyId {
@@ -174,4 +162,25 @@ func (t *V1WorkflowRunsService) V1WorkflowRunCreate(ctx echo.Context, request ge
 	return gen.V1WorkflowRunCreate200JSONResponse(
 		*details,
 	), nil
+}
+
+// triggerErrorResponse maps a failed trigger to a response. A ResourceExhausted status is a tenant
+// quota and answers 400, unless it carries RetryInfo: that is transient throttling, which is
+// returned as an error for the API error handler to answer as 429 with Retry-After because the
+// generated responses for this operation have no 429.
+func triggerErrorResponse(err error) (gen.V1WorkflowRunCreateResponseObject, error) {
+	if _, throttled := proxy.ThrottleRetryAfter(err); throttled {
+		return nil, err
+	}
+
+	if e, ok := status.FromError(err); ok {
+		switch e.Code() {
+		case codes.InvalidArgument, codes.ResourceExhausted:
+			return gen.V1WorkflowRunCreate400JSONResponse(
+				apierrors.NewAPIErrors(e.Message()),
+			), nil
+		}
+	}
+
+	return nil, err
 }

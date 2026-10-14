@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -37,6 +39,7 @@ import (
 	filtersv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/filters"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/logs"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/observability"
+	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/proxy"
 	streamsv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/streams"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/tasks"
 	webhooksv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/webhooks"
@@ -51,9 +54,11 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/populator"
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/ratelimit"
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/telemetry"
+	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -231,6 +236,46 @@ func hatchetIPExtractor(trustPrivateProxies bool, trustedProxies []string, logge
 	}
 }
 
+// retryableLimitErrorHandler answers 429 with a Retry-After header and an APIErrors body when a
+// request was throttled by the connection cap, and defers to next for everything else. Handlers
+// that proxy to the engine see the engine's cap as a ResourceExhausted status carrying RetryInfo;
+// a ResourceExhausted status without it is a tenant quota and keeps the default handling.
+func retryableLimitErrorHandler(next echo.HTTPErrorHandler) echo.HTTPErrorHandler {
+	return func(err error, c echo.Context) {
+		var limitErr *fairpool.LimitError
+
+		if errors.As(err, &limitErr) {
+			writeThrottled(fairpool.RetryAfter, c)
+		} else if retryAfter, ok := proxy.ThrottleRetryAfter(err); ok {
+			writeThrottled(retryAfter, c)
+		} else {
+			next(err, c)
+		}
+	}
+}
+
+// writeThrottled writes the 429 response. The cause stays with the caller: the access logger
+// records the error returned by the handler chain, not what is written here.
+func writeThrottled(retryAfter time.Duration, c echo.Context) {
+	if c.Response().Committed {
+		return
+	}
+
+	c.Response().Header().Set(echo.HeaderRetryAfter, strconv.Itoa(max(1, int(math.Ceil(retryAfter.Seconds())))))
+
+	var err error
+
+	if c.Request().Method == http.MethodHead {
+		err = c.NoContent(http.StatusTooManyRequests)
+	} else {
+		err = c.JSON(http.StatusTooManyRequests, apierrors.NewAPIErrors("too many concurrent database operations, retry shortly"))
+	}
+
+	if err != nil {
+		c.Logger().Error(err)
+	}
+}
+
 func (t *APIServer) getCoreEchoService() (*echo.Echo, error) {
 	oaspec, err := gen.GetSwagger()
 
@@ -244,6 +289,9 @@ func (t *APIServer) getCoreEchoService() (*echo.Echo, error) {
 
 	e.HideBanner = true
 	e.HidePort = true
+
+	e.HTTPErrorHandler = retryableLimitErrorHandler(e.DefaultHTTPErrorHandler)
+
 	e.IPExtractor = hatchetIPExtractor(t.config.Runtime.APITrustPrivateProxies, t.config.Runtime.APITrustedProxies, t.config.Logger)
 
 	g := e.Group("")
@@ -756,6 +804,9 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	}
 
 	loggerMiddleware := middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
+		// The error handler runs inside the logger so the logged status is the one actually
+		// written (e.g. 429), not the 200 a not-yet-handled error would show.
+		HandleError:  true,
 		LogStatus:    true,
 		LogError:     true,
 		LogLatency:   true,
