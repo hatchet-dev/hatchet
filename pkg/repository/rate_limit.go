@@ -58,6 +58,9 @@ type RateLimitRepository interface {
 	ListRateLimits(ctx context.Context, tenantId uuid.UUID, opts *ListRateLimitOpts) (*ListRateLimitsResult, error)
 
 	DeleteRateLimits(ctx context.Context, tenantId uuid.UUID, key string) error
+
+	// PauseRateLimit holds back queued runs that consume the key until the given time; an earlier time never shortens an active pause
+	PauseRateLimit(ctx context.Context, tenantId uuid.UUID, key string, until time.Time) (*sqlcv1.V1RateLimitPause, error)
 }
 
 const MAX_TENANT_RATE_LIMITS = 10000
@@ -274,4 +277,22 @@ func tenantAdvisoryInt(tenantID uuid.UUID) int64 {
 	idBytes := []byte(tenantID.String())
 	hasher.Write(idBytes)
 	return int64(hasher.Sum64()) // nolint: gosec
+}
+
+func (r *rateLimitRepository) PauseRateLimit(ctx context.Context, tenantId uuid.UUID, key string, until time.Time) (*sqlcv1.V1RateLimitPause, error) {
+	if key == "" {
+		return nil, errors.New("rate limit key is required")
+	}
+
+	pause, err := r.queries.PauseRateLimit(ctx, r.pool, sqlcv1.PauseRateLimitParams{
+		Tenantid:    tenantId,
+		Key:         key,
+		Pauseduntil: sqlchelpers.TimestamptzFromTime(until),
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("could not pause rate limit: %w", err)
+	}
+
+	return pause, nil
 }

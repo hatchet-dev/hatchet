@@ -3752,6 +3752,12 @@ type V1QueueItem struct {
 	BatchKey           pgtype.Text        `json:"batch_key"`
 }
 
+type V1RateLimitPause struct {
+	TenantID    uuid.UUID          `json:"tenant_id"`
+	Key         string             `json:"key"`
+	PausedUntil pgtype.Timestamptz `json:"paused_until"`
+}
+
 type V1RateLimitedQueueItems struct {
 	RequeueAfter       pgtype.Timestamptz `json:"requeue_after"`
 	TenantID           uuid.UUID          `json:"tenant_id"`

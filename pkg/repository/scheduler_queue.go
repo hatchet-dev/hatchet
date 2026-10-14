@@ -38,6 +38,7 @@ type RateLimitResult struct {
 	ExceededUnits  int32
 	ExceededVal    int32
 	NextRefillAt   *time.Time
+	PausedUntil    *time.Time
 	TaskId         int64
 	TaskInsertedAt pgtype.Timestamptz
 	RetryCount     int32
@@ -475,16 +476,26 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 	// remove rate limited queue items from the queue and place them in the v1_rate_limited_queue_items table
 	qisToMoveToRateLimited := make([]int64, 0, len(r.RateLimited))
 	qisToMoveToRateLimitedRQAfter := make([]pgtype.Timestamptz, 0, len(r.RateLimited))
+	qisToMoveToRateLimitedPausedUntil := make([]pgtype.Timestamptz, 0, len(r.RateLimited))
 
 	for _, row := range r.RateLimitedToMove {
 		qisToMoveToRateLimited = append(qisToMoveToRateLimited, row.ID)
 		qisToMoveToRateLimitedRQAfter = append(qisToMoveToRateLimitedRQAfter, sqlchelpers.TimestamptzFromTime(*row.NextRefillAt))
+
+		pausedUntil := pgtype.Timestamptz{}
+
+		if row.PausedUntil != nil {
+			pausedUntil = sqlchelpers.TimestamptzFromTime(*row.PausedUntil)
+		}
+
+		qisToMoveToRateLimitedPausedUntil = append(qisToMoveToRateLimitedPausedUntil, pausedUntil)
 	}
 
 	if len(qisToMoveToRateLimited) > 0 {
 		_, err = d.queries.MoveRateLimitedQueueItems(ctx, tx, sqlcv1.MoveRateLimitedQueueItemsParams{
 			Ids:          qisToMoveToRateLimited,
 			Requeueafter: qisToMoveToRateLimitedRQAfter,
+			Pauseduntil:  qisToMoveToRateLimitedPausedUntil,
 		})
 
 		if err != nil {

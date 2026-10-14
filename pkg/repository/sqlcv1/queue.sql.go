@@ -1989,7 +1989,8 @@ const moveRateLimitedQueueItems = `-- name: MoveRateLimitedQueueItems :many
 WITH input AS (
     SELECT
         UNNEST($1::bigint[]) AS id,
-        UNNEST($2::timestamptz[]) AS requeue_after
+        UNNEST($2::timestamptz[]) AS requeue_after,
+        UNNEST($3::timestamptz[]) AS paused_until
 ), moved_items AS (
     DELETE FROM v1_queue_item
     WHERE id = ANY(SELECT id FROM input)
@@ -2012,55 +2013,107 @@ WITH input AS (
         retry_count,
         desired_worker_label,
         batch_key
-)
-INSERT INTO v1_rate_limited_queue_items (
-    requeue_after,
-    tenant_id,
-    queue,
-    task_id,
-    task_inserted_at,
-    external_id,
-    action_id,
-    step_id,
-    workflow_id,
-    workflow_run_id,
-    schedule_timeout_at,
-    step_timeout,
-    priority,
-    sticky,
-    desired_worker_id,
-    retry_count,
-    desired_worker_label,
-    batch_key
+), parked_items AS (
+    SELECT
+        moved_items.id, moved_items.tenant_id, moved_items.queue, moved_items.task_id, moved_items.task_inserted_at, moved_items.external_id, moved_items.action_id, moved_items.step_id, moved_items.workflow_id, moved_items.workflow_run_id, moved_items.schedule_timeout_at, moved_items.step_timeout, moved_items.priority, moved_items.sticky, moved_items.desired_worker_id, moved_items.retry_count, moved_items.desired_worker_label, moved_items.batch_key,
+        i.requeue_after,
+        i.paused_until,
+        -- time spent paused doesn't count against the schedule timeout, so the remaining budget starts when the pause ends
+        CASE
+            WHEN i.paused_until IS NOT NULL AND moved_items.schedule_timeout_at IS NOT NULL THEN
+                (i.paused_until + GREATEST(moved_items.schedule_timeout_at - NOW(), INTERVAL '0'))::TIMESTAMP(3)
+            ELSE
+                moved_items.schedule_timeout_at
+        END AS parked_schedule_timeout_at
+    FROM moved_items
+    JOIN input i ON moved_items.id = i.id
+), inserted_items AS (
+    INSERT INTO v1_rate_limited_queue_items (
+        requeue_after,
+        tenant_id,
+        queue,
+        task_id,
+        task_inserted_at,
+        external_id,
+        action_id,
+        step_id,
+        workflow_id,
+        workflow_run_id,
+        schedule_timeout_at,
+        step_timeout,
+        priority,
+        sticky,
+        desired_worker_id,
+        retry_count,
+        desired_worker_label,
+        batch_key
+    )
+    SELECT
+        requeue_after,
+        tenant_id,
+        queue,
+        task_id,
+        task_inserted_at,
+        external_id,
+        action_id,
+        step_id,
+        workflow_id,
+        workflow_run_id,
+        parked_schedule_timeout_at,
+        step_timeout,
+        priority,
+        sticky,
+        desired_worker_id,
+        retry_count,
+        desired_worker_label,
+        batch_key
+    FROM parked_items
+    ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
+    RETURNING tenant_id, task_id, task_inserted_at, retry_count, schedule_timeout_at
+), slots_to_extend AS (
+    SELECT
+        cs.task_id,
+        cs.task_inserted_at,
+        cs.task_retry_count,
+        cs.strategy_id,
+        ii.schedule_timeout_at
+    FROM
+        v1_concurrency_slot cs
+    JOIN
+        inserted_items ii ON (cs.task_id, cs.task_inserted_at, cs.task_retry_count) = (ii.task_id, ii.task_inserted_at, ii.retry_count)
+    JOIN
+        parked_items pi ON (pi.task_id, pi.task_inserted_at, pi.retry_count) = (ii.task_id, ii.task_inserted_at, ii.retry_count)
+    WHERE
+        pi.paused_until IS NOT NULL
+        AND cs.schedule_timeout_at < ii.schedule_timeout_at
+    ORDER BY
+        cs.task_id, cs.task_inserted_at, cs.task_retry_count, cs.strategy_id
+    FOR UPDATE OF cs
+), extended_slots AS (
+    -- parked tasks keep their slot filled, so the strategy would otherwise cancel them at the original timeout
+    UPDATE
+        v1_concurrency_slot cs
+    SET
+        schedule_timeout_at = ste.schedule_timeout_at
+    FROM
+        slots_to_extend ste
+    WHERE
+        (cs.task_id, cs.task_inserted_at, cs.task_retry_count, cs.strategy_id) = (ste.task_id, ste.task_inserted_at, ste.task_retry_count, ste.strategy_id)
+    RETURNING cs.task_id
 )
 SELECT
-    i.requeue_after,
     tenant_id,
-    queue,
     task_id,
     task_inserted_at,
-    external_id,
-    action_id,
-    step_id,
-    workflow_id,
-    workflow_run_id,
-    schedule_timeout_at,
-    step_timeout,
-    priority,
-    sticky,
-    desired_worker_id,
-    retry_count,
-    desired_worker_label,
-    batch_key
-FROM moved_items
-JOIN input i ON moved_items.id = i.id
-ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
-RETURNING tenant_id, task_id, task_inserted_at, retry_count
+    retry_count
+FROM
+    inserted_items
 `
 
 type MoveRateLimitedQueueItemsParams struct {
 	Ids          []int64              `json:"ids"`
 	Requeueafter []pgtype.Timestamptz `json:"requeueafter"`
+	Pauseduntil  []pgtype.Timestamptz `json:"pauseduntil"`
 }
 
 type MoveRateLimitedQueueItemsRow struct {
@@ -2071,7 +2124,7 @@ type MoveRateLimitedQueueItemsRow struct {
 }
 
 func (q *Queries) MoveRateLimitedQueueItems(ctx context.Context, db DBTX, arg MoveRateLimitedQueueItemsParams) ([]*MoveRateLimitedQueueItemsRow, error) {
-	rows, err := db.Query(ctx, moveRateLimitedQueueItems, arg.Ids, arg.Requeueafter)
+	rows, err := db.Query(ctx, moveRateLimitedQueueItems, arg.Ids, arg.Requeueafter, arg.Pauseduntil)
 	if err != nil {
 		return nil, err
 	}

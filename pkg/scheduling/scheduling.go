@@ -53,6 +53,7 @@ type Pool interface {
 
 	NotifyQueues(ctx context.Context, tenantId uuid.UUID, queueNames []string)
 	NotifyConcurrency(ctx context.Context, tenantId uuid.UUID, strategyIds []int64)
+	NotifyRateLimitsChanged(ctx context.Context, tenantId uuid.UUID)
 	NotifyNewWorker(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID)
 	NotifyNewQueue(ctx context.Context, tenantId uuid.UUID, queueName string)
 	NotifyNewConcurrencyStrategy(ctx context.Context, tenantId uuid.UUID, strategyId int64)

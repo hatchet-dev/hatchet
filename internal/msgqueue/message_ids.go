@@ -10,6 +10,7 @@ const (
 	MsgIDNewWorker                    = "new-worker"
 	MsgIDNewQueue                     = "new-queue"
 	MsgIDNewConcurrencyStrategy       = "new-concurrency-strategy"
+	MsgIDRateLimitsChanged            = "rate-limits-changed"
 	MsgIDCreateMonitoringEvent        = "create-monitoring-event"
 	MsgIDCreatedDAG                   = "created-dag"
 	MsgIDCreatedEventTrigger          = "created-event-trigger"

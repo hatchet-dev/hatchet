@@ -224,6 +224,12 @@ func (p *SchedulingPool) NotifyConcurrency(ctx context.Context, tenantId uuid.UU
 	}
 }
 
+func (p *SchedulingPool) NotifyRateLimitsChanged(ctx context.Context, tenantId uuid.UUID) {
+	if tm := p.getTenantManager(tenantId, false); tm != nil {
+		tm.notifyRateLimitsChanged(ctx)
+	}
+}
+
 func (p *SchedulingPool) NotifyNewWorker(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) {
 	if tm := p.getTenantManager(tenantId, false); tm != nil {
 		tm.notifyNewWorker(ctx, workerId)
