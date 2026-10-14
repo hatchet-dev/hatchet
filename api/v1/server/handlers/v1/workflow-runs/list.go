@@ -2,6 +2,7 @@ package workflowruns
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/authz"
 	v1handlers "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1"
+	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
@@ -427,11 +429,19 @@ func (t *V1WorkflowRunsService) V1WorkflowRunList(ctx echo.Context, request gen.
 
 	canViewPayloads := authz.CanViewPayloads(ctx)
 
+	var res gen.V1WorkflowRunListResponseObject
+
 	if request.Params.OnlyTasks {
-		return t.OnlyTasks(spanContext, request, tenantId, useGinIndex, canViewPayloads)
+		res, err = t.OnlyTasks(spanContext, request, tenantId, useGinIndex, canViewPayloads)
+	} else {
+		res, err = t.WithDags(spanContext, request, tenantId, useGinIndex, canViewPayloads)
 	}
 
-	return t.WithDags(spanContext, request, tenantId, useGinIndex, canViewPayloads)
+	if errors.Is(err, v1.ErrTooManyTasksWithPayloads) {
+		return gen.V1WorkflowRunList400JSONResponse(apierrors.NewAPIErrors(err.Error())), nil
+	}
+
+	return res, err
 }
 
 func (t *V1WorkflowRunsService) V1WorkflowRunCountGet(ctx echo.Context, request gen.V1WorkflowRunCountGetRequestObject) (gen.V1WorkflowRunCountGetResponseObject, error) {

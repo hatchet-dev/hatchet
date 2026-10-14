@@ -43,6 +43,24 @@ const (
 	AdditionalMetadataOperatorAnd AdditionalMetadataOperator = "AND"
 )
 
+// MaxTasksWithPayloads caps how many tasks a list read loads payloads for. Payloads for the whole
+// page are held in memory and serialized at once, and a DAG run's child tasks are not bounded by
+// the requested limit.
+const MaxTasksWithPayloads = 1000
+
+var ErrTooManyTasksWithPayloads = fmt.Errorf(
+	"cannot include payloads for more than %d tasks, counting the tasks of each DAG run; lower the limit or set include_payloads=false",
+	MaxTasksWithPayloads,
+)
+
+func checkTasksWithPayloads(includePayloads bool, numTasks int) error {
+	if includePayloads && numTasks > MaxTasksWithPayloads {
+		return ErrTooManyTasksWithPayloads
+	}
+
+	return nil
+}
+
 type ListTaskRunOpts struct {
 	CreatedAfter time.Time
 
@@ -898,6 +916,10 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, 
 		return nil, 0, err
 	}
 
+	if err := checkTasksWithPayloads(opts.IncludePayloads, len(rows)); err != nil {
+		return nil, 0, err
+	}
+
 	if opts.IncludeTotalCount {
 		count, err = r.queries.CountTasks(ctx, tx, countTasksParamsFromListTasksParams(params))
 
@@ -1001,6 +1023,10 @@ func (r *OLAPRepositoryImpl) ListTasksByDAGId(ctx context.Context, tenantId uuid
 	})
 
 	if err != nil {
+		return nil, taskIdToDagExternalId, err
+	}
+
+	if err := checkTasksWithPayloads(includePayloads, len(tasks)); err != nil {
 		return nil, taskIdToDagExternalId, err
 	}
 
@@ -1376,6 +1402,10 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 		return nil, 0, err
 	}
 
+	if err := checkTasksWithPayloads(opts.IncludePayloads, len(workflowRunIds)); err != nil {
+		return nil, 0, err
+	}
+
 	if opts.IncludeTotalCount {
 		count, err = r.queries.CountWorkflowRuns(ctx, tx, countWorkflowRunsParamsFromFetchWorkflowRunIdsParams(params))
 
@@ -1416,6 +1446,11 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 
 	for _, dag := range populatedDAGs {
 		dagsToPopulated[dag.ExternalID] = dag
+	}
+
+	// PopulateDAGMetadata returns a row per finished child task, so payloads are read only for the
+	// row kept per DAG.
+	for _, dag := range dagsToPopulated {
 		retrievePayloadOpts = append(retrievePayloadOpts, ReadOLAPPayloadOpts{
 			ExternalId: dag.ExternalID,
 			InsertedAt: dag.InsertedAt,
