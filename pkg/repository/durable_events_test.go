@@ -307,17 +307,17 @@ func TestCreateIdempotencyKey_DagStepsOfSameWorkflowDiffer(t *testing.T) {
 	assert.NotEqual(t, stepA, stepB)
 }
 
-func TestMatchesExistingEntry_DagStepIsNeverCheckedForNonDeterminism(t *testing.T) {
+func TestIdempotencyKeyMatches_DagStepIsNeverCheckedForNonDeterminism(t *testing.T) {
 	opt := GetOrCreateLogEntryOpt{IdempotencyKey: []byte("key-hashed-from-compact-input"), IsDagStepTrigger: true}
 
-	assert.True(t, opt.matchesExistingEntry(&sqlcv1.BulkGetDurableEventLogEntriesRow{IdempotencyKey: []byte("key-hashed-from-spaced-input")}))
+	assert.True(t, opt.idempotencyKeyMatches(&sqlcv1.BulkGetDurableEventLogEntriesRow{IdempotencyKey: []byte("key-hashed-from-spaced-input")}))
 }
 
-func TestMatchesExistingEntry_ChildRunMatchesByKey(t *testing.T) {
+func TestIdempotencyKeyMatches_ChildRunMatchesByKey(t *testing.T) {
 	opt := GetOrCreateLogEntryOpt{IdempotencyKey: []byte("key")}
 
-	assert.True(t, opt.matchesExistingEntry(&sqlcv1.BulkGetDurableEventLogEntriesRow{IdempotencyKey: []byte("key")}))
-	assert.False(t, opt.matchesExistingEntry(&sqlcv1.BulkGetDurableEventLogEntriesRow{IdempotencyKey: []byte("other key")}))
+	assert.True(t, opt.idempotencyKeyMatches(&sqlcv1.BulkGetDurableEventLogEntriesRow{IdempotencyKey: []byte("key")}))
+	assert.False(t, opt.idempotencyKeyMatches(&sqlcv1.BulkGetDurableEventLogEntriesRow{IdempotencyKey: []byte("other key")}))
 }
 
 func int32Ptr(i int32) *int32 { return &i }

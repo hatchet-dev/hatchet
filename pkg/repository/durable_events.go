@@ -700,7 +700,7 @@ type GetOrCreateLogEntryOpt struct {
 	IsTriggered bool
 }
 
-func (o GetOrCreateLogEntryOpt) matchesExistingEntry(existing *sqlcv1.BulkGetDurableEventLogEntriesRow) bool {
+func (o GetOrCreateLogEntryOpt) idempotencyKeyMatches(existing *sqlcv1.BulkGetDurableEventLogEntriesRow) bool {
 	return o.IsDagStepTrigger || bytes.Equal(o.IdempotencyKey, existing.IdempotencyKey)
 }
 
@@ -1113,7 +1113,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntriesForTasks(
 				state.newEntryByKey[key] = o
 				continue
 			}
-			if !o.matchesExistingEntry(e) {
+			if !o.idempotencyKeyMatches(e) {
 				nonDeterminismErr = &NonDeterminismError{
 					BranchId:                o.BranchId,
 					NodeId:                  o.NodeId,
@@ -1272,7 +1272,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntriesForTasks(
 				return nil, nil, nil, fmt.Errorf("expected to find log entry for skipped child task external id %s", o.ChildTaskExternalId)
 			}
 
-			if len(o.IdempotencyKey) > 0 && !o.matchesExistingEntry(e) {
+			if len(o.IdempotencyKey) > 0 && !o.idempotencyKeyMatches(e) {
 				return nil, nil, nil, &NonDeterminismError{
 					BranchId:                e.BranchID,
 					NodeId:                  e.NodeID,
