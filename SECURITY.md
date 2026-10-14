@@ -10,6 +10,8 @@ Production vulnerabilities triaged as `HIGH` to `CRITICAL` are given priority an
 
 We encourage responsible disclosure of security vulnerabilities. If you have found or suspect a vulnerability in Hatchet, please use the [**"Report a vulnerability"** button](https://github.com/hatchet-dev/hatchet/security/advisories/new) under the **Security** tab. This opens a private channel directly with the maintainers.
 
+If you used AI to find the bug or write the report, you must say so. The advisory form has a checkbox for this, "I used AI assistance to find or write up this report", just below the CWE field. Please tick it. If you report by email, mention it there.
+
 If you are unable to use GitHub's vulnerability reporting workflow, you can reach us at [security@hatchet.run](mailto:security@hatchet.run).
 
 Please note that we do not operate a bug bounty program, but we genuinely appreciate any reports that help us build a more secure project.

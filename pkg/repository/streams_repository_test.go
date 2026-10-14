@@ -450,4 +450,37 @@ func TestStreamsRepository(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, dup[0].Inserted)
 	})
+
+	t.Run("reset moves where cursorless subscribers start, not earlier cursors", func(t *testing.T) {
+		repo := createStreamsRepository(t, pool)
+		tenantId := uuid.New()
+
+		require.NoError(t, repo.ResetTopic(ctx, tenantId, "", "t"), "resetting a topic never published to is a no-op")
+
+		for seq, payload := range []string{"one", "two"} {
+			_, err := repo.InsertOrderedStreamMessage(ctx, tenantId, streamOpts(int64(seq), payload))
+			require.NoError(t, err)
+		}
+
+		before, err := repo.TopicStartCursor(ctx, tenantId, "", "t")
+		require.NoError(t, err)
+		assert.Equal(t, int64(0), before.ID, "a topic never reset starts at its beginning")
+
+		require.NoError(t, repo.ResetTopic(ctx, tenantId, "", "t"))
+
+		_, err = repo.InsertOrderedStreamMessage(ctx, tenantId, streamOpts(2, "three"))
+		require.NoError(t, err)
+
+		after, err := repo.TopicStartCursor(ctx, tenantId, "", "t")
+		require.NoError(t, err)
+		require.NoError(t, repo.CheckCursorRetained(ctx, tenantId, after), "a reset cursor can't expire")
+
+		fromReset, err := repo.ListMessagesAfterCursor(ctx, tenantId, ListStreamMessagesOpts{Topic: "t", Cursor: after})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"three"}, streamPayloads(t, fromReset))
+
+		fromBefore, err := repo.ListMessagesAfterCursor(ctx, tenantId, ListStreamMessagesOpts{Topic: "t", Cursor: before})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"one", "two", "three"}, streamPayloads(t, fromBefore))
+	})
 }

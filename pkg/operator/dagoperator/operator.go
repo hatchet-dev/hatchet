@@ -422,6 +422,7 @@ func (d *DAGOperator) run(action *contracts.AssignedAction) error {
 		shouldNotRetry := isDagChildFailedErr(dagErr) ||
 			isDagEngineErr(dagErr) ||
 			isConditionEvalErr ||
+			isDagNonRetryablePgErr(dagErr) ||
 			errors.As(dagErr, &nonDeterminismErr)
 
 		if isConditionEvalErr {
@@ -561,7 +562,17 @@ func (d *DAGOperator) fail(span trace.Span, action *contracts.AssignedAction, er
 	span.SetStatus(telemetry_codes.Error, "dag run failed")
 	span.SetAttributes(attribute.Bool("dagoperator.should_not_retry", shouldNotRetry))
 
-	if reportErr := d.SendFailed(action, err.Error(), shouldNotRetry); reportErr != nil {
+	clientErrorMessage := err.Error()
+
+	if !isUserFacingDagErr(err) {
+		d.Logger().Error().Err(err).
+			Str("task_run_external_id", action.TaskRunExternalId).
+			Msg("dag orchestration failed with an internal error")
+
+		clientErrorMessage = fmt.Sprintf("internal error while orchestrating the dag run (task run %s)", action.TaskRunExternalId)
+	}
+
+	if reportErr := d.SendFailed(action, clientErrorMessage, shouldNotRetry); reportErr != nil {
 		span.RecordError(reportErr)
 
 		d.Logger().Error().Err(reportErr).

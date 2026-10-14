@@ -58,6 +58,10 @@ func (u *UserService) UserUpdateLogin(ctx echo.Context, request gen.UserUpdateLo
 	}
 
 	if verified, err := v1.VerifyPassword(userPass.Hash, request.Body.Password); !verified || err != nil {
+		if errors.Is(err, v1.ErrPasswordHashNotFIPS) {
+			u.config.Logger.Warn().Str("email", string(request.Body.Email)).Msg("login refused: stored password hash is bcrypt and this is a FIPS build; reset it with `hatchet-admin user set-password`")
+		}
+
 		return gen.UserUpdateLogin400JSONResponse(apierrors.NewAPIErrors(ErrInvalidCredentials)), nil
 	}
 

@@ -3888,6 +3888,7 @@ type V1StreamTopic struct {
 	InsertedAt      pgtype.Timestamptz `json:"inserted_at"`
 	LastPublishedAt pgtype.Timestamptz `json:"last_published_at"`
 	LastOffset      int64              `json:"last_offset"`
+	StartingOffset  int64              `json:"starting_offset"`
 }
 
 type V1Task struct {
@@ -3971,6 +3972,7 @@ type V1TaskEventsOlap struct {
 	AdditionalEventData    pgtype.Text          `json:"additional__event_data"`
 	AdditionalEventMessage pgtype.Text          `json:"additional__event_message"`
 	DurableInvocationCount int32                `json:"durable_invocation_count"`
+	IsDagOrchestrator      bool                 `json:"is_dag_orchestrator"`
 }
 
 type V1TaskEventsOlapTmp struct {

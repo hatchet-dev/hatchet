@@ -811,6 +811,19 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId uu
 		return nil, fmt.Errorf("expected 1 workflow version when creating new, got %d", len(workflowVersion))
 	}
 
+	if workflowVersion[0].WorkflowVersion.IsUsingDagOperator {
+		_, err := r.createOperatorTxs(ctx, tx, tenantId, CreateOperatorOpts{
+			Name:           "default",
+			Kind:           sqlcv1.V1OperatorKindDAG,
+			LeasingManager: sqlcv1.V1OperatorLeasingManagerDISPATCHER,
+			Config:         []byte("{}"),
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create DAG operator: %w", err)
+		}
+	}
+
 	err = commit(ctx)
 
 	if err != nil {

@@ -677,6 +677,7 @@ type CreateTaskEventsOLAPParams struct {
 	AdditionalEventMessage pgtype.Text          `json:"additional__event_message"`
 	ExternalID             uuid.UUID            `json:"external_id"`
 	DurableInvocationCount int32                `json:"durable_invocation_count"`
+	IsDagOrchestrator      bool                 `json:"is_dag_orchestrator"`
 }
 
 const createV1PayloadOLAPCutoverTemporaryTable = `-- name: CreateV1PayloadOLAPCutoverTemporaryTable :exec
@@ -1999,12 +2000,12 @@ WITH tasks AS (
     FROM v1_lookup_table_olap lt
     JOIN v1_dag_to_task_olap dt ON lt.dag_id = dt.dag_id AND lt.inserted_at = dt.dag_inserted_at
     WHERE
-        lt.external_id = $1::uuid
-        AND lt.tenant_id = $2::uuid
+        lt.external_id = $2::uuid
+        AND lt.tenant_id = $3::uuid
         AND (
             -- the orchestrator's self-mapping row is hidden by default once real child tasks
             -- exist, since orchestration is abstracted away from the user
-            COALESCE($3::boolean, FALSE)
+            COALESCE($4::boolean, FALSE)
             OR dt.task_id != dt.dag_id
             OR NOT EXISTS (
                 SELECT 1
@@ -2031,7 +2032,7 @@ WITH tasks AS (
     FROM v1_task_events_olap e
     JOIN tasks t ON t.task_id = e.task_id AND t.task_inserted_at = e.task_inserted_at
     WHERE
-        e.tenant_id = $2::uuid
+        e.tenant_id = $3::uuid
         AND e.task_inserted_at >= (SELECT MIN(task_inserted_at) FROM tasks)
     GROUP BY e.tenant_id, e.task_id, e.task_inserted_at, t.dag_id, t.dag_inserted_at, e.retry_count, e.event_type, e.durable_invocation_count
 )
@@ -2061,9 +2062,11 @@ JOIN v1_task_events_olap e ON (e.task_id, e.task_inserted_at, e.tenant_id, e.id)
 LEFT JOIN v1_tasks_olap t ON (t.inserted_at, t.id, t.tenant_id) = (e.task_inserted_at, e.task_id, e.tenant_id)
 LEFT JOIN v1_dags_olap d ON (d.inserted_at, d.id, d.tenant_id) = (a.dag_inserted_at, a.dag_id, a.tenant_id)
 ORDER BY a.time_first_seen DESC, e.event_timestamp DESC
+LIMIT $1::bigint
 `
 
 type ListTaskEventsForWorkflowRunParams struct {
+	Eventlimit                int64       `json:"eventlimit"`
 	Workflowrunid             uuid.UUID   `json:"workflowrunid"`
 	Tenantid                  uuid.UUID   `json:"tenantid"`
 	IncludeOrchestratorEvents pgtype.Bool `json:"includeOrchestratorEvents"`
@@ -2093,7 +2096,12 @@ type ListTaskEventsForWorkflowRunRow struct {
 }
 
 func (q *Queries) ListTaskEventsForWorkflowRun(ctx context.Context, db DBTX, arg ListTaskEventsForWorkflowRunParams) ([]*ListTaskEventsForWorkflowRunRow, error) {
-	rows, err := db.Query(ctx, listTaskEventsForWorkflowRun, arg.Workflowrunid, arg.Tenantid, arg.IncludeOrchestratorEvents)
+	rows, err := db.Query(ctx, listTaskEventsForWorkflowRun,
+		arg.Eventlimit,
+		arg.Workflowrunid,
+		arg.Tenantid,
+		arg.IncludeOrchestratorEvents,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -2458,7 +2466,7 @@ WITH input AS (
     JOIN v1_dags_olap d ON (r.id, r.inserted_at) = (d.id, d.inserted_at)
     WHERE r.tenant_id = $4::uuid AND r.kind = 'DAG'
 ), relevant_events AS (
-    SELECT r.run_id, e.tenant_id, e.id, e.inserted_at, e.external_id, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message, e.durable_invocation_count
+    SELECT r.run_id, e.tenant_id, e.id, e.inserted_at, e.external_id, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message, e.durable_invocation_count, e.is_dag_orchestrator
     FROM runs r
     JOIN v1_dag_to_task_olap dt ON (r.dag_id, r.inserted_at) = (dt.dag_id, dt.dag_inserted_at)
     JOIN v1_task_events_olap e ON (e.task_id, e.task_inserted_at) = (dt.task_id, dt.task_inserted_at)
@@ -2683,7 +2691,7 @@ WITH selected_retry_count AS (
     LIMIT 1
 ), relevant_events AS (
     SELECT
-        tenant_id, id, inserted_at, external_id, task_id, task_inserted_at, event_type, workflow_id, event_timestamp, readable_status, retry_count, error_message, output, worker_id, additional__event_data, additional__event_message, durable_invocation_count
+        tenant_id, id, inserted_at, external_id, task_id, task_inserted_at, event_type, workflow_id, event_timestamp, readable_status, retry_count, error_message, output, worker_id, additional__event_data, additional__event_message, durable_invocation_count, is_dag_orchestrator
     FROM
         v1_task_events_olap
     WHERE
@@ -2927,7 +2935,7 @@ WITH input AS (
         t.tenant_id = $4::uuid
 ), relevant_events AS (
     SELECT
-        e.tenant_id, e.id, e.inserted_at, e.external_id, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message, e.durable_invocation_count
+        e.tenant_id, e.id, e.inserted_at, e.external_id, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message, e.durable_invocation_count, e.is_dag_orchestrator
     FROM
         v1_task_events_olap e
     JOIN
@@ -3459,7 +3467,7 @@ WITH runs AS (
         AND lt.task_id IS NOT NULL
 ), relevant_events AS (
     SELECT
-        e.tenant_id, e.id, e.inserted_at, e.external_id, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message, e.durable_invocation_count
+        e.tenant_id, e.id, e.inserted_at, e.external_id, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message, e.durable_invocation_count, e.is_dag_orchestrator
     FROM runs r
     JOIN v1_dag_to_task_olap dt ON r.dag_id = dt.dag_id AND r.inserted_at = dt.dag_inserted_at
     JOIN v1_task_events_olap e ON (e.task_id, e.task_inserted_at) = (dt.task_id, dt.task_inserted_at)
@@ -3471,7 +3479,7 @@ WITH runs AS (
     UNION ALL
 
     SELECT
-        e.tenant_id, e.id, e.inserted_at, e.external_id, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message, e.durable_invocation_count
+        e.tenant_id, e.id, e.inserted_at, e.external_id, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message, e.durable_invocation_count, e.is_dag_orchestrator
     FROM runs r
     JOIN v1_task_events_olap e ON e.task_id = r.task_id AND e.task_inserted_at = r.inserted_at
     WHERE
@@ -3650,7 +3658,7 @@ WITH inputs AS (
     ORDER BY inserted_at, id
     FOR UPDATE
 ), relevant_events AS MATERIALIZED (
-    SELECT tenant_id, id, inserted_at, external_id, task_id, task_inserted_at, event_type, workflow_id, event_timestamp, readable_status, retry_count, error_message, output, worker_id, additional__event_data, additional__event_message, durable_invocation_count
+    SELECT tenant_id, id, inserted_at, external_id, task_id, task_inserted_at, event_type, workflow_id, event_timestamp, readable_status, retry_count, error_message, output, worker_id, additional__event_data, additional__event_message, durable_invocation_count, is_dag_orchestrator
     FROM v1_task_events_olap
     WHERE
         (task_id, task_inserted_at) IN (SELECT task_id, task_inserted_at FROM inputs)

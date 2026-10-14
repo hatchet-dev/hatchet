@@ -22,10 +22,13 @@ COPY ./frontend/app ./
 RUN npm run build
 
 # Stage 3: deployment image from alpine
-FROM alpine AS deployment
+FROM alpine:3.21 AS deployment
 
-# install bash via apk
-RUN apk update && apk add --no-cache bash openssl ca-certificates curl postgresql-client tzdata
+ARG FIPS=false
+LABEL run.hatchet.fips=${FIPS}
+
+# openssl, curl and postgresql-client link OpenSSL; FIPS images do not ship them
+RUN apk update && apk add --no-cache bash ca-certificates tzdata $([ "$FIPS" = "true" ] || echo openssl curl postgresql-client)
 
 COPY --from=lite-binary-base /hatchet/hatchet-lite ./hatchet-lite
 COPY --from=admin-binary-base /hatchet/hatchet-admin ./hatchet-admin

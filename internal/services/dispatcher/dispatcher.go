@@ -938,11 +938,17 @@ func resolveDagParentOutputs(
 ) {
 	for _, entry := range dagChildInputs {
 		parents := make(map[string]map[string]interface{})
+		stepRunErrors := make(map[string]string)
 
 		for _, parentExternalId := range entry.currInput.DagParentTaskRunIds {
 			parentOutput, ok := dagParentOutputs[parentExternalId]
 
 			if !ok {
+				continue
+			}
+
+			if parentOutput.IsFailed() {
+				stepRunErrors[parentOutput.StepReadableID] = parentOutput.ErrorMessage
 				continue
 			}
 
@@ -957,6 +963,7 @@ func resolveDagParentOutputs(
 		}
 
 		entry.currInput.Parents = parents
+		entry.currInput.StepRunErrors = stepRunErrors
 		inputs[entry.payloadKey] = entry.currInput.Bytes()
 	}
 }
