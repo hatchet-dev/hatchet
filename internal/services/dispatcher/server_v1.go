@@ -730,10 +730,10 @@ func (d *DispatcherServiceImpl) durableTask(
 
 			// At most one worker-status handler runs per stream; statuses that arrive
 			// meanwhile are merged and handled next, so a stalled stream holds one payload
-			// batch. offer and reqWg.Add stay on this goroutine so Add never races Wait; the
+			// batch. merge and reqWg.Add stay on this goroutine so Add never races Wait; the
 			// runner exits between batches once ctx ends.
 			if msg, isWorkerStatus := r.req.GetMessage().(*contracts.DurableTaskRequest_WorkerStatus); isWorkerStatus {
-				if statuses.offer(msg.WorkerStatus) {
+				if statuses.merge(msg.WorkerStatus) {
 					reqWg.Add(1)
 					go func() {
 						defer reqWg.Done()

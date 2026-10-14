@@ -58,13 +58,13 @@ func entriesOf(req *contracts.DurableTaskWorkerStatusRequest) []statusEntry {
 
 func TestWorkerStatusCoalescerMerge(t *testing.T) {
 	tests := []struct {
-		name   string
-		offers [][]statusEntry
-		want   []statusEntry
+		name     string
+		statuses [][]statusEntry
+		want     []statusEntry
 	}{
 		{
-			name: "union_across_offers",
-			offers: [][]statusEntry{
+			name: "union_across_statuses",
+			statuses: [][]statusEntry{
 				{{"a", 1, 1, 1}},
 				{{"a", 1, 2, 1}, {"b", 1, 1, 1}},
 			},
@@ -72,7 +72,7 @@ func TestWorkerStatusCoalescerMerge(t *testing.T) {
 		},
 		{
 			name: "dedupe_by_branch_and_node",
-			offers: [][]statusEntry{
+			statuses: [][]statusEntry{
 				{{"a", 1, 1, 1}, {"a", 2, 1, 1}},
 				{{"a", 1, 1, 1}, {"a", 1, 1, 1}},
 			},
@@ -80,7 +80,7 @@ func TestWorkerStatusCoalescerMerge(t *testing.T) {
 		},
 		{
 			name: "higher_invocation_replaces_only_its_task",
-			offers: [][]statusEntry{
+			statuses: [][]statusEntry{
 				{{"a", 1, 1, 1}, {"a", 1, 2, 1}, {"b", 1, 1, 1}},
 				{{"a", 1, 3, 2}},
 			},
@@ -88,7 +88,7 @@ func TestWorkerStatusCoalescerMerge(t *testing.T) {
 		},
 		{
 			name: "lower_invocation_is_dropped",
-			offers: [][]statusEntry{
+			statuses: [][]statusEntry{
 				{{"a", 1, 1, 2}},
 				{{"a", 1, 2, 1}},
 			},
@@ -96,15 +96,15 @@ func TestWorkerStatusCoalescerMerge(t *testing.T) {
 		},
 		{
 			name: "mixed_invocations_within_one_status",
-			offers: [][]statusEntry{
+			statuses: [][]statusEntry{
 				{{"a", 1, 1, 1}, {"a", 1, 2, 3}, {"a", 1, 3, 2}},
 			},
 			want: []statusEntry{{"a", 1, 2, 3}},
 		},
 		{
-			name:   "empty_status_yields_nothing",
-			offers: [][]statusEntry{{}},
-			want:   nil,
+			name:     "empty_status_yields_nothing",
+			statuses: [][]statusEntry{{}},
+			want:     nil,
 		},
 	}
 
@@ -112,8 +112,8 @@ func TestWorkerStatusCoalescerMerge(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			c := newWorkerStatusCoalescer()
 
-			for _, offer := range tt.offers {
-				c.offer(statusOf(offer...))
+			for _, status := range tt.statuses {
+				c.merge(statusOf(status...))
 			}
 
 			got := c.next()
@@ -132,38 +132,38 @@ func TestWorkerStatusCoalescerMerge(t *testing.T) {
 func TestWorkerStatusCoalescerRunnerLifecycle(t *testing.T) {
 	c := newWorkerStatusCoalescer()
 
-	assert.False(t, c.offer(statusOf()), "an empty status does not start a runner")
-	assert.False(t, c.offer(&contracts.DurableTaskWorkerStatusRequest{WaitingEntries: []*contracts.DurableTaskAwaitedCompletedEntry{nil}}), "a status of nil entries does not start a runner")
-	assert.False(t, c.offer(nil), "a nil status does not start a runner")
+	assert.False(t, c.merge(statusOf()), "an empty status does not start a runner")
+	assert.False(t, c.merge(&contracts.DurableTaskWorkerStatusRequest{WaitingEntries: []*contracts.DurableTaskAwaitedCompletedEntry{nil}}), "a status of nil entries does not start a runner")
+	assert.False(t, c.merge(nil), "a nil status does not start a runner")
 
-	assert.True(t, c.offer(statusOf(statusEntry{"a", 1, 1, 1})), "first offer with entries starts the runner")
-	assert.False(t, c.offer(statusOf(statusEntry{"a", 1, 2, 1})), "offer while running does not start another runner")
+	assert.True(t, c.merge(statusOf(statusEntry{"a", 1, 1, 1})), "first merge with entries starts the runner")
+	assert.False(t, c.merge(statusOf(statusEntry{"a", 1, 2, 1})), "merge while running does not start another runner")
 
 	assert.ElementsMatch(t, []statusEntry{{"a", 1, 1, 1}, {"a", 1, 2, 1}}, entriesOf(c.next()))
 
-	// an offer that lands while the runner is handling the previous batch is picked up by next
-	assert.False(t, c.offer(statusOf(statusEntry{"b", 1, 1, 1})))
+	// a merge that lands while the runner is handling the previous batch is picked up by next
+	assert.False(t, c.merge(statusOf(statusEntry{"b", 1, 1, 1})))
 	assert.ElementsMatch(t, []statusEntry{{"b", 1, 1, 1}}, entriesOf(c.next()))
 
 	assert.Nil(t, c.next(), "next returns nil once drained")
 	assert.Nil(t, c.next(), "draining twice stays drained")
 
-	assert.True(t, c.offer(statusOf(statusEntry{"c", 1, 1, 1})), "an offer after the runner finished starts a new one")
+	assert.True(t, c.merge(statusOf(statusEntry{"c", 1, 1, 1})), "a merge after the runner finished starts a new one")
 	assert.ElementsMatch(t, []statusEntry{{"c", 1, 1, 1}}, entriesOf(c.next()))
 }
 
 // TestWorkerStatusCoalescerConcurrentHandoff races one producer, as on the stream loop, against
-// the runners it starts, so offers land while a runner is handling a batch and while it is
-// going idle. Every offered entry must be handled and batches must never be handled in parallel.
+// the runners it starts, so merges land while a runner is handling a batch and while it is
+// going idle. Every merged entry must be handled and batches must never be handled in parallel.
 func TestWorkerStatusCoalescerConcurrentHandoff(t *testing.T) {
-	const offers = 2_000
+	const statuses = 2_000
 
 	c := newWorkerStatusCoalescer()
 
 	var (
 		runners   sync.WaitGroup
 		mu        sync.Mutex
-		seen      = make(map[statusEntry]struct{}, offers)
+		seen      = make(map[statusEntry]struct{}, statuses)
 		handling  atomic.Int32
 		overlaps  atomic.Int32
 		runnerRun atomic.Int32
@@ -196,13 +196,13 @@ func TestWorkerStatusCoalescerConcurrentHandoff(t *testing.T) {
 		}
 	}
 
-	want := make([]statusEntry, 0, offers)
+	want := make([]statusEntry, 0, statuses)
 
-	for i := range offers {
+	for i := range statuses {
 		e := statusEntry{task: strconv.Itoa(i), branch: 1, node: 1, invocation: 1}
 		want = append(want, e)
 
-		if c.offer(statusOf(e)) {
+		if c.merge(statusOf(e)) {
 			runners.Add(1)
 			go runner()
 		}
@@ -220,7 +220,7 @@ func TestWorkerStatusCoalescerConcurrentHandoff(t *testing.T) {
 	mu.Lock()
 	defer mu.Unlock()
 
-	assert.Len(t, seen, offers, "every offered entry is handled")
+	assert.Len(t, seen, statuses, "every merged entry is handled")
 
 	for _, e := range want {
 		assert.Contains(t, seen, e)
@@ -242,7 +242,7 @@ func TestWorkerStatusCoalescerCapsBatchesAtWholeTasks(t *testing.T) {
 			entries[n] = statusEntry{task: string(rune('a' + i)), branch: 1, node: int64(n), invocation: 1}
 		}
 
-		c.offer(statusOf(entries...))
+		c.merge(statusOf(entries...))
 	}
 
 	var batchSizes []int
@@ -268,7 +268,7 @@ func TestWorkerStatusCoalescerCapsBatchesAtWholeTasks(t *testing.T) {
 	assert.Equal(t, []int{8_000, 8_000, 4_000}, batchSizes)
 	assert.Len(t, seen, tasks*perTask)
 
-	assert.True(t, c.offer(statusOf(statusEntry{"z", 1, 1, 1})), "running is cleared once next returned nil")
+	assert.True(t, c.merge(statusOf(statusEntry{"z", 1, 1, 1})), "running is cleared once next returned nil")
 }
 
 func TestWorkerStatusCoalescerOversizedTaskGoesOutWhole(t *testing.T) {
@@ -279,8 +279,8 @@ func TestWorkerStatusCoalescerOversizedTaskGoesOutWhole(t *testing.T) {
 		entries[n] = statusEntry{task: "big", branch: 1, node: int64(n), invocation: 1}
 	}
 
-	c.offer(statusOf(entries...))
-	c.offer(statusOf(statusEntry{"small", 1, 1, 1}))
+	c.merge(statusOf(entries...))
+	c.merge(statusOf(statusEntry{"small", 1, 1, 1}))
 
 	first := entriesOf(c.next())
 	second := entriesOf(c.next())

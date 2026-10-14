@@ -36,10 +36,10 @@ func newWorkerStatusCoalescer() *workerStatusCoalescer {
 	return &workerStatusCoalescer{pending: make(map[string]*pendingTaskStatus)}
 }
 
-// offer merges status into the pending set and reports whether the caller must start a runner,
+// merge merges status into the pending set and reports whether the caller must start a runner,
 // which is the case only when it flipped running from false to true. A status with nothing to
 // merge never starts a runner.
-func (c *workerStatusCoalescer) offer(status *contracts.DurableTaskWorkerStatusRequest) (startRunner bool) {
+func (c *workerStatusCoalescer) merge(status *contracts.DurableTaskWorkerStatusRequest) (startRunner bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -76,7 +76,7 @@ func (c *workerStatusCoalescer) offer(status *contracts.DurableTaskWorkerStatusR
 // next takes whole tasks from the pending set as one worker-status request, stopping before a
 // task that would push the request past maxWorkerStatusEntriesPerBatch entries; a single task
 // larger than the cap goes out alone. The rest stays pending for the next call. When nothing is
-// pending it marks the runner as finished and returns nil, so the next offer starts a new
+// pending it marks the runner as finished and returns nil, so the next merge starts a new
 // runner.
 func (c *workerStatusCoalescer) next() *contracts.DurableTaskWorkerStatusRequest {
 	c.mu.Lock()
