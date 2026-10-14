@@ -107,7 +107,7 @@ type CreateMonitoringEventPayload struct {
 	// Ignored for other tasks.
 	StatusOnly bool `json:"status_only,omitempty"`
 
-	// WillRetry records the failure event but leaves the task and its run non-terminal.
+	// WillRetry records the failure or timeout event but leaves the task and its run non-terminal.
 	WillRetry bool `json:"will_retry,omitempty"`
 }
 

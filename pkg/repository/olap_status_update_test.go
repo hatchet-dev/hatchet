@@ -351,7 +351,7 @@ func TestOLAPStatusUpdate_ReplayOfCompletedTask(t *testing.T) {
 }
 
 // TestOLAPStatusUpdate_RetriedFailureIsNotTerminal checks that a failure the engine is retrying is
-// recorded as an event without making the task terminal, so only the final failure is reported.
+// recorded as an event without making the task terminal, so only the final failure changes its status.
 func TestOLAPStatusUpdate_RetriedFailureIsNotTerminal(t *testing.T) {
 	basePool, cleanup := setupPostgresWithMigration(t)
 	defer cleanup()
