@@ -1852,7 +1852,7 @@ func (s *DispatcherImpl) handleBatchTaskStarted(
 // output payload (downgrading individual items to FAILED on invalid JSON, exactly like
 // sendStepActionEventV1 does for a single task), then sends at most one bulk MsgIDTaskCompleted
 // message, at most one bulk MsgIDTaskFailed message for any downgraded items, and one bulk OLAP
-// monitoring event message covering the completed items.
+// monitoring event message covering every item.
 func (s *DispatcherImpl) handleBatchTaskCompleted(
 	inputCtx context.Context,
 	tenantId uuid.UUID,
@@ -1900,8 +1900,13 @@ func (s *DispatcherImpl) handleBatchTaskCompleted(
 			retryCount = *item.RetryCount
 		}
 
-		if validationErr := v1.ValidateJSONB([]byte(item.EventPayload), "taskOutput"); validationErr != nil {
-			// the task controller publishes the OLAP FAILED event once it knows whether the task will retry
+		eventPayload := item.EventPayload
+		olapEventType := sqlcv1.V1EventTypeOlapFINISHED
+
+		if validationErr := v1.ValidateJSONB([]byte(eventPayload), "taskOutput"); validationErr != nil {
+			eventPayload = validationErr.Error()
+			olapEventType = sqlcv1.V1EventTypeOlapFAILED
+
 			failedPayloads = append(failedPayloads, tasktypes.FailedTaskPayload{
 				TaskId:        task.ID,
 				InsertedAt:    task.InsertedAt,
@@ -1909,20 +1914,18 @@ func (s *DispatcherImpl) handleBatchTaskCompleted(
 				WorkflowRunId: task.WorkflowRunID,
 				RetryCount:    retryCount,
 				IsAppError:    true,
-				ErrorMsg:      validationErr.Error(),
+				ErrorMsg:      eventPayload,
 			})
-
-			continue
+		} else {
+			completedPayloads = append(completedPayloads, tasktypes.CompletedTaskPayload{
+				TaskId:        task.ID,
+				InsertedAt:    task.InsertedAt,
+				ExternalId:    task.ExternalID,
+				WorkflowRunId: task.WorkflowRunID,
+				RetryCount:    retryCount,
+				Output:        []byte(item.EventPayload),
+			})
 		}
-
-		completedPayloads = append(completedPayloads, tasktypes.CompletedTaskPayload{
-			TaskId:        task.ID,
-			InsertedAt:    task.InsertedAt,
-			ExternalId:    task.ExternalID,
-			WorkflowRunId: task.WorkflowRunID,
-			RetryCount:    retryCount,
-			Output:        []byte(item.EventPayload),
-		})
 
 		var durableInvocationCount int32
 
@@ -1935,9 +1938,9 @@ func (s *DispatcherImpl) handleBatchTaskCompleted(
 			RetryCount:             retryCount,
 			DurableInvocationCount: durableInvocationCount,
 			WorkerId:               workerId,
-			EventType:              sqlcv1.V1EventTypeOlapFINISHED,
+			EventType:              olapEventType,
 			EventTimestamp:         request.EventTimestamp.AsTime(),
-			EventPayload:           item.EventPayload,
+			EventPayload:           eventPayload,
 		})
 	}
 
