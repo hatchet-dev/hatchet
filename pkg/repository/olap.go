@@ -43,14 +43,15 @@ const (
 	AdditionalMetadataOperatorAnd AdditionalMetadataOperator = "AND"
 )
 
-// MaxTasksWithPayloads caps how many tasks a list read loads payloads for. Payloads for the whole
-// page are held in memory and serialized at once, and a DAG run's child tasks are not bounded by
-// the requested limit.
+// MaxTasksWithPayloads caps how many runs, and separately how many DAG child tasks, a list read
+// loads payloads for. Payloads for a whole page are held in memory and serialized at once. The
+// check runs on the rows a query returned rather than on the requested limit, so a large limit
+// over a sparse window still works.
 const MaxTasksWithPayloads = 1000
 
 var ErrTooManyTasksWithPayloads = fmt.Errorf(
-	"cannot include payloads for more than %d tasks, counting the tasks of each DAG run; lower the limit or set include_payloads=false",
-	MaxTasksWithPayloads,
+	"cannot include payloads for a page with more than %d runs, or whose DAG runs have more than %d tasks in total; lower the limit or set include_payloads=false",
+	MaxTasksWithPayloads, MaxTasksWithPayloads,
 )
 
 func checkTasksWithPayloads(includePayloads bool, numTasks int) error {
@@ -1026,6 +1027,7 @@ func (r *OLAPRepositoryImpl) ListTasksByDAGId(ctx context.Context, tenantId uuid
 		return nil, taskIdToDagExternalId, err
 	}
 
+	// The page limit bounds the DAG runs, not their child tasks.
 	if err := checkTasksWithPayloads(includePayloads, len(tasks)); err != nil {
 		return nil, taskIdToDagExternalId, err
 	}
@@ -1446,11 +1448,6 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 
 	for _, dag := range populatedDAGs {
 		dagsToPopulated[dag.ExternalID] = dag
-	}
-
-	// PopulateDAGMetadata returns a row per finished child task, so payloads are read only for the
-	// row kept per DAG.
-	for _, dag := range dagsToPopulated {
 		retrievePayloadOpts = append(retrievePayloadOpts, ReadOLAPPayloadOpts{
 			ExternalId: dag.ExternalID,
 			InsertedAt: dag.InsertedAt,

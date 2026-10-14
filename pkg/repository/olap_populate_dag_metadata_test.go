@@ -14,7 +14,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-func TestListTasksByDAGId_RejectsPayloadsAboveTaskCap(t *testing.T) {
+func TestPopulateDAGMetadata_OneRowPerDAGWithLatestChildOutput(t *testing.T) {
 	basePool, cleanup := setupPostgresWithMigration(t)
 	defer cleanup()
 
@@ -32,13 +32,15 @@ func TestListTasksByDAGId_RejectsPayloadsAboveTaskCap(t *testing.T) {
 	dagExternalId := uuid.New()
 	insertedAt := pgtype.Timestamptz{Time: time.Now().UTC().Truncate(time.Microsecond), Valid: true}
 
+	const dagId int64 = 1
+
 	locksNotAcquired, err := repo.CreateDAGs(ctx, tenantId, []*DAGWithData{{
 		V1Dag: &sqlcv1.V1Dag{
-			ID:                1,
+			ID:                dagId,
 			InsertedAt:        insertedAt,
 			TenantID:          tenantId,
 			ExternalID:        dagExternalId,
-			DisplayName:       "wide-dag",
+			DisplayName:       "two-child-dag",
 			WorkflowID:        workflowId,
 			WorkflowVersionID: workflowVersionId,
 		},
@@ -48,17 +50,17 @@ func TestListTasksByDAGId_RejectsPayloadsAboveTaskCap(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, locksNotAcquired)
 
-	numChildren := MaxTasksWithPayloads + 1
-	children := make([]*V1TaskWithPayload, 0, numChildren)
+	childIds := []int64{2, 3}
+	children := make([]*V1TaskWithPayload, 0, len(childIds))
 
-	for i := range numChildren {
+	for _, id := range childIds {
 		children = append(children, &V1TaskWithPayload{
 			V1Task: &sqlcv1.V1Task{
-				ID:                 int64(i + 1),
+				ID:                 id,
 				InsertedAt:         insertedAt,
 				TenantID:           tenantId,
 				Queue:              "default",
-				ActionID:           "test:wide-dag-child",
+				ActionID:           "test:two-child-dag-child",
 				StepID:             uuid.New(),
 				WorkflowID:         workflowId,
 				WorkflowVersionID:  workflowVersionId,
@@ -66,10 +68,10 @@ func TestListTasksByDAGId_RejectsPayloadsAboveTaskCap(t *testing.T) {
 				ScheduleTimeout:    "5m",
 				Sticky:             sqlcv1.V1StickyStrategyNONE,
 				ExternalID:         uuid.New(),
-				DisplayName:        "wide-dag-child",
+				DisplayName:        "two-child-dag-child",
 				Input:              []byte(`{}`),
 				AdditionalMetadata: []byte(`{}`),
-				DagID:              pgtype.Int8{Int64: 1, Valid: true},
+				DagID:              pgtype.Int8{Int64: dagId, Valid: true},
 				DagInsertedAt:      insertedAt,
 			},
 			Payload: []byte(`{}`),
@@ -80,10 +82,36 @@ func TestListTasksByDAGId_RejectsPayloadsAboveTaskCap(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, locksNotAcquired)
 
-	_, _, err = repo.ListTasksByDAGId(ctx, tenantId, []uuid.UUID{dagExternalId}, true)
-	require.ErrorIs(t, err, ErrTooManyTasksWithPayloads)
+	// Each child finishes in its own write so the FINISHED events get distinct inserted_at values.
+	var lastFinishedEventId uuid.UUID
 
-	tasks, _, err := repo.ListTasksByDAGId(ctx, tenantId, []uuid.UUID{dagExternalId}, false)
+	for _, id := range childIds {
+		event := sqlcv1.CreateTaskEventsOLAPParams{
+			TenantID:       tenantId,
+			TaskID:         id,
+			TaskInsertedAt: insertedAt,
+			EventType:      sqlcv1.V1EventTypeOlapFINISHED,
+			WorkflowID:     workflowId,
+			EventTimestamp: pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true},
+			ReadableStatus: sqlcv1.V1ReadableStatusOlapCOMPLETED,
+			Output:         []byte(`{}`),
+			ExternalID:     uuid.New(),
+		}
+		lastFinishedEventId = event.ExternalID
+
+		_, locksNotAcquired, err = repo.CreateTaskEvents(ctx, tenantId, []sqlcv1.CreateTaskEventsOLAPParams{event}, map[uuid.UUID]uuid.UUID{event.ExternalID: dagExternalId}, nil, nil)
+		require.NoError(t, err)
+		require.Empty(t, locksNotAcquired)
+	}
+
+	rows, err := repo.queries.PopulateDAGMetadata(ctx, pool, sqlcv1.PopulateDAGMetadataParams{
+		Ids:             []int64{dagId},
+		Insertedats:     []pgtype.Timestamptz{insertedAt},
+		Tenantid:        tenantId,
+		Includepayloads: true,
+	})
 	require.NoError(t, err)
-	require.Len(t, tasks, numChildren)
+	require.Len(t, rows, 1)
+	require.NotNil(t, rows[0].OutputEventExternalID)
+	require.Equal(t, lastFinishedEventId, *rows[0].OutputEventExternalID)
 }

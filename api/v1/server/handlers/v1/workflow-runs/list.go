@@ -233,7 +233,7 @@ func (t *V1WorkflowRunsService) shouldUseGinIndexForAdditionalMetadata(ctx conte
 	return enabled || len(*additionalMetadata) == 1, nil
 }
 
-func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenantId uuid.UUID, useGinIndex bool, canViewPayloads bool) (gen.V1WorkflowRunListResponseObject, error) {
+func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenantId uuid.UUID, useGinIndex bool, includePayloads bool, canViewPayloads bool) (gen.V1WorkflowRunListResponseObject, error) {
 	ctx, span := telemetry.NewSpan(ctx, "v1-workflow-runs-list-with-dags-tasks")
 	defer span.End()
 
@@ -248,11 +248,6 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 
 	if request.Params.Offset != nil {
 		offset = *request.Params.Offset
-	}
-
-	includePayloads := false
-	if request.Params.IncludePayloads != nil {
-		includePayloads = *request.Params.IncludePayloads
 	}
 
 	opts := listWorkflowRunOptsFromFilters(workflowRunFiltersFromListParams(request.Params), useGinIndex)
@@ -339,7 +334,7 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 	), nil
 }
 
-func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenantId uuid.UUID, useGinIndex bool, canViewPayloads bool) (gen.V1WorkflowRunListResponseObject, error) {
+func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenantId uuid.UUID, useGinIndex bool, includePayloads bool, canViewPayloads bool) (gen.V1WorkflowRunListResponseObject, error) {
 	ctx, span := telemetry.NewSpan(ctx, "v1-workflow-runs-list-only-tasks")
 	defer span.End()
 
@@ -354,11 +349,6 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 
 	if request.Params.Offset != nil {
 		offset = *request.Params.Offset
-	}
-
-	includePayloads := false
-	if request.Params.IncludePayloads != nil {
-		includePayloads = *request.Params.IncludePayloads
 	}
 
 	opts := listTaskRunOptsFromFilters(workflowRunFiltersFromListParams(request.Params), useGinIndex)
@@ -428,13 +418,14 @@ func (t *V1WorkflowRunsService) V1WorkflowRunList(ctx echo.Context, request gen.
 	}
 
 	canViewPayloads := authz.CanViewPayloads(ctx)
+	includePayloads := canViewPayloads && request.Params.IncludePayloads != nil && *request.Params.IncludePayloads
 
 	var res gen.V1WorkflowRunListResponseObject
 
 	if request.Params.OnlyTasks {
-		res, err = t.OnlyTasks(spanContext, request, tenantId, useGinIndex, canViewPayloads)
+		res, err = t.OnlyTasks(spanContext, request, tenantId, useGinIndex, includePayloads, canViewPayloads)
 	} else {
-		res, err = t.WithDags(spanContext, request, tenantId, useGinIndex, canViewPayloads)
+		res, err = t.WithDags(spanContext, request, tenantId, useGinIndex, includePayloads, canViewPayloads)
 	}
 
 	if errors.Is(err, v1.ErrTooManyTasksWithPayloads) {
