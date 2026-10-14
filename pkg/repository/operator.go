@@ -2,8 +2,10 @@ package repository
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -34,9 +36,6 @@ type OperatorRepository interface {
 	// actions in sync with the tenant's DAGs.
 	ListDAGOrchestrationActions(ctx context.Context, tenantId uuid.UUID) ([]string, error)
 
-	// HasDAGOperator reports whether any DAG operator is registered for the given tenant.
-	HasDAGOperator(ctx context.Context, tenantId uuid.UUID) (bool, error)
-
 	// CountEvictedDAGOrchestratorRuns returns the number of DAG orchestrator runs for the
 	// tenant that are currently evicted while waiting on durable events. They hold no worker
 	// slots, so this is the only way to see how many runs the DAG operator has in flight.
@@ -64,17 +63,27 @@ type CreateOperatorOpts struct {
 }
 
 func (r *operatorRepository) CreateOperator(ctx context.Context, tenantId uuid.UUID, opts CreateOperatorOpts) (*sqlcv1.V1Operator, error) {
-	if err := r.v.Validate(opts); err != nil {
+	return r.createOperatorTxs(ctx, r.pool, tenantId, opts)
+}
+
+func (s *sharedRepository) createOperatorTxs(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, opts CreateOperatorOpts) (*sqlcv1.V1Operator, error) {
+	if err := s.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
-	return r.queries.CreateOperator(ctx, r.pool, sqlcv1.CreateOperatorParams{
+	operator, err := s.queries.CreateOperator(ctx, tx, sqlcv1.CreateOperatorParams{
 		Tenantid:       tenantId,
 		Name:           opts.Name,
 		Kind:           opts.Kind,
 		LeasingManager: opts.LeasingManager,
 		Config:         opts.Config,
 	})
+
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+
+	return operator, err
 }
 
 type UpsertOperatorOpts struct {
@@ -191,10 +200,6 @@ func (r *operatorRepository) ClaimOperators(ctx context.Context, dispatcherId uu
 
 func (r *operatorRepository) ListDAGOrchestrationActions(ctx context.Context, tenantId uuid.UUID) ([]string, error) {
 	return r.queries.ListDAGOrchestrationActionsForTenant(ctx, r.pool, tenantId)
-}
-
-func (r *operatorRepository) HasDAGOperator(ctx context.Context, tenantId uuid.UUID) (bool, error) {
-	return r.hasDAGOperator(ctx, tenantId)
 }
 
 func (r *operatorRepository) CountEvictedDAGOrchestratorRuns(ctx context.Context, tenantId uuid.UUID) (int64, error) {
