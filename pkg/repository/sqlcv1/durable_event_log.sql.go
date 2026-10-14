@@ -1202,6 +1202,17 @@ WITH inputs AS (
             SELECT durable_task_id, durable_task_inserted_at, branch_id, node_id
             FROM inputs
         )
+        -- an entry past a fork on its branch is never replayed again, so giving it a
+        -- satisfied_order would leave a permanent gap for the live branch to wait on
+        AND NOT EXISTS (
+            SELECT 1
+            FROM v1_durable_event_log_branch_point bp
+            WHERE bp.durable_task_id = e.durable_task_id
+              AND bp.durable_task_inserted_at = e.durable_task_inserted_at
+              AND bp.durable_task_inserted_at >= $7::TIMESTAMPTZ
+              AND bp.parent_branch_id = e.branch_id
+              AND bp.first_node_id_in_new_branch <= e.node_id
+        )
 ), updated AS (
     UPDATE v1_durable_event_log_entry e
     SET
