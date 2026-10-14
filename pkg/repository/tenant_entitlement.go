@@ -127,11 +127,11 @@ func (t *tenantEntitlementRepository) AnyTenantHasAuditLogs(ctx context.Context,
 		return false, nil
 	}
 
-	return t.queries.AnyTenantHasAuditLogs(ctx, t.pool, tenantIds)
+	return t.queries.AnyTenantHasAuditLogs(ctx, t.pool.ForShared(), tenantIds)
 }
 
 func (t *tenantEntitlementRepository) GetEntitlements(ctx context.Context, tenantId uuid.UUID) (TenantEntitlements, error) {
-	entitlement, err := t.queries.GetTenantEntitlement(ctx, t.pool, tenantId)
+	entitlement, err := t.queries.GetTenantEntitlement(ctx, t.pool.ForTenant(tenantId), tenantId)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -151,7 +151,9 @@ func (t *tenantEntitlementRepository) GetEntitlements(ctx context.Context, tenan
 }
 
 func (t *tenantEntitlementRepository) SetEntitlements(ctx context.Context, tenantId uuid.UUID, entitlements TenantEntitlements) error {
-	_, err := t.queries.UpsertTenantEntitlement(ctx, t.pool, sqlcv1.UpsertTenantEntitlementParams{
+	db := t.pool.ForTenant(tenantId)
+
+	_, err := t.queries.UpsertTenantEntitlement(ctx, db, sqlcv1.UpsertTenantEntitlementParams{
 		Tenantid:                        tenantId,
 		Auditlogs:                       entitlements.AuditLogs,
 		Prometheusmetrics:               entitlements.PrometheusMetrics,

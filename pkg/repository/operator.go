@@ -64,11 +64,13 @@ type CreateOperatorOpts struct {
 }
 
 func (r *operatorRepository) CreateOperator(ctx context.Context, tenantId uuid.UUID, opts CreateOperatorOpts) (*sqlcv1.V1Operator, error) {
+	db := r.pool.ForTenant(tenantId)
+
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
-	return r.queries.CreateOperator(ctx, r.pool, sqlcv1.CreateOperatorParams{
+	return r.queries.CreateOperator(ctx, db, sqlcv1.CreateOperatorParams{
 		Tenantid:       tenantId,
 		Name:           opts.Name,
 		Kind:           opts.Kind,
@@ -86,11 +88,13 @@ type UpsertOperatorOpts struct {
 }
 
 func (r *operatorRepository) UpsertOperator(ctx context.Context, tenantId uuid.UUID, opts UpsertOperatorOpts) (*sqlcv1.V1Operator, error) {
+	db := r.pool.ForTenant(tenantId)
+
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
-	return r.queries.UpsertOperator(ctx, r.pool, sqlcv1.UpsertOperatorParams{
+	return r.queries.UpsertOperator(ctx, db, sqlcv1.UpsertOperatorParams{
 		Tenantid:       tenantId,
 		Name:           opts.Name,
 		Kind:           opts.Kind,
@@ -99,7 +103,7 @@ func (r *operatorRepository) UpsertOperator(ctx context.Context, tenantId uuid.U
 }
 
 func (r *operatorRepository) GetOperatorById(ctx context.Context, operatorId uuid.UUID) (*sqlcv1.V1Operator, error) {
-	return r.queries.GetOperator(ctx, r.pool, operatorId)
+	return r.queries.GetOperator(ctx, r.pool.ForShared(), operatorId)
 }
 
 type ListOperatorsOpts struct {
@@ -110,13 +114,15 @@ type ListOperatorsOpts struct {
 }
 
 func (r *operatorRepository) ListOperators(ctx context.Context, tenantId uuid.UUID, opts ListOperatorsOpts) ([]*sqlcv1.V1Operator, int64, error) {
+	db := r.pool.ForTenant(tenantId)
+
 	if err := r.v.Validate(opts); err != nil {
 		return nil, 0, err
 	}
 
 	kind := nullOperatorKind(opts.Kind)
 
-	operators, err := r.queries.ListOperators(ctx, r.pool, sqlcv1.ListOperatorsParams{
+	operators, err := r.queries.ListOperators(ctx, db, sqlcv1.ListOperatorsParams{
 		Tenantid:       tenantId,
 		Kind:           kind,
 		Operatorlimit:  opts.Limit,
@@ -127,7 +133,7 @@ func (r *operatorRepository) ListOperators(ctx context.Context, tenantId uuid.UU
 		return nil, 0, err
 	}
 
-	count, err := r.queries.CountOperators(ctx, r.pool, sqlcv1.CountOperatorsParams{
+	count, err := r.queries.CountOperators(ctx, db, sqlcv1.CountOperatorsParams{
 		Tenantid: tenantId,
 		Kind:     kind,
 	})
@@ -149,6 +155,8 @@ type UpdateOperatorOpts struct {
 }
 
 func (r *operatorRepository) UpdateOperator(ctx context.Context, tenantId, operatorId uuid.UUID, opts UpdateOperatorOpts) (*sqlcv1.V1Operator, error) {
+	db := r.pool.ForTenant(tenantId)
+
 	params := sqlcv1.UpdateOperatorParams{
 		Tenantid: tenantId,
 		ID:       operatorId,
@@ -163,11 +171,13 @@ func (r *operatorRepository) UpdateOperator(ctx context.Context, tenantId, opera
 		}
 	}
 
-	return r.queries.UpdateOperator(ctx, r.pool, params)
+	return r.queries.UpdateOperator(ctx, db, params)
 }
 
 func (r *operatorRepository) DeleteOperator(ctx context.Context, tenantId, operatorId uuid.UUID) (*sqlcv1.V1Operator, error) {
-	return r.queries.DeleteOperator(ctx, r.pool, sqlcv1.DeleteOperatorParams{
+	db := r.pool.ForTenant(tenantId)
+
+	return r.queries.DeleteOperator(ctx, db, sqlcv1.DeleteOperatorParams{
 		Tenantid: tenantId,
 		ID:       operatorId,
 	})
@@ -186,11 +196,13 @@ func nullOperatorKind(kind *sqlcv1.V1OperatorKind) sqlcv1.NullV1OperatorKind {
 }
 
 func (r *operatorRepository) ClaimOperators(ctx context.Context, dispatcherId uuid.UUID) ([]*sqlcv1.V1Operator, error) {
-	return r.queries.ClaimOperators(ctx, r.pool, dispatcherId)
+	return r.queries.ClaimOperators(ctx, r.pool.ForShared(), dispatcherId)
 }
 
 func (r *operatorRepository) ListDAGOrchestrationActions(ctx context.Context, tenantId uuid.UUID) ([]string, error) {
-	return r.queries.ListDAGOrchestrationActionsForTenant(ctx, r.pool, tenantId)
+	db := r.pool.ForTenant(tenantId)
+
+	return r.queries.ListDAGOrchestrationActionsForTenant(ctx, db, tenantId)
 }
 
 func (r *operatorRepository) HasDAGOperator(ctx context.Context, tenantId uuid.UUID) (bool, error) {
@@ -198,5 +210,7 @@ func (r *operatorRepository) HasDAGOperator(ctx context.Context, tenantId uuid.U
 }
 
 func (r *operatorRepository) CountEvictedDAGOrchestratorRuns(ctx context.Context, tenantId uuid.UUID) (int64, error) {
-	return r.queries.CountEvictedDAGOrchestratorRuns(ctx, r.pool, tenantId)
+	db := r.pool.ForTenant(tenantId)
+
+	return r.queries.CountEvictedDAGOrchestratorRuns(ctx, db, tenantId)
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -41,7 +42,7 @@ func TestIdleQueuesGoInactive(t *testing.T) {
 	require.NoError(t, err)
 
 	logger := zerolog.New(io.Discard)
-	shared := &sharedRepository{pool: pool, l: &logger, queries: queries, queueCache: cache.New(5 * time.Minute)}
+	shared := &sharedRepository{pool: fairpool.Ungated(pool), l: &logger, queries: queries, queueCache: cache.New(5 * time.Minute)}
 	repo := newQueueRepository(shared, tenantID, "idle")
 
 	rows, err := repo.RequeueRateLimitedItems(ctx, tenantID, "idle")

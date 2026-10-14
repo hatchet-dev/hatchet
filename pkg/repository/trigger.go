@@ -332,12 +332,14 @@ func (r *sharedRepository) doTriggerFromEvents(
 	tenantId uuid.UUID,
 	opts []EventTriggerOpts,
 ) (*TriggerFromEventsResult, error) {
+	db := r.pool.ForTenant(tenantId)
+
 	var prepareTx sqlcv1.DBTX
 
 	if tx != nil {
 		prepareTx = tx.tx
 	} else {
-		prepareTx = r.pool
+		prepareTx = db
 	}
 
 	triggerOpts, createCoreEventOpts, externalIdToEventIdAndFilterId, celEvaluationFailures, err := r.prepareTriggerFromEvents(ctx, prepareTx, tenantId, opts)
@@ -472,7 +474,7 @@ func (s *sharedRepository) triggerFromWorkflowNames(ctx context.Context, tx *Opt
 }
 
 func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) ([]*V1TaskWithPayload, []*DAGWithData, []IdempotencyCollision, []CELEvaluationFailure, error) {
-	tx, err := r.PrepareOptimisticTx(ctx)
+	tx, err := r.PrepareOptimisticTx(ctx, tenantId)
 
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("failed to prepare tx: %w", err)
@@ -508,6 +510,8 @@ func (e *ErrNamesNotFound) Error() string {
 }
 
 func (r *TriggerRepositoryImpl) PreflightVerifyWorkflowNameOpts(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) error {
+	db := r.pool.ForTenant(tenantId)
+
 	// get a list of workflow names
 	workflowNamesFound := make(map[string]bool)
 
@@ -521,7 +525,7 @@ func (r *TriggerRepositoryImpl) PreflightVerifyWorkflowNameOpts(ctx context.Cont
 		uniqueWorkflowNames = append(uniqueWorkflowNames, name)
 	}
 
-	rows, err := r.listWorkflowsByNames(ctx, r.pool, tenantId, uniqueWorkflowNames)
+	rows, err := r.listWorkflowsByNames(ctx, db, tenantId, uniqueWorkflowNames)
 
 	if err != nil {
 		return fmt.Errorf("failed to list workflows by names: %w", err)
@@ -549,6 +553,8 @@ func (r *TriggerRepositoryImpl) PreflightVerifyWorkflowNameOpts(ctx context.Cont
 }
 
 func (r *TriggerRepositoryImpl) PopulateWorkflowIdempotencyPresence(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) error {
+	db := r.pool.ForTenant(tenantId)
+
 	if len(opts) == 0 {
 		return nil
 	}
@@ -564,7 +570,7 @@ func (r *TriggerRepositoryImpl) PopulateWorkflowIdempotencyPresence(ctx context.
 		uniqueNames[opt.WorkflowName] = struct{}{}
 	}
 
-	rows, err := r.listWorkflowsByNames(ctx, r.pool, tenantId, names)
+	rows, err := r.listWorkflowsByNames(ctx, db, tenantId, names)
 
 	if err != nil {
 		return fmt.Errorf("failed to list workflows by names: %w", err)
@@ -801,9 +807,9 @@ type triggerPreflight struct {
 
 // triggerWorkflowsPreflight runs the read-and-claim half of a trigger on preflightTx.
 //
-// The pool is a valid preflightTx: each query checks out and returns its own connection. An
-// owned trigger runs this before PrepareOptimisticTx so that it never holds the transaction's
-// connection while checking out a second one.
+// A tenant-scoped pool handle is a valid preflightTx: each query checks out and returns its
+// own connection. An owned trigger must run this before PrepareOptimisticTx so that it never
+// needs a second tenant connection while the transaction's connection is held.
 func (r *sharedRepository) triggerWorkflowsPreflight(
 	ctx context.Context,
 	preflightTx sqlcv1.DBTX,
@@ -1741,16 +1747,16 @@ func (r *sharedRepository) triggerWorkflows(
 	)
 
 	if ownsTx {
-		// Preflight runs on the pool before the transaction begins, so each query returns its
-		// connection before the transaction takes one. Running it after would hold two
-		// connections per trigger.
-		pf, preflightErr := r.triggerWorkflowsPreflight(ctx, r.pool, tenantId, triggerCandidateTuples)
+		// Preflight runs on tenant-scoped pool handles before the transaction begins, so each
+		// query releases its connection slot before the transaction takes one. Running it after
+		// would need a second slot for the same tenant while the first is held.
+		pf, preflightErr := r.triggerWorkflowsPreflight(ctx, r.pool.ForTenant(tenantId), tenantId, triggerCandidateTuples)
 
 		if preflightErr != nil {
 			return nil, nil, nil, nil, preflightErr
 		}
 
-		tx, err = r.PrepareOptimisticTx(ctx)
+		tx, err = r.PrepareOptimisticTx(ctx, tenantId)
 
 		if err != nil {
 			return nil, nil, nil, nil, err
@@ -3088,7 +3094,9 @@ func (r *sharedRepository) NewTriggerTaskData(
 }
 
 func (r *sharedRepository) lookupParentOutputsByWorkflowRunIds(ctx context.Context, tenantId uuid.UUID, parentTaskExternalIds []uuid.UUID) (map[uuid.UUID]*TaskOutputEvent, error) {
-	rows, err := r.queries.ListTaskOutputEventIdsByTaskRunExternalIds(ctx, r.pool, parentTaskExternalIds)
+	db := r.pool.ForTenant(tenantId)
+
+	rows, err := r.queries.ListTaskOutputEventIdsByTaskRunExternalIds(ctx, db, parentTaskExternalIds)
 	if err != nil {
 		return nil, err
 	}
@@ -3105,7 +3113,7 @@ func (r *sharedRepository) lookupParentOutputsByWorkflowRunIds(ctx context.Conte
 		})
 	}
 
-	payloads, err := r.payloadStore.Retrieve(ctx, r.pool, retrieveOpts...)
+	payloads, err := r.payloadStore.Retrieve(ctx, db, retrieveOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve parent output payloads: %w", err)
 	}

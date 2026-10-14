@@ -76,7 +76,7 @@ func ingestDagStepTriggerResult(
 func reinvokeDurableTask(t *testing.T, ctx context.Context, repos userEventScopeTestRepositories, tenantID uuid.UUID, task *sqlcv1.FlattenExternalIdsRow) {
 	t.Helper()
 
-	_, err := repos.shared.queries.IncrementLogFileInvocationCounts(ctx, repos.shared.pool, sqlcv1.IncrementLogFileInvocationCountsParams{
+	_, err := repos.shared.queries.IncrementLogFileInvocationCounts(ctx, repos.shared.pool.ForShared(), sqlcv1.IncrementLogFileInvocationCountsParams{
 		Durabletaskids:         []int64{task.ID},
 		Durabletaskinsertedats: []pgtype.Timestamptz{task.InsertedAt},
 		Tenantids:              []uuid.UUID{tenantID},
@@ -118,7 +118,7 @@ func TestDagStepEntriesOfSameWorkflowHaveDistinctIdempotencyKeys(t *testing.T) {
 	first := ingestDagStepTrigger(t, ctx, repos.durable, tenantID, task, 1, "my-dag:step-a", 1)
 	second := ingestDagStepTrigger(t, ctx, repos.durable, tenantID, task, 1, "my-dag:step-b", 2)
 
-	entries, err := repos.shared.queries.GetDurableEventLogEntriesByChildTaskExternalIds(ctx, repos.shared.pool, sqlcv1.GetDurableEventLogEntriesByChildTaskExternalIdsParams{
+	entries, err := repos.shared.queries.GetDurableEventLogEntriesByChildTaskExternalIds(ctx, repos.shared.pool.ForShared(), sqlcv1.GetDurableEventLogEntriesByChildTaskExternalIdsParams{
 		Durabletaskid:         task.ID,
 		Durabletaskinsertedat: task.InsertedAt,
 		Childtaskexternalids:  []uuid.UUID{first.WorkflowRunExternalId, second.WorkflowRunExternalId},
@@ -149,7 +149,7 @@ func TestDagStepCreatedSkippedTakesNextSatisfiedOrder(t *testing.T) {
 	require.NotNil(t, skipped.SatisfiedOrder)
 	require.EqualValues(t, 1, *skipped.SatisfiedOrder)
 
-	logFile, err := repos.shared.queries.GetDurableTaskLogFiles(ctx, repos.shared.pool, sqlcv1.GetDurableTaskLogFilesParams{
+	logFile, err := repos.shared.queries.GetDurableTaskLogFiles(ctx, repos.shared.pool.ForShared(), sqlcv1.GetDurableTaskLogFilesParams{
 		Durabletaskids:         []int64{task.ID},
 		Durabletaskinsertedats: []pgtype.Timestamptz{task.InsertedAt},
 		Tenantids:              []uuid.UUID{tenantID},

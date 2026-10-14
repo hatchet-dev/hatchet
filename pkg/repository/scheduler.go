@@ -55,7 +55,7 @@ type AssignmentRepository interface {
 }
 
 type OptimisticSchedulingRepository interface {
-	StartTx(ctx context.Context) (*OptimisticTx, error)
+	StartTx(ctx context.Context, tenantId uuid.UUID) (*OptimisticTx, error)
 
 	TriggerFromEvents(ctx context.Context, tx *OptimisticTx, tenantId uuid.UUID, opts []EventTriggerOpts) ([]*sqlcv1.V1QueueItem, *TriggerFromEventsResult, error)
 
