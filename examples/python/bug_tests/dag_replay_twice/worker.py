@@ -8,6 +8,8 @@ hatchet = Hatchet()
 
 
 class DagReplayTwiceInput(BaseModel):
+    first_fails_on_first_attempt: bool = True
+    first_duration_seconds: float = 1
     second_duration_seconds: float = 1
 
 
@@ -18,9 +20,9 @@ dag_replay_twice = hatchet.workflow(
 
 @dag_replay_twice.task()
 async def first(input: DagReplayTwiceInput, ctx: Context) -> dict[str, int]:
-    await asyncio.sleep(1)
+    await asyncio.sleep(input.first_duration_seconds)
 
-    if ctx.retry_count == 0:
+    if input.first_fails_on_first_attempt and ctx.retry_count == 0:
         raise ValueError("fails on the first attempt and succeeds when replayed")
 
     return {"retry_count": ctx.retry_count}
