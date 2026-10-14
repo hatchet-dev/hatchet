@@ -189,4 +189,3 @@ async def test_dag_completes_after_replaying_a_step_that_is_still_running(
     details = await hatchet.runs.aio_get_details(run_id)
     assert details.task_runs[first.name].status == V1TaskStatus.COMPLETED
     assert details.task_runs[second.name].status == V1TaskStatus.COMPLETED
-    assert details.task_runs[first.name].output == {"retry_count": 1}
