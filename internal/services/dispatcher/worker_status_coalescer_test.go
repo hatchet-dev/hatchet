@@ -3,6 +3,8 @@ package dispatcher
 import (
 	"context"
 	"io"
+	"runtime"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -148,6 +150,83 @@ func TestWorkerStatusCoalescerRunnerLifecycle(t *testing.T) {
 
 	assert.True(t, c.offer(statusOf(statusEntry{"c", 1, 1, 1})), "an offer after the runner finished starts a new one")
 	assert.ElementsMatch(t, []statusEntry{{"c", 1, 1, 1}}, entriesOf(c.next()))
+}
+
+// TestWorkerStatusCoalescerConcurrentHandoff races one producer, as on the stream loop, against
+// the runners it starts, so offers land while a runner is handling a batch and while it is
+// going idle. Every offered entry must be handled and batches must never be handled in parallel.
+func TestWorkerStatusCoalescerConcurrentHandoff(t *testing.T) {
+	const offers = 2_000
+
+	c := newWorkerStatusCoalescer()
+
+	var (
+		runners   sync.WaitGroup
+		mu        sync.Mutex
+		seen      = make(map[statusEntry]struct{}, offers)
+		handling  atomic.Int32
+		overlaps  atomic.Int32
+		runnerRun atomic.Int32
+	)
+
+	runner := func() {
+		defer runners.Done()
+
+		runnerRun.Add(1)
+
+		for {
+			batch := c.next()
+			if batch == nil {
+				return
+			}
+
+			if handling.Add(1) > 1 {
+				overlaps.Add(1)
+			}
+
+			mu.Lock()
+			for _, e := range entriesOf(batch) {
+				seen[e] = struct{}{}
+			}
+			mu.Unlock()
+
+			runtime.Gosched()
+
+			handling.Add(-1)
+		}
+	}
+
+	want := make([]statusEntry, 0, offers)
+
+	for i := range offers {
+		e := statusEntry{task: strconv.Itoa(i), branch: 1, node: 1, invocation: 1}
+		want = append(want, e)
+
+		if c.offer(statusOf(e)) {
+			runners.Add(1)
+			go runner()
+		}
+
+		if i%7 == 0 {
+			runtime.Gosched()
+		}
+	}
+
+	runners.Wait()
+
+	assert.Zero(t, overlaps.Load(), "batches were handled in parallel")
+	assert.Positive(t, runnerRun.Load())
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	assert.Len(t, seen, offers, "every offered entry is handled")
+
+	for _, e := range want {
+		assert.Contains(t, seen, e)
+	}
+
+	assert.Nil(t, c.next(), "nothing is left pending")
 }
 
 func TestWorkerStatusCoalescerCapsBatchesAtWholeTasks(t *testing.T) {
