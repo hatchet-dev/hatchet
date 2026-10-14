@@ -175,6 +175,12 @@ func (s *ServiceImpl) Subscribe(ctx context.Context, req *contracts.SubscribeStr
 		telemetry.AttributeKV{Key: "stream.resumed", Value: cursor.ID > 0},
 	)
 
+	if req.Cursor == nil || *req.Cursor == "" {
+		if cursor, err = s.repo.Streams().TopicStartCursor(ctx, tenantId, namespace, topic); err != nil {
+			return err
+		}
+	}
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -208,6 +214,39 @@ func (s *ServiceImpl) Subscribe(ctx context.Context, req *contracts.SubscribeStr
 	<-ctx.Done()
 
 	return nil
+}
+
+// Reset makes subscribers without a cursor start after the topic's latest
+// message. Subscriptions already open, and any with a cursor, are unaffected.
+func (s *ServiceImpl) Reset(ctx context.Context, req *contracts.ResetStreamTopicRequest) (*contracts.ResetStreamTopicResponse, error) {
+	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
+	tenantId := tenant.ID
+
+	telemetry.WithAttributes(trace.SpanFromContext(ctx),
+		telemetry.AttributeKV{Key: "tenant.id", Value: tenantId},
+		telemetry.AttributeKV{Key: "stream.namespace", Value: req.Namespace},
+		telemetry.AttributeKV{Key: "stream.topic", Value: req.Topic},
+	)
+
+	entitled, err := s.repo.TenantEntitlement().HasEntitlement(ctx, tenantId, v1.EntitlementDurableStreams)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if !entitled {
+		return nil, connect.NewError(connect.CodePermissionDenied, errNotEntitled)
+	}
+
+	if err := v1.ValidateStreamAddress(req.Namespace, req.Topic); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+
+	if err := s.repo.Streams().ResetTopic(ctx, tenantId, req.Namespace, req.Topic); err != nil {
+		return nil, err
+	}
+
+	return &contracts.ResetStreamTopicResponse{}, nil
 }
 
 func (s *ServiceImpl) GetTopicMetadata(ctx context.Context, req *contracts.GetStreamTopicMetadataRequest) (*contracts.StreamTopicMetadata, error) {

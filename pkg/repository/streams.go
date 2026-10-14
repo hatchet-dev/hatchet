@@ -175,6 +175,14 @@ type StreamsRepository interface {
 	// CheckCursorRetained returns a *StreamCursorExpiredError if cursor is
 	// older than the tenant's retention or the oldest partition.
 	CheckCursorRetained(ctx context.Context, tenantId uuid.UUID, cursor StreamCursor) error
+
+	// ResetTopic moves where subscribers without a cursor start to after the
+	// topic's latest stored message. A topic never published to is left as is.
+	ResetTopic(ctx context.Context, tenantId uuid.UUID, namespace, topic string) error
+
+	// TopicStartCursor is where a subscriber without a cursor starts: after the
+	// last reset, else the topic's beginning.
+	TopicStartCursor(ctx context.Context, tenantId uuid.UUID, namespace, topic string) (StreamCursor, error)
 }
 
 // StreamCursorExpiredError: resuming from the cursor would skip deleted messages.
@@ -560,8 +568,9 @@ func (r *streamsRepositoryImpl) GetTopicMetadata(ctx context.Context, tenantId u
 }
 
 func (r *streamsRepositoryImpl) CheckCursorRetained(ctx context.Context, tenantId uuid.UUID, cursor StreamCursor) error {
-	// the zero cursor means "from the oldest retained message", which can't expire
-	if cursor.ID == 0 {
+	// cursors without a time come from the topic's start or a reset, which can't
+	// expire: they mean "from the oldest retained message after this offset"
+	if cursor.CreatedAt.IsZero() {
 		return nil
 	}
 
@@ -588,4 +597,30 @@ func (r *streamsRepositoryImpl) CheckCursorRetained(ctx context.Context, tenantI
 	}
 
 	return nil
+}
+
+// ResetTopic sets the topic's starting offset to its last reserved offset. It waits
+// on in-flight publishes' row lock, so every message up to that offset is stored.
+func (r *streamsRepositoryImpl) ResetTopic(ctx context.Context, tenantId uuid.UUID, namespace, topic string) error {
+	return r.queries.ResetStreamTopic(ctx, r.pool, sqlcv1.ResetStreamTopicParams{
+		Tenantid:  tenantId,
+		Namespace: namespace,
+		Topic:     topic,
+	})
+}
+
+// TopicStartCursor returns a cursor at the topic's starting offset, 0 until it's
+// reset. It has no time, so it never expires.
+func (r *streamsRepositoryImpl) TopicStartCursor(ctx context.Context, tenantId uuid.UUID, namespace, topic string) (StreamCursor, error) {
+	startingOffset, err := r.queries.GetStreamTopicStartingOffset(ctx, r.pool, sqlcv1.GetStreamTopicStartingOffsetParams{
+		Tenantid:  tenantId,
+		Namespace: namespace,
+		Topic:     topic,
+	})
+
+	if err != nil {
+		return StreamCursor{}, err
+	}
+
+	return StreamCursor{Namespace: namespace, Topic: topic, ID: startingOffset}, nil
 }
