@@ -475,7 +475,9 @@ WITH input AS (
         unnest($9::text[]) AS triggering_event_key,
 		unnest($10::text[]) AS batch_key,
 		unnest_nd_1d($11::integer[][]) AS concurrency_max_runs,
-		unnest($12::jsonb[]) AS triggers
+		unnest($12::jsonb[]) AS triggers,
+		unnest($13::jsonb[]) AS dag_parent_task_run_ids,
+		unnest($14::jsonb[]) AS child_task_desired_worker_labels
 )
 
 UPDATE
@@ -493,7 +495,15 @@ SET
     triggering_event_external_id = COALESCE(i.triggering_event_external_id, v1_task.triggering_event_external_id),
     triggering_event_key = COALESCE(i.triggering_event_key, v1_task.triggering_event_key),
     batch_key = COALESCE(NULLIF(BTRIM(i.batch_key), ''), v1_task.batch_key),
-    triggers = COALESCE(i.triggers, v1_task.triggers)
+    triggers = COALESCE(i.triggers, v1_task.triggers),
+    dag_parent_task_run_ids = COALESCE(
+        CASE
+            WHEN i.dag_parent_task_run_ids IS NULL THEN NULL
+            ELSE ARRAY(SELECT jsonb_array_elements_text(i.dag_parent_task_run_ids)::uuid)
+        END,
+        v1_task.dag_parent_task_run_ids
+    ),
+    child_task_desired_worker_labels = COALESCE(i.child_task_desired_worker_labels, v1_task.child_task_desired_worker_labels)
 FROM
     input i
 WHERE
@@ -510,14 +520,16 @@ type ReplayTasksParams struct {
 	// FIXME: pgx doesn't like multi-dimensional arrays with different lengths, these types
 	// probably need to change. Current hack is to group tasks by their step id where these
 	// multi-dimensional arrays are the same length.
-	Concurrencykeys            [][]string      `json:"concurrencykeys"`
-	ConcurrencyMaxRuns         [][]pgtype.Int4 `json:"concurrencyMaxRuns"`
-	InitialStateReasons        []pgtype.Text   `json:"initialStateReasons"`
-	DesiredWorkerLabels        [][]byte        `json:"desiredWorkerLabels"`
-	TriggeringEventExternalIds []*uuid.UUID    `json:"triggeringEventExternalIds"`
-	TriggeringEventKeys        []pgtype.Text   `json:"triggeringEventKeys"`
-	BatchKeys                  []string        `json:"batchKeys"`
-	Triggers                   [][]byte        `json:"triggers"`
+	Concurrencykeys              [][]string      `json:"concurrencykeys"`
+	ConcurrencyMaxRuns           [][]pgtype.Int4 `json:"concurrencyMaxRuns"`
+	InitialStateReasons          []pgtype.Text   `json:"initialStateReasons"`
+	DesiredWorkerLabels          [][]byte        `json:"desiredWorkerLabels"`
+	TriggeringEventExternalIds   []*uuid.UUID    `json:"triggeringEventExternalIds"`
+	TriggeringEventKeys          []pgtype.Text   `json:"triggeringEventKeys"`
+	BatchKeys                    []string        `json:"batchKeys"`
+	Triggers                     [][]byte        `json:"triggers"`
+	DagParentTaskRunIds          [][]byte        `json:"dagParentTaskRunIds"`
+	ChildTaskDesiredWorkerLabels [][]byte        `json:"childTaskDesiredWorkerLabels"`
 }
 
 // NOTE: at this point, we assume we have a lock on tasks and therefor we can update the tasks
@@ -535,6 +547,8 @@ func (q *Queries) ReplayTasks(ctx context.Context, db DBTX, arg ReplayTasksParam
 		arg.BatchKeys,
 		arg.ConcurrencyMaxRuns,
 		arg.Triggers,
+		arg.DagParentTaskRunIds,
+		arg.ChildTaskDesiredWorkerLabels,
 	)
 	if err != nil {
 		return nil, err

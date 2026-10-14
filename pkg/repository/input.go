@@ -39,9 +39,15 @@ func (s *sharedRepository) DesiredWorkerId(t *TaskInput) *uuid.UUID {
 func (s *sharedRepository) newTaskInputFromTaskInputPayload(taskInputPayload []byte) *TaskInput {
 	i := &TaskInput{}
 
-	err := json.Unmarshal(UserInputFromTaskInputPayload(taskInputPayload), &i.Input)
+	userInput := taskInputPayload
 
-	if err != nil {
+	if legacyStepRunData := legacyStepRunDataFromTaskInputPayload(taskInputPayload); legacyStepRunData != nil {
+		userInput = legacyStepRunData.Input
+		i.DagParentTaskRunIds = legacyStepRunData.DagParentTaskRunIds
+		i.DesiredWorkerLabels = legacyStepRunData.DesiredWorkerLabels
+	}
+
+	if err := json.Unmarshal(userInput, &i.Input); err != nil {
 		s.l.Error().Err(err).Msg("failed to unmarshal input bytes")
 	}
 

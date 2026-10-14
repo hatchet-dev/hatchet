@@ -3341,22 +3341,24 @@ func (r *sharedRepository) replayTasks(
 
 		if !ok {
 			params = sqlcv1.ReplayTasksParams{
-				Taskids:                    make([]int64, 0),
-				Taskinsertedats:            make([]pgtype.Timestamptz, 0),
-				Inputs:                     make([][]byte, 0),
-				InitialStates:              make([]string, 0),
-				InitialStateReasons:        make([]pgtype.Text, 0),
-				Concurrencykeys:            make([][]string, 0),
-				ConcurrencyMaxRuns:         make([][]pgtype.Int4, 0),
-				DesiredWorkerLabels:        make([][]byte, 0),
-				TriggeringEventExternalIds: make([]*uuid.UUID, 0),
-				TriggeringEventKeys:        make([]pgtype.Text, 0),
-				BatchKeys:                  make([]string, 0),
-				Triggers:                   make([][]byte, 0),
+				Taskids:                      make([]int64, 0),
+				Taskinsertedats:              make([]pgtype.Timestamptz, 0),
+				Inputs:                       make([][]byte, 0),
+				InitialStates:                make([]string, 0),
+				InitialStateReasons:          make([]pgtype.Text, 0),
+				Concurrencykeys:              make([][]string, 0),
+				ConcurrencyMaxRuns:           make([][]pgtype.Int4, 0),
+				DesiredWorkerLabels:          make([][]byte, 0),
+				TriggeringEventExternalIds:   make([]*uuid.UUID, 0),
+				TriggeringEventKeys:          make([]pgtype.Text, 0),
+				BatchKeys:                    make([]string, 0),
+				Triggers:                     make([][]byte, 0),
+				DagParentTaskRunIds:          make([][]byte, 0),
+				ChildTaskDesiredWorkerLabels: make([][]byte, 0),
 			}
 		}
 
-		var input, triggers []byte
+		var input, triggers, dagParentTaskRunIds, childTaskDesiredWorkerLabels []byte
 
 		if stepRunData, isInputReplaced := externalIdToStepRunData[task.ExternalId]; isInputReplaced {
 			input = stepRunData.userInput()
@@ -3365,9 +3367,23 @@ func (r *sharedRepository) replayTasks(
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal triggers: %w", err)
 			}
+
+			dagParentTaskRunIds, err = stepRunData.dagParentTaskRunIdsColumn()
+
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal dag parent task run ids: %w", err)
+			}
+
+			childTaskDesiredWorkerLabels, err = stepRunData.childTaskDesiredWorkerLabelsColumn()
+
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal child task desired worker labels: %w", err)
+			}
 		}
 
 		params.Triggers = append(params.Triggers, triggers)
+		params.DagParentTaskRunIds = append(params.DagParentTaskRunIds, dagParentTaskRunIds)
+		params.ChildTaskDesiredWorkerLabels = append(params.ChildTaskDesiredWorkerLabels, childTaskDesiredWorkerLabels)
 		params.Taskids = append(params.Taskids, taskIds[i])
 		params.Taskinsertedats = append(params.Taskinsertedats, taskInsertedAts[i])
 		params.Inputs = append(params.Inputs, input)

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -57,6 +58,25 @@ func TestNewV1StepRunDataFromTaskAndInputPayload_ReadsARowStoredBeforeTheColumns
 	assert.JSONEq(t, `{"order_id": 1}`, string(data.Input))
 	assert.Equal(t, map[string]interface{}{"result": float64(2)}, data.Parents["step1"])
 	assert.Equal(t, map[string]interface{}{"region": "eu"}, data.Triggers["filter_payload"])
+}
+
+func TestNewTaskInputFromTaskInputPayload_CarriesTheLegacyColumnsSoAReplayDoesNotLoseThem(t *testing.T) {
+	dagParentTaskRunId := uuid.New()
+	legacyTaskInputPayload := []byte(`{
+		"input": {"order_id": 1},
+		"parents": {},
+		"triggers": {"filter_payload": null},
+		"dag_parent_task_run_ids": ["` + dagParentTaskRunId.String() + `"],
+		"desired_worker_labels": [{"key": "pool"}]
+	}`)
+
+	logger := zerolog.Nop()
+	taskInput := (&sharedRepository{l: &logger}).newTaskInputFromTaskInputPayload(legacyTaskInputPayload)
+
+	assert.Equal(t, map[string]interface{}{"order_id": float64(1)}, taskInput.Input)
+	assert.Equal(t, []uuid.UUID{dagParentTaskRunId}, taskInput.DagParentTaskRunIds)
+	require.Len(t, taskInput.DesiredWorkerLabels, 1)
+	assert.Equal(t, "pool", taskInput.DesiredWorkerLabels[0].Key)
 }
 
 func TestUserInputFromTaskInputPayload_DoesNotUnwrapAUserInputThatHasItsOwnInputKey(t *testing.T) {
