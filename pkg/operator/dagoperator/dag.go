@@ -649,7 +649,7 @@ func (d *dag) taskConsumer(ctx context.Context, resp *v1contracts.DurableTaskRes
 		case conditionKindCancel:
 			ack.task.cancelWatchNodeId = ref.GetNodeId()
 			ack.task.cancelWatchBranchId = ref.GetBranchId()
-		default:
+		case conditionKindWait:
 			ack.task.waitNodeId = ref.GetNodeId()
 			ack.task.waitBranchId = ref.GetBranchId()
 		}
@@ -970,6 +970,7 @@ func (d *dag) evaluateParentConditions(ctx context.Context, t *task) (skip bool,
 			if satisfied {
 				cancelGroups[key.orGroupId] = true
 			}
+		case sqlcv1.V1MatchConditionActionCREATE, sqlcv1.V1MatchConditionActionQUEUE, sqlcv1.V1MatchConditionActionCREATEMATCH:
 		}
 	}
 
@@ -989,9 +990,11 @@ func getMatchConditionActionForWatchKind(kind conditionKind) sqlcv1.V1MatchCondi
 		return sqlcv1.V1MatchConditionActionSKIP
 	case conditionKindCancel:
 		return sqlcv1.V1MatchConditionActionCANCEL
-	default:
+	case conditionKindWait:
 		return sqlcv1.V1MatchConditionActionQUEUE
 	}
+
+	return sqlcv1.V1MatchConditionActionQUEUE
 }
 
 func (d *dag) hasEventOrSleepConditions(t *task, kind conditionKind) bool {
@@ -1101,6 +1104,7 @@ func (d *dag) registerCondition(ctx context.Context, t *task, kind conditionKind
 				},
 				UserEventKey: c.EventKey.String,
 			})
+		case sqlcv1.V1StepMatchConditionKindPARENTOVERRIDE:
 		}
 	}
 

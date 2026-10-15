@@ -29,6 +29,8 @@ const defaultSubjectPrefix = "hatchet.pubsub"
 // for its backed-off poll (up to 45s), and task stream events have no other
 // delivery path, which is why the tenant-stream cutoff matches the rabbitmq
 // backend's per-message TTL.
+//
+//exhaustive:ignore
 var maxMessageAge = map[msgqueue.TopicKind]time.Duration{
 	msgqueue.TopicKindSchedulerPartition: 5 * time.Second,
 	msgqueue.TopicKindTenantStream:       30 * time.Second,

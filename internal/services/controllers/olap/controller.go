@@ -1128,6 +1128,29 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 			event.ErrorMessage = sqlchelpers.TextFromStr(errorMsg)
 		case sqlcv1.V1EventTypeOlapCANCELLED:
 			event.AdditionalEventMessage = sqlchelpers.TextFromStr(eventMessages[i])
+		case sqlcv1.V1EventTypeOlapRETRYING,
+			sqlcv1.V1EventTypeOlapREASSIGNED,
+			sqlcv1.V1EventTypeOlapRETRIEDBYUSER,
+			sqlcv1.V1EventTypeOlapCREATED,
+			sqlcv1.V1EventTypeOlapQUEUED,
+			sqlcv1.V1EventTypeOlapREQUEUEDNOWORKER,
+			sqlcv1.V1EventTypeOlapREQUEUEDRATELIMIT,
+			sqlcv1.V1EventTypeOlapASSIGNED,
+			sqlcv1.V1EventTypeOlapACKNOWLEDGED,
+			sqlcv1.V1EventTypeOlapSENTTOWORKER,
+			sqlcv1.V1EventTypeOlapSLOTRELEASED,
+			sqlcv1.V1EventTypeOlapSTARTED,
+			sqlcv1.V1EventTypeOlapTIMEOUTREFRESHED,
+			sqlcv1.V1EventTypeOlapSCHEDULINGTIMEDOUT,
+			sqlcv1.V1EventTypeOlapTIMEDOUT,
+			sqlcv1.V1EventTypeOlapRATELIMITERROR,
+			sqlcv1.V1EventTypeOlapSKIPPED,
+			sqlcv1.V1EventTypeOlapCOULDNOTSENDTOWORKER,
+			sqlcv1.V1EventTypeOlapDURABLEEVICTED,
+			sqlcv1.V1EventTypeOlapDURABLERESTORING,
+			sqlcv1.V1EventTypeOlapBATCHBUFFERED,
+			sqlcv1.V1EventTypeOlapWAITINGFORBATCH,
+			sqlcv1.V1EventTypeOlapBATCHFLUSHED:
 		}
 
 		opts = append(opts, event)
