@@ -172,7 +172,10 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 						payloadMap[key] = values[0]
 					}
 				}
-			default:
+			case sqlcv1.V1IncomingWebhookSourceNameGITHUB,
+				sqlcv1.V1IncomingWebhookSourceNameSTRIPE,
+				sqlcv1.V1IncomingWebhookSourceNameLINEAR,
+				sqlcv1.V1IncomingWebhookSourceNameSVIX:
 				/* For other webhook sources, form-encoded data is unexpected - return error */
 				return gen.V1WebhookReceive400JSONResponse{
 					Errors: []gen.APIError{
@@ -358,6 +361,7 @@ func checkHMACAlgorithm(algorithm sqlcv1.V1IncomingWebhookHmacAlgorithm) error {
 		if fips140.Enabled() {
 			return fmt.Errorf("HMAC algorithm %s is not permitted in FIPS mode; use SHA256 or SHA512", algorithm)
 		}
+	case sqlcv1.V1IncomingWebhookHmacAlgorithmSHA256, sqlcv1.V1IncomingWebhookHmacAlgorithmSHA512:
 	}
 
 	return nil
@@ -454,6 +458,12 @@ func (w *V1WebhooksService) performChallenge(webhookPayload []byte, webhook sqlc
 			return true, repository.StringPtr(challenge), nil
 		}
 
+		return false, nil, nil
+	case sqlcv1.V1IncomingWebhookSourceNameGENERIC,
+		sqlcv1.V1IncomingWebhookSourceNameGITHUB,
+		sqlcv1.V1IncomingWebhookSourceNameSTRIPE,
+		sqlcv1.V1IncomingWebhookSourceNameLINEAR,
+		sqlcv1.V1IncomingWebhookSourceNameSVIX:
 		return false, nil, nil
 	default:
 		return false, nil, nil

@@ -87,6 +87,7 @@ func callFields(ev *zerolog.Event, spec connect.Spec, peer connect.Peer) *zerolo
 }
 
 func methodType(t connect.StreamType) string {
+	//exhaustive:ignore
 	switch t {
 	case connect.StreamTypeClient:
 		return "client_stream"
@@ -104,6 +105,7 @@ func codeToLevel(err error) zerolog.Level {
 		return zerolog.InfoLevel
 	}
 
+	//exhaustive:ignore
 	switch connect.CodeOf(err) {
 	case connect.CodeNotFound, connect.CodeCanceled, connect.CodeAlreadyExists, connect.CodeInvalidArgument, connect.CodeUnauthenticated:
 		return zerolog.InfoLevel

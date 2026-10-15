@@ -89,6 +89,8 @@ func V1RunStatusFromEventType(eventType sqlcv1.V1TaskEventType) (*V1RunStatus, e
 	case sqlcv1.V1TaskEventTypeFAILED:
 		c := V1RunStatusFailed
 		return &c, nil
+	case sqlcv1.V1TaskEventTypeSIGNALCREATED, sqlcv1.V1TaskEventTypeSIGNALCOMPLETED:
+		return nil, fmt.Errorf("unknown task event type: %v", eventType)
 	default:
 		return nil, fmt.Errorf("unknown task event type: %v", eventType)
 	}
