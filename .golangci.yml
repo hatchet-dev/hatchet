@@ -3,6 +3,7 @@ linters:
   default: none
   enable:
     - errcheck
+    - exhaustive
     - gocritic
     - gosec
     - govet
@@ -12,6 +13,14 @@ linters:
     - unconvert
     - unused
   settings:
+    exhaustive:
+        check:
+          - switch
+          - map
+        default-signifies-exhaustive: false
+        explicit-exhaustive-switch: false
+        explicit-exhaustive-map: false
+        package-scope-only: false
     govet:
       enable-all: true
       disable:
