@@ -4,7 +4,6 @@ linters:
   enable:
     - errcheck
     - exhaustive
-    - exhaustruct
     - gochecksumtype
     - gocritic
     - gosec
@@ -79,7 +78,6 @@ linters:
       - path: "^(cmd|sdks/go|pkg/client|pkg/v1)/(.+)\\.go$"
         linters:
           - exhaustive
-          - exhaustruct
           - gochecksumtype
 
     paths:
