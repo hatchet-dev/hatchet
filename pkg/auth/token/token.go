@@ -193,6 +193,10 @@ func (j *jwtManagerImpl) ValidateTenantToken(ctx context.Context, token string) 
 		return uuid.Nil, uuid.Nil, fmt.Errorf("failed to parse subject claim: %v", err)
 	}
 
+	if dbToken.TenantId == nil || *dbToken.TenantId != parsedSubject {
+		return uuid.Nil, uuid.Nil, fmt.Errorf("subject claim does not match token tenant_id")
+	}
+
 	return parsedSubject, dbToken.ID, nil
 }
 
