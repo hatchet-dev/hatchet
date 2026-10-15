@@ -1,6 +1,7 @@
 import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
 import { Button } from '@/components/v1/ui/button';
 import { Input } from '@/components/v1/ui/input';
+import { Switch } from '@/components/v1/ui/switch';
 import { cn } from '@/lib/utils';
 import {
   ArrowDownIcon,
@@ -12,8 +13,10 @@ import {
 } from '@radix-ui/react-icons';
 import {
   ADDITIONAL_PROPERTY_FLAG,
+  ariaDescribedByIds,
   ArrayFieldItemTemplateProps,
   buttonId,
+  descriptionId,
   getTemplate,
   getUiOptions,
   IconButtonProps,
@@ -225,7 +228,69 @@ function dateWidget(dateOnly: boolean) {
   };
 }
 
+// Booleans get their label on top like every other field, with a switch
+// below it. rjsf's default puts a small checkbox label inline, which reads as
+// a modifier of the field above rather than a field of its own.
+function CheckboxWidget({
+  id,
+  value,
+  label,
+  hideLabel,
+  required,
+  disabled,
+  readonly,
+  autofocus,
+  onChange,
+  onBlur,
+  onFocus,
+  schema,
+  uiSchema,
+  options,
+  registry,
+}: WidgetProps) {
+  const DescriptionFieldTemplate = getTemplate(
+    'DescriptionFieldTemplate',
+    registry,
+    options,
+  );
+  const description = options.description ?? schema.description;
+
+  return (
+    <div>
+      {!hideLabel && (
+        <>
+          <label className="control-label" htmlFor={id}>
+            {label}
+            {required && <span className="required">*</span>}
+          </label>
+          {description && (
+            <DescriptionFieldTemplate
+              id={descriptionId(id)}
+              description={description}
+              schema={schema}
+              uiSchema={uiSchema}
+              registry={registry}
+            />
+          )}
+        </>
+      )}
+      <Switch
+        id={id}
+        checked={value === true}
+        onCheckedChange={(checked) => onChange(checked)}
+        onBlur={() => onBlur(id, value)}
+        onFocus={() => onFocus(id, value)}
+        disabled={disabled || readonly}
+        autoFocus={autofocus}
+        aria-label={hideLabel ? label : undefined}
+        aria-describedby={ariaDescribedByIds(id)}
+      />
+    </div>
+  );
+}
+
 export const widgets: RegistryWidgetsType = {
+  CheckboxWidget,
   DateWidget: dateWidget(true),
   DateTimeWidget: dateWidget(false),
 };
