@@ -43,6 +43,25 @@ const (
 	AdditionalMetadataOperatorAnd AdditionalMetadataOperator = "AND"
 )
 
+// MaxTasksWithPayloads caps how many runs, and separately how many DAG child tasks, a list read
+// loads payloads for. Payloads for a whole page are held in memory and serialized at once. The
+// check runs on the rows a query returned rather than on the requested limit, so a large limit
+// over a sparse window still works.
+const MaxTasksWithPayloads = 1000
+
+var ErrTooManyTasksWithPayloads = fmt.Errorf(
+	"cannot include payloads for a page with more than %d runs, or whose DAG runs have more than %d tasks in total; lower the limit or set include_payloads=false",
+	MaxTasksWithPayloads, MaxTasksWithPayloads,
+)
+
+func checkTasksWithPayloads(includePayloads bool, numTasks int) error {
+	if includePayloads && numTasks > MaxTasksWithPayloads {
+		return ErrTooManyTasksWithPayloads
+	}
+
+	return nil
+}
+
 type ListTaskRunOpts struct {
 	CreatedAfter time.Time
 
@@ -898,6 +917,10 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, 
 		return nil, 0, err
 	}
 
+	if err := checkTasksWithPayloads(opts.IncludePayloads, len(rows)); err != nil {
+		return nil, 0, err
+	}
+
 	if opts.IncludeTotalCount {
 		count, err = r.queries.CountTasks(ctx, tx, countTasksParamsFromListTasksParams(params))
 
@@ -1001,6 +1024,11 @@ func (r *OLAPRepositoryImpl) ListTasksByDAGId(ctx context.Context, tenantId uuid
 	})
 
 	if err != nil {
+		return nil, taskIdToDagExternalId, err
+	}
+
+	// The page limit bounds the DAG runs, not their child tasks.
+	if err := checkTasksWithPayloads(includePayloads, len(tasks)); err != nil {
 		return nil, taskIdToDagExternalId, err
 	}
 
@@ -1373,6 +1401,10 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 
 	workflowRunIds, err = r.queries.FetchWorkflowRunIds(ctx, tx, params)
 	if err != nil {
+		return nil, 0, err
+	}
+
+	if err := checkTasksWithPayloads(opts.IncludePayloads, len(workflowRunIds)); err != nil {
 		return nil, 0, err
 	}
 
