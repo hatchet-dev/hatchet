@@ -13,11 +13,14 @@ import (
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
-func newDagChildStepRunData(t *testing.T, parentExternalIds ...uuid.UUID) *v1.V1StepRunData {
+func newDagChildInput(t *testing.T, taskId int64, parentExternalIds ...uuid.UUID) *dagChildTaskInput {
 	t.Helper()
 
-	return &v1.V1StepRunData{
-		DagParentTaskRunIds: parentExternalIds,
+	return &dagChildTaskInput{
+		payloadKey: v1.PayloadRef[v1.TaskInputShape]{Id: taskId},
+		currInput: &v1.V1StepRunData{
+			DagParentTaskRunIds: parentExternalIds,
+		},
 	}
 }
 
@@ -34,13 +37,16 @@ func parentOutputEvent(t *testing.T, externalId uuid.UUID, stepReadableId string
 	}
 }
 
-// unmarshalParents round-trips the step run data the same way a worker would when it receives the
+// unmarshalParents round-trips inputs[key] the same way a worker would when it receives the
 // dispatched task, confirming resolveDagParentOutputs' effect actually survives serialization.
-func unmarshalParents(t *testing.T, stepRunData *v1.V1StepRunData) map[string]map[string]interface{} {
+func unmarshalParents(t *testing.T, inputs map[v1.PayloadRef[v1.TaskInputShape]]v1.Payload[v1.TaskInputShape], key v1.PayloadRef[v1.TaskInputShape]) map[string]map[string]interface{} {
 	t.Helper()
 
+	raw, ok := inputs[key]
+	require.True(t, ok, "expected inputs to contain an entry for %+v", key)
+
 	var data v1.V1StepRunData
-	require.NoError(t, json.Unmarshal(stepRunData.Bytes(), &data))
+	require.NoError(t, json.Unmarshal(raw.Bytes(), &data))
 
 	return data.Parents
 }
@@ -52,22 +58,24 @@ func TestResolveDagParentOutputs_PopulatesParentsFromBatch(t *testing.T) {
 	// taskX depends on both parentA and parentB; taskY depends only on parentB. This mirrors
 	// what populateTaskData builds: a single dagParentOutputs batch shared across every
 	// dag-child task in the dispatch batch, each pulling out only its own parents.
-	taskX := newDagChildStepRunData(t, parentA, parentB)
-	taskY := newDagChildStepRunData(t, parentB)
+	taskX := newDagChildInput(t, 1, parentA, parentB)
+	taskY := newDagChildInput(t, 2, parentB)
 
 	dagParentOutputs := map[uuid.UUID]*v1.TaskOutputEvent{
 		parentA: parentOutputEvent(t, parentA, "step_a", map[string]int{"random_number": 1}),
 		parentB: parentOutputEvent(t, parentB, "step_b", map[string]int{"random_number": 2}),
 	}
 
-	resolveDagParentOutputs(context.Background(), zerologNop(), []*v1.V1StepRunData{taskX, taskY}, dagParentOutputs)
+	inputs := make(map[v1.PayloadRef[v1.TaskInputShape]]v1.Payload[v1.TaskInputShape])
 
-	xParents := unmarshalParents(t, taskX)
+	resolveDagParentOutputs(context.Background(), zerologNop(), []*dagChildTaskInput{taskX, taskY}, dagParentOutputs, inputs)
+
+	xParents := unmarshalParents(t, inputs, taskX.payloadKey)
 	assert.Equal(t, map[string]interface{}{"random_number": float64(1)}, xParents["step_a"])
 	assert.Equal(t, map[string]interface{}{"random_number": float64(2)}, xParents["step_b"])
 	assert.Len(t, xParents, 2)
 
-	yParents := unmarshalParents(t, taskY)
+	yParents := unmarshalParents(t, inputs, taskY.payloadKey)
 	assert.Equal(t, map[string]interface{}{"random_number": float64(2)}, yParents["step_b"])
 	assert.Len(t, yParents, 1, "taskY never listed parentA, so it must not see step_a's output")
 }
@@ -80,18 +88,20 @@ func TestResolveDagParentOutputs_DoesNotLeakAcrossDifferentDagRuns(t *testing.T)
 	runOneParent := uuid.New()
 	runTwoParent := uuid.New()
 
-	runOneChild := newDagChildStepRunData(t, runOneParent)
-	runTwoChild := newDagChildStepRunData(t, runTwoParent)
+	runOneChild := newDagChildInput(t, 1, runOneParent)
+	runTwoChild := newDagChildInput(t, 2, runTwoParent)
 
 	dagParentOutputs := map[uuid.UUID]*v1.TaskOutputEvent{
 		runOneParent: parentOutputEvent(t, runOneParent, "start", map[string]int{"random_number": 1}),
 		runTwoParent: parentOutputEvent(t, runTwoParent, "start", map[string]int{"random_number": 99}),
 	}
 
-	resolveDagParentOutputs(context.Background(), zerologNop(), []*v1.V1StepRunData{runOneChild, runTwoChild}, dagParentOutputs)
+	inputs := make(map[v1.PayloadRef[v1.TaskInputShape]]v1.Payload[v1.TaskInputShape])
 
-	runOneParents := unmarshalParents(t, runOneChild)
-	runTwoParents := unmarshalParents(t, runTwoChild)
+	resolveDagParentOutputs(context.Background(), zerologNop(), []*dagChildTaskInput{runOneChild, runTwoChild}, dagParentOutputs, inputs)
+
+	runOneParents := unmarshalParents(t, inputs, runOneChild.payloadKey)
+	runTwoParents := unmarshalParents(t, inputs, runTwoChild.payloadKey)
 
 	assert.Equal(t, map[string]interface{}{"random_number": float64(1)}, runOneParents["start"])
 	assert.Equal(t, map[string]interface{}{"random_number": float64(99)}, runTwoParents["start"])
@@ -106,8 +116,8 @@ func TestResolveDagParentOutputs_IsolatesMissingOrUnparsableParents(t *testing.T
 	missingParent := uuid.New()
 	malformedParent := uuid.New()
 
-	affected := newDagChildStepRunData(t, goodParent, missingParent, malformedParent)
-	sibling := newDagChildStepRunData(t, goodParent)
+	affected := newDagChildInput(t, 1, goodParent, missingParent, malformedParent)
+	sibling := newDagChildInput(t, 2, goodParent)
 
 	dagParentOutputs := map[uuid.UUID]*v1.TaskOutputEvent{
 		goodParent: parentOutputEvent(t, goodParent, "good", map[string]int{"random_number": 7}),
@@ -119,15 +129,17 @@ func TestResolveDagParentOutputs_IsolatesMissingOrUnparsableParents(t *testing.T
 		// missingParent intentionally absent, simulating a lookup that never resolved it.
 	}
 
-	resolveDagParentOutputs(context.Background(), zerologNop(), []*v1.V1StepRunData{affected, sibling}, dagParentOutputs)
+	inputs := make(map[v1.PayloadRef[v1.TaskInputShape]]v1.Payload[v1.TaskInputShape])
 
-	affectedParents := unmarshalParents(t, affected)
+	resolveDagParentOutputs(context.Background(), zerologNop(), []*dagChildTaskInput{affected, sibling}, dagParentOutputs, inputs)
+
+	affectedParents := unmarshalParents(t, inputs, affected.payloadKey)
 	assert.Equal(t, map[string]interface{}{"random_number": float64(7)}, affectedParents["good"])
 	assert.NotContains(t, affectedParents, "missing")
 	assert.NotContains(t, affectedParents, "malformed")
 	assert.Len(t, affectedParents, 1)
 
-	siblingParents := unmarshalParents(t, sibling)
+	siblingParents := unmarshalParents(t, inputs, sibling.payloadKey)
 	assert.Equal(t, map[string]interface{}{"random_number": float64(7)}, siblingParents["good"])
 	assert.Len(t, siblingParents, 1, "the malformed/missing parents on a different task must not affect this sibling")
 }

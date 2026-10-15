@@ -51,10 +51,7 @@ WITH input AS (
 		unnest($37::text[]) AS idempotency_key,
 		unnest($38::text[]) AS batch_key,
 		unnest($39::boolean[]) AS is_dag_orchestrator,
-		unnest_nd_1d($40::integer[][]) AS concurrency_max_runs,
-		unnest($41::jsonb[]) AS triggers,
-		unnest($42::jsonb[]) AS dag_parent_task_run_ids,
-		unnest($43::jsonb[]) AS child_task_desired_worker_labels
+		unnest_nd_1d($40::integer[][]) AS concurrency_max_runs
 )
 INSERT INTO v1_task (
     tenant_id,
@@ -97,10 +94,7 @@ INSERT INTO v1_task (
 	idempotency_key,
 	batch_key,
 	is_dag_orchestrator,
-	concurrency_max_runs,
-	triggers,
-	dag_parent_task_run_ids,
-	child_task_desired_worker_labels
+	concurrency_max_runs
 )
 SELECT
     i.tenant_id,
@@ -146,13 +140,7 @@ SELECT
 		ELSE NULLIF(BTRIM(i.batch_key), '')
 	END,
 	i.is_dag_orchestrator,
-	i.concurrency_max_runs,
-	i.triggers,
-	CASE
-		WHEN i.dag_parent_task_run_ids IS NULL THEN NULL
-		ELSE ARRAY(SELECT jsonb_array_elements_text(i.dag_parent_task_run_ids)::uuid)
-	END,
-	i.child_task_desired_worker_labels
+	i.concurrency_max_runs
 FROM
     input i
 LEFT JOIN
@@ -205,9 +193,6 @@ type CreateTasksParams struct {
 	IsDagOrchestrators           []bool               `json:"isDagOrchestrators"`
 	IdempotencyKeys              []pgtype.Text        `json:"idempotencyKeys"`
 	BatchKeys                    []string             `json:"batchKeys"`
-	Triggers                     [][]byte             `json:"triggers"`
-	DagParentTaskRunIds          [][]byte             `json:"dagParentTaskRunIds"`
-	ChildTaskDesiredWorkerLabels [][]byte             `json:"childTaskDesiredWorkerLabels"`
 }
 
 func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParams) ([]*V1Task, error) {
@@ -265,9 +250,6 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 		arg.BatchKeys,
 		arg.IsDagOrchestrators,
 		arg.ConcurrencyMaxRuns,
-		arg.Triggers,
-		arg.DagParentTaskRunIds,
-		arg.ChildTaskDesiredWorkerLabels,
 	)
 	if err != nil {
 		return nil, err
@@ -474,10 +456,7 @@ WITH input AS (
         unnest($8::uuid[]) AS triggering_event_external_id,
         unnest($9::text[]) AS triggering_event_key,
 		unnest($10::text[]) AS batch_key,
-		unnest_nd_1d($11::integer[][]) AS concurrency_max_runs,
-		unnest($12::jsonb[]) AS triggers,
-		unnest($13::jsonb[]) AS dag_parent_task_run_ids,
-		unnest($14::jsonb[]) AS child_task_desired_worker_labels
+		unnest_nd_1d($11::integer[][]) AS concurrency_max_runs
 )
 
 UPDATE
@@ -494,16 +473,7 @@ SET
     desired_worker_label = COALESCE(i.desired_worker_label, v1_task.desired_worker_label),
     triggering_event_external_id = COALESCE(i.triggering_event_external_id, v1_task.triggering_event_external_id),
     triggering_event_key = COALESCE(i.triggering_event_key, v1_task.triggering_event_key),
-    batch_key = COALESCE(NULLIF(BTRIM(i.batch_key), ''), v1_task.batch_key),
-    triggers = COALESCE(i.triggers, v1_task.triggers),
-    dag_parent_task_run_ids = COALESCE(
-        CASE
-            WHEN i.dag_parent_task_run_ids IS NULL THEN NULL
-            ELSE ARRAY(SELECT jsonb_array_elements_text(i.dag_parent_task_run_ids)::uuid)
-        END,
-        v1_task.dag_parent_task_run_ids
-    ),
-    child_task_desired_worker_labels = COALESCE(i.child_task_desired_worker_labels, v1_task.child_task_desired_worker_labels)
+    batch_key = COALESCE(NULLIF(BTRIM(i.batch_key), ''), v1_task.batch_key)
 FROM
     input i
 WHERE
@@ -520,16 +490,13 @@ type ReplayTasksParams struct {
 	// FIXME: pgx doesn't like multi-dimensional arrays with different lengths, these types
 	// probably need to change. Current hack is to group tasks by their step id where these
 	// multi-dimensional arrays are the same length.
-	Concurrencykeys              [][]string      `json:"concurrencykeys"`
-	ConcurrencyMaxRuns           [][]pgtype.Int4 `json:"concurrencyMaxRuns"`
-	InitialStateReasons          []pgtype.Text   `json:"initialStateReasons"`
-	DesiredWorkerLabels          [][]byte        `json:"desiredWorkerLabels"`
-	TriggeringEventExternalIds   []*uuid.UUID    `json:"triggeringEventExternalIds"`
-	TriggeringEventKeys          []pgtype.Text   `json:"triggeringEventKeys"`
-	BatchKeys                    []string        `json:"batchKeys"`
-	Triggers                     [][]byte        `json:"triggers"`
-	DagParentTaskRunIds          [][]byte        `json:"dagParentTaskRunIds"`
-	ChildTaskDesiredWorkerLabels [][]byte        `json:"childTaskDesiredWorkerLabels"`
+	Concurrencykeys            [][]string      `json:"concurrencykeys"`
+	ConcurrencyMaxRuns         [][]pgtype.Int4 `json:"concurrencyMaxRuns"`
+	InitialStateReasons        []pgtype.Text   `json:"initialStateReasons"`
+	DesiredWorkerLabels        [][]byte        `json:"desiredWorkerLabels"`
+	TriggeringEventExternalIds []*uuid.UUID    `json:"triggeringEventExternalIds"`
+	TriggeringEventKeys        []pgtype.Text   `json:"triggeringEventKeys"`
+	BatchKeys                  []string        `json:"batchKeys"`
 }
 
 // NOTE: at this point, we assume we have a lock on tasks and therefor we can update the tasks
@@ -546,9 +513,6 @@ func (q *Queries) ReplayTasks(ctx context.Context, db DBTX, arg ReplayTasksParam
 		arg.TriggeringEventKeys,
 		arg.BatchKeys,
 		arg.ConcurrencyMaxRuns,
-		arg.Triggers,
-		arg.DagParentTaskRunIds,
-		arg.ChildTaskDesiredWorkerLabels,
 	)
 	if err != nil {
 		return nil, err

@@ -3,6 +3,7 @@ package repository
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -100,6 +101,24 @@ func (p Payload[S]) Bytes() []byte {
 
 type AnyPayload interface {
 	Bytes() []byte
+}
+
+func NewTaskInputPayload(data *V1StepRunData) Payload[TaskInputShape] {
+	return NewPayload[TaskInputShape](data.Bytes())
+}
+
+func DecodeTaskInputPayload(p Payload[TaskInputShape]) (*V1StepRunData, error) {
+	if len(p.raw) == 0 {
+		return nil, nil
+	}
+
+	data := &V1StepRunData{}
+
+	if err := json.Unmarshal(p.raw, data); err != nil {
+		return nil, fmt.Errorf("failed to decode task input payload: %w", err)
+	}
+
+	return data, nil
 }
 
 func DecodeTaskCompletionEventPayload(p Payload[TaskCompletionEventShape]) (*TaskOutputEvent, error) {
