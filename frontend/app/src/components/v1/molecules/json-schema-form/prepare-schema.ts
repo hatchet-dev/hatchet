@@ -18,31 +18,96 @@ const isNullType = (value: unknown) => isNode(value) && value.type === 'null';
 
 const PRIMITIVE_TYPES = new Set(['string', 'number', 'integer', 'boolean']);
 
+// Values under these keys are input data rather than schemas, so the walks
+// below must not rewrite them: a default of `{"items": {"type": "string"}}`
+// is a value for the workflow, not a list.
+const LITERAL_KEYS = new Set(['default', 'const', 'enum', 'examples']);
+
+// Values under these keys map names to schemas, so the names themselves are
+// not schema keywords (a property may well be called `default`).
+const SCHEMA_MAP_KEYS = new Set([
+  'properties',
+  'patternProperties',
+  '$defs',
+  'definitions',
+]);
+
+// Returns a copy of `node` with `fn` applied to each direct subschema.
+// `property` is set for the members of `properties`.
+function mapSubschemas(
+  node: SchemaNode,
+  fn: (schema: unknown, property?: string) => unknown,
+): SchemaNode {
+  return Object.fromEntries(
+    Object.entries(node).map(([key, value]) => {
+      if (LITERAL_KEYS.has(key)) {
+        return [key, value];
+      }
+      if (SCHEMA_MAP_KEYS.has(key) && isNode(value)) {
+        return [
+          key,
+          Object.fromEntries(
+            Object.entries(value).map(([name, child]) => [
+              name,
+              fn(child, key === 'properties' ? name : undefined),
+            ]),
+          ),
+        ];
+      }
+      return [key, Array.isArray(value) ? value.map((v) => fn(v)) : fn(value)];
+    }),
+  );
+}
+
+// the exact `X | None` shape; real unions such as `int | str` (or
+// `int | str | None`) are not nullable in this sense
+function isNullable(node: SchemaNode): node is SchemaNode & {
+  anyOf: [unknown, unknown];
+} {
+  return (
+    Array.isArray(node.anyOf) &&
+    node.anyOf.length === 2 &&
+    node.anyOf.filter(isNullType).length === 1
+  );
+}
+
 // pydantic emits `X | None` as `anyOf: [X, {type: null}]`, which rjsf renders
-// as a dropdown of "option 1 / option 2"; render it as a plain optional X
-function collapseNullable(node: unknown): unknown {
-  if (Array.isArray(node)) {
-    return node.map(collapseNullable);
-  }
+// as a dropdown of "option 1 / option 2"; render it as a plain optional X.
+// A required `X | None` (no default in pydantic) keeps the union, since null
+// is a value the workflow must be able to receive and an empty input would
+// only ever send nothing; it starts on null, and buildUiSchema names its
+// options.
+function collapseNullable(node: unknown, required = false): unknown {
   if (!isNode(node)) {
     return node;
   }
 
-  const walked: SchemaNode = Object.fromEntries(
-    Object.entries(node).map(([key, value]) => [key, collapseNullable(value)]),
+  const requiredProperties = Array.isArray(node.required) ? node.required : [];
+  const walked = mapSubschemas(node, (child, property) =>
+    collapseNullable(
+      child,
+      property !== undefined && requiredProperties.includes(property),
+    ),
   );
 
-  const { anyOf, ...rest } = walked;
-  // only the exact `X | None` shape is collapsed; real unions such as
-  // `int | str` (or `int | str | None`) keep rjsf's option picker
-  if (
-    !Array.isArray(anyOf) ||
-    anyOf.length !== 2 ||
-    anyOf.filter(isNullType).length !== 1
-  ) {
+  if (!isNullable(walked)) {
     return walked;
   }
 
+  if (required) {
+    // without a default, rjsf leaves the value undefined when the null option
+    // is picked, and the field is then left out of the input entirely
+    return {
+      ...walked,
+      anyOf: walked.anyOf.map((option) =>
+        isNullType(option)
+          ? { ...(option as SchemaNode), default: null }
+          : option,
+      ),
+    };
+  }
+
+  const { anyOf, ...rest } = walked;
   // `rest` holds the field-level keys (title, description, default) that sit
   // next to the anyOf, and they win over the inner type's own
   const merged: SchemaNode = {
@@ -74,31 +139,27 @@ function resolveRef(node: SchemaNode, root: SchemaNode): SchemaNode {
 
 // rjsf leaves a new array item or map value undefined until typed into, which
 // fails validation ("must be string") before the user has done anything.
-// Mutates in place: only call it on the copy made by collapseNullable.
-function seedStringDefaults(node: unknown): void {
-  if (Array.isArray(node)) {
-    node.forEach(seedStringDefaults);
-    return;
-  }
+function seedStringDefaults(node: unknown): unknown {
   if (!isNode(node)) {
-    return;
+    return node;
   }
+  const walked = mapSubschemas(node, seedStringDefaults);
   for (const key of ['items', 'additionalProperties']) {
-    const child = node[key];
+    const child = walked[key];
     if (!isNode(child) || child.type !== 'string' || 'default' in child) {
       continue;
     }
     // '' is not an allowed value of an enum (e.g. a list of Literals), so
     // those start on their first allowed value instead
+    let seeded: unknown = '';
     if ('const' in child) {
-      child.default = child.const;
+      seeded = child.const;
     } else if (Array.isArray(child.enum) && child.enum.length > 0) {
-      child.default = child.enum[0];
-    } else {
-      child.default = '';
+      seeded = child.enum[0];
     }
+    walked[key] = { ...child, default: seeded };
   }
-  Object.values(node).forEach(seedStringDefaults);
+  return walked;
 }
 
 function withoutLabel(ui: UiSchema, node: SchemaNode): UiSchema {
@@ -154,6 +215,24 @@ function buildUiSchema(
     );
   }
 
+  // a required `X | None` kept by collapseNullable: name its options by type
+  // rather than "Count option 1 / option 2", and drop the inner field's label,
+  // which would repeat the one above the option picker
+  if (isNullable(resolved)) {
+    ui.anyOf = resolved.anyOf.map((option) => {
+      const target = isNode(option) ? resolveRef(option, root) : {};
+      if (isNullType(target)) {
+        return { 'ui:title': 'null' };
+      }
+      const optionUi = buildUiSchema(target, root, depth + 1);
+      return {
+        ...optionUi,
+        'ui:title': String(target.title ?? target.type ?? 'value'),
+        'ui:options': { ...optionUi['ui:options'], label: false },
+      };
+    });
+  }
+
   if (isNode(resolved.items)) {
     const items = resolveRef(resolved.items, root);
     const itemsUi = buildUiSchema(items, root, depth + 1);
@@ -171,9 +250,8 @@ export function prepareSchema(schema: object): {
   schema: RJSFSchema;
   uiSchema: UiSchema;
 } {
-  // collapseNullable returns a copy, so the steps below can mutate it
-  const prepared = collapseNullable(schema) as SchemaNode;
-  seedStringDefaults(prepared);
+  // both passes return copies, so the deletes below leave `schema` alone
+  const prepared = seedStringDefaults(collapseNullable(schema)) as SchemaNode;
 
   // the dialog already names the workflow, and a model docstring is rarely
   // written for the person filling the form

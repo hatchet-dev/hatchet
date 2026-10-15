@@ -1,11 +1,18 @@
 import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
 import { Button } from '@/components/v1/ui/button';
+import { Calendar } from '@/components/v1/ui/calendar';
 import { Input } from '@/components/v1/ui/input';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/v1/ui/popover';
 import { Switch } from '@/components/v1/ui/switch';
 import { cn } from '@/lib/utils';
 import {
   ArrowDownIcon,
   ArrowUpIcon,
+  CalendarIcon,
   CopyIcon,
   Cross2Icon,
   PlusIcon,
@@ -26,7 +33,7 @@ import {
   WrapIfAdditionalTemplateProps,
 } from '@rjsf/utils';
 import { format } from 'date-fns';
-import { ComponentType } from 'react';
+import { ComponentType, useState } from 'react';
 
 function AddButton({ onClick, disabled, className }: IconButtonProps) {
   return (
@@ -193,24 +200,72 @@ function parseDate(value: unknown, dateOnly: boolean): Date | undefined {
   return Number.isNaN(date.getTime()) ? undefined : date;
 }
 
+// pydantic `date` fields: a calendar alone, since a time picked in the
+// date-and-time picker would be dropped when the value is written back
+function DatePicker({
+  date,
+  setDate,
+  label,
+}: {
+  date: Date | undefined;
+  setDate: (date: Date | undefined) => void;
+  label: string;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          className={cn(
+            'h-9 w-full justify-start text-left text-sm font-normal',
+            !date && 'text-muted-foreground',
+          )}
+        >
+          <CalendarIcon className="mr-2 size-4" />
+          {date ? format(date, 'PPP') : label}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0">
+        <Calendar
+          mode="single"
+          selected={date}
+          onSelect={(day) => {
+            setDate(day);
+            setOpen(false);
+          }}
+          initialFocus
+        />
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function dateWidget(dateOnly: boolean) {
   return function DateWidget({ value, onChange, schema }: WidgetProps) {
+    const label = schema.title ?? 'Date';
+    const date = parseDate(value, dateOnly);
+
     return (
       <div className="flex items-center gap-1">
-        <DateTimePicker
-          date={parseDate(value, dateOnly)}
-          setDate={(date) =>
-            onChange(
-              date
-                ? dateOnly
-                  ? format(date, 'yyyy-MM-dd')
-                  : date.toISOString()
-                : undefined,
-            )
-          }
-          label={schema.title ?? 'Date'}
-          triggerClassName="h-9 w-full text-sm"
-        />
+        {dateOnly ? (
+          <DatePicker
+            date={date}
+            setDate={(next) =>
+              onChange(next ? format(next, 'yyyy-MM-dd') : undefined)
+            }
+            label={label}
+          />
+        ) : (
+          <DateTimePicker
+            date={date}
+            setDate={(next) => onChange(next ? next.toISOString() : undefined)}
+            label={label}
+            triggerClassName="h-9 w-full text-sm"
+          />
+        )}
         {value && (
           <Button
             type="button"

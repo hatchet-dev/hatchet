@@ -38,6 +38,26 @@ test('optional fields inside $defs collapse too', () => {
   });
 });
 
+test('required nullable fields keep null as a named option', () => {
+  const anyOf = [{ type: 'integer' }, { type: 'null' }];
+  const { schema, uiSchema } = prepareSchema({
+    type: 'object',
+    properties: { count: { anyOf, title: 'Count' } },
+    required: ['count'],
+  });
+
+  assert.deepEqual(schema.properties?.count, {
+    anyOf: [{ type: 'integer' }, { type: 'null', default: null }],
+    title: 'Count',
+  });
+  assert.deepEqual(uiSchema.count, {
+    anyOf: [
+      { 'ui:title': 'integer', 'ui:options': { label: false } },
+      { 'ui:title': 'null' },
+    ],
+  });
+});
+
 test('unions that are not just nullable are left alone', () => {
   const anyOf = [{ type: 'integer' }, { type: 'string' }];
   const { schema } = prepareSchema({
@@ -140,6 +160,44 @@ test('enum array items and map values default to their first allowed value', () 
   assert.deepEqual(props.tiers.additionalProperties, {
     ...enumItem,
     default: 'us-east-1',
+  });
+});
+
+test('literal values are not rewritten as schemas', () => {
+  const config = {
+    items: { type: 'string' },
+    choice: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+  };
+  const { schema } = prepareSchema({
+    type: 'object',
+    properties: {
+      config: { type: 'object', default: config },
+      mode: { const: config },
+      kind: { enum: [config] },
+    },
+  });
+
+  assert.deepEqual(schema.properties?.config, {
+    type: 'object',
+    default: config,
+  });
+  assert.deepEqual(schema.properties?.mode, { const: config });
+  assert.deepEqual(schema.properties?.kind, { enum: [config] });
+});
+
+test('properties named like keywords are still walked as schemas', () => {
+  const { schema } = prepareSchema({
+    type: 'object',
+    properties: {
+      default: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+      enum: { type: 'array', items: { type: 'string' } },
+    },
+  });
+
+  assert.deepEqual(schema.properties?.default, { type: 'string' });
+  assert.deepEqual(schema.properties?.enum, {
+    type: 'array',
+    items: { type: 'string', default: '' },
   });
 });
 
