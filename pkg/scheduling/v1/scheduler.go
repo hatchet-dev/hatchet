@@ -1461,6 +1461,8 @@ func (s *Scheduler) rankWorkerIds(
 				rank = 1
 			}
 		case sqlcv1.V1StickyStrategyNONE:
+			fallthrough
+		default:
 			if len(labels) > 0 {
 				// Label affinity reads worker metadata from s.workers. Do not
 				// require a poolsByWorker entry — candidates can be listed on
