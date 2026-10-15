@@ -4,6 +4,8 @@ linters:
   enable:
     - errcheck
     - exhaustive
+    - exhaustruct
+    - gochecksumtype
     - gocritic
     - gosec
     - govet
@@ -74,9 +76,11 @@ linters:
         text: "SA1019: cel.Declarations is deprecated"
       - path: "internal/msgqueue/rabbitmq/rabbitmq.go"
         text: "SA1019: msg.Retries is deprecated"
-      - path: "^(cmd/hatchet-cli|sdks/go|pkg/client|pkg/v1)/(.+)\\.go$"
+      - path: "^(cmd|sdks/go|pkg/client|pkg/v1)/(.+)\\.go$"
         linters:
           - exhaustive
+          - exhaustruct
+          - gochecksumtype
 
     paths:
       - third_party$
