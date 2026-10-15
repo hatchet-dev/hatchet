@@ -780,9 +780,23 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId uu
 		retried[r.Id] = struct{}{}
 	}
 
-	// published after FailTasks so the event can say whether this attempt is being retried
+	type attempt struct {
+		id         int64
+		retryCount int32
+	}
+
+	// retried and stale reports are no longer the task's current retry, so only final failures land here
+	failed := make(map[attempt]struct{}, len(res.ReleasedTasks))
+	for _, rt := range res.ReleasedTasks {
+		if rt != nil && rt.IsCurrentRetry {
+			failed[attempt{id: rt.ID, retryCount: rt.RetryCount}] = struct{}{}
+		}
+	}
+
+	// published after FailTasks so the event can say whether it ended this attempt for good
 	for _, msg := range msgs {
-		_, willRetry := retried[msg.TaskId]
+		_, final := failed[attempt{id: msg.TaskId, retryCount: msg.RetryCount}]
+		willRetry := !final
 
 		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
 			tenantId,
