@@ -20,7 +20,6 @@ import (
 var maxConcurrentHandlers = map[msgqueue.TopicKind]int{
 	msgqueue.TopicKindSchedulerPartition: 128,
 	msgqueue.TopicKindTenantStream:       32,
-	msgqueue.TopicKindStreamWake:         defaultMaxConcurrentHandlers,
 }
 
 const defaultMaxConcurrentHandlers = 32

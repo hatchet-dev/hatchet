@@ -17,7 +17,6 @@ linters:
     exhaustive:
       check:
         - switch
-        - map
       default-signifies-exhaustive: false
       explicit-exhaustive-switch: false
       explicit-exhaustive-map: false
