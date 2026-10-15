@@ -167,3 +167,38 @@ func TestUpdateStrategyDuringOpenBatch(t *testing.T) {
 		}
 	}
 }
+
+// A build still inside the lease-handover window is routine and must be distinguishable from one
+// that has run past stuckIndexBuildThreshold, which callers report as a real error.
+func TestRunClassifiesUnfinishedIndexBuild(t *testing.T) {
+	restore := maxIndexBuildWaitPerRun
+	maxIndexBuildWaitPerRun = 10 * time.Millisecond
+	t.Cleanup(func() { maxIndexBuildWaitPerRun = restore })
+
+	cases := []struct {
+		name       string
+		buildAge   time.Duration
+		inProgress bool
+	}{
+		{name: "within_lease_handover", buildAge: 0, inProgress: true},
+		{name: "past_stuck_threshold", buildAge: 2 * stuckIndexBuildThreshold, inProgress: false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c := newTestStrategy(&mockConcurrencyRepo{}, 5)
+			c.buildStartedAt = time.Now().Add(-tc.buildAge)
+
+			res, err := c.Run(context.Background())
+			if err == nil {
+				t.Fatalf("expected an error while the index is still building")
+			}
+			if res != nil {
+				t.Fatalf("expected no results while the index is still building, got %+v", res)
+			}
+			if got := errors.Is(err, ErrIndexBuildInProgress); got != tc.inProgress {
+				t.Fatalf("errors.Is(err, ErrIndexBuildInProgress) = %v, want %v (err: %v)", got, tc.inProgress, err)
+			}
+		})
+	}
+}

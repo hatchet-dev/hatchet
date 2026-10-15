@@ -3,6 +3,7 @@ package concurrency
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"runtime"
 	"sync"
@@ -30,14 +31,25 @@ const (
 	// slowTopicAcquireThreshold is how long acquiring the outbox topic lease may take before
 	// buildIndex logs it: the acquire blocks silently until the previous holder's lease lapses.
 	slowTopicAcquireThreshold = 10 * time.Second
+
+	// stuckIndexBuildThreshold is how long the initial index build may run before Run reports it
+	// as stuck. Every scheduler restart or tenant rebalance makes the new owner wait out the
+	// previous holder's exclusive outbox lease (30s as of pgoutbox v0.4.0), so builds shorter
+	// than this are routine.
+	stuckIndexBuildThreshold = 60 * time.Second
 )
 
 // maxIndexBuildWaitPerRun bounds how long a single Run waits for the initial index build.
 // The caller holds the strategy's in-memory lock for the whole Run, so a build that never
-// finishes (e.g. the outbox topic lease is stuck on another instance) must surface as a
-// repeated, visible error rather than one goroutine blocked forever holding that lock.
-// A var rather than a const so tests can shorten it.
+// finishes (e.g. the outbox topic lease is stuck on another instance) must make Run return
+// rather than block forever holding that lock. Once the build exceeds stuckIndexBuildThreshold,
+// every Run reports it as an error. A var rather than a const so tests can shorten it.
 var maxIndexBuildWaitPerRun = 15 * time.Second
+
+// ErrIndexBuildInProgress is returned by Run when the initial index build has not finished but
+// has been running for less than stuckIndexBuildThreshold. It is routine rather than a failure:
+// the run is skipped and a later Run proceeds once the build completes.
+var ErrIndexBuildInProgress = errors.New("concurrency index is still building")
 
 type ConcurrencyStrategy struct {
 	outbox pgoutbox.Outbox
@@ -261,7 +273,13 @@ func (c *ConcurrencyStrategy) Run(ctx context.Context) (*repository.RunConcurren
 	case <-ctx.Done():
 		return nil, fmt.Errorf("timed out waiting for concurrency index to finish building for topic %s: %w", c.topic, ctx.Err())
 	case <-buildWaitTimer.C:
-		return nil, fmt.Errorf("concurrency index for topic %s is still building after %s; skipping this run", c.topic, time.Since(c.buildStartedAt).Round(time.Second))
+		elapsed := time.Since(c.buildStartedAt)
+
+		if elapsed < stuckIndexBuildThreshold {
+			return nil, fmt.Errorf("%w for topic %s after %s; skipping this run", ErrIndexBuildInProgress, c.topic, elapsed.Round(time.Second))
+		}
+
+		return nil, fmt.Errorf("concurrency index for topic %s is still building after %s, longer than the %ds stuck threshold; skipping this run", c.topic, elapsed.Round(time.Second), int(stuckIndexBuildThreshold.Seconds()))
 	}
 
 	// discard any results left over from a previous aborted Run before we start draining

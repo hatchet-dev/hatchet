@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -260,9 +261,14 @@ func (c *ConcurrencyManager) loopConcurrency(ctx context.Context) {
 			results, err = c.repo.RunConcurrencyStrategy(ctx, c.tenantId, c.strategy)
 		}
 		c.releaseStrategyLocks()
-		if err != nil {
+		switch {
+		case errors.Is(err, concurrency.ErrIndexBuildInProgress):
+			// routine after a restart or rebalance; kept out of the "error running concurrency
+			// strategy" message so alerts on that message stay quiet at any log level
+			c.l.Debug().Ctx(ctx).Err(err).Msg("concurrency index still building, skipping run")
+		case err != nil:
 			logger.ShutdownAware(ctx, c.l, err, zerolog.ErrorLevel).Ctx(ctx).Err(err).Msg("error running concurrency strategy")
-		} else if time.Since(start) > 100*time.Millisecond {
+		case time.Since(start) > 100*time.Millisecond:
 			c.l.Warn().Ctx(ctx).
 				Msgf("concurrency strategy %d took longer than 100ms (%s) to process %d items", c.strategy.ID, time.Since(start), len(results.Queued))
 		}
