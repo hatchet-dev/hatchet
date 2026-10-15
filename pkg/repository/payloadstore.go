@@ -102,10 +102,6 @@ type AnyPayload interface {
 	Bytes() []byte
 }
 
-func NewTaskInputPayload(data *V1StepRunData) Payload[TaskInputShape] {
-	return NewPayload[TaskInputShape](data.Bytes())
-}
-
 func DecodeTaskCompletionEventPayload(p Payload[TaskCompletionEventShape]) (*TaskOutputEvent, error) {
 	return newTaskEventFromBytes(p.raw)
 }

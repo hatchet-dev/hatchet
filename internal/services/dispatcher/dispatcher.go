@@ -781,44 +781,39 @@ func (d *DispatcherImpl) populateTaskData(
 		return nil, err
 	}
 
-	// dagChildInputs holds the tasks whose parents need to be resolved via GetDagParentOutputs
+	taskIdToStepRunData := make(map[int64]*v1.V1StepRunData, len(bulkDatas))
+
+	// dagChildStepRunData holds the tasks whose parents need to be resolved via GetDagParentOutputs
 	// (durable DAG-operator children); we resolve all of them with a single batched lookup below
 	// instead of one DB round trip per task.
-	dagChildInputs := make([]*dagChildTaskInput, 0)
+	dagChildStepRunData := make([]*v1.V1StepRunData, 0)
 	dagParentExternalIdSet := make(map[uuid.UUID]struct{})
 
 	for _, task := range bulkDatas {
-		payloadKey := v1.PayloadRef[v1.TaskInputShape]{
-			Id:         task.ID,
-			InsertedAt: task.InsertedAt,
-			TenantId:   task.TenantID,
-			ExternalId: task.ExternalID,
-		}
-
-		currInput, err := v1.NewV1StepRunDataFromTaskAndInputPayload(task, v1.RetrievePayloadOrFallback(inputs, payloadKey, task.Input).Bytes())
+		stepRunData, err := v1.NewV1StepRunDataFromTaskAndInputPayload(task, taskInputPayloadOrFallback(inputs, task).Bytes())
 
 		if err != nil {
 			d.l.Warn().Ctx(ctx).Err(err).Msg("failed to unmarshal input")
 			continue
 		}
 
-		if len(currInput.DagParentTaskRunIds) > 0 {
-			dagChildInputs = append(dagChildInputs, &dagChildTaskInput{payloadKey: payloadKey, currInput: currInput})
+		taskIdToStepRunData[task.ID] = stepRunData
 
-			for _, parentExternalId := range currInput.DagParentTaskRunIds {
+		if len(stepRunData.DagParentTaskRunIds) > 0 {
+			dagChildStepRunData = append(dagChildStepRunData, stepRunData)
+
+			for _, parentExternalId := range stepRunData.DagParentTaskRunIds {
 				dagParentExternalIdSet[parentExternalId] = struct{}{}
 			}
 		} else if parentData, ok := parentDataMap[task.ID]; ok {
 			parentOutputs, stepRunErrors := splitParentOutputsAndStepRunErrors(ctx, d.l, task.ID, parentData)
 
-			currInput.Parents = parentOutputs
-			currInput.StepRunErrors = stepRunErrors
+			stepRunData.Parents = parentOutputs
+			stepRunData.StepRunErrors = stepRunErrors
 		}
-
-		inputs[payloadKey] = v1.NewTaskInputPayload(currInput)
 	}
 
-	if len(dagChildInputs) > 0 {
+	if len(dagChildStepRunData) > 0 {
 		dagParentExternalIds := make([]uuid.UUID, 0, len(dagParentExternalIdSet))
 
 		for parentExternalId := range dagParentExternalIdSet {
@@ -830,12 +825,12 @@ func (d *DispatcherImpl) populateTaskData(
 		if err != nil {
 			// if we failed to get all of them at once in a batch, do it 1 by 1. Unfortunately results in an N+1 query pattern,
 			// but not much we can do.
-			d.l.Warn().Ctx(ctx).Err(err).Msgf("failed to batch look up dag parent outputs for %d tasks, falling back to per-task lookups", len(dagChildInputs))
+			d.l.Warn().Ctx(ctx).Err(err).Msgf("failed to batch look up dag parent outputs for %d tasks, falling back to per-task lookups", len(dagChildStepRunData))
 
 			dagParentOutputs = make(map[uuid.UUID]*v1.TaskOutputEvent)
 
-			for _, entry := range dagChildInputs {
-				perTaskOutputs, perTaskErr := d.repov1.Tasks().GetDagParentOutputs(ctx, tenantId, entry.currInput.DagParentTaskRunIds)
+			for _, stepRunData := range dagChildStepRunData {
+				perTaskOutputs, perTaskErr := d.repov1.Tasks().GetDagParentOutputs(ctx, tenantId, stepRunData.DagParentTaskRunIds)
 
 				if perTaskErr != nil {
 					d.l.Warn().Ctx(ctx).Err(perTaskErr).Msg("failed to look up dag parent outputs")
@@ -848,7 +843,7 @@ func (d *DispatcherImpl) populateTaskData(
 			}
 		}
 
-		resolveDagParentOutputs(ctx, d.l, dagChildInputs, dagParentOutputs, inputs)
+		resolveDagParentOutputs(ctx, d.l, dagChildStepRunData, dagParentOutputs)
 	}
 
 	runtimes, err := d.repov1.Tasks().ListTaskRuntimes(ctx, tenantId, bulkDatas)
@@ -861,12 +856,13 @@ func (d *DispatcherImpl) populateTaskData(
 	taskIdToData := make(map[int64]*V1TaskWithPayloadAndInvocationCount)
 
 	for _, task := range bulkDatas {
-		input := v1.RetrievePayloadOrFallback(inputs, v1.PayloadRef[v1.TaskInputShape]{
-			Id:         task.ID,
-			InsertedAt: task.InsertedAt,
-			TenantId:   task.TenantID,
-			ExternalId: task.ExternalID,
-		}, task.Input).Bytes()
+		var dispatchedPayload []byte
+
+		if stepRunData, ok := taskIdToStepRunData[task.ID]; ok {
+			dispatchedPayload = stepRunData.Bytes()
+		} else {
+			dispatchedPayload = taskInputPayloadOrFallback(inputs, task).Bytes()
+		}
 
 		invocationCount := invocationCounts[v1.IdInsertedAt{
 			ID:                   task.ID,
@@ -877,13 +873,22 @@ func (d *DispatcherImpl) populateTaskData(
 			&v1.V1TaskWithPayload{
 				V1Task:  task,
 				Runtime: runtimes[task.ID],
-				Payload: input,
+				Payload: dispatchedPayload,
 			},
 			invocationCount,
 		}
 	}
 
 	return taskIdToData, nil
+}
+
+func taskInputPayloadOrFallback(inputs map[v1.PayloadRef[v1.TaskInputShape]]v1.Payload[v1.TaskInputShape], task *sqlcv1.V1Task) v1.Payload[v1.TaskInputShape] {
+	return v1.RetrievePayloadOrFallback(inputs, v1.PayloadRef[v1.TaskInputShape]{
+		Id:         task.ID,
+		InsertedAt: task.InsertedAt,
+		TenantId:   task.TenantID,
+		ExternalId: task.ExternalID,
+	}, task.Input)
 }
 
 func splitParentOutputsAndStepRunErrors(
@@ -919,26 +924,17 @@ func splitParentOutputsAndStepRunErrors(
 	return parentOutputs, stepRunErrors
 }
 
-// dagChildTaskInput is a durable DAG-operator child task awaiting parent output resolution:
-// its own payload key (to write the resolved input back into `inputs`) plus its unmarshaled
-// input (which carries the list of parent external IDs it needs outputs for).
-type dagChildTaskInput struct {
-	payloadKey v1.PayloadRef[v1.TaskInputShape]
-	currInput  *v1.V1StepRunData
-}
-
 func resolveDagParentOutputs(
 	ctx context.Context,
 	l *zerolog.Logger,
-	dagChildInputs []*dagChildTaskInput,
+	dagChildStepRunData []*v1.V1StepRunData,
 	dagParentOutputs map[uuid.UUID]*v1.TaskOutputEvent,
-	inputs map[v1.PayloadRef[v1.TaskInputShape]]v1.Payload[v1.TaskInputShape],
 ) {
-	for _, entry := range dagChildInputs {
+	for _, stepRunData := range dagChildStepRunData {
 		parents := make(map[string]map[string]interface{})
 		stepRunErrors := make(map[string]string)
 
-		for _, parentExternalId := range entry.currInput.DagParentTaskRunIds {
+		for _, parentExternalId := range stepRunData.DagParentTaskRunIds {
 			parentOutput, ok := dagParentOutputs[parentExternalId]
 
 			if !ok {
@@ -960,9 +956,8 @@ func resolveDagParentOutputs(
 			parents[parentOutput.StepReadableID] = outputMap
 		}
 
-		entry.currInput.Parents = parents
-		entry.currInput.StepRunErrors = stepRunErrors
-		inputs[entry.payloadKey] = v1.NewTaskInputPayload(entry.currInput)
+		stepRunData.Parents = parents
+		stepRunData.StepRunErrors = stepRunErrors
 	}
 }
 
