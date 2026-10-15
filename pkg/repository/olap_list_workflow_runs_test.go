@@ -115,7 +115,7 @@ func seedDAGWithFinishedChildren(t *testing.T, ctx context.Context, repo *OLAPRe
 		}
 		f.lastFinishedEventId = event.ExternalID
 
-		_, locksNotAcquired, err = repo.CreateTaskEvents(ctx, f.tenantId, []sqlcv1.CreateTaskEventsOLAPParams{event}, map[uuid.UUID]uuid.UUID{event.ExternalID: dagExternalId}, nil, nil)
+		_, locksNotAcquired, err = repo.CreateTaskEvents(ctx, f.tenantId, []sqlcv1.CreateTaskEventsOLAPParams{event}, map[uuid.UUID]uuid.UUID{event.ExternalID: dagExternalId}, nil, nil, nil)
 		require.NoError(t, err)
 		require.Empty(t, locksNotAcquired)
 	}
