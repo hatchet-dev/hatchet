@@ -37,7 +37,7 @@ const (
 // finishes (e.g. the outbox topic lease is stuck on another instance) must surface as a
 // repeated, visible error rather than one goroutine blocked forever holding that lock.
 // A var rather than a const so tests can shorten it.
-var maxIndexBuildWaitPerRun = 5 * time.Second
+var maxIndexBuildWaitPerRun = 15 * time.Second
 
 type ConcurrencyStrategy struct {
 	outbox pgoutbox.Outbox
