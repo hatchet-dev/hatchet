@@ -781,7 +781,7 @@ func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context,
 			ExternalId: row.ResultPayloadExternalID,
 		}
 
-		payload := payloadOrEmptyJSONObject(payloads[retrieveOpt].Bytes())
+		payload := payloads[retrieveOpt].BytesOrEmptyJSONObject()
 
 		var childTaskErrorMessage *string
 		if row.ChildTaskErrorMessage.Valid {
@@ -1331,7 +1331,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntriesForTasks(
 			return payload.Bytes()
 		}
 
-		return payloadOrEmptyJSONObject(payload.Bytes())
+		return payload.BytesOrEmptyJSONObject()
 	}
 
 	for _, state := range survivingStates {

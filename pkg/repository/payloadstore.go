@@ -99,8 +99,23 @@ func (p Payload[S]) Bytes() []byte {
 	return p.raw
 }
 
+func (p Payload[S]) IsEmpty() bool {
+	trimmed := bytes.TrimSpace(p.raw)
+
+	return len(trimmed) == 0 || bytes.Equal(trimmed, []byte("{}"))
+}
+
+func (p Payload[S]) BytesOrEmptyJSONObject() []byte {
+	if len(p.raw) == 0 {
+		return []byte("{}")
+	}
+
+	return p.raw
+}
+
 type AnyPayload interface {
 	Bytes() []byte
+	IsEmpty() bool
 }
 
 func NewTaskInputPayload(data *V1StepRunData) Payload[TaskInputShape] {
@@ -149,7 +164,7 @@ func (r PayloadRef[S]) retrieveOpts() RetrievePayloadOpts {
 }
 
 func (r PayloadRef[S]) StoreOpts(payload Payload[S]) StorePayloadOpts {
-	return StorePayloadOpts{key: r.retrieveOpts(), payload: payload.raw}
+	return StorePayloadOpts{key: r.retrieveOpts(), payload: payload}
 }
 
 type TypedPayloadStore[S PayloadShape] struct {
@@ -198,7 +213,7 @@ func RetrievePayloadOrFallback[S PayloadShape](payloads map[PayloadRef[S]]Payloa
 
 type StorePayloadOpts struct {
 	key     RetrievePayloadOpts
-	payload []byte
+	payload AnyPayload
 }
 
 type StoreOLAPPayloadOpts struct {
@@ -326,20 +341,6 @@ func payloadUniqueKeyFromRetrieveOpt(opt RetrievePayloadOpts) PayloadUniqueKey {
 	}
 }
 
-func isEmptyPayload(payload []byte) bool {
-	trimmed := bytes.TrimSpace(payload)
-
-	return len(trimmed) == 0 || bytes.Equal(trimmed, []byte("{}"))
-}
-
-func payloadOrEmptyJSONObject(payload []byte) []byte {
-	if len(payload) == 0 {
-		return []byte("{}")
-	}
-
-	return payload
-}
-
 func payloadUniqueKeyFromRow(payload *sqlcv1.V1Payload) PayloadUniqueKey {
 	return PayloadUniqueKey{
 		ID:              payload.ID,
@@ -369,7 +370,7 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 	})
 
 	for _, payload := range payloads {
-		if isEmptyPayload(payload.payload) {
+		if payload.payload.IsEmpty() {
 			continue
 		}
 
@@ -385,7 +386,7 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 		taskInsertedAts = append(taskInsertedAts, payload.key.InsertedAt)
 		payloadTypes = append(payloadTypes, string(payload.key.Type))
 		tenantIds = append(tenantIds, payload.key.TenantId)
-		inlineContents = append(inlineContents, payload.payload)
+		inlineContents = append(inlineContents, payload.payload.Bytes())
 		externalIds = append(externalIds, payload.key.ExternalId)
 	}
 
@@ -417,7 +418,7 @@ func (p *payloadStoreRepositoryImpl) OverwriteExisting(ctx context.Context, tx s
 	params := sqlcv1.OverwritePayloadsParams{}
 
 	for _, payload := range uniquePayloads {
-		if isEmptyPayload(payload.payload) {
+		if payload.payload.IsEmpty() {
 			continue
 		}
 
@@ -425,7 +426,7 @@ func (p *payloadStoreRepositoryImpl) OverwriteExisting(ctx context.Context, tx s
 		params.Insertedats = append(params.Insertedats, payload.key.InsertedAt)
 		params.Externalids = append(params.Externalids, payload.key.ExternalId)
 		params.Types = append(params.Types, string(payload.key.Type))
-		params.Inlinecontents = append(params.Inlinecontents, payload.payload)
+		params.Inlinecontents = append(params.Inlinecontents, payload.payload.Bytes())
 		params.Tenantids = append(params.Tenantids, payload.key.TenantId)
 	}
 

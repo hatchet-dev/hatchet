@@ -2,7 +2,7 @@ package repository
 
 import "testing"
 
-func TestIsEmptyPayload(t *testing.T) {
+func TestPayloadIsEmpty(t *testing.T) {
 	cases := []struct {
 		name    string
 		payload []byte
@@ -20,8 +20,8 @@ func TestIsEmptyPayload(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := isEmptyPayload(tc.payload); got != tc.want {
-				t.Fatalf("isEmptyPayload(%q) = %v, want %v", tc.payload, got, tc.want)
+			if got := NewPayload[TaskInputShape](tc.payload).IsEmpty(); got != tc.want {
+				t.Fatalf("Payload(%q).IsEmpty() = %v, want %v", tc.payload, got, tc.want)
 			}
 		})
 	}

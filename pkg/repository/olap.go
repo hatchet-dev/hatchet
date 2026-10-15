@@ -3386,7 +3386,7 @@ func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, te
 	payloads := make([][]byte, 0, len(putPayloadOpts))
 
 	for _, opt := range putPayloadOpts {
-		if isEmptyPayload(opt.Payload.Bytes()) {
+		if opt.Payload.IsEmpty() {
 			continue
 		}
 
