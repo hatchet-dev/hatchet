@@ -137,6 +137,7 @@ INSERT INTO v1_operator (
     $4::v1_operator_leasing_manager,
     $5::JSONB
 )
+ON CONFLICT (tenant_id, name, kind) DO NOTHING
 RETURNING id, tenant_id, name, kind, leasing_manager, config, worker_id, created_at, updated_at
 `
 
@@ -336,23 +337,6 @@ func (q *Queries) LockOperator(ctx context.Context, db DBTX, arg LockOperatorPar
 	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err
-}
-
-const tenantHasDAGOperator = `-- name: TenantHasDAGOperator :one
-SELECT EXISTS(
-    SELECT 1
-    FROM v1_operator
-    WHERE
-        tenant_id = $1::UUID
-        AND kind = 'DAG'
-) AS has_operator
-`
-
-func (q *Queries) TenantHasDAGOperator(ctx context.Context, db DBTX, tenantid uuid.UUID) (bool, error) {
-	row := db.QueryRow(ctx, tenantHasDAGOperator, tenantid)
-	var has_operator bool
-	err := row.Scan(&has_operator)
-	return has_operator, err
 }
 
 const updateOperator = `-- name: UpdateOperator :one

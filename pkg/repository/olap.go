@@ -43,6 +43,25 @@ const (
 	AdditionalMetadataOperatorAnd AdditionalMetadataOperator = "AND"
 )
 
+// MaxTasksWithPayloads caps how many runs, and separately how many DAG child tasks, a list read
+// loads payloads for. Payloads for a whole page are held in memory and serialized at once. The
+// check runs on the rows a query returned rather than on the requested limit, so a large limit
+// over a sparse window still works.
+const MaxTasksWithPayloads = 1000
+
+var ErrTooManyTasksWithPayloads = fmt.Errorf(
+	"cannot include payloads for a page with more than %d runs, or whose DAG runs have more than %d tasks in total; lower the limit or set include_payloads=false",
+	MaxTasksWithPayloads, MaxTasksWithPayloads,
+)
+
+func checkTasksWithPayloads(includePayloads bool, numTasks int) error {
+	if includePayloads && numTasks > MaxTasksWithPayloads {
+		return ErrTooManyTasksWithPayloads
+	}
+
+	return nil
+}
+
 type ListTaskRunOpts struct {
 	CreatedAfter time.Time
 
@@ -269,7 +288,7 @@ type OLAPRepository interface {
 	ListWorkflowRunDisplayNames(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID) ([]*sqlcv1.ListWorkflowRunDisplayNamesRow, error)
 	ReadTaskRunMetrics(ctx context.Context, tenantId uuid.UUID, opts ReadTaskRunMetricsOpts) ([]TaskRunMetric, error)
 	CreateTasks(ctx context.Context, tenantId uuid.UUID, tasks []*V1TaskWithPayload) (*StatusUpdateResult, map[uuid.UUID]struct{}, error)
-	CreateTaskEvents(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams, eventExternalIdToWorkflowRunId map[uuid.UUID]uuid.UUID, orchestratorUpdates []OrchestratorDAGStatusUpdateOpt, operatorRunIds map[uuid.UUID]struct{}) (*StatusUpdateResult, map[uuid.UUID]struct{}, error)
+	CreateTaskEvents(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams, eventExternalIdToWorkflowRunId map[uuid.UUID]uuid.UUID, retriedEventIds map[uuid.UUID]struct{}, orchestratorUpdates []OrchestratorDAGStatusUpdateOpt, operatorRunIds map[uuid.UUID]struct{}) (*StatusUpdateResult, map[uuid.UUID]struct{}, error)
 	CreateDAGs(ctx context.Context, tenantId uuid.UUID, dags []*DAGWithData) (map[uuid.UUID]struct{}, error)
 	GetTaskPointMetrics(ctx context.Context, tenantId uuid.UUID, startTimestamp *time.Time, endTimestamp *time.Time, bucketInterval time.Duration) ([]*sqlcv1.GetTaskPointMetricsRow, error)
 	UpdateTaskStatuses(ctx context.Context, tenantIds []uuid.UUID) (bool, []UpdateTaskStatusRow, error)
@@ -897,6 +916,10 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, 
 		return nil, 0, err
 	}
 
+	if err := checkTasksWithPayloads(opts.IncludePayloads, len(rows)); err != nil {
+		return nil, 0, err
+	}
+
 	if opts.IncludeTotalCount {
 		count, err = r.queries.CountTasks(ctx, tx, countTasksParamsFromListTasksParams(params))
 
@@ -1000,6 +1023,11 @@ func (r *OLAPRepositoryImpl) ListTasksByDAGId(ctx context.Context, tenantId uuid
 	})
 
 	if err != nil {
+		return nil, taskIdToDagExternalId, err
+	}
+
+	// The page limit bounds the DAG runs, not their child tasks.
+	if err := checkTasksWithPayloads(includePayloads, len(tasks)); err != nil {
 		return nil, taskIdToDagExternalId, err
 	}
 
@@ -1372,6 +1400,10 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 
 	workflowRunIds, err = r.queries.FetchWorkflowRunIds(ctx, tx, params)
 	if err != nil {
+		return nil, 0, err
+	}
+
+	if err := checkTasksWithPayloads(opts.IncludePayloads, len(workflowRunIds)); err != nil {
 		return nil, 0, err
 	}
 
@@ -1987,7 +2019,7 @@ func (r *OLAPRepositoryImpl) tryAcquireAdvisoryLocksForWorkflowRuns(ctx context.
 	return locksNotAcquired, nil
 }
 
-func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams, eventExternalIdToWorkflowRunId map[uuid.UUID]uuid.UUID, orchestratorUpdates []OrchestratorDAGStatusUpdateOpt, operatorRunIds map[uuid.UUID]struct{}) (*StatusUpdateResult, map[uuid.UUID]struct{}, error) {
+func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams, eventExternalIdToWorkflowRunId map[uuid.UUID]uuid.UUID, retriedEventIds map[uuid.UUID]struct{}, orchestratorUpdates []OrchestratorDAGStatusUpdateOpt, operatorRunIds map[uuid.UUID]struct{}) (*StatusUpdateResult, map[uuid.UUID]struct{}, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
 	if err != nil {
 		return nil, nil, err
@@ -2036,7 +2068,10 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId u
 			eventsToWrite = append(eventsToWrite, event)
 		}
 
-		eventsForStatusUpdate = append(eventsForStatusUpdate, event)
+		// a retried attempt's failure must not make the task, or its DAG, terminal
+		if _, retried := retriedEventIds[event.ExternalID]; !retried {
+			eventsForStatusUpdate = append(eventsForStatusUpdate, event)
+		}
 
 		dummyInsertedAt := time.Now().Add(time.Duration(rand.Intn(2*300+1)-300) * time.Millisecond) // #nosec G404 -- non-cryptographic jitter, not security-sensitive
 
@@ -2047,7 +2082,7 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId u
 		})
 	}
 
-	if len(eventsForStatusUpdate) == 0 && len(orchestratorUpdates) == 0 {
+	if len(eventsToWrite) == 0 && len(eventsForStatusUpdate) == 0 && len(orchestratorUpdates) == 0 {
 		return nil, workflowRunIdsOfLocksNotAcquired, nil
 	}
 
@@ -2631,8 +2666,8 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId uuid.UU
 	return workflowRunIdsOfLocksNotAcquired, nil
 }
 
-func (r *OLAPRepositoryImpl) CreateTaskEvents(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams, eventExternalIdToWorkflowRunId map[uuid.UUID]uuid.UUID, orchestratorUpdates []OrchestratorDAGStatusUpdateOpt, operatorRunIds map[uuid.UUID]struct{}) (*StatusUpdateResult, map[uuid.UUID]struct{}, error) {
-	return r.writeTaskEventBatch(ctx, tenantId, events, eventExternalIdToWorkflowRunId, orchestratorUpdates, operatorRunIds)
+func (r *OLAPRepositoryImpl) CreateTaskEvents(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams, eventExternalIdToWorkflowRunId map[uuid.UUID]uuid.UUID, retriedEventIds map[uuid.UUID]struct{}, orchestratorUpdates []OrchestratorDAGStatusUpdateOpt, operatorRunIds map[uuid.UUID]struct{}) (*StatusUpdateResult, map[uuid.UUID]struct{}, error) {
+	return r.writeTaskEventBatch(ctx, tenantId, events, eventExternalIdToWorkflowRunId, retriedEventIds, orchestratorUpdates, operatorRunIds)
 }
 
 func (r *OLAPRepositoryImpl) CreateTasks(ctx context.Context, tenantId uuid.UUID, tasks []*V1TaskWithPayload) (*StatusUpdateResult, map[uuid.UUID]struct{}, error) {

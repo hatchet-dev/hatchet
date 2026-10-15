@@ -983,6 +983,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	// event per DAG, and the query decides from there whether it actually applies.
 	orchestratorUpdates := make([]v1.OrchestratorDAGStatusUpdateOpt, 0)
 	operatorRunIds := make(map[uuid.UUID]struct{})
+	retriedEventIds := make(map[uuid.UUID]struct{})
 
 	for ix, msg := range msgs {
 		taskMeta := taskIdsToMetas[msg.TaskId]
@@ -1000,17 +1001,19 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		readableStatus := olapEventTypeToReadableStatus(msg.EventType)
 
 		if taskMeta.IsDagOrchestrator {
-			orchestratorUpdates = append(orchestratorUpdates, v1.OrchestratorDAGStatusUpdateOpt{
-				DagId:              msg.TaskId,
-				DagInsertedAt:      taskMeta.InsertedAt,
-				ReadableStatus:     readableStatus,
-				RetryCount:         msg.RetryCount,
-				ExternalId:         taskMeta.WorkflowRunID,
-				DisplayName:        taskMeta.DisplayName,
-				WorkflowId:         taskMeta.WorkflowID,
-				WorkflowVersionId:  taskMeta.WorkflowVersionID,
-				AdditionalMetadata: taskMeta.AdditionalMetadata,
-			})
+			if !msg.WillRetry {
+				orchestratorUpdates = append(orchestratorUpdates, v1.OrchestratorDAGStatusUpdateOpt{
+					DagId:              msg.TaskId,
+					DagInsertedAt:      taskMeta.InsertedAt,
+					ReadableStatus:     readableStatus,
+					RetryCount:         msg.RetryCount,
+					ExternalId:         taskMeta.WorkflowRunID,
+					DisplayName:        taskMeta.DisplayName,
+					WorkflowId:         taskMeta.WorkflowID,
+					WorkflowVersionId:  taskMeta.WorkflowVersionID,
+					AdditionalMetadata: taskMeta.AdditionalMetadata,
+				})
+			}
 
 			if msg.StatusOnly {
 				continue
@@ -1033,6 +1036,10 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 
 		eventExternalIdToWorkflowRunId[externalId] = taskMeta.WorkflowRunID
 		externalIdToMsg[externalId] = msg
+
+		if msg.WillRetry {
+			retriedEventIds[externalId] = struct{}{}
+		}
 
 		if taskMeta.WasTriggeredByDagOrchestrator {
 			operatorRunIds[taskMeta.WorkflowRunID] = struct{}{}
@@ -1087,6 +1094,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 			WorkerID:               workerId,
 			AdditionalEventMessage: sqlchelpers.TextFromStr(eventMessages[i]),
 			ExternalID:             eventExternalIds[i],
+			IsDagOrchestrator:      taskIdsToMetas[taskId].IsDagOrchestrator,
 		}
 
 		switch eventTypes[i] {
@@ -1122,7 +1130,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 
 		attempts++
 
-		result, workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateTaskEvents(ctx, tenantId, opts, eventExternalIdToWorkflowRunId, orchestratorUpdates, operatorRunIds)
+		result, workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateTaskEvents(ctx, tenantId, opts, eventExternalIdToWorkflowRunId, retriedEventIds, orchestratorUpdates, operatorRunIds)
 
 		if err != nil {
 			return fmt.Errorf("failed to create task events: %w", err)

@@ -66,6 +66,24 @@ describe('durable-streams-e2e', () => {
     expect(rest.map((e) => decode(e.payload))).toEqual(['three', 'four']);
   }, 30_000);
 
+  it('reset starts new subscribers after the latest message, while existing ones carry on', async () => {
+    const topic = makeTestScope('durable_streams_reset');
+
+    await hatchet.streams.publish(topic, 'before-reset');
+
+    const existing = hatchet.streams.events(topic)[Symbol.asyncIterator]();
+    expect(decode((await existing.next()).value.payload)).toEqual('before-reset');
+
+    await hatchet.streams.reset(topic);
+    await hatchet.streams.publish(topic, 'after-reset');
+
+    const [fresh] = await collect(hatchet.streams.events(topic), 1);
+    expect(decode(fresh.payload)).toEqual('after-reset');
+
+    expect(decode((await existing.next()).value.payload)).toEqual('after-reset');
+    await existing.return?.();
+  }, 30_000);
+
   it('isolates messages by namespace', async () => {
     const topic = makeTestScope('durable_streams_namespace');
     const namespaceA = 'ns-a';

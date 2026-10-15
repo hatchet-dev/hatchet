@@ -576,6 +576,13 @@ CREATE TABLE v1_task (
     -- parallel to concurrency_strategy_ids. A NULL element means that strategy's static
     -- max_concurrency applies.
     concurrency_max_runs INTEGER[],
+    -- The filter payload and wait-condition data the worker receives as `triggers`. NULL when there is none.
+    triggers JSONB,
+    -- Only set on children of a DAG operator run: the task runs whose outputs this task receives as its parents.
+    dag_parent_task_run_ids UUID[],
+    -- Only set on DAG orchestrator tasks: the run's desired worker labels, which the orchestrator passes to the
+    -- child tasks it triggers. Unlike desired_worker_label, this does not affect where the task itself runs.
+    child_task_desired_worker_labels JSONB,
     CONSTRAINT v1_task_pkey PRIMARY KEY (id, inserted_at)
 ) PARTITION BY RANGE(inserted_at);
 
@@ -2336,6 +2343,8 @@ CREATE TABLE v1_stream_topic (
     last_published_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     -- the last offset reserved (see v1_stream_message)
     last_offset BIGINT NOT NULL DEFAULT 0,
+    -- subscribers without a cursor start after this offset (see ResetStreamTopic)
+    starting_offset BIGINT NOT NULL DEFAULT 0,
 
     CONSTRAINT v1_stream_topic_pkey PRIMARY KEY (tenant_id, namespace, topic)
 ) WITH (fillfactor = 80);

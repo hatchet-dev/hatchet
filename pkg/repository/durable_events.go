@@ -683,29 +683,25 @@ func nonDeterminismDetail(opts IngestDurableTaskEventOpts, expectedKind sqlcv1.V
 }
 
 type GetOrCreateLogEntryOpt struct {
-	Kind                 sqlcv1.V1DurableEventLogKind
-	IdempotencyKey       []byte
-	LegacyIdempotencyKey []byte
-	InputPayload         []byte
-	ResultPayload        []byte
-	NodeId               int64
-	BranchId             int64
-	IsSatisfied          bool
-	UserMessage          *string
-	WaitData             string // JSON-encoded WaitData, empty string means no wait data
-	ChildTaskExternalId  uuid.UUID
-	ShouldSkip           bool
+	Kind                sqlcv1.V1DurableEventLogKind
+	IdempotencyKey      []byte
+	InputPayload        []byte
+	ResultPayload       []byte
+	NodeId              int64
+	BranchId            int64
+	IsSatisfied         bool
+	UserMessage         *string
+	WaitData            string // JSON-encoded WaitData, empty string means no wait data
+	IsDagStepTrigger    bool
+	ChildTaskExternalId uuid.UUID
+	ShouldSkip          bool
 	// IsTriggered creates the entry with triggered_at already set: the child's task rows exist
 	// (an in-place replay), so there is no run left for the trigger path to spawn.
 	IsTriggered bool
 }
 
 func (o GetOrCreateLogEntryOpt) idempotencyKeyMatches(existingKey []byte) bool {
-	if bytes.Equal(o.IdempotencyKey, existingKey) {
-		return true
-	}
-
-	return len(o.LegacyIdempotencyKey) > 0 && bytes.Equal(o.LegacyIdempotencyKey, existingKey)
+	return o.IsDagStepTrigger || bytes.Equal(o.IdempotencyKey, existingKey)
 }
 
 type GetOrCreateLogEntryOpts struct {
@@ -820,18 +816,6 @@ func satisfiedOrderPtr(v pgtype.Int8) *int64 {
 }
 
 func (r *durableEventsRepository) createIdempotencyKey(kind sqlcv1.V1DurableEventLogKind, triggerOpts *WorkflowNameTriggerOpts, waitForConditions []CreateExternalSignalConditionOpt) ([]byte, error) {
-	return hashIdempotencyKey(kind, triggerOpts, waitForConditions, true)
-}
-
-func (r *durableEventsRepository) createLegacyDagStepIdempotencyKey(triggerOpts *WorkflowNameTriggerOpts) ([]byte, error) {
-	if !triggerOpts.IsDagStepTrigger {
-		return nil, nil
-	}
-
-	return hashIdempotencyKey(sqlcv1.V1DurableEventLogKindRUN, triggerOpts, nil, false)
-}
-
-func hashIdempotencyKey(kind sqlcv1.V1DurableEventLogKind, triggerOpts *WorkflowNameTriggerOpts, waitForConditions []CreateExternalSignalConditionOpt, includeDagStepIdentity bool) ([]byte, error) {
 	// note: can't use additional metadata here because it's not stable, since we store trace information in it w/ the otel instrumentors
 	dataToHash := []byte(kind)
 
@@ -839,7 +823,7 @@ func hashIdempotencyKey(kind sqlcv1.V1DurableEventLogKind, triggerOpts *Workflow
 		dataToHash = append(dataToHash, triggerOpts.Data...)
 		dataToHash = append(dataToHash, []byte(triggerOpts.WorkflowName)...)
 
-		if includeDagStepIdentity && triggerOpts.IsDagStepTrigger {
+		if triggerOpts.IsDagStepTrigger {
 			if triggerOpts.TargetActionId != nil {
 				dataToHash = append(dataToHash, []byte(*triggerOpts.TargetActionId)...)
 			}
@@ -2103,19 +2087,13 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 				// only index-based dedupe is validated against the existing entry's
 				// idempotency key: an explicit child_key intentionally reuses the
 				// cached child even when the inputs differ
-				var idempotencyKey, legacyIdempotencyKey []byte
+				var idempotencyKey []byte
 				if triggerOpts.ChildKey == nil {
 					key, keyErr := r.createIdempotencyKey(sqlcv1.V1DurableEventLogKindRUN, triggerOpts, nil)
 					if keyErr != nil {
 						return nil, fmt.Errorf("failed to create idempotency key: %w", keyErr), nil
 					}
 					idempotencyKey = key
-
-					legacyKey, legacyKeyErr := r.createLegacyDagStepIdempotencyKey(triggerOpts)
-					if legacyKeyErr != nil {
-						return nil, fmt.Errorf("failed to create legacy idempotency key: %w", legacyKeyErr), nil
-					}
-					legacyIdempotencyKey = legacyKey
 				}
 
 				if _, exists := childExternalIdToTriggerOpts[triggerOpts.ExternalId]; !exists {
@@ -2123,11 +2101,11 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 				}
 
 				innerOpts[i] = GetOrCreateLogEntryOpt{
-					Kind:                 sqlcv1.V1DurableEventLogKindRUN,
-					ChildTaskExternalId:  triggerOpts.ExternalId,
-					IdempotencyKey:       idempotencyKey,
-					LegacyIdempotencyKey: legacyIdempotencyKey,
-					ShouldSkip:           true,
+					Kind:                sqlcv1.V1DurableEventLogKindRUN,
+					ChildTaskExternalId: triggerOpts.ExternalId,
+					IdempotencyKey:      idempotencyKey,
+					IsDagStepTrigger:    triggerOpts.IsDagStepTrigger,
+					ShouldSkip:          true,
 				}
 				continue
 			}
@@ -2150,11 +2128,6 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 				return nil, fmt.Errorf("failed to create idempotency key: %w", keyErr), nil
 			}
 
-			legacyIdempotencyKey, legacyKeyErr := r.createLegacyDagStepIdempotencyKey(triggerOpts)
-			if legacyKeyErr != nil {
-				return nil, fmt.Errorf("failed to create legacy idempotency key: %w", legacyKeyErr), nil
-			}
-
 			// A child that is being cancelled or skipped never runs, so no completion event
 			// will arrive for it (trigger.go creates it directly in a terminal state,
 			// bypassing the match pipeline): its entry is terminal at creation regardless of
@@ -2162,17 +2135,17 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 			isSatisfied := triggerOpts.IsCancelled || triggerOpts.IsSkipped
 
 			innerOpts[i] = GetOrCreateLogEntryOpt{
-				Kind:                 sqlcv1.V1DurableEventLogKindRUN,
-				NodeId:               nodeId,
-				BranchId:             branchId,
-				ChildTaskExternalId:  triggerOpts.ExternalId,
-				IdempotencyKey:       idempotencyKey,
-				LegacyIdempotencyKey: legacyIdempotencyKey,
-				InputPayload:         inputPayload,
-				WaitData:             marshalWaitData(waitDataFromTriggerOpt(triggerOpts)),
-				UserMessage:          triggerOpts.UserMessage,
-				IsSatisfied:          isSatisfied,
-				IsTriggered:          childrenToReplay[triggerOpts.ExternalId],
+				Kind:                sqlcv1.V1DurableEventLogKindRUN,
+				NodeId:              nodeId,
+				BranchId:            branchId,
+				ChildTaskExternalId: triggerOpts.ExternalId,
+				IdempotencyKey:      idempotencyKey,
+				InputPayload:        inputPayload,
+				WaitData:            marshalWaitData(waitDataFromTriggerOpt(triggerOpts)),
+				UserMessage:         triggerOpts.UserMessage,
+				IsDagStepTrigger:    triggerOpts.IsDagStepTrigger,
+				IsSatisfied:         isSatisfied,
+				IsTriggered:         childrenToReplay[triggerOpts.ExternalId],
 			}
 		}
 
