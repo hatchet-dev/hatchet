@@ -96,7 +96,7 @@ func (f operatorDagFixture) applyOrchestratorMonitoringEvents(t *testing.T, ctx 
 		eventExternalIdToWorkflowRunId[e.ExternalID] = f.dagExternalId
 	}
 
-	_, locksNotAcquired, err := repo.CreateTaskEvents(ctx, f.tenantId, events, eventExternalIdToWorkflowRunId, nil, f.operatorRunIds())
+	_, locksNotAcquired, err := repo.CreateTaskEvents(ctx, f.tenantId, events, eventExternalIdToWorkflowRunId, nil, nil, f.operatorRunIds())
 	require.NoError(t, err)
 	require.Empty(t, locksNotAcquired)
 }
@@ -163,7 +163,7 @@ func (f operatorDagFixture) applyChildEvents(t *testing.T, ctx context.Context, 
 		eventExternalIdToWorkflowRunId[e.ExternalID] = f.dagExternalId
 	}
 
-	_, locksNotAcquired, err := repo.CreateTaskEvents(ctx, f.tenantId, events, eventExternalIdToWorkflowRunId, nil, f.operatorRunIds())
+	_, locksNotAcquired, err := repo.CreateTaskEvents(ctx, f.tenantId, events, eventExternalIdToWorkflowRunId, nil, nil, f.operatorRunIds())
 	require.NoError(t, err)
 	require.Empty(t, locksNotAcquired)
 }
@@ -189,7 +189,7 @@ func (f operatorDagFixture) orchestratorUpdate(status sqlcv1.V1ReadableStatusOla
 func (f operatorDagFixture) applyOrchestratorEvents(t *testing.T, ctx context.Context, repo *OLAPRepositoryImpl, updates ...OrchestratorDAGStatusUpdateOpt) *StatusUpdateResult {
 	t.Helper()
 
-	result, locksNotAcquired, err := repo.CreateTaskEvents(ctx, f.tenantId, nil, nil, updates, f.operatorRunIds())
+	result, locksNotAcquired, err := repo.CreateTaskEvents(ctx, f.tenantId, nil, nil, nil, updates, f.operatorRunIds())
 	require.NoError(t, err)
 	require.Empty(t, locksNotAcquired)
 

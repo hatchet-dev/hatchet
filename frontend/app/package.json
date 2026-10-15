@@ -110,13 +110,13 @@
     "eslint-plugin-unused-imports": "^3.2.0",
     "jsdom": "^29.1.1",
     "knip": "^6.41.0",
-    "postcss": "^8.5.28",
-    "prettier": "^3.9.9",
+    "postcss": "^8.5.29",
+    "prettier": "^3.9.10",
     "prettier-plugin-tailwindcss": "^0.8.1",
     "tailwindcss": "^3.4.19",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3",
-    "vite": "^6.4.3"
+    "vite": "^6.4.4"
   },
   "pnpm": {
     "overrides": {

@@ -2498,6 +2498,7 @@ WITH input AS (
         e.run_id, e.retry_count DESC
 ), task_output AS (
     SELECT
+        DISTINCT ON (run_id)
         run_id,
         output,
         external_id,
@@ -2506,6 +2507,8 @@ WITH input AS (
         relevant_events
     WHERE
         event_type = 'FINISHED'
+    ORDER BY
+        run_id, inserted_at DESC
 )
 
 SELECT

@@ -56,7 +56,7 @@
     "@types/node": "^24",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.7",
-    "prettier": "^3.9.9",
+    "prettier": "^3.9.10",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3"
   },
