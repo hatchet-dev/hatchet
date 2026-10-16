@@ -721,6 +721,7 @@ func (s *OLAPSignaler) SignalEventsCreated(ctx context.Context, tenantId uuid.UU
 				EventAdditionalMetadata: opts.AdditionalMetadata,
 				TriggeringWebhookName:   opts.TriggeringWebhookName,
 				EventScope:              opts.Scope,
+				PayloadReferenceId:      opts.PayloadReferenceId,
 			})
 		} else {
 			for _, run := range runs {
@@ -737,6 +738,7 @@ func (s *OLAPSignaler) SignalEventsCreated(ctx context.Context, tenantId uuid.UU
 					EventScope:              opts.Scope,
 					FilterId:                run.FilterId,
 					TriggeringWebhookName:   opts.TriggeringWebhookName,
+					PayloadReferenceId:      opts.PayloadReferenceId,
 				})
 			}
 		}

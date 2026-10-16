@@ -746,7 +746,7 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 	externalIds := make([]uuid.UUID, 0)
 	seenAts := make([]pgtype.Timestamptz, 0)
 	keys := make([]string, 0)
-	payloadstoInsert := make([][]byte, 0)
+	payloadReferenceIds := make([]*uuid.UUID, 0)
 	additionalMetadatas := make([][]byte, 0)
 	scopes := make([]pgtype.Text, 0)
 	triggeringWebhookNames := make([]pgtype.Text, 0)
@@ -785,7 +785,7 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 			externalIds = append(externalIds, payload.EventExternalId)
 			seenAts = append(seenAts, sqlchelpers.TimestamptzFromTime(payload.EventSeenAt))
 			keys = append(keys, payload.EventKey)
-			payloadstoInsert = append(payloadstoInsert, payload.EventPayload)
+			payloadReferenceIds = append(payloadReferenceIds, payload.PayloadReferenceId)
 			additionalMetadatas = append(additionalMetadatas, payload.EventAdditionalMetadata)
 			scopes = append(scopes, sqlchelpers.TextFromMaybeStr(payload.EventScope))
 			triggeringWebhookNames = append(triggeringWebhookNames, sqlchelpers.TextFromMaybeStr(payload.TriggeringWebhookName))
@@ -800,14 +800,12 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 		Additionalmetadatas:    additionalMetadatas,
 		Scopes:                 scopes,
 		TriggeringWebhookNames: triggeringWebhookNames,
+		PayloadReferenceIds:    payloadReferenceIds,
 	}
 
 	if err := tc.repo.OLAP().BulkCreateEventsAndTriggers(
 		ctx,
-		v1.BulkCreateEventsAndTriggersParams{
-			BulkCreateEventsOLAPParams: &bulkCreateEventParams,
-			Payloads:                   payloadstoInsert,
-		},
+		bulkCreateEventParams,
 		bulkCreateTriggersParams,
 	); err != nil {
 		return err

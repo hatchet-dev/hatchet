@@ -618,7 +618,8 @@ WITH input AS (
         t.latest_retry_count,
         t.dag_id,
         t.is_durable,
-        t.idempotency_key
+        t.idempotency_key,
+        t.payload_reference_id
     FROM
         v1_tasks_olap t
     JOIN
@@ -756,7 +757,8 @@ SELECT
     o.output_event_external_id AS output_event_external_id,
     o.output_event_inserted_at AS output_event_inserted_at,
     COALESCE(t.is_durable, FALSE) AS is_durable,
-    t.idempotency_key
+    t.idempotency_key,
+    t.payload_reference_id
 FROM
     tasks t
 LEFT JOIN
@@ -1494,7 +1496,9 @@ WITH input AS (
         d.additional_metadata,
         d.workflow_version_id,
         d.parent_task_external_id,
-        d.idempotency_key
+        d.idempotency_key,
+        d.payload_reference_id,
+        d.is_dag_operator
     FROM input i
     JOIN v1_runs_olap r ON (i.id, i.inserted_at) = (r.id, r.inserted_at)
     JOIN v1_dags_olap d ON (r.id, r.inserted_at) = (d.id, d.inserted_at)
@@ -1664,7 +1668,9 @@ WITH runs AS (
         d.input AS input,
         d.additional_metadata AS additional_metadata,
         d.workflow_version_id AS workflow_version_id,
-        d.parent_task_external_id AS parent_task_external_id
+        d.parent_task_external_id AS parent_task_external_id,
+        d.payload_reference_id AS payload_reference_id,
+        d.is_dag_operator AS is_dag_operator
     FROM
         v1_lookup_table_olap lt
     JOIN
@@ -1691,7 +1697,9 @@ WITH runs AS (
         t.input AS input,
         t.additional_metadata AS additional_metadata,
         t.workflow_version_id AS workflow_version_id,
-        NULL::UUID AS parent_task_external_id
+        NULL::UUID AS parent_task_external_id,
+        t.payload_reference_id AS payload_reference_id,
+        FALSE AS is_dag_operator
     FROM
         v1_lookup_table_olap lt
     JOIN
@@ -1773,7 +1781,7 @@ LEFT JOIN output_event_external_id o ON true
 ORDER BY r.inserted_at DESC;
 
 -- name: GetWorkflowRunIdFromDagIdInsertedAt :one
-SELECT external_id
+SELECT external_id, payload_reference_id, is_dag_operator
 FROM v1_dags_olap
 WHERE
     id = @dagId::bigint

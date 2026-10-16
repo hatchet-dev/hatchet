@@ -70,6 +70,7 @@ type CreatedEventTriggerPayloadSingleton struct {
 	EventScope              *string    `json:"event_scope,omitempty"`
 	FilterId                *uuid.UUID `json:"filter_id,omitempty"`
 	TriggeringWebhookName   *string    `json:"triggering_webhook_name,omitempty"`
+	PayloadReferenceId      *uuid.UUID `json:"payload_reference_id,omitempty"`
 }
 
 type CreatedEventTriggerPayload struct {

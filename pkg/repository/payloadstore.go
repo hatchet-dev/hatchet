@@ -542,11 +542,12 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 
 	optsToPayload := make(map[RetrievePayloadOpts][]byte)
 	originalOptsByKey := make(map[PayloadUniqueKey]RetrievePayloadOpts, len(opts))
-	originalOptsByReferenceId := make(map[uuid.UUID]RetrievePayloadOpts)
+	// several rows can share one referenced payload, so each reference id maps to every opt that asked for it
+	originalOptsByReferenceId := make(map[uuid.UUID][]RetrievePayloadOpts)
 
 	for _, opt := range opts {
 		if opt.PayloadReferenceId != nil {
-			originalOptsByReferenceId[*opt.PayloadReferenceId] = opt
+			originalOptsByReferenceId[*opt.PayloadReferenceId] = append(originalOptsByReferenceId[*opt.PayloadReferenceId], opt)
 			continue
 		}
 
@@ -563,11 +564,16 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 			continue
 		}
 
-		opt, ok := originalOptsByKey[payloadUniqueKeyFromRow(payload)]
+		if referrers, ok := originalOptsByReferenceId[payload.ExternalID]; ok {
+			for _, opt := range referrers {
+				foundKeys[payloadUniqueKeyFromRetrieveOpt(opt)] = struct{}{}
+				optsToPayload[opt] = payload.InlineContent
+			}
 
-		if !ok {
-			opt, ok = originalOptsByReferenceId[payload.ExternalID]
+			continue
 		}
+
+		opt, ok := originalOptsByKey[payloadUniqueKeyFromRow(payload)]
 
 		if !ok {
 			opt = RetrievePayloadOpts{

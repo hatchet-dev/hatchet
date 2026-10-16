@@ -451,6 +451,7 @@ func (s *sharedRepository) appendOperatorDAGs(
 				WorkflowID:           tuple.workflowId,
 				WorkflowVersionID:    tuple.workflowVersionId,
 				ParentTaskExternalID: tuple.parentExternalId,
+				PayloadReferenceID:   task.PayloadReferenceID,
 			},
 			Input:                tuple.input,
 			AdditionalMetadata:   tuple.additionalMetadata,
