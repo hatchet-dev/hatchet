@@ -74,6 +74,7 @@ func (t *V1WorkflowRunsService) V1WorkflowRunCreate(ctx echo.Context, request ge
 
 	if err != nil {
 		if e, ok := status.FromError(err); ok {
+			//exhaustive:ignore
 			switch e.Code() { // nolint: gocritic
 			case codes.InvalidArgument:
 				return gen.V1WorkflowRunCreate400JSONResponse(

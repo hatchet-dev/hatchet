@@ -135,6 +135,10 @@ func MonitoringEventMessageFromActionEvent(tenantId uuid.UUID, taskId int64, ret
 		payload.EventType = sqlcv1.V1EventTypeOlapFAILED
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_STARTED:
 		payload.EventType = sqlcv1.V1EventTypeOlapSTARTED
+	case contracts.StepActionEventType_STEP_EVENT_TYPE_UNKNOWN,
+		contracts.StepActionEventType_STEP_EVENT_TYPE_ACKNOWLEDGED,
+		contracts.StepActionEventType_STEP_EVENT_TYPE_CANCELLED:
+		return nil, fmt.Errorf("unknown event type: %s", request.EventType.String())
 	default:
 		return nil, fmt.Errorf("unknown event type: %s", request.EventType.String())
 	}

@@ -613,6 +613,8 @@ func (c *ConcurrencyStrategy) decide() decideFn {
 		return decideCancelQueuedExceptNewest
 	case sqlcv1.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTOLDEST:
 		return decideCancelQueuedExceptOldest
+	case sqlcv1.V1ConcurrencyStrategyNONE:
+		panic("unknown concurrency strategy")
 	default:
 		panic("unknown concurrency strategy")
 	}

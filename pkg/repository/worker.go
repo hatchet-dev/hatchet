@@ -625,6 +625,8 @@ func workerSDKFromContract(sdk contracts.SDKS) (sqlcv1.NullWorkerSDKS, error) {
 		language = sqlcv1.WorkerSDKSTYPESCRIPT
 	case contracts.SDKS_RUBY:
 		language = sqlcv1.WorkerSDKSRUBY
+	case contracts.SDKS_UNKNOWN:
+		return sqlcv1.NullWorkerSDKS{}, fmt.Errorf("invalid sdk: %s", sdk)
 	default:
 		return sqlcv1.NullWorkerSDKS{}, fmt.Errorf("invalid sdk: %s", sdk)
 	}

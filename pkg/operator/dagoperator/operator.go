@@ -211,6 +211,8 @@ func (d *DAGOperator) HandleAction(ctx context.Context, action *contracts.Assign
 		defer release()
 
 		return d.cancelRun(ctx, action)
+	case contracts.ActionType_START_GET_GROUP_KEY, contracts.ActionType_START_BATCH:
+		fallthrough
 	default:
 		release := d.RecordTask()
 		defer release()

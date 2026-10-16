@@ -1259,8 +1259,7 @@ func (r *sharedRepository) triggerWorkflowsCore(
 								condition.Expression.String,
 								condition.Action,
 							))
-						default:
-							// PARENT_OVERRIDE is another kind, but it isn't processed here
+						case sqlcv1.V1StepMatchConditionKindPARENTOVERRIDE:
 							continue
 						}
 					}
