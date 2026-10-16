@@ -577,6 +577,13 @@ CREATE TABLE v1_task (
     -- max_concurrency applies.
     concurrency_max_runs INTEGER[],
     payload_reference_id UUID,
+    -- The filter payload and wait-condition data the worker receives as `triggers`. NULL when there is none.
+    triggers JSONB,
+    -- Only set on children of a DAG operator run: the task runs whose outputs this task receives as its parents.
+    dag_parent_task_run_ids UUID[],
+    -- Only set on DAG orchestrator tasks: the run's desired worker labels, which the orchestrator passes to the
+    -- child tasks it triggers. Unlike desired_worker_label, this does not affect where the task itself runs.
+    child_task_desired_worker_labels JSONB,
     CONSTRAINT v1_task_pkey PRIMARY KEY (id, inserted_at)
 ) PARTITION BY RANGE(inserted_at);
 

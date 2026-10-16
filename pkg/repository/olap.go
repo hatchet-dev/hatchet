@@ -743,11 +743,7 @@ func (r *OLAPRepositoryImpl) ReadWorkflowRun(ctx context.Context, workflowRunExt
 	}
 
 	if row.IsDagOperator {
-		inputPayload, err = dagInputFromOrchestratorTaskInput(inputPayload)
-
-		if err != nil {
-			return nil, err
-		}
+		inputPayload = dagInputFromOrchestratorTaskInput(inputPayload)
 	}
 
 	var outputPayload []byte
@@ -860,11 +856,7 @@ func (r *OLAPRepositoryImpl) ReadTaskRunData(ctx context.Context, tenantId uuid.
 	if !exists {
 		input = taskRun.Input
 	} else if isOperatorDAG {
-		input, err = dagInputFromOrchestratorTaskInput(input)
-
-		if err != nil {
-			return nil, emptyUUID, err
-		}
+		input = dagInputFromOrchestratorTaskInput(input)
 	}
 
 	var output []byte
@@ -1568,11 +1560,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 			if !exists {
 				inputPayload = dag.Input
 			} else if dag.IsDagOperator {
-				inputPayload, err = dagInputFromOrchestratorTaskInput(inputPayload)
-
-				if err != nil {
-					return nil, 0, err
-				}
+				inputPayload = dagInputFromOrchestratorTaskInput(inputPayload)
 			}
 
 			retryCount := int(dag.RetryCount)
@@ -3447,18 +3435,12 @@ func runInputPayloadKind(kind sqlcv1.V1RunKind, isDagOperator bool) PayloadKind 
 	return PayloadKindTaskInput
 }
 
-func dagInputFromOrchestratorTaskInput(raw []byte) ([]byte, error) {
-	stepRunData, err := DecodeTaskInputPayload(NewPayload[TaskInputShape](raw))
-
-	if err != nil {
-		return nil, fmt.Errorf("error decoding orchestrator task input: %w", err)
+func dagInputFromOrchestratorTaskInput(raw []byte) []byte {
+	if len(raw) == 0 {
+		return nil
 	}
 
-	if stepRunData == nil {
-		return nil, nil
-	}
-
-	return stepRunData.InputBytes(), nil
+	return UserInputFromTaskInputPayload(raw)
 }
 
 func (r *OLAPRepositoryImpl) ReadPayload(ctx context.Context, tenantId uuid.UUID, opt ReadOLAPPayloadOpts) ([]byte, error) {

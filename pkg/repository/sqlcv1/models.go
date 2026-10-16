@@ -3942,6 +3942,9 @@ type V1Task struct {
 	IsDagOrchestrator            bool               `json:"is_dag_orchestrator"`
 	ConcurrencyMaxRuns           []pgtype.Int4      `json:"concurrency_max_runs"`
 	PayloadReferenceID           *uuid.UUID         `json:"payload_reference_id"`
+	Triggers                     []byte             `json:"triggers"`
+	DagParentTaskRunIds          []uuid.UUID        `json:"dag_parent_task_run_ids"`
+	ChildTaskDesiredWorkerLabels []byte             `json:"child_task_desired_worker_labels"`
 }
 
 type V1TaskEvent struct {
