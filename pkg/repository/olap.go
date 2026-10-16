@@ -305,7 +305,7 @@ type OLAPRepository interface {
 	GetTaskTimings(ctx context.Context, tenantId, workflowRunId uuid.UUID, depth int32) ([]*sqlcv1.PopulateTaskRunDataRow, map[uuid.UUID]int32, error)
 
 	// Events queries
-	BulkCreateEventsAndTriggers(ctx context.Context, events sqlcv1.BulkCreateEventsOLAPParams, triggers []EventTriggersFromExternalId) error
+	BulkCreateEventsAndTriggers(ctx context.Context, events sqlcv1.BulkCreateEventsOLAPParams, eventPayloadCopies []StoreOLAPPayloadOpts, triggers []EventTriggersFromExternalId) error
 	ListEvents(ctx context.Context, opts sqlcv1.ListEventsParams) ([]*EventWithPayload, *int64, error)
 	GetEvent(ctx context.Context, externalId uuid.UUID) (*sqlcv1.V1EventsOlap, error)
 	GetEventWithPayload(ctx context.Context, externalId, tenantId uuid.UUID) (*EventWithPayload, error)
@@ -2466,6 +2466,7 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 	}
 
 	params := sqlcv1.CreateTasksOLAPParams{}
+	inputCopiesToStore := make([]StoreOLAPPayloadOpts, 0)
 	minInsertedAt := pgtype.Timestamptz{}
 
 	var initiallyWrittenAsTerminalRows []UpdateTaskStatusRow
@@ -2473,6 +2474,14 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 	for _, task := range tasks {
 		if _, notAcquired := workflowRunIdsOfLocksNotAcquired[task.WorkflowRunID]; notAcquired {
 			continue
+		}
+
+		if len(task.Payload) > 0 {
+			inputCopiesToStore = append(inputCopiesToStore, StoreOLAPPayloadOpts{
+				ExternalId: task.ExternalID,
+				InsertedAt: task.InsertedAt,
+				Payload:    NewPayload[TaskInputShape](task.Payload),
+			})
 		}
 
 		params.Tenantids = append(params.Tenantids, task.TenantID)
@@ -2531,6 +2540,10 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 
 	err = r.queries.CreateTasksOLAP(ctx, tx, params)
 	if err != nil {
+		return nil, nil, err
+	}
+
+	if err := r.PutPayloads(ctx, tx, tenantId, inputCopiesToStore...); err != nil {
 		return nil, nil, err
 	}
 
@@ -2620,11 +2633,20 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId uuid.UU
 	}
 
 	params := sqlcv1.CreateDAGsOLAPOverwriteParams{}
+	inputCopiesToStore := make([]StoreOLAPPayloadOpts, 0)
 	selfMappingParams := sqlcv1.CreateDagToTaskOLAPSelfMappingsParams{}
 
 	for _, dag := range dags {
 		if _, notAcquired := workflowRunIdsOfLocksNotAcquired[dag.ExternalID]; notAcquired {
 			continue
+		}
+
+		if len(dag.Input) > 0 {
+			inputCopiesToStore = append(inputCopiesToStore, StoreOLAPPayloadOpts{
+				ExternalId: dag.ExternalID,
+				InsertedAt: dag.InsertedAt,
+				Payload:    NewPayload[DAGInputShape](dag.Input),
+			})
 		}
 
 		if dag.IsOperatorRun {
@@ -2653,6 +2675,10 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId uuid.UU
 
 	err = r.queries.CreateDAGsOLAP(ctx, tx, params)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := r.PutPayloads(ctx, tx, tenantId, inputCopiesToStore...); err != nil {
 		return nil, err
 	}
 
@@ -2908,7 +2934,7 @@ type EventTriggersFromExternalId struct {
 	FilterId        *uuid.UUID         `json:"filter_id"`
 }
 
-func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, events sqlcv1.BulkCreateEventsOLAPParams, triggers []EventTriggersFromExternalId) error {
+func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, events sqlcv1.BulkCreateEventsOLAPParams, eventPayloadCopies []StoreOLAPPayloadOpts, triggers []EventTriggersFromExternalId) error {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
 
 	if err != nil {
@@ -2961,6 +2987,32 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 
 	if err != nil {
 		return fmt.Errorf("error creating event triggers: %v", err)
+	}
+
+	eventPayloadCopiesByExternalId := make(map[uuid.UUID]StoreOLAPPayloadOpts, len(eventPayloadCopies))
+
+	for _, payloadCopy := range eventPayloadCopies {
+		if payloadCopy.Payload != nil {
+			eventPayloadCopiesByExternalId[payloadCopy.ExternalId] = payloadCopy
+		}
+	}
+
+	eventPayloadCopiesByTenant := make(map[uuid.UUID][]StoreOLAPPayloadOpts)
+
+	for _, event := range insertedEvents {
+		if event == nil {
+			continue
+		}
+
+		if payloadCopy, ok := eventPayloadCopiesByExternalId[event.ExternalID]; ok {
+			eventPayloadCopiesByTenant[event.TenantID] = append(eventPayloadCopiesByTenant[event.TenantID], payloadCopy)
+		}
+	}
+
+	for tenantId, copies := range eventPayloadCopiesByTenant {
+		if err := r.PutPayloads(ctx, tx, tenantId, copies...); err != nil {
+			return fmt.Errorf("error storing event payload copies: %v", err)
+		}
 	}
 
 	if err := commit(ctx); err != nil {

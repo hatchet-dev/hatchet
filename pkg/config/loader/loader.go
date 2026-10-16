@@ -437,6 +437,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		EnableWindowSizeOptimization:         scf.PayloadStore.EnableWindowSizeOptimization,
 		WrapTaskInputInStepRunData:           scf.PayloadStore.WrapTaskInputInStepRunData,
 		WriteInputPayloadPerRun:              scf.PayloadStore.WriteInputPayloadPerRun,
+		WriteInputPayloadCopiesToOLAP:        scf.PayloadStore.WriteInputPayloadCopiesToOLAP,
 	}
 
 	statusUpdateOpts := repov1.StatusUpdateBatchSizeLimits{

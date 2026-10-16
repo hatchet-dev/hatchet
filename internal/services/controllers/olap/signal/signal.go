@@ -60,11 +60,13 @@ func (s *OLAPSignaler) SignalDAGsCreated(ctx context.Context, tenantId uuid.UUID
 	// notify that tasks have been created
 	// TODO: make this transactionally safe?
 	for _, dag := range dags {
-		// OLAP reads the input from the core payload store, so the bytes stay off the queue
-		dagWithoutInput := *dag
-		dagWithoutInput.Input = nil
+		dagForOLAP := *dag
 
-		msg, err := tasktypes.CreatedDAGMessage(tenantId, tasktypes.CreatedDAGPayload{DAGWithData: &dagWithoutInput})
+		if !s.repo.Payloads().WritesInputPayloadCopiesToOLAP() {
+			dagForOLAP.Input = nil
+		}
+
+		msg, err := tasktypes.CreatedDAGMessage(tenantId, tasktypes.CreatedDAGPayload{DAGWithData: &dagForOLAP})
 
 		if err != nil {
 			s.l.Err(err).Ctx(ctx).Msg("could not create message for olap queue")
@@ -111,11 +113,13 @@ func (s *OLAPSignaler) SignalTasksCreated(ctx context.Context, tenantId uuid.UUI
 			continue
 		}
 
-		// OLAP reads the input from the core payload store, so the bytes stay off the queue
-		taskWithoutPayload := *task
-		taskWithoutPayload.Payload = nil
+		taskForOLAP := *task
 
-		msg, err := tasktypes.CreatedTaskMessage(tenantId, tasktypes.CreatedTaskPayload{V1TaskWithPayload: &taskWithoutPayload})
+		if !s.repo.Payloads().WritesInputPayloadCopiesToOLAP() {
+			taskForOLAP.Payload = nil
+		}
+
+		msg, err := tasktypes.CreatedTaskMessage(tenantId, tasktypes.CreatedTaskPayload{V1TaskWithPayload: &taskForOLAP})
 
 		if err != nil {
 			s.l.Err(err).Ctx(ctx).Msg("could not create message for olap queue")
@@ -719,11 +723,18 @@ func (s *OLAPSignaler) SignalEventsCreated(ctx context.Context, tenantId uuid.UU
 			seenAt = time.Now().UTC()
 		}
 
+		var eventPayloadForOLAP []byte
+
+		if s.repo.Payloads().WritesInputPayloadCopiesToOLAP() {
+			eventPayloadForOLAP = opts.Data
+		}
+
 		if len(runs) == 0 {
 			eventTriggerOpts = append(eventTriggerOpts, tasktypes.CreatedEventTriggerPayloadSingleton{
 				EventSeenAt:             seenAt,
 				EventKey:                opts.Key,
 				EventExternalId:         opts.ExternalId,
+				EventPayload:            eventPayloadForOLAP,
 				EventAdditionalMetadata: opts.AdditionalMetadata,
 				TriggeringWebhookName:   opts.TriggeringWebhookName,
 				EventScope:              opts.Scope,
@@ -739,6 +750,7 @@ func (s *OLAPSignaler) SignalEventsCreated(ctx context.Context, tenantId uuid.UU
 					EventSeenAt:             seenAt,
 					EventKey:                opts.Key,
 					EventExternalId:         opts.ExternalId,
+					EventPayload:            eventPayloadForOLAP,
 					EventAdditionalMetadata: opts.AdditionalMetadata,
 					EventScope:              opts.Scope,
 					FilterId:                run.FilterId,

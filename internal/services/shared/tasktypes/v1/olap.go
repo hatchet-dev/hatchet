@@ -65,6 +65,7 @@ type CreatedEventTriggerPayloadSingleton struct {
 	EventSeenAt             time.Time  `json:"event_seen_at"`
 	EventKey                string     `json:"event_key"`
 	EventExternalId         uuid.UUID  `json:"event_id"`
+	EventPayload            []byte     `json:"event_payload,omitempty"`
 	EventAdditionalMetadata []byte     `json:"event_additional_metadata,omitempty"`
 	EventScope              *string    `json:"event_scope,omitempty"`
 	FilterId                *uuid.UUID `json:"filter_id,omitempty"`

@@ -262,6 +262,7 @@ type PayloadStoreRepository interface {
 	SignalCompletedMatchData() TypedPayloadStore[SignalCompletedMatchDataShape]
 	DurableEventLogEntryData() TypedPayloadStore[DurableEventLogEntryDataShape]
 	DurableEventLogEntryResultData() TypedPayloadStore[DurableEventLogEntryResultDataShape]
+	WritesInputPayloadCopiesToOLAP() bool
 	RetrieveFromExternal(ctx context.Context, opts ...RetrieveFromExternalOpts) (map[RetrieveFromExternalOpts][]byte, error)
 	OverwriteExternalStore(store ExternalStore)
 	ExternalCutoverProcessInterval() time.Duration
@@ -286,6 +287,7 @@ type payloadStoreRepositoryImpl struct {
 	externalCutoverBatchSize             int32
 	externalCutoverNumConcurrentOffloads int32
 	enableWindowSizeOptimization         bool
+	writeInputPayloadCopiesToOLAP        bool
 }
 
 type PayloadStoreRepositoryOpts struct {
@@ -296,6 +298,7 @@ type PayloadStoreRepositoryOpts struct {
 	EnableWindowSizeOptimization         bool
 	WrapTaskInputInStepRunData           bool
 	WriteInputPayloadPerRun              bool
+	WriteInputPayloadCopiesToOLAP        bool
 }
 
 func NewPayloadStoreRepository(
@@ -316,7 +319,12 @@ func NewPayloadStoreRepository(
 		externalCutoverBatchSize:             opts.ExternalCutoverBatchSize,
 		externalCutoverNumConcurrentOffloads: opts.ExternalCutoverNumConcurrentOffloads,
 		enableWindowSizeOptimization:         opts.EnableWindowSizeOptimization,
+		writeInputPayloadCopiesToOLAP:        opts.WriteInputPayloadCopiesToOLAP,
 	}
+}
+
+func (p *payloadStoreRepositoryImpl) WritesInputPayloadCopiesToOLAP() bool {
+	return p.writeInputPayloadCopiesToOLAP
 }
 
 type PayloadUniqueKey struct {
