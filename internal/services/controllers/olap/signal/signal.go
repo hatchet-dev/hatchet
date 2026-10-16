@@ -60,8 +60,11 @@ func (s *OLAPSignaler) SignalDAGsCreated(ctx context.Context, tenantId uuid.UUID
 	// notify that tasks have been created
 	// TODO: make this transactionally safe?
 	for _, dag := range dags {
-		dagCp := dag
-		msg, err := tasktypes.CreatedDAGMessage(tenantId, tasktypes.CreatedDAGPayload{DAGWithData: dagCp})
+		// OLAP reads the input from the core payload store, so the bytes stay off the queue
+		dagWithoutInput := *dag
+		dagWithoutInput.Input = nil
+
+		msg, err := tasktypes.CreatedDAGMessage(tenantId, tasktypes.CreatedDAGPayload{DAGWithData: &dagWithoutInput})
 
 		if err != nil {
 			s.l.Err(err).Ctx(ctx).Msg("could not create message for olap queue")
@@ -108,7 +111,11 @@ func (s *OLAPSignaler) SignalTasksCreated(ctx context.Context, tenantId uuid.UUI
 			continue
 		}
 
-		msg, err := tasktypes.CreatedTaskMessage(tenantId, tasktypes.CreatedTaskPayload{V1TaskWithPayload: task})
+		// OLAP reads the input from the core payload store, so the bytes stay off the queue
+		taskWithoutPayload := *task
+		taskWithoutPayload.Payload = nil
+
+		msg, err := tasktypes.CreatedTaskMessage(tenantId, tasktypes.CreatedTaskPayload{V1TaskWithPayload: &taskWithoutPayload})
 
 		if err != nil {
 			s.l.Err(err).Ctx(ctx).Msg("could not create message for olap queue")
@@ -717,7 +724,6 @@ func (s *OLAPSignaler) SignalEventsCreated(ctx context.Context, tenantId uuid.UU
 				EventSeenAt:             seenAt,
 				EventKey:                opts.Key,
 				EventExternalId:         opts.ExternalId,
-				EventPayload:            opts.Data,
 				EventAdditionalMetadata: opts.AdditionalMetadata,
 				TriggeringWebhookName:   opts.TriggeringWebhookName,
 				EventScope:              opts.Scope,
@@ -733,7 +739,6 @@ func (s *OLAPSignaler) SignalEventsCreated(ctx context.Context, tenantId uuid.UU
 					EventSeenAt:             seenAt,
 					EventKey:                opts.Key,
 					EventExternalId:         opts.ExternalId,
-					EventPayload:            opts.Data,
 					EventAdditionalMetadata: opts.AdditionalMetadata,
 					EventScope:              opts.Scope,
 					FilterId:                run.FilterId,
