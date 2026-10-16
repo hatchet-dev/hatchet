@@ -8,7 +8,7 @@ from examples.concurrency_cancel_queued_except_newest.worker import (
     WorkflowInput,
     concurrency_cancel_queued_except_newest_workflow,
 )
-from hatchet_sdk import Hatchet, V1TaskStatus, WorkflowRunRef
+from hatchet_sdk import Hatchet, RunStatus, WorkflowRunRef
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -49,7 +49,7 @@ async def test_cancel_queued_except_newest_keeps_only_the_newest_queued_run(
     ## wait for the olap repo to catch up
     await asyncio.sleep(5)
     runs = sorted(
-        hatchet.runs.list(additional_metadata={"test_run_id": test_run_id}).rows,
+        hatchet.runs.list(additional_metadata={"test_run_id": test_run_id}),
         key=lambda r: int((r.additional_metadata or {}).get("i", "0")),
     )
 
@@ -58,11 +58,11 @@ async def test_cancel_queued_except_newest_keeps_only_the_newest_queued_run(
     occupying, *queued = runs
     *superseded, newest_queued = queued
 
-    assert occupying.status == V1TaskStatus.COMPLETED
+    assert occupying.status == RunStatus.COMPLETED
 
     assert (newest_queued.additional_metadata or {}).get("i") == "10"
-    assert newest_queued.status == V1TaskStatus.COMPLETED
-    assert all(r.status == V1TaskStatus.CANCELLED for r in superseded)
+    assert newest_queued.status == RunStatus.COMPLETED
+    assert all(r.status == RunStatus.CANCELLED for r in superseded)
 
     ## the newest queued run should be pulled off the queue as soon as the occupying run frees
     ## the slot, not after some later polling cycle

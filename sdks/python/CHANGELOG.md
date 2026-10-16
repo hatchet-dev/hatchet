@@ -5,6 +5,96 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - Unreleased
+
+V2 removes everything that was deprecated in V1 and tightens the types that were previously coerced. See the [V2 migration guide](https://docs.hatchet.run/v1/migration-guide-python-v2) for before and after examples of every breaking change, including a quick reference table suitable for handing to a coding agent.
+
+### Removed
+
+- The `run_no_wait`, `aio_run_no_wait`, `run_many_no_wait`, and `aio_run_many_no_wait` methods. Pass `wait_for_result=False` to `run`, `aio_run`, `run_many`, and `aio_run_many` instead.
+- The `options` parameter on `run`, `aio_run`, `schedule`, `aio_schedule`, and `create_bulk_run_item`, and on `events.push` and `events.aio_push`. Pass the fields as keyword arguments instead. `PushEventOptions` and `BulkPushEventOptions` have been removed.
+- The `key` parameter on `create_bulk_run_item`. Use `child_key` instead.
+- The `parent_id`, `parent_step_run_id`, `child_index`, `key`, and `namespace` fields on `TriggerWorkflowOptions` and `ScheduleTriggerWorkflowOptions`, and the `key` field on `WorkflowRunTriggerConfig`.
+- `EmptyModel`. Tasks and workflows with no input validator now receive `None` as their input, and running a task that returns nothing gives `None`.
+- The `ConcurrencyLimitStrategy`, `StickyStrategy`, `RateLimitDuration`, and `MCPProvider` enums. Pass the member name as a string instead (for example `"CANCEL_IN_PROGRESS"`, `"SOFT"`, `"MINUTE"`, `"CLAUDE"`).
+- String durations such as `"10s"`. `execution_timeout`, `schedule_timeout`, `ctx.refresh_timeout`, `ctx.aio_sleep_for`, and `SleepCondition` only accept a `timedelta`.
+- Integer priorities. Every `priority` and `default_priority` parameter and field only accepts a `Priority`.
+- `dict` values for `desired_worker_labels`, and integer `comparator` values on `DesiredWorkerLabel`. Use a `list[DesiredWorkerLabel]` and `WorkerLabelComparator`.
+- `dict` values for the `labels` argument to `hatchet.worker`. Use a `list[WorkerLabel]`.
+- Synchronous durable tasks. Declaring one raises a `TypeError`.
+- `ctx.step_run_id`, `ctx.workflow_input`, `ctx.input`, `ctx.done`, `ctx.exit_flag`, `ctx.aio_task_output`, `ctx.fetch_task_run_error`, and `ctx.worker`, along with the `WorkerContext` class. Use `ctx.task_run_id`, the task's `input` argument, `ctx.is_cancelled`, `ctx.task_output`, `ctx.get_task_run_error`, `ctx.worker_id`, `ctx.worker_labels`, and `ctx.upsert_worker_labels`.
+- The `raise_on_error` parameter on `ctx.log` and `ctx.aio_log`.
+- Internal `Context` properties: `data`, `action`, `dispatcher_client`, `admin_client`, `event_client`, `runs_client`, `log_sender`, and `durable_event_listener`.
+- `Hatchet.get_current_context()`. Use the `hatchet.current_context` property.
+- The `debug` and `client` parameters on the `Hatchet` constructor, and the internal `hatchet_sdk.client.Client` class. Set `HATCHET_CLIENT_DEBUG=true` and pass `config=ClientConfig(...)` instead.
+- The `hatchet.listener` and `hatchet.dispatcher` properties, and the `log`, `stream`, and `aio_stream` methods on the events client.
+- `runs.list_with_pagination` and `runs.aio_list_with_pagination`. `runs.list` and `runs.aio_list` now paginate internally.
+- The `stream` method on `WorkflowRunRef` and `TaskRunRef`. Use `hatchet.runs.aio_subscribe_to_stream(ref.workflow_run_id)`.
+- The `create_traceparent`, `parse_carrier_from_metadata`, and `inject_traceparent_into_metadata` functions in `hatchet_sdk.opentelemetry.instrumentor`. `HatchetInstrumentor` has propagated the traceparent automatically since 1.11.0.
+- `WorkerStartOptions` and the `options` parameter on `Worker.start`, and `Worker.register_workflow_from_opts`.
+- Internal `Worker`, `Workflow`, and `Task` attributes, including `worker.config`, `worker.slot_config`, `worker.labels`, `worker.action_registry`, `workflow.config`, `workflow.client`, and `task.fn`.
+- The `StepRunEventType` and `WorkflowRunEventType` exports, and the `StepRunEvent` class. `runs.aio_subscribe_to_stream` yields plain `str` chunks, so there are no event types to match on.
+- The `event_timestamp` field on `Event` and its `eventTimestamp` and `additionalMetadata` aliases. Use `seen_at` and `additional_metadata`.
+- The `hatchet_sdk.labels` and `hatchet_sdk.rate_limit` module aliases.
+- Top-level `hatchet_sdk` exports of the V0 REST models, the pagination wrapper types, and `CreateWorkflowVersionOpts`. Import REST models from `hatchet_sdk.clients.rest.models`.
+- The `PARENT_ID`, `PARENT_STEP_RUN_ID`, and `CHILD_INDEX` members of `OTelAttribute`.
+- The `V1TaskStatus` export from `hatchet_sdk`. Use `RunStatus` instead.
+- `RunStatus.from_proto`, `RunStatus.from_v1_task_status`, and `RunStatus.to_v1_task_status`.
+- The `TriggerWorkflowOptions`, `ScheduleTriggerWorkflowOptions`, `RunEventListener`, and `WorkflowConfig` exports from `hatchet_sdk`. These are internal now that the `options` parameters are gone.
+
+### Changed
+
+- Python 3.11 or newer is required.
+- `hatchet.event` has been renamed to `hatchet.events`, and `hatchet.cron` has been renamed to `hatchet.crons`, consistent with the other (plural) feature clients.
+- `runs.subscribe_to_stream` has been renamed to `runs.aio_subscribe_to_stream`, consistent with the `aio_` prefix on every other async method.
+- `ConcurrencyExpression` has been renamed to `ConcurrencyStrategy`, and its `limit_strategy` field has been renamed to `strategy`.
+- `TriggerWorkflowOptions.desired_worker_label` has been renamed to `desired_worker_labels` and only accepts a `list[DesiredWorkerLabel]`.
+- Every `list` and `aio_list` method on the feature clients returns a plain `list` instead of a paginated wrapper, so there is no `.rows` to unwrap.
+- `ctx.aio_wait_for` returns a `list[SleepResult | EventWaitResult | OrGroupResult]` instead of a `dict`, and `ctx.aio_wait_for_event` returns an `EventWaitResult` whose `.payload` holds the event data.
+- `ctx.priority` now returns `Priority | None` instead of `int | None`.
+- `from hatchet_sdk import Event` now resolves to the SDK's own event class instead of the V0 REST model. Every method on the events client returns it: `push`, `bulk_push`, `get`, and `list`, along with their `aio_` variants. `get` and `list` previously returned the `V1Event` REST model, so read `event.id` instead of `event.metadata.id`.
+- `Event.event_id` has been renamed to `Event.id`.
+- `Event.payload` and `Event.additional_metadata` are now dictionaries instead of JSON strings, so there is no need to call `json.loads` on them. `additional_metadata` is an empty dictionary when the event has none.
+- `BulkPushEventWithMetadata.key` is now required.
+- `workflow.input_validator` and `workflow.input_validator_type` return `None` for a workflow with no input validator.
+- `Worker.register_workflow` now raises on registration failure instead of calling `sys.exit(1)`.
+- `HealthcheckConfig.event_loop_block_threshold_seconds` has been renamed to `event_loop_block_threshold`, and its environment variable to `HATCHET_CLIENT_WORKER_HEALTHCHECK_EVENT_LOOP_BLOCK_THRESHOLD`.
+- `ClientTLSConfig.strategy` is now typed as `Literal["tls", "mtls", "none"]`.
+- String-mixin enums (`RunStatus`, `HTTPMethod`, `SlotType`, `OTelAttribute`, and others) are now `enum.StrEnum` subclasses, so `str(member)` returns the raw value.
+- `grpcio-tools` is no longer a runtime dependency.
+- `RunStatus` is now the only run status enum. Every status the SDK accepts or returns is a `RunStatus`, including the `status` field on REST models such as `V1TaskSummary` and the `statuses` filters on `runs.list` and `events.list`.
+- The events client module has moved from `hatchet_sdk.clients.events` to `hatchet_sdk.features.events`, alongside the other feature clients.
+- The `parent_step_run_id` parameter on `scheduled.bulk_delete` and `scheduled.aio_bulk_delete` has been renamed to `parent_task_external_id`.
+- The `STEP_NAME`, `STEP_ID`, and `STEP_RUN_ID` members of `OTelAttribute` have been renamed to `TASK_NAME`, `TASK_ID`, and `TASK_RUN_ID`. The span attribute names they produce are unchanged.
+- Worker log messages and error messages refer to tasks instead of steps.
+- `NonRetryableException` has been renamed to `NonRetryableError`, and `RetryAfterException` has been renamed to `RetryAfterError`.
+- `ctx.task_run_errors` returns a `dict[str, TaskRunError]` instead of a dictionary of serialized error strings, and no longer logs an error when there are no upstream errors.
+- `BulkCancelReplayOpts` has been renamed to `BulkCancelReplayOptions`, and the `opts` parameter on `runs.bulk_cancel`, `runs.bulk_replay`, and `workers.update` has been renamed to `options`.
+- The `run_at` parameter on `schedule` and `aio_schedule` has been renamed to `trigger_at`, matching the scheduled runs client and the `trigger_at` field on scheduled runs.
+- Run ID parameters now use one name per kind of ID. `runs.get_result`, `runs.get_details`, and the `get_run_ref`, `get_result`, and `aio_get_result` methods on a standalone task take `workflow_run_id`. `runs.reset_durable_task` takes `task_run_id` instead of `task_external_id`. `runs.cancel` and `runs.replay` keep `run_id`, since they accept either kind.
+- `limit` and `offset` on `runs.list` and `runs.aio_list` now apply to the whole time range instead of to each day within it, and leaving `limit` unset returns every matching run instead of the first 50 per day.
+- `from hatchet_sdk import Workflow` now resolves to the workflow class returned by `hatchet.workflow()` instead of the REST model, and the `WorkflowVersion` REST model is no longer exported from `hatchet_sdk`.
+- Passing an input when running, scheduling, or bulk running a task or workflow that has no `input_validator` raises a `TypeError` instead of silently dropping the input. Declare `input_validator=dict[str, Any]` to accept untyped input.
+- `schedule_timeout`, `execution_timeout`, and `retries` on `Workflow.task`, `Workflow.durable_task`, and `Workflow.batch_task` default to `None`, which falls back to the workflow's `task_defaults` and then to the built-in defaults (5 minutes, 60 seconds, and 0). An explicit value that equals a built-in default, such as `retries=0`, is no longer replaced by `task_defaults`.
+- `IdempotencyCollisionError` and `BulkTriggerIdempotencyCollisionError` now carry a message naming the colliding runs.
+- Scheduling a run with a timezone-aware, non-UTC datetime no longer logs a warning. The datetime was already converted correctly.
+
+### Added
+
+- `result` and `aio_result` on `WorkflowRunRef` and `TaskRunRef` accept an optional `timeout` (a `timedelta`) and raise `TimeoutError` when it elapses. `timeout` is the first positional parameter of `result`, so pass `poll_interval` by keyword.
+- `SleepResult`, `EventWaitResult`, `OrGroupResult`, `HTTPMethod`, and `V1TaskSummary` are exported from `hatchet_sdk`.
+- `durable_task` decorators accept `slot_cost`, controlling how many durable slots the task consumes.
+- `hatchet.batch_task` accepts `on_events`, `on_crons`, `cron_input`, and `default_additional_metadata`, matching the other standalone task decorators.
+- `hatchet.tenant`, a client for reading details about the current tenant.
+- `Standalone`, the class returned by the `hatchet.task`, `hatchet.durable_task`, and `hatchet.batch_task` decorators, is exported from `hatchet_sdk`.
+
+### Fixed
+
+- Running a standalone task that returned `{}` or `None` no longer gives the caller a dictionary keyed by the task name. A task annotated to return a `dict` gives `{}`, and a task with no return annotation or one that allows `None` gives `None`.
+- A `hatchet.batch_task` with no `input_validator` now receives `None` for each item, like every other task with no input validator.
+- Passing a tuple of `ConcurrencyStrategy` objects as `concurrency` to `hatchet.task` or `hatchet.durable_task` no longer discards them.
+- `mock_run` and `aio_mock_run` now pass a `dict` input through to the task instead of replacing it with `{}`.
+- Cron expressions that use day or month names, or ranges with steps, such as `0 9 * * MON-FRI`, are no longer rejected before they reach the engine.
 ## [1.42.1] - 2026-10-09
 
 ### Fixed

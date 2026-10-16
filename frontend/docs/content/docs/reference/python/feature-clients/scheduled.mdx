@@ -35,14 +35,14 @@ Bulk delete scheduled workflow runs.
 
 Parameters:
 
-| Name                     | Type                               | Description                                            | Default |
-| ------------------------ | ---------------------------------- | ------------------------------------------------------ | ------- |
-| `scheduled_ids`          | `list[str] \| None`                | Explicit list of scheduled workflow run IDs to delete. | `None`  |
-| `workflow_id`            | `str \| None`                      | Filter by workflow ID.                                 | `None`  |
-| `parent_workflow_run_id` | `str \| None`                      | Filter by parent workflow run ID.                      | `None`  |
-| `parent_step_run_id`     | `str \| None`                      | Filter by parent step run ID.                          | `None`  |
-| `statuses`               | `list[ScheduledRunStatus] \| None` | Filter by scheduled run statuses.                      | `None`  |
-| `additional_metadata`    | `JSONSerializableMapping \| None`  | Filter by additional metadata key/value pairs.         | `None`  |
+| Name                      | Type                               | Description                                            | Default |
+| ------------------------- | ---------------------------------- | ------------------------------------------------------ | ------- |
+| `scheduled_ids`           | `list[str] \| None`                | Explicit list of scheduled workflow run IDs to delete. | `None`  |
+| `workflow_id`             | `str \| None`                      | Filter by workflow ID.                                 | `None`  |
+| `parent_workflow_run_id`  | `str \| None`                      | Filter by parent workflow run ID.                      | `None`  |
+| `parent_task_external_id` | `str \| None`                      | Filter by the external ID of the parent task run.      | `None`  |
+| `statuses`                | `list[ScheduledRunStatus] \| None` | Filter by scheduled run statuses.                      | `None`  |
+| `additional_metadata`     | `JSONSerializableMapping \| None`  | Filter by additional metadata key/value pairs.         | `None`  |
 
 Returns:
 
@@ -134,9 +134,9 @@ Parameters:
 
 Returns:
 
-| Type                     | Description                                                  |
-| ------------------------ | ------------------------------------------------------------ |
-| `ScheduledWorkflowsList` | A list of scheduled workflows matching the provided filters. |
+| Type                       | Description                                                  |
+| -------------------------- | ------------------------------------------------------------ |
+| `list[ScheduledWorkflows]` | A list of scheduled workflows matching the provided filters. |
 
 #### `aio_update`
 
@@ -162,19 +162,19 @@ Bulk delete scheduled workflow runs.
 Provide either:
 
 - `scheduled_ids` (explicit list of scheduled run IDs), or
-- one or more filter fields (`workflow_id`, `parent_workflow_run_id`, `parent_step_run_id`,
+- one or more filter fields (`workflow_id`, `parent_workflow_run_id`, `parent_task_external_id`,
   `statuses`, `additional_metadata`)
 
 Parameters:
 
-| Name                     | Type                               | Description                                            | Default |
-| ------------------------ | ---------------------------------- | ------------------------------------------------------ | ------- |
-| `scheduled_ids`          | `list[str] \| None`                | Explicit list of scheduled workflow run IDs to delete. | `None`  |
-| `workflow_id`            | `str \| None`                      | Filter by workflow ID.                                 | `None`  |
-| `parent_workflow_run_id` | `str \| None`                      | Filter by parent workflow run ID.                      | `None`  |
-| `parent_step_run_id`     | `str \| None`                      | Filter by parent step run ID.                          | `None`  |
-| `statuses`               | `list[ScheduledRunStatus] \| None` | Filter by scheduled run statuses.                      | `None`  |
-| `additional_metadata`    | `JSONSerializableMapping \| None`  | Filter by additional metadata key/value pairs.         | `None`  |
+| Name                      | Type                               | Description                                            | Default |
+| ------------------------- | ---------------------------------- | ------------------------------------------------------ | ------- |
+| `scheduled_ids`           | `list[str] \| None`                | Explicit list of scheduled workflow run IDs to delete. | `None`  |
+| `workflow_id`             | `str \| None`                      | Filter by workflow ID.                                 | `None`  |
+| `parent_workflow_run_id`  | `str \| None`                      | Filter by parent workflow run ID.                      | `None`  |
+| `parent_task_external_id` | `str \| None`                      | Filter by the external ID of the parent task run.      | `None`  |
+| `statuses`                | `list[ScheduledRunStatus] \| None` | Filter by scheduled run statuses.                      | `None`  |
+| `additional_metadata`     | `JSONSerializableMapping \| None`  | Filter by additional metadata key/value pairs.         | `None`  |
 
 Returns:
 
@@ -276,9 +276,9 @@ Parameters:
 
 Returns:
 
-| Type                     | Description                                                  |
-| ------------------------ | ------------------------------------------------------------ |
-| `ScheduledWorkflowsList` | A list of scheduled workflows matching the provided filters. |
+| Type                       | Description                                                  |
+| -------------------------- | ------------------------------------------------------------ |
+| `list[ScheduledWorkflows]` | A list of scheduled workflows matching the provided filters. |
 
 #### `update`
 

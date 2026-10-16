@@ -1,7 +1,8 @@
 {
   "pages": [
     "cel",
-    "cron",
+    "crons",
+    "events",
     "filters",
     "logs",
     "metrics",
@@ -9,6 +10,7 @@
     "runs",
     "scheduled",
     "stubs",
+    "tenant",
     "webhooks",
     "workers",
     "workflows"

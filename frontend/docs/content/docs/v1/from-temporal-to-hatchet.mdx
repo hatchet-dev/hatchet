@@ -40,7 +40,7 @@ Second, workers in Hatchet have a built-in notion of [slots](/v1/workers#slots),
 | [5](#step-5-invoke-work)                             | `client.execute_workflow(...)`                    | `task.run()` / `await task.aio_run()`                     | Direct API swap     |
 | [5](#step-5-invoke-work)                             | `client.start_workflow(...)`                      | `task.run(wait_for_result=False)`                         | Direct API swap     |
 | [6](#step-6-retries-and-timeouts)                    | `RetryPolicy(...)`                                | `retries` / `backoff_factor` / `backoff_max_seconds`      | Small rewrite       |
-| [6](#step-6-retries-and-timeouts)                    | `ApplicationError(non_retryable=True)`            | `NonRetryableException`                                   | Direct API swap     |
+| [6](#step-6-retries-and-timeouts)                    | `ApplicationError(non_retryable=True)`            | `NonRetryableError`                                       | Direct API swap     |
 | [6](#step-6-retries-and-timeouts)                    | `start_to_close_timeout`                          | `execution_timeout`                                       | Direct API swap     |
 | [6](#step-6-retries-and-timeouts)                    | `schedule_to_start_timeout`                       | `schedule_timeout`                                        | Direct API swap     |
 | [7](#step-7-timers-and-sleeps)                       | `await asyncio.sleep(...)` inside a workflow      | `await ctx.aio_sleep_for(...)`                            | Direct API swap     |
@@ -601,7 +601,7 @@ The concept mapping is the same in every SDK. Names below use the Python spellin
 | `schedule_to_start_timeout`       | `schedule_timeout`                                   |
 | `activity.info().attempt`         | retry count on the context                           |
 
-The non-retryable error type is `NonRetryableException` in Python (from `hatchet_sdk.exceptions`), `NonRetryableError` in TypeScript, `worker.NewNonRetryableError` in Go, and `Hatchet::NonRetryableError` in Ruby. The retry count is `ctx.retry_count` in Python and Ruby, `ctx.retryCount()` in TypeScript, and `ctx.RetryCount()` in Go.
+The non-retryable error type is `NonRetryableError` in Python (from `hatchet_sdk.exceptions`) and TypeScript, `worker.NewNonRetryableError` in Go, and `Hatchet::NonRetryableError` in Ruby. The retry count is `ctx.retry_count` in Python and Ruby, `ctx.retryCount()` in TypeScript, and `ctx.RetryCount()` in Go.
 
 <Callout type="warning">
   `retries` counts retries, not total attempts: `maximum_attempts=3` in Temporal

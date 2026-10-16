@@ -2,7 +2,6 @@ from hatchet_sdk import (
     Hatchet,
     StatusBasedIdempotencyConfig,
     TTLBasedIdempotencyConfig,
-    EmptyModel,
     Context,
 )
 from datetime import timedelta

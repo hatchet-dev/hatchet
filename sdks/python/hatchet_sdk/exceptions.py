@@ -30,11 +30,11 @@ class InvalidDependencyError(Exception):
     pass
 
 
-class NonRetryableException(Exception):  # noqa: N818
+class NonRetryableError(Exception):
     pass
 
 
-class RetryAfterException(Exception):  # noqa: N818
+class RetryAfterError(Exception):
     """
     Raise from a task to retry it after a delay of its choosing. The retry counts against the task's `retries`.
 
@@ -57,7 +57,9 @@ class DedupeViolationError(Exception):
 
 class IdempotencyCollisionError(Exception):
     def __init__(self, existing_run_external_id: str) -> None:
-        super().__init__()
+        super().__init__(
+            f"A run with this idempotency key already exists: {existing_run_external_id}"
+        )
         self.existing_run_external_id = existing_run_external_id
 
 
@@ -67,7 +69,11 @@ class BulkTriggerIdempotencyCollisionError(Exception):
         successful_workflow_run_external_ids: list[str],
         collisions: list[IdempotencyCollisionError],
     ) -> None:
-        super().__init__()
+        super().__init__(
+            f"{len(collisions)} of {len(collisions) + len(successful_workflow_run_external_ids)} "
+            "runs collided with an existing idempotency key: "
+            + ", ".join(collision.existing_run_external_id for collision in collisions)
+        )
         self.successful_workflow_run_external_ids = successful_workflow_run_external_ids
         self.collisions = collisions
 
@@ -132,7 +138,7 @@ class TaskRunError(Exception):
             ):
                 serialized = serialized.replace(metadata, "").strip()
                 return serialized, cast(
-                    dict[str, str | None], parsed[TASK_RUN_ERROR_METADATA_KEY]
+                    "dict[str, str | None]", parsed[TASK_RUN_ERROR_METADATA_KEY]
                 )
 
             return serialized, {}
@@ -201,7 +207,7 @@ class TaskRunError(Exception):
 
 
 class FailedTaskRunExceptionGroup(ValueError):  # noqa: N818
-    def __init__(self, message: str, exceptions: list[TaskRunError]):
+    def __init__(self, message: str, exceptions: list[TaskRunError]) -> None:
         self.message = message
         self.exceptions = exceptions
 
@@ -229,7 +235,7 @@ class LifespanSetupError(Exception):
     pass
 
 
-class EvictionNotSupportedError(NonRetryableException):
+class EvictionNotSupportedError(NonRetryableError):
     """Raised when an eviction policy is configured against an engine version
     that does not support durable-task eviction."""
 

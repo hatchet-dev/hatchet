@@ -23,7 +23,7 @@ high_prio = priority_workflow.run(
 
 # > Scheduled priority
 schedule = priority_workflow.schedule(
-    run_at=datetime.now(tz=timezone.utc) + timedelta(minutes=1),
+    trigger_at=datetime.now(tz=timezone.utc) + timedelta(minutes=1),
     priority=Priority.HIGH,
 )
 

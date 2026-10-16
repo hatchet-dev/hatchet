@@ -1,20 +1,24 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict
 
 from hatchet_sdk.logger import logger
-from hatchet_sdk.runnables.action import ActionKey
-from hatchet_sdk.runnables.eviction import EvictionPolicy
 from hatchet_sdk.worker.durable_eviction.cache import (
     DurableEvictionCache,
     DurableRunRecord,
     EvictionCause,
     _build_eviction_reason,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
+    from hatchet_sdk.runnables.action import ActionKey
+    from hatchet_sdk.runnables.eviction import EvictionPolicy
 
 
 class DurableEvictionConfig(BaseModel):
@@ -72,13 +76,13 @@ class DurableEvictionManager:
         self,
         key: ActionKey,
         *,
-        step_run_id: str,
+        task_run_external_id: str,
         invocation_count: int,
         eviction_policy: EvictionPolicy | None,
     ) -> None:
         self._cache.register_run(
             key,
-            step_run_id,
+            task_run_external_id,
             invocation_count=invocation_count,
             now=self._now(),
             eviction_policy=eviction_policy,
@@ -102,7 +106,7 @@ class DurableEvictionManager:
         )
 
     def mark_active(self, key: ActionKey) -> None:
-        self._cache.mark_active(key, now=self._now())
+        self._cache.mark_active(key)
 
     def _evict_run(self, key: ActionKey) -> None:
         self._cancel_local(key)
@@ -155,7 +159,7 @@ class DurableEvictionManager:
 
                 logger.debug(
                     "DurableEvictionManager: evicting durable run "
-                    f"task_run_external_id={rec.step_run_id} wait_kind={rec.wait_kind} "
+                    f"task_run_external_id={rec.task_run_external_id} wait_kind={rec.wait_kind} "
                     f"resource_id={rec.wait_resource_id} ttl={rec.eviction_policy.ttl} "
                     f"capacity_allowed={rec.eviction_policy.allow_capacity_eviction}"
                 )
@@ -163,9 +167,11 @@ class DurableEvictionManager:
                 await self._request_eviction_with_ack(key, rec)
                 self._evict_run(key)
 
-    def handle_server_eviction(self, step_run_id: str, invocation_count: int) -> None:
+    def handle_server_eviction(
+        self, task_run_external_id: str, invocation_count: int
+    ) -> None:
         """Handle a server-initiated eviction notification for a stale invocation."""
-        key = self._cache.find_key_by_step_run_id(step_run_id)
+        key = self._cache.find_key_by_task_run_external_id(task_run_external_id)
         if key is None:
             return
 
@@ -175,8 +181,8 @@ class DurableEvictionManager:
 
         logger.info(
             "DurableEvictionManager: server-initiated eviction for "
-            "step_run_id=%s invocation_count=%d",
-            step_run_id,
+            "task_run_external_id=%s invocation_count=%d",
+            task_run_external_id,
             invocation_count,
         )
         self._evict_run(key)
@@ -195,7 +201,7 @@ class DurableEvictionManager:
 
             logger.debug(
                 "DurableEvictionManager: shutdown-evicting durable run "
-                f"task_run_external_id={rec.step_run_id} wait_kind={rec.wait_kind} "
+                f"task_run_external_id={rec.task_run_external_id} wait_kind={rec.wait_kind} "
                 f"resource_id={rec.wait_resource_id}"
             )
 
@@ -204,7 +210,7 @@ class DurableEvictionManager:
             except Exception:
                 logger.exception(
                     f"DurableEvictionManager: failed to send eviction for "
-                    f"step_run_id={rec.step_run_id}"
+                    f"task_run_external_id={rec.task_run_external_id}"
                 )
 
             # Always cancel locally even if the server ACK failed, so the
@@ -215,4 +221,4 @@ class DurableEvictionManager:
         return evicted
 
     def _now(self) -> datetime:
-        return datetime.now(timezone.utc)
+        return datetime.now(UTC)
