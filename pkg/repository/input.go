@@ -102,24 +102,26 @@ func (s *sharedRepository) ToV1StepRunData(t *TaskInput) *V1StepRunData {
 
 	parents := make(map[string]map[string]interface{})
 	triggers := make(map[string]map[string]interface{})
+	stepRunErrors := make(map[string]string)
 
 	if t.TriggerData != nil {
 		for _, stepReadableId := range t.TriggerData.DataKeys() {
 			data := t.TriggerData.DataValueAsTaskOutputEvent(stepReadableId)
 
-			if !data.IsCompleted() {
-				continue
+			switch {
+			case data.IsCompleted():
+				dataMap := make(map[string]interface{})
+
+				err := json.Unmarshal(data.Output, &dataMap)
+
+				if err != nil {
+					s.l.Warn().Err(err).Msg("failed to unmarshal output")
+				}
+
+				parents[stepReadableId] = dataMap
+			case data.IsFailed():
+				stepRunErrors[stepReadableId] = data.ErrorMessage
 			}
-
-			dataMap := make(map[string]interface{})
-
-			err := json.Unmarshal(data.Output, &dataMap)
-
-			if err != nil {
-				s.l.Warn().Err(err).Msg("failed to unmarshal output")
-			}
-
-			parents[stepReadableId] = dataMap
 		}
 
 		for _, key := range t.TriggerData.TriggerDataKeys() {
@@ -143,9 +145,20 @@ func (s *sharedRepository) ToV1StepRunData(t *TaskInput) *V1StepRunData {
 		Input:               input,
 		Parents:             parents,
 		Triggers:            triggers,
+		StepRunErrors:       stepRunErrors,
 		DagParentTaskRunIds: t.DagParentTaskRunIds,
 		DesiredWorkerLabels: t.DesiredWorkerLabels,
 	}
+}
+
+// taskInputPayload is what the payload store holds for a task. Engines before the step run data columns on
+// v1_task can only read the wrapped shape, so it is written until wrapTaskInputInStepRunData is turned off.
+func (s *sharedRepository) taskInputPayload(stepRunData *V1StepRunData) []byte {
+	if s.wrapTaskInputInStepRunData {
+		return stepRunData.Bytes()
+	}
+
+	return stepRunData.userInput()
 }
 
 // legacyStepRunDataFromTaskInputPayload recognises task inputs stored before the payload held only the user's
@@ -224,7 +237,8 @@ type V1StepRunData struct {
 	Parents  map[string]map[string]interface{} `json:"parents"`
 	Triggers map[string]map[string]interface{} `json:"triggers"`
 
-	// errors in upstream steps, read from their task events when the task is dispatched
+	// errors in upstream steps. Set at task creation for engines that read the wrapped payload, and overwritten
+	// from the parents' task events when the task is dispatched.
 	StepRunErrors map[string]string `json:"step_run_errors,omitempty"`
 
 	// task run external IDs of parent tasks in a durable DAG orchestration

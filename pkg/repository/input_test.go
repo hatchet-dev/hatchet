@@ -86,11 +86,31 @@ func TestUserInputFromTaskInputPayload_DoesNotUnwrapAUserInputThatHasItsOwnInput
 }
 
 func TestCreatedTaskStoresOnlyTheUserInputAndKeepsTheRestOnTheTask(t *testing.T) {
+	inserted, task := insertTaskWithTriggersAndDagParents(t, false)
+
+	assert.JSONEq(t, `{"order_id": 1}`, string(inserted.UserInput))
+
+	assertStepRunDataReadsBackTheTaskInput(t, task, inserted.UserInput)
+}
+
+func TestCreatedTaskStoresTheWrappedStepRunDataWhenWrappingIsOn(t *testing.T) {
+	inserted, task := insertTaskWithTriggersAndDagParents(t, true)
+
+	assert.JSONEq(t, string(inserted.Payload), string(inserted.UserInput))
+	assert.NotNil(t, legacyStepRunDataFromTaskInputPayload(inserted.UserInput))
+
+	assertStepRunDataReadsBackTheTaskInput(t, task, inserted.UserInput)
+}
+
+func insertTaskWithTriggersAndDagParents(t *testing.T, wrapTaskInputInStepRunData bool) (*V1TaskWithPayload, *sqlcv1.V1Task) {
+	t.Helper()
+
 	pool, cleanup := setupPostgresWithMigration(t)
-	defer cleanup()
+	t.Cleanup(func() { cleanup() })
 
 	repo := newBatchTestRepository(pool)
 	shared := repo.sharedRepository
+	shared.wrapTaskInputInStepRunData = wrapTaskInputInStepRunData
 	workflows := &workflowRepository{sharedRepository: shared}
 
 	ctx := context.Background()
@@ -126,8 +146,6 @@ func TestCreatedTaskStoresOnlyTheUserInputAndKeepsTheRestOnTheTask(t *testing.T)
 	require.NoError(t, err)
 	require.Len(t, inserted, 1)
 
-	assert.JSONEq(t, `{"order_id": 1}`, string(inserted[0].UserInput))
-
 	tasks, err := shared.listTasks(ctx, pool, internalTenantId, []int64{inserted[0].ID})
 	require.NoError(t, err)
 	require.Len(t, tasks, 1)
@@ -135,12 +153,19 @@ func TestCreatedTaskStoresOnlyTheUserInputAndKeepsTheRestOnTheTask(t *testing.T)
 	assert.JSONEq(t, `{"filter_payload": {"region": "eu"}}`, string(tasks[0].Triggers))
 	assert.Equal(t, dagParentTaskRunIds, tasks[0].DagParentTaskRunIds)
 
-	data, err := NewV1StepRunDataFromTaskAndInputPayload(tasks[0], inserted[0].UserInput)
+	return inserted[0], tasks[0]
+}
+
+func assertStepRunDataReadsBackTheTaskInput(t *testing.T, task *sqlcv1.V1Task, taskInputPayload []byte) {
+	t.Helper()
+
+	data, err := NewV1StepRunDataFromTaskAndInputPayload(task, taskInputPayload)
 	require.NoError(t, err)
 
 	assert.JSONEq(t, `{"order_id": 1}`, string(data.Input))
 	assert.Equal(t, map[string]interface{}{"region": "eu"}, data.Triggers["filter_payload"])
-	assert.Equal(t, dagParentTaskRunIds, data.DagParentTaskRunIds)
+	assert.Len(t, data.DagParentTaskRunIds, 2)
+	assert.Equal(t, task.DagParentTaskRunIds, data.DagParentTaskRunIds)
 	require.Len(t, data.DesiredWorkerLabels, 1)
 	assert.Equal(t, "pool", data.DesiredWorkerLabels[0].Key)
 }

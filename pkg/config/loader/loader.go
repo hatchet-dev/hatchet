@@ -435,6 +435,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		ExternalCutoverNumConcurrentOffloads: scf.PayloadStore.ExternalCutoverNumConcurrentOffloads,
 		InlineStoreTTL:                       &inlineStoreTTL,
 		EnableWindowSizeOptimization:         scf.PayloadStore.EnableWindowSizeOptimization,
+		WrapTaskInputInStepRunData:           scf.PayloadStore.WrapTaskInputInStepRunData,
 	}
 
 	statusUpdateOpts := repov1.StatusUpdateBatchSizeLimits{

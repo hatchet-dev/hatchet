@@ -3030,7 +3030,7 @@ func (r *sharedRepository) insertTasks(
 				V1Task:    task,
 				Runtime:   nil,
 				Payload:   externalIdToStepRunData[task.ExternalID].Bytes(),
-				UserInput: externalIdToStepRunData[task.ExternalID].userInput(),
+				UserInput: r.taskInputPayload(externalIdToStepRunData[task.ExternalID]),
 			}
 
 			res = append(res, &withPayload)
@@ -3361,7 +3361,7 @@ func (r *sharedRepository) replayTasks(
 		var input, triggers, dagParentTaskRunIds, childTaskDesiredWorkerLabels []byte
 
 		if stepRunData, isInputReplaced := externalIdToStepRunData[task.ExternalId]; isInputReplaced {
-			input = stepRunData.userInput()
+			input = r.taskInputPayload(stepRunData)
 			triggers, err = stepRunData.triggersColumn()
 
 			if err != nil {
@@ -3448,7 +3448,7 @@ func (r *sharedRepository) replayTasks(
 
 			if stepRunData, isInputReplaced := externalIdToStepRunData[task.ExternalID]; isInputReplaced {
 				withPayload.Payload = stepRunData.Bytes()
-				withPayload.UserInput = stepRunData.userInput()
+				withPayload.UserInput = r.taskInputPayload(stepRunData)
 			}
 
 			res = append(res, &withPayload)

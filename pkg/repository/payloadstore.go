@@ -139,6 +139,7 @@ type PayloadStoreRepositoryOpts struct {
 	ExternalCutoverNumConcurrentOffloads int32
 	InlineStoreTTL                       *time.Duration
 	EnableWindowSizeOptimization         bool
+	WrapTaskInputInStepRunData           bool
 }
 
 func NewPayloadStoreRepository(
