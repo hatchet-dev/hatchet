@@ -168,6 +168,9 @@ type createDAGOpts struct {
 
 	// (optional) the idempotency key that the dag claimed before being run
 	IdempotencyKey *string
+
+	// (optional) the payload reference id associated with the DAG
+	PayloadReferenceId *uuid.UUID
 }
 
 type TriggerRepository interface {
@@ -736,6 +739,7 @@ type triggerTuple struct {
 	workflowRunId             *uuid.UUID
 	olapDagId                 *int64
 	olapDagInsertedAt         *time.Time
+	dagPayloadReferenceId     *uuid.UUID
 }
 
 func (t triggerTuple) effectiveWorkflowRunId() uuid.UUID {
@@ -1517,6 +1521,7 @@ func (r *sharedRepository) triggerWorkflowsCore(
 				AdditionalMetadata:   tuple.additionalMetadata,
 				ParentTaskExternalID: tuple.parentExternalId,
 				DesiredWorkerLabels:  tuple.desiredWorkerLabels,
+				PayloadReferenceId:   tuple.dagPayloadReferenceId,
 			}
 
 			if idempotencyKey, ok := externalIdToIdempotencyKey[tuple.externalId]; ok {
@@ -1751,6 +1756,7 @@ func (r *sharedRepository) createDAGs(ctx context.Context, tx sqlcv1.DBTX, tenan
 	dagIdToOpt := make(map[uuid.UUID]createDAGOpts, 0)
 	desiredWorkerLabels := make([][]byte, 0, len(opts))
 	idempotencyKeys := make([]string, 0, len(opts))
+	payloadReferenceIds := make([]uuid.UUID, 0, len(opts))
 
 	unix := time.Now().UnixMilli()
 
@@ -1771,6 +1777,12 @@ func (r *sharedRepository) createDAGs(ctx context.Context, tx sqlcv1.DBTX, tenan
 			idempotencyKeys = append(idempotencyKeys, "")
 		} else {
 			idempotencyKeys = append(idempotencyKeys, *opt.IdempotencyKey)
+		}
+
+		if opt.PayloadReferenceId == nil {
+			payloadReferenceIds = append(payloadReferenceIds, uuid.UUID{})
+		} else {
+			payloadReferenceIds = append(payloadReferenceIds, *opt.PayloadReferenceId)
 		}
 
 		var desiredWorkerLabelsBytes []byte
@@ -1797,6 +1809,7 @@ func (r *sharedRepository) createDAGs(ctx context.Context, tx sqlcv1.DBTX, tenan
 		Parenttaskexternalids: parentTaskExternalIds,
 		Desiredworkerlabels:   desiredWorkerLabels,
 		Idempotencykeys:       idempotencyKeys,
+		Payloadreferenceids:   payloadReferenceIds,
 	})
 
 	if err != nil {
@@ -2724,6 +2737,7 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 					triggeringEventExternalId: &opt.ExternalId,
 					triggeringEventKey:        &opt.Key,
 					idempotency:               idempotency,
+					dagPayloadReferenceId:     opt.PayloadReferenceId,
 				})
 
 				externalIdToEventIdAndFilterId[externalId] = EventExternalIdFilterId{
