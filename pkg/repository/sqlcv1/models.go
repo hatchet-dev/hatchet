@@ -3386,6 +3386,7 @@ type V1DagsOlap struct {
 	IdempotencyKey       pgtype.Text          `json:"idempotency_key"`
 	LatestRetryCount     int32                `json:"latest_retry_count"`
 	IsDagOperator        bool                 `json:"is_dag_operator"`
+	PayloadReferenceID   *uuid.UUID           `json:"payload_reference_id"`
 }
 
 type V1DurableEventLogBranchPoint struct {
@@ -3478,6 +3479,7 @@ type V1EventsOlap struct {
 	AdditionalMetadata    []byte             `json:"additional_metadata"`
 	Scope                 pgtype.Text        `json:"scope"`
 	TriggeringWebhookName pgtype.Text        `json:"triggering_webhook_name"`
+	PayloadReferenceID    *uuid.UUID         `json:"payload_reference_id"`
 }
 
 type V1Filter struct {
@@ -4063,6 +4065,7 @@ type V1TasksOlap struct {
 	ParentTaskExternalID *uuid.UUID           `json:"parent_task_external_id"`
 	IsDurable            bool                 `json:"is_durable"`
 	IdempotencyKey       pgtype.Text          `json:"idempotency_key"`
+	PayloadReferenceID   *uuid.UUID           `json:"payload_reference_id"`
 }
 
 type V1TenantConcurrency struct {
