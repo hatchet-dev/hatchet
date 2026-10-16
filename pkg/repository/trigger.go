@@ -749,12 +749,14 @@ type triggerTuple struct {
 	orchestratorPayloadReferenceId *uuid.UUID
 }
 
-func (t triggerTuple) orchestratorPayloadReferenceIdForTaskInput(input *TaskInput) *uuid.UUID {
-	if input.HasOnlyInput() {
+// runInputPayloadReferenceId is the row holding the input every task in this run shares: the orchestrator's row
+// for a task the DAG operator triggers, otherwise the DAG's own row or the triggering event's row.
+func (t triggerTuple) runInputPayloadReferenceId() *uuid.UUID {
+	if t.orchestratorPayloadReferenceId != nil {
 		return t.orchestratorPayloadReferenceId
 	}
 
-	return nil
+	return t.payloadReferenceId
 }
 
 func (t triggerTuple) effectiveWorkflowRunId() uuid.UUID {
@@ -1145,7 +1147,7 @@ func (r *sharedRepository) triggerWorkflowsCore(
 				orchestratorTaskOpts.IdempotencyKey = &idempotencyKey
 			}
 
-			if orchestratorInput.HasOnlyInput() && !r.writeInputPayloadPerRun {
+			if r.taskCanShareRunInputPayload(orchestratorInput) {
 				orchestratorPayloadReferenceId := uuid.New()
 				orchestratorTaskOpts.PayloadReferenceId = &orchestratorPayloadReferenceId
 			}
@@ -1400,7 +1402,7 @@ func (r *sharedRepository) triggerWorkflowsCore(
 						WorkflowRunId:             tuple.effectiveWorkflowRunId(),
 						StepId:                    step.ID,
 						Input:                     taskInput,
-						PayloadReferenceId:        tuple.orchestratorPayloadReferenceIdForTaskInput(taskInput),
+						PayloadReferenceId:        r.sharedRunInputPayloadReferenceId(tuple.runInputPayloadReferenceId(), taskInput),
 						AdditionalMetadata:        tuple.additionalMetadata,
 						InitialState:              initialState,
 						DesiredWorkerId:           tuple.desiredWorkerId,

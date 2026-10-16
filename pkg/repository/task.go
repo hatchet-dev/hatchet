@@ -3335,7 +3335,7 @@ func (r *sharedRepository) replayTasks(
 	}
 
 	stepIdsToParams := make(map[uuid.UUID]sqlcv1.ReplayTasksParams, 0)
-	stepIdsToStorePayloadOpts := make(map[uuid.UUID][]StorePayloadOpts, 0)
+	externalIdToStorePayloadOpts := make(map[uuid.UUID]StorePayloadOpts, len(tasks))
 
 	for i, task := range tasks {
 		params, ok := stepIdsToParams[task.StepId]
@@ -3403,14 +3403,12 @@ func (r *sharedRepository) replayTasks(
 
 		stepIdsToParams[task.StepId] = params
 
-		storePayloadOpts := PayloadRef[TaskInputShape]{
+		externalIdToStorePayloadOpts[task.ExternalId] = PayloadRef[TaskInputShape]{
 			Id:         taskIds[i],
 			InsertedAt: taskInsertedAts[i],
 			ExternalId: task.ExternalId,
 			TenantId:   tenantId,
 		}.StoreOpts(NewPayload[TaskInputShape](input))
-
-		stepIdsToStorePayloadOpts[task.StepId] = append(stepIdsToStorePayloadOpts[task.StepId], storePayloadOpts)
 	}
 
 	// for any initial states which are not queued, create a finalizing task event
@@ -3427,10 +3425,16 @@ func (r *sharedRepository) replayTasks(
 			return nil, fmt.Errorf("failed to replay tasks for step id %s: %w", stepId, err)
 		}
 
-		storePayloadOpts, ok := stepIdsToStorePayloadOpts[stepId]
+		storePayloadOpts := make([]StorePayloadOpts, 0, len(replayRes))
 
-		if !ok {
-			return nil, fmt.Errorf("missing payload store opts for step id %s", stepId)
+		for _, task := range replayRes {
+			if task.PayloadReferenceID != nil {
+				continue
+			}
+
+			if opts, ok := externalIdToStorePayloadOpts[task.ExternalID]; ok {
+				storePayloadOpts = append(storePayloadOpts, opts)
+			}
 		}
 
 		err = r.payloadStore.OverwriteExisting(ctx, tx, storePayloadOpts...)

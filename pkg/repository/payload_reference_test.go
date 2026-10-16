@@ -22,13 +22,16 @@ func TestTriggeredDagStoresItsOwnInputPayloadWhenWritingPerRun(t *testing.T) {
 	}
 }
 
-func TestTriggeredDagReferencesItsInputPayloadWhenNotWritingPerRun(t *testing.T) {
+func TestTriggeredDagSharesItsInputPayloadWithItsTasksWhenNotWritingPerRun(t *testing.T) {
 	tasks, dag, shared := triggerTwoStepDag(t, false)
 
 	require.NotNil(t, dag.PayloadReferenceID)
 
 	for _, task := range tasks {
+		require.NotNil(t, task.PayloadReferenceID)
+		assert.Equal(t, *dag.PayloadReferenceID, *task.PayloadReferenceID)
 		assertTaskInputIsStored(t, shared, task)
+		assertTaskHasNoOwnInputRow(t, shared, task)
 	}
 }
 
@@ -70,6 +73,20 @@ func triggerTwoStepDag(t *testing.T, writeInputPayloadPerRun bool) ([]*V1TaskWit
 	require.Len(t, tasks, 1, "step2 waits on step1, so only the root task is created at trigger time")
 
 	return tasks, dags[0], shared
+}
+
+func assertTaskHasNoOwnInputRow(t *testing.T, shared *sharedRepository, task *V1TaskWithPayload) {
+	t.Helper()
+
+	ownRow, err := shared.payloadStore.TaskInputs().RetrieveOne(context.Background(), shared.pool, PayloadRef[TaskInputShape]{
+		Id:         task.ID,
+		InsertedAt: task.InsertedAt,
+		TenantId:   internalTenantId,
+		ExternalId: task.ExternalID,
+	})
+	require.NoError(t, err)
+
+	assert.True(t, ownRow.IsEmpty(), "a task that references its run's row must not store its own")
 }
 
 func assertTaskInputIsStored(t *testing.T, shared *sharedRepository, task *V1TaskWithPayload) {
