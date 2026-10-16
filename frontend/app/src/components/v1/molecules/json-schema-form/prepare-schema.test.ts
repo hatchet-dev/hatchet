@@ -1,4 +1,4 @@
-import { prepareSchema } from './prepare-schema';
+import { hasFormFields, prepareSchema } from './prepare-schema';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
@@ -212,4 +212,43 @@ test('the input schema is not mutated', () => {
   prepareSchema(input);
 
   assert.equal(JSON.stringify(input), snapshot);
+});
+
+test('a model without fields has no form', () => {
+  assert.equal(hasFormFields(undefined), false);
+  assert.equal(hasFormFields({}), false);
+  assert.equal(
+    hasFormFields({ title: 'Empty', type: 'object', properties: {} }),
+    false,
+  );
+  // dict[str, Any]: any key, any value, nothing for the form to describe
+  assert.equal(
+    hasFormFields({ type: 'object', additionalProperties: true }),
+    false,
+  );
+});
+
+test('fields, maps, non-object roots and $ref roots get a form', () => {
+  assert.equal(
+    hasFormFields({ type: 'object', properties: { n: { type: 'integer' } } }),
+    true,
+  );
+  assert.equal(
+    hasFormFields({
+      type: 'object',
+      additionalProperties: { type: 'string' },
+    }),
+    true,
+  );
+  assert.equal(
+    hasFormFields({ type: 'array', items: { type: 'integer' } }),
+    true,
+  );
+  assert.equal(
+    hasFormFields({
+      $ref: '#/$defs/Node',
+      $defs: { Node: { type: 'object', properties: {} } },
+    }),
+    true,
+  );
 });

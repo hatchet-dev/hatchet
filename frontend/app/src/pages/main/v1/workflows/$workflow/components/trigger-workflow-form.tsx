@@ -1,5 +1,6 @@
 import { Combobox } from '@/components/v1/molecules/combobox/combobox';
 import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
+import { hasFormFields } from '@/components/v1/molecules/json-schema-form/prepare-schema';
 import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
 import { Button } from '@/components/v1/ui/button';
 import { CodeEditor } from '@/components/v1/ui/code-editor';
@@ -178,7 +179,7 @@ export function TriggerWorkflowForm({
   });
 
   const jsonSchema = selectedWorkflow?.inputJsonSchema;
-  const hasJsonSchema = !!jsonSchema && Object.keys(jsonSchema).length > 0;
+  const hasJsonSchema = hasFormFields(jsonSchema);
 
   const handleInputModeChange = (mode: InputMode) => {
     if (mode === 'form') {

@@ -246,6 +246,27 @@ function buildUiSchema(
   return ui;
 }
 
+// Whether the schema has anything to fill in. SDK schemas always carry
+// metadata (title, type), so a model without fields still arrives as
+// `{"type": "object", "properties": {}}`; that gets no form. Maps, non-object
+// roots and `$ref` roots (pydantic's shape for recursive models) have no
+// top-level `properties` but do render.
+export function hasFormFields(schema: unknown): schema is SchemaNode {
+  if (!isNode(schema)) {
+    return false;
+  }
+  if (['$ref', 'anyOf', 'oneOf', 'allOf'].some((key) => key in schema)) {
+    return true;
+  }
+  if (schema.type !== undefined && schema.type !== 'object') {
+    return true;
+  }
+  return (
+    (isNode(schema.properties) && Object.keys(schema.properties).length > 0) ||
+    isNode(schema.additionalProperties)
+  );
+}
+
 export function prepareSchema(schema: object): {
   schema: RJSFSchema;
   uiSchema: UiSchema;
