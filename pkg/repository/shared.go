@@ -65,6 +65,7 @@ type sharedRepository struct {
 	m                 TenantLimitRepository
 
 	wrapTaskInputInStepRunData bool
+	writeInputPayloadPerRun    bool
 }
 
 func newSharedRepository(
@@ -132,6 +133,7 @@ func newSharedRepository(
 		taskLookupCache:             lookupCache,
 		payloadStore:                payloadStore,
 		wrapTaskInputInStepRunData:  payloadStoreOpts.WrapTaskInputInStepRunData,
+		writeInputPayloadPerRun:     payloadStoreOpts.WriteInputPayloadPerRun,
 	}
 
 	tenantLimitRepository := newTenantLimitRepository(s, c, shouldEnforceLimits, cacheDuration)

@@ -50,6 +50,8 @@ type IngestorOpts struct {
 	grpcTriggersEnabled bool
 	grpcTriggerSlots    int
 
+	writeInputPayloadPerRun bool
+
 	promGate *prometheus.Gate
 
 	o11yUsage *o11yusage.Aggregator
@@ -82,6 +84,12 @@ func WithLogIngestionEnabled(isEnabled bool) IngestorOptFunc {
 func WithGrpcTriggersEnabled(enabled bool) IngestorOptFunc {
 	return func(opts *IngestorOpts) {
 		opts.grpcTriggersEnabled = enabled
+	}
+}
+
+func WithWriteInputPayloadPerRun(enabled bool) IngestorOptFunc {
+	return func(opts *IngestorOpts) {
+		opts.writeInputPayloadPerRun = enabled
 	}
 }
 
@@ -155,6 +163,10 @@ type IngestorImpl struct {
 
 	isLogIngestionEnabled bool
 
+	// when true every event stores its own payload row and the runs it triggers store theirs, which
+	// engines before payload references can read
+	writeInputPayloadPerRun bool
+
 	localScheduler  *scheduler.Scheduler
 	localDispatcher *dispatcher.DispatcherImpl
 	l               *zerolog.Logger
@@ -214,6 +226,7 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 		repov1:                   opts.repov1,
 		analytics:                opts.analytics,
 		isLogIngestionEnabled:    opts.isLogIngestionEnabled,
+		writeInputPayloadPerRun:  opts.writeInputPayloadPerRun,
 		l:                        opts.l,
 		localScheduler:           localScheduler,
 		localDispatcher:          opts.localDispatcher,

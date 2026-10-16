@@ -1111,7 +1111,7 @@ func (r *sharedRepository) triggerWorkflowsCore(
 		}
 		useOperatorPath := orchestratorStep != nil && tuple.targetActionId == nil
 
-		if tuple.payloadReferenceId == nil && isDag && !useOperatorPath {
+		if tuple.payloadReferenceId == nil && isDag && !useOperatorPath && !r.writeInputPayloadPerRun {
 			dagPayloadReferenceId := uuid.New()
 			tuple.payloadReferenceId = &dagPayloadReferenceId
 			dagExternalIdsOwningInputPayload[tuple.externalId] = struct{}{}
@@ -1145,7 +1145,7 @@ func (r *sharedRepository) triggerWorkflowsCore(
 				orchestratorTaskOpts.IdempotencyKey = &idempotencyKey
 			}
 
-			if orchestratorInput.HasOnlyInput() {
+			if orchestratorInput.HasOnlyInput() && !r.writeInputPayloadPerRun {
 				orchestratorPayloadReferenceId := uuid.New()
 				orchestratorTaskOpts.PayloadReferenceId = &orchestratorPayloadReferenceId
 			}

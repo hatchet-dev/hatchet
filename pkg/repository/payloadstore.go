@@ -295,6 +295,7 @@ type PayloadStoreRepositoryOpts struct {
 	InlineStoreTTL                       *time.Duration
 	EnableWindowSizeOptimization         bool
 	WrapTaskInputInStepRunData           bool
+	WriteInputPayloadPerRun              bool
 }
 
 func NewPayloadStoreRepository(
