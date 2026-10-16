@@ -64,7 +64,7 @@ func TestReplayOverwritesOffloadedTaskInput(t *testing.T) {
 		InsertedAt: task.InsertedAt,
 		ExternalId: task.ExternalID,
 		TenantId:   internalTenantId,
-	}.StoreOpts(NewPayload[TaskInputShape](task.Payload)))
+	}.StoreOpts(NewPayload[TaskInputShape](task.UserInput)))
 	require.NoError(t, err)
 
 	retrieveOpt := PayloadRef[TaskInputShape]{
@@ -108,9 +108,9 @@ func TestReplayOverwritesOffloadedTaskInput(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, afterReplay.Bytes(), "replay must persist the recomputed input even when the original row was offloaded")
 
-	var dispatched V1StepRunData
-	require.NoError(t, json.Unmarshal(afterReplay.Bytes(), &dispatched))
-	require.Equal(t, "replayed", dispatched.Input["case_id"])
+	var storedInput map[string]interface{}
+	require.NoError(t, json.Unmarshal(afterReplay.Bytes(), &storedInput))
+	require.Equal(t, "replayed", storedInput["case_id"])
 
 	// A second replay while the row exists must still update in place.
 	replayed, err = shared.replayTasks(ctx, pool, internalTenantId, []ReplayTaskOpts{
@@ -128,8 +128,8 @@ func TestReplayOverwritesOffloadedTaskInput(t *testing.T) {
 
 	afterSecondReplay, err := shared.payloadStore.TaskInputs().RetrieveOne(ctx, pool, retrieveOpt)
 	require.NoError(t, err)
-	require.NoError(t, json.Unmarshal(afterSecondReplay.Bytes(), &dispatched))
-	require.Equal(t, "replayed-again", dispatched.Input["case_id"])
+	require.NoError(t, json.Unmarshal(afterSecondReplay.Bytes(), &storedInput))
+	require.Equal(t, "replayed-again", storedInput["case_id"])
 
 	var rowCount int
 	require.NoError(t, pool.QueryRow(ctx, `

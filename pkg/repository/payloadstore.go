@@ -3,7 +3,6 @@ package repository
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -116,24 +115,6 @@ func (p Payload[S]) BytesOrEmptyJSONObject() []byte {
 type AnyPayload interface {
 	Bytes() []byte
 	IsEmpty() bool
-}
-
-func NewTaskInputPayload(data *V1StepRunData) Payload[TaskInputShape] {
-	return NewPayload[TaskInputShape](data.Bytes())
-}
-
-func DecodeTaskInputPayload(p Payload[TaskInputShape]) (*V1StepRunData, error) {
-	if len(p.raw) == 0 {
-		return nil, nil
-	}
-
-	data := &V1StepRunData{}
-
-	if err := json.Unmarshal(p.raw, data); err != nil {
-		return nil, fmt.Errorf("failed to decode task input payload: %w", err)
-	}
-
-	return data, nil
 }
 
 func DecodeTaskCompletionEventPayload(p Payload[TaskCompletionEventShape]) (*TaskOutputEvent, error) {
@@ -302,6 +283,7 @@ type PayloadStoreRepositoryOpts struct {
 	ExternalCutoverNumConcurrentOffloads int32
 	InlineStoreTTL                       *time.Duration
 	EnableWindowSizeOptimization         bool
+	WrapTaskInputInStepRunData           bool
 }
 
 func NewPayloadStoreRepository(

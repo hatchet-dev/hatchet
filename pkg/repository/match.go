@@ -319,7 +319,7 @@ func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, t
 			InsertedAt: task.InsertedAt,
 			ExternalId: task.ExternalID,
 			TenantId:   task.TenantID,
-		}.StoreOpts(NewPayload[TaskInputShape](task.Payload))
+		}.StoreOpts(NewPayload[TaskInputShape](task.UserInput))
 	}
 
 	if len(storePayloadOpts) > 0 {
@@ -360,7 +360,7 @@ func (m *MatchRepositoryImpl) ProcessUserEventMatches(ctx context.Context, tenan
 			InsertedAt: task.InsertedAt,
 			ExternalId: task.ExternalID,
 			TenantId:   task.TenantID,
-		}.StoreOpts(NewPayload[TaskInputShape](task.Payload))
+		}.StoreOpts(NewPayload[TaskInputShape](task.UserInput))
 	}
 
 	if len(storePayloadOpts) > 0 {
