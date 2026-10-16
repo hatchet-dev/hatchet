@@ -54,9 +54,9 @@ func (k PayloadKind) V1PayloadType() sqlcv1.V1PayloadType {
 		return sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYDATA
 	case PayloadKindDurableEventLogEntryResultData:
 		return sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA
-	default:
-		panic(fmt.Sprintf("unknown payload kind %d", k))
 	}
+
+	panic(fmt.Sprintf("unknown payload kind %d", k))
 }
 
 type PayloadShape interface {
