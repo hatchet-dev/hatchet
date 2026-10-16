@@ -74,6 +74,16 @@ func (s *sharedRepository) newTaskInput(inputBytes []byte, triggerData *MatchDat
 	}
 }
 
+// Operator children only share the orchestrator's TASK_INPUT row when both serialize to
+// nothing but the user input, so the shared row is byte-for-byte what each would have stored.
+func (t *TaskInput) HasOnlyInput() bool {
+	return t != nil &&
+		t.TriggerData == nil &&
+		len(t.FilterPayload) == 0 &&
+		len(t.DagParentTaskRunIds) == 0 &&
+		len(t.DesiredWorkerLabels) == 0
+}
+
 func (t *TaskInput) Bytes() []byte {
 	if t == nil {
 		return nil

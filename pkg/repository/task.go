@@ -116,6 +116,10 @@ type CreateTaskOpts struct {
 
 	// (optional) the idempotency key that was claimed before triggering this task
 	IdempotencyKey *string
+
+	// (optional) for operator runs: the shared TASK_INPUT row's reference id. The orchestrator
+	// owns the row and its children point at it instead of storing a copy.
+	PayloadReferenceId *uuid.UUID
 }
 
 type ReplayTasksResult struct {
@@ -725,6 +729,7 @@ func (r *sharedRepository) GetTaskByExternalId(ctx context.Context, tenantId, ta
 		IsDagOrchestrator:     res.IsDagOrchestrator,
 		ParentTaskExternalID:  res.ParentTaskExternalID,
 		WorkflowVersionID:     res.WorkflowVersionID,
+		PayloadReferenceID:    res.PayloadReferenceID,
 	}
 
 	r.taskLookupCache.Add(key, &row)
@@ -2910,6 +2915,7 @@ func (r *sharedRepository) insertTasks(
 				TriggeringEventKeys:          make([]pgtype.Text, 0),
 				IsDagOrchestrators:           make([]bool, 0),
 				IdempotencyKeys:              make([]pgtype.Text, 0),
+				PayloadReferenceIds:          make([]*uuid.UUID, 0),
 			}
 		}
 
@@ -2972,6 +2978,7 @@ func (r *sharedRepository) insertTasks(
 		}
 
 		params.IdempotencyKeys = append(params.IdempotencyKeys, idempotencyKey)
+		params.PayloadReferenceIds = append(params.PayloadReferenceIds, task.PayloadReferenceId)
 
 		stepIdsToParams[task.StepId] = params
 	}
@@ -3996,10 +4003,11 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 
 	for i, task := range lockedTasks {
 		retrieveOpts[i] = PayloadRef[TaskInputShape]{
-			Id:         task.ID,
-			InsertedAt: task.InsertedAt,
-			TenantId:   tenantId,
-			ExternalId: task.ExternalID,
+			Id:                 task.ID,
+			InsertedAt:         task.InsertedAt,
+			TenantId:           tenantId,
+			ExternalId:         task.ExternalID,
+			PayloadReferenceId: task.PayloadReferenceID,
 		}
 	}
 
@@ -4081,10 +4089,11 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 		}
 
 		retrieveOpt := PayloadRef[TaskInputShape]{
-			Id:         task.ID,
-			InsertedAt: task.InsertedAt,
-			TenantId:   tenantId,
-			ExternalId: task.ExternalID,
+			Id:                 task.ID,
+			InsertedAt:         task.InsertedAt,
+			TenantId:           tenantId,
+			ExternalId:         task.ExternalID,
+			PayloadReferenceId: task.PayloadReferenceID,
 		}
 
 		input := RetrievePayloadOrFallback(payloads, retrieveOpt, task.Input)
@@ -5292,10 +5301,11 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 		input = dagInput.Bytes()
 	} else {
 		taskInputRef := PayloadRef[TaskInputShape]{
-			Id:         firstTask.ID,
-			InsertedAt: firstTask.InsertedAt,
-			TenantId:   tenantId,
-			ExternalId: firstTask.ExternalID,
+			Id:                 firstTask.ID,
+			InsertedAt:         firstTask.InsertedAt,
+			TenantId:           tenantId,
+			ExternalId:         firstTask.ExternalID,
+			PayloadReferenceId: firstTask.PayloadReferenceID,
 		}
 
 		taskInput, err := r.payloadStore.TaskInputs().RetrieveOne(ctx, r.pool, taskInputRef)

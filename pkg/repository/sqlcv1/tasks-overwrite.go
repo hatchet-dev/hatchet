@@ -51,7 +51,8 @@ WITH input AS (
 		unnest($37::text[]) AS idempotency_key,
 		unnest($38::text[]) AS batch_key,
 		unnest($39::boolean[]) AS is_dag_orchestrator,
-		unnest_nd_1d($40::integer[][]) AS concurrency_max_runs
+		unnest_nd_1d($40::integer[][]) AS concurrency_max_runs,
+		unnest($41::uuid[]) AS payload_reference_id
 )
 INSERT INTO v1_task (
     tenant_id,
@@ -94,7 +95,8 @@ INSERT INTO v1_task (
 	idempotency_key,
 	batch_key,
 	is_dag_orchestrator,
-	concurrency_max_runs
+	concurrency_max_runs,
+	payload_reference_id
 )
 SELECT
     i.tenant_id,
@@ -140,13 +142,14 @@ SELECT
 		ELSE NULLIF(BTRIM(i.batch_key), '')
 	END,
 	i.is_dag_orchestrator,
-	i.concurrency_max_runs
+	i.concurrency_max_runs,
+	i.payload_reference_id
 FROM
     input i
 LEFT JOIN
 	v1_step_batch_config sbc ON sbc.step_id = i.step_id
 RETURNING
-    id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff, workflow_version_id, workflow_run_id, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key, idempotency_key, batch_key, is_dag_orchestrator, concurrency_max_runs
+    id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff, workflow_version_id, workflow_run_id, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key, idempotency_key, batch_key, is_dag_orchestrator, concurrency_max_runs, payload_reference_id
 `
 
 type CreateTasksParams struct {
@@ -193,6 +196,7 @@ type CreateTasksParams struct {
 	IsDagOrchestrators           []bool               `json:"isDagOrchestrators"`
 	IdempotencyKeys              []pgtype.Text        `json:"idempotencyKeys"`
 	BatchKeys                    []string             `json:"batchKeys"`
+	PayloadReferenceIds          []*uuid.UUID         `json:"payloadReferenceIds"`
 }
 
 func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParams) ([]*V1Task, error) {
@@ -250,6 +254,7 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 		arg.BatchKeys,
 		arg.IsDagOrchestrators,
 		arg.ConcurrencyMaxRuns,
+		arg.PayloadReferenceIds,
 	)
 	if err != nil {
 		return nil, err
@@ -304,6 +309,7 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 			&i.BatchKey,
 			&i.IsDagOrchestrator,
 			&i.ConcurrencyMaxRuns,
+			&i.PayloadReferenceID,
 		); err != nil {
 			return nil, err
 		}

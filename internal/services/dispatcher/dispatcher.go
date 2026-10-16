@@ -759,10 +759,11 @@ func (d *DispatcherImpl) populateTaskData(
 
 	for i, task := range bulkDatas {
 		retrievePayloadOpts[i] = v1.PayloadRef[v1.TaskInputShape]{
-			Id:         task.ID,
-			InsertedAt: task.InsertedAt,
-			TenantId:   task.TenantID,
-			ExternalId: task.ExternalID,
+			Id:                 task.ID,
+			InsertedAt:         task.InsertedAt,
+			TenantId:           task.TenantID,
+			ExternalId:         task.ExternalID,
+			PayloadReferenceId: task.PayloadReferenceID,
 		}
 	}
 
@@ -789,10 +790,11 @@ func (d *DispatcherImpl) populateTaskData(
 
 	for _, task := range bulkDatas {
 		payloadKey := v1.PayloadRef[v1.TaskInputShape]{
-			Id:         task.ID,
-			InsertedAt: task.InsertedAt,
-			TenantId:   task.TenantID,
-			ExternalId: task.ExternalID,
+			Id:                 task.ID,
+			InsertedAt:         task.InsertedAt,
+			TenantId:           task.TenantID,
+			ExternalId:         task.ExternalID,
+			PayloadReferenceId: task.PayloadReferenceID,
 		}
 
 		currInput, err := v1.DecodeTaskInputPayload(v1.RetrievePayloadOrFallback(inputs, payloadKey, task.Input))
@@ -877,10 +879,11 @@ func (d *DispatcherImpl) populateTaskData(
 
 	for _, task := range bulkDatas {
 		input := v1.RetrievePayloadOrFallback(inputs, v1.PayloadRef[v1.TaskInputShape]{
-			Id:         task.ID,
-			InsertedAt: task.InsertedAt,
-			TenantId:   task.TenantID,
-			ExternalId: task.ExternalID,
+			Id:                 task.ID,
+			InsertedAt:         task.InsertedAt,
+			TenantId:           task.TenantID,
+			ExternalId:         task.ExternalID,
+			PayloadReferenceId: task.PayloadReferenceID,
 		}, task.Input).Bytes()
 
 		invocationCount := invocationCounts[v1.IdInsertedAt{

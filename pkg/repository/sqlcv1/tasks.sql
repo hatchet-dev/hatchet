@@ -210,6 +210,7 @@ WITH lookup_rows AS MATERIALIZED (
         t.workflow_version_id,
         t.parent_task_external_id,
         t.is_durable,
+        t.payload_reference_id,
         d.payload_reference_id AS dag_payload_reference_id
     FROM
         lookup_rows l
@@ -246,6 +247,7 @@ SELECT
     t.workflow_version_id,
     t.parent_task_external_id,
     t.is_durable,
+    t.payload_reference_id,
     NULL::uuid AS dag_payload_reference_id
 FROM
     lookup_rows l
@@ -876,7 +878,8 @@ WITH RECURSIVE input_tasks AS MATERIALIZED (
         t.child_key,
         t.desired_worker_label,
         t.triggering_event_external_id,
-        t.triggering_event_key
+        t.triggering_event_key,
+        t.payload_reference_id
     FROM
         v1_task t
     WHERE
@@ -926,6 +929,7 @@ SELECT
     t.desired_worker_label,
     t.triggering_event_external_id,
     t.triggering_event_key,
+    t.payload_reference_id,
     j."kind" as "jobKind",
     COALESCE(so."parents", '{}'::uuid[]) as "parents"
 FROM

@@ -1080,6 +1080,7 @@ WITH lookup_rows AS MATERIALIZED (
         t.workflow_version_id,
         t.parent_task_external_id,
         t.is_durable,
+        t.payload_reference_id,
         d.payload_reference_id AS dag_payload_reference_id
     FROM
         lookup_rows l
@@ -1115,6 +1116,7 @@ SELECT
     t.workflow_version_id,
     t.parent_task_external_id,
     t.is_durable,
+    t.payload_reference_id,
     NULL::uuid AS dag_payload_reference_id
 FROM
     lookup_rows l
@@ -1127,7 +1129,7 @@ WHERE
 UNION ALL
 
 SELECT
-    id, inserted_at, retry_count, external_id, workflow_run_id, additional_metadata, dag_id, dag_inserted_at, parent_task_id, child_index, child_key, step_readable_id, workflow_run_external_id, workflow_id, step_id, is_dag_orchestrator, workflow_version_id, parent_task_external_id, is_durable, dag_payload_reference_id
+    id, inserted_at, retry_count, external_id, workflow_run_id, additional_metadata, dag_id, dag_inserted_at, parent_task_id, child_index, child_key, step_readable_id, workflow_run_external_id, workflow_id, step_id, is_dag_orchestrator, workflow_version_id, parent_task_external_id, is_durable, payload_reference_id, dag_payload_reference_id
 FROM
     tasks_from_dags
 `
@@ -1157,6 +1159,7 @@ type FlattenExternalIdsRow struct {
 	WorkflowVersionID     uuid.UUID          `json:"workflow_version_id"`
 	ParentTaskExternalID  *uuid.UUID         `json:"parent_task_external_id"`
 	IsDurable             pgtype.Bool        `json:"is_durable"`
+	PayloadReferenceID    *uuid.UUID         `json:"payload_reference_id"`
 	DagPayloadReferenceID *uuid.UUID         `json:"dag_payload_reference_id"`
 }
 
@@ -1190,6 +1193,7 @@ func (q *Queries) FlattenExternalIds(ctx context.Context, db DBTX, arg FlattenEx
 			&i.WorkflowVersionID,
 			&i.ParentTaskExternalID,
 			&i.IsDurable,
+			&i.PayloadReferenceID,
 			&i.DagPayloadReferenceID,
 		); err != nil {
 			return nil, err
@@ -2683,7 +2687,8 @@ WITH RECURSIVE input_tasks AS MATERIALIZED (
         t.child_key,
         t.desired_worker_label,
         t.triggering_event_external_id,
-        t.triggering_event_key
+        t.triggering_event_key,
+        t.payload_reference_id
     FROM
         v1_task t
     WHERE
@@ -2733,6 +2738,7 @@ SELECT
     t.desired_worker_label,
     t.triggering_event_external_id,
     t.triggering_event_key,
+    t.payload_reference_id,
     j."kind" as "jobKind",
     COALESCE(so."parents", '{}'::uuid[]) as "parents"
 FROM
@@ -2773,6 +2779,7 @@ type ListTasksForReplayRow struct {
 	DesiredWorkerLabel        []byte             `json:"desired_worker_label"`
 	TriggeringEventExternalID *uuid.UUID         `json:"triggering_event_external_id"`
 	TriggeringEventKey        pgtype.Text        `json:"triggering_event_key"`
+	PayloadReferenceID        *uuid.UUID         `json:"payload_reference_id"`
 	JobKind                   JobKind            `json:"jobKind"`
 	Parents                   []uuid.UUID        `json:"parents"`
 }
@@ -2814,6 +2821,7 @@ func (q *Queries) ListTasksForReplay(ctx context.Context, db DBTX, arg ListTasks
 			&i.DesiredWorkerLabel,
 			&i.TriggeringEventExternalID,
 			&i.TriggeringEventKey,
+			&i.PayloadReferenceID,
 			&i.JobKind,
 			&i.Parents,
 		); err != nil {
