@@ -136,6 +136,8 @@ roles:
       - TenantResourcePolicyGet
       - UserUpdateSlackOauthStart
       - UserUpdateGoogleOauthStart
+      - UserUpdateOidcOauthStart
+      - UserUpdateOidcOauthCallback
       - V1CelDebug
       - V1WorkflowRunGetTimings
       - InfoGetVersion

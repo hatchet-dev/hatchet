@@ -29,12 +29,14 @@ export function AuthPage({
   const googleEnabled = schemes.includes('google');
   const githubEnabled = schemes.includes('github');
   const ssoEnabled = schemes.includes('sso');
+  const oidcEnabled = schemes.includes('oidc');
 
   const providers = [
     googleEnabled && 'google',
     githubEnabled && 'github',
     ssoEnabled && 'sso',
-  ].filter(Boolean) as Array<'google' | 'github' | 'sso'>;
+    oidcEnabled && 'oidc',
+  ].filter(Boolean) as Array<'google' | 'github' | 'sso' | 'oidc'>;
 
   const sections = [
     providers.length > 0 && (
