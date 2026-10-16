@@ -576,6 +576,7 @@ CREATE TABLE v1_task (
     -- parallel to concurrency_strategy_ids. A NULL element means that strategy's static
     -- max_concurrency applies.
     concurrency_max_runs INTEGER[],
+    payload_reference_id UUID,
     CONSTRAINT v1_task_pkey PRIMARY KEY (id, inserted_at)
 ) PARTITION BY RANGE(inserted_at);
 
@@ -613,6 +614,7 @@ CREATE TABLE v1_task_event (
     data JSONB,
     external_id UUID NOT NULL DEFAULT gen_random_uuid(),
     child_external_id UUID,
+    payload_reference_id UUID,
     CONSTRAINT v1_task_event_pkey PRIMARY KEY (task_id, task_inserted_at, id)
 ) PARTITION BY RANGE(task_inserted_at);
 
@@ -1184,6 +1186,7 @@ CREATE TABLE v1_dag (
     parent_task_external_id UUID,
     desired_worker_labels JSONB,
     idempotency_key TEXT,
+    payload_reference_id UUID,
     CONSTRAINT v1_dag_pkey PRIMARY KEY (id, inserted_at)
 ) PARTITION BY RANGE(inserted_at);
 
@@ -2948,6 +2951,7 @@ CREATE TABLE v1_event (
     additional_metadata JSONB,
     scope TEXT,
     triggering_webhook_name TEXT,
+    payload_reference_id UUID,
 
     PRIMARY KEY (tenant_id, seen_at, id)
 ) PARTITION BY RANGE(seen_at);

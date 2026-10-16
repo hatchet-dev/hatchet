@@ -119,7 +119,7 @@ WITH inputs AS (
         UNNEST($4::text[]) AS scope
 )
 
-SELECT e.id, e.seen_at, e.tenant_id, e.external_id, e.key, e.additional_metadata, e.scope, e.triggering_webhook_name
+SELECT e.id, e.seen_at, e.tenant_id, e.external_id, e.key, e.additional_metadata, e.scope, e.triggering_webhook_name, e.payload_reference_id
 FROM v1_event e
 JOIN inputs i ON i.key = e.key AND e.seen_at >= i.since AND e.scope = i.scope
 WHERE tenant_id = $1::uuid
@@ -156,6 +156,7 @@ func (q *Queries) GetPreviousMatchingEventsByKeysWithScopeHint(ctx context.Conte
 			&i.AdditionalMetadata,
 			&i.Scope,
 			&i.TriggeringWebhookName,
+			&i.PayloadReferenceID,
 		); err != nil {
 			return nil, err
 		}

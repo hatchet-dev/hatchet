@@ -53,7 +53,7 @@ SELECT
 FROM
     input i
 RETURNING
-    id, inserted_at, tenant_id, external_id, display_name, workflow_id, workflow_version_id, parent_task_external_id, desired_worker_labels, idempotency_key
+    id, inserted_at, tenant_id, external_id, display_name, workflow_id, workflow_version_id, parent_task_external_id, desired_worker_labels, idempotency_key, payload_reference_id
 `
 
 type CreateDAGsParams struct {
@@ -96,6 +96,7 @@ func (q *Queries) CreateDAGs(ctx context.Context, db DBTX, arg CreateDAGsParams)
 			&i.ParentTaskExternalID,
 			&i.DesiredWorkerLabels,
 			&i.IdempotencyKey,
+			&i.PayloadReferenceID,
 		); err != nil {
 			return nil, err
 		}
