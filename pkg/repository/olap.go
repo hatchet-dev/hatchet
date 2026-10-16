@@ -3293,8 +3293,9 @@ func (r *OLAPRepositoryImpl) GetTaskDurationsByTaskIds(ctx context.Context, tena
 
 	taskDurations := make(map[int64]*sqlcv1.GetTaskDurationsByTaskIdsRow)
 
-	for i, row := range rows {
-		taskDurations[taskIds[i]] = row
+	// rows come back sorted and drop tasks whose status changed, so they can't be matched to taskIds by index
+	for _, row := range rows {
+		taskDurations[row.TaskID] = row
 	}
 
 	return taskDurations, nil
