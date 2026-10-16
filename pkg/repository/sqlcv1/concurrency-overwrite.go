@@ -506,11 +506,12 @@ WITH slots AS (
             WHEN (
                 cs.tenant_id = $1::uuid AND
                 cs.strategy_id = $2::bigint AND
-                (cs.task_inserted_at, cs.task_id, cs.task_retry_count) NOT IN (
+                -- match by task, not retry: a reassign resets the slot to the next retry in place, and
+                -- a run that blocked on that row must not see the reset slot as a newer run
+                (cs.task_inserted_at, cs.task_id) NOT IN (
                     SELECT
                         ers.task_inserted_at,
-                        ers.task_id,
-                        ers.task_retry_count
+                        ers.task_id
                     FROM
                         eligible_running_slots ers
                 ) AND
@@ -539,11 +540,10 @@ WITH slots AS (
             ORDER BY
                 rn, seqnum
         ) OR (
-            (cs.task_inserted_at, cs.task_id, cs.task_retry_count) NOT IN (
+            (cs.task_inserted_at, cs.task_id) NOT IN (
                 SELECT
                     ers.task_inserted_at,
-                    ers.task_id,
-                    ers.task_retry_count
+                    ers.task_id
                 FROM
                     eligible_running_slots ers
             ) AND
