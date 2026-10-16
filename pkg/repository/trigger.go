@@ -739,7 +739,7 @@ type triggerTuple struct {
 	workflowRunId             *uuid.UUID
 	olapDagId                 *int64
 	olapDagInsertedAt         *time.Time
-	dagPayloadReferenceId     *uuid.UUID
+	payloadReferenceId        *uuid.UUID
 }
 
 func (t triggerTuple) effectiveWorkflowRunId() uuid.UUID {
@@ -1052,6 +1052,9 @@ func (r *sharedRepository) triggerWorkflowsCore(
 
 	olapDagStamps := make(map[uuid.UUID]olapDagStamp)
 
+	// DAGs that were not triggered by an event write the shared input payload row themselves
+	dagExternalIdsOwningInputPayload := make(map[uuid.UUID]struct{})
+
 	for i, tuple := range tuples {
 		if _, ok := tuplesToSkip[tuple.externalId]; ok {
 			continue
@@ -1092,6 +1095,12 @@ func (r *sharedRepository) triggerWorkflowsCore(
 			}
 		}
 		useOperatorPath := orchestratorStep != nil && tuple.targetActionId == nil
+
+		if tuple.payloadReferenceId == nil && isDag && !useOperatorPath {
+			dagPayloadReferenceId := uuid.New()
+			tuple.payloadReferenceId = &dagPayloadReferenceId
+			dagExternalIdsOwningInputPayload[tuple.externalId] = struct{}{}
+		}
 
 		if useOperatorPath {
 			orchestratorInput := r.newTaskInput(tuple.input, nil, tuple.filterPayload, tuple.dagParentTaskRunIds)
@@ -1521,7 +1530,7 @@ func (r *sharedRepository) triggerWorkflowsCore(
 				AdditionalMetadata:   tuple.additionalMetadata,
 				ParentTaskExternalID: tuple.parentExternalId,
 				DesiredWorkerLabels:  tuple.desiredWorkerLabels,
-				PayloadReferenceId:   tuple.dagPayloadReferenceId,
+				PayloadReferenceId:   tuple.payloadReferenceId,
 			}
 
 			if idempotencyKey, ok := externalIdToIdempotencyKey[tuple.externalId]; ok {
@@ -1625,11 +1634,16 @@ func (r *sharedRepository) triggerWorkflowsCore(
 	}
 
 	for _, dag := range dags {
+		if _, ownsInputPayload := dagExternalIdsOwningInputPayload[dag.ExternalID]; dag.PayloadReferenceID != nil && !ownsInputPayload {
+			continue
+		}
+
 		storePayloadOpts = append(storePayloadOpts, PayloadRef[DAGInputShape]{
-			Id:         dag.ID,
-			InsertedAt: dag.InsertedAt,
-			ExternalId: dag.ExternalID,
-			TenantId:   tenantId,
+			Id:                 dag.ID,
+			InsertedAt:         dag.InsertedAt,
+			ExternalId:         dag.ExternalID,
+			TenantId:           tenantId,
+			PayloadReferenceId: dag.PayloadReferenceID,
 		}.StoreOpts(NewPayload[DAGInputShape](dag.Input)))
 	}
 
@@ -1648,10 +1662,11 @@ func (r *sharedRepository) triggerWorkflowsCore(
 			}
 
 			storePayloadOpts = append(storePayloadOpts, PayloadRef[UserEventInputShape]{
-				Id:         e.ID,
-				InsertedAt: e.SeenAt,
-				ExternalId: e.ExternalID,
-				TenantId:   tenantId,
+				Id:                 e.ID,
+				InsertedAt:         e.SeenAt,
+				ExternalId:         e.ExternalID,
+				TenantId:           tenantId,
+				PayloadReferenceId: e.PayloadReferenceID,
 			}.StoreOpts(NewPayload[UserEventInputShape](payload)))
 		}
 	}
@@ -2737,7 +2752,7 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 					triggeringEventExternalId: &opt.ExternalId,
 					triggeringEventKey:        &opt.Key,
 					idempotency:               idempotency,
-					dagPayloadReferenceId:     opt.PayloadReferenceId,
+					payloadReferenceId:        opt.PayloadReferenceId,
 				})
 
 				externalIdToEventIdAndFilterId[externalId] = EventExternalIdFilterId{

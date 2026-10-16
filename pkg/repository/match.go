@@ -593,10 +593,11 @@ func (m *sharedRepository) processEventMatchesForTarget(ctx context.Context, tx 
 		retrievePayloadOpts := make([]PayloadRef[DAGInputShape], len(dagInputDatas))
 		for i, dagData := range dagInputDatas {
 			retrievePayloadOpts[i] = PayloadRef[DAGInputShape]{
-				Id:         dagData.DagID,
-				InsertedAt: dagData.DagInsertedAt,
-				TenantId:   tenantId,
-				ExternalId: dagData.ExternalID,
+				Id:                 dagData.DagID,
+				InsertedAt:         dagData.DagInsertedAt,
+				TenantId:           tenantId,
+				ExternalId:         dagData.ExternalID,
+				PayloadReferenceId: dagData.PayloadReferenceID,
 			}
 		}
 
@@ -612,10 +613,11 @@ func (m *sharedRepository) processEventMatchesForTarget(ctx context.Context, tx 
 
 		for _, dagData := range dagInputDatas {
 			retrieveOpts := PayloadRef[DAGInputShape]{
-				Id:         dagData.DagID,
-				InsertedAt: dagData.DagInsertedAt,
-				TenantId:   tenantId,
-				ExternalId: dagData.ExternalID,
+				Id:                 dagData.DagID,
+				InsertedAt:         dagData.DagInsertedAt,
+				TenantId:           tenantId,
+				ExternalId:         dagData.ExternalID,
+				PayloadReferenceId: dagData.PayloadReferenceID,
 			}
 
 			dagIdsToInput[dagData.DagID] = RetrievePayloadOrFallback(payloads, retrieveOpts, dagData.Input).Bytes()

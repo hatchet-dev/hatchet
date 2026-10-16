@@ -1079,15 +1079,19 @@ WITH lookup_rows AS MATERIALIZED (
         t.is_dag_orchestrator,
         t.workflow_version_id,
         t.parent_task_external_id,
-        t.is_durable
+        t.is_durable,
+        d.payload_reference_id AS dag_payload_reference_id
     FROM
         lookup_rows l
+    JOIN
+        v1_dag d ON d.id = l.dag_id AND d.inserted_at = l.inserted_at
     JOIN
         v1_dag_to_task dt ON dt.dag_id = l.dag_id AND dt.dag_inserted_at = l.inserted_at
     JOIN
         v1_task t ON t.id = dt.task_id AND t.inserted_at = dt.task_inserted_at
     WHERE
         l.dag_id IS NOT NULL
+        AND d.inserted_at >= (SELECT MIN(inserted_at) FROM lookup_rows WHERE dag_id IS NOT NULL)
         AND dt.dag_inserted_at >= (SELECT MIN(inserted_at) FROM lookup_rows WHERE dag_id IS NOT NULL)
         AND t.inserted_at >= (SELECT MIN(inserted_at) FROM lookup_rows WHERE dag_id IS NOT NULL)
 )
@@ -1110,7 +1114,8 @@ SELECT
     t.is_dag_orchestrator,
     t.workflow_version_id,
     t.parent_task_external_id,
-    t.is_durable
+    t.is_durable,
+    NULL::uuid AS dag_payload_reference_id
 FROM
     lookup_rows l
 JOIN
@@ -1122,7 +1127,7 @@ WHERE
 UNION ALL
 
 SELECT
-    id, inserted_at, retry_count, external_id, workflow_run_id, additional_metadata, dag_id, dag_inserted_at, parent_task_id, child_index, child_key, step_readable_id, workflow_run_external_id, workflow_id, step_id, is_dag_orchestrator, workflow_version_id, parent_task_external_id, is_durable
+    id, inserted_at, retry_count, external_id, workflow_run_id, additional_metadata, dag_id, dag_inserted_at, parent_task_id, child_index, child_key, step_readable_id, workflow_run_external_id, workflow_id, step_id, is_dag_orchestrator, workflow_version_id, parent_task_external_id, is_durable, dag_payload_reference_id
 FROM
     tasks_from_dags
 `
@@ -1152,6 +1157,7 @@ type FlattenExternalIdsRow struct {
 	WorkflowVersionID     uuid.UUID          `json:"workflow_version_id"`
 	ParentTaskExternalID  *uuid.UUID         `json:"parent_task_external_id"`
 	IsDurable             pgtype.Bool        `json:"is_durable"`
+	DagPayloadReferenceID *uuid.UUID         `json:"dag_payload_reference_id"`
 }
 
 // Union the tasks from the lookup table with the tasks from the DAGs
@@ -1184,6 +1190,7 @@ func (q *Queries) FlattenExternalIds(ctx context.Context, db DBTX, arg FlattenEx
 			&i.WorkflowVersionID,
 			&i.ParentTaskExternalID,
 			&i.IsDurable,
+			&i.DagPayloadReferenceID,
 		); err != nil {
 			return nil, err
 		}

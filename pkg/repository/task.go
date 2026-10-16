@@ -5276,10 +5276,11 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 
 	if isDag {
 		dagInputRef := PayloadRef[DAGInputShape]{
-			Id:         firstTask.DagID.Int64,
-			InsertedAt: firstTask.DagInsertedAt,
-			TenantId:   tenantId,
-			ExternalId: firstTask.WorkflowRunExternalID,
+			Id:                 firstTask.DagID.Int64,
+			InsertedAt:         firstTask.DagInsertedAt,
+			TenantId:           tenantId,
+			ExternalId:         firstTask.WorkflowRunExternalID,
+			PayloadReferenceId: firstTask.DagPayloadReferenceID,
 		}
 
 		dagInput, err := r.payloadStore.DAGInputs().RetrieveOne(ctx, r.pool, dagInputRef)

@@ -119,7 +119,7 @@ WITH input AS (
         unnest($2::bigint[]) AS dag_id,
         unnest($3::timestamptz[]) AS dag_inserted_at
 )
-SELECT dd.dag_id, dd.dag_inserted_at, dd.input, dd.additional_metadata, d.desired_worker_labels, d.external_id
+SELECT dd.dag_id, dd.dag_inserted_at, dd.input, dd.additional_metadata, d.desired_worker_labels, d.external_id, d.payload_reference_id
 FROM v1_dag d
 JOIN v1_dag_data dd ON (d.id, d.inserted_at) = (dd.dag_id, dd.dag_inserted_at)
 WHERE (d.id, d.inserted_at) IN (
@@ -143,6 +143,7 @@ type GetDAGDataRow struct {
 	AdditionalMetadata  []byte             `json:"additional_metadata"`
 	DesiredWorkerLabels []byte             `json:"desired_worker_labels"`
 	ExternalID          uuid.UUID          `json:"external_id"`
+	PayloadReferenceID  *uuid.UUID         `json:"payload_reference_id"`
 }
 
 func (q *Queries) GetDAGData(ctx context.Context, db DBTX, arg GetDAGDataParams) ([]*GetDAGDataRow, error) {
@@ -161,6 +162,7 @@ func (q *Queries) GetDAGData(ctx context.Context, db DBTX, arg GetDAGDataParams)
 			&i.AdditionalMetadata,
 			&i.DesiredWorkerLabels,
 			&i.ExternalID,
+			&i.PayloadReferenceID,
 		); err != nil {
 			return nil, err
 		}
