@@ -1061,7 +1061,8 @@ WITH to_insert AS (
         -- Scopes are nullable
         UNNEST($6::TEXT[]) AS scope,
         -- Webhook names are nullable
-        UNNEST($7::TEXT[]) AS triggering_webhook_name
+        UNNEST($7::TEXT[]) AS triggering_webhook_name,
+		UNNEST($8::UUID[]) AS payload_reference_id
 )
 
 INSERT INTO v1_event (
@@ -1071,13 +1072,14 @@ INSERT INTO v1_event (
     key,
     additional_metadata,
     scope,
-	triggering_webhook_name
+	triggering_webhook_name,
+    payload_reference_id
 )
 
-SELECT tenant_id, external_id, seen_at, key, additional_metadata, scope, triggering_webhook_name
+SELECT tenant_id, external_id, seen_at, key, additional_metadata, scope, triggering_webhook_name, payload_reference_id
 FROM to_insert
 ON CONFLICT (external_id, seen_at) DO NOTHING
-RETURNING tenant_id, id, external_id, seen_at, key, additional_metadata, scope, triggering_webhook_name
+RETURNING tenant_id, id, external_id, seen_at, key, additional_metadata, scope, triggering_webhook_name, payload_reference_id
 `
 
 type BulkCreateEventsParams struct {
@@ -1088,6 +1090,7 @@ type BulkCreateEventsParams struct {
 	Additionalmetadatas    [][]byte             `json:"additionalmetadatas"`
 	Scopes                 []pgtype.Text        `json:"scopes"`
 	TriggeringWebhookNames []pgtype.Text        `json:"triggeringWebhookName"`
+	PayloadReferenceIDs    []*uuid.UUID         `json:"payloadReferenceIds"`
 }
 
 func (q *Queries) BulkCreateEvents(ctx context.Context, db DBTX, arg BulkCreateEventsParams) ([]*V1Event, error) {
@@ -1099,6 +1102,7 @@ func (q *Queries) BulkCreateEvents(ctx context.Context, db DBTX, arg BulkCreateE
 		arg.Additionalmetadatas,
 		arg.Scopes,
 		arg.TriggeringWebhookNames,
+		arg.PayloadReferenceIDs,
 	)
 	if err != nil {
 		return nil, err
@@ -1116,6 +1120,7 @@ func (q *Queries) BulkCreateEvents(ctx context.Context, db DBTX, arg BulkCreateE
 			&i.AdditionalMetadata,
 			&i.Scope,
 			&i.TriggeringWebhookName,
+			&i.PayloadReferenceID,
 		); err != nil {
 			return nil, err
 		}

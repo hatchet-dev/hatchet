@@ -105,6 +105,7 @@ func (i *IngestorImpl) ingest(ctx context.Context, tenant *sqlcv1.Tenant, eventO
 				Priority:              event.EventPriority,
 				Scope:                 event.EventScope,
 				TriggeringWebhookName: event.TriggeringWebhookName,
+				PayloadReferenceId:    event.PayloadReferenceId,
 			})
 		}
 
@@ -158,6 +159,7 @@ func (i *IngestorImpl) ingest(ctx context.Context, tenant *sqlcv1.Tenant, eventO
 				Priority:              event.EventPriority,
 				Scope:                 event.EventScope,
 				TriggeringWebhookName: event.TriggeringWebhookName,
+				PayloadReferenceId:    event.PayloadReferenceId,
 			}
 		}
 
@@ -263,6 +265,7 @@ func (i *IngestorImpl) ingestReplayedEventV1(ctx context.Context, tenant *sqlcv1
 
 func eventToPayload(tenantId uuid.UUID, key string, data, additionalMeta []byte, priority *int32, scope *string, triggeringWebhookName *string) tasktypes.UserEventTaskPayload {
 	eventId := uuid.New()
+	payloadReferenceId := uuid.New()
 
 	// FIXME: Should `SeenAt` be set on the SDK when the event is created?
 	eventSeenAt := time.Now().UTC()
@@ -276,6 +279,7 @@ func eventToPayload(tenantId uuid.UUID, key string, data, additionalMeta []byte,
 		EventPriority:           priority,
 		EventScope:              scope,
 		TriggeringWebhookName:   triggeringWebhookName,
+		PayloadReferenceId:      &payloadReferenceId,
 	}
 }
 

@@ -38,6 +38,8 @@ type EventTriggerOpts struct {
 	Scope *string
 
 	TriggeringWebhookName *string
+
+	PayloadReferenceId *uuid.UUID
 }
 
 type TriggerTaskData struct {
@@ -2533,6 +2535,7 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 	createCoreEventsAdditionalMetadatas := [][]byte{}
 	createCoreEventsScopes := []pgtype.Text{}
 	createCoreEventsTriggeringWebhookNames := []pgtype.Text{}
+	createCoreEventsPayloadReferenceIDs := []*uuid.UUID{}
 
 	eventExternalIdsToPayloads := make(map[uuid.UUID][]byte)
 
@@ -2548,6 +2551,7 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 		createCoreEventsAdditionalMetadatas = append(createCoreEventsAdditionalMetadatas, opt.AdditionalMetadata)
 		createCoreEventsScopes = append(createCoreEventsScopes, sqlchelpers.TextFromMaybeStr(opt.Scope))
 		createCoreEventsTriggeringWebhookNames = append(createCoreEventsTriggeringWebhookNames, sqlchelpers.TextFromMaybeStr(opt.TriggeringWebhookName))
+		createCoreEventsPayloadReferenceIDs = append(createCoreEventsPayloadReferenceIDs, opt.PayloadReferenceId)
 
 		eventKeysToOpts[opt.Key] = append(eventKeysToOpts[opt.Key], opt)
 
@@ -2739,6 +2743,7 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 			Additionalmetadatas:    createCoreEventsAdditionalMetadatas,
 			Scopes:                 createCoreEventsScopes,
 			TriggeringWebhookNames: createCoreEventsTriggeringWebhookNames,
+			PayloadReferenceIDs:    createCoreEventsPayloadReferenceIDs,
 		},
 		externalIdToEventIdAndFilterId: externalIdToEventIdAndFilterId,
 		externalIdsToPayloads:          eventExternalIdsToPayloads,
