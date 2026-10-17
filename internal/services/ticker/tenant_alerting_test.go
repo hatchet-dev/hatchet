@@ -130,3 +130,29 @@ func TestDispatchTenantResourceLimitAlert_NilHookIsNoop(t *testing.T) {
 	require.NoError(t, tk.dispatchTenantResourceLimitAlert(context.Background(), row))
 	assert.Len(t, ta.sent, 1)
 }
+
+func TestDispatchTenantResourceLimitAlert_HookGetsOwnTimeoutFromLifetimeContext(t *testing.T) {
+	row := newLimitAlertRow(uuid.New())
+
+	var hookDeadline time.Time
+	var hookHadDeadline bool
+	hook := func(ctx context.Context, _ limitalerts.Alert) error {
+		hookDeadline, hookHadDeadline = ctx.Deadline()
+		return ctx.Err()
+	}
+
+	// The batch context is already expired, as it would be after slow tenant
+	// sends; the lifetime context is what the hook must be derived from.
+	lifetimeCtx := context.Background()
+	batchCtx, cancel := context.WithTimeout(lifetimeCtx, time.Nanosecond)
+	defer cancel()
+	<-batchCtx.Done()
+
+	tk := newTestTicker(&fakeTenantAlerter{}, hook)
+
+	before := time.Now()
+	require.NoError(t, tk.dispatchTenantResourceLimitAlert(lifetimeCtx, row))
+
+	require.True(t, hookHadDeadline, "hook context must carry its own deadline")
+	assert.WithinDuration(t, before.Add(tenantResourceLimitAlertHookTimeout), hookDeadline, 2*time.Second)
+}

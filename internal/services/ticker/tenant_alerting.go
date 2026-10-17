@@ -49,9 +49,14 @@ func (t *TickerImpl) runExpiringTokenAlerts(ctx context.Context) func() {
 	}
 }
 
-func (t *TickerImpl) runTenantResourceLimitAlerts(ctx context.Context) func() {
+// tenantResourceLimitAlertHookTimeout bounds one hook call. It is derived from
+// the ticker's lifetime context rather than the batch context so a slow tenant
+// send earlier in the batch cannot hand the hook an expired context.
+const tenantResourceLimitAlertHookTimeout = 10 * time.Second
+
+func (t *TickerImpl) runTenantResourceLimitAlerts(lifetimeCtx context.Context) func() {
 	return func() {
-		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		ctx, cancel := context.WithTimeout(lifetimeCtx, 30*time.Second)
 		defer cancel()
 
 		t.l.Debug().Ctx(ctx).Msg("ticker: resolving tenant resource limits")
@@ -77,7 +82,7 @@ func (t *TickerImpl) runTenantResourceLimitAlerts(ctx context.Context) func() {
 		for _, alert := range alerts {
 			t.l.Debug().Ctx(ctx).Msgf("ticker: handling tenant resource limit alert for tenant %s", alert.TenantId)
 
-			if innerErr := t.dispatchTenantResourceLimitAlert(ctx, alert); innerErr != nil {
+			if innerErr := t.dispatchTenantResourceLimitAlert(lifetimeCtx, alert); innerErr != nil {
 				err = multierror.Append(err, innerErr)
 			}
 		}
@@ -90,8 +95,10 @@ func (t *TickerImpl) runTenantResourceLimitAlerts(ctx context.Context) func() {
 
 // dispatchTenantResourceLimitAlert delivers one new alert to the tenant-facing
 // alerter and then to the optional hook. Both run even if the other fails; the
-// errors are combined so the caller can log them.
-func (t *TickerImpl) dispatchTenantResourceLimitAlert(ctx context.Context, alert *sqlcv1.TenantResourceLimitAlert) error {
+// errors are combined so the caller can log them. The hook gets its own
+// timeout from lifetimeCtx, not the shared batch timeout, because the alert
+// row already exists by now and a hook that misses its chance is not retried.
+func (t *TickerImpl) dispatchTenantResourceLimitAlert(lifetimeCtx context.Context, alert *sqlcv1.TenantResourceLimitAlert) error {
 	var err error
 
 	if innerErr := t.ta.SendTenantResourceLimitAlert(alert.TenantId, alert); innerErr != nil {
@@ -99,7 +106,10 @@ func (t *TickerImpl) dispatchTenantResourceLimitAlert(ctx context.Context, alert
 	}
 
 	if t.limitAlertHook != nil {
-		if innerErr := t.limitAlertHook(ctx, limitAlertFromRow(alert)); innerErr != nil {
+		hookCtx, cancel := context.WithTimeout(lifetimeCtx, tenantResourceLimitAlertHookTimeout)
+		defer cancel()
+
+		if innerErr := t.limitAlertHook(hookCtx, limitAlertFromRow(alert)); innerErr != nil {
 			err = multierror.Append(err, fmt.Errorf("tenant resource limit alert hook: %w", innerErr))
 		}
 	}
