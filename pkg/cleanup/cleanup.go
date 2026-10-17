@@ -2,11 +2,17 @@ package cleanup
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/rs/zerolog"
 )
+
+// ErrTeardown is wrapped into every error Run returns, so a caller that
+// tolerates another error in the same chain (for example the cancellation that
+// aborted a startup) can still tell that a cleanup fn failed.
+var ErrTeardown = errors.New("teardown failed")
 
 type CleanupFn struct {
 	Fn   func() error
@@ -69,7 +75,7 @@ func (c *Cleanup) Run() error {
 		lines <- fmt.Sprintf("shutting down %s (%d/%d)", fn.Name, i+1, len(c.Fns))
 		before := time.Now()
 		if err := fn.Fn(); err != nil {
-			return fmt.Errorf("could not teardown %s: %w", fn.Name, err)
+			return fmt.Errorf("%w: %s: %w", ErrTeardown, fn.Name, err)
 		}
 		lines <- fmt.Sprintf("successfully shutdown %s in %s (%d/%d)\n", fn.Name, time.Since(before), i+1, len(c.Fns))
 	}

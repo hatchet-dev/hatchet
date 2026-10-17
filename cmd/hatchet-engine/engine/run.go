@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -106,7 +107,12 @@ func Run(
 	cleanup.Add(server.Disconnect, "database")
 
 	if err != nil {
-		return fmt.Errorf("could not run with config: %w", err)
+		// a start step failed, or observed the context being cancelled while
+		// the engine was still starting. Everything started before that step
+		// has already registered its cleanup, so tear it down before reporting
+		// the error; otherwise the pools, queue channels and background
+		// goroutines of a partially started engine outlive Run
+		return errors.Join(fmt.Errorf("could not run with config: %w", err), cleanup.Run())
 	}
 
 	l.Debug().Msgf("interrupt received, shutting down")
