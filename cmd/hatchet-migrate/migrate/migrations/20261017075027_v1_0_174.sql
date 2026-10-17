@@ -191,7 +191,7 @@ BEGIN
         id,
         inserted_at
     FROM new_table
-    ON CONFLICT (external_id) DO NOTHING;
+    ON CONFLICT (external_id, inserted_at) DO NOTHING;
 
     RETURN NULL;
 END;
@@ -359,7 +359,7 @@ BEGIN
         id,
         inserted_at
     FROM new_table
-    ON CONFLICT (external_id) DO NOTHING;
+    ON CONFLICT (external_id, inserted_at) DO NOTHING;
 
     RETURN NULL;
 END;
