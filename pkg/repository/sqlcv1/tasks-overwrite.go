@@ -51,9 +51,7 @@ WITH input AS (
 		unnest($37::text[]) AS idempotency_key,
 		unnest($38::text[]) AS batch_key,
 		unnest($39::boolean[]) AS is_dag_orchestrator,
-		unnest_nd_1d($40::integer[][]) AS concurrency_max_runs,
-		-- the task input lives in v1_payload (v1_task.input is always '{}'); NULL when empty
-		unnest($41::jsonb[]) AS input
+		unnest_nd_1d($40::integer[][]) AS concurrency_max_runs
 ), inserted AS (
 INSERT INTO v1_task (
     tenant_id,
@@ -151,34 +149,6 @@ RETURNING
     id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff, workflow_version_id, workflow_run_id, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key, idempotency_key, batch_key, is_dag_orchestrator, concurrency_max_runs,
     -- the whole row as a v1_task value, the input of store_queue_items_for_tasks below
     v1_task AS task
-), payloads AS (
-    -- The TASK_INPUT payload row of every task with a non-empty input; v1_task.input is
-    -- always '{}', so this row is the only copy of the input. A data-modifying CTE runs
-    -- exactly once whether or not the primary query reads it, which is why nothing below
-    -- references payloads.
-    INSERT INTO v1_payload (
-        tenant_id,
-        id,
-        inserted_at,
-        external_id,
-        type,
-        location,
-        external_location_key,
-        inline_content
-    )
-    SELECT
-        t.tenant_id,
-        t.id,
-        t.inserted_at,
-        t.external_id,
-        'TASK_INPUT'::v1_payload_type,
-        'INLINE'::v1_payload_location,
-        NULL,
-        i.input
-    FROM inserted t
-    JOIN input i ON i.external_id = t.external_id
-    WHERE i.input IS NOT NULL
-    ON CONFLICT DO NOTHING
 ), queue_items AS MATERIALIZED (
     -- store_queue_items_for_tasks (sql/schema/v1-core.sql) is the queue-item mapping the
     -- v1_task insert trigger uses as well; it is called here so the ids come back with the
@@ -281,8 +251,6 @@ type CreateTasksParams struct {
 	IsDagOrchestrators           []bool               `json:"isDagOrchestrators"`
 	IdempotencyKeys              []pgtype.Text        `json:"idempotencyKeys"`
 	BatchKeys                    []string             `json:"batchKeys"`
-	// Inputs are the task inputs written to v1_payload; a nil element writes no payload
-	Inputs [][]byte `json:"inputs"`
 }
 
 func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParams) ([]*CreateTasksRow, error) {
@@ -340,7 +308,6 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 		arg.BatchKeys,
 		arg.IsDagOrchestrators,
 		arg.ConcurrencyMaxRuns,
-		arg.Inputs,
 	)
 	if err != nil {
 		return nil, err
@@ -1155,10 +1122,9 @@ WITH to_insert AS (
         -- Scopes are nullable
         UNNEST($6::TEXT[]) AS scope,
         -- Webhook names are nullable
-        UNNEST($7::TEXT[]) AS triggering_webhook_name,
-        -- the event input lives in v1_payload; NULL when empty
-        UNNEST($8::JSONB[]) AS payload
-), inserted AS (
+        UNNEST($7::TEXT[]) AS triggering_webhook_name
+)
+
 INSERT INTO v1_event (
     tenant_id,
     external_id,
@@ -1172,39 +1138,7 @@ INSERT INTO v1_event (
 SELECT tenant_id, external_id, seen_at, key, additional_metadata, scope, triggering_webhook_name
 FROM to_insert
 ON CONFLICT (external_id, seen_at) DO NOTHING
-RETURNING
-    tenant_id, id, external_id, seen_at, key, additional_metadata, scope, triggering_webhook_name
-), payloads AS (
-    -- The USER_EVENT_INPUT payload row of every inserted event with a non-empty input (an
-    -- event dropped by ON CONFLICT above gets none). A data-modifying CTE runs exactly once
-    -- whether or not the primary query reads it, which is why nothing below references
-    -- payloads.
-    INSERT INTO v1_payload (
-        tenant_id,
-        id,
-        inserted_at,
-        external_id,
-        type,
-        location,
-        external_location_key,
-        inline_content
-    )
-    SELECT
-        e.tenant_id,
-        e.id,
-        e.seen_at,
-        e.external_id,
-        'USER_EVENT_INPUT'::v1_payload_type,
-        'INLINE'::v1_payload_location,
-        NULL,
-        i.payload
-    FROM inserted e
-    JOIN to_insert i ON i.external_id = e.external_id AND i.seen_at = e.seen_at
-    WHERE i.payload IS NOT NULL
-    ON CONFLICT DO NOTHING
-)
-SELECT e.tenant_id, e.id, e.external_id, e.seen_at, e.key, e.additional_metadata, e.scope, e.triggering_webhook_name
-FROM inserted e
+RETURNING tenant_id, id, external_id, seen_at, key, additional_metadata, scope, triggering_webhook_name
 `
 
 type BulkCreateEventsParams struct {
@@ -1215,8 +1149,6 @@ type BulkCreateEventsParams struct {
 	Additionalmetadatas    [][]byte             `json:"additionalmetadatas"`
 	Scopes                 []pgtype.Text        `json:"scopes"`
 	TriggeringWebhookNames []pgtype.Text        `json:"triggeringWebhookName"`
-	// Payloads are the event inputs written to v1_payload; a nil element writes no payload
-	Payloads [][]byte `json:"payloads"`
 }
 
 func (q *Queries) BulkCreateEvents(ctx context.Context, db DBTX, arg BulkCreateEventsParams) ([]*V1Event, error) {
@@ -1228,7 +1160,6 @@ func (q *Queries) BulkCreateEvents(ctx context.Context, db DBTX, arg BulkCreateE
 		arg.Additionalmetadatas,
 		arg.Scopes,
 		arg.TriggeringWebhookNames,
-		arg.Payloads,
 	)
 	if err != nil {
 		return nil, err

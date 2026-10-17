@@ -182,7 +182,6 @@ func newCreateTasksParams(n int) sqlcv1.CreateTasksParams {
 		WorkflowVersionIds:           make([]uuid.UUID, n),
 		WorkflowRunIds:               make([]uuid.UUID, n),
 		IsDagOrchestrators:           make([]bool, n),
-		Inputs:                       make([][]byte, n),
 	}
 }
 

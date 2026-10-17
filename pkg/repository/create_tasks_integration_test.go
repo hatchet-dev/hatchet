@@ -4,7 +4,6 @@ package repository_test
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -19,10 +18,10 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-// TestCreateTasks_WritesPayloadAndQueueItem checks the rows CreateTasks writes alongside the
-// task: exactly one TASK_INPUT payload row holding the input, and, for a queued task without a
-// concurrency strategy, exactly one queue item that matches the one returned with the task.
-func TestCreateTasks_WritesPayloadAndQueueItem(t *testing.T) {
+// TestCreateTasks_ReturnsQueueItem checks the queue item CreateTasks writes alongside the
+// task: for a queued task without a concurrency strategy, exactly one queue item that matches
+// the one returned with the task, and none for a task waiting on a concurrency slot.
+func TestCreateTasks_ReturnsQueueItem(t *testing.T) {
 	t.Setenv("SERVER_MSGQUEUE_RABBITMQ_URL", "amqp://user:password@localhost:5672/")
 
 	testutils.RunTestWithDatabase(t, func(conf *database.Layer) error {
@@ -37,15 +36,10 @@ func TestCreateTasks_WritesPayloadAndQueueItem(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		input := map[string]interface{}{"hello": "world", "n": float64(1)}
-		inputBytes, err := json.Marshal(input)
-		require.NoError(t, err)
+		inputBytes := []byte(`{"hello":"world","n":1}`)
 
 		t.Run("queued task without concurrency", func(t *testing.T) {
 			task := triggerSingleTask(t, ctx, conf, tenantId, "plain-workflow", nil, inputBytes)
-
-			// v1_task.input is always '{}': the payload row is the only copy of the input
-			require.JSONEq(t, `{}`, string(task.Input))
 
 			stored := listQueueItems(t, ctx, conf, task)
 			require.Len(t, stored, 1, "exactly one queue item for the task")
@@ -76,8 +70,6 @@ func TestCreateTasks_WritesPayloadAndQueueItem(t *testing.T) {
 			} else {
 				require.Equal(t, int32(1), qi.Priority, "a task without a priority gets the trigger's default of 1")
 			}
-
-			assertSinglePayloadRow(t, ctx, conf, task, input)
 		})
 
 		t.Run("plain insert takes the trigger path and writes the same queue item", func(t *testing.T) {
@@ -160,11 +152,9 @@ func TestCreateTasks_WritesPayloadAndQueueItem(t *testing.T) {
 
 			require.Nil(t, task.QueueItem, "a task waiting on a concurrency slot carries no queue item")
 			require.Empty(t, listQueueItems(t, ctx, conf, task), "no queue item is written until a slot is granted")
-
-			assertSinglePayloadRow(t, ctx, conf, task, input)
 		})
 
-		t.Run("event trigger writes the event payload", func(t *testing.T) {
+		t.Run("event trigger returns a queue item per task", func(t *testing.T) {
 			eventKey := "create-tasks-rows:event"
 			desc := "event-triggered workflow"
 			_, err := conf.V1.Workflows().PutWorkflowVersion(ctx, tenantId, &repo.CreateWorkflowVersionOpts{
@@ -181,78 +171,23 @@ func TestCreateTasks_WritesPayloadAndQueueItem(t *testing.T) {
 			require.NoError(t, err)
 
 			withData := repo.EventTriggerOpts{ExternalId: uuid.New(), SeenAt: time.Now().UTC(), Key: eventKey, Data: inputBytes}
-			// An empty event input writes no payload row.
 			empty := repo.EventTriggerOpts{ExternalId: uuid.New(), SeenAt: time.Now().UTC(), Key: eventKey, Data: []byte(`{}`)}
 
 			result, err := conf.V1.Triggers().TriggerFromEvents(ctx, tenantId, []repo.EventTriggerOpts{withData, empty})
 			require.NoError(t, err)
 			require.Len(t, result.Tasks, 2, "each event triggers the workflow once")
 
-			fromWithData := 0
-
 			for _, task := range result.Tasks {
-				require.NotNil(t, task.QueueItem)
-				require.Len(t, listQueueItems(t, ctx, conf, task), 1)
+				require.NotNil(t, task.QueueItem, "CreateTasks returns the queue item of an event-triggered task")
 
-				if task.TriggeringEventExternalID != nil && *task.TriggeringEventExternalID == withData.ExternalId {
-					fromWithData++
-					assertSinglePayloadRow(t, ctx, conf, task, input)
-				}
+				stored := listQueueItems(t, ctx, conf, task)
+				require.Len(t, stored, 1, "exactly one queue item for the task")
+				require.Equal(t, *stored[0], *task.QueueItem, "returned queue item matches the stored row")
 			}
-
-			require.Equal(t, 1, fromWithData, "one task carries the event's input")
-
-			require.JSONEq(t, string(inputBytes), string(listEventPayloads(t, ctx, conf, tenantId, withData)[0]), "the event input is stored as USER_EVENT_INPUT")
-			require.Empty(t, listEventPayloads(t, ctx, conf, tenantId, empty), "an empty event input writes no payload row")
 		})
 
 		return nil
 	})
-}
-
-// listEventPayloads returns the USER_EVENT_INPUT payload contents stored for the event with the
-// given identity (there is at most one), after checking the event row itself exists.
-func listEventPayloads(t *testing.T, ctx context.Context, conf *database.Layer, tenantId uuid.UUID, event repo.EventTriggerOpts) [][]byte {
-	t.Helper()
-
-	rows, err := conf.Pool.Query(ctx, `
-		SELECT e.id, p.location::text, p.external_location_key, p.inline_content
-		FROM v1_event e
-		LEFT JOIN v1_payload p ON p.tenant_id = e.tenant_id AND p.id = e.id AND p.inserted_at = e.seen_at AND p.type = 'USER_EVENT_INPUT'
-		WHERE e.tenant_id = $1 AND e.external_id = $2 AND e.seen_at = $3`,
-		tenantId, event.ExternalId, event.SeenAt,
-	)
-	require.NoError(t, err)
-	defer rows.Close()
-
-	payloads := make([][]byte, 0, 1)
-	events := 0
-
-	for rows.Next() {
-		events++
-
-		var (
-			eventId             int64
-			location            *string
-			externalLocationKey *string
-			inlineContent       []byte
-		)
-
-		require.NoError(t, rows.Scan(&eventId, &location, &externalLocationKey, &inlineContent))
-
-		if location == nil {
-			continue
-		}
-
-		require.Equal(t, "INLINE", *location)
-		require.Nil(t, externalLocationKey)
-		payloads = append(payloads, inlineContent)
-	}
-
-	require.NoError(t, rows.Err())
-	require.Equal(t, 1, events, "exactly one v1_event row for the event")
-
-	return payloads
 }
 
 // triggerSingleTask registers a one-task workflow (with the given concurrency entries, if
@@ -331,51 +266,4 @@ func listQueueItemsByKey(t *testing.T, ctx context.Context, conf *database.Layer
 	require.NoError(t, rows.Err())
 
 	return items
-}
-
-// assertSinglePayloadRow checks that exactly one TASK_INPUT payload row exists for the task,
-// that it is inline, and that its content is the step run data wrapping the given input (as
-// JSON: inline_content is JSONB, so the stored bytes are Postgres' rendering).
-func assertSinglePayloadRow(t *testing.T, ctx context.Context, conf *database.Layer, task *repo.V1TaskWithPayload, input map[string]interface{}) {
-	t.Helper()
-
-	rows, err := conf.Pool.Query(ctx, `
-		SELECT external_id, location::text, external_location_key, inline_content
-		FROM v1_payload
-		WHERE tenant_id = $1 AND id = $2 AND inserted_at = $3 AND type = 'TASK_INPUT'`,
-		task.TenantID, task.ID, task.InsertedAt,
-	)
-	require.NoError(t, err)
-	defer rows.Close()
-
-	count := 0
-
-	for rows.Next() {
-		count++
-
-		var (
-			externalId          uuid.UUID
-			location            string
-			externalLocationKey *string
-			inlineContent       []byte
-		)
-
-		require.NoError(t, rows.Scan(&externalId, &location, &externalLocationKey, &inlineContent))
-		require.Equal(t, task.ExternalID, externalId)
-		require.Equal(t, "INLINE", location)
-		require.Nil(t, externalLocationKey)
-
-		// the stored content is what the engine holds in memory for the task ...
-		require.JSONEq(t, string(task.Payload), string(inlineContent))
-
-		// ... and its input field is the input the trigger was given
-		var stepRunData struct {
-			Input map[string]interface{} `json:"input"`
-		}
-		require.NoError(t, json.Unmarshal(inlineContent, &stepRunData))
-		require.Equal(t, input, stepRunData.Input)
-	}
-
-	require.NoError(t, rows.Err())
-	require.Equal(t, 1, count, "exactly one TASK_INPUT payload row for the task")
 }

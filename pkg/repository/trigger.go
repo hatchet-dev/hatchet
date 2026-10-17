@@ -744,10 +744,9 @@ func (t triggerTuple) effectiveWorkflowRunId() uuid.UUID {
 	return t.externalId
 }
 
-// createCoreUserEventOpts carries the user events of a trigger; BulkCreateEvents writes their
-// payloads itself (params.Payloads).
 type createCoreUserEventOpts struct {
 	externalIdToEventIdAndFilterId map[uuid.UUID]EventExternalIdFilterId
+	externalIdsToPayloads          map[uuid.UUID][]byte
 	params                         sqlcv1.BulkCreateEventsParams
 }
 
@@ -1615,9 +1614,18 @@ func (r *sharedRepository) triggerWorkflowsCore(
 		return nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to create event matches: %w", err)
 	}
 
-	// task and event inputs are written by CreateTasks and BulkCreateEvents themselves; only
-	// DAG inputs go through the payload statement
-	storePayloadOpts := make([]StorePayloadOpts, 0, len(dags))
+	storePayloadOpts := make([]StorePayloadOpts, 0, len(tasks)+len(dags))
+
+	for _, task := range tasks {
+		storePayloadOpts = append(storePayloadOpts, StorePayloadOpts{
+			Id:         task.ID,
+			InsertedAt: task.InsertedAt,
+			ExternalId: task.ExternalID,
+			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+			Payload:    task.Payload,
+			TenantId:   tenantId,
+		})
+	}
 
 	for _, dag := range dags {
 		storePayloadOpts = append(storePayloadOpts, StorePayloadOpts{
@@ -1631,10 +1639,27 @@ func (r *sharedRepository) triggerWorkflowsCore(
 	}
 
 	if coreEvents != nil {
-		// the statement writes the event payloads itself and nothing downstream needs the
-		// inserted rows, so the result is only read to surface its error
-		if _, err := r.queries.BulkCreateEvents(ctx, tx, coreEvents.params); err != nil {
+		createdEvents, err := r.queries.BulkCreateEvents(ctx, tx, coreEvents.params)
+
+		if err != nil {
 			return nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to create core events: %w", err)
+		}
+
+		for _, e := range createdEvents {
+			payload, ok := coreEvents.externalIdsToPayloads[e.ExternalID]
+
+			if !ok {
+				continue
+			}
+
+			storePayloadOpts = append(storePayloadOpts, StorePayloadOpts{
+				Id:         e.ID,
+				InsertedAt: e.SeenAt,
+				ExternalId: e.ExternalID,
+				Type:       sqlcv1.V1PayloadTypeUSEREVENTINPUT,
+				Payload:    payload,
+				TenantId:   tenantId,
+			})
 		}
 	}
 
@@ -2547,7 +2572,8 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 	createCoreEventsAdditionalMetadatas := [][]byte{}
 	createCoreEventsScopes := []pgtype.Text{}
 	createCoreEventsTriggeringWebhookNames := []pgtype.Text{}
-	createCoreEventsPayloads := [][]byte{}
+
+	eventExternalIdsToPayloads := make(map[uuid.UUID][]byte)
 
 	eventKeys := make([]string, 0, len(opts))
 	uniqueEventKeys := make(map[string]struct{})
@@ -2557,7 +2583,7 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 		createCoreEventsExternalIds = append(createCoreEventsExternalIds, opt.ExternalId)
 		createCoreEventsSeenAts = append(createCoreEventsSeenAts, sqlchelpers.TimestamptzFromTime(opt.SeenAt))
 		createCoreEventsKeys = append(createCoreEventsKeys, opt.Key)
-		createCoreEventsPayloads = append(createCoreEventsPayloads, payloadOrNil(opt.Data))
+		eventExternalIdsToPayloads[opt.ExternalId] = opt.Data
 		createCoreEventsAdditionalMetadatas = append(createCoreEventsAdditionalMetadatas, opt.AdditionalMetadata)
 		createCoreEventsScopes = append(createCoreEventsScopes, sqlchelpers.TextFromMaybeStr(opt.Scope))
 		createCoreEventsTriggeringWebhookNames = append(createCoreEventsTriggeringWebhookNames, sqlchelpers.TextFromMaybeStr(opt.TriggeringWebhookName))
@@ -2752,9 +2778,9 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 			Additionalmetadatas:    createCoreEventsAdditionalMetadatas,
 			Scopes:                 createCoreEventsScopes,
 			TriggeringWebhookNames: createCoreEventsTriggeringWebhookNames,
-			Payloads:               createCoreEventsPayloads,
 		},
 		externalIdToEventIdAndFilterId: externalIdToEventIdAndFilterId,
+		externalIdsToPayloads:          eventExternalIdsToPayloads,
 	}
 
 	return triggerOpts, createCoreEventOpts, externalIdToEventIdAndFilterId, celEvaluationFailures, nil
