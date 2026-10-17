@@ -3,8 +3,10 @@ package alerting
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/slack-go/slack"
@@ -25,29 +27,68 @@ func (t *TenantAlertManager) postSlackWebhook(slackWebhook *sqlcv1.SlackAppWebho
 
 	webhookURL := string(whDecrypted)
 
-	if err := slack.PostWebhook(webhookURL, msg); err != nil {
+	if err := slack.PostWebhookCustomHTTP(webhookURL, slackWebhookClient, msg); err != nil {
 		return redactSlackWebhookError(slackWebhook.ID, webhookURL, err)
 	}
 
 	return nil
 }
 
-// redactSlackWebhookError strips the webhook URL from a PostWebhook error. Go's
-// *url.Error embeds the full request URL in its message, so it is rebuilt from
-// its operation and underlying cause only. slack-go's own status and rate limit
-// errors do not contain the URL; the final check guards any other error type.
+// slackWebhookClient never follows redirects, so a 3xx from the webhook host
+// surfaces as slack-go's status error instead of a redirect chain that could
+// repeat the secret-bearing path in a new request or error.
+var slackWebhookClient = &http.Client{
+	Timeout: 10 * time.Second,
+	CheckRedirect: func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	},
+}
+
+const redactedWebhookPlaceholder = "[redacted]"
+
+// redactSlackWebhookError rebuilds a PostWebhook error without the webhook URL.
+// Go's *url.Error embeds the full request URL in its message, so it is replaced
+// by its operation and underlying cause. The resulting text is then scrubbed of
+// every form of the URL (full, host plus path, path, raw path) because causes
+// such as a malformed Location header quote the path on its own. The returned
+// error is built from the scrubbed string only, with no wrapped cause, so no
+// other formatting path can reintroduce the URL.
 func redactSlackWebhookError(id uuid.UUID, webhookURL string, err error) error {
 	var uerr *url.Error
 
-	if errors.As(err, &uerr) {
+	if errors.As(err, &uerr) && uerr.Err != nil {
 		err = fmt.Errorf("%s: %w", uerr.Op, uerr.Err)
 	}
 
-	if strings.Contains(err.Error(), webhookURL) {
-		return fmt.Errorf("slack webhook %s: request failed", id)
+	msg := err.Error()
+
+	for _, secret := range webhookSecretForms(webhookURL) {
+		msg = strings.ReplaceAll(msg, secret, redactedWebhookPlaceholder)
 	}
 
-	return fmt.Errorf("slack webhook %s: %w", id, err)
+	return fmt.Errorf("slack webhook %s: %s", id, msg)
+}
+
+// webhookSecretForms lists the substrings of the webhook URL that carry its
+// secret path, longest first so partial replacements never leave a tail behind.
+func webhookSecretForms(webhookURL string) []string {
+	forms := []string{webhookURL}
+
+	u, err := url.Parse(webhookURL)
+
+	if err != nil {
+		return forms
+	}
+
+	for _, path := range []string{u.RawPath, u.Path} {
+		if path == "" || path == "/" {
+			continue
+		}
+
+		forms = append(forms, u.Host+path, path)
+	}
+
+	return forms
 }
 
 func (t *TenantAlertManager) sendSlackWorkflowRunAlert(slackWebhook *sqlcv1.SlackAppWebhook, numFailed int, failedRuns []alerttypes.WorkflowRunFailedItem) error {

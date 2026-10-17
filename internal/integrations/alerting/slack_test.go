@@ -1,9 +1,11 @@
 package alerting
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/google/uuid"
@@ -82,4 +84,62 @@ func TestSlackWebhookErrors_DecryptFailureDoesNotLeakURL(t *testing.T) {
 	wh.WebhookURL = []byte("not-a-valid-ciphertext")
 
 	assertNoWebhookSecret(t, m.sendSlackTenantResourceLimitAlert(wh, &alerttypes.ResourceLimitAlert{}), webhookURL, wh.ID)
+}
+
+func TestSlackWebhookErrors_MalformedRedirectDoesNotLeakPath(t *testing.T) {
+	// Go's redirect handling parses the Location header before CheckRedirect runs,
+	// and a malformed relative Location yields an error quoting the path alone,
+	// without the absolute URL, so an exact-URL check would miss it
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Location", fakeWebhookSecretPath+"%zz")
+		w.WriteHeader(http.StatusFound)
+	}))
+	defer srv.Close()
+
+	webhookURL := srv.URL + fakeWebhookSecretPath
+	m, wh := newSlackTestManager(t, webhookURL)
+
+	err := m.sendSlackTenantResourceLimitAlert(wh, &alerttypes.ResourceLimitAlert{Resource: "TASK_RUN", AlertType: "Alarm"})
+	assertNoWebhookSecret(t, err, webhookURL, wh.ID)
+	assert.NotContains(t, err.Error(), "T_TEST/B_TEST")
+	assert.Contains(t, err.Error(), redactedWebhookPlaceholder)
+}
+
+func TestSlackWebhookErrors_RedirectsAreNotFollowed(t *testing.T) {
+	var redirectTargetHits atomic.Int32
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/elsewhere", func(w http.ResponseWriter, r *http.Request) {
+		redirectTargetHits.Add(1)
+	})
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/elsewhere", http.StatusFound)
+	})
+
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	webhookURL := srv.URL + fakeWebhookSecretPath
+	m, wh := newSlackTestManager(t, webhookURL)
+
+	err := m.sendSlackTenantResourceLimitAlert(wh, &alerttypes.ResourceLimitAlert{Resource: "TASK_RUN", AlertType: "Alarm"})
+	assertNoWebhookSecret(t, err, webhookURL, wh.ID)
+	assert.Contains(t, err.Error(), "302")
+	assert.Equal(t, int32(0), redirectTargetHits.Load())
+}
+
+func TestRedactSlackWebhookError_ScrubsEveryURLForm(t *testing.T) {
+	id := uuid.New()
+	webhookURL := "https://hooks.slack.com" + fakeWebhookSecretPath
+
+	for _, leaked := range []string{
+		webhookURL,
+		"hooks.slack.com" + fakeWebhookSecretPath,
+		fakeWebhookSecretPath,
+		"prefix " + fakeWebhookSecretPath + "%zz suffix",
+	} {
+		err := redactSlackWebhookError(id, webhookURL, errors.New("cause: "+leaked))
+		assertNoWebhookSecret(t, err, webhookURL, id)
+		assert.Contains(t, err.Error(), redactedWebhookPlaceholder)
+	}
 }
