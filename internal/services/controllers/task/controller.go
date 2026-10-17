@@ -1346,6 +1346,7 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 			Priority:              msg.EventPriority,
 			Scope:                 msg.EventScope,
 			TriggeringWebhookName: msg.TriggeringWebhookName,
+			PayloadReferenceId:    msg.PayloadReferenceId,
 		}
 
 		eventIdToOpts[msg.EventExternalId] = opt

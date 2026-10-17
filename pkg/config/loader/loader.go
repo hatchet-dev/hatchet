@@ -436,6 +436,8 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		InlineStoreTTL:                       &inlineStoreTTL,
 		EnableWindowSizeOptimization:         scf.PayloadStore.EnableWindowSizeOptimization,
 		WrapTaskInputInStepRunData:           scf.PayloadStore.WrapTaskInputInStepRunData,
+		WriteInputPayloadPerRun:              scf.PayloadStore.WriteInputPayloadPerRun,
+		WriteInputPayloadCopiesToOLAP:        scf.PayloadStore.WriteInputPayloadCopiesToOLAP,
 	}
 
 	statusUpdateOpts := repov1.StatusUpdateBatchSizeLimits{
@@ -990,6 +992,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		FePosthog:              feAnalyticsConfig,
 		Pylon:                  &pylon,
 		Runtime:                cf.Runtime,
+		PayloadStore:           cf.PayloadStore,
 		Auth:                   auth,
 		Encryption:             encryptionSvc,
 		Layer:                  dc,

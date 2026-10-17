@@ -3346,6 +3346,7 @@ type V1Dag struct {
 	ParentTaskExternalID *uuid.UUID         `json:"parent_task_external_id"`
 	DesiredWorkerLabels  []byte             `json:"desired_worker_labels"`
 	IdempotencyKey       pgtype.Text        `json:"idempotency_key"`
+	PayloadReferenceID   *uuid.UUID         `json:"payload_reference_id"`
 }
 
 type V1DagData struct {
@@ -3385,6 +3386,7 @@ type V1DagsOlap struct {
 	IdempotencyKey       pgtype.Text          `json:"idempotency_key"`
 	LatestRetryCount     int32                `json:"latest_retry_count"`
 	IsDagOperator        bool                 `json:"is_dag_operator"`
+	PayloadReferenceID   *uuid.UUID           `json:"payload_reference_id"`
 }
 
 type V1DurableEventLogBranchPoint struct {
@@ -3449,6 +3451,7 @@ type V1Event struct {
 	AdditionalMetadata    []byte             `json:"additional_metadata"`
 	Scope                 pgtype.Text        `json:"scope"`
 	TriggeringWebhookName pgtype.Text        `json:"triggering_webhook_name"`
+	PayloadReferenceID    *uuid.UUID         `json:"payload_reference_id"`
 }
 
 type V1EventLookupTableOlap struct {
@@ -3476,6 +3479,7 @@ type V1EventsOlap struct {
 	AdditionalMetadata    []byte             `json:"additional_metadata"`
 	Scope                 pgtype.Text        `json:"scope"`
 	TriggeringWebhookName pgtype.Text        `json:"triggering_webhook_name"`
+	PayloadReferenceID    *uuid.UUID         `json:"payload_reference_id"`
 }
 
 type V1Filter struct {
@@ -3937,24 +3941,26 @@ type V1Task struct {
 	IdempotencyKey               pgtype.Text        `json:"idempotency_key"`
 	IsDagOrchestrator            bool               `json:"is_dag_orchestrator"`
 	ConcurrencyMaxRuns           []pgtype.Int4      `json:"concurrency_max_runs"`
+	PayloadReferenceID           *uuid.UUID         `json:"payload_reference_id"`
 	Triggers                     []byte             `json:"triggers"`
 	DagParentTaskRunIds          []uuid.UUID        `json:"dag_parent_task_run_ids"`
 	ChildTaskDesiredWorkerLabels []byte             `json:"child_task_desired_worker_labels"`
 }
 
 type V1TaskEvent struct {
-	ID              int64              `json:"id"`
-	InsertedAt      pgtype.Timestamptz `json:"inserted_at"`
-	TenantID        uuid.UUID          `json:"tenant_id"`
-	TaskID          int64              `json:"task_id"`
-	TaskInsertedAt  pgtype.Timestamptz `json:"task_inserted_at"`
-	RetryCount      int32              `json:"retry_count"`
-	EventType       V1TaskEventType    `json:"event_type"`
-	EventKey        pgtype.Text        `json:"event_key"`
-	CreatedAt       pgtype.Timestamp   `json:"created_at"`
-	Data            []byte             `json:"data"`
-	ExternalID      uuid.UUID          `json:"external_id"`
-	ChildExternalID *uuid.UUID         `json:"child_external_id"`
+	ID                 int64              `json:"id"`
+	InsertedAt         pgtype.Timestamptz `json:"inserted_at"`
+	TenantID           uuid.UUID          `json:"tenant_id"`
+	TaskID             int64              `json:"task_id"`
+	TaskInsertedAt     pgtype.Timestamptz `json:"task_inserted_at"`
+	RetryCount         int32              `json:"retry_count"`
+	EventType          V1TaskEventType    `json:"event_type"`
+	EventKey           pgtype.Text        `json:"event_key"`
+	CreatedAt          pgtype.Timestamp   `json:"created_at"`
+	Data               []byte             `json:"data"`
+	ExternalID         uuid.UUID          `json:"external_id"`
+	ChildExternalID    *uuid.UUID         `json:"child_external_id"`
+	PayloadReferenceID *uuid.UUID         `json:"payload_reference_id"`
 }
 
 type V1TaskEventsOlap struct {
@@ -4062,6 +4068,7 @@ type V1TasksOlap struct {
 	ParentTaskExternalID *uuid.UUID           `json:"parent_task_external_id"`
 	IsDurable            bool                 `json:"is_durable"`
 	IdempotencyKey       pgtype.Text          `json:"idempotency_key"`
+	PayloadReferenceID   *uuid.UUID           `json:"payload_reference_id"`
 }
 
 type V1TenantConcurrency struct {

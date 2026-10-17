@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"log"
+	"maps"
 	"math/rand"
 	"slices"
 	"sort"
@@ -304,7 +305,7 @@ type OLAPRepository interface {
 	GetTaskTimings(ctx context.Context, tenantId, workflowRunId uuid.UUID, depth int32) ([]*sqlcv1.PopulateTaskRunDataRow, map[uuid.UUID]int32, error)
 
 	// Events queries
-	BulkCreateEventsAndTriggers(ctx context.Context, events BulkCreateEventsAndTriggersParams, triggers []EventTriggersFromExternalId) error
+	BulkCreateEventsAndTriggers(ctx context.Context, events sqlcv1.BulkCreateEventsOLAPParams, eventPayloadCopies []StoreOLAPPayloadOpts, triggers []EventTriggersFromExternalId) error
 	ListEvents(ctx context.Context, opts sqlcv1.ListEventsParams) ([]*EventWithPayload, *int64, error)
 	GetEvent(ctx context.Context, externalId uuid.UUID) (*sqlcv1.V1EventsOlap, error)
 	GetEventWithPayload(ctx context.Context, externalId, tenantId uuid.UUID) (*EventWithPayload, error)
@@ -731,12 +732,18 @@ func (r *OLAPRepositoryImpl) ReadWorkflowRun(ctx context.Context, workflowRunExt
 	}
 
 	inputPayload, err := r.ReadPayload(ctx, row.TenantID, ReadOLAPPayloadOpts{
-		ExternalId: row.ExternalID,
-		InsertedAt: row.InsertedAt,
+		ExternalId:         row.ExternalID,
+		InsertedAt:         row.InsertedAt,
+		PayloadReferenceId: row.PayloadReferenceID,
+		Kind:               runInputPayloadKind(row.Kind, row.IsDagOperator),
 	})
 
 	if err != nil {
 		return nil, err
+	}
+
+	if row.IsDagOperator {
+		inputPayload = dagInputFromOrchestratorTaskInput(inputPayload)
 	}
 
 	var outputPayload []byte
@@ -745,6 +752,7 @@ func (r *OLAPRepositoryImpl) ReadWorkflowRun(ctx context.Context, workflowRunExt
 		outputPayload, err = r.ReadPayload(ctx, row.TenantID, ReadOLAPPayloadOpts{
 			ExternalId: *row.OutputEventExternalID,
 			InsertedAt: row.OutputEventInsertedAt,
+			Kind:       PayloadKindTaskOutput,
 		})
 
 		if err != nil {
@@ -795,36 +803,45 @@ func (r *OLAPRepositoryImpl) ReadTaskRunData(ctx context.Context, tenantId uuid.
 	}
 
 	var workflowRunId uuid.UUID
-	var workflowRunInsertedAt pgtype.Timestamptz
+	isOperatorDAG := false
+
+	inputOpts := ReadOLAPPayloadOpts{
+		ExternalId:         taskRun.ExternalID,
+		InsertedAt:         taskRun.InsertedAt,
+		PayloadReferenceId: taskRun.PayloadReferenceID,
+		Kind:               PayloadKindTaskInput,
+	}
 
 	if taskRun.DagID.Valid {
-		dagId := taskRun.DagID.Int64
-		dagInsertedAt := taskRun.DagInsertedAt
-
-		workflowRunId, err = r.queries.GetWorkflowRunIdFromDagIdInsertedAt(ctx, r.readPool, sqlcv1.GetWorkflowRunIdFromDagIdInsertedAtParams{
-			Dagid:         dagId,
-			Daginsertedat: dagInsertedAt,
+		dag, err := r.queries.GetWorkflowRunIdFromDagIdInsertedAt(ctx, r.readPool, sqlcv1.GetWorkflowRunIdFromDagIdInsertedAtParams{
+			Dagid:         taskRun.DagID.Int64,
+			Daginsertedat: taskRun.DagInsertedAt,
 		})
 
 		if err != nil {
 			return nil, emptyUUID, err
 		}
 
-		workflowRunInsertedAt = dagInsertedAt
+		workflowRunId = dag.ExternalID
+		isOperatorDAG = dag.IsDagOperator
+
+		inputOpts = ReadOLAPPayloadOpts{
+			ExternalId:         dag.ExternalID,
+			InsertedAt:         taskRun.DagInsertedAt,
+			PayloadReferenceId: dag.PayloadReferenceID,
+			Kind:               dagInputPayloadKind(dag.IsDagOperator),
+		}
 	} else {
 		workflowRunId = taskRun.ExternalID
-		workflowRunInsertedAt = taskRun.InsertedAt
 	}
 
-	retrievePayloadOpts := []ReadOLAPPayloadOpts{{
-		ExternalId: workflowRunId,
-		InsertedAt: workflowRunInsertedAt,
-	}}
+	retrievePayloadOpts := []ReadOLAPPayloadOpts{inputOpts}
 
 	if taskRun.OutputEventExternalID != nil {
 		retrievePayloadOpts = append(retrievePayloadOpts, ReadOLAPPayloadOpts{
 			ExternalId: *taskRun.OutputEventExternalID,
 			InsertedAt: taskRun.OutputEventInsertedAt,
+			Kind:       PayloadKindTaskOutput,
 		})
 	}
 
@@ -834,10 +851,12 @@ func (r *OLAPRepositoryImpl) ReadTaskRunData(ctx context.Context, tenantId uuid.
 		return nil, emptyUUID, err
 	}
 
-	input, exists := payloads[workflowRunId]
+	input, exists := payloads[inputOpts.ExternalId]
 
 	if !exists {
 		input = taskRun.Input
+	} else if isOperatorDAG {
+		input = dagInputFromOrchestratorTaskInput(input)
 	}
 
 	var output []byte
@@ -949,14 +968,17 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, 
 		retrievePayloadOpts := make([]ReadOLAPPayloadOpts, 0)
 		for _, task := range tasksWithData {
 			retrievePayloadOpts = append(retrievePayloadOpts, ReadOLAPPayloadOpts{
-				ExternalId: task.ExternalID,
-				InsertedAt: task.InsertedAt,
+				ExternalId:         task.ExternalID,
+				InsertedAt:         task.InsertedAt,
+				PayloadReferenceId: task.PayloadReferenceID,
+				Kind:               PayloadKindTaskInput,
 			})
 
 			if task.OutputEventExternalID != nil {
 				retrievePayloadOpts = append(retrievePayloadOpts, ReadOLAPPayloadOpts{
 					ExternalId: *task.OutputEventExternalID,
 					InsertedAt: task.OutputEventInsertedAt,
+					Kind:       PayloadKindTaskOutput,
 				})
 			}
 		}
@@ -1053,14 +1075,17 @@ func (r *OLAPRepositoryImpl) ListTasksByDAGId(ctx context.Context, tenantId uuid
 		retrievePayloadOpts := make([]ReadOLAPPayloadOpts, 0)
 		for _, task := range tasksWithData {
 			retrievePayloadOpts = append(retrievePayloadOpts, ReadOLAPPayloadOpts{
-				ExternalId: task.ExternalID,
-				InsertedAt: task.InsertedAt,
+				ExternalId:         task.ExternalID,
+				InsertedAt:         task.InsertedAt,
+				PayloadReferenceId: task.PayloadReferenceID,
+				Kind:               PayloadKindTaskInput,
 			})
 
 			if task.OutputEventExternalID != nil {
 				retrievePayloadOpts = append(retrievePayloadOpts, ReadOLAPPayloadOpts{
 					ExternalId: *task.OutputEventExternalID,
 					InsertedAt: task.OutputEventInsertedAt,
+					Kind:       PayloadKindTaskOutput,
 				})
 			}
 		}
@@ -1141,14 +1166,17 @@ func (r *OLAPRepositoryImpl) ListTasksByIdAndInsertedAt(ctx context.Context, ten
 		retrievePayloadOpts := make([]ReadOLAPPayloadOpts, 0)
 		for _, task := range tasksWithData {
 			retrievePayloadOpts = append(retrievePayloadOpts, ReadOLAPPayloadOpts{
-				ExternalId: task.ExternalID,
-				InsertedAt: task.InsertedAt,
+				ExternalId:         task.ExternalID,
+				InsertedAt:         task.InsertedAt,
+				PayloadReferenceId: task.PayloadReferenceID,
+				Kind:               PayloadKindTaskInput,
 			})
 
 			if task.OutputEventExternalID != nil {
 				retrievePayloadOpts = append(retrievePayloadOpts, ReadOLAPPayloadOpts{
 					ExternalId: *task.OutputEventExternalID,
 					InsertedAt: task.OutputEventInsertedAt,
+					Kind:       PayloadKindTaskOutput,
 				})
 			}
 		}
@@ -1448,14 +1476,17 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 	for _, dag := range populatedDAGs {
 		dagsToPopulated[dag.ExternalID] = dag
 		retrievePayloadOpts = append(retrievePayloadOpts, ReadOLAPPayloadOpts{
-			ExternalId: dag.ExternalID,
-			InsertedAt: dag.InsertedAt,
+			ExternalId:         dag.ExternalID,
+			InsertedAt:         dag.InsertedAt,
+			PayloadReferenceId: dag.PayloadReferenceID,
+			Kind:               dagInputPayloadKind(dag.IsDagOperator),
 		})
 
 		if dag.OutputEventExternalID != nil {
 			retrievePayloadOpts = append(retrievePayloadOpts, ReadOLAPPayloadOpts{
 				ExternalId: *dag.OutputEventExternalID,
 				InsertedAt: dag.OutputEventInsertedAt,
+				Kind:       PayloadKindTaskOutput,
 			})
 		}
 	}
@@ -1472,14 +1503,17 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 		tasksToPopulated[task.ExternalID] = task
 
 		retrievePayloadOpts = append(retrievePayloadOpts, ReadOLAPPayloadOpts{
-			ExternalId: task.ExternalID,
-			InsertedAt: task.InsertedAt,
+			ExternalId:         task.ExternalID,
+			InsertedAt:         task.InsertedAt,
+			PayloadReferenceId: task.PayloadReferenceID,
+			Kind:               PayloadKindTaskInput,
 		})
 
 		if task.OutputEventExternalID != nil {
 			retrievePayloadOpts = append(retrievePayloadOpts, ReadOLAPPayloadOpts{
 				ExternalId: *task.OutputEventExternalID,
 				InsertedAt: task.OutputEventInsertedAt,
+				Kind:       PayloadKindTaskOutput,
 			})
 		}
 	}
@@ -1525,6 +1559,8 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 			inputPayload, exists := externalIdToPayload[dag.ExternalID]
 			if !exists {
 				inputPayload = dag.Input
+			} else if dag.IsDagOperator {
+				inputPayload = dagInputFromOrchestratorTaskInput(inputPayload)
 			}
 
 			retryCount := int(dag.RetryCount)
@@ -1730,6 +1766,7 @@ func (r *OLAPRepositoryImpl) ListTaskRunEventsByWorkflowRunId(ctx context.Contex
 		retrievePayloadOpts[i] = ReadOLAPPayloadOpts{
 			ExternalId: row.EventExternalID,
 			InsertedAt: row.EventTimestamp,
+			Kind:       PayloadKindTaskOutput,
 		}
 	}
 
@@ -2429,7 +2466,7 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 	}
 
 	params := sqlcv1.CreateTasksOLAPParams{}
-	putPayloadOpts := make([]StoreOLAPPayloadOpts, 0)
+	inputCopiesToStore := make([]StoreOLAPPayloadOpts, 0)
 	minInsertedAt := pgtype.Timestamptz{}
 
 	var initiallyWrittenAsTerminalRows []UpdateTaskStatusRow
@@ -2439,12 +2476,12 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 			continue
 		}
 
-		payload := task.Payload
-
-		// fall back to input if payload is empty
-		// for backwards compatibility
-		if len(payload) == 0 {
-			payload = task.Input
+		if len(task.Payload) > 0 {
+			inputCopiesToStore = append(inputCopiesToStore, StoreOLAPPayloadOpts{
+				ExternalId: task.ExternalID,
+				InsertedAt: task.InsertedAt,
+				Payload:    NewPayload[TaskInputShape](task.Payload),
+			})
 		}
 
 		params.Tenantids = append(params.Tenantids, task.TenantID)
@@ -2469,6 +2506,7 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 		params.Workflowrunids = append(params.Workflowrunids, task.WorkflowRunID)
 		params.Isdurables = append(params.Isdurables, task.IsDurable.Bool)
 		params.IdempotencyKeys = append(params.IdempotencyKeys, task.IdempotencyKey)
+		params.PayloadReferenceIds = append(params.PayloadReferenceIds, task.PayloadReferenceID)
 
 		initialStatus := initialStateToReadableStatus(task.InitialState)
 		params.ReadableStatuses = append(params.ReadableStatuses, string(initialStatus))
@@ -2494,12 +2532,6 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 		if !minInsertedAt.Valid || task.InsertedAt.Time.Before(minInsertedAt.Time) {
 			minInsertedAt = task.InsertedAt
 		}
-
-		putPayloadOpts = append(putPayloadOpts, StoreOLAPPayloadOpts{
-			ExternalId: task.ExternalID,
-			InsertedAt: task.InsertedAt,
-			Payload:    NewPayload[TaskInputShape](payload),
-		})
 	}
 
 	if len(params.Ids) == 0 {
@@ -2508,6 +2540,10 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 
 	err = r.queries.CreateTasksOLAP(ctx, tx, params)
 	if err != nil {
+		return nil, nil, err
+	}
+
+	if err := r.PutPayloads(ctx, tx, tenantId, inputCopiesToStore...); err != nil {
 		return nil, nil, err
 	}
 
@@ -2549,11 +2585,6 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to update DAG statuses after reconcile: %w", err)
 		}
-	}
-
-	err = r.PutPayloads(ctx, tx, tenantId, putPayloadOpts...)
-	if err != nil {
-		return nil, nil, err
 	}
 
 	if err := commit(ctx); err != nil {
@@ -2602,12 +2633,20 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId uuid.UU
 	}
 
 	params := sqlcv1.CreateDAGsOLAPOverwriteParams{}
-	putPayloadOpts := make([]StoreOLAPPayloadOpts, 0)
+	inputCopiesToStore := make([]StoreOLAPPayloadOpts, 0)
 	selfMappingParams := sqlcv1.CreateDagToTaskOLAPSelfMappingsParams{}
 
 	for _, dag := range dags {
 		if _, notAcquired := workflowRunIdsOfLocksNotAcquired[dag.ExternalID]; notAcquired {
 			continue
+		}
+
+		if len(dag.Input) > 0 {
+			inputCopiesToStore = append(inputCopiesToStore, StoreOLAPPayloadOpts{
+				ExternalId: dag.ExternalID,
+				InsertedAt: dag.InsertedAt,
+				Payload:    NewPayload[DAGInputShape](dag.Input),
+			})
 		}
 
 		if dag.IsOperatorRun {
@@ -2627,12 +2666,7 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId uuid.UU
 		params.Totaltasks = append(params.Totaltasks, int32(dag.TotalTasks)) // nolint: gosec
 		params.IdempotencyKeys = append(params.IdempotencyKeys, dag.IdempotencyKey)
 		params.IsDagOperators = append(params.IsDagOperators, dag.IsOperatorRun)
-
-		putPayloadOpts = append(putPayloadOpts, StoreOLAPPayloadOpts{
-			ExternalId: dag.ExternalID,
-			InsertedAt: dag.InsertedAt,
-			Payload:    NewPayload[DAGInputShape](dag.Input),
-		})
+		params.PayloadReferenceIds = append(params.PayloadReferenceIds, dag.PayloadReferenceID)
 	}
 
 	if len(params.Ids) == 0 {
@@ -2641,6 +2675,10 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId uuid.UU
 
 	err = r.queries.CreateDAGsOLAP(ctx, tx, params)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := r.PutPayloads(ctx, tx, tenantId, inputCopiesToStore...); err != nil {
 		return nil, err
 	}
 
@@ -2654,11 +2692,6 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId uuid.UU
 		if err != nil {
 			return nil, err
 		}
-	}
-
-	err = r.PutPayloads(ctx, tx, tenantId, putPayloadOpts...)
-	if err != nil {
-		return nil, err
 	}
 
 	if err := commit(ctx); err != nil {
@@ -2901,12 +2934,7 @@ type EventTriggersFromExternalId struct {
 	FilterId        *uuid.UUID         `json:"filter_id"`
 }
 
-type BulkCreateEventsAndTriggersParams struct {
-	*sqlcv1.BulkCreateEventsOLAPParams
-	Payloads [][]byte
-}
-
-func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, events BulkCreateEventsAndTriggersParams, triggers []EventTriggersFromExternalId) error {
+func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, events sqlcv1.BulkCreateEventsOLAPParams, eventPayloadCopies []StoreOLAPPayloadOpts, triggers []EventTriggersFromExternalId) error {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
 
 	if err != nil {
@@ -2915,14 +2943,7 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 
 	defer rollback()
 
-	eventsToInsert := events
-	eventExternalIdToPayload := make(map[uuid.UUID][]byte)
-
-	for i, payload := range eventsToInsert.Payloads {
-		eventExternalIdToPayload[eventsToInsert.Externalids[i]] = payload
-	}
-
-	insertedEvents, err := r.queries.BulkCreateEventsOLAP(ctx, tx, *eventsToInsert.BulkCreateEventsOLAPParams)
+	insertedEvents, err := r.queries.BulkCreateEventsOLAP(ctx, tx, events)
 
 	if err != nil {
 		return fmt.Errorf("error creating events: %v", err)
@@ -2968,27 +2989,29 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 		return fmt.Errorf("error creating event triggers: %v", err)
 	}
 
-	tenantIdToPutPayloadOpts := make(map[uuid.UUID][]StoreOLAPPayloadOpts)
+	eventPayloadCopiesByExternalId := make(map[uuid.UUID]StoreOLAPPayloadOpts, len(eventPayloadCopies))
+
+	for _, payloadCopy := range eventPayloadCopies {
+		if payloadCopy.Payload != nil {
+			eventPayloadCopiesByExternalId[payloadCopy.ExternalId] = payloadCopy
+		}
+	}
+
+	eventPayloadCopiesByTenant := make(map[uuid.UUID][]StoreOLAPPayloadOpts)
 
 	for _, event := range insertedEvents {
 		if event == nil {
 			continue
 		}
 
-		payload := eventExternalIdToPayload[event.ExternalID]
-
-		tenantIdToPutPayloadOpts[event.TenantID] = append(tenantIdToPutPayloadOpts[event.TenantID], StoreOLAPPayloadOpts{
-			ExternalId: event.ExternalID,
-			InsertedAt: event.SeenAt,
-			Payload:    NewPayload[UserEventInputShape](payload),
-		})
+		if payloadCopy, ok := eventPayloadCopiesByExternalId[event.ExternalID]; ok {
+			eventPayloadCopiesByTenant[event.TenantID] = append(eventPayloadCopiesByTenant[event.TenantID], payloadCopy)
+		}
 	}
 
-	for tenantId, putPayloadOpts := range tenantIdToPutPayloadOpts {
-		err = r.PutPayloads(ctx, tx, tenantId, putPayloadOpts...)
-
-		if err != nil {
-			return fmt.Errorf("error putting event payloads: %v", err)
+	for tenantId, copies := range eventPayloadCopiesByTenant {
+		if err := r.PutPayloads(ctx, tx, tenantId, copies...); err != nil {
+			return fmt.Errorf("error storing event payload copies: %v", err)
 		}
 	}
 
@@ -3034,8 +3057,10 @@ func (r *OLAPRepositoryImpl) GetEventWithPayload(ctx context.Context, externalId
 	}
 
 	payload, err := r.ReadPayload(ctx, tenantId, ReadOLAPPayloadOpts{
-		ExternalId: event.ExternalID,
-		InsertedAt: event.SeenAt,
+		ExternalId:         event.ExternalID,
+		InsertedAt:         event.SeenAt,
+		PayloadReferenceId: event.PayloadReferenceID,
+		Kind:               PayloadKindUserEventInput,
 	})
 
 	if err != nil {
@@ -3154,8 +3179,10 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 	for i, event := range events {
 		eventExternalIds[i] = event.ExternalID
 		readPayloadOpts[i] = ReadOLAPPayloadOpts{
-			ExternalId: event.ExternalID,
-			InsertedAt: event.SeenAt,
+			ExternalId:         event.ExternalID,
+			InsertedAt:         event.SeenAt,
+			PayloadReferenceId: event.PayloadReferenceID,
+			Kind:               PayloadKindUserEventInput,
 		}
 	}
 
@@ -3426,6 +3453,47 @@ func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, te
 type ReadOLAPPayloadOpts struct {
 	ExternalId uuid.UUID
 	InsertedAt pgtype.Timestamptz
+
+	// the shared core payload row to read when the row behind ExternalId references one
+	PayloadReferenceId *uuid.UUID
+
+	// which payload row shape backs ExternalId. Task outputs are still stored in and read from
+	// v1_payloads_olap; every other kind lives in the core payload store.
+	Kind PayloadKind
+}
+
+func (o ReadOLAPPayloadOpts) corePayloadExternalId() uuid.UUID {
+	if o.PayloadReferenceId != nil {
+		return *o.PayloadReferenceId
+	}
+
+	return o.ExternalId
+}
+
+// An operator-managed run has no DAG_INPUT row: its OLAP DAG shares the orchestrator task's
+// external id, so its input is read out of the orchestrator's TASK_INPUT row.
+func dagInputPayloadKind(isDagOperator bool) PayloadKind {
+	if isDagOperator {
+		return PayloadKindTaskInput
+	}
+
+	return PayloadKindDAGInput
+}
+
+func runInputPayloadKind(kind sqlcv1.V1RunKind, isDagOperator bool) PayloadKind {
+	if kind == sqlcv1.V1RunKindDAG {
+		return dagInputPayloadKind(isDagOperator)
+	}
+
+	return PayloadKindTaskInput
+}
+
+func dagInputFromOrchestratorTaskInput(raw []byte) []byte {
+	if len(raw) == 0 {
+		return nil
+	}
+
+	return UserInputFromTaskInputPayload(raw)
 }
 
 func (r *OLAPRepositoryImpl) ReadPayload(ctx context.Context, tenantId uuid.UUID, opt ReadOLAPPayloadOpts) ([]byte, error) {
@@ -3444,7 +3512,76 @@ func (r *OLAPRepositoryImpl) ReadPayload(ctx context.Context, tenantId uuid.UUID
 	return payload, nil
 }
 
+// Inputs and event payloads are read from the core payload store by the external id of the
+// row that holds them. Task outputs, and rows written before OLAP stopped storing its own
+// copies, are read from v1_payloads_olap.
 func (r *OLAPRepositoryImpl) readPayloads(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, opts ...ReadOLAPPayloadOpts) (map[uuid.UUID][]byte, error) {
+	if len(opts) == 0 {
+		return make(map[uuid.UUID][]byte), nil
+	}
+
+	coreOpts := make(map[uuid.UUID]RetrievePayloadOpts, len(opts))
+	olapStoreOpts := make([]ReadOLAPPayloadOpts, 0)
+
+	for _, opt := range opts {
+		if opt.Kind == PayloadKindTaskOutput {
+			olapStoreOpts = append(olapStoreOpts, opt)
+			continue
+		}
+
+		corePayloadExternalId := opt.corePayloadExternalId()
+
+		coreOpts[opt.ExternalId] = RetrievePayloadOpts{
+			TenantId:           tenantId,
+			InsertedAt:         opt.InsertedAt,
+			Type:               opt.Kind.V1PayloadType(),
+			ExternalId:         corePayloadExternalId,
+			PayloadReferenceId: &corePayloadExternalId,
+		}
+	}
+
+	externalIdToPayload := make(map[uuid.UUID][]byte, len(opts))
+
+	if len(coreOpts) > 0 {
+		corePayloads, err := r.payloadStore.Retrieve(ctx, tx, slices.Collect(maps.Values(coreOpts))...)
+
+		if err != nil {
+			return nil, fmt.Errorf("error reading payloads from the core payload store: %w", err)
+		}
+
+		for _, opt := range opts {
+			coreOpt, isCoreRead := coreOpts[opt.ExternalId]
+
+			if !isCoreRead {
+				continue
+			}
+
+			if raw, found := corePayloads[coreOpt]; found {
+				externalIdToPayload[opt.ExternalId] = raw
+			} else {
+				olapStoreOpts = append(olapStoreOpts, opt)
+			}
+		}
+	}
+
+	if len(olapStoreOpts) == 0 {
+		return externalIdToPayload, nil
+	}
+
+	olapPayloads, err := r.readPayloadsFromOLAPStore(ctx, tx, tenantId, olapStoreOpts...)
+
+	if err != nil {
+		return nil, err
+	}
+
+	for externalId, payload := range olapPayloads {
+		externalIdToPayload[externalId] = payload
+	}
+
+	return externalIdToPayload, nil
+}
+
+func (r *OLAPRepositoryImpl) readPayloadsFromOLAPStore(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, opts ...ReadOLAPPayloadOpts) (map[uuid.UUID][]byte, error) {
 	externalIds := make([]uuid.UUID, len(opts))
 
 	for i, opt := range opts {

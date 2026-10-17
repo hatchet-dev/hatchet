@@ -65,11 +65,12 @@ type CreatedEventTriggerPayloadSingleton struct {
 	EventSeenAt             time.Time  `json:"event_seen_at"`
 	EventKey                string     `json:"event_key"`
 	EventExternalId         uuid.UUID  `json:"event_id"`
-	EventPayload            []byte     `json:"event_payload"`
+	EventPayload            []byte     `json:"event_payload,omitempty"`
 	EventAdditionalMetadata []byte     `json:"event_additional_metadata,omitempty"`
 	EventScope              *string    `json:"event_scope,omitempty"`
 	FilterId                *uuid.UUID `json:"filter_id,omitempty"`
 	TriggeringWebhookName   *string    `json:"triggering_webhook_name,omitempty"`
+	PayloadReferenceId      *uuid.UUID `json:"payload_reference_id,omitempty"`
 }
 
 type CreatedEventTriggerPayload struct {

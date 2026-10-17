@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/hatchet-dev/hatchet/internal/cel"
+	"github.com/hatchet-dev/hatchet/pkg/config/limits"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -34,19 +35,36 @@ func newBatchTestRepository(pool *pgxpool.Pool) *TaskRepositoryImpl {
 	stepExpressionCache := cache.New(5 * time.Minute)
 	taskLookupCache, _ := lru.New[taskExternalIdTenantIdTuple, *sqlcv1.FlattenExternalIdsRow](1024)
 
-	shared := &sharedRepository{
-		pool:                pool,
-		ddlPool:             pool,
-		l:                   &logger,
-		v:                   validator.NewDefaultValidator(),
-		queries:             queries,
-		queueCache:          queueCache,
-		stepExpressionCache: stepExpressionCache,
-		celParser:           cel.NewCELParser(),
-		taskLookupCache:     taskLookupCache,
-		payloadStore:        payloadStore,
-		stepIdConfigCache:   expirable.NewLRU(10000, func(key uuid.UUID, value *sqlcv1.ListStepsByIdsRow) {}, 5*time.Minute),
+	boolExprEvaluator, err := cel.NewBoolExprEvaluator()
+
+	if err != nil {
+		panic(err)
 	}
+
+	shared := &sharedRepository{
+		pool:                        pool,
+		ddlPool:                     pool,
+		l:                           &logger,
+		v:                           validator.NewDefaultValidator(),
+		queries:                     queries,
+		queueCache:                  queueCache,
+		stepExpressionCache:         stepExpressionCache,
+		concurrencyStrategyCache:    cache.New(5 * time.Minute),
+		celParser:                   cel.NewCELParser(),
+		boolExprEvaluator:           boolExprEvaluator,
+		taskLookupCache:             taskLookupCache,
+		payloadStore:                payloadStore,
+		tenantIdWorkflowNameCache:   expirable.NewLRU(10000, func(key string, value *sqlcv1.ListWorkflowsByNamesRow) {}, 5*time.Second),
+		workflowIdNameCache:         expirable.NewLRU(10000, func(key uuid.UUID, value string) {}, time.Hour),
+		stepsInWorkflowVersionCache: expirable.NewLRU(10000, func(key uuid.UUID, value []*sqlcv1.ListStepsByWorkflowVersionIdsRow) {}, 5*time.Minute),
+		stepIdConfigCache:           expirable.NewLRU(10000, func(key uuid.UUID, value *sqlcv1.ListStepsByIdsRow) {}, 5*time.Minute),
+		stepIdLabelsCache:           expirable.NewLRU(10000, func(key uuid.UUID, value []*sqlcv1.GetDesiredLabelsRow) {}, 5*time.Minute),
+		stepIdSlotRequestsCache:     expirable.NewLRU(10000, func(key uuid.UUID, value map[string]int32) {}, 5*time.Minute),
+		stepIdHasBatchConfigCache:   expirable.NewLRU(10000, func(key uuid.UUID, value bool) {}, 5*time.Minute),
+		stepIdMatchConditionsCache:  expirable.NewLRU(10000, func(key uuid.UUID, value []*sqlcv1.V1StepMatchCondition) {}, 5*time.Minute),
+	}
+
+	shared.m = newTenantLimitRepository(shared, limits.LimitConfigFile{}, false, 5*time.Minute)
 
 	return &TaskRepositoryImpl{
 		sharedRepository:      shared,

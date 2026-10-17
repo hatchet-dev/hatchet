@@ -761,6 +761,8 @@ type ServerConfig struct {
 
 	Runtime ConfigFileRuntime
 
+	PayloadStore PayloadStoreConfig
+
 	Services []string
 
 	PausedControllers map[string]bool
@@ -832,6 +834,17 @@ type PayloadStoreConfig struct {
 	// or later, because an older engine cannot read a bare input and turning it back on does not repair rows
 	// already written bare.
 	WrapTaskInputInStepRunData bool `mapstructure:"wrapTaskInputInStepRunData" json:"wrapTaskInputInStepRunData,omitempty" default:"true"`
+	// Stores a separate input payload row for every event, DAG and task, which engines before the
+	// `payload_reference_id` columns can read. When off, the tasks and DAGs an event triggers read the event's
+	// payload row, and a DAG shares one row with its tasks. Turn off only once every engine is on this version
+	// or later, because an older engine cannot find the input of a run that references another row.
+	WriteInputPayloadPerRun bool `mapstructure:"writeInputPayloadPerRun" json:"writeInputPayloadPerRun,omitempty" default:"true"`
+	// Keeps run inputs and event payloads on the OLAP queue messages and stores OLAP's own copies of them, which
+	// engines before OLAP read inputs from the core payload store rely on. Engines from this version on read the
+	// core payload store first, so turning this off only stops the second write. Turn off only once every engine
+	// is on this version or later, because an older OLAP controller stores an empty input for a run whose
+	// message carries no bytes.
+	WriteInputPayloadCopiesToOLAP bool `mapstructure:"writeInputPayloadCopiesToOLAP" json:"writeInputPayloadCopiesToOLAP,omitempty" default:"true"`
 }
 
 func (c *ServerConfig) HasService(name string) bool {
@@ -1127,6 +1140,8 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("payloadStore.inlineStoreTTLDays", "SERVER_PAYLOAD_STORE_INLINE_STORE_TTL_DAYS")
 	_ = v.BindEnv("payloadStore.enableWindowSizeOptimization", "SERVER_PAYLOAD_STORE_ENABLE_WINDOW_SIZE_OPTIMIZATION")
 	_ = v.BindEnv("payloadStore.wrapTaskInputInStepRunData", "SERVER_PAYLOAD_STORE_WRAP_TASK_INPUT_IN_STEP_RUN_DATA")
+	_ = v.BindEnv("payloadStore.writeInputPayloadPerRun", "SERVER_PAYLOAD_STORE_WRITE_INPUT_PAYLOAD_PER_RUN")
+	_ = v.BindEnv("payloadStore.writeInputPayloadCopiesToOLAP", "SERVER_PAYLOAD_STORE_WRITE_INPUT_PAYLOAD_COPIES_TO_OLAP")
 
 	// cron operations options
 	_ = v.BindEnv("cronOperations.taskAnalyzeCronInterval", "SERVER_CRON_OPERATIONS_TASK_ANALYZE_CRON_INTERVAL")

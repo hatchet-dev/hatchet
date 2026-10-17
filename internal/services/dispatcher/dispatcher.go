@@ -759,10 +759,11 @@ func (d *DispatcherImpl) populateTaskData(
 
 	for i, task := range bulkDatas {
 		retrievePayloadOpts[i] = v1.PayloadRef[v1.TaskInputShape]{
-			Id:         task.ID,
-			InsertedAt: task.InsertedAt,
-			TenantId:   task.TenantID,
-			ExternalId: task.ExternalID,
+			Id:                 task.ID,
+			InsertedAt:         task.InsertedAt,
+			TenantId:           task.TenantID,
+			ExternalId:         task.ExternalID,
+			PayloadReferenceId: task.PayloadReferenceID,
 		}
 	}
 
@@ -884,10 +885,11 @@ func (d *DispatcherImpl) populateTaskData(
 
 func taskInputPayloadOrFallback(inputs map[v1.PayloadRef[v1.TaskInputShape]]v1.Payload[v1.TaskInputShape], task *sqlcv1.V1Task) v1.Payload[v1.TaskInputShape] {
 	return v1.RetrievePayloadOrFallback(inputs, v1.PayloadRef[v1.TaskInputShape]{
-		Id:         task.ID,
-		InsertedAt: task.InsertedAt,
-		TenantId:   task.TenantID,
-		ExternalId: task.ExternalID,
+		Id:                 task.ID,
+		InsertedAt:         task.InsertedAt,
+		TenantId:           task.TenantID,
+		ExternalId:         task.ExternalID,
+		PayloadReferenceId: task.PayloadReferenceID,
 	}, task.Input)
 }
 

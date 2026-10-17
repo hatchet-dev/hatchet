@@ -209,15 +209,20 @@ WITH lookup_rows AS MATERIALIZED (
         t.is_dag_orchestrator,
         t.workflow_version_id,
         t.parent_task_external_id,
-        t.is_durable
+        t.is_durable,
+        t.payload_reference_id,
+        d.payload_reference_id AS dag_payload_reference_id
     FROM
         lookup_rows l
+    JOIN
+        v1_dag d ON d.id = l.dag_id AND d.inserted_at = l.inserted_at
     JOIN
         v1_dag_to_task dt ON dt.dag_id = l.dag_id AND dt.dag_inserted_at = l.inserted_at
     JOIN
         v1_task t ON t.id = dt.task_id AND t.inserted_at = dt.task_inserted_at
     WHERE
         l.dag_id IS NOT NULL
+        AND d.inserted_at >= (SELECT MIN(inserted_at) FROM lookup_rows WHERE dag_id IS NOT NULL)
         AND dt.dag_inserted_at >= (SELECT MIN(inserted_at) FROM lookup_rows WHERE dag_id IS NOT NULL)
         AND t.inserted_at >= (SELECT MIN(inserted_at) FROM lookup_rows WHERE dag_id IS NOT NULL)
 )
@@ -241,7 +246,9 @@ SELECT
     t.is_dag_orchestrator,
     t.workflow_version_id,
     t.parent_task_external_id,
-    t.is_durable
+    t.is_durable,
+    t.payload_reference_id,
+    NULL::uuid AS dag_payload_reference_id
 FROM
     lookup_rows l
 JOIN
@@ -871,7 +878,8 @@ WITH RECURSIVE input_tasks AS MATERIALIZED (
         t.child_key,
         t.desired_worker_label,
         t.triggering_event_external_id,
-        t.triggering_event_key
+        t.triggering_event_key,
+        t.payload_reference_id
     FROM
         v1_task t
     WHERE
@@ -921,6 +929,7 @@ SELECT
     t.desired_worker_label,
     t.triggering_event_external_id,
     t.triggering_event_key,
+    t.payload_reference_id,
     j."kind" as "jobKind",
     COALESCE(so."parents", '{}'::uuid[]) as "parents"
 FROM

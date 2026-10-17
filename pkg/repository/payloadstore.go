@@ -126,21 +126,23 @@ func DecodeChildWorkflowSignalCreatedPayload(p Payload[ChildWorkflowSignalCreate
 }
 
 type PayloadRef[S PayloadShape] struct {
-	TenantId   uuid.UUID
-	Id         int64
-	InsertedAt pgtype.Timestamptz
-	ExternalId uuid.UUID
+	TenantId           uuid.UUID
+	Id                 int64
+	InsertedAt         pgtype.Timestamptz
+	ExternalId         uuid.UUID
+	PayloadReferenceId *uuid.UUID
 }
 
 func (r PayloadRef[S]) retrieveOpts() RetrievePayloadOpts {
 	var shape S
 
 	return RetrievePayloadOpts{
-		TenantId:   r.TenantId,
-		Id:         r.Id,
-		InsertedAt: r.InsertedAt,
-		Type:       shape.kind().V1PayloadType(),
-		ExternalId: r.ExternalId,
+		TenantId:           r.TenantId,
+		Id:                 r.Id,
+		InsertedAt:         r.InsertedAt,
+		Type:               shape.kind().V1PayloadType(),
+		ExternalId:         r.ExternalId,
+		PayloadReferenceId: r.PayloadReferenceId,
 	}
 }
 
@@ -211,11 +213,20 @@ type OffloadToExternalStoreOpts struct {
 }
 
 type RetrievePayloadOpts struct {
-	TenantId   uuid.UUID
-	Id         int64
-	InsertedAt pgtype.Timestamptz
-	Type       sqlcv1.V1PayloadType
-	ExternalId uuid.UUID
+	TenantId           uuid.UUID
+	Id                 int64
+	InsertedAt         pgtype.Timestamptz
+	Type               sqlcv1.V1PayloadType
+	ExternalId         uuid.UUID
+	PayloadReferenceId *uuid.UUID
+}
+
+func (o RetrievePayloadOpts) effectiveExternalId() uuid.UUID {
+	if o.PayloadReferenceId != nil {
+		return *o.PayloadReferenceId
+	}
+
+	return o.ExternalId
 }
 
 type RetrieveFromExternalOpts struct {
@@ -251,6 +262,7 @@ type PayloadStoreRepository interface {
 	SignalCompletedMatchData() TypedPayloadStore[SignalCompletedMatchDataShape]
 	DurableEventLogEntryData() TypedPayloadStore[DurableEventLogEntryDataShape]
 	DurableEventLogEntryResultData() TypedPayloadStore[DurableEventLogEntryResultDataShape]
+	WritesInputPayloadCopiesToOLAP() bool
 	RetrieveFromExternal(ctx context.Context, opts ...RetrieveFromExternalOpts) (map[RetrieveFromExternalOpts][]byte, error)
 	OverwriteExternalStore(store ExternalStore)
 	ExternalCutoverProcessInterval() time.Duration
@@ -275,6 +287,7 @@ type payloadStoreRepositoryImpl struct {
 	externalCutoverBatchSize             int32
 	externalCutoverNumConcurrentOffloads int32
 	enableWindowSizeOptimization         bool
+	writeInputPayloadCopiesToOLAP        bool
 }
 
 type PayloadStoreRepositoryOpts struct {
@@ -284,6 +297,8 @@ type PayloadStoreRepositoryOpts struct {
 	InlineStoreTTL                       *time.Duration
 	EnableWindowSizeOptimization         bool
 	WrapTaskInputInStepRunData           bool
+	WriteInputPayloadPerRun              bool
+	WriteInputPayloadCopiesToOLAP        bool
 }
 
 func NewPayloadStoreRepository(
@@ -304,7 +319,12 @@ func NewPayloadStoreRepository(
 		externalCutoverBatchSize:             opts.ExternalCutoverBatchSize,
 		externalCutoverNumConcurrentOffloads: opts.ExternalCutoverNumConcurrentOffloads,
 		enableWindowSizeOptimization:         opts.EnableWindowSizeOptimization,
+		writeInputPayloadCopiesToOLAP:        opts.WriteInputPayloadCopiesToOLAP,
 	}
+}
+
+func (p *payloadStoreRepositoryImpl) WritesInputPayloadCopiesToOLAP() bool {
+	return p.writeInputPayloadCopiesToOLAP
 }
 
 type PayloadUniqueKey struct {
@@ -369,7 +389,7 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 		payloadTypes = append(payloadTypes, string(payload.key.Type))
 		tenantIds = append(tenantIds, payload.key.TenantId)
 		inlineContents = append(inlineContents, payload.payload.Bytes())
-		externalIds = append(externalIds, payload.key.ExternalId)
+		externalIds = append(externalIds, payload.key.effectiveExternalId())
 	}
 
 	err := p.queries.WritePayloads(ctx, tx, sqlcv1.WritePayloadsParams{
@@ -406,7 +426,7 @@ func (p *payloadStoreRepositoryImpl) OverwriteExisting(ctx context.Context, tx s
 
 		params.Ids = append(params.Ids, payload.key.Id)
 		params.Insertedats = append(params.Insertedats, payload.key.InsertedAt)
-		params.Externalids = append(params.Externalids, payload.key.ExternalId)
+		params.Externalids = append(params.Externalids, payload.key.effectiveExternalId())
 		params.Types = append(params.Types, string(payload.key.Type))
 		params.Inlinecontents = append(params.Inlinecontents, payload.payload.Bytes())
 		params.Tenantids = append(params.Tenantids, payload.key.TenantId)
@@ -486,19 +506,25 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 	insertedAts := make([]pgtype.Timestamptz, len(opts))
 	types := make([]string, len(opts))
 	tenantIds := make([]uuid.UUID, len(opts))
+	payloadReferenceIds := make([]uuid.UUID, len(opts))
 
 	for i, opt := range opts {
 		ids[i] = opt.Id
 		insertedAts[i] = opt.InsertedAt
 		types[i] = string(opt.Type)
 		tenantIds[i] = opt.TenantId
+
+		if opt.PayloadReferenceId != nil {
+			payloadReferenceIds[i] = *opt.PayloadReferenceId
+		}
 	}
 
 	payloads, err := p.queries.ReadPayloads(ctx, tx, sqlcv1.ReadPayloadsParams{
-		Ids:         ids,
-		Insertedats: insertedAts,
-		Tenantids:   tenantIds,
-		Types:       types,
+		Ids:                 ids,
+		Insertedats:         insertedAts,
+		Tenantids:           tenantIds,
+		Types:               types,
+		Payloadreferenceids: payloadReferenceIds,
 	})
 
 	if err != nil {
@@ -507,7 +533,15 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 
 	optsToPayload := make(map[RetrievePayloadOpts][]byte)
 	originalOptsByKey := make(map[PayloadUniqueKey]RetrievePayloadOpts, len(opts))
+	// several rows can share one referenced payload, so each reference id maps to every opt that asked for it
+	originalOptsByReferenceId := make(map[uuid.UUID][]RetrievePayloadOpts)
+
 	for _, opt := range opts {
+		if opt.PayloadReferenceId != nil {
+			originalOptsByReferenceId[*opt.PayloadReferenceId] = append(originalOptsByReferenceId[*opt.PayloadReferenceId], opt)
+			continue
+		}
+
 		originalOptsByKey[payloadUniqueKeyFromRetrieveOpt(opt)] = opt
 	}
 
@@ -521,10 +555,17 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 			continue
 		}
 
-		payloadKey := payloadUniqueKeyFromRow(payload)
-		foundKeys[payloadKey] = struct{}{}
+		if referrers, ok := originalOptsByReferenceId[payload.ExternalID]; ok {
+			for _, opt := range referrers {
+				foundKeys[payloadUniqueKeyFromRetrieveOpt(opt)] = struct{}{}
+				optsToPayload[opt] = payload.InlineContent
+			}
 
-		opt, ok := originalOptsByKey[payloadKey]
+			continue
+		}
+
+		opt, ok := originalOptsByKey[payloadUniqueKeyFromRow(payload)]
+
 		if !ok {
 			opt = RetrievePayloadOpts{
 				Id:         payload.ID,
@@ -535,6 +576,7 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 			}
 		}
 
+		foundKeys[payloadUniqueKeyFromRetrieveOpt(opt)] = struct{}{}
 		optsToPayload[opt] = payload.InlineContent
 	}
 
@@ -544,7 +586,9 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 		externalIdToOpt := make(map[uuid.UUID]RetrievePayloadOpts)
 
 		for _, opt := range opts {
-			if opt.ExternalId == uuid.Nil {
+			externalId := opt.effectiveExternalId()
+
+			if externalId == uuid.Nil {
 				continue
 			}
 
@@ -553,9 +597,9 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 			if _, found := foundKeys[key]; found {
 				continue
 			}
-			retrieveIndexBlockExternalIds = append(retrieveIndexBlockExternalIds, opt.ExternalId)
+			retrieveIndexBlockExternalIds = append(retrieveIndexBlockExternalIds, externalId)
 			retrieveIndexBlockInsertedAtDates = append(retrieveIndexBlockInsertedAtDates, pgtype.Date{Time: opt.InsertedAt.Time.UTC(), Valid: true})
-			externalIdToOpt[opt.ExternalId] = opt
+			externalIdToOpt[externalId] = opt
 		}
 
 		if len(retrieveIndexBlockExternalIds) > 0 {

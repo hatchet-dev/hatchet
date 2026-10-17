@@ -221,6 +221,7 @@ CREATE TABLE v1_tasks_olap (
     parent_task_external_id UUID,
     is_durable BOOLEAN NOT NULL DEFAULT FALSE,
     idempotency_key TEXT,
+    payload_reference_id UUID,
 
     PRIMARY KEY (inserted_at, id)
 ) PARTITION BY RANGE(inserted_at);
@@ -250,6 +251,7 @@ CREATE TABLE v1_dags_olap (
     idempotency_key TEXT,
     latest_retry_count INT NOT NULL DEFAULT 0,
     is_dag_operator BOOLEAN NOT NULL DEFAULT FALSE,
+    payload_reference_id UUID,
     PRIMARY KEY (inserted_at, id)
 ) PARTITION BY RANGE(inserted_at);
 
@@ -565,6 +567,7 @@ CREATE TABLE v1_events_olap (
     additional_metadata JSONB,
     scope TEXT,
     triggering_webhook_name TEXT,
+    payload_reference_id UUID,
 
     PRIMARY KEY (tenant_id, seen_at, id)
 ) PARTITION BY RANGE(seen_at);

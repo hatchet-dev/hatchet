@@ -81,6 +81,35 @@ func (s *sharedRepository) newTaskInput(inputBytes []byte, triggerData *MatchDat
 	}
 }
 
+// Operator children only share the orchestrator's TASK_INPUT row when both serialize to
+// nothing but the user input, so the shared row is byte-for-byte what each would have stored.
+func (t *TaskInput) HasOnlyInput() bool {
+	return t != nil &&
+		t.TriggerData == nil &&
+		len(t.FilterPayload) == 0 &&
+		len(t.DagParentTaskRunIds) == 0 &&
+		len(t.DesiredWorkerLabels) == 0
+}
+
+// Once the payload store holds only the user's input, every task in a run stores the same bytes as the run itself
+// and can read them from the run's row. While inputs are still wrapped, a task's row also carries its own trigger
+// data and DAG parents, so only a task without any of those can share.
+func (s *sharedRepository) taskCanShareRunInputPayload(input *TaskInput) bool {
+	if s.writeInputPayloadPerRun {
+		return false
+	}
+
+	return !s.wrapTaskInputInStepRunData || input.HasOnlyInput()
+}
+
+func (s *sharedRepository) sharedRunInputPayloadReferenceId(runPayloadReferenceId *uuid.UUID, input *TaskInput) *uuid.UUID {
+	if runPayloadReferenceId == nil || !s.taskCanShareRunInputPayload(input) {
+		return nil
+	}
+
+	return runPayloadReferenceId
+}
+
 func (t *TaskInput) Bytes() []byte {
 	if t == nil {
 		return nil

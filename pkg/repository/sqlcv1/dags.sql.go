@@ -29,7 +29,8 @@ WITH input AS (
         unnest($5::uuid[]) AS workflow_version_id,
         unnest($6::uuid[]) AS parent_task_external_id,
         unnest($7::jsonb[]) AS desired_worker_labels,
-        unnest($8::text[]) AS idempotency_keys
+        unnest($8::text[]) AS idempotency_keys,
+        unnest($9::uuid[]) AS payload_reference_id
 )
 INSERT INTO v1_dag (
     tenant_id,
@@ -39,7 +40,8 @@ INSERT INTO v1_dag (
     workflow_version_id,
     parent_task_external_id,
     desired_worker_labels,
-    idempotency_key
+    idempotency_key,
+    payload_reference_id
 )
 SELECT
     i.tenant_id,
@@ -49,11 +51,12 @@ SELECT
     i.workflow_version_id,
     NULLIF(i.parent_task_external_id, '00000000-0000-0000-0000-000000000000'::uuid),
     i.desired_worker_labels,
-    NULLIF(i.idempotency_keys, '')
+    NULLIF(i.idempotency_keys, ''),
+    NULLIF(i.payload_reference_id, '00000000-0000-0000-0000-000000000000'::uuid)
 FROM
     input i
 RETURNING
-    id, inserted_at, tenant_id, external_id, display_name, workflow_id, workflow_version_id, parent_task_external_id, desired_worker_labels, idempotency_key
+    id, inserted_at, tenant_id, external_id, display_name, workflow_id, workflow_version_id, parent_task_external_id, desired_worker_labels, idempotency_key, payload_reference_id
 `
 
 type CreateDAGsParams struct {
@@ -65,6 +68,7 @@ type CreateDAGsParams struct {
 	Parenttaskexternalids []uuid.UUID `json:"parenttaskexternalids"`
 	Desiredworkerlabels   [][]byte    `json:"desiredworkerlabels"`
 	Idempotencykeys       []string    `json:"idempotencykeys"`
+	Payloadreferenceids   []uuid.UUID `json:"payloadreferenceids"`
 }
 
 func (q *Queries) CreateDAGs(ctx context.Context, db DBTX, arg CreateDAGsParams) ([]*V1Dag, error) {
@@ -77,6 +81,7 @@ func (q *Queries) CreateDAGs(ctx context.Context, db DBTX, arg CreateDAGsParams)
 		arg.Parenttaskexternalids,
 		arg.Desiredworkerlabels,
 		arg.Idempotencykeys,
+		arg.Payloadreferenceids,
 	)
 	if err != nil {
 		return nil, err
@@ -96,6 +101,7 @@ func (q *Queries) CreateDAGs(ctx context.Context, db DBTX, arg CreateDAGsParams)
 			&i.ParentTaskExternalID,
 			&i.DesiredWorkerLabels,
 			&i.IdempotencyKey,
+			&i.PayloadReferenceID,
 		); err != nil {
 			return nil, err
 		}
@@ -113,7 +119,7 @@ WITH input AS (
         unnest($2::bigint[]) AS dag_id,
         unnest($3::timestamptz[]) AS dag_inserted_at
 )
-SELECT dd.dag_id, dd.dag_inserted_at, dd.input, dd.additional_metadata, d.desired_worker_labels, d.external_id
+SELECT dd.dag_id, dd.dag_inserted_at, dd.input, dd.additional_metadata, d.desired_worker_labels, d.external_id, d.payload_reference_id
 FROM v1_dag d
 JOIN v1_dag_data dd ON (d.id, d.inserted_at) = (dd.dag_id, dd.dag_inserted_at)
 WHERE (d.id, d.inserted_at) IN (
@@ -137,6 +143,7 @@ type GetDAGDataRow struct {
 	AdditionalMetadata  []byte             `json:"additional_metadata"`
 	DesiredWorkerLabels []byte             `json:"desired_worker_labels"`
 	ExternalID          uuid.UUID          `json:"external_id"`
+	PayloadReferenceID  *uuid.UUID         `json:"payload_reference_id"`
 }
 
 func (q *Queries) GetDAGData(ctx context.Context, db DBTX, arg GetDAGDataParams) ([]*GetDAGDataRow, error) {
@@ -155,6 +162,7 @@ func (q *Queries) GetDAGData(ctx context.Context, db DBTX, arg GetDAGDataParams)
 			&i.AdditionalMetadata,
 			&i.DesiredWorkerLabels,
 			&i.ExternalID,
+			&i.PayloadReferenceID,
 		); err != nil {
 			return nil, err
 		}
