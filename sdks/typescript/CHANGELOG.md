@@ -5,6 +5,12 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.38.1] - 2026-10-17
+
+### Fixed
+
+- A worker that received SIGTERM while a durable task's `sleepFor`, `waitFor` or `spawnChild` was still being registered with the engine reported that run as failed with `DurableListener stopped`. The shutdown now waits up to 10 seconds for in-flight registrations to be acknowledged and then evicts those runs like any other waiting run. A run whose registration is not acknowledged in time is cancelled locally without a report and left assigned, so the engine reassigns it once the worker's heartbeat stops, as it does for a crashed worker: that path adds a delay of at least 30 seconds and counts against the engine's internal retry limit. A deployment that scales down right after picking up a durable task no longer fails that run from the worker side.
+
 ## [1.38.0] - 2026-10-13
 
 ### Added

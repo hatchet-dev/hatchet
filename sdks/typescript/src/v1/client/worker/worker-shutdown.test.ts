@@ -1,11 +1,18 @@
 import { DurableTaskResponse } from '@hatchet/protoc/v1/dispatcher';
-import { ActionListener, ActionKey } from '@hatchet/clients/dispatcher/action-listener';
+import { ActionType, StepActionEventType } from '@hatchet/protoc/dispatcher';
+import {
+  ActionListener,
+  ActionKey,
+  createAction,
+} from '@hatchet/clients/dispatcher/action-listener';
 import { HatchetClient } from '../client';
 import { TenantClient } from '../features/tenant';
 import { DurableEvictionManager } from './eviction/eviction-manager';
 import HatchetPromise from '@util/hatchet-promise/hatchet-promise';
 import { InternalWorker } from './worker-internal';
 import { HealthServer } from './health-server';
+import { DurableContext } from './context';
+import { MinEngineVersion } from './engine-version';
 
 function gate() {
   let release = () => {};
@@ -20,7 +27,9 @@ describe('durable worker shutdown', () => {
   let worker: InternalWorker;
   let manager: DurableEvictionManager;
   let acknowledgement: ReturnType<typeof gate>;
+  let waitForAcknowledgement: ReturnType<typeof gate>;
   let requests: string[];
+  let waitForRequests: string[];
   let cancelled: string[];
   let signalListeners: Map<NodeJS.Signals, NodeJS.SignalsListener[]>;
 
@@ -47,17 +56,87 @@ describe('durable worker shutdown', () => {
       }),
     });
     acknowledgement = gate();
+    waitForAcknowledgement = gate();
     requests = [];
+    waitForRequests = [];
     cancelled = [];
+    // Evictions are answered in order once `acknowledgement` opens; a waitFor
+    // registration is answered once `waitForAcknowledgement` opens, without
+    // blocking the requests behind it, as the engine handles them concurrently.
     jest
       .spyOn(client.durableListener.client, 'durableTask')
       .mockImplementation(async function* (outgoing) {
-        for await (const request of outgoing) {
-          if (request.evictInvocation) {
-            requests.push(request.evictInvocation.durableTaskExternalId ?? '');
-            await acknowledgement.promise;
-            yield DurableTaskResponse.fromPartial({ evictionAck: request.evictInvocation });
+        const responses: DurableTaskResponse[] = [];
+        let wake: (() => void) | undefined;
+        let requestsDone = false;
+        const respond = (response: DurableTaskResponse) => {
+          responses.push(response);
+          wake?.();
+        };
+        void (async () => {
+          for await (const request of outgoing) {
+            if (request.evictInvocation) {
+              requests.push(request.evictInvocation.durableTaskExternalId ?? '');
+              await acknowledgement.promise;
+              respond(DurableTaskResponse.fromPartial({ evictionAck: request.evictInvocation }));
+            }
+            if (request.triggerRuns) {
+              // Child batches are acked at once and every child completes immediately.
+              const { durableTaskExternalId, invocationCount } = request.triggerRuns;
+              const runEntries = (request.triggerRuns.triggerOpts || []).map((_, i) => ({
+                nodeId: 10 + i,
+                branchId: 0,
+                workflowRunExternalId: `child-${i}`,
+              }));
+              respond(
+                DurableTaskResponse.fromPartial({
+                  triggerRunsAck: { durableTaskExternalId, invocationCount, runEntries },
+                })
+              );
+              for (const entry of runEntries) {
+                respond(
+                  DurableTaskResponse.fromPartial({
+                    entryCompleted: {
+                      ref: {
+                        durableTaskExternalId,
+                        invocationCount,
+                        nodeId: entry.nodeId,
+                        branchId: 0,
+                      },
+                      payload: new TextEncoder().encode('{}'),
+                      isFailure: false,
+                    },
+                  })
+                );
+              }
+            }
+            if (request.waitFor) {
+              const { durableTaskExternalId, invocationCount, label } = request.waitFor;
+              waitForRequests.push(durableTaskExternalId ?? '');
+              // A wait labelled `never-acked` models a registration the engine never answers.
+              if (label === 'never-acked') continue;
+              void waitForAcknowledgement.promise.then(() =>
+                respond(
+                  DurableTaskResponse.fromPartial({
+                    waitForAck: {
+                      ref: { durableTaskExternalId, invocationCount, branchId: 0, nodeId: 1 },
+                    },
+                  })
+                )
+              );
+            }
           }
+          requestsDone = true;
+          wake?.();
+        })();
+        while (!requestsDone || responses.length > 0) {
+          while (responses.length > 0) {
+            yield responses.shift()!;
+          }
+          if (requestsDone) break;
+          await new Promise<void>((resolve) => {
+            wake = resolve;
+          });
         }
       });
     signalListeners = new Map(
@@ -85,6 +164,7 @@ describe('durable worker shutdown', () => {
 
   afterEach(async () => {
     acknowledgement.release();
+    waitForAcknowledgement.release();
     await client.durableListener.stop();
     for (const [signal, previous] of signalListeners) {
       for (const listener of process.listeners(signal)) {
@@ -109,6 +189,43 @@ describe('durable worker shutdown', () => {
       });
     worker.futures[key] = future;
     return { future, finish: work.release };
+  }
+
+  // Mirrors a dispatched durable action: the worker wires its own eviction manager
+  // (with the real local-cancel path) and runs `fn` as the task body.
+  function startDurableTask(
+    taskRunExternalId: string,
+    fn: (ctx: DurableContext<any, any>) => Promise<unknown>
+  ) {
+    const actionId = 'shutdown-test:durable-task';
+    worker.engineVersion = MinEngineVersion.DURABLE_EVICTION;
+    worker.durable_action_set.add(actionId);
+    worker.action_registry[actionId] = fn as any;
+    worker.evictionManager = undefined;
+    const sendStepActionEvent = jest
+      .spyOn(client.dispatcher, 'sendStepActionEvent')
+      .mockResolvedValue(undefined as never);
+    const action = createAction({
+      tenantId: 'tenant',
+      workflowRunId: 'workflow-run',
+      getGroupKeyRunId: '',
+      jobId: 'job',
+      jobName: 'shutdown-test',
+      jobRunId: 'job-run',
+      taskId: 'task',
+      taskRunExternalId,
+      actionId,
+      actionType: ActionType.START_STEP_RUN,
+      actionPayload: '{}',
+      taskName: 'durable-task',
+      retryCount: 0,
+      priority: 1,
+      durableTaskInvocationCount: 1,
+    });
+    const running = worker.handleStartStepRun(action);
+    const reportedEventTypes = () =>
+      sendStepActionEvent.mock.calls.map(([event]) => event.eventType);
+    return { running, reportedEventTypes };
   }
 
   function registerOpenActionStream() {
@@ -361,6 +478,157 @@ describe('durable worker shutdown', () => {
       { status: 'rejected', reason: new Error('DurableListener stopped') },
       { status: 'rejected', reason: new Error('DurableListener stopped') },
     ]);
+  });
+
+  it('lets an in-flight durable registration settle, then evicts it instead of failing the run', async () => {
+    const stopListener = jest.spyOn(client.durableListener, 'stop');
+    const { running, reportedEventTypes } = startDurableTask('registering-task', (ctx) =>
+      ctx.sleepFor('5m')
+    );
+    await jest.advanceTimersByTimeAsync(0);
+    expect(waitForRequests).toEqual(['registering-task']);
+
+    // SIGTERM lands while the waitFor ack is still pending: nothing is evicted and the
+    // listener stays up until the ack arrives.
+    const stopping = worker.stop();
+    await jest.advanceTimersByTimeAsync(1_000);
+    expect(requests).toEqual([]);
+    expect(stopListener).not.toHaveBeenCalled();
+
+    waitForAcknowledgement.release();
+    acknowledgement.release();
+    await jest.advanceTimersByTimeAsync(1_000);
+    await stopping;
+    await running;
+
+    expect(requests).toEqual(['registering-task']);
+    expect(reportedEventTypes()).toEqual([StepActionEventType.STEP_EVENT_TYPE_STARTED]);
+    expect(worker.futures).toEqual({});
+  });
+
+  it('leaves a registration whose ack never arrives for reassignment once the shutdown bound elapses', async () => {
+    const { running, reportedEventTypes } = startDurableTask('stuck-registration', (ctx) =>
+      ctx.sleepFor('5m')
+    );
+    await jest.advanceTimersByTimeAsync(0);
+    expect(waitForRequests).toEqual(['stuck-registration']);
+
+    let stopped = false;
+    const stopping = worker.stop().then(() => {
+      stopped = true;
+    });
+    await jest.advanceTimersByTimeAsync(9_999);
+    expect(stopped).toBe(false);
+
+    // Not evicted (the engine may not have registered the wait's wake-up yet) and
+    // not reported: the run stays assigned and the engine reassigns it when the
+    // worker's heartbeat stops.
+    await jest.advanceTimersByTimeAsync(1);
+    await stopping;
+    await running;
+
+    expect(requests).toEqual([]);
+    expect(reportedEventTypes()).toEqual([StepActionEventType.STEP_EVENT_TYPE_STARTED]);
+    expect(worker.futures).toEqual({});
+  });
+
+  it('leaves a run with an acknowledged wait and a pending registration for reassignment, not eviction', async () => {
+    const { running, reportedEventTypes } = startDurableTask('mixed-task', (ctx) =>
+      Promise.all([
+        ctx.sleepFor('5m', { label: 'acked' }),
+        ctx.sleepFor('5m', { label: 'never-acked' }),
+      ])
+    );
+    waitForAcknowledgement.release();
+    await jest.advanceTimersByTimeAsync(0);
+    // The first sleep is acknowledged and waiting; the serialized second send is pending forever.
+    expect(waitForRequests).toEqual(['mixed-task', 'mixed-task']);
+
+    const stopping = worker.stop();
+    await jest.advanceTimersByTimeAsync(10_000);
+    await stopping;
+    await running;
+
+    // Evicting would rely on the acknowledged wait to resume the run, but that wait can
+    // complete before the eviction commits; the run is left assigned for reassignment instead.
+    expect(requests).toEqual([]);
+    expect(reportedEventTypes()).toEqual([StepActionEventType.STEP_EVENT_TYPE_STARTED]);
+    expect(worker.futures).toEqual({});
+  });
+
+  it('rechecks a run before evicting it: a registration started while an earlier eviction ack was pending leaves it for reassignment', async () => {
+    const first = startDurableTask('first-task', (ctx) => ctx.sleepFor('5m'));
+    const second = startDurableTask('next-task', async (ctx) => {
+      await ctx.sleepFor('1s');
+      await ctx.sleepFor('5m', { label: 'never-acked' });
+    });
+    waitForAcknowledgement.release();
+    await jest.advanceTimersByTimeAsync(0);
+    expect(waitForRequests).toEqual(['first-task', 'next-task']);
+
+    const stopping = worker.stop();
+    await jest.advanceTimersByTimeAsync(0);
+    expect(requests).toEqual(['first-task']);
+
+    // While the first eviction ack is pending, the second run's sleep completes and
+    // its task registers another sleep that the engine never acks.
+    (client.durableListener as any)._handleResponse(
+      DurableTaskResponse.fromPartial({
+        entryCompleted: {
+          ref: { durableTaskExternalId: 'next-task', invocationCount: 1, branchId: 0, nodeId: 1 },
+          payload: new TextEncoder().encode('{}'),
+        },
+      })
+    );
+    await jest.advanceTimersByTimeAsync(0);
+    // The mock reads requests in order and is parked on the first eviction, so the
+    // new registration shows up in the cache first and on the stream once released.
+    expect(
+      worker.evictionManager!.cache.getAllRegistering().map((rec) => rec.taskRunExternalId)
+    ).toEqual(['next-task']);
+
+    acknowledgement.release();
+    await jest.advanceTimersByTimeAsync(1_000);
+    await stopping;
+    await first.running;
+    await second.running;
+
+    expect(waitForRequests).toEqual(['first-task', 'next-task', 'next-task']);
+    expect(requests).toEqual(['first-task']);
+    expect(first.reportedEventTypes()).toEqual([
+      StepActionEventType.STEP_EVENT_TYPE_STARTED,
+      StepActionEventType.STEP_EVENT_TYPE_STARTED,
+    ]);
+    expect(worker.futures).toEqual({});
+  });
+
+  it('a completed child batch does not hide a concurrently pending sleep registration', async () => {
+    const { running, reportedEventTypes } = startDurableTask('batch-task', (ctx) =>
+      Promise.all([
+        ctx.spawnChildren([
+          { workflow: 'child', input: {} },
+          { workflow: 'child', input: {} },
+        ]),
+        ctx.sleepFor('5m'),
+      ])
+    );
+    await jest.advanceTimersByTimeAsync(0);
+    // Both children have completed; the sleep's ack is still pending.
+    expect(waitForRequests).toEqual(['batch-task']);
+
+    const stopping = worker.stop();
+    await jest.advanceTimersByTimeAsync(1_000);
+    expect(requests).toEqual([]);
+
+    waitForAcknowledgement.release();
+    acknowledgement.release();
+    await jest.advanceTimersByTimeAsync(1_000);
+    await stopping;
+    await running;
+
+    expect(requests).toEqual(['batch-task']);
+    expect(reportedEventTypes()).toEqual([StepActionEventType.STEP_EVENT_TYPE_STARTED]);
+    expect(worker.futures).toEqual({});
   });
 
   it.each(['signal-first', 'stop-first'])('drains waiting runs once: %s', async (order) => {

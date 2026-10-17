@@ -24,6 +24,11 @@ export interface DurableRunRecord {
   // Promise.all) don't prematurely clear the waiting flag when one
   // child completes before the others.
   _waitCount: number;
+  // Durable registrations (waitFor, runChildren) whose engine ack is still in
+  // flight. The run is about to wait but is not waiting yet: a shutdown must
+  // let these settle before evicting, or the stopped listener rejects the ack
+  // and the run fails instead of being evicted.
+  _registeringCount: number;
 
   evictionReason: string | undefined;
 }
@@ -48,6 +53,7 @@ export class DurableEvictionCache {
       waitKind: undefined,
       waitResourceId: undefined,
       _waitCount: 0,
+      _registeringCount: 0,
       evictionReason: undefined,
     });
   }
@@ -64,6 +70,10 @@ export class DurableEvictionCache {
     return [...this._runs.values()].filter((r) => r._waitCount > 0);
   }
 
+  getAllRegistering(): DurableRunRecord[] {
+    return [...this._runs.values()].filter((r) => r._registeringCount > 0);
+  }
+
   findKeyByTaskRunExternalId(taskRunExternalId: string): ActionKey | undefined {
     for (const [key, rec] of this._runs) {
       if (rec.taskRunExternalId === taskRunExternalId) return key;
@@ -71,9 +81,44 @@ export class DurableEvictionCache {
     return undefined;
   }
 
-  markWaiting(key: ActionKey, now: number, waitKind: string, resourceId: string): void {
+  markRegistering(key: ActionKey, waitKind: string): void {
     const rec = this._runs.get(key);
     if (!rec) return;
+    rec._registeringCount += 1;
+    // Names the wait in the eviction reason if the run is evicted while its
+    // registration is still in flight; a wait already in progress keeps its own.
+    if (rec._waitCount === 0) {
+      rec.waitKind = waitKind;
+    }
+  }
+
+  // The registration settled without entering a wait (the send failed).
+  markRegistered(key: ActionKey): void {
+    const rec = this._runs.get(key);
+    if (!rec) return;
+    rec._registeringCount = Math.max(0, rec._registeringCount - 1);
+    if (rec._registeringCount === 0 && rec._waitCount === 0) {
+      rec.waitKind = undefined;
+    }
+  }
+
+  // `consumesRegistration` ends the registration this wait belongs to in the
+  // same step, so there is no moment where the run counts as neither
+  // registering nor waiting. Only the first wait of a registration consumes it;
+  // the other waits of a child batch must not consume a registration that
+  // another concurrent operation still has in flight.
+  markWaiting(
+    key: ActionKey,
+    now: number,
+    waitKind: string,
+    resourceId: string,
+    consumesRegistration = false
+  ): void {
+    const rec = this._runs.get(key);
+    if (!rec) return;
+    if (consumesRegistration) {
+      rec._registeringCount = Math.max(0, rec._registeringCount - 1);
+    }
     rec._waitCount += 1;
     if (rec._waitCount === 1) {
       rec.waitingSince = now;

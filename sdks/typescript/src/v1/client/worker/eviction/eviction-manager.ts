@@ -16,12 +16,21 @@ export interface DurableEvictionConfig {
   reserveSlots?: number;
   /** Avoid immediately evicting runs that just entered a wait. Default: 10000ms */
   minWaitForCapacityEvictionMs?: number;
+  /**
+   * How long a shutdown waits for in-flight durable registrations (a waitFor or
+   * runChildren whose engine ack has not arrived) to settle before giving up on
+   * them. A run whose registration never settles is cancelled locally without
+   * a report and left for the engine to reassign, like a run on a worker that
+   * crashed. Default: 10000ms
+   */
+  shutdownRegistrationTimeoutMs?: number;
 }
 
 export const DEFAULT_DURABLE_EVICTION_CONFIG: Required<DurableEvictionConfig> = {
   checkIntervalMs: 1000,
   reserveSlots: 0,
   minWaitForCapacityEvictionMs: 10_000,
+  shutdownRegistrationTimeoutMs: 10_000,
 };
 
 export class DurableEvictionManager {
@@ -34,6 +43,7 @@ export class DurableEvictionManager {
 
   private _timer: ReturnType<typeof setInterval> | undefined;
   private _ticking = false;
+  private _registrationWaiters = new Set<() => void>();
 
   constructor(opts: {
     durableSlots: number;
@@ -78,10 +88,61 @@ export class DurableEvictionManager {
 
   unregisterRun(key: ActionKey): void {
     this._cache.unregisterRun(key);
+    this._notifyRegistrationChange();
   }
 
-  markWaiting(key: ActionKey, waitKind: string, resourceId: string): void {
-    this._cache.markWaiting(key, Date.now(), waitKind, resourceId);
+  // A durable registration is in flight for this run: its waitFor or
+  // runChildren has been sent and the engine ack is pending. markWaiting
+  // consumes the registration; markRegistered ends one that failed.
+  markRegistering(key: ActionKey, waitKind: string): void {
+    this._cache.markRegistering(key, waitKind);
+  }
+
+  markRegistered(key: ActionKey): void {
+    this._cache.markRegistered(key);
+    this._notifyRegistrationChange();
+  }
+
+  markWaiting(
+    key: ActionKey,
+    waitKind: string,
+    resourceId: string,
+    consumesRegistration = false
+  ): void {
+    this._cache.markWaiting(key, Date.now(), waitKind, resourceId, consumesRegistration);
+    this._notifyRegistrationChange();
+  }
+
+  private _notifyRegistrationChange(): void {
+    for (const wake of this._registrationWaiters) {
+      wake();
+    }
+  }
+
+  // Waits, up to the configured bound, until no run has a registration in
+  // flight. The engine only has a wait to evict once it has acked the
+  // registration, and the ack must land before the listener stops, otherwise
+  // the pending ack is rejected and the run fails instead of being evicted.
+  private async _settleRegistrations(): Promise<void> {
+    const timeoutMs = this._config.shutdownRegistrationTimeoutMs;
+    const deadline = Date.now() + timeoutMs;
+
+    while (this._cache.getAllRegistering().length > 0) {
+      const remainingMs = deadline - Date.now();
+      if (remainingMs <= 0) {
+        return;
+      }
+
+      await new Promise<void>((resolve) => {
+        const wake = () => {
+          clearTimeout(timer);
+          this._registrationWaiters.delete(wake);
+          resolve();
+        };
+        const timer = setTimeout(wake, remainingMs);
+        this._registrationWaiters.add(wake);
+      });
+    }
   }
 
   markActive(key: ActionKey): void {
@@ -152,13 +213,47 @@ export class DurableEvictionManager {
     this._evictRun(key, invocationCount);
   }
 
+  // A run with a registration that never settled must not be evicted, even if
+  // it also has an acknowledged wait: the engine commits a wait's log entry
+  // and its wake-up in separate transactions, an eviction can land between
+  // them and the listener stop then cancels the second, and the acknowledged
+  // wait may complete before the eviction commits, leaving an evicted run with
+  // an unsatisfied entry that nothing resumes. Cancel it locally without a
+  // report instead, exactly as if this worker had crashed: the engine
+  // reassigns it once the heartbeat stops, and the replayed registration
+  // re-triggers any entry left without a wake-up.
+  private _leaveForReassignment(rec: DurableRunRecord): void {
+    this._logger.warn(
+      `DurableEvictionManager: durable registration for task_run_external_id=${rec.taskRunExternalId} ` +
+        `still pending after ${this._config.shutdownRegistrationTimeoutMs}ms; ` +
+        `leaving the run for reassignment instead of evicting it`
+    );
+    this._evictRun(rec.key, rec.invocationCount);
+  }
+
   async evictAllWaiting(): Promise<number> {
     this.stop();
+
+    await this._settleRegistrations();
+
+    for (const rec of this._cache.getAllRegistering()) {
+      this._leaveForReassignment(rec);
+    }
 
     const waiting = this._cache.getAllWaiting();
     let evicted = 0;
 
     for (const rec of waiting) {
+      // Earlier eviction acks were awaited, so this run may have moved on
+      // since the snapshot: finished, been replaced by a newer invocation, or
+      // completed its wait and started another registration.
+      const current = this._cache.get(rec.key);
+      if (!current || current.invocationCount !== rec.invocationCount) continue;
+      if (current._registeringCount > 0) {
+        this._leaveForReassignment(current);
+        continue;
+      }
+
       rec.evictionReason = buildEvictionReason(EvictionCause.WORKER_SHUTDOWN, rec);
 
       this._logger.debug(

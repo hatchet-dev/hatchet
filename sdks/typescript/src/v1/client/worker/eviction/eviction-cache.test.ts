@@ -454,6 +454,87 @@ describe('DurableEvictionCache', () => {
   });
 });
 
+describe('DurableEvictionCache registration tracking', () => {
+  it('counts a run as registering until its wait starts, then as waiting', () => {
+    const cache = new DurableEvictionCache();
+    cache.registerRun('k1/0', 'ext-1', 1, T0, undefined);
+
+    cache.markRegistering('k1/0', 'waitFor');
+    expect(cache.getAllRegistering().map((r) => r.key)).toEqual(['k1/0']);
+    expect(cache.getAllWaiting()).toEqual([]);
+    expect(cache.get('k1/0')?.waitKind).toBe('waitFor');
+
+    cache.markWaiting('k1/0', T0 + 10, 'waitFor', 'sleep-1', true);
+    expect(cache.getAllRegistering()).toEqual([]);
+    expect(cache.getAllWaiting().map((r) => r.key)).toEqual(['k1/0']);
+    expect(cache.get('k1/0')?._registeringCount).toBe(0);
+    expect(cache.get('k1/0')?.waitResourceId).toBe('sleep-1');
+  });
+
+  it('clears a failed registration and its provisional wait kind', () => {
+    const cache = new DurableEvictionCache();
+    cache.registerRun('k1/0', 'ext-1', 1, T0, undefined);
+
+    cache.markRegistering('k1/0', 'waitFor');
+    cache.markRegistered('k1/0');
+
+    expect(cache.getAllRegistering()).toEqual([]);
+    expect(cache.get('k1/0')?.waitKind).toBeUndefined();
+  });
+
+  it('keeps the wait kind of a wait already in progress', () => {
+    const cache = new DurableEvictionCache();
+    cache.registerRun('k1/0', 'ext-1', 1, T0, undefined);
+    cache.markWaiting('k1/0', T0, 'sleep', 's1');
+
+    cache.markRegistering('k1/0', 'waitFor');
+    expect(cache.get('k1/0')?.waitKind).toBe('sleep');
+    expect(cache.getAllRegistering().map((r) => r.key)).toEqual(['k1/0']);
+
+    cache.markRegistered('k1/0');
+    expect(cache.get('k1/0')?.waitKind).toBe('sleep');
+    expect(cache.getAllWaiting().map((r) => r.key)).toEqual(['k1/0']);
+  });
+
+  it('one runChildren registration is consumed by the first of its waits only', () => {
+    const cache = new DurableEvictionCache();
+    cache.registerRun('k1/0', 'ext-1', 1, T0, undefined);
+
+    cache.markRegistering('k1/0', 'runChild');
+    cache.markWaiting('k1/0', T0, 'runChild', 'workflow:bulk-child', true);
+    cache.markWaiting('k1/0', T0, 'runChild', 'workflow:bulk-child');
+
+    expect(cache.get('k1/0')?._registeringCount).toBe(0);
+    expect(cache.get('k1/0')?._waitCount).toBe(2);
+
+    cache.markActive('k1/0');
+    cache.markActive('k1/0');
+    expect(cache.getAllWaiting()).toEqual([]);
+    expect(cache.getAllRegistering()).toEqual([]);
+  });
+
+  it('a child batch completing does not consume a concurrent sleep registration', () => {
+    const cache = new DurableEvictionCache();
+    cache.registerRun('k1/0', 'ext-1', 1, T0, undefined);
+
+    // Promise.all([spawnChildren([a, b]), sleepFor(...)]): both register, the
+    // batch is acked first and both of its children complete before the sleep ack.
+    cache.markRegistering('k1/0', 'runChild');
+    cache.markRegistering('k1/0', 'waitFor');
+    cache.markWaiting('k1/0', T0, 'runChild', 'workflow:bulk-child', true);
+    cache.markWaiting('k1/0', T0, 'runChild', 'workflow:bulk-child');
+    cache.markActive('k1/0');
+    cache.markActive('k1/0');
+
+    expect(cache.get('k1/0')?._registeringCount).toBe(1);
+    expect(cache.getAllRegistering().map((r) => r.key)).toEqual(['k1/0']);
+
+    cache.markWaiting('k1/0', T0, 'waitFor', 'sleep-1', true);
+    expect(cache.getAllRegistering()).toEqual([]);
+    expect(cache.getAllWaiting().map((r) => r.key)).toEqual(['k1/0']);
+  });
+});
+
 describe('buildEvictionReason', () => {
   function makeRecord(overrides: Partial<DurableRunRecord> = {}): DurableRunRecord {
     return {
@@ -466,6 +547,7 @@ describe('buildEvictionReason', () => {
       waitKind: 'sleep',
       waitResourceId: 'res-1',
       _waitCount: 1,
+      _registeringCount: 0,
       evictionReason: undefined,
       ...overrides,
     };

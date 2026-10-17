@@ -1026,13 +1026,31 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
   private async withEvictionWait<R>(
     waitKind: string,
     resourceId: string,
-    fn: () => Promise<R>
+    fn: () => Promise<R>,
+    consumesRegistration = false
   ): Promise<R> {
-    this._evictionManager?.markWaiting(this._actionKey, waitKind, resourceId);
+    this._evictionManager?.markWaiting(this._actionKey, waitKind, resourceId, consumesRegistration);
     try {
       return await fn();
     } finally {
       this._evictionManager?.markActive(this._actionKey);
+    }
+  }
+
+  // Registers a durable wait with the engine. Between the send and the ack the
+  // run is not yet waiting, so a shutdown in that window would find nothing to
+  // evict and stop the listener, which rejects the pending ack and fails the
+  // run. Marking the registration lets the shutdown wait for the ack and then
+  // evict the run like any other waiting one. The caller's first markWaiting
+  // (via withEvictionWait with consumesRegistration) ends the registration; a
+  // failed send ends it here.
+  private async withEvictionRegistration<R>(waitKind: string, send: () => Promise<R>): Promise<R> {
+    this._evictionManager?.markRegistering(this._actionKey, waitKind);
+    try {
+      return await send();
+    } catch (err) {
+      this._evictionManager?.markRegistered(this._actionKey);
+      throw err;
     }
   }
 
@@ -1110,15 +1128,17 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
     const rendered = Render(ConditionAction.CREATE, conditions);
     const pbConditions = conditionsToPb(rendered, this.runtime.namespace);
 
-    const ack = await this._serializeSendEvent(() =>
-      this._durableListener.sendEvent(this.action.taskRunExternalId, this.invocationCount, {
-        kind: 'waitFor',
-        waitForConditions: {
-          sleepConditions: pbConditions.sleepConditions,
-          userEventConditions: pbConditions.userEventConditions,
-        },
-        label,
-      })
+    const ack = await this.withEvictionRegistration('waitFor', () =>
+      this._serializeSendEvent(() =>
+        this._durableListener.sendEvent(this.action.taskRunExternalId, this.invocationCount, {
+          kind: 'waitFor',
+          waitForConditions: {
+            sleepConditions: pbConditions.sleepConditions,
+            userEventConditions: pbConditions.userEventConditions,
+          },
+          label,
+        })
+      )
     );
 
     const resourceId =
@@ -1127,16 +1147,21 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
         .filter(Boolean)
         .join(',') || `node:${ack.nodeId}`;
 
-    return this.withEvictionWait('waitFor', resourceId, async () => {
-      const result = await this._durableListener.waitForCallback(
-        this.action.taskRunExternalId,
-        this.invocationCount,
-        ack.branchId,
-        ack.nodeId,
-        { signal: this.abortController.signal }
-      );
-      return result.payload || {};
-    });
+    return this.withEvictionWait(
+      'waitFor',
+      resourceId,
+      async () => {
+        const result = await this._durableListener.waitForCallback(
+          this.action.taskRunExternalId,
+          this.invocationCount,
+          ack.branchId,
+          ack.nodeId,
+          { signal: this.abortController.signal }
+        );
+        return result.payload || {};
+      },
+      true
+    );
   }
 
   /**
@@ -1344,28 +1369,43 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
       return triggerOpts;
     });
 
-    const ack = await this._serializeSendEvent(() =>
-      this._durableListener.sendEvent(this.action.taskRunExternalId, this.invocationCount, {
-        kind: 'runChildren',
-        triggerOpts: triggerOptsList,
-      })
+    const ack = await this.withEvictionRegistration('runChild', () =>
+      this._serializeSendEvent(() =>
+        this._durableListener.sendEvent(this.action.taskRunExternalId, this.invocationCount, {
+          kind: 'runChildren',
+          triggerOpts: triggerOptsList,
+        })
+      )
     );
 
+    if (ack.runEntries.length === 0) {
+      // Nothing to wait on, so no markWaiting will consume the registration.
+      this._evictionManager?.markRegistered(this._actionKey);
+    }
+
+    // The waits are marked synchronously in this map, and only the first one
+    // consumes the batch's registration: the others must not consume a
+    // registration another concurrent operation of this run still has in flight.
     const results = await Promise.all(
-      ack.runEntries.map((entry) =>
-        this.withEvictionWait('runChild', `workflow:bulk-child`, async () => {
-          const result = await this._durableListener.waitForCallback(
-            this.action.taskRunExternalId,
-            this.invocationCount,
-            entry.branchId,
-            entry.nodeId,
-            { signal: this.abortController.signal }
-          );
-          if (result.isFailure) {
-            throw new HatchetError(result.errorMessage || 'child task failed');
-          }
-          return (result.payload || {}) as P;
-        })
+      ack.runEntries.map((entry, index) =>
+        this.withEvictionWait(
+          'runChild',
+          `workflow:bulk-child`,
+          async () => {
+            const result = await this._durableListener.waitForCallback(
+              this.action.taskRunExternalId,
+              this.invocationCount,
+              entry.branchId,
+              entry.nodeId,
+              { signal: this.abortController.signal }
+            );
+            if (result.isFailure) {
+              throw new HatchetError(result.errorMessage || 'child task failed');
+            }
+            return (result.payload || {}) as P;
+          },
+          index === 0
+        )
       )
     );
 
