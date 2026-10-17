@@ -674,26 +674,30 @@ func TestOperatorSessionHeartbeatFailureTriggersReconnect(t *testing.T) {
 func TestOperatorSessionDeltasCoalesceAndChunk(t *testing.T) {
 	gate := make(chan struct{})
 	var release sync.Once
-	t.Cleanup(func() { release.Do(func() { close(gate) }) })
 
 	client := &fakeOperatorServiceClient{
 		registrations: []*v1.OperatorRegisterResponse{registeredAs("worker-1", false)},
 		deltaGate:     gate,
 	}
 	s, _ := connectTestOperatorSession(t, client, true)
+	// registered after the session's cleanup so it runs first: Close waits on
+	// the flusher, which a failed wait would leave parked on the gate
+	t.Cleanup(func() { release.Do(func() { close(gate) }) })
 	s.actions.maxChunk = 3
 
-	s.AddActions("svc:keep")
+	s.AddActions("svc:keep", "svc:readd")
 
 	stream := client.stream(0)
 	waitFor(t, func() bool { return stream.parkedDeltas.Load() >= 1 }, "the first delta did not reach the gate")
 
 	// add then remove of an action that was never sent cancels out, and so
-	// does remove then re-add of an action already in the desired set
+	// does remove then re-add of an action already in the desired set; the
+	// re-added action stays through the flush so a removal that was not
+	// cancelled shows up in the deltas and in the desired set
 	s.AddActions("svc:cancel", "")
 	s.RemoveActions("svc:cancel", "svc:unknown")
-	s.RemoveActions("svc:keep")
-	s.AddActions("svc:keep")
+	s.RemoveActions("svc:readd")
+	s.AddActions("svc:readd")
 
 	// six ops with a chunk size of three go out as two messages
 	s.AddActions("a:1", "a:2", "a:3", "a:4", "a:5")
@@ -704,7 +708,7 @@ func TestOperatorSessionDeltasCoalesceAndChunk(t *testing.T) {
 
 	deltas := stream.deltas()
 	require.Len(t, deltas, 3)
-	assert.Equal(t, []string{"svc:keep"}, deltas[0].Add)
+	assert.Equal(t, []string{"svc:keep", "svc:readd"}, deltas[0].Add)
 	assert.Empty(t, deltas[0].Remove)
 
 	for i, d := range deltas {
@@ -716,9 +720,9 @@ func TestOperatorSessionDeltasCoalesceAndChunk(t *testing.T) {
 	}
 	adds, removes := deltaIds(deltas[1:])
 	assert.Equal(t, []string{"a:1", "a:2", "a:3", "a:4", "a:5"}, adds, "cancelled ops send nothing")
-	assert.Equal(t, []string{"svc:keep"}, removes, "the remove after the re-add is real")
+	assert.Equal(t, []string{"svc:keep"}, removes, "only the remove that was not re-added is sent")
 
-	assert.ElementsMatch(t, []string{"a:1", "a:2", "a:3", "a:4", "a:5"}, s.actions.desiredSet())
+	assert.ElementsMatch(t, []string{"a:1", "a:2", "a:3", "a:4", "a:5", "svc:readd"}, s.actions.desiredSet())
 }
 
 func TestOperatorSessionDeltasAreSentThroughRetrySend(t *testing.T) {
