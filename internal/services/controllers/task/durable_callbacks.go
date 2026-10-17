@@ -46,16 +46,11 @@ func (tc *TasksControllerImpl) handleDurableRestoreTask(ctx context.Context, ten
 		})
 	}
 
-	restoredRows, err := tc.repov1.Tasks().RestoreEvictedTasks(ctx, tenantId, tasksToRestore)
-	if err != nil {
-		return fmt.Errorf("failed to batch-restore evicted tasks: %w", err)
-	}
-
-	restoredByTaskId := make(map[int64]*sqlcv1.RestoreEvictedTasksRow, len(restoredRows))
-	for _, r := range restoredRows {
-		restoredByTaskId[r.TaskID] = r
-	}
-
+	// Read the invocation counts before the restore commits. An evicted task has no queue item,
+	// so its count cannot advance until the restore makes it assignable; read afterwards, the
+	// scheduler could already have assigned the next invocation and the DURABLE_RESTORING event
+	// below would carry that invocation's count instead of the evicted one's. The OLAP status
+	// rollup compares the two to decide whether an eviction is still in force.
 	invCountOpts := make([]v1.IdInsertedAt, 0, len(flatTasks))
 	for _, t := range flatTasks {
 		invCountOpts = append(invCountOpts, v1.IdInsertedAt{ID: t.ID, InsertedAtUnixMicros: t.InsertedAt.Time.UnixMicro()})
@@ -64,6 +59,16 @@ func (tc *TasksControllerImpl) handleDurableRestoreTask(ctx context.Context, ten
 	invocationCounts, err := tc.repov1.DurableEvents().GetDurableTaskInvocationCounts(ctx, tenantId, invCountOpts)
 	if err != nil {
 		return fmt.Errorf("failed to get durable task invocation counts for restoring tasks: %w", err)
+	}
+
+	restoredRows, err := tc.repov1.Tasks().RestoreEvictedTasks(ctx, tenantId, tasksToRestore)
+	if err != nil {
+		return fmt.Errorf("failed to batch-restore evicted tasks: %w", err)
+	}
+
+	restoredByTaskId := make(map[int64]*sqlcv1.RestoreEvictedTasksRow, len(restoredRows))
+	for _, r := range restoredRows {
+		restoredByTaskId[r.TaskID] = r
 	}
 
 	queues := make(map[string]struct{})

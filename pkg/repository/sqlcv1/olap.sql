@@ -855,7 +855,42 @@ WITH tenants AS (
         t.inserted_at,
         t.readable_status,
         e.retry_count,
-        e.max_readable_status
+        CASE
+            -- a terminal outcome always wins
+            WHEN v1_status_to_priority(e.max_readable_status) >= v1_status_to_priority('CANCELLED') THEN e.max_readable_status
+            -- EVICTED sits between RUNNING and the terminal statuses in priority but is not ordered
+            -- by it: a durable task enters EVICTED on DURABLE_EVICTED and leaves it on
+            -- DURABLE_RESTORING, or when a later invocation is assigned or started. Those events
+            -- are published by the dispatcher and the task controller through independent buffers,
+            -- so OLAP can ingest them in any order relative to each other and to the worker's
+            -- STARTED events (a STARTED from before the eviction regularly lands after it), and a
+            -- batch that collapses to EVICTED by priority may already contain the restore. Whenever
+            -- the incoming or the current status is EVICTED, the task's event history at this retry
+            -- count decides instead; it already holds this batch's events. The latest eviction is
+            -- in force while its durable invocation count is higher than every restore's and not
+            -- below any running invocation's. Every lifecycle event carries that count, which only
+            -- advances when a restored task is assigned again, so a stale STARTED, a worker-side
+            -- TIMEOUT_REFRESHED or SLOT_RELEASED, a redelivered restore of an earlier invocation or
+            -- an eviction ingested after its own restore cannot flip the status, and a lost
+            -- DURABLE_RESTORING is recovered by the next ASSIGNED. Only these transitions pay for
+            -- the lookup.
+            WHEN e.max_readable_status = 'EVICTED' OR (t.readable_status = 'EVICTED' AND e.retry_count = t.latest_retry_count) THEN
+                CASE WHEN (
+                    SELECT
+                        COALESCE(MAX(h.durable_invocation_count) FILTER (WHERE h.event_type = 'DURABLE_EVICTED'), -1)
+                            > COALESCE(MAX(h.durable_invocation_count) FILTER (WHERE h.event_type = 'DURABLE_RESTORING'), -1)
+                        AND COALESCE(MAX(h.durable_invocation_count) FILTER (WHERE h.event_type = 'DURABLE_EVICTED'), -1)
+                            >= COALESCE(MAX(h.durable_invocation_count) FILTER (WHERE h.readable_status = 'RUNNING' AND h.event_type != 'DURABLE_RESTORING'), 0)
+                    -- the alias h keeps this history lookup distinct from the outer query's event alias
+                    FROM v1_task_events_olap h
+                    WHERE
+                        h.task_id = t.id
+                        AND h.task_inserted_at = t.inserted_at
+                        AND h.retry_count = e.retry_count
+                )
+                THEN 'EVICTED'::v1_readable_status_olap ELSE 'RUNNING'::v1_readable_status_olap END
+            ELSE e.max_readable_status
+        END AS max_readable_status
     FROM
         v1_tasks_olap t
     JOIN
@@ -954,16 +989,18 @@ WITH tenants AS (
                 (
                     tu.retry_count > t.latest_retry_count
                 ) OR
-                -- if the retry count is equal to the latest retry count, update the status if the priority is higher
+                -- A non-EVICTED status applies by priority (so terminal statuses still override EVICTED);
+                -- a transition into or out of EVICTED applies on a non-terminal row because the status
+                -- above was already decided from the event history.
                 (
                     tu.retry_count = t.latest_retry_count
+                    AND tu.max_readable_status != 'EVICTED'
                     AND v1_status_to_priority(tu.max_readable_status) > v1_status_to_priority(t.readable_status)
                 ) OR
-                -- EVICTED is non-terminal and reversible (durable restore moves it back to RUNNING)
                 (
                     tu.retry_count = t.latest_retry_count
-                    AND t.readable_status = 'EVICTED'
-                    AND tu.max_readable_status != 'EVICTED'
+                    AND (tu.max_readable_status = 'EVICTED') != (t.readable_status = 'EVICTED')
+                    AND v1_status_to_priority(t.readable_status) < v1_status_to_priority('CANCELLED')
                 )
             )
     RETURNING
@@ -1051,33 +1088,58 @@ WITH inputs AS (
         UNNEST(@workerIds::UUID[]) AS worker_id,
         UNNEST(@retryCounts::INTEGER[]) AS retry_count
 ), locked_tasks AS (
-    SELECT t.*, i.readable_status AS new_readable_status, i.worker_id AS new_worker_id, i.retry_count AS new_retry_count
+    SELECT
+        t.*,
+        i.worker_id AS new_worker_id,
+        i.retry_count AS new_retry_count,
+        CASE
+            -- a terminal outcome always wins
+            WHEN v1_status_to_priority(i.readable_status) >= v1_status_to_priority('CANCELLED') THEN i.readable_status
+            -- EVICTED sits between RUNNING and the terminal statuses in priority but is not ordered
+            -- by it: a durable task enters EVICTED on DURABLE_EVICTED and leaves it on
+            -- DURABLE_RESTORING, or when a later invocation is assigned or started. Those events
+            -- are published by the dispatcher and the task controller through independent buffers,
+            -- so OLAP can ingest them in any order relative to each other and to the worker's
+            -- STARTED events (a STARTED from before the eviction regularly lands after it), and a
+            -- batch that collapses to EVICTED by priority may already contain the restore. Whenever
+            -- the incoming or the current status is EVICTED, the task's event history at this retry
+            -- count decides instead; it already holds this batch's events. The latest eviction is
+            -- in force while its durable invocation count is higher than every restore's and not
+            -- below any running invocation's. Every lifecycle event carries that count, which only
+            -- advances when a restored task is assigned again, so a stale STARTED, a worker-side
+            -- TIMEOUT_REFRESHED or SLOT_RELEASED, a redelivered restore of an earlier invocation or
+            -- an eviction ingested after its own restore cannot flip the status, and a lost
+            -- DURABLE_RESTORING is recovered by the next ASSIGNED. Only these transitions pay for
+            -- the lookup.
+            WHEN i.readable_status = 'EVICTED' OR (t.readable_status = 'EVICTED' AND i.retry_count = t.latest_retry_count) THEN
+                CASE WHEN (
+                    SELECT
+                        COALESCE(MAX(h.durable_invocation_count) FILTER (WHERE h.event_type = 'DURABLE_EVICTED'), -1)
+                            > COALESCE(MAX(h.durable_invocation_count) FILTER (WHERE h.event_type = 'DURABLE_RESTORING'), -1)
+                        AND COALESCE(MAX(h.durable_invocation_count) FILTER (WHERE h.event_type = 'DURABLE_EVICTED'), -1)
+                            >= COALESCE(MAX(h.durable_invocation_count) FILTER (WHERE h.readable_status = 'RUNNING' AND h.event_type != 'DURABLE_RESTORING'), 0)
+                    -- the alias h keeps this history lookup distinct from the outer query's event alias
+                    FROM v1_task_events_olap h
+                    WHERE
+                        h.task_id = t.id
+                        AND h.task_inserted_at = t.inserted_at
+                        AND h.retry_count = i.retry_count
+                )
+                THEN 'EVICTED'::v1_readable_status_olap ELSE 'RUNNING'::v1_readable_status_olap END
+            ELSE i.readable_status
+        END AS new_readable_status
     FROM v1_tasks_olap t
     JOIN inputs i ON (i.tenant_id, i.task_id, i.task_inserted_at) = (t.tenant_id, t.id, t.inserted_at)
     WHERE
+        -- Rows that may change; the decision is made against the effective status below.
         (
-            -- A newer retry count must always apply, even when the readable
-            -- status is unchanged, because this is the only chance to record it:
-            -- the message this batch came from is acked once the transaction
-            -- commits, regardless of whether this update matched, so an event
-            -- rejected here is never seen again. If a same-status event from a
-            -- newer retry were rejected (a replayed task's COMPLETED at retry N
-            -- ingested before its QUEUED/ASSIGNED events), latest_retry_count
-            -- would stay stale, and the late QUEUED/ASSIGNED events at retry N
-            -- would later pass this branch and leave the task stuck at RUNNING.
-            (
-                i.retry_count > t.latest_retry_count
-            ) OR
-            -- If the retry count is equal, only update if the new status has higher priority
-            (
-                i.retry_count = t.latest_retry_count
-                AND v1_status_to_priority(i.readable_status) > v1_status_to_priority(t.readable_status)
-            ) OR
-            -- EVICTED is non-terminal and reversible (durable restore moves it back to RUNNING)
-            (
-                i.retry_count = t.latest_retry_count
-                AND t.readable_status = 'EVICTED'
-                AND i.readable_status != 'EVICTED'
+            i.retry_count > t.latest_retry_count
+        ) OR (
+            i.retry_count = t.latest_retry_count
+            AND (
+                v1_status_to_priority(i.readable_status) > v1_status_to_priority(t.readable_status)
+                OR i.readable_status = 'EVICTED'
+                OR t.readable_status = 'EVICTED'
             )
         )
     ORDER BY t.inserted_at, t.id
@@ -1094,6 +1156,33 @@ WITH inputs AS (
     FROM locked_tasks lt
     WHERE
         (t.inserted_at, t.id, t.tenant_id) = (lt.inserted_at, lt.id, lt.tenant_id)
+        AND (
+            -- A newer retry count must always apply, even when the readable
+            -- status is unchanged, because this is the only chance to record it:
+            -- the message this batch came from is acked once the transaction
+            -- commits, regardless of whether this update matched, so an event
+            -- rejected here is never seen again. If a same-status event from a
+            -- newer retry were rejected (a replayed task's COMPLETED at retry N
+            -- ingested before its QUEUED/ASSIGNED events), latest_retry_count
+            -- would stay stale, and the late QUEUED/ASSIGNED events at retry N
+            -- would later pass this branch and leave the task stuck at RUNNING.
+            (
+                lt.new_retry_count > t.latest_retry_count
+            ) OR
+            -- A non-EVICTED status applies by priority (so terminal statuses still override EVICTED);
+            -- a transition into or out of EVICTED applies on a non-terminal row because the status
+            -- above was already decided from the event history.
+            (
+                lt.new_retry_count = t.latest_retry_count
+                AND lt.new_readable_status != 'EVICTED'
+                AND v1_status_to_priority(lt.new_readable_status) > v1_status_to_priority(t.readable_status)
+            ) OR
+            (
+                lt.new_retry_count = t.latest_retry_count
+                AND (lt.new_readable_status = 'EVICTED') != (t.readable_status = 'EVICTED')
+                AND v1_status_to_priority(t.readable_status) < v1_status_to_priority('CANCELLED')
+            )
+        )
     RETURNING t.*
 )
 
@@ -2518,7 +2607,25 @@ WITH inputs AS (
         e.task_id,
         e.task_inserted_at,
         e.retry_count,
-        v1_status_from_priority(MAX(v1_status_to_priority(e.readable_status))) AS status,
+        CASE
+            -- a terminal outcome always wins
+            WHEN MAX(v1_status_to_priority(e.readable_status)) >= v1_status_to_priority('CANCELLED')
+                THEN v1_status_from_priority(MAX(v1_status_to_priority(e.readable_status)))
+            -- the latest eviction is still in force: the same rule as UpdateTaskStatuses and
+            -- UpdateTaskStatusesFromMQ, evaluated over the whole history of the highest retry
+            WHEN COALESCE(MAX(e.durable_invocation_count) FILTER (WHERE e.event_type = 'DURABLE_EVICTED'), -1)
+                    > COALESCE(MAX(e.durable_invocation_count) FILTER (WHERE e.event_type = 'DURABLE_RESTORING'), -1)
+                AND COALESCE(MAX(e.durable_invocation_count) FILTER (WHERE e.event_type = 'DURABLE_EVICTED'), -1)
+                    >= COALESCE(MAX(e.durable_invocation_count) FILTER (WHERE e.readable_status = 'RUNNING' AND e.event_type != 'DURABLE_RESTORING'), 0)
+                THEN 'EVICTED'::v1_readable_status_olap
+            -- otherwise the highest non-evicted status, so a restored task is not re-evicted by
+            -- the eviction event in its history; a history of only eviction events that are no
+            -- longer in force (restored, restore event lost) is a running task
+            ELSE COALESCE(
+                v1_status_from_priority(MAX(v1_status_to_priority(e.readable_status)) FILTER (WHERE e.readable_status != 'EVICTED')),
+                'RUNNING'::v1_readable_status_olap
+            )
+        END AS status,
         MAX(e.worker_id::text)::uuid AS latest_worker_id
     FROM relevant_events e
     JOIN max_retry_counts mrc ON (e.task_id, e.task_inserted_at, e.retry_count) = (mrc.task_id, mrc.task_inserted_at, mrc.max_retry_count)
