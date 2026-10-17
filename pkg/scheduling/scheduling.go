@@ -49,6 +49,9 @@ type Pool interface {
 	AddExtension(ext SchedulerExtension)
 
 	SetTenants(tenants []*sqlcv1.Tenant)
+
+	// Replenish requests a refresh of the tenant's worker slots and returns
+	// without waiting for it. Requests made while one is pending are merged.
 	Replenish(ctx context.Context, tenantId uuid.UUID)
 
 	NotifyQueues(ctx context.Context, tenantId uuid.UUID, queueNames []string)
