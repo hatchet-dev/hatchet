@@ -1,5 +1,8 @@
 import sleep from '@hatchet/util/sleep';
-import { V1TaskStatus } from '@hatchet/clients/rest/generated/data-contracts';
+import {
+  V1DurableEventLogKind,
+  V1TaskStatus,
+} from '@hatchet/clients/rest/generated/data-contracts';
 import Hatchet from '@hatchet/index';
 import { makeE2EClient, poll, checkDurableEvictionSupport } from '../__e2e__/harness';
 import {
@@ -110,6 +113,37 @@ describe('durable-eviction-e2e', () => {
         intervalMs: interval,
         shouldStop: (details: any) => details != null && hasEvictedTask(details),
         label: 'isEvicted=true',
+      }
+    );
+  }
+
+  // Shutting the worker down evicts only the runs it already knows are waiting,
+  // and a run counts as waiting once the engine has acked its waitFor. A run
+  // reports RUNNING as soon as it is assigned, so terminating the worker on
+  // RUNNING can land before the sleep is registered and evict nothing. Wait for
+  // the unsatisfied WAIT_FOR entry instead. Also wait for startedAt, which is
+  // set from the STARTED event in OLAP: the eviction's DURABLE_EVICTED event is
+  // written to OLAP on a separate path, and a STARTED event that lands after it
+  // flips the task back to RUNNING and clears isEvicted.
+  async function pollUntilDurableWaitRegistered(runId: string) {
+    return poll(
+      async () => {
+        const details = await hatchet.runs.get(runId);
+        const [task] = details.tasks || [];
+        if (!task?.startedAt) return undefined;
+        const taskId = getTaskExternalId(details);
+        if (!taskId) return undefined;
+        const { data } = await hatchet.api.v1DurableTaskEventLogList(hatchet.tenantId, taskId);
+        return data;
+      },
+      {
+        timeoutMs: 30_000,
+        intervalMs: 500,
+        shouldStop: (entries) =>
+          (entries || []).some(
+            (entry) => entry.kind === V1DurableEventLogKind.WAIT_FOR && !entry.isSatisfied
+          ),
+        label: 'durable wait registered',
       }
     );
   }
@@ -520,7 +554,7 @@ describe('durable-eviction-e2e', () => {
 
       const runId = await ref.getWorkflowRunId();
 
-      await pollUntilStatus(runId, V1TaskStatus.RUNNING);
+      await pollUntilDurableWaitRegistered(runId);
 
       workerProc.kill('SIGTERM');
 
