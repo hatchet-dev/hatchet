@@ -13,8 +13,10 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/pgoutbox"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
-	_ "github.com/jackc/pgx/v5/stdlib" // register the pgx driver for database/sql
+	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 	"github.com/pressly/goose/v3/lock"
 	"github.com/rs/zerolog"
@@ -119,7 +121,7 @@ func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) error {
 	err := retry.Do(retryCtx, retry.NewConstant(1*time.Second), func(ctx context.Context) error {
 		var err error
 		if db == nil {
-			db, err = goose.OpenDBWithDriver("postgres", rawURL)
+			db, err = openMigrationDB(rawURL)
 
 			if err != nil {
 				return retry.RetryableError(fmt.Errorf("failed to open DB: %w", err))
@@ -295,6 +297,10 @@ func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) error {
 		return migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "rewrite v1_0_153 goose version", err)
 	}
 
+	if err := rewriteV1_0_160GooseVersion(ctx, conn); err != nil {
+		return migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "rewrite v1_0_160 goose version", err)
+	}
+
 	err = locker.SessionUnlock(ctx, conn)
 
 	if err != nil {
@@ -348,7 +354,16 @@ func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) error {
 // runOutboxMigration runs the embedded pgoutbox migrations against the database
 // at rawURL before the goose migrations are applied.
 func runOutboxMigration(ctx context.Context, rawURL string) error {
-	pool, err := pgxpool.New(ctx, rawURL)
+	config, err := pgxpool.ParseConfig(rawURL)
+	if err != nil {
+		return fmt.Errorf("failed to parse pgoutbox pool config: %w", err)
+	}
+
+	// NOTE: set on the pgconn config rather than the pool, because pgoutbox opens its own
+	// connections from a copy of the pool's connection config.
+	config.ConnConfig.AfterConnect = disableTimeouts
+
+	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
 		return fmt.Errorf("failed to open pgoutbox pool: %w", err)
 	}
@@ -359,6 +374,27 @@ func runOutboxMigration(ctx context.Context, rawURL string) error {
 	}
 
 	return nil
+}
+
+// openMigrationDB opens a goose database handle whose connections run without statement or
+// idle-in-transaction timeouts, so role or database defaults don't cut long migrations short.
+func openMigrationDB(rawURL string) (*sql.DB, error) {
+	config, err := pgx.ParseConfig(rawURL)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := goose.SetDialect("postgres"); err != nil {
+		return nil, err
+	}
+
+	config.AfterConnect = disableTimeouts
+
+	return stdlib.OpenDB(*config), nil
+}
+
+func disableTimeouts(ctx context.Context, conn *pgconn.PgConn) error {
+	return conn.Exec(ctx, "SET statement_timeout = 0; SET idle_in_transaction_session_timeout = 0").Close()
 }
 
 // Copied from https://github.com/pressly/goose/blob/6a70e744c8eb2dc4bb90ba641cb03b42d8eef6cd/internal/dialect/dialectquery/postgres.go
@@ -382,6 +418,20 @@ SET version_id = 20260910122311
 WHERE version_id = 202609101223115
   AND NOT EXISTS (
       SELECT 1 FROM goose_db_version g2 WHERE g2.version_id = 20260910122311
+  )
+`)
+	return err
+}
+
+// rewriteV1_0_160GooseVersion remaps the future-dated version 160 originally
+// shipped under so later migrations are not treated as missing before it.
+func rewriteV1_0_160GooseVersion(ctx context.Context, conn *sql.Conn) error {
+	_, err := conn.ExecContext(ctx, `
+UPDATE goose_db_version
+SET version_id = 20261002182802
+WHERE version_id = 20261031153238
+  AND NOT EXISTS (
+      SELECT 1 FROM goose_db_version g2 WHERE g2.version_id = 20261002182802
   )
 `)
 	return err
@@ -476,7 +526,7 @@ func runDownMigrationImpl(ctx context.Context, targetVersion string, l *zerolog.
 	err := retry.Do(retryCtx, retry.NewConstant(1*time.Second), func(ctx context.Context) error {
 		var err error
 		if db == nil {
-			db, err = goose.OpenDBWithDriver("postgres", rawURL)
+			db, err = openMigrationDB(rawURL)
 
 			if err != nil {
 				return retry.RetryableError(fmt.Errorf("failed to open DB: %w", err))
@@ -536,6 +586,10 @@ func runDownMigrationImpl(ctx context.Context, targetVersion string, l *zerolog.
 
 	if err := rewriteV1_0_153GooseVersion(ctx, conn); err != nil {
 		return migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "rewrite v1_0_153 goose version", err)
+	}
+
+	if err := rewriteV1_0_160GooseVersion(ctx, conn); err != nil {
+		return migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "rewrite v1_0_160 goose version", err)
 	}
 
 	fsys, err := fs.Sub(embedMigrations, "migrations")

@@ -668,9 +668,12 @@ func (q *Queries) ListConcurrencyStrategiesByStepId(ctx context.Context, db DBTX
 }
 
 const listConcurrencyStrategiesByWorkflowVersionId = `-- name: ListConcurrencyStrategiesByWorkflowVersionId :many
-SELECT c.id, c.parent_strategy_id, c.workflow_id, c.workflow_version_id, c.step_id, c.is_active, c.last_active_at, c.strategy, c.expression, c.tenant_id, c.max_concurrency, c.tenant_strategy_id, c.max_runs_expression, s."readableId" AS step_readable_id
+SELECT
+    c.id, c.parent_strategy_id, c.workflow_id, c.workflow_version_id, c.step_id, c.is_active, c.last_active_at, c.strategy, c.expression, c.tenant_id, c.max_concurrency, c.tenant_strategy_id, c.max_runs_expression,
+    (CASE WHEN s."isDagOrchestrator" THEN w."name" ELSE s."readableId" END)::TEXT AS step_readable_id
 FROM v1_step_concurrency c
 JOIN "Step" s ON s.id = c.step_id
+JOIN "Workflow" w ON w."id" = c.workflow_id
 WHERE
     tenant_id = $1::UUID
     AND workflow_version_id = $2::UUID
@@ -705,7 +708,7 @@ type ListConcurrencyStrategiesByWorkflowVersionIdRow struct {
 	MaxConcurrency    int32                 `json:"max_concurrency"`
 	TenantStrategyID  pgtype.Int8           `json:"tenant_strategy_id"`
 	MaxRunsExpression pgtype.Text           `json:"max_runs_expression"`
-	StepReadableID    pgtype.Text           `json:"step_readable_id"`
+	StepReadableID    string                `json:"step_readable_id"`
 }
 
 func (q *Queries) ListConcurrencyStrategiesByWorkflowVersionId(ctx context.Context, db DBTX, arg ListConcurrencyStrategiesByWorkflowVersionIdParams) ([]*ListConcurrencyStrategiesByWorkflowVersionIdRow, error) {

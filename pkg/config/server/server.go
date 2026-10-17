@@ -917,6 +917,13 @@ func BindAllEnv(v *viper.Viper) {
 
 	_ = v.BindEnv("runtime.limits.defaultIncomingWebhookLimit", "SERVER_LIMITS_DEFAULT_INCOMING_WEBHOOK_LIMIT")
 
+	_ = v.BindEnv("runtime.limits.defaultStreamTopicLimit", "SERVER_LIMITS_DEFAULT_STREAM_TOPIC_LIMIT")
+	_ = v.BindEnv("runtime.limits.defaultStreamTopicAlarmLimit", "SERVER_LIMITS_DEFAULT_STREAM_TOPIC_ALARM_LIMIT")
+
+	_ = v.BindEnv("runtime.limits.defaultStreamMessageLimit", "SERVER_LIMITS_DEFAULT_STREAM_MESSAGE_LIMIT")
+	_ = v.BindEnv("runtime.limits.defaultStreamMessageAlarmLimit", "SERVER_LIMITS_DEFAULT_STREAM_MESSAGE_ALARM_LIMIT")
+	_ = v.BindEnv("runtime.limits.defaultStreamMessageWindow", "SERVER_LIMITS_DEFAULT_STREAM_MESSAGE_WINDOW")
+
 	// log ingestion
 	_ = v.BindEnv("runtime.logIngestionEnabled", "SERVER_LOG_INGESTION_ENABLED")
 	_ = v.BindEnv("runtime.o11yUsageFlushInterval", "SERVER_O11Y_USAGE_FLUSH_INTERVAL")

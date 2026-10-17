@@ -544,8 +544,9 @@ func (m *sharedRepository) processEventMatchesForTarget(ctx context.Context, tx 
 
 	if len(dagIds) > 0 {
 		dagInputDatas, err := m.queries.GetDAGData(ctx, tx, sqlcv1.GetDAGDataParams{
-			Dagids:         dagIds,
-			Daginsertedats: dagInsertedAts,
+			Dagids:           dagIds,
+			Daginsertedats:   dagInsertedAts,
+			Mindaginsertedat: sqlchelpers.MinTimestamptz(dagInsertedAts),
 		})
 
 		if err != nil {
@@ -637,6 +638,7 @@ func (m *sharedRepository) processEventMatchesForTarget(ctx context.Context, tx 
 						opt.InitialState = sqlcv1.V1TaskInitialStateCANCELLED
 					case sqlcv1.V1MatchConditionActionSKIP:
 						opt.InitialState = sqlcv1.V1TaskInitialStateSKIPPED
+					case sqlcv1.V1MatchConditionActionCREATE, sqlcv1.V1MatchConditionActionCREATEMATCH:
 					}
 
 					replayTaskOpts = append(replayTaskOpts, opt)
@@ -660,6 +662,7 @@ func (m *sharedRepository) processEventMatchesForTarget(ctx context.Context, tx 
 						opt.InitialState = sqlcv1.V1TaskInitialStateCANCELLED
 					case sqlcv1.V1MatchConditionActionSKIP:
 						opt.InitialState = sqlcv1.V1TaskInitialStateSKIPPED
+					case sqlcv1.V1MatchConditionActionCREATE, sqlcv1.V1MatchConditionActionCREATEMATCH:
 					}
 
 					if match.TriggerDagID.Valid && match.TriggerDagInsertedAt.Valid {
@@ -814,6 +817,25 @@ func (m *sharedRepository) processEventMatchesForTarget(ctx context.Context, tx 
 			if minDurableTaskInsertedAt.IsZero() || durableTaskInsertedAt.Time.Before(minDurableTaskInsertedAt) {
 				minDurableTaskInsertedAt = durableTaskInsertedAt.Time
 			}
+		}
+	}
+
+	// NOTE: need an explicit lock here to prevent segfault caused by Postgres bug, see this issue: https://github.com/hatchet-dev/hatchet/issues/5101
+	if len(durableTaskIds) > 0 {
+		tenantIds := make([]uuid.UUID, len(durableTaskIds))
+		for i := range tenantIds {
+			tenantIds[i] = tenantId
+		}
+
+		_, err := m.queries.GetAndLockLogFilesWithBranchPoints(ctx, tx, sqlcv1.GetAndLockLogFilesWithBranchPointsParams{
+			Durabletaskids:           durableTaskIds,
+			Durabletaskinsertedats:   durableTaskInsertedAts,
+			Tenantids:                tenantIds,
+			Mindurabletaskinsertedat: sqlchelpers.TimestamptzFromTime(minDurableTaskInsertedAt),
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to lock durable event log files: %w", err)
 		}
 	}
 
@@ -1454,8 +1476,7 @@ func (m *sharedRepository) createAdditionalMatches(ctx context.Context, tx sqlcv
 						condition.Expression.String,
 						condition.Action,
 					))
-				default:
-					// PARENT_OVERRIDE is another kind, but it isn't processed here
+				case sqlcv1.V1StepMatchConditionKindPARENTOVERRIDE:
 					continue
 				}
 			}

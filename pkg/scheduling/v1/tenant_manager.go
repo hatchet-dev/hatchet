@@ -99,6 +99,10 @@ func newTenantManager(cf *sharedConfig, tenantId uuid.UUID, resultsCh chan *Queu
 	ctx, cancel := context.WithCancel(context.Background())
 	t.cleanup = cancel
 
+	s.onCapacityRestored = func(queues []string) {
+		t.notifyQueuers(ctx, queues)
+	}
+
 	go t.listenForWorkerLeases(ctx)
 	go t.listenForQueueLeases(ctx)
 	go t.listenForConcurrencyLeases(ctx)
@@ -443,6 +447,26 @@ func (t *tenantManager) setBatchSchedulers(ctx context.Context, batches []*sqlcv
 		sched.Start(ctx)
 
 		t.batchSchedulers[stepId] = sched
+	}
+}
+
+// notifyQueuers wakes the queuers for the given queue names, so items that
+// missed capacity are retried as soon as the scheduler's pools have it rather
+// than on the queuers' next poll.
+func (t *tenantManager) notifyQueuers(ctx context.Context, queueNames []string) {
+	wanted := make(map[string]struct{}, len(queueNames))
+
+	for _, queueName := range queueNames {
+		wanted[queueName] = struct{}{}
+	}
+
+	t.queuersMu.RLock()
+	defer t.queuersMu.RUnlock()
+
+	for _, q := range t.queuers {
+		if _, ok := wanted[q.queueName]; ok {
+			q.queue(ctx)
+		}
 	}
 }
 

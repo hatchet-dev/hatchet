@@ -418,6 +418,23 @@ export class Api<
       ...params,
     });
   /**
+   * @description Archive an organization
+   *
+   * @tags Management
+   * @name OrganizationArchive
+   * @summary Archive Organization
+   * @request DELETE:/api/v1/control-plane/organizations/{organization}
+   * @secure
+   */
+  organizationArchive = (organization: string, params: RequestParams = {}) =>
+    this.request<Organization, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}`,
+      method: "DELETE",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
    * @description Create a new tenant in the organization
    *
    * @tags Management

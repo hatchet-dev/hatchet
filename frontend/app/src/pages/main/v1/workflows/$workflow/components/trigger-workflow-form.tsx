@@ -1,5 +1,6 @@
 import { Combobox } from '@/components/v1/molecules/combobox/combobox';
 import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
+import { hasFormFields } from '@/components/v1/molecules/json-schema-form/prepare-schema';
 import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
 import { Button } from '@/components/v1/ui/button';
 import { CodeEditor } from '@/components/v1/ui/code-editor';
@@ -33,18 +34,36 @@ import { appRoutes } from '@/router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { debounce } from 'lodash';
-import { useCallback, useMemo, useState, useEffect } from 'react';
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useMemo,
+  useState,
+  useEffect,
+} from 'react';
 import { BiDownArrowCircle } from 'react-icons/bi';
 
+const JsonSchemaForm = lazy(
+  () => import('@/components/v1/molecules/json-schema-form/json-schema-form'),
+);
+
 type TimingOption = 'now' | 'schedule' | 'cron';
+type InputMode = 'editor' | 'form';
 
 export function TriggerWorkflowForm({
   defaultWorkflow,
+  defaultWorkflowId = defaultWorkflow?.metadata.id,
+  defaultInput = '{}',
+  defaultAddlMeta = '{}',
   show,
   onClose,
   defaultTimingOption = 'now',
 }: {
   defaultWorkflow?: Workflow;
+  defaultWorkflowId?: string;
+  defaultInput?: string;
+  defaultAddlMeta?: string;
   show: boolean;
   onClose: () => void;
   defaultTimingOption?: TimingOption;
@@ -54,9 +73,13 @@ export function TriggerWorkflowForm({
   const navigate = useNavigate();
   const canWrite = useCanWrite();
 
-  const [input, setInput] = useState<string | undefined>('{}');
-  const [addlMeta, setAddlMeta] = useState<string | undefined>('{}');
+  const [input, setInput] = useState<string | undefined>(defaultInput);
+  const [addlMeta, setAddlMeta] = useState<string | undefined>(defaultAddlMeta);
   const [errors, setErrors] = useState<string[]>([]);
+
+  const [inputMode, setInputMode] = useState<InputMode>('editor');
+  // the form only reads its value on mount, so snapshot the input on switch
+  const [formInitialValue, setFormInitialValue] = useState<unknown>({});
 
   const [timingOption, setTimingOption] =
     useState<TimingOption>(defaultTimingOption);
@@ -66,9 +89,8 @@ export function TriggerWorkflowForm({
   const [cronExpression, setCronExpression] = useState<string>('* * * * *');
   const [cronName, setCronName] = useState<string>('');
 
-  const [selectedWorkflowId, setSelectedWorkflowId] = useState(
-    defaultWorkflow?.metadata.id,
-  );
+  const [selectedWorkflowId, setSelectedWorkflowId] =
+    useState(defaultWorkflowId);
 
   const [workflowSearch, setWorkflowSearch] = useState('');
   const [debouncedWorkflowSearch, setDebouncedWorkflowSearch] = useState('');
@@ -101,10 +123,11 @@ export function TriggerWorkflowForm({
 
   const handleClose = useCallback(() => {
     onClose();
-    setInput('{}');
-    setAddlMeta('{}');
+    setInput(defaultInput);
+    setAddlMeta(defaultAddlMeta);
     setErrors([]);
-    setSelectedWorkflowId(defaultWorkflow?.metadata.id);
+    setInputMode('editor');
+    setSelectedWorkflowId(defaultWorkflowId);
     setTimingOption(defaultTimingOption);
     setScheduleTime(new Date());
     setCronExpression('* * * * *');
@@ -112,7 +135,14 @@ export function TriggerWorkflowForm({
     setWorkflowSearch('');
     setDebouncedWorkflowSearch('');
     debouncedSetSearch.cancel();
-  }, [onClose, defaultWorkflow, defaultTimingOption, debouncedSetSearch]);
+  }, [
+    onClose,
+    defaultWorkflowId,
+    defaultInput,
+    defaultAddlMeta,
+    defaultTimingOption,
+    debouncedSetSearch,
+  ]);
 
   const cronPretty = useMemo(() => {
     try {
@@ -149,6 +179,25 @@ export function TriggerWorkflowForm({
   });
 
   const jsonSchema = selectedWorkflow?.inputJsonSchema;
+  const hasJsonSchema = hasFormFields(jsonSchema);
+
+  const handleInputModeChange = (mode: InputMode) => {
+    if (mode === 'form') {
+      try {
+        setFormInitialValue(JSON.parse(input || '{}'));
+      } catch {
+        setErrors(['Input must be valid JSON to switch to the form.']);
+        return;
+      }
+    }
+
+    setErrors([]);
+    setInputMode(mode);
+  };
+
+  const handleFormChange = useCallback((value: unknown) => {
+    setInput(JSON.stringify(value ?? {}, null, 2));
+  }, []);
 
   const triggerNowMutation = useMutation({
     mutationKey: ['workflow-run:create', selectedWorkflow?.metadata.id],
@@ -332,7 +381,10 @@ export function TriggerWorkflowForm({
         <div className="font-bold">Workflow</div>
         <Combobox
           values={selectedWorkflowId ? [selectedWorkflowId] : []}
-          setValues={(values) => setSelectedWorkflowId(values[0])}
+          setValues={(values) => {
+            setSelectedWorkflowId(values[0]);
+            setInputMode('editor');
+          }}
           title="Select Workflow"
           options={workflowKeys?.rows?.map((w) => ({
             value: w.metadata.id,
@@ -350,16 +402,40 @@ export function TriggerWorkflowForm({
               : 'No workflows found'
           }
         />
-        <div className="font-bold">
-          Input
-          {isLoadingWorkflow && (
-            <span className="ml-2 text-sm font-normal text-muted-foreground">
-              (Loading schema...)
-            </span>
+        <div className="flex items-center justify-between">
+          <div className="font-bold">
+            Input
+            {isLoadingWorkflow && (
+              <span className="ml-2 text-sm font-normal text-muted-foreground">
+                (Loading schema...)
+              </span>
+            )}
+          </div>
+          {hasJsonSchema && !isLoadingWorkflow && (
+            <Tabs
+              value={inputMode}
+              onValueChange={(value) =>
+                handleInputModeChange(value as InputMode)
+              }
+            >
+              <TabsList>
+                <TabsTrigger value="editor">Editor</TabsTrigger>
+                <TabsTrigger value="form">Form</TabsTrigger>
+              </TabsList>
+            </Tabs>
           )}
         </div>
         {isLoadingWorkflow ? (
           <Skeleton className="h-[180px] w-full" />
+        ) : hasJsonSchema && inputMode === 'form' ? (
+          <Suspense fallback={<Skeleton className="h-[180px] w-full" />}>
+            <JsonSchemaForm
+              key={selectedWorkflowId}
+              schema={jsonSchema}
+              initialValue={formInitialValue}
+              onChange={handleFormChange}
+            />
+          </Suspense>
         ) : (
           <CodeEditor
             code={input || '{}'}

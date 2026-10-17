@@ -181,6 +181,16 @@ V1TaskSummaryList:
     - pagination
     - rows
 
+V1WorkflowRunCount:
+  type: object
+  properties:
+    count:
+      type: integer
+      format: int64
+      description: The number of workflow runs matching the filters
+  required:
+    - count
+
 V1WorkflowRunDisplayNameList:
   type: object
   properties:

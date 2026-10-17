@@ -35,8 +35,9 @@ WITH operators_on_inactive_dispatchers AS (
     JOIN "Worker" w ON w."id" = v1_operator.worker_id
     WHERE w."dispatcherId" = $1::UUID
 )
-SELECT id, tenant_id, name, kind, leasing_manager, config, worker_id, created_at, updated_at
+SELECT v1_operator.id, v1_operator.tenant_id, v1_operator.name, v1_operator.kind, v1_operator.leasing_manager, v1_operator.config, v1_operator.worker_id, v1_operator.created_at, v1_operator.updated_at
 FROM v1_operator
+JOIN "Tenant" t ON t."id" = v1_operator.tenant_id AND t."deletedAt" IS NULL
 WHERE
     -- Only DISPATCHER rows are claimed, whatever their kind. A SELF row keeps itself alive
     -- (a Listen stream out of process, its own leaser in process) and registers its own
@@ -48,7 +49,7 @@ WHERE
         v1_operator.id IN (SELECT id FROM operators_already_assigned_to_dispatcher)
     )
 ORDER BY v1_operator.id
-FOR UPDATE SKIP LOCKED
+FOR UPDATE OF v1_operator SKIP LOCKED
 `
 
 func (q *Queries) ClaimOperators(ctx context.Context, db DBTX, dispatcherid uuid.UUID) ([]*V1Operator, error) {
@@ -136,6 +137,7 @@ INSERT INTO v1_operator (
     $4::v1_operator_leasing_manager,
     $5::JSONB
 )
+ON CONFLICT (tenant_id, name, kind) DO NOTHING
 RETURNING id, tenant_id, name, kind, leasing_manager, config, worker_id, created_at, updated_at
 `
 
@@ -335,23 +337,6 @@ func (q *Queries) LockOperator(ctx context.Context, db DBTX, arg LockOperatorPar
 	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err
-}
-
-const tenantHasDAGOperator = `-- name: TenantHasDAGOperator :one
-SELECT EXISTS(
-    SELECT 1
-    FROM v1_operator
-    WHERE
-        tenant_id = $1::UUID
-        AND kind = 'DAG'
-) AS has_operator
-`
-
-func (q *Queries) TenantHasDAGOperator(ctx context.Context, db DBTX, tenantid uuid.UUID) (bool, error) {
-	row := db.QueryRow(ctx, tenantHasDAGOperator, tenantid)
-	var has_operator bool
-	err := row.Scan(&has_operator)
-	return has_operator, err
 }
 
 const updateOperator = `-- name: UpdateOperator :one

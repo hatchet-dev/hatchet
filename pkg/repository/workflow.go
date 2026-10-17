@@ -811,6 +811,19 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId uu
 		return nil, fmt.Errorf("expected 1 workflow version when creating new, got %d", len(workflowVersion))
 	}
 
+	if workflowVersion[0].WorkflowVersion.IsUsingDagOperator {
+		_, err := r.createOperatorTxs(ctx, tx, tenantId, CreateOperatorOpts{
+			Name:           "default",
+			Kind:           sqlcv1.V1OperatorKindDAG,
+			LeasingManager: sqlcv1.V1OperatorLeasingManagerDISPATCHER,
+			Config:         []byte("{}"),
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create DAG operator: %w", err)
+		}
+	}
+
 	err = commit(ctx)
 
 	if err != nil {
@@ -861,7 +874,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 	}
 
 	// todo: maybe don't need `len` check here?
-	isUsingDagOperator := dagOperatorEnabled && len(opts.Tasks) > 1
+	isUsingDagOperator := dagOperatorEnabled && (len(opts.Tasks) > 1 || opts.OnFailure != nil)
 
 	if isUsingDagOperator {
 		var retentionPeriod *string
@@ -873,8 +886,14 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 		// big number of retries to make it very unlikely we exhaust them
 		numRetries := 10_000
 
+		taskReadableIds := make([]string, len(opts.Tasks))
+
+		for i, task := range opts.Tasks {
+			taskReadableIds[i] = task.ReadableId
+		}
+
 		orchestrator := CreateStepOpts{
-			ReadableId:        opts.Name,
+			ReadableId:        dagOrchestratorReadableId(opts.Name, taskReadableIds),
 			Action:            DAGOrchestratorActionId(opts.Name),
 			IsDurable:         true,
 			IsDagOrchestrator: true,
@@ -2133,6 +2152,10 @@ func orderWorkflowStepsV1(steps []CreateStepOpts) ([]CreateStepOpts, error) {
 	// Build a map of step id to step for quick lookup.
 	stepMap := make(map[string]CreateStepOpts)
 	for _, step := range steps {
+		if _, exists := stepMap[step.ReadableId]; exists {
+			return nil, fmt.Errorf("duplicate step name: %s", step.ReadableId)
+		}
+
 		stepMap[step.ReadableId] = step
 	}
 

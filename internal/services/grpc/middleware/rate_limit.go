@@ -22,6 +22,7 @@ type HatchetApiTokenRateLimiter struct {
 	workflowLimiter   *rate.Limiter
 	adminV1Limiter    *rate.Limiter
 	otelColLimiter    *rate.Limiter
+	streamsLimiter    *rate.Limiter
 }
 
 type HatchetRateLimiter struct {
@@ -41,6 +42,7 @@ func (rl *HatchetRateLimiter) GetOrCreateTenantRateLimiter(rateLimitToken string
 			eventsLimiter:   rate.NewLimiter(rl.rate, rl.burst),
 			workflowLimiter: rate.NewLimiter(rl.rate, rl.burst),
 			adminV1Limiter:  rate.NewLimiter(rl.rate, rl.burst),
+			streamsLimiter:  rate.NewLimiter(rl.rate, rl.burst),
 			// 10x the rate for dispatcher and otelcol
 			dispatcherLimiter: rate.NewLimiter(rl.rate*10, rl.burst*10),
 			otelColLimiter:    rate.NewLimiter(rl.rate*10, rl.burst*10),
@@ -102,6 +104,12 @@ func (r *HatchetRateLimiter) Limit(ctx context.Context, procedure string) error 
 			return connect.NewError(connect.CodeResourceExhausted, errors.New("otel collector rate limit exceeded"))
 		}
 
+	case "streams":
+		if !r.GetOrCreateTenantRateLimiter(rateLimitToken.String()).streamsLimiter.Allow() {
+			r.l.Info().Ctx(ctx).Msgf("streams rate limit (%v per second) exceeded", r.GetOrCreateTenantRateLimiter(rateLimitToken.String()).streamsLimiter.Limit())
+			return connect.NewError(connect.CodeResourceExhausted, errors.New("streams rate limit exceeded"))
+		}
+
 	default:
 		return connect.NewError(connect.CodeInternal, fmt.Errorf("service %s not recognized", serviceName))
 	}
@@ -124,6 +132,8 @@ func matchServiceName(name string) string {
 		return "workflow"
 	case strings.HasPrefix(name, "/v1.AdminService"):
 		return "admin"
+	case strings.HasPrefix(name, "/v1.V1Streams"):
+		return "streams"
 	case strings.HasPrefix(name, "/opentelemetry.proto.collector"):
 		return "otelcol"
 	default:

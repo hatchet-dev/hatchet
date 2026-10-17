@@ -209,43 +209,6 @@ FROM (
     SELECT id FROM priority_4
 ) AS combined_priorities;
 
--- name: BulkQueueItems :many
-WITH locked_qis AS (
-    SELECT
-        id
-    FROM
-        v1_queue_item
-    WHERE
-        id = ANY(@ids::bigint[])
-    ORDER BY
-        id ASC
-    FOR UPDATE
-)
-DELETE FROM
-    v1_queue_item
-WHERE
-    id = ANY(@ids::bigint[])
-RETURNING
-    id;
-
--- name: LockTaskRuntimesForFlush :exec
-WITH input AS (
-    SELECT
-        UNNEST(@taskIds::bigint[]) AS task_id,
-        UNNEST(@taskInsertedAts::timestamptz[]) AS task_inserted_at,
-        UNNEST(@retryCounts::integer[]) AS retry_count
-)
-SELECT *
-FROM v1_task_runtime
-WHERE
-    (task_id, task_inserted_at, retry_count) IN (
-        SELECT task_id, task_inserted_at, retry_count
-        FROM input
-    )
-    AND tenant_id = @tenantId::uuid
-ORDER BY task_id, task_inserted_at, retry_count
-FOR UPDATE;
-
 -- name: UpdateTasksToAssigned :many
 WITH input AS (
     SELECT
@@ -357,6 +320,166 @@ FROM
 JOIN
     updated_tasks ut ON (asr.task_id, asr.task_inserted_at, asr.retry_count) = (ut.id, ut.inserted_at, ut.retry_count)
 ;
+
+-- name: FlushAssignedQueueItems :many
+-- FlushAssignedQueueItems deletes v1_queue_item entries and inserts v1_task_runtime entries
+-- in a single statement. It locks existing v1_task_runtime entries in task_id order (the
+-- same order as RestoreEvictedTasks and ReleaseTasks) before the first delete.
+--
+-- Assign keys carry a worker id and a step timeout (an interval, see durationToInterval)
+-- and get a runtime and slot row; remove keys are only deleted.
+--
+-- Return values are task ids from successfully deleted v1_queue_items, with worker_id and
+-- is_durable set on the ones that were assigned.
+WITH assign_input AS (
+    SELECT
+        task_id,
+        task_inserted_at,
+        retry_count,
+        worker_id,
+        step_timeout
+    FROM
+        (
+            SELECT
+                UNNEST(@taskIds::bigint[]) AS task_id,
+                UNNEST(@taskInsertedAts::timestamptz[]) AS task_inserted_at,
+                UNNEST(@taskRetryCounts::integer[]) AS retry_count,
+                UNNEST(@workerIds::uuid[]) AS worker_id,
+                UNNEST(@stepTimeouts::interval[]) AS step_timeout
+        ) AS subquery
+    ORDER BY task_id
+), remove_input AS (
+    SELECT
+        UNNEST(@removeTaskIds::bigint[]) AS task_id,
+        UNNEST(@removeTaskInsertedAts::timestamptz[]) AS task_inserted_at,
+        UNNEST(@removeRetryCounts::integer[]) AS retry_count
+), all_keys AS (
+    SELECT task_id, task_inserted_at, retry_count FROM assign_input
+    UNION ALL
+    SELECT task_id, task_inserted_at, retry_count FROM remove_input
+), locked_runtimes AS (
+    SELECT
+        r.task_id,
+        r.task_inserted_at,
+        r.retry_count
+    FROM
+        all_keys k
+    JOIN
+        v1_task_runtime r ON (r.task_id, r.task_inserted_at, r.retry_count) = (k.task_id, k.task_inserted_at, k.retry_count)
+    WHERE
+        r.tenant_id = @tenantId::uuid
+    ORDER BY r.task_id, r.task_inserted_at, r.retry_count
+    FOR UPDATE OF r
+), keys_to_delete AS (
+    -- the CROSS JOIN on an aggregate of locked_runtimes is what makes that CTE run
+    -- (Postgres skips an unreferenced SELECT CTE), and it makes every runtime lock
+    -- precede the first delete
+    SELECT
+        k.task_id,
+        k.task_inserted_at,
+        k.retry_count
+    FROM
+        all_keys k
+    CROSS JOIN
+        (SELECT COUNT(*) AS locked FROM locked_runtimes) l
+), deleted AS (
+    DELETE FROM
+        v1_queue_item qi
+    USING
+        keys_to_delete k
+    WHERE
+        qi.task_id = k.task_id
+        AND qi.task_inserted_at = k.task_inserted_at
+        AND qi.retry_count = k.retry_count
+    RETURNING
+        qi.task_id, qi.task_inserted_at, qi.retry_count
+), to_assign AS (
+    SELECT
+        t.id,
+        t.inserted_at,
+        t.retry_count,
+        i.worker_id,
+        t.tenant_id,
+        t.batch_key,
+        t.step_id,
+        CURRENT_TIMESTAMP + i.step_timeout AS timeout_at,
+        t.is_durable
+    FROM
+        assign_input i
+    JOIN
+        deleted d ON (d.task_id, d.task_inserted_at, d.retry_count) = (i.task_id, i.task_inserted_at, i.retry_count)
+    JOIN
+        v1_task t ON (t.id, t.inserted_at, t.retry_count) = (i.task_id, i.task_inserted_at, i.retry_count)
+    WHERE
+        t.inserted_at >= @minTaskInsertedAt::timestamptz
+    ORDER BY t.id
+), assigned_tasks AS (
+    INSERT INTO v1_task_runtime (
+        task_id,
+        task_inserted_at,
+        retry_count,
+        worker_id,
+        tenant_id,
+        batch_key,
+        timeout_at
+    )
+    SELECT
+        t.id,
+        t.inserted_at,
+        t.retry_count,
+        t.worker_id,
+        @tenantId::uuid,
+        t.batch_key,
+        t.timeout_at
+    FROM
+        to_assign t
+    ON CONFLICT (task_id, task_inserted_at, retry_count) DO UPDATE
+    SET
+        evicted_at = NULL,
+        worker_id = EXCLUDED.worker_id,
+        timeout_at = EXCLUDED.timeout_at,
+        batch_key = EXCLUDED.batch_key
+    WHERE v1_task_runtime.evicted_at IS NOT NULL
+    -- only return the task ids that were successfully assigned
+    RETURNING task_id, task_inserted_at, retry_count, worker_id
+), assigned_slots AS (
+    INSERT INTO v1_task_runtime_slot (
+        tenant_id,
+        task_id,
+        task_inserted_at,
+        retry_count,
+        worker_id,
+        slot_type,
+        units
+    )
+    SELECT
+        t.tenant_id,
+        t.id,
+        t.inserted_at,
+        t.retry_count,
+        t.worker_id,
+        COALESCE(req.slot_type, 'default'::text),
+        COALESCE(req.units, 1)
+    FROM
+        to_assign t
+    LEFT JOIN
+        v1_step_slot_request req
+        ON req.step_id = t.step_id AND req.tenant_id = t.tenant_id
+    ON CONFLICT (task_id, task_inserted_at, retry_count, slot_type) DO NOTHING
+    RETURNING task_id
+)
+SELECT
+    d.task_id,
+    d.task_inserted_at,
+    d.retry_count,
+    a.worker_id,
+    ta.is_durable
+FROM
+    deleted d
+LEFT JOIN
+    assigned_tasks a ON (a.task_id, a.task_inserted_at, a.retry_count) = (d.task_id, d.task_inserted_at, d.retry_count)
+LEFT JOIN
+    to_assign ta ON (ta.id, ta.inserted_at, ta.retry_count) = (d.task_id, d.task_inserted_at, d.retry_count);
 
 -- name: InsertBufferedTaskRuntimes :exec
 WITH input AS (
@@ -1040,20 +1163,19 @@ RETURNING id, tenant_id, task_id, task_inserted_at, retry_count;
 
 -- name: ReactivateInactiveQueuesWithItems :execresult
 -- Reactivates queues that have been marked inactive (last_active > 1 day ago)
--- but still have pending items in v1_queue_item. This is a fallback mechanism
--- to ensure queues don't get stuck inactive while they have work to do.
-WITH inactive_queues_with_items AS (
+-- but still have pending items in v1_queue_item or v1_rate_limited_queue_items.
+-- This is a fallback mechanism to ensure queues don't get stuck inactive while
+-- they have work to do.
+WITH queues_with_items AS (
+    SELECT DISTINCT tenant_id, queue FROM v1_queue_item
+    UNION
+    SELECT DISTINCT tenant_id, queue FROM v1_rate_limited_queue_items
+), inactive_queues_with_items AS (
     SELECT q.tenant_id, q.name
     FROM v1_queue q
+    JOIN queues_with_items w ON w.tenant_id = q.tenant_id AND w.queue = q.name
     WHERE q.last_active <= NOW() - INTERVAL '1 day'
-      AND EXISTS (
-        SELECT 1
-        FROM v1_queue_item qi
-        WHERE qi.tenant_id = q.tenant_id
-          AND qi.queue = q.name
-        LIMIT 1
-      )
-    FOR UPDATE SKIP LOCKED
+    FOR UPDATE OF q SKIP LOCKED
 )
 UPDATE v1_queue q
 SET last_active = NOW()

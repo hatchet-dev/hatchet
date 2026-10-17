@@ -28,6 +28,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/otelcol"
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	schedulerv1 "github.com/hatchet-dev/hatchet/internal/services/scheduler/v1"
+	streamssvc "github.com/hatchet-dev/hatchet/internal/services/streams"
 	"github.com/hatchet-dev/hatchet/internal/services/ticker"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
@@ -261,6 +262,12 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 	}
 
 	if sc.HasService("queue") || sc.HasService("jobscontroller") || sc.HasService("workflowscontroller") {
+		retention, err := corePartitionRetention(sc)
+
+		if err != nil {
+			return err
+		}
+
 		tasks, err := task.New(
 			task.WithAlerter(sc.Alerter),
 			task.WithMessageQueue(sc.MessageQueueV1),
@@ -270,6 +277,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			task.WithPartition(p),
 			task.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
 			task.WithPgxStatsLoggerConfig(&sc.AdditionalLoggers.PgxStats),
+			task.WithMaxRetryAfter(retention),
 			task.WithAnalyzeCronInterval(sc.CronOperations.TaskAnalyzeCronInterval),
 			task.WithPrometheusGate(sc.PrometheusGate),
 		)
@@ -691,6 +699,12 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		)
 
 		if isControllerActive(sc.PausedControllers, TaskController) {
+			retention, err := corePartitionRetention(sc)
+
+			if err != nil {
+				return err
+			}
+
 			tasks, err := task.New(
 				task.WithAlerter(sc.Alerter),
 				task.WithMessageQueue(sc.MessageQueueV1),
@@ -702,6 +716,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 				task.WithPgxStatsLoggerConfig(&sc.AdditionalLoggers.PgxStats),
 				task.WithOpsPoolJitter(sc.Operations),
 				task.WithReplayEnabled(sc.Runtime.ReplayEnabled),
+				task.WithMaxRetryAfter(retention),
 				task.WithAnalyzeCronInterval(sc.CronOperations.TaskAnalyzeCronInterval),
 				task.WithPrometheusGate(sc.PrometheusGate),
 			)
@@ -924,6 +939,16 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			return fmt.Errorf("could not create admin service (v1): %w", err)
 		}
 
+		streamsSvc, err := streamssvc.NewService(
+			streamssvc.WithPubSub(sc.PubSubV1),
+			streamssvc.WithRepositoryV1(sc.V1),
+			streamssvc.WithLogger(sc.Logger),
+		)
+
+		if err != nil {
+			return fmt.Errorf("could not create streams service: %w", err)
+		}
+
 		// the operators this dispatcher claims (the DAG operator) are hosted in process, on
 		// the local dispatcher, from here
 		stopOperators, err := startOperatorClaimer(sc, d, adminv1Svc)
@@ -939,6 +964,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			grpc.WithDispatcherV1(d.V1()),
 			grpc.WithAdmin(adminSvc),
 			grpc.WithAdminV1(adminv1Svc),
+			grpc.WithStreamsV1(streamsSvc),
 			grpc.WithLogger(sc.Logger),
 			grpc.WithAlerter(sc.Alerter),
 			grpc.WithTLSConfig(sc.TLSConfig),
@@ -1010,6 +1036,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			// hang up long-lived subscriber streams first so that GracefulStop does not
 			// block on them until the pod is killed
 			d.CancelStreamSessions()
+			streamsSvc.CancelStreamSessions()
 
 			g := new(errgroup.Group)
 
@@ -1037,6 +1064,9 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 				}
 				if err := ei.Cleanup(); err != nil {
 					return fmt.Errorf("failed to cleanup ingestor: %w", err)
+				}
+				if err := streamsSvc.Cleanup(); err != nil {
+					return fmt.Errorf("failed to cleanup streams service: %w", err)
 				}
 				return nil
 			})
@@ -1128,4 +1158,15 @@ func isControllerActive(pausedControllers map[string]bool, controllerName Contro
 	}
 
 	return false
+}
+
+// corePartitionRetention caps task-requested retry delays, since a task's rows are dropped once its partition ages out.
+func corePartitionRetention(sc *server.ServerConfig) (time.Duration, error) {
+	retention, err := time.ParseDuration(sc.Runtime.Limits.CorePartitionRetentionOrDefault())
+
+	if err != nil {
+		return 0, fmt.Errorf("could not parse core partition retention: %w", err)
+	}
+
+	return retention, nil
 }

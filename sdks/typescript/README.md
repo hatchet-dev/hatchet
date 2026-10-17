@@ -49,6 +49,7 @@ TypeScript SDK reference (overview: https://docs.hatchet.run/reference/typescrip
 - Rate Limits: https://docs.hatchet.run/reference/typescript/feature-clients/ratelimits.md (guide: https://docs.hatchet.run/v1/rate-limits.md)
 - Runs: https://docs.hatchet.run/reference/typescript/feature-clients/runs.md (guide: https://docs.hatchet.run/v1/running-your-task.md)
 - Scheduled Runs: https://docs.hatchet.run/reference/typescript/feature-clients/schedules.md (guide: https://docs.hatchet.run/v1/scheduled-runs.md)
+- Streams: https://docs.hatchet.run/reference/typescript/feature-clients/streams.md
 - Tenant: https://docs.hatchet.run/reference/typescript/feature-clients/tenant.md
 - Webhooks: https://docs.hatchet.run/reference/typescript/feature-clients/webhooks.md (guide: https://docs.hatchet.run/v1/webhooks.md)
 - Workers: https://docs.hatchet.run/reference/typescript/feature-clients/workers.md (guide: https://docs.hatchet.run/v1/workers.md)
