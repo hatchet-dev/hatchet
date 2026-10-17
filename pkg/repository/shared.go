@@ -63,6 +63,8 @@ type sharedRepository struct {
 	taskLookupCache   *lru.Cache[taskExternalIdTenantIdTuple, *sqlcv1.FlattenExternalIdsRow]
 	payloadStore      PayloadStoreRepository
 	m                 TenantLimitRepository
+
+	wrapTaskInputInStepRunData bool
 }
 
 func newSharedRepository(
@@ -129,6 +131,7 @@ func newSharedRepository(
 		boolExprEvaluator:           boolExprEvaluator,
 		taskLookupCache:             lookupCache,
 		payloadStore:                payloadStore,
+		wrapTaskInputInStepRunData:  payloadStoreOpts.WrapTaskInputInStepRunData,
 	}
 
 	tenantLimitRepository := newTenantLimitRepository(s, c, shouldEnforceLimits, cacheDuration)
