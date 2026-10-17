@@ -146,7 +146,7 @@ func (t *TenantAlertManager) sendExpiringTokenAlert(ctx context.Context, tenantA
 		}
 	}
 
-	return nil
+	return err
 }
 
 func (t *TenantAlertManager) SendTenantResourceLimitAlert(tenantId uuid.UUID, alert *sqlcv1.TenantResourceLimitAlert) error {
@@ -198,7 +198,7 @@ func (t *TenantAlertManager) SendTenantResourceLimitAlert(tenantId uuid.UUID, al
 
 func (t *TenantAlertManager) sendTenantResourceLimitAlert(ctx context.Context, tenantAlerting *v1.GetTenantAlertingSettingsResponse, payload *alerttypes.ResourceLimitAlert) error {
 
-	if !tenantAlerting.Settings.EnableExpiringTokenAlerts {
+	if !tenantAlerting.Settings.EnableTenantResourceLimitAlerts {
 		return nil
 	}
 
@@ -217,5 +217,5 @@ func (t *TenantAlertManager) sendTenantResourceLimitAlert(ctx context.Context, t
 		}
 	}
 
-	return nil
+	return err
 }

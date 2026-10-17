@@ -26,6 +26,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
+	"github.com/hatchet-dev/hatchet/pkg/limitalerts"
 	"github.com/hatchet-dev/hatchet/pkg/o11yusage"
 	"github.com/hatchet-dev/hatchet/pkg/scheduling"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
@@ -752,6 +753,11 @@ type ServerConfig struct {
 	// O11yUsageFlush, when set, receives periodic tenant → log/otel byte maps
 	// from the engine. Nil means the aggregator is not started (OSS / self-host).
 	O11yUsageFlush o11yusage.FlushFunc
+
+	// TenantResourceLimitAlertHook, when set, receives every newly created tenant
+	// resource limit alert from the ticker, independent of the tenant's own
+	// alerting settings. Nil means disabled, never set by the OSS loader.
+	TenantResourceLimitAlertHook limitalerts.Hook
 
 	Pylon *PylonConfig
 

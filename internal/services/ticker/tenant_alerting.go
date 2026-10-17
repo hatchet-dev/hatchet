@@ -2,9 +2,13 @@ package ticker
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
+
+	"github.com/hatchet-dev/hatchet/pkg/limitalerts"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (t *TickerImpl) runExpiringTokenAlerts(ctx context.Context) func() {
@@ -71,13 +75,9 @@ func (t *TickerImpl) runTenantResourceLimitAlerts(ctx context.Context) func() {
 		t.l.Debug().Ctx(ctx).Msgf("ticker: alerting %d tenant resource limit alerts", len(alerts))
 
 		for _, alert := range alerts {
-			tenantId := alert.TenantId
+			t.l.Debug().Ctx(ctx).Msgf("ticker: handling tenant resource limit alert for tenant %s", alert.TenantId)
 
-			t.l.Debug().Ctx(ctx).Msgf("ticker: handling tenant resource limit alert for tenant %s", tenantId)
-
-			innerErr := t.ta.SendTenantResourceLimitAlert(tenantId, alert)
-
-			if innerErr != nil {
+			if innerErr := t.dispatchTenantResourceLimitAlert(ctx, alert); innerErr != nil {
 				err = multierror.Append(err, innerErr)
 			}
 		}
@@ -85,5 +85,36 @@ func (t *TickerImpl) runTenantResourceLimitAlerts(ctx context.Context) func() {
 		if err != nil {
 			t.l.Err(err).Ctx(ctx).Msg("could not handle tenant resource limit alerts")
 		}
+	}
+}
+
+// dispatchTenantResourceLimitAlert delivers one new alert to the tenant-facing
+// alerter and then to the optional hook. Both run even if the other fails; the
+// errors are combined so the caller can log them.
+func (t *TickerImpl) dispatchTenantResourceLimitAlert(ctx context.Context, alert *sqlcv1.TenantResourceLimitAlert) error {
+	var err error
+
+	if innerErr := t.ta.SendTenantResourceLimitAlert(alert.TenantId, alert); innerErr != nil {
+		err = multierror.Append(err, innerErr)
+	}
+
+	if t.limitAlertHook != nil {
+		if innerErr := t.limitAlertHook(ctx, limitAlertFromRow(alert)); innerErr != nil {
+			err = multierror.Append(err, fmt.Errorf("tenant resource limit alert hook: %w", innerErr))
+		}
+	}
+
+	return err
+}
+
+func limitAlertFromRow(row *sqlcv1.TenantResourceLimitAlert) limitalerts.Alert {
+	return limitalerts.Alert{
+		ID:        row.ID,
+		TenantID:  row.TenantId,
+		Resource:  string(row.Resource),
+		AlertType: limitalerts.AlertType(row.AlertType),
+		Value:     row.Value,
+		Limit:     row.Limit,
+		CreatedAt: row.CreatedAt.Time,
 	}
 }
