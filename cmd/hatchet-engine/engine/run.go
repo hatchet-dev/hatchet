@@ -112,7 +112,7 @@ func Run(
 		// before reporting the error; otherwise the pools, queue channels and
 		// background goroutines of a partially started engine outlive Run. A
 		// component whose own Start failed registered nothing and is left to
-		// the process exit, as before
+		// the process exit
 		return errors.Join(fmt.Errorf("could not run with config: %w", err), cleanup.Run())
 	}
 
@@ -148,7 +148,7 @@ func startO11yUsage(sc *server.ServerConfig, cleanup *cleanup.Cleanup) *o11yusag
 	return agg
 }
 
-func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.Cleanup) error {
+func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.Cleanup) (err error) {
 	var l = sc.Logger
 	o11yUsage := startO11yUsage(sc, cleanup)
 
@@ -162,6 +162,25 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 	if err != nil {
 		return fmt.Errorf("could not initialize tracer: %w", err)
 	}
+
+	var healthCleanup func() error
+
+	// On a successful start the health and telemetry cleanups are registered
+	// last, so that probes report not-ready for the whole teardown. A start
+	// that fails after they are up never reaches that registration, so it is
+	// done here; otherwise the health listener outlives the engine and holds
+	// its port against the next engine to start.
+	defer func() {
+		if err == nil {
+			return
+		}
+
+		if healthCleanup != nil {
+			cleanup.Add(healthCleanup, "health")
+		}
+
+		cleanup.Add(telemetryShutdown, "telemetry")
+	}()
 
 	if sc.Prometheus.Enabled {
 		cleanup.Add(
@@ -179,7 +198,6 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 	p.AddCleanupMethods(cleanup)
 
 	var h *health.Health
-	var healthCleanup func() error
 	healthProbes := sc.HasService("health")
 	if healthProbes {
 		h = health.New(sc.V1.Health(), sc.MessageQueueV1, sc.Version, l)
@@ -611,7 +629,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 	return nil
 }
 
-func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.Cleanup) error {
+func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.Cleanup) (err error) {
 	var l = sc.Logger
 	o11yUsage := startO11yUsage(sc, cleanup)
 
@@ -625,6 +643,25 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 	if err != nil {
 		return fmt.Errorf("could not initialize tracer: %w", err)
 	}
+
+	var healthCleanup func() error
+
+	// On a successful start the health and telemetry cleanups are registered
+	// last, so that probes report not-ready for the whole teardown. A start
+	// that fails after they are up never reaches that registration, so it is
+	// done here; otherwise the health listener outlives the engine and holds
+	// its port against the next engine to start.
+	defer func() {
+		if err == nil {
+			return
+		}
+
+		if healthCleanup != nil {
+			cleanup.Add(healthCleanup, "health")
+		}
+
+		cleanup.Add(telemetryShutdown, "telemetry")
+	}()
 
 	if sc.Prometheus.Enabled {
 		cleanup.Add(startPrometheus(l, sc.Prometheus), "prometheus")
@@ -640,7 +677,6 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 
 	healthProbes := sc.Runtime.Healthcheck
 	var h *health.Health
-	var healthCleanup func() error
 
 	if healthProbes {
 		h = health.New(sc.V1.Health(), sc.MessageQueueV1, sc.Version, l)

@@ -14,6 +14,19 @@ import (
 // aborted a startup) can still tell that a cleanup fn failed.
 var ErrTeardown = errors.New("teardown failed")
 
+// OnlyCancelled reports whether err is nil, or contains context.Canceled
+// without ErrTeardown. It does not establish where the cancellation came from
+// or exclude other errors in the same tree. A caller that joins Run's error to
+// the cancellation it requested uses it in place of errors.Is, which would
+// accept the tree even when a cleanup fn failed.
+func OnlyCancelled(err error) bool {
+	if err == nil {
+		return true
+	}
+
+	return errors.Is(err, context.Canceled) && !errors.Is(err, ErrTeardown)
+}
+
 type CleanupFn struct {
 	Fn   func() error
 	Name string

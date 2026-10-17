@@ -2,7 +2,6 @@ package harness
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -247,10 +246,8 @@ func startEngine() func() {
 		// starting, and a start step that observes the cancellation returns it
 		// as its error. That is the shutdown this cleanup asked for, not a
 		// failure to run. A cleanup fn that failed on the way out is still a
-		// failure: engine.Run joins that error to the cancellation, and
-		// errors.Is matches any member of the join, so it is checked for
-		// separately.
-		if err != nil && (!errors.Is(err, context.Canceled) || errors.Is(err, cleanup.ErrTeardown)) {
+		// failure; engine.Run joins that error to the cancellation.
+		if !cleanup.OnlyCancelled(err) {
 			log.Fatalf("failed to run engine: %v", err)
 		}
 

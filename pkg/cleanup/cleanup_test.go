@@ -1,7 +1,9 @@
 package cleanup
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -66,5 +68,41 @@ func TestRunWrapsTeardownFailure(t *testing.T) {
 
 	if ranAfter {
 		t.Fatal("Run continued past the failing fn")
+	}
+}
+
+// The engine joins a start error to Run's error when a start is aborted. The
+// harness accepts a tree that carries the cancellation and no teardown
+// failure; a cancellation joined to a failed cleanup fn, or a start error that
+// is not a cancellation, is rejected.
+func TestOnlyCancelled(t *testing.T) {
+	logger := zerolog.Nop()
+
+	clean := New(&logger)
+	clean.Add(func() error { return nil }, "ok")
+
+	failing := New(&logger)
+	failing.Add(func() error { return errors.New("boom") }, "bad")
+
+	startCancelled := fmt.Errorf("could not run with config: %w", context.Canceled)
+
+	cases := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"nil", nil, true},
+		{"cancelled, clean teardown", errors.Join(startCancelled, clean.Run()), true},
+		{"cancelled, failed teardown", errors.Join(startCancelled, failing.Run()), false},
+		{"cancelled, bare", context.Canceled, true},
+		{"other start error", errors.Join(errors.New("could not start health"), clean.Run()), false},
+		{"deadline", context.DeadlineExceeded, false},
+		{"teardown only", failing.Run(), false},
+	}
+
+	for _, tc := range cases {
+		if got := OnlyCancelled(tc.err); got != tc.want {
+			t.Errorf("%s: OnlyCancelled(%v) = %t, want %t", tc.name, tc.err, got, tc.want)
+		}
 	}
 }
