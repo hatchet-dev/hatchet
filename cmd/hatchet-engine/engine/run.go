@@ -245,6 +245,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			ticker.WithRepositoryV1(sc.V1),
 			ticker.WithLogger(sc.Logger),
 			ticker.WithTenantAlerter(sc.TenantAlerter),
+			ticker.WithTenantResourceLimitAlertHook(sc.TenantResourceLimitAlertHook),
 		)
 
 		if err != nil {
@@ -660,6 +661,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			ticker.WithRepositoryV1(sc.V1),
 			ticker.WithLogger(sc.Logger),
 			ticker.WithTenantAlerter(sc.TenantAlerter),
+			ticker.WithTenantResourceLimitAlertHook(sc.TenantResourceLimitAlertHook),
 		)
 
 		if err != nil {

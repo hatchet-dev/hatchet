@@ -14,8 +14,10 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/syncx"
+	"github.com/hatchet-dev/hatchet/pkg/limitalerts"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 type Ticker interface {
@@ -28,7 +30,10 @@ type TickerImpl struct {
 
 	repov1 v1.Repository
 	s      gocron.Scheduler
-	ta     *alerting.TenantAlertManager
+	ta     tenantAlerter
+
+	// limitAlertHook is optional; nil means no downstream consumer.
+	limitAlertHook limitalerts.Hook
 
 	scheduledWorkflows syncx.Map[string, context.CancelFunc]
 
@@ -56,7 +61,16 @@ type TickerOpts struct {
 	tickerId uuid.UUID
 	ta       *alerting.TenantAlertManager
 
+	limitAlertHook limitalerts.Hook
+
 	dv datautils.DataDecoderValidator
+}
+
+// tenantAlerter is the subset of alerting.TenantAlertManager the ticker uses,
+// so tests can substitute a fake.
+type tenantAlerter interface {
+	SendExpiringTokenAlert(tenantId uuid.UUID, token *sqlcv1.PollExpiringTokensRow) error
+	SendTenantResourceLimitAlert(tenantId uuid.UUID, alert *sqlcv1.TenantResourceLimitAlert) error
 }
 
 func defaultTickerOpts() *TickerOpts {
@@ -89,6 +103,14 @@ func WithLogger(l *zerolog.Logger) TickerOpt {
 func WithTenantAlerter(ta *alerting.TenantAlertManager) TickerOpt {
 	return func(opts *TickerOpts) {
 		opts.ta = ta
+	}
+}
+
+// WithTenantResourceLimitAlertHook sets the optional hook that receives every
+// newly created tenant resource limit alert. A nil hook is ignored.
+func WithTenantResourceLimitAlertHook(h limitalerts.Hook) TickerOpt {
+	return func(opts *TickerOpts) {
+		opts.limitAlertHook = h
 	}
 }
 
@@ -134,6 +156,7 @@ func New(fs ...TickerOpt) (*TickerImpl, error) {
 		dv:                     opts.dv,
 		tickerId:               opts.tickerId,
 		ta:                     opts.ta,
+		limitAlertHook:         opts.limitAlertHook,
 		userCronScheduler:      userCronScheduler,
 		userCronSchedulesToIds: make(map[string]string),
 	}, nil

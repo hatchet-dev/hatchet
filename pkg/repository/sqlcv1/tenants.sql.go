@@ -370,6 +370,19 @@ func (q *Queries) DeleteTenantMember(ctx context.Context, db DBTX, id uuid.UUID)
 	return err
 }
 
+const deleteTenantResourceLimitAlerts = `-- name: DeleteTenantResourceLimitAlerts :exec
+DELETE FROM "TenantResourceLimitAlert"
+WHERE "tenantId" = $1::uuid
+`
+
+// Clears the alert dedupe log for a tenant. Used when a tenant turns resource
+// limit alerts back on, so a threshold crossed while alerts were off is
+// alerted on the next poll instead of being suppressed for the rest of its window.
+func (q *Queries) DeleteTenantResourceLimitAlerts(ctx context.Context, db DBTX, tenantid uuid.UUID) error {
+	_, err := db.Exec(ctx, deleteTenantResourceLimitAlerts, tenantid)
+	return err
+}
+
 const deleteTenantWorkerPartition = `-- name: DeleteTenantWorkerPartition :one
 DELETE FROM "TenantWorkerPartition"
 WHERE "id" = $1::text

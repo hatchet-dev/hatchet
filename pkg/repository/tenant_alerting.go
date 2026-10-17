@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -106,11 +107,63 @@ func (r *tenantAlertingRepository) UpsertTenantAlertingSettings(ctx context.Cont
 		params.EnableTenantResourceLimitAlerts = sqlchelpers.BoolFromBoolean(*opts.EnableTenantResourceLimitAlerts)
 	}
 
-	return r.queries.UpsertTenantAlertingSettings(
-		ctx,
-		r.pool,
-		params,
-	)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rollback()
+
+	// Resource limit alert rows are a dedupe log that is written whether or not
+	// the tenant has alerts enabled, so a threshold crossed while alerts were
+	// off already has a row. Clear the log when alerts go from off to on so the
+	// next poll alerts on anything still over a threshold instead of staying
+	// silent for the rest of the window.
+	clearLimitAlerts, err := r.enablesTenantResourceLimitAlerts(ctx, tx, tenantId, opts.EnableTenantResourceLimitAlerts)
+
+	if err != nil {
+		return nil, err
+	}
+
+	settings, err := r.queries.UpsertTenantAlertingSettings(ctx, tx, params)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if clearLimitAlerts {
+		if err := r.queries.DeleteTenantResourceLimitAlerts(ctx, tx, tenantId); err != nil {
+			return nil, fmt.Errorf("could not clear tenant resource limit alerts: %w", err)
+		}
+	}
+
+	if err := commit(ctx); err != nil {
+		return nil, err
+	}
+
+	return settings, nil
+}
+
+// enablesTenantResourceLimitAlerts reports whether the update turns resource
+// limit alerts on for a tenant that currently has them off. A tenant with no
+// settings row defaults to enabled, so there is nothing to clear for it.
+func (r *tenantAlertingRepository) enablesTenantResourceLimitAlerts(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, enable *bool) (bool, error) {
+	if enable == nil || !*enable {
+		return false, nil
+	}
+
+	existing, err := r.queries.GetTenantAlertingSettings(ctx, tx, tenantId)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	return !existing.EnableTenantResourceLimitAlerts, nil
 }
 
 func (r *tenantAlertingRepository) CreateTenantAlertGroup(ctx context.Context, tenantId uuid.UUID, opts *CreateTenantAlertGroupOpts) (*sqlcv1.TenantAlertEmailGroup, error) {

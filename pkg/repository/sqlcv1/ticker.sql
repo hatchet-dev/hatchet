@@ -348,14 +348,9 @@ WITH alerting_resource_limits AS (
     FROM
         "TenantResourceLimit" AS rl
     JOIN
-        "TenantAlertingSettings" AS ta
-    ON
-        ta."tenantId" = rl."tenantId"::uuid
-    JOIN
         "Tenant" AS tenant ON tenant."id" = rl."tenantId"
     WHERE
         tenant."deletedAt" IS NULL
-        AND ta."enableTenantResourceLimitAlerts" = true
         AND (
             (rl."alarmValue" IS NOT NULL AND rl."value" >= rl."alarmValue")
             OR rl."value" >= rl."limitValue"
