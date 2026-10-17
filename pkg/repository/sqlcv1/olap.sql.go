@@ -1999,13 +1999,18 @@ WITH tasks AS (
     SELECT dt.task_id, dt.task_inserted_at, dt.dag_id, dt.dag_inserted_at
     FROM v1_lookup_table_olap lt
     JOIN v1_dag_to_task_olap dt ON lt.dag_id = dt.dag_id AND lt.inserted_at = dt.dag_inserted_at
+    LEFT JOIN v1_dags_olap d ON (d.inserted_at, d.id, d.tenant_id) = (lt.inserted_at, lt.dag_id, lt.tenant_id)
     WHERE
         lt.external_id = $2::uuid
         AND lt.tenant_id = $3::uuid
         AND (
             -- the orchestrator's self-mapping row is hidden by default once real child tasks
-            -- exist, since orchestration is abstracted away from the user
+            -- exist, since orchestration is abstracted away from the user. Only operator DAGs
+            -- have a self-mapping (CreateDagToTaskOLAPSelfMappings): their id is the orchestrator
+            -- task's id. A non-operator DAG's id comes from the v1_dag sequence and can equal one
+            -- of its own task ids, so task_id = dag_id alone does not identify the orchestrator.
             COALESCE($4::boolean, FALSE)
+            OR NOT COALESCE(d.is_dag_operator, FALSE)
             OR dt.task_id != dt.dag_id
             OR NOT EXISTS (
                 SELECT 1
