@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -37,6 +38,10 @@ func (m *mockRateLimitRepo) ListRateLimits(ctx context.Context, tenantId uuid.UU
 }
 
 func (m *mockRateLimitRepo) DeleteRateLimits(ctx context.Context, tenantId uuid.UUID, key string) error {
+	panic("not implemented")
+}
+
+func (m *mockRateLimitRepo) PauseRateLimit(ctx context.Context, tenantId uuid.UUID, key string, until time.Time) (*sqlcv1.V1RateLimitPause, error) {
 	panic("not implemented")
 }
 
@@ -385,4 +390,294 @@ func TestRateLimiter_ShouldRefill(t *testing.T) {
 	past := time.Now().UTC().Add(-time.Millisecond)
 	r.nextRefillAt = &past
 	assert.True(t, r.shouldRefill())
+}
+
+func TestRateLimiter_PausedKeyBlocksWithoutReservingUnits(t *testing.T) {
+	l := zerolog.Nop()
+
+	pausedUntil := time.Now().UTC().Add(time.Hour)
+
+	r := &rateLimiter{
+		dbRateLimits: rateLimitSet{
+			"paused": {key: "paused", val: 10, pausedUntil: &pausedUntil},
+		},
+		unacked:   make(map[int64]rateLimitSet),
+		unflushed: make(rateLimitSet),
+		l:         &l,
+	}
+
+	res := r.use(context.Background(), 1, map[string]int32{"paused": 1})
+	assert.False(t, res.succeeded)
+	assert.Equal(t, "paused", res.exceededKey)
+	assert.Equal(t, int32(1), res.exceededUnits)
+	assert.Equal(t, &pausedUntil, res.pausedUntil)
+	assert.Equal(t, &pausedUntil, res.nextRefillAt, "the item should be requeued when the pause ends")
+	assert.Empty(t, r.unacked, "a pause must not consume units")
+
+	scheduleRes := &scheduleRateLimitResult{rateLimitResult: &res}
+	assert.True(t, scheduleRes.shouldRemoveFromQueue())
+}
+
+func TestRateLimiter_PauseWinsOverExhaustedWindow(t *testing.T) {
+	l := zerolog.Nop()
+
+	windowRefillAt := time.Now().UTC().Add(time.Minute)
+	earlierPause := time.Now().UTC().Add(30 * time.Minute)
+	laterPause := time.Now().UTC().Add(time.Hour)
+
+	r := &rateLimiter{
+		dbRateLimits: rateLimitSet{
+			"exhausted": {key: "exhausted", val: 0, nextRefillAt: &windowRefillAt},
+			"paused-a":  {key: "paused-a", val: 10, pausedUntil: &earlierPause},
+			"paused-b":  {key: "paused-b", val: 10, pausedUntil: &laterPause},
+		},
+		unacked:   make(map[int64]rateLimitSet),
+		unflushed: make(rateLimitSet),
+		l:         &l,
+	}
+
+	// requeuing at the window refill would only find the key still paused
+	res := r.use(context.Background(), 1, map[string]int32{"exhausted": 1, "paused-a": 1, "paused-b": 1})
+	assert.False(t, res.succeeded)
+	assert.Equal(t, "paused-b", res.exceededKey)
+	assert.Equal(t, &laterPause, res.pausedUntil)
+	assert.Equal(t, &laterPause, res.nextRefillAt)
+}
+
+func TestRateLimiter_ExpiredPauseRefreshesAndSeesExtension(t *testing.T) {
+	l := zerolog.Nop()
+
+	expired := time.Now().UTC().Add(-time.Second)
+	extended := time.Now().UTC().Add(time.Hour)
+	nextRefill := time.Now().Add(time.Minute)
+
+	mockRateLimitRepo := &mockRateLimitRepo{}
+	mockRateLimitRepo.On("FlushRateLimits", context.Background(), mock.Anything, mock.Anything, mock.Anything).Return([]*sqlcv1.ListRateLimitsForTenantWithMutateRow{
+		{Key: "key1", Value: 10, PausedUntil: pgtype.Timestamptz{Time: extended, Valid: true}},
+	}, &nextRefill, nil).Once()
+
+	// the refill deadline is in the future, so only the expired pause can trigger this read
+	future := time.Now().UTC().Add(time.Minute)
+
+	r := &rateLimiter{
+		dbRateLimits: rateLimitSet{
+			"key1": {key: "key1", val: 10, pausedUntil: &expired},
+		},
+		lastFlushAt:   time.Now().UTC().Add(-time.Minute),
+		nextRefillAt:  &future,
+		unacked:       make(map[int64]rateLimitSet),
+		unflushed:     make(rateLimitSet),
+		l:             &l,
+		rateLimitRepo: mockRateLimitRepo,
+	}
+
+	res := r.use(context.Background(), 1, map[string]int32{"key1": 1})
+	assert.False(t, res.succeeded, "a pause extended after the snapshot was read must keep blocking")
+
+	if assert.NotNil(t, res.pausedUntil) {
+		assert.True(t, extended.Equal(*res.pausedUntil))
+	}
+
+	// the refreshed snapshot postdates the old deadline, so later calls don't read again
+	r.use(context.Background(), 2, map[string]int32{"key1": 1})
+
+	mockRateLimitRepo.AssertExpectations(t)
+}
+
+func TestRateLimiter_ExpiredPauseRefreshesAndRuns(t *testing.T) {
+	l := zerolog.Nop()
+
+	expired := time.Now().UTC().Add(-time.Second)
+	nextRefill := time.Now().Add(time.Minute)
+
+	mockRateLimitRepo := &mockRateLimitRepo{}
+	mockRateLimitRepo.On("FlushRateLimits", context.Background(), mock.Anything, mock.Anything, mock.Anything).Return([]*sqlcv1.ListRateLimitsForTenantWithMutateRow{
+		{Key: "key1", Value: 10},
+	}, &nextRefill, nil).Once()
+
+	future := time.Now().UTC().Add(time.Minute)
+
+	r := &rateLimiter{
+		dbRateLimits: rateLimitSet{
+			"key1": {key: "key1", val: 10, pausedUntil: &expired},
+		},
+		lastFlushAt:   time.Now().UTC().Add(-time.Minute),
+		nextRefillAt:  &future,
+		unacked:       make(map[int64]rateLimitSet),
+		unflushed:     make(rateLimitSet),
+		l:             &l,
+		rateLimitRepo: mockRateLimitRepo,
+	}
+
+	res := r.use(context.Background(), 1, map[string]int32{"key1": 1})
+	assert.True(t, res.succeeded)
+	assert.Nil(t, res.pausedUntil)
+
+	mockRateLimitRepo.AssertExpectations(t)
+}
+
+func TestRateLimiter_ExpiredPauseReadAfterDeadlineSkipsRefresh(t *testing.T) {
+	l := zerolog.Nop()
+
+	// the database can still report a pause the engine's clock already sees as over; that read is trusted
+	expired := time.Now().UTC().Add(-2 * time.Second)
+	future := time.Now().UTC().Add(time.Minute)
+
+	mockRateLimitRepo := &mockRateLimitRepo{}
+
+	r := &rateLimiter{
+		dbRateLimits: rateLimitSet{
+			"key1": {key: "key1", val: 10, pausedUntil: &expired},
+		},
+		lastFlushAt:   time.Now().UTC().Add(-time.Second),
+		nextRefillAt:  &future,
+		unacked:       make(map[int64]rateLimitSet),
+		unflushed:     make(rateLimitSet),
+		l:             &l,
+		rateLimitRepo: mockRateLimitRepo,
+	}
+
+	res := r.use(context.Background(), 1, map[string]int32{"key1": 1})
+	assert.True(t, res.succeeded)
+
+	mockRateLimitRepo.AssertNotCalled(t, "FlushRateLimits", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestRateLimiter_RefreshBypassesRefillDeadlineOnce(t *testing.T) {
+	l := zerolog.Nop()
+
+	pausedUntil := time.Now().UTC().Add(time.Hour)
+	nextRefill := time.Now().Add(time.Minute)
+
+	mockRateLimitRepo := &mockRateLimitRepo{}
+	mockRateLimitRepo.On("FlushRateLimits", context.Background(), mock.Anything, mock.Anything, mock.Anything).Return([]*sqlcv1.ListRateLimitsForTenantWithMutateRow{
+		{Key: "key1", Value: 10, PausedUntil: pgtype.Timestamptz{Time: pausedUntil, Valid: true}},
+	}, &nextRefill, nil).Once()
+
+	future := time.Now().UTC().Add(time.Minute)
+
+	r := &rateLimiter{
+		dbRateLimits: rateLimitSet{
+			"key1": {key: "key1", val: 10},
+		},
+		nextRefillAt:  &future,
+		unacked:       make(map[int64]rateLimitSet),
+		unflushed:     make(rateLimitSet),
+		l:             &l,
+		rateLimitRepo: mockRateLimitRepo,
+	}
+
+	changedAt := time.Now().UTC()
+
+	assert.NoError(t, r.flushToDatabase(context.Background()), "a plain flush waits for the refill deadline")
+	assert.NoError(t, r.refresh(context.Background(), changedAt))
+
+	// a second notification for the same change finds the snapshot already newer than it
+	assert.NoError(t, r.refresh(context.Background(), changedAt))
+
+	res := r.use(context.Background(), 1, map[string]int32{"key1": 1})
+	assert.False(t, res.succeeded, "the pause written before the notification must apply without waiting for the refill deadline")
+
+	mockRateLimitRepo.AssertExpectations(t)
+}
+
+func TestRateLimiter_PauseOnUnusedKeyDoesNotBlock(t *testing.T) {
+	l := zerolog.Nop()
+
+	pausedUntil := time.Now().UTC().Add(time.Hour)
+
+	r := &rateLimiter{
+		dbRateLimits: rateLimitSet{
+			"paused": {key: "paused", val: 10, pausedUntil: &pausedUntil},
+			"open":   {key: "open", val: 10},
+		},
+		unacked:   make(map[int64]rateLimitSet),
+		unflushed: make(rateLimitSet),
+		l:         &l,
+	}
+
+	res := r.use(context.Background(), 1, map[string]int32{"open": 1})
+	assert.True(t, res.succeeded)
+}
+
+func TestRateLimiter_FlushLoadsPauses(t *testing.T) {
+	l := zerolog.Nop()
+
+	pausedUntil := time.Now().UTC().Add(time.Hour)
+	nextRefill := time.Now().Add(2 * time.Second)
+
+	mockRateLimitRepo := &mockRateLimitRepo{}
+	mockRateLimitRepo.On("FlushRateLimits", context.Background(), mock.Anything, mock.Anything, mock.Anything).Return([]*sqlcv1.ListRateLimitsForTenantWithMutateRow{
+		{Key: "paused", Value: 10, PausedUntil: pgtype.Timestamptz{Time: pausedUntil, Valid: true}},
+		{Key: "open", Value: 10},
+	}, &nextRefill, nil)
+
+	r := &rateLimiter{
+		dbRateLimits:  make(rateLimitSet),
+		unacked:       make(map[int64]rateLimitSet),
+		unflushed:     make(rateLimitSet),
+		l:             &l,
+		rateLimitRepo: mockRateLimitRepo,
+	}
+
+	assert.NoError(t, r.flushToDatabase(context.Background()))
+
+	if assert.NotNil(t, r.dbRateLimits["paused"].pausedUntil) {
+		assert.True(t, pausedUntil.Equal(*r.dbRateLimits["paused"].pausedUntil))
+	}
+
+	assert.Nil(t, r.dbRateLimits["open"].pausedUntil)
+
+	res := r.use(context.Background(), 1, map[string]int32{"paused": 1})
+	assert.False(t, res.succeeded)
+
+	res = r.use(context.Background(), 2, map[string]int32{"open": 1})
+	assert.True(t, res.succeeded)
+}
+
+func TestScheduleRateLimitResult_PausedItemsAlwaysMoveToDatabase(t *testing.T) {
+	soon := time.Now().UTC().Add(500 * time.Millisecond)
+
+	paused := &scheduleRateLimitResult{rateLimitResult: &rateLimitResult{nextRefillAt: &soon, pausedUntil: &soon}}
+	assert.True(t, paused.shouldRemoveFromQueue(), "a short pause must still park the item so its schedule timeout is shifted")
+
+	window := &scheduleRateLimitResult{rateLimitResult: &rateLimitResult{nextRefillAt: &soon}}
+	assert.False(t, window.shouldRemoveFromQueue(), "a window refilling within the threshold stays in memory")
+}
+
+func TestTenantManager_NotifyRateLimitsChangedRefreshesLimiter(t *testing.T) {
+	l := zerolog.Nop()
+
+	pausedUntil := time.Now().UTC().Add(time.Hour)
+	nextRefill := time.Now().Add(time.Minute)
+
+	mockRateLimitRepo := &mockRateLimitRepo{}
+	mockRateLimitRepo.On("FlushRateLimits", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*sqlcv1.ListRateLimitsForTenantWithMutateRow{
+		{Key: "key1", Value: 10, PausedUntil: pgtype.Timestamptz{Time: pausedUntil, Valid: true}},
+	}, &nextRefill, nil).Once()
+
+	future := time.Now().UTC().Add(time.Minute)
+
+	tm := &tenantManager{
+		l: l,
+		rl: &rateLimiter{
+			dbRateLimits: rateLimitSet{
+				"key1": {key: "key1", val: 10},
+			},
+			lastFlushAt:   time.Now().UTC().Add(-time.Second),
+			nextRefillAt:  &future,
+			unacked:       make(map[int64]rateLimitSet),
+			unflushed:     make(rateLimitSet),
+			l:             &l,
+			rateLimitRepo: mockRateLimitRepo,
+		},
+	}
+
+	tm.notifyRateLimitsChanged(context.Background())
+
+	if assert.NotNil(t, tm.rl.dbRateLimits["key1"].pausedUntil) {
+		assert.True(t, pausedUntil.Equal(*tm.rl.dbRateLimits["key1"].pausedUntil))
+	}
+
+	mockRateLimitRepo.AssertExpectations(t)
 }

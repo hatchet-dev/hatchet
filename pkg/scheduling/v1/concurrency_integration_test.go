@@ -863,3 +863,69 @@ func TestConcurrency_RateLimitedFilledSlotTimesOutAndUnblocks(t *testing.T) {
 		return nil
 	})
 }
+
+// TestConcurrency_PausedRateLimitedFilledSlotDoesNotTimeOut is the paused counterpart of
+// TestConcurrency_RateLimitedFilledSlotTimesOutAndUnblocks: time spent behind a paused rate limit key doesn't
+// count against the schedule timeout, so the strategy must not cancel the parked holder when its original
+// timeout passes during the pause.
+func TestConcurrency_PausedRateLimitedFilledSlotDoesNotTimeOut(t *testing.T) {
+	runWithDatabase(t, func(conf *database.Layer) error {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		requireSchedulerSchema(t, ctx, conf)
+
+		s := setupStepConcurrencyTest(t, ctx, conf, "rl-paused-slot", "GROUP_ROUND_ROBIN", 1, 2)
+
+		res, err := s.concurrencyRepo.RunConcurrencyStrategy(ctx, s.tenantId, s.strategy)
+		require.NoError(t, err)
+		require.Len(t, res.Queued, 1, "maxRuns=1 should fill exactly one slot")
+
+		_, err = conf.Pool.Exec(ctx, `
+			UPDATE v1_queue_item
+			SET schedule_timeout_at = (NOW() + INTERVAL '1 second')::TIMESTAMP(3)
+			WHERE tenant_id = $1
+		`, s.tenantId)
+		require.NoError(t, err)
+
+		_, err = conf.Pool.Exec(ctx, `
+			UPDATE v1_concurrency_slot
+			SET schedule_timeout_at = (NOW() + INTERVAL '1 second')::TIMESTAMP(3)
+			WHERE workflow_id = $1 AND is_filled
+		`, s.workflowId)
+		require.NoError(t, err)
+
+		qi := &sqlcv1.V1QueueItem{TenantID: s.tenantId}
+		err = conf.Pool.QueryRow(ctx, `
+			SELECT id, task_id, task_inserted_at, retry_count FROM v1_queue_item WHERE tenant_id = $1
+		`, s.tenantId).Scan(&qi.ID, &qi.TaskID, &qi.TaskInsertedAt, &qi.RetryCount)
+		require.NoError(t, err)
+
+		queueRepo := conf.V1.Scheduler().QueueFactory().NewQueue(s.tenantId, "default")
+		defer queueRepo.Cleanup()
+
+		pausedUntil := time.Now().Add(time.Hour)
+
+		_, _, err = queueRepo.MarkQueueItemsProcessed(ctx, &repo.AssignResults{
+			RateLimitedToMove: []*repo.RateLimitResult{{
+				V1QueueItem:    qi,
+				ExceededKey:    "upstream-api",
+				NextRefillAt:   &pausedUntil,
+				PausedUntil:    &pausedUntil,
+				TaskId:         qi.TaskID,
+				TaskInsertedAt: qi.TaskInsertedAt,
+				RetryCount:     qi.RetryCount,
+			}},
+		})
+		require.NoError(t, err)
+
+		// let the original timeout pass while the key is still paused
+		time.Sleep(1500 * time.Millisecond)
+
+		res2, err := s.concurrencyRepo.RunConcurrencyStrategy(ctx, s.tenantId, s.strategy)
+		require.NoError(t, err)
+		require.Empty(t, res2.Cancelled, "a run parked behind a paused key must not time out during the pause")
+		require.Empty(t, res2.Queued, "the paused holder keeps its slot")
+
+		return nil
+	})
+}

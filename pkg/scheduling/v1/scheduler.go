@@ -826,10 +826,15 @@ type scheduleRateLimitResult struct {
 
 // shouldRemoveFromQueue returns true if the queue item is being rate limited and should be removed from the queue
 // until the rate limit is reset.
-// we only do this if the requeue_after time is at least 2 seconds in the future, to avoid thrashing
+// unless the item is paused, we only do this if the requeue_after time is at least 2 seconds in the future, to avoid thrashing
 func (s *scheduleRateLimitResult) shouldRemoveFromQueue() bool {
 	if s.rateLimitResult == nil {
 		return false
+	}
+
+	// pauses are expected to be long, and parking is what shifts the schedule timeout past the pause
+	if s.pausedUntil != nil {
+		return true
 	}
 
 	nextRefillAt := s.nextRefillAt

@@ -172,3 +172,15 @@ func NotifyNewConcurrencyStrategy(tenantId uuid.UUID, strategyId int64) (*msgque
 		payload,
 	)
 }
+
+type RateLimitsChangedPayload struct{}
+
+func NotifyRateLimitsChanged(tenantId uuid.UUID) (*msgqueue.Message, error) {
+	return msgqueue.NewTenantMessage(
+		tenantId,
+		msgqueue.MsgIDRateLimitsChanged,
+		true,
+		false,
+		RateLimitsChangedPayload{},
+	)
+}

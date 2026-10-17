@@ -892,6 +892,14 @@ alter table v1_rate_limited_queue_items set (
     autovacuum_vacuum_cost_limit='1000'
 );
 
+-- kept apart from "RateLimit" so a key can be paused before its first run and upserts can't clear a pause
+CREATE TABLE v1_rate_limit_pause (
+    tenant_id UUID NOT NULL,
+    key TEXT NOT NULL,
+    paused_until TIMESTAMPTZ NOT NULL,
+    CONSTRAINT v1_rate_limit_pause_pkey PRIMARY KEY (tenant_id, key)
+);
+
 CREATE TABLE v1_batched_queue_item (
     id BIGINT GENERATED ALWAYS AS IDENTITY,
     tenant_id UUID NOT NULL,

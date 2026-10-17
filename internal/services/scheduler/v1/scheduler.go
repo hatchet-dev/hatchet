@@ -372,6 +372,8 @@ func (s *Scheduler) handleTask(ctx context.Context, task *msgqueue.Message) (err
 		return s.handleNewQueue(ctx, task)
 	case msgqueue.MsgIDNewConcurrencyStrategy:
 		return s.handleNewConcurrencyStrategy(ctx, task)
+	case msgqueue.MsgIDRateLimitsChanged:
+		return s.handleRateLimitsChanged(ctx, task)
 	}
 
 	return fmt.Errorf("unknown task: %s", task.ID)
@@ -422,6 +424,15 @@ func (s *Scheduler) handleNewQueue(ctx context.Context, msg *msgqueue.Message) e
 	for _, payload := range payloads {
 		s.pool.NotifyNewQueue(ctx, msg.TenantID, payload.QueueName)
 	}
+
+	return nil
+}
+
+func (s *Scheduler) handleRateLimitsChanged(ctx context.Context, msg *msgqueue.Message) error {
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-rate-limits-changed", msg.OtelCarrier)
+	defer span.End()
+
+	s.pool.NotifyRateLimitsChanged(ctx, msg.TenantID)
 
 	return nil
 }
@@ -625,6 +636,14 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 				rateLimited.ExceededUnits,
 				rateLimited.ExceededVal,
 			)
+
+			if rateLimited.PausedUntil != nil {
+				message = fmt.Sprintf(
+					"Rate limit key %s is paused until %s",
+					rateLimited.ExceededKey,
+					rateLimited.PausedUntil.UTC().Format(time.RFC3339),
+				)
+			}
 
 			msg, err := tasktypes.MonitoringEventMessageFromInternal(
 				tenantId,

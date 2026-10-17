@@ -152,9 +152,12 @@ WITH rls_to_update AS (
 )
 SELECT
     rl.*,
-    (rl."lastRefill" + rl."window"::INTERVAL - INTERVAL '10 milliseconds')::timestamp AS "nextRefillAt"
+    (rl."lastRefill" + rl."window"::INTERVAL - INTERVAL '10 milliseconds')::timestamp AS "nextRefillAt",
+    p.paused_until AS "pausedUntil"
 FROM
     "RateLimit" rl
+LEFT JOIN
+    v1_rate_limit_pause p ON p.tenant_id = rl."tenantId" AND p.key = rl."key" AND p.paused_until > NOW()
 WHERE
     rl."tenantId" = @tenantId::uuid
     AND rl."key" NOT IN (SELECT "key" FROM refill)
@@ -164,9 +167,26 @@ UNION ALL
 SELECT
     refill.*,
     -- return the next refill time
-    (refill."lastRefill" + refill."window"::INTERVAL - INTERVAL '10 milliseconds')::timestamp AS "nextRefillAt"
+    (refill."lastRefill" + refill."window"::INTERVAL - INTERVAL '10 milliseconds')::timestamp AS "nextRefillAt",
+    p.paused_until AS "pausedUntil"
 FROM
-    refill;
+    refill
+LEFT JOIN
+    v1_rate_limit_pause p ON p.tenant_id = refill."tenantId" AND p.key = refill."key" AND p.paused_until > NOW();
+
+-- name: PauseRateLimit :one
+INSERT INTO v1_rate_limit_pause (
+    tenant_id,
+    key,
+    paused_until
+) VALUES (
+    @tenantId::uuid,
+    @key::text,
+    @pausedUntil::timestamptz
+) ON CONFLICT (tenant_id, key) DO UPDATE SET
+    -- an earlier deadline never shortens an active pause
+    paused_until = GREATEST(v1_rate_limit_pause.paused_until, EXCLUDED.paused_until)
+RETURNING *;
 
 -- name: ListRateLimitsForSteps :many
 SELECT
