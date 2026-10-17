@@ -76,3 +76,109 @@ func TestWorkflowResultFailsWhenListenerDiesPermanently(t *testing.T) {
 
 	require.NoError(t, listener.Close())
 }
+
+// newSubscribedWorkflow returns a Workflow whose listener accepts
+// subscriptions and delivers events pushed onto the returned client's
+// recvChan.
+func newSubscribedWorkflow(t *testing.T, runID string) (*Workflow, *WorkflowRunsListener, *mockSubscribeClient) {
+	t.Helper()
+
+	logger := zerolog.Nop()
+	client := &mockSubscribeClient{
+		recvChan: make(chan *dispatchercontracts.WorkflowRunEvent, 1),
+	}
+	listener := newTestWorkflowRunsListener(t, &logger, func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+		return client, nil
+	}, client)
+	t.Cleanup(func() {
+		_ = listener.Close()
+	})
+
+	return NewWorkflow(runID, listener), listener, client
+}
+
+func TestWorkflowResultWithContextReturnsWhenContextAlreadyCancelled(t *testing.T) {
+	workflow, listener, client := newSubscribedWorkflow(t, "run-ctx-cancelled")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	start := time.Now()
+	res, err := workflow.ResultWithContext(ctx)
+	require.Nil(t, res)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, context.Canceled)
+	assert.Contains(t, err.Error(), "run-ctx-cancelled")
+	assert.Less(t, time.Since(start), time.Second)
+
+	// The subscription was sent, then dropped when the wait ended.
+	assert.Equal(t, int32(1), client.sendCount.Load())
+	assert.False(t, listener.reg.hasAny())
+}
+
+func TestWorkflowResultWithContextReturnsOnDeadline(t *testing.T) {
+	workflow, listener, _ := newSubscribedWorkflow(t, "run-ctx-deadline")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+
+	res, err := workflow.ResultWithContext(ctx)
+	require.Nil(t, res)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.False(t, listener.reg.hasAny())
+}
+
+func TestWorkflowResultWithContextDeliversResultWhileContextLive(t *testing.T) {
+	workflow, listener, client := newSubscribedWorkflow(t, "run-ctx-live")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	output := `{"ok":true}`
+	go func() {
+		// Wait until the subscription is registered before delivering.
+		require.Eventually(t, listener.reg.hasAny, time.Second, 5*time.Millisecond)
+		client.recvChan <- &dispatchercontracts.WorkflowRunEvent{
+			WorkflowRunId: "run-ctx-live",
+			Results: []*dispatchercontracts.StepRunResult{
+				{TaskName: "step1", Output: &output},
+			},
+		}
+	}()
+
+	res, err := workflow.ResultWithContext(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, res)
+
+	var got map[string]bool
+	require.NoError(t, res.StepOutput("step1", &got))
+	assert.True(t, got["ok"])
+	assert.False(t, listener.reg.hasAny())
+}
+
+func TestAwaitWorkflowResultNilContextDoneKeepsWaiting(t *testing.T) {
+	resChan := make(chan *WorkflowResult, 1)
+	failChan := make(chan error, 1)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		res, err := awaitWorkflowResult("run-nil-ctx", resChan, failChan, nil, nil)
+		assert.NoError(t, err)
+		assert.NotNil(t, res)
+	}()
+
+	select {
+	case <-done:
+		t.Fatal("wait ended without a result or failure")
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	resChan <- &WorkflowResult{workflowRun: &workflowRunEvent{WorkflowRunId: "run-nil-ctx"}}
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("wait did not end after result delivery")
+	}
+}

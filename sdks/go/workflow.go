@@ -929,14 +929,15 @@ func (w *Workflow) OnFailure(fn any) {
 // Workflow execution methods
 
 // Run executes the workflow with the provided input and waits for completion.
+// If ctx ends before the run reaches a terminal state, the wait stops and the
+// returned error wraps ctx.Err(); the run itself keeps executing on the engine.
 func (w *Workflow) Run(ctx context.Context, input any, opts ...RunOptFunc) (*WorkflowResult, error) {
 	tracer := otel.Tracer("github.com/hatchet-dev/hatchet/sdks/go")
 	otelCtx := ctx
-	var resultWaitContext context.Context
 	if hCtx, ok := ctx.(Context); ok {
 		otelCtx = hCtx.GetContext()
-		resultWaitContext = otelCtx
 	}
+	resultWaitContext := otelCtx
 	otelCtx, span := tracer.Start(otelCtx, hatchetotel.SpanRunWorkflow,
 		trace.WithSpanKind(trace.SpanKindProducer),
 		trace.WithAttributes(
