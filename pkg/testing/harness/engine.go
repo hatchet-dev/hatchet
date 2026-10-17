@@ -228,8 +228,9 @@ func startEngine() func() {
 
 	// Return a cleanup function that properly handles shutdown
 	return func() {
-		// an engine that returned before this cleanup asked it to stop did
-		// not shut down, it failed, whatever error it carries
+		// a result already waiting here was produced before this cleanup
+		// asked the engine to stop, so the engine did not shut down, it
+		// failed, whatever error it carries
 		select {
 		case err := <-engineCh:
 			log.Fatalf("engine exited before shutdown was requested: %v", err)

@@ -3,10 +3,10 @@ package harness
 import (
 	"context"
 	"fmt"
-	"net"
-	"os"
 	"testing"
 	"time"
+
+	"github.com/hatchet-dev/hatchet/pkg/client"
 )
 
 func TestMain(m *testing.M) {
@@ -22,8 +22,10 @@ func TestStartupShutdown(t *testing.T) {
 
 	// /ready answers as soon as the queue and database are healthy, which is
 	// before the controllers and the gRPC server have started. The gRPC
-	// listener is bound by the last start step, so a successful dial shows
-	// that the engine finished starting rather than only becoming ready.
+	// listener is bound by the last start step, and GetVersion is an
+	// authenticated RPC that only this engine's dispatcher answers, so a
+	// successful call shows that the engine finished starting rather than
+	// that something is listening on the port.
 	if err := waitEngineGRPC(t.Context(), 60*time.Second); err != nil {
 		t.Fatalf("engine did not finish starting in time: %s", err)
 	}
@@ -33,26 +35,26 @@ func waitEngineGRPC(ctx context.Context, timeout time.Duration) error {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	port := os.Getenv("SERVER_GRPC_PORT")
-	if port == "" {
-		return fmt.Errorf("SERVER_GRPC_PORT not set")
+	// the client reads HATCHET_CLIENT_TOKEN, set by the harness; the token
+	// carries the engine's gRPC broadcast address
+	c, err := client.New()
+	if err != nil {
+		return fmt.Errorf("create client: %w", err)
 	}
-
-	addr := net.JoinHostPort("localhost", port)
+	defer c.Close()
 
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
 	for {
-		conn, err := (&net.Dialer{}).DialContext(ctx, "tcp", addr)
+		_, err := c.Dispatcher().GetVersion(ctx)
 		if err == nil {
-			_ = conn.Close()
 			return nil
 		}
 
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("dial %s: %w", addr, err)
+			return fmt.Errorf("GetVersion: %w", err)
 		case <-ticker.C:
 		}
 	}

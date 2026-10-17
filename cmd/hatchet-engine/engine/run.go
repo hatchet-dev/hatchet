@@ -108,10 +108,11 @@ func Run(
 
 	if err != nil {
 		// a start step failed, or observed the context being cancelled while
-		// the engine was still starting. Everything started before that step
-		// has already registered its cleanup, so tear it down before reporting
-		// the error; otherwise the pools, queue channels and background
-		// goroutines of a partially started engine outlive Run
+		// the engine was still starting. Run the cleanups registered so far
+		// before reporting the error; otherwise the pools, queue channels and
+		// background goroutines of a partially started engine outlive Run. A
+		// component whose own Start failed registered nothing and is left to
+		// the process exit, as before
 		return errors.Join(fmt.Errorf("could not run with config: %w", err), cleanup.Run())
 	}
 
