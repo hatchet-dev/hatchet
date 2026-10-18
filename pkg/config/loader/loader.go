@@ -969,6 +969,10 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		cf.Runtime.OperatorInfraBlockedCIDRs = getStrArr(cf.Runtime.OperatorInfraBlockedCIDRsString)
 	}
 
+	if cf.Runtime.GRPCGetRunDetailsRateLimitTenantsString != "" {
+		cf.Runtime.GRPCGetRunDetailsRateLimitTenants = getStrArr(cf.Runtime.GRPCGetRunDetailsRateLimitTenantsString)
+	}
+
 	if cf.Runtime.Monitoring.TLSRootCAFile == "" {
 		cf.Runtime.Monitoring.TLSRootCAFile = cf.TLS.TLSRootCAFile
 	}
