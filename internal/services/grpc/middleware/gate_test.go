@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
+	"github.com/google/uuid"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/ratelimit"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
@@ -149,18 +150,20 @@ func TestRateLimitWrapsEveryLimiterError(t *testing.T) {
 	)
 }
 
-func TestGetRunDetailsHasItsOwnBucket(t *testing.T) {
+func TestGetRunDetailsIsLimitedPerTenant(t *testing.T) {
 	l := zerolog.Nop()
 	limiter := NewHatchetRateLimiter(1000, 1000, 2, &l)
-	ctx := context.WithValue(context.Background(), analytics.APITokenIDKey, testTokenID)
+	tenantId := uuid.New()
+	tokenA := context.WithValue(context.WithValue(context.Background(), analytics.APITokenIDKey, uuid.New()), analytics.TenantIDKey, tenantId)
+	tokenB := context.WithValue(context.WithValue(context.Background(), analytics.APITokenIDKey, uuid.New()), analytics.TenantIDKey, tenantId)
 
-	assert.NoError(t, rateLimit(ctx, limiter, "/v1.AdminService/GetRunDetails"))
-	assert.NoError(t, rateLimit(ctx, limiter, "/v1.AdminService/GetRunDetails"))
-	third := rateLimit(ctx, limiter, "/v1.AdminService/GetRunDetails")
+	assert.NoError(t, rateLimit(tokenA, limiter, "/v1.AdminService/GetRunDetails"))
+	assert.NoError(t, rateLimit(tokenB, limiter, "/v1.AdminService/GetRunDetails"))
+	third := rateLimit(tokenA, limiter, "/v1.AdminService/GetRunDetails")
 	assert.Equal(t, connect.CodeResourceExhausted, connect.CodeOf(third))
 	assert.Contains(t, errorMessage(third), "get run details rate limit exceeded")
 
-	assert.NoError(t, rateLimit(ctx, limiter, "/v1.AdminService/PutWorkflow"))
+	assert.NoError(t, rateLimit(tokenA, limiter, "/v1.AdminService/PutWorkflow"))
 }
 
 // Rejected calls never reach the logging or telemetry interceptors, so the gate has to leave the

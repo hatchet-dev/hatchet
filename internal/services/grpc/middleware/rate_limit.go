@@ -17,22 +17,22 @@ import (
 )
 
 type HatchetApiTokenRateLimiter struct {
-	eventsLimiter        *rate.Limiter
-	dispatcherLimiter    *rate.Limiter
-	workflowLimiter      *rate.Limiter
-	adminV1Limiter       *rate.Limiter
-	getRunDetailsLimiter *rate.Limiter
-	otelColLimiter       *rate.Limiter
-	streamsLimiter       *rate.Limiter
+	eventsLimiter     *rate.Limiter
+	dispatcherLimiter *rate.Limiter
+	workflowLimiter   *rate.Limiter
+	adminV1Limiter    *rate.Limiter
+	otelColLimiter    *rate.Limiter
+	streamsLimiter    *rate.Limiter
 }
 
 type HatchetRateLimiter struct {
-	mu                sync.Mutex
-	rateLimiters      map[string]*HatchetApiTokenRateLimiter
-	rate              rate.Limit
-	burst             int
-	getRunDetailsRate rate.Limit
-	l                 *zerolog.Logger
+	mu                    sync.Mutex
+	rateLimiters          map[string]*HatchetApiTokenRateLimiter
+	getRunDetailsLimiters map[string]*rate.Limiter
+	rate                  rate.Limit
+	burst                 int
+	getRunDetailsRate     rate.Limit
+	l                     *zerolog.Logger
 }
 
 func (rl *HatchetRateLimiter) GetOrCreateTenantRateLimiter(rateLimitToken string) *HatchetApiTokenRateLimiter {
@@ -41,11 +41,10 @@ func (rl *HatchetRateLimiter) GetOrCreateTenantRateLimiter(rateLimitToken string
 
 	if _, ok := rl.rateLimiters[rateLimitToken]; !ok {
 		rl.rateLimiters[rateLimitToken] = &HatchetApiTokenRateLimiter{
-			eventsLimiter:        rate.NewLimiter(rl.rate, rl.burst),
-			workflowLimiter:      rate.NewLimiter(rl.rate, rl.burst),
-			adminV1Limiter:       rate.NewLimiter(rl.rate, rl.burst),
-			streamsLimiter:       rate.NewLimiter(rl.rate, rl.burst),
-			getRunDetailsLimiter: rate.NewLimiter(rl.getRunDetailsRate, int(rl.getRunDetailsRate)),
+			eventsLimiter:   rate.NewLimiter(rl.rate, rl.burst),
+			workflowLimiter: rate.NewLimiter(rl.rate, rl.burst),
+			adminV1Limiter:  rate.NewLimiter(rl.rate, rl.burst),
+			streamsLimiter:  rate.NewLimiter(rl.rate, rl.burst),
 			// 10x the rate for dispatcher and otelcol
 			dispatcherLimiter: rate.NewLimiter(rl.rate*10, rl.burst*10),
 			otelColLimiter:    rate.NewLimiter(rl.rate*10, rl.burst*10),
@@ -55,14 +54,28 @@ func (rl *HatchetRateLimiter) GetOrCreateTenantRateLimiter(rateLimitToken string
 	return rl.rateLimiters[rateLimitToken]
 }
 
+// GetRunDetails is limited per tenant rather than per api token, since result polling is
+// typically spread across many tokens of one tenant.
+func (rl *HatchetRateLimiter) getOrCreateGetRunDetailsLimiter(tenantId string) *rate.Limiter {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+
+	if _, ok := rl.getRunDetailsLimiters[tenantId]; !ok {
+		rl.getRunDetailsLimiters[tenantId] = rate.NewLimiter(rl.getRunDetailsRate, int(rl.getRunDetailsRate))
+	}
+
+	return rl.getRunDetailsLimiters[tenantId]
+}
+
 func NewHatchetRateLimiter(r rate.Limit, b int, getRunDetailsRate rate.Limit, l *zerolog.Logger) *HatchetRateLimiter {
-	l.Info().Msgf("grpc rate limit set to %v per second with a burst of %v (10X rate for Dispatcher, %v for GetRunDetails)", r, b, getRunDetailsRate)
+	l.Info().Msgf("grpc rate limit set to %v per second with a burst of %v (10X rate for Dispatcher, %v per tenant for GetRunDetails)", r, b, getRunDetailsRate)
 	return &HatchetRateLimiter{
-		rateLimiters:      make(map[string]*HatchetApiTokenRateLimiter),
-		rate:              r,
-		burst:             b,
-		getRunDetailsRate: getRunDetailsRate,
-		l:                 l,
+		rateLimiters:          make(map[string]*HatchetApiTokenRateLimiter),
+		getRunDetailsLimiters: make(map[string]*rate.Limiter),
+		rate:                  r,
+		burst:                 b,
+		getRunDetailsRate:     getRunDetailsRate,
+		l:                     l,
 	}
 }
 
@@ -103,8 +116,16 @@ func (r *HatchetRateLimiter) Limit(ctx context.Context, procedure string) error 
 		}
 
 	case "get_run_details":
-		if !r.GetOrCreateTenantRateLimiter(rateLimitToken.String()).getRunDetailsLimiter.Allow() {
-			r.l.Info().Ctx(ctx).Msgf("get run details rate limit (%v per second) exceeded", r.GetOrCreateTenantRateLimiter(rateLimitToken.String()).getRunDetailsLimiter.Limit())
+		key := rateLimitToken.String()
+
+		if tenantId, ok := ctx.Value(analytics.TenantIDKey).(uuid.UUID); ok && tenantId != uuid.Nil {
+			key = tenantId.String()
+		}
+
+		limiter := r.getOrCreateGetRunDetailsLimiter(key)
+
+		if !limiter.Allow() {
+			r.l.Info().Ctx(ctx).Msgf("get run details rate limit (%v per second per tenant) exceeded", limiter.Limit())
 			return connect.NewError(connect.CodeResourceExhausted, errors.New("get run details rate limit exceeded, poll less frequently"))
 		}
 
