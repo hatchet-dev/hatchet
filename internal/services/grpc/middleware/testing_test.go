@@ -142,7 +142,7 @@ func startTestServer(t *testing.T, l *zerolog.Logger, limit rate.Limit, burst in
 	mux := http.NewServeMux()
 	mux.Handle(contractsconnect.NewDispatcherHandler(
 		ts.dispatcher,
-		connect.WithRequestGate(newRequestGate(NewAuthN(sc), NewHatchetRateLimiter(limit, burst, &nop), l, recorder)),
+		connect.WithRequestGate(newRequestGate(NewAuthN(sc), NewHatchetRateLimiter(limit, burst, limit, &nop), l, recorder)),
 		connect.WithInterceptors(newTelemetryInterceptor(recorder)),
 	))
 

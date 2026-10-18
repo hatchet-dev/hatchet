@@ -130,7 +130,7 @@ func TestGateRateLimitMessageMatchesTheGRPCMiddleware(t *testing.T) {
 // Every limiter outcome is reported as resource exhausted, as the wrapper always did.
 func TestRateLimitWrapsEveryLimiterError(t *testing.T) {
 	l := zerolog.Nop()
-	limiter := NewHatchetRateLimiter(1, 1, &l)
+	limiter := NewHatchetRateLimiter(1, 1, 1, &l)
 
 	noToken := rateLimit(context.Background(), limiter, "/Dispatcher/Register")
 	assert.Equal(t, connect.CodeResourceExhausted, connect.CodeOf(noToken))
@@ -147,6 +147,20 @@ func TestRateLimitWrapsEveryLimiterError(t *testing.T) {
 		"/Nope/Method is rejected by grpc_ratelimit middleware, please retry later. rpc error: code = Internal desc = service /Nope/Method not recognized",
 		errorMessage(unknown),
 	)
+}
+
+func TestGetRunDetailsHasItsOwnBucket(t *testing.T) {
+	l := zerolog.Nop()
+	limiter := NewHatchetRateLimiter(1000, 1000, 2, &l)
+	ctx := context.WithValue(context.Background(), analytics.APITokenIDKey, testTokenID)
+
+	assert.NoError(t, rateLimit(ctx, limiter, "/v1.AdminService/GetRunDetails"))
+	assert.NoError(t, rateLimit(ctx, limiter, "/v1.AdminService/GetRunDetails"))
+	third := rateLimit(ctx, limiter, "/v1.AdminService/GetRunDetails")
+	assert.Equal(t, connect.CodeResourceExhausted, connect.CodeOf(third))
+	assert.Contains(t, errorMessage(third), "get run details rate limit exceeded")
+
+	assert.NoError(t, rateLimit(ctx, limiter, "/v1.AdminService/PutWorkflow"))
 }
 
 // Rejected calls never reach the logging or telemetry interceptors, so the gate has to leave the

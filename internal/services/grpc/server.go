@@ -303,7 +303,11 @@ func (s *Server) handlerOptions() ([]connect.HandlerOption, error) {
 		limit = 1000
 	}
 	burst := limit
-	limiter := middleware.NewHatchetRateLimiter(rate.Limit(limit), int(burst), s.l)
+	getRunDetailsLimit := s.config.Runtime.GRPCGetRunDetailsRateLimit
+	if getRunDetailsLimit == 0 {
+		getRunDetailsLimit = limit
+	}
+	limiter := middleware.NewHatchetRateLimiter(rate.Limit(limit), int(burst), rate.Limit(getRunDetailsLimit), s.l)
 
 	interceptors := []connect.Interceptor{
 		middleware.NewTelemetryInterceptor(),
