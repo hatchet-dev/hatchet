@@ -5,6 +5,7 @@ package client
 import (
 	"context"
 	"errors"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -268,16 +269,12 @@ func TestWorkflowResultWithContextEndsSendRetriesOnCancelAndKeepsListenerUsable(
 
 	// A later waiter on the same listener still gets its result.
 	sendFails.Store(false)
-	liveCtx, liveCancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer liveCancel()
-	go func() {
-		require.Eventually(t, listener.reg.hasAny, time.Second, time.Millisecond)
-		client.recvChan <- &dispatchercontracts.WorkflowRunEvent{WorkflowRunId: "run-after-cancel"}
-	}()
-	res, err = NewWorkflow("run-after-cancel", listener).ResultWithContext(liveCtx)
-	require.NoError(t, err)
-	require.NotNil(t, res)
-	assert.False(t, listener.reg.hasAny())
+	assertListenerStillServes(t, listener, client, "run-after-cancel")
+}
+
+// hasRegistration reports whether any handler is registered for runID.
+func hasRegistration(listener *WorkflowRunsListener, runID string) bool {
+	return len(listener.reg.snapshot(runID)) > 0
 }
 
 // subscribeAfterRelease returns a constructor that blocks until release is
@@ -292,7 +289,9 @@ func subscribeAfterRelease(release <-chan struct{}, client *mockSubscribeClient,
 }
 
 // assertListenerStillServes proves a later waiter on listener receives its
-// result through client.
+// result through client. The event is pushed only once runID's own handler is
+// registered, so a stale registration from an earlier waiter cannot satisfy
+// the wait and let the event be dropped.
 func assertListenerStillServes(t *testing.T, listener *WorkflowRunsListener, client *mockSubscribeClient, runID string) {
 	t.Helper()
 
@@ -300,14 +299,16 @@ func assertListenerStillServes(t *testing.T, listener *WorkflowRunsListener, cli
 	defer cancel()
 
 	go func() {
-		require.Eventually(t, listener.reg.hasAny, time.Second, time.Millisecond)
+		require.Eventually(t, func() bool { return hasRegistration(listener, runID) }, time.Second, time.Millisecond)
 		client.recvChan <- &dispatchercontracts.WorkflowRunEvent{WorkflowRunId: runID}
 	}()
 
 	res, err := NewWorkflow(runID, listener).ResultWithContext(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, res)
-	assert.False(t, listener.reg.hasAny())
+	assert.False(t, hasRegistration(listener, runID))
+	// Earlier waiters' detached cleanups may still be finishing.
+	require.Eventually(t, func() bool { return !listener.reg.hasAny() }, time.Second, time.Millisecond)
 }
 
 func TestWorkflowResultWithContextReturnsWhileDialBlocked(t *testing.T) {
@@ -319,7 +320,13 @@ func TestWorkflowResultWithContextReturnsWhileDialBlocked(t *testing.T) {
 	}
 
 	listener := newTestWorkflowRunsListener(t, &logger, subscribeAfterRelease(release, client, &constructorCalls), nil)
-	t.Cleanup(func() { _ = listener.Close() })
+	// Release before Close: a failed assertion must not leave the dial
+	// blocked while Close waits on it.
+	releaseOnce := sync.OnceFunc(func() { close(release) })
+	t.Cleanup(func() {
+		releaseOnce()
+		_ = listener.Close()
+	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
 	defer cancel()
@@ -336,10 +343,16 @@ func TestWorkflowResultWithContextReturnsWhileDialBlocked(t *testing.T) {
 	assert.Equal(t, int32(1), constructorCalls.Load())
 	assert.False(t, listener.stream.IsClosed())
 
-	// Let the dial finish. The late success is undone and the listener,
-	// now connected, still serves a fresh waiter.
-	close(release)
-	require.Eventually(t, func() bool { return !listener.reg.hasAny() }, time.Second, time.Millisecond)
+	// Let the dial finish. The detached subscribe connects the stream, then
+	// stores its registration and removes it again when the send step sees
+	// the cancelled wait context. The listener, now connected, still serves
+	// a fresh waiter, and the helper's final check proves the stale
+	// registration is gone.
+	releaseOnce()
+	require.Eventually(t, func() bool {
+		_, _, connected := listener.stream.Snapshot()
+		return connected && !hasRegistration(listener, "run-dial-blocked")
+	}, time.Second, time.Millisecond)
 	assertListenerStillServes(t, listener, client, "run-after-dial")
 }
 
@@ -361,7 +374,16 @@ func TestWorkflowResultWithContextReturnsWhileSendBlocked(t *testing.T) {
 	listener := newTestWorkflowRunsListener(t, &logger, func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
 		return client, nil
 	}, client)
-	t.Cleanup(func() { _ = listener.Close() })
+	// Release before Close: the blocked Send holds sendMu, which Close also
+	// needs, so a failed assertion must not leave it blocked.
+	releaseOnce := sync.OnceFunc(func() {
+		sendBlocks.Store(false)
+		close(release)
+	})
+	t.Cleanup(func() {
+		releaseOnce()
+		_ = listener.Close()
+	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
 	defer cancel()
@@ -378,13 +400,12 @@ func TestWorkflowResultWithContextReturnsWhileSendBlocked(t *testing.T) {
 
 	// The Send is still in flight and its registration is still stored.
 	assert.Equal(t, int32(1), client.sendCount.Load())
-	assert.True(t, listener.reg.hasAny())
+	assert.True(t, hasRegistration(listener, "run-send-blocked"))
 	assert.False(t, listener.stream.IsClosed())
 
 	// Let the Send finish: it succeeds late and the detached cleanup removes
 	// the registration.
-	sendBlocks.Store(false)
-	close(release)
-	require.Eventually(t, func() bool { return !listener.reg.hasAny() }, time.Second, time.Millisecond)
+	releaseOnce()
+	require.Eventually(t, func() bool { return !hasRegistration(listener, "run-send-blocked") }, time.Second, time.Millisecond)
 	assertListenerStillServes(t, listener, client, "run-after-send")
 }
