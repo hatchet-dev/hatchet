@@ -472,17 +472,18 @@ WITH input AS (
     SELECT
         unnest($1::bigint[]) AS task_id,
         unnest($2::timestamptz[]) AS task_inserted_at,
-        unnest(cast($3::text[] as v1_task_initial_state[])) AS initial_state,
-        unnest_nd_1d($4::text[][]) AS concurrency_keys,
-        unnest($5::text[]) AS initial_state_reason,
-        unnest($6::jsonb[]) AS desired_worker_label,
-        unnest($7::uuid[]) AS triggering_event_external_id,
-        unnest($8::text[]) AS triggering_event_key,
-		unnest($9::text[]) AS batch_key,
-		unnest_nd_1d($10::integer[][]) AS concurrency_max_runs,
-		unnest($11::jsonb[]) AS triggers,
-		unnest($12::jsonb[]) AS dag_parent_task_run_ids,
-		unnest($13::jsonb[]) AS child_task_desired_worker_labels
+        unnest($3::jsonb[]) AS input,
+        unnest(cast($4::text[] as v1_task_initial_state[])) AS initial_state,
+        unnest_nd_1d($5::text[][]) AS concurrency_keys,
+        unnest($6::text[]) AS initial_state_reason,
+        unnest($7::jsonb[]) AS desired_worker_label,
+        unnest($8::uuid[]) AS triggering_event_external_id,
+        unnest($9::text[]) AS triggering_event_key,
+		unnest($10::text[]) AS batch_key,
+		unnest_nd_1d($11::integer[][]) AS concurrency_max_runs,
+		unnest($12::jsonb[]) AS triggers,
+		unnest($13::jsonb[]) AS dag_parent_task_run_ids,
+		unnest($14::jsonb[]) AS child_task_desired_worker_labels
 )
 
 UPDATE
@@ -491,6 +492,7 @@ SET
     retry_count = retry_count + 1,
     app_retry_count = 0,
     internal_retry_count = 0,
+    input = '{}'::jsonb,
     initial_state = i.initial_state,
     concurrency_keys = i.concurrency_keys,
     concurrency_max_runs = i.concurrency_max_runs,
@@ -519,6 +521,7 @@ RETURNING
 type ReplayTasksParams struct {
 	Taskids         []int64              `json:"taskids"`
 	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
+	Inputs          [][]byte             `json:"inputs"`
 	InitialStates   []string             `json:"initialstates"`
 	// FIXME: pgx doesn't like multi-dimensional arrays with different lengths, these types
 	// probably need to change. Current hack is to group tasks by their step id where these
@@ -540,6 +543,7 @@ func (q *Queries) ReplayTasks(ctx context.Context, db DBTX, arg ReplayTasksParam
 	rows, err := db.Query(ctx, replayTasks,
 		arg.Taskids,
 		arg.Taskinsertedats,
+		arg.Inputs,
 		arg.InitialStates,
 		arg.Concurrencykeys,
 		arg.InitialStateReasons,
