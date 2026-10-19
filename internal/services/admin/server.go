@@ -261,10 +261,29 @@ func (a *AdminServiceImpl) PauseRateLimit(ctx context.Context, req *contracts.Pa
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("paused_until is required"))
 	}
 
-	pause, err := a.repov1.RateLimit().PauseRateLimit(ctx, tenantId, req.Key, req.PausedUntil.AsTime())
+	until := req.PausedUntil.AsTime()
+
+	if time.Until(until) > v1.MaxRateLimitPauseDuration {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("paused_until can be at most %s in the future", v1.MaxRateLimitPauseDuration))
+	}
+
+	pause, newlyPaused, err := a.repov1.RateLimit().PauseRateLimit(ctx, tenantId, req.Key, until)
 
 	if err != nil {
 		return nil, err
+	}
+
+	// the task controller holds the runs already waiting on the key, so a large backlog doesn't slow down this call
+	if newlyPaused {
+		msg, err := tasktypes.NewRateLimitPausesChangedMessage(tenantId, true)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create rate limit paused message: %w", err)
+		}
+
+		if err := a.mqv1.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
+			return nil, fmt.Errorf("could not send rate limit paused message: %w", err)
+		}
 	}
 
 	if tenant.SchedulerPartitionId.Valid {

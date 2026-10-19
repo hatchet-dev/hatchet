@@ -217,7 +217,8 @@ SELECT
             CURRENT_TIMESTAMP
         ELSE
             rl."lastRefill"
-    END)::timestamp AS "lastRefill"
+    END)::timestamp AS "lastRefill",
+    p.paused_until AS "pausedUntil"
 FROM
     "RateLimit" rl
 LEFT JOIN
@@ -251,12 +252,13 @@ type ListRateLimitsForTenantNoMutateParams struct {
 }
 
 type ListRateLimitsForTenantNoMutateRow struct {
-	TenantId   uuid.UUID        `json:"tenantId"`
-	Key        string           `json:"key"`
-	LimitValue int32            `json:"limitValue"`
-	Value      int32            `json:"value"`
-	Window     string           `json:"window"`
-	LastRefill pgtype.Timestamp `json:"lastRefill"`
+	TenantId    uuid.UUID          `json:"tenantId"`
+	Key         string             `json:"key"`
+	LimitValue  int32              `json:"limitValue"`
+	Value       int32              `json:"value"`
+	Window      string             `json:"window"`
+	LastRefill  pgtype.Timestamp   `json:"lastRefill"`
+	PausedUntil pgtype.Timestamptz `json:"pausedUntil"`
 }
 
 // Returns the same results as ListRateLimitsForTenantWithMutate but does not update the rate limit values
@@ -282,6 +284,7 @@ func (q *Queries) ListRateLimitsForTenantNoMutate(ctx context.Context, db DBTX, 
 			&i.Value,
 			&i.Window,
 			&i.LastRefill,
+			&i.PausedUntil,
 		); err != nil {
 			return nil, err
 		}

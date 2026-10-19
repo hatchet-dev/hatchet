@@ -66,10 +66,10 @@ type tenantManager struct {
 	cleanup func()
 }
 
-func newTenantManager(cf *sharedConfig, tenantId uuid.UUID, resultsCh chan *QueueResults, concurrencyResultsCh chan *ConcurrencyResults, exts *Extensions) *tenantManager {
+func newTenantManager(cf *sharedConfig, tenantId uuid.UUID, resultsCh chan *QueueResults, concurrencyResultsCh chan *ConcurrencyResults, rateLimitPausesEndedCh chan<- uuid.UUID, exts *Extensions) *tenantManager {
 	tenantIdUUID := tenantId
 
-	rl := newRateLimiter(cf, tenantIdUUID)
+	rl := newRateLimiter(cf, tenantIdUUID, rateLimitPausesEndedCh)
 	s := newScheduler(cf, tenantIdUUID, rl, exts)
 	leaseManager, workersCh, queuesCh, concurrencyCh, batchesCh := newLeaseManager(cf, tenantIdUUID)
 

@@ -43,6 +43,7 @@ var ErrNoOptimisticSlots = fmt.Errorf("no optimistic slots for scheduling")
 type Pool interface {
 	GetResultsCh() chan *QueueResults
 	GetConcurrencyResultsCh() chan *ConcurrencyResults
+	GetRateLimitPausesEndedCh() chan uuid.UUID
 
 	// AddExtension registers a scheduler extension (metrics, autoscaling, ...)
 	// against the pool.

@@ -514,6 +514,8 @@ func (tc *TasksControllerImpl) handleBufferedMsgs(tenantId uuid.UUID, msgId stri
 		return tc.handleDurableRestoreTask(ctx, tenantId, payloads)
 	case msgqueue.MsgIDTogglePauseWorkflow:
 		return tc.handlePauseWorkflow(ctx, tenantId, payloads)
+	case msgqueue.MsgIDRateLimitPausesChanged:
+		return tc.handleRateLimitPausesChanged(ctx, tenantId, payloads)
 	}
 
 	return fmt.Errorf("unknown message id: %s", msgId)
@@ -1460,6 +1462,34 @@ func (tc *TasksControllerImpl) handlePauseWorkflow(ctx context.Context, tenantId
 	if len(queueNames) > 0 || len(concurrencyStrategyIds) > 0 {
 		if err := tc.notifySchedulerOfRequeuedItems(ctx, tenantId, queueNames, concurrencyStrategyIds); err != nil {
 			tc.l.Error().Ctx(ctx).Err(err).Msg("failed to notify scheduler after unpausing workflows")
+		}
+	}
+
+	return nil
+}
+
+func (tc *TasksControllerImpl) handleRateLimitPausesChanged(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
+	msgs := msgqueue.JSONConvert[tasktypes.RateLimitPausesChangedPayload](payloads)
+
+	anyPaused, anyEnded := false, false
+
+	for _, msg := range msgs {
+		if msg.Paused {
+			anyPaused = true
+		} else {
+			anyEnded = true
+		}
+	}
+
+	if anyPaused {
+		if err := tc.repov1.RateLimit().HoldRateLimitPausedQueuedTasks(ctx, tenantId); err != nil {
+			return fmt.Errorf("failed to hold tasks behind newly paused rate limits: %w", err)
+		}
+	}
+
+	if anyEnded {
+		if err := tc.requeueItemsForExpiredRateLimitPauses(ctx, tenantId); err != nil {
+			return err
 		}
 	}
 

@@ -315,3 +315,20 @@ func NewTogglePauseWorkflowMessage(tenantId, workflowId uuid.UUID, isPaused bool
 		},
 	)
 }
+
+type RateLimitPausesChangedPayload struct {
+	// Paused is true when a key was newly paused, and false when a pause ended
+	Paused bool
+}
+
+func NewRateLimitPausesChangedMessage(tenantId uuid.UUID, paused bool) (*msgqueue.Message, error) {
+	return msgqueue.NewTenantMessage(
+		tenantId,
+		msgqueue.MsgIDRateLimitPausesChanged,
+		false,
+		true,
+		RateLimitPausesChangedPayload{
+			Paused: paused,
+		},
+	)
+}

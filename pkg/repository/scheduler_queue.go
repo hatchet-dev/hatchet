@@ -505,7 +505,7 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 		}
 	}
 
-	if err = d.holdRateLimitPausedTasks(ctx, tx, tenantId, tasksToHold); err != nil {
+	if err = d.holdPausedTasks(ctx, tx, tenantId, tasksToHold); err != nil {
 		return nil, nil, err
 	}
 

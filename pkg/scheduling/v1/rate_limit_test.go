@@ -18,6 +18,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 type mockRateLimitRepo struct {
@@ -41,7 +42,11 @@ func (m *mockRateLimitRepo) DeleteRateLimits(ctx context.Context, tenantId uuid.
 	panic("not implemented")
 }
 
-func (m *mockRateLimitRepo) PauseRateLimit(ctx context.Context, tenantId uuid.UUID, key string, until time.Time) (*sqlcv1.V1RateLimitPause, error) {
+func (m *mockRateLimitRepo) PauseRateLimit(ctx context.Context, tenantId uuid.UUID, key string, until time.Time) (*sqlcv1.V1RateLimitPause, bool, error) {
+	panic("not implemented")
+}
+
+func (m *mockRateLimitRepo) HoldRateLimitPausedQueuedTasks(ctx context.Context, tenantId uuid.UUID) error {
 	panic("not implemented")
 }
 
@@ -677,6 +682,50 @@ func TestTenantManager_NotifyRateLimitsChangedRefreshesLimiter(t *testing.T) {
 
 	if assert.NotNil(t, tm.rl.dbRateLimits["key1"].pausedUntil) {
 		assert.True(t, pausedUntil.Equal(*tm.rl.dbRateLimits["key1"].pausedUntil))
+	}
+
+	mockRateLimitRepo.AssertExpectations(t)
+}
+
+func TestRateLimiter_FlushSignalsEndedPause(t *testing.T) {
+	l := zerolog.Nop()
+
+	pausedUntil := time.Now().UTC().Add(time.Hour)
+	nextRefill := time.Now().Add(time.Minute)
+
+	mockRateLimitRepo := &mockRateLimitRepo{}
+	mockRateLimitRepo.On("FlushRateLimits", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*sqlcv1.ListRateLimitsForTenantWithMutateRow{
+		{Key: "still-paused", Value: 10, PausedUntil: pgtype.Timestamptz{Time: pausedUntil, Valid: true}},
+		{Key: "ended", Value: 10},
+	}, &nextRefill, nil).Twice()
+
+	pausesEnded := make(chan uuid.UUID, 1)
+	tenantId := uuid.New()
+
+	r := &rateLimiter{
+		tenantId: tenantId,
+		dbRateLimits: rateLimitSet{
+			"still-paused": {key: "still-paused", val: 10, pausedUntil: &pausedUntil},
+		},
+		unacked:       make(map[int64]rateLimitSet),
+		unflushed:     make(rateLimitSet),
+		l:             &l,
+		rateLimitRepo: mockRateLimitRepo,
+		pausesEndedCh: pausesEnded,
+	}
+
+	require.NoError(t, r.refresh(context.Background(), time.Now().UTC()))
+	assert.Empty(t, pausesEnded, "a pause that is still active must not release held runs")
+
+	r.dbRateLimits["ended"] = &rateLimit{key: "ended", val: 10, pausedUntil: &pausedUntil}
+
+	require.NoError(t, r.refresh(context.Background(), time.Now().UTC()))
+
+	select {
+	case got := <-pausesEnded:
+		assert.Equal(t, tenantId, got)
+	default:
+		t.Fatal("a pause that ended must release held runs")
 	}
 
 	mockRateLimitRepo.AssertExpectations(t)

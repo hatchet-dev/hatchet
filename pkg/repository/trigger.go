@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -1567,48 +1568,56 @@ func (r *sharedRepository) triggerWorkflowsCore(
 		}
 	}
 
-	if len(pausedWorkflowIds) > 0 {
-		workflowIds := make([]uuid.UUID, 0, len(pausedWorkflowIds))
+	shouldHold := len(pausedWorkflowIds) > 0
 
-		for id := range pausedWorkflowIds {
-			workflowIds = append(workflowIds, id)
-		}
+	if !shouldHold {
+		shouldHold, err = r.tenantHasRateLimitPause(ctx, tx, tenantId)
 
-		if err := r.queries.MovePausedWorkflowQueueItems(ctx, tx, sqlcv1.MovePausedWorkflowQueueItemsParams{
-			Workflowids: workflowIds,
-			Tenantid:    tenantId,
-		}); err != nil {
-			return nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to move queue items for paused workflows: %w", err)
-		}
-
-		if err := r.queries.MovePausedWorkflowConcurrencySlots(ctx, tx, sqlcv1.MovePausedWorkflowConcurrencySlotsParams{
-			Workflowids: workflowIds,
-			Tenantid:    tenantId,
-		}); err != nil {
-			return nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to move concurrency slots for paused workflows: %w", err)
+		if err != nil {
+			return nil, nil, nil, nil, nil, nil, err
 		}
 	}
 
-	hasRateLimitPause, err := r.tenantHasRateLimitPause(ctx, tx, tenantId)
-
-	if err != nil {
-		return nil, nil, nil, nil, nil, nil, err
-	}
-
-	// held here so a task behind a paused key never fills a concurrency slot
-	if hasRateLimitPause && len(tasks) > 0 {
-		toHold := make([]TaskIdInsertedAtRetryCount, 0, len(tasks))
+	// held here so a task in a paused workflow or behind a paused key never fills a concurrency slot
+	if shouldHold {
+		toHold := make(map[TaskIdInsertedAtRetryCount]struct{}, len(tasks))
 
 		for _, task := range tasks {
-			toHold = append(toHold, TaskIdInsertedAtRetryCount{
+			toHold[TaskIdInsertedAtRetryCount{
 				Id:         task.ID,
 				InsertedAt: task.InsertedAt,
 				RetryCount: task.RetryCount,
-			})
+			}] = struct{}{}
 		}
 
-		if err := r.holdRateLimitPausedTasks(ctx, tx, tenantId, toHold); err != nil {
-			return nil, nil, nil, nil, nil, nil, err
+		// also catches runs of these workflows that were queued before the pause reached the workflow cache
+		if len(pausedWorkflowIds) > 0 {
+			workflowIds := make([]uuid.UUID, 0, len(pausedWorkflowIds))
+
+			for id := range pausedWorkflowIds {
+				workflowIds = append(workflowIds, id)
+			}
+
+			queued, err := r.queries.ListQueuedTasksForWorkflows(ctx, tx, sqlcv1.ListQueuedTasksForWorkflowsParams{
+				Tenantid:    tenantId,
+				Workflowids: workflowIds,
+			})
+
+			if err != nil {
+				return nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to list queued tasks for paused workflows: %w", err)
+			}
+
+			for _, row := range queued {
+				toHold[TaskIdInsertedAtRetryCount{
+					Id:         row.TaskID,
+					InsertedAt: row.TaskInsertedAt,
+					RetryCount: row.RetryCount,
+				}] = struct{}{}
+			}
+		}
+
+		if err := r.holdPausedTasks(ctx, tx, tenantId, slices.Collect(maps.Keys(toHold))); err != nil {
+			return nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to hold tasks for paused workflows or rate limits: %w", err)
 		}
 	}
 

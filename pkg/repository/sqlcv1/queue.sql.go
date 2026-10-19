@@ -775,24 +775,275 @@ func (q *Queries) GetStepSlotRequests(ctx context.Context, db DBTX, arg GetStepS
 	return items, nil
 }
 
-const holdRateLimitPausedWorkflowQueueItems = `-- name: HoldRateLimitPausedWorkflowQueueItems :exec
-UPDATE v1_paused_workflow_queue_item pqi
-SET rate_limit_paused_until = v1_task_rate_limit_paused_until(pqi.tenant_id, pqi.task_id, pqi.task_inserted_at, pqi.step_id)
-WHERE
-    pqi.workflow_id = ANY($1::UUID[])
-    AND pqi.tenant_id = $2::UUID
-    AND pqi.rate_limit_paused_until IS NULL
-    AND v1_task_rate_limit_paused_until(pqi.tenant_id, pqi.task_id, pqi.task_inserted_at, pqi.step_id) IS NOT NULL
+const holdConcurrencySlots = `-- name: HoldConcurrencySlots :exec
+WITH input AS (
+    SELECT
+        UNNEST($1::BIGINT[]) AS task_id,
+        UNNEST($2::TIMESTAMPTZ[]) AS task_inserted_at,
+        UNNEST($3::INTEGER[]) AS retry_count
+), waiting_tasks AS (
+    SELECT DISTINCT cs.task_id, cs.task_inserted_at, cs.task_retry_count
+    FROM v1_concurrency_slot cs
+    JOIN input i ON (cs.task_id, cs.task_inserted_at, cs.task_retry_count) = (i.task_id, i.task_inserted_at, i.retry_count)
+    WHERE
+        cs.tenant_id = $4::UUID
+        AND cs.is_filled = FALSE
+), held_tasks AS (
+    SELECT
+        t.id,
+        t.inserted_at,
+        t.retry_count,
+        COALESCE(w."isPaused", FALSE) AS workflow_paused,
+        v1_task_rate_limit_paused_until(t.tenant_id, t.id, t.inserted_at, t.step_id) AS rate_limit_paused_until
+    FROM waiting_tasks wt
+    JOIN v1_task t ON (t.id, t.inserted_at, t.retry_count) = (wt.task_id, wt.task_inserted_at, wt.task_retry_count)
+    JOIN "Workflow" w ON w."id" = t.workflow_id
+), deleted_slots AS (
+    DELETE FROM v1_concurrency_slot cs
+    USING held_tasks h
+    WHERE
+        (cs.task_id, cs.task_inserted_at, cs.task_retry_count) = (h.id, h.inserted_at, h.retry_count)
+        AND (h.workflow_paused OR h.rate_limit_paused_until IS NOT NULL)
+)
+INSERT INTO v1_paused_workflow_queue_item (
+    tenant_id,
+    queue,
+    task_id,
+    task_inserted_at,
+    external_id,
+    action_id,
+    step_id,
+    workflow_id,
+    workflow_run_id,
+    schedule_timeout_at,
+    step_timeout,
+    priority,
+    sticky,
+    desired_worker_id,
+    retry_count,
+    desired_worker_label,
+    batch_key,
+    rate_limit_paused_until
+)
+SELECT
+    t.tenant_id,
+    t.queue,
+    t.id,
+    t.inserted_at,
+    t.external_id,
+    t.action_id,
+    t.step_id,
+    t.workflow_id,
+    t.workflow_run_id,
+    (CURRENT_TIMESTAMP + convert_duration_to_interval(t.schedule_timeout))::TIMESTAMP(3),
+    t.step_timeout,
+    COALESCE(t.priority, 1),
+    t.sticky,
+    t.desired_worker_id,
+    t.retry_count,
+    t.desired_worker_label,
+    t.batch_key,
+    h.rate_limit_paused_until
+FROM held_tasks h
+JOIN v1_task t ON (t.id, t.inserted_at, t.retry_count) = (h.id, h.inserted_at, h.retry_count)
+WHERE h.workflow_paused OR h.rate_limit_paused_until IS NOT NULL
+ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
 `
 
-type HoldRateLimitPausedWorkflowQueueItemsParams struct {
-	Workflowids []uuid.UUID `json:"workflowids"`
-	Tenantid    uuid.UUID   `json:"tenantid"`
+type HoldConcurrencySlotsParams struct {
+	Taskids         []int64              `json:"taskids"`
+	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
+	Retrycounts     []int32              `json:"retrycounts"`
+	Tenantid        uuid.UUID            `json:"tenantid"`
 }
 
-// a workflow pause can hold a task before its rate limit key is paused, so the key must take over the hold when the workflow unpauses
-func (q *Queries) HoldRateLimitPausedWorkflowQueueItems(ctx context.Context, db DBTX, arg HoldRateLimitPausedWorkflowQueueItemsParams) error {
-	_, err := db.Exec(ctx, holdRateLimitPausedWorkflowQueueItems, arg.Workflowids, arg.Tenantid)
+func (q *Queries) HoldConcurrencySlots(ctx context.Context, db DBTX, arg HoldConcurrencySlotsParams) error {
+	_, err := db.Exec(ctx, holdConcurrencySlots,
+		arg.Taskids,
+		arg.Taskinsertedats,
+		arg.Retrycounts,
+		arg.Tenantid,
+	)
+	return err
+}
+
+const holdQueueItems = `-- name: HoldQueueItems :exec
+WITH input AS (
+    SELECT
+        UNNEST($1::BIGINT[]) AS task_id,
+        UNNEST($2::TIMESTAMPTZ[]) AS task_inserted_at,
+        UNNEST($3::INTEGER[]) AS retry_count
+), held_items AS (
+    SELECT
+        qi.id,
+        COALESCE(w."isPaused", FALSE) AS workflow_paused,
+        v1_task_rate_limit_paused_until(qi.tenant_id, qi.task_id, qi.task_inserted_at, qi.step_id) AS rate_limit_paused_until
+    FROM v1_queue_item qi
+    JOIN input i ON (qi.task_id, qi.task_inserted_at, qi.retry_count) = (i.task_id, i.task_inserted_at, i.retry_count)
+    JOIN "Workflow" w ON w."id" = qi.workflow_id
+    WHERE qi.tenant_id = $4::UUID
+), moved_items AS (
+    DELETE FROM v1_queue_item qi
+    USING held_items h
+    WHERE
+        qi.id = h.id
+        AND (h.workflow_paused OR h.rate_limit_paused_until IS NOT NULL)
+    RETURNING qi.id, qi.tenant_id, qi.queue, qi.task_id, qi.task_inserted_at, qi.external_id, qi.action_id, qi.step_id, qi.workflow_id, qi.workflow_run_id, qi.schedule_timeout_at, qi.step_timeout, qi.priority, qi.sticky, qi.desired_worker_id, qi.retry_count, qi.desired_worker_label, qi.batch_key
+), released_slots AS (
+    -- a held task must not keep its concurrency slots filled, or it blocks tasks that aren't paused
+    DELETE FROM v1_concurrency_slot cs
+    USING moved_items mi
+    WHERE (cs.task_id, cs.task_inserted_at, cs.task_retry_count) = (mi.task_id, mi.task_inserted_at, mi.retry_count)
+)
+INSERT INTO v1_paused_workflow_queue_item (
+    tenant_id,
+    queue,
+    task_id,
+    task_inserted_at,
+    external_id,
+    action_id,
+    step_id,
+    workflow_id,
+    workflow_run_id,
+    schedule_timeout_at,
+    step_timeout,
+    priority,
+    sticky,
+    desired_worker_id,
+    retry_count,
+    desired_worker_label,
+    batch_key,
+    rate_limit_paused_until
+)
+SELECT
+    mi.tenant_id,
+    mi.queue,
+    mi.task_id,
+    mi.task_inserted_at,
+    mi.external_id,
+    mi.action_id,
+    mi.step_id,
+    mi.workflow_id,
+    mi.workflow_run_id,
+    mi.schedule_timeout_at,
+    mi.step_timeout,
+    mi.priority,
+    mi.sticky,
+    mi.desired_worker_id,
+    mi.retry_count,
+    mi.desired_worker_label,
+    mi.batch_key,
+    h.rate_limit_paused_until
+FROM moved_items mi
+JOIN held_items h ON h.id = mi.id
+ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
+`
+
+type HoldQueueItemsParams struct {
+	Taskids         []int64              `json:"taskids"`
+	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
+	Retrycounts     []int32              `json:"retrycounts"`
+	Tenantid        uuid.UUID            `json:"tenantid"`
+}
+
+// holds the given tasks' queue items in v1_paused_workflow_queue_item while their workflow or one of their rate limit keys is paused
+func (q *Queries) HoldQueueItems(ctx context.Context, db DBTX, arg HoldQueueItemsParams) error {
+	_, err := db.Exec(ctx, holdQueueItems,
+		arg.Taskids,
+		arg.Taskinsertedats,
+		arg.Retrycounts,
+		arg.Tenantid,
+	)
+	return err
+}
+
+const holdRateLimitedQueueItems = `-- name: HoldRateLimitedQueueItems :exec
+WITH input AS (
+    SELECT
+        UNNEST($1::BIGINT[]) AS task_id,
+        UNNEST($2::TIMESTAMPTZ[]) AS task_inserted_at,
+        UNNEST($3::INTEGER[]) AS retry_count
+), held_items AS (
+    SELECT
+        rqi.task_id,
+        rqi.task_inserted_at,
+        rqi.retry_count,
+        COALESCE(w."isPaused", FALSE) AS workflow_paused,
+        v1_task_rate_limit_paused_until(rqi.tenant_id, rqi.task_id, rqi.task_inserted_at, rqi.step_id) AS rate_limit_paused_until
+    FROM v1_rate_limited_queue_items rqi
+    JOIN input i ON (rqi.task_id, rqi.task_inserted_at, rqi.retry_count) = (i.task_id, i.task_inserted_at, i.retry_count)
+    JOIN "Workflow" w ON w."id" = rqi.workflow_id
+    WHERE rqi.tenant_id = $4::UUID
+), moved_items AS (
+    DELETE FROM v1_rate_limited_queue_items rqi
+    USING held_items h
+    WHERE
+        (rqi.task_id, rqi.task_inserted_at, rqi.retry_count) = (h.task_id, h.task_inserted_at, h.retry_count)
+        AND (h.workflow_paused OR h.rate_limit_paused_until IS NOT NULL)
+    RETURNING rqi.requeue_after, rqi.tenant_id, rqi.queue, rqi.task_id, rqi.task_inserted_at, rqi.external_id, rqi.action_id, rqi.step_id, rqi.workflow_id, rqi.workflow_run_id, rqi.schedule_timeout_at, rqi.step_timeout, rqi.priority, rqi.sticky, rqi.desired_worker_id, rqi.retry_count, rqi.desired_worker_label, rqi.batch_key
+), released_slots AS (
+    DELETE FROM v1_concurrency_slot cs
+    USING moved_items mi
+    WHERE (cs.task_id, cs.task_inserted_at, cs.task_retry_count) = (mi.task_id, mi.task_inserted_at, mi.retry_count)
+)
+INSERT INTO v1_paused_workflow_queue_item (
+    tenant_id,
+    queue,
+    task_id,
+    task_inserted_at,
+    external_id,
+    action_id,
+    step_id,
+    workflow_id,
+    workflow_run_id,
+    schedule_timeout_at,
+    step_timeout,
+    priority,
+    sticky,
+    desired_worker_id,
+    retry_count,
+    desired_worker_label,
+    batch_key,
+    rate_limit_paused_until
+)
+SELECT
+    mi.tenant_id,
+    mi.queue,
+    mi.task_id,
+    mi.task_inserted_at,
+    mi.external_id,
+    mi.action_id,
+    mi.step_id,
+    mi.workflow_id,
+    mi.workflow_run_id,
+    mi.schedule_timeout_at,
+    mi.step_timeout,
+    mi.priority,
+    mi.sticky,
+    mi.desired_worker_id,
+    mi.retry_count,
+    mi.desired_worker_label,
+    mi.batch_key,
+    h.rate_limit_paused_until
+FROM moved_items mi
+JOIN held_items h ON (h.task_id, h.task_inserted_at, h.retry_count) = (mi.task_id, mi.task_inserted_at, mi.retry_count)
+ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
+`
+
+type HoldRateLimitedQueueItemsParams struct {
+	Taskids         []int64              `json:"taskids"`
+	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
+	Retrycounts     []int32              `json:"retrycounts"`
+	Tenantid        uuid.UUID            `json:"tenantid"`
+}
+
+func (q *Queries) HoldRateLimitedQueueItems(ctx context.Context, db DBTX, arg HoldRateLimitedQueueItemsParams) error {
+	_, err := db.Exec(ctx, holdRateLimitedQueueItems,
+		arg.Taskids,
+		arg.Taskinsertedats,
+		arg.Retrycounts,
+		arg.Tenantid,
+	)
 	return err
 }
 
@@ -1441,6 +1692,59 @@ func (q *Queries) ListQueueItemsForTasks(ctx context.Context, db DBTX, arg ListQ
 	return items, nil
 }
 
+const listQueuedTasksForWorkflows = `-- name: ListQueuedTasksForWorkflows :many
+SELECT qi.task_id, qi.task_inserted_at, qi.retry_count
+FROM v1_queue_item qi
+WHERE
+    qi.tenant_id = $1::UUID
+    AND qi.workflow_id = ANY($2::UUID[])
+UNION
+SELECT rqi.task_id, rqi.task_inserted_at, rqi.retry_count
+FROM v1_rate_limited_queue_items rqi
+WHERE
+    rqi.tenant_id = $1::UUID
+    AND rqi.workflow_id = ANY($2::UUID[])
+UNION
+SELECT cs.task_id, cs.task_inserted_at, cs.task_retry_count
+FROM v1_concurrency_slot cs
+WHERE
+    cs.tenant_id = $1::UUID
+    AND cs.workflow_id = ANY($2::UUID[])
+    AND cs.is_filled = FALSE
+`
+
+type ListQueuedTasksForWorkflowsParams struct {
+	Tenantid    uuid.UUID   `json:"tenantid"`
+	Workflowids []uuid.UUID `json:"workflowids"`
+}
+
+type ListQueuedTasksForWorkflowsRow struct {
+	TaskID         int64              `json:"task_id"`
+	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
+	RetryCount     int32              `json:"retry_count"`
+}
+
+// the workflows' waiting tasks, wherever they wait before a worker is assigned
+func (q *Queries) ListQueuedTasksForWorkflows(ctx context.Context, db DBTX, arg ListQueuedTasksForWorkflowsParams) ([]*ListQueuedTasksForWorkflowsRow, error) {
+	rows, err := db.Query(ctx, listQueuedTasksForWorkflows, arg.Tenantid, arg.Workflowids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListQueuedTasksForWorkflowsRow
+	for rows.Next() {
+		var i ListQueuedTasksForWorkflowsRow
+		if err := rows.Scan(&i.TaskID, &i.TaskInsertedAt, &i.RetryCount); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listQueues = `-- name: ListQueues :many
 SELECT
     tenant_id, name, last_active
@@ -1565,7 +1869,7 @@ WHERE
         WHERE
             qi.workflow_id = w."id"
             AND qi.tenant_id = $1::UUID
-            -- items held by a paused rate limit key are released through ReleaseDueRateLimitPausedQueueItems
+            -- items held by a paused rate limit key are released through ReleaseDueHeldQueueItems
             AND qi.rate_limit_paused_until IS NULL
     )
 `
@@ -1746,230 +2050,6 @@ func (q *Queries) MoveBatchedQueueItems(ctx context.Context, db DBTX, ids []int6
 	return items, nil
 }
 
-const movePausedWorkflowConcurrencySlots = `-- name: MovePausedWorkflowConcurrencySlots :exec
-WITH tasks_to_move AS (
-    SELECT DISTINCT cs.task_id, cs.task_inserted_at, cs.task_retry_count
-    FROM v1_concurrency_slot cs
-    WHERE
-        cs.workflow_id = ANY($1::UUID[])
-        AND cs.tenant_id = $2::UUID
-        AND cs.is_filled = FALSE
-        AND EXISTS (
-            SELECT 1
-            FROM "Workflow" w
-            WHERE w."id" = cs.workflow_id AND w."isPaused"
-        )
-), deleted_slots AS (
-    DELETE FROM v1_concurrency_slot cs
-    USING tasks_to_move p
-    WHERE
-        cs.task_id = p.task_id
-        AND cs.task_inserted_at = p.task_inserted_at
-        AND cs.task_retry_count = p.task_retry_count
-    RETURNING cs.task_id
-)
-
-INSERT INTO v1_paused_workflow_queue_item (
-    tenant_id,
-    queue,
-    task_id,
-    task_inserted_at,
-    external_id,
-    action_id,
-    step_id,
-    workflow_id,
-    workflow_run_id,
-    schedule_timeout_at,
-    step_timeout,
-    priority,
-    sticky,
-    desired_worker_id,
-    retry_count,
-    desired_worker_label,
-    batch_key
-)
-SELECT
-    t.tenant_id,
-    t.queue,
-    t.id,
-    t.inserted_at,
-    t.external_id,
-    t.action_id,
-    t.step_id,
-    t.workflow_id,
-    t.workflow_run_id,
-    (CURRENT_TIMESTAMP + convert_duration_to_interval(t.schedule_timeout))::TIMESTAMP(3),
-    t.step_timeout,
-    COALESCE(t.priority, 1),
-    t.sticky,
-    t.desired_worker_id,
-    t.retry_count,
-    t.desired_worker_label,
-    t.batch_key
-FROM tasks_to_move p
-JOIN v1_task t ON (t.id, t.inserted_at, t.retry_count) = (p.task_id, p.task_inserted_at, p.task_retry_count)
-ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
-RETURNING tenant_id, task_id, task_inserted_at, retry_count
-`
-
-type MovePausedWorkflowConcurrencySlotsParams struct {
-	Workflowids []uuid.UUID `json:"workflowids"`
-	Tenantid    uuid.UUID   `json:"tenantid"`
-}
-
-func (q *Queries) MovePausedWorkflowConcurrencySlots(ctx context.Context, db DBTX, arg MovePausedWorkflowConcurrencySlotsParams) error {
-	_, err := db.Exec(ctx, movePausedWorkflowConcurrencySlots, arg.Workflowids, arg.Tenantid)
-	return err
-}
-
-const movePausedWorkflowQueueItems = `-- name: MovePausedWorkflowQueueItems :exec
-WITH moved_items AS (
-    DELETE FROM v1_queue_item qi
-    WHERE
-        qi.workflow_id = ANY($1::UUID[])
-        AND qi.tenant_id = $2::UUID
-        AND EXISTS (
-            SELECT 1
-            FROM "Workflow" w
-            WHERE w."id" = qi.workflow_id AND w."isPaused"
-        )
-    RETURNING id, tenant_id, queue, task_id, task_inserted_at, external_id, action_id, step_id, workflow_id, workflow_run_id, schedule_timeout_at, step_timeout, priority, sticky, desired_worker_id, retry_count, desired_worker_label, batch_key
-), released_slots AS (
-    DELETE FROM v1_concurrency_slot cs
-    USING moved_items mi
-    WHERE
-        cs.task_id = mi.task_id
-        AND cs.task_inserted_at = mi.task_inserted_at
-        AND cs.task_retry_count = mi.retry_count
-    RETURNING cs.task_id
-)
-
-INSERT INTO v1_paused_workflow_queue_item (
-    tenant_id,
-    queue,
-    task_id,
-    task_inserted_at,
-    external_id,
-    action_id,
-    step_id,
-    workflow_id,
-    workflow_run_id,
-    schedule_timeout_at,
-    step_timeout,
-    priority,
-    sticky,
-    desired_worker_id,
-    retry_count,
-    desired_worker_label,
-    batch_key
-)
-SELECT
-    tenant_id,
-    queue,
-    task_id,
-    task_inserted_at,
-    external_id,
-    action_id,
-    step_id,
-    workflow_id,
-    workflow_run_id,
-    schedule_timeout_at,
-    step_timeout,
-    priority,
-    sticky,
-    desired_worker_id,
-    retry_count,
-    desired_worker_label,
-    batch_key
-FROM moved_items
-ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
-RETURNING tenant_id, task_id, task_inserted_at, retry_count
-`
-
-type MovePausedWorkflowQueueItemsParams struct {
-	Workflowids []uuid.UUID `json:"workflowids"`
-	Tenantid    uuid.UUID   `json:"tenantid"`
-}
-
-func (q *Queries) MovePausedWorkflowQueueItems(ctx context.Context, db DBTX, arg MovePausedWorkflowQueueItemsParams) error {
-	_, err := db.Exec(ctx, movePausedWorkflowQueueItems, arg.Workflowids, arg.Tenantid)
-	return err
-}
-
-const movePausedWorkflowRateLimitedQueueItems = `-- name: MovePausedWorkflowRateLimitedQueueItems :exec
-WITH moved_items AS (
-    DELETE FROM v1_rate_limited_queue_items qi
-    WHERE
-        qi.workflow_id = ANY($1::UUID[])
-        AND qi.tenant_id = $2::UUID
-        AND EXISTS (
-            SELECT 1
-            FROM "Workflow" w
-            WHERE w."id" = qi.workflow_id AND w."isPaused"
-        )
-    RETURNING requeue_after, tenant_id, queue, task_id, task_inserted_at, external_id, action_id, step_id, workflow_id, workflow_run_id, schedule_timeout_at, step_timeout, priority, sticky, desired_worker_id, retry_count, desired_worker_label, batch_key
-), released_slots AS (
-    DELETE FROM v1_concurrency_slot cs
-    USING moved_items mi
-    WHERE
-        cs.task_id = mi.task_id
-        AND cs.task_inserted_at = mi.task_inserted_at
-        AND cs.task_retry_count = mi.retry_count
-    RETURNING cs.task_id
-)
-
-INSERT INTO v1_paused_workflow_queue_item (
-    tenant_id,
-    queue,
-    task_id,
-    task_inserted_at,
-    external_id,
-    action_id,
-    step_id,
-    workflow_id,
-    workflow_run_id,
-    schedule_timeout_at,
-    step_timeout,
-    priority,
-    sticky,
-    desired_worker_id,
-    retry_count,
-    desired_worker_label,
-    batch_key
-)
-SELECT
-    tenant_id,
-    queue,
-    task_id,
-    task_inserted_at,
-    external_id,
-    action_id,
-    step_id,
-    workflow_id,
-    workflow_run_id,
-    schedule_timeout_at,
-    step_timeout,
-    priority,
-    sticky,
-    desired_worker_id,
-    retry_count,
-    desired_worker_label,
-    batch_key
-FROM moved_items
-ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
-RETURNING tenant_id, task_id, task_inserted_at, retry_count
-`
-
-type MovePausedWorkflowRateLimitedQueueItemsParams struct {
-	Workflowids []uuid.UUID `json:"workflowids"`
-	Tenantid    uuid.UUID   `json:"tenantid"`
-}
-
-func (q *Queries) MovePausedWorkflowRateLimitedQueueItems(ctx context.Context, db DBTX, arg MovePausedWorkflowRateLimitedQueueItemsParams) error {
-	_, err := db.Exec(ctx, movePausedWorkflowRateLimitedQueueItems, arg.Workflowids, arg.Tenantid)
-	return err
-}
-
 const moveQueueItemsToBatchedQueue = `-- name: MoveQueueItemsToBatchedQueue :many
 WITH locked_qis AS (
     SELECT
@@ -2057,269 +2137,6 @@ func (q *Queries) MoveQueueItemsToBatchedQueue(ctx context.Context, db DBTX, ids
 		return nil, err
 	}
 	return items, nil
-}
-
-const moveRateLimitPausedConcurrencySlots = `-- name: MoveRateLimitPausedConcurrencySlots :exec
-WITH input AS (
-    SELECT
-        UNNEST($1::BIGINT[]) AS task_id,
-        UNNEST($2::TIMESTAMPTZ[]) AS task_inserted_at,
-        UNNEST($3::INTEGER[]) AS retry_count
-), waiting_tasks AS (
-    SELECT DISTINCT cs.task_id, cs.task_inserted_at, cs.task_retry_count
-    FROM v1_concurrency_slot cs
-    JOIN input i ON (cs.task_id, cs.task_inserted_at, cs.task_retry_count) = (i.task_id, i.task_inserted_at, i.retry_count)
-    WHERE
-        cs.tenant_id = $4::UUID
-        AND cs.is_filled = FALSE
-), tasks_to_move AS (
-    SELECT
-        t.id,
-        t.inserted_at,
-        t.retry_count,
-        v1_task_rate_limit_paused_until(t.tenant_id, t.id, t.inserted_at, t.step_id) AS paused_until
-    FROM waiting_tasks w
-    JOIN v1_task t ON (t.id, t.inserted_at, t.retry_count) = (w.task_id, w.task_inserted_at, w.task_retry_count)
-), deleted_slots AS (
-    DELETE FROM v1_concurrency_slot cs
-    USING tasks_to_move p
-    WHERE
-        (cs.task_id, cs.task_inserted_at, cs.task_retry_count) = (p.id, p.inserted_at, p.retry_count)
-        AND p.paused_until IS NOT NULL
-)
-INSERT INTO v1_paused_workflow_queue_item (
-    tenant_id,
-    queue,
-    task_id,
-    task_inserted_at,
-    external_id,
-    action_id,
-    step_id,
-    workflow_id,
-    workflow_run_id,
-    schedule_timeout_at,
-    step_timeout,
-    priority,
-    sticky,
-    desired_worker_id,
-    retry_count,
-    desired_worker_label,
-    batch_key,
-    rate_limit_paused_until
-)
-SELECT
-    t.tenant_id,
-    t.queue,
-    t.id,
-    t.inserted_at,
-    t.external_id,
-    t.action_id,
-    t.step_id,
-    t.workflow_id,
-    t.workflow_run_id,
-    (CURRENT_TIMESTAMP + convert_duration_to_interval(t.schedule_timeout))::TIMESTAMP(3),
-    t.step_timeout,
-    COALESCE(t.priority, 1),
-    t.sticky,
-    t.desired_worker_id,
-    t.retry_count,
-    t.desired_worker_label,
-    t.batch_key,
-    p.paused_until
-FROM tasks_to_move p
-JOIN v1_task t ON (t.id, t.inserted_at, t.retry_count) = (p.id, p.inserted_at, p.retry_count)
-WHERE p.paused_until IS NOT NULL
-ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
-`
-
-type MoveRateLimitPausedConcurrencySlotsParams struct {
-	Taskids         []int64              `json:"taskids"`
-	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
-	Retrycounts     []int32              `json:"retrycounts"`
-	Tenantid        uuid.UUID            `json:"tenantid"`
-}
-
-func (q *Queries) MoveRateLimitPausedConcurrencySlots(ctx context.Context, db DBTX, arg MoveRateLimitPausedConcurrencySlotsParams) error {
-	_, err := db.Exec(ctx, moveRateLimitPausedConcurrencySlots,
-		arg.Taskids,
-		arg.Taskinsertedats,
-		arg.Retrycounts,
-		arg.Tenantid,
-	)
-	return err
-}
-
-const moveRateLimitPausedQueueItems = `-- name: MoveRateLimitPausedQueueItems :exec
-WITH input AS (
-    SELECT
-        UNNEST($1::BIGINT[]) AS task_id,
-        UNNEST($2::TIMESTAMPTZ[]) AS task_inserted_at,
-        UNNEST($3::INTEGER[]) AS retry_count
-), held_items AS (
-    SELECT
-        qi.id,
-        v1_task_rate_limit_paused_until(qi.tenant_id, qi.task_id, qi.task_inserted_at, qi.step_id) AS paused_until
-    FROM v1_queue_item qi
-    JOIN input i ON (qi.task_id, qi.task_inserted_at, qi.retry_count) = (i.task_id, i.task_inserted_at, i.retry_count)
-    WHERE qi.tenant_id = $4::UUID
-), moved_items AS (
-    DELETE FROM v1_queue_item qi
-    USING held_items h
-    WHERE qi.id = h.id AND h.paused_until IS NOT NULL
-    RETURNING qi.id, qi.tenant_id, qi.queue, qi.task_id, qi.task_inserted_at, qi.external_id, qi.action_id, qi.step_id, qi.workflow_id, qi.workflow_run_id, qi.schedule_timeout_at, qi.step_timeout, qi.priority, qi.sticky, qi.desired_worker_id, qi.retry_count, qi.desired_worker_label, qi.batch_key
-), released_slots AS (
-    -- a held task must not keep its concurrency slots filled, or it blocks tasks on other keys
-    DELETE FROM v1_concurrency_slot cs
-    USING moved_items mi
-    WHERE (cs.task_id, cs.task_inserted_at, cs.task_retry_count) = (mi.task_id, mi.task_inserted_at, mi.retry_count)
-)
-INSERT INTO v1_paused_workflow_queue_item (
-    tenant_id,
-    queue,
-    task_id,
-    task_inserted_at,
-    external_id,
-    action_id,
-    step_id,
-    workflow_id,
-    workflow_run_id,
-    schedule_timeout_at,
-    step_timeout,
-    priority,
-    sticky,
-    desired_worker_id,
-    retry_count,
-    desired_worker_label,
-    batch_key,
-    rate_limit_paused_until
-)
-SELECT
-    mi.tenant_id,
-    mi.queue,
-    mi.task_id,
-    mi.task_inserted_at,
-    mi.external_id,
-    mi.action_id,
-    mi.step_id,
-    mi.workflow_id,
-    mi.workflow_run_id,
-    mi.schedule_timeout_at,
-    mi.step_timeout,
-    mi.priority,
-    mi.sticky,
-    mi.desired_worker_id,
-    mi.retry_count,
-    mi.desired_worker_label,
-    mi.batch_key,
-    h.paused_until
-FROM moved_items mi
-JOIN held_items h ON h.id = mi.id
-ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
-`
-
-type MoveRateLimitPausedQueueItemsParams struct {
-	Taskids         []int64              `json:"taskids"`
-	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
-	Retrycounts     []int32              `json:"retrycounts"`
-	Tenantid        uuid.UUID            `json:"tenantid"`
-}
-
-func (q *Queries) MoveRateLimitPausedQueueItems(ctx context.Context, db DBTX, arg MoveRateLimitPausedQueueItemsParams) error {
-	_, err := db.Exec(ctx, moveRateLimitPausedQueueItems,
-		arg.Taskids,
-		arg.Taskinsertedats,
-		arg.Retrycounts,
-		arg.Tenantid,
-	)
-	return err
-}
-
-const moveRateLimitPausedRateLimitedQueueItems = `-- name: MoveRateLimitPausedRateLimitedQueueItems :exec
-WITH input AS (
-    SELECT
-        UNNEST($1::BIGINT[]) AS task_id,
-        UNNEST($2::TIMESTAMPTZ[]) AS task_inserted_at,
-        UNNEST($3::INTEGER[]) AS retry_count
-), held_items AS (
-    SELECT
-        rqi.task_id,
-        rqi.task_inserted_at,
-        rqi.retry_count,
-        v1_task_rate_limit_paused_until(rqi.tenant_id, rqi.task_id, rqi.task_inserted_at, rqi.step_id) AS paused_until
-    FROM v1_rate_limited_queue_items rqi
-    JOIN input i ON (rqi.task_id, rqi.task_inserted_at, rqi.retry_count) = (i.task_id, i.task_inserted_at, i.retry_count)
-    WHERE rqi.tenant_id = $4::UUID
-), moved_items AS (
-    DELETE FROM v1_rate_limited_queue_items rqi
-    USING held_items h
-    WHERE
-        (rqi.task_id, rqi.task_inserted_at, rqi.retry_count) = (h.task_id, h.task_inserted_at, h.retry_count)
-        AND h.paused_until IS NOT NULL
-    RETURNING rqi.requeue_after, rqi.tenant_id, rqi.queue, rqi.task_id, rqi.task_inserted_at, rqi.external_id, rqi.action_id, rqi.step_id, rqi.workflow_id, rqi.workflow_run_id, rqi.schedule_timeout_at, rqi.step_timeout, rqi.priority, rqi.sticky, rqi.desired_worker_id, rqi.retry_count, rqi.desired_worker_label, rqi.batch_key
-), released_slots AS (
-    DELETE FROM v1_concurrency_slot cs
-    USING moved_items mi
-    WHERE (cs.task_id, cs.task_inserted_at, cs.task_retry_count) = (mi.task_id, mi.task_inserted_at, mi.retry_count)
-)
-INSERT INTO v1_paused_workflow_queue_item (
-    tenant_id,
-    queue,
-    task_id,
-    task_inserted_at,
-    external_id,
-    action_id,
-    step_id,
-    workflow_id,
-    workflow_run_id,
-    schedule_timeout_at,
-    step_timeout,
-    priority,
-    sticky,
-    desired_worker_id,
-    retry_count,
-    desired_worker_label,
-    batch_key,
-    rate_limit_paused_until
-)
-SELECT
-    mi.tenant_id,
-    mi.queue,
-    mi.task_id,
-    mi.task_inserted_at,
-    mi.external_id,
-    mi.action_id,
-    mi.step_id,
-    mi.workflow_id,
-    mi.workflow_run_id,
-    mi.schedule_timeout_at,
-    mi.step_timeout,
-    mi.priority,
-    mi.sticky,
-    mi.desired_worker_id,
-    mi.retry_count,
-    mi.desired_worker_label,
-    mi.batch_key,
-    h.paused_until
-FROM moved_items mi
-JOIN held_items h ON (h.task_id, h.task_inserted_at, h.retry_count) = (mi.task_id, mi.task_inserted_at, mi.retry_count)
-ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
-`
-
-type MoveRateLimitPausedRateLimitedQueueItemsParams struct {
-	Taskids         []int64              `json:"taskids"`
-	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
-	Retrycounts     []int32              `json:"retrycounts"`
-	Tenantid        uuid.UUID            `json:"tenantid"`
-}
-
-func (q *Queries) MoveRateLimitPausedRateLimitedQueueItems(ctx context.Context, db DBTX, arg MoveRateLimitPausedRateLimitedQueueItemsParams) error {
-	_, err := db.Exec(ctx, moveRateLimitPausedRateLimitedQueueItems,
-		arg.Taskids,
-		arg.Taskinsertedats,
-		arg.Retrycounts,
-		arg.Tenantid,
-	)
-	return err
 }
 
 const moveRateLimitedQueueItems = `-- name: MoveRateLimitedQueueItems :many
@@ -2459,50 +2276,60 @@ func (q *Queries) ReactivateInactiveQueuesWithItems(ctx context.Context, db DBTX
 	return db.Exec(ctx, reactivateInactiveQueuesWithItems)
 }
 
-const releaseDueRateLimitPausedQueueItems = `-- name: ReleaseDueRateLimitPausedQueueItems :many
-WITH due AS (
+const releaseDueHeldQueueItems = `-- name: ReleaseDueHeldQueueItems :many
+WITH candidates AS (
     SELECT
         pqi.task_id,
         pqi.task_inserted_at,
         pqi.retry_count,
-        pqi.workflow_id,
         COALESCE(w."isPaused", FALSE) AS workflow_paused,
-        v1_task_rate_limit_paused_until(pqi.tenant_id, pqi.task_id, pqi.task_inserted_at, pqi.step_id) AS paused_until
+        v1_task_rate_limit_paused_until(pqi.tenant_id, pqi.task_id, pqi.task_inserted_at, pqi.step_id) AS rate_limit_paused_until
     FROM v1_paused_workflow_queue_item pqi
     JOIN "Workflow" w ON w."id" = pqi.workflow_id
     WHERE
         pqi.tenant_id = $1::UUID
         AND pqi.rate_limit_paused_until <= NOW()
     ORDER BY pqi.task_inserted_at, pqi.task_id, pqi.retry_count
+    LIMIT $2::INT
     FOR UPDATE OF pqi SKIP LOCKED
 ), still_held AS (
-    -- an extended pause holds the item until its new end, and a paused workflow hands it back to the workflow unpause
     UPDATE v1_paused_workflow_queue_item pqi
-    SET rate_limit_paused_until = d.paused_until
-    FROM due d
+    SET rate_limit_paused_until = c.rate_limit_paused_until
+    FROM candidates c
     WHERE
-        (pqi.task_inserted_at, pqi.task_id, pqi.retry_count) = (d.task_inserted_at, d.task_id, d.retry_count)
-        AND (d.paused_until IS NOT NULL OR d.workflow_paused)
+        (pqi.task_inserted_at, pqi.task_id, pqi.retry_count) = (c.task_inserted_at, c.task_id, c.retry_count)
+        AND (c.workflow_paused OR c.rate_limit_paused_until IS NOT NULL)
 )
-SELECT DISTINCT workflow_id
-FROM due
-WHERE paused_until IS NULL AND NOT workflow_paused
+SELECT task_id, task_inserted_at, retry_count
+FROM candidates
+WHERE NOT workflow_paused AND rate_limit_paused_until IS NULL
 `
 
-// returns the workflows with held items whose pauses have all ended, so RequeuePausedWorkflowQueueItems can release them
-func (q *Queries) ReleaseDueRateLimitPausedQueueItems(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]uuid.UUID, error) {
-	rows, err := db.Query(ctx, releaseDueRateLimitPausedQueueItems, tenantid)
+type ReleaseDueHeldQueueItemsParams struct {
+	Tenantid  uuid.UUID `json:"tenantid"`
+	Batchsize int32     `json:"batchsize"`
+}
+
+type ReleaseDueHeldQueueItemsRow struct {
+	TaskID         int64              `json:"task_id"`
+	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
+	RetryCount     int32              `json:"retry_count"`
+}
+
+// the same as ReleaseHeldQueueItemsForWorkflows, for the tenant's items whose rate limit deadline has passed
+func (q *Queries) ReleaseDueHeldQueueItems(ctx context.Context, db DBTX, arg ReleaseDueHeldQueueItemsParams) ([]*ReleaseDueHeldQueueItemsRow, error) {
+	rows, err := db.Query(ctx, releaseDueHeldQueueItems, arg.Tenantid, arg.Batchsize)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []uuid.UUID
+	var items []*ReleaseDueHeldQueueItemsRow
 	for rows.Next() {
-		var workflow_id uuid.UUID
-		if err := rows.Scan(&workflow_id); err != nil {
+		var i ReleaseDueHeldQueueItemsRow
+		if err := rows.Scan(&i.TaskID, &i.TaskInsertedAt, &i.RetryCount); err != nil {
 			return nil, err
 		}
-		items = append(items, workflow_id)
+		items = append(items, &i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -2510,16 +2337,80 @@ func (q *Queries) ReleaseDueRateLimitPausedQueueItems(ctx context.Context, db DB
 	return items, nil
 }
 
-const requeuePausedWorkflowConcurrencySlots = `-- name: RequeuePausedWorkflowConcurrencySlots :many
-WITH ready_items AS (
-    SELECT pqi.tenant_id, pqi.queue, pqi.task_id, pqi.task_inserted_at, pqi.external_id, pqi.action_id, pqi.step_id, pqi.workflow_id, pqi.workflow_run_id, pqi.schedule_timeout_at, pqi.step_timeout, pqi.priority, pqi.sticky, pqi.desired_worker_id, pqi.retry_count, pqi.desired_worker_label, pqi.batch_key, pqi.rate_limit_paused_until
+const releaseHeldQueueItemsForWorkflows = `-- name: ReleaseHeldQueueItemsForWorkflows :many
+WITH candidates AS (
+    SELECT
+        pqi.task_id,
+        pqi.task_inserted_at,
+        pqi.retry_count,
+        COALESCE(w."isPaused", FALSE) AS workflow_paused,
+        v1_task_rate_limit_paused_until(pqi.tenant_id, pqi.task_id, pqi.task_inserted_at, pqi.step_id) AS rate_limit_paused_until
     FROM v1_paused_workflow_queue_item pqi
-    JOIN v1_task t ON (t.id, t.inserted_at, t.retry_count) = (pqi.task_id, pqi.task_inserted_at, pqi.retry_count)
+    JOIN "Workflow" w ON w."id" = pqi.workflow_id
     WHERE
         pqi.workflow_id = ANY($1::UUID[])
         AND pqi.tenant_id = $2::UUID
-        -- items still held by a paused rate limit key are released through ReleaseDueRateLimitPausedQueueItems
-        AND (pqi.rate_limit_paused_until IS NULL OR pqi.rate_limit_paused_until <= NOW())
+    ORDER BY pqi.task_inserted_at, pqi.task_id, pqi.retry_count
+    FOR UPDATE OF pqi SKIP LOCKED
+), still_held AS (
+    UPDATE v1_paused_workflow_queue_item pqi
+    SET rate_limit_paused_until = c.rate_limit_paused_until
+    FROM candidates c
+    WHERE
+        (pqi.task_inserted_at, pqi.task_id, pqi.retry_count) = (c.task_inserted_at, c.task_id, c.retry_count)
+        AND (c.workflow_paused OR c.rate_limit_paused_until IS NOT NULL)
+        AND pqi.rate_limit_paused_until IS DISTINCT FROM c.rate_limit_paused_until
+)
+SELECT task_id, task_inserted_at, retry_count
+FROM candidates
+WHERE NOT workflow_paused AND rate_limit_paused_until IS NULL
+`
+
+type ReleaseHeldQueueItemsForWorkflowsParams struct {
+	Workflowids []uuid.UUID `json:"workflowids"`
+	Tenantid    uuid.UUID   `json:"tenantid"`
+}
+
+type ReleaseHeldQueueItemsForWorkflowsRow struct {
+	TaskID         int64              `json:"task_id"`
+	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
+	RetryCount     int32              `json:"retry_count"`
+}
+
+// returns the workflows' held items that nothing holds any more; items still held get their rate limit deadline refreshed
+func (q *Queries) ReleaseHeldQueueItemsForWorkflows(ctx context.Context, db DBTX, arg ReleaseHeldQueueItemsForWorkflowsParams) ([]*ReleaseHeldQueueItemsForWorkflowsRow, error) {
+	rows, err := db.Query(ctx, releaseHeldQueueItemsForWorkflows, arg.Workflowids, arg.Tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ReleaseHeldQueueItemsForWorkflowsRow
+	for rows.Next() {
+		var i ReleaseHeldQueueItemsForWorkflowsRow
+		if err := rows.Scan(&i.TaskID, &i.TaskInsertedAt, &i.RetryCount); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const requeueHeldConcurrencySlots = `-- name: RequeueHeldConcurrencySlots :many
+WITH input AS (
+    SELECT
+        UNNEST($1::BIGINT[]) AS task_id,
+        UNNEST($2::TIMESTAMPTZ[]) AS task_inserted_at,
+        UNNEST($3::INTEGER[]) AS retry_count
+), ready_items AS (
+    SELECT pqi.tenant_id, pqi.queue, pqi.task_id, pqi.task_inserted_at, pqi.external_id, pqi.action_id, pqi.step_id, pqi.workflow_id, pqi.workflow_run_id, pqi.schedule_timeout_at, pqi.step_timeout, pqi.priority, pqi.sticky, pqi.desired_worker_id, pqi.retry_count, pqi.desired_worker_label, pqi.batch_key, pqi.rate_limit_paused_until
+    FROM v1_paused_workflow_queue_item pqi
+    JOIN input i ON (pqi.task_inserted_at, pqi.task_id, pqi.retry_count) = (i.task_inserted_at, i.task_id, i.retry_count)
+    JOIN v1_task t ON (t.id, t.inserted_at, t.retry_count) = (pqi.task_id, pqi.task_inserted_at, pqi.retry_count)
+    WHERE
+        pqi.tenant_id = $4::UUID
         AND t.concurrency_strategy_ids[1] IS NOT NULL
     ORDER BY pqi.task_inserted_at, pqi.task_id, pqi.retry_count
     FOR UPDATE OF pqi SKIP LOCKED
@@ -2592,13 +2483,20 @@ ON CONFLICT (task_id, task_inserted_at, task_retry_count, strategy_id) DO NOTHIN
 RETURNING strategy_id
 `
 
-type RequeuePausedWorkflowConcurrencySlotsParams struct {
-	Workflowids []uuid.UUID `json:"workflowids"`
-	Tenantid    uuid.UUID   `json:"tenantid"`
+type RequeueHeldConcurrencySlotsParams struct {
+	Taskids         []int64              `json:"taskids"`
+	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
+	Retrycounts     []int32              `json:"retrycounts"`
+	Tenantid        uuid.UUID            `json:"tenantid"`
 }
 
-func (q *Queries) RequeuePausedWorkflowConcurrencySlots(ctx context.Context, db DBTX, arg RequeuePausedWorkflowConcurrencySlotsParams) ([]int64, error) {
-	rows, err := db.Query(ctx, requeuePausedWorkflowConcurrencySlots, arg.Workflowids, arg.Tenantid)
+func (q *Queries) RequeueHeldConcurrencySlots(ctx context.Context, db DBTX, arg RequeueHeldConcurrencySlotsParams) ([]int64, error) {
+	rows, err := db.Query(ctx, requeueHeldConcurrencySlots,
+		arg.Taskids,
+		arg.Taskinsertedats,
+		arg.Retrycounts,
+		arg.Tenantid,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -2617,16 +2515,19 @@ func (q *Queries) RequeuePausedWorkflowConcurrencySlots(ctx context.Context, db 
 	return items, nil
 }
 
-const requeuePausedWorkflowQueueItems = `-- name: RequeuePausedWorkflowQueueItems :many
-WITH ready_items AS (
+const requeueHeldQueueItems = `-- name: RequeueHeldQueueItems :many
+WITH input AS (
+    SELECT
+        UNNEST($1::BIGINT[]) AS task_id,
+        UNNEST($2::TIMESTAMPTZ[]) AS task_inserted_at,
+        UNNEST($3::INTEGER[]) AS retry_count
+), ready_items AS (
     SELECT pqi.tenant_id, pqi.queue, pqi.task_id, pqi.task_inserted_at, pqi.external_id, pqi.action_id, pqi.step_id, pqi.workflow_id, pqi.workflow_run_id, pqi.schedule_timeout_at, pqi.step_timeout, pqi.priority, pqi.sticky, pqi.desired_worker_id, pqi.retry_count, pqi.desired_worker_label, pqi.batch_key, pqi.rate_limit_paused_until
     FROM v1_paused_workflow_queue_item pqi
+    JOIN input i ON (pqi.task_inserted_at, pqi.task_id, pqi.retry_count) = (i.task_inserted_at, i.task_id, i.retry_count)
     JOIN v1_task t ON (t.id, t.inserted_at, t.retry_count) = (pqi.task_id, pqi.task_inserted_at, pqi.retry_count)
     WHERE
-        pqi.workflow_id = ANY($1::UUID[])
-        AND pqi.tenant_id = $2::UUID
-        -- items still held by a paused rate limit key are released through ReleaseDueRateLimitPausedQueueItems
-        AND (pqi.rate_limit_paused_until IS NULL OR pqi.rate_limit_paused_until <= NOW())
+        pqi.tenant_id = $4::UUID
         AND t.concurrency_strategy_ids[1] IS NULL
     ORDER BY pqi.task_inserted_at, pqi.task_id, pqi.retry_count
     FOR UPDATE OF pqi SKIP LOCKED
@@ -2682,13 +2583,20 @@ JOIN v1_task t ON (t.id, t.inserted_at, t.retry_count) = (ri.task_id, ri.task_in
 RETURNING queue
 `
 
-type RequeuePausedWorkflowQueueItemsParams struct {
-	Workflowids []uuid.UUID `json:"workflowids"`
-	Tenantid    uuid.UUID   `json:"tenantid"`
+type RequeueHeldQueueItemsParams struct {
+	Taskids         []int64              `json:"taskids"`
+	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
+	Retrycounts     []int32              `json:"retrycounts"`
+	Tenantid        uuid.UUID            `json:"tenantid"`
 }
 
-func (q *Queries) RequeuePausedWorkflowQueueItems(ctx context.Context, db DBTX, arg RequeuePausedWorkflowQueueItemsParams) ([]string, error) {
-	rows, err := db.Query(ctx, requeuePausedWorkflowQueueItems, arg.Workflowids, arg.Tenantid)
+func (q *Queries) RequeueHeldQueueItems(ctx context.Context, db DBTX, arg RequeueHeldQueueItemsParams) ([]string, error) {
+	rows, err := db.Query(ctx, requeueHeldQueueItems,
+		arg.Taskids,
+		arg.Taskinsertedats,
+		arg.Retrycounts,
+		arg.Tenantid,
+	)
 	if err != nil {
 		return nil, err
 	}

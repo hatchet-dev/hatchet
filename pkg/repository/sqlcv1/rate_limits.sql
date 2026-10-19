@@ -103,7 +103,8 @@ SELECT
             CURRENT_TIMESTAMP
         ELSE
             rl."lastRefill"
-    END)::timestamp AS "lastRefill"
+    END)::timestamp AS "lastRefill",
+    p.paused_until AS "pausedUntil"
 FROM
     "RateLimit" rl
 LEFT JOIN

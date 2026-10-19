@@ -48,6 +48,9 @@ type rateLimiter struct {
 	// lastFlushAt is when dbRateLimits was read, guarded by dbRateLimitsMu
 	lastFlushAt time.Time
 
+	// pausesEndedCh receives the tenant id when a flush finds a pause has ended, so held runs are released right away
+	pausesEndedCh chan<- uuid.UUID
+
 	// dynamic rate limit definitions read by the queuers, written on the next flush
 	pendingDefinitionsMu sync.Mutex
 	pendingDefinitions   map[string]v1.RateLimitDefinition
@@ -55,7 +58,7 @@ type rateLimiter struct {
 	cleanup func()
 }
 
-func newRateLimiter(conf *sharedConfig, tenantId uuid.UUID) *rateLimiter {
+func newRateLimiter(conf *sharedConfig, tenantId uuid.UUID, pausesEndedCh chan<- uuid.UUID) *rateLimiter {
 	l := conf.l.With().Str("tenant_id", tenantId.String()).Logger()
 
 	rl := &rateLimiter{
@@ -66,6 +69,7 @@ func newRateLimiter(conf *sharedConfig, tenantId uuid.UUID) *rateLimiter {
 		unflushed:          make(rateLimitSet),
 		dbRateLimits:       make(rateLimitSet),
 		pendingDefinitions: make(map[string]v1.RateLimitDefinition),
+		pausesEndedCh:      pausesEndedCh,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -471,6 +475,14 @@ func (r *rateLimiter) flush(ctx context.Context, staleBefore *time.Time) error {
 		r.nextRefillAt = nextRefillAt
 	}
 
+	previouslyPaused := make([]string, 0)
+
+	for k, v := range r.dbRateLimits {
+		if v.pausedUntil != nil {
+			previouslyPaused = append(previouslyPaused, k)
+		}
+	}
+
 	r.dbRateLimits = make(rateLimitSet)
 
 	// update the db rate limits
@@ -500,5 +512,24 @@ func (r *rateLimiter) flush(ctx context.Context, staleBefore *time.Time) error {
 	// clear the unflushed rate limits
 	r.unflushed = make(rateLimitSet)
 
+	for _, k := range previouslyPaused {
+		if rl, ok := r.dbRateLimits[k]; !ok || rl.pausedUntil == nil {
+			r.notifyPausesEnded()
+			break
+		}
+	}
+
 	return nil
+}
+
+func (r *rateLimiter) notifyPausesEnded() {
+	if r.pausesEndedCh == nil {
+		return
+	}
+
+	// the task controller's periodic release covers a dropped signal
+	select {
+	case r.pausesEndedCh <- r.tenantId:
+	default:
+	}
 }

@@ -327,6 +327,19 @@ func (s *Scheduler) Start() (func() error, error) {
 		}
 	}()
 
+	rateLimitPausesEnded := s.pool.GetRateLimitPausesEndedCh()
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case tenantId := <-rateLimitPausesEnded:
+				go s.notifyRateLimitPausesEnded(ctx, tenantId)
+			}
+		}
+	}()
+
 	cleanup := func() error {
 		cancel()
 
@@ -435,6 +448,20 @@ func (s *Scheduler) handleRateLimitsChanged(ctx context.Context, msg *msgqueue.M
 	s.pool.NotifyRateLimitsChanged(ctx, msg.TenantID)
 
 	return nil
+}
+
+// notifyRateLimitPausesEnded asks the task controller to release the runs held by the ended pauses
+func (s *Scheduler) notifyRateLimitPausesEnded(ctx context.Context, tenantId uuid.UUID) {
+	msg, err := tasktypes.NewRateLimitPausesChangedMessage(tenantId, false)
+
+	if err != nil {
+		s.l.Error().Ctx(ctx).Err(err).Msg("could not create rate limit pauses ended message")
+		return
+	}
+
+	if err := s.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
+		s.l.Error().Ctx(ctx).Err(err).Msg("could not send rate limit pauses ended message")
+	}
 }
 
 func (s *Scheduler) handleNewConcurrencyStrategy(ctx context.Context, msg *msgqueue.Message) error {

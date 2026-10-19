@@ -59,6 +59,8 @@ type SchedulingPool struct {
 
 	concurrencyResultsCh chan *ConcurrencyResults
 
+	rateLimitPausesEndedCh chan uuid.UUID
+
 	optimisticSchedulingEnabled bool
 	optimisticSemaphore         chan struct{}
 }
@@ -82,6 +84,7 @@ func NewSchedulingPool(
 ) (*SchedulingPool, func() error, error) {
 	resultsCh := make(chan *QueueResults, 1000)
 	concurrencyResultsCh := make(chan *ConcurrencyResults, 1000)
+	rateLimitPausesEndedCh := make(chan uuid.UUID, 1000)
 	semaphore := make(chan struct{}, optimisticSlots)
 
 	s := &SchedulingPool{
@@ -103,6 +106,7 @@ func NewSchedulingPool(
 		},
 		resultsCh:                   resultsCh,
 		concurrencyResultsCh:        concurrencyResultsCh,
+		rateLimitPausesEndedCh:      rateLimitPausesEndedCh,
 		setMu:                       newMu(l),
 		optimisticSchedulingEnabled: optimisticSchedulingEnabled,
 		optimisticSemaphore:         semaphore,
@@ -124,6 +128,11 @@ func (p *SchedulingPool) GetResultsCh() chan *QueueResults {
 
 func (p *SchedulingPool) GetConcurrencyResultsCh() chan *ConcurrencyResults {
 	return p.concurrencyResultsCh
+}
+
+// GetRateLimitPausesEndedCh receives a tenant id whenever one of the tenant's rate limit pauses ends
+func (p *SchedulingPool) GetRateLimitPausesEndedCh() chan uuid.UUID {
+	return p.rateLimitPausesEndedCh
 }
 
 func (p *SchedulingPool) cleanup() {
@@ -253,7 +262,7 @@ func (p *SchedulingPool) getTenantManager(tenantId uuid.UUID, storeIfNotFound bo
 
 	if !ok {
 		if storeIfNotFound {
-			tm = newTenantManager(p.cf, tenantId, p.resultsCh, p.concurrencyResultsCh, p.Extensions)
+			tm = newTenantManager(p.cf, tenantId, p.resultsCh, p.concurrencyResultsCh, p.rateLimitPausesEndedCh, p.Extensions)
 			p.tenants.Store(tenantId, tm)
 		} else {
 			return nil

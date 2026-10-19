@@ -34,5 +34,6 @@ const (
 	MsgIDCronDelete                   = "cron-delete"
 	MsgIDBatchStart                   = "batch-start"
 	MsgIDTogglePauseWorkflow          = "toggle-pause-workflow"
+	MsgIDRateLimitPausesChanged       = "rate-limit-pauses-changed"
 	MsgIDStreamMessage                = "stream-message"
 )

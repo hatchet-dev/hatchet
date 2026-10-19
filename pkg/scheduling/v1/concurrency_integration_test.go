@@ -885,6 +885,18 @@ func listConcurrencyTestTasks(t *testing.T, ctx context.Context, conf *database.
 	return tasks
 }
 
+// pauseRateLimitKey does what the admin service and the task controller do for a pause request.
+func pauseRateLimitKey(t *testing.T, ctx context.Context, conf *database.Layer, tenantId uuid.UUID, key string) {
+	t.Helper()
+
+	_, newlyPaused, err := conf.V1.RateLimit().PauseRateLimit(ctx, tenantId, key, time.Now().Add(time.Hour))
+	require.NoError(t, err)
+
+	if newlyPaused {
+		require.NoError(t, conf.V1.RateLimit().HoldRateLimitPausedQueuedTasks(ctx, tenantId))
+	}
+}
+
 // useDynamicRateLimitKey gives the task a dynamic rate limit key, the same row trigger time evaluation writes.
 func useDynamicRateLimitKey(t *testing.T, ctx context.Context, conf *database.Layer, task *sqlcv1.V1Task, key string) {
 	t.Helper()
@@ -1012,8 +1024,7 @@ func TestConcurrency_PauseRateLimitHoldsWaitingSlots(t *testing.T) {
 		useDynamicRateLimitKey(t, ctx, conf, tasks[0], "upstream-api")
 		useDynamicRateLimitKey(t, ctx, conf, tasks[1], "upstream-api")
 
-		_, err := conf.V1.RateLimit().PauseRateLimit(ctx, s.tenantId, "upstream-api", time.Now().Add(time.Hour))
-		require.NoError(t, err)
+		pauseRateLimitKey(t, ctx, conf, s.tenantId, "upstream-api")
 
 		require.Equal(t, 1, countRateLimitHeldItems(t, ctx, conf, tasks[0]))
 		require.Equal(t, 1, countRateLimitHeldItems(t, ctx, conf, tasks[1]))
@@ -1095,8 +1106,7 @@ func TestConcurrency_PausedRateLimitHoldsNewRuns(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		_, err = r.RateLimit().PauseRateLimit(ctx, tenantId, "upstream-api", time.Now().Add(time.Hour))
-		require.NoError(t, err)
+		pauseRateLimitKey(t, ctx, conf, tenantId, "upstream-api")
 
 		tasks, _, _, _, err := r.Triggers().TriggerFromWorkflowNames(ctx, tenantId, []*repo.WorkflowNameTriggerOpts{
 			{
@@ -1180,8 +1190,7 @@ func TestConcurrency_WorkflowUnpausedWhileRateLimitPaused(t *testing.T) {
 		task := listConcurrencyTestTasks(t, ctx, conf, s)[0]
 		useDynamicRateLimitKey(t, ctx, conf, task, "upstream-api")
 
-		_, err := conf.V1.RateLimit().PauseRateLimit(ctx, s.tenantId, "upstream-api", time.Now().Add(time.Hour))
-		require.NoError(t, err)
+		pauseRateLimitKey(t, ctx, conf, s.tenantId, "upstream-api")
 
 		pauseConcurrencyTestWorkflow(t, ctx, conf, s)
 		require.Equal(t, 1, countRateLimitHeldItems(t, ctx, conf, task))
@@ -1219,8 +1228,7 @@ func TestConcurrency_RateLimitPauseEndsWhileWorkflowPaused(t *testing.T) {
 		task := listConcurrencyTestTasks(t, ctx, conf, s)[0]
 		useDynamicRateLimitKey(t, ctx, conf, task, "upstream-api")
 
-		_, err := conf.V1.RateLimit().PauseRateLimit(ctx, s.tenantId, "upstream-api", time.Now().Add(time.Hour))
-		require.NoError(t, err)
+		pauseRateLimitKey(t, ctx, conf, s.tenantId, "upstream-api")
 
 		pauseConcurrencyTestWorkflow(t, ctx, conf, s)
 
@@ -1260,8 +1268,7 @@ func TestConcurrency_RateLimitPausedWhileWorkflowPaused(t *testing.T) {
 		require.Equal(t, 1, countPausedQueueItems(t, ctx, conf, task))
 		require.Zero(t, countRateLimitHeldItems(t, ctx, conf, task))
 
-		_, err := conf.V1.RateLimit().PauseRateLimit(ctx, s.tenantId, "upstream-api", time.Now().Add(time.Hour))
-		require.NoError(t, err)
+		pauseRateLimitKey(t, ctx, conf, s.tenantId, "upstream-api")
 
 		unpauseConcurrencyTestWorkflow(t, ctx, conf, s)
 		require.Equal(t, 1, countRateLimitHeldItems(t, ctx, conf, task), "the key is still paused")
@@ -1269,11 +1276,53 @@ func TestConcurrency_RateLimitPausedWhileWorkflowPaused(t *testing.T) {
 
 		expireRateLimitPauses(t, ctx, conf, s.tenantId)
 
-		_, _, err = conf.V1.Workflows().RequeueRateLimitPausedQueueItems(ctx, s.tenantId)
+		_, _, err := conf.V1.Workflows().RequeueRateLimitPausedQueueItems(ctx, s.tenantId)
 		require.NoError(t, err)
 
 		require.Zero(t, countPausedQueueItems(t, ctx, conf, task))
 		require.Equal(t, 1, countTaskConcurrencySlots(t, ctx, conf, task))
+
+		return nil
+	})
+}
+
+// TestConcurrency_TriggerHoldsQueuedRunsOfPausedWorkflow: triggering a paused workflow holds the new run and any of
+// the workflow's runs that were queued before the pause was applied to them.
+func TestConcurrency_TriggerHoldsQueuedRunsOfPausedWorkflow(t *testing.T) {
+	runWithDatabase(t, func(conf *database.Layer) error {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		requireSchedulerSchema(t, ctx, conf)
+
+		name := "wf-paused-trigger"
+		s := setupStepConcurrencyTest(t, ctx, conf, name, "GROUP_ROUND_ROBIN", 1, 1)
+		queuedBeforePause := listConcurrencyTestTasks(t, ctx, conf, s)[0]
+
+		// paused without the toggle message, so the earlier run is still waiting on its slot
+		_, err := conf.V1.Workflows().PauseWorkflow(ctx, s.workflowId, repo.PauseWorkflowOpts{
+			CronRunQueueBehavior:      "QUEUE",
+			ScheduledRunQueueBehavior: "QUEUE",
+			QueueTTL:                  "1h",
+		})
+		require.NoError(t, err)
+
+		tasks, _, _, _, err := conf.V1.Triggers().TriggerFromWorkflowNames(ctx, s.tenantId, []*repo.WorkflowNameTriggerOpts{
+			{
+				TriggerTaskData: &repo.TriggerTaskData{
+					WorkflowName: name,
+					Data:         []byte(`{"my_id": "a"}`),
+				},
+				ExternalId: uuid.New(),
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, tasks, 1)
+
+		for _, task := range []*sqlcv1.V1Task{queuedBeforePause, tasks[0].V1Task} {
+			require.Equal(t, 1, countPausedQueueItems(t, ctx, conf, task))
+			require.Zero(t, countRateLimitHeldItems(t, ctx, conf, task), "only the workflow holds it")
+			require.Zero(t, countTaskConcurrencySlots(t, ctx, conf, task))
+		}
 
 		return nil
 	})

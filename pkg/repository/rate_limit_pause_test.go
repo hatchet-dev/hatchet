@@ -40,20 +40,22 @@ func TestPauseRateLimitKeepsLongestPause(t *testing.T) {
 
 	now := time.Now().UTC().Truncate(time.Millisecond)
 
-	pause, err := rateLimitRepo.PauseRateLimit(ctx, tenantID, key, now.Add(time.Hour))
+	pause, newlyPaused, err := rateLimitRepo.PauseRateLimit(ctx, tenantID, key, now.Add(time.Hour))
 	require.NoError(t, err)
+	assert.True(t, newlyPaused)
 	assert.WithinDuration(t, now.Add(time.Hour), pause.PausedUntil.Time, time.Millisecond)
 
-	pause, err = rateLimitRepo.PauseRateLimit(ctx, tenantID, key, now.Add(10*time.Minute))
+	pause, newlyPaused, err = rateLimitRepo.PauseRateLimit(ctx, tenantID, key, now.Add(10*time.Minute))
 	require.NoError(t, err)
+	assert.False(t, newlyPaused, "extending an active pause doesn't need another sweep")
 	assert.WithinDuration(t, now.Add(time.Hour), pause.PausedUntil.Time, time.Millisecond, "an earlier deadline must not shorten the pause")
 	assert.WithinDuration(t, now.Add(time.Hour), readPausedUntil(t, pool, tenantID, key), time.Millisecond)
 
-	pause, err = rateLimitRepo.PauseRateLimit(ctx, tenantID, key, now.Add(2*time.Hour))
+	pause, _, err = rateLimitRepo.PauseRateLimit(ctx, tenantID, key, now.Add(2*time.Hour))
 	require.NoError(t, err)
 	assert.WithinDuration(t, now.Add(2*time.Hour), pause.PausedUntil.Time, time.Millisecond)
 
-	_, err = rateLimitRepo.PauseRateLimit(ctx, tenantID, "", now.Add(time.Hour))
+	_, _, err = rateLimitRepo.PauseRateLimit(ctx, tenantID, "", now.Add(time.Hour))
 	assert.Error(t, err)
 }
 
@@ -78,10 +80,10 @@ func TestFlushRateLimitsReturnsActivePauses(t *testing.T) {
 
 	pausedUntil := time.Now().UTC().Add(time.Hour).Truncate(time.Millisecond)
 
-	_, err := rateLimitRepo.PauseRateLimit(ctx, tenantID, pausedKey, pausedUntil)
+	_, _, err := rateLimitRepo.PauseRateLimit(ctx, tenantID, pausedKey, pausedUntil)
 	require.NoError(t, err)
 
-	_, err = rateLimitRepo.PauseRateLimit(ctx, tenantID, refilledKey, pausedUntil)
+	_, _, err = rateLimitRepo.PauseRateLimit(ctx, tenantID, refilledKey, pausedUntil)
 	require.NoError(t, err)
 
 	_, err = pool.Exec(ctx, `INSERT INTO v1_rate_limit_pause (tenant_id, key, paused_until) VALUES ($1, $2, NOW() - INTERVAL '1 minute')`, tenantID, expiredKey)
@@ -122,7 +124,7 @@ func TestFlushRateLimitsAppliesPauseToNewDynamicKey(t *testing.T) {
 
 	pausedUntil := time.Now().UTC().Add(time.Hour).Truncate(time.Millisecond)
 
-	_, err := rateLimitRepo.PauseRateLimit(ctx, tenantID, key, pausedUntil)
+	_, _, err := rateLimitRepo.PauseRateLimit(ctx, tenantID, key, pausedUntil)
 	require.NoError(t, err)
 
 	rows, _, err := rateLimitRepo.FlushRateLimits(ctx, tenantID, map[string]int{}, nil)
@@ -249,12 +251,39 @@ func TestPauseRateLimitKeepsPauseStart(t *testing.T) {
 
 	const key = "upstream-api"
 
-	first, err := rateLimitRepo.PauseRateLimit(ctx, tenantID, key, time.Now().Add(time.Minute))
+	first, _, err := rateLimitRepo.PauseRateLimit(ctx, tenantID, key, time.Now().Add(time.Minute))
 	require.NoError(t, err)
 
-	second, err := rateLimitRepo.PauseRateLimit(ctx, tenantID, key, time.Now().Add(time.Hour))
+	second, _, err := rateLimitRepo.PauseRateLimit(ctx, tenantID, key, time.Now().Add(time.Hour))
 	require.NoError(t, err)
 
 	assert.True(t, first.PausedAt.Time.Equal(second.PausedAt.Time))
 	assert.True(t, second.PausedUntil.Time.After(first.PausedUntil.Time))
+}
+
+// Re-pausing a key whose last pause ended before the scheduler settled it must settle that pause first, so the
+// old pause's frozen span still shifts the window and the new pause starts its own span.
+func TestPauseRateLimitSettlesUnsettledExpiredPause(t *testing.T) {
+	pool, cleanup := setupPostgresWithMigration(t)
+	t.Cleanup(cleanup)
+
+	ctx := context.Background()
+	tenantID := createRateLimitTestTenant(t, pool)
+	rateLimitRepo := newRateLimitRepository(createRateLimitTestShared(pool))
+
+	const key = "upstream-api"
+
+	insertRateLimit(t, pool, tenantID, key, 20, 17, "1 minute", 5*time.Minute+20*time.Second)
+	insertRateLimitPause(t, pool, tenantID, key, 5*time.Minute, -time.Second)
+
+	until := time.Now().Add(time.Hour)
+
+	pause, newlyPaused, err := rateLimitRepo.PauseRateLimit(ctx, tenantID, key, until)
+	require.NoError(t, err)
+	assert.True(t, newlyPaused, "an ended pause doesn't count as active")
+	assert.WithinDuration(t, time.Now(), pause.PausedAt.Time, 5*time.Second, "the new pause starts now")
+	assert.WithinDuration(t, until, pause.PausedUntil.Time, time.Millisecond, "an ended pause's deadline must not carry over")
+
+	_, sinceLastRefill := readRateLimitRow(t, pool, tenantID, key)
+	assert.InDelta(t, (21 * time.Second).Seconds(), sinceLastRefill.Seconds(), 1, "the ended pause's frozen span still shifts the window")
 }
