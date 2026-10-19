@@ -11,8 +11,6 @@
   width: 100%;
 }
 
-/* ── Static chrome (SVG line work) ────────────────────────────────────── */
-
 .chromeStroke {
   stroke: var(--fg);
 }
@@ -29,8 +27,6 @@
 .chromeSlot {
   stroke: var(--fg-border);
 }
-
-/* ── Stage labels (micro mono caps, non-scaling) ──────────────────────── */
 
 .stageLabel {
   position: absolute;
@@ -52,8 +48,6 @@
 .labelCode {
   text-transform: none;
 }
-
-/* ── The publishing task inside the worker ────────────────────────────── */
 
 .taskPill {
   font-family: var(--font-mono);
@@ -81,8 +75,6 @@
   border-color: var(--accent-3);
   color: var(--accent-3);
 }
-
-/* ── Topic log ────────────────────────────────────────────────────────── */
 
 .slot {
   width: calc(var(--flow-u) * 8);
@@ -117,8 +109,6 @@
   clip-path: polygon(50% 0, 100% 100%, 0 100%);
 }
 
-/* ── Messages in flight ───────────────────────────────────────────────── */
-
 .msg {
   width: calc(var(--flow-u) * 4);
   height: calc(var(--flow-u) * 4);
@@ -128,8 +118,6 @@
 [data-flow-state="replay"] .msg {
   background: var(--accent-2);
 }
-
-/* ── Readers ──────────────────────────────────────────────────────────── */
 
 .reader {
   box-sizing: border-box;
@@ -202,8 +190,6 @@
   background: var(--accent-2);
   transition: none;
 }
-
-/* ── State animations ─────────────────────────────────────────────────── */
 
 @keyframes ds-pulse {
   0%,

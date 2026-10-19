@@ -23,8 +23,6 @@ import styles from "./durablestreams.module.css";
  * are reproducible.
  */
 
-// ─── Geometry (stage design units, 320 × 220 — half-column composition) ────
-
 const STAGE_W = 320;
 const STAGE_H = 220;
 
@@ -51,16 +49,12 @@ const center = (r: { x: number; y: number }) => ({
 const barX = (i: number) => READER_A.x + 8.5 + i * 7.5;
 const BAR_DY = 31;
 
-// ─── Timing (ms) ───────────────────────────────────────────────────────────
-
 const RUN_AT = 700;
 const EMIT0 = 1100;
 /** Design units per ms; constant so tail slots take visibly longer to reach. */
 const SPEED = 0.13;
 const DEPART_DELAY = 120;
 const REPLAY_GAP = 170;
-
-// ─── Paths + schedule (seeded, deterministic) ──────────────────────────────
 
 type Pt = [number, number];
 
@@ -150,8 +144,6 @@ const FADE_AT = Math.max(LAND_A[SLOTS - 1], LAND_B[SLOTS - 1]) + 1400;
 const DURATION = Math.ceil((FADE_AT + 700) / 100) * 100;
 /** Static frame: late reader mid catch-up, replayed messages in flight. */
 const POSTER_TIME = DEPART_B[1] + 200;
-
-// ─── Tracks ────────────────────────────────────────────────────────────────
 
 const byTime = (a: FlowKeyframe, b: FlowKeyframe) => a.t - b.t;
 
@@ -263,8 +255,6 @@ const READER_B_TRACK = defineTrack("reader-b", [
   { ...center(READER_B), t: DURATION, ease: "hold" },
 ]);
 
-// ─── Static chrome ─────────────────────────────────────────────────────────
-
 const fine = {
   fill: "none",
   strokeWidth: 1,
@@ -370,8 +360,6 @@ const ReaderBox = ({ label }: { label: string }) => (
     </div>
   </div>
 );
-
-// ─── Export ────────────────────────────────────────────────────────────────
 
 const ARIA_LABEL =
   "Animated diagram of Hatchet durable streams: a task running in a worker publishes messages that are appended to a persisted topic log in Hatchet. A live reader receives each message as it is written. Partway through the run a late reader connects, replays the messages already in the log from its cursor, catches up, and then receives new messages live alongside the first reader.";
