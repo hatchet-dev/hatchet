@@ -258,6 +258,7 @@ func ToWorkflowFromSQLC(row *sqlcv1.Workflow) *gen.Workflow {
 	return res
 }
 
+// ToWorkflowFromListRow returns a workflow with its latest version and declared triggers.
 func ToWorkflowFromListRow(row *sqlcv1.ListWorkflowsRow) *gen.Workflow {
 	res := ToWorkflowFromSQLC(&row.Workflow)
 
