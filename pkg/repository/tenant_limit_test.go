@@ -204,10 +204,9 @@ func TestCanCreate_MissingIncomingWebhook_ReReadsAndEnforcesDefault(t *testing.T
 func setStreamRetentionHours(t *testing.T, pool *pgxpool.Pool, tenantID uuid.UUID, hours int32) {
 	t.Helper()
 
-	_, err := pool.Exec(context.Background(), `
-		INSERT INTO "TenantResourceLimit" ("id", "tenantId", "resource", "limitValue", "customValueMeter")
-		VALUES (gen_random_uuid(), $1, 'STREAM_RETENTION', $2, true)
-	`, tenantID, hours)
+	err := newTestTenantLimitRepository(pool, defaultLimitTestConfig()).UpdateLimits(context.Background(), tenantID, []Limit{
+		{Resource: sqlcv1.LimitResourceSTREAMRETENTION, Limit: hours},
+	})
 	require.NoError(t, err)
 }
 
@@ -233,13 +232,12 @@ func TestEnsureTopic_EnforcesTopicLimitOnLiveCount(t *testing.T) {
 	require.NoError(t, streams.EnsureTopic(ctx, tenantID, "", "b"))
 	require.ErrorIs(t, streams.EnsureTopic(ctx, tenantID, "", "c"), ErrResourceExhausted)
 
-	var count int
-	require.NoError(t, pool.QueryRow(ctx, `SELECT COUNT(*) FROM v1_stream_topic WHERE tenant_id = $1`, tenantID).Scan(&count))
-	assert.Equal(t, 2, count, "the rejected topic must be rolled back")
+	count, err := streams.queries.CountStreamTopics(ctx, pool, tenantID)
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), count, "the rejected topic must be rolled back")
 
 	// retention deleting a topic frees its slot
-	_, err := pool.Exec(ctx, `DELETE FROM v1_stream_topic WHERE tenant_id = $1 AND topic = 'a'`, tenantID)
-	require.NoError(t, err)
+	require.NoError(t, streams.queries.DeleteStreamTopic(ctx, pool, sqlcv1.DeleteStreamTopicParams{Tenantid: tenantID, Namespace: "", Topic: "a"}))
 	require.NoError(t, streams.EnsureTopic(ctx, tenantID, "", "c"))
 }
 
@@ -259,7 +257,28 @@ func TestStreamRetention_DefaultsToTenantRetentionAndIsStored(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 48*time.Hour, retention)
 
-	var stored int32
-	require.NoError(t, pool.QueryRow(ctx, `SELECT "limitValue" FROM "TenantResourceLimit" WHERE "tenantId" = $1 AND "resource" = 'STREAM_RETENTION'`, tenantID).Scan(&stored))
-	assert.Equal(t, int32(48), stored)
+	stored, err := repo.GetLimits(ctx, tenantID)
+	require.NoError(t, err)
+
+	var retentionLimit *sqlcv1.TenantResourceLimit
+	for _, l := range stored {
+		if l.Resource == sqlcv1.LimitResourceSTREAMRETENTION {
+			retentionLimit = l
+		}
+	}
+
+	require.NotNil(t, retentionLimit)
+	assert.Equal(t, int32(48), retentionLimit.LimitValue)
+}
+
+func TestMeter_ZeroChargePassesAtCap(t *testing.T) {
+	repo := createTenantLimitRepositoryForTest(t, nil, defaultLimitTestConfig())
+	tenantID := uuid.New()
+	repo.c.Set(meterKey{tenantId: tenantID, resource: sqlcv1.LimitResourceTASKRUN}.cacheKey(), false)
+
+	zero, _ := repo.Meter(context.Background(), nil, sqlcv1.LimitResourceTASKRUN, tenantID, 0)
+	require.NoError(t, zero())
+
+	one, _ := repo.Meter(context.Background(), nil, sqlcv1.LimitResourceTASKRUN, tenantID, 1)
+	require.ErrorIs(t, one(), ErrResourceExhausted)
 }

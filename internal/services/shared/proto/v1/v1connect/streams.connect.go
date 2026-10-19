@@ -37,12 +37,19 @@ const (
 	V1StreamsPublishProcedure = "/v1.V1Streams/Publish"
 	// V1StreamsSubscribeProcedure is the fully-qualified name of the V1Streams's Subscribe RPC.
 	V1StreamsSubscribeProcedure = "/v1.V1Streams/Subscribe"
+	// V1StreamsGetTopicMetadataProcedure is the fully-qualified name of the V1Streams's
+	// GetTopicMetadata RPC.
+	V1StreamsGetTopicMetadataProcedure = "/v1.V1Streams/GetTopicMetadata"
+	// V1StreamsResetProcedure is the fully-qualified name of the V1Streams's Reset RPC.
+	V1StreamsResetProcedure = "/v1.V1Streams/Reset"
 )
 
 // V1StreamsClient is a client for the v1.V1Streams service.
 type V1StreamsClient interface {
 	Publish(context.Context, *v1.PublishStreamMessageRequest) (*v1.PublishStreamMessageResponse, error)
 	Subscribe(context.Context, *v1.SubscribeStreamRequest) (*connect.ServerStreamForClient[v1.StreamMessage], error)
+	GetTopicMetadata(context.Context, *v1.GetStreamTopicMetadataRequest) (*v1.StreamTopicMetadata, error)
+	Reset(context.Context, *v1.ResetStreamTopicRequest) (*v1.ResetStreamTopicResponse, error)
 }
 
 // NewV1StreamsClient constructs a client for the v1.V1Streams service. By default, it uses the
@@ -68,13 +75,27 @@ func NewV1StreamsClient(httpClient connect.HTTPClient, baseURL string, opts ...c
 			connect.WithSchema(v1StreamsMethods.ByName("Subscribe")),
 			connect.WithClientOptions(opts...),
 		),
+		getTopicMetadata: connect.NewClient[v1.GetStreamTopicMetadataRequest, v1.StreamTopicMetadata](
+			httpClient,
+			baseURL+V1StreamsGetTopicMetadataProcedure,
+			connect.WithSchema(v1StreamsMethods.ByName("GetTopicMetadata")),
+			connect.WithClientOptions(opts...),
+		),
+		reset: connect.NewClient[v1.ResetStreamTopicRequest, v1.ResetStreamTopicResponse](
+			httpClient,
+			baseURL+V1StreamsResetProcedure,
+			connect.WithSchema(v1StreamsMethods.ByName("Reset")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // v1StreamsClient implements V1StreamsClient.
 type v1StreamsClient struct {
-	publish   *connect.Client[v1.PublishStreamMessageRequest, v1.PublishStreamMessageResponse]
-	subscribe *connect.Client[v1.SubscribeStreamRequest, v1.StreamMessage]
+	publish          *connect.Client[v1.PublishStreamMessageRequest, v1.PublishStreamMessageResponse]
+	subscribe        *connect.Client[v1.SubscribeStreamRequest, v1.StreamMessage]
+	getTopicMetadata *connect.Client[v1.GetStreamTopicMetadataRequest, v1.StreamTopicMetadata]
+	reset            *connect.Client[v1.ResetStreamTopicRequest, v1.ResetStreamTopicResponse]
 }
 
 // Publish calls v1.V1Streams.Publish.
@@ -91,10 +112,30 @@ func (c *v1StreamsClient) Subscribe(ctx context.Context, req *v1.SubscribeStream
 	return c.subscribe.CallServerStream(ctx, connect.NewRequest(req))
 }
 
+// GetTopicMetadata calls v1.V1Streams.GetTopicMetadata.
+func (c *v1StreamsClient) GetTopicMetadata(ctx context.Context, req *v1.GetStreamTopicMetadataRequest) (*v1.StreamTopicMetadata, error) {
+	response, err := c.getTopicMetadata.CallUnary(ctx, connect.NewRequest(req))
+	if response != nil {
+		return response.Msg, err
+	}
+	return nil, err
+}
+
+// Reset calls v1.V1Streams.Reset.
+func (c *v1StreamsClient) Reset(ctx context.Context, req *v1.ResetStreamTopicRequest) (*v1.ResetStreamTopicResponse, error) {
+	response, err := c.reset.CallUnary(ctx, connect.NewRequest(req))
+	if response != nil {
+		return response.Msg, err
+	}
+	return nil, err
+}
+
 // V1StreamsHandler is an implementation of the v1.V1Streams service.
 type V1StreamsHandler interface {
 	Publish(context.Context, *v1.PublishStreamMessageRequest) (*v1.PublishStreamMessageResponse, error)
 	Subscribe(context.Context, *v1.SubscribeStreamRequest, *connect.ServerStream[v1.StreamMessage]) error
+	GetTopicMetadata(context.Context, *v1.GetStreamTopicMetadataRequest) (*v1.StreamTopicMetadata, error)
+	Reset(context.Context, *v1.ResetStreamTopicRequest) (*v1.ResetStreamTopicResponse, error)
 }
 
 // NewV1StreamsHandler builds an HTTP handler from the service implementation. It returns the path
@@ -116,12 +157,28 @@ func NewV1StreamsHandler(svc V1StreamsHandler, opts ...connect.HandlerOption) (s
 		connect.WithSchema(v1StreamsMethods.ByName("Subscribe")),
 		connect.WithHandlerOptions(opts...),
 	)
+	v1StreamsGetTopicMetadataHandler := connect.NewUnaryHandlerSimple(
+		V1StreamsGetTopicMetadataProcedure,
+		svc.GetTopicMetadata,
+		connect.WithSchema(v1StreamsMethods.ByName("GetTopicMetadata")),
+		connect.WithHandlerOptions(opts...),
+	)
+	v1StreamsResetHandler := connect.NewUnaryHandlerSimple(
+		V1StreamsResetProcedure,
+		svc.Reset,
+		connect.WithSchema(v1StreamsMethods.ByName("Reset")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/v1.V1Streams/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case V1StreamsPublishProcedure:
 			v1StreamsPublishHandler.ServeHTTP(w, r)
 		case V1StreamsSubscribeProcedure:
 			v1StreamsSubscribeHandler.ServeHTTP(w, r)
+		case V1StreamsGetTopicMetadataProcedure:
+			v1StreamsGetTopicMetadataHandler.ServeHTTP(w, r)
+		case V1StreamsResetProcedure:
+			v1StreamsResetHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -137,4 +194,12 @@ func (UnimplementedV1StreamsHandler) Publish(context.Context, *v1.PublishStreamM
 
 func (UnimplementedV1StreamsHandler) Subscribe(context.Context, *v1.SubscribeStreamRequest, *connect.ServerStream[v1.StreamMessage]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("v1.V1Streams.Subscribe is not implemented"))
+}
+
+func (UnimplementedV1StreamsHandler) GetTopicMetadata(context.Context, *v1.GetStreamTopicMetadataRequest) (*v1.StreamTopicMetadata, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("v1.V1Streams.GetTopicMetadata is not implemented"))
+}
+
+func (UnimplementedV1StreamsHandler) Reset(context.Context, *v1.ResetStreamTopicRequest) (*v1.ResetStreamTopicResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("v1.V1Streams.Reset is not implemented"))
 }

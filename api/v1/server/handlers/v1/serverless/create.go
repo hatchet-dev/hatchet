@@ -20,7 +20,7 @@ func (t *V1ServerlessService) V1ServerlessEndpointCreate(ctx echo.Context, reque
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
 	body := request.Body
 
-	entitled, err := t.config.V1.TenantEntitlement().IsServerlessOperatorEnabled(ctx.Request().Context(), tenant.ID)
+	entitled, err := t.config.V1.TenantEntitlement().HasEntitlement(ctx.Request().Context(), tenant.ID, v1.EntitlementServerlessOperator)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to check the serverless operator entitlement: %w", err)

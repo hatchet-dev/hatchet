@@ -55,9 +55,10 @@ WITH latest AS (
     UNION ALL
     SELECT 1 FROM first_message
 ), inserted_row AS (
-    INSERT INTO v1_stream_message (id, tenant_id, namespace, topic, payload, producer_id, producer_seq)
+    INSERT INTO v1_stream_message (id, tenant_id, namespace, topic, payload, producer_id, producer_seq, payload_id, payload_inserted_at)
     -- the offset reserved for this message by ReserveStreamTopicOffsets
-    SELECT $8::bigint, $1::uuid, $2::text, $3::text, $9::bytea, $4::text, $6::bigint
+    SELECT $8::bigint, $1::uuid, $2::text, $3::text, $9::bytea, $4::text, $6::bigint,
+        $10::uuid, $11::timestamptz
     WHERE EXISTS (SELECT 1 FROM applied)
     RETURNING 1
 )
@@ -75,15 +76,17 @@ type InsertOrderedStreamMessageBatchResults struct {
 }
 
 type InsertOrderedStreamMessageParams struct {
-	Tenantid        uuid.UUID   `json:"tenantid"`
-	Namespace       string      `json:"namespace"`
-	Topic           string      `json:"topic"`
-	Producerid      string      `json:"producerid"`
-	Minbucket       pgtype.Date `json:"minbucket"`
-	Producerseq     int64       `json:"producerseq"`
-	Expectedprevseq int64       `json:"expectedprevseq"`
-	Messageoffset   int64       `json:"messageoffset"`
-	Payload         []byte      `json:"payload"`
+	Tenantid          uuid.UUID          `json:"tenantid"`
+	Namespace         string             `json:"namespace"`
+	Topic             string             `json:"topic"`
+	Producerid        string             `json:"producerid"`
+	Minbucket         pgtype.Date        `json:"minbucket"`
+	Producerseq       int64              `json:"producerseq"`
+	Expectedprevseq   int64              `json:"expectedprevseq"`
+	Messageoffset     int64              `json:"messageoffset"`
+	Payload           []byte             `json:"payload"`
+	PayloadId         *uuid.UUID         `json:"payloadId"`
+	PayloadInsertedAt pgtype.Timestamptz `json:"payloadInsertedAt"`
 }
 
 type InsertOrderedStreamMessageRow struct {
@@ -112,6 +115,8 @@ func (q *Queries) InsertOrderedStreamMessage(ctx context.Context, db DBTX, arg [
 			a.Expectedprevseq,
 			a.Messageoffset,
 			a.Payload,
+			a.PayloadId,
+			a.PayloadInsertedAt,
 		}
 		batch.Queue(insertOrderedStreamMessage, vals...)
 	}

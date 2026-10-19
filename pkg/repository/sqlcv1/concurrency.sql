@@ -29,9 +29,12 @@ WHERE
     sc.id = @id::bigint;
 
 -- name: ListConcurrencyStrategiesByWorkflowVersionId :many
-SELECT c.*, s."readableId" AS step_readable_id
+SELECT
+    c.*,
+    (CASE WHEN s."isDagOrchestrator" THEN w."name" ELSE s."readableId" END)::TEXT AS step_readable_id
 FROM v1_step_concurrency c
 JOIN "Step" s ON s.id = c.step_id
+JOIN "Workflow" w ON w."id" = c.workflow_id
 WHERE
     tenant_id = @tenantId::UUID
     AND workflow_version_id = @workflowVersionId::UUID

@@ -3943,14 +3943,23 @@ type V1StepSlotRequest struct {
 }
 
 type V1StreamMessage struct {
-	ID          int64              `json:"id"`
-	InsertedAt  pgtype.Timestamptz `json:"inserted_at"`
-	TenantID    uuid.UUID          `json:"tenant_id"`
-	Namespace   string             `json:"namespace"`
-	Topic       string             `json:"topic"`
-	Payload     []byte             `json:"payload"`
-	ProducerID  string             `json:"producer_id"`
-	ProducerSeq int64              `json:"producer_seq"`
+	ID                int64              `json:"id"`
+	InsertedAt        pgtype.Timestamptz `json:"inserted_at"`
+	TenantID          uuid.UUID          `json:"tenant_id"`
+	Namespace         string             `json:"namespace"`
+	Topic             string             `json:"topic"`
+	Payload           []byte             `json:"payload"`
+	ProducerID        string             `json:"producer_id"`
+	ProducerSeq       int64              `json:"producer_seq"`
+	PayloadID         *uuid.UUID         `json:"payload_id"`
+	PayloadInsertedAt pgtype.Timestamptz `json:"payload_inserted_at"`
+}
+
+type V1StreamPayload struct {
+	ID         uuid.UUID          `json:"id"`
+	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
+	TenantID   uuid.UUID          `json:"tenant_id"`
+	Payload    []byte             `json:"payload"`
 }
 
 type V1StreamProducerCursor struct {
@@ -3969,6 +3978,7 @@ type V1StreamTopic struct {
 	InsertedAt      pgtype.Timestamptz `json:"inserted_at"`
 	LastPublishedAt pgtype.Timestamptz `json:"last_published_at"`
 	LastOffset      int64              `json:"last_offset"`
+	StartingOffset  int64              `json:"starting_offset"`
 }
 
 type V1Task struct {
@@ -4052,6 +4062,7 @@ type V1TaskEventsOlap struct {
 	AdditionalEventData    pgtype.Text          `json:"additional__event_data"`
 	AdditionalEventMessage pgtype.Text          `json:"additional__event_message"`
 	DurableInvocationCount int32                `json:"durable_invocation_count"`
+	IsDagOrchestrator      bool                 `json:"is_dag_orchestrator"`
 }
 
 type V1TaskEventsOlapTmp struct {

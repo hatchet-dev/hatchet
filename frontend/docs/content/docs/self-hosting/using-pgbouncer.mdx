@@ -12,6 +12,27 @@ If you're self-hosting Hatchet, you can put PgBouncer (version 1.21 or newer) in
 
 To set this up, point the `DATABASE_PGBOUNCER_URL` environment variable at your PgBouncer instance, while keeping the `DATABASE_URL` still pointed to your PostgreSQL server address. Make sure PgBouncer is running with `pool_mode` set to `transaction`. See the [PgBouncer docs](https://www.pgbouncer.org/config.html) for all available settings.
 
+## Statement timeouts
+
+Hatchet runs its queries with a 30 second `statement_timeout` and `idle_in_transaction_session_timeout`. It sets them when a connection opens. In transaction pooling mode, that only reaches one server connection, so most queries run without them. Hatchet logs a warning on startup when server connections start without one of these timeouts.
+
+On PgBouncer 1.26.0 or newer, have PgBouncer track both settings:
+
+```ini
+track_extra_parameters = statement_timeout, idle_in_transaction_session_timeout
+```
+
+Then add them to `DATABASE_PGBOUNCER_URL` as query parameters, for example `?statement_timeout=30000&idle_in_transaction_session_timeout=30000`. PgBouncer applies them to every Hatchet transaction and to no other client. Without the `track_extra_parameters` entry, PgBouncer rejects the connection.
+
+On older PgBouncer versions, or if you can't change the PgBouncer config, set the timeouts on the role PgBouncer connects as, for each Hatchet database:
+
+```sql
+ALTER ROLE <hatchet_user> IN DATABASE <database> SET statement_timeout = '30s';
+ALTER ROLE <hatchet_user> IN DATABASE <database> SET idle_in_transaction_session_timeout = '30s';
+```
+
+New server connections pick up these defaults; run `RECONNECT` on the PgBouncer admin console, or restart PgBouncer, to replace existing ones. Migrations turn both timeouts off on their own connections, so they aren't affected. Other sessions with that role, such as `psql` or `pg_dump`, get the defaults too; run `SET statement_timeout = 0` in those sessions for long operations.
+
 ## Example usage with `docker-compose`
 
 ```

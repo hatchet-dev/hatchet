@@ -64,6 +64,7 @@ function WorkflowTable() {
       value={search}
       onChange={setSearch}
       onSubmit={setSearch}
+      submitOnChange
       getAutocomplete={noopAutocomplete}
       applySuggestion={noopApplySuggestion}
       autocompleteContext={autocompleteContext}

@@ -432,7 +432,7 @@ tasks:
         IFS='.' read -r major minor patch <<< "${current#v}"
         next="v${major}.${minor}.$((patch + 1))"
         echo "Bumping ${current} → ${next}"
-        git tag "${next}"
+        git tag --no-sign "${next}"
         git push --no-progress origin "${next}"
 
   minor:
@@ -451,7 +451,7 @@ tasks:
         IFS='.' read -r major minor patch <<< "${current#v}"
         next="v${major}.$((minor + 1)).0"
         echo "Bumping ${current} → ${next}"
-        git tag "${next}"
+        git tag --no-sign "${next}"
         git push --no-progress origin "${next}"
 
   alpha:
@@ -471,5 +471,5 @@ tasks:
           next="v${major}.${minor}.$((patch + 1))-alpha.0"
         fi
         echo "Bumping ${stable} → ${next}"
-        git tag "${next}"
+        git tag --no-sign "${next}"
         git push --no-progress origin "${next}"

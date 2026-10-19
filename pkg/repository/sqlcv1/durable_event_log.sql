@@ -132,17 +132,6 @@ WITH inputs AS (
         UNNEST(@branchIds::BIGINT[]) AS branch_id,
         UNNEST(@childTaskIsFailures::BOOLEAN[]) AS child_task_is_failure,
         UNNEST(@childTaskErrorMessages::TEXT[]) AS child_task_error_message
-), locked_log_files AS (
-    SELECT *
-    FROM v1_durable_event_log_file
-    WHERE
-        (durable_task_id, durable_task_inserted_at) IN (
-            SELECT durable_task_id, durable_task_inserted_at
-            FROM inputs
-        )
-        AND durable_task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
-    ORDER BY durable_task_id, durable_task_inserted_at
-    FOR UPDATE
 ), satisfied_orders_to_apply AS (
     SELECT
         e.durable_task_id,
@@ -154,13 +143,25 @@ WITH inputs AS (
             ORDER BY e.branch_id ASC, e.node_id ASC
         ) AS satisfied_order
     FROM v1_durable_event_log_entry e
-    JOIN locked_log_files llf USING (durable_task_id, durable_task_inserted_at)
+    JOIN v1_durable_event_log_file llf USING (durable_task_id, durable_task_inserted_at)
     WHERE
         e.satisfied_order IS NULL
         AND e.durable_task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
+        AND llf.durable_task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
         AND (durable_task_id, durable_task_inserted_at, branch_id, node_id) IN (
             SELECT durable_task_id, durable_task_inserted_at, branch_id, node_id
             FROM inputs
+        )
+        -- an entry past a fork on its branch is never replayed again, so giving it a
+        -- satisfied_order would leave a permanent gap for the live branch to wait on
+        AND NOT EXISTS (
+            SELECT 1
+            FROM v1_durable_event_log_branch_point bp
+            WHERE bp.durable_task_id = e.durable_task_id
+              AND bp.durable_task_inserted_at = e.durable_task_inserted_at
+              AND bp.durable_task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
+              AND bp.parent_branch_id = e.branch_id
+              AND bp.first_node_id_in_new_branch <= e.node_id
         )
 ), updated AS (
     UPDATE v1_durable_event_log_entry e
@@ -190,7 +191,7 @@ WITH inputs AS (
 
 SELECT updated.*, llf.latest_invocation_count AS invocation_count
 FROM updated
-JOIN locked_log_files llf ON (llf.durable_task_id, llf.durable_task_inserted_at) = (updated.durable_task_id, updated.durable_task_inserted_at)
+JOIN v1_durable_event_log_file llf ON (llf.durable_task_id, llf.durable_task_inserted_at) = (updated.durable_task_id, updated.durable_task_inserted_at)
 ;
 
 -- name: ListSatisfiedEntries :many
@@ -208,7 +209,10 @@ WITH inputs AS MATERIALIZED (
         lt.inserted_at
     FROM inputs i
     JOIN v1_lookup_table lt ON lt.external_id = i.external_id
-    WHERE lt.tenant_id = @tenantId::UUID
+    WHERE
+        lt.tenant_id = @tenantId::UUID
+        AND lt.inserted_at >= @minTaskInsertedAt::TIMESTAMPTZ
+        AND lt.inserted_at <= @maxTaskInsertedAt::TIMESTAMPTZ
 ), satisfied_entries AS MATERIALIZED (
     SELECT
         e.*,
@@ -285,6 +289,7 @@ WITH inputs AS (
         UNNEST(@branchIds::BIGINT[]) AS branch_id,
         UNNEST(@idempotencyKeys::BYTEA[]) AS idempotency_key,
         UNNEST(@isSatisfieds::BOOLEAN[]) AS is_satisfied,
+        UNNEST(@isTriggereds::BOOLEAN[]) AS is_triggered,
         UNNEST(@userMessages::TEXT[]) AS user_message,
         UNNEST(@waitDatas::TEXT[]) AS wait_data
 ), ordered_inputs AS (
@@ -317,8 +322,9 @@ WITH inputs AS (
         satisfied_order,
         user_message,
         wait_data,
-        -- !!IMPORTANT: Writing the `triggered_at` explicitly as `NULL` since it has a `DEFAULT CURRENT_TIMESTAMP`,
-        -- so we write the explicit null to avoid it being set to the current timestamp on insert
+        -- !!IMPORTANT: `triggered_at` has a `DEFAULT CURRENT_TIMESTAMP`, so it is written explicitly: NULL
+        -- for an entry whose run the trigger path still has to spawn, NOW() for an entry whose child
+        -- already exists (an in-place replay)
         triggered_at
     )
     SELECT
@@ -337,7 +343,7 @@ WITH inputs AS (
         i.satisfied_order,
         NULLIF(i.user_message, ''),
         NULLIF(i.wait_data, '')::JSONB,
-        NULL::TIMESTAMPTZ
+        CASE WHEN i.is_triggered THEN NOW() END
     FROM ordered_inputs i
     ON CONFLICT (durable_task_id, durable_task_inserted_at, branch_id, node_id) DO NOTHING
     RETURNING *

@@ -812,7 +812,7 @@ func TestOpenDeliversActionsToHandler(t *testing.T) {
 	ev := session.sentEvents()[0]
 	assert.Equal(t, contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED, ev.EventType)
 	assert.Equal(t, "run-2", ev.TaskRunExternalId)
-	assert.Equal(t, "no capacity", ev.EventPayload)
+	assert.Equal(t, refusedActionClientErrorMessage, ev.EventPayload, "the handler's error must not reach the client")
 	assert.Nil(t, ev.ShouldNotRetry)
 	require.NotNil(t, ev.RetryCount)
 	assert.Equal(t, int32(2), *ev.RetryCount)
@@ -1267,7 +1267,7 @@ func TestCancelsBypassBlockedStarts(t *testing.T) {
 	refused := fs.sentEvents()[0]
 	assert.Equal(t, "run-3", refused.TaskRunExternalId)
 	assert.Equal(t, contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED, refused.EventType)
-	assert.Contains(t, refused.EventPayload, "start queue")
+	assert.Equal(t, refusedActionClientErrorMessage, refused.EventPayload)
 	assert.Nil(t, refused.ShouldNotRetry)
 
 	assert.Len(t, handler.handled(), 2, "the queued start waits for the handler")

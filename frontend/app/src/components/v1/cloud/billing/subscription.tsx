@@ -245,13 +245,16 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                     Office hours
                   </a>
                 </Button>
-                <Button
-                  onClick={manageClicked}
-                  variant="outline"
-                  disabled={portalLoading}
-                >
-                  {portalLoading ? <Spinner /> : 'Manage Billing'}
-                </Button>
+                {!currentPlanSummary?.legacy && (
+                  <Button
+                    onClick={manageClicked}
+                    variant="outline"
+                    size="sm"
+                    disabled={portalLoading}
+                  >
+                    {portalLoading ? <Spinner /> : 'Manage Billing'}
+                  </Button>
+                )}
               </div>
             </div>
           </div>
@@ -309,14 +312,16 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                   <CardTitle className="font-mono font-normal tracking-wider uppercase text-xs text-muted-foreground">
                     Current Plan
                   </CardTitle>
-                  <Button
-                    onClick={manageClicked}
-                    variant="outline"
-                    size="sm"
-                    disabled={portalLoading}
-                  >
-                    {portalLoading ? <Spinner /> : 'Manage Billing'}
-                  </Button>
+                  {!currentPlanSummary?.legacy && (
+                    <Button
+                      onClick={manageClicked}
+                      variant="outline"
+                      size="sm"
+                      disabled={portalLoading}
+                    >
+                      {portalLoading ? <Spinner /> : 'Manage Billing'}
+                    </Button>
+                  )}
                 </CardHeader>
                 <CardContent className="p-4 space-y-4">
                   <div className="flex items-center justify-between">

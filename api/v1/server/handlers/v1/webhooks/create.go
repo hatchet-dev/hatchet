@@ -10,6 +10,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
+	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -179,6 +180,14 @@ func (w *V1WebhooksService) constructCreateOpts(tenantId uuid.UUID, request gen.
 		hmacAuth, err := request.AsV1CreateWebhookRequestHMAC()
 		if err != nil {
 			return params, fmt.Errorf("failed to parse hmac auth: %w", err)
+		}
+
+		if err := checkHMACAlgorithm(sqlcv1.V1IncomingWebhookHmacAlgorithm(hmacAuth.Auth.Algorithm)); err != nil {
+			return params, err
+		}
+
+		if err := encryption.CheckHMACKey([]byte(hmacAuth.Auth.SigningSecret)); err != nil {
+			return params, err
 		}
 
 		authConfig := v1.AuthConfig{

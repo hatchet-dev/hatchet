@@ -1004,6 +1004,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	// event per DAG, and the query decides from there whether it actually applies.
 	orchestratorUpdates := make([]v1.OrchestratorDAGStatusUpdateOpt, 0)
 	operatorRunIds := make(map[uuid.UUID]struct{})
+	retriedEventIds := make(map[uuid.UUID]struct{})
 
 	for ix, msg := range msgs {
 		taskMeta := taskIdsToMetas[msg.TaskId]
@@ -1021,17 +1022,23 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		readableStatus := olapEventTypeToReadableStatus(msg.EventType)
 
 		if taskMeta.IsDagOrchestrator {
-			orchestratorUpdates = append(orchestratorUpdates, v1.OrchestratorDAGStatusUpdateOpt{
-				DagId:              msg.TaskId,
-				DagInsertedAt:      taskMeta.InsertedAt,
-				ReadableStatus:     readableStatus,
-				RetryCount:         msg.RetryCount,
-				ExternalId:         taskMeta.WorkflowRunID,
-				DisplayName:        taskMeta.DisplayName,
-				WorkflowId:         taskMeta.WorkflowID,
-				WorkflowVersionId:  taskMeta.WorkflowVersionID,
-				AdditionalMetadata: taskMeta.AdditionalMetadata,
-			})
+			if !msg.WillRetry {
+				orchestratorUpdates = append(orchestratorUpdates, v1.OrchestratorDAGStatusUpdateOpt{
+					DagId:              msg.TaskId,
+					DagInsertedAt:      taskMeta.InsertedAt,
+					ReadableStatus:     readableStatus,
+					RetryCount:         msg.RetryCount,
+					ExternalId:         taskMeta.WorkflowRunID,
+					DisplayName:        taskMeta.DisplayName,
+					WorkflowId:         taskMeta.WorkflowID,
+					WorkflowVersionId:  taskMeta.WorkflowVersionID,
+					AdditionalMetadata: taskMeta.AdditionalMetadata,
+				})
+			}
+
+			if msg.StatusOnly {
+				continue
+			}
 		}
 
 		readableStatuses = append(readableStatuses, readableStatus)
@@ -1050,6 +1057,10 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 
 		eventExternalIdToWorkflowRunId[externalId] = taskMeta.WorkflowRunID
 		externalIdToMsg[externalId] = msg
+
+		if msg.WillRetry {
+			retriedEventIds[externalId] = struct{}{}
+		}
 
 		if taskMeta.WasTriggeredByDagOrchestrator {
 			operatorRunIds[taskMeta.WorkflowRunID] = struct{}{}
@@ -1104,6 +1115,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 			WorkerID:               workerId,
 			AdditionalEventMessage: sqlchelpers.TextFromStr(eventMessages[i]),
 			ExternalID:             eventExternalIds[i],
+			IsDagOrchestrator:      taskIdsToMetas[taskId].IsDagOrchestrator,
 		}
 
 		switch eventTypes[i] {
@@ -1116,6 +1128,29 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 			event.ErrorMessage = sqlchelpers.TextFromStr(errorMsg)
 		case sqlcv1.V1EventTypeOlapCANCELLED:
 			event.AdditionalEventMessage = sqlchelpers.TextFromStr(eventMessages[i])
+		case sqlcv1.V1EventTypeOlapRETRYING,
+			sqlcv1.V1EventTypeOlapREASSIGNED,
+			sqlcv1.V1EventTypeOlapRETRIEDBYUSER,
+			sqlcv1.V1EventTypeOlapCREATED,
+			sqlcv1.V1EventTypeOlapQUEUED,
+			sqlcv1.V1EventTypeOlapREQUEUEDNOWORKER,
+			sqlcv1.V1EventTypeOlapREQUEUEDRATELIMIT,
+			sqlcv1.V1EventTypeOlapASSIGNED,
+			sqlcv1.V1EventTypeOlapACKNOWLEDGED,
+			sqlcv1.V1EventTypeOlapSENTTOWORKER,
+			sqlcv1.V1EventTypeOlapSLOTRELEASED,
+			sqlcv1.V1EventTypeOlapSTARTED,
+			sqlcv1.V1EventTypeOlapTIMEOUTREFRESHED,
+			sqlcv1.V1EventTypeOlapSCHEDULINGTIMEDOUT,
+			sqlcv1.V1EventTypeOlapTIMEDOUT,
+			sqlcv1.V1EventTypeOlapRATELIMITERROR,
+			sqlcv1.V1EventTypeOlapSKIPPED,
+			sqlcv1.V1EventTypeOlapCOULDNOTSENDTOWORKER,
+			sqlcv1.V1EventTypeOlapDURABLEEVICTED,
+			sqlcv1.V1EventTypeOlapDURABLERESTORING,
+			sqlcv1.V1EventTypeOlapBATCHBUFFERED,
+			sqlcv1.V1EventTypeOlapWAITINGFORBATCH,
+			sqlcv1.V1EventTypeOlapBATCHFLUSHED:
 		}
 
 		opts = append(opts, event)
@@ -1124,7 +1159,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	processedRunIDs := make(map[uuid.UUID]bool)
 
 	attempts := 0
-	for len(opts) > 0 {
+	for len(opts) > 0 || (attempts == 0 && len(orchestratorUpdates) > 0) {
 		if attempts >= maxLockAttempts {
 			maxRequeueCount := 0
 			for _, msg := range externalIdToMsg {
@@ -1139,7 +1174,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 
 		attempts++
 
-		result, workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateTaskEvents(ctx, tenantId, opts, eventExternalIdToWorkflowRunId, orchestratorUpdates, operatorRunIds)
+		result, workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateTaskEvents(ctx, tenantId, opts, eventExternalIdToWorkflowRunId, retriedEventIds, orchestratorUpdates, operatorRunIds)
 
 		if err != nil {
 			return fmt.Errorf("failed to create task events: %w", err)

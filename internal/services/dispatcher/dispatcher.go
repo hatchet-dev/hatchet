@@ -938,11 +938,17 @@ func resolveDagParentOutputs(
 ) {
 	for _, entry := range dagChildInputs {
 		parents := make(map[string]map[string]interface{})
+		stepRunErrors := make(map[string]string)
 
 		for _, parentExternalId := range entry.currInput.DagParentTaskRunIds {
 			parentOutput, ok := dagParentOutputs[parentExternalId]
 
 			if !ok {
+				continue
+			}
+
+			if parentOutput.IsFailed() {
+				stepRunErrors[parentOutput.StepReadableID] = parentOutput.ErrorMessage
 				continue
 			}
 
@@ -957,6 +963,7 @@ func resolveDagParentOutputs(
 		}
 
 		entry.currInput.Parents = parents
+		entry.currInput.StepRunErrors = stepRunErrors
 		inputs[entry.payloadKey] = entry.currInput.Bytes()
 	}
 }
@@ -1081,6 +1088,7 @@ func (d *DispatcherImpl) handleRetries(
 					"This likely means that too many slots have been configured for the number of workers "+
 					"or the network latency between engine and worker is unusually high.",
 				false,
+				nil,
 			)
 
 			if err != nil {

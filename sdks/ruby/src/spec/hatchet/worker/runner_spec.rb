@@ -70,6 +70,54 @@ RSpec.describe Hatchet::WorkerRuntime::Runner do
     expect(dispatcher_client).to have_received(:send_step_action_event).twice
   end
 
+  it "reports the requested delay when a task raises RetryAfterError" do
+    action = double("action", retry_count: 1)
+    allow(dispatcher_client).to receive(:send_step_action_event)
+
+    runner.send(:send_failure, action, Hatchet::RetryAfterError.new("rate limited", after: 2), retryable: true,
+                                                                                               retry_after_ms: 2000,)
+
+    expect(dispatcher_client).to have_received(:send_step_action_event).with(
+      hash_including(event_type: :STEP_EVENT_TYPE_FAILED, should_not_retry: false, retry_after_ms: 2000),
+    )
+  end
+
+  describe "RetryAfterError engine support warning" do
+    let(:action) { double("action", action_id: "retry:task") }
+
+    def runner_for(engine_version)
+      described_class.new(
+        workflows: [],
+        slots: 1,
+        dispatcher_client: dispatcher_client,
+        event_client: event_client,
+        logger: logger,
+        client: client,
+        engine_version: engine_version,
+      )
+    end
+
+    it "warns on every failure on an engine that ignores the delay" do
+      old_runner = runner_for("v0.110.0")
+
+      2.times { old_runner.send(:warn_retry_after_unsupported, action) }
+
+      expect(logger).to have_received(:warn).with(/RetryAfterError requires engine/).twice
+    ensure
+      old_runner&.send(:stop_step_action_event_thread)
+    end
+
+    it "does not warn on an engine that supports it" do
+      new_runner = runner_for(Hatchet::MinEngineVersion::RETRY_AFTER)
+
+      new_runner.send(:warn_retry_after_unsupported, action)
+
+      expect(logger).not_to have_received(:warn)
+    ensure
+      new_runner&.send(:stop_step_action_event_thread)
+    end
+  end
+
   it "initializes the eviction manager only once under concurrent startup" do
     config = double("config")
     channel = double("channel")
@@ -211,6 +259,34 @@ RSpec.describe Hatchet::WorkerRuntime::Runner do
       completed_by_id = completed[:items].to_h { |i| [i[:task_run_external_id], JSON.parse(i[:event_payload])] }
 
       expect(completed_by_id).to eq("id-1" => { "sum" => 7 }, "id-2" => { "sum" => 7 })
+    ensure
+      batch_runner&.send(:stop_step_action_event_thread)
+    end
+
+    it "retries every member after the requested delay when the handler raises RetryAfterError" do
+      workflow = Hatchet::Workflow.new(name: "BatchWorkflow", client: client)
+      workflow.batch_task(
+        "rate_limited",
+        batch: Hatchet::BatchTaskConfig.new(max_size: 3),
+      ) { |_inputs, _ctx| raise Hatchet::RetryAfterError.new("rate limited", after: 2) }
+
+      batch_runner = build_batch_runner(workflow)
+
+      action = batch_action(
+        action_id: "batchworkflow:rate_limited",
+        payload: {
+          "id-1" => { "payload" => { "input" => {} }, "workflow_run_id" => "wr-1" },
+          "id-2" => { "payload" => { "input" => {} }, "workflow_run_id" => "wr-2" },
+        },
+      )
+
+      events = []
+      allow(dispatcher_client).to receive(:send_batch_action_event) { |**kwargs| events << kwargs }
+
+      batch_runner.send(:execute_batch_task, action)
+
+      failed = events.find { |e| e[:event_type] == :STEP_EVENT_TYPE_FAILED }
+      expect(failed[:items]).to all(include(should_not_retry: false, retry_after_ms: 2000))
     ensure
       batch_runner&.send(:stop_step_action_event_thread)
     end

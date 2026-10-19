@@ -25,6 +25,7 @@ import (
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-admin/cli/seed"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-engine/engine"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-migrate/migrate"
+	"github.com/hatchet-dev/hatchet/pkg/cleanup"
 	"github.com/hatchet-dev/hatchet/pkg/config/database"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
@@ -226,11 +227,27 @@ func startEngine() func() {
 
 	// Return a cleanup function that properly handles shutdown
 	return func() {
+		// a result already waiting here was produced before this cleanup
+		// asked the engine to stop, so the engine did not shut down, it
+		// failed, whatever error it carries
+		select {
+		case err := <-engineCh:
+			log.Fatalf("engine exited before shutdown was requested: %v", err)
+		default:
+		}
+
 		cancel()
 
 		err := <-engineCh
 
-		if err != nil {
+		// The readiness probe answers as soon as the queue and database are
+		// healthy, which is before every controller has started. A test that
+		// finishes right after the probe cancels the engine while it is still
+		// starting, and a start step that observes the cancellation returns it
+		// as its error. That is the shutdown this cleanup asked for, not a
+		// failure to run. A cleanup fn that failed on the way out is still a
+		// failure; engine.Run joins that error to the cancellation.
+		if !cleanup.OnlyCancelled(err) {
 			log.Fatalf("failed to run engine: %v", err)
 		}
 

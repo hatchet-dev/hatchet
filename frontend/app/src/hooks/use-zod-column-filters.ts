@@ -11,6 +11,7 @@ export function useZodColumnFilters<T extends z.ZodType>(
   schema: T,
   key: string,
   filterMapping: FilterMapping<z.infer<T>>,
+  { replaceHistoryEntryOnChange = false } = {},
 ): {
   state: z.infer<T>;
   columnFilters: ColumnFiltersState;
@@ -38,12 +39,15 @@ export function useZodColumnFilters<T extends z.ZodType>(
 
   const setQueryState = useCallback(
     (newValue: z.infer<T>) => {
-      setSearchParams((prev) => ({
-        ...Object.fromEntries(prev.entries()),
-        [key]: newValue,
-      }));
+      setSearchParams(
+        (prev) => ({
+          ...Object.fromEntries(prev.entries()),
+          [key]: newValue,
+        }),
+        { replace: replaceHistoryEntryOnChange },
+      );
     },
-    [key, setSearchParams],
+    [key, setSearchParams, replaceHistoryEntryOnChange],
   );
 
   const columnFilters = useMemo<ColumnFiltersState>(() => {

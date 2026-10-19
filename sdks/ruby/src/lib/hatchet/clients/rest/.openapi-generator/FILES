@@ -26,6 +26,7 @@ lib/hatchet-sdk-rest/api/serverless_api.rb
 lib/hatchet-sdk-rest/api/slack_api.rb
 lib/hatchet-sdk-rest/api/sns_api.rb
 lib/hatchet-sdk-rest/api/step_run_api.rb
+lib/hatchet-sdk-rest/api/streams_api.rb
 lib/hatchet-sdk-rest/api/task_api.rb
 lib/hatchet-sdk-rest/api/tenant_api.rb
 lib/hatchet-sdk-rest/api/user_api.rb
@@ -213,6 +214,7 @@ lib/hatchet-sdk-rest/models/v1_serverless_endpoint.rb
 lib/hatchet-sdk-rest/models/v1_serverless_endpoint_kind.rb
 lib/hatchet-sdk-rest/models/v1_serverless_endpoint_list.rb
 lib/hatchet-sdk-rest/models/v1_serverless_endpoint_status.rb
+lib/hatchet-sdk-rest/models/v1_stream_payload_ref.rb
 lib/hatchet-sdk-rest/models/v1_task_event.rb
 lib/hatchet-sdk-rest/models/v1_task_event_list.rb
 lib/hatchet-sdk-rest/models/v1_task_event_type.rb
@@ -242,6 +244,7 @@ lib/hatchet-sdk-rest/models/v1_webhook_list.rb
 lib/hatchet-sdk-rest/models/v1_webhook_response.rb
 lib/hatchet-sdk-rest/models/v1_webhook_source_name.rb
 lib/hatchet-sdk-rest/models/v1_workflow_run.rb
+lib/hatchet-sdk-rest/models/v1_workflow_run_count.rb
 lib/hatchet-sdk-rest/models/v1_workflow_run_details.rb
 lib/hatchet-sdk-rest/models/v1_workflow_run_display_name.rb
 lib/hatchet-sdk-rest/models/v1_workflow_run_display_name_list.rb

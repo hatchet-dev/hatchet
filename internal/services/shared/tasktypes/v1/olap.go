@@ -101,6 +101,14 @@ type CreateMonitoringEventPayload struct {
 	EventTimestamp time.Time `json:"event_timestamp" validate:"required"`
 	EventPayload   string    `json:"event_payload" validate:"required"`
 	EventMessage   string    `json:"event_message,omitempty"`
+
+	// StatusOnly applies a DAG orchestrator event to its run's DAG status without writing a task
+	// event, for publishes that duplicate an event already sent by the regular reporting path.
+	// Ignored for other tasks.
+	StatusOnly bool `json:"status_only,omitempty"`
+
+	// WillRetry records the failure or timeout event but leaves the task and its run non-terminal.
+	WillRetry bool `json:"will_retry,omitempty"`
 }
 
 func MonitoringEventMessageFromActionEvent(tenantId uuid.UUID, taskId int64, retryCount int32, durableInvocationCount int32, request *contracts.StepActionEvent) (*msgqueue.Message, error) {
@@ -127,6 +135,10 @@ func MonitoringEventMessageFromActionEvent(tenantId uuid.UUID, taskId int64, ret
 		payload.EventType = sqlcv1.V1EventTypeOlapFAILED
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_STARTED:
 		payload.EventType = sqlcv1.V1EventTypeOlapSTARTED
+	case contracts.StepActionEventType_STEP_EVENT_TYPE_UNKNOWN,
+		contracts.StepActionEventType_STEP_EVENT_TYPE_ACKNOWLEDGED,
+		contracts.StepActionEventType_STEP_EVENT_TYPE_CANCELLED:
+		return nil, fmt.Errorf("unknown event type: %s", request.EventType.String())
 	default:
 		return nil, fmt.Errorf("unknown event type: %s", request.EventType.String())
 	}
