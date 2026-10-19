@@ -75,12 +75,14 @@ List all workflows in the tenant.
 
 Parameters
 
-| Parameter      | Type                                                              | Description                                            |
-| -------------- | ----------------------------------------------------------------- | ------------------------------------------------------ |
-| `opts?`        | \{ `limit?`: `number`; `name?`: `string`; `offset?`: `number`; \} | The options for the list operation.                    |
-| `opts.limit?`  | `number`                                                          | The number to limit by **Format** int **Default** `50` |
-| `opts.name?`   | `string`                                                          | Search by name                                         |
-| `opts.offset?` | `number`                                                          | The number to skip **Format** int **Default** `0`      |
+| Parameter            | Type                                                                                                              | Description                                             |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `opts?`              | \{ `isPaused?`: `boolean`; `limit?`: `number`; `name?`: `string`; `offset?`: `number`; `triggerTypes?`: ...[]; \} | The options for the list operation.                     |
+| `opts.isPaused?`     | `boolean`                                                                                                         | Only return paused (true) or unpaused (false) workflows |
+| `opts.limit?`        | `number`                                                                                                          | The number to limit by **Format** int **Default** `50`  |
+| `opts.name?`         | `string`                                                                                                          | Search by name                                          |
+| `opts.offset?`       | `number`                                                                                                          | The number to skip **Format** int **Default** `0`       |
+| `opts.triggerTypes?` | ...[]                                                                                                             | The trigger types to filter by                          |
 
 Returns
 
