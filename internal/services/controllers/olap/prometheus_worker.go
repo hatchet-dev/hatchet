@@ -85,6 +85,9 @@ func (o *OLAPControllerImpl) runTaskPrometheusUpdateWorker() {
 
 				tenantMetricsEnabled := o.promGate.Enabled(o.taskPrometheusWorkerCtx, tenantId)
 
+				// TODO: remove once the task duration undercount is diagnosed
+				var standalone, observed, noWorkflowName, noRow, nullStarted, nullFinished int
+
 				for _, update := range tenantUpdates {
 					if update.isDAGTask {
 						continue
@@ -94,18 +97,48 @@ func (o *OLAPControllerImpl) runTaskPrometheusUpdateWorker() {
 						continue
 					}
 
+					standalone++
+
 					workflowName := workflowNames[update.workflowId]
 					if workflowName == "" {
+						noWorkflowName++
 						continue
 					}
 
 					taskDuration := taskDurations[update.taskId]
-					if taskDuration == nil || !taskDuration.StartedAt.Valid || !taskDuration.FinishedAt.Valid {
+					if taskDuration == nil {
+						noRow++
 						continue
 					}
 
+					if !taskDuration.StartedAt.Valid || !taskDuration.FinishedAt.Valid {
+						if !taskDuration.StartedAt.Valid {
+							nullStarted++
+						}
+						if !taskDuration.FinishedAt.Valid {
+							nullFinished++
+						}
+						continue
+					}
+
+					observed++
+
 					duration := int(taskDuration.FinishedAt.Time.Sub(taskDuration.StartedAt.Time).Milliseconds())
 					prometheus.TenantWorkflowDurationBuckets.WithLabelValues(tenantId.String(), workflowName, string(update.readableStatus)).Observe(float64(duration))
+				}
+
+				if observed < standalone {
+					o.l.Warn().
+						Str("tenant_id", tenantId.String()).
+						Int("updates", len(tenantUpdates)).
+						Int("standalone_updates", standalone).
+						Int("duration_rows", len(taskDurations)).
+						Int("observed", observed).
+						Int("no_workflow_name", noWorkflowName).
+						Int("no_row", noRow).
+						Int("null_started", nullStarted).
+						Int("null_finished", nullFinished).
+						Msg("task prometheus batch skipped observations")
 				}
 
 				return nil

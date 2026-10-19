@@ -1163,6 +1163,7 @@ WITH input AS (
     GROUP BY task_id, inserted_at
 )
 SELECT
+    td.task_id::bigint AS task_id,
     tt.started_at::timestamptz AS started_at,
     tt.finished_at::timestamptz AS finished_at
 FROM
@@ -1180,6 +1181,7 @@ type GetTaskDurationsByTaskIdsParams struct {
 }
 
 type GetTaskDurationsByTaskIdsRow struct {
+	TaskID     int64              `json:"task_id"`
 	StartedAt  pgtype.Timestamptz `json:"started_at"`
 	FinishedAt pgtype.Timestamptz `json:"finished_at"`
 }
@@ -1198,7 +1200,7 @@ func (q *Queries) GetTaskDurationsByTaskIds(ctx context.Context, db DBTX, arg Ge
 	var items []*GetTaskDurationsByTaskIdsRow
 	for rows.Next() {
 		var i GetTaskDurationsByTaskIdsRow
-		if err := rows.Scan(&i.StartedAt, &i.FinishedAt); err != nil {
+		if err := rows.Scan(&i.TaskID, &i.StartedAt, &i.FinishedAt); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

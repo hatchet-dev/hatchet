@@ -2170,6 +2170,7 @@ WITH input AS (
     GROUP BY task_id, inserted_at
 )
 SELECT
+    td.task_id::bigint AS task_id,
     tt.started_at::timestamptz AS started_at,
     tt.finished_at::timestamptz AS finished_at
 FROM
