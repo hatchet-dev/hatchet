@@ -710,7 +710,7 @@ JOIN input i ON moved_items.id = i.id
 ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
 RETURNING tenant_id, task_id, task_inserted_at, retry_count;
 
--- name: RequeueRateLimitedQueueItems :many
+-- name: RequeueRateLimitedQueueItems :one
 WITH ready_items AS (
     SELECT
         tenant_id,
@@ -760,47 +760,58 @@ WITH ready_items AS (
         desired_worker_id,
         retry_count,
         batch_key
-)
-INSERT INTO v1_queue_item (
-    tenant_id,
-    queue,
-    task_id,
-    task_inserted_at,
-    external_id,
-    action_id,
-    step_id,
-    workflow_id,
-    workflow_run_id,
-    schedule_timeout_at,
-    step_timeout,
-    priority,
-    sticky,
-    desired_worker_id,
-    retry_count,
-    desired_worker_label,
-    batch_key
+), requeued_items AS (
+    INSERT INTO v1_queue_item (
+        tenant_id,
+        queue,
+        task_id,
+        task_inserted_at,
+        external_id,
+        action_id,
+        step_id,
+        workflow_id,
+        workflow_run_id,
+        schedule_timeout_at,
+        step_timeout,
+        priority,
+        sticky,
+        desired_worker_id,
+        retry_count,
+        desired_worker_label,
+        batch_key
+    )
+    SELECT
+        tenant_id,
+        queue,
+        task_id,
+        task_inserted_at,
+        external_id,
+        action_id,
+        step_id,
+        workflow_id,
+        workflow_run_id,
+        schedule_timeout_at,
+        step_timeout,
+        priority,
+        sticky,
+        desired_worker_id,
+        retry_count,
+        desired_worker_label,
+        batch_key
+    FROM ready_items
+    ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
+    RETURNING id
 )
 SELECT
-    tenant_id,
-    queue,
-    task_id,
-    task_inserted_at,
-    external_id,
-    action_id,
-    step_id,
-    workflow_id,
-    workflow_run_id,
-    schedule_timeout_at,
-    step_timeout,
-    priority,
-    sticky,
-    desired_worker_id,
-    retry_count,
-    desired_worker_label,
-    batch_key
-FROM ready_items
-ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
-RETURNING id, tenant_id, task_id, task_inserted_at, retry_count;
+    (SELECT COUNT(*) FROM requeued_items)::bigint AS moved_count,
+    (
+        SELECT MIN(requeue_after)
+        FROM v1_rate_limited_queue_items
+        WHERE
+            tenant_id = @tenantId::uuid
+            AND queue = @queue::text
+            AND requeue_after > NOW()
+    )::timestamptz AS next_requeue_after;
 
 -- name: CleanupV1QueueItem :execresult
 WITH locked_qis as (

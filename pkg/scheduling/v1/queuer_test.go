@@ -28,7 +28,7 @@ type recordingQueueRepo struct {
 	requeueCalls int
 }
 
-func (r *recordingQueueRepo) RequeueRateLimitedItems(context.Context, uuid.UUID, string) ([]*sqlcv1.RequeueRateLimitedQueueItemsRow, error) {
+func (r *recordingQueueRepo) RequeueRateLimitedItems(context.Context, uuid.UUID, string) (*time.Time, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.requeueCalls++

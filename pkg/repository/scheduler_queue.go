@@ -994,11 +994,12 @@ func (d *queueRepository) ListWorkflowNamesByIds(ctx context.Context, workflowId
 	return workflowIdToName, nil
 }
 
-func (d *queueRepository) RequeueRateLimitedItems(ctx context.Context, tenantId uuid.UUID, queueName string) ([]*sqlcv1.RequeueRateLimitedQueueItemsRow, error) {
-	// NOTE: this runs on every tick of every queue loop, and nearly always moves nothing. The
-	// statement is a single atomic CTE, so it runs without a transaction to keep the pooled
+// RequeueRateLimitedItems moves the rate-limited items whose refill time has passed back into
+// the queue and returns the earliest refill time still parked for this queue, nil when none.
+func (d *queueRepository) RequeueRateLimitedItems(ctx context.Context, tenantId uuid.UUID, queueName string) (*time.Time, error) {
+	// The statement is a single atomic CTE, so it runs without a transaction to keep the pooled
 	// connection for one round trip instead of BEGIN / statement / COMMIT.
-	rows, err := d.queries.RequeueRateLimitedQueueItems(ctx, d.pool, sqlcv1.RequeueRateLimitedQueueItemsParams{
+	row, err := d.queries.RequeueRateLimitedQueueItems(ctx, d.pool, sqlcv1.RequeueRateLimitedQueueItemsParams{
 		Tenantid: tenantId,
 		Queue:    queueName,
 	})
@@ -1007,21 +1008,27 @@ func (d *queueRepository) RequeueRateLimitedItems(ctx context.Context, tenantId 
 		return nil, err
 	}
 
-	// Runs on every queue-loop tick: refreshing last_active unconditionally would keep every
-	// polled queue active forever.
-	if len(rows) == 0 {
-		return rows, nil
+	var nextRequeueAfter *time.Time
+
+	if row.NextRequeueAfter.Valid {
+		nextRequeueAfter = &row.NextRequeueAfter.Time
+	}
+
+	// Refreshing last_active only when something moved: doing it on every call would keep
+	// every polled queue active forever.
+	if row.MovedCount == 0 {
+		return nextRequeueAfter, nil
 	}
 
 	saveQueues, err := d.upsertQueues(ctx, d.pool, tenantId, []string{queueName})
 
 	if err != nil {
-		return rows, err
+		return nextRequeueAfter, err
 	}
 
 	saveQueues()
 
-	return rows, nil
+	return nextRequeueAfter, nil
 }
 
 type batchQueueRepository struct {
