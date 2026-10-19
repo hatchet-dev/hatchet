@@ -15,7 +15,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
-	"github.com/hatchet-dev/hatchet/internal/signature"
 	"github.com/hatchet-dev/hatchet/pkg/operator/safeclient"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/contract"
 )
@@ -112,7 +111,7 @@ func TestDeliverActionSignsEnvelope(t *testing.T) {
 	assert.Equal(t, http.MethodPost, call.method)
 	assert.Equal(t, ep.id.String(), call.headers.Get(contract.EndpointIdHeader))
 	assert.NotEmpty(t, call.headers.Get(contract.TimestampHeader))
-	assert.True(t, signature.Verify(string(call.body), "s3cret", call.headers.Get(contract.SignatureHeader)))
+	assert.True(t, contract.Verify(string(call.body), "s3cret", call.headers.Get(contract.SignatureHeader)))
 
 	// The body is protojson: lowerCamelCase field names, the action nested as a message.
 	assert.Contains(t, string(call.body), `"endpointId"`)

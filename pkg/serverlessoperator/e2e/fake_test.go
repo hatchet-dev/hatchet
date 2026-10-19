@@ -20,7 +20,6 @@ import (
 
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
-	"github.com/hatchet-dev/hatchet/internal/signature"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/contract"
 	"github.com/hatchet-dev/hatchet/pkg/worker/condition"
 )
@@ -278,7 +277,7 @@ func (f *fakeEndpoint) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !signature.Verify(string(body), f.secret, r.Header.Get(contract.SignatureHeader)) {
+	if !contract.Verify(string(body), f.secret, r.Header.Get(contract.SignatureHeader)) {
 		f.t.Errorf("fake %s: bad signature on %s", f.name, r.URL.Path)
 		http.Error(w, "bad signature", http.StatusUnauthorized)
 
@@ -424,7 +423,7 @@ func (f *fakeEndpoint) serveUpgrade(w http.ResponseWriter, r *http.Request) {
 		r.Header.Get(contract.InvocationHeader),
 	)
 
-	if r.Header.Get(contract.NonceHeader) == "" || !signature.Verify(payload, f.secret, r.Header.Get(contract.SignatureHeader)) {
+	if r.Header.Get(contract.NonceHeader) == "" || !contract.Verify(payload, f.secret, r.Header.Get(contract.SignatureHeader)) {
 		f.t.Errorf("fake %s: bad upgrade signature", f.name)
 		http.Error(w, "bad signature", http.StatusUnauthorized)
 
