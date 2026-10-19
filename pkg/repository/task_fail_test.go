@@ -134,6 +134,29 @@ func TestFailTasksRetryDecisionIsPerTask(t *testing.T) {
 		require.Equal(t, taskRetryCounts{retryCount: 1, appRetryCount: 1}, getTaskRetryCounts(t, ctx, repo, withRetries))
 	})
 
+	t.Run("app failure retries only tasks that are not marked non-retryable", func(t *testing.T) {
+		retryable := insertTaskWithRetries(t, ctx, repo, "fail-batch-retryable", 2)
+		nonRetryable := insertTaskWithRetries(t, ctx, repo, "fail-batch-non-retryable", 2)
+
+		startTaskRuntime(t, ctx, repo, retryable)
+		startTaskRuntime(t, ctx, repo, nonRetryable)
+
+		nonRetryableOpts := failTaskOpts(nonRetryable, true)
+		nonRetryableOpts.IsNonRetryable = true
+
+		res, err := repo.FailTasks(ctx, internalTenantId, []FailTaskOpts{
+			failTaskOpts(retryable, true),
+			nonRetryableOpts,
+		})
+		require.NoError(t, err)
+
+		require.ElementsMatch(t, []int64{retryable.ID}, retriedTaskIds(res))
+
+		require.Equal(t, taskRetryCounts{retryCount: 1, appRetryCount: 1}, getTaskRetryCounts(t, ctx, repo, retryable))
+		require.Equal(t, taskRetryCounts{}, getTaskRetryCounts(t, ctx, repo, nonRetryable),
+			"a non-retryable task must not be retried because another task in the batch is retryable")
+	})
+
 	t.Run("app failure skips tasks without a runtime", func(t *testing.T) {
 		running := insertTaskWithRetries(t, ctx, repo, "fail-batch-app-running", 2)
 		released := insertTaskWithRetries(t, ctx, repo, "fail-batch-app-released", 2)
