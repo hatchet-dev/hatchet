@@ -93,7 +93,7 @@ func TestDeliverActionSignsEnvelope(t *testing.T) {
 	sender := newFakeSender()
 
 	ep := &cachedEndpoint{id: uuid.New()}
-	cfg := &endpointConfig{triggerUrl: "https://ep.example.test/trigger", secret: "s3cret", requestTimeoutSeconds: 5}
+	cfg := &endpointConfig{triggerUrl: "https://ep.example.test/trigger", secret: "test-signing-secret-0123456789abcdef", requestTimeoutSeconds: 5}
 
 	sender.respond(cfg.triggerUrl, http.StatusOK, `{"result":42}`)
 
@@ -111,7 +111,7 @@ func TestDeliverActionSignsEnvelope(t *testing.T) {
 	assert.Equal(t, http.MethodPost, call.method)
 	assert.Equal(t, ep.id.String(), call.headers.Get(contract.EndpointIdHeader))
 	assert.NotEmpty(t, call.headers.Get(contract.TimestampHeader))
-	assert.True(t, contract.Verify(string(call.body), "s3cret", call.headers.Get(contract.SignatureHeader)))
+	assert.True(t, contract.Verify(string(call.body), "test-signing-secret-0123456789abcdef", call.headers.Get(contract.SignatureHeader)))
 
 	// The body is protojson: lowerCamelCase field names, the action nested as a message.
 	assert.Contains(t, string(call.body), `"endpointId"`)

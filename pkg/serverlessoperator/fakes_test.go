@@ -540,7 +540,7 @@ func newEndpointRow(spec endpointSpec) *sqlcv1.V1ServerlessEndpoint {
 		Kind:                  sqlcv1.V1ServerlessEndpointKindGENERICHTTP,
 		HealthcheckUrl:        "https://" + spec.name + ".example.test/health",
 		TriggerUrl:            "https://" + spec.name + ".example.test/trigger",
-		SigningSecretEnc:      "enc:secret-" + spec.name,
+		SigningSecretEnc:      "enc:test-signing-secret-0123456789-" + spec.name,
 		RequestTimeoutSeconds: 5,
 		PollIntervalSeconds:   3600,
 		Labels:                []byte("{}"),
@@ -636,5 +636,15 @@ func startAction(action string) *contracts.AssignedAction {
 		JobName:           "wf",
 		ActionPayload:     `{"input":1}`,
 		RetryCount:        1,
+	}
+}
+
+// skipWithoutWebsocketHandshake skips a test that upgrades a websocket: the RFC 6455
+// handshake is specified over SHA-1, which GODEBUG=fips140=only refuses.
+func skipWithoutWebsocketHandshake(t *testing.T) {
+	t.Helper()
+
+	if !encryption.SHA1Allowed() {
+		t.Skip("websocket handshakes need SHA-1, which fips140=only refuses")
 	}
 }

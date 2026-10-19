@@ -50,6 +50,10 @@ func startServerlessOperator(sc *server.ServerConfig, d *dispatcher.DispatcherIm
 		return func() error { return nil }, nil
 	}
 
+	if err := serverlessoperator.CheckRuntimeSupport(); err != nil {
+		return nil, err
+	}
+
 	l := sc.Logger.With().Str("service", "serverless-operator").Logger()
 	cf := sc.Runtime.ServerlessOperator
 

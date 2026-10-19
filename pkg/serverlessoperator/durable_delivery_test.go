@@ -88,11 +88,13 @@ func (f *fakeDurableChannel) isClosed() bool {
 // slot, STARTED, signed upgrade verified by the endpoint, first frame, a memo round trip,
 // done, COMPLETED.
 func TestDurableDeliveryEndToEnd(t *testing.T) {
+	skipWithoutWebsocketHandshake(t)
+
 	env := newTestEnv(t)
 	tenant := uuid.New()
 
 	row := healthyRow(endpointSpec{tenantId: tenant, name: "a", actions: []string{"svc:run"}})
-	secret := "secret-a"
+	secret := "test-signing-secret-0123456789-a"
 
 	type seen struct {
 		first *v1.ServerlessFirstFrame
@@ -217,6 +219,8 @@ func (f *fakeSession) inflightCount(env *testEnv) int {
 
 // TestDurableDeliveryCloseWithoutDoneIsRetryable covers the crash rule through the core.
 func TestDurableDeliveryCloseWithoutDoneIsRetryable(t *testing.T) {
+	skipWithoutWebsocketHandshake(t)
+
 	env := newTestEnv(t)
 	tenant := uuid.New()
 
@@ -257,6 +261,8 @@ func TestDurableDeliveryCloseWithoutDoneIsRetryable(t *testing.T) {
 // TestDurableDeliveryCancelSendsNoSecondEvent: an engine cancel closes the socket with 4003
 // and the CANCELLED event sent by the cancel path is the only terminal event.
 func TestDurableDeliveryCancelSendsNoSecondEvent(t *testing.T) {
+	skipWithoutWebsocketHandshake(t)
+
 	env := newTestEnv(t)
 	tenant := uuid.New()
 
@@ -336,6 +342,8 @@ func TestDurableDeliveryCancelSendsNoSecondEvent(t *testing.T) {
 // engine's event relayed as a stream_message, done, COMPLETED. Closing the registration closes
 // the multiplexer's engine stream.
 func TestStreamingTaskDeliveredOverSocket(t *testing.T) {
+	skipWithoutWebsocketHandshake(t)
+
 	env := newTestEnv(t)
 	tenant := uuid.New()
 

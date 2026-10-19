@@ -93,7 +93,7 @@ func TestRoutingCacheRouteAndMiss(t *testing.T) {
 	ep, cfg, err := cache.Route("svc:a")
 	require.NoError(t, err)
 	assert.Equal(t, a.ID, ep.id)
-	assert.Equal(t, "secret-a", cfg.secret, "secret is decrypted once at load")
+	assert.Equal(t, "test-signing-secret-0123456789-a", cfg.secret, "secret is decrypted once at load")
 	assert.Equal(t, a.TriggerUrl, cfg.triggerUrl)
 	assert.Equal(t, 1, repo.ListForTenantCalls(), "a hit does not reload")
 
