@@ -40,9 +40,16 @@ func (t *WorkflowService) WorkflowList(ctx echo.Context, request gen.WorkflowLis
 	}
 
 	listOpts := &v1.ListWorkflowsOpts{
-		Limit:  &limit,
-		Offset: &offset,
-		Name:   &name,
+		Limit:    &limit,
+		Offset:   &offset,
+		Name:     &name,
+		IsPaused: request.Params.IsPaused,
+	}
+
+	if request.Params.TriggerTypes != nil {
+		for _, triggerType := range *request.Params.TriggerTypes {
+			listOpts.TriggerTypes = append(listOpts.TriggerTypes, string(triggerType))
+		}
 	}
 
 	listResp, err := t.config.V1.Workflows().ListWorkflows(tenantId, listOpts)
@@ -53,10 +60,8 @@ func (t *WorkflowService) WorkflowList(ctx echo.Context, request gen.WorkflowLis
 
 	rows := make([]gen.Workflow, len(listResp.Rows))
 
-	for i := range listResp.Rows {
-		workflow := transformers.ToWorkflowFromSQLC(listResp.Rows[i])
-
-		rows[i] = *workflow
+	for i, row := range listResp.Rows {
+		rows[i] = *transformers.ToWorkflowFromListRow(row)
 	}
 
 	// use the total rows and limit to calculate the total pages

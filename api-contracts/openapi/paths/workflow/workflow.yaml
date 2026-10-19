@@ -36,6 +36,20 @@ withTenant:
         required: false
         schema:
           type: string
+      - description: Only return paused (true) or unpaused (false) workflows
+        in: query
+        name: isPaused
+        required: false
+        schema:
+          type: boolean
+      - description: The trigger types to filter by
+        in: query
+        name: triggerTypes
+        required: false
+        schema:
+          type: array
+          items:
+            $ref: "../../components/schemas/_index.yaml#/WorkflowTriggerType"
     responses:
       "200":
         content:

@@ -1,9 +1,13 @@
-import { nameKey } from '../components/workflow-columns';
+import {
+  nameKey,
+  statusKey,
+  triggersKey,
+} from '../components/workflow-columns';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import { usePagination } from '@/hooks/use-pagination';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { useZodColumnFilters } from '@/hooks/use-zod-column-filters';
-import { queries } from '@/lib/api';
+import { queries, WorkflowTriggerType } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 import { useDebounce } from 'use-debounce';
@@ -16,8 +20,10 @@ type UseWorkflowsProps = {
 const workflowQuerySchema = z
   .object({
     s: z.string().optional(), // search
+    st: z.array(z.enum(['ACTIVE', 'PAUSED'])).optional(), // statuses
+    t: z.array(z.nativeEnum(WorkflowTriggerType)).optional(), // trigger types
   })
-  .default({ s: undefined });
+  .default({});
 
 export const useWorkflows = ({ key }: UseWorkflowsProps) => {
   const { tenantId } = useCurrentTenantId();
@@ -26,28 +32,39 @@ export const useWorkflows = ({ key }: UseWorkflowsProps) => {
   const paramKey = `workflows-${key}`;
 
   const {
-    state: { s: search },
+    state: { s: search, st: statuses, t: triggerTypes },
     columnFilters,
     setColumnFilters,
     resetFilters,
   } = useZodColumnFilters(
     workflowQuerySchema,
     paramKey,
-    { s: nameKey },
+    {
+      s: nameKey,
+      st: statusKey,
+      t: triggersKey,
+    },
     { replaceHistoryEntryOnChange: true },
   );
 
   const [debouncedSearch] = useDebounce(search, 300);
 
+  // selecting both statuses is the same as selecting none
+  const isPaused =
+    statuses?.length === 1 ? statuses[0] === 'PAUSED' : undefined;
+
   const { pagination, setPagination, setPageSize, offset, limit } =
     usePagination({
       key,
-      resetPageOnChange: [debouncedSearch],
+      resetPageOnChange: [debouncedSearch, isPaused, triggerTypes],
     });
 
   const setSearch = useCallback(
     (value: string) => {
-      setColumnFilters(() => (value ? [{ id: nameKey, value }] : []));
+      setColumnFilters((prev) => [
+        ...prev.filter((f) => f.id !== nameKey),
+        ...(value ? [{ id: nameKey, value }] : []),
+      ]);
     },
     [setColumnFilters],
   );
@@ -57,6 +74,8 @@ export const useWorkflows = ({ key }: UseWorkflowsProps) => {
       limit,
       offset,
       name: debouncedSearch,
+      isPaused,
+      triggerTypes: triggerTypes?.length ? triggerTypes : undefined,
     }),
     refetchInterval,
     placeholderData: (data) => data,

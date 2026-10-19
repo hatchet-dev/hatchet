@@ -1,5 +1,16 @@
-import { columns, WorkflowColumn } from './components/workflow-columns';
+import {
+  columns,
+  statusKey,
+  triggersKey,
+  WorkflowColumn,
+  workflowStatusFilters,
+  workflowTriggerTypeFilters,
+} from './components/workflow-columns';
 import { useWorkflows } from './hooks/use-workflows';
+import {
+  ToolbarFilters,
+  ToolbarType,
+} from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
 import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import { WorkflowsGuard } from '@/components/v1/molecules/empty-state/workflows-guard';
@@ -16,6 +27,21 @@ import { useMemo } from 'react';
 
 const noopAutocomplete = () => ({ suggestions: [] as SearchSuggestion[] });
 const noopApplySuggestion = (query: string) => query;
+
+const filters: ToolbarFilters = [
+  {
+    columnId: statusKey,
+    title: WorkflowColumn.status,
+    options: workflowStatusFilters,
+    type: ToolbarType.Checkbox,
+  },
+  {
+    columnId: triggersKey,
+    title: 'Trigger type',
+    options: workflowTriggerTypeFilters,
+    type: ToolbarType.Checkbox,
+  },
+];
 
 export default function WorkflowsPage() {
   return (
@@ -86,6 +112,7 @@ function WorkflowTable() {
         />
       }
       searchBar={searchBar}
+      filters={filters}
       columnVisibility={columnVisibility}
       setColumnVisibility={setColumnVisibility}
       pagination={pagination}

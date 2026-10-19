@@ -238,10 +238,16 @@ type ListWorkflowsOpts struct {
 
 	// (optional) the workflow name to filter by
 	Name *string
+
+	// (optional) whether to only return paused or only unpaused workflows
+	IsPaused *bool
+
+	// (optional) the trigger types to filter by: EVENT, CRON or NONE
+	TriggerTypes []string `validate:"omitempty,dive,oneof=EVENT CRON NONE"`
 }
 
 type ListWorkflowsResult struct {
-	Rows  []*sqlcv1.Workflow
+	Rows  []*sqlcv1.ListWorkflowsRow
 	Count int
 }
 
@@ -1710,7 +1716,7 @@ func (r *workflowRepository) ListWorkflows(tenantId uuid.UUID, opts *ListWorkflo
 	}
 
 	countParams := sqlcv1.CountWorkflowsParams{
-		TenantId: tenantId,
+		Tenantid: tenantId,
 	}
 
 	if opts.Offset != nil {
@@ -1725,6 +1731,17 @@ func (r *workflowRepository) ListWorkflows(tenantId uuid.UUID, opts *ListWorkflo
 		search := pgtype.Text{String: *opts.Name, Valid: true}
 		queryParams.Search = search
 		countParams.Search = search
+	}
+
+	if opts.IsPaused != nil {
+		isPaused := pgtype.Bool{Bool: *opts.IsPaused, Valid: true}
+		queryParams.IsPaused = isPaused
+		countParams.IsPaused = isPaused
+	}
+
+	if len(opts.TriggerTypes) > 0 {
+		queryParams.TriggerTypes = opts.TriggerTypes
+		countParams.TriggerTypes = opts.TriggerTypes
 	}
 
 	orderByField := "createdAt"
@@ -1759,14 +1776,7 @@ func (r *workflowRepository) ListWorkflows(tenantId uuid.UUID, opts *ListWorkflo
 	}
 
 	res.Count = int(count)
-
-	sqlcWorkflows := make([]*sqlcv1.Workflow, len(workflows))
-
-	for i := range workflows {
-		sqlcWorkflows[i] = &workflows[i].Workflow
-	}
-
-	res.Rows = sqlcWorkflows
+	res.Rows = workflows
 
 	return res, nil
 }
