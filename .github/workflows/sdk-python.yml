@@ -183,10 +183,6 @@ jobs:
         run: |
           echo "Using HATCHET_CLIENT_NAMESPACE: $HATCHET_CLIENT_NAMESPACE"
           export HATCHET_CLIENT_SERVER_URL=http://localhost:8080
-          # pytest-retry re-runs a failed test inside the same runtest protocol, where
-          # pytest-timeout has already fired its one-shot timer, so a retried test could
-          # stall until the job limit. func_only arms the timer on every test call,
-          # which the retry invokes again, at the cost of not covering fixture setup.
           poetry run pytest -s -vvv --maxfail=5 --capture=no --retries 3 --retry-delay 2 -n 12 --timeout 180 -o timeout_func_only=true
 
       - name: Test with wheel
