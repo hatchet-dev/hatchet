@@ -772,6 +772,17 @@ func applyWAL(sq *subQueue, msgs []walMessage) []slot {
 			// being resynced in place (a retry-reset: task_retry_count/schedule_timeout_at/priority
 			// changed, is_filled reset to FALSE). Unlike INSERT, nothing is ever superseded/cancelled
 			// here - just move the slot into whichever index matches msg.IsFilled.
+			//
+			// An UPDATE for a slot the index does not hold is stale: the slot's DELETE was
+			// already applied (batches are not delivered in causal order). Applying it would
+			// re-add a runner that no later message removes.
+			_, isQueued := sq.queued.get(msg.TaskId)
+			_, isRunning := sq.running.get(msg.TaskId)
+
+			if !isQueued && !isRunning {
+				continue
+			}
+
 			newSlot := walMessageToSlot(msg)
 			if msg.IsFilled {
 				sq.queued.delete(msg.TaskId)
