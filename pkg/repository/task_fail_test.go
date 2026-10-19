@@ -4,8 +4,8 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -42,7 +42,7 @@ func insertTaskWithRetries(t *testing.T, ctx context.Context, repo *TaskReposito
 			ExternalId:    uuid.New(),
 			WorkflowRunId: uuid.New(),
 			StepId:        stepID,
-			Input:         &TaskInput{Input: map[string]interface{}{"key": "value"}},
+			Input:         &TaskInput{Input: map[string]any{"key": "value"}},
 			StepIndex:     0,
 			InitialState:  sqlcv1.V1TaskInitialStateQUEUED,
 		},
@@ -53,59 +53,6 @@ func insertTaskWithRetries(t *testing.T, ctx context.Context, repo *TaskReposito
 	return insertedTasks[0]
 }
 
-func startTaskRuntime(t *testing.T, ctx context.Context, repo *TaskRepositoryImpl, task *V1TaskWithPayload) {
-	t.Helper()
-
-	_, err := repo.pool.Exec(ctx, `
-		INSERT INTO v1_task_runtime (task_id, task_inserted_at, retry_count, tenant_id, timeout_at)
-		VALUES ($1, $2, $3, $4, $5)
-	`, task.ID, task.InsertedAt, task.RetryCount, internalTenantId, time.Now().UTC().Add(time.Hour))
-	require.NoError(t, err)
-}
-
-type taskRetryCounts struct {
-	retryCount         int32
-	appRetryCount      int32
-	internalRetryCount int32
-}
-
-func getTaskRetryCounts(t *testing.T, ctx context.Context, repo *TaskRepositoryImpl, task *V1TaskWithPayload) taskRetryCounts {
-	t.Helper()
-
-	var counts taskRetryCounts
-
-	require.NoError(t, repo.pool.QueryRow(ctx, `
-		SELECT retry_count, app_retry_count, internal_retry_count
-		FROM v1_task
-		WHERE id = $1 AND inserted_at = $2`,
-		task.ID, task.InsertedAt,
-	).Scan(&counts.retryCount, &counts.appRetryCount, &counts.internalRetryCount))
-
-	return counts
-}
-
-func failTaskOpts(task *V1TaskWithPayload, isAppError bool) FailTaskOpts {
-	return FailTaskOpts{
-		TaskIdInsertedAtRetryCount: &TaskIdInsertedAtRetryCount{
-			Id:         task.ID,
-			InsertedAt: task.InsertedAt,
-			RetryCount: task.RetryCount,
-		},
-		IsAppError:   isAppError,
-		ErrorMessage: "task failed",
-	}
-}
-
-func retriedTaskIds(res *FailTasksResponse) []int64 {
-	ids := make([]int64, 0, len(res.RetriedTasks))
-
-	for _, task := range res.RetriedTasks {
-		ids = append(ids, task.Id)
-	}
-
-	return ids
-}
-
 func TestFailTasksRetryDecisionIsPerTask(t *testing.T) {
 	pool, cleanup := setupPostgresWithMigration(t)
 	defer cleanup()
@@ -114,84 +61,62 @@ func TestFailTasksRetryDecisionIsPerTask(t *testing.T) {
 
 	ctx := context.Background()
 
-	t.Run("app failure uses each task's own step retries", func(t *testing.T) {
-		noRetries := insertTaskWithRetries(t, ctx, repo, "fail-batch-no-retries", 0)
-		withRetries := insertTaskWithRetries(t, ctx, repo, "fail-batch-with-retries", 2)
+	cases := []struct {
+		name           string
+		retries        int
+		hasRuntime     bool
+		isAppError     bool
+		isNonRetryable bool
+		wantRetry      bool
+	}{
+		{name: "app error, step allows no retries", retries: 0, hasRuntime: true, isAppError: true},
+		{name: "app error, step allows retries", retries: 2, hasRuntime: true, isAppError: true, wantRetry: true},
+		{name: "app error, non-retryable", retries: 2, hasRuntime: true, isAppError: true, isNonRetryable: true},
+		{name: "app error, no runtime", retries: 2, isAppError: true},
+		{name: "internal error", hasRuntime: true, wantRetry: true},
+		{name: "internal error, no runtime"},
+	}
 
-		startTaskRuntime(t, ctx, repo, noRetries)
-		startTaskRuntime(t, ctx, repo, withRetries)
+	names := make(map[int64]string, len(cases))
+	opts := make([]FailTaskOpts, 0, len(cases))
+	runtimes := sqlcv1.InsertBufferedTaskRuntimesParams{Tenantid: internalTenantId}
+	want := make([]string, 0, len(cases))
 
-		res, err := repo.FailTasks(ctx, internalTenantId, []FailTaskOpts{
-			failTaskOpts(noRetries, true),
-			failTaskOpts(withRetries, true),
+	for i, c := range cases {
+		task := insertTaskWithRetries(t, ctx, repo, fmt.Sprintf("fail-batch-%d", i), c.retries)
+		names[task.ID] = c.name
+
+		opts = append(opts, FailTaskOpts{
+			TaskIdInsertedAtRetryCount: &TaskIdInsertedAtRetryCount{
+				Id:         task.ID,
+				InsertedAt: task.InsertedAt,
+				RetryCount: task.RetryCount,
+			},
+			IsAppError:     c.isAppError,
+			IsNonRetryable: c.isNonRetryable,
+			ErrorMessage:   "task failed",
 		})
-		require.NoError(t, err)
 
-		require.ElementsMatch(t, []int64{withRetries.ID}, retriedTaskIds(res))
+		if c.hasRuntime {
+			runtimes.Taskids = append(runtimes.Taskids, task.ID)
+			runtimes.Taskinsertedats = append(runtimes.Taskinsertedats, task.InsertedAt)
+			runtimes.Taskretrycounts = append(runtimes.Taskretrycounts, task.RetryCount)
+		}
 
-		require.Equal(t, taskRetryCounts{}, getTaskRetryCounts(t, ctx, repo, noRetries),
-			"a task whose step allows no retries must not be retried because another task in the batch allows retries")
-		require.Equal(t, taskRetryCounts{retryCount: 1, appRetryCount: 1}, getTaskRetryCounts(t, ctx, repo, withRetries))
-	})
+		if c.wantRetry {
+			want = append(want, c.name)
+		}
+	}
 
-	t.Run("app failure retries only tasks that are not marked non-retryable", func(t *testing.T) {
-		retryable := insertTaskWithRetries(t, ctx, repo, "fail-batch-retryable", 2)
-		nonRetryable := insertTaskWithRetries(t, ctx, repo, "fail-batch-non-retryable", 2)
+	require.NoError(t, repo.queries.InsertBufferedTaskRuntimes(ctx, repo.pool, runtimes))
 
-		startTaskRuntime(t, ctx, repo, retryable)
-		startTaskRuntime(t, ctx, repo, nonRetryable)
+	res, err := repo.FailTasks(ctx, internalTenantId, opts)
+	require.NoError(t, err)
 
-		nonRetryableOpts := failTaskOpts(nonRetryable, true)
-		nonRetryableOpts.IsNonRetryable = true
+	got := make([]string, 0, len(res.RetriedTasks))
+	for _, r := range res.RetriedTasks {
+		got = append(got, names[r.Id])
+	}
 
-		res, err := repo.FailTasks(ctx, internalTenantId, []FailTaskOpts{
-			failTaskOpts(retryable, true),
-			nonRetryableOpts,
-		})
-		require.NoError(t, err)
-
-		require.ElementsMatch(t, []int64{retryable.ID}, retriedTaskIds(res))
-
-		require.Equal(t, taskRetryCounts{retryCount: 1, appRetryCount: 1}, getTaskRetryCounts(t, ctx, repo, retryable))
-		require.Equal(t, taskRetryCounts{}, getTaskRetryCounts(t, ctx, repo, nonRetryable),
-			"a non-retryable task must not be retried because another task in the batch is retryable")
-	})
-
-	t.Run("app failure skips tasks without a runtime", func(t *testing.T) {
-		running := insertTaskWithRetries(t, ctx, repo, "fail-batch-app-running", 2)
-		released := insertTaskWithRetries(t, ctx, repo, "fail-batch-app-released", 2)
-
-		startTaskRuntime(t, ctx, repo, running)
-
-		res, err := repo.FailTasks(ctx, internalTenantId, []FailTaskOpts{
-			failTaskOpts(running, true),
-			failTaskOpts(released, true),
-		})
-		require.NoError(t, err)
-
-		require.ElementsMatch(t, []int64{running.ID}, retriedTaskIds(res))
-
-		require.Equal(t, taskRetryCounts{retryCount: 1, appRetryCount: 1}, getTaskRetryCounts(t, ctx, repo, running))
-		require.Equal(t, taskRetryCounts{}, getTaskRetryCounts(t, ctx, repo, released),
-			"a late failure for an attempt without a runtime must not be retried because another task in the batch has one")
-	})
-
-	t.Run("internal failure skips tasks without a runtime", func(t *testing.T) {
-		running := insertTaskWithRetries(t, ctx, repo, "fail-batch-internal-running", 0)
-		released := insertTaskWithRetries(t, ctx, repo, "fail-batch-internal-released", 0)
-
-		startTaskRuntime(t, ctx, repo, running)
-
-		res, err := repo.FailTasks(ctx, internalTenantId, []FailTaskOpts{
-			failTaskOpts(running, false),
-			failTaskOpts(released, false),
-		})
-		require.NoError(t, err)
-
-		require.ElementsMatch(t, []int64{running.ID}, retriedTaskIds(res))
-
-		require.Equal(t, taskRetryCounts{retryCount: 1, internalRetryCount: 1}, getTaskRetryCounts(t, ctx, repo, running))
-		require.Equal(t, taskRetryCounts{}, getTaskRetryCounts(t, ctx, repo, released),
-			"a late internal failure for an attempt without a runtime must not be retried because another task in the batch has one")
-	})
+	require.ElementsMatch(t, want, got)
 }
