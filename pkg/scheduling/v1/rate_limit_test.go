@@ -639,7 +639,7 @@ func TestScheduleRateLimitResult_PausedItemsAlwaysMoveToDatabase(t *testing.T) {
 	soon := time.Now().UTC().Add(500 * time.Millisecond)
 
 	paused := &scheduleRateLimitResult{rateLimitResult: &rateLimitResult{nextRefillAt: &soon, pausedUntil: &soon}}
-	assert.True(t, paused.shouldRemoveFromQueue(), "a short pause must still park the item so its schedule timeout is shifted")
+	assert.True(t, paused.shouldRemoveFromQueue(), "a short pause must still hold the item so it gives up its concurrency slot")
 
 	window := &scheduleRateLimitResult{rateLimitResult: &rateLimitResult{nextRefillAt: &soon}}
 	assert.False(t, window.shouldRemoveFromQueue(), "a window refilling within the threshold stays in memory")

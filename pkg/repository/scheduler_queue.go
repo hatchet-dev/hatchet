@@ -476,31 +476,37 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 	// remove rate limited queue items from the queue and place them in the v1_rate_limited_queue_items table
 	qisToMoveToRateLimited := make([]int64, 0, len(r.RateLimited))
 	qisToMoveToRateLimitedRQAfter := make([]pgtype.Timestamptz, 0, len(r.RateLimited))
-	qisToMoveToRateLimitedPausedUntil := make([]pgtype.Timestamptz, 0, len(r.RateLimited))
+	tasksToHold := make([]TaskIdInsertedAtRetryCount, 0)
 
 	for _, row := range r.RateLimitedToMove {
-		qisToMoveToRateLimited = append(qisToMoveToRateLimited, row.ID)
-		qisToMoveToRateLimitedRQAfter = append(qisToMoveToRateLimitedRQAfter, sqlchelpers.TimestamptzFromTime(*row.NextRefillAt))
-
-		pausedUntil := pgtype.Timestamptz{}
-
+		// a paused key holds the task until the pause ends, without its concurrency slot
 		if row.PausedUntil != nil {
-			pausedUntil = sqlchelpers.TimestamptzFromTime(*row.PausedUntil)
+			tasksToHold = append(tasksToHold, TaskIdInsertedAtRetryCount{
+				Id:         row.TaskID,
+				InsertedAt: row.TaskInsertedAt,
+				RetryCount: row.RetryCount,
+			})
+
+			continue
 		}
 
-		qisToMoveToRateLimitedPausedUntil = append(qisToMoveToRateLimitedPausedUntil, pausedUntil)
+		qisToMoveToRateLimited = append(qisToMoveToRateLimited, row.ID)
+		qisToMoveToRateLimitedRQAfter = append(qisToMoveToRateLimitedRQAfter, sqlchelpers.TimestamptzFromTime(*row.NextRefillAt))
 	}
 
 	if len(qisToMoveToRateLimited) > 0 {
 		_, err = d.queries.MoveRateLimitedQueueItems(ctx, tx, sqlcv1.MoveRateLimitedQueueItemsParams{
 			Ids:          qisToMoveToRateLimited,
 			Requeueafter: qisToMoveToRateLimitedRQAfter,
-			Pauseduntil:  qisToMoveToRateLimitedPausedUntil,
 		})
 
 		if err != nil {
 			return nil, nil, err
 		}
+	}
+
+	if err = d.holdRateLimitPausedTasks(ctx, tx, tenantId, tasksToHold); err != nil {
+		return nil, nil, err
 	}
 
 	if len(tasksToRelease) > 0 {

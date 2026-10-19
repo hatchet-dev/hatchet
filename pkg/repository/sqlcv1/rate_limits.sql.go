@@ -136,6 +136,29 @@ func (q *Queries) DeleteRateLimitForTenant(ctx context.Context, db DBTX, arg Del
 	return err
 }
 
+const hasActiveRateLimitPause = `-- name: HasActiveRateLimitPause :one
+SELECT EXISTS (
+    SELECT 1
+    FROM v1_rate_limit_pause
+    WHERE
+        tenant_id = $1::uuid
+        AND ($2::text IS NULL OR key = $2::text)
+        AND paused_until > NOW()
+)::boolean
+`
+
+type HasActiveRateLimitPauseParams struct {
+	Tenantid uuid.UUID   `json:"tenantid"`
+	Key      pgtype.Text `json:"key"`
+}
+
+func (q *Queries) HasActiveRateLimitPause(ctx context.Context, db DBTX, arg HasActiveRateLimitPauseParams) (bool, error) {
+	row := db.QueryRow(ctx, hasActiveRateLimitPause, arg.Tenantid, arg.Key)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const listRateLimitsForSteps = `-- name: ListRateLimitsForSteps :many
 SELECT
     units, "stepId", "rateLimitKey", "tenantId", kind

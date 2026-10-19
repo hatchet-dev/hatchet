@@ -201,6 +201,16 @@ WHERE
     AND rl."key" = e.key
     AND e.paused_until > rl."lastRefill"::timestamptz;
 
+-- name: HasActiveRateLimitPause :one
+SELECT EXISTS (
+    SELECT 1
+    FROM v1_rate_limit_pause
+    WHERE
+        tenant_id = @tenantId::uuid
+        AND (sqlc.narg('key')::text IS NULL OR key = sqlc.narg('key')::text)
+        AND paused_until > NOW()
+)::boolean;
+
 -- name: PauseRateLimit :one
 INSERT INTO v1_rate_limit_pause (
     tenant_id,

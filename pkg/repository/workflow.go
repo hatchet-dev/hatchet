@@ -294,6 +294,9 @@ type WorkflowRepository interface {
 	RequeuePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID, workflowIds []uuid.UUID) (queueNames []string, concurrencyStrategyIds []int64, err error)
 
 	ListUnpausedWorkflowsWithPausedQueueItems(ctx context.Context, tenantId uuid.UUID) ([]uuid.UUID, error)
+
+	// RequeueRateLimitPausedQueueItems releases held items whose rate limit pauses have all ended
+	RequeueRateLimitPausedQueueItems(ctx context.Context, tenantId uuid.UUID) (queueNames []string, concurrencyStrategyIds []int64, err error)
 }
 
 type workflowRepository struct {
@@ -1969,6 +1972,70 @@ func (r *workflowRepository) RequeuePausedWorkflowQueueItems(ctx context.Context
 
 	defer rollback()
 
+	queueNames, concurrencyStrategyIds, err := r.requeuePausedWorkflowQueueItems(ctx, tx, tenantId, workflowIds)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if err := commit(ctx); err != nil {
+		return nil, nil, err
+	}
+
+	return queueNames, concurrencyStrategyIds, nil
+}
+
+func (r *workflowRepository) RequeueRateLimitPausedQueueItems(ctx context.Context, tenantId uuid.UUID) ([]string, []int64, error) {
+	ctx, span := telemetry.NewSpan(ctx, "requeue-rate-limit-paused-queue-items")
+	defer span.End()
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	defer rollback()
+
+	workflowIds, err := r.queries.ReleaseDueRateLimitPausedQueueItems(ctx, tx, tenantId)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	queueNames, concurrencyStrategyIds, err := r.requeuePausedWorkflowQueueItems(ctx, tx, tenantId, workflowIds)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if err := commit(ctx); err != nil {
+		return nil, nil, err
+	}
+
+	return queueNames, concurrencyStrategyIds, nil
+}
+
+func (r *workflowRepository) requeuePausedWorkflowQueueItems(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, workflowIds []uuid.UUID) ([]string, []int64, error) {
+	if len(workflowIds) == 0 {
+		return nil, nil, nil
+	}
+
+	hasRateLimitPause, err := r.tenantHasRateLimitPause(ctx, tx, tenantId)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if hasRateLimitPause {
+		if err := r.queries.HoldRateLimitPausedWorkflowQueueItems(ctx, tx, sqlcv1.HoldRateLimitPausedWorkflowQueueItemsParams{
+			Workflowids: workflowIds,
+			Tenantid:    tenantId,
+		}); err != nil {
+			return nil, nil, fmt.Errorf("could not hold paused workflow queue items behind paused rate limits: %w", err)
+		}
+	}
+
 	queueNames, err := r.queries.RequeuePausedWorkflowQueueItems(ctx, tx, sqlcv1.RequeuePausedWorkflowQueueItemsParams{
 		Workflowids: workflowIds,
 		Tenantid:    tenantId,
@@ -1984,10 +2051,6 @@ func (r *workflowRepository) RequeuePausedWorkflowQueueItems(ctx context.Context
 	})
 
 	if err != nil {
-		return nil, nil, err
-	}
-
-	if err := commit(ctx); err != nil {
 		return nil, nil, err
 	}
 

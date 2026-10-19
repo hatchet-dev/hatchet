@@ -1590,6 +1590,29 @@ func (r *sharedRepository) triggerWorkflowsCore(
 		}
 	}
 
+	hasRateLimitPause, err := r.tenantHasRateLimitPause(ctx, tx, tenantId)
+
+	if err != nil {
+		return nil, nil, nil, nil, nil, nil, err
+	}
+
+	// held here so a task behind a paused key never fills a concurrency slot
+	if hasRateLimitPause && len(tasks) > 0 {
+		toHold := make([]TaskIdInsertedAtRetryCount, 0, len(tasks))
+
+		for _, task := range tasks {
+			toHold = append(toHold, TaskIdInsertedAtRetryCount{
+				Id:         task.ID,
+				InsertedAt: task.InsertedAt,
+				RetryCount: task.RetryCount,
+			})
+		}
+
+		if err := r.holdRateLimitPausedTasks(ctx, tx, tenantId, toHold); err != nil {
+			return nil, nil, nil, nil, nil, nil, err
+		}
+	}
+
 	for _, dag := range dags {
 		opts := eventMatches[dag.ExternalID]
 

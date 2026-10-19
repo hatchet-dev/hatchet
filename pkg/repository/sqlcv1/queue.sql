@@ -642,8 +642,7 @@ WHERE
 WITH input AS (
     SELECT
         UNNEST(@ids::bigint[]) AS id,
-        UNNEST(@requeueAfter::timestamptz[]) AS requeue_after,
-        UNNEST(@pausedUntil::timestamptz[]) AS paused_until
+        UNNEST(@requeueAfter::timestamptz[]) AS requeue_after
 ), moved_items AS (
     DELETE FROM v1_queue_item
     WHERE id = ANY(SELECT id FROM input)
@@ -666,101 +665,50 @@ WITH input AS (
         retry_count,
         desired_worker_label,
         batch_key
-), parked_items AS (
-    SELECT
-        moved_items.*,
-        i.requeue_after,
-        i.paused_until,
-        -- time spent paused doesn't count against the schedule timeout, so the remaining budget starts when the pause ends
-        CASE
-            WHEN i.paused_until IS NOT NULL AND moved_items.schedule_timeout_at IS NOT NULL THEN
-                (i.paused_until + GREATEST(moved_items.schedule_timeout_at - NOW(), INTERVAL '0'))::TIMESTAMP(3)
-            ELSE
-                moved_items.schedule_timeout_at
-        END AS parked_schedule_timeout_at
-    FROM moved_items
-    JOIN input i ON moved_items.id = i.id
-), inserted_items AS (
-    INSERT INTO v1_rate_limited_queue_items (
-        requeue_after,
-        tenant_id,
-        queue,
-        task_id,
-        task_inserted_at,
-        external_id,
-        action_id,
-        step_id,
-        workflow_id,
-        workflow_run_id,
-        schedule_timeout_at,
-        step_timeout,
-        priority,
-        sticky,
-        desired_worker_id,
-        retry_count,
-        desired_worker_label,
-        batch_key
-    )
-    SELECT
-        requeue_after,
-        tenant_id,
-        queue,
-        task_id,
-        task_inserted_at,
-        external_id,
-        action_id,
-        step_id,
-        workflow_id,
-        workflow_run_id,
-        parked_schedule_timeout_at,
-        step_timeout,
-        priority,
-        sticky,
-        desired_worker_id,
-        retry_count,
-        desired_worker_label,
-        batch_key
-    FROM parked_items
-    ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
-    RETURNING tenant_id, task_id, task_inserted_at, retry_count, schedule_timeout_at
-), slots_to_extend AS (
-    SELECT
-        cs.task_id,
-        cs.task_inserted_at,
-        cs.task_retry_count,
-        cs.strategy_id,
-        ii.schedule_timeout_at
-    FROM
-        v1_concurrency_slot cs
-    JOIN
-        inserted_items ii ON (cs.task_id, cs.task_inserted_at, cs.task_retry_count) = (ii.task_id, ii.task_inserted_at, ii.retry_count)
-    JOIN
-        parked_items pi ON (pi.task_id, pi.task_inserted_at, pi.retry_count) = (ii.task_id, ii.task_inserted_at, ii.retry_count)
-    WHERE
-        pi.paused_until IS NOT NULL
-        AND cs.schedule_timeout_at < ii.schedule_timeout_at
-    ORDER BY
-        cs.task_id, cs.task_inserted_at, cs.task_retry_count, cs.strategy_id
-    FOR UPDATE OF cs
-), extended_slots AS (
-    -- parked tasks keep their slot filled, so the strategy would otherwise cancel them at the original timeout
-    UPDATE
-        v1_concurrency_slot cs
-    SET
-        schedule_timeout_at = ste.schedule_timeout_at
-    FROM
-        slots_to_extend ste
-    WHERE
-        (cs.task_id, cs.task_inserted_at, cs.task_retry_count, cs.strategy_id) = (ste.task_id, ste.task_inserted_at, ste.task_retry_count, ste.strategy_id)
-    RETURNING cs.task_id
 )
-SELECT
+INSERT INTO v1_rate_limited_queue_items (
+    requeue_after,
     tenant_id,
+    queue,
     task_id,
     task_inserted_at,
-    retry_count
-FROM
-    inserted_items;
+    external_id,
+    action_id,
+    step_id,
+    workflow_id,
+    workflow_run_id,
+    schedule_timeout_at,
+    step_timeout,
+    priority,
+    sticky,
+    desired_worker_id,
+    retry_count,
+    desired_worker_label,
+    batch_key
+)
+SELECT
+    i.requeue_after,
+    tenant_id,
+    queue,
+    task_id,
+    task_inserted_at,
+    external_id,
+    action_id,
+    step_id,
+    workflow_id,
+    workflow_run_id,
+    schedule_timeout_at,
+    step_timeout,
+    priority,
+    sticky,
+    desired_worker_id,
+    retry_count,
+    desired_worker_label,
+    batch_key
+FROM moved_items
+JOIN input i ON moved_items.id = i.id
+ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
+RETURNING tenant_id, task_id, task_inserted_at, retry_count;
 
 -- name: RequeueRateLimitedQueueItems :many
 WITH ready_items AS (
@@ -1438,6 +1386,8 @@ WITH ready_items AS (
     WHERE
         pqi.workflow_id = ANY(@workflowIds::UUID[])
         AND pqi.tenant_id = @tenantId::UUID
+        -- items still held by a paused rate limit key are released through ReleaseDueRateLimitPausedQueueItems
+        AND (pqi.rate_limit_paused_until IS NULL OR pqi.rate_limit_paused_until <= NOW())
         AND t.concurrency_strategy_ids[1] IS NULL
     ORDER BY pqi.task_inserted_at, pqi.task_id, pqi.retry_count
     FOR UPDATE OF pqi SKIP LOCKED
@@ -1501,6 +1451,8 @@ WITH ready_items AS (
     WHERE
         pqi.workflow_id = ANY(@workflowIds::UUID[])
         AND pqi.tenant_id = @tenantId::UUID
+        -- items still held by a paused rate limit key are released through ReleaseDueRateLimitPausedQueueItems
+        AND (pqi.rate_limit_paused_until IS NULL OR pqi.rate_limit_paused_until <= NOW())
         AND t.concurrency_strategy_ids[1] IS NOT NULL
     ORDER BY pqi.task_inserted_at, pqi.task_id, pqi.retry_count
     FOR UPDATE OF pqi SKIP LOCKED
@@ -1583,8 +1535,283 @@ WHERE
     AND EXISTS (
         SELECT 1
         FROM v1_paused_workflow_queue_item qi
-        WHERE qi.workflow_id = w."id" AND qi.tenant_id = @tenantId::UUID
+        WHERE
+            qi.workflow_id = w."id"
+            AND qi.tenant_id = @tenantId::UUID
+            -- items held by a paused rate limit key are released through ReleaseDueRateLimitPausedQueueItems
+            AND qi.rate_limit_paused_until IS NULL
     );
+
+-- name: ListRateLimitPausedQueuedTasks :many
+-- the tenant's waiting tasks that use a paused rate limit key, wherever they wait before a worker is assigned
+SELECT qi.task_id, qi.task_inserted_at, qi.retry_count
+FROM v1_queue_item qi
+WHERE
+    qi.tenant_id = @tenantId::UUID
+    AND v1_task_rate_limit_paused_until(qi.tenant_id, qi.task_id, qi.task_inserted_at, qi.step_id) IS NOT NULL
+UNION
+SELECT rqi.task_id, rqi.task_inserted_at, rqi.retry_count
+FROM v1_rate_limited_queue_items rqi
+WHERE
+    rqi.tenant_id = @tenantId::UUID
+    AND v1_task_rate_limit_paused_until(rqi.tenant_id, rqi.task_id, rqi.task_inserted_at, rqi.step_id) IS NOT NULL
+UNION
+SELECT t.id, t.inserted_at, t.retry_count
+FROM v1_concurrency_slot cs
+JOIN v1_task t ON (t.id, t.inserted_at, t.retry_count) = (cs.task_id, cs.task_inserted_at, cs.task_retry_count)
+WHERE
+    cs.tenant_id = @tenantId::UUID
+    AND cs.is_filled = FALSE
+    AND v1_task_rate_limit_paused_until(t.tenant_id, t.id, t.inserted_at, t.step_id) IS NOT NULL;
+
+-- name: MoveRateLimitPausedQueueItems :exec
+WITH input AS (
+    SELECT
+        UNNEST(@taskIds::BIGINT[]) AS task_id,
+        UNNEST(@taskInsertedAts::TIMESTAMPTZ[]) AS task_inserted_at,
+        UNNEST(@retryCounts::INTEGER[]) AS retry_count
+), held_items AS (
+    SELECT
+        qi.id,
+        v1_task_rate_limit_paused_until(qi.tenant_id, qi.task_id, qi.task_inserted_at, qi.step_id) AS paused_until
+    FROM v1_queue_item qi
+    JOIN input i ON (qi.task_id, qi.task_inserted_at, qi.retry_count) = (i.task_id, i.task_inserted_at, i.retry_count)
+    WHERE qi.tenant_id = @tenantId::UUID
+), moved_items AS (
+    DELETE FROM v1_queue_item qi
+    USING held_items h
+    WHERE qi.id = h.id AND h.paused_until IS NOT NULL
+    RETURNING qi.*
+), released_slots AS (
+    -- a held task must not keep its concurrency slots filled, or it blocks tasks on other keys
+    DELETE FROM v1_concurrency_slot cs
+    USING moved_items mi
+    WHERE (cs.task_id, cs.task_inserted_at, cs.task_retry_count) = (mi.task_id, mi.task_inserted_at, mi.retry_count)
+)
+INSERT INTO v1_paused_workflow_queue_item (
+    tenant_id,
+    queue,
+    task_id,
+    task_inserted_at,
+    external_id,
+    action_id,
+    step_id,
+    workflow_id,
+    workflow_run_id,
+    schedule_timeout_at,
+    step_timeout,
+    priority,
+    sticky,
+    desired_worker_id,
+    retry_count,
+    desired_worker_label,
+    batch_key,
+    rate_limit_paused_until
+)
+SELECT
+    mi.tenant_id,
+    mi.queue,
+    mi.task_id,
+    mi.task_inserted_at,
+    mi.external_id,
+    mi.action_id,
+    mi.step_id,
+    mi.workflow_id,
+    mi.workflow_run_id,
+    mi.schedule_timeout_at,
+    mi.step_timeout,
+    mi.priority,
+    mi.sticky,
+    mi.desired_worker_id,
+    mi.retry_count,
+    mi.desired_worker_label,
+    mi.batch_key,
+    h.paused_until
+FROM moved_items mi
+JOIN held_items h ON h.id = mi.id
+ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING;
+
+-- name: MoveRateLimitPausedRateLimitedQueueItems :exec
+WITH input AS (
+    SELECT
+        UNNEST(@taskIds::BIGINT[]) AS task_id,
+        UNNEST(@taskInsertedAts::TIMESTAMPTZ[]) AS task_inserted_at,
+        UNNEST(@retryCounts::INTEGER[]) AS retry_count
+), held_items AS (
+    SELECT
+        rqi.task_id,
+        rqi.task_inserted_at,
+        rqi.retry_count,
+        v1_task_rate_limit_paused_until(rqi.tenant_id, rqi.task_id, rqi.task_inserted_at, rqi.step_id) AS paused_until
+    FROM v1_rate_limited_queue_items rqi
+    JOIN input i ON (rqi.task_id, rqi.task_inserted_at, rqi.retry_count) = (i.task_id, i.task_inserted_at, i.retry_count)
+    WHERE rqi.tenant_id = @tenantId::UUID
+), moved_items AS (
+    DELETE FROM v1_rate_limited_queue_items rqi
+    USING held_items h
+    WHERE
+        (rqi.task_id, rqi.task_inserted_at, rqi.retry_count) = (h.task_id, h.task_inserted_at, h.retry_count)
+        AND h.paused_until IS NOT NULL
+    RETURNING rqi.*
+), released_slots AS (
+    DELETE FROM v1_concurrency_slot cs
+    USING moved_items mi
+    WHERE (cs.task_id, cs.task_inserted_at, cs.task_retry_count) = (mi.task_id, mi.task_inserted_at, mi.retry_count)
+)
+INSERT INTO v1_paused_workflow_queue_item (
+    tenant_id,
+    queue,
+    task_id,
+    task_inserted_at,
+    external_id,
+    action_id,
+    step_id,
+    workflow_id,
+    workflow_run_id,
+    schedule_timeout_at,
+    step_timeout,
+    priority,
+    sticky,
+    desired_worker_id,
+    retry_count,
+    desired_worker_label,
+    batch_key,
+    rate_limit_paused_until
+)
+SELECT
+    mi.tenant_id,
+    mi.queue,
+    mi.task_id,
+    mi.task_inserted_at,
+    mi.external_id,
+    mi.action_id,
+    mi.step_id,
+    mi.workflow_id,
+    mi.workflow_run_id,
+    mi.schedule_timeout_at,
+    mi.step_timeout,
+    mi.priority,
+    mi.sticky,
+    mi.desired_worker_id,
+    mi.retry_count,
+    mi.desired_worker_label,
+    mi.batch_key,
+    h.paused_until
+FROM moved_items mi
+JOIN held_items h ON (h.task_id, h.task_inserted_at, h.retry_count) = (mi.task_id, mi.task_inserted_at, mi.retry_count)
+ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING;
+
+-- name: MoveRateLimitPausedConcurrencySlots :exec
+WITH input AS (
+    SELECT
+        UNNEST(@taskIds::BIGINT[]) AS task_id,
+        UNNEST(@taskInsertedAts::TIMESTAMPTZ[]) AS task_inserted_at,
+        UNNEST(@retryCounts::INTEGER[]) AS retry_count
+), waiting_tasks AS (
+    SELECT DISTINCT cs.task_id, cs.task_inserted_at, cs.task_retry_count
+    FROM v1_concurrency_slot cs
+    JOIN input i ON (cs.task_id, cs.task_inserted_at, cs.task_retry_count) = (i.task_id, i.task_inserted_at, i.retry_count)
+    WHERE
+        cs.tenant_id = @tenantId::UUID
+        AND cs.is_filled = FALSE
+), tasks_to_move AS (
+    SELECT
+        t.id,
+        t.inserted_at,
+        t.retry_count,
+        v1_task_rate_limit_paused_until(t.tenant_id, t.id, t.inserted_at, t.step_id) AS paused_until
+    FROM waiting_tasks w
+    JOIN v1_task t ON (t.id, t.inserted_at, t.retry_count) = (w.task_id, w.task_inserted_at, w.task_retry_count)
+), deleted_slots AS (
+    DELETE FROM v1_concurrency_slot cs
+    USING tasks_to_move p
+    WHERE
+        (cs.task_id, cs.task_inserted_at, cs.task_retry_count) = (p.id, p.inserted_at, p.retry_count)
+        AND p.paused_until IS NOT NULL
+)
+INSERT INTO v1_paused_workflow_queue_item (
+    tenant_id,
+    queue,
+    task_id,
+    task_inserted_at,
+    external_id,
+    action_id,
+    step_id,
+    workflow_id,
+    workflow_run_id,
+    schedule_timeout_at,
+    step_timeout,
+    priority,
+    sticky,
+    desired_worker_id,
+    retry_count,
+    desired_worker_label,
+    batch_key,
+    rate_limit_paused_until
+)
+SELECT
+    t.tenant_id,
+    t.queue,
+    t.id,
+    t.inserted_at,
+    t.external_id,
+    t.action_id,
+    t.step_id,
+    t.workflow_id,
+    t.workflow_run_id,
+    (CURRENT_TIMESTAMP + convert_duration_to_interval(t.schedule_timeout))::TIMESTAMP(3),
+    t.step_timeout,
+    COALESCE(t.priority, 1),
+    t.sticky,
+    t.desired_worker_id,
+    t.retry_count,
+    t.desired_worker_label,
+    t.batch_key,
+    p.paused_until
+FROM tasks_to_move p
+JOIN v1_task t ON (t.id, t.inserted_at, t.retry_count) = (p.id, p.inserted_at, p.retry_count)
+WHERE p.paused_until IS NOT NULL
+ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING;
+
+-- name: HoldRateLimitPausedWorkflowQueueItems :exec
+-- a workflow pause can hold a task before its rate limit key is paused, so the key must take over the hold when the workflow unpauses
+UPDATE v1_paused_workflow_queue_item pqi
+SET rate_limit_paused_until = v1_task_rate_limit_paused_until(pqi.tenant_id, pqi.task_id, pqi.task_inserted_at, pqi.step_id)
+WHERE
+    pqi.workflow_id = ANY(@workflowIds::UUID[])
+    AND pqi.tenant_id = @tenantId::UUID
+    AND pqi.rate_limit_paused_until IS NULL
+    AND v1_task_rate_limit_paused_until(pqi.tenant_id, pqi.task_id, pqi.task_inserted_at, pqi.step_id) IS NOT NULL;
+
+-- name: ReleaseDueRateLimitPausedQueueItems :many
+-- returns the workflows with held items whose pauses have all ended, so RequeuePausedWorkflowQueueItems can release them
+WITH due AS (
+    SELECT
+        pqi.task_id,
+        pqi.task_inserted_at,
+        pqi.retry_count,
+        pqi.workflow_id,
+        COALESCE(w."isPaused", FALSE) AS workflow_paused,
+        v1_task_rate_limit_paused_until(pqi.tenant_id, pqi.task_id, pqi.task_inserted_at, pqi.step_id) AS paused_until
+    FROM v1_paused_workflow_queue_item pqi
+    JOIN "Workflow" w ON w."id" = pqi.workflow_id
+    WHERE
+        pqi.tenant_id = @tenantId::UUID
+        AND pqi.rate_limit_paused_until <= NOW()
+    ORDER BY pqi.task_inserted_at, pqi.task_id, pqi.retry_count
+    FOR UPDATE OF pqi SKIP LOCKED
+), still_held AS (
+    -- an extended pause holds the item until its new end, and a paused workflow hands it back to the workflow unpause
+    UPDATE v1_paused_workflow_queue_item pqi
+    SET rate_limit_paused_until = d.paused_until
+    FROM due d
+    WHERE
+        (pqi.task_inserted_at, pqi.task_id, pqi.retry_count) = (d.task_inserted_at, d.task_id, d.retry_count)
+        AND (d.paused_until IS NOT NULL OR d.workflow_paused)
+)
+SELECT DISTINCT workflow_id
+FROM due
+WHERE paused_until IS NULL AND NOT workflow_paused;
 
 -- name: ListExpiredPausedWorkflowQueueItems :many
 SELECT

@@ -832,7 +832,7 @@ func (s *scheduleRateLimitResult) shouldRemoveFromQueue() bool {
 		return false
 	}
 
-	// pauses are expected to be long, and parking is what shifts the schedule timeout past the pause
+	// a paused item is held in the database until the pause ends, so its concurrency slot is freed for other keys
 	if s.pausedUntil != nil {
 		return true
 	}
