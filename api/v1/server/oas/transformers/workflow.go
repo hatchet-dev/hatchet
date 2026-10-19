@@ -262,19 +262,17 @@ func ToWorkflowFromSQLC(row *sqlcv1.Workflow) *gen.Workflow {
 func ToWorkflowFromListRow(row *sqlcv1.ListWorkflowsRow) *gen.Workflow {
 	res := ToWorkflowFromSQLC(&row.Workflow)
 
-	if row.LatestVersionID != nil {
-		res.Versions = &[]gen.WorkflowVersionMeta{
-			{
-				Metadata: *toAPIMetadata(
-					*row.LatestVersionID,
-					row.LatestVersionCreatedAt.Time,
-					row.LatestVersionCreatedAt.Time,
-				),
-				WorkflowId: row.Workflow.ID.String(),
-				Order:      int32(row.LatestVersionOrder.Int64), // nolint: gosec
-				Version:    row.LatestVersion.String,
-			},
-		}
+	res.Versions = &[]gen.WorkflowVersionMeta{
+		{
+			Metadata: *toAPIMetadata(
+				row.LatestVersionID,
+				row.LatestVersionCreatedAt.Time,
+				row.LatestVersionCreatedAt.Time,
+			),
+			WorkflowId: row.Workflow.ID.String(),
+			Order:      int32(row.LatestVersionOrder), // nolint: gosec
+			Version:    row.LatestVersion.String,
+		},
 	}
 
 	events := make([]gen.WorkflowTriggerEventRef, len(row.EventKeys))
