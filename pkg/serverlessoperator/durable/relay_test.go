@@ -21,7 +21,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
-	"github.com/hatchet-dev/hatchet/internal/signature"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/operator/safeclient"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/contract"
@@ -105,7 +104,7 @@ func (ep *fakeEndpoint) serve(w http.ResponseWriter, r *http.Request) {
 		r.Header.Get(contract.InvocationHeader),
 	)
 
-	if !signature.Verify(payload, testSecret, r.Header.Get(contract.SignatureHeader)) {
+	if !contract.Verify(payload, testSecret, r.Header.Get(contract.SignatureHeader)) {
 		ep.reject(w, http.StatusUnauthorized)
 		return
 	}
@@ -995,7 +994,7 @@ func TestSignedUpgradeHeaders(t *testing.T) {
 	assert.Equal(t, testTaskId, h.Get(contract.TaskIdHeader))
 	assert.Equal(t, "4", h.Get(contract.InvocationHeader))
 
-	expected, err := signature.Sign("ep-1.1700000000.nonce."+testTaskId+".4", testSecret)
+	expected, err := contract.Sign("ep-1.1700000000.nonce."+testTaskId+".4", testSecret)
 	require.NoError(t, err)
 	assert.Equal(t, expected, h.Get(contract.SignatureHeader))
 

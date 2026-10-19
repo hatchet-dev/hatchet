@@ -16,7 +16,6 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
-	"github.com/hatchet-dev/hatchet/internal/signature"
 	"github.com/hatchet-dev/hatchet/pkg/operator/safeclient"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/contract"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
@@ -50,7 +49,7 @@ func signedHeaders(secret string, endpointId uuid.UUID, timestamp int64, body []
 		return nil, fmt.Errorf("endpoint %s has no signing secret", endpointId)
 	}
 
-	sig, err := signature.Sign(string(body), secret)
+	sig, err := contract.Sign(string(body), secret)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not sign request: %w", err)

@@ -5,7 +5,6 @@ package durable
 import (
 	"context"
 	"crypto/tls"
-	"github.com/hatchet-dev/hatchet/internal/signature"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/contract"
 	"io"
 	"net"
@@ -207,6 +206,6 @@ func TestSignedUpgradeHeadersAreBoundToTheEndpoint(t *testing.T) {
 	}
 
 	assert.Equal(t, "endpoint-a", h.Get(contract.EndpointIdHeader))
-	assert.True(t, signature.Verify(payloadFor("endpoint-a"), secret, h.Get(contract.SignatureHeader)))
-	assert.False(t, signature.Verify(payloadFor("endpoint-b"), secret, h.Get(contract.SignatureHeader)), "the signature does not verify under another endpoint id")
+	assert.True(t, contract.Verify(payloadFor("endpoint-a"), secret, h.Get(contract.SignatureHeader)))
+	assert.False(t, contract.Verify(payloadFor("endpoint-b"), secret, h.Get(contract.SignatureHeader)), "the signature does not verify under another endpoint id")
 }

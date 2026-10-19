@@ -17,7 +17,6 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"github.com/hatchet-dev/hatchet/internal/signature"
 	"github.com/hatchet-dev/hatchet/pkg/operator/safeclient"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/contract"
 )
@@ -180,7 +179,7 @@ func signedUpgradeHeaders(secret, endpointId, taskId string, invocation int32, n
 	timestamp := strconv.FormatInt(now.Unix(), 10)
 	inv := strconv.FormatInt(int64(invocation), 10)
 
-	sig, err := signature.Sign(contract.UpgradeSigningPayload(endpointId, timestamp, nonce, taskId, inv), secret)
+	sig, err := contract.Sign(contract.UpgradeSigningPayload(endpointId, timestamp, nonce, taskId, inv), secret)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not sign upgrade: %w", err)

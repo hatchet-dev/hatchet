@@ -17,7 +17,7 @@ import (
 
 // Headers carried by every request the operator sends to an endpoint. Endpoints verify
 // SignatureHeader by recomputing the HMAC-SHA256 hex digest of the raw body with their
-// signing secret (internal/signature.Verify). The signed body of every POST
+// signing secret (Verify). The signed body of every POST
 // (v1.ServerlessHealthcheckRequest, v1.ServerlessTriggerRequest) carries the operator's
 // timestamp in Unix seconds; an endpoint rejects a body whose timestamp lies more than
 // RequestMaxAge from its own clock in either direction, so a captured request cannot be

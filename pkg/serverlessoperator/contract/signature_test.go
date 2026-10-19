@@ -1,6 +1,6 @@
 //go:build !e2e && !load && !rampup && !integration
 
-package signature
+package contract
 
 import (
 	"testing"

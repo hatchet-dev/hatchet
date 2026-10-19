@@ -19,7 +19,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
-	"github.com/hatchet-dev/hatchet/internal/signature"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/contract"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/durable"
@@ -111,7 +110,7 @@ func TestDurableDeliveryEndToEnd(t *testing.T) {
 			r.Header.Get(contract.InvocationHeader),
 		)
 
-		if r.Header.Get(contract.EndpointIdHeader) != row.ID.String() || !signature.Verify(payload, secret, r.Header.Get(contract.SignatureHeader)) {
+		if r.Header.Get(contract.EndpointIdHeader) != row.ID.String() || !contract.Verify(payload, secret, r.Header.Get(contract.SignatureHeader)) {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
