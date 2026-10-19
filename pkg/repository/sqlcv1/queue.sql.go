@@ -2429,8 +2429,6 @@ type RequeueRateLimitedQueueItemsRow struct {
 	NextRequeueAfter pgtype.Timestamptz `json:"next_requeue_after"`
 }
 
-// The next_requeue_after peek reads the statement's snapshot, so the rows this statement
-// moved (requeue_after <= NOW()) are excluded by the filter and only still-parked rows count.
 func (q *Queries) RequeueRateLimitedQueueItems(ctx context.Context, db DBTX, arg RequeueRateLimitedQueueItemsParams) (*RequeueRateLimitedQueueItemsRow, error) {
 	row := db.QueryRow(ctx, requeueRateLimitedQueueItems, arg.Tenantid, arg.Queue)
 	var i RequeueRateLimitedQueueItemsRow

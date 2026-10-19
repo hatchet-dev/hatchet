@@ -998,7 +998,9 @@ func (d *queueRepository) ListWorkflowNamesByIds(ctx context.Context, workflowId
 // the queue and returns the earliest refill time still parked for this queue, nil when none.
 func (d *queueRepository) RequeueRateLimitedItems(ctx context.Context, tenantId uuid.UUID, queueName string) (*time.Time, error) {
 	// The statement is a single atomic CTE, so it runs without a transaction to keep the pooled
-	// connection for one round trip instead of BEGIN / statement / COMMIT.
+	// connection for one round trip instead of BEGIN / statement / COMMIT. Its next_requeue_after
+	// peek reads the statement's snapshot, so the rows it moved (requeue_after <= NOW()) are
+	// excluded by the filter and only still-parked rows count.
 	row, err := d.queries.RequeueRateLimitedQueueItems(ctx, d.pool, sqlcv1.RequeueRateLimitedQueueItemsParams{
 		Tenantid: tenantId,
 		Queue:    queueName,
