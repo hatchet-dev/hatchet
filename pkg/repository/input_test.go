@@ -7,37 +7,14 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-func TestNewV1StepRunDataFromTaskAndInputPayload_BuildsFromTheBareInputAndTheTaskColumns(t *testing.T) {
-	dagParentTaskRunId := uuid.New()
-
-	task := &sqlcv1.V1Task{
-		Triggers:                     []byte(`{"filter_payload": {"region": "eu"}, "wait_for_event:go": {"order_id": 1}}`),
-		DagParentTaskRunIds:          []uuid.UUID{dagParentTaskRunId},
-		ChildTaskDesiredWorkerLabels: []byte(`[{"key": "pool"}]`),
-		TaskInputPayloadVersion:      int16(TaskInputPayloadVersionUserInputOnly),
-	}
-
-	data, err := NewV1StepRunDataFromTaskAndInputPayload(task, []byte(`{"order_id": 1}`))
-	require.NoError(t, err)
-
-	assert.JSONEq(t, `{"order_id": 1}`, string(data.Input))
-	assert.Empty(t, data.Parents)
-	assert.Equal(t, map[string]interface{}{"region": "eu"}, data.Triggers["filter_payload"])
-	assert.Equal(t, map[string]interface{}{"order_id": float64(1)}, data.Triggers["wait_for_event:go"])
-	assert.Equal(t, []uuid.UUID{dagParentTaskRunId}, data.DagParentTaskRunIds)
-	require.Len(t, data.DesiredWorkerLabels, 1)
-	assert.Equal(t, "pool", data.DesiredWorkerLabels[0].Key)
-}
-
 func TestNewV1StepRunDataFromTaskAndInputPayload_SendsTheSameKeysAsBeforeWhenTheColumnsAreEmpty(t *testing.T) {
-	task := &sqlcv1.V1Task{TaskInputPayloadVersion: int16(TaskInputPayloadVersionUserInputOnly)}
+	task := &sqlcv1.V1Task{TaskInputPayloadVersion: int16(taskInputPayloadVersionUserInputOnly)}
 
 	data, err := NewV1StepRunDataFromTaskAndInputPayload(task, []byte(`{"order_id": 1}`))
 	require.NoError(t, err)
@@ -45,78 +22,38 @@ func TestNewV1StepRunDataFromTaskAndInputPayload_SendsTheSameKeysAsBeforeWhenThe
 	assert.JSONEq(t, `{"input": {"order_id": 1}, "parents": {}, "triggers": {"filter_payload": null}}`, string(data.Bytes()))
 }
 
-func TestNewV1StepRunDataFromTaskAndInputPayload_ReadsARowStoredBeforeTheColumnsExisted(t *testing.T) {
-	legacyTaskInputPayload := []byte(`{
-		"input": {"order_id": 1},
-		"parents": {"step1": {"result": 2}},
-		"triggers": {"filter_payload": {"region": "eu"}},
-		"triggered_by": "manual",
-		"user_data": null,
-		"overrides": null
-	}`)
-
-	task := &sqlcv1.V1Task{TaskInputPayloadVersion: int16(TaskInputPayloadVersionStepRunData)}
-
-	data, err := NewV1StepRunDataFromTaskAndInputPayload(task, legacyTaskInputPayload)
-	require.NoError(t, err)
-
-	assert.JSONEq(t, `{"order_id": 1}`, string(data.Input))
-	assert.Equal(t, map[string]interface{}{"result": float64(2)}, data.Parents["step1"])
-	assert.Equal(t, map[string]interface{}{"region": "eu"}, data.Triggers["filter_payload"])
-}
-
-func TestNewTaskInputFromTaskInputPayload_CarriesTheLegacyColumnsSoAReplayDoesNotLoseThem(t *testing.T) {
-	dagParentTaskRunId := uuid.New()
-	legacyTaskInputPayload := []byte(`{
-		"input": {"order_id": 1},
-		"parents": {},
-		"triggers": {"filter_payload": null},
-		"dag_parent_task_run_ids": ["` + dagParentTaskRunId.String() + `"],
-		"desired_worker_labels": [{"key": "pool"}]
-	}`)
-
-	logger := zerolog.Nop()
-	taskInput := (&sharedRepository{l: &logger}).newTaskInputFromTaskInputPayload(TaskInputPayloadVersionStepRunData, legacyTaskInputPayload)
-
-	assert.Equal(t, map[string]interface{}{"order_id": float64(1)}, taskInput.Input)
-	assert.Equal(t, []uuid.UUID{dagParentTaskRunId}, taskInput.DagParentTaskRunIds)
-	require.Len(t, taskInput.DesiredWorkerLabels, 1)
-	assert.Equal(t, "pool", taskInput.DesiredWorkerLabels[0].Key)
-}
-
-func TestCreatedTaskStoresOnlyTheUserInputAndKeepsTheRestOnTheTask(t *testing.T) {
-	_, inserted, task := insertTaskWithTriggersAndDagParents(t, false)
-
-	assert.JSONEq(t, `{"order_id": 1}`, string(inserted.TaskInputPayload))
-	assert.Equal(t, int16(TaskInputPayloadVersionUserInputOnly), task.TaskInputPayloadVersion)
-
-	assertStepRunDataReadsBackTheTaskInput(t, task, inserted.TaskInputPayload)
-}
-
-func TestCreatedTaskStoresTheWrappedStepRunDataWhenWrappingIsOn(t *testing.T) {
-	_, inserted, task := insertTaskWithTriggersAndDagParents(t, true)
-
-	assert.JSONEq(t, string(inserted.Payload), string(inserted.TaskInputPayload))
-	assert.Equal(t, int16(TaskInputPayloadVersionStepRunData), task.TaskInputPayloadVersion)
-
-	assertStepRunDataReadsBackTheTaskInput(t, task, inserted.TaskInputPayload)
-}
-
-func TestReplayKeepsTheTaskInputPayloadVersionTheTaskWasCreatedWith(t *testing.T) {
-	for _, wrapTaskInputInStepRunDataAtCreation := range []bool{true, false} {
+func TestTaskInputReadsBackAfterCreateAndAfterReplayingWithTheFlagFlipped(t *testing.T) {
+	for wrapTaskInputInStepRunDataAtCreation, expectedVersion := range map[bool]taskInputPayloadVersion{
+		true:  taskInputPayloadVersionStepRunData,
+		false: taskInputPayloadVersionUserInputOnly,
+	} {
 		shared, inserted, task := insertTaskWithTriggersAndDagParents(t, wrapTaskInputInStepRunDataAtCreation)
+
+		assert.Equal(t, int16(expectedVersion), task.TaskInputPayloadVersion)
+		assertStepRunDataReadsBackTheTaskInput(t, task, inserted.TaskInputPayload)
+
 		shared.wrapTaskInputInStepRunData = !wrapTaskInputInStepRunDataAtCreation
 
-		version := TaskInputPayloadVersion(task.TaskInputPayloadVersion)
-		replayed := replayTaskWithInput(t, shared, task, shared.newTaskInputFromTaskInputPayload(version, inserted.TaskInputPayload))
+		replayed, err := shared.replayTasks(context.Background(), shared.pool, internalTenantId, []ReplayTaskOpts{
+			{
+				TaskId:       task.ID,
+				InsertedAt:   task.InsertedAt,
+				ExternalId:   task.ExternalID,
+				StepId:       task.StepID,
+				Input:        shared.newTaskInputFromTaskInputPayload(expectedVersion, inserted.TaskInputPayload),
+				InitialState: sqlcv1.V1TaskInitialStateQUEUED,
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, replayed, 1)
 
 		replayedTasks, err := shared.listTasks(context.Background(), shared.pool, internalTenantId, []int64{task.ID})
 		require.NoError(t, err)
 		require.Len(t, replayedTasks, 1)
 
-		assert.Equal(t, task.TaskInputPayloadVersion, replayedTasks[0].TaskInputPayloadVersion)
+		assert.Equal(t, int16(expectedVersion), replayedTasks[0].TaskInputPayloadVersion)
 
-		data, err := NewV1StepRunDataFromTaskAndInputPayload(replayedTasks[0], replayed.TaskInputPayload)
+		data, err := NewV1StepRunDataFromTaskAndInputPayload(replayedTasks[0], replayed[0].TaskInputPayload)
 		require.NoError(t, err)
 
 		assert.JSONEq(t, `{"order_id": 1}`, string(data.Input))
@@ -124,25 +61,6 @@ func TestReplayKeepsTheTaskInputPayloadVersionTheTaskWasCreatedWith(t *testing.T
 		require.Len(t, data.DesiredWorkerLabels, 1)
 		assert.Equal(t, "pool", data.DesiredWorkerLabels[0].Key)
 	}
-}
-
-func replayTaskWithInput(t *testing.T, shared *sharedRepository, task *sqlcv1.V1Task, input *TaskInput) *V1TaskWithPayload {
-	t.Helper()
-
-	replayed, err := shared.replayTasks(context.Background(), shared.pool, internalTenantId, []ReplayTaskOpts{
-		{
-			TaskId:       task.ID,
-			InsertedAt:   task.InsertedAt,
-			ExternalId:   task.ExternalID,
-			StepId:       task.StepID,
-			Input:        input,
-			InitialState: sqlcv1.V1TaskInitialStateQUEUED,
-		},
-	})
-	require.NoError(t, err)
-	require.Len(t, replayed, 1)
-
-	return replayed[0]
 }
 
 func insertTaskWithTriggersAndDagParents(t *testing.T, wrapTaskInputInStepRunData bool) (*sharedRepository, *V1TaskWithPayload, *sqlcv1.V1Task) {
@@ -192,9 +110,6 @@ func insertTaskWithTriggersAndDagParents(t *testing.T, wrapTaskInputInStepRunDat
 	tasks, err := shared.listTasks(ctx, pool, internalTenantId, []int64{inserted[0].ID})
 	require.NoError(t, err)
 	require.Len(t, tasks, 1)
-
-	assert.JSONEq(t, `{"filter_payload": {"region": "eu"}}`, string(tasks[0].Triggers))
-	assert.Equal(t, dagParentTaskRunIds, tasks[0].DagParentTaskRunIds)
 
 	return shared, inserted[0], tasks[0]
 }

@@ -2540,7 +2540,7 @@ func (r *sharedRepository) insertTasks(
 	batchKeys := make([]string, len(tasks))
 
 	externalIdToStepRunData := make(map[uuid.UUID]*V1StepRunData, len(tasks))
-	taskInputPayloadVersion := r.taskInputPayloadVersionToWrite()
+	taskInputPayloadVersionForNewTasks := r.taskInputPayloadVersionToWrite()
 
 	unix := time.Now().UnixMilli()
 
@@ -2934,7 +2934,7 @@ func (r *sharedRepository) insertTasks(
 		params.Triggers = append(params.Triggers, stepRunDataColumns.triggers)
 		params.DagParentTaskRunIds = append(params.DagParentTaskRunIds, stepRunDataColumns.dagParentTaskRunIds)
 		params.ChildTaskDesiredWorkerLabels = append(params.ChildTaskDesiredWorkerLabels, stepRunDataColumns.childTaskDesiredWorkerLabels)
-		params.TaskInputPayloadVersions = append(params.TaskInputPayloadVersions, int16(taskInputPayloadVersion))
+		params.TaskInputPayloadVersions = append(params.TaskInputPayloadVersions, int16(taskInputPayloadVersionForNewTasks))
 		params.Tenantids = append(params.Tenantids, tenantIds[i])
 		params.Queues = append(params.Queues, queues[i])
 		params.Actionids = append(params.Actionids, actionIds[i])
@@ -3019,7 +3019,7 @@ func (r *sharedRepository) insertTasks(
 				V1Task:           task,
 				Runtime:          nil,
 				Payload:          externalIdToStepRunData[task.ExternalID].Bytes(),
-				TaskInputPayload: externalIdToStepRunData[task.ExternalID].taskInputPayload(TaskInputPayloadVersion(task.TaskInputPayloadVersion)),
+				TaskInputPayload: externalIdToStepRunData[task.ExternalID].taskInputPayload(taskInputPayloadVersion(task.TaskInputPayloadVersion)),
 			}
 
 			res = append(res, &withPayload)
@@ -3396,7 +3396,7 @@ func (r *sharedRepository) replayTasks(
 
 			if stepRunData, isInputReplaced := externalIdToStepRunData[task.ExternalID]; isInputReplaced {
 				withPayload.Payload = stepRunData.Bytes()
-				withPayload.TaskInputPayload = stepRunData.taskInputPayload(TaskInputPayloadVersion(task.TaskInputPayloadVersion))
+				withPayload.TaskInputPayload = stepRunData.taskInputPayload(taskInputPayloadVersion(task.TaskInputPayloadVersion))
 			}
 
 			storePayloadOpts = append(storePayloadOpts, StorePayloadOpts{
@@ -4124,7 +4124,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 			// NOTE: we require the input to be passed in to the replay method so we can re-evaluate the concurrency keys
 			// Ideally we could preserve the same concurrency keys, but the replay tasks method is currently unaware of existing concurrency
 			// keys because they may change between retries.
-			Input: r.newTaskInputFromTaskInputPayload(TaskInputPayloadVersion(task.TaskInputPayloadVersion), input),
+			Input: r.newTaskInputFromTaskInputPayload(taskInputPayloadVersion(task.TaskInputPayloadVersion), input),
 		})
 	}
 
@@ -5330,7 +5330,7 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 	input := payloads[inputRetrieveOpt]
 
 	if !isDag {
-		input, err = userInputFromTaskInputPayload(TaskInputPayloadVersion(firstTask.TaskInputPayloadVersion), input)
+		input, err = userInputFromTaskInputPayload(taskInputPayloadVersion(firstTask.TaskInputPayloadVersion), input)
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to read task input: %w", err)

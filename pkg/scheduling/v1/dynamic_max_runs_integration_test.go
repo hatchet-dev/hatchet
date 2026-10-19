@@ -214,7 +214,6 @@ func TestConcurrency_DynamicMaxRuns_ReplayCannotRegressLimit(t *testing.T) {
 		replayParams := sqlcv1.ReplayTasksParams{
 			Taskids:                    []int64{replayed.ID},
 			Taskinsertedats:            []pgtype.Timestamptz{replayed.InsertedAt},
-			Inputs:                     [][]byte{nil},
 			InitialStates:              []string{string(sqlcv1.V1TaskInitialStateQUEUED)},
 			InitialStateReasons:        []pgtype.Text{{}},
 			Concurrencykeys:            [][]string{{"k"}},

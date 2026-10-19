@@ -36,13 +36,13 @@ func (s *sharedRepository) DesiredWorkerId(t *TaskInput) *uuid.UUID {
 	return nil
 }
 
-func (s *sharedRepository) newTaskInputFromTaskInputPayload(version TaskInputPayloadVersion, taskInputPayload []byte) *TaskInput {
+func (s *sharedRepository) newTaskInputFromTaskInputPayload(version taskInputPayloadVersion, taskInputPayload []byte) *TaskInput {
 	i := &TaskInput{}
 
 	var userInput []byte
 
 	switch version {
-	case TaskInputPayloadVersionStepRunData:
+	case taskInputPayloadVersionStepRunData:
 		stepRunData, err := stepRunDataFromVersion1TaskInputPayload(taskInputPayload)
 
 		if err != nil {
@@ -53,7 +53,7 @@ func (s *sharedRepository) newTaskInputFromTaskInputPayload(version TaskInputPay
 		userInput = stepRunData.Input
 		i.DagParentTaskRunIds = stepRunData.DagParentTaskRunIds
 		i.DesiredWorkerLabels = stepRunData.DesiredWorkerLabels
-	case TaskInputPayloadVersionUserInputOnly:
+	case taskInputPayloadVersionUserInputOnly:
 		userInput = taskInputPayload
 	default:
 		s.l.Error().Msgf("unknown task input payload version %d", version)
@@ -168,19 +168,19 @@ func (s *sharedRepository) ToV1StepRunData(t *TaskInput) *V1StepRunData {
 	}
 }
 
-type TaskInputPayloadVersion int16
+type taskInputPayloadVersion int16
 
 const (
-	TaskInputPayloadVersionStepRunData   TaskInputPayloadVersion = 1
-	TaskInputPayloadVersionUserInputOnly TaskInputPayloadVersion = 2
+	taskInputPayloadVersionStepRunData   taskInputPayloadVersion = 1
+	taskInputPayloadVersionUserInputOnly taskInputPayloadVersion = 2
 )
 
-func (s *sharedRepository) taskInputPayloadVersionToWrite() TaskInputPayloadVersion {
+func (s *sharedRepository) taskInputPayloadVersionToWrite() taskInputPayloadVersion {
 	if s.wrapTaskInputInStepRunData {
-		return TaskInputPayloadVersionStepRunData
+		return taskInputPayloadVersionStepRunData
 	}
 
-	return TaskInputPayloadVersionUserInputOnly
+	return taskInputPayloadVersionUserInputOnly
 }
 
 func stepRunDataFromVersion1TaskInputPayload(taskInputPayload []byte) (*V1StepRunData, error) {
@@ -197,9 +197,9 @@ func stepRunDataFromVersion1TaskInputPayload(taskInputPayload []byte) (*V1StepRu
 	return stepRunData, nil
 }
 
-func userInputFromTaskInputPayload(version TaskInputPayloadVersion, taskInputPayload []byte) ([]byte, error) {
+func userInputFromTaskInputPayload(version taskInputPayloadVersion, taskInputPayload []byte) ([]byte, error) {
 	switch version {
-	case TaskInputPayloadVersionStepRunData:
+	case taskInputPayloadVersionStepRunData:
 		stepRunData, err := stepRunDataFromVersion1TaskInputPayload(taskInputPayload)
 
 		if err != nil {
@@ -207,7 +207,7 @@ func userInputFromTaskInputPayload(version TaskInputPayloadVersion, taskInputPay
 		}
 
 		return stepRunData.Input, nil
-	case TaskInputPayloadVersionUserInputOnly:
+	case taskInputPayloadVersionUserInputOnly:
 		return taskInputPayload, nil
 	default:
 		return nil, fmt.Errorf("unknown task input payload version %d", version)
@@ -215,10 +215,10 @@ func userInputFromTaskInputPayload(version TaskInputPayloadVersion, taskInputPay
 }
 
 func NewV1StepRunDataFromTaskAndInputPayload(task *sqlcv1.V1Task, taskInputPayload []byte) (*V1StepRunData, error) {
-	switch version := TaskInputPayloadVersion(task.TaskInputPayloadVersion); version {
-	case TaskInputPayloadVersionStepRunData:
+	switch version := taskInputPayloadVersion(task.TaskInputPayloadVersion); version {
+	case taskInputPayloadVersionStepRunData:
 		return stepRunDataFromVersion1TaskInputPayload(taskInputPayload)
-	case TaskInputPayloadVersionUserInputOnly:
+	case taskInputPayloadVersionUserInputOnly:
 		return newV1StepRunDataFromTaskAndUserInput(task, taskInputPayload)
 	default:
 		return nil, fmt.Errorf("unknown task input payload version %d", version)
@@ -276,11 +276,11 @@ type V1StepRunData struct {
 	DesiredWorkerLabels []*sqlcv1.GetDesiredLabelsRow `json:"desired_worker_labels,omitempty"`
 }
 
-func (v1 *V1StepRunData) taskInputPayload(version TaskInputPayloadVersion) []byte {
+func (v1 *V1StepRunData) taskInputPayload(version taskInputPayloadVersion) []byte {
 	switch version {
-	case TaskInputPayloadVersionStepRunData:
+	case taskInputPayloadVersionStepRunData:
 		return v1.Bytes()
-	case TaskInputPayloadVersionUserInputOnly:
+	case taskInputPayloadVersionUserInputOnly:
 		return v1.userInput()
 	default:
 		panic(fmt.Sprintf("unknown task input payload version %d", version))
