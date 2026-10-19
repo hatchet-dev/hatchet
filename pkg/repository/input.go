@@ -36,15 +36,32 @@ func (s *sharedRepository) DesiredWorkerId(t *TaskInput) *uuid.UUID {
 	return nil
 }
 
-func (s *sharedRepository) newTaskInputFromTaskInputPayload(taskInputPayload []byte) *TaskInput {
+func (s *sharedRepository) newTaskInputFromTaskInputPayload(version taskInputPayloadVersion, taskInputPayload []byte) *TaskInput {
 	i := &TaskInput{}
 
-	userInput := taskInputPayload
+	var userInput []byte
 
-	if legacyStepRunData := legacyStepRunDataFromTaskInputPayload(taskInputPayload); legacyStepRunData != nil {
-		userInput = legacyStepRunData.Input
-		i.DagParentTaskRunIds = legacyStepRunData.DagParentTaskRunIds
-		i.DesiredWorkerLabels = legacyStepRunData.DesiredWorkerLabels
+	switch version {
+	case taskInputPayloadVersionStepRunData:
+		stepRunData, err := stepRunDataFromVersion1TaskInputPayload(taskInputPayload)
+
+		if err != nil {
+			s.l.Error().Err(err).Msg("failed to unmarshal step run data")
+			return i
+		}
+
+		userInput = stepRunData.Input
+		i.DagParentTaskRunIds = stepRunData.DagParentTaskRunIds
+		i.DesiredWorkerLabels = stepRunData.DesiredWorkerLabels
+	case taskInputPayloadVersionUserInputOnly:
+		userInput = taskInputPayload
+	default:
+		s.l.Error().Msgf("unknown task input payload version %d", version)
+		return i
+	}
+
+	if len(userInput) == 0 {
+		return i
 	}
 
 	if err := json.Unmarshal(userInput, &i.Input); err != nil {
@@ -131,9 +148,7 @@ func (s *sharedRepository) ToV1StepRunData(t *TaskInput) *V1StepRunData {
 		}
 	}
 
-	if t.FilterPayload != nil {
-		triggers["filter_payload"] = t.FilterPayload
-	}
+	triggers["filter_payload"] = t.FilterPayload
 
 	input, err := json.Marshal(t.Input)
 
@@ -151,56 +166,66 @@ func (s *sharedRepository) ToV1StepRunData(t *TaskInput) *V1StepRunData {
 	}
 }
 
-// taskInputPayload is what the payload store holds for a task. Engines before the step run data columns on
-// v1_task can only read the wrapped shape, so it is written until wrapTaskInputInStepRunData is turned off.
-func (s *sharedRepository) taskInputPayload(stepRunData *V1StepRunData) []byte {
+type taskInputPayloadVersion int16
+
+const (
+	taskInputPayloadVersionStepRunData   taskInputPayloadVersion = 1
+	taskInputPayloadVersionUserInputOnly taskInputPayloadVersion = 2
+)
+
+func (s *sharedRepository) taskInputPayloadVersionToWrite() taskInputPayloadVersion {
 	if s.wrapTaskInputInStepRunData {
-		return stepRunData.Bytes()
+		return taskInputPayloadVersionStepRunData
 	}
 
-	return stepRunData.userInput()
+	return taskInputPayloadVersionUserInputOnly
 }
 
-// legacyStepRunDataFromTaskInputPayload recognises task inputs stored before the payload held only the user's
-// input. Those rows hold a whole V1StepRunData, which always has these three keys. A user's input would have to
-// contain all three to be mistaken for one. This can be deleted once no such rows remain in the payload store.
-func legacyStepRunDataFromTaskInputPayload(taskInputPayload []byte) *V1StepRunData {
-	var topLevelKeys map[string]json.RawMessage
+func stepRunDataFromVersion1TaskInputPayload(taskInputPayload []byte) (*V1StepRunData, error) {
+	stepRunData := &V1StepRunData{}
 
-	if err := json.Unmarshal(taskInputPayload, &topLevelKeys); err != nil {
-		return nil
+	if len(taskInputPayload) == 0 {
+		return stepRunData, nil
 	}
 
-	for _, key := range []string{"input", "parents", "triggers"} {
-		if _, ok := topLevelKeys[key]; !ok {
-			return nil
+	if err := json.Unmarshal(taskInputPayload, stepRunData); err != nil {
+		return nil, err
+	}
+
+	return stepRunData, nil
+}
+
+func userInputFromTaskInputPayload(version taskInputPayloadVersion, taskInputPayload []byte) ([]byte, error) {
+	switch version {
+	case taskInputPayloadVersionStepRunData:
+		stepRunData, err := stepRunDataFromVersion1TaskInputPayload(taskInputPayload)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal step run data: %w", err)
 		}
+
+		return stepRunData.Input, nil
+	case taskInputPayloadVersionUserInputOnly:
+		return taskInputPayload, nil
+	default:
+		return nil, fmt.Errorf("unknown task input payload version %d", version)
 	}
-
-	legacyStepRunData := &V1StepRunData{}
-
-	if err := json.Unmarshal(taskInputPayload, legacyStepRunData); err != nil {
-		return nil
-	}
-
-	return legacyStepRunData
 }
 
-func UserInputFromTaskInputPayload(taskInputPayload []byte) []byte {
-	if legacyStepRunData := legacyStepRunDataFromTaskInputPayload(taskInputPayload); legacyStepRunData != nil {
-		return legacyStepRunData.Input
-	}
-
-	return taskInputPayload
-}
-
-// NewV1StepRunDataFromTaskAndInputPayload leaves Parents empty and StepRunErrors unset. The dispatcher fills both in from the
-// task events of the task's parents.
 func NewV1StepRunDataFromTaskAndInputPayload(task *sqlcv1.V1Task, taskInputPayload []byte) (*V1StepRunData, error) {
-	if legacyStepRunData := legacyStepRunDataFromTaskInputPayload(taskInputPayload); legacyStepRunData != nil {
-		return legacyStepRunData, nil
+	switch version := taskInputPayloadVersion(task.TaskInputPayloadVersion); version {
+	case taskInputPayloadVersionStepRunData:
+		return stepRunDataFromVersion1TaskInputPayload(taskInputPayload)
+	case taskInputPayloadVersionUserInputOnly:
+		return newV1StepRunDataFromTaskAndUserInput(task, taskInputPayload)
+	default:
+		return nil, fmt.Errorf("unknown task input payload version %d", version)
 	}
+}
 
+// newV1StepRunDataFromTaskAndUserInput leaves Parents empty and StepRunErrors unset. The dispatcher fills both in
+// from the task events of the task's parents.
+func newV1StepRunDataFromTaskAndUserInput(task *sqlcv1.V1Task, userInput []byte) (*V1StepRunData, error) {
 	triggers := map[string]map[string]interface{}{"filter_payload": nil}
 
 	if len(task.Triggers) > 0 {
@@ -217,7 +242,7 @@ func NewV1StepRunDataFromTaskAndInputPayload(task *sqlcv1.V1Task, taskInputPaylo
 		}
 	}
 
-	input := json.RawMessage(taskInputPayload)
+	input := json.RawMessage(userInput)
 
 	if len(input) == 0 {
 		input = json.RawMessage("{}")
@@ -249,6 +274,17 @@ type V1StepRunData struct {
 	DesiredWorkerLabels []*sqlcv1.GetDesiredLabelsRow `json:"desired_worker_labels,omitempty"`
 }
 
+func (v1 *V1StepRunData) taskInputPayload(version taskInputPayloadVersion) []byte {
+	switch version {
+	case taskInputPayloadVersionStepRunData:
+		return v1.Bytes()
+	case taskInputPayloadVersionUserInputOnly:
+		return v1.userInput()
+	default:
+		panic(fmt.Sprintf("unknown task input payload version %d", version))
+	}
+}
+
 // userInput is null for a task created without an input, which matches what Bytes returns for it.
 func (v1 *V1StepRunData) userInput() []byte {
 	if v1 == nil {
@@ -258,28 +294,40 @@ func (v1 *V1StepRunData) userInput() []byte {
 	return v1.Input
 }
 
-func (v1 *V1StepRunData) triggersColumn() ([]byte, error) {
-	if v1 == nil || len(v1.Triggers) == 0 {
-		return nil, nil
-	}
-
-	return json.Marshal(v1.Triggers)
+type stepRunDataTaskColumns struct {
+	triggers                     []byte
+	dagParentTaskRunIds          []byte
+	childTaskDesiredWorkerLabels []byte
 }
 
-func (v1 *V1StepRunData) dagParentTaskRunIdsColumn() ([]byte, error) {
-	if v1 == nil || len(v1.DagParentTaskRunIds) == 0 {
-		return nil, nil
+func (v1 *V1StepRunData) taskColumns() (stepRunDataTaskColumns, error) {
+	columns := stepRunDataTaskColumns{}
+
+	if v1 == nil {
+		return columns, nil
 	}
 
-	return json.Marshal(v1.DagParentTaskRunIds)
-}
+	var err error
 
-func (v1 *V1StepRunData) childTaskDesiredWorkerLabelsColumn() ([]byte, error) {
-	if v1 == nil || len(v1.DesiredWorkerLabels) == 0 {
-		return nil, nil
+	if len(v1.Triggers) > 0 {
+		if columns.triggers, err = json.Marshal(v1.Triggers); err != nil {
+			return columns, fmt.Errorf("failed to marshal triggers: %w", err)
+		}
 	}
 
-	return json.Marshal(v1.DesiredWorkerLabels)
+	if len(v1.DagParentTaskRunIds) > 0 {
+		if columns.dagParentTaskRunIds, err = json.Marshal(v1.DagParentTaskRunIds); err != nil {
+			return columns, fmt.Errorf("failed to marshal dag parent task run ids: %w", err)
+		}
+	}
+
+	if len(v1.DesiredWorkerLabels) > 0 {
+		if columns.childTaskDesiredWorkerLabels, err = json.Marshal(v1.DesiredWorkerLabels); err != nil {
+			return columns, fmt.Errorf("failed to marshal child task desired worker labels: %w", err)
+		}
+	}
+
+	return columns, nil
 }
 
 func (v1 *V1StepRunData) Bytes() []byte {

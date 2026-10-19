@@ -3940,6 +3940,7 @@ type V1Task struct {
 	Triggers                     []byte             `json:"triggers"`
 	DagParentTaskRunIds          []uuid.UUID        `json:"dag_parent_task_run_ids"`
 	ChildTaskDesiredWorkerLabels []byte             `json:"child_task_desired_worker_labels"`
+	TaskInputPayloadVersion      int16              `json:"task_input_payload_version"`
 }
 
 type V1TaskEvent struct {

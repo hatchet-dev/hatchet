@@ -64,7 +64,7 @@ func TestReplayOverwritesOffloadedTaskInput(t *testing.T) {
 		InsertedAt: task.InsertedAt,
 		ExternalId: task.ExternalID,
 		TenantId:   internalTenantId,
-	}.StoreOpts(NewPayload[TaskInputShape](task.UserInput)))
+	}.StoreOpts(NewPayload[TaskInputShape](task.TaskInputPayload)))
 	require.NoError(t, err)
 
 	retrieveOpt := PayloadRef[TaskInputShape]{
