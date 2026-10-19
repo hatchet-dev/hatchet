@@ -64,7 +64,7 @@ func TestReplayOverwritesOffloadedTaskInput(t *testing.T) {
 		InsertedAt: task.InsertedAt,
 		ExternalId: task.ExternalID,
 		Type:       sqlcv1.V1PayloadTypeTASKINPUT,
-		Payload:    task.UserInput,
+		Payload:    task.TaskInputPayload,
 		TenantId:   internalTenantId,
 	})
 	require.NoError(t, err)

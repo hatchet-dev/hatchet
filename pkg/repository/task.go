@@ -1946,7 +1946,7 @@ func (r *TaskRepositoryImpl) ProcessDurableSleeps(ctx context.Context, tenantId 
 			InsertedAt: task.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
 			ExternalId: task.ExternalID,
-			Payload:    task.UserInput,
+			Payload:    task.TaskInputPayload,
 			TenantId:   task.TenantID,
 		}
 	}
@@ -2540,6 +2540,7 @@ func (r *sharedRepository) insertTasks(
 	batchKeys := make([]string, len(tasks))
 
 	externalIdToStepRunData := make(map[uuid.UUID]*V1StepRunData, len(tasks))
+	taskInputPayloadVersion := r.taskInputPayloadVersionToWrite()
 
 	unix := time.Now().UnixMilli()
 
@@ -2920,32 +2921,20 @@ func (r *sharedRepository) insertTasks(
 				Triggers:                     make([][]byte, 0),
 				DagParentTaskRunIds:          make([][]byte, 0),
 				ChildTaskDesiredWorkerLabels: make([][]byte, 0),
+				TaskInputPayloadVersions:     make([]int16, 0),
 			}
 		}
 
-		stepRunData := externalIdToStepRunData[externalIds[i]]
-
-		triggers, err := stepRunData.triggersColumn()
+		stepRunDataColumns, err := externalIdToStepRunData[externalIds[i]].taskColumns()
 
 		if err != nil {
-			return nil, fmt.Errorf("failed to marshal triggers: %w", err)
+			return nil, err
 		}
 
-		dagParentTaskRunIds, err := stepRunData.dagParentTaskRunIdsColumn()
-
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal dag parent task run ids: %w", err)
-		}
-
-		childTaskDesiredWorkerLabels, err := stepRunData.childTaskDesiredWorkerLabelsColumn()
-
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal child task desired worker labels: %w", err)
-		}
-
-		params.Triggers = append(params.Triggers, triggers)
-		params.DagParentTaskRunIds = append(params.DagParentTaskRunIds, dagParentTaskRunIds)
-		params.ChildTaskDesiredWorkerLabels = append(params.ChildTaskDesiredWorkerLabels, childTaskDesiredWorkerLabels)
+		params.Triggers = append(params.Triggers, stepRunDataColumns.triggers)
+		params.DagParentTaskRunIds = append(params.DagParentTaskRunIds, stepRunDataColumns.dagParentTaskRunIds)
+		params.ChildTaskDesiredWorkerLabels = append(params.ChildTaskDesiredWorkerLabels, stepRunDataColumns.childTaskDesiredWorkerLabels)
+		params.TaskInputPayloadVersions = append(params.TaskInputPayloadVersions, int16(taskInputPayloadVersion))
 		params.Tenantids = append(params.Tenantids, tenantIds[i])
 		params.Queues = append(params.Queues, queues[i])
 		params.Actionids = append(params.Actionids, actionIds[i])
@@ -3027,10 +3016,10 @@ func (r *sharedRepository) insertTasks(
 
 		for _, task := range createdTasks {
 			withPayload := V1TaskWithPayload{
-				V1Task:    task,
-				Runtime:   nil,
-				Payload:   externalIdToStepRunData[task.ExternalID].Bytes(),
-				UserInput: r.taskInputPayload(externalIdToStepRunData[task.ExternalID]),
+				V1Task:           task,
+				Runtime:          nil,
+				Payload:          externalIdToStepRunData[task.ExternalID].Bytes(),
+				TaskInputPayload: externalIdToStepRunData[task.ExternalID].taskInputPayload(TaskInputPayloadVersion(task.TaskInputPayloadVersion)),
 			}
 
 			res = append(res, &withPayload)
@@ -3175,6 +3164,7 @@ func (r *sharedRepository) replayTasks(
 	batchKeys := make([]string, len(tasks))
 
 	externalIdToStepRunData := make(map[uuid.UUID]*V1StepRunData, len(tasks))
+	taskInputPayloadVersion := r.taskInputPayloadVersionToWrite()
 
 	for i, task := range tasks {
 		stepConfig := stepIdsToConfig[task.StepId]
@@ -3355,35 +3345,27 @@ func (r *sharedRepository) replayTasks(
 				Triggers:                     make([][]byte, 0),
 				DagParentTaskRunIds:          make([][]byte, 0),
 				ChildTaskDesiredWorkerLabels: make([][]byte, 0),
+				TaskInputPayloadVersions:     make([]pgtype.Int2, 0),
 			}
 		}
 
-		var input, triggers, dagParentTaskRunIds, childTaskDesiredWorkerLabels []byte
+		var input []byte
+		var replacedTaskInputPayloadVersion pgtype.Int2
+		var stepRunDataColumns stepRunDataTaskColumns
 
 		if stepRunData, isInputReplaced := externalIdToStepRunData[task.ExternalId]; isInputReplaced {
-			input = r.taskInputPayload(stepRunData)
-			triggers, err = stepRunData.triggersColumn()
+			input = stepRunData.taskInputPayload(taskInputPayloadVersion)
+			replacedTaskInputPayloadVersion = pgtype.Int2{Int16: int16(taskInputPayloadVersion), Valid: true}
 
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal triggers: %w", err)
-			}
-
-			dagParentTaskRunIds, err = stepRunData.dagParentTaskRunIdsColumn()
-
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal dag parent task run ids: %w", err)
-			}
-
-			childTaskDesiredWorkerLabels, err = stepRunData.childTaskDesiredWorkerLabelsColumn()
-
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal child task desired worker labels: %w", err)
+			if stepRunDataColumns, err = stepRunData.taskColumns(); err != nil {
+				return nil, err
 			}
 		}
 
-		params.Triggers = append(params.Triggers, triggers)
-		params.DagParentTaskRunIds = append(params.DagParentTaskRunIds, dagParentTaskRunIds)
-		params.ChildTaskDesiredWorkerLabels = append(params.ChildTaskDesiredWorkerLabels, childTaskDesiredWorkerLabels)
+		params.Triggers = append(params.Triggers, stepRunDataColumns.triggers)
+		params.DagParentTaskRunIds = append(params.DagParentTaskRunIds, stepRunDataColumns.dagParentTaskRunIds)
+		params.ChildTaskDesiredWorkerLabels = append(params.ChildTaskDesiredWorkerLabels, stepRunDataColumns.childTaskDesiredWorkerLabels)
+		params.TaskInputPayloadVersions = append(params.TaskInputPayloadVersions, replacedTaskInputPayloadVersion)
 		params.Taskids = append(params.Taskids, taskIds[i])
 		params.Taskinsertedats = append(params.Taskinsertedats, taskInsertedAts[i])
 		params.Inputs = append(params.Inputs, input)
@@ -3448,7 +3430,7 @@ func (r *sharedRepository) replayTasks(
 
 			if stepRunData, isInputReplaced := externalIdToStepRunData[task.ExternalID]; isInputReplaced {
 				withPayload.Payload = stepRunData.Bytes()
-				withPayload.UserInput = r.taskInputPayload(stepRunData)
+				withPayload.TaskInputPayload = stepRunData.taskInputPayload(TaskInputPayloadVersion(task.TaskInputPayloadVersion))
 			}
 
 			res = append(res, &withPayload)
@@ -4163,7 +4145,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 			// NOTE: we require the input to be passed in to the replay method so we can re-evaluate the concurrency keys
 			// Ideally we could preserve the same concurrency keys, but the replay tasks method is currently unaware of existing concurrency
 			// keys because they may change between retries.
-			Input: r.newTaskInputFromTaskInputPayload(input),
+			Input: r.newTaskInputFromTaskInputPayload(TaskInputPayloadVersion(task.TaskInputPayloadVersion), input),
 		})
 	}
 
@@ -5369,7 +5351,11 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 	input := payloads[inputRetrieveOpt]
 
 	if !isDag {
-		input = UserInputFromTaskInputPayload(input)
+		input, err = userInputFromTaskInputPayload(TaskInputPayloadVersion(firstTask.TaskInputPayloadVersion), input)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to read task input: %w", err)
+		}
 	}
 
 	taskRunDetails := make(map[StepReadableId]TaskRunDetails)

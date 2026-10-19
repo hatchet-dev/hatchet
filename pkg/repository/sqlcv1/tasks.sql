@@ -209,7 +209,8 @@ WITH lookup_rows AS MATERIALIZED (
         t.is_dag_orchestrator,
         t.workflow_version_id,
         t.parent_task_external_id,
-        t.is_durable
+        t.is_durable,
+        t.task_input_payload_version
     FROM
         lookup_rows l
     JOIN
@@ -241,7 +242,8 @@ SELECT
     t.is_dag_orchestrator,
     t.workflow_version_id,
     t.parent_task_external_id,
-    t.is_durable
+    t.is_durable,
+    t.task_input_payload_version
 FROM
     lookup_rows l
 JOIN
@@ -871,7 +873,8 @@ WITH RECURSIVE input_tasks AS MATERIALIZED (
         t.child_key,
         t.desired_worker_label,
         t.triggering_event_external_id,
-        t.triggering_event_key
+        t.triggering_event_key,
+        t.task_input_payload_version
     FROM
         v1_task t
     WHERE
@@ -921,6 +924,7 @@ SELECT
     t.desired_worker_label,
     t.triggering_event_external_id,
     t.triggering_event_key,
+    t.task_input_payload_version,
     j."kind" as "jobKind",
     COALESCE(so."parents", '{}'::uuid[]) as "parents"
 FROM

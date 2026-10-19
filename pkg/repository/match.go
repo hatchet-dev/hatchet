@@ -319,7 +319,7 @@ func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, t
 			InsertedAt: task.InsertedAt,
 			ExternalId: task.ExternalID,
 			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
-			Payload:    task.UserInput,
+			Payload:    task.TaskInputPayload,
 			TenantId:   task.TenantID,
 		}
 	}
@@ -362,7 +362,7 @@ func (m *MatchRepositoryImpl) ProcessUserEventMatches(ctx context.Context, tenan
 			InsertedAt: task.InsertedAt,
 			ExternalId: task.ExternalID,
 			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
-			Payload:    task.UserInput,
+			Payload:    task.TaskInputPayload,
 			TenantId:   task.TenantID,
 		}
 	}

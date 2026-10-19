@@ -21,6 +21,7 @@ func TestNewV1StepRunDataFromTaskAndInputPayload_BuildsFromTheBareInputAndTheTas
 		Triggers:                     []byte(`{"filter_payload": {"region": "eu"}, "wait_for_event:go": {"order_id": 1}}`),
 		DagParentTaskRunIds:          []uuid.UUID{dagParentTaskRunId},
 		ChildTaskDesiredWorkerLabels: []byte(`[{"key": "pool"}]`),
+		TaskInputPayloadVersion:      int16(TaskInputPayloadVersionUserInputOnly),
 	}
 
 	data, err := NewV1StepRunDataFromTaskAndInputPayload(task, []byte(`{"order_id": 1}`))
@@ -36,7 +37,9 @@ func TestNewV1StepRunDataFromTaskAndInputPayload_BuildsFromTheBareInputAndTheTas
 }
 
 func TestNewV1StepRunDataFromTaskAndInputPayload_SendsTheSameKeysAsBeforeWhenTheColumnsAreEmpty(t *testing.T) {
-	data, err := NewV1StepRunDataFromTaskAndInputPayload(&sqlcv1.V1Task{}, []byte(`{"order_id": 1}`))
+	task := &sqlcv1.V1Task{TaskInputPayloadVersion: int16(TaskInputPayloadVersionUserInputOnly)}
+
+	data, err := NewV1StepRunDataFromTaskAndInputPayload(task, []byte(`{"order_id": 1}`))
 	require.NoError(t, err)
 
 	assert.JSONEq(t, `{"input": {"order_id": 1}, "parents": {}, "triggers": {"filter_payload": null}}`, string(data.Bytes()))
@@ -52,7 +55,9 @@ func TestNewV1StepRunDataFromTaskAndInputPayload_ReadsARowStoredBeforeTheColumns
 		"overrides": null
 	}`)
 
-	data, err := NewV1StepRunDataFromTaskAndInputPayload(&sqlcv1.V1Task{}, legacyTaskInputPayload)
+	task := &sqlcv1.V1Task{TaskInputPayloadVersion: int16(TaskInputPayloadVersionStepRunData)}
+
+	data, err := NewV1StepRunDataFromTaskAndInputPayload(task, legacyTaskInputPayload)
 	require.NoError(t, err)
 
 	assert.JSONEq(t, `{"order_id": 1}`, string(data.Input))
@@ -71,7 +76,7 @@ func TestNewTaskInputFromTaskInputPayload_CarriesTheLegacyColumnsSoAReplayDoesNo
 	}`)
 
 	logger := zerolog.Nop()
-	taskInput := (&sharedRepository{l: &logger}).newTaskInputFromTaskInputPayload(legacyTaskInputPayload)
+	taskInput := (&sharedRepository{l: &logger}).newTaskInputFromTaskInputPayload(TaskInputPayloadVersionStepRunData, legacyTaskInputPayload)
 
 	assert.Equal(t, map[string]interface{}{"order_id": float64(1)}, taskInput.Input)
 	assert.Equal(t, []uuid.UUID{dagParentTaskRunId}, taskInput.DagParentTaskRunIds)
@@ -79,30 +84,60 @@ func TestNewTaskInputFromTaskInputPayload_CarriesTheLegacyColumnsSoAReplayDoesNo
 	assert.Equal(t, "pool", taskInput.DesiredWorkerLabels[0].Key)
 }
 
-func TestUserInputFromTaskInputPayload_DoesNotUnwrapAUserInputThatHasItsOwnInputKey(t *testing.T) {
-	userInput := []byte(`{"input": "hello", "parents": ["a", "b"]}`)
-
-	assert.JSONEq(t, string(userInput), string(UserInputFromTaskInputPayload(userInput)))
-}
-
 func TestCreatedTaskStoresOnlyTheUserInputAndKeepsTheRestOnTheTask(t *testing.T) {
-	inserted, task := insertTaskWithTriggersAndDagParents(t, false)
+	_, inserted, task := insertTaskWithTriggersAndDagParents(t, false)
 
-	assert.JSONEq(t, `{"order_id": 1}`, string(inserted.UserInput))
+	assert.JSONEq(t, `{"order_id": 1}`, string(inserted.TaskInputPayload))
+	assert.Equal(t, int16(TaskInputPayloadVersionUserInputOnly), task.TaskInputPayloadVersion)
 
-	assertStepRunDataReadsBackTheTaskInput(t, task, inserted.UserInput)
+	assertStepRunDataReadsBackTheTaskInput(t, task, inserted.TaskInputPayload)
 }
 
 func TestCreatedTaskStoresTheWrappedStepRunDataWhenWrappingIsOn(t *testing.T) {
-	inserted, task := insertTaskWithTriggersAndDagParents(t, true)
+	_, inserted, task := insertTaskWithTriggersAndDagParents(t, true)
 
-	assert.JSONEq(t, string(inserted.Payload), string(inserted.UserInput))
-	assert.NotNil(t, legacyStepRunDataFromTaskInputPayload(inserted.UserInput))
+	assert.JSONEq(t, string(inserted.Payload), string(inserted.TaskInputPayload))
+	assert.Equal(t, int16(TaskInputPayloadVersionStepRunData), task.TaskInputPayloadVersion)
 
-	assertStepRunDataReadsBackTheTaskInput(t, task, inserted.UserInput)
+	assertStepRunDataReadsBackTheTaskInput(t, task, inserted.TaskInputPayload)
 }
 
-func insertTaskWithTriggersAndDagParents(t *testing.T, wrapTaskInputInStepRunData bool) (*V1TaskWithPayload, *sqlcv1.V1Task) {
+func TestReplayAfterWrappingIsTurnedOffStoresTheNewVersionAndAReplayWithoutInputKeepsIt(t *testing.T) {
+	shared, _, task := insertTaskWithTriggersAndDagParents(t, true)
+	shared.wrapTaskInputInStepRunData = false
+
+	replayed := replayTaskWithInput(t, shared, task, &TaskInput{Input: map[string]interface{}{"order_id": 2}})
+
+	assert.JSONEq(t, `{"order_id": 2}`, string(replayed.TaskInputPayload))
+	assert.Equal(t, int16(TaskInputPayloadVersionUserInputOnly), replayed.TaskInputPayloadVersion)
+
+	shared.wrapTaskInputInStepRunData = true
+
+	replayedWithoutInput := replayTaskWithInput(t, shared, task, nil)
+
+	assert.Equal(t, int16(TaskInputPayloadVersionUserInputOnly), replayedWithoutInput.TaskInputPayloadVersion)
+}
+
+func replayTaskWithInput(t *testing.T, shared *sharedRepository, task *sqlcv1.V1Task, input *TaskInput) *V1TaskWithPayload {
+	t.Helper()
+
+	replayed, err := shared.replayTasks(context.Background(), shared.pool, internalTenantId, []ReplayTaskOpts{
+		{
+			TaskId:       task.ID,
+			InsertedAt:   task.InsertedAt,
+			ExternalId:   task.ExternalID,
+			StepId:       task.StepID,
+			Input:        input,
+			InitialState: sqlcv1.V1TaskInitialStateQUEUED,
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, replayed, 1)
+
+	return replayed[0]
+}
+
+func insertTaskWithTriggersAndDagParents(t *testing.T, wrapTaskInputInStepRunData bool) (*sharedRepository, *V1TaskWithPayload, *sqlcv1.V1Task) {
 	t.Helper()
 
 	pool, cleanup := setupPostgresWithMigration(t)
@@ -153,7 +188,7 @@ func insertTaskWithTriggersAndDagParents(t *testing.T, wrapTaskInputInStepRunDat
 	assert.JSONEq(t, `{"filter_payload": {"region": "eu"}}`, string(tasks[0].Triggers))
 	assert.Equal(t, dagParentTaskRunIds, tasks[0].DagParentTaskRunIds)
 
-	return inserted[0], tasks[0]
+	return shared, inserted[0], tasks[0]
 }
 
 func assertStepRunDataReadsBackTheTaskInput(t *testing.T, task *sqlcv1.V1Task, taskInputPayload []byte) {
