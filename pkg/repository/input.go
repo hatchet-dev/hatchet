@@ -148,9 +148,7 @@ func (s *sharedRepository) ToV1StepRunData(t *TaskInput) *V1StepRunData {
 		}
 	}
 
-	if t.FilterPayload != nil {
-		triggers["filter_payload"] = t.FilterPayload
-	}
+	triggers["filter_payload"] = t.FilterPayload
 
 	input, err := json.Marshal(t.Input)
 
