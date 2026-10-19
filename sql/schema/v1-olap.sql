@@ -406,6 +406,7 @@ CREATE TABLE v1_task_events_olap (
     additional__event_data TEXT,
     additional__event_message TEXT,
     durable_invocation_count INT NOT NULL DEFAULT 0,
+    is_dag_orchestrator BOOLEAN NOT NULL DEFAULT FALSE,
 
     PRIMARY KEY (task_id, task_inserted_at, id)
 ) PARTITION BY RANGE (task_inserted_at);

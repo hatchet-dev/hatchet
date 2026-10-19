@@ -158,20 +158,6 @@ func (s *sharedRepository) isDagOperatorEnabled(ctx context.Context, db sqlcv1.D
 	return entitlement.DagOperator, nil
 }
 
-func (s *sharedRepository) hasDAGOperator(ctx context.Context, tenantId uuid.UUID) (bool, error) {
-	enabled, err := s.isDagOperatorEnabled(ctx, s.pool, tenantId)
-
-	if err != nil {
-		return false, err
-	}
-
-	if !enabled {
-		return false, nil
-	}
-
-	return s.queries.TenantHasDAGOperator(ctx, s.pool, tenantId)
-}
-
 func (s *sharedRepository) cleanup() error {
 	s.queueCache.Stop()
 	s.stepExpressionCache.Stop()

@@ -103,6 +103,8 @@ func hasCustomValueMeter(resource sqlcv1.LimitResource) bool {
 	switch resource {
 	case sqlcv1.LimitResourceWORKER, sqlcv1.LimitResourceWORKERSLOT, sqlcv1.LimitResourceINCOMINGWEBHOOK, sqlcv1.LimitResourceSTREAMTOPIC, sqlcv1.LimitResourceSTREAMRETENTION:
 		return true
+	case sqlcv1.LimitResourceTASKRUN, sqlcv1.LimitResourceEVENT, sqlcv1.LimitResourceCRON, sqlcv1.LimitResourceSCHEDULE, sqlcv1.LimitResourceSTREAMMESSAGE:
+		return false
 	}
 
 	return false

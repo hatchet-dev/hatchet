@@ -2,6 +2,7 @@ package workflowruns
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/authz"
 	v1handlers "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1"
+	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
@@ -36,6 +38,8 @@ func allOlapStatuses(runningFilter *gen.V1RunningFilter) []sqlcv1.V1ReadableStat
 		statuses = append(statuses, sqlcv1.V1ReadableStatusOlapEVICTED)
 	case gen.ONWORKER:
 		statuses = append(statuses, sqlcv1.V1ReadableStatusOlapRUNNING)
+	case gen.ALL:
+		statuses = append(statuses, sqlcv1.V1ReadableStatusOlapRUNNING, sqlcv1.V1ReadableStatusOlapEVICTED)
 	default:
 		statuses = append(statuses, sqlcv1.V1ReadableStatusOlapRUNNING, sqlcv1.V1ReadableStatusOlapEVICTED)
 	}
@@ -71,6 +75,15 @@ func normalizeWorkflowRunStatuses(statuses []gen.V1TaskStatus, runningFilter *ge
 				if _, exists := seen[sqlcv1.V1ReadableStatusOlapRUNNING]; !exists {
 					seen[sqlcv1.V1ReadableStatusOlapRUNNING] = struct{}{}
 					normalized = append(normalized, sqlcv1.V1ReadableStatusOlapRUNNING)
+				}
+			case gen.ALL:
+				if _, exists := seen[sqlcv1.V1ReadableStatusOlapRUNNING]; !exists {
+					seen[sqlcv1.V1ReadableStatusOlapRUNNING] = struct{}{}
+					normalized = append(normalized, sqlcv1.V1ReadableStatusOlapRUNNING)
+				}
+				if _, exists := seen[sqlcv1.V1ReadableStatusOlapEVICTED]; !exists {
+					seen[sqlcv1.V1ReadableStatusOlapEVICTED] = struct{}{}
+					normalized = append(normalized, sqlcv1.V1ReadableStatusOlapEVICTED)
 				}
 			default:
 				if _, exists := seen[sqlcv1.V1ReadableStatusOlapRUNNING]; !exists {
@@ -231,7 +244,7 @@ func (t *V1WorkflowRunsService) shouldUseGinIndexForAdditionalMetadata(ctx conte
 	return enabled || len(*additionalMetadata) == 1, nil
 }
 
-func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenantId uuid.UUID, useGinIndex bool, canViewPayloads bool) (gen.V1WorkflowRunListResponseObject, error) {
+func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenantId uuid.UUID, useGinIndex bool, includePayloads bool, canViewPayloads bool) (gen.V1WorkflowRunListResponseObject, error) {
 	ctx, span := telemetry.NewSpan(ctx, "v1-workflow-runs-list-with-dags-tasks")
 	defer span.End()
 
@@ -246,11 +259,6 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 
 	if request.Params.Offset != nil {
 		offset = *request.Params.Offset
-	}
-
-	includePayloads := false
-	if request.Params.IncludePayloads != nil {
-		includePayloads = *request.Params.IncludePayloads
 	}
 
 	opts := listWorkflowRunOptsFromFilters(workflowRunFiltersFromListParams(request.Params), useGinIndex)
@@ -337,7 +345,7 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 	), nil
 }
 
-func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenantId uuid.UUID, useGinIndex bool, canViewPayloads bool) (gen.V1WorkflowRunListResponseObject, error) {
+func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenantId uuid.UUID, useGinIndex bool, includePayloads bool, canViewPayloads bool) (gen.V1WorkflowRunListResponseObject, error) {
 	ctx, span := telemetry.NewSpan(ctx, "v1-workflow-runs-list-only-tasks")
 	defer span.End()
 
@@ -352,11 +360,6 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 
 	if request.Params.Offset != nil {
 		offset = *request.Params.Offset
-	}
-
-	includePayloads := false
-	if request.Params.IncludePayloads != nil {
-		includePayloads = *request.Params.IncludePayloads
 	}
 
 	opts := listTaskRunOptsFromFilters(workflowRunFiltersFromListParams(request.Params), useGinIndex)
@@ -426,12 +429,21 @@ func (t *V1WorkflowRunsService) V1WorkflowRunList(ctx echo.Context, request gen.
 	}
 
 	canViewPayloads := authz.CanViewPayloads(ctx)
+	includePayloads := canViewPayloads && request.Params.IncludePayloads != nil && *request.Params.IncludePayloads
+
+	var res gen.V1WorkflowRunListResponseObject
 
 	if request.Params.OnlyTasks {
-		return t.OnlyTasks(spanContext, request, tenantId, useGinIndex, canViewPayloads)
+		res, err = t.OnlyTasks(spanContext, request, tenantId, useGinIndex, includePayloads, canViewPayloads)
+	} else {
+		res, err = t.WithDags(spanContext, request, tenantId, useGinIndex, includePayloads, canViewPayloads)
 	}
 
-	return t.WithDags(spanContext, request, tenantId, useGinIndex, canViewPayloads)
+	if errors.Is(err, v1.ErrTooManyTasksWithPayloads) {
+		return gen.V1WorkflowRunList400JSONResponse(apierrors.NewAPIErrors(err.Error())), nil
+	}
+
+	return res, err
 }
 
 func (t *V1WorkflowRunsService) V1WorkflowRunCountGet(ctx echo.Context, request gen.V1WorkflowRunCountGetRequestObject) (gen.V1WorkflowRunCountGetResponseObject, error) {

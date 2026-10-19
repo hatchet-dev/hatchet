@@ -26,7 +26,18 @@ import (
 const (
 	minBackoffDuration = 100 * time.Millisecond
 	maxBackoffDuration = 10 * time.Second
+
+	// slowTopicAcquireThreshold is how long acquiring the outbox topic lease may take before
+	// buildIndex logs it: the acquire blocks silently until the previous holder's lease lapses.
+	slowTopicAcquireThreshold = 10 * time.Second
 )
+
+// maxIndexBuildWaitPerRun bounds how long a single Run waits for the initial index build.
+// The caller holds the strategy's in-memory lock for the whole Run, so a build that never
+// finishes (e.g. the outbox topic lease is stuck on another instance) must surface as a
+// repeated, visible error rather than one goroutine blocked forever holding that lock.
+// A var rather than a const so tests can shorten it.
+var maxIndexBuildWaitPerRun = 30 * time.Second
 
 type ConcurrencyStrategy struct {
 	outbox pgoutbox.Outbox
@@ -47,6 +58,7 @@ type ConcurrencyStrategy struct {
 	l                *zerolog.Logger
 	compare          func(a, b slot) int
 	built            chan struct{}
+	buildStartedAt   time.Time
 	topic            string
 	pending          []*repository.RunConcurrencyResult
 	openScopes       []*subQueue
@@ -146,6 +158,7 @@ func NewConcurrencyStrategy(
 		outbox:           outbox,
 		topic:            getTopic(strategy),
 		built:            make(chan struct{}),
+		buildStartedAt:   time.Now(),
 	}
 
 	outbox.AddFlusher(c.topic, c)
@@ -237,13 +250,18 @@ func (c *ConcurrencyStrategy) Run(ctx context.Context) (*repository.RunConcurren
 	)
 
 	// wait for the initial (async) index build to complete before processing WAL messages. If the
-	// caller's context expires first, surface a clear error rather than running against an
-	// incomplete index - the build keeps going on its own lifecycle context and a later Run will
-	// proceed once it's ready.
+	// caller's context expires or the wait exceeds its bound first, surface a clear error rather
+	// than running against an incomplete index - the build keeps going on its own lifecycle
+	// context and a later Run will proceed once it's ready.
+	buildWaitTimer := time.NewTimer(maxIndexBuildWaitPerRun)
+	defer buildWaitTimer.Stop()
+
 	select {
 	case <-c.built:
 	case <-ctx.Done():
 		return nil, fmt.Errorf("timed out waiting for concurrency index to finish building for topic %s: %w", c.topic, ctx.Err())
+	case <-buildWaitTimer.C:
+		return nil, fmt.Errorf("concurrency index for topic %s is still building after %s; skipping this run", c.topic, time.Since(c.buildStartedAt).Round(time.Second))
 	}
 
 	// discard any results left over from a previous aborted Run before we start draining
@@ -479,8 +497,14 @@ func (c *ConcurrencyStrategy) buildIndex(ctx context.Context) error {
 	defer c.buildingMu.Unlock()
 
 	if c.outbox != nil {
+		acquireStart := time.Now()
+
 		if err := c.outbox.AcquireTopic(ctx, c.topic); err != nil {
 			return err
+		}
+
+		if acquireDuration := time.Since(acquireStart); acquireDuration > slowTopicAcquireThreshold {
+			c.l.Warn().Msgf("acquiring outbox topic %s took %s, likely waiting on a lease held by another scheduler instance", c.topic, acquireDuration.Round(time.Second))
 		}
 	}
 
@@ -589,6 +613,8 @@ func (c *ConcurrencyStrategy) decide() decideFn {
 		return decideCancelQueuedExceptNewest
 	case sqlcv1.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTOLDEST:
 		return decideCancelQueuedExceptOldest
+	case sqlcv1.V1ConcurrencyStrategyNONE:
+		panic("unknown concurrency strategy")
 	default:
 		panic("unknown concurrency strategy")
 	}

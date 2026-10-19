@@ -211,6 +211,8 @@ func (d *DAGOperator) HandleAction(ctx context.Context, action *contracts.Assign
 		defer release()
 
 		return d.cancelRun(ctx, action)
+	case contracts.ActionType_START_GET_GROUP_KEY, contracts.ActionType_START_BATCH:
+		fallthrough
 	default:
 		release := d.RecordTask()
 		defer release()
@@ -407,8 +409,9 @@ func (d *DAGOperator) run(action *contracts.AssignedAction) error {
 
 			return nil
 		}
-		if isDagCancelledErr(dagErr) {
-			return d.cancelDAG(span, action, dagErr.Error())
+		var cancelledErr *dagCancelledError
+		if errors.As(dagErr, &cancelledErr) {
+			return d.cancelDAG(span, action, cancelledErr.Error())
 		}
 		if errors.Is(dagErr, context.Canceled) {
 			return d.handleRunCancellation(span, action, tasks, dagErr)
@@ -554,7 +557,11 @@ func (d *DAGOperator) handleRunCancellation(span trace.Span, action *contracts.A
 		}
 	}
 
-	return d.cancelDAG(span, action, err.Error())
+	d.Logger().Debug().Err(err).
+		Str("task_run_external_id", action.TaskRunExternalId).
+		Msg("dag run cancelled")
+
+	return d.cancelDAG(span, action, repository.TaskCancelledErrorMessage)
 }
 
 func (d *DAGOperator) fail(span trace.Span, action *contracts.AssignedAction, err error, shouldNotRetry bool) error {
@@ -562,14 +569,14 @@ func (d *DAGOperator) fail(span trace.Span, action *contracts.AssignedAction, er
 	span.SetStatus(telemetry_codes.Error, "dag run failed")
 	span.SetAttributes(attribute.Bool("dagoperator.should_not_retry", shouldNotRetry))
 
-	clientErrorMessage := err.Error()
+	clientErrorMessage := fmt.Sprintf("internal error while orchestrating the dag run (task run %s)", action.TaskRunExternalId)
 
-	if !isUserFacingDagErr(err) {
+	if userFacingMessage, ok := clientErrorMessageForDagErr(err); ok {
+		clientErrorMessage = "dag failed: " + userFacingMessage
+	} else {
 		d.Logger().Error().Err(err).
 			Str("task_run_external_id", action.TaskRunExternalId).
 			Msg("dag orchestration failed with an internal error")
-
-		clientErrorMessage = fmt.Sprintf("internal error while orchestrating the dag run (task run %s)", action.TaskRunExternalId)
 	}
 
 	if reportErr := d.SendFailed(action, clientErrorMessage, shouldNotRetry); reportErr != nil {

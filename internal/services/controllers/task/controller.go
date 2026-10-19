@@ -764,8 +764,40 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId uu
 		if msg.ErrorMsg != "" {
 			idsToErrorMsg[msg.TaskId] = msg.ErrorMsg
 		}
+	}
 
-		// send failed tasks to the olap repository
+	res, err := tc.repov1.Tasks().FailTasks(ctx, tenantId, opts)
+
+	if err != nil {
+		err = fmt.Errorf("could not fail tasks: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "could not fail tasks")
+		return err
+	}
+
+	retried := make(map[int64]struct{}, len(res.RetriedTasks))
+	for _, r := range res.RetriedTasks {
+		retried[r.Id] = struct{}{}
+	}
+
+	type attempt struct {
+		id         int64
+		retryCount int32
+	}
+
+	// retried and stale reports are no longer the task's current retry, so only final failures land here
+	failed := make(map[attempt]struct{}, len(res.ReleasedTasks))
+	for _, rt := range res.ReleasedTasks {
+		if rt != nil && rt.IsCurrentRetry {
+			failed[attempt{id: rt.ID, retryCount: rt.RetryCount}] = struct{}{}
+		}
+	}
+
+	// published after FailTasks so the event can say whether it ended this attempt for good
+	for _, msg := range msgs {
+		_, final := failed[attempt{id: msg.TaskId, retryCount: msg.RetryCount}]
+		willRetry := !final
+
 		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
 			tenantId,
 			tasktypes.CreateMonitoringEventPayload{
@@ -774,6 +806,7 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId uu
 				EventType:      sqlcv1.V1EventTypeOlapFAILED,
 				EventTimestamp: time.Now().UTC(),
 				EventPayload:   msg.ErrorMsg,
+				WillRetry:      willRetry,
 			},
 		)
 
@@ -796,15 +829,6 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId uu
 		}
 	}
 
-	res, err := tc.repov1.Tasks().FailTasks(ctx, tenantId, opts)
-
-	if err != nil {
-		err = fmt.Errorf("could not fail tasks: %w", err)
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "could not fail tasks")
-		return err
-	}
-
 	err = tc.processFailTasksResponse(ctx, tenantId, res)
 
 	if err != nil {
@@ -816,11 +840,6 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId uu
 
 	// a retried task is still running, so only orchestrators that reached terminal FAILED get the
 	// reliable OLAP publish
-	retried := make(map[int64]struct{}, len(res.RetriedTasks))
-	for _, r := range res.RetriedTasks {
-		retried[r.Id] = struct{}{}
-	}
-
 	if err := tc.emitOrchestratorTerminalEvents(
 		ctx, tenantId, res.ReleasedTasks, idsToErrorMsg, retried, sqlcv1.V1EventTypeOlapFAILED,
 	); err != nil {

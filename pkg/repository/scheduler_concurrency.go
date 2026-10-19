@@ -302,6 +302,7 @@ func (c *ConcurrencyRepositoryImpl) RunConcurrencyStrategy(
 		if err != nil {
 			return nil, fmt.Errorf("cancel except oldest (strategy ID: %d): %w", strategy.ID, err)
 		}
+	case sqlcv1.V1ConcurrencyStrategyNONE:
 	}
 
 	// No strategy branch ran. This should no longer be reachable (every enum value has a

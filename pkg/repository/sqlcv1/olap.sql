@@ -241,7 +241,8 @@ INSERT INTO v1_task_events_olap (
     additional__event_data,
     additional__event_message,
     external_id,
-    durable_invocation_count
+    durable_invocation_count,
+    is_dag_orchestrator
 ) VALUES (
     $1,
     $2,
@@ -257,7 +258,8 @@ INSERT INTO v1_task_events_olap (
     $12,
     $13,
     $14,
-    $15
+    $15,
+    $16
 );
 
 -- name: ReadTaskByExternalID :one
@@ -1532,6 +1534,7 @@ WITH input AS (
         e.run_id, e.retry_count DESC
 ), task_output AS (
     SELECT
+        DISTINCT ON (run_id)
         run_id,
         output,
         external_id,
@@ -1540,6 +1543,8 @@ WITH input AS (
         relevant_events
     WHERE
         event_type = 'FINISHED'
+    ORDER BY
+        run_id, inserted_at DESC
 )
 
 SELECT
@@ -2165,6 +2170,7 @@ WITH input AS (
     GROUP BY task_id, inserted_at
 )
 SELECT
+    td.task_id::bigint AS task_id,
     tt.started_at::timestamptz AS started_at,
     tt.finished_at::timestamptz AS finished_at
 FROM

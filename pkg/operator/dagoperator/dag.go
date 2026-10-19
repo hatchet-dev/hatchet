@@ -69,7 +69,7 @@ func isDagConditionEvalErr(err error) bool {
 }
 
 type dagEngineError struct {
-	errorType    string
+	errorType    v1contracts.DurableTaskErrorType
 	errorMessage string
 }
 
@@ -82,17 +82,30 @@ func isDagEngineErr(err error) bool {
 	return errors.As(err, &e)
 }
 
-// these errors can be returned to the client verbatim. everything else is an
-// internal failure whose details stay in the engine logs.
-func isUserFacingDagErr(err error) bool {
-	var nonDeterminismErr *repository.NonDeterminismError
+func clientErrorMessageForDagErr(err error) (message string, ok bool) {
+	var childFailedErr *dagChildFailedError
+	var cancelledErr *dagCancelledError
+	var conditionEvalErr *dagConditionEvalError
 	var celFailureErr *operator.DAGStepCELFailureError
+	var nonDeterminismErr *repository.NonDeterminismError
+	var engineErr *dagEngineError
 
-	return isDagChildFailedErr(err) ||
-		isDagConditionEvalErr(err) ||
-		isDagEngineErr(err) ||
-		errors.As(err, &celFailureErr) ||
-		errors.As(err, &nonDeterminismErr)
+	switch {
+	case errors.As(err, &childFailedErr):
+		return childFailedErr.Error(), true
+	case errors.As(err, &cancelledErr):
+		return cancelledErr.Error(), true
+	case errors.As(err, &conditionEvalErr):
+		return conditionEvalErr.Error(), true
+	case errors.As(err, &celFailureErr):
+		return celFailureErr.Error(), true
+	case errors.As(err, &nonDeterminismErr):
+		return nonDeterminismErr.Error(), true
+	case errors.As(err, &engineErr) && engineErr.errorType == v1contracts.DurableTaskErrorType_DURABLE_TASK_ERROR_TYPE_NONDETERMINISM:
+		return engineErr.errorMessage, true
+	default:
+		return "", false
+	}
 }
 
 func isDagNonRetryablePgErr(err error) bool {
@@ -636,7 +649,7 @@ func (d *dag) taskConsumer(ctx context.Context, resp *v1contracts.DurableTaskRes
 		case conditionKindCancel:
 			ack.task.cancelWatchNodeId = ref.GetNodeId()
 			ack.task.cancelWatchBranchId = ref.GetBranchId()
-		default:
+		case conditionKindWait:
 			ack.task.waitNodeId = ref.GetNodeId()
 			ack.task.waitBranchId = ref.GetBranchId()
 		}
@@ -678,7 +691,7 @@ func (d *dag) taskConsumer(ctx context.Context, resp *v1contracts.DurableTaskRes
 
 		// Dropping this would leave the run waiting forever for an ack or completion that
 		// will never arrive (e.g. a nondeterminism error means the wait was never committed).
-		d.err = &dagEngineError{errorType: m.Error.GetErrorType().String(), errorMessage: m.Error.GetErrorMessage()}
+		d.err = &dagEngineError{errorType: m.Error.GetErrorType(), errorMessage: m.Error.GetErrorMessage()}
 	}
 }
 
@@ -957,6 +970,7 @@ func (d *dag) evaluateParentConditions(ctx context.Context, t *task) (skip bool,
 			if satisfied {
 				cancelGroups[key.orGroupId] = true
 			}
+		case sqlcv1.V1MatchConditionActionCREATE, sqlcv1.V1MatchConditionActionQUEUE, sqlcv1.V1MatchConditionActionCREATEMATCH:
 		}
 	}
 
@@ -976,9 +990,11 @@ func getMatchConditionActionForWatchKind(kind conditionKind) sqlcv1.V1MatchCondi
 		return sqlcv1.V1MatchConditionActionSKIP
 	case conditionKindCancel:
 		return sqlcv1.V1MatchConditionActionCANCEL
-	default:
+	case conditionKindWait:
 		return sqlcv1.V1MatchConditionActionQUEUE
 	}
+
+	return sqlcv1.V1MatchConditionActionQUEUE
 }
 
 func (d *dag) hasEventOrSleepConditions(t *task, kind conditionKind) bool {
@@ -1088,6 +1104,7 @@ func (d *dag) registerCondition(ctx context.Context, t *task, kind conditionKind
 				},
 				UserEventKey: c.EventKey.String,
 			})
+		case sqlcv1.V1StepMatchConditionKindPARENTOVERRIDE:
 		}
 	}
 
