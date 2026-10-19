@@ -355,7 +355,8 @@ WITH input AS (
     SELECT
         t.id,
         t.inserted_at,
-        t.step_id
+        t.step_id,
+        i.is_non_retryable
     FROM
         v1_task t
     JOIN
@@ -375,7 +376,9 @@ WITH input AS (
 ), tasks_to_steps AS (
     SELECT
         t.id,
+        t.inserted_at,
         t.step_id,
+        t.is_non_retryable,
         s."retries"
     FROM
         locked_tasks t
@@ -390,11 +393,9 @@ SET
 FROM
     tasks_to_steps
 WHERE
-    (v1_task.id, v1_task.inserted_at, v1_task.retry_count) IN (
-        SELECT task_id, task_inserted_at, task_retry_count
-        FROM input
-        WHERE is_non_retryable = FALSE
-    )
+    v1_task.id = tasks_to_steps.id
+    AND v1_task.inserted_at = tasks_to_steps.inserted_at
+    AND NOT tasks_to_steps.is_non_retryable
     AND tasks_to_steps."retries" > v1_task.app_retry_count
 RETURNING
     v1_task.id,
@@ -511,7 +512,8 @@ WITH input AS (
         ) AS subquery
 ), locked_tasks AS (
     SELECT
-        t.id
+        t.id,
+        t.inserted_at
     FROM
         v1_task t
     JOIN
@@ -537,10 +539,8 @@ SET
 FROM
     locked_tasks
 WHERE
-    (v1_task.id, v1_task.inserted_at, v1_task.retry_count) IN (
-        SELECT task_id, task_inserted_at, task_retry_count
-        FROM input
-    )
+    v1_task.id = locked_tasks.id
+    AND v1_task.inserted_at = locked_tasks.inserted_at
     AND @maxInternalRetries::int > v1_task.internal_retry_count
 RETURNING
     v1_task.id,
