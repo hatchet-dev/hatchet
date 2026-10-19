@@ -587,6 +587,7 @@ WITH input AS (
 ), tasks_to_steps AS (
     SELECT
         t.id,
+        t.inserted_at,
         t.step_id,
         s."retries"
     FROM
@@ -602,7 +603,11 @@ SET
 FROM
     tasks_to_steps
 WHERE
-    (v1_task.id, v1_task.inserted_at, v1_task.retry_count) IN (
+    -- match each task to its own locked row, so only tasks that passed the runtime check are retried,
+    -- and only against their own step's retry limit
+    v1_task.id = tasks_to_steps.id
+    AND v1_task.inserted_at = tasks_to_steps.inserted_at
+    AND (v1_task.id, v1_task.inserted_at, v1_task.retry_count) IN (
         SELECT task_id, task_inserted_at, task_retry_count
         FROM input
         WHERE is_non_retryable = FALSE
@@ -681,7 +686,8 @@ WITH input AS (
         ) AS subquery
 ), locked_tasks AS (
     SELECT
-        t.id
+        t.id,
+        t.inserted_at
     FROM
         v1_task t
     JOIN
@@ -707,7 +713,10 @@ SET
 FROM
     locked_tasks
 WHERE
-    (v1_task.id, v1_task.inserted_at, v1_task.retry_count) IN (
+    -- match each task to its own locked row, so only tasks that passed the runtime check are retried
+    v1_task.id = locked_tasks.id
+    AND v1_task.inserted_at = locked_tasks.inserted_at
+    AND (v1_task.id, v1_task.inserted_at, v1_task.retry_count) IN (
         SELECT task_id, task_inserted_at, task_retry_count
         FROM input
     )
