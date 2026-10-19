@@ -603,8 +603,6 @@ SET
 FROM
     tasks_to_steps
 WHERE
-    -- match each task to its own locked row, so only tasks that passed the runtime check are retried,
-    -- and only against their own step's retry limit
     v1_task.id = tasks_to_steps.id
     AND v1_task.inserted_at = tasks_to_steps.inserted_at
     AND (v1_task.id, v1_task.inserted_at, v1_task.retry_count) IN (
@@ -713,7 +711,6 @@ SET
 FROM
     locked_tasks
 WHERE
-    -- match each task to its own locked row, so only tasks that passed the runtime check are retried
     v1_task.id = locked_tasks.id
     AND v1_task.inserted_at = locked_tasks.inserted_at
     AND (v1_task.id, v1_task.inserted_at, v1_task.retry_count) IN (

@@ -13,8 +13,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-// insertTaskWithRetries registers a single-step workflow whose step allows the given number of
-// retries and inserts one task for it.
 func insertTaskWithRetries(t *testing.T, ctx context.Context, repo *TaskRepositoryImpl, workflowName string, retries int) *V1TaskWithPayload {
 	t.Helper()
 
@@ -55,9 +53,6 @@ func insertTaskWithRetries(t *testing.T, ctx context.Context, repo *TaskReposito
 	return insertedTasks[0]
 }
 
-// startTaskRuntime gives the task a runtime for its current retry count, as if a worker had
-// picked it up. Tasks without a runtime model attempts that were already released, for example
-// by a cancellation.
 func startTaskRuntime(t *testing.T, ctx context.Context, repo *TaskRepositoryImpl, task *V1TaskWithPayload) {
 	t.Helper()
 
@@ -111,8 +106,6 @@ func retriedTaskIds(res *FailTasksResponse) []int64 {
 	return ids
 }
 
-// The retry decision for each task in a failure batch must depend only on that task's own step
-// and runtime, so a batch gives the same outcome as failing each task on its own.
 func TestFailTasksRetryDecisionIsPerTask(t *testing.T) {
 	pool, cleanup := setupPostgresWithMigration(t)
 	defer cleanup()
