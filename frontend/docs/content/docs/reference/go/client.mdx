@@ -304,7 +304,7 @@ Returns:
 
 #### `Run`
 
-Run executes a workflow with the provided input and waits for completion.
+Run executes a workflow with the provided input and waits for completion. If ctx ends before the run reaches a terminal state, the wait stops and the returned error wraps ctx.Err(); the run itself keeps executing on the engine.
 
 ```go
 func (c *Client) Run(ctx context.Context, workflowName string, input any, opts ...RunOptFunc) (*WorkflowResult, error)
