@@ -1339,6 +1339,33 @@ RateLimit declares a rate limit consumed by a task run, used with WithRateLimits
 
 RateLimitDuration is the window over which a rate limit applies.
 
+### RetryAfterError
+
+RetryAfterError marks a task failure as retryable after a delay of the task's choosing.
+
+#### Functions
+
+##### `AsRetryAfterError`
+
+AsRetryAfterError reports whether err is (or wraps) a RetryAfterError and returns it if so.
+
+```go
+func AsRetryAfterError(err error) (*RetryAfterError, bool)
+```
+
+Parameters:
+
+| Name  | Type    |
+| ----- | ------- |
+| `err` | `error` |
+
+Returns:
+
+| Type               |
+| ------------------ |
+| `*RetryAfterError` |
+| `bool`             |
+
 ### RunPriority
 
 ### SingleWaitResult
@@ -1597,6 +1624,27 @@ Returns:
 | ------- |
 | `error` |
 
+### `NewRetryAfterError`
+
+NewRetryAfterError wraps err so that the task's next retry runs after the given delay.
+
+```go
+func NewRetryAfterError(after time.Duration, err error) error
+```
+
+Parameters:
+
+| Name    | Type            |
+| ------- | --------------- |
+| `after` | `time.Duration` |
+| `err`   | `error`         |
+
+Returns:
+
+| Type    |
+| ------- |
+| `error` |
+
 ### `ParseSemver`
 
 ParseSemver extracts major, minor, patch from a version string like "v0.78.23". Returns (0,0,0) if parsing fails.
@@ -1660,3 +1708,23 @@ Returns:
 | ------- |
 | `bool`  |
 | `error` |
+
+### `SupportsRetryAfter`
+
+SupportsRetryAfter checks whether the engine version honors RetryAfterError delays.
+
+```go
+func SupportsRetryAfter(engineVersion string) bool
+```
+
+Parameters:
+
+| Name            | Type     |
+| --------------- | -------- |
+| `engineVersion` | `string` |
+
+Returns:
+
+| Type   |
+| ------ |
+| `bool` |

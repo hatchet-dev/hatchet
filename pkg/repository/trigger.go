@@ -933,7 +933,7 @@ func (r *sharedRepository) triggerWorkflowsCore(
 			continue
 		}
 
-		countTasks += len(steps)
+		countTasks += meteredTaskCount(tuple, steps)
 	}
 
 	preTask, postTask := r.m.Meter(ctx, preflightTx, sqlcv1.LimitResourceTASKRUN, tenantId, int32(countTasks)) // nolint: gosec
@@ -1093,7 +1093,7 @@ func (r *sharedRepository) triggerWorkflowsCore(
 
 			operatorDagTuples[tuple.externalId] = tuple
 
-			nonDagTaskOpts = append(nonDagTaskOpts, CreateTaskOpts{
+			orchestratorTaskOpts := CreateTaskOpts{
 				ExternalId:                tuple.externalId,
 				WorkflowRunId:             tuple.externalId,
 				StepId:                    orchestratorStep.ID,
@@ -1109,7 +1109,13 @@ func (r *sharedRepository) triggerWorkflowsCore(
 				Priority:                  tuple.priority,
 				TriggeringEventExternalId: tuple.triggeringEventExternalId,
 				TriggeringEventKey:        tuple.triggeringEventKey,
-			})
+			}
+
+			if idempotencyKey, ok := externalIdToIdempotencyKey[tuple.externalId]; ok {
+				orchestratorTaskOpts.IdempotencyKey = &idempotencyKey
+			}
+
+			nonDagTaskOpts = append(nonDagTaskOpts, orchestratorTaskOpts)
 		}
 
 		for stepIndex, step := range orderSteps(regularSteps) {
@@ -1253,8 +1259,7 @@ func (r *sharedRepository) triggerWorkflowsCore(
 								condition.Expression.String,
 								condition.Action,
 							))
-						default:
-							// PARENT_OVERRIDE is another kind, but it isn't processed here
+						case sqlcv1.V1StepMatchConditionKindPARENTOVERRIDE:
 							continue
 						}
 					}
@@ -2312,6 +2317,16 @@ func spawnsAsOperatorRun(tuple triggerTuple, steps []*sqlcv1.ListStepsByWorkflow
 	return false
 }
 
+// meteredTaskCount returns how many task runs to meter for a trigger. A DAG is metered
+// for all its steps when it starts, so the DAG operator's per-step triggers are not.
+func meteredTaskCount(tuple triggerTuple, steps []*sqlcv1.ListStepsByWorkflowVersionIdsRow) int {
+	if tuple.targetActionId != nil {
+		return 0
+	}
+
+	return len(regularUserSteps(steps))
+}
+
 func regularUserSteps(steps []*sqlcv1.ListStepsByWorkflowVersionIdsRow) []*sqlcv1.ListStepsByWorkflowVersionIdsRow {
 	out := make([]*sqlcv1.ListStepsByWorkflowVersionIdsRow, 0, len(steps))
 	for _, s := range steps {
@@ -2785,14 +2800,6 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 				return nil, fmt.Errorf("failed to get pinned workflow version %s", *opt.WorkflowVersionId)
 			}
 
-			var idempotency *IdempotencyConfig
-			if pinned.IdempotencyKeyExpression.Valid && pinned.IdempotencyKeyTtlMs.Valid {
-				idempotency = &IdempotencyConfig{
-					Expression: pinned.IdempotencyKeyExpression.String,
-					TTLMs:      pinned.IdempotencyKeyTtlMs.Int64,
-				}
-			}
-
 			triggerOpts = append(triggerOpts, triggerTuple{
 				workflowVersionId:    pinned.ID,
 				workflowId:           pinned.WorkflowId,
@@ -2808,7 +2815,6 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 				childKey:             opt.ChildKey,
 				priority:             opt.Priority,
 				desiredWorkerLabels:  opt.DesiredWorkerLabels,
-				idempotency:          idempotency,
 				dagParentTaskRunIds:  opt.DagParentTaskRunIds,
 				targetActionId:       opt.TargetActionId,
 				isSkipped:            opt.IsSkipped,
@@ -3034,9 +3040,15 @@ func (r *sharedRepository) lookupParentOutputsByWorkflowRunIds(ctx context.Conte
 			continue
 		}
 
-		if e.IsCompleted() {
-			result[e.TaskExternalId] = e
+		if !e.IsCompleted() && !e.IsFailed() {
+			continue
 		}
+
+		if existing, ok := result[e.TaskExternalId]; ok && existing.IsCompleted() {
+			continue
+		}
+
+		result[e.TaskExternalId] = e
 	}
 
 	return result, nil

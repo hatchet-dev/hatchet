@@ -23,6 +23,8 @@ const (
 	// refusalReportTimeout bounds the failure report for an action the handler refused.
 	refusalReportTimeout = 30 * time.Second
 
+	refusedActionClientErrorMessage = "the operator could not accept the task; it will be retried according to its retry policy"
+
 	// minStartQueueSize is the least number of starts a session queues ahead of its handler.
 	minStartQueueSize = 64
 
@@ -282,7 +284,7 @@ func (s *session) refuse(action *contracts.AssignedAction, err error) {
 		ActionId:          action.ActionId,
 		EventTimestamp:    timestamppb.Now(),
 		EventType:         contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED,
-		EventPayload:      err.Error(),
+		EventPayload:      refusedActionClientErrorMessage,
 		RetryCount:        &retryCount,
 	}); reportErr != nil {
 		s.l.Error().Err(reportErr).Str("worker_id", s.workerId()).Str("task_run_external_id", action.TaskRunExternalId).Msg("could not report the refused action")
@@ -609,6 +611,10 @@ func isTerminalStepEvent(eventType contracts.StepActionEventType) bool {
 		contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED,
 		contracts.StepActionEventType_STEP_EVENT_TYPE_CANCELLED:
 		return true
+	case contracts.StepActionEventType_STEP_EVENT_TYPE_UNKNOWN,
+		contracts.StepActionEventType_STEP_EVENT_TYPE_STARTED,
+		contracts.StepActionEventType_STEP_EVENT_TYPE_ACKNOWLEDGED:
+		return false
 	default:
 		return false
 	}

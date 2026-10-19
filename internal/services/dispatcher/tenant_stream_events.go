@@ -128,6 +128,8 @@ func workflowRunEventTypeForOlapStatus(status sqlcv1.V1ReadableStatusOlap) (cont
 		return contracts.ResourceEventType_RESOURCE_EVENT_TYPE_FAILED, true
 	case sqlcv1.V1ReadableStatusOlapCOMPLETED:
 		return contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED, true
+	case sqlcv1.V1ReadableStatusOlapQUEUED, sqlcv1.V1ReadableStatusOlapRUNNING, sqlcv1.V1ReadableStatusOlapEVICTED:
+		return 0, false
 	default:
 		return 0, false
 	}

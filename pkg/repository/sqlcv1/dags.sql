@@ -10,7 +10,9 @@ JOIN v1_dag_data dd ON (d.id, d.inserted_at) = (dd.dag_id, dd.dag_inserted_at)
 WHERE (d.id, d.inserted_at) IN (
     SELECT dag_id, dag_inserted_at
     FROM input
-);
+)
+AND d.inserted_at >= @minDagInsertedAt::timestamptz
+AND dd.dag_inserted_at >= @minDagInsertedAt::timestamptz;
 
 -- name: CreateDAGs :many
 WITH input AS (

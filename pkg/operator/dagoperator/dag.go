@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx/v5/pgconn"
 	"go.opentelemetry.io/otel/attribute"
 
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
@@ -47,8 +49,27 @@ func isDagChildFailedErr(err error) bool {
 	return errors.As(err, &e)
 }
 
+type dagConditionEvalError struct {
+	taskActionId string
+	expression   string
+	err          error
+}
+
+func (e *dagConditionEvalError) Error() string {
+	return fmt.Sprintf("CEL eval error for task %q condition %q: %v", e.taskActionId, e.expression, e.err)
+}
+
+func (e *dagConditionEvalError) Unwrap() error {
+	return e.err
+}
+
+func isDagConditionEvalErr(err error) bool {
+	var e *dagConditionEvalError
+	return errors.As(err, &e)
+}
+
 type dagEngineError struct {
-	errorType    string
+	errorType    v1contracts.DurableTaskErrorType
 	errorMessage string
 }
 
@@ -59,6 +80,44 @@ func (e *dagEngineError) Error() string {
 func isDagEngineErr(err error) bool {
 	var e *dagEngineError
 	return errors.As(err, &e)
+}
+
+func clientErrorMessageForDagErr(err error) (message string, ok bool) {
+	var childFailedErr *dagChildFailedError
+	var cancelledErr *dagCancelledError
+	var conditionEvalErr *dagConditionEvalError
+	var celFailureErr *operator.DAGStepCELFailureError
+	var nonDeterminismErr *repository.NonDeterminismError
+	var engineErr *dagEngineError
+
+	switch {
+	case errors.As(err, &childFailedErr):
+		return childFailedErr.Error(), true
+	case errors.As(err, &cancelledErr):
+		return cancelledErr.Error(), true
+	case errors.As(err, &conditionEvalErr):
+		return conditionEvalErr.Error(), true
+	case errors.As(err, &celFailureErr):
+		return celFailureErr.Error(), true
+	case errors.As(err, &nonDeterminismErr):
+		return nonDeterminismErr.Error(), true
+	case errors.As(err, &engineErr) && engineErr.errorType == v1contracts.DurableTaskErrorType_DURABLE_TASK_ERROR_TYPE_NONDETERMINISM:
+		return engineErr.errorMessage, true
+	default:
+		return "", false
+	}
+}
+
+func isDagNonRetryablePgErr(err error) bool {
+	var pgErr *pgconn.PgError
+
+	if !errors.As(err, &pgErr) {
+		return false
+	}
+
+	return pgerrcode.IsIntegrityConstraintViolation(pgErr.Code) ||
+		pgerrcode.IsDataException(pgErr.Code) ||
+		pgerrcode.IsProgramLimitExceeded(pgErr.Code)
 }
 
 type dagEvictedError struct {
@@ -141,8 +200,8 @@ type task struct {
 	errorMessage string
 	output       map[string]interface{}
 
-	// reExecuted is true when the task actually ran this invocation rather than being satisfied
-	// from the log; children of a re-executed parent must re-run during a replay
+	// reExecuted is true when the task ran as part of the current replay rather than being a
+	// cached result from an earlier branch; children of a re-executed parent must re-run too
 	reExecuted bool
 
 	isWaiting       bool
@@ -590,7 +649,7 @@ func (d *dag) taskConsumer(ctx context.Context, resp *v1contracts.DurableTaskRes
 		case conditionKindCancel:
 			ack.task.cancelWatchNodeId = ref.GetNodeId()
 			ack.task.cancelWatchBranchId = ref.GetBranchId()
-		default:
+		case conditionKindWait:
 			ack.task.waitNodeId = ref.GetNodeId()
 			ack.task.waitBranchId = ref.GetBranchId()
 		}
@@ -632,7 +691,7 @@ func (d *dag) taskConsumer(ctx context.Context, resp *v1contracts.DurableTaskRes
 
 		// Dropping this would leave the run waiting forever for an ack or completion that
 		// will never arrive (e.g. a nondeterminism error means the wait was never committed).
-		d.err = &dagEngineError{errorType: m.Error.GetErrorType().String(), errorMessage: m.Error.GetErrorMessage()}
+		d.err = &dagEngineError{errorType: m.Error.GetErrorType(), errorMessage: m.Error.GetErrorMessage()}
 	}
 }
 
@@ -743,7 +802,7 @@ func (d *dag) evaluateConditionsForParent(ctx context.Context, parent *task) err
 
 			matched, err := d.evalBoolExpr(ctx, expr, map[string]interface{}{"output": parent.output})
 			if err != nil {
-				return fmt.Errorf("CEL eval error for task %q condition %q: %w", t.actionId, expr, err)
+				return &dagConditionEvalError{taskActionId: t.actionId, expression: expr, err: err}
 			}
 
 			d.conditionMatches[cond] = matched
@@ -826,9 +885,10 @@ func (d *dag) evaluateOnFailure(ctx context.Context) (bool, error) {
 		attribute.Bool("dag.on_failure_skipped", skip),
 	)
 
+	// Failed parents are included so the dispatcher can populate step_run_errors for the on-failure task.
 	var parentTaskRunIds []uuid.UUID
 	for _, p := range d.tasks {
-		if p.isCompleted && !p.isFailed && p.workflowRunExternalId != nil {
+		if p.isCompleted && p.workflowRunExternalId != nil {
 			parentTaskRunIds = append(parentTaskRunIds, *p.workflowRunExternalId)
 		}
 	}
@@ -910,6 +970,7 @@ func (d *dag) evaluateParentConditions(ctx context.Context, t *task) (skip bool,
 			if satisfied {
 				cancelGroups[key.orGroupId] = true
 			}
+		case sqlcv1.V1MatchConditionActionCREATE, sqlcv1.V1MatchConditionActionQUEUE, sqlcv1.V1MatchConditionActionCREATEMATCH:
 		}
 	}
 
@@ -929,9 +990,11 @@ func getMatchConditionActionForWatchKind(kind conditionKind) sqlcv1.V1MatchCondi
 		return sqlcv1.V1MatchConditionActionSKIP
 	case conditionKindCancel:
 		return sqlcv1.V1MatchConditionActionCANCEL
-	default:
+	case conditionKindWait:
 		return sqlcv1.V1MatchConditionActionQUEUE
 	}
+
+	return sqlcv1.V1MatchConditionActionQUEUE
 }
 
 func (d *dag) hasEventOrSleepConditions(t *task, kind conditionKind) bool {
@@ -1041,6 +1104,7 @@ func (d *dag) registerCondition(ctx context.Context, t *task, kind conditionKind
 				},
 				UserEventKey: c.EventKey.String,
 			})
+		case sqlcv1.V1StepMatchConditionKindPARENTOVERRIDE:
 		}
 	}
 

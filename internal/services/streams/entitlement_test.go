@@ -3,27 +3,24 @@ package streams
 import (
 	"context"
 	"testing"
-	"time"
 
 	"connectrpc.com/connect"
 	"github.com/google/uuid"
-	"github.com/hashicorp/golang-lru/v2/expirable"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
+	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 type fakeEntitlements struct {
 	v1.TenantEntitlementRepository
 
 	entitled map[uuid.UUID]bool
-	calls    int
 }
 
-func (f *fakeEntitlements) IsDurableStreamsEnabled(_ context.Context, tenantId uuid.UUID) (bool, error) {
-	f.calls++
-	return f.entitled[tenantId], nil
+func (f *fakeEntitlements) HasEntitlement(_ context.Context, tenantId uuid.UUID, entitlement v1.Entitlement) (bool, error) {
+	return entitlement == v1.EntitlementDurableStreams && f.entitled[tenantId], nil
 }
 
 type entitlementRepository struct {
@@ -35,21 +32,23 @@ func (r *entitlementRepository) TenantEntitlement() v1.TenantEntitlementReposito
 	return r.entitlements
 }
 
-func TestCheckEntitled(t *testing.T) {
+func TestStreamsRejectTenantsWithoutTheEntitlement(t *testing.T) {
 	entitledTenant, otherTenant := uuid.New(), uuid.New()
 	entitlements := &fakeEntitlements{entitled: map[uuid.UUID]bool{entitledTenant: true}}
 
 	s := &ServiceImpl{
-		repo:     &entitlementRepository{entitlements: entitlements},
-		entitled: expirable.NewLRU[uuid.UUID, bool](10, nil, time.Minute),
+		repo: &entitlementRepository{entitlements: entitlements},
 	}
 
-	require.NoError(t, s.checkEntitled(context.Background(), entitledTenant))
-	require.NoError(t, s.checkEntitled(context.Background(), entitledTenant))
+	asTenant := func(id uuid.UUID) context.Context {
+		return context.WithValue(context.Background(), "tenant", &sqlcv1.Tenant{ID: id}) // nolint:staticcheck
+	}
 
-	err := s.checkEntitled(context.Background(), otherTenant)
+	// no topic: an entitled tenant gets past the check and fails validation instead
+	_, err := s.GetTopicMetadata(asTenant(entitledTenant), &contracts.GetStreamTopicMetadataRequest{})
+	assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err))
+
+	_, err = s.GetTopicMetadata(asTenant(otherTenant), &contracts.GetStreamTopicMetadataRequest{Topic: "t"})
 	assert.Equal(t, connect.CodePermissionDenied, connect.CodeOf(err))
 	assert.ErrorContains(t, err, "durable streams are not enabled")
-
-	assert.Equal(t, 2, entitlements.calls, "each tenant's entitlement is looked up once, then cached")
 }

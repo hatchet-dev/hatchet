@@ -2,6 +2,7 @@ package encryption
 
 import (
 	"bytes"
+	"crypto/fips140"
 	"encoding/base64"
 	"fmt"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/tink-crypto/tink-go/insecurecleartextkeyset"
 	"github.com/tink-crypto/tink-go/jwt"
 	"github.com/tink-crypto/tink-go/keyset"
+	tinkpb "github.com/tink-crypto/tink-go/proto/tink_go_proto"
 	"github.com/tink-crypto/tink-go/tink"
 )
 
@@ -64,27 +66,50 @@ func NewLocalDataEncryption(masterKey []byte) (EncryptionService, error) {
 }
 
 // newLocalEnvelope builds the master AEAD from the cleartext master keyset and the envelope AEAD
-// that encrypts data with per-record keys wrapped by it.
+// that encrypts data with per-record keys wrapped by it. The master keyset is rejected under FIPS
+// mode when it uses a non-approved cipher.
 func newLocalEnvelope(masterKey []byte) (tink.AEAD, *aead.KMSEnvelopeAEAD, error) {
-	aes256GcmHandle, err := InsecureHandleFromBytes(masterKey)
+	masterHandle, err := InsecureHandleFromBytes(masterKey)
 
 	if err != nil {
 		return nil, nil, err
 	}
 
-	a, err := aead.New(aes256GcmHandle)
+	if err := checkFIPSKeyset(masterHandle); err != nil {
+		return nil, nil, err
+	}
+
+	a, err := aead.New(masterHandle)
 
 	if err != nil {
 		return nil, nil, err
 	}
 
-	envelope := aead.NewKMSEnvelopeAEAD2(aead.AES128GCMKeyTemplate(), a)
+	envelope := aead.NewKMSEnvelopeAEAD2(envelopeKeyTemplate(masterHandle), a)
 
 	if envelope == nil {
 		return nil, nil, fmt.Errorf("failed to create envelope")
 	}
 
 	return a, envelope, nil
+}
+
+func envelopeKeyTemplate(master *keyset.Handle) *tinkpb.KeyTemplate {
+	for _, k := range master.KeysetInfo().GetKeyInfo() {
+		if k.GetTypeUrl() == aesGCMKeyTypeURL {
+			return aead.AES128GCMKeyTemplate()
+		}
+	}
+
+	return aead.AES128CTRHMACSHA256KeyTemplate()
+}
+
+func masterKeyTemplate() *tinkpb.KeyTemplate {
+	if fips140.Enabled() {
+		return aead.AES256CTRHMACSHA256KeyTemplate()
+	}
+
+	return aead.AES256GCMKeyTemplate()
 }
 
 func GenerateLocalKeys() (masterKey []byte, privateEc256 []byte, publicEc256 []byte, insecurePublicHandleEc256 []byte, err error) {
@@ -109,22 +134,36 @@ func GenerateLocalKeys() (masterKey []byte, privateEc256 []byte, publicEc256 []b
 	return masterKey, privateEc256, publicEc256, insecurePublicHandleEc256, nil
 }
 
-func generateLocalMasterKey() ([]byte, *keyset.Handle, error) {
-	aeadTemplate := aead.AES256GCMKeyTemplate()
+const aesGCMKeyTypeURL = "type.googleapis.com/google.crypto.tink.AesGcmKey"
 
-	aes256GcmHandle, err := keyset.NewHandle(aeadTemplate)
-
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create new keyset handle with AES256GCM template: %w", err)
+func checkFIPSKeyset(h *keyset.Handle) error {
+	if !fips140.Enabled() {
+		return nil
 	}
 
-	bytes, err := insecureBytesFromHandle(aes256GcmHandle)
+	for _, k := range h.KeysetInfo().GetKeyInfo() {
+		if k.GetTypeUrl() == aesGCMKeyTypeURL {
+			return fmt.Errorf("master keyset uses AES-GCM, which is not FIPS-approved: run `hatchet-admin keyset create-local-keys` from a FIPS build to regenerate the master and JWT keysets together; secrets encrypted under the old master key (OAuth tokens, Slack and inbound webhook credentials) must be re-created and every API token must be reissued, see https://docs.hatchet.run/self-hosting/fips")
+		}
+	}
+
+	return nil
+}
+
+func generateLocalMasterKey() ([]byte, *keyset.Handle, error) {
+	masterHandle, err := keyset.NewHandle(masterKeyTemplate())
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create new master keyset handle: %w", err)
+	}
+
+	bytes, err := insecureBytesFromHandle(masterHandle)
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get bytes from handle: %w", err)
 	}
 
-	return bytes, aes256GcmHandle, nil
+	return bytes, masterHandle, nil
 }
 
 // generateJWTKeysets creates the keysets for JWT signing and verification encrypted with the

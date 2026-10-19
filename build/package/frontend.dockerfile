@@ -17,14 +17,23 @@ WORKDIR /app
 
 ENV CGO_ENABLED=0
 
+ARG FIPS=false
+
 COPY go.mod go.sum ./
 COPY ./cmd/hatchet-staticfileserver/ ./cmd/hatchet-staticfileserver/
 
-RUN go build -ldflags="-w -s" -a -o hatchet-staticfileserver ./cmd/hatchet-staticfileserver/main.go
+RUN if [ "$FIPS" = "true" ]; then export GOFIPS140=v1.0.0; fi && \
+    go build -ldflags="-w -s" -a -o hatchet-staticfileserver ./cmd/hatchet-staticfileserver && \
+    if [ "$FIPS" = "true" ]; then \
+      go version -m ./hatchet-staticfileserver | grep -q 'GOFIPS140=v1.0.0-c2097c7c$' && go version -m ./hatchet-staticfileserver | grep -Eq 'DefaultGODEBUG=.*fips140=on(,|$)' || { echo "hatchet-staticfileserver is not linked against the validated FIPS module"; exit 1; }; \
+    fi
 RUN chmod +x ./hatchet-staticfileserver
 
 # Stage 3: Run the static fileserver
 FROM alpine:3.21
+
+ARG FIPS=false
+LABEL run.hatchet.fips=${FIPS}
 
 ENV BASE_PATH="/"
 

@@ -449,6 +449,15 @@ For how to enable and use internal trace export with these settings, see [Intern
 | `SERVER_PROMETHEUS_SERVER_PASSWORD`      | Prometheus server password                                                                                                             |               |
 | `SERVER_PROMETHEUS_SERVER_TENANT_SCOPED` | Gate the per-tenant metrics endpoint on each tenant's Prometheus metrics entitlement; when `false`, metrics are served for all tenants | `false`       |
 
+## Memory Limit Configuration
+
+The API server, the engine and `hatchet-lite` set the Go soft memory limit (`GOMEMLIMIT`) to 90% of the container's memory limit, and re-read that limit every minute so in-place resizes are picked up. When the container has no memory limit, Go's default (no limit) is kept.
+
+| Variable       | Description                                                                                                        | Default Value |
+| -------------- | ------------------------------------------------------------------------------------------------------------------ | ------------- |
+| `GOMEMLIMIT`   | Sets the Go soft memory limit explicitly (e.g. `1800MiB`); takes precedence over the automatic value               |               |
+| `AUTOMEMLIMIT` | Fraction of the container memory limit used for `GOMEMLIMIT`, between `0` (exclusive) and `1`, or `off` to disable | `0.9`         |
+
 ## Tenant Alerting Configuration
 
 | Variable                                     | Description                         | Default Value          |

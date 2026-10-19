@@ -87,3 +87,40 @@ Returns
 `Promise`\<`WorkflowList`\>
 
 A promise that resolves to the list of workflows.
+
+<a id="pause"></a>
+
+##### `pause()`
+
+Pause a workflow. While paused, new runs of the workflow are queued but not started.
+
+Parameters
+
+| Parameter  | Type                                                                | Description                          |
+| ---------- | ------------------------------------------------------------------- | ------------------------------------ |
+| `workflow` | `string` \| `BaseWorkflowDeclaration`\<`any`, `any`\> \| `Workflow` | The workflow name, ID, or object.    |
+| `opts`     | `PauseWorkflowOpts`                                                 | The options for the pause operation. |
+
+Returns
+
+`Promise`\<`Workflow`\>
+
+A promise that resolves to the updated workflow.
+
+<a id="unpause"></a>
+
+##### `unpause()`
+
+Unpause a workflow.
+
+Parameters
+
+| Parameter  | Type                                                                | Description                       |
+| ---------- | ------------------------------------------------------------------- | --------------------------------- |
+| `workflow` | `string` \| `BaseWorkflowDeclaration`\<`any`, `any`\> \| `Workflow` | The workflow name, ID, or object. |
+
+Returns
+
+`Promise`\<`Workflow`\>
+
+A promise that resolves to the updated workflow.

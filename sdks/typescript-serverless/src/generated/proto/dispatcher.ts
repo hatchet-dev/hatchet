@@ -572,7 +572,11 @@ export interface StepActionEvent {
     | number
     | undefined;
   /** a flag indicating if the task should _not_ be retried */
-  shouldNotRetry?: boolean | undefined;
+  shouldNotRetry?:
+    | boolean
+    | undefined;
+  /** the delay in milliseconds before the next attempt (FAILED only) */
+  retryAfterMs?: number | undefined;
 }
 
 export interface BatchActionEventItem {
@@ -585,7 +589,11 @@ export interface BatchActionEventItem {
     | number
     | undefined;
   /** a flag indicating if the task should _not_ be retried (FAILED only) */
-  shouldNotRetry?: boolean | undefined;
+  shouldNotRetry?:
+    | boolean
+    | undefined;
+  /** the delay in milliseconds before the next attempt (FAILED only) */
+  retryAfterMs?: number | undefined;
 }
 
 export interface BatchActionEvent {
@@ -2866,6 +2874,7 @@ function createBaseStepActionEvent(): StepActionEvent {
     eventPayload: "",
     retryCount: undefined,
     shouldNotRetry: undefined,
+    retryAfterMs: undefined,
   };
 }
 
@@ -2903,6 +2912,9 @@ export const StepActionEvent: MessageFns<StepActionEvent> = {
     }
     if (message.shouldNotRetry !== undefined) {
       writer.uint32(88).bool(message.shouldNotRetry);
+    }
+    if (message.retryAfterMs !== undefined) {
+      writer.uint32(96).int64(message.retryAfterMs);
     }
     return writer;
   },
@@ -3002,6 +3014,14 @@ export const StepActionEvent: MessageFns<StepActionEvent> = {
           message.shouldNotRetry = reader.bool();
           continue;
         }
+        case 12: {
+          if (tag !== 96) {
+            break;
+          }
+
+          message.retryAfterMs = longToNumber(reader.int64());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -3068,6 +3088,11 @@ export const StepActionEvent: MessageFns<StepActionEvent> = {
         : isSet(object.should_not_retry)
         ? globalThis.Boolean(object.should_not_retry)
         : undefined,
+      retryAfterMs: isSet(object.retryAfterMs)
+        ? globalThis.Number(object.retryAfterMs)
+        : isSet(object.retry_after_ms)
+        ? globalThis.Number(object.retry_after_ms)
+        : undefined,
     };
   },
 
@@ -3106,6 +3131,9 @@ export const StepActionEvent: MessageFns<StepActionEvent> = {
     if (message.shouldNotRetry !== undefined) {
       obj.shouldNotRetry = message.shouldNotRetry;
     }
+    if (message.retryAfterMs !== undefined) {
+      obj.retryAfterMs = Math.round(message.retryAfterMs);
+    }
     return obj;
   },
 
@@ -3125,12 +3153,19 @@ export const StepActionEvent: MessageFns<StepActionEvent> = {
     message.eventPayload = object.eventPayload ?? "";
     message.retryCount = object.retryCount ?? undefined;
     message.shouldNotRetry = object.shouldNotRetry ?? undefined;
+    message.retryAfterMs = object.retryAfterMs ?? undefined;
     return message;
   },
 };
 
 function createBaseBatchActionEventItem(): BatchActionEventItem {
-  return { taskRunExternalId: "", eventPayload: "", retryCount: undefined, shouldNotRetry: undefined };
+  return {
+    taskRunExternalId: "",
+    eventPayload: "",
+    retryCount: undefined,
+    shouldNotRetry: undefined,
+    retryAfterMs: undefined,
+  };
 }
 
 export const BatchActionEventItem: MessageFns<BatchActionEventItem> = {
@@ -3146,6 +3181,9 @@ export const BatchActionEventItem: MessageFns<BatchActionEventItem> = {
     }
     if (message.shouldNotRetry !== undefined) {
       writer.uint32(32).bool(message.shouldNotRetry);
+    }
+    if (message.retryAfterMs !== undefined) {
+      writer.uint32(40).int64(message.retryAfterMs);
     }
     return writer;
   },
@@ -3189,6 +3227,14 @@ export const BatchActionEventItem: MessageFns<BatchActionEventItem> = {
           message.shouldNotRetry = reader.bool();
           continue;
         }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
+
+          message.retryAfterMs = longToNumber(reader.int64());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -3220,6 +3266,11 @@ export const BatchActionEventItem: MessageFns<BatchActionEventItem> = {
         : isSet(object.should_not_retry)
         ? globalThis.Boolean(object.should_not_retry)
         : undefined,
+      retryAfterMs: isSet(object.retryAfterMs)
+        ? globalThis.Number(object.retryAfterMs)
+        : isSet(object.retry_after_ms)
+        ? globalThis.Number(object.retry_after_ms)
+        : undefined,
     };
   },
 
@@ -3237,6 +3288,9 @@ export const BatchActionEventItem: MessageFns<BatchActionEventItem> = {
     if (message.shouldNotRetry !== undefined) {
       obj.shouldNotRetry = message.shouldNotRetry;
     }
+    if (message.retryAfterMs !== undefined) {
+      obj.retryAfterMs = Math.round(message.retryAfterMs);
+    }
     return obj;
   },
 
@@ -3249,6 +3303,7 @@ export const BatchActionEventItem: MessageFns<BatchActionEventItem> = {
     message.eventPayload = object.eventPayload ?? "";
     message.retryCount = object.retryCount ?? undefined;
     message.shouldNotRetry = object.shouldNotRetry ?? undefined;
+    message.retryAfterMs = object.retryAfterMs ?? undefined;
     return message;
   },
 };

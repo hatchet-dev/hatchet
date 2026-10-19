@@ -1379,6 +1379,8 @@ func (s *DispatcherImpl) taskEventsToWorkflowRunEvent(ctx context.Context, tenan
 				JobRunId:          event.TaskExternalId.String(),
 				Error:             &event.ErrorMessage,
 			}
+		case sqlcv1.V1TaskEventTypeSIGNALCREATED, sqlcv1.V1TaskEventTypeSIGNALCOMPLETED:
+			return nil
 		}
 		return nil
 	}
@@ -1504,6 +1506,7 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 		return s.handleTaskFailed(ctx, task, retryCount, durableInvCount, request)
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_CANCELLED:
 		return s.handleTaskCancelledEvent(ctx, task, retryCount, request)
+	case contracts.StepActionEventType_STEP_EVENT_TYPE_UNKNOWN:
 	}
 
 	return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid task external run id %s", request.TaskRunExternalId))
@@ -1652,6 +1655,7 @@ func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, task *sqlcv1
 		true,
 		request.EventPayload,
 		shouldNotRetry,
+		request.RetryAfterMs,
 	)
 
 	if err != nil {
@@ -1760,6 +1764,7 @@ func (s *DispatcherImpl) sendBatchActionEventV1(ctx context.Context, request *co
 		return s.handleBatchTaskFailed(ctx, tenantId, tasks, itemsByExternalId, request)
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_CANCELLED:
 		return s.handleBatchTaskCancelled(ctx, tenantId, tasks, request)
+	case contracts.StepActionEventType_STEP_EVENT_TYPE_UNKNOWN, contracts.StepActionEventType_STEP_EVENT_TYPE_ACKNOWLEDGED:
 	}
 
 	return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid batch action event type %s", request.EventType))
@@ -2045,6 +2050,7 @@ func (s *DispatcherImpl) handleBatchTaskFailed(
 			IsAppError:     true,
 			ErrorMsg:       item.EventPayload,
 			IsNonRetryable: shouldNotRetry,
+			RetryAfterMs:   item.RetryAfterMs,
 		})
 	}
 

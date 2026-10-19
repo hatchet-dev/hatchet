@@ -24,7 +24,7 @@ type entitlementStub struct {
 	enabled bool
 }
 
-func (s entitlementStub) IsServerlessOperatorEnabled(context.Context, uuid.UUID) (bool, error) {
+func (s entitlementStub) HasEntitlement(context.Context, uuid.UUID, repository.Entitlement) (bool, error) {
 	return s.enabled, nil
 }
 

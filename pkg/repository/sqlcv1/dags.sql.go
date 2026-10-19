@@ -110,8 +110,8 @@ func (q *Queries) CreateDAGs(ctx context.Context, db DBTX, arg CreateDAGsParams)
 const getDAGData = `-- name: GetDAGData :many
 WITH input AS (
     SELECT
-        unnest($1::bigint[]) AS dag_id,
-        unnest($2::timestamptz[]) AS dag_inserted_at
+        unnest($2::bigint[]) AS dag_id,
+        unnest($3::timestamptz[]) AS dag_inserted_at
 )
 SELECT dd.dag_id, dd.dag_inserted_at, dd.input, dd.additional_metadata, d.desired_worker_labels, d.external_id
 FROM v1_dag d
@@ -120,11 +120,14 @@ WHERE (d.id, d.inserted_at) IN (
     SELECT dag_id, dag_inserted_at
     FROM input
 )
+AND d.inserted_at >= $1::timestamptz
+AND dd.dag_inserted_at >= $1::timestamptz
 `
 
 type GetDAGDataParams struct {
-	Dagids         []int64              `json:"dagids"`
-	Daginsertedats []pgtype.Timestamptz `json:"daginsertedats"`
+	Mindaginsertedat pgtype.Timestamptz   `json:"mindaginsertedat"`
+	Dagids           []int64              `json:"dagids"`
+	Daginsertedats   []pgtype.Timestamptz `json:"daginsertedats"`
 }
 
 type GetDAGDataRow struct {
@@ -137,7 +140,7 @@ type GetDAGDataRow struct {
 }
 
 func (q *Queries) GetDAGData(ctx context.Context, db DBTX, arg GetDAGDataParams) ([]*GetDAGDataRow, error) {
-	rows, err := db.Query(ctx, getDAGData, arg.Dagids, arg.Daginsertedats)
+	rows, err := db.Query(ctx, getDAGData, arg.Mindaginsertedat, arg.Dagids, arg.Daginsertedats)
 	if err != nil {
 		return nil, err
 	}

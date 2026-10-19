@@ -16,7 +16,8 @@ readers can resume from a cursor.
 
 ##### `events()`
 
-Yields topic's messages after options.cursor, or from the oldest retained.
+Yields topic's messages after options.cursor, or from the oldest retained
+(or, once the topic is reset, after the reset).
 If the connection drops, it resubscribes from the last message yielded, so
 nothing is skipped or repeated. Ends when the server hangs up an idle
 subscription, options.signal aborts, or the caller stops iterating; throws
@@ -51,3 +52,59 @@ Parameters
 Returns
 
 `Promise`\<`void`\>
+
+<a id="reset"></a>
+
+##### `reset()`
+
+Makes events() calls without a cursor start after the topic's latest
+message. Readers already iterating, and any call with a cursor, are
+unaffected.
+
+Parameters
+
+| Parameter  | Type                                         | Description                 |
+| ---------- | -------------------------------------------- | --------------------------- |
+| `topic`    | `string`                                     | the topic to reset          |
+| `options?` | `Pick`\<`StreamCallOptions`, `"namespace"`\> | optional namespace override |
+
+Returns
+
+`Promise`\<`void`\>
+
+<a id="topicmetadata"></a>
+
+##### `topicMetadata()`
+
+Describes topic's retained messages. Rejects with a NOT_FOUND gRPC error
+for a topic nothing was published to.
+
+Parameters
+
+| Parameter  | Type                                         | Description                 |
+| ---------- | -------------------------------------------- | --------------------------- |
+| `topic`    | `string`                                     | the topic to describe       |
+| `options?` | `Pick`\<`StreamCallOptions`, `"namespace"`\> | optional namespace override |
+
+Returns
+
+`Promise`\<[`StreamTopicMetadata`](#streamtopicmetadata)\>
+
+## Type Aliases
+
+<a id="streamtopicmetadata"></a>
+
+### StreamTopicMetadata
+
+```ts
+type StreamTopicMetadata = object;
+```
+
+Covers only messages within the tenant's retention.
+
+Properties
+
+| Property                                        | Type     | Description                                                                         |
+| ----------------------------------------------- | -------- | ----------------------------------------------------------------------------------- |
+| <a id="lastpublishedat"></a> `lastPublishedAt?` | `Date`   | when the newest retained message was stored; undefined when none is retained        |
+| <a id="latestcursor"></a> `latestCursor?`       | `string` | resumes events() after the newest retained message; undefined when none is retained |

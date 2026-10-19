@@ -8,9 +8,11 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 const (
@@ -40,11 +42,18 @@ type publishBatcher struct {
 type pendingPublish struct {
 	msg  v1.TenantStreamMessage
 	done chan publishResult
+
+	// links the batch commit back to the publish waiting on it
+	spanCtx    trace.SpanContext
+	enqueuedAt time.Time
 }
 
 type publishResult struct {
 	res v1.OrderedStreamMessageResult
 	err error
+
+	batchSize       int
+	commitStartedAt time.Time
 }
 
 func newPublishBatcher(streams v1.StreamsRepository, pubsub msgqueue.PubSub, l *zerolog.Logger, workers int) *publishBatcher {
@@ -68,18 +77,32 @@ func newPublishBatcher(streams v1.StreamsRepository, pubsub msgqueue.PubSub, l *
 // publish returns once msg is committed or rejected. If ctx ends first the
 // message may still commit, which a retry with the same sequence detects.
 func (b *publishBatcher) publish(ctx context.Context, msg v1.TenantStreamMessage) (v1.OrderedStreamMessageResult, error) {
-	p := &pendingPublish{msg: msg, done: make(chan publishResult, 1)}
+	ctx, span := telemetry.NewSpan(ctx, "streams.publish-batcher.publish")
+	defer span.End()
+
+	p := &pendingPublish{msg: msg, done: make(chan publishResult, 1), spanCtx: span.SpanContext(), enqueuedAt: time.Now()}
 
 	select {
 	case b.pending <- p:
 	case <-ctx.Done():
+		recordSpanError(span, ctx.Err())
 		return v1.OrderedStreamMessageResult{}, ctx.Err()
 	}
 
 	select {
 	case r := <-p.done:
+		if !r.commitStartedAt.IsZero() {
+			telemetry.WithAttributes(span,
+				telemetry.AttributeKV{Key: "batch_size", Value: r.batchSize},
+				telemetry.AttributeKV{Key: "queue_wait_ms", Value: r.commitStartedAt.Sub(p.enqueuedAt).Milliseconds()},
+			)
+		}
+
+		recordSpanError(span, r.err)
+
 		return r.res, r.err
 	case <-ctx.Done():
+		recordSpanError(span, ctx.Err())
 		return v1.OrderedStreamMessageResult{}, ctx.Err()
 	}
 }
@@ -127,8 +150,28 @@ func (b *publishBatcher) work(ctx context.Context) {
 }
 
 func (b *publishBatcher) commit(batch []*pendingPublish) {
+	startedAt := time.Now()
+	links := make([]trace.Link, 0, len(batch))
+	payloadBytes := 0
+
+	for _, p := range batch {
+		if p.spanCtx.IsValid() {
+			links = append(links, trace.Link{SpanContext: p.spanCtx})
+		}
+
+		payloadBytes += len(p.msg.Opts.Payload)
+	}
+
 	// not a caller's context: one caller giving up must not abort the others' writes
-	ctx, cancel := context.WithTimeout(context.Background(), publishCommitTimeout)
+	ctx, span := telemetry.NewSpanWithLinks(context.Background(), "streams.publish-batcher.commit", links)
+	defer span.End()
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "batch_size", Value: len(batch)},
+		telemetry.AttributeKV{Key: "stream.payload_bytes", Value: payloadBytes},
+	)
+
+	ctx, cancel := context.WithTimeout(ctx, publishCommitTimeout)
 	defer cancel()
 
 	msgs := make([]v1.TenantStreamMessage, len(batch))
@@ -138,12 +181,13 @@ func (b *publishBatcher) commit(batch []*pendingPublish) {
 	}
 
 	results, err := b.streams.InsertOrderedStreamMessages(ctx, msgs)
+	recordSpanError(span, err)
 
 	for i, p := range batch {
 		if err != nil {
-			p.done <- publishResult{err: err}
+			p.done <- publishResult{err: err, batchSize: len(batch), commitStartedAt: startedAt}
 		} else {
-			p.done <- publishResult{res: results[i]}
+			p.done <- publishResult{res: results[i], batchSize: len(batch), commitStartedAt: startedAt}
 		}
 	}
 

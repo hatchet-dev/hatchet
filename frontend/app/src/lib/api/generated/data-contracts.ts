@@ -661,6 +661,14 @@ export interface V1TaskSummaryList {
   rows: V1TaskSummary[];
 }
 
+export interface V1WorkflowRunCount {
+  /**
+   * The number of workflow runs matching the filters
+   * @format int64
+   */
+  count: number;
+}
+
 export interface V1WorkflowRunDisplayName {
   metadata: APIResourceMeta;
   displayName: string;
@@ -868,6 +876,11 @@ export interface V1DurableEventLogEntry {
 }
 
 export type V1DurableEventLogList = V1DurableEventLogEntry[];
+
+export interface V1StreamPayloadRef {
+  /** Publish the message with this as its payload_ref */
+  ref: string;
+}
 
 export interface OtelSpan {
   traceId: string;
