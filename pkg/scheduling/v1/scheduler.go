@@ -1460,6 +1460,8 @@ func (s *Scheduler) rankWorkerIds(
 			if qi.DesiredWorkerID != nil && workerId == *qi.DesiredWorkerID {
 				rank = 1
 			}
+		case sqlcv1.V1StickyStrategyNONE:
+			fallthrough
 		default:
 			if len(labels) > 0 {
 				// Label affinity reads worker metadata from s.workers. Do not

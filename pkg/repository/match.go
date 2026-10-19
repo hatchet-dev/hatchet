@@ -679,6 +679,7 @@ func (m *sharedRepository) processEventMatchesForTarget(ctx context.Context, tx 
 						opt.InitialState = sqlcv1.V1TaskInitialStateCANCELLED
 					case sqlcv1.V1MatchConditionActionSKIP:
 						opt.InitialState = sqlcv1.V1TaskInitialStateSKIPPED
+					case sqlcv1.V1MatchConditionActionCREATE, sqlcv1.V1MatchConditionActionCREATEMATCH:
 					}
 
 					replayTaskOpts = append(replayTaskOpts, opt)
@@ -702,6 +703,7 @@ func (m *sharedRepository) processEventMatchesForTarget(ctx context.Context, tx 
 						opt.InitialState = sqlcv1.V1TaskInitialStateCANCELLED
 					case sqlcv1.V1MatchConditionActionSKIP:
 						opt.InitialState = sqlcv1.V1TaskInitialStateSKIPPED
+					case sqlcv1.V1MatchConditionActionCREATE, sqlcv1.V1MatchConditionActionCREATEMATCH:
 					}
 
 					if match.TriggerDagID.Valid && match.TriggerDagInsertedAt.Valid {
@@ -1515,8 +1517,7 @@ func (m *sharedRepository) createAdditionalMatches(ctx context.Context, tx sqlcv
 						condition.Expression.String,
 						condition.Action,
 					))
-				default:
-					// PARENT_OVERRIDE is another kind, but it isn't processed here
+				case sqlcv1.V1StepMatchConditionKindPARENTOVERRIDE:
 					continue
 				}
 			}

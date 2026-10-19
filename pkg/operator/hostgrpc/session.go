@@ -610,6 +610,10 @@ func isTerminalStepEvent(eventType contracts.StepActionEventType) bool {
 		contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED,
 		contracts.StepActionEventType_STEP_EVENT_TYPE_CANCELLED:
 		return true
+	case contracts.StepActionEventType_STEP_EVENT_TYPE_UNKNOWN,
+		contracts.StepActionEventType_STEP_EVENT_TYPE_STARTED,
+		contracts.StepActionEventType_STEP_EVENT_TYPE_ACKNOWLEDGED:
+		return false
 	default:
 		return false
 	}

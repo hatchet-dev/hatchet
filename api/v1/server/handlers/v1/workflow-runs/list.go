@@ -38,6 +38,8 @@ func allOlapStatuses(runningFilter *gen.V1RunningFilter) []sqlcv1.V1ReadableStat
 		statuses = append(statuses, sqlcv1.V1ReadableStatusOlapEVICTED)
 	case gen.ONWORKER:
 		statuses = append(statuses, sqlcv1.V1ReadableStatusOlapRUNNING)
+	case gen.ALL:
+		statuses = append(statuses, sqlcv1.V1ReadableStatusOlapRUNNING, sqlcv1.V1ReadableStatusOlapEVICTED)
 	default:
 		statuses = append(statuses, sqlcv1.V1ReadableStatusOlapRUNNING, sqlcv1.V1ReadableStatusOlapEVICTED)
 	}
@@ -73,6 +75,15 @@ func normalizeWorkflowRunStatuses(statuses []gen.V1TaskStatus, runningFilter *ge
 				if _, exists := seen[sqlcv1.V1ReadableStatusOlapRUNNING]; !exists {
 					seen[sqlcv1.V1ReadableStatusOlapRUNNING] = struct{}{}
 					normalized = append(normalized, sqlcv1.V1ReadableStatusOlapRUNNING)
+				}
+			case gen.ALL:
+				if _, exists := seen[sqlcv1.V1ReadableStatusOlapRUNNING]; !exists {
+					seen[sqlcv1.V1ReadableStatusOlapRUNNING] = struct{}{}
+					normalized = append(normalized, sqlcv1.V1ReadableStatusOlapRUNNING)
+				}
+				if _, exists := seen[sqlcv1.V1ReadableStatusOlapEVICTED]; !exists {
+					seen[sqlcv1.V1ReadableStatusOlapEVICTED] = struct{}{}
+					normalized = append(normalized, sqlcv1.V1ReadableStatusOlapEVICTED)
 				}
 			default:
 				if _, exists := seen[sqlcv1.V1ReadableStatusOlapRUNNING]; !exists {

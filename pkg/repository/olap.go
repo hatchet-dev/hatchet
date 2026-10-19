@@ -1967,6 +1967,8 @@ func initialStateToReadableStatus(initialState sqlcv1.V1TaskInitialState) sqlcv1
 		return sqlcv1.V1ReadableStatusOlapCANCELLED
 	case sqlcv1.V1TaskInitialStateSKIPPED:
 		return sqlcv1.V1ReadableStatusOlapCOMPLETED
+	case sqlcv1.V1TaskInitialStateQUEUED:
+		return sqlcv1.V1ReadableStatusOlapQUEUED
 	default:
 		return sqlcv1.V1ReadableStatusOlapQUEUED
 	}
@@ -3291,8 +3293,9 @@ func (r *OLAPRepositoryImpl) GetTaskDurationsByTaskIds(ctx context.Context, tena
 
 	taskDurations := make(map[int64]*sqlcv1.GetTaskDurationsByTaskIdsRow)
 
-	for i, row := range rows {
-		taskDurations[taskIds[i]] = row
+	// rows come back sorted and drop tasks whose status changed, so they can't be matched to taskIds by index
+	for _, row := range rows {
+		taskDurations[row.TaskID] = row
 	}
 
 	return taskDurations, nil
@@ -4498,6 +4501,7 @@ func extractServiceName(resourceAttrsJSON json.RawMessage) string {
 }
 
 func protoSpanKindToDB(kind tracev1.Span_SpanKind) sqlcv1.V1OtelSpanKind {
+	//exhaustive:ignore
 	switch kind {
 	case tracev1.Span_SPAN_KIND_INTERNAL:
 		return sqlcv1.V1OtelSpanKindINTERNAL
@@ -4515,6 +4519,7 @@ func protoSpanKindToDB(kind tracev1.Span_SpanKind) sqlcv1.V1OtelSpanKind {
 }
 
 func protoStatusCodeToDB(code tracev1.Status_StatusCode) sqlcv1.V1OtelStatusCode {
+	//exhaustive:ignore
 	switch code {
 	case tracev1.Status_STATUS_CODE_OK:
 		return sqlcv1.V1OtelStatusCodeOK

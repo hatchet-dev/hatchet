@@ -3050,6 +3050,7 @@ func (r *sharedRepository) insertTasks(
 				eventTaskExternalIds = append(eventTaskExternalIds, withPayload.ExternalID)
 				eventDatas = append(eventDatas, NewSkippedTaskOutputEventFromTask(&withPayload).Bytes())
 				eventTypes = append(eventTypes, sqlcv1.V1TaskEventTypeCOMPLETED)
+			case sqlcv1.V1TaskInitialStateQUEUED:
 			}
 		}
 	}
@@ -3436,6 +3437,7 @@ func (r *sharedRepository) replayTasks(
 				eventTaskExternalIds = append(eventTaskExternalIds, withPayload.ExternalID)
 				eventDatas = append(eventDatas, NewSkippedTaskOutputEventFromTask(&withPayload).Bytes())
 				eventTypes = append(eventTypes, sqlcv1.V1TaskEventTypeCOMPLETED)
+			case sqlcv1.V1TaskInitialStateQUEUED:
 			}
 		}
 
@@ -4301,7 +4303,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 					TriggerExistingTaskId:         &task.ID,
 					TriggerExistingTaskInsertedAt: task.InsertedAt,
 				})
-			default:
+			case sqlcv1.JobKindDEFAULT:
 				conditions := make([]GroupMatchCondition, 0)
 
 				cancelGroupId := uuid.New()

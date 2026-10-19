@@ -150,6 +150,8 @@ func executionsPerPush(key eventkeys.EventKey, fanout, dagSteps int) int64 {
 		return dagShapesExecutedSteps
 	case eventkeys.EventKeyDagNested:
 		return dagNestedExecutedSteps
+	case eventkeys.EventKeyBatch, eventkeys.EventKeyDurable, eventkeys.EventKeyConcurrency:
+		return 1
 	default:
 		return 1
 	}
