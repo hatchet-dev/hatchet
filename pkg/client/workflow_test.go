@@ -4,6 +4,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -16,6 +17,7 @@ import (
 
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/pkg/client/retry"
+	"github.com/hatchet-dev/hatchet/pkg/client/streaming"
 )
 
 func TestWorkflowResultSingleAddWorkflowRunAttempt(t *testing.T) {
@@ -111,8 +113,9 @@ func TestWorkflowResultWithContextReturnsWhenContextAlreadyCancelled(t *testing.
 	assert.Contains(t, err.Error(), "run-ctx-cancelled")
 	assert.Less(t, time.Since(start), time.Second)
 
-	// The subscription was sent, then dropped when the wait ended.
-	assert.Equal(t, int32(1), client.sendCount.Load())
+	// No subscription is sent for a caller whose context already ended, and
+	// nothing is left registered.
+	assert.Equal(t, int32(0), client.sendCount.Load())
 	assert.False(t, listener.reg.hasAny())
 }
 
@@ -181,4 +184,98 @@ func TestAwaitWorkflowResultNilContextDoneKeepsWaiting(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("wait did not end after result delivery")
 	}
+}
+
+// blockBackoffUntilCancelled makes the stream's backoff sleep wait for its
+// context instead of a timer, so a test can prove that the caller's context is
+// what ends a retry loop. The fallback keeps a regression from hanging the
+// suite.
+func blockBackoffUntilCancelled[C any](t *testing.T, s *streaming.ReconnectingStream[C]) {
+	t.Helper()
+	s.SetSleep(func(ctx context.Context, _ int) error {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(5 * time.Second):
+			return errors.New("test backoff sleep was not cancelled")
+		}
+	})
+}
+
+func TestWorkflowResultWithContextEndsConnectRetriesOnDeadline(t *testing.T) {
+	logger := zerolog.Nop()
+	constructorCalls := atomic.Int32{}
+
+	listener := newTestWorkflowRunsListener(t, &logger, func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+		constructorCalls.Add(1)
+		return nil, status.Error(codes.Unavailable, "engine down")
+	}, nil)
+	blockBackoffUntilCancelled(t, listener.stream)
+	t.Cleanup(func() { _ = listener.Close() })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	defer cancel()
+
+	start := time.Now()
+	res, err := NewWorkflow("run-connect-retry", listener).ResultWithContext(ctx)
+	require.Nil(t, res)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Contains(t, err.Error(), "run-connect-retry")
+	assert.Less(t, time.Since(start), time.Second)
+
+	// One attempt, then the backoff sleep was cut short by the caller.
+	assert.Equal(t, int32(1), constructorCalls.Load())
+	assert.False(t, listener.reg.hasAny())
+	// The caller's deadline must not end the shared listener.
+	assert.False(t, listener.stream.IsClosed())
+	assert.NoError(t, listener.stream.LifecycleContext().Err())
+}
+
+func TestWorkflowResultWithContextEndsSendRetriesOnCancelAndKeepsListenerUsable(t *testing.T) {
+	logger := zerolog.Nop()
+	sendFails := atomic.Bool{}
+	sendFails.Store(true)
+
+	client := &mockSubscribeClient{
+		recvChan: make(chan *dispatchercontracts.WorkflowRunEvent, 1),
+	}
+	client.sendFn = func(req *dispatchercontracts.SubscribeToWorkflowRunsRequest) error {
+		if sendFails.Load() {
+			return status.Error(codes.Unavailable, "stream broken")
+		}
+		return nil
+	}
+	listener := newTestWorkflowRunsListener(t, &logger, func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+		return client, nil
+	}, client)
+	blockBackoffUntilCancelled(t, listener.stream)
+	t.Cleanup(func() { _ = listener.Close() })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		// Cancel once the first send has failed and the loop is in backoff.
+		require.Eventually(t, func() bool { return client.sendCount.Load() >= 1 }, time.Second, time.Millisecond)
+		cancel()
+	}()
+
+	res, err := NewWorkflow("run-send-retry", listener).ResultWithContext(ctx)
+	require.Nil(t, res)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, context.Canceled)
+	assert.False(t, listener.reg.hasAny())
+	assert.False(t, listener.stream.IsClosed())
+
+	// A later waiter on the same listener still gets its result.
+	sendFails.Store(false)
+	liveCtx, liveCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer liveCancel()
+	go func() {
+		require.Eventually(t, listener.reg.hasAny, time.Second, time.Millisecond)
+		client.recvChan <- &dispatchercontracts.WorkflowRunEvent{WorkflowRunId: "run-after-cancel"}
+	}()
+	res, err = NewWorkflow("run-after-cancel", listener).ResultWithContext(liveCtx)
+	require.NoError(t, err)
+	require.NotNil(t, res)
+	assert.False(t, listener.reg.hasAny())
 }

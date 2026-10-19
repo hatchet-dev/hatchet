@@ -99,41 +99,49 @@ func (r *Workflow) Result() (*WorkflowResult, error) {
 }
 
 // ResultWithContext waits for the workflow run to complete and returns the
-// results. If ctx ends first, the wait stops and the returned error wraps
-// ctx.Err(), so callers can check errors.Is(err, context.DeadlineExceeded) or
-// context.Canceled. Ending the wait only drops the result subscription; the
-// run itself keeps executing on the engine.
+// results. The whole wait is bounded by ctx, including the subscription
+// setup (connect and send retries with their backoff sleeps): if ctx ends
+// first, the wait stops and the returned error wraps ctx.Err(), so callers
+// can check errors.Is(err, context.DeadlineExceeded) or context.Canceled.
+// Ending the wait only drops this subscription; the shared listener stays
+// up for other waiters and the run itself keeps executing on the engine.
 func (r *Workflow) ResultWithContext(ctx context.Context) (*WorkflowResult, error) {
 	return r.result(ctx)
 }
 
 // result subscribes to the run's terminal event and waits for it. A nil ctx
-// waits indefinitely; otherwise the wait ends with ctx.Err() when ctx ends.
-// The subscription is removed on every return path, and the run keeps
-// executing on the engine regardless of how the wait ended.
+// waits indefinitely; otherwise both the subscription setup and the wait end
+// with ctx.Err() when ctx ends. The subscription is removed on every return
+// path, and the run keeps executing on the engine regardless of how the wait
+// ended.
 func (r *Workflow) result(ctx context.Context) (*WorkflowResult, error) {
 	resChan := make(chan *WorkflowResult, 1)
 	failChan := make(chan error, 1)
 	sessionId := uuid.NewString()
 
-	err := r.listener.addWorkflowRun(r.workflowRunId, sessionId,
-		func(event WorkflowRunEvent) error {
-			// Non-blocking: the waiter may already have returned on ctx and
-			// stopped reading, and this runs on the listener's dispatch
-			// goroutine.
-			select {
-			case resChan <- &WorkflowResult{workflowRun: event}:
-			default:
-			}
-			return nil
-		},
-		func(err error) {
-			select {
-			case failChan <- err:
-			default:
-			}
-		},
-	)
+	onEvent := func(event WorkflowRunEvent) error {
+		// Non-blocking: the waiter may already have returned on ctx and
+		// stopped reading, and this runs on the listener's dispatch
+		// goroutine.
+		select {
+		case resChan <- &WorkflowResult{workflowRun: event}:
+		default:
+		}
+		return nil
+	}
+	onError := func(err error) {
+		select {
+		case failChan <- err:
+		default:
+		}
+	}
+
+	var err error
+	if ctx == nil {
+		err = r.listener.addWorkflowRun(r.workflowRunId, sessionId, onEvent, onError)
+	} else {
+		err = r.listener.addWorkflowRunContext(ctx, r.workflowRunId, sessionId, onEvent, onError)
+	}
 	if err != nil {
 		r.listener.RemoveWorkflowRun(r.workflowRunId, sessionId)
 		return nil, fmt.Errorf("failed to listen for workflow events: %w", err)

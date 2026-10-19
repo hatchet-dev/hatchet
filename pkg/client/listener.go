@@ -5,6 +5,7 @@ package client
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"sync"
 	"time"
@@ -168,28 +169,78 @@ func (l *WorkflowRunsListener) addWorkflowRun(
 	handler WorkflowRunEventHandler,
 	onError func(error),
 ) error {
+	return l.subscribe(l.stream.LifecycleContext(), workflowRunId, sessionId, handler, onError)
+}
+
+// addWorkflowRunContext is addWorkflowRun with the subscription setup bounded
+// by ctx: the connect and send retries, and the backoff sleeps between them,
+// stop as soon as ctx ends. The shared stream itself is untouched; it keeps
+// reconnecting on the listener lifecycle for other waiters. When ctx ends the
+// handler is unregistered and the returned error wraps ctx.Err().
+func (l *WorkflowRunsListener) addWorkflowRunContext(
+	ctx context.Context,
+	workflowRunId, sessionId string,
+	handler WorkflowRunEventHandler,
+	onError func(error),
+) error {
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("subscribing to workflow run %s: %w", workflowRunId, err)
+	}
+
+	// waitCtx ends when either the listener or the caller is done, without
+	// ever being handed to the stream constructor.
+	waitCtx, cancel := context.WithCancel(l.stream.LifecycleContext())
+	defer cancel()
+	stop := context.AfterFunc(ctx, cancel)
+	defer stop()
+
+	err := l.subscribe(waitCtx, workflowRunId, sessionId, handler, onError)
+	if err == nil {
+		return nil
+	}
+
+	ctxErr := ctx.Err()
+	if ctxErr == nil {
+		return err
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		// The retry loop stopped on waitCtx; report the caller's own error.
+		return fmt.Errorf("subscribing to workflow run %s: %w", workflowRunId, ctxErr)
+	}
+	return fmt.Errorf("subscribing to workflow run %s: %w (last attempt: %w)", workflowRunId, ctxErr, err)
+}
+
+// subscribe registers the handler and sends the subscription request. waitCtx
+// bounds the retries; every failure path after the handler is stored removes
+// it again, so a failed or interrupted subscribe never leaves a registration
+// behind.
+func (l *WorkflowRunsListener) subscribe(
+	waitCtx context.Context,
+	workflowRunId, sessionId string,
+	handler WorkflowRunEventHandler,
+	onError func(error),
+) error {
 	if l.stream.IsClosed() {
 		return errListenerClosed
 	}
 
-	lifecycle := l.stream.LifecycleContext()
-	if err := l.ensureListening(lifecycle); err != nil {
+	if err := l.ensureListening(waitCtx); err != nil {
 		return err
 	}
 
 	remove := l.reg.store(workflowRunId, sessionId, handler, onError)
-	if err := l.retrySend(workflowRunId); err != nil {
-		if err2 := l.ensureListening(lifecycle); err2 != nil {
+	if err := l.retrySend(waitCtx, workflowRunId); err != nil {
+		if err2 := l.ensureListening(waitCtx); err2 != nil {
 			remove()
 			return err2
 		}
-		if err2 := l.retrySend(workflowRunId); err2 != nil {
+		if err2 := l.retrySend(waitCtx, workflowRunId); err2 != nil {
 			remove()
 			return err2
 		}
 	}
 
-	if err := l.ensureListening(lifecycle); err != nil {
+	if err := l.ensureListening(waitCtx); err != nil {
 		remove()
 		return err
 	}
@@ -201,8 +252,10 @@ func (l *WorkflowRunsListener) RemoveWorkflowRun(workflowRunId, sessionId string
 	l.reg.removeSession(workflowRunId, sessionId)
 }
 
-func (l *WorkflowRunsListener) retrySend(workflowRunId string) error {
-	return l.stream.RetrySend(l.stream.LifecycleContext(),
+// retrySend sends the subscription request with bounded retries. Reconnects
+// use the listener lifecycle; waitCtx only bounds the retry loop.
+func (l *WorkflowRunsListener) retrySend(waitCtx context.Context, workflowRunId string) error {
+	return l.stream.RetrySendWait(l.stream.LifecycleContext(), waitCtx,
 		func(c dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient) error {
 			return c.Send(&dispatchercontracts.SubscribeToWorkflowRunsRequest{WorkflowRunId: workflowRunId})
 		})
@@ -268,14 +321,17 @@ func (l *WorkflowRunsListener) runLoop(ctx context.Context) (err error) {
 	)
 }
 
-func (l *WorkflowRunsListener) ensureListening(ctx context.Context) error {
+// ensureListening connects the stream if needed and starts the background
+// listen loop. waitCtx only bounds the connect retries; the stream and the
+// loop run on the listener lifecycle.
+func (l *WorkflowRunsListener) ensureListening(waitCtx context.Context) error {
 	if l.stream.IsClosed() {
 		return errListenerClosed
 	}
 	if l.gate.active() {
 		return nil
 	}
-	if err := l.stream.ConnectSync(ctx); err != nil {
+	if err := l.stream.ConnectSyncWait(l.stream.LifecycleContext(), waitCtx); err != nil {
 		return err
 	}
 	if !l.gate.tryStart(l.stream.IsClosed()) {
