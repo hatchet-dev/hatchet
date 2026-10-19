@@ -20,6 +20,7 @@ import {
   EVENT_KEY,
   evictableSleepForGracefulTermination,
 } from './workflow';
+import { DURABLE_WAIT_MARKED } from './graceful-worker';
 
 const TS_NODE_BIN = require.resolve('ts-node/dist/bin.js');
 
@@ -519,14 +520,26 @@ describe('durable-eviction-e2e', () => {
       namespace,
     });
 
-    const workerProc = await spawnWorker('src/v1/examples/durable_eviction/worker.ts', {
+    const workerProc = await spawnWorker('src/v1/examples/durable_eviction/graceful-worker.ts', {
       ...process.env,
       HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED: 'true',
       HATCHET_CLIENT_WORKER_HEALTHCHECK_PORT: '8104',
       HATCHET_CLIENT_NAMESPACE: 'graceful-termination-evicts-waiting-runs',
     });
 
-    workerProc.stdout?.on('data', () => {});
+    // The engine's WAIT_FOR entry appears before the worker has processed the
+    // ack, and only a run the SDK has marked as waiting is evicted on
+    // shutdown, so the worker prints a line when that happens and the test
+    // waits for it as well.
+    let resolveWaitMarked: () => void = () => {};
+    const waitMarked = new Promise<void>((resolve) => {
+      resolveWaitMarked = resolve;
+    });
+    let workerStdout = '';
+    workerProc.stdout?.on('data', (chunk: Buffer) => {
+      workerStdout += chunk.toString();
+      if (workerStdout.includes(DURABLE_WAIT_MARKED)) resolveWaitMarked();
+    });
     workerProc.stderr?.on('data', () => {});
 
     try {
@@ -555,6 +568,12 @@ describe('durable-eviction-e2e', () => {
       const runId = await ref.getWorkflowRunId();
 
       await pollUntilDurableWaitRegistered(runId);
+      await Promise.race([
+        waitMarked,
+        sleep(30_000).then(() => {
+          throw new Error('worker did not mark the durable wait within 30000ms');
+        }),
+      ]);
 
       workerProc.kill('SIGTERM');
 
