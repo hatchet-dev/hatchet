@@ -154,6 +154,7 @@ import {
   WorkflowRunStatusList,
   WorkflowRunsCancelRequest,
   WorkflowRunsMetrics,
+  WorkflowTriggerType,
   WorkflowUpdateRequest,
   WorkflowVersion,
   WorkflowWorkersCount,
@@ -2486,6 +2487,10 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       limit?: number;
       /** Search by name */
       name?: string;
+      /** Only return paused (true) or unpaused (false) workflows */
+      isPaused?: boolean;
+      /** The trigger types to filter by */
+      triggerTypes?: WorkflowTriggerType[];
     },
     params: RequestParams = {}
   ) =>

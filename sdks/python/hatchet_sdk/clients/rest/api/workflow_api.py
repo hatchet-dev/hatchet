@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from typing_extensions import Annotated
 
 from datetime import datetime
-from pydantic import Field, StrictInt, StrictStr
+from pydantic import Field, StrictBool, StrictInt, StrictStr
 from typing import List, Optional
 from typing_extensions import Annotated
 from hatchet_sdk.clients.rest.models.cron_workflows import CronWorkflows
@@ -68,6 +68,7 @@ from hatchet_sdk.clients.rest.models.workflow_run_order_by_field import (
 from hatchet_sdk.clients.rest.models.workflow_run_shape import WorkflowRunShape
 from hatchet_sdk.clients.rest.models.workflow_run_status import WorkflowRunStatus
 from hatchet_sdk.clients.rest.models.workflow_runs_metrics import WorkflowRunsMetrics
+from hatchet_sdk.clients.rest.models.workflow_trigger_type import WorkflowTriggerType
 from hatchet_sdk.clients.rest.models.workflow_update_request import (
     WorkflowUpdateRequest,
 )
@@ -3240,6 +3241,16 @@ class WorkflowApi:
         name: Annotated[
             Optional[StrictStr], Field(description="Search by name")
         ] = None,
+        is_paused: Annotated[
+            Optional[StrictBool],
+            Field(
+                description="Only return paused (true) or unpaused (false) workflows"
+            ),
+        ] = None,
+        trigger_types: Annotated[
+            Optional[List[WorkflowTriggerType]],
+            Field(description="The trigger types to filter by"),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -3264,6 +3275,10 @@ class WorkflowApi:
         :type limit: int
         :param name: Search by name
         :type name: str
+        :param is_paused: Only return paused (true) or unpaused (false) workflows
+        :type is_paused: bool
+        :param trigger_types: The trigger types to filter by
+        :type trigger_types: List[WorkflowTriggerType]
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -3291,6 +3306,8 @@ class WorkflowApi:
             offset=offset,
             limit=limit,
             name=name,
+            is_paused=is_paused,
+            trigger_types=trigger_types,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -3329,6 +3346,16 @@ class WorkflowApi:
         name: Annotated[
             Optional[StrictStr], Field(description="Search by name")
         ] = None,
+        is_paused: Annotated[
+            Optional[StrictBool],
+            Field(
+                description="Only return paused (true) or unpaused (false) workflows"
+            ),
+        ] = None,
+        trigger_types: Annotated[
+            Optional[List[WorkflowTriggerType]],
+            Field(description="The trigger types to filter by"),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -3353,6 +3380,10 @@ class WorkflowApi:
         :type limit: int
         :param name: Search by name
         :type name: str
+        :param is_paused: Only return paused (true) or unpaused (false) workflows
+        :type is_paused: bool
+        :param trigger_types: The trigger types to filter by
+        :type trigger_types: List[WorkflowTriggerType]
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -3380,6 +3411,8 @@ class WorkflowApi:
             offset=offset,
             limit=limit,
             name=name,
+            is_paused=is_paused,
+            trigger_types=trigger_types,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -3418,6 +3451,16 @@ class WorkflowApi:
         name: Annotated[
             Optional[StrictStr], Field(description="Search by name")
         ] = None,
+        is_paused: Annotated[
+            Optional[StrictBool],
+            Field(
+                description="Only return paused (true) or unpaused (false) workflows"
+            ),
+        ] = None,
+        trigger_types: Annotated[
+            Optional[List[WorkflowTriggerType]],
+            Field(description="The trigger types to filter by"),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -3442,6 +3485,10 @@ class WorkflowApi:
         :type limit: int
         :param name: Search by name
         :type name: str
+        :param is_paused: Only return paused (true) or unpaused (false) workflows
+        :type is_paused: bool
+        :param trigger_types: The trigger types to filter by
+        :type trigger_types: List[WorkflowTriggerType]
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -3469,6 +3516,8 @@ class WorkflowApi:
             offset=offset,
             limit=limit,
             name=name,
+            is_paused=is_paused,
+            trigger_types=trigger_types,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -3491,6 +3540,8 @@ class WorkflowApi:
         offset,
         limit,
         name,
+        is_paused,
+        trigger_types,
         _request_auth,
         _content_type,
         _headers,
@@ -3499,7 +3550,9 @@ class WorkflowApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {}
+        _collection_formats: Dict[str, str] = {
+            "triggerTypes": "multi",
+        }
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -3525,6 +3578,14 @@ class WorkflowApi:
         if name is not None:
 
             _query_params.append(("name", name))
+
+        if is_paused is not None:
+
+            _query_params.append(("isPaused", is_paused))
+
+        if trigger_types is not None:
+
+            _query_params.append(("triggerTypes", trigger_types))
 
         # process the header parameters
         # process the form parameters

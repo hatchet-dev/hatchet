@@ -278,6 +278,7 @@ lib/hatchet-sdk-rest/models/workflow_runs_metrics_counts.rb
 lib/hatchet-sdk-rest/models/workflow_tag.rb
 lib/hatchet-sdk-rest/models/workflow_trigger_cron_ref.rb
 lib/hatchet-sdk-rest/models/workflow_trigger_event_ref.rb
+lib/hatchet-sdk-rest/models/workflow_trigger_type.rb
 lib/hatchet-sdk-rest/models/workflow_triggers.rb
 lib/hatchet-sdk-rest/models/workflow_update_request.rb
 lib/hatchet-sdk-rest/models/workflow_version.rb

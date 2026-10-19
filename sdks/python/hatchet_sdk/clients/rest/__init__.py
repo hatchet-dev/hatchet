@@ -467,6 +467,7 @@ from hatchet_sdk.clients.rest.models.workflow_trigger_cron_ref import (
 from hatchet_sdk.clients.rest.models.workflow_trigger_event_ref import (
     WorkflowTriggerEventRef,
 )
+from hatchet_sdk.clients.rest.models.workflow_trigger_type import WorkflowTriggerType
 from hatchet_sdk.clients.rest.models.workflow_triggers import WorkflowTriggers
 from hatchet_sdk.clients.rest.models.workflow_update_request import (
     WorkflowUpdateRequest,

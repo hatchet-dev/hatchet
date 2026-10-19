@@ -487,6 +487,7 @@ Class | Method | HTTP request | Description
  - [HatchetSdkRest::WorkflowTag](docs/WorkflowTag.md)
  - [HatchetSdkRest::WorkflowTriggerCronRef](docs/WorkflowTriggerCronRef.md)
  - [HatchetSdkRest::WorkflowTriggerEventRef](docs/WorkflowTriggerEventRef.md)
+ - [HatchetSdkRest::WorkflowTriggerType](docs/WorkflowTriggerType.md)
  - [HatchetSdkRest::WorkflowTriggers](docs/WorkflowTriggers.md)
  - [HatchetSdkRest::WorkflowUpdateRequest](docs/WorkflowUpdateRequest.md)
  - [HatchetSdkRest::WorkflowVersion](docs/WorkflowVersion.md)

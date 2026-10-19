@@ -258,6 +258,7 @@ HatchetSdkRest.autoload :WorkflowRunsMetricsCounts, 'hatchet-sdk-rest/models/wor
 HatchetSdkRest.autoload :WorkflowTag, 'hatchet-sdk-rest/models/workflow_tag'
 HatchetSdkRest.autoload :WorkflowTriggerCronRef, 'hatchet-sdk-rest/models/workflow_trigger_cron_ref'
 HatchetSdkRest.autoload :WorkflowTriggerEventRef, 'hatchet-sdk-rest/models/workflow_trigger_event_ref'
+HatchetSdkRest.autoload :WorkflowTriggerType, 'hatchet-sdk-rest/models/workflow_trigger_type'
 HatchetSdkRest.autoload :WorkflowTriggers, 'hatchet-sdk-rest/models/workflow_triggers'
 HatchetSdkRest.autoload :WorkflowUpdateRequest, 'hatchet-sdk-rest/models/workflow_update_request'
 HatchetSdkRest.autoload :WorkflowVersion, 'hatchet-sdk-rest/models/workflow_version'
