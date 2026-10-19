@@ -52,6 +52,7 @@
     "---Operations---",
     "middleware",
     "streaming",
+    "durable-streams",
     "environments",
     "troubleshooting",
     "---Custom plans---",
