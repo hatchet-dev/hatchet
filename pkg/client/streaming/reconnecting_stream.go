@@ -294,6 +294,10 @@ func (s *ReconnectingStream[C]) RetrySend(ctx context.Context, send func(C) erro
 func (s *ReconnectingStream[C]) RetrySendWait(ctx, waitCtx context.Context, send func(C) error) error {
 	var lastErr error
 	for attempt := 0; attempt < retry.StreamSyncMaxAttempts; attempt++ {
+		if err := waitCtx.Err(); err != nil {
+			return err
+		}
+
 		var gen uint64
 		err := func() error {
 			s.sendMu.Lock()

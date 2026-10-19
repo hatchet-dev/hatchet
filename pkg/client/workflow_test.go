@@ -279,3 +279,112 @@ func TestWorkflowResultWithContextEndsSendRetriesOnCancelAndKeepsListenerUsable(
 	require.NotNil(t, res)
 	assert.False(t, listener.reg.hasAny())
 }
+
+// subscribeAfterRelease returns a constructor that blocks until release is
+// closed, then hands out client. It models a dial that hangs past the
+// caller's deadline.
+func subscribeAfterRelease(release <-chan struct{}, client *mockSubscribeClient, calls *atomic.Int32) func(context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+	return func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+		calls.Add(1)
+		<-release
+		return client, nil
+	}
+}
+
+// assertListenerStillServes proves a later waiter on listener receives its
+// result through client.
+func assertListenerStillServes(t *testing.T, listener *WorkflowRunsListener, client *mockSubscribeClient, runID string) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	go func() {
+		require.Eventually(t, listener.reg.hasAny, time.Second, time.Millisecond)
+		client.recvChan <- &dispatchercontracts.WorkflowRunEvent{WorkflowRunId: runID}
+	}()
+
+	res, err := NewWorkflow(runID, listener).ResultWithContext(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, res)
+	assert.False(t, listener.reg.hasAny())
+}
+
+func TestWorkflowResultWithContextReturnsWhileDialBlocked(t *testing.T) {
+	logger := zerolog.Nop()
+	release := make(chan struct{})
+	constructorCalls := atomic.Int32{}
+	client := &mockSubscribeClient{
+		recvChan: make(chan *dispatchercontracts.WorkflowRunEvent, 1),
+	}
+
+	listener := newTestWorkflowRunsListener(t, &logger, subscribeAfterRelease(release, client, &constructorCalls), nil)
+	t.Cleanup(func() { _ = listener.Close() })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	defer cancel()
+
+	start := time.Now()
+	res, err := NewWorkflow("run-dial-blocked", listener).ResultWithContext(ctx)
+	require.Nil(t, res)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Contains(t, err.Error(), "run-dial-blocked")
+	assert.Less(t, time.Since(start), time.Second)
+
+	// The dial is still in flight: the caller did not wait for it.
+	assert.Equal(t, int32(1), constructorCalls.Load())
+	assert.False(t, listener.stream.IsClosed())
+
+	// Let the dial finish. The late success is undone and the listener,
+	// now connected, still serves a fresh waiter.
+	close(release)
+	require.Eventually(t, func() bool { return !listener.reg.hasAny() }, time.Second, time.Millisecond)
+	assertListenerStillServes(t, listener, client, "run-after-dial")
+}
+
+func TestWorkflowResultWithContextReturnsWhileSendBlocked(t *testing.T) {
+	logger := zerolog.Nop()
+	release := make(chan struct{})
+	sendBlocks := atomic.Bool{}
+	sendBlocks.Store(true)
+
+	client := &mockSubscribeClient{
+		recvChan: make(chan *dispatchercontracts.WorkflowRunEvent, 1),
+	}
+	client.sendFn = func(req *dispatchercontracts.SubscribeToWorkflowRunsRequest) error {
+		if sendBlocks.Load() {
+			<-release
+		}
+		return nil
+	}
+	listener := newTestWorkflowRunsListener(t, &logger, func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+		return client, nil
+	}, client)
+	t.Cleanup(func() { _ = listener.Close() })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	defer cancel()
+
+	// Call the listener directly: Workflow.result also removes the session
+	// itself on error, which would hide the late cleanup under test here.
+	start := time.Now()
+	err := listener.addWorkflowRunContext(ctx, "run-send-blocked", "session-1",
+		func(WorkflowRunEvent) error { return nil }, nil)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Contains(t, err.Error(), "run-send-blocked")
+	assert.Less(t, time.Since(start), time.Second)
+
+	// The Send is still in flight and its registration is still stored.
+	assert.Equal(t, int32(1), client.sendCount.Load())
+	assert.True(t, listener.reg.hasAny())
+	assert.False(t, listener.stream.IsClosed())
+
+	// Let the Send finish: it succeeds late and the detached cleanup removes
+	// the registration.
+	sendBlocks.Store(false)
+	close(release)
+	require.Eventually(t, func() bool { return !listener.reg.hasAny() }, time.Second, time.Millisecond)
+	assertListenerStillServes(t, listener, client, "run-after-send")
+}

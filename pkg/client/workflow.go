@@ -103,8 +103,11 @@ func (r *Workflow) Result() (*WorkflowResult, error) {
 // setup (connect and send retries with their backoff sleeps): if ctx ends
 // first, the wait stops and the returned error wraps ctx.Err(), so callers
 // can check errors.Is(err, context.DeadlineExceeded) or context.Canceled.
-// Ending the wait only drops this subscription; the shared listener stays
-// up for other waiters and the run itself keeps executing on the engine.
+// A connect or send attempt already in flight when ctx ends never blocks the
+// caller; it is left to finish in the background, bounded by the stream's
+// own lifecycle, and any registration it makes is removed. Ending the wait
+// only drops this subscription; the shared listener stays up for other
+// waiters and the run itself keeps executing on the engine.
 func (r *Workflow) ResultWithContext(ctx context.Context) (*WorkflowResult, error) {
 	return r.result(ctx)
 }

@@ -173,10 +173,12 @@ func (l *WorkflowRunsListener) addWorkflowRun(
 }
 
 // addWorkflowRunContext is addWorkflowRun with the subscription setup bounded
-// by ctx: the connect and send retries, and the backoff sleeps between them,
-// stop as soon as ctx ends. The shared stream itself is untouched; it keeps
-// reconnecting on the listener lifecycle for other waiters. When ctx ends the
-// handler is unregistered and the returned error wraps ctx.Err().
+// by ctx. The caller returns as soon as ctx ends, with an error wrapping
+// ctx.Err(), even if a connect or send attempt is still in flight: the
+// attempt is left to finish in the background and its registration is
+// removed if it succeeds late, so nothing is left behind. The shared stream
+// itself is untouched; it keeps reconnecting on the listener lifecycle for
+// other waiters.
 func (l *WorkflowRunsListener) addWorkflowRunContext(
 	ctx context.Context,
 	workflowRunId, sessionId string,
@@ -190,24 +192,45 @@ func (l *WorkflowRunsListener) addWorkflowRunContext(
 	// waitCtx ends when either the listener or the caller is done, without
 	// ever being handed to the stream constructor.
 	waitCtx, cancel := context.WithCancel(l.stream.LifecycleContext())
-	defer cancel()
 	stop := context.AfterFunc(ctx, cancel)
-	defer stop()
 
-	err := l.subscribe(waitCtx, workflowRunId, sessionId, handler, onError)
-	if err == nil {
-		return nil
-	}
+	done := make(chan error, 1)
+	go func() {
+		defer stop()
+		defer cancel()
+		done <- l.subscribe(waitCtx, workflowRunId, sessionId, handler, onError)
+	}()
 
-	ctxErr := ctx.Err()
-	if ctxErr == nil {
-		return err
+	select {
+	case err := <-done:
+		if err == nil {
+			return nil
+		}
+
+		ctxErr := ctx.Err()
+		if ctxErr == nil {
+			return err
+		}
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			// The retry loop stopped on waitCtx; report the caller's own error.
+			return fmt.Errorf("subscribing to workflow run %s: %w", workflowRunId, ctxErr)
+		}
+		return fmt.Errorf("subscribing to workflow run %s: %w (last attempt: %w)", workflowRunId, ctxErr, err)
+	case <-ctx.Done():
+		// The attempt in flight (a dial behind the connect singleflight, or a
+		// Send under sendMu) cannot be interrupted without touching the shared
+		// stream, so it is left to finish on its own. waitCtx is already
+		// cancelled through the AfterFunc, so the retry loop stops at its next
+		// check and this goroutine outlives the caller by at most that one
+		// attempt, bounded by the stream lifecycle. A late success is undone
+		// so no registration is left behind.
+		go func() {
+			if err := <-done; err == nil {
+				l.RemoveWorkflowRun(workflowRunId, sessionId)
+			}
+		}()
+		return fmt.Errorf("subscribing to workflow run %s: %w", workflowRunId, ctx.Err())
 	}
-	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-		// The retry loop stopped on waitCtx; report the caller's own error.
-		return fmt.Errorf("subscribing to workflow run %s: %w", workflowRunId, ctxErr)
-	}
-	return fmt.Errorf("subscribing to workflow run %s: %w (last attempt: %w)", workflowRunId, ctxErr, err)
 }
 
 // subscribe registers the handler and sends the subscription request. waitCtx
