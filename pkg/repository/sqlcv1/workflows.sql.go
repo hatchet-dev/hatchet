@@ -35,95 +35,51 @@ func (q *Queries) AddStepParents(ctx context.Context, db DBTX, arg AddStepParent
 }
 
 const countWorkflows = `-- name: CountWorkflows :one
-SELECT COUNT(*)
+SELECT COUNT(w.*)
 FROM "Workflow" w
 WHERE
-    w."tenantId" = $1::uuid AND
-    w."deletedAt" IS NULL AND
-    (
-        $2::text IS NULL OR
-        w.name iLIKE concat('%', $2::TEXT, '%')
-    ) AND
-    (
-        $3::boolean IS NULL OR
-        COALESCE(w."isPaused", FALSE) = $3::boolean
-    ) AND
-    (
-        $4::text[] IS NULL OR
-        (
-            'EVENT' = ANY($4::text[]) AND EXISTS (
-                SELECT 1
-                FROM "WorkflowTriggers" wt
-                JOIN "WorkflowTriggerEventRef" er ON er."parentId" = wt."id"
-                WHERE wt."workflowVersionId" = (
-                    SELECT wv."id"
-                    FROM "WorkflowVersion" wv
-                    WHERE wv."workflowId" = w."id" AND wv."deletedAt" IS NULL
-                    ORDER BY wv."order" DESC
-                    LIMIT 1
+    w."tenantId" = $1
+    AND w."deletedAt" IS NULL
+    AND (
+        $2::TEXT IS NULL OR
+        w."id" IN (
+            SELECT
+                DISTINCT ON(t1."workflowId") t1."workflowId"
+            FROM
+                "WorkflowVersion" AS t1
+                LEFT JOIN "WorkflowTriggers" AS j2 ON j2."workflowVersionId" = t1."id"
+            WHERE
+                (
+                    j2."id" IN (
+                        SELECT
+                            t3."parentId"
+                        FROM
+                            "WorkflowTriggerEventRef" AS t3
+                        WHERE
+                            t3."eventKey" = $2::text
+                            AND t3."parentId" IS NOT NULL
+                    )
+                    AND j2."id" IS NOT NULL
+                    AND t1."workflowId" IS NOT NULL
                 )
-            )
-        ) OR
-        (
-            'CRON' = ANY($4::text[]) AND EXISTS (
-                SELECT 1
-                FROM "WorkflowTriggers" wt
-                JOIN "WorkflowTriggerCronRef" cr ON cr."parentId" = wt."id"
-                WHERE
-                    cr."deletedAt" IS NULL
-                    AND cr."method" = 'DEFAULT'
-                    AND wt."workflowVersionId" = (
-                        SELECT wv."id"
-                        FROM "WorkflowVersion" wv
-                        WHERE wv."workflowId" = w."id" AND wv."deletedAt" IS NULL
-                        ORDER BY wv."order" DESC
-                        LIMIT 1
-                    )
-            )
-        ) OR
-        (
-            'NONE' = ANY($4::text[]) AND NOT EXISTS (
-                SELECT 1
-                FROM "WorkflowTriggers" wt
-                WHERE
-                    wt."workflowVersionId" = (
-                        SELECT wv."id"
-                        FROM "WorkflowVersion" wv
-                        WHERE wv."workflowId" = w."id" AND wv."deletedAt" IS NULL
-                        ORDER BY wv."order" DESC
-                        LIMIT 1
-                    )
-                    AND (
-                        EXISTS (
-                            SELECT 1 FROM "WorkflowTriggerEventRef" er
-                            WHERE er."parentId" = wt."id"
-                        ) OR
-                        EXISTS (
-                            SELECT 1 FROM "WorkflowTriggerCronRef" cr
-                            WHERE cr."parentId" = wt."id" AND cr."deletedAt" IS NULL AND cr."method" = 'DEFAULT'
-                        )
-                    )
-            )
+            ORDER BY
+                t1."workflowId" DESC, t1."order" DESC
         )
+    )
+    AND (
+        $3::TEXT IS NULL
+        OR w.name ILIKE CONCAT('%', $3::TEXT, '%')
     )
 `
 
 type CountWorkflowsParams struct {
-	Tenantid     uuid.UUID   `json:"tenantid"`
-	Search       pgtype.Text `json:"search"`
-	IsPaused     pgtype.Bool `json:"isPaused"`
-	TriggerTypes []string    `json:"triggerTypes"`
+	TenantId uuid.UUID   `json:"tenantId"`
+	EventKey pgtype.Text `json:"eventKey"`
+	Search   pgtype.Text `json:"search"`
 }
 
-// Same filters as ListWorkflows. No joins, so with no trigger filter this is a plain scan of the
-// tenant's workflows, also under a generic plan.
 func (q *Queries) CountWorkflows(ctx context.Context, db DBTX, arg CountWorkflowsParams) (int64, error) {
-	row := db.QueryRow(ctx, countWorkflows,
-		arg.Tenantid,
-		arg.Search,
-		arg.IsPaused,
-		arg.TriggerTypes,
-	)
+	row := db.QueryRow(ctx, countWorkflows, arg.TenantId, arg.EventKey, arg.Search)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -2150,76 +2106,14 @@ WITH page AS (
         (
             $3::text IS NULL OR
             w.name iLIKE concat('%', $3::TEXT, '%')
-        ) AND
-        (
-            $4::boolean IS NULL OR
-            COALESCE(w."isPaused", FALSE) = $4::boolean
-        ) AND
-        (
-            $5::text[] IS NULL OR
-            (
-                'EVENT' = ANY($5::text[]) AND EXISTS (
-                    SELECT 1
-                    FROM "WorkflowTriggers" wt
-                    JOIN "WorkflowTriggerEventRef" er ON er."parentId" = wt."id"
-                    WHERE wt."workflowVersionId" = (
-                        SELECT wv."id"
-                        FROM "WorkflowVersion" wv
-                        WHERE wv."workflowId" = w."id" AND wv."deletedAt" IS NULL
-                        ORDER BY wv."order" DESC
-                        LIMIT 1
-                    )
-                )
-            ) OR
-            (
-                'CRON' = ANY($5::text[]) AND EXISTS (
-                    SELECT 1
-                    FROM "WorkflowTriggers" wt
-                    JOIN "WorkflowTriggerCronRef" cr ON cr."parentId" = wt."id"
-                    WHERE
-                        cr."deletedAt" IS NULL
-                        AND cr."method" = 'DEFAULT'
-                        AND wt."workflowVersionId" = (
-                            SELECT wv."id"
-                            FROM "WorkflowVersion" wv
-                            WHERE wv."workflowId" = w."id" AND wv."deletedAt" IS NULL
-                            ORDER BY wv."order" DESC
-                            LIMIT 1
-                        )
-                )
-            ) OR
-            (
-                'NONE' = ANY($5::text[]) AND NOT EXISTS (
-                    SELECT 1
-                    FROM "WorkflowTriggers" wt
-                    WHERE
-                        wt."workflowVersionId" = (
-                            SELECT wv."id"
-                            FROM "WorkflowVersion" wv
-                            WHERE wv."workflowId" = w."id" AND wv."deletedAt" IS NULL
-                            ORDER BY wv."order" DESC
-                            LIMIT 1
-                        )
-                        AND (
-                            EXISTS (
-                                SELECT 1 FROM "WorkflowTriggerEventRef" er
-                                WHERE er."parentId" = wt."id"
-                            ) OR
-                            EXISTS (
-                                SELECT 1 FROM "WorkflowTriggerCronRef" cr
-                                WHERE cr."parentId" = wt."id" AND cr."deletedAt" IS NULL AND cr."method" = 'DEFAULT'
-                            )
-                        )
-                )
-            )
         )
     ORDER BY
         case when $1 = 'createdAt ASC' THEN w."createdAt" END ASC ,
         case when $1 = 'createdAt DESC' then w."createdAt" END DESC
     OFFSET
-        COALESCE($6, 0)
+        COALESCE($4, 0)
     LIMIT
-        COALESCE($7, 50)
+        COALESCE($5, 50)
 )
 SELECT
     workflows.id, workflows."createdAt", workflows."updatedAt", workflows."deletedAt", workflows."tenantId", workflows.name, workflows.description, workflows."isPaused", workflows."pausedWorkflowCronRunQueueBehavior", workflows."pausedWorkflowScheduledRunQueueBehavior", workflows."pausedWorkflowQueueTTL",
@@ -2263,13 +2157,11 @@ ORDER BY
 `
 
 type ListWorkflowsParams struct {
-	Orderby      interface{} `json:"orderby"`
-	Tenantid     uuid.UUID   `json:"tenantid"`
-	Search       pgtype.Text `json:"search"`
-	IsPaused     pgtype.Bool `json:"isPaused"`
-	TriggerTypes []string    `json:"triggerTypes"`
-	Offset       interface{} `json:"offset"`
-	Limit        interface{} `json:"limit"`
+	Orderby  interface{} `json:"orderby"`
+	Tenantid uuid.UUID   `json:"tenantid"`
+	Search   pgtype.Text `json:"search"`
+	Offset   interface{} `json:"offset"`
+	Limit    interface{} `json:"limit"`
 }
 
 type ListWorkflowsRow struct {
@@ -2290,8 +2182,6 @@ func (q *Queries) ListWorkflows(ctx context.Context, db DBTX, arg ListWorkflowsP
 		arg.Orderby,
 		arg.Tenantid,
 		arg.Search,
-		arg.IsPaused,
-		arg.TriggerTypes,
 		arg.Offset,
 		arg.Limit,
 	)

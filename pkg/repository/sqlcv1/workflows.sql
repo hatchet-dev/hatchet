@@ -805,68 +805,6 @@ WITH page AS (
         (
             sqlc.narg('search')::text IS NULL OR
             w.name iLIKE concat('%', sqlc.narg('search')::TEXT, '%')
-        ) AND
-        (
-            sqlc.narg('isPaused')::boolean IS NULL OR
-            COALESCE(w."isPaused", FALSE) = sqlc.narg('isPaused')::boolean
-        ) AND
-        (
-            sqlc.narg('triggerTypes')::text[] IS NULL OR
-            (
-                'EVENT' = ANY(sqlc.narg('triggerTypes')::text[]) AND EXISTS (
-                    SELECT 1
-                    FROM "WorkflowTriggers" wt
-                    JOIN "WorkflowTriggerEventRef" er ON er."parentId" = wt."id"
-                    WHERE wt."workflowVersionId" = (
-                        SELECT wv."id"
-                        FROM "WorkflowVersion" wv
-                        WHERE wv."workflowId" = w."id" AND wv."deletedAt" IS NULL
-                        ORDER BY wv."order" DESC
-                        LIMIT 1
-                    )
-                )
-            ) OR
-            (
-                'CRON' = ANY(sqlc.narg('triggerTypes')::text[]) AND EXISTS (
-                    SELECT 1
-                    FROM "WorkflowTriggers" wt
-                    JOIN "WorkflowTriggerCronRef" cr ON cr."parentId" = wt."id"
-                    WHERE
-                        cr."deletedAt" IS NULL
-                        AND cr."method" = 'DEFAULT'
-                        AND wt."workflowVersionId" = (
-                            SELECT wv."id"
-                            FROM "WorkflowVersion" wv
-                            WHERE wv."workflowId" = w."id" AND wv."deletedAt" IS NULL
-                            ORDER BY wv."order" DESC
-                            LIMIT 1
-                        )
-                )
-            ) OR
-            (
-                'NONE' = ANY(sqlc.narg('triggerTypes')::text[]) AND NOT EXISTS (
-                    SELECT 1
-                    FROM "WorkflowTriggers" wt
-                    WHERE
-                        wt."workflowVersionId" = (
-                            SELECT wv."id"
-                            FROM "WorkflowVersion" wv
-                            WHERE wv."workflowId" = w."id" AND wv."deletedAt" IS NULL
-                            ORDER BY wv."order" DESC
-                            LIMIT 1
-                        )
-                        AND (
-                            EXISTS (
-                                SELECT 1 FROM "WorkflowTriggerEventRef" er
-                                WHERE er."parentId" = wt."id"
-                            ) OR
-                            EXISTS (
-                                SELECT 1 FROM "WorkflowTriggerCronRef" cr
-                                WHERE cr."parentId" = wt."id" AND cr."deletedAt" IS NULL AND cr."method" = 'DEFAULT'
-                            )
-                        )
-                )
-            )
         )
     ORDER BY
         case when @orderBy = 'createdAt ASC' THEN w."createdAt" END ASC ,
@@ -917,79 +855,42 @@ ORDER BY
     case when @orderBy = 'createdAt DESC' then workflows."createdAt" END DESC;
 
 -- name: CountWorkflows :one
--- Same filters as ListWorkflows. No joins, so with no trigger filter this is a plain scan of the
--- tenant's workflows, also under a generic plan.
-SELECT COUNT(*)
+SELECT COUNT(w.*)
 FROM "Workflow" w
 WHERE
-    w."tenantId" = @tenantId::uuid AND
-    w."deletedAt" IS NULL AND
-    (
-        sqlc.narg('search')::text IS NULL OR
-        w.name iLIKE concat('%', sqlc.narg('search')::TEXT, '%')
-    ) AND
-    (
-        sqlc.narg('isPaused')::boolean IS NULL OR
-        COALESCE(w."isPaused", FALSE) = sqlc.narg('isPaused')::boolean
-    ) AND
-    (
-        sqlc.narg('triggerTypes')::text[] IS NULL OR
-        (
-            'EVENT' = ANY(sqlc.narg('triggerTypes')::text[]) AND EXISTS (
-                SELECT 1
-                FROM "WorkflowTriggers" wt
-                JOIN "WorkflowTriggerEventRef" er ON er."parentId" = wt."id"
-                WHERE wt."workflowVersionId" = (
-                    SELECT wv."id"
-                    FROM "WorkflowVersion" wv
-                    WHERE wv."workflowId" = w."id" AND wv."deletedAt" IS NULL
-                    ORDER BY wv."order" DESC
-                    LIMIT 1
+    w."tenantId" = $1
+    AND w."deletedAt" IS NULL
+    AND (
+        sqlc.narg('eventKey')::TEXT IS NULL OR
+        w."id" IN (
+            SELECT
+                DISTINCT ON(t1."workflowId") t1."workflowId"
+            FROM
+                "WorkflowVersion" AS t1
+                LEFT JOIN "WorkflowTriggers" AS j2 ON j2."workflowVersionId" = t1."id"
+            WHERE
+                (
+                    j2."id" IN (
+                        SELECT
+                            t3."parentId"
+                        FROM
+                            "WorkflowTriggerEventRef" AS t3
+                        WHERE
+                            t3."eventKey" = sqlc.narg('eventKey')::text
+                            AND t3."parentId" IS NOT NULL
+                    )
+                    AND j2."id" IS NOT NULL
+                    AND t1."workflowId" IS NOT NULL
                 )
-            )
-        ) OR
-        (
-            'CRON' = ANY(sqlc.narg('triggerTypes')::text[]) AND EXISTS (
-                SELECT 1
-                FROM "WorkflowTriggers" wt
-                JOIN "WorkflowTriggerCronRef" cr ON cr."parentId" = wt."id"
-                WHERE
-                    cr."deletedAt" IS NULL
-                    AND cr."method" = 'DEFAULT'
-                    AND wt."workflowVersionId" = (
-                        SELECT wv."id"
-                        FROM "WorkflowVersion" wv
-                        WHERE wv."workflowId" = w."id" AND wv."deletedAt" IS NULL
-                        ORDER BY wv."order" DESC
-                        LIMIT 1
-                    )
-            )
-        ) OR
-        (
-            'NONE' = ANY(sqlc.narg('triggerTypes')::text[]) AND NOT EXISTS (
-                SELECT 1
-                FROM "WorkflowTriggers" wt
-                WHERE
-                    wt."workflowVersionId" = (
-                        SELECT wv."id"
-                        FROM "WorkflowVersion" wv
-                        WHERE wv."workflowId" = w."id" AND wv."deletedAt" IS NULL
-                        ORDER BY wv."order" DESC
-                        LIMIT 1
-                    )
-                    AND (
-                        EXISTS (
-                            SELECT 1 FROM "WorkflowTriggerEventRef" er
-                            WHERE er."parentId" = wt."id"
-                        ) OR
-                        EXISTS (
-                            SELECT 1 FROM "WorkflowTriggerCronRef" cr
-                            WHERE cr."parentId" = wt."id" AND cr."deletedAt" IS NULL AND cr."method" = 'DEFAULT'
-                        )
-                    )
-            )
+            ORDER BY
+                t1."workflowId" DESC, t1."order" DESC
         )
-    );
+    )
+    AND (
+        sqlc.narg('search')::TEXT IS NULL
+        OR w.name ILIKE CONCAT('%', sqlc.narg('search')::TEXT, '%')
+    )
+;
 
 -- name: PauseWorkflow :one
 UPDATE "Workflow"

@@ -162,8 +162,6 @@ WorkflowTag:
   $ref: "./workflow.yaml#/WorkflowTag"
 WorkflowList:
   $ref: "./workflow.yaml#/WorkflowList"
-WorkflowTriggerType:
-  $ref: "./workflow.yaml#/WorkflowTriggerType"
 WorkflowTriggers:
   $ref: "./workflow.yaml#/WorkflowTriggers"
 WorkflowTriggerEventRef:

@@ -200,13 +200,13 @@ const (
 
 // Defines values for TenantResource.
 const (
-	TenantResourceCRON            TenantResource = "CRON"
-	TenantResourceEVENT           TenantResource = "EVENT"
-	TenantResourceINCOMINGWEBHOOK TenantResource = "INCOMING_WEBHOOK"
-	TenantResourceSCHEDULE        TenantResource = "SCHEDULE"
-	TenantResourceTASKRUN         TenantResource = "TASK_RUN"
-	TenantResourceWORKER          TenantResource = "WORKER"
-	TenantResourceWORKERSLOT      TenantResource = "WORKER_SLOT"
+	CRON            TenantResource = "CRON"
+	EVENT           TenantResource = "EVENT"
+	INCOMINGWEBHOOK TenantResource = "INCOMING_WEBHOOK"
+	SCHEDULE        TenantResource = "SCHEDULE"
+	TASKRUN         TenantResource = "TASK_RUN"
+	WORKER          TenantResource = "WORKER"
+	WORKERSLOT      TenantResource = "WORKER_SLOT"
 )
 
 // Defines values for TenantVersion.
@@ -411,13 +411,6 @@ const (
 	QUEUED    WorkflowRunStatus = "QUEUED"
 	RUNNING   WorkflowRunStatus = "RUNNING"
 	SUCCEEDED WorkflowRunStatus = "SUCCEEDED"
-)
-
-// Defines values for WorkflowTriggerType.
-const (
-	WorkflowTriggerTypeCRON  WorkflowTriggerType = "CRON"
-	WorkflowTriggerTypeEVENT WorkflowTriggerType = "EVENT"
-	WorkflowTriggerTypeNONE  WorkflowTriggerType = "NONE"
 )
 
 // APIError defines model for APIError.
@@ -2717,9 +2710,6 @@ type WorkflowTriggerEventRef struct {
 	ParentId *string `json:"parent_id,omitempty"`
 }
 
-// WorkflowTriggerType defines model for WorkflowTriggerType.
-type WorkflowTriggerType string
-
 // WorkflowTriggers defines model for WorkflowTriggers.
 type WorkflowTriggers struct {
 	Crons             *[]WorkflowTriggerCronRef  `json:"crons,omitempty"`
@@ -3279,12 +3269,6 @@ type WorkflowListParams struct {
 
 	// Name Search by name
 	Name *string `form:"name,omitempty" json:"name,omitempty"`
-
-	// IsPaused Only return paused (true) or unpaused (false) workflows
-	IsPaused *bool `form:"isPaused,omitempty" json:"isPaused,omitempty"`
-
-	// TriggerTypes The trigger types to filter by
-	TriggerTypes *[]WorkflowTriggerType `form:"triggerTypes,omitempty" json:"triggerTypes,omitempty"`
 }
 
 // CronWorkflowListParams defines parameters for CronWorkflowList.
@@ -12733,38 +12717,6 @@ func NewWorkflowListRequest(server string, tenant openapi_types.UUID, params *Wo
 		if params.Name != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "name", runtime.ParamLocationQuery, *params.Name); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.IsPaused != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "isPaused", runtime.ParamLocationQuery, *params.IsPaused); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.TriggerTypes != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "triggerTypes", runtime.ParamLocationQuery, *params.TriggerTypes); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err

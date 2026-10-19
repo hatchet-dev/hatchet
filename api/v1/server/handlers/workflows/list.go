@@ -40,16 +40,9 @@ func (t *WorkflowService) WorkflowList(ctx echo.Context, request gen.WorkflowLis
 	}
 
 	listOpts := &v1.ListWorkflowsOpts{
-		Limit:    &limit,
-		Offset:   &offset,
-		Name:     &name,
-		IsPaused: request.Params.IsPaused,
-	}
-
-	if request.Params.TriggerTypes != nil {
-		for _, triggerType := range *request.Params.TriggerTypes {
-			listOpts.TriggerTypes = append(listOpts.TriggerTypes, string(triggerType))
-		}
+		Limit:  &limit,
+		Offset: &offset,
+		Name:   &name,
 	}
 
 	listResp, err := t.config.V1.Workflows().ListWorkflows(tenantId, listOpts)

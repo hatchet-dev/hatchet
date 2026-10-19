@@ -183,12 +183,6 @@ export enum WorkflowPauseScheduledCronRunQueueBehavior {
   QUEUE = 'QUEUE',
 }
 
-export enum WorkflowTriggerType {
-  EVENT = 'EVENT',
-  CRON = 'CRON',
-  NONE = 'NONE',
-}
-
 export enum RateLimitOrderByDirection {
   Asc = 'asc',
   Desc = 'desc',

@@ -107,13 +107,6 @@ WorkflowTag:
     - name
     - color
 
-WorkflowTriggerType:
-  type: string
-  enum:
-    - EVENT
-    - CRON
-    - NONE
-
 WorkflowList:
   type: object
   properties:

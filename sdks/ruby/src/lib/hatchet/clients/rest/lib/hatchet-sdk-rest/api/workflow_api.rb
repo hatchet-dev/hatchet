@@ -861,8 +861,6 @@ module HatchetSdkRest
     # @option opts [Integer] :offset The number to skip (default to 0)
     # @option opts [Integer] :limit The number to limit by (default to 50)
     # @option opts [String] :name Search by name
-    # @option opts [Boolean] :is_paused Only return paused (true) or unpaused (false) workflows
-    # @option opts [Array<WorkflowTriggerType>] :trigger_types The trigger types to filter by
     # @return [WorkflowList]
     def workflow_list(tenant, opts = {})
       data, _status_code, _headers = workflow_list_with_http_info(tenant, opts)
@@ -876,8 +874,6 @@ module HatchetSdkRest
     # @option opts [Integer] :offset The number to skip (default to 0)
     # @option opts [Integer] :limit The number to limit by (default to 50)
     # @option opts [String] :name Search by name
-    # @option opts [Boolean] :is_paused Only return paused (true) or unpaused (false) workflows
-    # @option opts [Array<WorkflowTriggerType>] :trigger_types The trigger types to filter by
     # @return [Array<(WorkflowList, Integer, Hash)>] WorkflowList data, response status code and response headers
     def workflow_list_with_http_info(tenant, opts = {})
       if @api_client.config.debugging
@@ -903,8 +899,6 @@ module HatchetSdkRest
       query_params[:'offset'] = opts[:'offset'] if !opts[:'offset'].nil?
       query_params[:'limit'] = opts[:'limit'] if !opts[:'limit'].nil?
       query_params[:'name'] = opts[:'name'] if !opts[:'name'].nil?
-      query_params[:'isPaused'] = opts[:'is_paused'] if !opts[:'is_paused'].nil?
-      query_params[:'triggerTypes'] = @api_client.build_collection_param(opts[:'trigger_types'], :multi) if !opts[:'trigger_types'].nil?
 
       # header parameters
       header_params = opts[:header_params] || {}

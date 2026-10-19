@@ -2,7 +2,7 @@ import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { WorkflowTriggers } from '@/components/v1/molecules/workflow-triggers/workflow-triggers';
 import { Badge } from '@/components/v1/ui/badge';
-import { Workflow, WorkflowTriggerType } from '@/lib/api';
+import { Workflow } from '@/lib/api';
 import { appRoutes } from '@/router';
 import { ChevronRightIcon } from '@radix-ui/react-icons';
 import { Link } from '@tanstack/react-router';
@@ -18,22 +18,11 @@ export const WorkflowColumn = {
 
 type WorkflowColumnKeys = keyof typeof WorkflowColumn;
 
-export const statusKey: WorkflowColumnKeys = 'status';
+const statusKey: WorkflowColumnKeys = 'status';
 export const nameKey: WorkflowColumnKeys = 'name';
-export const triggersKey: WorkflowColumnKeys = 'triggers';
+const triggersKey: WorkflowColumnKeys = 'triggers';
 const lastDeployedKey: WorkflowColumnKeys = 'lastDeployed';
 const createdAtKey: WorkflowColumnKeys = 'createdAt';
-
-export const workflowStatusFilters = [
-  { value: 'ACTIVE', label: 'Active' },
-  { value: 'PAUSED', label: 'Paused' },
-];
-
-export const workflowTriggerTypeFilters = [
-  { value: WorkflowTriggerType.EVENT, label: 'Event' },
-  { value: WorkflowTriggerType.CRON, label: 'Cron' },
-  { value: WorkflowTriggerType.NONE, label: 'None' },
-];
 
 export const columns: (tenantId: string) => ColumnDef<Workflow>[] = (
   tenantId,
