@@ -80,9 +80,9 @@ func TestWorkflowResultFailsWhenListenerDiesPermanently(t *testing.T) {
 	require.NoError(t, listener.Close())
 }
 
-// newSubscribedWorkflow returns a Workflow whose listener accepts
-// subscriptions and delivers events pushed onto the returned client's
-// recvChan.
+// newSubscribedWorkflow stands in for an engine connection: these tests need
+// a listener that subscribes without error so they can exercise the wait
+// loop alone, and a handle to feed it the terminal event at a chosen moment.
 func newSubscribedWorkflow(t *testing.T, runID string) (*Workflow, *WorkflowRunsListener, *mockSubscribeClient) {
 	t.Helper()
 
@@ -272,7 +272,10 @@ func TestWorkflowResultWithContextEndsSendRetriesOnCancelAndKeepsListenerUsable(
 	assertListenerStillServes(t, listener, client, "run-after-cancel")
 }
 
-// hasRegistration reports whether any handler is registered for runID.
+// hasRegistration checks one run rather than reg.hasAny: an interrupted
+// subscribe stores and then rolls back its own registration, and keying a
+// second waiter's event on hasAny let that stale entry trigger the push
+// before the second waiter was registered, which dropped the event.
 func hasRegistration(listener *WorkflowRunsListener, runID string) bool {
 	return len(listener.reg.snapshot(runID)) > 0
 }
