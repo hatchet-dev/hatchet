@@ -1409,11 +1409,33 @@ func (s *DispatcherImpl) taskEventsToWorkflowRunEvent(ctx context.Context, tenan
 					}
 
 					if len(childEvents) > 0 {
+						childHasError := false
+
 						for _, ce := range childEvents {
 							if r := leafResult(ce); r != nil {
 								stepRunResults = append(stepRunResults, r)
+
+								if r.Error != nil && *r.Error != "" {
+									childHasError = true
+								}
 							}
 						}
+
+						// The orchestrator failed or was cancelled. When a child failed, its result
+						// already signals the failure (the orchestrator's message normally just
+						// restates it), so the result set matches the non-operator path's single
+						// FAILED task. Otherwise the DAG failed at the orchestrator level (non-determinism on
+						// replay, a condition that could not be evaluated, an engine error) and
+						// every child result is COMPLETED, so the orchestrator's own result is the
+						// only thing that tells the client the run failed, the way a failed task's
+						// result does on the non-operator path. A cancelled orchestrator carries no
+						// message, and its cancelled children already represent the cancellation.
+						if !childHasError && event.ErrorMessage != "" {
+							if r := leafResult(event); r != nil {
+								stepRunResults = append(stepRunResults, r)
+							}
+						}
+
 						continue
 					}
 				}

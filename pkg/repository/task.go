@@ -5395,6 +5395,9 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 	outputs := make(map[string][]byte)
 	errors := make(map[string]string)
 
+	var orchestratorEvent *TaskOutputEvent
+	childHasError := false
+
 	for _, finalizedRun := range finalizedWorkflowRuns {
 		for _, event := range finalizedRun.OutputEvents {
 			status, err := statusutils.V1RunStatusFromEventType(event.EventType)
@@ -5407,7 +5410,12 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 
 			if isOperatorDAG && event.IsDagOrchestrator {
 				orchestratorStatus = status
+				orchestratorEvent = event
 				continue
+			}
+
+			if event.ErrorMessage != "" {
+				childHasError = true
 			}
 
 			outputs[event.StepReadableID] = event.Output
@@ -5419,6 +5427,21 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 				Error:         &event.ErrorMessage,
 				ExternalId:    event.TaskExternalId,
 			}
+		}
+	}
+
+	// A failed orchestrator whose children all completed means the DAG failed at the orchestrator
+	// level (non-determinism on replay, a condition that could not be evaluated, an engine error).
+	// The orchestrator is hidden from the task runs, so without this entry the run reports FAILED
+	// with no error anywhere and result readers return the children's outputs as if the run had
+	// succeeded. A failed child already carries the failure, so the orchestrator stays hidden in
+	// that case, as on the non-operator path; a cancelled orchestrator carries no message and its
+	// cancelled children already represent the cancellation.
+	if orchestratorEvent != nil && !orchestratorEvent.IsCompleted() && !childHasError && orchestratorEvent.ErrorMessage != "" {
+		taskRunDetails[StepReadableId(orchestratorEvent.StepReadableID)] = TaskRunDetails{
+			Status:     *orchestratorStatus,
+			Error:      &orchestratorEvent.ErrorMessage,
+			ExternalId: orchestratorEvent.TaskExternalId,
 		}
 	}
 
