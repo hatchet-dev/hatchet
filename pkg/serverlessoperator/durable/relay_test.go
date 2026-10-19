@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -28,7 +29,7 @@ import (
 
 const (
 	eventually = 5 * time.Second
-	testSecret = "s3cret"
+	testSecret = "test-signing-secret-0123456789abcdef"
 	testTaskId = "11111111-1111-1111-1111-111111111111"
 )
 
@@ -50,6 +51,8 @@ type fakeEndpoint struct {
 }
 
 func newFakeEndpoint(t *testing.T, run scenario) *fakeEndpoint {
+	skipWithoutWebsocketHandshake(t)
+
 	t.Helper()
 
 	ep := &fakeEndpoint{
@@ -446,7 +449,7 @@ func TestRelayUpgradeRejected(t *testing.T) {
 
 	t.Run("bad hmac", func(t *testing.T) {
 		p := testParams(ep, newFakeChannel())
-		p.Secret = "wrong"
+		p.Secret = "wrong-signing-secret-0123456789abcdef"
 
 		out := await(t, run(context.Background(), p))
 		assert.Equal(t, KindFailed, out.Kind)
@@ -1055,4 +1058,14 @@ func TestTransportMessageRedactsAddresses(t *testing.T) {
 	assert.Contains(t, msg, "endpoint.example.test")
 	assert.NotContains(t, msg, "203.0.113.9")
 	assert.NotContains(t, msg, "marker")
+}
+
+// skipWithoutWebsocketHandshake skips a test that upgrades a websocket: the RFC 6455
+// handshake is specified over SHA-1, which GODEBUG=fips140=only refuses.
+func skipWithoutWebsocketHandshake(t *testing.T) {
+	t.Helper()
+
+	if !encryption.SHA1Allowed() {
+		t.Skip("websocket handshakes need SHA-1, which fips140=only refuses")
+	}
 }

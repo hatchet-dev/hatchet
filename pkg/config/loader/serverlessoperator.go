@@ -3,6 +3,7 @@ package loader
 import (
 	"context"
 	"fmt"
+	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
@@ -24,6 +25,10 @@ func LoadServerlessOperatorConfigFile() (*serverlessoperatorconfig.ConfigFile, e
 	}
 
 	if err := cf.Validate(); err != nil {
+		return nil, err
+	}
+
+	if err := serverlessoperator.CheckRuntimeSupport(); err != nil {
 		return nil, err
 	}
 

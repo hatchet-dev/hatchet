@@ -51,6 +51,8 @@ func dialParams(url string) Params {
 // the operator allocate an arbitrarily large header block. The limit has to bound the
 // decrypted HTTP bytes, so the TLS case is checked as well as the plain one.
 func TestDialRejectsOversizedUpgradeHeaders(t *testing.T) {
+	skipWithoutWebsocketHandshake(t)
+
 	const headerBytes = 16 * 1024 * 1024
 
 	t.Run("plain", func(t *testing.T) {

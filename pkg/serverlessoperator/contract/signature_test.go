@@ -16,12 +16,12 @@ func TestSignature(t *testing.T) {
 		{
 			name: "should hash",
 			run: func(t *testing.T) {
-				actual, err := Sign("hello world", "secret")
+				actual, err := Sign("hello world", "test-signing-secret-0123456789abcdef")
 				if err != nil {
 					t.Fatal(err)
 				}
 
-				expected := "734cc62f32841568f45715aeb9f4d7891324e6d948e4c6c60c0621cdac48623a"
+				expected := "2b4d2a1858d8dbcc64653ea5463be91d97665406c46a12cd5ebdeb92cbe63a05"
 
 				assert.Equal(t, expected, actual)
 			},
@@ -35,11 +35,11 @@ func TestSignature(t *testing.T) {
 }
 
 func TestVerify(t *testing.T) {
-	sig, err := Sign("hello world", "secret")
+	sig, err := Sign("hello world", "test-signing-secret-0123456789abcdef")
 	assert.NoError(t, err)
 
-	assert.True(t, Verify("hello world", "secret", sig))
-	assert.False(t, Verify("hello world", "secret", "deadbeef"))
-	assert.False(t, Verify("hello world", "wrong-secret", sig))
-	assert.False(t, Verify("tampered", "secret", sig))
+	assert.True(t, Verify("hello world", "test-signing-secret-0123456789abcdef", sig))
+	assert.False(t, Verify("hello world", "test-signing-secret-0123456789abcdef", "deadbeef"))
+	assert.False(t, Verify("hello world", "wrong-signing-secret-0123456789abcdef", sig))
+	assert.False(t, Verify("tampered", "test-signing-secret-0123456789abcdef", sig))
 }
