@@ -102,20 +102,28 @@ func TestCreatedTaskStoresTheWrappedStepRunDataWhenWrappingIsOn(t *testing.T) {
 	assertStepRunDataReadsBackTheTaskInput(t, task, inserted.TaskInputPayload)
 }
 
-func TestReplayAfterWrappingIsTurnedOffStoresTheNewVersionAndAReplayWithoutInputKeepsIt(t *testing.T) {
-	shared, _, task := insertTaskWithTriggersAndDagParents(t, true)
-	shared.wrapTaskInputInStepRunData = false
+func TestReplayKeepsTheTaskInputPayloadVersionTheTaskWasCreatedWith(t *testing.T) {
+	for _, wrapTaskInputInStepRunDataAtCreation := range []bool{true, false} {
+		shared, inserted, task := insertTaskWithTriggersAndDagParents(t, wrapTaskInputInStepRunDataAtCreation)
+		shared.wrapTaskInputInStepRunData = !wrapTaskInputInStepRunDataAtCreation
 
-	replayed := replayTaskWithInput(t, shared, task, &TaskInput{Input: map[string]interface{}{"order_id": 2}})
+		version := TaskInputPayloadVersion(task.TaskInputPayloadVersion)
+		replayed := replayTaskWithInput(t, shared, task, shared.newTaskInputFromTaskInputPayload(version, inserted.TaskInputPayload))
 
-	assert.JSONEq(t, `{"order_id": 2}`, string(replayed.TaskInputPayload))
-	assert.Equal(t, int16(TaskInputPayloadVersionUserInputOnly), replayed.TaskInputPayloadVersion)
+		replayedTasks, err := shared.listTasks(context.Background(), shared.pool, internalTenantId, []int64{task.ID})
+		require.NoError(t, err)
+		require.Len(t, replayedTasks, 1)
 
-	shared.wrapTaskInputInStepRunData = true
+		assert.Equal(t, task.TaskInputPayloadVersion, replayedTasks[0].TaskInputPayloadVersion)
 
-	replayedWithoutInput := replayTaskWithInput(t, shared, task, nil)
+		data, err := NewV1StepRunDataFromTaskAndInputPayload(replayedTasks[0], replayed.TaskInputPayload)
+		require.NoError(t, err)
 
-	assert.Equal(t, int16(TaskInputPayloadVersionUserInputOnly), replayedWithoutInput.TaskInputPayloadVersion)
+		assert.JSONEq(t, `{"order_id": 1}`, string(data.Input))
+		assert.Equal(t, task.DagParentTaskRunIds, data.DagParentTaskRunIds)
+		require.Len(t, data.DesiredWorkerLabels, 1)
+		assert.Equal(t, "pool", data.DesiredWorkerLabels[0].Key)
+	}
 }
 
 func replayTaskWithInput(t *testing.T, shared *sharedRepository, task *sqlcv1.V1Task, input *TaskInput) *V1TaskWithPayload {
