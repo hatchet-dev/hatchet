@@ -52,17 +52,41 @@ services:
       - hatchet_postgres_data:/var/lib/postgresql/data
     shm_size: 4g
   pgbouncer:
-    image: edoburu/pgbouncer:v1.25.1-p0
+    image: edoburu/pgbouncer:v1.26.0-p0
     restart: always
     environment:
       - DATABASE_URL=postgres://hatchet:hatchet@postgres:5432/hatchet
-      - POOL_MODE=transaction
-      - MAX_CLIENT_CONN=1000
-      - DEFAULT_POOL_SIZE=50
       - AUTH_TYPE=plain
-      - LISTEN_PORT=6432
+    volumes:
+      - ./pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
     ports:
       - "6431:6432"
     depends_on:
       - postgres
+```
+
+With this `pgbouncer.ini` next to the compose file:
+
+```ini
+[databases]
+hatchet = host=postgres port=5432 auth_user=hatchet
+
+[pgbouncer]
+listen_addr = 0.0.0.0
+listen_port = 6432
+auth_type = plain
+auth_file = /etc/pgbouncer/userlist.txt
+admin_users = postgres
+pool_mode = transaction
+max_client_conn = 1000
+default_pool_size = 50
+ignore_startup_parameters = extra_float_digits
+track_extra_parameters = statement_timeout, idle_in_transaction_session_timeout
+```
+
+And point Hatchet at it:
+
+```
+DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet'
+DATABASE_PGBOUNCER_URL='postgresql://hatchet:hatchet@127.0.0.1:6431/hatchet?statement_timeout=30000&idle_in_transaction_session_timeout=30000'
 ```
