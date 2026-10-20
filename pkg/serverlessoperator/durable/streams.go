@@ -168,7 +168,7 @@ func (t *streamTable) handleStreamOpen(f *v1.ServerlessStreamOpen) bool {
 	if err != nil {
 		t.remove(s)
 		cancel()
-		t.closeStream(s.id, streamError(err))
+		t.closeStream(s.id, t.streamError(s.id, err))
 
 		return true
 	}
@@ -215,7 +215,7 @@ func (t *streamTable) handleStreamMessage(f *v1.ServerlessStreamMessage) bool {
 	}
 
 	if err := s.rs.Send(s.ctx, msg); err != nil {
-		t.endStream(s, streamError(err))
+		t.endStream(s, t.streamError(s.id, err))
 	}
 
 	return true
@@ -344,7 +344,7 @@ func (t *streamTable) pump(s *relayStream) {
 		return
 	}
 
-	t.closeStream(s.id, streamError(end))
+	t.closeStream(s.id, t.streamError(s.id, end))
 }
 
 // closeAll ends every open stream when the socket ends and waits for their readers.
@@ -371,23 +371,64 @@ func (t *streamTable) closeAll() {
 	t.wg.Wait()
 }
 
-// streamError maps an engine-side error to the connect error the endpoint is told about. A
-// connect error keeps its code, a gRPC status its code (the two share numbering), a closed
-// channel or session is unavailable, anything else unknown.
-func streamError(err error) *connect.Error {
+// streamError maps an engine-side error to the connect error the endpoint is told about and
+// logs the error itself under the stream id. The endpoint gets the code with the fixed
+// message for that code (see publicStreamError); the text of an engine or transport error is
+// the operator's, since it can name engine hosts, ports and other internals.
+func (t *streamTable) streamError(id string, err error) *connect.Error {
+	cerr := publicStreamError(err)
+
+	t.r.l.Debug().Err(err).Str("task_id", t.r.p.TaskId).Int32("invocation", t.r.p.Invocation).Str("stream_id", id).Str("code", cerr.Code().String()).Msg("engine stream failed")
+
+	return cerr
+}
+
+// publicStreamError is the connect error an endpoint is told about for an engine-side error:
+// the code is kept (a connect error's own, a gRPC status's, since the two share numbering,
+// Unavailable for a closed channel or session, Unknown otherwise) and the message is the
+// code's entry in publicStreamMessages. No part of err's text is carried over.
+func publicStreamError(err error) *connect.Error {
+	code := connect.CodeUnknown
+
 	var cerr *connect.Error
 
-	if errors.As(err, &cerr) {
-		return cerr
+	switch st, isStatus := status.FromError(err); {
+	case errors.As(err, &cerr):
+		code = cerr.Code()
+	case isStatus && st.Code() != codes.Unknown:
+		code = connect.Code(st.Code())
+	case errors.Is(err, operator.ErrChannelClosed), errors.Is(err, operator.ErrSessionClosed), errors.Is(err, context.Canceled):
+		code = connect.CodeUnavailable
 	}
 
-	if st, ok := status.FromError(err); ok && st.Code() != codes.Unknown {
-		return connect.NewError(connect.Code(st.Code()), errors.New(st.Message()))
+	message, ok := publicStreamMessages[code]
+
+	if !ok {
+		code = connect.CodeUnknown
+		message = publicStreamMessages[code]
 	}
 
-	if errors.Is(err, operator.ErrChannelClosed) || errors.Is(err, operator.ErrSessionClosed) || errors.Is(err, context.Canceled) {
-		return connect.NewError(connect.CodeUnavailable, errors.New("the engine stream was closed"))
-	}
+	return connect.NewError(code, errors.New(code.String()+": "+message))
+}
 
-	return connect.NewError(connect.CodeUnknown, err)
+// publicStreamMessages is the message a stream_close carries for each connect code an engine
+// stream can end with. Every code has one, so the endpoint sees the code name and a phrase
+// that says what kind of failure it was and nothing of the operator's own diagnostics.
+var publicStreamMessages = map[connect.Code]string{
+	connect.CodeCanceled:           "the engine stream was canceled",
+	connect.CodeUnknown:            "the engine stream failed",
+	connect.CodeInvalidArgument:    "the engine refused the request",
+	connect.CodeDeadlineExceeded:   "the engine stream timed out",
+	connect.CodeNotFound:           "the engine found no such resource",
+	connect.CodeAlreadyExists:      "the resource already exists",
+	connect.CodePermissionDenied:   "the engine denied the request",
+	connect.CodeResourceExhausted:  "the engine or the operator is out of capacity for the request",
+	connect.CodeFailedPrecondition: "the engine refused the request in its current state",
+	connect.CodeAborted:            "the engine aborted the stream",
+	connect.CodeOutOfRange:         "the request was out of range",
+	connect.CodeUnimplemented:      "the engine does not serve the request",
+	connect.CodeInternal:           "the engine failed",
+	connect.CodeUnavailable:        "the engine stream was closed",
+	connect.CodeDataLoss:           "the engine lost data for the stream",
+	connect.CodeUnauthenticated:    "the engine did not accept the operator's credentials",
 }

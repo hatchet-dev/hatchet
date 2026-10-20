@@ -795,7 +795,7 @@ func (r *relay) writeLoop() {
 
 			if err := r.conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(closeWriteTimeout)); err != nil {
 				if !r.stopped() {
-					r.closedWithoutDone(fmt.Sprintf("websocket ping failed: %s", err.Error()))
+					r.closedWithoutDone(fmt.Sprintf("websocket ping failed: %s", transportMessage(r.p.TriggerURL, err)))
 				}
 
 				return
