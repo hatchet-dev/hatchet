@@ -27,7 +27,8 @@ func readPausedUntil(t *testing.T, pool *pgxpool.Pool, tenantID uuid.UUID, key s
 }
 
 // A later pause call with an earlier deadline must not shorten an active pause, so concurrent tasks hitting the
-// same upstream can each pause the key with their own Retry-After without racing.
+// same upstream can each pause the key with their own Retry-After without racing. Extending a pause keeps its
+// original start, so the whole span from the first pause is frozen.
 func TestPauseRateLimitKeepsLongestPause(t *testing.T) {
 	pool, cleanup := setupPostgresWithMigration(t)
 	t.Cleanup(cleanup)
@@ -40,11 +41,11 @@ func TestPauseRateLimitKeepsLongestPause(t *testing.T) {
 
 	now := time.Now().UTC().Truncate(time.Millisecond)
 
-	pause, err := rateLimitRepo.PauseRateLimit(ctx, tenantID, key, now.Add(time.Hour))
+	first, err := rateLimitRepo.PauseRateLimit(ctx, tenantID, key, now.Add(time.Hour))
 	require.NoError(t, err)
-	assert.WithinDuration(t, now.Add(time.Hour), pause.PausedUntil.Time, time.Millisecond)
+	assert.WithinDuration(t, now.Add(time.Hour), first.PausedUntil.Time, time.Millisecond)
 
-	pause, err = rateLimitRepo.PauseRateLimit(ctx, tenantID, key, now.Add(10*time.Minute))
+	pause, err := rateLimitRepo.PauseRateLimit(ctx, tenantID, key, now.Add(10*time.Minute))
 	require.NoError(t, err)
 	assert.WithinDuration(t, now.Add(time.Hour), pause.PausedUntil.Time, time.Millisecond, "an earlier deadline must not shorten the pause")
 	assert.WithinDuration(t, now.Add(time.Hour), readPausedUntil(t, pool, tenantID, key), time.Millisecond)
@@ -52,6 +53,7 @@ func TestPauseRateLimitKeepsLongestPause(t *testing.T) {
 	pause, err = rateLimitRepo.PauseRateLimit(ctx, tenantID, key, now.Add(2*time.Hour))
 	require.NoError(t, err)
 	assert.WithinDuration(t, now.Add(2*time.Hour), pause.PausedUntil.Time, time.Millisecond)
+	assert.True(t, first.PausedAt.Time.Equal(pause.PausedAt.Time), "extending a pause must keep its start")
 
 	_, err = rateLimitRepo.PauseRateLimit(ctx, tenantID, "", now.Add(time.Hour))
 	assert.Error(t, err)
@@ -236,27 +238,6 @@ func TestFlushRateLimitsResumesWindowWherePauseStarted(t *testing.T) {
 	err = pool.QueryRow(ctx, `SELECT count(*) FROM v1_rate_limit_pause WHERE tenant_id = $1`, tenantID).Scan(&remaining)
 	require.NoError(t, err)
 	assert.Zero(t, remaining, "expired pauses are removed once their window shift is applied")
-}
-
-// Extending a pause must keep its original start, so the whole span from the first pause is frozen.
-func TestPauseRateLimitKeepsPauseStart(t *testing.T) {
-	pool, cleanup := setupPostgresWithMigration(t)
-	t.Cleanup(cleanup)
-
-	ctx := context.Background()
-	tenantID := createRateLimitTestTenant(t, pool)
-	rateLimitRepo := newRateLimitRepository(createRateLimitTestShared(pool))
-
-	const key = "upstream-api"
-
-	first, err := rateLimitRepo.PauseRateLimit(ctx, tenantID, key, time.Now().Add(time.Minute))
-	require.NoError(t, err)
-
-	second, err := rateLimitRepo.PauseRateLimit(ctx, tenantID, key, time.Now().Add(time.Hour))
-	require.NoError(t, err)
-
-	assert.True(t, first.PausedAt.Time.Equal(second.PausedAt.Time))
-	assert.True(t, second.PausedUntil.Time.After(first.PausedUntil.Time))
 }
 
 // Re-pausing a key whose last pause ended before the scheduler settled it must settle that pause first, so the

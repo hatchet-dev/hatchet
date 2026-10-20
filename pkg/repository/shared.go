@@ -58,7 +58,7 @@ type sharedRepository struct {
 
 	streamTopicSeenCache *expirable.LRU[streamTopicKey, struct{}]
 
-	tenantHasRateLimitPauseCache *expirable.LRU[uuid.UUID, bool]
+	rateLimitPauseCache *expirable.LRU[uuid.UUID, bool]
 
 	celParser         *cel.CELParser
 	boolExprEvaluator *cel.BoolExprEvaluator
@@ -94,7 +94,7 @@ func newSharedRepository(
 	stepIdMatchConditionsCache := expirable.NewLRU(10000, func(key uuid.UUID, value []*sqlcv1.V1StepMatchCondition) {}, 5*time.Minute)
 	streamTopicSeenCache := expirable.NewLRU(10000, func(key streamTopicKey, value struct{}) {}, time.Hour)
 	// short TTL since a pause set through another engine is only seen once this expires; the scheduler holds anything created in between
-	tenantHasRateLimitPauseCache := expirable.NewLRU(10000, func(key uuid.UUID, value bool) {}, 5*time.Second)
+	rateLimitPauseCache := expirable.NewLRU(10000, func(key uuid.UUID, value bool) {}, 5*time.Second)
 
 	celParser := cel.NewCELParser()
 
@@ -111,29 +111,29 @@ func newSharedRepository(
 	}
 
 	s := &sharedRepository{
-		pool:                         pool,
-		ddlPool:                      ddlPool,
-		v:                            v,
-		l:                            l,
-		queries:                      queries,
-		limitConfig:                  c,
-		queueCache:                   queueCache,
-		stepExpressionCache:          stepExpressionCache,
-		concurrencyStrategyCache:     concurrencyStrategyCache,
-		tenantIdWorkflowNameCache:    tenantIdWorkflowNameCache,
-		workflowIdNameCache:          workflowIdNameCache,
-		stepsInWorkflowVersionCache:  stepsInWorkflowVersionCache,
-		stepIdConfigCache:            stepIdConfigCache,
-		stepIdLabelsCache:            stepIdLabelsCache,
-		stepIdSlotRequestsCache:      stepIdSlotRequestsCache,
-		stepIdHasBatchConfigCache:    stepIdHasBatchConfigCache,
-		stepIdMatchConditionsCache:   stepIdMatchConditionsCache,
-		streamTopicSeenCache:         streamTopicSeenCache,
-		tenantHasRateLimitPauseCache: tenantHasRateLimitPauseCache,
-		celParser:                    celParser,
-		boolExprEvaluator:            boolExprEvaluator,
-		taskLookupCache:              lookupCache,
-		payloadStore:                 payloadStore,
+		pool:                        pool,
+		ddlPool:                     ddlPool,
+		v:                           v,
+		l:                           l,
+		queries:                     queries,
+		limitConfig:                 c,
+		queueCache:                  queueCache,
+		stepExpressionCache:         stepExpressionCache,
+		concurrencyStrategyCache:    concurrencyStrategyCache,
+		tenantIdWorkflowNameCache:   tenantIdWorkflowNameCache,
+		workflowIdNameCache:         workflowIdNameCache,
+		stepsInWorkflowVersionCache: stepsInWorkflowVersionCache,
+		stepIdConfigCache:           stepIdConfigCache,
+		stepIdLabelsCache:           stepIdLabelsCache,
+		stepIdSlotRequestsCache:     stepIdSlotRequestsCache,
+		stepIdHasBatchConfigCache:   stepIdHasBatchConfigCache,
+		stepIdMatchConditionsCache:  stepIdMatchConditionsCache,
+		streamTopicSeenCache:        streamTopicSeenCache,
+		rateLimitPauseCache:         rateLimitPauseCache,
+		celParser:                   celParser,
+		boolExprEvaluator:           boolExprEvaluator,
+		taskLookupCache:             lookupCache,
+		payloadStore:                payloadStore,
 	}
 
 	tenantLimitRepository := newTenantLimitRepository(s, c, shouldEnforceLimits, cacheDuration)

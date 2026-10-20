@@ -133,8 +133,8 @@ type HatchetContext interface {
 	// duration string, such as "5m".
 	RefreshTimeout(incrementTimeoutBy string) error
 
-	// PauseRateLimit keeps queued runs that consume the rendered rate limit key from starting
-	// until the given time, and returns the time the key is paused until.
+	// PauseRateLimit keeps queued runs that use the rate limit key from starting until the given time.
+	// It returns the time the key is paused until.
 	PauseRateLimit(key string, until time.Time) (time.Time, error)
 
 	// RetryCount returns the number of times the current task run has been retried.

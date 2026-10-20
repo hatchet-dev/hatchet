@@ -57,8 +57,8 @@ func (c *RateLimitsClient) Upsert(opts CreateRatelimitOpts) error {
 	return nil
 }
 
-// Pause keeps queued runs that consume the rendered rate limit key from starting until the given time,
-// and returns the time the key is paused until.
+// Pause holds queued runs that use the key until the given time.
+// It returns the time the key is paused until.
 func (c *RateLimitsClient) Pause(ctx context.Context, key string, until time.Time) (time.Time, error) {
 	pausedUntil, err := c.admin.PauseRateLimit(ctx, key, until)
 	if err != nil {

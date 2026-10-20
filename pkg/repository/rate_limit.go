@@ -330,8 +330,8 @@ func (r *rateLimitRepository) PauseRateLimit(ctx context.Context, tenantId uuid.
 		return nil, err
 	}
 
-	if r.tenantHasRateLimitPauseCache != nil {
-		r.tenantHasRateLimitPauseCache.Add(tenantId, true)
+	if r.rateLimitPauseCache != nil {
+		r.rateLimitPauseCache.Add(tenantId, true)
 	}
 
 	return pause, nil
@@ -370,8 +370,8 @@ func (r *rateLimitRepository) HoldRateLimitPausedQueuedTasks(ctx context.Context
 }
 
 func (s *sharedRepository) tenantHasRateLimitPause(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID) (bool, error) {
-	if s.tenantHasRateLimitPauseCache != nil {
-		if paused, ok := s.tenantHasRateLimitPauseCache.Get(tenantId); ok {
+	if s.rateLimitPauseCache != nil {
+		if paused, ok := s.rateLimitPauseCache.Get(tenantId); ok {
 			return paused, nil
 		}
 	}
@@ -382,8 +382,8 @@ func (s *sharedRepository) tenantHasRateLimitPause(ctx context.Context, tx sqlcv
 		return false, fmt.Errorf("could not check rate limit pauses: %w", err)
 	}
 
-	if s.tenantHasRateLimitPauseCache != nil {
-		s.tenantHasRateLimitPauseCache.Add(tenantId, paused)
+	if s.rateLimitPauseCache != nil {
+		s.rateLimitPauseCache.Add(tenantId, paused)
 	}
 
 	return paused, nil

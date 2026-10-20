@@ -1012,10 +1012,6 @@ CREATE TABLE v1_paused_workflow_queue_item (
 CREATE INDEX v1_paused_workflow_queue_item_workflow_idx
     ON v1_paused_workflow_queue_item (workflow_id, tenant_id);
 
-CREATE INDEX v1_paused_workflow_queue_item_workflow_only_idx
-    ON v1_paused_workflow_queue_item (workflow_id, tenant_id)
-    WHERE rate_limit_paused_until IS NULL;
-
 CREATE INDEX v1_paused_workflow_queue_item_rate_limit_idx
     ON v1_paused_workflow_queue_item (tenant_id, rate_limit_paused_until)
     WHERE rate_limit_paused_until IS NOT NULL;

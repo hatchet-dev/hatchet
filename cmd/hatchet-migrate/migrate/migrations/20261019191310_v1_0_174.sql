@@ -43,10 +43,6 @@ $$ LANGUAGE sql STABLE;
 -- set when the item is held by a paused rate limit key rather than (only) a paused workflow
 ALTER TABLE v1_paused_workflow_queue_item ADD COLUMN rate_limit_paused_until TIMESTAMPTZ;
 
-CREATE INDEX v1_paused_workflow_queue_item_workflow_only_idx
-    ON v1_paused_workflow_queue_item (workflow_id, tenant_id)
-    WHERE rate_limit_paused_until IS NULL;
-
 CREATE INDEX v1_paused_workflow_queue_item_rate_limit_idx
     ON v1_paused_workflow_queue_item (tenant_id, rate_limit_paused_until)
     WHERE rate_limit_paused_until IS NOT NULL;
@@ -55,7 +51,6 @@ CREATE INDEX v1_paused_workflow_queue_item_rate_limit_idx
 -- +goose Down
 -- +goose StatementBegin
 DROP INDEX v1_paused_workflow_queue_item_rate_limit_idx;
-DROP INDEX v1_paused_workflow_queue_item_workflow_only_idx;
 ALTER TABLE v1_paused_workflow_queue_item DROP COLUMN rate_limit_paused_until;
 DROP FUNCTION v1_task_rate_limit_paused_until(UUID, BIGINT, TIMESTAMPTZ, UUID);
 DROP TABLE v1_rate_limit_pause;

@@ -17,48 +17,48 @@ Results of durable waits (`*SingleWaitResult`, `*WaitResult`) expose `Unmarshal`
 
 Methods:
 
-| Name                         | Description                                                                                                                                                 |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SetContext`                 | SetContext replaces the underlying context.Context, for example to attach a deadline.                                                                       |
-| `GetContext`                 | GetContext returns the underlying context.Context.                                                                                                          |
-| `Worker`                     | Worker returns the worker executing the task, which exposes its ID, labels, and registered workflows.                                                       |
-| `StepOutput`                 | StepOutput decodes the output of the named upstream step into target, which must be a pointer.                                                              |
-| `TriggerDataKeys`            | TriggerDataKeys lists the keys available to TriggerData.                                                                                                    |
-| `TriggerData`                | TriggerData decodes the payload of a matched trigger condition (such as a wait-for event) into target, which must be a pointer.                             |
-| `StepRunErrors`              | StepRunErrors returns the errors of upstream task runs, keyed by task name.                                                                                 |
-| `TriggeredByEvent`           | TriggeredByEvent reports whether the current run was triggered by an event.                                                                                 |
-| `WorkflowInput`              | WorkflowInput decodes the workflow input into target, which must be a pointer.                                                                              |
-| `BatchInputInto`             | BatchInputInto decodes the buffered items of a batch task's START_BATCH action into target, which must be a pointer.                                        |
-| `UserData`                   | UserData decodes the user data attached to the step into target, which must be a pointer.                                                                   |
-| `AdditionalMetadata`         | AdditionalMetadata returns the additional metadata sent with the current run.                                                                               |
-| `StepName`                   | StepName returns the name of the currently running task.                                                                                                    |
-| `StepRunId`                  | StepRunId returns the ID of the current task run.                                                                                                           |
-| `StepId`                     | StepId returns the ID of the step (the task declaration, not the run).                                                                                      |
-| `WorkflowRunId`              | WorkflowRunId returns the ID of the current workflow run.                                                                                                   |
-| `WorkflowId`                 | WorkflowId returns the ID of the workflow this task belongs to, or nil if unknown.                                                                          |
-| `WorkflowVersionId`          | WorkflowVersionId returns the ID of the workflow version this task belongs to, or nil if unknown.                                                           |
-| `Log`                        | Log sends a log line to the Hatchet API for the current task run.                                                                                           |
-| `StreamEvent`                | StreamEvent sends a raw stream event for the current task run, which separate consumers can subscribe to.                                                   |
-| `PutStream`                  | PutStream sends a stream event for the current task run, which separate consumers can subscribe to.                                                         |
-| `SpawnWorkflow`              | SpawnWorkflow triggers a child workflow run from within the current task.                                                                                   |
-| `SpawnWorkflows`             | SpawnWorkflows triggers multiple child workflow runs from within the current task.                                                                          |
-| `ReleaseSlot`                | ReleaseSlot manually releases the worker slot held by the current task run to free up capacity.                                                             |
-| `RefreshTimeout`             | RefreshTimeout extends the execution timeout of the current task run by the given duration string, such as "5m".                                            |
-| `PauseRateLimit`             | PauseRateLimit keeps queued runs that consume the rendered rate limit key from starting until the given time, and returns the time the key is paused until. |
-| `RetryCount`                 | RetryCount returns the number of times the current task run has been retried.                                                                               |
-| `ParentOutput`               | ParentOutput decodes the output of a parent task into output, which must be a pointer.                                                                      |
-| `WasSkipped`                 | WasSkipped reports whether the given parent task was skipped.                                                                                               |
-| `TenantId`                   | TenantId returns the ID of the tenant the run is executing in.                                                                                              |
-| `WorkerId`                   | WorkerId returns the ID of the worker executing the task.                                                                                                   |
-| `ActionId`                   | ActionId returns the action ID of the currently running task.                                                                                               |
-| `DurableTaskInvocationCount` | DurableTaskInvocationCount returns the invocation count for durable task replay tracking.                                                                   |
-| `Priority`                   | Priority returns the priority the current run was triggered with.                                                                                           |
-| `FilterPayload`              | FilterPayload returns the payload of the event filter that matched, if the run was triggered through a filter.                                              |
-| `ParentWorkflowRunId`        | ParentWorkflowRunId returns the workflow run ID of the parent run, if this run was spawned as a child workflow.                                             |
-| `ChildIndex`                 | ChildIndex returns the index of this run among its parent's child workflow runs, if applicable.                                                             |
-| `ChildKey`                   | ChildKey returns the deduplication key this run was spawned with, if applicable.                                                                            |
-| `TriggeringEventId`          | TriggeringEventId returns the ID of the event that triggered this run, if it was triggered by an event.                                                     |
-| `TriggeringEventKey`         | TriggeringEventKey returns the key of the event that triggered this run, if it was triggered by an event.                                                   |
+| Name                         | Description                                                                                                                     |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `SetContext`                 | SetContext replaces the underlying context.Context, for example to attach a deadline.                                           |
+| `GetContext`                 | GetContext returns the underlying context.Context.                                                                              |
+| `Worker`                     | Worker returns the worker executing the task, which exposes its ID, labels, and registered workflows.                           |
+| `StepOutput`                 | StepOutput decodes the output of the named upstream step into target, which must be a pointer.                                  |
+| `TriggerDataKeys`            | TriggerDataKeys lists the keys available to TriggerData.                                                                        |
+| `TriggerData`                | TriggerData decodes the payload of a matched trigger condition (such as a wait-for event) into target, which must be a pointer. |
+| `StepRunErrors`              | StepRunErrors returns the errors of upstream task runs, keyed by task name.                                                     |
+| `TriggeredByEvent`           | TriggeredByEvent reports whether the current run was triggered by an event.                                                     |
+| `WorkflowInput`              | WorkflowInput decodes the workflow input into target, which must be a pointer.                                                  |
+| `BatchInputInto`             | BatchInputInto decodes the buffered items of a batch task's START_BATCH action into target, which must be a pointer.            |
+| `UserData`                   | UserData decodes the user data attached to the step into target, which must be a pointer.                                       |
+| `AdditionalMetadata`         | AdditionalMetadata returns the additional metadata sent with the current run.                                                   |
+| `StepName`                   | StepName returns the name of the currently running task.                                                                        |
+| `StepRunId`                  | StepRunId returns the ID of the current task run.                                                                               |
+| `StepId`                     | StepId returns the ID of the step (the task declaration, not the run).                                                          |
+| `WorkflowRunId`              | WorkflowRunId returns the ID of the current workflow run.                                                                       |
+| `WorkflowId`                 | WorkflowId returns the ID of the workflow this task belongs to, or nil if unknown.                                              |
+| `WorkflowVersionId`          | WorkflowVersionId returns the ID of the workflow version this task belongs to, or nil if unknown.                               |
+| `Log`                        | Log sends a log line to the Hatchet API for the current task run.                                                               |
+| `StreamEvent`                | StreamEvent sends a raw stream event for the current task run, which separate consumers can subscribe to.                       |
+| `PutStream`                  | PutStream sends a stream event for the current task run, which separate consumers can subscribe to.                             |
+| `SpawnWorkflow`              | SpawnWorkflow triggers a child workflow run from within the current task.                                                       |
+| `SpawnWorkflows`             | SpawnWorkflows triggers multiple child workflow runs from within the current task.                                              |
+| `ReleaseSlot`                | ReleaseSlot manually releases the worker slot held by the current task run to free up capacity.                                 |
+| `RefreshTimeout`             | RefreshTimeout extends the execution timeout of the current task run by the given duration string, such as "5m".                |
+| `PauseRateLimit`             | PauseRateLimit keeps queued runs that use the rate limit key from starting until the given time.                                |
+| `RetryCount`                 | RetryCount returns the number of times the current task run has been retried.                                                   |
+| `ParentOutput`               | ParentOutput decodes the output of a parent task into output, which must be a pointer.                                          |
+| `WasSkipped`                 | WasSkipped reports whether the given parent task was skipped.                                                                   |
+| `TenantId`                   | TenantId returns the ID of the tenant the run is executing in.                                                                  |
+| `WorkerId`                   | WorkerId returns the ID of the worker executing the task.                                                                       |
+| `ActionId`                   | ActionId returns the action ID of the currently running task.                                                                   |
+| `DurableTaskInvocationCount` | DurableTaskInvocationCount returns the invocation count for durable task replay tracking.                                       |
+| `Priority`                   | Priority returns the priority the current run was triggered with.                                                               |
+| `FilterPayload`              | FilterPayload returns the payload of the event filter that matched, if the run was triggered through a filter.                  |
+| `ParentWorkflowRunId`        | ParentWorkflowRunId returns the workflow run ID of the parent run, if this run was spawned as a child workflow.                 |
+| `ChildIndex`                 | ChildIndex returns the index of this run among its parent's child workflow runs, if applicable.                                 |
+| `ChildKey`                   | ChildKey returns the deduplication key this run was spawned with, if applicable.                                                |
+| `TriggeringEventId`          | TriggeringEventId returns the ID of the event that triggered this run, if it was triggered by an event.                         |
+| `TriggeringEventKey`         | TriggeringEventKey returns the key of the event that triggered this run, if it was triggered by an event.                       |
 
 ### Functions
 
@@ -468,7 +468,7 @@ Returns:
 
 #### `PauseRateLimit`
 
-PauseRateLimit keeps queued runs that consume the rendered rate limit key from starting until the given time, and returns the time the key is paused until.
+PauseRateLimit keeps queued runs that use the rate limit key from starting until the given time. It returns the time the key is paused until.
 
 ```go
 func PauseRateLimit(key string, until time.Time) (time.Time, error)

@@ -10,14 +10,14 @@ The rate limits client is a wrapper for Hatchet's gRPC API that makes it easier 
 
 Methods:
 
-| Name        | Description                                                                              |
-| ----------- | ---------------------------------------------------------------------------------------- |
-| `aio_list`  | List all rate limits for the tenant.                                                     |
-| `aio_pause` | Pause a rate limit key, so queued runs that consume it stay queued until the given time. |
-| `aio_put`   | Put a rate limit for a given key.                                                        |
-| `list`      | List all rate limits for the tenant.                                                     |
-| `pause`     | Pause a rate limit key, so queued runs that consume it stay queued until the given time. |
-| `put`       | Put a rate limit for a given key.                                                        |
+| Name        | Description                          |
+| ----------- | ------------------------------------ |
+| `aio_list`  | List all rate limits for the tenant. |
+| `aio_pause` | Pause a rate limit key.              |
+| `aio_put`   | Put a rate limit for a given key.    |
+| `list`      | List all rate limits for the tenant. |
+| `pause`     | Pause a rate limit key.              |
+| `put`       | Put a rate limit for a given key.    |
 
 ### Functions
 
@@ -43,7 +43,9 @@ Returns:
 
 #### `aio_pause`
 
-Pause a rate limit key, so queued runs that consume it stay queued until the given time.
+Pause a rate limit key.
+
+Queued runs that consume it stay queued until the given time.
 
 Parameters:
 
@@ -98,7 +100,9 @@ Returns:
 
 #### `pause`
 
-Pause a rate limit key, so queued runs that consume it stay queued until the given time.
+Pause a rate limit key.
+
+Queued runs that consume it stay queued until the given time.
 
 Parameters:
 
