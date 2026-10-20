@@ -3601,9 +3601,21 @@ func (r *sharedRepository) getStepExpressions(
 	}
 
 	stepIds := make([]uuid.UUID, 0, len(stepIdsWithExpressions))
+	stepIdToExpressions := make(map[uuid.UUID][]*sqlcv1.StepExpression)
 
+	// a step's expressions are immutable (a new workflow version creates new step ids), so
+	// the stepIdExpressionsCache TTL only bounds memory; cached slices are read-only
 	for stepId := range stepIdsWithExpressions {
+		if cached, found := r.stepIdExpressionsCache.Get(stepId); found {
+			stepIdToExpressions[stepId] = cached
+			continue
+		}
+
 		stepIds = append(stepIds, stepId)
+	}
+
+	if len(stepIds) == 0 {
+		return stepIdToExpressions, nil
 	}
 
 	expressions, err := r.queries.ListStepExpressions(ctx, tx, stepIds)
@@ -3611,8 +3623,6 @@ func (r *sharedRepository) getStepExpressions(
 	if err != nil {
 		return nil, err
 	}
-
-	stepIdToExpressions := make(map[uuid.UUID][]*sqlcv1.StepExpression)
 
 	for _, expression := range expressions {
 		stepId := expression.StepId
@@ -3622,6 +3632,15 @@ func (r *sharedRepository) getStepExpressions(
 		}
 
 		stepIdToExpressions[stepId] = append(stepIdToExpressions[stepId], expression)
+	}
+
+	// cache empty results too, so every step id is looked up at most once per TTL
+	for _, stepId := range stepIds {
+		if _, ok := stepIdToExpressions[stepId]; !ok {
+			stepIdToExpressions[stepId] = []*sqlcv1.StepExpression{}
+		}
+
+		r.stepIdExpressionsCache.Add(stepId, stepIdToExpressions[stepId])
 	}
 
 	return stepIdToExpressions, nil

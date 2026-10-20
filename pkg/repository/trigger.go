@@ -945,13 +945,10 @@ func (r *sharedRepository) triggerWorkflowsCore(
 	stepsToAdditionalMatches := make(map[uuid.UUID][]*sqlcv1.V1StepMatchCondition)
 
 	if len(stepsWithAdditionalMatchConditions) > 0 {
-		additionalMatches, err := r.queries.ListStepMatchConditions(ctx, preflightTx, sqlcv1.ListStepMatchConditionsParams{
-			Stepids:  stepsWithAdditionalMatchConditions,
-			Tenantid: tenantId,
-		})
+		additionalMatches, err := r.listStepMatchConditions(ctx, preflightTx, tenantId, stepsWithAdditionalMatchConditions)
 
 		if err != nil {
-			return nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to list step match conditions: %w", err)
+			return nil, nil, nil, nil, nil, nil, err
 		}
 
 		for _, match := range additionalMatches {
