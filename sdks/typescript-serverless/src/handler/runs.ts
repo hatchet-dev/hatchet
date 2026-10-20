@@ -24,6 +24,7 @@ import {
 } from '../generated/proto/dispatcher';
 import {
   SUBSCRIBE_TO_WORKFLOW_RUNS,
+  StreamCloseCode,
   type SocketStream,
   type SocketStreams,
 } from './durable/streams';
@@ -76,7 +77,7 @@ export class RunWatcher {
       return Promise.reject(createAbortError(`waiting for run ${workflowRunId} was aborted`));
     }
 
-    return new Promise<WorkflowRunEvent>((resolve, reject) => {
+    const promise = new Promise<WorkflowRunEvent>((resolve, reject) => {
       let settled = false;
       let timer: ReturnType<typeof setTimeout> | undefined;
 
@@ -130,6 +131,12 @@ export class RunWatcher {
         }
       }
     });
+
+    // A wait the task left behind is rejected when its stream or socket ends; that must
+    // not surface as an unhandled rejection. The caller's own await still sees it.
+    promise.catch(() => {});
+
+    return promise;
   }
 
   private forget(workflowRunId: string, waiter: Waiter): void {
@@ -192,30 +199,41 @@ export class RunWatcher {
     }
   }
 
-  /** Closes the runs stream; pending waits keep waiting only until the socket ends. */
+  /** Closes the runs stream and rejects every pending wait with `RunStreamClosedError`. */
   close(): void {
-    this.stream?.close();
+    const { stream } = this;
+
     this.stream = undefined;
+    stream?.close();
+    this.onClosed(StreamCloseCode.CANCELED, 'the run stream was closed');
   }
 }
+
+/** Names that would read as something other than a task's output on a plain object. */
+const RESERVED_TASK_NAMES: ReadonlySet<string> = new Set(['__proto__', 'constructor', 'prototype']);
 
 /**
  * The outputs a terminal event carries, read the way the Node client's `result()` reads
  * them: each task's output parsed as JSON (`{}` when empty), keyed by task name, or the
- * standalone task's own output.
+ * standalone task's own output. The names come from the wire, so they are collected in a
+ * `Map` and a reserved name is refused rather than assigned.
  */
 export function outputsOf<T>(event: WorkflowRunEvent, standaloneTaskName?: string): T {
-  const outputs: Record<string, unknown> = {};
+  const outputs = new Map<string, unknown>();
 
   for (const result of event.results) {
-    outputs[result.taskName] = JSON.parse(result.output || '{}');
+    if (RESERVED_TASK_NAMES.has(result.taskName)) {
+      throw new Error(`task name "${result.taskName}" is reserved and cannot key a run's outputs`);
+    }
+
+    outputs.set(result.taskName, JSON.parse(result.output || '{}'));
   }
 
   if (standaloneTaskName) {
-    return outputs[standaloneTaskName] as T;
+    return outputs.get(standaloneTaskName) as T;
   }
 
-  return outputs as T;
+  return Object.fromEntries(outputs) as T;
 }
 
 /**

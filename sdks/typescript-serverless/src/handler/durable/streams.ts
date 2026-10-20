@@ -195,7 +195,8 @@ export class SocketStreams {
 
   /**
    * Closes every open stream, telling the operator: the task is over and its done frame is
-   * about to go out. Listeners are not called: nothing awaits them once the task is over.
+   * about to go out. Every listener hears its stream end with `CANCELED`, so a wait the
+   * task left behind settles instead of staying pending.
    */
   closeAll(): void {
     if (this.ended) {
@@ -204,9 +205,10 @@ export class SocketStreams {
 
     this.ended = 'the invocation is over';
 
-    for (const id of [...this.open.keys()]) {
+    for (const [id, stream] of [...this.open]) {
       this.open.delete(id);
       this.trySend({ streamClose: { id, code: 0, message: '' } });
+      stream.listener.onClose(StreamCloseCode.CANCELED, this.ended);
     }
   }
 

@@ -35,9 +35,13 @@ import {
   type DurableTaskResponse,
 } from '../../generated/proto/v1/dispatcher';
 import type { ServerlessDurableFrame } from '../../generated/proto/v1/serverless';
+import type { ConsoleLike } from '../context';
 import { ERROR_CODE_NON_DETERMINISM } from '../contract';
+import { errorMessage } from '../http';
 import { encodeFrame } from './frames';
 import type { DurableSocket } from './socket';
+
+const DEFAULT_MAX_PENDING_COMPLETIONS = 4096;
 
 interface Deferred<T> {
   promise: Promise<T>;
@@ -69,6 +73,22 @@ export interface FrameTransportOptions {
   onEngineError: (error: Error) => void;
   /** Called when the engine superseded the invocation. */
   onServerEvict: (reason: string) => void;
+  /**
+   * Called once when the operator breaks the protocol (a completion whose payload is not
+   * JSON, more pending completions than `maxPendingCompletions`); pending work has been
+   * failed already. Without it the transport only fails its pending work.
+   */
+  onProtocolError?: (reason: string) => void;
+  /** How many completions are kept for entries whose waiter is not installed yet. */
+  maxPendingCompletions?: number;
+  /** Where dropped frames are reported; defaults to the global console. */
+  console?: ConsoleLike;
+}
+
+/** The task and invocation a reference or ack names. */
+interface Identity {
+  durableTaskExternalId: string;
+  invocationCount: number;
 }
 
 function callbackKey(branchId: number, nodeId: number): string {
@@ -76,7 +96,8 @@ function callbackKey(branchId: number, nodeId: number): string {
 }
 
 function entryResult(
-  completed: DurableTaskEventLogEntryCompletedResponse
+  completed: DurableTaskEventLogEntryCompletedResponse,
+  ref: DurableEventLogEntryRef
 ): DurableTaskEventLogEntryResult {
   let payload: Record<string, unknown> | undefined;
 
@@ -85,8 +106,8 @@ function entryResult(
   }
 
   return {
-    durableTaskExternalId: completed.ref?.durableTaskExternalId ?? '',
-    nodeId: completed.ref?.nodeId ?? 0,
+    durableTaskExternalId: ref.durableTaskExternalId,
+    nodeId: ref.nodeId,
     payload,
     isFailure: completed.isFailure,
     errorMessage: completed.errorMessage,
@@ -110,8 +131,13 @@ export class FrameTransport implements DurableTransport {
 
   private sealed = false;
   private failure: Error | undefined;
+  private readonly maxPendingCompletions: number;
+  private readonly out: ConsoleLike;
 
-  constructor(private readonly options: FrameTransportOptions) {}
+  constructor(private readonly options: FrameTransportOptions) {
+    this.maxPendingCompletions = options.maxPendingCompletions ?? DEFAULT_MAX_PENDING_COMPLETIONS;
+    this.out = options.console ?? console;
+  }
 
   /** Nothing may be sent once the terminal frame went out or the socket closed. */
   seal(): void {
@@ -189,17 +215,74 @@ export class FrameTransport implements DurableTransport {
         return;
       }
 
+      // An ack names the task and invocation it answers; one for another socket's task
+      // answers nothing here and fails the request that was waiting.
+      const identity =
+        response.memoAck?.ref ??
+        response.waitForAck?.ref ??
+        response.triggerRunsAck ??
+        response.evictionAck;
+
       this.inFlight = undefined;
-      pending.resolve(response);
+
+      if (this.isOwn(identity)) {
+        pending.resolve(response);
+      } else {
+        pending.reject(this.foreign('an ack', identity));
+      }
+
       this.pump();
     }
   }
 
+  private isOwn(identity: Identity | undefined): identity is Identity {
+    return (
+      identity !== undefined &&
+      identity.durableTaskExternalId === this.options.durableTaskExternalId &&
+      identity.invocationCount === this.options.invocationCount
+    );
+  }
+
+  private foreign(what: string, identity: Identity | undefined): Error {
+    return new Error(
+      `${what} names task ${identity?.durableTaskExternalId ?? '(none)'} invocation ${identity?.invocationCount ?? '(none)'} on a socket serving task ${this.options.durableTaskExternalId} invocation ${this.options.invocationCount}`
+    );
+  }
+
+  /** The operator broke the protocol: pending work fails and the invocation is told. */
+  private protocolError(reason: string): void {
+    this.fail(new Error(reason));
+    this.options.onProtocolError?.(reason);
+  }
+
   private handleCompletion(completed: DurableTaskEventLogEntryCompletedResponse): void {
-    const key = callbackKey(completed.ref?.branchId ?? 0, completed.ref?.nodeId ?? 0);
-    const result = entryResult(completed);
+    const { ref } = completed;
+
+    if (!this.isOwn(ref)) {
+      this.out.warn(`[hatchet] dropping ${this.foreign('a completion', ref).message}`);
+      return;
+    }
+
+    const key = callbackKey(ref.branchId, ref.nodeId);
+    let result: DurableTaskEventLogEntryResult;
+
+    try {
+      result = entryResult(completed, ref);
+    } catch (err) {
+      this.protocolError(
+        `the completion payload for entry ${key} is not JSON: ${errorMessage(err)}`
+      );
+      return;
+    }
 
     if (!this.delivered.has(key)) {
+      if (this.completions.length >= this.maxPendingCompletions) {
+        this.protocolError(
+          `more than ${this.maxPendingCompletions} completions are pending without a waiter`
+        );
+        return;
+      }
+
       this.delivered.add(key);
       this.completions.push({ key, result });
     } else if (this.completions.every((entry) => entry.key !== key)) {

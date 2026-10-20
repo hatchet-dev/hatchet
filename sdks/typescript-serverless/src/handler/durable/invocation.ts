@@ -27,7 +27,7 @@ import type {
 } from '../../generated/proto/v1/serverless';
 import { toSdkAction } from '../action';
 import type { ClientSource } from '../client';
-import { DONE_STATUS_EVICTED } from '../contract';
+import { DONE_STATUS_EVICTED, OPERATOR_MAX_FRAME_BYTES } from '../contract';
 import { ServerlessRuntime, type ConsoleLike } from '../context';
 import { isServerlessLimitationError } from '../errors';
 import { errorMessage } from '../http';
@@ -56,6 +56,14 @@ export interface DurableInvocationOptions {
    * another task or invocation closes the socket with 1008 before any task code runs.
    */
   expected?: { taskRunExternalId: string; invocationCount: number };
+  /**
+   * The largest frame accepted from the operator, checked before the frame is decoded; a
+   * larger one fails the invocation. Measured in UTF-16 code units, a lower bound on the
+   * UTF-8 size. Defaults to `OPERATOR_MAX_FRAME_BYTES`.
+   */
+  maxFrameBytes?: number;
+  /** How many completions are kept for entries without a waiter yet. Defaults to 4096. */
+  maxPendingCompletions?: number;
 }
 
 type State =
@@ -75,12 +83,15 @@ class DurableInvocation {
   private ctx: Context<unknown, unknown> | undefined;
   private durableCtx: DurableContext<unknown, unknown> | undefined;
   private engineError: Error | undefined;
-  private firstFrame: ((frame: ServerlessFirstFrame) => void) | undefined;
+  /** Settles the first-frame wait: with the frame, or with nothing when the socket is over. */
+  private firstFrame: ((frame: ServerlessFirstFrame | undefined) => void) | undefined;
   private firstFrameTimer: ReturnType<typeof setTimeout> | undefined;
   private readonly out: ConsoleLike;
+  private readonly maxFrameBytes: number;
 
   constructor(private readonly options: DurableInvocationOptions) {
     this.out = options.console ?? console;
+    this.maxFrameBytes = options.maxFrameBytes ?? OPERATOR_MAX_FRAME_BYTES;
   }
 
   async run(): Promise<void> {
@@ -110,9 +121,8 @@ class DurableInvocation {
 
       this.firstFrameTimer = setTimeout(() => {
         this.firstFrameTimer = undefined;
-        this.firstFrame = undefined;
         this.finish({ error: `no first frame within ${timeoutMs}ms of the upgrade`, retry: true });
-        resolve(undefined);
+        this.firstFrame?.(undefined);
       }, timeoutMs);
     });
   }
@@ -125,6 +135,13 @@ class DurableInvocation {
   }
 
   private onMessage(text: string): void {
+    if (text.length > this.maxFrameBytes) {
+      this.failProtocol(
+        `a frame of at least ${text.length} bytes exceeds the ${this.maxFrameBytes} byte frame limit`
+      );
+      return;
+    }
+
     let frame: ServerlessDurableFrame;
 
     try {
@@ -142,15 +159,26 @@ class DurableInvocation {
       return;
     }
 
-    if (this.streams?.handleFrame(frame)) {
-      return;
-    }
+    // Nothing a frame does may escape the socket's listener: a failure here fails the
+    // invocation instead of the process.
+    try {
+      if (this.streams?.handleFrame(frame)) {
+        return;
+      }
 
-    this.transport?.handleFrame(frame);
+      this.transport?.handleFrame(frame);
+    } catch (err) {
+      this.failProtocol(`a frame from the operator could not be handled: ${errorMessage(err)}`);
+    }
   }
 
   private async execute(first: ServerlessFirstFrame): Promise<void> {
     const { registry } = this.options;
+
+    if (this.state !== 'awaiting-first') {
+      // The socket went away between the first frame and this turn.
+      return;
+    }
 
     if (!first.action) {
       this.finish({ error: 'the first frame carries no action', retry: false });
@@ -211,6 +239,9 @@ class DurableInvocation {
           onBudgetElapsed: (reason) => void this.evict(reason),
           onEngineError: (error) => this.onEngineError(error),
           onServerEvict: (reason) => this.onServerEvict(reason),
+          onProtocolError: (reason) => this.failProtocol(reason),
+          maxPendingCompletions: this.options.maxPendingCompletions,
+          console: this.options.console,
         });
         transport = frames;
 
@@ -347,19 +378,21 @@ class DurableInvocation {
   private onClose(code: number, reason: string): void {
     this.clearFirstFrameTimer();
 
-    if (this.state === 'awaiting-first') {
-      this.state = 'closed';
-      this.firstFrame = undefined;
-      // Resolve the pending first-frame wait with nothing to run.
-      this.finishSilently();
+    if (this.isOver()) {
       return;
     }
 
-    if (this.isTerminal()) {
-      return;
-    }
+    const awaitingFirst = this.state === 'awaiting-first';
 
     this.state = 'closed';
+
+    if (awaitingFirst) {
+      this.firstFrame?.(undefined);
+      return;
+    }
+
+    // Running, or evicting with the ack still pending: everything waiting on the socket
+    // fails and the task is aborted, so the invocation settles.
     const closed = `the operator closed the socket (code ${code}${reason ? `, ${reason}` : ''})`;
     this.transport?.seal();
     this.transport?.fail(new Error(closed));
@@ -367,18 +400,52 @@ class DurableInvocation {
     this.abortTask(new TaskRunTerminatedError(code === 4003 ? 'cancelled' : 'evicted', reason));
   }
 
+  /**
+   * The operator broke the protocol. Before the eviction ack is awaited the invocation
+   * finishes with a retryable done frame; during eviction no done frame may follow the
+   * evict_invocation, so the socket is closed with 1008 instead. Either way everything
+   * pending fails, the task is aborted and the invocation settles.
+   */
+  private failProtocol(reason: string): void {
+    if (this.isOver()) {
+      return;
+    }
+
+    this.out.warn(`[hatchet] ${reason}; failing the invocation`);
+    const error = new Error(reason);
+    const terminated = new TaskRunTerminatedError('cancelled', reason);
+
+    if (this.state === 'evicting') {
+      this.state = 'closed';
+      this.transport?.seal();
+      this.transport?.fail(error);
+      this.streams?.fail(reason);
+      this.abortTask(terminated);
+      this.closeWith(1008, reason);
+      return;
+    }
+
+    const { firstFrame } = this;
+
+    this.transport?.fail(error);
+    this.finish({ error: reason, retry: true });
+    this.abortTask(terminated);
+    firstFrame?.(undefined);
+  }
+
+  /** Whether the invocation has reached a state nothing more can change. */
+  private isOver(): boolean {
+    return this.state === 'evicted' || this.state === 'closed' || this.state === 'finished';
+  }
+
   /** The state as of now; reading it through a call sidesteps narrowing across awaits. */
   private stateNow(): State {
     return this.state;
   }
 
+  /** Whether a done frame may still go out: not once one did, nor while eviction sends its own. */
   private isTerminal(): boolean {
-    return (
-      this.state === 'evicted' ||
-      this.state === 'closed' ||
-      this.state === 'finished' ||
-      this.state === 'evicting'
-    );
+    return this.isOver() || this.state === 'evicting';
   }
 
   private abortTask(error: TaskRunTerminatedError): void {
@@ -424,10 +491,6 @@ class DurableInvocation {
     this.sendDone(done);
     this.state = 'finished';
     this.closeSocket();
-  }
-
-  private finishSilently(): void {
-    this.state = 'closed';
   }
 
   private closeSocket(): void {

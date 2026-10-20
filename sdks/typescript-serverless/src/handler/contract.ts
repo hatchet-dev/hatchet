@@ -27,6 +27,12 @@ export const UPGRADE_MAX_AGE_SECONDS = REQUEST_MAX_AGE_SECONDS;
 /** contract.TriggerEnvelopeVersion: the `version` field of ServerlessTriggerRequest. */
 export const TRIGGER_ENVELOPE_VERSION = 1;
 
+/**
+ * The largest frame the operator's relay accepts (pkg/serverlessoperator/durable/relay.go),
+ * which is also the default cap on a request body and on a frame received by the handler.
+ */
+export const OPERATOR_MAX_FRAME_BYTES = 4 * 1024 * 1024;
+
 /** contract.DoneStatusEvicted. */
 export const DONE_STATUS_EVICTED = 'evicted';
 

@@ -168,8 +168,8 @@ describe('SocketStreams', () => {
       { streamClose: { id: '1', code: 0, message: '' } },
       { streamClose: { id: '2', code: 0, message: '' } },
     ]);
-    expect(first.closes).toEqual([]);
-    expect(second.closes).toEqual([]);
+    expect(first.closes).toEqual([[StreamCloseCode.CANCELED, 'the invocation is over']]);
+    expect(second.closes).toEqual([[StreamCloseCode.CANCELED, 'the invocation is over']]);
     expect(streams.size).toBe(0);
     expect(() => streams.openStream(SUBSCRIBE_TO_WORKFLOW_RUNS, '{}', listener())).toThrow(
       /the invocation is over/
