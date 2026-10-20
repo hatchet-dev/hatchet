@@ -10,7 +10,7 @@ description: "Release notes for every Hatchet TypeScript SDK release, newest fir
 
 ### Added
 
-- Adds rate limit pausing.
+- Adds `hatchet.ratelimits.pause({ key, until })` and `ctx.pauseRateLimit(key, { until })`, which keep queued runs that consume a rate limit key from starting until a given time.
 
 ## v1.38.0 - 2026-10-13
 

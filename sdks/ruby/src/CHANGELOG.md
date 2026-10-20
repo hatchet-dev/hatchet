@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Adds rate limit pausing.
+- Adds `hatchet.rate_limits.pause(key:, until_time:)` and `Context#pause_rate_limit(key, until_time:)`, which keep queued runs that consume a rate limit key from starting until a given time.
 
 ## [0.10.0] - 2026-10-08
 
