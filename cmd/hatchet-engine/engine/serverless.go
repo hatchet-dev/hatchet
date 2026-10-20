@@ -200,6 +200,7 @@ func serverlessConfigFromServer(cf server.ServerlessOperatorConfigFile) serverle
 		WSMaxUpgradeHeaderBytes:      cf.WSMaxUpgradeHeaderBytes,
 		WSMaxQueuedBytes:             cf.WSMaxQueuedBytes,
 		WSMaxStreams:                 cf.WSMaxStreams,
+		WSMaxRunsPerStream:           cf.WSMaxRunsPerStream,
 		HealthPort:                   0,
 	}
 }

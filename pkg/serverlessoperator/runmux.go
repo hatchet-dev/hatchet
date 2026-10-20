@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sync"
 
+	"connectrpc.com/connect"
 	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/proto"
 
@@ -19,6 +20,10 @@ import (
 // closing the socket, and with it the subscriber.
 const runMuxQueueSize = 64
 
+// errRunMuxRetired is install's report that the stream it replayed on already carries an
+// interest nobody holds: a subscriber closed during the replay. The loop opens another.
+var errRunMuxRetired = errors.New("the workflow runs stream was retired during its replay")
+
 // runMux multiplexes one SubscribeToWorkflowRuns stream per tenant session over every socket
 // of the tenant that asks for a run's result, the way the SDK's child listener shares one
 // stream per process. The engine stream is opened on the first subscriber and reopened with
@@ -26,18 +31,25 @@ const runMuxQueueSize = 64
 // event is delivered to every subscriber that asked for it and ends the interest in the run.
 //
 // A subscriber is an operator.RunStream: Send subscribes a run id, Recv yields the events of
-// the runs it subscribed, Close forgets its runs. The mux itself is closed with the
-// registration that owns it.
+// the runs it subscribed, Close forgets its runs. A subscriber awaits at most maxRuns runs
+// at once; past that, a subscription is refused with ResourceExhausted. The engine has no
+// unsubscribe message and keeps polling every run it was told of until the stream ends, so
+// when a subscriber closes while it still awaits runs nobody else holds, the engine stream is
+// retired and reopened with the runs still awaited; closes that overlap share one reopen. The
+// mux itself is closed with the registration that owns it.
 type runMux struct {
 	open    func(ctx context.Context) (operator.RunStream, error)
 	l       *zerolog.Logger
 	backoff func(ctx context.Context, attempt int) error
+	maxRuns int
 
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	// mu guards everything below. stream is the current engine stream, nil while none is
-	// open; subs is every awaited run and the handles that await it.
+	// mu guards everything below and is never held across a send on the engine stream, so
+	// close can always reach the cancellation that releases a blocked send. stream is the
+	// current engine stream, nil while none is open; subs is every awaited run and the
+	// handles that await it.
 	mu      sync.Mutex
 	stream  operator.RunStream
 	subs    map[string]map[*runMuxHandle]struct{}
@@ -46,13 +58,14 @@ type runMux struct {
 	closed  bool
 }
 
-func newRunMux(l *zerolog.Logger, open func(ctx context.Context) (operator.RunStream, error)) *runMux {
+func newRunMux(l *zerolog.Logger, maxRuns int, open func(ctx context.Context) (operator.RunStream, error)) *runMux {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &runMux{
 		open:    open,
 		l:       l,
 		backoff: retry.SleepStreamBackoff,
+		maxRuns: maxRuns,
 		ctx:     ctx,
 		cancel:  cancel,
 		subs:    map[string]map[*runMuxHandle]struct{}{},
@@ -94,14 +107,18 @@ func (m *runMux) Subscribe(ctx context.Context, first proto.Message) (operator.R
 	return h, nil
 }
 
-// run keeps one engine stream open while the mux lives: it opens the stream with backoff,
-// subscribes every awaited run on it, and fans its events out until it fails.
+// run keeps one engine stream open while the mux lives: it opens the stream, backing off
+// after consecutive failures, subscribes every awaited run on it, and fans its events out
+// until it fails or is retired. A retired stream is replaced at once; a failed one counts
+// toward the backoff unless it delivered something first.
 func (m *runMux) run() {
 	defer close(m.loop)
 
-	for attempt := 0; ; attempt++ {
-		if attempt > 0 {
-			if err := m.backoff(m.ctx, attempt-1); err != nil {
+	failures := 0
+
+	for {
+		if failures > 0 {
+			if err := m.backoff(m.ctx, failures-1); err != nil {
 				return
 			}
 		}
@@ -117,7 +134,8 @@ func (m *runMux) run() {
 				return
 			}
 
-			m.l.Warn().Err(err).Int("attempt", attempt+1).Msg("could not open the workflow runs stream; retrying")
+			failures++
+			m.l.Warn().Err(err).Int("attempt", failures).Msg("could not open the workflow runs stream; retrying")
 
 			continue
 		}
@@ -129,63 +147,109 @@ func (m *runMux) run() {
 				return
 			}
 
-			m.l.Warn().Err(err).Int("attempt", attempt+1).Msg("could not resubscribe on the workflow runs stream; reopening")
+			if errors.Is(err, errRunMuxRetired) {
+				continue
+			}
+
+			failures++
+			m.l.Warn().Err(err).Int("attempt", failures).Msg("could not resubscribe on the workflow runs stream; reopening")
 
 			continue
 		}
 
-		attempt = m.serve(stream, attempt)
+		failed, delivered := m.serve(stream)
 
 		if m.ctx.Err() != nil {
 			return
 		}
-	}
-}
 
-// install publishes stream as the current one and replays every awaited run on it.
-func (m *runMux) install(stream operator.RunStream) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if m.closed {
-		return operator.ErrSessionClosed
-	}
-
-	for runId := range m.subs {
-		if err := stream.Send(m.ctx, &contracts.SubscribeToWorkflowRunsRequest{WorkflowRunId: runId}); err != nil {
-			return err
+		switch {
+		case !failed:
+			failures = 0
+		case delivered:
+			failures = 1
+		default:
+			failures++
 		}
 	}
-
-	m.stream = stream
-
-	return nil
 }
 
-// serve fans the stream's events out until it fails, then retires it. It returns the
-// attempt count the next open starts from: zero once the stream delivered anything.
-func (m *runMux) serve(stream operator.RunStream, attempt int) int {
+// install replays every awaited run on stream, then publishes it as the current one. The
+// sends run outside the lock, since flow control may block them and close must be able to
+// cancel them; runs subscribed during the replay are sent before the stream is published, so
+// nothing a subscriber recorded while no stream was current is left out, and a run the
+// replay sent that nobody awaits any more retires the stream instead of publishing it.
+func (m *runMux) install(stream operator.RunStream) error {
+	sent := map[string]struct{}{}
+
+	for {
+		m.mu.Lock()
+
+		if m.closed {
+			m.mu.Unlock()
+			return operator.ErrSessionClosed
+		}
+
+		pending := make([]string, 0, len(m.subs))
+
+		for runId := range m.subs {
+			if _, ok := sent[runId]; !ok {
+				pending = append(pending, runId)
+			}
+		}
+
+		if len(pending) == 0 {
+			for runId := range sent {
+				if _, ok := m.subs[runId]; !ok {
+					m.mu.Unlock()
+					return errRunMuxRetired
+				}
+			}
+
+			m.stream = stream
+			m.mu.Unlock()
+
+			return nil
+		}
+
+		m.mu.Unlock()
+
+		for _, runId := range pending {
+			if err := stream.Send(m.ctx, &contracts.SubscribeToWorkflowRunsRequest{WorkflowRunId: runId}); err != nil {
+				return err
+			}
+
+			sent[runId] = struct{}{}
+		}
+	}
+}
+
+// serve fans the stream's events out until it ends. It reports whether the stream failed on
+// its own, as opposed to being retired by a subscriber's close or the mux's, and whether it
+// delivered anything first.
+func (m *runMux) serve(stream operator.RunStream) (failed, delivered bool) {
 	for {
 		msg, err := stream.Recv(m.ctx)
 
 		if err != nil {
 			m.mu.Lock()
+			failed = m.stream == stream
 
-			if m.stream == stream {
+			if failed {
 				m.stream = nil
 			}
 
 			m.mu.Unlock()
 			_ = stream.Close()
 
-			if m.ctx.Err() == nil {
+			if failed && m.ctx.Err() == nil {
 				m.l.Warn().Err(err).Msg("workflow runs stream ended; reopening")
 			}
 
-			return attempt
+			return failed, delivered
 		}
 
-		attempt = 0
+		delivered = true
 
 		event, ok := msg.(*contracts.WorkflowRunEvent)
 
@@ -223,13 +287,19 @@ func (m *runMux) deliver(event *contracts.WorkflowRunEvent) {
 }
 
 // subscribe records the handle's interest in the run and sends the subscription on the
-// current stream; without one the install of the next stream sends it.
+// current stream; without one the install of the next stream sends it. A handle at its cap
+// is refused, unless it already awaits the run.
 func (m *runMux) subscribe(ctx context.Context, h *runMuxHandle, runId string) error {
 	m.mu.Lock()
 
 	if m.closed {
 		m.mu.Unlock()
 		return operator.ErrSessionClosed
+	}
+
+	if _, awaited := h.runs[runId]; !awaited && len(h.runs) >= m.maxRuns {
+		m.mu.Unlock()
+		return connect.NewError(connect.CodeResourceExhausted, fmt.Errorf("the stream already awaits %d runs, the limit", m.maxRuns))
 	}
 
 	handles, ok := m.subs[runId]
@@ -257,22 +327,45 @@ func (m *runMux) subscribe(ctx context.Context, h *runMuxHandle, runId string) e
 	return nil
 }
 
-// unsubscribe forgets the handle's interest in every run it awaited.
+// unsubscribe forgets the handle's interest in every run it awaited. A run left with no
+// other holder is one the engine stream still carries, so the stream is retired: serve
+// finds it gone and the loop opens another with the runs still awaited. While no stream is
+// current, the replay in progress notices the orphan itself.
 func (m *runMux) unsubscribe(h *runMuxHandle) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
+
+	orphaned := false
 
 	for runId := range h.runs {
 		delete(m.subs[runId], h)
 
 		if len(m.subs[runId]) == 0 {
 			delete(m.subs, runId)
+
+			orphaned = true
 		}
+	}
+
+	var retired operator.RunStream
+
+	if orphaned && !m.closed {
+		retired = m.stream
+		m.stream = nil
+	}
+
+	m.mu.Unlock()
+
+	if retired != nil {
+		_ = retired.Close()
 	}
 }
 
-// close ends the mux: the engine stream is closed, the loop joined, every handle closed.
+// close ends the mux: the engine stream is closed, the loop joined, every handle closed. The
+// context is cancelled before the lock is taken, so a replay or subscription send blocked on
+// the engine stream is released rather than waited on.
 func (m *runMux) close() {
+	m.cancel()
+
 	m.mu.Lock()
 
 	if m.closed {
@@ -294,8 +387,6 @@ func (m *runMux) close() {
 	}
 
 	m.mu.Unlock()
-
-	m.cancel()
 
 	if stream != nil {
 		_ = stream.Close()

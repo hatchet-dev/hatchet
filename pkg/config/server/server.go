@@ -740,6 +740,10 @@ type ServerlessOperatorConfigFile struct {
 	// WSMaxStreams caps the engine streams one invocation socket may hold open at once.
 	WSMaxStreams int `mapstructure:"wsMaxStreams" json:"wsMaxStreams,omitempty" default:"16"`
 
+	// WSMaxRunsPerStream caps the workflow runs one SubscribeToWorkflowRuns stream opened over an invocation
+	// socket may await at once.
+	WSMaxRunsPerStream int `mapstructure:"wsMaxRunsPerStream" json:"wsMaxRunsPerStream,omitempty" default:"1024"`
+
 	// HTTPMaxIdleConns, HTTPMaxIdleConnsPerHost and HTTPIdleConnTimeout bound the delivery client's idle
 	// connection pool (SERVER_SERVERLESS_OPERATOR_HTTP_*).
 	HTTPMaxIdleConns        int           `mapstructure:"httpMaxIdleConns" json:"httpMaxIdleConns,omitempty" default:"256"`
@@ -921,6 +925,12 @@ type PayloadStoreConfig struct {
 	ExternalCutoverNumConcurrentOffloads int32         `mapstructure:"externalCutoverNumConcurrentOffloads" json:"externalCutoverNumConcurrentOffloads,omitempty" default:"10"`
 	InlineStoreTTLDays                   int32         `mapstructure:"inlineStoreTTLDays" json:"inlineStoreTTLDays,omitempty" default:"2"`
 	EnableWindowSizeOptimization         bool          `mapstructure:"enableWindowSizeOptimization" json:"enableWindowSizeOptimization,omitempty" default:"true"`
+	// Writes the task input to the payload store wrapped in the full step run data, which engines before the
+	// `triggers`, `dag_parent_task_run_ids` and `child_task_desired_worker_labels` columns on v1_task can read.
+	// Every engine from this version on reads both shapes. Turn off only once every engine is on this version
+	// or later, because an older engine cannot read a bare input and turning it back on does not repair rows
+	// already written bare.
+	WrapTaskInputInStepRunData bool `mapstructure:"wrapTaskInputInStepRunData" json:"wrapTaskInputInStepRunData,omitempty" default:"true"`
 }
 
 func (c *ServerConfig) HasService(name string) bool {
@@ -1014,6 +1024,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.serverlessOperator.wsMaxUpgradeHeaderBytes", "SERVER_SERVERLESS_OPERATOR_WS_MAX_UPGRADE_HEADER_BYTES")
 	_ = v.BindEnv("runtime.serverlessOperator.wsMaxQueuedBytes", "SERVER_SERVERLESS_OPERATOR_WS_MAX_QUEUED_BYTES")
 	_ = v.BindEnv("runtime.serverlessOperator.wsMaxStreams", "SERVER_SERVERLESS_OPERATOR_WS_MAX_STREAMS")
+	_ = v.BindEnv("runtime.serverlessOperator.wsMaxRunsPerStream", "SERVER_SERVERLESS_OPERATOR_WS_MAX_RUNS_PER_STREAM")
 	_ = v.BindEnv("runtime.serverlessOperator.httpMaxIdleConns", "SERVER_SERVERLESS_OPERATOR_HTTP_MAX_IDLE_CONNS")
 	_ = v.BindEnv("runtime.serverlessOperator.httpMaxIdleConnsPerHost", "SERVER_SERVERLESS_OPERATOR_HTTP_MAX_IDLE_CONNS_PER_HOST")
 	_ = v.BindEnv("runtime.serverlessOperator.httpIdleConnTimeout", "SERVER_SERVERLESS_OPERATOR_HTTP_IDLE_CONN_TIMEOUT")
@@ -1246,6 +1257,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("payloadStore.externalCutoverNumConcurrentOffloads", "SERVER_PAYLOAD_STORE_EXTERNAL_CUTOVER_NUM_CONCURRENT_OFFLOADS")
 	_ = v.BindEnv("payloadStore.inlineStoreTTLDays", "SERVER_PAYLOAD_STORE_INLINE_STORE_TTL_DAYS")
 	_ = v.BindEnv("payloadStore.enableWindowSizeOptimization", "SERVER_PAYLOAD_STORE_ENABLE_WINDOW_SIZE_OPTIMIZATION")
+	_ = v.BindEnv("payloadStore.wrapTaskInputInStepRunData", "SERVER_PAYLOAD_STORE_WRAP_TASK_INPUT_IN_STEP_RUN_DATA")
 
 	// cron operations options
 	_ = v.BindEnv("cronOperations.taskAnalyzeCronInterval", "SERVER_CRON_OPERATIONS_TASK_ANALYZE_CRON_INTERVAL")

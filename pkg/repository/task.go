@@ -1946,7 +1946,7 @@ func (r *TaskRepositoryImpl) ProcessDurableSleeps(ctx context.Context, tenantId 
 			InsertedAt: task.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
 			ExternalId: task.ExternalID,
-			Payload:    task.Payload,
+			Payload:    task.TaskInputPayload,
 			TenantId:   task.TenantID,
 		}
 	}
@@ -2539,7 +2539,8 @@ func (r *sharedRepository) insertTasks(
 	isDagOrchestrators := make([]bool, len(tasks))
 	batchKeys := make([]string, len(tasks))
 
-	externalIdToInput := make(map[uuid.UUID][]byte, len(tasks))
+	externalIdToStepRunData := make(map[uuid.UUID]*V1StepRunData, len(tasks))
+	taskInputPayloadVersionForNewTasks := r.taskInputPayloadVersionToWrite()
 
 	unix := time.Now().UnixMilli()
 
@@ -2567,7 +2568,7 @@ func (r *sharedRepository) insertTasks(
 		isDurables[i] = stepConfig.IsDurable
 		isDagOrchestrators[i] = stepConfig.IsDagOrchestrator
 
-		externalIdToInput[task.ExternalId] = r.ToV1StepRunData(task.Input).Bytes()
+		externalIdToStepRunData[task.ExternalId] = r.ToV1StepRunData(task.Input)
 
 		retryCounts[i] = 0
 
@@ -2917,9 +2918,23 @@ func (r *sharedRepository) insertTasks(
 				TriggeringEventKeys:          make([]pgtype.Text, 0),
 				IsDagOrchestrators:           make([]bool, 0),
 				IdempotencyKeys:              make([]pgtype.Text, 0),
+				Triggers:                     make([][]byte, 0),
+				DagParentTaskRunIds:          make([][]byte, 0),
+				ChildTaskDesiredWorkerLabels: make([][]byte, 0),
+				TaskInputPayloadVersions:     make([]int16, 0),
 			}
 		}
 
+		stepRunDataColumns, err := externalIdToStepRunData[externalIds[i]].taskColumns()
+
+		if err != nil {
+			return nil, err
+		}
+
+		params.Triggers = append(params.Triggers, stepRunDataColumns.triggers)
+		params.DagParentTaskRunIds = append(params.DagParentTaskRunIds, stepRunDataColumns.dagParentTaskRunIds)
+		params.ChildTaskDesiredWorkerLabels = append(params.ChildTaskDesiredWorkerLabels, stepRunDataColumns.childTaskDesiredWorkerLabels)
+		params.TaskInputPayloadVersions = append(params.TaskInputPayloadVersions, int16(taskInputPayloadVersionForNewTasks))
 		params.Tenantids = append(params.Tenantids, tenantIds[i])
 		params.Queues = append(params.Queues, queues[i])
 		params.Actionids = append(params.Actionids, actionIds[i])
@@ -3000,11 +3015,11 @@ func (r *sharedRepository) insertTasks(
 		}
 
 		for _, task := range createdTasks {
-			input := externalIdToInput[task.ExternalID]
 			withPayload := V1TaskWithPayload{
-				V1Task:  task,
-				Runtime: nil,
-				Payload: input,
+				V1Task:           task,
+				Runtime:          nil,
+				Payload:          externalIdToStepRunData[task.ExternalID].Bytes(),
+				TaskInputPayload: externalIdToStepRunData[task.ExternalID].taskInputPayload(taskInputPayloadVersion(task.TaskInputPayloadVersion)),
 			}
 
 			res = append(res, &withPayload)
@@ -3149,7 +3164,7 @@ func (r *sharedRepository) replayTasks(
 	queues := make([]string, len(tasks))
 	batchKeys := make([]string, len(tasks))
 
-	externalIdToInput := make(map[uuid.UUID][]byte, len(tasks))
+	externalIdToStepRunData := make(map[uuid.UUID]*V1StepRunData, len(tasks))
 
 	for i, task := range tasks {
 		stepConfig := stepIdsToConfig[task.StepId]
@@ -3161,7 +3176,7 @@ func (r *sharedRepository) replayTasks(
 		// TODO: case on whether this is a v1 or v2 task by looking at the step data. for now,
 		// we're assuming a v1 task.
 		if task.Input != nil {
-			externalIdToInput[task.ExternalId] = r.ToV1StepRunData(task.Input).Bytes()
+			externalIdToStepRunData[task.ExternalId] = r.ToV1StepRunData(task.Input)
 		}
 
 		initialStates[i] = string(task.InitialState)
@@ -3309,32 +3324,39 @@ func (r *sharedRepository) replayTasks(
 	}
 
 	stepIdsToParams := make(map[uuid.UUID]sqlcv1.ReplayTasksParams, 0)
-	stepIdsToStorePayloadOpts := make(map[uuid.UUID][]StorePayloadOpts, 0)
 
 	for i, task := range tasks {
 		params, ok := stepIdsToParams[task.StepId]
 
 		if !ok {
 			params = sqlcv1.ReplayTasksParams{
-				Taskids:                    make([]int64, 0),
-				Taskinsertedats:            make([]pgtype.Timestamptz, 0),
-				Inputs:                     make([][]byte, 0),
-				InitialStates:              make([]string, 0),
-				InitialStateReasons:        make([]pgtype.Text, 0),
-				Concurrencykeys:            make([][]string, 0),
-				ConcurrencyMaxRuns:         make([][]pgtype.Int4, 0),
-				DesiredWorkerLabels:        make([][]byte, 0),
-				TriggeringEventExternalIds: make([]*uuid.UUID, 0),
-				TriggeringEventKeys:        make([]pgtype.Text, 0),
-				BatchKeys:                  make([]string, 0),
+				Taskids:                      make([]int64, 0),
+				Taskinsertedats:              make([]pgtype.Timestamptz, 0),
+				InitialStates:                make([]string, 0),
+				InitialStateReasons:          make([]pgtype.Text, 0),
+				Concurrencykeys:              make([][]string, 0),
+				ConcurrencyMaxRuns:           make([][]pgtype.Int4, 0),
+				DesiredWorkerLabels:          make([][]byte, 0),
+				TriggeringEventExternalIds:   make([]*uuid.UUID, 0),
+				TriggeringEventKeys:          make([]pgtype.Text, 0),
+				BatchKeys:                    make([]string, 0),
+				Triggers:                     make([][]byte, 0),
+				DagParentTaskRunIds:          make([][]byte, 0),
+				ChildTaskDesiredWorkerLabels: make([][]byte, 0),
 			}
 		}
 
-		input := externalIdToInput[task.ExternalId]
+		stepRunDataColumns, err := externalIdToStepRunData[task.ExternalId].taskColumns()
 
+		if err != nil {
+			return nil, err
+		}
+
+		params.Triggers = append(params.Triggers, stepRunDataColumns.triggers)
+		params.DagParentTaskRunIds = append(params.DagParentTaskRunIds, stepRunDataColumns.dagParentTaskRunIds)
+		params.ChildTaskDesiredWorkerLabels = append(params.ChildTaskDesiredWorkerLabels, stepRunDataColumns.childTaskDesiredWorkerLabels)
 		params.Taskids = append(params.Taskids, taskIds[i])
 		params.Taskinsertedats = append(params.Taskinsertedats, taskInsertedAts[i])
-		params.Inputs = append(params.Inputs, input)
 		params.InitialStates = append(params.InitialStates, initialStates[i])
 		params.InitialStateReasons = append(params.InitialStateReasons, initialStateReasons[i])
 		params.Concurrencykeys = append(params.Concurrencykeys, concurrencyKeys[i])
@@ -3349,17 +3371,6 @@ func (r *sharedRepository) replayTasks(
 		}
 
 		stepIdsToParams[task.StepId] = params
-
-		storePayloadOpts := StorePayloadOpts{
-			Id:         taskIds[i],
-			InsertedAt: taskInsertedAts[i],
-			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
-			ExternalId: task.ExternalId,
-			Payload:    input,
-			TenantId:   tenantId,
-		}
-
-		stepIdsToStorePayloadOpts[task.StepId] = append(stepIdsToStorePayloadOpts[task.StepId], storePayloadOpts)
 	}
 
 	// for any initial states which are not queued, create a finalizing task event
@@ -3376,25 +3387,28 @@ func (r *sharedRepository) replayTasks(
 			return nil, fmt.Errorf("failed to replay tasks for step id %s: %w", stepId, err)
 		}
 
-		storePayloadOpts, ok := stepIdsToStorePayloadOpts[stepId]
-
-		if !ok {
-			return nil, fmt.Errorf("missing payload store opts for step id %s", stepId)
-		}
-
-		err = r.payloadStore.OverwriteExisting(ctx, tx, storePayloadOpts...)
-
-		if err != nil {
-			return nil, fmt.Errorf("failed to overwrite payloads for step id %s: %w", stepId, err)
-		}
+		storePayloadOpts := make([]StorePayloadOpts, 0, len(replayRes))
 
 		for _, task := range replayRes {
-			input := externalIdToInput[task.ExternalID]
 			withPayload := V1TaskWithPayload{
 				V1Task:  task,
 				Runtime: nil,
-				Payload: input,
 			}
+
+			if stepRunData, isInputReplaced := externalIdToStepRunData[task.ExternalID]; isInputReplaced {
+				withPayload.Payload = stepRunData.Bytes()
+				withPayload.TaskInputPayload = stepRunData.taskInputPayload(taskInputPayloadVersion(task.TaskInputPayloadVersion))
+			}
+
+			storePayloadOpts = append(storePayloadOpts, StorePayloadOpts{
+				Id:         task.ID,
+				InsertedAt: task.InsertedAt,
+				Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+				ExternalId: task.ExternalID,
+				Payload:    withPayload.TaskInputPayload,
+				TenantId:   tenantId,
+			})
+
 			res = append(res, &withPayload)
 
 			if task.IdempotencyKey.Valid {
@@ -3425,6 +3439,10 @@ func (r *sharedRepository) replayTasks(
 				eventTypes = append(eventTypes, sqlcv1.V1TaskEventTypeCOMPLETED)
 			case sqlcv1.V1TaskInitialStateQUEUED:
 			}
+		}
+
+		if err := r.payloadStore.OverwriteExisting(ctx, tx, storePayloadOpts...); err != nil {
+			return nil, fmt.Errorf("failed to overwrite payloads for step id %s: %w", stepId, err)
 		}
 	}
 
@@ -3583,9 +3601,21 @@ func (r *sharedRepository) getStepExpressions(
 	}
 
 	stepIds := make([]uuid.UUID, 0, len(stepIdsWithExpressions))
+	stepIdToExpressions := make(map[uuid.UUID][]*sqlcv1.StepExpression)
 
+	// a step's expressions are immutable (a new workflow version creates new step ids), so
+	// the stepIdExpressionsCache TTL only bounds memory; cached slices are read-only
 	for stepId := range stepIdsWithExpressions {
+		if cached, found := r.stepIdExpressionsCache.Get(stepId); found {
+			stepIdToExpressions[stepId] = cached
+			continue
+		}
+
 		stepIds = append(stepIds, stepId)
+	}
+
+	if len(stepIds) == 0 {
+		return stepIdToExpressions, nil
 	}
 
 	expressions, err := r.queries.ListStepExpressions(ctx, tx, stepIds)
@@ -3593,8 +3623,6 @@ func (r *sharedRepository) getStepExpressions(
 	if err != nil {
 		return nil, err
 	}
-
-	stepIdToExpressions := make(map[uuid.UUID][]*sqlcv1.StepExpression)
 
 	for _, expression := range expressions {
 		stepId := expression.StepId
@@ -3604,6 +3632,15 @@ func (r *sharedRepository) getStepExpressions(
 		}
 
 		stepIdToExpressions[stepId] = append(stepIdToExpressions[stepId], expression)
+	}
+
+	// cache empty results too, so every step id is looked up at most once per TTL
+	for _, stepId := range stepIds {
+		if _, ok := stepIdToExpressions[stepId]; !ok {
+			stepIdToExpressions[stepId] = []*sqlcv1.StepExpression{}
+		}
+
+		r.stepIdExpressionsCache.Add(stepId, stepIdToExpressions[stepId])
 	}
 
 	return stepIdToExpressions, nil
@@ -4108,7 +4145,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 			// NOTE: we require the input to be passed in to the replay method so we can re-evaluate the concurrency keys
 			// Ideally we could preserve the same concurrency keys, but the replay tasks method is currently unaware of existing concurrency
 			// keys because they may change between retries.
-			Input: r.newTaskInputFromExistingBytes(input),
+			Input: r.newTaskInputFromTaskInputPayload(taskInputPayloadVersion(task.TaskInputPayloadVersion), input),
 		})
 	}
 
@@ -5313,15 +5350,12 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 
 	input := payloads[inputRetrieveOpt]
 
-	if !isDag && len(input) > 0 {
-		// if it's a standalone task, we need to extract the "input" field from the payload
-		stepRunData, err := r.V1StepRunDataFromBytes(input)
+	if !isDag {
+		input, err = userInputFromTaskInputPayload(taskInputPayloadVersion(firstTask.TaskInputPayloadVersion), input)
 
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse step run data: %w", err)
+			return nil, fmt.Errorf("failed to read task input: %w", err)
 		}
-
-		input = stepRunData.InputBytes()
 	}
 
 	taskRunDetails := make(map[StepReadableId]TaskRunDetails)

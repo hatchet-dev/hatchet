@@ -44,9 +44,9 @@ func TestIdleQueuesGoInactive(t *testing.T) {
 	shared := &sharedRepository{pool: pool, l: &logger, queries: queries, queueCache: cache.New(5 * time.Minute)}
 	repo := newQueueRepository(shared, tenantID, "idle")
 
-	rows, err := repo.RequeueRateLimitedItems(ctx, tenantID, "idle")
+	nextRequeueAfter, err := repo.RequeueRateLimitedItems(ctx, tenantID, "idle")
 	require.NoError(t, err)
-	require.Empty(t, rows)
+	require.Nil(t, nextRequeueAfter)
 
 	listed := func() []string {
 		queues, err := queries.ListQueues(ctx, pool, tenantID)

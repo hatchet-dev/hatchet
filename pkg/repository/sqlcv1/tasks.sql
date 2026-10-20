@@ -209,7 +209,8 @@ WITH lookup_rows AS MATERIALIZED (
         t.is_dag_orchestrator,
         t.workflow_version_id,
         t.parent_task_external_id,
-        t.is_durable
+        t.is_durable,
+        t.task_input_payload_version
     FROM
         lookup_rows l
     JOIN
@@ -241,7 +242,8 @@ SELECT
     t.is_dag_orchestrator,
     t.workflow_version_id,
     t.parent_task_external_id,
-    t.is_durable
+    t.is_durable,
+    t.task_input_payload_version
 FROM
     lookup_rows l
 JOIN
@@ -871,7 +873,8 @@ WITH RECURSIVE input_tasks AS MATERIALIZED (
         t.child_key,
         t.desired_worker_label,
         t.triggering_event_external_id,
-        t.triggering_event_key
+        t.triggering_event_key,
+        t.task_input_payload_version
     FROM
         v1_task t
     WHERE
@@ -921,6 +924,7 @@ SELECT
     t.desired_worker_label,
     t.triggering_event_external_id,
     t.triggering_event_key,
+    t.task_input_payload_version,
     j."kind" as "jobKind",
     COALESCE(so."parents", '{}'::uuid[]) as "parents"
 FROM
@@ -934,16 +938,18 @@ LEFT JOIN
 
 -- name: ListTaskParentOutputs :many
 -- Lists the outputs of parent steps for a list of tasks. This is recursive because it looks at all grandparents
--- of the tasks as well.
+-- of the tasks as well. Only each task's most recent terminal event is returned, so a task that failed and then
+-- succeeded on a retry is reported with its output, and a task that was cancelled is not reported at all.
 WITH input AS (
     SELECT
         UNNEST(@taskIds::BIGINT[]) AS task_id,
         UNNEST(@taskInsertedAts::TIMESTAMPTZ[]) AS task_inserted_at
-), task_outputs AS (
+), task_terminal_events AS (
     SELECT
         t.id,
         t.inserted_at,
         e.retry_count,
+        e.event_type,
         t.tenant_id,
         t.dag_id,
         t.dag_inserted_at,
@@ -962,7 +968,7 @@ WITH input AS (
     JOIN
         v1_task t ON t.id = dt.task_id AND t.inserted_at = dt.task_inserted_at
     JOIN
-        v1_task_event e ON e.task_id = t.id AND e.task_inserted_at = t.inserted_at AND e.event_type = 'COMPLETED'
+        v1_task_event e ON e.task_id = t.id AND e.task_inserted_at = t.inserted_at AND e.event_type IN ('COMPLETED', 'FAILED', 'CANCELLED')
     WHERE
         (t1.id, t1.inserted_at) IN (
             SELECT
@@ -977,33 +983,32 @@ WITH input AS (
         AND dt.dag_inserted_at >= @minDagInsertedAt::timestamptz
         AND t.inserted_at >= @minDagInsertedAt::timestamptz
         AND e.task_inserted_at >= @minDagInsertedAt::timestamptz
-), max_retry_counts AS (
-    SELECT
+), latest_terminal_events AS (
+    SELECT DISTINCT ON (id, inserted_at)
+        task_event_id,
+        task_event_inserted_at,
+        workflow_run_id,
+        output,
+        output_event_external_id,
+        event_type
+    FROM
+        task_terminal_events
+    ORDER BY
         id,
         inserted_at,
-        MAX(retry_count) AS max_retry_count
-    FROM
-        task_outputs
-    GROUP BY
-        id, inserted_at
+        retry_count DESC,
+        task_event_id DESC
 )
 SELECT
-    DISTINCT ON (task_outputs.id, task_outputs.inserted_at, task_outputs.retry_count)
-    task_outputs.task_event_id,
-    task_outputs.task_event_inserted_at,
-    task_outputs.workflow_run_id,
-    task_outputs.output,
-    task_outputs.output_event_external_id
+    task_event_id,
+    task_event_inserted_at,
+    workflow_run_id,
+    output,
+    output_event_external_id
 FROM
-    task_outputs
-JOIN
-    max_retry_counts mrc ON task_outputs.id = mrc.id
-        AND task_outputs.inserted_at = mrc.inserted_at
-        AND task_outputs.retry_count = mrc.max_retry_count
-ORDER BY
-    task_outputs.id,
-    task_outputs.inserted_at,
-    task_outputs.retry_count DESC;
+    latest_terminal_events
+WHERE
+    event_type IN ('COMPLETED', 'FAILED');
 
 -- name: ListTaskOutputEventIdsByTaskRunExternalIds :many
 WITH task_outputs AS (

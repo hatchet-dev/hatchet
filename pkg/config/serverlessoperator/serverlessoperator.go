@@ -74,6 +74,7 @@ type ConfigFile struct {
 	WSMaxUpgradeHeaderBytes int64 `mapstructure:"wsMaxUpgradeHeaderBytes" default:"65536"`
 	WSMaxQueuedBytes        int64 `mapstructure:"wsMaxQueuedBytes" default:"16777216"`
 	WSMaxStreams            int   `mapstructure:"wsMaxStreams" default:"16"`
+	WSMaxRunsPerStream      int   `mapstructure:"wsMaxRunsPerStream" default:"1024"`
 
 	// Outbound HTTP idle connection pool.
 	HTTPMaxIdleConns        int           `mapstructure:"httpMaxIdleConns" default:"256"`
@@ -135,6 +136,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("wsMaxUpgradeHeaderBytes", "SERVERLESS_OPERATOR_WS_MAX_UPGRADE_HEADER_BYTES")
 	_ = v.BindEnv("wsMaxQueuedBytes", "SERVERLESS_OPERATOR_WS_MAX_QUEUED_BYTES")
 	_ = v.BindEnv("wsMaxStreams", "SERVERLESS_OPERATOR_WS_MAX_STREAMS")
+	_ = v.BindEnv("wsMaxRunsPerStream", "SERVERLESS_OPERATOR_WS_MAX_RUNS_PER_STREAM")
 
 	_ = v.BindEnv("httpMaxIdleConns", "SERVERLESS_OPERATOR_HTTP_MAX_IDLE_CONNS")
 	_ = v.BindEnv("httpMaxIdleConnsPerHost", "SERVERLESS_OPERATOR_HTTP_MAX_IDLE_CONNS_PER_HOST")
@@ -248,5 +250,6 @@ func (cf *ConfigFile) CoreConfig() serverlessoperator.Config {
 		WSMaxUpgradeHeaderBytes:      cf.WSMaxUpgradeHeaderBytes,
 		WSMaxQueuedBytes:             cf.WSMaxQueuedBytes,
 		WSMaxStreams:                 cf.WSMaxStreams,
+		WSMaxRunsPerStream:           cf.WSMaxRunsPerStream,
 	}
 }

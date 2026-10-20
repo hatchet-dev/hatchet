@@ -68,7 +68,6 @@ func (s *session) OpenRunStream(ctx context.Context, kind operator.RunStreamKind
 			return c.Send(req)
 		}
 		rs.recv = func() (proto.Message, error) { return c.Recv() }
-		rs.closeSend = c.CloseSend
 	case operator.RunStreamWorkflowEvents:
 		req, ok := first.(*dispatchercontracts.SubscribeToWorkflowEventsRequest)
 
@@ -104,7 +103,6 @@ func (s *session) OpenRunStream(ctx context.Context, kind operator.RunStreamKind
 			return c.Send(req)
 		}
 		rs.recv = func() (proto.Message, error) { return c.Recv() }
-		rs.closeSend = c.CloseSend
 	default:
 		cancel()
 		return nil, fmt.Errorf("unknown run stream kind %d", int(kind))
@@ -137,10 +135,13 @@ type runStreamItem struct {
 // grpcRunStream is one gRPC stream behind operator.RunStream: a reader goroutine turns the
 // stream's Recv into a bounded queue so the caller's Recv honours its context, and Close
 // cancels the stream context, which is what unblocks a pending Recv or Send on the transport.
+//
+// sendMu serialises senders, as grpc-go allows one at a time, and is held across the
+// transport write, which flow control may block; Close never takes it, so a blocked Send
+// cannot hold up the cancellation that releases it.
 type grpcRunStream struct {
 	send      func(proto.Message) error
 	recv      func() (proto.Message, error)
-	closeSend func() error
 	cancel    context.CancelFunc
 	queue     chan runStreamItem
 	closed    chan struct{}
@@ -181,15 +182,14 @@ func (rs *grpcRunStream) Send(_ context.Context, msg proto.Message) error {
 		return fmt.Errorf("sending on a server stream: %w", operator.ErrNotSupported)
 	}
 
+	rs.sendMu.Lock()
+	defer rs.sendMu.Unlock()
+
 	select {
 	case <-rs.closed:
 		return operator.ErrChannelClosed
 	default:
 	}
-
-	// grpc-go allows one sender at a time on a stream.
-	rs.sendMu.Lock()
-	defer rs.sendMu.Unlock()
 
 	return rs.send(msg)
 }
@@ -205,17 +205,13 @@ func (rs *grpcRunStream) Recv(ctx context.Context) (proto.Message, error) {
 	}
 }
 
-// Close half-closes the send side, cancels the stream and waits for the reader to leave.
+// Close marks the stream closed, cancels it and waits for the reader to leave. The
+// cancellation is what ends the stream on the transport, for the engine and for a Send
+// blocked on flow control alike; the send side is not half-closed first, since that would
+// wait behind such a Send.
 func (rs *grpcRunStream) Close() error {
 	rs.closeOnce.Do(func() {
 		close(rs.closed)
-
-		if rs.closeSend != nil {
-			rs.sendMu.Lock()
-			_ = rs.closeSend()
-			rs.sendMu.Unlock()
-		}
-
 		rs.cancel()
 	})
 
