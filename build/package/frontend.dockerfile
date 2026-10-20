@@ -30,7 +30,7 @@ RUN if [ "$FIPS" = "true" ]; then export GOFIPS140=v1.0.0; fi && \
 RUN chmod +x ./hatchet-staticfileserver
 
 # Stage 3: Run the static fileserver
-FROM alpine:3.21
+FROM alpine:3.24
 
 ARG FIPS=false
 LABEL run.hatchet.fips=${FIPS}

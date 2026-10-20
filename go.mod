@@ -1,6 +1,6 @@
 module github.com/hatchet-dev/hatchet
 
-go 1.26.7
+go 1.26.10
 
 require (
 	connectrpc.com/connect v1.21.0
