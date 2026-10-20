@@ -13,11 +13,9 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-// A task created directly in a terminal state (e.g. cancelled because its parent failed) is stored
-// with a `null` TASK_INPUT payload. If that payload partition is cut over to external storage before
-// the task is replayed, the overwrite on replay has no row to update and readers keep resolving the
-// stale offloaded `null`, so the worker receives an empty workflow input. The overwrite must insert
-// when the row is gone so the recomputed input is what gets read.
+// A task created directly in a terminal state (e.g. cancelled because its parent failed) has no
+// TASK_INPUT row. The overwrite on replay must insert when the row is missing so the recomputed
+// input is what gets read.
 func TestReplayOverwritesOffloadedTaskInput(t *testing.T) {
 	pool, cleanup := setupPostgresWithMigration(t)
 	defer cleanup()
@@ -74,20 +72,9 @@ func TestReplayOverwritesOffloadedTaskInput(t *testing.T) {
 		ExternalId: task.ExternalID,
 	}
 
-	stored, err := shared.payloadStore.TaskInputs().RetrieveOne(ctx, pool, retrieveOpt)
-	require.NoError(t, err)
-	require.JSONEq(t, "null", string(stored.Bytes()),
-		"a task created in a terminal state without input is stored with a null TASK_INPUT payload")
-
-	// Simulate the partition cutover: the inline row is gone from v1_payload and the only copy is the
-	// offloaded one. Without an external store configured the read simply misses, which is enough to
-	// verify that the replay re-establishes an inline row that readers resolve first.
-	_, err = pool.Exec(ctx, `DELETE FROM v1_payload WHERE tenant_id = $1 AND id = $2`, internalTenantId, task.ID)
-	require.NoError(t, err)
-
 	missing, err := shared.payloadStore.TaskInputs().RetrieveOne(ctx, pool, retrieveOpt)
 	require.NoError(t, err)
-	require.Nil(t, missing.Bytes())
+	require.Nil(t, missing.Bytes(), "a task created in a terminal state without input has no TASK_INPUT row")
 
 	replayInput := &TaskInput{Input: map[string]interface{}{"case_id": "replayed"}}
 

@@ -82,6 +82,11 @@ func (s *sharedRepository) newTaskInput(inputBytes []byte, triggerData *MatchDat
 		}
 	}
 
+	// empty or `null` input bytes leave the map nil, which would be stored as a `null` TASK_INPUT row
+	if input == nil {
+		input = map[string]interface{}{}
+	}
+
 	var filterPayloadMap map[string]interface{}
 	if len(filterPayload) > 0 {
 		err := json.Unmarshal(filterPayload, &filterPayloadMap)
@@ -275,23 +280,18 @@ type V1StepRunData struct {
 }
 
 func (v1 *V1StepRunData) taskInputPayload(version taskInputPayloadVersion) []byte {
+	if v1 == nil {
+		return nil
+	}
+
 	switch version {
 	case taskInputPayloadVersionStepRunData:
 		return v1.Bytes()
 	case taskInputPayloadVersionUserInputOnly:
-		return v1.userInput()
+		return v1.Input
 	default:
 		panic(fmt.Sprintf("unknown task input payload version %d", version))
 	}
-}
-
-// userInput is null for a task created without an input, which matches what Bytes returns for it.
-func (v1 *V1StepRunData) userInput() []byte {
-	if v1 == nil {
-		return []byte("null")
-	}
-
-	return v1.Input
 }
 
 type stepRunDataTaskColumns struct {
