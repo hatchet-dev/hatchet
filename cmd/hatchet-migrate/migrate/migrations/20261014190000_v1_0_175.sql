@@ -35,6 +35,10 @@ CREATE TABLE v1_serverless_endpoint (
     registered_actions TEXT[] NOT NULL DEFAULT '{}',
     -- the subset of registered_actions whose task asked for an invocation websocket
     stream_actions TEXT[] NOT NULL DEFAULT '{}',
+    -- whether the endpoint's last accepted healthcheck said it accepts the durable websocket
+    -- protocol; durable tasks are left out of registered_actions when it did not, and a
+    -- durable assignment that still reaches the endpoint is refused before it is dialed
+    durable_supported BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     -- Set by the delete API together with updated_at, so the routing caches' incremental

@@ -231,7 +231,7 @@ INSERT INTO v1_serverless_endpoint (
     $12::BOOLEAN,
     (abs(hashtext(($1::UUID)::text)::bigint) % $13::INT)::INT
 )
-RETURNING id, tenant_id, name, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, endpoint_partition, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at, stream_actions, deleted_at
+RETURNING id, tenant_id, name, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, endpoint_partition, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at, stream_actions, durable_supported, deleted_at
 `
 
 type CreateServerlessEndpointParams struct {
@@ -294,6 +294,7 @@ func (q *Queries) CreateServerlessEndpoint(ctx context.Context, db DBTX, arg Cre
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.StreamActions,
+		&i.DurableSupported,
 		&i.DeletedAt,
 	)
 	return &i, err
@@ -340,7 +341,7 @@ WHERE
     tenant_id = $1::UUID
     AND id = $2::UUID
     AND deleted_at IS NULL
-RETURNING id, tenant_id, name, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, endpoint_partition, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at, stream_actions, deleted_at
+RETURNING id, tenant_id, name, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, endpoint_partition, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at, stream_actions, durable_supported, deleted_at
 `
 
 type DeleteServerlessEndpointParams struct {
@@ -375,6 +376,7 @@ func (q *Queries) DeleteServerlessEndpoint(ctx context.Context, db DBTX, arg Del
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.StreamActions,
+		&i.DurableSupported,
 		&i.DeletedAt,
 	)
 	return &i, err
@@ -399,7 +401,7 @@ func (q *Queries) DeleteServerlessProcess(ctx context.Context, db DBTX, processi
 }
 
 const getServerlessEndpoint = `-- name: GetServerlessEndpoint :one
-SELECT id, tenant_id, name, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, endpoint_partition, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at, stream_actions, deleted_at
+SELECT id, tenant_id, name, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, endpoint_partition, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at, stream_actions, durable_supported, deleted_at
 FROM v1_serverless_endpoint
 WHERE
     tenant_id = $1::UUID
@@ -436,13 +438,14 @@ func (q *Queries) GetServerlessEndpoint(ctx context.Context, db DBTX, arg GetSer
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.StreamActions,
+		&i.DurableSupported,
 		&i.DeletedAt,
 	)
 	return &i, err
 }
 
 const getServerlessEndpointById = `-- name: GetServerlessEndpointById :one
-SELECT id, tenant_id, name, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, endpoint_partition, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at, stream_actions, deleted_at
+SELECT id, tenant_id, name, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, endpoint_partition, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at, stream_actions, durable_supported, deleted_at
 FROM v1_serverless_endpoint
 WHERE
     id = $1::UUID
@@ -475,6 +478,7 @@ func (q *Queries) GetServerlessEndpointById(ctx context.Context, db DBTX, id uui
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.StreamActions,
+		&i.DurableSupported,
 		&i.DeletedAt,
 	)
 	return &i, err
@@ -618,7 +622,7 @@ func (q *Queries) ListServerlessEndpointVersions(ctx context.Context, db DBTX, a
 }
 
 const listServerlessEndpoints = `-- name: ListServerlessEndpoints :many
-SELECT id, tenant_id, name, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, endpoint_partition, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at, stream_actions, deleted_at
+SELECT id, tenant_id, name, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, endpoint_partition, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at, stream_actions, durable_supported, deleted_at
 FROM v1_serverless_endpoint
 WHERE
     tenant_id = $1::UUID
@@ -664,6 +668,7 @@ func (q *Queries) ListServerlessEndpoints(ctx context.Context, db DBTX, arg List
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.StreamActions,
+			&i.DurableSupported,
 			&i.DeletedAt,
 		); err != nil {
 			return nil, err
@@ -677,7 +682,7 @@ func (q *Queries) ListServerlessEndpoints(ctx context.Context, db DBTX, arg List
 }
 
 const listServerlessEndpointsByIds = `-- name: ListServerlessEndpointsByIds :many
-SELECT id, tenant_id, name, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, endpoint_partition, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at, stream_actions, deleted_at
+SELECT id, tenant_id, name, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, endpoint_partition, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at, stream_actions, durable_supported, deleted_at
 FROM v1_serverless_endpoint
 WHERE
     id = ANY($1::UUID[])
@@ -715,6 +720,7 @@ func (q *Queries) ListServerlessEndpointsByIds(ctx context.Context, db DBTX, ids
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.StreamActions,
+			&i.DurableSupported,
 			&i.DeletedAt,
 		); err != nil {
 			return nil, err
@@ -728,7 +734,7 @@ func (q *Queries) ListServerlessEndpointsByIds(ctx context.Context, db DBTX, ids
 }
 
 const listServerlessEndpointsForTenant = `-- name: ListServerlessEndpointsForTenant :many
-SELECT id, tenant_id, name, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, endpoint_partition, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at, stream_actions, deleted_at
+SELECT id, tenant_id, name, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, endpoint_partition, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at, stream_actions, durable_supported, deleted_at
 FROM v1_serverless_endpoint
 WHERE
     tenant_id = $1::UUID
@@ -778,6 +784,7 @@ func (q *Queries) ListServerlessEndpointsForTenant(ctx context.Context, db DBTX,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.StreamActions,
+			&i.DurableSupported,
 			&i.DeletedAt,
 		); err != nil {
 			return nil, err
@@ -791,7 +798,7 @@ func (q *Queries) ListServerlessEndpointsForTenant(ctx context.Context, db DBTX,
 }
 
 const listServerlessEndpointsForUnits = `-- name: ListServerlessEndpointsForUnits :many
-SELECT e.id, e.tenant_id, e.name, e.kind, e.healthcheck_url, e.trigger_url, e.signing_secret_enc, e.request_timeout_seconds, e.poll_interval_seconds, e.inline_wait_budget_ms, e.labels, e.enabled, e.endpoint_partition, e.healthy, e.status_error, e.status_changed_at, e.registered_actions, e.created_at, e.updated_at, e.stream_actions, e.deleted_at
+SELECT e.id, e.tenant_id, e.name, e.kind, e.healthcheck_url, e.trigger_url, e.signing_secret_enc, e.request_timeout_seconds, e.poll_interval_seconds, e.inline_wait_budget_ms, e.labels, e.enabled, e.endpoint_partition, e.healthy, e.status_error, e.status_changed_at, e.registered_actions, e.created_at, e.updated_at, e.stream_actions, e.durable_supported, e.deleted_at
 FROM v1_serverless_endpoint e
 JOIN (
     -- parallel unnest zips the two arrays into (tenant_id, endpoint_partition) pairs
@@ -851,6 +858,7 @@ func (q *Queries) ListServerlessEndpointsForUnits(ctx context.Context, db DBTX, 
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.StreamActions,
+			&i.DurableSupported,
 			&i.DeletedAt,
 		); err != nil {
 			return nil, err
@@ -864,7 +872,7 @@ func (q *Queries) ListServerlessEndpointsForUnits(ctx context.Context, db DBTX, 
 }
 
 const listServerlessEndpointsUpdatedSince = `-- name: ListServerlessEndpointsUpdatedSince :many
-SELECT id, tenant_id, name, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, endpoint_partition, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at, stream_actions, deleted_at
+SELECT id, tenant_id, name, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, endpoint_partition, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at, stream_actions, durable_supported, deleted_at
 FROM v1_serverless_endpoint
 WHERE
     tenant_id = $1::UUID
@@ -913,6 +921,7 @@ func (q *Queries) ListServerlessEndpointsUpdatedSince(ctx context.Context, db DB
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.StreamActions,
+			&i.DurableSupported,
 			&i.DeletedAt,
 		); err != nil {
 			return nil, err
@@ -1107,7 +1116,7 @@ WHERE
     tenant_id = $11::UUID
     AND id = $12::UUID
     AND deleted_at IS NULL
-RETURNING id, tenant_id, name, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, endpoint_partition, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at, stream_actions, deleted_at
+RETURNING id, tenant_id, name, kind, healthcheck_url, trigger_url, signing_secret_enc, request_timeout_seconds, poll_interval_seconds, inline_wait_budget_ms, labels, enabled, endpoint_partition, healthy, status_error, status_changed_at, registered_actions, created_at, updated_at, stream_actions, durable_supported, deleted_at
 `
 
 type UpdateServerlessEndpointParams struct {
@@ -1163,6 +1172,7 @@ func (q *Queries) UpdateServerlessEndpoint(ctx context.Context, db DBTX, arg Upd
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.StreamActions,
+		&i.DurableSupported,
 		&i.DeletedAt,
 	)
 	return &i, err
@@ -1173,21 +1183,28 @@ UPDATE v1_serverless_endpoint
 SET
     registered_actions = $1::TEXT[],
     stream_actions = $2::TEXT[],
+    durable_supported = $3::BOOLEAN,
     updated_at = NOW()
-WHERE id = $3::UUID
+WHERE id = $4::UUID
 `
 
 type UpdateServerlessEndpointRegisteredActionsParams struct {
 	Registeredactions []string  `json:"registeredactions"`
 	Streamactions     []string  `json:"streamactions"`
+	Durablesupported  bool      `json:"durablesupported"`
 	ID                uuid.UUID `json:"id"`
 }
 
-// Written by the owner when a healthcheck changes the endpoint's workflows or task options.
-// Bumps updated_at so ListServerlessEndpointsUpdatedSince surfaces the new action set to every
-// registration for the tenant.
+// Written by the owner when a healthcheck changes the endpoint's workflows, task options or
+// durable support. Bumps updated_at so ListServerlessEndpointsUpdatedSince surfaces the new
+// action set to every registration for the tenant.
 func (q *Queries) UpdateServerlessEndpointRegisteredActions(ctx context.Context, db DBTX, arg UpdateServerlessEndpointRegisteredActionsParams) error {
-	_, err := db.Exec(ctx, updateServerlessEndpointRegisteredActions, arg.Registeredactions, arg.Streamactions, arg.ID)
+	_, err := db.Exec(ctx, updateServerlessEndpointRegisteredActions,
+		arg.Registeredactions,
+		arg.Streamactions,
+		arg.Durablesupported,
+		arg.ID,
+	)
 	return err
 }
 

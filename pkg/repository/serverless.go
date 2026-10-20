@@ -84,9 +84,10 @@ type ServerlessEndpointRepository interface {
 	// never per poll.
 	UpdateStatus(ctx context.Context, endpointId uuid.UUID, healthy bool, statusError *string) (time.Time, error)
 	// UpdateRegisteredActions records the action set the owner registered after a healthcheck
-	// changed the endpoint's workflows or task options, with the subset of it whose task asked
-	// for an invocation websocket.
-	UpdateRegisteredActions(ctx context.Context, endpointId uuid.UUID, actions, streamActions []string) error
+	// changed the endpoint's workflows, task options or durable support, with the subset of it
+	// whose task asked for an invocation websocket and whether the endpoint accepts the
+	// durable websocket protocol.
+	UpdateRegisteredActions(ctx context.Context, endpointId uuid.UUID, actions, streamActions []string, durableSupported bool) error
 }
 
 type ServerlessTenantRepository interface {

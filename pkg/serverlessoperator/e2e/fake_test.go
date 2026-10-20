@@ -97,17 +97,19 @@ type fakeEndpoint struct {
 	// servedActions, when set, is the exact served set the healthcheck lists; otherwise the
 	// healthcheck lists none and the operator derives the set from the workflows.
 	servedActions []string
-	failStatus    int
-	failBody      string
-	hold          chan struct{}
-	endpointId    string
-	requests      []recordedRequest
-	runs          []durableRun
-	streamRuns    []streamRun
-	conns         map[*websocket.Conn]struct{}
-	closed        bool
-	wg            sync.WaitGroup
-	mu            sync.Mutex
+	// noDurable makes the healthcheck decline the durable websocket protocol.
+	noDurable  bool
+	failStatus int
+	failBody   string
+	hold       chan struct{}
+	endpointId string
+	requests   []recordedRequest
+	runs       []durableRun
+	streamRuns []streamRun
+	conns      map[*websocket.Conn]struct{}
+	closed     bool
+	wg         sync.WaitGroup
+	mu         sync.Mutex
 }
 
 func newFakeEndpoint(t *testing.T, name string, workflows ...*v1.CreateWorkflowVersionRequest) *fakeEndpoint {
@@ -164,6 +166,14 @@ func (f *fakeEndpoint) setWorkflows(workflows ...*v1.CreateWorkflowVersionReques
 	defer f.mu.Unlock()
 
 	f.workflows = workflows
+}
+
+// setDurableSupported sets what the healthcheck says about the durable websocket protocol.
+func (f *fakeEndpoint) setDurableSupported(supported bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.noDurable = !supported
 }
 
 // setServedActions makes the healthcheck list exactly these actions as served.
@@ -319,6 +329,7 @@ func (f *fakeEndpoint) serveHealthcheck(w http.ResponseWriter, body []byte) {
 	workflows := f.workflows
 	streamActions := f.streamActions
 	servedActions := f.servedActions
+	durableSupported := !f.noDurable
 	f.mu.Unlock()
 
 	tasks := make([]*v1.ServerlessTaskOptions, 0, len(streamActions))
@@ -330,7 +341,7 @@ func (f *fakeEndpoint) serveHealthcheck(w http.ResponseWriter, body []byte) {
 	out, err := contract.Marshal(&v1.ServerlessHealthcheckResponse{
 		Workflows: workflows,
 		Actions:   servedActions,
-		Durable:   &v1.ServerlessDurableSupport{Supported: true},
+		Durable:   &v1.ServerlessDurableSupport{Supported: durableSupported},
 		Tasks:     tasks,
 	})
 

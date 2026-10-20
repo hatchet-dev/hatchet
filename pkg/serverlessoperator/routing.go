@@ -166,6 +166,11 @@ type endpointConfig struct {
 	enabled               bool
 	healthy               bool
 	healthKnown           bool
+	// durableSupported is what the last accepted healthcheck said about the durable websocket
+	// protocol. Durable tasks are kept out of registeredActions while it is false, so routing
+	// never picks the endpoint for them by its own catalog; a durable assignment that reaches
+	// it anyway (the action id is served durably by another endpoint) is refused on delivery.
+	durableSupported bool
 }
 
 // version is the row version the cache orders refreshes by: the later of updated_at and
@@ -641,6 +646,7 @@ func (c *routingCache) upsertLocked(b *batch, row *sqlcv1.V1ServerlessEndpoint) 
 		healthy:               row.Healthy.Valid && row.Healthy.Bool,
 		registeredActions:     row.RegisteredActions,
 		streamActions:         sortedUnion(row.StreamActions),
+		durableSupported:      row.DurableSupported,
 	}
 
 	if row.StatusError.Valid {
@@ -659,7 +665,7 @@ func (c *routingCache) upsertLocked(b *batch, row *sqlcv1.V1ServerlessEndpoint) 
 
 	// A row already applied at this version changes nothing; the refresh window and the
 	// full reload both return rows the cache has seen.
-	if prev != nil && prev.updatedAt.Equal(cfg.updatedAt) && prev.statusChangedAt.Equal(cfg.statusChangedAt) && stringsEqual(prev.registeredActions, cfg.registeredActions) && stringsEqual(prev.streamActions, cfg.streamActions) {
+	if prev != nil && prev.updatedAt.Equal(cfg.updatedAt) && prev.statusChangedAt.Equal(cfg.statusChangedAt) && stringsEqual(prev.registeredActions, cfg.registeredActions) && stringsEqual(prev.streamActions, cfg.streamActions) && prev.durableSupported == cfg.durableSupported {
 		return
 	}
 
@@ -969,10 +975,11 @@ func (c *routingCache) Serving(actionId string) []uuid.UUID {
 }
 
 // SetHealthcheck records the action set an owned endpoint's healthcheck produced, with the
-// actions of it that are invoked over the websocket. It replaces registered_actions and
-// stream_actions in the cache so the union and the delivery path change here as soon as the
-// owner learns them, without waiting for a refresh. It returns whether the union changed.
-func (c *routingCache) SetHealthcheck(id uuid.UUID, actions, streamActions []string) bool {
+// actions of it that are invoked over the websocket and whether the endpoint accepts durable
+// tasks. It replaces registered_actions, stream_actions and durable_supported in the cache so
+// the union and the delivery path change here as soon as the owner learns them, without
+// waiting for a refresh. It returns whether the union changed.
+func (c *routingCache) SetHealthcheck(id uuid.UUID, actions, streamActions []string, durableSupported bool) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -985,6 +992,7 @@ func (c *routingCache) SetHealthcheck(id uuid.UUID, actions, streamActions []str
 	cfg := *ep.cfg
 	cfg.registeredActions = append([]string{}, actions...)
 	cfg.streamActions = sortedUnion(streamActions)
+	cfg.durableSupported = durableSupported
 
 	b := newBatch()
 	b.move(c, ep, ep.cfg.contribution(), cfg.contribution())
