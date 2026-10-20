@@ -312,7 +312,7 @@ func (v *RunsListView) Update(msg tea.Msg) (View, tea.Cmd) {
 		}
 
 		// Build the form using the helper from tasks_filters.go
-		v.filterForm, v.filterStatuses = BuildRunsListFiltersForm(v.newFilters, v.workflows)
+		v.filterForm, v.filterStatuses = BuildRunsListFiltersForm(v.newFilters, v.workflows, v.Ctx.Client.API(), v.Ctx.Client.TenantId())
 		return v, v.filterForm.Init()
 
 	case filtersClosedMsg:
@@ -597,7 +597,7 @@ func (v *RunsListView) renderFilterModal() string {
 
 	// Instructions (using reusable component)
 	instructions := RenderInstructions(
-		"Navigate: ↑/↓ or Tab/Shift+Tab  •  Select: Space (multiselect) or Enter (single)  •  Search: Type to filter workflows",
+		"Navigate: ↑/↓ or Tab/Shift+Tab  •  Select: Space (multiselect) or Enter (single)  •  Search: Type in the search box to find workflows",
 		v.Width,
 	)
 	b.WriteString(instructions)
