@@ -19,12 +19,14 @@ import (
 )
 
 // fakeRunsStream is one engine SubscribeToWorkflowRuns stream: subscriptions land on sent,
-// events pushed on recv are what the mux receives, fail ends it.
+// events pushed on recv are what the mux receives, fail ends it. A stream with a gate holds
+// every Send until the gate is closed or the send's context ends, the way flow control does.
 type fakeRunsStream struct {
 	sent   chan string
 	recv   chan proto.Message
 	failed chan error
 	closed chan struct{}
+	gate   chan struct{}
 	once   sync.Once
 }
 
@@ -37,11 +39,19 @@ func newFakeRunsStream() *fakeRunsStream {
 	}
 }
 
-func (f *fakeRunsStream) Send(_ context.Context, msg proto.Message) error {
+func (f *fakeRunsStream) Send(ctx context.Context, msg proto.Message) error {
 	select {
 	case <-f.closed:
 		return operator.ErrChannelClosed
 	default:
+	}
+
+	if f.gate != nil {
+		select {
+		case <-f.gate:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
 
 	f.sent <- msg.(*contracts.SubscribeToWorkflowRunsRequest).WorkflowRunId
@@ -92,11 +102,13 @@ func finished(runId string) *contracts.WorkflowRunEvent {
 	return &contracts.WorkflowRunEvent{WorkflowRunId: runId, EventType: contracts.WorkflowRunEventType_WORKFLOW_RUN_EVENT_TYPE_FINISHED}
 }
 
-// fakeRunsOpener hands out engine streams in order and counts the opens.
+// fakeRunsOpener hands out engine streams in order and counts the opens; gate, when set, is
+// the gate of every stream it opens.
 type fakeRunsOpener struct {
 	streams []*fakeRunsStream
 	opens   int
 	openErr error
+	gate    chan struct{}
 	mu      sync.Mutex
 }
 
@@ -111,6 +123,7 @@ func (o *fakeRunsOpener) open(_ context.Context) (operator.RunStream, error) {
 	}
 
 	s := newFakeRunsStream()
+	s.gate = o.gate
 	o.streams = append(o.streams, s)
 
 	return s, nil
@@ -273,4 +286,36 @@ func TestRunMuxClose(t *testing.T) {
 	assert.ErrorIs(t, err, operator.ErrSessionClosed)
 
 	m.close()
+}
+
+// Closing the mux while the replay on a fresh engine stream is blocked by flow control
+// returns promptly: the close cancels the mux context, which releases the blocked send, and
+// never waits behind it for the lock.
+func TestRunMuxCloseDuringBlockedReplay(t *testing.T) {
+	opener := &fakeRunsOpener{gate: make(chan struct{})}
+	m := newTestMux(opener)
+
+	// The first subscription opens the stream; its replay blocks on the gate.
+	a, err := m.Subscribe(context.Background(), subscribe("run-1"))
+	require.NoError(t, err)
+
+	stream := opener.stream(t, 0)
+
+	closed := make(chan struct{})
+
+	go func() {
+		defer close(closed)
+		m.close()
+	}()
+
+	select {
+	case <-closed:
+	case <-time.After(time.Second):
+		t.Fatal("mux close waited behind the replay blocked on the engine stream")
+	}
+
+	assert.True(t, stream.isClosed())
+
+	_, err = a.Recv(context.Background())
+	assert.ErrorIs(t, err, operator.ErrChannelClosed)
 }
