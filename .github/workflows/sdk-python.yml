@@ -59,7 +59,7 @@ jobs:
         if: matrix.python-version == '3.14'
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26"
+          go-version-file: go.mod
 
       - name: Generate protobuf & REST client bindings
         if: matrix.python-version == '3.14'
@@ -107,7 +107,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26"
+          go-version-file: go.mod
 
       - name: Start Docker dependencies
         working-directory: .
