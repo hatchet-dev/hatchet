@@ -11,8 +11,8 @@ import { DurableStreams } from "@/components/flow-animations/DurableStreams";
 # Durable Streams
 
 <Callout type="warning">
-  Durable streams are in alpha and may change in future releases. To enable
-  them for your tenant, <a href="mailto:support@hatchet.run">contact us</a>.
+  Durable streams are in alpha and may change in future releases. To enable them
+  for your tenant, <a href="mailto:support@hatchet.run">contact us</a>.
 </Callout>
 
 <Callout type="info">
@@ -27,17 +27,21 @@ a workflow run has started.
 <DurableStreams />
 
 ## Guarantees
+
 Durable streams have the following guarantees:
+
 1. All messages from a single publisher will be persisted, and streamed, in the exact order they were published. This guarantee does not extend across
-multiple publishers.
+   multiple publishers.
 2. All messages in a durable stream topic will be persisted, and consumers can resume from any message within the topic's retention.
 
 ## Publishing
+
 Publishing messages to a durable stream topic is as simple as calling the `publish` method. It takes the topic name, a namespace, and the message payload.
 
 <Callout type="info">
-    Messages of up to 64MB are supported. However, messages under 4MB are significantly more performant. Slower performance should be expected
-    when publishing/consuming larger payloads.
+  Messages of up to 64MB are supported. However, messages under 4MB are
+  significantly more performant. Slower performance should be expected when
+  publishing/consuming larger payloads.
 </Callout>
 
 <UniversalTabs items={["Typescript"]}>
@@ -49,6 +53,7 @@ Publishing messages to a durable stream topic is as simple as calling the `publi
 </UniversalTabs>
 
 ## Consuming
+
 Consumption, by default, starts from the first message published to the topic.
 Each event object that is returned will contain both the message payload, as well as a cursor.
 This cursor is opaque, but can be saved, and allows resumption from that point in the stream.
@@ -65,7 +70,7 @@ the cursor, and use that to resume.
 
 ## Resetting a Topic
 
-Resetting a topic sets a new high watermark, from which all *new* subscriptions will start.
+Resetting a topic sets a new high watermark, from which all _new_ subscriptions will start.
 Calling reset does not change the messages that existing subscriptions, or subscriptions from a cursor will receive.
 
 <UniversalTabs items={["Typescript"]} variant="hidden">
