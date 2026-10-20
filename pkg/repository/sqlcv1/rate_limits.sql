@@ -208,7 +208,6 @@ SELECT EXISTS (
     FROM v1_rate_limit_pause
     WHERE
         tenant_id = @tenantId::uuid
-        AND (sqlc.narg('key')::text IS NULL OR key = sqlc.narg('key')::text)
         AND paused_until > NOW()
 )::boolean;
 

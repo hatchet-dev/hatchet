@@ -42,7 +42,7 @@ func (m *mockRateLimitRepo) DeleteRateLimits(ctx context.Context, tenantId uuid.
 	panic("not implemented")
 }
 
-func (m *mockRateLimitRepo) PauseRateLimit(ctx context.Context, tenantId uuid.UUID, key string, until time.Time) (*sqlcv1.V1RateLimitPause, bool, error) {
+func (m *mockRateLimitRepo) PauseRateLimit(ctx context.Context, tenantId uuid.UUID, key string, until time.Time) (*sqlcv1.V1RateLimitPause, error) {
 	panic("not implemented")
 }
 

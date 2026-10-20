@@ -889,12 +889,9 @@ func listConcurrencyTestTasks(t *testing.T, ctx context.Context, conf *database.
 func pauseRateLimitKey(t *testing.T, ctx context.Context, conf *database.Layer, tenantId uuid.UUID, key string) {
 	t.Helper()
 
-	_, newlyPaused, err := conf.V1.RateLimit().PauseRateLimit(ctx, tenantId, key, time.Now().Add(time.Hour))
+	_, err := conf.V1.RateLimit().PauseRateLimit(ctx, tenantId, key, time.Now().Add(time.Hour))
 	require.NoError(t, err)
-
-	if newlyPaused {
-		require.NoError(t, conf.V1.RateLimit().HoldRateLimitPausedQueuedTasks(ctx, tenantId))
-	}
+	require.NoError(t, conf.V1.RateLimit().HoldRateLimitPausedQueuedTasks(ctx, tenantId))
 }
 
 // useDynamicRateLimitKey gives the task a dynamic rate limit key, the same row trigger time evaluation writes.

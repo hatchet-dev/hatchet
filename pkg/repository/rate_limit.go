@@ -61,8 +61,8 @@ type RateLimitRepository interface {
 	DeleteRateLimits(ctx context.Context, tenantId uuid.UUID, key string) error
 
 	// PauseRateLimit holds back queued runs that consume the key until the given time; an earlier time never shortens an active pause.
-	// It reports whether the key wasn't paused before, in which case HoldRateLimitPausedQueuedTasks must hold the runs already waiting on it.
-	PauseRateLimit(ctx context.Context, tenantId uuid.UUID, key string, until time.Time) (pause *sqlcv1.V1RateLimitPause, newlyPaused bool, err error)
+	// HoldRateLimitPausedQueuedTasks must then hold the runs already waiting on it.
+	PauseRateLimit(ctx context.Context, tenantId uuid.UUID, key string, until time.Time) (*sqlcv1.V1RateLimitPause, error)
 
 	// HoldRateLimitPausedQueuedTasks holds the tenant's waiting tasks that use a paused rate limit key
 	HoldRateLimitPausedQueuedTasks(ctx context.Context, tenantId uuid.UUID) error
@@ -298,31 +298,22 @@ func tenantAdvisoryInt(tenantID uuid.UUID) int64 {
 	return int64(hasher.Sum64()) // nolint: gosec
 }
 
-func (r *rateLimitRepository) PauseRateLimit(ctx context.Context, tenantId uuid.UUID, key string, until time.Time) (*sqlcv1.V1RateLimitPause, bool, error) {
+func (r *rateLimitRepository) PauseRateLimit(ctx context.Context, tenantId uuid.UUID, key string, until time.Time) (*sqlcv1.V1RateLimitPause, error) {
 	if key == "" {
-		return nil, false, errors.New("rate limit key is required")
+		return nil, errors.New("rate limit key is required")
 	}
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
 
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 
 	defer rollback()
 
-	wasPaused, err := r.queries.HasActiveRateLimitPause(ctx, tx, sqlcv1.HasActiveRateLimitPauseParams{
-		Tenantid: tenantId,
-		Key:      pgtype.Text{String: key, Valid: true},
-	})
-
-	if err != nil {
-		return nil, false, fmt.Errorf("could not check rate limit pause: %w", err)
-	}
-
 	// an ended pause still in the table would keep its start time and stretch the new pause's frozen span back to it
 	if err := r.queries.SettleExpiredRateLimitPauses(ctx, tx, tenantId); err != nil {
-		return nil, false, fmt.Errorf("could not settle expired rate limit pauses: %w", err)
+		return nil, fmt.Errorf("could not settle expired rate limit pauses: %w", err)
 	}
 
 	pause, err := r.queries.PauseRateLimit(ctx, tx, sqlcv1.PauseRateLimitParams{
@@ -332,18 +323,18 @@ func (r *rateLimitRepository) PauseRateLimit(ctx context.Context, tenantId uuid.
 	})
 
 	if err != nil {
-		return nil, false, fmt.Errorf("could not pause rate limit: %w", err)
+		return nil, fmt.Errorf("could not pause rate limit: %w", err)
 	}
 
 	if err := commit(ctx); err != nil {
-		return nil, false, err
+		return nil, err
 	}
 
 	if r.tenantHasRateLimitPauseCache != nil {
 		r.tenantHasRateLimitPauseCache.Add(tenantId, true)
 	}
 
-	return pause, !wasPaused, nil
+	return pause, nil
 }
 
 func (r *rateLimitRepository) HoldRateLimitPausedQueuedTasks(ctx context.Context, tenantId uuid.UUID) error {
@@ -385,9 +376,7 @@ func (s *sharedRepository) tenantHasRateLimitPause(ctx context.Context, tx sqlcv
 		}
 	}
 
-	paused, err := s.queries.HasActiveRateLimitPause(ctx, tx, sqlcv1.HasActiveRateLimitPauseParams{
-		Tenantid: tenantId,
-	})
+	paused, err := s.queries.HasActiveRateLimitPause(ctx, tx, tenantId)
 
 	if err != nil {
 		return false, fmt.Errorf("could not check rate limit pauses: %w", err)
