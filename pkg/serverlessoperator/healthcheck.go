@@ -3,6 +3,7 @@ package serverlessoperator
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"math/rand/v2"
@@ -10,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
@@ -78,16 +80,18 @@ var actionRules = validator.NewDefaultValidator()
 const maxActionIdBytes = 1024
 
 // validateActionStorage rejects action ids the engine's rules accept but its storage cannot
-// hold or should not: a NUL code point (text columns refuse it, and the rejection would
-// arrive only after the id had entered the session's desired set), invalid UTF-8, and ids
-// over maxActionIdBytes. It runs before the union or the session sees the catalog.
+// hold or should not: invalid UTF-8, a control character (a NUL code point is refused by text
+// columns, and the rejection would arrive only after the id had entered the session's desired
+// set; a newline or any other control character has no place in an id that is logged, shown
+// and compared as a line of text), and ids over maxActionIdBytes. It runs before the union or
+// the session sees the catalog.
 func validateActionStorage(actions []string) error {
 	for _, action := range actions {
 		switch {
-		case strings.IndexByte(action, 0) >= 0:
-			return fmt.Errorf("invalid action %q: contains a NUL code point", action)
 		case !utf8.ValidString(action):
 			return fmt.Errorf("invalid action %q: not valid UTF-8", action)
+		case strings.IndexFunc(action, unicode.IsControl) >= 0:
+			return fmt.Errorf("invalid action %q: contains a control character", action)
 		case len(action) > maxActionIdBytes:
 			return fmt.Errorf("invalid action %q: longer than %d bytes", action[:32]+"...", maxActionIdBytes)
 		}
@@ -156,10 +160,9 @@ func parseHealthcheckResponse(body []byte, limits catalogLimits) (*healthcheckRe
 		return nil, fmt.Errorf("healthcheck advertises %d actions, more than the limit of %d", len(resp.Actions), limits.maxActions)
 	}
 
-	hasher := sha256.New()
-
 	workflows := make([]*v1.CreateWorkflowVersionRequest, 0, len(resp.Workflows))
 	workflowHashes := make([]string, 0, len(resp.Workflows))
+	workflowBytes := make([][]byte, 0, len(resp.Workflows))
 	actionLists := make([][]string, 0, len(resp.Workflows)+1)
 
 	for _, wf := range resp.Workflows {
@@ -181,13 +184,11 @@ func parseHealthcheckResponse(body []byte, limits catalogLimits) (*healthcheckRe
 			return nil, fmt.Errorf("could not hash workflow %s: %w", wf.Name, err)
 		}
 
-		hasher.Write(canonical)
-		hasher.Write([]byte{0})
-
 		wfHash := sha256.Sum256(canonical)
 
 		workflows = append(workflows, canonicalWf)
 		workflowHashes = append(workflowHashes, hex.EncodeToString(wfHash[:]))
+		workflowBytes = append(workflowBytes, canonical)
 		actionLists = append(actionLists, actions)
 	}
 
@@ -222,26 +223,65 @@ func parseHealthcheckResponse(body []byte, limits catalogLimits) (*healthcheckRe
 		return nil, fmt.Errorf("healthcheck advertises an invalid action: %w", err)
 	}
 
-	hasher.Write([]byte(strings.Join(actions, "\n")))
-
 	streamActions, err := streamActionsOf(resp.Tasks, actions)
 
 	if err != nil {
 		return nil, err
 	}
 
-	hasher.Write([]byte{0})
-	hasher.Write([]byte(strings.Join(streamActions, "\n")))
-
 	return &healthcheckResult{
 		workflows:      workflows,
 		workflowHashes: workflowHashes,
 		actions:        actions,
 		streamActions:  streamActions,
-		hash:           hex.EncodeToString(hasher.Sum(nil)),
+		hash:           hashCatalog(workflowBytes, actions, streamActions),
 		durable:        resp.GetDurable().GetSupported(),
 		runtime:        resp.Runtime,
 	}, nil
+}
+
+// hashCatalog is the digest of a parsed catalog: the canonical workflow encodings, the sorted
+// action set and the sorted stream-action set, each list framed as a tagged section with its
+// element count and every element length-prefixed. The framing makes the digest a function of
+// the three lists themselves: no element content, newline or NUL included, can make two
+// different catalogs encode alike, so a catalog whose only change is a stream flag always
+// hashes differently from the one before it.
+func hashCatalog(workflows [][]byte, actions, streamActions []string) string {
+	hasher := sha256.New()
+	sections := []struct {
+		tag      byte
+		elements [][]byte
+	}{
+		{tag: 'w', elements: workflows},
+		{tag: 'a', elements: byteSlices(actions)},
+		{tag: 's', elements: byteSlices(streamActions)},
+	}
+
+	var prefix []byte
+
+	for _, section := range sections {
+		prefix = binary.AppendUvarint(prefix[:0], uint64(len(section.elements)))
+		hasher.Write([]byte{section.tag})
+		hasher.Write(prefix)
+
+		for _, element := range section.elements {
+			prefix = binary.AppendUvarint(prefix[:0], uint64(len(element)))
+			hasher.Write(prefix)
+			hasher.Write(element)
+		}
+	}
+
+	return hex.EncodeToString(hasher.Sum(nil))
+}
+
+func byteSlices(values []string) [][]byte {
+	out := make([][]byte, 0, len(values))
+
+	for _, value := range values {
+		out = append(out, []byte(value))
+	}
+
+	return out
 }
 
 // streamActionsOf normalizes the actions the task options flag with streams and checks each

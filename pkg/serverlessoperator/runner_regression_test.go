@@ -542,15 +542,21 @@ func (partialPutSession) PutWorkflow(_ context.Context, wf *v1.CreateWorkflowVer
 	return nil, nil
 }
 
-// An action the engine's rules accept but its storage cannot hold (a NUL code point, invalid
-// UTF-8, an oversized id) is refused by the parser, before the union or the session sees it.
+// An action the engine's rules accept but its storage cannot hold or should not (a NUL code
+// point, a newline or another control character, invalid UTF-8, an oversized id) is refused by
+// the parser, before the union or the session sees it.
 func TestHealthcheckRejectsUnstorableActions(t *testing.T) {
 	limits := catalogLimits{maxWorkflows: 200, maxActions: 500}
 
 	for name, body := range map[string]string{
-		"nul":       `{"actions":["review:run\u0000"]}`,
-		"oversized": `{"actions":["review:` + strings.Repeat("v", maxActionIdBytes) + `"]}`,
-		"bad utf-8": "{\"actions\":[\"review:run\xff\"]}",
+		"nul":           `{"actions":["review:run\u0000"]}`,
+		"newline":       `{"actions":["review:run\nreview:other"]}`,
+		"tab":           `{"actions":["review:run\t"]}`,
+		"c1 control":    `{"actions":["review:run\u0085"]}`,
+		"derived":       `{"workflows":[{"name":"w","tasks":[{"readableId":"t","action":"review:run\n"}]}]}`,
+		"stream option": `{"actions":["review:run"],"tasks":[{"action":"review:run\n","streams":true}]}`,
+		"oversized":     `{"actions":["review:` + strings.Repeat("v", maxActionIdBytes) + `"]}`,
+		"bad utf-8":     "{\"actions\":[\"review:run\xff\"]}",
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, err := parseHealthcheckResponse([]byte(body), limits)

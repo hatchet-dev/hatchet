@@ -175,6 +175,24 @@ func TestParseHealthcheckResponse(t *testing.T) {
 	assert.Error(t, err)
 }
 
+// The catalog hash frames every element by length, so two catalogs that differ only in how
+// their ids would split on a delimiter never hash alike: the pair here has one action set and
+// two different stream-action sets whose newline-joined forms are the same string. The parser
+// refuses such ids; the framing keeps the digest unambiguous on its own.
+func TestCatalogHashFramingIsUnambiguous(t *testing.T) {
+	actions := []string{"svc:a", "svc:a\nsvc:b", "svc:b"}
+
+	twoFlags := hashCatalog(nil, actions, []string{"svc:a", "svc:b"})
+	oneFlag := hashCatalog(nil, actions, []string{"svc:a\nsvc:b"})
+	assert.NotEqual(t, twoFlags, oneFlag, "the stream-option sets differ, so the hashes must")
+
+	assert.NotEqual(t, hashCatalog(nil, []string{"svc:a", "svc:b"}, nil), hashCatalog(nil, []string{"svc:a\nsvc:b"}, nil))
+	assert.NotEqual(t, hashCatalog(nil, []string{"svc:a"}, []string{"svc:b"}), hashCatalog(nil, []string{"svc:a", "svc:b"}, nil), "a list boundary is not movable")
+	assert.NotEqual(t, hashCatalog([][]byte{{1, 0}}, nil, nil), hashCatalog([][]byte{{1}, {}}, nil, nil), "a NUL inside a workflow encoding is not a boundary")
+	assert.NotEqual(t, hashCatalog([][]byte{{1}}, nil, nil), hashCatalog(nil, []string{"\x01"}, nil), "sections are tagged")
+	assert.Equal(t, hashCatalog(nil, actions, []string{"svc:b"}), hashCatalog(nil, actions, []string{"svc:b"}), "the digest is deterministic")
+}
+
 // Task options flag the actions invoked over the websocket: they are normalized, sorted, part
 // of the hash, and must name actions the catalog serves.
 func TestParseHealthcheckTaskOptions(t *testing.T) {
