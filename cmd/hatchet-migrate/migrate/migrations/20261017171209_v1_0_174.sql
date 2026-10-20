@@ -1,9 +1,7 @@
 -- +goose Up
--- +goose StatementBegin
-CREATE INDEX "TenantResourceLimitAlert_tenantId_idx" ON "TenantResourceLimitAlert" ("tenantId");
--- +goose StatementEnd
+-- +goose NO TRANSACTION
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "TenantResourceLimitAlert_tenantId_idx" ON "TenantResourceLimitAlert" ("tenantId");
 
 -- +goose Down
--- +goose StatementBegin
-DROP INDEX "TenantResourceLimitAlert_tenantId_idx";
--- +goose StatementEnd
+-- +goose NO TRANSACTION
+DROP INDEX CONCURRENTLY IF EXISTS "TenantResourceLimitAlert_tenantId_idx";
