@@ -15,6 +15,8 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
@@ -267,7 +269,7 @@ func TestSocketStreamOperatorCloseCodes(t *testing.T) {
 
 		closeFrame := readStreamClose(t, conn, "a")
 		assert.Equal(t, int32(connect.CodeNotFound), closeFrame.GetCode())
-		assert.Contains(t, closeFrame.GetMessage(), "no such run")
+		assert.Equal(t, "not_found: the engine found no such resource", closeFrame.GetMessage(), "the engine's own text stays with the operator")
 
 		// A message that does not decode closes the stream as invalid.
 		writeFrame(t, conn, `{"streamOpen":{"id":"b","procedure":"/Dispatcher/SubscribeToWorkflowRuns","request":"{\"workflowRunId\":\"run-2\"}"}}`)
@@ -286,15 +288,18 @@ func TestSocketStreamOperatorCloseCodes(t *testing.T) {
 		closeFrame = readStreamClose(t, conn, "c")
 		assert.Equal(t, int32(connect.CodeInvalidArgument), closeFrame.GetCode())
 
-		// An open the engine refuses is closed with its code and holds no slot.
+		// An open the engine refuses is closed with its code and holds no slot; a transport
+		// diagnostic from the engine link is not what the endpoint is told.
 		opener.mu.Lock()
-		opener.openErr = connect.NewError(connect.CodeUnavailable, errors.New("engine down"))
+		opener.openErr = status.Error(codes.Unavailable, "connection error: dial tcp 10.1.2.3:7070: connect: connection refused")
 		opener.mu.Unlock()
 
 		writeFrame(t, conn, `{"streamOpen":{"id":"e","procedure":"/Dispatcher/SubscribeToWorkflowRuns","request":"{\"workflowRunId\":\"run-4\"}"}}`)
 
 		closeFrame = readStreamClose(t, conn, "e")
 		assert.Equal(t, int32(connect.CodeUnavailable), closeFrame.GetCode())
+		assert.Equal(t, "unavailable: the engine stream was closed", closeFrame.GetMessage())
+		assert.NotContains(t, closeFrame.GetMessage(), "10.1.2.3")
 
 		writeFrame(t, conn, `{"done":{"output":"{}"}}`)
 	})
@@ -489,4 +494,38 @@ func TestSocketRequestFrameRules(t *testing.T) {
 
 	assert.Equal(t, KindCompleted, await(t, pending).Kind)
 	assert.True(t, opener.stream(t, 0).isClosed())
+}
+
+// The endpoint is told an engine-side error's code with the fixed message for that code: the
+// error's own text, whatever its type, never reaches the stream_close frame.
+func TestPublicStreamErrorRedactsEngineText(t *testing.T) {
+	const secret = "dial tcp 10.1.2.3:7070"
+
+	for name, tc := range map[string]struct {
+		err  error
+		code connect.Code
+	}{
+		"connect error":        {err: connect.NewError(connect.CodeNotFound, errors.New(secret)), code: connect.CodeNotFound},
+		"wrapped connect":      {err: fmt.Errorf("open: %w", connect.NewError(connect.CodePermissionDenied, errors.New(secret))), code: connect.CodePermissionDenied},
+		"grpc status":          {err: status.Error(codes.Unavailable, secret), code: connect.CodeUnavailable},
+		"grpc unknown":         {err: status.Error(codes.Unknown, secret), code: connect.CodeUnknown},
+		"grpc invalid":         {err: status.Error(codes.Code(99), secret), code: connect.CodeUnknown},
+		"closed channel":       {err: fmt.Errorf("%w: %s", operator.ErrChannelClosed, secret), code: connect.CodeUnavailable},
+		"closed session":       {err: operator.ErrSessionClosed, code: connect.CodeUnavailable},
+		"canceled":             {err: context.Canceled, code: connect.CodeUnavailable},
+		"untyped":              {err: errors.New(secret), code: connect.CodeUnknown},
+		"connect invalid code": {err: connect.NewError(connect.Code(99), errors.New(secret)), code: connect.CodeUnknown},
+	} {
+		t.Run(name, func(t *testing.T) {
+			cerr := publicStreamError(tc.err)
+
+			assert.Equal(t, tc.code, cerr.Code())
+			assert.Equal(t, tc.code.String()+": "+publicStreamMessages[tc.code], cerr.Message())
+			assert.NotContains(t, cerr.Message(), secret)
+		})
+	}
+
+	for code := connect.CodeCanceled; code <= connect.CodeUnauthenticated; code++ {
+		assert.Contains(t, publicStreamMessages, code, "every connect code has a public message")
+	}
 }
