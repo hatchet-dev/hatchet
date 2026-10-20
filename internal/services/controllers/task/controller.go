@@ -14,6 +14,8 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/hatchet-dev/hatchet/internal/listutils"
+
 	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
@@ -1470,24 +1472,17 @@ func (tc *TasksControllerImpl) handlePauseWorkflow(ctx context.Context, tenantId
 
 func (tc *TasksControllerImpl) handleRateLimitPausesChanged(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
 	msgs := msgqueue.JSONConvert[tasktypes.RateLimitPausesChangedPayload](payloads)
+	statuses := listutils.Map[*tasktypes.RateLimitPausesChangedPayload, bool](msgs, func(x *tasktypes.RateLimitPausesChangedPayload) bool {
+		return x.Paused
+	})
 
-	anyPaused, anyEnded := false, false
-
-	for _, msg := range msgs {
-		if msg.Paused {
-			anyPaused = true
-		} else {
-			anyEnded = true
-		}
-	}
-
-	if anyPaused {
+	if listutils.Any(statuses, true) {
 		if err := tc.repov1.RateLimit().HoldRateLimitPausedQueuedTasks(ctx, tenantId); err != nil {
 			return fmt.Errorf("failed to hold tasks behind newly paused rate limits: %w", err)
 		}
 	}
 
-	if anyEnded {
+	if listutils.Any(statuses, false) {
 		if err := tc.requeueItemsForExpiredRateLimitPauses(ctx, tenantId); err != nil {
 			return err
 		}
