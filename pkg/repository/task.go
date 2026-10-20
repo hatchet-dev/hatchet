@@ -3719,6 +3719,8 @@ func taskEventDataStoreOpts(tenantId uuid.UUID, taskEvent *sqlcv1.V1TaskEvent, d
 			ExternalId: taskEvent.ExternalID,
 			TenantId:   tenantId,
 		}.StoreOpts(NewPayload[SignalCompletedMatchDataShape](data))
+	case sqlcv1.V1TaskEventTypeCOMPLETED, sqlcv1.V1TaskEventTypeFAILED, sqlcv1.V1TaskEventTypeCANCELLED:
+		fallthrough
 	default:
 		return PayloadRef[TaskCompletionEventShape]{
 			Id:         taskEvent.ID,
