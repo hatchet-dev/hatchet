@@ -412,19 +412,41 @@ func extractPort(connStr string) (int, error) {
 	return port, nil
 }
 
+// pgBouncerConfig is the PgBouncer config for the test harness. track_extra_parameters lets the
+// connection string carry the statement timeouts to every server connection.
+const pgBouncerConfig = `[databases]
+test = host=host.testcontainers.internal port=%d auth_user=user
+
+[pgbouncer]
+listen_addr = 0.0.0.0
+listen_port = 5432
+auth_type = scram-sha-256
+auth_file = /etc/pgbouncer/userlist.txt
+pool_mode = transaction
+max_client_conn = 500
+default_pool_size = 50
+max_prepared_statements = 256
+ignore_startup_parameters = extra_float_digits
+track_extra_parameters = statement_timeout, idle_in_transaction_session_timeout
+`
+
 func startPgBouncer(ctx context.Context, pgPort int) (string, func() error) {
 	pgBouncerContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
-			Image:           "edoburu/pgbouncer:v1.25.1-p0",
+			Image:           "edoburu/pgbouncer:v1.26.0-p0",
 			ExposedPorts:    []string{"5432/tcp"},
 			HostAccessPorts: []int{pgPort},
+			// The image writes userlist.txt from DATABASE_URL; the config comes from Files.
 			Env: map[string]string{
-				"DATABASE_URL":            fmt.Sprintf("postgres://user:password@host.testcontainers.internal:%d/test", pgPort),
-				"POOL_MODE":               "transaction",
-				"MAX_CLIENT_CONN":         "500",
-				"DEFAULT_POOL_SIZE":       "50",
-				"AUTH_TYPE":               "scram-sha-256",
-				"MAX_PREPARED_STATEMENTS": "256",
+				"DATABASE_URL": fmt.Sprintf("postgres://user:password@host.testcontainers.internal:%d/test", pgPort),
+				"AUTH_TYPE":    "scram-sha-256",
+			},
+			Files: []testcontainers.ContainerFile{
+				{
+					Reader:            strings.NewReader(fmt.Sprintf(pgBouncerConfig, pgPort)),
+					ContainerFilePath: "/etc/pgbouncer/pgbouncer.ini",
+					FileMode:          0o644,
+				},
 			},
 		},
 		Started: true,
@@ -445,7 +467,7 @@ func startPgBouncer(ctx context.Context, pgPort int) (string, func() error) {
 	}
 
 	connStr := fmt.Sprintf(
-		"postgresql://user:password@%s:%s/test?sslmode=disable",
+		"postgresql://user:password@%s:%s/test?sslmode=disable&statement_timeout=30000&idle_in_transaction_session_timeout=30000",
 		host, mappedPort.Port(),
 	)
 

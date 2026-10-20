@@ -925,12 +925,24 @@ type WorkflowRunRef struct {
 }
 
 // Result blocks until the workflow run completes and returns its result.
+// It waits indefinitely; use ResultWithContext to bound the wait.
 func (wr *WorkflowRunRef) Result() (*WorkflowResult, error) {
 	return wr.resultWithContext(nil)
 }
 
+// ResultWithContext blocks until the workflow run completes and returns its
+// result. If ctx ends first, the wait stops and the returned error wraps
+// ctx.Err(), so callers can check errors.Is(err, context.DeadlineExceeded) or
+// context.Canceled. Ending the wait only drops the result subscription; the
+// run itself keeps executing on the engine.
+func (wr *WorkflowRunRef) ResultWithContext(ctx context.Context) (*WorkflowResult, error) {
+	return wr.resultWithContext(ctx)
+}
+
 func (wr *WorkflowRunRef) resultWithContext(ctx context.Context) (*WorkflowResult, error) {
 	if wr.resultFn != nil {
+		// Durable child results wait on the parent task's context inside
+		// resultFn, so ctx is not threaded through here.
 		return wr.resultFn()
 	}
 
@@ -1044,12 +1056,15 @@ func (wr *WorkflowResult) Raw() any {
 }
 
 // Run executes a workflow with the provided input and waits for completion.
+// If ctx ends before the run reaches a terminal state, the wait stops and the
+// returned error wraps ctx.Err(); the run itself keeps executing on the engine.
 func (c *Client) Run(ctx context.Context, workflowName string, input any, opts ...RunOptFunc) (*WorkflowResult, error) {
 	tracer := otel.Tracer("github.com/hatchet-dev/hatchet/sdks/go")
 	otelCtx := ctx
 	if hCtx, ok := ctx.(Context); ok {
 		otelCtx = hCtx.GetContext()
 	}
+	resultWaitContext := otelCtx
 	otelCtx, span := tracer.Start(otelCtx, hatchetotel.SpanRunWorkflow,
 		trace.WithSpanKind(trace.SpanKindProducer),
 		trace.WithAttributes(
@@ -1064,7 +1079,7 @@ func (c *Client) Run(ctx context.Context, workflowName string, input any, opts .
 		return nil, err
 	}
 
-	result, err := workflowRunRef.Result()
+	result, err := workflowRunRef.resultWithContext(resultWaitContext)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		span.RecordError(err)

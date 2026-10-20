@@ -236,7 +236,7 @@ func (f *fakeQueueRepository) GetStepBatchConfigs(context.Context, *v1repo.Optim
 	return map[string]bool{}, nil
 }
 
-func (f *fakeQueueRepository) RequeueRateLimitedItems(context.Context, uuid.UUID, string) ([]*sqlcv1.RequeueRateLimitedQueueItemsRow, error) {
+func (f *fakeQueueRepository) RequeueRateLimitedItems(context.Context, uuid.UUID, string) (*time.Time, error) {
 	return nil, nil
 }
 
