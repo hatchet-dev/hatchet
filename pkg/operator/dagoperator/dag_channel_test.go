@@ -31,9 +31,16 @@ type nopDagHandler struct{}
 
 func (nopDagHandler) HandleAction(context.Context, *contracts.AssignedAction) error { return nil }
 
+// engineInvocation names the invocation engineChannel opens when the test needs a fixed task
+// (a replay opens a second invocation of the same task).
+type engineInvocation struct {
+	externalId uuid.UUID
+	invocation int32
+}
+
 // engineChannel opens one invocation through operatorsvc with the handshake done, and returns
 // the invocation's engine side.
-func engineChannel(t *testing.T) (operator.DurableChannel, *operatorsvctest.DurableInvocation, uuid.UUID, uuid.UUID) {
+func engineChannel(t *testing.T, cfg ...engineInvocation) (operator.DurableChannel, *operatorsvctest.DurableInvocation, uuid.UUID, uuid.UUID) {
 	t.Helper()
 
 	l := zerolog.Nop()
@@ -88,9 +95,12 @@ func engineChannel(t *testing.T) (operator.DurableChannel, *operatorsvctest.Dura
 		handshake <- inv
 	}()
 
-	externalId := uuid.New()
+	externalId, invocation := uuid.New(), int32(1)
+	if len(cfg) > 0 {
+		externalId, invocation = cfg[0].externalId, cfg[0].invocation
+	}
 
-	ch, err := session.OpenDurable(t.Context(), externalId, 1)
+	ch, err := session.OpenDurable(t.Context(), externalId, invocation)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = ch.Close() })
 

@@ -106,13 +106,20 @@ type durableChannel struct {
 	// trigger_runs) that names it. The operator expects the ack first, so an entry is held
 	// until the ack carrying its ref has been queued, or until the operator expects the ref
 	// (ExpectEntry, for entries no request on the channel acknowledges); wanted records refs
-	// whose ack or expectation came before their entry. A completion is delivered once:
-	// delivered records the refs already queued, and a repeat (the engine resends satisfied
-	// entries the operator reports as awaited) is dropped rather than held.
-	held      map[entryRef][]*v1contracts.DurableTaskResponse
-	wanted    map[entryRef]struct{}
-	delivered map[entryRef]struct{}
-	ready     []*v1contracts.DurableTaskResponse
+	// whose ack or expectation came before their entry.
+	//
+	// completions keeps the engine's entry completions in the order it delivered them, and
+	// only a prefix of it is ever released: the dispatcher delivers completions in
+	// satisfied_order, and an operator that replays a durable log applies them in that order,
+	// so a completion held for its ack is never overtaken by a later one whose ref is already
+	// acknowledged. A completion is delivered once: queued records the refs waiting in
+	// completions and delivered the refs already released, and a repeat (the engine resends
+	// satisfied entries the operator reports as awaited) is dropped.
+	completions []*v1contracts.DurableTaskResponse
+	queued      map[entryRef]struct{}
+	wanted      map[entryRef]struct{}
+	delivered   map[entryRef]struct{}
+	ready       []*v1contracts.DurableTaskResponse
 
 	// retained counts ready plus held, against RetainedResponseLimit; overflowed records that
 	// the limit was passed and the channel failed.
@@ -164,7 +171,7 @@ func (ss *Session) OpenDurable(ctx context.Context, taskExternalId uuid.UUID, in
 		taskExternalId: taskExternalId.String(),
 		invocation:     invocation,
 		workerId:       ss.workerId.String(),
-		held:           make(map[entryRef][]*v1contracts.DurableTaskResponse),
+		queued:         make(map[entryRef]struct{}),
 		wanted:         make(map[entryRef]struct{}),
 		delivered:      make(map[entryRef]struct{}),
 		notify:         make(chan struct{}, 1),
@@ -260,9 +267,9 @@ func (c *durableChannel) recvLoop() {
 }
 
 // ingest applies the ack-before-entry ordering to one response and queues what is deliverable:
-// an entry_completed is queued only if the ack naming its ref already went out, otherwise it is
-// held; an ack releases the in-flight slot and queues any held entries for the refs it names.
-// Every response retained, queued or held, counts against RetainedResponseLimit.
+// an entry_completed joins the completion queue, whose acknowledged prefix is released; an ack
+// releases the in-flight slot and acknowledges the refs it names. Every response retained,
+// queued or held, counts against RetainedResponseLimit.
 func (c *durableChannel) ingest(resp *v1contracts.DurableTaskResponse) {
 	c.mu.Lock()
 
@@ -273,6 +280,16 @@ func (c *durableChannel) ingest(resp *v1contracts.DurableTaskResponse) {
 
 	switch m := resp.GetMessage().(type) {
 	case *v1contracts.DurableTaskResponse_EntryCompleted:
+		// The engine routes responses by task, so a callback delayed from an earlier invocation
+		// (or, after a fork, from a branch this invocation does not run) can reach this channel.
+		// Nothing here will ever acknowledge its ref, and the completion queue releases only its
+		// acknowledged prefix, so admitting it would hold every later completion behind it.
+		if r := m.EntryCompleted.GetRef(); r.GetDurableTaskExternalId() != c.taskExternalId || r.GetInvocationCount() != c.invocation {
+			c.l.Debug().Str("ref_task", r.GetDurableTaskExternalId()).Int32("ref_invocation", r.GetInvocationCount()).Int64("node_id", r.GetNodeId()).Int64("branch_id", r.GetBranchId()).Msg("dropping entry completion addressed to another invocation")
+			c.mu.Unlock()
+			return
+		}
+
 		ref := entryRef{branchId: m.EntryCompleted.GetRef().GetBranchId(), nodeId: m.EntryCompleted.GetRef().GetNodeId()}
 
 		if _, ok := c.delivered[ref]; ok {
@@ -280,14 +297,15 @@ func (c *durableChannel) ingest(resp *v1contracts.DurableTaskResponse) {
 			return
 		}
 
-		if _, ok := c.wanted[ref]; ok {
-			delete(c.wanted, ref)
-			c.delivered[ref] = struct{}{}
-			c.queue(resp)
-		} else {
-			c.held[ref] = append(c.held[ref], resp)
-			c.retain(1)
+		if _, ok := c.queued[ref]; ok {
+			c.mu.Unlock()
+			return
 		}
+
+		c.queued[ref] = struct{}{}
+		c.completions = append(c.completions, resp)
+		c.retain(1)
+		c.releaseCompletions()
 	case *v1contracts.DurableTaskResponse_WaitForAck:
 		c.inflight = false
 		c.queue(resp)
@@ -331,31 +349,47 @@ func (c *durableChannel) retain(n int) {
 	c.overflowed = true
 	c.retained = 0
 	c.ready = nil
-	c.held = make(map[entryRef][]*v1contracts.DurableTaskResponse)
+	c.completions = nil
+	c.queued = make(map[entryRef]struct{})
 	c.wanted = make(map[entryRef]struct{})
 }
 
-// expect marks ref as acknowledged: held entries for it are queued behind the ack, a future one
-// is queued as it arrives. A ref whose completion was delivered is left alone. Must be called
-// with mu held.
+// expect marks ref as acknowledged: a completion for it is released once every completion the
+// engine delivered before it has been, a future one as it arrives. A ref whose completion was
+// delivered is left alone. Must be called with mu held.
 func (c *durableChannel) expect(ref entryRef) {
 	if _, ok := c.delivered[ref]; ok {
 		return
 	}
 
-	if entries, ok := c.held[ref]; ok {
-		c.ready = append(c.ready, entries...)
-		delete(c.held, ref)
-		c.delivered[ref] = struct{}{}
-
-		return
-	}
-
 	c.wanted[ref] = struct{}{}
+	c.releaseCompletions()
+}
+
+// releaseCompletions queues the acknowledged prefix of the completion queue, in the engine's
+// delivery order, stopping at the first completion whose ref is not acknowledged. Must be
+// called with mu held.
+func (c *durableChannel) releaseCompletions() {
+	for len(c.completions) > 0 {
+		resp := c.completions[0]
+		ref := entryRef{branchId: resp.GetEntryCompleted().GetRef().GetBranchId(), nodeId: resp.GetEntryCompleted().GetRef().GetNodeId()}
+
+		if _, ok := c.wanted[ref]; !ok {
+			return
+		}
+
+		c.completions[0] = nil
+		c.completions = c.completions[1:]
+		delete(c.wanted, ref)
+		delete(c.queued, ref)
+		c.delivered[ref] = struct{}{}
+		c.ready = append(c.ready, resp)
+	}
 }
 
 // ExpectEntry implements the contract: the ref counts as acknowledged, so a completion held for
-// it is queued now and one that arrives later is queued as it comes.
+// it is queued now (behind any earlier completion still held for its own ack) and one that
+// arrives later is queued as it comes.
 func (c *durableChannel) ExpectEntry(branchId, nodeId int64) error {
 	if c.isClosed() {
 		return ErrChannelClosed

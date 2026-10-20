@@ -555,6 +555,97 @@ func TestDag_SkipConditionOnParentOutput(t *testing.T) {
 	})
 }
 
+// A step the run completes locally (a skip) can still receive the entry the engine returned for
+// it: after a selected-step replay the engine may hand back a cached entry from an earlier
+// branch rather than a fresh skipped one, and a cached failure must be applied, not treated as
+// a repeat. A sibling is kept outstanding so the run is still consuming responses when the
+// cached failure arrives; the test delivers both completions itself, failure first.
+func TestDag_SkippedStepCachedFailureIsApplied(t *testing.T) {
+	a := newTestTask("a", "action-a", 0)
+	b := newTestTask("b", "action-b", 1, a)
+	c := newTestTask("c", "action-c", 2, a)
+
+	b.stepConditions = []*sqlcv1.V1StepMatchCondition{
+		{
+			Kind:             sqlcv1.V1StepMatchConditionKindPARENTOVERRIDE,
+			Action:           sqlcv1.V1MatchConditionActionSKIP,
+			OrGroupID:        uuid.New(),
+			Expression:       sqlchelpers.TextFromStr("output.shouldSkip == true"),
+			ParentReadableID: sqlchelpers.TextFromStr("a"),
+		},
+	}
+
+	evaluator, err := internalcel.NewBoolExprEvaluator()
+	require.NoError(t, err)
+
+	requestCh := make(chan *v1contracts.DurableTaskRequest)
+	responseCh := make(chan *v1contracts.DurableTaskResponse)
+	ch := newTestChannel(requestCh, responseCh)
+	defer ch.Close()
+
+	triggered := make(chan string, 3)
+
+	triggerStep := func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled, parentReExecuted bool) (*operator.DAGStepTriggerResult, error) {
+		triggered <- actionId
+
+		switch actionId {
+		case "action-a":
+			payload, _ := json.Marshal(map[string]interface{}{"shouldSkip": true})
+			return &operator.DAGStepTriggerResult{NodeId: 1, BranchId: 1, WorkflowRunExternalId: uuid.New(), IsSatisfied: true, ResultPayload: payload}, nil
+		case "action-b":
+			require.True(t, isSkipped)
+			// the cached entry from an earlier branch: satisfied, and a failure
+			return &operator.DAGStepTriggerResult{NodeId: 2, BranchId: 1, WorkflowRunExternalId: uuid.New(), IsSatisfied: true, IsFailure: true, ErrorMessage: strPtr("cached failure")}, nil
+		default:
+			return &operator.DAGStepTriggerResult{NodeId: 3, BranchId: 1, WorkflowRunExternalId: uuid.New()}, nil
+		}
+	}
+
+	errCh := make(chan error, 1)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	go func() {
+		errCh <- dagDurableTask(ctx, []*task{a, b, c}, nil, uuid.New(), uuid.New(), 1, "{}", ch, evaluator.EvalBoolExpr, triggerStep)
+	}()
+
+	// a completes with its satisfied result delivered by the test
+	require.Equal(t, "action-a", recvTriggeredId(t, triggered))
+	sendEntryCompleted(t, responseCh, &v1contracts.DurableEventLogEntryRef{NodeId: 1, BranchId: 1}, mapToJson(map[string]any{"shouldSkip": true}))
+
+	// b (skipped) and c are triggered in one pass; the engine's deliveries then arrive in order:
+	// b's cached failure, then c's result
+	require.Equal(t, "action-b", recvTriggeredId(t, triggered))
+	require.Equal(t, "action-c", recvTriggeredId(t, triggered))
+	sendEntryFailed(t, responseCh, &v1contracts.DurableEventLogEntryRef{NodeId: 2, BranchId: 1}, "cached failure")
+	sendEntryCompleted(t, responseCh, &v1contracts.DurableEventLogEntryRef{NodeId: 3, BranchId: 1}, mapToJson(map[string]any{"ok": true}))
+
+	select {
+	case err := <-errCh:
+		require.Error(t, err)
+		require.True(t, isDagChildFailedErr(err), "the cached failure ends the dag: %v", err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for dag to finish")
+	}
+
+	require.True(t, b.isSkipped, "the run decided the skip")
+	require.True(t, b.isFailed, "and still recorded the cached failure the engine returned")
+	require.Equal(t, "cached failure", b.errorMessage)
+	require.True(t, c.isCompleted)
+}
+
+func recvTriggeredId(t *testing.T, ch chan string) string {
+	t.Helper()
+
+	select {
+	case id := <-ch:
+		return id
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for a step to be triggered")
+		return ""
+	}
+}
+
 func TestDag_ConditionEvalErrorIsTerminal(t *testing.T) {
 	a := newTestTask("a", "action-a", 0)
 	b := newTestTask("b", "action-b", 1, a)
@@ -1507,9 +1598,12 @@ func TestDag_EntryCompletedRacesAheadOfWaitForAck(t *testing.T) {
 
 	// Drive the dispatcher side ourselves (instead of using newFakeDispatcher) so we can choose
 	// to deliver the skip watch's EntryCompleted before the WaitForAck that would normally
-	// precede it. b registers its skip watch first and holds its wait watch until that
-	// registration is acknowledged (one registration is in flight at a time); the skip fires
-	// with the ack, so the wait watch is never registered.
+	// precede it. The raced completion must be held, not dropped, and it must not decide b's
+	// remaining registration: b registers its skip watch first and holds its wait watch until
+	// that registration is acknowledged (one registration is in flight at a time); the wait
+	// watch is registered next no matter when the skip fired, because a registration decided by
+	// completion timing would land at a different node on a replay. Only then is the skip
+	// applied.
 	recvWaitFor := func() *v1contracts.DurableTaskWaitForRequest {
 		t.Helper()
 		select {
@@ -1523,40 +1617,57 @@ func TestDag_EntryCompletedRacesAheadOfWaitForAck(t *testing.T) {
 		}
 	}
 
-	skipWaitFor := recvWaitFor()
+	sendAck := func(ref *v1contracts.DurableEventLogEntryRef) {
+		t.Helper()
+		select {
+		case responseCh <- &v1contracts.DurableTaskResponse{
+			Message: &v1contracts.DurableTaskResponse_WaitForAck{
+				WaitForAck: &v1contracts.DurableTaskEventWaitForAckResponse{Ref: ref},
+			},
+		}:
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out sending WaitForAck")
+		}
+	}
 
-	ref := &v1contracts.DurableEventLogEntryRef{
+	skipWaitFor := recvWaitFor()
+	require.Len(t, skipWaitFor.GetWaitForConditions().GetSleepConditions(), 1, "the skip watch is registered first")
+
+	skipRef := &v1contracts.DurableEventLogEntryRef{
 		DurableTaskExternalId: skipWaitFor.DurableTaskExternalId,
 		InvocationCount:       skipWaitFor.InvocationCount,
 		NodeId:                4242,
 		BranchId:              4242,
 	}
 
-	sendEntryCompleted(t, responseCh, ref, nil)
+	sendEntryCompleted(t, responseCh, skipRef, nil)
+	sendAck(skipRef)
 
-	select {
-	case responseCh <- &v1contracts.DurableTaskResponse{
-		Message: &v1contracts.DurableTaskResponse_WaitForAck{
-			WaitForAck: &v1contracts.DurableTaskEventWaitForAckResponse{Ref: ref},
-		},
-	}:
-	case <-time.After(5 * time.Second):
-		t.Fatal("timed out sending WaitForAck")
-	}
+	waitWaitFor := recvWaitFor()
+	require.Len(t, waitWaitFor.GetWaitForConditions().GetUserEventConditions(), 1, "the wait watch is registered after the skip watch is acked, even though the skip already fired")
+	require.False(t, b.isSkipped, "the raced skip completion was applied before the wait watch was registered")
+
+	sendAck(&v1contracts.DurableEventLogEntryRef{
+		DurableTaskExternalId: waitWaitFor.DurableTaskExternalId,
+		InvocationCount:       waitWaitFor.InvocationCount,
+		NodeId:                4243,
+		BranchId:              4243,
+	})
 
 	select {
 	case err := <-errCh:
 		require.NoError(t, err)
 	case req := <-requestCh:
-		t.Fatalf("the dag registered another condition after its skip watch fired: %v", req)
+		t.Fatalf("the dag registered another condition after its wait watch was acked: %v", req)
 	case <-time.After(5 * time.Second):
-		t.Fatal("timed out waiting for dag to finish; the raced EntryCompleted was likely dropped instead of buffered")
+		t.Fatal("timed out waiting for dag to finish; the raced EntryCompleted was likely dropped instead of held")
 	}
 
 	require.True(t, b.isSkipped)
 	require.True(t, b.isCompleted)
 	require.False(t, b.isCancelled)
-	require.False(t, b.isWaiting, "the wait watch was held behind the skip registration and never needed")
+	require.True(t, b.isWaiting, "the wait watch was registered before the skip was applied")
+	require.False(t, b.isWaitSatisfied)
 }
 
 func shortenBlockedStatusReportInterval(t *testing.T, interval time.Duration) {

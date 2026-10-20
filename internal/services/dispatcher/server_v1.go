@@ -490,6 +490,14 @@ func (s *durableTaskInvocation) deliverOrdered(taskExternalId uuid.UUID, invocat
 	if wasReplacedByNewerInvocation {
 		// the lower satisfied_orders of a replaced invocation will never arrive, so holding
 		// this completion would only end in a false timeout eviction
+		if s.isRunningOnOperator {
+			// an operator host keeps completions in delivery order and releases only the
+			// acknowledged prefix; nothing in the newer invocation acknowledges this ref, so it
+			// is dropped here rather than handed to the host (which would drop it as well)
+			s.l.Debug().Msgf("dropping completion of replaced invocation %d for task %s (node %d, branch %d)", invocationCount, taskExternalId, resp.GetEntryCompleted().GetRef().GetNodeId(), resp.GetEntryCompleted().GetRef().GetBranchId())
+			return nil
+		}
+
 		return s.send(resp)
 	}
 
@@ -1759,6 +1767,24 @@ func (d *DispatcherServiceImpl) deliverEntryCompleted(invocation *durableTaskInv
 // wiped it and the worker has not reconnected yet, catching this error so that messages get sent do the DLQ
 // lets DispatchCallbacks re-route it once the worker reconnects to a live dispatcher.
 var ErrNoActiveDurableInvocation = errors.New("no active durable invocation found")
+
+// deliverCallbackCompletion delivers a match callback's completion. A callback without a
+// satisfied_order is for an entry past a fork on a branch the task no longer runs (every other
+// satisfied WAIT_FOR or RUN entry is ordered); an operator-hosted invocation never awaits such
+// an entry, and its host keeps completions in delivery order, so delivering it would hold every
+// later completion behind an entry no one will ever acknowledge.
+func (d *DispatcherServiceImpl) deliverCallbackCompletion(tenantId uuid.UUID, taskExternalId uuid.UUID, invocationCount int32, branchId, nodeId int64, payload []byte, satisfiedOrder *int64, isFailure bool, errorMessage *string) error {
+	if satisfiedOrder == nil {
+		inv, ok := d.durableInvocations.Load(durableInvocationsKey{tenantId: tenantId, taskId: taskExternalId})
+
+		if ok && inv.isRunningOnOperator {
+			d.l.Debug().Msgf("dropping callback completion for task %s node %d branch %d: the entry has no satisfied order, so it is past a fork and the operator will not await it", taskExternalId, nodeId, branchId)
+			return nil
+		}
+	}
+
+	return d.DeliverDurableEventLogEntryCompletion(tenantId, taskExternalId, invocationCount, branchId, nodeId, payload, satisfiedOrder, isFailure, errorMessage)
+}
 
 func (d *DispatcherServiceImpl) DeliverDurableEventLogEntryCompletion(tenantId uuid.UUID, taskExternalId uuid.UUID, invocationCount int32, branchId, nodeId int64, payload []byte, satisfiedOrder *int64, isFailure bool, errorMessage *string) error {
 	inv, ok := d.durableInvocations.Load(durableInvocationsKey{
