@@ -94,6 +94,9 @@ type fakeEndpoint struct {
 	streams   streamScript
 	// streamActions are the actions the healthcheck flags with streams.
 	streamActions []string
+	// servedActions, when set, is the exact served set the healthcheck lists; otherwise the
+	// healthcheck lists none and the operator derives the set from the workflows.
+	servedActions []string
 	failStatus    int
 	failBody      string
 	hold          chan struct{}
@@ -161,6 +164,14 @@ func (f *fakeEndpoint) setWorkflows(workflows ...*v1.CreateWorkflowVersionReques
 	defer f.mu.Unlock()
 
 	f.workflows = workflows
+}
+
+// setServedActions makes the healthcheck list exactly these actions as served.
+func (f *fakeEndpoint) setServedActions(actions ...string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.servedActions = actions
 }
 
 func (f *fakeEndpoint) setScript(s durableScript) {
@@ -307,6 +318,7 @@ func (f *fakeEndpoint) serveHealthcheck(w http.ResponseWriter, body []byte) {
 	f.mu.Lock()
 	workflows := f.workflows
 	streamActions := f.streamActions
+	servedActions := f.servedActions
 	f.mu.Unlock()
 
 	tasks := make([]*v1.ServerlessTaskOptions, 0, len(streamActions))
@@ -317,6 +329,7 @@ func (f *fakeEndpoint) serveHealthcheck(w http.ResponseWriter, body []byte) {
 
 	out, err := contract.Marshal(&v1.ServerlessHealthcheckResponse{
 		Workflows: workflows,
+		Actions:   servedActions,
 		Durable:   &v1.ServerlessDurableSupport{Supported: true},
 		Tasks:     tasks,
 	})

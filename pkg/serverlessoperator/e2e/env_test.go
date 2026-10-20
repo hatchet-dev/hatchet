@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -670,6 +671,21 @@ func taskOutput(t *testing.T, details *client.RunDetails) map[string]any {
 
 // workflow is a one-task workflow definition as an endpoint advertises it, under the name and
 // action id the operator registers it with.
+// workflowWithTasks declares one non-durable task per action, named after the action's verb.
+func workflowWithTasks(name string, actions ...string) *v1.CreateWorkflowVersionRequest {
+	wf := &v1.CreateWorkflowVersionRequest{Name: name}
+
+	for _, action := range actions {
+		wf.Tasks = append(wf.Tasks, &v1.CreateTaskOpts{
+			ReadableId: action[strings.IndexByte(action, ':')+1:],
+			Action:     action,
+			Timeout:    "60s",
+		})
+	}
+
+	return wf
+}
+
 func workflow(name, action string, durable bool, retries int32) *v1.CreateWorkflowVersionRequest {
 	return &v1.CreateWorkflowVersionRequest{
 		Name: name,

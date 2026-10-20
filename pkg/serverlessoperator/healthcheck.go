@@ -141,10 +141,11 @@ func pollHealthcheck(ctx context.Context, sender RequestSender, ep *cachedEndpoi
 	return parseHealthcheckResponse(res.BodyPrefix, limits)
 }
 
-// parseHealthcheckResponse canonicalizes the advertised workflows, derives the action set
-// (the workflows' actions plus any the endpoint lists explicitly), validates every action
-// with the engine's rules, enforces the catalog caps, and hashes the canonical (deterministic)
-// form so an unchanged response, however the endpoint formats it, produces the same hash.
+// parseHealthcheckResponse canonicalizes the advertised workflows, settles the served action
+// set (the ids the endpoint lists in actions when there are any, otherwise every action
+// derived from its workflows), validates every served action with the engine's rules,
+// enforces the catalog caps, and hashes the canonical (deterministic) form so an unchanged
+// response, however the endpoint formats it, produces the same hash.
 func parseHealthcheckResponse(body []byte, limits catalogLimits) (*healthcheckResult, error) {
 	resp := &v1.ServerlessHealthcheckResponse{}
 
@@ -163,7 +164,7 @@ func parseHealthcheckResponse(body []byte, limits catalogLimits) (*healthcheckRe
 	workflows := make([]*v1.CreateWorkflowVersionRequest, 0, len(resp.Workflows))
 	workflowHashes := make([]string, 0, len(resp.Workflows))
 	workflowBytes := make([][]byte, 0, len(resp.Workflows))
-	actionLists := make([][]string, 0, len(resp.Workflows)+1)
+	derived := make([][]string, 0, len(resp.Workflows))
 
 	for _, wf := range resp.Workflows {
 		canonicalWf, err := canonicalWorkflow(wf)
@@ -189,10 +190,10 @@ func parseHealthcheckResponse(body []byte, limits catalogLimits) (*healthcheckRe
 		workflows = append(workflows, canonicalWf)
 		workflowHashes = append(workflowHashes, hex.EncodeToString(wfHash[:]))
 		workflowBytes = append(workflowBytes, canonical)
-		actionLists = append(actionLists, actions)
+		derived = append(derived, actions)
 	}
 
-	extra := make([]string, 0, len(resp.Actions))
+	listed := make([]string, 0, len(resp.Actions))
 
 	for _, action := range resp.Actions {
 		if strings.TrimSpace(action) == "" {
@@ -205,11 +206,16 @@ func parseHealthcheckResponse(body []byte, limits catalogLimits) (*healthcheckRe
 			return nil, fmt.Errorf("invalid action %q: %w", action, err)
 		}
 
-		extra = append(extra, normalized)
+		listed = append(listed, normalized)
 	}
 
-	actionLists = append(actionLists, extra)
-	actions := sortedUnion(actionLists...)
+	// A listed set is the served set as the endpoint states it, which may leave out tasks of
+	// a declared workflow; without one, the endpoint serves everything it declared.
+	actions := sortedUnion(listed)
+
+	if len(actions) == 0 {
+		actions = sortedUnion(derived...)
+	}
 
 	if limits.maxActions > 0 && len(actions) > limits.maxActions {
 		return nil, fmt.Errorf("healthcheck advertises %d actions, more than the limit of %d", len(actions), limits.maxActions)

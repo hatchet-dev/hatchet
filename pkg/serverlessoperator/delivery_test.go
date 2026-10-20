@@ -156,7 +156,7 @@ func TestParseHealthcheckResponse(t *testing.T) {
 	require.Len(t, full.workflows, 1)
 	assert.Equal(t, "echo", full.workflows[0].Name)
 	assert.Equal(t, "svc:echo", full.workflows[0].Tasks[0].Action)
-	assert.Equal(t, []string{"svc:echo", "svc:extra"}, full.actions)
+	assert.Equal(t, []string{"svc:extra"}, full.actions, "a listed set is the served set, declared workflows or not")
 	assert.True(t, full.durable)
 	assert.Equal(t, "cloudflare-workers", full.runtime.GetName())
 	assert.Equal(t, "0.1.0", full.runtime.GetSdkVersion())
@@ -173,6 +173,32 @@ func TestParseHealthcheckResponse(t *testing.T) {
 
 	_, err = parseHealthcheckResponse([]byte(`not json`), catalogLimits{})
 	assert.Error(t, err)
+}
+
+// The served set takes both forms the contract allows: listed actions are the exact served
+// set, so an endpoint serving some tasks of a declared workflow lists those and the others are
+// not registered for it; no listed actions means every action of every declared workflow.
+func TestParseHealthcheckServedActionsForms(t *testing.T) {
+	pair := `{"name":"pair","tasks":[{"readableId":"first","action":"svc:first"},{"readableId":"second","action":"Svc:Second"}]}`
+
+	subset, err := parseHealthcheckResponse([]byte(`{"workflows":[`+pair+`],"actions":["svc:first"]}`), catalogLimits{})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"svc:first"}, subset.actions)
+	require.Len(t, subset.workflows, 1)
+	assert.Equal(t, "svc:second", subset.workflows[0].Tasks[1].Action, "the workflow is registered whole")
+
+	whole, err := parseHealthcheckResponse([]byte(`{"workflows":[`+pair+`],"actions":[]}`), catalogLimits{})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"svc:first", "svc:second"}, whole.actions)
+
+	blank, err := parseHealthcheckResponse([]byte(`{"workflows":[`+pair+`],"actions":[" "]}`), catalogLimits{})
+	require.NoError(t, err)
+	assert.Equal(t, whole.actions, blank.actions, "blank entries do not make a listed set")
+
+	assert.NotEqual(t, subset.hash, whole.hash)
+
+	_, err = parseHealthcheckResponse([]byte(`{"workflows":[`+pair+`],"actions":["svc:first"],"tasks":[{"action":"svc:second","streams":true}]}`), catalogLimits{})
+	require.Error(t, err, "a stream option for an action outside the served set is a catalog error")
 }
 
 // The catalog hash frames every element by length, so two catalogs that differ only in how
