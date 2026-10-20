@@ -13,8 +13,21 @@ delivers assigned tasks to it over signed HTTPS requests.
   the task when the sleep is over. It runs on a websocket the operator dials, which on Vercel
   needs Fluid compute (see "Durable tasks on Vercel" below).
 
-The tasks are the same as in `examples/serverless/cloudflare-workers`, with the same names and
-outputs, so one endpoint registration works for either runtime.
+`echo` and `sleep-then-echo` are the same tasks as in `examples/serverless/cloudflare-workers`,
+with the same names and outputs, so one endpoint registration works for either runtime (the
+Worker serves one more task, `parent-echo`).
+
+## Demo triggers are not protected
+
+The form on the page, its server action (`app/actions.ts`) and `GET /api/echo` create runs
+with the app's tenant token for anyone who can reach them: they have no authentication,
+authorization or quota of their own. The operator's signature protects only the Hatchet mount
+under `/api/hatchet`, not application routes that use the tenant client. So they are on under
+`next dev` and `vc dev`, and off on a deployment (the page says so, `/api/echo` answers 404)
+unless `HATCHET_DEMO_TRIGGERS=true` is set, which `hatchet/demo.ts` decides. Set it only on a
+deployment you are happy to let the public trigger runs on, such as one behind the tunnel in
+"Run against a local engine", and put a real authorization check in front of any trigger
+route you keep. The message is capped at 200 characters.
 
 ## Layout
 
@@ -23,8 +36,9 @@ outputs, so one endpoint registration works for either runtime.
 | `hatchet/tasks.ts`                       | The declarations, written with `hatchet.task` and `hatchet.durableTask` from `@hatchet-dev/serverless`. The same file works on a regular worker.                                                                                    |
 | `app/api/hatchet/[...hatchet]/route.ts`  | `export const { GET, POST } = vercel({ workflows })`: `POST` serves the healthcheck and non-durable triggers, `GET` the durable websocket upgrade; the secret comes from `HATCHET_SIGNING_SECRET`. `maxDuration` caps one invocation. |
 | `hatchet/client.ts`                      | The SDK's core client (`@hatchet-dev/typescript-sdk/core`, Connect over fetch, no gRPC) built from `HATCHET_CLIENT_TOKEN` and friends. Only the triggering side has the token.                                                       |
-| `app/actions.ts`, `app/trigger-form.tsx` | A server action that triggers `echo` or `sleep-then-echo` and waits for the output, and the form on the page that calls it.                                                                                                        |
-| `app/api/echo/route.ts`                  | `GET /api/echo?message=hello`: the same trigger for curl.                                                                                                                                                                            |
+| `app/actions.ts`, `app/trigger-form.tsx` | A server action that triggers `echo` or `sleep-then-echo` and waits for the output, and the form on the page that calls it. A demo trigger (see above).                                                                            |
+| `app/api/echo/route.ts`                  | `GET /api/echo?message=hello`: the same trigger for curl. A demo trigger (see above).                                                                                                                                                |
+| `hatchet/demo.ts`                        | Whether the demo triggers are on: under `next dev` and `vc dev`, or when `HATCHET_DEMO_TRIGGERS=true`.                                                                                                                                 |
 | `next.config.ts`                         | Keeps the package, the SDK, `ws` and `@vercel/functions` out of the server bundle (`serverExternalPackages`), since the adapter loads the last two at runtime.                                                                          |
 
 The wire contract is `api-contracts/v1/serverless.proto` plus
@@ -252,6 +266,10 @@ vercel env add HATCHET_SIGNING_SECRET production   # paste it at the prompt
 vercel env add HATCHET_CLIENT_TOKEN production     # the tenant API token, for the trigger side
 vercel deploy --prod                               # prints https://<project>.vercel.app
 ```
+
+The demo triggers are off on the deployment (see "Demo triggers are not protected"); add
+`vercel env add HATCHET_DEMO_TRIGGERS production` with the value `true` only if the public may
+trigger runs on it.
 
 Then register the endpoint as in section 4 with the `vercel.app` URL (`kind: "GENERIC_HTTP"`),
 against whichever Hatchet instance the token belongs to, and trigger runs as in section 5.
