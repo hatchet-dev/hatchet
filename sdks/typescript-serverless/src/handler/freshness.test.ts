@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { REQUEST_MAX_AGE_SECONDS, hatchet } from '../index';
+import { REQUEST_MAX_AGE_SECONDS, hatchet, verifyUpgradeSignature } from '../index';
 import { createTestOperator } from '../testing';
 import { NonceSet } from './nonce-set';
 import { ServerlessHealthcheckRequest } from '../generated/proto/v1/serverless';
@@ -171,30 +171,101 @@ describe('upgrade replay protection', () => {
     expect(await response.json()).toEqual({ error: 'nonce store full', retry: true });
     expect(upgrade).not.toHaveBeenCalled();
   });
+
+  it('awaits an asynchronous seenNonce and hands it the signature expiry', async () => {
+    const seen = vi.fn(async (_nonce: string, _expiresAt: number) => false);
+    const op = operator({ seenNonce: seen });
+    const url = `https://endpoint.test${op.handler.basePath}/trigger`;
+    const headers = await op.upgradeHeaders(crypto.randomUUID(), 1);
+
+    expect(
+      (await op.handler.fetch(new Request(url, { headers }), undefined, { upgrade })).status
+    ).toBe(200);
+    expect(seen).toHaveBeenCalledWith(
+      expect.any(String),
+      Number(headers.get('x-hatchet-timestamp')) + REQUEST_MAX_AGE_SECONDS
+    );
+
+    const replayed = operator({ seenNonce: async () => true });
+    const replayedHeaders = await replayed.upgradeHeaders(crypto.randomUUID(), 1);
+    expect(
+      (
+        await replayed.handler.fetch(new Request(url, { headers: replayedHeaders }), undefined, {
+          upgrade,
+        })
+      ).status
+    ).toBe(401);
+  });
+
+  it('refuses the upgrade with a retryable 503 when the nonce store fails', async () => {
+    const op = operator({
+      seenNonce: async () => {
+        throw new Error('kv unavailable');
+      },
+    });
+    const url = `https://endpoint.test${op.handler.basePath}/trigger`;
+    const headers = await op.upgradeHeaders(crypto.randomUUID(), 1);
+    const response = await op.handler.fetch(new Request(url, { headers }), undefined, {
+      upgrade,
+    });
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ error: 'nonce store unavailable', retry: true });
+  });
+
+  it('keeps a nonce signed ahead of the clock until that signature is stale', async () => {
+    const op = operator();
+    const set = new NonceSet();
+    const now = 1_700_000_000;
+    const at = (clock: number) => ({
+      nowSeconds: clock,
+      consumeNonce: (nonce: string, expiresAt: number) => set.consume(nonce, expiresAt, clock),
+    });
+    // Signed 100 s ahead of the clock: fresh until now + 400, past 300 s from receipt.
+    const headers = await op.upgradeHeaders(crypto.randomUUID(), 1, {
+      timestamp: String(now + 100),
+    });
+
+    expect((await verifyUpgradeSignature(headers, secret, at(now))).ok).toBe(true);
+    expect(await verifyUpgradeSignature(headers, secret, at(now + 301))).toMatchObject({
+      ok: false,
+      reason: 'missing or replayed nonce',
+    });
+    expect(await verifyUpgradeSignature(headers, secret, at(now + 400))).toMatchObject({
+      ok: false,
+      reason: 'missing or replayed nonce',
+    });
+    expect(await verifyUpgradeSignature(headers, secret, at(now + 401))).toMatchObject({
+      ok: false,
+      reason: 'stale or missing timestamp',
+    });
+  });
 });
 
 describe('NonceSet', () => {
-  it('remembers a nonce within the window and forgets it after', () => {
-    const set = new NonceSet(4096, 300);
+  it('remembers a nonce through the last second its signature is fresh', () => {
+    const set = new NonceSet();
 
-    expect(set.consume('a', 1000)).toBe('accepted');
-    expect(set.consume('a', 1299)).toBe('replayed');
-    expect(set.consume('a', 1300)).toBe('accepted');
+    expect(set.consume('a', 1300, 1000)).toBe('accepted');
+    expect(set.consume('a', 1300, 1299)).toBe('replayed');
+    expect(set.consume('a', 1300, 1300)).toBe('replayed');
+    expect(set.consume('a', 1300, 1301)).toBe('accepted');
   });
 
   it('refuses new nonces at capacity and keeps every unexpired one', () => {
-    const set = new NonceSet(2, 300);
+    const set = new NonceSet(2);
 
-    expect(set.consume('a', 1000)).toBe('accepted');
-    expect(set.consume('b', 1001)).toBe('accepted');
-    expect(set.consume('c', 1002)).toBe('full');
+    expect(set.consume('a', 1300, 1000)).toBe('accepted');
+    expect(set.consume('b', 1301, 1001)).toBe('accepted');
+    expect(set.consume('c', 1302, 1002)).toBe('full');
     expect(set.size).toBe(2);
     // The refused nonce was not recorded; the accepted ones still are.
-    expect(set.consume('a', 1003)).toBe('replayed');
-    expect(set.consume('b', 1003)).toBe('replayed');
-    // Room returns only once an entry expires.
-    expect(set.consume('c', 1300)).toBe('accepted');
-    expect(set.consume('d', 1300)).toBe('full');
+    expect(set.consume('a', 1303, 1003)).toBe('replayed');
+    expect(set.consume('b', 1303, 1003)).toBe('replayed');
+    // Room returns only once an entry expires, whatever order the entries were added in.
+    expect(set.consume('c', 1601, 1301)).toBe('accepted');
+    expect(set.consume('d', 1601, 1301)).toBe('full');
+    expect(set.consume('d', 1602, 1302)).toBe('accepted');
   });
 });
 

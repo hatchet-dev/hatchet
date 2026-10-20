@@ -9,6 +9,9 @@
  * secrets to the request. A config is turned into one client per handler, or per environment
  * object when it comes from a function, and that client is reused; it is built the first time
  * a task needs it, so a task that never touches the client never pays for it or fails on it.
+ * A function called with an environment that is not an object (a string tenant key, say)
+ * gets a client per request, since two such values cannot be told apart by identity and must
+ * never share a credential.
  */
 import { HatchetCore, type CoreClientConfig } from '@hatchet-dev/typescript-sdk/core/index.js';
 
@@ -31,19 +34,17 @@ export function isHatchetCore(value: HatchetCore | CoreClientConfig): value is H
 /**
  * Builds the per-request client source for a handler: `resolve(env)` returns the function a
  * task calls to get the client. One client is kept per config object, or per environment
- * object when the option is a function, for the life of the handler.
+ * object when the option is a function, for the life of the handler; a function option
+ * called with a non-object environment gets a client per request.
  */
 export function createClientResolver(
   option: ClientOption | undefined
 ): (env: unknown) => ClientSource {
   const clients = new WeakMap<object, HatchetCore>();
-  // The one client of a function option called with an environment that is not an object.
-  let unkeyed: HatchetCore | undefined;
 
   const build = (key: object | undefined, config: CoreClientConfig): HatchetCore => {
     if (key === undefined) {
-      unkeyed ??= new HatchetCore(config);
-      return unkeyed;
+      return new HatchetCore(config);
     }
 
     let client = clients.get(key);

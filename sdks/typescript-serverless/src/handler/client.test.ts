@@ -419,9 +419,30 @@ describe('createClientResolver', () => {
     expect(sourceA()).toBe(a);
     expect(resolve(envA)()).toBe(a);
     expect(resolve(envB)()).not.toBe(a);
-    expect(resolve(undefined)()).toBe(resolve(undefined)());
+    // A non-object environment has no identity to cache by: a client per request.
+    expect(resolve(undefined)()).not.toBe(resolve(undefined)());
     // Once per source that was used: envA, envA again, envB, and undefined twice.
     expect(option).toHaveBeenCalledTimes(5);
+  });
+
+  it('never shares a credential between two primitive environments', () => {
+    const tenantA = '11111111-1111-4111-8111-111111111111';
+    const tenantB = '22222222-2222-4222-8222-222222222222';
+    const resolve = createClientResolver((env) => ({
+      token: makeToken({
+        sub: env === 'tenant-a' ? tenantA : tenantB,
+        grpc_broadcast_address: 'engine.example.com:7070',
+      }),
+      transport: fakeEngine().transport,
+      logLevel: 'OFF' as const,
+    }));
+
+    const a = resolve('tenant-a')();
+    const b = resolve('tenant-b')();
+
+    expect(a?.tenantId).toBe(tenantA);
+    expect(b?.tenantId).toBe(tenantB);
+    expect(resolve('tenant-a')()).not.toBe(a);
   });
 
   it('hands a ready client through as is, and nothing without an option', () => {

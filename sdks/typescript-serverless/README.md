@@ -31,7 +31,8 @@ createHandler({ workflows, client: new HatchetCore({ token, serverUrl, tls }), .
 namespace?, ... }`; with only a `token` the engine address comes from the token), or a function
 of the runtime's environment returning either, for runtimes that hand secrets to the request.
 One client is built per handler (per environment object for the function form) the first time
-a task needs it, and reused.
+a task needs it, and reused; a function called with an environment that is not an object gets
+a client per request, so two tenant keys never share a credential.
 
 With a client:
 
@@ -292,9 +293,13 @@ server.listen(3000);
 ```
 
 Both read `process.env.HATCHET_SIGNING_SECRET` and the optional `HATCHET_ENDPOINT_ID`, and take
-the same `secret`, `endpointId`, `serve`, `basePath`, `durable` and `maxPayload` options as the
-Vercel adapter. The relay needs the `ws` package (an optional peer); without it, or with
-`durable: false`, the healthcheck reports `durable.supported: false`.
+the same `secret`, `endpointId`, `serve`, `basePath`, `durable`, `maxPayload` and
+`maxBodyBytes` options as the Vercel adapter. The relay needs the `ws` package (an optional
+peer); without it, or with `durable: false`, the healthcheck reports `durable.supported: false`.
+A body over `maxBodyBytes` (4 MiB by default) is answered 413 and its connection closed
+without the rest being read; a request whose `Host` or target does not parse as a URL is
+answered 400 or routed by its path alone, never thrown out of the listener. A client that
+drops the connection mid-task aborts the task's `ctx.abortController`.
 
 ## Adapters
 
@@ -405,7 +410,11 @@ engine.
 Every request from the operator is signed with the endpoint's secret (`X-Hatchet-Signature`,
 hex HMAC-SHA256). The handler checks, in this order:
 
-- **POST bodies** (healthcheck, non-durable trigger): the HMAC over the raw body, then the
+- **POST bodies** (healthcheck, non-durable trigger): a request whose `X-Hatchet-Signature`
+  is not shaped like one (64 hex digits) is answered 401 before its body is read; the body is
+  then read up to `maxBodyBytes` (the operator's 4 MiB frame limit by default) and a larger
+  one is answered `413 {"error", "retry": false}` as soon as that is known, from its
+  `content-length` or while it streams; then the HMAC over the raw body, then the
   `timestampUnixSeconds` field the signature covers, which must be within five minutes of the
   handler's clock in either direction (`REQUEST_MAX_AGE_SECONDS`), then the `endpointId` when the
   handler is configured with one (`HATCHET_ENDPOINT_ID` on Cloudflare). A captured request is
@@ -416,15 +425,26 @@ hex HMAC-SHA256). The handler checks, in this order:
   applies to `X-Hatchet-Timestamp`; the HMAC covers `endpointId.timestamp.nonce.taskId.invocation`
   with the header's endpoint id, so a signature made for one endpoint cannot be presented to
   another that shares the secret; then the nonce is consumed from a bounded in-memory set only
-  after the signature verified (`NonceSet`, 4096 entries). Every accepted nonce is kept until
-  its window expires and nothing is dropped early to make room: when the set is full of
-  unexpired nonces the upgrade is answered `503 {"error": "nonce store full", "retry": true}`
-  and the operator retries later. The set is per isolate; a production endpoint should consume
-  nonces in a Durable Object or an expiring KV key through the `seenNonce` option (return
-  `true` for a replay, `'full'` when there is no room), so a replay that lands in another
-  isolate is caught too.
+  after the signature verified (`NonceSet`, 4096 entries). Every accepted nonce is kept through
+  the last second its signature is fresh (the signed timestamp plus the window, so an upgrade
+  signed ahead of the clock is remembered that much longer) and nothing is dropped early to
+  make room: when the set is full of unexpired nonces the upgrade is answered
+  `503 {"error": "nonce store full", "retry": true}` and the operator retries later. The set is
+  per isolate; a production endpoint should consume nonces in a Durable Object or an expiring
+  KV key through the `seenNonce` option, so a replay that lands in another isolate is caught
+  too. The hook gets `(nonce, expiresAtUnixSeconds)`, returns `true` for a replay or `'full'`
+  when there is no room, may be asynchronous, and a store that throws or rejects refuses the
+  upgrade with `503 {"error": "nonce store unavailable", "retry": true}`. The check-and-insert
+  has to be atomic in the store (a Durable Object, or a KV conditional write): a get followed
+  by a put is not a replay guarantee.
 - **The first frame**: its task id and invocation must match the verified upgrade headers,
   otherwise the socket is closed with 1008 before any task code runs.
+- **Every later frame**: one larger than `maxFrameBytes` (4 MiB by default; the Node and Vercel
+  adapters also give `ws` the same `maxPayload`) fails the invocation before it is decoded; a
+  completion or ack naming another task or invocation is dropped (an ack also fails the
+  request waiting on it); more than `maxPendingCompletions` (4096) completions without a
+  waiter, or a completion whose payload is not JSON, fail the invocation with a retryable
+  done frame. A frame the invocation cannot handle fails that invocation, never the process.
 
 ## How a trigger maps onto a response
 

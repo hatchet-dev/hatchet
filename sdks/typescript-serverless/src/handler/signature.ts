@@ -72,6 +72,15 @@ export function constantTimeEqual(a: string, b: string): boolean {
 }
 
 /**
+ * Whether the header has the shape of a signature the operator sends (64 lowercase hex
+ * digits). Checked before a body is read, so a request without one costs no body bytes;
+ * it says nothing about whether the signature is right.
+ */
+export function isSignatureShaped(header: string | null | undefined): header is string {
+  return typeof header === 'string' && /^[0-9a-f]{64}$/.test(header);
+}
+
+/**
  * Verifies X-Hatchet-Signature on a POST (healthcheck or non-durable trigger). The signature
  * covers the raw body bytes exactly as sent, so read the body as text before parsing it.
  */
@@ -177,10 +186,15 @@ export interface VerifyUpgradeOptions {
   nowSeconds?: number;
   /**
    * Consumes the nonce after the signature verified, so unsigned traffic cannot fill the
-   * store. `replayed` refuses the upgrade with 401; `full` refuses it with 503 so the
-   * operator retries later.
+   * store. `expiresAtUnixSeconds` is the last second at which the signature is fresh, so
+   * the store knows how long to keep the nonce. `replayed` refuses the upgrade with 401;
+   * `full` refuses it with 503 so the operator retries later, as does a store that throws
+   * or rejects.
    */
-  consumeNonce?: (nonce: string) => NonceOutcome;
+  consumeNonce?: (
+    nonce: string,
+    expiresAtUnixSeconds: number
+  ) => NonceOutcome | Promise<NonceOutcome>;
 }
 
 /**
@@ -207,8 +221,9 @@ export async function verifyUpgradeSignature(
 
   const timestamp = headers.get(TIMESTAMP_HEADER) ?? '';
   const now = opts.nowSeconds ?? Math.floor(Date.now() / 1000);
+  const timestampSeconds = parseTimestamp(timestamp);
 
-  if (!isFreshTimestamp(parseTimestamp(timestamp), now)) {
+  if (!isFreshTimestamp(timestampSeconds, now)) {
     return { ok: false, status: 401, reason: 'stale or missing timestamp' };
   }
 
@@ -228,7 +243,17 @@ export async function verifyUpgradeSignature(
     return { ok: false, status: 401, reason: 'missing or replayed nonce' };
   }
 
-  switch (opts.consumeNonce?.(nonce) ?? 'accepted') {
+  // The signature is fresh through this second; the store keeps the nonce that long.
+  const expiresAt = timestampSeconds + REQUEST_MAX_AGE_SECONDS;
+  let outcome: NonceOutcome;
+
+  try {
+    outcome = (await opts.consumeNonce?.(nonce, expiresAt)) ?? 'accepted';
+  } catch {
+    return { ok: false, status: 503, reason: 'nonce store unavailable' };
+  }
+
+  switch (outcome) {
     case 'replayed':
       return { ok: false, status: 401, reason: 'missing or replayed nonce' };
     case 'full':

@@ -11,9 +11,9 @@ import { toSdkAction } from './action';
 import type { ClientSource } from './client';
 import { ServerlessRuntime, type ConsoleLike } from './context';
 import { isServerlessLimitationError } from './errors';
-import { errorMessage, json, triggerError } from './http';
+import { errorMessage, json, readBodyText, triggerError } from './http';
 import type { Registry } from './registry';
-import { verifySignedBody } from './signature';
+import { isSignatureShaped, verifySignedBody } from './signature';
 
 export interface TriggerOptions {
   registry: Registry;
@@ -23,6 +23,8 @@ export interface TriggerOptions {
   /** The handler's client for the task's `ctx`; absent without a `client` option. */
   client?: ClientSource;
   console?: ConsoleLike;
+  /** The largest body read, in bytes; a larger one is answered 413 before it is read. */
+  maxBodyBytes: number;
 }
 
 export async function handleTrigger(request: Request, options: TriggerOptions): Promise<Response> {
@@ -30,15 +32,24 @@ export async function handleTrigger(request: Request, options: TriggerOptions): 
     return triggerError(405, 'method not allowed', false);
   }
 
+  // A request without a signature costs no body bytes.
+  const signature = request.headers.get(SIGNATURE_HEADER);
+
+  if (!isSignatureShaped(signature)) {
+    return triggerError(401, 'bad signature', false);
+  }
+
   // The signature covers the exact bytes, so read the body before parsing it. The body's
   // timestamp must be within the request window and its endpoint id must be this endpoint's.
-  const body = await request.text();
-  const verified = await verifySignedBody(
-    body,
-    request.headers.get(SIGNATURE_HEADER),
-    options.secret,
-    { endpointId: options.endpointId }
-  );
+  const read = await readBodyText(request, options.maxBodyBytes);
+
+  if (!read.ok) {
+    return read.response;
+  }
+
+  const verified = await verifySignedBody(read.text, signature, options.secret, {
+    endpointId: options.endpointId,
+  });
 
   if (!verified.ok) {
     return triggerError(verified.status, verified.reason, false);
@@ -105,9 +116,16 @@ export async function handleTrigger(request: Request, options: TriggerOptions): 
     return triggerError(400, `could not build the task context: ${errorMessage(err)}`, false);
   }
 
-  // The operator cancels a delivery by dropping the request; abort the task with it.
+  // The operator cancels a delivery by dropping the request; abort the task with it, at
+  // once when the request was dropped before the task started.
+  const onAbort = () => ctx.abortController.abort();
+
   try {
-    request.signal?.addEventListener('abort', () => ctx.abortController.abort());
+    if (request.signal?.aborted) {
+      onAbort();
+    } else {
+      request.signal?.addEventListener('abort', onAbort, { once: true });
+    }
   } catch {
     // Some runtimes have no request signal; the task then runs to completion.
   }
@@ -131,5 +149,11 @@ export async function handleTrigger(request: Request, options: TriggerOptions): 
     );
 
     return triggerError(500, errorMessage(err), true);
+  } finally {
+    try {
+      request.signal?.removeEventListener('abort', onAbort);
+    } catch {
+      // No request signal.
+    }
   }
 }

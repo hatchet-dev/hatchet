@@ -5,15 +5,15 @@
 import type { BaseWorkflowDeclaration } from '@hatchet-dev/typescript-sdk/edge/index.js';
 import type { ServerlessHealthcheckResponse } from '../generated/proto/v1/serverless';
 import { createClientResolver, type ClientOption } from './client';
-import { SIGNATURE_HEADER } from './contract';
+import { OPERATOR_MAX_FRAME_BYTES, SIGNATURE_HEADER } from './contract';
 import type { ConsoleLike } from './context';
 import { runDurableInvocation } from './durable/invocation';
 import type { DurableHooks } from './durable/socket';
 import { buildHealthcheck, serializeHealthcheck } from './healthcheck';
-import { json, jsonText, triggerError } from './http';
+import { json, jsonText, readBodyText, triggerError } from './http';
 import { NonceSet, type NonceOutcome } from './nonce-set';
 import { buildRegistry, type ServeEntry } from './registry';
-import { verifySignedBody, verifyUpgradeSignature } from './signature';
+import { isSignatureShaped, verifySignedBody, verifyUpgradeSignature } from './signature';
 import { handleTrigger } from './trigger';
 
 export type { DurableHooks, DurableSocket } from './durable/socket';
@@ -64,12 +64,37 @@ export interface HandlerOptions {
   /**
    * Replay protection for durable upgrades: consumes the nonce and returns true when it was
    * seen before, or `'full'` when there is no room to record it (the upgrade is then refused
-   * with 503 and the operator retries later). Defaults to a bounded in-memory set (4096
-   * entries, each kept until the request window expires) that lives in one isolate; back it
-   * with a Durable Object or an expiring KV key in production so a replay landing in another
-   * isolate is caught too.
+   * with 503 and the operator retries later). `expiresAtUnixSeconds` is the last second at
+   * which the upgrade's signature is still fresh; keep the nonce through it. The hook may be
+   * asynchronous, and a store failure (a thrown error or a rejection) refuses the upgrade
+   * with 503 so the operator retries. Defaults to a bounded in-memory set (4096 entries, each
+   * kept until its signature expires) that lives in one isolate; back it with a Durable
+   * Object or an expiring KV key in production so a replay landing in another isolate is
+   * caught too. Check-and-insert must be atomic in the store: a KV get followed by a put is
+   * not a replay guarantee.
    */
-  seenNonce?: (nonce: string) => boolean | 'full';
+  seenNonce?: (
+    nonce: string,
+    expiresAtUnixSeconds: number
+  ) => boolean | 'full' | Promise<boolean | 'full'>;
+  /**
+   * The largest POST body accepted, in bytes, enforced while the body is read and before
+   * its signature is checked; a larger one is answered 413. Defaults to the operator's
+   * frame limit, `OPERATOR_MAX_FRAME_BYTES` (4 MiB).
+   */
+  maxBodyBytes?: number;
+  /**
+   * The largest websocket frame the invocation accepts from the operator, in bytes, checked
+   * before the frame is decoded; a larger one fails the invocation. Defaults to
+   * `OPERATOR_MAX_FRAME_BYTES`. The Node and Vercel adapters also pass their `maxPayload` to
+   * `ws`, which drops larger frames at the socket.
+   */
+  maxFrameBytes?: number;
+  /**
+   * How many completions the invocation keeps for durable entries whose waiter has not been
+   * installed yet; more than that fails the invocation. Defaults to 4096.
+   */
+  maxPendingCompletions?: number;
   /** Where warnings and task logs go; defaults to the global console. */
   console?: ConsoleLike;
 }
@@ -114,12 +139,13 @@ export function createHandler(options: HandlerOptions): ServerlessHandler {
   const healthcheck = buildHealthcheck(registry, options.runtime, durableSupported);
   const healthcheckBody = serializeHealthcheck(healthcheck);
   const nonces = new NonceSet();
-  const consumeNonce = (nonce: string): NonceOutcome => {
+  const maxBodyBytes = options.maxBodyBytes ?? OPERATOR_MAX_FRAME_BYTES;
+  const consumeNonce = async (nonce: string, expiresAt: number): Promise<NonceOutcome> => {
     if (!options.seenNonce) {
-      return nonces.consume(nonce);
+      return nonces.consume(nonce, expiresAt);
     }
 
-    const seen = options.seenNonce(nonce);
+    const seen = await options.seenNonce(nonce, expiresAt);
 
     return seen === 'full' ? 'full' : seen ? 'replayed' : 'accepted';
   };
@@ -175,13 +201,22 @@ export function createHandler(options: HandlerOptions): ServerlessHandler {
           return json({ error: 'method not allowed' }, 405);
         }
 
-        const body = await request.text();
-        const verified = await verifySignedBody(
-          body,
-          request.headers.get(SIGNATURE_HEADER),
-          secret,
-          { endpointId: resolve(options.endpointId, env) }
-        );
+        // A request without a signature costs no body bytes.
+        const signature = request.headers.get(SIGNATURE_HEADER);
+
+        if (!isSignatureShaped(signature)) {
+          return json({ error: 'bad signature' }, 401);
+        }
+
+        const read = await readBodyText(request, maxBodyBytes);
+
+        if (!read.ok) {
+          return read.response;
+        }
+
+        const verified = await verifySignedBody(read.text, signature, secret, {
+          endpointId: resolve(options.endpointId, env),
+        });
 
         if (!verified.ok) {
           return json({ error: verified.reason }, verified.status);
@@ -218,6 +253,8 @@ export function createHandler(options: HandlerOptions): ServerlessHandler {
             client,
             console: options.console,
             expected: { taskRunExternalId: verified.taskId, invocationCount: verified.invocation },
+            maxFrameBytes: options.maxFrameBytes,
+            maxPendingCompletions: options.maxPendingCompletions,
           })
         );
       }
@@ -228,6 +265,7 @@ export function createHandler(options: HandlerOptions): ServerlessHandler {
         endpointId: resolve(options.endpointId, env),
         client: clientFor(env),
         console: options.console,
+        maxBodyBytes,
       });
     },
   };
