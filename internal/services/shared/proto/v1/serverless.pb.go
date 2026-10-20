@@ -91,8 +91,10 @@ type ServerlessHealthcheckResponse struct {
 	// the canonical form changes. Two endpoints of one tenant may declare the same workflow
 	// or action; both then serve it, like two workers.
 	Workflows []*CreateWorkflowVersionRequest `protobuf:"bytes,1,rep,name=workflows,proto3" json:"workflows,omitempty"`
-	// Action ids this endpoint serves in addition to the ones derived from workflows. When
-	// empty, the endpoint serves exactly the derived actions.
+	// The action ids this endpoint serves. When non-empty it is the exact served set: an
+	// endpoint that serves only some tasks of a workflow it declares lists those, and is never
+	// assigned the others; ids outside the declared workflows are allowed. When empty, the
+	// endpoint serves every action derived from workflows.
 	Actions []string                  `protobuf:"bytes,2,rep,name=actions,proto3" json:"actions,omitempty"`
 	Durable *ServerlessDurableSupport `protobuf:"bytes,3,opt,name=durable,proto3" json:"durable,omitempty"`
 	Runtime *ServerlessRuntime        `protobuf:"bytes,4,opt,name=runtime,proto3" json:"runtime,omitempty"`

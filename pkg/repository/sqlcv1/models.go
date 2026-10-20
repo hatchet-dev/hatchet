@@ -3859,6 +3859,7 @@ type V1ServerlessEndpoint struct {
 	CreatedAt             pgtype.Timestamptz       `json:"created_at"`
 	UpdatedAt             pgtype.Timestamptz       `json:"updated_at"`
 	StreamActions         []string                 `json:"stream_actions"`
+	DurableSupported      bool                     `json:"durable_supported"`
 	DeletedAt             pgtype.Timestamptz       `json:"deleted_at"`
 }
 

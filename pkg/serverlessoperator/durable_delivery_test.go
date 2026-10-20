@@ -93,7 +93,7 @@ func TestDurableDeliveryEndToEnd(t *testing.T) {
 	env := newTestEnv(t)
 	tenant := uuid.New()
 
-	row := healthyRow(endpointSpec{tenantId: tenant, name: "a", actions: []string{"svc:run"}})
+	row := healthyRow(endpointSpec{tenantId: tenant, name: "a", actions: []string{"svc:run"}, durable: true})
 	secret := "test-signing-secret-0123456789-a"
 
 	type seen struct {
@@ -224,7 +224,7 @@ func TestDurableDeliveryCloseWithoutDoneIsRetryable(t *testing.T) {
 	env := newTestEnv(t)
 	tenant := uuid.New()
 
-	row := healthyRow(endpointSpec{tenantId: tenant, name: "a", actions: []string{"svc:run"}})
+	row := healthyRow(endpointSpec{tenantId: tenant, name: "a", actions: []string{"svc:run"}, durable: true})
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := (&websocket.Upgrader{}).Upgrade(w, r, nil)
@@ -266,7 +266,7 @@ func TestDurableDeliveryCancelSendsNoSecondEvent(t *testing.T) {
 	env := newTestEnv(t)
 	tenant := uuid.New()
 
-	row := healthyRow(endpointSpec{tenantId: tenant, name: "a", actions: []string{"svc:run"}})
+	row := healthyRow(endpointSpec{tenantId: tenant, name: "a", actions: []string{"svc:run"}, durable: true})
 
 	closeCode := make(chan int, 1)
 	upgraded := make(chan struct{}, 1)

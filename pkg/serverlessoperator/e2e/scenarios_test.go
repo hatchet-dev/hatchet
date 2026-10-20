@@ -347,6 +347,69 @@ func TestHealthcheckChangeAddsWorkflow(t *testing.T) {
 	})
 }
 
+// An endpoint that lists the actions it serves is registered for exactly those: a task of a
+// declared workflow left off the list is not registered on the tenant's worker, so the engine
+// never assigns it to the endpoint, while the workflow itself is registered whole.
+func TestServedActionSubset(t *testing.T) {
+	forEachLink(t, func(t *testing.T, lc linkCase) {
+		e := lc.e
+		tn := e.newTenant()
+		e.pinLease(tn.id, 0, lc.owner)
+
+		fake := newFakeEndpoint(t, "partial", workflowWithTasks("pair", []string{"svc:first", "svc:second"}))
+		fake.setServedActions("svc:first")
+
+		ep := e.createEndpoint(tn, fake, endpointOpts{pollIntervalSeconds: 5})
+
+		dumpOnFailure(t, e, tn, fake)
+
+		e.waitRegistered(ep.ID, "svc:first")
+
+		assert.Equal(t, []string{"svc:first"}, e.registeredActions(ep.ID))
+
+		_, served := e.activeWorkerWithAction(tn.id, "svc:second")
+		assert.False(t, served, "the unlisted task must not be registered: %+v", e.serverlessWorkers(tn.id))
+
+		// Listing the second task on a later poll registers it through the usual delta.
+		fake.setServedActions("svc:first", "svc:second")
+
+		e.waitRegistered(ep.ID, "svc:first", "svc:second")
+		assert.ElementsMatch(t, []string{"svc:first", "svc:second"}, e.registeredActions(ep.ID))
+	})
+}
+
+// An endpoint that declines durable support is registered for the non-durable tasks of its
+// workflows only, so the engine never assigns it a durable task; the workflow is registered
+// whole, and the support arriving on a later poll adds the durable task's action.
+func TestDurableTasksNotRegisteredWithoutSupport(t *testing.T) {
+	forEachLink(t, func(t *testing.T, lc linkCase) {
+		e := lc.e
+		tn := e.newTenant()
+		e.pinLease(tn.id, 0, lc.owner)
+
+		fake := newFakeEndpoint(t, "nodurable", workflowWithTasks("mixed", []string{"svc:plain", "svc:durable"}, "svc:durable"))
+		fake.setDurableSupported(false)
+
+		ep := e.createEndpoint(tn, fake, endpointOpts{pollIntervalSeconds: 5})
+
+		dumpOnFailure(t, e, tn, fake)
+
+		e.waitRegistered(ep.ID, "svc:plain")
+
+		assert.Equal(t, []string{"svc:plain"}, e.registeredActions(ep.ID))
+		assert.False(t, e.durableSupported(ep.ID))
+
+		_, served := e.activeWorkerWithAction(tn.id, "svc:durable")
+		assert.False(t, served, "the durable task must not be registered: %+v", e.serverlessWorkers(tn.id))
+
+		fake.setDurableSupported(true)
+
+		e.waitRegistered(ep.ID, "svc:plain", "svc:durable")
+		assert.ElementsMatch(t, []string{"svc:plain", "svc:durable"}, e.registeredActions(ep.ID))
+		assert.True(t, e.durableSupported(ep.ID))
+	})
+}
+
 func TestEndpointDeleteRemovesActions(t *testing.T) {
 	forEachLink(t, func(t *testing.T, lc linkCase) {
 		e := lc.e

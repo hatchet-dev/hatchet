@@ -521,13 +521,31 @@ func healthcheckWithWorkflows(t *testing.T, workflows ...*v1.CreateWorkflowVersi
 	return string(b)
 }
 
+// healthcheckWithDurable builds a response carrying workflows and the durable support flag.
+func healthcheckWithDurable(t *testing.T, supported bool, workflows ...*v1.CreateWorkflowVersionRequest) string {
+	t.Helper()
+
+	b, err := contract.Marshal(&v1.ServerlessHealthcheckResponse{
+		Workflows: workflows,
+		Durable:   &v1.ServerlessDurableSupport{Supported: supported},
+	})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return string(b)
+}
+
 type endpointSpec struct {
 	tenantId  uuid.UUID
 	partition int32
 	name      string
 	actions   []string
 	enabled   bool
-	healthy   pgtype.Bool
+	// durable is the row's durable_supported: what the endpoint's last healthcheck said.
+	durable bool
+	healthy pgtype.Bool
 }
 
 // newEndpointRow builds an endpoint row with a fresh id. URLs derive from the
@@ -548,6 +566,7 @@ func newEndpointRow(spec endpointSpec) *sqlcv1.V1ServerlessEndpoint {
 		EndpointPartition:     spec.partition,
 		Healthy:               spec.healthy,
 		RegisteredActions:     spec.actions,
+		DurableSupported:      spec.durable,
 	}
 }
 

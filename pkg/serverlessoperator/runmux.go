@@ -47,11 +47,14 @@ type runMux struct {
 	cancel context.CancelFunc
 
 	// mu guards everything below and is never held across a send on the engine stream, so
-	// close can always reach the cancellation that releases a blocked send. stream is the
-	// current engine stream, nil while none is open; subs is every awaited run and the
-	// handles that await it.
+	// close can always reach the stream whose Close releases a blocked send. stream is the
+	// current engine stream, nil while none is open; opening is the stream the loop is
+	// replaying on, held here from the moment open returns until it is published as stream
+	// or given up, so close finds a stream whose replay is blocked. subs is every awaited run
+	// and the handles that await it.
 	mu      sync.Mutex
 	stream  operator.RunStream
+	opening operator.RunStream
 	subs    map[string]map[*runMuxHandle]struct{}
 	loop    chan struct{}
 	started bool
@@ -176,10 +179,32 @@ func (m *runMux) run() {
 
 // install replays every awaited run on stream, then publishes it as the current one. The
 // sends run outside the lock, since flow control may block them and close must be able to
-// cancel them; runs subscribed during the replay are sent before the stream is published, so
-// nothing a subscriber recorded while no stream was current is left out, and a run the
-// replay sent that nobody awaits any more retires the stream instead of publishing it.
+// close the stream that releases them; runs subscribed during the replay are sent before the
+// stream is published, so nothing a subscriber recorded while no stream was current is left
+// out, and a run the replay sent that nobody awaits any more retires the stream instead of
+// publishing it. The stream is held as opening throughout, so a close during the replay
+// closes it; the caller closes the stream on an error.
 func (m *runMux) install(stream operator.RunStream) error {
+	m.mu.Lock()
+
+	if m.closed {
+		m.mu.Unlock()
+		return operator.ErrSessionClosed
+	}
+
+	m.opening = stream
+	m.mu.Unlock()
+
+	defer func() {
+		m.mu.Lock()
+
+		if m.opening == stream {
+			m.opening = nil
+		}
+
+		m.mu.Unlock()
+	}()
+
 	sent := map[string]struct{}{}
 
 	for {
@@ -207,6 +232,7 @@ func (m *runMux) install(stream operator.RunStream) error {
 			}
 
 			m.stream = stream
+			m.opening = nil
 			m.mu.Unlock()
 
 			return nil
@@ -361,8 +387,9 @@ func (m *runMux) unsubscribe(h *runMuxHandle) {
 }
 
 // close ends the mux: the engine stream is closed, the loop joined, every handle closed. The
-// context is cancelled before the lock is taken, so a replay or subscription send blocked on
-// the engine stream is released rather than waited on.
+// stream being replayed on is closed with the current one, since a replay send blocked on
+// flow control is released by its stream's Close alone, not by the mux context; without
+// that the loop would never be joined.
 func (m *runMux) close() {
 	m.cancel()
 
@@ -376,7 +403,9 @@ func (m *runMux) close() {
 	m.closed = true
 	started := m.started
 	stream := m.stream
+	opening := m.opening
 	m.stream = nil
+	m.opening = nil
 
 	handles := map[*runMuxHandle]struct{}{}
 
@@ -390,6 +419,10 @@ func (m *runMux) close() {
 
 	if stream != nil {
 		_ = stream.Close()
+	}
+
+	if opening != nil {
+		_ = opening.Close()
 	}
 
 	if started {

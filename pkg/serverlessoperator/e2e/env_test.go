@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -196,7 +198,13 @@ func (e *testEnv) newTenant() *tenant {
 	dl, err := loader.NewConfigLoader("").InitDataLayer()
 	require.NoError(e.t, err)
 
-	defer func() { _ = dl.Disconnect() }()
+	// Disconnect stops the layer's background work but leaves its pools open; the harness
+	// database allows 100 connections, so every tenant's pools are closed here.
+	defer func() {
+		_ = dl.Disconnect()
+		dl.Pool.Close()
+		dl.DDLPool.Close()
+	}()
 
 	scf, err := loader.LoadServerConfigFile()
 	require.NoError(e.t, err)
@@ -458,6 +466,17 @@ func (e *testEnv) streamActions(endpointId uuid.UUID) []string {
 	return actions
 }
 
+func (e *testEnv) durableSupported(endpointId uuid.UUID) bool {
+	e.t.Helper()
+
+	var supported bool
+
+	err := e.pool.QueryRow(e.ctx, `SELECT durable_supported FROM v1_serverless_endpoint WHERE id = $1`, endpointId).Scan(&supported)
+	require.NoError(e.t, err)
+
+	return supported
+}
+
 // waitRegistered waits until the endpoint's registered_actions carry every given action,
 // which the owner writes after PutWorkflow succeeded, and until an active serverless worker
 // of the tenant advertises each of them: the row is written before the session's delta, so
@@ -670,6 +689,23 @@ func taskOutput(t *testing.T, details *client.RunDetails) map[string]any {
 
 // workflow is a one-task workflow definition as an endpoint advertises it, under the name and
 // action id the operator registers it with.
+// workflowWithTasks declares one task per action, named after the action's verb; durable
+// names the actions whose task is declared durable.
+func workflowWithTasks(name string, actions []string, durable ...string) *v1.CreateWorkflowVersionRequest {
+	wf := &v1.CreateWorkflowVersionRequest{Name: name}
+
+	for _, action := range actions {
+		wf.Tasks = append(wf.Tasks, &v1.CreateTaskOpts{
+			ReadableId: action[strings.IndexByte(action, ':')+1:],
+			Action:     action,
+			Timeout:    "60s",
+			IsDurable:  slices.Contains(durable, action),
+		})
+	}
+
+	return wf
+}
+
 func workflow(name, action string, durable bool, retries int32) *v1.CreateWorkflowVersionRequest {
 	return &v1.CreateWorkflowVersionRequest{
 		Name: name,

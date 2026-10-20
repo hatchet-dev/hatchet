@@ -41,7 +41,10 @@ type healthcheckResult struct {
 	// streamActions is the sorted subset of actions whose task asked for an invocation
 	// websocket (ServerlessTaskOptions.streams).
 	streamActions []string
-	durable       bool
+	// durable is whether the endpoint accepts the durable websocket protocol. When it does
+	// not, actions holds no task declared durable: the endpoint is never registered for one,
+	// so the engine never assigns it one.
+	durable bool
 }
 
 // signedHeaders returns the headers every endpoint request carries: the HMAC-SHA256 hex
@@ -141,10 +144,12 @@ func pollHealthcheck(ctx context.Context, sender RequestSender, ep *cachedEndpoi
 	return parseHealthcheckResponse(res.BodyPrefix, limits)
 }
 
-// parseHealthcheckResponse canonicalizes the advertised workflows, derives the action set
-// (the workflows' actions plus any the endpoint lists explicitly), validates every action
-// with the engine's rules, enforces the catalog caps, and hashes the canonical (deterministic)
-// form so an unchanged response, however the endpoint formats it, produces the same hash.
+// parseHealthcheckResponse canonicalizes the advertised workflows, settles the served action
+// set (the ids the endpoint lists in actions when there are any, otherwise every action
+// derived from its workflows, less every durable task when the endpoint does not support
+// durable), validates every served action with the engine's rules, enforces the catalog
+// caps, and hashes the canonical (deterministic) form so an unchanged response, however the
+// endpoint formats it, produces the same hash.
 func parseHealthcheckResponse(body []byte, limits catalogLimits) (*healthcheckResult, error) {
 	resp := &v1.ServerlessHealthcheckResponse{}
 
@@ -163,7 +168,8 @@ func parseHealthcheckResponse(body []byte, limits catalogLimits) (*healthcheckRe
 	workflows := make([]*v1.CreateWorkflowVersionRequest, 0, len(resp.Workflows))
 	workflowHashes := make([]string, 0, len(resp.Workflows))
 	workflowBytes := make([][]byte, 0, len(resp.Workflows))
-	actionLists := make([][]string, 0, len(resp.Workflows)+1)
+	derived := make([][]string, 0, len(resp.Workflows))
+	durableActions := map[string]struct{}{}
 
 	for _, wf := range resp.Workflows {
 		canonicalWf, err := canonicalWorkflow(wf)
@@ -178,6 +184,10 @@ func parseHealthcheckResponse(body []byte, limits catalogLimits) (*healthcheckRe
 			return nil, err
 		}
 
+		for _, action := range durableActionsOf(canonicalWf) {
+			durableActions[action] = struct{}{}
+		}
+
 		canonical, err := proto.MarshalOptions{Deterministic: true}.Marshal(canonicalWf)
 
 		if err != nil {
@@ -189,10 +199,10 @@ func parseHealthcheckResponse(body []byte, limits catalogLimits) (*healthcheckRe
 		workflows = append(workflows, canonicalWf)
 		workflowHashes = append(workflowHashes, hex.EncodeToString(wfHash[:]))
 		workflowBytes = append(workflowBytes, canonical)
-		actionLists = append(actionLists, actions)
+		derived = append(derived, actions)
 	}
 
-	extra := make([]string, 0, len(resp.Actions))
+	listed := make([]string, 0, len(resp.Actions))
 
 	for _, action := range resp.Actions {
 		if strings.TrimSpace(action) == "" {
@@ -205,11 +215,33 @@ func parseHealthcheckResponse(body []byte, limits catalogLimits) (*healthcheckRe
 			return nil, fmt.Errorf("invalid action %q: %w", action, err)
 		}
 
-		extra = append(extra, normalized)
+		listed = append(listed, normalized)
 	}
 
-	actionLists = append(actionLists, extra)
-	actions := sortedUnion(actionLists...)
+	// A listed set is the served set as the endpoint states it, which may leave out tasks of
+	// a declared workflow; without one, the endpoint serves everything it declared.
+	actions := sortedUnion(listed)
+
+	if len(actions) == 0 {
+		actions = sortedUnion(derived...)
+	}
+
+	// An endpoint without durable support is not registered for its durable tasks, whichever
+	// form named them, so routing never picks it for one; a later healthcheck that gains the
+	// support adds them back through the usual delta.
+	durable := resp.GetDurable().GetSupported()
+
+	if !durable && len(durableActions) > 0 {
+		served := make([]string, 0, len(actions))
+
+		for _, action := range actions {
+			if _, ok := durableActions[action]; !ok {
+				served = append(served, action)
+			}
+		}
+
+		actions = served
+	}
 
 	if limits.maxActions > 0 && len(actions) > limits.maxActions {
 		return nil, fmt.Errorf("healthcheck advertises %d actions, more than the limit of %d", len(actions), limits.maxActions)
@@ -234,20 +266,47 @@ func parseHealthcheckResponse(body []byte, limits catalogLimits) (*healthcheckRe
 		workflowHashes: workflowHashes,
 		actions:        actions,
 		streamActions:  streamActions,
-		hash:           hashCatalog(workflowBytes, actions, streamActions),
-		durable:        resp.GetDurable().GetSupported(),
+		hash:           hashCatalog(workflowBytes, actions, streamActions, durable),
+		durable:        durable,
 		runtime:        resp.Runtime,
 	}, nil
 }
 
+// durableActionsOf lists the actions of the workflow's tasks declared durable, the on-failure
+// task included.
+func durableActionsOf(wf *v1.CreateWorkflowVersionRequest) []string {
+	tasks := append([]*v1.CreateTaskOpts{}, wf.Tasks...)
+
+	if wf.OnFailureTask != nil {
+		tasks = append(tasks, wf.OnFailureTask)
+	}
+
+	actions := make([]string, 0)
+
+	for _, task := range tasks {
+		if task.GetIsDurable() {
+			actions = append(actions, task.Action)
+		}
+	}
+
+	return actions
+}
+
 // hashCatalog is the digest of a parsed catalog: the canonical workflow encodings, the sorted
-// action set and the sorted stream-action set, each list framed as a tagged section with its
-// element count and every element length-prefixed. The framing makes the digest a function of
-// the three lists themselves: no element content, newline or NUL included, can make two
-// different catalogs encode alike, so a catalog whose only change is a stream flag always
-// hashes differently from the one before it.
-func hashCatalog(workflows [][]byte, actions, streamActions []string) string {
+// action set, the sorted stream-action set and the durable support flag, each list framed as
+// a tagged section with its element count and every element length-prefixed. The framing
+// makes the digest a function of the lists themselves: no element content, newline or NUL
+// included, can make two different catalogs encode alike, so a catalog whose only change is a
+// stream flag always hashes differently from the one before it. The durable flag is its own
+// section, so a change of support alone is a change of catalog and reaches the row.
+func hashCatalog(workflows [][]byte, actions, streamActions []string, durable bool) string {
 	hasher := sha256.New()
+	flag := []byte{0}
+
+	if durable {
+		flag[0] = 1
+	}
+
 	sections := []struct {
 		tag      byte
 		elements [][]byte
@@ -255,6 +314,7 @@ func hashCatalog(workflows [][]byte, actions, streamActions []string) string {
 		{tag: 'w', elements: workflows},
 		{tag: 'a', elements: byteSlices(actions)},
 		{tag: 's', elements: byteSlices(streamActions)},
+		{tag: 'd', elements: [][]byte{flag}},
 	}
 
 	var prefix []byte

@@ -33,8 +33,10 @@ export interface ServerlessHealthcheckResponse {
    */
   workflows: CreateWorkflowVersionRequest[];
   /**
-   * Action ids this endpoint serves in addition to the ones derived from workflows. When
-   * empty, the endpoint serves exactly the derived actions.
+   * The action ids this endpoint serves. When non-empty it is the exact served set: an
+   * endpoint that serves only some tasks of a workflow it declares lists those, and is never
+   * assigned the others; ids outside the declared workflows are allowed. When empty, the
+   * endpoint serves every action derived from workflows.
    */
   actions: string[];
   durable: ServerlessDurableSupport | undefined;

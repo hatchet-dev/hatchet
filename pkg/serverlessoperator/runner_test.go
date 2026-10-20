@@ -513,7 +513,7 @@ func TestDeliveryRoutingMissAndDurable(t *testing.T) {
 	env := newTestEnv(t)
 	tenant := uuid.New()
 
-	a := healthyRow(endpointSpec{tenantId: tenant, name: "a", actions: []string{"svc:run"}})
+	a := healthyRow(endpointSpec{tenantId: tenant, name: "a", actions: []string{"svc:run"}, durable: true})
 	env.addEndpoint(a)
 
 	env.r.UnitsGained(context.Background(), []memrepo.Unit{env.unit(a)})
@@ -545,6 +545,99 @@ func TestDeliveryRoutingMissAndDurable(t *testing.T) {
 	assert.Equal(t, operator.ErrNotSupported.Error(), ev.EventPayload)
 	assert.False(t, *ev.ShouldNotRetry)
 	assert.Empty(t, env.sender.callsTo(a.TriggerUrl))
+}
+
+// A durable assignment routed to an endpoint whose last healthcheck declined durable support
+// is refused before anything is dialed, retryably, so the retry can land on an endpoint that
+// serves the action durably.
+func TestDurableAssignmentToEndpointWithoutDurableSupportIsRefused(t *testing.T) {
+	env := newTestEnv(t)
+	tenant := uuid.New()
+
+	a := healthyRow(endpointSpec{tenantId: tenant, name: "a", actions: []string{"svc:run"}})
+	env.addEndpoint(a)
+
+	env.r.UnitsGained(context.Background(), []memrepo.Unit{env.unit(a)})
+	reg := env.host.session(0)
+	reg.setOpenDurable(func(uuid.UUID, int32) (operator.DurableChannel, error) {
+		t.Error("a durable channel was opened for a refused assignment")
+		return nil, operator.ErrNotSupported
+	})
+
+	invocation := int32(0)
+	durable := startAction("svc:run")
+	durable.DurableTaskInvocationCount = &invocation
+	reg.deliver(t, durable)
+
+	require.Eventually(t, func() bool { return len(reg.eventTypes()) == 1 }, eventually, 10*time.Millisecond)
+	ev := reg.lastEvent()
+	assert.Equal(t, contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED, ev.EventType, "no STARTED precedes the refusal")
+	assert.Contains(t, ev.EventPayload, "does not support durable tasks")
+	assert.Contains(t, ev.EventPayload, "svc:run")
+	assert.False(t, *ev.ShouldNotRetry)
+	assert.Empty(t, env.sender.callsTo(a.TriggerUrl))
+}
+
+// An endpoint that declines durable support is registered for the non-durable tasks of its
+// workflows only: the durable task's action never enters the delta or the row, while the
+// workflow is still put whole. A later healthcheck that gains the support adds the action
+// through the usual delta, and one that loses it removes the action again.
+func TestDurableTasksLeftOutWithoutDurableSupport(t *testing.T) {
+	env := newTestEnv(t)
+	tenant := uuid.New()
+
+	a := healthyRow(endpointSpec{tenantId: tenant, name: "a"})
+	env.addEndpoint(a)
+
+	env.r.UnitsGained(context.Background(), []memrepo.Unit{env.unit(a)})
+	reg := env.host.session(0)
+
+	require.Eventually(t, func() bool { return len(env.sender.callsTo(a.HealthcheckUrl)) == 1 }, eventually, 10*time.Millisecond)
+
+	poller := env.poller(a)
+	require.NotNil(t, poller)
+	poller.stop()
+
+	wf := &v1.CreateWorkflowVersionRequest{
+		Name: "mixed",
+		Tasks: []*v1.CreateTaskOpts{
+			{ReadableId: "plain", Action: "svc:plain"},
+			{ReadableId: "durable", Action: "svc:durable", IsDurable: true},
+		},
+	}
+
+	env.sender.respond(a.HealthcheckUrl, http.StatusOK, healthcheckWithDurable(t, false, wf))
+	poller.pollOnce(context.Background())
+
+	require.Equal(t, 1, reg.putCount(), "the workflow is put whole")
+	require.Len(t, reg.puts[0].Tasks, 2)
+	assert.Equal(t, []string{"svc:plain"}, reg.added())
+	assert.Empty(t, reg.removed())
+
+	require.Len(t, env.repo.ActionWrites(), 1)
+	assert.Equal(t, []string{"svc:plain"}, env.repo.ActionWrites()[0].Actions)
+	assert.False(t, env.repo.ActionWrites()[0].DurableSupported)
+
+	// The support arrives on a later poll: only the durable action is added.
+	env.sender.respond(a.HealthcheckUrl, http.StatusOK, healthcheckWithDurable(t, true, wf))
+	poller.pollOnce(context.Background())
+
+	assert.Equal(t, 1, reg.putCount(), "the unchanged workflow is not re-put")
+	assert.Equal(t, []string{"svc:plain", "svc:durable"}, reg.added(), "only the durable action is added")
+	assert.Empty(t, reg.removed())
+
+	require.Len(t, env.repo.ActionWrites(), 2)
+	assert.Equal(t, []string{"svc:durable", "svc:plain"}, env.repo.ActionWrites()[1].Actions)
+	assert.True(t, env.repo.ActionWrites()[1].DurableSupported)
+
+	// The support goes away again: the durable action is removed, the plain one stays.
+	env.sender.respond(a.HealthcheckUrl, http.StatusOK, healthcheckWithDurable(t, false, wf))
+	poller.pollOnce(context.Background())
+
+	assert.Equal(t, []string{"svc:durable"}, reg.removed())
+	require.Len(t, env.repo.ActionWrites(), 3)
+	assert.Equal(t, []string{"svc:plain"}, env.repo.ActionWrites()[2].Actions)
+	assert.False(t, env.repo.ActionWrites()[2].DurableSupported)
 }
 
 // Two endpoints of one tenant declaring the same action both serve it, like two workers:

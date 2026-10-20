@@ -38,13 +38,14 @@ type endpointPoller struct {
 	// grow it past the catalog cap.
 	putHashes map[string]string
 
-	// registered and registeredStreams are what this poller knows the endpoint row's
-	// registered_actions and stream_actions to be: the cached values when the first change is
-	// applied, then every set it wrote. The write is decided against them rather than the
-	// cache, so a delta the engine refused after a successful write is retried without
-	// writing the row again.
+	// registered, registeredStreams and registeredDurable are what this poller knows the
+	// endpoint row's registered_actions, stream_actions and durable_supported to be: the
+	// cached values when the first change is applied, then every set it wrote. The write is
+	// decided against them rather than the cache, so a delta the engine refused after a
+	// successful write is retried without writing the row again.
 	registered        []string
 	registeredStreams []string
+	registeredDurable bool
 	registeredKnown   bool
 	lastHash          string
 
@@ -292,25 +293,27 @@ func (p *endpointPoller) applyChange(ctx context.Context, reg *registration, res
 		cfg := p.ts.cache.Config(p.ep)
 		p.registered = cfg.registeredActions
 		p.registeredStreams = cfg.streamActions
+		p.registeredDurable = cfg.durableSupported
 		p.registeredKnown = true
 	}
 
-	if !stringsEqual(p.registered, res.actions) || !stringsEqual(p.registeredStreams, res.streamActions) {
-		if err := p.r.repo.Endpoints().UpdateRegisteredActions(ctx, p.ep.id, res.actions, res.streamActions); err != nil {
+	if !stringsEqual(p.registered, res.actions) || !stringsEqual(p.registeredStreams, res.streamActions) || p.registeredDurable != res.durable {
+		if err := p.r.repo.Endpoints().UpdateRegisteredActions(ctx, p.ep.id, res.actions, res.streamActions, res.durable); err != nil {
 			return fmt.Errorf("could not write registered actions: %w", err)
 		}
 
 		p.registered = res.actions
 		p.registeredStreams = res.streamActions
+		p.registeredDurable = res.durable
 	}
 
 	previous := p.ts.cache.Config(p.ep)
-	unionChanged := p.ts.cache.SetHealthcheck(p.ep.id, res.actions, res.streamActions)
+	unionChanged := p.ts.cache.SetHealthcheck(p.ep.id, res.actions, res.streamActions, res.durable)
 
 	// The owner's registration is the one that runs this endpoint's tasks, so its delta is
 	// part of the change: a failure here is retried on the next poll like a rejected put.
 	if err := reg.syncActions(ctx, p.ts.cache); err != nil {
-		p.ts.cache.SetHealthcheck(p.ep.id, previous.registeredActions, previous.streamActions)
+		p.ts.cache.SetHealthcheck(p.ep.id, previous.registeredActions, previous.streamActions, previous.durableSupported)
 		return err
 	}
 

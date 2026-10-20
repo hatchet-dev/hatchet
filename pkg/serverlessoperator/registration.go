@@ -437,6 +437,16 @@ func (reg *registration) deliver(ctx context.Context, task *inflightTask, action
 	}
 
 	if action.DurableTaskInvocationCount != nil {
+		// The endpoint's own durable tasks are kept out of its registered actions while it
+		// lacks the support, so this is an action id another endpoint serves durably; the
+		// retry is routed again.
+		if !cfg.durableSupported {
+			reg.r.m.delivered("durable_unsupported", time.Since(start))
+			reg.reportFailure(action, fmt.Sprintf("endpoint %s does not support durable tasks, and %s was assigned as one", cfg.name, action.ActionId), true)
+
+			return
+		}
+
 		reg.deliverOverSocket(ctx, task, action, ep, cfg, start, *action.DurableTaskInvocationCount, true)
 		return
 	}
