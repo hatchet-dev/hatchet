@@ -21,14 +21,18 @@ import (
 
 // fakeRunsStream is one engine SubscribeToWorkflowRuns stream: subscriptions land on sent,
 // events pushed on recv are what the mux receives, fail ends it. A stream with a gate holds
-// every Send until the gate is closed or the send's context ends, the way flow control does.
+// every Send until the gate is closed or the stream is closed, the way a gRPC send blocked
+// on flow control is held: the send's context argument is ignored, as the real client
+// ignores it.
 type fakeRunsStream struct {
 	sent   chan string
 	recv   chan proto.Message
 	failed chan error
 	closed chan struct{}
 	gate   chan struct{}
-	once   sync.Once
+	// gated receives one token for every Send held at the gate.
+	gated chan struct{}
+	once  sync.Once
 }
 
 func newFakeRunsStream() *fakeRunsStream {
@@ -37,10 +41,11 @@ func newFakeRunsStream() *fakeRunsStream {
 		recv:   make(chan proto.Message, 64),
 		failed: make(chan error, 1),
 		closed: make(chan struct{}),
+		gated:  make(chan struct{}, 64),
 	}
 }
 
-func (f *fakeRunsStream) Send(ctx context.Context, msg proto.Message) error {
+func (f *fakeRunsStream) Send(_ context.Context, msg proto.Message) error {
 	select {
 	case <-f.closed:
 		return operator.ErrChannelClosed
@@ -48,10 +53,12 @@ func (f *fakeRunsStream) Send(ctx context.Context, msg proto.Message) error {
 	}
 
 	if f.gate != nil {
+		f.gated <- struct{}{}
+
 		select {
 		case <-f.gate:
-		case <-ctx.Done():
-			return ctx.Err()
+		case <-f.closed:
+			return operator.ErrChannelClosed
 		}
 	}
 
@@ -104,16 +111,27 @@ func finished(runId string) *contracts.WorkflowRunEvent {
 }
 
 // fakeRunsOpener hands out engine streams in order and counts the opens; gate, when set, is
-// the gate of every stream it opens.
+// the gate of every stream it opens, and openGate, when set, holds every open until it is
+// closed, so a test can record subscriptions before the first stream exists and have the
+// replay, not the subscriber, send them.
 type fakeRunsOpener struct {
-	streams []*fakeRunsStream
-	opens   int
-	openErr error
-	gate    chan struct{}
-	mu      sync.Mutex
+	streams  []*fakeRunsStream
+	opens    int
+	openErr  error
+	gate     chan struct{}
+	openGate chan struct{}
+	mu       sync.Mutex
 }
 
-func (o *fakeRunsOpener) open(_ context.Context) (operator.RunStream, error) {
+func (o *fakeRunsOpener) open(ctx context.Context) (operator.RunStream, error) {
+	if o.openGate != nil {
+		select {
+		case <-o.openGate:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+
 	o.mu.Lock()
 	defer o.mu.Unlock()
 
@@ -290,17 +308,30 @@ func TestRunMuxClose(t *testing.T) {
 }
 
 // Closing the mux while the replay on a fresh engine stream is blocked by flow control
-// returns promptly: the close cancels the mux context, which releases the blocked send, and
-// never waits behind it for the lock.
+// returns promptly: the stream is not published until its replay is done and a blocked send
+// is released only by the stream's own Close, so the close must close the stream being
+// replayed on and never wait behind the send for the loop.
 func TestRunMuxCloseDuringBlockedReplay(t *testing.T) {
-	opener := &fakeRunsOpener{gate: make(chan struct{})}
+	openGate := make(chan struct{})
+	opener := &fakeRunsOpener{gate: make(chan struct{}), openGate: openGate}
 	m := newTestMux(opener)
 
-	// The first subscription opens the stream; its replay blocks on the gate.
+	// The first subscription is recorded before the stream opens, so the replay of run-1 is
+	// what blocks on the gate.
 	a, err := m.Subscribe(context.Background(), subscribe("run-1"))
 	require.NoError(t, err)
 
+	close(openGate)
+
 	stream := opener.stream(t, 0)
+
+	// Wait for the replay send to be held at the gate, so the close meets a stream that is
+	// open but not published.
+	select {
+	case <-stream.gated:
+	case <-time.After(eventually):
+		t.Fatal("the replay never reached the engine stream")
+	}
 
 	closed := make(chan struct{})
 
@@ -414,12 +445,15 @@ func TestRunMuxRetiresOrphanedRunsOnHandleClose(t *testing.T) {
 // sent, retires that stream before it is published; the next one carries the live runs only.
 func TestRunMuxRetiresStreamOrphanedDuringReplay(t *testing.T) {
 	gate := make(chan struct{})
-	opener := &fakeRunsOpener{gate: gate}
+	openGate := make(chan struct{})
+	opener := &fakeRunsOpener{gate: gate, openGate: openGate}
 	m := newTestMux(opener)
 	t.Cleanup(m.close)
 
 	a, err := m.Subscribe(context.Background(), subscribe("run-1"))
 	require.NoError(t, err)
+
+	close(openGate)
 
 	// The replay of run-1 on the first stream blocks on the gate; a closes meanwhile.
 	first := opener.stream(t, 0)

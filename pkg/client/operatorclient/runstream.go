@@ -27,9 +27,11 @@ type runStreamClients struct {
 }
 
 // OpenRunStream implements Session: the stream is opened on the session's connection with
-// its bearer token and lives until Close, the engine ending it, or the session's loops
-// ending. The dispatcher services authenticate with the token alone; the operator id
-// metadata is only meaningful to OperatorService.
+// its bearer token and lives until Close, the engine ending it, ctx ending, or the session's
+// loops ending. ctx is the caller's hold on the stream: a Send blocked on flow control is
+// released when ctx ends, the same as when Close is called. The dispatcher services
+// authenticate with the token alone; the operator id metadata is only meaningful to
+// OperatorService.
 func (s *session) OpenRunStream(ctx context.Context, kind operator.RunStreamKind, first proto.Message) (operator.RunStream, error) {
 	if s.isClosed() {
 		return nil, operator.ErrSessionClosed
@@ -39,7 +41,14 @@ func (s *session) OpenRunStream(ctx context.Context, kind operator.RunStreamKind
 		return nil, err
 	}
 
-	streamCtx, cancel := context.WithCancel(s.loopCtx)
+	streamCtx, cancelStream := context.WithCancel(s.loopCtx)
+	stop := context.AfterFunc(ctx, cancelStream)
+
+	cancel := func() {
+		stop()
+		cancelStream()
+	}
+
 	mdCtx := s.md.context(streamCtx)
 
 	rs := &grpcRunStream{
@@ -135,6 +144,7 @@ type runStreamItem struct {
 // grpcRunStream is one gRPC stream behind operator.RunStream: a reader goroutine turns the
 // stream's Recv into a bounded queue so the caller's Recv honours its context, and Close
 // cancels the stream context, which is what unblocks a pending Recv or Send on the transport.
+// The context the stream was opened with cancels it the same way.
 //
 // sendMu serialises senders, as grpc-go allows one at a time, and is held across the
 // transport write, which flow control may block; Close never takes it, so a blocked Send
@@ -177,6 +187,9 @@ func (rs *grpcRunStream) readLoop() {
 	}
 }
 
+// Send writes the message on the transport. The context argument is not consulted: grpc-go
+// releases a write blocked on flow control only when the stream's own context ends, which the
+// context OpenRunStream received and Close both do.
 func (rs *grpcRunStream) Send(_ context.Context, msg proto.Message) error {
 	if rs.send == nil {
 		return fmt.Errorf("sending on a server stream: %w", operator.ErrNotSupported)

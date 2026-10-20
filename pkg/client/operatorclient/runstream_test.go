@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
 
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
@@ -89,4 +90,92 @@ func TestRunStreamCloseWhileSendBlocked(t *testing.T) {
 	// The reader's final error may or may not have been queued before the close was seen.
 	_, err = rs.Recv(context.Background())
 	assert.Error(t, err)
+}
+
+// blockingDispatcher is a DispatcherClient whose SubscribeToWorkflowRuns stream holds every
+// Send and Recv until the context it was opened with ends, the way a gRPC send blocked on
+// flow control is held.
+type blockingDispatcher struct {
+	dispatchercontracts.DispatcherClient
+}
+
+func (blockingDispatcher) SubscribeToWorkflowRuns(ctx context.Context, _ ...grpc.CallOption) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+	return &blockingRunsClient{ctx: ctx}, nil
+}
+
+type blockingRunsClient struct {
+	grpc.ClientStream
+	ctx context.Context
+}
+
+func (c *blockingRunsClient) Send(*dispatchercontracts.SubscribeToWorkflowRunsRequest) error {
+	<-c.ctx.Done()
+	return c.ctx.Err()
+}
+
+func (c *blockingRunsClient) Recv() (*dispatchercontracts.WorkflowRunEvent, error) {
+	<-c.ctx.Done()
+	return nil, c.ctx.Err()
+}
+
+// The context OpenRunStream receives releases a Send blocked on the transport: the caller
+// cancelling it ends the stream, so the caller is never left waiting on flow control for a
+// stream it has given up on.
+func TestOpenRunStreamCallerContextReleasesBlockedSend(t *testing.T) {
+	loopCtx, loopCancel := context.WithCancel(context.Background())
+	defer loopCancel()
+
+	s := &session{
+		streams: runStreamClients{dispatcher: blockingDispatcher{}},
+		md:      newCallMetadata("token", nil),
+		loopCtx: loopCtx,
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	stream, err := s.OpenRunStream(ctx, operator.RunStreamWorkflowRuns, nil)
+	require.NoError(t, err)
+
+	rs, ok := stream.(*grpcRunStream)
+	require.True(t, ok)
+
+	sent := make(chan error, 1)
+
+	go func() {
+		sent <- rs.Send(context.Background(), &dispatchercontracts.SubscribeToWorkflowRunsRequest{WorkflowRunId: "run-1"})
+	}()
+
+	// Wait for the send to reach the transport.
+	require.Eventually(t, func() bool {
+		if !rs.sendMu.TryLock() {
+			return true
+		}
+
+		rs.sendMu.Unlock()
+
+		return false
+	}, time.Second, time.Millisecond, "the send never reached the transport")
+
+	cancel()
+
+	select {
+	case err := <-sent:
+		assert.ErrorIs(t, err, context.Canceled, "the blocked send was released by the caller's context")
+	case <-time.After(time.Second):
+		t.Fatal("the caller's context did not release the send blocked on the transport")
+	}
+
+	closed := make(chan struct{})
+
+	go func() {
+		defer close(closed)
+		_ = rs.Close()
+	}()
+
+	select {
+	case <-closed:
+	case <-time.After(time.Second):
+		t.Fatal("Close did not return after the stream was released")
+	}
 }
