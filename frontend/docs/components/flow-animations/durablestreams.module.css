@@ -93,7 +93,6 @@
   transition: none;
 }
 
-/* Reader cursors: A sits above the log pointing down, B below pointing up */
 .cursor {
   width: calc(var(--flow-u) * 6);
   height: calc(var(--flow-u) * 5);
@@ -173,7 +172,6 @@
   background: var(--accent-3);
 }
 
-/* One received message: lands bright, settles to text */
 .bar {
   width: calc(var(--flow-u) * 5);
   height: calc(var(--flow-u) * 5);

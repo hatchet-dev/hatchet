@@ -10,18 +10,7 @@ import {
 } from "@/components/flow";
 import styles from "./durablestreams.module.css";
 
-/**
- * Flow animation: durable streams (docs.hatchet.run/v1/durable-streams). A
- * task publishes messages that are appended to a persisted topic log in
- * Hatchet. A live reader receives each message as it lands. Midway through
- * the run a late reader connects, replays the log from its cursor in a quick
- * burst, then catches up and tails live alongside the first reader. Each
- * reader's cursor tracks its own position on the log.
- *
- * All tracks are plain data at module scope (seeded, deterministic): server
- * markup, the reduced-motion poster (mid catch-up), and every loop iteration
- * are reproducible.
- */
+// tracks are seeded module-scope data so SSR markup, the reduced-motion poster and every loop match
 
 const STAGE_W = 320;
 const STAGE_H = 220;
@@ -51,7 +40,7 @@ const BAR_DY = 31;
 
 const RUN_AT = 700;
 const EMIT0 = 1100;
-/** Design units per ms; constant so tail slots take visibly longer to reach. */
+// design units per ms; constant so messages to the log's tail visibly take longer
 const SPEED = 0.13;
 const DEPART_DELAY = 120;
 const REPLAY_GAP = 170;
@@ -66,7 +55,6 @@ const pathLength = (pts: Pt[]) =>
       0,
     );
 
-/** Constant-speed keyframes along a polyline, fading in on the first leg and out on arrival. */
 const alongPath = (t0: number, pts: Pt[], state: string): FlowKeyframe[] => {
   let travelled = 0;
   return pts.map(([x, y], i) => {
@@ -119,10 +107,10 @@ const STORED = EMITS.map((e, i) => arrival(e, inPath(i)));
 const DEPART_A = STORED.map((s) => s + DEPART_DELAY);
 const LAND_A = DEPART_A.map((d) => arrival(d, outPath(READER_A)));
 
-/** The late reader connects with half the log already written. */
+// joins with half the log written so there's a backlog to replay
 const JOIN = STORED[SLOTS / 2 - 1] + 350;
 
-/** Replays back-to-back until it reaches the live tail, then departs with reader A. */
+// a live message can't overtake the replay, since a reader gets a topic's messages in order
 const DEPART_B: number[] = [];
 const REPLAYED: boolean[] = [];
 {
@@ -142,7 +130,7 @@ const LIVE_AT = LAND_B[LAST_REPLAYED];
 const DONE_AT = EMITS[SLOTS - 1] + 300;
 const FADE_AT = Math.max(LAND_A[SLOTS - 1], LAND_B[SLOTS - 1]) + 1400;
 const DURATION = Math.ceil((FADE_AT + 700) / 100) * 100;
-/** Static frame: late reader mid catch-up, replayed messages in flight. */
+// mid catch-up, since replaying a backlog is what sets durable streams apart from plain streaming
 const POSTER_TIME = DEPART_B[1] + 200;
 
 const byTime = (a: FlowKeyframe, b: FlowKeyframe) => a.t - b.t;
@@ -167,7 +155,6 @@ const OUT_B_TRACKS: FlowTrack[] = DEPART_B.map((d, i) =>
   ),
 );
 
-/** Log slots land fresh, settle, and blip when the late reader replays them. */
 const SLOT_TRACKS: FlowTrack[] = STORED.map((s, i) => {
   const x = slotX(i);
   const y = STREAM_Y;
@@ -216,7 +203,6 @@ const BAR_A_TRACKS = barTracks(
 );
 const BAR_B_TRACKS = barTracks("bar-b", LAND_B, READER_B, REPLAYED);
 
-/** A reader's cursor steps to each slot as that slot is delivered to it. */
 const cursorTrack = (id: string, departs: number[], y: number) => {
   const kfs: FlowKeyframe[] = [
     { t: departs[0] - 200, x: slotX(0), y, opacity: 0 },
