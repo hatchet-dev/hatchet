@@ -1,5 +1,10 @@
-import { createServer as createHttpServer, type IncomingMessage, type Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
+import {
+  createServer as createHttpServer,
+  request,
+  type IncomingMessage,
+  type Server,
+} from 'node:http';
+import { connect, type AddressInfo } from 'node:net';
 import { WebSocket } from 'ws';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ActionType, AssignedAction } from '../generated/proto/dispatcher';
@@ -21,7 +26,23 @@ const durableEcho = hatchet.durableTask({
   fn: async (input: { message: string }) => ({ echo: input.message }),
 });
 
+// A task that holds its invocation open until the test releases it, exposing its signal.
+const blocked = { signals: [] as AbortSignal[], release: () => {} };
+
+const blocker = hatchet.task({
+  name: 'blocker',
+  fn: async (_input: {}, ctx) => {
+    blocked.signals.push(ctx.abortController.signal);
+    await new Promise<void>((resolve) => {
+      blocked.release = resolve;
+    });
+    return {};
+  },
+});
+
 const workflows = [echo, durableEcho];
+
+const quiet = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 
 async function signed(body: string) {
   return { [SIGNATURE_HEADER]: await signHex(secret, body), 'content-type': 'application/json' };
@@ -34,19 +55,19 @@ function healthcheckBody() {
   });
 }
 
-function triggerBody(input: unknown) {
+function triggerBody(input: unknown, name = 'echo') {
   const action = AssignedAction.fromPartial({
     tenantId: crypto.randomUUID(),
     workflowRunId: crypto.randomUUID(),
     jobId: crypto.randomUUID(),
-    jobName: 'echo',
+    jobName: name,
     jobRunId: crypto.randomUUID(),
     taskId: crypto.randomUUID(),
     taskRunExternalId: crypto.randomUUID(),
-    actionId: 'echo:echo',
+    actionId: `${name}:${name}`,
     actionType: ActionType.START_STEP_RUN,
     actionPayload: JSON.stringify({ input, parents: {}, triggered_by: 'manual' }),
-    taskName: 'echo',
+    taskName: name,
     retryCount: 0,
     priority: 1,
   });
@@ -92,6 +113,22 @@ function listen(server: Server): Promise<string> {
       const { port } = server.address() as AddressInfo;
       resolve(`127.0.0.1:${port}`);
     });
+  });
+}
+
+/** Writes one HTTP/1.1 request as given and resolves with everything the server sent back. */
+function rawRequest(host: string, text: string): Promise<string> {
+  const [address, port] = host.split(':');
+
+  return new Promise((resolve, reject) => {
+    const socket = connect(Number(port), address, () => socket.write(text));
+    let data = '';
+
+    socket.on('data', (chunk) => {
+      data += chunk.toString();
+    });
+    socket.on('close', () => resolve(data));
+    socket.on('error', reject);
   });
 }
 
@@ -285,6 +322,92 @@ describe('node adapter', () => {
     expect(await dial(`ws://${bare}/elsewhere`, new Headers(), () => {})).toMatchObject({
       status: 404,
     });
+  });
+
+  it('answers requests whose Host or target does not parse as a URL instead of throwing', async () => {
+    const host = await start(createServer({ workflows, console: quiet }));
+
+    // Node's parser passes these through; the URL parser rejects them.
+    expect(
+      await rawRequest(
+        host,
+        'POST /hatchet/trigger HTTP/1.1\r\nHost: a b\r\nContent-Length: 0\r\nConnection: close\r\n\r\n'
+      )
+    ).toMatch(/^HTTP\/1\.1 401 /);
+    expect(
+      await rawRequest(
+        host,
+        'GET /hatchet/trigger HTTP/1.1\r\nHost: a:99999\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n'
+      )
+    ).toMatch(/^HTTP\/1\.1 401 /);
+    expect(
+      await rawRequest(
+        host,
+        'POST http://a:99999/hatchet/trigger HTTP/1.1\r\nHost: a:99999\r\nContent-Length: 0\r\nConnection: close\r\n\r\n'
+      )
+    ).toMatch(/^HTTP\/1\.1 400 /);
+    expect(
+      await rawRequest(
+        host,
+        'GET http://a:99999/hatchet/trigger HTTP/1.1\r\nHost: a:99999\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n'
+      )
+    ).toMatch(/^HTTP\/1\.1 400 /);
+
+    // The process and the server are still up.
+    const body = healthcheckBody();
+    expect(
+      (
+        await fetch(`http://${host}/hatchet/healthcheck`, {
+          method: 'POST',
+          body,
+          headers: await signed(body),
+        })
+      ).status
+    ).toBe(200);
+  });
+
+  it('answers 413 and drops the connection on a body over maxBodyBytes', async () => {
+    const host = await start(createServer({ workflows, maxBodyBytes: 1024, console: quiet }));
+    const response = await fetch(`http://${host}/hatchet/trigger`, {
+      method: 'POST',
+      body: 'x'.repeat(2048),
+      headers: { [SIGNATURE_HEADER]: '0'.repeat(64) },
+    });
+
+    expect(response.status).toBe(413);
+    expect(await response.json()).toEqual({
+      error: 'the request body exceeds the 1024 byte limit',
+      retry: false,
+    });
+
+    const body = healthcheckBody();
+    expect(
+      (
+        await fetch(`http://${host}/hatchet/healthcheck`, {
+          method: 'POST',
+          body,
+          headers: await signed(body),
+        })
+      ).status
+    ).toBe(200);
+  });
+
+  it('aborts the task when the client drops the connection mid-task', async () => {
+    blocked.signals = [];
+    const host = await start(createServer({ workflows: [blocker], console: quiet }));
+    const body = triggerBody({}, 'blocker');
+    const req = request(`http://${host}/hatchet/trigger`, {
+      method: 'POST',
+      headers: { ...(await signed(body)), 'content-length': Buffer.byteLength(body) },
+    });
+    req.on('error', () => {});
+    req.end(body);
+
+    await vi.waitFor(() => expect(blocked.signals).toHaveLength(1));
+    req.destroy();
+    await vi.waitFor(() => expect(blocked.signals[0].aborted).toBe(true));
+
+    blocked.release();
   });
 
   it('reports durable.supported false and refuses upgrades with durable off', async () => {

@@ -25,7 +25,8 @@ import type { Server } from 'node:http';
 import type { HandlerOptions } from '../handler';
 import type { ConsoleLike } from '../handler/context';
 import { triggerError } from '../handler/http';
-import { OPERATOR_MAX_FRAME_BYTES, createServer, nodeSocket, type NodeOptions } from './node';
+import { OPERATOR_MAX_FRAME_BYTES } from '../handler/contract';
+import { createServer, nodeSocket, type NodeOptions } from './node';
 import { createOptionalDurableHandler } from './optional-durable';
 
 export interface VercelOptions extends Omit<
@@ -112,7 +113,9 @@ async function loadVercelFunctions(out: ConsoleLike): Promise<VercelFunctions | 
 /**
  * The request re-addressed to the handler's route from the catch-all segment, so the route
  * file's location never has to match `basePath`. Without a route context the request is
- * used as is.
+ * used as is. The body is passed through as a stream, not copied, so the handler's
+ * `maxBodyBytes` bounds what is read, and the signal is kept so a dropped request still
+ * aborts the task.
  */
 async function routed(
   request: Request,
@@ -129,13 +132,19 @@ async function routed(
   const url = new URL(request.url);
   url.pathname = `${basePath}/${segments.join('/')}`;
 
-  const withBody = request.method !== 'GET' && request.method !== 'HEAD';
-
-  return new Request(url, {
+  const init: RequestInit & { duplex?: 'half' } = {
     method: request.method,
     headers: request.headers,
-    body: withBody ? await request.arrayBuffer() : undefined,
-  });
+    signal: request.signal,
+  };
+
+  if (request.method !== 'GET' && request.method !== 'HEAD' && request.body) {
+    // A streamed body needs `duplex: 'half'` in Node's fetch; the DOM typings leave it out.
+    init.body = request.body;
+    init.duplex = 'half';
+  }
+
+  return new Request(url, init);
 }
 
 export function vercel(options: VercelOptions): VercelRoutes {

@@ -29,11 +29,11 @@ import type { Duplex } from 'node:stream';
 import type { WebSocket, WebSocketServer } from 'ws';
 import type { DurableSocket, HandlerOptions, ServerlessRuntimeName } from '../handler';
 import type { ConsoleLike } from '../handler/context';
-import { triggerError } from '../handler/http';
+import { OPERATOR_MAX_FRAME_BYTES } from '../handler/contract';
+import { bodyTooLarge, errorMessage, triggerError } from '../handler/http';
 import { createOptionalDurableHandler } from './optional-durable';
 
-/** The largest frame the operator's relay accepts (pkg/serverlessoperator/durable/relay.go). */
-export const OPERATOR_MAX_FRAME_BYTES = 4 * 1024 * 1024;
+export { OPERATOR_MAX_FRAME_BYTES };
 
 export interface NodeOptions extends Omit<
   HandlerOptions,
@@ -50,6 +50,12 @@ export interface NodeOptions extends Omit<
   durable?: boolean;
   /** The largest websocket frame accepted; defaults to the operator's 4 MiB limit. */
   maxPayload?: number;
+  /**
+   * The largest POST body accepted, in bytes. The body is read up to this many bytes and
+   * no further: past it the request is answered 413 and its socket destroyed. Defaults to
+   * the operator's 4 MiB frame limit.
+   */
+  maxBodyBytes?: number;
   /** The runtime name reported in the healthcheck. Defaults to `"node"`. */
   runtime?: { name: ServerlessRuntimeName };
 }
@@ -111,23 +117,68 @@ export function nodeSocket(ws: WebSocket): DurableSocket {
   };
 }
 
-/** The request's URL as the client sent it, before an Express mount path was stripped. */
-function requestUrl(req: IncomingMessage): URL {
+/**
+ * The request's URL as the client sent it, before an Express mount path was stripped. Only
+ * its path routes, so a `Host` the URL parser rejects (Node's parser accepts more) is
+ * replaced by a fixed authority; `undefined` means the request target itself does not parse
+ * and the request is answered 400.
+ */
+function requestUrl(req: IncomingMessage): URL | undefined {
   const path = (req as { originalUrl?: string }).originalUrl ?? req.url ?? '/';
 
-  return new URL(path, `http://${req.headers.host ?? 'localhost'}`);
+  for (const authority of [req.headers.host, 'localhost']) {
+    try {
+      return new URL(path, `http://${authority ?? 'localhost'}`);
+    } catch {
+      // Try the next authority.
+    }
+  }
+
+  return undefined;
 }
 
-function readBody(req: IncomingMessage): Promise<Buffer> {
+class BodyTooLargeError extends Error {
+  constructor(readonly maxBytes: number) {
+    super(`the request body exceeds the ${maxBytes} byte limit`);
+    this.name = 'BodyTooLargeError';
+  }
+}
+
+/** Reads the body up to `maxBytes`; past that nothing more is read and the read rejects. */
+function readBody(req: IncomingMessage, maxBytes: number): Promise<Buffer> {
   return new Promise((resolve, reject) => {
+    const declared = Number(req.headers['content-length']);
+
+    if (Number.isFinite(declared) && declared > maxBytes) {
+      reject(new BodyTooLargeError(maxBytes));
+      return;
+    }
+
     const chunks: Buffer[] = [];
-    req.on('data', (chunk: Buffer) => chunks.push(chunk));
+    let received = 0;
+
+    req.on('data', (chunk: Buffer) => {
+      received += chunk.length;
+
+      if (received > maxBytes) {
+        req.pause();
+        reject(new BodyTooLargeError(maxBytes));
+        return;
+      }
+
+      chunks.push(chunk);
+    });
     req.on('end', () => resolve(Buffer.concat(chunks)));
     req.on('error', reject);
   });
 }
 
-async function toRequest(req: IncomingMessage, url: URL, withBody: boolean): Promise<Request> {
+async function toRequest(
+  req: IncomingMessage,
+  res: ServerResponse | undefined,
+  url: URL,
+  maxBodyBytes: number
+): Promise<Request> {
   const headers = new Headers();
 
   for (const [name, value] of Object.entries(req.headers)) {
@@ -139,9 +190,20 @@ async function toRequest(req: IncomingMessage, url: URL, withBody: boolean): Pro
   }
 
   const method = req.method ?? 'GET';
-  const body = withBody && method !== 'GET' && method !== 'HEAD' ? await readBody(req) : undefined;
+  const body =
+    res && method !== 'GET' && method !== 'HEAD' ? await readBody(req, maxBodyBytes) : undefined;
 
-  return new Request(url, { method, headers, body });
+  // The operator cancels a delivery by dropping the connection: a response closed before it
+  // finished aborts the request the handler sees, and the task with it.
+  const controller = new AbortController();
+
+  res?.on('close', () => {
+    if (!res.writableFinished) {
+      controller.abort();
+    }
+  });
+
+  return new Request(url, { method, headers, body, signal: controller.signal });
 }
 
 async function sendResponse(res: ServerResponse, response: Response): Promise<void> {
@@ -184,6 +246,7 @@ export function nodeHandler(options: NodeOptions): NodeListener {
     endpointId,
     durable = true,
     maxPayload = OPERATOR_MAX_FRAME_BYTES,
+    maxBodyBytes = OPERATOR_MAX_FRAME_BYTES,
     runtime = { name: 'node' },
     ...rest
   } = options;
@@ -195,6 +258,7 @@ export function nodeHandler(options: NodeOptions): NodeListener {
   const handler = createOptionalDurableHandler(
     {
       ...rest,
+      maxBodyBytes,
       runtime,
       secret: () => fromProcessEnv(secret, 'HATCHET_SIGNING_SECRET'),
       endpointId: () => fromProcessEnv(endpointId, 'HATCHET_ENDPOINT_ID'),
@@ -202,42 +266,77 @@ export function nodeHandler(options: NodeOptions): NodeListener {
     webSocketServer.then((loaded) => loaded !== undefined)
   );
 
-  const fail = (res: ServerResponse, err: unknown) => {
-    out.error(`[hatchet] request failed: ${err instanceof Error ? err.message : String(err)}`);
+  const answer = (res: ServerResponse, status: number, body: unknown) => {
     if (!res.headersSent) {
-      res.statusCode = 500;
+      res.statusCode = status;
       res.setHeader('content-type', 'application/json');
     }
-    res.end(JSON.stringify({ error: 'internal error' }));
+    res.end(JSON.stringify(body));
+  };
+
+  const fail = (res: ServerResponse, err: unknown) => {
+    out.error(`[hatchet] request failed: ${errorMessage(err)}`);
+    answer(res, 500, { error: 'internal error' });
+  };
+
+  // The body past the cap is never read: the 413 goes out with `connection: close` and the
+  // socket is destroyed once it has been written, so the rest of the upload is dropped.
+  const tooLarge = async (req: IncomingMessage, res: ServerResponse, maxBytes: number) => {
+    const body = Buffer.from(await bodyTooLarge(maxBytes).arrayBuffer());
+
+    res.statusCode = 413;
+    res.setHeader('content-type', 'application/json');
+    res.setHeader('content-length', body.length);
+    res.setHeader('connection', 'close');
+    res.end(body, () => req.socket?.destroy());
   };
 
   const serve = async (req: IncomingMessage, res: ServerResponse, url: URL) => {
-    const request = await toRequest(req, url, true);
+    let request: Request;
+
+    try {
+      request = await toRequest(req, res, url, maxBodyBytes);
+    } catch (err) {
+      if (err instanceof BodyTooLargeError) {
+        await tooLarge(req, res, err.maxBytes);
+        return;
+      }
+
+      throw err;
+    }
+
     const selected = await handler.select();
 
     await sendResponse(res, await selected.fetch(request, process.env));
   };
 
   const listener = ((req, res, next) => {
-    const url = requestUrl(req);
+    try {
+      const url = requestUrl(req);
 
-    if (!handler.matches(url)) {
-      if (next) {
-        next();
+      if (!url) {
+        answer(res, 400, { error: 'invalid request target' });
         return;
       }
 
-      res.statusCode = 404;
-      res.setHeader('content-type', 'application/json');
-      res.end(JSON.stringify({ error: 'not found' }));
-      return;
-    }
+      if (!handler.matches(url)) {
+        if (next) {
+          next();
+          return;
+        }
 
-    serve(req, res, url).catch((err) => fail(res, err));
+        answer(res, 404, { error: 'not found' });
+        return;
+      }
+
+      serve(req, res, url).catch((err) => fail(res, err));
+    } catch (err) {
+      fail(res, err);
+    }
   }) as NodeListener;
 
   const acceptUpgrade = async (req: IncomingMessage, socket: Duplex, head: Buffer, url: URL) => {
-    const request = await toRequest(req, url, false);
+    const request = await toRequest(req, undefined, url, maxBodyBytes);
     const Server = await webSocketServer;
     const selected = await handler.select();
     let accepted = false;
@@ -270,23 +369,47 @@ export function nodeHandler(options: NodeOptions): NodeListener {
     }
   };
 
+  // A failure before the 101 is answered on the raw socket; nothing request-derived goes
+  // into the response line.
+  const refuseWith = (socket: Duplex, status: number, error: string) => {
+    refuseUpgrade(socket, triggerError(status, error, false)).catch(() => socket.destroy());
+  };
+
+  const matches = (req: IncomingMessage): boolean => {
+    const url = requestUrl(req);
+
+    return url !== undefined && handler.matches(url);
+  };
+
   Object.defineProperties(listener, {
     basePath: { value: handler.basePath, enumerable: true },
-    matches: { value: (req: IncomingMessage) => handler.matches(requestUrl(req)) },
+    matches: { value: matches },
     upgrade: {
       value: (req: IncomingMessage, socket: Duplex, head: Buffer): boolean => {
-        const url = requestUrl(req);
-
-        if (!handler.matches(url) || req.headers.upgrade?.toLowerCase() !== 'websocket') {
+        if (req.headers.upgrade?.toLowerCase() !== 'websocket') {
           return false;
         }
 
-        acceptUpgrade(req, socket, head, url).catch((err) => {
-          out.error(
-            `[hatchet] upgrade failed: ${err instanceof Error ? err.message : String(err)}`
-          );
-          socket.destroy();
-        });
+        try {
+          const url = requestUrl(req);
+
+          if (!url) {
+            refuseWith(socket, 400, 'invalid request target');
+            return true;
+          }
+
+          if (!handler.matches(url)) {
+            return false;
+          }
+
+          acceptUpgrade(req, socket, head, url).catch((err) => {
+            out.error(`[hatchet] upgrade failed: ${errorMessage(err)}`);
+            refuseWith(socket, 500, 'internal error');
+          });
+        } catch (err) {
+          out.error(`[hatchet] upgrade failed: ${errorMessage(err)}`);
+          refuseWith(socket, 500, 'internal error');
+        }
 
         return true;
       },

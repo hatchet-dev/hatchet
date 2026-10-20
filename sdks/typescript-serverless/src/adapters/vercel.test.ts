@@ -1,7 +1,8 @@
 import type { AddressInfo } from 'node:net';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ActionType, AssignedAction } from '../generated/proto/dispatcher';
-import { SIGNATURE_HEADER, hatchet, signHex } from '../index';
+import { ServerlessTriggerRequest } from '../generated/proto/v1/serverless';
+import { SIGNATURE_HEADER, TRIGGER_ENVELOPE_VERSION, hatchet, signHex } from '../index';
 import { decodeFrame, encodeFrame } from '../index';
 import { createTestOperator } from '../testing';
 import { vercel, vercelServer } from './vercel';
@@ -64,7 +65,52 @@ const durableEcho = hatchet.durableTask({
   fn: async (input: { message: string }) => ({ echo: input.message }),
 });
 
+// A task that holds its invocation open until the test releases it, exposing its signal.
+const blocked = { signals: [] as AbortSignal[], release: () => {} };
+
+const blocker = hatchet.task({
+  name: 'blocker',
+  fn: async (_input: {}, ctx) => {
+    blocked.signals.push(ctx.abortController.signal);
+    await new Promise<void>((resolve) => {
+      blocked.release = resolve;
+    });
+    return {};
+  },
+});
+
 const workflows = [echo, durableEcho];
+
+async function signed(body: string) {
+  return { [SIGNATURE_HEADER]: await signHex(secret, body), 'content-type': 'application/json' };
+}
+
+function triggerBody(name: string, input: unknown) {
+  const action = AssignedAction.fromPartial({
+    tenantId: crypto.randomUUID(),
+    workflowRunId: crypto.randomUUID(),
+    jobId: crypto.randomUUID(),
+    jobName: name,
+    jobRunId: crypto.randomUUID(),
+    taskId: crypto.randomUUID(),
+    taskRunExternalId: crypto.randomUUID(),
+    actionId: `${name}:${name}`,
+    actionType: ActionType.START_STEP_RUN,
+    actionPayload: JSON.stringify({ input, parents: {}, triggered_by: 'manual' }),
+    taskName: name,
+    retryCount: 0,
+    priority: 1,
+  });
+
+  return JSON.stringify(
+    ServerlessTriggerRequest.toJSON({
+      endpointId: 'e',
+      action,
+      timestampUnixSeconds: Math.floor(Date.now() / 1000),
+      version: TRIGGER_ENVELOPE_VERSION,
+    })
+  );
+}
 
 async function signedHealthcheck(url: string, signWith = secret) {
   const body = JSON.stringify({
@@ -270,6 +316,57 @@ describe('vercel adapter', () => {
       (await GET(new Request('https://app.test/api/hatchet/trigger', { headers }), plain)).status
     ).toBe(426);
     expect(fake.state.sockets).toHaveLength(0);
+  });
+
+  it('stops reading a streamed body at maxBodyBytes through the catch-all route', async () => {
+    const { POST } = vercel({ workflows, durable: false, maxBodyBytes: 4096 });
+    let pulled = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (pulled >= 1024 * 1024) {
+          controller.close();
+          return;
+        }
+
+        controller.enqueue(new Uint8Array(1024));
+        pulled += 1024;
+      },
+    });
+    const init: RequestInit & { duplex: 'half' } = {
+      method: 'POST',
+      body,
+      headers: { [SIGNATURE_HEADER]: '0'.repeat(64) },
+      duplex: 'half',
+    };
+    const response = await POST(new Request('https://app.test/internal/x/trigger', init), {
+      params: Promise.resolve({ slug: ['trigger'] }),
+    });
+
+    expect(response.status).toBe(413);
+    expect(pulled).toBeLessThanOrEqual(8192);
+  });
+
+  it('passes the request abort on to the task through the catch-all route', async () => {
+    blocked.signals = [];
+    const { POST } = vercel({ workflows: [blocker], durable: false, console: quiet });
+    const controller = new AbortController();
+    const body = triggerBody('blocker', {});
+    const pending = POST(
+      new Request('https://app.test/internal/x/trigger', {
+        method: 'POST',
+        body,
+        headers: await signed(body),
+        signal: controller.signal,
+      }),
+      { params: Promise.resolve({ slug: ['trigger'] }) }
+    );
+
+    await vi.waitFor(() => expect(blocked.signals).toHaveLength(1));
+    controller.abort();
+    expect(blocked.signals[0].aborted).toBe(true);
+
+    blocked.release();
+    expect((await pending).status).toBe(200);
   });
 
   it('vercelServer is the Node server reporting the vercel runtime', async () => {
