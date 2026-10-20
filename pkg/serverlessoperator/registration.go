@@ -857,7 +857,7 @@ func (reg *registration) runMux() *runMux {
 	if reg.runs == nil {
 		l := reg.r.l.With().Str("tenant_id", reg.ts.tenantId.String()).Logger()
 
-		reg.runs = newRunMux(&l, func(ctx context.Context) (operator.RunStream, error) {
+		reg.runs = newRunMux(&l, reg.r.cfg.WSMaxRunsPerStream, func(ctx context.Context) (operator.RunStream, error) {
 			return reg.session.OpenRunStream(ctx, operator.RunStreamWorkflowRuns, nil)
 		})
 	}

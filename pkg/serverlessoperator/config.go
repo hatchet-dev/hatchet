@@ -89,6 +89,11 @@ type Config struct {
 	// WSMaxStreams caps the engine streams one socket may hold open at once through
 	// stream_open frames.
 	WSMaxStreams int
+
+	// WSMaxRunsPerStream caps the workflow runs one SubscribeToWorkflowRuns stream opened
+	// over a socket may await at once; a subscription past it closes the stream with
+	// ResourceExhausted.
+	WSMaxRunsPerStream int
 }
 
 const (
@@ -120,6 +125,7 @@ const (
 	DefaultWSMaxUpgradeHeaderBytes int64 = 64 * 1024
 	DefaultWSMaxQueuedBytes        int64 = 16 * 1024 * 1024
 	DefaultWSMaxStreams                  = 16
+	DefaultWSMaxRunsPerStream            = 1024
 
 	// processSweepInterval and processExpiryCutoff drive the expired process row sweep every
 	// process runs.
@@ -180,6 +186,7 @@ func DefaultConfig() Config {
 		WSMaxUpgradeHeaderBytes:      DefaultWSMaxUpgradeHeaderBytes,
 		WSMaxQueuedBytes:             DefaultWSMaxQueuedBytes,
 		WSMaxStreams:                 DefaultWSMaxStreams,
+		WSMaxRunsPerStream:           DefaultWSMaxRunsPerStream,
 	}
 }
 
@@ -290,6 +297,10 @@ func (c Config) withDefaults() Config {
 
 	if c.WSMaxStreams <= 0 {
 		c.WSMaxStreams = d.WSMaxStreams
+	}
+
+	if c.WSMaxRunsPerStream <= 0 {
+		c.WSMaxRunsPerStream = d.WSMaxRunsPerStream
 	}
 
 	return c
