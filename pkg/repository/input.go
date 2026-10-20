@@ -275,23 +275,18 @@ type V1StepRunData struct {
 }
 
 func (v1 *V1StepRunData) taskInputPayload(version taskInputPayloadVersion) []byte {
+	if v1 == nil {
+		return nil
+	}
+
 	switch version {
 	case taskInputPayloadVersionStepRunData:
 		return v1.Bytes()
 	case taskInputPayloadVersionUserInputOnly:
-		return v1.userInput()
+		return v1.Input
 	default:
 		panic(fmt.Sprintf("unknown task input payload version %d", version))
 	}
-}
-
-// userInput is null for a task created without an input, which matches what Bytes returns for it.
-func (v1 *V1StepRunData) userInput() []byte {
-	if v1 == nil {
-		return []byte("null")
-	}
-
-	return v1.Input
 }
 
 type stepRunDataTaskColumns struct {
