@@ -10,8 +10,8 @@
     "test:unit": "node --import tsx --test \"src/**/*.test.ts\"",
     "lint:check": "npm run eslint:check && npm run prettier:check",
     "lint:fix": "npm run eslint:fix && npm run prettier:fix",
-    "eslint:check": "eslint \"{src,apps,libs,test,cypress}/**/*.{ts,tsx,js}\" cypress.config.ts",
-    "eslint:fix": "eslint \"{src,apps,libs,test,cypress}/**/*.{ts,tsx,js}\" cypress.config.ts --fix",
+    "eslint:check": "eslint \"{src,apps,libs,test,cypress,.storybook}/**/*.{ts,tsx,js}\" cypress.config.ts",
+    "eslint:fix": "eslint \"{src,apps,libs,test,cypress,.storybook}/**/*.{ts,tsx,js}\" cypress.config.ts --fix",
     "prettier:check": "prettier \"src/**/*.{ts,tsx}\" --list-different",
     "prettier:fix": "prettier \"src/**/*.{ts,tsx}\" --write",
     "preview": "vite preview",
@@ -21,7 +21,9 @@
     "typecheck:build": "tsc -p tsconfig.build.json",
     "typecheck:cypress": "tsc -p tsconfig.cypress.json",
     "docs:gen": "cd ../snippets && python3 -X utf8 generate.py",
-    "knip": "knip --no-config-hints"
+    "knip": "knip --no-config-hints",
+    "storybook": "storybook dev -p 6006",
+    "storybook:build": "storybook build"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
@@ -89,6 +91,9 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@storybook/addon-a11y": "^10.6.2",
+    "@storybook/addon-docs": "^10.6.2",
+    "@storybook/react-vite": "^10.6.2",
     "@trivago/prettier-plugin-sort-imports": "^6.0.2",
     "@types/dagre": "^0.7.54",
     "@types/jsdom": "^28.0.3",
@@ -110,12 +115,14 @@
     "eslint-plugin-react": "^7.37.4",
     "eslint-plugin-react-hooks": "^4.6.2",
     "eslint-plugin-react-refresh": "^0.5.7",
+    "eslint-plugin-storybook": "^10.6.2",
     "eslint-plugin-unused-imports": "^3.2.0",
     "jsdom": "^29.1.1",
     "knip": "^6.41.0",
     "postcss": "^8.5.29",
     "prettier": "^3.9.10",
     "prettier-plugin-tailwindcss": "^0.8.1",
+    "storybook": "^10.6.2",
     "tailwindcss": "^3.4.19",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3",

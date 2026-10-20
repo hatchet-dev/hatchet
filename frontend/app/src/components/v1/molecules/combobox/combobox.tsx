@@ -1,4 +1,4 @@
-import { ToolbarType } from '../data-table/data-table-toolbar';
+import { ToolbarType } from '../data-table/toolbar-type';
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
 import {
