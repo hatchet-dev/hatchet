@@ -1324,3 +1324,54 @@ func TestConcurrency_TriggerHoldsQueuedRunsOfPausedWorkflow(t *testing.T) {
 		return nil
 	})
 }
+
+// TestConcurrency_ReleaseDueHeldItemsContinuesPastStillHeldBatch: a full batch of due items that all stay held, here
+// because their key's pause was extended, must not stop the release before the ready items behind it.
+func TestConcurrency_ReleaseDueHeldItemsContinuesPastStillHeldBatch(t *testing.T) {
+	runWithDatabase(t, func(conf *database.Layer) error {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		requireSchedulerSchema(t, ctx, conf)
+
+		s := setupStepConcurrencyTest(t, ctx, conf, "rl-release-batches", "GROUP_ROUND_ROBIN", 1, 1001)
+		tasks := listConcurrencyTestTasks(t, ctx, conf, s)
+		ready := tasks[len(tasks)-1]
+
+		taskIds := make([]int64, 0, len(tasks))
+		insertedAts := make([]pgtype.Timestamptz, 0, len(tasks))
+		keys := make([]string, 0, len(tasks))
+
+		for _, task := range tasks {
+			taskIds = append(taskIds, task.ID)
+			insertedAts = append(insertedAts, task.InsertedAt)
+			keys = append(keys, "extended")
+		}
+
+		keys[len(keys)-1] = "ended"
+
+		_, err := conf.Pool.Exec(ctx, `
+			INSERT INTO v1_task_expression_eval (key, task_id, task_inserted_at, value_str, kind)
+			SELECT 'rate-limit-key', UNNEST($1::BIGINT[]), UNNEST($2::TIMESTAMPTZ[]), UNNEST($3::TEXT[]), 'DYNAMIC_RATE_LIMIT_KEY'
+		`, taskIds, insertedAts, keys)
+		require.NoError(t, err)
+
+		pauseRateLimitKey(t, ctx, conf, s.tenantId, "extended")
+		pauseRateLimitKey(t, ctx, conf, s.tenantId, "ended")
+		require.Equal(t, 1, countRateLimitHeldItems(t, ctx, conf, ready))
+
+		_, err = conf.Pool.Exec(ctx, `UPDATE v1_rate_limit_pause SET paused_until = NOW() - INTERVAL '1 second' WHERE tenant_id = $1 AND key = 'ended'`, s.tenantId)
+		require.NoError(t, err)
+
+		// every held item comes due, as if "extended" had been extended after its items were held
+		_, err = conf.Pool.Exec(ctx, `UPDATE v1_paused_workflow_queue_item SET rate_limit_paused_until = NOW() - INTERVAL '1 second' WHERE tenant_id = $1`, s.tenantId)
+		require.NoError(t, err)
+
+		_, _, err = conf.V1.Workflows().RequeueRateLimitPausedQueueItems(ctx, s.tenantId)
+		require.NoError(t, err)
+
+		require.Zero(t, countPausedQueueItems(t, ctx, conf, ready), "the ready item behind a full still-held batch must be released")
+		require.Equal(t, 1, countRateLimitHeldItems(t, ctx, conf, tasks[0]), "the extended key still holds its items")
+
+		return nil
+	})
+}

@@ -173,14 +173,16 @@ func NotifyNewConcurrencyStrategy(tenantId uuid.UUID, strategyId int64) (*msgque
 	)
 }
 
-type RateLimitsChangedPayload struct{}
+type rateLimitsChangedPayload struct{}
 
+// NotifyRateLimitsChanged tells the tenant's scheduler to reread its rate limits now instead of at the next refill,
+// sent when a change such as a pause must apply to runs the scheduler already holds in memory.
 func NotifyRateLimitsChanged(tenantId uuid.UUID) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
 		msgqueue.MsgIDRateLimitsChanged,
 		true,
 		false,
-		RateLimitsChangedPayload{},
+		rateLimitsChangedPayload{},
 	)
 }

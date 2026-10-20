@@ -92,23 +92,34 @@ SELECT
     rl."key",
     rl."limitValue",
     (CASE
-        WHEN NOW() - rl."lastRefill" >= rl."window"::INTERVAL AND p.key IS NULL THEN
+        WHEN NOW() - s.last_refill >= rl."window"::INTERVAL AND s.paused IS NOT TRUE THEN
             get_refill_value(rl)
         ELSE
             rl."value"
     END)::int AS "value",
     rl."window",
     (CASE
-        WHEN NOW() - rl."lastRefill" >= rl."window"::INTERVAL AND p.key IS NULL THEN
+        WHEN NOW() - s.last_refill >= rl."window"::INTERVAL AND s.paused IS NOT TRUE THEN
             CURRENT_TIMESTAMP
         ELSE
-            rl."lastRefill"
+            s.last_refill
     END)::timestamp AS "lastRefill",
-    p.paused_until AS "pausedUntil"
+    (CASE WHEN s.paused THEN p.paused_until END)::timestamptz AS "pausedUntil"
 FROM
     "RateLimit" rl
 LEFT JOIN
-    v1_rate_limit_pause p ON p.tenant_id = rl."tenantId" AND p.key = rl."key" AND p.paused_until > NOW()
+    v1_rate_limit_pause p ON p.tenant_id = rl."tenantId" AND p.key = rl."key"
+CROSS JOIN LATERAL (
+    SELECT
+        p.paused_until > NOW() AS paused,
+        -- an ended pause the scheduler hasn't settled yet still shifts the window, as SettleExpiredRateLimitPauses will
+        (CASE
+            WHEN p.paused_until <= NOW() AND p.paused_until > rl."lastRefill"::timestamptz THEN
+                rl."lastRefill" + (p.paused_until - GREATEST(p.paused_at, rl."lastRefill"::timestamptz))
+            ELSE
+                rl."lastRefill"
+        END) AS last_refill
+) s
 WHERE
     "tenantId" = @tenantId::uuid
     AND (

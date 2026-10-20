@@ -2300,9 +2300,8 @@ WITH candidates AS (
         (pqi.task_inserted_at, pqi.task_id, pqi.retry_count) = (c.task_inserted_at, c.task_id, c.retry_count)
         AND (c.workflow_paused OR c.rate_limit_paused_until IS NOT NULL)
 )
-SELECT task_id, task_inserted_at, retry_count
+SELECT task_id, task_inserted_at, retry_count, (NOT workflow_paused AND rate_limit_paused_until IS NULL)::BOOLEAN AS released
 FROM candidates
-WHERE NOT workflow_paused AND rate_limit_paused_until IS NULL
 `
 
 type ReleaseDueHeldQueueItemsParams struct {
@@ -2314,9 +2313,11 @@ type ReleaseDueHeldQueueItemsRow struct {
 	TaskID         int64              `json:"task_id"`
 	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
 	RetryCount     int32              `json:"retry_count"`
+	Released       bool               `json:"released"`
 }
 
-// the same as ReleaseHeldQueueItemsForWorkflows, for the tenant's items whose rate limit deadline has passed
+// the same as ReleaseHeldQueueItemsForWorkflows, for the tenant's items whose rate limit deadline has passed; returns every
+// item checked so callers can tell a full batch from the last one
 func (q *Queries) ReleaseDueHeldQueueItems(ctx context.Context, db DBTX, arg ReleaseDueHeldQueueItemsParams) ([]*ReleaseDueHeldQueueItemsRow, error) {
 	rows, err := db.Query(ctx, releaseDueHeldQueueItems, arg.Tenantid, arg.Batchsize)
 	if err != nil {
@@ -2326,7 +2327,12 @@ func (q *Queries) ReleaseDueHeldQueueItems(ctx context.Context, db DBTX, arg Rel
 	var items []*ReleaseDueHeldQueueItemsRow
 	for rows.Next() {
 		var i ReleaseDueHeldQueueItemsRow
-		if err := rows.Scan(&i.TaskID, &i.TaskInsertedAt, &i.RetryCount); err != nil {
+		if err := rows.Scan(
+			&i.TaskID,
+			&i.TaskInsertedAt,
+			&i.RetryCount,
+			&i.Released,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

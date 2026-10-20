@@ -265,3 +265,46 @@ func TestPauseRateLimitSettlesUnsettledExpiredPause(t *testing.T) {
 	_, sinceLastRefill := readRateLimitRow(t, pool, tenantID, key)
 	assert.InDelta(t, (21 * time.Second).Seconds(), sinceLastRefill.Seconds(), 1, "the ended pause's frozen span still shifts the window")
 }
+
+// Until the scheduler settles an ended pause, listing must already apply its window shift, or a key with 17 of 20
+// units left would show a full bucket that goes back to 17 once settled.
+func TestListRateLimitsShiftsWindowOfUnsettledExpiredPause(t *testing.T) {
+	pool, cleanup := setupPostgresWithMigration(t)
+	t.Cleanup(cleanup)
+
+	ctx := context.Background()
+	tenantID := createRateLimitTestTenant(t, pool)
+	rateLimitRepo := newRateLimitRepository(createRateLimitTestShared(pool))
+
+	const endedKey = "ended"
+	const pausedKey = "paused"
+
+	insertRateLimit(t, pool, tenantID, endedKey, 20, 17, "1 minute", 5*time.Minute+20*time.Second)
+	insertRateLimitPause(t, pool, tenantID, endedKey, 5*time.Minute, -time.Second)
+
+	insertRateLimit(t, pool, tenantID, pausedKey, 20, 17, "1 minute", 5*time.Minute+20*time.Second)
+	insertRateLimitPause(t, pool, tenantID, pausedKey, 5*time.Minute, time.Hour)
+
+	listed, err := rateLimitRepo.queries.ListRateLimitsForTenantNoMutate(ctx, pool, sqlcv1.ListRateLimitsForTenantNoMutateParams{
+		Tenantid: tenantID,
+		Orderby:  "key ASC",
+		Limit:    50,
+	})
+	require.NoError(t, err)
+	require.Len(t, listed, 2)
+
+	rows := make(map[string]*sqlcv1.ListRateLimitsForTenantNoMutateRow, len(listed))
+
+	for _, row := range listed {
+		rows[row.Key] = row
+	}
+
+	ended := rows[endedKey]
+	assert.EqualValues(t, 17, ended.Value, "the frozen window still has time left")
+	assert.InDelta(t, (21 * time.Second).Seconds(), time.Now().UTC().Sub(ended.LastRefill.Time).Seconds(), 1)
+	assert.False(t, ended.PausedUntil.Valid)
+
+	paused := rows[pausedKey]
+	assert.EqualValues(t, 17, paused.Value, "a paused key doesn't refill")
+	assert.True(t, paused.PausedUntil.Valid)
+}

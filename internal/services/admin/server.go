@@ -249,6 +249,7 @@ func (a *AdminServiceImpl) PutRateLimit(ctx context.Context, req *contracts.PutR
 	return &contracts.PutRateLimitResponse{}, nil
 }
 
+// PauseRateLimit holds the runs that use the key until the requested time, and returns when the key's pause ends
 func (a *AdminServiceImpl) PauseRateLimit(ctx context.Context, req *contracts.PauseRateLimitRequest) (*contracts.PauseRateLimitResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID

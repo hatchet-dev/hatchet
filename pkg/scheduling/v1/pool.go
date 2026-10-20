@@ -233,6 +233,7 @@ func (p *SchedulingPool) NotifyConcurrency(ctx context.Context, tenantId uuid.UU
 	}
 }
 
+// NotifyRateLimitsChanged rereads the tenant's rate limits right away, so a new pause applies before the next refill
 func (p *SchedulingPool) NotifyRateLimitsChanged(ctx context.Context, tenantId uuid.UUID) {
 	if tm := p.getTenantManager(tenantId, false); tm != nil {
 		tm.notifyRateLimitsChanged(ctx)

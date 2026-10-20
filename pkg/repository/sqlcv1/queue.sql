@@ -1486,7 +1486,8 @@ FROM candidates
 WHERE NOT workflow_paused AND rate_limit_paused_until IS NULL;
 
 -- name: ReleaseDueHeldQueueItems :many
--- the same as ReleaseHeldQueueItemsForWorkflows, for the tenant's items whose rate limit deadline has passed
+-- the same as ReleaseHeldQueueItemsForWorkflows, for the tenant's items whose rate limit deadline has passed; returns every
+-- item checked so callers can tell a full batch from the last one
 WITH candidates AS (
     SELECT
         pqi.task_id,
@@ -1510,9 +1511,8 @@ WITH candidates AS (
         (pqi.task_inserted_at, pqi.task_id, pqi.retry_count) = (c.task_inserted_at, c.task_id, c.retry_count)
         AND (c.workflow_paused OR c.rate_limit_paused_until IS NOT NULL)
 )
-SELECT task_id, task_inserted_at, retry_count
-FROM candidates
-WHERE NOT workflow_paused AND rate_limit_paused_until IS NULL;
+SELECT task_id, task_inserted_at, retry_count, (NOT workflow_paused AND rate_limit_paused_until IS NULL)::BOOLEAN AS released
+FROM candidates;
 
 -- name: RequeueHeldQueueItems :many
 WITH input AS (

@@ -2066,6 +2066,10 @@ func (r *workflowRepository) releaseDueHeldQueueItemsBatch(ctx context.Context, 
 	tasks := make([]TaskIdInsertedAtRetryCount, 0, len(rows))
 
 	for _, row := range rows {
+		if !row.Released {
+			continue
+		}
+
 		tasks = append(tasks, TaskIdInsertedAtRetryCount{
 			Id:         row.TaskID,
 			InsertedAt: row.TaskInsertedAt,
