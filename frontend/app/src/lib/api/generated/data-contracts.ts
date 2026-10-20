@@ -1858,6 +1858,8 @@ export interface Workflow {
   jobs?: Job[];
   /** The tenant id of the workflow. */
   tenantId: string;
+  /** The event and cron triggers declared on the latest workflow version. */
+  triggers?: WorkflowTriggers;
 }
 
 export interface WorkflowVersionMeta {
@@ -1904,6 +1906,24 @@ export interface Job {
   steps: Step[];
   /** The timeout of the job. */
   timeout?: string;
+}
+
+export interface WorkflowTriggerEventRef {
+  parent_id?: string;
+  event_key?: string;
+}
+
+export interface WorkflowTriggerCronRef {
+  parent_id?: string;
+  cron?: string;
+}
+
+export interface WorkflowTriggers {
+  metadata?: APIResourceMeta;
+  workflow_version_id?: string;
+  tenant_id?: string;
+  events?: WorkflowTriggerEventRef[];
+  crons?: WorkflowTriggerCronRef[];
 }
 
 export interface WorkflowList {
@@ -2129,24 +2149,6 @@ export interface WorkflowConcurrency {
   limitStrategy: ConcurrencyLimitStrategy;
   /** An action which gets the concurrency group for the WorkflowRun. */
   getConcurrencyGroup: string;
-}
-
-export interface WorkflowTriggerEventRef {
-  parent_id?: string;
-  event_key?: string;
-}
-
-export interface WorkflowTriggerCronRef {
-  parent_id?: string;
-  cron?: string;
-}
-
-export interface WorkflowTriggers {
-  metadata?: APIResourceMeta;
-  workflow_version_id?: string;
-  tenant_id?: string;
-  events?: WorkflowTriggerEventRef[];
-  crons?: WorkflowTriggerCronRef[];
 }
 
 export interface ConcurrencySetting {

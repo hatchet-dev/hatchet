@@ -12,10 +12,11 @@ RateLimitsClient provides methods for interacting with rate limits
 
 Methods:
 
-| Name     | Description                                                             |
-| -------- | ----------------------------------------------------------------------- |
-| `List`   | List retrieves rate limits based on the provided parameters (optional). |
-| `Upsert` | Upsert creates or updates a rate limit with the provided options.       |
+| Name     | Description                                                                                                                                        |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `List`   | List retrieves rate limits based on the provided parameters (optional).                                                                            |
+| `Pause`  | Pause keeps queued runs that consume the rendered rate limit key from starting until the given time, and returns the time the key is paused until. |
+| `Upsert` | Upsert creates or updates a rate limit with the provided options.                                                                                  |
 
 ### Functions
 
@@ -40,6 +41,29 @@ Returns:
 | --------------------- |
 | `*rest.RateLimitList` |
 | `error`               |
+
+#### `Pause`
+
+Pause keeps queued runs that consume the rendered rate limit key from starting until the given time, and returns the time the key is paused until.
+
+```go
+func (c *RateLimitsClient) Pause(ctx context.Context, key string, until time.Time) (time.Time, error)
+```
+
+Parameters:
+
+| Name    | Type              |
+| ------- | ----------------- |
+| `ctx`   | `context.Context` |
+| `key`   | `string`          |
+| `until` | `time.Time`       |
+
+Returns:
+
+| Type        |
+| ----------- |
+| `time.Time` |
+| `error`     |
 
 #### `Upsert`
 

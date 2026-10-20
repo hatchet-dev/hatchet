@@ -1,5 +1,6 @@
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import RelativeDate from '@/components/v1/molecules/relative-date';
+import { WorkflowTriggers } from '@/components/v1/molecules/workflow-triggers/workflow-triggers';
 import { Badge } from '@/components/v1/ui/badge';
 import { Workflow } from '@/lib/api';
 import { appRoutes } from '@/router';
@@ -10,6 +11,8 @@ import { ColumnDef } from '@tanstack/react-table';
 export const WorkflowColumn = {
   status: 'Status',
   name: 'Name',
+  triggers: 'Triggers',
+  lastDeployed: 'Last deployed',
   createdAt: 'Created at',
 } as const;
 
@@ -17,6 +20,8 @@ type WorkflowColumnKeys = keyof typeof WorkflowColumn;
 
 const statusKey: WorkflowColumnKeys = 'status';
 export const nameKey: WorkflowColumnKeys = 'name';
+const triggersKey: WorkflowColumnKeys = 'triggers';
+const lastDeployedKey: WorkflowColumnKeys = 'lastDeployed';
 const createdAtKey: WorkflowColumnKeys = 'createdAt';
 
 export const columns: (tenantId: string) => ColumnDef<Workflow>[] = (
@@ -56,6 +61,45 @@ export const columns: (tenantId: string) => ColumnDef<Workflow>[] = (
     ),
     enableSorting: false,
     enableHiding: false,
+  },
+  {
+    accessorKey: triggersKey,
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={WorkflowColumn.triggers} />
+    ),
+    cell: ({ row }) => <WorkflowTriggers workflow={row.original} />,
+    enableSorting: false,
+    enableHiding: true,
+  },
+  {
+    accessorKey: lastDeployedKey,
+    header: ({ column }) => (
+      <DataTableColumnHeader
+        column={column}
+        title={WorkflowColumn.lastDeployed}
+        className="whitespace-nowrap"
+      />
+    ),
+    cell: ({ row }) => {
+      const latestVersion = row.original.versions?.[0];
+
+      if (!latestVersion) {
+        return <span className="text-muted-foreground">—</span>;
+      }
+
+      return (
+        <div className="whitespace-nowrap">
+          <RelativeDate date={latestVersion.metadata.createdAt} />
+          {latestVersion.version && (
+            <div className="font-mono text-xs text-muted-foreground">
+              {latestVersion.version}
+            </div>
+          )}
+        </div>
+      );
+    },
+    enableSorting: false,
+    enableHiding: true,
   },
   {
     accessorKey: createdAtKey,

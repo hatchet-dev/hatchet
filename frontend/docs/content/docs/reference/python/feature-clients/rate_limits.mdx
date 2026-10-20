@@ -10,12 +10,14 @@ The rate limits client is a wrapper for Hatchet's gRPC API that makes it easier 
 
 Methods:
 
-| Name       | Description                          |
-| ---------- | ------------------------------------ |
-| `aio_list` | List all rate limits for the tenant. |
-| `aio_put`  | Put a rate limit for a given key.    |
-| `list`     | List all rate limits for the tenant. |
-| `put`      | Put a rate limit for a given key.    |
+| Name        | Description                                                                              |
+| ----------- | ---------------------------------------------------------------------------------------- |
+| `aio_list`  | List all rate limits for the tenant.                                                     |
+| `aio_pause` | Pause a rate limit key, so queued runs that consume it stay queued until the given time. |
+| `aio_put`   | Put a rate limit for a given key.                                                        |
+| `list`      | List all rate limits for the tenant.                                                     |
+| `pause`     | Pause a rate limit key, so queued runs that consume it stay queued until the given time. |
+| `put`       | Put a rate limit for a given key.                                                        |
 
 ### Functions
 
@@ -38,6 +40,23 @@ Returns:
 | Type            | Description            |
 | --------------- | ---------------------- |
 | `RateLimitList` | A list of rate limits. |
+
+#### `aio_pause`
+
+Pause a rate limit key, so queued runs that consume it stay queued until the given time.
+
+Parameters:
+
+| Name    | Type       | Description                                                                                                            | Default    |
+| ------- | ---------- | ---------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `key`   | `str`      | The rendered rate limit key to pause.                                                                                  | _required_ |
+| `until` | `datetime` | The time to pause the key until. Naive datetimes are treated as UTC. An earlier time never shortens an existing pause. | _required_ |
+
+Returns:
+
+| Type       | Description                       |
+| ---------- | --------------------------------- |
+| `datetime` | The time the key is paused until. |
 
 #### `aio_put`
 
@@ -76,6 +95,23 @@ Returns:
 | Type            | Description            |
 | --------------- | ---------------------- |
 | `RateLimitList` | A list of rate limits. |
+
+#### `pause`
+
+Pause a rate limit key, so queued runs that consume it stay queued until the given time.
+
+Parameters:
+
+| Name    | Type       | Description                                                                                                            | Default    |
+| ------- | ---------- | ---------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `key`   | `str`      | The rendered rate limit key to pause.                                                                                  | _required_ |
+| `until` | `datetime` | The time to pause the key until. Naive datetimes are treated as UTC. An earlier time never shortens an existing pause. | _required_ |
+
+Returns:
+
+| Type       | Description                       |
+| ---------- | --------------------------------- |
+| `datetime` | The time the key is paused until. |
 
 #### `put`
 

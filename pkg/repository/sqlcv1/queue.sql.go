@@ -2615,7 +2615,7 @@ func (q *Queries) RequeueHeldQueueItems(ctx context.Context, db DBTX, arg Requeu
 	return items, nil
 }
 
-const requeueRateLimitedQueueItems = `-- name: RequeueRateLimitedQueueItems :many
+const requeueRateLimitedQueueItems = `-- name: RequeueRateLimitedQueueItems :one
 WITH ready_items AS (
     SELECT
         tenant_id,
@@ -2665,47 +2665,58 @@ WITH ready_items AS (
         desired_worker_id,
         retry_count,
         batch_key
-)
-INSERT INTO v1_queue_item (
-    tenant_id,
-    queue,
-    task_id,
-    task_inserted_at,
-    external_id,
-    action_id,
-    step_id,
-    workflow_id,
-    workflow_run_id,
-    schedule_timeout_at,
-    step_timeout,
-    priority,
-    sticky,
-    desired_worker_id,
-    retry_count,
-    desired_worker_label,
-    batch_key
+), requeued_items AS (
+    INSERT INTO v1_queue_item (
+        tenant_id,
+        queue,
+        task_id,
+        task_inserted_at,
+        external_id,
+        action_id,
+        step_id,
+        workflow_id,
+        workflow_run_id,
+        schedule_timeout_at,
+        step_timeout,
+        priority,
+        sticky,
+        desired_worker_id,
+        retry_count,
+        desired_worker_label,
+        batch_key
+    )
+    SELECT
+        tenant_id,
+        queue,
+        task_id,
+        task_inserted_at,
+        external_id,
+        action_id,
+        step_id,
+        workflow_id,
+        workflow_run_id,
+        schedule_timeout_at,
+        step_timeout,
+        priority,
+        sticky,
+        desired_worker_id,
+        retry_count,
+        desired_worker_label,
+        batch_key
+    FROM ready_items
+    ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
+    RETURNING id
 )
 SELECT
-    tenant_id,
-    queue,
-    task_id,
-    task_inserted_at,
-    external_id,
-    action_id,
-    step_id,
-    workflow_id,
-    workflow_run_id,
-    schedule_timeout_at,
-    step_timeout,
-    priority,
-    sticky,
-    desired_worker_id,
-    retry_count,
-    desired_worker_label,
-    batch_key
-FROM ready_items
-ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
-RETURNING id, tenant_id, task_id, task_inserted_at, retry_count
+    (SELECT COUNT(*) FROM requeued_items)::bigint AS moved_count,
+    (
+        SELECT MIN(requeue_after)
+        FROM v1_rate_limited_queue_items
+        WHERE
+            tenant_id = $1::uuid
+            AND queue = $2::text
+            AND requeue_after > NOW()
+    )::timestamptz AS next_requeue_after
 `
 
 type RequeueRateLimitedQueueItemsParams struct {
@@ -2714,37 +2725,15 @@ type RequeueRateLimitedQueueItemsParams struct {
 }
 
 type RequeueRateLimitedQueueItemsRow struct {
-	ID             int64              `json:"id"`
-	TenantID       uuid.UUID          `json:"tenant_id"`
-	TaskID         int64              `json:"task_id"`
-	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
-	RetryCount     int32              `json:"retry_count"`
+	MovedCount       int64              `json:"moved_count"`
+	NextRequeueAfter pgtype.Timestamptz `json:"next_requeue_after"`
 }
 
-func (q *Queries) RequeueRateLimitedQueueItems(ctx context.Context, db DBTX, arg RequeueRateLimitedQueueItemsParams) ([]*RequeueRateLimitedQueueItemsRow, error) {
-	rows, err := db.Query(ctx, requeueRateLimitedQueueItems, arg.Tenantid, arg.Queue)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*RequeueRateLimitedQueueItemsRow
-	for rows.Next() {
-		var i RequeueRateLimitedQueueItemsRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.TenantID,
-			&i.TaskID,
-			&i.TaskInsertedAt,
-			&i.RetryCount,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+func (q *Queries) RequeueRateLimitedQueueItems(ctx context.Context, db DBTX, arg RequeueRateLimitedQueueItemsParams) (*RequeueRateLimitedQueueItemsRow, error) {
+	row := db.QueryRow(ctx, requeueRateLimitedQueueItems, arg.Tenantid, arg.Queue)
+	var i RequeueRateLimitedQueueItemsRow
+	err := row.Scan(&i.MovedCount, &i.NextRequeueAfter)
+	return &i, err
 }
 
 const updateTasksToAssigned = `-- name: UpdateTasksToAssigned :many

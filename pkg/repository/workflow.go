@@ -241,7 +241,7 @@ type ListWorkflowsOpts struct {
 }
 
 type ListWorkflowsResult struct {
-	Rows  []*sqlcv1.Workflow
+	Rows  []*sqlcv1.ListWorkflowsRow
 	Count int
 }
 
@@ -1762,14 +1762,7 @@ func (r *workflowRepository) ListWorkflows(tenantId uuid.UUID, opts *ListWorkflo
 	}
 
 	res.Count = int(count)
-
-	sqlcWorkflows := make([]*sqlcv1.Workflow, len(workflows))
-
-	for i := range workflows {
-		sqlcWorkflows[i] = &workflows[i].Workflow
-	}
-
-	res.Rows = sqlcWorkflows
+	res.Rows = workflows
 
 	return res, nil
 }
