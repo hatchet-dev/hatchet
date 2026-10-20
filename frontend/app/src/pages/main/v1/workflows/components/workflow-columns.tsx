@@ -54,18 +54,8 @@ export const columns: (tenantId: string) => ColumnDef<Workflow>[] = (
         to={appRoutes.tenantWorkflowRoute.to}
         params={{ tenant: tenantId, workflow: row.original.metadata.id }}
       >
-        <div className="min-w-fit cursor-pointer p-2">
-          <div className="text-md whitespace-nowrap hover:underline">
-            {row.original.name}
-          </div>
-          {row.original.description && (
-            <div
-              className="max-w-md truncate text-xs text-muted-foreground"
-              title={row.original.description}
-            >
-              {row.original.description}
-            </div>
-          )}
+        <div className="text-md min-w-fit cursor-pointer whitespace-nowrap p-2 hover:underline">
+          {row.original.name}
         </div>
       </Link>
     ),
