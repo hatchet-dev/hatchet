@@ -16,6 +16,37 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
+func newRateLimitPauseTestRepo(pool *pgxpool.Pool) *rateLimitRepository {
+	shared := createRateLimitTestShared(pool)
+	shared.v = validator.NewDefaultValidator()
+
+	return newRateLimitRepository(shared)
+}
+
+// upsertUsedRateLimit creates a rate limit and spends used of its units, the way the scheduler would.
+func upsertUsedRateLimit(t *testing.T, r *rateLimitRepository, tenantID uuid.UUID, key string, limit int, duration string, used int) *sqlcv1.RateLimit {
+	t.Helper()
+
+	rl, err := r.UpsertRateLimit(context.Background(), tenantID, key, &UpsertRateLimitOpts{Limit: limit, Duration: &duration})
+	require.NoError(t, err)
+
+	if used > 0 {
+		_, _, err = r.FlushRateLimits(context.Background(), tenantID, map[string]int{key: used}, nil)
+		require.NoError(t, err)
+	}
+
+	return rl
+}
+
+func waitForPauseToEnd(pause *sqlcv1.V1RateLimitPause) {
+	time.Sleep(time.Until(pause.PausedUntil.Time) + 100*time.Millisecond)
+}
+
+// shiftedLastRefill is where a window that was frozen for the whole of the pause resumes.
+func shiftedLastRefill(rl *sqlcv1.RateLimit, pause *sqlcv1.V1RateLimitPause) time.Time {
+	return rl.LastRefill.Time.Add(pause.PausedUntil.Time.Sub(pause.PausedAt.Time))
+}
+
 func readPausedUntil(t *testing.T, pool *pgxpool.Pool, tenantID uuid.UUID, key string) time.Time {
 	t.Helper()
 
@@ -24,6 +55,17 @@ func readPausedUntil(t *testing.T, pool *pgxpool.Pool, tenantID uuid.UUID, key s
 	require.NoError(t, err)
 
 	return pausedUntil
+}
+
+func readRateLimitRow(t *testing.T, pool *pgxpool.Pool, tenantID uuid.UUID, key string) (value int32, lastRefill time.Time) {
+	t.Helper()
+
+	err := pool.QueryRow(context.Background(), `
+		SELECT "value", "lastRefill" FROM "RateLimit" WHERE "tenantId" = $1 AND "key" = $2
+	`, tenantID, key).Scan(&value, &lastRefill)
+	require.NoError(t, err)
+
+	return value, lastRefill
 }
 
 // A later pause call with an earlier deadline must not shorten an active pause, so concurrent tasks hitting the
@@ -59,24 +101,21 @@ func TestPauseRateLimitKeepsLongestPause(t *testing.T) {
 	assert.Error(t, err)
 }
 
-// The scheduler only learns about pauses through FlushRateLimits, and an expired pause must read as unpaused
-// even though its row is still there.
+// The scheduler only learns about pauses through FlushRateLimits, and an ended pause must read as unpaused.
 func TestFlushRateLimitsReturnsActivePauses(t *testing.T) {
 	pool, cleanup := setupPostgresWithMigration(t)
 	t.Cleanup(cleanup)
 
 	ctx := context.Background()
 	tenantID := createRateLimitTestTenant(t, pool)
-	rateLimitRepo := newRateLimitRepository(createRateLimitTestShared(pool))
+	rateLimitRepo := newRateLimitPauseTestRepo(pool)
 
-	const pausedKey, expiredKey, openKey, refilledKey = "rl-paused", "rl-expired", "rl-open", "rl-refilled"
+	const pausedKey, endedKey, openKey, refilledKey = "rl-paused", "rl-ended", "rl-open", "rl-refilled"
 
-	insertRateLimit(t, pool, tenantID, pausedKey, 10, 10, "1 HOUR", 0)
-	insertRateLimit(t, pool, tenantID, expiredKey, 10, 10, "1 HOUR", 0)
-	insertRateLimit(t, pool, tenantID, openKey, 10, 10, "1 HOUR", 0)
-
-	// its window has elapsed, so it would take the refill branch of the query if it weren't paused
-	insertRateLimit(t, pool, tenantID, refilledKey, 10, 0, "1 second", 2*time.Second)
+	upsertUsedRateLimit(t, rateLimitRepo, tenantID, pausedKey, 10, "HOUR", 0)
+	upsertUsedRateLimit(t, rateLimitRepo, tenantID, endedKey, 10, "HOUR", 0)
+	upsertUsedRateLimit(t, rateLimitRepo, tenantID, openKey, 10, "HOUR", 0)
+	upsertUsedRateLimit(t, rateLimitRepo, tenantID, refilledKey, 10, "SECOND", 10)
 
 	pausedUntil := time.Now().UTC().Add(time.Hour).Truncate(time.Millisecond)
 
@@ -86,8 +125,12 @@ func TestFlushRateLimitsReturnsActivePauses(t *testing.T) {
 	_, err = rateLimitRepo.PauseRateLimit(ctx, tenantID, refilledKey, pausedUntil)
 	require.NoError(t, err)
 
-	_, err = pool.Exec(ctx, `INSERT INTO v1_rate_limit_pause (tenant_id, key, paused_until) VALUES ($1, $2, NOW() - INTERVAL '1 minute')`, tenantID, expiredKey)
+	ended, err := rateLimitRepo.PauseRateLimit(ctx, tenantID, endedKey, time.Now().Add(500*time.Millisecond))
 	require.NoError(t, err)
+
+	// also lets the refilled key's window elapse, so it would take the refill branch of the query if it weren't paused
+	waitForPauseToEnd(ended)
+	time.Sleep(time.Second)
 
 	rows, _, err := rateLimitRepo.FlushRateLimits(ctx, tenantID, map[string]int{}, nil)
 	require.NoError(t, err)
@@ -106,7 +149,7 @@ func TestFlushRateLimitsReturnsActivePauses(t *testing.T) {
 	assert.WithinDuration(t, pausedUntil, byKey[refilledKey].PausedUntil.Time, time.Millisecond)
 	assert.Equal(t, int32(0), byKey[refilledKey].Value, "a paused key must not refill")
 
-	assert.False(t, byKey[expiredKey].PausedUntil.Valid)
+	assert.False(t, byKey[endedKey].PausedUntil.Valid)
 	assert.False(t, byKey[openKey].PausedUntil.Valid)
 }
 
@@ -139,29 +182,6 @@ func TestFlushRateLimitsAppliesPauseToNewDynamicKey(t *testing.T) {
 	assert.WithinDuration(t, pausedUntil, rows[0].PausedUntil.Time, time.Millisecond)
 }
 
-func insertRateLimitPause(t *testing.T, pool *pgxpool.Pool, tenantID uuid.UUID, key string, pausedAgo, untilFromNow time.Duration) {
-	t.Helper()
-
-	_, err := pool.Exec(context.Background(), `
-		INSERT INTO v1_rate_limit_pause (tenant_id, key, paused_at, paused_until)
-		VALUES ($1, $2, NOW() - $3::interval, NOW() + $4::interval)
-	`, tenantID, key, pausedAgo.String(), untilFromNow.String())
-	require.NoError(t, err)
-}
-
-func readRateLimitRow(t *testing.T, pool *pgxpool.Pool, tenantID uuid.UUID, key string) (value int32, sinceLastRefill time.Duration) {
-	t.Helper()
-
-	var micros int64
-	err := pool.QueryRow(context.Background(), `
-		SELECT "value", (EXTRACT(EPOCH FROM (NOW() - "lastRefill")) * 1000000)::bigint
-		FROM "RateLimit" WHERE "tenantId" = $1 AND "key" = $2
-	`, tenantID, key).Scan(&value, &micros)
-	require.NoError(t, err)
-
-	return value, time.Duration(micros) * time.Microsecond
-}
-
 // A paused key keeps the units it had left: with a limit of 20 and 3 used before the pause, only 17 runs
 // may start when the pause ends, even if the window would have refilled in the meantime.
 func TestFlushRateLimitsFreezesUnitsDuringPause(t *testing.T) {
@@ -170,12 +190,17 @@ func TestFlushRateLimitsFreezesUnitsDuringPause(t *testing.T) {
 
 	ctx := context.Background()
 	tenantID := createRateLimitTestTenant(t, pool)
-	rateLimitRepo := newRateLimitRepository(createRateLimitTestShared(pool))
+	rateLimitRepo := newRateLimitPauseTestRepo(pool)
 
 	const key = "upstream-api"
 
-	insertRateLimit(t, pool, tenantID, key, 20, 17, "1 minute", 2*time.Minute)
-	insertRateLimitPause(t, pool, tenantID, key, 90*time.Second, time.Hour)
+	upsertUsedRateLimit(t, rateLimitRepo, tenantID, key, 20, "SECOND", 3)
+
+	_, err := rateLimitRepo.PauseRateLimit(ctx, tenantID, key, time.Now().Add(time.Hour))
+	require.NoError(t, err)
+
+	// the one second window elapses while the key is paused
+	time.Sleep(1100 * time.Millisecond)
 
 	rows, nextRefillAt, err := rateLimitRepo.FlushRateLimits(ctx, tenantID, map[string]int{}, nil)
 	require.NoError(t, err)
@@ -187,33 +212,36 @@ func TestFlushRateLimitsFreezesUnitsDuringPause(t *testing.T) {
 	require.NotNil(t, nextRefillAt)
 	assert.True(t, nextRefillAt.After(time.Now()), "the next refill must not be scheduled in the past for a paused key")
 
-	shared := createRateLimitTestShared(pool)
-	shared.v = validator.NewDefaultValidator()
-
-	listed, err := newRateLimitRepository(shared).ListRateLimits(ctx, tenantID, &ListRateLimitOpts{})
+	listed, err := rateLimitRepo.ListRateLimits(ctx, tenantID, &ListRateLimitOpts{})
 	require.NoError(t, err)
 	require.Len(t, listed.Rows, 1)
 	assert.Equal(t, int32(17), listed.Rows[0].Value)
 }
 
-// When a pause ends, the window resumes where it was: a pause that started 20 seconds into a 1 minute window
-// leaves 40 seconds of that window, with the same units, once it ends.
+// When a pause ends, the window resumes where it was, with the same units, once the scheduler settles it.
 func TestFlushRateLimitsResumesWindowWherePauseStarted(t *testing.T) {
 	pool, cleanup := setupPostgresWithMigration(t)
 	t.Cleanup(cleanup)
 
 	ctx := context.Background()
 	tenantID := createRateLimitTestTenant(t, pool)
-	rateLimitRepo := newRateLimitRepository(createRateLimitTestShared(pool))
+	rateLimitRepo := newRateLimitPauseTestRepo(pool)
 
 	const key, elapsedKey = "upstream-api", "elapsed-before-pause"
 
-	insertRateLimit(t, pool, tenantID, key, 20, 17, "1 minute", 5*time.Minute+20*time.Second)
-	insertRateLimitPause(t, pool, tenantID, key, 5*time.Minute, -time.Second)
+	rl := upsertUsedRateLimit(t, rateLimitRepo, tenantID, key, 20, "MINUTE", 3)
+	upsertUsedRateLimit(t, rateLimitRepo, tenantID, elapsedKey, 20, "SECOND", 20)
 
-	// this window had already run out before the pause started, so it refills as soon as the pause ends
-	insertRateLimit(t, pool, tenantID, elapsedKey, 20, 0, "1 minute", 10*time.Minute)
-	insertRateLimitPause(t, pool, tenantID, elapsedKey, 5*time.Minute, -time.Second)
+	// the elapsed key's one second window runs out before its pause starts, so it refills as soon as the pause ends
+	time.Sleep(1100 * time.Millisecond)
+
+	pause, err := rateLimitRepo.PauseRateLimit(ctx, tenantID, key, time.Now().Add(500*time.Millisecond))
+	require.NoError(t, err)
+
+	_, err = rateLimitRepo.PauseRateLimit(ctx, tenantID, elapsedKey, pause.PausedUntil.Time)
+	require.NoError(t, err)
+
+	waitForPauseToEnd(pause)
 
 	rows, _, err := rateLimitRepo.FlushRateLimits(ctx, tenantID, map[string]int{}, nil)
 	require.NoError(t, err)
@@ -227,9 +255,9 @@ func TestFlushRateLimitsResumesWindowWherePauseStarted(t *testing.T) {
 	assert.Equal(t, int32(17), byKey[key].Value)
 	assert.False(t, byKey[key].PausedUntil.Valid)
 
-	value, sinceLastRefill := readRateLimitRow(t, pool, tenantID, key)
+	value, lastRefill := readRateLimitRow(t, pool, tenantID, key)
 	assert.Equal(t, int32(17), value)
-	assert.InDelta(t, (21 * time.Second).Seconds(), sinceLastRefill.Seconds(), 1, "the window should have the time it had left when the pause started")
+	assert.WithinDuration(t, shiftedLastRefill(rl, pause), lastRefill, 2*time.Millisecond, "the window should have the time it had left when the pause started")
 
 	require.Contains(t, byKey, elapsedKey)
 	assert.Equal(t, int32(20), byKey[elapsedKey].Value)
@@ -248,22 +276,26 @@ func TestPauseRateLimitSettlesUnsettledExpiredPause(t *testing.T) {
 
 	ctx := context.Background()
 	tenantID := createRateLimitTestTenant(t, pool)
-	rateLimitRepo := newRateLimitRepository(createRateLimitTestShared(pool))
+	rateLimitRepo := newRateLimitPauseTestRepo(pool)
 
 	const key = "upstream-api"
 
-	insertRateLimit(t, pool, tenantID, key, 20, 17, "1 minute", 5*time.Minute+20*time.Second)
-	insertRateLimitPause(t, pool, tenantID, key, 5*time.Minute, -time.Second)
+	rl := upsertUsedRateLimit(t, rateLimitRepo, tenantID, key, 20, "MINUTE", 3)
+
+	ended, err := rateLimitRepo.PauseRateLimit(ctx, tenantID, key, time.Now().Add(500*time.Millisecond))
+	require.NoError(t, err)
+
+	waitForPauseToEnd(ended)
 
 	until := time.Now().Add(time.Hour)
 
 	pause, err := rateLimitRepo.PauseRateLimit(ctx, tenantID, key, until)
 	require.NoError(t, err)
-	assert.WithinDuration(t, time.Now(), pause.PausedAt.Time, 5*time.Second, "the new pause starts now")
+	assert.True(t, pause.PausedAt.Time.After(ended.PausedUntil.Time), "the new pause starts now")
 	assert.WithinDuration(t, until, pause.PausedUntil.Time, time.Millisecond, "an ended pause's deadline must not carry over")
 
-	_, sinceLastRefill := readRateLimitRow(t, pool, tenantID, key)
-	assert.InDelta(t, (21 * time.Second).Seconds(), sinceLastRefill.Seconds(), 1, "the ended pause's frozen span still shifts the window")
+	_, lastRefill := readRateLimitRow(t, pool, tenantID, key)
+	assert.WithinDuration(t, shiftedLastRefill(rl, ended), lastRefill, 2*time.Millisecond, "the ended pause's frozen span still shifts the window")
 }
 
 // Until the scheduler settles an ended pause, listing must already apply its window shift, or a key with 17 of 20
@@ -274,37 +306,38 @@ func TestListRateLimitsShiftsWindowOfUnsettledExpiredPause(t *testing.T) {
 
 	ctx := context.Background()
 	tenantID := createRateLimitTestTenant(t, pool)
-	rateLimitRepo := newRateLimitRepository(createRateLimitTestShared(pool))
+	rateLimitRepo := newRateLimitPauseTestRepo(pool)
 
-	const endedKey = "ended"
-	const pausedKey = "paused"
+	const endedKey, pausedKey = "ended", "paused"
 
-	insertRateLimit(t, pool, tenantID, endedKey, 20, 17, "1 minute", 5*time.Minute+20*time.Second)
-	insertRateLimitPause(t, pool, tenantID, endedKey, 5*time.Minute, -time.Second)
+	endedRl := upsertUsedRateLimit(t, rateLimitRepo, tenantID, endedKey, 20, "SECOND", 3)
+	upsertUsedRateLimit(t, rateLimitRepo, tenantID, pausedKey, 20, "SECOND", 3)
 
-	insertRateLimit(t, pool, tenantID, pausedKey, 20, 17, "1 minute", 5*time.Minute+20*time.Second)
-	insertRateLimitPause(t, pool, tenantID, pausedKey, 5*time.Minute, time.Hour)
-
-	listed, err := rateLimitRepo.queries.ListRateLimitsForTenantNoMutate(ctx, pool, sqlcv1.ListRateLimitsForTenantNoMutateParams{
-		Tenantid: tenantID,
-		Orderby:  "key ASC",
-		Limit:    50,
-	})
+	ended, err := rateLimitRepo.PauseRateLimit(ctx, tenantID, endedKey, time.Now().Add(1500*time.Millisecond))
 	require.NoError(t, err)
-	require.Len(t, listed, 2)
 
-	rows := make(map[string]*sqlcv1.ListRateLimitsForTenantNoMutateRow, len(listed))
+	_, err = rateLimitRepo.PauseRateLimit(ctx, tenantID, pausedKey, time.Now().Add(time.Hour))
+	require.NoError(t, err)
 
-	for _, row := range listed {
+	// unshifted, both one second windows have elapsed by now
+	waitForPauseToEnd(ended)
+
+	listed, err := rateLimitRepo.ListRateLimits(ctx, tenantID, &ListRateLimitOpts{})
+	require.NoError(t, err)
+	require.Len(t, listed.Rows, 2)
+
+	rows := make(map[string]*sqlcv1.ListRateLimitsForTenantNoMutateRow, len(listed.Rows))
+
+	for _, row := range listed.Rows {
 		rows[row.Key] = row
 	}
 
-	ended := rows[endedKey]
-	assert.EqualValues(t, 17, ended.Value, "the frozen window still has time left")
-	assert.InDelta(t, (21 * time.Second).Seconds(), time.Now().UTC().Sub(ended.LastRefill.Time).Seconds(), 1)
-	assert.False(t, ended.PausedUntil.Valid)
+	endedRow := rows[endedKey]
+	assert.EqualValues(t, 17, endedRow.Value, "the frozen window still has time left")
+	assert.WithinDuration(t, shiftedLastRefill(endedRl, ended), endedRow.LastRefill.Time, 2*time.Millisecond)
+	assert.False(t, endedRow.PausedUntil.Valid)
 
-	paused := rows[pausedKey]
-	assert.EqualValues(t, 17, paused.Value, "a paused key doesn't refill")
-	assert.True(t, paused.PausedUntil.Valid)
+	pausedRow := rows[pausedKey]
+	assert.EqualValues(t, 17, pausedRow.Value, "a paused key doesn't refill")
+	assert.True(t, pausedRow.PausedUntil.Valid)
 }
