@@ -2548,6 +2548,7 @@ type Workflow struct {
 
 	// TenantId The tenant id of the workflow.
 	TenantId string                 `json:"tenantId"`
+	Triggers *WorkflowTriggers      `json:"triggers,omitempty"`
 	Versions *[]WorkflowVersionMeta `json:"versions,omitempty"`
 }
 

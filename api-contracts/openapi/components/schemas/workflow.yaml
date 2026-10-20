@@ -40,6 +40,9 @@ Workflow:
     tenantId:
       type: string
       description: The tenant id of the workflow.
+    triggers:
+      $ref: "#/WorkflowTriggers"
+      description: The event and cron triggers declared on the latest workflow version.
   required:
     - metadata
     - name

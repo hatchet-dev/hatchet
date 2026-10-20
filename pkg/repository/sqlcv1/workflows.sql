@@ -793,24 +793,77 @@ WHERE
 ORDER BY wc.id ASC;
 
 -- name: ListWorkflows :many
+-- Pages over "Workflow" first so the latest-version lookup and trigger aggregates only run for the
+-- returned rows. Triggers only include those declared on the latest version; crons created through
+-- the API are listed on the crons page.
+WITH page AS (
+    SELECT w."id"
+    FROM "Workflow" w
+    WHERE
+        w."tenantId" = @tenantId::uuid AND
+        w."deletedAt" IS NULL AND
+        (
+            sqlc.narg('search')::text IS NULL OR
+            w.name iLIKE concat('%', sqlc.narg('search')::TEXT, '%')
+        )
+    ORDER BY
+        case when @orderBy = 'createdAt ASC' THEN w."createdAt" END ASC ,
+        case when @orderBy = 'createdAt DESC' then w."createdAt" END DESC,
+        w."id"
+    OFFSET
+        COALESCE(sqlc.narg('offset'), 0)
+    LIMIT
+        COALESCE(sqlc.narg('limit'), 50)
+), latest_versions AS (
+    SELECT DISTINCT ON (wv."workflowId")
+        wv."workflowId",
+        wv."id",
+        wv."version",
+        wv."order",
+        wv."createdAt"
+    FROM "WorkflowVersion" wv
+    WHERE
+        -- an array instead of a join to page: a join lets the planner hash-join a full scan of
+        -- "WorkflowVersion" once the page holds ~100 rows; the array keeps it on the index
+        wv."workflowId" = ANY(ARRAY(SELECT page."id" FROM page))
+        AND wv."deletedAt" IS NULL
+    ORDER BY wv."workflowId", wv."order" DESC
+), event_triggers AS (
+    SELECT
+        lv."id" AS "workflowVersionId",
+        ARRAY_AGG(DISTINCT er."eventKey" ORDER BY er."eventKey")::text[] AS event_keys
+    FROM latest_versions lv
+    JOIN "WorkflowTriggers" wt ON wt."workflowVersionId" = lv."id"
+    JOIN "WorkflowTriggerEventRef" er ON er."parentId" = wt."id"
+    GROUP BY lv."id"
+), cron_triggers AS (
+    SELECT
+        lv."id" AS "workflowVersionId",
+        ARRAY_AGG(DISTINCT cr."cron" ORDER BY cr."cron")::text[] AS crons
+    FROM latest_versions lv
+    JOIN "WorkflowTriggers" wt ON wt."workflowVersionId" = lv."id"
+    JOIN "WorkflowTriggerCronRef" cr ON cr."parentId" = wt."id"
+    WHERE
+        cr."deletedAt" IS NULL
+        AND cr."method" = 'DEFAULT'
+    GROUP BY lv."id"
+)
 SELECT
-    sqlc.embed(workflows)
-FROM
-    "Workflow" as workflows
-WHERE
-    workflows."tenantId" = @tenantId::uuid AND
-    workflows."deletedAt" IS NULL AND
-    (
-        sqlc.narg('search')::text IS NULL OR
-        workflows.name iLIKE concat('%', sqlc.narg('search')::TEXT, '%')
-    )
+    sqlc.embed(workflows),
+    lv."id" AS latest_version_id,
+    lv."version" AS latest_version,
+    lv."order" AS latest_version_order,
+    lv."createdAt" AS latest_version_created_at,
+    COALESCE(et.event_keys, '{}')::text[] AS event_keys,
+    COALESCE(ct.crons, '{}')::text[] AS crons
+FROM "Workflow" as workflows
+JOIN latest_versions lv ON lv."workflowId" = workflows."id"
+LEFT JOIN event_triggers et ON et."workflowVersionId" = lv."id"
+LEFT JOIN cron_triggers ct ON ct."workflowVersionId" = lv."id"
 ORDER BY
     case when @orderBy = 'createdAt ASC' THEN workflows."createdAt" END ASC ,
-    case when @orderBy = 'createdAt DESC' then workflows."createdAt" END DESC
-OFFSET
-    COALESCE(sqlc.narg('offset'), 0)
-LIMIT
-    COALESCE(sqlc.narg('limit'), 50);
+    case when @orderBy = 'createdAt DESC' then workflows."createdAt" END DESC,
+    workflows."id";
 
 -- name: CountWorkflows :one
 SELECT COUNT(w.*)
