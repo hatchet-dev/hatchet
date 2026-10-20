@@ -82,6 +82,11 @@ func (s *sharedRepository) newTaskInput(inputBytes []byte, triggerData *MatchDat
 		}
 	}
 
+	// empty or `null` input bytes leave the map nil, which would be stored as a `null` TASK_INPUT row
+	if input == nil {
+		input = map[string]interface{}{}
+	}
+
 	var filterPayloadMap map[string]interface{}
 	if len(filterPayload) > 0 {
 		err := json.Unmarshal(filterPayload, &filterPayloadMap)
