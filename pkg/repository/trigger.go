@@ -1614,7 +1614,7 @@ func (r *sharedRepository) triggerWorkflowsCore(
 			InsertedAt: task.InsertedAt,
 			ExternalId: task.ExternalID,
 			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
-			Payload:    task.Payload,
+			Payload:    task.TaskInputPayload,
 			TenantId:   tenantId,
 		})
 	}
@@ -1729,7 +1729,11 @@ type DAGWithData struct {
 type V1TaskWithPayload struct {
 	*sqlcv1.V1Task
 	Runtime *sqlcv1.V1TaskRuntime `json:"runtime,omitempty"`
-	Payload []byte                `json:"payload"`
+
+	// Payload is the step run data as of task creation, which OLAP displays as the task's input.
+	Payload []byte `json:"payload"`
+
+	TaskInputPayload []byte `json:"-"`
 
 	// IsOperatorRun is true for an operator-managed run's children. The orchestrator itself is
 	// never written to OLAP as a task, so it is never flagged here.

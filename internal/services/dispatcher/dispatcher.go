@@ -810,13 +810,11 @@ func (d *DispatcherImpl) populateTaskData(
 			input = task.Input
 		}
 
-		currInput := &v1.V1StepRunData{}
+		currInput, err := v1.NewV1StepRunDataFromTaskAndInputPayload(task, input)
 
-		if input != nil {
-			if err := json.Unmarshal(input, currInput); err != nil {
-				d.l.Warn().Ctx(ctx).Err(err).Msg("failed to unmarshal input")
-				continue
-			}
+		if err != nil {
+			d.l.Warn().Ctx(ctx).Err(err).Msg("failed to unmarshal input")
+			continue
 		}
 
 		if len(currInput.DagParentTaskRunIds) > 0 {
@@ -826,24 +824,13 @@ func (d *DispatcherImpl) populateTaskData(
 				dagParentExternalIdSet[parentExternalId] = struct{}{}
 			}
 		} else if parentData, ok := parentDataMap[task.ID]; ok {
-			readableIdToData := make(map[string]map[string]interface{})
+			parentOutputs, stepRunErrors := splitParentOutputsAndStepRunErrors(ctx, d.l, task.ID, parentData)
 
-			for _, outputEvent := range parentData {
-				outputMap := make(map[string]interface{})
-
-				if len(outputEvent.Output) > 0 {
-					if err := json.Unmarshal(outputEvent.Output, &outputMap); err != nil {
-						d.l.Warn().Ctx(ctx).Err(err).Msg("failed to unmarshal output")
-						continue
-					}
-				}
-
-				readableIdToData[outputEvent.StepReadableID] = outputMap
-			}
-
-			currInput.Parents = readableIdToData
-			inputs[payloadKey] = currInput.Bytes()
+			currInput.Parents = parentOutputs
+			currInput.StepRunErrors = stepRunErrors
 		}
+
+		inputs[payloadKey] = currInput.Bytes()
 	}
 
 	if len(dagChildInputs) > 0 {
@@ -919,6 +906,39 @@ func (d *DispatcherImpl) populateTaskData(
 	}
 
 	return taskIdToData, nil
+}
+
+func splitParentOutputsAndStepRunErrors(
+	ctx context.Context,
+	l *zerolog.Logger,
+	taskId int64,
+	terminalEvents []*v1.TaskOutputEvent,
+) (map[string]map[string]interface{}, map[string]string) {
+	parentOutputs := make(map[string]map[string]interface{})
+	stepRunErrors := make(map[string]string)
+
+	for _, event := range terminalEvents {
+		if event.IsFailed() {
+			if event.TaskId != taskId {
+				stepRunErrors[event.StepReadableID] = event.ErrorMessage
+			}
+
+			continue
+		}
+
+		outputMap := make(map[string]interface{})
+
+		if len(event.Output) > 0 {
+			if err := json.Unmarshal(event.Output, &outputMap); err != nil {
+				l.Warn().Ctx(ctx).Err(err).Msg("failed to unmarshal output")
+				continue
+			}
+		}
+
+		parentOutputs[event.StepReadableID] = outputMap
+	}
+
+	return parentOutputs, stepRunErrors
 }
 
 // dagChildTaskInput is a durable DAG-operator child task awaiting parent output resolution:
