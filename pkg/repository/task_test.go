@@ -32,21 +32,19 @@ func newBatchTestRepository(pool *pgxpool.Pool) *TaskRepositoryImpl {
 	})
 
 	queueCache := cache.New(5 * time.Minute)
-	stepExpressionCache := cache.New(5 * time.Minute)
 	taskLookupCache, _ := lru.New[taskExternalIdTenantIdTuple, *sqlcv1.FlattenExternalIdsRow](1024)
 
 	shared := &sharedRepository{
-		pool:                pool,
-		ddlPool:             pool,
-		l:                   &logger,
-		v:                   validator.NewDefaultValidator(),
-		queries:             queries,
-		queueCache:          queueCache,
-		stepExpressionCache: stepExpressionCache,
-		celParser:           cel.NewCELParser(),
-		taskLookupCache:     taskLookupCache,
-		payloadStore:        payloadStore,
-		stepIdConfigCache:   expirable.NewLRU(10000, func(key uuid.UUID, value *sqlcv1.ListStepsByIdsRow) {}, 5*time.Minute),
+		pool:              pool,
+		ddlPool:           pool,
+		l:                 &logger,
+		v:                 validator.NewDefaultValidator(),
+		queries:           queries,
+		queueCache:        queueCache,
+		celParser:         cel.NewCELParser(),
+		taskLookupCache:   taskLookupCache,
+		payloadStore:      payloadStore,
+		stepIdConfigCache: expirable.NewLRU(10000, func(key uuid.UUID, value *sqlcv1.ListStepsByIdsRow) {}, 5*time.Minute),
 	}
 
 	return &TaskRepositoryImpl{
