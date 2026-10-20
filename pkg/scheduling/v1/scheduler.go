@@ -73,8 +73,9 @@ type Scheduler struct {
 	// and paying a full queue poll interval.
 	afterReplenish []func()
 
-	// notifyReplenishCh wakes loopReplenish for a heuristic replenish when an
-	// assignment miss records a new starvation entry (see markActionStarved).
+	// notifyReplenishCh wakes loopReplenish for a heuristic replenish: when an
+	// assignment miss records a new starvation entry (see markActionStarved),
+	// when slots are released, and when worker or batch leases change.
 	// One buffered slot, so requests that arrive while one is pending coalesce
 	// into it.
 	notifyReplenishCh chan struct{}
@@ -790,9 +791,9 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 }
 
 // loopReplenish runs a forced replenish on a 1 to 1.5 s ticker and a
-// heuristic one on demand when a miss requests it (notifyReplenish). Requests
-// are gated at their source (markActionStarved) and coalesce in notifyReplenishCh,
-// so the loop needs no pacing of its own.
+// heuristic one on demand (notifyReplenish). It is the only caller of
+// replenish outside tests, so cycles never overlap: requests coalesce in
+// notifyReplenishCh, and one made while a cycle runs gets the next cycle.
 func (s *Scheduler) loopReplenish(ctx context.Context) {
 	ticker := randomticker.NewRandomTicker(s.replenishTickerMin, s.replenishTickerMax)
 	defer ticker.Stop()
