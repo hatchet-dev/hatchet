@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
-- The gRPC client no longer trusts the eMudhra-affected roots (emSign ECC Root CA - G3 and AAA Certificate Services) from grpcio's bundled root store (CVE-2026-111943). The REST client and embedded-binary download use the OS trust store, so update your OS `ca-certificates` package. If you set `HATCHET_CLIENT_TLS_ROOT_CA_FILE` or `GRPC_DEFAULT_SSL_ROOTS_FILE_PATH`, point it at an updated bundle.
+- The gRPC client no longer trusts the eMudhra-affected roots (emSign ECC Root CA - G3 and AAA Certificate Services) from grpcio's bundled root store (CVE-2026-111943). The REST client and embedded-binary download use the OS trust store, so update your OS `ca-certificates` package. The same applies to gRPC if you set `GRPC_USE_SYSTEM_ROOTS_OVER_LANGUAGE_CALLBACK`. If you set `HATCHET_CLIENT_TLS_ROOT_CA_FILE` or `GRPC_DEFAULT_SSL_ROOTS_FILE_PATH`, point it at an updated bundle; if `GRPC_DEFAULT_SSL_ROOTS_FILE_PATH` points at a missing file, grpc falls back to its unfiltered bundle.
 
 ## [1.42.1] - 2026-10-09
 

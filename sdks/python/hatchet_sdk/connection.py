@@ -10,7 +10,7 @@ import grpc
 
 from hatchet_sdk.config import ClientConfig
 
-DISTRUSTED_ROOT_SHA256 = frozenset(
+_DISTRUSTED_ROOT_SHA256 = frozenset(
     {
         "86a1ecba089c4a8d3bbe2734c612ba341d813e043cf9e8a862cd5c57a36bbe6b",
         "d7a7a0fb5d7e2731d771e9484ebcdef71d5f0c3e0a2948782bc83ee0ea699ef4",
@@ -29,16 +29,17 @@ def _is_distrusted(pem_block: bytes) -> bool:
     except ValueError:
         return False
 
-    return hashlib.sha256(der).hexdigest() in DISTRUSTED_ROOT_SHA256
+    return hashlib.sha256(der).hexdigest() in _DISTRUSTED_ROOT_SHA256
 
 
-def filter_distrusted_roots(bundle: bytes) -> bytes:
-    kept = [block for block in _PEM_BLOCK.findall(bundle) if not _is_distrusted(block)]
+def _filter_distrusted_roots(bundle: bytes) -> tuple[bytes, bool]:
+    blocks = _PEM_BLOCK.findall(bundle)
+    kept = [block for block in blocks if not _is_distrusted(block)]
 
-    return b"\n".join(kept) + b"\n"
+    return b"\n".join(kept) + b"\n", len(kept) != len(blocks)
 
 
-@functools.lru_cache(maxsize=1)
+@functools.cache
 def _filtered_bundled_roots() -> bytes | None:
     try:
         bundle = pkgutil.get_data("grpc", "_cython/_credentials/roots.pem")
@@ -48,9 +49,12 @@ def _filtered_bundled_roots() -> bytes | None:
     if not bundle:
         return None
 
-    filtered = filter_distrusted_roots(bundle)
+    filtered, dropped = _filter_distrusted_roots(bundle)
 
-    return filtered if _PEM_BLOCK.search(filtered) else None
+    if not dropped or not _PEM_BLOCK.search(filtered):
+        return None
+
+    return filtered
 
 
 def _uses_bundled_roots() -> bool:
@@ -59,7 +63,7 @@ def _uses_bundled_roots() -> bool:
 
     system_roots = os.environ.get("GRPC_USE_SYSTEM_ROOTS_OVER_LANGUAGE_CALLBACK", "")
 
-    return system_roots.strip().lower() not in {"1", "true", "yes", "on"}
+    return system_roots.strip().lower() not in {"1", "t", "true", "y", "yes"}
 
 
 def load_channel_credentials(config: ClientConfig) -> grpc.ChannelCredentials | None:
