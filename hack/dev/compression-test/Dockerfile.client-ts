@@ -1,4 +1,4 @@
-FROM node:22-alpine AS builder
+FROM node:24-alpine AS builder
 
 # Install pnpm
 RUN npm install -g pnpm
@@ -31,7 +31,7 @@ RUN pnpm add -D tsconfig-paths
 # Copy test file into the SDK directory
 COPY hack/dev/compression-test/tests/typescript_test.ts ./test.ts
 
-FROM node:22-alpine
+FROM node:24-alpine
 
 WORKDIR /app
 
