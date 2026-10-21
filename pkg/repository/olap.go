@@ -320,7 +320,6 @@ type OLAPRepository interface {
 	ReadPayload(ctx context.Context, tenantId uuid.UUID, opt ReadOLAPPayloadOpts) ([]byte, error)
 
 	AnalyzeOLAPTables(ctx context.Context) error
-	OffloadPayloads(ctx context.Context, tenantId uuid.UUID, payloads []OffloadPayloadOpts) error
 
 	PayloadStore() PayloadStoreRepository
 	StatusUpdateBatchSizeLimits() StatusUpdateBatchSizeLimits
@@ -2081,7 +2080,7 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId u
 		payloadsToWrite = append(payloadsToWrite, StoreOLAPPayloadOpts{
 			ExternalId: event.ExternalID,
 			InsertedAt: sqlchelpers.TimestamptzFromTime(dummyInsertedAt),
-			Payload:    output,
+			Payload:    NewPayload[TaskOutputShape](output),
 		})
 	}
 
@@ -2499,7 +2498,7 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 		putPayloadOpts = append(putPayloadOpts, StoreOLAPPayloadOpts{
 			ExternalId: task.ExternalID,
 			InsertedAt: task.InsertedAt,
-			Payload:    payload,
+			Payload:    NewPayload[TaskInputShape](payload),
 		})
 	}
 
@@ -2632,7 +2631,7 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId uuid.UU
 		putPayloadOpts = append(putPayloadOpts, StoreOLAPPayloadOpts{
 			ExternalId: dag.ExternalID,
 			InsertedAt: dag.InsertedAt,
-			Payload:    dag.Input,
+			Payload:    NewPayload[DAGInputShape](dag.Input),
 		})
 	}
 
@@ -2981,7 +2980,7 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 		tenantIdToPutPayloadOpts[event.TenantID] = append(tenantIdToPutPayloadOpts[event.TenantID], StoreOLAPPayloadOpts{
 			ExternalId: event.ExternalID,
 			InsertedAt: event.SeenAt,
-			Payload:    payload,
+			Payload:    NewPayload[UserEventInputShape](payload),
 		})
 	}
 
@@ -3360,11 +3359,6 @@ func (r *OLAPRepositoryImpl) StoreCELEvaluationFailures(ctx context.Context, ten
 	})
 }
 
-type OffloadPayloadOpts struct {
-	ExternalId          uuid.UUID
-	ExternalLocationKey string
-}
-
 func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, putPayloadOpts ...StoreOLAPPayloadOpts) error {
 	ctx, span := telemetry.NewSpan(ctx, "OLAPRepository.PutPayloads")
 	defer span.End()
@@ -3393,20 +3387,16 @@ func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, te
 	tenantIds := make([]uuid.UUID, 0, len(putPayloadOpts))
 	externalIds := make([]uuid.UUID, 0, len(putPayloadOpts))
 	payloads := make([][]byte, 0, len(putPayloadOpts))
-	locations := make([]string, 0, len(putPayloadOpts))
-	externalKeys := make([]string, 0, len(putPayloadOpts))
 
 	for _, opt := range putPayloadOpts {
-		if isEmptyPayload(opt.Payload) {
+		if opt.Payload.IsEmpty() {
 			continue
 		}
 
 		externalIds = append(externalIds, opt.ExternalId)
 		insertedAts = append(insertedAts, opt.InsertedAt)
 		tenantIds = append(tenantIds, tenantId)
-		payloads = append(payloads, opt.Payload)
-		locations = append(locations, string(sqlcv1.V1PayloadLocationOlapINLINE))
-		externalKeys = append(externalKeys, "")
+		payloads = append(payloads, opt.Payload.Bytes())
 	}
 
 	if len(externalIds) == 0 {
@@ -3414,12 +3404,10 @@ func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, te
 	}
 
 	err = r.queries.PutPayloads(ctx, tx, sqlcv1.PutPayloadsParams{
-		Externalids:          externalIds,
-		Insertedats:          insertedAts,
-		Tenantids:            tenantIds,
-		Payloads:             payloads,
-		Locations:            locations,
-		Externallocationkeys: externalKeys,
+		Externalids: externalIds,
+		Insertedats: insertedAts,
+		Tenantids:   tenantIds,
+		Payloads:    payloads,
 	})
 
 	if err != nil {
@@ -3477,18 +3465,7 @@ func (r *OLAPRepositoryImpl) readPayloads(ctx context.Context, tx sqlcv1.DBTX, t
 	retrieveFromExternalOpts := make([]RetrieveFromExternalOpts, 0)
 
 	for _, payload := range payloads {
-		if payload.Location == sqlcv1.V1PayloadLocationOlapINLINE {
-			externalIdToPayload[payload.ExternalID] = payload.InlineContent
-		} else {
-			key := ExternalPayloadLocationKey(payload.ExternalLocationKey.String)
-			retrieveFromExternalOpt := RetrieveFromExternalOpts{
-				Method: RetrieveFromExternalByKey,
-				ByKey:  &RetrieveFromExternalByKeyOpt{Key: key},
-			}
-
-			externalIdToRetrieveFromExternalOpt[payload.ExternalID] = retrieveFromExternalOpt
-			retrieveFromExternalOpts = append(retrieveFromExternalOpts, retrieveFromExternalOpt)
-		}
+		externalIdToPayload[payload.ExternalID] = payload.InlineContent
 	}
 
 	if r.payloadStore.ExternalStoreEnabled() {
@@ -3519,11 +3496,8 @@ func (r *OLAPRepositoryImpl) readPayloads(ctx context.Context, tx sqlcv1.DBTX, t
 
 			for _, k := range indexFileKeys {
 				retrieveFromExternalOpt := RetrieveFromExternalOpts{
-					Method: RetrieveFromExternalByIndexFile,
-					ByIndexFile: &RetrieveFromExternalByIndexFileOpt{
-						IndexFileKey: ExternalIndexFileLocationKey(k.IndexFileKey),
-						ExternalId:   k.ExternalID,
-					},
+					IndexFileKey: ExternalIndexFileLocationKey(k.IndexFileKey),
+					ExternalId:   k.ExternalID,
 				}
 
 				externalIdToRetrieveFromExternalOpt[k.ExternalID] = retrieveFromExternalOpt
@@ -3545,42 +3519,6 @@ func (r *OLAPRepositoryImpl) readPayloads(ctx context.Context, tx sqlcv1.DBTX, t
 	}
 
 	return externalIdToPayload, nil
-}
-
-func (r *OLAPRepositoryImpl) OffloadPayloads(ctx context.Context, tenantId uuid.UUID, payloads []OffloadPayloadOpts) error {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
-
-	if err != nil {
-		return fmt.Errorf("error beginning transaction: %v", err)
-	}
-
-	defer rollback()
-
-	tenantIds := make([]uuid.UUID, len(payloads))
-	externalIds := make([]uuid.UUID, len(payloads))
-	externalLocationKeys := make([]string, len(payloads))
-
-	for i, opt := range payloads {
-		externalIds[i] = opt.ExternalId
-		tenantIds[i] = tenantId
-		externalLocationKeys[i] = opt.ExternalLocationKey
-	}
-
-	err = r.queries.OffloadPayloads(ctx, tx, sqlcv1.OffloadPayloadsParams{
-		Externalids:          externalIds,
-		Tenantids:            tenantIds,
-		Externallocationkeys: externalLocationKeys,
-	})
-
-	if err != nil {
-		return fmt.Errorf("error offloading payloads: %v", err)
-	}
-
-	if err := commit(ctx); err != nil {
-		return fmt.Errorf("error committing transaction: %v", err)
-	}
-
-	return nil
 }
 
 func (r *OLAPRepositoryImpl) AnalyzeOLAPTables(ctx context.Context) error {
@@ -3774,13 +3712,6 @@ func (r *OLAPRepositoryImpl) ListYesterdayRunCountsByStatus(ctx context.Context)
 	}
 
 	return statusToCount, nil
-}
-
-type BulkCutOverOLAPPayload struct {
-	TenantID            uuid.UUID
-	InsertedAt          pgtype.Timestamptz
-	ExternalId          uuid.UUID
-	ExternalLocationKey ExternalPayloadLocationKey
 }
 
 type OLAPCutoverJobRunMetadata struct {

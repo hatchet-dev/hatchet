@@ -2405,38 +2405,6 @@ func (q *Queries) MarkOLAPCutoverJobAsCompleted(ctx context.Context, db DBTX, ke
 	return err
 }
 
-const offloadPayloads = `-- name: OffloadPayloads :exec
-WITH inputs AS (
-    SELECT
-        UNNEST($1::UUID[]) AS external_id,
-        UNNEST($2::UUID[]) AS tenant_id,
-        UNNEST($3::TEXT[]) AS external_location_key
-)
-
-UPDATE v1_payloads_olap
-SET
-    location = 'EXTERNAL',
-    external_location_key = i.external_location_key,
-    inline_content = NULL,
-    updated_at = NOW()
-FROM inputs i
-WHERE
-    (v1_payloads_olap.tenant_id, v1_payloads_olap.external_id) = (i.tenant_id, i.external_id)
-    AND v1_payloads_olap.location = 'INLINE'
-    AND v1_payloads_olap.external_location_key IS NULL
-`
-
-type OffloadPayloadsParams struct {
-	Externalids          []uuid.UUID `json:"externalids"`
-	Tenantids            []uuid.UUID `json:"tenantids"`
-	Externallocationkeys []string    `json:"externallocationkeys"`
-}
-
-func (q *Queries) OffloadPayloads(ctx context.Context, db DBTX, arg OffloadPayloadsParams) error {
-	_, err := db.Exec(ctx, offloadPayloads, arg.Externalids, arg.Tenantids, arg.Externallocationkeys)
-	return err
-}
-
 const populateDAGMetadata = `-- name: PopulateDAGMetadata :many
 WITH input AS (
     SELECT
@@ -3185,9 +3153,7 @@ WITH inputs AS (
         UNNEST($1::UUID[]) AS external_id,
         UNNEST($2::TIMESTAMPTZ[]) AS inserted_at,
         UNNEST($3::JSONB[]) AS payload,
-        UNNEST($4::UUID[]) AS tenant_id,
-        UNNEST(CAST($5::TEXT[] AS v1_payload_location_olap[])) AS location,
-        UNNEST($6::TEXT[]) AS external_location_key
+        UNNEST($4::UUID[]) AS tenant_id
 )
 
 INSERT INTO v1_payloads_olap (
@@ -3203,26 +3169,18 @@ SELECT
     i.tenant_id,
     i.external_id,
     i.inserted_at,
-    i.location,
-    CASE
-        WHEN i.location = 'EXTERNAL' THEN i.external_location_key
-        ELSE NULL
-    END,
-    CASE
-        WHEN i.location = 'INLINE' THEN i.payload
-        ELSE NULL
-    END AS inline_content
+    'INLINE',
+    NULL,
+    i.payload
 FROM inputs i
 ON CONFLICT DO NOTHING
 `
 
 type PutPayloadsParams struct {
-	Externalids          []uuid.UUID          `json:"externalids"`
-	Insertedats          []pgtype.Timestamptz `json:"insertedats"`
-	Payloads             [][]byte             `json:"payloads"`
-	Tenantids            []uuid.UUID          `json:"tenantids"`
-	Locations            []string             `json:"locations"`
-	Externallocationkeys []string             `json:"externallocationkeys"`
+	Externalids []uuid.UUID          `json:"externalids"`
+	Insertedats []pgtype.Timestamptz `json:"insertedats"`
+	Payloads    [][]byte             `json:"payloads"`
+	Tenantids   []uuid.UUID          `json:"tenantids"`
 }
 
 func (q *Queries) PutPayloads(ctx context.Context, db DBTX, arg PutPayloadsParams) error {
@@ -3231,8 +3189,6 @@ func (q *Queries) PutPayloads(ctx context.Context, db DBTX, arg PutPayloadsParam
 		arg.Insertedats,
 		arg.Payloads,
 		arg.Tenantids,
-		arg.Locations,
-		arg.Externallocationkeys,
 	)
 	return err
 }
