@@ -187,8 +187,8 @@ const (
 )
 
 // Payload consolidation shares one input row across a run, which only works once every row holds just the user input.
-func (s *sharedRepository) taskInputPayloadVersionToWrite(isDagOrchestrator bool) taskInputPayloadVersion {
-	if s.wrapTaskInputInStepRunData && !s.enablePayloadConsolidation && !isDagOrchestrator {
+func (s *sharedRepository) taskInputPayloadVersionToWrite() taskInputPayloadVersion {
+	if s.wrapTaskInputInStepRunData && !s.enablePayloadConsolidation {
 		return taskInputPayloadVersionStepRunData
 	}
 
