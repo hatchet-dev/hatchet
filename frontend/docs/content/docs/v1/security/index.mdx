@@ -2,6 +2,8 @@
 title: "About"
 ---
 
+import { Callout } from "@/components/nextra-compat";
+
 # Security
 
 This page points you to Hatchet's security resources and highlights the most important security considerations for Hatchet Cloud and self-hosted deployments.
@@ -13,6 +15,24 @@ Hatchet is SOC 2 Type II, HIPAA, and GDPR compliant. Company-level security prac
 ## Same source, same security
 
 Hatchet Cloud and self-hosted Hatchet run the same codebase. The open source project is 100% MIT licensed and undergoes regular third-party penetration testing. Findings are remediated across both deployment models, so security improvements benefit all users equally.
+
+## eMudhra CA distrust
+
+<Callout type="warning">
+  Eight eMudhra intermediate CA keys are compromised and publicly recoverable
+  (CVE-2026-111943, see{" "}
+  <a href="https://emudhra.we-have-a-problem.com">
+    emudhra.we-have-a-problem.com
+  </a>
+  ). Upgrade the runtime your engine and workers use to one that no longer
+  trusts them.
+</Callout>
+
+- **Self-hosted engine**: upgrade to v0.112.16 or later.
+- **Go SDK**: Go 1.26.10 or later, or 1.27.3 or later.
+- **TypeScript SDK**: Node 22.23.4, 24.22.1 or 26.12.1 or later. Node 20 is end-of-life and has no fix. Deno 2.9.8 or later. Bun has no fixed release yet.
+- **Python and Ruby SDKs**: Python SDK 1.42.2 or later and Ruby SDK 0.10.1 or later, which update the bundled gRPC roots. Alternatively, point `HATCHET_CLIENT_TLS_ROOT_CA_FILE` or `GRPC_DEFAULT_SSL_ROOTS_FILE_PATH` at an updated CA bundle before the first client is created.
+- **Images and hosts**: update the OS `ca-certificates` package and rebuild your worker images.
 
 ## Hatchet Cloud
 
