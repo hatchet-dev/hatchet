@@ -164,6 +164,46 @@ describe('createFetchTransport message size limits', () => {
   });
 });
 
+describe('createFetchTransport redirects', () => {
+  it("sends with redirect 'manual' and fails a redirect response, so it runs where 'error' is refused", async () => {
+    const inits: RequestInit[] = [];
+    const fetch: typeof globalThis.fetch = async (_input, init) => {
+      inits.push(init ?? {});
+      return new Response(null, { status: 302, headers: { location: 'https://elsewhere.test/' } });
+    };
+    const transport = createFetchTransport({
+      token: TOKEN,
+      serverUrl: 'https://engine.test',
+      fetch,
+    });
+    const admin = createV1AdminRpc(transport);
+
+    const err = await rejection(admin.getRunDetails({ externalId: 'run' }));
+
+    expect(inits).toHaveLength(1);
+    expect(inits[0].redirect).toBe('manual');
+    expect(err.code).toBe(Code.Unavailable);
+    expect(err.rawMessage).toContain('redirect (302)');
+  });
+
+  it('passes a plain response through unchanged', async () => {
+    const { fetch, requests } = stubFetch(
+      () => new Response(detailsBody(64), { status: 200, headers: PROTO })
+    );
+    const transport = createFetchTransport({
+      token: TOKEN,
+      serverUrl: 'https://engine.test',
+      fetch,
+    });
+    const admin = createV1AdminRpc(transport);
+
+    const details = await admin.getRunDetails({ externalId: 'run' });
+
+    expect(details.status).toBe(RunStatus.COMPLETED);
+    expect(requests).toHaveLength(1);
+  });
+});
+
 describe('resolveServerUrl', () => {
   it.each([
     ['https://e.example', undefined, 'https://e.example'],
