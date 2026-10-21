@@ -66,6 +66,7 @@ func (s *eventSender) cancelled(action *contracts.AssignedAction) error {
 
 // report sends the terminal event for an outcome.
 func (s *eventSender) report(action *contracts.AssignedAction, out outcome) error {
+	//exhaustive:ignore
 	switch out.status {
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_COMPLETED:
 		return s.completed(action, out.output)

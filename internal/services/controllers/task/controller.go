@@ -692,7 +692,6 @@ func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId
 	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
 
 	opts := make([]v1.CompleteTaskOpts, 0)
-	outputByTaskId := make(map[int64]string)
 
 	msgs := msgqueue.JSONConvert[tasktypes.CompletedTaskPayload](payloads)
 
@@ -703,10 +702,9 @@ func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId
 				InsertedAt: msg.InsertedAt,
 				RetryCount: msg.RetryCount,
 			},
-			Output: msg.Output,
+			Output:             msg.Output,
+			PayloadReferenceId: msg.PayloadReferenceId,
 		})
-
-		outputByTaskId[msg.TaskId] = string(msg.Output)
 	}
 
 	res, err := tc.repov1.Tasks().CompleteTasks(ctx, tenantId, opts)
@@ -731,7 +729,7 @@ func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId
 	tc.notifyQueuesOnCompletion(ctx, tenantId, res.ReleasedTasks)
 
 	if err := tc.emitOrchestratorTerminalEvents(
-		ctx, tenantId, res.ReleasedTasks, outputByTaskId, nil, sqlcv1.V1EventTypeOlapFINISHED,
+		ctx, tenantId, res.ReleasedTasks, nil, nil, sqlcv1.V1EventTypeOlapFINISHED,
 	); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "could not publish orchestrator terminal event")
@@ -1350,6 +1348,7 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 			Priority:              msg.EventPriority,
 			Scope:                 msg.EventScope,
 			TriggeringWebhookName: msg.TriggeringWebhookName,
+			PayloadReferenceId:    msg.PayloadReferenceId,
 		}
 
 		eventIdToOpts[msg.EventExternalId] = opt

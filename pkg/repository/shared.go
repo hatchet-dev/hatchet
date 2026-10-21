@@ -34,6 +34,11 @@ type streamTopicKey struct {
 	topic     string
 }
 
+type eventKeyTenantIdTuple struct {
+	tenantId uuid.UUID
+	eventKey string
+}
+
 type sharedRepository struct {
 	pool    *pgxpool.Pool
 	ddlPool *pgxpool.Pool // bypasses pgbouncer for DDL operations
@@ -58,6 +63,8 @@ type sharedRepository struct {
 
 	streamTopicSeenCache *expirable.LRU[streamTopicKey, struct{}]
 
+	eventKeyWorkflowsCache *expirable.LRU[eventKeyTenantIdTuple, []*sqlcv1.ListWorkflowsForEventsRow]
+
 	rateLimitPauseCache *expirable.LRU[uuid.UUID, bool]
 
 	celParser         *cel.CELParser
@@ -67,6 +74,7 @@ type sharedRepository struct {
 	m                 TenantLimitRepository
 
 	wrapTaskInputInStepRunData bool
+	enablePayloadConsolidation bool
 }
 
 func newSharedRepository(
@@ -95,6 +103,7 @@ func newSharedRepository(
 	stepIdMatchConditionsCache := expirable.NewLRU(10000, func(key uuid.UUID, value []*sqlcv1.V1StepMatchCondition) {}, 5*time.Minute)
 	stepIdExpressionsCache := expirable.NewLRU(10000, func(key uuid.UUID, value []*sqlcv1.StepExpression) {}, 5*time.Minute)
 	streamTopicSeenCache := expirable.NewLRU(10000, func(key streamTopicKey, value struct{}) {}, time.Hour)
+	eventKeyWorkflowsCache := expirable.NewLRU(10000, func(key eventKeyTenantIdTuple, value []*sqlcv1.ListWorkflowsForEventsRow) {}, 5*time.Second)
 	// short TTL since a pause set through another engine is only seen once this expires; the scheduler holds anything created in between
 	rateLimitPauseCache := expirable.NewLRU(10000, func(key uuid.UUID, value bool) {}, 5*time.Second)
 
@@ -132,11 +141,13 @@ func newSharedRepository(
 		stepIdExpressionsCache:      stepIdExpressionsCache,
 		streamTopicSeenCache:        streamTopicSeenCache,
 		rateLimitPauseCache:         rateLimitPauseCache,
+		eventKeyWorkflowsCache:      eventKeyWorkflowsCache,
 		celParser:                   celParser,
 		boolExprEvaluator:           boolExprEvaluator,
 		taskLookupCache:             lookupCache,
 		payloadStore:                payloadStore,
 		wrapTaskInputInStepRunData:  payloadStoreOpts.WrapTaskInputInStepRunData,
+		enablePayloadConsolidation:  payloadStoreOpts.EnablePayloadConsolidation,
 	}
 
 	tenantLimitRepository := newTenantLimitRepository(s, c, shouldEnforceLimits, cacheDuration)

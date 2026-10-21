@@ -10,14 +10,15 @@ import (
 )
 
 type UserEventTaskPayload struct {
-	EventExternalId         uuid.UUID `json:"event_id" validate:"required"`
-	EventSeenAt             time.Time `json:"event_seen_at" validate:"required"`
-	EventKey                string    `json:"event_key" validate:"required"`
-	EventData               []byte    `json:"event_data" validate:"required"`
-	EventAdditionalMetadata []byte    `json:"event_additional_metadata"`
-	EventPriority           *int32    `json:"event_priority,omitempty"`
-	EventScope              *string   `json:"event_scope,omitempty"`
-	TriggeringWebhookName   *string   `json:"triggering_webhook_name,omitempty"`
+	EventExternalId         uuid.UUID  `json:"event_id" validate:"required"`
+	EventSeenAt             time.Time  `json:"event_seen_at" validate:"required"`
+	EventKey                string     `json:"event_key" validate:"required"`
+	EventData               []byte     `json:"event_data" validate:"required"`
+	EventAdditionalMetadata []byte     `json:"event_additional_metadata"`
+	EventPriority           *int32     `json:"event_priority,omitempty"`
+	EventScope              *string    `json:"event_scope,omitempty"`
+	TriggeringWebhookName   *string    `json:"triggering_webhook_name,omitempty"`
+	PayloadReferenceId      *uuid.UUID `json:"payload_reference_id"`
 
 	// WasProcessedLocally indicates whether the event was written and tasks were triggered on the gRPC server
 	// instead of the controller, so we can skip the triggering logic downstream

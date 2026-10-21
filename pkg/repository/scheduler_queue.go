@@ -866,8 +866,12 @@ func (d *queueRepository) GetDesiredLabels(ctx context.Context, tx *OptimisticTx
 		stepIdToLabels[stepId] = append(stepIdToLabels[stepId], label)
 	}
 
-	for stepId, labels := range stepIdToLabels {
-		d.stepIdLabelsCache.Add(stepId, labels)
+	for _, stepId := range stepIdsToLookup {
+		if _, ok := stepIdToLabels[stepId]; !ok {
+			stepIdToLabels[stepId] = []*sqlcv1.GetDesiredLabelsRow{}
+		}
+
+		d.stepIdLabelsCache.Add(stepId, stepIdToLabels[stepId])
 	}
 
 	return stepIdToLabels, nil

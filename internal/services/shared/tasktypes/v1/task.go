@@ -60,6 +60,10 @@ type CompletedTaskPayload struct {
 
 	// (optional) the output data
 	Output []byte
+
+	// (optional) the id the core and OLAP copies of this completion share: the task controller
+	// stores the completion event payload under it and the OLAP event row points at it
+	PayloadReferenceId *uuid.UUID
 }
 
 func CompletedTaskMessage(
@@ -70,6 +74,7 @@ func CompletedTaskMessage(
 	workflowRunId uuid.UUID,
 	retryCount int32,
 	output []byte,
+	payloadReferenceId *uuid.UUID,
 ) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
@@ -77,12 +82,13 @@ func CompletedTaskMessage(
 		false,
 		true,
 		CompletedTaskPayload{
-			TaskId:        taskId,
-			InsertedAt:    taskInsertedAt,
-			ExternalId:    taskExternalId,
-			WorkflowRunId: workflowRunId,
-			RetryCount:    retryCount,
-			Output:        output,
+			TaskId:             taskId,
+			InsertedAt:         taskInsertedAt,
+			ExternalId:         taskExternalId,
+			WorkflowRunId:      workflowRunId,
+			RetryCount:         retryCount,
+			Output:             output,
+			PayloadReferenceId: payloadReferenceId,
 		},
 	)
 }
