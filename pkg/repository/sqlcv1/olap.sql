@@ -2354,11 +2354,6 @@ JOIN inputs i ON
     AND p.block_external_id_range @> i.external_id
 ;
 
--- name: DeleteOldOLAPPayloadOffloadedBlockIndexRows :exec
-DELETE FROM v1_payloads_olap_offloaded_block_index
-WHERE payload_inserted_at_date < @before::DATE
-;
-
 -- name: ReconcileTaskStatusesFromEvents :many
 WITH inputs AS (
     SELECT

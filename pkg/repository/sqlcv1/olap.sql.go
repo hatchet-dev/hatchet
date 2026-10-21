@@ -501,16 +501,6 @@ type CreateTaskEventsOLAPParams struct {
 	PayloadReferenceID     *uuid.UUID           `json:"payload_reference_id"`
 }
 
-const deleteOldOLAPPayloadOffloadedBlockIndexRows = `-- name: DeleteOldOLAPPayloadOffloadedBlockIndexRows :exec
-DELETE FROM v1_payloads_olap_offloaded_block_index
-WHERE payload_inserted_at_date < $1::DATE
-`
-
-func (q *Queries) DeleteOldOLAPPayloadOffloadedBlockIndexRows(ctx context.Context, db DBTX, before pgtype.Date) error {
-	_, err := db.Exec(ctx, deleteOldOLAPPayloadOffloadedBlockIndexRows, before)
-	return err
-}
-
 const findMinInsertedAtForDAGStatusUpdates = `-- name: FindMinInsertedAtForDAGStatusUpdates :one
 WITH tenants AS (
     SELECT UNNEST(

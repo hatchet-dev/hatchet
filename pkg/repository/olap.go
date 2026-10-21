@@ -626,13 +626,6 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		releaseConn()
 	}
 
-	if err = r.queries.DeleteOldOLAPPayloadOffloadedBlockIndexRows(ctx, r.ddlPool, pgtype.Date{
-		Time:  removeBefore,
-		Valid: true,
-	}); err != nil {
-		return fmt.Errorf("failed to delete old OLAP payload offloaded block index rows: %w", err)
-	}
-
 	// Runs last so that if it gives up on a lock, partition creation and cleanup above have
 	// already finished.
 	return runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
