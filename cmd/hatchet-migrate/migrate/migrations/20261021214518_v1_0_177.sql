@@ -6,5 +6,5 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS "WorkflowTriggerCronRef_parentId_name_id
 
 -- +goose Down
 -- +goose StatementBegin
-DROP INDEX CONCURRENTLY IF EXISTS "WorkflowTriggerCronRef_WorkflowTriggerCronRef_parentId_name_idx_name_idx";
+DROP INDEX CONCURRENTLY IF EXISTS "WorkflowTriggerCronRef_parentId_name_idx";
 -- +goose StatementEnd
