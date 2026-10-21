@@ -483,7 +483,11 @@ class ActiveInvocation implements DurableRun {
         ? JSON.stringify(params.options.additionalMetadata)
         : undefined,
       priority: 1,
-      durableTaskInvocationCount: this.invocationCount,
+      // the engine sets the durable invocation count on durable tasks only; a non-durable task
+      // invoked over the socket for its streams carries none, like the real operator sends it
+      durableTaskInvocationCount: this.options.isDurable(this.actionId)
+        ? this.invocationCount
+        : undefined,
     });
 
     return {

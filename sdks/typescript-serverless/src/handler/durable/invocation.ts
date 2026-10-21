@@ -190,7 +190,8 @@ class DurableInvocation {
     if (
       expected &&
       (first.action.taskRunExternalId !== expected.taskRunExternalId ||
-        first.action.durableTaskInvocationCount !== expected.invocationCount ||
+        (first.action.durableTaskInvocationCount ?? first.invocationCount) !==
+          expected.invocationCount ||
         first.invocationCount !== expected.invocationCount)
     ) {
       this.out.warn(
