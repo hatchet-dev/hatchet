@@ -2,6 +2,7 @@ package encryption
 
 import (
 	"crypto/fips140"
+	"crypto/sha1" //nolint:gosec // probed only to detect fips140=only, never used for security
 	"fmt"
 	"runtime/debug"
 )
@@ -22,4 +23,19 @@ func RequireFIPSBuild() error {
 	}
 
 	return nil
+}
+
+// SHA1Allowed reports whether this process may compute SHA-1 digests. GODEBUG=fips140=only
+// makes crypto/sha1 panic, which rules out protocols whose handshake is specified over
+// SHA-1, such as the RFC 6455 websocket upgrade.
+func SHA1Allowed() (allowed bool) {
+	defer func() {
+		if recover() != nil {
+			allowed = false
+		}
+	}()
+
+	sha1.Sum(nil) //nolint:gosec // see the import note
+
+	return true
 }

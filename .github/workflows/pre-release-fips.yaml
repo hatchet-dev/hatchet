@@ -20,6 +20,16 @@ jobs:
           - arch: arm64
             runner: hatchet-arm64-2
     steps:
+      - &update-ca-certificates
+        name: Update CA certificates
+        # Runner images predate Ubuntu's ca-certificates fix for the compromised eMudhra CAs (USN-8944-1); drop this step once they ship 20260816ubuntu0.* or later.
+        run: |
+          sudo DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=3 -o DPkg::Lock::Timeout=120 update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=120 install -y --only-upgrade ca-certificates
+          v=$(dpkg-query -W -f='${Version}' ca-certificates)
+          dpkg --compare-versions "$v" ge 20260816 || { echo "::error::ca-certificates $v predates USN-8944-1"; exit 1; }
+          # dockerd keeps the roots it loaded at first use.
+          sudo systemctl restart docker
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -53,6 +63,7 @@ jobs:
           - arch: arm64
             runner: hatchet-arm64-2
     steps:
+      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -90,6 +101,7 @@ jobs:
           - arch: arm64
             runner: hatchet-arm64-2
     steps:
+      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -141,6 +153,7 @@ jobs:
           - arch: arm64
             runner: hatchet-arm64-2
     steps:
+      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -180,6 +193,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [servers, frontend, lite, dashboard]
     steps:
+      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -215,6 +229,7 @@ jobs:
       matrix:
         image: [api, engine, admin, migrate, frontend, lite, dashboard]
     steps:
+      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT

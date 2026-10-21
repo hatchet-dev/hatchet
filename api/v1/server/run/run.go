@@ -37,6 +37,7 @@ import (
 	filtersv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/filters"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/logs"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/observability"
+	serverlessv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/serverless"
 	streamsv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/streams"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/tasks"
 	webhooksv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/webhooks"
@@ -78,6 +79,7 @@ type apiService struct {
 	*workflowrunsv1.V1WorkflowRunsService
 	*eventsv1.V1EventsService
 	*filtersv1.V1FiltersService
+	*serverlessv1.V1ServerlessService
 	*webhooksv1.V1WebhooksService
 	*celv1.V1CELService
 	*observability.V1ObservabilityService
@@ -108,6 +110,7 @@ func newAPIService(config *server.ServerConfig) *apiService {
 		V1WorkflowRunsService:  workflowrunsv1.NewV1WorkflowRunsService(config),
 		V1EventsService:        eventsv1.NewV1EventsService(config),
 		V1FiltersService:       filtersv1.NewV1FiltersService(config),
+		V1ServerlessService:    serverlessv1.NewV1ServerlessService(config),
 		V1WebhooksService:      webhooksv1.NewV1WebhooksService(config),
 		V1CELService:           celv1.NewV1CELService(config),
 		V1ObservabilityService: observability.NewV1ObservabilityService(config),
@@ -730,6 +733,27 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		}
 
 		return webhook, webhook.TenantID.String(), nil
+	})
+
+	// The endpoint route carries no tenant id, so the endpoint is resolved by id alone and its
+	// tenant is returned as the parent for the populator to load and authz to check.
+	populatorMW.RegisterGetter("v1-serverless-endpoint", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
+		idUuid, err := uuid.Parse(id)
+
+		if err != nil {
+			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid serverless endpoint id")
+		}
+
+		endpoint, err := t.config.V1.Serverless().Endpoints().GetById(
+			context.Background(),
+			idUuid,
+		)
+
+		if err != nil {
+			return nil, "", err
+		}
+
+		return endpoint, endpoint.TenantID.String(), nil
 	})
 
 	authnMW := authn.NewAuthN(t.config)
