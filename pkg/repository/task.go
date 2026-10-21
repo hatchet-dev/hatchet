@@ -116,6 +116,10 @@ type CreateTaskOpts struct {
 
 	// (optional) the idempotency key that was claimed before triggering this task
 	IdempotencyKey *string
+
+	// (optional) for operator runs: the shared TASK_INPUT row's reference id. The orchestrator
+	// owns the row and its children point at it instead of storing a copy.
+	PayloadReferenceId *uuid.UUID
 }
 
 type ReplayTasksResult struct {
@@ -185,6 +189,10 @@ type CompleteTaskOpts struct {
 
 	// (required) the output bytes for the task
 	Output []byte
+
+	// (optional) when set, the completion event payload is stored under this id so the OLAP
+	// event row for the same completion can read it instead of keeping its own copy
+	PayloadReferenceId *uuid.UUID
 }
 
 type FailTaskOpts struct {
@@ -725,6 +733,7 @@ func (r *sharedRepository) GetTaskByExternalId(ctx context.Context, tenantId, ta
 		IsDagOrchestrator:     res.IsDagOrchestrator,
 		ParentTaskExternalID:  res.ParentTaskExternalID,
 		WorkflowVersionID:     res.WorkflowVersionID,
+		PayloadReferenceID:    res.PayloadReferenceID,
 	}
 
 	r.taskLookupCache.Add(key, &row)
@@ -886,6 +895,14 @@ func createTaskUniqueKey(t TaskIdInsertedAtRetryCount) string {
 	return fmt.Sprintf("%d:%d", t.Id, t.RetryCount)
 }
 
+func createCompletionReportUniqueKey(report CompleteTaskOpts) string {
+	if report.PayloadReferenceId == nil {
+		return createTaskUniqueKey(*report.TaskIdInsertedAtRetryCount)
+	}
+
+	return fmt.Sprintf("%s:%s", createTaskUniqueKey(*report.TaskIdInsertedAtRetryCount), report.PayloadReferenceId)
+}
+
 func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId uuid.UUID, tasks []CompleteTaskOpts) (*FinalizedTaskResponse, error) {
 	ctx, span := telemetry.NewSpan(ctx, "TaskRepositoryImpl.CompleteTasks")
 	defer span.End()
@@ -897,11 +914,9 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId uuid.UU
 	// 	return err
 	// }
 
-	taskIdRetryCounts := make([]TaskIdInsertedAtRetryCount, len(tasks))
+	taskIdRetryCounts := listutils.Map(tasks, func(task CompleteTaskOpts) TaskIdInsertedAtRetryCount { return *task.TaskIdInsertedAtRetryCount })
 
-	for i, task := range tasks {
-		taskIdRetryCounts[i] = *task.TaskIdInsertedAtRetryCount
-	}
+	uniqueTaskIdRetryCounts := listutils.UniqBy(taskIdRetryCounts, createTaskUniqueKey)
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
 
@@ -914,13 +929,8 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId uuid.UU
 
 	defer rollback()
 
-	taskIdRetryCounts = listutils.UniqBy(
-		taskIdRetryCounts,
-		createTaskUniqueKey,
-	)
-
 	// release queue items
-	releasedTasks, err := r.releaseTasks(ctx, tx, tenantId, taskIdRetryCounts)
+	releasedTasks, err := r.releaseTasks(ctx, tx, tenantId, uniqueTaskIdRetryCounts)
 
 	if err != nil {
 		err = fmt.Errorf("failed to release tasks: %w", err)
@@ -929,25 +939,43 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId uuid.UU
 		return nil, err
 	}
 
-	if len(taskIdRetryCounts) != len(releasedTasks) {
+	if len(uniqueTaskIdRetryCounts) != len(releasedTasks) {
 		return nil, fmt.Errorf("failed to release all tasks")
 	}
 
-	outputs := make([][]byte, len(releasedTasks))
+	releasedTasksByKey := make(map[string]*sqlcv1.ReleaseTasksRow, len(releasedTasks))
 
 	for i, releasedTask := range releasedTasks {
-		out := NewCompletedTaskOutputEvent(releasedTask, tasks[i].Output).Bytes()
+		releasedTasksByKey[createTaskUniqueKey(uniqueTaskIdRetryCounts[i])] = releasedTask
+	}
 
-		outputs[i] = out
+	// the SDKs retry failed completion sends, so one attempt can be reported more than once, and the
+	// dispatcher gives each report a new payload reference. OLAP may keep any of those references, so
+	// every report with a distinct reference gets its own completion event and stored payload
+	uniqueReports := listutils.UniqBy(tasks, createCompletionReportUniqueKey)
+
+	reportTaskIdRetryCounts := make([]TaskIdInsertedAtRetryCount, len(uniqueReports))
+	releasedTaskPerReport := make([]*sqlcv1.ReleaseTasksRow, len(uniqueReports))
+	outputs := make([][]byte, len(uniqueReports))
+	payloadReferenceIds := make([]*uuid.UUID, len(uniqueReports))
+
+	for i, report := range uniqueReports {
+		releasedTask := releasedTasksByKey[createTaskUniqueKey(*report.TaskIdInsertedAtRetryCount)]
+
+		reportTaskIdRetryCounts[i] = *report.TaskIdInsertedAtRetryCount
+		releasedTaskPerReport[i] = releasedTask
+		outputs[i] = NewCompletedTaskOutputEvent(releasedTask, report.Output).Bytes()
+		payloadReferenceIds[i] = report.PayloadReferenceId
 	}
 
 	internalEvents, err := r.createTaskEventsAfterRelease(
 		ctx,
 		tx,
 		tenantId,
-		taskIdRetryCounts,
+		reportTaskIdRetryCounts,
 		outputs,
-		releasedTasks,
+		payloadReferenceIds,
+		releasedTaskPerReport,
 		sqlcv1.V1TaskEventTypeCOMPLETED,
 	)
 
@@ -1187,6 +1215,7 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 		tenantId,
 		tasks,
 		outputs,
+		nil,
 		releasedTasks,
 		sqlcv1.V1TaskEventTypeFAILED,
 	)
@@ -1415,6 +1444,7 @@ func (r *sharedRepository) cancelTasks(ctx context.Context, dbtx sqlcv1.DBTX, te
 		tenantId,
 		tasks,
 		outputs,
+		nil,
 		releasedTasks,
 		sqlcv1.V1TaskEventTypeCANCELLED,
 	)
@@ -1552,10 +1582,11 @@ func (r *TaskRepositoryImpl) listTaskOutputEvents(ctx context.Context, tx sqlcv1
 
 	for i, event := range matchedEvents {
 		opt := PayloadRef[TaskCompletionEventShape]{
-			Id:         event.ID,
-			InsertedAt: event.InsertedAt,
-			TenantId:   tenantId,
-			ExternalId: event.ExternalID,
+			Id:                 event.ID,
+			InsertedAt:         event.InsertedAt,
+			TenantId:           tenantId,
+			ExternalId:         event.ExternalID,
+			PayloadReferenceId: event.PayloadReferenceID,
 		}
 
 		retrieveOpts[i] = opt
@@ -1934,15 +1965,7 @@ func (r *TaskRepositoryImpl) ProcessDurableSleeps(ctx context.Context, tenantId 
 		return nil, false, err
 	}
 
-	storePayloadOpts := make([]StorePayloadOpts, len(results.CreatedTasks))
-	for i, task := range results.CreatedTasks {
-		storePayloadOpts[i] = PayloadRef[TaskInputShape]{
-			Id:         task.ID,
-			InsertedAt: task.InsertedAt,
-			ExternalId: task.ExternalID,
-			TenantId:   task.TenantID,
-		}.StoreOpts(NewPayload[TaskInputShape](task.TaskInputPayload))
-	}
+	storePayloadOpts := ownedTaskInputStoreOpts(results.CreatedTasks)
 
 	if len(storePayloadOpts) > 0 {
 		err = r.payloadStore.Store(ctx, tx, storePayloadOpts...)
@@ -2911,6 +2934,7 @@ func (r *sharedRepository) insertTasks(
 				TriggeringEventKeys:          make([]pgtype.Text, 0),
 				IsDagOrchestrators:           make([]bool, 0),
 				IdempotencyKeys:              make([]pgtype.Text, 0),
+				PayloadReferenceIds:          make([]*uuid.UUID, 0),
 				Triggers:                     make([][]byte, 0),
 				DagParentTaskRunIds:          make([][]byte, 0),
 				ChildTaskDesiredWorkerLabels: make([][]byte, 0),
@@ -2987,6 +3011,7 @@ func (r *sharedRepository) insertTasks(
 		}
 
 		params.IdempotencyKeys = append(params.IdempotencyKeys, idempotencyKey)
+		params.PayloadReferenceIds = append(params.PayloadReferenceIds, task.PayloadReferenceId)
 
 		stepIdsToParams[task.StepId] = params
 	}
@@ -3058,6 +3083,7 @@ func (r *sharedRepository) insertTasks(
 		eventTypes,
 		make([]string, len(eventTaskIdRetryCounts)),
 		taskIdToIdempotencyKey,
+		nil,
 		nil,
 	)
 
@@ -3393,12 +3419,14 @@ func (r *sharedRepository) replayTasks(
 				withPayload.TaskInputPayload = stepRunData.taskInputPayload(taskInputPayloadVersion(task.TaskInputPayloadVersion))
 			}
 
-			storePayloadOpts = append(storePayloadOpts, PayloadRef[TaskInputShape]{
-				Id:         task.ID,
-				InsertedAt: task.InsertedAt,
-				ExternalId: task.ExternalID,
-				TenantId:   tenantId,
-			}.StoreOpts(NewPayload[TaskInputShape](withPayload.TaskInputPayload)))
+			if task.PayloadReferenceID == nil {
+				storePayloadOpts = append(storePayloadOpts, PayloadRef[TaskInputShape]{
+					Id:         task.ID,
+					InsertedAt: task.InsertedAt,
+					ExternalId: task.ExternalID,
+					TenantId:   tenantId,
+				}.StoreOpts(NewPayload[TaskInputShape](withPayload.TaskInputPayload)))
+			}
 
 			res = append(res, &withPayload)
 
@@ -3447,6 +3475,7 @@ func (r *sharedRepository) replayTasks(
 		eventTypes,
 		make([]string, len(eventTaskIdRetryCounts)),
 		taskIdToIdempotencyKey,
+		nil,
 		nil,
 	)
 
@@ -3643,11 +3672,16 @@ func (r *sharedRepository) createTaskEventsAfterRelease(
 	tenantId uuid.UUID,
 	taskIdRetryCounts []TaskIdInsertedAtRetryCount,
 	outputs [][]byte,
+	payloadReferenceIds []*uuid.UUID,
 	releasedTasks []*sqlcv1.ReleaseTasksRow,
 	eventType sqlcv1.V1TaskEventType,
 ) ([]InternalTaskEvent, error) {
 	if len(taskIdRetryCounts) != len(releasedTasks) || len(taskIdRetryCounts) != len(outputs) {
 		return nil, fmt.Errorf("failed to release all tasks")
+	}
+
+	if payloadReferenceIds != nil && len(payloadReferenceIds) != len(releasedTasks) {
+		return nil, fmt.Errorf("mismatched task and payload reference id lengths")
 	}
 
 	datas := make([][]byte, len(releasedTasks))
@@ -3669,6 +3703,8 @@ func (r *sharedRepository) createTaskEventsAfterRelease(
 	filteredDatas := make([][]byte, 0)
 	filteredExternalIds := make([]uuid.UUID, 0)
 
+	var filteredPayloadReferenceIds []*uuid.UUID
+
 	for i := range len(datas) {
 		if !isCurrentRetry[i] {
 			continue
@@ -3677,6 +3713,10 @@ func (r *sharedRepository) createTaskEventsAfterRelease(
 		filteredTaskIdRetryCounts = append(filteredTaskIdRetryCounts, taskIdRetryCounts[i])
 		filteredDatas = append(filteredDatas, datas[i])
 		filteredExternalIds = append(filteredExternalIds, externalIds[i])
+
+		if payloadReferenceIds != nil {
+			filteredPayloadReferenceIds = append(filteredPayloadReferenceIds, payloadReferenceIds[i])
+		}
 	}
 
 	return r.createTaskEvents(
@@ -3690,6 +3730,7 @@ func (r *sharedRepository) createTaskEventsAfterRelease(
 		make([]string, len(filteredExternalIds)),
 		taskIdToIdempotencyKey,
 		nil,
+		filteredPayloadReferenceIds,
 	)
 }
 
@@ -3742,10 +3783,11 @@ func taskEventDataStoreOpts(tenantId uuid.UUID, taskEvent *sqlcv1.V1TaskEvent, d
 		fallthrough
 	default:
 		return PayloadRef[TaskCompletionEventShape]{
-			Id:         taskEvent.ID,
-			InsertedAt: taskEvent.InsertedAt,
-			ExternalId: taskEvent.ExternalID,
-			TenantId:   tenantId,
+			Id:                 taskEvent.ID,
+			InsertedAt:         taskEvent.InsertedAt,
+			ExternalId:         taskEvent.ExternalID,
+			TenantId:           tenantId,
+			PayloadReferenceId: taskEvent.PayloadReferenceID,
 		}.StoreOpts(NewPayload[TaskCompletionEventShape](data))
 	}
 }
@@ -3761,6 +3803,7 @@ func (r *sharedRepository) createTaskEvents(
 	eventKeys []string,
 	taskIdToIdempotencyKey map[int64]string,
 	childExternalIdsByIndex []*uuid.UUID,
+	payloadReferenceIdsByIndex []*uuid.UUID,
 ) ([]InternalTaskEvent, error) {
 	if len(tasks) != len(eventDatas) {
 		return nil, fmt.Errorf("mismatched task and event data lengths")
@@ -3768,6 +3811,10 @@ func (r *sharedRepository) createTaskEvents(
 
 	if childExternalIdsByIndex != nil && len(childExternalIdsByIndex) != len(tasks) {
 		return nil, fmt.Errorf("mismatched task and child external id lengths")
+	}
+
+	if payloadReferenceIdsByIndex != nil && len(payloadReferenceIdsByIndex) != len(tasks) {
+		return nil, fmt.Errorf("mismatched task and payload reference id lengths")
 	}
 
 	// the common insert path (every task born QUEUED) has no events to write: skip the
@@ -3784,6 +3831,7 @@ func (r *sharedRepository) createTaskEvents(
 	paramKeys := make([]pgtype.Text, len(tasks))
 	externalIds := make([]uuid.UUID, len(tasks))
 	childExternalIds := make([]uuid.UUID, len(tasks))
+	payloadReferenceIds := make([]uuid.UUID, len(tasks))
 
 	internalTaskEvents := make([]InternalTaskEvent, len(tasks))
 
@@ -3803,6 +3851,12 @@ func (r *sharedRepository) createTaskEvents(
 			childExternalIds[i] = *childExternalIdsByIndex[i]
 		} else {
 			childExternalIds[i] = uuid.Nil
+		}
+
+		if payloadReferenceIdsByIndex != nil && payloadReferenceIdsByIndex[i] != nil {
+			payloadReferenceIds[i] = *payloadReferenceIdsByIndex[i]
+		} else {
+			payloadReferenceIds[i] = uuid.Nil
 		}
 
 		// important: if we don't set this to `eventDatas[i]` and instead allow it to be nil optionally
@@ -3842,15 +3896,16 @@ func (r *sharedRepository) createTaskEvents(
 	}
 
 	taskEvents, err := r.queries.CreateTaskEvents(ctx, dbtx, sqlcv1.CreateTaskEventsParams{
-		Tenantid:         tenantId,
-		Taskids:          taskIds,
-		Taskinsertedats:  taskInsertedAts,
-		Retrycounts:      retryCounts,
-		Eventtypes:       eventTypesStrs,
-		Datas:            paramDatas,
-		Eventkeys:        paramKeys,
-		Externalids:      externalIds,
-		Childexternalids: childExternalIds,
+		Tenantid:            tenantId,
+		Taskids:             taskIds,
+		Taskinsertedats:     taskInsertedAts,
+		Retrycounts:         retryCounts,
+		Eventtypes:          eventTypesStrs,
+		Datas:               paramDatas,
+		Eventkeys:           paramKeys,
+		Externalids:         externalIds,
+		Childexternalids:    childExternalIds,
+		Payloadreferenceids: payloadReferenceIds,
 	})
 
 	if err != nil {
@@ -4035,10 +4090,11 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 
 	for i, task := range lockedTasks {
 		retrieveOpts[i] = PayloadRef[TaskInputShape]{
-			Id:         task.ID,
-			InsertedAt: task.InsertedAt,
-			TenantId:   tenantId,
-			ExternalId: task.ExternalID,
+			Id:                 task.ID,
+			InsertedAt:         task.InsertedAt,
+			TenantId:           tenantId,
+			ExternalId:         task.ExternalID,
+			PayloadReferenceId: task.PayloadReferenceID,
 		}
 	}
 
@@ -4120,10 +4176,11 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 		}
 
 		retrieveOpt := PayloadRef[TaskInputShape]{
-			Id:         task.ID,
-			InsertedAt: task.InsertedAt,
-			TenantId:   tenantId,
-			ExternalId: task.ExternalID,
+			Id:                 task.ID,
+			InsertedAt:         task.InsertedAt,
+			TenantId:           tenantId,
+			ExternalId:         task.ExternalID,
+			PayloadReferenceId: task.PayloadReferenceID,
 		}
 
 		input := RetrievePayloadOrFallback(payloads, retrieveOpt, task.Input)
@@ -4653,10 +4710,11 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 		}
 
 		opt := PayloadRef[TaskCompletionEventShape]{
-			Id:         outputTask.TaskEventID,
-			InsertedAt: outputTask.TaskEventInsertedAt,
-			TenantId:   tenantId,
-			ExternalId: outputTask.OutputEventExternalID,
+			Id:                 outputTask.TaskEventID,
+			InsertedAt:         outputTask.TaskEventInsertedAt,
+			TenantId:           tenantId,
+			ExternalId:         outputTask.OutputEventExternalID,
+			PayloadReferenceId: outputTask.OutputEventPayloadReferenceID,
 		}
 
 		retrieveOpts = append(retrieveOpts, opt)
@@ -5315,10 +5373,11 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 
 	if isDag {
 		dagInputRef := PayloadRef[DAGInputShape]{
-			Id:         firstTask.DagID.Int64,
-			InsertedAt: firstTask.DagInsertedAt,
-			TenantId:   tenantId,
-			ExternalId: firstTask.WorkflowRunExternalID,
+			Id:                 firstTask.DagID.Int64,
+			InsertedAt:         firstTask.DagInsertedAt,
+			TenantId:           tenantId,
+			ExternalId:         firstTask.WorkflowRunExternalID,
+			PayloadReferenceId: firstTask.DagPayloadReferenceID,
 		}
 
 		dagInput, err := r.payloadStore.DAGInputs().RetrieveOne(ctx, r.pool, dagInputRef)
@@ -5330,10 +5389,11 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 		input = dagInput.Bytes()
 	} else {
 		taskInputRef := PayloadRef[TaskInputShape]{
-			Id:         firstTask.ID,
-			InsertedAt: firstTask.InsertedAt,
-			TenantId:   tenantId,
-			ExternalId: firstTask.ExternalID,
+			Id:                 firstTask.ID,
+			InsertedAt:         firstTask.InsertedAt,
+			TenantId:           tenantId,
+			ExternalId:         firstTask.ExternalID,
+			PayloadReferenceId: firstTask.PayloadReferenceID,
 		}
 
 		taskInput, err := r.payloadStore.TaskInputs().RetrieveOne(ctx, r.pool, taskInputRef)

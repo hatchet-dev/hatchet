@@ -726,6 +726,21 @@ func (tc *OLAPControllerImpl) emitWorkflowRunRootSpans(ctx context.Context, tena
 	tc.writeEngineSpans(ctx, tenantId, spans, "dag-root")
 }
 
+// eventPayloadCopy is empty when the message carries no event payload, which is how engines that read event
+// payloads from the core payload store publish it.
+func eventPayloadCopy(payload tasktypes.CreatedEventTriggerPayloadSingleton) v1.StoreOLAPPayloadOpts {
+	payloadCopy := v1.StoreOLAPPayloadOpts{
+		ExternalId: payload.EventExternalId,
+		InsertedAt: sqlchelpers.TimestamptzFromTime(payload.EventSeenAt),
+	}
+
+	if len(payload.EventPayload) > 0 {
+		payloadCopy.Payload = v1.NewPayload[v1.UserEventInputShape](payload.EventPayload)
+	}
+
+	return payloadCopy
+}
+
 func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
 	msgs := msgqueue.JSONConvert[tasktypes.CreatedEventTriggerPayload](payloads)
 
@@ -746,7 +761,8 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 	externalIds := make([]uuid.UUID, 0)
 	seenAts := make([]pgtype.Timestamptz, 0)
 	keys := make([]string, 0)
-	payloadstoInsert := make([][]byte, 0)
+	payloadReferenceIds := make([]*uuid.UUID, 0)
+	eventPayloadCopies := make([]v1.StoreOLAPPayloadOpts, 0)
 	additionalMetadatas := make([][]byte, 0)
 	scopes := make([]pgtype.Text, 0)
 	triggeringWebhookNames := make([]pgtype.Text, 0)
@@ -785,7 +801,8 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 			externalIds = append(externalIds, payload.EventExternalId)
 			seenAts = append(seenAts, sqlchelpers.TimestamptzFromTime(payload.EventSeenAt))
 			keys = append(keys, payload.EventKey)
-			payloadstoInsert = append(payloadstoInsert, payload.EventPayload)
+			payloadReferenceIds = append(payloadReferenceIds, payload.PayloadReferenceId)
+			eventPayloadCopies = append(eventPayloadCopies, eventPayloadCopy(payload))
 			additionalMetadatas = append(additionalMetadatas, payload.EventAdditionalMetadata)
 			scopes = append(scopes, sqlchelpers.TextFromMaybeStr(payload.EventScope))
 			triggeringWebhookNames = append(triggeringWebhookNames, sqlchelpers.TextFromMaybeStr(payload.TriggeringWebhookName))
@@ -800,14 +817,13 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 		Additionalmetadatas:    additionalMetadatas,
 		Scopes:                 scopes,
 		TriggeringWebhookNames: triggeringWebhookNames,
+		PayloadReferenceIds:    payloadReferenceIds,
 	}
 
 	if err := tc.repo.OLAP().BulkCreateEventsAndTriggers(
 		ctx,
-		v1.BulkCreateEventsAndTriggersParams{
-			BulkCreateEventsOLAPParams: &bulkCreateEventParams,
-			Payloads:                   payloadstoInsert,
-		},
+		bulkCreateEventParams,
+		eventPayloadCopies,
 		bulkCreateTriggersParams,
 	); err != nil {
 		return err
@@ -1095,6 +1111,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 			AdditionalEventMessage: sqlchelpers.TextFromStr(eventMessages[i]),
 			ExternalID:             eventExternalIds[i],
 			IsDagOrchestrator:      taskIdsToMetas[taskId].IsDagOrchestrator,
+			PayloadReferenceID:     externalIdToMsg[eventExternalIds[i]].PayloadReferenceId,
 		}
 
 		switch eventTypes[i] {
