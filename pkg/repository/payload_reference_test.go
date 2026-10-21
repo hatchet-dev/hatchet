@@ -230,3 +230,59 @@ func TestCompletedTaskStoresItsOutputUnderThePayloadReferenceId(t *testing.T) {
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"result": 42}`, string(olapPayloads[olapEventExternalId]), "OLAP reads the bare output out of the referenced completion event")
 }
+
+func TestDuplicateCompletionReportsInOneBatchEachStoreTheirOutputUnderTheirOwnReference(t *testing.T) {
+	pool, cleanup := setupPostgresWithMigration(t)
+	t.Cleanup(func() { cleanup() })
+
+	repo := newBatchTestRepository(pool)
+	shared := repo.sharedRepository
+	ctx := context.Background()
+
+	workflows := &workflowRepository{sharedRepository: shared}
+	workflowOpts := minimalWorkflowOpts("duplicate-completion-reports", "v1", nil)
+
+	_, err := workflows.PutWorkflowVersion(ctx, internalTenantId, workflowOpts)
+	require.NoError(t, err)
+
+	tasks, _, _, _, err := newTriggerRepository(shared).TriggerFromWorkflowNames(ctx, internalTenantId, []*WorkflowNameTriggerOpts{
+		{
+			TriggerTaskData: &TriggerTaskData{
+				WorkflowName: workflowOpts.Name,
+				Data:         []byte(`{}`),
+			},
+			ExternalId: uuid.New(),
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, tasks, 1)
+
+	task := tasks[0]
+	taskIdRetryCount := &TaskIdInsertedAtRetryCount{
+		Id:         task.ID,
+		InsertedAt: task.InsertedAt,
+		RetryCount: task.RetryCount,
+	}
+
+	firstReportReferenceId := NewPayloadReferenceId()
+	secondReportReferenceId := NewPayloadReferenceId()
+
+	res, err := repo.CompleteTasks(ctx, internalTenantId, []CompleteTaskOpts{
+		{TaskIdInsertedAtRetryCount: taskIdRetryCount, Output: []byte(`{"result": 42}`), PayloadReferenceId: &firstReportReferenceId},
+		{TaskIdInsertedAtRetryCount: taskIdRetryCount, Output: []byte(`{"result": 42}`), PayloadReferenceId: &secondReportReferenceId},
+	})
+	require.NoError(t, err)
+	assert.Len(t, res.ReleasedTasks, 1)
+
+	for _, referenceId := range []uuid.UUID{firstReportReferenceId, secondReportReferenceId} {
+		byReference, err := shared.payloadStore.TaskCompletionEvents().RetrieveOne(ctx, pool, PayloadRef[TaskCompletionEventShape]{
+			TenantId:           internalTenantId,
+			PayloadReferenceId: &referenceId,
+		})
+		require.NoError(t, err)
+
+		completionEvent, err := DecodeTaskCompletionEventPayload(byReference)
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"result": 42}`, string(completionEvent.Output))
+	}
+}

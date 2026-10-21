@@ -906,15 +906,9 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId uuid.UU
 	// 	return err
 	// }
 
-	tasks = listutils.UniqBy(tasks, func(task CompleteTaskOpts) string {
-		return createTaskUniqueKey(*task.TaskIdInsertedAtRetryCount)
-	})
+	taskIdRetryCounts := listutils.Map(tasks, func(task CompleteTaskOpts) TaskIdInsertedAtRetryCount { return *task.TaskIdInsertedAtRetryCount })
 
-	taskIdRetryCounts := make([]TaskIdInsertedAtRetryCount, len(tasks))
-
-	for i, task := range tasks {
-		taskIdRetryCounts[i] = *task.TaskIdInsertedAtRetryCount
-	}
+	uniqueTaskIdRetryCounts := listutils.UniqBy(taskIdRetryCounts, createTaskUniqueKey)
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
 
@@ -928,7 +922,7 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId uuid.UU
 	defer rollback()
 
 	// release queue items
-	releasedTasks, err := r.releaseTasks(ctx, tx, tenantId, taskIdRetryCounts)
+	releasedTasks, err := r.releaseTasks(ctx, tx, tenantId, uniqueTaskIdRetryCounts)
 
 	if err != nil {
 		err = fmt.Errorf("failed to release tasks: %w", err)
@@ -937,16 +931,27 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId uuid.UU
 		return nil, err
 	}
 
-	if len(taskIdRetryCounts) != len(releasedTasks) {
+	if len(uniqueTaskIdRetryCounts) != len(releasedTasks) {
 		return nil, fmt.Errorf("failed to release all tasks")
 	}
 
-	outputs := make([][]byte, len(releasedTasks))
-	payloadReferenceIds := make([]*uuid.UUID, len(releasedTasks))
+	releasedTasksByKey := make(map[string]*sqlcv1.ReleaseTasksRow, len(releasedTasks))
 
 	for i, releasedTask := range releasedTasks {
-		task := tasks[i] // #nosec G602 -- releaseTasks returns one row per input task, checked above
+		releasedTasksByKey[createTaskUniqueKey(uniqueTaskIdRetryCounts[i])] = releasedTask
+	}
 
+	// the SDKs retry failed completion sends, so one attempt can be reported more than once, and the
+	// dispatcher gives each report a new payload reference. OLAP may keep any of those references, so
+	// every report gets its own completion event and stored payload
+	releasedTaskPerReport := make([]*sqlcv1.ReleaseTasksRow, len(tasks))
+	outputs := make([][]byte, len(tasks))
+	payloadReferenceIds := make([]*uuid.UUID, len(tasks))
+
+	for i, task := range tasks {
+		releasedTask := releasedTasksByKey[createTaskUniqueKey(taskIdRetryCounts[i])]
+
+		releasedTaskPerReport[i] = releasedTask
 		outputs[i] = NewCompletedTaskOutputEvent(releasedTask, task.Output).Bytes()
 		payloadReferenceIds[i] = task.PayloadReferenceId
 	}
@@ -958,7 +963,7 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId uuid.UU
 		taskIdRetryCounts,
 		outputs,
 		payloadReferenceIds,
-		releasedTasks,
+		releasedTaskPerReport,
 		sqlcv1.V1TaskEventTypeCOMPLETED,
 	)
 
