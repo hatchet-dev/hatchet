@@ -1,8 +1,15 @@
 module Hatchet
   module Connection
     DEFAULT_CHANNEL_OPTIONS: Hash[String, Integer]
+    COMPROMISED_ROOT_FINGERPRINTS: Array[String]
+    CERTIFICATE_PEM_PATTERN: Regexp
+    TRUTHY_ENV_VALUES: Array[String]
 
     def self.new_channel: (Config config) -> untyped
     def self.build_credentials: (TLSConfig tls_config) -> untyped
+    def self.use_filtered_default_roots?: () -> bool
+    def self.filtered_default_roots: () -> String?
+    def self.load_filtered_roots: () -> String?
+    def self.grpc_roots_path: () -> String?
   end
 end

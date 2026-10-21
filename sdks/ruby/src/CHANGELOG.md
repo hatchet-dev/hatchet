@@ -5,6 +5,12 @@ All notable changes to Hatchet's Ruby SDK will be documented in this changelog.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.1] - 2026-10-22
+
+### Security
+
+- gRPC connections no longer trust the eMudhra-affected roots (`emSign ECC Root CA - G3` and `AAA Certificate Services`) from grpc's bundled root store (CVE-2026-111943). REST requests (Faraday / Net::HTTP) use the OS trust store, so update your OS `ca-certificates` package. If you set `HATCHET_CLIENT_TLS_ROOT_CA_FILE` or `GRPC_DEFAULT_SSL_ROOTS_FILE_PATH`, point it at an updated bundle.
+
 ## [0.10.0] - 2026-10-08
 
 ### Added
