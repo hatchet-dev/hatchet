@@ -3543,6 +3543,14 @@ func (r *OLAPRepositoryImpl) readPayloadsFromCoreStore(ctx context.Context, tena
 		raw, found := corePayloads[coreOpts[opt.ExternalId]]
 
 		if !found {
+			if opt.PayloadReferenceId != nil {
+				r.l.Warn().Ctx(ctx).
+					Str("tenant_id", tenantId.String()).
+					Str("external_id", opt.ExternalId.String()).
+					Str("payload_reference_id", opt.PayloadReferenceId.String()).
+					Msg("referenced payload not found in core payload store")
+			}
+
 			continue
 		}
 
