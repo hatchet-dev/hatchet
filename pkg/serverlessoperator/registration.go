@@ -298,6 +298,8 @@ func (reg *registration) HandleAction(ctx context.Context, action *contracts.Ass
 	case contracts.ActionType_CANCEL_STEP_RUN:
 		reg.cancelTask(action)
 		return nil
+	case contracts.ActionType_START_GET_GROUP_KEY, contracts.ActionType_START_BATCH:
+		fallthrough
 	default:
 		reg.r.l.Warn().
 			Str("action_type", action.ActionType.String()).

@@ -761,6 +761,8 @@ func errorCode(t v1.DurableTaskErrorType) string {
 	switch t {
 	case v1.DurableTaskErrorType_DURABLE_TASK_ERROR_TYPE_NONDETERMINISM:
 		return contract.ErrorCodeNonDeterminism
+	case v1.DurableTaskErrorType_DURABLE_TASK_ERROR_TYPE_UNSPECIFIED:
+		fallthrough
 	default:
 		return contract.ErrorCodeUnspecified
 	}

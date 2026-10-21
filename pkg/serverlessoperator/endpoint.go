@@ -78,6 +78,7 @@ func (e catalogRejected) Unwrap() error { return e.err }
 // retries with the same catalog. Both hosts carry the engine's code: the in-process host as
 // a connect error, the gRPC host as a gRPC status.
 func isWorkflowRefusal(err error) bool {
+	//exhaustive:ignore
 	switch connect.CodeOf(err) {
 	case connect.CodeInvalidArgument, connect.CodeFailedPrecondition, connect.CodeAlreadyExists,
 		connect.CodePermissionDenied, connect.CodeUnauthenticated, connect.CodeUnimplemented,
@@ -86,6 +87,7 @@ func isWorkflowRefusal(err error) bool {
 	}
 
 	if st, ok := status.FromError(err); ok {
+		//exhaustive:ignore
 		switch st.Code() {
 		case codes.InvalidArgument, codes.FailedPrecondition, codes.AlreadyExists,
 			codes.PermissionDenied, codes.Unauthenticated, codes.Unimplemented, codes.OutOfRange:
