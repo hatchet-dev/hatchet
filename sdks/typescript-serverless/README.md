@@ -5,11 +5,10 @@ same API as the Hatchet TypeScript SDK, hand them to a runtime adapter, and regi
 endpoint with Hatchet. The Hatchet serverless operator polls the endpoint for the workflows it
 serves and delivers runs to it over signed HTTPS requests.
 
-Status: preview, not yet published. This version serves non-durable and durable tasks on
-Cloudflare Workers, Vercel (Next.js App Router or a standalone function) and a Node server you
-run yourself, with an optional Hatchet client for child runs, streams and logs. The
-`hatchet serverless` CLI commands and the management module are the next
-phases.
+Status: 0.1.0. This version serves non-durable and durable tasks on Cloudflare Workers, Vercel
+(Next.js App Router or a standalone function) and a Node server you run yourself, with an
+optional Hatchet client for child runs, streams and logs. The `hatchet serverless` CLI commands
+and the management module are the next phases.
 
 ## The client, and what `ctx` can do
 
@@ -41,6 +40,7 @@ With a client:
 | `ctx.runNoWaitChild`, `ctx.bulkRunNoWaitChildren`, `ctx.spawnWorkflow*` | one unary `TriggerWorkflow` per child through the client, with the parent run, index and key set                                                            |
 | `ctx.runChild`, `ctx.bulkRunChildren`, `ref.result()` inside a task     | the trigger as above; the result is awaited on the invocation websocket, where the operator relays one `SubscribeToWorkflowRuns` engine stream for the task |
 | `ctx.putStream`, `ctx.cancel`                                           | `PutStreamEvent` and `CancelTasks` through the client                                                                                                       |
+| `clientFromContext(ctx)`                                                | the client itself, for what `ctx` has no member for: `client.streams.publish(topic, message)` to a durable stream, `client.events.push`, `client.runNoWait` |
 | `ctx.log`                                                               | the console, and the line is written to the engine too                                                                                                      |
 | `ctx.refreshTimeout`, `ctx.releaseSlot`, `ctx.worker.labels`            | still throw: there is no worker                                                                                                                             |
 
@@ -84,8 +84,8 @@ handler ignores.
 pnpm add @hatchet-dev/serverless @hatchet-dev/typescript-sdk zod
 ```
 
-`@hatchet-dev/typescript-sdk` (1.34.0-alpha.2 or later, for its `/core` entry) and `zod` are
-peer dependencies: the SDK supplies the declaration API, `Context`, the registration format and
+`@hatchet-dev/typescript-sdk` (1.39.0 or later, for its `/core` entry and its durable stream
+calls) and `zod` are peer dependencies: the SDK supplies the declaration API, `Context`, the registration format and
 the core client, nothing else.
 
 ## Declare tasks
@@ -475,14 +475,16 @@ re-invokes the task later. Every engine stream the task holds is closed before t
 
 ## Development
 
-The package depends on the SDK's build output (`file:../typescript/dist`) while 1.32 is
-unreleased, so build the SDK first and reinstall after every SDK rebuild:
+The package depends on the SDK's build output (`file:../typescript/dist`), so that it is
+developed against the SDK in this repository; build the SDK first and reinstall after every
+SDK rebuild:
 
 ```sh
 pnpm run build:sdk        # builds ../typescript/dist, which pnpm copies into node_modules
 pnpm install
 pnpm lint && pnpm typecheck && pnpm test
 pnpm check:edge           # builds with tsup, then proves the runtime entries reach no Node built-in
+pnpm run publish          # the four steps above, then `pnpm publish`
 ```
 
 ### Generated code

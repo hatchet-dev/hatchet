@@ -7,10 +7,12 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "tail": "wrangler tail --format pretty",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "consume-stream": "node --env-file-if-exists=.dev.vars scripts/consume-stream.ts"
   },
   "dependencies": {
-    "@hatchet-dev/serverless": "link:../../../sdks/typescript-serverless"
+    "@hatchet-dev/serverless": "link:../../../sdks/typescript-serverless",
+    "@hatchet-dev/typescript-sdk": "file:../../../sdks/typescript/dist"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250906.0",

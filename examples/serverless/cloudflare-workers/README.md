@@ -18,6 +18,10 @@ and delivers assigned tasks to it over signed HTTPS requests.
   `ctx.runChild`. Awaiting needs the invocation websocket, so the task is declared with
   `streams: true` and the operator dials it instead of POSTing it; the task waits inline and
   never evicts.
+- `stream-progress`: a non-durable task that publishes a handful of progress messages to a
+  durable stream topic through the Worker's Hatchet client (`clientFromContext(ctx)` and
+  `client.streams.publish`) and returns the topic; `scripts/consume-stream.ts` reads the topic
+  with the Node SDK.
 
 The operator registers the workflows under the names declared here, the way a worker would, so
 `echo` is triggered as `echo` and its action id is `echo:echo`.
@@ -28,6 +32,7 @@ The operator registers the workflows under the names declared here, the way a wo
 |---|---|
 | `src/tasks.ts` | The declarations, written with `hatchet.task` and `hatchet.durableTask` from `@hatchet-dev/serverless`; `streams: true` on `parent-echo` asks for the websocket. The same file works on a regular worker. |
 | `src/index.ts` | `export default cloudflare({ workflows, client })`: the adapter serves `POST /hatchet/healthcheck`, `POST /hatchet/trigger` and the invocation websocket upgrade on `/hatchet/trigger`, reads the signing secret from `env.HATCHET_SIGNING_SECRET`, and builds the tasks' Hatchet client from `env.HATCHET_CLIENT_TOKEN` (plus `env.HATCHET_CLIENT_SERVER_URL` for a local engine). |
+| `scripts/consume-stream.ts` | Prints what a `stream-progress` run published, with the Node SDK's `hatchet.streams.events(topic)`; `pnpm run consume-stream <topic>`. |
 | `wrangler.toml` | Worker config. `limits.cpu_ms = 300000` raises the CPU budget to the 5 minute maximum (Workers Paid plan). |
 
 The wire contract is `api-contracts/v1/serverless.proto` (every request, response and websocket
@@ -37,8 +42,9 @@ generates its types from the proto, so nothing here is hand-written.
 
 ## Build the package first
 
-`@hatchet-dev/serverless` is not published yet; this example links it from the repository, and
-the package links the TypeScript SDK from its build output. From the repository root:
+This example links `@hatchet-dev/serverless` from the repository rather than npm, so the two
+stay in step, and both it and the package take the TypeScript SDK from its build output. From
+the repository root:
 
 ```sh
 cd sdks/typescript && pnpm install && pnpm tsc:build && pnpm prepublish
@@ -57,7 +63,8 @@ The Worker holds two secrets:
 - `HATCHET_CLIENT_TOKEN`, a tenant API token. The adapter builds the tasks' Hatchet client from
   it (`@hatchet-dev/typescript-sdk/core`, unary calls over `fetch`), which is what
   `ctx.runChild`, `ctx.putStream`, `ctx.cancel` and `ctx.log` use. Without it those members
-  throw and `parent-echo` fails without retry; `echo` and `sleep-then-echo` need no client.
+  throw and `parent-echo` and `stream-progress` fail without retry; `echo` and `sleep-then-echo`
+  need no client.
   The operator never sends a token to the Worker; the token is configured here, like the
   signing secret. The child's result is not fetched with the token: the task awaits it on the
   invocation websocket, where the operator relays the engine stream with its own credentials.
@@ -127,8 +134,9 @@ SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$SIGNING_SECRET" | awk '
 curl -s -X POST http://localhost:8787/hatchet/healthcheck -H "X-Hatchet-Signature: $SIG" -d "$BODY" | jq .
 ```
 
-Expected: `workflows` with `echo`, `sleep-then-echo` and `parent-echo`, `actions` equal to
-`["echo:echo", "parent-echo:parent-echo", "sleep-then-echo:sleep-then-echo"]`,
+Expected: `workflows` with `echo`, `sleep-then-echo`, `parent-echo` and `stream-progress`,
+`actions` equal to
+`["echo:echo", "parent-echo:parent-echo", "sleep-then-echo:sleep-then-echo", "stream-progress:stream-progress"]`,
 `durable.supported: true`, `tasks: [{"action": "parent-echo:parent-echo", "streams": true}]`
 (the task the operator invokes over the websocket) and `runtime.name: "cloudflare-workers"`. An
 unsigned POST answers `401 {"error": "bad signature"}`.
@@ -182,7 +190,7 @@ Within about 15 seconds the operator has polled the healthcheck and registered t
 ```sh
 curl -s $API/api/v1/stable/serverless/endpoints/$ENDPOINT_ID \
   -H "Authorization: Bearer $HATCHET_CLIENT_TOKEN" | jq .status
-# {"healthy": true, "registeredActions": ["echo:echo", "parent-echo:parent-echo", "sleep-then-echo:sleep-then-echo"], ...}
+# {"healthy": true, "registeredActions": ["echo:echo", "parent-echo:parent-echo", "sleep-then-echo:sleep-then-echo", "stream-progress:stream-progress"], ...}
 ```
 
 `status.error` names the problem when `healthy` is false (a 401 means the endpoint's
@@ -218,6 +226,35 @@ the socket, and the output is `{"echo": "hello", "child": {"echo": "hello (from 
 `422` with `configure \`client\`` in the endpoint's error means `HATCHET_CLIENT_TOKEN` is not
 set in `.dev.vars`; one naming `streams: true` means the task was POSTed, so the operator did
 not read the flag from the healthcheck yet (it polls every `pollIntervalSeconds`).
+
+### 5b. Read a durable stream
+
+`stream-progress` publishes five progress messages and a final `{"done": true}` to a durable
+stream topic through the Worker's client, and returns the topic. Trigger it, then follow the
+topic from this machine with the Node SDK (`scripts/consume-stream.ts`, run by Node 22 directly;
+`--env-file-if-exists=.dev.vars` gives it the token and the local engine address, under which
+it turns TLS off the way the Worker does):
+
+```sh
+curl -s -X POST $API/api/v1/stable/tenants/$TENANT_ID/workflow-runs/trigger \
+  -H "Authorization: Bearer $HATCHET_CLIENT_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"workflowName": "stream-progress", "input": {}}' | jq -r .run.metadata.id
+sleep 3
+curl -s $API/api/v1/stable/workflow-runs/<run id> \
+  -H "Authorization: Bearer $HATCHET_CLIENT_TOKEN" | jq -r .run.output.topic
+# progress-<run id>
+pnpm run consume-stream progress-<run id>
+# {"step":1,"of":5,"message":"step 1 of 5"}
+# ...
+# {"done":true}
+```
+
+The input takes `topic` (the topic to publish to; the default is `progress-<run id>`) and
+`steps` (1 to 20; the default is 5). Reading starts from the oldest retained message, so the
+consumer prints everything whether it starts before or after the run. The task publishes over
+unary calls (`client.streams.publish` on the core client); reading a topic is a server stream,
+which the core client does not carry, so the consumer is a Node script. Without
+`HATCHET_CLIENT_TOKEN` in `.dev.vars` the task fails with `422` and `configure \`client\``.
 
 Or from a Node script with the TypeScript SDK. The local engine serves gRPC without TLS, so the
 client needs `tls_strategy: 'none'` (the SDK defaults to `tls`):

@@ -2,7 +2,7 @@
  * The tasks this endpoint serves. The operator registers them under these names, the way a
  * worker would (`echo`, action `echo:echo`), so they are triggered by the names declared here.
  */
-import { hatchet } from "@hatchet-dev/serverless";
+import { clientFromContext, hatchet } from "@hatchet-dev/serverless";
 
 /** Non-durable: returns its input with the run id and retry count from the context. */
 export const echo = hatchet.task({
@@ -64,4 +64,32 @@ export const parentEcho = hatchet.task({
   },
 });
 
-export const workflows = [echo, sleepThenEcho, parentEcho];
+/**
+ * Non-durable, plain POST: publishes a handful of progress messages to a durable stream topic
+ * through the Worker's Hatchet client (`clientFromContext(ctx)`, the same core client
+ * `ctx.runChild` triggers through) and returns the topic. The topic is the input's `topic` or
+ * one derived from the run id, so a consumer can follow a run it triggered:
+ * `scripts/consume-stream.ts` reads it with the Node SDK's `hatchet.streams.events(topic)`.
+ * Without HATCHET_CLIENT_TOKEN the client call throws and the task fails without retry.
+ */
+export const streamProgress = hatchet.task({
+  name: "stream-progress",
+  fn: async (input: { topic?: string; steps?: number }, ctx) => {
+    const client = clientFromContext(ctx);
+    const topic = input.topic ?? `progress-${ctx.workflowRunId()}`;
+    const steps = Math.min(Math.max(input.steps ?? 5, 1), 20);
+
+    for (let step = 1; step <= steps; step += 1) {
+      await client.streams.publish(
+        topic,
+        JSON.stringify({ step, of: steps, message: `step ${step} of ${steps}` }),
+      );
+    }
+
+    await client.streams.publish(topic, JSON.stringify({ done: true }));
+
+    return { topic, published: steps + 1 };
+  },
+});
+
+export const workflows = [echo, sleepThenEcho, parentEcho, streamProgress];

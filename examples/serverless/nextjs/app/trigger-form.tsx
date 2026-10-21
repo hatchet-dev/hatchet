@@ -16,6 +16,7 @@ export function TriggerForm() {
         <select name="task" defaultValue="echo">
           <option value="echo">echo</option>
           <option value="sleep-then-echo">sleep-then-echo (durable)</option>
+          <option value="stream-progress">stream-progress (durable stream)</option>
         </select>
       </label>{" "}
       <label>

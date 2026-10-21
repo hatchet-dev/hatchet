@@ -1,6 +1,6 @@
 {
   "name": "@hatchet-dev/serverless",
-  "version": "0.1.0-alpha.3",
+  "version": "0.1.0",
   "private": false,
   "description": "Serve Hatchet tasks from serverless runtimes without a worker process",
   "license": "MIT",
@@ -69,10 +69,10 @@
     "prettier:check": "prettier \"src/**/*.ts\" \"scripts/**/*.mjs\" \"*.md\" --list-different",
     "prettier:fix": "prettier \"src/**/*.ts\" \"scripts/**/*.mjs\" \"*.md\" --write",
     "generate-proto": "./generate-proto.sh",
-    "publish:alpha": "pnpm run build:sdk && pnpm install && pnpm run lint && pnpm run test && pnpm run build && pnpm publish --access public --tag alpha --no-git-checks"
+    "publish": "pnpm run build:sdk && pnpm install && pnpm run lint && pnpm run test && pnpm run build && pnpm publish --access public --no-git-checks"
   },
   "peerDependencies": {
-    "@hatchet-dev/typescript-sdk": "^1.34.0-alpha.2",
+    "@hatchet-dev/typescript-sdk": "^1.39.0",
     "@vercel/functions": ">=3.9.0",
     "ws": ">=8",
     "zod": "^3.25.0 || ^4.0.0"
@@ -112,7 +112,6 @@
     "zod": "^4.0.0"
   },
   "publishConfig": {
-    "access": "public",
-    "tag": "alpha"
+    "access": "public"
   }
 }

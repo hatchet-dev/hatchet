@@ -17,8 +17,12 @@ delivers assigned tasks to it over signed HTTPS requests.
   Hatchet client (built from `HATCHET_CLIENT_TOKEN`) and awaits the result on the invocation
   websocket, so it is declared with `streams: true` and the operator invokes it over the socket.
   It never evicts: it waits inline, as invocation 1.
+- `stream-progress`: a non-durable task that publishes a handful of progress messages to a
+  durable stream topic through the endpoint's Hatchet client (`clientFromContext(ctx)` and
+  `client.streams.publish`) and returns the topic; `scripts/consume-stream.ts` reads the topic
+  with the Node SDK.
 
-The three tasks are the same as in `examples/serverless/cloudflare-workers`, with the same
+The four tasks are the same as in `examples/serverless/cloudflare-workers`, with the same
 names and outputs, so one endpoint registration works for either runtime.
 
 ## Demo triggers are not protected
@@ -40,7 +44,8 @@ route you keep. The message is capped at 200 characters.
 | `hatchet/tasks.ts`                       | The declarations, written with `hatchet.task` and `hatchet.durableTask` from `@hatchet-dev/serverless`; `streams: true` on `parent-echo` asks for the websocket. The same file works on a regular worker.                          |
 | `app/api/hatchet/[...hatchet]/route.ts`  | `export const { GET, POST } = vercel({ workflows })`: `POST` serves the healthcheck and non-durable triggers, `GET` the durable websocket upgrade; the secret comes from `HATCHET_SIGNING_SECRET`. `maxDuration` caps one invocation. |
 | `hatchet/client.ts`                      | The SDK's core client (`@hatchet-dev/typescript-sdk/core`, Connect over fetch, no gRPC) built from `HATCHET_CLIENT_TOKEN` and friends. Only the triggering side has the token.                                                       |
-| `app/actions.ts`, `app/trigger-form.tsx` | A server action that triggers `echo` or `sleep-then-echo` and waits for the output, and the form on the page that calls it. A demo trigger (see above).                                                                            |
+| `app/actions.ts`, `app/trigger-form.tsx` | A server action that triggers `echo`, `sleep-then-echo` or `stream-progress` and waits for the output, and the form on the page that calls it. A demo trigger (see above).                                                        |
+| `scripts/consume-stream.ts`              | Prints what a `stream-progress` run published, with the Node SDK's `hatchet.streams.events(topic)`; `pnpm run consume-stream <topic>`.                                                                                              |
 | `app/api/echo/route.ts`                  | `GET /api/echo?message=hello`: the same trigger for curl. A demo trigger (see above).                                                                                                                                                |
 | `hatchet/demo.ts`                        | Whether the demo triggers are on: under `next dev` and `vc dev`, or when `HATCHET_DEMO_TRIGGERS=true`.                                                                                                                                 |
 | `next.config.ts`                         | Keeps the package, the SDK, `ws` and `@vercel/functions` out of the server bundle (`serverExternalPackages`), since the adapter loads the last two at runtime.                                                                          |
@@ -52,8 +57,8 @@ from the proto.
 
 ## Build the package first
 
-`@hatchet-dev/serverless` is not published yet; this example links it from the repository, and
-both it and the example take the TypeScript SDK from its build output. From the repository root:
+This example depends on `@hatchet-dev/serverless` and the TypeScript SDK packed from the
+repository rather than npm, so the three stay in step. From the repository root:
 
 ```sh
 cd sdks/typescript && pnpm install && pnpm tsc:build && pnpm prepublish
@@ -147,8 +152,10 @@ SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$SIGNING_SECRET" | awk '
 curl -s -X POST http://localhost:3000/api/hatchet/healthcheck -H "X-Hatchet-Signature: $SIG" -d "$BODY" | jq .
 ```
 
-Expected: `workflows` with `echo`, `parent-echo` and `sleep-then-echo`, `actions` equal to
-`["echo:echo", "parent-echo:parent-echo", "sleep-then-echo:sleep-then-echo"]`, `runtime.name: "vercel"` and, under
+Expected: `workflows` with `echo`, `parent-echo`, `sleep-then-echo` and `stream-progress`,
+`actions` equal to
+`["echo:echo", "parent-echo:parent-echo", "sleep-then-echo:sleep-then-echo", "stream-progress:stream-progress"]`,
+`runtime.name: "vercel"` and, under
 `next dev`, `durable: {}` (protojson leaves a false `supported` out). An unsigned POST answers
 `401 {"error": "bad signature"}`.
 
@@ -194,7 +201,7 @@ Within about 15 seconds the operator has polled the healthcheck and registered t
 ```sh
 curl -s $API/api/v1/stable/serverless/endpoints/$ENDPOINT_ID \
   -H "Authorization: Bearer $HATCHET_CLIENT_TOKEN" | jq .status
-# {"healthy": true, "registeredActions": ["echo:echo", "parent-echo:parent-echo", "sleep-then-echo:sleep-then-echo"], ...}
+# {"healthy": true, "registeredActions": ["echo:echo", "parent-echo:parent-echo", "sleep-then-echo:sleep-then-echo", "stream-progress:stream-progress"], ...}
 ```
 
 `status.error` names the problem when `healthy` is false (a 401 means the endpoint's
@@ -202,7 +209,7 @@ curl -s $API/api/v1/stable/serverless/endpoints/$ENDPOINT_ID \
 
 ### 5. Trigger runs
 
-From the app itself: open `http://localhost:3000`, pick `echo`, type a message and press Run.
+From the app itself: open `http://localhost:3000`, pick a task, type a message and press Run.
 The server action triggers the run through the core client and shows the output after the
 operator delivered the task to this same app through the tunnel. Or with curl:
 
@@ -223,6 +230,35 @@ curl -s -X POST $API/api/v1/stable/tenants/$TENANT_ID/workflow-runs/trigger \
 `vc dev` or on Vercel with Fluid compute. Its output is
 `{"echo": "hello", "child": {...}, "startedAt": "...", "finishedAt": "...", "invocation": 2}`
 (or 3 when the child wait evicted too), as described in the Cloudflare example's README.
+
+### 5b. Read a durable stream
+
+`stream-progress` publishes five progress messages and a final `{"done": true}` to a durable
+stream topic through the endpoint's client, and returns the topic. Trigger it (over REST as above,
+or pick it in the form, whose result shows the topic), then follow the topic from this machine with the Node SDK (`scripts/consume-stream.ts`, run by Node 22 directly;
+`--env-file-if-exists=.env.local` gives it the token and the local engine address, under which
+it turns TLS off the way `hatchet/client.ts` does):
+
+```sh
+curl -s -X POST $API/api/v1/stable/tenants/$TENANT_ID/workflow-runs/trigger \
+  -H "Authorization: Bearer $HATCHET_CLIENT_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"workflowName": "stream-progress", "input": {}}' | jq -r .run.metadata.id
+sleep 3
+curl -s $API/api/v1/stable/workflow-runs/<run id> \
+  -H "Authorization: Bearer $HATCHET_CLIENT_TOKEN" | jq -r .run.output.topic
+# progress-<run id>
+pnpm run consume-stream progress-<run id>
+# {"step":1,"of":5,"message":"step 1 of 5"}
+# ...
+# {"done":true}
+```
+
+The input takes `topic` (the topic to publish to; the default is `progress-<run id>`) and
+`steps` (1 to 20; the default is 5). Reading starts from the oldest retained message, so the
+consumer prints everything whether it starts before or after the run. The task publishes over
+unary calls (`client.streams.publish` on the core client); reading a topic is a server stream,
+which the core client does not carry, so the consumer is a Node script. Without
+`HATCHET_CLIENT_TOKEN` in `.env.local` the task fails with `422` and `configure \`client\``.
 
 ### 6. Clean up
 

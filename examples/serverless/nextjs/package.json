@@ -10,7 +10,8 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "vendor": "./scripts/vendor.sh",
-    "deploy": "pnpm run vendor && vercel deploy --prod"
+    "deploy": "pnpm run vendor && vercel deploy --prod",
+    "consume-stream": "node --env-file-if-exists=.env.local scripts/consume-stream.ts"
   },
   "dependencies": {
     "@hatchet-dev/serverless": "file:./vendor/hatchet-dev-serverless.tgz",
