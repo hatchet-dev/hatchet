@@ -42,7 +42,7 @@ jobs:
 
       - name: Build and Publish SDK
         run: |
-          VERSION=$(jq '.version' package.json)
+          VERSION=$(jq -r '.version' package.json)
 
           ## If the version contains `alpha`, it's an alpha version
           ## and we should tag it as such.=
