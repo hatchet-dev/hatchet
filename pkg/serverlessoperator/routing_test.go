@@ -388,7 +388,8 @@ func TestRoutingCacheKeepsCatalogNewerThanRefreshRow(t *testing.T) {
 	assert.Equal(t, []string{"svc:new"}, cfg.registeredActions, "the row read before the write put its older catalog back")
 	assert.Equal(t, []string{"svc:new"}, cfg.streamActions)
 	assert.True(t, cfg.durableSupported)
-	assert.True(t, cfg.updatedAt.Equal(t2), "the cached version is the write's")
+	assert.True(t, cfg.catalogUpdatedAt.Equal(t2), "the catalog keeps the write's stamp")
+	assert.True(t, cfg.updatedAt.Equal(t1), "the row version is taken as read")
 	assert.Equal(t, "a-renamed", cfg.name, "the row's other fields are taken as read")
 
 	union, _ := cache.ActionUnion()
@@ -396,18 +397,24 @@ func TestRoutingCacheKeepsCatalogNewerThanRefreshRow(t *testing.T) {
 	assert.Equal(t, []uuid.UUID{a.ID}, cache.Serving("svc:new"))
 	assert.Empty(t, cache.Serving("svc:old"))
 
-	// The row at the write's own version changes nothing, and a later row applies.
+	// The row at the write's own version brings the settings saved up to the write and keeps
+	// the catalog, and a later row applies.
 	current := stale
+	current.Enabled = false
+	current.TriggerUrl = "https://b.example.test/trigger"
 	current.RegisteredActions = []string{"svc:new"}
 	current.StreamActions = []string{"svc:new"}
 	current.DurableSupported = true
 	current.UpdatedAt = pgtype.Timestamptz{Time: t2, Valid: true}
-	rev := cache.Revision()
 	apply(current)
-	assert.Equal(t, rev, cache.Revision())
+	assert.False(t, config().enabled, "a setting saved before the catalog write is applied by the row at the write's version")
+	assert.Equal(t, "https://b.example.test/trigger", config().triggerUrl)
+	assert.Equal(t, []string{"svc:new"}, config().registeredActions)
+	assert.True(t, config().updatedAt.Equal(t2))
 	assert.Equal(t, "a-renamed", config().name)
 
 	later := current
+	later.Enabled = true
 	later.RegisteredActions = []string{"svc:later"}
 	later.UpdatedAt = pgtype.Timestamptz{Time: t3, Valid: true}
 	apply(later)

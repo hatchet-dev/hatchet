@@ -157,8 +157,13 @@ type endpointConfig struct {
 	registeredActions []string
 	// streamActions is the subset of registeredActions whose task is invoked over the
 	// websocket; sorted, so a lookup is a binary search.
-	streamActions         []string
+	streamActions []string
+	// updatedAt is the row's updated_at as last read; catalogUpdatedAt is the updated_at of
+	// the write that recorded registeredActions, streamActions and durableSupported, which
+	// this process may know before a refresh returns the row. A refresh row older than the
+	// catalog keeps the cached catalog and takes every other field as read.
 	updatedAt             time.Time
+	catalogUpdatedAt      time.Time
 	statusChangedAt       time.Time
 	requestTimeoutSeconds int32
 	pollIntervalSeconds   int32
@@ -657,6 +662,8 @@ func (c *routingCache) upsertLocked(b *batch, row *sqlcv1.V1ServerlessEndpoint) 
 		cfg.updatedAt = row.UpdatedAt.Time
 	}
 
+	cfg.catalogUpdatedAt = cfg.updatedAt
+
 	if row.StatusChangedAt.Valid {
 		cfg.statusChangedAt = row.StatusChangedAt.Time
 	}
@@ -692,13 +699,14 @@ func (c *routingCache) upsertLocked(b *batch, row *sqlcv1.V1ServerlessEndpoint) 
 	}
 
 	// The same for the action set: a catalog this process wrote after the row was read
-	// keeps its set and its updated_at, since the write changed nothing else of the row; the
-	// row's other fields are taken as read.
-	if prev != nil && prev.updatedAt.After(cfg.updatedAt) {
+	// keeps its set and its own stamp, since the write changed nothing else of the row; the
+	// row's other fields and its version are taken as read, so settings saved before the
+	// write still apply and the next row at the write's version is not skipped.
+	if prev != nil && prev.catalogUpdatedAt.After(cfg.updatedAt) {
 		cfg.registeredActions = prev.registeredActions
 		cfg.streamActions = prev.streamActions
 		cfg.durableSupported = prev.durableSupported
-		cfg.updatedAt = prev.updatedAt
+		cfg.catalogUpdatedAt = prev.catalogUpdatedAt
 	}
 
 	b.move(c, ep, prev.contribution(), cfg.contribution())
@@ -1007,8 +1015,8 @@ func (c *routingCache) SetHealthcheck(id uuid.UUID, actions, streamActions []str
 	cfg.streamActions = sortedUnion(streamActions)
 	cfg.durableSupported = durableSupported
 
-	if updatedAt.After(cfg.updatedAt) {
-		cfg.updatedAt = updatedAt
+	if updatedAt.After(cfg.catalogUpdatedAt) {
+		cfg.catalogUpdatedAt = updatedAt
 	}
 
 	b := newBatch()
