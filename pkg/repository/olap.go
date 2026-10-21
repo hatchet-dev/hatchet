@@ -3475,22 +3475,7 @@ func (r *OLAPRepositoryImpl) readPayloads(ctx context.Context, tenantId uuid.UUI
 			return nil, err
 		}
 
-		for _, opt := range unreferencedOpts {
-			olapCopy, found := olapPayloads[opt.ExternalId]
-
-			if !found {
-				continue
-			}
-
-			// OLAP's copy of a task input is the full step run data, whatever version the core row has
-			if opt.Kind == PayloadKindTaskInput {
-				if stepRunData, err := stepRunDataFromVersion1TaskInputPayload(olapCopy); err == nil && stepRunData.Input != nil {
-					olapCopy = stepRunData.Input
-				}
-			}
-
-			externalIdToPayload[opt.ExternalId] = olapCopy
-		}
+		maps.Copy(externalIdToPayload, olapPayloads)
 	}
 
 	coreStoreOpts := referencedOpts
