@@ -2234,9 +2234,7 @@ WITH inputs AS (
         UNNEST(@externalIds::UUID[]) AS external_id,
         UNNEST(@insertedAts::TIMESTAMPTZ[]) AS inserted_at,
         UNNEST(@payloads::JSONB[]) AS payload,
-        UNNEST(@tenantIds::UUID[]) AS tenant_id,
-        UNNEST(CAST(@locations::TEXT[] AS v1_payload_location_olap[])) AS location,
-        UNNEST(@externalLocationKeys::TEXT[]) AS external_location_key
+        UNNEST(@tenantIds::UUID[]) AS tenant_id
 )
 
 INSERT INTO v1_payloads_olap (
@@ -2252,38 +2250,11 @@ SELECT
     i.tenant_id,
     i.external_id,
     i.inserted_at,
-    i.location,
-    CASE
-        WHEN i.location = 'EXTERNAL' THEN i.external_location_key
-        ELSE NULL
-    END,
-    CASE
-        WHEN i.location = 'INLINE' THEN i.payload
-        ELSE NULL
-    END AS inline_content
+    'INLINE',
+    NULL,
+    i.payload
 FROM inputs i
 ON CONFLICT DO NOTHING
-;
-
--- name: OffloadPayloads :exec
-WITH inputs AS (
-    SELECT
-        UNNEST(@externalIds::UUID[]) AS external_id,
-        UNNEST(@tenantIds::UUID[]) AS tenant_id,
-        UNNEST(@externalLocationKeys::TEXT[]) AS external_location_key
-)
-
-UPDATE v1_payloads_olap
-SET
-    location = 'EXTERNAL',
-    external_location_key = i.external_location_key,
-    inline_content = NULL,
-    updated_at = NOW()
-FROM inputs i
-WHERE
-    (v1_payloads_olap.tenant_id, v1_payloads_olap.external_id) = (i.tenant_id, i.external_id)
-    AND v1_payloads_olap.location = 'INLINE'
-    AND v1_payloads_olap.external_location_key IS NULL
 ;
 
 -- name: ReadPayloadsOLAP :many

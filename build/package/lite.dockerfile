@@ -22,7 +22,7 @@ COPY ./frontend/app ./
 RUN npm run build
 
 # Stage 3: deployment image from alpine
-FROM alpine:3.21 AS deployment
+FROM alpine:3.24 AS deployment
 
 ARG FIPS=false
 LABEL run.hatchet.fips=${FIPS}
