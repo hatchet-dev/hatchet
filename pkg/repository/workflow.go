@@ -1930,15 +1930,7 @@ func (r *workflowRepository) MovePausedWorkflowQueueItems(ctx context.Context, t
 		return nil
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
-
-	if err != nil {
-		return err
-	}
-
-	defer rollback()
-
-	rows, err := r.queries.ListQueuedTasksForWorkflows(ctx, tx, sqlcv1.ListQueuedTasksForWorkflowsParams{
+	rows, err := r.queries.ListQueuedTasksForWorkflows(ctx, r.pool, sqlcv1.ListQueuedTasksForWorkflowsParams{
 		Tenantid:    tenantId,
 		Workflowids: workflowIds,
 	})
@@ -1957,11 +1949,7 @@ func (r *workflowRepository) MovePausedWorkflowQueueItems(ctx context.Context, t
 		})
 	}
 
-	if err := r.holdPausedTasks(ctx, tx, tenantId, tasks); err != nil {
-		return err
-	}
-
-	return commit(ctx)
+	return r.holdPausedTasksInBatches(ctx, tenantId, tasks)
 }
 
 func (r *workflowRepository) RequeuePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID, workflowIds []uuid.UUID) ([]string, []int64, error) {

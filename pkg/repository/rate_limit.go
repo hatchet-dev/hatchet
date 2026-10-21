@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -343,15 +344,7 @@ func (r *rateLimitRepository) PauseRateLimit(ctx context.Context, tenantId uuid.
 }
 
 func (r *rateLimitRepository) HoldRateLimitPausedQueuedTasks(ctx context.Context, tenantId uuid.UUID) error {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
-
-	if err != nil {
-		return err
-	}
-
-	defer rollback()
-
-	rows, err := r.queries.ListRateLimitPausedQueuedTasks(ctx, tx, tenantId)
+	rows, err := r.queries.ListRateLimitPausedQueuedTasks(ctx, r.pool, tenantId)
 
 	if err != nil {
 		return fmt.Errorf("could not list tasks behind paused rate limits: %w", err)
@@ -367,11 +360,7 @@ func (r *rateLimitRepository) HoldRateLimitPausedQueuedTasks(ctx context.Context
 		})
 	}
 
-	if err := r.holdPausedTasks(ctx, tx, tenantId, tasks); err != nil {
-		return err
-	}
-
-	return commit(ctx)
+	return r.holdPausedTasksInBatches(ctx, tenantId, tasks)
 }
 
 func (s *sharedRepository) tenantHasRateLimitPause(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID) (bool, error) {
@@ -406,6 +395,36 @@ func taskTupleArrays(tasks []TaskIdInsertedAtRetryCount) ([]int64, []pgtype.Time
 	}
 
 	return taskIds, taskInsertedAts, retryCounts
+}
+
+const holdPausedTasksBatchSize = 1000
+
+// holdPausedTasksInBatches commits each batch on its own so holding a large backlog doesn't lock it all in one transaction;
+// a batch that fails leaves earlier ones held, which is safe because holding is idempotent
+func (s *sharedRepository) holdPausedTasksInBatches(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) error {
+	for batch := range slices.Chunk(tasks, holdPausedTasksBatchSize) {
+		if err := s.holdPausedTasksBatch(ctx, tenantId, batch); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *sharedRepository) holdPausedTasksBatch(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) error {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l)
+
+	if err != nil {
+		return err
+	}
+
+	defer rollback()
+
+	if err := s.holdPausedTasks(ctx, tx, tenantId, tasks); err != nil {
+		return err
+	}
+
+	return commit(ctx)
 }
 
 // holdPausedTasks moves the given tasks into v1_paused_workflow_queue_item while their workflow or one of their rate
