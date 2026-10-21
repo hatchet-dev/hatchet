@@ -54,9 +54,14 @@ both it and the example take the TypeScript SDK from its build output. From the 
 ```sh
 cd sdks/typescript && pnpm install && pnpm tsc:build && pnpm prepublish
 cd ../typescript-serverless && pnpm install && pnpm build
-cd ../../examples/serverless/nextjs && pnpm install
+cd ../../examples/serverless/nextjs && pnpm run vendor && pnpm install
 pnpm run typecheck && pnpm run build
 ```
+
+`pnpm run vendor` packs both build outputs into `./vendor/*.tgz` (gitignored), which is what the
+example's `package.json` depends on: a deployment uploads this directory alone, so the tarballs
+travel with it instead of pointing at repository paths that do not exist on the build host. Rerun
+it after rebuilding either package, then `pnpm install` again.
 
 ## Secrets: what lives where
 
@@ -256,15 +261,15 @@ in this example's `dependencies`.
 ## Deploy to Vercel
 
 Prerequisites: Node 22, pnpm, a Vercel account with Fluid compute on for the project, and
-`vercel login`. The package is linked from the repository here, so deploying this exact
-directory needs the built `sdks/typescript-serverless/dist` and `sdks/typescript/dist` to be
-part of the upload; a real project depends on the published package instead.
+`vercel login`. `pnpm run deploy` packs the SDK and the package into `./vendor` first (see "Build
+the package first") so the upload is self-contained; a real project depends on the published
+package instead.
 
 ```sh
 openssl rand -hex 32                               # keep the value: it is the endpoint's signingSecret
 vercel env add HATCHET_SIGNING_SECRET production   # paste it at the prompt
 vercel env add HATCHET_CLIENT_TOKEN production     # the tenant API token, for the trigger side
-vercel deploy --prod                               # prints https://<project>.vercel.app
+pnpm run deploy                                    # vendor + vercel deploy --prod; prints https://<project>.vercel.app
 ```
 
 The demo triggers are off on the deployment (see "Demo triggers are not protected"); add

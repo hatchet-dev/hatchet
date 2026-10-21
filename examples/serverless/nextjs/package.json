@@ -8,11 +8,13 @@
     "dev:vercel": "vercel dev",
     "build": "next build",
     "start": "next start",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "vendor": "./scripts/vendor.sh",
+    "deploy": "pnpm run vendor && vercel deploy --prod"
   },
   "dependencies": {
-    "@hatchet-dev/serverless": "link:../../../sdks/typescript-serverless",
-    "@hatchet-dev/typescript-sdk": "file:../../../sdks/typescript/dist",
+    "@hatchet-dev/serverless": "file:./vendor/hatchet-dev-serverless.tgz",
+    "@hatchet-dev/typescript-sdk": "file:./vendor/hatchet-dev-typescript-sdk.tgz",
     "@vercel/functions": "^3.9.0",
     "next": "^15.5.0",
     "react": "^19.0.0",
