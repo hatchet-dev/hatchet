@@ -202,7 +202,7 @@ WITH rls AS (
         p.paused_until > NOW() AS paused,
         -- an ended pause the scheduler hasn't settled yet still shifts the window, as SettleExpiredRateLimitPauses will
         (CASE
-            WHEN p.paused_until <= NOW() AND p.paused_until > rl."lastRefill"::timestamptz THEN
+            WHEN p.paused_until <= NOW() AND p.paused_until > GREATEST(p.paused_at, rl."lastRefill"::timestamptz) THEN
                 rl."lastRefill" + (p.paused_until - GREATEST(p.paused_at, rl."lastRefill"::timestamptz))
             ELSE
                 rl."lastRefill"
@@ -451,7 +451,8 @@ FROM
 WHERE
     rl."tenantId" = $1::uuid
     AND rl."key" = e.key
-    AND e.paused_until > rl."lastRefill"::timestamptz
+    -- a deadline already past when the pause was requested froze nothing, so it must not pull the window earlier
+    AND e.paused_until > GREATEST(e.paused_at, rl."lastRefill"::timestamptz)
 `
 
 func (q *Queries) SettleExpiredRateLimitPauses(ctx context.Context, db DBTX, tenantid uuid.UUID) error {

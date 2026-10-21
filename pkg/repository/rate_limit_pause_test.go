@@ -298,6 +298,43 @@ func TestPauseRateLimitSettlesUnsettledExpiredPause(t *testing.T) {
 	assert.WithinDuration(t, shiftedLastRefill(rl, ended), lastRefill, 2*time.Millisecond, "the ended pause's frozen span still shifts the window")
 }
 
+// A pause requested with a deadline that has already passed, like a Retry-After that arrives late, froze nothing,
+// so neither listing nor settling it may move the window's last refill earlier and let runs start too soon.
+func TestPastDeadlinePauseDoesNotShiftWindow(t *testing.T) {
+	pool, cleanup := setupPostgresWithMigration(t)
+	t.Cleanup(cleanup)
+
+	ctx := context.Background()
+	tenantID := createRateLimitTestTenant(t, pool)
+	rateLimitRepo := newRateLimitPauseTestRepo(pool)
+
+	const key = "upstream-api"
+
+	upsertUsedRateLimit(t, rateLimitRepo, tenantID, key, 20, "MINUTE", 3)
+	_, lastRefill := readRateLimitRow(t, pool, tenantID, key)
+
+	time.Sleep(time.Second)
+
+	// after the last refill but before the pause request, the span that would be subtracted
+	pause, err := rateLimitRepo.PauseRateLimit(ctx, tenantID, key, lastRefill.Add(500*time.Millisecond))
+	require.NoError(t, err)
+	require.True(t, pause.PausedUntil.Time.Before(pause.PausedAt.Time))
+
+	listed, err := rateLimitRepo.ListRateLimits(ctx, tenantID, &ListRateLimitOpts{})
+	require.NoError(t, err)
+	require.Len(t, listed.Rows, 1)
+	assert.EqualValues(t, 17, listed.Rows[0].Value)
+	assert.WithinDuration(t, lastRefill, listed.Rows[0].LastRefill.Time, time.Millisecond, "listing must not move the window earlier")
+	assert.False(t, listed.Rows[0].PausedUntil.Valid)
+
+	_, _, err = rateLimitRepo.FlushRateLimits(ctx, tenantID, map[string]int{}, nil)
+	require.NoError(t, err)
+
+	value, settledLastRefill := readRateLimitRow(t, pool, tenantID, key)
+	assert.EqualValues(t, 17, value)
+	assert.WithinDuration(t, lastRefill, settledLastRefill, time.Millisecond, "settling must not move the window earlier")
+}
+
 // Until the scheduler settles an ended pause, listing must already apply its window shift, or a key with 17 of 20
 // units left would show a full bucket that goes back to 17 once settled.
 func TestListRateLimitsShiftsWindowOfUnsettledExpiredPause(t *testing.T) {
