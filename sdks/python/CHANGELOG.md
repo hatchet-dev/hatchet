@@ -5,6 +5,12 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.42.2] - 2026-10-22
+
+### Security
+
+- The gRPC client no longer trusts the eMudhra-affected roots (emSign ECC Root CA - G3 and AAA Certificate Services) from grpcio's bundled root store (CVE-2026-111943). The REST client and embedded-binary download use the OS trust store, so update your OS `ca-certificates` package. If you set `HATCHET_CLIENT_TLS_ROOT_CA_FILE` or `GRPC_DEFAULT_SSL_ROOTS_FILE_PATH`, point it at an updated bundle.
+
 ## [1.42.1] - 2026-10-09
 
 ### Fixed
