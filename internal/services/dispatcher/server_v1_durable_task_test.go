@@ -228,3 +228,57 @@ func TestHandleWaitForNilConditionBaseReturnsInvalidArgument(t *testing.T) {
 		require.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err), err)
 	}
 }
+
+type panickingRepo struct {
+	v1.Repository
+	calls chan struct{}
+}
+
+func (r panickingRepo) Tasks() v1.TaskRepository {
+	r.calls <- struct{}{}
+	panic("boom")
+}
+
+func TestDurableTaskRecoversFromHandlerPanics(t *testing.T) {
+	d := newTestDispatcher()
+	calls := make(chan struct{}, 3)
+	d.repo = panickingRepo{calls: calls}
+
+	taskId := uuid.NewString()
+	memo := &contracts.DurableTaskRequest{Message: &contracts.DurableTaskRequest_Memo{
+		Memo: &contracts.DurableTaskMemoRequest{DurableTaskExternalId: taskId},
+	}}
+	status := &contracts.DurableTaskRequest{Message: &contracts.DurableTaskRequest_WorkerStatus{
+		WorkerStatus: &contracts.DurableTaskWorkerStatusRequest{
+			WaitingEntries: []*contracts.DurableTaskAwaitedCompletedEntry{{DurableTaskExternalId: taskId}},
+		},
+	}}
+
+	reqs := []*contracts.DurableTaskRequest{memo, status, status}
+	server := &fakeDurableTaskServer{
+		ctx: tenantContext(),
+		recv: func() (*contracts.DurableTaskRequest, error) {
+			// wait for the previous request's handler to panic, so the second status needs the
+			// worker-status runner to have survived the first
+			if len(reqs) < 3 {
+				<-calls
+			}
+
+			if len(reqs) == 0 {
+				return nil, io.EOF
+			}
+
+			req := reqs[0]
+			reqs = reqs[1:]
+
+			return req, nil
+		},
+	}
+
+	select {
+	case err := <-runDurableTask(d, server):
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("a request after a panicking one was never handled")
+	}
+}
