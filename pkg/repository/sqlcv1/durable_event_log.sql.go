@@ -1184,7 +1184,7 @@ WITH input AS (
         e.branch_id,
         ROW_NUMBER() OVER (ORDER BY e.satisfied_order ASC) AS satisfied_order
     FROM v1_durable_event_log_entry e
-    JOIN input k ON (k.node_id, k.branch_id) = (e.node_id, e.branch_id)
+    JOIN input i ON (i.node_id, i.branch_id) = (e.node_id, e.branch_id)
     WHERE e.durable_task_id = $3::BIGINT
       AND e.durable_task_inserted_at = $4::TIMESTAMPTZ
       AND e.satisfied_order IS NOT NULL
