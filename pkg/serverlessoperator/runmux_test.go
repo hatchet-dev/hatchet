@@ -480,3 +480,129 @@ func TestRunMuxRetiresStreamOrphanedDuringReplay(t *testing.T) {
 	second.recv <- finished("run-2")
 	assert.Equal(t, "run-2", recvEvent(t, b).WorkflowRunId)
 }
+
+// published waits until the mux has a current engine stream, so a subscription made after
+// it is the writer's to send, not the replay's.
+func published(t *testing.T, m *runMux) {
+	t.Helper()
+
+	require.Eventually(t, func() bool {
+		m.mu.Lock()
+		defer m.mu.Unlock()
+
+		return m.stream != nil
+	}, eventually, time.Millisecond, "the engine stream was never published")
+}
+
+// A subscription never waits on the engine stream: a send the transport holds on flow
+// control holds the mux's writer, not the subscriber, so a subscriber whose socket ended
+// closes at once, and the mux closes after it, while the send is still held.
+func TestRunMuxSubscribeDoesNotWaitOnStalledStream(t *testing.T) {
+	opener := &fakeRunsOpener{gate: make(chan struct{})}
+	m := newTestMux(opener)
+	t.Cleanup(m.close)
+
+	a, err := m.Subscribe(context.Background(), nil)
+	require.NoError(t, err)
+
+	published(t, m)
+	stream := opener.stream(t, 0)
+
+	sent := make(chan error, 1)
+
+	go func() { sent <- a.Send(context.Background(), subscribe("run-1")) }()
+
+	select {
+	case err := <-sent:
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("the subscription waited on the stalled engine stream")
+	}
+
+	select {
+	case <-stream.gated:
+	case <-time.After(eventually):
+		t.Fatal("the subscription never reached the engine stream")
+	}
+
+	b, err := m.Subscribe(context.Background(), subscribe("run-1"))
+	require.NoError(t, err)
+
+	closed := make(chan struct{})
+
+	go func() {
+		defer close(closed)
+		_ = a.Close()
+	}()
+
+	select {
+	case <-closed:
+	case <-time.After(time.Second):
+		t.Fatal("the subscriber's close waited on the stalled engine stream")
+	}
+
+	assert.False(t, stream.isClosed(), "b still awaits the run, so the stream stays")
+
+	muxClosed := make(chan struct{})
+
+	go func() {
+		defer close(muxClosed)
+		m.close()
+	}()
+
+	select {
+	case <-muxClosed:
+	case <-time.After(time.Second):
+		t.Fatal("the mux close waited on the stalled engine stream")
+	}
+
+	assert.True(t, stream.isClosed())
+
+	_, err = b.Recv(context.Background())
+	assert.ErrorIs(t, err, operator.ErrChannelClosed)
+}
+
+// A stream that has not accepted a full writer queue of subscriptions is retired rather than
+// the subscriber waiting or a subscription being dropped: the reopen replays every awaited
+// run, the queued ones among them.
+func TestRunMuxRetiresStalledStreamOnFullQueue(t *testing.T) {
+	gate := make(chan struct{})
+	opener := &fakeRunsOpener{gate: gate}
+	m := newTestMux(opener)
+	m.sendQueue = 1
+	t.Cleanup(m.close)
+
+	a, err := m.Subscribe(context.Background(), nil)
+	require.NoError(t, err)
+
+	published(t, m)
+	first := opener.stream(t, 0)
+
+	// run-1 is held at the gate by the writer, run-2 fills the queue and run-3 finds it full.
+	require.NoError(t, a.Send(context.Background(), subscribe("run-1")))
+
+	select {
+	case <-first.gated:
+	case <-time.After(eventually):
+		t.Fatal("the first subscription never reached the engine stream")
+	}
+
+	require.NoError(t, a.Send(context.Background(), subscribe("run-2")))
+	require.NoError(t, a.Send(context.Background(), subscribe("run-3")))
+
+	require.Eventually(t, first.isClosed, eventually, time.Millisecond, "the stalled stream was not retired")
+
+	close(gate)
+
+	second := opener.stream(t, 1)
+	seen := map[string]struct{}{}
+
+	for len(seen) < 3 {
+		seen[second.subscription(t)] = struct{}{}
+	}
+
+	assert.Equal(t, map[string]struct{}{"run-1": {}, "run-2": {}, "run-3": {}}, seen, "every awaited run is replayed on the reopened stream")
+
+	second.recv <- finished("run-2")
+	assert.Equal(t, "run-2", recvEvent(t, a).WorkflowRunId)
+}

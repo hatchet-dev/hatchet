@@ -86,8 +86,9 @@ type ServerlessEndpointRepository interface {
 	// UpdateRegisteredActions records the action set the owner registered after a healthcheck
 	// changed the endpoint's workflows, task options or durable support, with the subset of it
 	// whose task asked for an invocation websocket and whether the endpoint accepts the
-	// durable websocket protocol.
-	UpdateRegisteredActions(ctx context.Context, endpointId uuid.UUID, actions, streamActions []string, durableSupported bool) error
+	// durable websocket protocol. It returns the database's updated_at of the write, which the
+	// owner's cache orders refresh rows against.
+	UpdateRegisteredActions(ctx context.Context, endpointId uuid.UUID, actions, streamActions []string, durableSupported bool) (time.Time, error)
 }
 
 type ServerlessTenantRepository interface {

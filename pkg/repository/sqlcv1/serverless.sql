@@ -195,17 +195,19 @@ SET
 WHERE id = @id::UUID
 RETURNING status_changed_at;
 
--- name: UpdateServerlessEndpointRegisteredActions :exec
+-- name: UpdateServerlessEndpointRegisteredActions :one
 -- Written by the owner when a healthcheck changes the endpoint's workflows, task options or
 -- durable support. Bumps updated_at so ListServerlessEndpointsUpdatedSince surfaces the new
--- action set to every registration for the tenant.
+-- action set to every registration for the tenant. The write's own timestamp is returned so
+-- the writer's cache can order it against rows read before or after it.
 UPDATE v1_serverless_endpoint
 SET
     registered_actions = @registeredActions::TEXT[],
     stream_actions = @streamActions::TEXT[],
     durable_supported = @durableSupported::BOOLEAN,
     updated_at = NOW()
-WHERE id = @id::UUID;
+WHERE id = @id::UUID
+RETURNING updated_at;
 
 -- name: UpsertServerlessTenant :one
 -- Creates the tenant's serverless row with the configured endpoint_partition_count if it does not

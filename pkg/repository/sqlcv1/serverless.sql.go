@@ -1178,7 +1178,7 @@ func (q *Queries) UpdateServerlessEndpoint(ctx context.Context, db DBTX, arg Upd
 	return &i, err
 }
 
-const updateServerlessEndpointRegisteredActions = `-- name: UpdateServerlessEndpointRegisteredActions :exec
+const updateServerlessEndpointRegisteredActions = `-- name: UpdateServerlessEndpointRegisteredActions :one
 UPDATE v1_serverless_endpoint
 SET
     registered_actions = $1::TEXT[],
@@ -1186,6 +1186,7 @@ SET
     durable_supported = $3::BOOLEAN,
     updated_at = NOW()
 WHERE id = $4::UUID
+RETURNING updated_at
 `
 
 type UpdateServerlessEndpointRegisteredActionsParams struct {
@@ -1197,15 +1198,18 @@ type UpdateServerlessEndpointRegisteredActionsParams struct {
 
 // Written by the owner when a healthcheck changes the endpoint's workflows, task options or
 // durable support. Bumps updated_at so ListServerlessEndpointsUpdatedSince surfaces the new
-// action set to every registration for the tenant.
-func (q *Queries) UpdateServerlessEndpointRegisteredActions(ctx context.Context, db DBTX, arg UpdateServerlessEndpointRegisteredActionsParams) error {
-	_, err := db.Exec(ctx, updateServerlessEndpointRegisteredActions,
+// action set to every registration for the tenant. The write's own timestamp is returned so
+// the writer's cache can order it against rows read before or after it.
+func (q *Queries) UpdateServerlessEndpointRegisteredActions(ctx context.Context, db DBTX, arg UpdateServerlessEndpointRegisteredActionsParams) (pgtype.Timestamptz, error) {
+	row := db.QueryRow(ctx, updateServerlessEndpointRegisteredActions,
 		arg.Registeredactions,
 		arg.Streamactions,
 		arg.Durablesupported,
 		arg.ID,
 	)
-	return err
+	var updated_at pgtype.Timestamptz
+	err := row.Scan(&updated_at)
+	return updated_at, err
 }
 
 const updateServerlessEndpointStatus = `-- name: UpdateServerlessEndpointStatus :one

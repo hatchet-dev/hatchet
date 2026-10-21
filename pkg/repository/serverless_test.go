@@ -247,7 +247,8 @@ func TestServerlessRepository(t *testing.T) {
 		// a workflow change is recorded and does bump updated_at
 		actions := []string{"svc:run", "svc:stream"}
 		streamActions := actions[1:]
-		require.NoError(t, repo.Endpoints().UpdateRegisteredActions(ctx, created.ID, actions, streamActions, true))
+		actionsAt, err := repo.Endpoints().UpdateRegisteredActions(ctx, created.ID, actions, streamActions, true)
+		require.NoError(t, err)
 
 		afterActions, err := repo.Endpoints().Get(ctx, tenantId, created.ID)
 		require.NoError(t, err)
@@ -255,6 +256,7 @@ func TestServerlessRepository(t *testing.T) {
 		assert.Equal(t, streamActions, afterActions.StreamActions)
 		assert.True(t, afterActions.DurableSupported)
 		assert.True(t, afterActions.UpdatedAt.Time.After(updated.UpdatedAt.Time), "registered_actions change must bump updated_at")
+		assert.Equal(t, afterActions.UpdatedAt.Time, actionsAt, "the actions write returns the row's updated_at")
 
 		changed, err = repo.Endpoints().ListUpdatedSince(ctx, tenantId, changedAt, created.ID)
 		require.NoError(t, err)

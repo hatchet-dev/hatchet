@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -179,7 +180,7 @@ func TestRoutingCacheSharedActionRoutesToEveryHealthyEndpoint(t *testing.T) {
 	union, rev := cache.ActionUnion()
 	assert.Equal(t, []string{"svc:run"}, union)
 
-	assert.False(t, cache.SetHealthcheck(a.ID, nil, nil, true), "b still advertises the action")
+	assert.False(t, cache.SetHealthcheck(a.ID, nil, nil, true, time.Time{}), "b still advertises the action")
 	assert.Equal(t, rev, cache.Revision())
 	assert.Equal(t, []uuid.UUID{b.ID}, cache.Serving("svc:run"))
 
@@ -187,7 +188,7 @@ func TestRoutingCacheSharedActionRoutesToEveryHealthyEndpoint(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, b.ID, ep.id)
 
-	assert.True(t, cache.SetHealthcheck(b.ID, nil, nil, true), "the last advertiser dropped it")
+	assert.True(t, cache.SetHealthcheck(b.ID, nil, nil, true, time.Time{}), "the last advertiser dropped it")
 	added, removed, current, ok := cache.DeltasSince(rev)
 	require.True(t, ok)
 	assert.Equal(t, rev+1, current)
@@ -292,12 +293,12 @@ func TestRoutingCacheRefreshAndUnion(t *testing.T) {
 	assert.Empty(t, removed)
 
 	// SetHealthcheck replaces the endpoint's actions in the union immediately.
-	changed := cache.SetHealthcheck(a.ID, []string{"svc:new"}, nil, true)
+	changed := cache.SetHealthcheck(a.ID, []string{"svc:new"}, nil, true, time.Time{})
 	assert.True(t, changed)
 	union, rev = cache.ActionUnion()
 	assert.Equal(t, []string{"svc:new"}, union)
 	assert.Equal(t, uint64(3), rev)
-	assert.False(t, cache.SetHealthcheck(a.ID, []string{"svc:new"}, nil, true), "same actions, no change")
+	assert.False(t, cache.SetHealthcheck(a.ID, []string{"svc:new"}, nil, true, time.Time{}), "same actions, no change")
 	assert.Equal(t, uint64(3), cache.Revision(), "an unchanged union keeps its revision")
 
 	// Deltas coalesce across revisions: svc:a2 entered at 2 and left at 3, so from 1 the net
@@ -336,6 +337,86 @@ func TestRoutingCacheRefreshAndUnion(t *testing.T) {
 	assert.False(t, ok)
 }
 
+// A refresh that read the row before the owner wrote its catalog cannot put the row's older
+// set back: the write's updated_at stamps the set in the cache, and a row versioned before it
+// keeps the cached set while its other fields are taken as read.
+func TestRoutingCacheKeepsCatalogNewerThanRefreshRow(t *testing.T) {
+	repo := memrepo.New()
+	tenant := uuid.New()
+	l := zerolog.Nop()
+
+	a := newEndpointRow(endpointSpec{tenantId: tenant, name: "a", enabled: true})
+	a.RegisteredActions = []string{"svc:old"}
+	repo.AddEndpoint(a)
+
+	cache := newRoutingCache(tenant, repo.Endpoints(), fakeEnc{}, &l)
+	require.NoError(t, cache.Load(context.Background()))
+
+	t0 := repo.Endpoint(a.ID).UpdatedAt.Time
+	t1 := t0.Add(time.Second)
+	t2 := t0.Add(2 * time.Second)
+	t3 := t0.Add(3 * time.Second)
+
+	apply := func(row sqlcv1.V1ServerlessEndpoint) {
+		cache.mu.Lock()
+		defer cache.mu.Unlock()
+
+		cache.applyRowsLocked([]*sqlcv1.V1ServerlessEndpoint{&row})
+	}
+
+	config := func() *endpointConfig {
+		ep, ok := cache.Endpoint(a.ID)
+		require.True(t, ok)
+
+		return cache.Config(ep)
+	}
+
+	// The owner's healthcheck wrote a new catalog at t2.
+	require.True(t, cache.SetHealthcheck(a.ID, []string{"svc:new"}, []string{"svc:new"}, true, t2))
+
+	// A refresh that read the row at t1, before the write, carries the old catalog and a
+	// rename of its own.
+	stale := *repo.Endpoint(a.ID)
+	stale.Name = "a-renamed"
+	stale.RegisteredActions = []string{"svc:old"}
+	stale.StreamActions = nil
+	stale.DurableSupported = false
+	stale.UpdatedAt = pgtype.Timestamptz{Time: t1, Valid: true}
+	apply(stale)
+
+	cfg := config()
+	assert.Equal(t, []string{"svc:new"}, cfg.registeredActions, "the row read before the write put its older catalog back")
+	assert.Equal(t, []string{"svc:new"}, cfg.streamActions)
+	assert.True(t, cfg.durableSupported)
+	assert.True(t, cfg.updatedAt.Equal(t2), "the cached version is the write's")
+	assert.Equal(t, "a-renamed", cfg.name, "the row's other fields are taken as read")
+
+	union, _ := cache.ActionUnion()
+	assert.Equal(t, []string{"svc:new"}, union)
+	assert.Equal(t, []uuid.UUID{a.ID}, cache.Serving("svc:new"))
+	assert.Empty(t, cache.Serving("svc:old"))
+
+	// The row at the write's own version changes nothing, and a later row applies.
+	current := stale
+	current.RegisteredActions = []string{"svc:new"}
+	current.StreamActions = []string{"svc:new"}
+	current.DurableSupported = true
+	current.UpdatedAt = pgtype.Timestamptz{Time: t2, Valid: true}
+	rev := cache.Revision()
+	apply(current)
+	assert.Equal(t, rev, cache.Revision())
+	assert.Equal(t, "a-renamed", config().name)
+
+	later := current
+	later.RegisteredActions = []string{"svc:later"}
+	later.UpdatedAt = pgtype.Timestamptz{Time: t3, Valid: true}
+	apply(later)
+
+	union, _ = cache.ActionUnion()
+	assert.Equal(t, []string{"svc:later"}, union)
+	assert.True(t, config().updatedAt.Equal(t3))
+}
+
 // Two endpoints advertising the same action keep it in the union until the last one drops it.
 func TestRoutingCacheUnionIsReferenceCounted(t *testing.T) {
 	repo := memrepo.New()
@@ -357,11 +438,11 @@ func TestRoutingCacheUnionIsReferenceCounted(t *testing.T) {
 	union, _ := cache.ActionUnion()
 	assert.Equal(t, []string{shared, "svc:a"}, union)
 
-	assert.False(t, cache.SetHealthcheck(b.ID, nil, nil, true), "the action is still advertised by a")
+	assert.False(t, cache.SetHealthcheck(b.ID, nil, nil, true, time.Time{}), "the action is still advertised by a")
 	union, _ = cache.ActionUnion()
 	assert.Contains(t, union, shared)
 
-	assert.True(t, cache.SetHealthcheck(a.ID, []string{"svc:a"}, nil, true), "the last advertiser dropped it")
+	assert.True(t, cache.SetHealthcheck(a.ID, []string{"svc:a"}, nil, true, time.Time{}), "the last advertiser dropped it")
 	union, _ = cache.ActionUnion()
 	assert.Equal(t, []string{"svc:a"}, union)
 

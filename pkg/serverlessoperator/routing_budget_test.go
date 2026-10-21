@@ -167,8 +167,8 @@ func (r budgetRootRepo) Endpoints() repository.ServerlessEndpointRepository { re
 
 // UpdateRegisteredActions accepts the write without recording it: the fixed row set is what
 // the measurements read.
-func (r *budgetRepo) UpdateRegisteredActions(context.Context, uuid.UUID, []string, []string, bool) error {
-	return nil
+func (r *budgetRepo) UpdateRegisteredActions(context.Context, uuid.UUID, []string, []string, bool) (time.Time, error) {
+	return time.Time{}, nil
 }
 
 var budgetTenant = uuid.MustParse("00000000-0000-0000-0000-000000000001")
@@ -289,8 +289,8 @@ func TestHealthcheckChangeCostIsLocal(t *testing.T) {
 
 	elapsed, allocated := measure(func() {
 		for i := 0; i < 100; i++ {
-			c.SetHealthcheck(ep.ID, next, nil, true)
-			c.SetHealthcheck(ep.ID, ep.RegisteredActions, nil, true)
+			c.SetHealthcheck(ep.ID, next, nil, true, time.Time{})
+			c.SetHealthcheck(ep.ID, ep.RegisteredActions, nil, true, time.Time{})
 		}
 	})
 
@@ -334,9 +334,9 @@ func TestChangedUnionSyncIsIncremental(t *testing.T) {
 
 	elapsed, allocated := measure(func() {
 		for i := 0; i < 50; i++ {
-			c.SetHealthcheck(ep.ID, next, nil, true)
+			c.SetHealthcheck(ep.ID, next, nil, true, time.Time{})
 			require.NoError(t, reg.syncActions(context.Background(), c))
-			c.SetHealthcheck(ep.ID, ep.RegisteredActions, nil, true)
+			c.SetHealthcheck(ep.ID, ep.RegisteredActions, nil, true, time.Time{})
 			require.NoError(t, reg.syncActions(context.Background(), c))
 		}
 	})
@@ -377,13 +377,13 @@ func TestSyncFallsBackToDiffAndCompacts(t *testing.T) {
 
 	// Sync after every change: the log covers each step.
 	for i := 0; i < 3; i++ {
-		c.SetHealthcheck(ep.ID, []string{ep.ID.String() + fmt.Sprintf("_service:v%d", i)}, nil, true)
+		c.SetHealthcheck(ep.ID, []string{ep.ID.String() + fmt.Sprintf("_service:v%d", i)}, nil, true, time.Time{})
 		sync()
 	}
 
 	// More changes than the log keeps, then one sync: the fallback diff.
 	for i := 0; i < unionLogSize+8; i++ {
-		c.SetHealthcheck(ep.ID, []string{ep.ID.String() + fmt.Sprintf("_service:w%d", i)}, nil, true)
+		c.SetHealthcheck(ep.ID, []string{ep.ID.String() + fmt.Sprintf("_service:w%d", i)}, nil, true, time.Time{})
 	}
 
 	sync()
@@ -395,7 +395,7 @@ func TestSyncFallsBackToDiffAndCompacts(t *testing.T) {
 
 	// Enough small deltas to cross the compaction floor fold into a new base.
 	for i := 0; i < appliedCompactionFloor+16; i++ {
-		c.SetHealthcheck(ep.ID, []string{ep.ID.String() + fmt.Sprintf("_service:x%d", i)}, nil, true)
+		c.SetHealthcheck(ep.ID, []string{ep.ID.String() + fmt.Sprintf("_service:x%d", i)}, nil, true, time.Time{})
 		sync()
 	}
 
@@ -575,7 +575,7 @@ func BenchmarkOneActionChangeSync(b *testing.B) {
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
-				c.SetHealthcheck(ep.ID, variants[i%2], nil, true)
+				c.SetHealthcheck(ep.ID, variants[i%2], nil, true, time.Time{})
 
 				if err := reg.syncActions(context.Background(), c); err != nil {
 					b.Fatal(err)
