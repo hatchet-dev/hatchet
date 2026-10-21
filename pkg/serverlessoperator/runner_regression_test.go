@@ -29,11 +29,14 @@ import (
 )
 
 // failingEndpoints fails ListForTenant while fail is set, standing in for a database outage
-// during the initial load of a gained tenant.
+// during the initial load of a gained tenant. With a gate set, a load that is not failed
+// reports its tenant on entered and is held until the gate is closed.
 type failingEndpoints struct {
 	repository.ServerlessEndpointRepository
-	mu   sync.Mutex
-	fail bool
+	gate    chan struct{}
+	entered chan uuid.UUID
+	mu      sync.Mutex
+	fail    bool
 }
 
 func (r *failingEndpoints) setFail(fail bool) {
@@ -43,13 +46,31 @@ func (r *failingEndpoints) setFail(fail bool) {
 	r.fail = fail
 }
 
+// hold makes every load succeed but wait on the returned gate; entered receives the tenant
+// of each load as it reaches the gate.
+func (r *failingEndpoints) hold() (gate chan struct{}, entered chan uuid.UUID) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.fail = false
+	r.gate = make(chan struct{})
+	r.entered = make(chan uuid.UUID, 16)
+
+	return r.gate, r.entered
+}
+
 func (r *failingEndpoints) ListForTenant(ctx context.Context, id uuid.UUID, afterId uuid.UUID, limit int64) ([]*sqlcv1.V1ServerlessEndpoint, error) {
 	r.mu.Lock()
-	fail := r.fail
+	fail, gate, entered := r.fail, r.gate, r.entered
 	r.mu.Unlock()
 
 	if fail {
 		return nil, errors.New("transient database outage")
+	}
+
+	if gate != nil {
+		entered <- id
+		<-gate
 	}
 
 	return r.ServerlessEndpointRepository.ListForTenant(ctx, id, afterId, limit)
@@ -90,6 +111,76 @@ func TestClaimedUnitIsServedAfterInitialLoadFailure(t *testing.T) {
 
 	assert.Equal(t, 1, env.host.openCount(), "database recovered but the claimed unit is still unserved: owned=%d tenants=%d", len(ls.Owned()), len(env.r.tenants))
 	assert.NotNil(t, env.poller(row), "the unit's endpoint is polled after recovery")
+}
+
+// A unit the leaser loses while a maintenance pass is retrying it is not served: the pass
+// copies the pending set and gains its tenants one after another, so a unit can be lost
+// after the copy and before its gain, and nothing would ever remove it afterwards.
+func TestUnitLostDuringPendingRetryIsNotServed(t *testing.T) {
+	env := newTestEnv(t)
+	env.r.cfg.MaintenanceConcurrency = 1
+
+	a := healthyRow(endpointSpec{tenantId: uuid.New(), name: "retry-a", actions: []string{"svc:a"}})
+	b := healthyRow(endpointSpec{tenantId: uuid.New(), name: "retry-b", actions: []string{"svc:b"}})
+	env.addEndpoint(a)
+	env.addEndpoint(b)
+	rows := map[uuid.UUID]*sqlcv1.V1ServerlessEndpoint{a.TenantID: a, b.TenantID: b}
+
+	ep := &failingEndpoints{ServerlessEndpointRepository: env.repo.Endpoints(), fail: true}
+	env.r.repo = &failingRepo{ServerlessRepository: env.repo, ep: ep}
+
+	ctx := context.Background()
+	env.r.UnitsGained(ctx, []memrepo.Unit{env.unit(a), env.unit(b)})
+	require.Equal(t, 0, env.host.openCount(), "nothing opened while the loads failed")
+	require.Len(t, env.r.pendingUnits(), 2, "both units wait for maintenance")
+
+	// The database recovers and the pass retries both units, one tenant at a time; the first
+	// retry is held in its load while the other waits its turn.
+	gate, entered := ep.hold()
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+		env.r.maintainOnce(ctx)
+	}()
+
+	var held uuid.UUID
+
+	select {
+	case held = <-entered:
+	case <-time.After(eventually):
+		t.Fatal("no retry reached the load")
+	}
+
+	served := rows[held]
+	var lost *sqlcv1.V1ServerlessEndpoint
+
+	for tenantId, row := range rows {
+		if tenantId != held {
+			lost = row
+		}
+	}
+
+	// The waiting unit's lease is lost before its retry runs.
+	env.r.UnitsLost(ctx, []memrepo.Unit{env.unit(lost)})
+
+	close(gate)
+
+	select {
+	case <-done:
+	case <-time.After(eventually):
+		t.Fatal("the maintenance pass did not finish")
+	}
+
+	assert.Equal(t, 1, env.host.openCount(), "only the unit still owned opens a registration")
+	assert.NotNil(t, env.poller(served), "the unit still owned is served")
+
+	if ts := env.tenant(lost.TenantID); ts != nil {
+		assert.Equal(t, 0, ts.unitCount(), "the lost unit is served without a lease")
+	}
+
+	assert.Nil(t, env.poller(lost), "the lost unit's endpoint is polled without a lease")
+	assert.Empty(t, env.r.pendingUnits(), "nothing is left pending")
 }
 
 // When invocation N+1 of a durable task starts before invocation N's delivery has cleaned up,

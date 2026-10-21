@@ -118,6 +118,11 @@ func (ts *tenantState) unitCount() int {
 // mu guards tenants and pending only and is held for map operations, never across network
 // work: each tenant's work runs under its own opMu, so a hung engine or a slow poller
 // shutdown on one tenant does not stall the others or the lease tick.
+//
+// pending is every owned unit not yet served: a gained unit is pending from the moment the
+// leaser reports it until the gain that loaded its tenant claims it, and maintenance retries
+// the units whose gain failed. A lost unit is cleared from it, and a gain serves only the
+// units it claims, so a lease lost while the gain or a retry was in flight is never served.
 type runner struct {
 	repo         repository.ServerlessRepository
 	host         operator.Host
@@ -216,15 +221,37 @@ func (r *runner) forgetTenant(ts *tenantState) {
 	}
 }
 
-// deferUnits records gained units whose tenant could not be loaded; maintenance retries
-// them, so a claimed unit is never left owned but unserved.
-func (r *runner) deferUnits(tenantId uuid.UUID, partitions []int32) {
+// markPending records gained units as owned but not yet served.
+func (r *runner) markPending(tenantId uuid.UUID, partitions []int32) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	for _, partition := range partitions {
 		r.pending[lease.Unit{TenantId: tenantId, Partition: partition}] = struct{}{}
 	}
+}
+
+// claimPending takes the units still pending out of the set and returns them: the ones a
+// gain may serve. A unit lost since it was gained, or since a maintenance pass copied the
+// set, is not among them.
+func (r *runner) claimPending(tenantId uuid.UUID, partitions []int32) []int32 {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	claimed := make([]int32, 0, len(partitions))
+
+	for _, partition := range partitions {
+		unit := lease.Unit{TenantId: tenantId, Partition: partition}
+
+		if _, ok := r.pending[unit]; !ok {
+			continue
+		}
+
+		delete(r.pending, unit)
+		claimed = append(claimed, partition)
+	}
+
+	return claimed
 }
 
 func (r *runner) clearPending(tenantId uuid.UUID, partitions []int32) {
@@ -251,13 +278,20 @@ func (r *runner) pendingUnits() []lease.Unit {
 
 // UnitsGained implements lease.Reconciler: for each tenant, load its routing cache (or the
 // gained units' endpoints when it is already served), open its registration if it has none
-// and start pollers. A tenant whose load fails keeps its units pending for maintenance to
-// retry; a registration that fails to open is retried by maintenance as well. One batch
-// gains its tenants concurrently, MaintenanceConcurrency at a time: a startup or a takeover
-// gains many tenants at once, and each tenant's gain is a load and a Host.Open, so in series
-// the lease tick would wait through every one of them.
+// and start pollers. The units are pending until their gain claims them: a tenant whose
+// load fails keeps its units pending for maintenance to retry; a registration that fails to
+// open is retried by maintenance as well. One batch gains its tenants concurrently,
+// MaintenanceConcurrency at a time: a startup or a takeover gains many tenants at once, and
+// each tenant's gain is a load and a Host.Open, so in series the lease tick would wait
+// through every one of them.
 func (r *runner) UnitsGained(ctx context.Context, units []lease.Unit) {
-	r.gainGroups(ctx, groupUnits(units))
+	groups := groupUnits(units)
+
+	for tenantId, partitions := range groups {
+		r.markPending(tenantId, partitions)
+	}
+
+	r.gainGroups(ctx, groups)
 	r.updateGauges()
 }
 
@@ -304,11 +338,13 @@ func (r *runner) gainUnits(ctx context.Context, tenantId uuid.UUID, partitions [
 	}
 }
 
-// gainUnitsLocked runs under ts.opMu.
+// gainUnitsLocked runs under ts.opMu. The units are claimed from the pending set after the
+// load, when they are about to be served: a unit lost meanwhile is not claimed and not
+// served, and UnitsLost, which clears pending before it waits on opMu, finds nothing of it
+// here afterwards. A tenant left with nothing to serve is forgotten.
 func (r *runner) gainUnitsLocked(ctx context.Context, ts *tenantState, partitions []int32) {
 	if err := r.loadTenant(ctx, ts, partitions); err != nil {
 		r.l.Error().Err(err).Str("tenant_id", ts.tenantId.String()).Msg("could not load tenant routing cache; the gained units are retried by maintenance")
-		r.deferUnits(ts.tenantId, partitions)
 
 		if !ts.loaded && ts.unitCount() == 0 {
 			r.forgetTenant(ts)
@@ -317,15 +353,23 @@ func (r *runner) gainUnitsLocked(ctx context.Context, ts *tenantState, partition
 		return
 	}
 
-	r.clearPending(ts.tenantId, partitions)
+	claimed := r.claimPending(ts.tenantId, partitions)
 
 	ts.mu.Lock()
 
-	for _, partition := range partitions {
+	for _, partition := range claimed {
 		ts.units[partition] = struct{}{}
 	}
 
+	remaining := len(ts.units)
 	ts.mu.Unlock()
+
+	if remaining == 0 {
+		ts.removed = true
+		r.forgetTenant(ts)
+
+		return
+	}
 
 	if ts.registration() == nil {
 		if err := r.openRegistration(ctx, ts); err != nil {
@@ -384,7 +428,8 @@ func (r *runner) loadUnitEndpoints(ctx context.Context, ts *tenantState, units [
 	}
 }
 
-// UnitsLost implements lease.Reconciler: stop the lost units' pollers; the tenant's
+// UnitsLost implements lease.Reconciler: the lost units leave the pending set, so a gain of
+// them in flight does not serve them, and their pollers are stopped; the tenant's
 // registration stays while it still owns units. A tenant with no owned units left is
 // forgotten, its registration paused, drained and closed in the background so the lease tick
 // is not held for DrainTimeout, and released on the host once that is done. Action sets are
