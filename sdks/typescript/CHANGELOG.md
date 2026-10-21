@@ -5,6 +5,12 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.39.0] - 2026-10-21
+
+### Added
+
+- The `/core` client publishes to durable streams: `hatchet.streams.publish(topic, message, { namespace })`, `hatchet.streams.reset(topic, { namespace })` and `hatchet.streams.topicMetadata(topic, { namespace })`, the Node client's calls with the same names and options, over unary Connect calls. Reading a topic (`events()`) is a server stream and stays on the Node client; a payload over the inline limit (`MAX_STREAM_MESSAGE_BYTES`) is rejected rather than uploaded.
+
 ## [1.38.1] - 2026-10-21
 
 ### Fixed
