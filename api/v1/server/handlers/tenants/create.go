@@ -58,6 +58,17 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 		createOpts.DataRetentionPeriod = &t.config.Runtime.Limits.DefaultTenantRetentionPeriod
 	}
 
+	defaultEntitlements := t.config.Runtime.DefaultTenantEntitlements
+
+	createOpts.Entitlements = &v1.TenantEntitlements{
+		AuditLogs:                       defaultEntitlements.AuditLogs,
+		PrometheusMetrics:               defaultEntitlements.PrometheusMetrics,
+		StrictAdditionalMetadataFilters: defaultEntitlements.StrictAdditionalMetadataFilters,
+		DAGOperator:                     defaultEntitlements.DAGOperator,
+		DurableStreams:                  defaultEntitlements.DurableStreams,
+		ServerlessOperator:              defaultEntitlements.ServerlessOperator,
+	}
+
 	var engineVersion *sqlcv1.TenantMajorEngineVersion
 
 	if request.Body.EngineVersion != nil {
