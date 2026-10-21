@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `HatchetError` is visible to ESM importers of `@hatchet-dev/typescript-sdk/core` under Node (it was re-exported in a form Node's CommonJS export detection misses).
 - The `/core` client no longer asks `fetch` for `redirect: 'error'`, which Cloudflare Workers refuse; it sends `redirect: 'manual'` and fails the call on a redirect response, so it runs on Workers as well as Node, Deno, Bun and browsers.
 
 ## [1.38.0] - 2026-10-13
