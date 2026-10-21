@@ -19,6 +19,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/rpcstream"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
@@ -885,7 +886,15 @@ func (d *DispatcherServiceImpl) handleDurableTaskRequest(
 	ctx context.Context,
 	invocation *durableTaskInvocation,
 	req *contracts.DurableTaskRequest,
-) error {
+) (err error) {
+	// recover per request, not per goroutine, so a panic doesn't stop the worker-status runner
+	defer func() {
+		if r := recover(); r != nil {
+			_ = recoveryutils.RecoverWithAlert(d.l, d.alerter, r)
+			err = fmt.Errorf("recovered from panic handling %T: %v", req.GetMessage(), r)
+		}
+	}()
+
 	ctx, span := telemetry.NewRootSpan(ctx, "dispatcher.handle-durable-task-request")
 	defer span.End()
 
@@ -1270,7 +1279,7 @@ func (d *DispatcherServiceImpl) handleWaitFor(
 
 	if req.WaitForConditions != nil {
 		for _, condition := range req.WaitForConditions.SleepConditions {
-			orGroupId, parseErr := uuid.Parse(condition.Base.OrGroupId)
+			orGroupId, parseErr := uuid.Parse(condition.GetBase().GetOrGroupId())
 			if parseErr != nil {
 				return connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("or group id is not a valid uuid: %v", parseErr))
 			}
@@ -1283,7 +1292,7 @@ func (d *DispatcherServiceImpl) handleWaitFor(
 		}
 
 		for _, condition := range req.WaitForConditions.UserEventConditions {
-			orGroupId, parseErr := uuid.Parse(condition.Base.OrGroupId)
+			orGroupId, parseErr := uuid.Parse(condition.GetBase().GetOrGroupId())
 			if parseErr != nil {
 				return connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("or group id is not a valid uuid: %v", parseErr))
 			}
@@ -1884,6 +1893,8 @@ func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uui
 			WorkflowRunId:        &orchestratorWorkflowRunId,
 			OlapDagId:            &task.ID,
 			OlapDagInsertedAt:    &task.InsertedAt.Time,
+
+			OrchestratorPayloadReferenceId: task.PayloadReferenceID,
 		},
 	}}
 

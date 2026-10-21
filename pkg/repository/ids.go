@@ -305,6 +305,7 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 		newEventKeys,
 		nil,
 		childExternalIds,
+		nil,
 	)
 
 	if err != nil {

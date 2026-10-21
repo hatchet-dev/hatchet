@@ -242,7 +242,8 @@ INSERT INTO v1_task_events_olap (
     additional__event_message,
     external_id,
     durable_invocation_count,
-    is_dag_orchestrator
+    is_dag_orchestrator,
+    payload_reference_id
 ) VALUES (
     $1,
     $2,
@@ -259,7 +260,8 @@ INSERT INTO v1_task_events_olap (
     $13,
     $14,
     $15,
-    $16
+    $16,
+    $17
 );
 
 -- name: ReadTaskByExternalID :one
@@ -453,6 +455,7 @@ SELECT
     e.error_message,
     e.output,
     e.external_id AS event_external_id,
+    e.payload_reference_id,
     e.worker_id,
     e.additional__event_data,
     e.additional__event_message,
@@ -514,7 +517,8 @@ WITH selected_retry_count AS (
     SELECT
         external_id,
         output,
-        inserted_at
+        inserted_at,
+        payload_reference_id
     FROM
         relevant_events
     WHERE
@@ -564,6 +568,7 @@ SELECT
     q.queued_at::timestamptz as queued_at,
     o.external_id AS output_event_external_id,
     o.inserted_at AS output_event_inserted_at,
+    o.payload_reference_id AS output_event_payload_reference_id,
     o.output as output,
     e.error_message as error_message,
     sc.spawned_children,
@@ -618,7 +623,8 @@ WITH input AS (
         t.latest_retry_count,
         t.dag_id,
         t.is_durable,
-        t.idempotency_key
+        t.idempotency_key,
+        t.payload_reference_id
     FROM
         v1_tasks_olap t
     JOIN
@@ -711,7 +717,8 @@ WITH input AS (
         task_id,
         output,
         external_id AS output_event_external_id,
-        inserted_at AS output_event_inserted_at
+        inserted_at AS output_event_inserted_at,
+        payload_reference_id AS output_event_payload_reference_id
     FROM
         relevant_events
     WHERE
@@ -755,8 +762,10 @@ SELECT
     END::JSONB as output,
     o.output_event_external_id AS output_event_external_id,
     o.output_event_inserted_at AS output_event_inserted_at,
+    o.output_event_payload_reference_id AS output_event_payload_reference_id,
     COALESCE(t.is_durable, FALSE) AS is_durable,
-    t.idempotency_key
+    t.idempotency_key,
+    t.payload_reference_id
 FROM
     tasks t
 LEFT JOIN
@@ -1494,7 +1503,8 @@ WITH input AS (
         d.additional_metadata,
         d.workflow_version_id,
         d.parent_task_external_id,
-        d.idempotency_key
+        d.idempotency_key,
+        d.payload_reference_id
     FROM input i
     JOIN v1_runs_olap r ON (i.id, i.inserted_at) = (r.id, r.inserted_at)
     JOIN v1_dags_olap d ON (r.id, r.inserted_at) = (d.id, d.inserted_at)
@@ -1538,7 +1548,8 @@ WITH input AS (
         run_id,
         output,
         external_id,
-        inserted_at
+        inserted_at,
+        payload_reference_id
     FROM
         relevant_events
     WHERE
@@ -1559,6 +1570,7 @@ SELECT
     END::JSONB AS output,
     o.external_id AS output_event_external_id,
     o.inserted_at AS output_event_inserted_at,
+    o.payload_reference_id AS output_event_payload_reference_id,
     COALESCE(mrc.max_retry_count, 0)::int as retry_count
 FROM runs r
 LEFT JOIN metadata m ON r.run_id = m.run_id
@@ -1664,7 +1676,8 @@ WITH runs AS (
         d.input AS input,
         d.additional_metadata AS additional_metadata,
         d.workflow_version_id AS workflow_version_id,
-        d.parent_task_external_id AS parent_task_external_id
+        d.parent_task_external_id AS parent_task_external_id,
+        d.payload_reference_id AS payload_reference_id
     FROM
         v1_lookup_table_olap lt
     JOIN
@@ -1691,7 +1704,8 @@ WITH runs AS (
         t.input AS input,
         t.additional_metadata AS additional_metadata,
         t.workflow_version_id AS workflow_version_id,
-        NULL::UUID AS parent_task_external_id
+        NULL::UUID AS parent_task_external_id,
+        t.payload_reference_id AS payload_reference_id
     FROM
         v1_lookup_table_olap lt
     JOIN
@@ -1747,7 +1761,8 @@ WITH runs AS (
 ), output_event_external_id AS (
     SELECT
         external_id,
-        inserted_at
+        inserted_at,
+        payload_reference_id
     FROM
         relevant_events
     WHERE
@@ -1765,7 +1780,8 @@ SELECT
     e.error_message,
     m.task_metadata,
     o.external_id AS output_event_external_id,
-    o.inserted_at AS output_event_inserted_at
+    o.inserted_at AS output_event_inserted_at,
+    o.payload_reference_id AS output_event_payload_reference_id
 FROM runs r
 LEFT JOIN metadata m ON true
 LEFT JOIN error_message e ON true
@@ -1773,7 +1789,7 @@ LEFT JOIN output_event_external_id o ON true
 ORDER BY r.inserted_at DESC;
 
 -- name: GetWorkflowRunIdFromDagIdInsertedAt :one
-SELECT external_id
+SELECT external_id, payload_reference_id
 FROM v1_dags_olap
 WHERE
     id = @dagId::bigint

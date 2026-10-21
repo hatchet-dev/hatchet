@@ -66,6 +66,8 @@ func durableOutcome(out durable.Outcome) (o outcome, report bool) {
 		return outcome{result: "evicted"}, false
 	case durable.KindCancelled:
 		return cancelledOutcome(), false
+	case durable.KindShutdown:
+		fallthrough
 	default:
 		return outcome{result: "shutdown"}, false
 	}

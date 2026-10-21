@@ -1949,14 +1949,22 @@ WITH locked_qis AS (
         lqi.retry_count,
         COALESCE(BTRIM(lqi.batch_key), ''),
         CURRENT_TIMESTAMP,
-        COALESCE(OCTET_LENGTH(p.inline_content::text), 0)
+        COALESCE(OCTET_LENGTH(COALESCE(own_input.inline_content, shared_input.inline_content)::text), 0)
     FROM
         locked_qis lqi
-    LEFT JOIN v1_payload p
-        ON p.tenant_id = lqi.tenant_id
-        AND p.id = lqi.task_id
-        AND p.inserted_at = lqi.task_inserted_at
-        AND p.type = 'TASK_INPUT'::v1_payload_type
+    LEFT JOIN v1_task t
+        ON t.id = lqi.task_id
+        AND t.inserted_at = lqi.task_inserted_at
+    LEFT JOIN v1_payload own_input
+        ON own_input.tenant_id = lqi.tenant_id
+        AND own_input.id = lqi.task_id
+        AND own_input.inserted_at = lqi.task_inserted_at
+        AND own_input.type = 'TASK_INPUT'::v1_payload_type
+    -- tasks created with payload consolidation on read their input from a row shared with their run
+    LEFT JOIN v1_payload shared_input
+        ON shared_input.tenant_id = lqi.tenant_id
+        AND shared_input.external_id = t.payload_reference_id
+        AND shared_input.inserted_at = extract_uuid7_timestamp(t.payload_reference_id)
     ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
     RETURNING task_id
 )

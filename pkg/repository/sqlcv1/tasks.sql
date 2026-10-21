@@ -210,15 +210,20 @@ WITH lookup_rows AS MATERIALIZED (
         t.workflow_version_id,
         t.parent_task_external_id,
         t.is_durable,
-        t.task_input_payload_version
+        t.task_input_payload_version,
+        t.payload_reference_id,
+        d.payload_reference_id AS dag_payload_reference_id
     FROM
         lookup_rows l
+    JOIN
+        v1_dag d ON d.id = l.dag_id AND d.inserted_at = l.inserted_at
     JOIN
         v1_dag_to_task dt ON dt.dag_id = l.dag_id AND dt.dag_inserted_at = l.inserted_at
     JOIN
         v1_task t ON t.id = dt.task_id AND t.inserted_at = dt.task_inserted_at
     WHERE
         l.dag_id IS NOT NULL
+        AND d.inserted_at >= (SELECT MIN(inserted_at) FROM lookup_rows WHERE dag_id IS NOT NULL)
         AND dt.dag_inserted_at >= (SELECT MIN(inserted_at) FROM lookup_rows WHERE dag_id IS NOT NULL)
         AND t.inserted_at >= (SELECT MIN(inserted_at) FROM lookup_rows WHERE dag_id IS NOT NULL)
 )
@@ -243,7 +248,9 @@ SELECT
     t.workflow_version_id,
     t.parent_task_external_id,
     t.is_durable,
-    t.task_input_payload_version
+    t.task_input_payload_version,
+    t.payload_reference_id,
+    NULL::uuid AS dag_payload_reference_id
 FROM
     lookup_rows l
 JOIN
@@ -874,6 +881,7 @@ WITH RECURSIVE input_tasks AS MATERIALIZED (
         t.desired_worker_label,
         t.triggering_event_external_id,
         t.triggering_event_key,
+        t.payload_reference_id,
         t.task_input_payload_version
     FROM
         v1_task t
@@ -924,6 +932,7 @@ SELECT
     t.desired_worker_label,
     t.triggering_event_external_id,
     t.triggering_event_key,
+    t.payload_reference_id,
     t.task_input_payload_version,
     j."kind" as "jobKind",
     COALESCE(so."parents", '{}'::uuid[]) as "parents"
@@ -960,7 +969,8 @@ WITH input AS (
         e.id AS task_event_id,
         e.inserted_at AS task_event_inserted_at,
         e.data AS output,
-        e.external_id AS output_event_external_id
+        e.external_id AS output_event_external_id,
+        e.payload_reference_id AS output_event_payload_reference_id
     FROM
         v1_task t1
     JOIN
@@ -990,6 +1000,7 @@ WITH input AS (
         workflow_run_id,
         output,
         output_event_external_id,
+        output_event_payload_reference_id,
         event_type
     FROM
         task_terminal_events
@@ -1004,7 +1015,8 @@ SELECT
     task_event_inserted_at,
     workflow_run_id,
     output,
-    output_event_external_id
+    output_event_external_id,
+    output_event_payload_reference_id
 FROM
     latest_terminal_events
 WHERE
@@ -1017,6 +1029,7 @@ WITH task_outputs AS (
         e.id AS task_event_id,
         e.inserted_at AS task_event_inserted_at,
         e.external_id AS output_event_external_id,
+        e.payload_reference_id AS output_event_payload_reference_id,
         e.retry_count
     FROM v1_lookup_table lt
     JOIN v1_task_event e ON (lt.task_id, lt.inserted_at) = (e.task_id, e.task_inserted_at)
@@ -1035,6 +1048,7 @@ WITH task_outputs AS (
 SELECT
     o.task_run_external_id,
     o.output_event_external_id,
+    o.output_event_payload_reference_id,
     o.task_event_id,
     o.task_event_inserted_at
 FROM task_outputs o
