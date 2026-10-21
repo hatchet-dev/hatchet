@@ -44,7 +44,6 @@ type sharedRepository struct {
 	limitConfig limits.LimitConfigFile
 
 	queueCache               *cache.Cache
-	stepExpressionCache      *cache.Cache
 	concurrencyStrategyCache *cache.Cache
 
 	tenantIdWorkflowNameCache   *expirable.LRU[string, *sqlcv1.ListWorkflowsByNamesRow]
@@ -55,6 +54,7 @@ type sharedRepository struct {
 	stepIdSlotRequestsCache     *expirable.LRU[uuid.UUID, map[string]int32]
 	stepIdHasBatchConfigCache   *expirable.LRU[uuid.UUID, bool]
 	stepIdMatchConditionsCache  *expirable.LRU[uuid.UUID, []*sqlcv1.V1StepMatchCondition]
+	stepIdExpressionsCache      *expirable.LRU[uuid.UUID, []*sqlcv1.StepExpression]
 
 	streamTopicSeenCache *expirable.LRU[streamTopicKey, struct{}]
 
@@ -65,6 +65,8 @@ type sharedRepository struct {
 	taskLookupCache   *lru.Cache[taskExternalIdTenantIdTuple, *sqlcv1.FlattenExternalIdsRow]
 	payloadStore      PayloadStoreRepository
 	m                 TenantLimitRepository
+
+	wrapTaskInputInStepRunData bool
 }
 
 func newSharedRepository(
@@ -78,7 +80,6 @@ func newSharedRepository(
 ) (*sharedRepository, func() error) {
 	queries := sqlcv1.New()
 	queueCache := cache.New(5 * time.Minute)
-	stepExpressionCache := cache.New(5 * time.Minute)
 	concurrencyStrategyCache := cache.New(5 * time.Minute)
 	payloadStore := NewPayloadStoreRepository(pool, l, queries, payloadStoreOpts)
 
@@ -92,6 +93,7 @@ func newSharedRepository(
 	stepIdSlotRequestsCache := expirable.NewLRU(10000, func(key uuid.UUID, value map[string]int32) {}, 5*time.Minute)
 	stepIdHasBatchConfigCache := expirable.NewLRU(10000, func(key uuid.UUID, value bool) {}, 5*time.Minute)
 	stepIdMatchConditionsCache := expirable.NewLRU(10000, func(key uuid.UUID, value []*sqlcv1.V1StepMatchCondition) {}, 5*time.Minute)
+	stepIdExpressionsCache := expirable.NewLRU(10000, func(key uuid.UUID, value []*sqlcv1.StepExpression) {}, 5*time.Minute)
 	streamTopicSeenCache := expirable.NewLRU(10000, func(key streamTopicKey, value struct{}) {}, time.Hour)
 	// short TTL since a pause set through another engine is only seen once this expires; the scheduler holds anything created in between
 	rateLimitPauseCache := expirable.NewLRU(10000, func(key uuid.UUID, value bool) {}, 5*time.Second)
@@ -118,7 +120,6 @@ func newSharedRepository(
 		queries:                     queries,
 		limitConfig:                 c,
 		queueCache:                  queueCache,
-		stepExpressionCache:         stepExpressionCache,
 		concurrencyStrategyCache:    concurrencyStrategyCache,
 		tenantIdWorkflowNameCache:   tenantIdWorkflowNameCache,
 		workflowIdNameCache:         workflowIdNameCache,
@@ -128,12 +129,14 @@ func newSharedRepository(
 		stepIdSlotRequestsCache:     stepIdSlotRequestsCache,
 		stepIdHasBatchConfigCache:   stepIdHasBatchConfigCache,
 		stepIdMatchConditionsCache:  stepIdMatchConditionsCache,
+		stepIdExpressionsCache:      stepIdExpressionsCache,
 		streamTopicSeenCache:        streamTopicSeenCache,
 		rateLimitPauseCache:         rateLimitPauseCache,
 		celParser:                   celParser,
 		boolExprEvaluator:           boolExprEvaluator,
 		taskLookupCache:             lookupCache,
 		payloadStore:                payloadStore,
+		wrapTaskInputInStepRunData:  payloadStoreOpts.WrapTaskInputInStepRunData,
 	}
 
 	tenantLimitRepository := newTenantLimitRepository(s, c, shouldEnforceLimits, cacheDuration)
@@ -160,7 +163,6 @@ func (s *sharedRepository) isDagOperatorEnabled(ctx context.Context, db sqlcv1.D
 
 func (s *sharedRepository) cleanup() error {
 	s.queueCache.Stop()
-	s.stepExpressionCache.Stop()
 	s.concurrencyStrategyCache.Stop()
 	s.m.Stop()
 	return nil

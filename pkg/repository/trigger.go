@@ -946,13 +946,10 @@ func (r *sharedRepository) triggerWorkflowsCore(
 	stepsToAdditionalMatches := make(map[uuid.UUID][]*sqlcv1.V1StepMatchCondition)
 
 	if len(stepsWithAdditionalMatchConditions) > 0 {
-		additionalMatches, err := r.queries.ListStepMatchConditions(ctx, preflightTx, sqlcv1.ListStepMatchConditionsParams{
-			Stepids:  stepsWithAdditionalMatchConditions,
-			Tenantid: tenantId,
-		})
+		additionalMatches, err := r.listStepMatchConditions(ctx, preflightTx, tenantId, stepsWithAdditionalMatchConditions)
 
 		if err != nil {
-			return nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to list step match conditions: %w", err)
+			return nil, nil, nil, nil, nil, nil, err
 		}
 
 		for _, match := range additionalMatches {
@@ -1641,25 +1638,21 @@ func (r *sharedRepository) triggerWorkflowsCore(
 	storePayloadOpts := make([]StorePayloadOpts, 0, len(tasks)+len(dags))
 
 	for _, task := range tasks {
-		storePayloadOpts = append(storePayloadOpts, StorePayloadOpts{
+		storePayloadOpts = append(storePayloadOpts, PayloadRef[TaskInputShape]{
 			Id:         task.ID,
 			InsertedAt: task.InsertedAt,
 			ExternalId: task.ExternalID,
-			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
-			Payload:    task.Payload,
 			TenantId:   tenantId,
-		})
+		}.StoreOpts(NewPayload[TaskInputShape](task.TaskInputPayload)))
 	}
 
 	for _, dag := range dags {
-		storePayloadOpts = append(storePayloadOpts, StorePayloadOpts{
+		storePayloadOpts = append(storePayloadOpts, PayloadRef[DAGInputShape]{
 			Id:         dag.ID,
 			InsertedAt: dag.InsertedAt,
 			ExternalId: dag.ExternalID,
-			Type:       sqlcv1.V1PayloadTypeDAGINPUT,
-			Payload:    dag.Input,
 			TenantId:   tenantId,
-		})
+		}.StoreOpts(NewPayload[DAGInputShape](dag.Input)))
 	}
 
 	if coreEvents != nil {
@@ -1676,14 +1669,12 @@ func (r *sharedRepository) triggerWorkflowsCore(
 				continue
 			}
 
-			storePayloadOpts = append(storePayloadOpts, StorePayloadOpts{
+			storePayloadOpts = append(storePayloadOpts, PayloadRef[UserEventInputShape]{
 				Id:         e.ID,
 				InsertedAt: e.SeenAt,
 				ExternalId: e.ExternalID,
-				Type:       sqlcv1.V1PayloadTypeUSEREVENTINPUT,
-				Payload:    payload,
 				TenantId:   tenantId,
-			})
+			}.StoreOpts(NewPayload[UserEventInputShape](payload)))
 		}
 	}
 
@@ -1761,7 +1752,11 @@ type DAGWithData struct {
 type V1TaskWithPayload struct {
 	*sqlcv1.V1Task
 	Runtime *sqlcv1.V1TaskRuntime `json:"runtime,omitempty"`
-	Payload []byte                `json:"payload"`
+
+	// Payload is the step run data as of task creation, which OLAP displays as the task's input.
+	Payload []byte `json:"payload"`
+
+	TaskInputPayload []byte `json:"-"`
 
 	// IsOperatorRun is true for an operator-managed run's children. The orchestrator itself is
 	// never written to OLAP as a task, so it is never flagged here.
@@ -1978,26 +1973,25 @@ func (r *sharedRepository) registerChildWorkflows(
 	}
 
 	// only need to hit the payload store for events created before the child_external_id column existed
-	retrievePayloadOpts := make([]RetrievePayloadOpts, 0, len(matchingEvents))
+	retrievePayloadOpts := make([]PayloadRef[ChildWorkflowSignalCreatedShape], 0, len(matchingEvents))
 
 	for _, event := range matchingEvents {
 		if event.ChildExternalID != nil {
 			continue
 		}
 
-		retrievePayloadOpts = append(retrievePayloadOpts, RetrievePayloadOpts{
+		retrievePayloadOpts = append(retrievePayloadOpts, PayloadRef[ChildWorkflowSignalCreatedShape]{
 			Id:         event.ID,
 			InsertedAt: event.InsertedAt,
-			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 			TenantId:   tenantId,
 			ExternalId: event.ExternalID,
 		})
 	}
 
-	var payloads map[RetrievePayloadOpts][]byte
+	var payloads map[PayloadRef[ChildWorkflowSignalCreatedShape]]Payload[ChildWorkflowSignalCreatedShape]
 
 	if len(retrievePayloadOpts) > 0 {
-		payloads, err = r.payloadStore.Retrieve(ctx, tx, retrievePayloadOpts...)
+		payloads, err = r.payloadStore.ChildWorkflowSignalCreatedEvents().Retrieve(ctx, tx, retrievePayloadOpts...)
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to retrieve payloads for signal created events: %w", err)
@@ -2014,19 +2008,14 @@ func (r *sharedRepository) registerChildWorkflows(
 		if event.ChildExternalID != nil {
 			childExternalId = *event.ChildExternalID
 		} else {
-			payload, ok := payloads[RetrievePayloadOpts{
+			payload := RetrievePayloadOrFallback(payloads, PayloadRef[ChildWorkflowSignalCreatedShape]{
 				Id:         event.ID,
 				InsertedAt: event.InsertedAt,
-				Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 				TenantId:   tenantId,
 				ExternalId: event.ExternalID,
-			}]
+			}, event.Data)
 
-			if !ok {
-				payload = event.Data
-			}
-
-			c, err := newChildWorkflowSignalCreatedDataFromBytes(payload)
+			c, err := DecodeChildWorkflowSignalCreatedPayload(payload)
 
 			if err != nil {
 				r.l.Error().Msgf("failed to unmarshal child workflow signal created data: %s", err)
@@ -3046,19 +3035,18 @@ func (r *sharedRepository) lookupParentOutputsByWorkflowRunIds(ctx context.Conte
 		return nil, err
 	}
 
-	retrieveOpts := make([]RetrievePayloadOpts, 0, len(rows))
+	retrieveOpts := make([]PayloadRef[TaskCompletionEventShape], 0, len(rows))
 
 	for _, row := range rows {
-		retrieveOpts = append(retrieveOpts, RetrievePayloadOpts{
+		retrieveOpts = append(retrieveOpts, PayloadRef[TaskCompletionEventShape]{
 			Id:         row.TaskEventID,
 			InsertedAt: row.TaskEventInsertedAt,
-			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 			TenantId:   tenantId,
 			ExternalId: row.OutputEventExternalID,
 		})
 	}
 
-	payloads, err := r.payloadStore.Retrieve(ctx, r.pool, retrieveOpts...)
+	payloads, err := r.payloadStore.TaskCompletionEvents().Retrieve(ctx, r.pool, retrieveOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve parent output payloads: %w", err)
 	}
@@ -3066,7 +3054,7 @@ func (r *sharedRepository) lookupParentOutputsByWorkflowRunIds(ctx context.Conte
 	result := make(map[uuid.UUID]*TaskOutputEvent, len(rows))
 
 	for _, payload := range payloads {
-		e, err := newTaskEventFromBytes(payload)
+		e, err := DecodeTaskCompletionEventPayload(payload)
 		if err != nil {
 			r.l.Warn().Ctx(ctx).Msgf("failed to parse parent task output: %v", err)
 			continue

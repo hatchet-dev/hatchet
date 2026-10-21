@@ -23,19 +23,184 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
-type StorePayloadOpts struct {
+type PayloadKind int
+
+const (
+	PayloadKindTaskInput PayloadKind = iota
+	PayloadKindDAGInput
+	PayloadKindUserEventInput
+	PayloadKindTaskOutput
+	PayloadKindTaskCompletionEvent
+	PayloadKindChildWorkflowSignalCreated
+	PayloadKindSignalCompletedMatchData
+	PayloadKindDurableEventLogEntryData
+	PayloadKindDurableEventLogEntryResultData
+)
+
+func (k PayloadKind) V1PayloadType() sqlcv1.V1PayloadType {
+	switch k {
+	case PayloadKindTaskInput:
+		return sqlcv1.V1PayloadTypeTASKINPUT
+	case PayloadKindDAGInput:
+		return sqlcv1.V1PayloadTypeDAGINPUT
+	case PayloadKindUserEventInput:
+		return sqlcv1.V1PayloadTypeUSEREVENTINPUT
+	case PayloadKindTaskOutput:
+		return sqlcv1.V1PayloadTypeTASKOUTPUT
+	case PayloadKindTaskCompletionEvent, PayloadKindChildWorkflowSignalCreated, PayloadKindSignalCompletedMatchData:
+		return sqlcv1.V1PayloadTypeTASKEVENTDATA
+	case PayloadKindDurableEventLogEntryData:
+		return sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYDATA
+	case PayloadKindDurableEventLogEntryResultData:
+		return sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA
+	}
+
+	panic(fmt.Sprintf("unknown payload kind %d", k))
+}
+
+type PayloadShape interface {
+	kind() PayloadKind
+}
+
+type TaskInputShape struct{}
+type DAGInputShape struct{}
+type UserEventInputShape struct{}
+type TaskOutputShape struct{}
+type TaskCompletionEventShape struct{}
+type ChildWorkflowSignalCreatedShape struct{}
+type SignalCompletedMatchDataShape struct{}
+type DurableEventLogEntryDataShape struct{}
+type DurableEventLogEntryResultDataShape struct{}
+
+func (TaskInputShape) kind() PayloadKind           { return PayloadKindTaskInput }
+func (DAGInputShape) kind() PayloadKind            { return PayloadKindDAGInput }
+func (UserEventInputShape) kind() PayloadKind      { return PayloadKindUserEventInput }
+func (TaskOutputShape) kind() PayloadKind          { return PayloadKindTaskOutput }
+func (TaskCompletionEventShape) kind() PayloadKind { return PayloadKindTaskCompletionEvent }
+func (ChildWorkflowSignalCreatedShape) kind() PayloadKind {
+	return PayloadKindChildWorkflowSignalCreated
+}
+func (SignalCompletedMatchDataShape) kind() PayloadKind { return PayloadKindSignalCompletedMatchData }
+func (DurableEventLogEntryDataShape) kind() PayloadKind { return PayloadKindDurableEventLogEntryData }
+func (DurableEventLogEntryResultDataShape) kind() PayloadKind {
+	return PayloadKindDurableEventLogEntryResultData
+}
+
+type Payload[S PayloadShape] struct {
+	raw []byte
+}
+
+func NewPayload[S PayloadShape](raw []byte) Payload[S] {
+	return Payload[S]{raw: raw}
+}
+
+func (p Payload[S]) Bytes() []byte {
+	return p.raw
+}
+
+func (p Payload[S]) IsEmpty() bool {
+	trimmed := bytes.TrimSpace(p.raw)
+
+	return len(trimmed) == 0 || bytes.Equal(trimmed, []byte("{}"))
+}
+
+func (p Payload[S]) BytesOrEmptyJSONObject() []byte {
+	if len(p.raw) == 0 {
+		return []byte("{}")
+	}
+
+	return p.raw
+}
+
+type AnyPayload interface {
+	Bytes() []byte
+	IsEmpty() bool
+}
+
+func DecodeTaskCompletionEventPayload(p Payload[TaskCompletionEventShape]) (*TaskOutputEvent, error) {
+	return newTaskEventFromBytes(p.raw)
+}
+
+func DecodeChildWorkflowSignalCreatedPayload(p Payload[ChildWorkflowSignalCreatedShape]) (*ChildWorkflowSignalCreatedData, error) {
+	return newChildWorkflowSignalCreatedDataFromBytes(p.raw)
+}
+
+type PayloadRef[S PayloadShape] struct {
+	TenantId   uuid.UUID
 	Id         int64
 	InsertedAt pgtype.Timestamptz
 	ExternalId uuid.UUID
-	Type       sqlcv1.V1PayloadType
-	Payload    []byte
-	TenantId   uuid.UUID
+}
+
+func (r PayloadRef[S]) retrieveOpts() RetrievePayloadOpts {
+	var shape S
+
+	return RetrievePayloadOpts{
+		TenantId:   r.TenantId,
+		Id:         r.Id,
+		InsertedAt: r.InsertedAt,
+		Type:       shape.kind().V1PayloadType(),
+		ExternalId: r.ExternalId,
+	}
+}
+
+func (r PayloadRef[S]) StoreOpts(payload Payload[S]) StorePayloadOpts {
+	return StorePayloadOpts{key: r.retrieveOpts(), payload: payload}
+}
+
+type TypedPayloadStore[S PayloadShape] struct {
+	store PayloadStoreRepository
+}
+
+func (s TypedPayloadStore[S]) RetrieveOne(ctx context.Context, tx sqlcv1.DBTX, ref PayloadRef[S]) (Payload[S], error) {
+	payloads, err := s.Retrieve(ctx, tx, ref)
+
+	if err != nil {
+		return Payload[S]{}, err
+	}
+
+	return payloads[ref], nil
+}
+
+func (s TypedPayloadStore[S]) Retrieve(ctx context.Context, tx sqlcv1.DBTX, refs ...PayloadRef[S]) (map[PayloadRef[S]]Payload[S], error) {
+	opts := listutils.Map(refs, func(ref PayloadRef[S]) RetrievePayloadOpts {
+		return ref.retrieveOpts()
+	})
+
+	optsToBytes, err := s.store.Retrieve(ctx, tx, opts...)
+
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[PayloadRef[S]]Payload[S], len(optsToBytes))
+
+	for _, ref := range refs {
+		if raw, ok := optsToBytes[ref.retrieveOpts()]; ok {
+			result[ref] = NewPayload[S](raw)
+		}
+	}
+
+	return result, nil
+}
+
+func RetrievePayloadOrFallback[S PayloadShape](payloads map[PayloadRef[S]]Payload[S], ref PayloadRef[S], fallback []byte) Payload[S] {
+	if payload, ok := payloads[ref]; ok {
+		return payload
+	}
+
+	return NewPayload[S](fallback)
+}
+
+type StorePayloadOpts struct {
+	key     RetrievePayloadOpts
+	payload AnyPayload
 }
 
 type StoreOLAPPayloadOpts struct {
 	ExternalId uuid.UUID
 	InsertedAt pgtype.Timestamptz
-	Payload    []byte
+	Payload    AnyPayload
 }
 
 type OffloadToExternalStoreOpts struct {
@@ -53,41 +218,12 @@ type RetrievePayloadOpts struct {
 	ExternalId uuid.UUID
 }
 
-type RetrieveFromExternalByKeyOpt struct {
-	Key ExternalPayloadLocationKey
-}
-
-type RetrieveFromExternalByIndexFileOpt struct {
+type RetrieveFromExternalOpts struct {
 	IndexFileKey ExternalIndexFileLocationKey
 	ExternalId   uuid.UUID
 }
 
-type RetrieveFromExternalMethod int
-
-const (
-	RetrieveFromExternalByKey RetrieveFromExternalMethod = iota
-	RetrieveFromExternalByIndexFile
-)
-
-func (m RetrieveFromExternalMethod) String() string {
-	switch m {
-	case RetrieveFromExternalByKey:
-		return "key"
-	case RetrieveFromExternalByIndexFile:
-		return "index_file"
-	default:
-		return "unknown"
-	}
-}
-
-type RetrieveFromExternalOpts struct {
-	Method      RetrieveFromExternalMethod
-	ByKey       *RetrieveFromExternalByKeyOpt
-	ByIndexFile *RetrieveFromExternalByIndexFileOpt
-}
-
 type PayloadLocation string
-type ExternalPayloadLocationKey string
 type ExternalIndexFileLocationKey string
 
 type CreateIndexBlockOpts struct {
@@ -106,7 +242,15 @@ type PayloadStoreRepository interface {
 	Store(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) error
 	OverwriteExisting(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) error
 	Retrieve(ctx context.Context, tx sqlcv1.DBTX, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
-	RetrieveSingle(ctx context.Context, tx sqlcv1.DBTX, opt RetrievePayloadOpts) ([]byte, error)
+	TaskInputs() TypedPayloadStore[TaskInputShape]
+	DAGInputs() TypedPayloadStore[DAGInputShape]
+	UserEventInputs() TypedPayloadStore[UserEventInputShape]
+	TaskOutputs() TypedPayloadStore[TaskOutputShape]
+	TaskCompletionEvents() TypedPayloadStore[TaskCompletionEventShape]
+	ChildWorkflowSignalCreatedEvents() TypedPayloadStore[ChildWorkflowSignalCreatedShape]
+	SignalCompletedMatchData() TypedPayloadStore[SignalCompletedMatchDataShape]
+	DurableEventLogEntryData() TypedPayloadStore[DurableEventLogEntryDataShape]
+	DurableEventLogEntryResultData() TypedPayloadStore[DurableEventLogEntryResultDataShape]
 	RetrieveFromExternal(ctx context.Context, opts ...RetrieveFromExternalOpts) (map[RetrieveFromExternalOpts][]byte, error)
 	OverwriteExternalStore(store ExternalStore)
 	ExternalCutoverProcessInterval() time.Duration
@@ -139,6 +283,7 @@ type PayloadStoreRepositoryOpts struct {
 	ExternalCutoverNumConcurrentOffloads int32
 	InlineStoreTTL                       *time.Duration
 	EnableWindowSizeOptimization         bool
+	WrapTaskInputInStepRunData           bool
 }
 
 func NewPayloadStoreRepository(
@@ -178,20 +323,6 @@ func payloadUniqueKeyFromRetrieveOpt(opt RetrievePayloadOpts) PayloadUniqueKey {
 	}
 }
 
-func isEmptyPayload(payload []byte) bool {
-	trimmed := bytes.TrimSpace(payload)
-
-	return len(trimmed) == 0 || bytes.Equal(trimmed, []byte("{}"))
-}
-
-func payloadOrEmptyJSONObject(payload []byte) []byte {
-	if len(payload) == 0 {
-		return []byte("{}")
-	}
-
-	return payload
-}
-
 func payloadUniqueKeyFromRow(payload *sqlcv1.V1Payload) PayloadUniqueKey {
 	return PayloadUniqueKey{
 		ID:              payload.ID,
@@ -211,29 +342,21 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 	payloadTypes := make([]string, 0, len(payloads))
 	inlineContents := make([][]byte, 0, len(payloads))
 	tenantIds := make([]uuid.UUID, 0, len(payloads))
-	locations := make([]string, 0, len(payloads))
 	externalIds := make([]uuid.UUID, 0, len(payloads))
-	externalLocationKeys := make([]string, 0, len(payloads))
 
 	seenPayloadUniqueKeys := make(map[PayloadUniqueKey]struct{})
 
 	sort.Slice(payloads, func(i, j int) bool {
 		// sort payloads descending by inserted at to deduplicate operations
-		return payloads[i].InsertedAt.Time.After(payloads[j].InsertedAt.Time)
+		return payloads[i].key.InsertedAt.Time.After(payloads[j].key.InsertedAt.Time)
 	})
 
 	for _, payload := range payloads {
-		if isEmptyPayload(payload.Payload) {
+		if payload.payload.IsEmpty() {
 			continue
 		}
 
-		tenantId := payload.TenantId
-		uniqueKey := PayloadUniqueKey{
-			ID:              payload.Id,
-			InsertedAtMicro: payload.InsertedAt.Time.UnixMicro(),
-			TenantId:        tenantId,
-			Type:            payload.Type,
-		}
+		uniqueKey := payloadUniqueKeyFromRetrieveOpt(payload.key)
 
 		if _, exists := seenPayloadUniqueKeys[uniqueKey]; exists {
 			continue
@@ -241,25 +364,21 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 
 		seenPayloadUniqueKeys[uniqueKey] = struct{}{}
 
-		taskIds = append(taskIds, payload.Id)
-		taskInsertedAts = append(taskInsertedAts, payload.InsertedAt)
-		payloadTypes = append(payloadTypes, string(payload.Type))
-		tenantIds = append(tenantIds, tenantId)
-		locations = append(locations, string(sqlcv1.V1PayloadLocationINLINE))
-		inlineContents = append(inlineContents, payload.Payload)
-		externalIds = append(externalIds, payload.ExternalId)
-		externalLocationKeys = append(externalLocationKeys, "")
+		taskIds = append(taskIds, payload.key.Id)
+		taskInsertedAts = append(taskInsertedAts, payload.key.InsertedAt)
+		payloadTypes = append(payloadTypes, string(payload.key.Type))
+		tenantIds = append(tenantIds, payload.key.TenantId)
+		inlineContents = append(inlineContents, payload.payload.Bytes())
+		externalIds = append(externalIds, payload.key.ExternalId)
 	}
 
 	err := p.queries.WritePayloads(ctx, tx, sqlcv1.WritePayloadsParams{
-		Ids:                  taskIds,
-		Insertedats:          taskInsertedAts,
-		Types:                payloadTypes,
-		Locations:            locations,
-		Tenantids:            tenantIds,
-		Inlinecontents:       inlineContents,
-		Externalids:          externalIds,
-		Externallocationkeys: externalLocationKeys,
+		Ids:            taskIds,
+		Insertedats:    taskInsertedAts,
+		Types:          payloadTypes,
+		Tenantids:      tenantIds,
+		Inlinecontents: inlineContents,
+		Externalids:    externalIds,
 	})
 
 	if err != nil {
@@ -275,27 +394,22 @@ func (p *payloadStoreRepositoryImpl) OverwriteExisting(ctx context.Context, tx s
 	}
 
 	uniquePayloads := listutils.UniqBy(payloads, func(payload StorePayloadOpts) PayloadUniqueKey {
-		return PayloadUniqueKey{
-			ID:              payload.Id,
-			InsertedAtMicro: payload.InsertedAt.Time.UnixMicro(),
-			TenantId:        payload.TenantId,
-			Type:            payload.Type,
-		}
+		return payloadUniqueKeyFromRetrieveOpt(payload.key)
 	})
 
 	params := sqlcv1.OverwritePayloadsParams{}
 
 	for _, payload := range uniquePayloads {
-		if isEmptyPayload(payload.Payload) {
+		if payload.payload.IsEmpty() {
 			continue
 		}
 
-		params.Ids = append(params.Ids, payload.Id)
-		params.Insertedats = append(params.Insertedats, payload.InsertedAt)
-		params.Externalids = append(params.Externalids, payload.ExternalId)
-		params.Types = append(params.Types, string(payload.Type))
-		params.Inlinecontents = append(params.Inlinecontents, payload.Payload)
-		params.Tenantids = append(params.Tenantids, payload.TenantId)
+		params.Ids = append(params.Ids, payload.key.Id)
+		params.Insertedats = append(params.Insertedats, payload.key.InsertedAt)
+		params.Externalids = append(params.Externalids, payload.key.ExternalId)
+		params.Types = append(params.Types, string(payload.key.Type))
+		params.Inlinecontents = append(params.Inlinecontents, payload.payload.Bytes())
+		params.Tenantids = append(params.Tenantids, payload.key.TenantId)
 	}
 
 	if len(params.Ids) == 0 {
@@ -319,22 +433,40 @@ func (p *payloadStoreRepositoryImpl) Retrieve(ctx context.Context, tx sqlcv1.DBT
 	return p.retrieve(ctx, tx, opts...)
 }
 
-func (p *payloadStoreRepositoryImpl) RetrieveSingle(ctx context.Context, tx sqlcv1.DBTX, opt RetrievePayloadOpts) ([]byte, error) {
-	if tx == nil {
-		tx = p.pool
-	}
+func (p *payloadStoreRepositoryImpl) TaskInputs() TypedPayloadStore[TaskInputShape] {
+	return TypedPayloadStore[TaskInputShape]{store: p}
+}
 
-	optsToPayload, err := p.retrieve(ctx, tx, opt)
+func (p *payloadStoreRepositoryImpl) DAGInputs() TypedPayloadStore[DAGInputShape] {
+	return TypedPayloadStore[DAGInputShape]{store: p}
+}
 
-	if err != nil && err != pgx.ErrNoRows {
-		return nil, err
-	}
+func (p *payloadStoreRepositoryImpl) UserEventInputs() TypedPayloadStore[UserEventInputShape] {
+	return TypedPayloadStore[UserEventInputShape]{store: p}
+}
 
-	if len(optsToPayload) == 0 || err == pgx.ErrNoRows {
-		return nil, nil
-	}
+func (p *payloadStoreRepositoryImpl) TaskOutputs() TypedPayloadStore[TaskOutputShape] {
+	return TypedPayloadStore[TaskOutputShape]{store: p}
+}
 
-	return optsToPayload[opt], nil
+func (p *payloadStoreRepositoryImpl) TaskCompletionEvents() TypedPayloadStore[TaskCompletionEventShape] {
+	return TypedPayloadStore[TaskCompletionEventShape]{store: p}
+}
+
+func (p *payloadStoreRepositoryImpl) ChildWorkflowSignalCreatedEvents() TypedPayloadStore[ChildWorkflowSignalCreatedShape] {
+	return TypedPayloadStore[ChildWorkflowSignalCreatedShape]{store: p}
+}
+
+func (p *payloadStoreRepositoryImpl) SignalCompletedMatchData() TypedPayloadStore[SignalCompletedMatchDataShape] {
+	return TypedPayloadStore[SignalCompletedMatchDataShape]{store: p}
+}
+
+func (p *payloadStoreRepositoryImpl) DurableEventLogEntryData() TypedPayloadStore[DurableEventLogEntryDataShape] {
+	return TypedPayloadStore[DurableEventLogEntryDataShape]{store: p}
+}
+
+func (p *payloadStoreRepositoryImpl) DurableEventLogEntryResultData() TypedPayloadStore[DurableEventLogEntryResultDataShape] {
+	return TypedPayloadStore[DurableEventLogEntryResultDataShape]{store: p}
 }
 
 func (p *payloadStoreRepositoryImpl) RetrieveFromExternal(ctx context.Context, opts ...RetrieveFromExternalOpts) (map[RetrieveFromExternalOpts][]byte, error) {
@@ -403,18 +535,7 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 			}
 		}
 
-		if payload.Location == sqlcv1.V1PayloadLocationEXTERNAL {
-			key := ExternalPayloadLocationKey(payload.ExternalLocationKey.String)
-			retrieveFromExternalOpt := RetrieveFromExternalOpts{
-				Method: RetrieveFromExternalByKey,
-				ByKey:  &RetrieveFromExternalByKeyOpt{Key: key},
-			}
-
-			retrieveFromExternalOptsToOpts[retrieveFromExternalOpt] = opt
-			retrieveFromExternalOpts = append(retrieveFromExternalOpts, retrieveFromExternalOpt)
-		} else {
-			optsToPayload[opt] = payload.InlineContent
-		}
+		optsToPayload[opt] = payload.InlineContent
 	}
 
 	if p.externalStoreEnabled {
@@ -449,11 +570,8 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 
 			for _, k := range indexFileKeys {
 				retrieveFromExternalOpt := RetrieveFromExternalOpts{
-					Method: RetrieveFromExternalByIndexFile,
-					ByIndexFile: &RetrieveFromExternalByIndexFileOpt{
-						IndexFileKey: ExternalIndexFileLocationKey(k.IndexFileKey),
-						ExternalId:   k.ExternalID,
-					},
+					IndexFileKey: ExternalIndexFileLocationKey(k.IndexFileKey),
+					ExternalId:   k.ExternalID,
 				}
 				opt, ok := externalIdToOpt[k.ExternalID]
 
@@ -515,15 +633,6 @@ func (p *payloadStoreRepositoryImpl) ExternalStoreEnabled() bool {
 
 func (p *payloadStoreRepositoryImpl) ExternalStore() ExternalStore {
 	return p.externalStore
-}
-
-type BulkCutOverPayload struct {
-	TenantID            uuid.UUID
-	Id                  int64
-	InsertedAt          pgtype.Timestamptz
-	ExternalId          uuid.UUID
-	Type                sqlcv1.V1PayloadType
-	ExternalLocationKey ExternalPayloadLocationKey
 }
 
 type CutoverBatchOutcome struct {

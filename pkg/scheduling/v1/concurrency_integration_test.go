@@ -5,6 +5,7 @@ package v1_test
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"testing"
 	"time"
@@ -185,6 +186,7 @@ func newCreateTasksParams(n int) sqlcv1.CreateTasksParams {
 		WorkflowVersionIds:           make([]uuid.UUID, n),
 		WorkflowRunIds:               make([]uuid.UUID, n),
 		IsDagOrchestrators:           make([]bool, n),
+		TaskInputPayloadVersions:     slices.Repeat([]int16{1}, n),
 	}
 }
 

@@ -37,7 +37,7 @@ RUN if [ "$FIPS" = "true" ]; then export GOFIPS140=v1.0.0; fi && \
     fi
 
 # Stage 4: deployment image
-FROM alpine:3.21 AS deployment
+FROM alpine:3.24 AS deployment
 
 ARG FIPS=false
 LABEL run.hatchet.fips=${FIPS}
