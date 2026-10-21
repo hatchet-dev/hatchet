@@ -7,13 +7,16 @@ import (
 	"testing"
 	"time"
 
+	"connectrpc.com/connect"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"github.com/stretchr/testify/require"
 
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/rpcstream"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/streams"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -199,5 +202,29 @@ func TestDurableTaskReturnsNilOnEOF(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("DurableTask did not return after EOF")
+	}
+}
+
+type fakeFoundTask struct {
+	v1.Repository
+	v1.TaskRepository
+}
+
+func (f fakeFoundTask) Tasks() v1.TaskRepository { return f }
+func (fakeFoundTask) GetTaskByExternalId(context.Context, uuid.UUID, uuid.UUID, bool) (*sqlcv1.FlattenExternalIdsRow, error) {
+	return &sqlcv1.FlattenExternalIdsRow{}, nil
+}
+
+func TestHandleWaitForNilConditionBaseReturnsInvalidArgument(t *testing.T) {
+	d := newTestDispatcher()
+	d.analytics, d.repo = analytics.NoOpAnalytics{}, fakeFoundTask{}
+
+	for _, c := range []*contracts.DurableEventListenerConditions{
+		{SleepConditions: []*contracts.SleepMatchCondition{{}}},
+		{UserEventConditions: []*contracts.UserEventMatchCondition{{}}},
+	} {
+		req := &contracts.DurableTaskWaitForRequest{DurableTaskExternalId: uuid.NewString(), WaitForConditions: c}
+		err := d.handleWaitFor(context.Background(), &durableTaskInvocation{}, req)
+		require.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err), err)
 	}
 }
