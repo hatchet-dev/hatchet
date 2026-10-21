@@ -296,7 +296,7 @@ func (p *endpointPoller) applyChange(ctx context.Context, reg *registration, res
 		p.registered = cfg.registeredActions
 		p.registeredStreams = cfg.streamActions
 		p.registeredDurable = cfg.durableSupported
-		p.registeredAt = cfg.updatedAt
+		p.registeredAt = cfg.catalogUpdatedAt
 		p.registeredKnown = true
 	}
 
@@ -319,7 +319,7 @@ func (p *endpointPoller) applyChange(ctx context.Context, reg *registration, res
 	// The owner's registration is the one that runs this endpoint's tasks, so its delta is
 	// part of the change: a failure here is retried on the next poll like a rejected put.
 	if err := reg.syncActions(ctx, p.ts.cache); err != nil {
-		p.ts.cache.SetHealthcheck(p.ep.id, previous.registeredActions, previous.streamActions, previous.durableSupported, previous.updatedAt)
+		p.ts.cache.SetHealthcheck(p.ep.id, previous.registeredActions, previous.streamActions, previous.durableSupported, previous.catalogUpdatedAt)
 		return err
 	}
 
