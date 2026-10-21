@@ -124,7 +124,7 @@ WHERE durable_task_id = @durableTaskId::BIGINT
 ORDER BY node_id ASC, branch_id ASC;
 
 -- name: ResetSatisfiedOrdersForNewBranch :one
-WITH kept_entries AS (
+WITH input AS (
     SELECT
         UNNEST(@keptNodeIds::BIGINT[]) AS node_id,
         UNNEST(@keptBranchIds::BIGINT[]) AS branch_id
@@ -134,7 +134,7 @@ WITH kept_entries AS (
         e.branch_id,
         ROW_NUMBER() OVER (ORDER BY e.satisfied_order ASC) AS satisfied_order
     FROM v1_durable_event_log_entry e
-    JOIN kept_entries k ON (k.node_id, k.branch_id) = (e.node_id, e.branch_id)
+    JOIN input k ON (k.node_id, k.branch_id) = (e.node_id, e.branch_id)
     WHERE e.durable_task_id = @durableTaskId::BIGINT
       AND e.durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
       AND e.satisfied_order IS NOT NULL
@@ -150,6 +150,7 @@ WITH kept_entries AS (
       AND e.satisfied_order IS NOT NULL
     RETURNING e.satisfied_order
 )
+
 SELECT COALESCE(MAX(satisfied_order), 0)::BIGINT AS latest_satisfied_order
 FROM updated;
 
