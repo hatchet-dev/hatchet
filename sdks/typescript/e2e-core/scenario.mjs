@@ -3,7 +3,9 @@
 // path this client depends on has to work without HTTP/2; an undici Agent with HTTP/2
 // disabled is passed in so the constraint holds whatever the runtime's fetch negotiates by
 // default. The event is pushed only after the direct run completed, so that the Go test can
-// assert the worker saw the two runs in that order.
+// assert the worker saw the two runs in that order. The durable stream step publishes two
+// messages to a topic named after the run and reports the topic's metadata, so the Go test
+// can check both were stored.
 import { Agent, fetch as undiciFetch } from 'undici';
 import { Hatchet } from '@hatchet-dev/typescript-sdk/core';
 import { declarations } from '@hatchet-dev/typescript-sdk/edge';
@@ -40,6 +42,11 @@ export async function run(env) {
   const details = await hatchet.runs.get(ref);
   const event = await hatchet.events.push(eventKey, { message: `event ${message}` });
 
+  const streamTopic = `tscore-stream-${ref.workflowRunId}`;
+  await hatchet.streams.publish(streamTopic, 'first');
+  await hatchet.streams.publish(streamTopic, new TextEncoder().encode('second'));
+  const topic = await hatchet.streams.topicMetadata(streamTopic);
+
   await dispatcher.close();
 
   return {
@@ -49,5 +56,8 @@ export async function run(env) {
     done: details.done,
     eventId: event.eventId,
     eventKey: event.key,
+    streamTopic,
+    streamMessageCount: topic.messageCount,
+    streamLatestCursor: topic.latestCursor ?? '',
   };
 }

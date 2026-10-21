@@ -46,6 +46,11 @@ type scenarioResult struct {
 	Done     bool       `json:"done"`
 	EventID  string     `json:"eventId"`
 	EventKey string     `json:"eventKey"`
+	// The durable stream topic the scenario published two messages to, and what its
+	// metadata call reported.
+	StreamTopic        string `json:"streamTopic"`
+	StreamMessageCount int64  `json:"streamMessageCount"`
+	StreamLatestCursor string `json:"streamLatestCursor"`
 }
 
 func TestMain(m *testing.M) {
@@ -114,6 +119,9 @@ func TestCoreClientOverHTTP1(t *testing.T) {
 	require.True(t, result.Done)
 	require.NotEmpty(t, result.EventID)
 	require.Equal(t, eventKey, result.EventKey)
+	require.Equal(t, "tscore-stream-"+result.RunID, result.StreamTopic)
+	require.Equal(t, int64(2), result.StreamMessageCount)
+	require.NotEmpty(t, result.StreamLatestCursor)
 
 	// The order is fixed: the scenario pushes the event only after the direct run completed.
 	require.Equal(t, result.Output.Message, waitForMessage(t, received))
