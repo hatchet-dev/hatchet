@@ -90,6 +90,7 @@ const unacknowledgedEvictionMsg = "endpoint reported an eviction the engine neve
 // event in any phase because the core already sent CANCELLED. The close code is the exit's
 // in every cell except done evicted while running, which is a protocol violation.
 func resolve(ph phase, engineErr string, e exit) Outcome {
+	//exhaustive:ignore
 	switch e.kind {
 	case exitServerEvict:
 		return evicted(e.closeCode, EvictionSourceServer)
@@ -97,6 +98,7 @@ func resolve(ph phase, engineErr string, e exit) Outcome {
 		return Outcome{Kind: KindCancelled, CloseCode: e.closeCode}
 	}
 
+	//exhaustive:ignore
 	switch ph {
 	case phaseEngineErrored:
 		if engineErr == "" {
@@ -112,6 +114,7 @@ func resolve(ph phase, engineErr string, e exit) Outcome {
 		return evicted(e.closeCode, EvictionSourceEndpoint)
 	}
 
+	//exhaustive:ignore
 	switch e.kind {
 	case exitDoneOutput:
 		return completed(e.output)

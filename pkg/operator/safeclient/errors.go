@@ -148,6 +148,8 @@ func (e *EndpointError) Error() string {
 		return msg
 	case StageRead:
 		return fmt.Sprintf("safeclient: connection to endpoint host %s failed while reading the response", e.Host)
+	case StageRequest:
+		fallthrough
 	default:
 		return fmt.Sprintf("safeclient: request to endpoint host %s failed", e.Host)
 	}
