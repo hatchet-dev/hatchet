@@ -20,8 +20,8 @@ UNION ALL
 
 SELECT *
 FROM v1_payload
-WHERE (tenant_id, external_id) IN (
-    SELECT tenant_id, payload_reference_id
+WHERE (tenant_id, external_id, inserted_at) IN (
+    SELECT tenant_id, payload_reference_id, inserted_at
     FROM inputs
     WHERE payload_reference_id IS NOT NULL
 )

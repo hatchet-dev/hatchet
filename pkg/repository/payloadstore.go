@@ -525,7 +525,7 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 
 	for i, opt := range opts {
 		ids[i] = opt.Id
-		insertedAts[i] = opt.InsertedAt
+		insertedAts[i] = opt.partitionTime()
 		types[i] = string(opt.Type)
 		tenantIds[i] = opt.TenantId
 

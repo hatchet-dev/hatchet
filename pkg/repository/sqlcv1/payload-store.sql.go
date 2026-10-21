@@ -442,8 +442,8 @@ UNION ALL
 
 SELECT tenant_id, id, inserted_at, external_id, type, location, external_location_key, inline_content, updated_at
 FROM v1_payload
-WHERE (tenant_id, external_id) IN (
-    SELECT tenant_id, payload_reference_id
+WHERE (tenant_id, external_id, inserted_at) IN (
+    SELECT tenant_id, payload_reference_id, inserted_at
     FROM inputs
     WHERE payload_reference_id IS NOT NULL
 )

@@ -2474,6 +2474,17 @@ CREATE TABLE v1_payload (
 
 CREATE INDEX v1_payload_external_id_idx ON v1_payload (external_id ASC);
 
+-- can't use the built-in version of this since it was only introduced in pg 18
+CREATE OR REPLACE FUNCTION extract_uuid7_timestamp(
+    id UUID
+) RETURNS TIMESTAMPTZ
+    LANGUAGE sql
+    IMMUTABLE
+    PARALLEL SAFE
+AS $$
+    SELECT 'epoch'::TIMESTAMPTZ + ('x' || REPLACE(LEFT(id::TEXT, 13), '-', ''))::BIT(48)::BIGINT * INTERVAL '1 millisecond';
+$$;
+
 CREATE TABLE v1_payload_cutover_job_offset (
     key DATE PRIMARY KEY,
     is_completed BOOLEAN NOT NULL DEFAULT FALSE,

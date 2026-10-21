@@ -1964,6 +1964,7 @@ WITH locked_qis AS (
     LEFT JOIN v1_payload shared_input
         ON shared_input.tenant_id = lqi.tenant_id
         AND shared_input.external_id = t.payload_reference_id
+        AND shared_input.inserted_at = extract_uuid7_timestamp(t.payload_reference_id)
     ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
     RETURNING task_id
 )
