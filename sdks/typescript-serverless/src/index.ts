@@ -11,15 +11,19 @@
  * Nothing exported here imports from Node or from the SDK outside its edge and core entries.
  * @module Serverless
  */
-import { declarations } from '@hatchet-dev/typescript-sdk/edge/index.js';
-import type { Declarations } from '@hatchet-dev/typescript-sdk/edge/index.js';
+import { declarations, type ServerlessDeclarations } from './handler/declarations';
 
 /**
  * The declaration factories (`task`, `durableTask`, `workflow`, `batchTask`) bound to no
- * client. `run`, `schedule` and `cron` on the declarations throw; trigger runs through a
- * `HatchetCore` (`hatchet.run(echo, input)` accepts the declaration) or the regular SDK.
+ * client, with the `streams` option on a task (`hatchet.task({ name, fn, streams: true })`
+ * is invoked over the invocation websocket so it can await child runs). `run`, `schedule`
+ * and `cron` on the declarations throw; trigger runs through a `HatchetCore`
+ * (`hatchet.run(echo, input)` accepts the declaration) or the regular SDK.
  */
-export const hatchet: Declarations = declarations();
+export const hatchet: ServerlessDeclarations = declarations();
+
+export { ServerlessWorkflowDeclaration, invokesOverSocket } from './handler/declarations';
+export type { ServerlessDeclarations, StreamsOption } from './handler/declarations';
 
 export { createHandler, normalizeBasePath } from './handler';
 export type {
@@ -33,7 +37,7 @@ export type {
 export { createClientResolver, isHatchetCore } from './handler/client';
 export type { ClientOption, ClientSource } from './handler/client';
 export { ServerlessLimitationError, isServerlessLimitationError } from './handler/errors';
-export { ServerlessRuntime, ConsoleLogger } from './handler/context';
+export { ServerlessRuntime, ConsoleLogger, clientFromContext } from './handler/context';
 export type { ConsoleLike, ServerlessRuntimeOptions } from './handler/context';
 export { RunStreamClosedError, RunWatcher, TaskRunRef, outputsOf } from './handler/runs';
 export { FrameTransport } from './handler/durable/transport';

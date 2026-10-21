@@ -15,9 +15,9 @@ and delivers assigned tasks to it over signed HTTPS requests.
   the number of invocations it took.
 - `parent-echo`: a non-durable task with a child. It triggers `echo` through the Worker's
   Hatchet client (built from the `HATCHET_CLIENT_TOKEN` secret) and awaits the result with
-  `ctx.runChild`. Awaiting needs the invocation websocket, so `src/index.ts` lists the task in
-  `streams` and the operator dials it instead of POSTing it; the task waits inline and never
-  evicts.
+  `ctx.runChild`. Awaiting needs the invocation websocket, so the task is declared with
+  `streams: true` and the operator dials it instead of POSTing it; the task waits inline and
+  never evicts.
 
 The operator registers the workflows under the names declared here, the way a worker would, so
 `echo` is triggered as `echo` and its action id is `echo:echo`.
@@ -26,8 +26,8 @@ The operator registers the workflows under the names declared here, the way a wo
 
 | File | Purpose |
 |---|---|
-| `src/tasks.ts` | The declarations, written with `hatchet.task` and `hatchet.durableTask` from `@hatchet-dev/serverless`. The same file works on a regular worker. |
-| `src/index.ts` | `export default cloudflare({ workflows, streams: [parentEcho], client })`: the adapter serves `POST /hatchet/healthcheck`, `POST /hatchet/trigger` and the invocation websocket upgrade on `/hatchet/trigger`, reads the signing secret from `env.HATCHET_SIGNING_SECRET`, and builds the tasks' Hatchet client from `env.HATCHET_CLIENT_TOKEN` (plus `env.HATCHET_CLIENT_SERVER_URL` for a local engine). |
+| `src/tasks.ts` | The declarations, written with `hatchet.task` and `hatchet.durableTask` from `@hatchet-dev/serverless`; `streams: true` on `parent-echo` asks for the websocket. The same file works on a regular worker. |
+| `src/index.ts` | `export default cloudflare({ workflows, client })`: the adapter serves `POST /hatchet/healthcheck`, `POST /hatchet/trigger` and the invocation websocket upgrade on `/hatchet/trigger`, reads the signing secret from `env.HATCHET_SIGNING_SECRET`, and builds the tasks' Hatchet client from `env.HATCHET_CLIENT_TOKEN` (plus `env.HATCHET_CLIENT_SERVER_URL` for a local engine). |
 | `wrangler.toml` | Worker config. `limits.cpu_ms = 300000` raises the CPU budget to the 5 minute maximum (Workers Paid plan). |
 
 The wire contract is `api-contracts/v1/serverless.proto` (every request, response and websocket
@@ -216,8 +216,8 @@ flagged the task with `streams`), the task triggers `echo` through the client an
 the socket, and the output is `{"echo": "hello", "child": {"echo": "hello (from parent)",
 "workflowRunId": "...", "retryCount": 0}, "workflowRunId": "..."}` within a few seconds. A
 `422` with `configure \`client\`` in the endpoint's error means `HATCHET_CLIENT_TOKEN` is not
-set in `.dev.vars`; one naming the `streams` option means the task was POSTed, so the operator
-did not read the flag from the healthcheck yet (it polls every `pollIntervalSeconds`).
+set in `.dev.vars`; one naming `streams: true` means the task was POSTed, so the operator did
+not read the flag from the healthcheck yet (it polls every `pollIntervalSeconds`).
 
 Or from a Node script with the TypeScript SDK. The local engine serves gRPC without TLS, so the
 client needs `tls_strategy: 'none'` (the SDK defaults to `tls`):

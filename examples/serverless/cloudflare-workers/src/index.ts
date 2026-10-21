@@ -4,18 +4,18 @@
  * Routes (served by @hatchet-dev/serverless/cloudflare):
  *   POST /hatchet/healthcheck   signed; answers the workflows this endpoint serves
  *   POST /hatchet/trigger       signed; runs one non-durable task and returns its output
- *   GET  /hatchet/trigger       signed websocket upgrade; one durable or `streams` invocation
+ *   GET  /hatchet/trigger       signed websocket upgrade; one durable or `streams: true` invocation
  *   anything else               404
  *
  * The operator (pkg/serverlessoperator) is the only caller. It polls the healthcheck, POSTs
  * every plain non-durable task to the trigger URL and dials the websocket for durable tasks
- * and for the tasks listed in `streams`. The Worker holds two secrets: HATCHET_SIGNING_SECRET,
+ * and for the tasks declared with `streams: true`. The Worker holds two secrets: HATCHET_SIGNING_SECRET,
  * the HMAC key the operator signs every request with, and HATCHET_CLIENT_TOKEN, the tenant API
  * token the adapter builds the tasks' Hatchet client from (`ctx.runChild`, `ctx.putStream`,
  * `ctx.log`). The operator never sends a token to the Worker.
  */
 import { cloudflare } from "@hatchet-dev/serverless/cloudflare";
-import { parentEcho, workflows } from "./tasks";
+import { workflows } from "./tasks";
 
 /** The Worker's bindings: the two secrets, and the local-engine address for `wrangler dev`. */
 interface Env {
@@ -30,8 +30,6 @@ interface Env {
 
 export default cloudflare<Env>({
   workflows,
-  // parent-echo awaits a child run, so the operator must invoke it over the websocket.
-  streams: [parentEcho],
   client: (env) => {
     if (!env.HATCHET_CLIENT_TOKEN) {
       return undefined;

@@ -16,6 +16,7 @@ import type {
   DurableContext,
   WorkflowDefinition,
 } from '@hatchet-dev/typescript-sdk/edge/index.js';
+import { invokesOverSocket } from './declarations';
 
 export type TaskRunner = (ctx: Context<any, any>) => unknown;
 export type DurableTaskRunner = (ctx: DurableContext<any, any>) => unknown;
@@ -43,8 +44,9 @@ export interface Registry {
   /** Action ids this endpoint serves. */
   served: Set<string>;
   /**
-   * Action ids of non-durable tasks the operator invokes over the invocation socket rather
-   * than a POST, so they can await child runs. Advertised as `streams` in the healthcheck.
+   * Action ids of the non-durable tasks declared with `streams: true`: the operator invokes
+   * them over the invocation socket rather than a POST, so they can await child runs.
+   * Advertised as `streams` in the healthcheck.
    */
   streamActions: Set<string>;
   hasWorkflow(workflowName: string): boolean;
@@ -73,8 +75,7 @@ type Warn = (message: string) => void;
 export function buildRegistry(
   workflows: BaseWorkflowDeclaration<any, any>[],
   serve?: ServeEntry[],
-  warn: Warn = (message) => console.warn(message),
-  streams?: ServeEntry[]
+  warn: Warn = (message) => console.warn(message)
 ): Registry {
   const ignored = new Map<string, string[]>();
   const noteIgnored = (option: string, where: string) => {
@@ -87,6 +88,7 @@ export function buildRegistry(
   const runners = new Map<string, TaskRunner>();
   const durableActions = new Set<string>();
   const durableRunners = new Map<string, DurableTaskRunner>();
+  const streamActions = new Set<string>();
   const seenNames = new Set<string>();
 
   for (const declaration of workflows) {
@@ -109,6 +111,13 @@ export function buildRegistry(
       if (task.fn) {
         const { fn } = task;
         runners.set(actionId, (ctx) => fn(ctx.input, ctx as any));
+      }
+    }
+
+    // The flag sits on the declaration's own entries; the sanitized copies above lost it.
+    for (const task of declaration.definition._tasks) {
+      if (invokesOverSocket(task)) {
+        streamActions.add(createActionId(name, task.name));
       }
     }
 
@@ -143,13 +152,6 @@ export function buildRegistry(
     warn(`@hatchet-dev/serverless: ignoring "${option}" on ${where.join(', ')}: ${reason}`);
   }
 
-  // Durable tasks always run on a socket, so the flag only means something for the others.
-  const streamActions = new Set(
-    [...selectActions(registered, streams ?? [], 'streams')].filter(
-      (actionId) => !durableActions.has(actionId)
-    )
-  );
-
   return {
     workflows: registered,
     runners,
@@ -166,18 +168,9 @@ function servedActions(workflows: RegisteredWorkflow[], serve?: ServeEntry[]): S
     return new Set(workflows.flatMap((workflow) => workflow.actions));
   }
 
-  return selectActions(workflows, serve, 'serve');
-}
-
-/** The action ids the entries of an option name: every action of a declaration, or an id as written. */
-function selectActions(
-  workflows: RegisteredWorkflow[],
-  entries: ServeEntry[],
-  option: 'serve' | 'streams'
-): Set<string> {
   const selected = new Set<string>();
 
-  for (const entry of entries) {
+  for (const entry of serve) {
     if (typeof entry === 'string') {
       selected.add(entry.toLowerCase());
       continue;
@@ -186,9 +179,7 @@ function selectActions(
     const workflow = workflows.find((candidate) => candidate.declaration === entry);
 
     if (!workflow) {
-      throw new Error(
-        `${option} lists workflow "${entry.definition.name}", which is not in workflows`
-      );
+      throw new Error(`serve lists workflow "${entry.definition.name}", which is not in workflows`);
     }
 
     for (const actionId of workflow.actions) {

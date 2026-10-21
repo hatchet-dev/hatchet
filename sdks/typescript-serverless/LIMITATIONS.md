@@ -33,13 +33,15 @@ deployments without a client are unchanged.
 ### The `streams` rule
 
 A socket exists only for the tasks the endpoint's catalog asks one for: every durable task,
-and every non-durable task listed in the handler's `streams` option (`streams: [parent]` or
-`streams: ['pipeline:summarize']`), which the healthcheck advertises as
-`tasks: [{ action, streams: true }]`. Every other task is delivered over a signed POST, which is
+and every non-durable task declared with `streams: true` (`hatchet.task({ name, fn, streams:
+true })`, or the same option on a `workflow.task(...)` entry), which the healthcheck advertises
+as `tasks: [{ action, streams: true }]`. The option mirrors the proto field: invoke this task
+over the invocation websocket so it can await child runs (`ctx.runChild`) and other engine
+streams; a plain POST otherwise. Every other task is delivered over a signed POST, which is
 cheaper and has nothing to await on. So:
 
 - A non-durable task that awaits a child (`ctx.runChild`, `ctx.bulkRunChildren`, or `result()`
-  on a reference from `ctx.runNoWaitChild`) must be listed in `streams`. Over a POST the
+  on a reference from `ctx.runNoWaitChild`) must be declared with `streams: true`. Over a POST the
   trigger still happens, but the wait throws `ServerlessLimitationError` naming the option.
 - A reference created by a `HatchetCore` you hold yourself (`hatchet.run(...)` inside or
   outside a task) knows nothing about the socket and polls `GetRunDetails`, the way `/core`
@@ -51,8 +53,8 @@ cheaper and has nothing to await on. So:
 
 | Member                                                                                       | Without `client`                                                                                                     | With `client`                                                                                   |
 | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `ctx.runNoWaitChild`, `ctx.bulkRunNoWaitChildren`, `ctx.spawnWorkflow`, `ctx.spawnWorkflows` | throw                                                                                                                | trigger through the client; the reference's `result()` needs the socket (`streams`)             |
-| `ctx.runChild`, `ctx.bulkRunChildren`                                                        | throw                                                                                                                | trigger through the client, await on the socket; the task must be listed in `streams`           |
+| `ctx.runNoWaitChild`, `ctx.bulkRunNoWaitChildren`, `ctx.spawnWorkflow`, `ctx.spawnWorkflows` | throw                                                                                                                | trigger through the client; the reference's `result()` needs the socket (`streams: true`)       |
+| `ctx.runChild`, `ctx.bulkRunChildren`                                                        | throw                                                                                                                | trigger through the client, await on the socket; the task must be declared with `streams: true` |
 | any of the above in a durable task                                                           | throw                                                                                                                | throw; use `ctx.spawnChild` and `ctx.spawnChildren`, which go through the durable log           |
 | `ctx.putStream`                                                                              | throws                                                                                                               | `PutStreamEvent` through the client                                                             |
 | `ctx.log`, `ctx.logger.*`                                                                    | console only                                                                                                         | console, and `ctx.log` also writes the line to the engine (a failed write is a console warning) |
@@ -88,7 +90,7 @@ that sleeps for a day spends that day evicted, not on the socket. Child runs spa
 durable task must be served by an endpoint or worker of their own; the relay only carries the
 request and the result.
 
-A non-durable task on a socket (one listed in `streams`) has no budget and never evicts: it
+A non-durable task on a socket (one declared with `streams: true`) has no budget and never evicts: it
 waits for its children inline, bounded by the runtime's limits and the endpoint's
 `requestTimeoutSeconds`, and is always invocation 1.
 
@@ -120,7 +122,7 @@ operator registers every advertised workflow in full and derives the endpoint's 
 the workflow definitions, so a task outside the subset is still registered for the endpoint and,
 if triggered, fails with `404` from the endpoint. Two endpoints that declare the same workflow
 both register all of its actions, so splitting one workflow across endpoints is not supported.
-`streams` entries outside `serve` are not advertised.
+Tasks declared with `streams: true` outside `serve` are not advertised.
 
 ## Response size
 

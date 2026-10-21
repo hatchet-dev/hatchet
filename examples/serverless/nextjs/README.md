@@ -15,8 +15,8 @@ delivers assigned tasks to it over signed HTTPS requests.
 
 - `parent-echo`: a non-durable task that triggers `echo` as a child run through the endpoint's
   Hatchet client (built from `HATCHET_CLIENT_TOKEN`) and awaits the result on the invocation
-  websocket, so the route lists it in `streams` and the operator invokes it over the socket. It
-  never evicts: it waits inline, as invocation 1.
+  websocket, so it is declared with `streams: true` and the operator invokes it over the socket.
+  It never evicts: it waits inline, as invocation 1.
 
 The three tasks are the same as in `examples/serverless/cloudflare-workers`, with the same
 names and outputs, so one endpoint registration works for either runtime.
@@ -37,7 +37,7 @@ route you keep. The message is capped at 200 characters.
 
 | File                                     | Purpose                                                                                                                                                                                                                              |
 | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `hatchet/tasks.ts`                       | The declarations, written with `hatchet.task` and `hatchet.durableTask` from `@hatchet-dev/serverless`. The same file works on a regular worker.                                                                                    |
+| `hatchet/tasks.ts`                       | The declarations, written with `hatchet.task` and `hatchet.durableTask` from `@hatchet-dev/serverless`; `streams: true` on `parent-echo` asks for the websocket. The same file works on a regular worker.                          |
 | `app/api/hatchet/[...hatchet]/route.ts`  | `export const { GET, POST } = vercel({ workflows })`: `POST` serves the healthcheck and non-durable triggers, `GET` the durable websocket upgrade; the secret comes from `HATCHET_SIGNING_SECRET`. `maxDuration` caps one invocation. |
 | `hatchet/client.ts`                      | The SDK's core client (`@hatchet-dev/typescript-sdk/core`, Connect over fetch, no gRPC) built from `HATCHET_CLIENT_TOKEN` and friends. Only the triggering side has the token.                                                       |
 | `app/actions.ts`, `app/trigger-form.tsx` | A server action that triggers `echo` or `sleep-then-echo` and waits for the output, and the form on the page that calls it. A demo trigger (see above).                                                                            |

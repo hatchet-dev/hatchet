@@ -49,9 +49,14 @@ export default [
   },
 
   {
-    // Declarations are generic over any input and output; the registry and the
-    // testing helper accept every one of them.
-    files: ['src/handler/registry.ts', 'src/testing/index.ts', 'src/index.ts'],
+    // Declarations are generic over any input and output; the factories, the registry and
+    // the testing helper accept every one of them.
+    files: [
+      'src/handler/declarations.ts',
+      'src/handler/registry.ts',
+      'src/testing/index.ts',
+      'src/index.ts',
+    ],
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
     },

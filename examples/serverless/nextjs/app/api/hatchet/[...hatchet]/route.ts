@@ -3,7 +3,7 @@
  *
  *   POST /api/hatchet/healthcheck   signed; answers the workflows this endpoint serves
  *   POST /api/hatchet/trigger       signed; runs one non-durable task and returns its output
- *   GET  /api/hatchet/trigger       signed websocket upgrade; one durable or `streams` invocation
+ *   GET  /api/hatchet/trigger       signed websocket upgrade; one durable or `streams: true` invocation
  *
  * The signing secret comes from HATCHET_SIGNING_SECRET. The tasks' Hatchet client (what
  * `ctx.runChild` in parent-echo triggers through) is the same core client the app triggers
@@ -12,12 +12,10 @@
  */
 import { vercel } from "@hatchet-dev/serverless/vercel";
 import { hatchetClient } from "@/hatchet/client";
-import { parentEcho, workflows } from "@/hatchet/tasks";
+import { workflows } from "@/hatchet/tasks";
 
 export const { GET, POST } = vercel({
   workflows,
-  // parent-echo awaits a child run, so the operator must invoke it over the websocket.
-  streams: [parentEcho],
   client: () => (process.env.HATCHET_CLIENT_TOKEN ? hatchetClient() : undefined),
 });
 

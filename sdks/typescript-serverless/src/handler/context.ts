@@ -8,6 +8,7 @@
 import type { LogLevel as EventLogLevel } from '@hatchet-dev/typescript-sdk/core/index.js';
 import type {
   CancelBatchRequest,
+  Context,
   ContextRuntime,
   LogExtra,
   LogLevel,
@@ -130,8 +131,8 @@ export class ServerlessRuntime implements ContextRuntime {
     return new ConsoleLogger(name, this.options.console);
   }
 
-  /** The handler's client, or a `ServerlessLimitationError` for the feature without one. */
-  private client(feature: string, detail?: string): HatchetCore {
+  /** The handler's client, or a `ServerlessLimitationError` naming the feature without one. */
+  client(feature: string, detail?: string): HatchetCore {
     const client = this.options.client?.();
 
     if (!client) {
@@ -283,4 +284,26 @@ export class ServerlessRuntime implements ContextRuntime {
       'a serverless endpoint has no worker'
     );
   }
+}
+
+/**
+ * The handler's Hatchet client (`HatchetCore`) from a task's context, for the engine calls
+ * `ctx` has no member for: publishing to a durable stream (`client.streams.publish`),
+ * pushing an event, triggering an unrelated run. Throws `ServerlessLimitationError` when the
+ * handler has no `client` option, and when the context did not come from a serverless
+ * handler (a worker's context carries its own client as `ctx.v1`).
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function clientFromContext(ctx: Context<any, any>): HatchetCore {
+  const runtime = ctx.runtime as Partial<ServerlessRuntime>;
+
+  if (typeof runtime.client !== 'function') {
+    throw new ServerlessLimitationError(
+      'clientFromContext(ctx)',
+      'On a worker, use ctx.v1',
+      'the context was not created by a serverless handler'
+    );
+  }
+
+  return runtime.client('clientFromContext(ctx)');
 }

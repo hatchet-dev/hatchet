@@ -21,7 +21,7 @@ wherever the handler runs. You configure it with a tenant API token from the pla
 store, next to the signing secret; the operator never sends a token to the endpoint.
 
 ```ts
-export default cloudflare({ workflows, streams: [parent] }); // client from env.HATCHET_CLIENT_TOKEN
+export default cloudflare({ workflows }); // client from env.HATCHET_CLIENT_TOKEN
 createHandler({ workflows, client: { token: env.HATCHET_CLIENT_TOKEN }, ... });
 createHandler({ workflows, client: (env) => ({ token: env.HATCHET_CLIENT_TOKEN }), ... });
 createHandler({ workflows, client: new HatchetCore({ token, serverUrl, tls }), ... });
@@ -45,11 +45,13 @@ With a client:
 | `ctx.refreshTimeout`, `ctx.releaseSlot`, `ctx.worker.labels`            | still throw: there is no worker                                                                                                                             |
 
 Awaiting a child needs the invocation websocket, which the operator opens only for the tasks
-the catalog asks one for: every durable task, and every non-durable task you list in the
-`streams` option (`streams: [parent]`, or action ids like `'pipeline:summarize'`). The
-healthcheck advertises them as `tasks: [{ action, streams: true }]`; every other task is
-delivered over a signed POST, which is cheaper and has nothing to await on, so `result()` there
-throws and names the option. The operator allows at most 16 engine streams per socket and the
+the catalog asks one for: every durable task, and every non-durable task declared with
+`streams: true` (`hatchet.task({ name, fn, streams: true })`, or the same option on a
+`workflow.task(...)` entry): invoke this task over the invocation websocket so it can await
+child runs (`ctx.runChild`) and other engine streams; a plain POST otherwise. The healthcheck
+advertises them as `tasks: [{ action, streams: true }]`; every other task is delivered over a
+signed POST, which is cheaper and has nothing to await on, so `result()` there throws and
+names the option. The operator allows at most 16 engine streams per socket and the
 package keeps every child of a task on one of them. Inside a durable task `ctx.runChild` throws:
 use `ctx.spawnChild` and `ctx.spawnChildren`, which record the child in the durable event log
 and replay its result after an eviction.
@@ -127,9 +129,10 @@ pipeline.task({
   fn: async (_, ctx) => ({ words: (await ctx.parentOutput(fetchStep)).body.split(' ').length }),
 });
 
-// Needs the client and, since it awaits the child, a socket: list it in `streams`.
+// Needs the client and, since it awaits the child, a socket: declared with `streams: true`.
 export const parent = hatchet.task({
   name: 'parent',
+  streams: true,
   fn: async (input: { message: string }, ctx) => ({
     child: await ctx.runChild(echo, { message: `${input.message} (from parent)` }),
   }),
@@ -139,10 +142,10 @@ export const workflows = [echo, sleepThenEcho, pipeline, parent];
 ```
 
 `hatchet` is the SDK's `task`, `durableTask`, `workflow` and `batchTask` factories bound to no
-client. A durable task runs on a websocket the operator dials; it may wait inline for the
+client, with the `streams` option on `task` and on `workflow.task(...)`. A durable task runs on a websocket the operator dials; it may wait inline for the
 endpoint's `inlineWaitBudgetMs` (5000 by default) and evicts itself past that, to be re-invoked
-when the awaited sleep, event or child run completes. A non-durable task listed in `streams`
-runs on a websocket too, waits for its children inline and never evicts. See LIMITATIONS.md for
+when the awaited sleep, event or child run completes. A non-durable task declared with
+`streams: true` runs on a websocket too, waits for its children inline and never evicts. See LIMITATIONS.md for
 the rules.
 
 ## Cloudflare Workers
@@ -152,7 +155,7 @@ the rules.
 import { cloudflare } from '@hatchet-dev/serverless/cloudflare';
 import { workflows } from './tasks';
 
-export default cloudflare({ workflows, streams: [parent] });
+export default cloudflare({ workflows });
 ```
 
 ```toml
@@ -179,7 +182,6 @@ unless you pass a `fetch` option.
 export default cloudflare({
   workflows,
   serve: [echo, parent], // actions this endpoint serves (default: all)
-  streams: [parent], // non-durable tasks invoked over the socket, so they can await children
   basePath: '/internal/hatchet', // default "/hatchet"
   secret: (env) => env.ORDERS_SIGNING_SECRET, // default env.HATCHET_SIGNING_SECRET
   client: (env) => ({ token: env.HATCHET_CLIENT_TOKEN }), // the default; add serverUrl and tls for a local engine
@@ -400,7 +402,7 @@ non-durable task's socket, the 16-stream cap), so a violation fails the test.
 
 A task that uses the client runs against whatever `client` you pass, so point it at a fake
 engine (`createRouterTransport` from `@connectrpc/connect` as `transport`). `op.invoke` and
-`op.deliver` take the socket for a task listed in `streams`, as the operator does, and the
+`op.deliver` take the socket for a task declared with `streams: true`, as the operator does, and the
 test operator answers the run subscription the task opens: `op.completeRun(runId, [{ taskName,
 output }])` finishes a child, or `runStream: { workflowRun: (runId) => event }` scripts the
 engine.
@@ -465,7 +467,7 @@ The operator (`pkg/serverlessoperator/delivery.go`) reads the status code; a
 | durable upgrade with a bad signature or stale timestamp | `401`; a foreign endpoint id `403` |
 | durable upgrade on an adapter without the relay         | `426 {"error", "retry": false}`    |
 
-On the invocation websocket (durable tasks, and non-durable tasks listed in `streams`) the
+On the invocation websocket (durable tasks, and non-durable tasks declared with `streams: true`) the
 outcome travels in the final `done` frame: `{ output }` completes the task, `{ error, retry }`
 fails it (retry is false for `NonRetryableError`, `ServerlessLimitationError` and after an
 engine error frame), and `{ status: "evicted" }` after an eviction ack means the engine

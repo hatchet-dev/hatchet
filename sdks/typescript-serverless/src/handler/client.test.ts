@@ -9,6 +9,8 @@ import { WorkflowService } from '@hatchet-dev/typescript-sdk/protoc-es/workflows
 import type { MessageInitShape } from '@bufbuild/protobuf';
 import { describe, expect, it, vi } from 'vitest';
 import { HatchetCore, ServerlessLimitationError, hatchet } from '../index';
+import { ServerlessTriggerRequest } from '../generated/proto/v1/serverless';
+import { ActionType } from '../generated/proto/dispatcher';
 import { createTestOperator } from '../testing';
 import { createClientResolver } from './client';
 import { RunStreamClosedError } from './runs';
@@ -130,8 +132,10 @@ const spawner = hatchet.task({
   },
 });
 
+// Awaits its child, so it is declared for the socket.
 const parent = hatchet.task({
   name: 'parent',
+  streams: true,
   fn: async (input: { message: string }, ctx) => ({
     child: await ctx.runChild(echo, { message: input.message }),
   }),
@@ -139,6 +143,7 @@ const parent = hatchet.task({
 
 const fanOut = hatchet.task({
   name: 'fan-out',
+  streams: true,
   fn: async (input: { count: number }, ctx) => ({
     children: await ctx.bulkRunChildren(
       Array.from({ length: input.count }, (_, i) => ({
@@ -154,7 +159,17 @@ const durableSpawner = hatchet.durableTask({
   fn: async (_input: {}, ctx) => ({ child: await ctx.runChild(echo, { message: 'x' }) }),
 });
 
-const workflows = [echo, reporter, spawner, parent, fanOut, durableSpawner];
+// The same shape as spawner, flagged for the socket.
+const socketSpawner = hatchet.task({
+  name: 'socket-spawner',
+  streams: true,
+  fn: async (_input: {}, ctx) => {
+    const ref = await ctx.runNoWaitChild(echo, { message: 'child' }, { key: 'first' });
+    return { childRunId: await ref.getWorkflowRunId() };
+  },
+});
+
+const workflows = [echo, reporter, spawner, parent, fanOut, durableSpawner, socketSpawner];
 
 describe('ctx over the client', () => {
   it('putStream, log and cancel go to the engine as unary calls over a POST', async () => {
@@ -189,7 +204,7 @@ describe('ctx over the client', () => {
     );
   });
 
-  it('runNoWaitChild over a POST triggers the child with the parent set, and its result() names the streams option', async () => {
+  it('runNoWaitChild over a POST triggers the child with the parent set, and its result() names the streams task option', async () => {
     const engine = fakeEngine();
     const op = createTestOperator({
       workflows,
@@ -214,17 +229,16 @@ describe('ctx over the client', () => {
     const waited = await op.deliver(spawner, { wait: true });
     expect(waited).toMatchObject({ status: 'failed', retry: false, httpStatus: 422 });
     expect((waited as { error: string }).error).toMatch(
-      /invoked over a POST and has no invocation socket.*`streams` option/
+      /invoked over a POST and has no invocation socket.*`streams: true`/
     );
   });
 
-  it('runChild on a task listed in streams awaits the child on one runs stream over the socket', async () => {
+  it('runChild on a task declared with streams awaits the child on one runs stream over the socket', async () => {
     const engine = fakeEngine();
     const op = createTestOperator({
       workflows,
       secret,
       console: quiet,
-      streams: [parent],
       client: { token: TOKEN, transport: engine.transport, logLevel: 'OFF' },
       runStream: {
         workflowRun: (workflowRunId) => ({
@@ -243,7 +257,11 @@ describe('ctx over the client', () => {
       },
     });
 
-    expect((await op.healthcheck()).tasks).toEqual([{ action: 'parent:parent', streams: true }]);
+    expect((await op.healthcheck()).tasks).toEqual([
+      { action: 'fan-out:fan-out', streams: true },
+      { action: 'parent:parent', streams: true },
+      { action: 'socket-spawner:socket-spawner', streams: true },
+    ]);
 
     // The catalog flags the task, so `invoke` takes the socket the way the operator does.
     expect(await op.invoke(parent, { message: 'hi' })).toEqual({
@@ -271,7 +289,6 @@ describe('ctx over the client', () => {
       workflows,
       secret,
       console: quiet,
-      streams: ['fan-out:fan-out'],
       client: { token: TOKEN, transport: engine.transport, logLevel: 'OFF' },
     });
 
@@ -302,7 +319,6 @@ describe('ctx over the client', () => {
       workflows,
       secret,
       console: quiet,
-      streams: [parent],
       client: { token: TOKEN, transport: engine.transport, logLevel: 'OFF' },
     });
 
@@ -331,7 +347,6 @@ describe('ctx over the client', () => {
       workflows,
       secret,
       console: quiet,
-      streams: [parent],
       client: { token: TOKEN, transport: engine.transport, logLevel: 'OFF' },
     });
 
@@ -377,15 +392,35 @@ describe('ctx over the client', () => {
       workflows,
       secret,
       console: quiet,
-      streams: [spawner],
       client: { token: TOKEN, transport: engine.transport, logLevel: 'OFF' },
     });
 
     // The test operator routes flagged tasks over the socket; a raw POST is the older path.
     const response = await op.request(`${op.handler.basePath}/healthcheck`);
     expect(response.status).toBe(200);
-    expect((await op.healthcheck()).tasks).toEqual([{ action: 'spawner:spawner', streams: true }]);
-    expect(await op.invoke(spawner, {})).toEqual({ childRunId: 'run-1' });
+    expect((await op.healthcheck()).tasks).toContainEqual({
+      action: 'socket-spawner:socket-spawner',
+      streams: true,
+    });
+    const envelope = ServerlessTriggerRequest.toJSON(
+      ServerlessTriggerRequest.fromPartial({
+        endpointId: op.endpointId,
+        timestampUnixSeconds: Math.floor(Date.now() / 1000),
+        version: 1,
+        action: {
+          actionId: 'socket-spawner:socket-spawner',
+          actionType: ActionType.START_STEP_RUN,
+          actionPayload: JSON.stringify({ input: {}, parents: {}, triggered_by: 'manual' }),
+          workflowRunId: 'parent-run',
+          taskRunExternalId: 'task-run',
+        },
+      })
+    );
+    const posted = await op.request(`${op.handler.basePath}/trigger`, {
+      body: JSON.stringify(envelope),
+    });
+    expect(posted.status).toBe(200);
+    expect(await posted.json()).toEqual({ childRunId: 'run-1' });
   });
 });
 

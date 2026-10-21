@@ -14,6 +14,18 @@ const pipeline = hatchet.workflow<{ url: string }>({ name: 'pipeline' });
 const fetchStep = pipeline.task({ name: 'fetch', fn: async () => ({ body: 'x' }) });
 pipeline.task({ name: 'summarize', parents: [fetchStep], fn: async () => ({ words: 1 }) });
 
+// Declared for the socket: a standalone task, a workflow task, and a standalone task added
+// to a workflow, which keeps its flag.
+const parent = hatchet.task({
+  name: 'parent',
+  streams: true,
+  fn: async (input: { message: string }) => ({ echo: input.message }),
+});
+const dag = hatchet.workflow<{ url: string }>({ name: 'dag' });
+const plain = dag.task({ name: 'plain', fn: async () => ({ ok: true }) });
+dag.task({ name: 'awaiting', parents: [plain], streams: true, fn: async () => ({ ok: true }) });
+dag.task(parent);
+
 const sleeper = hatchet.durableTask({
   name: 'sleep-then-echo',
   fn: async (input: { message: string }) => ({ echo: input.message }),
@@ -98,34 +110,28 @@ describe('healthcheck', () => {
     );
   });
 
-  it('flags the non-durable tasks listed in streams, served ones only, and never durable ones', async () => {
-    const op = createTestOperator({
-      workflows: [echo, pipeline, sleeper],
-      streams: [pipeline, 'echo:echo', sleeper],
-      secret,
-    });
+  it('flags the tasks declared with streams, served ones only, and never durable ones', async () => {
+    const op = createTestOperator({ workflows: [echo, pipeline, sleeper, parent, dag], secret });
     const raw = JSON.parse(await (await op.request(`${op.handler.basePath}/healthcheck`)).text());
 
     expect(raw.tasks).toEqual([
-      { action: 'echo:echo', streams: true },
-      { action: 'pipeline:fetch', streams: true },
-      { action: 'pipeline:summarize', streams: true },
+      { action: 'dag:awaiting', streams: true },
+      { action: 'dag:parent', streams: true },
+      { action: 'parent:parent', streams: true },
     ]);
+    expect(raw.actions).toContain('dag:plain');
 
     const subset = createTestOperator({
-      workflows: [echo, pipeline],
-      serve: [echo],
-      streams: [pipeline, echo],
+      workflows: [echo, parent, dag],
+      serve: [echo, parent],
       secret,
     });
-    expect((await subset.healthcheck()).tasks).toEqual([{ action: 'echo:echo', streams: true }]);
+    expect((await subset.healthcheck()).tasks).toEqual([
+      { action: 'parent:parent', streams: true },
+    ]);
 
-    const none = createTestOperator({ workflows: [echo], secret });
+    const none = createTestOperator({ workflows: [echo, pipeline, sleeper], secret });
     expect((await none.healthcheck()).tasks).toEqual([]);
-
-    expect(() => createTestOperator({ workflows: [echo], streams: [pipeline], secret })).toThrow(
-      /streams lists workflow "pipeline", which is not in workflows/
-    );
   });
 
   it('warns once per ignored declaration option and leaves it out of the registration', async () => {

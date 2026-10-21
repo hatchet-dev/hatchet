@@ -1,8 +1,8 @@
 /**
  * Thrown by every `ctx` member the serverless runtime cannot serve as configured. Most of
  * them need a Hatchet client, which the handler builds from its `client` option; a few need
- * the invocation socket, which the operator opens for the tasks listed in `streams`; and a
- * few need a worker, which never exists here. Retrying cannot help, so the trigger handler
+ * the invocation socket, which the operator opens for tasks declared with `streams: true`;
+ * and a few need a worker, which never exists here. Retrying cannot help, so the trigger handler
  * reports the failure as permanent (422, retry false).
  */
 export class ServerlessLimitationError extends Error {
