@@ -371,7 +371,7 @@ func (r *serverlessEndpointRepository) UpdateStatus(ctx context.Context, endpoin
 	return changedAt.Time, nil
 }
 
-func (r *serverlessEndpointRepository) UpdateRegisteredActions(ctx context.Context, endpointId uuid.UUID, actions, streamActions []string, durableSupported bool) error {
+func (r *serverlessEndpointRepository) UpdateRegisteredActions(ctx context.Context, endpointId uuid.UUID, actions, streamActions []string, durableSupported bool) (time.Time, error) {
 	if actions == nil {
 		actions = []string{}
 	}
@@ -380,10 +380,16 @@ func (r *serverlessEndpointRepository) UpdateRegisteredActions(ctx context.Conte
 		streamActions = []string{}
 	}
 
-	return r.queries.UpdateServerlessEndpointRegisteredActions(ctx, r.pool, sqlcv1.UpdateServerlessEndpointRegisteredActionsParams{
+	updatedAt, err := r.queries.UpdateServerlessEndpointRegisteredActions(ctx, r.pool, sqlcv1.UpdateServerlessEndpointRegisteredActionsParams{
 		ID:                endpointId,
 		Registeredactions: actions,
 		Streamactions:     streamActions,
 		Durablesupported:  durableSupported,
 	})
+
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	return updatedAt.Time, nil
 }

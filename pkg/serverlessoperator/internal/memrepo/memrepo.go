@@ -527,24 +527,26 @@ func (e *endpoints) UpdateStatus(_ context.Context, endpointId uuid.UUID, health
 	return now, nil
 }
 
-func (e *endpoints) UpdateRegisteredActions(_ context.Context, endpointId uuid.UUID, actions, streamActions []string, durableSupported bool) error {
+func (e *endpoints) UpdateRegisteredActions(_ context.Context, endpointId uuid.UUID, actions, streamActions []string, durableSupported bool) (time.Time, error) {
 	e.r.mu.Lock()
 	defer e.r.mu.Unlock()
 
 	if e.r.failWrites != nil {
-		return e.r.failWrites
+		return time.Time{}, e.r.failWrites
 	}
 
 	e.r.actionWrites = append(e.r.actionWrites, ActionWrite{EndpointId: endpointId, Actions: append([]string{}, actions...), StreamActions: append([]string{}, streamActions...), DurableSupported: durableSupported})
+
+	now := e.r.Now()
 
 	if ep, ok := e.r.endpoints[endpointId]; ok {
 		ep.RegisteredActions = append([]string{}, actions...)
 		ep.StreamActions = append([]string{}, streamActions...)
 		ep.DurableSupported = durableSupported
-		ep.UpdatedAt = pgtype.Timestamptz{Time: e.r.Now(), Valid: true}
+		ep.UpdatedAt = pgtype.Timestamptz{Time: now, Valid: true}
 	}
 
-	return nil
+	return now, nil
 }
 
 type tenants struct {

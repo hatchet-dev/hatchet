@@ -691,6 +691,16 @@ func (c *routingCache) upsertLocked(b *batch, row *sqlcv1.V1ServerlessEndpoint) 
 		cfg.statusChangedAt = prev.statusChangedAt
 	}
 
+	// The same for the action set: a catalog this process wrote after the row was read
+	// keeps its set and its updated_at, since the write changed nothing else of the row; the
+	// row's other fields are taken as read.
+	if prev != nil && prev.updatedAt.After(cfg.updatedAt) {
+		cfg.registeredActions = prev.registeredActions
+		cfg.streamActions = prev.streamActions
+		cfg.durableSupported = prev.durableSupported
+		cfg.updatedAt = prev.updatedAt
+	}
+
 	b.move(c, ep, prev.contribution(), cfg.contribution())
 
 	ep.cfg = cfg
@@ -978,8 +988,11 @@ func (c *routingCache) Serving(actionId string) []uuid.UUID {
 // actions of it that are invoked over the websocket and whether the endpoint accepts durable
 // tasks. It replaces registered_actions, stream_actions and durable_supported in the cache so
 // the union and the delivery path change here as soon as the owner learns them, without
-// waiting for a refresh. It returns whether the union changed.
-func (c *routingCache) SetHealthcheck(id uuid.UUID, actions, streamActions []string, durableSupported bool) bool {
+// waiting for a refresh. updatedAt is the database's updated_at of the write that recorded
+// the set; it stamps the cached row when it is later than the cached version, so a refresh
+// that read the row before the write cannot put the row's older set back. It returns whether
+// the union changed.
+func (c *routingCache) SetHealthcheck(id uuid.UUID, actions, streamActions []string, durableSupported bool, updatedAt time.Time) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -993,6 +1006,10 @@ func (c *routingCache) SetHealthcheck(id uuid.UUID, actions, streamActions []str
 	cfg.registeredActions = append([]string{}, actions...)
 	cfg.streamActions = sortedUnion(streamActions)
 	cfg.durableSupported = durableSupported
+
+	if updatedAt.After(cfg.updatedAt) {
+		cfg.updatedAt = updatedAt
+	}
 
 	b := newBatch()
 	b.move(c, ep, ep.cfg.contribution(), cfg.contribution())
