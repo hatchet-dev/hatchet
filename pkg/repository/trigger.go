@@ -2536,6 +2536,56 @@ func (r *sharedRepository) listStepsByWorkflowVersionIds(ctx context.Context, tx
 	return res, nil
 }
 
+func (r *sharedRepository) listWorkflowsForEvents(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, eventKeys []string) ([]*sqlcv1.ListWorkflowsForEventsRow, error) {
+	byEventKey := make(map[string][]*sqlcv1.ListWorkflowsForEventsRow, len(eventKeys))
+	keysToLookup := make([]string, 0)
+
+	for _, eventKey := range eventKeys {
+		if _, seen := byEventKey[eventKey]; seen {
+			continue
+		}
+
+		if rows, found := r.eventKeyWorkflowsCache.Get(eventKeyTenantIdTuple{tenantId: tenantId, eventKey: eventKey}); found {
+			byEventKey[eventKey] = rows
+			continue
+		}
+
+		byEventKey[eventKey] = nil
+		keysToLookup = append(keysToLookup, eventKey)
+	}
+
+	if len(keysToLookup) > 0 {
+		rows, err := r.queries.ListWorkflowsForEvents(ctx, tx, sqlcv1.ListWorkflowsForEventsParams{
+			Eventkeys: keysToLookup,
+			Tenantid:  tenantId,
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to list workflows for events: %w", err)
+		}
+
+		for _, eventKey := range keysToLookup {
+			byEventKey[eventKey] = []*sqlcv1.ListWorkflowsForEventsRow{}
+		}
+
+		for _, row := range rows {
+			byEventKey[row.IncomingEventKey] = append(byEventKey[row.IncomingEventKey], row)
+		}
+
+		for _, eventKey := range keysToLookup {
+			r.eventKeyWorkflowsCache.Add(eventKeyTenantIdTuple{tenantId: tenantId, eventKey: eventKey}, byEventKey[eventKey])
+		}
+	}
+
+	res := make([]*sqlcv1.ListWorkflowsForEventsRow, 0, len(eventKeys))
+
+	for _, eventKey := range eventKeys {
+		res = append(res, byEventKey[eventKey]...)
+	}
+
+	return res, nil
+}
+
 func (r *sharedRepository) listStepMatchConditions(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, stepIds []uuid.UUID) ([]*sqlcv1.V1StepMatchCondition, error) {
 	if len(stepIds) == 0 {
 		return nil, nil
@@ -2625,13 +2675,10 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 		eventKeys = append(eventKeys, opt.Key)
 	}
 
-	workflowVersionIdsAndEventKeys, err := r.queries.ListWorkflowsForEvents(ctx, tx, sqlcv1.ListWorkflowsForEventsParams{
-		Eventkeys: eventKeys,
-		Tenantid:  tenantId,
-	})
+	workflowVersionIdsAndEventKeys, err := r.listWorkflowsForEvents(ctx, tx, tenantId, eventKeys)
 
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to list workflows for events: %w", err)
+		return nil, nil, nil, nil, err
 	}
 
 	externalIdToEventIdAndFilterId := make(map[uuid.UUID]EventExternalIdFilterId)
