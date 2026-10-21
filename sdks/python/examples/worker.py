@@ -175,6 +175,7 @@ from examples.opentelemetry_instrumentation.worker import (
     otel_workflow,
 )
 from examples.pdf_pipeline.worker import pdf_pipeline
+from examples.rate_limit_pause.worker import rate_limit_pause_task
 from examples.retry_after.worker import (
     retry_after_exponential_backoff,
     retry_after_overrides_backoff,
@@ -361,6 +362,7 @@ def main() -> None:
             callback_ordering_mid,
             callback_ordering_root,
             workflow_pause_concurrency_bug_task,
+            rate_limit_pause_task,
             durable_dag_idempotency_hang_bug_repro_wf,
             durable_dag_status_based_idempotency_wf,
         ],
