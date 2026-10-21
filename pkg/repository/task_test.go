@@ -62,6 +62,7 @@ func newBatchTestRepository(pool *pgxpool.Pool) *TaskRepositoryImpl {
 		stepIdHasBatchConfigCache:   expirable.NewLRU(10000, func(key uuid.UUID, value bool) {}, 5*time.Minute),
 		stepIdMatchConditionsCache:  expirable.NewLRU(10000, func(key uuid.UUID, value []*sqlcv1.V1StepMatchCondition) {}, 5*time.Minute),
 		stepIdExpressionsCache:      expirable.NewLRU(10000, func(key uuid.UUID, value []*sqlcv1.StepExpression) {}, 5*time.Minute),
+		eventKeyWorkflowsCache:      expirable.NewLRU(10000, func(key eventKeyTenantIdTuple, value []*sqlcv1.ListWorkflowsForEventsRow) {}, 5*time.Second),
 	}
 
 	shared.m = newTenantLimitRepository(shared, limits.LimitConfigFile{}, false, 5*time.Minute)
