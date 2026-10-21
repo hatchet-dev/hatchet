@@ -132,8 +132,29 @@ export function createFetchTransport(options: FetchTransportOptions): Transport 
     baseUrl: resolveServerUrl(options),
     useBinaryFormat: true,
     interceptors: [createAuthInterceptor(options.token)],
-    fetch: limitMessageSizes(send, limits),
+    fetch: limitMessageSizes(withoutRedirects(send), limits),
   });
+}
+
+/**
+ * Wraps a `fetch` so a redirect fails the call instead of being followed. connect-web asks
+ * for this with `redirect: 'error'`, which Cloudflare Workers reject outright ("Invalid
+ * redirect value"), so the request goes out with `redirect: 'manual'` and a redirect
+ * response (a 3xx status, or the opaque redirect a browser hands back) is turned into the
+ * error connect-web would have raised. The engine never redirects; one means `serverUrl`
+ * points at something in front of it.
+ */
+function withoutRedirects(send: typeof globalThis.fetch): typeof globalThis.fetch {
+  return async (input, init) => {
+    const response = await send(input, { ...init, redirect: 'manual' });
+    if (response.type === 'opaqueredirect' || (response.status >= 300 && response.status < 400)) {
+      throw new ConnectError(
+        `the server answered with a redirect (${response.status || 'opaque'}); serverUrl must point at the engine itself`,
+        Code.Unavailable
+      );
+    }
+    return response;
+  };
 }
 
 /**
