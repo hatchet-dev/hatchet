@@ -195,30 +195,10 @@ func (q *Queries) ListRateLimitsForSteps(ctx context.Context, db DBTX, arg ListR
 }
 
 const listRateLimitsForTenantNoMutate = `-- name: ListRateLimitsForTenantNoMutate :many
-SELECT
-    rl."tenantId",
-    rl."key",
-    rl."limitValue",
-    (CASE
-        WHEN NOW() - s.last_refill >= rl."window"::INTERVAL AND s.paused IS NOT TRUE THEN
-            get_refill_value(rl)
-        ELSE
-            rl."value"
-    END)::int AS "value",
-    rl."window",
-    (CASE
-        WHEN NOW() - s.last_refill >= rl."window"::INTERVAL AND s.paused IS NOT TRUE THEN
-            CURRENT_TIMESTAMP
-        ELSE
-            s.last_refill
-    END)::timestamp AS "lastRefill",
-    (CASE WHEN s.paused THEN p.paused_until END)::timestamptz AS "pausedUntil"
-FROM
-    "RateLimit" rl
-LEFT JOIN
-    v1_rate_limit_pause p ON p.tenant_id = rl."tenantId" AND p.key = rl."key"
-CROSS JOIN LATERAL (
+WITH rls AS (
     SELECT
+        rl."tenantId", rl.key, rl."limitValue", rl.value, rl."window", rl."lastRefill",
+        p.paused_until,
         p.paused_until > NOW() AS paused,
         -- an ended pause the scheduler hasn't settled yet still shifts the window, as SettleExpiredRateLimitPauses will
         (CASE
@@ -226,34 +206,58 @@ CROSS JOIN LATERAL (
                 rl."lastRefill" + (p.paused_until - GREATEST(p.paused_at, rl."lastRefill"::timestamptz))
             ELSE
                 rl."lastRefill"
-        END) AS last_refill
-) s
-WHERE
-    "tenantId" = $1::uuid
-    AND (
-        $2::text IS NULL OR
-        rl."key" like concat('%', $2::text, '%')
-    )
+        END) AS shifted_last_refill
+    FROM
+        "RateLimit" rl
+    LEFT JOIN
+        v1_rate_limit_pause p ON p.tenant_id = rl."tenantId" AND p.key = rl."key"
+    WHERE
+        rl."tenantId" = $4::uuid
+        AND (
+            $5::text IS NULL OR
+            rl."key" like concat('%', $5::text, '%')
+        )
+)
+SELECT
+    "tenantId",
+    "key",
+    "limitValue",
+    (CASE
+        WHEN NOW() - shifted_last_refill >= "window"::INTERVAL AND paused IS NOT TRUE THEN
+            "limitValue"
+        ELSE
+            "value"
+    END)::int AS "value",
+    "window",
+    (CASE
+        WHEN NOW() - shifted_last_refill >= "window"::INTERVAL AND paused IS NOT TRUE THEN
+            CURRENT_TIMESTAMP
+        ELSE
+            shifted_last_refill
+    END)::timestamp AS "lastRefill",
+    (CASE WHEN paused THEN paused_until END)::timestamptz AS "pausedUntil"
+FROM
+    rls
 ORDER BY
-    case when $3 = 'key ASC' THEN rl."key" END ASC,
-    case when $3 = 'key DESC' THEN rl."key" END DESC,
-    case when $3 = 'value ASC' THEN rl."value" END ASC,
-    case when $3 = 'value DESC' THEN rl."value" END DESC,
-    case when $3 = 'limitValue ASC' THEN rl."limitValue" END ASC,
-    case when $3 = 'limitValue DESC' THEN rl."limitValue" END DESC,
-    rl."key" ASC
+    case when $1 = 'key ASC' THEN "key" END ASC,
+    case when $1 = 'key DESC' THEN "key" END DESC,
+    case when $1 = 'value ASC' THEN "value" END ASC,
+    case when $1 = 'value DESC' THEN "value" END DESC,
+    case when $1 = 'limitValue ASC' THEN "limitValue" END ASC,
+    case when $1 = 'limitValue DESC' THEN "limitValue" END DESC,
+    "key" ASC
 OFFSET
-    COALESCE($4, 0)
+    COALESCE($2, 0)
 LIMIT
-    COALESCE($5, 50)
+    COALESCE($3, 50)
 `
 
 type ListRateLimitsForTenantNoMutateParams struct {
-	Tenantid uuid.UUID   `json:"tenantid"`
-	Search   pgtype.Text `json:"search"`
 	Orderby  interface{} `json:"orderby"`
 	Offset   interface{} `json:"offset"`
 	Limit    interface{} `json:"limit"`
+	Tenantid uuid.UUID   `json:"tenantid"`
+	Search   pgtype.Text `json:"search"`
 }
 
 type ListRateLimitsForTenantNoMutateRow struct {
@@ -269,11 +273,11 @@ type ListRateLimitsForTenantNoMutateRow struct {
 // Returns the same results as ListRateLimitsForTenantWithMutate but does not update the rate limit values
 func (q *Queries) ListRateLimitsForTenantNoMutate(ctx context.Context, db DBTX, arg ListRateLimitsForTenantNoMutateParams) ([]*ListRateLimitsForTenantNoMutateRow, error) {
 	rows, err := db.Query(ctx, listRateLimitsForTenantNoMutate,
-		arg.Tenantid,
-		arg.Search,
 		arg.Orderby,
 		arg.Offset,
 		arg.Limit,
+		arg.Tenantid,
+		arg.Search,
 	)
 	if err != nil {
 		return nil, err
