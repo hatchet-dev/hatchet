@@ -1557,6 +1557,7 @@ func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, task *sqlcv
 		retryCount,
 		durableInvocationCount,
 		request,
+		nil,
 	)
 
 	if err != nil {
@@ -1575,6 +1576,19 @@ func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, task *sqlcv
 	}, nil
 }
 
+// newOutputPayloadReferenceId returns the id the task controller stores a completion's payload under
+// and the OLAP event points at. It is nil while OLAP still keeps its own copy of every task output,
+// and for an empty output, which the payload store never stores and so could never be found by reference.
+func (s *DispatcherImpl) newOutputPayloadReferenceId(output string) *uuid.UUID {
+	if !s.repov1.Payloads().PayloadConsolidationEnabled() || v1.NewPayload[v1.TaskOutputShape]([]byte(output)).IsEmpty() {
+		return nil
+	}
+
+	referenceId := v1.NewPayloadReferenceId()
+
+	return &referenceId
+}
+
 func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, durableInvocationCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	ctx := inputCtx
 	tenant := inputCtx.Value("tenant").(*sqlcv1.Tenant)
@@ -1584,6 +1598,8 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sql
 	// 	return nil, fmt.Errorf("retry count is required in v2")
 	// }
 
+	outputPayloadReferenceId := s.newOutputPayloadReferenceId(request.EventPayload)
+
 	msg, err := tasktypes.CompletedTaskMessage(
 		tenantId,
 		task.ID,
@@ -1592,6 +1608,7 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sql
 		task.WorkflowRunID,
 		retryCount,
 		[]byte(request.EventPayload),
+		outputPayloadReferenceId,
 	)
 
 	if err != nil {
@@ -1615,6 +1632,7 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sql
 		retryCount,
 		durableInvocationCount,
 		request,
+		outputPayloadReferenceId,
 	)
 
 	if err != nil {
@@ -1907,6 +1925,8 @@ func (s *DispatcherImpl) handleBatchTaskCompleted(
 		eventPayload := item.EventPayload
 		olapEventType := sqlcv1.V1EventTypeOlapFINISHED
 
+		var outputPayloadReferenceId *uuid.UUID
+
 		if validationErr := v1.ValidateJSONB([]byte(eventPayload), "taskOutput"); validationErr != nil {
 			eventPayload = validationErr.Error()
 			olapEventType = sqlcv1.V1EventTypeOlapFAILED
@@ -1921,13 +1941,20 @@ func (s *DispatcherImpl) handleBatchTaskCompleted(
 				ErrorMsg:      eventPayload,
 			})
 		} else {
+			outputPayloadReferenceId = s.newOutputPayloadReferenceId(item.EventPayload)
+
+			if outputPayloadReferenceId != nil {
+				eventPayload = ""
+			}
+
 			completedPayloads = append(completedPayloads, tasktypes.CompletedTaskPayload{
-				TaskId:        task.ID,
-				InsertedAt:    task.InsertedAt,
-				ExternalId:    task.ExternalID,
-				WorkflowRunId: task.WorkflowRunID,
-				RetryCount:    retryCount,
-				Output:        []byte(item.EventPayload),
+				TaskId:             task.ID,
+				InsertedAt:         task.InsertedAt,
+				ExternalId:         task.ExternalID,
+				WorkflowRunId:      task.WorkflowRunID,
+				RetryCount:         retryCount,
+				Output:             []byte(item.EventPayload),
+				PayloadReferenceId: outputPayloadReferenceId,
 			})
 		}
 
@@ -1945,6 +1972,7 @@ func (s *DispatcherImpl) handleBatchTaskCompleted(
 			EventType:              olapEventType,
 			EventTimestamp:         request.EventTimestamp.AsTime(),
 			EventPayload:           eventPayload,
+			PayloadReferenceId:     outputPayloadReferenceId,
 		})
 	}
 

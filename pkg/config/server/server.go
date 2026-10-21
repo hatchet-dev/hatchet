@@ -761,6 +761,8 @@ type ServerConfig struct {
 
 	Runtime ConfigFileRuntime
 
+	PayloadStore PayloadStoreConfig
+
 	Services []string
 
 	PausedControllers map[string]bool
@@ -832,6 +834,13 @@ type PayloadStoreConfig struct {
 	// or later, because an older engine cannot read a bare input and turning it back on does not repair rows
 	// already written bare.
 	WrapTaskInputInStepRunData bool `mapstructure:"wrapTaskInputInStepRunData" json:"wrapTaskInputInStepRunData,omitempty" default:"true"`
+	// Lets the tasks and DAGs an event triggers read the event's input payload row, lets a DAG share one row with
+	// its tasks, and stops storing OLAP's own copies of run inputs, event payloads and task outputs. Task inputs
+	// are written unwrapped while it is on, whatever WrapTaskInputInStepRunData says. Turn on only
+	// once every engine is on this version or later: an older engine cannot find the input of a run that
+	// references another row, and an older OLAP controller stores an empty input for a run whose message carries
+	// no bytes.
+	EnablePayloadConsolidation bool `mapstructure:"enablePayloadConsolidation" json:"enablePayloadConsolidation,omitempty" default:"false"`
 }
 
 func (c *ServerConfig) HasService(name string) bool {
@@ -1127,6 +1136,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("payloadStore.inlineStoreTTLDays", "SERVER_PAYLOAD_STORE_INLINE_STORE_TTL_DAYS")
 	_ = v.BindEnv("payloadStore.enableWindowSizeOptimization", "SERVER_PAYLOAD_STORE_ENABLE_WINDOW_SIZE_OPTIMIZATION")
 	_ = v.BindEnv("payloadStore.wrapTaskInputInStepRunData", "SERVER_PAYLOAD_STORE_WRAP_TASK_INPUT_IN_STEP_RUN_DATA")
+	_ = v.BindEnv("payloadStore.enablePayloadConsolidation", "SERVER_PAYLOAD_STORE_ENABLE_PAYLOAD_CONSOLIDATION")
 
 	// cron operations options
 	_ = v.BindEnv("cronOperations.taskAnalyzeCronInterval", "SERVER_CRON_OPERATIONS_TASK_ANALYZE_CRON_INTERVAL")

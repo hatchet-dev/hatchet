@@ -496,8 +496,10 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		}
 
 		payload, err := t.config.V1.OLAP().ReadPayload(timeoutCtx, v1Event.TenantID, repository.ReadOLAPPayloadOpts{
-			ExternalId: v1Event.ExternalID,
-			InsertedAt: v1Event.SeenAt,
+			ExternalId:         v1Event.ExternalID,
+			InsertedAt:         v1Event.SeenAt,
+			PayloadReferenceId: v1Event.PayloadReferenceID,
+			Kind:               repository.PayloadKindUserEventInput,
 		})
 
 		if err != nil {

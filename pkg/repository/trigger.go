@@ -38,6 +38,8 @@ type EventTriggerOpts struct {
 	Scope *string
 
 	TriggeringWebhookName *string
+
+	PayloadReferenceId *uuid.UUID
 }
 
 type TriggerTaskData struct {
@@ -102,6 +104,10 @@ type TriggerTaskData struct {
 
 	// (optional) see OlapDagId
 	OlapDagInsertedAt *time.Time `json:"olap_dag_inserted_at,omitempty"`
+
+	// (optional) the reference id of the orchestrator's TASK_INPUT row, which operator children
+	// share instead of storing their own copy of the same input
+	OrchestratorPayloadReferenceId *uuid.UUID `json:"orchestrator_payload_reference_id,omitempty"`
 }
 
 func ProtoToDesiredWorkerLabel(key string, strValue *string, intValue *int32, required *bool, weight *int32, comparator *string) *sqlcv1.GetDesiredLabelsRow {
@@ -166,6 +172,9 @@ type createDAGOpts struct {
 
 	// (optional) the idempotency key that the dag claimed before being run
 	IdempotencyKey *string
+
+	// (optional) the payload reference id associated with the DAG
+	PayloadReferenceId *uuid.UUID
 }
 
 type TriggerRepository interface {
@@ -442,6 +451,7 @@ func (s *sharedRepository) appendOperatorDAGs(
 				WorkflowID:           tuple.workflowId,
 				WorkflowVersionID:    tuple.workflowVersionId,
 				ParentTaskExternalID: tuple.parentExternalId,
+				PayloadReferenceID:   task.PayloadReferenceID,
 			},
 			Input:                tuple.input,
 			AdditionalMetadata:   tuple.additionalMetadata,
@@ -734,6 +744,19 @@ type triggerTuple struct {
 	workflowRunId             *uuid.UUID
 	olapDagId                 *int64
 	olapDagInsertedAt         *time.Time
+	payloadReferenceId        *uuid.UUID
+
+	orchestratorPayloadReferenceId *uuid.UUID
+}
+
+// runInputPayloadReferenceId is the row holding the input every task in this run shares: the orchestrator's row
+// for a task the DAG operator triggers, otherwise the DAG's own row or the triggering event's row.
+func (t triggerTuple) runInputPayloadReferenceId() *uuid.UUID {
+	if t.orchestratorPayloadReferenceId != nil {
+		return t.orchestratorPayloadReferenceId
+	}
+
+	return t.payloadReferenceId
 }
 
 func (t triggerTuple) effectiveWorkflowRunId() uuid.UUID {
@@ -1043,6 +1066,9 @@ func (r *sharedRepository) triggerWorkflowsCore(
 
 	olapDagStamps := make(map[uuid.UUID]olapDagStamp)
 
+	// DAGs and DAG orchestrators that were not triggered by an event write the shared input payload row themselves
+	runExternalIdsOwningInputPayload := make(map[uuid.UUID]struct{})
+
 	for i, tuple := range tuples {
 		if _, ok := tuplesToSkip[tuple.externalId]; ok {
 			continue
@@ -1084,6 +1110,12 @@ func (r *sharedRepository) triggerWorkflowsCore(
 		}
 		useOperatorPath := orchestratorStep != nil && tuple.targetActionId == nil
 
+		if tuple.payloadReferenceId == nil && isDag && !useOperatorPath && r.enablePayloadConsolidation {
+			dagPayloadReferenceId := NewPayloadReferenceId()
+			tuple.payloadReferenceId = &dagPayloadReferenceId
+			runExternalIdsOwningInputPayload[tuple.externalId] = struct{}{}
+		}
+
 		if useOperatorPath {
 			orchestratorInput := r.newTaskInput(tuple.input, nil, tuple.filterPayload, tuple.dagParentTaskRunIds)
 			orchestratorInput.DesiredWorkerLabels = tuple.desiredWorkerLabels
@@ -1110,6 +1142,16 @@ func (r *sharedRepository) triggerWorkflowsCore(
 
 			if idempotencyKey, ok := externalIdToIdempotencyKey[tuple.externalId]; ok {
 				orchestratorTaskOpts.IdempotencyKey = &idempotencyKey
+			}
+
+			if r.enablePayloadConsolidation {
+				orchestratorTaskOpts.PayloadReferenceId = tuple.payloadReferenceId
+
+				if orchestratorTaskOpts.PayloadReferenceId == nil {
+					orchestratorPayloadReferenceId := NewPayloadReferenceId()
+					orchestratorTaskOpts.PayloadReferenceId = &orchestratorPayloadReferenceId
+					runExternalIdsOwningInputPayload[tuple.externalId] = struct{}{}
+				}
 			}
 
 			nonDagTaskOpts = append(nonDagTaskOpts, orchestratorTaskOpts)
@@ -1360,6 +1402,7 @@ func (r *sharedRepository) triggerWorkflowsCore(
 						WorkflowRunId:             tuple.effectiveWorkflowRunId(),
 						StepId:                    step.ID,
 						Input:                     r.newTaskInput(tuple.input, nil, tuple.filterPayload, tuple.dagParentTaskRunIds),
+						PayloadReferenceId:        r.sharedRunInputPayloadReferenceId(tuple.runInputPayloadReferenceId()),
 						AdditionalMetadata:        tuple.additionalMetadata,
 						InitialState:              initialState,
 						DesiredWorkerId:           tuple.desiredWorkerId,
@@ -1512,6 +1555,7 @@ func (r *sharedRepository) triggerWorkflowsCore(
 				AdditionalMetadata:   tuple.additionalMetadata,
 				ParentTaskExternalID: tuple.parentExternalId,
 				DesiredWorkerLabels:  tuple.desiredWorkerLabels,
+				PayloadReferenceId:   tuple.payloadReferenceId,
 			}
 
 			if idempotencyKey, ok := externalIdToIdempotencyKey[tuple.externalId]; ok {
@@ -1606,20 +1650,30 @@ func (r *sharedRepository) triggerWorkflowsCore(
 	storePayloadOpts := make([]StorePayloadOpts, 0, len(tasks)+len(dags))
 
 	for _, task := range tasks {
+		if _, ownsInputPayload := runExternalIdsOwningInputPayload[task.ExternalID]; task.PayloadReferenceID != nil && !ownsInputPayload {
+			continue
+		}
+
 		storePayloadOpts = append(storePayloadOpts, PayloadRef[TaskInputShape]{
-			Id:         task.ID,
-			InsertedAt: task.InsertedAt,
-			ExternalId: task.ExternalID,
-			TenantId:   tenantId,
+			Id:                 task.ID,
+			InsertedAt:         task.InsertedAt,
+			ExternalId:         task.ExternalID,
+			TenantId:           tenantId,
+			PayloadReferenceId: task.PayloadReferenceID,
 		}.StoreOpts(NewPayload[TaskInputShape](task.TaskInputPayload)))
 	}
 
 	for _, dag := range dags {
+		if _, ownsInputPayload := runExternalIdsOwningInputPayload[dag.ExternalID]; dag.PayloadReferenceID != nil && !ownsInputPayload {
+			continue
+		}
+
 		storePayloadOpts = append(storePayloadOpts, PayloadRef[DAGInputShape]{
-			Id:         dag.ID,
-			InsertedAt: dag.InsertedAt,
-			ExternalId: dag.ExternalID,
-			TenantId:   tenantId,
+			Id:                 dag.ID,
+			InsertedAt:         dag.InsertedAt,
+			ExternalId:         dag.ExternalID,
+			TenantId:           tenantId,
+			PayloadReferenceId: dag.PayloadReferenceID,
 		}.StoreOpts(NewPayload[DAGInputShape](dag.Input)))
 	}
 
@@ -1638,10 +1692,11 @@ func (r *sharedRepository) triggerWorkflowsCore(
 			}
 
 			storePayloadOpts = append(storePayloadOpts, PayloadRef[UserEventInputShape]{
-				Id:         e.ID,
-				InsertedAt: e.SeenAt,
-				ExternalId: e.ExternalID,
-				TenantId:   tenantId,
+				Id:                 e.ID,
+				InsertedAt:         e.SeenAt,
+				ExternalId:         e.ExternalID,
+				TenantId:           tenantId,
+				PayloadReferenceId: e.PayloadReferenceID,
 			}.StoreOpts(NewPayload[UserEventInputShape](payload)))
 		}
 	}
@@ -1750,6 +1805,7 @@ func (r *sharedRepository) createDAGs(ctx context.Context, tx sqlcv1.DBTX, tenan
 	dagIdToOpt := make(map[uuid.UUID]createDAGOpts, 0)
 	desiredWorkerLabels := make([][]byte, 0, len(opts))
 	idempotencyKeys := make([]string, 0, len(opts))
+	payloadReferenceIds := make([]uuid.UUID, 0, len(opts))
 
 	unix := time.Now().UnixMilli()
 
@@ -1770,6 +1826,12 @@ func (r *sharedRepository) createDAGs(ctx context.Context, tx sqlcv1.DBTX, tenan
 			idempotencyKeys = append(idempotencyKeys, "")
 		} else {
 			idempotencyKeys = append(idempotencyKeys, *opt.IdempotencyKey)
+		}
+
+		if opt.PayloadReferenceId == nil {
+			payloadReferenceIds = append(payloadReferenceIds, uuid.UUID{})
+		} else {
+			payloadReferenceIds = append(payloadReferenceIds, *opt.PayloadReferenceId)
 		}
 
 		var desiredWorkerLabelsBytes []byte
@@ -1796,6 +1858,7 @@ func (r *sharedRepository) createDAGs(ctx context.Context, tx sqlcv1.DBTX, tenan
 		Parenttaskexternalids: parentTaskExternalIds,
 		Desiredworkerlabels:   desiredWorkerLabels,
 		Idempotencykeys:       idempotencyKeys,
+		Payloadreferenceids:   payloadReferenceIds,
 	})
 
 	if err != nil {
@@ -2534,6 +2597,7 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 	createCoreEventsAdditionalMetadatas := [][]byte{}
 	createCoreEventsScopes := []pgtype.Text{}
 	createCoreEventsTriggeringWebhookNames := []pgtype.Text{}
+	createCoreEventsPayloadReferenceIDs := []*uuid.UUID{}
 
 	eventExternalIdsToPayloads := make(map[uuid.UUID][]byte)
 
@@ -2549,6 +2613,7 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 		createCoreEventsAdditionalMetadatas = append(createCoreEventsAdditionalMetadatas, opt.AdditionalMetadata)
 		createCoreEventsScopes = append(createCoreEventsScopes, sqlchelpers.TextFromMaybeStr(opt.Scope))
 		createCoreEventsTriggeringWebhookNames = append(createCoreEventsTriggeringWebhookNames, sqlchelpers.TextFromMaybeStr(opt.TriggeringWebhookName))
+		createCoreEventsPayloadReferenceIDs = append(createCoreEventsPayloadReferenceIDs, opt.PayloadReferenceId)
 
 		eventKeysToOpts[opt.Key] = append(eventKeysToOpts[opt.Key], opt)
 
@@ -2721,6 +2786,7 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 					triggeringEventExternalId: &opt.ExternalId,
 					triggeringEventKey:        &opt.Key,
 					idempotency:               idempotency,
+					payloadReferenceId:        opt.PayloadReferenceId,
 				})
 
 				externalIdToEventIdAndFilterId[externalId] = EventExternalIdFilterId{
@@ -2740,6 +2806,7 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 			Additionalmetadatas:    createCoreEventsAdditionalMetadatas,
 			Scopes:                 createCoreEventsScopes,
 			TriggeringWebhookNames: createCoreEventsTriggeringWebhookNames,
+			PayloadReferenceIDs:    createCoreEventsPayloadReferenceIDs,
 		},
 		externalIdToEventIdAndFilterId: externalIdToEventIdAndFilterId,
 		externalIdsToPayloads:          eventExternalIdsToPayloads,
@@ -2811,6 +2878,8 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 				workflowRunId:        opt.WorkflowRunId,
 				olapDagId:            opt.OlapDagId,
 				olapDagInsertedAt:    opt.OlapDagInsertedAt,
+
+				orchestratorPayloadReferenceId: opt.OrchestratorPayloadReferenceId,
 			})
 
 			continue
@@ -2872,6 +2941,8 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 				workflowRunId:        opt.WorkflowRunId,
 				olapDagId:            opt.OlapDagId,
 				olapDagInsertedAt:    opt.OlapDagInsertedAt,
+
+				orchestratorPayloadReferenceId: opt.OrchestratorPayloadReferenceId,
 			})
 		}
 	}
@@ -3007,10 +3078,11 @@ func (r *sharedRepository) lookupParentOutputsByWorkflowRunIds(ctx context.Conte
 
 	for _, row := range rows {
 		retrieveOpts = append(retrieveOpts, PayloadRef[TaskCompletionEventShape]{
-			Id:         row.TaskEventID,
-			InsertedAt: row.TaskEventInsertedAt,
-			TenantId:   tenantId,
-			ExternalId: row.OutputEventExternalID,
+			Id:                 row.TaskEventID,
+			InsertedAt:         row.TaskEventInsertedAt,
+			TenantId:           tenantId,
+			ExternalId:         row.OutputEventExternalID,
+			PayloadReferenceId: row.OutputEventPayloadReferenceID,
 		})
 	}
 

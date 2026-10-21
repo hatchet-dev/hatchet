@@ -4,15 +4,27 @@ WITH inputs AS (
         UNNEST(@ids::BIGINT[]) AS id,
         UNNEST(@insertedAts::TIMESTAMPTZ[]) AS inserted_at,
         UNNEST(@tenantIds::UUID[]) AS tenant_id,
-        UNNEST(CAST(@types::TEXT[] AS v1_payload_type[])) AS type
+        UNNEST(CAST(@types::TEXT[] AS v1_payload_type[])) AS type,
+        NULLIF(UNNEST(@payloadReferenceIds::UUID[]), '00000000-0000-0000-0000-000000000000'::UUID) AS payload_reference_id
 )
 
 SELECT *
 FROM v1_payload
 WHERE (tenant_id, id, inserted_at, type) IN (
-        SELECT tenant_id, id, inserted_at, type
-        FROM inputs
-    )
+    SELECT tenant_id, id, inserted_at, type
+    FROM inputs
+    WHERE payload_reference_id IS NULL
+)
+
+UNION ALL
+
+SELECT *
+FROM v1_payload
+WHERE (tenant_id, external_id) IN (
+    SELECT tenant_id, payload_reference_id
+    FROM inputs
+    WHERE payload_reference_id IS NOT NULL
+)
 ;
 
 -- name: WritePayloads :exec
@@ -209,7 +221,7 @@ WITH inputs AS (
         UNNEST(@externalIds::UUID[]) AS external_id
 )
 
-SELECT i.external_id::UUID AS external_id, index_file_key
+SELECT i.external_id::UUID AS external_id, index_file_key, p.payload_inserted_at_date
 FROM v1_payload_offloaded_block_index p
 JOIN inputs i ON
     p.payload_inserted_at_date = i.inserted_at_date

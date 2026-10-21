@@ -103,6 +103,14 @@ func (s *sharedRepository) newTaskInput(inputBytes []byte, triggerData *MatchDat
 	}
 }
 
+func (s *sharedRepository) sharedRunInputPayloadReferenceId(runPayloadReferenceId *uuid.UUID) *uuid.UUID {
+	if !s.enablePayloadConsolidation {
+		return nil
+	}
+
+	return runPayloadReferenceId
+}
+
 func (t *TaskInput) Bytes() []byte {
 	if t == nil {
 		return nil
@@ -178,8 +186,9 @@ const (
 	taskInputPayloadVersionUserInputOnly taskInputPayloadVersion = 2
 )
 
-func (s *sharedRepository) taskInputPayloadVersionToWrite() taskInputPayloadVersion {
-	if s.wrapTaskInputInStepRunData {
+// Payload consolidation shares one input row across a run, which only works once every row holds just the user input.
+func (s *sharedRepository) taskInputPayloadVersionToWrite(isDagOrchestrator bool) taskInputPayloadVersion {
+	if s.wrapTaskInputInStepRunData && !s.enablePayloadConsolidation && !isDagOrchestrator {
 		return taskInputPayloadVersionStepRunData
 	}
 

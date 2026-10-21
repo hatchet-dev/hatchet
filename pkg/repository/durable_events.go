@@ -2630,10 +2630,11 @@ func (r *durableEventsRepository) handleEventLookback(ctx context.Context, tenan
 
 	for _, row := range previousEventsFound {
 		retrievePayloadOpts = append(retrievePayloadOpts, PayloadRef[UserEventInputShape]{
-			Id:         row.ID,
-			InsertedAt: row.SeenAt,
-			TenantId:   tenantId,
-			ExternalId: row.ExternalID,
+			Id:                 row.ID,
+			InsertedAt:         row.SeenAt,
+			TenantId:           tenantId,
+			ExternalId:         row.ExternalID,
+			PayloadReferenceId: row.PayloadReferenceID,
 		})
 	}
 
@@ -2647,10 +2648,11 @@ func (r *durableEventsRepository) handleEventLookback(ctx context.Context, tenan
 
 	for _, row := range previousEventsFound {
 		retrieveOpts := PayloadRef[UserEventInputShape]{
-			Id:         row.ID,
-			InsertedAt: row.SeenAt,
-			TenantId:   tenantId,
-			ExternalId: row.ExternalID,
+			Id:                 row.ID,
+			InsertedAt:         row.SeenAt,
+			TenantId:           tenantId,
+			ExternalId:         row.ExternalID,
+			PayloadReferenceId: row.PayloadReferenceID,
 		}
 
 		payload := retrieveOptsToPayload[retrieveOpts].Bytes()
