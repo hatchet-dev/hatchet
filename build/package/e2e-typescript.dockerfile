@@ -1,6 +1,6 @@
 # Base Node environment
 # ---------------------
-FROM node:20-alpine AS deployment
+FROM node:22-alpine AS deployment
 
 WORKDIR /hatchet/sdks/typescript
 
