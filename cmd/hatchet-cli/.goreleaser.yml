@@ -102,6 +102,8 @@ homebrew_casks:
       - hatchet
     binaries:
       - hatchet
+    # The release is a draft, so homebrew-release.yaml pushes this cask once it is published.
+    skip_upload: true
     repository:
       owner: hatchet-dev
       name: homebrew-hatchet
