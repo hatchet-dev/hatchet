@@ -13,9 +13,13 @@ delivers assigned tasks to it over signed HTTPS requests.
   the task when the sleep is over. It runs on a websocket the operator dials, which on Vercel
   needs Fluid compute (see "Durable tasks on Vercel" below).
 
-`echo` and `sleep-then-echo` are the same tasks as in `examples/serverless/cloudflare-workers`,
-with the same names and outputs, so one endpoint registration works for either runtime (the
-Worker serves one more task, `parent-echo`).
+- `parent-echo`: a non-durable task that triggers `echo` as a child run through the endpoint's
+  Hatchet client (built from `HATCHET_CLIENT_TOKEN`) and awaits the result on the invocation
+  websocket, so the route lists it in `streams` and the operator invokes it over the socket. It
+  never evicts: it waits inline, as invocation 1.
+
+The three tasks are the same as in `examples/serverless/cloudflare-workers`, with the same
+names and outputs, so one endpoint registration works for either runtime.
 
 ## Demo triggers are not protected
 
@@ -67,9 +71,10 @@ it after rebuilding either package, then `pnpm install` again.
 
 The endpoint holds one secret, `HATCHET_SIGNING_SECRET`, the HMAC key the operator signs every
 request with. The trigger side (the server action, the `/api/echo` route) holds the tenant API
-token, `HATCHET_CLIENT_TOKEN`. The two never meet: the endpoint has no Hatchet client, and the
-operator never sends a token to it. In this app both live in the same deployment because it
-both serves and triggers; a project that only serves needs the signing secret alone.
+token, `HATCHET_CLIENT_TOKEN`, and so does the endpoint: it hands the same client to its tasks, which
+is what `parent-echo` triggers its child run through. The operator never sends a token to the
+endpoint; the token is configured here, like the signing secret. A project whose tasks never
+reach back to Hatchet needs the signing secret alone.
 
 - `next dev` and `vc dev` read both from `.env.local` (gitignored).
 - On Vercel they are project environment variables.
@@ -142,8 +147,8 @@ SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$SIGNING_SECRET" | awk '
 curl -s -X POST http://localhost:3000/api/hatchet/healthcheck -H "X-Hatchet-Signature: $SIG" -d "$BODY" | jq .
 ```
 
-Expected: `workflows` with `echo` and `sleep-then-echo`, `actions` equal to
-`["echo:echo", "sleep-then-echo:sleep-then-echo"]`, `runtime.name: "vercel"` and, under
+Expected: `workflows` with `echo`, `parent-echo` and `sleep-then-echo`, `actions` equal to
+`["echo:echo", "parent-echo:parent-echo", "sleep-then-echo:sleep-then-echo"]`, `runtime.name: "vercel"` and, under
 `next dev`, `durable: {}` (protojson leaves a false `supported` out). An unsigned POST answers
 `401 {"error": "bad signature"}`.
 
@@ -189,7 +194,7 @@ Within about 15 seconds the operator has polled the healthcheck and registered t
 ```sh
 curl -s $API/api/v1/stable/serverless/endpoints/$ENDPOINT_ID \
   -H "Authorization: Bearer $HATCHET_CLIENT_TOKEN" | jq .status
-# {"healthy": true, "registeredActions": ["echo:echo", "sleep-then-echo:sleep-then-echo"], ...}
+# {"healthy": true, "registeredActions": ["echo:echo", "parent-echo:parent-echo", "sleep-then-echo:sleep-then-echo"], ...}
 ```
 
 `status.error` names the problem when `healthy` is false (a 401 means the endpoint's
@@ -268,7 +273,7 @@ package instead.
 ```sh
 openssl rand -hex 32                               # keep the value: it is the endpoint's signingSecret
 vercel env add HATCHET_SIGNING_SECRET production   # paste it at the prompt
-vercel env add HATCHET_CLIENT_TOKEN production     # the tenant API token, for the trigger side
+vercel env add HATCHET_CLIENT_TOKEN production     # the tenant API token: the trigger side and parent-echo's child run
 pnpm run deploy                                    # vendor + vercel deploy --prod; prints https://<project>.vercel.app
 ```
 

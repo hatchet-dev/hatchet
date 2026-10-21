@@ -8,7 +8,8 @@
  *                                grpc_broadcast_address claim over https
  *   HATCHET_CLIENT_TLS_STRATEGY  "none" for a local engine served over plain HTTP
  *
- * The token stays on the triggering side. The endpoint under app/api/hatchet never sees it.
+ * The endpoint under app/api/hatchet hands the same client to its tasks, so parent-echo can
+ * trigger its child run; the operator itself never sends a token to the endpoint.
  */
 import { HatchetCore } from "@hatchet-dev/typescript-sdk/core";
 
