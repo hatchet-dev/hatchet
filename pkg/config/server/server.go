@@ -166,6 +166,7 @@ type OLAPStatusUpdateConfigFile struct {
 	TaskBatchSizeLimit int `mapstructure:"taskBatchSizeLimit" json:"taskBatchSizeLimit,omitempty" default:"1000"`
 }
 
+// DefaultTenantEntitlementsConfigFile defines the feature entitlements granted to new tenants.
 type DefaultTenantEntitlementsConfigFile struct {
 	AuditLogs                       bool `mapstructure:"auditLogs" json:"auditLogs,omitempty" default:"false"`
 	PrometheusMetrics               bool `mapstructure:"prometheusMetrics" json:"prometheusMetrics,omitempty" default:"false"`

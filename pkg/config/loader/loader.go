@@ -398,6 +398,14 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		V1:                v1,
 		Seed:              cf.Seed,
 		Logger:            &l,
+		DefaultTenantEntitlements: repov1.TenantEntitlements{
+			AuditLogs:                       scf.Runtime.DefaultTenantEntitlements.AuditLogs,
+			PrometheusMetrics:               scf.Runtime.DefaultTenantEntitlements.PrometheusMetrics,
+			StrictAdditionalMetadataFilters: scf.Runtime.DefaultTenantEntitlements.StrictAdditionalMetadataFilters,
+			DAGOperator:                     scf.Runtime.DefaultTenantEntitlements.DAGOperator,
+			DurableStreams:                  scf.Runtime.DefaultTenantEntitlements.DurableStreams,
+			ServerlessOperator:              scf.Runtime.DefaultTenantEntitlements.ServerlessOperator,
+		},
 	}, nil
 }
 
