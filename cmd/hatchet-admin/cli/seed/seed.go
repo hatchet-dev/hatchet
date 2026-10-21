@@ -72,9 +72,10 @@ func SeedDatabase(dc *database.Layer) error {
 			}
 
 			sqlcTenant, err := dc.V1.Tenant().CreateTenant(context.Background(), &v1.CreateTenantOpts{
-				ID:   &tenantID,
-				Name: dc.Seed.DefaultTenantName,
-				Slug: dc.Seed.DefaultTenantSlug,
+				ID:           &tenantID,
+				Name:         dc.Seed.DefaultTenantName,
+				Slug:         dc.Seed.DefaultTenantSlug,
+				Entitlements: &dc.DefaultTenantEntitlements,
 			})
 
 			if err != nil {
