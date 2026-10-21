@@ -63,8 +63,7 @@ type sharedRepository struct {
 
 	streamTopicSeenCache *expirable.LRU[streamTopicKey, struct{}]
 
-	eventKeyWorkflowsCache    *expirable.LRU[eventKeyTenantIdTuple, []*sqlcv1.ListWorkflowsForEventsRow]
-	workflowIdHasFiltersCache *expirable.LRU[uuid.UUID, bool]
+	eventKeyWorkflowsCache *expirable.LRU[eventKeyTenantIdTuple, []*sqlcv1.ListWorkflowsForEventsRow]
 
 	celParser         *cel.CELParser
 	boolExprEvaluator *cel.BoolExprEvaluator
@@ -102,7 +101,6 @@ func newSharedRepository(
 	stepIdExpressionsCache := expirable.NewLRU(10000, func(key uuid.UUID, value []*sqlcv1.StepExpression) {}, 5*time.Minute)
 	streamTopicSeenCache := expirable.NewLRU(10000, func(key streamTopicKey, value struct{}) {}, time.Hour)
 	eventKeyWorkflowsCache := expirable.NewLRU(10000, func(key eventKeyTenantIdTuple, value []*sqlcv1.ListWorkflowsForEventsRow) {}, 5*time.Second)
-	workflowIdHasFiltersCache := expirable.NewLRU(10000, func(key uuid.UUID, value bool) {}, 5*time.Second)
 
 	celParser := cel.NewCELParser()
 
@@ -138,7 +136,6 @@ func newSharedRepository(
 		stepIdExpressionsCache:      stepIdExpressionsCache,
 		streamTopicSeenCache:        streamTopicSeenCache,
 		eventKeyWorkflowsCache:      eventKeyWorkflowsCache,
-		workflowIdHasFiltersCache:   workflowIdHasFiltersCache,
 		celParser:                   celParser,
 		boolExprEvaluator:           boolExprEvaluator,
 		taskLookupCache:             lookupCache,
