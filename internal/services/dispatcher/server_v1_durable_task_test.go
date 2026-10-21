@@ -217,7 +217,7 @@ func (fakeFoundTask) GetTaskByExternalId(context.Context, uuid.UUID, uuid.UUID, 
 
 func TestHandleWaitForNilConditionBaseReturnsInvalidArgument(t *testing.T) {
 	d := newTestDispatcher()
-	d.analytics, d.repo = analytics.NoOpAnalytics{}, fakeFoundTask{}
+	d.repo = fakeFoundTask{}
 
 	for _, c := range []*contracts.DurableEventListenerConditions{
 		{SleepConditions: []*contracts.SleepMatchCondition{{}}},
