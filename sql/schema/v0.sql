@@ -1064,6 +1064,8 @@ CREATE TABLE "WorkflowTriggerCronRef" (
     CONSTRAINT "WorkflowTriggerCronRef_pkey" PRIMARY KEY ("id")
 );
 
+CREATE INDEX "WorkflowTriggerCronRef_parentId_name_idx" ON "WorkflowTriggerCronRef" ("parentId", "name");
+
 -- CreateTable
 CREATE TABLE "WorkflowTriggerEventRef" (
     "parentId" UUID NOT NULL,
