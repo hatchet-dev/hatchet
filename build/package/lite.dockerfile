@@ -10,7 +10,7 @@ FROM $HATCHET_ADMIN_IMAGE as admin-binary-base
 FROM $HATCHET_MIGRATE_IMAGE as migrate-binary-base
 
 # Stage 2: build the frontend
-FROM node:22-alpine as frontend-build
+FROM node:24-alpine as frontend-build
 
 WORKDIR /app
 
