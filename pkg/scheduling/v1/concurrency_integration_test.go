@@ -1101,6 +1101,80 @@ func TestConcurrency_PausedRateLimitHoldsNewRuns(t *testing.T) {
 	})
 }
 
+// TestConcurrency_PauseDynamicRateLimitKeyHoldsMatchingRuns: a dynamic key is only known once a run renders it, so
+// pausing one rendered key holds the runs that rendered it and leaves the step's runs with other keys waiting.
+func TestConcurrency_PauseDynamicRateLimitKeyHoldsMatchingRuns(t *testing.T) {
+	runWithDatabase(t, func(conf *database.Layer) error {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		requireSchedulerSchema(t, ctx, conf)
+
+		name := "rl-paused-dynamic"
+		tenantId := uuid.New()
+		_, err := conf.V1.Tenant().CreateTenant(ctx, &repo.CreateTenantOpts{
+			ID:   &tenantId,
+			Name: name,
+			Slug: fmt.Sprintf("%s-%s", name, tenantId.String()),
+		})
+		require.NoError(t, err)
+
+		desc := "test workflow"
+		maxRuns := int32(1)
+		strategyType := "GROUP_ROUND_ROBIN"
+		keyExpr := `"region-" + input.region`
+		units := 1
+
+		_, err = conf.V1.Workflows().PutWorkflowVersion(ctx, tenantId, &repo.CreateWorkflowVersionOpts{
+			Name:        name,
+			Description: &desc,
+			Tasks: []repo.CreateStepOpts{
+				{
+					ReadableId: "my-task",
+					Action:     "test:run",
+					Concurrency: []repo.CreateConcurrencyOpts{
+						{
+							MaxRuns:       &maxRuns,
+							LimitStrategy: &strategyType,
+							Expression:    "input.my_id",
+						},
+					},
+					RateLimits: []repo.CreateWorkflowStepRateLimitOpts{{Key: "region", KeyExpr: &keyExpr, Units: &units}},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		triggerRun := func(region string) *sqlcv1.V1Task {
+			tasks, _, _, _, err := conf.V1.Triggers().TriggerFromWorkflowNames(ctx, tenantId, []*repo.WorkflowNameTriggerOpts{
+				{
+					TriggerTaskData: &repo.TriggerTaskData{
+						WorkflowName: name,
+						Data:         []byte(fmt.Sprintf(`{"my_id": "a", "region": %q}`, region)),
+					},
+					ExternalId: uuid.New(),
+				},
+			})
+			require.NoError(t, err)
+			require.Len(t, tasks, 1)
+
+			return tasks[0].V1Task
+		}
+
+		us := triggerRun("us")
+		eu := triggerRun("eu")
+
+		pauseRateLimitKey(t, ctx, conf, tenantId, "region-us", time.Now().Add(time.Hour))
+
+		require.Equal(t, 1, countRateLimitHeldItems(t, ctx, conf, us))
+		require.Zero(t, countTaskConcurrencySlots(t, ctx, conf, us), "a run that rendered the paused key must give up its slot")
+
+		require.Zero(t, countRateLimitHeldItems(t, ctx, conf, eu))
+		require.Equal(t, 1, countTaskConcurrencySlots(t, ctx, conf, eu), "a run that rendered another key keeps waiting")
+
+		return nil
+	})
+}
+
 func pauseConcurrencyTestWorkflow(t *testing.T, ctx context.Context, conf *database.Layer, s *concurrencyTestSetup) {
 	t.Helper()
 

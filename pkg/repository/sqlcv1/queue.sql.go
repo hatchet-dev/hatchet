@@ -1776,25 +1776,64 @@ func (q *Queries) ListQueues(ctx context.Context, db DBTX, tenantid uuid.UUID) (
 }
 
 const listRateLimitPausedQueuedTasks = `-- name: ListRateLimitPausedQueuedTasks :many
+WITH paused_keys AS (
+    SELECT key
+    FROM v1_rate_limit_pause
+    WHERE tenant_id = $1::UUID AND paused_until > NOW()
+), static_steps AS (
+    SELECT srl."stepId" AS step_id
+    FROM "StepRateLimit" srl
+    WHERE srl."tenantId" = $1::UUID AND srl."rateLimitKey" IN (SELECT key FROM paused_keys)
+)
 SELECT qi.task_id, qi.task_inserted_at, qi.retry_count
 FROM v1_queue_item qi
 WHERE
     qi.tenant_id = $1::UUID
-    AND v1_task_rate_limit_paused_until(qi.tenant_id, qi.task_id, qi.task_inserted_at, qi.step_id) IS NOT NULL
-UNION
+    AND (
+        qi.step_id IN (SELECT step_id FROM static_steps)
+        -- a dynamic key is only known per task, so it's checked against the task's evaluated keys
+        OR EXISTS (
+            SELECT 1
+            FROM v1_task_expression_eval ee
+            WHERE
+                (ee.task_id, ee.task_inserted_at, ee.kind) = (qi.task_id, qi.task_inserted_at, 'DYNAMIC_RATE_LIMIT_KEY')
+                AND ee.value_str IN (SELECT key FROM paused_keys)
+        )
+    )
+UNION ALL
 SELECT rqi.task_id, rqi.task_inserted_at, rqi.retry_count
 FROM v1_rate_limited_queue_items rqi
 WHERE
     rqi.tenant_id = $1::UUID
-    AND v1_task_rate_limit_paused_until(rqi.tenant_id, rqi.task_id, rqi.task_inserted_at, rqi.step_id) IS NOT NULL
-UNION
+    AND (
+        rqi.step_id IN (SELECT step_id FROM static_steps)
+        -- a dynamic key is only known per task, so it's checked against the task's evaluated keys
+        OR EXISTS (
+            SELECT 1
+            FROM v1_task_expression_eval ee
+            WHERE
+                (ee.task_id, ee.task_inserted_at, ee.kind) = (rqi.task_id, rqi.task_inserted_at, 'DYNAMIC_RATE_LIMIT_KEY')
+                AND ee.value_str IN (SELECT key FROM paused_keys)
+        )
+    )
+UNION ALL
 SELECT t.id, t.inserted_at, t.retry_count
 FROM v1_concurrency_slot cs
 JOIN v1_task t ON (t.id, t.inserted_at, t.retry_count) = (cs.task_id, cs.task_inserted_at, cs.task_retry_count)
 WHERE
     cs.tenant_id = $1::UUID
     AND cs.is_filled = FALSE
-    AND v1_task_rate_limit_paused_until(t.tenant_id, t.id, t.inserted_at, t.step_id) IS NOT NULL
+    AND (
+        t.step_id IN (SELECT step_id FROM static_steps)
+        -- a dynamic key is only known per task, so it's checked against the task's evaluated keys
+        OR EXISTS (
+            SELECT 1
+            FROM v1_task_expression_eval ee
+            WHERE
+                (ee.task_id, ee.task_inserted_at, ee.kind) = (t.id, t.inserted_at, 'DYNAMIC_RATE_LIMIT_KEY')
+                AND ee.value_str IN (SELECT key FROM paused_keys)
+        )
+    )
 `
 
 type ListRateLimitPausedQueuedTasksRow struct {
