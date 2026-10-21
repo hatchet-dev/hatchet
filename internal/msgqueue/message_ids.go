@@ -21,6 +21,7 @@ const (
 	MsgIDTaskCancelled                = "task-cancelled"
 	MsgIDTaskCompleted                = "task-completed"
 	MsgIDTaskFailed                   = "task-failed"
+	MsgIDTaskAcked                    = "task-acked"
 	MsgIDTaskStreamEvent              = "task-stream-event"
 	MsgIDTaskTrigger                  = "task-trigger"
 	MsgIDUserEvent                    = "user-event"

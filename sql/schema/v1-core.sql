@@ -706,6 +706,8 @@ CREATE TABLE v1_task_runtime (
     tenant_id UUID NOT NULL,
     timeout_at TIMESTAMP(3) NOT NULL,
     evicted_at TIMESTAMPTZ DEFAULT NULL,
+    assigned_at TIMESTAMPTZ,
+    acked_at TIMESTAMPTZ,
 
     CONSTRAINT v1_task_runtime_pkey PRIMARY KEY (task_id, task_inserted_at, retry_count)
 );
@@ -719,6 +721,8 @@ CREATE INDEX v1_task_runtime_tenant_worker_not_evicted_idx ON v1_task_runtime (t
 CREATE INDEX v1_task_runtime_tenant_evicted_at_idx ON v1_task_runtime (tenant_id, evicted_at, task_id, task_inserted_at, retry_count) WHERE evicted_at IS NOT NULL;
 
 CREATE INDEX v1_task_runtime_batch_id_idx ON v1_task_runtime (batch_id) WHERE batch_id IS NOT NULL;
+
+CREATE INDEX v1_task_runtime_tenant_assigned_at_idx ON v1_task_runtime (tenant_id, assigned_at) WHERE assigned_at IS NOT NULL;
 
 -- Cleanup v1_batch_runtime reservations when the last v1_task_runtime row for a batch_id is deleted.
 CREATE OR REPLACE FUNCTION after_v1_task_runtime_delete_cleanup_batch_runtime_fn()

@@ -16,6 +16,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/internal/datautils"
+	"github.com/hatchet-dev/hatchet/internal/listutils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/operation"
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
@@ -492,6 +493,8 @@ func (tc *TasksControllerImpl) handleBufferedMsgs(tenantId uuid.UUID, msgId stri
 	ctx := context.WithValue(context.Background(), analytics.TenantIDKey, tenantId)
 
 	switch msgId {
+	case msgqueue.MsgIDTaskAcked:
+		return tc.handleTaskAcked(ctx, tenantId, payloads)
 	case msgqueue.MsgIDTaskCompleted:
 		return tc.handleTaskCompleted(ctx, tenantId, payloads)
 	case msgqueue.MsgIDTaskFailed:
@@ -679,6 +682,25 @@ func (tc *TasksControllerImpl) publishChildCancellations(
 
 		return nil
 	})
+}
+
+func (tc *TasksControllerImpl) handleTaskAcked(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
+	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.handleTaskAcked")
+	defer span.End()
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
+
+	msgs := msgqueue.JSONConvert[v1.TaskIdInsertedAtRetryCount](payloads)
+	ackedTasks := listutils.Map(msgs, func(msg *v1.TaskIdInsertedAtRetryCount) v1.TaskIdInsertedAtRetryCount { return *msg })
+
+	if err := tc.repov1.Tasks().MarkTaskRuntimesAcked(ctx, tenantId, ackedTasks); err != nil {
+		err = fmt.Errorf("could not mark tasks as acked: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "could not mark tasks as acked")
+		return err
+	}
+
+	return nil
 }
 
 func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {

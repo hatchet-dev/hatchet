@@ -310,13 +310,34 @@ SET
     batch_size = @batchSize::integer,
     batch_index = input.batch_index,
     worker_id = @workerId::uuid,
-    batch_key = COALESCE(NULLIF(@batchKey::text, ''), tr.batch_key)
+    batch_key = COALESCE(NULLIF(@batchKey::text, ''), tr.batch_key),
+    assigned_at = NOW(),
+    acked_at = NULL
 FROM
     input
 WHERE
     tr.tenant_id = @tenantId::uuid
     AND tr.task_id = input.task_id
     AND tr.task_inserted_at = input.task_inserted_at;
+
+-- name: MarkTaskRuntimesAcked :exec
+WITH input AS (
+    SELECT
+        unnest(@taskIds::bigint[]) AS task_id,
+        unnest(@taskInsertedAts::timestamptz[]) AS task_inserted_at,
+        unnest(@retryCounts::integer[]) AS retry_count
+)
+
+UPDATE v1_task_runtime
+SET acked_at = NOW()
+WHERE
+    tenant_id = @tenantId::uuid
+    AND acked_at IS NULL
+    AND (task_id, task_inserted_at, retry_count) IN (
+        SELECT task_id, task_inserted_at, retry_count
+        FROM input
+    )
+;
 
 -- name: ListTaskMetas :many
 SELECT
@@ -616,7 +637,8 @@ WITH tasks_on_inactive_workers AS (
     SELECT
         runtime.task_id,
         runtime.task_inserted_at,
-        runtime.retry_count
+        runtime.retry_count,
+        'Worker did not send a heartbeat for 30 seconds'::text AS reason
     FROM
         "Worker" w
     JOIN
@@ -630,15 +652,45 @@ WITH tasks_on_inactive_workers AS (
     LIMIT
         COALESCE(sqlc.narg('limit')::integer, 1000)
     FOR UPDATE OF runtime SKIP LOCKED
+), tasks_never_acked AS (
+    -- the assignment was written but the worker never acknowledged the task, for example
+    -- because the message to the dispatcher was lost
+    SELECT
+        runtime.task_id,
+        runtime.task_inserted_at,
+        runtime.retry_count,
+        'Worker never acknowledged the task' AS reason
+    FROM
+        v1_task_runtime runtime
+    WHERE
+        runtime.tenant_id = @tenantId::uuid
+        AND runtime.worker_id IS NOT NULL
+        AND runtime.evicted_at IS NULL
+        AND runtime.acked_at IS NULL
+        AND runtime.assigned_at < NOW() - INTERVAL '1 minute'
+        AND NOT EXISTS (
+            SELECT 1 FROM tasks_on_inactive_workers inactive
+            WHERE inactive.task_id = runtime.task_id
+                AND inactive.task_inserted_at = runtime.task_inserted_at
+                AND inactive.retry_count = runtime.retry_count
+        )
+    LIMIT
+        COALESCE(sqlc.narg('limit')::integer, 1000)
+    FOR UPDATE SKIP LOCKED
+), tasks_to_reassign AS (
+    SELECT * FROM tasks_on_inactive_workers
+    UNION ALL
+    SELECT * FROM tasks_never_acked
 )
 SELECT
     v1_task.id,
     v1_task.inserted_at,
-    v1_task.retry_count
+    v1_task.retry_count,
+    lrs.reason
 FROM
     v1_task
 JOIN
-    tasks_on_inactive_workers lrs ON lrs.task_id = v1_task.id AND lrs.task_inserted_at = v1_task.inserted_at;
+    tasks_to_reassign lrs ON lrs.task_id = v1_task.id AND lrs.task_inserted_at = v1_task.inserted_at;
 
 -- name: ProcessRetryQueueItems :many
 WITH rqis_to_delete AS (
@@ -1918,17 +1970,7 @@ WITH inputs AS (
         UNNEST(@taskRetryCounts::integer[]) AS retry_count
 )
 SELECT
-    tr.task_id,
-    tr.task_inserted_at,
-    tr.retry_count,
-    tr.worker_id,
-    tr.batch_id,
-    tr.batch_size,
-    tr.batch_index,
-    tr.batch_key,
-    tr.tenant_id,
-    tr.timeout_at,
-    tr.evicted_at
+    tr.*
 FROM
     v1_task_runtime tr
 JOIN

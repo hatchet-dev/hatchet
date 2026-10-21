@@ -93,6 +93,25 @@ func CompletedTaskMessage(
 	)
 }
 
+func AckedTaskMessage(
+	tenantId uuid.UUID,
+	taskId int64,
+	taskInsertedAt pgtype.Timestamptz,
+	retryCount int32,
+) (*msgqueue.Message, error) {
+	return msgqueue.NewTenantMessage(
+		tenantId,
+		msgqueue.MsgIDTaskAcked,
+		false,
+		true,
+		v1.TaskIdInsertedAtRetryCount{
+			Id:         taskId,
+			InsertedAt: taskInsertedAt,
+			RetryCount: retryCount,
+		},
+	)
+}
+
 type FailedTaskPayload struct {
 	// (required) the task id
 	TaskId int64 `validate:"required"`

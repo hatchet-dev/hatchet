@@ -249,7 +249,8 @@ WITH assign_input AS (
         worker_id,
         tenant_id,
         batch_key,
-        timeout_at
+        timeout_at,
+        assigned_at
     )
     SELECT
         t.id,
@@ -258,7 +259,8 @@ WITH assign_input AS (
         t.worker_id,
         $9::uuid,
         t.batch_key,
-        t.timeout_at
+        t.timeout_at,
+        NOW()
     FROM
         to_assign t
     ON CONFLICT (task_id, task_inserted_at, retry_count) DO UPDATE
@@ -266,7 +268,9 @@ WITH assign_input AS (
         evicted_at = NULL,
         worker_id = EXCLUDED.worker_id,
         timeout_at = EXCLUDED.timeout_at,
-        batch_key = EXCLUDED.batch_key
+        batch_key = EXCLUDED.batch_key,
+        assigned_at = EXCLUDED.assigned_at,
+        acked_at = NULL
     WHERE v1_task_runtime.evicted_at IS NOT NULL
     -- only return the task ids that were successfully assigned
     RETURNING task_id, task_inserted_at, retry_count, worker_id
@@ -2486,7 +2490,8 @@ WITH input AS (
         worker_id,
         tenant_id,
         batch_key,
-        timeout_at
+        timeout_at,
+        assigned_at
     )
     SELECT
         t.id,
@@ -2495,7 +2500,8 @@ WITH input AS (
         t.worker_id,
         $6::uuid,
         t.batch_key,
-        t.timeout_at
+        t.timeout_at,
+        NOW()
     FROM
         updated_tasks t
     ON CONFLICT (task_id, task_inserted_at, retry_count) DO UPDATE
@@ -2503,7 +2509,9 @@ WITH input AS (
         evicted_at = NULL,
         worker_id = EXCLUDED.worker_id,
         timeout_at = EXCLUDED.timeout_at,
-        batch_key = EXCLUDED.batch_key
+        batch_key = EXCLUDED.batch_key,
+        assigned_at = EXCLUDED.assigned_at,
+        acked_at = NULL
 WHERE v1_task_runtime.evicted_at IS NOT NULL
     -- only return the task ids that were successfully assigned
     RETURNING task_id, task_inserted_at, retry_count, worker_id

@@ -1554,6 +1554,18 @@ func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, task *sqlcv
 	tenant := inputCtx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 
+	ackedMsg, err := tasktypes.AckedTaskMessage(tenantId, task.ID, task.InsertedAt, retryCount)
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = s.pubBuffer.Pub(inputCtx, msgqueue.TASK_PROCESSING_QUEUE, ackedMsg, false)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not publish acked message for task %d: %w", task.ID, err)
+	}
+
 	msg, err := tasktypes.MonitoringEventMessageFromActionEvent(
 		tenantId,
 		task.ID,

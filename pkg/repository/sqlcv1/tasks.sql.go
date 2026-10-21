@@ -2486,17 +2486,7 @@ WITH inputs AS (
         UNNEST($4::integer[]) AS retry_count
 )
 SELECT
-    tr.task_id,
-    tr.task_inserted_at,
-    tr.retry_count,
-    tr.worker_id,
-    tr.batch_id,
-    tr.batch_size,
-    tr.batch_index,
-    tr.batch_key,
-    tr.tenant_id,
-    tr.timeout_at,
-    tr.evicted_at
+    tr.task_id, tr.task_inserted_at, tr.retry_count, tr.worker_id, tr.batch_id, tr.batch_size, tr.batch_index, tr.batch_key, tr.tenant_id, tr.timeout_at, tr.evicted_at, tr.assigned_at, tr.acked_at
 FROM
     v1_task_runtime tr
 JOIN
@@ -2540,6 +2530,8 @@ func (q *Queries) ListTaskRuntimes(ctx context.Context, db DBTX, arg ListTaskRun
 			&i.TenantID,
 			&i.TimeoutAt,
 			&i.EvictedAt,
+			&i.AssignedAt,
+			&i.AckedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -2928,7 +2920,8 @@ WITH tasks_on_inactive_workers AS (
     SELECT
         runtime.task_id,
         runtime.task_inserted_at,
-        runtime.retry_count
+        runtime.retry_count,
+        'Worker did not send a heartbeat for 30 seconds'::text AS reason
     FROM
         "Worker" w
     JOIN
@@ -2942,15 +2935,45 @@ WITH tasks_on_inactive_workers AS (
     LIMIT
         COALESCE($2::integer, 1000)
     FOR UPDATE OF runtime SKIP LOCKED
+), tasks_never_acked AS (
+    -- the assignment was written but the worker never acknowledged the task, for example
+    -- because the message to the dispatcher was lost
+    SELECT
+        runtime.task_id,
+        runtime.task_inserted_at,
+        runtime.retry_count,
+        'Worker never acknowledged the task' AS reason
+    FROM
+        v1_task_runtime runtime
+    WHERE
+        runtime.tenant_id = $1::uuid
+        AND runtime.worker_id IS NOT NULL
+        AND runtime.evicted_at IS NULL
+        AND runtime.acked_at IS NULL
+        AND runtime.assigned_at < NOW() - INTERVAL '1 minute'
+        AND NOT EXISTS (
+            SELECT 1 FROM tasks_on_inactive_workers inactive
+            WHERE inactive.task_id = runtime.task_id
+                AND inactive.task_inserted_at = runtime.task_inserted_at
+                AND inactive.retry_count = runtime.retry_count
+        )
+    LIMIT
+        COALESCE($2::integer, 1000)
+    FOR UPDATE SKIP LOCKED
+), tasks_to_reassign AS (
+    SELECT task_id, task_inserted_at, retry_count, reason FROM tasks_on_inactive_workers
+    UNION ALL
+    SELECT task_id, task_inserted_at, retry_count, reason FROM tasks_never_acked
 )
 SELECT
     v1_task.id,
     v1_task.inserted_at,
-    v1_task.retry_count
+    v1_task.retry_count,
+    lrs.reason
 FROM
     v1_task
 JOIN
-    tasks_on_inactive_workers lrs ON lrs.task_id = v1_task.id AND lrs.task_inserted_at = v1_task.inserted_at
+    tasks_to_reassign lrs ON lrs.task_id = v1_task.id AND lrs.task_inserted_at = v1_task.inserted_at
 `
 
 type ListTasksToReassignParams struct {
@@ -2962,6 +2985,7 @@ type ListTasksToReassignRow struct {
 	ID         int64              `json:"id"`
 	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
 	RetryCount int32              `json:"retry_count"`
+	Reason     string             `json:"reason"`
 }
 
 func (q *Queries) ListTasksToReassign(ctx context.Context, db DBTX, arg ListTasksToReassignParams) ([]*ListTasksToReassignRow, error) {
@@ -2973,7 +2997,12 @@ func (q *Queries) ListTasksToReassign(ctx context.Context, db DBTX, arg ListTask
 	var items []*ListTasksToReassignRow
 	for rows.Next() {
 		var i ListTasksToReassignRow
-		if err := rows.Scan(&i.ID, &i.InsertedAt, &i.RetryCount); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.InsertedAt,
+			&i.RetryCount,
+			&i.Reason,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)
@@ -3369,7 +3398,7 @@ FROM
 WHERE
     (v1_task_runtime.task_id, v1_task_runtime.task_inserted_at, v1_task_runtime.retry_count) IN (SELECT id, inserted_at, retry_count FROM task)
 RETURNING
-    v1_task_runtime.task_id, v1_task_runtime.task_inserted_at, v1_task_runtime.retry_count, v1_task_runtime.worker_id, v1_task_runtime.batch_id, v1_task_runtime.batch_size, v1_task_runtime.batch_index, v1_task_runtime.batch_key, v1_task_runtime.tenant_id, v1_task_runtime.timeout_at, v1_task_runtime.evicted_at
+    v1_task_runtime.task_id, v1_task_runtime.task_inserted_at, v1_task_runtime.retry_count, v1_task_runtime.worker_id, v1_task_runtime.batch_id, v1_task_runtime.batch_size, v1_task_runtime.batch_index, v1_task_runtime.batch_key, v1_task_runtime.tenant_id, v1_task_runtime.timeout_at, v1_task_runtime.evicted_at, v1_task_runtime.assigned_at, v1_task_runtime.acked_at
 `
 
 type ManualSlotReleaseParams struct {
@@ -3392,8 +3421,46 @@ func (q *Queries) ManualSlotRelease(ctx context.Context, db DBTX, arg ManualSlot
 		&i.TenantID,
 		&i.TimeoutAt,
 		&i.EvictedAt,
+		&i.AssignedAt,
+		&i.AckedAt,
 	)
 	return &i, err
+}
+
+const markTaskRuntimesAcked = `-- name: MarkTaskRuntimesAcked :exec
+WITH input AS (
+    SELECT
+        unnest($2::bigint[]) AS task_id,
+        unnest($3::timestamptz[]) AS task_inserted_at,
+        unnest($4::integer[]) AS retry_count
+)
+
+UPDATE v1_task_runtime
+SET acked_at = NOW()
+WHERE
+    tenant_id = $1::uuid
+    AND acked_at IS NULL
+    AND (task_id, task_inserted_at, retry_count) IN (
+        SELECT task_id, task_inserted_at, retry_count
+        FROM input
+    )
+`
+
+type MarkTaskRuntimesAckedParams struct {
+	Tenantid        uuid.UUID            `json:"tenantid"`
+	Taskids         []int64              `json:"taskids"`
+	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
+	Retrycounts     []int32              `json:"retrycounts"`
+}
+
+func (q *Queries) MarkTaskRuntimesAcked(ctx context.Context, db DBTX, arg MarkTaskRuntimesAckedParams) error {
+	_, err := db.Exec(ctx, markTaskRuntimesAcked,
+		arg.Tenantid,
+		arg.Taskids,
+		arg.Taskinsertedats,
+		arg.Retrycounts,
+	)
+	return err
 }
 
 const preflightCheckDAGsForReplay = `-- name: PreflightCheckDAGsForReplay :many
@@ -3678,7 +3745,7 @@ FROM
 WHERE
     (v1_task_runtime.task_id, v1_task_runtime.task_inserted_at, v1_task_runtime.retry_count) IN (SELECT id, inserted_at, retry_count FROM task)
 RETURNING
-    v1_task_runtime.task_id, v1_task_runtime.task_inserted_at, v1_task_runtime.retry_count, v1_task_runtime.worker_id, v1_task_runtime.batch_id, v1_task_runtime.batch_size, v1_task_runtime.batch_index, v1_task_runtime.batch_key, v1_task_runtime.tenant_id, v1_task_runtime.timeout_at, v1_task_runtime.evicted_at
+    v1_task_runtime.task_id, v1_task_runtime.task_inserted_at, v1_task_runtime.retry_count, v1_task_runtime.worker_id, v1_task_runtime.batch_id, v1_task_runtime.batch_size, v1_task_runtime.batch_index, v1_task_runtime.batch_key, v1_task_runtime.tenant_id, v1_task_runtime.timeout_at, v1_task_runtime.evicted_at, v1_task_runtime.assigned_at, v1_task_runtime.acked_at
 `
 
 type RefreshTimeoutByParams struct {
@@ -3702,6 +3769,8 @@ func (q *Queries) RefreshTimeoutBy(ctx context.Context, db DBTX, arg RefreshTime
 		&i.TenantID,
 		&i.TimeoutAt,
 		&i.EvictedAt,
+		&i.AssignedAt,
+		&i.AckedAt,
 	)
 	return &i, err
 }
@@ -3784,7 +3853,9 @@ SET
     batch_size = $2::integer,
     batch_index = input.batch_index,
     worker_id = $3::uuid,
-    batch_key = COALESCE(NULLIF($4::text, ''), tr.batch_key)
+    batch_key = COALESCE(NULLIF($4::text, ''), tr.batch_key),
+    assigned_at = NOW(),
+    acked_at = NULL
 FROM
     input
 WHERE
