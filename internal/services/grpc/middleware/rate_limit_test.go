@@ -14,6 +14,7 @@ func TestMatchServiceName(t *testing.T) {
 		{name: "/EventsService/Push", want: "events"},
 		{name: "/WorkflowService/PutWorkflow", want: "workflow"},
 		{name: "/v1.AdminService/PutWorkflow", want: "admin"},
+		{name: "/v1.AdminService/GetRunDetails", want: "get_run_details"},
 		{name: "/opentelemetry.proto.collector.trace.v1.TraceService/Export", want: "otelcol"},
 		{name: "/v1.V1Streams/Publish", want: "streams"},
 		{name: "/v1.V1Streams/Subscribe", want: "streams"},

@@ -210,6 +210,19 @@ type ConfigFileRuntime struct {
 	// GRPCRateLimit is the rate limit for the grpc server. We count limits separately for the Workflow, Dispatcher and Events services. Workflow and Events service are set to this rate, Dispatcher is 10X this rate. The rate limit is per second, per engine, per api token.
 	GRPCRateLimit float64 `mapstructure:"grpcRateLimit" json:"grpcRateLimit,omitempty" default:"1000"`
 
+	// GRPCGetRunDetailsRateLimit is a separate, lower rate limit for the AdminService GetRunDetails call, which
+	// SDKs poll when waiting on a run result. Per second, per engine, per tenant; burst equals the rate. Only
+	// applied to tenants listed in GRPCGetRunDetailsRateLimitTenants.
+	GRPCGetRunDetailsRateLimit float64 `mapstructure:"grpcGetRunDetailsRateLimit" json:"grpcGetRunDetailsRateLimit,omitempty" default:"10"`
+
+	// GRPCGetRunDetailsRateLimitTenants is the list of tenant ids GRPCGetRunDetailsRateLimit applies to. Empty
+	// disables the dedicated limit and GetRunDetails shares the admin bucket.
+	// Populated from GRPCGetRunDetailsRateLimitTenantsString at startup; do not set directly via env.
+	GRPCGetRunDetailsRateLimitTenants []string `mapstructure:"grpcGetRunDetailsRateLimitTenants" json:"grpcGetRunDetailsRateLimitTenants,omitempty"`
+
+	// GRPCGetRunDetailsRateLimitTenantsString is the raw space-separated value used for env binding
+	GRPCGetRunDetailsRateLimitTenantsString string `mapstructure:"grpcGetRunDetailsRateLimitTenantsString" json:"grpcGetRunDetailsRateLimitTenantsString,omitempty"`
+
 	// GRPCShutdownTimeout is the maximum time to wait for the grpc server to drain in-flight requests and streams on graceful shutdown before forcing a hard stop
 	GRPCShutdownTimeout time.Duration `mapstructure:"grpcShutdownTimeout" json:"grpcShutdownTimeout,omitempty" default:"10s"`
 
@@ -863,6 +876,8 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.grpcWorkerMaxLockAcquisitionTime", "SERVER_GRPC_WORKER_MAX_LOCK_ACQUISITION_TIME")
 	_ = v.BindEnv("runtime.grpcStaticStreamWindowSize", "SERVER_GRPC_STATIC_STREAM_WINDOW_SIZE")
 	_ = v.BindEnv("runtime.grpcRateLimit", "SERVER_GRPC_RATE_LIMIT")
+	_ = v.BindEnv("runtime.grpcGetRunDetailsRateLimit", "SERVER_GRPC_GET_RUN_DETAILS_RATE_LIMIT")
+	_ = v.BindEnv("runtime.grpcGetRunDetailsRateLimitTenantsString", "SERVER_GRPC_GET_RUN_DETAILS_RATE_LIMIT_TENANTS")
 	_ = v.BindEnv("runtime.webhookRateLimit", "SERVER_INCOMING_WEBHOOK_RATE_LIMIT")
 	_ = v.BindEnv("runtime.webhookRateLimitBurst", "SERVER_INCOMING_WEBHOOK_RATE_LIMIT_BURST")
 	_ = v.BindEnv("runtime.grpcShutdownTimeout", "SERVER_GRPC_SHUTDOWN_TIMEOUT")

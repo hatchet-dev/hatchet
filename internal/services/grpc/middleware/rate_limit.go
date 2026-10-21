@@ -26,11 +26,14 @@ type HatchetApiTokenRateLimiter struct {
 }
 
 type HatchetRateLimiter struct {
-	mu           sync.Mutex
-	rateLimiters map[string]*HatchetApiTokenRateLimiter
-	rate         rate.Limit
-	burst        int
-	l            *zerolog.Logger
+	mu                    sync.Mutex
+	rateLimiters          map[string]*HatchetApiTokenRateLimiter
+	getRunDetailsLimiters map[string]*rate.Limiter
+	getRunDetailsTenants  map[string]struct{}
+	rate                  rate.Limit
+	burst                 int
+	getRunDetailsRate     rate.Limit
+	l                     *zerolog.Logger
 }
 
 func (rl *HatchetRateLimiter) GetOrCreateTenantRateLimiter(rateLimitToken string) *HatchetApiTokenRateLimiter {
@@ -52,13 +55,43 @@ func (rl *HatchetRateLimiter) GetOrCreateTenantRateLimiter(rateLimitToken string
 	return rl.rateLimiters[rateLimitToken]
 }
 
-func NewHatchetRateLimiter(r rate.Limit, b int, l *zerolog.Logger) *HatchetRateLimiter {
-	l.Info().Msgf("grpc rate limit set to %v per second with a burst of %v (10X rate for Dispatcher)", r, b)
+// GetRunDetails is limited per tenant rather than per api token, since result polling is
+// typically spread across many tokens of one tenant. Only tenants listed in
+// getRunDetailsTenants get the dedicated limiter; everyone else uses the admin bucket.
+func (rl *HatchetRateLimiter) getRunDetailsLimiter(tenantId string) *rate.Limiter {
+	if _, listed := rl.getRunDetailsTenants[tenantId]; !listed {
+		return nil
+	}
+
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+
+	if _, ok := rl.getRunDetailsLimiters[tenantId]; !ok {
+		rl.getRunDetailsLimiters[tenantId] = rate.NewLimiter(rl.getRunDetailsRate, max(1, int(rl.getRunDetailsRate)))
+	}
+
+	return rl.getRunDetailsLimiters[tenantId]
+}
+
+func NewHatchetRateLimiter(r rate.Limit, b int, getRunDetailsRate rate.Limit, getRunDetailsTenants []string, l *zerolog.Logger) *HatchetRateLimiter {
+	tenants := make(map[string]struct{}, len(getRunDetailsTenants))
+
+	for _, t := range getRunDetailsTenants {
+		if t = strings.TrimSpace(t); t != "" {
+			tenants[t] = struct{}{}
+		}
+	}
+
+	l.Info().Msgf("grpc rate limit set to %v per second with a burst of %v (10X rate for Dispatcher); GetRunDetails limited to %v per second for %d tenants", r, b, getRunDetailsRate, len(tenants))
+
 	return &HatchetRateLimiter{
-		rateLimiters: make(map[string]*HatchetApiTokenRateLimiter),
-		rate:         r,
-		burst:        b,
-		l:            l,
+		rateLimiters:          make(map[string]*HatchetApiTokenRateLimiter),
+		getRunDetailsLimiters: make(map[string]*rate.Limiter),
+		getRunDetailsTenants:  tenants,
+		rate:                  r,
+		burst:                 b,
+		getRunDetailsRate:     getRunDetailsRate,
+		l:                     l,
 	}
 }
 
@@ -98,6 +131,22 @@ func (r *HatchetRateLimiter) Limit(ctx context.Context, procedure string) error 
 			return connect.NewError(connect.CodeResourceExhausted, errors.New("admin rate limit exceeded"))
 		}
 
+	case "get_run_details":
+		var limiter *rate.Limiter
+
+		if tenantId, ok := ctx.Value(analytics.TenantIDKey).(uuid.UUID); ok && tenantId != uuid.Nil {
+			limiter = r.getRunDetailsLimiter(tenantId.String())
+		}
+
+		if limiter == nil {
+			limiter = r.GetOrCreateTenantRateLimiter(rateLimitToken.String()).adminV1Limiter
+		}
+
+		if !limiter.Allow() {
+			r.l.Info().Ctx(ctx).Msgf("get run details rate limit (%v per second) exceeded", limiter.Limit())
+			return connect.NewError(connect.CodeResourceExhausted, errors.New("get run details rate limit exceeded, poll less frequently"))
+		}
+
 	case "otelcol":
 		if !r.GetOrCreateTenantRateLimiter(rateLimitToken.String()).otelColLimiter.Allow() {
 			r.l.Info().Ctx(ctx).Msgf("otel collector rate limit (%v per second) exceeded", r.GetOrCreateTenantRateLimiter(rateLimitToken.String()).otelColLimiter.Limit())
@@ -130,6 +179,8 @@ func matchServiceName(name string) string {
 		return "events"
 	case strings.HasPrefix(name, "/WorkflowService"):
 		return "workflow"
+	case name == "/v1.AdminService/GetRunDetails":
+		return "get_run_details"
 	case strings.HasPrefix(name, "/v1.AdminService"):
 		return "admin"
 	case strings.HasPrefix(name, "/v1.V1Streams"):
