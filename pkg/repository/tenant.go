@@ -330,6 +330,10 @@ func (r *tenantRepository) CreateTenant(ctx context.Context, opts *CreateTenantO
 		return nil, err
 	}
 
+	_, err = r.queries.UpsertTenantEntitlement(ctx, tx, sqlcv1.UpsertTenantEntitlementParams{
+		Tenantid: tenantId,
+	})
+
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
