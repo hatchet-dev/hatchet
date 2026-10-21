@@ -130,6 +130,8 @@ jobs:
           export SERVER_CONCURRENCY_IN_MEMORY_INDEX_ENABLED=${{ matrix.concurrency-in-memory-index }}
           export SERVER_OBSERVABILITY_ENABLED=true
           export SERVER_SECURITY_CHECK_ENABLED=false
+          export SERVER_PAYLOAD_STORE_WRAP_TASK_INPUT_IN_STEP_RUN_DATA=false
+          export SERVER_PAYLOAD_STORE_ENABLE_PAYLOAD_CONSOLIDATION=true
 
           go run ./cmd/hatchet-admin quickstart
 
