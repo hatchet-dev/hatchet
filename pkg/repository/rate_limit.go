@@ -311,6 +311,11 @@ func (r *rateLimitRepository) PauseRateLimit(ctx context.Context, tenantId uuid.
 
 	defer rollback()
 
+	// FlushRateLimits locks RateLimit rows before settling pauses, so taking its lock first avoids a deadlock with our settle
+	if err := r.queries.AdvisoryLock(ctx, tx, tenantAdvisoryInt(tenantId)); err != nil {
+		return nil, err
+	}
+
 	// an ended pause still in the table would keep its start time and stretch the new pause's frozen span back to it
 	if err := r.queries.SettleExpiredRateLimitPauses(ctx, tx, tenantId); err != nil {
 		return nil, fmt.Errorf("could not settle expired rate limit pauses: %w", err)
