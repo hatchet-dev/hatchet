@@ -20,6 +20,11 @@ import (
 // closing the socket, and with it the subscriber.
 const runMuxQueueSize = 64
 
+// runMuxSendQueueSize bounds the subscriptions queued for the engine stream's writer. A
+// healthy stream drains it at once; a stream that has not accepted that many subscriptions
+// is stalled and is retired.
+const runMuxSendQueueSize = 1024
+
 // errRunMuxRetired is install's report that the stream it replayed on already carries an
 // interest nobody holds: a subscriber closed during the replay. The loop opens another.
 var errRunMuxRetired = errors.New("the workflow runs stream was retired during its replay")
@@ -37,23 +42,29 @@ var errRunMuxRetired = errors.New("the workflow runs stream was retired during i
 // when a subscriber closes while it still awaits runs nobody else holds, the engine stream is
 // retired and reopened with the runs still awaited; closes that overlap share one reopen. The
 // mux itself is closed with the registration that owns it.
+//
+// A subscriber never sends on the engine stream itself: the stream's writer does, from a
+// bounded queue, since a send the transport holds on flow control is released only by the
+// stream's close, and a subscriber whose socket ended must be able to close meanwhile.
 type runMux struct {
-	open    func(ctx context.Context) (operator.RunStream, error)
-	l       *zerolog.Logger
-	backoff func(ctx context.Context, attempt int) error
-	maxRuns int
+	open      func(ctx context.Context) (operator.RunStream, error)
+	l         *zerolog.Logger
+	backoff   func(ctx context.Context, attempt int) error
+	maxRuns   int
+	sendQueue int
 
 	ctx    context.Context
 	cancel context.CancelFunc
 
 	// mu guards everything below and is never held across a send on the engine stream, so
 	// close can always reach the stream whose Close releases a blocked send. stream is the
-	// current engine stream, nil while none is open; opening is the stream the loop is
-	// replaying on, held here from the moment open returns until it is published as stream
-	// or given up, so close finds a stream whose replay is blocked. subs is every awaited run
-	// and the handles that await it.
+	// current engine stream, nil while none is open, and writer owns its sends; opening is
+	// the stream the loop is replaying on, held here from the moment open returns until it
+	// is published as stream or given up, so close finds a stream whose replay is blocked.
+	// subs is every awaited run and the handles that await it.
 	mu      sync.Mutex
 	stream  operator.RunStream
+	writer  *runMuxWriter
 	opening operator.RunStream
 	subs    map[string]map[*runMuxHandle]struct{}
 	loop    chan struct{}
@@ -65,15 +76,71 @@ func newRunMux(l *zerolog.Logger, maxRuns int, open func(ctx context.Context) (o
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &runMux{
-		open:    open,
-		l:       l,
-		backoff: retry.SleepStreamBackoff,
-		maxRuns: maxRuns,
-		ctx:     ctx,
-		cancel:  cancel,
-		subs:    map[string]map[*runMuxHandle]struct{}{},
-		loop:    make(chan struct{}),
+		open:      open,
+		l:         l,
+		backoff:   retry.SleepStreamBackoff,
+		maxRuns:   maxRuns,
+		sendQueue: runMuxSendQueueSize,
+		ctx:       ctx,
+		cancel:    cancel,
+		subs:      map[string]map[*runMuxHandle]struct{}{},
+		loop:      make(chan struct{}),
 	}
+}
+
+// runMuxWriter sends the subscriptions queued for one published engine stream, in order,
+// until the stream is retired or a send fails. It is the stream's only sender once the
+// stream is published; the replay before that is the loop's.
+type runMuxWriter struct {
+	stream operator.RunStream
+	queue  chan string
+	// stop is closed when the stream is retired; done when the writer has left.
+	stop chan struct{}
+	done chan struct{}
+}
+
+func newRunMuxWriter(stream operator.RunStream, size int) *runMuxWriter {
+	return &runMuxWriter{
+		stream: stream,
+		queue:  make(chan string, size),
+		stop:   make(chan struct{}),
+		done:   make(chan struct{}),
+	}
+}
+
+// run drains the queue onto the stream. A send that fails ends the writer: the stream is
+// failing, serve retires it on the Recv error that follows, and the reopen replays every
+// awaited run, the queued ones among them.
+func (w *runMuxWriter) run(m *runMux) {
+	defer close(w.done)
+
+	for {
+		select {
+		case <-w.stop:
+			return
+		case runId := <-w.queue:
+			if err := w.stream.Send(m.ctx, &contracts.SubscribeToWorkflowRunsRequest{WorkflowRunId: runId}); err != nil {
+				m.l.Debug().Err(err).Str("workflow_run_id", runId).Msg("subscription send failed; it is replayed on the next stream")
+				return
+			}
+		}
+	}
+}
+
+// retireLocked takes the current stream out of service, stops its writer and returns it for
+// the caller to close outside mu; nil when no stream is current.
+func (m *runMux) retireLocked() operator.RunStream {
+	stream := m.stream
+
+	if stream == nil {
+		return nil
+	}
+
+	m.stream = nil
+	close(m.writer.stop)
+	m.writer = nil
+
+	return stream
 }
 
 // Subscribe hands out a subscriber; first, when set, is its first subscription.
@@ -177,13 +244,13 @@ func (m *runMux) run() {
 	}
 }
 
-// install replays every awaited run on stream, then publishes it as the current one. The
-// sends run outside the lock, since flow control may block them and close must be able to
-// close the stream that releases them; runs subscribed during the replay are sent before the
-// stream is published, so nothing a subscriber recorded while no stream was current is left
-// out, and a run the replay sent that nobody awaits any more retires the stream instead of
-// publishing it. The stream is held as opening throughout, so a close during the replay
-// closes it; the caller closes the stream on an error.
+// install replays every awaited run on stream, then publishes it as the current one with
+// its writer. The sends run outside the lock, since flow control may block them and close
+// must be able to close the stream that releases them; runs subscribed during the replay are
+// sent before the stream is published, so nothing a subscriber recorded while no stream was
+// current is left out, and a run the replay sent that nobody awaits any more retires the
+// stream instead of publishing it. The stream is held as opening throughout, so a close
+// during the replay closes it; the caller closes the stream on an error.
 func (m *runMux) install(stream operator.RunStream) error {
 	m.mu.Lock()
 
@@ -231,9 +298,13 @@ func (m *runMux) install(stream operator.RunStream) error {
 				}
 			}
 
+			w := newRunMuxWriter(stream, m.sendQueue)
 			m.stream = stream
+			m.writer = w
 			m.opening = nil
 			m.mu.Unlock()
+
+			go w.run(m)
 
 			return nil
 		}
@@ -262,7 +333,7 @@ func (m *runMux) serve(stream operator.RunStream) (failed, delivered bool) {
 			failed = m.stream == stream
 
 			if failed {
-				m.stream = nil
+				m.retireLocked()
 			}
 
 			m.mu.Unlock()
@@ -312,10 +383,12 @@ func (m *runMux) deliver(event *contracts.WorkflowRunEvent) {
 	}
 }
 
-// subscribe records the handle's interest in the run and sends the subscription on the
-// current stream; without one the install of the next stream sends it. A handle at its cap
-// is refused, unless it already awaits the run.
-func (m *runMux) subscribe(ctx context.Context, h *runMuxHandle, runId string) error {
+// subscribe records the handle's interest in the run and queues the subscription for the
+// current stream's writer; without a current stream the install of the next one sends it.
+// It never waits on the engine stream: a writer that has not drained a full queue is behind
+// a stalled stream, which is retired so the reopen replays every awaited run, this one among
+// them. A handle at its cap is refused, unless it already awaits the run.
+func (m *runMux) subscribe(_ context.Context, h *runMuxHandle, runId string) error {
 	m.mu.Lock()
 
 	if m.closed {
@@ -338,16 +411,32 @@ func (m *runMux) subscribe(ctx context.Context, h *runMuxHandle, runId string) e
 	handles[h] = struct{}{}
 	h.remember(runId)
 
-	stream := m.stream
+	w := m.writer
 	m.mu.Unlock()
 
-	if stream == nil {
+	if w == nil {
 		return nil
 	}
 
-	if err := stream.Send(ctx, &contracts.SubscribeToWorkflowRunsRequest{WorkflowRunId: runId}); err != nil {
-		// the stream is failing; serve retires it and the reopen replays the subscription
-		m.l.Debug().Err(err).Str("workflow_run_id", runId).Msg("subscription send failed; it is replayed on the next stream")
+	select {
+	case w.queue <- runId:
+		return nil
+	default:
+	}
+
+	m.mu.Lock()
+
+	var retired operator.RunStream
+
+	if m.writer == w {
+		retired = m.retireLocked()
+	}
+
+	m.mu.Unlock()
+
+	if retired != nil {
+		m.l.Warn().Int("queued", m.sendQueue).Msg("the workflow runs stream has not accepted a full queue of subscriptions; reopening it")
+		_ = retired.Close()
 	}
 
 	return nil
@@ -375,8 +464,7 @@ func (m *runMux) unsubscribe(h *runMuxHandle) {
 	var retired operator.RunStream
 
 	if orphaned && !m.closed {
-		retired = m.stream
-		m.stream = nil
+		retired = m.retireLocked()
 	}
 
 	m.mu.Unlock()
@@ -386,10 +474,10 @@ func (m *runMux) unsubscribe(h *runMuxHandle) {
 	}
 }
 
-// close ends the mux: the engine stream is closed, the loop joined, every handle closed. The
-// stream being replayed on is closed with the current one, since a replay send blocked on
-// flow control is released by its stream's Close alone, not by the mux context; without
-// that the loop would never be joined.
+// close ends the mux: the engine stream is closed, the loop and the writer joined, every
+// handle closed. The stream being replayed on is closed with the current one, since a send
+// blocked on flow control, the replay's or the writer's, is released by its stream's Close
+// alone, not by the mux context; without that neither would ever be joined.
 func (m *runMux) close() {
 	m.cancel()
 
@@ -402,9 +490,9 @@ func (m *runMux) close() {
 
 	m.closed = true
 	started := m.started
-	stream := m.stream
+	writer := m.writer
+	stream := m.retireLocked()
 	opening := m.opening
-	m.stream = nil
 	m.opening = nil
 
 	handles := map[*runMuxHandle]struct{}{}
@@ -427,6 +515,10 @@ func (m *runMux) close() {
 
 	if started {
 		<-m.loop
+	}
+
+	if writer != nil {
+		<-writer.done
 	}
 
 	for h := range handles {
@@ -455,7 +547,8 @@ func (h *runMuxHandle) push(event *contracts.WorkflowRunEvent) {
 	}
 }
 
-// Send implements operator.RunStream: the message is a subscription for one run.
+// Send implements operator.RunStream: the message is a subscription for one run. It never
+// waits on the engine stream.
 func (h *runMuxHandle) Send(ctx context.Context, msg proto.Message) error {
 	select {
 	case <-h.closed:
