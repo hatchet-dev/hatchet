@@ -77,11 +77,13 @@ export type { RunManyOpt, RunOpts } from '@hatchet/v1/declaration';
 export { RateLimitDuration } from '@hatchet/protoc/workflows/workflows';
 export { WorkerLabelComparator } from '@hatchet/protoc/v1/shared/trigger';
 export { V1TaskStatus } from '@hatchet/clients/rest/generated/data-contracts';
-export {
-  default as HatchetError,
-  getErrorMessage,
-  toHatchetError,
-} from '@hatchet/util/errors/hatchet-error';
+// HatchetError is imported and re-exported by name rather than as `default as`: tsc emits a
+// getter for the latter that Node's CommonJS export detection cannot see, which hides the name
+// from ESM importers of this entry.
+import HatchetError from '@hatchet/util/errors/hatchet-error';
+
+export { HatchetError };
+export { getErrorMessage, toHatchetError } from '@hatchet/util/errors/hatchet-error';
 export { IdempotencyCollisionError } from '@hatchet/util/errors/idempotency-collision-error';
 export { BulkTriggerIdempotencyCollisionError } from '@hatchet/util/errors/bulk-trigger-idempotency-collision-error';
 export { BulkTriggerPartialError } from '@hatchet/util/errors/bulk-trigger-partial-error';

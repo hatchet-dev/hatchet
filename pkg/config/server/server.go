@@ -166,6 +166,16 @@ type OLAPStatusUpdateConfigFile struct {
 	TaskBatchSizeLimit int `mapstructure:"taskBatchSizeLimit" json:"taskBatchSizeLimit,omitempty" default:"1000"`
 }
 
+// DefaultTenantEntitlementsConfigFile defines the feature entitlements granted to new tenants.
+type DefaultTenantEntitlementsConfigFile struct {
+	AuditLogs                       bool `mapstructure:"auditLogs" json:"auditLogs,omitempty" default:"false"`
+	PrometheusMetrics               bool `mapstructure:"prometheusMetrics" json:"prometheusMetrics,omitempty" default:"false"`
+	StrictAdditionalMetadataFilters bool `mapstructure:"strictAdditionalMetadataFilters" json:"strictAdditionalMetadataFilters,omitempty" default:"false"`
+	DAGOperator                     bool `mapstructure:"dagOperator" json:"dagOperator,omitempty" default:"false"`
+	DurableStreams                  bool `mapstructure:"durableStreams" json:"durableStreams,omitempty" default:"false"`
+	ServerlessOperator              bool `mapstructure:"serverlessOperator" json:"serverlessOperator,omitempty" default:"false"`
+}
+
 // General server runtime options
 type ConfigFileRuntime struct {
 	// Port is the port that the core server listens on
@@ -218,6 +228,9 @@ type ConfigFileRuntime struct {
 
 	// Default limit values
 	Limits limits.LimitConfigFile `mapstructure:"limits" json:"limits,omitempty"`
+
+	// DefaultTenantEntitlements are the entitlements granted to every tenant created by this server
+	DefaultTenantEntitlements DefaultTenantEntitlementsConfigFile `mapstructure:"defaultTenantEntitlements" json:"defaultTenantEntitlements,omitempty"`
 
 	// QueueLimit is the limit of items to return from a single queue at a time
 	SingleQueueLimit int `mapstructure:"singleQueueLimit" json:"singleQueueLimit,omitempty" default:"100"`
@@ -1041,6 +1054,14 @@ func BindAllEnv(v *viper.Viper) {
 	// security check options
 	_ = v.BindEnv("securityCheck.enabled", "SERVER_SECURITY_CHECK_ENABLED")
 	_ = v.BindEnv("securityCheck.endpoint", "SERVER_SECURITY_CHECK_ENDPOINT")
+
+	// default tenant entitlements
+	_ = v.BindEnv("runtime.defaultTenantEntitlements.auditLogs", "SERVER_DEFAULT_TENANT_ENTITLEMENT_AUDIT_LOGS")
+	_ = v.BindEnv("runtime.defaultTenantEntitlements.prometheusMetrics", "SERVER_DEFAULT_TENANT_ENTITLEMENT_PROMETHEUS_METRICS")
+	_ = v.BindEnv("runtime.defaultTenantEntitlements.strictAdditionalMetadataFilters", "SERVER_DEFAULT_TENANT_ENTITLEMENT_STRICT_ADDITIONAL_METADATA_FILTERS")
+	_ = v.BindEnv("runtime.defaultTenantEntitlements.dagOperator", "SERVER_DEFAULT_TENANT_ENTITLEMENT_DAG_OPERATOR")
+	_ = v.BindEnv("runtime.defaultTenantEntitlements.durableStreams", "SERVER_DEFAULT_TENANT_ENTITLEMENT_DURABLE_STREAMS")
+	_ = v.BindEnv("runtime.defaultTenantEntitlements.serverlessOperator", "SERVER_DEFAULT_TENANT_ENTITLEMENT_SERVERLESS_OPERATOR")
 
 	// limit options
 	_ = v.BindEnv("runtime.limits.defaultTenantRetentionPeriod", "SERVER_LIMITS_DEFAULT_TENANT_RETENTION_PERIOD")

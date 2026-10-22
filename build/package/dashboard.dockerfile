@@ -6,7 +6,7 @@ ARG HATCHET_API_IMAGE
 FROM $HATCHET_API_IMAGE AS api-binary-base
 
 # Stage 2: build the frontend
-FROM node:22-alpine AS frontend-build
+FROM node:24-alpine AS frontend-build
 
 WORKDIR /app
 
