@@ -147,6 +147,7 @@ type Scheduler struct {
 
 	tasksWithNoWorkerCache *expirable.LRU[string, struct{}]
 	rateLimitedTasksCache  *expirable.LRU[string, struct{}]
+	dispatcherIds          *dispatcherIdCache
 
 	promGate *prometheus.Gate
 
@@ -213,6 +214,7 @@ func New(
 		pool:                   opts.pool,
 		tasksWithNoWorkerCache: tasksWithNoWorkerCache,
 		rateLimitedTasksCache:  rateLimitedTasksCache,
+		dispatcherIds:          newDispatcherIdCache(opts.repov1.Workers().GetDispatcherIdsForWorkers),
 		signaler:               signaler,
 		promGate:               opts.promGate,
 		queueMetrics:           newQueueMetricsPoller(opts.repov1.Tasks(), opts.l),
@@ -477,7 +479,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 			workerIds = append(workerIds, assigned.WorkerId)
 		}
 
-		workerIdToDispatcherId, workersWithoutDispatchers, err := s.repov1.Workers().GetDispatcherIdsForWorkers(ctx, tenantId, workerIds)
+		workerIdToDispatcherId, workersWithoutDispatchers, err := s.dispatcherIds.get(ctx, tenantId, workerIds)
 
 		if err != nil {
 			s.internalRetry(ctx, tenantId, res.Assigned...)
