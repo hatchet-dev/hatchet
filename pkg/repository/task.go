@@ -3952,14 +3952,24 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 
 	defer rollback()
 
-	acquired, err := r.queries.TryAdvisoryLock(ctx, tx, sqlchelpers.AdvisoryLockKey("replay_"+tenantId.String()))
+	dagOperatorEnabled, err := r.isDagOperatorEnabled(ctx, tx, tenantId)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to try advisory lock for replaying tasks: %w", err)
+		return nil, fmt.Errorf("failed to check dag operator entitlement for replaying tasks: %w", err)
 	}
 
-	if !acquired {
-		return nil, fmt.Errorf("could not acquire advisory lock for replaying tasks")
+	// Operator-managed runs replay a single orchestrator task, so the FOR UPDATE row locks below are
+	// enough to serialize concurrent replays. Native DAG replays still take the tenant-wide lock.
+	if !dagOperatorEnabled {
+		acquired, err := r.queries.TryAdvisoryLock(ctx, tx, sqlchelpers.AdvisoryLockKey("replay_"+tenantId.String()))
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to try advisory lock for replaying tasks: %w", err)
+		}
+
+		if !acquired {
+			return nil, fmt.Errorf("could not acquire advisory lock for replaying tasks")
+		}
 	}
 
 	taskIds := make([]int64, len(tasks))
