@@ -421,47 +421,29 @@ func (q *Queries) OverwritePayloads(ctx context.Context, db DBTX, arg OverwriteP
 }
 
 const readPayloads = `-- name: ReadPayloads :many
-WITH inputs AS (
-    SELECT
-        UNNEST($1::BIGINT[]) AS id,
-        UNNEST($2::TIMESTAMPTZ[]) AS inserted_at,
-        UNNEST($3::UUID[]) AS tenant_id,
-        UNNEST(CAST($4::TEXT[] AS v1_payload_type[])) AS type,
-        NULLIF(UNNEST($5::UUID[]), '00000000-0000-0000-0000-000000000000'::UUID) AS payload_reference_id
-)
-
 SELECT tenant_id, id, inserted_at, external_id, type, location, external_location_key, inline_content, updated_at
-FROM v1_payload
-WHERE (tenant_id, id, inserted_at, type) IN (
-    SELECT tenant_id, id, inserted_at, type
-    FROM inputs
-    WHERE payload_reference_id IS NULL
-)
-
-UNION ALL
-
-SELECT tenant_id, id, inserted_at, external_id, type, location, external_location_key, inline_content, updated_at
-FROM v1_payload
-WHERE (tenant_id, external_id, inserted_at) IN (
-    SELECT tenant_id, payload_reference_id, inserted_at
-    FROM inputs
-    WHERE payload_reference_id IS NOT NULL
+FROM read_payloads(
+    $1::UUID[],
+    $2::BIGINT[],
+    $3::TIMESTAMPTZ[],
+    CAST($4::TEXT[] AS v1_payload_type[]),
+    $5::UUID[]
 )
 `
 
 type ReadPayloadsParams struct {
+	Tenantids           []uuid.UUID          `json:"tenantids"`
 	Ids                 []int64              `json:"ids"`
 	Insertedats         []pgtype.Timestamptz `json:"insertedats"`
-	Tenantids           []uuid.UUID          `json:"tenantids"`
 	Types               []string             `json:"types"`
 	Payloadreferenceids []uuid.UUID          `json:"payloadreferenceids"`
 }
 
 func (q *Queries) ReadPayloads(ctx context.Context, db DBTX, arg ReadPayloadsParams) ([]*V1Payload, error) {
 	rows, err := db.Query(ctx, readPayloads,
+		arg.Tenantids,
 		arg.Ids,
 		arg.Insertedats,
-		arg.Tenantids,
 		arg.Types,
 		arg.Payloadreferenceids,
 	)

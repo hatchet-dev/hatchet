@@ -2485,6 +2485,69 @@ AS $$
     SELECT 'epoch'::TIMESTAMPTZ + ('x' || REPLACE(LEFT(id::TEXT, 13), '-', ''))::BIT(48)::BIGINT * INTERVAL '1 millisecond';
 $$;
 
+-- v1_payload_reference_inserted_at is the inserted_at a payload row shared through a reference id
+-- is stored under: the millisecond timestamp carried in a version 7 reference id, so the id alone
+-- locates the row however much later the referrer is created, or the referrer's own inserted_at
+-- for any other id. The Go write side (partitionTime in pkg/repository/payloadstore.go) applies the
+-- same rule when the row is written and when the offloaded block index is looked up.
+CREATE OR REPLACE FUNCTION v1_payload_reference_inserted_at(
+    reference_id UUID,
+    fallback TIMESTAMPTZ
+) RETURNS TIMESTAMPTZ
+    LANGUAGE sql
+    IMMUTABLE
+    PARALLEL SAFE
+AS $$
+    SELECT CASE
+        WHEN get_byte(uuid_send(reference_id), 6) >> 4 = 7 THEN extract_uuid7_timestamp(reference_id)
+        ELSE fallback
+    END;
+$$;
+
+-- read_payloads is the one place that knows how an inline payload row is located: an own row by its
+-- primary key (tenant_id, id, inserted_at, type) when the input carries no reference id, a shared row
+-- by (tenant_id, external_id) under v1_payload_reference_inserted_at(reference_id, inserted_at) when
+-- it does. A zero uuid in payload_reference_ids means no reference. ReadPayloads and any CTE that
+-- needs an inline payload row call this function rather than restating these rules. Rows already
+-- offloaded to the external store are resolved in Go through v1_payload_offloaded_block_index, not here.
+CREATE OR REPLACE FUNCTION read_payloads(
+    tenant_ids UUID[],
+    ids BIGINT[],
+    inserted_ats TIMESTAMPTZ[],
+    types v1_payload_type[],
+    payload_reference_ids UUID[]
+) RETURNS SETOF v1_payload
+    LANGUAGE sql
+    STABLE
+AS $$
+    WITH inputs AS (
+        SELECT
+            UNNEST(tenant_ids) AS tenant_id,
+            UNNEST(ids) AS id,
+            UNNEST(inserted_ats) AS inserted_at,
+            UNNEST(types) AS type,
+            NULLIF(UNNEST(payload_reference_ids), '00000000-0000-0000-0000-000000000000'::UUID) AS payload_reference_id
+    )
+
+    SELECT *
+    FROM v1_payload
+    WHERE (tenant_id, id, inserted_at, type) IN (
+        SELECT tenant_id, id, inserted_at, type
+        FROM inputs
+        WHERE payload_reference_id IS NULL
+    )
+
+    UNION ALL
+
+    SELECT *
+    FROM v1_payload
+    WHERE (tenant_id, external_id, inserted_at) IN (
+        SELECT tenant_id, payload_reference_id, v1_payload_reference_inserted_at(payload_reference_id, inserted_at)
+        FROM inputs
+        WHERE payload_reference_id IS NOT NULL
+    );
+$$;
+
 CREATE TABLE v1_payload_cutover_job_offset (
     key DATE PRIMARY KEY,
     is_completed BOOLEAN NOT NULL DEFAULT FALSE,

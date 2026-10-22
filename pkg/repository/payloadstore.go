@@ -234,7 +234,9 @@ func (o RetrievePayloadOpts) effectiveExternalId() uuid.UUID {
 // partitionTime is the time a payload row is stored under and later looked up by once offloaded. A row
 // shared through a time-ordered reference id takes the time in the id, so the id alone locates the row
 // however much later the referrer is created or the row itself is written after a queue hop. Any other
-// row takes the InsertedAt of the row that owns it.
+// row takes the InsertedAt of the row that owns it. Go applies this rule on the write side and for the
+// offloaded block index lookup; the inline read side applies it in SQL through
+// v1_payload_reference_inserted_at inside read_payloads, so retrieve passes the referrer's own InsertedAt.
 func (o RetrievePayloadOpts) partitionTime() pgtype.Timestamptz {
 	if o.PayloadReferenceId == nil || o.PayloadReferenceId.Version() != 7 {
 		return o.InsertedAt
@@ -525,7 +527,7 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 
 	for i, opt := range opts {
 		ids[i] = opt.Id
-		insertedAts[i] = opt.partitionTime()
+		insertedAts[i] = opt.InsertedAt
 		types[i] = string(opt.Type)
 		tenantIds[i] = opt.TenantId
 
