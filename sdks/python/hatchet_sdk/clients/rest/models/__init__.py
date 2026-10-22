@@ -260,6 +260,21 @@ from hatchet_sdk.clients.rest.models.v1_cel_debug_response_status import (
 )
 from hatchet_sdk.clients.rest.models.v1_cancel_task_request import V1CancelTaskRequest
 from hatchet_sdk.clients.rest.models.v1_cancelled_tasks import V1CancelledTasks
+from hatchet_sdk.clients.rest.models.v1_concurrency_key import V1ConcurrencyKey
+from hatchet_sdk.clients.rest.models.v1_concurrency_key_list import V1ConcurrencyKeyList
+from hatchet_sdk.clients.rest.models.v1_concurrency_limit_strategy import (
+    V1ConcurrencyLimitStrategy,
+)
+from hatchet_sdk.clients.rest.models.v1_concurrency_scope import V1ConcurrencyScope
+from hatchet_sdk.clients.rest.models.v1_concurrency_strategy import (
+    V1ConcurrencyStrategy,
+)
+from hatchet_sdk.clients.rest.models.v1_concurrency_strategy_list import (
+    V1ConcurrencyStrategyList,
+)
+from hatchet_sdk.clients.rest.models.v1_concurrency_strategy_usage import (
+    V1ConcurrencyStrategyUsage,
+)
 from hatchet_sdk.clients.rest.models.v1_create_filter_request import (
     V1CreateFilterRequest,
 )

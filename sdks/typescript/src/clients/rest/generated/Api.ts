@@ -98,6 +98,9 @@ import {
   V1CELDebugResponse,
   V1CancelTaskRequest,
   V1CancelledTasks,
+  V1ConcurrencyKeyList,
+  V1ConcurrencyScope,
+  V1ConcurrencyStrategyList,
   V1CreateFilterRequest,
   V1CreateServerlessEndpointRequest,
   V1CreateWebhookRequest,
@@ -1110,6 +1113,62 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
     this.request<EventKeyList, APIErrors>({
       path: `/api/v1/stable/tenants/${tenant}/events/keys`,
       method: 'GET',
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Lists the concurrency strategies on the latest version of each workflow in a tenant, and the shared strategies their tasks use, with live slot counts.
+   *
+   * @tags Concurrency
+   * @name V1ConcurrencyStrategyList
+   * @summary List concurrency strategies
+   * @request GET:/api/v1/stable/tenants/{tenant}/concurrency/strategies
+   * @secure
+   */
+  v1ConcurrencyStrategyList = (tenant: string, params: RequestParams = {}) =>
+    this.request<V1ConcurrencyStrategyList, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/concurrency/strategies`,
+      method: 'GET',
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Lists the keys of a concurrency strategy that have running or queued runs, sorted by queued count, then oldest queued run.
+   *
+   * @tags Concurrency
+   * @name V1ConcurrencyKeyList
+   * @summary List concurrency keys
+   * @request GET:/api/v1/stable/tenants/{tenant}/concurrency/strategies/{scope}/{strategy}/keys
+   * @secure
+   */
+  v1ConcurrencyKeyList = (
+    tenant: string,
+    scope: V1ConcurrencyScope,
+    strategy: number,
+    query?: {
+      /** Only return keys containing this string (case-insensitive) */
+      search?: string;
+      /** Only return keys with at least one queued run */
+      onlyQueued?: boolean;
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+    },
+    params: RequestParams = {}
+  ) =>
+    this.request<V1ConcurrencyKeyList, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/concurrency/strategies/${scope}/${strategy}/keys`,
+      method: 'GET',
+      query: query,
       secure: true,
       format: 'json',
       ...params,

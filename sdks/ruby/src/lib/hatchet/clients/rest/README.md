@@ -100,6 +100,8 @@ Class | Method | HTTP request | Description
 *HatchetSdkRest::APITokenApi* | [**api_token_list**](docs/APITokenApi.md#api_token_list) | **GET** /api/v1/tenants/{tenant}/api-tokens | List API Tokens
 *HatchetSdkRest::APITokenApi* | [**api_token_update_revoke**](docs/APITokenApi.md#api_token_update_revoke) | **POST** /api/v1/api-tokens/{api-token} | Revoke API Token
 *HatchetSdkRest::CELApi* | [**v1_cel_debug**](docs/CELApi.md#v1_cel_debug) | **POST** /api/v1/stable/tenants/{tenant}/cel/debug | Debug a CEL expression
+*HatchetSdkRest::ConcurrencyApi* | [**v1_concurrency_key_list**](docs/ConcurrencyApi.md#v1_concurrency_key_list) | **GET** /api/v1/stable/tenants/{tenant}/concurrency/strategies/{scope}/{strategy}/keys | List concurrency keys
+*HatchetSdkRest::ConcurrencyApi* | [**v1_concurrency_strategy_list**](docs/ConcurrencyApi.md#v1_concurrency_strategy_list) | **GET** /api/v1/stable/tenants/{tenant}/concurrency/strategies | List concurrency strategies
 *HatchetSdkRest::DefaultApi* | [**info_get_version**](docs/DefaultApi.md#info_get_version) | **GET** /api/v1/version | We return the version for the currently running server
 *HatchetSdkRest::DefaultApi* | [**monitoring_post_run_probe**](docs/DefaultApi.md#monitoring_post_run_probe) | **POST** /api/v1/monitoring/{tenant}/probe | Detailed Health Probe For the Instance
 *HatchetSdkRest::DefaultApi* | [**tenant_invite_delete**](docs/DefaultApi.md#tenant_invite_delete) | **DELETE** /api/v1/tenants/{tenant}/invites/{tenant-invite} | Delete invite
@@ -394,6 +396,13 @@ Class | Method | HTTP request | Description
  - [HatchetSdkRest::V1CELDebugResponseStatus](docs/V1CELDebugResponseStatus.md)
  - [HatchetSdkRest::V1CancelTaskRequest](docs/V1CancelTaskRequest.md)
  - [HatchetSdkRest::V1CancelledTasks](docs/V1CancelledTasks.md)
+ - [HatchetSdkRest::V1ConcurrencyKey](docs/V1ConcurrencyKey.md)
+ - [HatchetSdkRest::V1ConcurrencyKeyList](docs/V1ConcurrencyKeyList.md)
+ - [HatchetSdkRest::V1ConcurrencyLimitStrategy](docs/V1ConcurrencyLimitStrategy.md)
+ - [HatchetSdkRest::V1ConcurrencyScope](docs/V1ConcurrencyScope.md)
+ - [HatchetSdkRest::V1ConcurrencyStrategy](docs/V1ConcurrencyStrategy.md)
+ - [HatchetSdkRest::V1ConcurrencyStrategyList](docs/V1ConcurrencyStrategyList.md)
+ - [HatchetSdkRest::V1ConcurrencyStrategyUsage](docs/V1ConcurrencyStrategyUsage.md)
  - [HatchetSdkRest::V1CreateFilterRequest](docs/V1CreateFilterRequest.md)
  - [HatchetSdkRest::V1CreateServerlessEndpointRequest](docs/V1CreateServerlessEndpointRequest.md)
  - [HatchetSdkRest::V1CreateWebhookRequest](docs/V1CreateWebhookRequest.md)
