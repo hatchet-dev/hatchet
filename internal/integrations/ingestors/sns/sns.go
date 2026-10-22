@@ -19,7 +19,7 @@ import (
 	"time"
 )
 
-// https://github.com/robbiet480/go.sns/issues/2
+// regional SNS endpoints, e.g. sns.us-east-1.amazonaws.com or sns.cn-north-1.amazonaws.com.cn
 var hostPattern = regexp.MustCompile(`^sns\.[a-z]{2,}(-[a-z]+)+-[0-9]+\.amazonaws\.com(\.cn)?$`)
 
 const (
