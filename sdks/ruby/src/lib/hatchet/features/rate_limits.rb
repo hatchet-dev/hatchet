@@ -35,6 +35,19 @@ module Hatchet
       def put(key:, limit:, duration: :SECOND)
         @admin_grpc.put_rate_limit(key: key, limit: limit, duration: duration)
       end
+
+      # Pause a rate limit key.
+      # Queued runs that consume it stay queued until the given time.
+      #
+      # @param key [String] The rendered rate limit key to pause
+      # @param until_time [Time] The time to pause the key until. An earlier time never shortens an existing pause.
+      # @return [Time] The time the key is paused until
+      # @raise [GRPC::BadStatus] If the gRPC request fails
+      # @example
+      #   hatchet.rate_limits.pause(key: "upstream-api:tenant-123", until_time: Time.now + 30)
+      def pause(key:, until_time:)
+        @admin_grpc.pause_rate_limit(key: key, until_time: until_time)
+      end
     end
   end
 end

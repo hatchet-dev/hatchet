@@ -43,6 +43,7 @@ var ErrNoOptimisticSlots = fmt.Errorf("no optimistic slots for scheduling")
 type Pool interface {
 	GetResultsCh() chan *QueueResults
 	GetConcurrencyResultsCh() chan *ConcurrencyResults
+	GetRateLimitPausesEndedCh() chan uuid.UUID
 
 	// AddExtension registers a scheduler extension (metrics, autoscaling, ...)
 	// against the pool.
@@ -53,6 +54,7 @@ type Pool interface {
 
 	NotifyQueues(ctx context.Context, tenantId uuid.UUID, queueNames []string)
 	NotifyConcurrency(ctx context.Context, tenantId uuid.UUID, strategyIds []int64)
+	NotifyRateLimitsChanged(ctx context.Context, tenantId uuid.UUID)
 	NotifyNewWorker(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID)
 	NotifyNewQueue(ctx context.Context, tenantId uuid.UUID, queueName string)
 	NotifyNewConcurrencyStrategy(ctx context.Context, tenantId uuid.UUID, strategyId int64)

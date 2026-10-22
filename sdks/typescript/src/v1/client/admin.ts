@@ -218,4 +218,18 @@ export class AdminClient {
       this.config.retrier
     );
   }
+
+  /**
+   * Keeps queued runs that consume the rendered rate limit key from starting until `until`.
+   * @returns the time the key is paused until, which is later than `until` if it was already paused for longer
+   */
+  async pauseRateLimit(key: string, until: Date): Promise<Date> {
+    const response = await retrier(
+      async () => this.workflowsGrpc.pauseRateLimit({ key, pausedUntil: until }),
+      this.logger,
+      this.config.retrier
+    );
+
+    return response.pausedUntil ?? until;
+  }
 }

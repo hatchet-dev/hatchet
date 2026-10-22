@@ -136,6 +136,23 @@ func (q *Queries) DeleteRateLimitForTenant(ctx context.Context, db DBTX, arg Del
 	return err
 }
 
+const hasActiveRateLimitPause = `-- name: HasActiveRateLimitPause :one
+SELECT EXISTS (
+    SELECT 1
+    FROM v1_rate_limit_pause
+    WHERE
+        tenant_id = $1::uuid
+        AND paused_until > NOW()
+)::boolean
+`
+
+func (q *Queries) HasActiveRateLimitPause(ctx context.Context, db DBTX, tenantid uuid.UUID) (bool, error) {
+	row := db.QueryRow(ctx, hasActiveRateLimitPause, tenantid)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const listRateLimitsForSteps = `-- name: ListRateLimitsForSteps :many
 SELECT
     units, "stepId", "rateLimitKey", "tenantId", kind
@@ -178,70 +195,89 @@ func (q *Queries) ListRateLimitsForSteps(ctx context.Context, db DBTX, arg ListR
 }
 
 const listRateLimitsForTenantNoMutate = `-- name: ListRateLimitsForTenantNoMutate :many
+WITH rls AS (
+    SELECT
+        rl."tenantId", rl.key, rl."limitValue", rl.value, rl."window", rl."lastRefill",
+        p.paused_until,
+        p.paused_until > NOW() AS paused,
+        -- an ended pause the scheduler hasn't settled yet still shifts the window, as SettleExpiredRateLimitPauses will
+        (CASE
+            WHEN p.paused_until <= NOW() AND p.paused_until > GREATEST(p.paused_at, rl."lastRefill"::timestamptz) THEN
+                rl."lastRefill" + (p.paused_until - GREATEST(p.paused_at, rl."lastRefill"::timestamptz))
+            ELSE
+                rl."lastRefill"
+        END) AS shifted_last_refill
+    FROM
+        "RateLimit" rl
+    LEFT JOIN
+        v1_rate_limit_pause p ON p.tenant_id = rl."tenantId" AND p.key = rl."key"
+    WHERE
+        rl."tenantId" = $4::uuid
+        AND (
+            $5::text IS NULL OR
+            rl."key" like concat('%', $5::text, '%')
+        )
+)
 SELECT
     "tenantId",
     "key",
     "limitValue",
     (CASE
-        WHEN NOW() - rl."lastRefill" >= rl."window"::INTERVAL THEN
-            get_refill_value(rl)
+        WHEN NOW() - shifted_last_refill >= "window"::INTERVAL AND paused IS NOT TRUE THEN
+            "limitValue"
         ELSE
-            rl."value"
+            "value"
     END)::int AS "value",
     "window",
     (CASE
-        WHEN NOW() - rl."lastRefill" >= rl."window"::INTERVAL THEN
+        WHEN NOW() - shifted_last_refill >= "window"::INTERVAL AND paused IS NOT TRUE THEN
             CURRENT_TIMESTAMP
         ELSE
-            rl."lastRefill"
-    END)::timestamp AS "lastRefill"
+            shifted_last_refill
+    END)::timestamp AS "lastRefill",
+    (CASE WHEN paused THEN paused_until END)::timestamptz AS "pausedUntil"
 FROM
-    "RateLimit" rl
-WHERE
-    "tenantId" = $1::uuid
-    AND (
-        $2::text IS NULL OR
-        rl."key" like concat('%', $2::text, '%')
-    )
+    rls
 ORDER BY
-    case when $3 = 'key ASC' THEN rl."key" END ASC,
-    case when $3 = 'key DESC' THEN rl."key" END DESC,
-    case when $3 = 'value ASC' THEN rl."value" END ASC,
-    case when $3 = 'value DESC' THEN rl."value" END DESC,
-    case when $3 = 'limitValue ASC' THEN rl."limitValue" END ASC,
-    case when $3 = 'limitValue DESC' THEN rl."limitValue" END DESC,
-    rl."key" ASC
+    case when $1 = 'key ASC' THEN "key" END ASC,
+    case when $1 = 'key DESC' THEN "key" END DESC,
+    case when $1 = 'value ASC' THEN "value" END ASC,
+    case when $1 = 'value DESC' THEN "value" END DESC,
+    case when $1 = 'limitValue ASC' THEN "limitValue" END ASC,
+    case when $1 = 'limitValue DESC' THEN "limitValue" END DESC,
+    "key" ASC
 OFFSET
-    COALESCE($4, 0)
+    COALESCE($2, 0)
 LIMIT
-    COALESCE($5, 50)
+    COALESCE($3, 50)
 `
 
 type ListRateLimitsForTenantNoMutateParams struct {
-	Tenantid uuid.UUID   `json:"tenantid"`
-	Search   pgtype.Text `json:"search"`
 	Orderby  interface{} `json:"orderby"`
 	Offset   interface{} `json:"offset"`
 	Limit    interface{} `json:"limit"`
+	Tenantid uuid.UUID   `json:"tenantid"`
+	Search   pgtype.Text `json:"search"`
 }
 
 type ListRateLimitsForTenantNoMutateRow struct {
-	TenantId   uuid.UUID        `json:"tenantId"`
-	Key        string           `json:"key"`
-	LimitValue int32            `json:"limitValue"`
-	Value      int32            `json:"value"`
-	Window     string           `json:"window"`
-	LastRefill pgtype.Timestamp `json:"lastRefill"`
+	TenantId    uuid.UUID          `json:"tenantId"`
+	Key         string             `json:"key"`
+	LimitValue  int32              `json:"limitValue"`
+	Value       int32              `json:"value"`
+	Window      string             `json:"window"`
+	LastRefill  pgtype.Timestamp   `json:"lastRefill"`
+	PausedUntil pgtype.Timestamptz `json:"pausedUntil"`
 }
 
 // Returns the same results as ListRateLimitsForTenantWithMutate but does not update the rate limit values
 func (q *Queries) ListRateLimitsForTenantNoMutate(ctx context.Context, db DBTX, arg ListRateLimitsForTenantNoMutateParams) ([]*ListRateLimitsForTenantNoMutateRow, error) {
 	rows, err := db.Query(ctx, listRateLimitsForTenantNoMutate,
-		arg.Tenantid,
-		arg.Search,
 		arg.Orderby,
 		arg.Offset,
 		arg.Limit,
+		arg.Tenantid,
+		arg.Search,
 	)
 	if err != nil {
 		return nil, err
@@ -257,6 +293,7 @@ func (q *Queries) ListRateLimitsForTenantNoMutate(ctx context.Context, db DBTX, 
 			&i.Value,
 			&i.Window,
 			&i.LastRefill,
+			&i.PausedUntil,
 		); err != nil {
 			return nil, err
 		}
@@ -277,6 +314,12 @@ WITH rls_to_update AS (
     WHERE
         rl."tenantId" = $1::uuid
         AND NOW() - rl."lastRefill" >= (rl."window"::INTERVAL - INTERVAL '10 milliseconds')
+        -- a paused key keeps the units it had left when the pause started
+        AND NOT EXISTS (
+            SELECT 1
+            FROM v1_rate_limit_pause p
+            WHERE p.tenant_id = rl."tenantId" AND p.key = rl."key" AND p.paused_until > NOW()
+        )
     ORDER BY
         rl."tenantId" ASC, rl."key" ASC
     FOR UPDATE
@@ -295,9 +338,12 @@ WITH rls_to_update AS (
 )
 SELECT
     rl."tenantId", rl.key, rl."limitValue", rl.value, rl."window", rl."lastRefill",
-    (rl."lastRefill" + rl."window"::INTERVAL - INTERVAL '10 milliseconds')::timestamp AS "nextRefillAt"
+    (rl."lastRefill" + rl."window"::INTERVAL - INTERVAL '10 milliseconds')::timestamp AS "nextRefillAt",
+    p.paused_until AS "pausedUntil"
 FROM
     "RateLimit" rl
+LEFT JOIN
+    v1_rate_limit_pause p ON p.tenant_id = rl."tenantId" AND p.key = rl."key" AND p.paused_until > NOW()
 WHERE
     rl."tenantId" = $1::uuid
     AND rl."key" NOT IN (SELECT "key" FROM refill)
@@ -307,19 +353,22 @@ UNION ALL
 SELECT
     refill."tenantId", refill.key, refill."limitValue", refill.value, refill."window", refill."lastRefill",
     -- return the next refill time
-    (refill."lastRefill" + refill."window"::INTERVAL - INTERVAL '10 milliseconds')::timestamp AS "nextRefillAt"
+    (refill."lastRefill" + refill."window"::INTERVAL - INTERVAL '10 milliseconds')::timestamp AS "nextRefillAt",
+    -- paused keys are never refilled
+    NULL::timestamptz AS "pausedUntil"
 FROM
     refill
 `
 
 type ListRateLimitsForTenantWithMutateRow struct {
-	TenantId     uuid.UUID        `json:"tenantId"`
-	Key          string           `json:"key"`
-	LimitValue   int32            `json:"limitValue"`
-	Value        int32            `json:"value"`
-	Window       string           `json:"window"`
-	LastRefill   pgtype.Timestamp `json:"lastRefill"`
-	NextRefillAt pgtype.Timestamp `json:"nextRefillAt"`
+	TenantId     uuid.UUID          `json:"tenantId"`
+	Key          string             `json:"key"`
+	LimitValue   int32              `json:"limitValue"`
+	Value        int32              `json:"value"`
+	Window       string             `json:"window"`
+	LastRefill   pgtype.Timestamp   `json:"lastRefill"`
+	NextRefillAt pgtype.Timestamp   `json:"nextRefillAt"`
+	PausedUntil  pgtype.Timestamptz `json:"pausedUntil"`
 }
 
 func (q *Queries) ListRateLimitsForTenantWithMutate(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*ListRateLimitsForTenantWithMutateRow, error) {
@@ -339,6 +388,7 @@ func (q *Queries) ListRateLimitsForTenantWithMutate(ctx context.Context, db DBTX
 			&i.Window,
 			&i.LastRefill,
 			&i.NextRefillAt,
+			&i.PausedUntil,
 		); err != nil {
 			return nil, err
 		}
@@ -348,6 +398,66 @@ func (q *Queries) ListRateLimitsForTenantWithMutate(ctx context.Context, db DBTX
 		return nil, err
 	}
 	return items, nil
+}
+
+const pauseRateLimit = `-- name: PauseRateLimit :one
+INSERT INTO v1_rate_limit_pause (
+    tenant_id,
+    key,
+    paused_until
+) VALUES (
+    $1::uuid,
+    $2::text,
+    $3::timestamptz
+) ON CONFLICT (tenant_id, key) DO UPDATE SET
+    -- an earlier deadline never shortens an active pause
+    paused_until = GREATEST(v1_rate_limit_pause.paused_until, EXCLUDED.paused_until)
+RETURNING tenant_id, key, paused_at, paused_until
+`
+
+type PauseRateLimitParams struct {
+	Tenantid    uuid.UUID          `json:"tenantid"`
+	Key         string             `json:"key"`
+	Pauseduntil pgtype.Timestamptz `json:"pauseduntil"`
+}
+
+func (q *Queries) PauseRateLimit(ctx context.Context, db DBTX, arg PauseRateLimitParams) (*V1RateLimitPause, error) {
+	row := db.QueryRow(ctx, pauseRateLimit, arg.Tenantid, arg.Key, arg.Pauseduntil)
+	var i V1RateLimitPause
+	err := row.Scan(
+		&i.TenantID,
+		&i.Key,
+		&i.PausedAt,
+		&i.PausedUntil,
+	)
+	return &i, err
+}
+
+const settleExpiredRateLimitPauses = `-- name: SettleExpiredRateLimitPauses :exec
+WITH expired AS (
+    DELETE FROM v1_rate_limit_pause
+    WHERE
+        tenant_id = $1::uuid
+        AND paused_until <= NOW()
+    RETURNING key, paused_at, paused_until
+)
+UPDATE
+    "RateLimit" rl
+SET
+    -- the window resumes where it was when the pause started
+    "lastRefill" = rl."lastRefill" + (e.paused_until - GREATEST(e.paused_at, rl."lastRefill"::timestamptz))
+FROM
+    expired e
+WHERE
+    rl."tenantId" = $1::uuid
+    AND rl."key" = e.key
+    -- a deadline already past when the pause was requested froze nothing, so it must not pull the window earlier
+    AND e.paused_until > GREATEST(e.paused_at, rl."lastRefill"::timestamptz)
+`
+
+func (q *Queries) SettleExpiredRateLimitPauses(ctx context.Context, db DBTX, tenantid uuid.UUID) error {
+	_, err := db.Exec(ctx, settleExpiredRateLimitPauses, tenantid)
+	return err
 }
 
 const upsertDynamicRateLimitDefinitions = `-- name: UpsertDynamicRateLimitDefinitions :exec
