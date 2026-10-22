@@ -65,6 +65,8 @@ type sharedRepository struct {
 
 	eventKeyWorkflowsCache *expirable.LRU[eventKeyTenantIdTuple, []*sqlcv1.ListWorkflowsForEventsRow]
 
+	rateLimitPauseCache *expirable.LRU[uuid.UUID, bool]
+
 	celParser         *cel.CELParser
 	boolExprEvaluator *cel.BoolExprEvaluator
 	taskLookupCache   *lru.Cache[taskExternalIdTenantIdTuple, *sqlcv1.FlattenExternalIdsRow]
@@ -102,6 +104,8 @@ func newSharedRepository(
 	stepIdExpressionsCache := expirable.NewLRU(10000, func(key uuid.UUID, value []*sqlcv1.StepExpression) {}, 5*time.Minute)
 	streamTopicSeenCache := expirable.NewLRU(10000, func(key streamTopicKey, value struct{}) {}, time.Hour)
 	eventKeyWorkflowsCache := expirable.NewLRU(10000, func(key eventKeyTenantIdTuple, value []*sqlcv1.ListWorkflowsForEventsRow) {}, 5*time.Second)
+	// short TTL since a pause set through another engine is only seen once this expires; the scheduler holds anything created in between
+	rateLimitPauseCache := expirable.NewLRU(10000, func(key uuid.UUID, value bool) {}, 5*time.Second)
 
 	celParser := cel.NewCELParser()
 
@@ -136,6 +140,7 @@ func newSharedRepository(
 		stepIdMatchConditionsCache:  stepIdMatchConditionsCache,
 		stepIdExpressionsCache:      stepIdExpressionsCache,
 		streamTopicSeenCache:        streamTopicSeenCache,
+		rateLimitPauseCache:         rateLimitPauseCache,
 		eventKeyWorkflowsCache:      eventKeyWorkflowsCache,
 		celParser:                   celParser,
 		boolExprEvaluator:           boolExprEvaluator,

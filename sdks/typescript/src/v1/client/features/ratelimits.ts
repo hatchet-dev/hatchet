@@ -19,6 +19,13 @@ export type CreateRateLimitOpts = {
   duration?: RateLimitDuration;
 };
 
+export type PauseRateLimitOpts = {
+  /** The rendered rate limit key to pause. */
+  key: string;
+  /** Queued runs that consume the key stay queued until this time. An earlier time never shortens an existing pause. */
+  until: Date;
+};
+
 /**
  * The rate limits client is a wrapper for Hatchet’s gRPC API that makes it easier to work with rate limits in Hatchet.
  */
@@ -41,6 +48,15 @@ export class RatelimitsClient {
   async upsert(opts: CreateRateLimitOpts): Promise<string> {
     await this.admin.putRateLimit(opts.key, opts.limit, opts.duration);
     return opts.key;
+  }
+
+  /**
+   * Pauses a rate limit key, so queued runs that consume it stay queued until `until`.
+   * @param opts - The key and the time to pause it until.
+   * @returns A promise that resolves to the time the key is paused until.
+   */
+  async pause(opts: PauseRateLimitOpts): Promise<Date> {
+    return this.admin.pauseRateLimit(opts.key, opts.until);
   }
 
   /**

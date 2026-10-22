@@ -47,6 +47,7 @@ function fakeRuntime(): FakeRuntime {
     putLog: jest.fn<Promise<void>, any[]>(async () => {}),
     refreshTimeout: jest.fn<Promise<void>, any[]>(async () => {}),
     releaseSlot: jest.fn<Promise<void>, any[]>(async () => {}),
+    pauseRateLimit: jest.fn<Promise<Date>, any[]>(async (_key: string, until: Date) => until),
     putStream: jest.fn<Promise<void>, any[]>(async () => {}),
     runWorkflow: jest.fn<Promise<any>, any[]>(async () => ({})),
     runWorkflows: jest.fn<Promise<any[]>, any[]>(async () => []),
@@ -82,6 +83,10 @@ describe('Context on a ContextRuntime', () => {
     await ctx.releaseSlot();
     expect(runtime.releaseSlot).toHaveBeenCalledWith('task-run-id');
 
+    const until = new Date('2030-01-01T00:00:00.000Z');
+    await expect(ctx.pauseRateLimit('upstream-api', { until })).resolves.toEqual(until);
+    expect(runtime.pauseRateLimit).toHaveBeenCalledWith('upstream-api', until);
+
     await ctx.putStream('chunk');
     await ctx.putStream('chunk-2');
     expect(runtime.putStream).toHaveBeenNthCalledWith(1, 'task-run-id', 'chunk', 0);
@@ -90,6 +95,16 @@ describe('Context on a ContextRuntime', () => {
     await ctx.cancel();
     expect(runtime.cancelRun).toHaveBeenCalledWith('task-run-id');
     expect(ctx.cancelled).toBe(true);
+  });
+
+  it('rejects pauseRateLimit when the runtime has no way to pause', async () => {
+    const runtime = fakeRuntime();
+    delete (runtime as Partial<ContextRuntime>).pauseRateLimit;
+    const ctx = new Context(action(), runtime);
+
+    await expect(ctx.pauseRateLimit('upstream-api', { until: new Date() })).rejects.toThrow(
+      'this runtime does not support pausing rate limits'
+    );
   });
 
   it('cancels every member of a batch through the runtime', async () => {

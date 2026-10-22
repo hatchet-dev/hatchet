@@ -510,6 +510,21 @@ export class Context<T, K = {}> {
   }
 
   /**
+   * Pauses a rate limit key, so queued runs that consume it stay queued until `opts.until`.
+   * Runs that are already executing, including this one, are unaffected.
+   * @param key - The rendered rate limit key to pause.
+   * @param opts - The time to pause the key until. An earlier time never shortens an existing pause.
+   * @returns A promise that resolves to the time the key is paused until.
+   */
+  async pauseRateLimit(key: string, opts: { until: Date }): Promise<Date> {
+    if (!this.runtime.pauseRateLimit) {
+      throw new HatchetError('this runtime does not support pausing rate limits');
+    }
+
+    return this.runtime.pauseRateLimit(key, opts.until);
+  }
+
+  /**
    * Streams data from the current task run.
    * @param data - The data to stream (string or binary).
    * @returns A promise that resolves when the data has been streamed.
