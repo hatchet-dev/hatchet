@@ -1,0 +1,120 @@
+V1ConcurrencyStrategyList:
+  get:
+    x-resources: ["tenant"]
+    description: Lists the concurrency strategies on the latest version of each workflow in a tenant, and the shared strategies their tasks use, with live slot counts.
+    operationId: v1-concurrency-strategy:list
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1ConcurrencyStrategyList"
+        description: Successfully listed the concurrency strategies
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: List concurrency strategies
+    tags:
+      - Concurrency
+
+V1ConcurrencyKeyList:
+  get:
+    x-resources: ["tenant"]
+    description: Lists the keys of a concurrency strategy that have running or queued runs, sorted by queued count, then oldest queued run.
+    operationId: v1-concurrency-key:list
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The strategy scope
+        in: path
+        name: scope
+        required: true
+        schema:
+          $ref: "../../../components/schemas/_index.yaml#/V1ConcurrencyScope"
+      - description: The strategy id
+        in: path
+        name: strategy
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - description: Only return keys containing this string (case-insensitive)
+        in: query
+        name: search
+        required: false
+        schema:
+          type: string
+      - description: Only return keys with at least one queued run
+        in: query
+        name: onlyQueued
+        required: false
+        schema:
+          type: boolean
+      - description: The number to skip
+        in: query
+        name: offset
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - description: The number to limit by
+        in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int64
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1ConcurrencyKeyList"
+        description: Successfully listed the keys
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: The strategy was not found
+    summary: List concurrency keys
+    tags:
+      - Concurrency
