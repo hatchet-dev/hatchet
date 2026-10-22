@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `/core`: the REST API (`client.api`) and the REST-backed features of the Node client (`runs.list`, `restoreTask` and `branchDurableTask`, `crons`, `schedules`, `filters`, `metrics`, `tenant`, `webhooks`, `workers`, `cel`, and `workflows.get`, `list`, `delete`, `pause` and `unpause`), generated from the OpenAPI spec over `fetch`. The base URL is the token's `server_url` claim or the new `apiUrl` config field.
+- `/core`: `tasks.refreshTimeout` and `tasks.releaseSlot`.
 
 ## [1.39.0] - 2026-10-21
 

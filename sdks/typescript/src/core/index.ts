@@ -57,8 +57,10 @@ export { LogsClient, MAX_LOG_LINE_CHARS } from './features/logs';
 export type { PutLogOptions } from './features/logs';
 export { StreamsClient, MAX_STREAM_MESSAGE_BYTES } from './features/streams';
 export type { StreamsClientDeps } from './features/streams';
+export { TasksClient } from './features/tasks';
 export type { RunsClientDeps } from './features/runs';
 export type { WorkflowsClientDeps } from './features/workflows';
+export type { Duration, DurationObject } from '@hatchet/v1/client/duration';
 
 // REST API and the feature clients built on it, shared with the Node client
 export type { Api as RestApiClient } from '@hatchet/clients/rest/generated-fetch/Api';

@@ -28,6 +28,8 @@ import {
   getServerUrlFromJWT,
   getTenantIdFromJWT,
 } from '@hatchet/util/config-loader/token';
+import { createDispatcherRpc } from '@hatchet/clients/dispatcher/rpc';
+import type { DispatcherClient } from '@hatchet/protoc/dispatcher';
 import type { Api } from '@hatchet/clients/rest/generated-fetch/Api';
 import { createFetchApi, normalizeApiUrl } from '@hatchet/clients/rest/fetch-api';
 import { RestRunsClient } from '@hatchet/clients/rest/runs';
@@ -54,6 +56,7 @@ import { LogsClient } from './features/logs';
 import { RateLimitsClient } from './features/rate-limits';
 import { RunsClient } from './features/runs';
 import { StreamsClient } from './features/streams';
+import { TasksClient } from './features/tasks';
 import { WorkflowsClient } from './features/workflows';
 import { consoleLogger } from './logger';
 import { WorkflowRunRef } from './run-ref';
@@ -119,6 +122,8 @@ export class HatchetCore {
   readonly logs: LogsClient;
   /** Publishes task run stream chunks and durable stream topics. */
   readonly streams: StreamsClient;
+  /** Refreshes a running task's timeout and releases its worker slot. */
+  readonly tasks: TasksClient;
   /** Creates, lists, gets and deletes cron triggers. */
   readonly crons: CronClient;
   /** Creates, lists, gets, updates and deletes scheduled runs. */
@@ -140,6 +145,7 @@ export class HatchetCore {
   private readonly adminRpc: AdminServiceClient;
   private readonly eventsRpc: EventsServiceClient;
   private readonly streamsRpc: V1StreamsClient;
+  private readonly dispatcherRpc: DispatcherClient;
 
   constructor(config: CoreClientConfig) {
     if (!config.token) {
@@ -179,6 +185,7 @@ export class HatchetCore {
     this.adminRpc = createV1AdminRpc(this.transport);
     this.eventsRpc = createEventsRpc(this.transport);
     this.streamsRpc = createV1StreamsRpc(this.transport);
+    this.dispatcherRpc = createDispatcherRpc(this.transport);
     this.api = createFetchApi({ apiUrl, token: config.token, fetch: config.fetch });
 
     const shared = { logger: this.logger, namespace, retrier: config.retrier };
@@ -192,6 +199,7 @@ export class HatchetCore {
     this.rateLimits = new RateLimitsClient({ rpc: this.workflowsRpc, ...shared });
     this.logs = new LogsClient(this.eventsRpc);
     this.streams = new StreamsClient({ events: this.eventsRpc, streams: this.streamsRpc });
+    this.tasks = new TasksClient(this.dispatcherRpc);
     this.crons = new CronClient(this);
     this.schedules = new ScheduleClient(this);
     this.filters = new FiltersClient(rest);
