@@ -1173,6 +1173,62 @@ func (q *Queries) MarkDurableEventLogEntrySatisfied(ctx context.Context, db DBTX
 	return &i, err
 }
 
+const resetSatisfiedOrdersForNewBranch = `-- name: ResetSatisfiedOrdersForNewBranch :one
+WITH input AS (
+    SELECT
+        UNNEST($1::BIGINT[]) AS node_id,
+        UNNEST($2::BIGINT[]) AS branch_id
+), renumbered AS (
+    SELECT
+        e.node_id,
+        e.branch_id,
+        -- this "compacts" the satisfied orders we're going to keep, so they're contiguous and start at 1
+        -- so that when the replay occurs, we don't end up with a gap causing us to hang. for instance, if we had
+        -- nodes 1, 2, and 3 with satisfied orders 3, 4, and 1, the satisfied orders would be renumbered to 2, 3, and 1
+        -- (in order of the nodes) so we never would hang waiting for order 2 to appear when it never would.
+        -- there's a bit more explanation of this in this PR description: https://github.com/hatchet-dev/hatchet/pull/5265
+        ROW_NUMBER() OVER (ORDER BY e.satisfied_order ASC) AS satisfied_order
+    FROM v1_durable_event_log_entry e
+    JOIN input i ON (i.node_id, i.branch_id) = (e.node_id, e.branch_id)
+    WHERE e.durable_task_id = $3::BIGINT
+      AND e.durable_task_inserted_at = $4::TIMESTAMPTZ
+      AND e.satisfied_order IS NOT NULL
+), updated AS (
+    UPDATE v1_durable_event_log_entry e
+    SET satisfied_order = (
+        SELECT r.satisfied_order
+        FROM renumbered r
+        WHERE (r.node_id, r.branch_id) = (e.node_id, e.branch_id)
+    )
+    WHERE e.durable_task_id = $3::BIGINT
+      AND e.durable_task_inserted_at = $4::TIMESTAMPTZ
+      AND e.satisfied_order IS NOT NULL
+    RETURNING e.satisfied_order
+)
+
+SELECT COALESCE(MAX(satisfied_order), 0)::BIGINT AS latest_satisfied_order
+FROM updated
+`
+
+type ResetSatisfiedOrdersForNewBranchParams struct {
+	Keptnodeids           []int64            `json:"keptnodeids"`
+	Keptbranchids         []int64            `json:"keptbranchids"`
+	Durabletaskid         int64              `json:"durabletaskid"`
+	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
+}
+
+func (q *Queries) ResetSatisfiedOrdersForNewBranch(ctx context.Context, db DBTX, arg ResetSatisfiedOrdersForNewBranchParams) (int64, error) {
+	row := db.QueryRow(ctx, resetSatisfiedOrdersForNewBranch,
+		arg.Keptnodeids,
+		arg.Keptbranchids,
+		arg.Durabletaskid,
+		arg.Durabletaskinsertedat,
+	)
+	var latest_satisfied_order int64
+	err := row.Scan(&latest_satisfied_order)
+	return latest_satisfied_order, err
+}
+
 const updateDurableEventLogEntriesSatisfied = `-- name: UpdateDurableEventLogEntriesSatisfied :many
 WITH inputs AS (
     SELECT
