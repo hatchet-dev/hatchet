@@ -297,60 +297,44 @@ WHERE
     AND id = ANY(@ids::bigint[]);
 
 -- name: ListTasksForDispatch :many
--- The dispatcher's pre-send read: each task row with its current runtime row and the v1_payload row
--- holding its input, so an assigned action is built from one round trip. The runtime match is inner on
--- purpose: a task without a runtime row for its current retry has had its assignment released or
--- reassigned, so it is left out and the dispatcher does not send it. The payload rows are located by
--- read_payloads, which stays the one place that knows where an inline payload row lives; its keys are
--- aggregated once, in id order, so the five arrays line up element by element, and a zero uuid stands
--- for a task without a payload_reference_id. The final LEFT JOIN only matches those rows back to their
--- tasks, so it runs over two small CTE results rather than over v1_payload.
-WITH tasks AS (
+-- The dispatcher's pre-send read for one task: its row, its current runtime row and the v1_payload row
+-- holding its input. The repository queues one of these per task in a single pgx batch, so a bulk of
+-- assignments still costs one round trip. The parameters are scalars on purpose: the planner's estimate
+-- for this statement does not depend on their values, so under plan_cache_mode=auto Postgres adopts
+-- the generic plan after five executions and later calls on the connection skip planning, which an
+-- array parameter (costed at ten elements by the generic plan) does not allow. The runtime match is
+-- inner on purpose: a task without a runtime row for its current retry has had its assignment
+-- released or reassigned, so it returns no row and the dispatcher does not send it.
+-- read_payloads stays the one place that knows where an inline payload row lives; it runs over the one
+-- task row with one-element arrays, and a zero uuid stands for a task without a payload_reference_id,
+-- so every row it returns belongs to that task and the final join needs no matching condition.
+WITH task AS (
     SELECT *
     FROM v1_task
     WHERE
         tenant_id = @tenantId::uuid
-        AND id = ANY(@ids::bigint[])
-), runtimes AS (
-    SELECT
-        tr.task_id,
-        tr.task_inserted_at,
-        tr.retry_count,
-        tr.worker_id,
-        tr.batch_id,
-        tr.batch_size,
-        tr.batch_index,
-        tr.batch_key,
-        tr.timeout_at,
-        tr.evicted_at
-    FROM v1_task_runtime tr
-    JOIN tasks t ON tr.tenant_id = t.tenant_id
-        AND tr.task_id = t.id
-        AND tr.task_inserted_at = t.inserted_at
-        AND tr.retry_count = t.retry_count
-), keys AS (
-    SELECT
-        array_agg(tenant_id ORDER BY id) AS tenant_ids,
-        array_agg(id ORDER BY id) AS ids,
-        array_agg(inserted_at ORDER BY id) AS inserted_ats,
-        array_agg('TASK_INPUT'::v1_payload_type ORDER BY id) AS types,
-        array_agg(COALESCE(payload_reference_id, '00000000-0000-0000-0000-000000000000'::uuid) ORDER BY id) AS payload_reference_ids
-    FROM tasks
+        AND id = @id::bigint
 ), payloads AS (
     SELECT p.*
-    FROM keys, read_payloads(keys.tenant_ids, keys.ids, keys.inserted_ats, keys.types, keys.payload_reference_ids) p
+    FROM task, read_payloads(
+        ARRAY[task.tenant_id],
+        ARRAY[task.id],
+        ARRAY[task.inserted_at],
+        ARRAY['TASK_INPUT'::v1_payload_type],
+        ARRAY[COALESCE(task.payload_reference_id, '00000000-0000-0000-0000-000000000000'::uuid)]
+    ) p
 )
--- sqlc.embed() only resolves against a real catalog relation, so the tasks CTE is aliased to the
+-- sqlc.embed() only resolves against a real catalog relation, so the task CTE is aliased to the
 -- table's own name here to match the existing V1Task model
 SELECT
     sqlc.embed(v1_task),
-    r.worker_id AS runtime_worker_id,
-    r.batch_id AS runtime_batch_id,
-    r.batch_size AS runtime_batch_size,
-    r.batch_index AS runtime_batch_index,
-    r.batch_key AS runtime_batch_key,
-    r.timeout_at AS runtime_timeout_at,
-    r.evicted_at AS runtime_evicted_at,
+    tr.worker_id AS runtime_worker_id,
+    tr.batch_id AS runtime_batch_id,
+    tr.batch_size AS runtime_batch_size,
+    tr.batch_index AS runtime_batch_index,
+    tr.batch_key AS runtime_batch_key,
+    tr.timeout_at AS runtime_timeout_at,
+    tr.evicted_at AS runtime_evicted_at,
     p.id AS payload_id,
     p.inserted_at AS payload_inserted_at,
     p.external_id AS payload_external_id,
@@ -359,23 +343,12 @@ SELECT
     p.external_location_key AS payload_external_location_key,
     p.inline_content AS payload_inline_content,
     p.updated_at AS payload_updated_at
-FROM tasks AS v1_task
-JOIN runtimes r ON r.task_id = v1_task.id
-    AND r.task_inserted_at = v1_task.inserted_at
-    AND r.retry_count = v1_task.retry_count
-LEFT JOIN payloads p ON p.tenant_id = v1_task.tenant_id
-    AND (
-        (
-            v1_task.payload_reference_id IS NULL
-            AND p.id = v1_task.id
-            AND p.inserted_at = v1_task.inserted_at
-            AND p.type = 'TASK_INPUT'
-        )
-        OR (
-            v1_task.payload_reference_id IS NOT NULL
-            AND p.external_id = v1_task.payload_reference_id
-        )
-    );
+FROM task AS v1_task
+JOIN v1_task_runtime tr ON tr.task_id = v1_task.id
+    AND tr.task_inserted_at = v1_task.inserted_at
+    AND tr.retry_count = v1_task.retry_count
+    AND tr.tenant_id = v1_task.tenant_id
+LEFT JOIN payloads p ON true;
 
 -- name: UpdateTaskBatchMetadata :exec
 WITH input AS (

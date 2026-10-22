@@ -2637,50 +2637,31 @@ func (q *Queries) ListTasks(ctx context.Context, db DBTX, arg ListTasksParams) (
 }
 
 const listTasksForDispatch = `-- name: ListTasksForDispatch :many
-WITH tasks AS (
+WITH task AS (
     SELECT id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, batch_key, retry_backoff_factor, retry_max_backoff, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key, idempotency_key, is_dag_orchestrator, concurrency_max_runs, payload_reference_id, triggers, dag_parent_task_run_ids, child_task_desired_worker_labels, task_input_payload_version
     FROM v1_task
     WHERE
         tenant_id = $1::uuid
-        AND id = ANY($2::bigint[])
-), runtimes AS (
-    SELECT
-        tr.task_id,
-        tr.task_inserted_at,
-        tr.retry_count,
-        tr.worker_id,
-        tr.batch_id,
-        tr.batch_size,
-        tr.batch_index,
-        tr.batch_key,
-        tr.timeout_at,
-        tr.evicted_at
-    FROM v1_task_runtime tr
-    JOIN tasks t ON tr.tenant_id = t.tenant_id
-        AND tr.task_id = t.id
-        AND tr.task_inserted_at = t.inserted_at
-        AND tr.retry_count = t.retry_count
-), keys AS (
-    SELECT
-        array_agg(tenant_id ORDER BY id) AS tenant_ids,
-        array_agg(id ORDER BY id) AS ids,
-        array_agg(inserted_at ORDER BY id) AS inserted_ats,
-        array_agg('TASK_INPUT'::v1_payload_type ORDER BY id) AS types,
-        array_agg(COALESCE(payload_reference_id, '00000000-0000-0000-0000-000000000000'::uuid) ORDER BY id) AS payload_reference_ids
-    FROM tasks
+        AND id = $2::bigint
 ), payloads AS (
     SELECT p.tenant_id, p.id, p.inserted_at, p.external_id, p.type, p.location, p.external_location_key, p.inline_content, p.updated_at
-    FROM keys, read_payloads(keys.tenant_ids, keys.ids, keys.inserted_ats, keys.types, keys.payload_reference_ids) p
+    FROM task, read_payloads(
+        ARRAY[task.tenant_id],
+        ARRAY[task.id],
+        ARRAY[task.inserted_at],
+        ARRAY['TASK_INPUT'::v1_payload_type],
+        ARRAY[COALESCE(task.payload_reference_id, '00000000-0000-0000-0000-000000000000'::uuid)]
+    ) p
 )
 SELECT
     v1_task.id, v1_task.inserted_at, v1_task.tenant_id, v1_task.queue, v1_task.action_id, v1_task.step_id, v1_task.step_readable_id, v1_task.workflow_id, v1_task.workflow_version_id, v1_task.workflow_run_id, v1_task.schedule_timeout, v1_task.step_timeout, v1_task.priority, v1_task.sticky, v1_task.desired_worker_id, v1_task.external_id, v1_task.display_name, v1_task.input, v1_task.retry_count, v1_task.internal_retry_count, v1_task.app_retry_count, v1_task.step_index, v1_task.additional_metadata, v1_task.dag_id, v1_task.dag_inserted_at, v1_task.parent_task_external_id, v1_task.parent_task_id, v1_task.parent_task_inserted_at, v1_task.child_index, v1_task.child_key, v1_task.initial_state, v1_task.initial_state_reason, v1_task.concurrency_parent_strategy_ids, v1_task.concurrency_strategy_ids, v1_task.concurrency_keys, v1_task.batch_key, v1_task.retry_backoff_factor, v1_task.retry_max_backoff, v1_task.is_durable, v1_task.desired_worker_label, v1_task.triggering_event_external_id, v1_task.triggering_event_key, v1_task.idempotency_key, v1_task.is_dag_orchestrator, v1_task.concurrency_max_runs, v1_task.payload_reference_id, v1_task.triggers, v1_task.dag_parent_task_run_ids, v1_task.child_task_desired_worker_labels, v1_task.task_input_payload_version,
-    r.worker_id AS runtime_worker_id,
-    r.batch_id AS runtime_batch_id,
-    r.batch_size AS runtime_batch_size,
-    r.batch_index AS runtime_batch_index,
-    r.batch_key AS runtime_batch_key,
-    r.timeout_at AS runtime_timeout_at,
-    r.evicted_at AS runtime_evicted_at,
+    tr.worker_id AS runtime_worker_id,
+    tr.batch_id AS runtime_batch_id,
+    tr.batch_size AS runtime_batch_size,
+    tr.batch_index AS runtime_batch_index,
+    tr.batch_key AS runtime_batch_key,
+    tr.timeout_at AS runtime_timeout_at,
+    tr.evicted_at AS runtime_evicted_at,
     p.id AS payload_id,
     p.inserted_at AS payload_inserted_at,
     p.external_id AS payload_external_id,
@@ -2689,28 +2670,17 @@ SELECT
     p.external_location_key AS payload_external_location_key,
     p.inline_content AS payload_inline_content,
     p.updated_at AS payload_updated_at
-FROM tasks AS v1_task
-JOIN runtimes r ON r.task_id = v1_task.id
-    AND r.task_inserted_at = v1_task.inserted_at
-    AND r.retry_count = v1_task.retry_count
-LEFT JOIN payloads p ON p.tenant_id = v1_task.tenant_id
-    AND (
-        (
-            v1_task.payload_reference_id IS NULL
-            AND p.id = v1_task.id
-            AND p.inserted_at = v1_task.inserted_at
-            AND p.type = 'TASK_INPUT'
-        )
-        OR (
-            v1_task.payload_reference_id IS NOT NULL
-            AND p.external_id = v1_task.payload_reference_id
-        )
-    )
+FROM task AS v1_task
+JOIN v1_task_runtime tr ON tr.task_id = v1_task.id
+    AND tr.task_inserted_at = v1_task.inserted_at
+    AND tr.retry_count = v1_task.retry_count
+    AND tr.tenant_id = v1_task.tenant_id
+LEFT JOIN payloads p ON true
 `
 
 type ListTasksForDispatchParams struct {
 	Tenantid uuid.UUID `json:"tenantid"`
-	Ids      []int64   `json:"ids"`
+	ID       int64     `json:"id"`
 }
 
 type ListTasksForDispatchRow struct {
@@ -2732,18 +2702,21 @@ type ListTasksForDispatchRow struct {
 	PayloadUpdatedAt           pgtype.Timestamptz    `json:"payload_updated_at"`
 }
 
-// The dispatcher's pre-send read: each task row with its current runtime row and the v1_payload row
-// holding its input, so an assigned action is built from one round trip. The runtime match is inner on
-// purpose: a task without a runtime row for its current retry has had its assignment released or
-// reassigned, so it is left out and the dispatcher does not send it. The payload rows are located by
-// read_payloads, which stays the one place that knows where an inline payload row lives; its keys are
-// aggregated once, in id order, so the five arrays line up element by element, and a zero uuid stands
-// for a task without a payload_reference_id. The final LEFT JOIN only matches those rows back to their
-// tasks, so it runs over two small CTE results rather than over v1_payload.
-// sqlc.embed() only resolves against a real catalog relation, so the tasks CTE is aliased to the
+// The dispatcher's pre-send read for one task: its row, its current runtime row and the v1_payload row
+// holding its input. The repository queues one of these per task in a single pgx batch, so a bulk of
+// assignments still costs one round trip. The parameters are scalars on purpose: the planner's estimate
+// for this statement does not depend on their values, so under plan_cache_mode=auto Postgres adopts
+// the generic plan after five executions and later calls on the connection skip planning, which an
+// array parameter (costed at ten elements by the generic plan) does not allow. The runtime match is
+// inner on purpose: a task without a runtime row for its current retry has had its assignment
+// released or reassigned, so it returns no row and the dispatcher does not send it.
+// read_payloads stays the one place that knows where an inline payload row lives; it runs over the one
+// task row with one-element arrays, and a zero uuid stands for a task without a payload_reference_id,
+// so every row it returns belongs to that task and the final join needs no matching condition.
+// sqlc.embed() only resolves against a real catalog relation, so the task CTE is aliased to the
 // table's own name here to match the existing V1Task model
 func (q *Queries) ListTasksForDispatch(ctx context.Context, db DBTX, arg ListTasksForDispatchParams) ([]*ListTasksForDispatchRow, error) {
-	rows, err := db.Query(ctx, listTasksForDispatch, arg.Tenantid, arg.Ids)
+	rows, err := db.Query(ctx, listTasksForDispatch, arg.Tenantid, arg.ID)
 	if err != nil {
 		return nil, err
 	}

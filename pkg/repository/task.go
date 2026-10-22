@@ -1500,11 +1500,11 @@ type TasksForDispatch struct {
 	PayloadRows []*sqlcv1.V1Payload
 }
 
+// ListTasksForDispatch issues one scalar-parameter statement per task id in a single pgx batch (one
+// round trip), so each execution is planned on a cost that does not depend on how many tasks were
+// asked for and the connection settles on the generic plan.
 func (r *TaskRepositoryImpl) ListTasksForDispatch(ctx context.Context, tenantId uuid.UUID, tasks []int64) (*TasksForDispatch, error) {
-	rows, err := r.queries.ListTasksForDispatch(ctx, r.pool, sqlcv1.ListTasksForDispatchParams{
-		Tenantid: tenantId,
-		Ids:      tasks,
-	})
+	rows, err := r.queries.ListTasksForDispatchBatch(ctx, r.pool, tenantId, listutils.Uniq(tasks))
 
 	if err != nil {
 		return nil, err
@@ -1514,8 +1514,8 @@ func (r *TaskRepositoryImpl) ListTasksForDispatch(ctx context.Context, tenantId 
 }
 
 // tasksForDispatchFromRows splits the joined rows back into their three parts. A task appears once per
-// payload row matched by its payload_reference_id, so the task and runtime are taken from its first
-// row and every payload row is kept.
+// payload row read_payloads returned for it, so the task and runtime are taken from its first row and
+// every payload row is kept.
 func tasksForDispatchFromRows(rows []*sqlcv1.ListTasksForDispatchRow) *TasksForDispatch {
 	res := &TasksForDispatch{
 		Tasks:       make([]*sqlcv1.V1Task, 0, len(rows)),

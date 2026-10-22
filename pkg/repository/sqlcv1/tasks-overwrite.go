@@ -1221,3 +1221,103 @@ func (q *Queries) ListDurableOrchestratorChildTaskExternalIds(ctx context.Contex
 	}
 	return items, nil
 }
+
+// ListTasksForDispatchBatch runs listTasksForDispatch once per task id in a single pgx batch, so a bulk
+// of assignments still costs one round trip while every execution carries scalar parameters (see the
+// query's comment in tasks.sql for why that matters to the plan cache). The rows come back in id order.
+func (q *Queries) ListTasksForDispatchBatch(ctx context.Context, db DBTX, tenantId uuid.UUID, ids []int64) ([]*ListTasksForDispatchRow, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+
+	batch := &pgx.Batch{}
+	items := make([]*ListTasksForDispatchRow, 0, len(ids))
+
+	for _, id := range ids {
+		batch.Queue(listTasksForDispatch, tenantId, id).Query(func(rows pgx.Rows) error {
+			for rows.Next() {
+				var i ListTasksForDispatchRow
+				if err := rows.Scan(
+					&i.V1Task.ID,
+					&i.V1Task.InsertedAt,
+					&i.V1Task.TenantID,
+					&i.V1Task.Queue,
+					&i.V1Task.ActionID,
+					&i.V1Task.StepID,
+					&i.V1Task.StepReadableID,
+					&i.V1Task.WorkflowID,
+					&i.V1Task.WorkflowVersionID,
+					&i.V1Task.WorkflowRunID,
+					&i.V1Task.ScheduleTimeout,
+					&i.V1Task.StepTimeout,
+					&i.V1Task.Priority,
+					&i.V1Task.Sticky,
+					&i.V1Task.DesiredWorkerID,
+					&i.V1Task.ExternalID,
+					&i.V1Task.DisplayName,
+					&i.V1Task.Input,
+					&i.V1Task.RetryCount,
+					&i.V1Task.InternalRetryCount,
+					&i.V1Task.AppRetryCount,
+					&i.V1Task.StepIndex,
+					&i.V1Task.AdditionalMetadata,
+					&i.V1Task.DagID,
+					&i.V1Task.DagInsertedAt,
+					&i.V1Task.ParentTaskExternalID,
+					&i.V1Task.ParentTaskID,
+					&i.V1Task.ParentTaskInsertedAt,
+					&i.V1Task.ChildIndex,
+					&i.V1Task.ChildKey,
+					&i.V1Task.InitialState,
+					&i.V1Task.InitialStateReason,
+					&i.V1Task.ConcurrencyParentStrategyIds,
+					&i.V1Task.ConcurrencyStrategyIds,
+					&i.V1Task.ConcurrencyKeys,
+					&i.V1Task.BatchKey,
+					&i.V1Task.RetryBackoffFactor,
+					&i.V1Task.RetryMaxBackoff,
+					&i.V1Task.IsDurable,
+					&i.V1Task.DesiredWorkerLabel,
+					&i.V1Task.TriggeringEventExternalID,
+					&i.V1Task.TriggeringEventKey,
+					&i.V1Task.IdempotencyKey,
+					&i.V1Task.IsDagOrchestrator,
+					&i.V1Task.ConcurrencyMaxRuns,
+					&i.V1Task.PayloadReferenceID,
+					&i.V1Task.Triggers,
+					&i.V1Task.DagParentTaskRunIds,
+					&i.V1Task.ChildTaskDesiredWorkerLabels,
+					&i.V1Task.TaskInputPayloadVersion,
+					&i.RuntimeWorkerID,
+					&i.RuntimeBatchID,
+					&i.RuntimeBatchSize,
+					&i.RuntimeBatchIndex,
+					&i.RuntimeBatchKey,
+					&i.RuntimeTimeoutAt,
+					&i.RuntimeEvictedAt,
+					&i.PayloadID,
+					&i.PayloadInsertedAt,
+					&i.PayloadExternalID,
+					&i.PayloadType,
+					&i.PayloadLocation,
+					&i.PayloadExternalLocationKey,
+					&i.PayloadInlineContent,
+					&i.PayloadUpdatedAt,
+				); err != nil {
+					return err
+				}
+
+				items = append(items, &i)
+			}
+
+			return rows.Err()
+		})
+	}
+
+	// Close drives every queued query and its callback in order and returns the first error
+	if err := db.SendBatch(ctx, batch).Close(); err != nil {
+		return nil, err
+	}
+
+	return items, nil
+}
