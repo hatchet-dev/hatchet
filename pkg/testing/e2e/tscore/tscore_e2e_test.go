@@ -41,17 +41,15 @@ type echoOutput struct {
 
 // scenarioResult is the JSON line sdks/typescript/e2e-core/run.mjs prints.
 type scenarioResult struct {
-	RunID    string     `json:"runId"`
-	Output   echoOutput `json:"output"`
-	Status   string     `json:"status"`
-	Done     bool       `json:"done"`
-	EventID  string     `json:"eventId"`
-	EventKey string     `json:"eventKey"`
-	// The durable stream topic the scenario published two messages to, and what its
-	// metadata call reported.
-	StreamTopic        string `json:"streamTopic"`
-	StreamMessageCount int64  `json:"streamMessageCount"`
-	StreamLatestCursor string `json:"streamLatestCursor"`
+	RunID              string     `json:"runId"`
+	Output             echoOutput `json:"output"`
+	Status             string     `json:"status"`
+	Done               bool       `json:"done"`
+	EventID            string     `json:"eventId"`
+	EventKey           string     `json:"eventKey"`
+	StreamTopic        string     `json:"streamTopic"`
+	StreamMessageCount int64      `json:"streamMessageCount"`
+	StreamLatestCursor string     `json:"streamLatestCursor"`
 }
 
 func TestMain(m *testing.M) {

@@ -32,7 +32,7 @@ import { BulkTriggerPartialError } from '@util/errors/bulk-trigger-partial-error
 import { AbortError } from '@hatchet/util/abort-error';
 import { LogLevel } from '@hatchet/clients/event/rpc';
 import { HatchetCore } from './client';
-import { MAX_STREAM_MESSAGE_BYTES } from './features/streams';
+import { MAX_STREAM_MESSAGE_BYTES, MAX_TRACKED_TOPICS, StreamsClient } from './features/streams';
 import { INITIAL_POLL_INTERVAL_MS, MAX_POLL_INTERVAL_MS, WorkflowRunRef } from './run-ref';
 
 type RunDetails = MessageInitShape<typeof GetRunDetailsResponseSchema>;
@@ -1054,6 +1054,65 @@ describe('HatchetCore.streams', () => {
       ['one', 0],
       ['two', 1],
     ]);
+  });
+
+  it('still takes the events service alone, which serves put and refuses durable streams', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    const legacy = new StreamsClient(client.streams['events'] as never);
+
+    // the fake engine has no PutStreamEvent, so reaching it is the proof the events
+    // service was wired
+    await expect(legacy.put('task-1', 'chunk')).rejects.toThrow(/EventsService.PutStreamEvent/);
+    await expect(legacy.publish('progress', 'one')).rejects.toThrow(
+      /built with the events service only/
+    );
+  });
+
+  it('releases a queued publish when its signal aborts, without sending it, and keeps the order', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    const release = engine.gateNextPublish();
+    const controller = new AbortController();
+
+    const first = client.streams.publish('progress', 'one');
+    const second = client.streams.publish('progress', 'two', { signal: controller.signal });
+    const third = client.streams.publish('progress', 'three');
+
+    controller.abort();
+    await expect(second).rejects.toMatchObject({ name: 'AbortError' });
+    expect(engine.publishes).toHaveLength(0);
+
+    release();
+    await Promise.all([first, third]);
+    expect(engine.publishes.map((p) => [text(p.payload), p.producerSeq])).toEqual([
+      ['one', 0],
+      ['three', 1],
+    ]);
+  });
+
+  it('forgets idle topic queues and caps the producers it remembers', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    const chains = () =>
+      (client.streams as unknown as { publishChains: Map<string, unknown> }).publishChains;
+    const producers = () =>
+      (client.streams as unknown as { producers: Map<string, unknown> }).producers;
+
+    await client.streams.publish('first', 'one');
+    expect(chains().size).toBe(0);
+
+    for (let i = 0; i < MAX_TRACKED_TOPICS; i += 1) {
+      await client.streams.publish(`topic-${i}`, 'x');
+    }
+    expect(producers().size).toBe(MAX_TRACKED_TOPICS);
+    expect(producers().has('\0first')).toBe(false);
+
+    // the evicted topic publishes again under a fresh producer
+    await client.streams.publish('first', 'two');
+    const last = engine.publishes[engine.publishes.length - 1];
+    expect(last).toMatchObject({ topic: 'first', producerSeq: 0 });
+    expect(last.producerId).not.toBe(engine.publishes[0].producerId);
   });
 
   it('rejects a payload over the inline limit before sending anything', async () => {
