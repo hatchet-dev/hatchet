@@ -159,6 +159,90 @@ func (q *Queries) CheckTenantStrategyActive(ctx context.Context, db DBTX, arg Ch
 	return isActive, err
 }
 
+const countConcurrencyKeys = `-- name: CountConcurrencyKeys :one
+SELECT
+    COUNT(*)::BIGINT
+FROM (
+    SELECT
+        key
+    FROM
+        v1_concurrency_slot
+    WHERE
+        tenant_id = $1::uuid
+        AND strategy_id = $2::bigint
+        AND (
+            $3::TEXT IS NULL
+            OR strpos(lower(key), lower($3::TEXT)) > 0
+        )
+    GROUP BY
+        key
+    HAVING
+        NOT $4::BOOLEAN OR COUNT(*) FILTER (WHERE NOT is_filled) > 0
+) k
+`
+
+type CountConcurrencyKeysParams struct {
+	Tenantid   uuid.UUID   `json:"tenantid"`
+	Strategyid int64       `json:"strategyid"`
+	Search     pgtype.Text `json:"search"`
+	Onlyqueued bool        `json:"onlyqueued"`
+}
+
+// Number of keys matching ListConcurrencyKeys' filters, across all pages.
+func (q *Queries) CountConcurrencyKeys(ctx context.Context, db DBTX, arg CountConcurrencyKeysParams) (int64, error) {
+	row := db.QueryRow(ctx, countConcurrencyKeys,
+		arg.Tenantid,
+		arg.Strategyid,
+		arg.Search,
+		arg.Onlyqueued,
+	)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const countWorkflowConcurrencyKeys = `-- name: CountWorkflowConcurrencyKeys :one
+SELECT
+    COUNT(*)::BIGINT
+FROM (
+    SELECT
+        key
+    FROM
+        v1_workflow_concurrency_slot
+    WHERE
+        tenant_id = $1::uuid
+        AND strategy_id = $2::bigint
+        AND (
+            $3::TEXT IS NULL
+            OR strpos(lower(key), lower($3::TEXT)) > 0
+        )
+    GROUP BY
+        key
+    HAVING
+        NOT $4::BOOLEAN OR COUNT(*) FILTER (WHERE NOT is_filled) > 0
+) k
+`
+
+type CountWorkflowConcurrencyKeysParams struct {
+	Tenantid   uuid.UUID   `json:"tenantid"`
+	Strategyid int64       `json:"strategyid"`
+	Search     pgtype.Text `json:"search"`
+	Onlyqueued bool        `json:"onlyqueued"`
+}
+
+// Number of keys matching ListWorkflowConcurrencyKeys' filters, across all pages.
+func (q *Queries) CountWorkflowConcurrencyKeys(ctx context.Context, db DBTX, arg CountWorkflowConcurrencyKeysParams) (int64, error) {
+	row := db.QueryRow(ctx, countWorkflowConcurrencyKeys,
+		arg.Tenantid,
+		arg.Strategyid,
+		arg.Search,
+		arg.Onlyqueued,
+	)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const createParentTempTable = `-- name: CreateParentTempTable :exec
 CREATE TEMP TABLE tmp_workflow_concurrency_slot ON COMMIT DROP AS
 SELECT sort_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, completed_child_strategy_ids, child_strategy_ids, priority, key, is_filled
@@ -559,8 +643,7 @@ SELECT
     running_count,
     queued_count,
     oldest_queued_at,
-    COALESCE(latest_max_runs, $1::INTEGER)::INTEGER AS max_runs,
-    COUNT(*) OVER ()::BIGINT AS total
+    COALESCE(latest_max_runs, $1::INTEGER)::INTEGER AS max_runs
 FROM
     keys
 WHERE
@@ -587,7 +670,6 @@ type ListConcurrencyKeysRow struct {
 	QueuedCount    int64              `json:"queued_count"`
 	OldestQueuedAt pgtype.Timestamptz `json:"oldest_queued_at"`
 	MaxRuns        int32              `json:"max_runs"`
-	Total          int64              `json:"total"`
 }
 
 // Keys of a task-scoped or tenant strategy, most queued first. A key's effective max runs
@@ -616,7 +698,6 @@ func (q *Queries) ListConcurrencyKeys(ctx context.Context, db DBTX, arg ListConc
 			&i.QueuedCount,
 			&i.OldestQueuedAt,
 			&i.MaxRuns,
-			&i.Total,
 		); err != nil {
 			return nil, err
 		}
@@ -956,7 +1037,6 @@ JOIN
     "Step" s ON s."id" = sc.step_id
 WHERE
     sc.tenant_id = $1::uuid
-    AND sc.is_active = TRUE
     AND sc.parent_strategy_id IS NULL
     AND sc.tenant_strategy_id IS NULL
 ORDER BY
@@ -978,7 +1058,8 @@ type ListTaskConcurrencyStrategiesForTenantRow struct {
 }
 
 // Task-scoped strategies on the workflow's latest (non-deleted) version: excludes children
-// of a workflow strategy and references to a tenant strategy.
+// of a workflow strategy and references to a tenant strategy. is_active is not checked:
+// DeactivateStaleStepConcurrency also clears it on idle strategies of the latest version.
 func (q *Queries) ListTaskConcurrencyStrategiesForTenant(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*ListTaskConcurrencyStrategiesForTenantRow, error) {
 	rows, err := db.Query(ctx, listTaskConcurrencyStrategiesForTenant, tenantid)
 	if err != nil {
@@ -1224,8 +1305,7 @@ WITH keys AS (
         wcs.key
 )
 SELECT
-    key, running_count, queued_count, oldest_queued_at,
-    COUNT(*) OVER ()::BIGINT AS total
+    key, running_count, queued_count, oldest_queued_at
 FROM
     keys
 WHERE
@@ -1250,7 +1330,6 @@ type ListWorkflowConcurrencyKeysRow struct {
 	RunningCount   int64              `json:"running_count"`
 	QueuedCount    int64              `json:"queued_count"`
 	OldestQueuedAt pgtype.Timestamptz `json:"oldest_queued_at"`
-	Total          int64              `json:"total"`
 }
 
 // Keys of a workflow strategy, most queued first. Queue start is derived as in
@@ -1276,7 +1355,6 @@ func (q *Queries) ListWorkflowConcurrencyKeys(ctx context.Context, db DBTX, arg 
 			&i.RunningCount,
 			&i.QueuedCount,
 			&i.OldestQueuedAt,
-			&i.Total,
 		); err != nil {
 			return nil, err
 		}
@@ -1413,7 +1491,6 @@ JOIN
     "WorkflowVersion" wv ON wv."id" = wc.workflow_version_id
 WHERE
     wc.tenant_id = $1::uuid
-    AND wc.is_active = TRUE
 ORDER BY
     wc.id
 `

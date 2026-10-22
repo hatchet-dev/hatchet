@@ -17,6 +17,8 @@ import (
 // strategy summaries are read on every dashboard poll, so they are cached briefly per tenant
 const concurrencyStrategySummaryCacheDuration = 5 * time.Second
 
+// ConcurrencyScope is where a concurrency strategy is defined: on a task, on a workflow, or
+// shared across tasks at the tenant level.
 type ConcurrencyScope string
 
 const (
@@ -25,14 +27,17 @@ const (
 	ConcurrencyScopeTask     ConcurrencyScope = "TASK"
 )
 
+// ErrConcurrencyStrategyNotFound is returned when a strategy does not exist in the given scope.
 var ErrConcurrencyStrategyNotFound = errors.New("concurrency strategy not found")
 
+// ConcurrencyStrategyUsage is a task that uses a shared strategy.
 type ConcurrencyStrategyUsage struct {
 	WorkflowID   uuid.UUID
 	WorkflowName string
 	TaskName     string
 }
 
+// ConcurrencyStrategySummary is a concurrency strategy with its live slot counts.
 type ConcurrencyStrategySummary struct {
 	ID    int64
 	Scope ConcurrencyScope
@@ -64,6 +69,7 @@ type ConcurrencyStrategySummary struct {
 	OldestQueuedKey string
 }
 
+// ListConcurrencyKeysOpts filters and pages the keys returned by ListKeys.
 type ListConcurrencyKeysOpts struct {
 	Search     *string
 	OnlyQueued bool
@@ -71,6 +77,7 @@ type ListConcurrencyKeysOpts struct {
 	Offset     int64 `validate:"min=0"`
 }
 
+// ConcurrencyKey is a key of a strategy with its running and queued run counts.
 type ConcurrencyKey struct {
 	Key            string
 	MaxRuns        int32
@@ -79,6 +86,7 @@ type ConcurrencyKey struct {
 	OldestQueuedAt *time.Time
 }
 
+// ConcurrencyOverviewRepository reads concurrency strategies and their keys for the dashboard.
 type ConcurrencyOverviewRepository interface {
 	// ListStrategySummaries returns the strategies on the tenant's latest workflow versions,
 	// and the shared strategies their tasks use, with live slot counts, most queued first.
@@ -95,11 +103,13 @@ type concurrencyOverviewRepository struct {
 	summaryCache *cache.Cache
 }
 
-func newConcurrencyOverviewRepository(shared *sharedRepository) ConcurrencyOverviewRepository {
+func newConcurrencyOverviewRepository(shared *sharedRepository) (ConcurrencyOverviewRepository, func()) {
+	summaryCache := cache.New(concurrencyStrategySummaryCacheDuration)
+
 	return &concurrencyOverviewRepository{
 		sharedRepository: shared,
-		summaryCache:     cache.New(concurrencyStrategySummaryCacheDuration),
-	}
+		summaryCache:     summaryCache,
+	}, summaryCache.Stop
 }
 
 type slotStats struct {
@@ -145,14 +155,32 @@ func (r *concurrencyOverviewRepository) listStrategySummaries(ctx context.Contex
 		return nil, fmt.Errorf("failed to list workflow concurrency strategies: %w", err)
 	}
 
-	sharedStrategies, err := r.queries.ListActiveTenantConcurrencyStrategies(ctx, r.pool, tenantId)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list shared concurrency strategies: %w", err)
-	}
-
 	usage, err := r.queries.ListTenantConcurrencyStrategyUsage(ctx, r.pool, tenantId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list shared concurrency strategy usage: %w", err)
+	}
+
+	usedBy := make(map[int64][]ConcurrencyStrategyUsage)
+	sharedIds := make([]int64, 0)
+
+	for _, row := range usage {
+		if _, ok := usedBy[row.TenantStrategyID]; !ok {
+			sharedIds = append(sharedIds, row.TenantStrategyID)
+		}
+
+		usedBy[row.TenantStrategyID] = append(usedBy[row.TenantStrategyID], ConcurrencyStrategyUsage{
+			WorkflowID:   row.WorkflowID,
+			WorkflowName: row.WorkflowName,
+			TaskName:     row.StepReadableID,
+		})
+	}
+
+	sharedStrategies, err := r.queries.GetTenantConcurrencyStrategiesByIds(ctx, r.pool, sqlcv1.GetTenantConcurrencyStrategiesByIdsParams{
+		Tenantid: tenantId,
+		Ids:      sharedIds,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get shared concurrency strategies: %w", err)
 	}
 
 	slotStatRows, err := r.queries.ListConcurrencySlotStatsForTenant(ctx, r.pool, tenantId)
@@ -178,23 +206,9 @@ func (r *concurrencyOverviewRepository) listStrategySummaries(ctx context.Contex
 		workflowStats[row.StrategyID] = slotStats{row.KeyCount, row.QueuedKeyCount, row.RunningCount, row.QueuedCount, row.OldestQueuedAt, row.OldestQueuedKey}
 	}
 
-	usedBy := make(map[int64][]ConcurrencyStrategyUsage)
-
-	for _, row := range usage {
-		usedBy[row.TenantStrategyID] = append(usedBy[row.TenantStrategyID], ConcurrencyStrategyUsage{
-			WorkflowID:   row.WorkflowID,
-			WorkflowName: row.WorkflowName,
-			TaskName:     row.StepReadableID,
-		})
-	}
-
 	res := make([]*ConcurrencyStrategySummary, 0, len(taskStrategies)+len(workflowStrategies)+len(sharedStrategies))
 
 	for _, s := range sharedStrategies {
-		if len(usedBy[s.ID]) == 0 {
-			continue
-		}
-
 		sum := &ConcurrencyStrategySummary{
 			ID:                s.ID,
 			Scope:             ConcurrencyScopeShared,
@@ -314,11 +328,20 @@ func (r *concurrencyOverviewRepository) ListKeys(ctx context.Context, tenantId u
 			return nil, 0, fmt.Errorf("failed to list workflow concurrency keys: %w", err)
 		}
 
-		var total int64
+		total, err := r.queries.CountWorkflowConcurrencyKeys(ctx, r.pool, sqlcv1.CountWorkflowConcurrencyKeysParams{
+			Tenantid:   tenantId,
+			Strategyid: strategyId,
+			Search:     search,
+			Onlyqueued: opts.OnlyQueued,
+		})
+
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to count workflow concurrency keys: %w", err)
+		}
+
 		res := make([]*ConcurrencyKey, len(rows))
 
 		for i, row := range rows {
-			total = row.Total
 			res[i] = &ConcurrencyKey{
 				Key:            row.Key,
 				MaxRuns:        strategy.MaxRuns,
@@ -345,11 +368,20 @@ func (r *concurrencyOverviewRepository) ListKeys(ctx context.Context, tenantId u
 		return nil, 0, fmt.Errorf("failed to list concurrency keys: %w", err)
 	}
 
-	var total int64
+	total, err := r.queries.CountConcurrencyKeys(ctx, r.pool, sqlcv1.CountConcurrencyKeysParams{
+		Tenantid:   tenantId,
+		Strategyid: strategyId,
+		Search:     search,
+		Onlyqueued: opts.OnlyQueued,
+	})
+
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to count concurrency keys: %w", err)
+	}
+
 	res := make([]*ConcurrencyKey, len(rows))
 
 	for i, row := range rows {
-		total = row.Total
 		res[i] = &ConcurrencyKey{
 			Key:            row.Key,
 			MaxRuns:        row.MaxRuns,

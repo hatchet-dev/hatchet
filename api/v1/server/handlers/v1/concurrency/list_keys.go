@@ -12,6 +12,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
+// V1ConcurrencyKeyList lists a page of a concurrency strategy's keys.
 func (t *V1ConcurrencyService) V1ConcurrencyKeyList(ctx echo.Context, request gen.V1ConcurrencyKeyListRequestObject) (gen.V1ConcurrencyKeyListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
 
