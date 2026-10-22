@@ -110,15 +110,16 @@ func TestConcurrentReplaysWithDagOperatorEnabledIncrementRetryCountOnce(t *testi
 
 	ctx := context.Background()
 
-	_, err := repo.queries.UpsertTenantEntitlement(ctx, pool, sqlcv1.UpsertTenantEntitlementParams{
-		Tenantid:    internalTenantId,
-		Dagoperator: true,
-	})
-	require.NoError(t, err)
+	require.NoError(t, newTenantEntitlementRepository(shared).SetEntitlements(ctx, internalTenantId, TenantEntitlements{DAGOperator: true}))
 
 	workflowOpts := minimalWorkflowOpts("replay-concurrent-dag-operator", "v1", nil)
+	workflowOpts.Tasks = append(workflowOpts.Tasks, CreateStepOpts{
+		ReadableId: "step2",
+		Action:     "integration:step2",
+		Parents:    []string{"step1"},
+	})
 
-	_, err = workflows.PutWorkflowVersion(ctx, internalTenantId, workflowOpts)
+	_, err := workflows.PutWorkflowVersion(ctx, internalTenantId, workflowOpts)
 	require.NoError(t, err)
 
 	tasks, _, _, _, err := newTriggerRepository(shared).TriggerFromWorkflowNames(ctx, internalTenantId, []*WorkflowNameTriggerOpts{
@@ -131,9 +132,10 @@ func TestConcurrentReplaysWithDagOperatorEnabledIncrementRetryCountOnce(t *testi
 		},
 	})
 	require.NoError(t, err)
-	require.Len(t, tasks, 1)
+	require.Len(t, tasks, 1, "only the orchestrator is created at trigger time")
 
 	task := tasks[0]
+	require.True(t, task.IsDagOrchestrator)
 
 	_, err = repo.CompleteTasks(ctx, internalTenantId, []CompleteTaskOpts{
 		{
@@ -193,5 +195,6 @@ func TestConcurrentReplaysWithDagOperatorEnabledIncrementRetryCountOnce(t *testi
 	flattened, err := repo.FlattenExternalIds(ctx, internalTenantId, []uuid.UUID{task.ExternalID})
 	require.NoError(t, err)
 	require.Len(t, flattened, 1)
+	require.True(t, flattened[0].IsDagOrchestrator)
 	require.Equal(t, task.RetryCount+1, flattened[0].RetryCount)
 }
