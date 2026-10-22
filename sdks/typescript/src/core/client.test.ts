@@ -21,6 +21,8 @@ import {
   PushEventRequest,
   PutLogRequest,
 } from '@hatchet/protoc-es/events/events_pb';
+import { V1Streams, type ResetStreamTopicRequest } from '@hatchet/protoc-es/v1/streams_pb';
+import { timestampFromDate } from '@bufbuild/protobuf/wkt';
 import { declarations } from '@hatchet/edge/declarations';
 import { V1TaskStatus } from '@hatchet/clients/rest/generated/data-contracts';
 import HatchetError from '@util/errors/hatchet-error';
@@ -30,6 +32,7 @@ import { BulkTriggerPartialError } from '@util/errors/bulk-trigger-partial-error
 import { AbortError } from '@hatchet/util/abort-error';
 import { LogLevel } from '@hatchet/clients/event/rpc';
 import { HatchetCore } from './client';
+import { MAX_STREAM_MESSAGE_BYTES, MAX_TRACKED_TOPICS, StreamsClient } from './features/streams';
 import { INITIAL_POLL_INTERVAL_MS, MAX_POLL_INTERVAL_MS, WorkflowRunRef } from './run-ref';
 
 type RunDetails = MessageInitShape<typeof GetRunDetailsResponseSchema>;
@@ -82,6 +85,17 @@ function fakeEngine() {
   const bulkTriggers: BulkTriggerWorkflowRequest[] = [];
   const pushes: PushEventRequest[] = [];
   const logs: PutLogRequest[] = [];
+  // publishes, with the int64 sequence number as a number so expectations read plainly
+  const publishes: Array<{
+    namespace: string;
+    topic: string;
+    payload: Uint8Array;
+    producerId: string;
+    producerSeq: number;
+  }> = [];
+  const resets: ResetStreamTopicRequest[] = [];
+  const publishErrors: ConnectError[] = [];
+  const publishGates: Array<Promise<void>> = [];
   const cancels: CancelTasksRequest[] = [];
   const detailsQueue: RunDetails[] = [];
   const detailsTimeouts: Array<number | undefined> = [];
@@ -152,6 +166,34 @@ function fakeEngine() {
         return {};
       },
     });
+    service(V1Streams, {
+      publish: async (req) => {
+        const gate = publishGates.shift();
+        if (gate) await gate;
+        const error = publishErrors.shift();
+        if (error) throw error;
+        publishes.push({
+          namespace: req.namespace,
+          topic: req.topic,
+          payload: req.payload,
+          producerId: req.producerId,
+          producerSeq: Number(req.producerSeq),
+        });
+        return {};
+      },
+      getTopicMetadata: (req) => ({
+        namespace: req.namespace,
+        topic: req.topic,
+        tenantId: TENANT_ID,
+        messageCount: BigInt(2),
+        latestCursor: 'cursor-2',
+        lastPublishedAt: timestampFromDate(new Date('2026-10-21T00:00:00Z')),
+      }),
+      reset: (req) => {
+        resets.push(req);
+        return {};
+      },
+    });
   });
 
   return {
@@ -160,6 +202,8 @@ function fakeEngine() {
     bulkTriggers,
     pushes,
     logs,
+    publishes,
+    resets,
     cancels,
     detailsQueue,
     detailsTimeouts,
@@ -174,6 +218,19 @@ function fakeEngine() {
     },
     failBulkBatch(batchIndex: number, error: Error) {
       bulkFailure = { batchIndex, error };
+    },
+    failNextPublishWith(error: ConnectError) {
+      publishErrors.push(error);
+    },
+    /** Holds the next publish until the returned function is called. */
+    gateNextPublish(): () => void {
+      let release!: () => void;
+      publishGates.push(
+        new Promise<void>((resolve) => {
+          release = resolve;
+        })
+      );
+      return release;
     },
   };
 }
@@ -951,5 +1008,186 @@ describe('HatchetCore.events', () => {
 
     expect(events.events.map((e) => e.key)).toEqual(['batch', 'batch']);
     expect(events.events[1].payload).toBe(JSON.stringify({ n: 2 }));
+  });
+});
+
+describe('HatchetCore.streams', () => {
+  const text = (bytes: Uint8Array) => new TextDecoder().decode(bytes);
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+  it('publishes to a topic under one producer per (namespace, topic), with the sequence advancing per call', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine, 'ns');
+
+    await client.streams.publish('progress', 'one');
+    await client.streams.publish('progress', new TextEncoder().encode('two'));
+    await client.streams.publish('progress', 'other namespace', { namespace: 'other' });
+
+    const [first, second, third] = engine.publishes;
+    expect(first).toMatchObject({ namespace: '', topic: 'progress', producerSeq: 0 });
+    expect(text(first.payload)).toBe('one');
+    expect(first.producerId).toMatch(UUID);
+    expect(second).toMatchObject({
+      topic: 'progress',
+      producerId: first.producerId,
+      producerSeq: 1,
+    });
+    expect(text(second.payload)).toBe('two');
+    // the option is the topic's namespace; the client's namespace is for workflow names
+    expect(third).toMatchObject({ namespace: 'other', topic: 'progress', producerSeq: 0 });
+    expect(third.producerId).not.toBe(first.producerId);
+  });
+
+  it('serializes publishes to one topic in call order', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    const release = engine.gateNextPublish();
+
+    const first = client.streams.publish('progress', 'one');
+    const second = client.streams.publish('progress', 'two');
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(engine.publishes).toHaveLength(0);
+
+    release();
+    await Promise.all([first, second]);
+    expect(engine.publishes.map((p) => [text(p.payload), p.producerSeq])).toEqual([
+      ['one', 0],
+      ['two', 1],
+    ]);
+  });
+
+  it('still takes the events service alone, which serves put and refuses durable streams', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    const legacy = new StreamsClient(client.streams['events'] as never);
+
+    // the fake engine has no PutStreamEvent, so reaching it is the proof the events
+    // service was wired
+    await expect(legacy.put('task-1', 'chunk')).rejects.toThrow(/EventsService.PutStreamEvent/);
+    await expect(legacy.publish('progress', 'one')).rejects.toThrow(
+      /built with the events service only/
+    );
+  });
+
+  it('releases a queued publish when its signal aborts, without sending it, and keeps the order', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    const release = engine.gateNextPublish();
+    const controller = new AbortController();
+
+    const first = client.streams.publish('progress', 'one');
+    const second = client.streams.publish('progress', 'two', { signal: controller.signal });
+    const third = client.streams.publish('progress', 'three');
+
+    controller.abort();
+    await expect(second).rejects.toMatchObject({ name: 'AbortError' });
+    expect(engine.publishes).toHaveLength(0);
+
+    release();
+    await Promise.all([first, third]);
+    expect(engine.publishes.map((p) => [text(p.payload), p.producerSeq])).toEqual([
+      ['one', 0],
+      ['three', 1],
+    ]);
+  });
+
+  it('forgets idle topic queues and caps the producers it remembers', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    const chains = () =>
+      (client.streams as unknown as { publishChains: Map<string, unknown> }).publishChains;
+    const producers = () =>
+      (client.streams as unknown as { producers: Map<string, unknown> }).producers;
+
+    await client.streams.publish('first', 'one');
+    expect(chains().size).toBe(0);
+
+    for (let i = 0; i < MAX_TRACKED_TOPICS; i += 1) {
+      await client.streams.publish(`topic-${i}`, 'x');
+    }
+    expect(producers().size).toBe(MAX_TRACKED_TOPICS);
+    expect(producers().has('\0first')).toBe(false);
+
+    // the evicted topic publishes again under a fresh producer
+    await client.streams.publish('first', 'two');
+    const last = engine.publishes[engine.publishes.length - 1];
+    expect(last).toMatchObject({ topic: 'first', producerSeq: 0 });
+    expect(last.producerId).not.toBe(engine.publishes[0].producerId);
+  });
+
+  it('rejects a payload over the inline limit before sending anything', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+
+    const rejected = client.streams.publish(
+      'progress',
+      new Uint8Array(MAX_STREAM_MESSAGE_BYTES + 1)
+    );
+    await expect(rejected).rejects.toThrow(HatchetError);
+    await expect(rejected).rejects.toThrow(/over the \d+-byte limit of one publish/);
+    expect(engine.publishes).toHaveLength(0);
+  });
+
+  it('starts a new producer after a failure that may have stored the message, and keeps it after a rejection', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+
+    await client.streams.publish('progress', 'one');
+    const [stored] = engine.publishes;
+
+    engine.failNextPublishWith(new ConnectError('engine away', Code.Unavailable));
+    await expect(client.streams.publish('progress', 'two')).rejects.toThrow(/engine away/);
+
+    await client.streams.publish('progress', 'three');
+    const [, afterFailure] = engine.publishes;
+    expect(afterFailure.producerId).not.toBe(stored.producerId);
+    expect(afterFailure.producerSeq).toBe(0);
+
+    engine.failNextPublishWith(new ConnectError('bad payload', Code.InvalidArgument));
+    await expect(client.streams.publish('progress', 'four')).rejects.toThrow(/bad payload/);
+
+    await client.streams.publish('progress', 'five');
+    expect(engine.publishes[2]).toMatchObject({
+      producerId: afterFailure.producerId,
+      producerSeq: 1,
+    });
+  });
+
+  it('resends once as a new producer when the engine reports a sequence gap', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+
+    await client.streams.publish('progress', 'one');
+    engine.failNextPublishWith(new ConnectError('gap', Code.FailedPrecondition));
+    await client.streams.publish('progress', 'two');
+
+    expect(engine.publishes).toHaveLength(2);
+    expect(engine.publishes[1].producerId).not.toBe(engine.publishes[0].producerId);
+    expect(engine.publishes[1].producerSeq).toBe(0);
+    expect(text(engine.publishes[1].payload)).toBe('two');
+
+    engine.failNextPublishWith(new ConnectError('gap', Code.FailedPrecondition));
+    engine.failNextPublishWith(new ConnectError('gap again', Code.FailedPrecondition));
+    await expect(client.streams.publish('progress', 'three')).rejects.toThrow(/gap again/);
+  });
+
+  it('topicMetadata maps the response and reset names the topic', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+
+    const metadata = await client.streams.topicMetadata('progress', { namespace: 'ns' });
+    expect(metadata).toEqual({
+      namespace: 'ns',
+      topic: 'progress',
+      tenantId: TENANT_ID,
+      messageCount: 2,
+      latestCursor: 'cursor-2',
+      lastPublishedAt: new Date('2026-10-21T00:00:00Z'),
+    });
+
+    await client.streams.reset('progress', { namespace: 'ns' });
+    expect(engine.resets).toEqual([
+      expect.objectContaining({ namespace: 'ns', topic: 'progress' }),
+    ]);
   });
 });

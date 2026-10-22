@@ -14,6 +14,7 @@ import {
   isAlreadyExists,
 } from '@hatchet/clients/admin/trigger-request';
 import { createEventsRpc } from '@hatchet/clients/event/rpc';
+import { createV1StreamsRpc } from '@hatchet/clients/streams/rpc';
 import type { EventsServiceClient } from '@hatchet/protoc/events/events';
 import {
   BulkTriggerWorkflowRequest,
@@ -21,6 +22,7 @@ import {
   type WorkflowServiceClient,
 } from '@hatchet/protoc/workflows';
 import type { AdminServiceClient } from '@hatchet/protoc/v1/workflows';
+import type { V1StreamsClient } from '@hatchet/protoc/v1/streams';
 import {
   getGrpcBroadcastAddressFromJWT,
   getTenantIdFromJWT,
@@ -94,12 +96,13 @@ export class HatchetCore {
   readonly rateLimits: RateLimitsClient;
   /** Writes task run log lines. */
   readonly logs: LogsClient;
-  /** Publishes task run stream chunks. */
+  /** Publishes task run stream chunks and durable stream topics. */
   readonly streams: StreamsClient;
 
   private readonly workflowsRpc: WorkflowServiceClient;
   private readonly adminRpc: AdminServiceClient;
   private readonly eventsRpc: EventsServiceClient;
+  private readonly streamsRpc: V1StreamsClient;
 
   constructor(config: CoreClientConfig) {
     if (!config.token) {
@@ -134,6 +137,7 @@ export class HatchetCore {
     this.workflowsRpc = createWorkflowsRpc(this.transport);
     this.adminRpc = createV1AdminRpc(this.transport);
     this.eventsRpc = createEventsRpc(this.transport);
+    this.streamsRpc = createV1StreamsRpc(this.transport);
 
     const shared = { logger: this.logger, namespace, retrier: config.retrier };
     this.events = new EventsClient({ rpc: this.eventsRpc, ...shared });
@@ -141,7 +145,7 @@ export class HatchetCore {
     this.workflows = new WorkflowsClient({ rpc: this.adminRpc, ...shared });
     this.rateLimits = new RateLimitsClient({ rpc: this.workflowsRpc, ...shared });
     this.logs = new LogsClient(this.eventsRpc);
-    this.streams = new StreamsClient(this.eventsRpc);
+    this.streams = new StreamsClient({ events: this.eventsRpc, streams: this.streamsRpc });
   }
 
   /** The same as `new HatchetCore(config)`, mirroring the Node client's `init`. */

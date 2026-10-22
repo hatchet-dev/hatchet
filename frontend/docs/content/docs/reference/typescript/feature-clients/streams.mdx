@@ -25,10 +25,10 @@ on errors a retry can't fix, such as an expired cursor.
 
 Parameters
 
-| Parameter  | Type                | Description                                                  |
-| ---------- | ------------------- | ------------------------------------------------------------ |
-| `topic`    | `string`            | the topic to read from                                       |
-| `options?` | `StreamCallOptions` | optional namespace override, resume cursor, and abort signal |
+| Parameter  | Type                                      | Description                                                  |
+| ---------- | ----------------------------------------- | ------------------------------------------------------------ |
+| `topic`    | `string`                                  | the topic to read from                                       |
+| `options?` | [`StreamCallOptions`](#streamcalloptions) | optional namespace override, resume cursor, and abort signal |
 
 Returns
 
@@ -47,7 +47,7 @@ Parameters
 | ---------- | --------------------------------------------- | --------------------------- |
 | `topic`    | `string`                                      | the topic to publish to     |
 | `message`  | `string` \| `Uint8Array`\<`ArrayBufferLike`\> | the message payload         |
-| `options?` | `StreamCallOptions`                           | optional namespace override |
+| `options?` | [`StreamCallOptions`](#streamcalloptions)     | optional namespace override |
 
 Returns
 
@@ -63,10 +63,10 @@ unaffected.
 
 Parameters
 
-| Parameter  | Type                                         | Description                 |
-| ---------- | -------------------------------------------- | --------------------------- |
-| `topic`    | `string`                                     | the topic to reset          |
-| `options?` | `Pick`\<`StreamCallOptions`, `"namespace"`\> | optional namespace override |
+| Parameter  | Type                                                               | Description                 |
+| ---------- | ------------------------------------------------------------------ | --------------------------- |
+| `topic`    | `string`                                                           | the topic to reset          |
+| `options?` | `Pick`\<[`StreamCallOptions`](#streamcalloptions), `"namespace"`\> | optional namespace override |
 
 Returns
 
@@ -81,16 +81,36 @@ for a topic nothing was published to.
 
 Parameters
 
-| Parameter  | Type                                         | Description                 |
-| ---------- | -------------------------------------------- | --------------------------- |
-| `topic`    | `string`                                     | the topic to describe       |
-| `options?` | `Pick`\<`StreamCallOptions`, `"namespace"`\> | optional namespace override |
+| Parameter  | Type                                                               | Description                 |
+| ---------- | ------------------------------------------------------------------ | --------------------------- |
+| `topic`    | `string`                                                           | the topic to describe       |
+| `options?` | `Pick`\<[`StreamCallOptions`](#streamcalloptions), `"namespace"`\> | optional namespace override |
 
 Returns
 
 `Promise`\<[`StreamTopicMetadata`](#streamtopicmetadata)\>
 
 ## Type Aliases
+
+<a id="streamcalloptions"></a>
+
+### StreamCallOptions
+
+```ts
+type StreamCallOptions = object;
+```
+
+Per-call options of the durable stream calls; the same shape on the core and Node clients.
+
+Properties
+
+| Property                            | Type          | Description                                                                  |
+| ----------------------------------- | ------------- | ---------------------------------------------------------------------------- |
+| <a id="cursor"></a> `cursor?`       | `string`      | Resumes an `events()` iteration right after this message.                    |
+| <a id="namespace"></a> `namespace?` | `string`      | The topic's namespace; the empty namespace when omitted.                     |
+| <a id="signal"></a> `signal?`       | `AbortSignal` | Ends an `events()` iteration cleanly, without throwing; aborts a unary call. |
+
+---
 
 <a id="streamtopicmetadata"></a>
 
@@ -100,11 +120,11 @@ Returns
 type StreamTopicMetadata = object;
 ```
 
-Covers only messages within the tenant's retention.
+What a durable stream topic retains; counts and the latest message cover the tenant's retention.
 
 Properties
 
-| Property                                        | Type     | Description                                                                         |
-| ----------------------------------------------- | -------- | ----------------------------------------------------------------------------------- |
-| <a id="lastpublishedat"></a> `lastPublishedAt?` | `Date`   | when the newest retained message was stored; undefined when none is retained        |
-| <a id="latestcursor"></a> `latestCursor?`       | `string` | resumes events() after the newest retained message; undefined when none is retained |
+| Property                                        | Type     | Description                                                                            |
+| ----------------------------------------------- | -------- | -------------------------------------------------------------------------------------- |
+| <a id="lastpublishedat"></a> `lastPublishedAt?` | `Date`   | When the newest retained message was stored; undefined when none is retained.          |
+| <a id="latestcursor"></a> `latestCursor?`       | `string` | Resumes `events()` after the newest retained message; undefined when none is retained. |
