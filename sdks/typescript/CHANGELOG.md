@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- The `/core` client publishes to durable streams: `hatchet.streams.publish(topic, message, { namespace })`, `hatchet.streams.reset(topic, { namespace })` and `hatchet.streams.topicMetadata(topic, { namespace })`, the Node client's calls with the same names and options, over unary Connect calls. Reading a topic (`events()`) is a server stream and stays on the Node client; a payload over the inline limit (`MAX_STREAM_MESSAGE_BYTES`) is rejected rather than uploaded.
+- `/core`: `hatchet.streams.publish`, `reset` and `topicMetadata` for durable streams. `events()` stays on the Node client.
 
 ## [1.38.1] - 2026-10-21
 
