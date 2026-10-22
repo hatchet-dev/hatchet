@@ -2952,6 +2952,8 @@ WITH tasks_on_inactive_workers AS (
         AND runtime.acked_at IS NULL
         AND runtime.assigned_at < NOW() - INTERVAL '1 minute'
         AND NOT EXISTS (
+            -- make sure that the task isn't running on an inactive worker,
+            -- since it'll get reassigned anyways (because of the first part of this query)
             SELECT 1 FROM tasks_on_inactive_workers inactive
             WHERE inactive.task_id = runtime.task_id
                 AND inactive.task_inserted_at = runtime.task_inserted_at
