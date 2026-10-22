@@ -3,11 +3,13 @@ import { RateLimitWithMetadata } from '../hooks/use-rate-limits';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import { TableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
 import RelativeDate from '@/components/v1/molecules/relative-date';
+import { Badge } from '@/components/v1/ui/badge';
 import { capitalize } from '@/lib/utils';
 import { ColumnDef } from '@tanstack/react-table';
 
 export const RateLimitColumn = {
   key: 'Key',
+  status: 'Status',
   value: 'Value',
   limit: 'Limit',
   lastRefill: 'Last Refill',
@@ -18,6 +20,7 @@ export const RateLimitColumn = {
 type RateLimitColumnKeys = keyof typeof RateLimitColumn;
 
 export const keyKey: RateLimitColumnKeys = 'key';
+const statusKey: RateLimitColumnKeys = 'status';
 const valueKey: RateLimitColumnKeys = 'value';
 const limitKey: RateLimitColumnKeys = 'limit';
 const lastRefillKey: RateLimitColumnKeys = 'lastRefill';
@@ -48,6 +51,24 @@ export const columns = ({
     ),
     enableSorting: false,
     enableHiding: true,
+  },
+  {
+    accessorKey: statusKey,
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={RateLimitColumn.status} />
+    ),
+    cell: ({ row }) =>
+      row.original.pausedUntil ? (
+        <div className="flex flex-row items-center gap-2">
+          <Badge variant="inProgress">Paused</Badge>
+          <span className="text-muted-foreground">
+            for <RelativeDate date={row.original.pausedUntil} future />
+          </span>
+        </div>
+      ) : (
+        <Badge variant="successful">Active</Badge>
+      ),
+    enableSorting: false,
   },
   {
     accessorKey: valueKey,

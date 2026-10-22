@@ -32,6 +32,10 @@ func (tc *TasksControllerImpl) processPausedWorkflowQueueItemTTL(ctx context.Con
 		tc.l.Error().Ctx(ctx).Err(err).Msg("could not requeue paused queue items for unpaused workflows")
 	}
 
+	if err := tc.requeueItemsForExpiredRateLimitPauses(ctx, tenantId); err != nil {
+		tc.l.Error().Ctx(ctx).Err(err).Msg("could not requeue queue items held by expired rate limit pauses")
+	}
+
 	res, shouldContinue, err := tc.repov1.Tasks().ExpirePausedWorkflowQueueItems(ctx, tenantId)
 
 	if err != nil {
@@ -88,6 +92,20 @@ func (tc *TasksControllerImpl) requeueItemsForUnpausedWorkflows(ctx context.Cont
 
 	if err != nil {
 		return fmt.Errorf("could not requeue paused queue items for unpaused workflows: %w", err)
+	}
+
+	if len(queueNames) > 0 || len(concurrencyStrategyIds) > 0 {
+		return tc.notifySchedulerOfRequeuedItems(ctx, tenantId, queueNames, concurrencyStrategyIds)
+	}
+
+	return nil
+}
+
+func (tc *TasksControllerImpl) requeueItemsForExpiredRateLimitPauses(ctx context.Context, tenantId uuid.UUID) error {
+	queueNames, concurrencyStrategyIds, err := tc.repov1.Workflows().RequeueRateLimitPausedQueueItems(ctx, tenantId)
+
+	if err != nil {
+		return fmt.Errorf("could not requeue queue items held by expired rate limit pauses: %w", err)
 	}
 
 	if len(queueNames) > 0 || len(concurrencyStrategyIds) > 0 {

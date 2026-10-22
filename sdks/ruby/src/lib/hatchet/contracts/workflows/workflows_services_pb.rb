@@ -19,6 +19,7 @@ module WorkflowService
     rpc :TriggerWorkflow, ::V1::TriggerWorkflowRequest, ::TriggerWorkflowResponse
     rpc :BulkTriggerWorkflow, ::BulkTriggerWorkflowRequest, ::BulkTriggerWorkflowResponse
     rpc :PutRateLimit, ::PutRateLimitRequest, ::PutRateLimitResponse
+    rpc :PauseRateLimit, ::PauseRateLimitRequest, ::PauseRateLimitResponse
   end
 
   Stub = Service.rpc_stub_class

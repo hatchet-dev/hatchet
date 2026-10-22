@@ -48,6 +48,7 @@ func createWorkflowWithConcurrency(
 	tenantId uuid.UUID,
 	name string,
 	entries []repo.CreateConcurrencyOpts,
+	rateLimitKeys ...string,
 ) *workflowWithStep {
 	t.Helper()
 
@@ -60,6 +61,7 @@ func createWorkflowWithConcurrency(
 				ReadableId:  "my-task",
 				Action:      "test:run",
 				Concurrency: entries,
+				RateLimits:  stepRateLimits(t, ctx, conf, tenantId, rateLimitKeys),
 			},
 		},
 	})
@@ -73,6 +75,18 @@ func createWorkflowWithConcurrency(
 		workflowId:        wfVersion.WorkflowVersion.WorkflowId,
 		workflowVersionId: wfVersion.WorkflowVersion.ID,
 		stepId:            steps[0].ID,
+	}
+}
+
+// sharedLimitDef is a tenant-scoped Concurrency entry riding on a workflow put (the only registration path);
+// every declaring task carries the full definition
+func sharedLimitDef(strategyType string, maxRuns int32) repo.CreateConcurrencyOpts {
+	return repo.CreateConcurrencyOpts{
+		Name:           "shared-limit",
+		IsTenantScoped: true,
+		Expression:     "input.my_id",
+		MaxRuns:        &maxRuns,
+		LimitStrategy:  &strategyType,
 	}
 }
 
@@ -97,15 +111,7 @@ func setupSharedConcurrencyTest(
 	})
 	require.NoError(t, err)
 
-	// the definition is a tenant-scoped Concurrency entry riding on a workflow put (the
-	// only registration path); every declaring task carries the full definition
-	def := repo.CreateConcurrencyOpts{
-		Name:           "shared-limit",
-		IsTenantScoped: true,
-		Expression:     "input.my_id",
-		MaxRuns:        &maxRuns,
-		LimitStrategy:  &strategyType,
-	}
+	def := sharedLimitDef(strategyType, maxRuns)
 
 	createWorkflowWithConcurrency(t, ctx, conf, tenantId, fmt.Sprintf("%s-registrar", name), []repo.CreateConcurrencyOpts{def})
 
