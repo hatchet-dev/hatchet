@@ -24,7 +24,6 @@ import {
   PutLogRequest,
 } from '@hatchet/protoc-es/events/events_pb';
 import { V1Streams, type ResetStreamTopicRequest } from '@hatchet/protoc-es/v1/streams_pb';
-import { timestampFromDate } from '@bufbuild/protobuf/wkt';
 import { declarations } from '@hatchet/edge/declarations';
 import { V1TaskStatus } from '@hatchet/clients/rest/generated/data-contracts';
 import HatchetError from '@util/errors/hatchet-error';
