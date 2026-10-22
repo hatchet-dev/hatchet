@@ -2,8 +2,8 @@
  * The Hatchet serverless endpoint. The operator (pkg/serverlessoperator) is the only caller:
  *
  *   POST /api/hatchet/healthcheck   signed; answers the workflows this endpoint serves
- *   POST /api/hatchet/trigger       signed; runs one non-durable task and returns its output
- *   GET  /api/hatchet/trigger       signed websocket upgrade; one durable or `streams: true` invocation
+ *   POST /api/hatchet/trigger       signed; runs one pure task (`hatchetClient: false`) and returns its output
+ *   GET  /api/hatchet/trigger       signed websocket upgrade; one invocation of any other task, durable or not
  *
  * The signing secret comes from HATCHET_SIGNING_SECRET. The tasks' Hatchet client (what
  * `ctx.runChild` in parent-echo triggers through) is the same core client the app triggers

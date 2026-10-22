@@ -4,8 +4,9 @@ A Worker that serves Hatchet tasks without running a worker process, built on
 `@hatchet-dev/serverless`. The Hatchet serverless operator polls it for the workflows it serves
 and delivers assigned tasks to it over signed HTTPS requests.
 
-- `echo`: a non-durable task. The operator POSTs the task, the Worker returns the message with
-  the run id and retry count.
+- `echo`: a non-durable, pure task: a function of its input that never talks to Hatchet, so it
+  is declared with `hatchetClient: false`. The operator POSTs the task, the Worker returns the
+  message with the run id and retry count.
 - `sleep-then-echo`: a durable task. It records a timestamp, sleeps 3 seconds, spawns `echo` as
   a child run and waits for its output, then returns everything. The sleep exceeds the
   endpoint's inline wait budget, so the first invocation evicts itself and the engine re-invokes
@@ -15,13 +16,13 @@ and delivers assigned tasks to it over signed HTTPS requests.
   the number of invocations it took.
 - `parent-echo`: a non-durable task with a child. It triggers `echo` through the Worker's
   Hatchet client (built from the `HATCHET_CLIENT_TOKEN` secret) and awaits the result with
-  `ctx.runChild`. Awaiting needs the invocation websocket, so the task is declared with
-  `streams: true` and the operator dials it instead of POSTing it; the task waits inline and
-  never evicts.
+  `ctx.runChild`. It talks to Hatchet, so it keeps the default delivery: the operator dials the
+  invocation websocket instead of POSTing it, and the child's result is awaited there; the
+  task waits inline and never evicts.
 - `stream-progress`: a non-durable task that publishes a handful of progress messages to a
   durable stream topic through the Worker's Hatchet client (`clientFromContext(ctx)` and
   `client.streams.publish`) and returns the topic; `scripts/consume-stream.ts` reads the topic
-  with the Node SDK.
+  with the Node SDK. It talks to Hatchet, so it is dialed too.
 
 The operator registers the workflows under the names declared here, the way a worker would, so
 `echo` is triggered as `echo` and its action id is `echo:echo`.
@@ -30,7 +31,7 @@ The operator registers the workflows under the names declared here, the way a wo
 
 | File | Purpose |
 |---|---|
-| `src/tasks.ts` | The declarations, written with `hatchet.task` and `hatchet.durableTask` from `@hatchet-dev/serverless`; `streams: true` on `parent-echo` asks for the websocket. The same file works on a regular worker. |
+| `src/tasks.ts` | The declarations, written with `hatchet.task` and `hatchet.durableTask` from `@hatchet-dev/serverless`; `hatchetClient: false` on `echo` states it never talks to Hatchet, so it is POSTed. The same file works on a regular worker. |
 | `src/index.ts` | `export default cloudflare({ workflows, client })`: the adapter serves `POST /hatchet/healthcheck`, `POST /hatchet/trigger` and the invocation websocket upgrade on `/hatchet/trigger`, reads the signing secret from `env.HATCHET_SIGNING_SECRET`, and builds the tasks' Hatchet client from `env.HATCHET_CLIENT_TOKEN` (plus `env.HATCHET_CLIENT_SERVER_URL` for a local engine). |
 | `scripts/consume-stream.ts` | Prints what a `stream-progress` run published, with the Node SDK's `hatchet.streams.events(topic)`; `pnpm run consume-stream <topic>`. |
 | `wrangler.toml` | Worker config. `limits.cpu_ms = 300000` raises the CPU budget to the 5 minute maximum (Workers Paid plan). |
@@ -137,9 +138,11 @@ curl -s -X POST http://localhost:8787/hatchet/healthcheck -H "X-Hatchet-Signatur
 Expected: `workflows` with `echo`, `sleep-then-echo`, `parent-echo` and `stream-progress`,
 `actions` equal to
 `["echo:echo", "parent-echo:parent-echo", "sleep-then-echo:sleep-then-echo", "stream-progress:stream-progress"]`,
-`durable.supported: true`, `tasks: [{"action": "parent-echo:parent-echo", "streams": true}]`
-(the task the operator invokes over the websocket) and `runtime.name: "cloudflare-workers"`. An
-unsigned POST answers `401 {"error": "bad signature"}`.
+`durable.supported: true`,
+`tasks: [{"action": "parent-echo:parent-echo", "streams": true}, {"action": "stream-progress:stream-progress", "streams": true}]`
+(the non-durable tasks the operator invokes over the websocket: every one but `echo`, which is
+declared with `hatchetClient: false`) and `runtime.name: "cloudflare-workers"`. An unsigned
+POST answers `401 {"error": "bad signature"}`.
 
 ### 3. Give the operator a URL it may dial
 
@@ -220,12 +223,13 @@ finished inside the inline wait budget and 3 when that wait evicted too. The chi
 in the dashboard under the parent run.
 
 Trigger `parent-echo` the same way. The operator dials the Worker's websocket (the healthcheck
-flagged the task with `streams`), the task triggers `echo` through the client and awaits it on
+lists the task with `streams`), the task triggers `echo` through the client and awaits it on
 the socket, and the output is `{"echo": "hello", "child": {"echo": "hello (from parent)",
 "workflowRunId": "...", "retryCount": 0}, "workflowRunId": "..."}` within a few seconds. A
 `422` with `configure \`client\`` in the endpoint's error means `HATCHET_CLIENT_TOKEN` is not
-set in `.dev.vars`; one naming `streams: true` means the task was POSTed, so the operator did
-not read the flag from the healthcheck yet (it polls every `pollIntervalSeconds`).
+set in `.dev.vars`; one saying the task was `invoked over a POST` means the operator did not
+read the healthcheck's task list yet (it polls every `pollIntervalSeconds`) or predates stream
+delivery.
 
 ### 5b. Read a durable stream
 

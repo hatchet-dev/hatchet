@@ -4,9 +4,14 @@
  */
 import { clientFromContext, hatchet } from "@hatchet-dev/serverless";
 
-/** Non-durable: returns its input with the run id and retry count from the context. */
+/**
+ * Non-durable and pure: a function of its input (plus the run id and retry count the request
+ * carries) that never talks to Hatchet, so it is declared with `hatchetClient: false` and the
+ * operator delivers it over a signed POST rather than the invocation websocket.
+ */
 export const echo = hatchet.task({
   name: "echo",
+  hatchetClient: false,
   fn: async (input: { message: string }, ctx) => ({
     echo: input.message,
     workflowRunId: ctx.workflowRunId(),
@@ -45,14 +50,14 @@ export const sleepThenEcho = hatchet.durableTask({
 /**
  * Non-durable, with a child: triggers `echo` through the Worker's Hatchet client (a unary call
  * with the token from HATCHET_CLIENT_TOKEN) and awaits its result on the invocation websocket,
- * where the operator relays the run's terminal event from the engine. Awaiting needs the
- * socket, so the task is declared with `streams: true`; over a plain POST the wait would
- * throw. Unlike the durable task it never evicts: it waits inline, as invocation 1.
+ * where the operator relays the run's terminal event from the engine. The socket is the
+ * default delivery for a task that talks to Hatchet, so nothing is declared; over a plain POST
+ * the wait would throw. Unlike the durable task it never evicts: it waits inline, as
+ * invocation 1.
  */
 export const parentEcho = hatchet.task({
   name: "parent-echo",
   executionTimeout: "5m",
-  streams: true,
   fn: async (input: { message: string }, ctx) => {
     const child = await ctx.runChild(echo, { message: `${input.message} (from parent)` });
 
@@ -65,9 +70,10 @@ export const parentEcho = hatchet.task({
 });
 
 /**
- * Non-durable, plain POST: publishes a handful of progress messages to a durable stream topic
- * through the Worker's Hatchet client (`clientFromContext(ctx)`, the same core client
- * `ctx.runChild` triggers through) and returns the topic. The topic is the input's `topic` or
+ * Non-durable, on the socket by default since it talks to Hatchet: publishes a handful of
+ * progress messages to a durable stream topic through the Worker's Hatchet client
+ * (`clientFromContext(ctx)`, the same core client `ctx.runChild` triggers through) and
+ * returns the topic. The topic is the input's `topic` or
  * one derived from the run id, so a consumer can follow a run it triggered:
  * `scripts/consume-stream.ts` reads it with the Node SDK's `hatchet.streams.events(topic)`.
  * Without HATCHET_CLIENT_TOKEN the client call throws and the task fails without retry.

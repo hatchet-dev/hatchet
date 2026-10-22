@@ -5,8 +5,9 @@ on `@hatchet-dev/serverless`, and triggers them from a server action with the SD
 client. The Hatchet serverless operator polls the endpoint for the workflows it serves and
 delivers assigned tasks to it over signed HTTPS requests.
 
-- `echo`: a non-durable task. The operator POSTs the task, the route returns the message with
-  the run id and retry count.
+- `echo`: a non-durable, pure task: a function of its input that never talks to Hatchet, so it
+  is declared with `hatchetClient: false`. The operator POSTs the task, the route returns the
+  message with the run id and retry count.
 - `sleep-then-echo`: a durable task. It records a timestamp, sleeps 3 seconds, spawns `echo` as
   a child run and waits for its output, then returns everything. The sleep exceeds the
   endpoint's inline wait budget, so the first invocation evicts itself and the engine re-invokes
@@ -15,12 +16,12 @@ delivers assigned tasks to it over signed HTTPS requests.
 
 - `parent-echo`: a non-durable task that triggers `echo` as a child run through the endpoint's
   Hatchet client (built from `HATCHET_CLIENT_TOKEN`) and awaits the result on the invocation
-  websocket, so it is declared with `streams: true` and the operator invokes it over the socket.
-  It never evicts: it waits inline, as invocation 1.
+  websocket. It talks to Hatchet, so it keeps the default delivery: the operator invokes it
+  over the socket. It never evicts: it waits inline, as invocation 1.
 - `stream-progress`: a non-durable task that publishes a handful of progress messages to a
   durable stream topic through the endpoint's Hatchet client (`clientFromContext(ctx)` and
   `client.streams.publish`) and returns the topic; `scripts/consume-stream.ts` reads the topic
-  with the Node SDK.
+  with the Node SDK. It talks to Hatchet, so it is invoked over the socket too.
 
 The four tasks are the same as in `examples/serverless/cloudflare-workers`, with the same
 names and outputs, so one endpoint registration works for either runtime.
@@ -41,7 +42,7 @@ route you keep. The message is capped at 200 characters.
 
 | File                                     | Purpose                                                                                                                                                                                                                              |
 | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `hatchet/tasks.ts`                       | The declarations, written with `hatchet.task` and `hatchet.durableTask` from `@hatchet-dev/serverless`; `streams: true` on `parent-echo` asks for the websocket. The same file works on a regular worker.                          |
+| `hatchet/tasks.ts`                       | The declarations, written with `hatchet.task` and `hatchet.durableTask` from `@hatchet-dev/serverless`; `hatchetClient: false` on `echo` states it never talks to Hatchet, so it is POSTed. The same file works on a regular worker. |
 | `app/api/hatchet/[...hatchet]/route.ts`  | `export const { GET, POST } = vercel({ workflows })`: `POST` serves the healthcheck and non-durable triggers, `GET` the durable websocket upgrade; the secret comes from `HATCHET_SIGNING_SECRET`. `maxDuration` caps one invocation. |
 | `hatchet/client.ts`                      | The SDK's core client (`@hatchet-dev/typescript-sdk/core`, Connect over fetch, no gRPC) built from `HATCHET_CLIENT_TOKEN` and friends. Only the triggering side has the token.                                                       |
 | `app/actions.ts`, `app/trigger-form.tsx` | A server action that triggers `echo`, `sleep-then-echo` or `stream-progress` and waits for the output, and the form on the page that calls it. A demo trigger (see above).                                                        |
@@ -137,10 +138,12 @@ export SIGNING_SECRET=$(sed -n 's/^HATCHET_SIGNING_SECRET=//p' .env.local)
 pnpm run dev                                      # next dev, http://localhost:3000
 ```
 
-`next dev` serves the healthcheck and non-durable triggers. The durable websocket upgrade is
-only available under `vc dev` (see "Durable tasks on Vercel"); outside Vercel the adapter
-reports `durable.supported: false`, so the operator delivers `echo` and leaves
-`sleep-then-echo` alone.
+`next dev` serves the healthcheck and POSTed triggers. The websocket upgrade is only available
+under `vc dev` (see "Durable tasks on Vercel"); outside Vercel the adapter reports
+`durable.supported: false` and lists no stream task, so the operator POSTs every non-durable
+task and leaves `sleep-then-echo` alone: `echo` and `stream-progress` complete, and
+`parent-echo` fails at its `ctx.runChild` wait with a `422` saying the task was invoked over a
+POST.
 
 Check the signature path before involving the operator. The package computes
 `hex(hmac_sha256(secret, raw_body))` over the exact bytes, and the body's
@@ -156,7 +159,11 @@ Expected: `workflows` with `echo`, `parent-echo`, `sleep-then-echo` and `stream-
 `actions` equal to
 `["echo:echo", "parent-echo:parent-echo", "sleep-then-echo:sleep-then-echo", "stream-progress:stream-progress"]`,
 `runtime.name: "vercel"` and, under
-`next dev`, `durable: {}` (protojson leaves a false `supported` out). An unsigned POST answers
+`next dev`, `durable: {}` (protojson leaves a false `supported` out) with no `tasks` list. Under
+`vc dev` or on Vercel with Fluid compute, `durable.supported: true` and
+`tasks: [{"action": "parent-echo:parent-echo", "streams": true}, {"action": "stream-progress:stream-progress", "streams": true}]`,
+the non-durable tasks the operator invokes over the websocket (every one but `echo`, which is
+declared with `hatchetClient: false`). An unsigned POST answers
 `401 {"error": "bad signature"}`.
 
 ### 3. Give the operator a URL it may dial
@@ -285,6 +292,8 @@ in this example's `dependencies`.
 - **Fluid compute**: on a project without it the upgrade fails at request time with the same
   426. The adapter cannot detect this from a healthcheck, so pass `durable: false` on such a
   project and let another endpoint (a Cloudflare Worker, a Node server) serve the durable tasks.
+  With `durable: false` the healthcheck also lists no stream task, so every non-durable task is
+  POSTed: `echo` and `stream-progress` run, and only `parent-echo` fails, at its child wait.
 - **`maxDuration`**: a durable invocation lives on its websocket until it finishes or evicts
   itself, so `maxDuration` in `route.ts` is the ceiling on one invocation: 300 s on Hobby, up to
   800 s on Pro and Enterprise. The endpoint's `inlineWaitBudgetMs` must stay well below it; the
