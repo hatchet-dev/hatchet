@@ -7,6 +7,7 @@ import pytest
 
 from examples.rate_limit_pause.worker import RateLimitPauseInput, rate_limit_pause_task
 from hatchet_sdk import Hatchet, RunStatus
+from hatchet_sdk.rate_limit import RateLimitDuration
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -14,6 +15,9 @@ async def test_rate_limit_pause(hatchet: Hatchet) -> None:
     group = f"rate-limit-pause-group-{uuid4()}"
     paused_key = f"rate-limit-pause-paused-{uuid4()}"
     unpaused_key = f"rate-limit-pause-unpaused-{uuid4()}"
+
+    # a held run never creates its dynamic rate limit, so the row has to exist up front to check its units
+    await hatchet.rate_limits.aio_put(paused_key, 10, RateLimitDuration.HOUR)
 
     paused_until = await hatchet.rate_limits.aio_pause(
         paused_key, datetime.now(timezone.utc) + timedelta(seconds=15)
