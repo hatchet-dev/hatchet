@@ -410,6 +410,10 @@ V1DurableEventLogKind:
   $ref: "./v1/workflow_run.yaml#/V1DurableEventLogKind"
 V1StreamPayloadRef:
   $ref: "./v1/streams.yaml#/V1StreamPayloadRef"
+V1StreamTopic:
+  $ref: "./v1/streams.yaml#/V1StreamTopic"
+V1StreamTopicList:
+  $ref: "./v1/streams.yaml#/V1StreamTopicList"
 V1DurableEventLogEntry:
   $ref: "./v1/workflow_run.yaml#/V1DurableEventLogEntry"
 V1DurableEventLogList:

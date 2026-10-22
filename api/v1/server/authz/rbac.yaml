@@ -82,6 +82,7 @@ roles:
       - TenantInviteReject
       - V1LogLineList
       - V1StreamPayloadGet
+      - V1StreamTopicList
       - V1WebhookGet
       - V1ServerlessEndpointList
       - V1ServerlessEndpointGet

@@ -141,6 +141,23 @@ type ListStreamMessagesOpts struct {
 	Limit int32 `validate:"omitempty,min=1,max=1000"`
 }
 
+type ListStreamTopicsOpts struct {
+	// (optional) matches topics or namespaces containing it
+	Search *string
+
+	Limit int32 `validate:"min=1,max=1000"`
+
+	Offset int32 `validate:"min=0"`
+}
+
+type ListStreamTopicsResult struct {
+	Rows []*sqlcv1.ListStreamTopicsRow
+
+	Total int64
+
+	Retention time.Duration
+}
+
 type StreamsRepository interface {
 	// EnsureTopic registers a topic on first publish, enforcing the tenant's
 	// topic limit. Topics this process saw recently skip the query.
@@ -168,6 +185,9 @@ type StreamsRepository interface {
 
 	// GetStreamPayload returns ErrStreamPayloadNotFound once it's past the tenant's retention.
 	GetStreamPayload(ctx context.Context, tenantId uuid.UUID, ref StreamPayloadRef) ([]byte, error)
+
+	// ListTopics returns a page of the tenant's topics, with counts of their retained messages.
+	ListTopics(ctx context.Context, tenantId uuid.UUID, opts ListStreamTopicsOpts) (*ListStreamTopicsResult, error)
 
 	// GetTopicMetadata returns ErrStreamTopicNotFound for a topic that doesn't exist.
 	GetTopicMetadata(ctx context.Context, tenantId uuid.UUID, namespace, topic string) (*StreamTopicMetadata, error)
@@ -534,6 +554,47 @@ func (r *streamsRepositoryImpl) GetStreamPayload(ctx context.Context, tenantId u
 	}
 
 	return payload, err
+}
+
+func (r *streamsRepositoryImpl) ListTopics(ctx context.Context, tenantId uuid.UUID, opts ListStreamTopicsOpts) (*ListStreamTopicsResult, error) {
+	if err := r.v.Validate(&opts); err != nil {
+		return nil, err
+	}
+
+	retention, err := r.m.StreamRetention(ctx, tenantId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	search := pgtype.Text{}
+
+	if opts.Search != nil && *opts.Search != "" {
+		search = pgtype.Text{String: *opts.Search, Valid: true}
+	}
+
+	rows, err := r.queries.ListStreamTopics(ctx, r.pool, sqlcv1.ListStreamTopicsParams{
+		Tenantid:      tenantId,
+		Search:        search,
+		Retainedsince: pgtype.Timestamptz{Time: time.Now().Add(-retention), Valid: true},
+		Topiclimit:    opts.Limit,
+		Topicoffset:   opts.Offset,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	total, err := r.queries.CountStreamTopicsMatching(ctx, r.pool, sqlcv1.CountStreamTopicsMatchingParams{
+		Tenantid: tenantId,
+		Search:   search,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &ListStreamTopicsResult{Rows: rows, Total: total, Retention: retention}, nil
 }
 
 func (r *streamsRepositoryImpl) GetTopicMetadata(ctx context.Context, tenantId uuid.UUID, namespace, topic string) (*StreamTopicMetadata, error) {

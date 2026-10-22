@@ -882,6 +882,28 @@ export interface V1StreamPayloadRef {
   ref: string;
 }
 
+export interface V1StreamTopic {
+  /** The topic's namespace, empty for the default namespace */
+  namespace: string;
+  topic: string;
+  /** @format date-time */
+  createdAt: string;
+  /** @format date-time */
+  lastPublishedAt: string;
+  /**
+   * The number of messages within the tenant's retention
+   * @format int64
+   */
+  messageCount: number;
+}
+
+export interface V1StreamTopicList {
+  pagination: PaginationResponse;
+  /** How long messages are kept, and how long a topic is kept after its last publish */
+  retentionHours: number;
+  rows: V1StreamTopic[];
+}
+
 export interface OtelSpan {
   traceId: string;
   spanId: string;

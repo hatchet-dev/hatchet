@@ -2045,6 +2045,28 @@ type V1StreamPayloadRef struct {
 	Ref string `json:"ref"`
 }
 
+// V1StreamTopic defines model for V1StreamTopic.
+type V1StreamTopic struct {
+	CreatedAt       time.Time `json:"createdAt"`
+	LastPublishedAt time.Time `json:"lastPublishedAt"`
+
+	// MessageCount The number of messages within the tenant's retention
+	MessageCount int64 `json:"messageCount"`
+
+	// Namespace The topic's namespace, empty for the default namespace
+	Namespace string `json:"namespace"`
+	Topic     string `json:"topic"`
+}
+
+// V1StreamTopicList defines model for V1StreamTopicList.
+type V1StreamTopicList struct {
+	Pagination PaginationResponse `json:"pagination"`
+
+	// RetentionHours How long messages are kept, and how long a topic is kept after its last publish
+	RetentionHours int             `json:"retentionHours"`
+	Rows           []V1StreamTopic `json:"rows"`
+}
+
 // V1TaskEvent defines model for V1TaskEvent.
 type V1TaskEvent struct {
 	// Attempt The attempt number of the task.
@@ -3083,6 +3105,18 @@ type V1StreamPayloadUploadMultipartBody struct {
 	Payload openapi_types.File `json:"payload"`
 }
 
+// V1StreamTopicListParams defines parameters for V1StreamTopicList.
+type V1StreamTopicListParams struct {
+	// Offset The number to skip
+	Offset *int64 `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// Limit The number to limit by
+	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Search Matches topics or namespaces containing it
+	Search *string `form:"search,omitempty" json:"search,omitempty"`
+}
+
 // V1TaskListStatusMetricsParams defines parameters for V1TaskListStatusMetrics.
 type V1TaskListStatusMetricsParams struct {
 	// Since The start time to get metrics for
@@ -4046,6 +4080,9 @@ type ClientInterface interface {
 	// V1StreamPayloadUploadWithBody request with any body
 	V1StreamPayloadUploadWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// V1StreamTopicList request
+	V1StreamTopicList(ctx context.Context, tenant openapi_types.UUID, params *V1StreamTopicListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// V1TaskListStatusMetrics request
 	V1TaskListStatusMetrics(ctx context.Context, tenant openapi_types.UUID, params *V1TaskListStatusMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -4995,6 +5032,18 @@ func (c *Client) V1StreamPayloadGet(ctx context.Context, tenant openapi_types.UU
 
 func (c *Client) V1StreamPayloadUploadWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewV1StreamPayloadUploadRequestWithBody(c.Server, tenant, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1StreamTopicList(ctx context.Context, tenant openapi_types.UUID, params *V1StreamTopicListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1StreamTopicListRequest(c.Server, tenant, params)
 	if err != nil {
 		return nil, err
 	}
@@ -9006,6 +9055,94 @@ func NewV1StreamPayloadUploadRequestWithBody(server string, tenant openapi_types
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewV1StreamTopicListRequest generates requests for V1StreamTopicList
+func NewV1StreamTopicListRequest(server string, tenant openapi_types.UUID, params *V1StreamTopicListParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/streams/topics", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Search != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "search", runtime.ParamLocationQuery, *params.Search); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -15759,6 +15896,9 @@ type ClientWithResponsesInterface interface {
 	// V1StreamPayloadUploadWithBodyWithResponse request with any body
 	V1StreamPayloadUploadWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1StreamPayloadUploadResponse, error)
 
+	// V1StreamTopicListWithResponse request
+	V1StreamTopicListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1StreamTopicListParams, reqEditors ...RequestEditorFn) (*V1StreamTopicListResponse, error)
+
 	// V1TaskListStatusMetricsWithResponse request
 	V1TaskListStatusMetricsWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1TaskListStatusMetricsParams, reqEditors ...RequestEditorFn) (*V1TaskListStatusMetricsResponse, error)
 
@@ -17102,6 +17242,30 @@ func (r V1StreamPayloadUploadResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r V1StreamPayloadUploadResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1StreamTopicListResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1StreamTopicList
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1StreamTopicListResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1StreamTopicListResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -20249,6 +20413,15 @@ func (c *ClientWithResponses) V1StreamPayloadUploadWithBodyWithResponse(ctx cont
 	return ParseV1StreamPayloadUploadResponse(rsp)
 }
 
+// V1StreamTopicListWithResponse request returning *V1StreamTopicListResponse
+func (c *ClientWithResponses) V1StreamTopicListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1StreamTopicListParams, reqEditors ...RequestEditorFn) (*V1StreamTopicListResponse, error) {
+	rsp, err := c.V1StreamTopicList(ctx, tenant, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1StreamTopicListResponse(rsp)
+}
+
 // V1TaskListStatusMetricsWithResponse request returning *V1TaskListStatusMetricsResponse
 func (c *ClientWithResponses) V1TaskListStatusMetricsWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1TaskListStatusMetricsParams, reqEditors ...RequestEditorFn) (*V1TaskListStatusMetricsResponse, error) {
 	rsp, err := c.V1TaskListStatusMetrics(ctx, tenant, params, reqEditors...)
@@ -23133,6 +23306,46 @@ func ParseV1StreamPayloadUploadResponse(rsp *http.Response) (*V1StreamPayloadUpl
 			return nil, err
 		}
 		response.JSON429 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1StreamTopicListResponse parses an HTTP response from a V1StreamTopicListWithResponse call
+func ParseV1StreamTopicListResponse(rsp *http.Response) (*V1StreamTopicListResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1StreamTopicListResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1StreamTopicList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	}
 
