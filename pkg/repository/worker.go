@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"time"
@@ -35,7 +36,7 @@ type CreateWorkerOpts struct {
 	DispatcherId uuid.UUID `validate:"required"`
 
 	// Slot config for this worker (slot_type -> max units)
-	SlotConfig map[string]int32 `validate:"omitempty"`
+	SlotConfig map[string]int32 `validate:"omitempty,dive,keys,required,endkeys,min=0"`
 
 	// The name of the worker
 	Name string `validate:"required,hatchetName"`
@@ -643,11 +644,18 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 	}
 
 	slotConfig := opts.SlotConfig
-	slots := int32(0)
+
+	var totalUnits int64
 
 	for _, units := range slotConfig {
-		slots += units
+		totalUnits += int64(units)
 	}
+
+	if totalUnits > math.MaxInt32 {
+		return nil, fmt.Errorf("slot config units sum to %d, above %d", totalUnits, math.MaxInt32)
+	}
+
+	slots := int32(totalUnits) // nolint: gosec // bounded above
 
 	postWorker := func() {}
 	postWorkerSlot := func() {}

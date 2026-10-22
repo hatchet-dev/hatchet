@@ -26,7 +26,7 @@ RUN go generate ./...
 
 # OpenAPI bundle environment (uses openapi-core only to avoid Redoc/React/styled-components)
 # ----------------------------------------------------------------------------------------
-FROM node:22-alpine AS build-openapi
+FROM node:24-alpine AS build-openapi
 WORKDIR /openapi
 
 COPY /api-contracts/openapi ./openapi
