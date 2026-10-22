@@ -95,7 +95,7 @@ handler ignores.
 pnpm add @hatchet-dev/serverless @hatchet-dev/typescript-sdk zod
 ```
 
-`@hatchet-dev/typescript-sdk` (1.40.0 or later, for its `/core` entry, its durable stream
+`@hatchet-dev/typescript-sdk` (1.41.0 or later, for its `/core` entry, its durable stream
 calls and its task calls) and `zod` are peer dependencies: the SDK supplies the declaration API, `Context`, the registration format and
 the core client, nothing else.
 

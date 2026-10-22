@@ -72,7 +72,7 @@
     "publish": "pnpm run build:sdk && pnpm install && pnpm run lint && pnpm run test && pnpm run build && pnpm publish --access public --no-git-checks"
   },
   "peerDependencies": {
-    "@hatchet-dev/typescript-sdk": "^1.40.0",
+    "@hatchet-dev/typescript-sdk": "^1.41.0",
     "@vercel/functions": ">=3.9.0",
     "ws": ">=8",
     "zod": "^3.25.0 || ^4.0.0"
