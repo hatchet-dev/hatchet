@@ -49,6 +49,8 @@ type Pool interface {
 	AddExtension(ext SchedulerExtension)
 
 	SetTenants(tenants []*sqlcv1.Tenant)
+	// StopTenants stops all tenant schedulers and blocks until none can emit further results.
+	StopTenants()
 	Replenish(ctx context.Context, tenantId uuid.UUID)
 
 	NotifyQueues(ctx context.Context, tenantId uuid.UUID, queueNames []string)
