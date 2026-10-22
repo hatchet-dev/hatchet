@@ -38,6 +38,7 @@ type RateLimitResult struct {
 	ExceededUnits  int32
 	ExceededVal    int32
 	NextRefillAt   *time.Time
+	PausedUntil    *time.Time
 	TaskId         int64
 	TaskInsertedAt pgtype.Timestamptz
 	RetryCount     int32
@@ -475,8 +476,20 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 	// remove rate limited queue items from the queue and place them in the v1_rate_limited_queue_items table
 	qisToMoveToRateLimited := make([]int64, 0, len(r.RateLimited))
 	qisToMoveToRateLimitedRQAfter := make([]pgtype.Timestamptz, 0, len(r.RateLimited))
+	tasksToHold := make([]TaskIdInsertedAtRetryCount, 0)
 
 	for _, row := range r.RateLimitedToMove {
+		// a paused key holds the task until the pause ends, without its concurrency slot
+		if row.PausedUntil != nil {
+			tasksToHold = append(tasksToHold, TaskIdInsertedAtRetryCount{
+				Id:         row.TaskID,
+				InsertedAt: row.TaskInsertedAt,
+				RetryCount: row.RetryCount,
+			})
+
+			continue
+		}
+
 		qisToMoveToRateLimited = append(qisToMoveToRateLimited, row.ID)
 		qisToMoveToRateLimitedRQAfter = append(qisToMoveToRateLimitedRQAfter, sqlchelpers.TimestamptzFromTime(*row.NextRefillAt))
 	}
@@ -490,6 +503,10 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 		if err != nil {
 			return nil, nil, err
 		}
+	}
+
+	if err = d.holdPausedTasks(ctx, tx, tenantId, tasksToHold); err != nil {
+		return nil, nil, err
 	}
 
 	if len(tasksToRelease) > 0 {

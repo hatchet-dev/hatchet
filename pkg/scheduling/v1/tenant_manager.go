@@ -66,10 +66,10 @@ type tenantManager struct {
 	cleanup func()
 }
 
-func newTenantManager(cf *sharedConfig, tenantId uuid.UUID, resultsCh chan *QueueResults, concurrencyResultsCh chan *ConcurrencyResults, exts *Extensions) *tenantManager {
+func newTenantManager(cf *sharedConfig, tenantId uuid.UUID, resultsCh chan *QueueResults, concurrencyResultsCh chan *ConcurrencyResults, rateLimitPausesEndedCh chan<- uuid.UUID, exts *Extensions) *tenantManager {
 	tenantIdUUID := tenantId
 
-	rl := newRateLimiter(cf, tenantIdUUID)
+	rl := newRateLimiter(cf, tenantIdUUID, rateLimitPausesEndedCh)
 	s := newScheduler(cf, tenantIdUUID, rl, exts)
 	leaseManager, workersCh, queuesCh, concurrencyCh, batchesCh := newLeaseManager(cf, tenantIdUUID)
 
@@ -467,6 +467,23 @@ func (t *tenantManager) notifyQueuers(ctx context.Context, queueNames []string) 
 		if _, ok := wanted[q.queueName]; ok {
 			q.queue(ctx)
 		}
+	}
+}
+
+// wakes every queuer so runs held in memory are checked against the new limits right away
+func (t *tenantManager) notifyRateLimitsChanged(ctx context.Context) {
+	err := t.rl.refresh(ctx, time.Now().UTC())
+
+	if err != nil {
+		t.l.Error().Err(err).Msg("error refreshing rate limits")
+		return
+	}
+
+	t.queuersMu.RLock()
+	defer t.queuersMu.RUnlock()
+
+	for _, q := range t.queuers {
+		q.queue(ctx)
 	}
 }
 

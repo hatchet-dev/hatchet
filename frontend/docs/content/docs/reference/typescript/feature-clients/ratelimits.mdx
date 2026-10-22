@@ -28,6 +28,24 @@ Returns
 
 A promise that resolves to the list of rate limits.
 
+<a id="pause"></a>
+
+##### `pause()`
+
+Pauses a rate limit key, so queued runs that consume it stay queued until `until`.
+
+Parameters
+
+| Parameter | Type                 | Description                             |
+| --------- | -------------------- | --------------------------------------- |
+| `opts`    | `PauseRateLimitOpts` | The key and the time to pause it until. |
+
+Returns
+
+`Promise`\<`Date`\>
+
+A promise that resolves to the time the key is paused until.
+
 <a id="upsert"></a>
 
 ##### `upsert()`

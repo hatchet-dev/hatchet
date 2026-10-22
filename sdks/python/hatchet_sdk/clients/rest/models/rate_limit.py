@@ -18,7 +18,7 @@ import json
 
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
-from typing import Any, ClassVar, Dict, List
+from typing import Any, ClassVar, Dict, List, Optional
 from typing import Optional, Set
 from typing_extensions import Self
 
@@ -46,6 +46,11 @@ class RateLimit(BaseModel):
     last_refill: datetime = Field(
         description="The last time the rate limit was refilled.", alias="lastRefill"
     )
+    paused_until: Optional[datetime] = Field(
+        default=None,
+        description="When the rate limit's pause ends, if it is paused. Runs that consume a paused key stay queued until then.",
+        alias="pausedUntil",
+    )
     __properties: ClassVar[List[str]] = [
         "key",
         "tenantId",
@@ -53,6 +58,7 @@ class RateLimit(BaseModel):
         "value",
         "window",
         "lastRefill",
+        "pausedUntil",
     ]
 
     model_config = ConfigDict(
@@ -111,6 +117,7 @@ class RateLimit(BaseModel):
                 "value": obj.get("value"),
                 "window": obj.get("window"),
                 "lastRefill": obj.get("lastRefill"),
+                "pausedUntil": obj.get("pausedUntil"),
             }
         )
         return _obj

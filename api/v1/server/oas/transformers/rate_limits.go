@@ -15,5 +15,9 @@ func ToRateLimitFromSQLC(rl *sqlcv1.ListRateLimitsForTenantNoMutateRow) (*gen.Ra
 		Window:     rl.Window,
 	}
 
+	if rl.PausedUntil.Valid {
+		res.PausedUntil = &rl.PausedUntil.Time
+	}
+
 	return res, nil
 }
