@@ -43,7 +43,7 @@ export const limitStrategyClassName: Record<
 
 const limitStrategyExplanation: Record<V1ConcurrencyLimitStrategy, string> = {
   [V1ConcurrencyLimitStrategy.V1ConcurrencyLimitStrategyGroupRoundRobin]:
-    "Up to {max} runs per key at once. Extra runs wait in their key's queue and start in arrival order as its slots free up. Each key is capped on its own, so no single key can take all the capacity.",
+    'Up to {max} runs per key at once. Queuing is distributed fairly across each key, so no single key can take all the capacity.',
   [V1ConcurrencyLimitStrategy.V1ConcurrencyLimitStrategyCancelInProgress]:
     'Up to {max} runs per key. When the key is full, a running run for the same key is cancelled to free a slot, so the most recent run always takes priority. Nothing is queued.',
   [V1ConcurrencyLimitStrategy.V1ConcurrencyLimitStrategyCancelNewest]:

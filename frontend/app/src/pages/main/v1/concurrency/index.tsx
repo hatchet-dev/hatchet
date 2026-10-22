@@ -159,7 +159,7 @@ function Concurrency({ tenantId }: ConcurrencyProps) {
         <div className="rounded-lg px-4 py-16 ring-1 ring-border/50">
           <EmptyState
             title="No concurrency strategies"
-            description="Concurrency strategies limit how many runs execute at once per key. They appear here once a task or workflow that defines one is registered."
+            description="Concurrency strategies limit how many runs can execute at once."
             docPage={docsPages.v1.concurrency}
             docLabel="Learn about concurrency"
           />
