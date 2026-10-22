@@ -6,8 +6,11 @@ import (
 	"sync"
 	"time"
 
+	"connectrpc.com/connect"
 	"google.golang.org/protobuf/proto"
 
+	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/internal/services/shared/rpcstream"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
 )
 
@@ -15,22 +18,25 @@ import (
 // side after the stream is cancelled.
 const runStreamCloseDrainTimeout = 5 * time.Second
 
-// OpenRunStream opens one run observation stream on the dispatcher's channel-backed entry,
+// OpenRunStream opens one run observation stream on the engine's channel-backed entry for the
+// kind (the dispatcher's for the run streams, the streams service's for V1Streams.Subscribe),
 // with the session's tenant on the context the way the auth middleware puts it for a gRPC
-// caller. The stream is detached from ctx once open and ends on Close, or when the engine ends
-// it, which Recv reports as ErrStreamEnded.
+// caller, so every check the RPC makes runs here too. The stream is detached from ctx once
+// open and ends on Close, or when the engine ends it, which Recv reports as ErrStreamEnded
+// when the handler finished and as the handler's own error when it refused or failed the
+// stream.
 func (ss *Session) OpenRunStream(ctx context.Context, kind operator.RunStreamKind, first proto.Message) (operator.RunStream, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
-	if kind == operator.RunStreamWorkflowEvents && first == nil {
+	if !kind.Bidi() && first == nil {
 		return nil, fmt.Errorf("%s requires its request as the opening message", kind)
 	}
 
 	sctx, cancel := context.WithCancel(WithTenant(context.WithoutCancel(ctx), ss.tenant))
 
-	reqCh, respCh, err := ss.svc.dispatcher.RegisterRunStream(sctx, kind, first)
+	cs, err := ss.register(sctx, kind, first)
 
 	if err != nil {
 		cancel()
@@ -38,20 +44,37 @@ func (ss *Session) OpenRunStream(ctx context.Context, kind operator.RunStreamKin
 	}
 
 	return &runStream{
-		reqCh:  reqCh,
-		respCh: respCh,
+		cs:     cs,
 		ctx:    sctx,
 		cancel: cancel,
 		closed: make(chan struct{}),
 	}, nil
 }
 
+// register serves the kind over channels on the service that owns it.
+func (ss *Session) register(ctx context.Context, kind operator.RunStreamKind, first proto.Message) (*rpcstream.ChannelStream, error) {
+	if kind != operator.RunStreamDurableStreams {
+		return ss.svc.dispatcher.RegisterRunStream(ctx, kind, first)
+	}
+
+	req, ok := first.(*v1contracts.SubscribeStreamRequest)
+
+	if !ok {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("%s takes a SubscribeStreamRequest, not a %T", kind, first))
+	}
+
+	if ss.svc.streams == nil {
+		return nil, connect.NewError(connect.CodeUnimplemented, fmt.Errorf("%s is not served in process here", kind))
+	}
+
+	return ss.svc.streams.RegisterSubscribe(ctx, req)
+}
+
 // runStream is one channel-backed engine stream. The engine's handler delivers responses on
 // its own goroutine, blocking on a full channel, so Recv reads straight from it; Send hands the
 // request to the handler's receive loop and waits for it to be taken.
 type runStream struct {
-	reqCh  chan<- proto.Message
-	respCh <-chan proto.Message
+	cs     *rpcstream.ChannelStream
 	ctx    context.Context
 	cancel context.CancelFunc
 	closed chan struct{}
@@ -72,7 +95,7 @@ func (rs *runStream) isClosed() bool {
 }
 
 func (rs *runStream) Send(ctx context.Context, msg proto.Message) error {
-	if rs.reqCh == nil {
+	if rs.cs.Requests == nil {
 		return fmt.Errorf("sending on a server stream: %w", operator.ErrNotSupported)
 	}
 
@@ -93,7 +116,7 @@ func (rs *runStream) Send(ctx context.Context, msg proto.Message) error {
 	}
 
 	select {
-	case rs.reqCh <- msg:
+	case rs.cs.Requests <- msg:
 		return nil
 	case <-rs.ctx.Done():
 		return ErrChannelClosed
@@ -108,7 +131,7 @@ func (rs *runStream) Recv(ctx context.Context) (proto.Message, error) {
 	}
 
 	select {
-	case msg, ok := <-rs.respCh:
+	case msg, ok := <-rs.cs.Responses:
 		if !ok {
 			rs.sendMu.Lock()
 			rs.ended = true
@@ -116,6 +139,10 @@ func (rs *runStream) Recv(ctx context.Context) (proto.Message, error) {
 
 			if rs.isClosed() {
 				return nil, ErrChannelClosed
+			}
+
+			if err := rs.cs.Err; err != nil {
+				return nil, err
 			}
 
 			return nil, operator.ErrStreamEnded
@@ -141,7 +168,7 @@ func (rs *runStream) Close() error {
 
 		for {
 			select {
-			case _, ok := <-rs.respCh:
+			case _, ok := <-rs.cs.Responses:
 				if !ok {
 					return
 				}

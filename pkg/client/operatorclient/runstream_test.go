@@ -2,6 +2,7 @@ package operatorclient
 
 import (
 	"context"
+	"io"
 	"testing"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
 )
 
@@ -178,4 +180,82 @@ func TestOpenRunStreamCallerContextReleasesBlockedSend(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("Close did not return after the stream was released")
 	}
+}
+
+// recordingStreams is a V1StreamsClient whose Subscribe records the request and yields the
+// messages the test queued, then ends the stream.
+type recordingStreams struct {
+	v1.V1StreamsClient
+
+	requests []*v1.SubscribeStreamRequest
+	messages chan *v1.StreamMessage
+}
+
+func (s *recordingStreams) Subscribe(ctx context.Context, req *v1.SubscribeStreamRequest, _ ...grpc.CallOption) (v1.V1Streams_SubscribeClient, error) {
+	s.requests = append(s.requests, req)
+
+	return &queuedSubscribeClient{ctx: ctx, messages: s.messages}, nil
+}
+
+type queuedSubscribeClient struct {
+	grpc.ClientStream
+
+	ctx      context.Context
+	messages chan *v1.StreamMessage
+}
+
+func (c *queuedSubscribeClient) Recv() (*v1.StreamMessage, error) {
+	select {
+	case msg, ok := <-c.messages:
+		if !ok {
+			return nil, io.EOF
+		}
+
+		return msg, nil
+	case <-c.ctx.Done():
+		return nil, c.ctx.Err()
+	}
+}
+
+// A topic subscription opens V1Streams.Subscribe with the request as its one message: a
+// Send is refused, the engine's messages come back in order and its end is ErrStreamEnded.
+func TestOpenRunStreamDurableStreamsIsServerStream(t *testing.T) {
+	loopCtx, loopCancel := context.WithCancel(context.Background())
+	defer loopCancel()
+
+	streams := &recordingStreams{messages: make(chan *v1.StreamMessage, 2)}
+
+	s := &session{
+		streams: runStreamClients{v1streams: streams},
+		md:      newCallMetadata("token", nil),
+		loopCtx: loopCtx,
+	}
+
+	_, err := s.OpenRunStream(context.Background(), operator.RunStreamDurableStreams, &dispatchercontracts.SubscribeToWorkflowRunsRequest{})
+	require.Error(t, err, "the opening message must be a SubscribeStreamRequest")
+	assert.Empty(t, streams.requests)
+
+	streams.messages <- &v1.StreamMessage{Cursor: "c1", Entries: []*v1.StreamEntry{{Payload: []byte(`{"n":1}`), Cursor: "c1"}}}
+	streams.messages <- &v1.StreamMessage{Cursor: "c2", Entries: []*v1.StreamEntry{{Payload: []byte(`{"n":2}`), Cursor: "c2"}}}
+	close(streams.messages)
+
+	rs, err := s.OpenRunStream(context.Background(), operator.RunStreamDurableStreams, &v1.SubscribeStreamRequest{Namespace: "ns", Topic: "orders"})
+	require.NoError(t, err)
+
+	require.Len(t, streams.requests, 1)
+	assert.Equal(t, "ns", streams.requests[0].Namespace)
+	assert.Equal(t, "orders", streams.requests[0].Topic)
+
+	assert.ErrorIs(t, rs.Send(context.Background(), &v1.SubscribeStreamRequest{}), operator.ErrNotSupported)
+
+	for _, want := range []string{"c1", "c2"} {
+		msg, err := rs.Recv(context.Background())
+		require.NoError(t, err)
+		assert.Equal(t, want, msg.(*v1.StreamMessage).Cursor)
+	}
+
+	_, err = rs.Recv(context.Background())
+	assert.ErrorIs(t, err, operator.ErrStreamEnded)
+
+	require.NoError(t, rs.Close())
 }
