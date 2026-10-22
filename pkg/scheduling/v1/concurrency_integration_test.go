@@ -1103,6 +1103,60 @@ func TestConcurrency_PausedRateLimitHoldsNewRuns(t *testing.T) {
 	})
 }
 
+// TestConcurrency_PauseFromAnotherEngineHoldsNewRuns: this engine has cached that the tenant has no pause when
+// another engine pauses the key, so a new CANCEL_IN_PROGRESS run must still be held instead of cancelling the run
+// already holding the slot.
+func TestConcurrency_PauseFromAnotherEngineHoldsNewRuns(t *testing.T) {
+	runWithDatabase(t, func(conf *database.Layer) error {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		requireSchedulerSchema(t, ctx, conf)
+
+		name := "rl-paused-other-engine"
+		s := setupStepConcurrencyStrategy(t, ctx, conf, name, "CANCEL_IN_PROGRESS", 1, "upstream-api")
+
+		trigger := func() *sqlcv1.V1Task {
+			tasks, _, _, _, err := conf.V1.Triggers().TriggerFromWorkflowNames(ctx, s.tenantId, []*repo.WorkflowNameTriggerOpts{
+				{
+					TriggerTaskData: &repo.TriggerTaskData{
+						WorkflowName: name,
+						Data:         []byte(`{"my_id": "a"}`),
+					},
+					ExternalId: uuid.New(),
+				},
+			})
+			require.NoError(t, err)
+			require.Len(t, tasks, 1)
+
+			return tasks[0].V1Task
+		}
+
+		first := trigger()
+
+		res, err := s.concurrencyRepo.RunConcurrencyStrategy(ctx, s.tenantId, s.strategy)
+		require.NoError(t, err)
+		require.Len(t, res.Queued, 1)
+		require.Equal(t, first.ID, res.Queued[0].Id)
+
+		// written directly so this engine's cache still says the tenant has no pause
+		_, err = conf.Pool.Exec(ctx, `
+			INSERT INTO v1_rate_limit_pause (tenant_id, key, paused_until) VALUES ($1, 'upstream-api', NOW() + INTERVAL '1 hour')
+		`, s.tenantId)
+		require.NoError(t, err)
+
+		second := trigger()
+
+		require.Equal(t, 1, countRateLimitHeldItems(t, ctx, conf, second))
+		require.Zero(t, countTaskConcurrencySlots(t, ctx, conf, second), "a run behind a paused key must not get a slot")
+
+		res, err = s.concurrencyRepo.RunConcurrencyStrategy(ctx, s.tenantId, s.strategy)
+		require.NoError(t, err)
+		require.Empty(t, res.Cancelled, "a held run must not cancel the run holding the slot")
+
+		return nil
+	})
+}
+
 // TestConcurrency_PauseDynamicRateLimitKeyHoldsMatchingRuns: a dynamic key is only known once a run renders it, so
 // pausing one rendered key holds the runs that rendered it and leaves the step's runs with other keys waiting.
 func TestConcurrency_PauseDynamicRateLimitKeyHoldsMatchingRuns(t *testing.T) {

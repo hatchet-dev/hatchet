@@ -363,9 +363,10 @@ func (r *rateLimitRepository) HoldRateLimitPausedQueuedTasks(ctx context.Context
 	return r.holdPausedTasksInBatches(ctx, tenantId, tasks)
 }
 
-func (s *sharedRepository) tenantHasRateLimitPause(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID) (bool, error) {
+// a cached false can miss a pause taken on another engine, so callers that can't tolerate that set skipCachedNegative
+func (s *sharedRepository) tenantHasRateLimitPause(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, skipCachedNegative bool) (bool, error) {
 	if s.rateLimitPauseCache != nil {
-		if paused, ok := s.rateLimitPauseCache.Get(tenantId); ok {
+		if paused, ok := s.rateLimitPauseCache.Get(tenantId); ok && (paused || !skipCachedNegative) {
 			return paused, nil
 		}
 	}

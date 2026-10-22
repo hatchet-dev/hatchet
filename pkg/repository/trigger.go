@@ -1612,7 +1612,12 @@ func (r *sharedRepository) triggerWorkflowsCore(
 	shouldHold := len(pausedWorkflowIds) > 0
 
 	if !shouldHold {
-		shouldHold, err = r.tenantHasRateLimitPause(ctx, tx, tenantId)
+		// a task with concurrency slots can cancel other runs before the scheduler sees the pause, so it can't rely on a stale cache
+		hasConcurrencySlots := slices.ContainsFunc(tasks, func(task *V1TaskWithPayload) bool {
+			return len(task.ConcurrencyStrategyIds) > 0 || len(task.ConcurrencyParentStrategyIds) > 0
+		})
+
+		shouldHold, err = r.tenantHasRateLimitPause(ctx, tx, tenantId, hasConcurrencySlots)
 
 		if err != nil {
 			return nil, nil, nil, nil, nil, nil, err
