@@ -5,7 +5,9 @@
 // default. The event is pushed only after the direct run completed, so that the Go test can
 // assert the worker saw the two runs in that order. The durable stream step publishes two
 // messages to a topic named after the run and reports the topic's metadata, so the Go test
-// can check both were stored.
+// can check both were stored. The REST step lists the workflow's runs through the API server,
+// whose URL comes from the environment since the harness token names a server the test does
+// not run, and reports whether the direct run was among them.
 import { Agent, fetch as undiciFetch } from 'undici';
 import { Hatchet } from '@hatchet-dev/typescript-sdk/core';
 import { declarations } from '@hatchet-dev/typescript-sdk/edge';
@@ -19,6 +21,7 @@ function required(env, name) {
 export async function run(env) {
   const token = required(env, 'HATCHET_CLIENT_TOKEN');
   const hostPort = required(env, 'HATCHET_CLIENT_HOST_PORT');
+  const apiUrl = required(env, 'HATCHET_CLIENT_API_URL');
   const workflowName = env.HATCHET_E2E_WORKFLOW ?? 'tscore-echo';
   const eventKey = env.HATCHET_E2E_EVENT ?? 'tscore:echo';
 
@@ -28,6 +31,7 @@ export async function run(env) {
   const hatchet = new Hatchet({
     token,
     hostPort,
+    apiUrl,
     tls: { strategy: 'none' },
     fetch,
     logLevel: 'WARN',
@@ -46,6 +50,7 @@ export async function run(env) {
   await hatchet.streams.publish(streamTopic, 'first');
   await hatchet.streams.publish(streamTopic, new TextEncoder().encode('second'));
   const topic = await hatchet.streams.topicMetadata(streamTopic);
+  const listed = await findListedRun(hatchet, workflowName, ref.workflowRunId);
 
   await dispatcher.close();
 
@@ -59,5 +64,27 @@ export async function run(env) {
     streamTopic,
     streamMessageCount: topic.messageCount,
     streamLatestCursor: topic.latestCursor ?? '',
+    listedRun: listed !== undefined,
+    listedRunStatus: listed?.status ?? '',
   };
+}
+
+// The run list is served from the OLAP tables, which are written a moment after the run
+// completes, so the listing is retried until the run shows up.
+async function findListedRun(hatchet, workflowName, runId, attempts = 60) {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const { rows } = await hatchet.runs.list({
+      workflowNames: [workflowName],
+      since: new Date(Date.now() - 10 * 60_000),
+      onlyTasks: false,
+      limit: 100,
+    });
+    const row = rows?.find(
+      (r) =>
+        r.metadata.id === runId || r.workflowRunExternalId === runId || r.taskExternalId === runId
+    );
+    if (row) return row;
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  return undefined;
 }

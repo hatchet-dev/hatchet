@@ -5,6 +5,13 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.40.0] - 2026-10-22
+
+### Added
+
+- `/core`: the REST API (`client.api`) and the REST-backed features of the Node client (`runs.list`, `restoreTask` and `branchDurableTask`, `crons`, `schedules`, `filters`, `metrics`, `tenant`, `webhooks`, `workers`, `cel`, and `workflows.get`, `list`, `delete`, `pause` and `unpause`), generated from the OpenAPI spec over `fetch`. The base URL is the token's `server_url` claim or the new `apiUrl` config field.
+- `/core`: `tasks.refreshTimeout` and `tasks.releaseSlot`.
+
 ## [1.39.0] - 2026-10-21
 
 ### Added

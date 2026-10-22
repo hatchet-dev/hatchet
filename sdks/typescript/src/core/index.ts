@@ -1,8 +1,8 @@
 /**
  * The core entry point: the application client for runtimes without gRPC. It triggers runs,
  * pushes events, waits for results by polling, publishes to durable streams and manages
- * workflows over unary Connect calls on a fetch transport, and it is configured from an
- * explicit object only.
+ * workflows over unary Connect calls on a fetch transport, reaches the REST API through a
+ * client generated for `fetch`, and it is configured from an explicit object only.
  *
  * Nothing exported here imports from Node. `scripts/check-edge-entry.mjs` bundles this module
  * for a browser-like target and fails the build if a Node builtin, `axios` or a gRPC package
@@ -57,6 +57,42 @@ export { LogsClient, MAX_LOG_LINE_CHARS } from './features/logs';
 export type { PutLogOptions } from './features/logs';
 export { StreamsClient, MAX_STREAM_MESSAGE_BYTES } from './features/streams';
 export type { StreamsClientDeps } from './features/streams';
+export { TasksClient } from './features/tasks';
+export type { RunsClientDeps } from './features/runs';
+export type { WorkflowsClientDeps } from './features/workflows';
+export type { Duration, DurationObject } from '@hatchet/v1/client/duration';
+
+// REST API and the feature clients built on it, shared with the Node client
+export type { Api as RestApiClient } from '@hatchet/clients/rest/generated-fetch/Api';
+export type {
+  HttpResponse,
+  RequestParams,
+} from '@hatchet/clients/rest/generated-fetch/http-client';
+export type { RestApi, RestClientDeps, RestRequestParams } from '@hatchet/clients/rest/rest-api';
+export { restErrors } from '@hatchet/clients/rest/errors';
+export { RestRunsClient } from '@hatchet/clients/rest/runs';
+export type { ListRunsOpts, RunFilter as RestRunFilter } from '@hatchet/clients/rest/runs';
+export { CELClient } from '@hatchet/v1/client/features/cel';
+export type { CELEvaluationResult, DebugCELInput } from '@hatchet/v1/client/features/cel';
+export { CronClient } from '@hatchet/v1/client/features/crons';
+export type { CreateCronInput } from '@hatchet/v1/client/features/crons';
+export { FiltersClient } from '@hatchet/v1/client/features/filters';
+export { MetricsClient } from '@hatchet/v1/client/features/metrics';
+export type { TaskStatusMetrics } from '@hatchet/v1/client/features/metrics';
+export { ScheduleClient } from '@hatchet/v1/client/features/schedules';
+export type {
+  CreateScheduledRunInput,
+  UpdateScheduledRunInput,
+} from '@hatchet/v1/client/features/schedules';
+export { TenantClient } from '@hatchet/v1/client/features/tenant';
+export { WebhooksClient } from '@hatchet/v1/client/features/webhooks';
+export type { CreateWebhookOptions } from '@hatchet/v1/client/features/webhooks';
+export { WorkersClient } from '@hatchet/v1/client/features/workers';
+export {
+  WorkflowPauseScheduledCronRunQueueBehavior,
+  workflowNameString,
+} from '@hatchet/v1/client/features/workflows';
+export type { PauseWorkflowOpts } from '@hatchet/v1/client/features/workflows';
 
 // Transport
 export {
