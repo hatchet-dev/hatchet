@@ -1,7 +1,8 @@
 /**
  * The core entry point: the application client for runtimes without gRPC. It triggers runs,
- * pushes events, waits for results by polling and manages workflows over unary Connect calls
- * on a fetch transport, and it is configured from an explicit object only.
+ * pushes events, waits for results by polling, publishes to durable streams and manages
+ * workflows over unary Connect calls on a fetch transport, and it is configured from an
+ * explicit object only.
  *
  * Nothing exported here imports from Node. `scripts/check-edge-entry.mjs` bundles this module
  * for a browser-like target and fails the build if a Node builtin, `axios` or a gRPC package
@@ -41,6 +42,8 @@ export type {
   RunDetail,
   RunFilter,
   RunFilterBase,
+  StreamCallOptions,
+  StreamTopicMetadata,
   TaskRunDetail,
   TriggerRun,
   TriggerRunOptions,
@@ -53,7 +56,8 @@ export { WorkflowsClient } from './features/workflows';
 export { RateLimitsClient } from './features/rate-limits';
 export { LogsClient, MAX_LOG_LINE_CHARS } from './features/logs';
 export type { PutLogOptions } from './features/logs';
-export { StreamsClient } from './features/streams';
+export { StreamsClient, MAX_STREAM_MESSAGE_BYTES } from './features/streams';
+export type { StreamsClientDeps } from './features/streams';
 
 // Transport
 export {
