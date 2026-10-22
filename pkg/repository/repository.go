@@ -40,6 +40,7 @@ type Repository interface {
 	Workflows() WorkflowRepository
 	Ticker() TickerRepository
 	Filters() FilterRepository
+	ConcurrencyOverview() ConcurrencyOverviewRepository
 	Operators() OperatorRepository
 	Serverless() ServerlessRepository
 	Webhooks() WebhookRepository
@@ -61,42 +62,43 @@ type Repository interface {
 }
 
 type repositoryImpl struct {
-	apiToken          APITokenRepository
-	dispatcher        DispatcherRepository
-	durableEvents     DurableEventsRepository
-	health            HealthRepository
-	messageQueue      MessageQueueRepository
-	rateLimit         RateLimitRepository
-	triggers          TriggerRepository
-	tasks             TaskRepository
-	scheduler         SchedulerRepository
-	matches           MatchRepository
-	olap              OLAPRepository
-	logs              LogLineRepository
-	streams           StreamsRepository
-	workers           WorkerRepository
-	workflows         WorkflowRepository
-	ticker            TickerRepository
-	filters           FilterRepository
-	operators         OperatorRepository
-	serverless        ServerlessRepository
-	webhooks          WebhookRepository
-	payloadStore      PayloadStoreRepository
-	idempotency       IdempotencyRepository
-	intervals         IntervalSettingsRepository
-	pgHealth          PGHealthRepository
-	securityCheck     SecurityCheckRepository
-	slack             SlackRepository
-	sns               SNSRepository
-	tenantInvite      TenantInviteRepository
-	tenantLimit       TenantLimitRepository
-	tenantEntitlement TenantEntitlementRepository
-	tenantAlerting    TenantAlertingRepository
-	tenant            TenantRepository
-	user              UserRepository
-	userSession       UserSessionRepository
-	workflowSchedules WorkflowScheduleRepository
-	sync              SyncRepository
+	apiToken            APITokenRepository
+	dispatcher          DispatcherRepository
+	durableEvents       DurableEventsRepository
+	health              HealthRepository
+	messageQueue        MessageQueueRepository
+	rateLimit           RateLimitRepository
+	triggers            TriggerRepository
+	tasks               TaskRepository
+	scheduler           SchedulerRepository
+	matches             MatchRepository
+	olap                OLAPRepository
+	logs                LogLineRepository
+	streams             StreamsRepository
+	workers             WorkerRepository
+	workflows           WorkflowRepository
+	ticker              TickerRepository
+	filters             FilterRepository
+	concurrencyOverview ConcurrencyOverviewRepository
+	operators           OperatorRepository
+	serverless          ServerlessRepository
+	webhooks            WebhookRepository
+	payloadStore        PayloadStoreRepository
+	idempotency         IdempotencyRepository
+	intervals           IntervalSettingsRepository
+	pgHealth            PGHealthRepository
+	securityCheck       SecurityCheckRepository
+	slack               SlackRepository
+	sns                 SNSRepository
+	tenantInvite        TenantInviteRepository
+	tenantLimit         TenantLimitRepository
+	tenantEntitlement   TenantEntitlementRepository
+	tenantAlerting      TenantAlertingRepository
+	tenant              TenantRepository
+	user                UserRepository
+	userSession         UserSessionRepository
+	workflowSchedules   WorkflowScheduleRepository
+	sync                SyncRepository
 }
 
 func NewRepository(
@@ -119,42 +121,43 @@ func NewRepository(
 	mq, cleanupMq := newMessageQueueRepository(shared)
 
 	impl := &repositoryImpl{
-		apiToken:          newAPITokenRepository(shared, cacheDuration),
-		dispatcher:        newDispatcherRepository(shared),
-		durableEvents:     newDurableEventsRepository(shared, durableEventBufferOpts),
-		health:            newHealthRepository(shared),
-		messageQueue:      mq,
-		rateLimit:         newRateLimitRepository(shared),
-		triggers:          newTriggerRepository(shared),
-		tasks:             newTaskRepository(shared, taskRetentionPeriod, maxInternalRetryCount, taskLimits.TimeoutLimit, taskLimits.ReassignLimit, taskLimits.RetryQueueLimit, taskLimits.DurableSleepLimit),
-		scheduler:         newSchedulerRepository(shared),
-		matches:           newMatchRepository(shared),
-		olap:              newOLAPRepository(shared, olapRetentionPeriod, true, true, statusUpdateBatchSizeLimits),
-		logs:              newLogLineRepository(shared),
-		streams:           newStreamsRepository(shared),
-		workers:           newWorkerRepository(shared),
-		workflows:         newWorkflowRepository(shared),
-		ticker:            newTickerRepository(shared),
-		filters:           newFilterRepository(shared),
-		operators:         newOperatorRepository(shared),
-		serverless:        newServerlessRepository(shared),
-		webhooks:          newWebhookRepository(shared),
-		payloadStore:      shared.payloadStore,
-		idempotency:       newIdempotencyRepository(shared),
-		intervals:         newIntervalSettingsRepository(shared),
-		pgHealth:          newPGHealthRepository(shared),
-		securityCheck:     newSecurityCheckRepository(shared),
-		slack:             newSlackRepository(shared),
-		sns:               newSNSRepository(shared),
-		tenantInvite:      newTenantInviteRepository(shared),
-		tenantLimit:       shared.m,
-		tenantEntitlement: newTenantEntitlementRepository(shared),
-		tenantAlerting:    newTenantAlertingRepository(shared, cacheDuration),
-		tenant:            newTenantRepository(shared, cacheDuration),
-		user:              newUserRepository(shared),
-		userSession:       newUserSessionRepository(shared),
-		workflowSchedules: newWorkflowScheduleRepository(shared),
-		sync:              NewSyncRepository(pool, l),
+		apiToken:            newAPITokenRepository(shared, cacheDuration),
+		dispatcher:          newDispatcherRepository(shared),
+		durableEvents:       newDurableEventsRepository(shared, durableEventBufferOpts),
+		health:              newHealthRepository(shared),
+		messageQueue:        mq,
+		rateLimit:           newRateLimitRepository(shared),
+		triggers:            newTriggerRepository(shared),
+		tasks:               newTaskRepository(shared, taskRetentionPeriod, maxInternalRetryCount, taskLimits.TimeoutLimit, taskLimits.ReassignLimit, taskLimits.RetryQueueLimit, taskLimits.DurableSleepLimit),
+		scheduler:           newSchedulerRepository(shared),
+		matches:             newMatchRepository(shared),
+		olap:                newOLAPRepository(shared, olapRetentionPeriod, true, true, statusUpdateBatchSizeLimits),
+		logs:                newLogLineRepository(shared),
+		streams:             newStreamsRepository(shared),
+		workers:             newWorkerRepository(shared),
+		workflows:           newWorkflowRepository(shared),
+		ticker:              newTickerRepository(shared),
+		filters:             newFilterRepository(shared),
+		concurrencyOverview: newConcurrencyOverviewRepository(shared),
+		operators:           newOperatorRepository(shared),
+		serverless:          newServerlessRepository(shared),
+		webhooks:            newWebhookRepository(shared),
+		payloadStore:        shared.payloadStore,
+		idempotency:         newIdempotencyRepository(shared),
+		intervals:           newIntervalSettingsRepository(shared),
+		pgHealth:            newPGHealthRepository(shared),
+		securityCheck:       newSecurityCheckRepository(shared),
+		slack:               newSlackRepository(shared),
+		sns:                 newSNSRepository(shared),
+		tenantInvite:        newTenantInviteRepository(shared),
+		tenantLimit:         shared.m,
+		tenantEntitlement:   newTenantEntitlementRepository(shared),
+		tenantAlerting:      newTenantAlertingRepository(shared, cacheDuration),
+		tenant:              newTenantRepository(shared, cacheDuration),
+		user:                newUserRepository(shared),
+		userSession:         newUserSessionRepository(shared),
+		workflowSchedules:   newWorkflowScheduleRepository(shared),
+		sync:                NewSyncRepository(pool, l),
 	}
 
 	return impl, func() error {
@@ -254,6 +257,10 @@ func (r *repositoryImpl) Ticker() TickerRepository {
 
 func (r *repositoryImpl) Filters() FilterRepository {
 	return r.filters
+}
+
+func (r *repositoryImpl) ConcurrencyOverview() ConcurrencyOverviewRepository {
+	return r.concurrencyOverview
 }
 
 func (r *repositoryImpl) Operators() OperatorRepository {

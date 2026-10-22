@@ -1537,3 +1537,293 @@ FROM
 WHERE
     tenant_id = @tenantId::uuid AND
     id = ANY(@ids::bigint[]);
+
+-- name: ListTaskConcurrencyStrategiesForTenant :many
+-- Task-scoped strategies on the workflow's latest (non-deleted) version: excludes children
+-- of a workflow strategy and references to a tenant strategy.
+WITH latest AS (
+    SELECT DISTINCT ON (wv."workflowId")
+        wv."workflowId" AS workflow_id,
+        wv."id" AS workflow_version_id
+    FROM
+        "WorkflowVersion" wv
+    JOIN
+        "Workflow" w ON w."id" = wv."workflowId"
+    WHERE
+        w."tenantId" = @tenantId::uuid
+        AND w."deletedAt" IS NULL
+        AND wv."deletedAt" IS NULL
+    ORDER BY
+        wv."workflowId", wv."order" DESC
+)
+SELECT
+    sc.id,
+    sc.workflow_id,
+    sc.workflow_version_id,
+    sc.strategy,
+    sc.expression,
+    sc.max_concurrency,
+    sc.max_runs_expression,
+    sc.last_active_at,
+    w."name" AS workflow_name,
+    wv."version" AS workflow_version,
+    (CASE WHEN s."isDagOrchestrator" THEN w."name" ELSE s."readableId" END)::TEXT AS step_readable_id
+FROM
+    latest l
+JOIN
+    v1_step_concurrency sc ON sc.workflow_id = l.workflow_id AND sc.workflow_version_id = l.workflow_version_id
+JOIN
+    "Workflow" w ON w."id" = sc.workflow_id
+JOIN
+    "WorkflowVersion" wv ON wv."id" = sc.workflow_version_id
+JOIN
+    "Step" s ON s."id" = sc.step_id
+WHERE
+    sc.tenant_id = @tenantId::uuid
+    AND sc.is_active = TRUE
+    AND sc.parent_strategy_id IS NULL
+    AND sc.tenant_strategy_id IS NULL
+ORDER BY
+    sc.id;
+
+-- name: ListWorkflowConcurrencyStrategiesForTenant :many
+-- Workflow-scoped strategies on the workflow's latest (non-deleted) version.
+WITH latest AS (
+    SELECT DISTINCT ON (wv."workflowId")
+        wv."workflowId" AS workflow_id,
+        wv."id" AS workflow_version_id
+    FROM
+        "WorkflowVersion" wv
+    JOIN
+        "Workflow" w ON w."id" = wv."workflowId"
+    WHERE
+        w."tenantId" = @tenantId::uuid
+        AND w."deletedAt" IS NULL
+        AND wv."deletedAt" IS NULL
+    ORDER BY
+        wv."workflowId", wv."order" DESC
+)
+SELECT
+    wc.id,
+    wc.workflow_id,
+    wc.workflow_version_id,
+    wc.strategy,
+    wc.expression,
+    wc.max_concurrency,
+    w."name" AS workflow_name,
+    wv."version" AS workflow_version
+FROM
+    latest l
+JOIN
+    v1_workflow_concurrency wc ON wc.workflow_id = l.workflow_id AND wc.workflow_version_id = l.workflow_version_id
+JOIN
+    "Workflow" w ON w."id" = wc.workflow_id
+JOIN
+    "WorkflowVersion" wv ON wv."id" = wc.workflow_version_id
+WHERE
+    wc.tenant_id = @tenantId::uuid
+    AND wc.is_active = TRUE
+ORDER BY
+    wc.id;
+
+-- name: ListTenantConcurrencyStrategyUsage :many
+-- Steps on each workflow's latest (non-deleted) version that reference a tenant strategy.
+WITH latest AS (
+    SELECT DISTINCT ON (wv."workflowId")
+        wv."workflowId" AS workflow_id,
+        wv."id" AS workflow_version_id
+    FROM
+        "WorkflowVersion" wv
+    JOIN
+        "Workflow" w ON w."id" = wv."workflowId"
+    WHERE
+        w."tenantId" = @tenantId::uuid
+        AND w."deletedAt" IS NULL
+        AND wv."deletedAt" IS NULL
+    ORDER BY
+        wv."workflowId", wv."order" DESC
+)
+SELECT
+    sc.tenant_strategy_id::BIGINT AS tenant_strategy_id,
+    sc.workflow_id,
+    w."name" AS workflow_name,
+    (CASE WHEN s."isDagOrchestrator" THEN w."name" ELSE s."readableId" END)::TEXT AS step_readable_id
+FROM
+    latest l
+JOIN
+    v1_step_concurrency sc ON sc.workflow_id = l.workflow_id AND sc.workflow_version_id = l.workflow_version_id
+JOIN
+    "Workflow" w ON w."id" = sc.workflow_id
+JOIN
+    "Step" s ON s."id" = sc.step_id
+WHERE
+    sc.tenant_id = @tenantId::uuid
+    AND sc.tenant_strategy_id IS NOT NULL
+ORDER BY
+    sc.tenant_strategy_id, w."name", step_readable_id;
+
+-- name: ListConcurrencySlotStatsForTenant :many
+-- Per-strategy slot counts for task-scoped and tenant strategies. Child slots of a workflow
+-- strategy are excluded; see ListWorkflowConcurrencySlotStatsForTenant. A queued slot's
+-- queue start is approximated by its task's insert time.
+WITH slots AS MATERIALIZED (
+    SELECT strategy_id, key, is_filled, task_inserted_at, sort_id
+    FROM v1_concurrency_slot
+    WHERE tenant_id = @tenantId::uuid AND parent_strategy_id IS NULL
+), oldest AS (
+    SELECT DISTINCT ON (strategy_id)
+        strategy_id, key, task_inserted_at
+    FROM slots
+    WHERE NOT is_filled
+    ORDER BY strategy_id, task_inserted_at, sort_id
+), counts AS (
+    SELECT
+        strategy_id,
+        COUNT(DISTINCT key)::BIGINT AS key_count,
+        (COUNT(DISTINCT key) FILTER (WHERE NOT is_filled))::BIGINT AS queued_key_count,
+        (COUNT(*) FILTER (WHERE is_filled))::BIGINT AS running_count,
+        (COUNT(*) FILTER (WHERE NOT is_filled))::BIGINT AS queued_count
+    FROM slots
+    GROUP BY strategy_id
+)
+SELECT
+    c.strategy_id,
+    c.key_count,
+    c.queued_key_count,
+    c.running_count,
+    c.queued_count,
+    o.task_inserted_at::TIMESTAMPTZ AS oldest_queued_at,
+    COALESCE(o.key, '')::TEXT AS oldest_queued_key
+FROM
+    counts c
+LEFT JOIN
+    oldest o ON o.strategy_id = c.strategy_id;
+
+-- name: ListWorkflowConcurrencySlotStatsForTenant :many
+-- Per-strategy workflow slot counts. A workflow slot has no timestamp: its sort_id is
+-- copied from the child slot that created it (after_v1_concurrency_slot_insert_function),
+-- so a queued slot's queue start is that child's task insert time, found with an exact
+-- seek on v1_concurrency_slot_query_idx.
+WITH slots AS MATERIALIZED (
+    SELECT
+        wcs.strategy_id,
+        wcs.key,
+        wcs.is_filled,
+        wcs.sort_id,
+        cs.task_inserted_at AS queued_since
+    FROM
+        v1_workflow_concurrency_slot wcs
+    LEFT JOIN
+        v1_concurrency_slot cs ON NOT wcs.is_filled
+            AND cs.tenant_id = wcs.tenant_id
+            AND cs.strategy_id = ANY(wcs.child_strategy_ids)
+            AND cs.key = wcs.key
+            AND cs.sort_id = wcs.sort_id
+    WHERE
+        wcs.tenant_id = @tenantId::uuid
+), oldest AS (
+    SELECT DISTINCT ON (strategy_id)
+        strategy_id, key, queued_since
+    FROM slots
+    WHERE NOT is_filled AND queued_since IS NOT NULL
+    ORDER BY strategy_id, queued_since, sort_id
+), counts AS (
+    SELECT
+        strategy_id,
+        COUNT(DISTINCT key)::BIGINT AS key_count,
+        (COUNT(DISTINCT key) FILTER (WHERE NOT is_filled))::BIGINT AS queued_key_count,
+        (COUNT(*) FILTER (WHERE is_filled))::BIGINT AS running_count,
+        (COUNT(*) FILTER (WHERE NOT is_filled))::BIGINT AS queued_count
+    FROM slots
+    GROUP BY strategy_id
+)
+SELECT
+    c.strategy_id,
+    c.key_count,
+    c.queued_key_count,
+    c.running_count,
+    c.queued_count,
+    o.queued_since::TIMESTAMPTZ AS oldest_queued_at,
+    COALESCE(o.key, '')::TEXT AS oldest_queued_key
+FROM
+    counts c
+LEFT JOIN
+    oldest o ON o.strategy_id = c.strategy_id;
+
+-- name: ListConcurrencyKeys :many
+-- Keys of a task-scoped or tenant strategy, most queued first. A key's effective max runs
+-- is the max_runs of its most recently created slot, falling back to the strategy's static
+-- limit.
+WITH keys AS (
+    SELECT
+        key,
+        (COUNT(*) FILTER (WHERE is_filled))::BIGINT AS running_count,
+        (COUNT(*) FILTER (WHERE NOT is_filled))::BIGINT AS queued_count,
+        (MIN(task_inserted_at) FILTER (WHERE NOT is_filled))::TIMESTAMPTZ AS oldest_queued_at,
+        (ARRAY_AGG(max_runs ORDER BY sort_id DESC))[1] AS latest_max_runs
+    FROM
+        v1_concurrency_slot
+    WHERE
+        tenant_id = @tenantId::uuid
+        AND strategy_id = @strategyId::bigint
+        AND (
+            sqlc.narg('search')::TEXT IS NULL
+            OR strpos(lower(key), lower(sqlc.narg('search')::TEXT)) > 0
+        )
+    GROUP BY
+        key
+)
+SELECT
+    key,
+    running_count,
+    queued_count,
+    oldest_queued_at,
+    COALESCE(latest_max_runs, @defaultMaxRuns::INTEGER)::INTEGER AS max_runs,
+    COUNT(*) OVER ()::BIGINT AS total
+FROM
+    keys
+WHERE
+    NOT @onlyQueued::BOOLEAN OR queued_count > 0
+ORDER BY
+    queued_count DESC, oldest_queued_at ASC NULLS LAST, key ASC
+OFFSET @keyOffset::BIGINT
+LIMIT @keyLimit::BIGINT;
+
+-- name: ListWorkflowConcurrencyKeys :many
+-- Keys of a workflow strategy, most queued first. Queue start is derived as in
+-- ListWorkflowConcurrencySlotStatsForTenant.
+WITH keys AS (
+    SELECT
+        wcs.key,
+        (COUNT(*) FILTER (WHERE wcs.is_filled))::BIGINT AS running_count,
+        (COUNT(*) FILTER (WHERE NOT wcs.is_filled))::BIGINT AS queued_count,
+        MIN(cs.task_inserted_at)::TIMESTAMPTZ AS oldest_queued_at
+    FROM
+        v1_workflow_concurrency_slot wcs
+    LEFT JOIN
+        v1_concurrency_slot cs ON NOT wcs.is_filled
+            AND cs.tenant_id = wcs.tenant_id
+            AND cs.strategy_id = ANY(wcs.child_strategy_ids)
+            AND cs.key = wcs.key
+            AND cs.sort_id = wcs.sort_id
+    WHERE
+        wcs.tenant_id = @tenantId::uuid
+        AND wcs.strategy_id = @strategyId::bigint
+        AND (
+            sqlc.narg('search')::TEXT IS NULL
+            OR strpos(lower(wcs.key), lower(sqlc.narg('search')::TEXT)) > 0
+        )
+    GROUP BY
+        wcs.key
+)
+SELECT
+    *,
+    COUNT(*) OVER ()::BIGINT AS total
+FROM
+    keys
+WHERE
+    NOT @onlyQueued::BOOLEAN OR queued_count > 0
+ORDER BY
+    queued_count DESC, oldest_queued_at ASC NULLS LAST, key ASC
+OFFSET @keyOffset::BIGINT
+LIMIT @keyLimit::BIGINT;

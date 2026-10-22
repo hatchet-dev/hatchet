@@ -1,0 +1,183 @@
+V1ConcurrencyScope:
+  type: string
+  description: Where a concurrency strategy is defined. SHARED strategies are named, tenant-wide and can be used by tasks in several workflows.
+  enum:
+    - SHARED
+    - WORKFLOW
+    - TASK
+  x-enum-varnames:
+    - V1ConcurrencyScopeShared
+    - V1ConcurrencyScopeWorkflow
+    - V1ConcurrencyScopeTask
+
+V1ConcurrencyLimitStrategy:
+  type: string
+  description: What happens to a run when its key has no free slot. NONE is the database default and is not set on registered strategies.
+  enum:
+    - NONE
+    - GROUP_ROUND_ROBIN
+    - CANCEL_IN_PROGRESS
+    - CANCEL_NEWEST
+    - CANCEL_QUEUED_EXCEPT_NEWEST
+    - CANCEL_QUEUED_EXCEPT_OLDEST
+  x-enum-varnames:
+    - V1ConcurrencyLimitStrategyNone
+    - V1ConcurrencyLimitStrategyGroupRoundRobin
+    - V1ConcurrencyLimitStrategyCancelInProgress
+    - V1ConcurrencyLimitStrategyCancelNewest
+    - V1ConcurrencyLimitStrategyCancelQueuedExceptNewest
+    - V1ConcurrencyLimitStrategyCancelQueuedExceptOldest
+
+V1ConcurrencyStrategyUsage:
+  type: object
+  properties:
+    workflowId:
+      type: string
+      format: uuid
+      minLength: 36
+      maxLength: 36
+    workflowName:
+      type: string
+    taskName:
+      type: string
+  required:
+    - workflowId
+    - workflowName
+    - taskName
+
+V1ConcurrencyStrategy:
+  type: object
+  properties:
+    id:
+      type: integer
+      format: int64
+      description: The strategy id. Unique within a scope; WORKFLOW ids can collide with SHARED and TASK ids.
+    scope:
+      $ref: "#/V1ConcurrencyScope"
+    name:
+      type: string
+      description: The shared strategy's name, the workflow name for WORKFLOW strategies, or the task name for TASK strategies.
+    workflowId:
+      type: string
+      format: uuid
+      minLength: 36
+      maxLength: 36
+      description: The workflow the strategy is defined on. Unset for SHARED strategies.
+    workflowName:
+      type: string
+      description: Unset for SHARED strategies.
+    workflowVersionId:
+      type: string
+      format: uuid
+      minLength: 36
+      maxLength: 36
+      description: The workflow version the strategy is attached to. Unset for SHARED strategies.
+    workflowVersion:
+      type: string
+      description: The workflow version's user-defined label, when one was set. Unset for SHARED strategies.
+    taskName:
+      type: string
+      description: The task the strategy is defined on. Only set for TASK strategies.
+    usedBy:
+      type: array
+      description: Tasks on their workflow's latest version that use this strategy. Only set for SHARED strategies.
+      items:
+        $ref: "#/V1ConcurrencyStrategyUsage"
+    expression:
+      type: string
+      description: The CEL expression that computes a run's key.
+    limitStrategy:
+      $ref: "#/V1ConcurrencyLimitStrategy"
+    maxRuns:
+      type: integer
+      format: int32
+      description: The static max runs per key.
+    maxRunsExpression:
+      type: string
+      description: CEL expression computing max runs per key from the task input, when set. Overrides maxRuns.
+    keyCount:
+      type: integer
+      format: int64
+      description: Keys with at least one run running or queued.
+    queuedKeyCount:
+      type: integer
+      format: int64
+      description: Keys with at least one queued run.
+    runningCount:
+      type: integer
+      format: int64
+      description: Running runs, each holding a slot.
+    queuedCount:
+      type: integer
+      format: int64
+      description: Queued runs.
+    oldestQueuedAt:
+      type: string
+      format: date-time
+      description: When the longest-queued run was created. Unset when nothing is queued.
+    oldestQueuedKey:
+      type: string
+      description: The key of the longest-queued run. Unset when nothing is queued.
+  required:
+    - id
+    - scope
+    - name
+    - expression
+    - limitStrategy
+    - maxRuns
+    - keyCount
+    - queuedKeyCount
+    - runningCount
+    - queuedCount
+
+V1ConcurrencyStrategyList:
+  type: object
+  properties:
+    rows:
+      type: array
+      items:
+        $ref: "#/V1ConcurrencyStrategy"
+  required:
+    - rows
+
+V1ConcurrencyKey:
+  type: object
+  properties:
+    key:
+      type: string
+    maxRuns:
+      type: integer
+      format: int32
+      description: The effective max runs for this key. With a max runs expression, this is the value evaluated for the key's most recent run.
+    runningCount:
+      type: integer
+      format: int64
+    queuedCount:
+      type: integer
+      format: int64
+    oldestQueuedAt:
+      type: string
+      format: date-time
+      description: When the longest-queued run on this key was created. Unset when nothing is queued.
+  required:
+    - key
+    - maxRuns
+    - runningCount
+    - queuedCount
+
+V1ConcurrencyKeyList:
+  type: object
+  properties:
+    pagination:
+      $ref: "../metadata.yaml#/PaginationResponse"
+    rows:
+      type: array
+      items:
+        $ref: "#/V1ConcurrencyKey"
+    total:
+      type: integer
+      format: int64
+      description: The number of keys matching the filters, across all pages.
+  required:
+    - rows
+    - total

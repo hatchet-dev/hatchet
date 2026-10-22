@@ -270,6 +270,23 @@ export enum V1WebhookSourceName {
   SVIX = "SVIX",
 }
 
+/** What happens to a run when its key has no free slot. NONE is the database default and is not set on registered strategies. */
+export enum V1ConcurrencyLimitStrategy {
+  V1ConcurrencyLimitStrategyNone = "NONE",
+  V1ConcurrencyLimitStrategyGroupRoundRobin = "GROUP_ROUND_ROBIN",
+  V1ConcurrencyLimitStrategyCancelInProgress = "CANCEL_IN_PROGRESS",
+  V1ConcurrencyLimitStrategyCancelNewest = "CANCEL_NEWEST",
+  V1ConcurrencyLimitStrategyCancelQueuedExceptNewest = "CANCEL_QUEUED_EXCEPT_NEWEST",
+  V1ConcurrencyLimitStrategyCancelQueuedExceptOldest = "CANCEL_QUEUED_EXCEPT_OLDEST",
+}
+
+/** Where a concurrency strategy is defined. SHARED strategies are named, tenant-wide and can be used by tasks in several workflows. */
+export enum V1ConcurrencyScope {
+  V1ConcurrencyScopeShared = "SHARED",
+  V1ConcurrencyScopeWorkflow = "WORKFLOW",
+  V1ConcurrencyScopeTask = "TASK",
+}
+
 export enum TenantEnvironment {
   Local = "local",
   Development = "development",
@@ -1110,6 +1127,121 @@ export interface V1EventList {
 export interface EventKeyList {
   pagination?: PaginationResponse;
   rows?: EventKey[];
+}
+
+export interface V1ConcurrencyStrategyUsage {
+  /**
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  workflowId: string;
+  workflowName: string;
+  taskName: string;
+}
+
+export interface V1ConcurrencyStrategy {
+  /**
+   * The strategy id. Unique within a scope; WORKFLOW ids can collide with SHARED and TASK ids.
+   * @format int64
+   */
+  id: number;
+  /** Where a concurrency strategy is defined. SHARED strategies are named, tenant-wide and can be used by tasks in several workflows. */
+  scope: V1ConcurrencyScope;
+  /** The shared strategy's name, the workflow name for WORKFLOW strategies, or the task name for TASK strategies. */
+  name: string;
+  /**
+   * The workflow the strategy is defined on. Unset for SHARED strategies.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  workflowId?: string;
+  /** Unset for SHARED strategies. */
+  workflowName?: string;
+  /**
+   * The workflow version the strategy is attached to. Unset for SHARED strategies.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  workflowVersionId?: string;
+  /** The workflow version's user-defined label, when one was set. Unset for SHARED strategies. */
+  workflowVersion?: string;
+  /** The task the strategy is defined on. Only set for TASK strategies. */
+  taskName?: string;
+  /** Tasks on their workflow's latest version that use this strategy. Only set for SHARED strategies. */
+  usedBy?: V1ConcurrencyStrategyUsage[];
+  /** The CEL expression that computes a run's key. */
+  expression: string;
+  /** What happens to a run when its key has no free slot. NONE is the database default and is not set on registered strategies. */
+  limitStrategy: V1ConcurrencyLimitStrategy;
+  /**
+   * The static max runs per key.
+   * @format int32
+   */
+  maxRuns: number;
+  /** CEL expression computing max runs per key from the task input, when set. Overrides maxRuns. */
+  maxRunsExpression?: string;
+  /**
+   * Keys with at least one run running or queued.
+   * @format int64
+   */
+  keyCount: number;
+  /**
+   * Keys with at least one queued run.
+   * @format int64
+   */
+  queuedKeyCount: number;
+  /**
+   * Running runs, each holding a slot.
+   * @format int64
+   */
+  runningCount: number;
+  /**
+   * Queued runs.
+   * @format int64
+   */
+  queuedCount: number;
+  /**
+   * When the longest-queued run was created. Unset when nothing is queued.
+   * @format date-time
+   */
+  oldestQueuedAt?: string;
+  /** The key of the longest-queued run. Unset when nothing is queued. */
+  oldestQueuedKey?: string;
+}
+
+export interface V1ConcurrencyStrategyList {
+  rows: V1ConcurrencyStrategy[];
+}
+
+export interface V1ConcurrencyKey {
+  key: string;
+  /**
+   * The effective max runs for this key. With a max runs expression, this is the value evaluated for the key's most recent run.
+   * @format int32
+   */
+  maxRuns: number;
+  /** @format int64 */
+  runningCount: number;
+  /** @format int64 */
+  queuedCount: number;
+  /**
+   * When the longest-queued run on this key was created. Unset when nothing is queued.
+   * @format date-time
+   */
+  oldestQueuedAt?: string;
+}
+
+export interface V1ConcurrencyKeyList {
+  pagination?: PaginationResponse;
+  rows: V1ConcurrencyKey[];
+  /**
+   * The number of keys matching the filters, across all pages.
+   * @format int64
+   */
+  total: number;
 }
 
 export interface V1Filter {

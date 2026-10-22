@@ -227,6 +227,23 @@ const (
 	V1CELDebugResponseStatusSUCCESS V1CELDebugResponseStatus = "SUCCESS"
 )
 
+// Defines values for V1ConcurrencyLimitStrategy.
+const (
+	V1ConcurrencyLimitStrategyCancelInProgress         V1ConcurrencyLimitStrategy = "CANCEL_IN_PROGRESS"
+	V1ConcurrencyLimitStrategyCancelNewest             V1ConcurrencyLimitStrategy = "CANCEL_NEWEST"
+	V1ConcurrencyLimitStrategyCancelQueuedExceptNewest V1ConcurrencyLimitStrategy = "CANCEL_QUEUED_EXCEPT_NEWEST"
+	V1ConcurrencyLimitStrategyCancelQueuedExceptOldest V1ConcurrencyLimitStrategy = "CANCEL_QUEUED_EXCEPT_OLDEST"
+	V1ConcurrencyLimitStrategyGroupRoundRobin          V1ConcurrencyLimitStrategy = "GROUP_ROUND_ROBIN"
+	V1ConcurrencyLimitStrategyNone                     V1ConcurrencyLimitStrategy = "NONE"
+)
+
+// Defines values for V1ConcurrencyScope.
+const (
+	V1ConcurrencyScopeShared   V1ConcurrencyScope = "SHARED"
+	V1ConcurrencyScopeTask     V1ConcurrencyScope = "TASK"
+	V1ConcurrencyScopeWorkflow V1ConcurrencyScope = "WORKFLOW"
+)
+
 // Defines values for V1CreateWebhookRequestAPIKeyAuthType.
 const (
 	V1CreateWebhookRequestAPIKeyAuthTypeAPIKEY V1CreateWebhookRequestAPIKeyAuthType = "API_KEY"
@@ -1601,6 +1618,106 @@ type V1CancelledTasks struct {
 	Ids *[]openapi_types.UUID `json:"ids,omitempty"`
 }
 
+// V1ConcurrencyKey defines model for V1ConcurrencyKey.
+type V1ConcurrencyKey struct {
+	Key string `json:"key"`
+
+	// MaxRuns The effective max runs for this key. With a max runs expression, this is the value evaluated for the key's most recent run.
+	MaxRuns int32 `json:"maxRuns"`
+
+	// OldestQueuedAt When the longest-queued run on this key was created. Unset when nothing is queued.
+	OldestQueuedAt *time.Time `json:"oldestQueuedAt,omitempty"`
+	QueuedCount    int64      `json:"queuedCount"`
+	RunningCount   int64      `json:"runningCount"`
+}
+
+// V1ConcurrencyKeyList defines model for V1ConcurrencyKeyList.
+type V1ConcurrencyKeyList struct {
+	Pagination *PaginationResponse `json:"pagination,omitempty"`
+	Rows       []V1ConcurrencyKey  `json:"rows"`
+
+	// Total The number of keys matching the filters, across all pages.
+	Total int64 `json:"total"`
+}
+
+// V1ConcurrencyLimitStrategy What happens to a run when its key has no free slot. NONE is the database default and is not set on registered strategies.
+type V1ConcurrencyLimitStrategy string
+
+// V1ConcurrencyScope Where a concurrency strategy is defined. SHARED strategies are named, tenant-wide and can be used by tasks in several workflows.
+type V1ConcurrencyScope string
+
+// V1ConcurrencyStrategy defines model for V1ConcurrencyStrategy.
+type V1ConcurrencyStrategy struct {
+	// Expression The CEL expression that computes a run's key.
+	Expression string `json:"expression"`
+
+	// Id The strategy id. Unique within a scope; WORKFLOW ids can collide with SHARED and TASK ids.
+	Id int64 `json:"id"`
+
+	// KeyCount Keys with at least one run running or queued.
+	KeyCount int64 `json:"keyCount"`
+
+	// LimitStrategy What happens to a run when its key has no free slot. NONE is the database default and is not set on registered strategies.
+	LimitStrategy V1ConcurrencyLimitStrategy `json:"limitStrategy"`
+
+	// MaxRuns The static max runs per key.
+	MaxRuns int32 `json:"maxRuns"`
+
+	// MaxRunsExpression CEL expression computing max runs per key from the task input, when set. Overrides maxRuns.
+	MaxRunsExpression *string `json:"maxRunsExpression,omitempty"`
+
+	// Name The shared strategy's name, the workflow name for WORKFLOW strategies, or the task name for TASK strategies.
+	Name string `json:"name"`
+
+	// OldestQueuedAt When the longest-queued run was created. Unset when nothing is queued.
+	OldestQueuedAt *time.Time `json:"oldestQueuedAt,omitempty"`
+
+	// OldestQueuedKey The key of the longest-queued run. Unset when nothing is queued.
+	OldestQueuedKey *string `json:"oldestQueuedKey,omitempty"`
+
+	// QueuedCount Queued runs.
+	QueuedCount int64 `json:"queuedCount"`
+
+	// QueuedKeyCount Keys with at least one queued run.
+	QueuedKeyCount int64 `json:"queuedKeyCount"`
+
+	// RunningCount Running runs, each holding a slot.
+	RunningCount int64 `json:"runningCount"`
+
+	// Scope Where a concurrency strategy is defined. SHARED strategies are named, tenant-wide and can be used by tasks in several workflows.
+	Scope V1ConcurrencyScope `json:"scope"`
+
+	// TaskName The task the strategy is defined on. Only set for TASK strategies.
+	TaskName *string `json:"taskName,omitempty"`
+
+	// UsedBy Tasks on their workflow's latest version that use this strategy. Only set for SHARED strategies.
+	UsedBy *[]V1ConcurrencyStrategyUsage `json:"usedBy,omitempty"`
+
+	// WorkflowId The workflow the strategy is defined on. Unset for SHARED strategies.
+	WorkflowId *openapi_types.UUID `json:"workflowId,omitempty"`
+
+	// WorkflowName Unset for SHARED strategies.
+	WorkflowName *string `json:"workflowName,omitempty"`
+
+	// WorkflowVersion The workflow version's user-defined label, when one was set. Unset for SHARED strategies.
+	WorkflowVersion *string `json:"workflowVersion,omitempty"`
+
+	// WorkflowVersionId The workflow version the strategy is attached to. Unset for SHARED strategies.
+	WorkflowVersionId *openapi_types.UUID `json:"workflowVersionId,omitempty"`
+}
+
+// V1ConcurrencyStrategyList defines model for V1ConcurrencyStrategyList.
+type V1ConcurrencyStrategyList struct {
+	Rows []V1ConcurrencyStrategy `json:"rows"`
+}
+
+// V1ConcurrencyStrategyUsage defines model for V1ConcurrencyStrategyUsage.
+type V1ConcurrencyStrategyUsage struct {
+	TaskName     string             `json:"taskName"`
+	WorkflowId   openapi_types.UUID `json:"workflowId"`
+	WorkflowName string             `json:"workflowName"`
+}
+
 // V1CreateFilterRequest defines model for V1CreateFilterRequest.
 type V1CreateFilterRequest struct {
 	// Expression The expression for the filter
@@ -2952,6 +3069,21 @@ type V1TaskEventListParams struct {
 	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// V1ConcurrencyKeyListParams defines parameters for V1ConcurrencyKeyList.
+type V1ConcurrencyKeyListParams struct {
+	// Search Only return keys containing this string (case-insensitive)
+	Search *string `form:"search,omitempty" json:"search,omitempty"`
+
+	// OnlyQueued Only return keys with at least one queued run
+	OnlyQueued *bool `form:"onlyQueued,omitempty" json:"onlyQueued,omitempty"`
+
+	// Offset The number to skip
+	Offset *int64 `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// Limit The number to limit by
+	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // V1DurableTaskEventLogListParams defines parameters for V1DurableTaskEventLogList.
 type V1DurableTaskEventLogListParams struct {
 	// Offset The number of event log entries to skip
@@ -3993,6 +4125,12 @@ type ClientInterface interface {
 
 	V1CelDebug(ctx context.Context, tenant openapi_types.UUID, body V1CelDebugJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// V1ConcurrencyStrategyList request
+	V1ConcurrencyStrategyList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1ConcurrencyKeyList request
+	V1ConcurrencyKeyList(ctx context.Context, tenant openapi_types.UUID, scope V1ConcurrencyScope, strategy int64, params *V1ConcurrencyKeyListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// V1DurableTaskBranchWithBody request with any body
 	V1DurableTaskBranchWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -4758,6 +4896,30 @@ func (c *Client) V1CelDebugWithBody(ctx context.Context, tenant openapi_types.UU
 
 func (c *Client) V1CelDebug(ctx context.Context, tenant openapi_types.UUID, body V1CelDebugJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewV1CelDebugRequest(c.Server, tenant, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1ConcurrencyStrategyList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1ConcurrencyStrategyListRequest(c.Server, tenant)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1ConcurrencyKeyList(ctx context.Context, tenant openapi_types.UUID, scope V1ConcurrencyScope, strategy int64, params *V1ConcurrencyKeyListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1ConcurrencyKeyListRequest(c.Server, tenant, scope, strategy, params)
 	if err != nil {
 		return nil, err
 	}
@@ -7762,6 +7924,158 @@ func NewV1CelDebugRequestWithBody(server string, tenant openapi_types.UUID, cont
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewV1ConcurrencyStrategyListRequest generates requests for V1ConcurrencyStrategyList
+func NewV1ConcurrencyStrategyListRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/concurrency/strategies", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1ConcurrencyKeyListRequest generates requests for V1ConcurrencyKeyList
+func NewV1ConcurrencyKeyListRequest(server string, tenant openapi_types.UUID, scope V1ConcurrencyScope, strategy int64, params *V1ConcurrencyKeyListParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "scope", runtime.ParamLocationPath, scope)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "strategy", runtime.ParamLocationPath, strategy)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/concurrency/strategies/%s/%s/keys", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Search != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "search", runtime.ParamLocationQuery, *params.Search); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.OnlyQueued != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "onlyQueued", runtime.ParamLocationQuery, *params.OnlyQueued); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -15706,6 +16020,12 @@ type ClientWithResponsesInterface interface {
 
 	V1CelDebugWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1CelDebugJSONRequestBody, reqEditors ...RequestEditorFn) (*V1CelDebugResponse, error)
 
+	// V1ConcurrencyStrategyListWithResponse request
+	V1ConcurrencyStrategyListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1ConcurrencyStrategyListResponse, error)
+
+	// V1ConcurrencyKeyListWithResponse request
+	V1ConcurrencyKeyListWithResponse(ctx context.Context, tenant openapi_types.UUID, scope V1ConcurrencyScope, strategy int64, params *V1ConcurrencyKeyListParams, reqEditors ...RequestEditorFn) (*V1ConcurrencyKeyListResponse, error)
+
 	// V1DurableTaskBranchWithBodyWithResponse request with any body
 	V1DurableTaskBranchWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1DurableTaskBranchResponse, error)
 
@@ -16713,6 +17033,55 @@ func (r V1CelDebugResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r V1CelDebugResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1ConcurrencyStrategyListResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1ConcurrencyStrategyList
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1ConcurrencyStrategyListResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1ConcurrencyStrategyListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1ConcurrencyKeyListResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1ConcurrencyKeyList
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1ConcurrencyKeyListResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1ConcurrencyKeyListResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -20076,6 +20445,24 @@ func (c *ClientWithResponses) V1CelDebugWithResponse(ctx context.Context, tenant
 	return ParseV1CelDebugResponse(rsp)
 }
 
+// V1ConcurrencyStrategyListWithResponse request returning *V1ConcurrencyStrategyListResponse
+func (c *ClientWithResponses) V1ConcurrencyStrategyListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1ConcurrencyStrategyListResponse, error) {
+	rsp, err := c.V1ConcurrencyStrategyList(ctx, tenant, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1ConcurrencyStrategyListResponse(rsp)
+}
+
+// V1ConcurrencyKeyListWithResponse request returning *V1ConcurrencyKeyListResponse
+func (c *ClientWithResponses) V1ConcurrencyKeyListWithResponse(ctx context.Context, tenant openapi_types.UUID, scope V1ConcurrencyScope, strategy int64, params *V1ConcurrencyKeyListParams, reqEditors ...RequestEditorFn) (*V1ConcurrencyKeyListResponse, error) {
+	rsp, err := c.V1ConcurrencyKeyList(ctx, tenant, scope, strategy, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1ConcurrencyKeyListResponse(rsp)
+}
+
 // V1DurableTaskBranchWithBodyWithResponse request with arbitrary body returning *V1DurableTaskBranchResponse
 func (c *ClientWithResponses) V1DurableTaskBranchWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1DurableTaskBranchResponse, error) {
 	rsp, err := c.V1DurableTaskBranchWithBody(ctx, tenant, contentType, body, reqEditors...)
@@ -22440,6 +22827,93 @@ func ParseV1CelDebugResponse(rsp *http.Response) (*V1CelDebugResponse, error) {
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1ConcurrencyStrategyListResponse parses an HTTP response from a V1ConcurrencyStrategyListWithResponse call
+func ParseV1ConcurrencyStrategyListResponse(rsp *http.Response) (*V1ConcurrencyStrategyListResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1ConcurrencyStrategyListResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1ConcurrencyStrategyList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1ConcurrencyKeyListResponse parses an HTTP response from a V1ConcurrencyKeyListWithResponse call
+func ParseV1ConcurrencyKeyListResponse(rsp *http.Response) (*V1ConcurrencyKeyListResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1ConcurrencyKeyListResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1ConcurrencyKeyList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	}
 

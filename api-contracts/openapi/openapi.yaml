@@ -77,6 +77,10 @@ paths:
     $ref: "./paths/v1/events/event.yaml#/V1EventGet"
   /api/v1/stable/tenants/{tenant}/events/keys:
     $ref: "./paths/v1/events/event.yaml#/keys"
+  /api/v1/stable/tenants/{tenant}/concurrency/strategies:
+    $ref: "./paths/v1/concurrency/concurrency.yaml#/V1ConcurrencyStrategyList"
+  /api/v1/stable/tenants/{tenant}/concurrency/strategies/{scope}/{strategy}/keys:
+    $ref: "./paths/v1/concurrency/concurrency.yaml#/V1ConcurrencyKeyList"
   /api/v1/stable/tenants/{tenant}/filters:
     $ref: "./paths/v1/filters/filter.yaml#/V1FilterListCreate"
   /api/v1/stable/tenants/{tenant}/filters/{v1-filter}:

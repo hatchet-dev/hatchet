@@ -1,5 +1,4 @@
 import { isQueuedOnlyRoot } from '../utils/span-tree-utils';
-import { useLiveClock } from '../utils/use-live-clock';
 import { TimelineBars } from './trace-timeline-bars';
 import { TimelineLabels } from './trace-timeline-labels';
 import {
@@ -11,6 +10,7 @@ import {
   type VisibleRange,
 } from './trace-timeline-utils';
 import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
+import { useLiveClock } from '@/hooks/use-live-clock';
 import { useMemo, useCallback, useRef, useState } from 'react';
 
 export type { VisibleRange } from './trace-timeline-utils';

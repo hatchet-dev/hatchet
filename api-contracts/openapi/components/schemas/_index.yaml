@@ -118,6 +118,20 @@ V1Event:
   $ref: "./v1/event.yaml#/V1Event"
 V1EventList:
   $ref: "./v1/event.yaml#/V1EventList"
+V1ConcurrencyScope:
+  $ref: "./v1/concurrency.yaml#/V1ConcurrencyScope"
+V1ConcurrencyLimitStrategy:
+  $ref: "./v1/concurrency.yaml#/V1ConcurrencyLimitStrategy"
+V1ConcurrencyStrategyUsage:
+  $ref: "./v1/concurrency.yaml#/V1ConcurrencyStrategyUsage"
+V1ConcurrencyStrategy:
+  $ref: "./v1/concurrency.yaml#/V1ConcurrencyStrategy"
+V1ConcurrencyStrategyList:
+  $ref: "./v1/concurrency.yaml#/V1ConcurrencyStrategyList"
+V1ConcurrencyKey:
+  $ref: "./v1/concurrency.yaml#/V1ConcurrencyKey"
+V1ConcurrencyKeyList:
+  $ref: "./v1/concurrency.yaml#/V1ConcurrencyKeyList"
 V1FilterList:
   $ref: "./v1/filter.yaml#/V1FilterList"
 V1Filter:

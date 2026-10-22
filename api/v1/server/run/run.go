@@ -31,6 +31,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/tenants"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/users"
 	celv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/cel"
+	concurrencyv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/concurrency"
 	durabletasksv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/durable-tasks"
 	eventsv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/events"
 	featureflagsv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/feature-flags"
@@ -80,6 +81,7 @@ type apiService struct {
 	*eventsv1.V1EventsService
 	*filtersv1.V1FiltersService
 	*serverlessv1.V1ServerlessService
+	*concurrencyv1.V1ConcurrencyService
 	*webhooksv1.V1WebhooksService
 	*celv1.V1CELService
 	*observability.V1ObservabilityService
@@ -111,6 +113,7 @@ func newAPIService(config *server.ServerConfig) *apiService {
 		V1EventsService:        eventsv1.NewV1EventsService(config),
 		V1FiltersService:       filtersv1.NewV1FiltersService(config),
 		V1ServerlessService:    serverlessv1.NewV1ServerlessService(config),
+		V1ConcurrencyService:   concurrencyv1.NewV1ConcurrencyService(config),
 		V1WebhooksService:      webhooksv1.NewV1WebhooksService(config),
 		V1CELService:           celv1.NewV1CELService(config),
 		V1ObservabilityService: observability.NewV1ObservabilityService(config),
