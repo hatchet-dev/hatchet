@@ -7,6 +7,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
+// ToV1ConcurrencyStrategy converts a strategy summary to its API representation.
 func ToV1ConcurrencyStrategy(s *repository.ConcurrencyStrategySummary) gen.V1ConcurrencyStrategy {
 	res := gen.V1ConcurrencyStrategy{
 		Id:                s.ID,
@@ -58,6 +59,7 @@ func ToV1ConcurrencyStrategy(s *repository.ConcurrencyStrategySummary) gen.V1Con
 	return res
 }
 
+// ToV1ConcurrencyStrategyList converts strategy summaries to the API list response.
 func ToV1ConcurrencyStrategyList(strategies []*repository.ConcurrencyStrategySummary) gen.V1ConcurrencyStrategyList {
 	rows := make([]gen.V1ConcurrencyStrategy, len(strategies))
 
@@ -70,6 +72,8 @@ func ToV1ConcurrencyStrategyList(strategies []*repository.ConcurrencyStrategySum
 	}
 }
 
+// ToV1ConcurrencyKeyList converts a page of keys to the API list response, with offset
+// pagination computed from the total number of matching keys.
 func ToV1ConcurrencyKeyList(keys []*repository.ConcurrencyKey, total, limit, offset int64) gen.V1ConcurrencyKeyList {
 	rows := make([]gen.V1ConcurrencyKey, len(keys))
 

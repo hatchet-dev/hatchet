@@ -1540,7 +1540,8 @@ WHERE
 
 -- name: ListTaskConcurrencyStrategiesForTenant :many
 -- Task-scoped strategies on the workflow's latest (non-deleted) version: excludes children
--- of a workflow strategy and references to a tenant strategy.
+-- of a workflow strategy and references to a tenant strategy. is_active is not checked:
+-- DeactivateStaleStepConcurrency also clears it on idle strategies of the latest version.
 WITH latest AS (
     SELECT DISTINCT ON (wv."workflowId")
         wv."workflowId" AS workflow_id,
@@ -1580,7 +1581,6 @@ JOIN
     "Step" s ON s."id" = sc.step_id
 WHERE
     sc.tenant_id = @tenantId::uuid
-    AND sc.is_active = TRUE
     AND sc.parent_strategy_id IS NULL
     AND sc.tenant_strategy_id IS NULL
 ORDER BY
@@ -1622,7 +1622,6 @@ JOIN
     "WorkflowVersion" wv ON wv."id" = wc.workflow_version_id
 WHERE
     wc.tenant_id = @tenantId::uuid
-    AND wc.is_active = TRUE
 ORDER BY
     wc.id;
 
@@ -1778,8 +1777,7 @@ SELECT
     running_count,
     queued_count,
     oldest_queued_at,
-    COALESCE(latest_max_runs, @defaultMaxRuns::INTEGER)::INTEGER AS max_runs,
-    COUNT(*) OVER ()::BIGINT AS total
+    COALESCE(latest_max_runs, @defaultMaxRuns::INTEGER)::INTEGER AS max_runs
 FROM
     keys
 WHERE
@@ -1817,8 +1815,7 @@ WITH keys AS (
         wcs.key
 )
 SELECT
-    *,
-    COUNT(*) OVER ()::BIGINT AS total
+    *
 FROM
     keys
 WHERE
@@ -1827,3 +1824,47 @@ ORDER BY
     queued_count DESC, oldest_queued_at ASC NULLS LAST, key ASC
 OFFSET @keyOffset::BIGINT
 LIMIT @keyLimit::BIGINT;
+
+-- name: CountConcurrencyKeys :one
+-- Number of keys matching ListConcurrencyKeys' filters, across all pages.
+SELECT
+    COUNT(*)::BIGINT
+FROM (
+    SELECT
+        key
+    FROM
+        v1_concurrency_slot
+    WHERE
+        tenant_id = @tenantId::uuid
+        AND strategy_id = @strategyId::bigint
+        AND (
+            sqlc.narg('search')::TEXT IS NULL
+            OR strpos(lower(key), lower(sqlc.narg('search')::TEXT)) > 0
+        )
+    GROUP BY
+        key
+    HAVING
+        NOT @onlyQueued::BOOLEAN OR COUNT(*) FILTER (WHERE NOT is_filled) > 0
+) k;
+
+-- name: CountWorkflowConcurrencyKeys :one
+-- Number of keys matching ListWorkflowConcurrencyKeys' filters, across all pages.
+SELECT
+    COUNT(*)::BIGINT
+FROM (
+    SELECT
+        key
+    FROM
+        v1_workflow_concurrency_slot
+    WHERE
+        tenant_id = @tenantId::uuid
+        AND strategy_id = @strategyId::bigint
+        AND (
+            sqlc.narg('search')::TEXT IS NULL
+            OR strpos(lower(key), lower(sqlc.narg('search')::TEXT)) > 0
+        )
+    GROUP BY
+        key
+    HAVING
+        NOT @onlyQueued::BOOLEAN OR COUNT(*) FILTER (WHERE NOT is_filled) > 0
+) k;

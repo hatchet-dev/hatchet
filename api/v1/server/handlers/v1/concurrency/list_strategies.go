@@ -8,6 +8,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
+// V1ConcurrencyStrategyList lists the tenant's concurrency strategies with their live slot counts.
 func (t *V1ConcurrencyService) V1ConcurrencyStrategyList(ctx echo.Context, request gen.V1ConcurrencyStrategyListRequestObject) (gen.V1ConcurrencyStrategyListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
 

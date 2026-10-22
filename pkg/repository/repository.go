@@ -120,6 +120,8 @@ func NewRepository(
 
 	mq, cleanupMq := newMessageQueueRepository(shared)
 
+	concurrencyOverview, cleanupConcurrencyOverview := newConcurrencyOverviewRepository(shared)
+
 	impl := &repositoryImpl{
 		apiToken:            newAPITokenRepository(shared, cacheDuration),
 		dispatcher:          newDispatcherRepository(shared),
@@ -138,7 +140,7 @@ func NewRepository(
 		workflows:           newWorkflowRepository(shared),
 		ticker:              newTickerRepository(shared),
 		filters:             newFilterRepository(shared),
-		concurrencyOverview: newConcurrencyOverviewRepository(shared),
+		concurrencyOverview: concurrencyOverview,
 		operators:           newOperatorRepository(shared),
 		serverless:          newServerlessRepository(shared),
 		webhooks:            newWebhookRepository(shared),
@@ -162,6 +164,8 @@ func NewRepository(
 
 	return impl, func() error {
 		var multiErr error
+
+		cleanupConcurrencyOverview()
 
 		if err := cleanupMq(); err != nil {
 			multiErr = fmt.Errorf("failed to cleanup message queue repository: %w", err)
