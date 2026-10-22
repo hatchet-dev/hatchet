@@ -39,6 +39,7 @@ export interface HandlerOptions {
    * request. The token comes from the platform's secret store; the operator never sends it.
    * Without a client, `ctx.runChild`, `ctx.putStream`, `ctx.cancel`, `clientFromContext(ctx)`
    * and their relatives throw `ServerlessLimitationError`, and `ctx.log` stays on the console.
+   * A task declared with `hatchetClient: false` behaves that way with a client too.
    */
   client?: ClientOption;
   /** The path the healthcheck and trigger routes live under. Defaults to `/hatchet`. */
@@ -49,8 +50,10 @@ export interface HandlerOptions {
   endpointId?: EnvResolver<string>;
   runtime: { name: ServerlessRuntimeName };
   /**
-   * Whether the adapter supplies `DurableHooks.upgrade` on every fetch. Only then does
-   * the healthcheck advertise durable support, and only for handlers with a durable task.
+   * Whether the adapter supplies `DurableHooks.upgrade` on every fetch. Only then does the
+   * healthcheck advertise durable support (for handlers with a durable task) and list the
+   * non-durable tasks the operator invokes over the socket; without it every non-durable
+   * task is POSTed, and only the waits that need the socket fail.
    */
   durable?: boolean;
   /**
@@ -122,8 +125,11 @@ export function createHandler(options: HandlerOptions): ServerlessHandler {
   const registry = buildRegistry(options.workflows, options.serve, (message) => out.warn(message));
   const clientFor = createClientResolver(options.client);
   const basePath = normalizeBasePath(options.basePath);
-  const durableSupported = options.durable === true && registry.durableActions.size > 0;
-  const healthcheck = buildHealthcheck(registry, options.runtime, durableSupported);
+  const socket = options.durable === true;
+  const healthcheck = buildHealthcheck(registry, options.runtime, {
+    socket,
+    durable: socket && registry.durableActions.size > 0,
+  });
   const healthcheckBody = serializeHealthcheck(healthcheck);
   const nonces = new NonceSet();
   const maxBodyBytes = options.maxBodyBytes ?? OPERATOR_MAX_FRAME_BYTES;

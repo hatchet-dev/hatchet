@@ -15,15 +15,17 @@ import { declarations, type ServerlessDeclarations } from './handler/declaration
 
 /**
  * The declaration factories (`task`, `durableTask`, `workflow`, `batchTask`) bound to no
- * client, with the `streams` option on a task (`hatchet.task({ name, fn, streams: true })`
- * is invoked over the invocation websocket so it can await child runs). `run`, `schedule`
- * and `cron` on the declarations throw; trigger runs through a `HatchetCore`
- * (`hatchet.run(echo, input)` accepts the declaration) or the regular SDK.
+ * client, with the `hatchetClient` option on a task: every task is invoked over the
+ * invocation websocket, where it can await child runs, except one declared with
+ * `hatchet.task({ name, fn, hatchetClient: false })`, a function of its input that is
+ * delivered over a signed POST. `run`, `schedule` and `cron` on the declarations throw;
+ * trigger runs through a `HatchetCore` (`hatchet.run(echo, input)` accepts the declaration)
+ * or the regular SDK.
  */
 export const hatchet: ServerlessDeclarations = declarations();
 
-export { ServerlessWorkflowDeclaration, invokesOverSocket } from './handler/declarations';
-export type { ServerlessDeclarations, StreamsOption } from './handler/declarations';
+export { ServerlessWorkflowDeclaration, isPureTask } from './handler/declarations';
+export type { ServerlessDeclarations, HatchetClientOption } from './handler/declarations';
 
 export { createHandler, normalizeBasePath } from './handler';
 export type {

@@ -44,17 +44,23 @@ With a client:
 | `ctx.log`                                                               | the console, and the line is written to the engine too                                                                                                      |
 | `ctx.refreshTimeout`, `ctx.releaseSlot`, `ctx.worker.labels`            | still throw: there is no worker                                                                                                                             |
 
-Awaiting a child needs the invocation websocket, which the operator opens only for the tasks
-the catalog asks one for: every durable task, and every non-durable task declared with
-`streams: true` (`hatchet.task({ name, fn, streams: true })`, or the same option on a
-`workflow.task(...)` entry): invoke this task over the invocation websocket so it can await
-child runs (`ctx.runChild`) and other engine streams; a plain POST otherwise. The healthcheck
-advertises them as `tasks: [{ action, streams: true }]`; every other task is delivered over a
-signed POST, which is cheaper and has nothing to await on, so `result()` there throws and
-names the option. The operator allows at most 16 engine streams per socket and the
-package keeps every child of a task on one of them. Inside a durable task `ctx.runChild` throws:
-use `ctx.spawnChild` and `ctx.spawnChildren`, which record the child in the durable event log
-and replay its result after an eviction.
+Awaiting a child needs the invocation websocket, and the operator dials one for every task by
+default: every durable task, and every non-durable task except those declared with
+`hatchetClient: false` (`hatchet.task({ name, fn, hatchetClient: false })`, or the same option
+on a `workflow.task(...)` entry). That option is a statement about the task: it is a pure
+function of its input and never talks to Hatchet at runtime. The operator delivers such a task
+over a signed POST, which is cheaper (no upgrade, no socket held for the task's lifetime), and
+every client-backed member of its `ctx` throws even when the handler has a client; `ctx.log`
+prints to the console only. The healthcheck lists the socket tasks as
+`tasks: [{ action, streams: true }]`. The operator allows at most 16 engine streams per socket
+and the package keeps every child of a task on one of them. Inside a durable task `ctx.runChild`
+throws: use `ctx.spawnChild` and `ctx.spawnChildren`, which record the child in the durable
+event log and replay its result after an eviction. A durable task always talks to Hatchet, so
+`hatchetClient: false` on `hatchet.durableTask` throws at declaration time.
+
+A task that is not pure but arrives over a POST anyway (an operator that predates stream
+delivery, or an endpoint whose adapter cannot accept the upgrade) still runs: triggers work,
+and only a wait on a child's result throws, naming the reason.
 
 Without a client every one of these members throws a `ServerlessLimitationError` naming the
 feature and "configure `client` to enable this", which the handler reports as a permanent
@@ -97,9 +103,11 @@ Vercel Function.
 // src/tasks.ts
 import { hatchet } from '@hatchet-dev/serverless';
 
+// A function of its input that never talks to Hatchet: delivered over a signed POST.
 export const echo = hatchet.task({
   name: 'echo',
   retries: 3,
+  hatchetClient: false,
   fn: async (input: { message: string }, ctx) => ({
     echo: input.message,
     runId: ctx.workflowRunId(),
@@ -129,10 +137,9 @@ pipeline.task({
   fn: async (_, ctx) => ({ words: (await ctx.parentOutput(fetchStep)).body.split(' ').length }),
 });
 
-// Needs the client and, since it awaits the child, a socket: declared with `streams: true`.
+// Talks to Hatchet (the default): invoked over the websocket, where the child is awaited.
 export const parent = hatchet.task({
   name: 'parent',
-  streams: true,
   fn: async (input: { message: string }, ctx) => ({
     child: await ctx.runChild(echo, { message: `${input.message} (from parent)` }),
   }),
@@ -142,11 +149,12 @@ export const workflows = [echo, sleepThenEcho, pipeline, parent];
 ```
 
 `hatchet` is the SDK's `task`, `durableTask`, `workflow` and `batchTask` factories bound to no
-client, with the `streams` option on `task` and on `workflow.task(...)`. A durable task runs on a websocket the operator dials; it may wait inline for the
-endpoint's `inlineWaitBudgetMs` (5000 by default) and evicts itself past that, to be re-invoked
-when the awaited sleep, event or child run completes. A non-durable task declared with
-`streams: true` runs on a websocket too, waits for its children inline and never evicts. See LIMITATIONS.md for
-the rules.
+client, with the `hatchetClient` option on `task` and on `workflow.task(...)`. A durable task
+runs on a websocket the operator dials; it may wait inline for the endpoint's
+`inlineWaitBudgetMs` (5000 by default) and evicts itself past that, to be re-invoked when the
+awaited sleep, event or child run completes. A non-durable task runs on a websocket too, waits
+for its children inline and never evicts, unless it is declared with `hatchetClient: false`, in
+which case it is POSTed. See LIMITATIONS.md for the rules.
 
 ## Cloudflare Workers
 
@@ -236,8 +244,10 @@ Next.js. The socket's `maxPayload` is the operator's 4 MiB frame limit.
 
 When the upgrade cannot happen the adapter never hangs: without `@vercel/functions` or `ws`,
 or with `durable: false`, or outside Vercel (no `VERCEL` environment variable, which is what
-`next dev` looks like), the healthcheck reports `durable.supported: false` and the operator
-sends only non-durable tasks. A project without Fluid compute cannot be told apart from a
+`next dev` looks like), the healthcheck reports `durable.supported: false` and lists no stream
+task, so the operator POSTs every non-durable task and leaves the durable ones alone; a task
+that awaits a child then fails at the wait, everything else runs. A project without Fluid
+compute cannot be told apart from a
 healthcheck, so there an upgrade is refused at request time with
 `426 {"error": "websocket upgrade unavailable: ...", "retry": false}` and a logged hint; pass
 `durable: false` on such a project. Locally, the websocket path runs only under `vc dev`
@@ -297,7 +307,8 @@ server.listen(3000);
 Both read `process.env.HATCHET_SIGNING_SECRET` and the optional `HATCHET_ENDPOINT_ID`, and take
 the same `secret`, `endpointId`, `serve`, `basePath`, `durable`, `maxPayload` and
 `maxBodyBytes` options as the Vercel adapter. The relay needs the `ws` package (an optional
-peer); without it, or with `durable: false`, the healthcheck reports `durable.supported: false`.
+peer); without it, or with `durable: false`, the healthcheck reports `durable.supported: false`
+and lists no stream task, so every non-durable task is POSTed.
 A body over `maxBodyBytes` (4 MiB by default) is answered 413 and its connection closed
 without the rest being read; a request whose `Host` or target does not parse as a URL is
 answered 400 or routed by its path alone, never thrown out of the listener. A client that
@@ -402,10 +413,11 @@ non-durable task's socket, the 16-stream cap), so a violation fails the test.
 
 A task that uses the client runs against whatever `client` you pass, so point it at a fake
 engine (`createRouterTransport` from `@connectrpc/connect` as `transport`). `op.invoke` and
-`op.deliver` take the socket for a task declared with `streams: true`, as the operator does, and the
-test operator answers the run subscription the task opens: `op.completeRun(runId, [{ taskName,
-output }])` finishes a child, or `runStream: { workflowRun: (runId) => event }` scripts the
-engine.
+`op.deliver` route by the healthcheck, as the operator does: the socket for every non-durable
+task the catalog lists with `streams`, a POST for a task declared with `hatchetClient: false`
+(and for everything when the operator is created with `durable: false`), and the test operator
+answers the run subscription a socket task opens: `op.completeRun(runId, [{ taskName, output }])`
+finishes a child, or `runStream: { workflowRun: (runId) => event }` scripts the engine.
 
 ## What the package verifies
 
@@ -467,7 +479,8 @@ The operator (`pkg/serverlessoperator/delivery.go`) reads the status code; a
 | durable upgrade with a bad signature or stale timestamp | `401`; a foreign endpoint id `403` |
 | durable upgrade on an adapter without the relay         | `426 {"error", "retry": false}`    |
 
-On the invocation websocket (durable tasks, and non-durable tasks declared with `streams: true`) the
+On the invocation websocket (durable tasks, and every non-durable task not declared with
+`hatchetClient: false`) the
 outcome travels in the final `done` frame: `{ output }` completes the task, `{ error, retry }`
 fails it (retry is false for `NonRetryableError`, `ServerlessLimitationError` and after an
 engine error frame), and `{ status: "evicted" }` after an eviction ack means the engine

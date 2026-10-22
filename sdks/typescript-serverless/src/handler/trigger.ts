@@ -103,13 +103,15 @@ export async function handleTrigger(request: Request, options: TriggerOptions): 
   let ctx: Context<unknown, unknown>;
 
   try {
-    // A POST-invoked task has no socket: its child references cannot await a result.
+    // A POST-invoked task has no socket: its child references cannot await a result. A pure
+    // task has no client either, whatever the handler holds.
     ctx = new Context(
       toSdkAction(envelope.action),
       new ServerlessRuntime({
         hasWorkflow: registry.hasWorkflow,
         console: options.console,
         client: options.client,
+        pure: registry.pureActions.has(actionId),
       })
     );
   } catch (err) {

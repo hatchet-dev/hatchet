@@ -16,7 +16,7 @@ import type {
   DurableContext,
   WorkflowDefinition,
 } from '@hatchet-dev/typescript-sdk/edge/index.js';
-import { invokesOverSocket } from './declarations';
+import { isPureTask } from './declarations';
 
 export type TaskRunner = (ctx: Context<any, any>) => unknown;
 export type DurableTaskRunner = (ctx: DurableContext<any, any>) => unknown;
@@ -44,11 +44,17 @@ export interface Registry {
   /** Action ids this endpoint serves. */
   served: Set<string>;
   /**
-   * Action ids of the non-durable tasks declared with `streams: true`: the operator invokes
-   * them over the invocation socket rather than a POST, so they can await child runs.
-   * Advertised as `streams` in the healthcheck.
+   * Action ids of every non-durable task except the pure ones: the operator invokes them
+   * over the invocation socket rather than a POST, so they can await child runs. Advertised
+   * as `streams` in the healthcheck when the adapter can accept the socket.
    */
   streamActions: Set<string>;
+  /**
+   * Action ids of the tasks declared with `hatchetClient: false`: functions of their input
+   * that never talk to Hatchet, delivered over a POST and run under a context whose
+   * client-backed members throw.
+   */
+  pureActions: Set<string>;
   hasWorkflow(workflowName: string): boolean;
 }
 
@@ -89,6 +95,7 @@ export function buildRegistry(
   const durableActions = new Set<string>();
   const durableRunners = new Map<string, DurableTaskRunner>();
   const streamActions = new Set<string>();
+  const pureActions = new Set<string>();
   const seenNames = new Set<string>();
 
   for (const declaration of workflows) {
@@ -114,10 +121,15 @@ export function buildRegistry(
       }
     }
 
-    // The flag sits on the declaration's own entries; the sanitized copies above lost it.
+    // Purity is recorded against the declaration's own entries; the sanitized copies above
+    // are fresh objects.
     for (const task of declaration.definition._tasks) {
-      if (invokesOverSocket(task)) {
-        streamActions.add(createActionId(name, task.name));
+      const actionId = createActionId(name, task.name);
+
+      if (isPureTask(task)) {
+        pureActions.add(actionId);
+      } else {
+        streamActions.add(actionId);
       }
     }
 
@@ -142,6 +154,8 @@ export function buildRegistry(
       const actionId = onFailureTaskName(definition);
       actions.push(actionId);
       runners.set(actionId, (ctx) => onFailureFn(ctx.input, ctx as any));
+      // An on-failure task is a non-durable task with no option of its own.
+      streamActions.add(actionId);
     }
 
     registered.push({ name, declaration, definition, proto, actions });
@@ -159,6 +173,7 @@ export function buildRegistry(
     durableRunners,
     served: servedActions(registered, serve),
     streamActions,
+    pureActions,
     hasWorkflow: (workflowName) => seenNames.has(workflowName.toLowerCase()),
   };
 }

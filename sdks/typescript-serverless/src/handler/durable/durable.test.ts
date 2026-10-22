@@ -5,8 +5,10 @@ import { createTestOperator, type DurableResult } from '../../testing';
 const secret = 'test-secret-at-least-32-characters-long';
 const quiet = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 
+// The child the durable parent spawns: a function of its input, POSTed by the test operator.
 const echo = hatchet.task({
   name: 'echo',
+  hatchetClient: false,
   fn: async (input: { message: string }) => ({ echo: input.message }),
 });
 

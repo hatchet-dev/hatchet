@@ -1,6 +1,6 @@
 /**
  * The declaration factories of `@hatchet-dev/serverless`: the SDK's `task`, `durableTask`,
- * `workflow` and `batchTask` bound to no client, plus the `streams` option a non-durable
+ * `workflow` and `batchTask` bound to no client, plus the `hatchetClient` option a non-durable
  * task can set. The option is stripped before the SDK sees the declaration and recorded
  * against the task entry, where the registry reads it to build the endpoint's catalog, so the
  * declarations stay the SDK's own and can also be registered by a worker.
@@ -19,6 +19,7 @@ import type {
   CreateBatchTaskWorkflowOpts,
   CreateDurableTaskWorkflowOpts,
   CreateTaskWorkflowOpts,
+  CreateWorkflowDurableTaskOpts,
   CreateWorkflowOpts,
   CreateWorkflowTaskOpts,
   DurableContext,
@@ -29,27 +30,48 @@ import type {
   UnknownInputType,
 } from '@hatchet-dev/typescript-sdk/edge/index.js';
 
-export interface StreamsOption {
+export interface HatchetClientOption {
   /**
-   * Invoke this task over the invocation websocket so it can await child runs
-   * (`ctx.runChild`) and other engine streams; a plain POST otherwise. The healthcheck
-   * advertises it as `tasks: [{ action, streams: true }]`. Durable tasks always have a
-   * socket and take no flag.
+   * Whether the task talks to Hatchet at runtime through its context: child runs, streams,
+   * logs to the engine, cancellation. `true` by default, and the operator then invokes the
+   * task over the invocation websocket, where child results are awaited. `false` states that
+   * the task is a pure function of its input: the operator delivers it over a signed POST,
+   * and every client-backed member of its `ctx` throws `ServerlessLimitationError` even when
+   * the handler has a `client`. A durable task always talks to Hatchet and refuses `false`.
    */
-  streams?: boolean;
+  hatchetClient?: boolean;
 }
 
-/** The task entries (`definition._tasks`) declared with `streams: true`. */
-const socketTasks = new WeakSet<object>();
+/** The task entries (`definition._tasks`) declared with `hatchetClient: false`. */
+const pureTasks = new WeakSet<object>();
 
-/** Whether a task entry of a workflow definition was declared with `streams: true`. */
-export function invokesOverSocket(task: object): boolean {
-  return socketTasks.has(task);
+/** Whether a task entry of a workflow definition was declared with `hatchetClient: false`. */
+export function isPureTask(task: object): boolean {
+  return pureTasks.has(task);
 }
 
 /**
- * The SDK's `WorkflowDeclaration` whose `task` takes the `streams` option. `durableTask`
- * is inherited as is.
+ * Takes the option off a declaration's options and reports whether the task is pure. A
+ * durable task refuses `hatchetClient: false`, since it always talks to Hatchet.
+ */
+function takeHatchetClientOption<T extends HatchetClientOption & { name: string }>(
+  options: T,
+  durable: boolean
+): { rest: Omit<T, 'hatchetClient'>; pure: boolean } {
+  const { hatchetClient, ...rest } = options;
+
+  if (durable && hatchetClient === false) {
+    throw new Error(
+      `durable task "${options.name}" cannot be declared with \`hatchetClient: false\`: a durable task always talks to Hatchet, since its sleeps, waits and child runs go through the durable log over the invocation websocket. Remove the option, or declare the task with hatchet.task.`
+    );
+  }
+
+  return { rest, pure: hatchetClient === false };
+}
+
+/**
+ * The SDK's `WorkflowDeclaration` whose `task` takes the `hatchetClient` option.
+ * `durableTask` refuses `hatchetClient: false` the way `hatchet.durableTask` does.
  */
 export class ServerlessWorkflowDeclaration<
   I extends InputType = UnknownInputType,
@@ -77,33 +99,60 @@ export class ServerlessWorkflowDeclaration<
       | (Omit<CreateWorkflowTaskOpts<I, TO>, 'fn'> & {
           name: Name;
           fn?: Fn;
-        } & StreamsOption)
+        } & HatchetClientOption)
       | TaskWorkflowDeclaration<I, TO>
   ): CreateWorkflowTaskOpts<I, TO> {
     if (options instanceof TaskWorkflowDeclaration) {
-      // The standalone declaration's own entry is added, flag included.
+      // The standalone declaration's own entry is added, so its purity carries over.
       return super.task(options);
     }
 
-    const { streams, ...rest } = options;
+    const { rest, pure } = takeHatchetClientOption(options, false);
     const entry = super.task(rest as never) as CreateWorkflowTaskOpts<I, TO>;
 
-    if (streams) {
-      socketTasks.add(entry);
+    if (pure) {
+      pureTasks.add(entry);
     }
 
     return entry;
   }
+
+  override durableTask<
+    Name extends string,
+    Fn extends (Name extends keyof O
+      ? (
+          input: I & MiddlewareBefore,
+          ctx: DurableContext<I & MiddlewareBefore>
+        ) => O[Name] extends OutputType ? O[Name] | Promise<O[Name]> : void
+      : (input: I & MiddlewareBefore, ctx: DurableContext<I & MiddlewareBefore>) => void),
+    FnReturn = ReturnType<Fn> extends Promise<infer P> ? P : ReturnType<Fn>,
+    TO extends OutputType = Name extends keyof O
+      ? O[Name] extends OutputType
+        ? O[Name]
+        : never
+      : FnReturn extends OutputType
+        ? FnReturn
+        : never,
+  >(
+    options: Omit<CreateWorkflowTaskOpts<I, TO>, 'fn' | 'slotCost' | 'batch'> & {
+      name: Name;
+      fn: Fn;
+    }
+  ): CreateWorkflowDurableTaskOpts<I, TO> {
+    const { rest } = takeHatchetClientOption(options, true);
+
+    return super.durableTask(rest as never) as CreateWorkflowDurableTaskOpts<I, TO>;
+  }
 }
 
 /**
- * The SDK's `Declarations` with the `streams` option on `task` and a `workflow` whose
+ * The SDK's `Declarations` with the `hatchetClient` option on `task` and a `workflow` whose
  * `task` takes it too.
  */
 export interface ServerlessDeclarations {
   /** Declares a task. Types come from generics or are inferred from `fn`. */
   task<I extends InputType = UnknownInputType, O extends OutputType = void>(
-    options: CreateTaskWorkflowOpts<I, O> & StreamsOption
+    options: CreateTaskWorkflowOpts<I, O> & HatchetClientOption
   ): TaskWorkflowDeclaration<I, O>;
   task<
     Fn extends (input: I, ctx?: any) => O | Promise<O>,
@@ -116,10 +165,13 @@ export interface ServerlessDeclarations {
         ? ReturnType<Fn>
         : void,
   >(
-    options: { fn: Fn } & Omit<CreateTaskWorkflowOpts<I, O>, 'fn'> & StreamsOption
+    options: { fn: Fn } & Omit<CreateTaskWorkflowOpts<I, O>, 'fn'> & HatchetClientOption
   ): TaskWorkflowDeclaration<I, O>;
 
-  /** Declares a durable task. It always runs on a socket, so there is no `streams` option. */
+  /**
+   * Declares a durable task. It always talks to Hatchet over its socket, so there is no
+   * `hatchetClient` option; `hatchetClient: false` throws.
+   */
   durableTask<I extends InputType, O extends OutputType>(
     options: CreateDurableTaskWorkflowOpts<I, O>
   ): TaskWorkflowDeclaration<I, O>;
@@ -171,20 +223,24 @@ export interface ServerlessDeclarations {
   ): TaskWorkflowDeclaration<I, O>;
 }
 
-/** The declaration factories bound to no client, with the `streams` option. */
+/** The declaration factories bound to no client, with the `hatchetClient` option. */
 export function declarations(): ServerlessDeclarations {
   return {
-    task: (options: CreateTaskWorkflowOpts<any, any> & StreamsOption) => {
-      const { streams, ...rest } = options;
+    task: (options: CreateTaskWorkflowOpts<any, any> & HatchetClientOption) => {
+      const { rest, pure } = takeHatchetClientOption(options, false);
       const declaration = CreateTaskWorkflow(rest as any);
 
-      if (streams) {
-        socketTasks.add(declaration.taskDef);
+      if (pure) {
+        pureTasks.add(declaration.taskDef);
       }
 
       return declaration;
     },
-    durableTask: (options: any) => CreateDurableTaskWorkflow(options),
+    durableTask: (options: CreateDurableTaskWorkflowOpts<any, any> & HatchetClientOption) => {
+      const { rest } = takeHatchetClientOption(options, true);
+
+      return CreateDurableTaskWorkflow(rest as any);
+    },
     workflow: <I extends InputType, O extends StrictWorkflowOutputType>(
       options: CreateWorkflowOpts
     ) => new ServerlessWorkflowDeclaration<I, O>(options),

@@ -7,8 +7,11 @@ import { ActionType } from '../generated/proto/dispatcher';
 const secret = 'test-secret-at-least-32-characters-long';
 const quiet = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 
+// The POST path is under test, so the tasks that never talk to Hatchet say so and are
+// POSTed; `spawner` keeps the default and is POSTed through an operator without the socket.
 const echo = hatchet.task({
   name: 'echo',
+  hatchetClient: false,
   fn: async (input: { message: string }, ctx) => ({
     echo: input.message,
     runId: ctx.workflowRunId(),
@@ -22,11 +25,13 @@ const echo = hatchet.task({
 
 const nothing = hatchet.task({
   name: 'nothing',
+  hatchetClient: false,
   fn: async () => {},
 });
 
 const permanent = hatchet.task({
   name: 'permanent',
+  hatchetClient: false,
   fn: async () => {
     throw new NonRetryableError('do not retry me');
   },
@@ -42,16 +47,22 @@ const spawner = hatchet.task({
 
 const crasher = hatchet.task({
   name: 'crasher',
+  hatchetClient: false,
   fn: async () => {
     throw new Error('boom');
   },
 });
 
 const pipeline = hatchet.workflow<{ url: string }>({ name: 'pipeline' });
-const fetchStep = pipeline.task({ name: 'fetch', fn: async () => ({ body: 'a b c' }) });
+const fetchStep = pipeline.task({
+  name: 'fetch',
+  hatchetClient: false,
+  fn: async () => ({ body: 'a b c' }),
+});
 const summarize = pipeline.task({
   name: 'summarize',
   parents: [fetchStep],
+  hatchetClient: false,
   fn: async (_input, ctx) => ({
     words: (await ctx.parentOutput(fetchStep)).body.split(' ').length,
   }),
@@ -64,6 +75,7 @@ const sleeper = hatchet.durableTask({
 
 const logger = hatchet.task({
   name: 'logger',
+  hatchetClient: false,
   fn: async (_input: {}, ctx) => {
     await ctx.logger.info('hello from the task', { key: 'value' });
     ctx.log('legacy log line');
@@ -106,7 +118,7 @@ describe('trigger outcomes', () => {
   });
 
   it('throws ServerlessLimitationError: 422, retry false, naming the feature', async () => {
-    const outcome = await operator().deliver(spawner, {});
+    const outcome = await operator({ durable: false }).deliver(spawner, {});
 
     expect(outcome).toMatchObject({ status: 'failed', retry: false, httpStatus: 422 });
     expect((outcome as { error: string }).error).toMatch(/ctx\.runChild/);

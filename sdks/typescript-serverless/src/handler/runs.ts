@@ -8,7 +8,8 @@
  *
  * A task invoked over a plain POST has no socket. Its references are still real (the id,
  * `cancel`, `replay` and `details` work), but `result()` throws a `ServerlessLimitationError`
- * naming the `streams` task option that gives the task a socket.
+ * saying where the socket went: an operator that predates stream delivery, or an endpoint
+ * whose adapter cannot accept the upgrade.
  */
 import {
   HatchetError,
@@ -263,8 +264,8 @@ export class TaskRunRef<T> extends WorkflowRunRef<T> {
     if (!this.watcher) {
       throw new ServerlessLimitationError(
         'awaiting a child run (ctx.runChild, ctx.bulkRunChildren, ref.result())',
-        'Declare the task with `streams: true` so the operator invokes it over the invocation socket, where results are awaited',
-        'this task was invoked over a POST and has no invocation socket'
+        'Results are awaited on the socket the operator dials for every task not declared with `hatchetClient: false`; upgrade the operator, or serve the task from an endpoint whose adapter accepts the upgrade (`durable` on)',
+        'this task was invoked over a POST and has no invocation socket, which happens with an operator that predates stream delivery or an endpoint reporting no durable support'
       );
     }
 

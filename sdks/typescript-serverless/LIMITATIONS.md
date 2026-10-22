@@ -30,19 +30,35 @@ feature in its message and "configure `client` to enable this"; the trigger hand
 such a failure with `422` and `retry: false`, because retrying cannot help. Existing
 deployments without a client are unchanged.
 
-### The `streams` rule
+### Pure tasks and the invocation socket
 
-A socket exists only for the tasks the endpoint's catalog asks one for: every durable task,
-and every non-durable task declared with `streams: true` (`hatchet.task({ name, fn, streams:
-true })`, or the same option on a `workflow.task(...)` entry), which the healthcheck advertises
-as `tasks: [{ action, streams: true }]`. The option mirrors the proto field: invoke this task
-over the invocation websocket so it can await child runs (`ctx.runChild`) and other engine
-streams; a plain POST otherwise. Every other task is delivered over a signed POST, which is
-cheaper and has nothing to await on. So:
+The operator dials the invocation websocket for every task by default: every durable task, and
+every non-durable task except those declared with `hatchetClient: false`
+(`hatchet.task({ name, fn, hatchetClient: false })`, or the same option on a `workflow.task(...)`
+entry). The option is a statement about the task: it is a pure function of its input and never
+talks to Hatchet at runtime. The healthcheck lists the socket tasks as
+`tasks: [{ action, streams: true }]`, the proto field the operator routes by; a pure task is
+delivered over a signed POST, which is cheaper (no upgrade, no socket held for the task's
+lifetime, no slot in the relay's stream table) and has nothing to await on. So:
 
-- A non-durable task that awaits a child (`ctx.runChild`, `ctx.bulkRunChildren`, or `result()`
-  on a reference from `ctx.runNoWaitChild`) must be declared with `streams: true`. Over a POST the
-  trigger still happens, but the wait throws `ServerlessLimitationError` naming the option.
+- A task that talks to Hatchet (`ctx.runChild`, `ctx.runNoWaitChild`, `ctx.putStream`,
+  `ctx.cancel`, `clientFromContext(ctx)`, a log line written to the engine) keeps the default.
+  It runs on the socket, waits for its children inline and never evicts.
+- A pure task runs under a context whose client-backed members throw
+  `ServerlessLimitationError` naming `hatchetClient: false`, whether or not the handler has a
+  `client`; `ctx.log` and `ctx.logger.*` print to the console only. Everything that comes with
+  the request (`input`, `parentOutput`, `retryCount`, the run ids) works as in any task.
+- A durable task always talks to Hatchet: its sleeps, waits and child runs go through the
+  durable log over the socket. `hatchetClient: false` on `hatchet.durableTask` or
+  `workflow.durableTask` throws when the task is declared.
+- A task that keeps the default but arrives over a POST anyway (an operator that predates
+  stream delivery, or an endpoint whose adapter cannot accept the upgrade: `durable: false`,
+  Vercel without Fluid compute, Node without `ws`) still runs. Its triggers happen, and only a
+  wait on a child's result (`ctx.runChild`, `ctx.bulkRunChildren`, or `result()` on a reference
+  from `ctx.runNoWaitChild`) throws `ServerlessLimitationError` saying the task was invoked over
+  a POST. An adapter without the upgrade lists no stream task in its healthcheck on purpose:
+  POSTing everything fails only the waits, where listing the tasks would fail every invocation
+  at the upgrade.
 - A reference created by a `HatchetCore` you hold yourself (`hatchet.run(...)` inside or
   outside a task) knows nothing about the socket and polls `GetRunDetails`, the way `/core`
   does everywhere.
@@ -51,14 +67,21 @@ cheaper and has nothing to await on. So:
   log and replay its result after an eviction. `ctx.runChild` would trigger the child again on
   every re-invocation.
 
-| Member                                                                                       | Without `client`                                                                                                     | With `client`                                                                                   |
+Why the option is declared rather than inferred: the handler cannot see inside the function,
+and the operator chooses the delivery before the request is sent (a POST cannot be upgraded
+mid-flight), so the task says what it is, next to its code. Changing the option is a catalog
+change: the next healthcheck (every `pollIntervalSeconds`) re-registers the task and the
+operator switches delivery.
+
+| Member                                                                                       | Without `client`, or `hatchetClient: false`                                                                          | With `client`                                                                                   |
 | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `ctx.runNoWaitChild`, `ctx.bulkRunNoWaitChildren`, `ctx.spawnWorkflow`, `ctx.spawnWorkflows` | throw                                                                                                                | trigger through the client; the reference's `result()` needs the socket (`streams: true`)       |
-| `ctx.runChild`, `ctx.bulkRunChildren`                                                        | throw                                                                                                                | trigger through the client, await on the socket; the task must be declared with `streams: true` |
+| `ctx.runNoWaitChild`, `ctx.bulkRunNoWaitChildren`, `ctx.spawnWorkflow`, `ctx.spawnWorkflows` | throw                                                                                                                | trigger through the client; the reference's `result()` needs the socket the task has by default |
+| `ctx.runChild`, `ctx.bulkRunChildren`                                                        | throw                                                                                                                | trigger through the client, await on the socket the task has by default                         |
 | any of the above in a durable task                                                           | throw                                                                                                                | throw; use `ctx.spawnChild` and `ctx.spawnChildren`, which go through the durable log           |
 | `ctx.putStream`                                                                              | throws                                                                                                               | `PutStreamEvent` through the client                                                             |
 | `ctx.log`, `ctx.logger.*`                                                                    | console only                                                                                                         | console, and `ctx.log` also writes the line to the engine (a failed write is a console warning) |
 | `ctx.cancel`                                                                                 | throws; the operator cancels a run by dropping the request or closing the socket, which aborts `ctx.abortController` | `CancelTasks` through the client                                                                |
+| `clientFromContext(ctx)`                                                                     | throws                                                                                                               | the handler's `HatchetCore`                                                                     |
 | `ctx.refreshTimeout`                                                                         | throws                                                                                                               | throws; set the task's `executionTimeout` and the endpoint's `requestTimeoutSeconds` instead    |
 | `ctx.releaseSlot`, `ctx.worker.labels()`, `ctx.worker.upsertLabels()`                        | throw                                                                                                                | throw; there is no worker                                                                       |
 | `ctx.worker.id()`                                                                            | `undefined`                                                                                                          | `undefined`                                                                                     |
@@ -90,9 +113,9 @@ that sleeps for a day spends that day evicted, not on the socket. Child runs spa
 durable task must be served by an endpoint or worker of their own; the relay only carries the
 request and the result.
 
-A non-durable task on a socket (one declared with `streams: true`) has no budget and never evicts: it
-waits for its children inline, bounded by the runtime's limits and the endpoint's
-`requestTimeoutSeconds`, and is always invocation 1.
+A non-durable task on a socket (every one not declared with `hatchetClient: false`) has no
+budget and never evicts: it waits for its children inline, bounded by the runtime's limits and
+the endpoint's `requestTimeoutSeconds`, and is always invocation 1.
 
 ## Declaration options that are ignored
 
@@ -122,7 +145,7 @@ operator registers every advertised workflow in full and derives the endpoint's 
 the workflow definitions, so a task outside the subset is still registered for the endpoint and,
 if triggered, fails with `404` from the endpoint. Two endpoints that declare the same workflow
 both register all of its actions, so splitting one workflow across endpoints is not supported.
-Tasks declared with `streams: true` outside `serve` are not advertised.
+Socket tasks outside `serve` are not listed under `tasks`.
 
 ## Response size
 

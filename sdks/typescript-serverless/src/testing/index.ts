@@ -59,8 +59,9 @@ export interface TestOperatorOptions extends Omit<
   /** The runtime name reported in the healthcheck. Defaults to "test". */
   runtimeName?: string;
   /**
-   * Whether the test operator dials durable tasks over the relay, which is what an adapter
-   * with an upgrade hook does. Defaults to true; false reproduces an adapter without one.
+   * Whether the handler accepts the invocation websocket, which is what an adapter with an
+   * upgrade hook does. Defaults to true; false reproduces an adapter without one, where the
+   * healthcheck lists no stream tasks and every non-durable task is POSTed.
    */
   durable?: boolean;
   /**
@@ -117,8 +118,9 @@ export interface TestOperator {
   /** POSTs a signed healthcheck, validates the body is protojson and returns it decoded. */
   healthcheck(): Promise<ServerlessHealthcheckResponse>;
   /**
-   * Delivers the task the way the operator would (a signed POST, or the socket for a task
-   * the healthcheck flags with `streams`) and returns the task's output.
+   * Delivers the task the way the operator would (the socket for a task the healthcheck
+   * lists with `streams`, a signed POST for a pure task or a durable one) and returns the
+   * task's output.
    */
   invoke<O = unknown>(target: InvokeTarget, input: unknown, options?: InvokeOptions): Promise<O>;
   /** Like `invoke`, but returns the operator's classification instead of throwing on failure. */
@@ -200,8 +202,8 @@ export function createTestOperator(options: TestOperatorOptions): TestOperator {
     );
   };
 
-  // The catalog decides how a task is delivered, as it does for the operator: durable tasks
-  // and tasks flagged with streams go over the socket, everything else over a POST.
+  // The catalog decides how a task is delivered, as it does for the operator: the tasks
+  // listed with streams go over the socket, everything else over a POST.
   const durableActions = new Set(
     handler
       .healthcheck()

@@ -10,8 +10,10 @@ import { createTestOperator } from '../testing';
 const secret = 'test-secret-at-least-32-characters-long';
 const quiet = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 
+// A function of its input, so the test operator POSTs it: the body is what is under test.
 const echo = hatchet.task({
   name: 'echo',
+  hatchetClient: false,
   fn: async (input: { message: string }) => ({ echo: input.message }),
 });
 

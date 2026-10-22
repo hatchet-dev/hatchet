@@ -1,7 +1,7 @@
 /**
  * One invocation over an accepted websocket: wait for the operator's first frame, run the
  * task it names and finish with exactly one done frame. A durable task runs under a
- * `DurableContext` whose transport is the socket; a non-durable task the catalog flagged
+ * `DurableContext` whose transport is the socket; a non-durable task the catalog lists
  * with `streams` runs under a plain `Context`, invocation 1, with no durable frames at all.
  * Either kind may open engine streams over the socket (child results are awaited that way),
  * and every stream is closed before the done frame goes out.
@@ -224,6 +224,7 @@ class DurableInvocation {
       client: this.options.client,
       runs: new RunWatcher(streams),
       durable: durableRunner !== undefined,
+      pure: registry.pureActions.has(actionId),
     });
 
     let transport: FrameTransport | undefined;

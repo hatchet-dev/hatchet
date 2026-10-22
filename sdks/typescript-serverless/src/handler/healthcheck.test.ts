@@ -14,17 +14,22 @@ const pipeline = hatchet.workflow<{ url: string }>({ name: 'pipeline' });
 const fetchStep = pipeline.task({ name: 'fetch', fn: async () => ({ body: 'x' }) });
 pipeline.task({ name: 'summarize', parents: [fetchStep], fn: async () => ({ words: 1 }) });
 
-// Declared for the socket: a standalone task, a workflow task, and a standalone task added
-// to a workflow, which keeps its flag.
-const parent = hatchet.task({
-  name: 'parent',
-  streams: true,
+// Pure tasks, a function of their input: a standalone task, a workflow task, and a standalone
+// task added to a workflow, which keeps its purity.
+const pure = hatchet.task({
+  name: 'pure',
+  hatchetClient: false,
   fn: async (input: { message: string }) => ({ echo: input.message }),
 });
 const dag = hatchet.workflow<{ url: string }>({ name: 'dag' });
-const plain = dag.task({ name: 'plain', fn: async () => ({ ok: true }) });
-dag.task({ name: 'awaiting', parents: [plain], streams: true, fn: async () => ({ ok: true }) });
-dag.task(parent);
+const first = dag.task({ name: 'first', fn: async () => ({ ok: true }) });
+dag.task({
+  name: 'second',
+  parents: [first],
+  hatchetClient: false,
+  fn: async () => ({ ok: true }),
+});
+dag.task(pure);
 
 const sleeper = hatchet.durableTask({
   name: 'sleep-then-echo',
@@ -110,28 +115,70 @@ describe('healthcheck', () => {
     );
   });
 
-  it('flags the tasks declared with streams, served ones only, and never durable ones', async () => {
-    const op = createTestOperator({ workflows: [echo, pipeline, sleeper, parent, dag], secret });
+  it('lists every served non-durable task with streams, except the pure ones and never durable ones', async () => {
+    const op = createTestOperator({ workflows: [echo, pipeline, sleeper, pure, dag], secret });
     const raw = JSON.parse(await (await op.request(`${op.handler.basePath}/healthcheck`)).text());
 
     expect(raw.tasks).toEqual([
-      { action: 'dag:awaiting', streams: true },
-      { action: 'dag:parent', streams: true },
-      { action: 'parent:parent', streams: true },
+      { action: 'dag:first', streams: true },
+      { action: 'echo:echo', streams: true },
+      { action: 'pipeline:fetch', streams: true },
+      { action: 'pipeline:summarize', streams: true },
     ]);
-    expect(raw.actions).toContain('dag:plain');
+    expect(raw.actions).toContain('dag:second');
+    expect(raw.actions).toContain('dag:pure');
+    expect(raw.actions).toContain('pure:pure');
 
     const subset = createTestOperator({
-      workflows: [echo, parent, dag],
-      serve: [echo, parent],
+      workflows: [echo, pure, dag],
+      serve: [pure, dag],
       secret,
     });
-    expect((await subset.healthcheck()).tasks).toEqual([
-      { action: 'parent:parent', streams: true },
+    expect((await subset.healthcheck()).tasks).toEqual([{ action: 'dag:first', streams: true }]);
+
+    const none = createTestOperator({ workflows: [pure, sleeper], secret });
+    expect((await none.healthcheck()).tasks).toEqual([]);
+  });
+
+  it('lists no stream task when the adapter accepts no socket, so every non-durable task is POSTed', async () => {
+    const op = createTestOperator({
+      workflows: [echo, pipeline, sleeper, pure],
+      secret,
+      durable: false,
+    });
+    const decoded = await op.healthcheck();
+
+    expect(decoded.tasks).toEqual([]);
+    expect(decoded.durable?.supported).toBe(false);
+    expect(decoded.actions).toEqual([
+      'echo:echo',
+      'pipeline:fetch',
+      'pipeline:summarize',
+      'pure:pure',
+      'sleep-then-echo:sleep-then-echo',
     ]);
 
-    const none = createTestOperator({ workflows: [echo, pipeline, sleeper], secret });
-    expect((await none.healthcheck()).tasks).toEqual([]);
+    // The test operator routes by the healthcheck, as the operator does: a POST, not a dial.
+    expect(await op.deliver(echo, { message: 'posted' })).toMatchObject({
+      status: 'completed',
+      output: { echo: 'posted' },
+      httpStatus: 200,
+    });
+  });
+
+  it('refuses hatchetClient: false on a durable task', () => {
+    expect(() =>
+      hatchet.durableTask({
+        name: 'impure',
+        hatchetClient: false,
+        fn: async () => ({}),
+      } as never)
+    ).toThrow(/durable task "impure" cannot be declared with `hatchetClient: false`/);
+
+    const workflow = hatchet.workflow({ name: 'durable-dag' });
+    expect(() =>
+      workflow.durableTask({ name: 'impure', hatchetClient: false, fn: async () => ({}) } as never)
+    ).toThrow(/durable task "impure" cannot be declared with `hatchetClient: false`/);
   });
 
   it('warns once per ignored declaration option and leaves it out of the registration', async () => {

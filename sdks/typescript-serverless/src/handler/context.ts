@@ -2,8 +2,8 @@
  * The `ContextRuntime` a serverless task runs under. A worker implements the same interface
  * over its Hatchet client; here the engine-facing operations go to the handler's optional
  * core client (unary calls), child results are awaited on the invocation socket, and logging
- * goes to the console as well. Without a client every engine-facing operation throws
- * `ServerlessLimitationError`.
+ * goes to the console as well. Without a client, and in a task declared with
+ * `hatchetClient: false`, every engine-facing operation throws `ServerlessLimitationError`.
  */
 import type { LogLevel as EventLogLevel } from '@hatchet-dev/typescript-sdk/core/index.js';
 import type {
@@ -40,6 +40,12 @@ export interface ServerlessRuntimeOptions {
    * task spawns children through the durable log (`ctx.spawnChild`), which replays them.
    */
   durable?: boolean;
+  /**
+   * The task is declared with `hatchetClient: false`: a function of its input that never
+   * talks to Hatchet. Every client-backed member throws, with or without a `client`, and
+   * `ctx.log` writes to the console only.
+   */
+  pure?: boolean;
 }
 
 /** A `Logger` over the console. */
@@ -131,8 +137,19 @@ export class ServerlessRuntime implements ContextRuntime {
     return new ConsoleLogger(name, this.options.console);
   }
 
-  /** The handler's client, or a `ServerlessLimitationError` naming the feature without one. */
+  /**
+   * The handler's client, or a `ServerlessLimitationError` naming the feature: without one,
+   * and in a pure task, which has renounced the client by declaration.
+   */
   client(feature: string, detail?: string): HatchetCore {
+    if (this.options.pure) {
+      throw new ServerlessLimitationError(
+        feature,
+        detail ?? 'Remove `hatchetClient: false` from the declaration if the task talks to Hatchet',
+        'this task is declared with `hatchetClient: false`, a function of its input with no Hatchet client'
+      );
+    }
+
     const client = this.options.client?.();
 
     if (!client) {
@@ -143,9 +160,10 @@ export class ServerlessRuntime implements ContextRuntime {
   }
 
   /**
-   * `ctx.log` prints through the context's logger; with a client the line is also written to
-   * the engine, and a write that fails is reported on the console rather than failing the
-   * task, as the Node client's fire-and-forget `putLog` behaves.
+   * `ctx.log` prints through the context's logger; with a client, and outside a pure task,
+   * the line is also written to the engine, and a write that fails is reported on the
+   * console rather than failing the task, as the Node client's fire-and-forget `putLog`
+   * behaves.
    */
   async putLog(
     taskRunExternalId: string,
@@ -154,7 +172,7 @@ export class ServerlessRuntime implements ContextRuntime {
     retryCount: number,
     extra?: Record<string, unknown>
   ): Promise<void> {
-    const client = this.options.client?.();
+    const client = this.options.pure ? undefined : this.options.client?.();
 
     if (!client) {
       return;
@@ -290,8 +308,9 @@ export class ServerlessRuntime implements ContextRuntime {
  * The handler's Hatchet client (`HatchetCore`) from a task's context, for the engine calls
  * `ctx` has no member for: publishing to a durable stream (`client.streams.publish`),
  * pushing an event, triggering an unrelated run. Throws `ServerlessLimitationError` when the
- * handler has no `client` option, and when the context did not come from a serverless
- * handler (a worker's context carries its own client as `ctx.v1`).
+ * handler has no `client` option, when the task is declared with `hatchetClient: false`, and
+ * when the context did not come from a serverless handler (a worker's context carries its
+ * own client as `ctx.v1`).
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function clientFromContext(ctx: Context<any, any>): HatchetCore {

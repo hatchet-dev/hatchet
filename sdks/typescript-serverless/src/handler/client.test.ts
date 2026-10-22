@@ -8,7 +8,7 @@ import {
 import { WorkflowService } from '@hatchet-dev/typescript-sdk/protoc-es/workflows/workflows_pb.js';
 import type { MessageInitShape } from '@bufbuild/protobuf';
 import { describe, expect, it, vi } from 'vitest';
-import { HatchetCore, ServerlessLimitationError, hatchet } from '../index';
+import { HatchetCore, ServerlessLimitationError, clientFromContext, hatchet } from '../index';
 import { ServerlessTriggerRequest } from '../generated/proto/v1/serverless';
 import { ActionType } from '../generated/proto/dispatcher';
 import { createTestOperator } from '../testing';
@@ -103,8 +103,10 @@ function fakeEngine() {
   };
 }
 
+// The child: a function of its input, so it is POSTed.
 const echo = hatchet.task({
   name: 'echo',
+  hatchetClient: false,
   fn: async (input: { message: string }) => ({ echo: input.message }),
 });
 
@@ -132,10 +134,9 @@ const spawner = hatchet.task({
   },
 });
 
-// Awaits its child, so it is declared for the socket.
+// Awaits its child on the socket every task has by default.
 const parent = hatchet.task({
   name: 'parent',
-  streams: true,
   fn: async (input: { message: string }, ctx) => ({
     child: await ctx.runChild(echo, { message: input.message }),
   }),
@@ -143,7 +144,6 @@ const parent = hatchet.task({
 
 const fanOut = hatchet.task({
   name: 'fan-out',
-  streams: true,
   fn: async (input: { count: number }, ctx) => ({
     children: await ctx.bulkRunChildren(
       Array.from({ length: input.count }, (_, i) => ({
@@ -159,20 +159,54 @@ const durableSpawner = hatchet.durableTask({
   fn: async (_input: {}, ctx) => ({ child: await ctx.runChild(echo, { message: 'x' }) }),
 });
 
-// The same shape as spawner, flagged for the socket.
-const socketSpawner = hatchet.task({
-  name: 'socket-spawner',
-  streams: true,
-  fn: async (_input: {}, ctx) => {
-    const ref = await ctx.runNoWaitChild(echo, { message: 'child' }, { key: 'first' });
-    return { childRunId: await ref.getWorkflowRunId() };
+/** A pure task that reaches for one client-backed member, named by its input. */
+const pureReporter = hatchet.task({
+  name: 'pure-reporter',
+  hatchetClient: false,
+  fn: async (input: { member: string }, ctx): Promise<{ logged?: boolean }> => {
+    switch (input.member) {
+      case 'ctx.runChild':
+        await ctx.runChild(echo, { message: 'x' });
+        break;
+      case 'ctx.runNoWaitChild':
+        await ctx.runNoWaitChild(echo, { message: 'x' });
+        break;
+      case 'ctx.bulkRunChildren':
+        await ctx.bulkRunChildren([{ workflow: echo, input: { message: 'x' } }]);
+        break;
+      case 'ctx.bulkRunNoWaitChildren':
+        await ctx.bulkRunNoWaitChildren([{ workflow: echo, input: { message: 'x' } }]);
+        break;
+      case 'ctx.spawnWorkflow':
+        await ctx.spawnWorkflow('echo', { message: 'x' });
+        break;
+      case 'ctx.spawnWorkflows':
+        await ctx.spawnWorkflows([{ workflow: 'echo', input: { message: 'x' } }]);
+        break;
+      case 'ctx.putStream':
+        await ctx.putStream('chunk');
+        break;
+      case 'ctx.cancel':
+        await ctx.cancel();
+        break;
+      case 'clientFromContext(ctx)':
+        clientFromContext(ctx);
+        break;
+      case 'ctx.log':
+        await ctx.log('console only', 'WARN');
+        return { logged: true };
+      default:
+        throw new Error(`unknown member ${input.member}`);
+    }
+
+    return {};
   },
 });
 
-const workflows = [echo, reporter, spawner, parent, fanOut, durableSpawner, socketSpawner];
+const workflows = [echo, reporter, spawner, parent, fanOut, durableSpawner, pureReporter];
 
 describe('ctx over the client', () => {
-  it('putStream, log and cancel go to the engine as unary calls over a POST', async () => {
+  it('putStream, log and cancel go to the engine as unary calls through the client', async () => {
     const engine = fakeEngine();
     const op = createTestOperator({
       workflows,
@@ -194,24 +228,126 @@ describe('ctx over the client', () => {
     expect(engine.cancels).toEqual([[id]]);
   });
 
-  it('without a client the same members throw, naming the option', async () => {
+  it('without a client the same members throw, naming the option, over the socket and over a POST', async () => {
     const op = createTestOperator({ workflows, secret, console: quiet });
     const outcome = await op.deliver(reporter, {});
 
-    expect(outcome).toMatchObject({ status: 'failed', retry: false, httpStatus: 422 });
+    expect(outcome).toMatchObject({ status: 'failed', retry: false, httpStatus: 101 });
     expect((outcome as { error: string }).error).toMatch(
       /ctx\.putStream is not available in the serverless runtime: configure `client` to enable this/
     );
+
+    const posted = await createTestOperator({ workflows, secret, console: quiet, durable: false });
+    expect(await posted.deliver(reporter, {})).toMatchObject({
+      status: 'failed',
+      retry: false,
+      httpStatus: 422,
+      error: expect.stringMatching(/ctx\.putStream .* configure `client` to enable this/),
+    });
   });
 
-  it('runNoWaitChild over a POST triggers the child with the parent set, and its result() names the streams task option', async () => {
+  it('a pure task is POSTed and a default task is dialed', async () => {
     const engine = fakeEngine();
     const op = createTestOperator({
       workflows,
       secret,
       console: quiet,
       client: { token: TOKEN, transport: engine.transport, logLevel: 'OFF' },
+      runStream: {
+        workflowRun: (workflowRunId) => ({
+          workflowRunId,
+          eventType: 0,
+          eventTimestamp: undefined,
+          results: [
+            {
+              taskRunExternalId: 'echo-id',
+              taskName: 'echo',
+              jobRunId: 'job',
+              output: JSON.stringify({ echo: 'dialed' }),
+            },
+          ],
+        }),
+      },
     });
+
+    expect(await op.deliver(echo, { message: 'posted' })).toEqual({
+      status: 'completed',
+      output: { echo: 'posted' },
+      httpStatus: 200,
+    });
+    expect(await op.deliver(parent, { message: 'dialed' })).toEqual({
+      status: 'completed',
+      output: { child: { echo: 'dialed' } },
+      httpStatus: 101,
+    });
+  });
+
+  it('a pure task has no client even when the handler does, and ctx.log stays on the console', async () => {
+    const engine = fakeEngine();
+    const out = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const op = createTestOperator({
+      workflows,
+      secret,
+      console: out,
+      client: { token: TOKEN, transport: engine.transport, logLevel: 'OFF' },
+    });
+
+    for (const member of [
+      'ctx.runChild',
+      'ctx.runNoWaitChild',
+      'ctx.bulkRunChildren',
+      'ctx.bulkRunNoWaitChildren',
+      'ctx.spawnWorkflow',
+      'ctx.spawnWorkflows',
+      'ctx.putStream',
+      'ctx.cancel',
+      'clientFromContext(ctx)',
+    ]) {
+      const outcome = await op.deliver(pureReporter, { member });
+
+      // The SDK's deprecated `ctx.spawnWorkflow` and `ctx.spawnWorkflows` rewrap what they
+      // catch as a `HatchetError`, so only the message carries through them; every other
+      // member fails without retry.
+      if (member === 'ctx.spawnWorkflow' || member === 'ctx.spawnWorkflows') {
+        expect(outcome, member).toMatchObject({ status: 'failed' });
+      } else {
+        expect(outcome, member).toMatchObject({ status: 'failed', retry: false, httpStatus: 422 });
+      }
+
+      expect((outcome as { error: string }).error, member).toMatch(
+        /is not available in the serverless runtime: this task is declared with `hatchetClient: false`, a function of its input with no Hatchet client\. Remove `hatchetClient: false`/
+      );
+      expect((outcome as { error: string }).error, member).toContain(
+        member.startsWith('ctx.run') ||
+          member.startsWith('ctx.bulk') ||
+          member.startsWith('ctx.spawn')
+          ? 'ctx.runChild'
+          : member
+      );
+    }
+
+    expect(await op.invoke(pureReporter, { member: 'ctx.log' })).toEqual({ logged: true });
+    expect(out.warn).toHaveBeenCalledWith(
+      expect.stringContaining('console only'),
+      expect.anything()
+    );
+    expect(engine.logs).toEqual([]);
+    expect(engine.triggers).toEqual([]);
+    expect(engine.streamed).toEqual([]);
+    expect(engine.cancels).toEqual([]);
+  });
+
+  it('runNoWaitChild over a POST (an adapter without the socket) triggers the child with the parent set, and its result() says why there is no socket', async () => {
+    const engine = fakeEngine();
+    const op = createTestOperator({
+      workflows,
+      secret,
+      console: quiet,
+      durable: false,
+      client: { token: TOKEN, transport: engine.transport, logLevel: 'OFF' },
+    });
+
+    expect((await op.healthcheck()).tasks).toEqual([]);
 
     const output = await op.invoke(spawner, {}, { workflowRunId: 'parent-run' });
     expect(output).toEqual({ childRunId: 'run-1' });
@@ -229,11 +365,11 @@ describe('ctx over the client', () => {
     const waited = await op.deliver(spawner, { wait: true });
     expect(waited).toMatchObject({ status: 'failed', retry: false, httpStatus: 422 });
     expect((waited as { error: string }).error).toMatch(
-      /invoked over a POST and has no invocation socket.*`streams: true`/
+      /invoked over a POST and has no invocation socket, which happens with an operator that predates stream delivery or an endpoint reporting no durable support/
     );
   });
 
-  it('runChild on a task declared with streams awaits the child on one runs stream over the socket', async () => {
+  it('runChild awaits the child on one runs stream over the socket, the default delivery', async () => {
     const engine = fakeEngine();
     const op = createTestOperator({
       workflows,
@@ -257,13 +393,15 @@ describe('ctx over the client', () => {
       },
     });
 
+    // Every non-durable task but the pure ones; the durable one has a socket regardless.
     expect((await op.healthcheck()).tasks).toEqual([
       { action: 'fan-out:fan-out', streams: true },
       { action: 'parent:parent', streams: true },
-      { action: 'socket-spawner:socket-spawner', streams: true },
+      { action: 'reporter:reporter', streams: true },
+      { action: 'spawner:spawner', streams: true },
     ]);
 
-    // The catalog flags the task, so `invoke` takes the socket the way the operator does.
+    // The catalog lists the task, so `invoke` takes the socket the way the operator does.
     expect(await op.invoke(parent, { message: 'hi' })).toEqual({
       child: { echo: 'answer for run-1' },
     });
@@ -386,7 +524,7 @@ describe('ctx over the client', () => {
     expect(engine.triggers).toEqual([]);
   });
 
-  it('a flagged task delivered over a POST by an older operator still runs', async () => {
+  it('a listed task delivered over a POST by an older operator still runs', async () => {
     const engine = fakeEngine();
     const op = createTestOperator({
       workflows,
@@ -395,11 +533,11 @@ describe('ctx over the client', () => {
       client: { token: TOKEN, transport: engine.transport, logLevel: 'OFF' },
     });
 
-    // The test operator routes flagged tasks over the socket; a raw POST is the older path.
+    // The test operator dials listed tasks; a raw POST is what an older operator sends.
     const response = await op.request(`${op.handler.basePath}/healthcheck`);
     expect(response.status).toBe(200);
     expect((await op.healthcheck()).tasks).toContainEqual({
-      action: 'socket-spawner:socket-spawner',
+      action: 'spawner:spawner',
       streams: true,
     });
     const envelope = ServerlessTriggerRequest.toJSON(
@@ -408,7 +546,7 @@ describe('ctx over the client', () => {
         timestampUnixSeconds: Math.floor(Date.now() / 1000),
         version: 1,
         action: {
-          actionId: 'socket-spawner:socket-spawner',
+          actionId: 'spawner:spawner',
           actionType: ActionType.START_STEP_RUN,
           actionPayload: JSON.stringify({ input: {}, parents: {}, triggered_by: 'manual' }),
           workflowRunId: 'parent-run',
