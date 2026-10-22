@@ -1182,6 +1182,11 @@ WITH input AS (
     SELECT
         e.node_id,
         e.branch_id,
+        -- this "compacts" the satisfied orders we're going to keep, so they're contiguous and start at 1
+        -- so that when the replay occurs, we don't end up with a gap causing us to hang. for instance, if we had
+        -- nodes 1, 2, and 3 with satisfied orders 3, 4, and 1, the satisfied orders would be renumbered to 2, 3, and 1
+        -- (in order of the nodes) so we never would hang waiting for order 2 to appear when it never would.
+        -- there's a bit more explanation of this in this PR description: https://github.com/hatchet-dev/hatchet/pull/5265
         ROW_NUMBER() OVER (ORDER BY e.satisfied_order ASC) AS satisfied_order
     FROM v1_durable_event_log_entry e
     JOIN input i ON (i.node_id, i.branch_id) = (e.node_id, e.branch_id)
