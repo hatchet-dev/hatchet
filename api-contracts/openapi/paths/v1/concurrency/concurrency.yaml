@@ -3,6 +3,7 @@ V1ConcurrencyStrategyList:
     x-resources: ["tenant"]
     description: Lists the concurrency strategies on the latest version of each workflow in a tenant, and the shared strategies their tasks use, with live slot counts.
     operationId: v1-concurrency-strategy:list
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -41,6 +42,7 @@ V1ConcurrencyKeyList:
     x-resources: ["tenant"]
     description: Lists the keys of a concurrency strategy that have running or queued runs, sorted by queued count, then oldest queued run.
     operationId: v1-concurrency-key:list
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
