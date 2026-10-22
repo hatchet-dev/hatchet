@@ -1,6 +1,10 @@
 package sns
 
-import "testing"
+import (
+	"strings"
+	"testing"
+	"time"
+)
 
 func TestHostPattern(t *testing.T) {
 	for host, want := range map[string]bool{
@@ -20,5 +24,18 @@ func TestHostPattern(t *testing.T) {
 func TestBuildSignatureRejectsNewlineOutsideMessage(t *testing.T) {
 	if _, err := (&Payload{Type: "Notification\nTopicArn\nother", Message: "a\nb"}).BuildSignature(); err == nil {
 		t.Fatal("expected an error")
+	}
+}
+
+func TestVerifyPayloadRejectsNonStaticCertURL(t *testing.T) {
+	for _, certURL := range []string{
+		"https://sns.us-east-1.amazonaws.com/?Action=x",
+		"https://sns.us-east-1.amazonaws.com/cert.pem?x=y",
+		"https://sns.us-east-1.amazonaws.com/cert",
+	} {
+		p := &Payload{Type: "Notification", Timestamp: time.Now().UTC().Format(time.RFC3339), SigningCertURL: certURL}
+		if err := p.VerifyPayload(); err == nil || !strings.Contains(err.Error(), ".pem") {
+			t.Errorf("VerifyPayload with %q = %v, want .pem error", certURL, err)
+		}
 	}
 }
