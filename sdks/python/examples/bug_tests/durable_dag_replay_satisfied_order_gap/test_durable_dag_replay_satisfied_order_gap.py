@@ -52,3 +52,5 @@ async def test_dag_completes_after_replaying_a_failed_step_whose_sibling_finishe
 
     assert details.status == RunStatus.COMPLETED
     assert details.task_runs["flaky"].output == {"retry_count": 1}
+    assert details.task_runs["quick"].output == {"retry_count": 0}
+    assert details.task_runs["slow"].output == {"retry_count": 0}
