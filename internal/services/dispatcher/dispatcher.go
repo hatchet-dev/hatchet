@@ -579,6 +579,13 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 			taskIds = append(taskIds, tasks...)
 		}
 
+		// a message whose items were all delivered optimistically carries no task ids: nothing to send
+		if len(taskIds) == 0 {
+			continue
+		}
+
+		// a task missing from the result (released or reassigned since the message was published, so it
+		// has no runtime row for its current retry) is skipped by sendTasksToWorker: not sent, not requeued
 		taskIdToData, err := d.populateTaskData(ctx, requeue, msg.TenantID, taskIds)
 
 		if err != nil {
@@ -701,22 +708,61 @@ type V1TaskWithPayloadAndInvocationCount struct {
 	InvocationCount *int32 // only used for durable tasks
 }
 
+// dispatchReadRecoveryTimeout bounds the task-only read that runs after a failed ListTasksForDispatch.
+const dispatchReadRecoveryTimeout = 5 * time.Second
+
+// requeueTasksAfterFailedDispatchRead hands every task of a failed ListTasksForDispatch to requeue. A
+// failed read yields no task rows, so they are read on their own to give the requeue callback the rows
+// it needs. A task that cannot be read either way is left to the timeout path, and both errors are
+// logged.
+//
+// The read runs under its own context: the combined read may have failed because the caller's dispatch
+// deadline expired, and a lookup on that context fails the same way, so the recovery context keeps the
+// caller's values but not its cancellation. It is bounded so a slow database cannot hold the handler
+// past the time it already spent on the combined read. handleRetries publishes the requeued tasks under
+// its own background context as well.
+func (d *DispatcherImpl) requeueTasksAfterFailedDispatchRead(
+	ctx context.Context,
+	requeue func(task *sqlcv1.V1Task),
+	tenantId uuid.UUID,
+	taskIds []int64,
+) {
+	recoveryCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), dispatchReadRecoveryTimeout)
+	defer cancel()
+
+	tasks, err := d.repov1.Tasks().ListTasks(recoveryCtx, tenantId, taskIds)
+
+	if err != nil {
+		d.l.Error().Ctx(ctx).Err(err).Msgf("could not list %d tasks to requeue after a failed dispatch read", len(taskIds))
+		return
+	}
+
+	for _, task := range tasks {
+		requeue(task)
+	}
+}
+
 func (d *DispatcherImpl) populateTaskData(
 	ctx context.Context,
 	requeue func(task *sqlcv1.V1Task),
 	tenantId uuid.UUID,
 	taskIds []int64,
 ) (map[int64]*V1TaskWithPayloadAndInvocationCount, error) {
-	bulkDatas, err := d.repov1.Tasks().ListTasks(ctx, tenantId, taskIds)
+	if len(taskIds) == 0 {
+		return map[int64]*V1TaskWithPayloadAndInvocationCount{}, nil
+	}
+
+	// one round trip for the task rows with their runtime rows and the payload rows holding their inputs
+	dispatchData, err := d.repov1.Tasks().ListTasksForDispatch(ctx, tenantId, taskIds)
 
 	if err != nil {
-		for _, task := range bulkDatas {
-			requeue(task)
-		}
-
 		d.l.Error().Ctx(ctx).Err(err).Msgf("could not bulk list step run data:")
+		d.requeueTasksAfterFailedDispatchRead(ctx, requeue, tenantId, taskIds)
+
 		return nil, err
 	}
+
+	bulkDatas := dispatchData.Tasks
 
 	getInvocationCountOpts := make([]v1.IdInsertedAt, 0)
 
@@ -767,7 +813,8 @@ func (d *DispatcherImpl) populateTaskData(
 		}
 	}
 
-	inputs, err := d.repov1.Payloads().TaskInputs().Retrieve(ctx, nil, retrievePayloadOpts...)
+	// the payload rows came back with the task rows; this only fetches external or offloaded content
+	inputs, err := d.repov1.Payloads().TaskInputs().Resolve(ctx, nil, dispatchData.PayloadRows, retrievePayloadOpts...)
 
 	// FIXME: we should differentiate between a retryable error and a non-retryable error here;
 	// for example, if we're hitting an S3 rate limit for payloads that exist in S3, we should retry;
@@ -847,12 +894,7 @@ func (d *DispatcherImpl) populateTaskData(
 		resolveDagParentOutputs(ctx, d.l, dagChildStepRunData, dagParentOutputs)
 	}
 
-	runtimes, err := d.repov1.Tasks().ListTaskRuntimes(ctx, tenantId, bulkDatas)
-
-	if err != nil {
-		d.l.Warn().Ctx(ctx).Err(err).Msgf("could not bulk fetch runtimes for %d tasks", len(bulkDatas))
-		runtimes = make(map[int64]*sqlcv1.V1TaskRuntime)
-	}
+	runtimes := dispatchData.Runtimes
 
 	taskIdToData := make(map[int64]*V1TaskWithPayloadAndInvocationCount)
 
@@ -1145,6 +1187,7 @@ func (d *DispatcherImpl) sendBatchStartFromPayload(ctx context.Context, payload 
 			workflowRunIDByTaskID[item.TaskID] = item.WorkflowRunID
 		}
 
+		// a task missing from the result (no runtime row for its current retry) is left out of the batch items
 		taskIdToData, populateErr := d.populateTaskData(ctx, func(_ *sqlcv1.V1Task) {}, payload.TenantId, taskIds)
 		if populateErr != nil {
 			return fmt.Errorf("could not populate task data for batch %s: %w", payload.BatchId, populateErr)

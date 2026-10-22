@@ -516,32 +516,29 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 				continue
 			}
 
-			_, hasNoDispatcher := workersWithoutDispatchers[bulkAssigned.WorkerId]
-			dispatcherId, ok := workerIdToDispatcherId[bulkAssigned.WorkerId]
-
-			if hasNoDispatcher || !ok {
-				s.l.Error().Ctx(ctx).Msg("could not assign step run to worker: no dispatcher id. attempting internal retry.")
-
-				s.internalRetry(ctx, tenantId, bulkAssigned)
-
-				continue
-			}
-
-			if _, ok := dispatcherIdToWorkerIdsToStepRuns[dispatcherId]; !ok {
-				dispatcherIdToWorkerIdsToStepRuns[dispatcherId] = make(map[uuid.UUID][]int64)
-			}
-
 			workerId := bulkAssigned.WorkerId
-
-			if _, ok := dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId]; !ok {
-				dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId] = make([]int64, 0)
-			}
-
-			if !bulkAssigned.IsAssignedLocally {
-				dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId] = append(dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId], bulkAssigned.QueueItem.TaskID)
-			}
-
 			taskId := bulkAssigned.QueueItem.TaskID
+
+			// items the optimistic path already delivered only need the ASSIGNED event below: no dispatcher
+			// lookup and no task-assigned-bulk message
+			if !bulkAssigned.IsAssignedLocally {
+				_, hasNoDispatcher := workersWithoutDispatchers[workerId]
+				dispatcherId, ok := workerIdToDispatcherId[workerId]
+
+				if hasNoDispatcher || !ok {
+					s.l.Error().Ctx(ctx).Msg("could not assign step run to worker: no dispatcher id. attempting internal retry.")
+
+					s.internalRetry(ctx, tenantId, bulkAssigned)
+
+					continue
+				}
+
+				if _, ok := dispatcherIdToWorkerIdsToStepRuns[dispatcherId]; !ok {
+					dispatcherIdToWorkerIdsToStepRuns[dispatcherId] = make(map[uuid.UUID][]int64)
+				}
+
+				dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId] = append(dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId], taskId)
+			}
 
 			var durableInvCount int32
 			if count, ok := invocationCounts[repov1.IdInsertedAt{

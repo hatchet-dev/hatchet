@@ -307,6 +307,11 @@ type TaskRepository interface {
 
 	ListTasks(ctx context.Context, tenantId uuid.UUID, tasks []int64) ([]*sqlcv1.V1Task, error)
 
+	// ListTasksForDispatch reads what the dispatcher needs to send tasks to a worker (task rows with
+	// their current runtime rows, and the payload rows holding their inputs) in one round trip. A task
+	// without a runtime row for its current retry is not returned.
+	ListTasksForDispatch(ctx context.Context, tenantId uuid.UUID, tasks []int64) (*TasksForDispatch, error)
+
 	ListTaskRuntimes(ctx context.Context, tenantId uuid.UUID, tasks []*sqlcv1.V1Task) (map[int64]*sqlcv1.V1TaskRuntime, error)
 
 	ListTaskMetas(ctx context.Context, tenantId uuid.UUID, tasks []int64) ([]*sqlcv1.ListTaskMetasRow, error)
@@ -1483,6 +1488,93 @@ func (r *sharedRepository) listTasks(ctx context.Context, dbtx sqlcv1.DBTX, tena
 	}
 
 	return result, nil
+}
+
+// TasksForDispatch is the result of ListTasksForDispatch: the requested tasks that still hold a runtime
+// row for their current retry, those runtime rows by task id, and the v1_payload rows holding the
+// tasks' inputs (a task's own TASK_INPUT row, or the owner's row for a task with a payload_reference_id),
+// to be turned into inputs with the payload store's Resolve.
+type TasksForDispatch struct {
+	Tasks       []*sqlcv1.V1Task
+	Runtimes    map[int64]*sqlcv1.V1TaskRuntime
+	PayloadRows []*sqlcv1.V1Payload
+}
+
+func (r *TaskRepositoryImpl) ListTasksForDispatch(ctx context.Context, tenantId uuid.UUID, tasks []int64) (*TasksForDispatch, error) {
+	rows, err := r.queries.ListTasksForDispatch(ctx, r.pool, sqlcv1.ListTasksForDispatchParams{
+		Tenantid: tenantId,
+		Ids:      tasks,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return tasksForDispatchFromRows(rows), nil
+}
+
+// tasksForDispatchFromRows splits the joined rows back into their three parts. A task appears once per
+// payload row matched by its payload_reference_id, so the task and runtime are taken from its first
+// row and every payload row is kept.
+func tasksForDispatchFromRows(rows []*sqlcv1.ListTasksForDispatchRow) *TasksForDispatch {
+	res := &TasksForDispatch{
+		Tasks:       make([]*sqlcv1.V1Task, 0, len(rows)),
+		Runtimes:    make(map[int64]*sqlcv1.V1TaskRuntime, len(rows)),
+		PayloadRows: make([]*sqlcv1.V1Payload, 0, len(rows)),
+	}
+
+	seenTasks := make(map[int64]struct{}, len(rows))
+
+	for _, row := range rows {
+		if row == nil {
+			continue
+		}
+
+		task := row.V1Task
+
+		// location is NOT NULL on v1_payload, so it marks the presence of the joined row
+		if row.PayloadLocation.Valid {
+			payloadRow := &sqlcv1.V1Payload{
+				TenantID:            task.TenantID,
+				ID:                  row.PayloadID.Int64,
+				InsertedAt:          row.PayloadInsertedAt,
+				Type:                row.PayloadType.V1PayloadType,
+				Location:            row.PayloadLocation.V1PayloadLocation,
+				ExternalLocationKey: row.PayloadExternalLocationKey,
+				InlineContent:       row.PayloadInlineContent,
+				UpdatedAt:           row.PayloadUpdatedAt,
+			}
+
+			if row.PayloadExternalID != nil {
+				payloadRow.ExternalID = *row.PayloadExternalID
+			}
+
+			res.PayloadRows = append(res.PayloadRows, payloadRow)
+		}
+
+		if _, seen := seenTasks[task.ID]; seen {
+			continue
+		}
+
+		seenTasks[task.ID] = struct{}{}
+		res.Tasks = append(res.Tasks, &task)
+
+		res.Runtimes[task.ID] = &sqlcv1.V1TaskRuntime{
+			TaskID:         task.ID,
+			TaskInsertedAt: task.InsertedAt,
+			RetryCount:     task.RetryCount,
+			WorkerID:       row.RuntimeWorkerID,
+			BatchID:        row.RuntimeBatchID,
+			BatchSize:      row.RuntimeBatchSize,
+			BatchIndex:     row.RuntimeBatchIndex,
+			BatchKey:       row.RuntimeBatchKey,
+			TenantID:       task.TenantID,
+			TimeoutAt:      row.RuntimeTimeoutAt,
+			EvictedAt:      row.RuntimeEvictedAt,
+		}
+	}
+
+	return res
 }
 
 func (r *TaskRepositoryImpl) ListTaskRuntimes(ctx context.Context, tenantId uuid.UUID, tasks []*sqlcv1.V1Task) (map[int64]*sqlcv1.V1TaskRuntime, error) {
