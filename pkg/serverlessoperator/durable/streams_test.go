@@ -529,3 +529,109 @@ func TestPublicStreamErrorRedactsEngineText(t *testing.T) {
 		assert.Contains(t, publicStreamMessages, code, "every connect code has a public message")
 	}
 }
+
+// A topic subscription (V1Streams.Subscribe) is a server stream over the socket: its request
+// decodes with no run to check, the engine's StreamMessage frames reach the endpoint under the
+// stream id, a second message from the endpoint is refused, and the engine refusing the
+// subscription, as it does for a tenant without the durable streams entitlement, is told as
+// code 7 whether the refusal ends the stream or the open itself.
+func TestSocketDurableStreamSubscribe(t *testing.T) {
+	setT(t)
+
+	opener := &fakeOpener{}
+
+	ep := newFakeEndpoint(t, func(t *testing.T, conn *websocket.Conn, _ *v1.ServerlessFirstFrame) {
+		writeFrame(t, conn, `{"streamOpen":{"id":"t","procedure":"/v1.V1Streams/Subscribe","request":"{\"namespace\":\"ns\",\"topic\":\"orders\"}"}}`)
+
+		rs := opener.stream(t, 0)
+		assert.Equal(t, operator.RunStreamDurableStreams, rs.kind)
+
+		req := rs.first.(*v1.SubscribeStreamRequest)
+		assert.Equal(t, "ns", req.Namespace)
+		assert.Equal(t, "orders", req.Topic)
+		assert.Nil(t, req.Cursor)
+
+		rs.push(&v1.StreamMessage{Cursor: "c2", Entries: []*v1.StreamEntry{
+			{Payload: []byte(`{"n":1}`), Cursor: "c1"},
+			{Payload: []byte(`{"n":2}`), Cursor: "c2"},
+		}})
+
+		msg := readStreamFrame(t, conn).GetStreamMessage()
+		require.NotNil(t, msg)
+		assert.Equal(t, "t", msg.GetId())
+
+		got := &v1.StreamMessage{}
+		require.NoError(t, unmarshalStream.Unmarshal([]byte(msg.GetMessage()), got))
+		require.Len(t, got.Entries, 2)
+		assert.Equal(t, `{"n":1}`, string(got.Entries[0].Payload))
+		assert.Equal(t, `{"n":2}`, string(got.Entries[1].Payload))
+		assert.Equal(t, "c2", got.Cursor)
+
+		// A server stream takes no message after the request.
+		writeFrame(t, conn, `{"streamMessage":{"id":"t","message":"{}"}}`)
+
+		closeFrame := readStreamClose(t, conn, "t")
+		assert.Equal(t, int32(connect.CodeInvalidArgument), closeFrame.GetCode())
+		assert.True(t, rs.isClosed())
+
+		// The engine ending the stream with PermissionDenied, as over gRPC.
+		writeFrame(t, conn, `{"streamOpen":{"id":"u","procedure":"/v1.V1Streams/Subscribe","request":"{\"namespace\":\"ns\",\"topic\":\"orders\"}"}}`)
+		opener.stream(t, 1).end(status.Error(codes.PermissionDenied, "durable streams are not enabled for this tenant"))
+
+		closeFrame = readStreamClose(t, conn, "u")
+		assert.Equal(t, int32(connect.CodePermissionDenied), closeFrame.GetCode())
+		assert.Equal(t, "permission_denied: the engine denied the request", closeFrame.GetMessage())
+
+		// The open itself refused with a connect error, as in process.
+		opener.mu.Lock()
+		opener.openErr = connect.NewError(connect.CodePermissionDenied, errors.New("durable streams are not enabled for this tenant"))
+		opener.mu.Unlock()
+
+		writeFrame(t, conn, `{"streamOpen":{"id":"v","procedure":"/v1.V1Streams/Subscribe","request":"{\"namespace\":\"ns\",\"topic\":\"orders\"}"}}`)
+
+		closeFrame = readStreamClose(t, conn, "v")
+		assert.Equal(t, int32(connect.CodePermissionDenied), closeFrame.GetCode())
+		assert.Equal(t, 2, opener.count(), "a refused open holds no stream")
+
+		writeFrame(t, conn, `{"done":{"output":"{}"}}`)
+	})
+
+	out := await(t, run(context.Background(), socketParams(ep, opener)))
+
+	assert.Equal(t, KindCompleted, out.Kind)
+	assert.Equal(t, CloseNormal, ep.closed(t))
+}
+
+// A topic subscription takes a slot like every other stream: past the cap it is refused, and
+// a closed stream of another kind frees the slot for it.
+func TestSocketDurableStreamCountsAgainstCap(t *testing.T) {
+	setT(t)
+
+	opener := &fakeOpener{}
+
+	ep := newFakeEndpoint(t, func(t *testing.T, conn *websocket.Conn, _ *v1.ServerlessFirstFrame) {
+		writeFrame(t, conn, `{"streamOpen":{"id":"a","procedure":"/Dispatcher/SubscribeToWorkflowRuns","request":"{\"workflowRunId\":\"run-1\"}"}}`)
+		opener.stream(t, 0)
+
+		writeFrame(t, conn, `{"streamOpen":{"id":"t","procedure":"/v1.V1Streams/Subscribe","request":"{\"namespace\":\"ns\",\"topic\":\"orders\"}"}}`)
+
+		closeFrame := readStreamClose(t, conn, "t")
+		assert.Equal(t, int32(connect.CodeResourceExhausted), closeFrame.GetCode())
+		assert.Equal(t, 1, opener.count())
+
+		writeFrame(t, conn, `{"streamClose":{"id":"a"}}`)
+		require.Eventually(t, opener.stream(t, 0).isClosed, eventually, time.Millisecond)
+
+		writeFrame(t, conn, `{"streamOpen":{"id":"t","procedure":"/v1.V1Streams/Subscribe","request":"{\"namespace\":\"ns\",\"topic\":\"orders\"}"}}`)
+		assert.Equal(t, operator.RunStreamDurableStreams, opener.stream(t, 1).kind)
+
+		writeFrame(t, conn, `{"done":{"output":"{}"}}`)
+	})
+
+	p := socketParams(ep, opener)
+	p.MaxStreams = 1
+
+	out := await(t, run(context.Background(), p))
+	assert.Equal(t, KindCompleted, out.Kind)
+	assert.True(t, opener.stream(t, 1).isClosed(), "the done frame closes what is still open")
+}
