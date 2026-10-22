@@ -1,5 +1,4 @@
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
-import { V1TaskFilter } from '@hatchet/clients/rest/generated/data-contracts';
 import {
   RunEventType,
   RunListenerClient,
@@ -10,16 +9,13 @@ import { createV1AdminRpc } from '@hatchet/clients/admin/rpc';
 import type { AdminServiceClient } from '@hatchet/protoc/v1/workflows';
 import type { Transport } from '@hatchet/clients/transport/transport';
 import { runStatusToJSON, toRunDetail } from '@hatchet/core/run-detail';
-import type { RunDetail, RunFilterBase, TaskRunDetail } from '@hatchet/core/types';
+import type { RunDetail, TaskRunDetail } from '@hatchet/core/types';
+import { RestRunsClient, type ListRunsOpts, type RunFilter } from '@hatchet/clients/rest/runs';
 
-export type { RunDetail, TaskRunDetail };
+export type { RunDetail, TaskRunDetail, ListRunsOpts, RunFilter };
 
 // Keep runStatusToJSON importable for callers who want the raw proto status as a string.
 export { runStatusToJSON };
-
-export type RunFilter = RunFilterBase & {
-  workflowNames?: string[];
-};
 
 export type CancelRunOpts = {
   ids?: string[];
@@ -31,58 +27,6 @@ export type ReplayRunOpts = {
   filters?: RunFilter;
 };
 
-export interface ListRunsOpts extends RunFilter {
-  /**
-   * The number to skip
-   * @format int64
-   */
-  offset?: number;
-  /**
-   * The number to limit by
-   * @format int64
-   */
-  limit?: number;
-  /** A list of statuses to filter by */
-
-  /**
-   * The worker id to filter by
-   * @format uuid
-   * @minLength 36
-   * @maxLength 36
-   */
-  workerId?: string;
-  /** Whether to include DAGs or only to include tasks */
-  onlyTasks: boolean;
-
-  /**
-   * The parent task run external id to filter by
-   * @deprecated use parentTaskRunExternalId instead
-   * @format uuid
-   * @minLength 36
-   * @maxLength 36
-   */
-  parentTaskExternalId?: string;
-
-  /**
-   * The parent task run external id to filter by
-   * @format uuid
-   * @minLength 36
-   * @maxLength 36
-   */
-  parentTaskRunExternalId?: string;
-
-  /**
-   * The triggering event external id to filter by
-   * @format uuid
-   * @minLength 36
-   * @maxLength 36
-   */
-  triggeringEventExternalId?: string;
-
-  /** A flag for whether or not to include the input and output payloads in the response. Defaults to `true` if unset. */
-  includePayloads?: boolean;
-}
-
 /**
  * The runs client is a client for interacting with task and workflow runs within Hatchet.
  */
@@ -93,6 +37,7 @@ export class RunsClient {
   listener: RunListenerClient;
   private _transport: Transport;
   private _adminRpc: AdminServiceClient | undefined;
+  private rest: RestRunsClient;
 
   constructor(client: HatchetClient) {
     this.api = client.api;
@@ -100,6 +45,11 @@ export class RunsClient {
     this.workflows = client.workflows;
     this.listener = client._listener;
     this._transport = client.transport;
+    this.rest = new RestRunsClient({
+      api: client.api,
+      tenantId: client.tenantId,
+      workflows: client.workflows,
+    });
   }
 
   /** The v1 admin RPCs on the client's Connect transport, the same path the core client uses. */
@@ -117,9 +67,7 @@ export class RunsClient {
    */
   async get<T = any>(run: string | WorkflowRunRef<T>) {
     const runId = typeof run === 'string' ? run : await run.getWorkflowRunId();
-
-    const { data } = await this.api.v1WorkflowRunGet(runId);
-    return data;
+    return this.rest.get(runId);
   }
 
   /**
@@ -129,9 +77,7 @@ export class RunsClient {
    */
   async get_status<T = any>(run: string | WorkflowRunRef<T>) {
     const runId = typeof run === 'string' ? run : await run.getWorkflowRunId();
-
-    const { data } = await this.api.v1WorkflowRunGetStatus(runId);
-    return data;
+    return this.rest.getStatus(runId);
   }
 
   /**
@@ -150,15 +96,7 @@ export class RunsClient {
    * @returns A promise that resolves to the list of runs.
    */
   async list(opts?: Partial<ListRunsOpts>) {
-    const normalizedOpts =
-      opts?.parentTaskExternalId && !opts?.parentTaskRunExternalId
-        ? { ...opts, parentTaskRunExternalId: opts.parentTaskExternalId }
-        : opts;
-
-    const { data } = await this.api.v1WorkflowRunList(this.tenantId, {
-      ...(await this.prepareListFilter(normalizedOpts || {})),
-    });
-    return data;
+    return this.rest.list(opts);
   }
 
   /**
@@ -167,7 +105,7 @@ export class RunsClient {
    * @returns A promise that resolves to the cancelled run.
    */
   async cancel(opts: CancelRunOpts) {
-    const filter = await this.prepareFilter(opts.filters || {});
+    const filter = await this.rest.prepareFilter(opts.filters || {});
 
     return this.api.v1TaskCancel(this.tenantId, {
       externalIds: opts.ids,
@@ -181,60 +119,11 @@ export class RunsClient {
    * @returns A promise that resolves to the replayed run.
    */
   async replay(opts: ReplayRunOpts) {
-    const filter = await this.prepareFilter(opts.filters || {});
+    const filter = await this.rest.prepareFilter(opts.filters || {});
     return this.api.v1TaskReplay(this.tenantId, {
       externalIds: opts.ids,
       filter: !opts.ids ? filter : undefined,
     });
-  }
-
-  private async prepareFilter({
-    since,
-    until,
-    statuses,
-    workflowNames,
-    additionalMetadata,
-  }: Partial<RunFilter>): Promise<V1TaskFilter> {
-    const am = Object.entries(additionalMetadata || {}).map(([key, value]) => `${key}:${value}`);
-
-    return {
-      // default to 1 hour ago
-      since: since ? since.toISOString() : new Date(Date.now() - 1000 * 60 * 60).toISOString(),
-      until: until?.toISOString(),
-      statuses,
-      workflowIds: await Promise.all(
-        workflowNames?.map(async (name) => (await this.workflows.get(name)).metadata.id) || []
-      ),
-      additionalMetadata: am,
-    };
-  }
-
-  private async prepareListFilter(
-    opts: Partial<ListRunsOpts>
-  ): Promise<Parameters<typeof this.api.v1WorkflowRunList>[1]> {
-    const am = Object.entries(opts.additionalMetadata || {}).map(
-      ([key, value]) => `${key}:${value}`
-    );
-
-    return {
-      offset: opts.offset,
-      limit: opts.limit,
-      // default to 1 hour ago
-      since: opts.since
-        ? opts.since.toISOString()
-        : new Date(Date.now() - 1000 * 60 * 60).toISOString(),
-      until: opts.until?.toISOString(),
-      statuses: opts.statuses,
-      worker_id: opts.workerId,
-      workflow_ids: await Promise.all(
-        opts.workflowNames?.map(async (name) => (await this.workflows.get(name)).metadata.id) || []
-      ),
-      additional_metadata: am,
-      only_tasks: opts.onlyTasks || false,
-      parent_task_external_id: opts.parentTaskRunExternalId,
-      triggering_event_external_id: opts.triggeringEventExternalId,
-      include_payloads: opts.includePayloads,
-    };
   }
 
   /**
@@ -242,7 +131,7 @@ export class RunsClient {
    * @param taskExternalId - The external ID of the evicted task.
    */
   async restoreTask(taskExternalId: string) {
-    return this.api.v1TaskRestore(taskExternalId);
+    return this.rest.restoreTask(taskExternalId);
   }
 
   /**
@@ -251,11 +140,7 @@ export class RunsClient {
    * @param nodeId - The node ID to replay from.
    */
   async branchDurableTask(taskExternalId: string, nodeId: number, branchId: number = 0) {
-    return this.api.v1DurableTaskBranch(this.tenantId, {
-      taskExternalId,
-      nodeId,
-      branchId,
-    });
+    return this.rest.branchDurableTask(taskExternalId, nodeId, branchId);
   }
 
   /**
@@ -265,14 +150,7 @@ export class RunsClient {
    * @returns The task external ID.
    */
   async getTaskExternalId(workflowRunId: string): Promise<string> {
-    const run = await this.get(workflowRunId);
-    const tasks = run?.tasks;
-
-    if (Array.isArray(tasks) && tasks.length > 0 && tasks[0]?.taskExternalId) {
-      return tasks[0].taskExternalId;
-    }
-
-    throw new Error(`Could not find task external ID for workflow run ${workflowRunId}`);
+    return this.rest.getTaskExternalId(workflowRunId);
   }
 
   runRef<T extends Record<string, any> = any>(id: string): WorkflowRunRef<T> {

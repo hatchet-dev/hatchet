@@ -1,12 +1,12 @@
 import { BaseWorkflowDeclaration, WorkflowDefinition } from '@hatchet/v1';
 import type { LegacyWorkflow } from '@hatchet/legacy/legacy-transformer';
-import { isLegacyWorkflow, warnLegacyWorkflow } from '@hatchet/legacy/legacy-transformer';
+import { isLegacyWorkflow, warnLegacyWorkflow } from '@hatchet/legacy/legacy-workflow';
 import { isValidUUID } from '@util/uuid';
 import {
   WorkflowPauseScheduledCronRunQueueBehavior,
   WorkflowUpdateRequest,
 } from '@hatchet/clients/rest/generated/data-contracts';
-import { HatchetClient } from '../client';
+import type { RestApi, RestClientDeps } from '@hatchet/clients/rest/rest-api';
 import { Duration, durationToString } from '../duration';
 
 export { WorkflowPauseScheduledCronRunQueueBehavior };
@@ -45,14 +45,14 @@ export const workflowNameString = (
  *
  */
 export class WorkflowsClient {
-  api: HatchetClient['api'];
+  api: RestApi;
   tenantId: string;
   // Add a cache for workflows
   private workflowCache: Map<string, { workflow: any; expiry: number }> = new Map();
   // Default cache TTL: 5 minutes (in ms)
   private cacheTTL: number = 5 * 60 * 1000;
 
-  constructor(client: HatchetClient, cacheTTL?: number) {
+  constructor(client: RestClientDeps, cacheTTL?: number) {
     this.api = client.api;
     this.tenantId = client.tenantId;
     // Allow custom cache TTL if provided
