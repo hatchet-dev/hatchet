@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 
 	"github.com/hatchet-dev/hatchet/pkg/testing/harness"
@@ -40,12 +41,15 @@ type echoOutput struct {
 
 // scenarioResult is the JSON line sdks/typescript/e2e-core/run.mjs prints.
 type scenarioResult struct {
-	RunID    string     `json:"runId"`
-	Output   echoOutput `json:"output"`
-	Status   string     `json:"status"`
-	Done     bool       `json:"done"`
-	EventID  string     `json:"eventId"`
-	EventKey string     `json:"eventKey"`
+	RunID              string     `json:"runId"`
+	Output             echoOutput `json:"output"`
+	Status             string     `json:"status"`
+	Done               bool       `json:"done"`
+	EventID            string     `json:"eventId"`
+	EventKey           string     `json:"eventKey"`
+	StreamTopic        string     `json:"streamTopic"`
+	StreamMessageCount int64      `json:"streamMessageCount"`
+	StreamLatestCursor string     `json:"streamLatestCursor"`
 }
 
 func TestMain(m *testing.M) {
@@ -70,6 +74,9 @@ func TestCoreClientOverHTTP1(t *testing.T) {
 	runCommand(t, ctx, sdkDir, nil, pnpm, "run", "tsc:build")
 
 	require.NoError(t, harness.WaitEngineReady(ctx, 60*time.Second))
+
+	// The scenario publishes to a durable stream, which the engine gates per tenant.
+	entitleDurableStreams(t, ctx)
 
 	client, err := hatchet.NewClient()
 	require.NoError(t, err)
@@ -114,6 +121,9 @@ func TestCoreClientOverHTTP1(t *testing.T) {
 	require.True(t, result.Done)
 	require.NotEmpty(t, result.EventID)
 	require.Equal(t, eventKey, result.EventKey)
+	require.Equal(t, "tscore-stream-"+result.RunID, result.StreamTopic)
+	require.Equal(t, int64(2), result.StreamMessageCount)
+	require.NotEmpty(t, result.StreamLatestCursor)
 
 	// The order is fixed: the scenario pushes the event only after the direct run completed.
 	require.Equal(t, result.Output.Message, waitForMessage(t, received))
@@ -162,4 +172,19 @@ func repoRoot(t *testing.T) string {
 	_, file, _, ok := runtime.Caller(0)
 	require.True(t, ok)
 	return filepath.Clean(filepath.Join(filepath.Dir(file), "..", "..", "..", ".."))
+}
+
+// entitleDurableStreams turns the durable streams entitlement on for every tenant of the
+// harness database, the way the SDK e2e jobs do before their durable streams suites.
+func entitleDurableStreams(t *testing.T, ctx context.Context) {
+	t.Helper()
+
+	pool, err := pgxpool.New(ctx, os.Getenv("DATABASE_URL"))
+	require.NoError(t, err)
+	defer pool.Close()
+
+	_, err = pool.Exec(ctx, `INSERT INTO tenant_entitlement (tenant_id, durable_streams)
+		SELECT id, TRUE FROM "Tenant"
+		ON CONFLICT (tenant_id) DO UPDATE SET durable_streams = TRUE`)
+	require.NoError(t, err)
 }
