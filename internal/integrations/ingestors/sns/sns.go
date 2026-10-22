@@ -159,7 +159,9 @@ func (payload *Payload) VerifyPayload() error {
 		return fmt.Errorf("certificate is located on an invalid domain")
 	}
 
-	// SNS API responses can echo query parameters, and pem.Decode finds a block anywhere in the body
+	// SNS error responses echo query parameters, and pem.Decode returns the first PEM
+	// block anywhere in the body, so a certificate passed in the query of an SNS URL
+	// would be accepted. Only static .pem files are fetched.
 	if certURL.RawQuery != "" || !strings.HasSuffix(certURL.Path, ".pem") {
 		return errors.New("certificate URL must be a .pem path without a query")
 	}
