@@ -115,6 +115,7 @@ streamTopics:
     x-resources: ["tenant"]
     description: List the tenant's durable stream topics, with the number of messages each has within the tenant's retention.
     operationId: v1-stream-topic:list
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
