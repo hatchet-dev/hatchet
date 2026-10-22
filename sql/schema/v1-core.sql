@@ -2487,10 +2487,10 @@ $$;
 
 -- v1_payload_inserted_at is the inserted_at a payload row is stored under and located by on every
 -- path: the write, the inline read, and the offloaded block index lookup. A row shared through a
--- reference id, which is always a version 7 uuid, takes the millisecond timestamp carried in the id,
--- so the id alone locates the row however much later the referrer is created or the row itself is
--- written after a queue hop. A row with no reference id (NULL, after the caller maps the zero uuid to
--- NULL) takes the inserted_at of the row that owns it.
+-- version 7 reference id takes the millisecond timestamp carried in the id, so the id alone locates
+-- the row however much later the referrer is created or the row itself is written after a queue hop.
+-- Any other id (NULL after the caller maps the zero uuid to NULL, or a row's own external id, which
+-- the OLAP repository passes to read a row it knows only by external id) takes the given inserted_at.
 CREATE OR REPLACE FUNCTION v1_payload_inserted_at(
     payload_reference_id UUID,
     inserted_at TIMESTAMPTZ
@@ -2500,8 +2500,9 @@ CREATE OR REPLACE FUNCTION v1_payload_inserted_at(
     PARALLEL SAFE
 AS $$
     SELECT CASE
-        WHEN payload_reference_id IS NULL THEN inserted_at
-        ELSE extract_uuid7_timestamp(payload_reference_id)
+        WHEN payload_reference_id IS NOT NULL AND get_byte(uuid_send(payload_reference_id), 6) >> 4 = 7
+        THEN extract_uuid7_timestamp(payload_reference_id)
+        ELSE inserted_at
     END;
 $$;
 

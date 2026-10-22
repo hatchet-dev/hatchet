@@ -9,8 +9,9 @@ CREATE OR REPLACE FUNCTION v1_payload_inserted_at(
     PARALLEL SAFE
 AS $$
     SELECT CASE
-        WHEN payload_reference_id IS NULL THEN inserted_at
-        ELSE extract_uuid7_timestamp(payload_reference_id)
+        WHEN payload_reference_id IS NOT NULL AND get_byte(uuid_send(payload_reference_id), 6) >> 4 = 7
+        THEN extract_uuid7_timestamp(payload_reference_id)
+        ELSE inserted_at
     END;
 $$;
 -- +goose StatementEnd
