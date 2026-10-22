@@ -1,7 +1,7 @@
 -- +goose NO TRANSACTION
 -- +goose Up
 -- +goose StatementBegin
-CREATE INDEX CONCURRENTLY IF NOT EXISTS "Step_dagOrchestrator_tenant_action_idx"
+CREATE INDEX CONCURRENTLY "Step_dagOrchestrator_tenant_action_idx"
     ON "Step" ("tenantId", "actionId")
     INCLUDE ("jobId")
     WHERE "isDagOrchestrator" AND "deletedAt" IS NULL;
