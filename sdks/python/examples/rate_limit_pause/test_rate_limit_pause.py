@@ -77,9 +77,19 @@ async def test_rate_limit_pause(hatchet: Hatchet) -> None:
 
         await asyncio.sleep(1)
 
-    rate_limits = await hatchet.rate_limits.aio_list(search=paused_key)
-    assert rate_limits.rows is not None and len(rate_limits.rows) == 1
-    assert rate_limits.rows[0].paused_until is None
-    assert (
-        rate_limits.rows[0].value == 9
-    ), f"Run did not consume units after the pause ended (value {rate_limits.rows[0].value})."
+    # the scheduler writes consumed units back on a timer, so they can land after the run completes
+    start = time.time()
+
+    while True:
+        rate_limits = await hatchet.rate_limits.aio_list(search=paused_key)
+        assert rate_limits.rows is not None and len(rate_limits.rows) == 1
+        assert rate_limits.rows[0].paused_until is None
+
+        if rate_limits.rows[0].value == 9:
+            break
+
+        assert (
+            time.time() - start < 10
+        ), f"Run did not consume units after the pause ended (value {rate_limits.rows[0].value})."
+
+        await asyncio.sleep(1)
