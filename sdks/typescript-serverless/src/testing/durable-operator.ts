@@ -11,10 +11,13 @@ import { durationToMs, type Duration } from '@hatchet-dev/typescript-sdk/edge/in
 import {
   ActionType,
   AssignedAction,
+  SubscribeToWorkflowEventsRequest,
   SubscribeToWorkflowRunsRequest,
+  WorkflowEvent,
   WorkflowRunEvent,
   WorkflowRunEventType,
 } from '../generated/proto/dispatcher';
+import { StreamMessage, SubscribeStreamRequest } from '../generated/proto/v1/streams';
 import type {
   DurableEventLogEntryRef,
   DurableTaskRequest,
@@ -30,8 +33,11 @@ import type {
 import {
   MAX_SOCKET_STREAMS,
   SOCKET_STREAM_PROCEDURES,
+  SUBSCRIBE_STREAM,
+  SUBSCRIBE_TO_WORKFLOW_EVENTS,
   SUBSCRIBE_TO_WORKFLOW_RUNS,
   StreamCloseCode,
+  streamCloseCodeName,
 } from '../handler/durable/streams';
 import {
   DONE_STATUS_EVICTED,
@@ -114,10 +120,42 @@ export interface RunTaskResult {
   error?: string;
 }
 
+/** One retained message of a scripted topic. */
+export interface TopicStreamEntry {
+  payload?: string | Uint8Array;
+  /** Defaults to `c<n>`, n being the entry's 1-based position in the script. */
+  cursor?: string;
+  createdAt?: Date;
+  /** An uploaded payload's ref, in place of `payload`. */
+  payloadRef?: string;
+}
+
 /**
- * The engine behind the streams a task opens over its socket. Only
- * `/Dispatcher/SubscribeToWorkflowRuns` is served; the other procedures the operator allows
- * are closed with code 12 (unimplemented), since the test operator has no engine for them.
+ * What the engine sends on a durable stream topic subscription: the retained entries after
+ * the request's cursor, then a hang-up and a close as scripted. A request naming a cursor
+ * that is not an entry's is closed with code 11 (out of range).
+ */
+export interface TopicStreamScript {
+  /** The retained messages, oldest first; a string or bytes is an entry with that payload. */
+  entries?: Array<string | Uint8Array | TopicStreamEntry>;
+  /** How many entries one stream_message carries. Defaults to 1. */
+  batch?: number;
+  /** Sends a hang-up message after the entries, as the engine does with an idle subscription. */
+  hangup?: boolean;
+  /**
+   * How the stream ends after the entries: a connect code (0 is the engine finishing it) or
+   * `false`, the default, which keeps it open until the task closes it, as the engine does
+   * while a topic is live.
+   */
+  close?: number | false;
+  /** The stream_close message; defaults to the operator's fixed message for the code. */
+  message?: string;
+}
+
+/**
+ * The engine behind the streams a task opens over its socket: run subscriptions, run event
+ * subscriptions and durable stream topics. `/v1.V1Dispatcher/ListenForDurableEvent` is
+ * closed with code 12 (unimplemented), since the test operator has no engine for it.
  */
 export interface RunStreamScript {
   /**
@@ -127,8 +165,54 @@ export interface RunStreamScript {
    * code) or 2 (unknown) and its message.
    */
   workflowRun?: (workflowRunId: string) => WorkflowRunEvent | Promise<WorkflowRunEvent>;
+  /**
+   * Answers a subscription to a run's events (`client.runs.events(runId)`) with the events,
+   * sent in order, then the engine finishing the stream (code 0). Without one the stream is
+   * closed with code 12. A rejection closes it the way `workflowRun` does.
+   */
+  workflowEvents?: (
+    request: SubscribeToWorkflowEventsRequest
+  ) => WorkflowEvent[] | Promise<WorkflowEvent[]>;
+  /**
+   * Answers a subscription to a durable stream topic (`client.streams.events(topic)`) with
+   * the script to play on it. Without one the subscription stays open with no messages until
+   * the task closes it, as the engine does for a topic nothing was published to. A rejection
+   * closes the stream the way `workflowRun` does: `{ code: 7 }` is the engine refusing a
+   * tenant without the durable streams entitlement.
+   */
+  topic?: (request: SubscribeStreamRequest) => TopicStreamScript | Promise<TopicStreamScript>;
   /** The cap on open streams per socket; defaults to the operator's 16. */
   maxStreams?: number;
+}
+
+/**
+ * The message a stream_close carries for a connect code, as the operator words it
+ * (pkg/serverlessoperator/durable/streams.go publicStreamMessages): the code's name and a
+ * phrase for the kind of failure, never the engine's own text.
+ */
+export function publicStreamMessage(code: number): string {
+  const phrases: Record<number, string> = {
+    [StreamCloseCode.CANCELED]: 'the engine stream was canceled',
+    [StreamCloseCode.UNKNOWN]: 'the engine stream failed',
+    [StreamCloseCode.INVALID_ARGUMENT]: 'the engine refused the request',
+    [StreamCloseCode.DEADLINE_EXCEEDED]: 'the engine stream timed out',
+    [StreamCloseCode.NOT_FOUND]: 'the engine found no such resource',
+    [StreamCloseCode.ALREADY_EXISTS]: 'the resource already exists',
+    [StreamCloseCode.PERMISSION_DENIED]: 'the engine denied the request',
+    [StreamCloseCode.RESOURCE_EXHAUSTED]:
+      'the engine or the operator is out of capacity for the request',
+    [StreamCloseCode.FAILED_PRECONDITION]: 'the engine refused the request in its current state',
+    [StreamCloseCode.ABORTED]: 'the engine aborted the stream',
+    [StreamCloseCode.OUT_OF_RANGE]: 'the request was out of range',
+    [StreamCloseCode.UNIMPLEMENTED]: 'the engine does not serve the request',
+    [StreamCloseCode.INTERNAL]: 'the engine failed',
+    [StreamCloseCode.UNAVAILABLE]: 'the engine stream was closed',
+    [StreamCloseCode.DATA_LOSS]: 'the engine lost data for the stream',
+    [StreamCloseCode.UNAUTHENTICATED]: "the engine did not accept the operator's credentials",
+  };
+  const known = code in phrases ? code : StreamCloseCode.UNKNOWN;
+
+  return `${streamCloseCodeName(known)}: ${phrases[known]}`;
 }
 
 export interface VirtualClock {
@@ -621,22 +705,43 @@ class ActiveInvocation implements DurableRun {
       return;
     }
 
-    if (open.procedure !== SUBSCRIBE_TO_WORKFLOW_RUNS) {
-      this.sendStreamClose(
-        open.id,
-        StreamCloseCode.UNIMPLEMENTED,
-        `the test operator serves only ${SUBSCRIBE_TO_WORKFLOW_RUNS}`
-      );
-      return;
+    switch (open.procedure) {
+      case SUBSCRIBE_TO_WORKFLOW_RUNS:
+        this.streams.set(open.id, open.procedure);
+        this.subscribeRun(open.id, open.request);
+        return;
+      case SUBSCRIBE_TO_WORKFLOW_EVENTS:
+        this.streams.set(open.id, open.procedure);
+        this.subscribeRunEvents(open.id, open.request);
+        return;
+      case SUBSCRIBE_STREAM:
+        this.streams.set(open.id, open.procedure);
+        this.subscribeTopic(open.id, open.request);
+        return;
+      default:
+        this.sendStreamClose(
+          open.id,
+          StreamCloseCode.UNIMPLEMENTED,
+          `the test operator does not serve ${open.procedure}`
+        );
     }
-
-    this.streams.set(open.id, open.procedure);
-    this.subscribeRun(open.id, open.request);
   }
 
   private onStreamMessage(message: ServerlessStreamMessage): void {
-    if (!this.streams.has(message.id)) {
+    const procedure = this.streams.get(message.id);
+
+    if (procedure === undefined) {
       // A message crossing the operator's close; the relay drops it too.
+      return;
+    }
+
+    if (procedure !== SUBSCRIBE_TO_WORKFLOW_RUNS) {
+      this.streams.delete(message.id);
+      this.sendStreamClose(
+        message.id,
+        StreamCloseCode.INVALID_ARGUMENT,
+        `${procedure} takes no message after the request`
+      );
       return;
     }
 
@@ -664,30 +769,165 @@ class ActiveInvocation implements DurableRun {
     }
 
     this.operator.awaitRun(workflowRunId).then(
-      (event) => {
-        if (this.streams.get(streamId) === undefined || this.done || this.pair.closed) {
-          return;
-        }
-
-        this.send({
-          streamMessage: {
-            id: streamId,
-            message: JSON.stringify(WorkflowRunEvent.toJSON(event)),
-          },
-        });
-      },
-      (err: unknown) => {
-        if (!this.streams.delete(streamId) || this.done || this.pair.closed) {
-          return;
-        }
-
-        const code =
-          typeof (err as { code?: unknown })?.code === 'number'
-            ? (err as { code: number }).code
-            : StreamCloseCode.UNKNOWN;
-        this.sendStreamClose(streamId, code, err instanceof Error ? err.message : String(err));
-      }
+      (event) => this.sendStreamMessage(streamId, JSON.stringify(WorkflowRunEvent.toJSON(event))),
+      (err: unknown) => this.failStream(streamId, err)
     );
+  }
+
+  /** Decodes a run events subscription and plays the scripted events, then the engine's end. */
+  private subscribeRunEvents(streamId: string, raw: string): void {
+    const script = this.options.runStream?.workflowEvents;
+
+    if (!script) {
+      this.endStream(streamId, StreamCloseCode.UNIMPLEMENTED);
+      return;
+    }
+
+    let request: SubscribeToWorkflowEventsRequest;
+
+    try {
+      request = SubscribeToWorkflowEventsRequest.fromJSON(JSON.parse(raw));
+    } catch (err) {
+      this.endStream(
+        streamId,
+        StreamCloseCode.INVALID_ARGUMENT,
+        `request is not a SubscribeToWorkflowEvents request: ${String(err)}`
+      );
+      return;
+    }
+
+    Promise.resolve()
+      .then(() => script(request))
+      .then(
+        (events) => {
+          for (const event of events) {
+            if (!this.sendStreamMessage(streamId, JSON.stringify(WorkflowEvent.toJSON(event)))) {
+              return;
+            }
+          }
+
+          this.endStream(streamId, StreamCloseCode.OK);
+        },
+        (err: unknown) => this.failStream(streamId, err)
+      );
+  }
+
+  /** Decodes a topic subscription and plays its script: the entries after the cursor, then the end. */
+  private subscribeTopic(streamId: string, raw: string): void {
+    let request: SubscribeStreamRequest;
+
+    try {
+      request = SubscribeStreamRequest.fromJSON(JSON.parse(raw));
+    } catch (err) {
+      this.endStream(
+        streamId,
+        StreamCloseCode.INVALID_ARGUMENT,
+        `request is not a SubscribeStream request: ${String(err)}`
+      );
+      return;
+    }
+
+    const script = this.options.runStream?.topic ?? (() => ({}));
+
+    Promise.resolve()
+      .then(() => script(request))
+      .then(
+        (topic) => this.playTopic(streamId, request, topic),
+        (err: unknown) => this.failStream(streamId, err)
+      );
+  }
+
+  private playTopic(streamId: string, request: SubscribeStreamRequest, script: TopicStreamScript) {
+    const entries = (script.entries ?? []).map((entry, index) => {
+      const given: TopicStreamEntry =
+        typeof entry === 'string' || entry instanceof Uint8Array ? { payload: entry } : entry;
+      const payload =
+        typeof given.payload === 'string'
+          ? encoder.encode(given.payload)
+          : (given.payload ?? new Uint8Array(0));
+
+      return {
+        payload,
+        cursor: given.cursor ?? `c${index + 1}`,
+        createdAt: given.createdAt,
+        payloadRef: given.payloadRef ?? '',
+      };
+    });
+
+    let start = 0;
+
+    if (request.cursor !== undefined && request.cursor !== '') {
+      const at = entries.findIndex((entry) => entry.cursor === request.cursor);
+
+      if (at < 0) {
+        this.endStream(streamId, StreamCloseCode.OUT_OF_RANGE);
+        return;
+      }
+
+      start = at + 1;
+    }
+
+    const batch = Math.max(script.batch ?? 1, 1);
+
+    for (let from = start; from < entries.length; from += batch) {
+      const slice = entries.slice(from, from + batch);
+      const message = StreamMessage.create({
+        entries: slice,
+        hangup: false,
+        cursor: slice[slice.length - 1].cursor,
+      });
+
+      if (!this.sendStreamMessage(streamId, JSON.stringify(StreamMessage.toJSON(message)))) {
+        return;
+      }
+    }
+
+    if (script.hangup) {
+      const message = StreamMessage.create({ entries: [], hangup: true, cursor: '' });
+
+      if (!this.sendStreamMessage(streamId, JSON.stringify(StreamMessage.toJSON(message)))) {
+        return;
+      }
+    }
+
+    if (script.close !== undefined && script.close !== false) {
+      this.endStream(streamId, script.close, script.message);
+    }
+  }
+
+  /** Relays one engine message on an open stream; false once the stream or socket is gone. */
+  private sendStreamMessage(streamId: string, message: string): boolean {
+    if (this.streams.get(streamId) === undefined || this.done || this.pair.closed) {
+      return false;
+    }
+
+    this.send({ streamMessage: { id: streamId, message } });
+
+    return true;
+  }
+
+  /** The engine ends a stream: code 0 when it finished, else the code with the operator's message. */
+  private endStream(streamId: string, code: number, message?: string): void {
+    if (!this.streams.delete(streamId) || this.done || this.pair.closed) {
+      return;
+    }
+
+    this.sendStreamClose(
+      streamId,
+      code,
+      message ?? (code === StreamCloseCode.OK ? '' : publicStreamMessage(code))
+    );
+  }
+
+  /** A script's rejection ends the stream with the error's `code` (a connect code) or 2. */
+  private failStream(streamId: string, err: unknown): void {
+    const code =
+      typeof (err as { code?: unknown })?.code === 'number'
+        ? (err as { code: number }).code
+        : StreamCloseCode.UNKNOWN;
+    const message = err instanceof Error ? err.message : undefined;
+
+    this.endStream(streamId, code, message || undefined);
   }
 
   private notifyWaiters(frame: ServerlessDurableFrame): void {

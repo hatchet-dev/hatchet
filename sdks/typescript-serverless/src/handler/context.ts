@@ -20,9 +20,11 @@ import type {
 import type NodeWorkflowRunRef from '@hatchet-dev/typescript-sdk/util/workflow-run-ref.js';
 import type { TriggerRunOptions, WorkflowRunRef } from '@hatchet-dev/typescript-sdk/core/index.js';
 import type { ClientSource, HatchetCore } from './client';
+import type { SocketStreams } from './durable/streams';
 import { ServerlessLimitationError } from './errors';
 import { errorMessage } from './http';
 import { TaskRunRef, type RunWatcher } from './runs';
+import { createTaskClient, type TaskClient } from './task-client';
 
 export type ConsoleLike = Pick<Console, 'debug' | 'info' | 'warn' | 'error'>;
 
@@ -35,6 +37,8 @@ export interface ServerlessRuntimeOptions {
   client?: ClientSource;
   /** Awaits child runs on the invocation socket; absent when the task was invoked over a POST. */
   runs?: RunWatcher;
+  /** The engine streams of the invocation socket; absent when the task was invoked over a POST. */
+  streams?: SocketStreams;
   /**
    * The task is a durable invocation: `ctx.runChild` and its variants throw, since a durable
    * task spawns children through the durable log (`ctx.spawnChild`), which replays them.
@@ -128,6 +132,7 @@ function triggerOptions(options: SpawnRunOptions | undefined): TriggerRunOptions
 
 export class ServerlessRuntime implements ContextRuntime {
   private readonly out: ConsoleLike;
+  private view: TaskClient | undefined;
 
   constructor(private readonly options: ServerlessRuntimeOptions) {
     this.out = options.console ?? console;
@@ -157,6 +162,21 @@ export class ServerlessRuntime implements ContextRuntime {
     }
 
     return client;
+  }
+
+  /**
+   * The task's view of the handler's client (`clientFromContext(ctx)`): the client with
+   * `streams.events` and `runs.events` reading over the invocation socket, which throw over a
+   * POST. One view per invocation; the same errors as `client()` without a client.
+   */
+  taskClient(feature: string): TaskClient {
+    const client = this.client(feature);
+
+    if (!this.view) {
+      this.view = createTaskClient(client, this.options.streams);
+    }
+
+    return this.view;
   }
 
   /**
@@ -305,18 +325,20 @@ export class ServerlessRuntime implements ContextRuntime {
 }
 
 /**
- * The handler's Hatchet client (`HatchetCore`) from a task's context, for the engine calls
- * `ctx` has no member for: publishing to a durable stream (`client.streams.publish`),
- * pushing an event, triggering an unrelated run. Throws `ServerlessLimitationError` when the
- * handler has no `client` option, when the task is declared with `hatchetClient: false`, and
- * when the context did not come from a serverless handler (a worker's context carries its
- * own client as `ctx.v1`).
+ * The handler's Hatchet client from a task's context, for the engine calls `ctx` has no
+ * member for: publishing to a durable stream (`client.streams.publish`), pushing an event,
+ * triggering an unrelated run. It is the `HatchetCore` with two members the unary client
+ * lacks, `client.streams.events(topic)` and `client.runs.events(runId)`, which read engine
+ * streams over the invocation socket and throw in a task delivered over a POST. Throws
+ * `ServerlessLimitationError` when the handler has no `client` option, when the task is
+ * declared with `hatchetClient: false`, and when the context did not come from a serverless
+ * handler (a worker's context carries its own client as `ctx.v1`).
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function clientFromContext(ctx: Context<any, any>): HatchetCore {
+export function clientFromContext(ctx: Context<any, any>): TaskClient {
   const runtime = ctx.runtime as Partial<ServerlessRuntime>;
 
-  if (typeof runtime.client !== 'function') {
+  if (typeof runtime.taskClient !== 'function') {
     throw new ServerlessLimitationError(
       'clientFromContext(ctx)',
       'On a worker, use ctx.v1',
@@ -324,5 +346,5 @@ export function clientFromContext(ctx: Context<any, any>): HatchetCore {
     );
   }
 
-  return runtime.client('clientFromContext(ctx)');
+  return runtime.taskClient('clientFromContext(ctx)');
 }

@@ -1,7 +1,7 @@
 /**
  * The tasks this endpoint serves. The operator registers them under these names, the way a
  * worker would (`echo`, action `echo:echo`), so they are triggered by the names declared here.
- * They are the same four tasks as examples/serverless/cloudflare-workers/src/tasks.ts, so one
+ * They are the same five tasks as examples/serverless/cloudflare-workers/src/tasks.ts, so one
  * endpoint registration works for either runtime.
  */
 import { clientFromContext, hatchet } from "@hatchet-dev/serverless";
@@ -100,4 +100,46 @@ export const streamProgress = hatchet.task({
   },
 });
 
-export const workflows = [echo, sleepThenEcho, parentEcho, streamProgress];
+/**
+ * Non-durable, on the socket by default: publishes `count` messages and a final
+ * `{"done": true}` to a durable stream topic through the endpoint's Hatchet client, then reads the
+ * topic back in the same invocation with `client.streams.events(topic)` and returns what it
+ * read. Reading a topic is a server stream, which the core client does not carry on its own;
+ * inside a task the package serves it over the invocation websocket: the operator opens the
+ * engine's `/v1.V1Streams/Subscribe` stream and relays its messages back, the way a child's
+ * result is awaited. The read starts at the oldest retained message and stops at the done
+ * message, which closes the stream and frees its slot on the socket. It needs an operator
+ * that relays the subscription (an older one closes it with code 12) and a tenant with the
+ * `durable_streams` entitlement (code 7); either failure is a `StreamClosedError`.
+ */
+export const streamEcho = hatchet.task({
+  name: "stream-echo",
+  fn: async (input: { topic?: string; message?: string; count?: number }, ctx) => {
+    const client = clientFromContext(ctx);
+    const topic = input.topic ?? `echo-${ctx.workflowRunId()}`;
+    const count = Math.min(Math.max(input.count ?? 3, 1), 20);
+    const message = input.message ?? "hello";
+
+    for (let index = 1; index <= count; index += 1) {
+      await client.streams.publish(topic, JSON.stringify({ index, message }));
+    }
+
+    await client.streams.publish(topic, JSON.stringify({ done: true }));
+
+    const decoder = new TextDecoder();
+    const read: string[] = [];
+
+    for await (const event of client.streams.events(topic)) {
+      const text = decoder.decode(event.payload);
+      read.push(text);
+
+      if (JSON.parse(text).done === true) {
+        break;
+      }
+    }
+
+    return { topic, published: count + 1, read };
+  },
+});
+
+export const workflows = [echo, sleepThenEcho, parentEcho, streamProgress, streamEcho];

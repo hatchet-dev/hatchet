@@ -35,14 +35,15 @@ a client per request, so two tenant keys never share a credential.
 
 With a client:
 
-| Member                                                                  | How it works                                                                                                                                                |
-| ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ctx.runNoWaitChild`, `ctx.bulkRunNoWaitChildren`, `ctx.spawnWorkflow*` | one unary `TriggerWorkflow` per child through the client, with the parent run, index and key set                                                            |
-| `ctx.runChild`, `ctx.bulkRunChildren`, `ref.result()` inside a task     | the trigger as above; the result is awaited on the invocation websocket, where the operator relays one `SubscribeToWorkflowRuns` engine stream for the task |
-| `ctx.putStream`, `ctx.cancel`                                           | `PutStreamEvent` and `CancelTasks` through the client                                                                                                       |
-| `clientFromContext(ctx)`                                                | the client itself, for what `ctx` has no member for: `client.streams.publish(topic, message)` to a durable stream, `client.events.push`, `client.runNoWait` |
-| `ctx.log`                                                               | the console, and the line is written to the engine too                                                                                                      |
-| `ctx.refreshTimeout`, `ctx.releaseSlot`, `ctx.worker.labels`            | still throw: there is no worker                                                                                                                             |
+| Member                                                                  | How it works                                                                                                                                                                                                       |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ctx.runNoWaitChild`, `ctx.bulkRunNoWaitChildren`, `ctx.spawnWorkflow*` | one unary `TriggerWorkflow` per child through the client, with the parent run, index and key set                                                                                                                   |
+| `ctx.runChild`, `ctx.bulkRunChildren`, `ref.result()` inside a task     | the trigger as above; the result is awaited on the invocation websocket, where the operator relays one `SubscribeToWorkflowRuns` engine stream for the task                                                        |
+| `ctx.putStream`, `ctx.cancel`                                           | `PutStreamEvent` and `CancelTasks` through the client                                                                                                                                                              |
+| `clientFromContext(ctx)`                                                | the client itself, for what `ctx` has no member for: `client.streams.publish(topic, message)` to a durable stream, `client.events.push`, `client.runNoWait`                                                        |
+| `clientFromContext(ctx).streams.events(topic)`, `.runs.events(runId)`   | the engine stream (`/v1.V1Streams/Subscribe`, `/Dispatcher/SubscribeToWorkflowEvents`) relayed over the invocation websocket, as the Node client's `AsyncIterable` of `StreamEvent`; `break` or `signal` closes it |
+| `ctx.log`                                                               | the console, and the line is written to the engine too                                                                                                                                                             |
+| `ctx.refreshTimeout`, `ctx.releaseSlot`, `ctx.worker.labels`            | still throw: there is no worker                                                                                                                                                                                    |
 
 Awaiting a child needs the invocation websocket, and the operator dials one for every task by
 default: every durable task, and every non-durable task except those declared with
@@ -52,15 +53,18 @@ function of its input and never talks to Hatchet at runtime. The operator delive
 over a signed POST, which is cheaper (no upgrade, no socket held for the task's lifetime), and
 every client-backed member of its `ctx` throws even when the handler has a client; `ctx.log`
 prints to the console only. The healthcheck lists the socket tasks as
-`tasks: [{ action, streams: true }]`. The operator allows at most 16 engine streams per socket
-and the package keeps every child of a task on one of them. Inside a durable task `ctx.runChild`
-throws: use `ctx.spawnChild` and `ctx.spawnChildren`, which record the child in the durable
-event log and replay its result after an eviction. A durable task always talks to Hatchet, so
-`hatchetClient: false` on `hatchet.durableTask` throws at declaration time.
+`tasks: [{ action, streams: true }]`. The operator allows at most 16 engine streams per socket;
+the package keeps every child of a task on one of them, and each `events()` iteration holds one
+while it runs. Inside a durable task `ctx.runChild` throws: use `ctx.spawnChild` and
+`ctx.spawnChildren`, which record the child in the durable event log and replay its result
+after an eviction. A durable task always talks to Hatchet, so `hatchetClient: false` on
+`hatchet.durableTask` throws at declaration time.
 
 A task that is not pure but arrives over a POST anyway (an operator that predates stream
 delivery, or an endpoint whose adapter cannot accept the upgrade) still runs: triggers work,
-and only a wait on a child's result throws, naming the reason.
+and only a wait on a child's result and the two socket-backed reads throw, naming the reason.
+Reading a topic from a task also needs an operator that relays `/v1.V1Streams/Subscribe`; an
+older one closes the stream with code 12 and the read throws `StreamClosedError`.
 
 Without a client every one of these members throws a `ServerlessLimitationError` naming the
 feature and "configure `client` to enable this", which the handler reports as a permanent
@@ -417,7 +421,10 @@ engine (`createRouterTransport` from `@connectrpc/connect` as `transport`). `op.
 task the catalog lists with `streams`, a POST for a task declared with `hatchetClient: false`
 (and for everything when the operator is created with `durable: false`), and the test operator
 answers the run subscription a socket task opens: `op.completeRun(runId, [{ taskName, output }])`
-finishes a child, or `runStream: { workflowRun: (runId) => event }` scripts the engine.
+finishes a child, or `runStream: { workflowRun: (runId) => event }` scripts the engine. A durable
+stream topic a task reads (`clientFromContext(ctx).streams.events`) is scripted with
+`runStream: { topic: (request) => ({ entries, close }) }`, a rejection with `{ code: 7 }` being
+the engine's refusal of an unentitled tenant, and a run's events with `workflowEvents`.
 
 ## What the package verifies
 

@@ -6,7 +6,7 @@
  * stream. The operator makes the engine call with its own credentials, so no token is
  * involved on this path.
  *
- * The operator allows three procedures and at most `MAX_SOCKET_STREAMS` open streams per
+ * The operator allows four procedures and at most `MAX_SOCKET_STREAMS` open streams per
  * socket; both limits are mirrored here so a task learns about them from a local error
  * instead of a closed stream. Every stream is closed when the task ends, before the done
  * frame, and every listener hears about the socket going away.
@@ -20,11 +20,13 @@ import type { DurableSocket } from './socket';
 export const SUBSCRIBE_TO_WORKFLOW_RUNS = '/Dispatcher/SubscribeToWorkflowRuns';
 export const SUBSCRIBE_TO_WORKFLOW_EVENTS = '/Dispatcher/SubscribeToWorkflowEvents';
 export const LISTEN_FOR_DURABLE_EVENT = '/v1.V1Dispatcher/ListenForDurableEvent';
+export const SUBSCRIBE_STREAM = '/v1.V1Streams/Subscribe';
 
 export const SOCKET_STREAM_PROCEDURES: readonly string[] = [
   SUBSCRIBE_TO_WORKFLOW_RUNS,
   SUBSCRIBE_TO_WORKFLOW_EVENTS,
   LISTEN_FOR_DURABLE_EVENT,
+  SUBSCRIBE_STREAM,
 ];
 
 /** The operator's per-socket cap on open streams (`WSMaxStreams`). */
@@ -36,11 +38,27 @@ export const StreamCloseCode = {
   CANCELED: 1,
   UNKNOWN: 2,
   INVALID_ARGUMENT: 3,
+  DEADLINE_EXCEEDED: 4,
+  NOT_FOUND: 5,
+  ALREADY_EXISTS: 6,
   PERMISSION_DENIED: 7,
   RESOURCE_EXHAUSTED: 8,
+  FAILED_PRECONDITION: 9,
+  ABORTED: 10,
+  OUT_OF_RANGE: 11,
   UNIMPLEMENTED: 12,
+  INTERNAL: 13,
   UNAVAILABLE: 14,
+  DATA_LOSS: 15,
+  UNAUTHENTICATED: 16,
 } as const;
+
+/** The connect code's name in lower case (`permission_denied`), or `code N` for one not in the table. */
+export function streamCloseCodeName(code: number): string {
+  const entry = Object.entries(StreamCloseCode).find(([, value]) => value === code);
+
+  return entry ? entry[0].toLowerCase() : `code ${code}`;
+}
 
 /** Raised when a stream cannot be opened: the cap is reached, the procedure is not served or the socket is gone. */
 export class StreamOpenError extends Error {

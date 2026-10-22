@@ -42,17 +42,27 @@ export { ServerlessLimitationError, isServerlessLimitationError } from './handle
 export { ServerlessRuntime, ConsoleLogger, clientFromContext } from './handler/context';
 export type { ConsoleLike, ServerlessRuntimeOptions } from './handler/context';
 export { RunStreamClosedError, RunWatcher, TaskRunRef, outputsOf } from './handler/runs';
+export { StreamClosedError, createTaskClient } from './handler/task-client';
+export type {
+  RunEventsOptions,
+  StreamEvent,
+  TaskClient,
+  TaskRunsClient,
+  TaskStreamsClient,
+} from './handler/task-client';
 export { FrameTransport } from './handler/durable/transport';
 export type { FrameTransportOptions } from './handler/durable/transport';
 export {
   LISTEN_FOR_DURABLE_EVENT,
   MAX_SOCKET_STREAMS,
   SOCKET_STREAM_PROCEDURES,
+  SUBSCRIBE_STREAM,
   SUBSCRIBE_TO_WORKFLOW_EVENTS,
   SUBSCRIBE_TO_WORKFLOW_RUNS,
   SocketStreams,
   StreamCloseCode,
   StreamOpenError,
+  streamCloseCodeName,
 } from './handler/durable/streams';
 export type { SocketStream, SocketStreamsOptions, StreamListener } from './handler/durable/streams';
 export { runDurableInvocation } from './handler/durable/invocation';
@@ -62,7 +72,11 @@ export type { ServeEntry } from './handler/registry';
 
 // The core client, so a Worker can build one for its own handlers with one import.
 export { HatchetCore, WorkflowRunRef } from '@hatchet-dev/typescript-sdk/core/index.js';
-export type { CoreClientConfig, ResultOptions } from '@hatchet-dev/typescript-sdk/core/index.js';
+export type {
+  CoreClientConfig,
+  ResultOptions,
+  StreamCallOptions,
+} from '@hatchet-dev/typescript-sdk/core/index.js';
 export {
   constantTimeEqual,
   isFreshTimestamp,
@@ -127,4 +141,4 @@ export type {
   ServerlessStreamClose,
   ServerlessTaskOptions,
 } from './generated/proto/v1/serverless';
-export type { WorkflowRunEvent, StepRunResult } from './generated/proto/dispatcher';
+export type { WorkflowEvent, WorkflowRunEvent, StepRunResult } from './generated/proto/dispatcher';

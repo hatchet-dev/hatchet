@@ -22,8 +22,13 @@ delivers assigned tasks to it over signed HTTPS requests.
   durable stream topic through the endpoint's Hatchet client (`clientFromContext(ctx)` and
   `client.streams.publish`) and returns the topic; `scripts/consume-stream.ts` reads the topic
   with the Node SDK. It talks to Hatchet, so it is invoked over the socket too.
+- `stream-echo`: a non-durable task that publishes a few messages to a durable stream topic and
+  reads them back in the same invocation with `client.streams.events(topic)`, which the package
+  serves over the invocation websocket: the operator opens the engine's `Subscribe` stream on
+  the task's behalf and relays its messages. It returns what it read, so it proves the relay end
+  to end. It needs an operator that relays durable stream subscriptions.
 
-The four tasks are the same as in `examples/serverless/cloudflare-workers`, with the same
+The five tasks are the same as in `examples/serverless/cloudflare-workers`, with the same
 names and outputs, so one endpoint registration works for either runtime.
 
 ## Demo triggers are not protected
@@ -45,8 +50,8 @@ route you keep. The message is capped at 200 characters.
 | `hatchet/tasks.ts`                       | The declarations, written with `hatchet.task` and `hatchet.durableTask` from `@hatchet-dev/serverless`; `hatchetClient: false` on `echo` states it never talks to Hatchet, so it is POSTed. The same file works on a regular worker. |
 | `app/api/hatchet/[...hatchet]/route.ts`  | `export const { GET, POST } = vercel({ workflows })`: `POST` serves the healthcheck and non-durable triggers, `GET` the durable websocket upgrade; the secret comes from `HATCHET_SIGNING_SECRET`. `maxDuration` caps one invocation. |
 | `hatchet/client.ts`                      | The SDK's core client (`@hatchet-dev/typescript-sdk/core`, Connect over fetch, no gRPC) built from `HATCHET_CLIENT_TOKEN` and friends. Only the triggering side has the token.                                                       |
-| `app/actions.ts`, `app/trigger-form.tsx` | A server action that triggers `echo`, `sleep-then-echo` or `stream-progress` and waits for the output, and the form on the page that calls it. A demo trigger (see above).                                                        |
-| `scripts/consume-stream.ts`              | Prints what a `stream-progress` run published, with the Node SDK's `hatchet.streams.events(topic)`; `pnpm run consume-stream <topic>`.                                                                                              |
+| `app/actions.ts`, `app/trigger-form.tsx` | A server action that triggers `echo`, `sleep-then-echo`, `stream-progress` or `stream-echo` and waits for the output, and the form on the page that calls it. A demo trigger (see above).                                            |
+| `scripts/consume-stream.ts`              | Prints what a `stream-progress` or `stream-echo` run published, with the Node SDK's `hatchet.streams.events(topic)`; `pnpm run consume-stream <topic>`.                                                                              |
 | `app/api/echo/route.ts`                  | `GET /api/echo?message=hello`: the same trigger for curl. A demo trigger (see above).                                                                                                                                                |
 | `hatchet/demo.ts`                        | Whether the demo triggers are on: under `next dev` and `vc dev`, or when `HATCHET_DEMO_TRIGGERS=true`.                                                                                                                                 |
 | `next.config.ts`                         | Keeps the package, the SDK, `ws` and `@vercel/functions` out of the server bundle (`serverExternalPackages`), since the adapter loads the last two at runtime.                                                                          |
@@ -142,8 +147,8 @@ pnpm run dev                                      # next dev, http://localhost:3
 under `vc dev` (see "Durable tasks on Vercel"); outside Vercel the adapter reports
 `durable.supported: false` and lists no stream task, so the operator POSTs every non-durable
 task and leaves `sleep-then-echo` alone: `echo` and `stream-progress` complete, and
-`parent-echo` fails at its `ctx.runChild` wait with a `422` saying the task was invoked over a
-POST.
+`parent-echo` and `stream-echo` fail with a `422` saying the task was invoked over a POST, the
+first at its `ctx.runChild` wait and the second at its `client.streams.events` read.
 
 Check the signature path before involving the operator. The package computes
 `hex(hmac_sha256(secret, raw_body))` over the exact bytes, and the body's
@@ -155,13 +160,14 @@ SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$SIGNING_SECRET" | awk '
 curl -s -X POST http://localhost:3000/api/hatchet/healthcheck -H "X-Hatchet-Signature: $SIG" -d "$BODY" | jq .
 ```
 
-Expected: `workflows` with `echo`, `parent-echo`, `sleep-then-echo` and `stream-progress`,
+Expected: `workflows` with `echo`, `parent-echo`, `sleep-then-echo`, `stream-progress` and
+`stream-echo`,
 `actions` equal to
-`["echo:echo", "parent-echo:parent-echo", "sleep-then-echo:sleep-then-echo", "stream-progress:stream-progress"]`,
+`["echo:echo", "parent-echo:parent-echo", "sleep-then-echo:sleep-then-echo", "stream-echo:stream-echo", "stream-progress:stream-progress"]`,
 `runtime.name: "vercel"` and, under
 `next dev`, `durable: {}` (protojson leaves a false `supported` out) with no `tasks` list. Under
 `vc dev` or on Vercel with Fluid compute, `durable.supported: true` and
-`tasks: [{"action": "parent-echo:parent-echo", "streams": true}, {"action": "stream-progress:stream-progress", "streams": true}]`,
+`tasks: [{"action": "parent-echo:parent-echo", "streams": true}, {"action": "stream-echo:stream-echo", "streams": true}, {"action": "stream-progress:stream-progress", "streams": true}]`,
 the non-durable tasks the operator invokes over the websocket (every one but `echo`, which is
 declared with `hatchetClient: false`). An unsigned POST answers
 `401 {"error": "bad signature"}`.
@@ -208,7 +214,7 @@ Within about 15 seconds the operator has polled the healthcheck and registered t
 ```sh
 curl -s $API/api/v1/stable/serverless/endpoints/$ENDPOINT_ID \
   -H "Authorization: Bearer $HATCHET_CLIENT_TOKEN" | jq .status
-# {"healthy": true, "registeredActions": ["echo:echo", "parent-echo:parent-echo", "sleep-then-echo:sleep-then-echo", "stream-progress:stream-progress"], ...}
+# {"healthy": true, "registeredActions": ["echo:echo", "parent-echo:parent-echo", "sleep-then-echo:sleep-then-echo", "stream-echo:stream-echo", "stream-progress:stream-progress"], ...}
 ```
 
 `status.error` names the problem when `healthy` is false (a 401 means the endpoint's
@@ -264,8 +270,32 @@ The input takes `topic` (the topic to publish to; the default is `progress-<run 
 `steps` (1 to 20; the default is 5). Reading starts from the oldest retained message, so the
 consumer prints everything whether it starts before or after the run. The task publishes over
 unary calls (`client.streams.publish` on the core client); reading a topic is a server stream,
-which the core client does not carry, so the consumer is a Node script. Without
-`HATCHET_CLIENT_TOKEN` in `.env.local` the task fails with `422` and `configure \`client\``.
+which the core client does not carry on its own, so from this machine the consumer is a Node
+script. Without `HATCHET_CLIENT_TOKEN` in `.env.local` the task fails with `422` and
+`configure \`client\``.
+
+A task can read a topic too, over the invocation websocket: `stream-echo` publishes `count`
+messages and `{"done": true}`, then reads the topic back with `client.streams.events(topic)`
+in the same invocation and returns the messages it read. The package sends a `stream_open`
+naming `/v1.V1Streams/Subscribe` on the socket and the operator relays the engine stream, the
+way a child's result is awaited, so it needs an operator that relays the subscription: an older
+one closes the stream with code 12 and the task fails with `StreamClosedError`; a tenant
+without the `durable_streams` entitlement sees code 7.
+
+```sh
+curl -s -X POST $API/api/v1/stable/tenants/$TENANT_ID/workflow-runs/trigger \
+  -H "Authorization: Bearer $HATCHET_CLIENT_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"workflowName": "stream-echo", "input": {"count": 3}}' | jq -r .run.metadata.id
+sleep 3
+curl -s $API/api/v1/stable/workflow-runs/<run id> \
+  -H "Authorization: Bearer $HATCHET_CLIENT_TOKEN" | jq -c .run.output
+# {"topic":"echo-<run id>","published":4,"read":["{\"index\":1,\"message\":\"hello\"}","{\"index\":2,\"message\":\"hello\"}","{\"index\":3,\"message\":\"hello\"}","{\"done\":true}"]}
+pnpm run consume-stream echo-<run id>   # the same four messages, from this machine
+```
+
+The input takes `topic` (default `echo-<run id>`), `message` (default `hello`) and `count` (1
+to 20; default 3). The read stops at the done message, which closes the stream and frees its
+slot on the socket (the operator allows 16 per socket).
 
 ### 6. Clean up
 
@@ -293,7 +323,8 @@ in this example's `dependencies`.
   426. The adapter cannot detect this from a healthcheck, so pass `durable: false` on such a
   project and let another endpoint (a Cloudflare Worker, a Node server) serve the durable tasks.
   With `durable: false` the healthcheck also lists no stream task, so every non-durable task is
-  POSTed: `echo` and `stream-progress` run, and only `parent-echo` fails, at its child wait.
+  POSTed: `echo` and `stream-progress` run, and `parent-echo` and `stream-echo` fail, at the
+  child wait and the socket read.
 - **`maxDuration`**: a durable invocation lives on its websocket until it finishes or evicts
   itself, so `maxDuration` in `route.ts` is the ceiling on one invocation: 300 s on Hobby, up to
   800 s on Pro and Enterprise. The endpoint's `inlineWaitBudgetMs` must stay well below it; the

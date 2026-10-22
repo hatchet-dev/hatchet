@@ -36,6 +36,7 @@ import {
   type VirtualClock,
 } from './durable-operator';
 
+export { publicStreamMessage } from './durable-operator';
 export type {
   DurableInvokeOptions,
   DurableResult,
@@ -43,6 +44,8 @@ export type {
   RecordedFrame,
   RunStreamScript,
   RunTaskResult,
+  TopicStreamEntry,
+  TopicStreamScript,
   VirtualClock,
 } from './durable-operator';
 export { createSocketPair } from './socket-pair';
@@ -65,8 +68,9 @@ export interface TestOperatorOptions extends Omit<
    */
   durable?: boolean;
   /**
-   * The engine behind the streams a task opens over its socket (`ctx.runChild` awaits child
-   * results on one). By default a subscription is answered by `completeRun`.
+   * The engine behind the streams a task opens over its socket: run subscriptions
+   * (`ctx.runChild` awaits child results on one; answered by `completeRun` by default), run
+   * event subscriptions (`runs.events`) and durable stream topics (`streams.events`).
    */
   runStream?: RunStreamScript;
 }

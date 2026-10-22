@@ -6,7 +6,6 @@
 
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
-import type { CallContext, CallOptions } from "nice-grpc-common";
 import { Timestamp } from "../google/protobuf/timestamp";
 
 export const protobufPackage = "v1";
@@ -927,84 +926,6 @@ export const ResetStreamTopicResponse: MessageFns<ResetStreamTopicResponse> = {
   },
 };
 
-export type V1StreamsDefinition = typeof V1StreamsDefinition;
-export const V1StreamsDefinition = {
-  name: "V1Streams",
-  fullName: "v1.V1Streams",
-  methods: {
-    publish: {
-      name: "Publish",
-      requestType: PublishStreamMessageRequest as typeof PublishStreamMessageRequest,
-      requestStream: false,
-      responseType: PublishStreamMessageResponse as typeof PublishStreamMessageResponse,
-      responseStream: false,
-      options: {},
-    },
-    subscribe: {
-      name: "Subscribe",
-      requestType: SubscribeStreamRequest as typeof SubscribeStreamRequest,
-      requestStream: false,
-      responseType: StreamMessage as typeof StreamMessage,
-      responseStream: true,
-      options: {},
-    },
-    getTopicMetadata: {
-      name: "GetTopicMetadata",
-      requestType: GetStreamTopicMetadataRequest as typeof GetStreamTopicMetadataRequest,
-      requestStream: false,
-      responseType: StreamTopicMetadata as typeof StreamTopicMetadata,
-      responseStream: false,
-      options: {},
-    },
-    reset: {
-      name: "Reset",
-      requestType: ResetStreamTopicRequest as typeof ResetStreamTopicRequest,
-      requestStream: false,
-      responseType: ResetStreamTopicResponse as typeof ResetStreamTopicResponse,
-      responseStream: false,
-      options: {},
-    },
-  },
-} as const;
-
-export interface V1StreamsServiceImplementation<CallContextExt = {}> {
-  publish(
-    request: PublishStreamMessageRequest,
-    context: CallContext & CallContextExt,
-  ): Promise<DeepPartial<PublishStreamMessageResponse>>;
-  subscribe(
-    request: SubscribeStreamRequest,
-    context: CallContext & CallContextExt,
-  ): ServerStreamingMethodResult<DeepPartial<StreamMessage>>;
-  getTopicMetadata(
-    request: GetStreamTopicMetadataRequest,
-    context: CallContext & CallContextExt,
-  ): Promise<DeepPartial<StreamTopicMetadata>>;
-  reset(
-    request: ResetStreamTopicRequest,
-    context: CallContext & CallContextExt,
-  ): Promise<DeepPartial<ResetStreamTopicResponse>>;
-}
-
-export interface V1StreamsClient<CallOptionsExt = {}> {
-  publish(
-    request: DeepPartial<PublishStreamMessageRequest>,
-    options?: CallOptions & CallOptionsExt,
-  ): Promise<PublishStreamMessageResponse>;
-  subscribe(
-    request: DeepPartial<SubscribeStreamRequest>,
-    options?: CallOptions & CallOptionsExt,
-  ): AsyncIterable<StreamMessage>;
-  getTopicMetadata(
-    request: DeepPartial<GetStreamTopicMetadataRequest>,
-    options?: CallOptions & CallOptionsExt,
-  ): Promise<StreamTopicMetadata>;
-  reset(
-    request: DeepPartial<ResetStreamTopicRequest>,
-    options?: CallOptions & CallOptionsExt,
-  ): Promise<ResetStreamTopicResponse>;
-}
-
 function bytesFromBase64(b64: string): Uint8Array {
   if ((globalThis as any).Buffer) {
     return Uint8Array.from((globalThis as any).Buffer.from(b64, "base64"));
@@ -1074,8 +995,6 @@ function longToNumber(int64: { toString(): string }): number {
 function isSet(value: any): boolean {
   return value !== null && value !== undefined;
 }
-
-export type ServerStreamingMethodResult<Response> = { [Symbol.asyncIterator](): AsyncIterator<Response, void> };
 
 export interface MessageFns<T> {
   encode(message: T, writer?: BinaryWriter): BinaryWriter;

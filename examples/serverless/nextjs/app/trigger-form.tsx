@@ -17,6 +17,7 @@ export function TriggerForm() {
           <option value="echo">echo</option>
           <option value="sleep-then-echo">sleep-then-echo (durable)</option>
           <option value="stream-progress">stream-progress (durable stream)</option>
+          <option value="stream-echo">stream-echo (durable stream, read back over the socket)</option>
         </select>
       </label>{" "}
       <label>

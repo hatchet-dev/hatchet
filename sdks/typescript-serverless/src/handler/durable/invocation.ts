@@ -223,6 +223,7 @@ class DurableInvocation {
       console: this.options.console,
       client: this.options.client,
       runs: new RunWatcher(streams),
+      streams,
       durable: durableRunner !== undefined,
       pure: registry.pureActions.has(actionId),
     });

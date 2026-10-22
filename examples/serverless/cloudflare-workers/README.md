@@ -23,6 +23,11 @@ and delivers assigned tasks to it over signed HTTPS requests.
   durable stream topic through the Worker's Hatchet client (`clientFromContext(ctx)` and
   `client.streams.publish`) and returns the topic; `scripts/consume-stream.ts` reads the topic
   with the Node SDK. It talks to Hatchet, so it is dialed too.
+- `stream-echo`: a non-durable task that publishes a few messages to a durable stream topic and
+  reads them back in the same invocation with `client.streams.events(topic)`, which the package
+  serves over the invocation websocket: the operator opens the engine's `Subscribe` stream on
+  the task's behalf and relays its messages. It returns what it read, so it proves the relay end
+  to end. It needs an operator that relays durable stream subscriptions.
 
 The operator registers the workflows under the names declared here, the way a worker would, so
 `echo` is triggered as `echo` and its action id is `echo:echo`.
@@ -33,7 +38,7 @@ The operator registers the workflows under the names declared here, the way a wo
 |---|---|
 | `src/tasks.ts` | The declarations, written with `hatchet.task` and `hatchet.durableTask` from `@hatchet-dev/serverless`; `hatchetClient: false` on `echo` states it never talks to Hatchet, so it is POSTed. The same file works on a regular worker. |
 | `src/index.ts` | `export default cloudflare({ workflows, client })`: the adapter serves `POST /hatchet/healthcheck`, `POST /hatchet/trigger` and the invocation websocket upgrade on `/hatchet/trigger`, reads the signing secret from `env.HATCHET_SIGNING_SECRET`, and builds the tasks' Hatchet client from `env.HATCHET_CLIENT_TOKEN` (plus `env.HATCHET_CLIENT_SERVER_URL` for a local engine). |
-| `scripts/consume-stream.ts` | Prints what a `stream-progress` run published, with the Node SDK's `hatchet.streams.events(topic)`; `pnpm run consume-stream <topic>`. |
+| `scripts/consume-stream.ts` | Prints what a `stream-progress` or `stream-echo` run published, with the Node SDK's `hatchet.streams.events(topic)`; `pnpm run consume-stream <topic>`. |
 | `wrangler.toml` | Worker config. `limits.cpu_ms = 300000` raises the CPU budget to the 5 minute maximum (Workers Paid plan). |
 
 The wire contract is `api-contracts/v1/serverless.proto` (every request, response and websocket
@@ -64,8 +69,8 @@ The Worker holds two secrets:
 - `HATCHET_CLIENT_TOKEN`, a tenant API token. The adapter builds the tasks' Hatchet client from
   it (`@hatchet-dev/typescript-sdk/core`, unary calls over `fetch`), which is what
   `ctx.runChild`, `ctx.putStream`, `ctx.cancel` and `ctx.log` use. Without it those members
-  throw and `parent-echo` and `stream-progress` fail without retry; `echo` and `sleep-then-echo`
-  need no client.
+  throw and `parent-echo`, `stream-progress` and `stream-echo` fail without retry; `echo` and
+  `sleep-then-echo` need no client.
   The operator never sends a token to the Worker; the token is configured here, like the
   signing secret. The child's result is not fetched with the token: the task awaits it on the
   invocation websocket, where the operator relays the engine stream with its own credentials.
@@ -135,11 +140,11 @@ SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$SIGNING_SECRET" | awk '
 curl -s -X POST http://localhost:8787/hatchet/healthcheck -H "X-Hatchet-Signature: $SIG" -d "$BODY" | jq .
 ```
 
-Expected: `workflows` with `echo`, `sleep-then-echo`, `parent-echo` and `stream-progress`,
-`actions` equal to
-`["echo:echo", "parent-echo:parent-echo", "sleep-then-echo:sleep-then-echo", "stream-progress:stream-progress"]`,
+Expected: `workflows` with `echo`, `sleep-then-echo`, `parent-echo`, `stream-progress` and
+`stream-echo`, `actions` equal to
+`["echo:echo", "parent-echo:parent-echo", "sleep-then-echo:sleep-then-echo", "stream-echo:stream-echo", "stream-progress:stream-progress"]`,
 `durable.supported: true`,
-`tasks: [{"action": "parent-echo:parent-echo", "streams": true}, {"action": "stream-progress:stream-progress", "streams": true}]`
+`tasks: [{"action": "parent-echo:parent-echo", "streams": true}, {"action": "stream-echo:stream-echo", "streams": true}, {"action": "stream-progress:stream-progress", "streams": true}]`
 (the non-durable tasks the operator invokes over the websocket: every one but `echo`, which is
 declared with `hatchetClient: false`) and `runtime.name: "cloudflare-workers"`. An unsigned
 POST answers `401 {"error": "bad signature"}`.
@@ -193,7 +198,7 @@ Within about 15 seconds the operator has polled the healthcheck and registered t
 ```sh
 curl -s $API/api/v1/stable/serverless/endpoints/$ENDPOINT_ID \
   -H "Authorization: Bearer $HATCHET_CLIENT_TOKEN" | jq .status
-# {"healthy": true, "registeredActions": ["echo:echo", "parent-echo:parent-echo", "sleep-then-echo:sleep-then-echo", "stream-progress:stream-progress"], ...}
+# {"healthy": true, "registeredActions": ["echo:echo", "parent-echo:parent-echo", "sleep-then-echo:sleep-then-echo", "stream-echo:stream-echo", "stream-progress:stream-progress"], ...}
 ```
 
 `status.error` names the problem when `healthy` is false (a 401 means the endpoint's
@@ -257,8 +262,32 @@ The input takes `topic` (the topic to publish to; the default is `progress-<run 
 `steps` (1 to 20; the default is 5). Reading starts from the oldest retained message, so the
 consumer prints everything whether it starts before or after the run. The task publishes over
 unary calls (`client.streams.publish` on the core client); reading a topic is a server stream,
-which the core client does not carry, so the consumer is a Node script. Without
-`HATCHET_CLIENT_TOKEN` in `.dev.vars` the task fails with `422` and `configure \`client\``.
+which the core client does not carry on its own, so from this machine the consumer is a Node
+script. Without `HATCHET_CLIENT_TOKEN` in `.dev.vars` the task fails with `422` and
+`configure \`client\``.
+
+A task can read a topic too, over the invocation websocket: `stream-echo` publishes `count`
+messages and `{"done": true}`, then reads the topic back with `client.streams.events(topic)`
+in the same invocation and returns the messages it read. The package sends a `stream_open`
+naming `/v1.V1Streams/Subscribe` on the socket and the operator relays the engine stream, the
+way a child's result is awaited, so it needs an operator that relays the subscription: an older
+one closes the stream with code 12 and the task fails with `StreamClosedError`; a tenant
+without the `durable_streams` entitlement sees code 7.
+
+```sh
+curl -s -X POST $API/api/v1/stable/tenants/$TENANT_ID/workflow-runs/trigger \
+  -H "Authorization: Bearer $HATCHET_CLIENT_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"workflowName": "stream-echo", "input": {"count": 3}}' | jq -r .run.metadata.id
+sleep 3
+curl -s $API/api/v1/stable/workflow-runs/<run id> \
+  -H "Authorization: Bearer $HATCHET_CLIENT_TOKEN" | jq -c .run.output
+# {"topic":"echo-<run id>","published":4,"read":["{\"index\":1,\"message\":\"hello\"}","{\"index\":2,\"message\":\"hello\"}","{\"index\":3,\"message\":\"hello\"}","{\"done\":true}"]}
+pnpm run consume-stream echo-<run id>   # the same four messages, from this machine
+```
+
+The input takes `topic` (default `echo-<run id>`), `message` (default `hello`) and `count` (1
+to 20; default 3). The read stops at the done message, which closes the stream and frees its
+slot on the socket (the operator allows 16 per socket).
 
 Or from a Node script with the TypeScript SDK. The local engine serves gRPC without TLS, so the
 client needs `tls_strategy: 'none'` (the SDK defaults to `tls`):

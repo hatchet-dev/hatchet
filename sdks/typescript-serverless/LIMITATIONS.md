@@ -16,14 +16,18 @@ Anything a task does that reaches the engine goes one of two ways:
 
 - **Unary calls** (`ctx.runNoWaitChild`, `ctx.putStream`, `ctx.log`, `ctx.cancel`, and the
   trigger behind `ctx.runChild`) go from the endpoint to the engine through the client.
-- **Streams** (awaiting a child's result) go through the operator over the invocation
-  websocket: the task sends a `stream_open` frame naming `/Dispatcher/SubscribeToWorkflowRuns`,
-  the operator opens the engine stream with its own credentials and relays the run's terminal
-  event back. No stream is ever opened from the endpoint to the engine, and the operator
-  allows only `/Dispatcher/SubscribeToWorkflowRuns`, `/Dispatcher/SubscribeToWorkflowEvents`
-  and `/v1.V1Dispatcher/ListenForDurableEvent`, at most 16 open streams per socket. The
-  package keeps every child of a task on one `SubscribeToWorkflowRuns` stream, so a fan-out
-  takes one slot however many children it awaits.
+- **Streams** (awaiting a child's result, reading a durable stream topic, following a run's
+  events) go through the operator over the invocation websocket: the task sends a
+  `stream_open` frame naming the procedure (`/Dispatcher/SubscribeToWorkflowRuns` for a
+  child's result, `/v1.V1Streams/Subscribe` for a topic), the operator opens the engine
+  stream with its own credentials and relays its messages back. No stream is ever opened
+  from the endpoint to the engine, and the operator allows only
+  `/Dispatcher/SubscribeToWorkflowRuns`, `/Dispatcher/SubscribeToWorkflowEvents`,
+  `/v1.V1Dispatcher/ListenForDurableEvent` and `/v1.V1Streams/Subscribe`, at most 16 open
+  streams per socket. The package keeps every child of a task on one
+  `SubscribeToWorkflowRuns` stream, so a fan-out takes one slot however many children it
+  awaits; each `clientFromContext(ctx).streams.events(topic)` or `runs.events(runId)`
+  iteration holds one slot while it runs and frees it when the task stops iterating.
 
 Without a `client`, every member that needs one throws `ServerlessLimitationError` with the
 feature in its message and "configure `client` to enable this"; the trigger handler answers
@@ -55,10 +59,11 @@ lifetime, no slot in the relay's stream table) and has nothing to await on. So:
   stream delivery, or an endpoint whose adapter cannot accept the upgrade: `durable: false`,
   Vercel without Fluid compute, Node without `ws`) still runs. Its triggers happen, and only a
   wait on a child's result (`ctx.runChild`, `ctx.bulkRunChildren`, or `result()` on a reference
-  from `ctx.runNoWaitChild`) throws `ServerlessLimitationError` saying the task was invoked over
-  a POST. An adapter without the upgrade lists no stream task in its healthcheck on purpose:
-  POSTing everything fails only the waits, where listing the tasks would fail every invocation
-  at the upgrade.
+  from `ctx.runNoWaitChild`) and a read over the socket (`clientFromContext(ctx).streams.events`,
+  `clientFromContext(ctx).runs.events`) throw `ServerlessLimitationError` saying the task was
+  invoked over a POST. An adapter without the upgrade lists no stream task in its healthcheck
+  on purpose: POSTing everything fails only the waits, where listing the tasks would fail every
+  invocation at the upgrade.
 - A reference created by a `HatchetCore` you hold yourself (`hatchet.run(...)` inside or
   outside a task) knows nothing about the socket and polls `GetRunDetails`, the way `/core`
   does everywhere.
@@ -81,7 +86,8 @@ operator switches delivery.
 | `ctx.putStream`                                                                              | throws                                                                                                               | `PutStreamEvent` through the client                                                             |
 | `ctx.log`, `ctx.logger.*`                                                                    | console only                                                                                                         | console, and `ctx.log` also writes the line to the engine (a failed write is a console warning) |
 | `ctx.cancel`                                                                                 | throws; the operator cancels a run by dropping the request or closing the socket, which aborts `ctx.abortController` | `CancelTasks` through the client                                                                |
-| `clientFromContext(ctx)`                                                                     | throws                                                                                                               | the handler's `HatchetCore`                                                                     |
+| `clientFromContext(ctx)`                                                                     | throws                                                                                                               | the handler's `HatchetCore`, with the two socket-backed reads below                             |
+| `clientFromContext(ctx).streams.events(topic)`, `clientFromContext(ctx).runs.events(runId)`  | throw                                                                                                                | the engine stream relayed over the socket the task has by default; over a POST they throw       |
 | `ctx.refreshTimeout`                                                                         | throws                                                                                                               | throws; set the task's `executionTimeout` and the endpoint's `requestTimeoutSeconds` instead    |
 | `ctx.releaseSlot`, `ctx.worker.labels()`, `ctx.worker.upsertLabels()`                        | throw                                                                                                                | throw; there is no worker                                                                       |
 | `ctx.worker.id()`                                                                            | `undefined`                                                                                                          | `undefined`                                                                                     |
@@ -97,6 +103,31 @@ In a durable task, `ctx.now`, `ctx.sleepFor`, `ctx.sleepUntil`, `ctx.waitFor`, `
 `ctx.spawnChild` and `ctx.spawnChildren` work: they become durable event requests the operator
 relays to the engine over the invocation's websocket, and their results replay from the engine's
 event log on re-invocation.
+
+### Reading a durable stream from a task
+
+`clientFromContext(ctx).streams.events(topic, options)` is the Node client's
+`hatchet.streams.events`: an `AsyncIterable` of `{ payload, cursor, createdAt }` with the same
+`namespace`, `cursor` and `signal` options. The core client cannot carry it (a server stream
+over a unary transport), so inside a task it goes over the invocation socket: one
+`/v1.V1Streams/Subscribe` engine stream per iteration, relayed by the operator. The differences
+from the Node client:
+
+- It needs an operator that relays the subscription. An older operator closes the stream with
+  code 12 (unimplemented) and the iteration throws `StreamClosedError` saying so; a tenant
+  without the `durable_streams` entitlement sees code 7 (permission denied) the same way.
+- It does not resubscribe when the stream drops: the iteration ends on the engine finishing or
+  hanging up the stream, on `options.signal`, or when the task stops iterating (`break`,
+  `return()`), and throws `StreamClosedError` on any other close, carrying the `cursor` of the
+  last message yielded so the task can resume from it.
+- A message whose payload was uploaded (over the 4 MiB inline limit, which only the Node client
+  publishes) cannot be fetched, since the core client has no REST path: the iteration throws
+  a `HatchetError` naming the message.
+- `signal` is the way to stop a read that is waiting for the next message; `return()` on the
+  iterator takes effect between messages, as with any async generator.
+
+`clientFromContext(ctx).runs.events(runId)` reads `/Dispatcher/SubscribeToWorkflowEvents` the
+same way, yielding each `WorkflowEvent` until the engine's hang-up event.
 
 ## Durable tasks and the inline wait budget
 
@@ -151,5 +182,5 @@ Socket tasks outside `serve` are not listed under `tasks`.
 
 The operator reads at most 4 MiB of a trigger response and of a durable frame. Larger outputs
 fail the task without retry. The same frame limit applies to every stream frame, including the
-terminal event of an awaited child, so a child whose outputs come to more than 4 MiB cannot be
-awaited over the socket.
+terminal event of an awaited child and each batch of a topic's messages, so a child whose
+outputs come to more than 4 MiB cannot be awaited over the socket.
