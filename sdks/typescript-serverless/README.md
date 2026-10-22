@@ -43,7 +43,8 @@ With a client:
 | `clientFromContext(ctx)`                                                | the client itself, for what `ctx` has no member for: `client.streams.publish(topic, message)` to a durable stream, `client.events.push`, `client.runNoWait`                                                        |
 | `clientFromContext(ctx).streams.events(topic)`, `.runs.events(runId)`   | the engine stream (`/v1.V1Streams/Subscribe`, `/Dispatcher/SubscribeToWorkflowEvents`) relayed over the invocation websocket, as the Node client's `AsyncIterable` of `StreamEvent`; `break` or `signal` closes it |
 | `ctx.log`                                                               | the console, and the line is written to the engine too                                                                                                                                                             |
-| `ctx.refreshTimeout`, `ctx.releaseSlot`, `ctx.worker.labels`            | still throw: there is no worker                                                                                                                                                                                    |
+| `ctx.refreshTimeout`, `ctx.releaseSlot`                                 | `RefreshTimeout` and `ReleaseSlot` through the client: the engine's timeout of the run and its slot on the tenant's serverless worker, in either delivery                                                          |
+| `ctx.worker.labels`, `ctx.worker.upsertLabels`                          | still throw: there is no worker                                                                                                                                                                                    |
 
 Awaiting a child needs the invocation websocket, and the operator dials one for every task by
 default: every durable task, and every non-durable task except those declared with
@@ -94,8 +95,8 @@ handler ignores.
 pnpm add @hatchet-dev/serverless @hatchet-dev/typescript-sdk zod
 ```
 
-`@hatchet-dev/typescript-sdk` (1.39.0 or later, for its `/core` entry and its durable stream
-calls) and `zod` are peer dependencies: the SDK supplies the declaration API, `Context`, the registration format and
+`@hatchet-dev/typescript-sdk` (1.40.0 or later, for its `/core` entry, its durable stream
+calls and its task calls) and `zod` are peer dependencies: the SDK supplies the declaration API, `Context`, the registration format and
 the core client, nothing else.
 
 ## Declare tasks

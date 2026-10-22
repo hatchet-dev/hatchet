@@ -1,4 +1,5 @@
 import { createRouterTransport } from '@connectrpc/connect';
+import { Dispatcher } from '@hatchet-dev/typescript-sdk/protoc-es/dispatcher/dispatcher_pb.js';
 import { EventsService } from '@hatchet-dev/typescript-sdk/protoc-es/events/events_pb.js';
 import {
   AdminService,
@@ -34,6 +35,8 @@ function fakeEngine() {
   const streamed: Array<{ taskRunExternalId: string; message: string; index: number }> = [];
   const logs: Array<{ taskRunExternalId: string; message: string; level: string }> = [];
   const cancels: string[][] = [];
+  const refreshes: Array<{ taskRunExternalId: string; incrementTimeoutBy: string }> = [];
+  const releases: string[] = [];
   let details: RunDetails | undefined;
 
   const transport = createRouterTransport(({ service }) => {
@@ -58,6 +61,19 @@ function fakeEngine() {
       cancelTasks: (req) => {
         cancels.push(req.externalIds);
         return { cancelledTasks: req.externalIds };
+      },
+    });
+    service(Dispatcher, {
+      refreshTimeout: (req) => {
+        refreshes.push({
+          taskRunExternalId: req.taskRunExternalId,
+          incrementTimeoutBy: req.incrementTimeoutBy,
+        });
+        return {};
+      },
+      releaseSlot: (req) => {
+        releases.push(req.taskRunExternalId);
+        return {};
       },
     });
     service(EventsService, {
@@ -86,6 +102,8 @@ function fakeEngine() {
     streamed,
     logs,
     cancels,
+    refreshes,
+    releases,
     completeDetails(taskName: string, output: unknown) {
       details = {
         status: RunStatus.COMPLETED,
@@ -117,6 +135,18 @@ const reporter = hatchet.task({
     await ctx.putStream(new TextEncoder().encode('chunk two'));
     await ctx.log('hello from the task', 'WARN');
     await ctx.cancel();
+    return { taskRunExternalId: ctx.taskRunExternalId() };
+  },
+});
+
+// Extends its own timeout in each duration form the context accepts, then gives up its slot.
+const extender = hatchet.task({
+  name: 'extender',
+  fn: async (_input: {}, ctx) => {
+    await ctx.refreshTimeout('30s');
+    await ctx.refreshTimeout({ seconds: 30 });
+    await ctx.refreshTimeout(30_000);
+    await ctx.releaseSlot();
     return { taskRunExternalId: ctx.taskRunExternalId() };
   },
 });
@@ -189,6 +219,12 @@ const pureReporter = hatchet.task({
       case 'ctx.cancel':
         await ctx.cancel();
         break;
+      case 'ctx.refreshTimeout':
+        await ctx.refreshTimeout('30s');
+        break;
+      case 'ctx.releaseSlot':
+        await ctx.releaseSlot();
+        break;
       case 'clientFromContext(ctx)':
         clientFromContext(ctx);
         break;
@@ -203,7 +239,7 @@ const pureReporter = hatchet.task({
   },
 });
 
-const workflows = [echo, reporter, spawner, parent, fanOut, durableSpawner, pureReporter];
+const workflows = [echo, reporter, extender, spawner, parent, fanOut, durableSpawner, pureReporter];
 
 describe('ctx over the client', () => {
   it('putStream, log and cancel go to the engine as unary calls through the client', async () => {
@@ -228,6 +264,42 @@ describe('ctx over the client', () => {
     expect(engine.cancels).toEqual([[id]]);
   });
 
+  it('refreshTimeout and releaseSlot reach the dispatcher through the client, in either delivery', async () => {
+    const engine = fakeEngine();
+    const client = { token: TOKEN, transport: engine.transport, logLevel: 'OFF' as const };
+
+    // Over the socket, the default delivery.
+    const dialed = createTestOperator({ workflows, secret, console: quiet, client });
+    const { taskRunExternalId: socketId } = await dialed.invoke<{ taskRunExternalId: string }>(
+      extender,
+      {}
+    );
+
+    // Over a POST: the calls are unary, so the socket is not needed.
+    const posted = createTestOperator({
+      workflows,
+      secret,
+      console: quiet,
+      client,
+      durable: false,
+    });
+    const { taskRunExternalId: postId } = await posted.invoke<{ taskRunExternalId: string }>(
+      extender,
+      {}
+    );
+
+    expect(socketId).not.toBe(postId);
+    expect(engine.refreshes).toEqual([
+      { taskRunExternalId: socketId, incrementTimeoutBy: '30s' },
+      { taskRunExternalId: socketId, incrementTimeoutBy: '30s' },
+      { taskRunExternalId: socketId, incrementTimeoutBy: '30s' },
+      { taskRunExternalId: postId, incrementTimeoutBy: '30s' },
+      { taskRunExternalId: postId, incrementTimeoutBy: '30s' },
+      { taskRunExternalId: postId, incrementTimeoutBy: '30s' },
+    ]);
+    expect(engine.releases).toEqual([socketId, postId]);
+  });
+
   it('without a client the same members throw, naming the option, over the socket and over a POST', async () => {
     const op = createTestOperator({ workflows, secret, console: quiet });
     const outcome = await op.deliver(reporter, {});
@@ -243,6 +315,15 @@ describe('ctx over the client', () => {
       retry: false,
       httpStatus: 422,
       error: expect.stringMatching(/ctx\.putStream .* configure `client` to enable this/),
+    });
+
+    expect(await op.deliver(extender, {})).toMatchObject({
+      status: 'failed',
+      retry: false,
+      httpStatus: 101,
+      error: expect.stringMatching(
+        /ctx\.refreshTimeout is not available in the serverless runtime: configure `client` to enable this/
+      ),
     });
   });
 
@@ -301,6 +382,8 @@ describe('ctx over the client', () => {
       'ctx.spawnWorkflows',
       'ctx.putStream',
       'ctx.cancel',
+      'ctx.refreshTimeout',
+      'ctx.releaseSlot',
       'clientFromContext(ctx)',
     ]) {
       const outcome = await op.deliver(pureReporter, { member });
@@ -335,6 +418,8 @@ describe('ctx over the client', () => {
     expect(engine.triggers).toEqual([]);
     expect(engine.streamed).toEqual([]);
     expect(engine.cancels).toEqual([]);
+    expect(engine.refreshes).toEqual([]);
+    expect(engine.releases).toEqual([]);
   });
 
   it('runNoWaitChild over a POST (an adapter without the socket) triggers the child with the parent set, and its result() says why there is no socket', async () => {
@@ -395,6 +480,7 @@ describe('ctx over the client', () => {
 
     // Every non-durable task but the pure ones; the durable one has a socket regardless.
     expect((await op.healthcheck()).tasks).toEqual([
+      { action: 'extender:extender', streams: true },
       { action: 'fan-out:fan-out', streams: true },
       { action: 'parent:parent', streams: true },
       { action: 'reporter:reporter', streams: true },
@@ -640,10 +726,10 @@ describe('ServerlessLimitationError', () => {
       'ctx.putStream is not available in the serverless runtime: configure `client` to enable this. See LIMITATIONS.md in @hatchet-dev/serverless.'
     );
     expect(
-      new ServerlessLimitationError('ctx.releaseSlot', 'Nothing to do', 'there is no worker')
+      new ServerlessLimitationError('ctx.worker.labels', 'Nothing to do', 'there is no worker')
         .message
     ).toBe(
-      'ctx.releaseSlot is not available in the serverless runtime: there is no worker. Nothing to do. See LIMITATIONS.md in @hatchet-dev/serverless.'
+      'ctx.worker.labels is not available in the serverless runtime: there is no worker. Nothing to do. See LIMITATIONS.md in @hatchet-dev/serverless.'
     );
   });
 });

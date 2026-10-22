@@ -18,7 +18,11 @@ import type {
   WorkerLabels,
 } from '@hatchet-dev/typescript-sdk/edge/index.js';
 import type NodeWorkflowRunRef from '@hatchet-dev/typescript-sdk/util/workflow-run-ref.js';
-import type { TriggerRunOptions, WorkflowRunRef } from '@hatchet-dev/typescript-sdk/core/index.js';
+import type {
+  Duration,
+  TriggerRunOptions,
+  WorkflowRunRef,
+} from '@hatchet-dev/typescript-sdk/core/index.js';
 import type { ClientSource, HatchetCore } from './client';
 import type { SocketStreams } from './durable/streams';
 import { ServerlessLimitationError } from './errors';
@@ -221,20 +225,21 @@ export class ServerlessRuntime implements ContextRuntime {
     );
   }
 
-  async refreshTimeout(_taskRunExternalId: string, _incrementBy: string): Promise<void> {
-    throw new ServerlessLimitationError(
-      'ctx.refreshTimeout',
-      "Set the task's executionTimeout and the endpoint's requestTimeoutSeconds instead",
-      'extending a running task is a worker call'
+  /**
+   * Extends the engine's timeout of the task run: a unary call, independent of the delivery
+   * (the socket or a POST) and of the adapter's own request timeout. The context has already
+   * normalized `incrementBy` to a Go duration string, one of the forms the client accepts.
+   */
+  async refreshTimeout(taskRunExternalId: string, incrementBy: string): Promise<void> {
+    await this.client('ctx.refreshTimeout').tasks.refreshTimeout(
+      taskRunExternalId,
+      incrementBy as Duration
     );
   }
 
-  async releaseSlot(_taskRunExternalId: string): Promise<void> {
-    throw new ServerlessLimitationError(
-      'ctx.releaseSlot',
-      undefined,
-      'a serverless endpoint has no worker slots'
-    );
+  /** Releases the slot the task run holds on the tenant's serverless worker. */
+  async releaseSlot(taskRunExternalId: string): Promise<void> {
+    await this.client('ctx.releaseSlot').tasks.releaseSlot(taskRunExternalId);
   }
 
   async putStream(
