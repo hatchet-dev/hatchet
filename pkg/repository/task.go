@@ -3993,12 +3993,12 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 		return nil, fmt.Errorf("failed to list tasks for replay: %w", err)
 	}
 
-	hasNonOperatorDags := slices.ContainsFunc(lockedTasks, func(task *sqlcv1.ListTasksForReplayRow) bool {
+	hasLegacyDags := slices.ContainsFunc(lockedTasks, func(task *sqlcv1.ListTasksForReplayRow) bool {
 		return task.DagID.Valid
 	})
 
-	if !hasNonOperatorDags {
-		return r.replayTasksWithoutDags(ctx, tx, commit, tenantId, lockedTasks)
+	if !hasLegacyDags {
+		return r.replayTasksWithoutLegacyDags(ctx, tx, commit, tenantId, lockedTasks)
 	}
 
 	subtreeStepIds := make(map[int64]map[uuid.UUID]bool) // dag id -> step id -> true
@@ -4377,7 +4377,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 	}, nil
 }
 
-func (r *TaskRepositoryImpl) replayTasksWithoutDags(
+func (r *TaskRepositoryImpl) replayTasksWithoutLegacyDags(
 	ctx context.Context,
 	tx pgx.Tx,
 	commit func(context.Context) error,
