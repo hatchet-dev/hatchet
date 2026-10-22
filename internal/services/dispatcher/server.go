@@ -1831,6 +1831,7 @@ func (s *DispatcherImpl) handleBatchTaskStarted(
 	}
 
 	payloads := make([]tasktypes.CreateMonitoringEventPayload, 0, len(tasks))
+	ackedTasks := make([]v1.TaskIdInsertedAtRetryCount, 0, len(tasks))
 
 	for _, task := range tasks {
 		item, ok := itemsByExternalId[task.ExternalID]
@@ -1851,6 +1852,12 @@ func (s *DispatcherImpl) handleBatchTaskStarted(
 			durableInvocationCount = *count
 		}
 
+		ackedTasks = append(ackedTasks, v1.TaskIdInsertedAtRetryCount{
+			Id:         task.ID,
+			InsertedAt: task.InsertedAt,
+			RetryCount: retryCount,
+		})
+
 		payloads = append(payloads, tasktypes.CreateMonitoringEventPayload{
 			TaskId:                 task.ID,
 			RetryCount:             retryCount,
@@ -1864,6 +1871,22 @@ func (s *DispatcherImpl) handleBatchTaskStarted(
 
 	if len(payloads) == 0 {
 		return resp, nil
+	}
+
+	ackedMsg, err := msgqueue.NewTenantMessage(
+		tenantId,
+		msgqueue.MsgIDTaskAcked,
+		false,
+		true,
+		ackedTasks...,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.pubBuffer.Pub(inputCtx, msgqueue.TASK_PROCESSING_QUEUE, ackedMsg, false); err != nil {
+		return nil, fmt.Errorf("could not publish acked message for batch tasks: %w", err)
 	}
 
 	msg, err := msgqueue.NewTenantMessage(
