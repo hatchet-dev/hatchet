@@ -1,7 +1,8 @@
 #!/bin/bash
 #
-# Generates the TypeScript bindings for the serverless wire contract, v1/serverless.proto, and
-# the messages it imports. Run from this directory (pnpm run generate-proto).
+# Generates the TypeScript bindings for the serverless wire contract, v1/serverless.proto, the
+# messages it imports and the messages of the engine streams an endpoint may open over the
+# socket (ServerlessStreamOpen.procedure). Run from this directory (pnpm run generate-proto).
 #
 # useExactTypes=false matches sdks/typescript/generate-protoc.sh so that fromJSON and toJSON
 # produce the protojson encoding the operator uses. Service stubs are left out: the package
@@ -29,6 +30,7 @@ mkdir -p "$OUT_DIR"
   --proto_path="$IN_DIR/dispatcher" \
   --proto_path="$VENDOR_DIR" \
   v1/serverless.proto \
+  v1/streams.proto \
   v1/dispatcher.proto \
   v1/workflows.proto \
   v1/shared/condition.proto \
