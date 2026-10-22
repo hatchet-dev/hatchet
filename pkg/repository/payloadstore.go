@@ -231,20 +231,15 @@ func (o RetrievePayloadOpts) effectiveExternalId() uuid.UUID {
 	return o.ExternalId
 }
 
-// partitionTime is the time a payload row is stored under and later looked up by once offloaded. A row
-// shared through a time-ordered reference id takes the time in the id, so the id alone locates the row
-// however much later the referrer is created or the row itself is written after a queue hop. Any other
-// row takes the InsertedAt of the row that owns it. Go applies this rule on the write side and for the
-// offloaded block index lookup; the inline read side applies it in SQL through
-// v1_payload_reference_inserted_at inside read_payloads, so retrieve passes the referrer's own InsertedAt.
-func (o RetrievePayloadOpts) partitionTime() pgtype.Timestamptz {
-	if o.PayloadReferenceId == nil || o.PayloadReferenceId.Version() != 7 {
-		return o.InsertedAt
+// payloadReferenceIdOrZero is the reference id as every payload query takes it: the zero uuid means no
+// reference. The query derives the inserted_at the row is stored under from this id and InsertedAt
+// through v1_payload_inserted_at, so Go always passes the referrer's own InsertedAt.
+func (o RetrievePayloadOpts) payloadReferenceIdOrZero() uuid.UUID {
+	if o.PayloadReferenceId == nil {
+		return uuid.Nil
 	}
 
-	sec, nsec := o.PayloadReferenceId.Time().UnixTime()
-
-	return pgtype.Timestamptz{Time: time.Unix(sec, nsec).UTC(), Valid: true}
+	return *o.PayloadReferenceId
 }
 
 type RetrieveFromExternalOpts struct {
@@ -376,6 +371,7 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 
 	taskIds := make([]int64, 0, len(payloads))
 	taskInsertedAts := make([]pgtype.Timestamptz, 0, len(payloads))
+	payloadReferenceIds := make([]uuid.UUID, 0, len(payloads))
 	payloadTypes := make([]string, 0, len(payloads))
 	inlineContents := make([][]byte, 0, len(payloads))
 	tenantIds := make([]uuid.UUID, 0, len(payloads))
@@ -402,7 +398,8 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 		seenPayloadUniqueKeys[uniqueKey] = struct{}{}
 
 		taskIds = append(taskIds, payload.key.Id)
-		taskInsertedAts = append(taskInsertedAts, payload.key.partitionTime())
+		taskInsertedAts = append(taskInsertedAts, payload.key.InsertedAt)
+		payloadReferenceIds = append(payloadReferenceIds, payload.key.payloadReferenceIdOrZero())
 		payloadTypes = append(payloadTypes, string(payload.key.Type))
 		tenantIds = append(tenantIds, payload.key.TenantId)
 		inlineContents = append(inlineContents, payload.payload.Bytes())
@@ -410,12 +407,13 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 	}
 
 	err := p.queries.WritePayloads(ctx, tx, sqlcv1.WritePayloadsParams{
-		Ids:            taskIds,
-		Insertedats:    taskInsertedAts,
-		Types:          payloadTypes,
-		Tenantids:      tenantIds,
-		Inlinecontents: inlineContents,
-		Externalids:    externalIds,
+		Ids:                 taskIds,
+		Insertedats:         taskInsertedAts,
+		Payloadreferenceids: payloadReferenceIds,
+		Types:               payloadTypes,
+		Tenantids:           tenantIds,
+		Inlinecontents:      inlineContents,
+		Externalids:         externalIds,
 	})
 
 	if err != nil {
@@ -442,7 +440,8 @@ func (p *payloadStoreRepositoryImpl) OverwriteExisting(ctx context.Context, tx s
 		}
 
 		params.Ids = append(params.Ids, payload.key.Id)
-		params.Insertedats = append(params.Insertedats, payload.key.partitionTime())
+		params.Insertedats = append(params.Insertedats, payload.key.InsertedAt)
+		params.Payloadreferenceids = append(params.Payloadreferenceids, payload.key.payloadReferenceIdOrZero())
 		params.Externalids = append(params.Externalids, payload.key.effectiveExternalId())
 		params.Types = append(params.Types, string(payload.key.Type))
 		params.Inlinecontents = append(params.Inlinecontents, payload.payload.Bytes())
@@ -530,10 +529,7 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 		insertedAts[i] = opt.InsertedAt
 		types[i] = string(opt.Type)
 		tenantIds[i] = opt.TenantId
-
-		if opt.PayloadReferenceId != nil {
-			payloadReferenceIds[i] = *opt.PayloadReferenceId
-		}
+		payloadReferenceIds[i] = opt.payloadReferenceIdOrZero()
 	}
 
 	payloads, err := p.queries.ReadPayloads(ctx, tx, sqlcv1.ReadPayloadsParams{
@@ -635,17 +631,15 @@ func NewPayloadReferenceId() uuid.UUID {
 	return uuid.Must(uuid.NewV7())
 }
 
-func partitionDateOf(t time.Time) pgtype.Date {
-	return pgtype.Date{Time: t.UTC().Truncate(24 * time.Hour), Valid: true}
-}
-
 // offloadedRetrieveOpts resolves the index file holding each payload that is no longer inline. The index is
-// keyed by the partition date the row was stored under, which partitionTime recovers for every opt.
+// keyed by the date of the inserted_at the row was stored under, which the query derives from the reference
+// id and the referrer's InsertedAt the same way the write did.
 func (p *payloadStoreRepositoryImpl) offloadedRetrieveOpts(ctx context.Context, tx sqlcv1.DBTX, opts []RetrievePayloadOpts) (map[RetrieveFromExternalOpts][]RetrievePayloadOpts, error) {
 	retrieveFromExternalOptsToOpts := make(map[RetrieveFromExternalOpts][]RetrievePayloadOpts)
 	externalIdToOpts := make(map[uuid.UUID][]RetrievePayloadOpts, len(opts))
 	indexBlockExternalIds := make([]uuid.UUID, 0, len(opts))
-	indexBlockDates := make([]pgtype.Date, 0, len(opts))
+	indexBlockReferenceIds := make([]uuid.UUID, 0, len(opts))
+	indexBlockInsertedAts := make([]pgtype.Timestamptz, 0, len(opts))
 
 	for _, opt := range opts {
 		externalId := opt.effectiveExternalId()
@@ -656,7 +650,8 @@ func (p *payloadStoreRepositoryImpl) offloadedRetrieveOpts(ctx context.Context, 
 
 		if _, seen := externalIdToOpts[externalId]; !seen {
 			indexBlockExternalIds = append(indexBlockExternalIds, externalId)
-			indexBlockDates = append(indexBlockDates, partitionDateOf(opt.partitionTime().Time))
+			indexBlockReferenceIds = append(indexBlockReferenceIds, opt.payloadReferenceIdOrZero())
+			indexBlockInsertedAts = append(indexBlockInsertedAts, opt.InsertedAt)
 		}
 
 		externalIdToOpts[externalId] = append(externalIdToOpts[externalId], opt)
@@ -667,8 +662,9 @@ func (p *payloadStoreRepositoryImpl) offloadedRetrieveOpts(ctx context.Context, 
 	}
 
 	indexBlocks, err := p.queries.GetOffloadedPayloadIndexBlocks(ctx, tx, sqlcv1.GetOffloadedPayloadIndexBlocksParams{
-		Insertedats: indexBlockDates,
-		Externalids: indexBlockExternalIds,
+		Payloadreferenceids: indexBlockReferenceIds,
+		Insertedats:         indexBlockInsertedAts,
+		Externalids:         indexBlockExternalIds,
 	})
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {

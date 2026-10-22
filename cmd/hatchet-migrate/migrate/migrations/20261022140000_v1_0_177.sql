@@ -1,16 +1,16 @@
 -- +goose Up
 -- +goose StatementBegin
-CREATE OR REPLACE FUNCTION v1_payload_reference_inserted_at(
-    reference_id UUID,
-    fallback TIMESTAMPTZ
+CREATE OR REPLACE FUNCTION v1_payload_inserted_at(
+    payload_reference_id UUID,
+    inserted_at TIMESTAMPTZ
 ) RETURNS TIMESTAMPTZ
     LANGUAGE sql
     IMMUTABLE
     PARALLEL SAFE
 AS $$
     SELECT CASE
-        WHEN get_byte(uuid_send(reference_id), 6) >> 4 = 7 THEN extract_uuid7_timestamp(reference_id)
-        ELSE fallback
+        WHEN payload_reference_id IS NULL THEN inserted_at
+        ELSE extract_uuid7_timestamp(payload_reference_id)
     END;
 $$;
 -- +goose StatementEnd
@@ -48,7 +48,7 @@ AS $$
     SELECT *
     FROM v1_payload
     WHERE (tenant_id, external_id, inserted_at) IN (
-        SELECT tenant_id, payload_reference_id, v1_payload_reference_inserted_at(payload_reference_id, inserted_at)
+        SELECT tenant_id, payload_reference_id, v1_payload_inserted_at(payload_reference_id, inserted_at)
         FROM inputs
         WHERE payload_reference_id IS NOT NULL
     );
@@ -61,5 +61,5 @@ DROP FUNCTION read_payloads(UUID[], BIGINT[], TIMESTAMPTZ[], v1_payload_type[], 
 -- +goose StatementEnd
 
 -- +goose StatementBegin
-DROP FUNCTION v1_payload_reference_inserted_at(UUID, TIMESTAMPTZ);
+DROP FUNCTION v1_payload_inserted_at(UUID, TIMESTAMPTZ);
 -- +goose StatementEnd

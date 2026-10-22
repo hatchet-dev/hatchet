@@ -2485,31 +2485,33 @@ AS $$
     SELECT 'epoch'::TIMESTAMPTZ + ('x' || REPLACE(LEFT(id::TEXT, 13), '-', ''))::BIT(48)::BIGINT * INTERVAL '1 millisecond';
 $$;
 
--- v1_payload_reference_inserted_at is the inserted_at a payload row shared through a reference id
--- is stored under: the millisecond timestamp carried in a version 7 reference id, so the id alone
--- locates the row however much later the referrer is created, or the referrer's own inserted_at
--- for any other id. The Go write side (partitionTime in pkg/repository/payloadstore.go) applies the
--- same rule when the row is written and when the offloaded block index is looked up.
-CREATE OR REPLACE FUNCTION v1_payload_reference_inserted_at(
-    reference_id UUID,
-    fallback TIMESTAMPTZ
+-- v1_payload_inserted_at is the inserted_at a payload row is stored under and located by on every
+-- path: the write, the inline read, and the offloaded block index lookup. A row shared through a
+-- reference id, which is always a version 7 uuid, takes the millisecond timestamp carried in the id,
+-- so the id alone locates the row however much later the referrer is created or the row itself is
+-- written after a queue hop. A row with no reference id (NULL, after the caller maps the zero uuid to
+-- NULL) takes the inserted_at of the row that owns it.
+CREATE OR REPLACE FUNCTION v1_payload_inserted_at(
+    payload_reference_id UUID,
+    inserted_at TIMESTAMPTZ
 ) RETURNS TIMESTAMPTZ
     LANGUAGE sql
     IMMUTABLE
     PARALLEL SAFE
 AS $$
     SELECT CASE
-        WHEN get_byte(uuid_send(reference_id), 6) >> 4 = 7 THEN extract_uuid7_timestamp(reference_id)
-        ELSE fallback
+        WHEN payload_reference_id IS NULL THEN inserted_at
+        ELSE extract_uuid7_timestamp(payload_reference_id)
     END;
 $$;
 
 -- read_payloads is the one place that knows how an inline payload row is located: an own row by its
 -- primary key (tenant_id, id, inserted_at, type) when the input carries no reference id, a shared row
--- by (tenant_id, external_id) under v1_payload_reference_inserted_at(reference_id, inserted_at) when
--- it does. A zero uuid in payload_reference_ids means no reference. ReadPayloads and any CTE that
--- needs an inline payload row call this function rather than restating these rules. Rows already
--- offloaded to the external store are resolved in Go through v1_payload_offloaded_block_index, not here.
+-- by (tenant_id, external_id) under v1_payload_inserted_at(payload_reference_id, inserted_at) when it
+-- does. A zero uuid in payload_reference_ids means no reference. ReadPayloads and any CTE that needs
+-- an inline payload row call this function rather than restating these rules. Rows already offloaded
+-- to the external store are located through v1_payload_offloaded_block_index under the date of the
+-- same v1_payload_inserted_at, so a row written, offloaded, and read is keyed by one rule throughout.
 CREATE OR REPLACE FUNCTION read_payloads(
     tenant_ids UUID[],
     ids BIGINT[],
@@ -2542,7 +2544,7 @@ AS $$
     SELECT *
     FROM v1_payload
     WHERE (tenant_id, external_id, inserted_at) IN (
-        SELECT tenant_id, payload_reference_id, v1_payload_reference_inserted_at(payload_reference_id, inserted_at)
+        SELECT tenant_id, payload_reference_id, v1_payload_inserted_at(payload_reference_id, inserted_at)
         FROM inputs
         WHERE payload_reference_id IS NOT NULL
     );

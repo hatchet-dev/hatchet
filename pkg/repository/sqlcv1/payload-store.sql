@@ -12,7 +12,10 @@ FROM read_payloads(
 WITH inputs AS (
     SELECT DISTINCT
         UNNEST(@ids::BIGINT[]) AS id,
-        UNNEST(@insertedAts::TIMESTAMPTZ[]) AS inserted_at,
+        v1_payload_inserted_at(
+            NULLIF(UNNEST(@payloadReferenceIds::UUID[]), '00000000-0000-0000-0000-000000000000'::UUID),
+            UNNEST(@insertedAts::TIMESTAMPTZ[])
+        ) AS inserted_at,
         UNNEST(@externalIds::UUID[]) AS external_id,
         UNNEST(CAST(@types::TEXT[] AS v1_payload_type[])) AS type,
         UNNEST(@inlineContents::JSONB[]) AS inline_content,
@@ -52,7 +55,10 @@ ON CONFLICT DO NOTHING
 WITH inputs AS (
     SELECT DISTINCT
         UNNEST(@ids::BIGINT[]) AS id,
-        UNNEST(@insertedAts::TIMESTAMPTZ[]) AS inserted_at,
+        v1_payload_inserted_at(
+            NULLIF(UNNEST(@payloadReferenceIds::UUID[]), '00000000-0000-0000-0000-000000000000'::UUID),
+            UNNEST(@insertedAts::TIMESTAMPTZ[])
+        ) AS inserted_at,
         UNNEST(@externalIds::UUID[]) AS external_id,
         UNNEST(CAST(@types::TEXT[] AS v1_payload_type[])) AS type,
         UNNEST(@inlineContents::JSONB[]) AS inline_content,
@@ -198,7 +204,10 @@ SELECT compute_payload_batch_size(
 -- name: GetOffloadedPayloadIndexBlocks :many
 WITH inputs AS (
     SELECT
-        UNNEST(@insertedAts::DATE[]) AS inserted_at_date,
+        (v1_payload_inserted_at(
+            NULLIF(UNNEST(@payloadReferenceIds::UUID[]), '00000000-0000-0000-0000-000000000000'::UUID),
+            UNNEST(@insertedAts::TIMESTAMPTZ[])
+        ) AT TIME ZONE 'UTC')::DATE AS inserted_at_date,
         UNNEST(@externalIds::UUID[]) AS external_id
 )
 
