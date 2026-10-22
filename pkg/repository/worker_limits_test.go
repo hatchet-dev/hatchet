@@ -5,6 +5,7 @@ package repository
 import (
 	"context"
 	"io"
+	"math"
 	"testing"
 
 	"github.com/google/uuid"
@@ -158,6 +159,19 @@ func TestCreateNewWorkerMetersOperatorWorkers(t *testing.T) {
 
 		_, err := repo.CreateNewWorker(ctx, tenantId, operatorWorker("grpc-op", grpcOp, false, 10))
 		assert.ErrorIs(t, err, ErrResourceExhausted, "the operator worker's slots are metered")
+	})
+
+	t.Run("units that cancel or wrap the sum do not skip the slot limit", func(t *testing.T) {
+		tenantId := createLimitTestTenant(t, pool)
+		require.NoError(t, limits.UpdateLimits(ctx, tenantId, []Limit{{Resource: sqlcv1.LimitResourceWORKERSLOT, Limit: 5}}))
+
+		for name, slotConfig := range map[string]map[string]int32{
+			"negative-offset": {SlotTypeDefault: 10, "offset": -10},
+			"int32-wrap":      {"a": math.MaxInt32, "b": math.MaxInt32, "c": 2},
+		} {
+			_, err := repo.CreateNewWorker(ctx, tenantId, &CreateWorkerOpts{DispatcherId: dispatcherId, Name: name, SlotConfig: slotConfig})
+			assert.Error(t, err, name)
+		}
 	})
 
 	t.Run("a worker of a DAG operator is metered unless exempted", func(t *testing.T) {
