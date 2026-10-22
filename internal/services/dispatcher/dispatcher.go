@@ -499,7 +499,7 @@ func (d *DispatcherImpl) handleDurableCallbackCompleted(ctx context.Context, tas
 	undelivered := make([]tasktypesv1.DurableCallbackCompletedPayload, 0)
 
 	for _, payload := range payloads {
-		err := d.serviceV1.DeliverDurableEventLogEntryCompletion(
+		err := d.serviceV1.deliverCallbackCompletion(
 			task.TenantID,
 			payload.TaskExternalId,
 			payload.InvocationCount,

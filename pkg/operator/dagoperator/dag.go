@@ -154,9 +154,16 @@ type dag struct {
 
 	pendingWaitAcks []*pendingWaitAck
 
-	// pendingEntryCompletions buffers EntryCompleted refs that raced ahead of their WaitForAck
-	// (its condition is committed to the DB before the ack is sent); rechecked on each ack.
+	// pendingEntryCompletions holds EntryCompleted responses in delivery order until the run
+	// applies them, one per pass and only while no registration is un-acked (see
+	// applyNextEntryCompletion). The engine delivers completions in satisfied_order, so this
+	// is the one input whose order is the same in every invocation.
 	pendingEntryCompletions []pendingEntryCompletion
+
+	// unmatchedEntryCompletions holds completions that named no entry known to the run when
+	// they were applied, such as one that raced ahead of its WaitForAck on a channel that does
+	// not order them; rechecked on each ack.
+	unmatchedEntryCompletions []pendingEntryCompletion
 
 	// cache of the result of each parent override condition, evaluated once when the
 	// referenced parent completes instead of repeatedly on every readiness check
@@ -171,8 +178,7 @@ const (
 	conditionKindCancel
 )
 
-// pendingEntryCompletion is a buffered EntryCompleted that didn't match any known node/branch id
-// at the time it arrived.
+// pendingEntryCompletion is an EntryCompleted the run has received and not yet applied.
 type pendingEntryCompletion struct {
 	nodeId       int64
 	branchId     int64
@@ -277,6 +283,10 @@ func dagDurableTask(
 			break
 		}
 
+		if d.applyNextEntryCompletion(ctx) {
+			continue
+		}
+
 		resp, err := d.awaitResponse(ctx)
 
 		if err != nil {
@@ -358,7 +368,7 @@ func (d *dag) awaitResponse(ctx context.Context) (*v1contracts.DurableTaskRespon
 // tells the dispatcher which unsatisfied durable event log entries we've been blocked on so
 // it can evict the durable task to free its slot
 func (d *dag) reportBlockedOnDurableEvents(ctx context.Context) error {
-	if len(d.pendingWaitAcks) > 0 || len(d.pendingEntryCompletions) > 0 {
+	if len(d.pendingWaitAcks) > 0 || len(d.pendingEntryCompletions) > 0 || len(d.unmatchedEntryCompletions) > 0 {
 		return nil
 	}
 
@@ -654,8 +664,9 @@ func (d *dag) taskConsumer(ctx context.Context, resp *v1contracts.DurableTaskRes
 			ack.task.waitBranchId = ref.GetBranchId()
 		}
 
-		// Its completion may already be buffered as unmatched (see pendingEntryCompletions).
-		d.drainPendingEntryCompletions(ctx)
+		// Its completion may already have been applied before the ack named the entry (see
+		// unmatchedEntryCompletions).
+		d.retryUnmatchedEntryCompletions(ctx)
 
 	case *v1contracts.DurableTaskResponse_EntryCompleted:
 		ref := m.EntryCompleted.GetRef()
@@ -663,18 +674,15 @@ func (d *dag) taskConsumer(ctx context.Context, resp *v1contracts.DurableTaskRes
 			return
 		}
 
-		entry := pendingEntryCompletion{
+		// Held rather than applied here: the run applies completions one at a time at the top
+		// of its loop, once every registration it issued holds its node id.
+		d.pendingEntryCompletions = append(d.pendingEntryCompletions, pendingEntryCompletion{
 			nodeId:       ref.GetNodeId(),
 			branchId:     ref.GetBranchId(),
 			isFailure:    m.EntryCompleted.GetIsFailure(),
 			errorMessage: m.EntryCompleted.GetErrorMessage(),
 			payload:      m.EntryCompleted.GetPayload(),
-		}
-
-		if !d.tryApplyEntryCompletion(ctx, entry) {
-			// Raced ahead of its own WaitForAck; retry once that ack lands.
-			d.pendingEntryCompletions = append(d.pendingEntryCompletions, entry)
-		}
+		})
 
 	case *v1contracts.DurableTaskResponse_ServerEvict:
 		if m.ServerEvict.GetDurableTaskExternalId() != d.externalId.String() ||
@@ -696,26 +704,29 @@ func (d *dag) taskConsumer(ctx context.Context, resp *v1contracts.DurableTaskRes
 }
 
 // tryApplyEntryCompletion attempts to match a completion against a registered skip/cancel/wait
-// watch or a triggered task's node/branch id, applying it if found. Returns false if nothing
-// currently known matches.
+// watch or a triggered task's node/branch id, applying it if found. A repeat for a watch that
+// already fired (the engine resends satisfied entries the run reports as awaited) counts as
+// applied; a step's completion is always applied, since a step the run completed locally (a
+// skip) can still receive the entry the engine returned for it, such as a cached failure from
+// an earlier branch. Returns false if nothing currently known matches.
 func (d *dag) tryApplyEntryCompletion(ctx context.Context, entry pendingEntryCompletion) bool {
 	for _, t := range d.tasks {
-		if t.skipWatchRegistered && !t.skipWatchFired && t.skipWatchNodeId == entry.nodeId && t.skipWatchBranchId == entry.branchId {
+		if t.skipWatchRegistered && t.skipWatchNodeId == entry.nodeId && t.skipWatchBranchId == entry.branchId {
 			t.skipWatchFired = true
 			return true
 		}
 
-		if t.cancelWatchRegistered && !t.cancelWatchFired && t.cancelWatchNodeId == entry.nodeId && t.cancelWatchBranchId == entry.branchId {
+		if t.cancelWatchRegistered && t.cancelWatchNodeId == entry.nodeId && t.cancelWatchBranchId == entry.branchId {
 			t.cancelWatchFired = true
 			return true
 		}
 
-		if t.isWaiting && !t.isWaitSatisfied && t.waitNodeId == entry.nodeId && t.waitBranchId == entry.branchId {
+		if t.isWaiting && t.waitNodeId == entry.nodeId && t.waitBranchId == entry.branchId {
 			t.isWaitSatisfied = true
 			return true
 		}
 
-		if t.nodeId != entry.nodeId || t.branchId != entry.branchId {
+		if !t.isTriggered || t.nodeId != entry.nodeId || t.branchId != entry.branchId {
 			continue
 		}
 
@@ -729,22 +740,50 @@ func (d *dag) tryApplyEntryCompletion(ctx context.Context, entry pendingEntryCom
 	return false
 }
 
-// drainPendingEntryCompletions retries buffered completions that couldn't be matched when they
-// first arrived, keeping any that still don't match.
-func (d *dag) drainPendingEntryCompletions(ctx context.Context) {
-	if len(d.pendingEntryCompletions) == 0 {
+// applyNextEntryCompletion applies the oldest held completion and reports whether it did.
+//
+// Nothing is applied while a registration is un-acked. The engine matches a WAIT_FOR
+// registration to its log entry by position (the log's latest node id plus one), while a
+// step trigger is matched by its child index and moves the latest node id up to that entry's
+// node. So an invocation must append its registrations and triggers in the same order as the
+// invocation that wrote the log. A completion is the only input whose timing differs between
+// invocations: the first invocation saw it after the registrations it was issuing at the time
+// were all in the log, whereas on a replay the engine delivers it as soon as the entry it
+// completes is registered again. Holding it until every registration issued so far holds its
+// node id, and applying one completion per pass, makes the append sequence a function of the
+// completion order (which the engine fixes by satisfied_order) and the step order alone; it
+// also means a registration is never decided by a watch that fired in the meantime.
+func (d *dag) applyNextEntryCompletion(ctx context.Context) bool {
+	if len(d.pendingWaitAcks) > 0 || len(d.pendingEntryCompletions) == 0 {
+		return false
+	}
+
+	entry := d.pendingEntryCompletions[0]
+	d.pendingEntryCompletions = d.pendingEntryCompletions[1:]
+
+	if !d.tryApplyEntryCompletion(ctx, entry) {
+		d.unmatchedEntryCompletions = append(d.unmatchedEntryCompletions, entry)
+	}
+
+	return true
+}
+
+// retryUnmatchedEntryCompletions retries completions that matched no known entry when they
+// were applied, keeping any that still don't match.
+func (d *dag) retryUnmatchedEntryCompletions(ctx context.Context) {
+	if len(d.unmatchedEntryCompletions) == 0 {
 		return
 	}
 
-	remaining := d.pendingEntryCompletions[:0]
+	remaining := d.unmatchedEntryCompletions[:0]
 
-	for _, entry := range d.pendingEntryCompletions {
+	for _, entry := range d.unmatchedEntryCompletions {
 		if !d.tryApplyEntryCompletion(ctx, entry) {
 			remaining = append(remaining, entry)
 		}
 	}
 
-	d.pendingEntryCompletions = remaining
+	d.unmatchedEntryCompletions = remaining
 }
 
 func (d *dag) applyCompletion(ctx context.Context, t *task, isFailure bool, errorMessage string, payload []byte) error {

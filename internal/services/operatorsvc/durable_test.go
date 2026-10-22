@@ -16,8 +16,16 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
+// fixtureTask and fixtureInvocation identify the invocation openInvocation opened last; refs are
+// stamped with them the way the dispatcher stamps every ref it sends (the tests do not run in
+// parallel).
+var (
+	fixtureTask       uuid.UUID
+	fixtureInvocation int32 = 3
+)
+
 func entryRef(branchId, nodeId int64) *v1contracts.DurableEventLogEntryRef {
-	return &v1contracts.DurableEventLogEntryRef{BranchId: branchId, NodeId: nodeId}
+	return &v1contracts.DurableEventLogEntryRef{DurableTaskExternalId: fixtureTask.String(), InvocationCount: fixtureInvocation, BranchId: branchId, NodeId: nodeId}
 }
 
 func entryCompleted(branchId, nodeId int64) *v1contracts.DurableTaskResponse {
@@ -77,6 +85,7 @@ func openInvocation(t *testing.T, svc *testService, session *operatorsvc.Session
 	t.Helper()
 
 	taskId := uuid.New()
+	fixtureTask = taskId
 	done := make(chan struct{})
 
 	go func() {
@@ -95,13 +104,18 @@ func openInvocation(t *testing.T, svc *testService, session *operatorsvc.Session
 		}
 
 		for _, resp := range before {
+			// built before this invocation's task id was known; stamp it as the engine would
+			if ec := resp.GetEntryCompleted(); ec != nil && ec.Ref != nil {
+				ec.Ref.DurableTaskExternalId, ec.Ref.InvocationCount = taskId.String(), fixtureInvocation
+			}
+
 			inv.Responses <- resp
 		}
 
 		inv.Responses <- registerWorkerAck(workerId.String())
 	}()
 
-	ch, err := session.OpenDurable(t.Context(), taskId, 3)
+	ch, err := session.OpenDurable(t.Context(), taskId, fixtureInvocation)
 	require.NoError(t, err)
 
 	<-done
@@ -503,4 +517,117 @@ func TestOpenDurableRetainedResponsesAreBounded(t *testing.T) {
 
 	require.ErrorIs(t, ch.Send(t.Context(), waitForRequest()), operatorsvc.ErrChannelClosed)
 	assert.Zero(t, operatorsvc.RetainedResponses(ch), "a failed channel retains nothing")
+}
+
+// Completions are released in the order the engine delivered them: one held for its ack is not
+// overtaken by a later one whose ref is already acknowledged, because the dispatcher delivers
+// completions in satisfied_order and an operator replaying a durable log applies them in that
+// order.
+func TestOpenDurableKeepsCompletionsInDeliveryOrder(t *testing.T) {
+	tenant := &sqlcv1.Tenant{ID: uuid.New()}
+	svc := newTestService(t, nil)
+	session, workerId := durableSession(t, svc, tenant)
+
+	ch, inv := openInvocation(t, svc, session, workerId)
+
+	require.NoError(t, ch.Send(t.Context(), waitForRequest()))
+	<-inv.Requests
+
+	// node 2 is acknowledged; node 7's completion (a child the operator has yet to expect)
+	// arrives first, then node 2's
+	inv.Responses <- waitForAck(0, 2)
+	inv.Responses <- entryCompleted(0, 7)
+	inv.Responses <- entryCompleted(0, 2)
+
+	ack, err := ch.Recv(t.Context())
+	require.NoError(t, err)
+	require.NotNil(t, ack.GetWaitForAck())
+
+	recvCtx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+	defer cancel()
+
+	_, err = ch.Recv(recvCtx)
+	require.ErrorIs(t, err, context.DeadlineExceeded, "node 2's completion must wait behind node 7's, which is held for its expectation")
+
+	require.NoError(t, ch.ExpectEntry(0, 7))
+
+	first, err := ch.Recv(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, int64(7), first.GetEntryCompleted().GetRef().GetNodeId(), "the held completion is released first")
+
+	second, err := ch.Recv(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), second.GetEntryCompleted().GetRef().GetNodeId(), "then the one delivered after it")
+}
+
+// A completion the engine delivers twice before its ack is released once.
+func TestOpenDurableDeduplicatesHeldCompletions(t *testing.T) {
+	tenant := &sqlcv1.Tenant{ID: uuid.New()}
+	svc := newTestService(t, nil)
+	session, workerId := durableSession(t, svc, tenant)
+
+	ch, inv := openInvocation(t, svc, session, workerId)
+
+	require.NoError(t, ch.Send(t.Context(), waitForRequest()))
+	<-inv.Requests
+
+	inv.Responses <- entryCompleted(0, 3)
+	inv.Responses <- entryCompleted(0, 3)
+	inv.Responses <- waitForAck(0, 3)
+	inv.Responses <- entryCompleted(0, 3)
+
+	ack, err := ch.Recv(t.Context())
+	require.NoError(t, err)
+	require.NotNil(t, ack.GetWaitForAck())
+
+	entry, err := ch.Recv(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, int64(3), entry.GetEntryCompleted().GetRef().GetNodeId())
+
+	recvCtx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+	defer cancel()
+
+	_, err = ch.Recv(recvCtx)
+	require.ErrorIs(t, err, context.DeadlineExceeded, "the repeats are dropped")
+	assert.Zero(t, operatorsvc.RetainedResponses(ch))
+}
+
+// A completion addressed to another invocation of the task, or to another task, is dropped: the
+// engine routes by task, so a callback delayed from the previous invocation can reach the new
+// one, where nothing acknowledges its ref and it would otherwise head the completion queue and
+// hold every later completion behind it.
+func TestOpenDurableDropsCompletionsOfOtherInvocations(t *testing.T) {
+	tenant := &sqlcv1.Tenant{ID: uuid.New()}
+	svc := newTestService(t, nil)
+	session, workerId := durableSession(t, svc, tenant)
+
+	ch, inv := openInvocation(t, svc, session, workerId)
+
+	stale := entryCompleted(1, 9)
+	stale.GetEntryCompleted().Ref.InvocationCount = fixtureInvocation - 1
+
+	otherTask := entryCompleted(2, 9)
+	otherTask.GetEntryCompleted().Ref.DurableTaskExternalId = uuid.NewString()
+
+	inv.Responses <- stale
+	inv.Responses <- otherTask
+
+	// the current invocation's child completes and is expected
+	inv.Responses <- entryCompleted(2, 1)
+	require.NoError(t, ch.ExpectEntry(2, 1))
+
+	current, err := ch.Recv(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), current.GetEntryCompleted().GetRef().GetNodeId(), "the current invocation's completion is not held behind a stale one")
+
+	// expecting the stale refs changes nothing: they were never admitted
+	require.NoError(t, ch.ExpectEntry(1, 9))
+	require.NoError(t, ch.ExpectEntry(2, 9))
+
+	recvCtx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+	defer cancel()
+
+	_, err = ch.Recv(recvCtx)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Zero(t, operatorsvc.RetainedResponses(ch), "dropped completions retain nothing")
 }
