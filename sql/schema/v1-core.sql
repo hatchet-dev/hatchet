@@ -1847,6 +1847,25 @@ BEGIN
         tenant_id
     FROM new_retry_rows;
 
+    -- A task waiting out a retry backoff keeps its concurrency slots. Moving them to the new
+    -- retry count stops the failed attempt's release from deleting them, and they stay filled
+    -- until v1_retry_queue_item_delete_function hands them back to the scheduler.
+    UPDATE v1_concurrency_slot cs
+    SET
+        task_retry_count = nt.retry_count,
+        is_filled = TRUE,
+        schedule_timeout_at = rqi.retry_after + convert_duration_to_interval(nt.schedule_timeout)
+    FROM new_table nt
+    JOIN old_table ot ON ot.id = nt.id
+    JOIN v1_retry_queue_item rqi ON rqi.task_id = nt.id AND rqi.task_inserted_at = nt.inserted_at AND rqi.task_retry_count = nt.retry_count
+    WHERE
+        cs.task_id = nt.id
+        AND cs.task_inserted_at = nt.inserted_at
+        AND cs.task_retry_count = ot.retry_count
+        AND nt.initial_state = 'QUEUED'
+        AND nt.concurrency_strategy_ids[1] IS NOT NULL
+        AND ot.retry_count IS DISTINCT FROM nt.retry_count;
+
     WITH new_slot_rows AS (
         SELECT
             nt.id,
@@ -2032,6 +2051,25 @@ CREATE OR REPLACE FUNCTION v1_retry_queue_item_delete_function()
 RETURNS TRIGGER AS
 $$
 BEGIN
+    -- Slots held through a retry backoff (see v1_task_update_function) go back to waiting so the
+    -- retry is scheduled in order. Earlier slots of a multi-strategy chain stay held; filling the
+    -- final slot is what queues the task.
+    UPDATE v1_concurrency_slot cs
+    SET
+        is_filled = FALSE,
+        priority = 4,
+        schedule_timeout_at = CURRENT_TIMESTAMP + convert_duration_to_interval(t.schedule_timeout)
+    FROM deleted_rows dr
+    JOIN v1_task t ON t.id = dr.task_id AND t.inserted_at = dr.task_inserted_at
+    WHERE
+        cs.task_id = dr.task_id
+        AND cs.task_inserted_at = dr.task_inserted_at
+        AND cs.task_retry_count = dr.task_retry_count
+        AND COALESCE(array_length(cs.next_keys, 1), 0) = 0
+        AND dr.retry_after <= NOW()
+        AND t.initial_state = 'QUEUED'
+        AND dr.task_retry_count = t.retry_count;
+
     WITH new_slot_rows AS (
         SELECT
             t.id,
@@ -2072,6 +2110,14 @@ BEGIN
             AND t.initial_state = 'QUEUED'
             AND t.concurrency_strategy_ids[1] IS NOT NULL
             AND dr.task_retry_count = t.retry_count
+            -- tasks whose slots were held through the backoff were handed back above
+            AND NOT EXISTS (
+                SELECT 1
+                FROM v1_concurrency_slot cs
+                WHERE cs.task_id = t.id
+                    AND cs.task_inserted_at = t.inserted_at
+                    AND cs.task_retry_count = t.retry_count
+            )
     )
     INSERT INTO v1_concurrency_slot (
         task_id,
