@@ -159,7 +159,8 @@ export class WorkflowsClient {
    * @returns A promise that resolves to the deleted workflow.
    */
   async delete(workflow: string | BaseWorkflowDeclaration<any, any> | LegacyWorkflow) {
-    const name = workflowNameString(workflow);
+    // the cache is keyed by the registered name, so the namespace applies here as in get()
+    const name = applyNamespace(workflowNameString(workflow), this.namespace);
 
     try {
       // Get the workflow first to find its ID

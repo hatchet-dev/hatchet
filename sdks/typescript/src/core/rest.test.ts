@@ -106,6 +106,21 @@ describe('core REST base URL', () => {
     expect(api.requests[0].url.searchParams.get('name')).toBe('prod_greet');
   });
 
+  it('drops the namespaced cache entry when a workflow is deleted', async () => {
+    const api = fakeApi();
+    api.reply({ rows: [{ metadata: { id: 'wf-1' }, name: 'prod_greet' }] });
+    api.reply({});
+    api.reply({ rows: [{ metadata: { id: 'wf-2' }, name: 'prod_greet' }] });
+    const client = new HatchetCore({ token: TOKEN, namespace: 'prod', fetch: api.fetch });
+
+    await client.workflows.delete('greet');
+    // a recreated workflow is fetched again instead of served from the stale entry
+    const recreated = await client.workflows.get('greet');
+
+    expect(recreated.metadata.id).toBe('wf-2');
+    expect(api.requests.map((r) => r.method)).toEqual(['GET', 'DELETE', 'GET']);
+  });
+
   it("defaults to the token's server_url claim and sends the token as a bearer", async () => {
     const api = fakeApi();
     const client = new HatchetCore({ token: TOKEN, fetch: api.fetch });
