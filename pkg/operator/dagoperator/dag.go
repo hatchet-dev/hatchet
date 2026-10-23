@@ -781,7 +781,7 @@ func (d *dag) evaluateConditionsForParent(ctx context.Context, parent *task) err
 			matched, err := d.evalBoolExpr(ctx, expr, map[string]interface{}{"output": parent.output})
 			if err != nil {
 				// A condition that cannot be evaluated (e.g. a key missing from the parent output)
-				// counts as not matched, the same as the legacy match path, instead of failing the DAG.
+				// counts as not matched instead of failing the DAG.
 				span.RecordError(fmt.Errorf("condition %q on task %q could not be evaluated: %w", expr, t.actionId, err))
 				matched = false
 			}
