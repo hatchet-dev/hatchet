@@ -738,6 +738,9 @@ func (d *dag) applyCompletion(ctx context.Context, t *task, isFailure bool, erro
 	} else if len(payload) > 0 {
 		outputData := make(map[string]interface{})
 		if err := json.Unmarshal(payload, &outputData); err == nil {
+			if outputData == nil {
+				outputData = map[string]interface{}{}
+			}
 			t.output = outputData
 			if skipped, ok := outputData["skipped"].(bool); ok && skipped {
 				t.isSkipped = true
@@ -746,6 +749,8 @@ func (d *dag) applyCompletion(ctx context.Context, t *task, isFailure bool, erro
 				t.isCancelled = true
 			}
 		}
+	} else if !isFailure && !t.isCancelled {
+		t.output = map[string]interface{}{}
 	}
 
 	return d.evaluateConditionsForParent(ctx, t)
