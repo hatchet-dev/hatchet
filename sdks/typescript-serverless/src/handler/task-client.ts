@@ -216,7 +216,7 @@ async function* topicEvents(
 
     for (const entry of message.entries) {
       if (entry.payloadRef && entry.payload.byteLength === 0) {
-        // The Node client fetches an uploaded payload over REST; this client has no REST path.
+        // The Node client fetches an uploaded payload over REST; the task client does not yet.
         throw new HatchetError(
           `message ${entry.cursor} of topic "${topic}" is an uploaded payload (over the inline limit), which the serverless client cannot fetch; read the topic with the Node client`
         );

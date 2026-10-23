@@ -1,6 +1,33 @@
 # Limitations
 
-What a task can and cannot do when it runs on a serverless endpoint, and why.
+What a task can and cannot do when it runs on a serverless endpoint, and why. Checked against
+the package, the operator and the `/core` client as of SDK 1.41.0.
+
+## At a glance
+
+Everything the engine decides works as on a worker, because the endpoint registers the same
+workflow definition a worker would: retries and backoff, execution and schedule timeouts,
+priority, rate limits, concurrency keys and strategies, DAGs with parents, `waitFor`, `skipIf`
+and `cancelIf` conditions, `onFailure` and `onSuccess` tasks, cron and event triggers with
+their filters, scheduled runs, cancellation, and the durable primitives (`sleepFor`,
+`sleepUntil`, `waitFor`, `waitForEvent`, `spawnChild`, `spawnChildren`). What differs is the
+process side, where there is no worker:
+
+| Feature                                                                             | On a serverless endpoint                                                                                              |
+| ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Child runs, streams, logs, cancel, `refreshTimeout`, `releaseSlot`                  | through the handler's `client`; none of them without it (section below)                                               |
+| Awaiting a child, reading a stream topic or a run's events                          | over the invocation websocket, relayed by the operator; not from a pure task or over a POST                           |
+| Batch tasks (`hatchet.batchTask`, `batch` on a task, `ctx.cancel` on a batch)       | not supported; a batch task is registered as a plain task and warned about                                            |
+| Sticky assignment, worker labels and affinity, slot costs                           | ignored with a warning; the operator routes by action id                                                              |
+| `ctx.worker.labels()`, `upsertLabels()`, `ctx.worker.id()`                          | throw, throw, `undefined`                                                                                             |
+| `declaration.run`, `.runNoWait`, `.schedule`, `.cron`, `.delay`, `.get`, `.metrics` | throw; use the same methods on a `HatchetCore` (`client.run(declaration, input)`, `client.crons`, `client.schedules`) |
+| `evictionPolicy` on a durable task                                                  | ignored; the endpoint's `inlineWaitBudgetMs` is the eviction rule                                                     |
+| Payloads over 4 MiB (a task's output, a stream message, an awaited child's output)  | fail; the operator's frame and response limit                                                                         |
+| Reading a stream message whose payload was uploaded                                 | throws; the task client does not fetch uploaded payloads yet                                                          |
+| Resubscribing after a stream drops                                                  | not automatic; `StreamClosedError` carries the last cursor                                                            |
+| OpenTelemetry instrumentation of a task                                             | none in the package; the platform's tracing applies                                                                   |
+| Namespaces                                                                          | the endpoint registers names as declared; a `namespace` on the client is not applied to the registration              |
+| Other SDKs                                                                          | TypeScript only; Python, Go and Ruby tasks run on workers                                                             |
 
 ## The client and the token
 
@@ -78,22 +105,22 @@ mid-flight), so the task says what it is, next to its code. Changing the option 
 change: the next healthcheck (every `pollIntervalSeconds`) re-registers the task and the
 operator switches delivery.
 
-| Member                                                                                       | Without `client`, or `hatchetClient: false`                                                                          | With `client`                                                                                                      |
-| -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `ctx.runNoWaitChild`, `ctx.bulkRunNoWaitChildren`, `ctx.spawnWorkflow`, `ctx.spawnWorkflows` | throw                                                                                                                | trigger through the client; the reference's `result()` needs the socket the task has by default                    |
-| `ctx.runChild`, `ctx.bulkRunChildren`                                                        | throw                                                                                                                | trigger through the client, await on the socket the task has by default                                            |
-| any of the above in a durable task                                                           | throw                                                                                                                | throw; use `ctx.spawnChild` and `ctx.spawnChildren`, which go through the durable log                              |
-| `ctx.putStream`                                                                              | throws                                                                                                               | `PutStreamEvent` through the client                                                                                |
-| `ctx.log`, `ctx.logger.*`                                                                    | console only                                                                                                         | console, and `ctx.log` also writes the line to the engine (a failed write is a console warning)                    |
-| `ctx.cancel`                                                                                 | throws; the operator cancels a run by dropping the request or closing the socket, which aborts `ctx.abortController` | `CancelTasks` through the client                                                                                   |
-| `clientFromContext(ctx)`                                                                     | throws                                                                                                               | the handler's `HatchetCore`, with the two socket-backed reads below                                                |
-| `clientFromContext(ctx).streams.events(topic)`, `clientFromContext(ctx).runs.events(runId)`  | throw                                                                                                                | the engine stream relayed over the socket the task has by default; over a POST they throw                          |
-| `ctx.refreshTimeout`                                                                         | throws                                                                                                               | `RefreshTimeout` through the client; it extends the engine's timeout of the run, not the adapter's request timeout |
-| `ctx.releaseSlot`                                                                            | throws                                                                                                               | `ReleaseSlot` through the client; the run stops counting against the tenant's serverless worker slots              |
-| `ctx.worker.labels()`, `ctx.worker.upsertLabels()`                                           | throw                                                                                                                | throw; there is no worker                                                                                          |
-| `ctx.worker.id()`                                                                            | `undefined`                                                                                                          | `undefined`                                                                                                        |
-| `ctx.worker.hasWorkflow(name)`                                                               | answers from the declarations passed to the adapter                                                                  | same                                                                                                               |
-| `declaration.run`, `.runNoWait`, `.schedule`, `.cron`, `.delay`, `.metrics`, `.get`          | throw (the declaration has no client)                                                                                | throw; call `client.run(declaration, input)` on a `HatchetCore` instead                                            |
+| Member                                                                                       | Without `client`, or `hatchetClient: false`                                                                          | With `client`                                                                                                                                                                                                                          |
+| -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ctx.runNoWaitChild`, `ctx.bulkRunNoWaitChildren`, `ctx.spawnWorkflow`, `ctx.spawnWorkflows` | throw                                                                                                                | trigger through the client; the reference's `result()` needs the socket the task has by default                                                                                                                                        |
+| `ctx.runChild`, `ctx.bulkRunChildren`                                                        | throw                                                                                                                | trigger through the client, await on the socket the task has by default                                                                                                                                                                |
+| any of the above in a durable task                                                           | throw                                                                                                                | throw; use `ctx.spawnChild` and `ctx.spawnChildren`, which go through the durable log                                                                                                                                                  |
+| `ctx.putStream`                                                                              | throws                                                                                                               | `PutStreamEvent` through the client                                                                                                                                                                                                    |
+| `ctx.log`, `ctx.logger.*`                                                                    | console only                                                                                                         | console, and `ctx.log` also writes the line to the engine (a failed write is a console warning)                                                                                                                                        |
+| `ctx.cancel`                                                                                 | throws; the operator cancels a run by dropping the request or closing the socket, which aborts `ctx.abortController` | `CancelTasks` through the client; cancelling a batch throws, there are no batch tasks                                                                                                                                                  |
+| `clientFromContext(ctx)`                                                                     | throws                                                                                                               | the handler's `HatchetCore` (`events`, `runs`, `workflows`, `logs`, `streams`, `tasks`, `crons`, `schedules`, `filters`, `metrics`, `tenant`, `webhooks`, `workers`, `cel` and the REST `api`), with the two socket-backed reads below |
+| `clientFromContext(ctx).streams.events(topic)`, `clientFromContext(ctx).runs.events(runId)`  | throw                                                                                                                | the engine stream relayed over the socket the task has by default; over a POST they throw                                                                                                                                              |
+| `ctx.refreshTimeout`                                                                         | throws                                                                                                               | `RefreshTimeout` through the client; it extends the engine's timeout of the run, not the adapter's request timeout                                                                                                                     |
+| `ctx.releaseSlot`                                                                            | throws                                                                                                               | `ReleaseSlot` through the client; the run stops counting against the tenant's serverless worker slots                                                                                                                                  |
+| `ctx.worker.labels()`, `ctx.worker.upsertLabels()`                                           | throw                                                                                                                | throw; there is no worker                                                                                                                                                                                                              |
+| `ctx.worker.id()`                                                                            | `undefined`                                                                                                          | `undefined`                                                                                                                                                                                                                            |
+| `ctx.worker.hasWorkflow(name)`                                                               | answers from the declarations passed to the adapter                                                                  | same                                                                                                                                                                                                                                   |
+| `declaration.run`, `.runNoWait`, `.schedule`, `.cron`, `.delay`, `.metrics`, `.get`          | throw (the declaration has no client)                                                                                | throw; call `client.run(declaration, input)` on a `HatchetCore` instead                                                                                                                                                                |
 
 Everything else on `Context` is pure and works unchanged: `input`, `parentOutput`, `retryCount`,
 `workflowRunId`, `taskRunExternalId`, `workflowNameV1`, `taskName`, `additionalMetadata`,
@@ -122,8 +149,9 @@ from the Node client:
   `return()`), and throws `StreamClosedError` on any other close, carrying the `cursor` of the
   last message yielded so the task can resume from it.
 - A message whose payload was uploaded (over the 4 MiB inline limit, which only the Node client
-  publishes) cannot be fetched, since the core client has no REST path: the iteration throws
-  a `HatchetError` naming the message.
+  publishes; `publish` from a task refuses a larger payload) is not fetched: the task client
+  has the REST API but does not read uploaded payloads yet, so the iteration throws a
+  `HatchetError` naming the message.
 - `signal` is the way to stop a read that is waiting for the next message; `return()` on the
   iterator takes effect between messages, as with any async generator.
 
@@ -185,3 +213,23 @@ The operator reads at most 4 MiB of a trigger response and of a durable frame. L
 fail the task without retry. The same frame limit applies to every stream frame, including the
 terminal event of an awaited child and each batch of a topic's messages, so a child whose
 outputs come to more than 4 MiB cannot be awaited over the socket.
+
+## Runtime and registration
+
+- The package runs on Cloudflare Workers (`/cloudflare`), Vercel (`/vercel`, with Fluid compute
+  for the websocket) and Node (`/node`). Next.js on Cloudflare through OpenNext uses the
+  Cloudflare adapter at the Worker level, with the Next.js handler as its `fetch` fallback; the
+  Vercel adapter's upgrade is Vercel's and does not run on workerd.
+- An endpoint is registered over the REST API with an `https` URL on port 443; `http` is
+  accepted only by an engine started with insecure destinations allowed. A Worker under
+  `wrangler dev` or an app under `vc dev` is therefore registered through a tunnel; the
+  example READMEs show it. There is no `hatchet serverless register` command yet.
+- The tenant needs the `serverless_operator` entitlement, and `durable_streams` for stream
+  topics; without them the API answers 403 and the relay closes a topic read with code 7.
+- The token the endpoint holds is tenant-wide: a task may trigger, cancel and observe any run
+  of the tenant. Namespace-scoped tokens are a later step.
+- Each socket relays at most 16 engine streams; every child of a task shares one, each
+  `streams.events` or `runs.events` iteration takes one.
+- The platform's own limits apply per invocation: `limits.cpu_ms` on Cloudflare, `maxDuration`
+  (300 s on Hobby, 800 s on Pro and Enterprise) and 4.5 MB request and response bodies on
+  Vercel. A durable run outlives them by evicting; a non-durable socket task does not.
