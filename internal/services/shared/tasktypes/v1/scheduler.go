@@ -137,6 +137,28 @@ func NotifyNewWorker(tenantId uuid.UUID, workerId uuid.UUID) (*msgqueue.Message,
 	)
 }
 
+// WorkerDispatcherChangedPayload tells a scheduler partition which dispatcher a worker is now
+// connected to, so the scheduler replaces its cached dispatcher id for the worker without a query.
+type WorkerDispatcherChangedPayload struct {
+	WorkerId     uuid.UUID `json:"worker_id"`
+	DispatcherId uuid.UUID `json:"dispatcher_id"`
+}
+
+func NotifyWorkerDispatcherChanged(tenantId, workerId, dispatcherId uuid.UUID) (*msgqueue.Message, error) {
+	payload := WorkerDispatcherChangedPayload{
+		WorkerId:     workerId,
+		DispatcherId: dispatcherId,
+	}
+
+	return msgqueue.NewTenantMessage(
+		tenantId,
+		msgqueue.MsgIDWorkerDispatcherChanged,
+		true,
+		false,
+		payload,
+	)
+}
+
 type NewQueuePayload struct {
 	QueueName string `json:"queue_name"`
 }

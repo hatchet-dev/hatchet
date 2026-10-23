@@ -7,8 +7,12 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 )
 
 // recordingDispatcherIdLookup answers from a fixed worker to dispatcher map and records the worker ids
@@ -123,4 +127,62 @@ func TestDispatcherIdCache(t *testing.T) {
 		assert.Equal(t, map[uuid.UUID]uuid.UUID{worker1: dispatcher1}, result)
 		assert.Len(t, lookup.queries, 2)
 	})
+}
+
+func TestDispatcherIdCacheSet(t *testing.T) {
+	ctx := context.Background()
+	tenantId := uuid.New()
+	worker := uuid.New()
+	oldDispatcher, newDispatcher := uuid.New(), uuid.New()
+
+	lookup := &recordingDispatcherIdLookup{dispatchers: map[uuid.UUID]uuid.UUID{worker: oldDispatcher}}
+	cache := newDispatcherIdCache(lookup.lookup)
+
+	result, _, err := cache.get(ctx, tenantId, []uuid.UUID{worker})
+	require.NoError(t, err)
+	assert.Equal(t, map[uuid.UUID]uuid.UUID{worker: oldDispatcher}, result)
+
+	cache.set(worker, newDispatcher)
+
+	result, _, err = cache.get(ctx, tenantId, []uuid.UUID{worker})
+	require.NoError(t, err)
+	assert.Equal(t, map[uuid.UUID]uuid.UUID{worker: newDispatcher}, result, "set replaces the cached entry")
+	assert.Len(t, lookup.queries, 1, "the replaced entry is answered from the cache, not re-queried")
+}
+
+// TestHandleWorkerDispatcherChangedReplacesCachedId routes a worker-dispatcher-changed message through
+// the scheduler's message handler and checks the cached dispatcher id is replaced before the TTL.
+func TestHandleWorkerDispatcherChangedReplacesCachedId(t *testing.T) {
+	ctx := context.Background()
+	tenantId := uuid.New()
+	worker, otherWorker := uuid.New(), uuid.New()
+	oldDispatcher, newDispatcher := uuid.New(), uuid.New()
+
+	lookup := &recordingDispatcherIdLookup{dispatchers: map[uuid.UUID]uuid.UUID{worker: oldDispatcher, otherWorker: oldDispatcher}}
+	l := zerolog.Nop()
+	s := &Scheduler{l: &l, dispatcherIds: newDispatcherIdCache(lookup.lookup)}
+
+	result, _, err := s.dispatcherIds.get(ctx, tenantId, []uuid.UUID{worker, otherWorker})
+	require.NoError(t, err)
+	assert.Equal(t, map[uuid.UUID]uuid.UUID{worker: oldDispatcher, otherWorker: oldDispatcher}, result)
+
+	msg, err := tasktypes.NotifyWorkerDispatcherChanged(tenantId, worker, newDispatcher)
+	require.NoError(t, err)
+	assert.Equal(t, msgqueue.MsgIDWorkerDispatcherChanged, msg.ID)
+
+	require.NoError(t, s.handleTask(ctx, msg))
+
+	result, _, err = s.dispatcherIds.get(ctx, tenantId, []uuid.UUID{worker, otherWorker})
+	require.NoError(t, err)
+	assert.Equal(t, map[uuid.UUID]uuid.UUID{worker: newDispatcher, otherWorker: oldDispatcher}, result, "only the worker in the message moves")
+	assert.Len(t, lookup.queries, 1, "the message replaces the entry without a query")
+
+	// a payload without ids carries nothing to cache and is ignored
+	empty, err := msgqueue.NewTenantMessage(tenantId, msgqueue.MsgIDWorkerDispatcherChanged, true, false, tasktypes.WorkerDispatcherChangedPayload{})
+	require.NoError(t, err)
+	require.NoError(t, s.handleTask(ctx, empty))
+
+	result, _, err = s.dispatcherIds.get(ctx, tenantId, []uuid.UUID{worker})
+	require.NoError(t, err)
+	assert.Equal(t, map[uuid.UUID]uuid.UUID{worker: newDispatcher}, result)
 }

@@ -370,6 +370,8 @@ func (s *Scheduler) handleTask(ctx context.Context, task *msgqueue.Message) (err
 		return s.handleCheckQueue(ctx, task)
 	case msgqueue.MsgIDNewWorker:
 		return s.handleNewWorker(ctx, task)
+	case msgqueue.MsgIDWorkerDispatcherChanged:
+		return s.handleWorkerDispatcherChanged(ctx, task)
 	case msgqueue.MsgIDNewQueue:
 		return s.handleNewQueue(ctx, task)
 	case msgqueue.MsgIDNewConcurrencyStrategy:
@@ -410,6 +412,25 @@ func (s *Scheduler) handleNewWorker(ctx context.Context, msg *msgqueue.Message) 
 
 	for _, payload := range payloads {
 		s.pool.NotifyNewWorker(ctx, msg.TenantID, payload.WorkerId)
+	}
+
+	return nil
+}
+
+// handleWorkerDispatcherChanged writes the dispatcher id a worker connected to into the dispatcher id
+// cache, so the next assignment routes to it without waiting for the cached entry to expire.
+func (s *Scheduler) handleWorkerDispatcherChanged(ctx context.Context, msg *msgqueue.Message) error {
+	_, span := telemetry.NewSpanWithCarrier(ctx, "handle-worker-dispatcher-changed", msg.OtelCarrier)
+	defer span.End()
+
+	payloads := msgqueue.JSONConvert[tasktypes.WorkerDispatcherChangedPayload](msg.Payloads)
+
+	for _, payload := range payloads {
+		if payload.WorkerId == uuid.Nil || payload.DispatcherId == uuid.Nil {
+			continue
+		}
+
+		s.dispatcherIds.set(payload.WorkerId, payload.DispatcherId)
 	}
 
 	return nil
