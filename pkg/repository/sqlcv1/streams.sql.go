@@ -54,6 +54,25 @@ func (q *Queries) CountStreamTopics(ctx context.Context, db DBTX, tenantid uuid.
 	return count, err
 }
 
+const countStreamTopicsMatching = `-- name: CountStreamTopicsMatching :one
+SELECT COUNT(*)
+FROM v1_stream_topic t
+WHERE t.tenant_id = $1::uuid
+    AND ($2::text IS NULL OR t.topic ILIKE '%' || $2::text || '%' OR t.namespace ILIKE '%' || $2::text || '%')
+`
+
+type CountStreamTopicsMatchingParams struct {
+	Tenantid uuid.UUID   `json:"tenantid"`
+	Search   pgtype.Text `json:"search"`
+}
+
+func (q *Queries) CountStreamTopicsMatching(ctx context.Context, db DBTX, arg CountStreamTopicsMatchingParams) (int64, error) {
+	row := db.QueryRow(ctx, countStreamTopicsMatching, arg.Tenantid, arg.Search)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createStreamMessagePartitions = `-- name: CreateStreamMessagePartitions :exec
 SELECT create_v1_hourly_range_partition('v1_stream_message', hours.hour_start)
 FROM generate_series($1::timestamptz, $2::timestamptz, INTERVAL '1 hour') AS hours(hour_start)
@@ -534,6 +553,77 @@ func (q *Queries) ListStreamRetentionDeleteCandidates(ctx context.Context, db DB
 	for rows.Next() {
 		var i ListStreamRetentionDeleteCandidatesRow
 		if err := rows.Scan(&i.TenantID, &i.RetentionHours); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listStreamTopics = `-- name: ListStreamTopics :many
+SELECT
+    t.namespace,
+    t.topic,
+    t.inserted_at,
+    t.last_published_at,
+    (
+        SELECT COUNT(*)
+        FROM v1_stream_message m
+        WHERE m.tenant_id = t.tenant_id
+            AND m.namespace = t.namespace
+            AND m.topic = t.topic
+            AND m.inserted_at >= $1::timestamptz
+    )::bigint AS message_count
+FROM v1_stream_topic t
+WHERE t.tenant_id = $2::uuid
+    AND ($3::text IS NULL OR t.topic ILIKE '%' || $3::text || '%' OR t.namespace ILIKE '%' || $3::text || '%')
+ORDER BY t.namespace, t.topic
+LIMIT $5::integer
+OFFSET $4::integer
+`
+
+type ListStreamTopicsParams struct {
+	Retainedsince pgtype.Timestamptz `json:"retainedsince"`
+	Tenantid      uuid.UUID          `json:"tenantid"`
+	Search        pgtype.Text        `json:"search"`
+	Topicoffset   int32              `json:"topicoffset"`
+	Topiclimit    int32              `json:"topiclimit"`
+}
+
+type ListStreamTopicsRow struct {
+	Namespace       string             `json:"namespace"`
+	Topic           string             `json:"topic"`
+	InsertedAt      pgtype.Timestamptz `json:"inserted_at"`
+	LastPublishedAt pgtype.Timestamptz `json:"last_published_at"`
+	MessageCount    int64              `json:"message_count"`
+}
+
+// message_count covers only messages within the tenant's retention.
+func (q *Queries) ListStreamTopics(ctx context.Context, db DBTX, arg ListStreamTopicsParams) ([]*ListStreamTopicsRow, error) {
+	rows, err := db.Query(ctx, listStreamTopics,
+		arg.Retainedsince,
+		arg.Tenantid,
+		arg.Search,
+		arg.Topicoffset,
+		arg.Topiclimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListStreamTopicsRow
+	for rows.Next() {
+		var i ListStreamTopicsRow
+		if err := rows.Scan(
+			&i.Namespace,
+			&i.Topic,
+			&i.InsertedAt,
+			&i.LastPublishedAt,
+			&i.MessageCount,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

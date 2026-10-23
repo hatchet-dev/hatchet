@@ -198,6 +198,7 @@ from hatchet_sdk.clients.rest.models.tenant_alert_email_group_list import (
 from hatchet_sdk.clients.rest.models.tenant_alerting_settings import (
     TenantAlertingSettings,
 )
+from hatchet_sdk.clients.rest.models.tenant_entitlements import TenantEntitlements
 from hatchet_sdk.clients.rest.models.tenant_environment import TenantEnvironment
 from hatchet_sdk.clients.rest.models.tenant_invite import TenantInvite
 from hatchet_sdk.clients.rest.models.tenant_invite_list import TenantInviteList
@@ -328,6 +329,8 @@ from hatchet_sdk.clients.rest.models.v1_serverless_endpoint_status import (
     V1ServerlessEndpointStatus,
 )
 from hatchet_sdk.clients.rest.models.v1_stream_payload_ref import V1StreamPayloadRef
+from hatchet_sdk.clients.rest.models.v1_stream_topic import V1StreamTopic
+from hatchet_sdk.clients.rest.models.v1_stream_topic_list import V1StreamTopicList
 from hatchet_sdk.clients.rest.models.v1_task_event import V1TaskEvent
 from hatchet_sdk.clients.rest.models.v1_task_event_list import V1TaskEventList
 from hatchet_sdk.clients.rest.models.v1_task_event_type import V1TaskEventType

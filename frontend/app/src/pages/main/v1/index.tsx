@@ -6,6 +6,7 @@ import { Loading } from '@/components/v1/ui/loading';
 import useControlPlane from '@/hooks/use-control-plane';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { useTenantDetails } from '@/hooks/use-tenant';
+import { useTenantEntitlements } from '@/hooks/use-tenant-entitlements';
 import { queries } from '@/lib/api';
 import {
   MembershipsContextType,
@@ -47,6 +48,9 @@ export function MainShell({ children }: { children?: ReactNode }) {
   const hasManagedWorkers =
     (listManagedWorkersQuery.data?.rows?.length || 0) > 0;
 
+  const { entitlements } = useTenantEntitlements();
+  const hasDurableStreams = !!entitlements?.durableStreams;
+
   const navSections = useMemo(
     () =>
       sideNavItems({
@@ -54,8 +58,15 @@ export function MainShell({ children }: { children?: ReactNode }) {
         isControlPlaneEnabled,
         orgId,
         hasManagedWorkers,
+        hasDurableStreams,
       }),
-    [canBill, isControlPlaneEnabled, orgId, hasManagedWorkers],
+    [
+      canBill,
+      isControlPlaneEnabled,
+      orgId,
+      hasManagedWorkers,
+      hasDurableStreams,
+    ],
   );
 
   const childCtx = useContextFromParent({
