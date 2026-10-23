@@ -6,7 +6,6 @@ export type StatCellProps = {
   label: string;
   hint?: ReactNode;
   loading: boolean;
-  // A failed request must not render as an authoritative-looking zero.
   error?: boolean;
   className?: string;
   valueClassName?: string;
