@@ -118,11 +118,13 @@ func newConcurrencyOverviewRepository(shared *sharedRepository) (ConcurrencyOver
 	summaryCache := cache.New(concurrencyStrategySummaryCacheDuration)
 	keysCache := cache.New(concurrencyKeysCacheDuration)
 
-	return &concurrencyOverviewRepository{
+	repo := &concurrencyOverviewRepository{
 		sharedRepository: shared,
 		summaryCache:     summaryCache,
 		keysCache:        keysCache,
-	}, func() {
+	}
+
+	return repo, func() {
 		summaryCache.Stop()
 		keysCache.Stop()
 	}
