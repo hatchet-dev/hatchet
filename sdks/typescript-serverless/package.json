@@ -14,7 +14,8 @@
   "files": [
     "dist",
     "README.md",
-    "LIMITATIONS.md"
+    "LIMITATIONS.md",
+    "CHANGELOG.md"
   ],
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -69,7 +70,9 @@
     "prettier:check": "prettier \"src/**/*.ts\" \"scripts/**/*.mjs\" \"*.md\" --list-different",
     "prettier:fix": "prettier \"src/**/*.ts\" \"scripts/**/*.mjs\" \"*.md\" --write",
     "generate-proto": "./generate-proto.sh",
-    "publish": "pnpm run build:sdk && pnpm install && pnpm run lint && pnpm run test && pnpm run build && pnpm publish --access public --no-git-checks"
+    "publish": "pnpm run build:sdk && pnpm install && pnpm run lint && pnpm run test && pnpm run build && pnpm publish --access public --no-git-checks",
+    "publish:ci": "pnpm run build && pnpm publish --access public --no-git-checks",
+    "publish:ci:alpha": "pnpm run build && pnpm publish --access public --no-git-checks --tag alpha"
   },
   "peerDependencies": {
     "@hatchet-dev/typescript-sdk": "^1.41.0",
