@@ -1,6 +1,5 @@
 import { STRATEGIES_PAGE_SIZE } from '../hooks/use-concurrency';
 import {
-  explainStrategy,
   formatElapsed,
   limitStrategyClassName,
   scopeClassName,
@@ -206,21 +205,14 @@ function StrategyRow({
         {s.expression}
       </span>
       <span className="min-w-0">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span
-              className={cn(
-                'inline-block max-w-full cursor-help truncate rounded border px-1.5 font-mono text-[10.5px]',
-                limitStrategyClassName[s.limitStrategy],
-              )}
-            >
-              {s.limitStrategy}
-            </span>
-          </TooltipTrigger>
-          <TooltipContent className="max-w-xs text-xs leading-relaxed">
-            {explainStrategy(s)}
-          </TooltipContent>
-        </Tooltip>
+        <span
+          className={cn(
+            'inline-block max-w-full truncate rounded border px-1.5 font-mono text-[10.5px]',
+            limitStrategyClassName[s.limitStrategy],
+          )}
+        >
+          {s.limitStrategy}
+        </span>
       </span>
       <span className="text-right font-mono text-xs tabular-nums">
         {s.maxRunsExpression ? (
