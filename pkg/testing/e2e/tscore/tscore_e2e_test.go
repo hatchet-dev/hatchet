@@ -4,16 +4,22 @@
 // the fetch-based Connect client) against an in-process engine started by the test harness.
 // A Node script (sdks/typescript/e2e-core) reaches the engine over HTTP/1.1 only, the way
 // fetch does from a serverless runtime, while a Go worker serves the workflow it triggers.
+// The REST API server is started in-process alongside, since the script also lists runs
+// through it.
 package tscore
 
 import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -21,6 +27,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/run"
+	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/testing/harness"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
@@ -50,6 +58,8 @@ type scenarioResult struct {
 	StreamTopic        string     `json:"streamTopic"`
 	StreamMessageCount int64      `json:"streamMessageCount"`
 	StreamLatestCursor string     `json:"streamLatestCursor"`
+	ListedRun          bool       `json:"listedRun"`
+	ListedRunStatus    string     `json:"listedRunStatus"`
 }
 
 func TestMain(m *testing.M) {
@@ -74,6 +84,7 @@ func TestCoreClientOverHTTP1(t *testing.T) {
 	runCommand(t, ctx, sdkDir, nil, pnpm, "run", "tsc:build")
 
 	require.NoError(t, harness.WaitEngineReady(ctx, 60*time.Second))
+	apiURL := startAPIServer(t, ctx)
 
 	// The scenario publishes to a durable stream, which the engine gates per tenant.
 	entitleDurableStreams(t, ctx)
@@ -103,6 +114,7 @@ func TestCoreClientOverHTTP1(t *testing.T) {
 
 	env := []string{
 		"HATCHET_CLIENT_HOST_PORT=" + os.Getenv("SERVER_GRPC_BROADCAST_ADDRESS"),
+		"HATCHET_CLIENT_API_URL=" + apiURL,
 		"HATCHET_E2E_WORKFLOW=" + workflowName,
 		"HATCHET_E2E_EVENT=" + eventKey,
 	}
@@ -124,6 +136,8 @@ func TestCoreClientOverHTTP1(t *testing.T) {
 	require.Equal(t, "tscore-stream-"+result.RunID, result.StreamTopic)
 	require.Equal(t, int64(2), result.StreamMessageCount)
 	require.NotEmpty(t, result.StreamLatestCursor)
+	require.True(t, result.ListedRun, "runs.list did not return the run over the REST API")
+	require.Equal(t, "COMPLETED", result.ListedRunStatus)
 
 	// The order is fixed: the scenario pushes the event only after the direct run completed.
 	require.Equal(t, result.Output.Message, waitForMessage(t, received))
@@ -163,6 +177,49 @@ func runCommand(t *testing.T, ctx context.Context, dir string, extraEnv []string
 	require.NoError(t, err, "%s %s failed; stdout:\n%s", name, strings.Join(args, " "), stdout.String())
 
 	return stdout.String()
+}
+
+// startAPIServer runs the REST API server in-process on a free port, against the database and
+// keys the harness configured, and returns its base URL once it answers readiness probes. The
+// harness itself runs only the engine. The server is built the way cmd/hatchet-api builds it,
+// and torn down the way the harness tears down the server it mints the token with, so that
+// its repository stops its background loops before the leak check runs.
+func startAPIServer(t *testing.T, ctx context.Context) string {
+	t.Helper()
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	port := listener.Addr().(*net.TCPAddr).Port
+	require.NoError(t, listener.Close())
+	t.Setenv("SERVER_PORT", strconv.Itoa(port))
+
+	configCleanup, server, err := loader.NewConfigLoader("").CreateServerFromConfig("testing")
+	require.NoError(t, err)
+
+	apiCleanup, err := run.NewAPIServer(server).Run()
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, apiCleanup())
+		require.NoError(t, configCleanup())
+		require.NoError(t, server.Disconnect())
+	})
+
+	baseURL := fmt.Sprintf("http://127.0.0.1:%d", port)
+	deadline := time.Now().Add(60 * time.Second)
+	for time.Now().Before(deadline) {
+		request, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/api/ready", nil)
+		require.NoError(t, err)
+		response, err := http.DefaultClient.Do(request)
+		if err == nil {
+			_ = response.Body.Close()
+			if response.StatusCode == http.StatusOK {
+				return baseURL
+			}
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	t.Fatal("the API server did not become ready in time")
+	return ""
 }
 
 // repoRoot is derived from this file's path rather than the working directory, which `go test`

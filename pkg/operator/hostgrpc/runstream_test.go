@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
 )
 
@@ -34,6 +35,18 @@ func TestOpenRunStreamDelegatesToClientSession(t *testing.T) {
 	assert.Equal(t, "run-2", msg.(*contracts.SubscribeToWorkflowRunsRequest).WorkflowRunId)
 
 	require.NoError(t, rs.Close())
+
+	// A topic subscription goes the same way, with its request as the opening message.
+	subscribe := &v1.SubscribeStreamRequest{Namespace: "ns", Topic: "orders"}
+	ts, err := s.OpenRunStream(context.Background(), operator.RunStreamDurableStreams, subscribe)
+	require.NoError(t, err)
+
+	opened = fs.openedRunStreams()
+	require.Len(t, opened, 2)
+	assert.Equal(t, operator.RunStreamDurableStreams, opened[1].kind)
+	assert.Same(t, subscribe, opened[1].first)
+
+	require.NoError(t, ts.Close())
 }
 
 // A closed session opens nothing.
