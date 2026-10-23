@@ -140,6 +140,7 @@ class TenantApi:
             "201": "TenantAlertEmailGroup",
             "400": "APIErrors",
             "403": "APIError",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -218,6 +219,7 @@ class TenantApi:
             "201": "TenantAlertEmailGroup",
             "400": "APIErrors",
             "403": "APIError",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -296,6 +298,7 @@ class TenantApi:
             "201": "TenantAlertEmailGroup",
             "400": "APIErrors",
             "403": "APIError",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -433,6 +436,7 @@ class TenantApi:
             "204": None,
             "400": "APIErrors",
             "403": "APIError",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -507,6 +511,7 @@ class TenantApi:
             "204": None,
             "400": "APIErrors",
             "403": "APIError",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -581,6 +586,7 @@ class TenantApi:
             "204": None,
             "400": "APIErrors",
             "403": "APIError",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -702,6 +708,7 @@ class TenantApi:
             "200": "TenantAlertEmailGroupList",
             "400": "APIErrors",
             "403": "APIError",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -773,6 +780,7 @@ class TenantApi:
             "200": "TenantAlertEmailGroupList",
             "400": "APIErrors",
             "403": "APIError",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -844,6 +852,7 @@ class TenantApi:
             "200": "TenantAlertEmailGroupList",
             "400": "APIErrors",
             "403": "APIError",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -975,6 +984,7 @@ class TenantApi:
             "200": "TenantAlertEmailGroup",
             "400": "APIErrors",
             "403": "APIError",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -1056,6 +1066,7 @@ class TenantApi:
             "200": "TenantAlertEmailGroup",
             "400": "APIErrors",
             "403": "APIError",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -1137,6 +1148,7 @@ class TenantApi:
             "200": "TenantAlertEmailGroup",
             "400": "APIErrors",
             "403": "APIError",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -1271,6 +1283,7 @@ class TenantApi:
             "200": "TenantAlertingSettings",
             "400": "APIErrors",
             "403": "APIError",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -1342,6 +1355,7 @@ class TenantApi:
             "200": "TenantAlertingSettings",
             "400": "APIErrors",
             "403": "APIError",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -1413,6 +1427,7 @@ class TenantApi:
             "200": "TenantAlertingSettings",
             "400": "APIErrors",
             "403": "APIError",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -1531,6 +1546,7 @@ class TenantApi:
             "200": "Tenant",
             "400": "APIErrors",
             "403": "APIError",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -1599,6 +1615,7 @@ class TenantApi:
             "200": "Tenant",
             "400": "APIErrors",
             "403": "APIError",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -1667,6 +1684,7 @@ class TenantApi:
             "200": "Tenant",
             "400": "APIErrors",
             "403": "APIError",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -1802,6 +1820,7 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIError",
             "404": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -1877,6 +1896,7 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIError",
             "404": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -1952,6 +1972,7 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIError",
             "404": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -2074,6 +2095,7 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -2146,6 +2168,7 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -2218,6 +2241,7 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -2340,6 +2364,7 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -2412,6 +2437,7 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -2484,6 +2510,7 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -2615,6 +2642,7 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -2696,6 +2724,7 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -2777,6 +2806,7 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -2900,6 +2930,7 @@ class TenantApi:
             "200": None,
             "400": "APIErrors",
             "403": "APIError",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -2966,6 +2997,7 @@ class TenantApi:
             "200": None,
             "400": "APIErrors",
             "403": "APIError",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -3032,6 +3064,7 @@ class TenantApi:
             "200": None,
             "400": "APIErrors",
             "403": "APIError",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -3170,6 +3203,7 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIError",
             "422": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -3248,6 +3282,7 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIError",
             "422": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -3326,6 +3361,7 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIError",
             "422": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -3460,6 +3496,7 @@ class TenantApi:
             "200": "TenantInviteList",
             "400": "APIErrors",
             "403": "APIError",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -3531,6 +3568,7 @@ class TenantApi:
             "200": "TenantInviteList",
             "400": "APIErrors",
             "403": "APIError",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -3602,6 +3640,7 @@ class TenantApi:
             "200": "TenantInviteList",
             "400": "APIErrors",
             "403": "APIError",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -3718,6 +3757,7 @@ class TenantApi:
             "200": None,
             "400": "APIErrors",
             "403": "APIError",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -3784,6 +3824,7 @@ class TenantApi:
             "200": None,
             "400": "APIErrors",
             "403": "APIError",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -3850,6 +3891,7 @@ class TenantApi:
             "200": None,
             "400": "APIErrors",
             "403": "APIError",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -3994,6 +4036,7 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -4078,6 +4121,7 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -4162,6 +4206,7 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -4286,6 +4331,7 @@ class TenantApi:
             "200": "TenantMemberList",
             "400": "APIErrors",
             "403": "APIError",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -4357,6 +4403,7 @@ class TenantApi:
             "200": "TenantMemberList",
             "400": "APIErrors",
             "403": "APIError",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -4428,6 +4475,7 @@ class TenantApi:
             "200": "TenantMemberList",
             "400": "APIErrors",
             "403": "APIError",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -4569,6 +4617,7 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -4660,6 +4709,7 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -4751,6 +4801,7 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -4888,6 +4939,7 @@ class TenantApi:
             "200": "TenantResourcePolicy",
             "400": "APIErrors",
             "403": "APIError",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -4959,6 +5011,7 @@ class TenantApi:
             "200": "TenantResourcePolicy",
             "400": "APIErrors",
             "403": "APIError",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -5030,6 +5083,7 @@ class TenantApi:
             "200": "TenantResourcePolicy",
             "400": "APIErrors",
             "403": "APIError",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -5157,6 +5211,7 @@ class TenantApi:
             "200": "Tenant",
             "400": "APIErrors",
             "403": "APIError",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -5234,6 +5289,7 @@ class TenantApi:
             "200": "Tenant",
             "400": "APIErrors",
             "403": "APIError",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -5311,6 +5367,7 @@ class TenantApi:
             "200": "Tenant",
             "400": "APIErrors",
             "403": "APIError",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -5436,6 +5493,7 @@ class TenantApi:
             "200": "TenantInviteList",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -5498,6 +5556,7 @@ class TenantApi:
             "200": "TenantInviteList",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -5560,6 +5619,7 @@ class TenantApi:
             "200": "TenantInviteList",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
