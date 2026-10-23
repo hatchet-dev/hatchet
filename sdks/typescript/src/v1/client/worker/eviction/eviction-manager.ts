@@ -27,7 +27,11 @@ export const DEFAULT_DURABLE_EVICTION_CONFIG: Required<DurableEvictionConfig> = 
 export class DurableEvictionManager {
   private _durableSlots: number;
   private _cancelLocal: (key: ActionKey, invocationCount: number) => void;
-  private _requestEvictionWithAck: (key: ActionKey, rec: DurableRunRecord) => Promise<void>;
+  private _requestEvictionWithAck: (
+    key: ActionKey,
+    rec: DurableRunRecord,
+    reason: string
+  ) => Promise<void>;
   private _config: Required<DurableEvictionConfig>;
   private _cache: DurableEvictionCache;
   private _logger: Logger;
@@ -39,7 +43,11 @@ export class DurableEvictionManager {
   constructor(opts: {
     durableSlots: number;
     cancelLocal: (key: ActionKey, invocationCount: number) => void;
-    requestEvictionWithAck: (key: ActionKey, rec: DurableRunRecord) => Promise<void>;
+    requestEvictionWithAck: (
+      key: ActionKey,
+      rec: DurableRunRecord,
+      reason: string
+    ) => Promise<void>;
     config?: DurableEvictionConfig;
     cache?: DurableEvictionCache;
     logger: Logger;
@@ -91,7 +99,7 @@ export class DurableEvictionManager {
     if (!this._shuttingDown) return;
     const rec = this._cache.get(key);
     if (!rec) return;
-    void this._evictForShutdown(rec);
+    void this._evict(rec, EvictionCause.WORKER_SHUTDOWN);
   }
 
   markActive(key: ActionKey): void {
@@ -137,15 +145,9 @@ export class DurableEvictionManager {
       evictedThisTick.add(key);
 
       const rec = this._cache.get(key);
-      if (!rec || !rec.evictionPolicy) continue;
+      if (!rec?.evictionCause) continue;
 
-      this._logger.debug(
-        `DurableEvictionManager: evicting task_run_external_id=${rec.taskRunExternalId} ` +
-          `wait_kind=${rec.waitKind} resource_id=${rec.waitResourceId}`
-      );
-
-      await this._requestEvictionWithAck(key, rec);
-      this._evictRun(key, rec.invocationCount);
+      await this._evict(rec, rec.evictionCause);
     }
   }
 
@@ -169,32 +171,31 @@ export class DurableEvictionManager {
     const waiting = this._cache.getAllWaiting();
 
     for (const rec of waiting) {
-      await this._evictForShutdown(rec);
+      await this._evict(rec, EvictionCause.WORKER_SHUTDOWN);
     }
 
     return waiting.length;
   }
 
-  private async _evictForShutdown(rec: DurableRunRecord): Promise<void> {
-    rec.evictionReason = buildEvictionReason(EvictionCause.WORKER_SHUTDOWN, rec);
+  private async _evict(rec: DurableRunRecord, cause: EvictionCause): Promise<void> {
+    const reason = buildEvictionReason(cause, rec);
 
     this._logger.debug(
-      `DurableEvictionManager: shutdown-evicting task_run_external_id=${rec.taskRunExternalId} ` +
-        `wait_kind=${rec.waitKind}`
+      `DurableEvictionManager: evicting task_run_external_id=${rec.taskRunExternalId} reason=${reason}`
     );
 
     try {
-      await this._requestEvictionWithAck(rec.key, rec);
+      await this._requestEvictionWithAck(rec.key, rec, reason);
     } catch (err: unknown) {
+      if (!this._shuttingDown) throw err;
+      // During shutdown the run is cancelled locally even without the server's ack, so the
+      // future settles and exitGracefully doesn't hang. The reassignment of the task resolves it.
       this._logger.error(
         `DurableEvictionManager: failed to send eviction for ` +
           `task_run_external_id=${rec.taskRunExternalId}: ${getErrorMessage(err)}`
       );
     }
 
-    // Always cancel locally even if the server ACK failed, so the
-    // future settles and exitGracefully doesn't hang.
-    // This will get resolved by the reassignment of the task.
     this._evictRun(rec.key, rec.invocationCount);
   }
 }

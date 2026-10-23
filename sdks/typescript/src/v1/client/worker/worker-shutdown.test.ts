@@ -71,11 +71,11 @@ describe('durable worker shutdown', () => {
     manager = new DurableEvictionManager({
       durableSlots: 2,
       cancelLocal: (key) => cancelled.push(key),
-      requestEvictionWithAck: (_key, run) =>
+      requestEvictionWithAck: (_key, run, reason) =>
         client.durableListener.sendEvictInvocation(
           run.taskRunExternalId,
           run.invocationCount,
-          run.evictionReason
+          reason
         ),
       logger: worker.logger,
     });

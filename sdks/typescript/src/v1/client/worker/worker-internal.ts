@@ -288,11 +288,11 @@ export class InternalWorker {
           future.cancel(CancellationReason.EVICTED_BY_WORKER);
         }
       },
-      requestEvictionWithAck: async (key: ActionKey, rec: DurableRunRecord) => {
+      requestEvictionWithAck: async (key: ActionKey, rec: DurableRunRecord, reason: string) => {
         await this.client.durableListener.sendEvictInvocation(
           rec.taskRunExternalId,
           rec.invocationCount,
-          rec.evictionReason
+          reason
         );
       },
       logger: this.logger,

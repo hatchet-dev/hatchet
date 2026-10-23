@@ -46,7 +46,8 @@ describe('DurableEvictionManager', () => {
 
       expect(requestEvictionWithAck).toHaveBeenLastCalledWith(
         'run-2/0',
-        expect.objectContaining({ taskRunExternalId: 'ext-2', waitKind: 'waitFor' })
+        expect.objectContaining({ taskRunExternalId: 'ext-2' }),
+        'Worker shutdown while waiting on waitFor(node:7)'
       );
       expect(cancelLocal).toHaveBeenCalledWith('run-2/0', 1);
       expect(manager.cache.get('run-2/0')).toBeUndefined();
