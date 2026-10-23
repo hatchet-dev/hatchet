@@ -33,6 +33,7 @@ import { BulkTriggerPartialError } from '@util/errors/bulk-trigger-partial-error
 import { AbortError } from '@hatchet/util/abort-error';
 import { LogLevel } from '@hatchet/clients/event/rpc';
 import { HatchetCore } from './client';
+import { MAX_PUBLISH_BATCH_BYTES } from '@util/stream-publish-batch';
 import { MAX_STREAM_MESSAGE_BYTES, MAX_TRACKED_TOPICS, StreamsClient } from './features/streams';
 import { INITIAL_POLL_INTERVAL_MS, MAX_POLL_INTERVAL_MS, WorkflowRunRef } from './run-ref';
 
@@ -94,6 +95,8 @@ function fakeEngine() {
     producerId: string;
     producerSeq: number;
   }> = [];
+  // entries per publish request
+  const publishBatches: number[] = [];
   const resets: ResetStreamTopicRequest[] = [];
   const publishErrors: ConnectError[] = [];
   const publishGates: Array<Promise<void>> = [];
@@ -175,17 +178,20 @@ function fakeEngine() {
       },
     });
     service(V1Streams, {
-      publish: async (req) => {
+      publishBatch: async (req) => {
         const gate = publishGates.shift();
         if (gate) await gate;
         const error = publishErrors.shift();
         if (error) throw error;
-        publishes.push({
-          namespace: req.namespace,
-          topic: req.topic,
-          payload: req.payload,
-          producerId: req.producerId,
-          producerSeq: Number(req.producerSeq),
+        publishBatches.push(req.entries.length);
+        req.entries.forEach((entry, i) => {
+          publishes.push({
+            namespace: req.namespace,
+            topic: req.topic,
+            payload: entry.payload,
+            producerId: req.producerId,
+            producerSeq: Number(req.firstProducerSeq) + i,
+          });
         });
         return {};
       },
@@ -211,6 +217,7 @@ function fakeEngine() {
     pushes,
     logs,
     publishes,
+    publishBatches,
     resets,
     cancels,
     pauses,
@@ -1080,6 +1087,85 @@ describe('HatchetCore.streams', () => {
     ]);
   });
 
+  it('sends the publishes queued behind an in-flight request as one batch', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    const release = engine.gateNextPublish();
+
+    const published = ['one', 'two', 'three', 'four'].map((m) =>
+      client.streams.publish('progress', m)
+    );
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    release();
+    await Promise.all(published);
+    expect(engine.publishBatches).toEqual([1, 3]);
+    expect(engine.publishes.map((p) => [text(p.payload), p.producerSeq])).toEqual([
+      ['one', 0],
+      ['two', 1],
+      ['three', 2],
+      ['four', 3],
+    ]);
+  });
+
+  it('holds a publish for its batch timeout so later ones share its request', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+
+    const first = client.streams.publish('progress', 'one', { batchTimeoutMs: 50 });
+    const second = client.streams.publish('progress', 'two', { batchTimeoutMs: 50 });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(engine.publishBatches).toEqual([]);
+
+    await Promise.all([first, second]);
+    expect(engine.publishBatches).toEqual([2]);
+  });
+
+  it('rejects an empty payload or a bad batch timeout without sending it, and the rest of the batch still goes out', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    const release = engine.gateNextPublish();
+
+    const first = client.streams.publish('progress', 'one');
+    const empty = client.streams.publish('progress', '');
+    const badTimeout = client.streams.publish('progress', 'two', { batchTimeoutMs: NaN });
+    const rest = [
+      client.streams.publish('progress', 'three'),
+      client.streams.publish('progress', 'four'),
+    ];
+
+    await expect(empty).rejects.toThrow(/payload is empty/);
+    await expect(badTimeout).rejects.toThrow(/batchTimeoutMs must be/);
+
+    release();
+    await Promise.all([first, ...rest]);
+    expect(engine.publishBatches).toEqual([1, 2]);
+    expect(engine.publishes.map((p) => [text(p.payload), p.producerSeq])).toEqual([
+      ['one', 0],
+      ['three', 1],
+      ['four', 2],
+    ]);
+  });
+
+  it('splits a queue over the batch byte limit across requests', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    const release = engine.gateNextPublish();
+    // two fit in one request, a third does not
+    const large = new Uint8Array(Math.floor(MAX_PUBLISH_BATCH_BYTES / 3));
+
+    const published = [client.streams.publish('progress', 'first')];
+    for (let i = 0; i < 3; i += 1) {
+      published.push(client.streams.publish('progress', large));
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    release();
+    await Promise.all(published);
+    expect(engine.publishBatches).toEqual([1, 2, 1]);
+    expect(engine.publishes.map((p) => p.producerSeq)).toEqual([0, 1, 2, 3]);
+  });
+
   it('still takes the events service alone, which serves put and refuses durable streams', async () => {
     const engine = fakeEngine();
     const client = makeClient(engine);
@@ -1119,7 +1205,7 @@ describe('HatchetCore.streams', () => {
     const engine = fakeEngine();
     const client = makeClient(engine);
     const chains = () =>
-      (client.streams as unknown as { publishChains: Map<string, unknown> }).publishChains;
+      (client.streams as unknown as { publishQueues: Map<string, unknown> }).publishQueues;
     const producers = () =>
       (client.streams as unknown as { producers: Map<string, unknown> }).producers;
 

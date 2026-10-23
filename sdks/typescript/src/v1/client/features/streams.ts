@@ -5,6 +5,7 @@ import { ClientConfig } from '@hatchet/clients/hatchet-client';
 import { createGrpcClient } from '@hatchet/util/grpc-helpers';
 import { getGrpcErrorCode } from '@hatchet/util/grpc-error';
 import sleep from '@hatchet/util/sleep';
+import { StreamPublishQueue, validateBatchTimeout } from '@hatchet/util/stream-publish-batch';
 import {
   V1StreamsClient as PbV1StreamsClient,
   V1StreamsDefinition,
@@ -43,6 +44,9 @@ const maxInlinePayloadBytes = 4 * 1024 * 1024 - 5 * 1024;
 const maxUploadedPayloadBytes = 64 * 1024 * 1024;
 
 const payloadRequestAttempts = 3;
+
+// an upload's ref, which a batch carries in place of its payload, rounded up
+const payloadRefBytes = 256;
 
 function httpStatus(err: unknown): number | undefined {
   return isAxiosError(err) ? err.response?.status : undefined;
@@ -83,6 +87,14 @@ export type StreamEvent = {
 
 export type { StreamCallOptions, StreamTopicMetadata } from '@hatchet/core/types';
 
+interface QueuedPublish {
+  payload: Uint8Array;
+  // set instead of an inline payload for one too large for a gRPC message
+  uploaded: Promise<string> | undefined;
+  resolve: () => void;
+  reject: (err: unknown) => void;
+}
+
 /**
  * StreamsClient publishes to and reads from durable topics. Unlike
  * `runs.subscribeToStream`, topics are stored, independent of any run, and
@@ -96,9 +108,9 @@ export class StreamsClient {
   // per (namespace, topic); seq only advances after a publish succeeds
   private producers = new Map<string, { producerId: string; seq: number }>();
 
-  // serializes publishes per (namespace, topic) so two never share a seq; the
-  // stored promise always resolves, so one failure doesn't block later calls
-  private publishChains = new Map<string, Promise<void>>();
+  // per (namespace, topic); one request per topic is in flight at a time so two
+  // never share a seq, and each carries everything queued behind the last
+  private publishQueues = new Map<string, StreamPublishQueue<QueuedPublish>>();
 
   constructor(client: HatchetClient) {
     this._config = client.config;
@@ -147,11 +159,51 @@ export class StreamsClient {
     return new Uint8Array(res.data as unknown as ArrayBuffer);
   }
 
+  private async drainPublishes(
+    key: string,
+    namespace: string,
+    topic: string,
+    queue: StreamPublishQueue<QueuedPublish>
+  ): Promise<void> {
+    while (queue.size > 0) {
+      const batch = await queue.next();
+      const refs = await Promise.allSettled(batch.map((p) => p.uploaded));
+      const sent: QueuedPublish[] = [];
+      const entries: Array<{ payload: Uint8Array; payloadRef: string }> = [];
+
+      // a failed upload fails only its own publish, as the rest never depended on it
+      batch.forEach((p, i) => {
+        const ref = refs[i];
+        if (ref.status === 'rejected') {
+          p.reject(ref.reason);
+          return;
+        }
+        sent.push(p);
+        entries.push(
+          ref.value === undefined
+            ? { payload: p.payload, payloadRef: '' }
+            : { payload: new Uint8Array(), payloadRef: ref.value }
+        );
+      });
+
+      if (entries.length > 0) {
+        try {
+          await this.publishOrdered(key, namespace, topic, entries);
+          sent.forEach((p) => p.resolve());
+        } catch (err) {
+          sent.forEach((p) => p.reject(err));
+        }
+      }
+    }
+
+    this.publishQueues.delete(key);
+  }
+
   private async publishOrdered(
     key: string,
     namespace: string,
     topic: string,
-    body: { payload: Uint8Array } | { payloadRef: string },
+    entries: Array<{ payload: Uint8Array; payloadRef: string }>,
     retryGap = true
   ): Promise<void> {
     let producer = this.producers.get(key);
@@ -161,12 +213,12 @@ export class StreamsClient {
     }
 
     try {
-      await this.grpc.publish({
+      await this.grpc.publishBatch({
         namespace,
         topic,
-        ...body,
         producerId: producer.producerId,
-        producerSeq: producer.seq,
+        firstProducerSeq: producer.seq,
+        entries,
       });
     } catch (err) {
       // it may still land, and a different payload under its seq would be dropped as a duplicate
@@ -175,20 +227,22 @@ export class StreamsClient {
       }
       // a gap stored nothing (e.g. the watermark passed cursor retention), so resend as the new producer
       if (retryGap && getGrpcErrorCode(err) === Status.FAILED_PRECONDITION) {
-        return this.publishOrdered(key, namespace, topic, body, false);
+        return this.publishOrdered(key, namespace, topic, entries, false);
       }
       throw err;
     }
 
-    producer.seq += 1;
+    producer.seq += entries.length;
   }
 
   /**
    * Resolves once the message is stored. A client's messages to a topic are
-   * delivered in the order publish() was called.
+   * delivered in the order publish() was called. Publishes to a topic share
+   * requests: everything queued while one is in flight goes out in the next,
+   * and `batchTimeoutMs` holds a message up to that long for more to join it.
    * @param topic - the topic to publish to
    * @param message - the message payload
-   * @param options - optional namespace override
+   * @param options - optional namespace override and batch timeout
    */
   async publish(
     topic: string,
@@ -199,32 +253,37 @@ export class StreamsClient {
     const namespace = options?.namespace ?? '';
     const key = `${namespace}\u0000${topic}`;
 
+    // the engine would reject the whole request it shares, failing other publishes too
+    if (payload.byteLength === 0) {
+      throw new Error('payload is empty; a message must carry at least one byte');
+    }
+
     if (payload.byteLength > maxUploadedPayloadBytes) {
       throw new Error(`payload exceeds maximum size of ${maxUploadedPayloadBytes} bytes`);
     }
 
+    validateBatchTimeout(options?.batchTimeoutMs);
+
     // uploaded before taking its place in the topic's order, so uploads overlap
     const uploaded =
       payload.byteLength > maxInlinePayloadBytes ? this.uploadPayload(payload) : undefined;
-    // awaited in order below; this only keeps an early failure from reporting as unhandled
+    // awaited when its batch is sent; this only keeps an early failure from reporting as unhandled
     uploaded?.catch(() => {});
 
-    const previous = this.publishChains.get(key) ?? Promise.resolve();
-    const publishPromise = previous.then(async () =>
-      this.publishOrdered(
-        key,
-        namespace,
-        topic,
-        uploaded ? { payloadRef: await uploaded } : { payload }
-      )
-    );
+    return new Promise<void>((resolve, reject) => {
+      const queue =
+        this.publishQueues.get(key) ??
+        new StreamPublishQueue<QueuedPublish>((p) =>
+          p.uploaded ? payloadRefBytes : p.payload.byteLength
+        );
+      queue.push({ payload, uploaded, resolve, reject }, options?.batchTimeoutMs);
 
-    this.publishChains.set(
-      key,
-      publishPromise.catch(() => {})
-    );
-
-    return publishPromise;
+      // pushed first, since the drain stops at an empty queue
+      if (!this.publishQueues.has(key)) {
+        this.publishQueues.set(key, queue);
+        void this.drainPublishes(key, namespace, topic, queue);
+      }
+    });
   }
 
   /**
