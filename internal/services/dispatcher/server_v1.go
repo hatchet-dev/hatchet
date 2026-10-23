@@ -400,6 +400,20 @@ func (rel *orderedRelease) takeReleasable() []*contracts.DurableTaskResponse {
 	return toSend
 }
 
+func (rel *orderedRelease) lowestBufferedOrder() (int64, bool) {
+	var lowest int64
+	isHoldingAny := false
+
+	for order := range rel.bufferedCompletions {
+		if !isHoldingAny || order < lowest {
+			lowest = order
+			isHoldingAny = true
+		}
+	}
+
+	return lowest, isHoldingAny
+}
+
 func (s *durableTaskInvocation) send(resp *contracts.DurableTaskResponse) error {
 	s.sendMu.Lock()
 	defer s.sendMu.Unlock()
@@ -585,9 +599,10 @@ func (s *durableTaskInvocation) deliverOrdered(taskExternalId uuid.UUID, invocat
 //
 // The worker's status request tells us what it is still waiting on. If the lowest satisfied
 // order among those entries is N+1, the worker must already have completions 1..N, so the
-// counter can jump to N and anything held behind it is released. This only applies while the
-// stream has not sent a completion yet: once it has, the counter is correct on its own, and a
-// status request (which may list only some of the pending entries) must not move it.
+// counter can jump to N and anything held behind it is released. A status request may list only
+// some of the pending entries, so the counter never jumps past a completion this stream is
+// already holding. This only applies while the stream has not sent a completion yet: once it
+// has, the counter is correct on its own.
 func (s *durableTaskInvocation) resumeOrderedRelease(key orderedReleaseKey, lowestWaitingSatisfiedOrder int64) error {
 	s.releasesMu.Lock()
 	rel, wasReplacedByNewerInvocation := s.getRelease(key)
@@ -601,16 +616,15 @@ func (s *durableTaskInvocation) resumeOrderedRelease(key orderedReleaseKey, lowe
 	defer rel.mu.Unlock()
 
 	consumedThrough := lowestWaitingSatisfiedOrder - 1
+	if lowestHeld, isHoldingAny := rel.lowestBufferedOrder(); isHoldingAny {
+		consumedThrough = min(consumedThrough, lowestHeld-1)
+	}
+
 	if rel.maxSatisfiedOrderSentAlready != 0 || consumedThrough <= 0 {
 		return nil
 	}
 
 	rel.maxSatisfiedOrderSentAlready = consumedThrough
-	for order := range rel.bufferedCompletions {
-		if order <= consumedThrough {
-			delete(rel.bufferedCompletions, order)
-		}
-	}
 
 	for _, r := range rel.takeReleasable() {
 		if r == nil {

@@ -52,4 +52,16 @@ func TestOrderedReleaseResumesAfterStreamReconnect(t *testing.T) {
 
 	deliverCompletion(t, d, tenantId, taskId, 3, 3)
 	require.Equal(t, []int64{1, 2, 3, 4}, delivered)
+
+	reconnectedAgain := newSession()
+	d.durableInvocations.Store(key, reconnectedAgain)
+
+	deliverCompletion(t, d, tenantId, taskId, 5, 5)
+	require.Equal(t, []int64{1, 2, 3, 4}, delivered)
+
+	require.NoError(t, reconnectedAgain.resumeOrderedRelease(releaseKey, 6))
+	require.Equal(t, []int64{1, 2, 3, 4, 5}, delivered)
+
+	deliverCompletion(t, d, tenantId, taskId, 6, 6)
+	require.Equal(t, []int64{1, 2, 3, 4, 5, 6}, delivered)
 }
