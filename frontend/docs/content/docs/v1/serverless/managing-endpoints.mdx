@@ -18,26 +18,26 @@ Open **Endpoints** in the sidebar.
 - **Edit** an endpoint to change its URLs or settings, or to rotate its signing secret.
 - **Disable** an endpoint to stop Hatchet from polling it or delivering to it without deleting it. **Enable** turns it back on.
 - **Delete** an endpoint to remove it.
-- Open an endpoint to see its status and the actions it registered. See [Troubleshooting](/v1/serverless/troubleshooting).
+- Open an endpoint to see its status, the actions it registered, and its **Events**. See [Troubleshooting](/v1/serverless/troubleshooting).
 
 ## Endpoint fields
 
-| Field                   | Required | Default              | Description                                                                                                                                                                                       |
-| ----------------------- | -------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `name`                  | Yes      |                      | Unique within the tenant.                                                                                                                                                                         |
-| `kind`                  | No       | `CLOUDFLARE_WORKERS` | `CLOUDFLARE_WORKERS` or `GENERIC_HTTP`. A Cloudflare Worker gets the Workers runtime's constraints applied; everything else, including Vercel and Node servers, is `GENERIC_HTTP`. Always set it. |
-| `healthcheckUrl`        | Yes      |                      | The `https` URL Hatchet polls to discover the endpoint's workflows. Port 443 only.                                                                                                                |
-| `triggerUrl`            | Yes      |                      | The `https` URL tasks are delivered to. Port 443 only.                                                                                                                                            |
-| `signingSecret`         | Yes      |                      | At least 32 characters. Stored encrypted and never returned by the API.                                                                                                                           |
-| `requestTimeoutSeconds` | No       | `60`                 | How long one trigger request may take, from 1 to 600 seconds.                                                                                                                                     |
-| `pollIntervalSeconds`   | No       | `30`                 | How often the healthcheck URL is polled, from 5 to 3600 seconds.                                                                                                                                  |
-| `inlineWaitBudgetMs`    | No       | `5000`               | For durable tasks: how long an invocation may wait inline for a sleep, event or child run before it evicts itself, from 0 to 600000 ms.                                                           |
-| `labels`                | No       | `{}`                 | [Worker labels](/v1/advanced-assignment/worker-affinity) for the worker Hatchet registers on the endpoint's behalf.                                                                               |
-| `enabled`               | No       | `true`               | Whether Hatchet polls and delivers to the endpoint.                                                                                                                                               |
+| Field                   | Required | Default              | Description                                                                                                                                        |
+| ----------------------- | -------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`                  | Yes      |                      | Unique within the tenant.                                                                                                                          |
+| `kind`                  | No       | `CLOUDFLARE_WORKERS` | `GENERIC_HTTP`, `CLOUDFLARE_WORKERS` or `VERCEL`. The platform the endpoint runs on. The dashboard uses it for setup and diagnosis. Always set it. |
+| `healthcheckUrl`        | Yes      |                      | The `https` URL Hatchet polls to discover the endpoint's workflows. Port 443 only.                                                                 |
+| `triggerUrl`            | Yes      |                      | The `https` URL tasks are delivered to. Port 443 only.                                                                                             |
+| `signingSecret`         | Yes      |                      | At least 32 characters. Stored encrypted and never returned by the API.                                                                            |
+| `requestTimeoutSeconds` | No       | `60`                 | How long one trigger request may take, from 1 to 600 seconds.                                                                                      |
+| `pollIntervalSeconds`   | No       | `30`                 | How often the healthcheck URL is polled, from 5 to 3600 seconds.                                                                                   |
+| `inlineWaitBudgetMs`    | No       | `5000`               | For durable tasks: how long the endpoint may wait inline for a durable result before it evicts the invocation. 0 to 600000 ms.                     |
+| `labels`                | No       | `{}`                 | [Worker labels](/v1/advanced-assignment/worker-affinity) for the worker the operator runs for this endpoint.                                       |
+| `enabled`               | No       | `true`               | Whether Hatchet polls and delivers to the endpoint.                                                                                                |
 
 Every response also includes `status`:
 
-- `healthy`: whether the last healthcheck succeeded. It's absent until Hatchet has polled the endpoint once.
+- `healthy`: whether the last healthcheck succeeded. It's absent until the operator has polled the endpoint once.
 - `error`: why the endpoint is unhealthy.
 - `changedAt`: when `healthy` last changed.
 - `registeredActions`: the action ids registered from the last successful healthcheck.
@@ -46,13 +46,14 @@ Every response also includes `status`:
 
 All routes take an [API token](/v1/quickstart) as a bearer token.
 
-| Method   | Path                                                   | Description                                 |
-| -------- | ------------------------------------------------------ | ------------------------------------------- |
-| `GET`    | `/api/v1/stable/tenants/{tenant}/serverless/endpoints` | List endpoints (`offset`, `limit`)          |
-| `POST`   | `/api/v1/stable/tenants/{tenant}/serverless/endpoints` | Create an endpoint                          |
-| `GET`    | `/api/v1/stable/serverless/endpoints/{endpoint}`       | Get an endpoint                             |
-| `PATCH`  | `/api/v1/stable/serverless/endpoints/{endpoint}`       | Update an endpoint; omitted fields are kept |
-| `DELETE` | `/api/v1/stable/serverless/endpoints/{endpoint}`       | Delete an endpoint                          |
+| Method   | Path                                                    | Description                                 |
+| -------- | ------------------------------------------------------- | ------------------------------------------- |
+| `GET`    | `/api/v1/stable/tenants/{tenant}/serverless/endpoints`  | List endpoints (`offset`, `limit`)          |
+| `POST`   | `/api/v1/stable/tenants/{tenant}/serverless/endpoints`  | Create an endpoint                          |
+| `GET`    | `/api/v1/stable/serverless/endpoints/{endpoint}`        | Get an endpoint                             |
+| `PATCH`  | `/api/v1/stable/serverless/endpoints/{endpoint}`        | Update an endpoint; omitted fields are kept |
+| `DELETE` | `/api/v1/stable/serverless/endpoints/{endpoint}`        | Delete an endpoint                          |
+| `GET`    | `/api/v1/stable/serverless/endpoints/{endpoint}/events` | List recent events (`limit`, `since`)       |
 
 ```bash
 curl -X POST \
@@ -125,9 +126,11 @@ with ApiClient(config) as client:
         ),
     )
 
-    # read the status back
-    endpoint = serverless.v1_serverless_endpoint_get(v1_serverless_endpoint=endpoint_id)
-    print(endpoint.status.healthy, endpoint.status.registered_actions)
+    # recent events, newest first
+    events = serverless.v1_serverless_endpoint_event_list(
+        v1_serverless_endpoint=endpoint_id,
+        limit=20,
+    )
 
     # list and delete
     endpoints = serverless.v1_serverless_endpoint_list(tenant=hatchet.tenant_id)
@@ -161,11 +164,10 @@ await hatchet.api.v1ServerlessEndpointUpdate(endpoint.metadata.id, {
   requestTimeoutSeconds: 300,
 });
 
-// read the status back
-const { data: current } = await hatchet.api.v1ServerlessEndpointGet(
+// read what the operator recorded
+const { data: events } = await hatchet.api.v1ServerlessEndpointEventList(
   endpoint.metadata.id,
 );
-console.log(current.status?.healthy, current.status?.registeredActions);
 
 // list and delete
 const { data: endpoints } = await hatchet.api.v1ServerlessEndpointList(
@@ -235,12 +237,14 @@ func main() {
 		panic(err)
 	}
 
-	// read the status back
-	current, err := api.V1ServerlessEndpointGetWithResponse(ctx, endpointId)
+	// recent events, newest first
+	limit := int64(20)
+	_, err = api.V1ServerlessEndpointEventListWithResponse(ctx, endpointId, &rest.V1ServerlessEndpointEventListParams{
+		Limit: &limit,
+	})
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(current.JSON200.Status.Healthy, current.JSON200.Status.RegisteredActions)
 
 	// delete
 	_, err = api.V1ServerlessEndpointDeleteWithResponse(ctx, endpointId)
@@ -278,9 +282,8 @@ serverless.v1_serverless_endpoint_update(
   HatchetSdkRest::V1UpdateServerlessEndpointRequest.new(request_timeout_seconds: 300)
 )
 
-# read the status back
-current = serverless.v1_serverless_endpoint_get(endpoint_id)
-puts current.status.healthy, current.status.registered_actions
+# recent events, newest first
+events = serverless.v1_serverless_endpoint_event_list(endpoint_id, limit: 20)
 
 # list and delete
 endpoints = serverless.v1_serverless_endpoint_list(hatchet.config.tenant_id)
@@ -292,8 +295,8 @@ serverless.v1_serverless_endpoint_delete(endpoint_id)
 
 ## Rotating the signing secret
 
-Send a new `signingSecret` in an update. The API never returns the secret. Hatchet signs with the new secret from its next refresh of the endpoint. Requests signed with the old secret fail verification on an endpoint that already has the new one, and the other way around. Expect a few failed healthchecks or deliveries while the two sides change over, and update the endpoint and Hatchet close together.
+Send a new `signingSecret` in an update. The API never returns the secret. The operator picks up the new secret on its next refresh of the endpoint, and from then on signs with it. Requests signed with the old secret fail verification on an endpoint that already has the new one, and the other way around. Expect a few failed healthchecks or deliveries while the two sides change over, and update the endpoint and Hatchet close together.
 
 ## Disabling and deleting
 
-A disabled endpoint isn't polled and receives no tasks, and Hatchet stops advertising the actions it registered. If no other endpoint or worker serves those actions, their tasks stay queued until one does, subject to their [schedule timeout](/v1/timeouts). Deleting an endpoint has the same effect and removes the endpoint for good.
+A disabled endpoint isn't polled and receives no tasks, and the operator stops advertising the actions it registered. If no other endpoint or worker serves those actions, their tasks stay queued until one does, subject to their [schedule timeout](/v1/timeouts). Deleting an endpoint has the same effect and removes the endpoint for good.

@@ -96,7 +96,7 @@ vercel env add HATCHET_CLIENT_TOKEN production       # a tenant API token
 vercel deploy --prod      # prints https://<project>.vercel.app
 ```
 
-Then register the endpoint, from the dashboard's **Endpoints** page (choose **Vercel** and enter the deployment's URL) or with the REST API. A Vercel endpoint is registered with the generic kind:
+Then register the endpoint, from the dashboard's **Endpoints** page (choose **Vercel** and enter the deployment's URL) or with the REST API:
 
 ```bash
 curl -X POST \
@@ -105,7 +105,7 @@ curl -X POST \
   "https://cloud.onhatchet.run/api/v1/stable/tenants/$TENANT_ID/serverless/endpoints" \
   -d '{
     "name": "my-app",
-    "kind": "GENERIC_HTTP",
+    "kind": "VERCEL",
     "healthcheckUrl": "https://my-app.vercel.app/api/hatchet/healthcheck",
     "triggerUrl": "https://my-app.vercel.app/api/hatchet/trigger",
     "signingSecret": "'"$HATCHET_SIGNING_SECRET"'"
