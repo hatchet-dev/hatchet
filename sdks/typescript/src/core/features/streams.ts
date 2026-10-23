@@ -3,6 +3,7 @@ import HatchetError from '@util/errors/hatchet-error';
 import { AbortError } from '@hatchet/util/abort-error';
 import type { EventsServiceClient, PutStreamEventResponse } from '@hatchet/protoc/events/events';
 import type { V1StreamsClient } from '@hatchet/protoc/v1/streams';
+import { StreamPublishQueue } from '@util/stream-publish-batch';
 import type { StreamCallOptions, StreamTopicMetadata } from '../types';
 
 /**
@@ -42,6 +43,15 @@ function publishRejectedBeforeStoring(err: unknown): boolean {
   );
 }
 
+interface QueuedPublish {
+  bytes: number;
+  sendBy: number;
+  payload: Uint8Array;
+  signal: AbortSignal | undefined;
+  resolve: () => void;
+  reject: (err: unknown) => void;
+}
+
 /**
  * Task run streams and durable stream topics.
  *
@@ -57,10 +67,10 @@ export class StreamsClient {
   private readonly producers = new Map<string, { producerId: string; seq: number }>();
 
   /**
-   * Serializes publishes per (namespace, topic) so two never share a sequence number. The
-   * stored promise always resolves, so one failure does not block later calls.
+   * Publishes waiting per (namespace, topic). One request per topic is in flight at a time, so
+   * two never share a sequence number, and each carries everything queued behind the last.
    */
-  private readonly publishChains = new Map<string, Promise<void>>();
+  private readonly publishQueues = new Map<string, StreamPublishQueue<QueuedPublish>>();
 
   private readonly events: EventsServiceClient;
   private readonly streams: V1StreamsClient | undefined;
@@ -110,9 +120,11 @@ export class StreamsClient {
    * Publishes a message to a durable topic and resolves once it is stored. A client's
    * messages to a topic are delivered in the order `publish` was called. A payload over
    * `MAX_STREAM_MESSAGE_BYTES` rejects with a `HatchetError` before anything is sent.
+   * Publishes to a topic share requests: everything queued while one is in flight goes out in
+   * the next, and `batchTimeoutMs` holds a message up to that long for more to join it.
    * @param topic - the topic to publish to
    * @param message - the message payload
-   * @param options - optional namespace override and abort signal
+   * @param options - optional namespace override, abort signal and batch timeout
    */
   async publish(
     topic: string,
@@ -130,24 +142,19 @@ export class StreamsClient {
     }
 
     const signal = options?.signal;
-    const previous = this.publishChains.get(key) ?? Promise.resolve();
-    const publishPromise = previous.then(() => {
-      // An abort while this publish waited behind earlier ones sends nothing.
-      if (signal?.aborted) {
-        throw new AbortError();
+    const sendBy = Date.now() + (options?.batchTimeoutMs ?? 0);
+    const publishPromise = new Promise<void>((resolve, reject) => {
+      const queued = { bytes: payload.byteLength, sendBy, payload, signal, resolve, reject };
+      const queue = this.publishQueues.get(key);
+      if (queue) {
+        queue.push(queued);
+        return;
       }
-      return this.publishOrdered(key, namespace, topic, payload, signal);
+      const created = new StreamPublishQueue<QueuedPublish>();
+      created.push(queued);
+      this.publishQueues.set(key, created);
+      void this.drainPublishes(key, namespace, topic, created);
     });
-
-    const chain = publishPromise
-      .catch(() => {})
-      .then(() => {
-        // The topic's queue is idle once its last publish settled.
-        if (this.publishChains.get(key) === chain) {
-          this.publishChains.delete(key);
-        }
-      });
-    this.publishChains.set(key, chain);
 
     if (!signal) {
       return publishPromise;
@@ -209,12 +216,46 @@ export class StreamsClient {
     );
   }
 
+  /** Sends key's queued publishes in batches until none are left, then forgets the queue. */
+  private async drainPublishes(
+    key: string,
+    namespace: string,
+    topic: string,
+    queue: StreamPublishQueue<QueuedPublish>
+  ): Promise<void> {
+    while (queue.size > 0) {
+      // An abort while a publish waited behind earlier ones sends nothing.
+      const batch = (await queue.next()).filter((p) => {
+        if (p.signal?.aborted) {
+          p.reject(new AbortError());
+          return false;
+        }
+        return true;
+      });
+
+      if (batch.length > 0) {
+        try {
+          await this.publishOrdered(
+            key,
+            namespace,
+            topic,
+            batch.map((p) => p.payload)
+          );
+          batch.forEach((p) => p.resolve());
+        } catch (err) {
+          batch.forEach((p) => p.reject(err));
+        }
+      }
+    }
+
+    this.publishQueues.delete(key);
+  }
+
   private async publishOrdered(
     key: string,
     namespace: string,
     topic: string,
-    payload: Uint8Array,
-    signal: AbortSignal | undefined,
+    payloads: Uint8Array[],
     retryGap = true
   ): Promise<void> {
     const streams = this.durable();
@@ -235,16 +276,14 @@ export class StreamsClient {
     }
 
     try {
-      await streams.publish(
-        {
-          namespace,
-          topic,
-          payload,
-          producerId: producer.producerId,
-          producerSeq: producer.seq,
-        },
-        { signal }
-      );
+      // not one caller's signal: the request carries other callers' publishes too
+      await streams.publishBatch({
+        namespace,
+        topic,
+        producerId: producer.producerId,
+        firstProducerSeq: producer.seq,
+        entries: payloads.map((payload) => ({ payload, payloadRef: '' })),
+      });
     } catch (err) {
       // The message may still land, and a different payload under its sequence number
       // would be dropped as a duplicate, so the next publish comes from a new producer.
@@ -254,11 +293,11 @@ export class StreamsClient {
       // A gap stored nothing (the watermark passed cursor retention, say): resend as the
       // new producer.
       if (retryGap && err instanceof ConnectError && err.code === Code.FailedPrecondition) {
-        return this.publishOrdered(key, namespace, topic, payload, signal, false);
+        return this.publishOrdered(key, namespace, topic, payloads, false);
       }
       throw err;
     }
 
-    producer.seq += 1;
+    producer.seq += payloads.length;
   }
 }
