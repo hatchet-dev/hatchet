@@ -2,7 +2,7 @@ import { Button } from '@/components/v1/ui/button';
 import { type ReactNode } from 'react';
 
 export type PaginationFooterProps = {
-  summary: ReactNode;
+  summary?: ReactNode;
   // zero-based
   page: number;
   numPages: number;
@@ -17,7 +17,7 @@ export function PaginationFooter({
 }: PaginationFooterProps) {
   return (
     <div className="flex items-center gap-2 border-t border-border/50 px-4 py-2 text-xs text-muted-foreground">
-      <span className="font-mono">{summary}</span>
+      {summary && <span className="font-mono">{summary}</span>}
       <div className="ml-auto flex gap-1.5">
         <Button
           variant="outline"
