@@ -752,7 +752,6 @@ func (d *DispatcherImpl) populateTaskData(
 		return map[int64]*V1TaskWithPayloadAndInvocationCount{}, nil
 	}
 
-	// one round trip for the task rows with their runtime rows and the payload rows holding their inputs
 	dispatchData, err := d.repov1.Tasks().ListTasksForDispatch(ctx, tenantId, taskIds)
 
 	if err != nil {

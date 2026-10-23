@@ -144,6 +144,8 @@ type WorkerDispatcherChangedPayload struct {
 	DispatcherId uuid.UUID `json:"dispatcher_id"`
 }
 
+// NotifyWorkerDispatcherChanged builds the scheduler notification a dispatcher sends when it claims a
+// worker that another dispatcher served before, carrying the worker's new dispatcher id.
 func NotifyWorkerDispatcherChanged(tenantId, workerId, dispatcherId uuid.UUID) (*msgqueue.Message, error) {
 	payload := WorkerDispatcherChangedPayload{
 		WorkerId:     workerId,
