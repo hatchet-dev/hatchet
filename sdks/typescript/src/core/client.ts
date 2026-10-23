@@ -155,9 +155,10 @@ export class HatchetCore {
     const tenantId = getTenantIdFromJWT(config.token);
     // a caller-supplied transport owns its base URL, auth and limits, so no address is resolved
     const serverUrl = config.transport ? (config.serverUrl ?? '') : resolveServerUrl(config);
+    // the REST base URL never ends with a slash, whichever of the two it came from
     const apiUrl = config.apiUrl
       ? normalizeApiUrl(config.apiUrl)
-      : getServerUrlFromJWT(config.token);
+      : getServerUrlFromJWT(config.token)?.replace(/\/+$/, '');
     const namespace = normalizeNamespace(config.namespace);
     const logger = config.logger ?? consoleLogger;
 
