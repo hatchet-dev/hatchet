@@ -1,0 +1,96 @@
+---
+title: "Durable Streams"
+---
+
+import { snippets } from "@/lib/generated/snippets";
+import { Snippet } from "@/components/code";
+import { Callout, Tabs } from "@/components/nextra-compat";
+import UniversalTabs from "@/components/UniversalTabs";
+import { DurableStreams } from "@/components/flow-animations/DurableStreams";
+
+# Durable Streams
+
+<Callout type="warning">
+  Durable streams are in alpha and may change in future releases. To enable them
+  for your tenant, <a href="mailto:support@hatchet.run">contact us</a>.
+</Callout>
+
+<Callout type="info">
+  Looking for the legacy run-based streaming API? See{" "}
+  <a href="/v1/streaming">Streaming (legacy)</a>.
+</Callout>
+
+Durable streams allow you to stream results from a Hatchet task to a consumer in real-time, with durability and ordering guarantees.
+Because of its durable nature, it can also be used to stream results across multiple Hatchet tasks, as well as consume messages well after
+a workflow run has started.
+
+<DurableStreams />
+
+## Guarantees
+
+Durable streams have the following guarantees:
+
+1. All messages from a single publisher will be persisted, and streamed, in the exact order they were published. This guarantee does not extend across
+   multiple publishers.
+2. All messages in a durable stream topic will be persisted, and consumers can resume from any message within the topic's retention.
+
+## Publishing
+
+Publishing messages to a durable stream topic is as simple as calling the `publish` method. It takes the topic name, a namespace, and the message payload.
+
+<Callout type="info">
+  Messages of up to 64MB are supported. However, messages under 4MB are
+  significantly more performant. Slower performance should be expected when
+  publishing/consuming larger payloads.
+</Callout>
+
+<UniversalTabs items={["Typescript"]}>
+<Tabs.Tab title="Typescript">
+
+<Snippet src={snippets.typescript.durable_streams.workflow.publishing} />
+
+</Tabs.Tab>
+</UniversalTabs>
+
+## Consuming
+
+Consumption, by default, starts from the first message published to the topic.
+Each event object that is returned will contain both the message payload, as well as a cursor.
+This cursor is opaque, but can be saved, and allows resumption from that point in the stream.
+For example, if you wanted to make sure that a stream was only ever reading unprocessed messages, you could save
+the cursor, and use that to resume.
+
+<UniversalTabs items={["Typescript"]} variant="hidden">
+<Tabs.Tab title="Typescript">
+
+<Snippet src={snippets.typescript.durable_streams.run.resume_from_a_cursor} />
+
+</Tabs.Tab>
+</UniversalTabs>
+
+## Resetting a Topic
+
+Resetting a topic sets a new high watermark, from which all _new_ subscriptions will start.
+Calling reset does not change the messages that existing subscriptions, or subscriptions from a cursor will receive.
+
+<UniversalTabs items={["Typescript"]} variant="hidden">
+<Tabs.Tab title="Typescript">
+
+<Snippet src={snippets.typescript.durable_streams.run.reset_a_topic} />
+
+</Tabs.Tab>
+</UniversalTabs>
+
+## Resetting on Retry
+
+Resetting a topic is useful for when there is a singular topic that is streaming messages from a task run with a retry policy.
+On successive retries, rather than using a separate topic for each individual run, just reset the topic before publishing, and new
+subscribers will automatically read only the messages from the most recent retry.
+
+<UniversalTabs items={["Typescript"]} variant="hidden">
+<Tabs.Tab title="Typescript">
+
+<Snippet src={snippets.typescript.durable_streams.workflow.reset_on_retry} />
+
+</Tabs.Tab>
+</UniversalTabs>
