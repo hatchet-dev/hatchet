@@ -52,6 +52,7 @@ func TestDenyHandlerReturnsAPIErrors(t *testing.T) {
 	}
 
 	require.Equal(t, http.StatusTooManyRequests, rec.Code)
+	require.Equal(t, "1", rec.Header().Get(echo.HeaderRetryAfter))
 
 	var body gen.APIErrors
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))

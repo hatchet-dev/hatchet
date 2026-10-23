@@ -9,6 +9,7 @@ import (
 	echoMiddleware "github.com/labstack/echo/v4/middleware"
 	"golang.org/x/time/rate"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 )
@@ -65,6 +66,8 @@ func (m *RateLimitMiddleware) Middleware() echo.MiddlewareFunc {
 			return context.JSON(http.StatusForbidden, nil)
 		},
 		DenyHandler: func(context echo.Context, identifier string, err error) error {
+			context.Response().Header().Set(echo.HeaderRetryAfter, middleware.RetryAfter(rate.Limit(m.config.Runtime.APIRateLimit)))
+
 			return context.JSON(http.StatusTooManyRequests, apierrors.NewAPIErrors("rate limit exceeded, retry shortly"))
 		},
 	}
