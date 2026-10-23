@@ -2853,11 +2853,12 @@ func (r *OLAPRepositoryImpl) GetTaskTimings(ctx context.Context, tenantId uuid.U
 	}
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, readDB, r.l)
-	defer rollback()
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("error beginning transaction: %v", err)
 	}
+
+	defer rollback()
 
 	tasksWithData, err := r.populateTaskRunData(ctx, tx, tenantId, idsInsertedAts, false)
 

@@ -128,10 +128,10 @@ type TenantRepository interface {
 	ListTenantMembers(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.PopulateTenantMembersRow, error)
 
 	// UpdateTenantMember updates the tenant member with the given id
-	UpdateTenantMember(ctx context.Context, memberId uuid.UUID, opts *UpdateTenantMemberOpts) (*sqlcv1.PopulateTenantMembersRow, error)
+	UpdateTenantMember(ctx context.Context, tenantId uuid.UUID, memberId uuid.UUID, opts *UpdateTenantMemberOpts) (*sqlcv1.PopulateTenantMembersRow, error)
 
 	// DeleteTenantMember deletes the tenant member with the given id
-	DeleteTenantMember(ctx context.Context, memberId uuid.UUID) error
+	DeleteTenantMember(ctx context.Context, tenantId uuid.UUID, memberId uuid.UUID) error
 
 	// GetQueueMetrics returns the queue metrics for the given tenant
 	GetQueueMetrics(ctx context.Context, tenantId uuid.UUID, opts *GetQueueMetricsOpts) (*GetQueueMetricsResponse, error)
@@ -446,7 +446,7 @@ func (r *tenantRepository) CreateTenantMember(ctx context.Context, tenantId uuid
 		return nil, err
 	}
 
-	populated, err := r.populateSingleTenantMember(ctx, createdMember.ID)
+	populated, err := r.populateSingleTenantMember(ctx, db, createdMember.ID)
 
 	if err != nil {
 		return nil, err
@@ -470,7 +470,7 @@ func (r *tenantRepository) GetTenantMemberByID(ctx context.Context, memberId uui
 		return nil, err
 	}
 
-	return r.populateSingleTenantMember(ctx, member.ID)
+	return r.populateSingleTenantMember(ctx, r.pool.ForShared(), member.ID)
 }
 
 func (r *tenantRepository) GetTenantMemberByUserID(ctx context.Context, tenantId uuid.UUID, userId uuid.UUID) (*sqlcv1.PopulateTenantMembersRow, error) {
@@ -489,7 +489,7 @@ func (r *tenantRepository) GetTenantMemberByUserID(ctx context.Context, tenantId
 		return nil, err
 	}
 
-	return r.populateSingleTenantMember(ctx, member.ID)
+	return r.populateSingleTenantMember(ctx, db, member.ID)
 }
 
 func (r *tenantRepository) ListTenantMembers(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.PopulateTenantMembersRow, error) {
@@ -511,7 +511,7 @@ func (r *tenantRepository) ListTenantMembers(ctx context.Context, tenantId uuid.
 		ids[i] = member.ID
 	}
 
-	return r.populateTenantMembers(ctx, ids)
+	return r.populateTenantMembers(ctx, db, ids)
 }
 
 func (r *tenantRepository) GetTenantMemberByEmail(ctx context.Context, tenantId uuid.UUID, email string) (*sqlcv1.PopulateTenantMembersRow, error) {
@@ -530,10 +530,12 @@ func (r *tenantRepository) GetTenantMemberByEmail(ctx context.Context, tenantId 
 		return nil, err
 	}
 
-	return r.populateSingleTenantMember(ctx, member.ID)
+	return r.populateSingleTenantMember(ctx, db, member.ID)
 }
 
-func (r *tenantRepository) UpdateTenantMember(ctx context.Context, memberId uuid.UUID, opts *UpdateTenantMemberOpts) (*sqlcv1.PopulateTenantMembersRow, error) {
+func (r *tenantRepository) UpdateTenantMember(ctx context.Context, tenantId uuid.UUID, memberId uuid.UUID, opts *UpdateTenantMemberOpts) (*sqlcv1.PopulateTenantMembersRow, error) {
+	db := r.pool.ForTenant(tenantId)
+
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -555,7 +557,7 @@ func (r *tenantRepository) UpdateTenantMember(ctx context.Context, memberId uuid
 
 	updatedMember, err := r.queries.UpdateTenantMember(
 		ctx,
-		r.pool.ForShared(),
+		db,
 		params,
 	)
 
@@ -563,7 +565,7 @@ func (r *tenantRepository) UpdateTenantMember(ctx context.Context, memberId uuid
 		return nil, err
 	}
 
-	populated, err := r.populateSingleTenantMember(ctx, updatedMember.ID)
+	populated, err := r.populateSingleTenantMember(ctx, db, updatedMember.ID)
 
 	if err != nil {
 		return nil, err
@@ -576,8 +578,8 @@ func (r *tenantRepository) UpdateTenantMember(ctx context.Context, memberId uuid
 	return populated, nil
 }
 
-func (r *sharedRepository) populateSingleTenantMember(ctx context.Context, ids uuid.UUID) (*sqlcv1.PopulateTenantMembersRow, error) {
-	res, err := r.populateTenantMembers(ctx, []uuid.UUID{ids})
+func (r *sharedRepository) populateSingleTenantMember(ctx context.Context, db sqlcv1.DBTX, id uuid.UUID) (*sqlcv1.PopulateTenantMembersRow, error) {
+	res, err := r.populateTenantMembers(ctx, db, []uuid.UUID{id})
 
 	if err != nil {
 		return nil, err
@@ -590,27 +592,29 @@ func (r *sharedRepository) populateSingleTenantMember(ctx context.Context, ids u
 	return res[0], nil
 }
 
-func (r *sharedRepository) populateTenantMembers(ctx context.Context, ids []uuid.UUID) ([]*sqlcv1.PopulateTenantMembersRow, error) {
+func (r *sharedRepository) populateTenantMembers(ctx context.Context, db sqlcv1.DBTX, ids []uuid.UUID) ([]*sqlcv1.PopulateTenantMembersRow, error) {
 	return r.queries.PopulateTenantMembers(
 		ctx,
-		r.pool.ForShared(),
+		db,
 		ids,
 	)
 }
 
-func (r *tenantRepository) DeleteTenantMember(ctx context.Context, memberId uuid.UUID) error {
+func (r *tenantRepository) DeleteTenantMember(ctx context.Context, tenantId uuid.UUID, memberId uuid.UUID) error {
+	db := r.pool.ForTenant(tenantId)
+
 	var populated *sqlcv1.PopulateTenantMembersRow
 
 	if len(r.deleteMemberCallbacks) > 0 {
 		var err error
-		populated, err = r.populateSingleTenantMember(ctx, memberId)
+		populated, err = r.populateSingleTenantMember(ctx, db, memberId)
 
 		if err != nil {
 			return err
 		}
 	}
 
-	if err := r.queries.DeleteTenantMember(ctx, r.pool.ForShared(), memberId); err != nil {
+	if err := r.queries.DeleteTenantMember(ctx, db, memberId); err != nil {
 		return err
 	}
 

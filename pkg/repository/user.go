@@ -419,5 +419,5 @@ func (r *userRepository) ListTenantMemberships(ctx context.Context, userId uuid.
 		ids[i] = m.ID
 	}
 
-	return r.populateTenantMembers(ctx, ids)
+	return r.populateTenantMembers(ctx, r.pool.ForShared(), ids)
 }

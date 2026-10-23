@@ -183,18 +183,11 @@ func (t *tenantLimitRepository) GetLimits(ctx context.Context, tenantId uuid.UUI
 		}
 
 		if limit.Resource == sqlcv1.LimitResourceWORKERSLOT {
-			totalSlotsRows, err := t.queries.ListTotalActiveSlotsPerTenant(ctx, db)
+			totalSlots, err := t.queries.GetTotalActiveSlotsForTenant(ctx, db, tenantId)
 			if err != nil {
 				return nil, err
 			}
-			var workerSlotCount int32
-			for _, row := range totalSlotsRows {
-				if row.TenantId == tenantId {
-					workerSlotCount = int32(row.TotalActiveSlots) // nolint: gosec
-					break
-				}
-			}
-			limit.Value = workerSlotCount
+			limit.Value = int32(totalSlots) // nolint: gosec
 		}
 
 	}
