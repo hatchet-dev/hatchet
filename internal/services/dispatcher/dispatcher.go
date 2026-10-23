@@ -1095,10 +1095,17 @@ func (d *DispatcherImpl) sendTasksToWorker(
 
 // requeueBatchItems hands the items of a batch whose worker is not connected to this dispatcher to the
 // same retry path single assignments take, so the scheduler reassigns them instead of leaving them to
-// their step timeout.
+// their step timeout. Only items whose current runtime row still belongs to this batch and worker are
+// requeued: a late batch start must not fail an attempt that has since been assigned elsewhere.
 func (d *DispatcherImpl) requeueBatchItems(ctx context.Context, payload *tasktypesv1.StartBatchTaskPayload) error {
 	if len(payload.Items) == 0 {
 		return nil
+	}
+
+	batchId, err := uuid.Parse(payload.BatchId)
+
+	if err != nil {
+		return fmt.Errorf("could not parse batch id %s: %w", payload.BatchId, err)
 	}
 
 	taskIds := make([]int64, 0, len(payload.Items))
@@ -1107,15 +1114,27 @@ func (d *DispatcherImpl) requeueBatchItems(ctx context.Context, payload *tasktyp
 		taskIds = append(taskIds, item.TaskID)
 	}
 
-	tasks, err := d.repov1.Tasks().ListTasks(ctx, payload.TenantId, taskIds)
+	dispatchData, err := d.repov1.Tasks().ListTasksForDispatch(ctx, payload.TenantId, taskIds)
 
 	if err != nil {
 		return fmt.Errorf("could not list tasks to requeue batch %s: %w", payload.BatchId, err)
 	}
 
-	d.l.Warn().Ctx(ctx).Str("batch_id", payload.BatchId).Str("worker_id", payload.WorkerId.String()).Int("tasks", len(tasks)).Msg("worker for batch is not connected to this dispatcher, requeueing its tasks")
+	toRetry := make([]*sqlcv1.V1Task, 0, len(dispatchData.Tasks))
 
-	return d.handleRetries(ctx, payload.TenantId, tasks)
+	for _, task := range dispatchData.Tasks {
+		runtime := dispatchData.Runtimes[task.ID]
+
+		if runtime == nil || runtime.BatchID == nil || *runtime.BatchID != batchId || runtime.WorkerID == nil || *runtime.WorkerID != payload.WorkerId {
+			continue
+		}
+
+		toRetry = append(toRetry, task)
+	}
+
+	d.l.Warn().Ctx(ctx).Str("batch_id", payload.BatchId).Str("worker_id", payload.WorkerId.String()).Int("tasks", len(toRetry)).Msg("worker for batch is not connected to this dispatcher, requeueing its tasks")
+
+	return d.handleRetries(ctx, payload.TenantId, toRetry)
 }
 
 func (d *DispatcherImpl) handleRetries(
