@@ -3703,23 +3703,24 @@ type V1OtelTraceOlap struct {
 }
 
 type V1PausedWorkflowQueueItem struct {
-	TenantID           uuid.UUID          `json:"tenant_id"`
-	Queue              string             `json:"queue"`
-	TaskID             int64              `json:"task_id"`
-	TaskInsertedAt     pgtype.Timestamptz `json:"task_inserted_at"`
-	ExternalID         uuid.UUID          `json:"external_id"`
-	ActionID           string             `json:"action_id"`
-	StepID             uuid.UUID          `json:"step_id"`
-	WorkflowID         uuid.UUID          `json:"workflow_id"`
-	WorkflowRunID      uuid.UUID          `json:"workflow_run_id"`
-	ScheduleTimeoutAt  pgtype.Timestamp   `json:"schedule_timeout_at"`
-	StepTimeout        pgtype.Text        `json:"step_timeout"`
-	Priority           int32              `json:"priority"`
-	Sticky             V1StickyStrategy   `json:"sticky"`
-	DesiredWorkerID    *uuid.UUID         `json:"desired_worker_id"`
-	RetryCount         int32              `json:"retry_count"`
-	DesiredWorkerLabel []byte             `json:"desired_worker_label"`
-	BatchKey           pgtype.Text        `json:"batch_key"`
+	TenantID             uuid.UUID          `json:"tenant_id"`
+	Queue                string             `json:"queue"`
+	TaskID               int64              `json:"task_id"`
+	TaskInsertedAt       pgtype.Timestamptz `json:"task_inserted_at"`
+	ExternalID           uuid.UUID          `json:"external_id"`
+	ActionID             string             `json:"action_id"`
+	StepID               uuid.UUID          `json:"step_id"`
+	WorkflowID           uuid.UUID          `json:"workflow_id"`
+	WorkflowRunID        uuid.UUID          `json:"workflow_run_id"`
+	ScheduleTimeoutAt    pgtype.Timestamp   `json:"schedule_timeout_at"`
+	StepTimeout          pgtype.Text        `json:"step_timeout"`
+	Priority             int32              `json:"priority"`
+	Sticky               V1StickyStrategy   `json:"sticky"`
+	DesiredWorkerID      *uuid.UUID         `json:"desired_worker_id"`
+	RetryCount           int32              `json:"retry_count"`
+	DesiredWorkerLabel   []byte             `json:"desired_worker_label"`
+	BatchKey             pgtype.Text        `json:"batch_key"`
+	RateLimitPausedUntil pgtype.Timestamptz `json:"rate_limit_paused_until"`
 }
 
 type V1Payload struct {
@@ -3797,6 +3798,13 @@ type V1QueueItem struct {
 	RetryCount         int32              `json:"retry_count"`
 	DesiredWorkerLabel []byte             `json:"desired_worker_label"`
 	BatchKey           pgtype.Text        `json:"batch_key"`
+}
+
+type V1RateLimitPause struct {
+	TenantID    uuid.UUID          `json:"tenant_id"`
+	Key         string             `json:"key"`
+	PausedAt    pgtype.Timestamptz `json:"paused_at"`
+	PausedUntil pgtype.Timestamptz `json:"paused_until"`
 }
 
 type V1RateLimitedQueueItems struct {

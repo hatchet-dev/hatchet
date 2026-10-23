@@ -71,6 +71,8 @@ export function createWorkerContextRuntime(
       await client.dispatcher.client.releaseSlot({ taskRunExternalId });
     },
 
+    pauseRateLimit: (key, until) => client.admin.pauseRateLimit(key, until),
+
     putStream: async (taskRunExternalId, data, index) => {
       await client.events.putStream(taskRunExternalId, data, index);
     },

@@ -104,6 +104,9 @@ export interface ContextRuntime {
   /** Releases the worker slot held by a task run. */
   releaseSlot(taskRunExternalId: string): Promise<void>;
 
+  /** Pauses a rate limit key until `until`, resolving to the time it is paused until. Optional so runtimes written before it keep compiling. */
+  pauseRateLimit?(key: string, until: Date): Promise<Date>;
+
   /** Streams a chunk of data from a task run. */
   putStream(taskRunExternalId: string, data: string | Uint8Array, index: number): Promise<void>;
 

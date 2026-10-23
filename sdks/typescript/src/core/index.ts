@@ -32,6 +32,7 @@ export type {
   CancelRunOpts,
   CoreClientConfig,
   CreateRateLimitOpts,
+  PauseRateLimitOpts,
   DesiredWorkerLabelOpt,
   EventWithMetadata,
   LogConstructor,
