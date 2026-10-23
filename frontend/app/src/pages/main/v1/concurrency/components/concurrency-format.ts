@@ -41,35 +41,6 @@ export const limitStrategyClassName: Record<
     'border-border bg-muted text-muted-foreground',
 };
 
-const limitStrategyExplanation: Record<V1ConcurrencyLimitStrategy, string> = {
-  [V1ConcurrencyLimitStrategy.V1ConcurrencyLimitStrategyGroupRoundRobin]:
-    'Up to {max} runs per key at once. Queuing is distributed fairly across each key, so no single key can take all the capacity.',
-  [V1ConcurrencyLimitStrategy.V1ConcurrencyLimitStrategyCancelInProgress]:
-    'Up to {max} runs per key. When the key is full, a running run for the same key is cancelled to free a slot, so the most recent run always takes priority. Nothing is queued.',
-  [V1ConcurrencyLimitStrategy.V1ConcurrencyLimitStrategyCancelNewest]:
-    'Up to {max} runs per key. When the key is full, the new run is cancelled immediately and running runs continue uninterrupted. Nothing is queued.',
-  [V1ConcurrencyLimitStrategy.V1ConcurrencyLimitStrategyCancelQueuedExceptNewest]:
-    'Up to {max} runs per key. When the key is full, the most recent {max} queued runs are kept and older queued runs are cancelled, which guarantees a trailing run.',
-  [V1ConcurrencyLimitStrategy.V1ConcurrencyLimitStrategyCancelQueuedExceptOldest]:
-    'Up to {max} runs per key. When the key is full, the oldest {max} queued runs are kept and newer runs are cancelled.',
-  [V1ConcurrencyLimitStrategy.V1ConcurrencyLimitStrategyNone]:
-    'Up to {max} runs per key.',
-};
-
-export function explainStrategy(s: V1ConcurrencyStrategy): string {
-  const max = s.maxRunsExpression ? 'N' : String(s.maxRuns);
-  let text = limitStrategyExplanation[s.limitStrategy]
-    .split('{max}')
-    .join(max)
-    .replace(/\b1 (queued )?runs\b/g, '1 $1run');
-
-  if (s.maxRunsExpression) {
-    text += ` N is computed per key by the max runs expression ${s.maxRunsExpression}.`;
-  }
-
-  return text;
-}
-
 export function neverQueues(limitStrategy: V1ConcurrencyLimitStrategy) {
   return (
     limitStrategy ===
