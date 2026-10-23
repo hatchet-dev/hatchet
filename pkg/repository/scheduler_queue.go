@@ -38,6 +38,7 @@ type RateLimitResult struct {
 	ExceededUnits  int32
 	ExceededVal    int32
 	NextRefillAt   *time.Time
+	PausedUntil    *time.Time
 	TaskId         int64
 	TaskInsertedAt pgtype.Timestamptz
 	RetryCount     int32
@@ -475,8 +476,20 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 	// remove rate limited queue items from the queue and place them in the v1_rate_limited_queue_items table
 	qisToMoveToRateLimited := make([]int64, 0, len(r.RateLimited))
 	qisToMoveToRateLimitedRQAfter := make([]pgtype.Timestamptz, 0, len(r.RateLimited))
+	tasksToHold := make([]TaskIdInsertedAtRetryCount, 0)
 
 	for _, row := range r.RateLimitedToMove {
+		// a paused key holds the task until the pause ends, without its concurrency slot
+		if row.PausedUntil != nil {
+			tasksToHold = append(tasksToHold, TaskIdInsertedAtRetryCount{
+				Id:         row.TaskID,
+				InsertedAt: row.TaskInsertedAt,
+				RetryCount: row.RetryCount,
+			})
+
+			continue
+		}
+
 		qisToMoveToRateLimited = append(qisToMoveToRateLimited, row.ID)
 		qisToMoveToRateLimitedRQAfter = append(qisToMoveToRateLimitedRQAfter, sqlchelpers.TimestamptzFromTime(*row.NextRefillAt))
 	}
@@ -490,6 +503,10 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 		if err != nil {
 			return nil, nil, err
 		}
+	}
+
+	if err = d.holdPausedTasks(ctx, tx, tenantId, tasksToHold); err != nil {
+		return nil, nil, err
 	}
 
 	if len(tasksToRelease) > 0 {
@@ -849,8 +866,12 @@ func (d *queueRepository) GetDesiredLabels(ctx context.Context, tx *OptimisticTx
 		stepIdToLabels[stepId] = append(stepIdToLabels[stepId], label)
 	}
 
-	for stepId, labels := range stepIdToLabels {
-		d.stepIdLabelsCache.Add(stepId, labels)
+	for _, stepId := range stepIdsToLookup {
+		if _, ok := stepIdToLabels[stepId]; !ok {
+			stepIdToLabels[stepId] = []*sqlcv1.GetDesiredLabelsRow{}
+		}
+
+		d.stepIdLabelsCache.Add(stepId, stepIdToLabels[stepId])
 	}
 
 	return stepIdToLabels, nil
@@ -994,11 +1015,14 @@ func (d *queueRepository) ListWorkflowNamesByIds(ctx context.Context, workflowId
 	return workflowIdToName, nil
 }
 
-func (d *queueRepository) RequeueRateLimitedItems(ctx context.Context, tenantId uuid.UUID, queueName string) ([]*sqlcv1.RequeueRateLimitedQueueItemsRow, error) {
-	// NOTE: this runs on every tick of every queue loop, and nearly always moves nothing. The
-	// statement is a single atomic CTE, so it runs without a transaction to keep the pooled
-	// connection for one round trip instead of BEGIN / statement / COMMIT.
-	rows, err := d.queries.RequeueRateLimitedQueueItems(ctx, d.pool, sqlcv1.RequeueRateLimitedQueueItemsParams{
+// RequeueRateLimitedItems moves the rate-limited items whose refill time has passed back into
+// the queue and returns the earliest refill time still parked for this queue, nil when none.
+func (d *queueRepository) RequeueRateLimitedItems(ctx context.Context, tenantId uuid.UUID, queueName string) (*time.Time, error) {
+	// The statement is a single atomic CTE, so it runs without a transaction to keep the pooled
+	// connection for one round trip instead of BEGIN / statement / COMMIT. Its next_requeue_after
+	// peek reads the statement's snapshot, so the rows it moved (requeue_after <= NOW()) are
+	// excluded by the filter and only still-parked rows count.
+	row, err := d.queries.RequeueRateLimitedQueueItems(ctx, d.pool, sqlcv1.RequeueRateLimitedQueueItemsParams{
 		Tenantid: tenantId,
 		Queue:    queueName,
 	})
@@ -1007,21 +1031,27 @@ func (d *queueRepository) RequeueRateLimitedItems(ctx context.Context, tenantId 
 		return nil, err
 	}
 
-	// Runs on every queue-loop tick: refreshing last_active unconditionally would keep every
-	// polled queue active forever.
-	if len(rows) == 0 {
-		return rows, nil
+	var nextRequeueAfter *time.Time
+
+	if row.NextRequeueAfter.Valid {
+		nextRequeueAfter = &row.NextRequeueAfter.Time
+	}
+
+	// Refreshing last_active only when something moved: doing it on every call would keep
+	// every polled queue active forever.
+	if row.MovedCount == 0 {
+		return nextRequeueAfter, nil
 	}
 
 	saveQueues, err := d.upsertQueues(ctx, d.pool, tenantId, []string{queueName})
 
 	if err != nil {
-		return rows, err
+		return nextRequeueAfter, err
 	}
 
 	saveQueues()
 
-	return rows, nil
+	return nextRequeueAfter, nil
 }
 
 type batchQueueRepository struct {

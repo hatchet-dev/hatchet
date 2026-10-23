@@ -9,6 +9,7 @@ import {
   V1StreamsClient as PbV1StreamsClient,
   V1StreamsDefinition,
 } from '@hatchet/protoc/v1/streams';
+import type { StreamCallOptions, StreamTopicMetadata } from '@hatchet/core/types';
 import { HatchetClient } from '../client';
 
 // the server stored nothing, so the seq is unused
@@ -80,24 +81,7 @@ export type StreamEvent = {
   createdAt?: Date;
 };
 
-/** Covers only messages within the tenant's retention. */
-export type StreamTopicMetadata = {
-  namespace: string;
-  topic: string;
-  tenantId: string;
-  messageCount: number;
-  /** resumes events() after the newest retained message; undefined when none is retained */
-  latestCursor?: string;
-  /** when the newest retained message was stored; undefined when none is retained */
-  lastPublishedAt?: Date;
-};
-
-export type StreamCallOptions = {
-  namespace?: string;
-  cursor?: string;
-  /** ends an events() iteration cleanly, without throwing */
-  signal?: AbortSignal;
-};
+export type { StreamCallOptions, StreamTopicMetadata } from '@hatchet/core/types';
 
 /**
  * StreamsClient publishes to and reads from durable topics. Unlike
@@ -266,7 +250,19 @@ export class StreamsClient {
   }
 
   /**
-   * Yields topic's messages after options.cursor, or from the oldest retained.
+   * Makes events() calls without a cursor start after the topic's latest
+   * message. Readers already iterating, and any call with a cursor, are
+   * unaffected.
+   * @param topic - the topic to reset
+   * @param options - optional namespace override
+   */
+  async reset(topic: string, options?: Pick<StreamCallOptions, 'namespace'>): Promise<void> {
+    await this.grpc.reset({ namespace: options?.namespace ?? '', topic });
+  }
+
+  /**
+   * Yields topic's messages after options.cursor, or from the oldest retained
+   * (or, once the topic is reset, after the reset).
    * If the connection drops, it resubscribes from the last message yielded, so
    * nothing is skipped or repeated. Ends when the server hangs up an idle
    * subscription, options.signal aborts, or the caller stops iterating; throws

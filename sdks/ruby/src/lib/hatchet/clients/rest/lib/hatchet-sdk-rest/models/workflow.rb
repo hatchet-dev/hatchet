@@ -43,6 +43,9 @@ module HatchetSdkRest
     # The jobs of the workflow.
     attr_accessor :jobs
 
+    # The event and cron triggers declared on the latest workflow version.
+    attr_accessor :triggers
+
     class EnumAttributeValidator
       attr_reader :datatype
       attr_reader :allowable_values
@@ -77,7 +80,8 @@ module HatchetSdkRest
         :'paused_workflow_scheduled_run_queue_behavior' => :'pausedWorkflowScheduledRunQueueBehavior',
         :'versions' => :'versions',
         :'tags' => :'tags',
-        :'jobs' => :'jobs'
+        :'jobs' => :'jobs',
+        :'triggers' => :'triggers'
       }
     end
 
@@ -103,7 +107,8 @@ module HatchetSdkRest
         :'paused_workflow_scheduled_run_queue_behavior' => :'WorkflowPauseScheduledCronRunQueueBehavior',
         :'versions' => :'Array<WorkflowVersionMeta>',
         :'tags' => :'Array<WorkflowTag>',
-        :'jobs' => :'Array<Job>'
+        :'jobs' => :'Array<Job>',
+        :'triggers' => :'WorkflowTriggers'
       }
     end
 
@@ -179,6 +184,10 @@ module HatchetSdkRest
         if (value = attributes[:'jobs']).is_a?(Array)
           self.jobs = value
         end
+      end
+
+      if attributes.key?(:'triggers')
+        self.triggers = attributes[:'triggers']
       end
     end
 
@@ -256,7 +265,8 @@ module HatchetSdkRest
           paused_workflow_scheduled_run_queue_behavior == o.paused_workflow_scheduled_run_queue_behavior &&
           versions == o.versions &&
           tags == o.tags &&
-          jobs == o.jobs
+          jobs == o.jobs &&
+          triggers == o.triggers
     end
 
     # @see the `==` method
@@ -268,7 +278,7 @@ module HatchetSdkRest
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [metadata, name, tenant_id, description, is_paused, paused_workflow_cron_run_queue_behavior, paused_workflow_scheduled_run_queue_behavior, versions, tags, jobs].hash
+      [metadata, name, tenant_id, description, is_paused, paused_workflow_cron_run_queue_behavior, paused_workflow_scheduled_run_queue_behavior, versions, tags, jobs, triggers].hash
     end
 
     # Builds the object from hash

@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
@@ -21,6 +22,8 @@ import (
 const (
 	// refusalReportTimeout bounds the failure report for an action the handler refused.
 	refusalReportTimeout = 30 * time.Second
+
+	refusedActionClientErrorMessage = "the operator could not accept the task; it will be retried according to its retry policy"
 
 	// minStartQueueSize is the least number of starts a session queues ahead of its handler.
 	minStartQueueSize = 64
@@ -281,7 +284,7 @@ func (s *session) refuse(action *contracts.AssignedAction, err error) {
 		ActionId:          action.ActionId,
 		EventTimestamp:    timestamppb.Now(),
 		EventType:         contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED,
-		EventPayload:      err.Error(),
+		EventPayload:      refusedActionClientErrorMessage,
 		RetryCount:        &retryCount,
 	}); reportErr != nil {
 		s.l.Error().Err(reportErr).Str("worker_id", s.workerId()).Str("task_run_external_id", action.TaskRunExternalId).Msg("could not report the refused action")
@@ -333,7 +336,9 @@ func (s *session) recover(old operatorclient.Session, cause error) {
 			continue
 		}
 
-		if err := s.restoreActions(cs); err != nil {
+		restored, err := s.restoreActions(cs)
+
+		if err != nil {
 			_ = cs.Close(operatorclient.WithoutDrain())
 			release()
 
@@ -363,6 +368,11 @@ func (s *session) recover(old operatorclient.Session, cause error) {
 		s.reg = reg
 		s.release = release
 		s.workers[reg.WorkerId.String()] = struct{}{}
+
+		// A delta made while the snapshot was being flushed went to the previous client; the
+		// replacement is given the difference between that snapshot and the desired set, under
+		// the lock that routes deltas, so none is lost across the swap.
+		s.queueDifference(cs, restored)
 		s.mu.Unlock()
 
 		if oldRelease != nil {
@@ -380,24 +390,54 @@ func (s *session) recover(old operatorclient.Session, cause error) {
 	}
 }
 
-// restoreActions advertises the session's action set on a new client session.
-func (s *session) restoreActions(cs operatorclient.Session) error {
+// restoreActions advertises the session's action set on a new client session and returns the
+// snapshot it advertised, for the caller to reconcile with the desired set once the client
+// session is installed.
+func (s *session) restoreActions(cs operatorclient.Session) (map[string]struct{}, error) {
 	s.mu.Lock()
+	restored := make(map[string]struct{}, len(s.desired))
 	ids := make([]string, 0, len(s.desired))
 
 	for id := range s.desired {
+		restored[id] = struct{}{}
 		ids = append(ids, id)
 	}
 
 	s.mu.Unlock()
 
 	if len(ids) == 0 {
-		return nil
+		return restored, nil
 	}
 
 	cs.AddActions(ids...)
 
-	return cs.Flush(s.ctx)
+	return restored, cs.Flush(s.ctx)
+}
+
+// queueDifference queues on cs the deltas that take the set it was given to the desired set.
+// The caller holds mu.
+func (s *session) queueDifference(cs operatorclient.Session, given map[string]struct{}) {
+	var adds, removes []string
+
+	for id := range s.desired {
+		if _, ok := given[id]; !ok {
+			adds = append(adds, id)
+		}
+	}
+
+	for id := range given {
+		if _, ok := s.desired[id]; !ok {
+			removes = append(removes, id)
+		}
+	}
+
+	if len(adds) > 0 {
+		cs.AddActions(adds...)
+	}
+
+	if len(removes) > 0 {
+		cs.RemoveActions(removes...)
+	}
 }
 
 // isPermanent reports whether a reconnect failure is one supervision cannot retry past.
@@ -494,15 +534,6 @@ func (s *session) addDesired(ids []string) {
 	}
 }
 
-func (s *session) removeDesired(ids []string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	for _, id := range ids {
-		delete(s.desired, id)
-	}
-}
-
 // PutWorkflow implements operator.Session over the admin service; the client derives the
 // action ids without touching the streamed action set.
 func (s *session) PutWorkflow(ctx context.Context, wf *v1.CreateWorkflowVersionRequest) ([]string, error) {
@@ -521,26 +552,41 @@ func (s *session) PutWorkflow(ctx context.Context, wf *v1.CreateWorkflowVersionR
 
 // AddActions implements operator.Session. The client coalesces and chunks the delta onto the
 // Listen stream; nothing is sent until its flusher runs, so the call never blocks. The ids
-// join the session's desired set, which a replacement client session is given.
+// join the session's desired set, which a replacement client session is given. The desired
+// set and the client the delta goes to are read under one hold of mu, the lock a recovery
+// installs the replacement under, so a delta lands either in the snapshot the replacement is
+// restored from, in the difference it is reconciled with, or on the replacement itself.
 func (s *session) AddActions(_ context.Context, ids []string) error {
-	if s.isClosed() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.closed {
 		return operator.ErrSessionClosed
 	}
 
-	s.addDesired(ids)
-	s.client().AddActions(ids...)
+	for _, id := range ids {
+		s.desired[id] = struct{}{}
+	}
+
+	s.cs.AddActions(ids...)
 
 	return nil
 }
 
 // RemoveActions implements operator.Session; see AddActions.
 func (s *session) RemoveActions(_ context.Context, ids []string) error {
-	if s.isClosed() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.closed {
 		return operator.ErrSessionClosed
 	}
 
-	s.removeDesired(ids)
-	s.client().RemoveActions(ids...)
+	for _, id := range ids {
+		delete(s.desired, id)
+	}
+
+	s.cs.RemoveActions(ids...)
 
 	return nil
 }
@@ -608,6 +654,10 @@ func isTerminalStepEvent(eventType contracts.StepActionEventType) bool {
 		contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED,
 		contracts.StepActionEventType_STEP_EVENT_TYPE_CANCELLED:
 		return true
+	case contracts.StepActionEventType_STEP_EVENT_TYPE_UNKNOWN,
+		contracts.StepActionEventType_STEP_EVENT_TYPE_STARTED,
+		contracts.StepActionEventType_STEP_EVENT_TYPE_ACKNOWLEDGED:
+		return false
 	default:
 		return false
 	}
@@ -632,6 +682,17 @@ func (s *session) OpenDurable(_ context.Context, taskExternalId uuid.UUID, invoc
 	s.mu.Unlock()
 
 	return hub.open(taskExternalId.String(), invocation)
+}
+
+// OpenRunStream implements operator.Session on the current client session, whose connection
+// carries the tenant's token. A stream open on a client session the host replaces ends with
+// it, like a durable channel; the caller opens another.
+func (s *session) OpenRunStream(ctx context.Context, kind operator.RunStreamKind, first proto.Message) (operator.RunStream, error) {
+	if s.isClosed() {
+		return nil, operator.ErrSessionClosed
+	}
+
+	return s.client().OpenRunStream(ctx, kind, first)
 }
 
 // Pause implements operator.Session through the pause message on the Listen stream; it returns

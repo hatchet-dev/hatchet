@@ -135,14 +135,12 @@ func insertUserEventScopeTestEvent(
 	require.NoError(t, err)
 	require.Len(t, createdEvents, 1)
 
-	require.NoError(t, repos.shared.payloadStore.Store(ctx, repos.shared.pool, StorePayloadOpts{
+	require.NoError(t, repos.shared.payloadStore.Store(ctx, repos.shared.pool, PayloadRef[UserEventInputShape]{
 		Id:         createdEvents[0].ID,
 		InsertedAt: eventSeenAt,
 		ExternalId: eventExternalID,
-		Type:       sqlcv1.V1PayloadTypeUSEREVENTINPUT,
-		Payload:    payload,
 		TenantId:   tenantID,
-	}))
+	}.StoreOpts(NewPayload[UserEventInputShape](payload))))
 }
 
 func requireUserEventScopeTestWaiterState(t *testing.T, ctx context.Context, repos userEventScopeTestRepositories, task *sqlcv1.FlattenExternalIdsRow, nodeID, branchID int64, expected bool) {

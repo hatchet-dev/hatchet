@@ -222,6 +222,7 @@ if TYPE_CHECKING:
         ScheduledWorkflowsOrderByField,
     )
     from hatchet_sdk.clients.rest.models.semaphore_slots import SemaphoreSlots
+    from hatchet_sdk.clients.rest.api.serverless_api import ServerlessApi
     from hatchet_sdk.clients.rest.api.slack_api import SlackApi
     from hatchet_sdk.clients.rest.models.slack_webhook import SlackWebhook
     from hatchet_sdk.clients.rest.models.step import Step
@@ -330,6 +331,9 @@ if TYPE_CHECKING:
     from hatchet_sdk.clients.rest.models.v1_create_filter_request import (
         V1CreateFilterRequest,
     )
+    from hatchet_sdk.clients.rest.models.v1_create_serverless_endpoint_request import (
+        V1CreateServerlessEndpointRequest,
+    )
     from hatchet_sdk.clients.rest.models.v1_create_webhook_request import (
         V1CreateWebhookRequest,
     )
@@ -387,6 +391,18 @@ if TYPE_CHECKING:
         V1RunningDetailCount,
     )
     from hatchet_sdk.clients.rest.models.v1_running_filter import V1RunningFilter
+    from hatchet_sdk.clients.rest.models.v1_serverless_endpoint import (
+        V1ServerlessEndpoint,
+    )
+    from hatchet_sdk.clients.rest.models.v1_serverless_endpoint_kind import (
+        V1ServerlessEndpointKind,
+    )
+    from hatchet_sdk.clients.rest.models.v1_serverless_endpoint_list import (
+        V1ServerlessEndpointList,
+    )
+    from hatchet_sdk.clients.rest.models.v1_serverless_endpoint_status import (
+        V1ServerlessEndpointStatus,
+    )
     from hatchet_sdk.clients.rest.models.v1_stream_payload_ref import V1StreamPayloadRef
     from hatchet_sdk.clients.rest.models.v1_task_event import V1TaskEvent
     from hatchet_sdk.clients.rest.models.v1_task_event_list import V1TaskEventList
@@ -406,6 +422,9 @@ if TYPE_CHECKING:
     )
     from hatchet_sdk.clients.rest.models.v1_update_filter_request import (
         V1UpdateFilterRequest,
+    )
+    from hatchet_sdk.clients.rest.models.v1_update_serverless_endpoint_request import (
+        V1UpdateServerlessEndpointRequest,
     )
     from hatchet_sdk.clients.rest.models.v1_update_webhook_request import (
         V1UpdateWebhookRequest,
@@ -645,6 +664,7 @@ _LAZY_IMPORTS: dict[str, str] = {
     "ScheduledWorkflowsMethod": "hatchet_sdk.clients.rest.models.scheduled_workflows_method",
     "ScheduledWorkflowsOrderByField": "hatchet_sdk.clients.rest.models.scheduled_workflows_order_by_field",
     "SemaphoreSlots": "hatchet_sdk.clients.rest.models.semaphore_slots",
+    "ServerlessApi": "hatchet_sdk.clients.rest.api.serverless_api",
     "SlackApi": "hatchet_sdk.clients.rest.api.slack_api",
     "SlackWebhook": "hatchet_sdk.clients.rest.models.slack_webhook",
     "Step": "hatchet_sdk.clients.rest.models.step",
@@ -705,6 +725,7 @@ _LAZY_IMPORTS: dict[str, str] = {
     "V1CancelTaskRequest": "hatchet_sdk.clients.rest.models.v1_cancel_task_request",
     "V1CancelledTasks": "hatchet_sdk.clients.rest.models.v1_cancelled_tasks",
     "V1CreateFilterRequest": "hatchet_sdk.clients.rest.models.v1_create_filter_request",
+    "V1CreateServerlessEndpointRequest": "hatchet_sdk.clients.rest.models.v1_create_serverless_endpoint_request",
     "V1CreateWebhookRequest": "hatchet_sdk.clients.rest.models.v1_create_webhook_request",
     "V1CreateWebhookRequestAPIKey": "hatchet_sdk.clients.rest.models.v1_create_webhook_request_api_key",
     "V1CreateWebhookRequestBase": "hatchet_sdk.clients.rest.models.v1_create_webhook_request_base",
@@ -732,6 +753,10 @@ _LAZY_IMPORTS: dict[str, str] = {
     "V1RestoreTaskResponse": "hatchet_sdk.clients.rest.models.v1_restore_task_response",
     "V1RunningDetailCount": "hatchet_sdk.clients.rest.models.v1_running_detail_count",
     "V1RunningFilter": "hatchet_sdk.clients.rest.models.v1_running_filter",
+    "V1ServerlessEndpoint": "hatchet_sdk.clients.rest.models.v1_serverless_endpoint",
+    "V1ServerlessEndpointKind": "hatchet_sdk.clients.rest.models.v1_serverless_endpoint_kind",
+    "V1ServerlessEndpointList": "hatchet_sdk.clients.rest.models.v1_serverless_endpoint_list",
+    "V1ServerlessEndpointStatus": "hatchet_sdk.clients.rest.models.v1_serverless_endpoint_status",
     "V1StreamPayloadRef": "hatchet_sdk.clients.rest.models.v1_stream_payload_ref",
     "V1TaskEvent": "hatchet_sdk.clients.rest.models.v1_task_event",
     "V1TaskEventList": "hatchet_sdk.clients.rest.models.v1_task_event_list",
@@ -748,6 +773,7 @@ _LAZY_IMPORTS: dict[str, str] = {
     "V1TaskTimingList": "hatchet_sdk.clients.rest.models.v1_task_timing_list",
     "V1TriggerWorkflowRunRequest": "hatchet_sdk.clients.rest.models.v1_trigger_workflow_run_request",
     "V1UpdateFilterRequest": "hatchet_sdk.clients.rest.models.v1_update_filter_request",
+    "V1UpdateServerlessEndpointRequest": "hatchet_sdk.clients.rest.models.v1_update_serverless_endpoint_request",
     "V1UpdateWebhookRequest": "hatchet_sdk.clients.rest.models.v1_update_webhook_request",
     "V1WaitItem": "hatchet_sdk.clients.rest.models.v1_wait_item",
     "V1Webhook": "hatchet_sdk.clients.rest.models.v1_webhook",

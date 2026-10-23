@@ -12,6 +12,7 @@ import (
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-engine/engine"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
+	"github.com/hatchet-dev/hatchet/pkg/encryption"
 )
 
 var printVersion bool
@@ -22,12 +23,17 @@ var noGracefulShutdown bool
 var rootCmd = &cobra.Command{
 	Use:   "hatchet-engine",
 	Short: "hatchet-engine runs the Hatchet engine.",
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		return encryption.RequireFIPSBuild()
+	},
 	Run: func(cmd *cobra.Command, args []string) {
 		if printVersion {
 			fmt.Println(Version)
 
 			os.Exit(0)
 		}
+
+		cmdutils.SetMemoryLimit(context.Background())
 
 		cf := loader.NewConfigLoader(configDirectory)
 

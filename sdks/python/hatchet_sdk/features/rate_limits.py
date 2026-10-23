@@ -1,5 +1,8 @@
 import asyncio
-from typing import TYPE_CHECKING
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, cast
+
+from google.protobuf import timestamp_pb2
 
 if TYPE_CHECKING:
     from hatchet_sdk.clients.rest.api.rate_limits_api import RateLimitsApi
@@ -84,6 +87,54 @@ class RateLimitsClient(BaseRestClient):
         """
 
         await asyncio.to_thread(self.put, key, limit, duration)
+
+    def pause(self, key: str, until: datetime) -> datetime:
+        """
+        Pause a rate limit key.
+
+        Queued runs that consume it stay queued until the given time.
+
+        :param key: The rendered rate limit key to pause.
+        :param until: The time to pause the key until. Naive datetimes are treated as UTC. An earlier time never shortens an existing pause.
+
+        :return: The time the key is paused until.
+        """
+
+        paused_until = timestamp_pb2.Timestamp()
+        paused_until.FromDatetime(until)
+
+        conn = new_conn(self.client_config, False)
+        client = WorkflowServiceStub(conn)
+        pause_rate_limit = tenacity_retry(
+            client.PauseRateLimit, self.client_config.tenacity
+        )
+
+        response = cast(
+            "v0_workflow_protos.PauseRateLimitResponse",
+            pause_rate_limit(
+                v0_workflow_protos.PauseRateLimitRequest(
+                    key=key,
+                    paused_until=paused_until,
+                ),
+                metadata=create_authorization_header(self.client_config.token),
+            ),
+        )
+
+        return response.paused_until.ToDatetime(tzinfo=UTC)
+
+    async def aio_pause(self, key: str, until: datetime) -> datetime:
+        """
+        Pause a rate limit key.
+
+        Queued runs that consume it stay queued until the given time.
+
+        :param key: The rendered rate limit key to pause.
+        :param until: The time to pause the key until. Naive datetimes are treated as UTC. An earlier time never shortens an existing pause.
+
+        :return: The time the key is paused until.
+        """
+
+        return await asyncio.to_thread(self.pause, key, until)
 
     async def aio_list(
         self,

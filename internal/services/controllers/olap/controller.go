@@ -525,30 +525,9 @@ func (tc *OLAPControllerImpl) handleBufferedMsgs(tenantId uuid.UUID, msgId strin
 		return tc.handleFailedWebhookValidation(ctx, tenantId, payloads)
 	case "cel-evaluation-failure":
 		return tc.handleCelEvaluationFailure(ctx, tenantId, payloads)
-	case "offload-payload":
-		return tc.handlePayloadOffload(ctx, tenantId, payloads)
 	}
 
 	return fmt.Errorf("unknown message id: %s", msgId)
-}
-
-func (tc *OLAPControllerImpl) handlePayloadOffload(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
-	offloads := make([]v1.OffloadPayloadOpts, 0)
-
-	msgs := msgqueue.JSONConvert[v1.OLAPPayloadsToOffload](payloads)
-
-	for _, msg := range msgs {
-		for _, payload := range msg.Payloads {
-			if !tc.sample(payload.ExternalId.String()) {
-				tc.l.Debug().Ctx(ctx).Msgf("skipping payload offload external id %s", payload.ExternalId)
-				continue
-			}
-
-			offloads = append(offloads, v1.OffloadPayloadOpts(payload))
-		}
-	}
-
-	return tc.repo.OLAP().OffloadPayloads(ctx, tenantId, offloads)
 }
 
 func (tc *OLAPControllerImpl) handleCelEvaluationFailure(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
@@ -747,6 +726,21 @@ func (tc *OLAPControllerImpl) emitWorkflowRunRootSpans(ctx context.Context, tena
 	tc.writeEngineSpans(ctx, tenantId, spans, "dag-root")
 }
 
+// eventPayloadCopy is empty when the message carries no event payload, which is how engines that read event
+// payloads from the core payload store publish it.
+func eventPayloadCopy(payload tasktypes.CreatedEventTriggerPayloadSingleton) v1.StoreOLAPPayloadOpts {
+	payloadCopy := v1.StoreOLAPPayloadOpts{
+		ExternalId: payload.EventExternalId,
+		InsertedAt: sqlchelpers.TimestamptzFromTime(payload.EventSeenAt),
+	}
+
+	if len(payload.EventPayload) > 0 {
+		payloadCopy.Payload = v1.NewPayload[v1.UserEventInputShape](payload.EventPayload)
+	}
+
+	return payloadCopy
+}
+
 func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
 	msgs := msgqueue.JSONConvert[tasktypes.CreatedEventTriggerPayload](payloads)
 
@@ -767,7 +761,8 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 	externalIds := make([]uuid.UUID, 0)
 	seenAts := make([]pgtype.Timestamptz, 0)
 	keys := make([]string, 0)
-	payloadstoInsert := make([][]byte, 0)
+	payloadReferenceIds := make([]*uuid.UUID, 0)
+	eventPayloadCopies := make([]v1.StoreOLAPPayloadOpts, 0)
 	additionalMetadatas := make([][]byte, 0)
 	scopes := make([]pgtype.Text, 0)
 	triggeringWebhookNames := make([]pgtype.Text, 0)
@@ -806,7 +801,8 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 			externalIds = append(externalIds, payload.EventExternalId)
 			seenAts = append(seenAts, sqlchelpers.TimestamptzFromTime(payload.EventSeenAt))
 			keys = append(keys, payload.EventKey)
-			payloadstoInsert = append(payloadstoInsert, payload.EventPayload)
+			payloadReferenceIds = append(payloadReferenceIds, payload.PayloadReferenceId)
+			eventPayloadCopies = append(eventPayloadCopies, eventPayloadCopy(payload))
 			additionalMetadatas = append(additionalMetadatas, payload.EventAdditionalMetadata)
 			scopes = append(scopes, sqlchelpers.TextFromMaybeStr(payload.EventScope))
 			triggeringWebhookNames = append(triggeringWebhookNames, sqlchelpers.TextFromMaybeStr(payload.TriggeringWebhookName))
@@ -821,14 +817,13 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 		Additionalmetadatas:    additionalMetadatas,
 		Scopes:                 scopes,
 		TriggeringWebhookNames: triggeringWebhookNames,
+		PayloadReferenceIds:    payloadReferenceIds,
 	}
 
 	if err := tc.repo.OLAP().BulkCreateEventsAndTriggers(
 		ctx,
-		v1.BulkCreateEventsAndTriggersParams{
-			BulkCreateEventsOLAPParams: &bulkCreateEventParams,
-			Payloads:                   payloadstoInsert,
-		},
+		bulkCreateEventParams,
+		eventPayloadCopies,
 		bulkCreateTriggersParams,
 	); err != nil {
 		return err
@@ -1004,6 +999,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	// event per DAG, and the query decides from there whether it actually applies.
 	orchestratorUpdates := make([]v1.OrchestratorDAGStatusUpdateOpt, 0)
 	operatorRunIds := make(map[uuid.UUID]struct{})
+	retriedEventIds := make(map[uuid.UUID]struct{})
 
 	for ix, msg := range msgs {
 		taskMeta := taskIdsToMetas[msg.TaskId]
@@ -1021,17 +1017,19 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		readableStatus := olapEventTypeToReadableStatus(msg.EventType)
 
 		if taskMeta.IsDagOrchestrator {
-			orchestratorUpdates = append(orchestratorUpdates, v1.OrchestratorDAGStatusUpdateOpt{
-				DagId:              msg.TaskId,
-				DagInsertedAt:      taskMeta.InsertedAt,
-				ReadableStatus:     readableStatus,
-				RetryCount:         msg.RetryCount,
-				ExternalId:         taskMeta.WorkflowRunID,
-				DisplayName:        taskMeta.DisplayName,
-				WorkflowId:         taskMeta.WorkflowID,
-				WorkflowVersionId:  taskMeta.WorkflowVersionID,
-				AdditionalMetadata: taskMeta.AdditionalMetadata,
-			})
+			if !msg.WillRetry {
+				orchestratorUpdates = append(orchestratorUpdates, v1.OrchestratorDAGStatusUpdateOpt{
+					DagId:              msg.TaskId,
+					DagInsertedAt:      taskMeta.InsertedAt,
+					ReadableStatus:     readableStatus,
+					RetryCount:         msg.RetryCount,
+					ExternalId:         taskMeta.WorkflowRunID,
+					DisplayName:        taskMeta.DisplayName,
+					WorkflowId:         taskMeta.WorkflowID,
+					WorkflowVersionId:  taskMeta.WorkflowVersionID,
+					AdditionalMetadata: taskMeta.AdditionalMetadata,
+				})
+			}
 
 			if msg.StatusOnly {
 				continue
@@ -1054,6 +1052,10 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 
 		eventExternalIdToWorkflowRunId[externalId] = taskMeta.WorkflowRunID
 		externalIdToMsg[externalId] = msg
+
+		if msg.WillRetry {
+			retriedEventIds[externalId] = struct{}{}
+		}
 
 		if taskMeta.WasTriggeredByDagOrchestrator {
 			operatorRunIds[taskMeta.WorkflowRunID] = struct{}{}
@@ -1108,6 +1110,8 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 			WorkerID:               workerId,
 			AdditionalEventMessage: sqlchelpers.TextFromStr(eventMessages[i]),
 			ExternalID:             eventExternalIds[i],
+			IsDagOrchestrator:      taskIdsToMetas[taskId].IsDagOrchestrator,
+			PayloadReferenceID:     externalIdToMsg[eventExternalIds[i]].PayloadReferenceId,
 		}
 
 		switch eventTypes[i] {
@@ -1120,6 +1124,29 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 			event.ErrorMessage = sqlchelpers.TextFromStr(errorMsg)
 		case sqlcv1.V1EventTypeOlapCANCELLED:
 			event.AdditionalEventMessage = sqlchelpers.TextFromStr(eventMessages[i])
+		case sqlcv1.V1EventTypeOlapRETRYING,
+			sqlcv1.V1EventTypeOlapREASSIGNED,
+			sqlcv1.V1EventTypeOlapRETRIEDBYUSER,
+			sqlcv1.V1EventTypeOlapCREATED,
+			sqlcv1.V1EventTypeOlapQUEUED,
+			sqlcv1.V1EventTypeOlapREQUEUEDNOWORKER,
+			sqlcv1.V1EventTypeOlapREQUEUEDRATELIMIT,
+			sqlcv1.V1EventTypeOlapASSIGNED,
+			sqlcv1.V1EventTypeOlapACKNOWLEDGED,
+			sqlcv1.V1EventTypeOlapSENTTOWORKER,
+			sqlcv1.V1EventTypeOlapSLOTRELEASED,
+			sqlcv1.V1EventTypeOlapSTARTED,
+			sqlcv1.V1EventTypeOlapTIMEOUTREFRESHED,
+			sqlcv1.V1EventTypeOlapSCHEDULINGTIMEDOUT,
+			sqlcv1.V1EventTypeOlapTIMEDOUT,
+			sqlcv1.V1EventTypeOlapRATELIMITERROR,
+			sqlcv1.V1EventTypeOlapSKIPPED,
+			sqlcv1.V1EventTypeOlapCOULDNOTSENDTOWORKER,
+			sqlcv1.V1EventTypeOlapDURABLEEVICTED,
+			sqlcv1.V1EventTypeOlapDURABLERESTORING,
+			sqlcv1.V1EventTypeOlapBATCHBUFFERED,
+			sqlcv1.V1EventTypeOlapWAITINGFORBATCH,
+			sqlcv1.V1EventTypeOlapBATCHFLUSHED:
 		}
 
 		opts = append(opts, event)
@@ -1143,7 +1170,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 
 		attempts++
 
-		result, workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateTaskEvents(ctx, tenantId, opts, eventExternalIdToWorkflowRunId, orchestratorUpdates, operatorRunIds)
+		result, workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateTaskEvents(ctx, tenantId, opts, eventExternalIdToWorkflowRunId, retriedEventIds, orchestratorUpdates, operatorRunIds)
 
 		if err != nil {
 			return fmt.Errorf("failed to create task events: %w", err)

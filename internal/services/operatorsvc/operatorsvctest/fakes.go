@@ -19,6 +19,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/operatorsvc"
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/rpcstream"
+	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -684,6 +685,9 @@ type Dispatcher struct {
 
 	durables          []*DurableInvocation
 	registerDurableEr error
+
+	runStreams           []*RunStream
+	registerRunStreamErr error
 }
 
 func NewDispatcher() *Dispatcher {
@@ -851,6 +855,112 @@ func (f *Dispatcher) RegisterDurableTask(ctx context.Context, externalId uuid.UU
 	return inv.Requests, inv.Responses, nil
 }
 
+// RunStream is one channel-backed run stream the service registered. Requests carries what the
+// session sent (nil for a server stream), Responses is what the test sends back; the response
+// channel is closed when the session's context ends or the test calls End, as the engine
+// closes its side once its handler returned.
+type RunStream struct {
+	Kind      operator.RunStreamKind
+	First     proto.Message
+	Requests  chan proto.Message
+	Responses chan proto.Message
+	// Tenant is the tenant the stream was registered with on its context, when the backend
+	// records it (Streams does).
+	Tenant *sqlcv1.Tenant
+
+	end     chan struct{}
+	endOnce sync.Once
+	endErr  error
+}
+
+// End closes the engine's side of the stream as finished.
+func (rs *RunStream) End() {
+	rs.EndWith(nil)
+}
+
+// EndWith closes the engine's side of the stream with the handler's error, which the session
+// reports from Recv once the responses are drained.
+func (rs *RunStream) EndWith(err error) {
+	rs.endOnce.Do(func() {
+		rs.endErr = err
+		close(rs.end)
+	})
+}
+
+// Done is closed once the stream's context ended or End was called.
+func (rs *RunStream) Done() <-chan struct{} { return rs.end }
+
+// RegisterRunStream hands out a channel-backed stream and records it.
+func (f *Dispatcher) RegisterRunStream(ctx context.Context, kind operator.RunStreamKind, first proto.Message) (*rpcstream.ChannelStream, error) {
+	f.mu.Lock()
+
+	if err := f.registerRunStreamErr; err != nil {
+		f.mu.Unlock()
+		return nil, err
+	}
+
+	rs := newRunStream(kind, first, nil)
+	f.runStreams = append(f.runStreams, rs)
+	f.mu.Unlock()
+
+	return rs.serve(ctx), nil
+}
+
+func newRunStream(kind operator.RunStreamKind, first proto.Message, tenant *sqlcv1.Tenant) *RunStream {
+	rs := &RunStream{
+		Kind:      kind,
+		First:     first,
+		Tenant:    tenant,
+		Responses: make(chan proto.Message, 64),
+		end:       make(chan struct{}),
+	}
+
+	if kind.Bidi() {
+		rs.Requests = make(chan proto.Message, 64)
+	}
+
+	return rs
+}
+
+// serve is the channel-backed stream handed to the session: it carries what the test puts on
+// Responses until End, or until the session cancels the stream, and reports End's error.
+func (rs *RunStream) serve(ctx context.Context) *rpcstream.ChannelStream {
+	cs := &rpcstream.ChannelStream{Responses: rs.Responses}
+
+	if rs.Requests != nil {
+		cs.Requests = rs.Requests
+	}
+
+	go func() {
+		select {
+		case <-ctx.Done():
+			rs.End()
+		case <-rs.end:
+		}
+
+		cs.Err = rs.endErr
+		close(rs.Responses)
+	}()
+
+	return cs
+}
+
+// FailRegisterRunStream makes the next RegisterRunStream calls fail.
+func (f *Dispatcher) FailRegisterRunStream(err error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.registerRunStreamErr = err
+}
+
+// RunStreams returns the run streams registered so far, in order.
+func (f *Dispatcher) RunStreams() []*RunStream {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return append([]*RunStream(nil), f.runStreams...)
+}
+
 // FailRegisterDurableTask makes the next RegisterDurableTask calls fail.
 func (f *Dispatcher) FailRegisterDurableTask(err error) {
 	f.mu.Lock()
@@ -948,4 +1058,52 @@ func (f *Dispatcher) AckedSequences() []uint64 {
 	}
 
 	return out
+}
+
+// Streams is an in-memory StreamsBackend: every RegisterSubscribe is recorded as a RunStream
+// of kind RunStreamDurableStreams the test feeds, with the request as First and the tenant the
+// session put on the context.
+type Streams struct {
+	mu sync.Mutex
+
+	subscriptions []*RunStream
+	registerErr   error
+}
+
+// NewStreams creates an in-memory durable streams backend for tests.
+func NewStreams() *Streams {
+	return &Streams{}
+}
+
+// RegisterSubscribe hands out a channel-backed stream and records it.
+func (f *Streams) RegisterSubscribe(ctx context.Context, req *v1contracts.SubscribeStreamRequest) (*rpcstream.ChannelStream, error) {
+	f.mu.Lock()
+
+	if err := f.registerErr; err != nil {
+		f.mu.Unlock()
+		return nil, err
+	}
+
+	tenant, _ := ctx.Value("tenant").(*sqlcv1.Tenant)
+	rs := newRunStream(operator.RunStreamDurableStreams, req, tenant)
+	f.subscriptions = append(f.subscriptions, rs)
+	f.mu.Unlock()
+
+	return rs.serve(ctx), nil
+}
+
+// FailRegisterSubscribe makes the next RegisterSubscribe calls fail.
+func (f *Streams) FailRegisterSubscribe(err error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.registerErr = err
+}
+
+// Subscriptions returns the subscriptions registered so far, in order.
+func (f *Streams) Subscriptions() []*RunStream {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return append([]*RunStream(nil), f.subscriptions...)
 }

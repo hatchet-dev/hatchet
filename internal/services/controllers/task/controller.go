@@ -14,6 +14,8 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/hatchet-dev/hatchet/internal/listutils"
+
 	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
@@ -514,6 +516,8 @@ func (tc *TasksControllerImpl) handleBufferedMsgs(tenantId uuid.UUID, msgId stri
 		return tc.handleDurableRestoreTask(ctx, tenantId, payloads)
 	case msgqueue.MsgIDTogglePauseWorkflow:
 		return tc.handlePauseWorkflow(ctx, tenantId, payloads)
+	case msgqueue.MsgIDRateLimitPausesChanged:
+		return tc.handleRateLimitPausesChanged(ctx, tenantId, payloads)
 	}
 
 	return fmt.Errorf("unknown message id: %s", msgId)
@@ -688,7 +692,6 @@ func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId
 	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
 
 	opts := make([]v1.CompleteTaskOpts, 0)
-	outputByTaskId := make(map[int64]string)
 
 	msgs := msgqueue.JSONConvert[tasktypes.CompletedTaskPayload](payloads)
 
@@ -699,10 +702,9 @@ func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId
 				InsertedAt: msg.InsertedAt,
 				RetryCount: msg.RetryCount,
 			},
-			Output: msg.Output,
+			Output:             msg.Output,
+			PayloadReferenceId: msg.PayloadReferenceId,
 		})
-
-		outputByTaskId[msg.TaskId] = string(msg.Output)
 	}
 
 	res, err := tc.repov1.Tasks().CompleteTasks(ctx, tenantId, opts)
@@ -727,7 +729,7 @@ func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId
 	tc.notifyQueuesOnCompletion(ctx, tenantId, res.ReleasedTasks)
 
 	if err := tc.emitOrchestratorTerminalEvents(
-		ctx, tenantId, res.ReleasedTasks, outputByTaskId, nil, sqlcv1.V1EventTypeOlapFINISHED,
+		ctx, tenantId, res.ReleasedTasks, nil, nil, sqlcv1.V1EventTypeOlapFINISHED,
 	); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "could not publish orchestrator terminal event")
@@ -764,8 +766,40 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId uu
 		if msg.ErrorMsg != "" {
 			idsToErrorMsg[msg.TaskId] = msg.ErrorMsg
 		}
+	}
 
-		// send failed tasks to the olap repository
+	res, err := tc.repov1.Tasks().FailTasks(ctx, tenantId, opts)
+
+	if err != nil {
+		err = fmt.Errorf("could not fail tasks: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "could not fail tasks")
+		return err
+	}
+
+	retried := make(map[int64]struct{}, len(res.RetriedTasks))
+	for _, r := range res.RetriedTasks {
+		retried[r.Id] = struct{}{}
+	}
+
+	type attempt struct {
+		id         int64
+		retryCount int32
+	}
+
+	// retried and stale reports are no longer the task's current retry, so only final failures land here
+	failed := make(map[attempt]struct{}, len(res.ReleasedTasks))
+	for _, rt := range res.ReleasedTasks {
+		if rt != nil && rt.IsCurrentRetry {
+			failed[attempt{id: rt.ID, retryCount: rt.RetryCount}] = struct{}{}
+		}
+	}
+
+	// published after FailTasks so the event can say whether it ended this attempt for good
+	for _, msg := range msgs {
+		_, final := failed[attempt{id: msg.TaskId, retryCount: msg.RetryCount}]
+		willRetry := !final
+
 		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
 			tenantId,
 			tasktypes.CreateMonitoringEventPayload{
@@ -774,6 +808,7 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId uu
 				EventType:      sqlcv1.V1EventTypeOlapFAILED,
 				EventTimestamp: time.Now().UTC(),
 				EventPayload:   msg.ErrorMsg,
+				WillRetry:      willRetry,
 			},
 		)
 
@@ -796,15 +831,6 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId uu
 		}
 	}
 
-	res, err := tc.repov1.Tasks().FailTasks(ctx, tenantId, opts)
-
-	if err != nil {
-		err = fmt.Errorf("could not fail tasks: %w", err)
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "could not fail tasks")
-		return err
-	}
-
 	err = tc.processFailTasksResponse(ctx, tenantId, res)
 
 	if err != nil {
@@ -816,11 +842,6 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId uu
 
 	// a retried task is still running, so only orchestrators that reached terminal FAILED get the
 	// reliable OLAP publish
-	retried := make(map[int64]struct{}, len(res.RetriedTasks))
-	for _, r := range res.RetriedTasks {
-		retried[r.Id] = struct{}{}
-	}
-
 	if err := tc.emitOrchestratorTerminalEvents(
 		ctx, tenantId, res.ReleasedTasks, idsToErrorMsg, retried, sqlcv1.V1EventTypeOlapFAILED,
 	); err != nil {
@@ -1327,6 +1348,7 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 			Priority:              msg.EventPriority,
 			Scope:                 msg.EventScope,
 			TriggeringWebhookName: msg.TriggeringWebhookName,
+			PayloadReferenceId:    msg.PayloadReferenceId,
 		}
 
 		eventIdToOpts[msg.EventExternalId] = opt
@@ -1441,6 +1463,27 @@ func (tc *TasksControllerImpl) handlePauseWorkflow(ctx context.Context, tenantId
 	if len(queueNames) > 0 || len(concurrencyStrategyIds) > 0 {
 		if err := tc.notifySchedulerOfRequeuedItems(ctx, tenantId, queueNames, concurrencyStrategyIds); err != nil {
 			tc.l.Error().Ctx(ctx).Err(err).Msg("failed to notify scheduler after unpausing workflows")
+		}
+	}
+
+	return nil
+}
+
+func (tc *TasksControllerImpl) handleRateLimitPausesChanged(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
+	msgs := msgqueue.JSONConvert[tasktypes.RateLimitPausesChangedPayload](payloads)
+	statuses := listutils.Map[*tasktypes.RateLimitPausesChangedPayload, bool](msgs, func(x *tasktypes.RateLimitPausesChangedPayload) bool {
+		return x.Paused
+	})
+
+	if listutils.Any(statuses, true) {
+		if err := tc.repov1.RateLimit().HoldRateLimitPausedQueuedTasks(ctx, tenantId); err != nil {
+			return fmt.Errorf("failed to hold tasks behind newly paused rate limits: %w", err)
+		}
+	}
+
+	if listutils.Any(statuses, false) {
+		if err := tc.requeueItemsForExpiredRateLimitPauses(ctx, tenantId); err != nil {
+			return err
 		}
 	}
 

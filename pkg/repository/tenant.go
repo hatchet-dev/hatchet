@@ -38,6 +38,9 @@ type CreateTenantOpts struct {
 
 	// (optional) additional onboarding data
 	OnboardingData map[string]interface{}
+
+	// (optional) the entitlements to create the tenant with; all disabled if unset
+	Entitlements *TenantEntitlements
 }
 
 type UpdateTenantOpts struct {
@@ -325,6 +328,26 @@ func (r *tenantRepository) CreateTenant(ctx context.Context, opts *CreateTenantO
 	}
 
 	_, err = r.queries.CreateTenantAlertingSettings(ctx, tx, tenantId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	entitlements := TenantEntitlements{}
+
+	if opts.Entitlements != nil {
+		entitlements = *opts.Entitlements
+	}
+
+	_, err = r.queries.UpsertTenantEntitlement(ctx, tx, sqlcv1.UpsertTenantEntitlementParams{
+		Tenantid:                        tenantId,
+		Auditlogs:                       entitlements.AuditLogs,
+		Prometheusmetrics:               entitlements.PrometheusMetrics,
+		Strictadditionalmetadatafilters: entitlements.StrictAdditionalMetadataFilters,
+		Dagoperator:                     entitlements.DAGOperator,
+		Durablestreams:                  entitlements.DurableStreams,
+		Serverlessoperator:              entitlements.ServerlessOperator,
+	})
 
 	if err != nil {
 		return nil, err

@@ -14,6 +14,7 @@ import {
   isAlreadyExists,
 } from '@hatchet/clients/admin/trigger-request';
 import { createEventsRpc } from '@hatchet/clients/event/rpc';
+import { createV1StreamsRpc } from '@hatchet/clients/streams/rpc';
 import type { EventsServiceClient } from '@hatchet/protoc/events/events';
 import {
   BulkTriggerWorkflowRequest,
@@ -21,10 +22,25 @@ import {
   type WorkflowServiceClient,
 } from '@hatchet/protoc/workflows';
 import type { AdminServiceClient } from '@hatchet/protoc/v1/workflows';
+import type { V1StreamsClient } from '@hatchet/protoc/v1/streams';
 import {
   getGrpcBroadcastAddressFromJWT,
+  getServerUrlFromJWT,
   getTenantIdFromJWT,
 } from '@hatchet/util/config-loader/token';
+import { createDispatcherRpc } from '@hatchet/clients/dispatcher/rpc';
+import type { DispatcherClient } from '@hatchet/protoc/dispatcher';
+import type { Api } from '@hatchet/clients/rest/generated-fetch/Api';
+import { createFetchApi, normalizeApiUrl } from '@hatchet/clients/rest/fetch-api';
+import { RestRunsClient } from '@hatchet/clients/rest/runs';
+import { CELClient } from '@hatchet/v1/client/features/cel';
+import { CronClient } from '@hatchet/v1/client/features/crons';
+import { FiltersClient } from '@hatchet/v1/client/features/filters';
+import { MetricsClient } from '@hatchet/v1/client/features/metrics';
+import { ScheduleClient } from '@hatchet/v1/client/features/schedules';
+import { TenantClient } from '@hatchet/v1/client/features/tenant';
+import { WebhooksClient } from '@hatchet/v1/client/features/webhooks';
+import { WorkersClient } from '@hatchet/v1/client/features/workers';
 import { batch } from '@hatchet/util/batch';
 import { retrier } from '@hatchet/util/retrier';
 import type { Logger } from '@hatchet/util/logger/logger';
@@ -40,6 +56,7 @@ import { LogsClient } from './features/logs';
 import { RateLimitsClient } from './features/rate-limits';
 import { RunsClient } from './features/runs';
 import { StreamsClient } from './features/streams';
+import { TasksClient } from './features/tasks';
 import { WorkflowsClient } from './features/workflows';
 import { consoleLogger } from './logger';
 import { WorkflowRunRef } from './run-ref';
@@ -58,6 +75,8 @@ export type WorkflowRef<I extends InputType = UnknownInputType, O extends Output
  */
 export interface ResolvedCoreConfig {
   serverUrl: string;
+  /** The REST API base URL; undefined when the token has no `server_url` claim and `apiUrl` is unset. */
+  apiUrl: string | undefined;
   tenantId: string;
   namespace: string;
   logLevel: CoreClientConfig['logLevel'];
@@ -66,8 +85,9 @@ export interface ResolvedCoreConfig {
 
 /**
  * The application client for runtimes without gRPC: it triggers runs, pushes events, waits
- * for results and manages workflows over unary Connect calls on a fetch transport, so it runs
- * in Cloudflare Workers, Vercel Functions, Deno, Bun, browsers and Node alike.
+ * for results and manages workflows over unary Connect calls on a fetch transport, and
+ * reaches the REST API over the same `fetch`, so it runs in Cloudflare Workers, Vercel
+ * Functions, Deno, Bun, browsers and Node alike.
  *
  * It is configured from an explicit object only. Nothing is read from the environment or a
  * config file, and no worker can be started from it; workers stay on the Node client.
@@ -81,25 +101,51 @@ export interface ResolvedCoreConfig {
  */
 export class HatchetCore {
   readonly config: ResolvedCoreConfig;
-  /** The transport every call goes through. */
+  /** The transport every engine call goes through. */
   readonly transport: Transport;
+  /**
+   * The REST API, every operation of the generated client, authenticated with the token and
+   * pointed at `config.apiUrl`. Each call resolves with the response, its body under `data`,
+   * and rejects with the response when its status is not 2xx, the body under `error`.
+   */
+  readonly api: Api;
   readonly logger: Logger;
   /** Pushes events. */
   readonly events: EventsClient;
   /** Gets, cancels and replays runs. */
   readonly runs: RunsClient;
-  /** Registers workflows. */
+  /** Registers workflows, and lists, gets, deletes, pauses and unpauses them. */
   readonly workflows: WorkflowsClient;
   /** Creates and updates rate limits. */
   readonly rateLimits: RateLimitsClient;
   /** Writes task run log lines. */
   readonly logs: LogsClient;
-  /** Publishes task run stream chunks. */
+  /** Publishes task run stream chunks and durable stream topics. */
   readonly streams: StreamsClient;
+  /** Refreshes a running task's timeout and releases its worker slot. */
+  readonly tasks: TasksClient;
+  /** Creates, lists, gets and deletes cron triggers. */
+  readonly crons: CronClient;
+  /** Creates, lists, gets, updates and deletes scheduled runs. */
+  readonly schedules: ScheduleClient;
+  /** Manages event filters. */
+  readonly filters: FiltersClient;
+  /** Reads task, queue and Prometheus metrics. */
+  readonly metrics: MetricsClient;
+  /** Reads the tenant. */
+  readonly tenant: TenantClient;
+  /** Manages incoming webhooks. */
+  readonly webhooks: WebhooksClient;
+  /** Lists, gets, pauses and unpauses workers. */
+  readonly workers: WorkersClient;
+  /** Debugs CEL expressions. */
+  readonly cel: CELClient;
 
   private readonly workflowsRpc: WorkflowServiceClient;
   private readonly adminRpc: AdminServiceClient;
   private readonly eventsRpc: EventsServiceClient;
+  private readonly streamsRpc: V1StreamsClient;
+  private readonly dispatcherRpc: DispatcherClient;
 
   constructor(config: CoreClientConfig) {
     if (!config.token) {
@@ -109,11 +155,16 @@ export class HatchetCore {
     const tenantId = getTenantIdFromJWT(config.token);
     // a caller-supplied transport owns its base URL, auth and limits, so no address is resolved
     const serverUrl = config.transport ? (config.serverUrl ?? '') : resolveServerUrl(config);
+    // the REST base URL never ends with a slash, whichever of the two it came from
+    const apiUrl = config.apiUrl
+      ? normalizeApiUrl(config.apiUrl)
+      : getServerUrlFromJWT(config.token)?.replace(/\/+$/, '');
     const namespace = normalizeNamespace(config.namespace);
     const logger = config.logger ?? consoleLogger;
 
     this.config = {
       serverUrl,
+      apiUrl,
       tenantId,
       namespace,
       logLevel: config.logLevel,
@@ -134,14 +185,30 @@ export class HatchetCore {
     this.workflowsRpc = createWorkflowsRpc(this.transport);
     this.adminRpc = createV1AdminRpc(this.transport);
     this.eventsRpc = createEventsRpc(this.transport);
+    this.streamsRpc = createV1StreamsRpc(this.transport);
+    this.dispatcherRpc = createDispatcherRpc(this.transport);
+    this.api = createFetchApi({ apiUrl, token: config.token, fetch: config.fetch });
 
     const shared = { logger: this.logger, namespace, retrier: config.retrier };
+    const rest = { api: this.api, tenantId };
     this.events = new EventsClient({ rpc: this.eventsRpc, ...shared });
-    this.runs = new RunsClient(this.adminRpc);
-    this.workflows = new WorkflowsClient({ rpc: this.adminRpc, ...shared });
+    this.workflows = new WorkflowsClient({ rpc: this.adminRpc, ...rest, ...shared });
+    this.runs = new RunsClient({
+      rpc: this.adminRpc,
+      rest: new RestRunsClient({ ...rest, workflows: this.workflows }),
+    });
     this.rateLimits = new RateLimitsClient({ rpc: this.workflowsRpc, ...shared });
     this.logs = new LogsClient(this.eventsRpc);
-    this.streams = new StreamsClient(this.eventsRpc);
+    this.streams = new StreamsClient({ events: this.eventsRpc, streams: this.streamsRpc });
+    this.tasks = new TasksClient(this.dispatcherRpc);
+    this.crons = new CronClient(this);
+    this.schedules = new ScheduleClient(this);
+    this.filters = new FiltersClient(rest);
+    this.metrics = new MetricsClient(rest);
+    this.tenant = new TenantClient(rest);
+    this.webhooks = new WebhooksClient(rest);
+    this.workers = new WorkersClient(rest);
+    this.cel = new CELClient(rest);
   }
 
   /** The same as `new HatchetCore(config)`, mirroring the Node client's `init`. */

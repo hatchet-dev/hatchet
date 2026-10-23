@@ -13,11 +13,9 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-// A task created directly in a terminal state (e.g. cancelled because its parent failed) is stored
-// with a `null` TASK_INPUT payload. If that payload partition is cut over to external storage before
-// the task is replayed, the overwrite on replay has no row to update and readers keep resolving the
-// stale offloaded `null`, so the worker receives an empty workflow input. The overwrite must insert
-// when the row is gone so the recomputed input is what gets read.
+// A task created directly in a terminal state (e.g. cancelled because its parent failed) has no
+// TASK_INPUT row. The overwrite on replay must insert when the row is missing so the recomputed
+// input is what gets read.
 func TestReplayOverwritesOffloadedTaskInput(t *testing.T) {
 	pool, cleanup := setupPostgresWithMigration(t)
 	defer cleanup()
@@ -59,38 +57,24 @@ func TestReplayOverwritesOffloadedTaskInput(t *testing.T) {
 	task := inserted[0]
 
 	// Mirror processEventMatches, which stores whatever payload the created task carries.
-	err = shared.payloadStore.Store(ctx, pool, StorePayloadOpts{
+	err = shared.payloadStore.Store(ctx, pool, PayloadRef[TaskInputShape]{
 		Id:         task.ID,
 		InsertedAt: task.InsertedAt,
 		ExternalId: task.ExternalID,
-		Type:       sqlcv1.V1PayloadTypeTASKINPUT,
-		Payload:    task.Payload,
 		TenantId:   internalTenantId,
-	})
+	}.StoreOpts(NewPayload[TaskInputShape](task.TaskInputPayload)))
 	require.NoError(t, err)
 
-	retrieveOpt := RetrievePayloadOpts{
+	retrieveOpt := PayloadRef[TaskInputShape]{
 		Id:         task.ID,
 		InsertedAt: task.InsertedAt,
-		Type:       sqlcv1.V1PayloadTypeTASKINPUT,
 		TenantId:   internalTenantId,
 		ExternalId: task.ExternalID,
 	}
 
-	stored, err := shared.payloadStore.RetrieveSingle(ctx, pool, retrieveOpt)
+	missing, err := shared.payloadStore.TaskInputs().RetrieveOne(ctx, pool, retrieveOpt)
 	require.NoError(t, err)
-	require.JSONEq(t, "null", string(stored),
-		"a task created in a terminal state without input is stored with a null TASK_INPUT payload")
-
-	// Simulate the partition cutover: the inline row is gone from v1_payload and the only copy is the
-	// offloaded one. Without an external store configured the read simply misses, which is enough to
-	// verify that the replay re-establishes an inline row that readers resolve first.
-	_, err = pool.Exec(ctx, `DELETE FROM v1_payload WHERE tenant_id = $1 AND id = $2`, internalTenantId, task.ID)
-	require.NoError(t, err)
-
-	missing, err := shared.payloadStore.RetrieveSingle(ctx, pool, retrieveOpt)
-	require.NoError(t, err)
-	require.Nil(t, missing)
+	require.Nil(t, missing.Bytes(), "a task created in a terminal state without input has no TASK_INPUT row")
 
 	replayInput := &TaskInput{Input: map[string]interface{}{"case_id": "replayed"}}
 
@@ -107,13 +91,13 @@ func TestReplayOverwritesOffloadedTaskInput(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, replayed, 1)
 
-	afterReplay, err := shared.payloadStore.RetrieveSingle(ctx, pool, retrieveOpt)
+	afterReplay, err := shared.payloadStore.TaskInputs().RetrieveOne(ctx, pool, retrieveOpt)
 	require.NoError(t, err)
-	require.NotNil(t, afterReplay, "replay must persist the recomputed input even when the original row was offloaded")
+	require.NotNil(t, afterReplay.Bytes(), "replay must persist the recomputed input even when the original row was offloaded")
 
-	var dispatched V1StepRunData
-	require.NoError(t, json.Unmarshal(afterReplay, &dispatched))
-	require.Equal(t, "replayed", dispatched.Input["case_id"])
+	var storedInput map[string]interface{}
+	require.NoError(t, json.Unmarshal(afterReplay.Bytes(), &storedInput))
+	require.Equal(t, "replayed", storedInput["case_id"])
 
 	// A second replay while the row exists must still update in place.
 	replayed, err = shared.replayTasks(ctx, pool, internalTenantId, []ReplayTaskOpts{
@@ -129,10 +113,10 @@ func TestReplayOverwritesOffloadedTaskInput(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, replayed, 1)
 
-	afterSecondReplay, err := shared.payloadStore.RetrieveSingle(ctx, pool, retrieveOpt)
+	afterSecondReplay, err := shared.payloadStore.TaskInputs().RetrieveOne(ctx, pool, retrieveOpt)
 	require.NoError(t, err)
-	require.NoError(t, json.Unmarshal(afterSecondReplay, &dispatched))
-	require.Equal(t, "replayed-again", dispatched.Input["case_id"])
+	require.NoError(t, json.Unmarshal(afterSecondReplay.Bytes(), &storedInput))
+	require.Equal(t, "replayed-again", storedInput["case_id"])
 
 	var rowCount int
 	require.NoError(t, pool.QueryRow(ctx, `

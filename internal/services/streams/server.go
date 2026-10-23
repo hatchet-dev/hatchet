@@ -149,6 +149,26 @@ func (s *ServiceImpl) Subscribe(ctx context.Context, req *contracts.SubscribeStr
 	sender := rpcstream.NewSender[contracts.StreamMessage](ctx, connectStream)
 	defer sender.Close()
 
+	return s.subscribe(ctx, req, sender)
+}
+
+// RegisterSubscribe serves Subscribe over channels to a caller in the same process (the
+// in-process operator host), with every check the RPC makes: ctx must carry the tenant, as
+// the auth middleware puts it, and a tenant without the durable streams entitlement is
+// refused with PermissionDenied, which the stream's Err reports once it ends.
+func (s *ServiceImpl) RegisterSubscribe(ctx context.Context, req *contracts.SubscribeStreamRequest) (*rpcstream.ChannelStream, error) {
+	if _, ok := ctx.Value("tenant").(*sqlcv1.Tenant); !ok {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("tenant not found on context"))
+	}
+
+	return rpcstream.ServeServer(ctx, func(ctx context.Context, sender *rpcstream.Sender[contracts.StreamMessage]) error {
+		return s.subscribe(ctx, req, sender)
+	}), nil
+}
+
+// subscribe is Subscribe over any sender: it holds the stream open on the topic's poller
+// until ctx ends, a send fails, the topic idles out or the service shuts down.
+func (s *ServiceImpl) subscribe(ctx context.Context, req *contracts.SubscribeStreamRequest, sender *rpcstream.Sender[contracts.StreamMessage]) error {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 
@@ -174,6 +194,12 @@ func (s *ServiceImpl) Subscribe(ctx context.Context, req *contracts.SubscribeStr
 		telemetry.AttributeKV{Key: "stream.topic", Value: topic},
 		telemetry.AttributeKV{Key: "stream.resumed", Value: cursor.ID > 0},
 	)
+
+	if req.Cursor == nil || *req.Cursor == "" {
+		if cursor, err = s.repo.Streams().TopicStartCursor(ctx, tenantId, namespace, topic); err != nil {
+			return err
+		}
+	}
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -208,6 +234,39 @@ func (s *ServiceImpl) Subscribe(ctx context.Context, req *contracts.SubscribeStr
 	<-ctx.Done()
 
 	return nil
+}
+
+// Reset makes subscribers without a cursor start after the topic's latest
+// message. Subscriptions already open, and any with a cursor, are unaffected.
+func (s *ServiceImpl) Reset(ctx context.Context, req *contracts.ResetStreamTopicRequest) (*contracts.ResetStreamTopicResponse, error) {
+	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
+	tenantId := tenant.ID
+
+	telemetry.WithAttributes(trace.SpanFromContext(ctx),
+		telemetry.AttributeKV{Key: "tenant.id", Value: tenantId},
+		telemetry.AttributeKV{Key: "stream.namespace", Value: req.Namespace},
+		telemetry.AttributeKV{Key: "stream.topic", Value: req.Topic},
+	)
+
+	entitled, err := s.repo.TenantEntitlement().HasEntitlement(ctx, tenantId, v1.EntitlementDurableStreams)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if !entitled {
+		return nil, connect.NewError(connect.CodePermissionDenied, errNotEntitled)
+	}
+
+	if err := v1.ValidateStreamAddress(req.Namespace, req.Topic); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+
+	if err := s.repo.Streams().ResetTopic(ctx, tenantId, req.Namespace, req.Topic); err != nil {
+		return nil, err
+	}
+
+	return &contracts.ResetStreamTopicResponse{}, nil
 }
 
 func (s *ServiceImpl) GetTopicMetadata(ctx context.Context, req *contracts.GetStreamTopicMetadataRequest) (*contracts.StreamTopicMetadata, error) {

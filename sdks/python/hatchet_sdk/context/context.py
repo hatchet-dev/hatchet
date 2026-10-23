@@ -443,6 +443,28 @@ class Context:
         await self._dispatcher_client.aio_release_slot(self.task_run_id)
         self._on_slot_released()
 
+    def pause_rate_limit(self, key: str, until: datetime) -> datetime:
+        """
+        Pause a rate limit key, so queued runs that consume it stay queued until the given time. Runs that are already executing, including this one, are unaffected.
+
+        :param key: The rendered rate limit key to pause.
+        :param until: The time to pause the key until. Naive datetimes are treated as UTC. An earlier time never shortens an existing pause.
+
+        :return: The time the key is paused until.
+        """
+        return self._admin_client.pause_rate_limit(key, until)
+
+    async def aio_pause_rate_limit(self, key: str, until: datetime) -> datetime:
+        """
+        Pause a rate limit key, so queued runs that consume it stay queued until the given time. Runs that are already executing, including this one, are unaffected.
+
+        :param key: The rendered rate limit key to pause.
+        :param until: The time to pause the key until. Naive datetimes are treated as UTC. An earlier time never shortens an existing pause.
+
+        :return: The time the key is paused until.
+        """
+        return await asyncio.to_thread(self.pause_rate_limit, key, until)
+
     def put_stream(self, data: str | bytes) -> None:
         """
         Put a stream event to the Hatchet API. This will send the data to the Hatchet API and return immediately. You can then subscribe to the stream from a separate consumer.

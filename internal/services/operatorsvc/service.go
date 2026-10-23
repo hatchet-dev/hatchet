@@ -22,6 +22,7 @@ import (
 	"connectrpc.com/connect"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
@@ -125,12 +126,23 @@ type DispatcherBackend interface {
 	NotifyNewWorker(ctx context.Context, tenant *sqlcv1.Tenant, workerId uuid.UUID)
 	SendStepActionEvent(ctx context.Context, req *contracts.StepActionEvent) (*contracts.ActionEventResponse, error)
 	RegisterDurableTask(ctx context.Context, externalId uuid.UUID) (chan<- *v1contracts.DurableTaskRequest, <-chan *v1contracts.DurableTaskResponse, error)
+	// RegisterRunStream serves one of the dispatcher's run observation streams over channels;
+	// see dispatcher.DispatcherImpl.RegisterRunStream.
+	RegisterRunStream(ctx context.Context, kind operator.RunStreamKind, first proto.Message) (*rpcstream.ChannelStream, error)
+}
+
+// StreamsBackend is what the service needs from the local durable streams service: the
+// channel-backed form of V1Streams.Subscribe, with the entitlement check the RPC makes; see
+// streams.ServiceImpl.RegisterSubscribe.
+type StreamsBackend interface {
+	RegisterSubscribe(ctx context.Context, req *v1contracts.SubscribeStreamRequest) (*rpcstream.ChannelStream, error)
 }
 
 type Service struct {
 	operators  OperatorStore
 	workers    WorkerStore
 	dispatcher DispatcherBackend
+	streams    StreamsBackend
 
 	cache     cache.Cacheable
 	analytics analytics.Analytics
@@ -157,6 +169,7 @@ type opts struct {
 	operators    OperatorStore
 	workers      WorkerStore
 	dispatcher   DispatcherBackend
+	streams      StreamsBackend
 	dispatcherId uuid.UUID
 
 	analytics       analytics.Analytics
@@ -198,6 +211,12 @@ func WithWorkerStore(s WorkerStore) Opt {
 // WithDispatcherBackend sets the local dispatcher sessions are registered with. Required.
 func WithDispatcherBackend(d DispatcherBackend) Opt {
 	return func(o *opts) { o.dispatcher = d }
+}
+
+// WithStreamsBackend sets the local durable streams service sessions open V1Streams.Subscribe
+// on. Optional: without it a session refuses that stream kind as unimplemented.
+func WithStreamsBackend(b StreamsBackend) Opt {
+	return func(o *opts) { o.streams = b }
 }
 
 // WithDispatcherId sets the id of the local dispatcher; every operator worker whose session is
@@ -269,6 +288,7 @@ func New(fs ...Opt) (*Service, error) {
 		operators:                   o.operators,
 		workers:                     o.workers,
 		dispatcher:                  o.dispatcher,
+		streams:                     o.streams,
 		dispatcherId:                o.dispatcherId,
 		cache:                       cache.New(o.cacheTTL),
 		analytics:                   o.analytics,

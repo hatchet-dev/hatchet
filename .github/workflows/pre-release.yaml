@@ -8,6 +8,16 @@ jobs:
     name: hatchet-api
     runs-on: ubuntu-latest
     steps:
+      - &update-ca-certificates
+        name: Update CA certificates
+        # Runner images predate Ubuntu's ca-certificates fix for the compromised eMudhra CAs (USN-8944-1); drop this step once they ship 20260816ubuntu0.* or later.
+        run: |
+          sudo DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=3 -o DPkg::Lock::Timeout=120 update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=120 install -y --only-upgrade ca-certificates
+          v=$(dpkg-query -W -f='${Version}' ca-certificates)
+          dpkg --compare-versions "$v" ge 20260816 || { echo "::error::ca-certificates $v predates USN-8944-1"; exit 1; }
+          # dockerd keeps the roots it loaded at first use.
+          sudo systemctl restart docker
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -33,6 +43,7 @@ jobs:
     name: hatchet-api
     runs-on: hatchet-arm64-2
     steps:
+      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -61,7 +72,9 @@ jobs:
       - build-push-hatchet-api-amd
       - build-push-hatchet-api-arm
       - auth-enabled
+      - non-fips
     steps:
+      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -86,6 +99,7 @@ jobs:
     name: hatchet-api-dev
     runs-on: ubuntu-latest
     steps:
+      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -111,6 +125,7 @@ jobs:
     name: hatchet-api-dev
     runs-on: hatchet-arm64-2
     steps:
+      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -139,6 +154,7 @@ jobs:
       - build-push-hatchet-api-dev-amd
       - build-push-hatchet-api-dev-arm
     steps:
+      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -159,6 +175,7 @@ jobs:
     name: hatchet-admin
     runs-on: ubuntu-latest
     steps:
+      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -183,6 +200,7 @@ jobs:
     name: hatchet-admin
     runs-on: hatchet-arm64-2
     steps:
+      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -209,7 +227,9 @@ jobs:
     needs:
       - build-push-hatchet-admin-amd
       - build-push-hatchet-admin-arm
+      - non-fips
     steps:
+      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -234,6 +254,7 @@ jobs:
     name: hatchet-admin-dev
     runs-on: ubuntu-latest
     steps:
+      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -259,6 +280,7 @@ jobs:
     name: hatchet-admin-dev
     runs-on: hatchet-arm64-2
     steps:
+      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -287,6 +309,7 @@ jobs:
       - build-push-hatchet-admin-dev-amd
       - build-push-hatchet-admin-dev-arm
     steps:
+      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -307,6 +330,7 @@ jobs:
     name: hatchet-engine
     runs-on: ubuntu-latest
     steps:
+      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -331,6 +355,7 @@ jobs:
     name: hatchet-engine
     runs-on: hatchet-arm64-2
     steps:
+      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -357,7 +382,9 @@ jobs:
     needs:
       - build-push-hatchet-engine-amd
       - build-push-hatchet-engine-arm
+      - non-fips
     steps:
+      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -382,6 +409,7 @@ jobs:
     name: hatchet-engine-dev
     runs-on: ubuntu-latest
     steps:
+      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -407,6 +435,7 @@ jobs:
     name: hatchet-engine-dev
     runs-on: hatchet-arm64-2
     steps:
+      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -435,6 +464,7 @@ jobs:
       - build-push-hatchet-engine-dev-amd
       - build-push-hatchet-engine-dev-arm
     steps:
+      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -455,6 +485,7 @@ jobs:
     name: hatchet-migrate
     runs-on: ubuntu-latest
     steps:
+      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -480,6 +511,7 @@ jobs:
     name: hatchet-migrate
     runs-on: hatchet-arm64-2
     steps:
+      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -507,7 +539,9 @@ jobs:
     needs:
       - build-push-hatchet-migrate-amd
       - build-push-hatchet-migrate-arm
+      - non-fips
     steps:
+      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -532,6 +566,7 @@ jobs:
     name: hatchet-frontend
     runs-on: ubuntu-latest
     steps:
+      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -561,6 +596,7 @@ jobs:
     name: hatchet-frontend
     runs-on: hatchet-arm64-2
     steps:
+      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -592,7 +628,9 @@ jobs:
     needs:
       - build-push-hatchet-frontend-amd
       - build-push-hatchet-frontend-arm
+      - non-fips
     steps:
+      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -617,6 +655,7 @@ jobs:
     name: hatchet-lite-amd
     runs-on: ubuntu-latest
     steps:
+      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -675,6 +714,7 @@ jobs:
     name: hatchet-lite-arm
     runs-on: hatchet-arm64-2
     steps:
+      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -739,6 +779,7 @@ jobs:
       - build-push-hatchet-lite-amd
       - build-push-hatchet-dashboard-amd
     steps:
+      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -757,6 +798,50 @@ jobs:
           ADMIN_IMAGE: ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-amd64
           MIGRATE_IMAGE: ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-amd64
         run: bash hack/ci/assert-auth-enabled.sh
+  non-fips:
+    name: Verify non-fips images do not link the FIPS module
+    runs-on: ubuntu-latest
+    needs:
+      - build-push-hatchet-api-amd
+      - build-push-hatchet-api-arm
+      - build-push-hatchet-engine-amd
+      - build-push-hatchet-engine-arm
+      - build-push-hatchet-admin-amd
+      - build-push-hatchet-admin-arm
+      - build-push-hatchet-migrate-amd
+      - build-push-hatchet-migrate-arm
+      - build-push-hatchet-lite-amd
+      - build-push-hatchet-lite-arm
+      - build-push-hatchet-dashboard-amd
+      - build-push-hatchet-dashboard-arm
+      - build-push-hatchet-frontend-amd
+      - build-push-hatchet-frontend-arm
+    steps:
+      - *update-ca-certificates
+      - name: Get tag name
+        id: tag_name
+        run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
+        env:
+          GITHUB_TAG: ${{ github.ref }}
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Login to GHCR
+        id: login-ghcr
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Assert no Go binary in a regular image, either architecture, links the FIPS module
+        run: |
+          r=ghcr.io/hatchet-dev/hatchet
+          for arch in amd64 arm64; do
+            t=${{steps.tag_name.outputs.tag}}-$arch
+            EXPECT_FIPS=false bash hack/ci/assert-fips.sh \
+              $r/hatchet-api:$t=/hatchet/hatchet-api \
+              $r/hatchet-engine:$t=/hatchet/hatchet-engine \
+              $r/hatchet-admin:$t=/hatchet/hatchet-admin \
+              $r/hatchet-migrate:$t=/hatchet/hatchet-migrate \
+              $r/hatchet-lite:$t=/hatchet-lite,/hatchet-admin,/hatchet-migrate \
+              $r/hatchet-dashboard:$t=/hatchet/hatchet-api,/hatchet/hatchet-staticfileserver \
+              $r/hatchet-frontend:$t=/app/hatchet-staticfileserver
+          done
   combine-hatchet-lite:
     name: Combine hatchet-lite
     runs-on: ubuntu-latest
@@ -764,7 +849,9 @@ jobs:
       - build-push-hatchet-lite-amd
       - build-push-hatchet-lite-arm
       - auth-enabled
+      - non-fips
     steps:
+      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -789,6 +876,7 @@ jobs:
     name: hatchet-lite-dev-amd
     runs-on: ubuntu-latest
     steps:
+      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -849,6 +937,7 @@ jobs:
     name: hatchet-lite-dev-arm
     runs-on: hatchet-arm64-2
     steps:
+      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -912,6 +1001,7 @@ jobs:
       - build-push-hatchet-lite-dev-amd
       - build-push-hatchet-lite-dev-arm
     steps:
+      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -932,6 +1022,7 @@ jobs:
     name: hatchet-dashboard-amd
     runs-on: ubuntu-latest
     steps:
+      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -973,6 +1064,7 @@ jobs:
     name: hatchet-dashboard-arm
     runs-on: hatchet-arm64-2
     steps:
+      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -1017,7 +1109,9 @@ jobs:
       - build-push-hatchet-dashboard-amd
       - build-push-hatchet-dashboard-arm
       - auth-enabled
+      - non-fips
     steps:
+      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -1042,6 +1136,7 @@ jobs:
     name: hatchet-dashboard-dev-amd
     runs-on: ubuntu-latest
     steps:
+      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -1083,6 +1178,7 @@ jobs:
     name: hatchet-dashboard-dev-arm
     runs-on: hatchet-arm64-2
     steps:
+      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -1127,6 +1223,7 @@ jobs:
       - build-push-hatchet-dashboard-dev-amd
       - build-push-hatchet-dashboard-dev-arm
     steps:
+      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -1147,6 +1244,7 @@ jobs:
     name: hatchet-loadtest
     runs-on: ubuntu-latest
     steps:
+      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -1170,6 +1268,7 @@ jobs:
     name: hatchet-loadtest
     runs-on: hatchet-arm64-2
     steps:
+      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -1196,6 +1295,7 @@ jobs:
       - build-push-hatchet-loadtest-amd
       - build-push-hatchet-loadtest-arm
     steps:
+      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT

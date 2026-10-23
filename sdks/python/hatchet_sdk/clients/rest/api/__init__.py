@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from hatchet_sdk.clients.rest.api.observability_api import ObservabilityApi
     from hatchet_sdk.clients.rest.api.rate_limits_api import RateLimitsApi
     from hatchet_sdk.clients.rest.api.sns_api import SNSApi
+    from hatchet_sdk.clients.rest.api.serverless_api import ServerlessApi
     from hatchet_sdk.clients.rest.api.slack_api import SlackApi
     from hatchet_sdk.clients.rest.api.step_run_api import StepRunApi
     from hatchet_sdk.clients.rest.api.streams_api import StreamsApi
@@ -47,6 +48,7 @@ _LAZY_IMPORTS: dict[str, str] = {
     "ObservabilityApi": "hatchet_sdk.clients.rest.api.observability_api",
     "RateLimitsApi": "hatchet_sdk.clients.rest.api.rate_limits_api",
     "SNSApi": "hatchet_sdk.clients.rest.api.sns_api",
+    "ServerlessApi": "hatchet_sdk.clients.rest.api.serverless_api",
     "SlackApi": "hatchet_sdk.clients.rest.api.slack_api",
     "StepRunApi": "hatchet_sdk.clients.rest.api.step_run_api",
     "StreamsApi": "hatchet_sdk.clients.rest.api.streams_api",

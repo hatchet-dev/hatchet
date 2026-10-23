@@ -86,6 +86,8 @@ type Layer struct {
 
 	Seed SeedConfigFile
 
+	DefaultTenantEntitlements v1.TenantEntitlements
+
 	// Logger is the configured database logger. Consumers should read it via
 	// GetLogger, which falls back to a disabled logger when the layer was
 	// constructed without one.

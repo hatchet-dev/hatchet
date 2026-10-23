@@ -95,6 +95,13 @@ V2 removes everything that was deprecated in V1 and tightens the types that were
 - Passing a tuple of `ConcurrencyStrategy` objects as `concurrency` to `hatchet.task` or `hatchet.durable_task` no longer discards them.
 - `mock_run` and `aio_mock_run` now pass a `dict` input through to the task instead of replacing it with `{}`.
 - Cron expressions that use day or month names, or ranges with steps, such as `0 9 * * MON-FRI`, are no longer rejected before they reach the engine.
+
+## [1.43.0] - 2026-10-14
+
+### Added
+
+- Adds `hatchet.rate_limits.pause` / `aio_pause` and `Context.pause_rate_limit` / `aio_pause_rate_limit`, which keep queued runs that consume a rate limit key from starting until a given time.
+
 ## [1.42.1] - 2026-10-09
 
 ### Fixed

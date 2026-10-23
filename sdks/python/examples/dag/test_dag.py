@@ -30,6 +30,9 @@ async def get_on_failure_task(hatchet: Hatchet, run_id: str) -> V1TaskSummary:
             f"{[t.display_name for t in details.tasks]}"
         )
 
+    if task.status in (RunStatus.QUEUED, RunStatus.RUNNING):
+        raise Exception(f"on-failure task has not finished yet: {task.status}")
+
     return task
 
 

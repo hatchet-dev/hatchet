@@ -1,29 +1,23 @@
 -- name: ReadPayloads :many
-WITH inputs AS (
-    SELECT
-        UNNEST(@ids::BIGINT[]) AS id,
-        UNNEST(@insertedAts::TIMESTAMPTZ[]) AS inserted_at,
-        UNNEST(@tenantIds::UUID[]) AS tenant_id,
-        UNNEST(CAST(@types::TEXT[] AS v1_payload_type[])) AS type
-)
-
 SELECT *
-FROM v1_payload
-WHERE (tenant_id, id, inserted_at, type) IN (
-        SELECT tenant_id, id, inserted_at, type
-        FROM inputs
-    )
-;
+FROM read_payloads(
+    @tenantIds::UUID[],
+    @ids::BIGINT[],
+    @insertedAts::TIMESTAMPTZ[],
+    CAST(@types::TEXT[] AS v1_payload_type[]),
+    @payloadReferenceIds::UUID[]
+);
 
 -- name: WritePayloads :exec
 WITH inputs AS (
     SELECT DISTINCT
         UNNEST(@ids::BIGINT[]) AS id,
-        UNNEST(@insertedAts::TIMESTAMPTZ[]) AS inserted_at,
+        v1_payload_inserted_at(
+            NULLIF(UNNEST(@payloadReferenceIds::UUID[]), '00000000-0000-0000-0000-000000000000'::UUID),
+            UNNEST(@insertedAts::TIMESTAMPTZ[])
+        ) AS inserted_at,
         UNNEST(@externalIds::UUID[]) AS external_id,
         UNNEST(CAST(@types::TEXT[] AS v1_payload_type[])) AS type,
-        UNNEST(CAST(@locations::TEXT[] AS v1_payload_location[])) AS location,
-        UNNEST(@externalLocationKeys::TEXT[]) AS external_location_key,
         UNNEST(@inlineContents::JSONB[]) AS inline_content,
         UNNEST(@tenantIds::UUID[]) AS tenant_id
 )
@@ -44,8 +38,8 @@ SELECT
     i.inserted_at,
     i.external_id,
     i.type,
-    i.location,
-    CASE WHEN i.external_location_key = '' OR i.location != 'EXTERNAL' THEN NULL ELSE i.external_location_key END,
+    'INLINE',
+    NULL,
     i.inline_content
 FROM
     inputs i
@@ -61,7 +55,10 @@ ON CONFLICT DO NOTHING
 WITH inputs AS (
     SELECT DISTINCT
         UNNEST(@ids::BIGINT[]) AS id,
-        UNNEST(@insertedAts::TIMESTAMPTZ[]) AS inserted_at,
+        v1_payload_inserted_at(
+            NULLIF(UNNEST(@payloadReferenceIds::UUID[]), '00000000-0000-0000-0000-000000000000'::UUID),
+            UNNEST(@insertedAts::TIMESTAMPTZ[])
+        ) AS inserted_at,
         UNNEST(@externalIds::UUID[]) AS external_id,
         UNNEST(CAST(@types::TEXT[] AS v1_payload_type[])) AS type,
         UNNEST(@inlineContents::JSONB[]) AS inline_content,
@@ -207,11 +204,14 @@ SELECT compute_payload_batch_size(
 -- name: GetOffloadedPayloadIndexBlocks :many
 WITH inputs AS (
     SELECT
-        UNNEST(@insertedAts::DATE[]) AS inserted_at_date,
+        (v1_payload_inserted_at(
+            NULLIF(UNNEST(@payloadReferenceIds::UUID[]), '00000000-0000-0000-0000-000000000000'::UUID),
+            UNNEST(@insertedAts::TIMESTAMPTZ[])
+        ) AT TIME ZONE 'UTC')::DATE AS inserted_at_date,
         UNNEST(@externalIds::UUID[]) AS external_id
 )
 
-SELECT i.external_id::UUID AS external_id, index_file_key
+SELECT i.external_id::UUID AS external_id, index_file_key, p.payload_inserted_at_date
 FROM v1_payload_offloaded_block_index p
 JOIN inputs i ON
     p.payload_inserted_at_date = i.inserted_at_date

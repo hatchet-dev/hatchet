@@ -19,6 +19,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/rpcstream"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
@@ -177,6 +178,18 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(ctx context.Context, serve
 	sender := rpcstream.NewSender[contracts.DurableEvent](ctx, server)
 	defer sender.Close()
 
+	return d.listenForDurableEvent(ctx, server.Receive, sender)
+}
+
+// listenForDurableEvent runs a ListenForDurableEvent session over the two halves of the
+// stream: receive yields the client's listeners (io.EOF or a Canceled code when the client is
+// done), sender takes the durable events. It is shared by the gRPC handler and the
+// channel-backed RegisterRunStream; sender is closed by the caller.
+func (d *DispatcherServiceImpl) listenForDurableEvent(
+	ctx context.Context,
+	receive func() (*contracts.ListenForDurableEventRequest, error),
+	sender *rpcstream.Sender[contracts.DurableEvent],
+) error {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 	d.analytics.Count(ctx, analytics.Worker, analytics.Listen)
@@ -271,7 +284,7 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(ctx context.Context, serve
 	// start a new goroutine to handle client-side streaming
 	go func() {
 		for {
-			req, err := server.Receive()
+			req, err := receive()
 
 			if err != nil {
 				cancel()
@@ -634,6 +647,8 @@ func (d *DispatcherServiceImpl) durableTask(
 
 	var reqWg sync.WaitGroup
 
+	statuses := newWorkerStatusCoalescer()
+
 	defer func() {
 		for taskId := range registeredTasks {
 			d.durableInvocations.CompareAndDelete(durableInvocationsKey{
@@ -724,6 +739,36 @@ func (d *DispatcherServiceImpl) durableTask(
 				for _, entry := range msg.WorkerStatus.WaitingEntries {
 					registerTask(entry.DurableTaskExternalId)
 				}
+			}
+
+			// At most one worker-status handler runs per stream; statuses that arrive
+			// meanwhile are merged and handled next, so a stalled stream holds one payload
+			// batch. merge and reqWg.Add stay on this goroutine so Add never races Wait; the
+			// runner exits between batches once ctx ends.
+			if msg, isWorkerStatus := r.req.GetMessage().(*contracts.DurableTaskRequest_WorkerStatus); isWorkerStatus {
+				if statuses.merge(msg.WorkerStatus) {
+					reqWg.Add(1)
+					go func() {
+						defer reqWg.Done()
+
+						for ctx.Err() == nil {
+							status := statuses.next()
+							if status == nil {
+								return
+							}
+
+							req := &contracts.DurableTaskRequest{
+								Message: &contracts.DurableTaskRequest_WorkerStatus{WorkerStatus: status},
+							}
+
+							if err := d.handleDurableTaskRequest(ctx, invocation, req); err != nil {
+								d.logDurableTaskRequestError(err)
+							}
+						}
+					}()
+				}
+
+				continue
 			}
 
 			reqWg.Add(1)
@@ -841,7 +886,15 @@ func (d *DispatcherServiceImpl) handleDurableTaskRequest(
 	ctx context.Context,
 	invocation *durableTaskInvocation,
 	req *contracts.DurableTaskRequest,
-) error {
+) (err error) {
+	// recover per request, not per goroutine, so a panic doesn't stop the worker-status runner
+	defer func() {
+		if r := recover(); r != nil {
+			_ = recoveryutils.RecoverWithAlert(d.l, d.alerter, r)
+			err = fmt.Errorf("recovered from panic handling %T: %v", req.GetMessage(), r)
+		}
+	}()
+
 	ctx, span := telemetry.NewRootSpan(ctx, "dispatcher.handle-durable-task-request")
 	defer span.End()
 
@@ -1226,7 +1279,7 @@ func (d *DispatcherServiceImpl) handleWaitFor(
 
 	if req.WaitForConditions != nil {
 		for _, condition := range req.WaitForConditions.SleepConditions {
-			orGroupId, parseErr := uuid.Parse(condition.Base.OrGroupId)
+			orGroupId, parseErr := uuid.Parse(condition.GetBase().GetOrGroupId())
 			if parseErr != nil {
 				return connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("or group id is not a valid uuid: %v", parseErr))
 			}
@@ -1239,7 +1292,7 @@ func (d *DispatcherServiceImpl) handleWaitFor(
 		}
 
 		for _, condition := range req.WaitForConditions.UserEventConditions {
-			orGroupId, parseErr := uuid.Parse(condition.Base.OrGroupId)
+			orGroupId, parseErr := uuid.Parse(condition.GetBase().GetOrGroupId())
 			if parseErr != nil {
 				return connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("or group id is not a valid uuid: %v", parseErr))
 			}
@@ -1413,7 +1466,7 @@ func (d *DispatcherServiceImpl) evictDurableTask(
 
 	d.analytics.Count(ctx, analytics.DurableTask, analytics.Evict)
 
-	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, tenantId, taskExternalId, false)
+	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, tenantId, taskExternalId, true)
 	if err != nil {
 		return nil, fmt.Errorf("task not found: %w", err)
 	}
@@ -1840,6 +1893,8 @@ func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uui
 			WorkflowRunId:        &orchestratorWorkflowRunId,
 			OlapDagId:            &task.ID,
 			OlapDagInsertedAt:    &task.InsertedAt.Time,
+
+			OrchestratorPayloadReferenceId: task.PayloadReferenceID,
 		},
 	}}
 
@@ -1872,7 +1927,7 @@ func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uui
 		}
 
 		if len(celFailures) > 0 {
-			return nil, fmt.Errorf("dag step trigger for %q did not create its child run: %s", req.ActionId, celFailures[0].ErrorMessage)
+			return nil, &operator.DAGStepCELFailureError{ActionId: req.ActionId, Message: celFailures[0].ErrorMessage}
 		}
 
 		tasks = createdTasks

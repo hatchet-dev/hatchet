@@ -26,14 +26,14 @@ import {
 import { RunListenerClient } from '../listeners/run-listener/child-listener-client';
 import { createV1AdminRpc, createWorkflowsRpc } from './rpc';
 
-type DesiredWorkerLabelOpt = {
+export type DesiredWorkerLabelOpt = {
   value: string | number;
   required?: boolean;
   weight?: number;
   comparator?: WorkerLabelComparator;
 };
 
-function convertDesiredWorkerLabels(
+export function convertDesiredWorkerLabels(
   labels: Record<string, DesiredWorkerLabelOpt>
 ): Record<string, DesiredWorkerLabels> {
   return Object.fromEntries(

@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file v1/streams.proto.
  */
 export const file_v1_streams: GenFile = /*@__PURE__*/
-  fileDesc("ChB2MS9zdHJlYW1zLnByb3RvEgJ2MSKQAQobUHVibGlzaFN0cmVhbU1lc3NhZ2VSZXF1ZXN0EhEKCW5hbWVzcGFjZRgBIAEoCRINCgV0b3BpYxgCIAEoCRIPCgdwYXlsb2FkGAMgASgMEhMKC3Byb2R1Y2VyX2lkGAQgASgJEhQKDHByb2R1Y2VyX3NlcRgFIAEoAxITCgtwYXlsb2FkX3JlZhgGIAEoCSIeChxQdWJsaXNoU3RyZWFtTWVzc2FnZVJlc3BvbnNlIloKFlN1YnNjcmliZVN0cmVhbVJlcXVlc3QSEQoJbmFtZXNwYWNlGAEgASgJEg0KBXRvcGljGAIgASgJEhMKBmN1cnNvchgDIAEoCUgAiAEBQgkKB19jdXJzb3IiUQoNU3RyZWFtTWVzc2FnZRIgCgdlbnRyaWVzGAEgAygLMg8udjEuU3RyZWFtRW50cnkSDgoGaGFuZ3VwGAIgASgIEg4KBmN1cnNvchgDIAEoCSJzCgtTdHJlYW1FbnRyeRIPCgdwYXlsb2FkGAEgASgMEg4KBmN1cnNvchgCIAEoCRIuCgpjcmVhdGVkX2F0GAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBITCgtwYXlsb2FkX3JlZhgEIAEoCSJBCh1HZXRTdHJlYW1Ub3BpY01ldGFkYXRhUmVxdWVzdBIRCgluYW1lc3BhY2UYASABKAkSDQoFdG9waWMYAiABKAkixgEKE1N0cmVhbVRvcGljTWV0YWRhdGESEQoJbmFtZXNwYWNlGAEgASgJEg0KBXRvcGljGAIgASgJEhEKCXRlbmFudF9pZBgDIAEoCRIaCg1sYXRlc3RfY3Vyc29yGAQgASgJSACIAQESFQoNbWVzc2FnZV9jb3VudBgFIAEoAxI1ChFsYXN0X3B1Ymxpc2hlZF9hdBgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXBCEAoOX2xhdGVzdF9jdXJzb3Iy7QEKCVYxU3RyZWFtcxJOCgdQdWJsaXNoEh8udjEuUHVibGlzaFN0cmVhbU1lc3NhZ2VSZXF1ZXN0GiAudjEuUHVibGlzaFN0cmVhbU1lc3NhZ2VSZXNwb25zZSIAEj4KCVN1YnNjcmliZRIaLnYxLlN1YnNjcmliZVN0cmVhbVJlcXVlc3QaES52MS5TdHJlYW1NZXNzYWdlIgAwARJQChBHZXRUb3BpY01ldGFkYXRhEiEudjEuR2V0U3RyZWFtVG9waWNNZXRhZGF0YVJlcXVlc3QaFy52MS5TdHJlYW1Ub3BpY01ldGFkYXRhIgBCQlpAZ2l0aHViLmNvbS9oYXRjaGV0LWRldi9oYXRjaGV0L2ludGVybmFsL3NlcnZpY2VzL3NoYXJlZC9wcm90by92MWIGcHJvdG8z", [file_google_protobuf_timestamp]);
+  fileDesc("ChB2MS9zdHJlYW1zLnByb3RvEgJ2MSKQAQobUHVibGlzaFN0cmVhbU1lc3NhZ2VSZXF1ZXN0EhEKCW5hbWVzcGFjZRgBIAEoCRINCgV0b3BpYxgCIAEoCRIPCgdwYXlsb2FkGAMgASgMEhMKC3Byb2R1Y2VyX2lkGAQgASgJEhQKDHByb2R1Y2VyX3NlcRgFIAEoAxITCgtwYXlsb2FkX3JlZhgGIAEoCSIeChxQdWJsaXNoU3RyZWFtTWVzc2FnZVJlc3BvbnNlIloKFlN1YnNjcmliZVN0cmVhbVJlcXVlc3QSEQoJbmFtZXNwYWNlGAEgASgJEg0KBXRvcGljGAIgASgJEhMKBmN1cnNvchgDIAEoCUgAiAEBQgkKB19jdXJzb3IiUQoNU3RyZWFtTWVzc2FnZRIgCgdlbnRyaWVzGAEgAygLMg8udjEuU3RyZWFtRW50cnkSDgoGaGFuZ3VwGAIgASgIEg4KBmN1cnNvchgDIAEoCSJzCgtTdHJlYW1FbnRyeRIPCgdwYXlsb2FkGAEgASgMEg4KBmN1cnNvchgCIAEoCRIuCgpjcmVhdGVkX2F0GAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBITCgtwYXlsb2FkX3JlZhgEIAEoCSJBCh1HZXRTdHJlYW1Ub3BpY01ldGFkYXRhUmVxdWVzdBIRCgluYW1lc3BhY2UYASABKAkSDQoFdG9waWMYAiABKAkixgEKE1N0cmVhbVRvcGljTWV0YWRhdGESEQoJbmFtZXNwYWNlGAEgASgJEg0KBXRvcGljGAIgASgJEhEKCXRlbmFudF9pZBgDIAEoCRIaCg1sYXRlc3RfY3Vyc29yGAQgASgJSACIAQESFQoNbWVzc2FnZV9jb3VudBgFIAEoAxI1ChFsYXN0X3B1Ymxpc2hlZF9hdBgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXBCEAoOX2xhdGVzdF9jdXJzb3IiOwoXUmVzZXRTdHJlYW1Ub3BpY1JlcXVlc3QSEQoJbmFtZXNwYWNlGAEgASgJEg0KBXRvcGljGAIgASgJIhoKGFJlc2V0U3RyZWFtVG9waWNSZXNwb25zZTKzAgoJVjFTdHJlYW1zEk4KB1B1Ymxpc2gSHy52MS5QdWJsaXNoU3RyZWFtTWVzc2FnZVJlcXVlc3QaIC52MS5QdWJsaXNoU3RyZWFtTWVzc2FnZVJlc3BvbnNlIgASPgoJU3Vic2NyaWJlEhoudjEuU3Vic2NyaWJlU3RyZWFtUmVxdWVzdBoRLnYxLlN0cmVhbU1lc3NhZ2UiADABElAKEEdldFRvcGljTWV0YWRhdGESIS52MS5HZXRTdHJlYW1Ub3BpY01ldGFkYXRhUmVxdWVzdBoXLnYxLlN0cmVhbVRvcGljTWV0YWRhdGEiABJECgVSZXNldBIbLnYxLlJlc2V0U3RyZWFtVG9waWNSZXF1ZXN0GhwudjEuUmVzZXRTdHJlYW1Ub3BpY1Jlc3BvbnNlIgBCQlpAZ2l0aHViLmNvbS9oYXRjaGV0LWRldi9oYXRjaGV0L2ludGVybmFsL3NlcnZpY2VzL3NoYXJlZC9wcm90by92MWIGcHJvdG8z", [file_google_protobuf_timestamp]);
 
 /**
  * @generated from message v1.PublishStreamMessageRequest
@@ -231,6 +231,41 @@ export const StreamTopicMetadataSchema: GenMessage<StreamTopicMetadata> = /*@__P
   messageDesc(file_v1_streams, 6);
 
 /**
+ * @generated from message v1.ResetStreamTopicRequest
+ */
+export type ResetStreamTopicRequest = Message<"v1.ResetStreamTopicRequest"> & {
+  /**
+   * @generated from field: string namespace = 1;
+   */
+  namespace: string;
+
+  /**
+   * @generated from field: string topic = 2;
+   */
+  topic: string;
+};
+
+/**
+ * Describes the message v1.ResetStreamTopicRequest.
+ * Use `create(ResetStreamTopicRequestSchema)` to create a new message.
+ */
+export const ResetStreamTopicRequestSchema: GenMessage<ResetStreamTopicRequest> = /*@__PURE__*/
+  messageDesc(file_v1_streams, 7);
+
+/**
+ * @generated from message v1.ResetStreamTopicResponse
+ */
+export type ResetStreamTopicResponse = Message<"v1.ResetStreamTopicResponse"> & {
+};
+
+/**
+ * Describes the message v1.ResetStreamTopicResponse.
+ * Use `create(ResetStreamTopicResponseSchema)` to create a new message.
+ */
+export const ResetStreamTopicResponseSchema: GenMessage<ResetStreamTopicResponse> = /*@__PURE__*/
+  messageDesc(file_v1_streams, 8);
+
+/**
  * @generated from service v1.V1Streams
  */
 export const V1Streams: GenService<{
@@ -257,6 +292,14 @@ export const V1Streams: GenService<{
     methodKind: "unary";
     input: typeof GetStreamTopicMetadataRequestSchema;
     output: typeof StreamTopicMetadataSchema;
+  },
+  /**
+   * @generated from rpc v1.V1Streams.Reset
+   */
+  reset: {
+    methodKind: "unary";
+    input: typeof ResetStreamTopicRequestSchema;
+    output: typeof ResetStreamTopicResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_v1_streams, 0);

@@ -28,6 +28,9 @@ jobs:
       - name: Lint
         working-directory: frontend/app
         run: npm run lint:check
+      - name: Check for unused dependencies and files
+        working-directory: frontend/app
+        run: pnpm run knip
 
   test:
     runs-on: ubuntu-latest

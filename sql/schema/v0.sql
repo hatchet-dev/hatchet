@@ -1064,6 +1064,8 @@ CREATE TABLE "WorkflowTriggerCronRef" (
     CONSTRAINT "WorkflowTriggerCronRef_pkey" PRIMARY KEY ("id")
 );
 
+CREATE INDEX "WorkflowTriggerCronRef_parentId_name_idx" ON "WorkflowTriggerCronRef" ("parentId", "name");
+
 -- CreateTable
 CREATE TABLE "WorkflowTriggerEventRef" (
     "parentId" UUID NOT NULL,
@@ -1493,6 +1495,9 @@ CREATE INDEX "Worker_tenantId_lastHeartbeatAt_idx" ON "Worker" ("tenantId", "las
 
 -- CreateIndex
 CREATE INDEX "Worker_tenantId_actionHash_idx" ON "Worker" ("tenantId", "actionHash");
+
+-- CreateIndex
+CREATE INDEX "Worker_tenantId_operatorId_idx" ON "Worker" ("tenantId", "operatorId");
 
 -- CreateIndex
 CREATE INDEX "WorkerAssignEvent_workerId_id_idx" ON "WorkerAssignEvent" ("workerId" ASC, "id" ASC);

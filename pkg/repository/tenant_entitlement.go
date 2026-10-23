@@ -42,6 +42,7 @@ const (
 	EntitlementStrictAdditionalMetadataFilters Entitlement = "strict_additional_metadata_filters"
 	EntitlementDAGOperator                     Entitlement = "dag_operator"
 	EntitlementDurableStreams                  Entitlement = "durable_streams"
+	EntitlementServerlessOperator              Entitlement = "serverless_operator"
 )
 
 // Entitlements only change on plan changes fanned out from the control plane,
@@ -58,6 +59,7 @@ type TenantEntitlements struct {
 	StrictAdditionalMetadataFilters bool
 	DAGOperator                     bool
 	DurableStreams                  bool
+	ServerlessOperator              bool
 }
 
 // Has reports whether this set includes the named entitlement.
@@ -73,6 +75,8 @@ func (e TenantEntitlements) Has(entitlement Entitlement) (bool, error) {
 		return e.DAGOperator, nil
 	case EntitlementDurableStreams:
 		return e.DurableStreams, nil
+	case EntitlementServerlessOperator:
+		return e.ServerlessOperator, nil
 	default:
 		return false, fmt.Errorf("unknown entitlement %q", entitlement)
 	}
@@ -147,6 +151,7 @@ func (t *tenantEntitlementRepository) GetEntitlements(ctx context.Context, tenan
 		StrictAdditionalMetadataFilters: entitlement.StrictAdditionalMetadataFilters,
 		DAGOperator:                     entitlement.DagOperator,
 		DurableStreams:                  entitlement.DurableStreams,
+		ServerlessOperator:              entitlement.ServerlessOperator,
 	}, nil
 }
 
@@ -158,6 +163,7 @@ func (t *tenantEntitlementRepository) SetEntitlements(ctx context.Context, tenan
 		Strictadditionalmetadatafilters: entitlements.StrictAdditionalMetadataFilters,
 		Dagoperator:                     entitlements.DAGOperator,
 		Durablestreams:                  entitlements.DurableStreams,
+		Serverlessoperator:              entitlements.ServerlessOperator,
 	})
 
 	if err != nil {

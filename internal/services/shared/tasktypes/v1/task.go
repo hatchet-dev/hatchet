@@ -60,6 +60,10 @@ type CompletedTaskPayload struct {
 
 	// (optional) the output data
 	Output []byte
+
+	// (optional) the id the core and OLAP copies of this completion share: the task controller
+	// stores the completion event payload under it and the OLAP event row points at it
+	PayloadReferenceId *uuid.UUID
 }
 
 func CompletedTaskMessage(
@@ -70,6 +74,7 @@ func CompletedTaskMessage(
 	workflowRunId uuid.UUID,
 	retryCount int32,
 	output []byte,
+	payloadReferenceId *uuid.UUID,
 ) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
@@ -77,12 +82,13 @@ func CompletedTaskMessage(
 		false,
 		true,
 		CompletedTaskPayload{
-			TaskId:        taskId,
-			InsertedAt:    taskInsertedAt,
-			ExternalId:    taskExternalId,
-			WorkflowRunId: workflowRunId,
-			RetryCount:    retryCount,
-			Output:        output,
+			TaskId:             taskId,
+			InsertedAt:         taskInsertedAt,
+			ExternalId:         taskExternalId,
+			WorkflowRunId:      workflowRunId,
+			RetryCount:         retryCount,
+			Output:             output,
+			PayloadReferenceId: payloadReferenceId,
 		},
 	)
 }
@@ -312,6 +318,26 @@ func NewTogglePauseWorkflowMessage(tenantId, workflowId uuid.UUID, isPaused bool
 		TogglePauseWorkflowPayload{
 			WorkflowID: workflowId,
 			IsPaused:   isPaused,
+		},
+	)
+}
+
+// RateLimitPausesChangedPayload tells the task controller to hold or release the tenant's queued runs behind rate limit pauses.
+type RateLimitPausesChangedPayload struct {
+	// Paused is true when a key was paused, and false when a pause ended
+	Paused bool
+}
+
+// NewRateLimitPausesChangedMessage is sent to the task controller when a rate limit key is paused, so it holds the runs
+// already waiting on the key, and when a pause ends, so it releases them.
+func NewRateLimitPausesChangedMessage(tenantId uuid.UUID, paused bool) (*msgqueue.Message, error) {
+	return msgqueue.NewTenantMessage(
+		tenantId,
+		msgqueue.MsgIDRateLimitPausesChanged,
+		false,
+		true,
+		RateLimitPausesChangedPayload{
+			Paused: paused,
 		},
 	)
 }

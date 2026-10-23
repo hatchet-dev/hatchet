@@ -826,10 +826,15 @@ type scheduleRateLimitResult struct {
 
 // shouldRemoveFromQueue returns true if the queue item is being rate limited and should be removed from the queue
 // until the rate limit is reset.
-// we only do this if the requeue_after time is at least 2 seconds in the future, to avoid thrashing
+// unless the item is paused, we only do this if the requeue_after time is at least 2 seconds in the future, to avoid thrashing
 func (s *scheduleRateLimitResult) shouldRemoveFromQueue() bool {
 	if s.rateLimitResult == nil {
 		return false
+	}
+
+	// a paused item is held in the database until the pause ends, so its concurrency slot is freed for other keys
+	if s.pausedUntil != nil {
+		return true
 	}
 
 	nextRefillAt := s.nextRefillAt
@@ -1460,6 +1465,8 @@ func (s *Scheduler) rankWorkerIds(
 			if qi.DesiredWorkerID != nil && workerId == *qi.DesiredWorkerID {
 				rank = 1
 			}
+		case sqlcv1.V1StickyStrategyNONE:
+			fallthrough
 		default:
 			if len(labels) > 0 {
 				// Label affinity reads worker metadata from s.workers. Do not
