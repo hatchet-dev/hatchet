@@ -12,69 +12,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const acquireOrExtendOLAPCutoverJobLease = `-- name: AcquireOrExtendOLAPCutoverJobLease :one
-WITH inputs AS (
-    SELECT
-        $2::DATE AS key,
-        $1::UUID AS lease_process_id,
-        $3::TIMESTAMPTZ AS lease_expires_at,
-        $4::UUID AS last_external_id
-), any_lease_held_by_other_process AS (
-    -- need coalesce here in case there are no rows that don't belong to this process
-    SELECT COALESCE(BOOL_OR(lease_expires_at > NOW()), FALSE) AS lease_exists
-    FROM v1_payloads_olap_cutover_job_offset
-    WHERE lease_process_id != $1::UUID
-), to_insert AS (
-    SELECT key, lease_process_id, lease_expires_at, last_external_id
-    FROM inputs
-    -- if a lease is held by another process, we shouldn't try to insert a new row regardless
-    -- of which key we're trying to acquire a lease on
-    WHERE NOT (SELECT lease_exists FROM any_lease_held_by_other_process)
-)
-
-INSERT INTO v1_payloads_olap_cutover_job_offset (key, lease_process_id, lease_expires_at, last_external_id)
-SELECT ti.key, ti.lease_process_id, ti.lease_expires_at, ti.last_external_id
-FROM to_insert ti
-ON CONFLICT (key)
-DO UPDATE SET
-    -- if the lease is held by this process, then we extend the offset to the new value
-    -- otherwise it's a new process acquiring the lease, so we should keep the offset where it was before
-    last_external_id = CASE
-        WHEN EXCLUDED.lease_process_id = v1_payloads_olap_cutover_job_offset.lease_process_id THEN EXCLUDED.last_external_id
-        ELSE v1_payloads_olap_cutover_job_offset.last_external_id
-    END,
-
-    lease_process_id = EXCLUDED.lease_process_id,
-    lease_expires_at = EXCLUDED.lease_expires_at
-WHERE v1_payloads_olap_cutover_job_offset.lease_expires_at < NOW() OR v1_payloads_olap_cutover_job_offset.lease_process_id = $1::UUID
-RETURNING key, is_completed, lease_process_id, lease_expires_at, last_external_id
-`
-
-type AcquireOrExtendOLAPCutoverJobLeaseParams struct {
-	Leaseprocessid uuid.UUID          `json:"leaseprocessid"`
-	Key            pgtype.Date        `json:"key"`
-	Leaseexpiresat pgtype.Timestamptz `json:"leaseexpiresat"`
-	Lastexternalid uuid.UUID          `json:"lastexternalid"`
-}
-
-func (q *Queries) AcquireOrExtendOLAPCutoverJobLease(ctx context.Context, db DBTX, arg AcquireOrExtendOLAPCutoverJobLeaseParams) (*V1PayloadsOlapCutoverJobOffset, error) {
-	row := db.QueryRow(ctx, acquireOrExtendOLAPCutoverJobLease,
-		arg.Leaseprocessid,
-		arg.Key,
-		arg.Leaseexpiresat,
-		arg.Lastexternalid,
-	)
-	var i V1PayloadsOlapCutoverJobOffset
-	err := row.Scan(
-		&i.Key,
-		&i.IsCompleted,
-		&i.LeaseProcessID,
-		&i.LeaseExpiresAt,
-		&i.LastExternalID,
-	)
-	return &i, err
-}
-
 const analyzeV1DAGToTaskOLAP = `-- name: AnalyzeV1DAGToTaskOLAP :exec
 ANALYZE v1_dag_to_task_olap
 `
@@ -284,37 +221,6 @@ func (q *Queries) CheckLastAutovacuumForPartitionedTables(ctx context.Context, d
 	return items, nil
 }
 
-const cleanUpOLAPCutoverJobOffsets = `-- name: CleanUpOLAPCutoverJobOffsets :exec
-DELETE FROM v1_payloads_olap_cutover_job_offset
-WHERE NOT key = ANY($1::DATE[])
-`
-
-func (q *Queries) CleanUpOLAPCutoverJobOffsets(ctx context.Context, db DBTX, keystokeep []pgtype.Date) error {
-	_, err := db.Exec(ctx, cleanUpOLAPCutoverJobOffsets, keystokeep)
-	return err
-}
-
-const computeOLAPPayloadBatchSize = `-- name: ComputeOLAPPayloadBatchSize :one
-SELECT compute_olap_payload_batch_size(
-    $1::DATE,
-    $2::UUID,
-    $3::INTEGER
-) AS total_size_bytes
-`
-
-type ComputeOLAPPayloadBatchSizeParams struct {
-	Partitiondate  pgtype.Date `json:"partitiondate"`
-	Lastexternalid uuid.UUID   `json:"lastexternalid"`
-	Batchsize      int32       `json:"batchsize"`
-}
-
-func (q *Queries) ComputeOLAPPayloadBatchSize(ctx context.Context, db DBTX, arg ComputeOLAPPayloadBatchSizeParams) (int64, error) {
-	row := db.QueryRow(ctx, computeOLAPPayloadBatchSize, arg.Partitiondate, arg.Lastexternalid, arg.Batchsize)
-	var total_size_bytes int64
-	err := row.Scan(&total_size_bytes)
-	return total_size_bytes, err
-}
-
 const countEvents = `-- name: CountEvents :one
 WITH included_events AS (
     SELECT e.tenant_id, e.id, e.external_id, e.seen_at, e.key, e.payload, e.additional_metadata, e.scope, e.triggering_webhook_name, e.payload_reference_id
@@ -484,37 +390,6 @@ func (q *Queries) CreateIncomingWebhookValidationFailureLogs(ctx context.Context
 	return err
 }
 
-const createOLAPOffloadedPayloadIndexBlock = `-- name: CreateOLAPOffloadedPayloadIndexBlock :exec
-INSERT INTO v1_payloads_olap_offloaded_block_index (
-    payload_inserted_at_date,
-    block_external_id_range,
-    index_file_key
-)
-VALUES (
-    $1::DATE,
-    uuidrange($2::UUID, $3::UUID, '(]'),
-    $4::TEXT
-)
-ON CONFLICT ON CONSTRAINT v1_payloads_olap_offloaded_block_index_date_range_excl DO NOTHING
-`
-
-type CreateOLAPOffloadedPayloadIndexBlockParams struct {
-	Payloadinsertedatdate     pgtype.Date `json:"payloadinsertedatdate"`
-	Blocklowerexternalidbound uuid.UUID   `json:"blocklowerexternalidbound"`
-	Blockupperexternalidbound uuid.UUID   `json:"blockupperexternalidbound"`
-	Indexfilekey              string      `json:"indexfilekey"`
-}
-
-func (q *Queries) CreateOLAPOffloadedPayloadIndexBlock(ctx context.Context, db DBTX, arg CreateOLAPOffloadedPayloadIndexBlockParams) error {
-	_, err := db.Exec(ctx, createOLAPOffloadedPayloadIndexBlock,
-		arg.Payloadinsertedatdate,
-		arg.Blocklowerexternalidbound,
-		arg.Blockupperexternalidbound,
-		arg.Indexfilekey,
-	)
-	return err
-}
-
 const createOLAPOptionalTablePartitions = `-- name: CreateOLAPOptionalTablePartitions :one
 SELECT
     create_v1_range_partition('v1_events_olap'::text, $1::date) AS v1_events_olap,
@@ -606,61 +481,6 @@ func (q *Queries) CreateOLAPPartitions(ctx context.Context, db DBTX, arg CreateO
 	return &i, err
 }
 
-const createOLAPPayloadRangeChunks = `-- name: CreateOLAPPayloadRangeChunks :many
-WITH chunks AS (
-    SELECT
-        (p).*
-    FROM create_olap_payload_offload_range_chunks(
-        $1::DATE,
-        $2::INTEGER,
-        $3::INTEGER,
-        $4::UUID
-    ) p
-)
-
-SELECT
-    lower_external_id::UUID,
-    upper_external_id::UUID
-FROM chunks
-`
-
-type CreateOLAPPayloadRangeChunksParams struct {
-	Partitiondate  pgtype.Date `json:"partitiondate"`
-	Windowsize     int32       `json:"windowsize"`
-	Chunksize      int32       `json:"chunksize"`
-	Lastexternalid uuid.UUID   `json:"lastexternalid"`
-}
-
-type CreateOLAPPayloadRangeChunksRow struct {
-	LowerExternalID uuid.UUID `json:"lower_external_id"`
-	UpperExternalID uuid.UUID `json:"upper_external_id"`
-}
-
-func (q *Queries) CreateOLAPPayloadRangeChunks(ctx context.Context, db DBTX, arg CreateOLAPPayloadRangeChunksParams) ([]*CreateOLAPPayloadRangeChunksRow, error) {
-	rows, err := db.Query(ctx, createOLAPPayloadRangeChunks,
-		arg.Partitiondate,
-		arg.Windowsize,
-		arg.Chunksize,
-		arg.Lastexternalid,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*CreateOLAPPayloadRangeChunksRow
-	for rows.Next() {
-		var i CreateOLAPPayloadRangeChunksRow
-		if err := rows.Scan(&i.LowerExternalID, &i.UpperExternalID); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 type CreateTaskEventsOLAPParams struct {
 	TenantID               uuid.UUID            `json:"tenant_id"`
 	TaskID                 int64                `json:"task_id"`
@@ -679,25 +499,6 @@ type CreateTaskEventsOLAPParams struct {
 	DurableInvocationCount int32                `json:"durable_invocation_count"`
 	IsDagOrchestrator      bool                 `json:"is_dag_orchestrator"`
 	PayloadReferenceID     *uuid.UUID           `json:"payload_reference_id"`
-}
-
-const createV1PayloadOLAPCutoverTemporaryTable = `-- name: CreateV1PayloadOLAPCutoverTemporaryTable :exec
-SELECT copy_v1_payloads_olap_partition_structure($1::DATE)
-`
-
-func (q *Queries) CreateV1PayloadOLAPCutoverTemporaryTable(ctx context.Context, db DBTX, date pgtype.Date) error {
-	_, err := db.Exec(ctx, createV1PayloadOLAPCutoverTemporaryTable, date)
-	return err
-}
-
-const deleteOldOLAPPayloadOffloadedBlockIndexRows = `-- name: DeleteOldOLAPPayloadOffloadedBlockIndexRows :exec
-DELETE FROM v1_payloads_olap_offloaded_block_index
-WHERE payload_inserted_at_date < $1::DATE
-`
-
-func (q *Queries) DeleteOldOLAPPayloadOffloadedBlockIndexRows(ctx context.Context, db DBTX, before pgtype.Date) error {
-	_, err := db.Exec(ctx, deleteOldOLAPPayloadOffloadedBlockIndexRows, before)
-	return err
 }
 
 const findMinInsertedAtForDAGStatusUpdates = `-- name: FindMinInsertedAtForDAGStatusUpdates :one
@@ -1804,78 +1605,6 @@ func (q *Queries) ListOLAPPartitionsBeforeDate(ctx context.Context, db DBTX, arg
 	return items, nil
 }
 
-const listPaginatedOLAPPayloadsForOffload = `-- name: ListPaginatedOLAPPayloadsForOffload :many
-WITH payloads AS (
-    SELECT
-        (p).*
-    FROM list_paginated_olap_payloads_for_offload(
-        $1::DATE,
-        $2::UUID,
-        $3::UUID,
-        $4::INTEGER
-    ) p
-)
-SELECT
-    tenant_id::UUID,
-    external_id::UUID,
-    location::v1_payload_location_olap,
-    COALESCE(external_location_key, '')::TEXT AS external_location_key,
-    inline_content::JSONB AS inline_content,
-    inserted_at::TIMESTAMPTZ,
-    updated_at::TIMESTAMPTZ
-FROM payloads
-`
-
-type ListPaginatedOLAPPayloadsForOffloadParams struct {
-	Partitiondate  pgtype.Date `json:"partitiondate"`
-	Lastexternalid uuid.UUID   `json:"lastexternalid"`
-	Nextexternalid uuid.UUID   `json:"nextexternalid"`
-	Batchsize      int32       `json:"batchsize"`
-}
-
-type ListPaginatedOLAPPayloadsForOffloadRow struct {
-	TenantID            uuid.UUID             `json:"tenant_id"`
-	ExternalID          uuid.UUID             `json:"external_id"`
-	Location            V1PayloadLocationOlap `json:"location"`
-	ExternalLocationKey string                `json:"external_location_key"`
-	InlineContent       []byte                `json:"inline_content"`
-	InsertedAt          pgtype.Timestamptz    `json:"inserted_at"`
-	UpdatedAt           pgtype.Timestamptz    `json:"updated_at"`
-}
-
-func (q *Queries) ListPaginatedOLAPPayloadsForOffload(ctx context.Context, db DBTX, arg ListPaginatedOLAPPayloadsForOffloadParams) ([]*ListPaginatedOLAPPayloadsForOffloadRow, error) {
-	rows, err := db.Query(ctx, listPaginatedOLAPPayloadsForOffload,
-		arg.Partitiondate,
-		arg.Lastexternalid,
-		arg.Nextexternalid,
-		arg.Batchsize,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*ListPaginatedOLAPPayloadsForOffloadRow
-	for rows.Next() {
-		var i ListPaginatedOLAPPayloadsForOffloadRow
-		if err := rows.Scan(
-			&i.TenantID,
-			&i.ExternalID,
-			&i.Location,
-			&i.ExternalLocationKey,
-			&i.InlineContent,
-			&i.InsertedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listTaskEvents = `-- name: ListTaskEvents :many
 WITH aggregated_events AS (
   SELECT
@@ -2404,17 +2133,6 @@ func (q *Queries) ListYesterdayRunCountsByStatus(ctx context.Context, db DBTX) (
 		return nil, err
 	}
 	return items, nil
-}
-
-const markOLAPCutoverJobAsCompleted = `-- name: MarkOLAPCutoverJobAsCompleted :exec
-UPDATE v1_payloads_olap_cutover_job_offset
-SET is_completed = TRUE
-WHERE key = $1::DATE
-`
-
-func (q *Queries) MarkOLAPCutoverJobAsCompleted(ctx context.Context, db DBTX, key pgtype.Date) error {
-	_, err := db.Exec(ctx, markOLAPCutoverJobAsCompleted, key)
-	return err
 }
 
 const populateDAGMetadata = `-- name: PopulateDAGMetadata :many
@@ -3777,15 +3495,6 @@ type StoreCELEvaluationFailuresParams struct {
 
 func (q *Queries) StoreCELEvaluationFailures(ctx context.Context, db DBTX, arg StoreCELEvaluationFailuresParams) error {
 	_, err := db.Exec(ctx, storeCELEvaluationFailures, arg.Tenantid, arg.Sources, arg.Errors)
-	return err
-}
-
-const swapV1PayloadOLAPPartitionWithTemp = `-- name: SwapV1PayloadOLAPPartitionWithTemp :exec
-SELECT swap_v1_payloads_olap_partition_with_temp($1::DATE)
-`
-
-func (q *Queries) SwapV1PayloadOLAPPartitionWithTemp(ctx context.Context, db DBTX, date pgtype.Date) error {
-	_, err := db.Exec(ctx, swapV1PayloadOLAPPartitionWithTemp, date)
 	return err
 }
 
