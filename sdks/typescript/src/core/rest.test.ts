@@ -77,7 +77,11 @@ describe('core REST base URL', () => {
   it("strips trailing slashes from the token's server_url claim", async () => {
     const api = fakeApi();
     const client = new HatchetCore({
-      token: makeToken({ sub: TENANT_ID, server_url: 'https://app.example.com///' }),
+      token: makeToken({
+        sub: TENANT_ID,
+        server_url: 'https://app.example.com///',
+        grpc_broadcast_address: 'app.example.com:443',
+      }),
       fetch: api.fetch,
     });
 
