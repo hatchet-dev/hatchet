@@ -1654,6 +1654,9 @@ type V1ConcurrencyStrategy struct {
 	// Id The strategy id. Unique within a scope; WORKFLOW ids can collide with SHARED and TASK ids.
 	Id int64 `json:"id"`
 
+	// IsDraining Whether no latest workflow version uses this strategy, and it is only listed because runs of an older version still hold or wait for its slots.
+	IsDraining bool `json:"isDraining"`
+
 	// KeyCount Keys with at least one run running or queued.
 	KeyCount int64 `json:"keyCount"`
 

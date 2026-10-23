@@ -83,6 +83,9 @@ V1ConcurrencyStrategy:
       description: Tasks on their workflow's latest version that use this strategy. Only set for SHARED strategies.
       items:
         $ref: "#/V1ConcurrencyStrategyUsage"
+    isDraining:
+      type: boolean
+      description: Whether no latest workflow version uses this strategy, and it is only listed because runs of an older version still hold or wait for its slots.
     expression:
       type: string
       description: The CEL expression that computes a run's key.
@@ -125,6 +128,7 @@ V1ConcurrencyStrategy:
     - expression
     - limitStrategy
     - maxRuns
+    - isDraining
     - keyCount
     - queuedKeyCount
     - runningCount

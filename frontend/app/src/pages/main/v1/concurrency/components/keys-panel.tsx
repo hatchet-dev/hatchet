@@ -1,5 +1,6 @@
 import { KEYS_PAGE_SIZE, useConcurrencyKeys } from '../hooks/use-concurrency';
 import { formatElapsed, neverQueues } from './concurrency-format';
+import { DrainingBadge } from './draining-badge';
 import { PaginationFooter } from './pagination-footer';
 import { Input } from '@/components/v1/ui/input';
 import { Skeleton } from '@/components/v1/ui/skeleton';
@@ -83,6 +84,7 @@ export function KeysPanel({
             <span className="font-semibold">Keys</span>
             <span className="text-muted-foreground">in</span>
             <span className="font-medium">{strategy.name}</span>
+            {strategy.isDraining && <DrainingBadge />}
             <span className="font-mono text-xs text-indigo-900 dark:text-indigo-300">
               {strategy.expression}
             </span>

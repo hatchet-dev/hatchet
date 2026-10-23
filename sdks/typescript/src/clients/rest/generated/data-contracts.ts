@@ -1171,6 +1171,8 @@ export interface V1ConcurrencyStrategy {
   taskName?: string;
   /** Tasks on their workflow's latest version that use this strategy. Only set for SHARED strategies. */
   usedBy?: V1ConcurrencyStrategyUsage[];
+  /** Whether no latest workflow version uses this strategy, and it is only listed because runs of an older version still hold or wait for its slots. */
+  isDraining: boolean;
   /** The CEL expression that computes a run's key. */
   expression: string;
   /** What happens to a run when its key has no free slot. NONE is the database default and is not set on registered strategies. */
