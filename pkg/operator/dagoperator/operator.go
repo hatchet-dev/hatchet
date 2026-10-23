@@ -409,9 +409,8 @@ func (d *DAGOperator) run(action *contracts.AssignedAction) error {
 
 			return nil
 		}
-		var cancelledErr *dagCancelledError
-		if errors.As(dagErr, &cancelledErr) {
-			return d.cancelDAG(span, action, cancelledErr.Error())
+		if isDagCancelledErr(dagErr) {
+			return d.cancelDAG(span, action, repository.TaskCancelledErrorMessage)
 		}
 		if errors.Is(dagErr, context.Canceled) {
 			return d.handleRunCancellation(span, action, tasks, dagErr)
@@ -579,7 +578,7 @@ func (d *DAGOperator) fail(span trace.Span, action *contracts.AssignedAction, er
 	clientErrorMessage := fmt.Sprintf("internal error while orchestrating the dag run (task run %s)", action.TaskRunExternalId)
 
 	if userFacingMessage, ok := clientErrorMessageForDagErr(err); ok {
-		clientErrorMessage = "dag failed: " + userFacingMessage
+		clientErrorMessage = userFacingMessage
 	} else {
 		d.Logger().Error().Err(err).
 			Str("task_run_external_id", action.TaskRunExternalId).
