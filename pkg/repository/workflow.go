@@ -849,14 +849,10 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId uu
 }
 
 // mergeWorkflowConcurrencyOntoSingleTask moves workflow-level concurrency onto the
-// sole DEFAULT task when the workflow is a single-task DAG (one task, no on-failure)
-// on the legacy (non-DAG-operator) path. Workflow concurrency would otherwise create a
-// parent strategy and force the slow DAG concurrency path.
-//
-// This is only safe without the DAG operator: a task-level slot is released while a
-// failed task waits out its retry backoff, so another run with the same key can start
-// in between retries. With the DAG operator, workflow concurrency lives on the
-// orchestrator instead, which holds the slot for the whole run.
+// sole DEFAULT task when the workflow is a single-task DAG (one task, no on-failure).
+// Workflow concurrency creates a parent strategy that forces the DAG concurrency path;
+// a one-task workflow is a standalone task, so those strategies belong on the task
+// (workflow strategies first, then any existing task strategies).
 func mergeWorkflowConcurrencyOntoSingleTask(opts *CreateWorkflowVersionOpts) {
 	if opts == nil || len(opts.Concurrency) == 0 {
 		return
@@ -884,17 +880,16 @@ func mergeWorkflowConcurrencyOntoOrchestrator(opts *CreateWorkflowVersionOpts, o
 func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sqlcv1.DBTX, tenantId, workflowId uuid.UUID, opts *CreateWorkflowVersionOpts, oldWorkflowVersion *sqlcv1.GetWorkflowVersionForEngineRow) (*uuid.UUID, error) {
 	workflowVersionId := uuid.New()
 
+	mergeWorkflowConcurrencyOntoSingleTask(opts)
+
 	dagOperatorEnabled, err := r.isDagOperatorEnabled(ctx, tx, tenantId)
 
 	if err != nil {
 		return nil, err
 	}
 
-	isUsingDagOperator := dagOperatorEnabled && (len(opts.Tasks) > 1 || opts.OnFailure != nil || len(opts.Concurrency) > 0)
-
-	if !isUsingDagOperator {
-		mergeWorkflowConcurrencyOntoSingleTask(opts)
-	}
+	// todo: maybe don't need `len` check here?
+	isUsingDagOperator := dagOperatorEnabled && (len(opts.Tasks) > 1 || opts.OnFailure != nil)
 
 	if isUsingDagOperator {
 		var retentionPeriod *string
