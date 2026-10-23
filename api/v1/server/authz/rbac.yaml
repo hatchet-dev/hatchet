@@ -135,6 +135,8 @@ roles:
       - UserUpdateGithubOauthStart
       - V1WebhookList
       - V1FilterList
+      - V1ConcurrencyStrategyList
+      - V1ConcurrencyKeyList
       - TenantGetStepRunQueueMetrics
       - UserUpdateLogin
       - V1FilterGet

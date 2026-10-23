@@ -9,6 +9,7 @@ import {
   RiWebhookLine,
   RiCpuLine,
   RiEqualizer3Line,
+  RiLock2Line,
   RiFunctionLine,
   RiPlayLargeLine,
   RiFileTextLine,
@@ -229,6 +230,16 @@ export function sideNavItems(opts: {
           to: appRoutes.tenantRateLimitsRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
             <RiEqualizer3Line
+              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
+            />
+          ),
+        },
+        {
+          key: 'concurrency',
+          name: 'Concurrency',
+          to: appRoutes.tenantConcurrencyRoute.to,
+          icon: ({ collapsed }: { collapsed: boolean }) => (
+            <RiLock2Line
               className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
             />
           ),
