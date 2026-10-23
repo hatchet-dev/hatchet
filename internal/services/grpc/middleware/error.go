@@ -9,12 +9,15 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/jackc/pgx/v5"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/pkg/errors"
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 )
 
 // expectedStatus maps known, non-internal errors to their canonical codes.
@@ -38,6 +41,19 @@ func expectedStatus(ctx context.Context, err error) error {
 		// A missing row is a client-visible miss (task already complete, webhook
 		// deleted, etc.), not an engine failure.
 		return connect.NewError(connect.CodeNotFound, goerrors.New("not found"))
+	}
+
+	// The connection cap is throttling, so it maps to ResourceExhausted. The RetryInfo detail
+	// marks it as transient, which tells it apart from a tenant quota of the same code.
+	var limitErr *fairpool.LimitError
+	if goerrors.As(err, &limitErr) {
+		throttled := connect.NewError(connect.CodeResourceExhausted, goerrors.New("resource exhausted: too many concurrent database operations for this tenant, retry shortly"))
+
+		if detail, detailErr := connect.NewErrorDetail(&errdetails.RetryInfo{RetryDelay: durationpb.New(fairpool.RetryAfter)}); detailErr == nil {
+			throttled.AddDetail(detail)
+		}
+
+		return throttled
 	}
 
 	// Extensions built against google.golang.org/grpc return status errors; keep

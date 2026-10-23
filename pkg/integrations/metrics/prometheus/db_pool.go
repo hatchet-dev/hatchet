@@ -28,4 +28,11 @@ var (
 		Name: "hatchet_fairpool_held_connections",
 		Help: "Database connections currently held by a fairpool bucket",
 	}, []string{"pool", "tenant_id"})
+
+	// FairpoolConnectionLimit is the cap of a bucket that has one. For bucket "tenant" the cap applies
+	// to each tenant separately.
+	FairpoolConnectionLimit = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "hatchet_fairpool_connection_limit",
+		Help: "Database checkouts a fairpool bucket may have in flight at once",
+	}, []string{"pool", "bucket"})
 )

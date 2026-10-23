@@ -106,7 +106,9 @@ func (c *ChildWorkflowSignalCreatedData) Bytes() []byte {
 // GenerateExternalIdsForWorkflow generates external ids and additional looks up child workflows and whether they
 // already exist.
 func (s *sharedRepository) PopulateExternalIdsForWorkflow(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) error {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l)
+	db := s.pool.ForTenant(tenantId)
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, db, s.l)
 
 	if err != nil {
 		return err

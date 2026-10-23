@@ -524,6 +524,27 @@ func (q *Queries) GetActiveWorkerById(ctx context.Context, db DBTX, arg GetActiv
 	return &i, err
 }
 
+const getTotalActiveSlotsForTenant = `-- name: GetTotalActiveSlotsForTenant :one
+SELECT
+    COALESCE(SUM(wc.max_units), 0)::bigint AS "totalActiveSlots"
+FROM v1_worker_slot_config wc
+JOIN "Worker" w ON w."id" = wc.worker_id AND w."tenantId" = wc.tenant_id
+WHERE
+    wc.tenant_id = $1::uuid
+    AND w."dispatcherId" IS NOT NULL
+    AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND w."isActive" = true
+    AND w."isPaused" = false
+    AND NOT w."isExemptFromLimits"
+`
+
+func (q *Queries) GetTotalActiveSlotsForTenant(ctx context.Context, db DBTX, tenantid uuid.UUID) (int64, error) {
+	row := db.QueryRow(ctx, getTotalActiveSlotsForTenant, tenantid)
+	var totalActiveSlots int64
+	err := row.Scan(&totalActiveSlots)
+	return totalActiveSlots, err
+}
+
 const getWorkerActionsByWorkerActionHash = `-- name: GetWorkerActionsByWorkerActionHash :many
 SELECT
     rep.action_hash,

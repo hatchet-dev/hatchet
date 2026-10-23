@@ -65,7 +65,7 @@ func (t *WorkflowService) applyPauseWorkflowRequest(ctx context.Context, tenantI
 			return nil, fmt.Errorf("failed to parse pause request: %w", err)
 		}
 
-		result, err = t.config.V1.Workflows().PauseWorkflow(ctx, workflowId, repository.PauseWorkflowOpts{
+		result, err = t.config.V1.Workflows().PauseWorkflow(ctx, tenantId, workflowId, repository.PauseWorkflowOpts{
 			CronRunQueueBehavior:      repository.WorkflowPauseScheduledCronRunQueueBehavior(pauseRequest.PausedWorkflowCronRunQueueBehavior),
 			ScheduledRunQueueBehavior: repository.WorkflowPauseScheduledCronRunQueueBehavior(pauseRequest.PausedWorkflowScheduledRunQueueBehavior),
 			QueueTTL:                  pauseRequest.PausedWorkflowQueueTTL,
@@ -75,7 +75,7 @@ func (t *WorkflowService) applyPauseWorkflowRequest(ctx context.Context, tenantI
 			return nil, fmt.Errorf("failed to pause workflow: %w", err)
 		}
 	} else {
-		result, err = t.config.V1.Workflows().UnpauseWorkflow(ctx, workflowId)
+		result, err = t.config.V1.Workflows().UnpauseWorkflow(ctx, tenantId, workflowId)
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to unpause workflow: %w", err)

@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
@@ -26,7 +27,7 @@ func createStreamsRepository(t *testing.T, pool *pgxpool.Pool) *streamsRepositor
 
 	return &streamsRepositoryImpl{
 		sharedRepository: &sharedRepository{
-			pool:    pool,
+			pool:    fairpool.Ungated(pool),
 			ddlPool: pool,
 			v:       validator.NewDefaultValidator(),
 			l:       &logger,

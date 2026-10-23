@@ -87,7 +87,7 @@ type WorkerStore interface {
 	ActivateWorkerListener(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, sessionId uuid.UUID) (*sqlcv1.Worker, error)
 	DeactivateWorkerListener(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, sessionId uuid.UUID) (*sqlcv1.Worker, error)
 	UpdateWorkerHeartbeat(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, lastHeartbeatAt time.Time) error
-	UpsertWorkerLabels(ctx context.Context, workerId uuid.UUID, opts []repository.UpsertWorkerLabelOpts) ([]*sqlcv1.WorkerLabel, error)
+	UpsertWorkerLabels(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, opts []repository.UpsertWorkerLabelOpts) ([]*sqlcv1.WorkerLabel, error)
 	PauseWorkerForListener(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, sessionId uuid.UUID, paused bool) error
 	ApplyWorkerActionsDelta(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, add, remove []string, maxOperatorLinks int64) (added, removed int, err error)
 	RefreshWorkerActionHash(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) error
