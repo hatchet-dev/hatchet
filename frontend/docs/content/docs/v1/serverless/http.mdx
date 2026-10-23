@@ -1,0 +1,157 @@
+---
+title: HTTP Contract
+description: The requests Hatchet sends to a serverless endpoint and the responses it expects, for building an endpoint on any platform or in any language.
+---
+
+import { Callout } from "@/components/nextra-compat";
+
+# HTTP Contract
+
+A [serverless endpoint](/v1/serverless) is two HTTPS routes that Hatchet calls: a healthcheck and a trigger. `@hatchet-dev/serverless` implements both for [Cloudflare Workers](/v1/serverless/cloudflare-workers), [Vercel](/v1/serverless/vercel) and Node servers. This page describes the contract itself, so you can serve an endpoint from another language or platform, or know what the package does on your behalf.
+
+An endpoint that implements only what's on this page serves tasks that are functions of their input: Hatchet delivers each one as a signed `POST` and reads the response as the task's output. Durable tasks, and tasks that wait for child runs or read streams while they run, are invoked over a websocket with a frame protocol that the TypeScript package implements. An endpoint without it reports `durable: { "supported": false }` and lists no `tasks`, and Hatchet delivers every task as a `POST`.
+
+## Routes
+
+You choose both URLs when you [register the endpoint](/v1/serverless/managing-endpoints). Both must be `https` at a public address on port 443; Hatchet doesn't follow redirects.
+
+| Route           | Method | Called when                                                              |
+| --------------- | ------ | ------------------------------------------------------------------------ |
+| Healthcheck URL | `POST` | Every poll interval (30 seconds by default), to discover what you serve. |
+| Trigger URL     | `POST` | A task is assigned to the endpoint.                                      |
+
+## Verifying requests
+
+Every request carries three headers:
+
+| Header                  | Value                                                                                          |
+| ----------------------- | ---------------------------------------------------------------------------------------------- |
+| `X-Hatchet-Signature`   | The hex-encoded HMAC-SHA256 of the raw request body, keyed with the endpoint's signing secret. |
+| `X-Hatchet-Timestamp`   | When the request was built, in Unix seconds. The same value is inside the signed body.         |
+| `X-Hatchet-Endpoint-Id` | The id of the endpoint the request is for.                                                     |
+
+Verify before doing any work, in this order:
+
+1. Compute the HMAC-SHA256 of the raw body (the bytes as received, before any JSON parsing) with the signing secret, and compare it with the header in constant time. Reject with `401` on a mismatch.
+2. Check `timestampUnixSeconds` in the body against your clock. Reject a value more than 5 minutes away in either direction, so a captured request can't be replayed later.
+3. If you know your endpoint's id, compare it with `endpointId` in the body. Reject with `403` on a mismatch, so a request signed for another endpoint that shares the secret can't be presented to this one.
+
+```ts
+import { createHmac, timingSafeEqual } from "node:crypto";
+
+function verify(rawBody: string, signature: string, secret: string): boolean {
+  const expected = createHmac("sha256", secret).update(rawBody).digest("hex");
+  return (
+    expected.length === signature.length &&
+    timingSafeEqual(Buffer.from(expected), Buffer.from(signature))
+  );
+}
+```
+
+Within the 5 minute window a delivery may be repeated, for example after a timeout. Key side effects on `endpointId`, `taskRunExternalId` and `retryCount` together, so a repeated delivery of the same attempt is idempotent.
+
+## Healthcheck
+
+Hatchet sends:
+
+```json
+{ "endpointId": "0f7a…", "timestampUnixSeconds": 1761235200 }
+```
+
+The endpoint answers `200` with the workflows it serves. The definitions use the same format a worker registers with, so every engine-side option (retries, timeouts, rate limits, concurrency, triggers, DAG parents, conditions) is available:
+
+```json
+{
+  "workflows": [
+    {
+      "name": "echo",
+      "tasks": [{ "readableId": "echo", "action": "echo:echo", "retries": 3 }]
+    },
+    {
+      "name": "pipeline",
+      "tasks": [
+        { "readableId": "fetch", "action": "pipeline:fetch" },
+        {
+          "readableId": "summarize",
+          "action": "pipeline:summarize",
+          "parents": ["fetch"]
+        }
+      ]
+    }
+  ],
+  "durable": { "supported": false },
+  "runtime": { "name": "python", "sdkVersion": "1.0.0" }
+}
+```
+
+| Field       | Description                                                                                                                                                                                                                                                                                                                          |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `workflows` | The workflow definitions, each with a `name` and its `tasks`. A task's `action` is `<workflow>:<task>` and is what the trigger request names. The full schema is `CreateWorkflowVersionRequest` in [`api-contracts/v1/workflows.proto`](https://github.com/hatchet-dev/hatchet/blob/main/api-contracts/v1/workflows.proto), as JSON. |
+| `actions`   | Optional. When present and non-empty, the exact set of action ids this endpoint serves, for an endpoint that serves only some tasks of a workflow it declares. When empty or absent, every task of every workflow.                                                                                                                   |
+| `durable`   | `{ "supported": true }` only for an endpoint that implements the websocket protocol. Hatchet never assigns durable tasks to an endpoint that reports `false`.                                                                                                                                                                        |
+| `tasks`     | Optional, per-task options. `{ "action": "…", "streams": true }` asks for that task to be invoked over the websocket instead of a `POST`. Leave it out without the websocket protocol.                                                                                                                                               |
+| `runtime`   | Optional. The platform and SDK, shown on the endpoint in the dashboard.                                                                                                                                                                                                                                                              |
+
+Hatchet registers the workflows whenever their definitions change and ignores unknown fields. By default one healthcheck may declare at most 200 workflows and 500 actions, and must answer within 10 seconds. Two endpoints of one tenant may declare the same workflow; both then serve it, like two workers.
+
+## Trigger
+
+Hatchet sends the task in an envelope:
+
+```json
+{
+  "endpointId": "0f7a…",
+  "timestampUnixSeconds": 1761235200,
+  "version": 1,
+  "action": {
+    "tenantId": "…",
+    "workflowRunId": "…",
+    "taskRunExternalId": "…",
+    "actionId": "echo:echo",
+    "actionType": "START_STEP_RUN",
+    "actionPayload": "{\"input\":{\"message\":\"hello\"},\"parents\":{},\"triggered_by\":\"manual\"}",
+    "taskName": "echo",
+    "retryCount": 0,
+    "jobId": "…",
+    "jobName": "echo",
+    "jobRunId": "…",
+    "taskId": "…"
+  }
+}
+```
+
+`action.actionId` names the task to run. `action.actionPayload` is a JSON string whose `input` is the task's input and whose `parents` holds the outputs of the task's DAG parents by task name. `retryCount` is 0 on the first attempt.
+
+The response is read as the task's result:
+
+| Response                           | Outcome                                                                                               |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `200` with a JSON body             | The task completed; the body is its output.                                                           |
+| `204`, or `200` with an empty body | The task completed with no output.                                                                    |
+| `2xx` with a non-JSON body         | The task failed, not retried.                                                                         |
+| `3xx`                              | The task failed, not retried. Redirects aren't followed.                                              |
+| `4xx`                              | The task failed, not retried, except `408`, `425` and `429`, which are retried.                       |
+| `5xx`                              | The task failed and is retried under its [retry policy](/v1/retry-policies).                          |
+| No response within the timeout     | The task failed and is retried. The endpoint's request timeout is 60 seconds by default, 600 at most. |
+
+On any non-`2xx` response, a body of the form `{ "error": "…", "retry": false }` overrides both: `error` becomes the task's error message and `retry` decides whether it's retried. Use it to fail a task permanently from a `500`, or to ask for a retry from a `4xx`.
+
+A response body over 4 MiB fails the task without a retry. Cancelling a run closes the connection; if your platform exposes the request's abort signal, stop the work when it fires.
+
+## Node servers
+
+For a Node process you run yourself, a container or a custom server, `@hatchet-dev/serverless/node` implements the full contract, including the websocket:
+
+```ts
+import { createServer } from "@hatchet-dev/serverless/node";
+import { workflows } from "./tasks";
+
+createServer({ workflows }).listen(3000); // POST /hatchet/healthcheck, /hatchet/trigger and the upgrade
+```
+
+`nodeHandler({ workflows })` is the same endpoint as an `http` request listener for a server you already have, usable as Express middleware. The websocket needs the `ws` package; without it the server reports that it doesn't serve durable tasks and Hatchet delivers pure tasks only. The server reads `HATCHET_SIGNING_SECRET`, `HATCHET_CLIENT_TOKEN` and the optional `HATCHET_ENDPOINT_ID` from the environment and takes the same options as the [Vercel adapter](/v1/serverless/vercel#options).
+
+<Callout type="info">
+  Hatchet reaches the server over public HTTPS on port 443, so put it behind a
+  TLS-terminating proxy or load balancer and register that address.
+</Callout>

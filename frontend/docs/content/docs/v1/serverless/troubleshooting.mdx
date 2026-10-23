@@ -1,0 +1,100 @@
+---
+title: Troubleshooting
+description: Endpoint statuses, healthcheck errors and delivery failures, and where to look for each.
+---
+
+import { Callout } from "@/components/nextra-compat";
+
+# Troubleshooting Serverless Endpoints
+
+Start on the endpoint's page in the dashboard. Its status shows whether Hatchet can reach the endpoint and what it registered, and the status error says why the last healthcheck failed. For a task that failed, the run's error message in the dashboard says what the endpoint answered. Your platform's logs (`wrangler tail` on Cloudflare, the deployment's logs on Vercel) show what your code did.
+
+## Endpoint status
+
+| Status                            | Meaning                                                                                                               |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| **Healthy**                       | The last healthcheck succeeded and its workflows were registered.                                                     |
+| **Unhealthy**                     | Three healthchecks in a row failed, or Hatchet refused the endpoint's workflows. The status error says why.           |
+| **Waiting for first healthcheck** | Hatchet hasn't finished polling the endpoint yet. This should clear within one poll interval (30 seconds by default). |
+| **Disabled**                      | The endpoint is disabled, so Hatchet neither polls it nor delivers to it.                                             |
+
+One successful healthcheck makes an unhealthy endpoint healthy again. Health only reflects healthchecks: failed task deliveries don't change it.
+
+An unhealthy endpoint still receives tasks when no healthy endpoint serves the same action, so a stale status never strands a task. When a healthy endpoint does serve it, the unhealthy one gets none.
+
+An endpoint that stays **Waiting for first healthcheck** for more than a few poll intervals, or the status error `no token for tenant`, is a problem on the Hatchet side, not with your endpoint. On Hatchet Cloud, contact support. On a self-hosted instance, serverless endpoints are off by default: the engine runs them when `SERVER_SERVERLESS_OPERATOR_ENABLED` is `true`, and only for tenants they're enabled for.
+
+## Healthcheck errors
+
+The status error starts with one of these.
+
+### `healthcheck request failed`
+
+No HTTP response came back. The rest of the message names the cause:
+
+- **DNS.** The hostname doesn't resolve. Check the URL for typos and that the deployment exists.
+- **TLS.** The host doesn't serve a valid, publicly trusted certificate. A new custom domain may not have one yet.
+- **Connection.** The connection was refused or dropped. Make sure the deployment is running and serves HTTPS on port 443.
+- **Timeout.** The endpoint didn't answer within 10 seconds. Keep the healthcheck fast, and avoid slow work at cold start.
+- **Blocked destination.** The URL isn't `https`, names a port other than 443, or resolves to a loopback or private address. Hatchet refuses these. For local development, use a public HTTPS tunnel.
+
+### `healthcheck returned status …`
+
+The endpoint answered with a status outside `2xx`:
+
+- **`401` or `403`.** The signature check failed or something in front of the endpoint refused the request:
+  - The endpoint's signing secret doesn't match the one registered in Hatchet. If you aren't sure, rotate it and set the new value on both sides.
+  - The endpoint's clock is more than 5 minutes off.
+  - Cloudflare Access, WAF or bot rules, or Vercel Deployment Protection, answered before your code ran. See the [Cloudflare](/v1/serverless/cloudflare-workers#platform-notes) and [Vercel](/v1/serverless/vercel#platform-notes) notes.
+- **`404` or `405`.** The host answered, but no Hatchet handler runs at that path or for `POST`. Check the healthcheck URL against the routes your handler serves.
+- **`3xx`.** Hatchet doesn't follow redirects. Register the final URL, for example with or without a trailing slash, or on the canonical domain.
+- **`5xx`.** The handler crashed or the platform failed. Check the platform's logs.
+
+### `could not parse healthcheck response`
+
+The endpoint answered `2xx`, but the body isn't a healthcheck response. This is typically an HTML page, an empty body, or JSON with fields of the wrong type. See the [HTTP contract](/v1/serverless/http#healthcheck) for the expected shape.
+
+Unknown fields are ignored rather than rejected. A misspelt `workflows` field therefore doesn't fail here: the endpoint turns healthy with no actions. If an endpoint is healthy but registered nothing, check the field names.
+
+### `healthcheck advertises …`
+
+The response parsed, but what it declares was refused:
+
+- More than 200 workflows or 500 actions (the default limits).
+- An action id that's empty, isn't valid UTF-8, contains a control character, or is longer than 1024 bytes.
+- A `tasks` entry that names an action the endpoint doesn't serve.
+
+### `engine rejected workflow …`
+
+A workflow definition was refused, for example because a task's action id or a parent reference is invalid. The endpoint turns unhealthy right away. Hatchet retries the same definitions with a growing backoff, and tries changed definitions on the next poll, so fixing the declaration and redeploying is enough.
+
+## Delivery failures
+
+A failed task delivery fails the task run with an error message that says why. The task's [retry policy](/v1/retry-policies) applies only to failures Hatchet marks retryable. See the full [status mapping](/v1/serverless/http#trigger).
+
+| Task error                                                          | Cause                                                                                                                    |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `request timed out after …`                                         | The endpoint didn't answer within its request timeout. Raise it (up to 600s), within your platform's own limit. Retried. |
+| `endpoint returned status 5xx …`                                    | The handler failed. Retried.                                                                                             |
+| `endpoint returned status 4xx …`                                    | The endpoint refused the task. Not retried, except `408`, `425` and `429`.                                               |
+| `endpoint returned redirect status 3xx; redirects are not followed` | The trigger URL redirects. Register the final URL.                                                                       |
+| `endpoint returned status 2xx with a non-JSON body`                 | A `2xx` response must be JSON (or empty). Not retried.                                                                   |
+| `response body exceeded the 4 MiB limit`                            | The output is too large. Not retried.                                                                                    |
+| `request failed: …`                                                 | A connection or TLS error. Retried.                                                                                      |
+| Your own message                                                    | The endpoint answered with `{"error": "...", "retry": ...}`.                                                             |
+
+Endpoints built with `@hatchet-dev/serverless` answer with their own messages for the common cases:
+
+| Task error                                         | Cause                                                                                                                                                                                                                  |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bad signature`, or a timestamp outside the window | The signing secret on the endpoint doesn't match Hatchet's, or the clocks differ by more than 5 minutes. Not retried.                                                                                                  |
+| `… configure \`client\` to enable this`            | The task called `ctx.runChild`, `ctx.putStream` or another member that needs a Hatchet client, and the endpoint has no `HATCHET_CLIENT_TOKEN`. Not retried.                                                            |
+| `… invoked over a POST`                            | The task waited for a child run or read a stream, but was delivered as a `POST` because the endpoint doesn't accept the websocket. On Vercel, see [platform notes](/v1/serverless/vercel#platform-notes). Not retried. |
+| `this endpoint does not serve durable tasks`       | A websocket upgrade reached an endpoint that can't accept it: no `@vercel/functions` and `ws`, no Fluid compute, or `durable: false`. Not retried.                                                                     |
+| `nondeterminism …`                                 | A durable task replayed differently from its recorded log after an eviction. The task must be deterministic. Not retried.                                                                                              |
+
+<Callout type="info">
+  A task's output and a child's awaited result are both capped at 4 MiB. A task
+  that produces more fails without a retry; keep large results in your own
+  storage and return a reference.
+</Callout>
