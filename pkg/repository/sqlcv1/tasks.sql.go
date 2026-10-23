@@ -3444,8 +3444,7 @@ WITH input AS (
     SELECT
         unnest($2::bigint[]) AS task_id,
         unnest($3::timestamptz[]) AS task_inserted_at,
-        unnest($4::integer[]) AS retry_count,
-        unnest($5::uuid[]) AS worker_id
+        unnest($4::integer[]) AS retry_count
 )
 
 UPDATE v1_task_runtime
@@ -3453,8 +3452,8 @@ SET acked_at = NOW()
 WHERE
     tenant_id = $1::uuid
     AND acked_at IS NULL
-    AND (task_id, task_inserted_at, retry_count, worker_id) IN (
-        SELECT task_id, task_inserted_at, retry_count, worker_id
+    AND (task_id, task_inserted_at, retry_count) IN (
+        SELECT task_id, task_inserted_at, retry_count
         FROM input
     )
 `
@@ -3464,7 +3463,6 @@ type MarkTaskRuntimesAckedParams struct {
 	Taskids         []int64              `json:"taskids"`
 	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
 	Retrycounts     []int32              `json:"retrycounts"`
-	Workerids       []uuid.UUID          `json:"workerids"`
 }
 
 func (q *Queries) MarkTaskRuntimesAcked(ctx context.Context, db DBTX, arg MarkTaskRuntimesAckedParams) error {
@@ -3473,7 +3471,6 @@ func (q *Queries) MarkTaskRuntimesAcked(ctx context.Context, db DBTX, arg MarkTa
 		arg.Taskids,
 		arg.Taskinsertedats,
 		arg.Retrycounts,
-		arg.Workerids,
 	)
 	return err
 }
