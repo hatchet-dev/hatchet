@@ -85,7 +85,8 @@ func newRateLimitRepository(shared *sharedRepository) *rateLimitRepository {
 }
 
 func (r *rateLimitRepository) FlushRateLimits(ctx context.Context, tenantId uuid.UUID, usage map[string]int, definitions map[string]RateLimitDefinition) ([]*sqlcv1.ListRateLimitsForTenantWithMutateRow, *time.Time, error) {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool.ForTenant(tenantId), r.l)
+	// optimistic scheduling calls this while its transaction holds one of the tenant's slots
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool.ForShared(), r.l)
 
 	if err != nil {
 		return nil, nil, err
