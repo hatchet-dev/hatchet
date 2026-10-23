@@ -8,11 +8,14 @@ on:
       - "internal/**"
       - "pkg/**"
       - "sdks/typescript/**"
+      - "sdks/typescript-serverless/**"
+      - "examples/serverless/cloudflare-workers/**"
   push:
     branches:
       - main
     paths:
       - "sdks/typescript/**"
+      - "sdks/typescript-serverless/**"
 defaults:
   run:
     working-directory: ./sdks/typescript
@@ -327,6 +330,61 @@ jobs:
           name: sdk-typescript-api-logs-${{ matrix.package-manager }}
           path: api.log
 
+  serverless:
+    # @hatchet-dev/serverless links the SDK from its build output, so the SDK is built first.
+    runs-on: ubicloud-standard-4
+    defaults:
+      run:
+        working-directory: ./sdks/typescript-serverless
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install pnpm
+        run: npm install -g pnpm@10.16.1
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('sdks/typescript/pnpm-lock.yaml', 'sdks/typescript-serverless/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Build the SDK dist the package links
+        working-directory: ./sdks/typescript
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm tsc:build
+          pnpm prepublish
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Type check
+        run: pnpm typecheck
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Build and check the runtime entries are free of Node imports
+        run: pnpm check:edge
+
+      - name: Type check and bundle the Cloudflare example
+        working-directory: ./examples/serverless/cloudflare-workers
+        run: |
+          pnpm install
+          pnpm exec tsc --noEmit
+          pnpm exec wrangler deploy --dry-run --outdir dist
+
   publish:
     runs-on: ubicloud-standard-4
     needs: [lint, test-unit, test-e2e]
@@ -397,6 +455,96 @@ jobs:
           gh release create "ts/${VERSION_TAG}" \
             --target "$GITHUB_SHA" \
             --title "Typescript SDK ${VERSION_TAG}" \
+            --notes-file ./release_notes.md \
+            --latest=false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-serverless:
+    # @hatchet-dev/serverless declares the SDK as a peer, so it publishes after the SDK's own
+    # publish job (which exits early when the SDK version is unchanged) and only when its version
+    # is not on npm yet.
+    runs-on: ubicloud-standard-4
+    needs: [serverless, publish]
+    if: github.ref == 'refs/heads/main'
+    defaults:
+      run:
+        working-directory: ./sdks/typescript-serverless
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          check-latest: true
+          node-version: "24.x"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install pnpm
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" npm install -g pnpm@10.16.1
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('sdks/typescript/pnpm-lock.yaml', 'sdks/typescript-serverless/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Build the SDK dist the package links
+        working-directory: ./sdks/typescript
+        run: |
+          sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" pnpm install --frozen-lockfile
+          pnpm tsc:build
+          pnpm prepublish
+
+      - name: Install dependencies
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" pnpm install --frozen-lockfile
+
+      - name: Build and publish the package
+        run: |
+          VERSION=$(jq -r '.version' package.json)
+
+          # The exact version, not the `latest` tag: an alpha published under its own tag or
+          # a `latest` that moved on must not trigger a republish. A registry or auth failure
+          # fails the job instead of passing for "not published".
+          if LOOKUP=$(pnpm view "@hatchet-dev/serverless@$VERSION" version 2>&1); then
+            echo "Version $VERSION is already published ($LOOKUP). Skipping publish."
+            exit 0
+          elif ! grep -q "E404" <<<"$LOOKUP"; then
+            echo "Could not check npm for @hatchet-dev/serverless@$VERSION:"
+            echo "$LOOKUP"
+            exit 1
+          fi
+
+          if [[ "$VERSION" == *alpha* ]]; then
+            pnpm publish:ci:alpha
+          else
+            pnpm publish:ci
+          fi
+          echo "VERSION_TAG=$VERSION" >> $GITHUB_ENV
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: "Generate release notes"
+        if: env.VERSION_TAG != ''
+        working-directory: ${{ github.workspace }}
+        run: ./hack/ci/release-notes.sh serverless > ./release_notes.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "Release"
+        if: env.VERSION_TAG != ''
+        working-directory: ${{ github.workspace }}
+        run: |
+          gh release create "serverless/${VERSION_TAG}" \
+            --target "$GITHUB_SHA" \
+            --title "Serverless package ${VERSION_TAG}" \
             --notes-file ./release_notes.md \
             --latest=false
         env:

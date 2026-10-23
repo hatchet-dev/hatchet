@@ -1,0 +1,302 @@
+---
+title: Managing Endpoints
+description: Create, update, check and delete serverless endpoints from the dashboard, the REST API or the Python, TypeScript, Go and Ruby SDKs.
+---
+
+import { Callout, Tabs } from "@/components/nextra-compat";
+import UniversalTabs from "@/components/UniversalTabs";
+
+# Managing Endpoints
+
+You can manage serverless endpoints from the dashboard's **Endpoints** page, the REST API, or the REST client generated into each SDK.
+
+## In the dashboard
+
+Open **Endpoints** in the sidebar.
+
+- **Create** an endpoint by choosing a platform. For Cloudflare Workers and Vercel, enter the deployment's base URL and the dashboard fills in the healthcheck and trigger URLs. The dialog can also generate a signing secret, which you then set on the endpoint.
+- **Edit** an endpoint to change its URLs or settings, or to rotate its signing secret.
+- **Disable** an endpoint to stop Hatchet from polling it or delivering to it without deleting it. **Enable** turns it back on.
+- **Delete** an endpoint to remove it.
+- Open an endpoint to see its status, the actions it registered, and its **Events**. See [Troubleshooting](/v1/serverless/troubleshooting).
+
+## Endpoint fields
+
+| Field                   | Required | Default              | Description                                                                                                                                        |
+| ----------------------- | -------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`                  | Yes      |                      | Unique within the tenant.                                                                                                                          |
+| `kind`                  | No       | `CLOUDFLARE_WORKERS` | `GENERIC_HTTP`, `CLOUDFLARE_WORKERS` or `VERCEL`. The platform the endpoint runs on. The dashboard uses it for setup and diagnosis. Always set it. |
+| `healthcheckUrl`        | Yes      |                      | The `https` URL Hatchet polls to discover the endpoint's workflows. Port 443 only.                                                                 |
+| `triggerUrl`            | Yes      |                      | The `https` URL tasks are delivered to. Port 443 only.                                                                                             |
+| `signingSecret`         | Yes      |                      | At least 32 characters. Stored encrypted and never returned by the API.                                                                            |
+| `requestTimeoutSeconds` | No       | `60`                 | How long one trigger request may take, from 1 to 600 seconds.                                                                                      |
+| `pollIntervalSeconds`   | No       | `30`                 | How often the healthcheck URL is polled, from 5 to 3600 seconds.                                                                                   |
+| `inlineWaitBudgetMs`    | No       | `5000`               | For durable tasks: how long the endpoint may wait inline for a durable result before it evicts the invocation. 0 to 600000 ms.                     |
+| `labels`                | No       | `{}`                 | [Worker labels](/v1/advanced-assignment/worker-affinity) for the worker the operator runs for this endpoint.                                       |
+| `enabled`               | No       | `true`               | Whether Hatchet polls and delivers to the endpoint.                                                                                                |
+
+Every response also includes `status`:
+
+- `healthy`: whether the last healthcheck succeeded. It's absent until the operator has polled the endpoint once.
+- `error`: why the endpoint is unhealthy.
+- `changedAt`: when `healthy` last changed.
+- `registeredActions`: the action ids registered from the last successful healthcheck.
+
+## REST API
+
+All routes take an [API token](/v1/quickstart) as a bearer token.
+
+| Method   | Path                                                    | Description                                 |
+| -------- | ------------------------------------------------------- | ------------------------------------------- |
+| `GET`    | `/api/v1/stable/tenants/{tenant}/serverless/endpoints`  | List endpoints (`offset`, `limit`)          |
+| `POST`   | `/api/v1/stable/tenants/{tenant}/serverless/endpoints`  | Create an endpoint                          |
+| `GET`    | `/api/v1/stable/serverless/endpoints/{endpoint}`        | Get an endpoint                             |
+| `PATCH`  | `/api/v1/stable/serverless/endpoints/{endpoint}`        | Update an endpoint; omitted fields are kept |
+| `DELETE` | `/api/v1/stable/serverless/endpoints/{endpoint}`        | Delete an endpoint                          |
+| `GET`    | `/api/v1/stable/serverless/endpoints/{endpoint}/events` | List recent events (`limit`, `since`)       |
+
+```bash
+curl -X POST \
+  -H "Authorization: Bearer $HATCHET_CLIENT_TOKEN" \
+  -H "Content-Type: application/json" \
+  "https://cloud.onhatchet.run/api/v1/stable/tenants/$TENANT_ID/serverless/endpoints" \
+  -d '{
+    "name": "my-endpoint",
+    "kind": "CLOUDFLARE_WORKERS",
+    "healthcheckUrl": "https://my-worker.my-subdomain.workers.dev/hatchet/healthcheck",
+    "triggerUrl": "https://my-worker.my-subdomain.workers.dev/hatchet/trigger",
+    "signingSecret": "'"$HATCHET_SIGNING_SECRET"'"
+  }'
+```
+
+Creation and updates are validated: a URL that isn't `https`, has credentials, or names a port other than 443 is refused with `400`, as are a signing secret under 32 characters, a setting outside its range, and a duplicate name. A tenant without serverless endpoints enabled gets `403`.
+
+## From an SDK
+
+<Callout type="info">
+  The SDKs don't have a dedicated serverless client yet (there is no
+  `hatchet.serverless`). The examples below call the REST client each SDK
+  generates from the OpenAPI spec.
+</Callout>
+
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+  <Tabs.Tab>
+
+```python
+import os
+
+from hatchet_sdk import Hatchet
+from hatchet_sdk.clients.rest import (
+    ApiClient,
+    Configuration,
+    ServerlessApi,
+    V1CreateServerlessEndpointRequest,
+    V1ServerlessEndpointKind,
+    V1UpdateServerlessEndpointRequest,
+)
+
+hatchet = Hatchet()
+
+config = Configuration(
+    host=hatchet.config.server_url,
+    access_token=hatchet.config.token,
+)
+
+with ApiClient(config) as client:
+    serverless = ServerlessApi(client)
+
+    # create
+    endpoint = serverless.v1_serverless_endpoint_create(
+        tenant=hatchet.tenant_id,
+        v1_create_serverless_endpoint_request=V1CreateServerlessEndpointRequest(
+            name="my-endpoint",
+            kind=V1ServerlessEndpointKind.CLOUDFLARE_WORKERS,
+            healthcheck_url="https://my-worker.my-subdomain.workers.dev/hatchet/healthcheck",
+            trigger_url="https://my-worker.my-subdomain.workers.dev/hatchet/trigger",
+            signing_secret=os.environ["HATCHET_SIGNING_SECRET"],
+        ),
+    )
+    endpoint_id = endpoint.metadata.id
+
+    # update: omitted fields keep their values
+    serverless.v1_serverless_endpoint_update(
+        v1_serverless_endpoint=endpoint_id,
+        v1_update_serverless_endpoint_request=V1UpdateServerlessEndpointRequest(
+            request_timeout_seconds=300,
+        ),
+    )
+
+    # recent events, newest first
+    events = serverless.v1_serverless_endpoint_event_list(
+        v1_serverless_endpoint=endpoint_id,
+        limit=20,
+    )
+
+    # list and delete
+    endpoints = serverless.v1_serverless_endpoint_list(tenant=hatchet.tenant_id)
+    serverless.v1_serverless_endpoint_delete(v1_serverless_endpoint=endpoint_id)
+```
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+```typescript
+import { HatchetClient } from "@hatchet-dev/typescript-sdk/v1";
+import { APIContracts } from "@hatchet-dev/typescript-sdk/clients/rest";
+
+const hatchet = HatchetClient.init();
+
+// create
+const { data: endpoint } = await hatchet.api.v1ServerlessEndpointCreate(
+  hatchet.tenantId,
+  {
+    name: "my-endpoint",
+    kind: APIContracts.V1ServerlessEndpointKind.CLOUDFLARE_WORKERS,
+    healthcheckUrl:
+      "https://my-worker.my-subdomain.workers.dev/hatchet/healthcheck",
+    triggerUrl: "https://my-worker.my-subdomain.workers.dev/hatchet/trigger",
+    signingSecret: process.env.HATCHET_SIGNING_SECRET!,
+  },
+);
+
+// update: omitted fields keep their values
+await hatchet.api.v1ServerlessEndpointUpdate(endpoint.metadata.id, {
+  requestTimeoutSeconds: 300,
+});
+
+// read what the operator recorded
+const { data: events } = await hatchet.api.v1ServerlessEndpointEventList(
+  endpoint.metadata.id,
+);
+
+// list and delete
+const { data: endpoints } = await hatchet.api.v1ServerlessEndpointList(
+  hatchet.tenantId,
+);
+await hatchet.api.v1ServerlessEndpointDelete(endpoint.metadata.id);
+```
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"os"
+
+	"github.com/google/uuid"
+
+	"github.com/hatchet-dev/hatchet/pkg/client/rest"
+)
+
+func main() {
+	ctx := context.Background()
+	token := os.Getenv("HATCHET_CLIENT_TOKEN")
+
+	api, err := rest.NewClientWithResponses(
+		"https://cloud.onhatchet.run",
+		rest.WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {
+			req.Header.Set("Authorization", "Bearer "+token)
+			return nil
+		}),
+	)
+	if err != nil {
+		panic(err)
+	}
+
+	tenantId := uuid.MustParse(os.Getenv("HATCHET_TENANT_ID"))
+	kind := rest.CLOUDFLAREWORKERS
+
+	// create
+	created, err := api.V1ServerlessEndpointCreateWithResponse(ctx, tenantId, rest.V1CreateServerlessEndpointRequest{
+		Name:           "my-endpoint",
+		Kind:           &kind,
+		HealthcheckUrl: "https://my-worker.my-subdomain.workers.dev/hatchet/healthcheck",
+		TriggerUrl:     "https://my-worker.my-subdomain.workers.dev/hatchet/trigger",
+		SigningSecret:  os.Getenv("HATCHET_SIGNING_SECRET"),
+	})
+	if err != nil {
+		panic(err)
+	}
+	if created.JSON200 == nil {
+		panic(fmt.Sprintf("create failed: %s", created.Body))
+	}
+
+	endpointId := uuid.MustParse(created.JSON200.Metadata.Id)
+
+	// update: nil fields keep their values
+	timeout := int32(300)
+	_, err = api.V1ServerlessEndpointUpdateWithResponse(ctx, endpointId, rest.V1UpdateServerlessEndpointRequest{
+		RequestTimeoutSeconds: &timeout,
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	// recent events, newest first
+	limit := int64(20)
+	_, err = api.V1ServerlessEndpointEventListWithResponse(ctx, endpointId, &rest.V1ServerlessEndpointEventListParams{
+		Limit: &limit,
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	// delete
+	_, err = api.V1ServerlessEndpointDeleteWithResponse(ctx, endpointId)
+	if err != nil {
+		panic(err)
+	}
+}
+```
+
+  </Tabs.Tab>
+  <Tabs.Tab title="Ruby">
+
+```ruby
+require "hatchet-sdk"
+
+hatchet = Hatchet::Client.new
+serverless = HatchetSdkRest::ServerlessApi.new(hatchet.rest_client)
+
+# create
+endpoint = serverless.v1_serverless_endpoint_create(
+  hatchet.config.tenant_id,
+  HatchetSdkRest::V1CreateServerlessEndpointRequest.new(
+    name: "my-endpoint",
+    kind: HatchetSdkRest::V1ServerlessEndpointKind::CLOUDFLARE_WORKERS,
+    healthcheck_url: "https://my-worker.my-subdomain.workers.dev/hatchet/healthcheck",
+    trigger_url: "https://my-worker.my-subdomain.workers.dev/hatchet/trigger",
+    signing_secret: ENV.fetch("HATCHET_SIGNING_SECRET")
+  )
+)
+endpoint_id = endpoint.metadata.id
+
+# update: omitted fields keep their values
+serverless.v1_serverless_endpoint_update(
+  endpoint_id,
+  HatchetSdkRest::V1UpdateServerlessEndpointRequest.new(request_timeout_seconds: 300)
+)
+
+# recent events, newest first
+events = serverless.v1_serverless_endpoint_event_list(endpoint_id, limit: 20)
+
+# list and delete
+endpoints = serverless.v1_serverless_endpoint_list(hatchet.config.tenant_id)
+serverless.v1_serverless_endpoint_delete(endpoint_id)
+```
+
+  </Tabs.Tab>
+</UniversalTabs>
+
+## Rotating the signing secret
+
+Send a new `signingSecret` in an update. The API never returns the secret. The operator picks up the new secret on its next refresh of the endpoint, and from then on signs with it. Requests signed with the old secret fail verification on an endpoint that already has the new one, and the other way around. Expect a few failed healthchecks or deliveries while the two sides change over, and update the endpoint and Hatchet close together.
+
+## Disabling and deleting
+
+A disabled endpoint isn't polled and receives no tasks, and the operator stops advertising the actions it registered. If no other endpoint or worker serves those actions, their tasks stay queued until one does, subject to their [schedule timeout](/v1/timeouts). Deleting an endpoint has the same effect and removes the endpoint for good.

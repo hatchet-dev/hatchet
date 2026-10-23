@@ -6,7 +6,6 @@
 
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
-import type { CallContext, CallOptions } from "nice-grpc-common";
 import { DurableEventListenerConditions } from "./shared/condition";
 import { TriggerWorkflowRequest } from "./shared/trigger";
 
@@ -2760,71 +2759,6 @@ export const DurableEvent: MessageFns<DurableEvent> = {
   },
 };
 
-export type V1DispatcherDefinition = typeof V1DispatcherDefinition;
-export const V1DispatcherDefinition = {
-  name: "V1Dispatcher",
-  fullName: "v1.V1Dispatcher",
-  methods: {
-    durableTask: {
-      name: "DurableTask",
-      requestType: DurableTaskRequest as typeof DurableTaskRequest,
-      requestStream: true,
-      responseType: DurableTaskResponse as typeof DurableTaskResponse,
-      responseStream: true,
-      options: {},
-    },
-    /** NOTE: deprecated after DurableEventLog is implemented */
-    registerDurableEvent: {
-      name: "RegisterDurableEvent",
-      requestType: RegisterDurableEventRequest as typeof RegisterDurableEventRequest,
-      requestStream: false,
-      responseType: RegisterDurableEventResponse as typeof RegisterDurableEventResponse,
-      responseStream: false,
-      options: {},
-    },
-    listenForDurableEvent: {
-      name: "ListenForDurableEvent",
-      requestType: ListenForDurableEventRequest as typeof ListenForDurableEventRequest,
-      requestStream: true,
-      responseType: DurableEvent as typeof DurableEvent,
-      responseStream: true,
-      options: {},
-    },
-  },
-} as const;
-
-export interface V1DispatcherServiceImplementation<CallContextExt = {}> {
-  durableTask(
-    request: AsyncIterable<DurableTaskRequest>,
-    context: CallContext & CallContextExt,
-  ): ServerStreamingMethodResult<DeepPartial<DurableTaskResponse>>;
-  /** NOTE: deprecated after DurableEventLog is implemented */
-  registerDurableEvent(
-    request: RegisterDurableEventRequest,
-    context: CallContext & CallContextExt,
-  ): Promise<DeepPartial<RegisterDurableEventResponse>>;
-  listenForDurableEvent(
-    request: AsyncIterable<ListenForDurableEventRequest>,
-    context: CallContext & CallContextExt,
-  ): ServerStreamingMethodResult<DeepPartial<DurableEvent>>;
-}
-
-export interface V1DispatcherClient<CallOptionsExt = {}> {
-  durableTask(
-    request: AsyncIterable<DeepPartial<DurableTaskRequest>>,
-    options?: CallOptions & CallOptionsExt,
-  ): AsyncIterable<DurableTaskResponse>;
-  /** NOTE: deprecated after DurableEventLog is implemented */
-  registerDurableEvent(
-    request: DeepPartial<RegisterDurableEventRequest>,
-    options?: CallOptions & CallOptionsExt,
-  ): Promise<RegisterDurableEventResponse>;
-  listenForDurableEvent(
-    request: AsyncIterable<DeepPartial<ListenForDurableEventRequest>>,
-    options?: CallOptions & CallOptionsExt,
-  ): AsyncIterable<DurableEvent>;
-}
-
 function bytesFromBase64(b64: string): Uint8Array {
   if ((globalThis as any).Buffer) {
     return Uint8Array.from((globalThis as any).Buffer.from(b64, "base64"));
@@ -2872,8 +2806,6 @@ function longToNumber(int64: { toString(): string }): number {
 function isSet(value: any): boolean {
   return value !== null && value !== undefined;
 }
-
-export type ServerStreamingMethodResult<Response> = { [Symbol.asyncIterator](): AsyncIterator<Response, void> };
 
 export interface MessageFns<T> {
   encode(message: T, writer?: BinaryWriter): BinaryWriter;
