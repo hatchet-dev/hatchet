@@ -141,6 +141,7 @@ type ListStreamMessagesOpts struct {
 	Limit int32 `validate:"omitempty,min=1,max=1000"`
 }
 
+// ListStreamTopicsOpts selects a page of a tenant's stream topics.
 type ListStreamTopicsOpts struct {
 	// (optional) matches topics or namespaces containing it
 	Search *string
@@ -150,6 +151,7 @@ type ListStreamTopicsOpts struct {
 	Offset int32 `validate:"min=0"`
 }
 
+// ListStreamTopicsResult is a page of topics with the total matching count and the tenant's retention.
 type ListStreamTopicsResult struct {
 	Rows []*sqlcv1.ListStreamTopicsRow
 
@@ -556,6 +558,7 @@ func (r *streamsRepositoryImpl) GetStreamPayload(ctx context.Context, tenantId u
 	return payload, err
 }
 
+// ListTopics orders topics by namespace, then topic; counts exclude messages past retention.
 func (r *streamsRepositoryImpl) ListTopics(ctx context.Context, tenantId uuid.UUID, opts ListStreamTopicsOpts) (*ListStreamTopicsResult, error) {
 	if err := r.v.Validate(&opts); err != nil {
 		return nil, err

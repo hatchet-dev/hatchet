@@ -4,6 +4,7 @@ import { usePagination } from '@/hooks/use-pagination';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { useZodColumnFilters } from '@/hooks/use-zod-column-filters';
 import { queries, V1StreamTopic } from '@/lib/api';
+import { withPolling } from '@/lib/api/polling';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { useDebounce } from 'use-debounce';
@@ -44,12 +45,15 @@ export const useStreamTopics = ({ key }: { key: string }) => {
 
   const { data, isLoading, error, isRefetching, isPlaceholderData, refetch } =
     useQuery({
-      ...queries.stream_topics.list(tenantId, {
-        search: debouncedSearch,
-        offset,
-        limit,
-      }),
-      refetchInterval,
+      // each fetch counts every retained message of the topics on the page
+      ...withPolling(
+        queries.stream_topics.list(tenantId, {
+          search: debouncedSearch,
+          offset,
+          limit,
+        }),
+        refetchInterval,
+      ),
       placeholderData: (data) => data,
     });
 

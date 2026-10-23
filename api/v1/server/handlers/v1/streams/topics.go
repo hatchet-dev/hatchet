@@ -11,6 +11,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
+// V1StreamTopicList lists the tenant's stream topics, or returns 403 when durable streams aren't enabled.
 func (s *V1StreamsService) V1StreamTopicList(ctx echo.Context, request gen.V1StreamTopicListRequestObject) (gen.V1StreamTopicListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
 	reqCtx := ctx.Request().Context()

@@ -7,6 +7,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
+// TenantEntitlementsGet returns the tenant's feature entitlements, all false when it has none stored.
 func (t *TenantService) TenantEntitlementsGet(ctx echo.Context, request gen.TenantEntitlementsGetRequestObject) (gen.TenantEntitlementsGetResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
 
