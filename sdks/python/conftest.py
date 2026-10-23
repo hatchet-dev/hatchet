@@ -1,6 +1,7 @@
 from collections.abc import AsyncGenerator, Generator
+from contextlib import AbstractContextManager, nullcontext
 from subprocess import Popen
-from typing import cast
+from typing import Any, TypeAlias, TypedDict, cast
 
 import pytest
 import pytest_asyncio
@@ -77,13 +78,37 @@ def worker() -> Generator[Popen[bytes], None, None]:
 
 def _on_demand_worker_fixture(
     request: FixtureRequest,
+    print_logs: bool = True,
 ) -> Generator[Popen[bytes], None, None]:
-    command = cast(list[str], request.param)
+    if isinstance(request.param, dict):
+        param_dict = cast(OnDemandWorkerFixtureRequestDict, request.param)
+        command = param_dict["cmd"]
+    else:
+        command = cast(list[str], request.param)
 
-    with hatchet_worker(command, get_free_port()) as proc:
+    with hatchet_worker(command, get_free_port(), print_logs) as proc:
         yield proc
 
 
+class OnDemandWorkerFixtureRequestDict(TypedDict):
+    cmd: list[str]
+    caplog: str | None
+
+
+OnDemandWorkerFixtureRequest: TypeAlias = list[str] | OnDemandWorkerFixtureRequestDict
+
+
 @pytest.fixture()
-def on_demand_worker(request: FixtureRequest) -> Generator[Popen[bytes], None, None]:
-    yield from _on_demand_worker_fixture(request)
+def on_demand_worker(
+    request: FixtureRequest, caplog: pytest.LogCaptureFixture
+) -> Generator[Popen[bytes], None, None]:
+    # Default to print worker logs, else use caplog at specified level
+    caplog_ctx: AbstractContextManager[Any, Any] = nullcontext()
+    print_logs = True
+    if isinstance(request.param, dict):
+        param_dict = cast(OnDemandWorkerFixtureRequestDict, request.param)
+        if (caplog_level := param_dict["caplog"]) is not None:
+            caplog_ctx = caplog.at_level(caplog_level)
+            print_logs = False
+    with caplog_ctx:
+        yield from _on_demand_worker_fixture(request, print_logs=print_logs)

@@ -1,8 +1,6 @@
-from datetime import timedelta
-
+from collections.abc import AsyncGenerator
 from hatchet_sdk import Context, EmptyModel, Hatchet
 
-import argparse
 
 from hatchet_sdk import Hatchet
 import logging
@@ -14,7 +12,7 @@ hatchet = Hatchet()
 logger = logging.getLogger(__name__)
 
 
-async def lifespan():
+async def lifespan() -> AsyncGenerator[None, None]:
     import asyncio
     from concurrent.futures import ThreadPoolExecutor
 
@@ -27,8 +25,8 @@ async def lifespan():
     yield
 
 
-def sync_code_i_dont_control():
-    time.sleep(5)
+def sync_code_i_dont_control() -> None:
+    time.sleep(2)
 
 
 @hatchet.task()
