@@ -380,6 +380,26 @@ type orderedRelease struct {
 	lastActivityAt               time.Time
 }
 
+func (rel *orderedRelease) takeReleasable() []*contracts.DurableTaskResponse {
+	var toSend []*contracts.DurableTaskResponse
+
+	for {
+		next, ok := rel.bufferedCompletions[rel.maxSatisfiedOrderSentAlready+1]
+		if !ok {
+			break
+		}
+		delete(rel.bufferedCompletions, rel.maxSatisfiedOrderSentAlready+1)
+		toSend = append(toSend, next)
+		rel.maxSatisfiedOrderSentAlready++
+	}
+
+	if len(rel.bufferedCompletions) == 0 {
+		rel.oldestBufferedAt = time.Time{}
+	}
+
+	return toSend
+}
+
 func (s *durableTaskInvocation) send(resp *contracts.DurableTaskResponse) error {
 	s.sendMu.Lock()
 	defer s.sendMu.Unlock()
@@ -519,22 +539,8 @@ func (s *durableTaskInvocation) deliverOrdered(taskExternalId uuid.UUID, invocat
 		// dedupes by node id, so send it through again.
 		toSend = []*contracts.DurableTaskResponse{resp}
 	case order == rel.maxSatisfiedOrderSentAlready+1:
-		toSend = append(toSend, resp)
 		rel.maxSatisfiedOrderSentAlready++
-
-		for {
-			next, ok := rel.bufferedCompletions[rel.maxSatisfiedOrderSentAlready+1]
-			if !ok {
-				break
-			}
-			delete(rel.bufferedCompletions, rel.maxSatisfiedOrderSentAlready+1)
-			toSend = append(toSend, next)
-			rel.maxSatisfiedOrderSentAlready++
-		}
-
-		if len(rel.bufferedCompletions) == 0 {
-			rel.oldestBufferedAt = time.Time{}
-		}
+		toSend = append([]*contracts.DurableTaskResponse{resp}, rel.takeReleasable()...)
 	default:
 		if buffered, exists := rel.bufferedCompletions[order]; exists {
 			if buffered == nil || resp == nil {
@@ -568,6 +574,70 @@ func (s *durableTaskInvocation) deliverOrdered(taskExternalId uuid.UUID, invocat
 	}
 
 	return nil
+}
+
+// Completions for a durable task are delivered to the worker in the order they were satisfied
+// (1, 2, 3, ...), and this engine-side counter tracks the last one sent on this stream. The
+// counter is in memory, so when the worker reconnects (network drop, engine restart) the new
+// stream starts the counter at 0 even though the worker may already have received completions 1
+// through N on the old stream. The next completion, N+1, would then be held waiting for 1..N,
+// which are never sent again, until the gap timeout evicts the task.
+//
+// The worker's status request tells us what it is still waiting on. If the lowest satisfied
+// order among those entries is N+1, the worker must already have completions 1..N, so the
+// counter can jump to N and anything held behind it is released. This only applies while the
+// stream has not sent a completion yet: once it has, the counter is correct on its own, and a
+// status request (which may list only some of the pending entries) must not move it.
+func (s *durableTaskInvocation) resumeOrderedRelease(key orderedReleaseKey, lowestWaitingSatisfiedOrder int64) error {
+	s.releasesMu.Lock()
+	rel, wasReplacedByNewerInvocation := s.getRelease(key)
+	s.releasesMu.Unlock()
+
+	if wasReplacedByNewerInvocation {
+		return nil
+	}
+
+	rel.mu.Lock()
+	defer rel.mu.Unlock()
+
+	consumedThrough := lowestWaitingSatisfiedOrder - 1
+	if rel.maxSatisfiedOrderSentAlready != 0 || consumedThrough <= 0 {
+		return nil
+	}
+
+	rel.maxSatisfiedOrderSentAlready = consumedThrough
+	for order := range rel.bufferedCompletions {
+		if order <= consumedThrough {
+			delete(rel.bufferedCompletions, order)
+		}
+	}
+
+	for _, r := range rel.takeReleasable() {
+		if r == nil {
+			continue
+		}
+		if err := s.send(r); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func lowestSatisfiedOrderByRelease(callbacks []*v1.SatisfiedEventWithPayload) map[orderedReleaseKey]int64 {
+	lowest := make(map[orderedReleaseKey]int64)
+
+	for _, cb := range callbacks {
+		if cb.SatisfiedOrder == nil {
+			continue
+		}
+		key := orderedReleaseKey{taskExternalId: cb.TaskExternalId, invocationCount: cb.InvocationCount}
+		if current, ok := lowest[key]; !ok || *cb.SatisfiedOrder < current {
+			lowest[key] = *cb.SatisfiedOrder
+		}
+	}
+
+	return lowest
 }
 
 type timedOutOrderedRelease struct {
@@ -1645,6 +1715,12 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 	callbacks, err := d.repo.DurableEvents().GetSatisfiedDurableEvents(ctx, invocation.tenantId, waiting, taskInsertedAtRange)
 	if err != nil {
 		return fmt.Errorf("failed to get satisfied callbacks: %w", err)
+	}
+
+	for key, lowestWaitingSatisfiedOrder := range lowestSatisfiedOrderByRelease(callbacks) {
+		if err := invocation.resumeOrderedRelease(key, lowestWaitingSatisfiedOrder); err != nil {
+			d.l.Error().Err(err).Msgf("failed to resume ordered release for task %s", key.taskExternalId)
+		}
 	}
 
 	for _, cb := range callbacks {
