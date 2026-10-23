@@ -173,6 +173,20 @@ type TaskIdInsertedAtRetryCount struct {
 	RetryCount int32
 }
 
+type AckedTaskRuntime struct {
+	// (required) the id
+	Id int64 `validate:"required"`
+
+	// (required) the inserted at time
+	InsertedAt pgtype.Timestamptz
+
+	// (required) the retry count
+	RetryCount int32
+
+	// (required) the worker that acknowledged the assignment
+	WorkerId uuid.UUID `validate:"required"`
+}
+
 type TaskIdInsertedAtSignalKey struct {
 	// (required) the external id
 	Id int64 `validate:"required"`
@@ -333,7 +347,7 @@ type TaskRepository interface {
 
 	ProcessTaskReassignments(ctx context.Context, tenantId uuid.UUID) (*FailTasksResponse, bool, error)
 
-	MarkTaskRuntimesAcked(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) error
+	MarkTaskRuntimesAcked(ctx context.Context, tenantId uuid.UUID, tasks []AckedTaskRuntime) error
 
 	ProcessTaskRetryQueueItems(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.V1RetryQueueItem, bool, error)
 
@@ -1842,7 +1856,7 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 	return res, len(toReassign) >= limit, nil
 }
 
-func (r *TaskRepositoryImpl) MarkTaskRuntimesAcked(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) error {
+func (r *TaskRepositoryImpl) MarkTaskRuntimesAcked(ctx context.Context, tenantId uuid.UUID, tasks []AckedTaskRuntime) error {
 	if len(tasks) == 0 {
 		return nil
 	}
@@ -1850,11 +1864,13 @@ func (r *TaskRepositoryImpl) MarkTaskRuntimesAcked(ctx context.Context, tenantId
 	taskIds := make([]int64, len(tasks))
 	taskInsertedAts := make([]pgtype.Timestamptz, len(tasks))
 	retryCounts := make([]int32, len(tasks))
+	workerIds := make([]uuid.UUID, len(tasks))
 
 	for i, task := range tasks {
 		taskIds[i] = task.Id
 		taskInsertedAts[i] = task.InsertedAt
 		retryCounts[i] = task.RetryCount
+		workerIds[i] = task.WorkerId
 	}
 
 	return r.queries.MarkTaskRuntimesAcked(ctx, r.pool, sqlcv1.MarkTaskRuntimesAckedParams{
@@ -1862,6 +1878,7 @@ func (r *TaskRepositoryImpl) MarkTaskRuntimesAcked(ctx context.Context, tenantId
 		Taskids:         taskIds,
 		Taskinsertedats: taskInsertedAts,
 		Retrycounts:     retryCounts,
+		Workerids:       workerIds,
 	})
 }
 
