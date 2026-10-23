@@ -136,3 +136,16 @@ func zerologNop() *zerolog.Logger {
 	l := zerolog.Nop()
 	return &l
 }
+
+func TestResolveDagParentOutputs_EmptyOutputIsEmptyObject(t *testing.T) {
+	parent := uuid.New()
+	child := newDagChildStepRunData(t, parent)
+
+	dagParentOutputs := map[uuid.UUID]*v1.TaskOutputEvent{
+		parent: {TaskExternalId: parent, StepReadableID: "returns_none"},
+	}
+
+	resolveDagParentOutputs(context.Background(), zerologNop(), []*v1.V1StepRunData{child}, dagParentOutputs)
+
+	assert.Equal(t, map[string]interface{}{}, unmarshalParents(t, child)["returns_none"])
+}

@@ -49,25 +49,6 @@ func isDagChildFailedErr(err error) bool {
 	return errors.As(err, &e)
 }
 
-type dagConditionEvalError struct {
-	taskActionId string
-	expression   string
-	err          error
-}
-
-func (e *dagConditionEvalError) Error() string {
-	return fmt.Sprintf("CEL eval error for task %q condition %q: %v", e.taskActionId, e.expression, e.err)
-}
-
-func (e *dagConditionEvalError) Unwrap() error {
-	return e.err
-}
-
-func isDagConditionEvalErr(err error) bool {
-	var e *dagConditionEvalError
-	return errors.As(err, &e)
-}
-
 type dagEngineError struct {
 	errorType    v1contracts.DurableTaskErrorType
 	errorMessage string
@@ -85,18 +66,15 @@ func isDagEngineErr(err error) bool {
 func clientErrorMessageForDagErr(err error) (message string, ok bool) {
 	var childFailedErr *dagChildFailedError
 	var cancelledErr *dagCancelledError
-	var conditionEvalErr *dagConditionEvalError
 	var celFailureErr *operator.DAGStepCELFailureError
 	var nonDeterminismErr *repository.NonDeterminismError
 	var engineErr *dagEngineError
 
 	switch {
 	case errors.As(err, &childFailedErr):
-		return childFailedErr.Error(), true
+		return childFailedErr.errorMessage, true
 	case errors.As(err, &cancelledErr):
-		return cancelledErr.Error(), true
-	case errors.As(err, &conditionEvalErr):
-		return conditionEvalErr.Error(), true
+		return repository.TaskCancelledErrorMessage, true
 	case errors.As(err, &celFailureErr):
 		return celFailureErr.Error(), true
 	case errors.As(err, &nonDeterminismErr):
@@ -760,6 +738,9 @@ func (d *dag) applyCompletion(ctx context.Context, t *task, isFailure bool, erro
 	} else if len(payload) > 0 {
 		outputData := make(map[string]interface{})
 		if err := json.Unmarshal(payload, &outputData); err == nil {
+			if outputData == nil {
+				outputData = map[string]interface{}{}
+			}
 			t.output = outputData
 			if skipped, ok := outputData["skipped"].(bool); ok && skipped {
 				t.isSkipped = true
@@ -768,6 +749,8 @@ func (d *dag) applyCompletion(ctx context.Context, t *task, isFailure bool, erro
 				t.isCancelled = true
 			}
 		}
+	} else if !isFailure && !t.isCancelled {
+		t.output = map[string]interface{}{}
 	}
 
 	return d.evaluateConditionsForParent(ctx, t)
@@ -802,7 +785,10 @@ func (d *dag) evaluateConditionsForParent(ctx context.Context, parent *task) err
 
 			matched, err := d.evalBoolExpr(ctx, expr, map[string]interface{}{"output": parent.output})
 			if err != nil {
-				return &dagConditionEvalError{taskActionId: t.actionId, expression: expr, err: err}
+				// A condition that cannot be evaluated (e.g. a key missing from the parent output)
+				// counts as not matched instead of failing the DAG.
+				span.RecordError(fmt.Errorf("condition %q on task %q could not be evaluated: %w", expr, t.actionId, err))
+				matched = false
 			}
 
 			d.conditionMatches[cond] = matched
