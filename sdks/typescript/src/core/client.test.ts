@@ -95,8 +95,10 @@ function fakeEngine() {
     producerId: string;
     producerSeq: number;
   }> = [];
-  // entries per publish request
+  // entries per publish request; 1 per single Publish
   const publishBatches: number[] = [];
+  // an engine from before PublishBatch, which serves only single Publish
+  let withoutPublishBatch = false;
   const resets: ResetStreamTopicRequest[] = [];
   const publishErrors: ConnectError[] = [];
   const publishGates: Array<Promise<void>> = [];
@@ -179,6 +181,9 @@ function fakeEngine() {
     });
     service(V1Streams, {
       publishBatch: async (req) => {
+        if (withoutPublishBatch) {
+          throw new ConnectError('unimplemented', Code.Unimplemented);
+        }
         const gate = publishGates.shift();
         if (gate) await gate;
         const error = publishErrors.shift();
@@ -192,6 +197,21 @@ function fakeEngine() {
             producerId: req.producerId,
             producerSeq: Number(req.firstProducerSeq) + i,
           });
+        });
+        return {};
+      },
+      publish: async (req) => {
+        const gate = publishGates.shift();
+        if (gate) await gate;
+        const error = publishErrors.shift();
+        if (error) throw error;
+        publishBatches.push(1);
+        publishes.push({
+          namespace: req.namespace,
+          topic: req.topic,
+          payload: req.payload,
+          producerId: req.producerId,
+          producerSeq: Number(req.producerSeq),
         });
         return {};
       },
@@ -237,6 +257,9 @@ function fakeEngine() {
     },
     failNextPublishWith(error: ConnectError) {
       publishErrors.push(error);
+    },
+    servePublishBatch(served: boolean) {
+      withoutPublishBatch = !served;
     },
     /** Holds the next publish until the returned function is called. */
     gateNextPublish(): () => void {
@@ -1144,6 +1167,46 @@ describe('HatchetCore.streams', () => {
       ['one', 0],
       ['three', 1],
       ['four', 2],
+    ]);
+  });
+
+  it('falls back to one Publish per message against an engine without PublishBatch, and remembers it', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    engine.servePublishBatch(false);
+
+    const first = ['one', 'two', 'three'].map((m) =>
+      client.streams.publish('progress', m, { batchTimeoutMs: 20 })
+    );
+    await Promise.all(first);
+    await client.streams.publish('progress', 'four');
+
+    expect(engine.publishBatches).toEqual([1, 1, 1, 1]);
+    expect(engine.publishes.map((p) => [text(p.payload), p.producerSeq])).toEqual([
+      ['one', 0],
+      ['two', 1],
+      ['three', 2],
+      ['four', 3],
+    ]);
+    expect(new Set(engine.publishes.map((p) => p.producerId)).size).toBe(1);
+  });
+
+  it('settles each message on its own after falling back, so one failing does not fail the rest', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    engine.servePublishBatch(false);
+    engine.failNextPublishWith(new ConnectError('bad payload', Code.InvalidArgument));
+
+    const [rejected, ...stored] = ['one', 'two', 'three'].map((m) =>
+      client.streams.publish('progress', m, { batchTimeoutMs: 20 })
+    );
+
+    await expect(rejected).rejects.toThrow(/bad payload/);
+    await Promise.all(stored);
+    // the rejection stored nothing, so its seq is reused
+    expect(engine.publishes.map((p) => [text(p.payload), p.producerSeq])).toEqual([
+      ['two', 0],
+      ['three', 1],
     ]);
   });
 

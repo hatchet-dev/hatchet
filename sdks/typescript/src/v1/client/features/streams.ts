@@ -20,9 +20,13 @@ function publishRejectedBeforeStoring(err: unknown): boolean {
     code === Status.INVALID_ARGUMENT ||
     code === Status.RESOURCE_EXHAUSTED ||
     code === Status.UNAUTHENTICATED ||
-    code === Status.PERMISSION_DENIED
+    code === Status.PERMISSION_DENIED ||
+    // an engine without the RPC
+    code === Status.UNIMPLEMENTED
   );
 }
+
+type PublishEntry = { payload: Uint8Array; payloadRef: string };
 
 // retrying a subscribe that failed with these can't succeed
 const permanentSubscribeErrors = new Set<number>([
@@ -112,6 +116,9 @@ export class StreamsClient {
   // never share a seq, and each carries everything queued behind the last
   private publishQueues = new Map<string, StreamPublishQueue<QueuedPublish>>();
 
+  // set once the engine answers PublishBatch as unimplemented: it predates batching
+  private publishBatchUnsupported = false;
+
   constructor(client: HatchetClient) {
     this._config = client.config;
     this._client = client;
@@ -169,7 +176,7 @@ export class StreamsClient {
       const batch = await queue.next();
       const refs = await Promise.allSettled(batch.map((p) => p.uploaded));
       const sent: QueuedPublish[] = [];
-      const entries: Array<{ payload: Uint8Array; payloadRef: string }> = [];
+      const entries: PublishEntry[] = [];
 
       // a failed upload fails only its own publish, as the rest never depended on it
       batch.forEach((p, i) => {
@@ -187,23 +194,53 @@ export class StreamsClient {
       });
 
       if (entries.length > 0) {
-        try {
-          await this.publishOrdered(key, namespace, topic, entries);
-          sent.forEach((p) => p.resolve());
-        } catch (err) {
-          sent.forEach((p) => p.reject(err));
-        }
+        await this.sendPublishes(key, namespace, topic, sent, entries);
       }
     }
 
     this.publishQueues.delete(key);
   }
 
+  // sends entries as one request, or one request per entry to an engine that
+  // predates PublishBatch, and settles each publish
+  private async sendPublishes(
+    key: string,
+    namespace: string,
+    topic: string,
+    sent: QueuedPublish[],
+    entries: PublishEntry[]
+  ): Promise<void> {
+    if (!this.publishBatchUnsupported) {
+      try {
+        await this.publishOrdered(key, namespace, topic, entries);
+        sent.forEach((p) => p.resolve());
+        return;
+      } catch (err) {
+        if (getGrpcErrorCode(err) !== Status.UNIMPLEMENTED) {
+          sent.forEach((p) => p.reject(err));
+          return;
+        }
+        // nothing was stored, so the batch goes out again below
+        this.publishBatchUnsupported = true;
+      }
+    }
+
+    // settled one by one: a failure partway leaves the publishes before it stored
+    for (const [i, p] of sent.entries()) {
+      try {
+        await this.publishOrdered(key, namespace, topic, [entries[i]]);
+        p.resolve();
+      } catch (err) {
+        p.reject(err);
+      }
+    }
+  }
+
   private async publishOrdered(
     key: string,
     namespace: string,
     topic: string,
-    entries: Array<{ payload: Uint8Array; payloadRef: string }>,
+    entries: PublishEntry[],
     retryGap = true
   ): Promise<void> {
     let producer = this.producers.get(key);
@@ -213,13 +250,23 @@ export class StreamsClient {
     }
 
     try {
-      await this.grpc.publishBatch({
-        namespace,
-        topic,
-        producerId: producer.producerId,
-        firstProducerSeq: producer.seq,
-        entries,
-      });
+      if (this.publishBatchUnsupported && entries.length === 1) {
+        await this.grpc.publish({
+          namespace,
+          topic,
+          ...entries[0],
+          producerId: producer.producerId,
+          producerSeq: producer.seq,
+        });
+      } else {
+        await this.grpc.publishBatch({
+          namespace,
+          topic,
+          producerId: producer.producerId,
+          firstProducerSeq: producer.seq,
+          entries,
+        });
+      }
     } catch (err) {
       // it may still land, and a different payload under its seq would be dropped as a duplicate
       if (!publishRejectedBeforeStoring(err)) {
