@@ -277,7 +277,7 @@ func New(conn *grpc.ClientConn, fs ...Opt) (Client, error) {
 	return &clientImpl{
 		client:             v1.NewOperatorServiceClient(conn),
 		admin:              v1.NewAdminServiceClient(conn),
-		streams:            runStreamClients{dispatcher: dispatchercontracts.NewDispatcherClient(conn), v1dispatcher: v1.NewV1DispatcherClient(conn)},
+		streams:            runStreamClients{dispatcher: dispatchercontracts.NewDispatcherClient(conn), v1dispatcher: v1.NewV1DispatcherClient(conn), v1streams: v1.NewV1StreamsClient(conn)},
 		l:                  o.l,
 		v:                  o.v,
 		md:                 newCallMetadata(o.token, o.headers),

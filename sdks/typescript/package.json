@@ -1,6 +1,6 @@
 {
   "name": "@hatchet-dev/typescript-sdk",
-  "version": "1.40.1",
+  "version": "1.41.1",
   "engines": {
     "node": ">=20"
   },
@@ -120,6 +120,7 @@
     "test:unit:watch": "jest --testMatch='**/*.test.ts' --watch",
     "generate": "pnpm run '/generate-.*/'",
     "generate-api": "npx swagger-typescript-api@13.2.7 generate -p ../../bin/oas/openapi.yaml -o ./src/clients/rest/generated -n hatchet.ts --modular --axios",
+    "generate-api-fetch": "npx swagger-typescript-api@13.2.7 generate -p ../../bin/oas/openapi.yaml -o ./src/clients/rest/generated-fetch -n hatchet.ts --modular && node scripts/share-rest-contracts.mjs && prettier --write \"src/clients/rest/generated-fetch/*.ts\"",
     "generate-protoc": "./generate-protoc.sh",
     "generate-protoc-es": "./generate-protoc-es.sh",
     "lint:check": "pnpm run eslint:check && pnpm run prettier:check",

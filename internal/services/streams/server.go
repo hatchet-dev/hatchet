@@ -149,6 +149,26 @@ func (s *ServiceImpl) Subscribe(ctx context.Context, req *contracts.SubscribeStr
 	sender := rpcstream.NewSender[contracts.StreamMessage](ctx, connectStream)
 	defer sender.Close()
 
+	return s.subscribe(ctx, req, sender)
+}
+
+// RegisterSubscribe serves Subscribe over channels to a caller in the same process (the
+// in-process operator host), with every check the RPC makes: ctx must carry the tenant, as
+// the auth middleware puts it, and a tenant without the durable streams entitlement is
+// refused with PermissionDenied, which the stream's Err reports once it ends.
+func (s *ServiceImpl) RegisterSubscribe(ctx context.Context, req *contracts.SubscribeStreamRequest) (*rpcstream.ChannelStream, error) {
+	if _, ok := ctx.Value("tenant").(*sqlcv1.Tenant); !ok {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("tenant not found on context"))
+	}
+
+	return rpcstream.ServeServer(ctx, func(ctx context.Context, sender *rpcstream.Sender[contracts.StreamMessage]) error {
+		return s.subscribe(ctx, req, sender)
+	}), nil
+}
+
+// subscribe is Subscribe over any sender: it holds the stream open on the topic's poller
+// until ctx ends, a send fails, the topic idles out or the service shuts down.
+func (s *ServiceImpl) subscribe(ctx context.Context, req *contracts.SubscribeStreamRequest, sender *rpcstream.Sender[contracts.StreamMessage]) error {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 
