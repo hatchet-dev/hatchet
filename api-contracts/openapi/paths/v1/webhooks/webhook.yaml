@@ -3,6 +3,7 @@ V1WebhookGetDeleteReceiveUpdate:
     x-resources: ["tenant", "v1-webhook"]
     description: Get a webhook by its name
     operationId: v1-webhook:get
+    x-payloads: false
     x-enable-rate-limiting: true
     parameters:
       - description: The tenant id
@@ -46,6 +47,7 @@ V1WebhookGetDeleteReceiveUpdate:
     x-resources: ["tenant", "v1-webhook"]
     description: Delete a webhook
     operationId: v1-webhook:delete
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -96,6 +98,7 @@ V1WebhookGetDeleteReceiveUpdate:
     x-resources: ["tenant", "v1-webhook"]
     description: Post an incoming webhook message
     operationId: v1-webhook:receive
+    x-payloads: true
     security: []
     parameters:
       - description: The tenant id
@@ -154,6 +157,7 @@ V1WebhookGetDeleteReceiveUpdate:
     x-resources: ["tenant", "v1-webhook"]
     description: Update a webhook
     operationId: v1-webhook:update
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -211,6 +215,7 @@ V1WebhookListCreate:
     x-resources: ["tenant"]
     description: Lists all webhook for a tenant.
     operationId: v1-webhook:list
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -279,6 +284,7 @@ V1WebhookListCreate:
     x-resources: ["tenant"]
     description: Create a new webhook
     operationId: v1-webhook:create
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path

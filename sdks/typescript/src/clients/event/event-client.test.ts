@@ -1,8 +1,7 @@
-import HatchetError from '@util/errors/hatchet-error';
 import { DEFAULT_LOGGER } from '@clients/hatchet-client/hatchet-logger';
 import { HatchetClient } from '@hatchet/v1';
 import { EventClient } from './event-client';
-import { mockChannel, mockFactory } from '../../legacy/legacy-client.test';
+import { mockChannel, mockFactory, mockTransport } from '../../legacy/legacy-client.test';
 
 let client: EventClient;
 
@@ -25,7 +24,8 @@ describe('EventClient', () => {
       },
       mockChannel,
       mockFactory,
-      new HatchetClient().api
+      new HatchetClient().api,
+      mockTransport
     );
 
     expect(x).toBeDefined();
@@ -49,7 +49,8 @@ describe('EventClient', () => {
       },
       mockChannel,
       mockFactory,
-      new HatchetClient().api
+      new HatchetClient().api,
+      mockTransport
     );
   });
 
@@ -79,7 +80,7 @@ describe('EventClient', () => {
 
     jest.spyOn(client, 'retrier').mockImplementation((fn) => fn());
 
-    await expect(client.push('type', { foo: 'bar' })).rejects.toThrow(new HatchetError('foo'));
+    await expect(client.push('type', { foo: 'bar' })).rejects.toThrow('foo');
   });
 
   it('should bulk push events', async () => {
@@ -176,6 +177,6 @@ describe('EventClient', () => {
     ];
 
     // Test that an error is thrown when bulkPush fails
-    await expect(client.bulkPush('type', events)).rejects.toThrow(new HatchetError('bulk error'));
+    await expect(client.bulkPush('type', events)).rejects.toThrow('bulk error');
   });
 });

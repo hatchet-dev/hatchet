@@ -1,33 +1,21 @@
--- name: GetAndLockLogFile :one
-SELECT *
-FROM v1_durable_event_log_file
-WHERE
-    durable_task_id = @durableTaskId::BIGINT
-    AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
-    AND tenant_id = @tenantId::UUID
-FOR UPDATE
-;
-
--- name: GetAndLockLogFileWithBranchPoints :many
-WITH locked_file AS (
-    SELECT *
-    FROM v1_durable_event_log_file
-    WHERE
-        durable_task_id = @durableTaskId::BIGINT
-        AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
-        AND tenant_id = @tenantId::UUID
-    FOR UPDATE
+-- name: GetAndLockLogFilesWithBranchPoints :many
+WITH inputs AS (
+    SELECT
+        UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
+        UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at,
+        UNNEST(@tenantIds::UUID[]) AS tenant_id
 )
 
 SELECT
-    sqlc.embed(to_embed),
+    sqlc.embed(lf),
     bp.*
-FROM locked_file lf
--- note: intentionally using the params for the join so we can prune partitions
-JOIN v1_durable_event_log_file to_embed
-    ON (to_embed.durable_task_id, to_embed.durable_task_inserted_at, to_embed.tenant_id) = (@durableTaskId::BIGINT, @durableTaskInsertedAt::TIMESTAMPTZ, @tenantId::UUID)
+FROM v1_durable_event_log_file lf
+JOIN inputs i ON (lf.durable_task_id, lf.durable_task_inserted_at, lf.tenant_id) = (i.durable_task_id, i.durable_task_inserted_at, i.tenant_id)
 LEFT JOIN v1_durable_event_log_branch_point bp
-    ON (bp.durable_task_id, bp.durable_task_inserted_at, bp.tenant_id) = (@durableTaskId::BIGINT, @durableTaskInsertedAt::TIMESTAMPTZ, @tenantId::UUID)
+    ON (bp.durable_task_id, bp.durable_task_inserted_at, bp.tenant_id) = (lf.durable_task_id, lf.durable_task_inserted_at, lf.tenant_id)
+WHERE lf.durable_task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
+ORDER BY lf.durable_task_id, lf.durable_task_inserted_at
+FOR UPDATE OF lf
 ;
 
 -- name: IncrementLogFileInvocationCounts :many
@@ -56,6 +44,8 @@ SELECT
     0,
     1
 FROM inputs
+-- note: consistent lock ordering with batched ingestion, which locks multiple log files per transaction
+ORDER BY durable_task_id, durable_task_inserted_at
 ON CONFLICT (durable_task_id, durable_task_inserted_at) DO UPDATE
 SET
     latest_invocation_count = v1_durable_event_log_file.latest_invocation_count + 1,
@@ -75,6 +65,23 @@ SET
 WHERE durable_task_id = @durableTaskId::BIGINT
   AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
 RETURNING *;
+
+-- name: UpdateLogFileLatestNodeIds :exec
+WITH inputs AS (
+    SELECT
+        UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
+        UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at,
+        UNNEST(@nodeIds::BIGINT[]) AS node_id
+)
+
+UPDATE v1_durable_event_log_file lf
+SET
+    -- important: need `GREATEST` here to avoid moving the `latest_node_id` backwards in the case of child spawning with
+    -- a child_key set, which, if the child was cached, would not create a new log entry and thus not move the latest node forward
+    latest_node_id = GREATEST(lf.latest_node_id, i.node_id)
+FROM inputs i
+WHERE (lf.durable_task_id, lf.durable_task_inserted_at) = (i.durable_task_id, i.durable_task_inserted_at)
+;
 
 -- name: CreateDurableEventLogBranchPoint :exec
 INSERT INTO v1_durable_event_log_branch_point (
@@ -116,6 +123,42 @@ WHERE durable_task_id = @durableTaskId::BIGINT
   AND node_id < @nodeId::BIGINT
 ORDER BY node_id ASC, branch_id ASC;
 
+-- name: ResetSatisfiedOrdersForNewBranch :one
+WITH input AS (
+    SELECT
+        UNNEST(@keptNodeIds::BIGINT[]) AS node_id,
+        UNNEST(@keptBranchIds::BIGINT[]) AS branch_id
+), renumbered AS (
+    SELECT
+        e.node_id,
+        e.branch_id,
+        -- this "compacts" the satisfied orders we're going to keep, so they're contiguous and start at 1
+        -- so that when the replay occurs, we don't end up with a gap causing us to hang. for instance, if we had
+        -- nodes 1, 2, and 3 with satisfied orders 3, 4, and 1, the satisfied orders would be renumbered to 2, 3, and 1
+        -- (in order of the nodes) so we never would hang waiting for order 2 to appear when it never would.
+        -- there's a bit more explanation of this in this PR description: https://github.com/hatchet-dev/hatchet/pull/5265
+        ROW_NUMBER() OVER (ORDER BY e.satisfied_order ASC) AS satisfied_order
+    FROM v1_durable_event_log_entry e
+    JOIN input i ON (i.node_id, i.branch_id) = (e.node_id, e.branch_id)
+    WHERE e.durable_task_id = @durableTaskId::BIGINT
+      AND e.durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
+      AND e.satisfied_order IS NOT NULL
+), updated AS (
+    UPDATE v1_durable_event_log_entry e
+    SET satisfied_order = (
+        SELECT r.satisfied_order
+        FROM renumbered r
+        WHERE (r.node_id, r.branch_id) = (e.node_id, e.branch_id)
+    )
+    WHERE e.durable_task_id = @durableTaskId::BIGINT
+      AND e.durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
+      AND e.satisfied_order IS NOT NULL
+    RETURNING e.satisfied_order
+)
+
+SELECT COALESCE(MAX(satisfied_order), 0)::BIGINT AS latest_satisfied_order
+FROM updated;
+
 -- name: UpdateDurableEventLogEntriesSatisfied :many
 WITH inputs AS (
     SELECT
@@ -125,15 +168,6 @@ WITH inputs AS (
         UNNEST(@branchIds::BIGINT[]) AS branch_id,
         UNNEST(@childTaskIsFailures::BOOLEAN[]) AS child_task_is_failure,
         UNNEST(@childTaskErrorMessages::TEXT[]) AS child_task_error_message
-), locked_log_files AS (
-    SELECT *
-    FROM v1_durable_event_log_file
-    WHERE (durable_task_id, durable_task_inserted_at) IN (
-        SELECT durable_task_id, durable_task_inserted_at
-        FROM inputs
-    )
-    ORDER BY durable_task_id, durable_task_inserted_at
-    FOR UPDATE
 ), satisfied_orders_to_apply AS (
     SELECT
         e.durable_task_id,
@@ -145,12 +179,25 @@ WITH inputs AS (
             ORDER BY e.branch_id ASC, e.node_id ASC
         ) AS satisfied_order
     FROM v1_durable_event_log_entry e
-    JOIN locked_log_files llf USING (durable_task_id, durable_task_inserted_at)
+    JOIN v1_durable_event_log_file llf USING (durable_task_id, durable_task_inserted_at)
     WHERE
         e.satisfied_order IS NULL
+        AND e.durable_task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
+        AND llf.durable_task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
         AND (durable_task_id, durable_task_inserted_at, branch_id, node_id) IN (
             SELECT durable_task_id, durable_task_inserted_at, branch_id, node_id
             FROM inputs
+        )
+        -- an entry past a fork on its branch is never replayed again, so giving it a
+        -- satisfied_order would leave a permanent gap for the live branch to wait on
+        AND NOT EXISTS (
+            SELECT 1
+            FROM v1_durable_event_log_branch_point bp
+            WHERE bp.durable_task_id = e.durable_task_id
+              AND bp.durable_task_inserted_at = e.durable_task_inserted_at
+              AND bp.durable_task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
+              AND bp.parent_branch_id = e.branch_id
+              AND bp.first_node_id_in_new_branch <= e.node_id
         )
 ), updated AS (
     UPDATE v1_durable_event_log_entry e
@@ -178,35 +225,54 @@ WITH inputs AS (
     WHERE (lf.durable_task_id, lf.durable_task_inserted_at) = (so.durable_task_id, so.durable_task_inserted_at)
 )
 
-SELECT updated.*, lf.latest_invocation_count AS invocation_count
+SELECT updated.*, llf.latest_invocation_count AS invocation_count
 FROM updated
-JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_inserted_at) = (updated.durable_task_id, updated.durable_task_inserted_at)
+JOIN v1_durable_event_log_file llf ON (llf.durable_task_id, llf.durable_task_inserted_at) = (updated.durable_task_id, updated.durable_task_inserted_at)
 ;
 
 -- name: ListSatisfiedEntries :many
-WITH inputs AS (
+WITH inputs AS MATERIALIZED (
     SELECT
         UNNEST(@taskExternalIds::UUID[]) AS external_id,
         UNNEST(@nodeIds::BIGINT[]) AS node_id,
         UNNEST(@branchIds::BIGINT[]) AS branch_id
-), tasks_with_nodes AS (
-    SELECT t.*, i.node_id AS requested_node_id, i.branch_id AS requested_branch_id
+), tasks AS MATERIALIZED (
+    SELECT
+        i.external_id AS external_id,
+        i.node_id AS node_id,
+        i.branch_id AS branch_id,
+        lt.task_id,
+        lt.inserted_at
     FROM inputs i
     JOIN v1_lookup_table lt ON lt.external_id = i.external_id
-    JOIN v1_task t ON (t.id, t.inserted_at) = (lt.task_id, lt.inserted_at)
+    WHERE
+        lt.tenant_id = @tenantId::UUID
+        AND lt.inserted_at >= @minTaskInsertedAt::TIMESTAMPTZ
+        AND lt.inserted_at <= @maxTaskInsertedAt::TIMESTAMPTZ
+), satisfied_entries AS MATERIALIZED (
+    SELECT
+        e.*,
+        t.external_id::UUID AS task_external_id
+    FROM tasks t
+    JOIN v1_durable_event_log_entry e
+        ON e.durable_task_id = t.task_id
+        AND e.durable_task_inserted_at = t.inserted_at
+        AND e.branch_id = t.branch_id
+        AND e.node_id = t.node_id
+    WHERE
+        e.is_satisfied
+        AND e.durable_task_inserted_at >= @minTaskInsertedAt::TIMESTAMPTZ
+        AND e.durable_task_inserted_at <= @maxTaskInsertedAt::TIMESTAMPTZ
 )
 
 SELECT
-    e.*,
-    twn.external_id AS task_external_id,
+    s.*,
     lf.latest_invocation_count AS invocation_count
-FROM v1_durable_event_log_entry e
-JOIN tasks_with_nodes twn ON (twn.id, twn.inserted_at) = (e.durable_task_id, e.durable_task_inserted_at)
-JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_inserted_at) = (e.durable_task_id, e.durable_task_inserted_at)
+FROM satisfied_entries s
+JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_inserted_at) = (s.durable_task_id, s.durable_task_inserted_at)
 WHERE
-    e.branch_id = twn.requested_branch_id
-    AND e.node_id = twn.requested_node_id
-    AND e.is_satisfied
+    lf.durable_task_inserted_at >= @minTaskInsertedAt::TIMESTAMPTZ
+    AND lf.durable_task_inserted_at <= @maxTaskInsertedAt::TIMESTAMPTZ
 ;
 
 -- name: MarkDurableEventLogEntrySatisfied :one
@@ -225,15 +291,16 @@ RETURNING *
 -- name: BulkGetDurableEventLogEntries :many
 WITH inputs AS (
     SELECT
+        UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
+        UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at,
         UNNEST(@branchIds::BIGINT[]) AS branch_id,
         UNNEST(@nodeIds::BIGINT[]) AS node_id
 )
 SELECT e.*, lf.latest_invocation_count AS invocation_count
 FROM v1_durable_event_log_entry e
-JOIN inputs i ON e.branch_id = i.branch_id AND e.node_id = i.node_id
-JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_inserted_at) = (e.durable_task_id, e.durable_task_inserted_at)
-WHERE e.durable_task_id = @durableTaskId::BIGINT
-  AND e.durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ;
+JOIN inputs i
+    ON (e.durable_task_id, e.durable_task_inserted_at, e.branch_id, e.node_id) = (i.durable_task_id, i.durable_task_inserted_at, i.branch_id, i.node_id)
+JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_inserted_at) = (e.durable_task_id, e.durable_task_inserted_at);
 
 -- name: GetDurableEventLogEntriesByChildTaskExternalIds :many
 SELECT e.*, lf.latest_invocation_count AS invocation_count
@@ -258,8 +325,22 @@ WITH inputs AS (
         UNNEST(@branchIds::BIGINT[]) AS branch_id,
         UNNEST(@idempotencyKeys::BYTEA[]) AS idempotency_key,
         UNNEST(@isSatisfieds::BOOLEAN[]) AS is_satisfied,
+        UNNEST(@isTriggereds::BOOLEAN[]) AS is_triggered,
         UNNEST(@userMessages::TEXT[]) AS user_message,
         UNNEST(@waitDatas::TEXT[]) AS wait_data
+), ordered_inputs AS (
+    -- a RUN entry created already satisfied (a skipped or cancelled DAG step) takes its place in
+    -- the satisfaction order here, since nothing will satisfy it later
+    SELECT
+        i.*,
+        CASE WHEN i.is_satisfied AND i.kind = 'RUN' THEN
+            lf.latest_satisfied_order + ROW_NUMBER() OVER (
+                PARTITION BY i.durable_task_id, i.durable_task_inserted_at, (i.is_satisfied AND i.kind = 'RUN')
+                ORDER BY i.branch_id ASC, i.node_id ASC
+            )
+        END AS satisfied_order
+    FROM inputs i
+    JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_inserted_at) = (i.durable_task_id, i.durable_task_inserted_at)
 ), inserts AS (
     INSERT INTO v1_durable_event_log_entry (
         tenant_id,
@@ -273,10 +354,13 @@ WITH inputs AS (
         branch_id,
         idempotency_key,
         is_satisfied,
+        satisfied_at,
+        satisfied_order,
         user_message,
         wait_data,
-        -- !!IMPORTANT: Writing the `triggered_at` explicitly as `NULL` since it has a `DEFAULT CURRENT_TIMESTAMP`,
-        -- so we write the explicit null to avoid it being set to the current timestamp on insert
+        -- !!IMPORTANT: `triggered_at` has a `DEFAULT CURRENT_TIMESTAMP`, so it is written explicitly: NULL
+        -- for an entry whose run the trigger path still has to spawn, NOW() for an entry whose child
+        -- already exists (an in-place replay)
         triggered_at
     )
     SELECT
@@ -291,19 +375,30 @@ WITH inputs AS (
         i.branch_id,
         i.idempotency_key,
         i.is_satisfied,
+        CASE WHEN i.satisfied_order IS NOT NULL THEN NOW() END,
+        i.satisfied_order,
         NULLIF(i.user_message, ''),
         NULLIF(i.wait_data, '')::JSONB,
-        NULL::TIMESTAMPTZ
-    FROM inputs i
+        CASE WHEN i.is_triggered THEN NOW() END
+    FROM ordered_inputs i
     ON CONFLICT (durable_task_id, durable_task_inserted_at, branch_id, node_id) DO NOTHING
     RETURNING *
+), log_file_updates AS (
+    UPDATE v1_durable_event_log_file lf
+    SET latest_satisfied_order = GREATEST(lf.latest_satisfied_order, so.satisfied_order)
+    FROM (
+        SELECT durable_task_id, durable_task_inserted_at, MAX(satisfied_order) AS satisfied_order
+        FROM inserts
+        WHERE satisfied_order IS NOT NULL
+        GROUP BY durable_task_id, durable_task_inserted_at
+    ) so
+    WHERE (lf.durable_task_id, lf.durable_task_inserted_at) = (so.durable_task_id, so.durable_task_inserted_at)
 )
 
 SELECT i.*, lf.latest_invocation_count AS invocation_count
 FROM inserts i
 JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_inserted_at) = (i.durable_task_id, i.durable_task_inserted_at)
 ;
-
 
 -- name: GetDurableTaskLogFiles :many
 WITH inputs AS (
@@ -369,9 +464,12 @@ OFFSET @eventLogOffset::BIGINT
 LIMIT @eventLogLimit::BIGINT
 ;
 
--- name: UpsertDurableChildSignalCreatedEvents :many
+-- name: BulkUpsertDurableChildSignalCreatedEvents :many
 WITH input AS (
     SELECT
+        UNNEST(@tenantIds::UUID[]) AS tenant_id,
+        UNNEST(@durableTaskIds::BIGINT[]) AS task_id,
+        UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS task_inserted_at,
         UNNEST(@eventKeys::TEXT[]) AS event_key,
         UNNEST(@childExternalIds::UUID[]) AS child_external_id
 )
@@ -386,9 +484,9 @@ INSERT INTO v1_task_event (
     child_external_id
 )
 SELECT
-    @tenantId::UUID,
-    @durableTaskId::BIGINT,
-    @durableTaskInsertedAt::TIMESTAMPTZ,
+    i.tenant_id,
+    i.task_id,
+    i.task_inserted_at,
     -1,
     'SIGNAL_CREATED',
     i.event_key,
@@ -397,6 +495,7 @@ FROM input i
 ON CONFLICT (tenant_id, task_id, task_inserted_at, event_type, event_key) WHERE event_key IS NOT NULL
 DO UPDATE SET child_external_id = COALESCE(v1_task_event.child_external_id, EXCLUDED.child_external_id)
 RETURNING
+    v1_task_event.task_id,
     v1_task_event.event_key,
     v1_task_event.child_external_id
 ;

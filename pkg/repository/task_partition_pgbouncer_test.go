@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"os"
 	"strconv"
 	"testing"
 	"time"
@@ -56,12 +55,11 @@ func setupPostgresWithPgBouncer(t *testing.T) (directPool *pgxpool.Pool, pgbounc
 	pgPort, err := strconv.Atoi(u.Port())
 	require.NoError(t, err)
 
-	// Run migrations on direct postgres
-	originalDatabaseURL := os.Getenv("DATABASE_URL")
-	err = os.Setenv("DATABASE_URL", pgConnStr)
-	require.NoError(t, err)
+	// Run migrations on direct postgres. The URL is passed explicitly rather than
+	// through the process-global DATABASE_URL so parallel tests cannot migrate
+	// each other's containers.
 	t.Log("Running database migration...")
-	migrate.RunMigrations(ctx)
+	require.NoError(t, migrate.RunMigrations(ctx, migrate.WithDatabaseURL(pgConnStr)))
 	t.Log("Migration completed successfully")
 
 	// Create direct pool
@@ -139,11 +137,6 @@ func setupPostgresWithPgBouncer(t *testing.T) (directPool *pgxpool.Pool, pgbounc
 		directPool.Close()
 		pgBouncerContainer.Terminate(ctx) // nolint: errcheck
 		postgresContainer.Terminate(ctx)  // nolint: errcheck
-		if originalDatabaseURL != "" {
-			os.Setenv("DATABASE_URL", originalDatabaseURL)
-		} else {
-			os.Unsetenv("DATABASE_URL")
-		}
 	}
 
 	return directPool, pgbouncerPool, cleanup
@@ -163,7 +156,7 @@ func TestUpdateTablePartitions_PgBouncer(t *testing.T) {
 
 	// Create partitions for 3 days ago using direct pool
 	threeDaysAgo := time.Now().UTC().AddDate(0, 0, -3)
-	err := queries.CreatePartitions(ctx, directPool, pgtype.Date{
+	_, err := queries.CreatePartitions(ctx, directPool, pgtype.Date{
 		Time:  threeDaysAgo,
 		Valid: true,
 	})
@@ -188,6 +181,8 @@ func TestUpdateTablePartitions_PgBouncer(t *testing.T) {
 			ddlPool: directPool,
 			l:       &logger,
 			queries: queries,
+			// stream retention falls back to the default retention on an empty config
+			m: &tenantLimitRepository{},
 		},
 		taskRetentionPeriod:   24 * time.Hour, // 1 day retention means 3-day-old partitions get detached
 		maxInternalRetryCount: 3,
@@ -238,6 +233,8 @@ func TestUpdateTablePartitions_PgBouncer_CreateOnly(t *testing.T) {
 			ddlPool: directPool,
 			l:       &logger,
 			queries: queries,
+			// stream retention falls back to the default retention on an empty config
+			m: &tenantLimitRepository{},
 		},
 		taskRetentionPeriod:   24 * time.Hour,
 		maxInternalRetryCount: 3,

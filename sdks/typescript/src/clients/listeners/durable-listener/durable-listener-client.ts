@@ -25,16 +25,37 @@ import {
   DurableTaskWaitForRequest,
   DurableEventLogEntryRef,
 } from '@hatchet/protoc/v1/dispatcher';
-import {
-  DurableEventListenerConditions,
-  SleepMatchCondition,
-  UserEventMatchCondition,
-} from '@hatchet/protoc/v1/shared/condition';
-import { TriggerWorkflowRequest } from '@hatchet/protoc/v1/shared/trigger';
+import { SleepMatchCondition, UserEventMatchCondition } from '@hatchet/protoc/v1/shared/condition';
 import { NonDeterminismError } from '@hatchet/util/errors/non-determinism-error';
-import { createAbortError, bindAbortSignalHandler } from '@hatchet/util/abort-error';
+import { TaskRunTerminatedError } from '@hatchet/util/errors/task-run-terminated-error';
+import { createAbortError } from '@hatchet/util/abort-error';
+import { bindAbortSignalHandler } from '@hatchet/util/abort-signal';
 import sleep from '@hatchet/util/sleep';
 import { classifyListenerFailure } from '@clients/dispatcher/listener-severity';
+import {
+  DurableTaskEventAck,
+  DurableTaskEventLogEntryResult,
+  DurableTaskEventMemoAck,
+  DurableTaskEventRunAck,
+  DurableTaskEventWaitForAck,
+  DurableTaskSendEvent,
+  MemoEvent,
+  RunChildrenEvent,
+  WaitForEvent,
+} from './durable-events';
+
+export type {
+  DurableTaskEventAck,
+  DurableTaskEventLogEntryResult,
+  DurableTaskEventMemoAck,
+  DurableTaskEventRunAck,
+  DurableTaskEventWaitForAck,
+  DurableTaskRunAckEntryResult,
+  DurableTaskSendEvent,
+  MemoEvent,
+  RunChildrenEvent,
+  WaitForEvent,
+} from './durable-events';
 
 class TTLMap<K, V> {
   private cache = new Map<K, { value: V; expiresAt: number }>();
@@ -98,49 +119,10 @@ class TTLMap<K, V> {
 
 const DEFAULT_RECONNECT_INTERVAL = 3000;
 const EVICTION_ACK_TIMEOUT_MS = 30_000;
-const WORKER_STATUS_POLL_INTERVAL_MS = 1000;
-
-export interface DurableTaskRunAckEntryResult {
-  nodeId: number;
-  branchId: number;
-  workflowRunExternalId: string;
-}
-
-export interface DurableTaskEventRunAck {
-  ackType: 'run';
-  invocationCount: number;
-  durableTaskExternalId: string;
-  runEntries: DurableTaskRunAckEntryResult[];
-}
-
-export interface DurableTaskEventMemoAck {
-  ackType: 'memo';
-  invocationCount: number;
-  durableTaskExternalId: string;
-  branchId: number;
-  nodeId: number;
-  memoAlreadyExisted: boolean;
-  memoResultPayload?: Uint8Array;
-}
-
-export interface DurableTaskEventWaitForAck {
-  ackType: 'waitFor';
-  invocationCount: number;
-  durableTaskExternalId: string;
-  branchId: number;
-  nodeId: number;
-}
-
-export type DurableTaskEventAck =
-  DurableTaskEventRunAck | DurableTaskEventMemoAck | DurableTaskEventWaitForAck;
-
-export interface DurableTaskEventLogEntryResult {
-  durableTaskExternalId: string;
-  nodeId: number;
-  payload: Record<string, unknown> | undefined;
-  isFailure: boolean;
-  errorMessage: string | undefined;
-}
+const WORKER_STATUS_RESEND_INTERVAL_MS = 5000;
+const WORKER_STATUS_RESEND_MIN_PENDING_MS = 2000;
+const WORKER_STATUS_MAX_ENTRIES_PER_REQUEST = 10_000;
+const RUN_CHILDREN_MAX_CHILDREN_PER_REQUEST = 100;
 
 function eventLogEntryResultFromProto(
   proto: DurableTaskEventLogEntryCompletedResponse
@@ -158,25 +140,6 @@ function eventLogEntryResultFromProto(
   };
 }
 
-export interface WaitForEvent {
-  kind: 'waitFor';
-  waitForConditions: DurableEventListenerConditions;
-  label?: string;
-}
-
-export interface RunChildrenEvent {
-  kind: 'runChildren';
-  triggerOpts: TriggerWorkflowRequest[];
-}
-
-export interface MemoEvent {
-  kind: 'memo';
-  memoKey: Uint8Array;
-  payload?: Uint8Array;
-}
-
-export type DurableTaskSendEvent = WaitForEvent | RunChildrenEvent | MemoEvent;
-
 type TaskExternalId = string;
 type InvocationCount = number;
 type BranchId = number;
@@ -185,8 +148,30 @@ type NodeId = number;
 type PendingEventAckKey = `${TaskExternalId}:${InvocationCount}`;
 type PendingCallbackKey = `${TaskExternalId}:${InvocationCount}:${BranchId}:${NodeId}`;
 type PendingEvictionAckKey = `${TaskExternalId}:${InvocationCount}`;
+type CompletionOrderKey = `${TaskExternalId}:${InvocationCount}`;
+
+interface OrderedCompletionQueue {
+  pending: Array<{ key: PendingCallbackKey; result: DurableTaskEventLogEntryResult }>;
+  pendingKeys: Set<PendingCallbackKey>;
+  delivered: Set<PendingCallbackKey>;
+}
+
+function awaitedCompletedEntryFromCallbackKey(
+  key: PendingCallbackKey
+): DurableTaskAwaitedCompletedEntry {
+  const [durableTaskExternalId, invocationCount, branchId, nodeId] = key.split(':');
+  return {
+    durableTaskExternalId,
+    invocationCount: parseInt(invocationCount, 10),
+    branchId: parseInt(branchId, 10),
+    nodeId: parseInt(nodeId, 10),
+  };
+}
 
 function ackKey(taskExtId: string, invocationCount: number): PendingEventAckKey {
+  return `${taskExtId}:${invocationCount}`;
+}
+function completionOrderKey(taskExtId: string, invocationCount: number): CompletionOrderKey {
   return `${taskExtId}:${invocationCount}`;
 }
 function callbackKey(
@@ -232,14 +217,15 @@ export class DurableListenerClient {
     PendingCallbackKey,
     Deferred<DurableTaskEventLogEntryResult>
   >();
-  // Completions that arrived before waitForCallback() registered a deferred
-  // in _pendingCallbacks. This happens when the server delivers an
-  // entryCompleted between the event ack and the waitForCallback call
-  // (e.g. an already-satisfied sleep delivered via polling).
-  private _bufferedCompletions = new TTLMap<PendingCallbackKey, DurableTaskEventLogEntryResult>(
-    10_000
-  );
+  // Completions held in server delivery order until their waiters can
+  // consume them without overtaking an earlier-delivered completion.
+  // The TTL only garbage-collects queues for invocations that died
+  // without consuming everything; the server stall-evicts long before.
+  private _orderedCompletions = new TTLMap<CompletionOrderKey, OrderedCompletionQueue>(300_000);
   private _pendingEvictionAcks = new Map<PendingEvictionAckKey, Deferred<void>>();
+  private _newlyWaitingKeys = new Set<PendingCallbackKey>();
+  private _waitingSince = new Map<PendingCallbackKey, number>();
+  private _workerStatusSendScheduled = false;
 
   private _receiveAbort: AbortController | undefined;
   private _statusInterval: ReturnType<typeof setInterval> | undefined;
@@ -293,7 +279,7 @@ export class DurableListenerClient {
       this._receiveAbort.abort();
     }
     this._failPendingAcks(new Error('DurableListener stopped'));
-    this._bufferedCompletions.destroy();
+    this._orderedCompletions.destroy();
   }
 
   private async _connect(): Promise<void> {
@@ -308,7 +294,7 @@ export class DurableListenerClient {
       registerWorker: { workerId: this._workerId! } as DurableTaskRequestRegisterWorker,
     });
 
-    this._pollWorkerStatus();
+    this._enqueueFullWorkerStatus();
 
     void this._streamLoop();
 
@@ -397,30 +383,67 @@ export class DurableListenerClient {
       clearInterval(this._statusInterval);
     }
     this._statusInterval = setInterval(() => {
-      this._pollWorkerStatus();
-    }, WORKER_STATUS_POLL_INTERVAL_MS);
+      this._enqueueWorkerStatusForLongPendingWaiters();
+    }, WORKER_STATUS_RESEND_INTERVAL_MS);
   }
 
-  private _pollWorkerStatus(): void {
-    if (!this._workerId || this._pendingCallbacks.size === 0) return;
+  private _registerWaitingKey(key: PendingCallbackKey): void {
+    this._waitingSince.set(key, Date.now());
+    this._newlyWaitingKeys.add(key);
+  }
 
-    const waitingEntries: DurableTaskAwaitedCompletedEntry[] = [];
-    for (const key of this._pendingCallbacks.keys()) {
-      const parts = key.split(':');
-      waitingEntries.push({
-        durableTaskExternalId: parts[0],
-        invocationCount: parseInt(parts[1], 10),
-        branchId: parseInt(parts[2], 10),
-        nodeId: parseInt(parts[3], 10),
-      });
+  // Waiters registered in the same turn of the event loop share one request,
+  // instead of each sending its own.
+  private _scheduleWorkerStatusSend(): void {
+    if (this._workerStatusSendScheduled) return;
+
+    this._workerStatusSendScheduled = true;
+    setImmediate(() => this._enqueueWorkerStatusForNewlyWaitingKeys());
+  }
+
+  private _enqueueWorkerStatusForNewlyWaitingKeys(): void {
+    this._workerStatusSendScheduled = false;
+    const keys = [...this._newlyWaitingKeys].filter((key) => this._pendingCallbacks.has(key));
+    this._newlyWaitingKeys.clear();
+    this._enqueueWorkerStatusFor(keys);
+  }
+
+  private _enqueueWorkerStatusForLongPendingWaiters(): void {
+    const registeredBefore = Date.now() - WORKER_STATUS_RESEND_MIN_PENDING_MS;
+    const keys: PendingCallbackKey[] = [];
+
+    for (const [key, waitingSince] of this._waitingSince) {
+      if (!this._pendingCallbacks.has(key)) {
+        this._waitingSince.delete(key);
+      } else if (waitingSince <= registeredBefore) {
+        keys.push(key);
+      }
     }
 
-    this._enqueueRequest({
-      workerStatus: {
-        workerId: this._workerId,
-        waitingEntries,
-      } as DurableTaskWorkerStatusRequest,
-    });
+    this._enqueueWorkerStatusFor(keys);
+  }
+
+  private _enqueueFullWorkerStatus(): void {
+    this._newlyWaitingKeys.clear();
+    this._enqueueWorkerStatusFor([...this._pendingCallbacks.keys()]);
+  }
+
+  private _enqueueWorkerStatusFor(
+    keys: PendingCallbackKey[],
+    maxEntriesPerRequest = WORKER_STATUS_MAX_ENTRIES_PER_REQUEST
+  ): void {
+    if (!this._workerId) return;
+
+    for (let start = 0; start < keys.length; start += maxEntriesPerRequest) {
+      this._enqueueRequest({
+        workerStatus: {
+          workerId: this._workerId,
+          waitingEntries: keys
+            .slice(start, start + maxEntriesPerRequest)
+            .map(awaitedCompletedEntryFromCallbackKey),
+        } as DurableTaskWorkerStatusRequest,
+      });
+    }
   }
 
   private _failPendingAcks(exc: Error): void {
@@ -442,7 +465,7 @@ export class DurableListenerClient {
       d.reject(exc);
     }
     this._pendingCallbacks.clear();
-    this._bufferedCompletions.clear();
+    this._orderedCompletions.clear();
   }
 
   private _handleResponse(response: DurableTaskResponse): void {
@@ -507,13 +530,32 @@ export class DurableListenerClient {
         ref?.nodeId ?? 0
       );
       const result = eventLogEntryResultFromProto(completed);
-      const pending = this._pendingCallbacks.get(key);
-      if (pending) {
-        pending.resolve(result);
-        this._pendingCallbacks.delete(key);
-      } else {
-        this._bufferedCompletions.set(key, result);
+      const orderKey = completionOrderKey(
+        ref?.durableTaskExternalId ?? '',
+        ref?.invocationCount ?? 0
+      );
+      const queue: OrderedCompletionQueue = this._orderedCompletions.get(orderKey) ?? {
+        pending: [],
+        pendingKeys: new Set(),
+        delivered: new Set(),
+      };
+      if (!queue.delivered.has(key)) {
+        queue.delivered.add(key);
+        queue.pendingKeys.add(key);
+        queue.pending.push({ key, result });
+      } else if (!queue.pendingKeys.has(key)) {
+        // Re-delivery of a completion that already drained (reconnect,
+        // worker-status re-send, or a repeated wait on a node deduped by
+        // child key). Its satisfied order was released before anything
+        // still queued, so handing it straight to a waiter keeps order.
+        const redelivered = this._pendingCallbacks.get(key);
+        if (redelivered) {
+          this._pendingCallbacks.delete(key);
+          redelivered.resolve(result);
+        }
       }
+      this._orderedCompletions.set(orderKey, queue);
+      this._drainOrderedCompletions(orderKey);
     } else if (response.evictionAck) {
       const ack = response.evictionAck;
       const key = evictionKey(ack.durableTaskExternalId, ack.invocationCount);
@@ -528,10 +570,12 @@ export class DurableListenerClient {
         `received server eviction notification for task ${evict.durableTaskExternalId} ` +
           `invocation ${evict.invocationCount}: ${evict.reason}`
       );
-      this.cleanupTaskState(evict.durableTaskExternalId, evict.invocationCount);
+      // onServerEvict aborts the run first so waiters settle as aborted
+      // (eviction) rather than with cleanup's generic rejection.
       if (this.onServerEvict) {
         this.onServerEvict(evict.durableTaskExternalId, evict.invocationCount);
       }
+      this.cleanupTaskState(evict.durableTaskExternalId, evict.invocationCount);
     } else if (response.error) {
       const { error } = response;
       const { ref } = error;
@@ -598,22 +642,11 @@ export class DurableListenerClient {
     invocationCount: number,
     event: DurableTaskSendEvent
   ): Promise<DurableTaskEventAck> {
-    const key = ackKey(durableTaskExternalId, invocationCount);
-    const d = deferred<DurableTaskEventAck>();
-    this._pendingEventAcks.set(key, d);
-
     let request: DurableTaskRequest;
 
     switch (event.kind) {
-      case 'runChildren': {
-        const triggerRunsReq: DurableTaskTriggerRunsRequest = {
-          invocationCount,
-          durableTaskExternalId,
-          triggerOpts: event.triggerOpts,
-        };
-        request = { triggerRuns: triggerRunsReq };
-        break;
-      }
+      case 'runChildren':
+        return this._sendRunChildrenEvent(durableTaskExternalId, invocationCount, event);
 
       case 'waitFor': {
         const waitForReq: DurableTaskWaitForRequest = {
@@ -643,8 +676,117 @@ export class DurableListenerClient {
       }
     }
 
+    return this._sendRequestAndAwaitAck(durableTaskExternalId, invocationCount, request);
+  }
+
+  private _sendRequestAndAwaitAck(
+    durableTaskExternalId: string,
+    invocationCount: number,
+    request: DurableTaskRequest
+  ): Promise<DurableTaskEventAck> {
+    const d = deferred<DurableTaskEventAck>();
+    this._pendingEventAcks.set(ackKey(durableTaskExternalId, invocationCount), d);
     this._enqueueRequest(request);
     return d.promise;
+  }
+
+  private async _sendRunChildrenEvent(
+    durableTaskExternalId: string,
+    invocationCount: number,
+    event: RunChildrenEvent
+  ): Promise<DurableTaskEventRunAck> {
+    const runEntries: DurableTaskEventRunAck['runEntries'] = [];
+
+    for (
+      let start = 0;
+      start < event.triggerOpts.length;
+      start += RUN_CHILDREN_MAX_CHILDREN_PER_REQUEST
+    ) {
+      const triggerRunsReq: DurableTaskTriggerRunsRequest = {
+        invocationCount,
+        durableTaskExternalId,
+        triggerOpts: event.triggerOpts.slice(start, start + RUN_CHILDREN_MAX_CHILDREN_PER_REQUEST),
+      };
+      const ack = await this._sendRequestAndAwaitAck(durableTaskExternalId, invocationCount, {
+        triggerRuns: triggerRunsReq,
+      });
+      if (ack.ackType !== 'run') {
+        throw new Error(`Expected a run ack for a trigger runs request, got ${ack.ackType}`);
+      }
+      runEntries.push(...ack.runEntries);
+    }
+
+    return { ackType: 'run', invocationCount, durableTaskExternalId, runEntries };
+  }
+
+  private _drainsInProgress = new Set<CompletionOrderKey>();
+  private _drainRerunRequests = new Set<CompletionOrderKey>();
+
+  // Hands queued completions to their waiters strictly in delivery order.
+  // Stops at the first completion whose waiter has not registered yet:
+  // releasing a later completion first would resume its coroutine ahead of
+  // the recorded order and diverge the re-emitted event sequence.
+  private _drainOrderedCompletions(orderKey: CompletionOrderKey): void {
+    if (this._drainsInProgress.has(orderKey)) {
+      this._drainRerunRequests.add(orderKey);
+      return;
+    }
+    this._drainsInProgress.add(orderKey);
+    void this._drainLoop(orderKey).finally(() => {
+      this._drainsInProgress.delete(orderKey);
+      if (this._drainRerunRequests.delete(orderKey)) {
+        this._drainOrderedCompletions(orderKey);
+      }
+    });
+  }
+
+  private async _drainLoop(orderKey: CompletionOrderKey): Promise<void> {
+    let released = false;
+    while (true) {
+      if (released) {
+        // A macrotask boundary between releases lets the just-resumed waiter
+        // run to its next suspension point (emitting its next durable event)
+        // before the following completion is released. Resolving several
+        // deferreds back-to-back would instead resume them in the order their
+        // continuations happened to be attached, not in release order.
+        await new Promise<void>((resolve) => {
+          setImmediate(resolve);
+        });
+      }
+
+      const queue = this._orderedCompletions.get(orderKey);
+      if (!queue || queue.pending.length === 0) return;
+
+      const [head] = queue.pending;
+      const waiter = this._pendingCallbacks.get(head.key);
+      if (!waiter) return;
+
+      queue.pending.shift();
+      queue.pendingKeys.delete(head.key);
+      this._pendingCallbacks.delete(head.key);
+      waiter.resolve(head.result);
+      released = true;
+    }
+  }
+
+  // A memo's value arrives in its ack and its completion is never awaited,
+  // but the server still delivers that completion on replay, in recorded
+  // order. Register a waiter that nothing blocks on so the drain can hand the
+  // completion through instead of stalling the queue at it forever.
+  consumeCallbackWithoutBlocking(
+    durableTaskExternalId: string,
+    invocationCount: number,
+    branchId: number,
+    nodeId: number
+  ): void {
+    const key = callbackKey(durableTaskExternalId, invocationCount, branchId, nodeId);
+    if (this._pendingCallbacks.has(key)) return;
+
+    const d = deferred<DurableTaskEventLogEntryResult>();
+    d.promise.catch(() => {});
+    this._pendingCallbacks.set(key, d);
+    this._registerWaitingKey(key);
+    this._drainOrderedCompletions(completionOrderKey(durableTaskExternalId, invocationCount));
   }
 
   async waitForCallback(
@@ -654,28 +796,30 @@ export class DurableListenerClient {
     nodeId: number,
     opts?: { signal?: AbortSignal }
   ): Promise<DurableTaskEventLogEntryResult> {
+    const signal = opts?.signal;
+    if (signal?.aborted) {
+      return Promise.reject(createAbortError('Operation cancelled by AbortSignal'));
+    }
+
     const key = callbackKey(durableTaskExternalId, invocationCount, branchId, nodeId);
 
-    const early = this._bufferedCompletions.get(key);
-    if (early) {
-      this._bufferedCompletions.delete(key);
-      return early;
+    let d = this._pendingCallbacks.get(key);
+    if (!d) {
+      d = deferred<DurableTaskEventLogEntryResult>();
+      // A deferred can outlive its waiters (eviction aborts the caller while
+      // the entry stays registered); a later cleanupTaskState rejection must
+      // not crash the process as an unhandled rejection.
+      d.promise.catch(() => {});
+      this._pendingCallbacks.set(key, d);
+      this._registerWaitingKey(key);
+      this._drainOrderedCompletions(completionOrderKey(durableTaskExternalId, invocationCount));
+      if (this._pendingCallbacks.has(key)) {
+        this._scheduleWorkerStatusSend();
+      }
     }
-
-    if (!this._pendingCallbacks.has(key)) {
-      this._pendingCallbacks.set(key, deferred<DurableTaskEventLogEntryResult>());
-      this._pollWorkerStatus();
-    }
-
-    const d = this._pendingCallbacks.get(key)!;
-    const signal = opts?.signal;
 
     if (!signal) {
       return d.promise;
-    }
-
-    if (signal.aborted) {
-      return Promise.reject(createAbortError('Operation cancelled by AbortSignal'));
     }
 
     return new Promise<DurableTaskEventLogEntryResult>((resolve, reject) => {
@@ -707,10 +851,15 @@ export class DurableListenerClient {
   }
 
   cleanupTaskState(durableTaskExternalId: string, invocationCount: number): void {
+    // Rejecting with TaskRunTerminatedError marks any coroutine still blocked
+    // on this invocation's state as evicted rather than failed, matching
+    // Python's future cancellation on cleanup.
+    const evicted = () => new TaskRunTerminatedError('evicted', 'task state cleaned up');
+
     for (const [k, d] of this._pendingCallbacks) {
       const parts = k.split(':');
       if (parts[0] === durableTaskExternalId && parseInt(parts[1], 10) <= invocationCount) {
-        d.reject(new Error('task state cleaned up'));
+        d.reject(evicted());
         this._pendingCallbacks.delete(k);
       }
     }
@@ -718,15 +867,15 @@ export class DurableListenerClient {
     for (const [k, d] of this._pendingEventAcks) {
       const parts = k.split(':');
       if (parts[0] === durableTaskExternalId && parseInt(parts[1], 10) <= invocationCount) {
-        d.reject(new Error('task state cleaned up'));
+        d.reject(evicted());
         this._pendingEventAcks.delete(k);
       }
     }
 
-    for (const k of this._bufferedCompletions.keys()) {
+    for (const k of this._orderedCompletions.keys()) {
       const parts = k.split(':');
       if (parts[0] === durableTaskExternalId && parseInt(parts[1], 10) <= invocationCount) {
-        this._bufferedCompletions.delete(k);
+        this._orderedCompletions.delete(k);
       }
     }
   }
@@ -737,6 +886,11 @@ export class DurableListenerClient {
     reason?: string
   ): Promise<void> {
     const key = evictionKey(durableTaskExternalId, invocationCount);
+    const pending = this._pendingEvictionAcks.get(key);
+    if (pending) {
+      return pending.promise;
+    }
+
     const d = deferred<void>();
     this._pendingEvictionAcks.set(key, d);
 
@@ -748,17 +902,21 @@ export class DurableListenerClient {
 
     this._enqueueRequest({ evictInvocation: req });
 
-    const timeout = sleep(EVICTION_ACK_TIMEOUT_MS).then(() => {
-      throw new Error(
-        `Eviction ack timed out after ${EVICTION_ACK_TIMEOUT_MS}ms for task ${durableTaskExternalId} invocation ${invocationCount}`
+    const timeout = setTimeout(() => {
+      d.reject(
+        new Error(
+          `Eviction ack timed out after ${EVICTION_ACK_TIMEOUT_MS}ms for task ${durableTaskExternalId} invocation ${invocationCount}`
+        )
       );
-    });
+    }, EVICTION_ACK_TIMEOUT_MS);
 
     try {
-      await Promise.race([d.promise, timeout]);
-    } catch (err) {
-      this._pendingEvictionAcks.delete(key);
-      throw err;
+      await d.promise;
+    } finally {
+      clearTimeout(timeout);
+      if (this._pendingEvictionAcks.get(key) === d) {
+        this._pendingEvictionAcks.delete(key);
+      }
     }
   }
 

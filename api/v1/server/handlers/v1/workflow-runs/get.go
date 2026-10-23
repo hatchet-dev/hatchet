@@ -9,7 +9,9 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/authz"
+	v1handlers "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 
@@ -21,13 +23,22 @@ func (t *V1WorkflowRunsService) V1WorkflowRunGet(ctx echo.Context, request gen.V
 	tenantId := tenant.ID
 	rawWorkflowRun := ctx.Get("v1-workflow-run").(*v1.V1WorkflowRunPopulator)
 
+	if ts := rawWorkflowRun.WorkflowRun.CreatedAt; ts.Valid && v1handlers.IsBeforeRetention(ts.Time, tenant.DataRetentionPeriod) {
+		t.config.Analytics.Count(ctx.Request().Context(), analytics.WorkflowRun, analytics.Get, analytics.Properties{
+			"outside_retention": true,
+		})
+	}
+
 	requestContext := ctx.Request().Context()
+
+	includeOrchestratorEvents := request.Params.IncludeOrchestratorEvents != nil && *request.Params.IncludeOrchestratorEvents
 
 	details, err := t.getWorkflowRunDetails(
 		requestContext,
 		tenantId,
 		rawWorkflowRun,
 		authz.CanViewPayloads(ctx),
+		includeOrchestratorEvents,
 	)
 
 	if err != nil {
@@ -44,6 +55,7 @@ func (t *V1WorkflowRunsService) getWorkflowRunDetails(
 	tenantId uuid.UUID,
 	rawWorkflowRun *v1.V1WorkflowRunPopulator,
 	includePayloads bool,
+	includeOrchestratorEvents bool,
 ) (*gen.V1WorkflowRunDetails, error) {
 	workflowRun := rawWorkflowRun.WorkflowRun
 	taskMetadata := rawWorkflowRun.TaskMetadata
@@ -53,6 +65,7 @@ func (t *V1WorkflowRunsService) getWorkflowRunDetails(
 		ctx,
 		tenantId,
 		workflowRunId,
+		includeOrchestratorEvents,
 	)
 
 	if err != nil {

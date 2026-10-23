@@ -331,6 +331,9 @@ const (
 	LimitResourceCRON            LimitResource = "CRON"
 	LimitResourceSCHEDULE        LimitResource = "SCHEDULE"
 	LimitResourceINCOMINGWEBHOOK LimitResource = "INCOMING_WEBHOOK"
+	LimitResourceSTREAMTOPIC     LimitResource = "STREAM_TOPIC"
+	LimitResourceSTREAMMESSAGE   LimitResource = "STREAM_MESSAGE"
+	LimitResourceSTREAMRETENTION LimitResource = "STREAM_RETENTION"
 )
 
 func (e *LimitResource) Scan(src interface{}) error {
@@ -992,10 +995,12 @@ func (ns NullV1CelEvaluationFailureSource) Value() (driver.Value, error) {
 type V1ConcurrencyStrategy string
 
 const (
-	V1ConcurrencyStrategyNONE             V1ConcurrencyStrategy = "NONE"
-	V1ConcurrencyStrategyGROUPROUNDROBIN  V1ConcurrencyStrategy = "GROUP_ROUND_ROBIN"
-	V1ConcurrencyStrategyCANCELINPROGRESS V1ConcurrencyStrategy = "CANCEL_IN_PROGRESS"
-	V1ConcurrencyStrategyCANCELNEWEST     V1ConcurrencyStrategy = "CANCEL_NEWEST"
+	V1ConcurrencyStrategyNONE                     V1ConcurrencyStrategy = "NONE"
+	V1ConcurrencyStrategyGROUPROUNDROBIN          V1ConcurrencyStrategy = "GROUP_ROUND_ROBIN"
+	V1ConcurrencyStrategyCANCELINPROGRESS         V1ConcurrencyStrategy = "CANCEL_IN_PROGRESS"
+	V1ConcurrencyStrategyCANCELNEWEST             V1ConcurrencyStrategy = "CANCEL_NEWEST"
+	V1ConcurrencyStrategyCANCELQUEUEDEXCEPTNEWEST V1ConcurrencyStrategy = "CANCEL_QUEUED_EXCEPT_NEWEST"
+	V1ConcurrencyStrategyCANCELQUEUEDEXCEPTOLDEST V1ConcurrencyStrategy = "CANCEL_QUEUED_EXCEPT_OLDEST"
 )
 
 func (e *V1ConcurrencyStrategy) Scan(src interface{}) error {
@@ -1496,6 +1501,7 @@ type V1OperatorKind string
 const (
 	V1OperatorKindHTTPAPI V1OperatorKind = "HTTP_API"
 	V1OperatorKindDAG     V1OperatorKind = "DAG"
+	V1OperatorKindGRPC    V1OperatorKind = "GRPC"
 )
 
 func (e *V1OperatorKind) Scan(src interface{}) error {
@@ -1531,6 +1537,48 @@ func (ns NullV1OperatorKind) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.V1OperatorKind), nil
+}
+
+type V1OperatorLeasingManager string
+
+const (
+	V1OperatorLeasingManagerSELF       V1OperatorLeasingManager = "SELF"
+	V1OperatorLeasingManagerDISPATCHER V1OperatorLeasingManager = "DISPATCHER"
+)
+
+func (e *V1OperatorLeasingManager) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V1OperatorLeasingManager(s)
+	case string:
+		*e = V1OperatorLeasingManager(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V1OperatorLeasingManager: %T", src)
+	}
+	return nil
+}
+
+type NullV1OperatorLeasingManager struct {
+	V1OperatorLeasingManager V1OperatorLeasingManager `json:"v1_operator_leasing_manager"`
+	Valid                    bool                     `json:"valid"` // Valid is true if V1OperatorLeasingManager is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullV1OperatorLeasingManager) Scan(value interface{}) error {
+	if value == nil {
+		ns.V1OperatorLeasingManager, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.V1OperatorLeasingManager.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullV1OperatorLeasingManager) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.V1OperatorLeasingManager), nil
 }
 
 type V1OtelSpanKind string
@@ -1839,6 +1887,48 @@ func (ns NullV1RunKind) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.V1RunKind), nil
+}
+
+type V1ServerlessEndpointKind string
+
+const (
+	V1ServerlessEndpointKindGENERICHTTP       V1ServerlessEndpointKind = "GENERIC_HTTP"
+	V1ServerlessEndpointKindCLOUDFLAREWORKERS V1ServerlessEndpointKind = "CLOUDFLARE_WORKERS"
+)
+
+func (e *V1ServerlessEndpointKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V1ServerlessEndpointKind(s)
+	case string:
+		*e = V1ServerlessEndpointKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V1ServerlessEndpointKind: %T", src)
+	}
+	return nil
+}
+
+type NullV1ServerlessEndpointKind struct {
+	V1ServerlessEndpointKind V1ServerlessEndpointKind `json:"v1_serverless_endpoint_kind"`
+	Valid                    bool                     `json:"valid"` // Valid is true if V1ServerlessEndpointKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullV1ServerlessEndpointKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.V1ServerlessEndpointKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.V1ServerlessEndpointKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullV1ServerlessEndpointKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.V1ServerlessEndpointKind), nil
 }
 
 type V1StatusKind string
@@ -3084,6 +3174,8 @@ type TenantEntitlement struct {
 	PrometheusMetrics               bool               `json:"prometheus_metrics"`
 	StrictAdditionalMetadataFilters bool               `json:"strict_additional_metadata_filters"`
 	DagOperator                     bool               `json:"dag_operator"`
+	DurableStreams                  bool               `json:"durable_streams"`
+	ServerlessOperator              bool               `json:"serverless_operator"`
 	CreatedAt                       pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                       pgtype.Timestamptz `json:"updated_at"`
 }
@@ -3282,6 +3374,8 @@ type V1ConcurrencySlot struct {
 	NextKeys              []string           `json:"next_keys"`
 	QueueToNotify         string             `json:"queue_to_notify"`
 	ScheduleTimeoutAt     pgtype.Timestamp   `json:"schedule_timeout_at"`
+	MaxRuns               pgtype.Int4        `json:"max_runs"`
+	NextMaxRuns           []int32            `json:"next_max_runs"`
 }
 
 type V1Dag struct {
@@ -3295,6 +3389,7 @@ type V1Dag struct {
 	ParentTaskExternalID *uuid.UUID         `json:"parent_task_external_id"`
 	DesiredWorkerLabels  []byte             `json:"desired_worker_labels"`
 	IdempotencyKey       pgtype.Text        `json:"idempotency_key"`
+	PayloadReferenceID   *uuid.UUID         `json:"payload_reference_id"`
 }
 
 type V1DagData struct {
@@ -3332,6 +3427,9 @@ type V1DagsOlap struct {
 	ParentTaskExternalID *uuid.UUID           `json:"parent_task_external_id"`
 	TotalTasks           int32                `json:"total_tasks"`
 	IdempotencyKey       pgtype.Text          `json:"idempotency_key"`
+	LatestRetryCount     int32                `json:"latest_retry_count"`
+	IsDagOperator        bool                 `json:"is_dag_operator"`
+	PayloadReferenceID   *uuid.UUID           `json:"payload_reference_id"`
 }
 
 type V1DurableEventLogBranchPoint struct {
@@ -3396,6 +3494,7 @@ type V1Event struct {
 	AdditionalMetadata    []byte             `json:"additional_metadata"`
 	Scope                 pgtype.Text        `json:"scope"`
 	TriggeringWebhookName pgtype.Text        `json:"triggering_webhook_name"`
+	PayloadReferenceID    *uuid.UUID         `json:"payload_reference_id"`
 }
 
 type V1EventLookupTableOlap struct {
@@ -3423,6 +3522,7 @@ type V1EventsOlap struct {
 	AdditionalMetadata    []byte             `json:"additional_metadata"`
 	Scope                 pgtype.Text        `json:"scope"`
 	TriggeringWebhookName pgtype.Text        `json:"triggering_webhook_name"`
+	PayloadReferenceID    *uuid.UUID         `json:"payload_reference_id"`
 }
 
 type V1Filter struct {
@@ -3562,14 +3662,15 @@ type V1OperationIntervalSettings struct {
 }
 
 type V1Operator struct {
-	ID        uuid.UUID          `json:"id"`
-	TenantID  uuid.UUID          `json:"tenant_id"`
-	Name      string             `json:"name"`
-	Kind      V1OperatorKind     `json:"kind"`
-	Config    []byte             `json:"config"`
-	WorkerID  *uuid.UUID         `json:"worker_id"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+	ID             uuid.UUID                `json:"id"`
+	TenantID       uuid.UUID                `json:"tenant_id"`
+	Name           string                   `json:"name"`
+	Kind           V1OperatorKind           `json:"kind"`
+	LeasingManager V1OperatorLeasingManager `json:"leasing_manager"`
+	Config         []byte                   `json:"config"`
+	WorkerID       *uuid.UUID               `json:"worker_id"`
+	CreatedAt      pgtype.Timestamptz       `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz       `json:"updated_at"`
 }
 
 type V1OtelTraceLookupOlap struct {
@@ -3602,23 +3703,24 @@ type V1OtelTraceOlap struct {
 }
 
 type V1PausedWorkflowQueueItem struct {
-	TenantID           uuid.UUID          `json:"tenant_id"`
-	Queue              string             `json:"queue"`
-	TaskID             int64              `json:"task_id"`
-	TaskInsertedAt     pgtype.Timestamptz `json:"task_inserted_at"`
-	ExternalID         uuid.UUID          `json:"external_id"`
-	ActionID           string             `json:"action_id"`
-	StepID             uuid.UUID          `json:"step_id"`
-	WorkflowID         uuid.UUID          `json:"workflow_id"`
-	WorkflowRunID      uuid.UUID          `json:"workflow_run_id"`
-	ScheduleTimeoutAt  pgtype.Timestamp   `json:"schedule_timeout_at"`
-	StepTimeout        pgtype.Text        `json:"step_timeout"`
-	Priority           int32              `json:"priority"`
-	Sticky             V1StickyStrategy   `json:"sticky"`
-	DesiredWorkerID    *uuid.UUID         `json:"desired_worker_id"`
-	RetryCount         int32              `json:"retry_count"`
-	DesiredWorkerLabel []byte             `json:"desired_worker_label"`
-	BatchKey           pgtype.Text        `json:"batch_key"`
+	TenantID             uuid.UUID          `json:"tenant_id"`
+	Queue                string             `json:"queue"`
+	TaskID               int64              `json:"task_id"`
+	TaskInsertedAt       pgtype.Timestamptz `json:"task_inserted_at"`
+	ExternalID           uuid.UUID          `json:"external_id"`
+	ActionID             string             `json:"action_id"`
+	StepID               uuid.UUID          `json:"step_id"`
+	WorkflowID           uuid.UUID          `json:"workflow_id"`
+	WorkflowRunID        uuid.UUID          `json:"workflow_run_id"`
+	ScheduleTimeoutAt    pgtype.Timestamp   `json:"schedule_timeout_at"`
+	StepTimeout          pgtype.Text        `json:"step_timeout"`
+	Priority             int32              `json:"priority"`
+	Sticky               V1StickyStrategy   `json:"sticky"`
+	DesiredWorkerID      *uuid.UUID         `json:"desired_worker_id"`
+	RetryCount           int32              `json:"retry_count"`
+	DesiredWorkerLabel   []byte             `json:"desired_worker_label"`
+	BatchKey             pgtype.Text        `json:"batch_key"`
+	RateLimitPausedUntil pgtype.Timestamptz `json:"rate_limit_paused_until"`
 }
 
 type V1Payload struct {
@@ -3698,6 +3800,13 @@ type V1QueueItem struct {
 	BatchKey           pgtype.Text        `json:"batch_key"`
 }
 
+type V1RateLimitPause struct {
+	TenantID    uuid.UUID          `json:"tenant_id"`
+	Key         string             `json:"key"`
+	PausedAt    pgtype.Timestamptz `json:"paused_at"`
+	PausedUntil pgtype.Timestamptz `json:"paused_until"`
+}
+
 type V1RateLimitedQueueItems struct {
 	RequeueAfter       pgtype.Timestamptz `json:"requeue_after"`
 	TenantID           uuid.UUID          `json:"tenant_id"`
@@ -3741,6 +3850,54 @@ type V1RunsOlap struct {
 	IdempotencyKey       pgtype.Text          `json:"idempotency_key"`
 }
 
+type V1ServerlessEndpoint struct {
+	ID                    uuid.UUID                `json:"id"`
+	TenantID              uuid.UUID                `json:"tenant_id"`
+	Name                  string                   `json:"name"`
+	Kind                  V1ServerlessEndpointKind `json:"kind"`
+	HealthcheckUrl        string                   `json:"healthcheck_url"`
+	TriggerUrl            string                   `json:"trigger_url"`
+	SigningSecretEnc      string                   `json:"signing_secret_enc"`
+	RequestTimeoutSeconds int32                    `json:"request_timeout_seconds"`
+	PollIntervalSeconds   int32                    `json:"poll_interval_seconds"`
+	InlineWaitBudgetMs    int32                    `json:"inline_wait_budget_ms"`
+	Labels                []byte                   `json:"labels"`
+	Enabled               bool                     `json:"enabled"`
+	EndpointPartition     int32                    `json:"endpoint_partition"`
+	Healthy               pgtype.Bool              `json:"healthy"`
+	StatusError           pgtype.Text              `json:"status_error"`
+	StatusChangedAt       pgtype.Timestamptz       `json:"status_changed_at"`
+	RegisteredActions     []string                 `json:"registered_actions"`
+	CreatedAt             pgtype.Timestamptz       `json:"created_at"`
+	UpdatedAt             pgtype.Timestamptz       `json:"updated_at"`
+	StreamActions         []string                 `json:"stream_actions"`
+	DurableSupported      bool                     `json:"durable_supported"`
+	DeletedAt             pgtype.Timestamptz       `json:"deleted_at"`
+}
+
+type V1ServerlessLease struct {
+	TenantID          uuid.UUID          `json:"tenant_id"`
+	EndpointPartition int32              `json:"endpoint_partition"`
+	ProcessID         *uuid.UUID         `json:"process_id"`
+	ClaimedAt         pgtype.Timestamptz `json:"claimed_at"`
+	EndpointCount     int32              `json:"endpoint_count"`
+}
+
+type V1ServerlessProcess struct {
+	ProcessID     uuid.UUID          `json:"process_id"`
+	ExpiresAt     pgtype.Timestamptz `json:"expires_at"`
+	UnitCount     int32              `json:"unit_count"`
+	EndpointCount int32              `json:"endpoint_count"`
+	Hostname      pgtype.Text        `json:"hostname"`
+	Version       pgtype.Text        `json:"version"`
+	StartedAt     pgtype.Timestamptz `json:"started_at"`
+}
+
+type V1ServerlessTenant struct {
+	TenantID               uuid.UUID `json:"tenant_id"`
+	EndpointPartitionCount int32     `json:"endpoint_partition_count"`
+}
+
 type V1StatusesOlap struct {
 	ExternalID     uuid.UUID            `json:"external_id"`
 	InsertedAt     pgtype.Timestamptz   `json:"inserted_at"`
@@ -3771,6 +3928,8 @@ type V1StepConcurrency struct {
 	Expression        string                `json:"expression"`
 	TenantID          uuid.UUID             `json:"tenant_id"`
 	MaxConcurrency    int32                 `json:"max_concurrency"`
+	TenantStrategyID  pgtype.Int8           `json:"tenant_strategy_id"`
+	MaxRunsExpression pgtype.Text           `json:"max_runs_expression"`
 }
 
 type V1StepMatchCondition struct {
@@ -3794,6 +3953,45 @@ type V1StepSlotRequest struct {
 	Units     int32              `json:"units"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+type V1StreamMessage struct {
+	ID                int64              `json:"id"`
+	InsertedAt        pgtype.Timestamptz `json:"inserted_at"`
+	TenantID          uuid.UUID          `json:"tenant_id"`
+	Namespace         string             `json:"namespace"`
+	Topic             string             `json:"topic"`
+	Payload           []byte             `json:"payload"`
+	ProducerID        string             `json:"producer_id"`
+	ProducerSeq       int64              `json:"producer_seq"`
+	PayloadID         *uuid.UUID         `json:"payload_id"`
+	PayloadInsertedAt pgtype.Timestamptz `json:"payload_inserted_at"`
+}
+
+type V1StreamPayload struct {
+	ID         uuid.UUID          `json:"id"`
+	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
+	TenantID   uuid.UUID          `json:"tenant_id"`
+	Payload    []byte             `json:"payload"`
+}
+
+type V1StreamProducerCursor struct {
+	TenantID   uuid.UUID   `json:"tenant_id"`
+	Namespace  string      `json:"namespace"`
+	Topic      string      `json:"topic"`
+	ProducerID string      `json:"producer_id"`
+	Bucket     pgtype.Date `json:"bucket"`
+	LastSeq    int64       `json:"last_seq"`
+}
+
+type V1StreamTopic struct {
+	TenantID        uuid.UUID          `json:"tenant_id"`
+	Namespace       string             `json:"namespace"`
+	Topic           string             `json:"topic"`
+	InsertedAt      pgtype.Timestamptz `json:"inserted_at"`
+	LastPublishedAt pgtype.Timestamptz `json:"last_published_at"`
+	LastOffset      int64              `json:"last_offset"`
+	StartingOffset  int64              `json:"starting_offset"`
 }
 
 type V1Task struct {
@@ -3841,21 +4039,28 @@ type V1Task struct {
 	TriggeringEventKey           pgtype.Text        `json:"triggering_event_key"`
 	IdempotencyKey               pgtype.Text        `json:"idempotency_key"`
 	IsDagOrchestrator            bool               `json:"is_dag_orchestrator"`
+	ConcurrencyMaxRuns           []pgtype.Int4      `json:"concurrency_max_runs"`
+	PayloadReferenceID           *uuid.UUID         `json:"payload_reference_id"`
+	Triggers                     []byte             `json:"triggers"`
+	DagParentTaskRunIds          []uuid.UUID        `json:"dag_parent_task_run_ids"`
+	ChildTaskDesiredWorkerLabels []byte             `json:"child_task_desired_worker_labels"`
+	TaskInputPayloadVersion      int16              `json:"task_input_payload_version"`
 }
 
 type V1TaskEvent struct {
-	ID              int64              `json:"id"`
-	InsertedAt      pgtype.Timestamptz `json:"inserted_at"`
-	TenantID        uuid.UUID          `json:"tenant_id"`
-	TaskID          int64              `json:"task_id"`
-	TaskInsertedAt  pgtype.Timestamptz `json:"task_inserted_at"`
-	RetryCount      int32              `json:"retry_count"`
-	EventType       V1TaskEventType    `json:"event_type"`
-	EventKey        pgtype.Text        `json:"event_key"`
-	CreatedAt       pgtype.Timestamp   `json:"created_at"`
-	Data            []byte             `json:"data"`
-	ExternalID      uuid.UUID          `json:"external_id"`
-	ChildExternalID *uuid.UUID         `json:"child_external_id"`
+	ID                 int64              `json:"id"`
+	InsertedAt         pgtype.Timestamptz `json:"inserted_at"`
+	TenantID           uuid.UUID          `json:"tenant_id"`
+	TaskID             int64              `json:"task_id"`
+	TaskInsertedAt     pgtype.Timestamptz `json:"task_inserted_at"`
+	RetryCount         int32              `json:"retry_count"`
+	EventType          V1TaskEventType    `json:"event_type"`
+	EventKey           pgtype.Text        `json:"event_key"`
+	CreatedAt          pgtype.Timestamp   `json:"created_at"`
+	Data               []byte             `json:"data"`
+	ExternalID         uuid.UUID          `json:"external_id"`
+	ChildExternalID    *uuid.UUID         `json:"child_external_id"`
+	PayloadReferenceID *uuid.UUID         `json:"payload_reference_id"`
 }
 
 type V1TaskEventsOlap struct {
@@ -3876,6 +4081,8 @@ type V1TaskEventsOlap struct {
 	AdditionalEventData    pgtype.Text          `json:"additional__event_data"`
 	AdditionalEventMessage pgtype.Text          `json:"additional__event_message"`
 	DurableInvocationCount int32                `json:"durable_invocation_count"`
+	IsDagOrchestrator      bool                 `json:"is_dag_orchestrator"`
+	PayloadReferenceID     *uuid.UUID           `json:"payload_reference_id"`
 }
 
 type V1TaskEventsOlapTmp struct {
@@ -3962,6 +4169,19 @@ type V1TasksOlap struct {
 	ParentTaskExternalID *uuid.UUID           `json:"parent_task_external_id"`
 	IsDurable            bool                 `json:"is_durable"`
 	IdempotencyKey       pgtype.Text          `json:"idempotency_key"`
+	PayloadReferenceID   *uuid.UUID           `json:"payload_reference_id"`
+}
+
+type V1TenantConcurrency struct {
+	ID                int64                 `json:"id"`
+	TenantID          uuid.UUID             `json:"tenant_id"`
+	Name              string                `json:"name"`
+	IsActive          bool                  `json:"is_active"`
+	LastActiveAt      pgtype.Timestamptz    `json:"last_active_at"`
+	Strategy          V1ConcurrencyStrategy `json:"strategy"`
+	Expression        string                `json:"expression"`
+	MaxConcurrency    int32                 `json:"max_concurrency"`
+	MaxRunsExpression pgtype.Text           `json:"max_runs_expression"`
 }
 
 type V1WorkerSlotConfig struct {
@@ -4038,6 +4258,7 @@ type Worker struct {
 	MaxRuns                 int32            `json:"maxRuns"`
 	IsActive                bool             `json:"isActive"`
 	LastListenerEstablished pgtype.Timestamp `json:"lastListenerEstablished"`
+	LastListenerSessionId   *uuid.UUID       `json:"lastListenerSessionId"`
 	IsPaused                bool             `json:"isPaused"`
 	Type                    WorkerType       `json:"type"`
 	WebhookId               *uuid.UUID       `json:"webhookId"`
@@ -4049,6 +4270,8 @@ type Worker struct {
 	SdkVersion              pgtype.Text      `json:"sdkVersion"`
 	DurableTaskDispatcherId *uuid.UUID       `json:"durableTaskDispatcherId"`
 	ActionHash              []byte           `json:"actionHash"`
+	OperatorActionCount     int32            `json:"operatorActionCount"`
+	IsExemptFromLimits      bool             `json:"isExemptFromLimits"`
 }
 
 type WorkerAssignEvent struct {

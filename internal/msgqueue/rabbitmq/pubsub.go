@@ -18,6 +18,12 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/random"
 )
 
+// tenantStreamMsgTTL is the per-message TTL (in milliseconds, RabbitMQ string
+// form) for tenant-stream publishes. It must comfortably exceed the
+// dispatcher's stream reorder/hangup-drain window (5s) so chunks published
+// while a consumer is briefly busy still get delivered.
+const tenantStreamMsgTTL = "30000"
+
 // PubSub implements msgqueue.PubSub over RabbitMQ. Tenant topics map to the
 // legacy per-tenant fanout exchanges ("<uuid>_v1") and scheduler partition
 // topics map to the scheduler's exclusive queue on the default exchange, so
@@ -246,8 +252,16 @@ func (p *PubSub) Pub(ctx context.Context, topic msgqueue.Topic, msg *msgqueue.Me
 	exchange := ""
 	routingKey := topic.Name()
 
+	// wake-ups expire immediately
+	expiration := "0"
+
 	if topic.Kind() == msgqueue.TopicKindTenantStream {
-		// tenant streams ride the per-tenant fanout exchange; declare it lazily
+		// we need a ttl of above 0 for tenant streams so they don't get dropped on network blips
+		expiration = tenantStreamMsgTTL
+	}
+
+	if isFanout(topic) {
+		// fanout topics ride a fanout exchange; declare it lazily
 		if _, ok := p.exchangeCache.Get(topic.Name()); !ok {
 			if err := p.declareExchange(pub, topic.Name()); err != nil {
 				p.l.Error().Msgf("error declaring exchange %s: %v", topic.Name(), err)
@@ -261,15 +275,14 @@ func (p *PubSub) Pub(ctx context.Context, topic msgqueue.Topic, msg *msgqueue.Me
 		routingKey = ""
 	}
 
-	// never persistent, expire immediately without an active consumer: this is
-	// an at-most-once notification path
+	// never persistent: this is an at-most-once notification path
 	//
 	// no timeout here on purpose: amqp091-go takes the context as `_` and
 	// clears socket deadlines after the handshake, so a publish is bounded
 	// only by TCP flow control on the pool's shared connection
 	err = pub.PublishWithContext(ctx, exchange, routingKey, false, false, amqp.Publishing{
 		Body:       body,
-		Expiration: "0",
+		Expiration: expiration,
 	})
 
 	if err != nil {
@@ -408,8 +421,14 @@ func (p *PubSub) Sub(topic msgqueue.Topic, handler msgqueue.MsgHandler) (func() 
 	return cleanup, nil
 }
 
+// isFanout topics reach every subscriber; others are one queue whose
+// subscribers compete.
+func isFanout(topic msgqueue.Topic) bool {
+	return topic.Kind() == msgqueue.TopicKindTenantStream || topic.Kind() == msgqueue.TopicKindStreamWake
+}
+
 // declareSubQueue declares the consumer queue for a topic and returns its
-// name. Tenant topics get a random-suffix exclusive queue bound to the tenant
+// name. Fanout topics get a random-suffix exclusive queue bound to their
 // fanout exchange; scheduler topics consume the well-known partition queue on
 // the default exchange.
 func (p *PubSub) declareSubQueue(ch *amqp.Channel, topic msgqueue.Topic) (string, error) {
@@ -418,7 +437,7 @@ func (p *PubSub) declareSubQueue(ch *amqp.Channel, topic msgqueue.Topic) (string
 
 	name := topic.Name()
 
-	if topic.Kind() == msgqueue.TopicKindTenantStream {
+	if isFanout(topic) {
 		if err := p.declareExchange(ch, topic.Name()); err != nil {
 			return "", err
 		}
@@ -438,7 +457,7 @@ func (p *PubSub) declareSubQueue(ch *amqp.Channel, topic msgqueue.Topic) (string
 		return "", err
 	}
 
-	if topic.Kind() == msgqueue.TopicKindTenantStream {
+	if isFanout(topic) {
 		p.l.Debug().Msgf("binding queue: %s to exchange: %s", name, topic.Name())
 
 		if err := ch.QueueBind(name, "", topic.Name(), false, nil); err != nil {

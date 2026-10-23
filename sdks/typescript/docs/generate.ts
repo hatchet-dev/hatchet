@@ -11,6 +11,7 @@ const CORE_ENTRYPOINTS = [
   './src/v1/client/client.ts',
   './src/v1/client/worker/context.ts',
   './src/v1/declaration.ts',
+  './src/v1/embedded.ts',
 ];
 
 const FEATURES_DIR = './src/v1/client/features';
@@ -71,6 +72,245 @@ function writeSubdirMetaJson(documents: Document[]) {
   }
 }
 
+// Shared mapping pairing feature-client concepts with descriptions, per-language page
+// slugs, and user-guide links. Hand-maintained; consumed by all four SDK doc generators.
+const REFERENCE_MAP_PATH = '../../frontend/docs/reference-map.json';
+const CONTENT_DOCS_PATH = '../../frontend/docs/content/docs';
+const LANG = 'typescript';
+
+interface RefMapCorePage {
+  title: string;
+  description: string;
+}
+
+interface RefMapFeature {
+  title: string;
+  description: string;
+  guide: string | null;
+  guideTitle: string | null;
+  slugs: Record<string, string>;
+}
+
+interface AgentDocsLink {
+  title: string;
+  path: string;
+  langs?: string[];
+}
+
+interface AgentDocsSection {
+  title: string;
+  links: AgentDocsLink[];
+}
+
+interface AgentDocs {
+  baseUrl: string;
+  lead: string;
+  sections: AgentDocsSection[];
+}
+
+interface RefMap {
+  agentDocs: AgentDocs;
+  corePages: Record<string, RefMapCorePage>;
+  featureClients: Record<string, RefMapFeature>;
+}
+
+function guidePageExists(guide: string): boolean {
+  const rel = guide.replace(/^\//, '');
+  return (
+    fs.existsSync(path.join(CONTENT_DOCS_PATH, `${rel}.mdx`)) ||
+    fs.existsSync(path.join(CONTENT_DOCS_PATH, rel, 'index.mdx'))
+  );
+}
+
+// Renders the TypeScript SDK overview page (index.mdx): a link map over the core pages
+// and a feature-clients table cross-linked to the user guide. Hard-fails when an emitted
+// feature-client page has no reference-map.json entry, when an entry's typescript slug
+// matches no emitted page (stale entry), or when a guide link points at a missing page.
+function renderIndexPage(documents: Document[]): string {
+  const map: RefMap = JSON.parse(fs.readFileSync(REFERENCE_MAP_PATH, 'utf-8'));
+
+  const slugToConcept = new Map<string, string>();
+  for (const [concept, feature] of Object.entries(map.featureClients)) {
+    const slug = feature.slugs[LANG];
+    if (!slug) {
+      continue;
+    }
+    if (slugToConcept.has(slug)) {
+      throw new Error(
+        `reference-map.json: ${LANG} slug "${slug}" claimed by both "${slugToConcept.get(slug)}" and "${concept}"`
+      );
+    }
+    slugToConcept.set(slug, concept);
+  }
+
+  const featureDocs = documents.filter((d) => d.directory === '/feature-clients');
+  const emitted = new Set(featureDocs.map((d) => d.basename));
+  for (const doc of featureDocs) {
+    if (!slugToConcept.has(doc.basename)) {
+      throw new Error(
+        `reference-map.json has no featureClients entry with slugs.${LANG} = "${doc.basename}"; add one for the ${doc.title} client`
+      );
+    }
+  }
+  for (const [slug, concept] of slugToConcept) {
+    if (!emitted.has(slug)) {
+      throw new Error(
+        `reference-map.json entry "${concept}" lists stale ${LANG} slug "${slug}": no such feature-client page is emitted`
+      );
+    }
+  }
+
+  const coreLines = documents
+    .filter((d) => !d.directory)
+    .map((d) => {
+      const core = map.corePages[d.basename];
+      if (!core) {
+        throw new Error(`reference-map.json has no corePages entry for emitted page "${d.basename}"`);
+      }
+      return `- [${core.title}](/reference/${LANG}/${d.basename}): ${core.description}`;
+    });
+
+  const rows = featureDocs.map((doc) => {
+    const feature = map.featureClients[slugToConcept.get(doc.basename)!];
+    let guide = '';
+    if (feature.guide) {
+      if (!guidePageExists(feature.guide)) {
+        throw new Error(
+          `reference-map.json: guide "${feature.guide}" for "${feature.title}" does not exist under frontend/docs/content/docs`
+        );
+      }
+      guide = `[${feature.guideTitle ?? feature.guide}](${feature.guide})`;
+    }
+    const name = `[${feature.title}](/reference/${LANG}/feature-clients/${doc.basename})`;
+    return `| ${name} | ${feature.description} | ${guide} |`;
+  });
+
+  return [
+    '---',
+    'title: "Overview"',
+    '---',
+    '',
+    '# TypeScript SDK',
+    '',
+    'This is the generated API reference for the Hatchet TypeScript SDK. For concepts and guides, see the [user guide](/v1).',
+    '',
+    '## Core pages',
+    '',
+    ...coreLines,
+    '',
+    '## Feature clients',
+    '',
+    'Feature clients are available as properties on the [client](/reference/typescript/client), and each covers one area of the Hatchet API. The Guide column links to the user guide page for the feature.',
+    '',
+    '| Client | Description | Guide |',
+    '| ------ | ----------- | ----- |',
+    ...rows,
+    '',
+  ].join('\n');
+}
+
+function writeIndexPage(documents: Document[]): Document {
+  const indexDoc: Document = {
+    sourcePath: '',
+    readableSourcePath: 'index.mdx (generated overview page)',
+    mdxOutputPath: path.join(FRONTEND_DOCS_RELATIVE_PATH, 'index.mdx'),
+    isIndex: true,
+    directory: '',
+    basename: 'index',
+    title: 'TypeScript SDK',
+  };
+  fs.writeFileSync(indexDoc.mdxOutputPath, renderIndexPage(documents), 'utf-8');
+  console.log('Wrote', indexDoc.mdxOutputPath);
+  return indexDoc;
+}
+
+// The "Documentation for agents" block injected into the README that ships in the
+// @hatchet-dev/typescript-sdk npm package (prepublish copies README.md into dist/).
+// Every listed page is served as plain markdown at <baseUrl><path>.md. Content comes
+// from reference-map.json; the block between the markers is replaced in full on every
+// run and inserted above the first "## " heading when absent.
+const README_PATH = './README.md';
+const AGENT_DOCS_START = '<!-- hatchet-agent-docs:start -->';
+const AGENT_DOCS_END = '<!-- hatchet-agent-docs:end -->';
+const LANG_DISPLAY = 'TypeScript';
+
+function renderAgentDocsBlock(map: RefMap): string {
+  const { baseUrl, lead, sections } = map.agentDocs ?? {};
+  if (!baseUrl || !lead || !sections?.length) {
+    throw new Error('reference-map.json agentDocs is missing baseUrl, lead, or sections');
+  }
+
+  const lines: string[] = [
+    AGENT_DOCS_START,
+    '<!-- Generated by the SDK docs pipeline from frontend/docs/reference-map.json. Do not edit by hand. -->',
+    '',
+    '## Documentation for agents',
+    '',
+    lead,
+  ];
+
+  for (const section of sections) {
+    const links = section.links.filter((l) => !l.langs || l.langs.includes(LANG));
+    if (!links.length) {
+      continue;
+    }
+    lines.push('', `${section.title}:`, '');
+    for (const link of links) {
+      if (!guidePageExists(link.path)) {
+        throw new Error(
+          `reference-map.json agentDocs link "${link.title}" (${link.path}) does not exist under frontend/docs/content/docs`
+        );
+      }
+      lines.push(`- ${link.title}: ${baseUrl}${link.path}.md`);
+    }
+  }
+
+  lines.push('', `${LANG_DISPLAY} SDK reference (overview: ${baseUrl}/reference/${LANG}.md):`, '');
+  for (const concept of Object.keys(map.featureClients).sort()) {
+    const feature = map.featureClients[concept];
+    const slug = feature.slugs[LANG];
+    if (!slug) {
+      continue;
+    }
+    let line = `- ${feature.title}: ${baseUrl}/reference/${LANG}/feature-clients/${slug}.md`;
+    if (feature.guide) {
+      line += ` (guide: ${baseUrl}${feature.guide}.md)`;
+    }
+    lines.push(line);
+  }
+
+  lines.push('', AGENT_DOCS_END);
+  return lines.join('\n');
+}
+
+function updateReadmeAgentDocs() {
+  const map: RefMap = JSON.parse(fs.readFileSync(REFERENCE_MAP_PATH, 'utf-8'));
+  const block = renderAgentDocsBlock(map);
+  const readme = fs.readFileSync(README_PATH, 'utf-8');
+
+  const start = readme.indexOf(AGENT_DOCS_START);
+  const end = readme.indexOf(AGENT_DOCS_END);
+  let updated: string;
+  if (start !== -1 && end !== -1 && end > start) {
+    updated = readme.slice(0, start) + block + readme.slice(end + AGENT_DOCS_END.length);
+  } else if (start !== -1 || end !== -1) {
+    throw new Error(`${README_PATH}: found only one of the hatchet-agent-docs markers`);
+  } else {
+    const lines = readme.split('\n');
+    const idx = lines.findIndex((l) => l.startsWith('## '));
+    if (idx === -1) {
+      throw new Error(`${README_PATH}: no "## " heading to insert the agent docs block above`);
+    }
+    lines.splice(idx, 0, block, '');
+    updated = lines.join('\n');
+  }
+
+  if (updated !== readme) {
+    fs.writeFileSync(README_PATH, updated, 'utf-8');
+    console.log('Wrote', README_PATH);
+  }
+}
+
 const isSeparator = (page: string) => /^---.*---$/.test(page);
 
 // Merges the section-level typescript/meta.json: preserves existing entry order and
@@ -123,19 +363,18 @@ function assertAllPagesReachable(documents: Document[]) {
   }
 }
 
-function fixLinks(content: string, document: Document): string {
-  const inFeatureClients = document.directory === '/feature-clients';
-
+function fixLinks(content: string): string {
   // typedoc flattens feature client modules to client.features.<name>.mdx; point links
-  // at the feature-clients/ directory (or the sibling file when already inside it).
-  let result = content.replace(/\(client\.features\.([^)\s#]+\.mdx)/g, (_m, leaf) =>
-    inFeatureClients ? `(${leaf}` : `(feature-clients/${leaf}`
+  // at the feature-clients/ directory. Links are absolute so pages resolve correctly
+  // when served from redirect or trailing-slash URLs.
+  let result = content.replace(
+    /\(client\.features\.([^)\s#]+\.mdx)/g,
+    (_m, leaf) => `(/reference/typescript/feature-clients/${leaf}`
   );
 
   // Rewrite links to renamed top-level files (e.g. Runnables.mdx -> runnables.mdx).
   for (const [from, to] of Object.entries(FILENAME_REMAP)) {
-    const target = inFeatureClients ? `../${to}` : to;
-    result = result.split(`(${from}`).join(`(${target}`);
+    result = result.split(`(${from}`).join(`(/reference/typescript/${to}`);
   }
 
   // Browsers resolve .mdx hrefs literally and 404 — link to the extensionless route.
@@ -153,7 +392,7 @@ function withFrontmatter(content: string, document: Document): string {
 
 function copyDoc(document: Document) {
   const raw = fs.readFileSync(document.sourcePath, 'utf-8');
-  const content = withFrontmatter(fixLinks(raw, document), document);
+  const content = withFrontmatter(fixLinks(raw), document);
   fs.mkdirSync(path.dirname(document.mdxOutputPath), { recursive: true });
   fs.writeFileSync(document.mdxOutputPath, content, 'utf-8');
   console.log('Wrote', document.mdxOutputPath);
@@ -214,11 +453,14 @@ function run() {
       copyDoc(doc);
     }
 
+    documents.push(writeIndexPage(documents));
+
     removeStaleMdx(documents);
     writeSubdirMetaJson(documents);
     mergeTopLevelMetaJson(documents);
     assertAllPagesReachable(documents);
     formatOutput(documents);
+    updateReadmeAgentDocs();
   } finally {
     rmrf(TMP_GEN_PATH);
   }

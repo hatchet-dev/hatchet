@@ -42,7 +42,7 @@ describe('DurableEvictionManager', () => {
 
       manager.handleServerEviction('ext-1', 2);
 
-      expect(cancelLocal).toHaveBeenCalledWith('run-1/0');
+      expect(cancelLocal).toHaveBeenCalledWith('run-1/0', 2);
       expect(manager.cache.get('run-1/0')).toBeUndefined();
     });
 
@@ -76,7 +76,7 @@ describe('DurableEvictionManager', () => {
       manager.handleServerEviction('ext-1', 1);
 
       expect(cancelLocal).toHaveBeenCalledTimes(1);
-      expect(cancelLocal).toHaveBeenCalledWith('run-1/0');
+      expect(cancelLocal).toHaveBeenCalledWith('run-1/0', 1);
       expect(manager.cache.get('run-1/0')).toBeUndefined();
       expect(manager.cache.get('run-2/0')).toBeDefined();
     });
@@ -109,7 +109,7 @@ describe('DurableEvictionManager', () => {
 
       manager.handleServerEviction('ext-1', 5);
 
-      expect(cancelLocal).toHaveBeenCalledWith('run-1/0');
+      expect(cancelLocal).toHaveBeenCalledWith('run-1/0', 5);
       expect(manager.cache.get('run-1/0')).toBeUndefined();
     });
   });

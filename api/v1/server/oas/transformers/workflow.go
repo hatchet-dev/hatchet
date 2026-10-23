@@ -157,7 +157,7 @@ func ToV1Concurrency(workflowConcurrencies []*sqlcv1.ListWorkflowConcurrencyByVe
 
 	for _, c := range taskConcurrencies {
 		res = append(res, gen.ConcurrencySetting{
-			StepReadableId: &c.StepReadableID.String,
+			StepReadableId: &c.StepReadableID,
 			Expression:     c.Expression,
 			LimitStrategy:  gen.ConcurrencyLimitStrategy(c.Strategy),
 			MaxRuns:        c.MaxConcurrency,
@@ -253,6 +253,43 @@ func ToWorkflowFromSQLC(row *sqlcv1.Workflow) *gen.Workflow {
 		behavior := gen.WorkflowPauseScheduledCronRunQueueBehavior(string(row.PausedWorkflowScheduledRunQueueBehavior.WorkflowPauseQueueBehavior))
 		res.PausedWorkflowScheduledRunQueueBehavior = &behavior
 
+	}
+
+	return res
+}
+
+// ToWorkflowFromListRow returns a workflow with its latest version and declared triggers.
+func ToWorkflowFromListRow(row *sqlcv1.ListWorkflowsRow) *gen.Workflow {
+	res := ToWorkflowFromSQLC(&row.Workflow)
+
+	res.Versions = &[]gen.WorkflowVersionMeta{
+		{
+			Metadata: *toAPIMetadata(
+				row.LatestVersionID,
+				row.LatestVersionCreatedAt.Time,
+				row.LatestVersionCreatedAt.Time,
+			),
+			WorkflowId: row.Workflow.ID.String(),
+			Order:      int32(row.LatestVersionOrder), // nolint: gosec
+			Version:    row.LatestVersion.String,
+		},
+	}
+
+	events := make([]gen.WorkflowTriggerEventRef, len(row.EventKeys))
+
+	for i := range row.EventKeys {
+		events[i] = gen.WorkflowTriggerEventRef{EventKey: &row.EventKeys[i]}
+	}
+
+	crons := make([]gen.WorkflowTriggerCronRef, len(row.Crons))
+
+	for i := range row.Crons {
+		crons[i] = gen.WorkflowTriggerCronRef{Cron: &row.Crons[i]}
+	}
+
+	res.Triggers = &gen.WorkflowTriggers{
+		Events: &events,
+		Crons:  &crons,
 	}
 
 	return res

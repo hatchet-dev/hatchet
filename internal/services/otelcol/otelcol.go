@@ -1,17 +1,21 @@
 package otelcol
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/rs/zerolog"
 	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
+	"github.com/hatchet-dev/hatchet/pkg/o11yusage"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
+// OTelCollector is the standard OTLP TraceService, which the engine serves for OTel SDK
+// compatibility.
 type OTelCollector interface {
-	collectortracev1.TraceServiceServer
+	Export(ctx context.Context, req *collectortracev1.ExportTraceServiceRequest) (*collectortracev1.ExportTraceServiceResponse, error)
 }
 
 type OTelCollectorOpt func(*OTelCollectorOpts)
@@ -21,6 +25,7 @@ type OTelCollectorOpts struct {
 	l            *zerolog.Logger
 	maxBatchSize int
 	a            analytics.Analytics
+	o11yUsage    *o11yusage.Aggregator
 }
 
 func WithRepository(r repository.Repository) OTelCollectorOpt {
@@ -44,6 +49,12 @@ func WithMaxBatchSize(n int) OTelCollectorOpt {
 func WithAnalytics(a analytics.Analytics) OTelCollectorOpt {
 	return func(opts *OTelCollectorOpts) {
 		opts.a = a
+	}
+}
+
+func WithO11yUsage(agg *o11yusage.Aggregator) OTelCollectorOpt {
+	return func(opts *OTelCollectorOpts) {
+		opts.o11yUsage = agg
 	}
 }
 
@@ -73,5 +84,6 @@ func NewOTelCollector(fs ...OTelCollectorOpt) (OTelCollector, error) {
 		l:            &newLogger,
 		maxBatchSize: opts.maxBatchSize,
 		a:            opts.a,
+		o11yUsage:    opts.o11yUsage,
 	}, nil
 }

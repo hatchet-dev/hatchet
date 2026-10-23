@@ -4,6 +4,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/authz"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
@@ -54,7 +55,7 @@ func (t *V1FiltersService) V1FilterList(ctx echo.Context, request gen.V1FilterLi
 		return gen.V1FilterList400JSONResponse(apierrors.NewAPIErrors("failed to list filters")), nil
 	}
 
-	transformed := transformers.ToV1FilterList(filters, count, filterLimit, filterOffset)
+	transformed := transformers.ToV1FilterList(filters, count, filterLimit, filterOffset, transformers.WithPayloads(authz.CanViewPayloads(ctx)))
 
 	return gen.V1FilterList200JSONResponse(
 		transformed,

@@ -8,7 +8,7 @@ import { Callout, Steps, Tabs } from "@/components/nextra-compat";
 import UniversalTabs from "@/components/UniversalTabs";
 import { snippets } from "@/lib/generated/snippets";
 import { Snippet } from "@/components/code";
-import AmazonS3ImagePipelineDiagram from "@/components/AmazonS3ImagePipelineDiagram";
+import { S3Pipeline } from "@/components/flow-animations/S3Pipeline";
 
 # Processing S3 Objects at Scale with Hatchet
 
@@ -94,10 +94,6 @@ flowchart LR
     A -.-> C
     B -.-> D
     B -.-> E
-    style B stroke:#a855f7
-    style C stroke:#a855f7
-    style D stroke:#14b8a6
-    style E stroke:#14b8a6
 ```
 
 ### Define the Models
@@ -135,9 +131,6 @@ flowchart LR
     A ~~~ D
     A -.-> E
     style D fill:none,stroke:none
-    style B stroke:#a855f7
-    style C stroke:#a855f7
-    style E stroke:#a855f7
 ```
 
 <UniversalTabs items={["Python", "Typescript"]}>
@@ -182,10 +175,6 @@ flowchart LR
     A ~~~ D
     A -.-> E
     style D fill:none,stroke:none
-    classDef parent stroke:#3b82f6,stroke-width:2px
-    classDef leaf stroke:#a855f7,stroke-width:2px
-    class A parent
-    class B,C,E,F leaf
 ```
 
 Similarly to [Fetch Buckets](#fetch-buckets), this workflow needs to ensure each bucket has at most one poller in-flight at a time, preventing overlaps via the `CANCEL_NEWEST` strategy and constraining to a single run. Here, however, we group by bucket name using the CEL expression `input.bucket` to enforce per-bucket concurrency.
@@ -225,9 +214,9 @@ Lastly, we define the processing workflow, which represents the bulk of the pipe
 
 Rather than capping concurrency globally, we scope the limit _per bucket_ using `S3_WORKER_MAX_RUNS_PER_BUCKET`. A global cap would allow the largest buckets to monopolize all processing slots. A per-bucket cap keeps throughput fair across the system regardless of individual bucket size. When a bucket hits its limit, additional runs are enqueued and dispatched round-robin via `GROUP_ROUND_ROBIN` as slots open.
 
-<AmazonS3ImagePipelineDiagram />
+<S3Pipeline />
 
-The diagram above shows this steady state: work interleaves across buckets, the worker pool runs at partial capacity, and a backlog drains in round-robin order. Even when `bucket-1` has the most pending objects, it doesn't monopolize the workers.
+The diagram above shows this steady state: work interleaves across buckets, the worker pool holds at its slot cap, and the backlog drains in round-robin order. Even when `bucket-1` has the most pending objects, it doesn't monopolize the workers.
 
 There is no child-side deduplication on this workflow (no concurrency expression keyed on `{bucket}/{object-key}`). Because `process-object` runs are only ever spawned by [`fetch_objects`](#fetch-objects) (which already handles deduplication via child key at spawn time) a secondary concurrency expression would be redundant.
 

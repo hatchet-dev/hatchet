@@ -68,13 +68,16 @@ export function StepRunEvents({
   });
 
   // fixme: this is an n+1 query, would be better to have a bulk getter
+  const durableLogIds = [
+    ...(durableTaskIds ?? []),
+    ...(taskRunId ? [taskRunId] : []),
+  ];
+
   const durableLogsQueries = useQueries({
-    queries: [...(durableTaskIds ?? []), ...(taskRunId ? [taskRunId] : [])].map(
-      (id) => ({
-        ...queries.v1DurableTasks.eventLog(tenantId, id),
-        refetchInterval: 5000,
-      }),
-    ),
+    queries: durableLogIds.map((id) => ({
+      ...queries.v1DurableTasks.eventLog(tenantId, id),
+      refetchInterval: 5000,
+    })),
   });
 
   const logs = useMemo(() => {
@@ -162,6 +165,8 @@ function toTaskEventLogLines(
       level = 'EVICTION_NOTICE';
     } else if (event.eventType === 'DURABLE_RESTORING') {
       level = 'RESTORE_NOTICE';
+    } else if (event.eventType === 'CANCELLED') {
+      level = 'CANCELLATION_NOTICE';
     } else {
       switch (severity) {
         case 'CRITICAL':

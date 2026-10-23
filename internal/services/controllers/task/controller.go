@@ -14,6 +14,8 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/hatchet-dev/hatchet/internal/listutils"
+
 	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
@@ -24,6 +26,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
+	"github.com/hatchet-dev/hatchet/internal/syncx"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
@@ -63,8 +66,11 @@ type TasksControllerImpl struct {
 	evictExpiredIdempotencyKeysOperations    *operation.TenantOperationPool
 	deactivateStaleStepConcurrencyOperations *operation.TenantOperationPool
 	expirePausedWorkflowQueueItemsOperations *operation.TenantOperationPool
+	restoreEvictedOrchestratorsOperations    *operation.TenantOperationPool
+	evictedTaskRuntimeCursors                syncx.Map[uuid.UUID, v1.EvictedTaskRuntimeCursor]
 
 	replayEnabled       bool
+	maxRetryAfter       time.Duration
 	analyzeCronInterval time.Duration
 	signaler            *signal.OLAPSignaler
 	tw                  *trigger.TriggerWriter
@@ -86,6 +92,7 @@ type TasksControllerOpts struct {
 	opsPoolJitter       time.Duration
 	opsPoolPollInterval time.Duration
 	replayEnabled       bool
+	maxRetryAfter       time.Duration
 	analyzeCronInterval time.Duration
 	promGate            *prometheus.Gate
 }
@@ -106,6 +113,7 @@ func defaultTasksControllerOpts() *TasksControllerOpts {
 		opsPoolJitter:       1500 * time.Millisecond,
 		opsPoolPollInterval: 2 * time.Second,
 		replayEnabled:       true, // default to enabled for backward compatibility
+		maxRetryAfter:       30 * 24 * time.Hour,
 		analyzeCronInterval: 3 * time.Hour,
 	}
 }
@@ -179,6 +187,12 @@ func WithReplayEnabled(enabled bool) TasksControllerOpt {
 	}
 }
 
+func WithMaxRetryAfter(d time.Duration) TasksControllerOpt {
+	return func(opts *TasksControllerOpts) {
+		opts.maxRetryAfter = d
+	}
+}
+
 func WithAnalyzeCronInterval(interval time.Duration) TasksControllerOpt {
 	return func(opts *TasksControllerOpts) {
 		opts.analyzeCronInterval = interval
@@ -247,6 +261,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		opsPoolJitter:       opts.opsPoolJitter,
 		opsPoolPollInterval: opts.opsPoolPollInterval,
 		replayEnabled:       opts.replayEnabled,
+		maxRetryAfter:       opts.maxRetryAfter,
 		analyzeCronInterval: opts.analyzeCronInterval,
 		signaler:            signaler,
 		tw:                  tw,
@@ -315,6 +330,15 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		jitter,
 		1*time.Second,
 		30*time.Second,
+		3,
+		opts.repov1.Tasks().DefaultTaskActivityGauge,
+	))
+
+	t.restoreEvictedOrchestratorsOperations = operation.NewTenantOperationPool(opts.p, opts.l, "restore-evicted-orchestrators", timeout, "restore stuck evicted durable orchestrators", t.processStuckEvictedDurableOrchestrators, operation.WithPoolInterval(
+		opts.repov1.IntervalSettings(),
+		jitter,
+		30*time.Second,
+		2*time.Minute,
 		3,
 		opts.repov1.Tasks().DefaultTaskActivityGauge,
 	))
@@ -436,6 +460,7 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 		tc.evictExpiredIdempotencyKeysOperations.Cleanup()
 		tc.deactivateStaleStepConcurrencyOperations.Cleanup()
 		tc.expirePausedWorkflowQueueItemsOperations.Cleanup()
+		tc.restoreEvictedOrchestratorsOperations.Cleanup()
 
 		tc.pubBuffer.Stop()
 
@@ -491,9 +516,173 @@ func (tc *TasksControllerImpl) handleBufferedMsgs(tenantId uuid.UUID, msgId stri
 		return tc.handleDurableRestoreTask(ctx, tenantId, payloads)
 	case msgqueue.MsgIDTogglePauseWorkflow:
 		return tc.handlePauseWorkflow(ctx, tenantId, payloads)
+	case msgqueue.MsgIDRateLimitPausesChanged:
+		return tc.handleRateLimitPausesChanged(ctx, tenantId, payloads)
 	}
 
 	return fmt.Errorf("unknown message id: %s", msgId)
+}
+
+// await the sendMessage to the OLAP_QUEUE so that errors delivering are able to be retried
+func (tc *TasksControllerImpl) emitOrchestratorTerminalEvent(
+	ctx context.Context,
+	tenantId uuid.UUID,
+	taskId int64,
+	retryCount int32,
+	eventType sqlcv1.V1EventTypeOlap,
+	detail string,
+) error {
+	payload := tasktypes.CreateMonitoringEventPayload{
+		TaskId:         taskId,
+		RetryCount:     retryCount,
+		EventType:      eventType,
+		EventTimestamp: time.Now().UTC(),
+		StatusOnly:     true,
+	}
+
+	// CANCELLED carries its human-readable reason in EventMessage; FINISHED/FAILED carry the
+	// output / error string in EventPayload (matches the dispatcher's mapping).
+	if eventType == sqlcv1.V1EventTypeOlapCANCELLED {
+		payload.EventMessage = detail
+	} else {
+		payload.EventPayload = detail
+	}
+
+	msg, err := tasktypes.MonitoringEventMessageFromInternal(tenantId, payload)
+
+	if err != nil {
+		return fmt.Errorf("could not build orchestrator monitoring event: %w", err)
+	}
+
+	const maxAttempts = 4
+
+	var lastErr error
+
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		if attempt > 0 {
+			// 200ms, 600ms, 1.8s
+			delay := time.Duration(200*math.Pow(3, float64(attempt-1))) * time.Millisecond
+
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(delay):
+			}
+		}
+
+		if lastErr = tc.mq.SendMessage(ctx, msgqueue.OLAP_QUEUE, msg); lastErr == nil {
+			return nil
+		}
+
+		tc.l.Warn().Ctx(ctx).Err(lastErr).
+			Int64("task_id", taskId).
+			Int("attempt", attempt+1).
+			Msg("retrying orchestrator terminal monitoring event publish")
+	}
+
+	return fmt.Errorf("could not publish orchestrator monitoring event for task %d after %d attempts: %w", taskId, maxAttempts, lastErr)
+}
+
+// emitOrchestratorTerminalEvents fans emitOrchestratorTerminalEvent over the DAG-orchestrator
+// tasks among released. skipRetried is nil for COMPLETED/CANCELLED; for FAILED it holds task ids
+// that were retried (still running) and so must not be marked terminal. The events are status-only:
+// the regular reporting path already writes the orchestrator's OLAP task event, and a second one
+// would double-count it. Re-running this on a source-message redelivery is safe: releaseTasks is
+// row-count-stable and UpdateDAGStatusesFromOrchestratorEvents is a monotonic upsert.
+func (tc *TasksControllerImpl) emitOrchestratorTerminalEvents(
+	ctx context.Context,
+	tenantId uuid.UUID,
+	released []*sqlcv1.ReleaseTasksRow,
+	detailByTaskId map[int64]string,
+	skipRetried map[int64]struct{},
+	eventType sqlcv1.V1EventTypeOlap,
+) error {
+	var errs error
+
+	for _, rt := range released {
+		if rt == nil || !rt.IsDagOrchestrator || !rt.IsCurrentRetry {
+			continue
+		}
+
+		if _, retried := skipRetried[rt.ID]; retried {
+			continue
+		}
+
+		if err := tc.emitOrchestratorTerminalEvent(
+			ctx, tenantId, rt.ID, rt.RetryCount, eventType, detailByTaskId[rt.ID],
+		); err != nil {
+			errs = multierror.Append(errs, err)
+		}
+	}
+
+	// errs is nil unless a publish failed above
+	return errs
+}
+
+// orchestratorIdsWithoutWorker returns the orchestrators released with no worker (evicted), whose
+// children nothing else cancels. With a worker the operator does, and a second cancel duplicates
+// the children's CANCELLED events.
+func orchestratorIdsWithoutWorker(released []*sqlcv1.ReleaseTasksRow) []uuid.UUID {
+	var ids []uuid.UUID
+
+	for _, rt := range released {
+		if rt == nil || !rt.IsDagOrchestrator || !rt.IsCurrentRetry || rt.WorkerID != uuid.Nil {
+			continue
+		}
+
+		ids = append(ids, rt.ExternalID)
+	}
+
+	return ids
+}
+
+// cancelChildrenOfOrchestratorsWithoutWorker cancels those orchestrators' unfinished children.
+func (tc *TasksControllerImpl) cancelChildrenOfOrchestratorsWithoutWorker(
+	ctx context.Context,
+	tenantId uuid.UUID,
+	released []*sqlcv1.ReleaseTasksRow,
+) error {
+	orchestratorExternalIds := orchestratorIdsWithoutWorker(released)
+
+	if len(orchestratorExternalIds) == 0 {
+		return nil
+	}
+
+	children, err := tc.repov1.Tasks().ListUnfinishedDurableOrchestratorChildren(ctx, tenantId, orchestratorExternalIds)
+
+	if err != nil {
+		return fmt.Errorf("could not list unfinished orchestrator children: %w", err)
+	}
+
+	return tc.publishChildCancellations(ctx, tenantId, children)
+}
+
+// publishChildCancellations batches the children: a payload is published whole, so one holding them
+// all could exceed msgqueue.MaxMessageSize.
+func (tc *TasksControllerImpl) publishChildCancellations(
+	ctx context.Context,
+	tenantId uuid.UUID,
+	children []v1.TaskIdInsertedAtRetryCount,
+) error {
+	return queueutils.BatchLinear(BULK_MSG_BATCH_SIZE, children, func(batch []v1.TaskIdInsertedAtRetryCount) error {
+		msg, err := msgqueue.NewTenantMessage(
+			tenantId,
+			msgqueue.MsgIDCancelTasks,
+			false,
+			true,
+			tasktypes.CancelTasksPayload{Tasks: batch},
+		)
+
+		if err != nil {
+			return fmt.Errorf("could not create cancel message for orchestrator children: %w", err)
+		}
+
+		if err := tc.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
+			return fmt.Errorf("could not publish cancel message for orchestrator children: %w", err)
+		}
+
+		return nil
+	})
 }
 
 func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
@@ -503,7 +692,6 @@ func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId
 	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
 
 	opts := make([]v1.CompleteTaskOpts, 0)
-	idsToData := make(map[int64][]byte)
 
 	msgs := msgqueue.JSONConvert[tasktypes.CompletedTaskPayload](payloads)
 
@@ -514,10 +702,9 @@ func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId
 				InsertedAt: msg.InsertedAt,
 				RetryCount: msg.RetryCount,
 			},
-			Output: msg.Output,
+			Output:             msg.Output,
+			PayloadReferenceId: msg.PayloadReferenceId,
 		})
-
-		idsToData[msg.TaskId] = msg.Output
 	}
 
 	res, err := tc.repov1.Tasks().CompleteTasks(ctx, tenantId, opts)
@@ -540,6 +727,14 @@ func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId
 	}
 
 	tc.notifyQueuesOnCompletion(ctx, tenantId, res.ReleasedTasks)
+
+	if err := tc.emitOrchestratorTerminalEvents(
+		ctx, tenantId, res.ReleasedTasks, nil, nil, sqlcv1.V1EventTypeOlapFINISHED,
+	); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "could not publish orchestrator terminal event")
+		return err
+	}
 
 	return tc.signaler.SendInternalEvents(ctx, tenantId, res.InternalEvents)
 }
@@ -565,13 +760,46 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId uu
 			IsAppError:     msg.IsAppError,
 			ErrorMessage:   msg.ErrorMsg,
 			IsNonRetryable: msg.IsNonRetryable,
+			RetryAfter:     tc.clampRetryAfter(msg.RetryAfterMs),
 		})
 
 		if msg.ErrorMsg != "" {
 			idsToErrorMsg[msg.TaskId] = msg.ErrorMsg
 		}
+	}
 
-		// send failed tasks to the olap repository
+	res, err := tc.repov1.Tasks().FailTasks(ctx, tenantId, opts)
+
+	if err != nil {
+		err = fmt.Errorf("could not fail tasks: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "could not fail tasks")
+		return err
+	}
+
+	retried := make(map[int64]struct{}, len(res.RetriedTasks))
+	for _, r := range res.RetriedTasks {
+		retried[r.Id] = struct{}{}
+	}
+
+	type attempt struct {
+		id         int64
+		retryCount int32
+	}
+
+	// retried and stale reports are no longer the task's current retry, so only final failures land here
+	failed := make(map[attempt]struct{}, len(res.ReleasedTasks))
+	for _, rt := range res.ReleasedTasks {
+		if rt != nil && rt.IsCurrentRetry {
+			failed[attempt{id: rt.ID, retryCount: rt.RetryCount}] = struct{}{}
+		}
+	}
+
+	// published after FailTasks so the event can say whether it ended this attempt for good
+	for _, msg := range msgs {
+		_, final := failed[attempt{id: msg.TaskId, retryCount: msg.RetryCount}]
+		willRetry := !final
+
 		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
 			tenantId,
 			tasktypes.CreateMonitoringEventPayload{
@@ -580,6 +808,7 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId uu
 				EventType:      sqlcv1.V1EventTypeOlapFAILED,
 				EventTimestamp: time.Now().UTC(),
 				EventPayload:   msg.ErrorMsg,
+				WillRetry:      willRetry,
 			},
 		)
 
@@ -602,21 +831,22 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId uu
 		}
 	}
 
-	res, err := tc.repov1.Tasks().FailTasks(ctx, tenantId, opts)
-
-	if err != nil {
-		err = fmt.Errorf("could not fail tasks: %w", err)
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "could not fail tasks")
-		return err
-	}
-
 	err = tc.processFailTasksResponse(ctx, tenantId, res)
 
 	if err != nil {
 		err = fmt.Errorf("could not process fail tasks response: %w", err)
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "could not process fail tasks response")
+		return err
+	}
+
+	// a retried task is still running, so only orchestrators that reached terminal FAILED get the
+	// reliable OLAP publish
+	if err := tc.emitOrchestratorTerminalEvents(
+		ctx, tenantId, res.ReleasedTasks, idsToErrorMsg, retried, sqlcv1.V1EventTypeOlapFAILED,
+	); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "could not publish orchestrator terminal event")
 		return err
 	}
 
@@ -697,6 +927,7 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 
 	msgs := msgqueue.JSONConvert[tasktypes.CancelledTaskPayload](payloads)
 	shouldTasksNotify := make(map[int64]bool)
+	cancelMsgByTaskId := make(map[int64]string)
 
 	for _, msg := range msgs {
 		opts = append(opts, v1.TaskIdInsertedAtRetryCount{
@@ -706,6 +937,7 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 		})
 
 		shouldTasksNotify[msg.TaskId] = msg.ShouldNotify
+		cancelMsgByTaskId[msg.TaskId] = msg.EventMessage
 	}
 
 	res, err := tc.repov1.Tasks().CancelTasks(ctx, tenantId, opts)
@@ -792,6 +1024,20 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 		}
 	}
 
+	if emitErr := tc.emitOrchestratorTerminalEvents(
+		ctx, tenantId, res.ReleasedTasks, cancelMsgByTaskId, nil, sqlcv1.V1EventTypeOlapCANCELLED,
+	); emitErr != nil {
+		span.RecordError(emitErr)
+		span.SetStatus(codes.Error, "could not publish orchestrator terminal event")
+		outerErr = multierror.Append(outerErr, emitErr)
+	}
+
+	if cancelErr := tc.cancelChildrenOfOrchestratorsWithoutWorker(ctx, tenantId, res.ReleasedTasks); cancelErr != nil {
+		span.RecordError(cancelErr)
+		span.SetStatus(codes.Error, "could not cancel orchestrator children")
+		outerErr = multierror.Append(outerErr, cancelErr)
+	}
+
 	// instrumentation
 	tenantMetricsEnabled := tc.promGate.Enabled(ctx, tenantId)
 
@@ -802,7 +1048,10 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 		}
 	}
 
-	return err
+	// outerErr accumulates every per-task publish failure above (including the orchestrator
+	// terminal events and the child cancellations); returning it lets the source message
+	// redeliver on any failure
+	return outerErr
 }
 
 func (tc *TasksControllerImpl) handleCancelTasks(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
@@ -1099,9 +1348,16 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 			Priority:              msg.EventPriority,
 			Scope:                 msg.EventScope,
 			TriggeringWebhookName: msg.TriggeringWebhookName,
+			PayloadReferenceId:    msg.PayloadReferenceId,
 		}
 
 		eventIdToOpts[msg.EventExternalId] = opt
+	}
+
+	// every event in the batch was already triggered by the ingestor: TriggerFromEvents
+	// would open a transaction and run the whole trigger lookup for zero events
+	if len(eventIdToOpts) == 0 {
+		return nil
 	}
 
 	return tc.tw.TriggerFromEvents(ctx, tenantId, eventIdToOpts)
@@ -1198,8 +1454,70 @@ func (tc *TasksControllerImpl) handlePauseWorkflow(ctx context.Context, tenantId
 		return fmt.Errorf("failed to move newly paused workflows: %w", err)
 	}
 
-	if err := tc.repov1.Workflows().RequeuePausedWorkflowQueueItems(ctx, tenantId, newlyUnpausedWorkflows); err != nil {
+	queueNames, concurrencyStrategyIds, err := tc.repov1.Workflows().RequeuePausedWorkflowQueueItems(ctx, tenantId, newlyUnpausedWorkflows)
+
+	if err != nil {
 		return fmt.Errorf("failed to requeued tasks for newly unpaused workflows: %w", err)
+	}
+
+	if len(queueNames) > 0 || len(concurrencyStrategyIds) > 0 {
+		if err := tc.notifySchedulerOfRequeuedItems(ctx, tenantId, queueNames, concurrencyStrategyIds); err != nil {
+			tc.l.Error().Ctx(ctx).Err(err).Msg("failed to notify scheduler after unpausing workflows")
+		}
+	}
+
+	return nil
+}
+
+func (tc *TasksControllerImpl) handleRateLimitPausesChanged(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
+	msgs := msgqueue.JSONConvert[tasktypes.RateLimitPausesChangedPayload](payloads)
+	statuses := listutils.Map[*tasktypes.RateLimitPausesChangedPayload, bool](msgs, func(x *tasktypes.RateLimitPausesChangedPayload) bool {
+		return x.Paused
+	})
+
+	if listutils.Any(statuses, true) {
+		if err := tc.repov1.RateLimit().HoldRateLimitPausedQueuedTasks(ctx, tenantId); err != nil {
+			return fmt.Errorf("failed to hold tasks behind newly paused rate limits: %w", err)
+		}
+	}
+
+	if listutils.Any(statuses, false) {
+		if err := tc.requeueItemsForExpiredRateLimitPauses(ctx, tenantId); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (tc *TasksControllerImpl) notifySchedulerOfRequeuedItems(ctx context.Context, tenantId uuid.UUID, queueNames []string, concurrencyStrategyIds []int64) error {
+	tenant, err := tc.repov1.Tenant().GetTenantByID(ctx, tenantId)
+
+	if err != nil {
+		return fmt.Errorf("could not get tenant for scheduler notification: %w", err)
+	}
+
+	if !tenant.SchedulerPartitionId.Valid {
+		return nil
+	}
+
+	msg, err := msgqueue.NewTenantMessage(
+		tenantId,
+		msgqueue.MsgIDCheckTenantQueue,
+		true,
+		false,
+		tasktypes.CheckTenantQueuesPayload{
+			QueueNames:  queueNames,
+			StrategyIds: concurrencyStrategyIds,
+		},
+	)
+
+	if err != nil {
+		return fmt.Errorf("failed to build check-tenant-queue message for queues %v: %w", queueNames, err)
+	}
+
+	if err := tc.pubsub.Pub(ctx, msgqueue.SchedulerPartitionTopic(tenant.SchedulerPartitionId.String), msg); err != nil {
+		return fmt.Errorf("failed to notify scheduler for queues %v: %w", queueNames, err)
 	}
 
 	return nil
@@ -1289,12 +1607,32 @@ func (tc *TasksControllerImpl) processInternalEvents(ctx context.Context, tenant
 	return nil
 }
 
+func (tc *TasksControllerImpl) clampRetryAfter(retryAfterMs *int64) *time.Duration {
+	if retryAfterMs == nil {
+		return nil
+	}
+
+	// cap in milliseconds first, since large values overflow time.Duration
+	limitMs := math.MaxInt64 / int64(time.Millisecond)
+
+	if tc.maxRetryAfter > 0 {
+		limitMs = tc.maxRetryAfter.Milliseconds()
+	}
+
+	d := time.Duration(min(max(*retryAfterMs, 0), limitMs)) * time.Millisecond
+
+	return &d
+}
+
 func (tc *TasksControllerImpl) pubRetryEvent(ctx context.Context, tenantId uuid.UUID, task v1.RetriedTask) error {
 	taskId := task.Id
 
 	retryMsg := fmt.Sprintf("This is retry number %d.", task.AppRetryCount)
 
-	if task.RetryBackoffFactor.Valid && task.RetryMaxBackoff.Valid {
+	if task.RetryAfter != nil {
+		retryDur := time.Until(*task.RetryAfter).Round(time.Millisecond)
+		retryMsg = fmt.Sprintf("%s The task requested a retry in %s (%s).", retryMsg, retryDur.String(), task.RetryAfter.Format(time.RFC3339))
+	} else if task.RetryBackoffFactor.Valid && task.RetryMaxBackoff.Valid {
 		maxBackoffSeconds := int(task.RetryMaxBackoff.Int32)
 		backoffFactor := task.RetryBackoffFactor.Float64
 
@@ -1332,7 +1670,8 @@ func (tc *TasksControllerImpl) pubRetryEvent(ctx context.Context, tenantId uuid.
 		return fmt.Errorf("could not publish monitoring event message: %w", err)
 	}
 
-	if !task.RetryBackoffFactor.Valid {
+	// delayed retries are marked QUEUED when their retry queue item is processed
+	if !task.RetryBackoffFactor.Valid && task.RetryAfter == nil {
 		olapMsg, err = tasktypes.MonitoringEventMessageFromInternal(
 			tenantId,
 			tasktypes.CreateMonitoringEventPayload{

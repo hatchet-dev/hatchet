@@ -9,7 +9,7 @@
 //	}
 //
 //	workflow := client.NewWorkflow("my-workflow",
-//		hatchet.WithWorkflowConcurrency(types.Concurrency{
+//		hatchet.WithWorkflowConcurrency(hatchet.Concurrency{
 //			Expression: "input.userId",
 //			MaxRuns:    5,
 //		}))
@@ -48,6 +48,48 @@
 //   - Error recovery and cleanup: https://github.com/hatchet-dev/hatchet/tree/main/sdks/go/examples/on-failure
 //
 // View all examples: https://github.com/hatchet-dev/hatchet/tree/main/sdks/go/examples
+//
+// # Documentation for agents
+//
+// The linked pages serve plain markdown for tools and agents. Full docs index: https://docs.hatchet.run/llms.txt
+//
+// Setup and local development:
+//
+//   - Quickstart: https://docs.hatchet.run/v1/quickstart.md
+//   - Running Hatchet locally: https://docs.hatchet.run/v1/running-locally.md
+//   - Embedded mode: https://docs.hatchet.run/v1/embedded.md
+//
+// Core concepts:
+//
+//   - Tasks: https://docs.hatchet.run/v1/tasks.md
+//   - Workers: https://docs.hatchet.run/v1/workers.md
+//   - Running tasks: https://docs.hatchet.run/v1/running-your-task.md
+//   - DAGs: https://docs.hatchet.run/v1/directed-acyclic-graphs.md
+//   - Durable execution: https://docs.hatchet.run/v1/durable-execution.md
+//
+// Flow control:
+//
+//   - Concurrency: https://docs.hatchet.run/v1/concurrency.md
+//   - Rate limits: https://docs.hatchet.run/v1/rate-limits.md
+//   - Retries: https://docs.hatchet.run/v1/retry-policies.md
+//   - Idempotency: https://docs.hatchet.run/v1/idempotency.md
+//   - CEL expressions: https://docs.hatchet.run/v1/cel-expressions.md
+//
+// Go SDK reference (overview: https://docs.hatchet.run/reference/go.md):
+//
+//   - CEL: https://docs.hatchet.run/reference/go/feature-clients/cel.md (guide: https://docs.hatchet.run/v1/cel-expressions.md)
+//   - Crons: https://docs.hatchet.run/reference/go/feature-clients/crons.md (guide: https://docs.hatchet.run/v1/cron-runs.md)
+//   - Filters: https://docs.hatchet.run/reference/go/feature-clients/filters.md (guide: https://docs.hatchet.run/v1/events.md)
+//   - Logs: https://docs.hatchet.run/reference/go/feature-clients/logs.md (guide: https://docs.hatchet.run/v1/logging.md)
+//   - Metrics: https://docs.hatchet.run/reference/go/feature-clients/metrics.md (guide: https://docs.hatchet.run/v1/prometheus-metrics.md)
+//   - Rate Limits: https://docs.hatchet.run/reference/go/feature-clients/ratelimits.md (guide: https://docs.hatchet.run/v1/rate-limits.md)
+//   - Runs: https://docs.hatchet.run/reference/go/feature-clients/runs.md (guide: https://docs.hatchet.run/v1/running-your-task.md)
+//   - Scheduled Runs: https://docs.hatchet.run/reference/go/feature-clients/schedules.md (guide: https://docs.hatchet.run/v1/scheduled-runs.md)
+//   - Webhooks: https://docs.hatchet.run/reference/go/feature-clients/webhooks.md (guide: https://docs.hatchet.run/v1/webhooks.md)
+//   - Workers: https://docs.hatchet.run/reference/go/feature-clients/workers.md (guide: https://docs.hatchet.run/v1/workers.md)
+//   - Workflows: https://docs.hatchet.run/reference/go/feature-clients/workflows.md (guide: https://docs.hatchet.run/v1/tasks.md)
+//
+//hatchet:agent-docs-generated (do not edit; regenerate with `go run ./docs/generator`)
 package hatchet
 
 import (
@@ -65,42 +107,57 @@ type Context = pkgWorker.HatchetContext
 // It extends Context with additional methods for durable operations like SleepFor.
 type DurableContext = pkgWorker.DurableHatchetContext
 
+// WaitResult holds the results of a DurableContext.WaitFor call, keyed by condition.
+type WaitResult = pkgWorker.WaitResult
+
+// SingleWaitResult holds the result of a single-condition durable wait such as
+// DurableContext.SleepFor or DurableContext.WaitForEvent.
+type SingleWaitResult = pkgWorker.SingleWaitResult
+
 // Condition helpers for workflow task conditions
 
+// Condition is a condition used with WithWaitFor and WithSkipIf to gate task execution.
+// Build conditions with SleepCondition, UserEventCondition, ParentCondition, OrCondition,
+// and AndCondition.
+type Condition = condition.Condition
+
+// UserEventConditionOpt configures a UserEventCondition.
+type UserEventConditionOpt = condition.UserEventConditionOpt
+
 // SleepCondition creates a condition that waits for a specified duration.
-func SleepCondition(duration time.Duration) condition.Condition {
+func SleepCondition(duration time.Duration) Condition {
 	return condition.SleepCondition(duration)
 }
 
 // UserEventCondition creates a condition that waits for a user event.
-func UserEventCondition(eventKey, expression string, opts ...condition.UserEventConditionOpt) condition.Condition {
+func UserEventCondition(eventKey, expression string, opts ...UserEventConditionOpt) Condition {
 	return condition.UserEventCondition(eventKey, expression, opts...)
 }
 
 // WithEventScope restricts a user event condition to events pushed with a matching scope.
-func WithEventScope(scope string) condition.UserEventConditionOpt {
+func WithEventScope(scope string) UserEventConditionOpt {
 	return condition.WithEventScope(scope)
 }
 
 // WithConsiderEventsSince makes a user event condition also match events pushed
 // after the given time but before the wait was registered (event lookback).
 // Requires WithEventScope to be set as well.
-func WithConsiderEventsSince(since time.Time) condition.UserEventConditionOpt {
+func WithConsiderEventsSince(since time.Time) UserEventConditionOpt {
 	return condition.WithConsiderEventsSince(since)
 }
 
 // ParentCondition creates a condition based on a parent task's output.
-func ParentCondition(task *Task, expression string) condition.Condition {
+func ParentCondition(task *Task, expression string) Condition {
 	return condition.ParentCondition(task, expression)
 }
 
 // OrCondition creates a condition that is satisfied when any of the provided conditions are met.
-func OrCondition(conditions ...condition.Condition) condition.Condition {
+func OrCondition(conditions ...Condition) Condition {
 	return condition.Or(conditions...)
 }
 
 // AndCondition creates a condition that is satisfied when all of the provided conditions are met.
-func AndCondition(conditions ...condition.Condition) condition.Condition {
+func AndCondition(conditions ...Condition) Condition {
 	return condition.Conditions(conditions...)
 }
 

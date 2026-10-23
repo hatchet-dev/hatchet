@@ -38,9 +38,15 @@ type RateLimitResult struct {
 	ExceededUnits  int32
 	ExceededVal    int32
 	NextRefillAt   *time.Time
+	PausedUntil    *time.Time
 	TaskId         int64
 	TaskInsertedAt pgtype.Timestamptz
 	RetryCount     int32
+}
+
+type taskIdRetryCount struct {
+	taskId     int64
+	retryCount int32
 }
 
 type AssignedItem struct {
@@ -254,7 +260,7 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *Assign
 
 	defer rollback()
 
-	succeeded, failed, err = d.markQueueItemsProcessed(ctx, d.tenantId, r, tx, false)
+	succeeded, failed, err = d.markQueueItemsProcessed(ctx, d.tenantId, r, tx)
 
 	if err != nil {
 		return nil, nil, err
@@ -272,13 +278,12 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *Assign
 	return succeeded, failed, nil
 }
 
-func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId uuid.UUID, r *AssignResults, tx sqlcv1.DBTX, isOptimistic bool) (succeeded []*AssignedItem, failed []*AssignedItem, err error) {
+func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId uuid.UUID, r *AssignResults, tx sqlcv1.DBTX) (succeeded []*AssignedItem, failed []*AssignedItem, err error) {
 	ctx, span := telemetry.NewSpan(ctx, "mark-queue-items-processed")
 	defer span.End()
 
 	telemetry.WithAttributes(span,
 		telemetry.AttributeKV{Key: "tenant.id", Value: tenantId.String()},
-		telemetry.AttributeKV{Key: "is_optimistic", Value: isOptimistic},
 		telemetry.AttributeKV{Key: "batch.assigned", Value: len(r.Assigned)},
 		telemetry.AttributeKV{Key: "batch.unassigned", Value: len(r.Unassigned)},
 		telemetry.AttributeKV{Key: "batch.scheduling_timed_out", Value: len(r.SchedulingTimedOut)},
@@ -287,22 +292,74 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 	)
 
 	start := time.Now()
-	checkpoint := start
 
-	idsToUnqueue := make([]int64, 0, len(r.Assigned)+len(r.Buffered))
-	queueItemIdsToAssignedItem := make(map[int64]*AssignedItem, len(r.Assigned))
-	taskIdToAssignedItem := make(map[int64]*AssignedItem, len(r.Assigned))
+	succeeded = make([]*AssignedItem, 0, len(r.Assigned))
+	failed = make([]*AssignedItem, 0, len(r.Assigned))
+
+	// The statement takes two key sets because the keys leave the queue for different
+	// reasons: assigned keys need a runtime row and a slot for their worker, while the
+	// timed-out and buffered keys below only need their queue item gone (timed-out tasks
+	// are released, buffered tasks get a buffered runtime row instead). Both sets are
+	// keyed by (task_id, task_inserted_at, retry_count) rather than queue item id, so a
+	// restored copy of an item read earlier is deleted with it.
+	taskRetryToAssignedItem := make(map[taskIdRetryCount]*AssignedItem, len(r.Assigned))
+	taskIds := make([]int64, 0, len(r.Assigned))
+	taskInsertedAts := make([]pgtype.Timestamptz, 0, len(r.Assigned))
+	taskRetryCounts := make([]int32, 0, len(r.Assigned))
+	workerIds := make([]uuid.UUID, 0, len(r.Assigned))
+	stepTimeouts := make([]pgtype.Interval, 0, len(r.Assigned))
+
+	var minTaskInsertedAt pgtype.Timestamptz
 
 	for _, assignedItem := range r.Assigned {
-		idsToUnqueue = append(idsToUnqueue, assignedItem.QueueItem.ID)
-		queueItemIdsToAssignedItem[assignedItem.QueueItem.ID] = assignedItem
-		taskIdToAssignedItem[assignedItem.QueueItem.TaskID] = assignedItem
+		qi := assignedItem.QueueItem
+		key := taskIdRetryCount{taskId: qi.TaskID, retryCount: qi.RetryCount}
+
+		// a key appears twice when a queue item read earlier was replaced (evicted and
+		// restored) and the scheduler assigned both copies; the statement deletes by key
+		// and the runtime upsert rejects a repeated key, so only the first copy is flushed
+		// and the others are reported failed (nacked, releasing their slots)
+		if _, seen := taskRetryToAssignedItem[key]; seen {
+			failed = append(failed, assignedItem)
+			continue
+		}
+
+		// the queue item carries the task's step_timeout, so it is parsed here instead
+		// of per row in the statement; the statement adds it to CURRENT_TIMESTAMP. A
+		// timeout the grammar raises on fails only its own item (nacked, so its slot is
+		// released) and the rest of the batch still flushes.
+		stepTimeout, err := durationToInterval(qi.StepTimeout.String)
+
+		if err != nil {
+			d.l.Warn().Err(err).Int64("task_id", qi.TaskID).Int32("retry_count", qi.RetryCount).Msg("could not parse the step timeout of an assigned queue item, reporting it failed")
+			failed = append(failed, assignedItem)
+			continue
+		}
+
+		taskRetryToAssignedItem[key] = assignedItem
+
+		taskIds = append(taskIds, qi.TaskID)
+		taskInsertedAts = append(taskInsertedAts, qi.TaskInsertedAt)
+		taskRetryCounts = append(taskRetryCounts, qi.RetryCount)
+		workerIds = append(workerIds, assignedItem.WorkerId)
+		stepTimeouts = append(stepTimeouts, stepTimeout)
+
+		if qi.TaskInsertedAt.Valid && (!minTaskInsertedAt.Valid || qi.TaskInsertedAt.Time.Before(minTaskInsertedAt.Time)) {
+			minTaskInsertedAt = qi.TaskInsertedAt
+		}
 	}
+
+	removeCount := len(r.SchedulingTimedOut) + len(r.Buffered)
+	removeTaskIds := make([]int64, 0, removeCount)
+	removeTaskInsertedAts := make([]pgtype.Timestamptz, 0, removeCount)
+	removeRetryCounts := make([]int32, 0, removeCount)
 
 	tasksToRelease := make([]TaskIdInsertedAtRetryCount, 0, len(r.SchedulingTimedOut))
 
 	for _, id := range r.SchedulingTimedOut {
-		idsToUnqueue = append(idsToUnqueue, id.ID)
+		removeTaskIds = append(removeTaskIds, id.TaskID)
+		removeTaskInsertedAts = append(removeTaskInsertedAts, id.TaskInsertedAt)
+		removeRetryCounts = append(removeRetryCounts, id.RetryCount)
 		tasksToRelease = append(tasksToRelease, TaskIdInsertedAtRetryCount{
 			Id:         id.TaskID,
 			InsertedAt: id.TaskInsertedAt,
@@ -310,21 +367,92 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 		})
 	}
 
-	bufferedQueueItemIDs := make([]int64, 0, len(r.Buffered))
-	bufferedTaskIds := make([]int64, 0, len(r.Buffered))
-	bufferedTaskInsertedAts := make([]pgtype.Timestamptz, 0, len(r.Buffered))
-	bufferedRetryCounts := make([]int32, 0, len(r.Buffered))
+	bufferedItems := make([]*sqlcv1.V1QueueItem, 0, len(r.Buffered))
 
 	for _, buffered := range r.Buffered {
 		if buffered == nil || buffered.QueueItem == nil {
 			continue
 		}
 
-		idsToUnqueue = append(idsToUnqueue, buffered.QueueItem.ID)
-		bufferedQueueItemIDs = append(bufferedQueueItemIDs, buffered.QueueItem.ID)
-		bufferedTaskIds = append(bufferedTaskIds, buffered.QueueItem.TaskID)
-		bufferedTaskInsertedAts = append(bufferedTaskInsertedAts, buffered.QueueItem.TaskInsertedAt)
-		bufferedRetryCounts = append(bufferedRetryCounts, buffered.QueueItem.RetryCount)
+		removeTaskIds = append(removeTaskIds, buffered.QueueItem.TaskID)
+		removeTaskInsertedAts = append(removeTaskInsertedAts, buffered.QueueItem.TaskInsertedAt)
+		removeRetryCounts = append(removeRetryCounts, buffered.QueueItem.RetryCount)
+		bufferedItems = append(bufferedItems, buffered.QueueItem)
+	}
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "batch.ids_to_unqueue", Value: len(taskIds) + len(removeTaskIds)},
+		telemetry.AttributeKV{Key: "batch.tasks_to_release", Value: len(tasksToRelease)},
+	)
+
+	// FlushAssignedQueueItems locks existing runtime rows first, so this transaction's lock
+	// order stays consistent with RestoreEvictedTasks; it must run before any other queue
+	// item is deleted in this transaction.
+	var (
+		flushed       []*sqlcv1.FlushAssignedQueueItemsRow
+		flushDuration time.Duration
+	)
+
+	if len(taskIds)+len(removeTaskIds) > 0 {
+		flushStart := time.Now()
+
+		flushed, err = d.queries.FlushAssignedQueueItems(ctx, tx, sqlcv1.FlushAssignedQueueItemsParams{
+			Taskids:               taskIds,
+			Taskinsertedats:       taskInsertedAts,
+			Taskretrycounts:       taskRetryCounts,
+			Workerids:             workerIds,
+			Steptimeouts:          stepTimeouts,
+			Removetaskids:         removeTaskIds,
+			Removetaskinsertedats: removeTaskInsertedAts,
+			Removeretrycounts:     removeRetryCounts,
+			Tenantid:              tenantId,
+			Mintaskinsertedat:     minTaskInsertedAt,
+		})
+
+		flushDuration = time.Since(flushStart)
+
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
+	// a key that did not come back was deleted from v1_queue_item underneath the
+	// scheduler (cancellation, another scheduler), so it is neither assigned nor buffered
+	deletedKeys := make(map[taskIdRetryCount]struct{}, len(flushed))
+	incrementInvocationCountOpts := make([]IncrementDurableTaskInvocationCountsOpts, 0)
+
+	for _, row := range flushed {
+		key := taskIdRetryCount{taskId: row.TaskID, retryCount: row.RetryCount}
+		deletedKeys[key] = struct{}{}
+
+		if row.WorkerID == nil {
+			continue
+		}
+
+		assignedItem, ok := taskRetryToAssignedItem[key]
+
+		if !ok {
+			continue
+		}
+
+		if row.IsDurable.Valid {
+			assignedItem.IsDurable = row.IsDurable.Bool
+
+			if row.IsDurable.Bool {
+				incrementInvocationCountOpts = append(incrementInvocationCountOpts, IncrementDurableTaskInvocationCountsOpts{
+					TaskId:         row.TaskID,
+					TaskInsertedAt: row.TaskInsertedAt,
+					TenantId:       tenantId,
+				})
+			}
+		}
+
+		succeeded = append(succeeded, assignedItem)
+		delete(taskRetryToAssignedItem, key)
+	}
+
+	for _, assignedItem := range taskRetryToAssignedItem {
+		failed = append(failed, assignedItem)
 	}
 
 	// move batch queue items from v1_queue_item -> v1_batched_queue_item (replaces trigger-based redirect)
@@ -348,16 +476,23 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 	// remove rate limited queue items from the queue and place them in the v1_rate_limited_queue_items table
 	qisToMoveToRateLimited := make([]int64, 0, len(r.RateLimited))
 	qisToMoveToRateLimitedRQAfter := make([]pgtype.Timestamptz, 0, len(r.RateLimited))
+	tasksToHold := make([]TaskIdInsertedAtRetryCount, 0)
 
 	for _, row := range r.RateLimitedToMove {
+		// a paused key holds the task until the pause ends, without its concurrency slot
+		if row.PausedUntil != nil {
+			tasksToHold = append(tasksToHold, TaskIdInsertedAtRetryCount{
+				Id:         row.TaskID,
+				InsertedAt: row.TaskInsertedAt,
+				RetryCount: row.RetryCount,
+			})
+
+			continue
+		}
+
 		qisToMoveToRateLimited = append(qisToMoveToRateLimited, row.ID)
 		qisToMoveToRateLimitedRQAfter = append(qisToMoveToRateLimitedRQAfter, sqlchelpers.TimestamptzFromTime(*row.NextRefillAt))
 	}
-
-	telemetry.WithAttributes(span,
-		telemetry.AttributeKV{Key: "batch.ids_to_unqueue", Value: len(idsToUnqueue)},
-		telemetry.AttributeKV{Key: "batch.tasks_to_release", Value: len(tasksToRelease)},
-	)
 
 	if len(qisToMoveToRateLimited) > 0 {
 		_, err = d.queries.MoveRateLimitedQueueItems(ctx, tx, sqlcv1.MoveRateLimitedQueueItemsParams{
@@ -370,15 +505,11 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 		}
 	}
 
-	queuedItemIds, err := d.queries.BulkQueueItems(ctx, tx, idsToUnqueue)
-
-	if err != nil {
+	if err = d.holdPausedTasks(ctx, tx, tenantId, tasksToHold); err != nil {
 		return nil, nil, err
 	}
 
-	if !isOptimistic {
-		// we don't want to waste a query if we're scheduling optimistically; this only happens on insert so there's
-		// nothing to release
+	if len(tasksToRelease) > 0 {
 		_, err = d.releaseTasks(ctx, tx, tenantId, tasksToRelease)
 
 		if err != nil {
@@ -386,52 +517,19 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 		}
 	}
 
-	queuedItemsMap := make(map[int64]struct{}, len(queuedItemIds))
+	validBufferedTaskIds := make([]int64, 0, len(bufferedItems))
+	validBufferedInsertedAts := make([]pgtype.Timestamptz, 0, len(bufferedItems))
+	validBufferedRetryCounts := make([]int32, 0, len(bufferedItems))
 
-	for _, id := range queuedItemIds {
-		queuedItemsMap[id] = struct{}{}
-	}
-
-	validBufferedTaskIds := make([]int64, 0, len(bufferedTaskIds))
-	validBufferedInsertedAts := make([]pgtype.Timestamptz, 0, len(bufferedTaskInsertedAts))
-	validBufferedRetryCounts := make([]int32, 0, len(bufferedRetryCounts))
-
-	for idx, queueItemID := range bufferedQueueItemIDs {
-		if _, ok := queuedItemsMap[queueItemID]; !ok {
+	for _, qi := range bufferedItems {
+		if _, ok := deletedKeys[taskIdRetryCount{taskId: qi.TaskID, retryCount: qi.RetryCount}]; !ok {
 			continue
 		}
 
-		if idx >= len(bufferedTaskIds) || idx >= len(bufferedTaskInsertedAts) || idx >= len(bufferedRetryCounts) {
-			continue
-		}
-
-		validBufferedTaskIds = append(validBufferedTaskIds, bufferedTaskIds[idx])
-		validBufferedInsertedAts = append(validBufferedInsertedAts, bufferedTaskInsertedAts[idx])
-		validBufferedRetryCounts = append(validBufferedRetryCounts, bufferedRetryCounts[idx])
+		validBufferedTaskIds = append(validBufferedTaskIds, qi.TaskID)
+		validBufferedInsertedAts = append(validBufferedInsertedAts, qi.TaskInsertedAt)
+		validBufferedRetryCounts = append(validBufferedRetryCounts, qi.RetryCount)
 	}
-
-	taskIds := make([]int64, 0, len(r.Assigned))
-	taskInsertedAts := make([]pgtype.Timestamptz, 0, len(r.Assigned))
-	workerIds := make([]uuid.UUID, 0, len(r.Assigned))
-
-	var minTaskInsertedAt pgtype.Timestamptz
-
-	// if there are any idsToUnqueue that are not in the queuedItems, this means they were
-	// deleted from the v1_queue_items table, so we should not assign them
-	for id, assignedItem := range queueItemIdsToAssignedItem {
-		if _, ok := queuedItemsMap[id]; ok {
-			taskIds = append(taskIds, assignedItem.QueueItem.TaskID)
-			taskInsertedAts = append(taskInsertedAts, assignedItem.QueueItem.TaskInsertedAt)
-			workerIds = append(workerIds, assignedItem.WorkerId)
-
-			if assignedItem.QueueItem.TaskInsertedAt.Valid && (!minTaskInsertedAt.Valid || assignedItem.QueueItem.TaskInsertedAt.Time.Before(minTaskInsertedAt.Time)) {
-				minTaskInsertedAt = assignedItem.QueueItem.TaskInsertedAt
-			}
-		}
-	}
-
-	timeAfterBulkQueueItems := time.Since(checkpoint)
-	checkpoint = time.Now()
 
 	if len(validBufferedTaskIds) > 0 {
 		err = d.queries.InsertBufferedTaskRuntimes(ctx, tx, sqlcv1.InsertBufferedTaskRuntimesParams{
@@ -444,34 +542,6 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 		if err != nil {
 			return nil, nil, err
 		}
-
-		validBufferedTaskIds = nil
-		validBufferedInsertedAts = nil
-		validBufferedRetryCounts = nil
-	}
-
-	updatedTasks, err := d.queries.UpdateTasksToAssigned(ctx, tx, sqlcv1.UpdateTasksToAssignedParams{
-		Taskids:           taskIds,
-		Taskinsertedats:   taskInsertedAts,
-		Mintaskinsertedat: minTaskInsertedAt,
-		Workerids:         workerIds,
-		Tenantid:          tenantId,
-	})
-
-	if err != nil {
-		return nil, nil, err
-	}
-
-	incrementInvocationCountOpts := make([]IncrementDurableTaskInvocationCountsOpts, 0)
-
-	for _, t := range updatedTasks {
-		if t.IsDurable.Valid && t.IsDurable.Bool {
-			incrementInvocationCountOpts = append(incrementInvocationCountOpts, IncrementDurableTaskInvocationCountsOpts{
-				TaskId:         t.TaskID,
-				TaskInsertedAt: t.TaskInsertedAt,
-				TenantId:       tenantId,
-			})
-		}
 	}
 
 	if len(incrementInvocationCountOpts) > 0 {
@@ -482,43 +552,20 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 		}
 	}
 
-	timeAfterUpdateStepRuns := time.Since(checkpoint)
-
-	succeeded = make([]*AssignedItem, 0, len(r.Assigned))
-	failed = make([]*AssignedItem, 0, len(r.Assigned))
-
-	for _, row := range updatedTasks {
-		if assignedItem, ok := taskIdToAssignedItem[row.TaskID]; ok {
-			if row.IsDurable.Valid {
-				assignedItem.IsDurable = row.IsDurable.Bool
-			}
-
-			succeeded = append(succeeded, assignedItem)
-			delete(taskIdToAssignedItem, row.TaskID)
-		}
-	}
-
-	for _, assignedItem := range taskIdToAssignedItem {
-		failed = append(failed, assignedItem)
-	}
-
 	sinceStart := time.Since(start)
 
 	telemetry.WithAttributes(span,
 		telemetry.AttributeKV{Key: "result.succeeded", Value: len(succeeded)},
 		telemetry.AttributeKV{Key: "result.failed", Value: len(failed)},
 		telemetry.AttributeKV{Key: "duration.total_ms", Value: sinceStart.Milliseconds()},
-		telemetry.AttributeKV{Key: "duration.bulk_queue_ms", Value: timeAfterBulkQueueItems.Milliseconds()},
-		telemetry.AttributeKV{Key: "duration.update_tasks_ms", Value: timeAfterUpdateStepRuns.Milliseconds()},
+		telemetry.AttributeKV{Key: "duration.flush_ms", Value: flushDuration.Milliseconds()},
 	)
 
 	if sinceStart > 100*time.Millisecond {
 		d.l.Warn().Dur(
 			"duration", sinceStart,
 		).Dur(
-			"update", timeAfterUpdateStepRuns,
-		).Dur(
-			"bulkqueue", timeAfterBulkQueueItems,
+			"flush", flushDuration,
 		).Int(
 			"assigned", len(succeeded),
 		).Int(
@@ -532,11 +579,9 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 		).Int(
 			"rate_limited_to_move", len(r.RateLimitedToMove),
 		).Int(
-			"ids_to_unqueue", len(idsToUnqueue),
+			"ids_to_unqueue", len(taskIds)+len(removeTaskIds),
 		).Int(
 			"tasks_to_release", len(tasksToRelease),
-		).Bool(
-			"is_optimistic", isOptimistic,
 		).Msgf(
 			"marking queue items processed took longer than 100ms",
 		)
@@ -545,7 +590,7 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 	return succeeded, failed, nil
 }
 
-func (d *queueRepository) GetTaskRateLimits(ctx context.Context, tx *OptimisticTx, queueItems []*sqlcv1.V1QueueItem) (map[int64]map[string]int32, error) {
+func (d *queueRepository) GetTaskRateLimits(ctx context.Context, tx *OptimisticTx, queueItems []*sqlcv1.V1QueueItem) (map[int64]map[string]int32, map[string]RateLimitDefinition, error) {
 	ctx, span := telemetry.NewSpan(ctx, "get-step-run-rate-limits")
 	defer span.End()
 
@@ -584,17 +629,18 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, tx *OptimisticT
 	}
 
 	if skipRateLimiting {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	// get all step run expression evals which correspond to rate limits, grouped by step run id
 	expressionEvals, err := d.queries.ListTaskExpressionEvals(ctx, queryTx, sqlcv1.ListTaskExpressionEvalsParams{
-		Taskids:         taskIds,
-		Taskinsertedats: taskInsertedAts,
+		Taskids:           taskIds,
+		Taskinsertedats:   taskInsertedAts,
+		Mintaskinsertedat: sqlchelpers.MinTimestamptz(taskInsertedAts),
 	})
 
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	taskIdAndGlobalKeyToKey := make(map[string]string)
@@ -635,9 +681,7 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, tx *OptimisticT
 		rateLimitKeyToEvals[k] = append(rateLimitKeyToEvals[k], eval)
 	}
 
-	upsertRateLimitBulkParams := sqlcv1.UpsertRateLimitsBulkParams{
-		Tenantid: d.tenantId,
-	}
+	definitions := make(map[string]RateLimitDefinition)
 
 	taskIdToKeyToUnits := make(map[int64]map[string]int32)
 
@@ -729,22 +773,14 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, tx *OptimisticT
 
 		// important: we use -1 as a sentinel value for a placeholder to indicate we don't need to upsert
 		if limitValue >= 0 {
-			upsertRateLimitBulkParams.Keys = append(upsertRateLimitBulkParams.Keys, key)
-			upsertRateLimitBulkParams.Windows = append(upsertRateLimitBulkParams.Windows, getWindowParamFromDurString(duration))
-			upsertRateLimitBulkParams.Limitvalues = append(upsertRateLimitBulkParams.Limitvalues, int32(limitValue)) // nolint: gosec
+			definitions[key] = RateLimitDefinition{
+				LimitValue: int32(limitValue), // nolint: gosec
+				Window:     getWindowParamFromDurString(duration),
+			}
 		}
 	}
 
 	var stepRateLimits []*sqlcv1.StepRateLimit
-
-	if len(upsertRateLimitBulkParams.Keys) > 0 {
-		// upsert all rate limits based on the keys, limit values, and durations
-		err = d.queries.UpsertRateLimitsBulk(ctx, queryTx, upsertRateLimitBulkParams)
-
-		if err != nil {
-			return nil, fmt.Errorf("could not bulk upsert dynamic rate limits: %w", err)
-		}
-	}
 
 	// get all existing static rate limits for steps to the mapping, mapping back from step ids to step run ids
 	uniqueStepIds := make([]uuid.UUID, 0, len(stepIdToTasks))
@@ -759,7 +795,7 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, tx *OptimisticT
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("could not list rate limits for steps: %w", err)
+		return nil, nil, fmt.Errorf("could not list rate limits for steps: %w", err)
 	}
 
 	for _, row := range stepRateLimits {
@@ -782,7 +818,7 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, tx *OptimisticT
 		d.cachedStepIdHasRateLimit.Set(stepId.String(), hasRateLimit)
 	}
 
-	return taskIdToKeyToUnits, nil
+	return taskIdToKeyToUnits, definitions, nil
 }
 
 func (d *queueRepository) GetDesiredLabels(ctx context.Context, tx *OptimisticTx, stepIds []uuid.UUID) (map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow, error) {
@@ -830,8 +866,12 @@ func (d *queueRepository) GetDesiredLabels(ctx context.Context, tx *OptimisticTx
 		stepIdToLabels[stepId] = append(stepIdToLabels[stepId], label)
 	}
 
-	for stepId, labels := range stepIdToLabels {
-		d.stepIdLabelsCache.Add(stepId, labels)
+	for _, stepId := range stepIdsToLookup {
+		if _, ok := stepIdToLabels[stepId]; !ok {
+			stepIdToLabels[stepId] = []*sqlcv1.GetDesiredLabelsRow{}
+		}
+
+		d.stepIdLabelsCache.Add(stepId, stepIdToLabels[stepId])
 	}
 
 	return stepIdToLabels, nil
@@ -975,16 +1015,14 @@ func (d *queueRepository) ListWorkflowNamesByIds(ctx context.Context, workflowId
 	return workflowIdToName, nil
 }
 
-func (d *queueRepository) RequeueRateLimitedItems(ctx context.Context, tenantId uuid.UUID, queueName string) ([]*sqlcv1.RequeueRateLimitedQueueItemsRow, error) {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l)
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer rollback()
-
-	rows, err := d.queries.RequeueRateLimitedQueueItems(ctx, tx, sqlcv1.RequeueRateLimitedQueueItemsParams{
+// RequeueRateLimitedItems moves the rate-limited items whose refill time has passed back into
+// the queue and returns the earliest refill time still parked for this queue, nil when none.
+func (d *queueRepository) RequeueRateLimitedItems(ctx context.Context, tenantId uuid.UUID, queueName string) (*time.Time, error) {
+	// The statement is a single atomic CTE, so it runs without a transaction to keep the pooled
+	// connection for one round trip instead of BEGIN / statement / COMMIT. Its next_requeue_after
+	// peek reads the statement's snapshot, so the rows it moved (requeue_after <= NOW()) are
+	// excluded by the filter and only still-parked rows count.
+	row, err := d.queries.RequeueRateLimitedQueueItems(ctx, d.pool, sqlcv1.RequeueRateLimitedQueueItemsParams{
 		Tenantid: tenantId,
 		Queue:    queueName,
 	})
@@ -993,21 +1031,27 @@ func (d *queueRepository) RequeueRateLimitedItems(ctx context.Context, tenantId 
 		return nil, err
 	}
 
-	// if we moved items in v1_queue_item, we need to update the active status of the queue, in case we've
-	// been rate limited for longer than a day and the queue has gone inactive
-	saveQueues, err := d.upsertQueues(ctx, tx, tenantId, []string{queueName})
+	var nextRequeueAfter *time.Time
 
-	if err != nil {
-		return nil, err
+	if row.NextRequeueAfter.Valid {
+		nextRequeueAfter = &row.NextRequeueAfter.Time
 	}
 
-	if err := commit(ctx); err != nil {
-		return nil, err
+	// Refreshing last_active only when something moved: doing it on every call would keep
+	// every polled queue active forever.
+	if row.MovedCount == 0 {
+		return nextRequeueAfter, nil
+	}
+
+	saveQueues, err := d.upsertQueues(ctx, d.pool, tenantId, []string{queueName})
+
+	if err != nil {
+		return nextRequeueAfter, err
 	}
 
 	saveQueues()
 
-	return rows, nil
+	return nextRequeueAfter, nil
 }
 
 type batchQueueRepository struct {
@@ -1162,6 +1206,7 @@ func (b *batchQueueRepository) commitAssignmentsTx(ctx context.Context, tx pgx.T
 	ids := make([]int64, 0, len(assignments))
 	taskIds := make([]int64, 0, len(assignments))
 	taskInsertedAts := make([]pgtype.Timestamptz, 0, len(assignments))
+	taskRetryCounts := make([]int32, 0, len(assignments))
 	workerIds := make([]uuid.UUID, 0, len(assignments))
 
 	var minTaskInsertedAt pgtype.Timestamptz
@@ -1174,6 +1219,7 @@ func (b *batchQueueRepository) commitAssignmentsTx(ctx context.Context, tx pgx.T
 		ids = append(ids, assignment.BatchQueueItemID)
 		taskIds = append(taskIds, assignment.TaskID)
 		taskInsertedAts = append(taskInsertedAts, assignment.TaskInsertedAt)
+		taskRetryCounts = append(taskRetryCounts, assignment.RetryCount)
 		workerIds = append(workerIds, assignment.WorkerID)
 
 		if assignment.TaskInsertedAt.Valid && (!minTaskInsertedAt.Valid || assignment.TaskInsertedAt.Time.Before(minTaskInsertedAt.Time)) {
@@ -1192,6 +1238,7 @@ func (b *batchQueueRepository) commitAssignmentsTx(ctx context.Context, tx pgx.T
 	updated, err := b.queries.UpdateTasksToAssigned(ctx, tx, sqlcv1.UpdateTasksToAssignedParams{
 		Taskids:           taskIds,
 		Taskinsertedats:   taskInsertedAts,
+		Taskretrycounts:   taskRetryCounts,
 		Workerids:         workerIds,
 		Mintaskinsertedat: minTaskInsertedAt,
 		Tenantid:          b.tenantId,
@@ -1200,10 +1247,10 @@ func (b *batchQueueRepository) commitAssignmentsTx(ctx context.Context, tx pgx.T
 		return nil, fmt.Errorf("could not update tasks to assigned: %w", err)
 	}
 
-	updatedTaskIDs := make(map[int64]struct{}, len(updated))
+	updatedTaskIDs := make(map[taskIdRetryCount]struct{}, len(updated))
 	for _, row := range updated {
 		if row != nil {
-			updatedTaskIDs[row.TaskID] = struct{}{}
+			updatedTaskIDs[taskIdRetryCount{taskId: row.TaskID, retryCount: row.RetryCount}] = struct{}{}
 		}
 	}
 
@@ -1212,7 +1259,7 @@ func (b *batchQueueRepository) commitAssignmentsTx(ctx context.Context, tx pgx.T
 		if a == nil {
 			continue
 		}
-		if _, ok := updatedTaskIDs[a.TaskID]; ok {
+		if _, ok := updatedTaskIDs[taskIdRetryCount{taskId: a.TaskID, retryCount: a.RetryCount}]; ok {
 			succeeded = append(succeeded, a)
 		}
 	}

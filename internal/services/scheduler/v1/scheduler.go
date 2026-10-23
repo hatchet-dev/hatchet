@@ -146,6 +146,7 @@ type Scheduler struct {
 	signaler *signal.OLAPSignaler
 
 	tasksWithNoWorkerCache *expirable.LRU[string, struct{}]
+	rateLimitedTasksCache  *expirable.LRU[string, struct{}]
 
 	promGate *prometheus.Gate
 
@@ -194,6 +195,7 @@ func New(
 
 	// TODO: replace with config or pull into a constant
 	tasksWithNoWorkerCache := expirable.NewLRU(10000, func(string, struct{}) {}, 5*time.Minute)
+	rateLimitedTasksCache := expirable.NewLRU(10000, func(string, struct{}) {}, 1*time.Minute)
 
 	signaler := signal.NewOLAPSignaler(opts.mq, opts.pubsub, opts.repov1, opts.l, pubBuffer, opts.promGate)
 
@@ -210,6 +212,7 @@ func New(
 		ql:                     opts.queueLogger,
 		pool:                   opts.pool,
 		tasksWithNoWorkerCache: tasksWithNoWorkerCache,
+		rateLimitedTasksCache:  rateLimitedTasksCache,
 		signaler:               signaler,
 		promGate:               opts.promGate,
 		queueMetrics:           newQueueMetricsPoller(opts.repov1.Tasks(), opts.l),
@@ -324,6 +327,19 @@ func (s *Scheduler) Start() (func() error, error) {
 		}
 	}()
 
+	rateLimitPausesEnded := s.pool.GetRateLimitPausesEndedCh()
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case tenantId := <-rateLimitPausesEnded:
+				go s.notifyRateLimitPausesEnded(ctx, tenantId)
+			}
+		}
+	}()
+
 	cleanup := func() error {
 		cancel()
 
@@ -369,6 +385,8 @@ func (s *Scheduler) handleTask(ctx context.Context, task *msgqueue.Message) (err
 		return s.handleNewQueue(ctx, task)
 	case msgqueue.MsgIDNewConcurrencyStrategy:
 		return s.handleNewConcurrencyStrategy(ctx, task)
+	case msgqueue.MsgIDRateLimitsChanged:
+		return s.handleRateLimitsChanged(ctx, task)
 	}
 
 	return fmt.Errorf("unknown task: %s", task.ID)
@@ -423,6 +441,29 @@ func (s *Scheduler) handleNewQueue(ctx context.Context, msg *msgqueue.Message) e
 	return nil
 }
 
+func (s *Scheduler) handleRateLimitsChanged(ctx context.Context, msg *msgqueue.Message) error {
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-rate-limits-changed", msg.OtelCarrier)
+	defer span.End()
+
+	s.pool.NotifyRateLimitsChanged(ctx, msg.TenantID)
+
+	return nil
+}
+
+// notifyRateLimitPausesEnded asks the task controller to release the runs held by the ended pauses
+func (s *Scheduler) notifyRateLimitPausesEnded(ctx context.Context, tenantId uuid.UUID) {
+	msg, err := tasktypes.NewRateLimitPausesChangedMessage(tenantId, false)
+
+	if err != nil {
+		s.l.Error().Ctx(ctx).Err(err).Msg("could not create rate limit pauses ended message")
+		return
+	}
+
+	if err := s.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
+		s.l.Error().Ctx(ctx).Err(err).Msg("could not send rate limit pauses ended message")
+	}
+}
+
 func (s *Scheduler) handleNewConcurrencyStrategy(ctx context.Context, msg *msgqueue.Message) error {
 	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-new-concurrency-strategy", msg.OtelCarrier)
 	defer span.End()
@@ -444,7 +485,7 @@ func (s *Scheduler) runSetTenants(ctx context.Context) func() {
 		tenants, err := s.repov1.Tenant().ListTenantsBySchedulerPartition(ctx, s.p.GetSchedulerPartitionId())
 
 		if err != nil {
-			s.l.Err(err).Ctx(ctx).Msg("could not list tenants")
+			logger.ShutdownAware(ctx, s.l, err, zerolog.ErrorLevel).Err(err).Ctx(ctx).Msg("could not list tenants")
 			return
 		}
 
@@ -490,8 +531,8 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 		for _, a := range res.Assigned {
 			if a.IsDurable {
 				invCountOpts = append(invCountOpts, repov1.IdInsertedAt{
-					ID:         a.QueueItem.TaskID,
-					InsertedAt: a.QueueItem.TaskInsertedAt,
+					ID:                   a.QueueItem.TaskID,
+					InsertedAtUnixMicros: a.QueueItem.TaskInsertedAt.Time.UnixMicro(),
 				})
 			}
 		}
@@ -541,7 +582,10 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 			taskId := bulkAssigned.QueueItem.TaskID
 
 			var durableInvCount int32
-			if count, ok := invocationCounts[repov1.IdInsertedAt{ID: taskId, InsertedAt: bulkAssigned.QueueItem.TaskInsertedAt}]; ok && count != nil {
+			if count, ok := invocationCounts[repov1.IdInsertedAt{
+				ID:                   taskId,
+				InsertedAtUnixMicros: bulkAssigned.QueueItem.TaskInsertedAt.Time.UnixMicro(),
+			}]; ok && count != nil {
 				durableInvCount = *count
 			}
 
@@ -607,12 +651,26 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 
 	if len(res.RateLimited) > 0 {
 		for _, rateLimited := range res.RateLimited {
+			cacheKey := fmt.Sprintf("%d:%d", rateLimited.TaskId, rateLimited.RetryCount)
+
+			if _, ok := s.rateLimitedTasksCache.Get(cacheKey); ok {
+				continue
+			}
+
 			message := fmt.Sprintf(
 				"Rate limit exceeded for key %s, attempting to consume %d units, but only had %d remaining",
 				rateLimited.ExceededKey,
 				rateLimited.ExceededUnits,
 				rateLimited.ExceededVal,
 			)
+
+			if rateLimited.PausedUntil != nil {
+				message = fmt.Sprintf(
+					"Rate limit key %s is paused until %s",
+					rateLimited.ExceededKey,
+					rateLimited.PausedUntil.UTC().Format(time.RFC3339),
+				)
+			}
 
 			msg, err := tasktypes.MonitoringEventMessageFromInternal(
 				tenantId,
@@ -640,6 +698,8 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 			if err != nil {
 				outerErr = multierror.Append(outerErr, fmt.Errorf("could not send cancelled task: %w", err))
 			}
+
+			s.rateLimitedTasksCache.Add(cacheKey, struct{}{})
 		}
 	}
 
@@ -835,6 +895,7 @@ func (s *Scheduler) internalRetry(ctx context.Context, tenantId uuid.UUID, assig
 			false,
 			"could not assign step run to worker",
 			false,
+			nil,
 		)
 
 		if err != nil {
@@ -1383,6 +1444,7 @@ func (s *Scheduler) handleDeadLetteredTaskBulkAssigned(ctx context.Context, msg 
 			false,
 			"Could not send task to worker",
 			false,
+			nil,
 		)
 
 		if err != nil {
@@ -1433,6 +1495,7 @@ func (s *Scheduler) handleDeadLetteredBatchStart(ctx context.Context, msg *msgqu
 			false,
 			"Could not send task to worker",
 			false,
+			nil,
 		)
 
 		if err != nil {
@@ -1450,6 +1513,29 @@ func (s *Scheduler) handleDeadLetteredBatchStart(ctx context.Context, msg *msgqu
 	}
 
 	return nil
+}
+
+// maxDurableCallbackRedeliveries bounds the dead-letter retry loop for a durable callback that
+// no dispatcher can deliver (no active session). Each re-dispatch re-looks-up the task's
+// dispatcher, so a worker reconnecting mid-loop gets its callback; but without a cap this loops
+// forever (the dispatcher rejects -> DLX -> here -> fresh publish -> reject ...), which is a
+// self-inflicted storm during an engine roll. After the cap we drop it and rely on the worker's
+// GetSatisfiedDurableEvents poll on wait re-registration, timeout reassignment of the orphaned
+// task, or the OLAP reconcile sweeps.
+const maxDurableCallbackRedeliveries = 50
+
+// The dispatcher publishes undelivered callbacks straight to the dead-letter queue, which has no
+// message TTL, so without a delay here the whole retry budget is spent within a second, before a
+// reconnecting worker has had a chance to re-register its session.
+const (
+	durableCallbackRedeliveryBaseDelay = 100 * time.Millisecond
+	durableCallbackRedeliveryMaxDelay  = 5 * time.Second
+)
+
+func durableCallbackRedeliveryDelay(redeliveryCount int32) time.Duration {
+	delay := durableCallbackRedeliveryBaseDelay << min(redeliveryCount, 10)
+
+	return min(delay, durableCallbackRedeliveryMaxDelay)
 }
 
 func (s *Scheduler) handleDeadLetteredDurableCallbackCompleted(ctx context.Context, msg *msgqueue.Message) error {
@@ -1479,6 +1565,11 @@ func (s *Scheduler) handleDeadLetteredDurableCallbackCompleted(ctx context.Conte
 			continue
 		}
 
+		if p.RedeliveryCount >= maxDurableCallbackRedeliveries {
+			s.l.Error().Ctx(ctx).Msgf("giving up on undelivered durable callback for task %s node %d after %d redeliveries; worker never re-registered its durable session. recovery now depends on task reassignment or reconcile.", p.TaskExternalId, p.NodeId, p.RedeliveryCount)
+			continue
+		}
+
 		callbacks = append(callbacks, repov1.SatisfiedEntry{
 			DurableTaskId:         t.ID,
 			DurableTaskInsertedAt: t.InsertedAt,
@@ -1489,7 +1580,26 @@ func (s *Scheduler) handleDeadLetteredDurableCallbackCompleted(ctx context.Conte
 			Data:                  p.Payload,
 			ChildTaskIsFailure:    p.ChildTaskIsFailure,
 			ChildTaskErrorMessage: p.ChildTaskErrorMessage,
+			RedeliveryCount:       p.RedeliveryCount + 1,
 		})
+	}
+
+	if len(callbacks) == 0 {
+		return nil
+	}
+
+	var maxRedeliveryCount int32
+
+	for _, cb := range callbacks {
+		maxRedeliveryCount = max(maxRedeliveryCount, cb.RedeliveryCount)
+	}
+
+	// the dead-letter message stays unacknowledged while we wait, so a scheduler that stops
+	// mid-delay has the message redelivered instead of losing the callbacks
+	select {
+	case <-time.After(durableCallbackRedeliveryDelay(maxRedeliveryCount)):
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 
 	return durable.DispatchCallbacks(ctx, s.l, s.mq, s.repov1, msg.TenantID, callbacks)

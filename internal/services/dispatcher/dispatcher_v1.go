@@ -6,10 +6,11 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/task/trigger"
-	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1/v1connect"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/streams"
 	"github.com/hatchet-dev/hatchet/internal/syncx"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
+	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
@@ -19,12 +20,16 @@ type durableInvocationsKey struct {
 	tenantId uuid.UUID
 	taskId   uuid.UUID
 }
+
+var _ v1connect.V1DispatcherHandler = (*DispatcherServiceImpl)(nil)
+
 type DispatcherServiceImpl struct {
-	contracts.UnimplementedV1DispatcherServer
+	v1connect.UnimplementedV1DispatcherHandler
 	repo               v1.Repository
 	mq                 msgqueue.MessageQueue
 	v                  validator.Validator
 	analytics          analytics.Analytics
+	alerter            *hatcheterrors.Wrapped
 	triggerWriter      *trigger.TriggerWriter
 	pubBuffer          *msgqueue.MQPubBuffer
 	streamSessions     *streams.Registry
@@ -41,7 +46,7 @@ func (d *DispatcherServiceImpl) CancelStreamSessions() {
 	d.streamSessions.CancelAll()
 }
 
-func newDispatcherService(repo v1.Repository, mq msgqueue.MessageQueue, pubsub msgqueue.PubSub, v validator.Validator, l *zerolog.Logger, dispatcherId uuid.UUID, a analytics.Analytics, promGate *prometheus.Gate) *DispatcherServiceImpl {
+func newDispatcherService(repo v1.Repository, mq msgqueue.MessageQueue, pubsub msgqueue.PubSub, v validator.Validator, l *zerolog.Logger, dispatcherId uuid.UUID, a analytics.Analytics, alerter *hatcheterrors.Wrapped, promGate *prometheus.Gate) *DispatcherServiceImpl {
 	pubBuffer := msgqueue.NewMQPubBuffer(mq)
 	tw := trigger.NewTriggerWriter(mq, pubsub, repo, l, pubBuffer, 0, promGate)
 
@@ -54,6 +59,7 @@ func newDispatcherService(repo v1.Repository, mq msgqueue.MessageQueue, pubsub m
 		pubBuffer:     pubBuffer,
 		dispatcherId:  dispatcherId,
 		analytics:     a,
+		alerter:       alerter,
 
 		streamSessions: streams.NewRegistry(),
 	}

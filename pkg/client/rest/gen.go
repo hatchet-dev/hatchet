@@ -63,6 +63,7 @@ const (
 
 // Defines values for FeatureFlagId.
 const (
+	OperatorDetailsEnabled         FeatureFlagId = "operator-details-enabled"
 	OrganizationSsoEnabled         FeatureFlagId = "organization-sso-enabled"
 	TenantLogWorkflowFilterEnabled FeatureFlagId = "tenant-log-workflow-filter-enabled"
 	TraceMinimapEnabled            FeatureFlagId = "trace-minimap-enabled"
@@ -274,6 +275,12 @@ const (
 	ALL      V1RunningFilter = "ALL"
 	EVICTED  V1RunningFilter = "EVICTED"
 	ONWORKER V1RunningFilter = "ON_WORKER"
+)
+
+// Defines values for V1ServerlessEndpointKind.
+const (
+	CLOUDFLAREWORKERS V1ServerlessEndpointKind = "CLOUDFLARE_WORKERS"
+	GENERICHTTP       V1ServerlessEndpointKind = "GENERIC_HTTP"
 )
 
 // Defines values for V1TaskEventType.
@@ -897,6 +904,9 @@ type RateLimit struct {
 	// LimitValue The maximum number of requests allowed within the window.
 	LimitValue int `json:"limitValue"`
 
+	// PausedUntil When the rate limit's pause ends, if it is paused. Runs that consume a paused key stay queued until then.
+	PausedUntil *time.Time `json:"pausedUntil,omitempty"`
+
 	// TenantId The ID of the tenant associated with this rate limit.
 	TenantId string `json:"tenantId"`
 
@@ -1233,9 +1243,12 @@ type Tenant struct {
 	AlertMemberEmails *bool `json:"alertMemberEmails,omitempty"`
 
 	// AnalyticsOptOut Whether the tenant has opted out of analytics.
-	AnalyticsOptOut *bool              `json:"analyticsOptOut,omitempty"`
-	Environment     *TenantEnvironment `json:"environment,omitempty"`
-	Metadata        APIResourceMeta    `json:"metadata"`
+	AnalyticsOptOut *bool `json:"analyticsOptOut,omitempty"`
+
+	// DataRetentionPeriod The data retention period for the tenant, e.g. 720h.
+	DataRetentionPeriod *string            `json:"dataRetentionPeriod,omitempty"`
+	Environment         *TenantEnvironment `json:"environment,omitempty"`
+	Metadata            APIResourceMeta    `json:"metadata"`
 
 	// Name The name of the tenant.
 	Name string `json:"name"`
@@ -1603,22 +1616,37 @@ type V1CreateFilterRequest struct {
 	WorkflowId openapi_types.UUID `json:"workflowId"`
 }
 
-// V1CreateHTTPOperatorRequest defines model for V1CreateHTTPOperatorRequest.
-type V1CreateHTTPOperatorRequest struct {
-	// HealthcheckEndpoint The HTTPS endpoint polled periodically to discover the actions this operator handles.
-	HealthcheckEndpoint string `json:"healthcheckEndpoint"`
+// V1CreateServerlessEndpointRequest defines model for V1CreateServerlessEndpointRequest.
+type V1CreateServerlessEndpointRequest struct {
+	// Enabled Whether the operator polls and dispatches to this endpoint. Defaults to true.
+	Enabled *bool `json:"enabled,omitempty"`
 
-	// Name The name of the operator.
+	// HealthcheckUrl The HTTPS URL (port 443) polled periodically to discover the workflows this endpoint serves.
+	HealthcheckUrl string `json:"healthcheckUrl"`
+
+	// InlineWaitBudgetMs The inline wait budget for durable results, in milliseconds. Defaults to 5000.
+	InlineWaitBudgetMs *int32 `json:"inlineWaitBudgetMs,omitempty"`
+
+	// Kind The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS applies the Cloudflare Workers runtime constraints on top of it.
+	Kind *V1ServerlessEndpointKind `json:"kind,omitempty"`
+
+	// Labels Worker labels applied to the worker the operator creates for this endpoint.
+	Labels *map[string]interface{} `json:"labels,omitempty"`
+
+	// Name The name of the endpoint. Unique within the tenant.
 	Name string `json:"name"`
 
-	// RequestTimeoutSeconds The per-request timeout backstop, in seconds.
-	RequestTimeoutSeconds int32 `json:"requestTimeoutSeconds"`
+	// PollIntervalSeconds How often the healthcheck URL is polled, in seconds. Defaults to 30.
+	PollIntervalSeconds *int32 `json:"pollIntervalSeconds,omitempty"`
 
-	// SigningSecret The secret used to HMAC-sign delivered requests (sent in the X-Hatchet-Signature header). Write-only: it is never returned in responses.
+	// RequestTimeoutSeconds The per-request timeout backstop for trigger requests, in seconds. Defaults to 60.
+	RequestTimeoutSeconds *int32 `json:"requestTimeoutSeconds,omitempty"`
+
+	// SigningSecret The secret used to HMAC-sign requests delivered to the endpoint. At least 32 characters. Write-only: it is stored encrypted and never returned in responses.
 	SigningSecret string `json:"signingSecret"`
 
-	// TriggerEndpoint The HTTPS endpoint (https, port 443) that assigned tasks are delivered to.
-	TriggerEndpoint string `json:"triggerEndpoint"`
+	// TriggerUrl The HTTPS URL (port 443) that assigned tasks are delivered to.
+	TriggerUrl string `json:"triggerUrl"`
 }
 
 // V1CreateWebhookRequest defines model for V1CreateWebhookRequest.
@@ -1872,31 +1900,6 @@ type V1FilterList struct {
 	Rows       *[]V1Filter         `json:"rows,omitempty"`
 }
 
-// V1HTTPOperator defines model for V1HTTPOperator.
-type V1HTTPOperator struct {
-	// HealthcheckEndpoint The HTTPS endpoint polled periodically to discover the actions this operator handles.
-	HealthcheckEndpoint string          `json:"healthcheckEndpoint"`
-	Metadata            APIResourceMeta `json:"metadata"`
-
-	// Name The name of the operator.
-	Name string `json:"name"`
-
-	// RequestTimeoutSeconds The per-request timeout backstop, in seconds.
-	RequestTimeoutSeconds int32 `json:"requestTimeoutSeconds"`
-
-	// TenantId The ID of the tenant associated with this operator.
-	TenantId openapi_types.UUID `json:"tenantId"`
-
-	// TriggerEndpoint The HTTPS endpoint (https, port 443) that assigned tasks are delivered to.
-	TriggerEndpoint string `json:"triggerEndpoint"`
-}
-
-// V1HTTPOperatorList defines model for V1HTTPOperatorList.
-type V1HTTPOperatorList struct {
-	Pagination *PaginationResponse `json:"pagination,omitempty"`
-	Rows       *[]V1HTTPOperator   `json:"rows,omitempty"`
-}
-
 // V1LogLine defines model for V1LogLine.
 type V1LogLine struct {
 	// Attempt The attempt number of the log line.
@@ -1977,6 +1980,73 @@ type V1RunningDetailCount struct {
 
 // V1RunningFilter defines model for V1RunningFilter.
 type V1RunningFilter string
+
+// V1ServerlessEndpoint defines model for V1ServerlessEndpoint.
+type V1ServerlessEndpoint struct {
+	// Enabled Whether the operator polls and dispatches to this endpoint.
+	Enabled bool `json:"enabled"`
+
+	// HealthcheckUrl The HTTPS URL (port 443) polled periodically to discover the workflows this endpoint serves.
+	HealthcheckUrl string `json:"healthcheckUrl"`
+
+	// InlineWaitBudgetMs How long a trigger request may block waiting for a durable result before the operator falls back to the websocket durable protocol, in milliseconds.
+	InlineWaitBudgetMs int32 `json:"inlineWaitBudgetMs"`
+
+	// Kind The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS applies the Cloudflare Workers runtime constraints on top of it.
+	Kind V1ServerlessEndpointKind `json:"kind"`
+
+	// Labels Worker labels applied to the connection-backed worker the operator creates for this endpoint.
+	Labels   map[string]interface{} `json:"labels"`
+	Metadata APIResourceMeta        `json:"metadata"`
+
+	// Name The name of the endpoint. Unique within the tenant.
+	Name string `json:"name"`
+
+	// PollIntervalSeconds How often the healthcheck URL is polled, in seconds.
+	PollIntervalSeconds int32 `json:"pollIntervalSeconds"`
+
+	// RequestTimeoutSeconds The per-request timeout backstop for trigger requests, in seconds.
+	RequestTimeoutSeconds int32 `json:"requestTimeoutSeconds"`
+
+	// Status The health of the endpoint as last observed by the serverless operator. Written on state transitions only, so changedAt is the time the endpoint last flipped between healthy and unhealthy.
+	Status V1ServerlessEndpointStatus `json:"status"`
+
+	// TenantId The ID of the tenant that owns this endpoint.
+	TenantId openapi_types.UUID `json:"tenantId"`
+
+	// TriggerUrl The HTTPS URL (port 443) that assigned tasks are delivered to.
+	TriggerUrl string `json:"triggerUrl"`
+}
+
+// V1ServerlessEndpointKind The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS applies the Cloudflare Workers runtime constraints on top of it.
+type V1ServerlessEndpointKind string
+
+// V1ServerlessEndpointList defines model for V1ServerlessEndpointList.
+type V1ServerlessEndpointList struct {
+	Pagination *PaginationResponse     `json:"pagination,omitempty"`
+	Rows       *[]V1ServerlessEndpoint `json:"rows,omitempty"`
+}
+
+// V1ServerlessEndpointStatus The health of the endpoint as last observed by the serverless operator. Written on state transitions only, so changedAt is the time the endpoint last flipped between healthy and unhealthy.
+type V1ServerlessEndpointStatus struct {
+	// ChangedAt When the healthy flag last changed.
+	ChangedAt *time.Time `json:"changedAt,omitempty"`
+
+	// Error The error from the last failed healthcheck, if the endpoint is unhealthy.
+	Error *string `json:"error,omitempty"`
+
+	// Healthy Whether the last healthcheck succeeded. Absent until the operator has polled the endpoint at least once.
+	Healthy *bool `json:"healthy,omitempty"`
+
+	// RegisteredActions The action ids the operator registered for this endpoint from its last healthcheck, as the endpoint declared them. Several endpoints of a tenant may register the same action; each then serves it.
+	RegisteredActions []string `json:"registeredActions"`
+}
+
+// V1StreamPayloadRef defines model for V1StreamPayloadRef.
+type V1StreamPayloadRef struct {
+	// Ref Publish the message with this as its payload_ref
+	Ref string `json:"ref"`
+}
 
 // V1TaskEvent defines model for V1TaskEvent.
 type V1TaskEvent struct {
@@ -2216,19 +2286,37 @@ type V1UpdateFilterRequest struct {
 	Scope *string `json:"scope,omitempty"`
 }
 
-// V1UpdateHTTPOperatorRequest Fields to update on an HTTP operator. Omitted fields are left unchanged.
-type V1UpdateHTTPOperatorRequest struct {
-	// HealthcheckEndpoint An optional HTTPS endpoint polled to verify the operator endpoint is reachable.
-	HealthcheckEndpoint *string `json:"healthcheckEndpoint,omitempty"`
+// V1UpdateServerlessEndpointRequest Fields to update on a serverless endpoint. Omitted fields are left unchanged.
+type V1UpdateServerlessEndpointRequest struct {
+	// Enabled Whether the operator polls and dispatches to this endpoint.
+	Enabled *bool `json:"enabled,omitempty"`
 
-	// RequestTimeoutSeconds Optional override for the per-request timeout backstop, in seconds.
+	// HealthcheckUrl The HTTPS URL (port 443) polled periodically to discover the workflows this endpoint serves.
+	HealthcheckUrl *string `json:"healthcheckUrl,omitempty"`
+
+	// InlineWaitBudgetMs The inline wait budget for durable results, in milliseconds.
+	InlineWaitBudgetMs *int32 `json:"inlineWaitBudgetMs,omitempty"`
+
+	// Kind The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS applies the Cloudflare Workers runtime constraints on top of it.
+	Kind *V1ServerlessEndpointKind `json:"kind,omitempty"`
+
+	// Labels Worker labels applied to the worker the operator creates for this endpoint. Replaces the existing labels.
+	Labels *map[string]interface{} `json:"labels,omitempty"`
+
+	// Name The name of the endpoint. Unique within the tenant.
+	Name *string `json:"name,omitempty"`
+
+	// PollIntervalSeconds How often the healthcheck URL is polled, in seconds.
+	PollIntervalSeconds *int32 `json:"pollIntervalSeconds,omitempty"`
+
+	// RequestTimeoutSeconds The per-request timeout backstop for trigger requests, in seconds.
 	RequestTimeoutSeconds *int32 `json:"requestTimeoutSeconds,omitempty"`
 
-	// SigningSecret The secret used to HMAC-sign delivered requests. Write-only: it is never returned in responses. Provide a new value to rotate it.
+	// SigningSecret A new secret used to HMAC-sign requests delivered to the endpoint. At least 32 characters. Provide a value to rotate the secret; it is never returned in responses.
 	SigningSecret *string `json:"signingSecret,omitempty"`
 
-	// TriggerEndpoint The HTTPS endpoint (https, port 443) that assigned tasks are delivered to.
-	TriggerEndpoint *string `json:"triggerEndpoint,omitempty"`
+	// TriggerUrl The HTTPS URL (port 443) that assigned tasks are delivered to.
+	TriggerUrl *string `json:"triggerUrl,omitempty"`
 }
 
 // V1UpdateWebhookRequest defines model for V1UpdateWebhookRequest.
@@ -2383,6 +2471,12 @@ type V1WorkflowRun struct {
 	WorkflowVersionId *openapi_types.UUID `json:"workflowVersionId,omitempty"`
 }
 
+// V1WorkflowRunCount defines model for V1WorkflowRunCount.
+type V1WorkflowRunCount struct {
+	// Count The number of workflow runs matching the filters
+	Count int64 `json:"count"`
+}
+
 // V1WorkflowRunDetails defines model for V1WorkflowRunDetails.
 type V1WorkflowRunDetails struct {
 	Run   V1WorkflowRun                         `json:"run"`
@@ -2484,6 +2578,9 @@ type Worker struct {
 	// DispatcherId the id of the assigned dispatcher, in UUID format
 	DispatcherId *openapi_types.UUID `json:"dispatcherId,omitempty"`
 
+	// EvictedDurableTaskCount The number of durable task runs owned by this operator that are currently evicted while waiting on durable events. Evicted runs hold no slots. Only set for operator workers.
+	EvictedDurableTaskCount *int `json:"evictedDurableTaskCount,omitempty"`
+
 	// Labels The current label state of the worker.
 	Labels *[]WorkerLabel `json:"labels,omitempty"`
 
@@ -2496,6 +2593,9 @@ type Worker struct {
 
 	// Name The name of the worker.
 	Name string `json:"name"`
+
+	// OperatorId The id of the operator that owns this worker, if it is an engine-managed operator worker.
+	OperatorId *openapi_types.UUID `json:"operatorId,omitempty"`
 
 	// RecentStepRuns The recent step runs for the worker.
 	RecentStepRuns *[]RecentStepRuns `json:"recentStepRuns,omitempty"`
@@ -2584,6 +2684,7 @@ type Workflow struct {
 
 	// TenantId The tenant id of the workflow.
 	TenantId string                 `json:"tenantId"`
+	Triggers *WorkflowTriggers      `json:"triggers,omitempty"`
 	Versions *[]WorkflowVersionMeta `json:"versions,omitempty"`
 }
 
@@ -2965,13 +3066,24 @@ type V1TenantLogLineListParams struct {
 	StepIds *[]openapi_types.UUID `form:"step_ids,omitempty" json:"step_ids,omitempty"`
 }
 
-// V1HttpOperatorListParams defines parameters for V1HttpOperatorList.
-type V1HttpOperatorListParams struct {
+// V1ServerlessEndpointListParams defines parameters for V1ServerlessEndpointList.
+type V1ServerlessEndpointListParams struct {
 	// Offset The number to skip
 	Offset *int64 `form:"offset,omitempty" json:"offset,omitempty"`
 
 	// Limit The number to limit by
 	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// V1StreamPayloadGetParams defines parameters for V1StreamPayloadGet.
+type V1StreamPayloadGetParams struct {
+	// Ref The payload_ref of the stream message
+	Ref string `form:"ref" json:"ref"`
+}
+
+// V1StreamPayloadUploadMultipartBody defines parameters for V1StreamPayloadUpload.
+type V1StreamPayloadUploadMultipartBody struct {
+	Payload openapi_types.File `json:"payload"`
 }
 
 // V1TaskListStatusMetricsParams defines parameters for V1TaskListStatusMetrics.
@@ -3077,6 +3189,48 @@ type V1WorkflowRunListParams struct {
 
 	// IdempotencyKeys The idempotency key(s) to filter for
 	IdempotencyKeys *[]string `form:"idempotency_keys,omitempty" json:"idempotency_keys,omitempty"`
+
+	// IncludeNumPages A flag for whether or not to count the matching runs in order to populate `pagination.num_pages`. Defaults to `true` if unset. When `false`, `pagination.num_pages` is `0`, and the count can be fetched separately from the count endpoint.
+	IncludeNumPages *bool `form:"include_num_pages,omitempty" json:"include_num_pages,omitempty"`
+}
+
+// V1WorkflowRunCountGetParams defines parameters for V1WorkflowRunCountGet.
+type V1WorkflowRunCountGetParams struct {
+	// Statuses A list of statuses to filter by
+	Statuses *[]V1TaskStatus `form:"statuses,omitempty" json:"statuses,omitempty"`
+
+	// Since The earliest date to filter by
+	Since time.Time `form:"since" json:"since"`
+
+	// Until The latest date to filter by
+	Until *time.Time `form:"until,omitempty" json:"until,omitempty"`
+
+	// AdditionalMetadata Additional metadata k-v pairs to filter by
+	AdditionalMetadata *[]string `form:"additional_metadata,omitempty" json:"additional_metadata,omitempty"`
+
+	// AdditionalMetadataOperator How to combine multiple additional_metadata pairs. OR matches runs containing any pair, AND matches runs containing all pairs. Defaults to OR.
+	AdditionalMetadataOperator *V1AdditionalMetadataOperator `form:"additional_metadata_operator,omitempty" json:"additional_metadata_operator,omitempty"`
+
+	// WorkflowIds The workflow ids to find runs for
+	WorkflowIds *[]openapi_types.UUID `form:"workflow_ids,omitempty" json:"workflow_ids,omitempty"`
+
+	// WorkerId The worker id to filter by
+	WorkerId *openapi_types.UUID `form:"worker_id,omitempty" json:"worker_id,omitempty"`
+
+	// OnlyTasks Whether to include DAGs or only to include tasks
+	OnlyTasks bool `form:"only_tasks" json:"only_tasks"`
+
+	// ParentTaskExternalId The parent task external id to filter by
+	ParentTaskExternalId *openapi_types.UUID `form:"parent_task_external_id,omitempty" json:"parent_task_external_id,omitempty"`
+
+	// TriggeringEventExternalId The external id of the event that triggered the workflow run
+	TriggeringEventExternalId *openapi_types.UUID `form:"triggering_event_external_id,omitempty" json:"triggering_event_external_id,omitempty"`
+
+	// RunningFilter Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL.
+	RunningFilter *V1RunningFilter `form:"running_filter,omitempty" json:"running_filter,omitempty"`
+
+	// IdempotencyKeys The idempotency key(s) to filter for
+	IdempotencyKeys *[]string `form:"idempotency_keys,omitempty" json:"idempotency_keys,omitempty"`
 }
 
 // V1WorkflowRunDisplayNamesListParams defines parameters for V1WorkflowRunDisplayNamesList.
@@ -3104,6 +3258,12 @@ type V1WorkflowRunExternalIdsListParams struct {
 
 	// RunningFilter Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL.
 	RunningFilter *V1RunningFilter `form:"running_filter,omitempty" json:"running_filter,omitempty"`
+}
+
+// V1WorkflowRunGetParams defines parameters for V1WorkflowRunGet.
+type V1WorkflowRunGetParams struct {
+	// IncludeOrchestratorEvents Whether to include the DAG orchestrator's task events, which are hidden by default
+	IncludeOrchestratorEvents *bool `form:"includeOrchestratorEvents,omitempty" json:"includeOrchestratorEvents,omitempty"`
 }
 
 // V1WorkflowRunTaskEventsListParams defines parameters for V1WorkflowRunTaskEventsList.
@@ -3233,6 +3393,9 @@ type WorkerListParams struct {
 
 	// Labels Filter by worker labels
 	Labels *[]string `form:"labels,omitempty" json:"labels,omitempty"`
+
+	// IncludeOperators Whether to include engine-managed operator workers, which are hidden by default
+	IncludeOperators *bool `form:"includeOperators,omitempty" json:"includeOperators,omitempty"`
 }
 
 // WorkflowRunListStepRunEventsParams defines parameters for WorkflowRunListStepRunEvents.
@@ -3406,8 +3569,8 @@ type WorkflowVersionGetParams struct {
 // AlertEmailGroupUpdateJSONRequestBody defines body for AlertEmailGroupUpdate for application/json ContentType.
 type AlertEmailGroupUpdateJSONRequestBody = UpdateTenantAlertEmailGroupRequest
 
-// V1HttpOperatorUpdateJSONRequestBody defines body for V1HttpOperatorUpdate for application/json ContentType.
-type V1HttpOperatorUpdateJSONRequestBody = V1UpdateHTTPOperatorRequest
+// V1ServerlessEndpointUpdateJSONRequestBody defines body for V1ServerlessEndpointUpdate for application/json ContentType.
+type V1ServerlessEndpointUpdateJSONRequestBody = V1UpdateServerlessEndpointRequest
 
 // V1CelDebugJSONRequestBody defines body for V1CelDebug for application/json ContentType.
 type V1CelDebugJSONRequestBody = V1CELDebugRequest
@@ -3421,8 +3584,11 @@ type V1FilterCreateJSONRequestBody = V1CreateFilterRequest
 // V1FilterUpdateJSONRequestBody defines body for V1FilterUpdate for application/json ContentType.
 type V1FilterUpdateJSONRequestBody = V1UpdateFilterRequest
 
-// V1HttpOperatorCreateJSONRequestBody defines body for V1HttpOperatorCreate for application/json ContentType.
-type V1HttpOperatorCreateJSONRequestBody = V1CreateHTTPOperatorRequest
+// V1ServerlessEndpointCreateJSONRequestBody defines body for V1ServerlessEndpointCreate for application/json ContentType.
+type V1ServerlessEndpointCreateJSONRequestBody = V1CreateServerlessEndpointRequest
+
+// V1StreamPayloadUploadMultipartRequestBody defines body for V1StreamPayloadUpload for multipart/form-data ContentType.
+type V1StreamPayloadUploadMultipartRequestBody V1StreamPayloadUploadMultipartBody
 
 // V1TaskCancelJSONRequestBody defines body for V1TaskCancel for application/json ContentType.
 type V1TaskCancelJSONRequestBody = V1CancelTaskRequest
@@ -3799,16 +3965,16 @@ type ClientInterface interface {
 	// V1DagListTasks request
 	V1DagListTasks(ctx context.Context, params *V1DagListTasksParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// V1HttpOperatorDelete request
-	V1HttpOperatorDelete(ctx context.Context, v1HttpOperator openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// V1ServerlessEndpointDelete request
+	V1ServerlessEndpointDelete(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// V1HttpOperatorGet request
-	V1HttpOperatorGet(ctx context.Context, v1HttpOperator openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// V1ServerlessEndpointGet request
+	V1ServerlessEndpointGet(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// V1HttpOperatorUpdateWithBody request with any body
-	V1HttpOperatorUpdateWithBody(ctx context.Context, v1HttpOperator openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// V1ServerlessEndpointUpdateWithBody request with any body
+	V1ServerlessEndpointUpdateWithBody(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	V1HttpOperatorUpdate(ctx context.Context, v1HttpOperator openapi_types.UUID, body V1HttpOperatorUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	V1ServerlessEndpointUpdate(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, body V1ServerlessEndpointUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1TaskGet request
 	V1TaskGet(ctx context.Context, task openapi_types.UUID, params *V1TaskGetParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -3869,13 +4035,19 @@ type ClientInterface interface {
 	// V1TenantLogLineList request
 	V1TenantLogLineList(ctx context.Context, tenant openapi_types.UUID, params *V1TenantLogLineListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// V1HttpOperatorList request
-	V1HttpOperatorList(ctx context.Context, tenant openapi_types.UUID, params *V1HttpOperatorListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// V1ServerlessEndpointList request
+	V1ServerlessEndpointList(ctx context.Context, tenant openapi_types.UUID, params *V1ServerlessEndpointListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// V1HttpOperatorCreateWithBody request with any body
-	V1HttpOperatorCreateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// V1ServerlessEndpointCreateWithBody request with any body
+	V1ServerlessEndpointCreateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	V1HttpOperatorCreate(ctx context.Context, tenant openapi_types.UUID, body V1HttpOperatorCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	V1ServerlessEndpointCreate(ctx context.Context, tenant openapi_types.UUID, body V1ServerlessEndpointCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1StreamPayloadGet request
+	V1StreamPayloadGet(ctx context.Context, tenant openapi_types.UUID, params *V1StreamPayloadGetParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1StreamPayloadUploadWithBody request with any body
+	V1StreamPayloadUploadWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1TaskListStatusMetrics request
 	V1TaskListStatusMetrics(ctx context.Context, tenant openapi_types.UUID, params *V1TaskListStatusMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -3921,6 +4093,9 @@ type ClientInterface interface {
 	// V1WorkflowRunList request
 	V1WorkflowRunList(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// V1WorkflowRunCountGet request
+	V1WorkflowRunCountGet(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunCountGetParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// V1WorkflowRunDisplayNamesList request
 	V1WorkflowRunDisplayNamesList(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunDisplayNamesListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -3933,7 +4108,7 @@ type ClientInterface interface {
 	V1WorkflowRunCreate(ctx context.Context, tenant openapi_types.UUID, body V1WorkflowRunCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1WorkflowRunGet request
-	V1WorkflowRunGet(ctx context.Context, v1WorkflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+	V1WorkflowRunGet(ctx context.Context, v1WorkflowRun openapi_types.UUID, params *V1WorkflowRunGetParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1WorkflowRunGetStatus request
 	V1WorkflowRunGetStatus(ctx context.Context, v1WorkflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -4473,8 +4648,8 @@ func (c *Client) V1DagListTasks(ctx context.Context, params *V1DagListTasksParam
 	return c.Client.Do(req)
 }
 
-func (c *Client) V1HttpOperatorDelete(ctx context.Context, v1HttpOperator openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewV1HttpOperatorDeleteRequest(c.Server, v1HttpOperator)
+func (c *Client) V1ServerlessEndpointDelete(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1ServerlessEndpointDeleteRequest(c.Server, v1ServerlessEndpoint)
 	if err != nil {
 		return nil, err
 	}
@@ -4485,8 +4660,8 @@ func (c *Client) V1HttpOperatorDelete(ctx context.Context, v1HttpOperator openap
 	return c.Client.Do(req)
 }
 
-func (c *Client) V1HttpOperatorGet(ctx context.Context, v1HttpOperator openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewV1HttpOperatorGetRequest(c.Server, v1HttpOperator)
+func (c *Client) V1ServerlessEndpointGet(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1ServerlessEndpointGetRequest(c.Server, v1ServerlessEndpoint)
 	if err != nil {
 		return nil, err
 	}
@@ -4497,8 +4672,8 @@ func (c *Client) V1HttpOperatorGet(ctx context.Context, v1HttpOperator openapi_t
 	return c.Client.Do(req)
 }
 
-func (c *Client) V1HttpOperatorUpdateWithBody(ctx context.Context, v1HttpOperator openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewV1HttpOperatorUpdateRequestWithBody(c.Server, v1HttpOperator, contentType, body)
+func (c *Client) V1ServerlessEndpointUpdateWithBody(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1ServerlessEndpointUpdateRequestWithBody(c.Server, v1ServerlessEndpoint, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -4509,8 +4684,8 @@ func (c *Client) V1HttpOperatorUpdateWithBody(ctx context.Context, v1HttpOperato
 	return c.Client.Do(req)
 }
 
-func (c *Client) V1HttpOperatorUpdate(ctx context.Context, v1HttpOperator openapi_types.UUID, body V1HttpOperatorUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewV1HttpOperatorUpdateRequest(c.Server, v1HttpOperator, body)
+func (c *Client) V1ServerlessEndpointUpdate(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, body V1ServerlessEndpointUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1ServerlessEndpointUpdateRequest(c.Server, v1ServerlessEndpoint, body)
 	if err != nil {
 		return nil, err
 	}
@@ -4773,8 +4948,8 @@ func (c *Client) V1TenantLogLineList(ctx context.Context, tenant openapi_types.U
 	return c.Client.Do(req)
 }
 
-func (c *Client) V1HttpOperatorList(ctx context.Context, tenant openapi_types.UUID, params *V1HttpOperatorListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewV1HttpOperatorListRequest(c.Server, tenant, params)
+func (c *Client) V1ServerlessEndpointList(ctx context.Context, tenant openapi_types.UUID, params *V1ServerlessEndpointListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1ServerlessEndpointListRequest(c.Server, tenant, params)
 	if err != nil {
 		return nil, err
 	}
@@ -4785,8 +4960,8 @@ func (c *Client) V1HttpOperatorList(ctx context.Context, tenant openapi_types.UU
 	return c.Client.Do(req)
 }
 
-func (c *Client) V1HttpOperatorCreateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewV1HttpOperatorCreateRequestWithBody(c.Server, tenant, contentType, body)
+func (c *Client) V1ServerlessEndpointCreateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1ServerlessEndpointCreateRequestWithBody(c.Server, tenant, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -4797,8 +4972,32 @@ func (c *Client) V1HttpOperatorCreateWithBody(ctx context.Context, tenant openap
 	return c.Client.Do(req)
 }
 
-func (c *Client) V1HttpOperatorCreate(ctx context.Context, tenant openapi_types.UUID, body V1HttpOperatorCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewV1HttpOperatorCreateRequest(c.Server, tenant, body)
+func (c *Client) V1ServerlessEndpointCreate(ctx context.Context, tenant openapi_types.UUID, body V1ServerlessEndpointCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1ServerlessEndpointCreateRequest(c.Server, tenant, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1StreamPayloadGet(ctx context.Context, tenant openapi_types.UUID, params *V1StreamPayloadGetParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1StreamPayloadGetRequest(c.Server, tenant, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1StreamPayloadUploadWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1StreamPayloadUploadRequestWithBody(c.Server, tenant, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -5001,6 +5200,18 @@ func (c *Client) V1WorkflowRunList(ctx context.Context, tenant openapi_types.UUI
 	return c.Client.Do(req)
 }
 
+func (c *Client) V1WorkflowRunCountGet(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunCountGetParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1WorkflowRunCountGetRequest(c.Server, tenant, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) V1WorkflowRunDisplayNamesList(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunDisplayNamesListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewV1WorkflowRunDisplayNamesListRequest(c.Server, tenant, params)
 	if err != nil {
@@ -5049,8 +5260,8 @@ func (c *Client) V1WorkflowRunCreate(ctx context.Context, tenant openapi_types.U
 	return c.Client.Do(req)
 }
 
-func (c *Client) V1WorkflowRunGet(ctx context.Context, v1WorkflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewV1WorkflowRunGetRequest(c.Server, v1WorkflowRun)
+func (c *Client) V1WorkflowRunGet(ctx context.Context, v1WorkflowRun openapi_types.UUID, params *V1WorkflowRunGetParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1WorkflowRunGetRequest(c.Server, v1WorkflowRun, params)
 	if err != nil {
 		return nil, err
 	}
@@ -7079,13 +7290,13 @@ func NewV1DagListTasksRequest(server string, params *V1DagListTasksParams) (*htt
 	return req, nil
 }
 
-// NewV1HttpOperatorDeleteRequest generates requests for V1HttpOperatorDelete
-func NewV1HttpOperatorDeleteRequest(server string, v1HttpOperator openapi_types.UUID) (*http.Request, error) {
+// NewV1ServerlessEndpointDeleteRequest generates requests for V1ServerlessEndpointDelete
+func NewV1ServerlessEndpointDeleteRequest(server string, v1ServerlessEndpoint openapi_types.UUID) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "v1-http-operator", runtime.ParamLocationPath, v1HttpOperator)
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "v1-serverless-endpoint", runtime.ParamLocationPath, v1ServerlessEndpoint)
 	if err != nil {
 		return nil, err
 	}
@@ -7095,7 +7306,7 @@ func NewV1HttpOperatorDeleteRequest(server string, v1HttpOperator openapi_types.
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/stable/operators/http/%s", pathParam0)
+	operationPath := fmt.Sprintf("/api/v1/stable/serverless/endpoints/%s", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -7113,13 +7324,13 @@ func NewV1HttpOperatorDeleteRequest(server string, v1HttpOperator openapi_types.
 	return req, nil
 }
 
-// NewV1HttpOperatorGetRequest generates requests for V1HttpOperatorGet
-func NewV1HttpOperatorGetRequest(server string, v1HttpOperator openapi_types.UUID) (*http.Request, error) {
+// NewV1ServerlessEndpointGetRequest generates requests for V1ServerlessEndpointGet
+func NewV1ServerlessEndpointGetRequest(server string, v1ServerlessEndpoint openapi_types.UUID) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "v1-http-operator", runtime.ParamLocationPath, v1HttpOperator)
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "v1-serverless-endpoint", runtime.ParamLocationPath, v1ServerlessEndpoint)
 	if err != nil {
 		return nil, err
 	}
@@ -7129,7 +7340,7 @@ func NewV1HttpOperatorGetRequest(server string, v1HttpOperator openapi_types.UUI
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/stable/operators/http/%s", pathParam0)
+	operationPath := fmt.Sprintf("/api/v1/stable/serverless/endpoints/%s", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -7147,24 +7358,24 @@ func NewV1HttpOperatorGetRequest(server string, v1HttpOperator openapi_types.UUI
 	return req, nil
 }
 
-// NewV1HttpOperatorUpdateRequest calls the generic V1HttpOperatorUpdate builder with application/json body
-func NewV1HttpOperatorUpdateRequest(server string, v1HttpOperator openapi_types.UUID, body V1HttpOperatorUpdateJSONRequestBody) (*http.Request, error) {
+// NewV1ServerlessEndpointUpdateRequest calls the generic V1ServerlessEndpointUpdate builder with application/json body
+func NewV1ServerlessEndpointUpdateRequest(server string, v1ServerlessEndpoint openapi_types.UUID, body V1ServerlessEndpointUpdateJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewV1HttpOperatorUpdateRequestWithBody(server, v1HttpOperator, "application/json", bodyReader)
+	return NewV1ServerlessEndpointUpdateRequestWithBody(server, v1ServerlessEndpoint, "application/json", bodyReader)
 }
 
-// NewV1HttpOperatorUpdateRequestWithBody generates requests for V1HttpOperatorUpdate with any type of body
-func NewV1HttpOperatorUpdateRequestWithBody(server string, v1HttpOperator openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+// NewV1ServerlessEndpointUpdateRequestWithBody generates requests for V1ServerlessEndpointUpdate with any type of body
+func NewV1ServerlessEndpointUpdateRequestWithBody(server string, v1ServerlessEndpoint openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "v1-http-operator", runtime.ParamLocationPath, v1HttpOperator)
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "v1-serverless-endpoint", runtime.ParamLocationPath, v1ServerlessEndpoint)
 	if err != nil {
 		return nil, err
 	}
@@ -7174,7 +7385,7 @@ func NewV1HttpOperatorUpdateRequestWithBody(server string, v1HttpOperator openap
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/stable/operators/http/%s", pathParam0)
+	operationPath := fmt.Sprintf("/api/v1/stable/serverless/endpoints/%s", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -8595,8 +8806,8 @@ func NewV1TenantLogLineListRequest(server string, tenant openapi_types.UUID, par
 	return req, nil
 }
 
-// NewV1HttpOperatorListRequest generates requests for V1HttpOperatorList
-func NewV1HttpOperatorListRequest(server string, tenant openapi_types.UUID, params *V1HttpOperatorListParams) (*http.Request, error) {
+// NewV1ServerlessEndpointListRequest generates requests for V1ServerlessEndpointList
+func NewV1ServerlessEndpointListRequest(server string, tenant openapi_types.UUID, params *V1ServerlessEndpointListParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -8611,7 +8822,7 @@ func NewV1HttpOperatorListRequest(server string, tenant openapi_types.UUID, para
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/operators/http", pathParam0)
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/serverless/endpoints", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -8667,19 +8878,19 @@ func NewV1HttpOperatorListRequest(server string, tenant openapi_types.UUID, para
 	return req, nil
 }
 
-// NewV1HttpOperatorCreateRequest calls the generic V1HttpOperatorCreate builder with application/json body
-func NewV1HttpOperatorCreateRequest(server string, tenant openapi_types.UUID, body V1HttpOperatorCreateJSONRequestBody) (*http.Request, error) {
+// NewV1ServerlessEndpointCreateRequest calls the generic V1ServerlessEndpointCreate builder with application/json body
+func NewV1ServerlessEndpointCreateRequest(server string, tenant openapi_types.UUID, body V1ServerlessEndpointCreateJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewV1HttpOperatorCreateRequestWithBody(server, tenant, "application/json", bodyReader)
+	return NewV1ServerlessEndpointCreateRequestWithBody(server, tenant, "application/json", bodyReader)
 }
 
-// NewV1HttpOperatorCreateRequestWithBody generates requests for V1HttpOperatorCreate with any type of body
-func NewV1HttpOperatorCreateRequestWithBody(server string, tenant openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+// NewV1ServerlessEndpointCreateRequestWithBody generates requests for V1ServerlessEndpointCreate with any type of body
+func NewV1ServerlessEndpointCreateRequestWithBody(server string, tenant openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -8694,7 +8905,95 @@ func NewV1HttpOperatorCreateRequestWithBody(server string, tenant openapi_types.
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/operators/http", pathParam0)
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/serverless/endpoints", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewV1StreamPayloadGetRequest generates requests for V1StreamPayloadGet
+func NewV1StreamPayloadGetRequest(server string, tenant openapi_types.UUID, params *V1StreamPayloadGetParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/streams/payloads", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "ref", runtime.ParamLocationQuery, params.Ref); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1StreamPayloadUploadRequestWithBody generates requests for V1StreamPayloadUpload with any type of body
+func NewV1StreamPayloadUploadRequestWithBody(server string, tenant openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/streams/payloads", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -9687,6 +9986,246 @@ func NewV1WorkflowRunListRequest(server string, tenant openapi_types.UUID, param
 
 		}
 
+		if params.IncludeNumPages != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "include_num_pages", runtime.ParamLocationQuery, *params.IncludeNumPages); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1WorkflowRunCountGetRequest generates requests for V1WorkflowRunCountGet
+func NewV1WorkflowRunCountGetRequest(server string, tenant openapi_types.UUID, params *V1WorkflowRunCountGetParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/workflow-runs/count", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Statuses != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "statuses", runtime.ParamLocationQuery, *params.Statuses); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "since", runtime.ParamLocationQuery, params.Since); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if params.Until != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "until", runtime.ParamLocationQuery, *params.Until); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.AdditionalMetadata != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additional_metadata", runtime.ParamLocationQuery, *params.AdditionalMetadata); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.AdditionalMetadataOperator != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additional_metadata_operator", runtime.ParamLocationQuery, *params.AdditionalMetadataOperator); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.WorkflowIds != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflow_ids", runtime.ParamLocationQuery, *params.WorkflowIds); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.WorkerId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "worker_id", runtime.ParamLocationQuery, *params.WorkerId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "only_tasks", runtime.ParamLocationQuery, params.OnlyTasks); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if params.ParentTaskExternalId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "parent_task_external_id", runtime.ParamLocationQuery, *params.ParentTaskExternalId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.TriggeringEventExternalId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "triggering_event_external_id", runtime.ParamLocationQuery, *params.TriggeringEventExternalId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.RunningFilter != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "running_filter", runtime.ParamLocationQuery, *params.RunningFilter); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.IdempotencyKeys != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "idempotency_keys", runtime.ParamLocationQuery, *params.IdempotencyKeys); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
 		queryURL.RawQuery = queryValues.Encode()
 	}
 
@@ -9930,7 +10469,7 @@ func NewV1WorkflowRunCreateRequestWithBody(server string, tenant openapi_types.U
 }
 
 // NewV1WorkflowRunGetRequest generates requests for V1WorkflowRunGet
-func NewV1WorkflowRunGetRequest(server string, v1WorkflowRun openapi_types.UUID) (*http.Request, error) {
+func NewV1WorkflowRunGetRequest(server string, v1WorkflowRun openapi_types.UUID, params *V1WorkflowRunGetParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -9953,6 +10492,28 @@ func NewV1WorkflowRunGetRequest(server string, v1WorkflowRun openapi_types.UUID)
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.IncludeOrchestratorEvents != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "includeOrchestratorEvents", runtime.ParamLocationQuery, *params.IncludeOrchestratorEvents); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -12307,6 +12868,22 @@ func NewWorkerListRequest(server string, tenant openapi_types.UUID, params *Work
 		if params.Labels != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "labels", runtime.ParamLocationQuery, *params.Labels); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.IncludeOperators != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "includeOperators", runtime.ParamLocationQuery, *params.IncludeOperators); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
@@ -15101,16 +15678,16 @@ type ClientWithResponsesInterface interface {
 	// V1DagListTasksWithResponse request
 	V1DagListTasksWithResponse(ctx context.Context, params *V1DagListTasksParams, reqEditors ...RequestEditorFn) (*V1DagListTasksResponse, error)
 
-	// V1HttpOperatorDeleteWithResponse request
-	V1HttpOperatorDeleteWithResponse(ctx context.Context, v1HttpOperator openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1HttpOperatorDeleteResponse, error)
+	// V1ServerlessEndpointDeleteWithResponse request
+	V1ServerlessEndpointDeleteWithResponse(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1ServerlessEndpointDeleteResponse, error)
 
-	// V1HttpOperatorGetWithResponse request
-	V1HttpOperatorGetWithResponse(ctx context.Context, v1HttpOperator openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1HttpOperatorGetResponse, error)
+	// V1ServerlessEndpointGetWithResponse request
+	V1ServerlessEndpointGetWithResponse(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1ServerlessEndpointGetResponse, error)
 
-	// V1HttpOperatorUpdateWithBodyWithResponse request with any body
-	V1HttpOperatorUpdateWithBodyWithResponse(ctx context.Context, v1HttpOperator openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1HttpOperatorUpdateResponse, error)
+	// V1ServerlessEndpointUpdateWithBodyWithResponse request with any body
+	V1ServerlessEndpointUpdateWithBodyWithResponse(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1ServerlessEndpointUpdateResponse, error)
 
-	V1HttpOperatorUpdateWithResponse(ctx context.Context, v1HttpOperator openapi_types.UUID, body V1HttpOperatorUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*V1HttpOperatorUpdateResponse, error)
+	V1ServerlessEndpointUpdateWithResponse(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, body V1ServerlessEndpointUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*V1ServerlessEndpointUpdateResponse, error)
 
 	// V1TaskGetWithResponse request
 	V1TaskGetWithResponse(ctx context.Context, task openapi_types.UUID, params *V1TaskGetParams, reqEditors ...RequestEditorFn) (*V1TaskGetResponse, error)
@@ -15171,13 +15748,19 @@ type ClientWithResponsesInterface interface {
 	// V1TenantLogLineListWithResponse request
 	V1TenantLogLineListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1TenantLogLineListParams, reqEditors ...RequestEditorFn) (*V1TenantLogLineListResponse, error)
 
-	// V1HttpOperatorListWithResponse request
-	V1HttpOperatorListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1HttpOperatorListParams, reqEditors ...RequestEditorFn) (*V1HttpOperatorListResponse, error)
+	// V1ServerlessEndpointListWithResponse request
+	V1ServerlessEndpointListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1ServerlessEndpointListParams, reqEditors ...RequestEditorFn) (*V1ServerlessEndpointListResponse, error)
 
-	// V1HttpOperatorCreateWithBodyWithResponse request with any body
-	V1HttpOperatorCreateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1HttpOperatorCreateResponse, error)
+	// V1ServerlessEndpointCreateWithBodyWithResponse request with any body
+	V1ServerlessEndpointCreateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1ServerlessEndpointCreateResponse, error)
 
-	V1HttpOperatorCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1HttpOperatorCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*V1HttpOperatorCreateResponse, error)
+	V1ServerlessEndpointCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1ServerlessEndpointCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*V1ServerlessEndpointCreateResponse, error)
+
+	// V1StreamPayloadGetWithResponse request
+	V1StreamPayloadGetWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1StreamPayloadGetParams, reqEditors ...RequestEditorFn) (*V1StreamPayloadGetResponse, error)
+
+	// V1StreamPayloadUploadWithBodyWithResponse request with any body
+	V1StreamPayloadUploadWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1StreamPayloadUploadResponse, error)
 
 	// V1TaskListStatusMetricsWithResponse request
 	V1TaskListStatusMetricsWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1TaskListStatusMetricsParams, reqEditors ...RequestEditorFn) (*V1TaskListStatusMetricsResponse, error)
@@ -15223,6 +15806,9 @@ type ClientWithResponsesInterface interface {
 	// V1WorkflowRunListWithResponse request
 	V1WorkflowRunListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunListParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunListResponse, error)
 
+	// V1WorkflowRunCountGetWithResponse request
+	V1WorkflowRunCountGetWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunCountGetParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunCountGetResponse, error)
+
 	// V1WorkflowRunDisplayNamesListWithResponse request
 	V1WorkflowRunDisplayNamesListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunDisplayNamesListParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunDisplayNamesListResponse, error)
 
@@ -15235,7 +15821,7 @@ type ClientWithResponsesInterface interface {
 	V1WorkflowRunCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1WorkflowRunCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*V1WorkflowRunCreateResponse, error)
 
 	// V1WorkflowRunGetWithResponse request
-	V1WorkflowRunGetWithResponse(ctx context.Context, v1WorkflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1WorkflowRunGetResponse, error)
+	V1WorkflowRunGetWithResponse(ctx context.Context, v1WorkflowRun openapi_types.UUID, params *V1WorkflowRunGetParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunGetResponse, error)
 
 	// V1WorkflowRunGetStatusWithResponse request
 	V1WorkflowRunGetStatusWithResponse(ctx context.Context, v1WorkflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1WorkflowRunGetStatusResponse, error)
@@ -15933,17 +16519,17 @@ func (r V1DagListTasksResponse) StatusCode() int {
 	return 0
 }
 
-type V1HttpOperatorDeleteResponse struct {
+type V1ServerlessEndpointDeleteResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *V1HTTPOperator
+	JSON200      *V1ServerlessEndpoint
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
 }
 
 // Status returns HTTPResponse.Status
-func (r V1HttpOperatorDeleteResponse) Status() string {
+func (r V1ServerlessEndpointDeleteResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -15951,24 +16537,24 @@ func (r V1HttpOperatorDeleteResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r V1HttpOperatorDeleteResponse) StatusCode() int {
+func (r V1ServerlessEndpointDeleteResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type V1HttpOperatorGetResponse struct {
+type V1ServerlessEndpointGetResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *V1HTTPOperator
+	JSON200      *V1ServerlessEndpoint
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
 }
 
 // Status returns HTTPResponse.Status
-func (r V1HttpOperatorGetResponse) Status() string {
+func (r V1ServerlessEndpointGetResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -15976,24 +16562,24 @@ func (r V1HttpOperatorGetResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r V1HttpOperatorGetResponse) StatusCode() int {
+func (r V1ServerlessEndpointGetResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type V1HttpOperatorUpdateResponse struct {
+type V1ServerlessEndpointUpdateResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *V1HTTPOperator
+	JSON200      *V1ServerlessEndpoint
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
 }
 
 // Status returns HTTPResponse.Status
-func (r V1HttpOperatorUpdateResponse) Status() string {
+func (r V1ServerlessEndpointUpdateResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -16001,7 +16587,7 @@ func (r V1HttpOperatorUpdateResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r V1HttpOperatorUpdateResponse) StatusCode() int {
+func (r V1ServerlessEndpointUpdateResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -16426,16 +17012,16 @@ func (r V1TenantLogLineListResponse) StatusCode() int {
 	return 0
 }
 
-type V1HttpOperatorListResponse struct {
+type V1ServerlessEndpointListResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *V1HTTPOperatorList
+	JSON200      *V1ServerlessEndpointList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 }
 
 // Status returns HTTPResponse.Status
-func (r V1HttpOperatorListResponse) Status() string {
+func (r V1ServerlessEndpointListResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -16443,24 +17029,24 @@ func (r V1HttpOperatorListResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r V1HttpOperatorListResponse) StatusCode() int {
+func (r V1ServerlessEndpointListResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type V1HttpOperatorCreateResponse struct {
+type V1ServerlessEndpointCreateResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *V1HTTPOperator
+	JSON200      *V1ServerlessEndpoint
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
 }
 
 // Status returns HTTPResponse.Status
-func (r V1HttpOperatorCreateResponse) Status() string {
+func (r V1ServerlessEndpointCreateResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -16468,7 +17054,57 @@ func (r V1HttpOperatorCreateResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r V1HttpOperatorCreateResponse) StatusCode() int {
+func (r V1ServerlessEndpointCreateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1StreamPayloadGetResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1StreamPayloadGetResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1StreamPayloadGetResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1StreamPayloadUploadResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1StreamPayloadRef
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON413      *APIErrors
+	JSON429      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1StreamPayloadUploadResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1StreamPayloadUploadResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -16769,6 +17405,30 @@ func (r V1WorkflowRunListResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r V1WorkflowRunListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1WorkflowRunCountGetResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1WorkflowRunCount
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1WorkflowRunCountGetResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1WorkflowRunCountGetResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -19328,39 +19988,39 @@ func (c *ClientWithResponses) V1DagListTasksWithResponse(ctx context.Context, pa
 	return ParseV1DagListTasksResponse(rsp)
 }
 
-// V1HttpOperatorDeleteWithResponse request returning *V1HttpOperatorDeleteResponse
-func (c *ClientWithResponses) V1HttpOperatorDeleteWithResponse(ctx context.Context, v1HttpOperator openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1HttpOperatorDeleteResponse, error) {
-	rsp, err := c.V1HttpOperatorDelete(ctx, v1HttpOperator, reqEditors...)
+// V1ServerlessEndpointDeleteWithResponse request returning *V1ServerlessEndpointDeleteResponse
+func (c *ClientWithResponses) V1ServerlessEndpointDeleteWithResponse(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1ServerlessEndpointDeleteResponse, error) {
+	rsp, err := c.V1ServerlessEndpointDelete(ctx, v1ServerlessEndpoint, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseV1HttpOperatorDeleteResponse(rsp)
+	return ParseV1ServerlessEndpointDeleteResponse(rsp)
 }
 
-// V1HttpOperatorGetWithResponse request returning *V1HttpOperatorGetResponse
-func (c *ClientWithResponses) V1HttpOperatorGetWithResponse(ctx context.Context, v1HttpOperator openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1HttpOperatorGetResponse, error) {
-	rsp, err := c.V1HttpOperatorGet(ctx, v1HttpOperator, reqEditors...)
+// V1ServerlessEndpointGetWithResponse request returning *V1ServerlessEndpointGetResponse
+func (c *ClientWithResponses) V1ServerlessEndpointGetWithResponse(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1ServerlessEndpointGetResponse, error) {
+	rsp, err := c.V1ServerlessEndpointGet(ctx, v1ServerlessEndpoint, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseV1HttpOperatorGetResponse(rsp)
+	return ParseV1ServerlessEndpointGetResponse(rsp)
 }
 
-// V1HttpOperatorUpdateWithBodyWithResponse request with arbitrary body returning *V1HttpOperatorUpdateResponse
-func (c *ClientWithResponses) V1HttpOperatorUpdateWithBodyWithResponse(ctx context.Context, v1HttpOperator openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1HttpOperatorUpdateResponse, error) {
-	rsp, err := c.V1HttpOperatorUpdateWithBody(ctx, v1HttpOperator, contentType, body, reqEditors...)
+// V1ServerlessEndpointUpdateWithBodyWithResponse request with arbitrary body returning *V1ServerlessEndpointUpdateResponse
+func (c *ClientWithResponses) V1ServerlessEndpointUpdateWithBodyWithResponse(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1ServerlessEndpointUpdateResponse, error) {
+	rsp, err := c.V1ServerlessEndpointUpdateWithBody(ctx, v1ServerlessEndpoint, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseV1HttpOperatorUpdateResponse(rsp)
+	return ParseV1ServerlessEndpointUpdateResponse(rsp)
 }
 
-func (c *ClientWithResponses) V1HttpOperatorUpdateWithResponse(ctx context.Context, v1HttpOperator openapi_types.UUID, body V1HttpOperatorUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*V1HttpOperatorUpdateResponse, error) {
-	rsp, err := c.V1HttpOperatorUpdate(ctx, v1HttpOperator, body, reqEditors...)
+func (c *ClientWithResponses) V1ServerlessEndpointUpdateWithResponse(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, body V1ServerlessEndpointUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*V1ServerlessEndpointUpdateResponse, error) {
+	rsp, err := c.V1ServerlessEndpointUpdate(ctx, v1ServerlessEndpoint, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseV1HttpOperatorUpdateResponse(rsp)
+	return ParseV1ServerlessEndpointUpdateResponse(rsp)
 }
 
 // V1TaskGetWithResponse request returning *V1TaskGetResponse
@@ -19548,30 +20208,48 @@ func (c *ClientWithResponses) V1TenantLogLineListWithResponse(ctx context.Contex
 	return ParseV1TenantLogLineListResponse(rsp)
 }
 
-// V1HttpOperatorListWithResponse request returning *V1HttpOperatorListResponse
-func (c *ClientWithResponses) V1HttpOperatorListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1HttpOperatorListParams, reqEditors ...RequestEditorFn) (*V1HttpOperatorListResponse, error) {
-	rsp, err := c.V1HttpOperatorList(ctx, tenant, params, reqEditors...)
+// V1ServerlessEndpointListWithResponse request returning *V1ServerlessEndpointListResponse
+func (c *ClientWithResponses) V1ServerlessEndpointListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1ServerlessEndpointListParams, reqEditors ...RequestEditorFn) (*V1ServerlessEndpointListResponse, error) {
+	rsp, err := c.V1ServerlessEndpointList(ctx, tenant, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseV1HttpOperatorListResponse(rsp)
+	return ParseV1ServerlessEndpointListResponse(rsp)
 }
 
-// V1HttpOperatorCreateWithBodyWithResponse request with arbitrary body returning *V1HttpOperatorCreateResponse
-func (c *ClientWithResponses) V1HttpOperatorCreateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1HttpOperatorCreateResponse, error) {
-	rsp, err := c.V1HttpOperatorCreateWithBody(ctx, tenant, contentType, body, reqEditors...)
+// V1ServerlessEndpointCreateWithBodyWithResponse request with arbitrary body returning *V1ServerlessEndpointCreateResponse
+func (c *ClientWithResponses) V1ServerlessEndpointCreateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1ServerlessEndpointCreateResponse, error) {
+	rsp, err := c.V1ServerlessEndpointCreateWithBody(ctx, tenant, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseV1HttpOperatorCreateResponse(rsp)
+	return ParseV1ServerlessEndpointCreateResponse(rsp)
 }
 
-func (c *ClientWithResponses) V1HttpOperatorCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1HttpOperatorCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*V1HttpOperatorCreateResponse, error) {
-	rsp, err := c.V1HttpOperatorCreate(ctx, tenant, body, reqEditors...)
+func (c *ClientWithResponses) V1ServerlessEndpointCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1ServerlessEndpointCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*V1ServerlessEndpointCreateResponse, error) {
+	rsp, err := c.V1ServerlessEndpointCreate(ctx, tenant, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseV1HttpOperatorCreateResponse(rsp)
+	return ParseV1ServerlessEndpointCreateResponse(rsp)
+}
+
+// V1StreamPayloadGetWithResponse request returning *V1StreamPayloadGetResponse
+func (c *ClientWithResponses) V1StreamPayloadGetWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1StreamPayloadGetParams, reqEditors ...RequestEditorFn) (*V1StreamPayloadGetResponse, error) {
+	rsp, err := c.V1StreamPayloadGet(ctx, tenant, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1StreamPayloadGetResponse(rsp)
+}
+
+// V1StreamPayloadUploadWithBodyWithResponse request with arbitrary body returning *V1StreamPayloadUploadResponse
+func (c *ClientWithResponses) V1StreamPayloadUploadWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1StreamPayloadUploadResponse, error) {
+	rsp, err := c.V1StreamPayloadUploadWithBody(ctx, tenant, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1StreamPayloadUploadResponse(rsp)
 }
 
 // V1TaskListStatusMetricsWithResponse request returning *V1TaskListStatusMetricsResponse
@@ -19714,6 +20392,15 @@ func (c *ClientWithResponses) V1WorkflowRunListWithResponse(ctx context.Context,
 	return ParseV1WorkflowRunListResponse(rsp)
 }
 
+// V1WorkflowRunCountGetWithResponse request returning *V1WorkflowRunCountGetResponse
+func (c *ClientWithResponses) V1WorkflowRunCountGetWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunCountGetParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunCountGetResponse, error) {
+	rsp, err := c.V1WorkflowRunCountGet(ctx, tenant, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1WorkflowRunCountGetResponse(rsp)
+}
+
 // V1WorkflowRunDisplayNamesListWithResponse request returning *V1WorkflowRunDisplayNamesListResponse
 func (c *ClientWithResponses) V1WorkflowRunDisplayNamesListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunDisplayNamesListParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunDisplayNamesListResponse, error) {
 	rsp, err := c.V1WorkflowRunDisplayNamesList(ctx, tenant, params, reqEditors...)
@@ -19750,8 +20437,8 @@ func (c *ClientWithResponses) V1WorkflowRunCreateWithResponse(ctx context.Contex
 }
 
 // V1WorkflowRunGetWithResponse request returning *V1WorkflowRunGetResponse
-func (c *ClientWithResponses) V1WorkflowRunGetWithResponse(ctx context.Context, v1WorkflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1WorkflowRunGetResponse, error) {
-	rsp, err := c.V1WorkflowRunGet(ctx, v1WorkflowRun, reqEditors...)
+func (c *ClientWithResponses) V1WorkflowRunGetWithResponse(ctx context.Context, v1WorkflowRun openapi_types.UUID, params *V1WorkflowRunGetParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunGetResponse, error) {
+	rsp, err := c.V1WorkflowRunGet(ctx, v1WorkflowRun, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -21383,22 +22070,22 @@ func ParseV1DagListTasksResponse(rsp *http.Response) (*V1DagListTasksResponse, e
 	return response, nil
 }
 
-// ParseV1HttpOperatorDeleteResponse parses an HTTP response from a V1HttpOperatorDeleteWithResponse call
-func ParseV1HttpOperatorDeleteResponse(rsp *http.Response) (*V1HttpOperatorDeleteResponse, error) {
+// ParseV1ServerlessEndpointDeleteResponse parses an HTTP response from a V1ServerlessEndpointDeleteWithResponse call
+func ParseV1ServerlessEndpointDeleteResponse(rsp *http.Response) (*V1ServerlessEndpointDeleteResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &V1HttpOperatorDeleteResponse{
+	response := &V1ServerlessEndpointDeleteResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest V1HTTPOperator
+		var dest V1ServerlessEndpoint
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -21430,22 +22117,22 @@ func ParseV1HttpOperatorDeleteResponse(rsp *http.Response) (*V1HttpOperatorDelet
 	return response, nil
 }
 
-// ParseV1HttpOperatorGetResponse parses an HTTP response from a V1HttpOperatorGetWithResponse call
-func ParseV1HttpOperatorGetResponse(rsp *http.Response) (*V1HttpOperatorGetResponse, error) {
+// ParseV1ServerlessEndpointGetResponse parses an HTTP response from a V1ServerlessEndpointGetWithResponse call
+func ParseV1ServerlessEndpointGetResponse(rsp *http.Response) (*V1ServerlessEndpointGetResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &V1HttpOperatorGetResponse{
+	response := &V1ServerlessEndpointGetResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest V1HTTPOperator
+		var dest V1ServerlessEndpoint
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -21477,22 +22164,22 @@ func ParseV1HttpOperatorGetResponse(rsp *http.Response) (*V1HttpOperatorGetRespo
 	return response, nil
 }
 
-// ParseV1HttpOperatorUpdateResponse parses an HTTP response from a V1HttpOperatorUpdateWithResponse call
-func ParseV1HttpOperatorUpdateResponse(rsp *http.Response) (*V1HttpOperatorUpdateResponse, error) {
+// ParseV1ServerlessEndpointUpdateResponse parses an HTTP response from a V1ServerlessEndpointUpdateWithResponse call
+func ParseV1ServerlessEndpointUpdateResponse(rsp *http.Response) (*V1ServerlessEndpointUpdateResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &V1HttpOperatorUpdateResponse{
+	response := &V1ServerlessEndpointUpdateResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest V1HTTPOperator
+		var dest V1ServerlessEndpoint
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -22274,22 +22961,22 @@ func ParseV1TenantLogLineListResponse(rsp *http.Response) (*V1TenantLogLineListR
 	return response, nil
 }
 
-// ParseV1HttpOperatorListResponse parses an HTTP response from a V1HttpOperatorListWithResponse call
-func ParseV1HttpOperatorListResponse(rsp *http.Response) (*V1HttpOperatorListResponse, error) {
+// ParseV1ServerlessEndpointListResponse parses an HTTP response from a V1ServerlessEndpointListWithResponse call
+func ParseV1ServerlessEndpointListResponse(rsp *http.Response) (*V1ServerlessEndpointListResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &V1HttpOperatorListResponse{
+	response := &V1ServerlessEndpointListResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest V1HTTPOperatorList
+		var dest V1ServerlessEndpointList
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -22314,22 +23001,22 @@ func ParseV1HttpOperatorListResponse(rsp *http.Response) (*V1HttpOperatorListRes
 	return response, nil
 }
 
-// ParseV1HttpOperatorCreateResponse parses an HTTP response from a V1HttpOperatorCreateWithResponse call
-func ParseV1HttpOperatorCreateResponse(rsp *http.Response) (*V1HttpOperatorCreateResponse, error) {
+// ParseV1ServerlessEndpointCreateResponse parses an HTTP response from a V1ServerlessEndpointCreateWithResponse call
+func ParseV1ServerlessEndpointCreateResponse(rsp *http.Response) (*V1ServerlessEndpointCreateResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &V1HttpOperatorCreateResponse{
+	response := &V1ServerlessEndpointCreateResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest V1HTTPOperator
+		var dest V1ServerlessEndpoint
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -22355,6 +23042,100 @@ func ParseV1HttpOperatorCreateResponse(rsp *http.Response) (*V1HttpOperatorCreat
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1StreamPayloadGetResponse parses an HTTP response from a V1StreamPayloadGetWithResponse call
+func ParseV1StreamPayloadGetResponse(rsp *http.Response) (*V1StreamPayloadGetResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1StreamPayloadGetResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1StreamPayloadUploadResponse parses an HTTP response from a V1StreamPayloadUploadWithResponse call
+func ParseV1StreamPayloadUploadResponse(rsp *http.Response) (*V1StreamPayloadUploadResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1StreamPayloadUploadResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1StreamPayloadRef
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 413:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON413 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -22919,6 +23700,46 @@ func ParseV1WorkflowRunListResponse(rsp *http.Response) (*V1WorkflowRunListRespo
 			return nil, err
 		}
 		response.JSON501 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1WorkflowRunCountGetResponse parses an HTTP response from a V1WorkflowRunCountGetWithResponse call
+func ParseV1WorkflowRunCountGetResponse(rsp *http.Response) (*V1WorkflowRunCountGetResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1WorkflowRunCountGetResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1WorkflowRunCount
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	}
 

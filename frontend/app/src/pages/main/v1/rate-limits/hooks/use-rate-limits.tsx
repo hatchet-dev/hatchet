@@ -47,17 +47,18 @@ export const useRateLimits = ({ key }: { key: string }) => {
       resetPageOnChange: [debouncedSearch],
     });
 
-  const { data, isLoading, error, isRefetching, refetch } = useQuery({
-    ...queries.rate_limits.list(tenantId, {
-      search: debouncedSearch,
-      orderByField: RateLimitOrderByField.Key,
-      orderByDirection: RateLimitOrderByDirection.Asc,
-      offset,
-      limit,
-    }),
-    refetchInterval,
-    placeholderData: (data) => data,
-  });
+  const { data, isLoading, error, isRefetching, isPlaceholderData, refetch } =
+    useQuery({
+      ...queries.rate_limits.list(tenantId, {
+        search: debouncedSearch,
+        orderByField: RateLimitOrderByField.Key,
+        orderByDirection: RateLimitOrderByDirection.Asc,
+        offset,
+        limit,
+      }),
+      refetchInterval,
+      placeholderData: (data) => data,
+    });
 
   const rateLimits = useMemo(
     () =>
@@ -83,6 +84,7 @@ export const useRateLimits = ({ key }: { key: string }) => {
     columnFilters,
     setColumnFilters,
     isRefetching,
+    isPlaceholderData,
     refetch,
     resetFilters,
   };

@@ -3,6 +3,7 @@ package dagoperator
 import (
 	"context"
 	"encoding/json"
+	"sync"
 	"testing"
 	"time"
 
@@ -23,7 +24,6 @@ type triggerStepFn = func(ctx context.Context, actionId, workflowName string, ch
 
 func newTestTask(readableId, actionId string, index int32, parents ...*task) *task {
 	return &task{
-		id:           uuid.New(),
 		actionId:     actionId,
 		workflowName: "test-workflow",
 		readableId:   readableId,
@@ -63,11 +63,15 @@ func stubTriggerStep(t *testing.T, async map[string]bool) triggerStepFn {
 }
 
 type fakeDispatcher struct {
-	acks chan *v1contracts.DurableEventLogEntryRef
+	acks           chan *v1contracts.DurableEventLogEntryRef
+	workerStatuses chan *v1contracts.DurableTaskWorkerStatusRequest
 }
 
 func newFakeDispatcher(requestCh chan *v1contracts.DurableTaskRequest, responseCh chan *v1contracts.DurableTaskResponse, stop <-chan struct{}) *fakeDispatcher {
-	fd := &fakeDispatcher{acks: make(chan *v1contracts.DurableEventLogEntryRef, 16)}
+	fd := &fakeDispatcher{
+		acks:           make(chan *v1contracts.DurableEventLogEntryRef, 16),
+		workerStatuses: make(chan *v1contracts.DurableTaskWorkerStatusRequest, 16),
+	}
 
 	go func() {
 		var nextId int64 = 1000
@@ -79,6 +83,14 @@ func newFakeDispatcher(requestCh chan *v1contracts.DurableTaskRequest, responseC
 			case req, ok := <-requestCh:
 				if !ok {
 					return
+				}
+
+				if workerStatus := req.GetWorkerStatus(); workerStatus != nil {
+					select {
+					case fd.workerStatuses <- workerStatus:
+					default:
+					}
+					continue
 				}
 
 				waitFor := req.GetWaitFor()
@@ -116,6 +128,74 @@ func newFakeDispatcher(requestCh chan *v1contracts.DurableTaskRequest, responseC
 	return fd
 }
 
+// testChannel is a DurableChannel over the test's raw channel pair, driven from the dag's
+// goroutine alone. Like the engine's channel it never lets a send deadlock against the fake
+// dispatcher's blocking delivery: responses that arrive while a send waits are queued for the
+// next Recv. Unlike the engine's channel it applies no ordering, so the dag's own handling of
+// an entry that races ahead of its ack is what these tests exercise, and it reads responses
+// only when the dag asks, so a test that observes the dag's state after the fake dispatcher
+// delivered a response sees the dag's writes.
+type testChannel struct {
+	requestCh  chan *v1contracts.DurableTaskRequest
+	responseCh chan *v1contracts.DurableTaskResponse
+	queued     []*v1contracts.DurableTaskResponse
+	closed     chan struct{}
+	closeOnce  sync.Once
+}
+
+func newTestChannel(requestCh chan *v1contracts.DurableTaskRequest, responseCh chan *v1contracts.DurableTaskResponse) *testChannel {
+	return &testChannel{requestCh: requestCh, responseCh: responseCh, closed: make(chan struct{})}
+}
+
+func (c *testChannel) Send(ctx context.Context, req *v1contracts.DurableTaskRequest) error {
+	for {
+		select {
+		case c.requestCh <- req:
+			return nil
+		case resp, ok := <-c.responseCh:
+			if !ok {
+				return operator.ErrSessionEnded
+			}
+
+			c.queued = append(c.queued, resp)
+		case <-c.closed:
+			return operator.ErrChannelClosed
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+}
+
+func (c *testChannel) Recv(ctx context.Context) (*v1contracts.DurableTaskResponse, error) {
+	if len(c.queued) > 0 {
+		resp := c.queued[0]
+		c.queued = c.queued[1:]
+
+		return resp, nil
+	}
+
+	select {
+	case resp, ok := <-c.responseCh:
+		if !ok {
+			return nil, operator.ErrSessionEnded
+		}
+
+		return resp, nil
+	case <-c.closed:
+		return nil, operator.ErrChannelClosed
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+// ExpectEntry is a no-op: the test channel applies no ordering, so nothing is ever held.
+func (c *testChannel) ExpectEntry(int64, int64) error { return nil }
+
+func (c *testChannel) Close() error {
+	c.closeOnce.Do(func() { close(c.closed) })
+	return nil
+}
+
 func sendEntryCompleted(t *testing.T, responseCh chan *v1contracts.DurableTaskResponse, ref *v1contracts.DurableEventLogEntryRef, payload []byte) {
 	t.Helper()
 
@@ -133,10 +213,52 @@ func sendEntryCompleted(t *testing.T, responseCh chan *v1contracts.DurableTaskRe
 	}
 }
 
+// like the dispatcher, delivers a satisfied trigger result as an EntryCompleted, in trigger order
+func deliverSatisfiedResults(triggerStep triggerStepFn, responseCh chan *v1contracts.DurableTaskResponse, stop <-chan struct{}) triggerStepFn {
+	completions := make(chan *v1contracts.DurableTaskResponse, 64)
+
+	go func() {
+		for {
+			select {
+			case <-stop:
+				return
+			case completion := <-completions:
+				select {
+				case responseCh <- completion:
+				case <-stop:
+					return
+				}
+			}
+		}
+	}()
+
+	return func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled, parentReExecuted bool) (*operator.DAGStepTriggerResult, error) {
+		result, err := triggerStep(ctx, actionId, workflowName, childIndex, parentTaskRunIds, isSkipped, isCancelled, parentReExecuted)
+
+		if err != nil || !result.IsSatisfied {
+			return result, err
+		}
+
+		completions <- &v1contracts.DurableTaskResponse{
+			Message: &v1contracts.DurableTaskResponse_EntryCompleted{
+				EntryCompleted: &v1contracts.DurableTaskEventLogEntryCompletedResponse{
+					Ref:          &v1contracts.DurableEventLogEntryRef{NodeId: result.NodeId, BranchId: result.BranchId},
+					Payload:      result.ResultPayload,
+					IsFailure:    result.IsFailure,
+					ErrorMessage: result.ErrorMessage,
+				},
+			},
+		}
+
+		return result, nil
+	}
+}
+
 type dagHarness struct {
 	errCh      chan error
 	responseCh chan *v1contracts.DurableTaskResponse
 	fd         *fakeDispatcher
+	externalId uuid.UUID
 	cleanup    func()
 }
 
@@ -158,21 +280,26 @@ func startDAGFull(t *testing.T, tasks []*task, onFailureTask *task, triggerStep 
 	stop := make(chan struct{})
 
 	fd := newFakeDispatcher(requestCh, responseCh, stop)
+	ch := newTestChannel(requestCh, responseCh)
 
 	errCh := make(chan error, 1)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 
+	externalId := uuid.New()
+
 	go func() {
-		errCh <- dagDurableTask(ctx, tasks, onFailureTask, uuid.New(), 1, "{}", requestCh, responseCh, evaluator.EvalBoolExpr, triggerStep)
+		errCh <- dagDurableTask(ctx, tasks, onFailureTask, externalId, uuid.New(), 1, "{}", ch, evaluator.EvalBoolExpr, deliverSatisfiedResults(triggerStep, responseCh, stop))
 	}()
 
 	return &dagHarness{
 		errCh:      errCh,
 		responseCh: responseCh,
 		fd:         fd,
+		externalId: externalId,
 		cleanup: func() {
 			close(stop)
 			cancel()
+			_ = ch.Close()
 		},
 	}
 }
@@ -428,6 +555,38 @@ func TestDag_SkipConditionOnParentOutput(t *testing.T) {
 	})
 }
 
+func TestDag_ConditionEvalErrorCountsAsNotMatched(t *testing.T) {
+	a := newTestTask("a", "action-a", 0)
+	b := newTestTask("b", "action-b", 1, a)
+
+	b.stepConditions = []*sqlcv1.V1StepMatchCondition{
+		{
+			Kind:             sqlcv1.V1StepMatchConditionKindPARENTOVERRIDE,
+			Action:           sqlcv1.V1MatchConditionActionCANCEL,
+			OrGroupID:        uuid.New(),
+			Expression:       sqlchelpers.TextFromStr("output.flag == true"),
+			ParentReadableID: sqlchelpers.TextFromStr("a"),
+		},
+	}
+
+	triggerStep := func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled, parentReExecuted bool) (*operator.DAGStepTriggerResult, error) {
+		require.False(t, isCancelled, "a cancel condition that cannot be evaluated must not cancel the child")
+		payload, _ := json.Marshal(map[string]interface{}{"output": map[string]interface{}{"result": "ok"}})
+		return &operator.DAGStepTriggerResult{
+			NodeId: int64(childIndex) + 1, BranchId: 1, WorkflowRunExternalId: uuid.New(),
+			IsSatisfied: true, ResultPayload: payload,
+		}, nil
+	}
+
+	err, _, cleanup := runDAG(t, []*task{a, b}, triggerStep)
+	defer cleanup()
+
+	require.NoError(t, err, "a parent output missing a key referenced by a child's condition must not fail the DAG")
+	require.True(t, b.isCompleted)
+	require.False(t, b.isCancelled)
+	require.False(t, b.isSkipped)
+}
+
 func TestDag_CancelConditionOnParentOutput(t *testing.T) {
 	a := newTestTask("a", "action-a", 0)
 	b := newTestTask("b", "action-b", 1, a)
@@ -490,13 +649,15 @@ func TestDag_SleepWaitCondition(t *testing.T) {
 	defer close(stop)
 
 	fd := newFakeDispatcher(requestCh, responseCh, stop)
+	ch := newTestChannel(requestCh, responseCh)
+	defer ch.Close()
 
 	errCh := make(chan error, 1)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	go func() {
-		errCh <- dagDurableTask(ctx, []*task{a, b}, nil, uuid.New(), 1, "{}", requestCh, responseCh, evaluator.EvalBoolExpr, stubTriggerStep(t, nil))
+		errCh <- dagDurableTask(ctx, []*task{a, b}, nil, uuid.New(), uuid.New(), 1, "{}", ch, evaluator.EvalBoolExpr, deliverSatisfiedResults(stubTriggerStep(t, nil), responseCh, stop))
 	}()
 
 	var ref *v1contracts.DurableEventLogEntryRef
@@ -629,6 +790,52 @@ func TestDag_AsyncCompletionViaEntryCompleted(t *testing.T) {
 	require.False(t, a.isCancelled || b.isCancelled)
 }
 
+func recordingTrigger(satisfied map[string]bool) (triggerStepFn, chan asyncTriggered) {
+	triggered := make(chan asyncTriggered, 16)
+	var nextId int64 = 1
+
+	fn := func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled, parentReExecuted bool) (*operator.DAGStepTriggerResult, error) {
+		nodeId := nextId
+		nextId++
+
+		result := &operator.DAGStepTriggerResult{
+			NodeId:                nodeId,
+			BranchId:              nodeId,
+			WorkflowRunExternalId: uuid.New(),
+			IsSatisfied:           satisfied[actionId],
+			ResultPayload:         mapToJson(map[string]interface{}{"ok": true}),
+		}
+
+		triggered <- asyncTriggered{
+			actionId: actionId,
+			ref:      &v1contracts.DurableEventLogEntryRef{NodeId: nodeId, BranchId: nodeId},
+		}
+
+		return result, nil
+	}
+
+	return fn, triggered
+}
+
+func TestDag_ReplayEmitsStepsInOriginalOrder(t *testing.T) {
+	a := newTestTask("a", "action-a", 0)
+	b := newTestTask("b", "action-b", 1)
+	d := newTestTask("d", "action-d", 2, b)
+	c := newTestTask("c", "action-c", 3, a)
+
+	trigger, triggered := recordingTrigger(map[string]bool{"action-a": true, "action-b": true})
+
+	h := startDAG(t, []*task{a, b, d, c}, trigger)
+	defer h.cleanup()
+
+	var order []string
+	for range 4 {
+		order = append(order, recvTriggered(t, triggered).actionId)
+	}
+
+	require.Equal(t, []string{"action-a", "action-b", "action-c", "action-d"}, order)
+}
+
 func TestDag_AsyncFailureViaEntryCompleted(t *testing.T) {
 	a := newTestTask("a", "action-a", 0)
 	b := newTestTask("b", "action-b", 1, a)
@@ -670,6 +877,178 @@ func TestDag_AsyncCancelViaErrorMessage(t *testing.T) {
 	require.False(t, a.isFailed)
 	require.True(t, b.isCancelled, "child of a cancelled parent should be triggered as cancelled")
 	require.False(t, b.isFailed)
+}
+
+// Reproduces the restore race behind spurious nondeterminism errors: a wait registration is
+// still un-acked (i.e. possibly not yet ingested into the log) while a completion for an
+// earlier registration arrives. The resulting run trigger is ingested outside the session
+// channel, so emitting it before the ack would let it claim the registration's node id.
+func TestDag_RunTriggerDeferredUntilWaitForAcksDrain(t *testing.T) {
+	a := newTestTask("a", "action-a", 0)
+	b := newTestTask("b", "action-b", 1, a)
+	c := newTestTask("c", "action-c", 2, a)
+
+	b.stepConditions = []*sqlcv1.V1StepMatchCondition{
+		{
+			Kind:            sqlcv1.V1StepMatchConditionKindUSEREVENT,
+			Action:          sqlcv1.V1MatchConditionActionQUEUE,
+			OrGroupID:       uuid.New(),
+			ReadableDataKey: "event-1",
+			EventKey:        sqlchelpers.TextFromStr("some:event"),
+		},
+	}
+	c.stepConditions = []*sqlcv1.V1StepMatchCondition{
+		{
+			Kind:            sqlcv1.V1StepMatchConditionKindSLEEP,
+			Action:          sqlcv1.V1MatchConditionActionQUEUE,
+			OrGroupID:       uuid.New(),
+			ReadableDataKey: "sleep-1",
+			SleepDuration:   sqlchelpers.TextFromStr("5s"),
+		},
+	}
+
+	evaluator, err := internalcel.NewBoolExprEvaluator()
+	require.NoError(t, err)
+
+	requestCh := make(chan *v1contracts.DurableTaskRequest)
+	responseCh := make(chan *v1contracts.DurableTaskResponse)
+	stop := make(chan struct{})
+	defer close(stop)
+
+	firstAck := make(chan *v1contracts.DurableEventLogEntryRef, 1)
+	secondAck := make(chan *v1contracts.DurableEventLogEntryRef, 1)
+	releaseSecondAck := make(chan struct{})
+
+	sendAck := func(ref *v1contracts.DurableEventLogEntryRef) bool {
+		select {
+		case responseCh <- &v1contracts.DurableTaskResponse{
+			Message: &v1contracts.DurableTaskResponse_WaitForAck{
+				WaitForAck: &v1contracts.DurableTaskEventWaitForAckResponse{Ref: ref},
+			},
+		}:
+			return true
+		case <-stop:
+			return false
+		}
+	}
+
+	go func() {
+		var nextId int64 = 2000
+		waitForCount := 0
+
+		for {
+			select {
+			case <-stop:
+				return
+			case req, ok := <-requestCh:
+				if !ok {
+					return
+				}
+
+				waitFor := req.GetWaitFor()
+				if waitFor == nil {
+					continue
+				}
+
+				waitForCount++
+				ref := &v1contracts.DurableEventLogEntryRef{
+					DurableTaskExternalId: waitFor.DurableTaskExternalId,
+					InvocationCount:       waitFor.InvocationCount,
+					NodeId:                nextId,
+					BranchId:              nextId,
+				}
+				nextId++
+
+				if waitForCount == 2 {
+					go func() {
+						select {
+						case <-releaseSecondAck:
+						case <-stop:
+							return
+						}
+						if sendAck(ref) {
+							secondAck <- ref
+						}
+					}()
+					continue
+				}
+
+				if sendAck(ref) {
+					firstAck <- ref
+				}
+			}
+		}
+	}()
+
+	triggeredCh := make(chan string, 16)
+	base := stubTriggerStep(t, nil)
+	triggerStep := func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled, parentReExecuted bool) (*operator.DAGStepTriggerResult, error) {
+		triggeredCh <- actionId
+		return base(ctx, actionId, workflowName, childIndex, parentTaskRunIds, isSkipped, isCancelled, parentReExecuted)
+	}
+
+	ch := newTestChannel(requestCh, responseCh)
+	defer ch.Close()
+
+	errCh := make(chan error, 1)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	go func() {
+		errCh <- dagDurableTask(ctx, []*task{a, b, c}, nil, uuid.New(), uuid.New(), 1, "{}", ch, evaluator.EvalBoolExpr, deliverSatisfiedResults(triggerStep, responseCh, stop))
+	}()
+
+	requireTriggered := func(want string) {
+		t.Helper()
+		select {
+		case got := <-triggeredCh:
+			require.Equal(t, want, got)
+		case <-time.After(5 * time.Second):
+			t.Fatalf("timed out waiting for %s to be triggered", want)
+		}
+	}
+
+	requireTriggered("action-a")
+
+	var bRef *v1contracts.DurableEventLogEntryRef
+	select {
+	case bRef = <-firstAck:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for the first wait registration ack")
+	}
+
+	sendEntryCompleted(t, responseCh, bRef, nil)
+
+	select {
+	case got := <-triggeredCh:
+		t.Fatalf("step %s was triggered while a wait registration was still un-acked", got)
+	case <-time.After(300 * time.Millisecond):
+	}
+
+	close(releaseSecondAck)
+
+	requireTriggered("action-b")
+
+	var cRef *v1contracts.DurableEventLogEntryRef
+	select {
+	case cRef = <-secondAck:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for the second wait registration ack")
+	}
+
+	sendEntryCompleted(t, responseCh, cRef, nil)
+
+	requireTriggered("action-c")
+
+	select {
+	case err := <-errCh:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for dag to finish")
+	}
+
+	require.True(t, b.isCompleted)
+	require.True(t, c.isCompleted)
 }
 
 func TestDag_SleepSkipWatch(t *testing.T) {
@@ -1116,17 +1495,22 @@ func TestDag_EntryCompletedRacesAheadOfWaitForAck(t *testing.T) {
 	stop := make(chan struct{})
 	defer close(stop)
 
+	ch := newTestChannel(requestCh, responseCh)
+	defer ch.Close()
+
 	errCh := make(chan error, 1)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	go func() {
-		errCh <- dagDurableTask(ctx, []*task{a, b}, nil, uuid.New(), 1, "{}", requestCh, responseCh, evaluator.EvalBoolExpr, stubTriggerStep(t, nil))
+		errCh <- dagDurableTask(ctx, []*task{a, b}, nil, uuid.New(), uuid.New(), 1, "{}", ch, evaluator.EvalBoolExpr, deliverSatisfiedResults(stubTriggerStep(t, nil), responseCh, stop))
 	}()
 
 	// Drive the dispatcher side ourselves (instead of using newFakeDispatcher) so we can choose
 	// to deliver the skip watch's EntryCompleted before the WaitForAck that would normally
-	// precede it. b registers its skip watch first, then its wait watch (dag.go:300-314).
+	// precede it. b registers its skip watch first and holds its wait watch until that
+	// registration is acknowledged (one registration is in flight at a time); the skip fires
+	// with the ack, so the wait watch is never registered.
 	recvWaitFor := func() *v1contracts.DurableTaskWaitForRequest {
 		t.Helper()
 		select {
@@ -1141,7 +1525,6 @@ func TestDag_EntryCompletedRacesAheadOfWaitForAck(t *testing.T) {
 	}
 
 	skipWaitFor := recvWaitFor()
-	_ = recvWaitFor()
 
 	ref := &v1contracts.DurableEventLogEntryRef{
 		DurableTaskExternalId: skipWaitFor.DurableTaskExternalId,
@@ -1165,6 +1548,8 @@ func TestDag_EntryCompletedRacesAheadOfWaitForAck(t *testing.T) {
 	select {
 	case err := <-errCh:
 		require.NoError(t, err)
+	case req := <-requestCh:
+		t.Fatalf("the dag registered another condition after its skip watch fired: %v", req)
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for dag to finish; the raced EntryCompleted was likely dropped instead of buffered")
 	}
@@ -1172,4 +1557,171 @@ func TestDag_EntryCompletedRacesAheadOfWaitForAck(t *testing.T) {
 	require.True(t, b.isSkipped)
 	require.True(t, b.isCompleted)
 	require.False(t, b.isCancelled)
+	require.False(t, b.isWaiting, "the wait watch was held behind the skip registration and never needed")
+}
+
+func shortenBlockedStatusReportInterval(t *testing.T, interval time.Duration) {
+	t.Helper()
+
+	previous := blockedStatusReportInterval
+	blockedStatusReportInterval = interval
+	t.Cleanup(func() {
+		blockedStatusReportInterval = previous
+	})
+}
+
+func (h *dagHarness) waitWorkerStatus(t *testing.T) *v1contracts.DurableTaskWorkerStatusRequest {
+	t.Helper()
+
+	select {
+	case status := <-h.fd.workerStatuses:
+		return status
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for a worker status report")
+		return nil
+	}
+}
+
+func sendServerEvict(t *testing.T, responseCh chan *v1contracts.DurableTaskResponse, externalId string, reason string) {
+	t.Helper()
+
+	select {
+	case responseCh <- &v1contracts.DurableTaskResponse{
+		Message: &v1contracts.DurableTaskResponse_ServerEvict{
+			ServerEvict: &v1contracts.DurableTaskServerEvictNotice{
+				DurableTaskExternalId: externalId,
+				InvocationCount:       1,
+				Reason:                reason,
+			},
+		},
+	}:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out sending ServerEvict response")
+	}
+}
+
+func TestDag_ReportsBlockedStatusWhileAwaitingChild(t *testing.T) {
+	shortenBlockedStatusReportInterval(t, 20*time.Millisecond)
+
+	a := newTestTask("a", "action-a", 0)
+	b := newTestTask("b", "action-b", 1, a)
+
+	trigger, triggered := asyncTrigger(map[string]bool{"action-a": true})
+
+	h := startDAG(t, []*task{a, b}, trigger)
+	defer h.cleanup()
+
+	first := recvTriggered(t, triggered)
+	require.Equal(t, "action-a", first.actionId)
+
+	status := h.waitWorkerStatus(t)
+	require.Len(t, status.WaitingEntries, 1)
+	entry := status.WaitingEntries[0]
+	require.Equal(t, h.externalId.String(), entry.DurableTaskExternalId)
+	require.Equal(t, int32(1), entry.InvocationCount)
+	require.Equal(t, first.ref.NodeId, entry.NodeId)
+	require.Equal(t, first.ref.BranchId, entry.BranchId)
+
+	sendEntryCompleted(t, h.responseCh, first.ref, mapToJson(map[string]interface{}{"ok": true}))
+
+	require.NoError(t, h.waitErr(t))
+	require.True(t, a.isCompleted && b.isCompleted)
+}
+
+func TestDag_ServerEvictEndsRunWithEvictedError(t *testing.T) {
+	shortenBlockedStatusReportInterval(t, 20*time.Millisecond)
+
+	a := newTestTask("a", "action-a", 0)
+	b := newTestTask("b", "action-b", 1, a)
+
+	trigger, triggered := asyncTrigger(map[string]bool{"action-a": true})
+
+	h := startDAG(t, []*task{a, b}, trigger)
+	defer h.cleanup()
+
+	first := recvTriggered(t, triggered)
+	require.Equal(t, "action-a", first.actionId)
+
+	h.waitWorkerStatus(t)
+
+	sendServerEvict(t, h.responseCh, h.externalId.String(), "operator run is blocked waiting on durable events")
+
+	err := h.waitErr(t)
+	require.Error(t, err)
+	require.True(t, isDagEvictedErr(err))
+	require.False(t, a.isCompleted)
+	require.False(t, b.isTriggered)
+}
+
+func TestDag_ServerEvictForDifferentTaskIgnored(t *testing.T) {
+	a := newTestTask("a", "action-a", 0)
+
+	trigger, triggered := asyncTrigger(map[string]bool{"action-a": true})
+
+	h := startDAG(t, []*task{a}, trigger)
+	defer h.cleanup()
+
+	first := recvTriggered(t, triggered)
+
+	sendServerEvict(t, h.responseCh, uuid.NewString(), "not for this run")
+
+	sendEntryCompleted(t, h.responseCh, first.ref, mapToJson(map[string]interface{}{"ok": true}))
+
+	require.NoError(t, h.waitErr(t))
+	require.True(t, a.isCompleted)
+}
+
+func TestDag_ServerEvictForOlderInvocationIgnored(t *testing.T) {
+	a := newTestTask("a", "action-a", 0)
+
+	trigger, triggered := asyncTrigger(map[string]bool{"action-a": true})
+
+	h := startDAG(t, []*task{a}, trigger)
+	defer h.cleanup()
+
+	first := recvTriggered(t, triggered)
+
+	select {
+	case h.responseCh <- &v1contracts.DurableTaskResponse{
+		Message: &v1contracts.DurableTaskResponse_ServerEvict{
+			ServerEvict: &v1contracts.DurableTaskServerEvictNotice{
+				DurableTaskExternalId: h.externalId.String(),
+				InvocationCount:       0,
+				Reason:                "delayed notice for a previous invocation",
+			},
+		},
+	}:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out sending ServerEvict response")
+	}
+
+	sendEntryCompleted(t, h.responseCh, first.ref, mapToJson(map[string]interface{}{"ok": true}))
+
+	require.NoError(t, h.waitErr(t))
+	require.True(t, a.isCompleted)
+}
+
+func TestDag_NoBlockedStatusReportBeforeInterval(t *testing.T) {
+	a := newTestTask("a", "action-a", 0)
+	b := newTestTask("b", "action-b", 1, a)
+
+	trigger, triggered := asyncTrigger(map[string]bool{"action-a": true, "action-b": true})
+
+	h := startDAG(t, []*task{a, b}, trigger)
+	defer h.cleanup()
+
+	first := recvTriggered(t, triggered)
+	sendEntryCompleted(t, h.responseCh, first.ref, mapToJson(map[string]interface{}{"ok": true}))
+
+	second := recvTriggered(t, triggered)
+	sendEntryCompleted(t, h.responseCh, second.ref, mapToJson(map[string]interface{}{"ok": true}))
+
+	require.NoError(t, h.waitErr(t))
+	require.True(t, a.isCompleted && b.isCompleted)
+
+	select {
+	case status := <-h.fd.workerStatuses:
+		t.Fatalf("dag reported blocked status before the interval elapsed: %v", status)
+	default:
+	}
 }

@@ -23,6 +23,7 @@ import { WorkflowRunInputDialog } from './v2components/workflow-run-input';
 import { WorkflowRunLogs } from './v2components/workflow-run-logs';
 import WorkflowRunVisualizer from './v2components/workflow-run-visualizer-v2';
 import type { TaskSummaryForSynthesis } from '@/components/v1/agent-prism/convert-otel-spans-to-agent-prism-span-tree';
+import { RetentionExpiredRun } from '@/components/v1/retention-expired-run';
 import { RestrictedPayloads } from '@/components/v1/shared/restricted-payloads';
 import { Badge } from '@/components/v1/ui/badge';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
@@ -34,7 +35,9 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
+import { FeatureFlagId, useIsFeatureEnabled } from '@/hooks/use-feature-flags';
 import { useSidePanel } from '@/hooks/use-side-panel';
+import { useTenantDetails } from '@/hooks/use-tenant';
 import api, {
   V1TaskStatus,
   V1TaskSummary,
@@ -43,6 +46,8 @@ import api, {
 } from '@/lib/api';
 import { preferredWorkflowRunViewAtom } from '@/lib/atoms';
 import { getErrorStatus, shouldRetryQueryError } from '@/lib/error-utils';
+import { prettyPrintIfValidJson } from '@/lib/utils';
+import { isBeforeRetention } from '@/lib/utils/retention';
 import { ResourceNotFound } from '@/pages/error/components/resource-not-found';
 import { appRoutes, tenantRunRoute } from '@/router';
 import { useQuery } from '@tanstack/react-query';
@@ -140,6 +145,7 @@ export default function Run() {
   const params = useParams({ from: appRoutes.tenantRunRoute.to });
   const { run } = params;
   const { wasRedirectedFromTrigger } = tenantRunRoute.useSearch();
+  const { tenant } = useTenantDetails();
 
   // Once we've shown the redirect-404 page, stay on it during subsequent refetches
   // instead of flashing back to the full-page spinner (which would unmount the component
@@ -262,6 +268,26 @@ export default function Run() {
     return null;
   }
 
+  const createdAt =
+    runData.task?.createdAt ??
+    runData.task?.metadata.createdAt ??
+    runData.dag?.run.metadata.createdAt;
+  const isOutsideRetention = Boolean(
+    createdAt &&
+    tenant?.dataRetentionPeriod &&
+    isBeforeRetention(createdAt, tenant.dataRetentionPeriod),
+  );
+
+  if (isOutsideRetention && tenant?.dataRetentionPeriod) {
+    return (
+      <RetentionExpiredRun
+        retentionPeriod={tenant.dataRetentionPeriod}
+        createdAt={createdAt}
+        runId={run}
+      />
+    );
+  }
+
   if (runData.type === 'task') {
     return (
       <RunsProvider tableKey={`task-runs-${run}`}>
@@ -347,12 +373,38 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
     [taskRuns],
   );
 
-  const durableTaskIds = useMemo(
+  const { isEnabled: showOrchestration } = useIsFeatureEnabled(
+    FeatureFlagId.OperatorDetailsEnabled,
+    false,
+  );
+
+  // Events reported by the run's own task id belong to the DAG orchestrator (or a standalone
+  // durable task); they exist whenever the run is orchestrated by a durable task.
+  const hasOrchestratorEvents = useMemo(
+    () => taskEvents.some((e) => e.taskId === id),
+    [taskEvents, id],
+  );
+
+  const durableTaskIds = useMemo(() => {
+    const ids = taskRuns
+      .filter((t) => t.isDurable && t.taskExternalId !== id)
+      .map((t) => t.taskExternalId);
+
+    if (showOrchestration && hasOrchestratorEvents) {
+      ids.push(id);
+    }
+
+    return ids;
+  }, [taskRuns, id, showOrchestration, hasOrchestratorEvents]);
+
+  const visibleTaskEvents = useMemo(
     () =>
-      taskRuns
-        .filter((t) => t.isDurable && t.taskExternalId !== id)
-        .map((t) => t.taskExternalId),
-    [taskRuns, id],
+      showOrchestration
+        ? taskEvents
+        : taskEvents.filter(
+            (e) => e.taskId !== id || isFailureEventType(e.eventType),
+          ),
+    [taskEvents, id, showOrchestration],
   );
 
   if (isLoading || isError || !workflowRun) {
@@ -433,9 +485,7 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
                   fallbackTaskDisplayName={workflowRun.displayName}
                   onClick={handleTaskRunExpand}
                   durableTaskIds={durableTaskIds}
-                  events={taskEvents.filter(
-                    (e) => e.taskId !== id || isFailureEventType(e.eventType),
-                  )}
+                  events={visibleTaskEvents}
                 />
               </TabsContent>
               <TabsContent
@@ -452,7 +502,7 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
                     language="json"
                     code={
                       workflowRun.status === V1TaskStatus.FAILED
-                        ? workflowRun.errorMessage || ''
+                        ? prettyPrintIfValidJson(workflowRun.errorMessage || '')
                         : JSON.stringify(workflowRun.output, null, 2)
                     }
                   />

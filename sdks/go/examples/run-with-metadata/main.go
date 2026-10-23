@@ -4,7 +4,6 @@ import (
 	"context"
 	"log"
 
-	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
@@ -37,7 +36,7 @@ func main() {
 		context.Background(),
 		"user:create",
 		Input{Message: "hello"},
-		v0Client.WithEventMetadata(
+		hatchet.WithEventMetadata(
 			map[string]string{"version": "1.0.0"},
 		),
 	)

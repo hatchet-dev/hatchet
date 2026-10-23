@@ -3,6 +3,7 @@ package filtersv1
 import (
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/authz"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
@@ -22,7 +23,7 @@ func (t *V1FiltersService) V1FilterDelete(ctx echo.Context, request gen.V1Filter
 		return gen.V1FilterDelete400JSONResponse(apierrors.NewAPIErrors("failed to delete filter")), nil
 	}
 
-	transformed := transformers.ToV1Filter(filter)
+	transformed := transformers.ToV1Filter(filter, transformers.WithPayloads(authz.CanViewPayloads(ctx)))
 
 	return gen.V1FilterDelete200JSONResponse(
 		transformed,

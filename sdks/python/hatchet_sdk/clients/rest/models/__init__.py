@@ -263,8 +263,8 @@ from hatchet_sdk.clients.rest.models.v1_cancelled_tasks import V1CancelledTasks
 from hatchet_sdk.clients.rest.models.v1_create_filter_request import (
     V1CreateFilterRequest,
 )
-from hatchet_sdk.clients.rest.models.v1_create_http_operator_request import (
-    V1CreateHTTPOperatorRequest,
+from hatchet_sdk.clients.rest.models.v1_create_serverless_endpoint_request import (
+    V1CreateServerlessEndpointRequest,
 )
 from hatchet_sdk.clients.rest.models.v1_create_webhook_request import (
     V1CreateWebhookRequest,
@@ -302,8 +302,6 @@ from hatchet_sdk.clients.rest.models.v1_event_workflow_run_summary import (
 )
 from hatchet_sdk.clients.rest.models.v1_filter import V1Filter
 from hatchet_sdk.clients.rest.models.v1_filter_list import V1FilterList
-from hatchet_sdk.clients.rest.models.v1_http_operator import V1HTTPOperator
-from hatchet_sdk.clients.rest.models.v1_http_operator_list import V1HTTPOperatorList
 from hatchet_sdk.clients.rest.models.v1_log_line import V1LogLine
 from hatchet_sdk.clients.rest.models.v1_log_line_level import V1LogLineLevel
 from hatchet_sdk.clients.rest.models.v1_log_line_list import V1LogLineList
@@ -319,6 +317,17 @@ from hatchet_sdk.clients.rest.models.v1_restore_task_response import (
 )
 from hatchet_sdk.clients.rest.models.v1_running_detail_count import V1RunningDetailCount
 from hatchet_sdk.clients.rest.models.v1_running_filter import V1RunningFilter
+from hatchet_sdk.clients.rest.models.v1_serverless_endpoint import V1ServerlessEndpoint
+from hatchet_sdk.clients.rest.models.v1_serverless_endpoint_kind import (
+    V1ServerlessEndpointKind,
+)
+from hatchet_sdk.clients.rest.models.v1_serverless_endpoint_list import (
+    V1ServerlessEndpointList,
+)
+from hatchet_sdk.clients.rest.models.v1_serverless_endpoint_status import (
+    V1ServerlessEndpointStatus,
+)
+from hatchet_sdk.clients.rest.models.v1_stream_payload_ref import V1StreamPayloadRef
 from hatchet_sdk.clients.rest.models.v1_task_event import V1TaskEvent
 from hatchet_sdk.clients.rest.models.v1_task_event_list import V1TaskEventList
 from hatchet_sdk.clients.rest.models.v1_task_event_type import V1TaskEventType
@@ -338,8 +347,8 @@ from hatchet_sdk.clients.rest.models.v1_trigger_workflow_run_request import (
 from hatchet_sdk.clients.rest.models.v1_update_filter_request import (
     V1UpdateFilterRequest,
 )
-from hatchet_sdk.clients.rest.models.v1_update_http_operator_request import (
-    V1UpdateHTTPOperatorRequest,
+from hatchet_sdk.clients.rest.models.v1_update_serverless_endpoint_request import (
+    V1UpdateServerlessEndpointRequest,
 )
 from hatchet_sdk.clients.rest.models.v1_update_webhook_request import (
     V1UpdateWebhookRequest,
@@ -360,6 +369,7 @@ from hatchet_sdk.clients.rest.models.v1_webhook_list import V1WebhookList
 from hatchet_sdk.clients.rest.models.v1_webhook_response import V1WebhookResponse
 from hatchet_sdk.clients.rest.models.v1_webhook_source_name import V1WebhookSourceName
 from hatchet_sdk.clients.rest.models.v1_workflow_run import V1WorkflowRun
+from hatchet_sdk.clients.rest.models.v1_workflow_run_count import V1WorkflowRunCount
 from hatchet_sdk.clients.rest.models.v1_workflow_run_details import V1WorkflowRunDetails
 from hatchet_sdk.clients.rest.models.v1_workflow_run_display_name import (
     V1WorkflowRunDisplayName,

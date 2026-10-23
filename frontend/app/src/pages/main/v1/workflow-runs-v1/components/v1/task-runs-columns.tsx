@@ -3,6 +3,7 @@ import {
   AdditionalMetadataClick,
 } from '../../../events/components/additional-metadata';
 import { V1RunStatus } from '../../../workflow-runs/components/run-statuses';
+import { replayAsNewDisabledReason } from '../../hooks/use-replay-as-new';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import { TableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
 import RelativeDate from '@/components/v1/molecules/relative-date';
@@ -127,6 +128,7 @@ export const columns: (
   onTaskRunIdClick: (taskRunId: string) => void,
   onAdditionalMetadataOpenChange: (rowId: string, open: boolean) => void,
   onIdempotencyKeyClick: (idempotencyKey: string) => void,
+  onReplayAsNew?: (run: V1TaskSummary) => void,
 ) => ColumnDef<V1TaskSummary>[] = (
   tenantId,
   selectedAdditionalMetaRunId,
@@ -134,6 +136,7 @@ export const columns: (
   onTaskRunIdClick,
   onAdditionalMetadataOpenChange,
   onIdempotencyKeyClick,
+  onReplayAsNew,
 ) => [
   {
     id: 'select',
@@ -441,6 +444,17 @@ export const columns: (
                 navigator.clipboard.writeText(row.original.metadata.id);
               },
             },
+            ...(onReplayAsNew
+              ? [
+                  {
+                    label: 'Replay as new',
+                    onClick: () => {
+                      onReplayAsNew(row.original);
+                    },
+                    disabled: replayAsNewDisabledReason(row.original) ?? false,
+                  },
+                ]
+              : []),
           ]}
         />
       );

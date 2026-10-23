@@ -66,10 +66,10 @@ type tenantManager struct {
 	cleanup func()
 }
 
-func newTenantManager(cf *sharedConfig, tenantId uuid.UUID, resultsCh chan *QueueResults, concurrencyResultsCh chan *ConcurrencyResults, exts *Extensions) *tenantManager {
+func newTenantManager(cf *sharedConfig, tenantId uuid.UUID, resultsCh chan *QueueResults, concurrencyResultsCh chan *ConcurrencyResults, rateLimitPausesEndedCh chan<- uuid.UUID, exts *Extensions) *tenantManager {
 	tenantIdUUID := tenantId
 
-	rl := newRateLimiter(cf, tenantIdUUID)
+	rl := newRateLimiter(cf, tenantIdUUID, rateLimitPausesEndedCh)
 	s := newScheduler(cf, tenantIdUUID, rl, exts)
 	leaseManager, workersCh, queuesCh, concurrencyCh, batchesCh := newLeaseManager(cf, tenantIdUUID)
 
@@ -98,6 +98,10 @@ func newTenantManager(cf *sharedConfig, tenantId uuid.UUID, resultsCh chan *Queu
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.cleanup = cancel
+
+	s.onCapacityRestored = func(queues []string) {
+		t.notifyQueuers(ctx, queues)
+	}
 
 	go t.listenForWorkerLeases(ctx)
 	go t.listenForQueueLeases(ctx)
@@ -314,8 +318,20 @@ func (t *tenantManager) setConcurrencyStrategies(strategies []*sqlcv1.V1StepConc
 	newArr := make([]*ConcurrencyManager, 0, len(strategies))
 
 	for _, c := range t.concurrencyStrategies {
-		if _, ok := strategiesSet[c.strategy.ID]; ok {
-			newArr = append(newArr, c)
+		if strat, ok := strategiesSet[c.strategy.ID]; ok {
+			// If the definition changed (e.g. a shared strategy was re-registered with a
+			// different max_concurrency or expression), apply it to the running manager
+			// in place. Only structural changes (limit-strategy kind, parent linkage)
+			// still tear the manager down and rebuild: an async cleanup + init re-acquires
+			// the outbox topic and rehydrates every slot, and risks contending with the
+			// old manager's locks while it winds down.
+			if c.strategyDiffers(strat) && !c.UpdateStrategy(strat) {
+				go c.cleanup()
+
+				newArr = append(newArr, newConcurrencyManager(t.cf, t.tenantId, strat, t.concurrencyResultsCh, t.concurrencyAdvisoryLock, t.concurrencyParentAdvisoryLock))
+			} else {
+				newArr = append(newArr, c)
+			}
 
 			// delete from set
 			delete(strategiesSet, c.strategy.ID)
@@ -431,6 +447,43 @@ func (t *tenantManager) setBatchSchedulers(ctx context.Context, batches []*sqlcv
 		sched.Start(ctx)
 
 		t.batchSchedulers[stepId] = sched
+	}
+}
+
+// notifyQueuers wakes the queuers for the given queue names, so items that
+// missed capacity are retried as soon as the scheduler's pools have it rather
+// than on the queuers' next poll.
+func (t *tenantManager) notifyQueuers(ctx context.Context, queueNames []string) {
+	wanted := make(map[string]struct{}, len(queueNames))
+
+	for _, queueName := range queueNames {
+		wanted[queueName] = struct{}{}
+	}
+
+	t.queuersMu.RLock()
+	defer t.queuersMu.RUnlock()
+
+	for _, q := range t.queuers {
+		if _, ok := wanted[q.queueName]; ok {
+			q.queue(ctx)
+		}
+	}
+}
+
+// wakes every queuer so runs held in memory are checked against the new limits right away
+func (t *tenantManager) notifyRateLimitsChanged(ctx context.Context) {
+	err := t.rl.refresh(ctx, time.Now().UTC())
+
+	if err != nil {
+		t.l.Error().Err(err).Msg("error refreshing rate limits")
+		return
+	}
+
+	t.queuersMu.RLock()
+	defer t.queuersMu.RUnlock()
+
+	for _, q := range t.queuers {
+		q.queue(ctx)
 	}
 }
 
@@ -555,8 +608,6 @@ func (t *tenantManager) queue(ctx context.Context, queueNames []string) {
 	for _, name := range queueNames {
 		requested[name] = struct{}{}
 	}
-	// iterate t.queuers (not queueNames) to keep queueMu acquisition order consistent
-	// across goroutines, avoiding lock-ordering warnings from go-deadlock
 	for _, q := range t.queuers {
 		if _, ok := requested[q.queueName]; ok {
 			q.queue(ctx)

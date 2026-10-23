@@ -5,7 +5,9 @@ package repository
 import (
 	"context"
 	"testing"
+	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -133,4 +135,79 @@ func TestConvertDurationToInterval(t *testing.T) {
 
 		assert.InDelta(t, 300, got, 1e-9)
 	})
+}
+
+// The flush computes each runtime deadline from the queue item's step_timeout in Go
+// and the rest of the engine compares that deadline with the database clock, so the
+// Go side has to produce exactly what CURRENT_TIMESTAMP + convert_duration_to_interval
+// would have: the same calendar arithmetic for legacy units and the same range errors.
+func TestDurationToIntervalMatchesSQL(t *testing.T) {
+	pool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+
+	ctx := context.Background()
+
+	// a leap day exposes month clamping, and a non-UTC base makes sure
+	// calendar days are added in the database session zone
+	bases := []time.Time{
+		time.Date(2024, time.February, 29, 12, 0, 0, 0, time.UTC),
+		time.Date(2026, time.March, 7, 17, 0, 0, 0, time.FixedZone("EST", -5*3600)),
+	}
+
+	inputs := []string{
+		"", "42s", "11m", "1h", "42m30s", "1h30m", "1h30m5s", "1500ms", "1.5h", "0s",
+		"0.0004996s", "0.0014996s", "bad", "42", "30s1d", "1.5d", "999999999d",
+		"1d", "1w", "1y", "10d", "4y", "99999999d",
+	}
+
+	for _, base := range bases {
+		for _, input := range inputs {
+			t.Run(base.Format(time.RFC3339)+"/"+input, func(t *testing.T) {
+				var want time.Time
+				err := pool.QueryRow(ctx,
+					`SELECT ($1::timestamptz + convert_duration_to_interval($2))::timestamp(3)`,
+					base, input,
+				).Scan(&want)
+				require.NoError(t, err)
+
+				got, err := goDeadline(ctx, pool, base, input)
+				require.NoError(t, err)
+
+				assert.True(t, want.Equal(got), "input=%q base=%s sql=%s go=%s", input, base, want, got)
+			})
+		}
+	}
+
+	// values the SQL function accepts but that put the deadline outside the
+	// timestamp range must fail the same way instead of wrapping
+	for _, input := range []string{"600000y", "99999999w", "99999999y"} {
+		t.Run("out of range/"+input, func(t *testing.T) {
+			var ignored time.Time
+			err := pool.QueryRow(ctx,
+				`SELECT $1::timestamptz + convert_duration_to_interval($2)`,
+				bases[0], input,
+			).Scan(&ignored)
+			require.Error(t, err, "SQL must reject %q", input)
+
+			_, err = goDeadline(ctx, pool, bases[0], input)
+			require.Error(t, err, "Go must reject %q", input)
+		})
+	}
+}
+
+// goDeadline is what the flush persists for a queue item with the given step_timeout:
+// the interval parsed in Go, added to the database clock by the statement and stored in
+// the TIMESTAMP(3) column.
+func goDeadline(ctx context.Context, pool *pgxpool.Pool, base time.Time, input string) (time.Time, error) {
+	interval, err := durationToInterval(input)
+
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	var stored time.Time
+
+	err = pool.QueryRow(ctx, `SELECT ($1::timestamptz + $2::interval)::timestamp(3)`, base, interval).Scan(&stored)
+
+	return stored, err
 }

@@ -60,6 +60,12 @@ module HatchetSdkRest
 
     attr_accessor :runtime_info
 
+    # The id of the operator that owns this worker, if it is an engine-managed operator worker.
+    attr_accessor :operator_id
+
+    # The number of durable task runs owned by this operator that are currently evicted while waiting on durable events. Evicted runs hold no slots. Only set for operator workers.
+    attr_accessor :evicted_durable_task_count
+
     class EnumAttributeValidator
       attr_reader :datatype
       attr_reader :allowable_values
@@ -100,7 +106,9 @@ module HatchetSdkRest
         :'labels' => :'labels',
         :'webhook_url' => :'webhookUrl',
         :'webhook_id' => :'webhookId',
-        :'runtime_info' => :'runtimeInfo'
+        :'runtime_info' => :'runtimeInfo',
+        :'operator_id' => :'operatorId',
+        :'evicted_durable_task_count' => :'evictedDurableTaskCount'
       }
     end
 
@@ -132,7 +140,9 @@ module HatchetSdkRest
         :'labels' => :'Array<WorkerLabel>',
         :'webhook_url' => :'String',
         :'webhook_id' => :'String',
-        :'runtime_info' => :'WorkerRuntimeInfo'
+        :'runtime_info' => :'WorkerRuntimeInfo',
+        :'operator_id' => :'String',
+        :'evicted_durable_task_count' => :'Integer'
       }
     end
 
@@ -238,6 +248,14 @@ module HatchetSdkRest
 
       if attributes.key?(:'runtime_info')
         self.runtime_info = attributes[:'runtime_info']
+      end
+
+      if attributes.key?(:'operator_id')
+        self.operator_id = attributes[:'operator_id']
+      end
+
+      if attributes.key?(:'evicted_durable_task_count')
+        self.evicted_durable_task_count = attributes[:'evicted_durable_task_count']
       end
     end
 
@@ -349,7 +367,9 @@ module HatchetSdkRest
           labels == o.labels &&
           webhook_url == o.webhook_url &&
           webhook_id == o.webhook_id &&
-          runtime_info == o.runtime_info
+          runtime_info == o.runtime_info &&
+          operator_id == o.operator_id &&
+          evicted_durable_task_count == o.evicted_durable_task_count
     end
 
     # @see the `==` method
@@ -361,7 +381,7 @@ module HatchetSdkRest
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [metadata, name, type, last_heartbeat_at, last_listener_established, actions, registered_workflows, slots, recent_step_runs, status, slot_config, dispatcher_id, labels, webhook_url, webhook_id, runtime_info].hash
+      [metadata, name, type, last_heartbeat_at, last_listener_established, actions, registered_workflows, slots, recent_step_runs, status, slot_config, dispatcher_id, labels, webhook_url, webhook_id, runtime_info, operator_id, evicted_durable_task_count].hash
     end
 
     # Builds the object from hash

@@ -74,6 +74,34 @@ func (m *MatchData) TriggerDataValue(key string) map[string]interface{} {
 	return nil
 }
 
+// ParentOutputs maps each completed parent step's readable ID to its output data. This
+// matches the shape of the `parents` variable declared in the step run CEL environment.
+func (m *MatchData) ParentOutputs() map[string]map[string]interface{} {
+	outputs := make(map[string]map[string]interface{})
+
+	if m == nil {
+		return outputs
+	}
+
+	for _, stepReadableId := range m.DataKeys() {
+		event := m.DataValueAsTaskOutputEvent(stepReadableId)
+
+		if event == nil || !event.IsCompleted() {
+			continue
+		}
+
+		output := make(map[string]interface{})
+
+		// ignore unmarshalling errors so a parent with a non-object output still maps to an
+		// empty object, matching ToV1StepRunData
+		json.Unmarshal(event.Output, &output) // nolint: errcheck
+
+		outputs[stepReadableId] = output
+	}
+
+	return outputs
+}
+
 // Helper function for internal events
 func (m *MatchData) DataValueAsTaskOutputEvent(key string) *TaskOutputEvent {
 	values := m.dataKeys[key]

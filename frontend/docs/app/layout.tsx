@@ -15,9 +15,18 @@ const inter = Inter({
 });
 
 export const metadata = {
+  metadataBase: new URL("https://docs.hatchet.run"),
   title: {
     default: "Hatchet Documentation",
     template: "%s - Hatchet Documentation",
+  },
+  openGraph: {
+    siteName: "Hatchet Documentation",
+    type: "website",
+    images: ["/og.png"],
+  },
+  twitter: {
+    card: "summary_large_image",
   },
 };
 

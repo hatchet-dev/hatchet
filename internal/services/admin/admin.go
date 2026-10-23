@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
-	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
+	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts/contractsconnect"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/task/trigger"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
 	scheduler "github.com/hatchet-dev/hatchet/internal/services/scheduler/v1"
@@ -19,12 +19,12 @@ import (
 )
 
 type AdminService interface {
-	contracts.WorkflowServiceServer
+	contractsconnect.WorkflowServiceHandler
 	Cleanup() error
 }
 
 type AdminServiceImpl struct {
-	contracts.UnimplementedWorkflowServiceServer
+	contractsconnect.UnimplementedWorkflowServiceHandler
 
 	repov1    v1.Repository
 	mqv1      msgqueue.MessageQueue

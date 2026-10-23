@@ -1,0 +1,121 @@
+@layer flow-base {
+  /* ── Frame (bounding box + controls row) ─────────────────────────────── */
+
+  .frame {
+    position: relative;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--rlh) * 0.375);
+    padding: calc(var(--rlh) * 0.5);
+    border: 1px solid var(--fg-border);
+    margin: 1.5rem 0;
+  }
+
+  .root {
+    position: relative;
+  }
+
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--rlh) * 0.75);
+  }
+
+  .progressTrack {
+    flex: 1;
+    height: 2px;
+    background: var(--fg-border);
+  }
+
+  .progressFill {
+    width: 100%;
+    height: 100%;
+    background: var(--fg-secondary);
+    transform: scaleX(var(--flow-progress, 0));
+    transform-origin: left center;
+  }
+
+  .restart {
+    appearance: none;
+    background: none;
+    border: 0;
+    margin: 0;
+    padding: 0;
+    cursor: pointer;
+    color: var(--fg-tertiary);
+    transition: color 0.3s ease;
+  }
+
+  .restart:hover {
+    color: var(--fg-secondary);
+  }
+
+  .restart:focus-visible {
+    color: var(--fg);
+    outline: 1px solid var(--fg-secondary);
+    outline-offset: 3px;
+  }
+
+  .restartLabel {
+    font-family: var(--font-mono);
+    font-weight: 500;
+    font-size: var(--micro);
+    line-height: 1;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  /* Restart/progress are meaningless on the reduced-motion poster frame.
+     Belt: the reactive data attribute. Suspenders: the media query, which
+     also covers the pre-hydration paint. */
+  .frame[data-flow-static] .controls {
+    display: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .controls {
+      display: none;
+    }
+  }
+
+  /* ── Stage / tokens ──────────────────────────────────────────────────── */
+
+  .stage {
+    position: relative;
+    width: 100%;
+    container-type: inline-size;
+    /* Rendered size of one design unit. --flow-w is set inline by Flow.Stage. */
+    --flow-u: calc(100cqw / var(--flow-w, 100));
+  }
+
+  .stage > svg {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .token {
+    position: absolute;
+    left: 0;
+    top: 0;
+    pointer-events: none;
+    will-change: transform, opacity;
+    transform: translate(
+      calc(var(--flow-u) * var(--flow-x, 0)),
+      calc(var(--flow-u) * var(--flow-y, 0))
+    );
+  }
+
+  .tokenInner {
+    position: absolute;
+    left: 0;
+    top: 0;
+    display: grid;
+    place-items: center;
+    transform: translate(-50%, -50%) scale(var(--flow-scale, 1));
+  }
+}

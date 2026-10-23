@@ -90,17 +90,49 @@ async def test_bulk_replay(hatchet: Hatchet) -> None:
                 f"(statuses: {summarize_statuses(rows)})"
             )
 
-        failed_count = sum(1 for row in rows if row.status == V1TaskStatus.FAILED)
-        if failed_count != expected_total:
+        # Every run fails on its first attempt, but the engine may internally
+        # retry a run whose assignment could not be delivered (worker briefly
+        # unreachable or a lost heartbeat under load), and internal retries
+        # bump retry_count. Such a run then completes with retry_count >= 1
+        # before we ever replay it. Treat that as settled: the precondition
+        # that matters is that no run completed on its first attempt.
+        settled_count = sum(
+            1
+            for row in rows
+            if row.status == V1TaskStatus.FAILED
+            or (
+                row.status == V1TaskStatus.COMPLETED
+                and row.retry_count is not None
+                and row.retry_count >= 1
+            )
+        )
+        if settled_count != expected_total:
             raise AssertionError(
-                f"Expected all {expected_total} runs to be FAILED before replay, "
-                f"but {failed_count}/{expected_total} are FAILED "
+                f"Expected all {expected_total} runs to be FAILED (or COMPLETED "
+                f"only via an engine internal retry) before replay, but "
+                f"{settled_count}/{expected_total} are "
                 f"(statuses: {summarize_statuses(rows)})"
             )
 
+        first_attempt_completed = [
+            row
+            for row in rows
+            if row.status == V1TaskStatus.COMPLETED and not row.retry_count
+        ]
+        assert (
+            not first_attempt_completed
+        ), f"{len(first_attempt_completed)} runs completed on their first attempt"
+
         return runs
 
-    await wait_for_all_failed()
+    before_replay = await wait_for_all_failed()
+
+    # A run that an internal retry already completed satisfies the post-replay
+    # status checks on its own, so remember every run's attempt count and
+    # require the replay to have moved each one forward.
+    attempts_before_replay = {
+        row.metadata.id: row.attempt or 0 for row in before_replay.rows or []
+    }
 
     await hatchet.runs.aio_bulk_replay(
         opts=BulkCancelReplayOpts(
@@ -147,6 +179,15 @@ async def test_bulk_replay(hatchet: Hatchet) -> None:
     runs = await wait_for_replayed_completed()
 
     assert len(runs.rows) == expected_total
+
+    not_replayed = [
+        row.metadata.id
+        for row in runs.rows
+        if (row.attempt or 0) <= attempts_before_replay.get(row.metadata.id, 0)
+    ]
+    assert (
+        not not_replayed
+    ), f"{len(not_replayed)} runs were not re-run by the bulk replay: {not_replayed}"
 
     for run in runs.rows:
         assert run.status == V1TaskStatus.COMPLETED

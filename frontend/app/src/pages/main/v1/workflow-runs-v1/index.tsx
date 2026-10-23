@@ -2,7 +2,6 @@ import { RunsTable } from './components/runs-table';
 import { RunsProvider } from './hooks/runs-provider';
 import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import { useOnboardingActions } from '@/components/v1/molecules/empty-state/workflows-guard';
-import { Loading } from '@/components/v1/ui/loading';
 import useControlPlane from '@/hooks/use-control-plane';
 import { queries } from '@/lib/api';
 import { docsPages } from '@/lib/generated/docs';
@@ -27,8 +26,10 @@ export default function RunsPage() {
   const workflowCountQuery = useQuery(
     queries.workflows.list(tenantId, { limit: 1, offset: 0 }),
   );
-  const recentRunsQuery = useQuery(
-    queries.v1WorkflowRuns.list(
+  const hasWorkflows = (workflowCountQuery.data?.rows?.length ?? 0) > 0;
+  const confirmedNoWorkflows = workflowCountQuery.isSuccess && !hasWorkflows;
+  const recentRunsQuery = useQuery({
+    ...queries.v1WorkflowRuns.list(
       tenantId,
       {
         limit: 1,
@@ -38,25 +39,17 @@ export default function RunsPage() {
       },
       isSelfHosted,
     ),
-  );
+    enabled: confirmedNoWorkflows,
+  });
 
-  if (workflowCountQuery.isLoading || recentRunsQuery.isLoading) {
-    return <Loading />;
-  }
-
-  const hasWorkflows = (workflowCountQuery.data?.rows?.length ?? 0) > 0;
-  const hasRecentRuns =
+  const confirmedNoRecentRuns =
+    recentRunsQuery.isSuccess &&
     recentRunsQuery.data !== 'timeout' &&
-    (recentRunsQuery.data?.rows?.length ?? 0) > 0;
+    (recentRunsQuery.data?.rows?.length ?? 0) === 0;
 
-  // Fail open on probe errors: the table's own error handling is more useful
-  // than trapping the user on the onboarding placeholder.
-  const probesErrored =
-    workflowCountQuery.isError ||
-    recentRunsQuery.isError ||
-    recentRunsQuery.data === 'timeout';
-
-  if (!probesErrored && !hasWorkflows && !hasRecentRuns) {
+  // The table renders while the probes are in flight and is only replaced by
+  // onboarding once both probes have confirmed there is nothing to show.
+  if (confirmedNoWorkflows && confirmedNoRecentRuns) {
     return (
       <div className="flex h-full items-center justify-center">
         <EmptyState

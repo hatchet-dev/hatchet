@@ -208,6 +208,65 @@ func TestCleanupUserSessions_ExactBatchBoundary(t *testing.T) {
 	assert.Equal(t, 0, existingCount, "all %d sessions should be deleted", totalSessions)
 }
 
+func insertActiveSession(t *testing.T, pool *pgxpool.Pool, userId *uuid.UUID) uuid.UUID {
+	t.Helper()
+	sessionId := uuid.New()
+	_, err := pool.Exec(ctx(t), `
+		INSERT INTO "UserSession" ("id", "expiresAt", "userId", "data", "createdAt", "updatedAt")
+		VALUES ($1, $2 AT TIME ZONE 'UTC', $3, '{}', NOW(), NOW())
+	`, sessionId, time.Now().UTC().Add(24*time.Hour), userId)
+	require.NoError(t, err)
+	return sessionId
+}
+
+func TestDeleteUserSessionsByUserId(t *testing.T) {
+	pool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+
+	repo := createUserSessionRepository(pool)
+
+	targetUser := createTestUser(t, pool)
+	otherUser := createTestUser(t, pool)
+
+	current := insertActiveSession(t, pool, &targetUser)
+	stolen := insertActiveSession(t, pool, &targetUser)
+	another := insertActiveSession(t, pool, &targetUser)
+	otherUsers := insertActiveSession(t, pool, &otherUser)
+	anonymous := insertActiveSession(t, pool, nil)
+
+	t.Run("keeps the excepted session and other users' sessions", func(t *testing.T) {
+		deleted, err := repo.DeleteByUserId(ctx(t), targetUser, &current)
+		require.NoError(t, err)
+
+		deletedIds := make([]uuid.UUID, 0, len(deleted))
+		for _, s := range deleted {
+			deletedIds = append(deletedIds, s.ID)
+		}
+		assert.ElementsMatch(t, []uuid.UUID{stolen, another}, deletedIds)
+
+		assert.True(t, sessionExists(t, pool, current), "current session must survive")
+		assert.False(t, sessionExists(t, pool, stolen))
+		assert.False(t, sessionExists(t, pool, another))
+		assert.True(t, sessionExists(t, pool, otherUsers), "other users' sessions must be untouched")
+		assert.True(t, sessionExists(t, pool, anonymous), "unauthenticated sessions must be untouched")
+	})
+
+	t.Run("deletes every session when no exception is given", func(t *testing.T) {
+		deleted, err := repo.DeleteByUserId(ctx(t), targetUser, nil)
+		require.NoError(t, err)
+		require.Len(t, deleted, 1)
+		assert.Equal(t, current, deleted[0].ID)
+		assert.False(t, sessionExists(t, pool, current))
+		assert.True(t, sessionExists(t, pool, otherUsers))
+	})
+
+	t.Run("is a no-op for a user with no sessions", func(t *testing.T) {
+		deleted, err := repo.DeleteByUserId(ctx(t), targetUser, nil)
+		require.NoError(t, err)
+		assert.Empty(t, deleted)
+	})
+}
+
 func ctx(t *testing.T) context.Context {
 	t.Helper()
 	ctx := context.Background()

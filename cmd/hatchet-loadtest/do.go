@@ -108,6 +108,24 @@ func workflowNamesForKey(key eventkeys.EventKey, namespace string, fanout int) [
 		return []string{applyNamespace(eventkeys.WorkflowDurableName, namespace)}
 	case eventkeys.EventKeyDag:
 		return []string{applyNamespace(eventkeys.WorkflowDagName, namespace)}
+	case eventkeys.EventKeyDagShapes:
+		names := make([]string, 0, len(eventkeys.DagShapeWorkflowNames))
+		for _, n := range eventkeys.DagShapeWorkflowNames {
+			names = append(names, applyNamespace(n, namespace))
+		}
+		return names
+	case eventkeys.EventKeyDagNested:
+		names := make([]string, 0, len(eventkeys.DagNestedWorkflowNames))
+		for _, n := range eventkeys.DagNestedWorkflowNames {
+			names = append(names, applyNamespace(n, namespace))
+		}
+		return names
+	case eventkeys.EventKeyConcurrency:
+		names := make([]string, 0, len(eventkeys.ConcurrencyWorkflowNames))
+		for _, n := range eventkeys.ConcurrencyWorkflowNames {
+			names = append(names, applyNamespace(n, namespace))
+		}
+		return names
 	default:
 		return nil
 	}
@@ -115,12 +133,25 @@ func workflowNamesForKey(key eventkeys.EventKey, namespace string, fanout int) [
 
 const dagWorkflowSteps = 2
 
+const dagShapesExecutedSteps = 10 + 5 + 7 + 7
+
+// dagNestedExecutedSteps: parent (3 nodes) + default 5 child DAGs x 4 nodes.
+// The child count is set on the worker (HATCHET_LOADTEST_DAG_NESTED_CHILDREN);
+// this only tunes a soft sample-count check.
+const dagNestedExecutedSteps = 3 + 5*4
+
 func executionsPerPush(key eventkeys.EventKey, fanout, dagSteps int) int64 {
 	switch key {
 	case eventkeys.EventKeyDefault:
 		return int64(fanout) * int64(dagSteps)
 	case eventkeys.EventKeyDag:
 		return dagWorkflowSteps
+	case eventkeys.EventKeyDagShapes:
+		return dagShapesExecutedSteps
+	case eventkeys.EventKeyDagNested:
+		return dagNestedExecutedSteps
+	case eventkeys.EventKeyBatch, eventkeys.EventKeyDurable, eventkeys.EventKeyConcurrency:
+		return 1
 	default:
 		return 1
 	}
@@ -385,6 +416,7 @@ func do(config LoadTestConfig) error {
 
 	executed := <-ch
 	uniques := <-ch
+	duplicates := executed - uniques
 
 	finalDurationResult := <-durationsResult
 	finalScheduledByKey := <-scheduledResult
@@ -440,8 +472,18 @@ func do(config LoadTestConfig) error {
 		}
 
 		var expectedAllKeys int64
+		observedSampled := phases.overall.execution.count
+		checkedKeys := 0
 		for _, k := range config.EventKeys {
+			if k == eventkeys.EventKeyConcurrency {
+				// The cancel strategies cancel a load-dependent share of runs,
+				// and cancelled runs produce no samples, so this key has no
+				// fixed expected count.
+				observedSampled -= phases.byKey[k].execution.count
+				continue
+			}
 			expectedAllKeys += pushedByKey[k] * executionsPerPush(k, config.EventFanout, config.DagSteps)
+			checkedKeys++
 		}
 		expectedSampled := int64(float64(expectedAllKeys) * sampleRate)
 
@@ -459,18 +501,19 @@ func do(config LoadTestConfig) error {
 
 		if expectedSampled > 0 {
 			lower, upper := expectedSampled/2, expectedSampled+expectedSampled/2
-			if phases.overall.execution.count < lower || phases.overall.execution.count > upper {
-				log.Printf("⚠️ warning: engine-observed sample count is well outside the expected range: expected≈%d (%.0f%% sample of %d pushed across %d key(s)) got=%d", expectedSampled, sampleRate*100, expectedAllKeys, len(config.EventKeys), phases.overall.execution.count)
+			if observedSampled < lower || observedSampled > upper {
+				log.Printf("⚠️ warning: engine-observed sample count is well outside the expected range: expected≈%d (%.0f%% sample of %d pushed across %d key(s)) got=%d", expectedSampled, sampleRate*100, expectedAllKeys, checkedKeys, observedSampled)
 			}
 		}
 	} else {
 		// NOTE: `emit()` returns successfully pushed events (not merely generated IDs),
 		// so `emitted` here is effectively "pushed".
 		log.Printf(
-			"ℹ️ pushed %d, executed %d, uniques %d, using %d events/s (fanout=%d dagSteps=%d expected=%d)",
+			"ℹ️ pushed %d, executed %d, uniques %d, duplicates %d, using %d events/s (fanout=%d dagSteps=%d expected=%d)",
 			emitted,
 			executed,
 			uniques,
+			duplicates,
 			config.Events,
 			config.EventFanout,
 			config.DagSteps,
@@ -587,7 +630,11 @@ func do(config LoadTestConfig) error {
 		}
 
 		if expected != uniques {
-			return fmt.Errorf("❌ pushed and unique executed counts do not match: expected=%d got=%d (fanout=%d pushed=%d dagSteps=%d)", expected, uniques, config.EventFanout, emitted, config.DagSteps)
+			return fmt.Errorf("❌ pushed and unique executed counts do not match: expected=%d got=%d (fanout=%d pushed=%d dagSteps=%d duplicates=%d)", expected, uniques, config.EventFanout, emitted, config.DagSteps, duplicates)
+		}
+
+		if duplicates > 0 {
+			return fmt.Errorf("❌ %d task runs executed more than once (executed=%d uniques=%d)", duplicates, executed, uniques)
 		}
 
 		if finalDurationResult.avg > thresholdWithTolerance {

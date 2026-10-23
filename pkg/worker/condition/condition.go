@@ -1,5 +1,6 @@
 // Deprecated: This package is part of the legacy v0 workflow definition system.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+// Use the condition helpers in github.com/hatchet-dev/hatchet/sdks/go instead (hatchet.SleepCondition,
+// hatchet.UserEventCondition, hatchet.ParentCondition, hatchet.OrCondition, hatchet.AndCondition). Migration guide: https://docs.hatchet.run/home/migration-guide-go
 package condition
 
 import (

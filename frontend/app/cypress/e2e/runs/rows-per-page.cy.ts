@@ -48,10 +48,8 @@ describe('runs table: rows per page', () => {
         cy.visit(`${tenantBase}/runs`);
       });
 
-    // The runs page first issues a limit=1 probe for recent runs (used to
-    // decide whether to show the onboarding placeholder), then the table
-    // loads with the default page size of 50.
-    cy.wait('@listRuns').its('request.url').should('include', 'limit=1');
+    // The recent-runs probe only fires for tenants with no workflows, so the
+    // first list request is the table's own fetch at the default page size.
     cy.wait('@listRuns').its('request.url').should('include', 'limit=50');
 
     cy.get('#rows-per-page').should('be.visible').click();

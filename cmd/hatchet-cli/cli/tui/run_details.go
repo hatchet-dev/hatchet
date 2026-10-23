@@ -833,6 +833,7 @@ func (v *RunDetailsView) fetchWorkflowRun() tea.Cmd {
 		response, err := v.Ctx.Client.API().V1WorkflowRunGetWithResponse(
 			ctx,
 			workflowRunUUID,
+			nil,
 		)
 
 		if err != nil {

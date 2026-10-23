@@ -24,6 +24,7 @@ from hatchet_sdk.clients.rest.models.workflow_pause_scheduled_cron_run_queue_beh
     WorkflowPauseScheduledCronRunQueueBehavior,
 )
 from hatchet_sdk.clients.rest.models.workflow_tag import WorkflowTag
+from hatchet_sdk.clients.rest.models.workflow_triggers import WorkflowTriggers
 from typing import Optional, Set
 from typing_extensions import Self
 
@@ -65,6 +66,10 @@ class Workflow(BaseModel):
     tenant_id: StrictStr = Field(
         description="The tenant id of the workflow.", alias="tenantId"
     )
+    triggers: Optional[WorkflowTriggers] = Field(
+        default=None,
+        description="The event and cron triggers declared on the latest workflow version.",
+    )
     __properties: ClassVar[List[str]] = [
         "metadata",
         "name",
@@ -76,6 +81,7 @@ class Workflow(BaseModel):
         "tags",
         "jobs",
         "tenantId",
+        "triggers",
     ]
 
     model_config = ConfigDict(
@@ -139,6 +145,9 @@ class Workflow(BaseModel):
                 if _item_jobs:
                     _items.append(_item_jobs.to_dict())
             _dict["jobs"] = _items
+        # override the default output from pydantic by calling `to_dict()` of triggers
+        if self.triggers:
+            _dict["triggers"] = self.triggers.to_dict()
         return _dict
 
     @classmethod
@@ -182,6 +191,11 @@ class Workflow(BaseModel):
                     else None
                 ),
                 "tenantId": obj.get("tenantId"),
+                "triggers": (
+                    WorkflowTriggers.from_dict(obj["triggers"])
+                    if obj.get("triggers") is not None
+                    else None
+                ),
             }
         )
         return _obj

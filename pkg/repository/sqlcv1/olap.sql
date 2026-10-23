@@ -1,20 +1,24 @@
--- name: CreateOLAPPartitions :exec
+-- name: CreateOLAPPartitions :one
 SELECT
-    create_v1_hash_partitions('v1_task_events_olap_tmp'::text, @partitions::int),
-    create_v1_hash_partitions('v1_task_status_updates_tmp'::text, @partitions::int),
-    create_v1_range_partition('v1_tasks_olap'::text, @date::date),
-    create_v1_range_partition('v1_runs_olap'::text, @date::date),
-    create_v1_range_partition('v1_dags_olap'::text, @date::date),
-    create_v1_range_partition('v1_payloads_olap'::text, @date::date)
+    create_v1_hash_partitions('v1_task_events_olap_tmp'::text, @partitions::int) AS v1_task_events_olap_tmp,
+    create_v1_hash_partitions('v1_task_status_updates_tmp'::text, @partitions::int) AS v1_task_status_updates_tmp,
+    create_v1_range_partition('v1_tasks_olap'::text, @date::date) AS v1_tasks_olap,
+    create_v1_range_partition('v1_runs_olap'::text, @date::date) AS v1_runs_olap,
+    create_v1_range_partition('v1_dags_olap'::text, @date::date) AS v1_dags_olap,
+    create_v1_range_partition('v1_payloads_olap'::text, @date::date) AS v1_payloads_olap
 ;
 
--- name: CreateOLAPEventPartitions :exec
+-- name: CreateOLAPOptionalTablePartitions :one
 SELECT
-    create_v1_range_partition('v1_events_olap'::text, @date::date),
-    create_v1_range_partition('v1_event_to_run_olap'::text, @date::date),
-    create_v1_weekly_range_partition('v1_event_lookup_table_olap'::text, @date::date),
-    create_v1_range_partition('v1_incoming_webhook_validation_failures_olap'::text, @date::date),
-    create_v1_range_partition('v1_cel_evaluation_failures_olap'::text, @date::date)
+    create_v1_range_partition('v1_events_olap'::text, @date::date) AS v1_events_olap,
+    create_v1_range_partition('v1_event_to_run_olap'::text, @date::date) AS v1_event_to_run_olap,
+    create_v1_weekly_range_partition('v1_event_lookup_table_olap'::text, @date::date) AS v1_event_lookup_table_olap,
+    create_v1_range_partition('v1_incoming_webhook_validation_failures_olap'::text, @date::date) AS v1_incoming_webhook_validation_failures_olap,
+    create_v1_range_partition('v1_cel_evaluation_failures_olap'::text, @date::date) AS v1_cel_evaluation_failures_olap,
+    create_v1_range_partition('v1_task_events_olap'::text, @date::date) AS v1_task_events_olap,
+    create_v1_range_partition('v1_dag_to_task_olap'::text, @date::date) AS v1_dag_to_task_olap,
+    create_v1_monthly_range_partition('v1_lookup_table_olap'::text, @date::date) AS v1_lookup_table_olap,
+    create_v1_monthly_range_partition('v1_statuses_olap'::text, @date::date) AS v1_statuses_olap
 ;
 
 -- name: CreateOLAPOtelPartitions :exec
@@ -41,6 +45,27 @@ ANALYZE v1_payloads_olap;
 -- name: AnalyzeV1LookupTableOLAP :exec
 ANALYZE v1_lookup_table_olap;
 
+-- name: AnalyzeV1TaskEventsOLAP :exec
+ANALYZE v1_task_events_olap;
+
+-- name: AnalyzeV1StatusesOLAP :exec
+ANALYZE v1_statuses_olap;
+
+-- name: AnalyzeV1EventsOLAP :exec
+ANALYZE v1_events_olap;
+
+-- name: AnalyzeV1EventLookupTableOLAP :exec
+ANALYZE v1_event_lookup_table_olap;
+
+-- name: AnalyzeV1EventToRunOLAP :exec
+ANALYZE v1_event_to_run_olap;
+
+-- name: AnalyzeV1OtelTraceOLAP :exec
+ANALYZE v1_otel_trace_olap;
+
+-- name: AnalyzeV1OtelTraceLookupOLAP :exec
+ANALYZE v1_otel_trace_lookup_olap;
+
 -- name: ListOLAPPartitionsBeforeDate :many
 WITH task_partitions AS (
     SELECT 'v1_tasks_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_tasks_olap'::text, @date::date) AS p
@@ -64,6 +89,14 @@ WITH task_partitions AS (
     SELECT 'v1_otel_trace_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_otel_trace_olap', @date::date) AS p
 ), otel_trace_lookup_partitions AS (
     SELECT 'v1_otel_trace_lookup_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_otel_trace_lookup_olap', @date::date) AS p
+), task_events_partitions AS (
+    SELECT 'v1_task_events_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_task_events_olap', @date::date) AS p
+), dag_to_task_partitions AS (
+    SELECT 'v1_dag_to_task_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_dag_to_task_olap', @date::date) AS p
+), lookup_table_partitions AS (
+    SELECT 'v1_lookup_table_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_monthly_partitions_before_date('v1_lookup_table_olap', @date::date) AS p
+), statuses_partitions AS (
+    SELECT 'v1_statuses_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_monthly_partitions_before_date('v1_statuses_olap', @date::date) AS p
 ), candidates AS (
     SELECT
         *
@@ -140,14 +173,51 @@ WITH task_partitions AS (
     FROM
         otel_trace_lookup_partitions
 
+    UNION ALL
+
+    SELECT
+        *
+    FROM
+        task_events_partitions
+
+    UNION ALL
+
+    SELECT
+        *
+    FROM
+        dag_to_task_partitions
+
+    UNION ALL
+
+    SELECT
+        *
+    FROM
+        lookup_table_partitions
+
+    UNION ALL
+
+    SELECT
+        *
+    FROM
+        statuses_partitions
 )
 
 SELECT *
 FROM candidates
 WHERE
     CASE
-        WHEN @shouldPartitionEventsTables::BOOLEAN THEN TRUE
-        ELSE parent_table NOT IN ('v1_events_olap', 'v1_event_to_run_olap', 'v1_cel_evaluation_failures_olap', 'v1_incoming_webhook_validation_failures_olap')
+        WHEN @shouldManageOptionalTablePartitions::BOOLEAN THEN TRUE
+        ELSE parent_table NOT IN (
+            'v1_events_olap',
+            'v1_event_to_run_olap',
+            'v1_event_lookup_table_olap',
+            'v1_cel_evaluation_failures_olap',
+            'v1_incoming_webhook_validation_failures_olap',
+            'v1_task_events_olap',
+            'v1_dag_to_task_olap',
+            'v1_lookup_table_olap',
+            'v1_statuses_olap'
+        )
     END
     AND CASE
         WHEN @shouldPartitionOtelTables::BOOLEAN THEN TRUE
@@ -171,7 +241,9 @@ INSERT INTO v1_task_events_olap (
     additional__event_data,
     additional__event_message,
     external_id,
-    durable_invocation_count
+    durable_invocation_count,
+    is_dag_orchestrator,
+    payload_reference_id
 ) VALUES (
     $1,
     $2,
@@ -187,7 +259,9 @@ INSERT INTO v1_task_events_olap (
     $12,
     $13,
     $14,
-    $15
+    $15,
+    $16,
+    $17
 );
 
 -- name: ReadTaskByExternalID :one
@@ -211,7 +285,9 @@ FROM
 JOIN
     lookup_task lt ON lt.tenant_id = t.tenant_id AND lt.task_id = t.id AND lt.inserted_at = t.inserted_at
 JOIN
-    v1_task_events_olap e ON (e.tenant_id, e.task_id, e.readable_status, e.retry_count) = (t.tenant_id, t.id, t.readable_status, t.latest_retry_count)
+    v1_task_events_olap e ON (e.tenant_id, e.task_id, e.task_inserted_at, e.readable_status, e.retry_count) = (t.tenant_id, t.id, t.inserted_at, t.readable_status, t.latest_retry_count)
+WHERE
+    e.task_inserted_at >= (SELECT MIN(inserted_at) FROM lookup_task)
 ;
 
 -- name: ListTasksByExternalIds :many
@@ -226,19 +302,30 @@ WHERE
     AND tenant_id = @tenantId::uuid;
 
 -- name: ListTasksByDAGIds :many
+WITH lookups AS MATERIALIZED (
+    SELECT
+        external_id,
+        dag_id,
+        inserted_at
+    FROM
+        v1_lookup_table_olap
+    WHERE
+        external_id = ANY(@dagIds::uuid[])
+        AND tenant_id = @tenantId::uuid
+)
 SELECT
     DISTINCT ON (t.external_id)
     dt.*,
     lt.external_id AS dag_external_id
 FROM
-    v1_lookup_table_olap lt
+    lookups lt
 JOIN
     v1_dag_to_task_olap dt ON (lt.dag_id, lt.inserted_at)= (dt.dag_id, dt.dag_inserted_at)
 JOIN
     v1_tasks_olap t ON (t.id, t.inserted_at) = (dt.task_id, dt.task_inserted_at)
 WHERE
-    lt.external_id = ANY(@dagIds::uuid[])
-    AND lt.tenant_id = @tenantId::uuid
+    dt.dag_inserted_at >= (SELECT MIN(inserted_at) FROM lookups)
+    AND t.inserted_at >= (SELECT MIN(inserted_at) FROM lookups)
 ORDER BY
     t.external_id, t.inserted_at DESC;
 
@@ -312,60 +399,74 @@ LIMIT @eventLimit::bigint OFFSET @eventOffset::bigint;
 
 -- name: ListTaskEventsForWorkflowRun :many
 WITH tasks AS (
-    SELECT dt.task_id, dt.task_inserted_at
+    SELECT dt.task_id, dt.task_inserted_at, dt.dag_id, dt.dag_inserted_at
     FROM v1_lookup_table_olap lt
     JOIN v1_dag_to_task_olap dt ON lt.dag_id = dt.dag_id AND lt.inserted_at = dt.dag_inserted_at
     WHERE
         lt.external_id = @workflowRunId::uuid
         AND lt.tenant_id = @tenantId::uuid
+        AND (
+            -- the orchestrator's self-mapping row is hidden by default once real child tasks
+            -- exist, since orchestration is abstracted away from the user
+            COALESCE(sqlc.narg('includeOrchestratorEvents')::boolean, FALSE)
+            OR dt.task_id != dt.dag_id
+            OR NOT EXISTS (
+                SELECT 1
+                FROM v1_dag_to_task_olap other
+                WHERE other.dag_id = dt.dag_id
+                    AND other.dag_inserted_at = dt.dag_inserted_at
+                    AND other.task_id != other.dag_id
+            )
+        )
 ), aggregated_events AS (
-  SELECT
-    tenant_id,
-    task_id,
-    task_inserted_at,
-    retry_count,
-    event_type,
-    durable_invocation_count,
-    MIN(event_timestamp)::timestamptz AS time_first_seen,
-    MAX(event_timestamp)::timestamptz AS time_last_seen,
-    COUNT(*) AS count,
-    MIN(id) AS first_id
-  FROM v1_task_events_olap
-  WHERE
-    tenant_id = @tenantId::uuid
-    AND (task_id, task_inserted_at) IN (SELECT task_id, task_inserted_at FROM tasks)
-  GROUP BY tenant_id, task_id, task_inserted_at, retry_count, event_type, durable_invocation_count
+    SELECT
+        e.tenant_id,
+        e.task_id,
+        e.task_inserted_at,
+        t.dag_id,
+        t.dag_inserted_at,
+        e.retry_count,
+        e.event_type,
+        e.durable_invocation_count,
+        MIN(e.event_timestamp)::timestamptz AS time_first_seen,
+        MAX(e.event_timestamp)::timestamptz AS time_last_seen,
+        COUNT(*) AS count,
+        MIN(e.id) AS first_id
+    FROM v1_task_events_olap e
+    JOIN tasks t ON t.task_id = e.task_id AND t.task_inserted_at = e.task_inserted_at
+    WHERE
+        e.tenant_id = @tenantId::uuid
+        AND e.task_inserted_at >= (SELECT MIN(task_inserted_at) FROM tasks)
+    GROUP BY e.tenant_id, e.task_id, e.task_inserted_at, t.dag_id, t.dag_inserted_at, e.retry_count, e.event_type, e.durable_invocation_count
 )
 SELECT
-  a.tenant_id,
-  a.task_id,
-  a.task_inserted_at,
-  a.retry_count,
-  a.event_type,
-  a.durable_invocation_count,
-  a.time_first_seen,
-  a.time_last_seen,
-  a.count,
-  t.id,
-  t.event_timestamp,
-  t.readable_status,
-  t.error_message,
-  t.output,
-  t.external_id AS event_external_id,
-  t.worker_id,
-  t.additional__event_data,
-  t.additional__event_message,
-  tsk.display_name,
-  tsk.external_id AS task_external_id
+    a.tenant_id,
+    a.task_id,
+    a.task_inserted_at,
+    a.retry_count,
+    a.event_type,
+    a.durable_invocation_count,
+    a.time_first_seen,
+    a.time_last_seen,
+    a.count,
+    e.id,
+    e.event_timestamp,
+    e.readable_status,
+    e.error_message,
+    e.output,
+    e.external_id AS event_external_id,
+    e.payload_reference_id,
+    e.worker_id,
+    e.additional__event_data,
+    e.additional__event_message,
+    COALESCE(t.display_name, d.display_name) AS display_name,
+    COALESCE(t.external_id, d.external_id) AS task_external_id
 FROM aggregated_events a
-JOIN v1_task_events_olap t
-  ON t.tenant_id = a.tenant_id
-  AND t.task_id = a.task_id
-  AND t.task_inserted_at = a.task_inserted_at
-  AND t.id = a.first_id
-JOIN v1_tasks_olap tsk
-    ON (tsk.tenant_id, tsk.id, tsk.inserted_at) = (t.tenant_id, t.task_id, t.task_inserted_at)
-ORDER BY a.time_first_seen DESC, t.event_timestamp DESC;
+JOIN v1_task_events_olap e ON (e.task_id, e.task_inserted_at, e.tenant_id, e.id) = (a.task_id, a.task_inserted_at, a.tenant_id, a.first_id)
+LEFT JOIN v1_tasks_olap t ON (t.inserted_at, t.id, t.tenant_id) = (e.task_inserted_at, e.task_id, e.tenant_id)
+LEFT JOIN v1_dags_olap d ON (d.inserted_at, d.id, d.tenant_id) = (a.dag_inserted_at, a.dag_id, a.tenant_id)
+ORDER BY a.time_first_seen DESC, e.event_timestamp DESC
+LIMIT @eventLimit::bigint;
 
 -- name: PopulateSingleTaskRunData :one
 WITH selected_retry_count AS (
@@ -416,7 +517,8 @@ WITH selected_retry_count AS (
     SELECT
         external_id,
         output,
-        inserted_at
+        inserted_at,
+        payload_reference_id
     FROM
         relevant_events
     WHERE
@@ -466,6 +568,7 @@ SELECT
     q.queued_at::timestamptz as queued_at,
     o.external_id AS output_event_external_id,
     o.inserted_at AS output_event_inserted_at,
+    o.payload_reference_id AS output_event_payload_reference_id,
     o.output as output,
     e.error_message as error_message,
     sc.spawned_children,
@@ -520,7 +623,8 @@ WITH input AS (
         t.latest_retry_count,
         t.dag_id,
         t.is_durable,
-        t.idempotency_key
+        t.idempotency_key,
+        t.payload_reference_id
     FROM
         v1_tasks_olap t
     JOIN
@@ -534,6 +638,8 @@ WITH input AS (
         v1_task_events_olap e
     JOIN
         tasks t ON t.id = e.task_id AND t.tenant_id = e.tenant_id AND t.inserted_at = e.task_inserted_at
+    WHERE
+        e.task_inserted_at >= (SELECT MIN(inserted_at) FROM input)
 ), max_retry_counts AS (
     SELECT
         e.tenant_id,
@@ -611,7 +717,8 @@ WITH input AS (
         task_id,
         output,
         external_id AS output_event_external_id,
-        inserted_at AS output_event_inserted_at
+        inserted_at AS output_event_inserted_at,
+        payload_reference_id AS output_event_payload_reference_id
     FROM
         relevant_events
     WHERE
@@ -655,8 +762,10 @@ SELECT
     END::JSONB as output,
     o.output_event_external_id AS output_event_external_id,
     o.output_event_inserted_at AS output_event_inserted_at,
+    o.output_event_payload_reference_id AS output_event_payload_reference_id,
     COALESCE(t.is_durable, FALSE) AS is_durable,
-    t.idempotency_key
+    t.idempotency_key,
+    t.payload_reference_id
 FROM
     tasks t
 LEFT JOIN
@@ -1025,11 +1134,14 @@ WITH inputs AS (
         UNNEST(@dagInsertedAts::TIMESTAMPTZ[]) AS dag_inserted_at
 ), locked_dags AS (
     SELECT *
-    FROM v1_dags_olap
-    WHERE (inserted_at, id, tenant_id) IN (
-        SELECT dag_inserted_at, dag_id, tenant_id
-        FROM inputs
-    )
+    FROM v1_dags_olap d
+    WHERE
+        (d.inserted_at, d.id, d.tenant_id) IN (
+            SELECT dag_inserted_at, dag_id, tenant_id
+            FROM inputs
+        )
+    -- operator dags are updated by the separate UpdateDAGStatusesFromOrchestratorEvents
+    AND NOT d.is_dag_operator
     ORDER BY inserted_at, id
     FOR UPDATE
 ), dag_task_counts AS (
@@ -1052,6 +1164,9 @@ WITH inputs AS (
         v1_dag_to_task_olap dt ON (d.id, d.inserted_at) = (dt.dag_id, dt.dag_inserted_at)
     JOIN
         v1_tasks_olap t ON (dt.task_id, dt.task_inserted_at) = (t.id, t.inserted_at)
+    WHERE
+        dt.dag_inserted_at >= @minDagInsertedAt::TIMESTAMPTZ
+        AND t.inserted_at >= @minDagInsertedAt::TIMESTAMPTZ
     GROUP BY
         d.id, d.inserted_at, d.readable_status, d.tenant_id, d.total_tasks
 ), dag_new_statuses AS (
@@ -1062,9 +1177,6 @@ WITH inputs AS (
         CASE
             -- If we only have queued events, we should keep the status as is
             WHEN dtc.queued_count = dtc.task_count THEN dtc.readable_status
-            -- Operator-managed DAGs can fail terminally before all of their tasks are created,
-            -- so a non-converged task count must not downgrade a terminal status
-            WHEN dtc.task_count != dtc.total_tasks AND dtc.readable_status IN ('FAILED', 'CANCELLED') THEN dtc.readable_status
             -- If the task count is not equal to the total tasks, we should set the status to running
             WHEN dtc.task_count != dtc.total_tasks THEN 'RUNNING'
             -- If we have any running or queued tasks, we should set the status to running
@@ -1163,6 +1275,8 @@ WITH tenants AS (
             FROM
                 distinct_dags dd
         )
+        -- see UpdateDAGStatusesFromMQ
+        AND NOT d.is_dag_operator
     ORDER BY
         d.inserted_at, d.id
     FOR UPDATE
@@ -1182,7 +1296,8 @@ WITH tenants AS (
         v1_tasks_olap t ON
             (dt.task_id, dt.task_inserted_at) = (t.id, t.inserted_at)
     WHERE
-        t.inserted_at >= @minInsertedAt::TIMESTAMPTZ
+        dt.dag_inserted_at >= @minInsertedAt::TIMESTAMPTZ
+        AND t.inserted_at >= @minInsertedAt::TIMESTAMPTZ
     -- Note that the ORDER BY seems to help the query planner by pruning partitions earlier. We
     -- have previously seen Postgres use an index-only scan on partitions older than the minInsertedAt,
     -- each of which can take a long time to scan. This can be very pathological since we partition on
@@ -1217,9 +1332,6 @@ WITH tenants AS (
         CASE
             -- If we only have queued events, we should keep the status as is
             WHEN dtc.queued_count = dtc.task_count THEN dtc.readable_status
-            -- Operator-managed DAGs can fail terminally before all of their tasks are created,
-            -- so a non-converged task count must not downgrade a terminal status
-            WHEN dtc.task_count != dtc.total_tasks AND dtc.readable_status IN ('FAILED', 'CANCELLED') THEN dtc.readable_status
             -- If the task count is not equal to the total tasks, we should set the status to running
             WHEN dtc.task_count != dtc.total_tasks THEN 'RUNNING'
             -- If we have any running or queued tasks, we should set the status to running
@@ -1391,7 +1503,8 @@ WITH input AS (
         d.additional_metadata,
         d.workflow_version_id,
         d.parent_task_external_id,
-        d.idempotency_key
+        d.idempotency_key,
+        d.payload_reference_id
     FROM input i
     JOIN v1_runs_olap r ON (i.id, i.inserted_at) = (r.id, r.inserted_at)
     JOIN v1_dags_olap d ON (r.id, r.inserted_at) = (d.id, d.inserted_at)
@@ -1401,7 +1514,10 @@ WITH input AS (
     FROM runs r
     JOIN v1_dag_to_task_olap dt ON (r.dag_id, r.inserted_at) = (dt.dag_id, dt.dag_inserted_at)
     JOIN v1_task_events_olap e ON (e.task_id, e.task_inserted_at) = (dt.task_id, dt.task_inserted_at)
-    WHERE e.tenant_id = @tenantId::uuid
+    WHERE
+        e.tenant_id = @tenantId::uuid
+        AND dt.dag_inserted_at >= (SELECT MIN(inserted_at) FROM input)
+        AND e.task_inserted_at >= (SELECT MIN(inserted_at) FROM input)
 ), max_retry_count AS (
     SELECT run_id, MAX(retry_count) AS max_retry_count
     FROM relevant_events
@@ -1428,14 +1544,18 @@ WITH input AS (
         e.run_id, e.retry_count DESC
 ), task_output AS (
     SELECT
+        DISTINCT ON (run_id)
         run_id,
         output,
         external_id,
-        inserted_at
+        inserted_at,
+        payload_reference_id
     FROM
         relevant_events
     WHERE
         event_type = 'FINISHED'
+    ORDER BY
+        run_id, inserted_at DESC
 )
 
 SELECT
@@ -1450,6 +1570,7 @@ SELECT
     END::JSONB AS output,
     o.external_id AS output_event_external_id,
     o.inserted_at AS output_event_inserted_at,
+    o.payload_reference_id AS output_event_payload_reference_id,
     COALESCE(mrc.max_retry_count, 0)::int as retry_count
 FROM runs r
 LEFT JOIN metadata m ON r.run_id = m.run_id
@@ -1555,7 +1676,8 @@ WITH runs AS (
         d.input AS input,
         d.additional_metadata AS additional_metadata,
         d.workflow_version_id AS workflow_version_id,
-        d.parent_task_external_id AS parent_task_external_id
+        d.parent_task_external_id AS parent_task_external_id,
+        d.payload_reference_id AS payload_reference_id
     FROM
         v1_lookup_table_olap lt
     JOIN
@@ -1582,7 +1704,8 @@ WITH runs AS (
         t.input AS input,
         t.additional_metadata AS additional_metadata,
         t.workflow_version_id AS workflow_version_id,
-        NULL::UUID AS parent_task_external_id
+        NULL::UUID AS parent_task_external_id,
+        t.payload_reference_id AS payload_reference_id
     FROM
         v1_lookup_table_olap lt
     JOIN
@@ -1598,7 +1721,10 @@ WITH runs AS (
     FROM runs r
     JOIN v1_dag_to_task_olap dt ON r.dag_id = dt.dag_id AND r.inserted_at = dt.dag_inserted_at
     JOIN v1_task_events_olap e ON (e.task_id, e.task_inserted_at) = (dt.task_id, dt.task_inserted_at)
-    WHERE r.dag_id IS NOT NULL
+    WHERE
+        r.dag_id IS NOT NULL
+        AND dt.dag_inserted_at >= (SELECT MIN(inserted_at) FROM runs)
+        AND e.task_inserted_at >= (SELECT MIN(inserted_at) FROM runs)
 
     UNION ALL
 
@@ -1606,7 +1732,9 @@ WITH runs AS (
         e.*
     FROM runs r
     JOIN v1_task_events_olap e ON e.task_id = r.task_id AND e.task_inserted_at = r.inserted_at
-    WHERE r.task_id IS NOT NULL
+    WHERE
+        r.task_id IS NOT NULL
+        AND e.task_inserted_at >= (SELECT MIN(inserted_at) FROM runs)
 ), max_retry_counts AS (
     SELECT task_id, MAX(retry_count) AS max_retry_count
     FROM relevant_events
@@ -1633,7 +1761,8 @@ WITH runs AS (
 ), output_event_external_id AS (
     SELECT
         external_id,
-        inserted_at
+        inserted_at,
+        payload_reference_id
     FROM
         relevant_events
     WHERE
@@ -1651,7 +1780,8 @@ SELECT
     e.error_message,
     m.task_metadata,
     o.external_id AS output_event_external_id,
-    o.inserted_at AS output_event_inserted_at
+    o.inserted_at AS output_event_inserted_at,
+    o.payload_reference_id AS output_event_payload_reference_id
 FROM runs r
 LEFT JOIN metadata m ON true
 LEFT JOIN error_message e ON true
@@ -1659,7 +1789,7 @@ LEFT JOIN output_event_external_id o ON true
 ORDER BY r.inserted_at DESC;
 
 -- name: GetWorkflowRunIdFromDagIdInsertedAt :one
-SELECT external_id
+SELECT external_id, payload_reference_id
 FROM v1_dags_olap
 WHERE
     id = @dagId::bigint
@@ -1667,7 +1797,7 @@ WHERE
 ;
 
 -- name: FlattenTasksByExternalIds :many
-WITH lookups AS (
+WITH lookups AS MATERIALIZED (
     SELECT
         *
     FROM
@@ -1686,6 +1816,7 @@ WITH lookups AS (
         v1_dag_to_task_olap dt ON l.dag_id = dt.dag_id AND l.inserted_at = dt.dag_inserted_at
     WHERE
         l.dag_id IS NOT NULL
+        AND dt.dag_inserted_at >= (SELECT MIN(inserted_at) FROM lookups WHERE dag_id IS NOT NULL)
 ), unioned_tasks AS (
     SELECT
         l.tenant_id AS tenant_id,
@@ -2007,6 +2138,8 @@ JOIN
 WHERE lt.external_id = ANY(@externalIds::UUID[])
     AND lt.tenant_id = @tenantId::UUID
     AND d.inserted_at >= @minInsertedAt::TIMESTAMPTZ
+    AND dt.dag_inserted_at >= @minInsertedAt::TIMESTAMPTZ
+    AND e.task_inserted_at >= @minInsertedAt::TIMESTAMPTZ
 GROUP BY lt.external_id
 ;
 
@@ -2040,6 +2173,8 @@ WITH input AS (
         task_data td
     JOIN
         v1_task_events_olap e ON (e.tenant_id, e.task_id, e.task_inserted_at, e.retry_count) = (td.tenant_id, td.task_id, td.inserted_at, td.latest_retry_count)
+    WHERE
+        e.task_inserted_at >= (SELECT MIN(inserted_at) FROM input)
 ), task_times AS (
     SELECT
         task_id,
@@ -2051,6 +2186,7 @@ WITH input AS (
     GROUP BY task_id, inserted_at
 )
 SELECT
+    td.task_id::bigint AS task_id,
     tt.started_at::timestamptz AS started_at,
     tt.finished_at::timestamptz AS finished_at
 FROM
@@ -2072,6 +2208,7 @@ WHERE
     AND (task_id, task_inserted_at, retry_count) IN (
         SELECT UNNEST(@taskIds::bigint[]), UNNEST(@taskInsertedAt::timestamptz[]), UNNEST(@retryCounts::int[])
     )
+    AND task_inserted_at >= @minTaskInsertedAt::timestamptz
     AND event_type = 'STARTED'
 GROUP BY task_id, task_inserted_at, retry_count;
 
@@ -2113,9 +2250,7 @@ WITH inputs AS (
         UNNEST(@externalIds::UUID[]) AS external_id,
         UNNEST(@insertedAts::TIMESTAMPTZ[]) AS inserted_at,
         UNNEST(@payloads::JSONB[]) AS payload,
-        UNNEST(@tenantIds::UUID[]) AS tenant_id,
-        UNNEST(CAST(@locations::TEXT[] AS v1_payload_location_olap[])) AS location,
-        UNNEST(@externalLocationKeys::TEXT[]) AS external_location_key
+        UNNEST(@tenantIds::UUID[]) AS tenant_id
 )
 
 INSERT INTO v1_payloads_olap (
@@ -2131,43 +2266,11 @@ SELECT
     i.tenant_id,
     i.external_id,
     i.inserted_at,
-    i.location,
-    CASE
-        WHEN i.location = 'EXTERNAL' THEN i.external_location_key
-        ELSE NULL
-    END,
-    CASE
-        WHEN i.location = 'INLINE' THEN i.payload
-        ELSE NULL
-    END AS inline_content
+    'INLINE',
+    NULL,
+    i.payload
 FROM inputs i
-ON CONFLICT (tenant_id, external_id, inserted_at) DO UPDATE
-SET
-    location = EXCLUDED.location,
-    external_location_key = EXCLUDED.external_location_key,
-    inline_content = EXCLUDED.inline_content,
-    updated_at = NOW()
-;
-
--- name: OffloadPayloads :exec
-WITH inputs AS (
-    SELECT
-        UNNEST(@externalIds::UUID[]) AS external_id,
-        UNNEST(@tenantIds::UUID[]) AS tenant_id,
-        UNNEST(@externalLocationKeys::TEXT[]) AS external_location_key
-)
-
-UPDATE v1_payloads_olap
-SET
-    location = 'EXTERNAL',
-    external_location_key = i.external_location_key,
-    inline_content = NULL,
-    updated_at = NOW()
-FROM inputs i
-WHERE
-    (v1_payloads_olap.tenant_id, v1_payloads_olap.external_id) = (i.tenant_id, i.external_id)
-    AND v1_payloads_olap.location = 'INLINE'
-    AND v1_payloads_olap.external_location_key IS NULL
+ON CONFLICT DO NOTHING
 ;
 
 -- name: ReadPayloadsOLAP :many
@@ -2430,51 +2533,82 @@ WHERE
 RETURNING t.tenant_id, t.id, t.inserted_at, t.external_id, t.readable_status, t.latest_worker_id, t.workflow_id, t.dag_id, t.dag_inserted_at;
 
 -- name: UpdateDAGStatusesFromOrchestratorEvents :many
--- Applies orchestrator task lifecycle events to their operator-managed DAGs. The orchestrator
--- has no v1_tasks_olap row, so its terminal failures must be forced onto the DAG directly:
--- children may never be created, in which case count-based derivation cannot converge. Retry
--- events reset a terminal DAG back to RUNNING; non-reset RUNNING events only move a DAG out of
--- QUEUED. Completion is never applied here — it must come from child task counting.
+-- important: need to dedupe the dags before calling this query to make
+-- sure each dag only gets one candidate update per call
 WITH inputs AS (
     SELECT
         UNNEST(@dagIds::BIGINT[]) AS dag_id,
         UNNEST(@dagInsertedAts::TIMESTAMPTZ[]) AS dag_inserted_at,
         UNNEST(@statuses::v1_readable_status_olap[]) AS new_readable_status,
-        UNNEST(@isResets::BOOLEAN[]) AS is_reset
-), locked_dags AS (
-    SELECT
-        d.id,
-        d.inserted_at,
-        d.tenant_id,
-        i.new_readable_status,
-        i.is_reset
-    FROM v1_dags_olap d
-    JOIN inputs i ON (d.id, d.inserted_at) = (i.dag_id, i.dag_inserted_at)
-    WHERE d.tenant_id = @tenantId::UUID
-    ORDER BY d.inserted_at, d.id
-    FOR UPDATE
-), updated_dags AS (
-    UPDATE v1_dags_olap d
-    SET readable_status = ld.new_readable_status
-    FROM locked_dags ld
-    WHERE
-        (d.inserted_at, d.id, d.tenant_id) = (ld.inserted_at, ld.id, ld.tenant_id)
-        AND d.readable_status != ld.new_readable_status
-        AND (
-            (ld.new_readable_status IN ('FAILED', 'CANCELLED') AND d.readable_status NOT IN ('COMPLETED', 'FAILED', 'CANCELLED'))
-            OR (ld.new_readable_status = 'RUNNING' AND ld.is_reset AND d.readable_status IN ('QUEUED', 'FAILED', 'CANCELLED'))
-            OR (ld.new_readable_status = 'RUNNING' AND NOT ld.is_reset AND d.readable_status = 'QUEUED')
-        )
-    RETURNING d.tenant_id, d.id, d.inserted_at, d.external_id, d.readable_status, d.workflow_id
+        UNNEST(@retryCounts::INTEGER[]) AS retry_count,
+        UNNEST(@externalIds::UUID[]) AS external_id,
+        UNNEST(@displayNames::TEXT[]) AS display_name,
+        UNNEST(@workflowIds::UUID[]) AS workflow_id,
+        UNNEST(@workflowVersionIds::UUID[]) AS workflow_version_id,
+        UNNEST(@additionalMetadatas::JSONB[]) AS additional_metadata
+)
+INSERT INTO v1_dags_olap (
+    tenant_id,
+    id,
+    inserted_at,
+    external_id,
+    display_name,
+    workflow_id,
+    workflow_version_id,
+    input,
+    additional_metadata,
+    total_tasks,
+    readable_status,
+    latest_retry_count,
+    is_dag_operator
 )
 SELECT
-    ud.tenant_id::UUID AS tenant_id,
-    ud.id::BIGINT AS dag_id,
-    ud.inserted_at::TIMESTAMPTZ AS dag_inserted_at,
-    ud.external_id::UUID AS external_id,
-    ud.readable_status::v1_readable_status_olap AS readable_status,
-    ud.workflow_id::UUID AS workflow_id
-FROM updated_dags ud;
+    @tenantId::UUID,
+    i.dag_id,
+    i.dag_inserted_at,
+    i.external_id,
+    i.display_name,
+    i.workflow_id,
+    i.workflow_version_id,
+    '{}'::JSONB,
+    i.additional_metadata,
+    0,
+    i.new_readable_status,
+    i.retry_count,
+    TRUE
+FROM inputs i
+ORDER BY i.dag_inserted_at, i.dag_id
+ON CONFLICT (inserted_at, id) DO UPDATE SET
+    readable_status = EXCLUDED.readable_status,
+    latest_retry_count = EXCLUDED.latest_retry_count
+WHERE
+    v1_dags_olap.tenant_id = @tenantId::UUID
+    AND (
+        -- a newer attempt always applies, so a replay revives a terminal DAG and a straggler
+        -- from the previous attempt can no longer clobber it
+        (
+            EXCLUDED.latest_retry_count > v1_dags_olap.latest_retry_count
+        ) OR
+        -- within an attempt, only move forward through QUEUED -> RUNNING -> terminal
+        (
+            EXCLUDED.latest_retry_count = v1_dags_olap.latest_retry_count
+            AND v1_status_to_priority(EXCLUDED.readable_status) > v1_status_to_priority(v1_dags_olap.readable_status)
+        ) OR
+        -- EVICTED is reversible (a durable restore moves it back to RUNNING) but outranks
+        -- RUNNING by priority, so it needs an explicit escape hatch
+        (
+            EXCLUDED.latest_retry_count = v1_dags_olap.latest_retry_count
+            AND v1_dags_olap.readable_status = 'EVICTED'
+            AND EXCLUDED.readable_status != 'EVICTED'
+        )
+    )
+RETURNING
+    tenant_id::UUID AS tenant_id,
+    id::BIGINT AS dag_id,
+    inserted_at::TIMESTAMPTZ AS dag_inserted_at,
+    external_id::UUID AS external_id,
+    readable_status::v1_readable_status_olap AS readable_status,
+    workflow_id::UUID AS workflow_id;
 
 -- name: CreateDagToTaskOLAPSelfMappings :exec
 -- For operator-managed DAGs, maps the DAG to its orchestrator task's events (the orchestrator
@@ -2488,3 +2622,46 @@ SELECT
     UNNEST(@dagIds::bigint[]),
     UNNEST(@dagInsertedAts::timestamptz[])
 ON CONFLICT DO NOTHING;
+
+-- name: ReconcileOperatorDAGStatusesOnCreate :exec
+-- An operator DAG's OLAP row is written by a 'created-dag' message that can be raced by status events.
+-- This query reconciles DAG OLAP rows that are created *after* status events have already arrived.
+WITH inputs AS (
+    SELECT
+        UNNEST(@dagIds::BIGINT[]) AS dag_id,
+        UNNEST(@dagInsertedAts::TIMESTAMPTZ[]) AS dag_inserted_at
+), latest_event AS (
+    SELECT DISTINCT ON (e.task_id, e.task_inserted_at)
+        e.task_id,
+        e.task_inserted_at,
+        e.readable_status,
+        e.retry_count
+    FROM v1_task_events_olap e
+    -- dag operator task ids are the same as the dag ids
+    JOIN inputs i ON (e.task_id, e.task_inserted_at) = (i.dag_id, i.dag_inserted_at)
+    WHERE e.task_inserted_at >= (SELECT MIN(dag_inserted_at) FROM inputs)
+    ORDER BY
+        e.task_id,
+        e.task_inserted_at,
+        e.retry_count DESC,
+        v1_status_to_priority(e.readable_status) DESC,
+        e.id DESC
+)
+UPDATE v1_dags_olap d
+SET
+    readable_status = le.readable_status,
+    latest_retry_count = le.retry_count
+FROM latest_event le
+WHERE (d.id, d.inserted_at) = (le.task_id, le.task_inserted_at)
+    AND (
+        le.retry_count > d.latest_retry_count
+        OR (
+            le.retry_count = d.latest_retry_count
+            AND v1_status_to_priority(le.readable_status) > v1_status_to_priority(d.readable_status)
+        )
+        OR (
+            le.retry_count = d.latest_retry_count
+            AND d.readable_status = 'EVICTED'
+            AND le.readable_status != 'EVICTED'
+        )
+    );

@@ -1,6 +1,5 @@
-import { Metadata, status as GrpcStatus } from '@grpc/grpc-js';
-import { BulkTriggerIdempotencyCollisionError as BulkTriggerIdempotencyCollisionErrorProto } from '@hatchet/protoc/v1/workflows';
-import { Status as RpcStatus } from '@hatchet/protoc/google/rpc/status';
+import { Code, ConnectError } from '@connectrpc/connect';
+import { BulkTriggerIdempotencyCollisionErrorSchema } from '@hatchet/protoc-es/v1/workflows_pb';
 import { BulkTriggerIdempotencyCollisionError } from '@util/errors/bulk-trigger-idempotency-collision-error';
 import { IdempotencyCollisionError } from '@util/errors/idempotency-collision-error';
 import { AdminClient } from './admin';
@@ -9,33 +8,18 @@ function makeBulkTriggerAlreadyExistsError(
   successfulIds: string[],
   collisions: { existingRunExternalId: string }[]
 ): Error {
-  const collisionProto = BulkTriggerIdempotencyCollisionErrorProto.encode({
-    successfulWorkflowRunExternalIds: successfulIds,
-    collisions: collisions.map((c) => ({
-      existingRunExternalId: c.existingRunExternalId,
-      collidingRunExternalId: '',
-    })),
-  }).finish();
-
-  const statusBin = RpcStatus.encode({
-    code: GrpcStatus.ALREADY_EXISTS,
-    message: 'idempotency key collision',
-    details: [
-      {
-        typeUrl: 'type.googleapis.com/v1.BulkTriggerIdempotencyCollisionError',
-        value: collisionProto,
+  return new ConnectError('idempotency key collision', Code.AlreadyExists, undefined, [
+    {
+      desc: BulkTriggerIdempotencyCollisionErrorSchema,
+      value: {
+        successfulWorkflowRunExternalIds: successfulIds,
+        collisions: collisions.map((c) => ({
+          existingRunExternalId: c.existingRunExternalId,
+          collidingRunExternalId: '',
+        })),
       },
-    ],
-  }).finish();
-
-  const metadata = new Metadata();
-  metadata.add('grpc-status-details-bin', Buffer.from(statusBin));
-
-  const err = Object.assign(new Error('6 ALREADY_EXISTS: idempotency key collision'), {
-    code: GrpcStatus.ALREADY_EXISTS,
-    metadata,
-  });
-  return err;
+    },
+  ]);
 }
 
 function createMockAdmin(namespace?: string): AdminClient {
@@ -107,8 +91,7 @@ describe('AdminClient workflow name normalization', () => {
           expect.objectContaining({ name: 'workflowone' }),
           expect.objectContaining({ name: 'workflowtwo' }),
         ]),
-      }),
-      expect.anything()
+      })
     );
   });
 });

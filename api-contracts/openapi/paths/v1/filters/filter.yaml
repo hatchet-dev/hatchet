@@ -3,6 +3,7 @@ V1FilterGetDeleteUpdate:
     x-resources: ["tenant", "v1-filter"]
     description: Get a filter by its id
     operationId: v1-filter:get
+    x-payloads: true
     parameters:
       - description: The tenant id
         in: path
@@ -48,6 +49,7 @@ V1FilterGetDeleteUpdate:
     x-resources: ["tenant", "v1-filter"]
     description: Delete a filter
     operationId: v1-filter:delete
+    x-payloads: true
     parameters:
       - description: The tenant id
         in: path
@@ -99,6 +101,7 @@ V1FilterGetDeleteUpdate:
     x-resources: ["tenant", "v1-filter"]
     description: Update a filter
     operationId: v1-filter:update
+    x-payloads: true
     parameters:
       - description: The tenant id
         in: path
@@ -159,6 +162,7 @@ V1FilterListCreate:
     x-resources: ["tenant"]
     description: Lists all filters for a tenant.
     operationId: v1-filter:list
+    x-payloads: true
     parameters:
       - description: The tenant id
         in: path
@@ -230,6 +234,7 @@ V1FilterListCreate:
     x-resources: ["tenant"]
     description: Create a new filter
     operationId: v1-filter:create
+    x-payloads: true
     parameters:
       - description: The tenant id
         in: path

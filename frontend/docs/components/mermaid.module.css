@@ -1,0 +1,22 @@
+/* Frame chrome for rendered mermaid diagrams, matching the Flow animation
+   frame idiom (components/flow/flow.module.css). Tokens resolve against the
+   `.flow-scope` class carried by the same wrapper element. */
+
+@layer flow-base {
+  .frame {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    padding: calc(var(--rlh) * 0.75);
+    border: 1px solid var(--fg-border);
+    margin: 1.5rem 0;
+    background: transparent;
+    overflow-x: auto;
+  }
+
+  .frame svg {
+    display: block;
+    max-width: 100%;
+    height: auto;
+  }
+}

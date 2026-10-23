@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/golang-lru/v2/expirable"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -33,9 +34,15 @@ type upsertAffectedFields struct {
 func createTenantLimitRepositoryForTest(t *testing.T, pool *pgxpool.Pool, config limits.LimitConfigFile) *tenantLimitRepository {
 	t.Helper()
 
+	repo := newTestTenantLimitRepository(pool, config)
+	t.Cleanup(repo.c.Stop)
+
+	return repo
+}
+
+func newTestTenantLimitRepository(pool *pgxpool.Pool, config limits.LimitConfigFile) *tenantLimitRepository {
 	logger := zerolog.Nop()
 	c := cache.New(time.Minute)
-	t.Cleanup(c.Stop)
 
 	return &tenantLimitRepository{
 		sharedRepository: &sharedRepository{
@@ -65,6 +72,7 @@ func defaultLimitTestConfig() limits.LimitConfigFile {
 		DefaultWorkerSlotAlarmLimit:      80,
 		DefaultIncomingWebhookLimit:      5,
 		DefaultIncomingWebhookAlarmLimit: 4,
+		DefaultTenantRetentionPeriod:     "720h",
 	}
 }
 
@@ -191,4 +199,86 @@ func TestCanCreate_MissingIncomingWebhook_ReReadsAndEnforcesDefault(t *testing.T
 	assert.Equal(t, cfg.DefaultIncomingWebhookLimit, webhook.LimitValue)
 	assert.True(t, webhook.AlarmValue.Valid)
 	assert.Equal(t, cfg.DefaultIncomingWebhookAlarmLimit, webhook.AlarmValue.Int32)
+}
+
+func setStreamRetentionHours(t *testing.T, pool *pgxpool.Pool, tenantID uuid.UUID, hours int32) {
+	t.Helper()
+
+	err := newTestTenantLimitRepository(pool, defaultLimitTestConfig()).UpdateLimits(context.Background(), tenantID, []Limit{
+		{Resource: sqlcv1.LimitResourceSTREAMRETENTION, Limit: hours},
+	})
+	require.NoError(t, err)
+}
+
+// Topic creation isn't metered, so the limit must count live topics, including
+// the one EnsureTopic just inserted, and free capacity when topics are deleted.
+func TestEnsureTopic_EnforcesTopicLimitOnLiveCount(t *testing.T) {
+	pool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	config := defaultLimitTestConfig()
+	config.DefaultStreamTopicLimit = 2
+	config.DefaultStreamTopicAlarmLimit = 1
+
+	limitRepo := createTenantLimitRepositoryForTest(t, pool, config)
+	streams := createStreamsRepository(t, pool)
+	streams.m = limitRepo
+	streams.streamTopicSeenCache = expirable.NewLRU(100, func(streamTopicKey, struct{}) {}, time.Hour)
+
+	tenantID := createLimitTestTenant(t, pool)
+
+	require.NoError(t, streams.EnsureTopic(ctx, tenantID, "", "a"))
+	require.NoError(t, streams.EnsureTopic(ctx, tenantID, "", "b"))
+	require.ErrorIs(t, streams.EnsureTopic(ctx, tenantID, "", "c"), ErrResourceExhausted)
+
+	count, err := streams.queries.CountStreamTopics(ctx, pool, tenantID)
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), count, "the rejected topic must be rolled back")
+
+	// retention deleting a topic frees its slot
+	require.NoError(t, streams.queries.DeleteStreamTopic(ctx, pool, sqlcv1.DeleteStreamTopicParams{Tenantid: tenantID, Namespace: "", Topic: "a"}))
+	require.NoError(t, streams.EnsureTopic(ctx, tenantID, "", "c"))
+}
+
+// A tenant's stream retention defaults to the tenant data retention period and
+// is stored as its STREAM_RETENTION limit, so the database holds the value.
+func TestStreamRetention_DefaultsToTenantRetentionAndIsStored(t *testing.T) {
+	pool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	config := defaultLimitTestConfig()
+	config.DefaultTenantRetentionPeriod = "48h"
+	repo := createTenantLimitRepositoryForTest(t, pool, config)
+	tenantID := createLimitTestTenant(t, pool)
+
+	retention, err := repo.StreamRetention(ctx, tenantID)
+	require.NoError(t, err)
+	assert.Equal(t, 48*time.Hour, retention)
+
+	stored, err := repo.GetLimits(ctx, tenantID)
+	require.NoError(t, err)
+
+	var retentionLimit *sqlcv1.TenantResourceLimit
+	for _, l := range stored {
+		if l.Resource == sqlcv1.LimitResourceSTREAMRETENTION {
+			retentionLimit = l
+		}
+	}
+
+	require.NotNil(t, retentionLimit)
+	assert.Equal(t, int32(48), retentionLimit.LimitValue)
+}
+
+func TestMeter_ZeroChargePassesAtCap(t *testing.T) {
+	repo := createTenantLimitRepositoryForTest(t, nil, defaultLimitTestConfig())
+	tenantID := uuid.New()
+	repo.c.Set(meterKey{tenantId: tenantID, resource: sqlcv1.LimitResourceTASKRUN}.cacheKey(), false)
+
+	zero, _ := repo.Meter(context.Background(), nil, sqlcv1.LimitResourceTASKRUN, tenantID, 0)
+	require.NoError(t, zero())
+
+	one, _ := repo.Meter(context.Background(), nil, sqlcv1.LimitResourceTASKRUN, tenantID, 1)
+	require.ErrorIs(t, one(), ErrResourceExhausted)
 }

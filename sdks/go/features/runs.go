@@ -43,6 +43,7 @@ func (r *RunsClient) Get(ctx context.Context, runId string) (*rest.V1WorkflowRun
 	resp, err := r.api.V1WorkflowRunGetWithResponse(
 		ctx,
 		uuid.MustParse(runId),
+		nil,
 	)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get workflow run")

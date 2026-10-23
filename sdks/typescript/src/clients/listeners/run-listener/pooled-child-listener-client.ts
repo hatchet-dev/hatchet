@@ -7,7 +7,8 @@ import {
 import { isAbortError } from 'abort-controller-x';
 import { getErrorMessage } from '@util/errors/hatchet-error';
 import sleep from '@hatchet/util/sleep';
-import { createAbortError, bindAbortSignalHandler } from '@hatchet/util/abort-error';
+import { createAbortError } from '@hatchet/util/abort-error';
+import { bindAbortSignalHandler } from '@hatchet/util/abort-signal';
 import { RunListenerClient } from './child-listener-client';
 
 export class Streamable {

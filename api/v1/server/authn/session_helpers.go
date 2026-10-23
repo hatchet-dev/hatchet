@@ -4,6 +4,7 @@ import (
 	"crypto/subtle"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/sessions"
@@ -24,6 +25,8 @@ func NewSessionHelpers(ss *cookie.UserSessionStore) *SessionHelpers {
 	}
 }
 
+const sessionEmailVerifiedKey = "email_verified"
+
 func (s *SessionHelpers) SaveAuthenticated(c echo.Context, user *sqlcv1.User) error {
 	session, err := s.ss.Get(c.Request(), s.ss.GetName())
 
@@ -31,10 +34,28 @@ func (s *SessionHelpers) SaveAuthenticated(c echo.Context, user *sqlcv1.User) er
 		return err
 	}
 
+	// email_verified must be saved with user_id: a session without it follows the user row.
 	session.Values["authenticated"] = true
 	session.Values["user_id"] = user.ID.String()
+	session.Values[sessionEmailVerifiedKey] = strconv.FormatBool(user.EmailVerified)
 
 	return session.Save(c.Request(), c.Response())
+}
+
+func sessionKeepsUserUnverified(session *sessions.Session) bool {
+	value, ok := session.Values[sessionEmailVerifiedKey]
+	if !ok || value == nil {
+		return false
+	}
+
+	switch verified := value.(type) {
+	case string:
+		return verified != "true"
+	case bool:
+		return !verified
+	default:
+		return true
+	}
 }
 
 func (s *SessionHelpers) SaveUnauthenticated(c echo.Context) error {
@@ -56,6 +77,25 @@ func (s *SessionHelpers) SaveUnauthenticated(c echo.Context) error {
 	session.Options.MaxAge = -1
 
 	return session.Save(c.Request(), c.Response())
+}
+
+// CurrentSessionID returns the ID of the persisted cookie session backing this request, or
+// nil when the request is not backed by a stored session (e.g. bearer-token auth, or a cookie
+// whose session row no longer exists).
+func (s *SessionHelpers) CurrentSessionID(c echo.Context) *uuid.UUID {
+	session, err := s.ss.Get(c.Request(), s.ss.GetName())
+
+	if err != nil || session == nil || session.IsNew || session.ID == "" {
+		return nil
+	}
+
+	id, err := uuid.Parse(session.ID)
+
+	if err != nil {
+		return nil
+	}
+
+	return &id
 }
 
 func (s *SessionHelpers) SaveKV(

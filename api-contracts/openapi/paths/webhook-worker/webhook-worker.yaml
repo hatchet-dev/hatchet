@@ -3,6 +3,7 @@ webhookworkers:
     description: Lists all webhooks
     summary: List webhooks
     operationId: webhook:list
+    x-payloads: false
     x-resources: ["tenant"]
     parameters:
       - description: The tenant id
@@ -43,6 +44,7 @@ webhookworkers:
     description: Creates a webhook
     summary: Create a webhook
     operationId: webhook:create
+    x-payloads: false
     x-resources: ["tenant"]
     parameters:
       - description: The tenant id
@@ -89,6 +91,7 @@ webhookworker:
     description: Deletes a webhook
     summary: Delete a webhook
     operationId: webhook:delete
+    x-payloads: false
     x-resources: ["tenant", "webhook"]
     parameters:
       - description: The webhook id
@@ -127,6 +130,7 @@ webhookworkerRequests:
     description: Lists all requests for a webhook
     summary: List webhook requests
     operationId: webhook-requests:list
+    x-payloads: false
     x-resources: ["tenant", "webhook"]
     parameters:
       - description: The webhook id

@@ -26,7 +26,7 @@ export const DEFAULT_DURABLE_EVICTION_CONFIG: Required<DurableEvictionConfig> = 
 
 export class DurableEvictionManager {
   private _durableSlots: number;
-  private _cancelLocal: (key: ActionKey) => void;
+  private _cancelLocal: (key: ActionKey, invocationCount: number) => void;
   private _requestEvictionWithAck: (key: ActionKey, rec: DurableRunRecord) => Promise<void>;
   private _config: Required<DurableEvictionConfig>;
   private _cache: DurableEvictionCache;
@@ -37,7 +37,7 @@ export class DurableEvictionManager {
 
   constructor(opts: {
     durableSlots: number;
-    cancelLocal: (key: ActionKey) => void;
+    cancelLocal: (key: ActionKey, invocationCount: number) => void;
     requestEvictionWithAck: (key: ActionKey, rec: DurableRunRecord) => Promise<void>;
     config?: DurableEvictionConfig;
     cache?: DurableEvictionCache;
@@ -88,8 +88,14 @@ export class DurableEvictionManager {
     this._cache.markActive(key);
   }
 
-  private _evictRun(key: ActionKey): void {
-    this._cancelLocal(key);
+  // The invocation count pins the teardown to the invocation that was
+  // actually evicted: between requesting eviction and the server's ack, the
+  // server may restore and re-dispatch the next invocation, which registers
+  // under the same action key and must not be torn down.
+  private _evictRun(key: ActionKey, invocationCount: number): void {
+    const current = this._cache.get(key);
+    if (current && current.invocationCount !== invocationCount) return;
+    this._cancelLocal(key, invocationCount);
     this.unregisterRun(key);
   }
 
@@ -129,7 +135,7 @@ export class DurableEvictionManager {
       );
 
       await this._requestEvictionWithAck(key, rec);
-      this._evictRun(key);
+      this._evictRun(key, rec.invocationCount);
     }
   }
 
@@ -143,7 +149,7 @@ export class DurableEvictionManager {
     this._logger.info(
       `DurableEvictionManager: server-initiated eviction for task_run_external_id=${taskRunExternalId} invocation_count=${invocationCount}`
     );
-    this._evictRun(key);
+    this._evictRun(key, invocationCount);
   }
 
   async evictAllWaiting(): Promise<number> {
@@ -172,7 +178,7 @@ export class DurableEvictionManager {
       // Always cancel locally even if the server ACK failed, so the
       // future settles and exitGracefully doesn't hang.
       // This will get resolved by the reassignment of the task.
-      this._evictRun(rec.key);
+      this._evictRun(rec.key, rec.invocationCount);
       evicted++;
     }
 

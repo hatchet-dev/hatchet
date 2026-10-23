@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { usePathname } from "next/navigation";
 import * as Select from "@radix-ui/react-select";
 import { Check, ChevronDown } from "lucide-react";
 import { useLanguage } from "@/context/LanguageContext";
@@ -45,6 +46,19 @@ function resolve(lang: string) {
 export function SidebarLanguageSelect() {
   const { selectedLanguage, setSelectedLanguage } = useLanguage();
   const current = resolve(selectedLanguage);
+  const pathname = usePathname();
+
+  // The reference section is organized per language already, and the
+  // self-hosting section is language-agnostic, so a global SDK selector is
+  // confusing in both. Language tabs on individual pages stay usable.
+  if (
+    pathname === "/reference" ||
+    pathname.startsWith("/reference/") ||
+    pathname === "/self-hosting" ||
+    pathname.startsWith("/self-hosting/")
+  ) {
+    return null;
+  }
 
   return (
     <div className="mb-2 flex flex-col gap-1.5">

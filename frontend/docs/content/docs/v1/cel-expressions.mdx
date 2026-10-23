@@ -1,0 +1,154 @@
+---
+title: "CEL Expressions"
+---
+
+import Keywords from "@/components/Keywords";
+
+# CEL Expressions
+
+<Keywords keywords="cel, expression, common expression language, filter expression, concurrency key, idempotency key expression, rate limit key, event filter syntax, key expression, scope expression" />
+
+[CEL (Common Expression Language)](https://cel.dev/) is a small, non-Turing-complete expression language designed for fast, safe evaluation. Hatchet uses CEL wherever a feature needs to compute a value or make a match decision from run input at trigger time: concurrency keys, rate limit keys, idempotency keys, batch keys, event filters, task conditions, and webhook routing. Expressions are evaluated on the Hatchet engine, not in your worker, so they can run before a task is ever assigned. For a hands-on introduction to the language itself, see [CEL by example](https://celbyexample.com/).
+
+## Where Hatchet accepts CEL
+
+| Feature                                                | The expression produces                                       | Guide                                                                   |
+| ------------------------------------------------------ | ------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Concurrency keys                                       | A string grouping key                                         | [Concurrency](/v1/concurrency)                                          |
+| Dynamic max runs                                       | A positive integer limit per concurrency group                | [Concurrency](/v1/concurrency)                                          |
+| Dynamic rate limits                                    | A string key; units and limit may also be integer expressions | [Rate Limits](/v1/rate-limits#dynamic-rate-limits)                      |
+| Idempotency keys                                       | A string key                                                  | [Idempotency](/v1/idempotency)                                          |
+| Batch keys                                             | A string partitioning key                                     | [Batch Tasks](/v1/batch-tasks#batch-keys)                               |
+| Event filters                                          | A boolean (trigger the run or not)                            | [Events](/v1/events#event-filters)                                      |
+| Parent conditions (`skip_if`, `cancel_if`, `wait_for`) | A boolean                                                     | [DAGs](/v1/directed-acyclic-graphs#branching-with-parent-conditions)    |
+| User event conditions and durable event waits          | A boolean (accept the event or not)                           | [Durable Event Waits](/v1/durable-event-waits#matching-cel-expressions) |
+| Incoming webhook event key and scope                   | A string                                                      | [Webhooks](/v1/webhooks#event-key-expression)                           |
+
+Each context exposes a different set of variables, listed below. Referencing a variable that doesn't exist in the context causes the expression to fail. A failing concurrency, max runs, rate limit, or batch key expression creates the run in a failed state with the evaluation error as the failure reason. A failing idempotency key expression skips the run entirely, and a failing filter expression means the filter does not match, so the run is not triggered.
+
+## Key expressions: concurrency, rate limits, and batch keys
+
+Concurrency key expressions, dynamic max runs expressions, dynamic rate limit expressions, and batch key expressions are all evaluated when a run is triggered, with the same variables available:
+
+| Variable              | Meaning                                                                                        |
+| --------------------- | ---------------------------------------------------------------------------------------------- |
+| `input`               | The input object of the run being triggered                                                    |
+| `additional_metadata` | The [additional metadata](/v1/additional-metadata) set on the run                              |
+| `workflow_run_id`     | The id of the run being triggered, as a string                                                 |
+| `parents`             | The outputs of completed parent tasks, keyed by parent readable id (rate limit and batch keys) |
+
+Concurrency keys, batch keys, and rate limit keys must evaluate to a string. Dynamic rate limit `units` and `limit` expressions must evaluate to an integer, and a dynamic max runs expression must evaluate to a positive integer, which sets the concurrency limit for that run's group.
+
+```text
+'customer:' + input.customer_id
+```
+
+Task-level rate limit and batch key expressions in a DAG can derive keys from a parent task's output, for example `'tenant:' + string(parents["lookup"]["tenant_id"])`. Concurrency key and dynamic max runs expressions cannot reference `parents` and are rejected at registration if they do.
+
+## Idempotency key expressions
+
+Idempotency key expressions are evaluated before the run is created, so no run id is available. An expression that references `workflow_run_id` is rejected when the workflow is registered:
+
+| Variable              | Meaning                                                           |
+| --------------------- | ----------------------------------------------------------------- |
+| `input`               | The input object of the run being triggered                       |
+| `additional_metadata` | The [additional metadata](/v1/additional-metadata) set on the run |
+
+The expression must evaluate to a string. Keys starting with the reserved prefix `hatchet_internal_` are rejected.
+
+```text
+checksum(input.order_id + ':' + input.customer_id)
+```
+
+## Event filter expressions
+
+[Event filter](/v1/events#event-filters) expressions decide whether an incoming event triggers a workflow. They must evaluate to a boolean:
+
+| Variable              | Meaning                                                   |
+| --------------------- | --------------------------------------------------------- |
+| `input`               | The payload of the incoming event                         |
+| `payload`             | The payload stored on the filter when it was created      |
+| `additional_metadata` | The additional metadata sent with the event               |
+| `event_key`           | The key of the event, such as `user:created`, as a string |
+| `event_id`            | The id of the event, as a string                          |
+
+```text
+input.status == 'active' && input.customer_id == payload.customer_id
+```
+
+## Task condition expressions
+
+[Parent conditions](/v1/directed-acyclic-graphs#branching-with-parent-conditions) (`skip_if`, `cancel_if`, and `wait_for` conditions on a parent task) are evaluated against the parent task's output and must evaluate to a boolean:
+
+| Variable | Meaning                              |
+| -------- | ------------------------------------ |
+| `output` | The output object of the parent task |
+
+```text
+output.random_number > 50
+```
+
+User event conditions, used in `wait_for` conditions and [durable event waits](/v1/durable-event-waits#matching-cel-expressions), are evaluated against the payload of the incoming event and must also evaluate to a boolean:
+
+| Variable | Meaning                           |
+| -------- | --------------------------------- |
+| `input`  | The payload of the incoming event |
+
+```text
+input.user_id == 1234
+```
+
+## Incoming webhook expressions
+
+The [event key expression](/v1/webhooks#event-key-expression) and [scope expression](/v1/webhooks#scope-expression-optional) on incoming webhooks are evaluated against the webhook request. Both must evaluate to a string:
+
+| Variable  | Meaning                                                                                |
+| --------- | -------------------------------------------------------------------------------------- |
+| `input`   | The webhook's JSON body, merged with the webhook's static payload if one is configured |
+| `headers` | The request headers, as a map of lowercased header names to values                     |
+
+```text
+'github:' + headers['x-github-event'] + ':' + input.action
+```
+
+## Functions
+
+All contexts support the [CEL standard library](https://github.com/google/cel-spec/blob/master/doc/langdef.md#standard-definitions), including macros like `has()` for checking whether a field exists:
+
+```text
+has(input.custom.value) ? input.custom.value : 'default'
+```
+
+Every context except task condition expressions additionally supports a Hatchet-provided `checksum` function, which returns the SHA-256 hex digest of a string. This is useful for keeping keys short and uniform when the underlying values are long:
+
+```text
+checksum(input.long_document_id)
+```
+
+Those same contexts (key expressions, event filters, and incoming webhook expressions) also support the [strings extension](https://github.com/google/cel-go/tree/master/ext#strings), which adds functions like `lowerAscii`, `replace`, and `split`.
+
+## Debugging expressions
+
+Each SDK exposes a CEL feature client with a `debug` method that evaluates an expression on the Hatchet engine against an input, additional metadata, and a filter payload that you provide, returning the result or the evaluation error. It runs the expression in the event filter context, so it's most useful for testing filter expressions before creating them:
+
+- [Python](/reference/python/feature-clients/cel)
+- [TypeScript](/reference/typescript/feature-clients/cel)
+- [Go](/reference/go/feature-clients/cel)
+- [Ruby](/reference/ruby/feature-clients/cel)
+
+## Finding evaluation failures
+
+Where an evaluation failure lands depends on the context:
+
+| Context                                 | What happens to the run              | Where the error is visible                   |
+| --------------------------------------- | ------------------------------------ | -------------------------------------------- |
+| Concurrency, rate limit, and batch keys | The run is created in a failed state | The run's error message                      |
+| Idempotency keys                        | No run is created                    | Engine internals only (not queryable today)  |
+| Event filters                           | The filter does not match, no run    | Engine internals only (not queryable today)  |
+| Webhook event key and scope expressions | The request is rejected              | The HTTP 400 response returned to the sender |
+
+Key expression failures are the easiest to find because they produce a visible failed run. The evaluation error, including the expression text, becomes the run's error message. You can see it in the run detail page of the dashboard, in the run details returned by the REST API, or from the CLI with `hatchet runs get <run-id> -o json` (the error also appears in the run's failure event, shown by `hatchet runs events <run-id>`).
+
+Webhook expression failures are reported to the caller: Hatchet rejects the request with a 400 status and a description of the problem, such as `Event key expression must evaluate to a string`. Check the delivery logs of the system sending the webhook.
+
+Idempotency key and event filter failures are the hardest to spot. The engine records them internally and writes them to its logs, but no dashboard page, API endpoint, or CLI command exposes them yet. From the outside, the only symptom is that an expected run never appears. If a trigger silently produces no run and you suspect the expression, reproduce the failure with the CEL debug method above using the same event payload or run input.

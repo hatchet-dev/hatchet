@@ -39,6 +39,7 @@ end
 | `task_run_errors`    | Get errors from upstream task runs (used in on_failure tasks)          |
 | `get_task_run_error` | Get the error from a specific upstream task (used in on_failure tasks) |
 | `worker`             | Access the worker context for worker-level operations.                 |
+| `pause_rate_limit`   | Pause a rate limit key until the given time.                           |
 
 ### Attributes
 
@@ -251,6 +252,29 @@ Returns:
 | Type                   | Description                             |
 | ---------------------- | --------------------------------------- |
 | `WorkerContext \| nil` | The worker context, if one is attached. |
+
+#### `pause_rate_limit`
+
+Pause a rate limit key until the given time. Queued runs that consume it stay queued, while runs that are already executing, including this one, are unaffected.
+
+Parameters:
+
+| Name         | Type     | Description                                                                        | Default    |
+| ------------ | -------- | ---------------------------------------------------------------------------------- | ---------- |
+| `key`        | `String` | The rendered rate limit key to pause.                                              | _required_ |
+| `until_time` | `Time`   | The time to pause the key until. An earlier time never shortens an existing pause. | _required_ |
+
+Returns:
+
+| Type   | Description                       |
+| ------ | --------------------------------- |
+| `Time` | The time the key is paused until. |
+
+Raises:
+
+| Type             | Description                                 |
+| ---------------- | ------------------------------------------- |
+| `Hatchet::Error` | If the context has no client to pause with. |
 
 ## DurableContext
 

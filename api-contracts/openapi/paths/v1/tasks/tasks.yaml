@@ -2,6 +2,7 @@ listTasksByDAGIds:
   get:
     description: Lists all tasks that belong a specific list of dags
     operationId: v1-dag:list:tasks
+    x-payloads: true
     parameters:
       - description: The external id of the DAG
         in: query
@@ -60,6 +61,7 @@ getTask:
     x-resources: ["tenant", "task"]
     description: Get a task by id
     operationId: v1-task:get
+    x-payloads: true
     parameters:
       - description: The task id
         in: path
@@ -116,6 +118,7 @@ listTaskEvents:
     x-resources: ["tenant", "task"]
     description: List events for a task
     operationId: v1-task-event:list
+    x-payloads: false
     parameters:
       - description: The task id
         in: path
@@ -180,6 +183,7 @@ getTaskStatusMetrics:
     x-resources: ["tenant"]
     description: Get a summary of task run metrics for a tenant
     operationId: v1-task:list:status-metrics
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -274,6 +278,7 @@ getTaskPointMetrics:
     x-resources: ["tenant"]
     description: Get a minute by minute breakdown of task metrics for a tenant
     operationId: v1-task:get:point-metrics
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -333,6 +338,7 @@ cancelTasks:
     x-resources: ["tenant"]
     description: Cancel tasks
     operationId: v1-task:cancel
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -389,6 +395,7 @@ replayTasks:
     x-resources: ["tenant"]
     description: Replay tasks
     operationId: v1-task:replay
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -446,6 +453,7 @@ restoreTask:
     x-resources: ["tenant", "task"]
     description: Restore an evicted durable task
     operationId: v1-task:restore
+    x-payloads: false
     parameters:
       - description: The task id
         in: path
@@ -490,6 +498,7 @@ listLogs:
     x-resources: ["tenant", "task"]
     description: Lists log lines for a task
     operationId: v1-log-line:list
+    x-payloads: true
     parameters:
       - description: The task id
         in: path

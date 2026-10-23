@@ -8,6 +8,8 @@ import (
 
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-admin/cli/seed"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
+	"github.com/hatchet-dev/hatchet/pkg/config/shared"
+	"github.com/hatchet-dev/hatchet/pkg/logger"
 )
 
 // seedCmd seeds the database with initial data
@@ -57,6 +59,13 @@ func runSeed(cf *loader.ConfigLoader) error {
 	}
 
 	defer dc.Disconnect() // nolint: errcheck
+
+	// the database logger defaults to warn, which would hide what this command
+	// did. seeding is the whole point of the command, so run it against a
+	// console logger at info instead. In-process callers (embedded mode, the
+	// test harness) keep the configured database logger and stay quiet.
+	l := logger.NewStdErr(&shared.LoggerConfigFile{Level: "info", Format: "console"}, "seed")
+	dc.Logger = &l
 
 	return seed.SeedDatabase(dc)
 }

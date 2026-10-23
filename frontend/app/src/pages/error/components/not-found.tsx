@@ -14,12 +14,13 @@ export function NotFound() {
 
   return (
     <ErrorPageLayout
-      icon={<FileQuestion className="h-5 w-5" />}
+      icon={<FileQuestion className="size-4" />}
       title="Page not found"
       description="This page doesn’t exist or may have moved."
       actions={
         <>
           <Button
+            size="sm"
             leftIcon={<Home className="h-4 w-4" />}
             onClick={() =>
               tenant
@@ -37,6 +38,7 @@ export function NotFound() {
             Dashboard
           </Button>
           <Button
+            size="sm"
             leftIcon={<Undo2 className="h-4 w-4" />}
             onClick={() => window.history.back()}
             variant="outline"
@@ -46,12 +48,12 @@ export function NotFound() {
         </>
       }
     >
-      <div className="flex justify-center">
+      <div className="flex">
         <Badge variant="secondary" className="font-mono">
           404
         </Badge>
       </div>
-      <div className="mx-auto w-full max-w-prose rounded-md border bg-muted/20 p-3 text-left font-mono text-xs text-muted-foreground">
+      <div className="w-full rounded-md border bg-muted/20 p-3 text-left font-mono text-xs text-muted-foreground">
         <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground/70">
           Requested path
         </div>

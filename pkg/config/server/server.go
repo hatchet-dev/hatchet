@@ -4,11 +4,11 @@ import (
 	"crypto/tls"
 	"time"
 
+	"connectrpc.com/connect"
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog"
 	"github.com/spf13/viper"
 	"golang.org/x/oauth2"
-	"google.golang.org/grpc"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
@@ -26,6 +26,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
+	"github.com/hatchet-dev/hatchet/pkg/o11yusage"
 	"github.com/hatchet-dev/hatchet/pkg/scheduling"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
@@ -165,6 +166,16 @@ type OLAPStatusUpdateConfigFile struct {
 	TaskBatchSizeLimit int `mapstructure:"taskBatchSizeLimit" json:"taskBatchSizeLimit,omitempty" default:"1000"`
 }
 
+// DefaultTenantEntitlementsConfigFile defines the feature entitlements granted to new tenants.
+type DefaultTenantEntitlementsConfigFile struct {
+	AuditLogs                       bool `mapstructure:"auditLogs" json:"auditLogs,omitempty" default:"false"`
+	PrometheusMetrics               bool `mapstructure:"prometheusMetrics" json:"prometheusMetrics,omitempty" default:"false"`
+	StrictAdditionalMetadataFilters bool `mapstructure:"strictAdditionalMetadataFilters" json:"strictAdditionalMetadataFilters,omitempty" default:"false"`
+	DAGOperator                     bool `mapstructure:"dagOperator" json:"dagOperator,omitempty" default:"false"`
+	DurableStreams                  bool `mapstructure:"durableStreams" json:"durableStreams,omitempty" default:"false"`
+	ServerlessOperator              bool `mapstructure:"serverlessOperator" json:"serverlessOperator,omitempty" default:"false"`
+}
+
 // General server runtime options
 type ConfigFileRuntime struct {
 	// Port is the port that the core server listens on
@@ -217,6 +228,9 @@ type ConfigFileRuntime struct {
 
 	// Default limit values
 	Limits limits.LimitConfigFile `mapstructure:"limits" json:"limits,omitempty"`
+
+	// DefaultTenantEntitlements are the entitlements granted to every tenant created by this server
+	DefaultTenantEntitlements DefaultTenantEntitlementsConfigFile `mapstructure:"defaultTenantEntitlements" json:"defaultTenantEntitlements,omitempty"`
 
 	// QueueLimit is the limit of items to return from a single queue at a time
 	SingleQueueLimit int `mapstructure:"singleQueueLimit" json:"singleQueueLimit,omitempty" default:"100"`
@@ -292,10 +306,12 @@ type ConfigFileRuntime struct {
 	// The loader splits this into AllowedOrigins at startup.
 	AllowedOriginsString string `mapstructure:"allowedOriginsString" json:"allowedOriginsString,omitempty"`
 
-	// OperatorInfraBlockedCIDRs are additional CIDR ranges the HTTP operator blocks when
-	// delivering outbound requests (our own infrastructure: VPC, metadata, internal LBs),
-	// on top of the built-in reserved/private denylist. Populated from
-	// OperatorInfraBlockedCIDRsString at startup; do not set directly via env.
+	// OperatorInfraBlockedCIDRs are additional CIDR ranges that consumers of
+	// pkg/operator/safeclient block when delivering outbound requests (our own
+	// infrastructure: VPC, metadata, internal LBs), on top of the built-in
+	// reserved/private denylist. The engine does not read it today; it is kept so the
+	// serverless operator can consume it. Populated from OperatorInfraBlockedCIDRsString
+	// at startup; do not set directly via env.
 	OperatorInfraBlockedCIDRs []string `mapstructure:"operatorInfraBlockedCIDRs" json:"operatorInfraBlockedCIDRs,omitempty"`
 
 	// OperatorInfraBlockedCIDRsString is the raw space-separated value used for env binding
@@ -306,6 +322,30 @@ type ConfigFileRuntime struct {
 	// DagOperatorDefaultSlots is the worker slot count for the dag operator (i.e. how many DAG runs a single DAG operator worker
 	// orchestrates concurrently)
 	DagOperatorDefaultSlots int `mapstructure:"dagOperatorDefaultSlots" json:"dagOperatorDefaultSlots,omitempty" default:"10000"`
+
+	// GRPCOperatorsEnabled registers the v1.OperatorService gRPC API for operators running outside the engine
+	// process. Off by default; when disabled the service is not registered and callers receive Unimplemented.
+	GRPCOperatorsEnabled bool `mapstructure:"grpcOperatorsEnabled" json:"grpcOperatorsEnabled,omitempty" default:"false"`
+
+	// GRPCOperatorMaxListenStreamsPerOperator caps the Listen streams one operator holds open on this replica
+	// (SERVER_GRPC_OPERATOR_MAX_LISTEN_STREAMS_PER_OPERATOR). Each stream is a live worker, metered like an SDK
+	// worker; the cap bounds what one operator can hold on a replica on top of the tenant's worker limit. A
+	// stream over the cap is refused with ResourceExhausted before its worker is activated. Zero disables the cap.
+	GRPCOperatorMaxListenStreamsPerOperator int `mapstructure:"grpcOperatorMaxListenStreamsPerOperator" json:"grpcOperatorMaxListenStreamsPerOperator,omitempty" default:"100"`
+
+	// GRPCOperatorMaxActionsPerOperator caps the action links held across all workers of one operator
+	// (SERVER_GRPC_OPERATOR_MAX_ACTIONS_PER_OPERATOR). A delta that would newly link actions over the cap is
+	// refused with ResourceExhausted and links nothing. Zero disables the cap.
+	GRPCOperatorMaxActionsPerOperator int64 `mapstructure:"grpcOperatorMaxActionsPerOperator" json:"grpcOperatorMaxActionsPerOperator,omitempty" default:"1000000"`
+
+	// ServerlessOperatorEnabled runs the serverless operator core inside the engine's dispatcher process
+	// (SERVER_SERVERLESS_OPERATOR_ENABLED). Registrations then go straight to the local dispatcher instead
+	// of over the OperatorService API. Off by default. Deliveries go through pkg/operator/safeclient, so
+	// OperatorInfraBlockedCIDRs must be set (or ServerlessOperator.AllowEmptyInfraCIDRs) for it to start.
+	ServerlessOperatorEnabled bool `mapstructure:"serverlessOperatorEnabled" json:"serverlessOperatorEnabled,omitempty" default:"false"`
+
+	// ServerlessOperator holds the knobs of the in-engine serverless operator (SERVER_SERVERLESS_OPERATOR_*).
+	ServerlessOperator ServerlessOperatorConfigFile `mapstructure:"serverlessOperator" json:"serverlessOperator,omitempty"`
 
 	// SchedulerConcurrencyRateLimit is the rate limit for scheduler concurrency strategy execution (per second)
 	SchedulerConcurrencyRateLimit int `mapstructure:"schedulerConcurrencyRateLimit" json:"schedulerConcurrencyRateLimit,omitempty" default:"20"`
@@ -330,11 +370,27 @@ type ConfigFileRuntime struct {
 	// LogIngestionEnabled controls whether the server enables log ingestion for tasks
 	LogIngestionEnabled bool `mapstructure:"logIngestionEnabled" json:"logIngestionEnabled,omitempty" default:"true"`
 
+	// O11yUsageFlushInterval is how often the engine flushes per-tenant ingested
+	// log/span bytes to the optional O11yUsageFlush callback.
+	O11yUsageFlushInterval time.Duration `mapstructure:"o11yUsageFlushInterval" json:"o11yUsageFlushInterval,omitempty" default:"30s"`
+
 	// TaskOperationLimits controls the limits for various task operations
 	TaskOperationLimits TaskOperationLimitsConfigFile `mapstructure:"taskOperationLimits" json:"taskOperationLimits,omitempty"`
 
 	// WorkflowRunBufferSize is the buffer size for workflow run event batching in the dispatcher
 	WorkflowRunBufferSize int `mapstructure:"workflowRunBufferSize" json:"workflowRunBufferSize,omitempty" default:"1000"`
+
+	// DurableEventBufferFlushInterval is how long a durable task event waits in the
+	// ingestion buffer to accumulate a batch before the batch is flushed to the database.
+	DurableEventBufferFlushInterval time.Duration `mapstructure:"durableEventBufferFlushInterval" json:"durableEventBufferFlushInterval,omitempty" default:"5ms"`
+
+	// DurableEventBufferMaxSize caps how many durable task events a single flush
+	// batches together, so a burst of traffic still flushes promptly.
+	DurableEventBufferMaxSize int `mapstructure:"durableEventBufferMaxSize" json:"durableEventBufferMaxSize,omitempty" default:"100"`
+
+	// DurableEventBufferMaxConcurrentFlushes bounds how many durable event ingestion
+	// transactions run concurrently.
+	DurableEventBufferMaxConcurrentFlushes int `mapstructure:"durableEventBufferMaxConcurrentFlushes" json:"durableEventBufferMaxConcurrentFlushes,omitempty" default:"16"`
 
 	// StreamEventBufferTimeout is the timeout duration for the stream event buffer in the dispatcher.
 	// This controls how long the buffer waits for out-of-order events before flushing them.
@@ -619,6 +675,95 @@ type ConfigFileEmail struct {
 	SMTP SMTPEmailConfig `mapstructure:"smtp" json:"smtp,omitempty"`
 }
 
+// ServerlessOperatorConfigFile is the in-engine serverless operator's configuration. The values mirror the
+// hatchet-serverless-operator binary's SERVERLESS_OPERATOR_* environment; the database, encryption, blocked
+// CIDRs and metrics come from the engine config.
+type ServerlessOperatorConfigFile struct {
+	// OperatorName is the v1_operator row name every registration's worker is attached to; the out-of-process
+	// binary uses the same name so both modes share one operator row per tenant.
+	OperatorName string `mapstructure:"operatorName" json:"operatorName,omitempty" default:"serverless"`
+
+	// DefaultSlots and DurableSlots are the slot config of every registration's worker (per tenant
+	// partition).
+	DefaultSlots int32 `mapstructure:"defaultSlots" json:"defaultSlots,omitempty" default:"10000"`
+	DurableSlots int32 `mapstructure:"durableSlots" json:"durableSlots,omitempty" default:"10000"`
+
+	// EndpointPartitionCount (SERVER_SERVERLESS_OPERATOR_ENDPOINT_PARTITION_COUNT, 1 to 64) is the
+	// endpoint_partition_count a tenant's serverless row is created with by the API server, alongside
+	// the tenant's first endpoint. A count above 1 lets several operator processes serve one tenant.
+	// A later change applies only to tenants first seen after it; existing tenants and endpoints
+	// keep their partitions.
+	EndpointPartitionCount int32 `mapstructure:"endpointPartitionCount" json:"endpointPartitionCount,omitempty" default:"1"`
+
+	// LeaseTTL is how long the process row stays live after a heartbeat; HeartbeatInterval refreshes it and
+	// RebalanceInterval is the claim/shed tick.
+	LeaseTTL          time.Duration `mapstructure:"leaseTtl" json:"leaseTtl,omitempty" default:"15s"`
+	HeartbeatInterval time.Duration `mapstructure:"heartbeatInterval" json:"heartbeatInterval,omitempty" default:"5s"`
+	RebalanceInterval time.Duration `mapstructure:"rebalanceInterval" json:"rebalanceInterval,omitempty" default:"5s"`
+
+	// ShedHysteresis is the fraction above fair share a process tolerates before shedding units.
+	ShedHysteresis float64 `mapstructure:"shedHysteresis" json:"shedHysteresis,omitempty" default:"0.2"`
+
+	// DrainTimeout bounds how long in-flight deliveries are awaited when a unit is lost or the engine stops.
+	DrainTimeout time.Duration `mapstructure:"drainTimeout" json:"drainTimeout,omitempty" default:"60s"`
+
+	// RoutingRefreshInterval is the incremental routing cache refresh cadence.
+	RoutingRefreshInterval time.Duration `mapstructure:"routingRefreshInterval" json:"routingRefreshInterval,omitempty" default:"10s"`
+
+	// HealthcheckTimeout bounds one endpoint healthcheck; HealthcheckConcurrency caps them process-wide and
+	// HealthcheckTenantConcurrency per tenant within that limit.
+	HealthcheckTimeout           time.Duration `mapstructure:"healthcheckTimeout" json:"healthcheckTimeout,omitempty" default:"10s"`
+	HealthcheckConcurrency       int           `mapstructure:"healthcheckConcurrency" json:"healthcheckConcurrency,omitempty" default:"256"`
+	HealthcheckTenantConcurrency int           `mapstructure:"healthcheckTenantConcurrency" json:"healthcheckTenantConcurrency,omitempty" default:"32"`
+
+	// HealthcheckApplyTimeout bounds the registration of one changed endpoint catalog.
+	HealthcheckApplyTimeout time.Duration `mapstructure:"healthcheckApplyTimeout" json:"healthcheckApplyTimeout,omitempty" default:"60s"`
+
+	// MaxWorkflowsPerEndpoint and MaxActionsPerEndpoint cap what one healthcheck may advertise.
+	MaxWorkflowsPerEndpoint int `mapstructure:"maxWorkflowsPerEndpoint" json:"maxWorkflowsPerEndpoint,omitempty" default:"200"`
+	MaxActionsPerEndpoint   int `mapstructure:"maxActionsPerEndpoint" json:"maxActionsPerEndpoint,omitempty" default:"500"`
+
+	// MaintenanceConcurrency is how many tenants a maintenance pass refreshes at once.
+	MaintenanceConcurrency int `mapstructure:"maintenanceConcurrency" json:"maintenanceConcurrency,omitempty" default:"8"`
+
+	// LeaseMaxClaimPerTick caps how many lease units one rebalance tick claims.
+	LeaseMaxClaimPerTick int32 `mapstructure:"leaseMaxClaimPerTick" json:"leaseMaxClaimPerTick,omitempty" default:"1024"`
+
+	// WSMaxFrameBytes and WSPingInterval configure the durable websocket relay.
+	WSMaxFrameBytes int64         `mapstructure:"wsMaxFrameBytes" json:"wsMaxFrameBytes,omitempty" default:"4194304"`
+	WSPingInterval  time.Duration `mapstructure:"wsPingInterval" json:"wsPingInterval,omitempty" default:"15s"`
+
+	// AllowEmptyInfraCIDRs lets the operator start without OperatorInfraBlockedCIDRs; only the built-in
+	// reserved/private denylist then applies to deliveries.
+	AllowEmptyInfraCIDRs bool `mapstructure:"allowEmptyInfraCidrs" json:"allowEmptyInfraCidrs,omitempty" default:"false"`
+
+	// InsecureDestinations disables the delivery SSRF policy (plain http, any port, private ranges) for local
+	// development and e2e runs only.
+	InsecureDestinations bool `mapstructure:"insecureDestinations" json:"insecureDestinations,omitempty" default:"false"`
+
+	// Relay resource limits (SERVER_SERVERLESS_OPERATOR_WS_*).
+
+	// WSMaxUpgradeHeaderBytes bounds an endpoint's websocket upgrade response head, which is parsed before
+	// WSMaxFrameBytes applies.
+	WSMaxUpgradeHeaderBytes int64 `mapstructure:"wsMaxUpgradeHeaderBytes" json:"wsMaxUpgradeHeaderBytes,omitempty" default:"65536"`
+
+	// WSMaxQueuedBytes bounds the encoded frames one durable relay retains for a slow endpoint.
+	WSMaxQueuedBytes int64 `mapstructure:"wsMaxQueuedBytes" json:"wsMaxQueuedBytes,omitempty" default:"16777216"`
+
+	// WSMaxStreams caps the engine streams one invocation socket may hold open at once.
+	WSMaxStreams int `mapstructure:"wsMaxStreams" json:"wsMaxStreams,omitempty" default:"16"`
+
+	// WSMaxRunsPerStream caps the workflow runs one SubscribeToWorkflowRuns stream opened over an invocation
+	// socket may await at once.
+	WSMaxRunsPerStream int `mapstructure:"wsMaxRunsPerStream" json:"wsMaxRunsPerStream,omitempty" default:"1024"`
+
+	// HTTPMaxIdleConns, HTTPMaxIdleConnsPerHost and HTTPIdleConnTimeout bound the delivery client's idle
+	// connection pool (SERVER_SERVERLESS_OPERATOR_HTTP_*).
+	HTTPMaxIdleConns        int           `mapstructure:"httpMaxIdleConns" json:"httpMaxIdleConns,omitempty" default:"256"`
+	HTTPMaxIdleConnsPerHost int           `mapstructure:"httpMaxIdleConnsPerHost" json:"httpMaxIdleConnsPerHost,omitempty" default:"4"`
+	HTTPIdleConnTimeout     time.Duration `mapstructure:"httpIdleConnTimeout" json:"httpIdleConnTimeout,omitempty" default:"90s"`
+}
+
 type ConfigFileMonitoring struct {
 	// Enabled controls whether the monitoring service is enabled for this Hatchet instance.
 	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty" default:"true"`
@@ -716,6 +861,10 @@ type ServerConfig struct {
 
 	Analytics analytics.Analytics
 
+	// O11yUsageFlush, when set, receives periodic tenant → log/otel byte maps
+	// from the engine. Nil means the aggregator is not started (OSS / self-host).
+	O11yUsageFlush o11yusage.FlushFunc
+
 	Pylon *PylonConfig
 
 	FePosthog *FePosthogConfig
@@ -723,6 +872,8 @@ type ServerConfig struct {
 	Encryption encryption.EncryptionService
 
 	Runtime ConfigFileRuntime
+
+	PayloadStore PayloadStoreConfig
 
 	Services []string
 
@@ -772,7 +923,7 @@ type ServerConfig struct {
 
 	Operations ConfigFileOperations
 
-	GRPCInterceptors []grpc.UnaryServerInterceptor
+	GRPCInterceptors []connect.UnaryInterceptorFunc
 
 	Version string
 
@@ -789,6 +940,19 @@ type PayloadStoreConfig struct {
 	ExternalCutoverNumConcurrentOffloads int32         `mapstructure:"externalCutoverNumConcurrentOffloads" json:"externalCutoverNumConcurrentOffloads,omitempty" default:"10"`
 	InlineStoreTTLDays                   int32         `mapstructure:"inlineStoreTTLDays" json:"inlineStoreTTLDays,omitempty" default:"2"`
 	EnableWindowSizeOptimization         bool          `mapstructure:"enableWindowSizeOptimization" json:"enableWindowSizeOptimization,omitempty" default:"true"`
+	// Writes the task input to the payload store wrapped in the full step run data, which engines before the
+	// `triggers`, `dag_parent_task_run_ids` and `child_task_desired_worker_labels` columns on v1_task can read.
+	// Every engine from this version on reads both shapes. Turn off only once every engine is on this version
+	// or later, because an older engine cannot read a bare input and turning it back on does not repair rows
+	// already written bare.
+	WrapTaskInputInStepRunData bool `mapstructure:"wrapTaskInputInStepRunData" json:"wrapTaskInputInStepRunData,omitempty" default:"true"`
+	// Lets the tasks and DAGs an event triggers read the event's input payload row, lets a DAG share one row with
+	// its tasks, and stops storing OLAP's own copies of run inputs, event payloads and task outputs. Task inputs
+	// are written unwrapped while it is on, whatever WrapTaskInputInStepRunData says. Turn on only
+	// once every engine is on this version or later: an older engine cannot find the input of a run that
+	// references another row, and an older OLAP controller stores an empty input for a run whose message carries
+	// no bytes.
+	EnablePayloadConsolidation bool `mapstructure:"enablePayloadConsolidation" json:"enablePayloadConsolidation,omitempty" default:"false"`
 }
 
 func (c *ServerConfig) HasService(name string) bool {
@@ -801,7 +965,7 @@ func (c *ServerConfig) HasService(name string) bool {
 	return false
 }
 
-func (c *ServerConfig) AddGRPCUnaryInterceptor(interceptor grpc.UnaryServerInterceptor) {
+func (c *ServerConfig) AddGRPCUnaryInterceptor(interceptor connect.UnaryInterceptorFunc) {
 	c.GRPCInterceptors = append(c.GRPCInterceptors, interceptor)
 }
 
@@ -851,10 +1015,53 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.allowedOriginsString", "SERVER_ALLOWED_ORIGINS")
 	_ = v.BindEnv("runtime.operatorInfraBlockedCIDRsString", "SERVER_OPERATOR_INFRA_BLOCKED_CIDRS")
 	_ = v.BindEnv("runtime.dagOperatorDefaultSlots", "SERVER_DAG_OPERATOR_DEFAULT_SLOTS")
+	_ = v.BindEnv("runtime.grpcOperatorsEnabled", "SERVER_GRPC_OPERATORS_ENABLED")
+	_ = v.BindEnv("runtime.grpcOperatorMaxListenStreamsPerOperator", "SERVER_GRPC_OPERATOR_MAX_LISTEN_STREAMS_PER_OPERATOR")
+	_ = v.BindEnv("runtime.grpcOperatorMaxActionsPerOperator", "SERVER_GRPC_OPERATOR_MAX_ACTIONS_PER_OPERATOR")
+	_ = v.BindEnv("runtime.serverlessOperatorEnabled", "SERVER_SERVERLESS_OPERATOR_ENABLED")
+	_ = v.BindEnv("runtime.serverlessOperator.operatorName", "SERVER_SERVERLESS_OPERATOR_OPERATOR_NAME")
+	_ = v.BindEnv("runtime.serverlessOperator.defaultSlots", "SERVER_SERVERLESS_OPERATOR_DEFAULT_SLOTS")
+	_ = v.BindEnv("runtime.serverlessOperator.durableSlots", "SERVER_SERVERLESS_OPERATOR_DURABLE_SLOTS")
+	_ = v.BindEnv("runtime.serverlessOperator.endpointPartitionCount", "SERVER_SERVERLESS_OPERATOR_ENDPOINT_PARTITION_COUNT")
+	_ = v.BindEnv("runtime.serverlessOperator.leaseTtl", "SERVER_SERVERLESS_OPERATOR_LEASE_TTL")
+	_ = v.BindEnv("runtime.serverlessOperator.heartbeatInterval", "SERVER_SERVERLESS_OPERATOR_HEARTBEAT_INTERVAL")
+	_ = v.BindEnv("runtime.serverlessOperator.rebalanceInterval", "SERVER_SERVERLESS_OPERATOR_REBALANCE_INTERVAL")
+	_ = v.BindEnv("runtime.serverlessOperator.shedHysteresis", "SERVER_SERVERLESS_OPERATOR_SHED_HYSTERESIS")
+	_ = v.BindEnv("runtime.serverlessOperator.drainTimeout", "SERVER_SERVERLESS_OPERATOR_DRAIN_TIMEOUT")
+	_ = v.BindEnv("runtime.serverlessOperator.routingRefreshInterval", "SERVER_SERVERLESS_OPERATOR_ROUTING_REFRESH_INTERVAL")
+	_ = v.BindEnv("runtime.serverlessOperator.healthcheckTimeout", "SERVER_SERVERLESS_OPERATOR_HEALTHCHECK_TIMEOUT")
+	_ = v.BindEnv("runtime.serverlessOperator.healthcheckConcurrency", "SERVER_SERVERLESS_OPERATOR_HEALTHCHECK_CONCURRENCY")
+	_ = v.BindEnv("runtime.serverlessOperator.healthcheckTenantConcurrency", "SERVER_SERVERLESS_OPERATOR_HEALTHCHECK_TENANT_CONCURRENCY")
+	_ = v.BindEnv("runtime.serverlessOperator.healthcheckApplyTimeout", "SERVER_SERVERLESS_OPERATOR_HEALTHCHECK_APPLY_TIMEOUT")
+	_ = v.BindEnv("runtime.serverlessOperator.maxWorkflowsPerEndpoint", "SERVER_SERVERLESS_OPERATOR_MAX_WORKFLOWS_PER_ENDPOINT")
+	_ = v.BindEnv("runtime.serverlessOperator.maxActionsPerEndpoint", "SERVER_SERVERLESS_OPERATOR_MAX_ACTIONS_PER_ENDPOINT")
+	_ = v.BindEnv("runtime.serverlessOperator.maintenanceConcurrency", "SERVER_SERVERLESS_OPERATOR_MAINTENANCE_CONCURRENCY")
+	_ = v.BindEnv("runtime.serverlessOperator.leaseMaxClaimPerTick", "SERVER_SERVERLESS_OPERATOR_LEASE_MAX_CLAIM_PER_TICK")
+	_ = v.BindEnv("runtime.serverlessOperator.wsMaxFrameBytes", "SERVER_SERVERLESS_OPERATOR_WS_MAX_FRAME_BYTES")
+	_ = v.BindEnv("runtime.serverlessOperator.wsPingInterval", "SERVER_SERVERLESS_OPERATOR_WS_PING_INTERVAL")
+	_ = v.BindEnv("runtime.serverlessOperator.allowEmptyInfraCidrs", "SERVER_SERVERLESS_OPERATOR_ALLOW_EMPTY_INFRA_CIDRS")
+	_ = v.BindEnv("runtime.serverlessOperator.insecureDestinations", "SERVER_SERVERLESS_OPERATOR_INSECURE_DESTINATIONS")
+
+	// serverless operator relay resource limits
+	_ = v.BindEnv("runtime.serverlessOperator.wsMaxUpgradeHeaderBytes", "SERVER_SERVERLESS_OPERATOR_WS_MAX_UPGRADE_HEADER_BYTES")
+	_ = v.BindEnv("runtime.serverlessOperator.wsMaxQueuedBytes", "SERVER_SERVERLESS_OPERATOR_WS_MAX_QUEUED_BYTES")
+	_ = v.BindEnv("runtime.serverlessOperator.wsMaxStreams", "SERVER_SERVERLESS_OPERATOR_WS_MAX_STREAMS")
+	_ = v.BindEnv("runtime.serverlessOperator.wsMaxRunsPerStream", "SERVER_SERVERLESS_OPERATOR_WS_MAX_RUNS_PER_STREAM")
+	_ = v.BindEnv("runtime.serverlessOperator.httpMaxIdleConns", "SERVER_SERVERLESS_OPERATOR_HTTP_MAX_IDLE_CONNS")
+	_ = v.BindEnv("runtime.serverlessOperator.httpMaxIdleConnsPerHost", "SERVER_SERVERLESS_OPERATOR_HTTP_MAX_IDLE_CONNS_PER_HOST")
+	_ = v.BindEnv("runtime.serverlessOperator.httpIdleConnTimeout", "SERVER_SERVERLESS_OPERATOR_HTTP_IDLE_CONN_TIMEOUT")
 
 	// security check options
 	_ = v.BindEnv("securityCheck.enabled", "SERVER_SECURITY_CHECK_ENABLED")
 	_ = v.BindEnv("securityCheck.endpoint", "SERVER_SECURITY_CHECK_ENDPOINT")
+
+	// default tenant entitlements
+	_ = v.BindEnv("runtime.defaultTenantEntitlements.auditLogs", "SERVER_DEFAULT_TENANT_ENTITLEMENT_AUDIT_LOGS")
+	_ = v.BindEnv("runtime.defaultTenantEntitlements.prometheusMetrics", "SERVER_DEFAULT_TENANT_ENTITLEMENT_PROMETHEUS_METRICS")
+	_ = v.BindEnv("runtime.defaultTenantEntitlements.strictAdditionalMetadataFilters", "SERVER_DEFAULT_TENANT_ENTITLEMENT_STRICT_ADDITIONAL_METADATA_FILTERS")
+	_ = v.BindEnv("runtime.defaultTenantEntitlements.dagOperator", "SERVER_DEFAULT_TENANT_ENTITLEMENT_DAG_OPERATOR")
+	_ = v.BindEnv("runtime.defaultTenantEntitlements.durableStreams", "SERVER_DEFAULT_TENANT_ENTITLEMENT_DURABLE_STREAMS")
+	_ = v.BindEnv("runtime.defaultTenantEntitlements.serverlessOperator", "SERVER_DEFAULT_TENANT_ENTITLEMENT_SERVERLESS_OPERATOR")
 
 	// limit options
 	_ = v.BindEnv("runtime.limits.defaultTenantRetentionPeriod", "SERVER_LIMITS_DEFAULT_TENANT_RETENTION_PERIOD")
@@ -877,8 +1084,16 @@ func BindAllEnv(v *viper.Viper) {
 
 	_ = v.BindEnv("runtime.limits.defaultIncomingWebhookLimit", "SERVER_LIMITS_DEFAULT_INCOMING_WEBHOOK_LIMIT")
 
+	_ = v.BindEnv("runtime.limits.defaultStreamTopicLimit", "SERVER_LIMITS_DEFAULT_STREAM_TOPIC_LIMIT")
+	_ = v.BindEnv("runtime.limits.defaultStreamTopicAlarmLimit", "SERVER_LIMITS_DEFAULT_STREAM_TOPIC_ALARM_LIMIT")
+
+	_ = v.BindEnv("runtime.limits.defaultStreamMessageLimit", "SERVER_LIMITS_DEFAULT_STREAM_MESSAGE_LIMIT")
+	_ = v.BindEnv("runtime.limits.defaultStreamMessageAlarmLimit", "SERVER_LIMITS_DEFAULT_STREAM_MESSAGE_ALARM_LIMIT")
+	_ = v.BindEnv("runtime.limits.defaultStreamMessageWindow", "SERVER_LIMITS_DEFAULT_STREAM_MESSAGE_WINDOW")
+
 	// log ingestion
 	_ = v.BindEnv("runtime.logIngestionEnabled", "SERVER_LOG_INGESTION_ENABLED")
+	_ = v.BindEnv("runtime.o11yUsageFlushInterval", "SERVER_O11Y_USAGE_FLUSH_INTERVAL")
 
 	// alerting options
 	_ = v.BindEnv("alerting.sentry.enabled", "SERVER_ALERTING_SENTRY_ENABLED")
@@ -1061,6 +1276,9 @@ func BindAllEnv(v *viper.Viper) {
 
 	// dispatcher options
 	_ = v.BindEnv("runtime.workflowRunBufferSize", "SERVER_WORKFLOW_RUN_BUFFER_SIZE")
+	_ = v.BindEnv("runtime.durableEventBufferFlushInterval", "SERVER_DURABLE_EVENT_BUFFER_FLUSH_INTERVAL")
+	_ = v.BindEnv("runtime.durableEventBufferMaxSize", "SERVER_DURABLE_EVENT_BUFFER_MAX_SIZE")
+	_ = v.BindEnv("runtime.durableEventBufferMaxConcurrentFlushes", "SERVER_DURABLE_EVENT_BUFFER_MAX_CONCURRENT_FLUSHES")
 	_ = v.BindEnv("runtime.streamEventBufferTimeout", "SERVER_STREAM_EVENT_BUFFER_TIMEOUT")
 
 	// payload store options
@@ -1069,6 +1287,8 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("payloadStore.externalCutoverNumConcurrentOffloads", "SERVER_PAYLOAD_STORE_EXTERNAL_CUTOVER_NUM_CONCURRENT_OFFLOADS")
 	_ = v.BindEnv("payloadStore.inlineStoreTTLDays", "SERVER_PAYLOAD_STORE_INLINE_STORE_TTL_DAYS")
 	_ = v.BindEnv("payloadStore.enableWindowSizeOptimization", "SERVER_PAYLOAD_STORE_ENABLE_WINDOW_SIZE_OPTIMIZATION")
+	_ = v.BindEnv("payloadStore.wrapTaskInputInStepRunData", "SERVER_PAYLOAD_STORE_WRAP_TASK_INPUT_IN_STEP_RUN_DATA")
+	_ = v.BindEnv("payloadStore.enablePayloadConsolidation", "SERVER_PAYLOAD_STORE_ENABLE_PAYLOAD_CONSOLIDATION")
 
 	// cron operations options
 	_ = v.BindEnv("cronOperations.taskAnalyzeCronInterval", "SERVER_CRON_OPERATIONS_TASK_ANALYZE_CRON_INTERVAL")

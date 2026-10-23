@@ -37,6 +37,13 @@ Once your snapshot is in place, upgrade the Hatchet engine.
   migration step is required when upgrading.
 </Callout>
 
+<Callout type="warning">
+  Upgrading to `v0.87.6` or later requires the `btree_gist` Postgres extension.
+  Some managed providers, such as Azure Database for PostgreSQL, require you to
+  allow-list it before upgrading. See [Required Postgres
+  extensions](/self-hosting/kubernetes-external-database#required-postgres-extensions).
+</Callout>
+
 ### Docker Compose
 
 Update the image tags in your `docker-compose.yml`:

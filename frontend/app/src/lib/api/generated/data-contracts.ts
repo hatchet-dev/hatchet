@@ -43,6 +43,7 @@ export enum FeatureFlagId {
   TenantLogWorkflowFilterEnabled = "tenant-log-workflow-filter-enabled",
   TraceMinimapEnabled = "trace-minimap-enabled",
   OrganizationSsoEnabled = "organization-sso-enabled",
+  OperatorDetailsEnabled = "operator-details-enabled",
 }
 
 export enum WebhookWorkerRequestMethod {
@@ -233,6 +234,12 @@ export enum TenantResource {
 export enum V1CELDebugResponseStatus {
   SUCCESS = "SUCCESS",
   ERROR = "ERROR",
+}
+
+/** The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS applies the Cloudflare Workers runtime constraints on top of it. */
+export enum V1ServerlessEndpointKind {
+  GENERIC_HTTP = "GENERIC_HTTP",
+  CLOUDFLARE_WORKERS = "CLOUDFLARE_WORKERS",
 }
 
 export enum V1WebhookHMACEncoding {
@@ -654,6 +661,14 @@ export interface V1TaskSummaryList {
   rows: V1TaskSummary[];
 }
 
+export interface V1WorkflowRunCount {
+  /**
+   * The number of workflow runs matching the filters
+   * @format int64
+   */
+  count: number;
+}
+
 export interface V1WorkflowRunDisplayName {
   metadata: APIResourceMeta;
   displayName: string;
@@ -862,6 +877,11 @@ export interface V1DurableEventLogEntry {
 
 export type V1DurableEventLogList = V1DurableEventLogEntry[];
 
+export interface V1StreamPayloadRef {
+  /** Publish the message with this as its payload_ref */
+  ref: string;
+}
+
 export interface OtelSpan {
   traceId: string;
   spanId: string;
@@ -1006,6 +1026,8 @@ export interface Tenant {
   serverUrl?: string;
   /** Control-plane shard region for the tenant (e.g. aws:us-west-2). */
   region?: string;
+  /** The data retention period for the tenant, e.g. 720h. */
+  dataRetentionPeriod?: string;
 }
 
 export interface V1EventWorkflowRunSummary {
@@ -1247,60 +1269,133 @@ export interface V1UpdateWebhookRequest {
   returnEventAsResponsePayload?: boolean;
 }
 
-export interface V1HTTPOperator {
+/** The health of the endpoint as last observed by the serverless operator. Written on state transitions only, so changedAt is the time the endpoint last flipped between healthy and unhealthy. */
+export interface V1ServerlessEndpointStatus {
+  /** Whether the last healthcheck succeeded. Absent until the operator has polled the endpoint at least once. */
+  healthy?: boolean;
+  /** The error from the last failed healthcheck, if the endpoint is unhealthy. */
+  error?: string;
+  /**
+   * When the healthy flag last changed.
+   * @format date-time
+   */
+  changedAt?: string;
+  /** The action ids the operator registered for this endpoint from its last healthcheck, as the endpoint declared them. Several endpoints of a tenant may register the same action; each then serves it. */
+  registeredActions: string[];
+}
+
+export interface V1ServerlessEndpoint {
   metadata: APIResourceMeta;
   /**
-   * The ID of the tenant associated with this operator.
+   * The ID of the tenant that owns this endpoint.
    * @format uuid
    */
   tenantId: string;
-  /** The name of the operator. */
+  /** The name of the endpoint. Unique within the tenant. */
   name: string;
-  /** The HTTPS endpoint (https, port 443) that assigned tasks are delivered to. */
-  triggerEndpoint: string;
-  /** The HTTPS endpoint polled periodically to discover the actions this operator handles. */
-  healthcheckEndpoint: string;
+  /** The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS applies the Cloudflare Workers runtime constraints on top of it. */
+  kind: V1ServerlessEndpointKind;
+  /** The HTTPS URL (port 443) polled periodically to discover the workflows this endpoint serves. */
+  healthcheckUrl: string;
+  /** The HTTPS URL (port 443) that assigned tasks are delivered to. */
+  triggerUrl: string;
   /**
-   * The per-request timeout backstop, in seconds.
+   * The per-request timeout backstop for trigger requests, in seconds.
    * @format int32
    */
   requestTimeoutSeconds: number;
+  /**
+   * How often the healthcheck URL is polled, in seconds.
+   * @format int32
+   */
+  pollIntervalSeconds: number;
+  /**
+   * How long a trigger request may block waiting for a durable result before the operator falls back to the websocket durable protocol, in milliseconds.
+   * @format int32
+   */
+  inlineWaitBudgetMs: number;
+  /** Worker labels applied to the connection-backed worker the operator creates for this endpoint. */
+  labels: Record<string, any>;
+  /** Whether the operator polls and dispatches to this endpoint. */
+  enabled: boolean;
+  /** The health of the endpoint as last observed by the serverless operator. Written on state transitions only, so changedAt is the time the endpoint last flipped between healthy and unhealthy. */
+  status: V1ServerlessEndpointStatus;
 }
 
-export interface V1HTTPOperatorList {
+export interface V1ServerlessEndpointList {
   pagination?: PaginationResponse;
-  rows?: V1HTTPOperator[];
+  rows?: V1ServerlessEndpoint[];
 }
 
-export interface V1CreateHTTPOperatorRequest {
-  /** The name of the operator. */
+export interface V1CreateServerlessEndpointRequest {
+  /** The name of the endpoint. Unique within the tenant. */
   name: string;
-  /** The HTTPS endpoint (https, port 443) that assigned tasks are delivered to. */
-  triggerEndpoint: string;
-  /** The HTTPS endpoint polled periodically to discover the actions this operator handles. */
-  healthcheckEndpoint: string;
-  /** The secret used to HMAC-sign delivered requests (sent in the X-Hatchet-Signature header). Write-only: it is never returned in responses. */
+  /** The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS applies the Cloudflare Workers runtime constraints on top of it. */
+  kind?: V1ServerlessEndpointKind;
+  /** The HTTPS URL (port 443) polled periodically to discover the workflows this endpoint serves. */
+  healthcheckUrl: string;
+  /** The HTTPS URL (port 443) that assigned tasks are delivered to. */
+  triggerUrl: string;
+  /**
+   * The secret used to HMAC-sign requests delivered to the endpoint. At least 32 characters. Write-only: it is stored encrypted and never returned in responses.
+   * @minLength 32
+   */
   signingSecret: string;
   /**
-   * The per-request timeout backstop, in seconds.
-   * @format int32
-   */
-  requestTimeoutSeconds: number;
-}
-
-/** Fields to update on an HTTP operator. Omitted fields are left unchanged. */
-export interface V1UpdateHTTPOperatorRequest {
-  /** The HTTPS endpoint (https, port 443) that assigned tasks are delivered to. */
-  triggerEndpoint?: string;
-  /** An optional HTTPS endpoint polled to verify the operator endpoint is reachable. */
-  healthcheckEndpoint?: string;
-  /** The secret used to HMAC-sign delivered requests. Write-only: it is never returned in responses. Provide a new value to rotate it. */
-  signingSecret?: string;
-  /**
-   * Optional override for the per-request timeout backstop, in seconds.
+   * The per-request timeout backstop for trigger requests, in seconds. Defaults to 60.
    * @format int32
    */
   requestTimeoutSeconds?: number;
+  /**
+   * How often the healthcheck URL is polled, in seconds. Defaults to 30.
+   * @format int32
+   */
+  pollIntervalSeconds?: number;
+  /**
+   * The inline wait budget for durable results, in milliseconds. Defaults to 5000.
+   * @format int32
+   */
+  inlineWaitBudgetMs?: number;
+  /** Worker labels applied to the worker the operator creates for this endpoint. */
+  labels?: Record<string, any>;
+  /** Whether the operator polls and dispatches to this endpoint. Defaults to true. */
+  enabled?: boolean;
+}
+
+/** Fields to update on a serverless endpoint. Omitted fields are left unchanged. */
+export interface V1UpdateServerlessEndpointRequest {
+  /** The name of the endpoint. Unique within the tenant. */
+  name?: string;
+  /** The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS applies the Cloudflare Workers runtime constraints on top of it. */
+  kind?: V1ServerlessEndpointKind;
+  /** The HTTPS URL (port 443) polled periodically to discover the workflows this endpoint serves. */
+  healthcheckUrl?: string;
+  /** The HTTPS URL (port 443) that assigned tasks are delivered to. */
+  triggerUrl?: string;
+  /**
+   * A new secret used to HMAC-sign requests delivered to the endpoint. At least 32 characters. Provide a value to rotate the secret; it is never returned in responses.
+   * @minLength 32
+   */
+  signingSecret?: string;
+  /**
+   * The per-request timeout backstop for trigger requests, in seconds.
+   * @format int32
+   */
+  requestTimeoutSeconds?: number;
+  /**
+   * How often the healthcheck URL is polled, in seconds.
+   * @format int32
+   */
+  pollIntervalSeconds?: number;
+  /**
+   * The inline wait budget for durable results, in milliseconds.
+   * @format int32
+   */
+  inlineWaitBudgetMs?: number;
+  /** Worker labels applied to the worker the operator creates for this endpoint. Replaces the existing labels. */
+  labels?: Record<string, any>;
+  /** Whether the operator polls and dispatches to this endpoint. */
+  enabled?: boolean;
 }
 
 export interface V1CELDebugRequest {
@@ -1849,6 +1944,12 @@ export interface RateLimit {
    * @example "2022-12-13T15:06:48.888358-05:00"
    */
   lastRefill: string;
+  /**
+   * When the rate limit's pause ends, if it is paused. Runs that consume a paused key stay queued until then.
+   * @format date-time
+   * @example "2022-12-13T15:06:48.888358-05:00"
+   */
+  pausedUntil?: string;
 }
 
 export interface RateLimitList {
@@ -1892,6 +1993,8 @@ export interface Workflow {
   jobs?: Job[];
   /** The tenant id of the workflow. */
   tenantId: string;
+  /** The event and cron triggers declared on the latest workflow version. */
+  triggers?: WorkflowTriggers;
 }
 
 export interface WorkflowVersionMeta {
@@ -1938,6 +2041,24 @@ export interface Job {
   steps: Step[];
   /** The timeout of the job. */
   timeout?: string;
+}
+
+export interface WorkflowTriggerEventRef {
+  parent_id?: string;
+  event_key?: string;
+}
+
+export interface WorkflowTriggerCronRef {
+  parent_id?: string;
+  cron?: string;
+}
+
+export interface WorkflowTriggers {
+  metadata?: APIResourceMeta;
+  workflow_version_id?: string;
+  tenant_id?: string;
+  events?: WorkflowTriggerEventRef[];
+  crons?: WorkflowTriggerCronRef[];
 }
 
 export interface WorkflowList {
@@ -2163,24 +2284,6 @@ export interface WorkflowConcurrency {
   limitStrategy: ConcurrencyLimitStrategy;
   /** An action which gets the concurrency group for the WorkflowRun. */
   getConcurrencyGroup: string;
-}
-
-export interface WorkflowTriggerEventRef {
-  parent_id?: string;
-  event_key?: string;
-}
-
-export interface WorkflowTriggerCronRef {
-  parent_id?: string;
-  cron?: string;
-}
-
-export interface WorkflowTriggers {
-  metadata?: APIResourceMeta;
-  workflow_version_id?: string;
-  tenant_id?: string;
-  events?: WorkflowTriggerEventRef[];
-  crons?: WorkflowTriggerCronRef[];
 }
 
 export interface ConcurrencySetting {
@@ -2581,6 +2684,13 @@ export interface Worker {
    */
   webhookId?: string;
   runtimeInfo?: WorkerRuntimeInfo;
+  /**
+   * The id of the operator that owns this worker, if it is an engine-managed operator worker.
+   * @format uuid
+   */
+  operatorId?: string;
+  /** The number of durable task runs owned by this operator that are currently evicted while waiting on durable events. Evicted runs hold no slots. Only set for operator workers. */
+  evictedDurableTaskCount?: number;
 }
 
 export interface WorkerList {

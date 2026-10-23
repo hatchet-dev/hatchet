@@ -111,9 +111,6 @@ export function useOrganizations() {
         .organizationCreateTenantMutation(data.organizationId)
         .mutationFn({ name: data.name, slug: data.slug });
     },
-    onSuccess: () => {
-      localStorage.setItem('hatchet:show-welcome', '1');
-    },
     onError: handleApiError,
   });
 

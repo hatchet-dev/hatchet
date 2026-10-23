@@ -6,7 +6,6 @@ import (
 	"embed"
 	"fmt"
 	"io/fs"
-	"log"
 	"os"
 	"sort"
 	"strconv"
@@ -14,13 +13,18 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/pgoutbox"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
-	_ "github.com/jackc/pgx/v5/stdlib" // register the pgx driver for database/sql
+	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 	"github.com/pressly/goose/v3/lock"
+	"github.com/rs/zerolog"
 	"github.com/sethvargo/go-retry"
 
 	_ "github.com/hatchet-dev/hatchet/cmd/hatchet-migrate/migrate/migrations" // register go migrations
+	"github.com/hatchet-dev/hatchet/pkg/config/shared"
+	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/migratediag"
 )
 
@@ -31,6 +35,24 @@ type runMigrationsOpt struct {
 	upToPenultimate bool
 	upToVersion     int64
 	databaseURL     string
+	l               *zerolog.Logger
+}
+
+// resolveLogger returns the caller-supplied logger, or the package default.
+//
+// The default writes to stderr at info level so that in-process consumers
+// (e.g. embedded mode, the test harness) do not get migration diagnostics on
+// their output unless something goes wrong. The standalone hatchet-migrate
+// command wires a console logger at debug level, which keeps every line it
+// printed before visible.
+func (o *runMigrationsOpt) resolveLogger() *zerolog.Logger {
+	if o.l != nil {
+		return o.l
+	}
+
+	l := logger.NewStdErr(&shared.LoggerConfigFile{Level: "info", Format: "json"}, "migrate")
+
+	return &l
 }
 
 type RunMigrationsOpt func(*runMigrationsOpt)
@@ -57,6 +79,15 @@ func WithDatabaseURL(url string) RunMigrationsOpt {
 	}
 }
 
+// WithLogger routes migration output through the given logger. Callers that
+// embed the engine in their own process should pass their configured logger so
+// that migrations do not write to stdout/stderr on their own terms.
+func WithLogger(l *zerolog.Logger) RunMigrationsOpt {
+	return func(o *runMigrationsOpt) {
+		o.l = l
+	}
+}
+
 func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) error {
 	// Set default options
 	options := &runMigrationsOpt{}
@@ -64,6 +95,8 @@ func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) error {
 	for _, opt := range opts {
 		opt(options)
 	}
+
+	l := options.resolveLogger()
 
 	const (
 		databaseEnvVar = "DATABASE_URL"
@@ -88,7 +121,7 @@ func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) error {
 	err := retry.Do(retryCtx, retry.NewConstant(1*time.Second), func(ctx context.Context) error {
 		var err error
 		if db == nil {
-			db, err = goose.OpenDBWithDriver("postgres", rawURL)
+			db, err = openMigrationDB(rawURL)
 
 			if err != nil {
 				return retry.RetryableError(fmt.Errorf("failed to open DB: %w", err))
@@ -116,11 +149,11 @@ func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) error {
 
 	defer func() {
 		if err := conn.Close(); err != nil {
-			log.Printf("%v", migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "close DB connection", err))
+			l.Error().Err(migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "close DB connection", err)).Msg("close DB connection failed")
 		}
 
 		if err := db.Close(); err != nil {
-			log.Printf("%v", migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "close DB", err))
+			l.Error().Err(migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "close DB", err)).Msg("close DB failed")
 		}
 	}()
 
@@ -174,7 +207,7 @@ func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) error {
 			return migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "check atlas_schema_revisions existence", err)
 		}
 
-		fmt.Printf("Does existing atlas schema exist? %v\n", atlasExists)
+		l.Debug().Msgf("Does existing atlas schema exist? %v", atlasExists)
 
 		// 2. If it does, check for the latest migration in the atlas schema.
 		if atlasExists {
@@ -183,7 +216,7 @@ func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) error {
 			err = conn.QueryRowContext(ctx, atlasLatestQuery).Scan(&version)
 			if err == nil {
 				baseline = version
-				fmt.Printf("Baseline version from atlas: %s\n", baseline)
+				l.Debug().Msgf("Baseline version from atlas: %s", baseline)
 			}
 		}
 
@@ -196,7 +229,7 @@ func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) error {
 				return migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "check _prisma_migrations existence", err)
 			}
 
-			fmt.Printf("Does existing prisma schema exist? %v\n", prismaExists)
+			l.Debug().Msgf("Does existing prisma schema exist? %v", prismaExists)
 
 			// 4. If it does, check for the latest migration in the prisma schema.
 			if prismaExists {
@@ -205,7 +238,7 @@ func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) error {
 				err = conn.QueryRowContext(ctx, prismaLatestQuery).Scan(&migrationName)
 				if err == nil {
 					baseline = migrationName
-					fmt.Printf("Baseline version from prisma: %s\n", baseline)
+					l.Debug().Msgf("Baseline version from prisma: %s", baseline)
 				}
 			}
 		}
@@ -237,7 +270,7 @@ func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) error {
 				}
 				version := parts[0]
 				if version <= baseline {
-					fmt.Printf("Including version %s from %s\n", version, name)
+					l.Debug().Msgf("Including version %s from %s", version, name)
 					migrations = append(migrations, migration{version: version, filename: name})
 				}
 			}
@@ -258,6 +291,14 @@ func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) error {
 				}
 			}
 		}
+	}
+
+	if err := rewriteV1_0_153GooseVersion(ctx, conn); err != nil {
+		return migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "rewrite v1_0_153 goose version", err)
+	}
+
+	if err := rewriteV1_0_160GooseVersion(ctx, conn); err != nil {
+		return migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "rewrite v1_0_160 goose version", err)
 	}
 
 	err = locker.SessionUnlock(ctx, conn)
@@ -313,7 +354,16 @@ func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) error {
 // runOutboxMigration runs the embedded pgoutbox migrations against the database
 // at rawURL before the goose migrations are applied.
 func runOutboxMigration(ctx context.Context, rawURL string) error {
-	pool, err := pgxpool.New(ctx, rawURL)
+	config, err := pgxpool.ParseConfig(rawURL)
+	if err != nil {
+		return fmt.Errorf("failed to parse pgoutbox pool config: %w", err)
+	}
+
+	// NOTE: set on the pgconn config rather than the pool, because pgoutbox opens its own
+	// connections from a copy of the pool's connection config.
+	config.ConnConfig.AfterConnect = disableTimeouts
+
+	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
 		return fmt.Errorf("failed to open pgoutbox pool: %w", err)
 	}
@@ -326,6 +376,27 @@ func runOutboxMigration(ctx context.Context, rawURL string) error {
 	return nil
 }
 
+// openMigrationDB opens a goose database handle whose connections run without statement or
+// idle-in-transaction timeouts, so role or database defaults don't cut long migrations short.
+func openMigrationDB(rawURL string) (*sql.DB, error) {
+	config, err := pgx.ParseConfig(rawURL)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := goose.SetDialect("postgres"); err != nil {
+		return nil, err
+	}
+
+	config.AfterConnect = disableTimeouts
+
+	return stdlib.OpenDB(*config), nil
+}
+
+func disableTimeouts(ctx context.Context, conn *pgconn.PgConn) error {
+	return conn.Exec(ctx, "SET statement_timeout = 0; SET idle_in_transaction_session_timeout = 0").Close()
+}
+
 // Copied from https://github.com/pressly/goose/blob/6a70e744c8eb2dc4bb90ba641cb03b42d8eef6cd/internal/dialect/dialectquery/postgres.go
 func CreateTable(tableName string) string {
 	q := `CREATE TABLE %s (
@@ -335,6 +406,35 @@ func CreateTable(tableName string) string {
 		tstamp timestamp NOT NULL DEFAULT now()
 	)`
 	return fmt.Sprintf(q, tableName)
+}
+
+// rewriteV1_0_153GooseVersion remaps the 15-digit version 153 originally
+// shipped under so goose matches 20260910122311_v1_0_153.sql and does not
+// treat that file as missing before the current max version.
+func rewriteV1_0_153GooseVersion(ctx context.Context, conn *sql.Conn) error {
+	_, err := conn.ExecContext(ctx, `
+UPDATE goose_db_version
+SET version_id = 20260910122311
+WHERE version_id = 202609101223115
+  AND NOT EXISTS (
+      SELECT 1 FROM goose_db_version g2 WHERE g2.version_id = 20260910122311
+  )
+`)
+	return err
+}
+
+// rewriteV1_0_160GooseVersion remaps the future-dated version 160 originally
+// shipped under so later migrations are not treated as missing before it.
+func rewriteV1_0_160GooseVersion(ctx context.Context, conn *sql.Conn) error {
+	_, err := conn.ExecContext(ctx, `
+UPDATE goose_db_version
+SET version_id = 20261002182802
+WHERE version_id = 20261031153238
+  AND NOT EXISTS (
+      SELECT 1 FROM goose_db_version g2 WHERE g2.version_id = 20261002182802
+  )
+`)
+	return err
 }
 
 func InsertVersion(tableName string) string {
@@ -391,13 +491,21 @@ func listMigrations() (goose.Migrations, error) {
 }
 
 // RunDownMigration runs down migrations to a specific version.
-func RunDownMigration(ctx context.Context, targetVersion string) {
-	if err := runDownMigrationImpl(ctx, targetVersion); err != nil {
-		log.Fatal(err)
+func RunDownMigration(ctx context.Context, targetVersion string, opts ...RunMigrationsOpt) {
+	options := &runMigrationsOpt{}
+
+	for _, opt := range opts {
+		opt(options)
+	}
+
+	l := options.resolveLogger()
+
+	if err := runDownMigrationImpl(ctx, targetVersion, l); err != nil {
+		l.Fatal().Err(err).Msg("down migration failed")
 	}
 }
 
-func runDownMigrationImpl(ctx context.Context, targetVersion string) error {
+func runDownMigrationImpl(ctx context.Context, targetVersion string, l *zerolog.Logger) error {
 	const (
 		databaseEnvVar = "DATABASE_URL"
 		phaseName      = "oss-down"
@@ -418,7 +526,7 @@ func runDownMigrationImpl(ctx context.Context, targetVersion string) error {
 	err := retry.Do(retryCtx, retry.NewConstant(1*time.Second), func(ctx context.Context) error {
 		var err error
 		if db == nil {
-			db, err = goose.OpenDBWithDriver("postgres", rawURL)
+			db, err = openMigrationDB(rawURL)
 
 			if err != nil {
 				return retry.RetryableError(fmt.Errorf("failed to open DB: %w", err))
@@ -447,13 +555,13 @@ func runDownMigrationImpl(ctx context.Context, targetVersion string) error {
 	defer func() {
 		if conn != nil {
 			if err := conn.Close(); err != nil {
-				log.Printf("%v", migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "close DB connection", err))
+				l.Error().Err(migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "close DB connection", err)).Msg("close DB connection failed")
 			}
 		}
 
 		if db != nil {
 			if err := db.Close(); err != nil {
-				log.Printf("%v", migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "close DB", err))
+				l.Error().Err(migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "close DB", err)).Msg("close DB failed")
 			}
 		}
 	}()
@@ -472,9 +580,17 @@ func runDownMigrationImpl(ctx context.Context, targetVersion string) error {
 
 	defer func() {
 		if err := locker.SessionUnlock(ctx, conn); err != nil {
-			log.Printf("%v", migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "session unlock", err))
+			l.Error().Err(migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "session unlock", err)).Msg("session unlock failed")
 		}
 	}()
+
+	if err := rewriteV1_0_153GooseVersion(ctx, conn); err != nil {
+		return migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "rewrite v1_0_153 goose version", err)
+	}
+
+	if err := rewriteV1_0_160GooseVersion(ctx, conn); err != nil {
+		return migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "rewrite v1_0_160 goose version", err)
+	}
 
 	fsys, err := fs.Sub(embedMigrations, "migrations")
 	if err != nil {
@@ -497,17 +613,17 @@ func runDownMigrationImpl(ctx context.Context, targetVersion string) error {
 	}
 
 	if currentVersion == targetVersionInt {
-		fmt.Printf("Database is already at version %d. No migration needed.\n", targetVersionInt)
+		l.Info().Msgf("Database is already at version %d. No migration needed.", targetVersionInt)
 		return nil
 	}
 
-	fmt.Printf("Migrating down from version %d to version %d\n", currentVersion, targetVersionInt)
+	l.Info().Msgf("Migrating down from version %d to version %d", currentVersion, targetVersionInt)
 
 	err = goose.DownTo(db, ".", targetVersionInt)
 	if err != nil {
 		return migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "apply down migration", fmt.Errorf("target version %d: %w", targetVersionInt, err))
 	}
 
-	fmt.Printf("Successfully migrated down to version %d\n", targetVersionInt)
+	l.Info().Msgf("Successfully migrated down to version %d", targetVersionInt)
 	return nil
 }

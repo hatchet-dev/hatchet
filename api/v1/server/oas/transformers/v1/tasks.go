@@ -78,6 +78,7 @@ func ToTaskSummary(task *v1.TaskWithPayloads, opts ...PayloadOption) gen.V1TaskS
 		Input:                 input,
 		Output:                output,
 		Type:                  gen.V1WorkflowTypeTASK,
+		CreatedAt:             task.InsertedAt.Time,
 		DisplayName:           task.DisplayName,
 		Duration:              durationPtr,
 		StartedAt:             startedAt,
@@ -349,6 +350,7 @@ func ToTask(taskWithData *v1.TaskWithPayloads, workflowRunExternalId uuid.UUID, 
 		},
 		TaskId:                int(taskWithData.ID),
 		TaskInsertedAt:        taskWithData.InsertedAt.Time,
+		CreatedAt:             taskWithData.InsertedAt.Time,
 		DisplayName:           taskWithData.DisplayName,
 		AdditionalMetadata:    additionalMetadataPtr,
 		Duration:              durationPtr,
@@ -394,7 +396,20 @@ func ToWorkflowRunDetails(
 	opts ...PayloadOption,
 ) (gen.V1WorkflowRunDetails, error) {
 	o := applyPayloadOptions(opts)
-	duration := int(workflowRun.FinishedAt.Time.Sub(workflowRun.StartedAt.Time).Milliseconds())
+
+	var duration *int
+
+	if workflowRun.StartedAt.Valid && workflowRun.FinishedAt.Valid {
+		durInt := int(workflowRun.FinishedAt.Time.Sub(workflowRun.StartedAt.Time).Milliseconds())
+		duration = &durInt
+	}
+
+	var startedAt *time.Time
+
+	if workflowRun.StartedAt.Valid {
+		startedAt = &workflowRun.StartedAt.Time
+	}
+
 	input := jsonToMap(workflowRun.Input)
 	output := emptyJSON()
 	additionalMetadata := jsonToMap(workflowRun.AdditionalMetadata)
@@ -417,7 +432,7 @@ func ToWorkflowRunDetails(
 		AdditionalMetadata:   additionalMetadataPtr,
 		CreatedAt:            &workflowRun.CreatedAt.Time,
 		DisplayName:          workflowRun.DisplayName,
-		Duration:             &duration,
+		Duration:             duration,
 		ErrorMessage:         &workflowRun.ErrorMessage,
 		FinishedAt:           &workflowRun.FinishedAt.Time,
 		ParentTaskExternalId: workflowRun.ParentTaskExternalId,
@@ -426,7 +441,7 @@ func ToWorkflowRunDetails(
 			CreatedAt: workflowRun.InsertedAt.Time,
 			UpdatedAt: workflowRun.InsertedAt.Time,
 		},
-		StartedAt:          &workflowRun.StartedAt.Time,
+		StartedAt:          startedAt,
 		Status:             wrStatus,
 		TenantId:           workflowRun.TenantID,
 		WorkflowId:         workflowRun.WorkflowID,

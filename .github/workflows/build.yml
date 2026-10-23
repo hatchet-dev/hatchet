@@ -12,14 +12,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Clone repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.14"
       - name: Generate docs snippets and examples
         working-directory: frontend/snippets
         run: python3 generate.py
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
       - name: Setup pnpm
@@ -29,59 +29,59 @@ jobs:
           run_install: false
       - name: Install frontend dependencies
         working-directory: frontend/app
-        run: pnpm install --frozen-lockfile
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" pnpm install --frozen-lockfile
       - name: Test frontend
         working-directory: frontend/app
         run: pnpm run test:unit
       - name: Build frontend
-        run: docker build -f ./build/package/frontend.dockerfile .
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" docker build -f ./build/package/frontend.dockerfile .
 
   api:
     runs-on: ubuntu-latest
     steps:
       - name: Clone repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Build servers
-        run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=api
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=api
 
   api-arm:
     runs-on: hatchet-arm64-2
     steps:
       - name: Clone repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Build servers
-        run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=api
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=api
 
   engine:
     runs-on: ubuntu-latest
     steps:
       - name: Clone repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Build servers
-        run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=engine
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=engine
 
   engine-arm:
     runs-on: hatchet-arm64-2
     steps:
       - name: Clone repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Build servers
-        run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=engine
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=engine
 
   authdisabled:
     runs-on: ubuntu-latest
     steps:
       - name: Clone repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Build api (authdisabled)
-        run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=api --build-arg GO_BUILD_TAGS=authdisabled
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=api --build-arg GO_BUILD_TAGS=authdisabled
       - name: Build engine (authdisabled)
-        run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=engine --build-arg GO_BUILD_TAGS=authdisabled
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=engine --build-arg GO_BUILD_TAGS=authdisabled
       - name: Build admin (authdisabled)
-        run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=admin --build-arg GO_BUILD_TAGS=authdisabled
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=admin --build-arg GO_BUILD_TAGS=authdisabled
       - name: Build lite (authdisabled)
-        run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=lite --build-arg GO_BUILD_TAGS=authdisabled
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=lite --build-arg GO_BUILD_TAGS=authdisabled
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.14"
       - name: Generate docs snippets and examples
@@ -89,50 +89,138 @@ jobs:
         run: python3 generate.py
       - name: Build dashboard (authdisabled)
         run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=api --build-arg GO_BUILD_TAGS=authdisabled \
             -t hatchet-api-dev-tmp .
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/dashboard.dockerfile \
+          DOCKER_BUILDKIT=1 sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" docker build -f ./build/package/dashboard.dockerfile \
             --build-arg HATCHET_API_IMAGE=hatchet-api-dev-tmp .
+
+  fips:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+      - name: Generate docs snippets and examples
+        working-directory: frontend/snippets
+        run: python3 generate.py
+      - name: Build api, engine, admin, migrate and lite binaries (fips)
+        run: |
+          for target in api engine admin migrate lite; do
+            DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+              --build-arg SERVER_TARGET=$target --build-arg FIPS=true \
+              -t hatchet-$target-fips-tmp . &
+          done
+          wait
+      - name: Build lite, dashboard and frontend images (fips)
+        run: |
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/lite.dockerfile \
+            --build-arg HATCHET_LITE_IMAGE=hatchet-lite-fips-tmp \
+            --build-arg HATCHET_ADMIN_IMAGE=hatchet-admin-fips-tmp \
+            --build-arg HATCHET_MIGRATE_IMAGE=hatchet-migrate-fips-tmp --build-arg FIPS=true \
+            -t hatchet-lite-fips:ci .
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/dashboard.dockerfile \
+            --build-arg HATCHET_API_IMAGE=hatchet-api-fips-tmp --build-arg FIPS=true \
+            -t hatchet-dashboard-fips:ci .
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/frontend.dockerfile \
+            --build-arg FIPS=true -t hatchet-frontend-fips:ci .
+      - name: Assert every Go binary links the validated FIPS module
+        run: |
+          EXPECT_FIPS=true bash hack/ci/assert-fips.sh \
+            hatchet-api-fips-tmp=/hatchet/hatchet-api \
+            hatchet-engine-fips-tmp=/hatchet/hatchet-engine \
+            hatchet-admin-fips-tmp=/hatchet/hatchet-admin \
+            hatchet-migrate-fips-tmp=/hatchet/hatchet-migrate \
+            hatchet-lite-fips:ci=/hatchet-lite,/hatchet-admin,/hatchet-migrate \
+            hatchet-dashboard-fips:ci=/hatchet/hatchet-api,/hatchet/hatchet-staticfileserver \
+            hatchet-frontend-fips:ci=/app/hatchet-staticfileserver
+      - name: Boot hatchet-lite-fips under fips140=only against SCRAM Postgres, register and log in
+        run: LITE_IMAGE=hatchet-lite-fips:ci bash hack/ci/smoke-fips.sh
+
+  fips-arm:
+    runs-on: hatchet-arm64-2
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+      - name: Generate docs snippets and examples
+        working-directory: frontend/snippets
+        run: python3 generate.py
+      - name: Build api, engine, admin, migrate and lite binaries (fips)
+        run: |
+          for target in api engine admin migrate lite; do
+            DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+              --build-arg SERVER_TARGET=$target --build-arg FIPS=true \
+              -t hatchet-$target-fips-tmp . &
+          done
+          wait
+      - name: Build lite, dashboard and frontend images (fips)
+        run: |
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/lite.dockerfile \
+            --build-arg HATCHET_LITE_IMAGE=hatchet-lite-fips-tmp \
+            --build-arg HATCHET_ADMIN_IMAGE=hatchet-admin-fips-tmp \
+            --build-arg HATCHET_MIGRATE_IMAGE=hatchet-migrate-fips-tmp --build-arg FIPS=true \
+            -t hatchet-lite-fips:ci .
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/dashboard.dockerfile \
+            --build-arg HATCHET_API_IMAGE=hatchet-api-fips-tmp --build-arg FIPS=true \
+            -t hatchet-dashboard-fips:ci .
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/frontend.dockerfile \
+            --build-arg FIPS=true -t hatchet-frontend-fips:ci .
+      - name: Assert every Go binary links the validated FIPS module
+        run: |
+          EXPECT_FIPS=true bash hack/ci/assert-fips.sh \
+            hatchet-api-fips-tmp=/hatchet/hatchet-api \
+            hatchet-engine-fips-tmp=/hatchet/hatchet-engine \
+            hatchet-admin-fips-tmp=/hatchet/hatchet-admin \
+            hatchet-migrate-fips-tmp=/hatchet/hatchet-migrate \
+            hatchet-lite-fips:ci=/hatchet-lite,/hatchet-admin,/hatchet-migrate \
+            hatchet-dashboard-fips:ci=/hatchet/hatchet-api,/hatchet/hatchet-staticfileserver \
+            hatchet-frontend-fips:ci=/app/hatchet-staticfileserver
+      - name: Boot hatchet-lite-fips under fips140=only against SCRAM Postgres, register and log in
+        run: LITE_IMAGE=hatchet-lite-fips:ci bash hack/ci/smoke-fips.sh
 
   admin:
     runs-on: ubuntu-latest
     steps:
       - name: Clone repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Build servers
-        run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=admin
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=admin
 
   admin-arm:
     runs-on: hatchet-arm64-2
     steps:
       - name: Clone repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Build servers
-        run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=admin
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=admin
 
   migrate:
     runs-on: ubuntu-latest
     steps:
       - name: Clone repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Build migrate
-        run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=migrate
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=migrate
 
   migrate-arm:
     runs-on: hatchet-arm64-2
     steps:
       - name: Clone repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Build migrate
-        run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=migrate
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=migrate
 
   lite-arm:
     runs-on: hatchet-arm64-2
     steps:
       - name: Clone repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.14"
       - name: Generate docs snippets and examples
@@ -140,19 +228,19 @@ jobs:
         run: python3 generate.py
       - name: Build lite
         run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=lite \
             --platform linux/arm64 \
             -t hatchet-lite-tmp:arm64 \
             . &
 
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=admin \
             --platform linux/arm64 \
             -t hatchet-admin-tmp:arm64 \
             . &
 
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=migrate \
             --platform linux/arm64 \
             -t hatchet-migrate-tmp:arm64 \
@@ -160,7 +248,7 @@ jobs:
 
           wait
 
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/lite.dockerfile \
+          DOCKER_BUILDKIT=1 sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" docker build -f ./build/package/lite.dockerfile \
             --build-arg HATCHET_LITE_IMAGE=hatchet-lite-tmp:arm64 \
             --build-arg HATCHET_ADMIN_IMAGE=hatchet-admin-tmp:arm64 \
             --build-arg HATCHET_MIGRATE_IMAGE=hatchet-migrate-tmp:arm64 \
@@ -171,8 +259,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Clone repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.14"
       - name: Generate docs snippets and examples
@@ -180,19 +268,19 @@ jobs:
         run: python3 generate.py
       - name: Build lite
         run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=lite \
             --platform linux/amd64 \
             -t hatchet-lite-tmp:amd64 \
             . &
 
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=admin \
             --platform linux/amd64 \
             -t hatchet-admin-tmp:amd64 \
             . &
 
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=migrate \
             --platform linux/amd64 \
             -t hatchet-migrate-tmp:amd64 \
@@ -200,7 +288,7 @@ jobs:
 
           wait
 
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/lite.dockerfile \
+          DOCKER_BUILDKIT=1 sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" docker build -f ./build/package/lite.dockerfile \
             --build-arg HATCHET_LITE_IMAGE=hatchet-lite-tmp:amd64 \
             --build-arg HATCHET_ADMIN_IMAGE=hatchet-admin-tmp:amd64 \
             --build-arg HATCHET_MIGRATE_IMAGE=hatchet-migrate-tmp:amd64 \
@@ -211,8 +299,8 @@ jobs:
     runs-on: hatchet-arm64-2
     steps:
       - name: Clone repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.14"
       - name: Generate docs snippets and examples
@@ -220,13 +308,13 @@ jobs:
         run: python3 generate.py
       - name: Build dashboard
         run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=api \
             --platform linux/arm64 \
             -t hatchet-api-tmp:arm64 \
             .
 
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/dashboard.dockerfile \
+          DOCKER_BUILDKIT=1 sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" docker build -f ./build/package/dashboard.dockerfile \
             --build-arg HATCHET_API_IMAGE=hatchet-api-tmp:arm64 \
             --platform linux/arm64 \
             .
@@ -235,8 +323,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Clone repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.14"
       - name: Generate docs snippets and examples
@@ -244,13 +332,13 @@ jobs:
         run: python3 generate.py
       - name: Build dashboard
         run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=api \
             --platform linux/amd64 \
             -t hatchet-api-tmp:amd64 \
             .
 
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/dashboard.dockerfile \
+          DOCKER_BUILDKIT=1 sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" docker build -f ./build/package/dashboard.dockerfile \
             --build-arg HATCHET_API_IMAGE=hatchet-api-tmp:amd64 \
             --platform linux/amd64 \
             .
@@ -259,14 +347,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Clone repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Build loadtest
-        run: docker build -f ./build/package/loadtest.dockerfile .
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" docker build -f ./build/package/loadtest.dockerfile .
 
   loadtest-arm:
     runs-on: hatchet-arm64-2
     steps:
       - name: Clone repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Build loadtest
-        run: docker build -f ./build/package/loadtest.dockerfile .
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" docker build -f ./build/package/loadtest.dockerfile .

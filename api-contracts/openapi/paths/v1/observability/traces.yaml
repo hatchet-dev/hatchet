@@ -3,6 +3,7 @@ getTrace:
     x-resources: ["tenant"]
     description: Get OTel trace for a workflow run
     operationId: v1-observability:get-trace
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path

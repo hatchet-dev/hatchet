@@ -1,5 +1,6 @@
 import asyncio
-from collections import Counter
+from collections import defaultdict
+from collections.abc import Callable
 from datetime import datetime
 from random import choice
 from typing import Literal
@@ -27,28 +28,102 @@ characters: list[Character] = [
     "Karenin",
 ]
 
+NUM_RUNS = 100
+TASKS_PER_RUN = 2
 
-class RunMetadata(BaseModel):
-    test_run_id: str
-    key: str
-    name: Character
+
+class RunWindow(BaseModel):
+    run_id: str
+    name: str
     digit: str
     started_at: datetime
     finished_at: datetime
 
-    @staticmethod
-    def parse(task: V1TaskSummary) -> "RunMetadata":
-        return RunMetadata(
-            test_run_id=task.additional_metadata["test_run_id"],  # type: ignore
-            key=task.additional_metadata["key"],  # type: ignore
-            name=task.additional_metadata["name"],  # type: ignore
-            digit=task.additional_metadata["digit"],  # type: ignore
-            started_at=task.started_at or datetime.max,
-            finished_at=task.finished_at or datetime.min,
-        )
 
-    def __str__(self) -> str:
-        return self.key
+def build_run_windows(tasks: list[V1TaskSummary]) -> list[RunWindow]:
+    """Build one execution window per workflow run from its task rows.
+
+    A workflow run holds its workflow-level concurrency slots from the moment
+    its first task starts until its last task finishes, so its window is the
+    union of its task windows.
+
+    The windows are built from task rows (only_tasks=True) on purpose: task
+    started_at/finished_at come from the STARTED/FINISHED event timestamps
+    stamped by the worker, so a run that only starts after another run
+    released a slot always has a later started_at than that run's finished_at.
+    DAG rows instead derive these timestamps from the OLAP write time of the
+    events, which lags and reorders under load and makes sequential handoffs
+    look like overlaps.
+
+    :param tasks: The task rows of every run under test.
+    :return: One window per workflow run.
+    """
+    windows: dict[str, RunWindow] = {}
+
+    for task in tasks:
+        assert (
+            task.started_at is not None
+        ), f"task {task.task_external_id} has no started_at"
+        assert (
+            task.finished_at is not None
+        ), f"task {task.task_external_id} has no finished_at"
+
+        meta = task.additional_metadata or {}
+        existing = windows.get(task.workflow_run_external_id)
+
+        if existing is not None:
+            existing.started_at = min(existing.started_at, task.started_at)
+            existing.finished_at = max(existing.finished_at, task.finished_at)
+        else:
+            windows[task.workflow_run_external_id] = RunWindow(
+                run_id=task.workflow_run_external_id,
+                name=meta.get("name", ""),
+                digit=meta.get("digit", ""),
+                started_at=task.started_at,
+                finished_at=task.finished_at,
+            )
+
+    return list(windows.values())
+
+
+def peak_concurrency_by_key(
+    windows: list[RunWindow], key_of: Callable[[RunWindow], str]
+) -> dict[str, int]:
+    """Sweep over the start and finish instants of the windows.
+
+    A window that starts at the exact instant another one finishes is a
+    handoff, not an overlap.
+
+    :param windows: The run windows to sweep over.
+    :param key_of: Extracts the concurrency key of a window.
+    :return: The peak number of windows open at the same time, per key.
+    """
+    by_key: dict[str, list[RunWindow]] = defaultdict(list)
+
+    for window in windows:
+        by_key[key_of(window)].append(window)
+
+    peaks: dict[str, int] = {}
+
+    for key, key_windows in by_key.items():
+        events: list[tuple[datetime, int]] = []
+        for window in key_windows:
+            events.append((window.started_at, 1))
+            events.append((window.finished_at, -1))
+        events.sort()
+
+        open_windows = 0
+        peak = 0
+        for _, delta in events:
+            open_windows += delta
+            peak = max(peak, open_windows)
+        peaks[key] = peak
+
+    return peaks
+
+
+def violations(peaks: dict[str, int], limit: int) -> dict[str, int]:
+    return {key: peak for key, peak in peaks.items() if peak > limit}
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -69,7 +144,7 @@ async def test_workflow_level_concurrency(hatchet: Hatchet) -> None:
                     "digit": digit,
                 },
             )
-            for _ in range(100)
+            for _ in range(NUM_RUNS)
         ],
         wait_for_result=False,
     )
@@ -95,61 +170,40 @@ async def test_workflow_level_concurrency(hatchet: Hatchet) -> None:
 
     assert workflow.name == concurrency_workflow_level_workflow.name
 
-    runs = await hatchet.runs.aio_list(
-        workflow_ids=[workflow.metadata.id],
-        additional_metadata={
-            "test_run_id": test_run_id,
-        },
-        limit=1_000,
-    )
+    # The OLAP rows are written asynchronously, so wait until every task of
+    # every run has both timestamps before measuring.
+    tasks: list[V1TaskSummary] = []
+    deadline = asyncio.get_running_loop().time() + 60
 
-    sorted_runs = sorted(
-        [RunMetadata.parse(r) for r in runs.rows], key=lambda r: r.started_at
-    )
+    while True:
+        tasks = (
+            await hatchet.runs.aio_list(
+                workflow_ids=[workflow.metadata.id],
+                additional_metadata={
+                    "test_run_id": test_run_id,
+                },
+                limit=1_000,
+                only_tasks=True,
+            )
+        ).rows
 
-    overlapping_groups: dict[int, list[RunMetadata]] = {}
+        if len(tasks) == NUM_RUNS * TASKS_PER_RUN and all(
+            t.started_at is not None and t.finished_at is not None for t in tasks
+        ):
+            break
 
-    for run in sorted_runs:
-        has_group_membership = False
+        assert (
+            asyncio.get_running_loop().time() < deadline
+        ), f"timed out waiting for task rows with timestamps, have {len(tasks)}"
 
-        if not overlapping_groups:
-            overlapping_groups[1] = [run]
-            continue
+        await asyncio.sleep(0.5)
 
-        if has_group_membership:
-            continue
+    windows = build_run_windows(tasks)
 
-        for id, group in overlapping_groups.items():
-            if all(are_overlapping(run, task) for task in group):
-                overlapping_groups[id].append(run)
-                has_group_membership = True
-                break
+    assert len(windows) == NUM_RUNS
 
-        if not has_group_membership:
-            overlapping_groups[len(overlapping_groups) + 1] = [run]
+    peak_by_digit = peak_concurrency_by_key(windows, lambda w: w.digit)
+    peak_by_name = peak_concurrency_by_key(windows, lambda w: w.name)
 
-    for id, group in overlapping_groups.items():
-        assert is_valid_group(group), f"Group {id} is not valid"
-
-
-def are_overlapping(x: RunMetadata, y: RunMetadata) -> bool:
-    return (x.started_at < y.finished_at and x.finished_at > y.started_at) or (
-        x.finished_at > y.started_at and x.started_at < y.finished_at
-    )
-
-
-def is_valid_group(group: list[RunMetadata]) -> bool:
-    digits = Counter[str]()
-    names = Counter[str]()
-
-    for task in group:
-        digits[task.digit] += 1
-        names[task.name] += 1
-
-    if any(v > DIGIT_MAX_RUNS for v in digits.values()):
-        return False
-
-    if any(v > NAME_MAX_RUNS for v in names.values()):
-        return False
-
-    return True
+    assert violations(peak_by_digit, DIGIT_MAX_RUNS) == {}
+    assert violations(peak_by_name, NAME_MAX_RUNS) == {}

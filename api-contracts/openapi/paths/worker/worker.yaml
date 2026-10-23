@@ -3,6 +3,7 @@ withTenant:
     x-resources: ["tenant"]
     description: Get all workers for a tenant
     operationId: worker:list
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -45,6 +46,12 @@ withTenant:
             type: string
             description: The label key-value pairs (delimited by a `:`) to filter by
             minLength: 1
+      - description: Whether to include engine-managed operator workers, which are hidden by default
+        in: query
+        name: includeOperators
+        required: false
+        schema:
+          type: boolean
     responses:
       "200":
         content:
@@ -73,6 +80,7 @@ withWorker:
     x-resources: ["tenant", "worker"]
     description: Update a worker
     operationId: worker:update
+    x-payloads: false
     parameters:
       - description: The worker id
         in: path
@@ -116,6 +124,7 @@ withWorker:
     x-resources: ["tenant", "worker"]
     description: Get a worker
     operationId: worker:get
+    x-payloads: false
     parameters:
       - description: The worker id
         in: path

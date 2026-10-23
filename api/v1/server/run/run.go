@@ -37,7 +37,8 @@ import (
 	filtersv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/filters"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/logs"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/observability"
-	operatorsv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/operators"
+	serverlessv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/serverless"
+	streamsv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/streams"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/tasks"
 	webhooksv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/webhooks"
 	workflowrunsv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/workflow-runs"
@@ -78,12 +79,13 @@ type apiService struct {
 	*workflowrunsv1.V1WorkflowRunsService
 	*eventsv1.V1EventsService
 	*filtersv1.V1FiltersService
-	*operatorsv1.V1OperatorsService
+	*serverlessv1.V1ServerlessService
 	*webhooksv1.V1WebhooksService
 	*celv1.V1CELService
 	*observability.V1ObservabilityService
 	*featureflagsv1.V1FeatureFlagsService
 	*durabletasksv1.DurableTasksService
+	*streamsv1.V1StreamsService
 }
 
 func newAPIService(config *server.ServerConfig) *apiService {
@@ -108,12 +110,13 @@ func newAPIService(config *server.ServerConfig) *apiService {
 		V1WorkflowRunsService:  workflowrunsv1.NewV1WorkflowRunsService(config),
 		V1EventsService:        eventsv1.NewV1EventsService(config),
 		V1FiltersService:       filtersv1.NewV1FiltersService(config),
-		V1OperatorsService:     operatorsv1.NewV1OperatorsService(config),
+		V1ServerlessService:    serverlessv1.NewV1ServerlessService(config),
 		V1WebhooksService:      webhooksv1.NewV1WebhooksService(config),
 		V1CELService:           celv1.NewV1CELService(config),
 		V1ObservabilityService: observability.NewV1ObservabilityService(config),
 		V1FeatureFlagsService:  featureflagsv1.NewV1FeatureFlagsService(config),
 		DurableTasksService:    durabletasksv1.NewDurableTasksService(config),
+		V1StreamsService:       streamsv1.NewV1StreamsService(config),
 	}
 }
 
@@ -496,8 +499,10 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		}
 
 		payload, err := t.config.V1.OLAP().ReadPayload(timeoutCtx, v1Event.TenantID, repository.ReadOLAPPayloadOpts{
-			ExternalId: v1Event.ExternalID,
-			InsertedAt: v1Event.SeenAt,
+			ExternalId:         v1Event.ExternalID,
+			InsertedAt:         v1Event.SeenAt,
+			PayloadReferenceId: v1Event.PayloadReferenceID,
+			Kind:               repository.PayloadKindUserEventInput,
 		})
 
 		if err != nil {
@@ -607,6 +612,29 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid durable task id")
 		}
 
+		var tenantId uuid.UUID
+		if err := tenantId.Scan(parentId); err != nil {
+			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid tenant id")
+		}
+
+		// lookup here to see if the task is a dag orchestrator
+		coreDBTask, err := config.V1.Tasks().GetTaskByExternalId(ctx, tenantId, taskID, false)
+
+		if coreDBTask != nil && err == nil && coreDBTask.IsDagOrchestrator {
+			return &sqlcv1.V1TasksOlap{
+				TenantID:          tenantId,
+				ID:                coreDBTask.ID,
+				InsertedAt:        coreDBTask.InsertedAt,
+				ExternalID:        coreDBTask.ExternalID,
+				StepID:            coreDBTask.StepID,
+				WorkflowID:        coreDBTask.WorkflowID,
+				WorkflowRunID:     coreDBTask.WorkflowRunID,
+				WorkflowVersionID: coreDBTask.WorkflowVersionID,
+				DagID:             coreDBTask.DagID,
+				DagInsertedAt:     coreDBTask.DagInsertedAt,
+			}, tenantId.String(), nil
+		}
+
 		task, err := config.V1.OLAP().ReadTaskRun(ctx, taskID)
 		if err != nil {
 			return nil, "", err
@@ -707,14 +735,16 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		return webhook, webhook.TenantID.String(), nil
 	})
 
-	populatorMW.RegisterGetter("v1-http-operator", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
+	// The endpoint route carries no tenant id, so the endpoint is resolved by id alone and its
+	// tenant is returned as the parent for the populator to load and authz to check.
+	populatorMW.RegisterGetter("v1-serverless-endpoint", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
 		idUuid, err := uuid.Parse(id)
 
 		if err != nil {
-			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid operator id")
+			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid serverless endpoint id")
 		}
 
-		operator, err := t.config.V1.Operators().GetOperatorById(
+		endpoint, err := t.config.V1.Serverless().Endpoints().GetById(
 			context.Background(),
 			idUuid,
 		)
@@ -723,7 +753,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 			return nil, "", err
 		}
 
-		return operator, operator.TenantID.String(), nil
+		return endpoint, endpoint.TenantID.String(), nil
 	})
 
 	authnMW := authn.NewAuthN(t.config)
@@ -803,6 +833,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		rateLimitMW.Middleware(),
 		webhookRateLimitMW,
 		otelMW.Middleware(),
+		otelMW.QueryParamMiddleware(),
 		otelMW.ErrorStatusMiddleware(),
 		allHatchetMiddleware,
 	)

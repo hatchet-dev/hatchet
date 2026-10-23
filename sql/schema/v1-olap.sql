@@ -221,6 +221,7 @@ CREATE TABLE v1_tasks_olap (
     parent_task_external_id UUID,
     is_durable BOOLEAN NOT NULL DEFAULT FALSE,
     idempotency_key TEXT,
+    payload_reference_id UUID,
 
     PRIMARY KEY (inserted_at, id)
 ) PARTITION BY RANGE(inserted_at);
@@ -248,6 +249,9 @@ CREATE TABLE v1_dags_olap (
     parent_task_external_id UUID,
     total_tasks INT NOT NULL DEFAULT 1,
     idempotency_key TEXT,
+    latest_retry_count INT NOT NULL DEFAULT 0,
+    is_dag_operator BOOLEAN NOT NULL DEFAULT FALSE,
+    payload_reference_id UUID,
     PRIMARY KEY (inserted_at, id)
 ) PARTITION BY RANGE(inserted_at);
 
@@ -274,7 +278,7 @@ CREATE TABLE v1_runs_olap (
 ) PARTITION BY RANGE(inserted_at);
 
 CREATE INDEX ix_v1_runs_olap_parent_task_external_id ON v1_runs_olap (parent_task_external_id) WHERE parent_task_external_id IS NOT NULL;
-CREATE INDEX ix_v1_runs_olap_tenant_ins_at_status ON v1_runs_olap (tenant_id, inserted_at DESC, readable_status);
+CREATE INDEX ix_v1_runs_olap_tenant_ins_at_status_wf ON v1_runs_olap (tenant_id, inserted_at DESC, readable_status, workflow_id);
 CREATE INDEX ix_v1_runs_olap_idempotency_key ON v1_runs_olap (idempotency_key, inserted_at) WHERE idempotency_key IS NOT NULL;
 
 -- Backs additional_metadata containment filters (@> / @> ANY). jsonb_path_ops only
@@ -284,13 +288,13 @@ CREATE INDEX ix_v1_runs_olap_additional_metadata_gin ON v1_runs_olap USING gin (
 -- LOOKUP TABLES --
 CREATE TABLE v1_lookup_table_olap (
     tenant_id UUID NOT NULL,
-    external_id UUID NOT NULL,
+    external_id UUID NOT NULL, -- IMPORTANT: Each _partition_ of this table has a `UNIQUE` constraint on this column, but the parent does not
     task_id BIGINT,
     dag_id BIGINT,
     inserted_at TIMESTAMPTZ NOT NULL,
 
-    PRIMARY KEY (external_id)
-);
+    PRIMARY KEY (external_id, inserted_at)
+) PARTITION BY RANGE (inserted_at);
 
 CREATE TABLE v1_dag_to_task_olap (
     dag_id BIGINT NOT NULL,
@@ -298,7 +302,7 @@ CREATE TABLE v1_dag_to_task_olap (
     task_id BIGINT NOT NULL,
     task_inserted_at TIMESTAMPTZ NOT NULL,
     PRIMARY KEY (dag_id, dag_inserted_at, task_id, task_inserted_at)
-);
+) PARTITION BY RANGE (dag_inserted_at);
 
 -- STATUS DEFINITION --
 CREATE TYPE v1_status_kind AS ENUM ('TASK', 'DAG');
@@ -312,7 +316,7 @@ CREATE TABLE v1_statuses_olap (
     readable_status v1_readable_status_olap NOT NULL DEFAULT 'QUEUED',
 
     PRIMARY KEY (external_id, inserted_at)
-);
+) PARTITION BY RANGE (inserted_at);
 
 
 -- EVENT DEFINITIONS --
@@ -404,11 +408,11 @@ CREATE TABLE v1_task_events_olap (
     additional__event_data TEXT,
     additional__event_message TEXT,
     durable_invocation_count INT NOT NULL DEFAULT 0,
+    is_dag_orchestrator BOOLEAN NOT NULL DEFAULT FALSE,
+    payload_reference_id UUID,
 
     PRIMARY KEY (task_id, task_inserted_at, id)
-);
-
-CREATE INDEX v1_task_events_olap_task_id_idx ON v1_task_events_olap (task_id);
+) PARTITION BY RANGE (task_inserted_at);
 
 CREATE TABLE v1_incoming_webhook_validation_failures_olap (
     id BIGINT NOT NULL GENERATED ALWAYS AS IDENTITY,
@@ -433,7 +437,7 @@ CREATE TYPE v1_payload_location_olap AS ENUM ('INLINE', 'EXTERNAL');
 
 CREATE TABLE v1_payloads_olap (
     tenant_id UUID NOT NULL,
-    external_id UUID NOT NULL,
+    external_id UUID NOT NULL, -- IMPORTANT: Each _partition_ of this table has a `UNIQUE` constraint on this column, but the parent does not
 
     location v1_payload_location_olap NOT NULL,
     external_location_key TEXT,
@@ -564,6 +568,7 @@ CREATE TABLE v1_events_olap (
     additional_metadata JSONB,
     scope TEXT,
     triggering_webhook_name TEXT,
+    payload_reference_id UUID,
 
     PRIMARY KEY (tenant_id, seen_at, id)
 ) PARTITION BY RANGE(seen_at);
@@ -653,7 +658,7 @@ BEGIN
         id,
         inserted_at
     FROM new_rows
-    ON CONFLICT (external_id) DO NOTHING;
+    ON CONFLICT (external_id, inserted_at) DO NOTHING;
 
     -- If the task has a dag_id and dag_inserted_at, insert into the lookup table
     INSERT INTO v1_dag_to_task_olap (
@@ -775,7 +780,7 @@ BEGIN
         id,
         inserted_at
     FROM new_rows
-    ON CONFLICT (external_id) DO NOTHING;
+    ON CONFLICT (external_id, inserted_at) DO NOTHING;
 
     RETURN NULL;
 END;
@@ -818,7 +823,9 @@ BEGIN
     UPDATE
         v1_runs_olap r
     SET
-        readable_status = n.readable_status
+        readable_status = n.readable_status,
+        parent_task_external_id = n.parent_task_external_id,
+        idempotency_key = n.idempotency_key
     FROM new_rows n
     WHERE
         r.id = n.id

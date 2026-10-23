@@ -375,19 +375,23 @@ describe('DurableListenerClient reconnection', () => {
       return expect(d.promise).rejects.toThrow('disconnected');
     });
 
-    it('preserves buffered completions (server-side state survives reconnection)', () => {
+    it('preserves ordered completions (server-side state survives reconnection)', () => {
       const l = listener as any;
-      const completion = {
-        durableTaskExternalId: 'task',
-        nodeId: 1,
-        payload: {},
+      const queue = {
+        pending: [
+          {
+            key: 'task:1:0:1',
+            result: { durableTaskExternalId: 'task', nodeId: 1, payload: {} },
+          },
+        ],
+        delivered: new Set(['task:1:0:1']),
       };
-      l._bufferedCompletions.set('task:1:0:1', completion);
+      l._orderedCompletions.set('task:1', queue);
 
       l._failPendingAcks(new Error('disconnected'));
 
-      expect(l._bufferedCompletions.size).toBe(1);
-      expect(l._bufferedCompletions.get('task:1:0:1')).toBe(completion);
+      expect(l._orderedCompletions.size).toBe(1);
+      expect(l._orderedCompletions.get('task:1')).toBe(queue);
     });
   });
 
@@ -411,17 +415,21 @@ describe('DurableListenerClient reconnection', () => {
       return expect(d.promise).rejects.toThrow('stopped');
     });
 
-    it('clears buffered completions', () => {
+    it('clears ordered completions', () => {
       const l = listener as any;
-      l._bufferedCompletions.set('task:1:0:1', {
-        durableTaskExternalId: 'task',
-        nodeId: 1,
-        payload: {},
+      l._orderedCompletions.set('task:1', {
+        pending: [
+          {
+            key: 'task:1:0:1',
+            result: { durableTaskExternalId: 'task', nodeId: 1, payload: {} },
+          },
+        ],
+        delivered: new Set(['task:1:0:1']),
       });
 
       l._failAllPending(new Error('stopped'));
 
-      expect(l._bufferedCompletions.size).toBe(0);
+      expect(l._orderedCompletions.size).toBe(0);
     });
 
     it('also rejects pending event acks and eviction acks', () => {
@@ -518,6 +526,234 @@ describe('DurableListenerClient reconnection', () => {
       ctrl.error(new Error('transport failure'));
       await settle();
       await assertion;
+    });
+  });
+
+  // ── completion ordering ──
+
+  describe('completion ordering', () => {
+    function entryCompleted(nodeId: number, invocationCount = 1, branchId = 0) {
+      return {
+        entryCompleted: {
+          ref: { durableTaskExternalId: 'task', invocationCount, branchId, nodeId },
+          isFailure: false,
+          errorMessage: undefined,
+          payload: new TextEncoder().encode(JSON.stringify({ node: nodeId })),
+        },
+      };
+    }
+
+    beforeEach(async () => {
+      const h = tracked(hangingStream());
+      grpcClient.durableTask.mockReturnValue(h.stream);
+      await listener.start('w1');
+    });
+
+    it('resolves a completion that arrived before its waiter registered', async () => {
+      const l = listener as any;
+      l._handleResponse(entryCompleted(1));
+
+      const result = await listener.waitForCallback('task', 1, 0, 1);
+
+      expect(result.payload).toEqual({ node: 1 });
+      expect(l._orderedCompletions.get('task:1').pending).toHaveLength(0);
+    });
+
+    it('holds a later completion until every earlier completion has been consumed', async () => {
+      const l = listener as any;
+      l._handleResponse(entryCompleted(1));
+      l._handleResponse(entryCompleted(2));
+
+      let secondResolved = false;
+      const second = listener.waitForCallback('task', 1, 0, 2).then((r) => {
+        secondResolved = true;
+        return r;
+      });
+      await settle(10);
+      expect(secondResolved).toBe(false);
+
+      const first = await listener.waitForCallback('task', 1, 0, 1);
+      expect(first.payload).toEqual({ node: 1 });
+      expect((await second).payload).toEqual({ node: 2 });
+    });
+
+    it('resumes waiters in release order even when the head waiter registers last', async () => {
+      const l = listener as any;
+      l._handleResponse(entryCompleted(1));
+      l._handleResponse(entryCompleted(2));
+
+      const resumed: number[] = [];
+      const second = listener.waitForCallback('task', 1, 0, 2).then(() => resumed.push(2));
+      const first = listener.waitForCallback('task', 1, 0, 1).then(() => resumed.push(1));
+
+      await Promise.all([first, second]);
+      expect(resumed).toEqual([1, 2]);
+    });
+
+    it('resolves a re-delivered completion directly to its waiter', async () => {
+      const l = listener as any;
+      l._handleResponse(entryCompleted(1));
+      await listener.waitForCallback('task', 1, 0, 1);
+
+      l._handleResponse(entryCompleted(2));
+      const secondWait = listener.waitForCallback('task', 1, 0, 1);
+      l._handleResponse(entryCompleted(1));
+
+      const result = await secondWait;
+      expect(result.payload).toEqual({ node: 1 });
+      expect(l._orderedCompletions.get('task:1').pending).toHaveLength(1);
+    });
+
+    it('does not let a non-blocking consumer registered first stall later waiters', async () => {
+      const l = listener as any;
+      listener.consumeCallbackWithoutBlocking('task', 1, 0, 1);
+
+      l._handleResponse(entryCompleted(1));
+      l._handleResponse(entryCompleted(2));
+
+      const result = await listener.waitForCallback('task', 1, 0, 2);
+      expect(result.payload).toEqual({ node: 2 });
+    });
+
+    it('unblocks the queue when a non-blocking consumer registers after its completion arrived', async () => {
+      const l = listener as any;
+      l._handleResponse(entryCompleted(1));
+      l._handleResponse(entryCompleted(2));
+
+      const waiter = listener.waitForCallback('task', 1, 0, 2);
+      listener.consumeCallbackWithoutBlocking('task', 1, 0, 1);
+
+      const result = await waiter;
+      expect(result.payload).toEqual({ node: 2 });
+    });
+  });
+
+  describe('worker status', () => {
+    function nextEventLoopIteration(): Promise<void> {
+      return new Promise<void>((resolve) => {
+        setImmediate(resolve);
+      });
+    }
+
+    function takeWorkerStatusRequests(l: any): any[] {
+      const statusRequests = l._requestQueue.filter((r: any) => r.workerStatus);
+      l._requestQueue.length = 0;
+      return statusRequests;
+    }
+
+    async function registerWaiters(taskId: string, waiterCount: number): Promise<void> {
+      for (let nodeId = 0; nodeId < waiterCount; nodeId++) {
+        void listener.waitForCallback(taskId, 1, 0, nodeId);
+      }
+      await nextEventLoopIteration();
+    }
+
+    beforeEach(async () => {
+      const h = tracked(hangingStream());
+      grpcClient.durableTask.mockReturnValue(h.stream);
+      await listener.start('w1');
+      takeWorkerStatusRequests(listener);
+    });
+
+    it('sends one request for waiters registered in the same event loop iteration', async () => {
+      await registerWaiters('task-1', 500);
+
+      const statusRequests = takeWorkerStatusRequests(listener);
+
+      expect(statusRequests).toHaveLength(1);
+      expect(statusRequests[0].workerStatus.waitingEntries).toHaveLength(500);
+    });
+
+    it('lists only the newly registered waiters on later registrations', async () => {
+      await registerWaiters('task-1', 300);
+      takeWorkerStatusRequests(listener);
+
+      await registerWaiters('task-2', 50);
+      const statusRequests = takeWorkerStatusRequests(listener);
+
+      expect(statusRequests).toHaveLength(1);
+      const { waitingEntries } = statusRequests[0].workerStatus;
+      expect(waitingEntries).toHaveLength(50);
+      expect(new Set(waitingEntries.map((e: any) => e.durableTaskExternalId))).toEqual(
+        new Set(['task-2'])
+      );
+    });
+
+    it('skips recently registered waiters on the periodic resend', async () => {
+      const l = listener as any;
+      await registerWaiters('task-1', 10);
+      takeWorkerStatusRequests(l);
+
+      l._enqueueWorkerStatusForLongPendingWaiters();
+      expect(takeWorkerStatusRequests(l)).toEqual([]);
+
+      l._waitingSince.set('task-1:1:0:3', Date.now() - 60_000);
+      l._enqueueWorkerStatusForLongPendingWaiters();
+      const statusRequests = takeWorkerStatusRequests(l);
+
+      expect(statusRequests).toHaveLength(1);
+      expect(statusRequests[0].workerStatus.waitingEntries).toEqual([
+        { durableTaskExternalId: 'task-1', invocationCount: 1, branchId: 0, nodeId: 3 },
+      ]);
+    });
+
+    it('splits a status with many waiters across requests', async () => {
+      const l = listener as any;
+      await registerWaiters('task-1', 25);
+      takeWorkerStatusRequests(l);
+
+      l._enqueueWorkerStatusFor([...l._pendingCallbacks.keys()], 10);
+
+      expect(
+        takeWorkerStatusRequests(l).map((r: any) => r.workerStatus.waitingEntries.length)
+      ).toEqual([10, 10, 5]);
+    });
+  });
+
+  describe('run children', () => {
+    beforeEach(async () => {
+      const h = tracked(hangingStream());
+      grpcClient.durableTask.mockReturnValue(h.stream);
+      await listener.start('w1');
+    });
+
+    it('sends children in requests of at most 100 and merges the acks in order', async () => {
+      const l = listener as any;
+      const triggerOpts = Array.from({ length: 250 }, (_, i) => ({ name: `child-${i}` }));
+
+      const ackPromise = listener.sendEvent('task', 1, {
+        kind: 'runChildren',
+        triggerOpts: triggerOpts as any,
+      });
+
+      const requestSizes: number[] = [];
+      let nextNodeId = 0;
+      for (let requestIndex = 0; requestIndex < 3; requestIndex++) {
+        const request = l._requestQueue.find((r: any) => r.triggerRuns);
+        l._requestQueue.length = 0;
+        requestSizes.push(request.triggerRuns.triggerOpts.length);
+
+        l._handleResponse({
+          triggerRunsAck: {
+            durableTaskExternalId: 'task',
+            invocationCount: 1,
+            runEntries: request.triggerRuns.triggerOpts.map((opt: any) => ({
+              nodeId: nextNodeId++,
+              branchId: 0,
+              workflowRunExternalId: opt.name,
+            })),
+          },
+        });
+        await settle(0);
+      }
+
+      const ack = await ackPromise;
+
+      expect(requestSizes).toEqual([100, 100, 50]);
+      expect(ack.runEntries.map((e) => e.nodeId)).toEqual(triggerOpts.map((_, i) => i));
+      expect(ack.runEntries.map((e) => e.workflowRunExternalId)).toEqual(
+        triggerOpts.map((opt) => opt.name)
+      );
     });
   });
 

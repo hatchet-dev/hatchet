@@ -3,6 +3,7 @@ withTenant:
     x-resources: ["tenant"]
     description: Get all workflows for a tenant
     operationId: workflow:list
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -63,6 +64,7 @@ withWorkflow:
     x-resources: ["tenant", "workflow"]
     description: Get a workflow for a tenant
     operationId: workflow:get
+    x-payloads: false
     parameters:
       - description: The workflow id
         in: path
@@ -105,6 +107,7 @@ withWorkflow:
     x-resources: ["tenant", "workflow"]
     description: Delete a workflow for a tenant
     operationId: workflow:delete
+    x-payloads: false
     parameters:
       - description: The workflow id
         in: path
@@ -143,6 +146,7 @@ withWorkflow:
     x-resources: ["tenant", "workflow"]
     description: Update a workflow for a tenant
     operationId: workflow:update
+    x-payloads: false
     parameters:
       - description: The workflow id
         in: path
@@ -187,6 +191,7 @@ workflowPause:
     x-resources: ["tenant", "workflow"]
     description: Pause or unpause a workflow for a tenant
     operationId: workflow:update:pause
+    x-payloads: false
     parameters:
       - description: The workflow id
         in: path
@@ -231,6 +236,7 @@ workflowVersion:
     x-resources: ["tenant", "workflow"]
     description: Get a workflow version for a tenant
     operationId: workflow-version:get
+    x-payloads: false
     parameters:
       - description: The workflow id
         in: path
@@ -283,6 +289,7 @@ workflowVersionDefinition:
     x-resources: ["tenant", "workflow"]
     description: Get a workflow version definition for a tenant
     operationId: workflow-version:get:definition
+    x-payloads: false
     parameters:
       - description: The workflow id
         in: path
@@ -335,6 +342,7 @@ triggerWorkflow:
     x-resources: ["tenant", "workflow"]
     description: Trigger a new workflow run for a tenant
     operationId: workflow-run:create
+    x-payloads: false
     parameters:
       - description: The workflow id
         in: path
@@ -401,6 +409,7 @@ cancelWorkflowRuns:
     x-resources: ["tenant"]
     description: Cancel a batch of workflow runs
     operationId: workflow-run:cancel
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -454,6 +463,7 @@ workflowRuns:
     x-resources: ["tenant"]
     description: Get all workflow runs for a tenant
     operationId: workflow-run:list
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -606,6 +616,7 @@ workflowRunsMetrics:
     x-resources: ["tenant"]
     description: Get a summary of  workflow run metrics for a tenant
     operationId: workflow-run:get:metrics
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -704,6 +715,7 @@ workflowRun:
     x-resources: ["tenant", "workflow-run"]
     description: Get a workflow run for a tenant
     operationId: workflow-run:get
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -750,6 +762,7 @@ workflowRunShape:
     x-resources: ["tenant", "workflow-run"]
     description: Get a workflow run for a tenant
     operationId: workflow-run:get:shape
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -796,6 +809,7 @@ getMetrics:
     x-resources: ["tenant", "workflow"]
     description: Get the metrics for a workflow version
     operationId: workflow:get:metrics
+    x-payloads: false
     parameters:
       - description: The workflow id
         in: path
@@ -852,6 +866,7 @@ workflowWorkersCount:
     x-resources: ["tenant", "workflow"]
     description: Get a count of the workers available for workflow
     operationId: workflow:get:workers-count
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -899,6 +914,7 @@ scheduledCreate:
     x-resources: ["tenant"]
     description: Schedule a new workflow run for a tenant
     operationId: scheduled-workflow-run:create
+    x-payloads: true
     parameters:
       - description: The tenant id
         in: path
@@ -962,6 +978,7 @@ scheduledList:
     x-resources: ["tenant"]
     description: Get all scheduled workflow runs for a tenant
     operationId: workflow-scheduled:list
+    x-payloads: true
     parameters:
       - description: The tenant id
         in: path
@@ -1070,6 +1087,7 @@ scheduled:
     x-resources: ["tenant", "scheduled-workflow-run"]
     description: Get a scheduled workflow run for a tenant
     operationId: workflow-scheduled:get
+    x-payloads: true
     parameters:
       - description: The tenant id
         in: path
@@ -1121,6 +1139,7 @@ scheduled:
     x-resources: ["tenant", "scheduled-workflow-run"]
     description: Delete a scheduled workflow run for a tenant
     operationId: workflow-scheduled:delete
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -1162,6 +1181,7 @@ scheduled:
     x-resources: ["tenant", "scheduled-workflow-run"]
     description: Update (reschedule) a scheduled workflow run for a tenant
     operationId: workflow-scheduled:update
+    x-payloads: true
     parameters:
       - description: The tenant id
         in: path
@@ -1220,6 +1240,7 @@ scheduled:
     x-resources: ["tenant", "scheduled-workflow-run"]
     description: Trigger a scheduled workflow run immediately for a tenant
     operationId: workflow-scheduled:trigger
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -1279,6 +1300,7 @@ scheduledBulkDelete:
     x-resources: ["tenant"]
     description: Bulk delete scheduled workflow runs for a tenant
     operationId: workflow-scheduled:bulk-delete
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -1324,6 +1346,7 @@ scheduledBulkUpdate:
     x-resources: ["tenant"]
     description: Bulk update (reschedule) scheduled workflow runs for a tenant
     operationId: workflow-scheduled:bulk-update
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -1369,6 +1392,7 @@ crons:
     x-resources: ["tenant", "cron-workflow"]
     description: Get a cron job workflow run for a tenant
     operationId: workflow-cron:get
+    x-payloads: true
     parameters:
       - description: The tenant id
         in: path
@@ -1420,6 +1444,7 @@ crons:
     x-resources: ["tenant", "cron-workflow"]
     description: Delete a cron job workflow run for a tenant
     operationId: workflow-cron:delete
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -1461,6 +1486,7 @@ crons:
     x-resources: ["tenant", "cron-workflow"]
     description: Update a cron workflow for a tenant
     operationId: workflow-cron:update
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -1509,6 +1535,7 @@ crons:
     x-resources: ["tenant", "cron-workflow"]
     description: Trigger a cron workflow immediately for a tenant
     operationId: workflow-cron:trigger
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -1568,6 +1595,7 @@ cronsCreate:
     x-resources: ["tenant"]
     description: Create a new cron job workflow trigger for a tenant
     operationId: cron-workflow-trigger:create
+    x-payloads: true
     parameters:
       - description: The tenant id
         in: path
@@ -1631,6 +1659,7 @@ cronsList:
     x-resources: ["tenant"]
     description: Get all cron job workflow triggers for a tenant
     operationId: cron-workflow:list
+    x-payloads: true
     parameters:
       - description: The tenant id
         in: path

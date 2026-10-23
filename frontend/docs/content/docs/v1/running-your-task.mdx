@@ -31,6 +31,8 @@ The run methods in Hatchet's Python SDK also have async flavors you can `await`.
 
 Note that the type of `input` here is a Pydantic model that matches the input schema of the task or workflow being triggered.
 
+The sync `run` method polls for completion every 1 second by default. Configure the interval with `ClientConfig.sync_result_poll_interval` or the `HATCHET_CLIENT_SYNC_RESULT_POLL_INTERVAL` environment variable. The minimum is 1 second. `aio_run` waits on a listener and is not affected.
+
   </Tabs.Tab>
   <Tabs.Tab title="Typescript">
 
@@ -110,6 +112,8 @@ Use `ref.result()` to block until the result is available:
 or await `aio_result`:
 
 <Snippet src={snippets.python.trigger_methods.workflow.result_async} />
+
+`result()` uses the same poll interval as sync `run`. Pass `poll_interval` to override it for a single call. `aio_result` waits on a listener and is not affected.
 
   </Tabs.Tab>
   <Tabs.Tab title="Typescript">

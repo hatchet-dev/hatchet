@@ -201,6 +201,8 @@ func getCronKey(cron *sqlcv1.PollCronSchedulesRow) string {
 	switch cron.Method {
 	case sqlcv1.WorkflowTriggerCronRefMethodsAPI:
 		return fmt.Sprintf("API-%s-%s-%s", workflowVersionId, cron.Cron, cron.Name.String)
+	case sqlcv1.WorkflowTriggerCronRefMethodsDEFAULT:
+		return fmt.Sprintf("DEFAULT-%s-%s", workflowVersionId, cron.Cron)
 	default:
 		return fmt.Sprintf("DEFAULT-%s-%s", workflowVersionId, cron.Cron)
 	}

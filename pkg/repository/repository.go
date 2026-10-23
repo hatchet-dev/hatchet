@@ -33,6 +33,7 @@ type Repository interface {
 	OverwriteOLAPRepository(o OLAPRepository)
 	Logs() LogLineRepository
 	OverwriteLogsRepository(l LogLineRepository)
+	Streams() StreamsRepository
 	Payloads() PayloadStoreRepository
 	OverwriteExternalPayloadStore(o ExternalStore)
 	Workers() WorkerRepository
@@ -40,6 +41,7 @@ type Repository interface {
 	Ticker() TickerRepository
 	Filters() FilterRepository
 	Operators() OperatorRepository
+	Serverless() ServerlessRepository
 	Webhooks() WebhookRepository
 	Idempotency() IdempotencyRepository
 	IntervalSettings() IntervalSettingsRepository
@@ -71,11 +73,13 @@ type repositoryImpl struct {
 	matches           MatchRepository
 	olap              OLAPRepository
 	logs              LogLineRepository
+	streams           StreamsRepository
 	workers           WorkerRepository
 	workflows         WorkflowRepository
 	ticker            TickerRepository
 	filters           FilterRepository
 	operators         OperatorRepository
+	serverless        ServerlessRepository
 	webhooks          WebhookRepository
 	payloadStore      PayloadStoreRepository
 	idempotency       IdempotencyRepository
@@ -106,6 +110,7 @@ func NewRepository(
 	statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits,
 	tenantLimitConfig limits.LimitConfigFile,
 	enforceLimits bool,
+	durableEventBufferOpts DurableEventBufferOpts,
 ) (Repository, func() error) {
 	v := validator.NewDefaultValidator()
 
@@ -116,7 +121,7 @@ func NewRepository(
 	impl := &repositoryImpl{
 		apiToken:          newAPITokenRepository(shared, cacheDuration),
 		dispatcher:        newDispatcherRepository(shared),
-		durableEvents:     newDurableEventsRepository(shared),
+		durableEvents:     newDurableEventsRepository(shared, durableEventBufferOpts),
 		health:            newHealthRepository(shared),
 		messageQueue:      mq,
 		rateLimit:         newRateLimitRepository(shared),
@@ -126,11 +131,13 @@ func NewRepository(
 		matches:           newMatchRepository(shared),
 		olap:              newOLAPRepository(shared, olapRetentionPeriod, true, true, statusUpdateBatchSizeLimits),
 		logs:              newLogLineRepository(shared),
+		streams:           newStreamsRepository(shared),
 		workers:           newWorkerRepository(shared),
 		workflows:         newWorkflowRepository(shared),
 		ticker:            newTickerRepository(shared),
 		filters:           newFilterRepository(shared),
 		operators:         newOperatorRepository(shared),
+		serverless:        newServerlessRepository(shared),
 		webhooks:          newWebhookRepository(shared),
 		payloadStore:      shared.payloadStore,
 		idempotency:       newIdempotencyRepository(shared),
@@ -217,6 +224,10 @@ func (r *repositoryImpl) Logs() LogLineRepository {
 	return r.logs
 }
 
+func (r *repositoryImpl) Streams() StreamsRepository {
+	return r.streams
+}
+
 func (r *repositoryImpl) OverwriteLogsRepository(l LogLineRepository) {
 	r.logs = l
 }
@@ -247,6 +258,10 @@ func (r *repositoryImpl) Filters() FilterRepository {
 
 func (r *repositoryImpl) Operators() OperatorRepository {
 	return r.operators
+}
+
+func (r *repositoryImpl) Serverless() ServerlessRepository {
+	return r.serverless
 }
 
 func (r *repositoryImpl) Webhooks() WebhookRepository {

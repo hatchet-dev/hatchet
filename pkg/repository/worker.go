@@ -1,10 +1,14 @@
 package repository
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"math"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -32,7 +36,7 @@ type CreateWorkerOpts struct {
 	DispatcherId uuid.UUID `validate:"required"`
 
 	// Slot config for this worker (slot_type -> max units)
-	SlotConfig map[string]int32 `validate:"omitempty"`
+	SlotConfig map[string]int32 `validate:"omitempty,dive,keys,required,endkeys,min=0"`
 
 	// The name of the worker
 	Name string `validate:"required,hatchetName"`
@@ -45,6 +49,19 @@ type CreateWorkerOpts struct {
 
 	// (optional) Runtime info for the worker
 	RuntimeInfo *RuntimeInfo `validate:"omitempty"`
+
+	// (optional) The operator this worker backs. Set for workers created by operator
+	// connections (for example an OperatorService Listen stream), nil for SDK workers.
+	OperatorId *uuid.UUID `validate:"omitempty"`
+
+	// IsExemptFromLimits leaves the worker out of the tenant's WORKER and WORKER_SLOT limits:
+	// neither metered here nor counted by the limit queries in workers.sql and
+	// tenant_limits.sql, which read the same flag off the row. It is a hosting fact, decided by
+	// whoever creates the worker: the in-process operator host sets it for every worker it
+	// creates, since those are engine infrastructure that runs whether or not the tenant runs
+	// workers of its own; the wire never sets it, so a worker registered over OperatorService
+	// or by an SDK is metered.
+	IsExemptFromLimits bool
 }
 
 type UpdateWorkerOpts struct {
@@ -53,9 +70,6 @@ type UpdateWorkerOpts struct {
 
 	// When the last worker heartbeat was
 	LastHeartbeatAt *time.Time
-
-	// If the worker is active and accepting new runs
-	IsActive *bool
 
 	// A list of actions this worker can run
 	Actions []string `validate:"dive,actionId"`
@@ -81,6 +95,9 @@ type ListWorkersOpts struct {
 	// must have a label matching every key/value pair to be included.
 	LabelKeys   []string
 	LabelValues []string
+
+	// IncludeOperators includes engine-managed operator workers, which are hidden by default.
+	IncludeOperators *bool
 }
 
 type UpsertWorkerLabelOpts struct {
@@ -123,6 +140,31 @@ type WorkerRepository interface {
 	// CreateNewWorker creates a new worker for a given tenant.
 	CreateNewWorker(ctx context.Context, tenantId uuid.UUID, opts *CreateWorkerOpts) (*sqlcv1.Worker, error)
 
+	// ApplyWorkerActionsDelta links add to the worker and unlinks remove from it in one
+	// transaction, so a delta an operator acknowledges by sequence is committed whole or not at
+	// all. Adds are applied before removes; actions the worker already has are not linked again
+	// and actions it does not have are not unlinked, and neither counts in the returned totals.
+	// The worker's "operatorActionCount" moves with the links and its "actionHash" is cleared:
+	// the digest is recomputed once per delta sequence by RefreshWorkerActionHash, not per
+	// delta.
+	//
+	// maxOperatorLinks caps the links held by every worker of the operator this worker belongs
+	// to, checked in the transaction under the operator's row lock; a delta that would leave the
+	// operator over it is rolled back whole, removes included, and an *ActionBudgetError, which
+	// wraps ErrWorkerActionBudgetExceeded, is returned. A negative cap disables the check, and
+	// a worker with no operator is never capped. The worker must belong to tenantId; otherwise
+	// nothing is mutated and an error wrapping pgx.ErrNoRows is returned.
+	ApplyWorkerActionsDelta(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, add, remove []string, maxOperatorLinks int64) (added, removed int, err error)
+
+	// RefreshWorkerActionHash recomputes the worker's action hash from its links, under the
+	// worker's row lock. It is called at the end of a delta sequence and when a session opens on
+	// a worker whose hash is NULL. The worker must belong to tenantId.
+	RefreshWorkerActionHash(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) error
+
+	// CountOperatorWorkerActions is the action links held by every worker of the operator, from
+	// the per-worker counts.
+	CountOperatorWorkerActions(ctx context.Context, tenantId uuid.UUID, operatorId uuid.UUID) (int64, error)
+
 	// UpdateWorker updates a worker for a given tenant.
 	UpdateWorker(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, opts *UpdateWorkerOpts) (*sqlcv1.Worker, error)
 
@@ -141,7 +183,21 @@ type WorkerRepository interface {
 
 	GetWorkerForEngine(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) (*sqlcv1.GetWorkerForEngineRow, error)
 
-	UpdateWorkerActiveStatus(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, isActive bool, timestamp time.Time) (*sqlcv1.Worker, error)
+	// ActivateWorkerListener marks the worker active on behalf of the listener session
+	// identified by sessionId and records that id on the worker, so only this session can
+	// later deactivate it.
+	ActivateWorkerListener(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, sessionId uuid.UUID) (*sqlcv1.Worker, error)
+
+	// DeactivateWorkerListener marks the worker inactive if sessionId is still the session
+	// recorded by ActivateWorkerListener. It returns pgx.ErrNoRows when a newer session has
+	// superseded this one, in which case the worker is left untouched.
+	DeactivateWorkerListener(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, sessionId uuid.UUID) (*sqlcv1.Worker, error)
+
+	// PauseWorkerForListener sets the worker's pause on behalf of the listener session
+	// identified by sessionId, only while that session is still the one recorded by
+	// ActivateWorkerListener. It returns an error wrapping pgx.ErrNoRows when a newer session
+	// has superseded this one, in which case the worker is left untouched.
+	PauseWorkerForListener(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, sessionId uuid.UUID, paused bool) error
 
 	UpsertWorkerLabels(ctx context.Context, workerId uuid.UUID, opts []UpsertWorkerLabelOpts) ([]*sqlcv1.WorkerLabel, error)
 
@@ -198,6 +254,14 @@ func (w *workerRepository) ListWorkers(ctx context.Context, tenantId uuid.UUID, 
 	if opts.Statuses != nil {
 		queryParams.Statuses = opts.Statuses
 		countParams.Statuses = opts.Statuses
+	}
+
+	if opts.IncludeOperators != nil {
+		queryParams.IncludeOperators = pgtype.Bool{
+			Bool:  *opts.IncludeOperators,
+			Valid: true,
+		}
+		countParams.IncludeOperators = queryParams.IncludeOperators
 	}
 
 	if len(opts.LabelKeys) > 0 || len(opts.LabelValues) > 0 {
@@ -518,39 +582,98 @@ func (w *workerRepository) GetWorkerForEngine(ctx context.Context, tenantId uuid
 	})
 }
 
+// hashActions is the canonical digest of an action set: sha256 over the ids sorted by byte
+// order, each followed by ";", after the same lower-casing and deduplication the "Action"
+// table applies. The separator keeps ["ab", "c"] apart from ["a", "bc"]; it cannot occur
+// inside an id, because ParseActionID rejects semicolons on every registration path, so the
+// framing is unambiguous for every id that reaches the "Action" table. The per-id framing is
+// the one main has always used, so a rolling deploy needs no hash migration: a worker
+// registered by an older engine keeps the hash that engine computed until it re-registers,
+// and the scheduler treats that hash as a group of its own. Distinct hashes never misroute;
+// only equal hashes for different sets would, and both engines' digests are collision
+// resistant. The digest is a function of the final set alone, so a worker created with an
+// initial set and a worker built by deltas hash equal for the same set, and it is not a
+// combination of per-action digests that could be solved for a chosen value.
+// ComputeWorkerActionHash in workers.sql computes the same digest from the linked rows; the
+// two must stay in step because GetWorkerActionsByWorkerActionHash treats equal hashes as
+// equal sets.
 func hashActions(actions []string) []byte {
+	ids := dedupeActionIds(actions)
+
+	sort.Strings(ids)
+
 	h := sha256.New()
 
-	for _, action := range actions {
+	for _, action := range ids {
 		h.Write([]byte(action))
-		h.Write([]byte(";")) // separator to avoid collisions (e.g. ["ab", "c"] vs ["a", "bc"])
+		h.Write([]byte(";"))
 	}
 
 	return h.Sum(nil)
 }
 
-func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UUID, opts *CreateWorkerOpts) (*sqlcv1.Worker, error) {
-	preWorker, postWorker := w.m.Meter(ctx, nil, sqlcv1.LimitResourceWORKER, tenantId, 1)
+// workerSDKFromContract maps the SDK reported by a worker at registration to the "Worker"."language"
+// column value.
+func workerSDKFromContract(sdk contracts.SDKS) (sqlcv1.NullWorkerSDKS, error) {
+	var language sqlcv1.WorkerSDKS
 
-	if err := preWorker(); err != nil {
+	switch sdk {
+	case contracts.SDKS_GO:
+		language = sqlcv1.WorkerSDKSGO
+	case contracts.SDKS_PYTHON:
+		language = sqlcv1.WorkerSDKSPYTHON
+	case contracts.SDKS_TYPESCRIPT:
+		language = sqlcv1.WorkerSDKSTYPESCRIPT
+	case contracts.SDKS_RUBY:
+		language = sqlcv1.WorkerSDKSRUBY
+	case contracts.SDKS_UNKNOWN:
+		return sqlcv1.NullWorkerSDKS{}, fmt.Errorf("invalid sdk: %s", sdk)
+	default:
+		return sqlcv1.NullWorkerSDKS{}, fmt.Errorf("invalid sdk: %s", sdk)
+	}
+
+	return sqlcv1.NullWorkerSDKS{
+		WorkerSDKS: language,
+		Valid:      true,
+	}, nil
+}
+
+func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UUID, opts *CreateWorkerOpts) (*sqlcv1.Worker, error) {
+	if err := w.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
 	slotConfig := opts.SlotConfig
-	slots := int32(0)
+
+	var totalUnits int64
 
 	for _, units := range slotConfig {
-		slots += units
+		totalUnits += int64(units)
 	}
 
-	preWorkerSlot, postWorkerSlot := w.m.Meter(ctx, nil, sqlcv1.LimitResourceWORKERSLOT, tenantId, slots)
-
-	if err := preWorkerSlot(); err != nil {
-		return nil, err
+	if totalUnits > math.MaxInt32 {
+		return nil, fmt.Errorf("slot config units sum to %d, above %d", totalUnits, math.MaxInt32)
 	}
 
-	if err := w.v.Validate(opts); err != nil {
-		return nil, err
+	slots := int32(totalUnits) // nolint: gosec // bounded above
+
+	postWorker := func() {}
+	postWorkerSlot := func() {}
+
+	if !opts.IsExemptFromLimits {
+		var preWorker, preWorkerSlot func() error
+
+		preWorker, postWorker = w.m.Meter(ctx, nil, sqlcv1.LimitResourceWORKER, tenantId, 1)
+
+		if err := preWorker(); err != nil {
+			return nil, err
+		}
+
+		preWorkerSlot, postWorkerSlot = w.m.Meter(ctx, nil, sqlcv1.LimitResourceWORKERSLOT, tenantId, slots)
+
+		if err := preWorkerSlot(); err != nil {
+			return nil, err
+		}
 	}
 
 	tx, err := w.pool.Begin(ctx)
@@ -561,11 +684,18 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 
 	defer sqlchelpers.DeferRollback(ctx, w.l, tx.Rollback)
 
+	// the initial set is linked below, in this transaction, so the row is created with its
+	// digest and its size
+	initialActions := dedupeActionIds(opts.Actions)
+
 	createParams := sqlcv1.CreateWorkerParams{
-		Tenantid:     tenantId,
-		Dispatcherid: opts.DispatcherId,
-		Name:         opts.Name,
-		Actionhash:   hashActions(opts.Actions),
+		Tenantid:            tenantId,
+		Dispatcherid:        opts.DispatcherId,
+		Name:                opts.Name,
+		Actionhash:          hashActions(initialActions),
+		Operatoractioncount: int32(len(initialActions)), // nolint: gosec // bounded by the request size
+		OperatorId:          opts.OperatorId,
+		Isexemptfromlimits:  opts.IsExemptFromLimits,
 	}
 
 	// Default to self hosted
@@ -579,30 +709,13 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 			createParams.SdkVersion = sqlchelpers.TextFromStr(*opts.RuntimeInfo.SdkVersion)
 		}
 		if opts.RuntimeInfo.Language != nil {
-			switch *opts.RuntimeInfo.Language {
-			case contracts.SDKS_GO:
-				createParams.Language = sqlcv1.NullWorkerSDKS{
-					WorkerSDKS: sqlcv1.WorkerSDKSGO,
-					Valid:      true,
-				}
-			case contracts.SDKS_PYTHON:
-				createParams.Language = sqlcv1.NullWorkerSDKS{
-					WorkerSDKS: sqlcv1.WorkerSDKSPYTHON,
-					Valid:      true,
-				}
-			case contracts.SDKS_TYPESCRIPT:
-				createParams.Language = sqlcv1.NullWorkerSDKS{
-					WorkerSDKS: sqlcv1.WorkerSDKSTYPESCRIPT,
-					Valid:      true,
-				}
-			case contracts.SDKS_RUBY:
-				createParams.Language = sqlcv1.NullWorkerSDKS{
-					WorkerSDKS: sqlcv1.WorkerSDKSRUBY,
-					Valid:      true,
-				}
-			default:
-				return nil, fmt.Errorf("invalid sdk: %s", *opts.RuntimeInfo.Language)
+			language, err := workerSDKFromContract(*opts.RuntimeInfo.Language)
+
+			if err != nil {
+				return nil, err
 			}
+
+			createParams.Language = language
 		}
 		if opts.RuntimeInfo.LanguageVersion != nil {
 			createParams.LanguageVersion = sqlchelpers.TextFromStr(*opts.RuntimeInfo.LanguageVersion)
@@ -701,6 +814,340 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 	return worker, nil
 }
 
+// ErrWorkerActionBudgetExceeded is returned, wrapped in an *ActionBudgetError, by
+// ApplyWorkerActionsDelta when the delta would leave the operator over its action budget.
+// Nothing is changed in that case.
+var ErrWorkerActionBudgetExceeded = errors.New("worker action budget exceeded")
+
+// ActionBudgetError reports a refused delta with the operator's totals: Linked is what the
+// operator's workers would hold with the delta applied, Limit the cap.
+type ActionBudgetError struct {
+	OperatorId uuid.UUID
+	Linked     int64
+	Limit      int64
+}
+
+func (e *ActionBudgetError) Error() string {
+	return fmt.Sprintf("operator %s would hold %d action links, the limit is %d: %s", e.OperatorId, e.Linked, e.Limit, ErrWorkerActionBudgetExceeded)
+}
+
+func (e *ActionBudgetError) Unwrap() error { return ErrWorkerActionBudgetExceeded }
+
+func (w *workerRepository) ApplyWorkerActionsDelta(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, add, remove []string, maxOperatorLinks int64) (int, int, error) {
+	add = dedupeActionIds(add)
+	remove = dedupeActionIds(remove)
+
+	if len(add) == 0 && len(remove) == 0 {
+		return 0, 0, nil
+	}
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l)
+
+	if err != nil {
+		return 0, 0, err
+	}
+
+	defer rollback()
+
+	// the row lock is held until commit, so concurrent deltas for the same worker apply one
+	// after the other and the count each leaves behind is the count of the links it leaves
+	if err := w.lockWorkerActions(ctx, tx, tenantId, workerId); err != nil {
+		return 0, 0, err
+	}
+
+	added, err := w.linkActions(ctx, tx, tenantId, workerId, add)
+
+	if err != nil {
+		return 0, 0, err
+	}
+
+	removed, err := w.unlinkActions(ctx, tx, tenantId, workerId, remove)
+
+	if err != nil {
+		return 0, 0, err
+	}
+
+	if added == 0 && removed == 0 {
+		return 0, 0, nil
+	}
+
+	operatorId, err := w.queries.SettleWorkerActionsDelta(ctx, tx, sqlcv1.SettleWorkerActionsDeltaParams{
+		Workerid: workerId,
+		Added:    int32(added),   // nolint: gosec // bounded by the delta size
+		Removed:  int32(removed), // nolint: gosec // bounded by the delta size
+	})
+
+	if err != nil {
+		return 0, 0, fmt.Errorf("could not settle worker actions delta: %w", err)
+	}
+
+	// the budget is the operator's, so it is checked under the operator's lock, taken after
+	// the worker's: every delta of the operator's workers takes the two in this order
+	if maxOperatorLinks >= 0 && operatorId != nil {
+		if _, err := w.queries.LockOperator(ctx, tx, sqlcv1.LockOperatorParams{Tenantid: tenantId, ID: *operatorId}); err != nil {
+			return 0, 0, fmt.Errorf("could not lock operator %s: %w", *operatorId, err)
+		}
+
+		linked, err := w.queries.SumOperatorWorkerActionCounts(ctx, tx, sqlcv1.SumOperatorWorkerActionCountsParams{
+			Tenantid:   tenantId,
+			Operatorid: *operatorId,
+		})
+
+		if err != nil {
+			return 0, 0, fmt.Errorf("could not sum operator worker actions: %w", err)
+		}
+
+		if linked > maxOperatorLinks {
+			return 0, 0, &ActionBudgetError{OperatorId: *operatorId, Linked: linked, Limit: maxOperatorLinks}
+		}
+	}
+
+	if err := commit(ctx); err != nil {
+		return 0, 0, err
+	}
+
+	return added, removed, nil
+}
+
+// RefreshWorkerActionHash recomputes the worker's action hash from its linked rows, under the
+// worker's row lock, so the digest written is the digest of the links the last committed delta
+// left behind.
+func (w *workerRepository) RefreshWorkerActionHash(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) error {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l)
+
+	if err != nil {
+		return err
+	}
+
+	defer rollback()
+
+	if err := w.lockWorkerActions(ctx, tx, tenantId, workerId); err != nil {
+		return err
+	}
+
+	if err := w.refreshWorkerActionHash(ctx, tx, workerId); err != nil {
+		return err
+	}
+
+	return commit(ctx)
+}
+
+// linkActions links actionIds to the worker within tx, creating the "Action" rows that are
+// missing, and returns how many links it created. actionIds must be deduplicated.
+func (w *workerRepository) linkActions(ctx context.Context, tx pgx.Tx, tenantId, workerId uuid.UUID, actionIds []string) (int, error) {
+	if len(actionIds) == 0 {
+		return 0, nil
+	}
+
+	actionUUIDs, err := w.resolveActionIds(ctx, tx, tenantId, actionIds)
+
+	if err != nil {
+		return 0, err
+	}
+
+	linked, err := w.queries.LinkNewActionsToWorker(ctx, tx, sqlcv1.LinkNewActionsToWorkerParams{
+		Workerid:  workerId,
+		Tenantid:  tenantId,
+		Actionids: actionUUIDs,
+	})
+
+	if err != nil {
+		return 0, fmt.Errorf("could not link actions to worker: %w", err)
+	}
+
+	return len(linked), nil
+}
+
+// unlinkActions unlinks actionIds from the worker within tx and returns how many links it
+// removed. Actions the tenant does not have cannot be linked, so they are skipped without an
+// insert. actionIds must be deduplicated.
+func (w *workerRepository) unlinkActions(ctx context.Context, tx pgx.Tx, tenantId, workerId uuid.UUID, actionIds []string) (int, error) {
+	if len(actionIds) == 0 {
+		return 0, nil
+	}
+
+	actions, err := w.queries.ListActionsByActionIds(ctx, tx, sqlcv1.ListActionsByActionIdsParams{
+		Tenantid:  tenantId,
+		Actionids: actionIds,
+	})
+
+	if err != nil {
+		return 0, fmt.Errorf("could not list actions: %w", err)
+	}
+
+	if len(actions) == 0 {
+		return 0, nil
+	}
+
+	actionUUIDs := make([]uuid.UUID, 0, len(actions))
+
+	for _, action := range actions {
+		actionUUIDs = append(actionUUIDs, action.ID)
+	}
+
+	unlinked, err := w.queries.UnlinkActionsFromWorker(ctx, tx, sqlcv1.UnlinkActionsFromWorkerParams{
+		Workerid:  workerId,
+		Tenantid:  tenantId,
+		Actionids: actionUUIDs,
+	})
+
+	if err != nil {
+		return 0, fmt.Errorf("could not unlink actions from worker: %w", err)
+	}
+
+	return len(unlinked), nil
+}
+
+func (w *workerRepository) CountOperatorWorkerActions(ctx context.Context, tenantId uuid.UUID, operatorId uuid.UUID) (int64, error) {
+	return w.queries.CountOperatorWorkerActions(ctx, w.pool, sqlcv1.CountOperatorWorkerActionsParams{
+		Tenantid:   tenantId,
+		Operatorid: operatorId,
+	})
+}
+
+// lockWorkerActions takes the worker's row lock for the rest of tx. A worker that does not
+// belong to tenantId is reported as an error wrapping pgx.ErrNoRows before anything is
+// mutated.
+func (w *workerRepository) lockWorkerActions(ctx context.Context, tx pgx.Tx, tenantId, workerId uuid.UUID) error {
+	if _, err := w.queries.LockWorkerActionHash(ctx, tx, sqlcv1.LockWorkerActionHashParams{
+		Workerid: workerId,
+		Tenantid: tenantId,
+	}); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("worker %s does not belong to tenant %s: %w", workerId, tenantId, err)
+		}
+
+		return fmt.Errorf("could not lock worker %s: %w", workerId, err)
+	}
+
+	return nil
+}
+
+// resolveActionIds returns the "Action" row ids for actionIds, creating the rows that are
+// missing. Existing rows are read, not upserted, so a delta that repeats actions the tenant
+// already has takes no lock on them and writes nothing; the missing ones are inserted in
+// sorted order so concurrent transactions creating overlapping sets lock in one order.
+// actionIds must already be deduplicated and lower-cased.
+func (w *workerRepository) resolveActionIds(ctx context.Context, tx pgx.Tx, tenantId uuid.UUID, actionIds []string) ([]uuid.UUID, error) {
+	existing, err := w.queries.ListActionsByActionIds(ctx, tx, sqlcv1.ListActionsByActionIdsParams{
+		Tenantid:  tenantId,
+		Actionids: actionIds,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("could not list actions: %w", err)
+	}
+
+	uuidByActionId := make(map[string]uuid.UUID, len(actionIds))
+
+	for _, action := range existing {
+		uuidByActionId[action.ActionId] = action.ID
+	}
+
+	missing := make([]string, 0, len(actionIds)-len(existing))
+
+	for _, actionId := range actionIds {
+		if _, ok := uuidByActionId[actionId]; !ok {
+			missing = append(missing, actionId)
+		}
+	}
+
+	if len(missing) > 0 {
+		sort.Strings(missing)
+
+		inserted, err := w.queries.InsertMissingActions(ctx, tx, sqlcv1.InsertMissingActionsParams{
+			Tenantid: tenantId,
+			Actions:  missing,
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("could not insert actions: %w", err)
+		}
+
+		for _, action := range inserted {
+			uuidByActionId[action.ActionId] = action.ID
+		}
+
+		// an action a concurrent transaction created after the read above is skipped by the
+		// insert and resolved here, once that transaction has committed
+		if len(inserted) < len(missing) {
+			raced := make([]string, 0, len(missing)-len(inserted))
+
+			for _, actionId := range missing {
+				if _, ok := uuidByActionId[actionId]; !ok {
+					raced = append(raced, actionId)
+				}
+			}
+
+			concurrent, err := w.queries.ListActionsByActionIds(ctx, tx, sqlcv1.ListActionsByActionIdsParams{
+				Tenantid:  tenantId,
+				Actionids: raced,
+			})
+
+			if err != nil {
+				return nil, fmt.Errorf("could not list actions: %w", err)
+			}
+
+			for _, action := range concurrent {
+				uuidByActionId[action.ActionId] = action.ID
+			}
+		}
+	}
+
+	actionUUIDs := make([]uuid.UUID, 0, len(actionIds))
+
+	for _, actionId := range actionIds {
+		id, ok := uuidByActionId[actionId]
+
+		if !ok {
+			return nil, fmt.Errorf("could not resolve action %s for tenant %s", actionId, tenantId)
+		}
+
+		actionUUIDs = append(actionUUIDs, id)
+	}
+
+	sort.Slice(actionUUIDs, func(i, j int) bool {
+		return bytes.Compare(actionUUIDs[i][:], actionUUIDs[j][:]) < 0
+	})
+
+	return actionUUIDs, nil
+}
+
+// refreshWorkerActionHash recomputes the worker's action hash from its linked rows inside tx.
+// The caller holds the worker's row lock, so the digest written here is the digest of the
+// links this transaction leaves behind.
+func (w *workerRepository) refreshWorkerActionHash(ctx context.Context, tx pgx.Tx, workerId uuid.UUID) error {
+	if err := w.queries.RefreshWorkerActionHash(ctx, tx, workerId); err != nil {
+		return fmt.Errorf("could not refresh worker actions hash: %w", err)
+	}
+
+	return nil
+}
+
+// dedupeActionIds lower-cases action ids the way the "Action" table stores them and drops
+// duplicates and empty entries, so a bulk upsert never touches the same row twice.
+func dedupeActionIds(actionIds []string) []string {
+	seen := make(map[string]struct{}, len(actionIds))
+	out := make([]string, 0, len(actionIds))
+
+	for _, actionId := range actionIds {
+		actionId = strings.ToLower(actionId)
+
+		if actionId == "" {
+			continue
+		}
+
+		if _, ok := seen[actionId]; ok {
+			continue
+		}
+
+		seen[actionId] = struct{}{}
+		out = append(out, actionId)
+	}
+
+	return out
+}
+
 // UpdateWorker updates a worker.
 // It will only update the worker if there is no lock on the worker, else it will skip.
 func (w *workerRepository) UpdateWorker(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, opts *UpdateWorkerOpts) (*sqlcv1.Worker, error) {
@@ -717,7 +1164,8 @@ func (w *workerRepository) UpdateWorker(ctx context.Context, tenantId uuid.UUID,
 	defer sqlchelpers.DeferRollback(ctx, w.l, tx.Rollback)
 
 	updateParams := sqlcv1.UpdateWorkerParams{
-		ID: workerId,
+		ID:       workerId,
+		Tenantid: tenantId,
 	}
 
 	if opts.LastHeartbeatAt != nil {
@@ -727,13 +1175,6 @@ func (w *workerRepository) UpdateWorker(ctx context.Context, tenantId uuid.UUID,
 	if opts.DispatcherId != nil {
 		parsed := *opts.DispatcherId
 		updateParams.DispatcherId = &parsed
-	}
-
-	if opts.IsActive != nil {
-		updateParams.IsActive = pgtype.Bool{
-			Bool:  *opts.IsActive,
-			Valid: true,
-		}
 	}
 
 	if opts.IsPaused != nil {
@@ -772,6 +1213,16 @@ func (w *workerRepository) UpdateWorker(ctx context.Context, tenantId uuid.UUID,
 
 		if err != nil {
 			return nil, fmt.Errorf("could not link actions to worker: %w", err)
+		}
+
+		// links are only ever added here, so the stored hash and count are recomputed from
+		// the rows rather than from opts.Actions alone
+		if err := w.refreshWorkerActionHash(ctx, tx, workerId); err != nil {
+			return nil, err
+		}
+
+		if err := w.queries.RecountWorkerActions(ctx, tx, workerId); err != nil {
+			return nil, fmt.Errorf("could not recount worker actions: %w", err)
 		}
 	}
 
@@ -834,18 +1285,45 @@ func (w *workerRepository) DeleteWorker(ctx context.Context, tenantId uuid.UUID,
 	return err
 }
 
-func (w *workerRepository) UpdateWorkerActiveStatus(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, isActive bool, timestamp time.Time) (*sqlcv1.Worker, error) {
-	worker, err := w.queries.UpdateWorkerActiveStatus(ctx, w.pool, sqlcv1.UpdateWorkerActiveStatusParams{
-		ID:                      workerId,
-		Isactive:                isActive,
-		LastListenerEstablished: sqlchelpers.TimestampFromTime(timestamp),
+func (w *workerRepository) ActivateWorkerListener(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, sessionId uuid.UUID) (*sqlcv1.Worker, error) {
+	worker, err := w.queries.ActivateWorkerListener(ctx, w.pool, sqlcv1.ActivateWorkerListenerParams{
+		ID:        workerId,
+		Tenantid:  tenantId,
+		Sessionid: sessionId,
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("could not update worker active status: %w", err)
+		return nil, fmt.Errorf("could not activate worker listener: %w", err)
 	}
 
 	return worker, nil
+}
+
+func (w *workerRepository) DeactivateWorkerListener(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, sessionId uuid.UUID) (*sqlcv1.Worker, error) {
+	worker, err := w.queries.DeactivateWorkerListener(ctx, w.pool, sqlcv1.DeactivateWorkerListenerParams{
+		ID:        workerId,
+		Tenantid:  tenantId,
+		Sessionid: sessionId,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("could not deactivate worker listener: %w", err)
+	}
+
+	return worker, nil
+}
+
+func (w *workerRepository) PauseWorkerForListener(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, sessionId uuid.UUID, paused bool) error {
+	if _, err := w.queries.UpdateWorker(ctx, w.pool, sqlcv1.UpdateWorkerParams{
+		ID:                workerId,
+		Tenantid:          tenantId,
+		IsPaused:          pgtype.Bool{Bool: paused, Valid: true},
+		ListenerSessionId: &sessionId,
+	}); err != nil {
+		return fmt.Errorf("could not set paused=%t on worker %s for listener session %s: %w", paused, workerId, sessionId, err)
+	}
+
+	return nil
 }
 
 func (w *workerRepository) UpsertWorkerLabels(ctx context.Context, workerId uuid.UUID, opts []UpsertWorkerLabelOpts) ([]*sqlcv1.WorkerLabel, error) {
@@ -967,7 +1445,7 @@ func (w *workerRepository) GetDurableDispatcherIdsForTasks(ctx context.Context, 
 
 	for i, tuple := range idInsertedAtTuples {
 		taskIds[i] = tuple.ID
-		taskInsertedAts[i] = tuple.InsertedAt
+		taskInsertedAts[i] = sqlchelpers.TimestamptzFromUnixMicros(tuple.InsertedAtUnixMicros)
 	}
 
 	rows, err := w.queries.ListDurableTaskDispatcherIdsForTasks(ctx, w.pool, sqlcv1.ListDurableTaskDispatcherIdsForTasksParams{
@@ -984,8 +1462,8 @@ func (w *workerRepository) GetDurableDispatcherIdsForTasks(ctx context.Context, 
 
 	for _, row := range rows {
 		taskIdToDispatcherInfo[IdInsertedAt{
-			ID:         row.TaskID,
-			InsertedAt: row.TaskInsertedAt,
+			ID:                   row.TaskID,
+			InsertedAtUnixMicros: row.TaskInsertedAt.Time.UnixMicro(),
 		}] = DurableTaskDispatcherLookup{
 			DispatcherId: row.DurableTaskDispatcherId,
 			IsEvicted:    row.EvictedAt.Valid,

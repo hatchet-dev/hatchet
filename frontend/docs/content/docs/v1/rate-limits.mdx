@@ -32,7 +32,7 @@ This pattern is especially useful for:
 
 ### How It Works
 
-1. Define the dynamic rate limit key with a CEL (Common Expression Language) Expression on the key, referencing either `input` or `additional_metadata`.
+1. Define the dynamic rate limit key with a [CEL (Common Expression Language) expression](/v1/cel-expressions) on the key, referencing either `input` or `additional_metadata`.
 2. Provide this key as part of the workflow trigger or event `input` or `additional_metadata` at runtime.
 3. Hatchet will create or update the rate limit based on the provided key and enforce it for the step run.
 

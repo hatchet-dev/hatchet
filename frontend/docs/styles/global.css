@@ -1,6 +1,12 @@
+/* Fix cascade-layer order up front: `flow-base` (defaults for the ported
+   marketing Flow animation engine, see components/flow/) must lose to
+   Tailwind components/utilities and to unlayered per-component CSS. */
+@layer theme, base, flow-base, components, utilities;
+
 @import "tailwindcss";
 @import "fumadocs-ui/css/neutral.css";
 @import "fumadocs-ui/css/preset.css";
+@import "./flow-tokens.css";
 @plugin "tailwindcss-animate";
 
 @font-face {
@@ -44,6 +50,9 @@
   --navy-dark: 227 88% 6%;
   --cyan-dark: 212 60% 78%;
   --blue: 212 100% 60%;
+  --magenta: 287 69% 57%;
+  --yellow: 69 77% 47%;
+  --green: 193 100% 27%;
 
   --opacity-1: 0.04;
   --opacity-2: 0.08;

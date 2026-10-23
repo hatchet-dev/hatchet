@@ -4,12 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"runtime"
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hatchet-dev/pgoutbox"
 	outboxsqlc "github.com/hatchet-dev/pgoutbox/sqlc"
 	"github.com/jackc/pgx/v5"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
@@ -23,7 +26,18 @@ import (
 const (
 	minBackoffDuration = 100 * time.Millisecond
 	maxBackoffDuration = 10 * time.Second
+
+	// slowTopicAcquireThreshold is how long acquiring the outbox topic lease may take before
+	// buildIndex logs it: the acquire blocks silently until the previous holder's lease lapses.
+	slowTopicAcquireThreshold = 10 * time.Second
 )
+
+// maxIndexBuildWaitPerRun bounds how long a single Run waits for the initial index build.
+// The caller holds the strategy's in-memory lock for the whole Run, so a build that never
+// finishes (e.g. the outbox topic lease is stuck on another instance) must surface as a
+// repeated, visible error rather than one goroutine blocked forever holding that lock.
+// A var rather than a const so tests can shorten it.
+var maxIndexBuildWaitPerRun = 30 * time.Second
 
 type ConcurrencyStrategy struct {
 	outbox pgoutbox.Outbox
@@ -31,42 +45,75 @@ type ConcurrencyStrategy struct {
 	// TODO(memory): buildIndex reads every queued slot (and its schedule timeout) into memory. Empty
 	// sub-queues are pruned after each batch (see pruneEmpty), so idle keys don't accumulate, but a
 	// large live backlog still grows this without limit - we eventually need a bounded or evicting
-	// strategy (e.g. spill to disk/db) for very high key cardinality. Not critical yet.
-	subQueues      map[string]*subQueue
-	strategy       *sqlcv1.V1StepConcurrency
-	l              *zerolog.Logger
-	compare        func(a, b slot) int
-	built          chan struct{}
-	topic          string
-	pending        []*repository.RunConcurrencyResult
-	openScopes     []*subQueue
-	mu             sync.RWMutex
-	pendingMu      sync.Mutex
-	buildingMu     sync.Mutex
-	initialQueueMu sync.Mutex
-	initialQueued  bool
+	// strategy (e.g. spill to disk/db) for very high key cardinality. The index gauges in metrics.go
+	// report how large it gets.
+	subQueues map[string]*subQueue
+	// resident counts the slots held by subQueues, for the index gauges
+	resident residentCounts
+	strategy *sqlcv1.V1StepConcurrency
+	// immutable copies of the strategy identity, safe to read without holding any lock
+	// (strategy itself is swapped in place by UpdateStrategy under buildingMu + mu)
+	strategyId       int64
+	strategyTenantId uuid.UUID
+	l                *zerolog.Logger
+	compare          func(a, b slot) int
+	built            chan struct{}
+	buildStartedAt   time.Time
+	topic            string
+	pending          []*repository.RunConcurrencyResult
+	openScopes       []*subQueue
+	mu               sync.RWMutex
+	pendingMu        sync.Mutex
+	buildingMu       sync.Mutex
+	initialQueueMu   sync.Mutex
+	initialQueued    bool
 }
 
 // commitScopes discards the undo log on each open sub-queue, making this batch's in-memory
 // mutations permanent. Called by Run after ProcessMessages confirms the transaction committed. It
-// returns the sub-queues it committed so Run can prune the ones that are now empty.
+// returns the sub-queues it committed so Run can prune the ones that are now empty. buildingMu
+// keeps UpdateStrategy from touching the undo state while it is discarded.
 func (c *ConcurrencyStrategy) commitScopes() []*subQueue {
+	c.buildingMu.Lock()
+	defer c.buildingMu.Unlock()
+
 	committed := c.openScopes
-	for _, sq := range c.openScopes {
-		sq.commit()
-	}
+	c.commit(committed)
 	c.openScopes = nil
 	return committed
+}
+
+// commit makes a committed batch's mutations to the given sub-queues permanent and updates the
+// resident slot counts.
+func (c *ConcurrencyStrategy) commit(subQueues []*subQueue) {
+	var delta residentSize
+
+	for _, sq := range subQueues {
+		delta = delta.plus(sq.commit())
+	}
+
+	c.resident.add(delta)
 }
 
 // rollbackScopes reverses every in-memory mutation made by this batch. Called by Run when
 // ProcessMessages returns an error, meaning the outbox transaction (and our slot writes) rolled
 // back and the messages will be redelivered.
 func (c *ConcurrencyStrategy) rollbackScopes() {
-	for _, sq := range c.openScopes {
-		sq.rollback()
-	}
+	c.buildingMu.Lock()
+	defer c.buildingMu.Unlock()
+
+	c.rollback(c.openScopes)
 	c.openScopes = nil
+}
+
+func (c *ConcurrencyStrategy) rollback(subQueues []*subQueue) {
+	var delta residentSize
+
+	for _, sq := range subQueues {
+		delta = delta.plus(sq.rollback())
+	}
+
+	c.resident.add(delta)
 }
 
 // appendPending records a single batch's result for the in-flight Run to collect.
@@ -101,17 +148,22 @@ func NewConcurrencyStrategy(
 	l *zerolog.Logger,
 ) *ConcurrencyStrategy {
 	c := &ConcurrencyStrategy{
-		subQueues: make(map[string]*subQueue),
-		strategy:  strategy,
-		repo:      repo,
-		l:         l,
-		compare:   comparatorForStrategy(strategy.Strategy),
-		outbox:    outbox,
-		topic:     getTopic(strategy),
-		built:     make(chan struct{}),
+		subQueues:        make(map[string]*subQueue),
+		strategy:         strategy,
+		strategyId:       strategy.ID,
+		strategyTenantId: strategy.TenantID,
+		repo:             repo,
+		l:                l,
+		compare:          comparatorForStrategy(strategy.Strategy),
+		outbox:           outbox,
+		topic:            getTopic(strategy),
+		built:            make(chan struct{}),
+		buildStartedAt:   time.Now(),
 	}
 
 	outbox.AddFlusher(c.topic, c)
+
+	trackStrategy(ctx, c)
 
 	go c.buildIndexLoop(ctx)
 
@@ -186,24 +238,30 @@ func (c *ConcurrencyStrategy) buildIndexLoop(ctx context.Context) {
 
 // Run drains the strategy's outbox topic, replaying every WAL message into the in-memory
 // index and flushing the resulting slot decisions to the database. It returns the merged
-// *repository.RunConcurrencyResult across all batches processed this tick.
+// *repository.RunConcurrencyResult across all batches processed this tick. If a batch fails, the
+// results of the batches that committed before it are returned alongside the error.
 func (c *ConcurrencyStrategy) Run(ctx context.Context) (*repository.RunConcurrencyResult, error) {
 	ctx, span := telemetry.NewSpan(ctx, "concurrency-strategy-run")
 	defer span.End()
 
 	telemetry.WithAttributes(span,
-		telemetry.AttributeKV{Key: "concurrency.strategy.id", Value: c.strategy.ID},
-		telemetry.AttributeKV{Key: "tenant.id", Value: c.strategy.TenantID},
+		telemetry.AttributeKV{Key: "concurrency.strategy.id", Value: c.strategyId},
+		telemetry.AttributeKV{Key: "tenant.id", Value: c.strategyTenantId},
 	)
 
 	// wait for the initial (async) index build to complete before processing WAL messages. If the
-	// caller's context expires first, surface a clear error rather than running against an
-	// incomplete index - the build keeps going on its own lifecycle context and a later Run will
-	// proceed once it's ready.
+	// caller's context expires or the wait exceeds its bound first, surface a clear error rather
+	// than running against an incomplete index - the build keeps going on its own lifecycle
+	// context and a later Run will proceed once it's ready.
+	buildWaitTimer := time.NewTimer(maxIndexBuildWaitPerRun)
+	defer buildWaitTimer.Stop()
+
 	select {
 	case <-c.built:
 	case <-ctx.Done():
 		return nil, fmt.Errorf("timed out waiting for concurrency index to finish building for topic %s: %w", c.topic, ctx.Err())
+	case <-buildWaitTimer.C:
+		return nil, fmt.Errorf("concurrency index for topic %s is still building after %s; skipping this run", c.topic, time.Since(c.buildStartedAt).Round(time.Second))
 	}
 
 	// discard any results left over from a previous aborted Run before we start draining
@@ -219,21 +277,26 @@ func (c *ConcurrencyStrategy) Run(ctx context.Context) (*repository.RunConcurren
 		return nil, err
 	}
 
+	committed := []*repository.RunConcurrencyResult{initialResult}
+
 	for {
 		msgs, err := c.outbox.ProcessMessages(ctx, c.topic)
 
 		if err != nil {
-			// the outbox transaction rolled back (flush, message-delete, or commit failure), so undo
-			// this batch's in-memory mutations to keep the index consistent with the database. the
-			// messages are not deleted and will be redelivered on a later Run.
+			// the outbox transaction rolled back (flush, message-delete, or commit failure), so drop
+			// this batch's result and undo its in-memory mutations to keep the index consistent with
+			// the database. the messages are not deleted and will be redelivered on a later Run.
+			// Earlier batches did commit, so their results are still returned.
+			c.takePending()
 			c.rollbackScopes()
-			return nil, fmt.Errorf("failed to process outbox messages for topic %s: %w", c.topic, err)
+			return mergeResults(committed), fmt.Errorf("failed to process outbox messages for topic %s: %w", c.topic, err)
 		}
 
 		// ProcessMessages only returns without error once the transaction has committed, so the
-		// in-memory mutations are now durable - discard the undo log and prune any sub-queue this
-		// batch emptied (its slots were all deleted/cancelled), keeping the index from accumulating
-		// idle keys.
+		// batch's result and in-memory mutations are now durable - discard the undo log and prune
+		// any sub-queue this batch emptied (its slots were all deleted/cancelled), keeping the index
+		// from accumulating idle keys.
+		committed = append(committed, c.takePending()...)
 		c.pruneEmpty(c.commitScopes())
 
 		// no more messages queued for this topic; we've drained it
@@ -242,7 +305,7 @@ func (c *ConcurrencyStrategy) Run(ctx context.Context) (*repository.RunConcurren
 		}
 	}
 
-	return mergeResults(append(c.takePending(), initialResult)), nil
+	return mergeResults(committed), nil
 }
 
 // runInitialQueueing runs the post-build queueing pass exactly once. It is idempotent across Runs:
@@ -286,10 +349,15 @@ func (c *ConcurrencyStrategy) queueAllSubQueues(ctx context.Context) (*repositor
 
 	// process every sub-queue with an empty WAL: the decide step runs against the hydrated slots
 	// alone, promoting queued backlog into free capacity and (for cancel strategies) cancelling slots
-	// that don't fit.
+	// that don't fit. A sub-queue that only has runners within its limit has nothing to decide, and
+	// skipping it keeps the pass cheap when most keys are only running.
 	c.mu.RLock()
-	grouped := make(map[string][]walMessage, len(c.subQueues))
-	for key := range c.subQueues {
+	grouped := make(map[string][]walMessage)
+	for key, sq := range c.subQueues {
+		if running := sq.running.len(); sq.queued.len() == 0 && running > 0 && running <= int(sq.maxRuns) {
+			continue
+		}
+
 		grouped[key] = nil
 	}
 	c.mu.RUnlock()
@@ -310,15 +378,11 @@ func (c *ConcurrencyStrategy) queueAllSubQueues(ctx context.Context) (*repositor
 	if err != nil {
 		// the transaction rolled back, so undo the in-memory mutations to keep the index consistent
 		// with the database; the pass will retry on the next Run.
-		for _, sq := range touched {
-			sq.rollback()
-		}
+		c.rollback(touched)
 		return nil, err
 	}
 
-	for _, sq := range touched {
-		sq.commit()
-	}
+	c.commit(touched)
 
 	// drop any sub-queue this pass emptied (e.g. all slots cancelled), same as the WAL path.
 	c.pruneEmpty(touched)
@@ -414,6 +478,10 @@ type walMessage struct {
 
 	// only populated by UPDATE messages
 	IsFilled bool `json:"isFilled"`
+
+	// only populated by INSERT messages, and only for strategies with a
+	// max_runs_expression: the slot's insert-time evaluation of the per-group limit
+	MaxRuns *int32 `json:"maxRuns"`
 }
 
 func (c *ConcurrencyStrategy) buildIndex(ctx context.Context) error {
@@ -429,8 +497,14 @@ func (c *ConcurrencyStrategy) buildIndex(ctx context.Context) error {
 	defer c.buildingMu.Unlock()
 
 	if c.outbox != nil {
+		acquireStart := time.Now()
+
 		if err := c.outbox.AcquireTopic(ctx, c.topic); err != nil {
 			return err
+		}
+
+		if acquireDuration := time.Since(acquireStart); acquireDuration > slowTopicAcquireThreshold {
+			c.l.Warn().Msgf("acquiring outbox topic %s took %s, likely waiting on a lease held by another scheduler instance", c.topic, acquireDuration.Round(time.Second))
 		}
 	}
 
@@ -449,6 +523,13 @@ func (c *ConcurrencyStrategy) buildIndex(ctx context.Context) error {
 				}
 
 				sq := c.getOrCreateSubQueue(row.Key)
+				before := sq.size()
+
+				// the timestamp guard makes page order irrelevant: each group converges to
+				// the value evaluated for its most recently created live slot
+				if row.MaxRuns.Valid {
+					sq.observeMaxRuns(row.MaxRuns.Int32, row.TaskInsertedAt.Time.UnixNano())
+				}
 
 				s := slot{
 					priority:            row.Priority,
@@ -459,10 +540,13 @@ func (c *ConcurrencyStrategy) buildIndex(ctx context.Context) error {
 				}
 
 				if row.IsFilled {
-					sq.running.insert(s)
+					sq.addRunning(s)
 				} else {
-					sq.queued.insert(s)
+					sq.enqueue(s)
 				}
+
+				// counted per row so the gauges show a build in progress, or a failed one
+				c.resident.add(sq.size().minus(before))
 			}
 		}
 	}()
@@ -506,6 +590,9 @@ func comparatorForStrategy(kind sqlcv1.V1ConcurrencyStrategy) func(a, b slot) in
 	if kind == sqlcv1.V1ConcurrencyStrategyCANCELINPROGRESS {
 		return cancelInProgressCompare
 	}
+	if kind == sqlcv1.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTOLDEST || kind == sqlcv1.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTNEWEST {
+		return cancelQueuedExceptCompare
+	}
 	return priorityCompare
 }
 
@@ -522,9 +609,47 @@ func (c *ConcurrencyStrategy) decide() decideFn {
 		return decideCancelInProgress
 	case sqlcv1.V1ConcurrencyStrategyCANCELNEWEST:
 		return decideCancelNewest
+	case sqlcv1.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTNEWEST:
+		return decideCancelQueuedExceptNewest
+	case sqlcv1.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTOLDEST:
+		return decideCancelQueuedExceptOldest
+	case sqlcv1.V1ConcurrencyStrategyNONE:
+		panic("unknown concurrency strategy")
 	default:
 		panic("unknown concurrency strategy")
 	}
+}
+
+// decideCancelQueuedExceptNewest fills free capacity from queued buffer, then cancels everything
+// except for the maxRuns newest, which will stick around to be queued up the next time
+func decideCancelQueuedExceptNewest(sq *subQueue) (toFill, toCancel []slot) {
+	toFill = sq.queued.pop(int(sq.slotsToRun()))
+	for _, s := range toFill {
+		sq.addRunning(s)
+	}
+	toCancel = sq.queued.pop(sq.queued.len() - int(sq.maxRuns))
+	return toFill, toCancel
+}
+
+// decideCancelQueuedExceptOldest is the same as CancelQueuedExceptNewest except that it keeps the oldest slot around
+func decideCancelQueuedExceptOldest(sq *subQueue) (toFill, toCancel []slot) {
+	toFill = sq.queued.pop(int(sq.slotsToRun()))
+	for _, s := range toFill {
+		sq.addRunning(s)
+	}
+	// somewhat awkward here, but we want to keep the first elements (because oldest-first comparator),
+	// so we need to pop and then reinsert.
+	// maxRuns is clamped to 0 here to guard against a negative value (e.g. from data written before
+	// MaxRuns positivity validation was enforced) producing an out-of-range slice index below.
+	maxRuns := max(0, int(sq.maxRuns))
+	if sq.queued.len() > maxRuns {
+		popped := sq.queued.pop(sq.queued.len())
+		toCancel = popped[maxRuns:]
+		for _, s := range popped[:maxRuns] {
+			sq.enqueue(s)
+		}
+	}
+	return toFill, toCancel
 }
 
 // decideGroupRoundRobin fills free capacity (maxRuns - running) from the queued backlog in comparator
@@ -532,7 +657,7 @@ func (c *ConcurrencyStrategy) decide() decideFn {
 func decideGroupRoundRobin(sq *subQueue) (toFill, toCancel []slot) {
 	toFill = sq.queued.pop(int(sq.slotsToRun()))
 	for _, s := range toFill {
-		sq.running.insert(s)
+		sq.addRunning(s)
 	}
 	return toFill, nil
 }
@@ -545,7 +670,7 @@ func decideCancelNewest(sq *subQueue) (toFill, toCancel []slot) {
 	// fill free capacity with the best queued slots; if already at/over capacity this fills nothing.
 	toFill = sq.queued.pop(int(sq.slotsToRun()))
 	for _, s := range toFill {
-		sq.running.insert(s)
+		sq.addRunning(s)
 	}
 	// everything that didn't fit is cancelled.
 	toCancel = sq.queued.pop(sq.queued.len())
@@ -554,19 +679,20 @@ func decideCancelNewest(sq *subQueue) (toFill, toCancel []slot) {
 
 // decideCancelInProgress reconciles a sub-queue to the best maxRuns candidates under its comparator,
 // cancelling everything else - including running slots that lost their place (in-progress
-// cancellation). It leans on the index ordering rather than re-sorting: the queued index pops
-// best-first and the running index pops worst-first (it is built with the reversed comparator), so
-// the merge is a single linear pass. Timed-out queued slots were already evicted by popTimedOut, so
-// they never enter the ranking (matching the SQL candidate filter
+// cancellation). The queued index pops best-first, so the merge walks the backlog once, comparing
+// each candidate against the worst runner. Timed-out queued slots were already evicted by
+// popTimedOut, so they never enter the ranking (matching the SQL candidate filter
 // schedule_timeout_at >= NOW() OR is_filled = TRUE).
 func decideCancelInProgress(sq *subQueue) (toFill, toCancel []slot) {
-	maxRuns := int(sq.maxRuns)
+	// clamped like decideCancelQueuedExceptOldest: a negative value would never end the trim below
+	maxRuns := max(0, int(sq.maxRuns))
 
 	// Trim running slots beyond capacity (e.g. the index hydrated more filled slots than maxRuns, or
-	// maxRuns was lowered, or maxRuns <= 0). running pops worst-first, so this drops the
-	// least-preferred runners.
+	// maxRuns was lowered, or maxRuns <= 0), dropping the least-preferred runners.
 	for sq.running.len() > maxRuns {
-		toCancel = append(toCancel, sq.running.pop(1)...)
+		worst, _ := sq.running.worst(sq.compare)
+		sq.removeRunning(worst.taskId)
+		toCancel = append(toCancel, worst)
 	}
 
 	// Merge the queued backlog (best-first) against the running set.
@@ -576,17 +702,17 @@ func decideCancelInProgress(sq *subQueue) (toFill, toCancel []slot) {
 		if sq.running.len() < maxRuns {
 			// free capacity: promote the best queued slot to running.
 			sq.queued.pop(1)
-			sq.running.insert(cand)
+			sq.addRunning(cand)
 			toFill = append(toFill, cand)
 			continue
 		}
 
 		// at capacity: the best queued slot only runs if it outranks the worst runner.
-		if worst, ok := sq.running.peek(); ok && sq.compare(cand, worst) < 0 {
-			sq.running.pop(1) // evict the worst runner (in-progress cancellation)
+		if worst, ok := sq.running.worst(sq.compare); ok && sq.compare(cand, worst) < 0 {
+			sq.removeRunning(worst.taskId) // evict the worst runner (in-progress cancellation)
 			toCancel = append(toCancel, worst)
 			sq.queued.pop(1)
-			sq.running.insert(cand)
+			sq.addRunning(cand)
 			toFill = append(toFill, cand)
 			continue
 		}
@@ -611,14 +737,21 @@ func applyWAL(sq *subQueue, msgs []walMessage) []slot {
 	for _, msg := range msgs {
 		switch msg.Operation {
 		case "INSERT":
+			// Applied even when the slot itself ends up superseded below: the value is
+			// still the evaluation of the group's newest task. UPDATE/DELETE messages
+			// never carry a value, so retries and completions cannot move the limit.
+			if msg.MaxRuns != nil {
+				sq.observeMaxRuns(*msg.MaxRuns, msg.TaskInsertedAt.UnixNano())
+			}
+
 			if currentRunningSlot, exists := sq.running.get(msg.TaskId); exists {
 				// compare the current running slot's retry count with the message's retry count; the greater wins
 				if currentRunningSlot.taskRetryCount < msg.TaskRetryCount {
 					superseded = append(superseded, currentRunningSlot)
-					sq.running.delete(msg.TaskId)
+					sq.removeRunning(msg.TaskId)
 
 					// place the new slot in the queued index, so it goes through the regular promotion pipeline
-					sq.queued.insert(walMessageToSlot(msg))
+					sq.enqueue(walMessageToSlot(msg))
 				} else if currentRunningSlot.taskRetryCount != msg.TaskRetryCount {
 					superseded = append(superseded, walMessageToSlot(msg))
 				}
@@ -627,12 +760,12 @@ func applyWAL(sq *subQueue, msgs []walMessage) []slot {
 				if currentQueuedSlot.taskRetryCount < msg.TaskRetryCount {
 					superseded = append(superseded, currentQueuedSlot)
 					sq.queued.delete(msg.TaskId)
-					sq.queued.insert(walMessageToSlot(msg))
+					sq.enqueue(walMessageToSlot(msg))
 				} else if currentQueuedSlot.taskRetryCount != msg.TaskRetryCount {
 					superseded = append(superseded, walMessageToSlot(msg))
 				}
 			} else {
-				sq.queued.insert(walMessageToSlot(msg))
+				sq.enqueue(walMessageToSlot(msg))
 			}
 		case "UPDATE":
 			// UPDATE never represents a duplicate row - it's the same physical v1_concurrency_slot row
@@ -642,16 +775,16 @@ func applyWAL(sq *subQueue, msgs []walMessage) []slot {
 			newSlot := walMessageToSlot(msg)
 			if msg.IsFilled {
 				sq.queued.delete(msg.TaskId)
-				sq.running.insert(newSlot)
+				sq.addRunning(newSlot)
 			} else {
-				sq.running.delete(msg.TaskId)
-				sq.queued.insert(newSlot)
+				sq.removeRunning(msg.TaskId)
+				sq.enqueue(newSlot)
 			}
 		case "DELETE":
 			// note: since we're processing a DELETE, it's already been removed from the database, we're just
 			// bringing the index in sync with the database
 			if _, exists := sq.running.get(msg.TaskId); exists {
-				sq.running.delete(msg.TaskId)
+				sq.removeRunning(msg.TaskId)
 			} else if _, exists := sq.queued.get(msg.TaskId); exists {
 				sq.queued.delete(msg.TaskId)
 			}
@@ -691,11 +824,12 @@ func (c *ConcurrencyStrategy) processStrategy(ctx context.Context, tx pgx.Tx, ms
 }
 
 // decideSubQueues runs the WAL-apply -> evict-timeouts -> decide pipeline over each sub-queue in
-// grouped, fanning out one goroutine per sub-queue (grouped is keyed by sub-queue, so each is touched
-// by exactly one goroutine). It opens an undo scope on every sub-queue it mutates and returns them as
-// touched so the caller can finalize the scopes once its flush is durable. The returned slot slices
-// are the merged fill/delete/timeout decisions across all sub-queues. The post-build pass passes nil
-// message slices so only the decide step runs against the hydrated slots.
+// grouped, one goroutine per sub-queue with at most GOMAXPROCS running at once (grouped is keyed by
+// sub-queue, so each is touched by exactly one goroutine). It opens an undo scope on every sub-queue
+// it mutates and returns them as touched so the caller can finalize the scopes once its flush is
+// durable. The returned slot slices are the merged fill/delete/timeout decisions across all
+// sub-queues. The post-build pass passes nil message slices so only the decide step runs against
+// the hydrated slots.
 func (c *ConcurrencyStrategy) decideSubQueues(ctx context.Context, grouped map[string][]walMessage, now time.Time, decide decideFn) (touched []*subQueue, slotsToSetFilled, slotsToDelete, slotsToTimeout []slot) {
 	_, span := telemetry.NewSpan(ctx, "concurrency-decide-sub-queues")
 	defer span.End()
@@ -705,7 +839,9 @@ func (c *ConcurrencyStrategy) decideSubQueues(ctx context.Context, grouped map[s
 		telemetry.AttributeKV{Key: "tenant.id", Value: c.strategy.TenantID},
 		telemetry.AttributeKV{Key: "concurrency.sub-queue.count", Value: len(grouped)},
 	)
-	wg := sync.WaitGroup{}
+	var g errgroup.Group
+	g.SetLimit(runtime.GOMAXPROCS(0))
+
 	var batchMu sync.Mutex
 
 	slotsToSetFilled = make([]slot, 0)
@@ -719,11 +855,8 @@ func (c *ConcurrencyStrategy) decideSubQueues(ctx context.Context, grouped map[s
 		sq.begin()
 		touched = append(touched, sq)
 
-		wg.Add(1)
-		go func(sq *subQueue, m []walMessage) {
-			defer wg.Done()
-
-			localSlotsToDelete := applyWAL(sq, m)
+		g.Go(func() error {
+			localSlotsToDelete := applyWAL(sq, msgs)
 
 			// cancel any queued slots that have exceeded their scheduling timeout before deciding, so a
 			// timed-out slot is never promoted to running or ranked by a cancel strategy
@@ -744,9 +877,12 @@ func (c *ConcurrencyStrategy) decideSubQueues(ctx context.Context, grouped map[s
 			slotsToTimeout = append(slotsToTimeout, localSlotsToTimeout...)
 
 			batchMu.Unlock()
-		}(sq, msgs)
+
+			return nil
+		})
 	}
-	wg.Wait()
+
+	_ = g.Wait()
 
 	return touched, slotsToSetFilled, slotsToDelete, slotsToTimeout
 }
@@ -814,6 +950,46 @@ func buildSlotInputs(slotsToSetFilled, slotsToDelete, slotsToTimeout []slot) ([]
 	}
 
 	return tasksToSetFilled, cancelledSlots
+}
+
+// UpdateStrategy applies a changed definition to the live index without a rebuild. The
+// caller guarantees the strategy kind and parent linkage are unchanged (those alter the
+// sub-queue comparators and heap ordering, so they require a rebuild); expression and
+// static max-concurrency changes are safe to swap in place. buildingMu serializes this
+// against WAL processing, index builds, and the queueing pass, so no batch observes a
+// half-applied definition; mu covers getOrCreateSubQueue's reads.
+//
+// The WAL path only re-decides sub-queues its messages touch, so a changed limit would
+// otherwise not reach an idle group's backlog until new traffic arrived for it. Re-arm
+// the all-sub-queue queueing pass (the same one that runs post-build) so the next Run
+// applies the new limit everywhere: raises promote queued backlog immediately, lowers
+// trim or grandfather per the strategy kind. Lock order matches runInitialQueueing
+// (initialQueueMu before buildingMu).
+func (c *ConcurrencyStrategy) UpdateStrategy(next *sqlcv1.V1StepConcurrency) {
+	c.initialQueueMu.Lock()
+	defer c.initialQueueMu.Unlock()
+	c.buildingMu.Lock()
+	defer c.buildingMu.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.strategy = next
+
+	for _, sq := range c.subQueues {
+		// only groups still on the static default move to the new static limit; a
+		// dynamically observed value (maxRunsFrom set) stays until a newer task's
+		// evaluation replaces it. The undo state moves too so a rollback of an in-flight
+		// batch restores the new static value rather than the old one.
+		if sq.maxRunsFrom == 0 {
+			sq.maxRuns = next.MaxConcurrency
+
+			if sq.undo != nil {
+				sq.undo.maxRuns = next.MaxConcurrency
+			}
+		}
+	}
+
+	c.initialQueued = false
 }
 
 func (c *ConcurrencyStrategy) getOrCreateSubQueue(key string) *subQueue {

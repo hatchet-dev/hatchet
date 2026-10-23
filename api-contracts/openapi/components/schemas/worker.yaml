@@ -171,6 +171,13 @@ Worker:
       format: uuid
     runtimeInfo:
       $ref: "#/WorkerRuntimeInfo"
+    operatorId:
+      type: string
+      description: The id of the operator that owns this worker, if it is an engine-managed operator worker.
+      format: uuid
+    evictedDurableTaskCount:
+      type: integer
+      description: The number of durable task runs owned by this operator that are currently evicted while waiting on durable events. Evicted runs hold no slots. Only set for operator workers.
   required:
     - metadata
     - name

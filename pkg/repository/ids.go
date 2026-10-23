@@ -199,26 +199,25 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 	}
 
 	// only need to hit the payload store for events created before the child_external_id column existed
-	retrievePayloadOpts := make([]RetrievePayloadOpts, 0, len(lockedEvents))
+	retrievePayloadOpts := make([]PayloadRef[ChildWorkflowSignalCreatedShape], 0, len(lockedEvents))
 
 	for _, lockedEvent := range lockedEvents {
 		if lockedEvent.ChildExternalID != nil {
 			continue
 		}
 
-		retrievePayloadOpts = append(retrievePayloadOpts, RetrievePayloadOpts{
+		retrievePayloadOpts = append(retrievePayloadOpts, PayloadRef[ChildWorkflowSignalCreatedShape]{
 			Id:         lockedEvent.ID,
 			InsertedAt: lockedEvent.InsertedAt,
-			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 			TenantId:   tenantId,
 			ExternalId: lockedEvent.ExternalID,
 		})
 	}
 
-	var payloads map[RetrievePayloadOpts][]byte
+	var payloads map[PayloadRef[ChildWorkflowSignalCreatedShape]]Payload[ChildWorkflowSignalCreatedShape]
 
 	if len(retrievePayloadOpts) > 0 {
-		payloads, err = s.payloadStore.Retrieve(ctx, tx, retrievePayloadOpts...)
+		payloads, err = s.payloadStore.ChildWorkflowSignalCreatedEvents().Retrieve(ctx, tx, retrievePayloadOpts...)
 
 		if err != nil {
 			return err
@@ -234,19 +233,18 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 		if lockedEvent.ChildExternalID != nil {
 			childExternalId = *lockedEvent.ChildExternalID
 		} else {
-			payload, ok := payloads[RetrievePayloadOpts{
-				Id:         lockedEvent.ID,
-				InsertedAt: lockedEvent.InsertedAt,
-				Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
-				TenantId:   tenantId,
-				ExternalId: lockedEvent.ExternalID,
-			}]
+			payload := RetrievePayloadOrFallback(
+				payloads,
+				PayloadRef[ChildWorkflowSignalCreatedShape]{
+					Id:         lockedEvent.ID,
+					InsertedAt: lockedEvent.InsertedAt,
+					TenantId:   tenantId,
+					ExternalId: lockedEvent.ExternalID,
+				},
+				lockedEvent.Data,
+			)
 
-			if !ok {
-				payload = lockedEvent.Data
-			}
-
-			c, err := newChildWorkflowSignalCreatedDataFromBytes(payload)
+			c, err := DecodeChildWorkflowSignalCreatedPayload(payload)
 
 			if err != nil {
 				return err
@@ -307,6 +305,7 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 		newEventKeys,
 		nil,
 		childExternalIds,
+		nil,
 	)
 
 	if err != nil {

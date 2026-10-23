@@ -14,10 +14,7 @@ export function RoleBadge({ role }: { role: string }) {
   return <Badge variant="outline">{formatMemberRole(role)}</Badge>;
 }
 
-// OWNER and ADMIN always see payloads; the canViewPayloads flag is ignored.
-export function payloadsLockedForRole(role?: string) {
-  return role === 'OWNER' || role === 'ADMIN';
-}
+export { payloadsLockedForRole } from '@/lib/payload-permissions';
 
 export function MemberEmail({ email }: { email?: string }) {
   return <span className="text-[13px] text-muted-foreground">{email}</span>;

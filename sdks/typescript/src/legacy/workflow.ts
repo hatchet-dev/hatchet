@@ -1,10 +1,10 @@
 import * as z from 'zod/v4';
 
-import { CreateStep, CreateStepSchema } from '../step';
+import { CreateStep, CreateStepSchema } from './step';
 import {
   ConcurrencyLimitStrategy as PbConcurrencyLimitStrategy,
   StickyStrategy as PbStickyStrategy,
-} from '../protoc/workflows';
+} from '../protoc/v1/workflows';
 
 const CronConfigSchema = z.object({
   cron: z.string(),

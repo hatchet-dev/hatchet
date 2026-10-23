@@ -201,6 +201,10 @@ func (a *AuthN) handleCookieAuth(c echo.Context) error {
 		return fmt.Errorf("error getting user by id: %w", err)
 	}
 
+	if sessionKeepsUserUnverified(session) {
+		user.EmailVerified = false
+	}
+
 	c.Set("user", user)
 	c.Set("session", session)
 

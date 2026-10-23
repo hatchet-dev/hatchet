@@ -1,7 +1,7 @@
 import asyncio
 import json
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import datetime, timedelta
 from enum import Enum
 from functools import cached_property
@@ -223,12 +223,19 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             t.to_proto(service_name) if (t := self._on_failure_task) else None
         )
 
-        if isinstance(self._config.concurrency, list):
+        # the public signatures take Sequence, which admits tuples as well as lists
+        if isinstance(self._config.concurrency, (list, tuple)):
             _concurrency_arr = [c.to_proto() for c in self._config.concurrency]
             _concurrency = None
         elif isinstance(self._config.concurrency, ConcurrencyExpression):
-            _concurrency_arr = []
-            _concurrency = self._config.concurrency.to_proto()
+            if self._config.concurrency.is_tenant_scoped:
+                # concurrency_arr is the canonical field; the deprecated scalar field
+                # predates tenant-scoped entries
+                _concurrency_arr = [self._config.concurrency.to_proto()]
+                _concurrency = None
+            else:
+                _concurrency_arr = []
+                _concurrency = self._config.concurrency.to_proto()
         elif isinstance(self._config.concurrency, int):
             _concurrency_arr = []
             _concurrency = ConcurrencyExpression.from_int(
@@ -1422,7 +1429,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         ) = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        concurrency: int | list[ConcurrencyExpression] | None = None,
+        concurrency: int | Sequence[ConcurrencyExpression] | None = None,
         wait_for: list[Condition | OrGroup] | None = None,
         skip_if: list[Condition | OrGroup] | None = None,
         cancel_if: list[Condition | OrGroup] | None = None,
@@ -1711,7 +1718,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         ) = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        concurrency: int | list[ConcurrencyExpression] | None = None,
+        concurrency: int | Sequence[ConcurrencyExpression] | None = None,
         wait_for: list[Condition | OrGroup] | None = None,
         skip_if: list[Condition | OrGroup] | None = None,
         cancel_if: list[Condition | OrGroup] | None = None,
@@ -1824,7 +1831,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         rate_limits: list[RateLimit] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        concurrency: int | list[ConcurrencyExpression] | None = None,
+        concurrency: int | Sequence[ConcurrencyExpression] | None = None,
     ) -> Callable[
         [Callable[Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]]],
         Task[TWorkflowInput, R],
@@ -1895,7 +1902,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         rate_limits: list[RateLimit] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        concurrency: int | list[ConcurrencyExpression] | None = None,
+        concurrency: int | Sequence[ConcurrencyExpression] | None = None,
     ) -> Callable[
         [Callable[Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]]],
         Task[TWorkflowInput, R],
@@ -2013,8 +2020,16 @@ class TaskRunRef(Generic[TWorkflowInput, R]):
         )
         return self._s._extract_result(result)
 
-    def result(self) -> R:
-        result = self._wrr.result()
+    def result(self, poll_interval: float | None = None) -> R:
+        """
+        Poll until the task run reaches a terminal state and return its output.
+
+        :param poll_interval: Seconds between GetRunDetails polls. Defaults to the
+            client ``sync_result_poll_interval`` (1 second). Values below 1 second are
+            raised to 1 second.
+        :returns: The extracted task output.
+        """
+        result = self._wrr.result(poll_interval=poll_interval)
 
         return self._s._extract_result(result)
 

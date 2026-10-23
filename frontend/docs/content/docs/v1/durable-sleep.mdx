@@ -6,13 +6,13 @@ import { snippets } from "@/lib/generated/snippets";
 import { Snippet } from "@/components/code";
 import { Callout, Tabs } from "@/components/nextra-compat";
 import UniversalTabs from "@/components/UniversalTabs";
-import LongWaitDiagram from "@/components/LongWaitDiagramWrapper";
+import { DurableWaits } from "@/components/flow-animations/DurableWaits";
 
 # Durable Sleep
 
 A durable task can elect to **sleep** for either a specified period of time or until a provided time, which pauses task execution. While the task is sleeping, no resources are consumed, and the task can also be [evicted](/v1/task-eviction) in order to free the worker slot.
 
-<LongWaitDiagram />
+<DurableWaits />
 
 Unlike a language-level sleep (e.g. `time.sleep` in Python or `setTimeout` in Node), durable sleep is guaranteed to respect the original duration across interruptions of the durable task, worker crashes, and so on. A language-level sleep ties the wait to the local process, so if the process restarts, the sleep starts over from scratch.
 

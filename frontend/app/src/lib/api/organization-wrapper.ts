@@ -11,11 +11,15 @@ import type {
 import { useMemo } from 'react';
 
 // The cloud request plus the control-plane-only onboarding fields.
-// `whatToBuild`/`sdk` must only be sent when the control plane is enabled.
+// `attribution`/`attributionOther` must only be sent when the control plane is
+// enabled.
 type OrganizationCreateRequest = Parameters<
   typeof cloudApi.organizationCreate
 >[0] &
-  Pick<ControlPlaneCreateOrganizationRequest, 'whatToBuild' | 'sdk'>;
+  Pick<
+    ControlPlaneCreateOrganizationRequest,
+    'attribution' | 'attributionOther'
+  >;
 type OrganizationUpdateRequest = {
   name?: string;
   inactivity_timeout?: string;
@@ -193,6 +197,12 @@ export function useOrganizationApi() {
                   data as { name: string },
                 ))
           ).data,
+      }),
+
+      organizationArchiveMutation: (organization: string) => ({
+        mutationKey: ['organization:archive', organization] as const,
+        mutationFn: async () =>
+          (await controlPlaneApi.organizationArchive(organization)).data,
       }),
 
       organizationCreateTenantMutation: (organization: string) => ({

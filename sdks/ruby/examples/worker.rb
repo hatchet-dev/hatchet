@@ -14,6 +14,7 @@ require_relative "on_success/worker"
 require_relative "timeout/worker"
 require_relative "retries/worker"
 require_relative "non_retryable/worker"
+require_relative "retry_after/worker"
 require_relative "logger/worker"
 require_relative "delayed/worker"
 require_relative "priority/worker"
@@ -22,6 +23,8 @@ require_relative "concurrency_limit/worker"
 require_relative "concurrency_limit_rr/worker"
 require_relative "concurrency_cancel_in_progress/worker"
 require_relative "concurrency_cancel_newest/worker"
+require_relative "concurrency_cancel_queued_except_newest/worker"
+require_relative "concurrency_cancel_queued_except_oldest/worker"
 require_relative "concurrency_multiple_keys/worker"
 require_relative "concurrency_workflow_level/worker"
 require_relative "rate_limit/worker"
@@ -61,6 +64,7 @@ ALL_WORKFLOWS = [
   TIMEOUT_WF, REFRESH_TIMEOUT_WF,
   SIMPLE_RETRY_WORKFLOW, BACKOFF_WORKFLOW,
   NON_RETRYABLE_WORKFLOW,
+  RETRY_AFTER_UPSTREAM_DELAY, RETRY_AFTER_EXPONENTIAL_BACKOFF,
   LOGGING_WORKFLOW,
   PRINT_SCHEDULE_WF, PRINT_PRINTER_WF,
   PRIORITY_WORKFLOW,
@@ -71,6 +75,8 @@ ALL_WORKFLOWS = [
   CONCURRENCY_LIMIT_RR_WORKFLOW,
   CONCURRENCY_CANCEL_IN_PROGRESS_WORKFLOW,
   CONCURRENCY_CANCEL_NEWEST_WORKFLOW,
+  CONCURRENCY_CANCEL_QUEUED_EXCEPT_NEWEST_WORKFLOW,
+  CONCURRENCY_CANCEL_QUEUED_EXCEPT_OLDEST_WORKFLOW,
   CONCURRENCY_MULTIPLE_KEYS_WORKFLOW,
   CONCURRENCY_WORKFLOW_LEVEL_WORKFLOW,
   RATE_LIMIT_WORKFLOW,

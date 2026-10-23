@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/hatchet-dev/hatchet/pkg/worker"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
@@ -69,7 +68,7 @@ type NonRetryableResult struct{}
 func NonRetryableError(client *hatchet.Client) *hatchet.StandaloneTask {
 	// > Non Retryable Error
 	retries := client.NewStandaloneTask("non-retryable-task", func(ctx hatchet.Context, input NonRetryableInput) (*NonRetryableResult, error) {
-		return nil, worker.NewNonRetryableError(errors.New("intentional failure"))
+		return nil, hatchet.NewNonRetryableError(errors.New("intentional failure"))
 	}, hatchet.WithRetries(3))
 
 	return retries

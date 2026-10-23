@@ -3,11 +3,17 @@ package events
 import (
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/authz"
+	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (t *EventService) EventDataGet(ctx echo.Context, request gen.EventDataGetRequestObject) (gen.EventDataGetResponseObject, error) {
+	if !authz.CanViewPayloads(ctx) {
+		return gen.EventDataGet403JSONResponse(apierrors.NewAPIErrors("This member cannot view payloads")), nil
+	}
+
 	eventInterface := ctx.Get("event")
 	if eventInterface == nil {
 		return nil, echo.NewHTTPError(404, "event not found")
@@ -32,6 +38,10 @@ func (t *EventService) EventDataGet(ctx echo.Context, request gen.EventDataGetRe
 }
 
 func (t *EventService) EventDataGetWithTenant(ctx echo.Context, request gen.EventDataGetWithTenantRequestObject) (gen.EventDataGetWithTenantResponseObject, error) {
+	if !authz.CanViewPayloads(ctx) {
+		return gen.EventDataGetWithTenant403JSONResponse(apierrors.NewAPIErrors("This member cannot view payloads")), nil
+	}
+
 	// hack to use the tenant id to populate the event in the v1 case
 	eventInterface := ctx.Get("event-with-tenant")
 

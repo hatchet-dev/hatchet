@@ -4,7 +4,7 @@ title: "Rate Limits"
 
 # Rate Limits Client
 
-Accessed via `client.RateLimits()` on the [Hatchet client](../client).
+Accessed via `client.RateLimits()` on the [Hatchet client](/reference/go/client).
 
 ## RateLimitsClient
 
@@ -15,6 +15,7 @@ Methods:
 | Name     | Description                                                             |
 | -------- | ----------------------------------------------------------------------- |
 | `List`   | List retrieves rate limits based on the provided parameters (optional). |
+| `Pause`  | Pause holds queued runs that use the key until the given time.          |
 | `Upsert` | Upsert creates or updates a rate limit with the provided options.       |
 
 ### Functions
@@ -40,6 +41,29 @@ Returns:
 | --------------------- |
 | `*rest.RateLimitList` |
 | `error`               |
+
+#### `Pause`
+
+Pause holds queued runs that use the key until the given time. It returns the time the key is paused until.
+
+```go
+func (c *RateLimitsClient) Pause(ctx context.Context, key string, until time.Time) (time.Time, error)
+```
+
+Parameters:
+
+| Name    | Type              |
+| ------- | ----------------- |
+| `ctx`   | `context.Context` |
+| `key`   | `string`          |
+| `until` | `time.Time`       |
+
+Returns:
+
+| Type        |
+| ----------- |
+| `time.Time` |
+| `error`     |
 
 #### `Upsert`
 

@@ -335,6 +335,16 @@ export default function WorkerDetail() {
                   })}
                 </div>
               )}
+              {worker.evictedDurableTaskCount !== undefined && (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-500 dark:text-gray-400">
+                    Evicted, waiting on durable events
+                  </span>
+                  <span className="font-medium text-gray-900 dark:text-gray-100">
+                    {worker.evictedDurableTaskCount}
+                  </span>
+                </div>
+              )}
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 Slots represent concurrent task runs.{' '}
                 <DocsButton
@@ -484,11 +494,24 @@ export default function WorkerDetail() {
                 hiddenFilters: [flattenDAGsKey],
                 hideCancelAndReplayButtons: true,
               }}
-              runFilters={{
-                workerId: worker.metadata.id,
-              }}
+              runFilters={
+                // Operator-orchestrated runs have no task row carrying a worker id, so a
+                // worker filter can never match them; the operator's registered workflows
+                // identify its runs instead.
+                worker.operatorId && registeredWorkflows.length > 0
+                  ? {
+                      workflowIds: registeredWorkflows.map((w) => w.id),
+                    }
+                  : {
+                      workerId: worker.metadata.id,
+                    }
+              }
             >
-              <RunsTable leftLabel={'Recent runs'} />
+              <RunsTable
+                leftLabel={
+                  worker.operatorId ? 'Orchestrated runs' : 'Recent runs'
+                }
+              />
             </RunsProvider>
           </CardContent>
         </Card>

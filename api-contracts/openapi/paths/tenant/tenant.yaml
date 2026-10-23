@@ -3,6 +3,7 @@ tenants:
     x-resources: []
     description: Creates a new tenant
     operationId: tenant:create
+    x-payloads: false
     requestBody:
       content:
         application/json:
@@ -37,6 +38,7 @@ updateTenants:
     x-resources: ["tenant"]
     description: Update an existing tenant
     operationId: tenant:update
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -80,6 +82,7 @@ updateTenants:
     x-resources: ["tenant"]
     description: Get the details of a tenant
     operationId: tenant:get
+    x-payloads: false
     parameters:
       - description: The tenant id to get details for
         in: path
@@ -124,6 +127,7 @@ tenantAlertingSettings:
     x-resources: ["tenant"]
     description: Gets the alerting settings for a tenant
     operationId: tenant-alerting-settings:get
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -161,6 +165,7 @@ alertEmailGroup:
     x-resources: ["tenant", "alert-email-group"]
     description: Updates a tenant alert email group
     operationId: alert-email-group:update
+    x-payloads: false
     parameters:
       - description: The tenant alert email group id
         in: path
@@ -204,6 +209,7 @@ alertEmailGroup:
     x-resources: ["tenant", "alert-email-group"]
     description: Deletes a tenant alert email group
     operationId: alert-email-group:delete
+    x-payloads: false
     parameters:
       - description: The tenant alert email group id
         in: path
@@ -237,6 +243,7 @@ tenantAlertEmailGroups:
     x-resources: ["tenant"]
     description: Creates a new tenant alert email group
     operationId: alert-email-group:create
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -280,6 +287,7 @@ tenantAlertEmailGroups:
     x-resources: ["tenant"]
     description: Gets a list of tenant alert email groups
     operationId: alert-email-group:list
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -318,6 +326,7 @@ tenantResourcePolicy:
     x-resources: ["tenant"]
     description: Gets the resource policy for a tenant
     operationId: tenant-resource-policy:get
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -357,6 +366,7 @@ invites:
     x-enable-rate-limiting: true
     description: Creates a new tenant invite
     operationId: tenant-invite:create
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -406,6 +416,7 @@ invites:
     x-resources: ["tenant"]
     description: Gets a list of tenant invites
     operationId: tenant-invite:list
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -443,6 +454,7 @@ inviteScoped:
     x-resources: ["tenant", "tenant-invite"]
     description: Updates a tenant invite
     operationId: tenant-invite:update
+    x-payloads: false
     summary: Update invite
     parameters:
       - description: The tenant id
@@ -487,6 +499,7 @@ inviteScoped:
     x-resources: ["tenant", "tenant-invite"]
     description: Deletes a tenant invite
     operationId: tenant-invite:delete
+    x-payloads: false
     summary: Delete invite
     parameters:
       - description: The tenant id
@@ -525,6 +538,7 @@ members:
     x-resources: ["tenant"]
     description: Gets a list of tenant members
     operationId: tenant-member:list
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -562,6 +576,7 @@ member:
     x-resources: ["tenant", "member"]
     description: Update a tenant member
     operationId: tenant-member:update
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -620,6 +635,7 @@ member:
     x-resources: ["tenant", "member"]
     description: Delete a member from a tenant
     operationId: tenant-member:delete
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -672,6 +688,7 @@ getQueueMetrics:
     x-resources: ["tenant"]
     description: Get the queue metrics for the tenant
     operationId: tenant:get:queue-metrics
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -733,6 +750,7 @@ getStepRunQueueMetrics:
     x-resources: ["tenant"]
     description: Get the queue metrics for the tenant
     operationId: tenant:get:step-run-queue-metrics
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -777,6 +795,7 @@ getPrometheusMetrics:
     x-resources: ["tenant"]
     description: Get the prometheus metrics for the tenant
     operationId: tenant:get:prometheus-metrics
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -822,6 +841,7 @@ getTaskStats:
     x-enable-rate-limiting: true
     description: Get task stats for tenant
     operationId: tenant:get:task-stats
+    x-payloads: false
     parameters:
       - description: The tenant ID
         in: path

@@ -6,7 +6,6 @@ import (
 	"log"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 	"github.com/hatchet-dev/hatchet/sdks/go/features"
@@ -29,7 +28,7 @@ func main() {
 	err = client.RateLimits().Upsert(features.CreateRatelimitOpts{
 		Key:      RATE_LIMIT_KEY,
 		Limit:    10,
-		Duration: types.Second,
+		Duration: hatchet.Second,
 	})
 	if err != nil {
 		log.Fatalf("failed to create rate limit: %v", err)
@@ -43,7 +42,7 @@ func main() {
 
 			return "completed", nil
 		},
-		hatchet.WithRateLimits(&types.RateLimit{
+		hatchet.WithRateLimits(&hatchet.RateLimit{
 			Key:   RATE_LIMIT_KEY,
 			Units: &units,
 		}),
@@ -52,14 +51,14 @@ func main() {
 	// > Dynamic rate limit
 	userUnits := 1
 	userLimit := "10"
-	duration := types.Minute
+	duration := hatchet.Minute
 	dynamicTask := client.NewStandaloneTask("task2",
 		func(ctx hatchet.Context, input APIRequest) (string, error) {
 			log.Printf("executed task2 for user: %s", input.UserID)
 
 			return "completed", nil
 		},
-		hatchet.WithRateLimits(&types.RateLimit{
+		hatchet.WithRateLimits(&hatchet.RateLimit{
 			Key:            "input.userId",
 			Units:          &userUnits,
 			LimitValueExpr: &userLimit,

@@ -3,6 +3,7 @@ withTenant:
     x-resources: ["tenant"]
     description: Lists all events for a tenant.
     operationId: event:list
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -113,6 +114,7 @@ withTenant:
     x-resources: ["tenant"]
     description: Creates a new event.
     operationId: event:create
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -165,6 +167,7 @@ bulkCreateEvents:
     x-resources: ["tenant"]
     description: Bulk creates new events.
     operationId: event:create:bulk
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -217,6 +220,7 @@ withEvent:
     x-resources: ["tenant", "event"]
     description: Get an event.
     operationId: event:get
+    x-payloads: false
     parameters:
       - description: The event id
         in: path
@@ -255,6 +259,7 @@ eventData:
     x-resources: ["tenant", "event"]
     description: Get the data for an event.
     operationId: event-data:get
+    x-payloads: true
     parameters:
       - description: The event id
         in: path
@@ -293,6 +298,7 @@ eventDataWithTenant:
     x-resources: ["tenant", "event-with-tenant"]
     description: Get the data for an event.
     operationId: event-data:get-with-tenant
+    x-payloads: true
     parameters:
       - description: The event id
         in: path
@@ -340,6 +346,7 @@ keys:
     x-resources: ["tenant"]
     description: Lists all event keys for a tenant.
     operationId: event-key:list
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -378,6 +385,7 @@ replayEvents:
     x-resources: ["tenant"]
     description: Replays a list of events.
     operationId: event:update:replay
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -429,6 +437,7 @@ cancelEvents:
     x-resources: ["tenant"]
     description: Cancels all runs for a list of events.
     operationId: event:update:cancel
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path

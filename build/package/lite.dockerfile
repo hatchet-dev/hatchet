@@ -10,7 +10,7 @@ FROM $HATCHET_ADMIN_IMAGE as admin-binary-base
 FROM $HATCHET_MIGRATE_IMAGE as migrate-binary-base
 
 # Stage 2: build the frontend
-FROM node:22-alpine as frontend-build
+FROM node:24-alpine as frontend-build
 
 WORKDIR /app
 
@@ -22,10 +22,13 @@ COPY ./frontend/app ./
 RUN npm run build
 
 # Stage 3: deployment image from alpine
-FROM alpine AS deployment
+FROM alpine:3.24 AS deployment
 
-# install bash via apk
-RUN apk update && apk add --no-cache bash openssl ca-certificates curl postgresql-client tzdata
+ARG FIPS=false
+LABEL run.hatchet.fips=${FIPS}
+
+# openssl, curl and postgresql-client link OpenSSL; FIPS images do not ship them
+RUN apk update && apk add --no-cache bash ca-certificates tzdata $([ "$FIPS" = "true" ] || echo openssl curl postgresql-client)
 
 COPY --from=lite-binary-base /hatchet/hatchet-lite ./hatchet-lite
 COPY --from=admin-binary-base /hatchet/hatchet-admin ./hatchet-admin

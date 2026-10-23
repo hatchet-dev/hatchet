@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -416,6 +417,29 @@ SELECT COUNT(*)
 FROM filtered
 `
 
+// forceCustomPlan forces Postgres to generate a query plan using the parameter values.
+//
+// This is applicable to FetchWorkflowRunIds and CountWorkflowRuns, they have multiple optional filters written as
+// `$n IS NULL OR ...`; a generic plan won't simplify these.
+//
+// Example:
+//
+//	CREATE INDEX ix_v1_runs_olap_tenant_ins_at_status_wf ON v1_runs_olap (tenant_id, inserted_at DESC, readable_status, workflow_id);
+//
+// The workflow_id (param $3) can't be used with the filter `($3 IS NULL) OR (workflow_id = ANY ($3))` Custom plans will
+// look differently between these cases, but generic plan can't address both.
+//
+// With QueryExecModeCacheDescribe, pgx doesn't create a named prepared statement (the default behavior is to create it).
+// It re-sends Parse for the unnamed statement on every call, so Postgres gets a fresh statement whose execution count
+// starts at zero. Under the default plan_cache_mode = auto, a statement with fewer than five executions always gets
+// a custom plan.
+//
+// The tradeoff is the cost of a parse and a plan on every call (3-5 ms for a 7-day window).
+//
+// Why create multiple variants? FetchWorkflowRunIds and CountWorkflowRuns already have 3 variants each, and we want
+// to avoid adding more.
+const forceCustomPlan = pgx.QueryExecModeCacheDescribe
+
 type CountWorkflowRunsParams struct {
 	Tenantid                      uuid.UUID          `json:"tenantid"`
 	Statuses                      []string           `json:"statuses"`
@@ -444,7 +468,7 @@ func (q *Queries) CountWorkflowRuns(ctx context.Context, db DBTX, arg CountWorkf
 		metadataContains = arg.AdditionalMetadataContainsAny
 	}
 
-	row := db.QueryRow(ctx, query,
+	row := db.QueryRow(ctx, query, forceCustomPlan,
 		arg.Tenantid,
 		arg.Statuses,
 		arg.WorkflowIds,
@@ -658,7 +682,7 @@ func (q *Queries) FetchWorkflowRunIds(ctx context.Context, db DBTX, arg FetchWor
 		metadataContains = arg.AdditionalMetadataContainsAny
 	}
 
-	rows, err := db.Query(ctx, query,
+	rows, err := db.Query(ctx, query, forceCustomPlan,
 		arg.Tenantid,
 		arg.Statuses,
 		arg.WorkflowIds,
@@ -941,8 +965,8 @@ WITH to_insert AS (
         -- Scopes are nullable
         UNNEST($6::TEXT[]) AS scope,
         -- Webhook names are nullable
-        UNNEST($7::TEXT[]) AS triggering_webhook_name
-
+        UNNEST($7::TEXT[]) AS triggering_webhook_name,
+        UNNEST($8::UUID[]) AS payload_reference_id
 )
 INSERT INTO v1_events_olap (
     tenant_id,
@@ -952,11 +976,12 @@ INSERT INTO v1_events_olap (
     payload,
     additional_metadata,
     scope,
-	triggering_webhook_name
+	triggering_webhook_name,
+    payload_reference_id
 )
-SELECT tenant_id, external_id, seen_at, key, '{}'::JSONB AS payload, additional_metadata, scope, triggering_webhook_name
+SELECT tenant_id, external_id, seen_at, key, '{}'::JSONB AS payload, additional_metadata, scope, triggering_webhook_name, payload_reference_id
 FROM to_insert
-RETURNING tenant_id, id, external_id, seen_at, key, payload, additional_metadata, scope, triggering_webhook_name
+RETURNING tenant_id, id, external_id, seen_at, key, payload, additional_metadata, scope, triggering_webhook_name, payload_reference_id
 `
 
 type BulkCreateEventsOLAPParams struct {
@@ -967,6 +992,7 @@ type BulkCreateEventsOLAPParams struct {
 	Additionalmetadatas    [][]byte             `json:"additionalmetadatas"`
 	Scopes                 []pgtype.Text        `json:"scopes"`
 	TriggeringWebhookNames []pgtype.Text        `json:"triggeringWebhookName"`
+	PayloadReferenceIds    []*uuid.UUID         `json:"payloadReferenceIds"`
 }
 
 func (q *Queries) BulkCreateEventsOLAP(ctx context.Context, db DBTX, arg BulkCreateEventsOLAPParams) ([]*V1EventsOlap, error) {
@@ -978,6 +1004,7 @@ func (q *Queries) BulkCreateEventsOLAP(ctx context.Context, db DBTX, arg BulkCre
 		arg.Additionalmetadatas,
 		arg.Scopes,
 		arg.TriggeringWebhookNames,
+		arg.PayloadReferenceIds,
 	)
 	if err != nil {
 		return nil, err
@@ -996,6 +1023,7 @@ func (q *Queries) BulkCreateEventsOLAP(ctx context.Context, db DBTX, arg BulkCre
 			&i.AdditionalMetadata,
 			&i.Scope,
 			&i.TriggeringWebhookName,
+			&i.PayloadReferenceID,
 		); err != nil {
 			return nil, err
 		}
@@ -1017,13 +1045,19 @@ WITH partitions AS (
     JOIN pg_class parent ON pg_inherits.inhparent = parent.oid
     JOIN pg_class child ON pg_inherits.inhrelid = child.oid
     WHERE parent.relname = 'v1_payloads_olap'
-    ORDER BY child.relname DESC
-	LIMIT $1::INTEGER
 )
 
 SELECT partition_name, lower_bound AS partition_date
 FROM partitions
-WHERE lower_bound <= $2::DATE
+WHERE
+    lower_bound <= $2::DATE
+    AND NOT EXISTS (
+        SELECT 1
+        FROM v1_payloads_olap_cutover_job_offset offsets
+        WHERE offsets.key = partitions.lower_bound AND offsets.is_completed
+    )
+ORDER BY partition_date ASC -- finish old partitions before starting new ones
+LIMIT $1::INTEGER
 `
 
 type FindV1OLAPPayloadPartitionsBeforeDateRow struct {
@@ -1081,7 +1115,9 @@ WITH inputs AS (
         UNNEST($19::TIMESTAMPTZ[]) AS dag_inserted_at,
         UNNEST($20::UUID[]) AS parent_task_external_id,
         UNNEST($21::BOOLEAN[]) AS is_durable,
-		UNNEST($22::TEXT[]) AS idempotency_key
+		UNNEST($22::TEXT[]) AS idempotency_key,
+        UNNEST(CAST($23::TEXT[] AS v1_readable_status_olap[])) AS readable_status,
+        UNNEST($24::UUID[]) AS payload_reference_id
 )
 INSERT INTO v1_tasks_olap (
     tenant_id,
@@ -1106,7 +1142,9 @@ INSERT INTO v1_tasks_olap (
     dag_inserted_at,
     parent_task_external_id,
     is_durable,
-	idempotency_key
+	idempotency_key,
+    readable_status,
+    payload_reference_id
 )
 SELECT
     tenant_id,
@@ -1131,7 +1169,9 @@ SELECT
     dag_inserted_at,
     parent_task_external_id,
     is_durable,
-	idempotency_key
+	idempotency_key,
+    readable_status,
+    payload_reference_id
 FROM inputs
 ON CONFLICT (inserted_at, id) DO NOTHING
 `
@@ -1159,6 +1199,8 @@ type CreateTasksOLAPParams struct {
 	Parenttaskexternalids []*uuid.UUID         `json:"parenttaskexternalids"`
 	Isdurables            []bool               `json:"isdurables"`
 	IdempotencyKeys       []pgtype.Text        `json:"idempotencykeys"`
+	ReadableStatuses      []string             `json:"readablestatuses"`
+	PayloadReferenceIds   []*uuid.UUID         `json:"payloadReferenceIds"`
 }
 
 func (q *Queries) CreateTasksOLAP(ctx context.Context, db DBTX, arg CreateTasksOLAPParams) error {
@@ -1185,6 +1227,8 @@ func (q *Queries) CreateTasksOLAP(ctx context.Context, db DBTX, arg CreateTasksO
 		arg.Parenttaskexternalids,
 		arg.Isdurables,
 		arg.IdempotencyKeys,
+		arg.ReadableStatuses,
+		arg.PayloadReferenceIds,
 	)
 	return err
 }
@@ -1202,7 +1246,9 @@ WITH inputs AS (
         UNNEST($8::JSONB[]) AS additional_metadata,
         UNNEST($9::UUID[]) AS parent_task_external_id,
         UNNEST($10::INTEGER[]) AS total_tasks,
-		UNNEST($11::TEXT[]) AS idempotency_key
+		UNNEST($11::TEXT[]) AS idempotency_key,
+        UNNEST($12::BOOLEAN[]) AS is_dag_operator,
+        UNNEST($13::UUID[]) AS payload_reference_id
 ), dag_task_counts AS (
     SELECT
         i.id,
@@ -1248,7 +1294,9 @@ INSERT INTO v1_dags_olap (
     parent_task_external_id,
     total_tasks,
     readable_status,
-	idempotency_key
+	idempotency_key,
+    is_dag_operator,
+    payload_reference_id
 )
 SELECT
     i.tenant_id,
@@ -1263,7 +1311,9 @@ SELECT
     i.parent_task_external_id,
     i.total_tasks,
     COALESCE(ds.computed_status, 'QUEUED'::v1_readable_status_olap),
-	i.idempotency_key
+	i.idempotency_key,
+    i.is_dag_operator,
+    i.payload_reference_id
 FROM inputs i
 LEFT JOIN dag_statuses ds ON (i.id, i.inserted_at) = (ds.id, ds.inserted_at)
 ON CONFLICT (inserted_at, id) DO UPDATE SET
@@ -1271,7 +1321,13 @@ ON CONFLICT (inserted_at, id) DO UPDATE SET
         WHEN v1_status_to_priority(EXCLUDED.readable_status) > v1_status_to_priority(v1_dags_olap.readable_status)
         THEN EXCLUDED.readable_status
         ELSE v1_dags_olap.readable_status
-    END
+    END,
+    display_name = EXCLUDED.display_name,
+    workflow_version_id = EXCLUDED.workflow_version_id,
+    additional_metadata = EXCLUDED.additional_metadata,
+    parent_task_external_id = EXCLUDED.parent_task_external_id,
+    total_tasks = EXCLUDED.total_tasks,
+    idempotency_key = EXCLUDED.idempotency_key
 `
 
 type CreateDAGsOLAPOverwriteParams struct {
@@ -1286,6 +1342,8 @@ type CreateDAGsOLAPOverwriteParams struct {
 	Parenttaskexternalids []*uuid.UUID         `json:"parenttaskexternalids"`
 	Totaltasks            []int32              `json:"totaltasks"`
 	IdempotencyKeys       []pgtype.Text        `json:"idempotencyKeys"`
+	IsDagOperators        []bool               `json:"isDagOperators"`
+	PayloadReferenceIds   []*uuid.UUID         `json:"payloadReferenceIds"`
 }
 
 func (q *Queries) CreateDAGsOLAP(ctx context.Context, db DBTX, arg CreateDAGsOLAPOverwriteParams) error {
@@ -1301,6 +1359,8 @@ func (q *Queries) CreateDAGsOLAP(ctx context.Context, db DBTX, arg CreateDAGsOLA
 		arg.Parenttaskexternalids,
 		arg.Totaltasks,
 		arg.IdempotencyKeys,
+		arg.IsDagOperators,
+		arg.PayloadReferenceIds,
 	)
 	return err
 }
