@@ -13,7 +13,7 @@ import { HatchetCore, ServerlessLimitationError, clientFromContext, hatchet } fr
 import { ServerlessTriggerRequest } from '../generated/proto/v1/serverless';
 import { ActionType } from '../generated/proto/dispatcher';
 import { createTestOperator } from '../testing';
-import { createClientResolver } from './client';
+import { clientConfigFromEnv, createClientResolver } from './client';
 import { RunStreamClosedError } from './runs';
 
 const secret = 'test-secret-at-least-32-characters-long';
@@ -731,5 +731,30 @@ describe('ServerlessLimitationError', () => {
     ).toBe(
       'ctx.worker.labels is not available in the serverless runtime: there is no worker. Nothing to do. See LIMITATIONS.md in @hatchet-dev/serverless.'
     );
+  });
+});
+
+describe('clientConfigFromEnv', () => {
+  it('is no client without a token', () => {
+    expect(clientConfigFromEnv(undefined)).toBeUndefined();
+    expect(clientConfigFromEnv({})).toBeUndefined();
+    expect(clientConfigFromEnv({ HATCHET_CLIENT_HOST_PORT: 'localhost:7070' })).toBeUndefined();
+  });
+
+  it('is the token alone when nothing else is set, so the token names the engine', () => {
+    expect(clientConfigFromEnv({ HATCHET_CLIENT_TOKEN: 't' })).toEqual({ token: 't' });
+    expect(
+      clientConfigFromEnv({ HATCHET_CLIENT_TOKEN: 't', HATCHET_CLIENT_TLS_STRATEGY: 'tls' })
+    ).toEqual({ token: 't' });
+  });
+
+  it('carries the host and the plain-HTTP choice for a local engine', () => {
+    expect(
+      clientConfigFromEnv({
+        HATCHET_CLIENT_TOKEN: 't',
+        HATCHET_CLIENT_HOST_PORT: 'localhost:7070',
+        HATCHET_CLIENT_TLS_STRATEGY: 'none',
+      })
+    ).toEqual({ token: 't', hostPort: 'localhost:7070', tls: { strategy: 'none' } });
   });
 });

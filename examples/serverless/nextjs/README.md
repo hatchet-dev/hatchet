@@ -49,7 +49,7 @@ route you keep. The message is capped at 200 characters.
 | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `hatchet/tasks.ts`                       | The declarations, written with `hatchet.task` and `hatchet.durableTask` from `@hatchet-dev/serverless`; `hatchetClient: false` on `echo` states it never talks to Hatchet, so it is POSTed. The same file works on a regular worker. |
 | `app/api/hatchet/[...hatchet]/route.ts`  | `export const { GET, POST } = vercel({ workflows })`: `POST` serves the healthcheck and non-durable triggers, `GET` the durable websocket upgrade; the secret comes from `HATCHET_SIGNING_SECRET`. `maxDuration` caps one invocation. |
-| `hatchet/client.ts`                      | The SDK's core client (`@hatchet-dev/typescript-sdk/core`, Connect over fetch, no gRPC) built from `HATCHET_CLIENT_TOKEN` and friends. Only the triggering side has the token.                                                       |
+| `hatchet/client.ts`                      | The SDK's core client (`@hatchet-dev/typescript-sdk/core`, Connect over fetch, no gRPC) built with `clientConfigFromEnv` from `HATCHET_CLIENT_TOKEN` and friends, as the endpoint's adapter builds its own.                                                       |
 | `app/actions.ts`, `app/trigger-form.tsx` | A server action that triggers `echo`, `sleep-then-echo`, `stream-progress` or `stream-echo` and waits for the output, and the form on the page that calls it. A demo trigger (see above).                                            |
 | `scripts/consume-stream.ts`              | Prints what a `stream-progress` or `stream-echo` run published, with the Node SDK's `hatchet.streams.events(topic)`; `pnpm run consume-stream <topic>`.                                                                              |
 | `app/api/echo/route.ts`                  | `GET /api/echo?message=hello`: the same trigger for curl. A demo trigger (see above).                                                                                                                                                |
@@ -82,8 +82,8 @@ it after rebuilding either package, then `pnpm install` again.
 
 The endpoint holds one secret, `HATCHET_SIGNING_SECRET`, the HMAC key the operator signs every
 request with. The trigger side (the server action, the `/api/echo` route) holds the tenant API
-token, `HATCHET_CLIENT_TOKEN`, and so does the endpoint: it hands the same client to its tasks, which
-is what `parent-echo` triggers its child run through. The operator never sends a token to the
+token, `HATCHET_CLIENT_TOKEN`, and so does the endpoint: its adapter builds the tasks' client from
+the same variable, which is what `parent-echo` triggers its child run through. The operator never sends a token to the
 endpoint; the token is configured here, like the signing secret. A project whose tasks never
 reach back to Hatchet needs the signing secret alone.
 
@@ -127,8 +127,9 @@ psql "$DATABASE_URL" -c "INSERT INTO tenant_entitlement (tenant_id, serverless_o
 
 ### 2. Run the app locally
 
-The core client is configured from the environment by `hatchet/client.ts`. The local engine
-serves Connect on its gRPC port without TLS, so it needs the engine URL and
+The core client is configured from the environment, by the adapter for the endpoint and by
+`hatchet/client.ts` for the app, with the variables the Node SDK reads. The local engine serves
+Connect on its gRPC port without TLS, so it needs the engine's `host:port` and
 `HATCHET_CLIENT_TLS_STRATEGY=none` (the client defaults to `https` at the address in the
 token's `grpc_broadcast_address` claim):
 
@@ -136,7 +137,7 @@ token's `grpc_broadcast_address` claim):
 cat > .env.local <<EOF
 HATCHET_SIGNING_SECRET=$(openssl rand -hex 32)
 HATCHET_CLIENT_TOKEN=$HATCHET_CLIENT_TOKEN
-HATCHET_CLIENT_SERVER_URL=http://localhost:7070
+HATCHET_CLIENT_HOST_PORT=localhost:7070
 HATCHET_CLIENT_TLS_STRATEGY=none
 EOF
 export SIGNING_SECRET=$(sed -n 's/^HATCHET_SIGNING_SECRET=//p' .env.local)
@@ -249,8 +250,8 @@ curl -s -X POST $API/api/v1/stable/tenants/$TENANT_ID/workflow-runs/trigger \
 `stream-progress` publishes five progress messages and a final `{"done": true}` to a durable
 stream topic through the endpoint's client, and returns the topic. Trigger it (over REST as above,
 or pick it in the form, whose result shows the topic), then follow the topic from this machine with the Node SDK (`scripts/consume-stream.ts`, run by Node 22 directly;
-`--env-file-if-exists=.env.local` gives it the token and the local engine address, under which
-it turns TLS off the way `hatchet/client.ts` does):
+`--env-file-if-exists=.env.local` gives it the token and the local engine address, the same
+variables `hatchet/client.ts` reads):
 
 ```sh
 curl -s -X POST $API/api/v1/stable/tenants/$TENANT_ID/workflow-runs/trigger \

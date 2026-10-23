@@ -17,6 +17,43 @@ import { HatchetCore, type CoreClientConfig } from '@hatchet-dev/typescript-sdk/
 
 export type { CoreClientConfig, HatchetCore };
 
+/**
+ * The variables the adapters build the default client from, named as the Node SDK names them so
+ * one `.env` file serves a worker, a script and an endpoint alike. Without a token there is no
+ * client.
+ */
+export interface ClientEnv {
+  /** A tenant API token; its claims name the engine and the API server. */
+  HATCHET_CLIENT_TOKEN?: string;
+  /** The engine's `host:port` when it is not the one the token names: a local engine under a dev server. */
+  HATCHET_CLIENT_HOST_PORT?: string;
+  /** `none` for an engine served over plain HTTP; any other value keeps TLS. */
+  HATCHET_CLIENT_TLS_STRATEGY?: string;
+}
+
+/** The default client config of an adapter: `undefined` without a token, else the token with the host and TLS overrides that are set. */
+export function clientConfigFromEnv(
+  env: ClientEnv | Readonly<Record<string, string | undefined>> | undefined
+): CoreClientConfig | undefined {
+  const token = env?.HATCHET_CLIENT_TOKEN;
+
+  if (!token) {
+    return undefined;
+  }
+
+  const config: CoreClientConfig = { token };
+
+  if (env?.HATCHET_CLIENT_HOST_PORT) {
+    config.hostPort = env.HATCHET_CLIENT_HOST_PORT;
+  }
+
+  if (env?.HATCHET_CLIENT_TLS_STRATEGY === 'none') {
+    config.tls = { strategy: 'none' };
+  }
+
+  return config;
+}
+
 /** What the `client` option accepts. */
 export type ClientOption =
   HatchetCore | CoreClientConfig | ((env: unknown) => HatchetCore | CoreClientConfig | undefined);

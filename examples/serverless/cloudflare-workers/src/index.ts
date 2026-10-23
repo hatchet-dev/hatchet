@@ -13,38 +13,10 @@
  * HATCHET_SIGNING_SECRET, the HMAC key the operator signs every request with, and
  * HATCHET_CLIENT_TOKEN, the tenant API token the adapter builds the tasks' Hatchet client from
  * (`ctx.runChild`, `ctx.putStream`, `ctx.log`). The operator never sends a token to the Worker.
+ * Under `wrangler dev`, HATCHET_CLIENT_HOST_PORT and HATCHET_CLIENT_TLS_STRATEGY=none in
+ * .dev.vars point that client at a local engine served over plain HTTP.
  */
 import { cloudflare } from "@hatchet-dev/serverless/cloudflare";
 import { workflows } from "./tasks";
 
-/** The Worker's bindings: the two secrets, and the local-engine address for `wrangler dev`. */
-interface Env {
-  HATCHET_SIGNING_SECRET?: string;
-  HATCHET_CLIENT_TOKEN?: string;
-  /**
-   * The engine's base URL when it is not the one the token names. A local engine is served
-   * over plain HTTP, which the client refuses unless `tls` is `{ strategy: "none" }`.
-   */
-  HATCHET_CLIENT_SERVER_URL?: string;
-}
-
-export default cloudflare<Env>({
-  workflows,
-  client: (env) => {
-    if (!env.HATCHET_CLIENT_TOKEN) {
-      return undefined;
-    }
-
-    const serverUrl = env.HATCHET_CLIENT_SERVER_URL;
-
-    if (!serverUrl) {
-      return { token: env.HATCHET_CLIENT_TOKEN };
-    }
-
-    return {
-      token: env.HATCHET_CLIENT_TOKEN,
-      serverUrl,
-      tls: { strategy: serverUrl.startsWith("http:") ? ("none" as const) : ("tls" as const) },
-    };
-  },
-});
+export default cloudflare({ workflows });

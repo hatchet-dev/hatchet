@@ -20,7 +20,9 @@ wherever the handler runs. You configure it with a tenant API token from the pla
 store, next to the signing secret; the operator never sends a token to the endpoint.
 
 ```ts
-export default cloudflare({ workflows }); // client from env.HATCHET_CLIENT_TOKEN
+export default cloudflare({ workflows }); // client from env.HATCHET_CLIENT_TOKEN (and HOST_PORT, TLS_STRATEGY)
+export const { GET, POST } = vercel({ workflows }); // the same, from process.env
+createHandler({ workflows, client: clientConfigFromEnv(process.env), ... });
 createHandler({ workflows, client: { token: env.HATCHET_CLIENT_TOKEN }, ... });
 createHandler({ workflows, client: (env) => ({ token: env.HATCHET_CLIENT_TOKEN }), ... });
 createHandler({ workflows, client: new HatchetCore({ token, serverUrl, tls }), ... });
@@ -29,6 +31,10 @@ createHandler({ workflows, client: new HatchetCore({ token, serverUrl, tls }), .
 `client` takes a `HatchetCore`, the config it takes (`{ token, serverUrl?, hostPort?, tls?,
 namespace?, ... }`; with only a `token` the engine address comes from the token), or a function
 of the runtime's environment returning either, for runtimes that hand secrets to the request.
+The Cloudflare and Vercel adapters default it to `clientConfigFromEnv(env)`: the token from
+`HATCHET_CLIENT_TOKEN`, plus `HATCHET_CLIENT_HOST_PORT` and `HATCHET_CLIENT_TLS_STRATEGY=none`
+when set, which is how a local engine over plain HTTP is reached under a dev server. The names
+are the Node SDK's, so one env file serves the endpoint, the app and a script alike.
 One client is built per handler (per environment object for the function form) the first time
 a task needs it, and reused; a function called with an environment that is not an object gets
 a client per request, so two tenant keys never share a credential.
@@ -187,7 +193,9 @@ wrangler deploy
 `cloudflare({ workflows })` returns an `ExportedHandler<Env>` serving `POST /hatchet/healthcheck`,
 `POST /hatchet/trigger` and the invocation websocket upgrade on `/hatchet/trigger`. It reads
 `HATCHET_SIGNING_SECRET`, the optional `HATCHET_CLIENT_TOKEN` (the client's token; without it
-there is no client) and the optional `HATCHET_ENDPOINT_ID` from `env`, and keeps the isolate
+there is no client), `HATCHET_CLIENT_HOST_PORT` and `HATCHET_CLIENT_TLS_STRATEGY` (a local
+engine under `wrangler dev`, from `.dev.vars`) and the optional `HATCHET_ENDPOINT_ID` from
+`env`, and keeps the isolate
 alive with `ctx.waitUntil` while an invocation is on its socket. Every other path gets a 404
 unless you pass a `fetch` option.
 
@@ -197,7 +205,7 @@ export default cloudflare({
   serve: [echo, parent], // actions this endpoint serves (default: all)
   basePath: '/internal/hatchet', // default "/hatchet"
   secret: (env) => env.ORDERS_SIGNING_SECRET, // default env.HATCHET_SIGNING_SECRET
-  client: (env) => ({ token: env.HATCHET_CLIENT_TOKEN }), // the default; add serverUrl and tls for a local engine
+  client: (env) => ({ token: env.HATCHET_CLIENT_TOKEN }), // default: clientConfigFromEnv(env)
   fetch: (request, env, ctx) => app.fetch(request, env, ctx), // everything not under basePath
 });
 ```
@@ -228,7 +236,9 @@ accepted through `experimental_upgradeWebSocket` from `@vercel/functions`, which
 is read from the catch-all segment, so the route file may live anywhere under `app/`; register
 the endpoint with the URLs the file produces (`/api/hatchet/healthcheck` and
 `/api/hatchet/trigger` for the file above). The signing secret comes from
-`process.env.HATCHET_SIGNING_SECRET`, the optional endpoint id from `HATCHET_ENDPOINT_ID`.
+`process.env.HATCHET_SIGNING_SECRET`, the optional endpoint id from `HATCHET_ENDPOINT_ID`, and
+the tasks' client from `HATCHET_CLIENT_TOKEN` (with `HATCHET_CLIENT_HOST_PORT` and
+`HATCHET_CLIENT_TLS_STRATEGY` for a local engine) unless `client` is given.
 
 ```ts
 export const { GET, POST } = vercel({

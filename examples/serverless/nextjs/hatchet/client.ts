@@ -1,33 +1,28 @@
 /**
  * The Hatchet client the app triggers runs with. It is the SDK's core client (unary Connect
- * calls over fetch, no gRPC), so it runs inside a Vercel Function, and it is built from the
- * environment here because the core client reads nothing itself:
+ * calls over fetch, no gRPC), so it runs inside a Vercel Function. `clientConfigFromEnv` reads
+ * the same variables the endpoint's adapter defaults to:
  *
  *   HATCHET_CLIENT_TOKEN         the tenant API token (required)
- *   HATCHET_CLIENT_SERVER_URL    the engine's base URL; defaults to the token's
- *                                grpc_broadcast_address claim over https
+ *   HATCHET_CLIENT_HOST_PORT     the engine's host:port when it is not the one the token names
  *   HATCHET_CLIENT_TLS_STRATEGY  "none" for a local engine served over plain HTTP
  *
- * The endpoint under app/api/hatchet hands the same client to its tasks, so parent-echo can
- * trigger its child run; the operator itself never sends a token to the endpoint.
+ * The endpoint under app/api/hatchet builds its tasks' client from them as well, so parent-echo
+ * can trigger its child run; the operator itself never sends a token to the endpoint.
  */
-import { HatchetCore } from "@hatchet-dev/typescript-sdk/core";
+import { HatchetCore, clientConfigFromEnv } from "@hatchet-dev/serverless";
 
 let client: HatchetCore | undefined;
 
 export function hatchetClient(): HatchetCore {
   if (!client) {
-    const token = process.env.HATCHET_CLIENT_TOKEN;
+    const config = clientConfigFromEnv(process.env);
 
-    if (!token) {
+    if (!config) {
       throw new Error("HATCHET_CLIENT_TOKEN is not set");
     }
 
-    client = new HatchetCore({
-      token,
-      serverUrl: process.env.HATCHET_CLIENT_SERVER_URL,
-      tls: process.env.HATCHET_CLIENT_TLS_STRATEGY === "none" ? { strategy: "none" } : undefined,
-    });
+    client = new HatchetCore(config);
   }
 
   return client;

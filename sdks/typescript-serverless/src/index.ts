@@ -36,8 +36,8 @@ export type {
   ServerlessHandler,
   ServerlessRuntimeName,
 } from './handler';
-export { createClientResolver, isHatchetCore } from './handler/client';
-export type { ClientOption, ClientSource } from './handler/client';
+export { clientConfigFromEnv, createClientResolver, isHatchetCore } from './handler/client';
+export type { ClientEnv, ClientOption, ClientSource } from './handler/client';
 export { ServerlessLimitationError, isServerlessLimitationError } from './handler/errors';
 export { ServerlessRuntime, ConsoleLogger, clientFromContext } from './handler/context';
 export type { ConsoleLike, ServerlessRuntimeOptions } from './handler/context';

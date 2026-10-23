@@ -15,7 +15,9 @@
  * needs Fluid compute and the `ws` package (both optional peer dependencies). The route is
  * read from the catch-all segment, so the route file may live anywhere; without a route
  * context the URL is matched against `basePath` (`/api/hatchet` by default). The signing
- * secret comes from `process.env.HATCHET_SIGNING_SECRET`.
+ * secret comes from `process.env.HATCHET_SIGNING_SECRET`, and the tasks' client, unless
+ * `client` is given, from `HATCHET_CLIENT_TOKEN` (with `HATCHET_CLIENT_HOST_PORT` and
+ * `HATCHET_CLIENT_TLS_STRATEGY` for a local engine), the variables the Node SDK reads too.
  *
  * `vercelServer` is the same endpoint as an `http.Server`, the shape a standalone
  * `api/*.ts` function exports by default.
@@ -23,6 +25,7 @@
  */
 import type { Server } from 'node:http';
 import type { HandlerOptions } from '../handler';
+import { clientConfigFromEnv } from '../handler/client';
 import type { ConsoleLike } from '../handler/context';
 import { triggerError } from '../handler/http';
 import { OPERATOR_MAX_FRAME_BYTES } from '../handler/contract';
@@ -154,6 +157,7 @@ export function vercel(options: VercelOptions): VercelRoutes {
     durable = process.env.VERCEL !== undefined,
     maxPayload = OPERATOR_MAX_FRAME_BYTES,
     basePath = '/api/hatchet',
+    client = () => clientConfigFromEnv(process.env),
     ...rest
   } = options;
   const out: ConsoleLike = options.console ?? console;
@@ -165,6 +169,7 @@ export function vercel(options: VercelOptions): VercelRoutes {
   const handler = createOptionalDurableHandler(
     {
       ...rest,
+      client,
       basePath,
       runtime: { name: 'vercel' },
       secret: () => fromProcessEnv(secret, 'HATCHET_SIGNING_SECRET'),

@@ -6,10 +6,10 @@
  *
  *   node scripts/consume-stream.ts <topic>
  *
- * HATCHET_CLIENT_TOKEN names the engine through its grpc_broadcast_address claim. For a local
- * engine served over plain HTTP, HATCHET_CLIENT_SERVER_URL (http://localhost:7070, as the
- * endpoint's client uses it) sets the address and turns TLS off; `--env-file` loads it from
- * the same file the endpoint reads.
+ * The Node SDK reads HATCHET_CLIENT_TOKEN, which names the engine through its
+ * grpc_broadcast_address claim, and for a local engine served over plain HTTP
+ * HATCHET_CLIENT_HOST_PORT and HATCHET_CLIENT_TLS_STRATEGY=none, the same variables the
+ * endpoint's client reads; `--env-file` loads them from the same file.
  */
 import { HatchetClient } from "@hatchet-dev/typescript-sdk";
 
@@ -20,15 +20,7 @@ if (!topic) {
   process.exit(1);
 }
 
-const serverUrl = process.env.HATCHET_CLIENT_SERVER_URL;
-const local = serverUrl
-  ? {
-      host_port: new URL(serverUrl).host,
-      tls_config: { tls_strategy: serverUrl.startsWith("http:") ? ("none" as const) : ("tls" as const) },
-    }
-  : {};
-
-const hatchet = HatchetClient.init({ token: process.env.HATCHET_CLIENT_TOKEN, ...local });
+const hatchet = HatchetClient.init();
 
 // A topic nothing was published to yet would wait forever; give up after a minute.
 const signal = AbortSignal.timeout(60_000);

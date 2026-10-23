@@ -14,8 +14,8 @@ compatibility_date = "2025-09-01"
 #   wrangler secret put HATCHET_SIGNING_SECRET   # the HMAC key; the endpoint's signingSecret in Hatchet
 #   wrangler secret put HATCHET_CLIENT_TOKEN     # a tenant API token; the tasks' Hatchet client
 #
-# Under `wrangler dev` both come from .dev.vars, with HATCHET_CLIENT_SERVER_URL for a local
-# engine over plain HTTP (see README.md).
+# Under `wrangler dev` both come from .dev.vars, with HATCHET_CLIENT_HOST_PORT and
+# HATCHET_CLIENT_TLS_STRATEGY=none for a local engine over plain HTTP (see README.md).
 
 [limits]
 # CPU time per invocation, in milliseconds. The default on the Workers Paid plan is 30 s; the

@@ -37,7 +37,7 @@ The operator registers the workflows under the names declared here, the way a wo
 | File | Purpose |
 |---|---|
 | `src/tasks.ts` | The declarations, written with `hatchet.task` and `hatchet.durableTask` from `@hatchet-dev/serverless`; `hatchetClient: false` on `echo` states it never talks to Hatchet, so it is POSTed. The same file works on a regular worker. |
-| `src/index.ts` | `export default cloudflare({ workflows, client })`: the adapter serves `POST /hatchet/healthcheck`, `POST /hatchet/trigger` and the invocation websocket upgrade on `/hatchet/trigger`, reads the signing secret from `env.HATCHET_SIGNING_SECRET`, and builds the tasks' Hatchet client from `env.HATCHET_CLIENT_TOKEN` (plus `env.HATCHET_CLIENT_SERVER_URL` for a local engine). |
+| `src/index.ts` | `export default cloudflare({ workflows })`: the adapter serves `POST /hatchet/healthcheck`, `POST /hatchet/trigger` and the invocation websocket upgrade on `/hatchet/trigger`, reads the signing secret from `env.HATCHET_SIGNING_SECRET`, and builds the tasks' Hatchet client from `env.HATCHET_CLIENT_TOKEN` (plus `HATCHET_CLIENT_HOST_PORT` and `HATCHET_CLIENT_TLS_STRATEGY` for a local engine). |
 | `scripts/consume-stream.ts` | Prints what a `stream-progress` or `stream-echo` run published, with the Node SDK's `hatchet.streams.events(topic)`; `pnpm run consume-stream <topic>`. |
 | `wrangler.toml` | Worker config. `limits.cpu_ms = 300000` raises the CPU budget to the 5 minute maximum (Workers Paid plan). |
 
@@ -118,13 +118,14 @@ psql "$DATABASE_URL" -c "INSERT INTO tenant_entitlement (tenant_id, serverless_o
 ### 2. Run the Worker locally
 
 `.dev.vars` carries the signing secret, the client token and, since the local engine serves
-plain HTTP on port 7070 (the token's `grpc_broadcast_address` names that port, but the client
-defaults to TLS), the engine's base URL. `src/index.ts` sets `tls: { strategy: 'none' }` for an
-`http://` URL; the client refuses plain HTTP otherwise, since the token travels on every call.
-The Worker runs on this machine under `wrangler dev`, so `localhost` reaches the engine.
+plain HTTP on port 7070 while the client defaults to TLS at the address in the token's
+`grpc_broadcast_address` claim, the engine's `host:port` with `HATCHET_CLIENT_TLS_STRATEGY=none`.
+The adapter reads these the way the Node SDK does; plain HTTP has to be chosen this explicitly
+because the token travels on every call. The Worker runs on this machine under `wrangler dev`,
+so `localhost` reaches the engine.
 
 ```sh
-printf 'HATCHET_SIGNING_SECRET=%s\nHATCHET_CLIENT_TOKEN=%s\nHATCHET_CLIENT_SERVER_URL=http://localhost:7070\n' \
+printf 'HATCHET_SIGNING_SECRET=%s\nHATCHET_CLIENT_TOKEN=%s\nHATCHET_CLIENT_HOST_PORT=localhost:7070\nHATCHET_CLIENT_TLS_STRATEGY=none\n' \
   "$(openssl rand -hex 32)" "$HATCHET_CLIENT_TOKEN" > .dev.vars
 export SIGNING_SECRET=$(sed -n 's/^HATCHET_SIGNING_SECRET=//p' .dev.vars)
 pnpm run dev                                      # wrangler dev, http://localhost:8787
@@ -241,8 +242,8 @@ delivery.
 `stream-progress` publishes five progress messages and a final `{"done": true}` to a durable
 stream topic through the Worker's client, and returns the topic. Trigger it, then follow the
 topic from this machine with the Node SDK (`scripts/consume-stream.ts`, run by Node 22 directly;
-`--env-file-if-exists=.dev.vars` gives it the token and the local engine address, under which
-it turns TLS off the way the Worker does):
+`--env-file-if-exists=.dev.vars` gives it the token and the local engine address, the same
+variables the Worker reads):
 
 ```sh
 curl -s -X POST $API/api/v1/stable/tenants/$TENANT_ID/workflow-runs/trigger \
@@ -331,8 +332,8 @@ pnpm wrangler secret put HATCHET_CLIENT_TOKEN      # a tenant API token of the H
 pnpm run deploy                                    # prints https://<name>.<account>.workers.dev
 ```
 
-The token names the engine it was issued for, so `HATCHET_CLIENT_SERVER_URL` is only for a
-local engine and stays unset on a deployed Worker.
+The token names the engine it was issued for, so `HATCHET_CLIENT_HOST_PORT` and
+`HATCHET_CLIENT_TLS_STRATEGY` are only for a local engine and stay unset on a deployed Worker.
 
 Then register the endpoint as in section 4 with the `workers.dev` URL, against whichever Hatchet
 instance the token belongs to, and trigger runs as in section 5. Right after the first deploy the

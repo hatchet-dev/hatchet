@@ -18,16 +18,23 @@
  */
 /// <reference types="@cloudflare/workers-types" />
 import { createHandler, type DurableSocket, type HandlerOptions } from '../handler';
-import type { CoreClientConfig, HatchetCore } from '../handler/client';
+import {
+  clientConfigFromEnv,
+  type ClientEnv,
+  type CoreClientConfig,
+  type HatchetCore,
+} from '../handler/client';
 
 /** The bindings the adapter reads. Extend it with your own for the `fetch` fallback. */
-export interface HatchetEnv {
+export interface HatchetEnv extends ClientEnv {
   /** `wrangler secret put HATCHET_SIGNING_SECRET`; the endpoint's signingSecret in Hatchet. */
   HATCHET_SIGNING_SECRET?: string;
   /**
    * `wrangler secret put HATCHET_CLIENT_TOKEN`: a tenant API token, from which the adapter
    * builds the client `ctx.runChild`, `ctx.putStream`, `ctx.cancel` and `ctx.log` use.
-   * Without it those members throw `ServerlessLimitationError`.
+   * Without it those members throw `ServerlessLimitationError`. `HATCHET_CLIENT_HOST_PORT`
+   * and `HATCHET_CLIENT_TLS_STRATEGY=none` in `.dev.vars` point the client at a local engine
+   * under `wrangler dev`.
    */
   HATCHET_CLIENT_TOKEN?: string;
   /** Optional: when set, durable upgrades from any other endpoint id are refused. */
@@ -44,9 +51,10 @@ export interface CloudflareOptions<Env = HatchetEnv> extends Omit<
   endpointId?: string | ((env: Env) => string | undefined);
   /**
    * The Hatchet client for the tasks' `ctx`: a `HatchetCore`, its config, or a function of
-   * `env` returning either, since Workers see secrets on the request. Defaults to
-   * `{ token: env.HATCHET_CLIENT_TOKEN }` when that secret is set; a local engine over plain
-   * HTTP needs the function form with `serverUrl` and `tls: { strategy: 'none' }`.
+   * `env` returning either, since Workers see secrets on the request. Defaults to the client
+   * `env.HATCHET_CLIENT_TOKEN`, `env.HATCHET_CLIENT_HOST_PORT` and
+   * `env.HATCHET_CLIENT_TLS_STRATEGY` describe (`clientConfigFromEnv`), and to no client
+   * without the token.
    */
   client?:
     HatchetCore | CoreClientConfig | ((env: Env) => HatchetCore | CoreClientConfig | undefined);
@@ -104,10 +112,7 @@ export function cloudflare<Env = HatchetEnv>(
     secret: (env) => fromEnv(secret, env as Env, (bindings) => bindings.HATCHET_SIGNING_SECRET),
     endpointId: (env) =>
       fromEnv(endpointId, env as Env, (bindings) => bindings.HATCHET_ENDPOINT_ID),
-    client: (env) =>
-      fromEnv(client, env as Env, (bindings) =>
-        bindings.HATCHET_CLIENT_TOKEN ? { token: bindings.HATCHET_CLIENT_TOKEN } : undefined
-      ),
+    client: (env) => fromEnv(client, env as Env, clientConfigFromEnv),
   });
 
   return {
