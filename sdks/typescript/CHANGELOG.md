@@ -5,6 +5,13 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.40.1] - 2026-10-23
+
+### Fixed
+
+- `DurableContext.spawnChild` and `spawnChildren` now send `desiredWorkerLabels` to the engine; the eviction-enabled durable path previously dropped them, so durable children ignored per-call worker affinity.
+- Worker shutdown no longer fails durable tasks with `DurableListener stopped`. The durable listener now stays up until in-flight tasks drain, and a task that enters a wait after shutdown's eviction pass (for example one still awaiting the wait registration ack) is evicted and handed off instead of failed.
+
 ## [1.40.0] - 2026-10-14
 
 ### Added
