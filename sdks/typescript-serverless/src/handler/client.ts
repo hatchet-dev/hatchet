@@ -44,7 +44,18 @@ export function clientConfigFromEnv(
   const config: CoreClientConfig = { token };
 
   if (env?.HATCHET_CLIENT_HOST_PORT) {
-    config.hostPort = env.HATCHET_CLIENT_HOST_PORT;
+    const hostPort = env.HATCHET_CLIENT_HOST_PORT;
+
+    // The client turns it into the base URL of its calls, so a path, query, fragment or user
+    // info in it would become a prefix of every call instead of failing; a URL belongs in
+    // the `serverUrl` option, not here.
+    if (/[/?#@\s]/.test(hostPort)) {
+      throw new Error(
+        `HATCHET_CLIENT_HOST_PORT must be a host and port such as localhost:7070, got ${JSON.stringify(hostPort)}; a full URL goes in the client's serverUrl option`
+      );
+    }
+
+    config.hostPort = hostPort;
   }
 
   if (env?.HATCHET_CLIENT_TLS_STRATEGY === 'none') {

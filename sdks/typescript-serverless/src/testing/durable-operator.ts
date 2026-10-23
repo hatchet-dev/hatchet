@@ -49,6 +49,7 @@ import {
   TIMESTAMP_HEADER,
   upgradeSigningPayload,
 } from '../handler/contract';
+import { OPERATOR_MAX_FRAME_BYTES } from '../handler/contract';
 import { decodeFrame, encodeFrame, frameKind } from '../handler/durable/frames';
 import type { DurableSocket } from '../handler/durable/socket';
 import type { ServerlessHandler } from '../handler';
@@ -596,6 +597,25 @@ class ActiveInvocation implements DurableRun {
 
   private onEndpointFrame(text: string): void {
     let frame: ServerlessDurableFrame;
+
+    // The relay reads at most this many bytes per frame and treats a larger one as a protocol
+    // violation (close 1009), so a done frame carrying an output over the limit never
+    // completes the task; the same here, so a test sees the boundary the operator enforces.
+    if (new TextEncoder().encode(text).byteLength > OPERATOR_MAX_FRAME_BYTES) {
+      // Settled here rather than on the close that follows: the endpoint may close with 1000
+      // right behind its done frame, and that close would otherwise read as a clean end.
+      const reason = `endpoint frame exceeded the ${OPERATOR_MAX_FRAME_BYTES} byte limit`;
+      this.violation = reason;
+      this.settle(
+        'failed',
+        { error: `protocol violation: ${reason}`, retry: true },
+        this.httpStatus,
+        1009,
+        reason
+      );
+      this.socket?.close(1009, reason);
+      return;
+    }
 
     try {
       frame = decodeFrame(text);

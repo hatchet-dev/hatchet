@@ -178,6 +178,21 @@ describe('durable invocations', () => {
     expect(trigger?.frame.request?.triggerRuns?.triggerOpts[0].name).toBe('echo');
   });
 
+  it('fails, as the relay does, when the done frame is over the operator frame limit', async () => {
+    const big = hatchet.durableTask({
+      name: 'big-output',
+      fn: async () => ({ blob: 'x'.repeat(4 * 1024 * 1024) }),
+    });
+    const op = operator({ workflows: [big] });
+    const result = await op.invokeDurable(big, {}, { inlineWaitBudgetMs: 5000 });
+
+    expect(result.status).toBe('failed');
+    expect(result.error).toMatch(
+      /protocol violation: endpoint frame exceeded the 4194304 byte limit/
+    );
+    expect(result.closeCode).toBe(1009);
+  });
+
   it('aborts cleanly on a server eviction without sending a done frame', async () => {
     const op = operator();
     const run = op.startDurable(sleeper, { message: 'hi' }, { inlineWaitBudgetMs: 5000 });

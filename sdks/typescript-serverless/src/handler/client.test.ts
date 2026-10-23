@@ -748,6 +748,14 @@ describe('clientConfigFromEnv', () => {
     ).toEqual({ token: 't' });
   });
 
+  it('refuses a host and port carrying a path, query, fragment or user info', () => {
+    for (const hostPort of ['engine.example/api', 'engine.example:7070/api', 'a@b:1', 'x:1?y']) {
+      expect(() =>
+        clientConfigFromEnv({ HATCHET_CLIENT_TOKEN: 't', HATCHET_CLIENT_HOST_PORT: hostPort })
+      ).toThrow(/must be a host and port/);
+    }
+  });
+
   it('carries the host and the plain-HTTP choice for a local engine', () => {
     expect(
       clientConfigFromEnv({
