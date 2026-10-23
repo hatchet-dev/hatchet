@@ -114,13 +114,21 @@ export type TaskClient = Omit<HatchetCore, 'streams' | 'runs'> & {
 
 type Relayed = { message: string } | { closed: { code: number; detail: string } };
 
+/** What a queued message holds in memory: JavaScript strings store two bytes per UTF-16 unit. */
+function retainedBytes(message: string): number {
+  return message.length * 2;
+}
+
 /**
  * Reads one engine stream over the socket as the protojson documents the operator relays.
  * Ends on a stream_close with code 0 or when the signal aborts; throws `closed(code, detail)`
  * on any other close. The stream is closed, freeing its slot, however the iteration ends.
- * Messages the task has not consumed yet are queued up to `streams.maxQueuedBytes`; past
- * that the reader has stalled and the stream is closed with RESOURCE_EXHAUSTED, so a fast
- * publisher cannot grow the invocation's memory without limit.
+ * Messages the task has not consumed yet are queued up to `streams.maxQueuedBytes` of
+ * retained string storage (two bytes per UTF-16 code unit, so a message's share is never
+ * undercounted); past that the reader has stalled, the unread messages are dropped and the
+ * stream is closed at once, so a fast publisher cannot grow the invocation's memory or hold
+ * the stream's slot while the task is busy elsewhere. The reader learns of it on its next
+ * call, with RESOURCE_EXHAUSTED.
  */
 async function* relayed(
   streams: SocketStreams,
@@ -137,14 +145,15 @@ async function* relayed(
   let queuedBytes = 0;
   let aborted = false;
   let wake: (() => void) | undefined;
-
   const push = (item: Relayed) => {
     if ('message' in item) {
-      queuedBytes += item.message.length;
+      queuedBytes += retainedBytes(item.message);
 
       if (queuedBytes > streams.maxQueuedBytes) {
-        // The unread messages are dropped with the stream; the error names the cursor to
-        // resume from only through what the task already consumed.
+        // The unread messages go with the stream, which is closed here and now rather than
+        // when the task next reads, so its slot is freed and nothing else arrives on it
+        // (a closed stream delivers no further callbacks). The task resumes from the
+        // cursor of the last message it consumed.
         queue.length = 0;
         queuedBytes = 0;
         queue.push({
@@ -153,6 +162,7 @@ async function* relayed(
             detail: `the task fell behind reading the stream: more than ${streams.maxQueuedBytes} bytes of unread messages were queued`,
           },
         });
+        stream.close();
         wake?.();
         wake = undefined;
         return;
@@ -169,6 +179,7 @@ async function* relayed(
     wake = undefined;
   };
 
+  // `push` above closes over this binding; it runs only from the listeners, after the open.
   const stream = streams.openStream(procedure, request, {
     onMessage: (message) => push({ message }),
     onClose: (code, detail) => push({ closed: { code, detail } }),
@@ -198,7 +209,7 @@ async function* relayed(
         throw closed(item.closed.code, item.closed.detail);
       }
 
-      queuedBytes -= item.message.length;
+      queuedBytes -= retainedBytes(item.message);
       yield item.message;
     }
   } finally {

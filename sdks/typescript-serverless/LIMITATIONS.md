@@ -201,11 +201,13 @@ endpoint's `requestTimeoutSeconds` in Hatchet, whichever ends first.
 ## `serve` subsets
 
 `serve` limits the action ids listed in the healthcheck and answered by the trigger route. The
-operator registers every advertised workflow in full and derives the endpoint's actions from
-the workflow definitions, so a task outside the subset is still registered for the endpoint and,
-if triggered, fails with `404` from the endpoint. Two endpoints that declare the same workflow
-both register all of its actions, so splitting one workflow across endpoints is not supported.
-Socket tasks outside `serve` are not listed under `tasks`.
+operator registers every advertised workflow in full, but routes to the endpoint only the
+actions the healthcheck lists, so a task outside the subset is registered (another endpoint or
+a worker may serve it) and never delivered here. One workflow can therefore be split across
+endpoints, each listing its share. The trigger route still answers `404` for an action outside
+the subset, which only an operator ignoring the list would send. Socket tasks outside `serve`
+are not listed under `tasks`. An empty `serve` is refused when the handler is built: an empty
+list in the healthcheck means every action to the operator, the opposite of what it asks for.
 
 ## Response size
 

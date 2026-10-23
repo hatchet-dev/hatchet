@@ -149,7 +149,7 @@ import { workflows } from "./tasks";
 createServer({ workflows }).listen(3000); // POST /hatchet/healthcheck, /hatchet/trigger and the upgrade
 ```
 
-`nodeHandler({ workflows })` is the same endpoint as an `http` request listener for a server you already have, usable as Express middleware. The websocket needs the `ws` package; without it the server reports that it doesn't serve durable tasks and Hatchet delivers pure tasks only. The server reads `HATCHET_SIGNING_SECRET`, `HATCHET_CLIENT_TOKEN` and the optional `HATCHET_ENDPOINT_ID` from the environment and takes the same options as the [Vercel adapter](/v1/serverless/vercel#options).
+`nodeHandler({ workflows })` is the same endpoint as an `http` request listener for a server you already have, usable as Express middleware. The websocket needs the `ws` package; without it the server reports that it doesn't serve durable tasks, and Hatchet delivers every non-durable task as a `POST`, where a wait for a child run or a stream read fails. The server reads `HATCHET_SIGNING_SECRET`, `HATCHET_CLIENT_TOKEN` and the optional `HATCHET_ENDPOINT_ID` from the environment and takes the same options as the [Vercel adapter](/v1/serverless/vercel#options).
 
 <Callout type="info">
   Hatchet reaches the server over public HTTPS on port 443, so put it behind a

@@ -90,10 +90,11 @@ export interface SocketStream {
 }
 
 /**
- * How much a stream's reader may fall behind: the bytes of relayed messages a task has not
- * consumed yet, per stream. The operator's own per-socket queue bound, so a reader that sits
- * on this much has stalled; the stream is then closed with RESOURCE_EXHAUSTED rather than
- * growing without limit while messages keep arriving.
+ * How much a stream's reader may fall behind: the retained size of relayed messages a task
+ * has not consumed yet, per stream, counted as two bytes per UTF-16 code unit. The
+ * operator's own per-socket queue bound, so a reader that sits on this much has stalled; the
+ * stream is then closed with RESOURCE_EXHAUSTED rather than growing without limit while
+ * messages keep arriving.
  */
 export const MAX_QUEUED_STREAM_BYTES = 16 * 1024 * 1024;
 

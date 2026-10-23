@@ -517,7 +517,7 @@ pnpm run build:sdk        # builds ../typescript/dist, which pnpm copies into no
 pnpm install
 pnpm lint && pnpm typecheck && pnpm test
 pnpm check:edge           # builds with tsup, then proves the runtime entries reach no Node built-in
-pnpm run publish          # the four steps above, then `pnpm publish`
+pnpm run release:local    # the four steps above, then `pnpm publish`
 ```
 
 ### Generated code

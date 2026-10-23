@@ -70,9 +70,9 @@
     "prettier:check": "prettier \"src/**/*.ts\" \"scripts/**/*.mjs\" \"*.md\" --list-different",
     "prettier:fix": "prettier \"src/**/*.ts\" \"scripts/**/*.mjs\" \"*.md\" --write",
     "generate-proto": "./generate-proto.sh",
-    "publish": "pnpm run build:sdk && pnpm install && pnpm run lint && pnpm run test && pnpm run build && pnpm publish --access public --no-git-checks",
     "publish:ci": "pnpm run build && pnpm publish --access public --no-git-checks",
-    "publish:ci:alpha": "pnpm run build && pnpm publish --access public --no-git-checks --tag alpha"
+    "publish:ci:alpha": "pnpm run build && pnpm publish --access public --no-git-checks --tag alpha",
+    "release:local": "pnpm run build:sdk && pnpm install && pnpm run lint && pnpm run test && pnpm run build && pnpm publish --access public --no-git-checks"
   },
   "peerDependencies": {
     "@hatchet-dev/typescript-sdk": "^1.41.0",

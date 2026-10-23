@@ -110,10 +110,27 @@ export function buildRegistry(
     seenNames.add(name);
 
     const actions: string[] = [];
+    // Action ids lowercase the task name, so two tasks may collide without sharing a name;
+    // the runner and the purity of such a pair would be whichever was declared last.
+    const declaredAs = new Map<string, string>();
+    const claim = (task: { name: string }) => {
+      const actionId = createActionId(name, task.name);
+      const previous = declaredAs.get(actionId);
+
+      if (previous !== undefined) {
+        throw new Error(
+          `workflow "${name}" declares tasks "${previous}" and "${task.name}", which share the action id "${actionId}"`
+        );
+      }
+
+      declaredAs.set(actionId, task.name);
+      actions.push(actionId);
+
+      return actionId;
+    };
 
     for (const task of definition._tasks) {
-      const actionId = createActionId(name, task.name);
-      actions.push(actionId);
+      const actionId = claim(task);
 
       if (task.fn) {
         const { fn } = task;
@@ -139,8 +156,7 @@ export function buildRegistry(
     }
 
     for (const task of definition._durableTasks) {
-      const actionId = createActionId(name, task.name);
-      actions.push(actionId);
+      const actionId = claim(task);
       durableActions.add(actionId);
 
       if (task.fn) {
@@ -157,6 +173,14 @@ export function buildRegistry(
 
     if (onFailureFn) {
       const actionId = onFailureTaskName(definition);
+      const previous = declaredAs.get(actionId);
+
+      if (previous !== undefined) {
+        throw new Error(
+          `workflow "${name}" declares a task "${previous}" whose action id "${actionId}" is the on-failure task's`
+        );
+      }
+
       actions.push(actionId);
       runners.set(actionId, (ctx) => onFailureFn(ctx.input, ctx as any));
       // An on-failure task is a non-durable task with no option of its own.
@@ -186,6 +210,14 @@ export function buildRegistry(
 function servedActions(workflows: RegisteredWorkflow[], serve?: ServeEntry[]): Set<string> {
   if (!serve) {
     return new Set(workflows.flatMap((workflow) => workflow.actions));
+  }
+
+  // An empty list in the healthcheck means "every action of the declared workflows" to the
+  // operator, the opposite of what an empty `serve` asks for.
+  if (serve.length === 0) {
+    throw new Error(
+      '`serve` is empty: list the tasks this endpoint serves, or omit `serve` to serve every declared task'
+    );
   }
 
   const selected = new Set<string>();

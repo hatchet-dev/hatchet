@@ -153,8 +153,9 @@ describe('createTaskClient', () => {
   });
 
   it('closes the stream with RESOURCE_EXHAUSTED when the reader falls behind the bound', async () => {
-    // Room for one and a half relayed messages: one unread message fits, a second does not.
-    const one = message('x', [{ payload: 'one', cursor: '1' }]).streamMessage.message.length;
+    // Room for one and a half relayed messages of retained string storage (two bytes per
+    // UTF-16 unit): one unread message fits, a second does not.
+    const one = message('x', [{ payload: 'one', cursor: '1' }]).streamMessage.message.length * 2;
     const { streams, received, fromOperator, settle } = harness({
       maxQueuedBytes: Math.floor(one * 1.5),
     });
@@ -167,9 +168,13 @@ describe('createTaskClient', () => {
     fromOperator(message(id, [{ payload: 'one', cursor: '1' }]));
     await expect(first).resolves.toMatchObject({ value: { cursor: '1' } });
 
-    // Two messages arrive before the task reads again; the second crosses the bound.
+    // Two messages arrive before the task reads again; the second crosses the bound. The
+    // stream is closed at once, before the task reads, so its slot is free meanwhile.
     fromOperator(message(id, [{ payload: 'two', cursor: '2' }]));
     fromOperator(message(id, [{ payload: 'three', cursor: '3' }]));
+    await settle();
+    expect(streams.size).toBe(0);
+    expect(received.filter((frame) => frame.streamClose)).toHaveLength(1);
 
     const behind = iterator.next();
     await expect(behind).rejects.toBeInstanceOf(StreamClosedError);

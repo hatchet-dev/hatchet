@@ -18,6 +18,23 @@ describe('buildRegistry', () => {
     expect(registry.workflows[0].actions).toContain('with-success:on-success-task');
   });
 
+  it('refuses two tasks whose names lowercase to one action id', () => {
+    const workflow = hatchet.workflow<{ n: number }>({ name: 'collision' });
+    workflow.task({ name: 'Task', hatchetClient: false, fn: async () => ({}) });
+    workflow.task({ name: 'task', fn: async () => ({}) });
+
+    expect(() => buildRegistry([workflow], undefined, quiet)).toThrow(
+      /"Task" and "task", which share the action id "collision:task"/
+    );
+  });
+
+  it('refuses an empty serve list, which the healthcheck would read as every task', () => {
+    const task = hatchet.task({ name: 'only', fn: async () => ({}) });
+
+    expect(() => buildRegistry([task], [], quiet)).toThrow(/`serve` is empty/);
+    expect(buildRegistry([task], [task], quiet).served.has('only:only')).toBe(true);
+  });
+
   it('keeps a pure task pure through the copies the registration is built from', () => {
     const pure = hatchet.task({ name: 'pure', hatchetClient: false, fn: async () => ({}) });
     const social = hatchet.task({ name: 'social', fn: async () => ({}) });

@@ -509,11 +509,17 @@ jobs:
       - name: Build and publish the package
         run: |
           VERSION=$(jq -r '.version' package.json)
-          CURRENT_NPM_VERSION=$(pnpm view @hatchet-dev/serverless version 2>/dev/null || true)
 
-          if [[ "$VERSION" == "$CURRENT_NPM_VERSION" ]]; then
-            echo "Version has not changed. Skipping publish."
+          # The exact version, not the `latest` tag: an alpha published under its own tag or
+          # a `latest` that moved on must not trigger a republish. A registry or auth failure
+          # fails the job instead of passing for "not published".
+          if LOOKUP=$(pnpm view "@hatchet-dev/serverless@$VERSION" version 2>&1); then
+            echo "Version $VERSION is already published ($LOOKUP). Skipping publish."
             exit 0
+          elif ! grep -q "E404" <<<"$LOOKUP"; then
+            echo "Could not check npm for @hatchet-dev/serverless@$VERSION:"
+            echo "$LOOKUP"
+            exit 1
           fi
 
           if [[ "$VERSION" == *alpha* ]]; then

@@ -18,7 +18,7 @@ pnpm add @hatchet-dev/serverless @hatchet-dev/typescript-sdk zod
 pnpm add @vercel/functions ws          # for durable tasks and tasks that wait for child runs
 ```
 
-`@hatchet-dev/typescript-sdk` (1.41.0 or later) and `zod` are peer dependencies. `@vercel/functions` and `ws` are optional peers: the adapter accepts the websocket through them, and without them it serves pure tasks only.
+`@hatchet-dev/typescript-sdk` (1.41.0 or later) and `zod` are peer dependencies. `@vercel/functions` and `ws` are optional peers: the adapter accepts the websocket through them. Without them every non-durable task is delivered as a `POST` and still runs, but a task that waits for a child run or reads a stream fails at that wait, and durable tasks aren't assigned to the endpoint.
 
 ## Declare tasks
 
@@ -142,7 +142,7 @@ cloudflared tunnel --url http://localhost:3000   # prints https://<random>.trycl
 
 Register `https://<random>.trycloudflare.com/api/hatchet/healthcheck` and `.../api/hatchet/trigger` as a new endpoint, with a short `pollIntervalSeconds` so changes to your tasks are picked up quickly.
 
-Under `next dev` the adapter reports that it doesn't serve durable tasks (the `VERCEL` environment variable is absent), so Hatchet delivers every pure task as a `POST` and leaves the rest alone.
+Under `next dev` the adapter reports that it doesn't serve durable tasks (the `VERCEL` environment variable is absent). Hatchet then delivers every non-durable task as a `POST`: tasks run and can trigger child runs, publish streams and write logs, but a wait for a child's result or a stream read fails, and durable tasks aren't assigned to the endpoint.
 
 For a [locally running Hatchet](/v1/running-locally) served over plain HTTP, add `HATCHET_CLIENT_HOST_PORT=localhost:7070` and `HATCHET_CLIENT_TLS_STRATEGY=none` to `.env.local`. These are the same variables the Node SDK reads.
 
@@ -158,15 +158,15 @@ export const { GET, POST } = vercel({
 });
 ```
 
-| Option       | Description                                                                                                                                                                                                                                           |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `workflows`  | The declarations to serve.                                                                                                                                                                                                                            |
-| `serve`      | A subset of the declared tasks to serve from this route, by declaration or by action id (`workflow:task`). The rest are still registered but answered `404` here.                                                                                     |
-| `secret`     | The signing secret, or a function returning it.                                                                                                                                                                                                       |
-| `endpointId` | The endpoint id, or a function returning it. Defaults to `process.env.HATCHET_ENDPOINT_ID`.                                                                                                                                                           |
-| `client`     | The Hatchet client for the tasks: a client config, a `HatchetCore`, or a function returning either. Defaults to the client described by `HATCHET_CLIENT_TOKEN` (plus `HATCHET_CLIENT_HOST_PORT` and `HATCHET_CLIENT_TLS_STRATEGY` when set), or none. |
-| `durable`    | Whether to accept the websocket. Defaults to true on Vercel when `@vercel/functions` and `ws` are installed. Set it to false on a project without Fluid compute, so Hatchet never dials the socket and delivers pure tasks only.                      |
-| `basePath`   | The path the routes live under when the handlers are called without a Next.js route context. Defaults to `/api/hatchet`. With a catch-all route the segment decides.                                                                                  |
+| Option       | Description                                                                                                                                                                                                                                                                          |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `workflows`  | The declarations to serve.                                                                                                                                                                                                                                                           |
+| `serve`      | A subset of the declared tasks to serve from this route, by declaration or by action id (`workflow:task`). The rest are still registered but answered `404` here.                                                                                                                    |
+| `secret`     | The signing secret, or a function returning it.                                                                                                                                                                                                                                      |
+| `endpointId` | The endpoint id, or a function returning it. Defaults to `process.env.HATCHET_ENDPOINT_ID`.                                                                                                                                                                                          |
+| `client`     | The Hatchet client for the tasks: a client config, a `HatchetCore`, or a function returning either. Defaults to the client described by `HATCHET_CLIENT_TOKEN` (plus `HATCHET_CLIENT_HOST_PORT` and `HATCHET_CLIENT_TLS_STRATEGY` when set), or none.                                |
+| `durable`    | Whether to accept the websocket. Defaults to true on Vercel when `@vercel/functions` and `ws` are installed. Set it to false on a project without Fluid compute, so Hatchet never dials the socket: every non-durable task is delivered as a `POST`, and durable tasks go elsewhere. |
+| `basePath`   | The path the routes live under when the handlers are called without a Next.js route context. Defaults to `/api/hatchet`. With a catch-all route the segment decides.                                                                                                                 |
 
 ## A function without Next.js
 
@@ -188,5 +188,5 @@ Vercel routes only `/api/hatchet` itself to that file, so `vercel.json` needs a 
 - **`maxDuration` bounds one invocation**, not a run. A durable task that waits longer than the endpoint's `inlineWaitBudgetMs` (5 seconds by default) evicts itself and is invoked again when the wait is over, so a long sleep never needs a long function. Keep the budget well below `maxDuration`.
 - **Deployment Protection** answers before the route runs. Hatchet can't present a bypass token, so the production deployment that serves the endpoint must not be protected, or the Hatchet paths must be excluded. The signature check in the adapter is what protects the route.
 - **Payload sizes.** Vercel caps request and response bodies at 4.5 MB; Hatchet caps a task's input and output at 4 MiB.
-- **`vc dev` versus `next dev`.** Only the Vercel CLI runs the websocket upgrade locally. Under `next dev` the route still serves the healthcheck and pure tasks.
+- **`vc dev` versus `next dev`.** Only the Vercel CLI runs the websocket upgrade locally. Under `next dev` the route still serves the healthcheck and every non-durable task over `POST`.
 - **Outside Vercel**, on your own Node server, a Next.js route handler can't take the websocket. Use `@hatchet-dev/serverless/node` there; see the [HTTP contract](/v1/serverless/http#node-servers).
