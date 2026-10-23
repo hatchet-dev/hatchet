@@ -2957,13 +2957,13 @@ WITH tasks_on_inactive_workers AS (
         AND runtime.acked_at IS NULL
         AND runtime.assigned_at < NOW() - INTERVAL '1 minute'
         AND NOT EXISTS (
-            -- make sure that the task isn't running on an inactive worker,
-            -- since it'll get reassigned anyways (because of the first part of this query)
+            -- skip tasks already picked up by tasks_on_inactive_workers so the UNION ALL below doesn't return them twice
             SELECT 1 FROM tasks_on_inactive_workers inactive
             WHERE inactive.task_id = runtime.task_id
                 AND inactive.task_inserted_at = runtime.task_inserted_at
                 AND inactive.retry_count = runtime.retry_count
         )
+    -- NOTE: this ORDER BY keeps the planner on the unacked index; without it, a stale estimate of unacked rows makes it seq scan
     ORDER BY
         runtime.assigned_at
     LIMIT
