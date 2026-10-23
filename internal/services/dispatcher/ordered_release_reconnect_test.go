@@ -39,29 +39,15 @@ func TestOrderedReleaseResumesAfterStreamReconnect(t *testing.T) {
 	reconnected := newSession()
 	d.durableInvocations.Store(key, reconnected)
 
+	deliverCompletion(t, d, tenantId, taskId, 3, 3)
 	deliverCompletion(t, d, tenantId, taskId, 2, 2)
 	require.Equal(t, []int64{1}, delivered)
 
-	require.NoError(t, reconnected.resumeOrderedRelease(releaseKey, 2))
-	require.Equal(t, []int64{1, 2}, delivered)
+	require.NoError(t, reconnected.resumeOrderedRelease(releaseKey, 1))
+	require.Equal(t, []int64{1, 2, 3}, delivered)
 	require.Empty(t, reconnected.timedOutOrderedReleases(0))
 
-	require.NoError(t, reconnected.resumeOrderedRelease(releaseKey, 5))
+	require.NoError(t, reconnected.resumeOrderedRelease(releaseKey, 2))
 	deliverCompletion(t, d, tenantId, taskId, 4, 4)
-	require.Equal(t, []int64{1, 2}, delivered)
-
-	deliverCompletion(t, d, tenantId, taskId, 3, 3)
 	require.Equal(t, []int64{1, 2, 3, 4}, delivered)
-
-	reconnectedAgain := newSession()
-	d.durableInvocations.Store(key, reconnectedAgain)
-
-	deliverCompletion(t, d, tenantId, taskId, 5, 5)
-	require.Equal(t, []int64{1, 2, 3, 4}, delivered)
-
-	require.NoError(t, reconnectedAgain.resumeOrderedRelease(releaseKey, 6))
-	require.Equal(t, []int64{1, 2, 3, 4, 5}, delivered)
-
-	deliverCompletion(t, d, tenantId, taskId, 6, 6)
-	require.Equal(t, []int64{1, 2, 3, 4, 5, 6}, delivered)
 }
