@@ -2956,13 +2956,6 @@ WITH tasks_on_inactive_workers AS (
         AND runtime.evicted_at IS NULL
         AND runtime.acked_at IS NULL
         AND runtime.assigned_at < NOW() - INTERVAL '1 minute'
-        AND NOT EXISTS (
-            -- skip tasks already picked up by tasks_on_inactive_workers so the UNION ALL below doesn't return them twice
-            SELECT 1 FROM tasks_on_inactive_workers inactive
-            WHERE inactive.task_id = runtime.task_id
-                AND inactive.task_inserted_at = runtime.task_inserted_at
-                AND inactive.retry_count = runtime.retry_count
-        )
     -- NOTE: this ORDER BY keeps the planner on the unacked index; without it, a stale estimate of unacked rows makes it seq scan
     ORDER BY
         runtime.assigned_at
@@ -2972,7 +2965,17 @@ WITH tasks_on_inactive_workers AS (
 ), tasks_to_reassign AS (
     SELECT task_id, task_inserted_at, retry_count, reason FROM tasks_on_inactive_workers
     UNION ALL
-    SELECT task_id, task_inserted_at, retry_count, reason FROM tasks_never_acked
+    -- NOTE: the overlap with tasks_on_inactive_workers is removed here, after both LIMITs, rather than with a NOT EXISTS
+    -- inside tasks_never_acked. Under a LIMIT the planner runs that NOT EXISTS as a nested loop over the CTE, comparing
+    -- every unacked candidate against all 1000 inactive-worker rows (~1M comparisons, >100ms). Out here it hashes instead.
+    SELECT never_acked.task_id, never_acked.task_inserted_at, never_acked.retry_count, never_acked.reason
+    FROM tasks_never_acked never_acked
+    WHERE NOT EXISTS (
+        SELECT 1 FROM tasks_on_inactive_workers inactive
+        WHERE inactive.task_id = never_acked.task_id
+            AND inactive.task_inserted_at = never_acked.task_inserted_at
+            AND inactive.retry_count = never_acked.retry_count
+    )
 )
 SELECT
     v1_task.id,
