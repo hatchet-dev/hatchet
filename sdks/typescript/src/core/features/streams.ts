@@ -3,7 +3,7 @@ import HatchetError from '@util/errors/hatchet-error';
 import { AbortError } from '@hatchet/util/abort-error';
 import type { EventsServiceClient, PutStreamEventResponse } from '@hatchet/protoc/events/events';
 import type { V1StreamsClient } from '@hatchet/protoc/v1/streams';
-import { StreamPublishQueue } from '@util/stream-publish-batch';
+import { StreamPublishQueue, validateBatchTimeout } from '@util/stream-publish-batch';
 import type { StreamCallOptions, StreamTopicMetadata } from '../types';
 
 /**
@@ -44,8 +44,6 @@ function publishRejectedBeforeStoring(err: unknown): boolean {
 }
 
 interface QueuedPublish {
-  bytes: number;
-  sendBy: number;
   payload: Uint8Array;
   signal: AbortSignal | undefined;
   resolve: () => void;
@@ -135,25 +133,31 @@ export class StreamsClient {
     const namespace = options?.namespace ?? '';
     const key = `${namespace}\0${topic}`;
 
+    // the engine would reject the whole request it shares, failing other publishes too
+    if (payload.byteLength === 0) {
+      throw new HatchetError('stream payload is empty; a message must carry at least one byte');
+    }
+
     if (payload.byteLength > MAX_STREAM_MESSAGE_BYTES) {
       throw new HatchetError(
         `stream payload is ${payload.byteLength} bytes, over the ${MAX_STREAM_MESSAGE_BYTES}-byte limit of one publish; publish it from the Node client, which uploads larger payloads`
       );
     }
 
+    validateBatchTimeout(options?.batchTimeoutMs);
+
     const signal = options?.signal;
-    const sendBy = Date.now() + (options?.batchTimeoutMs ?? 0);
     const publishPromise = new Promise<void>((resolve, reject) => {
-      const queued = { bytes: payload.byteLength, sendBy, payload, signal, resolve, reject };
-      const queue = this.publishQueues.get(key);
-      if (queue) {
-        queue.push(queued);
-        return;
+      const queue =
+        this.publishQueues.get(key) ??
+        new StreamPublishQueue<QueuedPublish>((p) => p.payload.byteLength);
+      queue.push({ payload, signal, resolve, reject }, options?.batchTimeoutMs);
+
+      // pushed first, since the drain stops at an empty queue
+      if (!this.publishQueues.has(key)) {
+        this.publishQueues.set(key, queue);
+        void this.drainPublishes(key, namespace, topic, queue);
       }
-      const created = new StreamPublishQueue<QueuedPublish>();
-      created.push(queued);
-      this.publishQueues.set(key, created);
-      void this.drainPublishes(key, namespace, topic, created);
     });
 
     if (!signal) {

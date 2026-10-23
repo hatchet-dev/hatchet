@@ -5,7 +5,7 @@ import { ClientConfig } from '@hatchet/clients/hatchet-client';
 import { createGrpcClient } from '@hatchet/util/grpc-helpers';
 import { getGrpcErrorCode } from '@hatchet/util/grpc-error';
 import sleep from '@hatchet/util/sleep';
-import { StreamPublishQueue } from '@hatchet/util/stream-publish-batch';
+import { StreamPublishQueue, validateBatchTimeout } from '@hatchet/util/stream-publish-batch';
 import {
   V1StreamsClient as PbV1StreamsClient,
   V1StreamsDefinition,
@@ -88,8 +88,6 @@ export type StreamEvent = {
 export type { StreamCallOptions, StreamTopicMetadata } from '@hatchet/core/types';
 
 interface QueuedPublish {
-  bytes: number;
-  sendBy: number;
   payload: Uint8Array;
   // set instead of an inline payload for one too large for a gRPC message
   uploaded: Promise<string> | undefined;
@@ -169,22 +167,24 @@ export class StreamsClient {
   ): Promise<void> {
     while (queue.size > 0) {
       const batch = await queue.next();
+      const refs = await Promise.allSettled(batch.map((p) => p.uploaded));
       const sent: QueuedPublish[] = [];
       const entries: Array<{ payload: Uint8Array; payloadRef: string }> = [];
 
       // a failed upload fails only its own publish, as the rest never depended on it
-      for (const p of batch) {
-        try {
-          entries.push(
-            p.uploaded
-              ? { payload: new Uint8Array(), payloadRef: await p.uploaded }
-              : { payload: p.payload, payloadRef: '' }
-          );
-          sent.push(p);
-        } catch (err) {
-          p.reject(err);
+      batch.forEach((p, i) => {
+        const ref = refs[i];
+        if (ref.status === 'rejected') {
+          p.reject(ref.reason);
+          return;
         }
-      }
+        sent.push(p);
+        entries.push(
+          ref.value === undefined
+            ? { payload: p.payload, payloadRef: '' }
+            : { payload: new Uint8Array(), payloadRef: ref.value }
+        );
+      });
 
       if (entries.length > 0) {
         try {
@@ -253,9 +253,16 @@ export class StreamsClient {
     const namespace = options?.namespace ?? '';
     const key = `${namespace}\u0000${topic}`;
 
+    // the engine would reject the whole request it shares, failing other publishes too
+    if (payload.byteLength === 0) {
+      throw new Error('payload is empty; a message must carry at least one byte');
+    }
+
     if (payload.byteLength > maxUploadedPayloadBytes) {
       throw new Error(`payload exceeds maximum size of ${maxUploadedPayloadBytes} bytes`);
     }
+
+    validateBatchTimeout(options?.batchTimeoutMs);
 
     // uploaded before taking its place in the topic's order, so uploads overlap
     const uploaded =
@@ -263,23 +270,19 @@ export class StreamsClient {
     // awaited when its batch is sent; this only keeps an early failure from reporting as unhandled
     uploaded?.catch(() => {});
 
-    const queued = {
-      bytes: uploaded ? payloadRefBytes : payload.byteLength,
-      sendBy: Date.now() + (options?.batchTimeoutMs ?? 0),
-      payload,
-      uploaded,
-    };
-
     return new Promise<void>((resolve, reject) => {
-      const queue = this.publishQueues.get(key);
-      if (queue) {
-        queue.push({ ...queued, resolve, reject });
-        return;
+      const queue =
+        this.publishQueues.get(key) ??
+        new StreamPublishQueue<QueuedPublish>((p) =>
+          p.uploaded ? payloadRefBytes : p.payload.byteLength
+        );
+      queue.push({ payload, uploaded, resolve, reject }, options?.batchTimeoutMs);
+
+      // pushed first, since the drain stops at an empty queue
+      if (!this.publishQueues.has(key)) {
+        this.publishQueues.set(key, queue);
+        void this.drainPublishes(key, namespace, topic, queue);
       }
-      const created = new StreamPublishQueue<QueuedPublish>();
-      created.push({ ...queued, resolve, reject });
-      this.publishQueues.set(key, created);
-      void this.drainPublishes(key, namespace, topic, created);
     });
   }
 

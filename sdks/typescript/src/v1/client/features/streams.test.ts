@@ -232,6 +232,19 @@ describe('StreamsClient.publish producer sequencing', () => {
     ]);
   });
 
+  it('rejects an empty payload or a bad batch timeout without sending anything', async () => {
+    const { streams, publish } = setup([]);
+
+    await expect(streams.publish('topic', '')).rejects.toThrow(/payload is empty/);
+    await expect(streams.publish('topic', 'a', { batchTimeoutMs: -1 })).rejects.toThrow(
+      /batchTimeoutMs must be/
+    );
+    expect(publish).not.toHaveBeenCalled();
+
+    await streams.publish('topic', 'a');
+    expect(publish.mock.calls.map(([req]) => req.firstProducerSeq)).toEqual([0]);
+  });
+
   it('reuses the seq when the server rejected the publish before storing it', async () => {
     const { streams, publish } = setup([grpcError(Status.RESOURCE_EXHAUSTED)]);
 

@@ -1,3 +1,5 @@
+import HatchetError from '@util/errors/hatchet-error';
+
 /** The most publishes one `PublishBatch` request carries; the engine sets no limit of its own. */
 export const MAX_PUBLISH_BATCH_ENTRIES = 500;
 
@@ -11,28 +13,39 @@ export const MAX_PUBLISH_BATCH_BYTES = 4 * 1024 * 1024 - 5 * 1024;
 // an entry's tag and length prefixes, rounded up
 const entryOverheadBytes = 16;
 
-export interface QueuedStreamPublish {
-  /** What the entry adds to the request. */
-  bytes: number;
-  /** When, in epoch ms, the publish stops waiting for others to share its request. */
-  sendBy: number;
+// setTimeout fires at once for a longer delay, so a longer wait takes several
+const maxTimerMs = 2 ** 31 - 1;
+
+/**
+ * Checks a publish's batch timeout before anything is queued or uploaded, so a bad one fails
+ * only its own publish.
+ */
+export function validateBatchTimeout(batchTimeoutMs: number | undefined): void {
+  if (batchTimeoutMs !== undefined && !(Number.isFinite(batchTimeoutMs) && batchTimeoutMs >= 0)) {
+    throw new HatchetError(
+      `batchTimeoutMs must be a finite number of milliseconds, 0 or more; got ${batchTimeoutMs}`
+    );
+  }
 }
 
 /**
  * One topic's publishes waiting to be sent. A request goes out once it is full or once any
  * publish in the queue has waited its batch timeout.
  */
-export class StreamPublishQueue<T extends QueuedStreamPublish> {
-  private readonly items: T[] = [];
+export class StreamPublishQueue<T> {
+  private readonly items: Array<{ item: T; bytes: number; sendBy: number }> = [];
 
   private wake: (() => void) | undefined;
+
+  /** @param payloadBytes - what an item adds to a request */
+  constructor(private readonly payloadBytes: (item: T) => number) {}
 
   get size(): number {
     return this.items.length;
   }
 
-  push(item: T): void {
-    this.items.push(item);
+  push(item: T, batchTimeoutMs = 0): void {
+    this.items.push({ item, bytes: this.payloadBytes(item), sendBy: Date.now() + batchTimeoutMs });
     // a new publish may fill the request or have a shorter timeout
     this.wake?.();
   }
@@ -45,19 +58,19 @@ export class StreamPublishQueue<T extends QueuedStreamPublish> {
     for (;;) {
       const count = this.fitting();
       const full = count < this.items.length || count === MAX_PUBLISH_BATCH_ENTRIES;
-
+      // a loop, since spreading a long queue into Math.min overflows the call stack
       let sendBy = Infinity;
-      for (const item of this.items) {
-        sendBy = Math.min(sendBy, item.sendBy);
+      for (const i of this.items) {
+        sendBy = Math.min(sendBy, i.sendBy);
       }
 
       const wait = sendBy - Date.now();
       if (full || wait <= 0) {
-        return this.items.splice(0, count);
+        return this.items.splice(0, count).map((i) => i.item);
       }
 
       await new Promise<void>((resolve) => {
-        const timer = setTimeout(done, wait);
+        const timer = setTimeout(done, Math.min(wait, maxTimerMs));
         function done() {
           clearTimeout(timer);
           resolve();

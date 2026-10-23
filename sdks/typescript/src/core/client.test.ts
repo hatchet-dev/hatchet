@@ -1121,6 +1121,32 @@ describe('HatchetCore.streams', () => {
     expect(engine.publishBatches).toEqual([2]);
   });
 
+  it('rejects an empty payload or a bad batch timeout without sending it, and the rest of the batch still goes out', async () => {
+    const engine = fakeEngine();
+    const client = makeClient(engine);
+    const release = engine.gateNextPublish();
+
+    const first = client.streams.publish('progress', 'one');
+    const empty = client.streams.publish('progress', '');
+    const badTimeout = client.streams.publish('progress', 'two', { batchTimeoutMs: NaN });
+    const rest = [
+      client.streams.publish('progress', 'three'),
+      client.streams.publish('progress', 'four'),
+    ];
+
+    await expect(empty).rejects.toThrow(/payload is empty/);
+    await expect(badTimeout).rejects.toThrow(/batchTimeoutMs must be/);
+
+    release();
+    await Promise.all([first, ...rest]);
+    expect(engine.publishBatches).toEqual([1, 2]);
+    expect(engine.publishes.map((p) => [text(p.payload), p.producerSeq])).toEqual([
+      ['one', 0],
+      ['three', 1],
+      ['four', 2],
+    ]);
+  });
+
   it('splits a queue over the batch byte limit across requests', async () => {
     const engine = fakeEngine();
     const client = makeClient(engine);
