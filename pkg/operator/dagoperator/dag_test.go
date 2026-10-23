@@ -555,25 +555,62 @@ func TestDag_SkipConditionOnParentOutput(t *testing.T) {
 	})
 }
 
-func TestDag_ConditionEvalErrorIsTerminal(t *testing.T) {
+func TestDag_EmptyParentOutputEvaluatesConditionsAgainstEmptyObject(t *testing.T) {
+	for name, payload := range map[string][]byte{"no payload": nil, "null payload": []byte("null")} {
+		t.Run(name, func(t *testing.T) {
+			a := newTestTask("a", "action-a", 0)
+			b := newTestTask("b", "action-b", 1, a)
+
+			b.stepConditions = []*sqlcv1.V1StepMatchCondition{
+				{
+					Kind:             sqlcv1.V1StepMatchConditionKindPARENTOVERRIDE,
+					Action:           sqlcv1.V1MatchConditionActionSKIP,
+					OrGroupID:        uuid.New(),
+					Expression:       sqlchelpers.TextFromStr("!has(output.flag)"),
+					ParentReadableID: sqlchelpers.TextFromStr("a"),
+				},
+			}
+
+			triggerStep := func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled, parentReExecuted bool) (*operator.DAGStepTriggerResult, error) {
+				result := &operator.DAGStepTriggerResult{
+					NodeId: int64(childIndex) + 1, BranchId: 1, WorkflowRunExternalId: uuid.New(), IsSatisfied: true,
+				}
+				if actionId == "action-a" {
+					result.ResultPayload = payload
+				}
+
+				return result, nil
+			}
+
+			err, _, cleanup := runDAG(t, []*task{a, b}, triggerStep)
+			defer cleanup()
+
+			require.NoError(t, err)
+			require.True(t, b.isSkipped)
+			require.True(t, b.isCompleted)
+		})
+	}
+}
+
+func TestDag_ConditionEvalErrorCountsAsNotMatched(t *testing.T) {
 	a := newTestTask("a", "action-a", 0)
 	b := newTestTask("b", "action-b", 1, a)
 
 	b.stepConditions = []*sqlcv1.V1StepMatchCondition{
 		{
 			Kind:             sqlcv1.V1StepMatchConditionKindPARENTOVERRIDE,
-			Action:           sqlcv1.V1MatchConditionActionSKIP,
+			Action:           sqlcv1.V1MatchConditionActionCANCEL,
 			OrGroupID:        uuid.New(),
-			Expression:       sqlchelpers.TextFromStr("output.output.skipped != null"),
+			Expression:       sqlchelpers.TextFromStr("output.flag == true"),
 			ParentReadableID: sqlchelpers.TextFromStr("a"),
 		},
 	}
 
 	triggerStep := func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled, parentReExecuted bool) (*operator.DAGStepTriggerResult, error) {
-		require.Equal(t, "action-a", actionId, "child must not be triggered once its condition fails to evaluate")
+		require.False(t, isCancelled, "a cancel condition that cannot be evaluated must not cancel the child")
 		payload, _ := json.Marshal(map[string]interface{}{"output": map[string]interface{}{"result": "ok"}})
 		return &operator.DAGStepTriggerResult{
-			NodeId: 1, BranchId: 1, WorkflowRunExternalId: uuid.New(),
+			NodeId: int64(childIndex) + 1, BranchId: 1, WorkflowRunExternalId: uuid.New(),
 			IsSatisfied: true, ResultPayload: payload,
 		}, nil
 	}
@@ -581,9 +618,10 @@ func TestDag_ConditionEvalErrorIsTerminal(t *testing.T) {
 	err, _, cleanup := runDAG(t, []*task{a, b}, triggerStep)
 	defer cleanup()
 
-	require.Error(t, err)
-	require.True(t, isDagConditionEvalErr(err), "a condition that cannot be evaluated against the parent output fails the same way on every retry, so it must be classified as terminal: %v", err)
-	require.ErrorContains(t, err, "no such key: skipped")
+	require.NoError(t, err, "a parent output missing a key referenced by a child's condition must not fail the DAG")
+	require.True(t, b.isCompleted)
+	require.False(t, b.isCancelled)
+	require.False(t, b.isSkipped)
 }
 
 func TestDag_CancelConditionOnParentOutput(t *testing.T) {

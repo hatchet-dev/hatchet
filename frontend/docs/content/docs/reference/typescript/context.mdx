@@ -198,6 +198,27 @@ Returns
 
 The parent workflow run ID, or undefined if not a child workflow.
 
+<a id="pauseratelimit"></a>
+
+##### `pauseRateLimit()`
+
+Pauses a rate limit key, so queued runs that consume it stay queued until `opts.until`.
+Runs that are already executing, including this one, are unaffected.
+
+Parameters
+
+| Parameter    | Type                   | Description                                                                        |
+| ------------ | ---------------------- | ---------------------------------------------------------------------------------- |
+| `key`        | `string`               | The rendered rate limit key to pause.                                              |
+| `opts`       | \{ `until`: `Date`; \} | The time to pause the key until. An earlier time never shortens an existing pause. |
+| `opts.until` | `Date`                 | -                                                                                  |
+
+Returns
+
+`Promise`\<`Date`\>
+
+A promise that resolves to the time the key is paused until.
+
 <a id="putstream"></a>
 
 ##### `putStream()`

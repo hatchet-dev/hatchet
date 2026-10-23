@@ -139,6 +139,13 @@ export type CreateRateLimitOpts = {
   duration?: RateLimitDuration;
 };
 
+export type PauseRateLimitOpts = {
+  /** The rendered rate limit key to pause. */
+  key: string;
+  /** Queued runs that consume the key stay queued until this time. An earlier time never shortens an existing pause. */
+  until: Date;
+};
+
 /** The state of one task of a run, as `GetRunDetails` reports it. */
 export type TaskRunDetail = {
   externalId: string;
@@ -196,3 +203,25 @@ export interface ResultOptions {
   /** Rejects with an `AbortError` when the signal fires. */
   signal?: AbortSignal;
 }
+
+/** Per-call options of the durable stream calls; the same shape on the core and Node clients. */
+export type StreamCallOptions = {
+  /** The topic's namespace; the empty namespace when omitted. */
+  namespace?: string;
+  /** Resumes an `events()` iteration right after this message. */
+  cursor?: string;
+  /** Ends an `events()` iteration cleanly, without throwing; aborts a unary call. */
+  signal?: AbortSignal;
+};
+
+/** What a durable stream topic retains; counts and the latest message cover the tenant's retention. */
+export type StreamTopicMetadata = {
+  namespace: string;
+  topic: string;
+  tenantId: string;
+  messageCount: number;
+  /** Resumes `events()` after the newest retained message; undefined when none is retained. */
+  latestCursor?: string;
+  /** When the newest retained message was stored; undefined when none is retained. */
+  lastPublishedAt?: Date;
+};

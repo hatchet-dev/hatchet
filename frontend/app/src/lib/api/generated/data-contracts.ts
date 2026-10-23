@@ -1975,6 +1975,12 @@ export interface RateLimit {
    * @example "2022-12-13T15:06:48.888358-05:00"
    */
   lastRefill: string;
+  /**
+   * When the rate limit's pause ends, if it is paused. Runs that consume a paused key stay queued until then.
+   * @format date-time
+   * @example "2022-12-13T15:06:48.888358-05:00"
+   */
+  pausedUntil?: string;
 }
 
 export interface RateLimitList {

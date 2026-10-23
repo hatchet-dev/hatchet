@@ -904,6 +904,9 @@ type RateLimit struct {
 	// LimitValue The maximum number of requests allowed within the window.
 	LimitValue int `json:"limitValue"`
 
+	// PausedUntil When the rate limit's pause ends, if it is paused. Runs that consume a paused key stay queued until then.
+	PausedUntil *time.Time `json:"pausedUntil,omitempty"`
+
 	// TenantId The ID of the tenant associated with this rate limit.
 	TenantId string `json:"tenantId"`
 

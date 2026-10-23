@@ -10,6 +10,7 @@ const (
 	MsgIDNewWorker                    = "new-worker"
 	MsgIDNewQueue                     = "new-queue"
 	MsgIDNewConcurrencyStrategy       = "new-concurrency-strategy"
+	MsgIDRateLimitsChanged            = "rate-limits-changed"
 	MsgIDCreateMonitoringEvent        = "create-monitoring-event"
 	MsgIDCreatedDAG                   = "created-dag"
 	MsgIDCreatedEventTrigger          = "created-event-trigger"
@@ -32,5 +33,6 @@ const (
 	MsgIDCronDelete                   = "cron-delete"
 	MsgIDBatchStart                   = "batch-start"
 	MsgIDTogglePauseWorkflow          = "toggle-pause-workflow"
+	MsgIDRateLimitPausesChanged       = "rate-limit-pauses-changed"
 	MsgIDStreamMessage                = "stream-message"
 )

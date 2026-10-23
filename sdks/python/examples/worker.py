@@ -14,6 +14,10 @@ from examples.batch_assign.worker import (
     child,
     child_batch,
 )
+from examples.bug_tests.dag_cancel_if_missing_output_key.worker import (
+    cancel_if_missing_output_key_dag,
+)
+from examples.bug_tests.dag_parent_returns_none.worker import parent_returns_none_dag
 from examples.bug_tests.dag_replay_twice.worker import dag_replay_twice
 from examples.bug_tests.durable_callback_ordering.worker import (
     callback_ordering_leaf,
@@ -176,6 +180,7 @@ from examples.opentelemetry_instrumentation.worker import (
     otel_workflow,
 )
 from examples.pdf_pipeline.worker import pdf_pipeline
+from examples.rate_limit_pause.worker import rate_limit_pause_task
 from examples.retry_after.worker import (
     retry_after_exponential_backoff,
     retry_after_overrides_backoff,
@@ -277,6 +282,8 @@ def main() -> None:
             concurrency_cancel_in_progress_task_level_workflow,
             di_workflow,
             payload_initial_cancel_bug_workflow,
+            cancel_if_missing_output_key_dag,
+            parent_returns_none_dag,
             dag_replay_twice,
             run_detail_test_workflow,
             lifespan_task,
@@ -363,6 +370,7 @@ def main() -> None:
             callback_ordering_mid,
             callback_ordering_root,
             workflow_pause_concurrency_bug_task,
+            rate_limit_pause_task,
             durable_dag_idempotency_hang_bug_repro_wf,
             durable_dag_status_based_idempotency_wf,
         ],
