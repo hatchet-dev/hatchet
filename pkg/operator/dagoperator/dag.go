@@ -72,9 +72,9 @@ func clientErrorMessageForDagErr(err error) (message string, ok bool) {
 
 	switch {
 	case errors.As(err, &childFailedErr):
-		return childFailedErr.Error(), true
+		return childFailedErr.errorMessage, true
 	case errors.As(err, &cancelledErr):
-		return cancelledErr.Error(), true
+		return repository.TaskCancelledErrorMessage, true
 	case errors.As(err, &celFailureErr):
 		return celFailureErr.Error(), true
 	case errors.As(err, &nonDeterminismErr):
