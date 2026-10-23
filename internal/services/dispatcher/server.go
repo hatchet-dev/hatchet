@@ -1823,10 +1823,9 @@ func (s *DispatcherImpl) handleBatchTaskStarted(
 	}
 
 	var durableInvocationCounts map[v1.IdInsertedAt]*int32
-	var err error
 
 	if len(idInsertedAts) > 0 {
-		durableInvocationCounts, err = s.repov1.DurableEvents().GetDurableTaskInvocationCounts(inputCtx, tenantId, idInsertedAts)
+		durableInvocationCounts, _ = s.repov1.DurableEvents().GetDurableTaskInvocationCounts(inputCtx, tenantId, idInsertedAts)
 
 		// intentionally swallow the error and continue
 	}
@@ -1935,13 +1934,19 @@ func (s *DispatcherImpl) handleBatchTaskCompleted(
 	idInsertedAts := make([]v1.IdInsertedAt, 0, len(tasks))
 
 	for _, task := range tasks {
+		if !task.IsDurable.Valid || !task.IsDurable.Bool {
+			continue
+		}
+
 		idInsertedAts = append(idInsertedAts, v1.IdInsertedAt{ID: task.ID, InsertedAtUnixMicros: task.InsertedAt.Time.UnixMicro()})
 	}
 
-	durableInvocationCounts, err := s.repov1.DurableEvents().GetDurableTaskInvocationCounts(inputCtx, tenantId, idInsertedAts)
+	var durableInvocationCounts map[v1.IdInsertedAt]*int32
 
-	if err != nil {
-		durableInvocationCounts = nil
+	if len(idInsertedAts) > 0 {
+		durableInvocationCounts, _ = s.repov1.DurableEvents().GetDurableTaskInvocationCounts(inputCtx, tenantId, idInsertedAts)
+
+		// intentionally swallow the error and continue
 	}
 
 	var workerId *uuid.UUID
