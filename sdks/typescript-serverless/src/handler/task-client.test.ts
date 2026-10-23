@@ -1,4 +1,5 @@
 import { createRouterTransport } from '@connectrpc/connect';
+import { EventsService } from '@hatchet-dev/typescript-sdk/protoc-es/events/events_pb.js';
 import { V1Streams } from '@hatchet-dev/typescript-sdk/protoc-es/v1/streams_pb.js';
 import { describe, expect, it, vi } from 'vitest';
 import {
@@ -31,10 +32,20 @@ function makeToken(claims: Record<string, unknown>): string {
 
 const TOKEN = makeToken({ sub: TENANT_ID, grpc_broadcast_address: 'engine.example.com:7070' });
 
-/** The engine's unary side: `publish` records what the task published. */
+/** The engine's unary side: `publish` and `put` record what the task sent. */
 function fakeEngine() {
   const published: Array<{ topic: string; payload: string; producerSeq: number }> = [];
+  const put: Array<{ taskRunExternalId: string; message: string }> = [];
   const transport = createRouterTransport(({ service }) => {
+    service(EventsService, {
+      putStreamEvent: (req) => {
+        put.push({
+          taskRunExternalId: req.taskRunExternalId,
+          message: decoder.decode(req.message),
+        });
+        return {};
+      },
+    });
     service(V1Streams, {
       publish: (req) => {
         published.push({
@@ -47,7 +58,7 @@ function fakeEngine() {
     });
   });
 
-  return { transport, published };
+  return { transport, published, put };
 }
 
 function client(engine = fakeEngine()): HatchetCore {
@@ -55,13 +66,13 @@ function client(engine = fakeEngine()): HatchetCore {
 }
 
 /** A socket pair with the task's `SocketStreams` on the endpoint side and the operator's frames recorded. */
-function harness() {
+function harness(options: { maxQueuedBytes?: number } = {}) {
   const pair = createSocketPair();
   const received: ServerlessDurableFrame[] = [];
 
   pair.operator.onMessage((text) => received.push(decodeFrame(text)));
 
-  const streams = new SocketStreams({ socket: pair.endpoint, console: quiet });
+  const streams = new SocketStreams({ socket: pair.endpoint, console: quiet, ...options });
   pair.endpoint.onMessage((text) => streams.handleFrame(decodeFrame(text)));
   const fromOperator = (frame: ServerlessDurableFrame) => pair.operator.send(encodeFrame(frame));
   const settle = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
@@ -124,6 +135,50 @@ describe('createTaskClient', () => {
       ['two', 1],
       ['three', 2],
     ]);
+  });
+
+  it('runs the inherited methods against the client, so put() reaches the engine', async () => {
+    const engine = fakeEngine();
+    const task = createTaskClient(client(engine), harness().streams);
+
+    await task.streams.put('run-1', 'progress');
+    await task.streams.put('run-1', new TextEncoder().encode('bytes'));
+
+    expect(engine.put).toEqual([
+      { taskRunExternalId: 'run-1', message: 'progress' },
+      { taskRunExternalId: 'run-1', message: 'bytes' },
+    ]);
+    expect(task.streams.events).not.toBe(undefined);
+    expect(typeof task.runs.cancel).toBe('function');
+  });
+
+  it('closes the stream with RESOURCE_EXHAUSTED when the reader falls behind the bound', async () => {
+    // Room for one and a half relayed messages: one unread message fits, a second does not.
+    const one = message('x', [{ payload: 'one', cursor: '1' }]).streamMessage.message.length;
+    const { streams, received, fromOperator, settle } = harness({
+      maxQueuedBytes: Math.floor(one * 1.5),
+    });
+    const task = createTaskClient(client(), streams);
+    const iterator = task.streams.events('orders')[Symbol.asyncIterator]();
+    const first = iterator.next();
+    await settle();
+    const { id } = received[0].streamOpen!;
+
+    fromOperator(message(id, [{ payload: 'one', cursor: '1' }]));
+    await expect(first).resolves.toMatchObject({ value: { cursor: '1' } });
+
+    // Two messages arrive before the task reads again; the second crosses the bound.
+    fromOperator(message(id, [{ payload: 'two', cursor: '2' }]));
+    fromOperator(message(id, [{ payload: 'three', cursor: '3' }]));
+
+    const behind = iterator.next();
+    await expect(behind).rejects.toBeInstanceOf(StreamClosedError);
+    await expect(behind).rejects.toMatchObject({
+      code: StreamCloseCode.RESOURCE_EXHAUSTED,
+      cursor: '1',
+    });
+    await expect(behind).rejects.toThrow(/fell behind reading the stream/);
+    expect(streams.size).toBe(0);
   });
 
   it('reads a topic over the socket and ends when the engine finishes the stream', async () => {

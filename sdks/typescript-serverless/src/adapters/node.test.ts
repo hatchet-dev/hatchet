@@ -9,7 +9,13 @@ import { WebSocket } from 'ws';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ActionType, AssignedAction } from '../generated/proto/dispatcher';
 import { ServerlessTriggerRequest } from '../generated/proto/v1/serverless';
-import { SIGNATURE_HEADER, TRIGGER_ENVELOPE_VERSION, hatchet, signHex } from '../index';
+import {
+  SIGNATURE_HEADER,
+  TRIGGER_ENVELOPE_VERSION,
+  clientFromContext,
+  hatchet,
+  signHex,
+} from '../index';
 import { decodeFrame, encodeFrame } from '../index';
 import { createTestOperator } from '../testing';
 import { createServer, nodeHandler } from './node';
@@ -20,6 +26,17 @@ const echo = hatchet.task({
   name: 'echo',
   fn: async (input: { message: string }) => ({ echo: input.message }),
 });
+
+// Answers with the tenant of the client the adapter built, so the default is observable.
+const whoami = hatchet.task({
+  name: 'whoami',
+  fn: async (_input: {}, ctx) => ({ tenant: clientFromContext(ctx).tenantId }),
+});
+
+const TENANT_ID = '707d0855-80ab-4e1f-a156-f1c4546cbf52';
+const TOKEN = `${Buffer.from('{"alg":"HS256"}').toString('base64url')}.${Buffer.from(
+  JSON.stringify({ sub: TENANT_ID, grpc_broadcast_address: 'engine.example.com:7070' })
+).toString('base64url')}.sig`;
 
 const durableEcho = hatchet.durableTask({
   name: 'durable-echo',
@@ -172,6 +189,7 @@ describe('node adapter', () => {
 
   afterEach(async () => {
     delete process.env.HATCHET_SIGNING_SECRET;
+    delete process.env.HATCHET_CLIENT_TOKEN;
     await Promise.all(servers.splice(0).map(close));
   });
 
@@ -211,6 +229,31 @@ describe('node adapter', () => {
 
     expect((await fetch(`http://${host}/other`)).status).toBe(404);
     expect((await fetch(`http://${host}/hatchet/healthcheck`)).status).toBe(405);
+  });
+
+  it("builds the tasks' client from HATCHET_CLIENT_TOKEN, and has none without it", async () => {
+    process.env.HATCHET_CLIENT_TOKEN = TOKEN;
+    const host = await start(createServer({ workflows: [whoami] }));
+    const body = triggerBody({}, 'whoami');
+    const response = await fetch(`http://${host}/hatchet/trigger`, {
+      method: 'POST',
+      body,
+      headers: await signed(body),
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ tenant: TENANT_ID });
+
+    delete process.env.HATCHET_CLIENT_TOKEN;
+    const bare = await start(createServer({ workflows: [whoami] }));
+    const refused = await fetch(`http://${bare}/hatchet/trigger`, {
+      method: 'POST',
+      body,
+      headers: await signed(body),
+    });
+
+    expect(refused.status).toBe(422);
+    expect(await refused.json()).toMatchObject({ retry: false });
   });
 
   it('answers 500 without a secret and 401 on a bad signature', async () => {

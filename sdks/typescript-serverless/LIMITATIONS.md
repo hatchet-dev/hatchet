@@ -220,8 +220,8 @@ outputs come to more than 4 MiB cannot be awaited over the socket.
   for the websocket) and Node (`/node`). Next.js on Cloudflare through OpenNext uses the
   Cloudflare adapter at the Worker level, with the Next.js handler as its `fetch` fallback; the
   Vercel adapter's upgrade is Vercel's and does not run on workerd.
-- An endpoint is registered over the REST API with an `https` URL on port 443; `http` is
-  accepted only by an engine started with insecure destinations allowed. A Worker under
+- An endpoint is registered over the REST API with an `https` URL on port 443, and the
+  registration keeps that rule whatever dial-time policy the engine runs with. A Worker under
   `wrangler dev` or an app under `vc dev` is therefore registered through a tunnel; the
   example READMEs show it. There is no `hatchet serverless register` command yet.
 - The tenant needs the `serverless_operator` entitlement, and `durable_streams` for stream

@@ -121,12 +121,17 @@ export function buildRegistry(
       }
     }
 
-    // Purity is recorded against the declaration's own entries; the sanitized copies above
-    // are fresh objects.
-    for (const task of declaration.definition._tasks) {
-      const actionId = createActionId(name, task.name);
+    // Purity is marked on the declaration's own entries, while the normalized definition
+    // holds copies of them plus the on-success task the SDK generates, so each task is
+    // matched to its entry by name. A task without an entry of its own (the on-success
+    // task) talks to Hatchet like any other and gets the socket.
+    const entries = new Map(declaration.definition._tasks.map((task) => [task.name, task]));
 
-      if (isPureTask(task)) {
+    for (const task of definition._tasks) {
+      const actionId = createActionId(name, task.name);
+      const entry = entries.get(task.name);
+
+      if (entry && isPureTask(entry)) {
         pureActions.add(actionId);
       } else {
         streamActions.add(actionId);

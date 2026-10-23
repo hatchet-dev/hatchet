@@ -89,10 +89,20 @@ export interface SocketStream {
   close(): void;
 }
 
+/**
+ * How much a stream's reader may fall behind: the bytes of relayed messages a task has not
+ * consumed yet, per stream. The operator's own per-socket queue bound, so a reader that sits
+ * on this much has stalled; the stream is then closed with RESOURCE_EXHAUSTED rather than
+ * growing without limit while messages keep arriving.
+ */
+export const MAX_QUEUED_STREAM_BYTES = 16 * 1024 * 1024;
+
 export interface SocketStreamsOptions {
   socket: DurableSocket;
   /** The per-socket cap; defaults to the operator's `MAX_SOCKET_STREAMS`. */
   maxStreams?: number;
+  /** The per-stream bound on unread relayed bytes; defaults to `MAX_QUEUED_STREAM_BYTES`. */
+  maxQueuedBytes?: number;
   console?: ConsoleLike;
 }
 
@@ -104,6 +114,8 @@ interface OpenStream {
 export class SocketStreams {
   private readonly open = new Map<string, OpenStream>();
   private readonly maxStreams: number;
+  /** The per-stream bound on unread relayed bytes a reader may fall behind by. */
+  readonly maxQueuedBytes: number;
   private readonly out: ConsoleLike;
   private nextId = 0;
   /** Set once the socket is gone or the task is over; no stream can be opened past it. */
@@ -111,6 +123,7 @@ export class SocketStreams {
 
   constructor(private readonly options: SocketStreamsOptions) {
     this.maxStreams = options.maxStreams ?? MAX_SOCKET_STREAMS;
+    this.maxQueuedBytes = options.maxQueuedBytes ?? MAX_QUEUED_STREAM_BYTES;
     this.out = options.console ?? console;
   }
 

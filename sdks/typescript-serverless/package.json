@@ -62,7 +62,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check:edge": "pnpm run build && node scripts/check-edge-entry.mjs",
+    "check:edge": "pnpm run build && node scripts/check-edge-entry.mjs && node scripts/check-bundles.mjs",
     "lint": "pnpm run eslint:check && pnpm run prettier:check",
     "lint:fix": "pnpm run eslint:fix && pnpm run prettier:fix",
     "eslint:check": "eslint \"src/**/*.ts\" \"scripts/**/*.mjs\"",

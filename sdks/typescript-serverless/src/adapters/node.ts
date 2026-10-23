@@ -15,7 +15,9 @@
  * the durable websocket relay on `<basePath>/trigger`. The relay needs the `ws` package,
  * an optional peer dependency: without it the healthcheck reports `durable.supported: false`
  * and the operator sends only non-durable tasks. The signing secret comes from
- * `process.env.HATCHET_SIGNING_SECRET` unless `secret` says otherwise.
+ * `process.env.HATCHET_SIGNING_SECRET` unless `secret` says otherwise, and the tasks' client,
+ * unless `client` is given, from `HATCHET_CLIENT_TOKEN` (with `HATCHET_CLIENT_HOST_PORT` and
+ * `HATCHET_CLIENT_TLS_STRATEGY` for a local engine), the variables the Node SDK reads too.
  * @module Node
  */
 import {
@@ -31,6 +33,7 @@ import type { DurableSocket, HandlerOptions, ServerlessRuntimeName } from '../ha
 import type { ConsoleLike } from '../handler/context';
 import { OPERATOR_MAX_FRAME_BYTES } from '../handler/contract';
 import { bodyTooLarge, errorMessage, triggerError } from '../handler/http';
+import { clientConfigFromEnv } from '../handler/client';
 import { createOptionalDurableHandler } from './optional-durable';
 
 export { OPERATOR_MAX_FRAME_BYTES };
@@ -248,6 +251,7 @@ export function nodeHandler(options: NodeOptions): NodeListener {
     maxPayload = OPERATOR_MAX_FRAME_BYTES,
     maxBodyBytes = OPERATOR_MAX_FRAME_BYTES,
     runtime = { name: 'node' },
+    client = () => clientConfigFromEnv(process.env),
     ...rest
   } = options;
   const out: ConsoleLike = options.console ?? console;
@@ -258,6 +262,7 @@ export function nodeHandler(options: NodeOptions): NodeListener {
   const handler = createOptionalDurableHandler(
     {
       ...rest,
+      client,
       maxBodyBytes,
       runtime,
       secret: () => fromProcessEnv(secret, 'HATCHET_SIGNING_SECRET'),

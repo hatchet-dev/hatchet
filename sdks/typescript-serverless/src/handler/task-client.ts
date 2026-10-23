@@ -118,6 +118,9 @@ type Relayed = { message: string } | { closed: { code: number; detail: string } 
  * Reads one engine stream over the socket as the protojson documents the operator relays.
  * Ends on a stream_close with code 0 or when the signal aborts; throws `closed(code, detail)`
  * on any other close. The stream is closed, freeing its slot, however the iteration ends.
+ * Messages the task has not consumed yet are queued up to `streams.maxQueuedBytes`; past
+ * that the reader has stalled and the stream is closed with RESOURCE_EXHAUSTED, so a fast
+ * publisher cannot grow the invocation's memory without limit.
  */
 async function* relayed(
   streams: SocketStreams,
@@ -131,10 +134,31 @@ async function* relayed(
   }
 
   const queue: Relayed[] = [];
+  let queuedBytes = 0;
   let aborted = false;
   let wake: (() => void) | undefined;
 
   const push = (item: Relayed) => {
+    if ('message' in item) {
+      queuedBytes += item.message.length;
+
+      if (queuedBytes > streams.maxQueuedBytes) {
+        // The unread messages are dropped with the stream; the error names the cursor to
+        // resume from only through what the task already consumed.
+        queue.length = 0;
+        queuedBytes = 0;
+        queue.push({
+          closed: {
+            code: StreamCloseCode.RESOURCE_EXHAUSTED,
+            detail: `the task fell behind reading the stream: more than ${streams.maxQueuedBytes} bytes of unread messages were queued`,
+          },
+        });
+        wake?.();
+        wake = undefined;
+        return;
+      }
+    }
+
     queue.push(item);
     wake?.();
     wake = undefined;
@@ -174,6 +198,7 @@ async function* relayed(
         throw closed(item.closed.code, item.closed.detail);
       }
 
+      queuedBytes -= item.message.length;
       yield item.message;
     }
   } finally {
@@ -265,8 +290,53 @@ function noSocket(feature: string): ServerlessLimitationError {
   );
 }
 
-/** An object inheriting from `base` with `members` as its own properties. */
+/**
+ * `base` with `members` added, where every method of `base` still runs against `base`
+ * itself and every field reads through to it. A member may share its name with a field the
+ * base's methods use (`StreamsClient.put` reads a private `events` field, and the view adds
+ * an `events` method), which is why the methods are bound rather than inherited: inherited
+ * methods would run with the view as `this` and find the member instead of the field.
+ */
 function view<T extends object, M extends object>(base: T, members: M): T & M {
+  const result: Record<PropertyKey, unknown> = {};
+  const taken = new Set<PropertyKey>(Object.keys(members));
+
+  for (
+    let proto = Object.getPrototypeOf(base);
+    proto && proto !== Object.prototype;
+    proto = Object.getPrototypeOf(proto)
+  ) {
+    for (const name of Object.getOwnPropertyNames(proto)) {
+      if (name === 'constructor' || taken.has(name)) continue;
+      taken.add(name);
+
+      const descriptor = Object.getOwnPropertyDescriptor(proto, name)!;
+
+      if (typeof descriptor.value === 'function') {
+        result[name] = (descriptor.value as (...args: unknown[]) => unknown).bind(base);
+      } else if (descriptor.get) {
+        Object.defineProperty(result, name, {
+          get: () => (base as Record<string, unknown>)[name],
+          enumerable: true,
+        });
+      }
+    }
+  }
+
+  for (const name of Object.keys(base)) {
+    if (taken.has(name)) continue;
+    taken.add(name);
+    Object.defineProperty(result, name, {
+      get: () => (base as Record<string, unknown>)[name],
+      enumerable: true,
+    });
+  }
+
+  return Object.assign(result, members) as T & M;
+}
+
+/** `base` with `members` as its own properties, inheriting everything else from `base`. */
+function inheritingView<T extends object, M extends object>(base: T, members: M): T & M {
   return Object.create(
     base,
     Object.fromEntries(
@@ -302,5 +372,7 @@ export function createTaskClient(
     },
   });
 
-  return view(client, { streams: streamsView, runs: runsView });
+  // The client's own methods read `this.streams` and `this.runs`, which is the point of
+  // the override; the views' methods are bound to the originals, so nothing else changes.
+  return inheritingView(client, { streams: streamsView, runs: runsView });
 }

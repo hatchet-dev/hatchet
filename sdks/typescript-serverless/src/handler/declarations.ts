@@ -42,12 +42,23 @@ export interface HatchetClientOption {
   hatchetClient?: boolean;
 }
 
-/** The task entries (`definition._tasks`) declared with `hatchetClient: false`. */
-const pureTasks = new WeakSet<object>();
+/**
+ * Marks a task entry (`definition._tasks`) declared with `hatchetClient: false`. The mark is a
+ * registry-wide symbol on the entry itself rather than state in this module: every published
+ * entry of the package is bundled on its own, so module state would exist once per entry and
+ * a task declared through `.` would be unknown to an adapter. Non-enumerable, so a copy of
+ * the entry (the registration is built from copies) and the registration itself never carry
+ * it; the registry matches copies to their entries by name.
+ */
+const PURE_TASK = Symbol.for('@hatchet-dev/serverless/pure-task');
 
 /** Whether a task entry of a workflow definition was declared with `hatchetClient: false`. */
 export function isPureTask(task: object): boolean {
-  return pureTasks.has(task);
+  return (task as Record<symbol, unknown>)[PURE_TASK] === true;
+}
+
+function markPure(task: object): void {
+  Object.defineProperty(task, PURE_TASK, { value: true, enumerable: false, configurable: true });
 }
 
 /**
@@ -111,7 +122,7 @@ export class ServerlessWorkflowDeclaration<
     const entry = super.task(rest as never) as CreateWorkflowTaskOpts<I, TO>;
 
     if (pure) {
-      pureTasks.add(entry);
+      markPure(entry);
     }
 
     return entry;
@@ -231,7 +242,7 @@ export function declarations(): ServerlessDeclarations {
       const declaration = CreateTaskWorkflow(rest as any);
 
       if (pure) {
-        pureTasks.add(declaration.taskDef);
+        markPure(declaration.taskDef);
       }
 
       return declaration;

@@ -319,9 +319,11 @@ server.on('upgrade', (req, socket, head) => {
 server.listen(3000);
 ```
 
-Both read `process.env.HATCHET_SIGNING_SECRET` and the optional `HATCHET_ENDPOINT_ID`, and take
-the same `secret`, `endpointId`, `serve`, `basePath`, `durable`, `maxPayload` and
-`maxBodyBytes` options as the Vercel adapter. The relay needs the `ws` package (an optional
+Both read `process.env.HATCHET_SIGNING_SECRET`, the optional `HATCHET_ENDPOINT_ID` and, for the
+tasks' client, `HATCHET_CLIENT_TOKEN` (with `HATCHET_CLIENT_HOST_PORT` and
+`HATCHET_CLIENT_TLS_STRATEGY` for a local engine), and take the same `secret`, `endpointId`,
+`client`, `serve`, `basePath`, `durable`, `maxPayload` and `maxBodyBytes` options as the Vercel
+adapter. The relay needs the `ws` package (an optional
 peer); without it, or with `durable: false`, the healthcheck reports `durable.supported: false`
 and lists no stream task, so every non-durable task is POSTed.
 A body over `maxBodyBytes` (4 MiB by default) is answered 413 and its connection closed
