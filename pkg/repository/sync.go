@@ -16,6 +16,9 @@ import (
 // Callers manage their own transactions via Pool():
 //
 //	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, repo.Pool(), l)
+//	if err != nil {
+//		return err
+//	}
 //	defer rollback()
 //	repo.SyncUpsertTenant(ctx, tx, ...)
 //	repo.SyncUpsertUser(ctx, tx, ...)

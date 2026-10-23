@@ -285,9 +285,9 @@ type WorkflowRepository interface {
 
 	GetLatestWorkflowVersion(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID) (*sqlcv1.GetWorkflowVersionForEngineRow, error)
 
-	PauseWorkflow(ctx context.Context, workflowId uuid.UUID, opts PauseWorkflowOpts) (*sqlcv1.Workflow, error)
+	PauseWorkflow(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID, opts PauseWorkflowOpts) (*sqlcv1.Workflow, error)
 
-	UnpauseWorkflow(ctx context.Context, workflowId uuid.UUID) (*sqlcv1.Workflow, error)
+	UnpauseWorkflow(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID) (*sqlcv1.Workflow, error)
 
 	MovePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID, workflowIds []uuid.UUID) error
 
@@ -1931,8 +1931,8 @@ type PauseWorkflowOpts struct {
 	QueueTTL                  string
 }
 
-func (r *workflowRepository) PauseWorkflow(ctx context.Context, workflowId uuid.UUID, opts PauseWorkflowOpts) (*sqlcv1.Workflow, error) {
-	return r.queries.PauseWorkflow(ctx, r.pool.ForShared(), sqlcv1.PauseWorkflowParams{
+func (r *workflowRepository) PauseWorkflow(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID, opts PauseWorkflowOpts) (*sqlcv1.Workflow, error) {
+	return r.queries.PauseWorkflow(ctx, r.pool.ForTenant(tenantId), sqlcv1.PauseWorkflowParams{
 		ID:                        workflowId,
 		Cronrunqueuebehavior:      sqlcv1.WorkflowPauseQueueBehavior(opts.CronRunQueueBehavior),
 		Scheduledrunqueuebehavior: sqlcv1.WorkflowPauseQueueBehavior(opts.ScheduledRunQueueBehavior),
@@ -1940,8 +1940,8 @@ func (r *workflowRepository) PauseWorkflow(ctx context.Context, workflowId uuid.
 	})
 }
 
-func (r *workflowRepository) UnpauseWorkflow(ctx context.Context, workflowId uuid.UUID) (*sqlcv1.Workflow, error) {
-	return r.queries.UnpauseWorkflow(ctx, r.pool.ForShared(), workflowId)
+func (r *workflowRepository) UnpauseWorkflow(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID) (*sqlcv1.Workflow, error) {
+	return r.queries.UnpauseWorkflow(ctx, r.pool.ForTenant(tenantId), workflowId)
 }
 
 func (r *workflowRepository) MovePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID, workflowIds []uuid.UUID) error {

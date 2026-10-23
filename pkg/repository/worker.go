@@ -199,7 +199,7 @@ type WorkerRepository interface {
 	// has superseded this one, in which case the worker is left untouched.
 	PauseWorkerForListener(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, sessionId uuid.UUID, paused bool) error
 
-	UpsertWorkerLabels(ctx context.Context, workerId uuid.UUID, opts []UpsertWorkerLabelOpts) ([]*sqlcv1.WorkerLabel, error)
+	UpsertWorkerLabels(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, opts []UpsertWorkerLabelOpts) ([]*sqlcv1.WorkerLabel, error)
 
 	CleanupOldWorkers(ctx context.Context, tenantId uuid.UUID, lastHeartbeatBefore time.Time) (bool, error)
 
@@ -1355,7 +1355,7 @@ func (w *workerRepository) PauseWorkerForListener(ctx context.Context, tenantId 
 	return nil
 }
 
-func (w *workerRepository) UpsertWorkerLabels(ctx context.Context, workerId uuid.UUID, opts []UpsertWorkerLabelOpts) ([]*sqlcv1.WorkerLabel, error) {
+func (w *workerRepository) UpsertWorkerLabels(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, opts []UpsertWorkerLabelOpts) ([]*sqlcv1.WorkerLabel, error) {
 	if len(opts) == 0 {
 		return nil, nil
 	}
@@ -1387,7 +1387,7 @@ func (w *workerRepository) UpsertWorkerLabels(ctx context.Context, workerId uuid
 			StrValue: strValue,
 		}
 
-		affinity, err := w.queries.UpsertWorkerLabel(ctx, w.pool.ForShared(), dbsqlcOpts)
+		affinity, err := w.queries.UpsertWorkerLabel(ctx, w.pool.ForTenant(tenantId), dbsqlcOpts)
 		if err != nil {
 			return nil, fmt.Errorf("could not update worker affinity state: %w", err)
 		}
