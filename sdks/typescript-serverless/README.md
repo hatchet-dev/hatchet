@@ -95,7 +95,7 @@ process that has the regular SDK.
 [LIMITATIONS.md](./LIMITATIONS.md) has the full rules, including the declaration options the
 handler ignores.
 
-## Install
+## Installation
 
 ```sh
 pnpm add @hatchet-dev/serverless @hatchet-dev/typescript-sdk zod

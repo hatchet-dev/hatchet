@@ -323,12 +323,17 @@ function view<T extends object, M extends object>(base: T, members: M): T & M {
 
       const descriptor = Object.getOwnPropertyDescriptor(proto, name)!;
 
+      // Not enumerable, as on the original: a prototype method is not an own property there,
+      // and a serialized context should not grow by the feature clients' internals.
       if (typeof descriptor.value === 'function') {
-        result[name] = (descriptor.value as (...args: unknown[]) => unknown).bind(base);
+        Object.defineProperty(result, name, {
+          value: (descriptor.value as (...args: unknown[]) => unknown).bind(base),
+          enumerable: false,
+        });
       } else if (descriptor.get) {
         Object.defineProperty(result, name, {
           get: () => (base as Record<string, unknown>)[name],
-          enumerable: true,
+          enumerable: false,
         });
       }
     }
@@ -339,7 +344,7 @@ function view<T extends object, M extends object>(base: T, members: M): T & M {
     taken.add(name);
     Object.defineProperty(result, name, {
       get: () => (base as Record<string, unknown>)[name],
-      enumerable: true,
+      enumerable: false,
     });
   }
 
