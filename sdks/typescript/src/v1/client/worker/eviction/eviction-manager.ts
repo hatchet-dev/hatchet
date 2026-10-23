@@ -35,6 +35,12 @@ export class DurableEvictionManager {
   private _timer: ReturnType<typeof setInterval> | undefined;
   private _ticking = false;
 
+  // Set once shutdown eviction starts. While set, every newly marked wait is
+  // evicted immediately so a run cannot register a durable wait past the
+  // evictAllWaiting snapshot and then be killed by the listener stopping.
+  private _shuttingDown = false;
+  private _inflightShutdownEvictions = new Set<ActionKey>();
+
   constructor(opts: {
     durableSlots: number;
     cancelLocal: (key: ActionKey, invocationCount: number) => void;
@@ -82,10 +88,40 @@ export class DurableEvictionManager {
 
   markWaiting(key: ActionKey, waitKind: string, resourceId: string): void {
     this._cache.markWaiting(key, Date.now(), waitKind, resourceId);
+    if (this._shuttingDown) {
+      this._evictForShutdown(key);
+    }
+  }
+
+  updateWaiting(key: ActionKey, waitKind: string, resourceId: string): void {
+    this._cache.updateWaiting(key, waitKind, resourceId);
   }
 
   markActive(key: ActionKey): void {
     this._cache.markActive(key);
+  }
+
+  private _evictForShutdown(key: ActionKey): void {
+    if (this._inflightShutdownEvictions.has(key)) return;
+    const rec = this._cache.get(key);
+    if (!rec) return;
+
+    this._inflightShutdownEvictions.add(key);
+    rec.evictionReason = buildEvictionReason(EvictionCause.WORKER_SHUTDOWN, rec);
+
+    this._requestEvictionWithAck(key, rec)
+      .catch((err: unknown) => {
+        this._logger.error(
+          `DurableEvictionManager: failed to send eviction for ` +
+            `task_run_external_id=${rec.taskRunExternalId}: ${getErrorMessage(err)}`
+        );
+      })
+      .finally(() => {
+        this._inflightShutdownEvictions.delete(key);
+        // Always cancel locally even if the server ACK failed, so the future
+        // settles and exitGracefully doesn't hang.
+        this._evictRun(key, rec.invocationCount);
+      });
   }
 
   // The invocation count pins the teardown to the invocation that was
@@ -154,6 +190,10 @@ export class DurableEvictionManager {
 
   async evictAllWaiting(): Promise<number> {
     this.stop();
+    // Flipping the drain flag before the snapshot means a run that enters a
+    // wait while (or after) this drain runs is evicted on mark instead of
+    // slipping past it and failing when the durable listener stops.
+    this._shuttingDown = true;
 
     const waiting = this._cache.getAllWaiting();
     let evicted = 0;

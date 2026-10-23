@@ -1109,25 +1109,32 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
 
     const rendered = Render(ConditionAction.CREATE, conditions);
     const pbConditions = conditionsToPb(rendered, this.runtime.namespace);
+    const declaredResourceId = rendered
+      .map((c) => c.base.readableDataKey)
+      .filter(Boolean)
+      .join(',');
 
-    const ack = await this._serializeSendEvent(() =>
-      this._durableListener.sendEvent(this.action.taskRunExternalId, this.invocationCount, {
-        kind: 'waitFor',
-        waitForConditions: {
-          sleepConditions: pbConditions.sleepConditions,
-          userEventConditions: pbConditions.userEventConditions,
-        },
-        label,
-      })
-    );
+    // The run is marked waiting before the registration round-trip so a
+    // shutdown eviction sees it; awaiting the ack first leaves a window where
+    // evictAllWaiting misses the run and the listener stop fails the task.
+    return this.withEvictionWait('waitFor', declaredResourceId || 'registering', async () => {
+      const ack = await this._serializeSendEvent(() =>
+        this._durableListener.sendEvent(this.action.taskRunExternalId, this.invocationCount, {
+          kind: 'waitFor',
+          waitForConditions: {
+            sleepConditions: pbConditions.sleepConditions,
+            userEventConditions: pbConditions.userEventConditions,
+          },
+          label,
+        })
+      );
 
-    const resourceId =
-      rendered
-        .map((c) => c.base.readableDataKey)
-        .filter(Boolean)
-        .join(',') || `node:${ack.nodeId}`;
+      this._evictionManager?.updateWaiting(
+        this._actionKey,
+        'waitFor',
+        declaredResourceId || `node:${ack.nodeId}`
+      );
 
-    return this.withEvictionWait('waitFor', resourceId, async () => {
       const result = await this._durableListener.waitForCallback(
         this.action.taskRunExternalId,
         this.invocationCount,
@@ -1344,16 +1351,18 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
       return triggerOpts;
     });
 
-    const ack = await this._serializeSendEvent(() =>
-      this._durableListener.sendEvent(this.action.taskRunExternalId, this.invocationCount, {
-        kind: 'runChildren',
-        triggerOpts: triggerOptsList,
-      })
-    );
+    // One wait covers registration and every child callback: the run is either
+    // waiting on the whole bulk operation or not waiting at all.
+    return this.withEvictionWait('runChild', `workflow:bulk-child`, async () => {
+      const ack = await this._serializeSendEvent(() =>
+        this._durableListener.sendEvent(this.action.taskRunExternalId, this.invocationCount, {
+          kind: 'runChildren',
+          triggerOpts: triggerOptsList,
+        })
+      );
 
-    const results = await Promise.all(
-      ack.runEntries.map((entry) =>
-        this.withEvictionWait('runChild', `workflow:bulk-child`, async () => {
+      return Promise.all(
+        ack.runEntries.map(async (entry) => {
           const result = await this._durableListener.waitForCallback(
             this.action.taskRunExternalId,
             this.invocationCount,
@@ -1366,10 +1375,8 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
           }
           return (result.payload || {}) as P;
         })
-      )
-    );
-
-    return results;
+      );
+    });
   }
 
   /**
@@ -1387,12 +1394,18 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
     }
 
     const memoKey = await computeMemoKey(this.action.taskRunExternalId, deps);
+    const memoResourceId = `memo:${[...memoKey].map((b) => b.toString(16).padStart(2, '0')).join('')}`;
 
-    const ack = await this._serializeSendEvent(() =>
-      this._durableListener.sendEvent(this.action.taskRunExternalId, this.invocationCount, {
-        kind: 'memo',
-        memoKey,
-      })
+    // Marking waiting for the registration round-trip only: computing fn() is
+    // active work, not a durable wait, but the ack window is still exposed to
+    // a shutdown eviction.
+    const ack = await this.withEvictionWait('memo', memoResourceId, () =>
+      this._serializeSendEvent(() =>
+        this._durableListener.sendEvent(this.action.taskRunExternalId, this.invocationCount, {
+          kind: 'memo',
+          memoKey,
+        })
+      )
     );
 
     this._durableListener.consumeCallbackWithoutBlocking(

@@ -111,6 +111,31 @@ describe('DurableEvictionCache', () => {
       expect(cache.getAllWaiting()[0].key).toBe('k1/0');
     });
 
+    it('updateWaiting refreshes wait fields without touching the ref count', () => {
+      cache.registerRun('k1/0', 'ext-1', 1, T0, makePolicy());
+      cache.markWaiting('k1/0', T0, 'waitFor', 'registering');
+
+      cache.updateWaiting('k1/0', 'waitFor', 'node:7');
+
+      const rec = cache.get('k1/0')!;
+      expect(rec._waitCount).toBe(1);
+      expect(rec.waitKind).toBe('waitFor');
+      expect(rec.waitResourceId).toBe('node:7');
+      expect(rec.waitingSince).toBe(T0);
+    });
+
+    it('updateWaiting is a no-op for a run that is not waiting', () => {
+      cache.registerRun('k1/0', 'ext-1', 1, T0, makePolicy());
+      cache.updateWaiting('k1/0', 'waitFor', 'node:7');
+      const rec = cache.get('k1/0')!;
+      expect(rec._waitCount).toBe(0);
+      expect(rec.waitResourceId).toBeUndefined();
+    });
+
+    it('updateWaiting on unknown key is a no-op', () => {
+      expect(() => cache.updateWaiting('unknown/0', 'waitFor', 'node:7')).not.toThrow();
+    });
+
     it('markWaiting on unknown key is a no-op', () => {
       cache.markWaiting('unknown/0', T0, 'sleep', 'r');
       expect(cache.get('unknown/0')).toBeUndefined();

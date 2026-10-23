@@ -113,4 +113,59 @@ describe('DurableEvictionManager', () => {
       expect(manager.cache.get('run-1/0')).toBeUndefined();
     });
   });
+
+  describe('evictAllWaiting shutdown drain', () => {
+    it('evicts a run that enters a wait after the drain snapshot', async () => {
+      const { manager, cancelLocal, requestEvictionWithAck } = makeManager();
+
+      manager.registerRun('run-1/0', 'ext-1', 1, {
+        ttl: '30s',
+        allowCapacityEviction: true,
+        priority: 0,
+      });
+
+      // The run is not waiting yet when shutdown starts, so the snapshot
+      // misses it; markWaiting afterwards must evict it rather than leave it
+      // to be rejected when the durable listener stops.
+      const evicted = await manager.evictAllWaiting();
+      expect(evicted).toBe(0);
+
+      manager.markWaiting('run-1/0', 'waitFor', 'registering');
+
+      // The eviction ack round-trip is async; the local cancel always lands.
+      await new Promise(process.nextTick);
+      await Promise.resolve();
+
+      expect(requestEvictionWithAck).toHaveBeenCalledWith(
+        'run-1/0',
+        expect.objectContaining({ taskRunExternalId: 'ext-1', invocationCount: 1 })
+      );
+      expect(cancelLocal).toHaveBeenCalledWith('run-1/0', 1);
+      expect(manager.cache.get('run-1/0')).toBeUndefined();
+    });
+
+    it('does not re-evict a key already being drained for shutdown', async () => {
+      const { manager, requestEvictionWithAck } = makeManager();
+      let resolveAck!: () => void;
+      requestEvictionWithAck.mockReturnValue(
+        new Promise<void>((resolve) => {
+          resolveAck = resolve;
+        })
+      );
+
+      manager.registerRun('run-1/0', 'ext-1', 1, {
+        ttl: '30s',
+        allowCapacityEviction: true,
+        priority: 0,
+      });
+      await manager.evictAllWaiting();
+
+      manager.markWaiting('run-1/0', 'waitFor', 'registering');
+      manager.markWaiting('run-1/0', 'waitFor', 'registering');
+
+      expect(requestEvictionWithAck).toHaveBeenCalledTimes(1);
+      resolveAck();
+      await Promise.resolve();
+    });
+  });
 });

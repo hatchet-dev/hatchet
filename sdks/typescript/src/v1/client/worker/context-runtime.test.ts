@@ -1,7 +1,10 @@
 import { createAction } from '@hatchet/clients/dispatcher/action';
 import { ActionType } from '@hatchet/protoc/dispatcher';
+import { TaskRunTerminatedError } from '@hatchet/util/errors/task-run-terminated-error';
+import { Logger } from '@hatchet/util/logger';
 import { Context, DurableContext } from './context';
 import type { ContextRuntime, DurableTransport } from './runtime';
+import { DurableEvictionManager } from './eviction/eviction-manager';
 
 function action(overrides: Partial<Parameters<typeof createAction>[0]> = {}) {
   return createAction({
@@ -267,5 +270,184 @@ describe('DurableContext on a DurableTransport', () => {
     await expect(ctx.waitFor({ sleepFor: '1s' })).rejects.toThrow(
       'does not support durable eviction and the durable transport has no legacy fallback'
     );
+  });
+});
+
+describe('DurableContext eviction during wait registration', () => {
+  class NoopLogger extends Logger {
+    debug() {}
+    info() {}
+    green() {}
+    warn() {}
+    error() {}
+    util() {}
+  }
+
+  interface Deferred<T> {
+    promise: Promise<T>;
+    resolve: (v: T) => void;
+    reject: (e: any) => void;
+  }
+
+  function deferred<T>(): Deferred<T> {
+    let resolve!: (v: T) => void;
+    let reject!: (e: any) => void;
+    const promise = new Promise<T>((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    return { promise, resolve, reject };
+  }
+
+  // sendEvent stays pending until resolved or until cleanupTaskState rejects
+  // it, matching the real listener's pending ack handling.
+  function pendingSendTransport() {
+    const pendingSends = new Set<Deferred<any>>();
+    const transport = {
+      sendEvent: jest.fn<Promise<any>, any[]>(() => {
+        const d = deferred<any>();
+        d.promise.catch(() => {}).finally(() => pendingSends.delete(d));
+        pendingSends.add(d);
+        return d.promise;
+      }),
+      waitForCallback: jest.fn<Promise<any>, any[]>(async () => ({
+        durableTaskExternalId: 'task-run-id',
+        nodeId: 1,
+        payload: {},
+        isFailure: false,
+        errorMessage: undefined,
+      })),
+      consumeCallbackWithoutBlocking: jest.fn<void, any[]>(),
+      sendMemoCompletedNotification: jest.fn<Promise<void>, any[]>(async () => {}),
+      cleanupTaskState: jest.fn<void, any[]>(() => {
+        pendingSends.forEach((d) =>
+          d.reject(new TaskRunTerminatedError('evicted', 'task state cleaned up'))
+        );
+        pendingSends.clear();
+      }),
+      sendEvictInvocation: jest.fn<Promise<void>, any[]>(async () => {}),
+    } as unknown as DurableTransport & MockFns<DurableTransport>;
+    return { transport, pendingSends };
+  }
+
+  function setup(transport: DurableTransport) {
+    const ref: { ctx?: DurableContext<any, any> } = {};
+    const cancelLocal = jest.fn((_key: any, _invocationCount: number) => {
+      ref.ctx!.abortController.abort(new TaskRunTerminatedError('evicted'));
+      transport.cleanupTaskState('task-run-id', 3);
+    });
+    const requestEvictionWithAck = jest.fn(async (_key: any, rec: any) => {
+      await transport.sendEvictInvocation(
+        rec.taskRunExternalId,
+        rec.invocationCount,
+        rec.evictionReason
+      );
+    });
+    const manager = new DurableEvictionManager({
+      durableSlots: 10,
+      cancelLocal,
+      requestEvictionWithAck,
+      config: { checkIntervalMs: 3_600_000 },
+      logger: new NoopLogger(),
+    });
+    const act = action({ durableTaskInvocationCount: 3 });
+    ref.ctx = new DurableContext(act, fakeRuntime(), transport, {
+      engineVersion: 'v0.81.0',
+      evictionManager: manager,
+    });
+    manager.registerRun(act.key, 'task-run-id', 3, {
+      ttl: '30s',
+      allowCapacityEviction: true,
+      priority: 0,
+    });
+    return { ctx: ref.ctx, manager, cancelLocal, act };
+  }
+
+  it('is visible to shutdown eviction while its waitFor registration is in flight', async () => {
+    const { transport, pendingSends } = pendingSendTransport();
+    const { ctx, manager, act } = setup(transport);
+
+    const waiting = ctx.waitFor({ sleepFor: '1s' });
+    // sendEvent goes out on the serialized-send microtask.
+    await new Promise((r) => setImmediate(r));
+
+    // The ack has not landed, but the run must already read as waiting;
+    // previously the mark only happened after the sendEvent round-trip.
+    expect(manager.cache.get(act.key)?._waitCount).toBe(1);
+    expect(pendingSends.size).toBe(1);
+
+    // Resolve the registration so the wait completes and the mark clears.
+    pendingSends.forEach((d) =>
+      d.resolve({
+        ackType: 'waitFor',
+        durableTaskExternalId: 'task-run-id',
+        invocationCount: 3,
+        branchId: 1,
+        nodeId: 7,
+      })
+    );
+    await waiting;
+    expect(manager.cache.get(act.key)?._waitCount ?? 0).toBe(0);
+  });
+
+  it('evicts a run whose waitFor registration is in flight when shutdown starts', async () => {
+    const { transport } = pendingSendTransport();
+    const { ctx, manager, cancelLocal, act } = setup(transport);
+
+    const waiting = ctx.waitFor({ sleepFor: '1s' });
+    await new Promise((r) => setImmediate(r));
+
+    const evicted = await manager.evictAllWaiting();
+
+    expect(evicted).toBe(1);
+    expect(transport.sendEvictInvocation).toHaveBeenCalledWith(
+      'task-run-id',
+      3,
+      expect.any(String)
+    );
+    expect(cancelLocal).toHaveBeenCalledWith(act.key, 3);
+    await expect(waiting).rejects.toBeInstanceOf(TaskRunTerminatedError);
+  });
+
+  it('updates the recorded resource id once the registration ack lands', async () => {
+    const { transport, pendingSends } = pendingSendTransport();
+    const { ctx, manager, act } = setup(transport);
+
+    let observed: { waitCount?: number; resourceId?: string } = {};
+    transport.waitForCallback.mockImplementation(async () => {
+      const rec = manager.cache.get(act.key);
+      observed = { waitCount: rec?._waitCount, resourceId: rec?.waitResourceId };
+      return {
+        durableTaskExternalId: 'task-run-id',
+        nodeId: 7,
+        payload: {},
+        isFailure: false,
+        errorMessage: undefined,
+      };
+    });
+
+    const waiting = ctx.waitFor({ sleepFor: '1s' });
+    await new Promise((r) => setImmediate(r));
+    // sleepFor conditions render a declared readableDataKey, so it is recorded
+    // before the registration round-trip starts.
+    expect(manager.cache.get(act.key)?.waitResourceId).toBe('sleep-1s');
+    expect(pendingSends.size).toBe(1);
+
+    pendingSends.forEach((d) =>
+      d.resolve({
+        ackType: 'waitFor',
+        durableTaskExternalId: 'task-run-id',
+        invocationCount: 3,
+        branchId: 1,
+        nodeId: 7,
+      })
+    );
+    await waiting;
+
+    // The post-ack update refreshes metadata without double-counting the wait.
+    expect(observed).toEqual({ waitCount: 1, resourceId: 'sleep-1s' });
+    expect(transport.waitForCallback).toHaveBeenCalledWith('task-run-id', 3, 1, 7, {
+      signal: ctx.abortController.signal,
+    });
   });
 });

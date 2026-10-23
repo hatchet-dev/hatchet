@@ -880,19 +880,31 @@ export class InternalWorker {
       } catch (e: any) {
         this.logger.error(`Could not evict waiting runs: ${e.message}`);
       }
-    }
-
-    try {
-      await this.client.durableListener.stop();
-    } catch (e: any) {
-      this.logger.error(`Could not stop durable listener: ${e.message}`);
+    } else {
+      try {
+        await this.client.durableListener.stop();
+      } catch (e: any) {
+        this.logger.error(`Could not stop durable listener: ${e.message}`);
+      }
     }
 
     this.logger.info('Gracefully exiting hatchet worker, running tasks will attempt to finish...');
 
-    // Awaits the underlying work rather than the cancelable wrapper, which rejects as soon as a
-    // cancellation arrives while the task is still winding down.
+    // With an eviction manager, every durable wait entered during shutdown is
+    // evicted on mark, so these futures always settle. The listener stays up
+    // until they do: stopping it earlier rejects in-flight registrations with
+    // "DurableListener stopped", which is reported as a task failure instead of
+    // a hand-off for resumption. Pre-eviction engines have no drain, so their
+    // waits still unblock through the listener stop above.
     await Promise.allSettled(Object.values(this.futures).map(({ inner }) => inner));
+
+    if (this.evictionManager) {
+      try {
+        await this.client.durableListener.stop();
+      } catch (e: any) {
+        this.logger.error(`Could not stop durable listener: ${e.message}`);
+      }
+    }
 
     this.logger.info('Successfully finished pending tasks.');
 

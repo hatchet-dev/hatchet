@@ -93,6 +93,17 @@ export class DurableEvictionCache {
     }
   }
 
+  // Refreshes the wait metadata for a run that is already marked waiting,
+  // without bumping _waitCount. Some wait kinds only learn their resource id
+  // after a server round-trip (e.g. waitFor uses `node:` + the acked nodeId),
+  // but the run has to be visible to shutdown eviction before that trip starts.
+  updateWaiting(key: ActionKey, waitKind: string, resourceId: string): void {
+    const rec = this._runs.get(key);
+    if (!rec || rec._waitCount === 0) return;
+    rec.waitKind = waitKind;
+    rec.waitResourceId = resourceId;
+  }
+
   selectEvictionCandidate(
     now: number,
     durableSlots: number,
