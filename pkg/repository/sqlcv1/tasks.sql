@@ -649,6 +649,11 @@ WITH tasks_on_inactive_workers AS (
         AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
         -- evicted tasks are not eligible for re-assignment
         AND runtime.evicted_at IS NULL
+    -- NOTE: without this ORDER BY, the planner assumes most runtimes belong to the tenant's many stale workers and
+    -- seq scans v1_task_runtime expecting to hit the LIMIT early. Ordering by a "Worker" column makes it walk the
+    -- stale workers on ("tenantId", "lastHeartbeatAt") and look up each one's runtimes on the (tenant_id, worker_id) index.
+    ORDER BY
+        w."lastHeartbeatAt"
     LIMIT
         COALESCE(sqlc.narg('limit')::integer, 1000)
     FOR UPDATE OF runtime SKIP LOCKED
@@ -676,6 +681,8 @@ WITH tasks_on_inactive_workers AS (
                 AND inactive.task_inserted_at = runtime.task_inserted_at
                 AND inactive.retry_count = runtime.retry_count
         )
+    ORDER BY
+        runtime.assigned_at
     LIMIT
         COALESCE(sqlc.narg('limit')::integer, 1000)
     FOR UPDATE SKIP LOCKED
