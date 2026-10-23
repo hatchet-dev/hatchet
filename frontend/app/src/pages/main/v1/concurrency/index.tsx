@@ -142,13 +142,7 @@ function Concurrency({ tenantId }: ConcurrencyProps) {
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
-      <div>
-        <h1 className="text-lg font-semibold">Concurrency</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Every concurrency strategy in this tenant, the keys it is tracking
-          right now, and how many runs are queued on them.
-        </p>
-      </div>
+      <h1 className="text-lg font-semibold">Concurrency</h1>
 
       {error ? (
         <div className="rounded-lg px-4 py-8 text-center text-sm text-destructive ring-1 ring-border/50">
