@@ -37,6 +37,9 @@ var (
 	eventTypeBatchFlushed    = sqlcv1.V1EventTypeOlapBATCHFLUSHED
 )
 
+// scheduleResultsTimeout bounds dispatching already-committed assignments, which must outlive shutdown.
+const scheduleResultsTimeout = 30 * time.Second
+
 type SchedulerOpt func(*SchedulerOpts)
 
 type SchedulerOpts struct {
@@ -285,26 +288,47 @@ func (s *Scheduler) Start() (func() error, error) {
 
 	queueResults := s.pool.GetResultsCh()
 
+	// stopped only after the pool, so results committed during shutdown still get dispatched
+	stopResults := make(chan struct{})
+	resultsDone := make(chan struct{})
+	resultsWg := sync.WaitGroup{}
+
 	go func() {
+		defer close(resultsDone)
+
 		for {
+			var res *v1.QueueResults
+
 			select {
-			case <-ctx.Done():
-				return
-			case res := <-queueResults:
-				s.l.Debug().Ctx(ctx).Msgf("partition: received queue results")
-
-				if res == nil {
-					continue
+			case <-stopResults:
+				select {
+				case res = <-queueResults:
+				default:
+					return
 				}
-
-				go func(results *v1.QueueResults) {
-					err := s.scheduleStepRuns(ctx, results.TenantId, results)
-
-					if err != nil {
-						s.l.Error().Ctx(ctx).Err(err).Msg("could not schedule step runs")
-					}
-				}(res)
+			case res = <-queueResults:
 			}
+
+			s.l.Debug().Ctx(ctx).Msgf("partition: received queue results")
+
+			if res == nil {
+				continue
+			}
+
+			resultsWg.Add(1)
+
+			go func(results *v1.QueueResults) {
+				defer resultsWg.Done()
+
+				scheduleCtx, cancelSchedule := context.WithTimeout(context.WithoutCancel(ctx), scheduleResultsTimeout)
+				defer cancelSchedule()
+
+				err := s.scheduleStepRuns(scheduleCtx, results.TenantId, results)
+
+				if err != nil {
+					s.l.Error().Ctx(ctx).Err(err).Msg("could not schedule step runs")
+				}
+			}(res)
 		}
 	}()
 
@@ -341,6 +365,15 @@ func (s *Scheduler) Start() (func() error, error) {
 	}()
 
 	cleanup := func() error {
+		// stop tenant syncing first so it can't start new tenant managers behind StopTenants
+		shutdownErr := s.s.Shutdown()
+
+		s.pool.StopTenants()
+
+		close(stopResults)
+		<-resultsDone
+		resultsWg.Wait()
+
 		cancel()
 
 		if err := cleanupQueue(); err != nil {
@@ -351,8 +384,8 @@ func (s *Scheduler) Start() (func() error, error) {
 			return fmt.Errorf("could not cleanup message queue buffer: %w", err)
 		}
 
-		if err := s.s.Shutdown(); err != nil {
-			return fmt.Errorf("could not shutdown scheduler: %w", err)
+		if shutdownErr != nil {
+			return fmt.Errorf("could not shutdown scheduler: %w", shutdownErr)
 		}
 
 		wg.Wait()
