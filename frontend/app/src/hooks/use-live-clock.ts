@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 
-// fast enough for smooth live durations in trace timelines
 const DEFAULT_TICK_INTERVAL_MS = 30;
 
 export function useLiveClock(

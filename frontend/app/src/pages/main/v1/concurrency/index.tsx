@@ -19,7 +19,6 @@ import { useEffect, useMemo, useRef } from 'react';
 export default function ConcurrencyPage() {
   const { tenantId } = useCurrentTenantId();
 
-  // Keyed by tenant so a tenant switch resets the selection and filters.
   return <Concurrency key={tenantId} tenantId={tenantId} />;
 }
 
