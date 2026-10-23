@@ -321,3 +321,23 @@ func NewTogglePauseWorkflowMessage(tenantId, workflowId uuid.UUID, isPaused bool
 		},
 	)
 }
+
+// RateLimitPausesChangedPayload tells the task controller to hold or release the tenant's queued runs behind rate limit pauses.
+type RateLimitPausesChangedPayload struct {
+	// Paused is true when a key was paused, and false when a pause ended
+	Paused bool
+}
+
+// NewRateLimitPausesChangedMessage is sent to the task controller when a rate limit key is paused, so it holds the runs
+// already waiting on the key, and when a pause ends, so it releases them.
+func NewRateLimitPausesChangedMessage(tenantId uuid.UUID, paused bool) (*msgqueue.Message, error) {
+	return msgqueue.NewTenantMessage(
+		tenantId,
+		msgqueue.MsgIDRateLimitPausesChanged,
+		false,
+		true,
+		RateLimitPausesChangedPayload{
+			Paused: paused,
+		},
+	)
+}

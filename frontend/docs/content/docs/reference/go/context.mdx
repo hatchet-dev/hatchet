@@ -44,6 +44,7 @@ Methods:
 | `SpawnWorkflows`             | SpawnWorkflows triggers multiple child workflow runs from within the current task.                                              |
 | `ReleaseSlot`                | ReleaseSlot manually releases the worker slot held by the current task run to free up capacity.                                 |
 | `RefreshTimeout`             | RefreshTimeout extends the execution timeout of the current task run by the given duration string, such as "5m".                |
+| `PauseRateLimit`             | PauseRateLimit keeps queued runs that use the rate limit key from starting until the given time.                                |
 | `RetryCount`                 | RetryCount returns the number of times the current task run has been retried.                                                   |
 | `ParentOutput`               | ParentOutput decodes the output of a parent task into output, which must be a pointer.                                          |
 | `WasSkipped`                 | WasSkipped reports whether the given parent task was skipped.                                                                   |
@@ -464,6 +465,28 @@ Returns:
 | Type    |
 | ------- |
 | `error` |
+
+#### `PauseRateLimit`
+
+PauseRateLimit keeps queued runs that use the rate limit key from starting until the given time. It returns the time the key is paused until.
+
+```go
+func PauseRateLimit(key string, until time.Time) (time.Time, error)
+```
+
+Parameters:
+
+| Name    | Type        |
+| ------- | ----------- |
+| `key`   | `string`    |
+| `until` | `time.Time` |
+
+Returns:
+
+| Type        |
+| ----------- |
+| `time.Time` |
+| `error`     |
 
 #### `RetryCount`
 

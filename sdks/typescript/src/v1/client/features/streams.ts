@@ -9,6 +9,7 @@ import {
   V1StreamsClient as PbV1StreamsClient,
   V1StreamsDefinition,
 } from '@hatchet/protoc/v1/streams';
+import type { StreamCallOptions, StreamTopicMetadata } from '@hatchet/core/types';
 import { HatchetClient } from '../client';
 
 // the server stored nothing, so the seq is unused
@@ -80,24 +81,7 @@ export type StreamEvent = {
   createdAt?: Date;
 };
 
-/** Covers only messages within the tenant's retention. */
-export type StreamTopicMetadata = {
-  namespace: string;
-  topic: string;
-  tenantId: string;
-  messageCount: number;
-  /** resumes events() after the newest retained message; undefined when none is retained */
-  latestCursor?: string;
-  /** when the newest retained message was stored; undefined when none is retained */
-  lastPublishedAt?: Date;
-};
-
-export type StreamCallOptions = {
-  namespace?: string;
-  cursor?: string;
-  /** ends an events() iteration cleanly, without throwing */
-  signal?: AbortSignal;
-};
+export type { StreamCallOptions, StreamTopicMetadata } from '@hatchet/core/types';
 
 /**
  * StreamsClient publishes to and reads from durable topics. Unlike

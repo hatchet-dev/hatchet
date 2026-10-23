@@ -14,6 +14,8 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/hatchet-dev/hatchet/internal/listutils"
+
 	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
@@ -514,6 +516,8 @@ func (tc *TasksControllerImpl) handleBufferedMsgs(tenantId uuid.UUID, msgId stri
 		return tc.handleDurableRestoreTask(ctx, tenantId, payloads)
 	case msgqueue.MsgIDTogglePauseWorkflow:
 		return tc.handlePauseWorkflow(ctx, tenantId, payloads)
+	case msgqueue.MsgIDRateLimitPausesChanged:
+		return tc.handleRateLimitPausesChanged(ctx, tenantId, payloads)
 	}
 
 	return fmt.Errorf("unknown message id: %s", msgId)
@@ -1459,6 +1463,27 @@ func (tc *TasksControllerImpl) handlePauseWorkflow(ctx context.Context, tenantId
 	if len(queueNames) > 0 || len(concurrencyStrategyIds) > 0 {
 		if err := tc.notifySchedulerOfRequeuedItems(ctx, tenantId, queueNames, concurrencyStrategyIds); err != nil {
 			tc.l.Error().Ctx(ctx).Err(err).Msg("failed to notify scheduler after unpausing workflows")
+		}
+	}
+
+	return nil
+}
+
+func (tc *TasksControllerImpl) handleRateLimitPausesChanged(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
+	msgs := msgqueue.JSONConvert[tasktypes.RateLimitPausesChangedPayload](payloads)
+	statuses := listutils.Map[*tasktypes.RateLimitPausesChangedPayload, bool](msgs, func(x *tasktypes.RateLimitPausesChangedPayload) bool {
+		return x.Paused
+	})
+
+	if listutils.Any(statuses, true) {
+		if err := tc.repov1.RateLimit().HoldRateLimitPausedQueuedTasks(ctx, tenantId); err != nil {
+			return fmt.Errorf("failed to hold tasks behind newly paused rate limits: %w", err)
+		}
+	}
+
+	if listutils.Any(statuses, false) {
+		if err := tc.requeueItemsForExpiredRateLimitPauses(ctx, tenantId); err != nil {
+			return err
 		}
 	}
 

@@ -177,6 +177,9 @@ type AdminClient interface {
 
 	PutRateLimit(key string, opts *types.RateLimitOpts) error
 
+	// PauseRateLimit returns the time the key is paused until, which is later than until if the key was already paused for longer
+	PauseRateLimit(ctx context.Context, key string, until time.Time) (time.Time, error)
+
 	GetRunDetails(ctx context.Context, externalId uuid.UUID) (*RunDetails, error)
 }
 
@@ -721,6 +724,19 @@ func (a *adminClientImpl) PutRateLimit(key string, opts *types.RateLimitOpts) er
 	}
 
 	return nil
+}
+
+func (a *adminClientImpl) PauseRateLimit(ctx context.Context, key string, until time.Time) (time.Time, error) {
+	resp, err := a.client.PauseRateLimit(a.ctx.newContext(ctx), &admincontracts.PauseRateLimitRequest{
+		Key:         key,
+		PausedUntil: timestamppb.New(until),
+	})
+
+	if err != nil {
+		return time.Time{}, fmt.Errorf("could not pause rate limit: %w", err)
+	}
+
+	return resp.PausedUntil.AsTime(), nil
 }
 
 func (a *adminClientImpl) GetRunDetails(ctx context.Context, externalId uuid.UUID) (*RunDetails, error) {
