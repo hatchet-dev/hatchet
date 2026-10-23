@@ -1,21 +1,15 @@
-import { KEYS_PAGE_SIZE, useConcurrencyKeys } from '../hooks/use-concurrency';
+import { useConcurrencyKeys } from '../hooks/use-concurrency';
 import { formatElapsed, neverQueues } from './concurrency-format';
 import { DrainingBadge } from './draining-badge';
 import { PaginationFooter } from './pagination-footer';
 import { Input } from '@/components/v1/ui/input';
 import { Skeleton } from '@/components/v1/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger } from '@/components/v1/ui/tabs';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/v1/ui/tooltip';
 import { V1ConcurrencyKey, V1ConcurrencyStrategy } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { appRoutes } from '@/router';
 import { Link } from '@tanstack/react-router';
-import { RiInformationLine, RiSearchLine } from 'react-icons/ri';
+import { RiSearchLine } from 'react-icons/ri';
 import { useDebounce } from 'use-debounce';
 
 // Above this many slots per key the cells get too thin to read, so a bar is shown instead.
@@ -60,7 +54,6 @@ export function KeysPanel({
 
   const keys = data?.rows ?? [];
   const numPages = data?.pagination?.num_pages ?? 0;
-  const filtered = !!debouncedSearch || onlyQueued;
 
   let emptyText = 'No runs are running or queued on this strategy right now.';
 
@@ -177,29 +170,6 @@ export function KeysPanel({
       </div>
 
       <PaginationFooter
-        summary={
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  aria-label="About this list"
-                  className="flex items-center hover:text-foreground"
-                >
-                  <RiInformationLine className="size-4" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent className="font-mono text-xs">
-                {!filtered
-                  ? `showing ${page * KEYS_PAGE_SIZE + keys.length} of ${data?.total ?? 0} keys`
-                  : numPages === 0
-                    ? 'no matching keys'
-                    : `page ${page + 1} of ${numPages}`}
-                {' · sorted by queued runs, then oldest queued'}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        }
         page={page}
         numPages={numPages}
         onPageChange={onPageChange}
