@@ -1070,6 +1070,7 @@ type Streams struct {
 	registerErr   error
 }
 
+// NewStreams creates an in-memory durable streams backend for tests.
 func NewStreams() *Streams {
 	return &Streams{}
 }
