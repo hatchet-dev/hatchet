@@ -1618,6 +1618,15 @@ export interface TenantResourcePolicy {
   limits: TenantResourceLimit[];
 }
 
+export interface TenantEntitlements {
+  auditLogs: boolean;
+  prometheusMetrics: boolean;
+  strictAdditionalMetadataFilters: boolean;
+  dagOperator: boolean;
+  durableStreams: boolean;
+  serverlessOperator: boolean;
+}
+
 export interface UpdateTenantAlertEmailGroupRequest {
   /** A list of emails for users */
   emails: string[];

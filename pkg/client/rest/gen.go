@@ -1296,6 +1296,16 @@ type TenantAlertingSettings struct {
 	Metadata             APIResourceMeta `json:"metadata"`
 }
 
+// TenantEntitlements defines model for TenantEntitlements.
+type TenantEntitlements struct {
+	AuditLogs                       bool `json:"auditLogs"`
+	DagOperator                     bool `json:"dagOperator"`
+	DurableStreams                  bool `json:"durableStreams"`
+	PrometheusMetrics               bool `json:"prometheusMetrics"`
+	ServerlessOperator              bool `json:"serverlessOperator"`
+	StrictAdditionalMetadataFilters bool `json:"strictAdditionalMetadataFilters"`
+}
+
 // TenantEnvironment defines model for TenantEnvironment.
 type TenantEnvironment string
 
@@ -4191,6 +4201,9 @@ type ClientInterface interface {
 
 	ApiTokenCreate(ctx context.Context, tenant openapi_types.UUID, body ApiTokenCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// TenantEntitlementsGet request
+	TenantEntitlementsGet(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// EventList request
 	EventList(ctx context.Context, tenant openapi_types.UUID, params *EventListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -5512,6 +5525,18 @@ func (c *Client) ApiTokenCreateWithBody(ctx context.Context, tenant openapi_type
 
 func (c *Client) ApiTokenCreate(ctx context.Context, tenant openapi_types.UUID, body ApiTokenCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewApiTokenCreateRequest(c.Server, tenant, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) TenantEntitlementsGet(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTenantEntitlementsGetRequest(c.Server, tenant)
 	if err != nil {
 		return nil, err
 	}
@@ -11281,6 +11306,40 @@ func NewApiTokenCreateRequestWithBody(server string, tenant openapi_types.UUID, 
 	return req, nil
 }
 
+// NewTenantEntitlementsGetRequest generates requests for TenantEntitlementsGet
+func NewTenantEntitlementsGetRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/entitlements", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewEventListRequest generates requests for EventList
 func NewEventListRequest(server string, tenant openapi_types.UUID, params *EventListParams) (*http.Request, error) {
 	var err error
@@ -16007,6 +16066,9 @@ type ClientWithResponsesInterface interface {
 
 	ApiTokenCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, body ApiTokenCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*ApiTokenCreateResponse, error)
 
+	// TenantEntitlementsGetWithResponse request
+	TenantEntitlementsGetWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantEntitlementsGetResponse, error)
+
 	// EventListWithResponse request
 	EventListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *EventListParams, reqEditors ...RequestEditorFn) (*EventListResponse, error)
 
@@ -18008,6 +18070,30 @@ func (r ApiTokenCreateResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r ApiTokenCreateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type TenantEntitlementsGetResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *TenantEntitlements
+	JSON400      *APIErrors
+	JSON403      *APIError
+}
+
+// Status returns HTTPResponse.Status
+func (r TenantEntitlementsGetResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r TenantEntitlementsGetResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -20762,6 +20848,15 @@ func (c *ClientWithResponses) ApiTokenCreateWithResponse(ctx context.Context, te
 		return nil, err
 	}
 	return ParseApiTokenCreateResponse(rsp)
+}
+
+// TenantEntitlementsGetWithResponse request returning *TenantEntitlementsGetResponse
+func (c *ClientWithResponses) TenantEntitlementsGetWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantEntitlementsGetResponse, error) {
+	rsp, err := c.TenantEntitlementsGet(ctx, tenant, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTenantEntitlementsGetResponse(rsp)
 }
 
 // EventListWithResponse request returning *EventListResponse
@@ -24696,6 +24791,46 @@ func ParseApiTokenCreateResponse(rsp *http.Response) (*ApiTokenCreateResponse, e
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
 		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseTenantEntitlementsGetResponse parses an HTTP response from a TenantEntitlementsGetWithResponse call
+func ParseTenantEntitlementsGetResponse(rsp *http.Response) (*TenantEntitlementsGetResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &TenantEntitlementsGetResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest TenantEntitlements
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

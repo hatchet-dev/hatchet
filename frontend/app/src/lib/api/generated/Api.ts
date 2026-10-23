@@ -70,6 +70,7 @@ import {
   TenantAlertEmailGroup,
   TenantAlertEmailGroupList,
   TenantAlertingSettings,
+  TenantEntitlements,
   TenantInvite,
   TenantInviteList,
   TenantMember,
@@ -1927,6 +1928,24 @@ export class Api<
   tenantResourcePolicyGet = Object.assign((tenant: string, params: RequestParams = {}) =>
     this.request<TenantResourcePolicy, APIErrors | APIError>({
       path: `/api/v1/tenants/${tenant}/resource-policy`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
+  /**
+   * @description Gets the features the tenant is entitled to
+   *
+   * @tags Tenant
+   * @name TenantEntitlementsGet
+   * @summary Get tenant entitlements
+   * @request GET:/api/v1/tenants/{tenant}/entitlements
+   * @secure
+   */
+  tenantEntitlementsGet = Object.assign((tenant: string, params: RequestParams = {}) =>
+    this.request<TenantEntitlements, APIErrors | APIError>({
+      path: `/api/v1/tenants/${tenant}/entitlements`,
       method: "GET",
       secure: true,
       format: "json",

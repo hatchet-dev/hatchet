@@ -44,6 +44,8 @@ TenantResourceLimit:
   $ref: "./tenant.yaml#/TenantResourceLimit"
 TenantResourcePolicy:
   $ref: "./tenant.yaml#/TenantResourcePolicy"
+TenantEntitlements:
+  $ref: "./tenant.yaml#/TenantEntitlements"
 CreateTenantInviteRequest:
   $ref: "./tenant.yaml#/CreateTenantInviteRequest"
 UpdateTenantInviteRequest:

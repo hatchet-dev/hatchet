@@ -190,6 +190,12 @@ export const queries = createQueryKeyStore({
       queryFn: async () => (await api.tenantAlertingSettingsGet(tenant)).data,
     }),
   },
+  tenantEntitlements: {
+    get: (tenant: string) => ({
+      queryKey: ['tenant-entitlements:get', tenant],
+      queryFn: async () => (await api.tenantEntitlementsGet(tenant)).data,
+    }),
+  },
   tenantResourcePolicy: {
     get: (tenant: string) => ({
       queryKey: ['tenant-resource-policy:get', tenant],

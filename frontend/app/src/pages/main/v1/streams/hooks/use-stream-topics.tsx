@@ -15,8 +15,7 @@ const streamTopicQuerySchema = z
   })
   .default({ s: undefined });
 
-export type StreamTopicWithRetention = V1StreamTopic & {
-  retentionHours: number;
+export type StreamTopicWithMetadata = V1StreamTopic & {
   metadata: {
     id: string;
   };
@@ -58,7 +57,6 @@ export const useStreamTopics = ({ key }: { key: string }) => {
     () =>
       (data?.rows ?? []).map((t) => ({
         ...t,
-        retentionHours: data?.retentionHours ?? 0,
         metadata: {
           // the null byte can't appear in a namespace, so ids can't collide
           id: `${t.namespace}\u0000${t.topic}`,
