@@ -1093,6 +1093,31 @@ func (d *DispatcherImpl) sendTasksToWorker(
 	return innerEg.Wait()
 }
 
+// requeueBatchItems hands the items of a batch whose worker is not connected to this dispatcher to the
+// same retry path single assignments take, so the scheduler reassigns them instead of leaving them to
+// their step timeout.
+func (d *DispatcherImpl) requeueBatchItems(ctx context.Context, payload *tasktypesv1.StartBatchTaskPayload) error {
+	if len(payload.Items) == 0 {
+		return nil
+	}
+
+	taskIds := make([]int64, 0, len(payload.Items))
+
+	for _, item := range payload.Items {
+		taskIds = append(taskIds, item.TaskID)
+	}
+
+	tasks, err := d.repov1.Tasks().ListTasks(ctx, payload.TenantId, taskIds)
+
+	if err != nil {
+		return fmt.Errorf("could not list tasks to requeue batch %s: %w", payload.BatchId, err)
+	}
+
+	d.l.Warn().Ctx(ctx).Str("batch_id", payload.BatchId).Str("worker_id", payload.WorkerId.String()).Int("tasks", len(tasks)).Msg("worker for batch is not connected to this dispatcher, requeueing its tasks")
+
+	return d.handleRetries(ctx, payload.TenantId, tasks)
+}
+
 func (d *DispatcherImpl) handleRetries(
 	ctx context.Context,
 	tenantId uuid.UUID,
@@ -1167,8 +1192,7 @@ func (d *DispatcherImpl) sendBatchStartFromPayload(ctx context.Context, payload 
 	workers, err := d.workers.Get(payload.WorkerId)
 	if err != nil {
 		if errors.Is(err, ErrWorkerNotFound) {
-			// If the worker isn't connected, ignore (the tasks will be retried separately).
-			return nil
+			return d.requeueBatchItems(ctx, payload)
 		}
 		return fmt.Errorf("could not get worker for batch %s: %w", payload.BatchId, err)
 	}

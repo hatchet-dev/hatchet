@@ -1534,21 +1534,17 @@ func tasksForDispatchFromRows(rows []*sqlcv1.ListTasksForDispatchRow) *TasksForD
 
 		task := row.V1Task
 
-		// location is NOT NULL on v1_payload, so it marks the presence of the joined row
-		if row.PayloadLocation.Valid {
+		if row.PayloadID.Valid {
 			payloadRow := &sqlcv1.V1Payload{
 				TenantID:            task.TenantID,
 				ID:                  row.PayloadID.Int64,
+				ExternalID:          *row.PayloadExternalID,
 				InsertedAt:          row.PayloadInsertedAt,
 				Type:                row.PayloadType.V1PayloadType,
 				Location:            row.PayloadLocation.V1PayloadLocation,
 				ExternalLocationKey: row.PayloadExternalLocationKey,
 				InlineContent:       row.PayloadInlineContent,
 				UpdatedAt:           row.PayloadUpdatedAt,
-			}
-
-			if row.PayloadExternalID != nil {
-				payloadRow.ExternalID = *row.PayloadExternalID
 			}
 
 			key := payloadUniqueKeyFromRow(payloadRow)
