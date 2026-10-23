@@ -14,8 +14,13 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-// strategy summaries are read on every dashboard poll, so they are cached briefly per tenant
-const concurrencyStrategySummaryCacheDuration = 5 * time.Second
+// Summaries and keys are read on every dashboard poll and scan the tenant's slots, so each API
+// instance caches them briefly. The load per tenant is then bounded by the number of instances,
+// not the number of dashboards open.
+const (
+	concurrencyStrategySummaryCacheDuration = 15 * time.Second
+	concurrencyKeysCacheDuration            = 10 * time.Second
+)
 
 // ConcurrencyScope is where a concurrency strategy is defined: on a task, on a workflow, or
 // shared across tasks at the tenant level.
@@ -53,8 +58,12 @@ type ConcurrencyStrategySummary struct {
 	// Only set for task strategies.
 	TaskName string
 
-	// Only set for shared strategies.
+	// Only set for shared strategies; lists the tasks on latest workflow versions.
 	UsedBy []ConcurrencyStrategyUsage
+
+	// The strategy is not used by any latest workflow version, but still has slots from runs
+	// of an older version. It is listed until those runs finish.
+	IsDraining bool
 
 	Expression        string
 	Strategy          sqlcv1.V1ConcurrencyStrategy
@@ -89,7 +98,8 @@ type ConcurrencyKey struct {
 // ConcurrencyOverviewRepository reads concurrency strategies and their keys for the dashboard.
 type ConcurrencyOverviewRepository interface {
 	// ListStrategySummaries returns the strategies on the tenant's latest workflow versions,
-	// and the shared strategies their tasks use, with live slot counts, most queued first.
+	// the shared strategies their tasks use, and draining strategies that still have slots,
+	// with live slot counts, most queued first.
 	ListStrategySummaries(ctx context.Context, tenantId uuid.UUID) ([]*ConcurrencyStrategySummary, error)
 
 	// ListKeys returns a page of a strategy's keys and the total number of matching keys.
@@ -101,18 +111,25 @@ type concurrencyOverviewRepository struct {
 	*sharedRepository
 
 	summaryCache *cache.Cache
+	keysCache    *cache.Cache
 }
 
 func newConcurrencyOverviewRepository(shared *sharedRepository) (ConcurrencyOverviewRepository, func()) {
 	summaryCache := cache.New(concurrencyStrategySummaryCacheDuration)
+	keysCache := cache.New(concurrencyKeysCacheDuration)
 
 	return &concurrencyOverviewRepository{
 		sharedRepository: shared,
 		summaryCache:     summaryCache,
-	}, summaryCache.Stop
+		keysCache:        keysCache,
+	}, func() {
+		summaryCache.Stop()
+		keysCache.Stop()
+	}
 }
 
 type slotStats struct {
+	workflowID, workflowVersionID                       uuid.UUID
 	keyCount, queuedKeyCount, runningCount, queuedCount int64
 	oldestQueuedAt                                      pgtype.Timestamptz
 	oldestQueuedKey                                     string
@@ -160,29 +177,6 @@ func (r *concurrencyOverviewRepository) listStrategySummaries(ctx context.Contex
 		return nil, fmt.Errorf("failed to list shared concurrency strategy usage: %w", err)
 	}
 
-	usedBy := make(map[int64][]ConcurrencyStrategyUsage)
-	sharedIds := make([]int64, 0)
-
-	for _, row := range usage {
-		if _, ok := usedBy[row.TenantStrategyID]; !ok {
-			sharedIds = append(sharedIds, row.TenantStrategyID)
-		}
-
-		usedBy[row.TenantStrategyID] = append(usedBy[row.TenantStrategyID], ConcurrencyStrategyUsage{
-			WorkflowID:   row.WorkflowID,
-			WorkflowName: row.WorkflowName,
-			TaskName:     row.StepReadableID,
-		})
-	}
-
-	sharedStrategies, err := r.queries.GetTenantConcurrencyStrategiesByIds(ctx, r.pool, sqlcv1.GetTenantConcurrencyStrategiesByIdsParams{
-		Tenantid: tenantId,
-		Ids:      sharedIds,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to get shared concurrency strategies: %w", err)
-	}
-
 	slotStatRows, err := r.queries.ListConcurrencySlotStatsForTenant(ctx, r.pool, tenantId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list concurrency slot stats: %w", err)
@@ -197,16 +191,105 @@ func (r *concurrencyOverviewRepository) listStrategySummaries(ctx context.Contex
 	stats := make(map[int64]slotStats, len(slotStatRows))
 
 	for _, row := range slotStatRows {
-		stats[row.StrategyID] = slotStats{row.KeyCount, row.QueuedKeyCount, row.RunningCount, row.QueuedCount, row.OldestQueuedAt, row.OldestQueuedKey}
+		stats[row.StrategyID] = slotStats{row.WorkflowID, row.WorkflowVersionID, row.KeyCount, row.QueuedKeyCount, row.RunningCount, row.QueuedCount, row.OldestQueuedAt, row.OldestQueuedKey}
 	}
 
 	workflowStats := make(map[int64]slotStats, len(workflowSlotStatRows))
 
 	for _, row := range workflowSlotStatRows {
-		workflowStats[row.StrategyID] = slotStats{row.KeyCount, row.QueuedKeyCount, row.RunningCount, row.QueuedCount, row.OldestQueuedAt, row.OldestQueuedKey}
+		workflowStats[row.StrategyID] = slotStats{row.WorkflowID, row.WorkflowVersionID, row.KeyCount, row.QueuedKeyCount, row.RunningCount, row.QueuedCount, row.OldestQueuedAt, row.OldestQueuedKey}
 	}
 
-	res := make([]*ConcurrencyStrategySummary, 0, len(taskStrategies)+len(workflowStrategies)+len(sharedStrategies))
+	usedBy := make(map[int64][]ConcurrencyStrategyUsage)
+
+	for _, row := range usage {
+		usedBy[row.TenantStrategyID] = append(usedBy[row.TenantStrategyID], ConcurrencyStrategyUsage{
+			WorkflowID:   row.WorkflowID,
+			WorkflowName: row.WorkflowName,
+			TaskName:     row.StepReadableID,
+		})
+	}
+
+	latestTask := make(map[int64]bool, len(taskStrategies))
+
+	for _, s := range taskStrategies {
+		latestTask[s.ID] = true
+	}
+
+	// A slot's strategy that is not a latest task strategy is either a shared strategy or a
+	// task strategy on an older workflow version. Shared ones are resolved first; ids that
+	// are not shared strategies are ignored by the lookup.
+	sharedIds := make([]int64, 0, len(usedBy))
+
+	for id := range usedBy {
+		sharedIds = append(sharedIds, id)
+	}
+
+	for id := range stats {
+		if !latestTask[id] && usedBy[id] == nil {
+			sharedIds = append(sharedIds, id)
+		}
+	}
+
+	sharedStrategies, err := r.queries.GetTenantConcurrencyStrategiesByIds(ctx, r.pool, sqlcv1.GetTenantConcurrencyStrategiesByIdsParams{
+		Tenantid: tenantId,
+		Ids:      sharedIds,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get shared concurrency strategies: %w", err)
+	}
+
+	shared := make(map[int64]bool, len(sharedStrategies))
+
+	for _, s := range sharedStrategies {
+		shared[s.ID] = true
+	}
+
+	drainingTaskParams := sqlcv1.ListStepConcurrencyStrategiesByIdsParams{Tenantid: tenantId}
+
+	for id, st := range stats {
+		if !latestTask[id] && !shared[id] {
+			drainingTaskParams.Workflowids = append(drainingTaskParams.Workflowids, st.workflowID)
+			drainingTaskParams.Workflowversionids = append(drainingTaskParams.Workflowversionids, st.workflowVersionID)
+			drainingTaskParams.Ids = append(drainingTaskParams.Ids, id)
+		}
+	}
+
+	var drainingTaskStrategies []*sqlcv1.ListStepConcurrencyStrategiesByIdsRow
+
+	if len(drainingTaskParams.Ids) > 0 {
+		drainingTaskStrategies, err = r.queries.ListStepConcurrencyStrategiesByIds(ctx, r.pool, drainingTaskParams)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get draining task concurrency strategies: %w", err)
+		}
+	}
+
+	latestWorkflow := make(map[int64]bool, len(workflowStrategies))
+
+	for _, s := range workflowStrategies {
+		latestWorkflow[s.ID] = true
+	}
+
+	drainingWorkflowParams := sqlcv1.ListWorkflowConcurrencyStrategiesByIdsParams{Tenantid: tenantId}
+
+	for id, st := range workflowStats {
+		if !latestWorkflow[id] {
+			drainingWorkflowParams.Workflowids = append(drainingWorkflowParams.Workflowids, st.workflowID)
+			drainingWorkflowParams.Workflowversionids = append(drainingWorkflowParams.Workflowversionids, st.workflowVersionID)
+			drainingWorkflowParams.Ids = append(drainingWorkflowParams.Ids, id)
+		}
+	}
+
+	var drainingWorkflowStrategies []*sqlcv1.ListWorkflowConcurrencyStrategiesByIdsRow
+
+	if len(drainingWorkflowParams.Ids) > 0 {
+		drainingWorkflowStrategies, err = r.queries.ListWorkflowConcurrencyStrategiesByIds(ctx, r.pool, drainingWorkflowParams)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get draining workflow concurrency strategies: %w", err)
+		}
+	}
+
+	res := make([]*ConcurrencyStrategySummary, 0, len(sharedStrategies)+len(workflowStrategies)+len(drainingWorkflowStrategies)+len(taskStrategies)+len(drainingTaskStrategies))
 
 	for _, s := range sharedStrategies {
 		sum := &ConcurrencyStrategySummary{
@@ -214,6 +297,7 @@ func (r *concurrencyOverviewRepository) listStrategySummaries(ctx context.Contex
 			Scope:             ConcurrencyScopeShared,
 			Name:              s.Name,
 			UsedBy:            usedBy[s.ID],
+			IsDraining:        usedBy[s.ID] == nil,
 			Expression:        s.Expression,
 			Strategy:          s.Strategy,
 			MaxRuns:           s.MaxConcurrency,
@@ -225,38 +309,30 @@ func (r *concurrencyOverviewRepository) listStrategySummaries(ctx context.Contex
 	}
 
 	for _, s := range workflowStrategies {
-		sum := &ConcurrencyStrategySummary{
-			ID:                s.ID,
-			Scope:             ConcurrencyScopeWorkflow,
-			Name:              s.WorkflowName,
-			WorkflowID:        &s.WorkflowID,
-			WorkflowVersionID: &s.WorkflowVersionID,
-			WorkflowName:      s.WorkflowName,
-			WorkflowVersion:   s.WorkflowVersion.String,
-			Expression:        s.Expression,
-			Strategy:          s.Strategy,
-			MaxRuns:           s.MaxConcurrency,
-		}
+		sum := workflowStrategySummary(s.ID, s.WorkflowID, s.WorkflowVersionID, s.WorkflowName, s.WorkflowVersion, s.Strategy, s.Expression, s.MaxConcurrency)
+
+		workflowStats[s.ID].apply(sum)
+		res = append(res, sum)
+	}
+
+	for _, s := range drainingWorkflowStrategies {
+		sum := workflowStrategySummary(s.ID, s.WorkflowID, s.WorkflowVersionID, s.WorkflowName, s.WorkflowVersion, s.Strategy, s.Expression, s.MaxConcurrency)
+		sum.IsDraining = true
 
 		workflowStats[s.ID].apply(sum)
 		res = append(res, sum)
 	}
 
 	for _, s := range taskStrategies {
-		sum := &ConcurrencyStrategySummary{
-			ID:                s.ID,
-			Scope:             ConcurrencyScopeTask,
-			Name:              s.StepReadableID,
-			WorkflowID:        &s.WorkflowID,
-			WorkflowVersionID: &s.WorkflowVersionID,
-			WorkflowName:      s.WorkflowName,
-			WorkflowVersion:   s.WorkflowVersion.String,
-			TaskName:          s.StepReadableID,
-			Expression:        s.Expression,
-			Strategy:          s.Strategy,
-			MaxRuns:           s.MaxConcurrency,
-			MaxRunsExpression: textPtr(s.MaxRunsExpression),
-		}
+		sum := taskStrategySummary(s.ID, s.WorkflowID, s.WorkflowVersionID, s.WorkflowName, s.WorkflowVersion, s.StepReadableID, s.Strategy, s.Expression, s.MaxConcurrency, s.MaxRunsExpression)
+
+		stats[s.ID].apply(sum)
+		res = append(res, sum)
+	}
+
+	for _, s := range drainingTaskStrategies {
+		sum := taskStrategySummary(s.ID, s.WorkflowID, s.WorkflowVersionID, s.WorkflowName, s.WorkflowVersion, s.StepReadableID, s.Strategy, s.Expression, s.MaxConcurrency, s.MaxRunsExpression)
+		sum.IsDraining = true
 
 		stats[s.ID].apply(sum)
 		res = append(res, sum)
@@ -283,11 +359,42 @@ func (r *concurrencyOverviewRepository) listStrategySummaries(ctx context.Contex
 	return res, nil
 }
 
+type concurrencyKeysPage struct {
+	keys  []*ConcurrencyKey
+	total int64
+}
+
 func (r *concurrencyOverviewRepository) ListKeys(ctx context.Context, tenantId uuid.UUID, scope ConcurrencyScope, strategyId int64, opts ListConcurrencyKeysOpts) ([]*ConcurrencyKey, int64, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, 0, err
 	}
 
+	search := ""
+
+	if opts.Search != nil {
+		search = *opts.Search
+	}
+
+	// search goes last so a separator inside it cannot make two requests share an id
+	id := fmt.Sprintf("%s|%s|%d|%t|%d|%d|%s", tenantId, scope, strategyId, opts.OnlyQueued, opts.Limit, opts.Offset, search)
+
+	page, err := cache.MakeCacheable(r.keysCache, id, func() (*concurrencyKeysPage, error) {
+		keys, total, err := r.listKeys(ctx, tenantId, scope, strategyId, opts)
+		if err != nil {
+			return nil, err
+		}
+
+		return &concurrencyKeysPage{keys, total}, nil
+	})
+
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return page.keys, page.total, nil
+}
+
+func (r *concurrencyOverviewRepository) listKeys(ctx context.Context, tenantId uuid.UUID, scope ConcurrencyScope, strategyId int64, opts ListConcurrencyKeysOpts) ([]*ConcurrencyKey, int64, error) {
 	// The strategy tables have no index for a (tenant, id) lookup, so the strategy is
 	// resolved from the cached summaries.
 	summaries, err := r.ListStrategySummaries(ctx, tenantId)
@@ -392,6 +499,38 @@ func (r *concurrencyOverviewRepository) ListKeys(ctx context.Context, tenantId u
 	}
 
 	return res, total, nil
+}
+
+func workflowStrategySummary(id int64, workflowId, workflowVersionId uuid.UUID, workflowName string, workflowVersion pgtype.Text, strategy sqlcv1.V1ConcurrencyStrategy, expression string, maxRuns int32) *ConcurrencyStrategySummary {
+	return &ConcurrencyStrategySummary{
+		ID:                id,
+		Scope:             ConcurrencyScopeWorkflow,
+		Name:              workflowName,
+		WorkflowID:        &workflowId,
+		WorkflowVersionID: &workflowVersionId,
+		WorkflowName:      workflowName,
+		WorkflowVersion:   workflowVersion.String,
+		Expression:        expression,
+		Strategy:          strategy,
+		MaxRuns:           maxRuns,
+	}
+}
+
+func taskStrategySummary(id int64, workflowId, workflowVersionId uuid.UUID, workflowName string, workflowVersion pgtype.Text, taskName string, strategy sqlcv1.V1ConcurrencyStrategy, expression string, maxRuns int32, maxRunsExpression pgtype.Text) *ConcurrencyStrategySummary {
+	return &ConcurrencyStrategySummary{
+		ID:                id,
+		Scope:             ConcurrencyScopeTask,
+		Name:              taskName,
+		WorkflowID:        &workflowId,
+		WorkflowVersionID: &workflowVersionId,
+		WorkflowName:      workflowName,
+		WorkflowVersion:   workflowVersion.String,
+		TaskName:          taskName,
+		Expression:        expression,
+		Strategy:          strategy,
+		MaxRuns:           maxRuns,
+		MaxRunsExpression: textPtr(maxRunsExpression),
+	}
 }
 
 func timePtr(t pgtype.Timestamptz) *time.Time {

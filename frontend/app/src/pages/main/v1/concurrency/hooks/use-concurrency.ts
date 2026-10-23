@@ -1,5 +1,6 @@
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import { queries, V1ConcurrencyScope, V1ConcurrencyStrategy } from '@/lib/api';
+import { withPolling } from '@/lib/api/polling';
 import { useQuery } from '@tanstack/react-query';
 
 export const KEYS_PAGE_SIZE = 50;
@@ -9,8 +10,7 @@ export function useConcurrencyStrategies(tenantId: string) {
   const { refetchInterval } = useRefetchInterval();
 
   return useQuery({
-    ...queries.v1Concurrency.strategies(tenantId),
-    refetchInterval,
+    ...withPolling(queries.v1Concurrency.strategies(tenantId), refetchInterval),
     placeholderData: (prev) => prev,
   });
 }
@@ -31,19 +31,21 @@ export function useConcurrencyKeys({
   const { refetchInterval } = useRefetchInterval();
 
   return useQuery({
-    ...queries.v1Concurrency.keys(
-      tenantId,
-      strategy?.scope ?? V1ConcurrencyScope.V1ConcurrencyScopeTask,
-      strategy?.id ?? 0,
-      {
-        search: search || undefined,
-        onlyQueued: onlyQueued || undefined,
-        limit: KEYS_PAGE_SIZE,
-        offset: page * KEYS_PAGE_SIZE,
-      },
+    ...withPolling(
+      queries.v1Concurrency.keys(
+        tenantId,
+        strategy?.scope ?? V1ConcurrencyScope.V1ConcurrencyScopeTask,
+        strategy?.id ?? 0,
+        {
+          search: search || undefined,
+          onlyQueued: onlyQueued || undefined,
+          limit: KEYS_PAGE_SIZE,
+          offset: page * KEYS_PAGE_SIZE,
+        },
+      ),
+      refetchInterval,
     ),
     enabled: !!strategy,
-    refetchInterval,
     placeholderData: (prev) => prev,
   });
 }

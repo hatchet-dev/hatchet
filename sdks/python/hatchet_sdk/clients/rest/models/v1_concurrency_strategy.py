@@ -17,7 +17,7 @@ import re  # noqa: F401
 import json
 
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
 from typing_extensions import Annotated
 from hatchet_sdk.clients.rest.models.v1_concurrency_limit_strategy import (
@@ -75,6 +75,10 @@ class V1ConcurrencyStrategy(BaseModel):
         description="Tasks on their workflow's latest version that use this strategy. Only set for SHARED strategies.",
         alias="usedBy",
     )
+    is_draining: StrictBool = Field(
+        description="Whether no latest workflow version uses this strategy, and it is only listed because runs of an older version still hold or wait for its slots.",
+        alias="isDraining",
+    )
     expression: StrictStr = Field(
         description="The CEL expression that computes a run's key."
     )
@@ -117,6 +121,7 @@ class V1ConcurrencyStrategy(BaseModel):
         "workflowVersion",
         "taskName",
         "usedBy",
+        "isDraining",
         "expression",
         "limitStrategy",
         "maxRuns",
@@ -202,6 +207,7 @@ class V1ConcurrencyStrategy(BaseModel):
                     if obj.get("usedBy") is not None
                     else None
                 ),
+                "isDraining": obj.get("isDraining"),
                 "expression": obj.get("expression"),
                 "limitStrategy": obj.get("limitStrategy"),
                 "maxRuns": obj.get("maxRuns"),

@@ -8,6 +8,7 @@ import {
   strategyLocation,
   strategyRef,
 } from './concurrency-format';
+import { DrainingBadge } from './draining-badge';
 import { PaginationFooter } from './pagination-footer';
 import { RefetchIntervalDropdown } from '@/components/refetch-interval-dropdown';
 import { Skeleton } from '@/components/v1/ui/skeleton';
@@ -195,6 +196,7 @@ function StrategyRow({
           >
             {scopeLabel[s.scope]}
           </span>
+          {s.isDraining && <DrainingBadge />}
         </span>
         <span className="truncate text-xs text-muted-foreground">
           {strategyLocation(s)}

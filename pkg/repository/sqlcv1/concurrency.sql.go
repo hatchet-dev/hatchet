@@ -710,53 +710,52 @@ func (q *Queries) ListConcurrencyKeys(ctx context.Context, db DBTX, arg ListConc
 }
 
 const listConcurrencySlotStatsForTenant = `-- name: ListConcurrencySlotStatsForTenant :many
-WITH slots AS MATERIALIZED (
-    SELECT strategy_id, key, is_filled, task_inserted_at, sort_id
-    FROM v1_concurrency_slot
-    WHERE tenant_id = $1::uuid AND parent_strategy_id IS NULL
-), oldest AS (
-    SELECT DISTINCT ON (strategy_id)
-        strategy_id, key, task_inserted_at
-    FROM slots
-    WHERE NOT is_filled
-    ORDER BY strategy_id, task_inserted_at, sort_id
-), counts AS (
+WITH per_key AS (
     SELECT
         strategy_id,
-        COUNT(DISTINCT key)::BIGINT AS key_count,
-        (COUNT(DISTINCT key) FILTER (WHERE NOT is_filled))::BIGINT AS queued_key_count,
-        (COUNT(*) FILTER (WHERE is_filled))::BIGINT AS running_count,
-        (COUNT(*) FILTER (WHERE NOT is_filled))::BIGINT AS queued_count
-    FROM slots
-    GROUP BY strategy_id
+        key,
+        (ARRAY_AGG(workflow_id))[1] AS workflow_id,
+        (ARRAY_AGG(workflow_version_id))[1] AS workflow_version_id,
+        COUNT(*) FILTER (WHERE is_filled) AS running_count,
+        COUNT(*) FILTER (WHERE NOT is_filled) AS queued_count,
+        MIN(task_inserted_at) FILTER (WHERE NOT is_filled) AS oldest_queued_at
+    FROM
+        v1_concurrency_slot
+    WHERE
+        tenant_id = $1::uuid
+        AND parent_strategy_id IS NULL
+    GROUP BY
+        strategy_id, key
 )
 SELECT
-    c.strategy_id,
-    c.key_count,
-    c.queued_key_count,
-    c.running_count,
-    c.queued_count,
-    o.task_inserted_at::TIMESTAMPTZ AS oldest_queued_at,
-    COALESCE(o.key, '')::TEXT AS oldest_queued_key
+    strategy_id,
+    (ARRAY_AGG(workflow_id))[1]::UUID AS workflow_id,
+    (ARRAY_AGG(workflow_version_id))[1]::UUID AS workflow_version_id,
+    COUNT(*)::BIGINT AS key_count,
+    (COUNT(*) FILTER (WHERE queued_count > 0))::BIGINT AS queued_key_count,
+    SUM(running_count)::BIGINT AS running_count,
+    SUM(queued_count)::BIGINT AS queued_count,
+    MIN(oldest_queued_at)::TIMESTAMPTZ AS oldest_queued_at,
+    COALESCE((ARRAY_AGG(key ORDER BY oldest_queued_at, key) FILTER (WHERE queued_count > 0))[1], '')::TEXT AS oldest_queued_key
 FROM
-    counts c
-LEFT JOIN
-    oldest o ON o.strategy_id = c.strategy_id
+    per_key
+GROUP BY
+    strategy_id
 `
 
 type ListConcurrencySlotStatsForTenantRow struct {
-	StrategyID      int64              `json:"strategy_id"`
-	KeyCount        int64              `json:"key_count"`
-	QueuedKeyCount  int64              `json:"queued_key_count"`
-	RunningCount    int64              `json:"running_count"`
-	QueuedCount     int64              `json:"queued_count"`
-	OldestQueuedAt  pgtype.Timestamptz `json:"oldest_queued_at"`
-	OldestQueuedKey string             `json:"oldest_queued_key"`
+	StrategyID        int64              `json:"strategy_id"`
+	WorkflowID        uuid.UUID          `json:"workflow_id"`
+	WorkflowVersionID uuid.UUID          `json:"workflow_version_id"`
+	KeyCount          int64              `json:"key_count"`
+	QueuedKeyCount    int64              `json:"queued_key_count"`
+	RunningCount      int64              `json:"running_count"`
+	QueuedCount       int64              `json:"queued_count"`
+	OldestQueuedAt    pgtype.Timestamptz `json:"oldest_queued_at"`
+	OldestQueuedKey   string             `json:"oldest_queued_key"`
 }
 
-// Per-strategy slot counts for task-scoped and tenant strategies. Child slots of a workflow
-// strategy are excluded; see ListWorkflowConcurrencySlotStatsForTenant. A queued slot's
-// queue start is approximated by its task's insert time.
+// Per-strategy slot counts for task-scoped and tenant strategies.
 func (q *Queries) ListConcurrencySlotStatsForTenant(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*ListConcurrencySlotStatsForTenantRow, error) {
 	rows, err := db.Query(ctx, listConcurrencySlotStatsForTenant, tenantid)
 	if err != nil {
@@ -768,6 +767,8 @@ func (q *Queries) ListConcurrencySlotStatsForTenant(ctx context.Context, db DBTX
 		var i ListConcurrencySlotStatsForTenantRow
 		if err := rows.Scan(
 			&i.StrategyID,
+			&i.WorkflowID,
+			&i.WorkflowVersionID,
 			&i.KeyCount,
 			&i.QueuedKeyCount,
 			&i.RunningCount,
@@ -985,6 +986,98 @@ func (q *Queries) ListConcurrencyStrategiesByWorkflowVersionId(ctx context.Conte
 			&i.MaxConcurrency,
 			&i.TenantStrategyID,
 			&i.MaxRunsExpression,
+			&i.StepReadableID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listStepConcurrencyStrategiesByIds = `-- name: ListStepConcurrencyStrategiesByIds :many
+WITH inputs AS (
+    SELECT
+        UNNEST($2::UUID[]) AS workflow_id,
+        UNNEST($3::UUID[]) AS workflow_version_id,
+        UNNEST($4::BIGINT[]) AS id
+)
+SELECT
+    sc.id,
+    sc.workflow_id,
+    sc.workflow_version_id,
+    sc.strategy,
+    sc.expression,
+    sc.max_concurrency,
+    sc.max_runs_expression,
+    w."name" AS workflow_name,
+    wv."version" AS workflow_version,
+    (CASE WHEN s."isDagOrchestrator" THEN w."name" ELSE s."readableId" END)::TEXT AS step_readable_id
+FROM
+    inputs i
+JOIN
+    v1_step_concurrency sc ON sc.workflow_id = i.workflow_id AND sc.workflow_version_id = i.workflow_version_id AND sc.id = i.id
+JOIN
+    "Workflow" w ON w."id" = sc.workflow_id
+JOIN
+    "WorkflowVersion" wv ON wv."id" = sc.workflow_version_id
+JOIN
+    "Step" s ON s."id" = sc.step_id
+WHERE
+    sc.tenant_id = $1::uuid
+    AND sc.parent_strategy_id IS NULL
+    AND sc.tenant_strategy_id IS NULL
+`
+
+type ListStepConcurrencyStrategiesByIdsParams struct {
+	Tenantid           uuid.UUID   `json:"tenantid"`
+	Workflowids        []uuid.UUID `json:"workflowids"`
+	Workflowversionids []uuid.UUID `json:"workflowversionids"`
+	Ids                []int64     `json:"ids"`
+}
+
+type ListStepConcurrencyStrategiesByIdsRow struct {
+	ID                int64                 `json:"id"`
+	WorkflowID        uuid.UUID             `json:"workflow_id"`
+	WorkflowVersionID uuid.UUID             `json:"workflow_version_id"`
+	Strategy          V1ConcurrencyStrategy `json:"strategy"`
+	Expression        string                `json:"expression"`
+	MaxConcurrency    int32                 `json:"max_concurrency"`
+	MaxRunsExpression pgtype.Text           `json:"max_runs_expression"`
+	WorkflowName      string                `json:"workflow_name"`
+	WorkflowVersion   pgtype.Text           `json:"workflow_version"`
+	StepReadableID    string                `json:"step_readable_id"`
+}
+
+// Task-scoped strategies by primary key, for strategies on an older workflow version that
+// still have slots. The three arrays are parallel.
+func (q *Queries) ListStepConcurrencyStrategiesByIds(ctx context.Context, db DBTX, arg ListStepConcurrencyStrategiesByIdsParams) ([]*ListStepConcurrencyStrategiesByIdsRow, error) {
+	rows, err := db.Query(ctx, listStepConcurrencyStrategiesByIds,
+		arg.Tenantid,
+		arg.Workflowids,
+		arg.Workflowversionids,
+		arg.Ids,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListStepConcurrencyStrategiesByIdsRow
+	for rows.Next() {
+		var i ListStepConcurrencyStrategiesByIdsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkflowID,
+			&i.WorkflowVersionID,
+			&i.Strategy,
+			&i.Expression,
+			&i.MaxConcurrency,
+			&i.MaxRunsExpression,
+			&i.WorkflowName,
+			&i.WorkflowVersion,
 			&i.StepReadableID,
 		); err != nil {
 			return nil, err
@@ -1367,13 +1460,15 @@ func (q *Queries) ListWorkflowConcurrencyKeys(ctx context.Context, db DBTX, arg 
 }
 
 const listWorkflowConcurrencySlotStatsForTenant = `-- name: ListWorkflowConcurrencySlotStatsForTenant :many
-WITH slots AS MATERIALIZED (
+WITH per_key AS (
     SELECT
         wcs.strategy_id,
         wcs.key,
-        wcs.is_filled,
-        wcs.sort_id,
-        cs.task_inserted_at AS queued_since
+        (ARRAY_AGG(wcs.workflow_id))[1] AS workflow_id,
+        (ARRAY_AGG(wcs.workflow_version_id))[1] AS workflow_version_id,
+        COUNT(*) FILTER (WHERE wcs.is_filled) AS running_count,
+        COUNT(*) FILTER (WHERE NOT wcs.is_filled) AS queued_count,
+        MIN(cs.task_inserted_at) AS oldest_queued_at
     FROM
         v1_workflow_concurrency_slot wcs
     LEFT JOIN
@@ -1384,50 +1479,38 @@ WITH slots AS MATERIALIZED (
             AND cs.sort_id = wcs.sort_id
     WHERE
         wcs.tenant_id = $1::uuid
-), oldest AS (
-    SELECT DISTINCT ON (strategy_id)
-        strategy_id, key, queued_since
-    FROM slots
-    WHERE NOT is_filled AND queued_since IS NOT NULL
-    ORDER BY strategy_id, queued_since, sort_id
-), counts AS (
-    SELECT
-        strategy_id,
-        COUNT(DISTINCT key)::BIGINT AS key_count,
-        (COUNT(DISTINCT key) FILTER (WHERE NOT is_filled))::BIGINT AS queued_key_count,
-        (COUNT(*) FILTER (WHERE is_filled))::BIGINT AS running_count,
-        (COUNT(*) FILTER (WHERE NOT is_filled))::BIGINT AS queued_count
-    FROM slots
-    GROUP BY strategy_id
+    GROUP BY
+        wcs.strategy_id, wcs.key
 )
 SELECT
-    c.strategy_id,
-    c.key_count,
-    c.queued_key_count,
-    c.running_count,
-    c.queued_count,
-    o.queued_since::TIMESTAMPTZ AS oldest_queued_at,
-    COALESCE(o.key, '')::TEXT AS oldest_queued_key
+    strategy_id,
+    (ARRAY_AGG(workflow_id))[1]::UUID AS workflow_id,
+    (ARRAY_AGG(workflow_version_id))[1]::UUID AS workflow_version_id,
+    COUNT(*)::BIGINT AS key_count,
+    (COUNT(*) FILTER (WHERE queued_count > 0))::BIGINT AS queued_key_count,
+    SUM(running_count)::BIGINT AS running_count,
+    SUM(queued_count)::BIGINT AS queued_count,
+    MIN(oldest_queued_at)::TIMESTAMPTZ AS oldest_queued_at,
+    COALESCE((ARRAY_AGG(key ORDER BY oldest_queued_at, key) FILTER (WHERE oldest_queued_at IS NOT NULL))[1], '')::TEXT AS oldest_queued_key
 FROM
-    counts c
-LEFT JOIN
-    oldest o ON o.strategy_id = c.strategy_id
+    per_key
+GROUP BY
+    strategy_id
 `
 
 type ListWorkflowConcurrencySlotStatsForTenantRow struct {
-	StrategyID      int64              `json:"strategy_id"`
-	KeyCount        int64              `json:"key_count"`
-	QueuedKeyCount  int64              `json:"queued_key_count"`
-	RunningCount    int64              `json:"running_count"`
-	QueuedCount     int64              `json:"queued_count"`
-	OldestQueuedAt  pgtype.Timestamptz `json:"oldest_queued_at"`
-	OldestQueuedKey string             `json:"oldest_queued_key"`
+	StrategyID        int64              `json:"strategy_id"`
+	WorkflowID        uuid.UUID          `json:"workflow_id"`
+	WorkflowVersionID uuid.UUID          `json:"workflow_version_id"`
+	KeyCount          int64              `json:"key_count"`
+	QueuedKeyCount    int64              `json:"queued_key_count"`
+	RunningCount      int64              `json:"running_count"`
+	QueuedCount       int64              `json:"queued_count"`
+	OldestQueuedAt    pgtype.Timestamptz `json:"oldest_queued_at"`
+	OldestQueuedKey   string             `json:"oldest_queued_key"`
 }
 
-// Per-strategy workflow slot counts. A workflow slot has no timestamp: its sort_id is
-// copied from the child slot that created it (after_v1_concurrency_slot_insert_function),
-// so a queued slot's queue start is that child's task insert time, found with an exact
-// seek on v1_concurrency_slot_query_idx.
+// Per-strategy workflow slot counts.
 func (q *Queries) ListWorkflowConcurrencySlotStatsForTenant(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*ListWorkflowConcurrencySlotStatsForTenantRow, error) {
 	rows, err := db.Query(ctx, listWorkflowConcurrencySlotStatsForTenant, tenantid)
 	if err != nil {
@@ -1439,12 +1522,96 @@ func (q *Queries) ListWorkflowConcurrencySlotStatsForTenant(ctx context.Context,
 		var i ListWorkflowConcurrencySlotStatsForTenantRow
 		if err := rows.Scan(
 			&i.StrategyID,
+			&i.WorkflowID,
+			&i.WorkflowVersionID,
 			&i.KeyCount,
 			&i.QueuedKeyCount,
 			&i.RunningCount,
 			&i.QueuedCount,
 			&i.OldestQueuedAt,
 			&i.OldestQueuedKey,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkflowConcurrencyStrategiesByIds = `-- name: ListWorkflowConcurrencyStrategiesByIds :many
+WITH inputs AS (
+    SELECT
+        UNNEST($2::UUID[]) AS workflow_id,
+        UNNEST($3::UUID[]) AS workflow_version_id,
+        UNNEST($4::BIGINT[]) AS id
+)
+SELECT
+    wc.id,
+    wc.workflow_id,
+    wc.workflow_version_id,
+    wc.strategy,
+    wc.expression,
+    wc.max_concurrency,
+    w."name" AS workflow_name,
+    wv."version" AS workflow_version
+FROM
+    inputs i
+JOIN
+    v1_workflow_concurrency wc ON wc.workflow_id = i.workflow_id AND wc.workflow_version_id = i.workflow_version_id AND wc.id = i.id
+JOIN
+    "Workflow" w ON w."id" = wc.workflow_id
+JOIN
+    "WorkflowVersion" wv ON wv."id" = wc.workflow_version_id
+WHERE
+    wc.tenant_id = $1::uuid
+`
+
+type ListWorkflowConcurrencyStrategiesByIdsParams struct {
+	Tenantid           uuid.UUID   `json:"tenantid"`
+	Workflowids        []uuid.UUID `json:"workflowids"`
+	Workflowversionids []uuid.UUID `json:"workflowversionids"`
+	Ids                []int64     `json:"ids"`
+}
+
+type ListWorkflowConcurrencyStrategiesByIdsRow struct {
+	ID                int64                 `json:"id"`
+	WorkflowID        uuid.UUID             `json:"workflow_id"`
+	WorkflowVersionID uuid.UUID             `json:"workflow_version_id"`
+	Strategy          V1ConcurrencyStrategy `json:"strategy"`
+	Expression        string                `json:"expression"`
+	MaxConcurrency    int32                 `json:"max_concurrency"`
+	WorkflowName      string                `json:"workflow_name"`
+	WorkflowVersion   pgtype.Text           `json:"workflow_version"`
+}
+
+// Workflow-scoped strategies by primary key, for strategies on an older workflow version
+// that still have slots. The three arrays are parallel.
+func (q *Queries) ListWorkflowConcurrencyStrategiesByIds(ctx context.Context, db DBTX, arg ListWorkflowConcurrencyStrategiesByIdsParams) ([]*ListWorkflowConcurrencyStrategiesByIdsRow, error) {
+	rows, err := db.Query(ctx, listWorkflowConcurrencyStrategiesByIds,
+		arg.Tenantid,
+		arg.Workflowids,
+		arg.Workflowversionids,
+		arg.Ids,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListWorkflowConcurrencyStrategiesByIdsRow
+	for rows.Next() {
+		var i ListWorkflowConcurrencyStrategiesByIdsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkflowID,
+			&i.WorkflowVersionID,
+			&i.Strategy,
+			&i.Expression,
+			&i.MaxConcurrency,
+			&i.WorkflowName,
+			&i.WorkflowVersion,
 		); err != nil {
 			return nil, err
 		}

@@ -23,6 +23,9 @@ module HatchetSdkRest
     # The shared strategy's name, the workflow name for WORKFLOW strategies, or the task name for TASK strategies.
     attr_accessor :name
 
+    # Whether no latest workflow version uses this strategy, and it is only listed because runs of an older version still hold or wait for its slots.
+    attr_accessor :is_draining
+
     # The CEL expression that computes a run's key.
     attr_accessor :expression
 
@@ -98,6 +101,7 @@ module HatchetSdkRest
         :'id' => :'id',
         :'scope' => :'scope',
         :'name' => :'name',
+        :'is_draining' => :'isDraining',
         :'expression' => :'expression',
         :'limit_strategy' => :'limitStrategy',
         :'max_runs' => :'maxRuns',
@@ -133,6 +137,7 @@ module HatchetSdkRest
         :'id' => :'Integer',
         :'scope' => :'V1ConcurrencyScope',
         :'name' => :'String',
+        :'is_draining' => :'Boolean',
         :'expression' => :'String',
         :'limit_strategy' => :'V1ConcurrencyLimitStrategy',
         :'max_runs' => :'Integer',
@@ -190,6 +195,12 @@ module HatchetSdkRest
         self.name = attributes[:'name']
       else
         self.name = nil
+      end
+
+      if attributes.key?(:'is_draining')
+        self.is_draining = attributes[:'is_draining']
+      else
+        self.is_draining = nil
       end
 
       if attributes.key?(:'expression')
@@ -290,6 +301,10 @@ module HatchetSdkRest
         invalid_properties.push('invalid value for "name", name cannot be nil.')
       end
 
+      if @is_draining.nil?
+        invalid_properties.push('invalid value for "is_draining", is_draining cannot be nil.')
+      end
+
       if @expression.nil?
         invalid_properties.push('invalid value for "expression", expression cannot be nil.')
       end
@@ -344,6 +359,7 @@ module HatchetSdkRest
       return false if @id.nil?
       return false if @scope.nil?
       return false if @name.nil?
+      return false if @is_draining.nil?
       return false if @expression.nil?
       return false if @limit_strategy.nil?
       return false if @max_runs.nil?
@@ -386,6 +402,16 @@ module HatchetSdkRest
       end
 
       @name = name
+    end
+
+    # Custom attribute writer method with validation
+    # @param [Object] is_draining Value to be assigned
+    def is_draining=(is_draining)
+      if is_draining.nil?
+        fail ArgumentError, 'is_draining cannot be nil'
+      end
+
+      @is_draining = is_draining
     end
 
     # Custom attribute writer method with validation
@@ -502,6 +528,7 @@ module HatchetSdkRest
           id == o.id &&
           scope == o.scope &&
           name == o.name &&
+          is_draining == o.is_draining &&
           expression == o.expression &&
           limit_strategy == o.limit_strategy &&
           max_runs == o.max_runs &&
@@ -529,7 +556,7 @@ module HatchetSdkRest
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [id, scope, name, expression, limit_strategy, max_runs, key_count, queued_key_count, running_count, queued_count, workflow_id, workflow_name, workflow_version_id, workflow_version, task_name, used_by, max_runs_expression, oldest_queued_at, oldest_queued_key].hash
+      [id, scope, name, is_draining, expression, limit_strategy, max_runs, key_count, queued_key_count, running_count, queued_count, workflow_id, workflow_name, workflow_version_id, workflow_version, task_name, used_by, max_runs_expression, oldest_queued_at, oldest_queued_key].hash
     end
 
     # Builds the object from hash

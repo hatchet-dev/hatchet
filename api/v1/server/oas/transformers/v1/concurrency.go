@@ -19,6 +19,7 @@ func ToV1ConcurrencyStrategy(s *repository.ConcurrencyStrategySummary) gen.V1Con
 		LimitStrategy:     gen.V1ConcurrencyLimitStrategy(s.Strategy),
 		MaxRuns:           s.MaxRuns,
 		MaxRunsExpression: s.MaxRunsExpression,
+		IsDraining:        s.IsDraining,
 		KeyCount:          s.KeyCount,
 		QueuedKeyCount:    s.QueuedKeyCount,
 		RunningCount:      s.RunningCount,
