@@ -122,13 +122,41 @@ func TestTasksForDispatchFromRows(t *testing.T) {
 
 	require.NotNil(t, res.Runtimes[3])
 	assert.Nil(t, res.Runtimes[3].WorkerID)
+
+	// three tasks sharing one payload_reference_id: each task's statement returns its own copy of the
+	// owner's row, and the copies are kept as one payload row
+	sharedRows := make([]*sqlcv1.ListTasksForDispatchRow, 0, 3)
+
+	for _, taskId := range []int64{10, 11, 12} {
+		sharedRows = append(sharedRows, &sqlcv1.ListTasksForDispatchRow{
+			V1Task:               sqlcv1.V1Task{ID: taskId, InsertedAt: insertedAt, TenantID: tenantId, PayloadReferenceID: &referenceId},
+			RuntimeTimeoutAt:     timeoutAt,
+			PayloadID:            pgtype.Int8{Int64: 99, Valid: true},
+			PayloadInsertedAt:    ownerInsertedAt,
+			PayloadExternalID:    &referenceId,
+			PayloadType:          sqlcv1.NullV1PayloadType{V1PayloadType: sqlcv1.V1PayloadTypeUSEREVENTINPUT, Valid: true},
+			PayloadLocation:      sqlcv1.NullV1PayloadLocation{V1PayloadLocation: sqlcv1.V1PayloadLocationINLINE, Valid: true},
+			PayloadInlineContent: []byte(`{"b":2}`),
+			PayloadUpdatedAt:     ownerInsertedAt,
+		})
+	}
+
+	shared := tasksForDispatchFromRows(sharedRows)
+
+	require.Len(t, shared.Tasks, 3)
+	require.Len(t, shared.Runtimes, 3)
+	require.Len(t, shared.PayloadRows, 1, "a payload row shared by several tasks is kept once")
+	assert.Equal(t, int64(99), shared.PayloadRows[0].ID)
+	assert.Equal(t, referenceId, shared.PayloadRows[0].ExternalID)
+	assert.Equal(t, []byte(`{"b":2}`), shared.PayloadRows[0].InlineContent)
 }
 
 // TestListTasksForDispatchMatchesThreeReadPath checks, for every combination of the payload store flags,
 // that the dispatcher's single read plus Resolve yields the same task rows, runtime rows, inputs and
 // step run data bytes as ListTasks + Retrieve + ListTaskRuntimes for:
 //   - a task with its own TASK_INPUT row
-//   - a task whose payload_reference_id points at a USER_EVENT_INPUT row owned by an event
+//   - two tasks, from two workflows on one event, whose payload_reference_id points at the event's
+//     USER_EVENT_INPUT row, which the single read returns once
 //   - a task whose payload_reference_id points at a DAG_INPUT row owned by its DAG
 //   - a task with an empty input
 //
@@ -168,8 +196,12 @@ func assertDispatchReadMatchesThreeReadPath(t *testing.T, wrapTaskInputInStepRun
 
 	const eventKey = "dispatch-reads:event"
 
+	// two workflows on one event key: their tasks share the event's USER_EVENT_INPUT row
 	eventWorkflow := minimalWorkflowOpts("dispatch-reads-event", "v1", nil)
 	eventWorkflow.EventTriggers = []string{eventKey}
+
+	secondEventWorkflow := minimalWorkflowOpts("dispatch-reads-event-2", "v1", nil)
+	secondEventWorkflow.EventTriggers = []string{eventKey}
 
 	dagWorkflow := minimalWorkflowOpts("dispatch-reads-dag", "v1", nil)
 	dagWorkflow.Tasks = append(dagWorkflow.Tasks, CreateStepOpts{
@@ -182,6 +214,7 @@ func assertDispatchReadMatchesThreeReadPath(t *testing.T, wrapTaskInputInStepRun
 		minimalWorkflowOpts("dispatch-reads-single", "v1", nil),
 		minimalWorkflowOpts("dispatch-reads-empty", "v1", nil),
 		eventWorkflow,
+		secondEventWorkflow,
 		dagWorkflow,
 	} {
 		_, err := workflows.PutWorkflowVersion(ctx, internalTenantId, opts)
@@ -251,19 +284,29 @@ func assertDispatchReadMatchesThreeReadPath(t *testing.T, wrapTaskInputInStepRun
 		PayloadReferenceId: eventPayloadReferenceId,
 	}})
 	require.NoError(t, err)
-	require.Len(t, eventRes.Tasks, 1)
+	require.Len(t, eventRes.Tasks, 2, "both workflows on the event key create a task")
 
-	eventTask := eventRes.Tasks[0]
-	expectedInputs[eventTask.ID] = `{"order_id": 2}`
+	eventTasks := eventRes.Tasks
+	eventTask := eventTasks[0]
+
+	for _, task := range eventTasks {
+		expectedInputs[task.ID] = `{"order_id": 2}`
+	}
 
 	assert.Nil(t, ownRowTask.PayloadReferenceID, "a single task triggered by name stores its own row")
 
 	if enablePayloadConsolidation {
-		require.NotNil(t, eventTask.PayloadReferenceID, "the event task must read the event's USER_EVENT_INPUT row")
-		assert.Equal(t, *eventPayloadReferenceId, *eventTask.PayloadReferenceID)
+		for _, task := range eventTasks {
+			require.NotNil(t, task.PayloadReferenceID, "an event task must read the event's USER_EVENT_INPUT row")
+			assert.Equal(t, *eventPayloadReferenceId, *task.PayloadReferenceID)
+		}
+
 		require.NotNil(t, dagTask.PayloadReferenceID, "the dag task must read the dag's DAG_INPUT row")
 	} else {
-		assert.Nil(t, eventTask.PayloadReferenceID)
+		for _, task := range eventTasks {
+			assert.Nil(t, task.PayloadReferenceID)
+		}
+
 		assert.Nil(t, dagTask.PayloadReferenceID)
 	}
 
@@ -278,7 +321,7 @@ func assertDispatchReadMatchesThreeReadPath(t *testing.T, wrapTaskInputInStepRun
 	}
 
 	workerId := uuid.New()
-	dispatchedTasks := []*V1TaskWithPayload{ownRowTask, emptyTask, dagTask, eventTask}
+	dispatchedTasks := append([]*V1TaskWithPayload{ownRowTask, emptyTask, dagTask}, eventTasks...)
 
 	for _, task := range dispatchedTasks {
 		insertRuntime(task, workerId, internalTenantId)
@@ -293,7 +336,7 @@ func assertDispatchReadMatchesThreeReadPath(t *testing.T, wrapTaskInputInStepRun
 	// runtime row: the runtime match applies the tenant predicate ListTaskRuntimes applies
 	insertRuntime(foreignRuntimeTask, uuid.New(), uuid.New())
 
-	allTasks := []*V1TaskWithPayload{ownRowTask, foreignRuntimeTask, releasedTask, emptyTask, dagTask, eventTask}
+	allTasks := append([]*V1TaskWithPayload{ownRowTask, foreignRuntimeTask, releasedTask, emptyTask, dagTask}, eventTasks...)
 	taskIds := make([]int64, 0, len(allTasks))
 
 	for _, task := range allTasks {
@@ -331,7 +374,7 @@ func assertDispatchReadMatchesThreeReadPath(t *testing.T, wrapTaskInputInStepRun
 	require.NoError(t, err)
 
 	// the comparison below is only meaningful if the three-read path found the stored rows
-	for _, task := range []*V1TaskWithPayload{ownRowTask, dagTask, eventTask} {
+	for _, task := range append([]*V1TaskWithPayload{ownRowTask, dagTask}, eventTasks...) {
 		require.Contains(t, retrieved, dispatchTestPayloadRef(task.V1Task), "the three-read path must find the input of task %d", task.ID)
 	}
 
@@ -386,9 +429,11 @@ func assertDispatchReadMatchesThreeReadPath(t *testing.T, wrapTaskInputInStepRun
 
 	// the joined payload rows are the real rows: the task's own TASK_INPUT row, or the owner's row
 	payloadRowsByExternalId := make(map[uuid.UUID]*sqlcv1.V1Payload)
+	payloadRowCountByExternalId := make(map[uuid.UUID]int)
 
 	for _, row := range dispatchData.PayloadRows {
 		payloadRowsByExternalId[row.ExternalID] = row
+		payloadRowCountByExternalId[row.ExternalID]++
 	}
 
 	ownRow, ok := payloadRowsByExternalId[ownRowTask.ExternalID]
@@ -401,6 +446,7 @@ func assertDispatchReadMatchesThreeReadPath(t *testing.T, wrapTaskInputInStepRun
 		require.True(t, ok, "the event task must join to the event's row")
 		assert.Equal(t, sqlcv1.V1PayloadTypeUSEREVENTINPUT, eventOwnerRow.Type)
 		assert.NotEqual(t, eventTask.ID, eventOwnerRow.ID)
+		assert.Equal(t, 1, payloadRowCountByExternalId[*eventTask.PayloadReferenceID], "the event's row shared by two tasks is returned once")
 
 		dagOwnerRow, ok := payloadRowsByExternalId[*dagTask.PayloadReferenceID]
 		require.True(t, ok, "the dag task must join to the dag's row")

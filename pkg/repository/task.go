@@ -1514,8 +1514,10 @@ func (r *TaskRepositoryImpl) ListTasksForDispatch(ctx context.Context, tenantId 
 }
 
 // tasksForDispatchFromRows splits the joined rows back into their three parts. A task appears once per
-// payload row read_payloads returned for it, so the task and runtime are taken from its first row and
-// every payload row is kept.
+// payload row read_payloads returned for it, so the task and runtime are taken from its first row. Each
+// task's statement returns its own copy of a payload row shared through a payload_reference_id, so a
+// payload row is kept once by its key: Resolve maps every referrer onto each row it is given, and a
+// repeated copy would repeat that mapping for every task sharing the row.
 func tasksForDispatchFromRows(rows []*sqlcv1.ListTasksForDispatchRow) *TasksForDispatch {
 	res := &TasksForDispatch{
 		Tasks:       make([]*sqlcv1.V1Task, 0, len(rows)),
@@ -1524,6 +1526,7 @@ func tasksForDispatchFromRows(rows []*sqlcv1.ListTasksForDispatchRow) *TasksForD
 	}
 
 	seenTasks := make(map[int64]struct{}, len(rows))
+	seenPayloadRows := make(map[PayloadUniqueKey]struct{}, len(rows))
 
 	for _, row := range rows {
 		if row == nil {
@@ -1549,7 +1552,12 @@ func tasksForDispatchFromRows(rows []*sqlcv1.ListTasksForDispatchRow) *TasksForD
 				payloadRow.ExternalID = *row.PayloadExternalID
 			}
 
-			res.PayloadRows = append(res.PayloadRows, payloadRow)
+			key := payloadUniqueKeyFromRow(payloadRow)
+
+			if _, seen := seenPayloadRows[key]; !seen {
+				seenPayloadRows[key] = struct{}{}
+				res.PayloadRows = append(res.PayloadRows, payloadRow)
+			}
 		}
 
 		if _, seen := seenTasks[task.ID]; seen {
