@@ -190,3 +190,38 @@ func TestCreateNewWorkerMetersOperatorWorkers(t *testing.T) {
 		assert.ErrorIs(t, err, ErrResourceExhausted)
 	})
 }
+
+func TestGetLimitsCountsOnlyTheTenantsWorkerSlots(t *testing.T) {
+	pool := workerActionsPool(t)
+	ctx := context.Background()
+	repo, limits := createMeteredWorkerRepositoryForTest(t, pool)
+	dispatcherId := seedDispatcherForLimits(t, ctx, pool)
+
+	tenantId := createLimitTestTenant(t, pool)
+	otherTenantId := createLimitTestTenant(t, pool)
+
+	for id, slots := range map[uuid.UUID]int32{tenantId: 3, otherTenantId: 5} {
+		require.NoError(t, limits.UpdateLimits(ctx, id, []Limit{
+			{Resource: sqlcv1.LimitResourceWORKER, Limit: 10},
+			{Resource: sqlcv1.LimitResourceWORKERSLOT, Limit: 100},
+		}))
+
+		worker, err := repo.CreateNewWorker(ctx, id, &CreateWorkerOpts{DispatcherId: dispatcherId, Name: "sdk", SlotConfig: map[string]int32{SlotTypeDefault: slots}})
+		require.NoError(t, err)
+
+		_, err = pool.Exec(ctx, `UPDATE "Worker" SET "isActive" = true, "lastHeartbeatAt" = now() WHERE "id" = $1`, worker.ID)
+		require.NoError(t, err)
+	}
+
+	got, err := limits.GetLimits(ctx, tenantId)
+	require.NoError(t, err)
+
+	for _, l := range got {
+		if l.Resource == sqlcv1.LimitResourceWORKERSLOT {
+			assert.EqualValues(t, 3, l.Value)
+			return
+		}
+	}
+
+	t.Fatal("GetLimits returned no WORKER_SLOT limit")
+}
