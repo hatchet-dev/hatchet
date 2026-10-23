@@ -14,6 +14,10 @@ from examples.batch_assign.worker import (
     child,
     child_batch,
 )
+from examples.bug_tests.dag_cancel_if_missing_output_key.worker import (
+    cancel_if_missing_output_key_dag,
+)
+from examples.bug_tests.dag_parent_returns_none.worker import parent_returns_none_dag
 from examples.bug_tests.dag_replay_twice.worker import dag_replay_twice
 from examples.bug_tests.durable_callback_ordering.worker import (
     callback_ordering_leaf,
@@ -278,6 +282,8 @@ def main() -> None:
             concurrency_cancel_in_progress_task_level_workflow,
             di_workflow,
             payload_initial_cancel_bug_workflow,
+            cancel_if_missing_output_key_dag,
+            parent_returns_none_dag,
             dag_replay_twice,
             run_detail_test_workflow,
             lifespan_task,
