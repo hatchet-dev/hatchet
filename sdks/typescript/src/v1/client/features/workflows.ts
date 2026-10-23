@@ -1,6 +1,7 @@
 import { BaseWorkflowDeclaration, WorkflowDefinition } from '@hatchet/v1';
 import type { LegacyWorkflow } from '@hatchet/legacy/legacy-transformer';
 import { isLegacyWorkflow, warnLegacyWorkflow } from '@hatchet/legacy/legacy-workflow';
+import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { isValidUUID } from '@util/uuid';
 import {
   WorkflowPauseScheduledCronRunQueueBehavior,
@@ -47,6 +48,8 @@ export const workflowNameString = (
 export class WorkflowsClient {
   api: RestApi;
   tenantId: string;
+  /** Prefixed onto workflow names the way registration prefixes them; a name already carrying it is left as is. */
+  namespace: string | undefined;
   // Add a cache for workflows
   private workflowCache: Map<string, { workflow: any; expiry: number }> = new Map();
   // Default cache TTL: 5 minutes (in ms)
@@ -55,6 +58,7 @@ export class WorkflowsClient {
   constructor(client: RestClientDeps, cacheTTL?: number) {
     this.api = client.api;
     this.tenantId = client.tenantId;
+    this.namespace = client.config?.namespace;
     // Allow custom cache TTL if provided
     if (cacheTTL !== undefined) {
       this.cacheTTL = cacheTTL;
@@ -101,8 +105,8 @@ export class WorkflowsClient {
    * @returns A promise that resolves to the workflow.
    */
   async get(workflow: string | BaseWorkflowDeclaration<any, any> | LegacyWorkflow) {
-    // Get workflow name string
-    const name = workflowNameString(workflow);
+    // the name as registered: the client's namespace in front, unless it is already there
+    const name = applyNamespace(workflowNameString(workflow), this.namespace);
 
     // Check cache first
     const cached = this.workflowCache.get(name);

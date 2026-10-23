@@ -74,6 +74,38 @@ function fakeApi() {
 const workflowRow = { metadata: { id: WORKFLOW_ID }, name: 'greet' };
 
 describe('core REST base URL', () => {
+  it("strips trailing slashes from the token's server_url claim", async () => {
+    const api = fakeApi();
+    const client = new HatchetCore({
+      token: makeToken({
+        sub: TENANT_ID,
+        server_url: 'https://app.example.com///',
+        grpc_broadcast_address: 'app.example.com:443',
+      }),
+      fetch: api.fetch,
+    });
+
+    await client.api.infoGetVersion();
+
+    expect(client.config.apiUrl).toBe('https://app.example.com');
+    expect(api.requests[0].url.href).toBe('https://app.example.com/api/v1/version');
+  });
+
+  it("applies the client's namespace to workflow lookups and leaves a prefixed name alone", async () => {
+    const api = fakeApi();
+    api.reply({ rows: [{ metadata: { id: 'wf-1' }, name: 'prod_greet' }] });
+    const client = new HatchetCore({ token: TOKEN, namespace: 'prod', fetch: api.fetch });
+
+    const byShortName = await client.workflows.get('greet');
+    // the prefixed name resolves to the same cached entry, so nothing else is fetched
+    const byFullName = await client.workflows.get('prod_greet');
+
+    expect(byShortName.metadata.id).toBe('wf-1');
+    expect(byFullName.metadata.id).toBe('wf-1');
+    expect(api.requests).toHaveLength(1);
+    expect(api.requests[0].url.searchParams.get('name')).toBe('prod_greet');
+  });
+
   it("defaults to the token's server_url claim and sends the token as a bearer", async () => {
     const api = fakeApi();
     const client = new HatchetCore({ token: TOKEN, fetch: api.fetch });
