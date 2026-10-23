@@ -4,6 +4,7 @@ import (
 	"context"
 	"runtime"
 	"sync"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -27,7 +28,10 @@ type connHold struct {
 func newConn(inner *pgxpool.Conn, slot *slotHold) *Conn {
 	hold := &connHold{inner: inner, slot: slot}
 	c := &Conn{hold: hold}
-	c.stop = runtime.AddCleanup(c, func(h *connHold) { h.releaseConn() }, hold)
+	c.stop = runtime.AddCleanup(c, func(h *connHold) {
+		h.slot.leaked("conn")
+		h.releaseConn()
+	}, hold)
 
 	return c
 }
@@ -126,14 +130,15 @@ func (c *Conn) Conn() *pgx.Conn {
 }
 
 type rowsHold struct {
-	rows    pgx.Rows
-	release func()
-	once    sync.Once
+	rows pgx.Rows
+	conn *pgxpool.Conn
+	slot *slotHold
+	once sync.Once
 }
 
 func (h *rowsHold) finish() {
 	h.once.Do(func() {
-		defer h.release()
+		defer releaseCheckedOut(h.slot, h.conn.Release)
 		h.rows.Close()
 	})
 }
@@ -144,10 +149,15 @@ type gatingRows struct {
 	stop runtime.Cleanup
 }
 
-func newGatingRows(rows pgx.Rows, release func()) pgx.Rows {
-	hold := &rowsHold{rows: rows, release: release}
+func newGatingRows(rows pgx.Rows, conn *pgxpool.Conn, slot *slotHold) pgx.Rows {
+	hold := &rowsHold{rows: rows, conn: conn, slot: slot}
 	g := &gatingRows{Rows: rows, hold: hold}
-	g.stop = runtime.AddCleanup(g, func(h *rowsHold) { h.finish() }, hold)
+	g.stop = runtime.AddCleanup(g, func(h *rowsHold) {
+		go func() {
+			h.slot.leaked("rows")
+			h.finish()
+		}()
+	}, hold)
 
 	return g
 }
@@ -192,18 +202,9 @@ func (g *gatingRows) Values() ([]any, error) {
 
 type gatingRow struct {
 	rows pgx.Rows
-	stop runtime.Cleanup
-}
-
-func newGatingRow(rows pgx.Rows) *gatingRow {
-	r := &gatingRow{rows: rows}
-	r.stop = runtime.AddCleanup(r, func(rows pgx.Rows) { rows.Close() }, rows)
-
-	return r
 }
 
 func (r *gatingRow) Scan(dest ...any) error {
-	r.stop.Stop()
 	defer r.rows.Close()
 
 	if !r.rows.Next() {
@@ -226,6 +227,8 @@ func (r *gatingRow) Scan(dest ...any) error {
 	return err
 }
 
+const abandonedTxRollbackTimeout = 15 * time.Second
+
 type txHold struct {
 	tx   pgx.Tx
 	slot *slotHold
@@ -233,7 +236,7 @@ type txHold struct {
 }
 
 func (h *txHold) finish(ctx context.Context, commit bool) error {
-	var err error
+	err := pgx.ErrTxClosed
 
 	h.once.Do(func() {
 		defer h.slot.release()
@@ -260,7 +263,15 @@ func newGatingTx(tx pgx.Tx, slot *slotHold) pgx.Tx {
 	g := &gatingTx{Tx: tx, hold: hold}
 	// An abandoned transaction still occupies a pool connection. Roll it back
 	// once nothing references it so the slot does not stick for the process lifetime.
-	g.stop = runtime.AddCleanup(g, func(h *txHold) { _ = h.finish(context.Background(), false) }, hold)
+	g.stop = runtime.AddCleanup(g, func(h *txHold) {
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), abandonedTxRollbackTimeout)
+			defer cancel()
+
+			h.slot.leaked("tx")
+			_ = h.finish(ctx, false)
+		}()
+	}, hold)
 
 	return g
 }
@@ -277,19 +288,19 @@ func (g *gatingTx) Rollback(ctx context.Context) error {
 
 type batchHold struct {
 	results pgx.BatchResults
-	release func()
+	conn    *pgxpool.Conn
+	slot    *slotHold
 	once    sync.Once
+	err     error
 }
 
 func (h *batchHold) close() error {
-	var err error
-
 	h.once.Do(func() {
-		defer h.release()
-		err = h.results.Close()
+		defer releaseCheckedOut(h.slot, h.conn.Release)
+		h.err = h.results.Close()
 	})
 
-	return err
+	return h.err
 }
 
 type gatingBatch struct {
@@ -298,10 +309,15 @@ type gatingBatch struct {
 	stop runtime.Cleanup
 }
 
-func newGatingBatch(results pgx.BatchResults, release func()) pgx.BatchResults {
-	hold := &batchHold{results: results, release: release}
+func newGatingBatch(results pgx.BatchResults, conn *pgxpool.Conn, slot *slotHold) pgx.BatchResults {
+	hold := &batchHold{results: results, conn: conn, slot: slot}
 	g := &gatingBatch{BatchResults: results, hold: hold}
-	g.stop = runtime.AddCleanup(g, func(h *batchHold) { _ = h.close() }, hold)
+	g.stop = runtime.AddCleanup(g, func(h *batchHold) {
+		go func() {
+			h.slot.leaked("batch")
+			_ = h.close()
+		}()
+	}, hold)
 
 	return g
 }
