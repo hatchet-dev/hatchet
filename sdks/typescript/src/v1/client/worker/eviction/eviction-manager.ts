@@ -34,6 +34,7 @@ export class DurableEvictionManager {
 
   private _timer: ReturnType<typeof setInterval> | undefined;
   private _ticking = false;
+  private _shuttingDown = false;
 
   constructor(opts: {
     durableSlots: number;
@@ -80,8 +81,17 @@ export class DurableEvictionManager {
     this._cache.unregisterRun(key);
   }
 
+  // A run that enters a wait after evictAllWaiting took its snapshot (typically
+  // because it was still awaiting the engine's ack for the wait registration)
+  // would otherwise sit in the wait until the worker process dies and the
+  // engine reassigns it as a failure, so it is evicted as soon as it registers.
   markWaiting(key: ActionKey, waitKind: string, resourceId: string): void {
     this._cache.markWaiting(key, Date.now(), waitKind, resourceId);
+
+    if (!this._shuttingDown) return;
+    const rec = this._cache.get(key);
+    if (!rec) return;
+    void this._evictForShutdown(rec);
   }
 
   markActive(key: ActionKey): void {
@@ -154,34 +164,37 @@ export class DurableEvictionManager {
 
   async evictAllWaiting(): Promise<number> {
     this.stop();
+    this._shuttingDown = true;
 
     const waiting = this._cache.getAllWaiting();
-    let evicted = 0;
 
     for (const rec of waiting) {
-      rec.evictionReason = buildEvictionReason(EvictionCause.WORKER_SHUTDOWN, rec);
-
-      this._logger.debug(
-        `DurableEvictionManager: shutdown-evicting task_run_external_id=${rec.taskRunExternalId} ` +
-          `wait_kind=${rec.waitKind}`
-      );
-
-      try {
-        await this._requestEvictionWithAck(rec.key, rec);
-      } catch (err: unknown) {
-        this._logger.error(
-          `DurableEvictionManager: failed to send eviction for ` +
-            `task_run_external_id=${rec.taskRunExternalId}: ${getErrorMessage(err)}`
-        );
-      }
-
-      // Always cancel locally even if the server ACK failed, so the
-      // future settles and exitGracefully doesn't hang.
-      // This will get resolved by the reassignment of the task.
-      this._evictRun(rec.key, rec.invocationCount);
-      evicted++;
+      await this._evictForShutdown(rec);
     }
 
-    return evicted;
+    return waiting.length;
+  }
+
+  private async _evictForShutdown(rec: DurableRunRecord): Promise<void> {
+    rec.evictionReason = buildEvictionReason(EvictionCause.WORKER_SHUTDOWN, rec);
+
+    this._logger.debug(
+      `DurableEvictionManager: shutdown-evicting task_run_external_id=${rec.taskRunExternalId} ` +
+        `wait_kind=${rec.waitKind}`
+    );
+
+    try {
+      await this._requestEvictionWithAck(rec.key, rec);
+    } catch (err: unknown) {
+      this._logger.error(
+        `DurableEvictionManager: failed to send eviction for ` +
+          `task_run_external_id=${rec.taskRunExternalId}: ${getErrorMessage(err)}`
+      );
+    }
+
+    // Always cancel locally even if the server ACK failed, so the
+    // future settles and exitGracefully doesn't hang.
+    // This will get resolved by the reassignment of the task.
+    this._evictRun(rec.key, rec.invocationCount);
   }
 }
