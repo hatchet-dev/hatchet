@@ -10,7 +10,7 @@ import json
 
 from pydantic import BaseModel
 
-from hatchet_sdk import Context, DurableContext, EmptyModel, Hatchet
+from hatchet_sdk import Context, DurableContext, Hatchet
 
 
 class CronInput(BaseModel):
@@ -43,7 +43,7 @@ def test_cron_input_unset_when_not_provided(hatchet: Hatchet) -> None:
     )
 
     @workflow.task()
-    def step(input: EmptyModel, ctx: Context) -> dict[str, str]:
+    def step(input: None, ctx: Context) -> dict[str, str]:
         return {}
 
     assert not workflow.to_proto().HasField("cron_input")

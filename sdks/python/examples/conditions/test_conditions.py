@@ -17,7 +17,7 @@ from examples.conditions.worker import (
     wait_for_event_only_workflow,
 )
 from examples.test_utils import wait_for_running_status
-from hatchet_sdk import Hatchet, RunStatus, V1TaskStatus
+from hatchet_sdk import Hatchet, RunStatus
 
 
 async def _wait_for_task_to_complete(
@@ -31,7 +31,7 @@ async def _wait_for_task_to_complete(
 
         # a task's display name is "<step readable id>-<unix timestamp>"
         if any(
-            t.status == V1TaskStatus.COMPLETED
+            t.status == RunStatus.COMPLETED
             and t.display_name.startswith(f"{task_name}-")
             for t in details.tasks
         ):
@@ -55,8 +55,8 @@ async def test_waits(hatchet: Hatchet) -> None:
     # Push twice: the read model can show start COMPLETED just before the engine
     # registers the match, and an unmatched event is dropped silently.
     for _ in range(2):
-        await hatchet.event.aio_push("skip_on_event:skip", {})
-        await hatchet.event.aio_push("wait_for_event:start", {})
+        await hatchet.events.aio_push("skip_on_event:skip", {})
+        await hatchet.events.aio_push("wait_for_event:start", {})
         await asyncio.sleep(2)
 
     result = await ref.aio_result()
@@ -124,7 +124,7 @@ async def test_skip_if_sleep_runs_when_event_wins(hatchet: Hatchet) -> None:
     # engine registers sis_target's match condition, and an unmatched event is
     # dropped silently. Both pushes land well inside the 12s skip_if sleep.
     for _ in range(2):
-        await hatchet.event.aio_push("skip_if_sleep:proceed", {})
+        await hatchet.events.aio_push("skip_if_sleep:proceed", {})
         await asyncio.sleep(2)
 
     result = await ref.aio_result()
@@ -150,7 +150,7 @@ async def test_cancel_if_user_event(hatchet: Hatchet) -> None:
     # cie_target's cancel_if match condition, and an unmatched event is dropped
     # silently. Both pushes land well inside the 30s wait_for sleep.
     for _ in range(2):
-        await hatchet.event.aio_push("cancel_if_event:abort", {})
+        await hatchet.events.aio_push("cancel_if_event:abort", {})
         await asyncio.sleep(3)
 
     await ref.aio_result()
@@ -185,7 +185,7 @@ async def test_wait_for_user_event(hatchet: Hatchet) -> None:
 
     await wait_for_running_status(hatchet, ref.workflow_run_id)
     await asyncio.sleep(2)
-    await hatchet.event.aio_push("wait_for_event_only:go", {})
+    await hatchet.events.aio_push("wait_for_event_only:go", {})
 
     result = await ref.aio_result()
 

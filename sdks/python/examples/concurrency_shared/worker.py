@@ -3,8 +3,7 @@ import time
 from pydantic import BaseModel
 
 from hatchet_sdk import (
-    ConcurrencyExpression,
-    ConcurrencyLimitStrategy,
+    ConcurrencyStrategy,
     Context,
     Hatchet,
 )
@@ -36,10 +35,10 @@ def run_window(duration_seconds: float) -> RunWindow:
 # A tenant-scoped strategy is shared across workflows: every task declaring the same name
 # consumes the same concurrency limit. The definition rides on workflow registration and
 # re-registering the name updates it in place.
-shared_limit = ConcurrencyExpression(
+shared_limit = ConcurrencyStrategy(
     expression="input.group",
     max_runs=1,
-    limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
+    strategy="GROUP_ROUND_ROBIN",
     name="example-shared-limit",
     is_tenant_scoped=True,
 )
@@ -64,10 +63,10 @@ def task_b(input: WorkflowInput, ctx: Context) -> RunWindow:
 @hatchet.task(
     input_validator=WorkflowInput,
     concurrency=[
-        ConcurrencyExpression(
+        ConcurrencyStrategy(
             expression="input.inline",
             max_runs=1,
-            limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
+            strategy="GROUP_ROUND_ROBIN",
         ),
         shared_limit,
     ],
@@ -81,18 +80,18 @@ def task_mixed(input: WorkflowInput, ctx: Context) -> RunWindow:
 # > Multi-Strategy Chain
 # A chain can mix multiple tenant-scoped and workflow-scoped entries, each with its own
 # limit strategy; entries are processed in the declared order.
-chain_limit_a = ConcurrencyExpression(
+chain_limit_a = ConcurrencyStrategy(
     expression="input.group",
     max_runs=1,
-    limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
+    strategy="GROUP_ROUND_ROBIN",
     name="example-chain-limit-a",
     is_tenant_scoped=True,
 )
 
-chain_limit_c = ConcurrencyExpression(
+chain_limit_c = ConcurrencyStrategy(
     expression="input.chain_c",
     max_runs=1,
-    limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
+    strategy="GROUP_ROUND_ROBIN",
     name="example-chain-limit-c",
     is_tenant_scoped=True,
 )
@@ -102,10 +101,10 @@ chain_limit_c = ConcurrencyExpression(
     input_validator=WorkflowInput,
     concurrency=[
         chain_limit_a,
-        ConcurrencyExpression(
+        ConcurrencyStrategy(
             expression="input.inline",
             max_runs=1,
-            limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
+            strategy="CANCEL_IN_PROGRESS",
         ),
         chain_limit_c,
     ],

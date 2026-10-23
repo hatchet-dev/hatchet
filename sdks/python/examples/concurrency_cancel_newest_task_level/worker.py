@@ -3,8 +3,7 @@ import asyncio
 from pydantic import BaseModel
 
 from hatchet_sdk import (
-    ConcurrencyExpression,
-    ConcurrencyLimitStrategy,
+    ConcurrencyStrategy,
     Context,
     Hatchet,
 )
@@ -16,7 +15,7 @@ class WorkflowInput(BaseModel):
     group: str
 
 
-# The concurrency is declared on the TASK (step-level), not on the workflow. Step-level concurrency
+# The concurrency is declared on the TASK, not on the workflow. Task-level concurrency
 # is the only path served by the in-memory concurrency index, so this exercises that code path
 # rather than the legacy workflow-level DB path.
 concurrency_cancel_newest_task_level_workflow = hatchet.workflow(
@@ -28,10 +27,10 @@ concurrency_cancel_newest_task_level_workflow = hatchet.workflow(
 # > Task-Level Cancel Newest
 @concurrency_cancel_newest_task_level_workflow.task(
     concurrency=[
-        ConcurrencyExpression(
+        ConcurrencyStrategy(
             expression="input.group",
             max_runs=1,
-            limit_strategy=ConcurrencyLimitStrategy.CANCEL_NEWEST,
+            strategy="CANCEL_NEWEST",
         )
     ],
 )

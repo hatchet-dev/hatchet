@@ -13,17 +13,15 @@ class BatchInput(BaseModel):
     group: str
 
 
-hatchet = Hatchet(debug=True)
-
-workflow = hatchet.workflow(name="batch-task-example", input_validator=BatchInput)
+hatchet = Hatchet()
 
 
-@workflow.batch_task(
-    name="uppercase",
+@hatchet.batch_task(
     batch_max_size=3,
     batch_max_interval=timedelta(milliseconds=500),
     batch_group_key="input.group",
     batch_group_max_runs=1,
+    input_validator=BatchInput,
 )
 async def uppercase(
     tasks: dict[BatchMemberId, BatchInput], context: Context
@@ -38,7 +36,7 @@ async def uppercase(
 
 
 def main() -> None:
-    worker = hatchet.worker("batch-task-worker", workflows=[workflow], slots=10)
+    worker = hatchet.worker("batch-task-worker", workflows=[uppercase], slots=10)
     worker.start()
 
 

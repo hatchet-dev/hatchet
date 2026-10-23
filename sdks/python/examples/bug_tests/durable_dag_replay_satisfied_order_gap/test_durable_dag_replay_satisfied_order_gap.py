@@ -4,7 +4,7 @@ import pytest
 
 from examples.bug_tests.durable_dag_replay_satisfied_order_gap.worker import replay_gap
 from examples.test_utils import wait_for_running_status
-from hatchet_sdk import FailedTaskRunExceptionGroup, Hatchet, RunStatus, V1TaskStatus
+from hatchet_sdk import FailedTaskRunExceptionGroup, Hatchet, RunStatus
 from hatchet_sdk.clients.admin import WorkflowRunDetail
 
 
@@ -42,8 +42,8 @@ async def test_dag_completes_after_replaying_a_failed_step_whose_sibling_finishe
 
     details = await wait_for_done(hatchet, ref.workflow_run_id, timeout=60)
 
-    assert details.task_runs["flaky"].status == V1TaskStatus.FAILED
-    assert details.task_runs["slow"].status == V1TaskStatus.COMPLETED
+    assert details.task_runs["flaky"].status == RunStatus.FAILED
+    assert details.task_runs["slow"].status == RunStatus.COMPLETED
 
     await hatchet.runs.aio_replay(details.task_runs["flaky"].external_id)
     await wait_for_running_status(hatchet, ref.workflow_run_id)

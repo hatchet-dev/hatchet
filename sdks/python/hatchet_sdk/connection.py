@@ -81,6 +81,6 @@ def new_conn(config: ClientConfig, aio: bool) -> grpc.Channel | grpc.aio.Channel
         )
 
     return cast(
-        grpc.Channel | grpc.aio.Channel,
+        "grpc.Channel | grpc.aio.Channel",
         conn,
     )

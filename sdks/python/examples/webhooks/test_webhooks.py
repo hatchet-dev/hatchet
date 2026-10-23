@@ -14,7 +14,7 @@ import pytest
 from examples.test_utils import wait_for_event, wait_for_workflow_run
 from examples.webhooks.worker import WebhookInput
 from hatchet_sdk import Hatchet
-from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
+from hatchet_sdk.types.run_status import RunStatus
 from hatchet_sdk.clients.rest.models.v1_webhook import V1Webhook
 from hatchet_sdk.clients.rest.models.v1_webhook_api_key_auth import V1WebhookAPIKeyAuth
 from hatchet_sdk.clients.rest.models.v1_webhook_basic_auth import V1WebhookBasicAuth
@@ -205,19 +205,14 @@ async def assert_has_runs(
     )
     assert triggered_event.payload == webhook_body.model_dump()
 
-    workflow_run = await wait_for_workflow_run(
-        hatchet, triggered_event.metadata.id, test_start
-    )
+    workflow_run = await wait_for_workflow_run(hatchet, triggered_event.id, test_start)
     assert workflow_run is not None
-    assert workflow_run.status == V1TaskStatus.COMPLETED
+    assert workflow_run.status == RunStatus.COMPLETED
     assert workflow_run.additional_metadata is not None
 
-    assert (
-        workflow_run.additional_metadata["hatchet__event_id"]
-        == triggered_event.metadata.id
-    )
+    assert workflow_run.additional_metadata["hatchet__event_id"] == triggered_event.id
     assert workflow_run.additional_metadata["hatchet__event_key"] == triggered_event.key
-    assert workflow_run.status == V1TaskStatus.COMPLETED
+    assert workflow_run.status == RunStatus.COMPLETED
 
 
 async def assert_event_not_created(

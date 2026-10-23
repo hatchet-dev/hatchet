@@ -47,9 +47,9 @@ List all workers in the tenant determined by the client config.
 
 Returns:
 
-| Type         | Description        |
-| ------------ | ------------------ |
-| `WorkerList` | A list of workers. |
+| Type           | Description        |
+| -------------- | ------------------ |
+| `list[Worker]` | A list of workers. |
 
 #### `aio_pause`
 
@@ -92,7 +92,7 @@ Parameters:
 | Name        | Type                  | Description                     | Default    |
 | ----------- | --------------------- | ------------------------------- | ---------- |
 | `worker_id` | `str`                 | The ID of the worker to update. | _required_ |
-| `opts`      | `UpdateWorkerRequest` | The update options.             | _required_ |
+| `options`   | `UpdateWorkerRequest` | The update options.             | _required_ |
 
 Returns:
 
@@ -122,9 +122,9 @@ List all workers in the tenant determined by the client config.
 
 Returns:
 
-| Type         | Description        |
-| ------------ | ------------------ |
-| `WorkerList` | A list of workers. |
+| Type           | Description        |
+| -------------- | ------------------ |
+| `list[Worker]` | A list of workers. |
 
 #### `pause`
 
@@ -167,7 +167,7 @@ Parameters:
 | Name        | Type                  | Description                     | Default    |
 | ----------- | --------------------- | ------------------------------- | ---------- |
 | `worker_id` | `str`                 | The ID of the worker to update. | _required_ |
-| `opts`      | `UpdateWorkerRequest` | The update options.             | _required_ |
+| `options`   | `UpdateWorkerRequest` | The update options.             | _required_ |
 
 Returns:
 

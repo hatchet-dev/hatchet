@@ -1,7 +1,7 @@
 import asyncio
 from typing import Generator
 
-from hatchet_sdk import Context, EmptyModel, Hatchet
+from hatchet_sdk import Context, Hatchet
 
 hatchet = Hatchet()
 
@@ -23,7 +23,7 @@ chunks = list(create_chunks(anna_karenina, 10))
 
 
 @hatchet.task()
-async def stream_task(input: EmptyModel, ctx: Context) -> None:
+async def stream_task(input: None, ctx: Context) -> None:
     # 👀 Sleeping to avoid race conditions
     await asyncio.sleep(2)
 

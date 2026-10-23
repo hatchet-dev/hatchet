@@ -16,8 +16,8 @@ Methods:
 | `aio_get`                                    | Get workflow run details for a given workflow run ID.                |
 | `get_status`                                 | Get workflow run status for a given workflow run ID.                 |
 | `aio_get_status`                             | Get workflow run status for a given workflow run ID.                 |
-| `list`                                       | List task runs according to a set of filters.                        |
-| `aio_list`                                   | List task runs according to a set of filters.                        |
+| `list`                                       | List task runs according to a set of filters, newest first.          |
+| `aio_list`                                   | List task runs according to a set of filters, newest first.          |
 | `create`                                     | Trigger a new workflow run.                                          |
 | `aio_create`                                 | Trigger a new workflow run.                                          |
 | `replay`                                     | Replay a task or workflow run.                                       |
@@ -37,7 +37,7 @@ Methods:
 | `bulk_replay_by_filters_with_pagination`     | Replay runs matching the specified filters in chunks.                |
 | `aio_bulk_cancel_by_filters_with_pagination` | Cancel runs matching the specified filters in chunks.                |
 | `aio_bulk_replay_by_filters_with_pagination` | Replay runs matching the specified filters in chunks.                |
-| `subscribe_to_stream`                        |                                                                      |
+| `aio_subscribe_to_stream`                    | Subscribe to the stream chunks sent by a run via `ctx.put_stream`.   |
 
 ### Functions
 
@@ -85,9 +85,9 @@ Parameters:
 
 Returns:
 
-| Type           | Description     |
-| -------------- | --------------- |
-| `V1TaskStatus` | The task status |
+| Type        | Description     |
+| ----------- | --------------- |
+| `RunStatus` | The task status |
 
 #### `aio_get_status`
 
@@ -101,63 +101,63 @@ Parameters:
 
 Returns:
 
-| Type           | Description     |
-| -------------- | --------------- |
-| `V1TaskStatus` | The task status |
+| Type        | Description     |
+| ----------- | --------------- |
+| `RunStatus` | The task status |
 
 #### `list`
 
-List task runs according to a set of filters.
+List task runs according to a set of filters, newest first.
 
 Parameters:
 
-| Name                           | Type                         | Description                                         | Default |
-| ------------------------------ | ---------------------------- | --------------------------------------------------- | ------- |
-| `since`                        | `datetime \| None`           | The start time for filtering task runs.             | `None`  |
-| `only_tasks`                   | `bool`                       | Whether to only list task runs.                     | `False` |
-| `offset`                       | `int \| None`                | The offset for pagination.                          | `None`  |
-| `limit`                        | `int \| None`                | The maximum number of task runs to return.          | `None`  |
-| `statuses`                     | `list[V1TaskStatus] \| None` | The statuses to filter task runs by.                | `None`  |
-| `until`                        | `datetime \| None`           | The end time for filtering task runs.               | `None`  |
-| `additional_metadata`          | `dict[str, str] \| None`     | Additional metadata to filter task runs by.         | `None`  |
-| `workflow_ids`                 | `list[str] \| None`          | The workflow IDs to filter task runs by.            | `None`  |
-| `worker_id`                    | `str \| None`                | The worker ID to filter task runs by.               | `None`  |
-| `parent_task_external_id`      | `str \| None`                | The parent task external ID to filter task runs by. | `None`  |
-| `triggering_event_external_id` | `str \| None`                | The event id that triggered the task run.           | `None`  |
-| `include_payloads`             | `bool`                       | Whether to include payloads in the response.        | `True`  |
+| Name                           | Type                      | Description                                                                                                                 | Default |
+| ------------------------------ | ------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `since`                        | `datetime \| None`        | The start time for filtering task runs.                                                                                     | `None`  |
+| `only_tasks`                   | `bool`                    | Whether to only list task runs.                                                                                             | `False` |
+| `offset`                       | `int \| None`             | The number of task runs to skip, counted across the whole time range.                                                       | `None`  |
+| `limit`                        | `int \| None`             | The maximum number of task runs to return, counted across the whole time range. Returns every matching task run if not set. | `None`  |
+| `statuses`                     | `list[RunStatus] \| None` | The statuses to filter task runs by.                                                                                        | `None`  |
+| `until`                        | `datetime \| None`        | The end time for filtering task runs.                                                                                       | `None`  |
+| `additional_metadata`          | `dict[str, str] \| None`  | Additional metadata to filter task runs by.                                                                                 | `None`  |
+| `workflow_ids`                 | `list[str] \| None`       | The workflow IDs to filter task runs by.                                                                                    | `None`  |
+| `worker_id`                    | `str \| None`             | The worker ID to filter task runs by.                                                                                       | `None`  |
+| `parent_task_external_id`      | `str \| None`             | The parent task external ID to filter task runs by.                                                                         | `None`  |
+| `triggering_event_external_id` | `str \| None`             | The event id that triggered the task run.                                                                                   | `None`  |
+| `include_payloads`             | `bool`                    | Whether to include payloads in the response.                                                                                | `True`  |
 
 Returns:
 
-| Type                | Description                                         |
-| ------------------- | --------------------------------------------------- |
-| `V1TaskSummaryList` | A list of task runs matching the specified filters. |
+| Type                  | Description                                         |
+| --------------------- | --------------------------------------------------- |
+| `list[V1TaskSummary]` | A list of task runs matching the specified filters. |
 
 #### `aio_list`
 
-List task runs according to a set of filters.
+List task runs according to a set of filters, newest first.
 
 Parameters:
 
-| Name                           | Type                         | Description                                         | Default |
-| ------------------------------ | ---------------------------- | --------------------------------------------------- | ------- |
-| `since`                        | `datetime \| None`           | The start time for filtering task runs.             | `None`  |
-| `only_tasks`                   | `bool`                       | Whether to only list task runs.                     | `False` |
-| `offset`                       | `int \| None`                | The offset for pagination.                          | `None`  |
-| `limit`                        | `int \| None`                | The maximum number of task runs to return.          | `None`  |
-| `statuses`                     | `list[V1TaskStatus] \| None` | The statuses to filter task runs by.                | `None`  |
-| `until`                        | `datetime \| None`           | The end time for filtering task runs.               | `None`  |
-| `additional_metadata`          | `dict[str, str] \| None`     | Additional metadata to filter task runs by.         | `None`  |
-| `workflow_ids`                 | `list[str] \| None`          | The workflow IDs to filter task runs by.            | `None`  |
-| `worker_id`                    | `str \| None`                | The worker ID to filter task runs by.               | `None`  |
-| `parent_task_external_id`      | `str \| None`                | The parent task external ID to filter task runs by. | `None`  |
-| `triggering_event_external_id` | `str \| None`                | The event id that triggered the task run.           | `None`  |
-| `include_payloads`             | `bool`                       | Whether to include payloads in the response.        | `True`  |
+| Name                           | Type                      | Description                                                                                                                 | Default |
+| ------------------------------ | ------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `since`                        | `datetime \| None`        | The start time for filtering task runs.                                                                                     | `None`  |
+| `only_tasks`                   | `bool`                    | Whether to only list task runs.                                                                                             | `False` |
+| `offset`                       | `int \| None`             | The number of task runs to skip, counted across the whole time range.                                                       | `None`  |
+| `limit`                        | `int \| None`             | The maximum number of task runs to return, counted across the whole time range. Returns every matching task run if not set. | `None`  |
+| `statuses`                     | `list[RunStatus] \| None` | The statuses to filter task runs by.                                                                                        | `None`  |
+| `until`                        | `datetime \| None`        | The end time for filtering task runs.                                                                                       | `None`  |
+| `additional_metadata`          | `dict[str, str] \| None`  | Additional metadata to filter task runs by.                                                                                 | `None`  |
+| `workflow_ids`                 | `list[str] \| None`       | The workflow IDs to filter task runs by.                                                                                    | `None`  |
+| `worker_id`                    | `str \| None`             | The worker ID to filter task runs by.                                                                                       | `None`  |
+| `parent_task_external_id`      | `str \| None`             | The parent task external ID to filter task runs by.                                                                         | `None`  |
+| `triggering_event_external_id` | `str \| None`             | The event id that triggered the task run.                                                                                   | `None`  |
+| `include_payloads`             | `bool`                    | Whether to include payloads in the response.                                                                                | `True`  |
 
 Returns:
 
-| Type                | Description                                         |
-| ------------------- | --------------------------------------------------- |
-| `V1TaskSummaryList` | A list of task runs matching the specified filters. |
+| Type                  | Description                                         |
+| --------------------- | --------------------------------------------------- |
+| `list[V1TaskSummary]` | A list of task runs matching the specified filters. |
 
 #### `create`
 
@@ -172,7 +172,7 @@ Parameters:
 | `workflow_name`       | `str`                             | The name of the workflow to trigger.                  | _required_ |
 | `input`               | `JSONSerializableMapping`         | The input data for the workflow run.                  | _required_ |
 | `additional_metadata` | `JSONSerializableMapping \| None` | Additional metadata associated with the workflow run. | `None`     |
-| `priority`            | `int \| Priority \| None`         | The priority of the workflow run.                     | `None`     |
+| `priority`            | `Priority \| None`                | The priority of the workflow run.                     | `None`     |
 
 Returns:
 
@@ -193,7 +193,7 @@ Parameters:
 | `workflow_name`       | `str`                             | The name of the workflow to trigger.                  | _required_ |
 | `input`               | `JSONSerializableMapping`         | The input data for the workflow run.                  | _required_ |
 | `additional_metadata` | `JSONSerializableMapping \| None` | Additional metadata associated with the workflow run. | `None`     |
-| `priority`            | `int \| Priority \| None`         | The priority of the workflow run.                     | `None`     |
+| `priority`            | `Priority \| None`                | The priority of the workflow run.                     | `None`     |
 
 Returns:
 
@@ -239,9 +239,9 @@ Replay task or workflow runs in bulk, according to a set of filters.
 
 Parameters:
 
-| Name   | Type                   | Description                                         | Default    |
-| ------ | ---------------------- | --------------------------------------------------- | ---------- |
-| `opts` | `BulkCancelReplayOpts` | Options for bulk replay, including filters and IDs. | _required_ |
+| Name      | Type                      | Description                                         | Default    |
+| --------- | ------------------------- | --------------------------------------------------- | ---------- |
+| `options` | `BulkCancelReplayOptions` | Options for bulk replay, including filters and IDs. | _required_ |
 
 Returns:
 
@@ -255,9 +255,9 @@ Replay task or workflow runs in bulk, according to a set of filters.
 
 Parameters:
 
-| Name   | Type                   | Description                                         | Default    |
-| ------ | ---------------------- | --------------------------------------------------- | ---------- |
-| `opts` | `BulkCancelReplayOpts` | Options for bulk replay, including filters and IDs. | _required_ |
+| Name      | Type                      | Description                                         | Default    |
+| --------- | ------------------------- | --------------------------------------------------- | ---------- |
+| `options` | `BulkCancelReplayOptions` | Options for bulk replay, including filters and IDs. | _required_ |
 
 Returns:
 
@@ -303,9 +303,9 @@ Cancel task or workflow runs in bulk, according to a set of filters.
 
 Parameters:
 
-| Name   | Type                   | Description                                         | Default    |
-| ------ | ---------------------- | --------------------------------------------------- | ---------- |
-| `opts` | `BulkCancelReplayOpts` | Options for bulk cancel, including filters and IDs. | _required_ |
+| Name      | Type                      | Description                                         | Default    |
+| --------- | ------------------------- | --------------------------------------------------- | ---------- |
+| `options` | `BulkCancelReplayOptions` | Options for bulk cancel, including filters and IDs. | _required_ |
 
 Returns:
 
@@ -319,9 +319,9 @@ Cancel task or workflow runs in bulk, according to a set of filters.
 
 Parameters:
 
-| Name   | Type                   | Description                                         | Default    |
-| ------ | ---------------------- | --------------------------------------------------- | ---------- |
-| `opts` | `BulkCancelReplayOpts` | Options for bulk cancel, including filters and IDs. | _required_ |
+| Name      | Type                      | Description                                         | Default    |
+| --------- | ------------------------- | --------------------------------------------------- | ---------- |
+| `options` | `BulkCancelReplayOptions` | Options for bulk cancel, including filters and IDs. | _required_ |
 
 Returns:
 
@@ -335,9 +335,9 @@ Get the result of a workflow run by its external ID.
 
 Parameters:
 
-| Name     | Type  | Description                                                     | Default    |
-| -------- | ----- | --------------------------------------------------------------- | ---------- |
-| `run_id` | `str` | The external ID of the workflow run to retrieve the result for. | _required_ |
+| Name              | Type  | Description                                                     | Default    |
+| ----------------- | ----- | --------------------------------------------------------------- | ---------- |
+| `workflow_run_id` | `str` | The external ID of the workflow run to retrieve the result for. | _required_ |
 
 Returns:
 
@@ -351,9 +351,9 @@ Get the result of a workflow run by its external ID.
 
 Parameters:
 
-| Name     | Type  | Description                                                     | Default    |
-| -------- | ----- | --------------------------------------------------------------- | ---------- |
-| `run_id` | `str` | The external ID of the workflow run to retrieve the result for. | _required_ |
+| Name              | Type  | Description                                                     | Default    |
+| ----------------- | ----- | --------------------------------------------------------------- | ---------- |
+| `workflow_run_id` | `str` | The external ID of the workflow run to retrieve the result for. | _required_ |
 
 Returns:
 
@@ -420,15 +420,15 @@ This method first pulls the IDs of the runs from the API, and then feeds them ba
 
 Parameters:
 
-| Name                  | Type                         | Description                                              | Default |
-| --------------------- | ---------------------------- | -------------------------------------------------------- | ------- |
-| `sleep_time`          | `int`                        | The time to sleep between processing chunks, in seconds. | `3`     |
-| `chunk_size`          | `int`                        | The maximum number of run IDs to process in each chunk.  | `500`   |
-| `since`               | `datetime \| None`           | The start time for filtering runs.                       | `None`  |
-| `until`               | `datetime \| None`           | The end time for filtering runs.                         | `None`  |
-| `statuses`            | `list[V1TaskStatus] \| None` | The statuses to filter runs by.                          | `None`  |
-| `additional_metadata` | `dict[str, str] \| None`     | Additional metadata to filter runs by.                   | `None`  |
-| `workflow_ids`        | `list[str] \| None`          | The workflow IDs to filter runs by.                      | `None`  |
+| Name                  | Type                      | Description                                              | Default |
+| --------------------- | ------------------------- | -------------------------------------------------------- | ------- |
+| `sleep_time`          | `int`                     | The time to sleep between processing chunks, in seconds. | `3`     |
+| `chunk_size`          | `int`                     | The maximum number of run IDs to process in each chunk.  | `500`   |
+| `since`               | `datetime \| None`        | The start time for filtering runs.                       | `None`  |
+| `until`               | `datetime \| None`        | The end time for filtering runs.                         | `None`  |
+| `statuses`            | `list[RunStatus] \| None` | The statuses to filter runs by.                          | `None`  |
+| `additional_metadata` | `dict[str, str] \| None`  | Additional metadata to filter runs by.                   | `None`  |
+| `workflow_ids`        | `list[str] \| None`       | The workflow IDs to filter runs by.                      | `None`  |
 
 #### `bulk_replay_by_filters_with_pagination`
 
@@ -441,15 +441,15 @@ This method first pulls the IDs of the runs from the API, and then feeds them ba
 
 Parameters:
 
-| Name                  | Type                         | Description                                              | Default |
-| --------------------- | ---------------------------- | -------------------------------------------------------- | ------- |
-| `sleep_time`          | `int`                        | The time to sleep between processing chunks, in seconds. | `3`     |
-| `chunk_size`          | `int`                        | The maximum number of run IDs to process in each chunk.  | `500`   |
-| `since`               | `datetime \| None`           | The start time for filtering runs.                       | `None`  |
-| `until`               | `datetime \| None`           | The end time for filtering runs.                         | `None`  |
-| `statuses`            | `list[V1TaskStatus] \| None` | The statuses to filter runs by.                          | `None`  |
-| `additional_metadata` | `dict[str, str] \| None`     | Additional metadata to filter runs by.                   | `None`  |
-| `workflow_ids`        | `list[str] \| None`          | The workflow IDs to filter runs by.                      | `None`  |
+| Name                  | Type                      | Description                                              | Default |
+| --------------------- | ------------------------- | -------------------------------------------------------- | ------- |
+| `sleep_time`          | `int`                     | The time to sleep between processing chunks, in seconds. | `3`     |
+| `chunk_size`          | `int`                     | The maximum number of run IDs to process in each chunk.  | `500`   |
+| `since`               | `datetime \| None`        | The start time for filtering runs.                       | `None`  |
+| `until`               | `datetime \| None`        | The end time for filtering runs.                         | `None`  |
+| `statuses`            | `list[RunStatus] \| None` | The statuses to filter runs by.                          | `None`  |
+| `additional_metadata` | `dict[str, str] \| None`  | Additional metadata to filter runs by.                   | `None`  |
+| `workflow_ids`        | `list[str] \| None`       | The workflow IDs to filter runs by.                      | `None`  |
 
 #### `aio_bulk_cancel_by_filters_with_pagination`
 
@@ -462,15 +462,15 @@ This method first pulls the IDs of the runs from the API, and then feeds them ba
 
 Parameters:
 
-| Name                  | Type                         | Description                                              | Default |
-| --------------------- | ---------------------------- | -------------------------------------------------------- | ------- |
-| `sleep_time`          | `int`                        | The time to sleep between processing chunks, in seconds. | `3`     |
-| `chunk_size`          | `int`                        | The maximum number of run IDs to process in each chunk.  | `500`   |
-| `since`               | `datetime \| None`           | The start time for filtering runs.                       | `None`  |
-| `until`               | `datetime \| None`           | The end time for filtering runs.                         | `None`  |
-| `statuses`            | `list[V1TaskStatus] \| None` | The statuses to filter runs by.                          | `None`  |
-| `additional_metadata` | `dict[str, str] \| None`     | Additional metadata to filter runs by.                   | `None`  |
-| `workflow_ids`        | `list[str] \| None`          | The workflow IDs to filter runs by.                      | `None`  |
+| Name                  | Type                      | Description                                              | Default |
+| --------------------- | ------------------------- | -------------------------------------------------------- | ------- |
+| `sleep_time`          | `int`                     | The time to sleep between processing chunks, in seconds. | `3`     |
+| `chunk_size`          | `int`                     | The maximum number of run IDs to process in each chunk.  | `500`   |
+| `since`               | `datetime \| None`        | The start time for filtering runs.                       | `None`  |
+| `until`               | `datetime \| None`        | The end time for filtering runs.                         | `None`  |
+| `statuses`            | `list[RunStatus] \| None` | The statuses to filter runs by.                          | `None`  |
+| `additional_metadata` | `dict[str, str] \| None`  | Additional metadata to filter runs by.                   | `None`  |
+| `workflow_ids`        | `list[str] \| None`       | The workflow IDs to filter runs by.                      | `None`  |
 
 #### `aio_bulk_replay_by_filters_with_pagination`
 
@@ -483,14 +483,25 @@ This method first pulls the IDs of the runs from the API, and then feeds them ba
 
 Parameters:
 
-| Name                  | Type                         | Description                                              | Default |
-| --------------------- | ---------------------------- | -------------------------------------------------------- | ------- |
-| `sleep_time`          | `int`                        | The time to sleep between processing chunks, in seconds. | `3`     |
-| `chunk_size`          | `int`                        | The maximum number of run IDs to process in each chunk.  | `500`   |
-| `since`               | `datetime \| None`           | The start time for filtering runs.                       | `None`  |
-| `until`               | `datetime \| None`           | The end time for filtering runs.                         | `None`  |
-| `statuses`            | `list[V1TaskStatus] \| None` | The statuses to filter runs by.                          | `None`  |
-| `additional_metadata` | `dict[str, str] \| None`     | Additional metadata to filter runs by.                   | `None`  |
-| `workflow_ids`        | `list[str] \| None`          | The workflow IDs to filter runs by.                      | `None`  |
+| Name                  | Type                      | Description                                              | Default |
+| --------------------- | ------------------------- | -------------------------------------------------------- | ------- |
+| `sleep_time`          | `int`                     | The time to sleep between processing chunks, in seconds. | `3`     |
+| `chunk_size`          | `int`                     | The maximum number of run IDs to process in each chunk.  | `500`   |
+| `since`               | `datetime \| None`        | The start time for filtering runs.                       | `None`  |
+| `until`               | `datetime \| None`        | The end time for filtering runs.                         | `None`  |
+| `statuses`            | `list[RunStatus] \| None` | The statuses to filter runs by.                          | `None`  |
+| `additional_metadata` | `dict[str, str] \| None`  | Additional metadata to filter runs by.                   | `None`  |
+| `workflow_ids`        | `list[str] \| None`       | The workflow IDs to filter runs by.                      | `None`  |
 
-#### `subscribe_to_stream`
+#### `aio_subscribe_to_stream`
+
+Subscribe to the stream chunks sent by a run via `ctx.put_stream`.
+
+:yield: Each stream chunk as it arrives.
+:ytype: str
+
+Parameters:
+
+| Name              | Type  | Description                                 | Default    |
+| ----------------- | ----- | ------------------------------------------- | ---------- |
+| `workflow_run_id` | `str` | The ID of the workflow run to subscribe to. | _required_ |

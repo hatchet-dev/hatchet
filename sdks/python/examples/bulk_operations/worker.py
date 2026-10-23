@@ -1,24 +1,24 @@
-from hatchet_sdk import Context, EmptyModel, Hatchet
+from hatchet_sdk import Context, Hatchet
 
 hatchet = Hatchet()
 
 
 @hatchet.task()
-def bulk_replay_test_1(input: EmptyModel, ctx: Context) -> None:
+def bulk_replay_test_1(input: None, ctx: Context) -> None:
     print("retrying bulk replay test task", ctx.retry_count)
     if ctx.retry_count == 0:
         raise ValueError("This is a test error to trigger a retry.")
 
 
 @hatchet.task()
-def bulk_replay_test_2(input: EmptyModel, ctx: Context) -> None:
+def bulk_replay_test_2(input: None, ctx: Context) -> None:
     print("retrying bulk replay test task", ctx.retry_count)
     if ctx.retry_count == 0:
         raise ValueError("This is a test error to trigger a retry.")
 
 
 @hatchet.task()
-def bulk_replay_test_3(input: EmptyModel, ctx: Context) -> None:
+def bulk_replay_test_3(input: None, ctx: Context) -> None:
     print("retrying bulk replay test task", ctx.retry_count)
     if ctx.retry_count == 0:
         raise ValueError("This is a test error to trigger a retry.")

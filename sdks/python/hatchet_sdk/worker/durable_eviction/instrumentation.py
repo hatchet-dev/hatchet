@@ -1,10 +1,13 @@
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import TYPE_CHECKING
 
-from hatchet_sdk.runnables.action import ActionKey
-from hatchet_sdk.worker.durable_eviction.manager import DurableEvictionManager
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
+
+    from hatchet_sdk.runnables.action import ActionKey
+    from hatchet_sdk.worker.durable_eviction.manager import DurableEvictionManager
 
 
 @asynccontextmanager

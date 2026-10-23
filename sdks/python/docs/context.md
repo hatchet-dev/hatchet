@@ -20,12 +20,11 @@ There are two types of context classes you'll encounter:
         - was_skipped
         - task_output
         - was_triggered_by_event
-        - workflow_input
         - lifespan
         - workflow_run_id
         - cancel
         - aio_cancel
-        - done
+        - is_cancelled
         - log
         - release_slot
         - put_stream
@@ -38,7 +37,7 @@ There are two types of context classes you'll encounter:
         - workflow_id
         - workflow_version_id
         - task_run_errors
-        - fetch_task_run_error
+        - get_task_run_error
 
 ## DurableContext
 

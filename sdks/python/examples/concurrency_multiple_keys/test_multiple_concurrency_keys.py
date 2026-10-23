@@ -14,6 +14,7 @@ from examples.concurrency_multiple_keys.worker import (
     WorkflowInput,
     concurrency_multiple_keys_workflow,
 )
+from examples.test_utils import poll_for_runs
 from hatchet_sdk import Hatchet
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 
@@ -52,9 +53,7 @@ class RunMetadata(BaseModel):
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_multi_concurrency_key(hatchet: Hatchet) -> None:
-    test_run_id = str(uuid4())
-
+async def test_multi_concurrency_key(hatchet: Hatchet, test_run_id: str) -> None:
     run_refs = await concurrency_multiple_keys_workflow.aio_run_many(
         [
             concurrency_multiple_keys_workflow.create_bulk_run_item(
@@ -76,12 +75,10 @@ async def test_multi_concurrency_key(hatchet: Hatchet) -> None:
 
     await asyncio.gather(*[r.aio_result() for r in run_refs])
 
-    workflows = (
-        await hatchet.workflows.aio_list(
-            workflow_name=concurrency_multiple_keys_workflow.name,
-            limit=1_000,
-        )
-    ).rows
+    workflows = await hatchet.workflows.aio_list(
+        workflow_name=concurrency_multiple_keys_workflow.name,
+        limit=1_000,
+    )
 
     assert workflows
 
@@ -94,16 +91,17 @@ async def test_multi_concurrency_key(hatchet: Hatchet) -> None:
 
     assert workflow.name == concurrency_multiple_keys_workflow.name
 
-    runs = await hatchet.runs.aio_list(
+    runs = await poll_for_runs(
+        hatchet,
+        expected_count=100,
         workflow_ids=[workflow.metadata.id],
         additional_metadata={
             "test_run_id": test_run_id,
         },
-        limit=1_000,
     )
 
     sorted_runs = sorted(
-        [RunMetadata.parse(r) for r in runs.rows], key=lambda r: r.started_at
+        [RunMetadata.parse(r) for r in runs], key=lambda r: r.started_at
     )
 
     overlapping_groups: dict[int, list[RunMetadata]] = {}

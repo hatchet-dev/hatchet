@@ -2,14 +2,14 @@
 
 import pytest
 
-from hatchet_sdk import Context, DurableContext, EmptyModel, Hatchet
+from hatchet_sdk import Context, DurableContext, Hatchet
 
 
-def dummy(input: EmptyModel, ctx: Context) -> None:
+def dummy(input: None, ctx: Context) -> None:
     return None
 
 
-async def dummy_durable(input: EmptyModel, ctx: DurableContext) -> None:
+async def dummy_durable(input: None, ctx: DurableContext) -> None:
     return None
 
 
