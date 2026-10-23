@@ -1554,7 +1554,13 @@ func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, task *sqlcv
 	tenant := inputCtx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 
-	ackedMsg, err := tasktypes.AckedTaskMessage(tenantId, task.ID, task.InsertedAt, retryCount)
+	workerId, err := uuid.Parse(request.WorkerId)
+
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid worker ID format: %s", request.WorkerId))
+	}
+
+	ackedMsg, err := tasktypes.AckedTaskMessage(tenantId, task.ID, task.InsertedAt, retryCount, workerId)
 
 	if err != nil {
 		return nil, err
@@ -1836,8 +1842,12 @@ func (s *DispatcherImpl) handleBatchTaskStarted(
 		workerId = &parsedId
 	}
 
+	if workerId == nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid worker ID format: %s", request.WorkerId))
+	}
+
 	payloads := make([]tasktypes.CreateMonitoringEventPayload, 0, len(tasks))
-	ackedTasks := make([]v1.TaskIdInsertedAtRetryCount, 0, len(tasks))
+	ackedTasks := make([]v1.AckedTaskRuntime, 0, len(tasks))
 
 	for _, task := range tasks {
 		item, ok := itemsByExternalId[task.ExternalID]
@@ -1858,10 +1868,11 @@ func (s *DispatcherImpl) handleBatchTaskStarted(
 			durableInvocationCount = *count
 		}
 
-		ackedTasks = append(ackedTasks, v1.TaskIdInsertedAtRetryCount{
+		ackedTasks = append(ackedTasks, v1.AckedTaskRuntime{
 			Id:         task.ID,
 			InsertedAt: task.InsertedAt,
 			RetryCount: retryCount,
+			WorkerId:   *workerId,
 		})
 
 		payloads = append(payloads, tasktypes.CreateMonitoringEventPayload{

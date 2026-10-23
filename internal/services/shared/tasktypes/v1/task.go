@@ -98,16 +98,18 @@ func AckedTaskMessage(
 	taskId int64,
 	taskInsertedAt pgtype.Timestamptz,
 	retryCount int32,
+	workerId uuid.UUID,
 ) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
 		msgqueue.MsgIDTaskAcked,
 		false,
 		true,
-		v1.TaskIdInsertedAtRetryCount{
+		v1.AckedTaskRuntime{
 			Id:         taskId,
 			InsertedAt: taskInsertedAt,
 			RetryCount: retryCount,
+			WorkerId:   workerId,
 		},
 	)
 }

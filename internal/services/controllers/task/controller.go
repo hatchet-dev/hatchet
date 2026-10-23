@@ -693,8 +693,8 @@ func (tc *TasksControllerImpl) handleTaskAcked(ctx context.Context, tenantId uui
 
 	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
 
-	msgs := msgqueue.JSONConvert[v1.TaskIdInsertedAtRetryCount](payloads)
-	ackedTasks := listutils.Map(msgs, func(msg *v1.TaskIdInsertedAtRetryCount) v1.TaskIdInsertedAtRetryCount { return *msg })
+	msgs := msgqueue.JSONConvert[v1.AckedTaskRuntime](payloads)
+	ackedTasks := listutils.Map(msgs, func(msg *v1.AckedTaskRuntime) v1.AckedTaskRuntime { return *msg })
 
 	if err := tc.repov1.Tasks().MarkTaskRuntimesAcked(ctx, tenantId, ackedTasks); err != nil {
 		err = fmt.Errorf("could not mark tasks as acked: %w", err)

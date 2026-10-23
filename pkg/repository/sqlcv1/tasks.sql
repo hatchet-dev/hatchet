@@ -325,7 +325,8 @@ WITH input AS (
     SELECT
         unnest(@taskIds::bigint[]) AS task_id,
         unnest(@taskInsertedAts::timestamptz[]) AS task_inserted_at,
-        unnest(@retryCounts::integer[]) AS retry_count
+        unnest(@retryCounts::integer[]) AS retry_count,
+        unnest(@workerIds::uuid[]) AS worker_id
 )
 
 UPDATE v1_task_runtime
@@ -333,8 +334,8 @@ SET acked_at = NOW()
 WHERE
     tenant_id = @tenantId::uuid
     AND acked_at IS NULL
-    AND (task_id, task_inserted_at, retry_count) IN (
-        SELECT task_id, task_inserted_at, retry_count
+    AND (task_id, task_inserted_at, retry_count, worker_id) IN (
+        SELECT task_id, task_inserted_at, retry_count, worker_id
         FROM input
     )
 ;
