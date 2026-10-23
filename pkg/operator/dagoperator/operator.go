@@ -390,7 +390,7 @@ func (d *DAGOperator) run(action *contracts.AssignedAction) error {
 		action.GetDurableTaskInvocationCount(),
 		action.ActionPayload,
 		ch,
-		d.repo.Matches().EvalBoolExpr,
+		d.evalBoolExprLoggingErrors(action),
 		triggerStep,
 	)
 
@@ -416,24 +416,14 @@ func (d *DAGOperator) run(action *contracts.AssignedAction) error {
 		if errors.Is(dagErr, context.Canceled) {
 			return d.handleRunCancellation(span, action, tasks, dagErr)
 		}
-		// A child task failing, an engine-reported durable task error (e.g. nondeterminism), a
-		// nondeterministic ingestion, or a condition that cannot be evaluated against its parent's
-		// output are all terminal DAG outcomes that replay reproduces deterministically, so they
-		// must not be retried; anything else (operational errors) remains retriable.
+		// A child task failing, an engine-reported durable task error (e.g. nondeterminism), or a
+		// nondeterministic ingestion are all terminal DAG outcomes that replay reproduces
+		// deterministically, so they must not be retried; anything else (operational errors) remains retriable.
 		var nonDeterminismErr *repository.NonDeterminismError
-		isConditionEvalErr := isDagConditionEvalErr(dagErr)
 		shouldNotRetry := isDagChildFailedErr(dagErr) ||
 			isDagEngineErr(dagErr) ||
-			isConditionEvalErr ||
 			isDagNonRetryablePgErr(dagErr) ||
 			errors.As(dagErr, &nonDeterminismErr)
-
-		if isConditionEvalErr {
-			d.Logger().Error().Err(dagErr).
-				Str("task_run_external_id", action.TaskRunExternalId).
-				Str("workflow_version_id", action.GetWorkflowVersionId()).
-				Msg("dag step condition could not be evaluated against its parent output")
-		}
 
 		return d.fail(span, action, fmt.Errorf("dag failed: %w", dagErr), shouldNotRetry)
 	}
@@ -562,6 +552,23 @@ func (d *DAGOperator) handleRunCancellation(span trace.Span, action *contracts.A
 		Msg("dag run cancelled")
 
 	return d.cancelDAG(span, action, repository.TaskCancelledErrorMessage)
+}
+
+// A step condition that cannot be evaluated against its parent's output is treated as not matched,
+// so the only trace of a broken expression is this log line.
+func (d *DAGOperator) evalBoolExprLoggingErrors(action *contracts.AssignedAction) func(ctx context.Context, expr string, vars map[string]interface{}) (bool, error) {
+	return func(ctx context.Context, expr string, vars map[string]interface{}) (bool, error) {
+		matched, err := d.repo.Matches().EvalBoolExpr(ctx, expr, vars)
+		if err != nil {
+			d.Logger().Warn().Err(err).
+				Str("task_run_external_id", action.TaskRunExternalId).
+				Str("workflow_version_id", action.GetWorkflowVersionId()).
+				Str("expression", expr).
+				Msg("dag step condition could not be evaluated against its parent output, treating it as not matched")
+		}
+
+		return matched, err
+	}
 }
 
 func (d *DAGOperator) fail(span trace.Span, action *contracts.AssignedAction, err error, shouldNotRetry bool) error {
