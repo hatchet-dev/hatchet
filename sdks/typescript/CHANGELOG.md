@@ -5,6 +5,12 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.43.0] - 2026-10-23
+
+### Fixed
+
+- `streams.publish` works against engines that predate `V1Streams/PublishBatch` again; 1.42.0 rejected every publish to them as unimplemented. On the first `UNIMPLEMENTED` from `PublishBatch` the client sends that request's messages, and every later one, as one `Publish` per message, settling each publish on its own; `batchTimeoutMs` still groups messages there, but each goes out in its own request.
+
 ## [1.42.0] - 2026-10-23
 
 ### Added
@@ -13,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- `streams.publish` (Node client and `/core`) now sends the publishes queued behind an in-flight request to the same topic as one `PublishBatch` request, up to 500 messages or about 4 MiB, instead of one round trip per message. Ordering and delivery guarantees are unchanged. Against an engine that predates `V1Streams/PublishBatch`, the client falls back to one `Publish` per message on the first `UNIMPLEMENTED`, settling each publish on its own; `batchTimeoutMs` still groups messages there but each goes out in its own request.
+- `streams.publish` (Node client and `/core`) now sends the publishes queued behind an in-flight request to the same topic as one `PublishBatch` request, up to 500 messages or about 4 MiB, instead of one round trip per message. Ordering and delivery guarantees are unchanged. Requires an engine that serves `V1Streams/PublishBatch`; older engines reject it as unimplemented.
 - `streams.publish` rejects an empty payload, and a `batchTimeoutMs` that is negative or not finite, before sending anything, since the engine would otherwise reject every publish sharing that request.
 
 ## [1.41.1] - 2026-10-23
