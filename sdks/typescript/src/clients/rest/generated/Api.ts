@@ -1648,7 +1648,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @secure
    */
   userUpdateSlackOauthStart = (tenant: string, params: RequestParams = {}) =>
-    this.request<any, void>({
+    this.request<any, void | APIErrors>({
       path: `/api/v1/tenants/${tenant}/slack/start`,
       method: 'GET',
       secure: true,
@@ -1664,7 +1664,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @secure
    */
   userUpdateSlackOauthCallback = (params: RequestParams = {}) =>
-    this.request<any, void>({
+    this.request<any, void | APIErrors>({
       path: `/api/v1/users/slack/callback`,
       method: 'GET',
       secure: true,
