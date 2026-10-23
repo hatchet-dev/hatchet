@@ -1,12 +1,13 @@
-import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { queries } from '@/lib/api';
+import { useAppContext } from '@/providers/app-context';
 import { useQuery } from '@tanstack/react-query';
 
 export function useTenantEntitlements() {
-  const { tenantId } = useCurrentTenantId();
+  // optional: the shell also renders on routes without a tenant, e.g. /tenants
+  const { tenantId } = useAppContext();
 
   const { data, isLoading, error } = useQuery({
-    ...queries.tenantEntitlements.get(tenantId),
+    ...queries.tenantEntitlements.get(tenantId ?? ''),
     enabled: !!tenantId,
   });
 
