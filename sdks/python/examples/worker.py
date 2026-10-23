@@ -48,6 +48,9 @@ from examples.bug_tests.durable_spawn_index_collision.worker import (
 from examples.bug_tests.payload_bug_on_replay.worker import (
     payload_initial_cancel_bug_workflow,
 )
+from examples.bug_tests.single_task_workflow_concurrency_retry_backoff.worker import (
+    single_task_workflow_concurrency_retry_backoff,
+)
 from examples.bug_tests.test_durable_event_wait_scopes.worker import scope_waiter
 from examples.bug_tests.workflow_pause.worker import workflow_pause_concurrency_bug_task
 from examples.bulk_fanout.worker import bulk_child_wf, bulk_parent_wf
@@ -356,6 +359,7 @@ def main() -> None:
             cancel_if_workflow,
             pausable_workflow,
             scope_waiter,
+            single_task_workflow_concurrency_retry_backoff,
             parent_dag,
             spawned_child,
             spawned_child_dag,
