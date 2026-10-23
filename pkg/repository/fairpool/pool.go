@@ -267,7 +267,7 @@ func (h *handle) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, 
 		return nil, err
 	}
 
-	return newGatingRows(rows, func() { releaseCheckedOut(hold, conn.Release) }), nil
+	return newGatingRows(rows, conn, hold), nil
 }
 
 func (h *handle) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
@@ -280,7 +280,7 @@ func (h *handle) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row 
 		return errRow{err: err}
 	}
 
-	return newGatingRow(rows)
+	return &gatingRow{rows: rows}
 }
 
 func (h *handle) CopyFrom(ctx context.Context, tableName pgx.Identifier, columnNames []string, rowSrc pgx.CopyFromSource) (int64, error) {
@@ -307,7 +307,7 @@ func (h *handle) SendBatch(ctx context.Context, b *pgx.Batch) pgx.BatchResults {
 		return errBatchResults{err: err}
 	}
 
-	return newGatingBatch(conn.SendBatch(ctx, b), func() { releaseCheckedOut(hold, conn.Release) })
+	return newGatingBatch(conn.SendBatch(ctx, b), conn, hold)
 }
 
 func (h *handle) Begin(ctx context.Context) (pgx.Tx, error) {

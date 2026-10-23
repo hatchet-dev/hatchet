@@ -111,11 +111,7 @@ func TestRejectionLogBurstBoundsKeysAndCarriesCounts(t *testing.T) {
 
 	g, buf := newLoggedGate(t, 1, time.Millisecond)
 
-	sample := func(burst uint32) zerolog.Logger {
-		return zerolog.New(buf).Sample(&zerolog.BurstSampler{Burst: burst, Period: time.Hour})
-	}
-
-	g.rejectLog = sample(burst)
+	g.rejectSampler = &zerolog.BurstSampler{Burst: burst, Period: time.Hour}
 
 	keys := []string{"k0", "k1", "k2", "k3", "k4"}
 
@@ -148,7 +144,7 @@ func TestRejectionLogBurstBoundsKeysAndCarriesCounts(t *testing.T) {
 	require.Len(t, logLines(t, buf), burst)
 
 	// a fresh period lets the next rejection through with the whole count
-	g.rejectLog = sample(10)
+	g.rejectSampler = &zerolog.BurstSampler{Burst: 10, Period: time.Hour}
 
 	_, err = g.pin(context.Background(), dropped, uuid.Nil, noopOpen)
 	require.ErrorAs(t, err, new(*LimitError))
@@ -181,6 +177,7 @@ func TestWaitLogIsInfoAndSeparateFromRejections(t *testing.T) {
 	require.Equal(t, "tenant-a", lines[0]["tenant_id"])
 	require.Equal(t, "tenant", lines[0]["bucket"])
 	require.NotContains(t, lines[0], "rejected")
+	require.NotSame(t, g.waitSampler, g.rejectSampler)
 
 	// a wait line does not hold back the first rejection line
 	g.maxWait = time.Millisecond

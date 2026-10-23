@@ -65,8 +65,10 @@ type gate struct {
 	// Waits and rejections are sampled separately so frequent waits cannot use up the burst that
 	// rejections need. Within a gate, the per-bucket interval keeps one noisy bucket visible
 	// (rejections carry a count) and the sampled burst bounds the total volume.
-	waitLog   zerolog.Logger
-	rejectLog zerolog.Logger
+	l             *zerolog.Logger
+	waitSampler   *zerolog.BurstSampler
+	rejectSampler *zerolog.BurstSampler
+	leakSampler   *zerolog.BurstSampler
 
 	mu      sync.Mutex
 	tenants map[string]*tenantSlots
@@ -100,12 +102,14 @@ func newGate(limit int64, maxWait time.Duration, poolName string, l *zerolog.Log
 	}
 
 	return &gate{
-		limit:     limit,
-		maxWait:   maxWait,
-		poolName:  poolName,
-		waitLog:   l.Sample(&zerolog.BurstSampler{Burst: logBurst, Period: logInterval}),
-		rejectLog: l.Sample(&zerolog.BurstSampler{Burst: logBurst, Period: logInterval}),
-		tenants:   make(map[string]*tenantSlots),
+		limit:         limit,
+		maxWait:       maxWait,
+		poolName:      poolName,
+		l:             l,
+		waitSampler:   &zerolog.BurstSampler{Burst: logBurst, Period: logInterval},
+		rejectSampler: &zerolog.BurstSampler{Burst: logBurst, Period: logInterval},
+		leakSampler:   &zerolog.BurstSampler{Burst: logBurst, Period: logInterval},
+		tenants:       make(map[string]*tenantSlots),
 	}
 }
 
@@ -263,8 +267,10 @@ func (g *gate) logWaited(key string, slots *tenantSlots, waited time.Duration) {
 		return
 	}
 
+	wl := g.l.Sample(g.waitSampler)
+
 	// a nil event means the gate-wide burst is spent; leave the timestamp so the next wait retries
-	e := g.waitLog.Info()
+	e := wl.Info()
 	if e == nil {
 		return
 	}
@@ -287,7 +293,9 @@ func (g *gate) logRejected(key string, slots *tenantSlots, waited time.Duration)
 		return
 	}
 
-	e := g.rejectLog.Warn()
+	rl := g.l.Sample(g.rejectSampler)
+
+	e := rl.Warn()
 	if e == nil {
 		return
 	}
@@ -314,4 +322,20 @@ func subject(key string) string {
 	}
 
 	return "fairpool: tenant"
+}
+
+// leaked logs a wrapper that was garbage-collected without being closed, which is a caller bug.
+func (h *slotHold) leaked(kind string) {
+	if h == nil {
+		return
+	}
+
+	ll := h.g.l.Sample(h.g.leakSampler)
+
+	ll.Warn().
+		Str("tenant_id", h.key).
+		Str("pool", h.g.poolName).
+		Str("bucket", bucketLabel(h.key)).
+		Str("handle", kind).
+		Msg(subject(h.key) + " " + kind + " was garbage-collected without being closed")
 }

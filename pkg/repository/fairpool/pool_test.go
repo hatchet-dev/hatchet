@@ -112,7 +112,7 @@ func newPoolWithOptions(t *testing.T, opts fairpool.Options, tracer pgx.QueryTra
 	return pool, name
 }
 
-func gaugeValue(poolName, tenantID string) (float64, bool) {
+func gaugeValue(poolName, tenantID string) (value float64, found bool) {
 	ch := make(chan prometheus.Metric)
 	go func() {
 		prommetrics.FairpoolHeldConns.Collect(ch)
@@ -136,11 +136,11 @@ func gaugeValue(poolName, tenantID string) (float64, bool) {
 		}
 
 		if gotPool == poolName && gotTenant == tenantID {
-			return m.GetGauge().GetValue(), true
+			value, found = m.GetGauge().GetValue(), true
 		}
 	}
 
-	return 0, false
+	return value, found
 }
 
 func requireHeld(t *testing.T, poolName, tenantID string, want float64) {
@@ -551,6 +551,29 @@ func TestSlotReleasedForEachOperation(t *testing.T) {
 	requireGone(t, name, id)
 }
 
+func TestFinishedResultsRejectReuse(t *testing.T) {
+	pool, _ := newPool(t, 50, time.Second, nil)
+	ctx := context.Background()
+	db := pool.ForTenant(uuid.New())
+
+	tx, err := db.Begin(ctx)
+	require.NoError(t, err)
+	require.NoError(t, tx.Rollback(ctx))
+	require.ErrorIs(t, tx.Commit(ctx), pgx.ErrTxClosed)
+
+	tx, err = db.Begin(ctx)
+	require.NoError(t, err)
+	require.NoError(t, tx.Commit(ctx))
+	require.ErrorIs(t, tx.Rollback(ctx), pgx.ErrTxClosed)
+
+	batch := &pgx.Batch{}
+	batch.Queue("SELECT 1/0")
+	results := db.SendBatch(ctx, batch)
+	first := results.Close()
+	require.Error(t, first)
+	require.Equal(t, first, results.Close())
+}
+
 func TestAbandonedResultsReleaseSlots(t *testing.T) {
 	pool, name := newPool(t, 50, time.Second, nil)
 	tenantA := uuid.New()
@@ -558,6 +581,9 @@ func TestAbandonedResultsReleaseSlots(t *testing.T) {
 	id := tenantA.String()
 
 	abandonRows(t, db)
+	waitGone(t, name, id)
+
+	abandonRow(t, db)
 	waitGone(t, name, id)
 
 	abandonTx(t, db)
@@ -572,6 +598,12 @@ func abandonRows(t *testing.T, db fairpool.Handle) {
 	rows, err := db.Query(context.Background(), "SELECT 1")
 	require.NoError(t, err)
 	runtime.KeepAlive(rows)
+}
+
+func abandonRow(t *testing.T, db fairpool.Handle) {
+	t.Helper()
+	row := db.QueryRow(context.Background(), "SELECT 1")
+	runtime.KeepAlive(row)
 }
 
 func abandonTx(t *testing.T, db fairpool.Handle) {
