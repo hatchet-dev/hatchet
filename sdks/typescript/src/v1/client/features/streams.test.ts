@@ -245,6 +245,30 @@ describe('StreamsClient.publish producer sequencing', () => {
     expect(publish.mock.calls.map(([req]) => req.firstProducerSeq)).toEqual([0]);
   });
 
+  it('falls back to one Publish per message against an engine without PublishBatch, and remembers it', async () => {
+    const publishBatch = jest.fn(async (_req: any) => {
+      throw grpcError(Status.UNIMPLEMENTED);
+    });
+    const publish = jest.fn(async (_req: any) => ({}));
+    mockedCreateGrpcClient.mockReturnValue({ client: { publishBatch, publish } } as any);
+    const streams = new StreamsClient(fakeHatchetClient());
+
+    await Promise.all(
+      ['a', 'b', 'c'].map((m) => streams.publish('topic', m, { batchTimeoutMs: 20 }))
+    );
+    await streams.publish('topic', 'd');
+
+    expect(publishBatch).toHaveBeenCalledTimes(1);
+    const reqs = publish.mock.calls.map(([req]) => req);
+    expect(reqs.map((r) => [new TextDecoder().decode(r.payload), r.producerSeq])).toEqual([
+      ['a', 0],
+      ['b', 1],
+      ['c', 2],
+      ['d', 3],
+    ]);
+    expect(new Set(reqs.map((r) => r.producerId)).size).toBe(1);
+  });
+
   it('reuses the seq when the server rejected the publish before storing it', async () => {
     const { streams, publish } = setup([grpcError(Status.RESOURCE_EXHAUSTED)]);
 

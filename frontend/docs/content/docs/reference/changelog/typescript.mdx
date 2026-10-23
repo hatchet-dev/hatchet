@@ -14,7 +14,7 @@ description: "Release notes for every Hatchet TypeScript SDK release, newest fir
 
 ### Changed
 
-- `streams.publish` (Node client and `/core`) now sends the publishes queued behind an in-flight request to the same topic as one `PublishBatch` request, up to 500 messages or about 4 MiB, instead of one round trip per message. Ordering and delivery guarantees are unchanged. Requires an engine that serves `V1Streams/PublishBatch`; older engines reject it as unimplemented.
+- `streams.publish` (Node client and `/core`) now sends the publishes queued behind an in-flight request to the same topic as one `PublishBatch` request, up to 500 messages or about 4 MiB, instead of one round trip per message. Ordering and delivery guarantees are unchanged. Against an engine that predates `V1Streams/PublishBatch`, the client falls back to one `Publish` per message on the first `UNIMPLEMENTED`, settling each publish on its own; `batchTimeoutMs` still groups messages there but each goes out in its own request.
 - `streams.publish` rejects an empty payload, and a `batchTimeoutMs` that is negative or not finite, before sending anything, since the engine would otherwise reject every publish sharing that request.
 
 ## v1.41.1 - 2026-10-23

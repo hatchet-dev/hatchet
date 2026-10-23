@@ -39,7 +39,9 @@ function publishRejectedBeforeStoring(err: unknown): boolean {
     (err.code === Code.InvalidArgument ||
       err.code === Code.ResourceExhausted ||
       err.code === Code.Unauthenticated ||
-      err.code === Code.PermissionDenied)
+      err.code === Code.PermissionDenied ||
+      // an engine without the RPC
+      err.code === Code.Unimplemented)
   );
 }
 
@@ -69,6 +71,9 @@ export class StreamsClient {
    * two never share a sequence number, and each carries everything queued behind the last.
    */
   private readonly publishQueues = new Map<string, StreamPublishQueue<QueuedPublish>>();
+
+  /** Set once the engine answers `PublishBatch` as unimplemented: it predates batching. */
+  private publishBatchUnsupported = false;
 
   private readonly events: EventsServiceClient;
   private readonly streams: V1StreamsClient | undefined;
@@ -238,21 +243,52 @@ export class StreamsClient {
       });
 
       if (batch.length > 0) {
-        try {
-          await this.publishOrdered(
-            key,
-            namespace,
-            topic,
-            batch.map((p) => p.payload)
-          );
-          batch.forEach((p) => p.resolve());
-        } catch (err) {
-          batch.forEach((p) => p.reject(err));
-        }
+        await this.sendPublishes(key, namespace, topic, batch);
       }
     }
 
     this.publishQueues.delete(key);
+  }
+
+  /**
+   * Sends batch as one request, or as one request per message to an engine that predates
+   * `PublishBatch`, and settles each publish in it.
+   */
+  private async sendPublishes(
+    key: string,
+    namespace: string,
+    topic: string,
+    batch: QueuedPublish[]
+  ): Promise<void> {
+    if (!this.publishBatchUnsupported) {
+      try {
+        await this.publishOrdered(
+          key,
+          namespace,
+          topic,
+          batch.map((p) => p.payload)
+        );
+        batch.forEach((p) => p.resolve());
+        return;
+      } catch (err) {
+        if (!(err instanceof ConnectError && err.code === Code.Unimplemented)) {
+          batch.forEach((p) => p.reject(err));
+          return;
+        }
+        // nothing was stored, so the batch goes out again below
+        this.publishBatchUnsupported = true;
+      }
+    }
+
+    // Settled one by one: a failure partway leaves the publishes before it stored.
+    for (const p of batch) {
+      try {
+        await this.publishOrdered(key, namespace, topic, [p.payload]);
+        p.resolve();
+      } catch (err) {
+        p.reject(err);
+      }
+    }
   }
 
   private async publishOrdered(
@@ -281,13 +317,23 @@ export class StreamsClient {
 
     try {
       // not one caller's signal: the request carries other callers' publishes too
-      await streams.publishBatch({
-        namespace,
-        topic,
-        producerId: producer.producerId,
-        firstProducerSeq: producer.seq,
-        entries: payloads.map((payload) => ({ payload, payloadRef: '' })),
-      });
+      if (this.publishBatchUnsupported && payloads.length === 1) {
+        await streams.publish({
+          namespace,
+          topic,
+          payload: payloads[0],
+          producerId: producer.producerId,
+          producerSeq: producer.seq,
+        });
+      } else {
+        await streams.publishBatch({
+          namespace,
+          topic,
+          producerId: producer.producerId,
+          firstProducerSeq: producer.seq,
+          entries: payloads.map((payload) => ({ payload, payloadRef: '' })),
+        });
+      }
     } catch (err) {
       // The message may still land, and a different payload under its sequence number
       // would be dropped as a duplicate, so the next publish comes from a new producer.
