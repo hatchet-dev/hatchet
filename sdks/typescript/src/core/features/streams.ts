@@ -152,6 +152,9 @@ export class StreamsClient {
     validateBatchTimeout(options?.batchTimeoutMs);
 
     const signal = options?.signal;
+    if (signal?.aborted) {
+      throw new AbortError();
+    }
     const publishPromise = new Promise<void>((resolve, reject) => {
       const queue =
         this.publishQueues.get(key) ??
@@ -282,6 +285,10 @@ export class StreamsClient {
 
     // Settled one by one: a failure partway leaves the publishes before it stored.
     for (const p of batch) {
+      if (p.signal?.aborted) {
+        p.reject(new AbortError());
+        continue;
+      }
       try {
         await this.publishOrdered(key, namespace, topic, [p.payload]);
         p.resolve();
