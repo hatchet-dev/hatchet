@@ -48,13 +48,14 @@ def wait_for_worker_health(healthcheck_port: int) -> bool:
 
 def log_output(pipe: BytesIO, log_func: Callable[[str], None]) -> None:
     for line in iter(pipe.readline, b""):
-        print(line.decode().strip())
+        log_func(line.decode().strip())
 
 
 @contextmanager
 def hatchet_worker(
     command: list[str],
     healthcheck_port: int = 8001,
+    print_logs: bool = True,
 ) -> Generator[subprocess.Popen[bytes], None, None]:
     logging.info(f"Starting background worker: {' '.join(command)}")
 
@@ -69,8 +70,16 @@ def hatchet_worker(
     if proc.poll() is not None:
         raise Exception(f"Worker failed to start with return code {proc.returncode}")
 
-    Thread(target=log_output, args=(proc.stdout, logging.info), daemon=True).start()
-    Thread(target=log_output, args=(proc.stderr, logging.error), daemon=True).start()
+    Thread(
+        target=log_output,
+        args=(proc.stdout, print if print_logs else logging.info),
+        daemon=True,
+    ).start()
+    Thread(
+        target=log_output,
+        args=(proc.stderr, print if print_logs else logging.error),
+        daemon=True,
+    ).start()
 
     # The finally block also runs when the health check raises, so a worker
     # that never came up is still torn down instead of leaking.

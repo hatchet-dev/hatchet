@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from multiprocessing import Queue
 from typing import Any, TypeVar
 
@@ -63,6 +64,7 @@ class WorkerActionRunLoopManager:
         self.client = Client(config=self.config, debug=self.debug)
         self.start_loop_manager_task: asyncio.Task[None] | None = None
         self.log_sender = AsyncLogSender(self.client.event)
+        self._get_action_threadpool_executor = ThreadPoolExecutor(max_workers=1)
 
         self.log_sender.start()
         self.start()
@@ -130,7 +132,9 @@ class WorkerActionRunLoopManager:
         logger.debug("action runner loop stopped")
 
     async def _get_action(self) -> Action | STOP_LOOP_TYPE:
-        return await self.loop.run_in_executor(None, self.action_queue.get)
+        return await self.loop.run_in_executor(
+            self._get_action_threadpool_executor, self.action_queue.get
+        )
 
     async def exit_gracefully(self) -> None:
         if self.killing:
