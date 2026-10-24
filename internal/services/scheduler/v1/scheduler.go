@@ -147,6 +147,7 @@ type Scheduler struct {
 
 	tasksWithNoWorkerCache *expirable.LRU[string, struct{}]
 	rateLimitedTasksCache  *expirable.LRU[string, struct{}]
+	dispatcherIds          *dispatcherIdCache
 
 	promGate *prometheus.Gate
 
@@ -213,6 +214,7 @@ func New(
 		pool:                   opts.pool,
 		tasksWithNoWorkerCache: tasksWithNoWorkerCache,
 		rateLimitedTasksCache:  rateLimitedTasksCache,
+		dispatcherIds:          newDispatcherIdCache(opts.repov1.Workers().GetDispatcherIdsForWorkers),
 		signaler:               signaler,
 		promGate:               opts.promGate,
 		queueMetrics:           newQueueMetricsPoller(opts.repov1.Tasks(), opts.l),
@@ -381,6 +383,8 @@ func (s *Scheduler) handleTask(ctx context.Context, task *msgqueue.Message) (err
 		return s.handleCheckQueue(ctx, task)
 	case msgqueue.MsgIDNewWorker:
 		return s.handleNewWorker(ctx, task)
+	case msgqueue.MsgIDWorkerDispatcherChanged:
+		return s.handleWorkerDispatcherChanged(ctx, task)
 	case msgqueue.MsgIDNewQueue:
 		return s.handleNewQueue(ctx, task)
 	case msgqueue.MsgIDNewConcurrencyStrategy:
@@ -423,6 +427,25 @@ func (s *Scheduler) handleNewWorker(ctx context.Context, msg *msgqueue.Message) 
 
 	for _, payload := range payloads {
 		s.pool.NotifyNewWorker(ctx, msg.TenantID, payload.WorkerId)
+	}
+
+	return nil
+}
+
+// handleWorkerDispatcherChanged writes the dispatcher id a worker connected to into the dispatcher id
+// cache, so the next assignment routes to it without waiting for the cached entry to expire.
+func (s *Scheduler) handleWorkerDispatcherChanged(ctx context.Context, msg *msgqueue.Message) error {
+	_, span := telemetry.NewSpanWithCarrier(ctx, "handle-worker-dispatcher-changed", msg.OtelCarrier)
+	defer span.End()
+
+	payloads := msgqueue.JSONConvert[tasktypes.WorkerDispatcherChangedPayload](msg.Payloads)
+
+	for _, payload := range payloads {
+		if payload.WorkerId == uuid.Nil || payload.DispatcherId == uuid.Nil {
+			continue
+		}
+
+		s.dispatcherIds.set(payload.WorkerId, payload.DispatcherId)
 	}
 
 	return nil
@@ -515,7 +538,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 			workerIds = append(workerIds, assigned.WorkerId)
 		}
 
-		workerIdToDispatcherId, workersWithoutDispatchers, err := s.repov1.Workers().GetDispatcherIdsForWorkers(ctx, tenantId, workerIds)
+		workerIdToDispatcherId, workersWithoutDispatchers, err := s.dispatcherIds.get(ctx, tenantId, workerIds)
 
 		if err != nil {
 			s.internalRetry(ctx, tenantId, res.Assigned...)
@@ -554,32 +577,29 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 				continue
 			}
 
-			_, hasNoDispatcher := workersWithoutDispatchers[bulkAssigned.WorkerId]
-			dispatcherId, ok := workerIdToDispatcherId[bulkAssigned.WorkerId]
-
-			if hasNoDispatcher || !ok {
-				s.l.Error().Ctx(ctx).Msg("could not assign step run to worker: no dispatcher id. attempting internal retry.")
-
-				s.internalRetry(ctx, tenantId, bulkAssigned)
-
-				continue
-			}
-
-			if _, ok := dispatcherIdToWorkerIdsToStepRuns[dispatcherId]; !ok {
-				dispatcherIdToWorkerIdsToStepRuns[dispatcherId] = make(map[uuid.UUID][]int64)
-			}
-
 			workerId := bulkAssigned.WorkerId
-
-			if _, ok := dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId]; !ok {
-				dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId] = make([]int64, 0)
-			}
-
-			if !bulkAssigned.IsAssignedLocally {
-				dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId] = append(dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId], bulkAssigned.QueueItem.TaskID)
-			}
-
 			taskId := bulkAssigned.QueueItem.TaskID
+
+			// items the optimistic path already delivered only need the ASSIGNED event below: no dispatcher
+			// lookup and no task-assigned-bulk message
+			if !bulkAssigned.IsAssignedLocally {
+				_, hasNoDispatcher := workersWithoutDispatchers[workerId]
+				dispatcherId, ok := workerIdToDispatcherId[workerId]
+
+				if hasNoDispatcher || !ok {
+					s.l.Error().Ctx(ctx).Msg("could not assign step run to worker: no dispatcher id. attempting internal retry.")
+
+					s.internalRetry(ctx, tenantId, bulkAssigned)
+
+					continue
+				}
+
+				if _, ok := dispatcherIdToWorkerIdsToStepRuns[dispatcherId]; !ok {
+					dispatcherIdToWorkerIdsToStepRuns[dispatcherId] = make(map[uuid.UUID][]int64)
+				}
+
+				dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId] = append(dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId], taskId)
+			}
 
 			var durableInvCount int32
 			if count, ok := invocationCounts[repov1.IdInsertedAt{

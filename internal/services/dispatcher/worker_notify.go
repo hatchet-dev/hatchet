@@ -43,3 +43,35 @@ func (d *DispatcherImpl) NotifyNewWorker(ctx context.Context, tenant *sqlcv1.Ten
 		}
 	}()
 }
+
+// NotifyWorkerDispatcherChanged tells the tenant's scheduler partition that workerId is now connected
+// to this dispatcher, so the scheduler's cached dispatcher id for the worker is replaced before it
+// expires. The publish runs detached from ctx so it outlives the calling handler, and is a no-op for
+// tenants without a scheduler partition. A failed publish is logged: the cache TTL covers the loss.
+func (d *DispatcherImpl) NotifyWorkerDispatcherChanged(ctx context.Context, tenant *sqlcv1.Tenant, workerId uuid.UUID) {
+	if !tenant.SchedulerPartitionId.Valid {
+		return
+	}
+
+	go func() {
+		notifyCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+
+		msg, err := tasktypes.NotifyWorkerDispatcherChanged(tenant.ID, workerId, d.dispatcherId)
+
+		if err != nil {
+			d.l.Err(err).Ctx(ctx).Str("scheduler_partition_id", tenant.SchedulerPartitionId.String).Msg("could not create message for notifying worker dispatcher change")
+			return
+		}
+
+		err = d.pubsub.Pub(
+			notifyCtx,
+			msgqueue.SchedulerPartitionTopic(tenant.SchedulerPartitionId.String),
+			msg,
+		)
+
+		if err != nil {
+			d.l.Err(err).Ctx(ctx).Str("scheduler_partition_id", tenant.SchedulerPartitionId.String).Msg("could not publish worker dispatcher change to scheduler partition topic")
+		}
+	}()
+}
