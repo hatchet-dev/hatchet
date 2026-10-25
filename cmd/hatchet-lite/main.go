@@ -50,6 +50,27 @@ var rootCmd = &cobra.Command{
 	},
 }
 
+// newReverseProxy routes /api to the API and everything else to the frontend.
+//
+// X-Forwarded-For carries only the socket peer, so the API rate-limits by the address hatchet-lite
+// sees. Client-supplied forwarding headers are dropped: the API trusts private peers by default, so
+// it would otherwise read a client-chosen address. Behind a load balancer, all clients share its
+// address.
+func newReverseProxy(apiURL, feURL *url.URL) *httputil.ReverseProxy {
+	return &httputil.ReverseProxy{
+		Rewrite: func(r *httputil.ProxyRequest) {
+			if strings.HasPrefix(r.In.URL.Path, "/api") {
+				r.SetURL(apiURL)
+			} else {
+				r.SetURL(feURL)
+			}
+
+			r.Out.Header.Del("X-Real-Ip")
+			r.SetXForwarded()
+		},
+	}
+}
+
 // Version will be linked by an ldflag during build
 var Version = "v0.1.0-alpha.0"
 
@@ -168,15 +189,7 @@ func start(cf *loader.ConfigLoader, interruptCh <-chan interface{}, version stri
 	s := &http.Server{
 		Addr:              fmt.Sprintf(":%s", runtimePort),
 		ReadHeaderTimeout: 5 * time.Second,
-		Handler: &httputil.ReverseProxy{
-			Rewrite: func(r *httputil.ProxyRequest) {
-				if strings.HasPrefix(r.In.URL.Path, "/api") {
-					r.SetURL(apiURL)
-				} else {
-					r.SetURL(feURL)
-				}
-			},
-		},
+		Handler:           newReverseProxy(apiURL, feURL),
 	}
 
 	go func() {
