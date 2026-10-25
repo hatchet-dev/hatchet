@@ -281,6 +281,12 @@ type ConfigFileRuntime struct {
 	// WebhookRateLimitBurst is the burst size for webhook rate limiting
 	WebhookRateLimitBurst int `mapstructure:"webhookRateLimitBurst" json:"webhookRateLimitBurst,omitempty" default:"100"`
 
+	// TaskStatsRateLimit is the sustained rate limit for the task-stats endpoint per second, per tenant. 0 disables it
+	TaskStatsRateLimit float64 `mapstructure:"taskStatsRateLimit" json:"taskStatsRateLimit,omitempty" default:"5"`
+
+	// TaskStatsRateLimitBurst is the burst size for task-stats rate limiting, at least 1
+	TaskStatsRateLimitBurst int `mapstructure:"taskStatsRateLimitBurst" json:"taskStatsRateLimitBurst,omitempty" default:"50"`
+
 	// DisableTenantPubs controls whether tenant pubsub is disabled
 	DisableTenantPubs bool `mapstructure:"disableTenantPubs" json:"disableTenantPubs,omitempty"`
 
@@ -986,6 +992,8 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.grpcRateLimit", "SERVER_GRPC_RATE_LIMIT")
 	_ = v.BindEnv("runtime.webhookRateLimit", "SERVER_INCOMING_WEBHOOK_RATE_LIMIT")
 	_ = v.BindEnv("runtime.webhookRateLimitBurst", "SERVER_INCOMING_WEBHOOK_RATE_LIMIT_BURST")
+	_ = v.BindEnv("runtime.taskStatsRateLimit", "SERVER_TASK_STATS_RATE_LIMIT")
+	_ = v.BindEnv("runtime.taskStatsRateLimitBurst", "SERVER_TASK_STATS_RATE_LIMIT_BURST")
 	_ = v.BindEnv("runtime.grpcShutdownTimeout", "SERVER_GRPC_SHUTDOWN_TIMEOUT")
 	_ = v.BindEnv("runtime.schedulerConcurrencyRateLimit", "SCHEDULER_CONCURRENCY_RATE_LIMIT")
 	_ = v.BindEnv("runtime.schedulerConcurrencyPollingMinInterval", "SCHEDULER_CONCURRENCY_POLLING_MIN_INTERVAL")

@@ -771,6 +771,11 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	mw.Use(populatorMW.Middleware)
 	mw.Use(authnMW.Middleware)
 	mw.Use(authzMW.Middleware)
+	// Must stay after authn and authz: only requests authorized for the tenant may consume its bucket.
+	mw.Use(ratelimit.NewTaskStatsMiddleware(
+		rate.Limit(t.config.Runtime.TaskStatsRateLimit),
+		t.config.Runtime.TaskStatsRateLimitBurst,
+	))
 	for _, m := range t.additionalMiddlewares {
 		mw.Use(m)
 	}
