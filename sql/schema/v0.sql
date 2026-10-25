@@ -1428,6 +1428,9 @@ CREATE UNIQUE INDEX "TenantResourceLimit_tenantId_resource_key" ON "TenantResour
 CREATE UNIQUE INDEX "TenantResourceLimitAlert_id_key" ON "TenantResourceLimitAlert" ("id" ASC);
 
 -- CreateIndex
+CREATE INDEX "TenantResourceLimitAlert_tenantId_idx" ON "TenantResourceLimitAlert" ("tenantId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "TenantVcsProvider_id_key" ON "TenantVcsProvider" ("id" ASC);
 
 -- CreateIndex

@@ -517,6 +517,13 @@ INSERT INTO "TenantAlertingSettings" (
     "enableTenantResourceLimitAlerts" = COALESCE(sqlc.narg('enableTenantResourceLimitAlerts')::boolean, "TenantAlertingSettings"."enableTenantResourceLimitAlerts")
 RETURNING *;
 
+-- name: DeleteTenantResourceLimitAlerts :exec
+-- Clears the alert dedupe log for a tenant. Used when a tenant turns resource
+-- limit alerts back on, so a threshold crossed while alerts were off is
+-- alerted on the next poll instead of being suppressed for the rest of its window.
+DELETE FROM "TenantResourceLimitAlert"
+WHERE "tenantId" = sqlc.arg('tenantId')::uuid;
+
 -- name: CreateTenantAlertGroup :one
 INSERT INTO "TenantAlertEmailGroup" (
     "id",

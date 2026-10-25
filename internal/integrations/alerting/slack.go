@@ -1,34 +1,103 @@
 package alerting
 
 import (
+	"errors"
 	"fmt"
+	"net/http"
+	"net/url"
+	"strings"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/slack-go/slack"
 
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting/alerttypes"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-func (t *TenantAlertManager) sendSlackWorkflowRunAlert(slackWebhook *sqlcv1.SlackAppWebhook, numFailed int, failedRuns []alerttypes.WorkflowRunFailedItem) error {
-	headerText, blocks := t.getSlackWorkflowRunTextAndBlocks(numFailed, failedRuns)
-
-	// decrypt the webhook url
+// postSlackWebhook decrypts the webhook URL and posts the message. The decrypted
+// URL carries a bearer secret in its path, so any error returned from here names
+// the webhook by its row ID and never includes the URL.
+func (t *TenantAlertManager) postSlackWebhook(slackWebhook *sqlcv1.SlackAppWebhook, msg *slack.WebhookMessage) error {
 	whDecrypted, err := t.enc.Decrypt(slackWebhook.WebhookURL, "incoming_webhook_url")
 
 	if err != nil {
-		return err
+		return fmt.Errorf("slack webhook %s: could not decrypt webhook url: %w", slackWebhook.ID, err)
 	}
 
-	err = slack.PostWebhook(string(whDecrypted), &slack.WebhookMessage{
-		Text:   headerText,
-		Blocks: blocks,
-	})
+	webhookURL := string(whDecrypted)
 
-	if err != nil {
-		return err
+	if err := slack.PostWebhookCustomHTTP(webhookURL, slackWebhookClient, msg); err != nil {
+		return redactSlackWebhookError(slackWebhook.ID, webhookURL, err)
 	}
 
 	return nil
+}
+
+// slackWebhookClient never follows redirects, so a 3xx from the webhook host
+// surfaces as slack-go's status error instead of a redirect chain that could
+// repeat the secret-bearing path in a new request or error.
+var slackWebhookClient = &http.Client{
+	Timeout: 10 * time.Second,
+	CheckRedirect: func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	},
+}
+
+const redactedWebhookPlaceholder = "[redacted]"
+
+// redactSlackWebhookError rebuilds a PostWebhook error without the webhook URL.
+// Go's *url.Error embeds the full request URL in its message, so it is replaced
+// by its operation and underlying cause. The resulting text is then scrubbed of
+// every form of the URL (full, host plus path, path, raw path) because causes
+// such as a malformed Location header quote the path on its own. The returned
+// error is built from the scrubbed string only, with no wrapped cause, so no
+// other formatting path can reintroduce the URL.
+func redactSlackWebhookError(id uuid.UUID, webhookURL string, err error) error {
+	var uerr *url.Error
+
+	if errors.As(err, &uerr) && uerr.Err != nil {
+		err = fmt.Errorf("%s: %w", uerr.Op, uerr.Err)
+	}
+
+	msg := err.Error()
+
+	for _, secret := range webhookSecretForms(webhookURL) {
+		msg = strings.ReplaceAll(msg, secret, redactedWebhookPlaceholder)
+	}
+
+	return fmt.Errorf("slack webhook %s: %s", id, msg)
+}
+
+// webhookSecretForms lists the substrings of the webhook URL that carry its
+// secret path, longest first so partial replacements never leave a tail behind.
+func webhookSecretForms(webhookURL string) []string {
+	forms := []string{webhookURL}
+
+	u, err := url.Parse(webhookURL)
+
+	if err != nil {
+		return forms
+	}
+
+	for _, path := range []string{u.RawPath, u.Path} {
+		if path == "" || path == "/" {
+			continue
+		}
+
+		forms = append(forms, u.Host+path, path)
+	}
+
+	return forms
+}
+
+func (t *TenantAlertManager) sendSlackWorkflowRunAlert(slackWebhook *sqlcv1.SlackAppWebhook, numFailed int, failedRuns []alerttypes.WorkflowRunFailedItem) error {
+	headerText, blocks := t.getSlackWorkflowRunTextAndBlocks(numFailed, failedRuns)
+
+	return t.postSlackWebhook(slackWebhook, &slack.WebhookMessage{
+		Text:   headerText,
+		Blocks: blocks,
+	})
 }
 
 func (t *TenantAlertManager) getSlackWorkflowRunTextAndBlocks(numFailed int, failedRuns []alerttypes.WorkflowRunFailedItem) (string, *slack.Blocks) {
@@ -83,23 +152,10 @@ func (t *TenantAlertManager) getSlackWorkflowRunTextAndBlocks(numFailed int, fai
 func (t *TenantAlertManager) sendSlackExpiringTokenAlert(slackWebhook *sqlcv1.SlackAppWebhook, payload *alerttypes.ExpiringTokenItem) error {
 	headerText, blocks := t.getSlackExpiringTokenTextAndBlocks(payload)
 
-	// decrypt the webhook url
-	whDecrypted, err := t.enc.Decrypt(slackWebhook.WebhookURL, "incoming_webhook_url")
-
-	if err != nil {
-		return err
-	}
-
-	err = slack.PostWebhook(string(whDecrypted), &slack.WebhookMessage{
+	return t.postSlackWebhook(slackWebhook, &slack.WebhookMessage{
 		Text:   headerText,
 		Blocks: blocks,
 	})
-
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (t *TenantAlertManager) getSlackExpiringTokenTextAndBlocks(payload *alerttypes.ExpiringTokenItem) (string, *slack.Blocks) {
@@ -143,23 +199,10 @@ func (t *TenantAlertManager) getSlackExpiringTokenTextAndBlocks(payload *alertty
 func (t *TenantAlertManager) sendSlackTenantResourceLimitAlert(slackWebhook *sqlcv1.SlackAppWebhook, payload *alerttypes.ResourceLimitAlert) error {
 	headerText, blocks := t.getSlackTenantResourceLimitTextAndBlocks(payload)
 
-	// decrypt the webhook url
-	whDecrypted, err := t.enc.Decrypt(slackWebhook.WebhookURL, "incoming_webhook_url")
-
-	if err != nil {
-		return err
-	}
-
-	err = slack.PostWebhook(string(whDecrypted), &slack.WebhookMessage{
+	return t.postSlackWebhook(slackWebhook, &slack.WebhookMessage{
 		Text:   headerText,
 		Blocks: blocks,
 	})
-
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (t *TenantAlertManager) getSlackTenantResourceLimitTextAndBlocks(payload *alerttypes.ResourceLimitAlert) (string, *slack.Blocks) {
