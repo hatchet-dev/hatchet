@@ -1181,3 +1181,80 @@ func TestServerlessRepository(t *testing.T) {
 		assert.Equal(t, int32(3), created.EndpointPartitionCount, "a new row takes the configured count")
 	})
 }
+
+func TestServerlessEndpointEventsAndAssignment(t *testing.T) {
+	pool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	repo := newServerlessTestRepository(t, pool)
+
+	t.Run("vercel is a valid kind", func(t *testing.T) {
+		opts := serverlessEndpointOpts("vercel-endpoint")
+		kind := sqlcv1.V1ServerlessEndpointKindVERCEL
+		opts.Kind = &kind
+
+		created, err := repo.Endpoints().Create(ctx, uuid.New(), opts)
+		require.NoError(t, err)
+		assert.Equal(t, sqlcv1.V1ServerlessEndpointKindVERCEL, created.Kind)
+	})
+
+	t.Run("events round trip, newest first", func(t *testing.T) {
+		tenantId := uuid.New()
+		endpointId := uuid.New()
+		base := time.Now().Add(-time.Minute).UTC().Truncate(time.Millisecond)
+		retentionStart := time.Now().Add(-time.Hour)
+
+		// The migration creates today's and tomorrow's partitions; the event outside the
+		// retention window may fall on yesterday.
+		_, err := pool.Exec(ctx, "SELECT create_v1_range_partition('v1_serverless_endpoint_event', $1::date)", time.Now().UTC().AddDate(0, 0, -1))
+		require.NoError(t, err)
+
+		require.NoError(t, repo.Events().Insert(ctx, []ServerlessEndpointEventOpts{
+			{TenantId: tenantId, EndpointId: endpointId, CreatedAt: base, Kind: sqlcv1.V1ServerlessEndpointEventKindHEALTHCHECKFAILED, Message: "healthcheck returned status 401", Details: map[string]any{"statusCode": 401, "responseExcerpt": "bad signature"}},
+			{TenantId: tenantId, EndpointId: endpointId, CreatedAt: base.Add(time.Second), Kind: sqlcv1.V1ServerlessEndpointEventKindUNHEALTHY, Message: "healthcheck returned status 401"},
+			{TenantId: tenantId, EndpointId: uuid.New(), CreatedAt: base, Kind: sqlcv1.V1ServerlessEndpointEventKindHEALTHY, Message: "another endpoint"},
+			{TenantId: tenantId, EndpointId: endpointId, CreatedAt: retentionStart.Add(-time.Hour), Kind: sqlcv1.V1ServerlessEndpointEventKindHEALTHY, Message: "outside retention"},
+		}))
+
+		events, err := repo.Events().List(ctx, tenantId, endpointId, retentionStart, nil, 0)
+		require.NoError(t, err)
+		require.Len(t, events, 2, "events before the retention window are not returned")
+		assert.Equal(t, sqlcv1.V1ServerlessEndpointEventKindUNHEALTHY, events[0].Kind)
+		assert.JSONEq(t, `{}`, string(events[0].Details))
+		assert.JSONEq(t, `{"statusCode":401,"responseExcerpt":"bad signature"}`, string(events[1].Details))
+
+		since := base
+		later, err := repo.Events().List(ctx, tenantId, endpointId, retentionStart, &since, 0)
+		require.NoError(t, err)
+		require.Len(t, later, 1, "since is exclusive")
+
+		// another tenant sees nothing
+		none, err := repo.Events().List(ctx, uuid.New(), endpointId, retentionStart, nil, 0)
+		require.NoError(t, err)
+		assert.Empty(t, none)
+
+		limited, err := repo.Events().List(ctx, tenantId, endpointId, retentionStart, nil, 1)
+		require.NoError(t, err)
+		assert.Len(t, limited, 1)
+	})
+
+	t.Run("a value JSONB refuses fails the batch as a row error", func(t *testing.T) {
+		tenantId := uuid.New()
+		endpointId := uuid.New()
+		good := ServerlessEndpointEventOpts{TenantId: tenantId, EndpointId: endpointId, Kind: sqlcv1.V1ServerlessEndpointEventKindHEALTHY, Message: "fine"}
+		bad := ServerlessEndpointEventOpts{TenantId: tenantId, EndpointId: endpointId, Kind: sqlcv1.V1ServerlessEndpointEventKindCATALOGREJECTED, Message: "refused", Details: map[string]any{"workflows": []string{"bad\x00name"}}}
+
+		err := repo.Events().Insert(ctx, []ServerlessEndpointEventOpts{good, bad})
+		require.Error(t, err)
+		assert.True(t, IsServerlessEventRowError(err), "got %v", err)
+
+		require.NoError(t, repo.Events().Insert(ctx, []ServerlessEndpointEventOpts{good}))
+
+		events, err := repo.Events().List(ctx, tenantId, endpointId, time.Now().Add(-time.Hour), nil, 0)
+		require.NoError(t, err)
+		require.Len(t, events, 1, "the failed batch wrote nothing")
+
+		assert.False(t, IsServerlessEventRowError(context.DeadlineExceeded))
+	})
+}

@@ -13,6 +13,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 const (
@@ -62,6 +63,16 @@ type endpointPoller struct {
 	rejectedRetryAt time.Time
 	rejectedBackoff time.Duration
 	failures        int
+
+	// lastFailureEvent is the error of the last HEALTHCHECK_FAILED event of the current
+	// failure streak: a streak records its first failure and every change of error, not
+	// every poll, and the recorder holds those to one per failureEventWindow.
+	lastFailureEvent string
+
+	// catalogChanged is set by applyChange when it changed what the engine or the row holds
+	// for the endpoint, as opposed to re-putting an unchanged catalog after a restart or a
+	// lease move; only a real change is recorded as CATALOG_REGISTERED.
+	catalogChanged bool
 }
 
 // rejectedBackoffMax caps how long an unchanged rejected catalog waits before a retry.
@@ -146,8 +157,10 @@ func (p *endpointPoller) run(ctx context.Context) {
 	}
 }
 
-// pollStatus is the outcome of one poll: the health the endpoint row should show.
+// pollStatus is the outcome of one poll: the health the endpoint row should show, and the
+// details an UNHEALTHY event carries if the row flips.
 type pollStatus struct {
+	details *eventDetails
 	err     string
 	healthy bool
 }
@@ -179,15 +192,23 @@ func (p *endpointPoller) pollOnce(ctx context.Context) {
 	}
 
 	if err != nil {
-		p.r.m.healthcheck("error", time.Since(start))
+		elapsed := time.Since(start)
+		p.r.m.healthcheck("error", elapsed)
 		p.failures++
+
+		details := healthcheckDetails(cfg, healthcheckStage(err), elapsed)
+
+		if p.failures == 1 || err.Error() != p.lastFailureEvent {
+			p.lastFailureEvent = err.Error()
+			p.r.events.record(p.ep, sqlcv1.V1ServerlessEndpointEventKindHEALTHCHECKFAILED, err.Error(), details)
+		}
 
 		if p.failures == unhealthyAfterFailures {
 			p.r.l.Warn().Err(err).Str("endpoint_id", p.ep.id.String()).Msg("serverless endpoint unhealthy")
 		}
 
 		if p.failures >= unhealthyAfterFailures {
-			p.writeStatusIfChanged(ctx, cfg, pollStatus{healthy: false, err: err.Error()})
+			p.writeStatusIfChanged(ctx, cfg, pollStatus{healthy: false, err: err.Error(), details: details})
 		}
 
 		return
@@ -195,6 +216,7 @@ func (p *endpointPoller) pollOnce(ctx context.Context) {
 
 	p.r.m.healthcheck("ok", time.Since(start))
 	p.failures = 0
+	p.lastFailureEvent = ""
 
 	p.writeStatusIfChanged(ctx, cfg, p.apply(ctx, res))
 }
@@ -227,13 +249,27 @@ func (p *endpointPoller) apply(ctx context.Context, res *healthcheckResult) poll
 	if err := p.applyChange(actx, reg, res); err != nil {
 		p.r.l.Error().Err(err).Str("endpoint_id", p.ep.id.String()).Msg("could not register serverless endpoint workflows")
 
+		details := &eventDetails{Stage: stageCatalog, Workflows: workflowNames(res), Actions: res.actions}
+
 		var rejection catalogRejected
 
 		if errors.As(err, &rejection) {
+			// Recorded once per refused catalog, not on every backoff retry of it; the
+			// recorder holds a stream of distinct refused catalogs to one per window.
+			if p.rejectedHash != res.hash {
+				p.r.events.record(p.ep, sqlcv1.V1ServerlessEndpointEventKindCATALOGREJECTED, err.Error(), details)
+			}
+
 			p.rejected(res.hash, err.Error())
 		}
 
-		return pollStatus{healthy: false, err: err.Error()}
+		return pollStatus{healthy: false, err: err.Error(), details: details}
+	}
+
+	if p.catalogChanged {
+		p.r.events.record(p.ep, sqlcv1.V1ServerlessEndpointEventKindCATALOGREGISTERED,
+			fmt.Sprintf("registered %d workflows and %d actions", len(res.workflows), len(res.actions)),
+			&eventDetails{Workflows: workflowNames(res), Actions: res.actions})
 	}
 
 	p.lastHash = res.hash
@@ -261,7 +297,7 @@ func (p *endpointPoller) writeStatusIfChanged(ctx context.Context, cfg *endpoint
 		return
 	}
 
-	p.r.writeStatus(ctx, p.ts, p.ep, status.healthy, status.err)
+	p.r.writeStatus(ctx, p.ts, p.ep, status.healthy, status.err, status.details)
 }
 
 // applyChange puts the endpoint's changed workflows through the unit's registration, records
@@ -280,6 +316,8 @@ func (p *endpointPoller) applyChange(ctx context.Context, reg *registration, res
 	// with fresh names must not accumulate.
 	defer p.prunePutHashes(res)
 
+	p.catalogChanged = false
+
 	for i, wf := range res.workflows {
 		if p.putHashes[wf.Name] == res.workflowHashes[i] {
 			continue
@@ -294,6 +332,11 @@ func (p *endpointPoller) applyChange(ctx context.Context, reg *registration, res
 		}
 
 		p.putHashes[wf.Name] = res.workflowHashes[i]
+
+		// The first catalog a poller applies re-puts every workflow, changed or not.
+		if p.lastHash != "" {
+			p.catalogChanged = true
+		}
 	}
 
 	if !p.registeredKnown {
@@ -316,6 +359,7 @@ func (p *endpointPoller) applyChange(ctx context.Context, reg *registration, res
 		p.registeredStreams = res.streamActions
 		p.registeredDurable = res.durable
 		p.registeredAt = updatedAt
+		p.catalogChanged = true
 	}
 
 	previous := p.ts.cache.Config(p.ep)
@@ -352,10 +396,15 @@ func (p *endpointPoller) prunePutHashes(res *healthcheckResult) {
 	}
 }
 
-// writeStatus records a health transition: one row write, mirrored into the cache with the
+// writeStatus records a status change: one row write, mirrored into the cache with the
 // write's database timestamp so a refresh returning an older row cannot resurrect the
-// previous value.
-func (r *runner) writeStatus(ctx context.Context, ts *tenantState, ep *cachedEndpoint, healthy bool, statusError string) {
+// previous value. Only a health transition is recorded as an event: HEALTHY when the endpoint
+// was not known healthy, UNHEALTHY when it was not known unhealthy. A new error on an
+// endpoint already unhealthy updates the row alone, since the error text is the endpoint's to
+// vary on every poll.
+func (r *runner) writeStatus(ctx context.Context, ts *tenantState, ep *cachedEndpoint, healthy bool, statusError string, details *eventDetails) {
+	previous := ts.cache.Config(ep)
+
 	var errPtr *string
 
 	if statusError != "" {
@@ -370,6 +419,26 @@ func (r *runner) writeStatus(ctx context.Context, ts *tenantState, ep *cachedEnd
 	}
 
 	ts.cache.SetStatus(ep.id, healthy, statusError, changedAt)
+
+	known := previous != nil && previous.healthKnown
+
+	switch {
+	case !healthy && (!known || previous.healthy):
+		r.events.record(ep, sqlcv1.V1ServerlessEndpointEventKindUNHEALTHY, statusError, details)
+	case healthy && (!known || !previous.healthy):
+		r.events.record(ep, sqlcv1.V1ServerlessEndpointEventKindHEALTHY, "endpoint is healthy", nil)
+	}
+}
+
+// healthcheckDetails are the details of a failed healthcheck's events.
+func healthcheckDetails(cfg *endpointConfig, hcErr *healthcheckError, elapsed time.Duration) *eventDetails {
+	return &eventDetails{
+		Stage:           hcErr.stage,
+		URL:             cfg.healthcheckUrl,
+		StatusCode:      hcErr.statusCode,
+		DurationMs:      elapsed.Milliseconds(),
+		ResponseExcerpt: excerpt(hcErr.body, eventExcerptBytes),
+	}
 }
 
 // markNoToken writes the no-token status error on the tenant's owned endpoints that do not
@@ -382,7 +451,7 @@ func (r *runner) markNoToken(ctx context.Context, ts *tenantState) {
 			continue
 		}
 
-		r.writeStatus(ctx, ts, ep, false, noTokenStatusError)
+		r.writeStatus(ctx, ts, ep, false, noTokenStatusError, nil)
 	}
 }
 

@@ -50,6 +50,7 @@ export function MainShell({ children }: { children?: ReactNode }) {
 
   const { entitlements } = useTenantEntitlements();
   const hasDurableStreams = !!entitlements?.durableStreams;
+  const hasServerlessEndpoints = !!entitlements?.serverlessOperator;
 
   const navSections = useMemo(
     () =>
@@ -58,6 +59,7 @@ export function MainShell({ children }: { children?: ReactNode }) {
         isControlPlaneEnabled,
         orgId,
         hasManagedWorkers,
+        hasServerlessEndpoints,
         hasDurableStreams,
       }),
     [
@@ -65,6 +67,7 @@ export function MainShell({ children }: { children?: ReactNode }) {
       isControlPlaneEnabled,
       orgId,
       hasManagedWorkers,
+      hasServerlessEndpoints,
       hasDurableStreams,
     ],
   );

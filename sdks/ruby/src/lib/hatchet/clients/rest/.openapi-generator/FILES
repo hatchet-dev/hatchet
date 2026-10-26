@@ -212,6 +212,11 @@ lib/hatchet-sdk-rest/models/v1_restore_task_response.rb
 lib/hatchet-sdk-rest/models/v1_running_detail_count.rb
 lib/hatchet-sdk-rest/models/v1_running_filter.rb
 lib/hatchet-sdk-rest/models/v1_serverless_endpoint.rb
+lib/hatchet-sdk-rest/models/v1_serverless_endpoint_check_stage.rb
+lib/hatchet-sdk-rest/models/v1_serverless_endpoint_event.rb
+lib/hatchet-sdk-rest/models/v1_serverless_endpoint_event_details.rb
+lib/hatchet-sdk-rest/models/v1_serverless_endpoint_event_kind.rb
+lib/hatchet-sdk-rest/models/v1_serverless_endpoint_event_list.rb
 lib/hatchet-sdk-rest/models/v1_serverless_endpoint_kind.rb
 lib/hatchet-sdk-rest/models/v1_serverless_endpoint_list.rb
 lib/hatchet-sdk-rest/models/v1_serverless_endpoint_status.rb

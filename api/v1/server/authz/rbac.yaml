@@ -86,6 +86,7 @@ roles:
       - V1WebhookGet
       - V1ServerlessEndpointList
       - V1ServerlessEndpointGet
+      - V1ServerlessEndpointEventList
       - V1WebhookReceive
       - V1WorkflowRunList
       - V1EventKeyList

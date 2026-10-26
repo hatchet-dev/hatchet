@@ -685,6 +685,24 @@ const tenantWorkerRoute = createRoute({
   ),
 });
 
+const tenantEndpointsRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'endpoints',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/endpoints'),
+    'default',
+  ),
+});
+
+const tenantEndpointRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'endpoints/$endpoint',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/endpoints/$endpoint'),
+    'default',
+  ),
+});
+
 const tenantManagedWorkersRoute = createRoute({
   getParentRoute: () => tenantRoute,
   path: 'managed-workers',
@@ -1104,6 +1122,8 @@ const tenantRoutes = [
   tenantWorkersRoute,
   tenantWorkersAllRoute,
   tenantWorkerRoute,
+  tenantEndpointsRoute,
+  tenantEndpointRoute,
   tenantManagedWorkersRoute,
   tenantManagedWorkersTemplateRoute,
   tenantManagedWorkersCreateRoute,
@@ -1255,6 +1275,8 @@ export const appRoutes = {
   tenantWorkersRoute,
   tenantWorkersAllRoute,
   tenantWorkerRoute,
+  tenantEndpointsRoute,
+  tenantEndpointRoute,
   tenantManagedWorkersRoute,
   tenantManagedWorkersTemplateRoute,
   tenantManagedWorkersCreateRoute,

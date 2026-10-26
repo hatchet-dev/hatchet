@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	defaultServerlessRequestTimeoutSeconds int32 = 60
+	defaultServerlessRequestTimeoutSeconds int32 = 300
 	defaultServerlessPollIntervalSeconds   int32 = 30
 	defaultServerlessInlineWaitBudgetMs    int32 = 5000
 )
@@ -23,7 +23,7 @@ type CreateServerlessEndpointOpts struct {
 	Name string `validate:"required,hatchetName"`
 
 	// Kind defaults to CLOUDFLARE_WORKERS.
-	Kind *sqlcv1.V1ServerlessEndpointKind `validate:"omitnil,oneof=GENERIC_HTTP CLOUDFLARE_WORKERS"`
+	Kind *sqlcv1.V1ServerlessEndpointKind `validate:"omitnil,oneof=GENERIC_HTTP CLOUDFLARE_WORKERS VERCEL"`
 
 	HealthcheckUrl string `validate:"required,url"`
 	TriggerUrl     string `validate:"required,url"`
@@ -50,7 +50,7 @@ type CreateServerlessEndpointOpts struct {
 
 type UpdateServerlessEndpointOpts struct {
 	Name                  *string                          `validate:"omitnil,hatchetName"`
-	Kind                  *sqlcv1.V1ServerlessEndpointKind `validate:"omitnil,oneof=GENERIC_HTTP CLOUDFLARE_WORKERS"`
+	Kind                  *sqlcv1.V1ServerlessEndpointKind `validate:"omitnil,oneof=GENERIC_HTTP CLOUDFLARE_WORKERS VERCEL"`
 	HealthcheckUrl        *string                          `validate:"omitnil,url"`
 	TriggerUrl            *string                          `validate:"omitnil,url"`
 	SigningSecretEnc      *string                          `validate:"omitnil,min=1"`

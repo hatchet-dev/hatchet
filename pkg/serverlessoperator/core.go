@@ -51,6 +51,10 @@ type Deps struct {
 	Hostname   string
 	Config     Config
 	ProcessId  uuid.UUID
+
+	// DisableTaskLogs stops the line each delivered task gets in its logs naming the
+	// endpoint; the engine sets it when log ingestion is off.
+	DisableTaskLogs bool
 }
 
 func (d Deps) validate() error {

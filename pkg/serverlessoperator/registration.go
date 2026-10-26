@@ -444,8 +444,11 @@ func (reg *registration) deliver(ctx context.Context, task *inflightTask, action
 		// lacks the support, so this is an action id another endpoint serves durably; the
 		// retry is routed again.
 		if !cfg.durableSupported {
+			msg := fmt.Sprintf("endpoint %s does not support durable tasks, and %s was assigned as one", cfg.name, action.ActionId)
+
 			reg.r.m.delivered("durable_unsupported", time.Since(start))
-			reg.reportFailure(action, fmt.Sprintf("endpoint %s does not support durable tasks, and %s was assigned as one", cfg.name, action.ActionId), true)
+			reg.reportFailure(action, msg, true)
+			reg.recordDeliveryFailure(ep, cfg, action, failedOutcome(msg, true))
 
 			return
 		}
@@ -465,6 +468,8 @@ func (reg *registration) deliver(ctx context.Context, task *inflightTask, action
 		reg.r.l.Error().Err(err).Str("task_run_external_id", action.TaskRunExternalId).Msg("could not report task started")
 	}
 
+	reg.r.taskLogs.delivered(ep, cfg, action)
+
 	out := deliverAction(ctx, reg.r.sender, ep, cfg, action)
 
 	reg.r.m.delivered(out.result, time.Since(start))
@@ -477,6 +482,32 @@ func (reg *registration) deliver(ctx context.Context, task *inflightTask, action
 	if err := reg.events.report(action, out); err != nil {
 		reg.r.l.Error().Err(err).Str("task_run_external_id", action.TaskRunExternalId).Msg("could not report task outcome")
 	}
+
+	reg.recordDeliveryFailure(ep, cfg, action, out)
+}
+
+// recordDeliveryFailure records a failed outcome as the endpoint's DELIVERY_FAILED event,
+// rate limited per endpoint; any other outcome is ignored.
+func (reg *registration) recordDeliveryFailure(ep *cachedEndpoint, cfg *endpointConfig, action *contracts.AssignedAction, out outcome) {
+	if out.status != contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED {
+		return
+	}
+
+	retryCount := action.RetryCount
+	retryable := out.retry
+
+	details := &eventDetails{
+		URL:               cfg.triggerUrl,
+		TaskRunExternalId: action.TaskRunExternalId,
+		ActionId:          action.ActionId,
+		RetryCount:        &retryCount,
+		Retryable:         &retryable,
+		StatusCode:        out.statusCode,
+		DurationMs:        out.duration.Milliseconds(),
+		ResponseExcerpt:   excerpt(out.body, eventExcerptBytes),
+	}
+
+	reg.r.events.deliveryFailed(ep, out.errMsg, details)
 }
 
 // deliverOverSocket relays an invocation over the endpoint websocket: report STARTED, open
@@ -497,6 +528,7 @@ func (reg *registration) deliverOverSocket(ctx context.Context, task *inflightTa
 	if cfg.secretErr != nil {
 		reg.r.m.delivered("failed", time.Since(start))
 		reg.reportFailure(action, cfg.secretErr.Error(), false)
+		reg.recordDeliveryFailure(ep, cfg, action, failedOutcome(cfg.secretErr.Error(), false))
 
 		return
 	}
@@ -513,6 +545,8 @@ func (reg *registration) deliverOverSocket(ctx context.Context, task *inflightTa
 	if err := reg.events.started(action); err != nil {
 		reg.r.l.Error().Err(err).Str("task_run_external_id", action.TaskRunExternalId).Msg("could not report task started")
 	}
+
+	reg.r.taskLogs.delivered(ep, cfg, action)
 
 	timeout := requestTimeout(cfg)
 
@@ -592,6 +626,9 @@ func (reg *registration) deliverOverSocket(ctx context.Context, task *inflightTa
 	if err := reg.events.report(action, o); err != nil {
 		reg.r.l.Error().Err(err).Str("task_run_external_id", action.TaskRunExternalId).Msg("could not report task outcome")
 	}
+
+	o.duration = time.Since(start)
+	reg.recordDeliveryFailure(ep, cfg, action, o)
 }
 
 // reportAborted handles a delivery whose context ended: silent after an engine cancel (the

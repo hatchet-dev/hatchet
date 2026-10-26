@@ -1,0 +1,688 @@
+{/*
+  Copy for the dashboard's Endpoints tab (serverless endpoints).
+
+  Every `## key` heading is one string the UI shows; the text under it, up to the next heading,
+  is the copy. Edit the text freely while `npm run dev` is running and the page reloads with it.
+
+  - Text may use `code`, **bold** and [links](https://docs.hatchet.run).
+  - [[name]] is filled in by the UI: keep the placeholders a string already uses.
+  - A key whose text is a bulleted list ("- ...") is shown as a list: add, drop or reorder items.
+  - `# Headings` only group the keys and are not shown.
+  - Don't rename, add or remove keys here without the matching change in copy-keys.ts; a unit
+    test (copy.test.ts) fails when the two differ.
+*/}
+
+# Platforms
+
+## platform.CLOUDFLARE_WORKERS.label
+Cloudflare Workers
+
+## platform.CLOUDFLARE_WORKERS.description
+A Worker running the Hatchet serverless handler.
+
+## platform.CLOUDFLARE_WORKERS.baseUrlLabel
+Worker URL
+
+## platform.CLOUDFLARE_WORKERS.guide
+You need a Cloudflare Worker deployed; see the [Cloudflare Workers guide](https://docs.hatchet.run/v1/serverless/cloudflare-workers) for instructions.
+
+## platform.VERCEL.label
+Vercel
+
+## platform.VERCEL.description
+A function running on Vercel.
+
+## platform.VERCEL.baseUrlLabel
+Deployment URL
+
+## platform.VERCEL.guide
+You need a Next.js app deployed on Vercel; see the [Vercel guide](https://docs.hatchet.run/v1/serverless/vercel) for instructions.
+
+## platform.GENERIC_HTTP.label
+Generic HTTPS
+
+## platform.GENERIC_HTTP.description
+Any https endpoint which uses the Hatchet serverless SDK.
+
+## platform.GENERIC_HTTP.guide
+You need an https endpoint set up; see [the HTTP contract](https://docs.hatchet.run/v1/serverless/http).
+
+# Endpoints list
+
+## list.add
+Add endpoint
+
+## list.empty.title
+No serverless endpoints
+
+## list.empty.description
+Serverless endpoints allow you to run Hatchet tasks on Cloudflare workers, Vercel, or any other serverless destination, triggered by an HTTP request.
+
+## list.empty.docs
+Learn about serverless endpoints
+
+## list.docsUrl
+https://docs.hatchet.run/v1/serverless
+
+## list.column.name
+Name
+
+## list.column.status
+Status
+
+## list.column.triggerUrl
+Trigger URL
+
+## list.column.statusChanged
+Status changed
+
+## list.triggerUrl.expand
+Show the full URL
+
+## list.triggerUrl.collapse
+Collapse
+
+# Status badge
+
+## status.healthy.label
+Healthy
+
+## status.healthy.description
+The last healthcheck succeeded.
+
+## status.unhealthy.label
+Unhealthy
+
+## status.unhealthy.description
+Healthchecks are failing.
+
+## status.pending.label
+Waiting for first healthcheck
+
+## status.pending.description
+Hatchet has not run a healthcheck yet.
+
+## status.disabled.label
+Disabled
+
+## status.disabled.description
+Hatchet does not poll or deliver to this endpoint.
+
+# Add endpoint dialog
+
+## create.title
+Add a serverless endpoint
+
+## create.titleForPlatform
+Add a [[platform]] endpoint
+
+## create.pickPlatform
+Hatchet runs your tasks by calling a serverless function. Where is it deployed?
+
+## create.programmatic
+You can also add endpoints from code with the REST API or the Hatchet SDKs. See [managing endpoints](https://docs.hatchet.run/v1/serverless/managing-endpoints).
+
+## create.back
+Choose another platform
+
+## create.submit
+Add endpoint
+
+## create.notEntitled.title
+Serverless endpoints are not enabled for this tenant
+
+## create.notEntitled.cloud
+Contact support to enable serverless endpoints for this tenant.
+
+## create.notEntitled.contactSupport
+Contact support
+
+## create.notEntitled.supportUrl
+mailto:support@hatchet.run?subject=Enable%20serverless%20endpoints
+
+## create.notEntitled.oss
+Serverless endpoints are not enabled yet. Set `tenant_entitlement.serverless_operator` for the tenant (new tenants get it with `SERVER_DEFAULT_TENANT_ENTITLEMENT_SERVERLESS_OPERATOR=true`) and enable the operator on the engine with `SERVER_SERVERLESS_OPERATOR_ENABLED=true`.
+
+# Edit endpoint dialog
+
+## edit.title
+Edit [[name]]
+
+## edit.platform
+Platform
+
+## edit.adapterPath
+The [[platform]] adapter serves `[[path]]`.
+
+## edit.submit
+Save changes
+
+# Form fields
+
+## form.cancel
+Cancel
+
+## form.required
+Required
+
+## form.optional
+(optional)
+
+## form.name.label
+Name
+
+## form.name.placeholder
+my-endpoint
+
+## form.manualUrls
+Enter the healthcheck and trigger URLs manually
+
+## form.healthcheckUrl.label
+Healthcheck URL
+
+## form.healthcheckUrl.help
+Polled to discover the workflows the endpoint serves.
+
+## form.triggerUrl.label
+Trigger URL
+
+## form.triggerUrl.help
+Assigned tasks are delivered here.
+
+## form.signingSecret.label
+Signing secret
+
+## form.signingSecret.rotateLabel
+Rotate signing secret
+
+## form.signingSecret.placeholder
+32+ characters
+
+## form.signingSecret.rotatePlaceholder
+Leave empty to keep the current secret
+
+## form.signingSecret.generate
+Generate
+
+## form.signingSecret.help
+Hatchet signs every request with this secret. Set it to the same value as `HATCHET_SIGNING_SECRET` on the endpoint. It is stored encrypted and never shown again, so copy it now.
+
+## form.advanced
+Advanced
+
+## form.requestTimeout.label
+Request timeout (s)
+
+## form.pollInterval.label
+Poll interval (s)
+
+## form.inlineWait.label
+Inline wait budget (ms)
+
+## form.advanced.help
+The request timeout is how long Hatchet will wait for an initial response to the endpoint (this is not the same as the execution timeout). The poll interval is how often Hatchet runs a health check against the endpoint. The inline wait budget is how long durable tasks run before they are [evicted](https://docs.hatchet.run/v1/task-eviction) by the engine.
+
+## form.labels.label
+Worker labels
+
+## form.labels.help
+Labels on the worker Hatchet registers for this endpoint, used for [worker affinity](https://docs.hatchet.run/v1/advanced-assignment/worker-affinity).
+
+## form.enabled.label
+Enabled
+
+## form.enabled.help
+Hatchet only polls and delivers tasks to enabled endpoints.
+
+# Form validation
+
+## validation.nameRequired
+Name is required
+
+## validation.nameTooLong
+At most 255 characters
+
+## validation.secretTooShort
+Must be at least [[length]] characters
+
+## validation.number
+Must be a number
+
+## validation.requestTimeoutMin
+Must be at least 1 second
+
+## validation.requestTimeoutMax
+At most 600 seconds
+
+## validation.pollIntervalMin
+Must be at least 1 second
+
+## validation.inlineWaitMin
+Must not be negative
+
+## validation.labelKeyRequired
+Every label needs a key
+
+## validation.labelKeyDuplicate
+Label keys must be unique: [[key]]
+
+## validation.url.invalid
+Must be a valid URL
+
+## validation.url.https
+Must use https://
+
+## validation.url.host
+Must include a host
+
+## validation.url.credentials
+Must not include credentials
+
+## validation.url.port
+Only port 443 is allowed
+
+# Endpoint actions
+
+## actions.menu
+Endpoint actions
+
+## actions.edit
+Edit
+
+## actions.enable
+Enable
+
+## actions.disable
+Disable
+
+## actions.delete
+Delete
+
+## delete.title
+Delete [[name]]?
+
+## delete.description
+Hatchet will stop polling the endpoint and delivering tasks to it.
+
+## delete.submit
+Delete
+
+# Endpoint page
+
+## detail.notFound.resource
+Endpoint
+
+## detail.notFound.back
+Back to Endpoints
+
+## detail.enabled
+Enabled
+
+## detail.configuration
+Configuration
+
+## detail.healthcheckUrl
+Healthcheck URL
+
+## detail.triggerUrl
+Trigger URL
+
+## detail.labels
+Worker labels
+
+## detail.status
+Status
+
+## detail.health
+Health
+
+## detail.health.unknown
+Not checked yet
+
+## detail.health.healthy
+Healthy
+
+## detail.health.unhealthy
+Unhealthy
+
+## detail.statusChanged
+Status last changed
+
+## detail.never
+Never
+
+## detail.lastError
+Last error
+
+## detail.created
+Created
+
+## detail.updated
+Updated
+
+## detail.actions.title
+Registered actions ([[count]])
+
+## detail.actions.description
+The tasks Hatchet delivers to this endpoint, from its last accepted healthcheck.
+
+## detail.actions.empty
+None registered yet.
+
+## detail.events.title
+Events
+
+## detail.events.description
+The most recent logs and status changes from the endpoint. Click a line to expand it.
+
+## detail.events.empty
+No logs yet.
+
+## detail.events.loadError
+Could not load events.
+
+## detail.whatToCheck
+What to check
+
+# Events
+
+## event.HEALTHCHECK_FAILED
+Healthcheck failed
+
+## event.UNHEALTHY
+Unhealthy
+
+## event.HEALTHY
+Healthy
+
+## event.CATALOG_REGISTERED
+Workflows registered
+
+## event.CATALOG_REJECTED
+Workflows rejected
+
+## event.DELIVERY_FAILED
+Delivery failed
+
+## event.suppressed
+(+[[count]] more since the previous one)
+
+## event.viewRun
+View the task run
+
+# Diagnosis: the endpoint's overall state
+
+## diagnosis.disabled.title
+Disabled
+
+## diagnosis.disabled.detail
+Your endpoint is disabled.
+
+## diagnosis.disabled.steps
+- Enable the endpoint to resume healthchecks and deliveries.
+
+## diagnosis.pending.title
+Waiting for the first healthcheck
+
+## diagnosis.pending.detail
+Hatchet polls every [[seconds]]s and marks the endpoint healthy or unhealthy after its first checks.
+
+## diagnosis.notPolled.title
+No healthchecks yet
+
+## diagnosis.notPolled.detail
+Hatchet should have checked this endpoint by now, but no healthcheck has run.
+
+## diagnosis.notPolled.steps.cloud
+- If this persists for more than a few minutes, contact support.
+
+## diagnosis.notPolled.steps.oss
+- Make sure the serverless operator is enabled on the engine (`SERVER_SERVERLESS_OPERATOR_ENABLED=true`), or running as its own process.
+- Check the engine's logs for serverless operator errors.
+
+## diagnosis.deliveriesFailing.title
+Healthy, but tasks are failing
+
+## diagnosis.deliveriesFailing.detail
+Healthchecks pass, but recent task deliveries failed.
+
+## diagnosis.healthchecksFailing.title
+Healthchecks are failing
+
+## diagnosis.healthchecksFailing.detail
+The latest healthcheck failed.
+
+## diagnosis.noActions.title
+Healthy, but serves no tasks
+
+## diagnosis.noActions.detail
+The healthcheck returned no tasks or workflows. Make sure that you have set up tasks or workflows when constructing the endpoint.
+
+## diagnosis.noActions.steps
+- Pass your workflows to the serverless handler and redeploy.
+
+## diagnosis.healthy.title
+Healthy
+
+## diagnosis.healthy.detail
+Serving [[count]] actions.
+
+## diagnosis.healthy.detailOne
+Serving 1 action.
+
+# Diagnosis: why a request failed
+
+## request.healthcheck
+The healthcheck
+
+## request.delivery
+Task delivery
+
+## failure.step.logs
+Check the endpoint's server logs for the failing request.
+
+## failure.step.logsCommand
+Check the endpoint's logs (`[[command]]`) for the failing request.
+
+## failure.operatorToken.title
+The operator cannot authenticate for this tenant
+
+## failure.operatorToken.detail.cloud
+Hatchet cannot authenticate this tenant. We are looking into it.
+
+## failure.operatorToken.detail.oss
+The serverless operator has no API token for this tenant, so it cannot register the workflows the endpoint serves.
+
+## failure.operatorToken.steps.oss
+- This is a Hatchet-side problem, not an endpoint problem: check the serverless operator logs on the Hatchet instance.
+- For an out-of-process operator, make sure it is configured with credentials for this tenant.
+
+## failure.secretUnusable.title
+The signing secret cannot be used
+
+## failure.secretUnusable.detail
+Hatchet could not load this endpoint's signing secret.
+
+## failure.secretUnusable.steps
+- Rotate the signing secret from Edit, and set the same value as `HATCHET_SIGNING_SECRET` on the endpoint.
+
+## failure.blocked.title
+The URL is blocked by the delivery policy
+
+## failure.blocked.detail
+Hatchet only calls endpoints over https on port 443 at public addresses. Loopback and private network addresses are refused.
+
+## failure.blocked.steps
+- Use the public https URL of the deployment.
+- For local development, put a public https tunnel (for example cloudflared) in front of the endpoint.
+
+## failure.blocked.step.oss
+To call endpoints on your own machine or private network during local development, set `SERVER_SERVERLESS_OPERATOR_INSECURE_DESTINATIONS=true` on the engine. This turns off the delivery policy entirely, so never set it in production.
+
+## failure.dns.title
+The endpoint's hostname does not resolve
+
+## failure.dns.detail
+[[what]] failed because DNS has no record for the host.
+
+## failure.dns.steps
+- Check the URL for typos.
+- Make sure the deployment exists and is published at that hostname.
+
+## failure.tls.title
+TLS handshake failed
+
+## failure.tls.detail
+[[what]] could not establish a trusted https connection.
+
+## failure.tls.steps
+- Make sure the hostname serves a valid, publicly trusted certificate.
+- Custom domains can take a few minutes to get a certificate after they are added.
+
+## failure.timeout.title
+[[what]] timed out
+
+## failure.timeout.healthcheck.detail
+The endpoint did not answer the healthcheck in time. Healthchecks should be fast: they only list the workflows the endpoint serves.
+
+## failure.timeout.healthcheck.step
+Avoid slow work (network calls, large imports) when the handler starts; cold starts count against the timeout.
+
+## failure.timeout.delivery.detail
+The endpoint did not answer within the request timeout.
+
+## failure.timeout.delivery.step
+Raise the endpoint's request timeout if the task legitimately runs longer, keeping it within the platform's maximum duration.
+
+## failure.connection.title
+The endpoint closed the connection
+
+## failure.connection.detail
+[[what]] reached the host but the connection was refused or dropped.
+
+## failure.connection.step
+Make sure the deployment is running and serves https on port 443.
+
+## failure.auth.title
+The endpoint rejected the request signature
+
+## failure.auth.detail
+[[what]] was refused with status [[status]]. This almost always means the signing secrets differ, or something in front of the endpoint requires its own authentication.
+
+## failure.auth.steps
+- Make sure `HATCHET_SIGNING_SECRET` on the endpoint is exactly the signing secret registered here. If unsure, rotate the secret from Edit and set the new value on the endpoint, then redeploy.
+- Make sure the endpoint's clock is correct: signed requests older than 5 minutes are refused.
+
+## failure.auth.step.CLOUDFLARE_WORKERS
+Cloudflare Access or WAF rules in front of the Worker block the operator. Exempt the Hatchet routes from them.
+
+## failure.auth.step.VERCEL
+Vercel Deployment Protection answers 401/403 before your code runs. Use the production domain, or turn protection off for the deployment.
+
+## failure.auth.step.GENERIC_HTTP
+Authentication or firewall rules in front of the endpoint must let the Hatchet routes through.
+
+## failure.notFound.title
+Nothing is served at this URL
+
+## failure.notFound.detail
+[[what]] got status [[status]]: the host answered, but not with a Hatchet handler at this path.
+
+## failure.notFound.step.healthcheckPath
+The [[platform]] adapter serves the healthcheck at `[[path]]`; check the URL ends with that path.
+
+## failure.notFound.step.triggerPath
+The [[platform]] adapter serves tasks at `[[path]]`; check the URL ends with that path.
+
+## failure.notFound.step.path
+Check the path in the URL matches the route your handler is mounted on.
+
+## failure.notFound.step.redeploy
+Make sure the latest deployment includes the Hatchet handler.
+
+## failure.redirect.title
+The endpoint redirected
+
+## failure.redirect.detail
+Hatchet does not follow redirects, so the URL must point at the final location.
+
+## failure.redirect.steps
+- Open the URL in a browser to see where it redirects (often a trailing slash, www., or a custom domain) and register that URL instead.
+
+## failure.rateLimited.title
+The endpoint is rate limiting Hatchet
+
+## failure.rateLimited.detail
+[[what]] was refused with status 429.
+
+## failure.rateLimited.steps
+- Raise the platform's rate limits for the Hatchet routes, or increase the poll interval.
+
+## failure.serverError.title
+The endpoint is erroring
+
+## failure.serverError.detail
+[[what]] got status [[status]]: the endpoint's code threw or the platform could not run it.
+
+## failure.serverError.step
+Make sure required environment variables (`HATCHET_SIGNING_SECRET`, `HATCHET_CLIENT_TOKEN`) are set on the deployment.
+
+## failure.clientError.title
+The endpoint refused the request (status [[status]])
+
+## failure.clientError.detail
+[[what]] got status [[status]].
+
+## failure.notHealthcheck.title
+The response is not a Hatchet healthcheck
+
+## failure.notHealthcheck.detail
+The URL answered successfully, but the body is not the JSON a Hatchet serverless handler returns. The URL probably points at a page of your app instead of the Hatchet route.
+
+## failure.notHealthcheck.step.path
+Point the healthcheck URL at `[[path]]` on the deployment.
+
+## failure.notHealthcheck.step.noPath
+Point the healthcheck URL at the route your Hatchet handler serves.
+
+## failure.notHealthcheck.step.handler
+Make sure the handler is built with the Hatchet serverless SDK, or implements the healthcheck contract.
+
+## failure.catalog.title
+The declared workflows were refused
+
+## failure.catalog.detail
+The endpoint answered, but Hatchet could not register what it declares.
+
+## failure.catalog.steps
+- Fix the workflow or task declaration named in the error and redeploy.
+- The same workflow definitions should register on a regular worker; try that to see the full validation error.
+
+## failure.tooLarge.title
+The response is too large
+
+## failure.tooLarge.detail
+[[what]] failed because the response body was larger than Hatchet accepts.
+
+## failure.tooLarge.steps
+- Return smaller task outputs; store large results elsewhere and return a reference.
+
+## failure.nonJson.title
+The task returned a non-JSON body
+
+## failure.nonJson.detail
+A successful trigger response must be the task output as JSON (or 204 with no body).
+
+## failure.unknown.title
+[[what]] failed
+
+## failure.unknown.detail
+The error below is what the operator recorded.
+
+## failure.unknown.noMessage
+No error message was recorded.
+
+# Task logs
+
+## taskLog.viewEndpoint
+View the serverless endpoint

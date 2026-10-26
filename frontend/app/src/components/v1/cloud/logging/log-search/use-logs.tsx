@@ -1,5 +1,6 @@
 import { parseLogQuery } from './parser';
 import { ParsedLogQuery } from './types';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 import {
   V1TaskSummary,
   V1LogLineList,
@@ -10,6 +11,7 @@ import {
 } from '@/lib/api';
 import api from '@/lib/api/api';
 import { V1LogLineListQuery } from '@/lib/api/queries';
+import { endpointLinkFromLogMetadata } from '@/pages/main/v1/endpoints/components/task-log-link';
 import {
   useInfiniteQuery,
   InfiniteData,
@@ -75,6 +77,7 @@ export function useLogs({
   taskRun,
   resetTrigger,
 }: UseLogsOptions): UseLogsReturn {
+  const { tenantId } = useCurrentTenantId();
   const queryClient = useQueryClient();
   const lastPageTimestampRef = useRef<string | undefined>(undefined);
   const isPollingRef = useRef(false);
@@ -282,13 +285,17 @@ export function useLogs({
             level: row.level,
             metadata: row.metadata as Record<string, unknown> | undefined,
             attempt: row.attempt,
+            linkTo: endpointLinkFromLogMetadata(
+              row.metadata as Record<string, unknown> | undefined,
+              tenantId,
+            ),
           });
         }
       });
     });
 
     return Array.from(uniqueLogsMap.values());
-  }, [getLogsQuery.data?.pages, taskRun?.displayName]);
+  }, [getLogsQuery.data?.pages, taskRun?.displayName, tenantId]);
 
   const availableAttempts = useMemo(
     () =>

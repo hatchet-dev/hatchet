@@ -361,6 +361,21 @@ from hatchet_sdk.clients.rest.models.v1_restore_task_response import (
 from hatchet_sdk.clients.rest.models.v1_running_detail_count import V1RunningDetailCount
 from hatchet_sdk.clients.rest.models.v1_running_filter import V1RunningFilter
 from hatchet_sdk.clients.rest.models.v1_serverless_endpoint import V1ServerlessEndpoint
+from hatchet_sdk.clients.rest.models.v1_serverless_endpoint_check_stage import (
+    V1ServerlessEndpointCheckStage,
+)
+from hatchet_sdk.clients.rest.models.v1_serverless_endpoint_event import (
+    V1ServerlessEndpointEvent,
+)
+from hatchet_sdk.clients.rest.models.v1_serverless_endpoint_event_details import (
+    V1ServerlessEndpointEventDetails,
+)
+from hatchet_sdk.clients.rest.models.v1_serverless_endpoint_event_kind import (
+    V1ServerlessEndpointEventKind,
+)
+from hatchet_sdk.clients.rest.models.v1_serverless_endpoint_event_list import (
+    V1ServerlessEndpointEventList,
+)
 from hatchet_sdk.clients.rest.models.v1_serverless_endpoint_kind import (
     V1ServerlessEndpointKind,
 )

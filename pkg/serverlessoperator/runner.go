@@ -131,6 +131,8 @@ type runner struct {
 	sender       RequestSender
 	l            *zerolog.Logger
 	m            *metrics
+	events       *eventRecorder
+	taskLogs     *taskLogger
 	tenants      map[uuid.UUID]*tenantState
 	pending      map[lease.Unit]struct{}
 	hcSem        chan struct{}
@@ -150,6 +152,12 @@ func newRunner(deps Deps, cfg Config, m *metrics) *runner {
 	loopCtx, stopLoops := context.WithCancel(context.Background())
 	deliveryCtx, cancel := context.WithCancel(context.Background())
 
+	var taskLogs *taskLogger
+
+	if !deps.DisableTaskLogs {
+		taskLogs = newTaskLogger(deps.Repo.TaskLogs(), deps.Logger)
+	}
+
 	return &runner{
 		repo:         deps.Repo,
 		host:         deps.Host,
@@ -158,6 +166,8 @@ func newRunner(deps Deps, cfg Config, m *metrics) *runner {
 		sender:       deps.Sender,
 		l:            deps.Logger,
 		m:            m,
+		events:       newEventRecorder(deps.Repo.Events(), deps.Logger),
+		taskLogs:     taskLogs,
 		cfg:          cfg,
 		processId:    deps.ProcessId,
 		tenants:      map[uuid.UUID]*tenantState{},
@@ -675,6 +685,10 @@ func (r *runner) Shutdown() {
 	r.stopLoops()
 	r.stopDelivery()
 	r.wg.Wait()
+
+	// After the pollers and deliveries, so their last events and log lines are flushed.
+	r.events.stop()
+	r.taskLogs.stop()
 
 	r.updateGauges()
 }

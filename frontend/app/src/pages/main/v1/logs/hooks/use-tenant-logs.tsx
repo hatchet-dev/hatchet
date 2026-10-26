@@ -21,6 +21,7 @@ import {
   largestAllowedTimeWindow,
   type TimeWindowPreset,
 } from '@/lib/utils/retention';
+import { endpointLinkFromLogMetadata } from '@/pages/main/v1/endpoints/components/task-log-link';
 import { appRoutes } from '@/router';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
@@ -52,7 +53,7 @@ function logKey(log: LogLine): string {
   return `${log.timestamp ?? ''}-${log.line ?? ''}`;
 }
 
-function mapToLogLines(rows: V1LogLine[]): LogLine[] {
+function mapToLogLines(rows: V1LogLine[], tenantId: string): LogLine[] {
   return rows.map((row) => ({
     timestamp: row.createdAt,
     line: row.message,
@@ -61,6 +62,10 @@ function mapToLogLines(rows: V1LogLine[]): LogLine[] {
     attempt: row.attempt,
     taskExternalId: row.taskExternalId,
     taskDisplayName: row.taskDisplayName,
+    linkTo: endpointLinkFromLogMetadata(
+      row.metadata as Record<string, unknown> | undefined,
+      tenantId,
+    ),
   }));
 }
 
@@ -195,7 +200,7 @@ export function useTenantLogs() {
     const seen = new Set<string>();
     const result: LogLine[] = [];
     for (const page of logsQuery.data?.pages ?? []) {
-      for (const log of mapToLogLines(page.rows ?? [])) {
+      for (const log of mapToLogLines(page.rows ?? [], tenantId)) {
         const k = logKey(log);
         if (!seen.has(k)) {
           seen.add(k);
@@ -204,7 +209,7 @@ export function useTenantLogs() {
       }
     }
     return result;
-  }, [logsQuery.data]);
+  }, [logsQuery.data, tenantId]);
 
   const fetchOlderLogs = useCallback(() => {
     if (logsQuery.hasNextPage && !logsQuery.isFetchingNextPage) {

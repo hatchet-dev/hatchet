@@ -238,3 +238,62 @@ V1ServerlessEndpointGetUpdateDelete:
     summary: Delete a serverless endpoint
     tags:
       - Serverless
+
+V1ServerlessEndpointEventList:
+  get:
+    x-resources: ["tenant", "v1-serverless-endpoint"]
+    description: Lists the most recent events the serverless operator recorded for an endpoint, newest first.
+    operationId: v1-serverless-endpoint:event-list
+    x-payloads: false
+    parameters:
+      - description: The serverless endpoint id
+        in: path
+        name: v1-serverless-endpoint
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The number of events to return, at most 500. Defaults to 100.
+        in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - description: Only return events created after this time
+        in: query
+        name: since
+        required: false
+        schema:
+          type: string
+          format: date-time
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1ServerlessEndpointEventList"
+        description: Successfully listed the events
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Not found
+    summary: List serverless endpoint events
+    tags:
+      - Serverless
