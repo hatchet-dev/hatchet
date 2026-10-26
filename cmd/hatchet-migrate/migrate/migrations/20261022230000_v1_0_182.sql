@@ -1,6 +1,7 @@
 -- +goose Up
 -- +goose StatementBegin
--- The new value is not used in this transaction, so ADD VALUE may run inside it.
+-- The new value is not used in this transaction, so ADD VALUE may run inside it. The down step
+-- cannot remove an enum value, so the guard lets this migration run again after it.
 ALTER TYPE v1_serverless_endpoint_kind ADD VALUE IF NOT EXISTS 'VERCEL';
 
 CREATE TYPE v1_serverless_endpoint_event_kind AS ENUM (
@@ -38,7 +39,7 @@ ALTER TABLE v1_serverless_endpoint ALTER COLUMN request_timeout_seconds SET DEFA
 -- +goose Down
 -- +goose StatementBegin
 ALTER TABLE v1_serverless_endpoint ALTER COLUMN request_timeout_seconds SET DEFAULT 60;
-DROP TABLE IF EXISTS v1_serverless_endpoint_event;
-DROP TYPE IF EXISTS v1_serverless_endpoint_event_kind;
+DROP TABLE v1_serverless_endpoint_event;
+DROP TYPE v1_serverless_endpoint_event_kind;
 -- A value cannot be removed from an enum; VERCEL stays on v1_serverless_endpoint_kind.
 -- +goose StatementEnd
