@@ -18,7 +18,6 @@ jobs:
     with:
       scan-args: |-
         -r
-        --skip-git
         ./
   scan-pr:
     if: ${{ github.event_name == 'pull_request' }}
@@ -26,5 +25,4 @@ jobs:
     with:
       scan-args: |-
         -r
-        --skip-git
         ./
