@@ -25,7 +25,7 @@ Hatchet v0.114.2 adds rate limit pausing, `RetryAfter` errors, and FIPS images. 
 
 - Build: Go 1.26.10, newer base images, and fixed Node releases block the compromised eMudhra CAs (CVE-2026-111943) ([#5256](https://github.com/hatchet-dev/hatchet/pull/5256), [#5258](https://github.com/hatchet-dev/hatchet/pull/5258), [#5275](https://github.com/hatchet-dev/hatchet/pull/5275)).
 - Auth: an API token's JWT subject must match the tenant stored for that token ([#5215](https://github.com/hatchet-dev/hatchet/pull/5215)).
-- Engine: SNS message verification is stricter. Signed fields may not contain newlines, the signing certificate URL must be a regional SNS host with a `.pem` path, outbound requests have a timeout and a 1 MiB response cap, and messages signed more than an hour ago are rejected ([#4926](https://github.com/hatchet-dev/hatchet/pull/4926), [#5279](https://github.com/hatchet-dev/hatchet/pull/5279)).
+- Engine: SNS message verification is stricter. Signed fields other than `Message` may not contain newlines, the signing certificate URL must be a regional SNS host with a `.pem` path, outbound requests have a timeout and a 1 MiB response cap, and messages signed more than an hour ago are rejected ([#4926](https://github.com/hatchet-dev/hatchet/pull/4926), [#5279](https://github.com/hatchet-dev/hatchet/pull/5279)).
 - Engine: worker slot units must be zero or more and are summed without overflow, so a worker cannot skip the tenant slot limit ([#5274](https://github.com/hatchet-dev/hatchet/pull/5274)).
 - API: listing workflow runs with payloads checks payload permissions before querying ([#5205](https://github.com/hatchet-dev/hatchet/pull/5205)).
 
