@@ -129,7 +129,7 @@ func Map[T any, R any](xs []T, fn func(x T) R) []R {
 }
 
 func ToMap[T any, K comparable, V any](xs []T, keyFn func(x T) K, valueFn func(x T) V) map[K]V {
-	result := make(map[K]V)
+	result := make(map[K]V, len(xs))
 
 	for _, x := range xs {
 		result[keyFn(x)] = valueFn(x)
@@ -139,7 +139,7 @@ func ToMap[T any, K comparable, V any](xs []T, keyFn func(x T) K, valueFn func(x
 }
 
 func ToMapWithItemsAsValues[T any, K comparable](xs []T, keyFn func(x T) K) map[K]T {
-	result := make(map[K]T)
+	result := make(map[K]T, len(xs))
 
 	for _, x := range xs {
 		result[keyFn(x)] = x
