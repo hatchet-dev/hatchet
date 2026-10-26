@@ -20,6 +20,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/internal/listutils"
+	"github.com/hatchet-dev/hatchet/internal/maputils"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -594,13 +595,9 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 		return optsToPayload, nil
 	}
 
-	notFoundInline := make([]RetrievePayloadOpts, 0)
-
-	for _, opt := range opts {
-		if _, found := foundKeys[payloadUniqueKeyFromRetrieveOpt(opt)]; !found {
-			notFoundInline = append(notFoundInline, opt)
-		}
-	}
+	notFoundInline := listutils.Filter(opts, func(opt RetrievePayloadOpts) bool {
+		return !maputils.HasKey(foundKeys, payloadUniqueKeyFromRetrieveOpt(opt))
+	})
 
 	retrieveFromExternalOptsToOpts, err := p.offloadedRetrieveOpts(ctx, tx, notFoundInline)
 

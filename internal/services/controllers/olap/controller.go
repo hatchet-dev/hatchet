@@ -20,6 +20,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
 	"github.com/hatchet-dev/hatchet/internal/listutils"
+	"github.com/hatchet-dev/hatchet/internal/maputils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
@@ -790,7 +791,7 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 				}
 			}
 
-			_, eventAlreadySeen := seenEventKeysSet[payload.EventExternalId]
+			eventAlreadySeen := maputils.HasKey(seenEventKeysSet, payload.EventExternalId)
 
 			if eventAlreadySeen {
 				continue
@@ -972,11 +973,9 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		return err
 	}
 
-	taskIdsToMetas := make(map[int64]*sqlcv1.ListTaskMetasRow)
-
-	for _, taskMeta := range metas {
-		taskIdsToMetas[taskMeta.ID] = taskMeta
-	}
+	taskIdsToMetas := listutils.ToMapWithItemsAsValues(metas, func(taskMeta *sqlcv1.ListTaskMetasRow) int64 {
+		return taskMeta.ID
+	})
 
 	taskIds := make([]int64, 0)
 	taskInsertedAts := make([]pgtype.Timestamptz, 0)
@@ -1197,7 +1196,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 				continue
 			}
 
-			_, lockNotAcquired := workflowRunIdsOfLocksNotAcquired[taskMeta.WorkflowRunID]
+			lockNotAcquired := maputils.HasKey(workflowRunIdsOfLocksNotAcquired, taskMeta.WorkflowRunID)
 
 			if !lockNotAcquired {
 				spanEvent, ok := msgIxToSpanEvent[ix]

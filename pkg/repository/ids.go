@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/hatchet-dev/hatchet/internal/listutils"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -165,11 +166,9 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 		return err
 	}
 
-	externalIdToLookupRow := make(map[uuid.UUID]*sqlcv1.V1LookupTable)
-
-	for _, task := range gotTasks {
-		externalIdToLookupRow[task.ExternalID] = task
-	}
+	externalIdToLookupRow := listutils.ToMapWithItemsAsValues(gotTasks, func(task *sqlcv1.V1LookupTable) uuid.UUID {
+		return task.ExternalID
+	})
 
 	eventTaskIds := make([]int64, 0, len(gotTasks))
 	eventTaskInsertedAts := make([]pgtype.Timestamptz, 0, len(gotTasks))

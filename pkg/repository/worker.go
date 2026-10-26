@@ -17,6 +17,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/hatchet-dev/hatchet/internal/listutils"
+	"github.com/hatchet-dev/hatchet/internal/maputils"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -362,10 +363,11 @@ func (w *workerRepository) ListTotalActiveSlotsPerTenant(ctx context.Context) (m
 		return nil, fmt.Errorf("could not list total active slots per tenant: %w", err)
 	}
 
-	tenantToSlots := make(map[uuid.UUID]int64, len(rows))
-	for _, row := range rows {
-		tenantToSlots[row.TenantId] = row.TotalActiveSlots
-	}
+	tenantToSlots := listutils.ToMap(
+		rows,
+		func(row *sqlcv1.ListTotalActiveSlotsPerTenantRow) uuid.UUID { return row.TenantId },
+		func(row *sqlcv1.ListTotalActiveSlotsPerTenantRow) int64 { return row.TotalActiveSlots },
+	)
 
 	return tenantToSlots, nil
 }
@@ -376,13 +378,16 @@ func (w *workerRepository) ListActiveSlotsPerTenantAndSlotType(ctx context.Conte
 		return nil, fmt.Errorf("could not list active slots per tenant and slot type: %w", err)
 	}
 
-	res := make(map[TenantIdSlotTypeTuple]int64, len(rows))
-	for _, row := range rows {
-		res[TenantIdSlotTypeTuple{
-			TenantId: row.TenantId,
-			SlotType: row.SlotType,
-		}] = row.ActiveSlots
-	}
+	res := listutils.ToMap(
+		rows,
+		func(row *sqlcv1.ListActiveSlotsPerTenantAndSlotTypeRow) TenantIdSlotTypeTuple {
+			return TenantIdSlotTypeTuple{
+				TenantId: row.TenantId,
+				SlotType: row.SlotType,
+			}
+		},
+		func(row *sqlcv1.ListActiveSlotsPerTenantAndSlotTypeRow) int64 { return row.ActiveSlots },
+	)
 
 	return res, nil
 }
@@ -394,11 +399,11 @@ func (w *workerRepository) CountActiveWorkersPerTenant(ctx context.Context) (map
 		return nil, fmt.Errorf("could not list active workers per tenant: %w", err)
 	}
 
-	tenantToWorkers := make(map[uuid.UUID]int64)
-
-	for _, worker := range workers {
-		tenantToWorkers[worker.TenantId] = worker.Count
-	}
+	tenantToWorkers := listutils.ToMap(
+		workers,
+		func(worker *sqlcv1.ListActiveWorkersPerTenantRow) uuid.UUID { return worker.TenantId },
+		func(worker *sqlcv1.ListActiveWorkersPerTenantRow) int64 { return worker.Count },
+	)
 
 	return tenantToWorkers, nil
 }
@@ -504,11 +509,7 @@ func (w *workerRepository) ListWorkerLabels(ctx context.Context, tenantId uuid.U
 		return nil, fmt.Errorf("could not list worker labels: %w", err)
 	}
 
-	workerIdToLabels := make(map[uuid.UUID][]*sqlcv1.ListWorkerLabelsRow)
-
-	for _, label := range labels {
-		workerIdToLabels[label.WorkerId] = append(workerIdToLabels[label.WorkerId], label)
-	}
+	workerIdToLabels := listutils.GroupBy(labels, func(label *sqlcv1.ListWorkerLabelsRow) uuid.UUID { return label.WorkerId })
 
 	return workerIdToLabels, nil
 }
@@ -545,10 +546,11 @@ func (w *workerRepository) ListAvailableSlotsForWorkers(ctx context.Context, ten
 		return nil, fmt.Errorf("could not list available slots for workers: %w", err)
 	}
 
-	res := make(map[uuid.UUID]int32, len(rows))
-	for _, row := range rows {
-		res[row.ID] = row.AvailableSlots
-	}
+	res := listutils.ToMap(
+		rows,
+		func(row *sqlcv1.ListAvailableSlotsForWorkersRow) uuid.UUID { return row.ID },
+		func(row *sqlcv1.ListAvailableSlotsForWorkersRow) int32 { return row.AvailableSlots },
+	)
 
 	return res, nil
 }
@@ -1044,13 +1046,9 @@ func (w *workerRepository) resolveActionIds(ctx context.Context, tx pgx.Tx, tena
 		uuidByActionId[action.ActionId] = action.ID
 	}
 
-	missing := make([]string, 0, len(actionIds)-len(existing))
-
-	for _, actionId := range actionIds {
-		if _, ok := uuidByActionId[actionId]; !ok {
-			missing = append(missing, actionId)
-		}
-	}
+	missing := listutils.Filter(actionIds, func(actionId string) bool {
+		return !maputils.HasKey(uuidByActionId, actionId)
+	})
 
 	if len(missing) > 0 {
 		sort.Strings(missing)
@@ -1071,13 +1069,9 @@ func (w *workerRepository) resolveActionIds(ctx context.Context, tx pgx.Tx, tena
 		// an action a concurrent transaction created after the read above is skipped by the
 		// insert and resolved here, once that transaction has committed
 		if len(inserted) < len(missing) {
-			raced := make([]string, 0, len(missing)-len(inserted))
-
-			for _, actionId := range missing {
-				if _, ok := uuidByActionId[actionId]; !ok {
-					raced = append(raced, actionId)
-				}
-			}
+			raced := listutils.Filter(missing, func(actionId string) bool {
+				return !maputils.HasKey(uuidByActionId, actionId)
+			})
 
 			concurrent, err := w.queries.ListActionsByActionIds(ctx, tx, sqlcv1.ListActionsByActionIdsParams{
 				Tenantid:  tenantId,

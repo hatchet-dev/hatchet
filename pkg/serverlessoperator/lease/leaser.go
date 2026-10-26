@@ -17,7 +17,9 @@ import (
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/hatchet-dev/hatchet/internal/listutils"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 // Unit is one lease unit.
@@ -557,11 +559,13 @@ func (s *Leaser) listOwned(ctx context.Context) (map[Unit]int32, error) {
 		return nil, fmt.Errorf("list owned leases: %w", err)
 	}
 
-	current := make(map[Unit]int32, len(rows))
-
-	for _, row := range rows {
-		current[Unit{TenantId: row.TenantID, Partition: row.EndpointPartition}] = row.EndpointCount
-	}
+	current := listutils.ToMap(
+		rows,
+		func(row *sqlcv1.V1ServerlessLease) Unit {
+			return Unit{TenantId: row.TenantID, Partition: row.EndpointPartition}
+		},
+		func(row *sqlcv1.V1ServerlessLease) int32 { return row.EndpointCount },
+	)
 
 	return current, nil
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/hatchet-dev/hatchet/internal/listutils"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/operator/hostgrpc"
@@ -758,11 +759,7 @@ func (reg *registration) recordLocked(added, removed []string, rev uint64) {
 		return
 	}
 
-	have := make(map[string]struct{}, len(reg.base))
-
-	for _, id := range reg.base {
-		have[id] = struct{}{}
-	}
+	have := listutils.ToSet(reg.base, func(id string) string { return id })
 
 	for _, delta := range reg.applied {
 		applyDelta(have, delta.added, delta.removed)

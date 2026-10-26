@@ -13,6 +13,7 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
+	"github.com/hatchet-dev/hatchet/internal/listutils"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/o11yusage"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
@@ -185,10 +186,7 @@ func (oc *otelCollectorImpl) serializeAttributes(attrs []*commonv1.KeyValue) []b
 		return nil
 	}
 
-	attrMap := make(map[string]any, len(attrs))
-	for _, kv := range attrs {
-		attrMap[kv.GetKey()] = oc.anyValueToInterface(kv.GetValue())
-	}
+	attrMap := oc.keyValuesToMap(attrs)
 
 	data, err := json.Marshal(attrMap)
 	if err != nil {
@@ -213,11 +211,7 @@ func (oc *otelCollectorImpl) serializeEvents(events []*tracev1.Span_Event) []byt
 		}
 
 		if len(event.GetAttributes()) > 0 {
-			attrMap := make(map[string]any, len(event.GetAttributes()))
-			for _, kv := range event.GetAttributes() {
-				attrMap[kv.GetKey()] = oc.anyValueToInterface(kv.GetValue())
-			}
-			eventMap["attributes"] = attrMap
+			eventMap["attributes"] = oc.keyValuesToMap(event.GetAttributes())
 		}
 
 		eventList = append(eventList, eventMap)
@@ -247,11 +241,7 @@ func (oc *otelCollectorImpl) serializeLinks(links []*tracev1.Span_Link) []byte {
 		}
 
 		if len(link.GetAttributes()) > 0 {
-			attrMap := make(map[string]any, len(link.GetAttributes()))
-			for _, kv := range link.GetAttributes() {
-				attrMap[kv.GetKey()] = oc.anyValueToInterface(kv.GetValue())
-			}
-			linkMap["attributes"] = attrMap
+			linkMap["attributes"] = oc.keyValuesToMap(link.GetAttributes())
 		}
 
 		linkList = append(linkList, linkMap)
@@ -287,14 +277,18 @@ func (oc *otelCollectorImpl) anyValueToInterface(v *commonv1.AnyValue) interface
 		}
 		return arr
 	case *commonv1.AnyValue_KvlistValue:
-		m := make(map[string]any, len(val.KvlistValue.GetValues()))
-		for _, kv := range val.KvlistValue.GetValues() {
-			m[kv.GetKey()] = oc.anyValueToInterface(kv.GetValue())
-		}
-		return m
+		return oc.keyValuesToMap(val.KvlistValue.GetValues())
 	case *commonv1.AnyValue_BytesValue:
 		return val.BytesValue
 	default:
 		return nil
 	}
+}
+
+func (oc *otelCollectorImpl) keyValuesToMap(keyValues []*commonv1.KeyValue) map[string]any {
+	return listutils.ToMap(
+		keyValues,
+		func(kv *commonv1.KeyValue) string { return kv.GetKey() },
+		func(kv *commonv1.KeyValue) any { return oc.anyValueToInterface(kv.GetValue()) },
+	)
 }

@@ -7,8 +7,11 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/hatchet-dev/hatchet/internal/listutils"
+	"github.com/hatchet-dev/hatchet/internal/maputils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
@@ -36,10 +39,9 @@ func (tc *TasksControllerImpl) processTaskTimeouts(ctx context.Context, tenantId
 		return false, fmt.Errorf("could not process fail tasks response: %w", err)
 	}
 
-	retried := make(map[int64]struct{}, len(res.RetriedTasks))
-	for _, r := range res.RetriedTasks {
-		retried[r.Id] = struct{}{}
-	}
+	retried := listutils.ToSet(res.RetriedTasks, func(r v1.RetriedTask) int64 {
+		return r.Id
+	})
 
 	cancellationSignals := make([]tasktypes.SignalTaskCancelledPayload, 0, len(res.TimeoutTasks))
 
@@ -56,7 +58,7 @@ func (tc *TasksControllerImpl) processTaskTimeouts(ctx context.Context, tenantId
 			WorkerId:   workerId,
 		})
 
-		_, willRetry := retried[task.ID]
+		willRetry := maputils.HasKey(retried, task.ID)
 
 		// send failed tasks to the olap repository
 		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(

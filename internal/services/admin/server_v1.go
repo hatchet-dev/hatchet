@@ -12,6 +12,8 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
+	"github.com/hatchet-dev/hatchet/internal/listutils"
+	"github.com/hatchet-dev/hatchet/internal/maputils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/task/trigger"
@@ -193,17 +195,15 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contr
 	}
 
 	if len(idempotencyKeyCollisions) > 0 {
-		collisionSet := make(map[uuid.UUID]struct{}, len(idempotencyKeyCollisions))
-
-		for _, collision := range idempotencyKeyCollisions {
-			collisionSet[collision.RequestedExternalId] = struct{}{}
-		}
+		collisionSet := listutils.ToSet(idempotencyKeyCollisions, func(collision v1.IdempotencyCollision) uuid.UUID {
+			return collision.RequestedExternalId
+		})
 
 		successfullyTriggeredRunIds := make([]string, 0, len(runIds))
 		collisions := make([]*v1contracts.IdempotencyCollisionError, 0, len(idempotencyKeyCollisions))
 
 		for _, runId := range runIds {
-			_, isCollision := collisionSet[runId]
+			isCollision := maputils.HasKey(collisionSet, runId)
 
 			if !isCollision {
 				successfullyTriggeredRunIds = append(successfullyTriggeredRunIds, runId.String())

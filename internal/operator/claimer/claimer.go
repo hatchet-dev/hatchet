@@ -26,6 +26,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/internal/maputils"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/operator/dagoperator"
@@ -263,7 +264,7 @@ func (c *Claimer) Reconcile(ctx context.Context, claimed []*sqlcv1.V1Operator) {
 		claimedIds[op.ID] = struct{}{}
 
 		c.mu.Lock()
-		_, running := c.running[op.ID]
+		running := maputils.HasKey(c.running, op.ID)
 		c.mu.Unlock()
 
 		if running {
@@ -323,7 +324,7 @@ func (c *Claimer) open(ctx context.Context, op *sqlcv1.V1Operator) *hosted {
 
 	if !ok {
 		c.mu.Lock()
-		_, logged := c.unhostable[op.ID]
+		logged := maputils.HasKey(c.unhostable, op.ID)
 		c.unhostable[op.ID] = struct{}{}
 		c.mu.Unlock()
 
