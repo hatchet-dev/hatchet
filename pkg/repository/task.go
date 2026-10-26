@@ -815,7 +815,7 @@ func (r *TaskRepositoryImpl) verifyAllTasksFinalized(ctx context.Context, tx sql
 	dagsToTasks := make(map[int64][]*sqlcv1.FlattenExternalIdsRow)
 
 	for _, task := range flattenedTasks {
-		if _, isNotFinalized := notFinalizedMap[task.ID]; !isNotFinalized && task.DagID.Valid {
+		if !enumerables.HasKey(notFinalizedMap, task.ID) && task.DagID.Valid {
 			dagIdsToCheck = append(dagIdsToCheck, task.DagID.Int64)
 			dagInsertedAtsToCheck = append(dagInsertedAtsToCheck, task.DagInsertedAt)
 			dagsToTasks[task.DagID.Int64] = append(dagsToTasks[task.DagID.Int64], task)
@@ -861,7 +861,7 @@ func (r *TaskRepositoryImpl) verifyAllTasksFinalized(ctx context.Context, tx sql
 			continue
 		}
 
-		if _, isNotFinalized := notFinalizedMap[task.ID]; isNotFinalized {
+		if enumerables.HasKey(notFinalizedMap, task.ID) {
 			candidateFinalizedRootExternalIds[rootId] = false
 			continue
 		}
@@ -4093,7 +4093,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 			continue
 		}
 
-		if _, failedPreflight := tasksFailedPreflight[task.ID]; failedPreflight {
+		if enumerables.HasKey(tasksFailedPreflight, task.ID) {
 			r.l.Warn().Ctx(ctx).Int64("task_id", task.ID).Msg("discarding task, failed preflight check")
 			continue
 		}
