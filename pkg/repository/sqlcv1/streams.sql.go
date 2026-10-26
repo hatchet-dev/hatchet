@@ -636,20 +636,27 @@ func (q *Queries) ListStreamTopics(ctx context.Context, db DBTX, arg ListStreamT
 
 const resetStreamTopic = `-- name: ResetStreamTopic :exec
 UPDATE v1_stream_topic
-SET starting_offset = last_offset
-WHERE tenant_id = $1::uuid AND namespace = $2::text AND topic = $3::text
+SET starting_offset = LEAST($1::bigint, last_offset)
+WHERE tenant_id = $2::uuid AND namespace = $3::text AND topic = $4::text
 `
 
 type ResetStreamTopicParams struct {
-	Tenantid  uuid.UUID `json:"tenantid"`
-	Namespace string    `json:"namespace"`
-	Topic     string    `json:"topic"`
+	StartingOffset pgtype.Int8 `json:"startingOffset"`
+	Tenantid       uuid.UUID   `json:"tenantid"`
+	Namespace      string      `json:"namespace"`
+	Topic          string      `json:"topic"`
 }
 
 // Waits on the row lock a publish holds until commit (see
 // ReserveStreamTopicOffsets), so every offset up to last_offset is stored.
+// LEAST ignores a NULL startingOffset, and caps one past offsets yet reserved.
 func (q *Queries) ResetStreamTopic(ctx context.Context, db DBTX, arg ResetStreamTopicParams) error {
-	_, err := db.Exec(ctx, resetStreamTopic, arg.Tenantid, arg.Namespace, arg.Topic)
+	_, err := db.Exec(ctx, resetStreamTopic,
+		arg.StartingOffset,
+		arg.Tenantid,
+		arg.Namespace,
+		arg.Topic,
+	)
 	return err
 }
 

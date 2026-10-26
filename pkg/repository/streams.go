@@ -198,9 +198,10 @@ type StreamsRepository interface {
 	// older than the tenant's retention or the oldest partition.
 	CheckCursorRetained(ctx context.Context, tenantId uuid.UUID, cursor StreamCursor) error
 
-	// ResetTopic moves where subscribers without a cursor start to after the
-	// topic's latest stored message. A topic never published to is left as is.
-	ResetTopic(ctx context.Context, tenantId uuid.UUID, namespace, topic string) error
+	// ResetTopic moves where subscribers without a cursor start to after cursor,
+	// or the topic's latest stored message if it's nil. A topic never published
+	// to is left as is.
+	ResetTopic(ctx context.Context, tenantId uuid.UUID, namespace, topic string, cursor *StreamCursor) error
 
 	// TopicStartCursor is where a subscriber without a cursor starts: after the
 	// last reset, else the topic's beginning.
@@ -663,14 +664,20 @@ func (r *streamsRepositoryImpl) CheckCursorRetained(ctx context.Context, tenantI
 	return nil
 }
 
-// ResetTopic sets the topic's starting offset to its last reserved offset. It waits
-// on in-flight publishes' row lock, so every message up to that offset is stored.
-func (r *streamsRepositoryImpl) ResetTopic(ctx context.Context, tenantId uuid.UUID, namespace, topic string) error {
-	return r.queries.ResetStreamTopic(ctx, r.pool, sqlcv1.ResetStreamTopicParams{
+// ResetTopic sets the topic's starting offset to cursor's, or its last reserved offset.
+// It waits on in-flight publishes' row lock, so every message up to that offset is stored.
+func (r *streamsRepositoryImpl) ResetTopic(ctx context.Context, tenantId uuid.UUID, namespace, topic string, cursor *StreamCursor) error {
+	params := sqlcv1.ResetStreamTopicParams{
 		Tenantid:  tenantId,
 		Namespace: namespace,
 		Topic:     topic,
-	})
+	}
+
+	if cursor != nil {
+		params.StartingOffset = pgtype.Int8{Int64: cursor.ID, Valid: true}
+	}
+
+	return r.queries.ResetStreamTopic(ctx, r.pool, params)
 }
 
 // TopicStartCursor returns a cursor at the topic's starting offset, 0 until it's
