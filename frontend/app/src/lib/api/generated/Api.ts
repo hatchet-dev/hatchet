@@ -70,6 +70,7 @@ import {
   TenantAlertEmailGroup,
   TenantAlertEmailGroupList,
   TenantAlertingSettings,
+  TenantEntitlements,
   TenantInvite,
   TenantInviteList,
   TenantMember,
@@ -118,6 +119,7 @@ import {
   V1ServerlessEndpoint,
   V1ServerlessEndpointList,
   V1StreamPayloadRef,
+  V1StreamTopicList,
   V1TaskEventList,
   V1TaskPointMetrics,
   V1TaskRunMetrics,
@@ -820,6 +822,42 @@ export class Api<
       body: data,
       secure: true,
       type: ContentType.FormData,
+      format: "json",
+      ...params,
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
+  /**
+   * @description List the tenant's durable stream topics, with the number of messages each has within the tenant's retention.
+   *
+   * @tags Streams
+   * @name V1StreamTopicList
+   * @summary List stream topics
+   * @request GET:/api/v1/stable/tenants/{tenant}/streams/topics
+   * @secure
+   */
+  v1StreamTopicList = Object.assign((
+    tenant: string,
+    query?: {
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+      /** Matches topics or namespaces containing it */
+      search?: string;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<V1StreamTopicList, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/streams/topics`,
+      method: "GET",
+      query: query,
+      secure: true,
       format: "json",
       ...params,
       xResources: ["tenant"],
@@ -1890,6 +1928,24 @@ export class Api<
   tenantResourcePolicyGet = Object.assign((tenant: string, params: RequestParams = {}) =>
     this.request<TenantResourcePolicy, APIErrors | APIError>({
       path: `/api/v1/tenants/${tenant}/resource-policy`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
+  /**
+   * @description Gets the features the tenant is entitled to
+   *
+   * @tags Tenant
+   * @name TenantEntitlementsGet
+   * @summary Get tenant entitlements
+   * @request GET:/api/v1/tenants/{tenant}/entitlements
+   * @secure
+   */
+  tenantEntitlementsGet = Object.assign((tenant: string, params: RequestParams = {}) =>
+    this.request<TenantEntitlements, APIErrors | APIError>({
+      path: `/api/v1/tenants/${tenant}/entitlements`,
       method: "GET",
       secure: true,
       format: "json",
