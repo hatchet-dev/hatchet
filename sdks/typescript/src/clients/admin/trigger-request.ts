@@ -43,7 +43,7 @@ export function buildTriggerWorkflowRequest<Q>(
   };
 }
 
-function convertDesiredWorkerLabels(
+export function convertDesiredWorkerLabels(
   labels: Record<string, DesiredWorkerLabelOpt>
 ): Record<string, DesiredWorkerLabels> {
   return Object.fromEntries(

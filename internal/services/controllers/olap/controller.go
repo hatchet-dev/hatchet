@@ -18,8 +18,8 @@ import (
 	"go.opentelemetry.io/otel/codes"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
-	"github.com/hatchet-dev/hatchet/internal/listutils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
@@ -570,7 +570,7 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId uu
 	attempts := 0
 	for len(createTaskOpts) > 0 {
 		if attempts >= maxLockAttempts {
-			maxRequeueCount := listutils.MaxOf(createTaskOpts, func(o *tasktypes.CreatedTaskPayload) int { return o.RequeueCount })
+			maxRequeueCount := enumerables.MaxOf(createTaskOpts, func(o *tasktypes.CreatedTaskPayload) int { return o.RequeueCount })
 			tc.logRepublish(ctx, "tasks", len(createTaskOpts), attempts, maxRequeueCount)
 			return tc.republishCreatedTasks(ctx, tenantId, createTaskOpts)
 		}
@@ -665,7 +665,7 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId uui
 	attempts := 0
 	for len(createDAGOpts) > 0 {
 		if attempts >= maxLockAttempts {
-			maxRequeueCount := listutils.MaxOf(createDAGOpts, func(o *tasktypes.CreatedDAGPayload) int { return o.RequeueCount })
+			maxRequeueCount := enumerables.MaxOf(createDAGOpts, func(o *tasktypes.CreatedDAGPayload) int { return o.RequeueCount })
 			tc.logRepublish(ctx, "DAGs", len(createDAGOpts), attempts, maxRequeueCount)
 			return tc.republishCreatedDAGs(ctx, tenantId, createDAGOpts)
 		}
@@ -790,7 +790,7 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 				}
 			}
 
-			_, eventAlreadySeen := seenEventKeysSet[payload.EventExternalId]
+			eventAlreadySeen := enumerables.HasKey(seenEventKeysSet, payload.EventExternalId)
 
 			if eventAlreadySeen {
 				continue
@@ -972,11 +972,9 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		return err
 	}
 
-	taskIdsToMetas := make(map[int64]*sqlcv1.ListTaskMetasRow)
-
-	for _, taskMeta := range metas {
-		taskIdsToMetas[taskMeta.ID] = taskMeta
-	}
+	taskIdsToMetas := enumerables.KeyBy(metas, func(taskMeta *sqlcv1.ListTaskMetasRow) int64 {
+		return taskMeta.ID
+	})
 
 	taskIds := make([]int64, 0)
 	taskInsertedAts := make([]pgtype.Timestamptz, 0)
@@ -1197,7 +1195,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 				continue
 			}
 
-			_, lockNotAcquired := workflowRunIdsOfLocksNotAcquired[taskMeta.WorkflowRunID]
+			lockNotAcquired := enumerables.HasKey(workflowRunIdsOfLocksNotAcquired, taskMeta.WorkflowRunID)
 
 			if !lockNotAcquired {
 				spanEvent, ok := msgIxToSpanEvent[ix]

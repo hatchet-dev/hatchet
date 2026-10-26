@@ -35,6 +35,8 @@ const (
 const (
 	// V1StreamsPublishProcedure is the fully-qualified name of the V1Streams's Publish RPC.
 	V1StreamsPublishProcedure = "/v1.V1Streams/Publish"
+	// V1StreamsPublishBatchProcedure is the fully-qualified name of the V1Streams's PublishBatch RPC.
+	V1StreamsPublishBatchProcedure = "/v1.V1Streams/PublishBatch"
 	// V1StreamsSubscribeProcedure is the fully-qualified name of the V1Streams's Subscribe RPC.
 	V1StreamsSubscribeProcedure = "/v1.V1Streams/Subscribe"
 	// V1StreamsGetTopicMetadataProcedure is the fully-qualified name of the V1Streams's
@@ -47,6 +49,7 @@ const (
 // V1StreamsClient is a client for the v1.V1Streams service.
 type V1StreamsClient interface {
 	Publish(context.Context, *v1.PublishStreamMessageRequest) (*v1.PublishStreamMessageResponse, error)
+	PublishBatch(context.Context, *v1.PublishStreamMessagesRequest) (*v1.PublishStreamMessagesResponse, error)
 	Subscribe(context.Context, *v1.SubscribeStreamRequest) (*connect.ServerStreamForClient[v1.StreamMessage], error)
 	GetTopicMetadata(context.Context, *v1.GetStreamTopicMetadataRequest) (*v1.StreamTopicMetadata, error)
 	Reset(context.Context, *v1.ResetStreamTopicRequest) (*v1.ResetStreamTopicResponse, error)
@@ -67,6 +70,12 @@ func NewV1StreamsClient(httpClient connect.HTTPClient, baseURL string, opts ...c
 			httpClient,
 			baseURL+V1StreamsPublishProcedure,
 			connect.WithSchema(v1StreamsMethods.ByName("Publish")),
+			connect.WithClientOptions(opts...),
+		),
+		publishBatch: connect.NewClient[v1.PublishStreamMessagesRequest, v1.PublishStreamMessagesResponse](
+			httpClient,
+			baseURL+V1StreamsPublishBatchProcedure,
+			connect.WithSchema(v1StreamsMethods.ByName("PublishBatch")),
 			connect.WithClientOptions(opts...),
 		),
 		subscribe: connect.NewClient[v1.SubscribeStreamRequest, v1.StreamMessage](
@@ -93,6 +102,7 @@ func NewV1StreamsClient(httpClient connect.HTTPClient, baseURL string, opts ...c
 // v1StreamsClient implements V1StreamsClient.
 type v1StreamsClient struct {
 	publish          *connect.Client[v1.PublishStreamMessageRequest, v1.PublishStreamMessageResponse]
+	publishBatch     *connect.Client[v1.PublishStreamMessagesRequest, v1.PublishStreamMessagesResponse]
 	subscribe        *connect.Client[v1.SubscribeStreamRequest, v1.StreamMessage]
 	getTopicMetadata *connect.Client[v1.GetStreamTopicMetadataRequest, v1.StreamTopicMetadata]
 	reset            *connect.Client[v1.ResetStreamTopicRequest, v1.ResetStreamTopicResponse]
@@ -101,6 +111,15 @@ type v1StreamsClient struct {
 // Publish calls v1.V1Streams.Publish.
 func (c *v1StreamsClient) Publish(ctx context.Context, req *v1.PublishStreamMessageRequest) (*v1.PublishStreamMessageResponse, error) {
 	response, err := c.publish.CallUnary(ctx, connect.NewRequest(req))
+	if response != nil {
+		return response.Msg, err
+	}
+	return nil, err
+}
+
+// PublishBatch calls v1.V1Streams.PublishBatch.
+func (c *v1StreamsClient) PublishBatch(ctx context.Context, req *v1.PublishStreamMessagesRequest) (*v1.PublishStreamMessagesResponse, error) {
+	response, err := c.publishBatch.CallUnary(ctx, connect.NewRequest(req))
 	if response != nil {
 		return response.Msg, err
 	}
@@ -133,6 +152,7 @@ func (c *v1StreamsClient) Reset(ctx context.Context, req *v1.ResetStreamTopicReq
 // V1StreamsHandler is an implementation of the v1.V1Streams service.
 type V1StreamsHandler interface {
 	Publish(context.Context, *v1.PublishStreamMessageRequest) (*v1.PublishStreamMessageResponse, error)
+	PublishBatch(context.Context, *v1.PublishStreamMessagesRequest) (*v1.PublishStreamMessagesResponse, error)
 	Subscribe(context.Context, *v1.SubscribeStreamRequest, *connect.ServerStream[v1.StreamMessage]) error
 	GetTopicMetadata(context.Context, *v1.GetStreamTopicMetadataRequest) (*v1.StreamTopicMetadata, error)
 	Reset(context.Context, *v1.ResetStreamTopicRequest) (*v1.ResetStreamTopicResponse, error)
@@ -149,6 +169,12 @@ func NewV1StreamsHandler(svc V1StreamsHandler, opts ...connect.HandlerOption) (s
 		V1StreamsPublishProcedure,
 		svc.Publish,
 		connect.WithSchema(v1StreamsMethods.ByName("Publish")),
+		connect.WithHandlerOptions(opts...),
+	)
+	v1StreamsPublishBatchHandler := connect.NewUnaryHandlerSimple(
+		V1StreamsPublishBatchProcedure,
+		svc.PublishBatch,
+		connect.WithSchema(v1StreamsMethods.ByName("PublishBatch")),
 		connect.WithHandlerOptions(opts...),
 	)
 	v1StreamsSubscribeHandler := connect.NewServerStreamHandlerSimple(
@@ -173,6 +199,8 @@ func NewV1StreamsHandler(svc V1StreamsHandler, opts ...connect.HandlerOption) (s
 		switch r.URL.Path {
 		case V1StreamsPublishProcedure:
 			v1StreamsPublishHandler.ServeHTTP(w, r)
+		case V1StreamsPublishBatchProcedure:
+			v1StreamsPublishBatchHandler.ServeHTTP(w, r)
 		case V1StreamsSubscribeProcedure:
 			v1StreamsSubscribeHandler.ServeHTTP(w, r)
 		case V1StreamsGetTopicMetadataProcedure:
@@ -190,6 +218,10 @@ type UnimplementedV1StreamsHandler struct{}
 
 func (UnimplementedV1StreamsHandler) Publish(context.Context, *v1.PublishStreamMessageRequest) (*v1.PublishStreamMessageResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("v1.V1Streams.Publish is not implemented"))
+}
+
+func (UnimplementedV1StreamsHandler) PublishBatch(context.Context, *v1.PublishStreamMessagesRequest) (*v1.PublishStreamMessagesResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("v1.V1Streams.PublishBatch is not implemented"))
 }
 
 func (UnimplementedV1StreamsHandler) Subscribe(context.Context, *v1.SubscribeStreamRequest, *connect.ServerStream[v1.StreamMessage]) error {

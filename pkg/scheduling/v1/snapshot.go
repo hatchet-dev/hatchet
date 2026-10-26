@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/pkg/randomticker"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
@@ -157,7 +158,7 @@ func (s *Scheduler) buildSnapshotInput() *SnapshotInput {
 		aggregate := &SlotUtilization{}
 
 		for slotType, utilization := range byType {
-			_, isWarmed := warmed[slotType]
+			isWarmed := enumerables.HasKey(warmed, slotType)
 
 			// Only derive from capacity once the slot type has had slots in the pool:
 			// a never-replenished worker would otherwise report full utilization

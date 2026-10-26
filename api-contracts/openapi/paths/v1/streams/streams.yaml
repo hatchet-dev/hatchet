@@ -110,3 +110,61 @@ streamPayload:
     summary: Upload stream payload
     tags:
       - Streams
+streamTopics:
+  get:
+    x-resources: ["tenant"]
+    description: List the tenant's durable stream topics, with the number of messages each has within the tenant's retention.
+    operationId: v1-stream-topic:list
+    x-payloads: false
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The number to skip
+        in: query
+        name: offset
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - description: The number to limit by
+        in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - description: Matches topics or namespaces containing it
+        in: query
+        name: search
+        required: false
+        schema:
+          type: string
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1StreamTopicList"
+        description: Successfully listed the topics
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: List stream topics
+    tags:
+      - Streams

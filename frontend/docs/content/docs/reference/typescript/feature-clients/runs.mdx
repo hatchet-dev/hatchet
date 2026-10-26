@@ -26,8 +26,9 @@ Parameters
 
 Returns
 
-`Promise`\<`AxiosResponse`\<`V1BranchDurableTaskResponse`, `any`, \{
-\}\>\>
+`Promise`\<\{
+`data`: `V1BranchDurableTaskResponse`;
+\}\>
 
 <a id="cancel"></a>
 
@@ -172,8 +173,9 @@ Parameters
 
 Returns
 
-`Promise`\<`AxiosResponse`\<`V1RestoreTaskResponse`, `any`, \{
-\}\>\>
+`Promise`\<\{
+`data`: `V1RestoreTaskResponse`;
+\}\>
 
 <a id="subscribetostream"></a>
 
@@ -204,6 +206,24 @@ type RunDetail = object;
 ```
 
 The state of a run, as `GetRunDetails` reports it. `taskRuns` is keyed by readable id.
+
+---
+
+<a id="runfilter"></a>
+
+### RunFilter
+
+```ts
+type RunFilter = object;
+```
+
+The run filter the REST features take: workflows by name, resolved to ids per call.
+
+Properties
+
+| Property                    | Type   | Description               |
+| --------------------------- | ------ | ------------------------- |
+| <a id="since"></a> `since?` | `Date` | Defaults to one hour ago. |
 
 ---
 

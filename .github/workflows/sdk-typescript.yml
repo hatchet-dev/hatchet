@@ -122,15 +122,16 @@ jobs:
         if: matrix.package-manager == 'pnpm'
         run: |
           pnpm run generate-api
+          pnpm run generate-api-fetch
           ./generate-protoc.sh
           ./generate-protoc-es.sh
 
       - name: Check generated bindings are up to date
         if: matrix.package-manager == 'pnpm'
         run: |
-          git add -A src/protoc src/protoc-es src/clients/rest/generated
-          if ! git diff --cached --exit-code -- src/protoc src/protoc-es src/clients/rest/generated; then
-            echo "::error::Generated protobuf/REST bindings are out of date. Run 'pnpm run generate-api', 'sdks/typescript/generate-protoc.sh' and 'sdks/typescript/generate-protoc-es.sh' and commit the changes."
+          git add -A src/protoc src/protoc-es src/clients/rest/generated src/clients/rest/generated-fetch
+          if ! git diff --cached --exit-code -- src/protoc src/protoc-es src/clients/rest/generated src/clients/rest/generated-fetch; then
+            echo "::error::Generated protobuf/REST bindings are out of date. Run 'pnpm run generate-api', 'pnpm run generate-api-fetch', 'sdks/typescript/generate-protoc.sh' and 'sdks/typescript/generate-protoc-es.sh' and commit the changes."
             exit 1
           fi
 
