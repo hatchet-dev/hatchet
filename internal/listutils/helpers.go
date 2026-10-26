@@ -127,3 +127,23 @@ func Map[T any, R any](xs []T, fn func(x T) R) []R {
 
 	return result
 }
+
+func ToMap[T any, K comparable, V any](xs []T, keyFn func(x T) K, valueFn func(x T) V) map[K]V {
+	result := make(map[K]V)
+
+	for _, x := range xs {
+		result[keyFn(x)] = valueFn(x)
+	}
+
+	return result
+}
+
+func ToMapIdentityValue[T any, K comparable](xs []T, keyFn func(x T) K) map[K]T {
+	result := make(map[K]T)
+
+	for _, x := range xs {
+		result[keyFn(x)] = x
+	}
+
+	return result
+}
