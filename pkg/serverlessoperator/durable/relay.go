@@ -42,6 +42,11 @@ const (
 	// frameWriteTimeout bounds one frame write; an endpoint that stops reading is closed
 	// by the pong watchdog anyway, this keeps a stalled write from outliving it.
 	frameWriteTimeout = 30 * time.Second
+
+	// operatorEvictionTimeout bounds the eviction handshake the operator performs for an
+	// invocation cut short while parked on a durable wait. The handshake runs on a context
+	// of its own: the delivery context has usually expired by the time it starts.
+	operatorEvictionTimeout = 30 * time.Second
 )
 
 // Kind is the class of a relay outcome.
@@ -66,6 +71,9 @@ const (
 const (
 	EvictionSourceEndpoint = "endpoint"
 	EvictionSourceServer   = "server"
+	// EvictionSourceOperator: the operator evicted the invocation on the task's behalf
+	// because the socket ended while the task was parked on a durable wait.
+	EvictionSourceOperator = "operator"
 )
 
 // Outcome is what one relayed invocation reports back.
@@ -206,6 +214,7 @@ type relay struct {
 	writerDone chan struct{}
 	engineErr  atomic.Pointer[string]
 	result     Outcome
+	ex         exit
 	once       sync.Once
 	wg         sync.WaitGroup
 	queued     atomic.Int64
@@ -213,6 +222,22 @@ type relay struct {
 	missed     atomic.Int32
 	done       atomic.Bool
 	peerClosed atomic.Bool
+
+	// pumpCtx bounds the pump's channel calls on its own, so teardown can stop the pump and
+	// take the channel over for the operator's eviction handshake; nil without a channel.
+	pumpCtx    context.Context
+	pumpCancel context.CancelFunc
+	pumpDone   chan struct{}
+
+	// parkMu guards the parked window, written by the reader as requests go out and by the
+	// pump as responses come back.
+	parkMu     sync.Mutex
+	waitAcking bool
+	parked     bool
+
+	// opEvicted records that the operator evicted the invocation in place of the resolved
+	// outcome. It belongs to the goroutine that runs teardown.
+	opEvicted bool
 }
 
 // Run relays one invocation and returns its outcome. ctx is the delivery context: the
@@ -283,6 +308,8 @@ func Run(ctx context.Context, p Params) Outcome {
 	go r.writeLoop()
 
 	if p.Channel != nil {
+		r.pumpCtx, r.pumpCancel = context.WithCancel(rctx)
+		r.pumpDone = make(chan struct{})
 		r.wg.Add(1)
 
 		go r.pumpLoop()
@@ -296,7 +323,7 @@ func Run(ctx context.Context, p Params) Outcome {
 
 	r.teardown()
 
-	return r.result
+	return r.outcome()
 }
 
 // buildFirstFrame encodes the first frame: the assigned action (action id and workflow name
@@ -387,14 +414,64 @@ func (r *relay) finish(e exit) {
 			engineErr = *msg
 		}
 
+		r.ex = e
 		r.result = resolve(phase(r.phase.Load()), engineErr, e)
 		close(r.stop)
 	})
 }
 
+// outcome is what Run reports: the resolved result, or the eviction the operator performed
+// in its place for an invocation the socket cut short while it was parked on a durable wait.
+func (r *relay) outcome() Outcome {
+	if r.opEvicted {
+		return evicted(r.result.CloseCode, EvictionSourceOperator)
+	}
+
+	return r.result
+}
+
 // enterPhase moves the relay out of phaseRunning; the first transition wins.
 func (r *relay) enterPhase(ph phase) {
 	r.phase.CompareAndSwap(int32(phaseRunning), int32(ph))
+}
+
+// requestSent records what the endpoint last asked the engine for. A wait_for leaves the
+// invocation waiting for its ack; any other request means the task is computing.
+func (r *relay) requestSent(req *v1.DurableTaskRequest) {
+	_, isWait := req.Message.(*v1.DurableTaskRequest_WaitFor)
+
+	r.parkMu.Lock()
+	r.waitAcking, r.parked = isWait, false
+	r.parkMu.Unlock()
+}
+
+// responseSeen tracks the parked window: it opens on the ack of the wait_for the endpoint is
+// waiting for and closes as soon as an awaited entry completes, which lets the task compute
+// again.
+func (r *relay) responseSeen(resp *v1.DurableTaskResponse) {
+	switch resp.Message.(type) {
+	case *v1.DurableTaskResponse_WaitForAck:
+		r.parkMu.Lock()
+
+		if r.waitAcking {
+			r.waitAcking, r.parked = false, true
+		}
+
+		r.parkMu.Unlock()
+	case *v1.DurableTaskResponse_EntryCompleted:
+		r.parkMu.Lock()
+		r.parked = false
+		r.parkMu.Unlock()
+	}
+}
+
+// isParked reports whether the invocation is sitting on a durable wait the engine acked and
+// has not completed yet, so the engine can re-invoke it instead of the task retrying.
+func (r *relay) isParked() bool {
+	r.parkMu.Lock()
+	defer r.parkMu.Unlock()
+
+	return r.parked
 }
 
 func (r *relay) stopped() bool {
@@ -407,8 +484,9 @@ func (r *relay) stopped() bool {
 }
 
 // teardown ends every engine stream, sends the close frame (unless the endpoint closed
-// first), closes the socket and the channel, and waits for the loops. The writer is awaited
-// first, bounded, so a queued server_evict frame goes out before the close frame.
+// first), closes the socket, evicts an invocation the exit caught parked on a durable wait,
+// closes the channel and waits for the loops. The writer is awaited first, bounded, so a
+// queued server_evict frame goes out before the close frame.
 func (r *relay) teardown() {
 	select {
 	case <-r.writerDone:
@@ -430,6 +508,8 @@ func (r *relay) teardown() {
 
 	_ = r.conn.Close()
 
+	r.evictParked()
+
 	if r.p.Channel != nil {
 		_ = r.p.Channel.Close()
 	}
@@ -437,6 +517,69 @@ func (r *relay) teardown() {
 	r.cancel()
 
 	r.wg.Wait()
+}
+
+// evictParked evicts an invocation one of the crash-rule exits caught parked on a durable
+// wait. Re-invoking such a task costs it a retry for a wait that has simply not completed
+// yet, so the operator performs the handshake the task would have performed itself and the
+// engine re-invokes the task when the awaited entry is satisfied. An eviction the engine
+// refuses, or does not acknowledge in time, leaves the resolved retryable failure in place.
+func (r *relay) evictParked() {
+	if r.p.Channel == nil || phase(r.phase.Load()) != phaseRunning || !crashRuleExit(r.ex.kind) || !r.isParked() {
+		return
+	}
+
+	// The pump owns Recv while it runs; the eviction ack is read here instead.
+	r.pumpCancel()
+	<-r.pumpDone
+
+	ctx, cancel := context.WithTimeout(context.Background(), operatorEvictionTimeout)
+	defer cancel()
+
+	if err := r.evictInvocation(ctx); err != nil {
+		r.l.Warn().Err(err).
+			Str("task_id", r.p.TaskId).
+			Int32("invocation", r.p.Invocation).
+			Msg("could not evict a durable invocation that ended while waiting")
+
+		return
+	}
+
+	r.opEvicted = true
+}
+
+// evictInvocation sends the eviction request for the invocation, stamped as a request from
+// the endpoint would be, and awaits its ack. An error response is the engine declining to
+// evict, for instance because the awaited entry was satisfied in the meantime.
+func (r *relay) evictInvocation(ctx context.Context) error {
+	reason := fmt.Sprintf("durable invocation ended while waiting: %s; evicted by the operator", r.ex.msg)
+
+	err := r.p.Channel.Send(ctx, &v1.DurableTaskRequest{
+		Message: &v1.DurableTaskRequest_EvictInvocation{EvictInvocation: &v1.DurableTaskEvictInvocationRequest{
+			DurableTaskExternalId: r.p.TaskId,
+			InvocationCount:       r.p.Invocation,
+			Reason:                &reason,
+		}},
+	})
+
+	if err != nil {
+		return fmt.Errorf("could not request the eviction: %w", err)
+	}
+
+	for {
+		resp, err := r.p.Channel.Recv(ctx)
+
+		if err != nil {
+			return fmt.Errorf("could not read the eviction ack: %w", err)
+		}
+
+		switch resp.Message.(type) {
+		case *v1.DurableTaskResponse_EvictionAck:
+			return nil
+		case *v1.DurableTaskResponse_Error:
+			return fmt.Errorf("engine refused the eviction: %s", resp.GetError().GetErrorMessage())
+		}
+	}
 }
 
 // write sends one text frame from the caller's goroutine. Only the first frame is written
@@ -502,7 +645,8 @@ func (r *relay) onReadError(err error) {
 }
 
 // closedWithoutDone is the crash rule: a socket that ends without done is a retryable
-// failure, unless the phase says otherwise (see resolve).
+// failure, unless the phase says otherwise (see resolve) or the invocation was parked on a
+// durable wait, which the operator evicts instead (see evictParked).
 func (r *relay) closedWithoutDone(msg string) {
 	r.finish(exit{kind: exitClosedWithoutDone, msg: msg})
 }
@@ -597,6 +741,8 @@ func (r *relay) handleRequest(req *v1.DurableTaskRequest) bool {
 		return false
 	}
 
+	r.requestSent(req)
+
 	return true
 }
 
@@ -657,9 +803,10 @@ func (r *relay) stamp(req *v1.DurableTaskRequest) error {
 // its own (operator.ErrSessionEnded); a closed channel is the relay's own teardown.
 func (r *relay) pumpLoop() {
 	defer r.wg.Done()
+	defer close(r.pumpDone)
 
 	for {
-		resp, err := r.p.Channel.Recv(r.ctx)
+		resp, err := r.p.Channel.Recv(r.pumpCtx)
 
 		if err != nil {
 			if !r.stopped() && !errors.Is(err, operator.ErrChannelClosed) {
@@ -682,6 +829,8 @@ func (r *relay) forward(resp *v1.DurableTaskResponse) bool {
 		frame []byte
 		err   error
 	)
+
+	r.responseSeen(resp)
 
 	switch m := resp.Message.(type) {
 	case *v1.DurableTaskResponse_Error:

@@ -214,6 +214,26 @@ func TestResolveTable(t *testing.T) {
 	}
 
 	assert.Len(t, cells, 3*len(exits), "every (phase, exit) pair has exactly one cell")
+
+	// The crash-rule rows of the table, which the operator evicts on when the invocation is
+	// parked on a durable wait.
+	crashRule := map[exitKind]bool{
+		exitClosedWithoutDone: true,
+		exitUnresponsive:      true,
+		exitBackpressure:      true,
+		exitLinkFailure:       true,
+		exitTimeout:           true,
+	}
+
+	for kind, e := range exits {
+		assert.Equal(t, crashRule[kind], crashRuleExit(kind), "crash rule of exit %d", kind)
+
+		if crashRule[kind] {
+			got := resolve(phaseRunning, "", e)
+			assert.Equal(t, KindFailed, got.Kind, "exit %d", kind)
+			assert.True(t, got.Retry, "exit %d", kind)
+		}
+	}
 }
 
 // TestRelayEngineErrorThenDoneOutputStaysFailed covers the errored column on a real

@@ -75,15 +75,22 @@ const unacknowledgedEvictionMsg = "endpoint reported an eviction the engine neve
 //	done output         | completed                        | evicted (endpoint)       | failed, engine error
 //	done error          | failed, done's error and retry   | failed, done's error     | failed, engine error
 //	done evicted        | failed retryable, close 4005     | evicted (endpoint)       | failed, engine error
-//	closed without done | failed retryable                 | evicted (endpoint)       | failed, engine error
-//	unresponsive        | failed retryable, close 4008     | evicted (endpoint)       | failed, engine error
-//	backpressure        | failed retryable, close 1013     | evicted (endpoint)       | failed, engine error
-//	link failure        | failed retryable, close 1011     | evicted (endpoint)       | failed, engine error
+//	closed without done | crash rule                       | evicted (endpoint)       | failed, engine error
+//	unresponsive        | crash rule, close 4008           | evicted (endpoint)       | failed, engine error
+//	backpressure        | crash rule, close 1013           | evicted (endpoint)       | failed, engine error
+//	link failure        | crash rule, close 1011           | evicted (endpoint)       | failed, engine error
 //	protocol violation  | failed, exit's close code        | evicted (endpoint)       | failed, engine error
-//	timeout             | failed retryable, close 4007     | evicted (endpoint)       | failed, engine error
+//	timeout             | crash rule, close 4007           | evicted (endpoint)       | failed, engine error
 //	server evict        | evicted (server), close 4001     | evicted (server)         | evicted (server)
 //	cancelled           | cancelled, close 4003            | cancelled                | cancelled
 //	shutdown            | shutdown, close 4002             | evicted (endpoint)       | failed, engine error
+//
+// The crash rule, the cells of crashRuleExit under running, is a retryable failure: the task
+// was computing and no done frame says how it ended. The one exception is an invocation
+// parked on a durable wait the engine acked, which the relay evicts on the task's behalf and
+// reports as evicted (operator); that happens outside resolve, in evictParked, because it
+// takes a round trip to the engine, and resolve's retryable failure stands when the engine
+// refuses the eviction.
 //
 // Every failure under an engine error is non-retryable. A server_evict is the engine's later
 // word on the invocation and wins over both earlier phases; an engine cancel produces no
@@ -130,5 +137,17 @@ func resolve(ph phase, engineErr string, e exit) Outcome {
 		// closed without done, unresponsive, backpressure, link failure, timeout: the crash
 		// rule, a retryable failure.
 		return failed(e.closeCode, e.msg, true)
+	}
+}
+
+// crashRuleExit reports whether the exit is one the crash rule covers: the socket ended
+// without the endpoint's word on the invocation.
+func crashRuleExit(k exitKind) bool {
+	//exhaustive:ignore
+	switch k {
+	case exitClosedWithoutDone, exitUnresponsive, exitBackpressure, exitLinkFailure, exitTimeout:
+		return true
+	default:
+		return false
 	}
 }

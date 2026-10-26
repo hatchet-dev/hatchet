@@ -811,6 +811,184 @@ func TestRelayEndpointEviction(t *testing.T) {
 	assert.Equal(t, CloseNormal, ep.closed(t))
 }
 
+// parkOnWait has the endpoint ask the engine for a durable wait and read its ack, which
+// leaves the invocation parked on that wait.
+func parkOnWait(t *testing.T, conn *websocket.Conn) {
+	t.Helper()
+
+	writeFrame(t, conn, `{"id":1,"request":{"waitFor":{}}}`)
+	require.NotNil(t, readResponse(t, conn).GetWaitForAck())
+}
+
+// ackWaitFor answers the endpoint's wait_for on the engine side.
+func ackWaitFor(t *testing.T, ch *fakeChannel) {
+	t.Helper()
+
+	require.NotNil(t, ch.next(t).GetWaitFor())
+	ch.reply(&v1.DurableTaskResponse{Message: &v1.DurableTaskResponse_WaitForAck{
+		WaitForAck: &v1.DurableTaskEventWaitForAckResponse{Ref: &v1.DurableEventLogEntryRef{NodeId: 1}},
+	}})
+}
+
+// awaitSignal waits for the scenario step the test orders itself against.
+func awaitSignal(t *testing.T, signal <-chan struct{}, what string) {
+	t.Helper()
+
+	select {
+	case <-signal:
+	case <-time.After(eventually):
+		t.Fatalf("the endpoint never %s", what)
+	}
+}
+
+// evictionAck is the engine's answer to an eviction request.
+func evictionAck() *v1.DurableTaskResponse {
+	return &v1.DurableTaskResponse{Message: &v1.DurableTaskResponse_EvictionAck{
+		EvictionAck: &v1.DurableTaskEvictionAckResponse{InvocationCount: 3, DurableTaskExternalId: testTaskId},
+	}}
+}
+
+// TestRelayParkedExitIsEvicted covers the exception to the crash rule: a socket that ends
+// while the invocation is parked on a durable wait the engine acked is evicted by the
+// operator on the task's behalf, so the engine re-invokes the task when the awaited entry is
+// satisfied instead of the task spending a retry.
+func TestRelayParkedExitIsEvicted(t *testing.T) {
+	t.Run("request timeout while parked", func(t *testing.T) {
+		setT(t)
+
+		parked := make(chan struct{})
+
+		ep := newFakeEndpoint(t, func(t *testing.T, conn *websocket.Conn, _ *v1.ServerlessFirstFrame) {
+			parkOnWait(t, conn)
+			close(parked)
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+		defer cancel()
+
+		ch := newFakeChannel()
+		out := run(ctx, testParams(ep, ch))
+
+		ackWaitFor(t, ch)
+		awaitSignal(t, parked, "read the wait_for ack")
+
+		evict := ch.next(t).GetEvictInvocation()
+		require.NotNil(t, evict)
+		assert.Equal(t, testTaskId, evict.DurableTaskExternalId)
+		assert.Equal(t, int32(3), evict.InvocationCount)
+		assert.Contains(t, evict.GetReason(), "timed out")
+		assert.Contains(t, evict.GetReason(), "evicted by the operator")
+
+		ch.reply(evictionAck())
+
+		o := await(t, out)
+		assert.Equal(t, KindEvicted, o.Kind, "kind=%d retry=%v error=%q", o.Kind, o.Retry, o.Error)
+		assert.Equal(t, EvictionSourceOperator, o.EvictionSource)
+		assert.Equal(t, CloseTimeout, o.CloseCode)
+		assert.Equal(t, CloseTimeout, ep.closed(t))
+	})
+
+	t.Run("peer close without done while parked", func(t *testing.T) {
+		setT(t)
+
+		ep := newFakeEndpoint(t, func(t *testing.T, conn *websocket.Conn, _ *v1.ServerlessFirstFrame) {
+			parkOnWait(t, conn)
+			require.NoError(t, conn.NetConn().Close())
+		})
+
+		ch := newFakeChannel()
+		out := run(context.Background(), testParams(ep, ch))
+
+		ackWaitFor(t, ch)
+
+		require.NotNil(t, ch.next(t).GetEvictInvocation())
+		ch.reply(evictionAck())
+
+		o := await(t, out)
+		assert.Equal(t, KindEvicted, o.Kind, "kind=%d retry=%v error=%q", o.Kind, o.Retry, o.Error)
+		assert.Equal(t, EvictionSourceOperator, o.EvictionSource)
+	})
+
+	t.Run("timeout while computing stays a retryable failure", func(t *testing.T) {
+		setT(t)
+
+		answered := make(chan struct{})
+
+		ep := newFakeEndpoint(t, func(t *testing.T, conn *websocket.Conn, _ *v1.ServerlessFirstFrame) {
+			writeFrame(t, conn, `{"id":1,"request":{"memo":{"key":"aw=="}}}`)
+			require.NotNil(t, readResponse(t, conn).GetMemoAck())
+			close(answered)
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+		defer cancel()
+
+		ch := newFakeChannel()
+		out := run(ctx, testParams(ep, ch))
+
+		require.NotNil(t, ch.next(t).GetMemo())
+		ch.reply(&v1.DurableTaskResponse{Message: &v1.DurableTaskResponse_MemoAck{
+			MemoAck: &v1.DurableTaskEventMemoAckResponse{Ref: &v1.DurableEventLogEntryRef{NodeId: 1}},
+		}})
+
+		awaitSignal(t, answered, "read the memo ack")
+
+		o := await(t, out)
+		assert.Equal(t, KindFailed, o.Kind)
+		assert.True(t, o.Retry)
+		assert.Contains(t, o.Error, "timed out")
+		assert.Empty(t, ch.sent, "no eviction is requested for a task that was computing")
+		assert.Equal(t, CloseTimeout, ep.closed(t))
+	})
+
+	t.Run("engine refuses the eviction", func(t *testing.T) {
+		setT(t)
+
+		ep := newFakeEndpoint(t, func(t *testing.T, conn *websocket.Conn, _ *v1.ServerlessFirstFrame) {
+			parkOnWait(t, conn)
+			require.NoError(t, conn.NetConn().Close())
+		})
+
+		ch := newFakeChannel()
+		out := run(context.Background(), testParams(ep, ch))
+
+		ackWaitFor(t, ch)
+
+		require.NotNil(t, ch.next(t).GetEvictInvocation())
+		ch.reply(&v1.DurableTaskResponse{Message: &v1.DurableTaskResponse_Error{
+			Error: &v1.DurableTaskErrorResponse{ErrorMessage: "task not found"},
+		}})
+
+		o := await(t, out)
+		assert.Equal(t, KindFailed, o.Kind)
+		assert.True(t, o.Retry)
+		assert.Contains(t, o.Error, "without a done frame")
+	})
+
+	t.Run("entry completed before the cut", func(t *testing.T) {
+		setT(t)
+
+		ep := newFakeEndpoint(t, func(t *testing.T, conn *websocket.Conn, _ *v1.ServerlessFirstFrame) {
+			parkOnWait(t, conn)
+			require.NotNil(t, readResponse(t, conn).GetEntryCompleted())
+			require.NoError(t, conn.NetConn().Close())
+		})
+
+		ch := newFakeChannel()
+		out := run(context.Background(), testParams(ep, ch))
+
+		ackWaitFor(t, ch)
+		ch.reply(&v1.DurableTaskResponse{Message: &v1.DurableTaskResponse_EntryCompleted{
+			EntryCompleted: &v1.DurableTaskEventLogEntryCompletedResponse{Ref: &v1.DurableEventLogEntryRef{NodeId: 1}, Payload: []byte(`{}`)},
+		}})
+
+		o := await(t, out)
+		assert.Equal(t, KindFailed, o.Kind)
+		assert.True(t, o.Retry)
+		assert.Empty(t, ch.sent, "the task was computing again when the socket ended")
+	})
+}
+
 func TestRelayServerEvict(t *testing.T) {
 	setT(t)
 

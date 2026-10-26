@@ -25,7 +25,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/internal/memrepo"
 )
 
-// fakeDurableChannel answers every memo with a memo_ack and records what was sent.
+// fakeDurableChannel answers every memo with a memo_ack, every wait_for with its ack and
+// every eviction with an eviction_ack, and records what was sent.
 type fakeDurableChannel struct {
 	sent   []*v1.DurableTaskRequest
 	recv   chan *v1.DurableTaskResponse
@@ -53,7 +54,34 @@ func (f *fakeDurableChannel) Send(_ context.Context, req *v1.DurableTaskRequest)
 		}}
 	}
 
+	if wait := req.GetWaitFor(); wait != nil {
+		f.recv <- &v1.DurableTaskResponse{Message: &v1.DurableTaskResponse_WaitForAck{
+			WaitForAck: &v1.DurableTaskEventWaitForAckResponse{Ref: &v1.DurableEventLogEntryRef{
+				DurableTaskExternalId: wait.DurableTaskExternalId,
+				InvocationCount:       wait.InvocationCount,
+				NodeId:                2,
+			}},
+		}}
+	}
+
+	if evict := req.GetEvictInvocation(); evict != nil {
+		f.recv <- &v1.DurableTaskResponse{Message: &v1.DurableTaskResponse_EvictionAck{
+			EvictionAck: &v1.DurableTaskEvictionAckResponse{
+				DurableTaskExternalId: evict.DurableTaskExternalId,
+				InvocationCount:       evict.InvocationCount,
+			},
+		}}
+	}
+
 	return nil
+}
+
+// requests returns what the relay sent on the channel so far.
+func (f *fakeDurableChannel) requests() []*v1.DurableTaskRequest {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return append([]*v1.DurableTaskRequest(nil), f.sent...)
 }
 
 func (f *fakeDurableChannel) Recv(ctx context.Context) (*v1.DurableTaskResponse, error) {
@@ -256,6 +284,73 @@ func TestDurableDeliveryCloseWithoutDoneIsRetryable(t *testing.T) {
 	assert.Equal(t, contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED, ev.EventType)
 	assert.Contains(t, ev.EventPayload, "without a done frame")
 	assert.False(t, *ev.ShouldNotRetry)
+}
+
+// TestDurableDeliveryParkedCloseIsEvicted covers the crash rule's exception through the
+// core: an endpoint that dies while its task is parked on an acked durable wait costs the
+// task no retry, because the operator evicts the invocation and the engine re-invokes it.
+func TestDurableDeliveryParkedCloseIsEvicted(t *testing.T) {
+	skipWithoutWebsocketHandshake(t)
+
+	env := newTestEnv(t)
+	tenant := uuid.New()
+
+	row := healthyRow(endpointSpec{tenantId: tenant, name: "a", actions: []string{"svc:run"}, durable: true})
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := (&websocket.Upgrader{}).Upgrade(w, r, nil)
+
+		if err != nil {
+			return
+		}
+
+		if _, _, err := conn.ReadMessage(); err != nil {
+			return
+		}
+
+		if err := conn.WriteMessage(websocket.TextMessage, []byte(`{"id":1,"request":{"waitFor":{}}}`)); err != nil {
+			return
+		}
+
+		// Read the wait_for ack, which parks the invocation, then crash.
+		if _, _, err := conn.ReadMessage(); err != nil {
+			return
+		}
+
+		_ = conn.NetConn().Close()
+	}))
+	defer srv.Close()
+
+	row.TriggerUrl = srv.URL
+	row.InlineWaitBudgetMs = 5000
+	env.addEndpoint(row)
+
+	env.r.UnitsGained(context.Background(), []memrepo.Unit{env.unit(row)})
+	reg := env.host.session(0)
+	require.NotNil(t, reg)
+
+	ch := newFakeDurableChannel()
+	reg.setOpenDurable(func(uuid.UUID, int32) (operator.DurableChannel, error) { return ch, nil })
+
+	invocation := int32(1)
+	action := startAction("svc:run")
+	action.DurableTaskInvocationCount = &invocation
+	reg.deliver(t, action)
+
+	require.Eventually(t, func() bool { return len(ch.requests()) == 2 }, eventually, 10*time.Millisecond)
+	require.Eventually(t, func() bool { return reg.inflightCount(env) == 0 }, eventually, 10*time.Millisecond)
+
+	sent := ch.requests()
+	require.NotNil(t, sent[0].GetWaitFor())
+
+	evict := sent[1].GetEvictInvocation()
+	require.NotNil(t, evict)
+	assert.Equal(t, action.TaskRunExternalId, evict.DurableTaskExternalId)
+	assert.Equal(t, invocation, evict.InvocationCount)
+	assert.Contains(t, evict.GetReason(), "evicted by the operator")
+
+	// STARTED is the only event: the engine re-invokes the task itself.
+	assert.Equal(t, []contracts.StepActionEventType{contracts.StepActionEventType_STEP_EVENT_TYPE_STARTED}, reg.eventTypes())
 }
 
 // TestDurableDeliveryCancelSendsNoSecondEvent: an engine cancel closes the socket with 4003
