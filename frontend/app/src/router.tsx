@@ -549,6 +549,15 @@ const tenantRateLimitsRoute = createRoute({
   ),
 });
 
+const tenantStreamsRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'streams',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/streams'),
+    'default',
+  ),
+});
+
 const tenantScheduledRoute = createRoute({
   getParentRoute: () => tenantRoute,
   path: 'scheduled',
@@ -1082,6 +1091,7 @@ const tenantRoutes = [
   tenantFiltersRoute,
   tenantWebhooksRoute,
   tenantRateLimitsRoute,
+  tenantStreamsRoute,
   tenantScheduledRoute,
   tenantCronJobsRoute,
   tenantWorkflowsRoute,
@@ -1232,6 +1242,7 @@ export const appRoutes = {
   tenantFiltersRoute,
   tenantWebhooksRoute,
   tenantRateLimitsRoute,
+  tenantStreamsRoute,
   tenantScheduledRoute,
   tenantCronJobsRoute,
   tenantWorkflowsRoute,

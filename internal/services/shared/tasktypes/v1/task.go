@@ -93,6 +93,25 @@ func CompletedTaskMessage(
 	)
 }
 
+func AckedTaskMessage(
+	tenantId uuid.UUID,
+	taskId int64,
+	taskInsertedAt pgtype.Timestamptz,
+	retryCount int32,
+) (*msgqueue.Message, error) {
+	return msgqueue.NewTenantMessage(
+		tenantId,
+		msgqueue.MsgIDTaskAcked,
+		false,
+		true,
+		v1.TaskIdInsertedAtRetryCount{
+			Id:         taskId,
+			InsertedAt: taskInsertedAt,
+			RetryCount: retryCount,
+		},
+	)
+}
+
 type FailedTaskPayload struct {
 	// (required) the task id
 	TaskId int64 `validate:"required"`
@@ -318,6 +337,26 @@ func NewTogglePauseWorkflowMessage(tenantId, workflowId uuid.UUID, isPaused bool
 		TogglePauseWorkflowPayload{
 			WorkflowID: workflowId,
 			IsPaused:   isPaused,
+		},
+	)
+}
+
+// RateLimitPausesChangedPayload tells the task controller to hold or release the tenant's queued runs behind rate limit pauses.
+type RateLimitPausesChangedPayload struct {
+	// Paused is true when a key was paused, and false when a pause ended
+	Paused bool
+}
+
+// NewRateLimitPausesChangedMessage is sent to the task controller when a rate limit key is paused, so it holds the runs
+// already waiting on the key, and when a pause ends, so it releases them.
+func NewRateLimitPausesChangedMessage(tenantId uuid.UUID, paused bool) (*msgqueue.Message, error) {
+	return msgqueue.NewTenantMessage(
+		tenantId,
+		msgqueue.MsgIDRateLimitPausesChanged,
+		false,
+		true,
+		RateLimitPausesChangedPayload{
+			Paused: paused,
 		},
 	)
 }

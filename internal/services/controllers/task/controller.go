@@ -14,6 +14,8 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
+
 	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
@@ -492,6 +494,8 @@ func (tc *TasksControllerImpl) handleBufferedMsgs(tenantId uuid.UUID, msgId stri
 	ctx := context.WithValue(context.Background(), analytics.TenantIDKey, tenantId)
 
 	switch msgId {
+	case msgqueue.MsgIDTaskAcked:
+		return tc.handleTaskAcked(ctx, tenantId, payloads)
 	case msgqueue.MsgIDTaskCompleted:
 		return tc.handleTaskCompleted(ctx, tenantId, payloads)
 	case msgqueue.MsgIDTaskFailed:
@@ -514,6 +518,8 @@ func (tc *TasksControllerImpl) handleBufferedMsgs(tenantId uuid.UUID, msgId stri
 		return tc.handleDurableRestoreTask(ctx, tenantId, payloads)
 	case msgqueue.MsgIDTogglePauseWorkflow:
 		return tc.handlePauseWorkflow(ctx, tenantId, payloads)
+	case msgqueue.MsgIDRateLimitPausesChanged:
+		return tc.handleRateLimitPausesChanged(ctx, tenantId, payloads)
 	}
 
 	return fmt.Errorf("unknown message id: %s", msgId)
@@ -681,6 +687,25 @@ func (tc *TasksControllerImpl) publishChildCancellations(
 	})
 }
 
+func (tc *TasksControllerImpl) handleTaskAcked(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
+	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.handleTaskAcked")
+	defer span.End()
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
+
+	msgs := msgqueue.JSONConvert[v1.TaskIdInsertedAtRetryCount](payloads)
+	ackedTasks := enumerables.Map(msgs, func(msg *v1.TaskIdInsertedAtRetryCount) v1.TaskIdInsertedAtRetryCount { return *msg })
+
+	if err := tc.repov1.Tasks().MarkTaskRuntimesAcked(ctx, tenantId, ackedTasks); err != nil {
+		err = fmt.Errorf("could not mark tasks as acked: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "could not mark tasks as acked")
+		return err
+	}
+
+	return nil
+}
+
 func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
 	ctx, span := telemetry.NewSpan(ctx, "TasksControllerImpl.handleTaskCompleted")
 	defer span.End()
@@ -773,10 +798,9 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId uu
 		return err
 	}
 
-	retried := make(map[int64]struct{}, len(res.RetriedTasks))
-	for _, r := range res.RetriedTasks {
-		retried[r.Id] = struct{}{}
-	}
+	retried := enumerables.ToSet(res.RetriedTasks, func(r v1.RetriedTask) int64 {
+		return r.Id
+	})
 
 	type attempt struct {
 		id         int64
@@ -793,8 +817,7 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId uu
 
 	// published after FailTasks so the event can say whether it ended this attempt for good
 	for _, msg := range msgs {
-		_, final := failed[attempt{id: msg.TaskId, retryCount: msg.RetryCount}]
-		willRetry := !final
+		willRetry := !enumerables.HasKey(failed, attempt{id: msg.TaskId, retryCount: msg.RetryCount})
 
 		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
 			tenantId,
@@ -855,11 +878,9 @@ func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, ten
 
 	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
 
-	retriedTaskIds := make(map[int64]struct{})
-
-	for _, task := range res.RetriedTasks {
-		retriedTaskIds[task.Id] = struct{}{}
-	}
+	retriedTaskIds := enumerables.ToSet(res.RetriedTasks, func(task v1.RetriedTask) int64 {
+		return task.Id
+	})
 
 	internalEventsWithoutRetries := make([]v1.InternalTaskEvent, 0)
 
@@ -1459,6 +1480,27 @@ func (tc *TasksControllerImpl) handlePauseWorkflow(ctx context.Context, tenantId
 	if len(queueNames) > 0 || len(concurrencyStrategyIds) > 0 {
 		if err := tc.notifySchedulerOfRequeuedItems(ctx, tenantId, queueNames, concurrencyStrategyIds); err != nil {
 			tc.l.Error().Ctx(ctx).Err(err).Msg("failed to notify scheduler after unpausing workflows")
+		}
+	}
+
+	return nil
+}
+
+func (tc *TasksControllerImpl) handleRateLimitPausesChanged(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
+	msgs := msgqueue.JSONConvert[tasktypes.RateLimitPausesChangedPayload](payloads)
+	statuses := enumerables.Map[*tasktypes.RateLimitPausesChangedPayload, bool](msgs, func(x *tasktypes.RateLimitPausesChangedPayload) bool {
+		return x.Paused
+	})
+
+	if enumerables.Any(statuses, true) {
+		if err := tc.repov1.RateLimit().HoldRateLimitPausedQueuedTasks(ctx, tenantId); err != nil {
+			return fmt.Errorf("failed to hold tasks behind newly paused rate limits: %w", err)
+		}
+	}
+
+	if enumerables.Any(statuses, false) {
+		if err := tc.requeueItemsForExpiredRateLimitPauses(ctx, tenantId); err != nil {
+			return err
 		}
 	}
 

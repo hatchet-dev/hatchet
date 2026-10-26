@@ -16,7 +16,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/digest"
-	"github.com/hatchet-dev/hatchet/internal/listutils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -294,6 +294,9 @@ type WorkflowRepository interface {
 	RequeuePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID, workflowIds []uuid.UUID) (queueNames []string, concurrencyStrategyIds []int64, err error)
 
 	ListUnpausedWorkflowsWithPausedQueueItems(ctx context.Context, tenantId uuid.UUID) ([]uuid.UUID, error)
+
+	// RequeueRateLimitPausedQueueItems releases held items whose rate limit pauses have all ended
+	RequeueRateLimitPausedQueueItems(ctx context.Context, tenantId uuid.UUID) (queueNames []string, concurrencyStrategyIds []int64, err error)
 }
 
 type workflowRepository struct {
@@ -316,11 +319,11 @@ func (r *workflowRepository) ListWorkflowNamesByIds(ctx context.Context, tenantI
 		return nil, err
 	}
 
-	workflowIdToNameMap := make(map[uuid.UUID]string)
-
-	for _, row := range workflowNames {
-		workflowIdToNameMap[row.ID] = row.Name
-	}
+	workflowIdToNameMap := enumerables.ToMap(
+		workflowNames,
+		func(row *sqlcv1.ListWorkflowNamesByIdsRow) uuid.UUID { return row.ID },
+		func(row *sqlcv1.ListWorkflowNamesByIdsRow) string { return row.Name },
+	)
 
 	return workflowIdToNameMap, nil
 }
@@ -465,19 +468,13 @@ func (r *workflowRepository) getTenantStrategiesForEntries(ctx context.Context, 
 		return nil, err
 	}
 
-	strategiesByName := make(map[string]*sqlcv1.V1TenantConcurrency, len(strategies))
+	strategiesByName := enumerables.KeyBy(strategies, func(strategy *sqlcv1.V1TenantConcurrency) string {
+		return strategy.Name
+	})
 
-	for _, strategy := range strategies {
-		strategiesByName[strategy.Name] = strategy
-	}
-
-	missingNames := make([]string, 0)
-
-	for _, name := range names {
-		if _, ok := strategiesByName[name]; !ok {
-			missingNames = append(missingNames, name)
-		}
-	}
+	missingNames := enumerables.Filter(names, func(name string) bool {
+		return !enumerables.HasKey(strategiesByName, name)
+	})
 
 	if len(missingNames) > 0 {
 		return nil, newTenantConcurrencyError("unknown tenant-scoped concurrency strategies: %s (step %s)", strings.Join(missingNames, ", "), stepReadableId)
@@ -1939,36 +1936,26 @@ func (r *workflowRepository) MovePausedWorkflowQueueItems(ctx context.Context, t
 		return nil
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+	rows, err := r.queries.ListQueuedTasksForWorkflows(ctx, r.pool, sqlcv1.ListQueuedTasksForWorkflowsParams{
+		Tenantid:    tenantId,
+		Workflowids: workflowIds,
+	})
 
 	if err != nil {
-		return err
+		return fmt.Errorf("could not list queued tasks for paused workflows: %w", err)
 	}
 
-	defer rollback()
+	tasks := make([]TaskIdInsertedAtRetryCount, 0, len(rows))
 
-	if err := r.queries.MovePausedWorkflowQueueItems(ctx, tx, sqlcv1.MovePausedWorkflowQueueItemsParams{
-		Workflowids: workflowIds,
-		Tenantid:    tenantId,
-	}); err != nil {
-		return err
+	for _, row := range rows {
+		tasks = append(tasks, TaskIdInsertedAtRetryCount{
+			Id:         row.TaskID,
+			InsertedAt: row.TaskInsertedAt,
+			RetryCount: row.RetryCount,
+		})
 	}
 
-	if err := r.queries.MovePausedWorkflowConcurrencySlots(ctx, tx, sqlcv1.MovePausedWorkflowConcurrencySlotsParams{
-		Workflowids: workflowIds,
-		Tenantid:    tenantId,
-	}); err != nil {
-		return err
-	}
-
-	if err := r.queries.MovePausedWorkflowRateLimitedQueueItems(ctx, tx, sqlcv1.MovePausedWorkflowRateLimitedQueueItemsParams{
-		Workflowids: workflowIds,
-		Tenantid:    tenantId,
-	}); err != nil {
-		return err
-	}
-
-	return commit(ctx)
+	return r.holdPausedTasksInBatches(ctx, tenantId, tasks)
 }
 
 func (r *workflowRepository) RequeuePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID, workflowIds []uuid.UUID) ([]string, []int64, error) {
@@ -1987,19 +1974,26 @@ func (r *workflowRepository) RequeuePausedWorkflowQueueItems(ctx context.Context
 
 	defer rollback()
 
-	queueNames, err := r.queries.RequeuePausedWorkflowQueueItems(ctx, tx, sqlcv1.RequeuePausedWorkflowQueueItemsParams{
+	released, err := r.queries.ReleaseHeldQueueItemsForWorkflows(ctx, tx, sqlcv1.ReleaseHeldQueueItemsForWorkflowsParams{
 		Workflowids: workflowIds,
 		Tenantid:    tenantId,
 	})
 
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("could not release held queue items for workflows: %w", err)
 	}
 
-	concurrencyStrategyIds, err := r.queries.RequeuePausedWorkflowConcurrencySlots(ctx, tx, sqlcv1.RequeuePausedWorkflowConcurrencySlotsParams{
-		Workflowids: workflowIds,
-		Tenantid:    tenantId,
-	})
+	tasks := make([]TaskIdInsertedAtRetryCount, 0, len(released))
+
+	for _, row := range released {
+		tasks = append(tasks, TaskIdInsertedAtRetryCount{
+			Id:         row.TaskID,
+			InsertedAt: row.TaskInsertedAt,
+			RetryCount: row.RetryCount,
+		})
+	}
+
+	queueNames, concurrencyStrategyIds, err := r.requeueHeldTasks(ctx, tx, tenantId, tasks)
 
 	if err != nil {
 		return nil, nil, err
@@ -2009,7 +2003,121 @@ func (r *workflowRepository) RequeuePausedWorkflowQueueItems(ctx context.Context
 		return nil, nil, err
 	}
 
-	return listutils.Uniq(queueNames), listutils.Uniq(concurrencyStrategyIds), nil
+	return queueNames, concurrencyStrategyIds, nil
+}
+
+const releaseDueHeldQueueItemsBatchSize = 1000
+
+func (r *workflowRepository) RequeueRateLimitPausedQueueItems(ctx context.Context, tenantId uuid.UUID) ([]string, []int64, error) {
+	ctx, span := telemetry.NewSpan(ctx, "requeue-rate-limit-paused-queue-items")
+	defer span.End()
+
+	allQueueNames := make([]string, 0)
+	allStrategyIds := make([]int64, 0)
+
+	for {
+		released, err := r.releaseDueHeldQueueItemsBatch(ctx, tenantId)
+
+		if err != nil {
+			return nil, nil, err
+		}
+
+		allQueueNames = append(allQueueNames, released.queueNames...)
+		allStrategyIds = append(allStrategyIds, released.concurrencyStrategyIds...)
+
+		if released.candidates < releaseDueHeldQueueItemsBatchSize {
+			break
+		}
+	}
+
+	return enumerables.Uniq(allQueueNames), enumerables.Uniq(allStrategyIds), nil
+}
+
+type releasedHeldQueueItems struct {
+	candidates             int
+	queueNames             []string
+	concurrencyStrategyIds []int64
+}
+
+func (r *workflowRepository) releaseDueHeldQueueItemsBatch(ctx context.Context, tenantId uuid.UUID) (*releasedHeldQueueItems, error) {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rollback()
+
+	rows, err := r.queries.ReleaseDueHeldQueueItems(ctx, tx, sqlcv1.ReleaseDueHeldQueueItemsParams{
+		Tenantid:  tenantId,
+		Batchsize: releaseDueHeldQueueItemsBatchSize,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("could not release due held queue items: %w", err)
+	}
+
+	tasks := make([]TaskIdInsertedAtRetryCount, 0, len(rows))
+
+	for _, row := range rows {
+		if !row.Released {
+			continue
+		}
+
+		tasks = append(tasks, TaskIdInsertedAtRetryCount{
+			Id:         row.TaskID,
+			InsertedAt: row.TaskInsertedAt,
+			RetryCount: row.RetryCount,
+		})
+	}
+
+	queueNames, concurrencyStrategyIds, err := r.requeueHeldTasks(ctx, tx, tenantId, tasks)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := commit(ctx); err != nil {
+		return nil, err
+	}
+
+	return &releasedHeldQueueItems{
+		candidates:             len(rows),
+		queueNames:             queueNames,
+		concurrencyStrategyIds: concurrencyStrategyIds,
+	}, nil
+}
+
+func (r *workflowRepository) requeueHeldTasks(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) ([]string, []int64, error) {
+	if len(tasks) == 0 {
+		return nil, nil, nil
+	}
+
+	taskIds, taskInsertedAts, retryCounts := taskTupleArrays(tasks)
+
+	queueNames, err := r.queries.RequeueHeldQueueItems(ctx, tx, sqlcv1.RequeueHeldQueueItemsParams{
+		Taskids:         taskIds,
+		Taskinsertedats: taskInsertedAts,
+		Retrycounts:     retryCounts,
+		Tenantid:        tenantId,
+	})
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not requeue held queue items: %w", err)
+	}
+
+	concurrencyStrategyIds, err := r.queries.RequeueHeldConcurrencySlots(ctx, tx, sqlcv1.RequeueHeldConcurrencySlotsParams{
+		Taskids:         taskIds,
+		Taskinsertedats: taskInsertedAts,
+		Retrycounts:     retryCounts,
+		Tenantid:        tenantId,
+	})
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not requeue held concurrency slots: %w", err)
+	}
+
+	return enumerables.Uniq(queueNames), enumerables.Uniq(concurrencyStrategyIds), nil
 }
 
 func (r *workflowRepository) ListUnpausedWorkflowsWithPausedQueueItems(ctx context.Context, tenantId uuid.UUID) ([]uuid.UUID, error) {
@@ -2120,10 +2228,11 @@ func stripTenantConcurrencyDefs(entries []CreateConcurrencyOpts) []CreateConcurr
 }
 
 func hasCycleV1(steps []CreateStepOpts) bool {
-	graph := make(map[string][]string)
-	for _, step := range steps {
-		graph[step.ReadableId] = step.Parents
-	}
+	graph := enumerables.ToMap(
+		steps,
+		func(step CreateStepOpts) string { return step.ReadableId },
+		func(step CreateStepOpts) []string { return step.Parents },
+	)
 
 	visited := make(map[string]bool)
 	var dfs func(string) bool

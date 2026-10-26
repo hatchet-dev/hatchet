@@ -27,6 +27,7 @@ import { JsonObject, OutputType } from '@hatchet/v1/types';
 import { Action as ConditionAction } from '@hatchet/protoc/v1/shared/condition';
 import type { HatchetClient } from '@hatchet/v1/client/client';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
+import { convertDesiredWorkerLabels } from '@hatchet/clients/admin/trigger-request';
 import { createAbortError, rethrowIfAborted } from '@hatchet/util/abort-error';
 import { parentRunContextManager } from '@hatchet/v1/parent-run-context-vars';
 import type { NextStep } from '@hatchet-dev/typescript-sdk/legacy/step';
@@ -507,6 +508,21 @@ export class Context<T, K = {}> {
    */
   async releaseSlot(): Promise<void> {
     await this.runtime.releaseSlot(this.action.taskRunExternalId);
+  }
+
+  /**
+   * Pauses a rate limit key, so queued runs that consume it stay queued until `opts.until`.
+   * Runs that are already executing, including this one, are unaffected.
+   * @param key - The rendered rate limit key to pause.
+   * @param opts - The time to pause the key until. An earlier time never shortens an existing pause.
+   * @returns A promise that resolves to the time the key is paused until.
+   */
+  async pauseRateLimit(key: string, opts: { until: Date }): Promise<Date> {
+    if (!this.runtime.pauseRateLimit) {
+      throw new HatchetError('this runtime does not support pausing rate limits');
+    }
+
+    return this.runtime.pauseRateLimit(key, opts.until);
   }
 
   /**
@@ -1282,7 +1298,9 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
         : undefined,
       desiredWorkerId: options?.sticky ? this.worker.id() : undefined,
       priority: options?.priority,
-      desiredWorkerLabels: {},
+      desiredWorkerLabels: options?.desiredWorkerLabels
+        ? convertDesiredWorkerLabels(options.desiredWorkerLabels)
+        : {},
     };
 
     return { workflowName, triggerOpts };

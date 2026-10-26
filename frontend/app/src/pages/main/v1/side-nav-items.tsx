@@ -14,6 +14,7 @@ import {
   RiFileTextLine,
   RiOrganizationChart,
   RiSettings3Line,
+  RiRssLine,
 } from 'react-icons/ri';
 
 export function sideNavItems(opts: {
@@ -21,6 +22,7 @@ export function sideNavItems(opts: {
   isControlPlaneEnabled?: boolean;
   orgId?: string;
   hasManagedWorkers?: boolean;
+  hasDurableStreams?: boolean;
 }): SideNavSection[] {
   return [
     {
@@ -145,6 +147,20 @@ export function sideNavItems(opts: {
             />
           ),
         },
+        ...(opts.hasDurableStreams
+          ? [
+              {
+                key: 'streams',
+                name: 'Streams',
+                to: appRoutes.tenantStreamsRoute.to,
+                icon: ({ collapsed }: { collapsed: boolean }) => (
+                  <RiRssLine
+                    className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
+                  />
+                ),
+              },
+            ]
+          : []),
       ],
     },
     {

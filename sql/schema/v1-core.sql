@@ -706,6 +706,8 @@ CREATE TABLE v1_task_runtime (
     tenant_id UUID NOT NULL,
     timeout_at TIMESTAMP(3) NOT NULL,
     evicted_at TIMESTAMPTZ DEFAULT NULL,
+    assigned_at TIMESTAMPTZ,
+    acked_at TIMESTAMPTZ,
 
     CONSTRAINT v1_task_runtime_pkey PRIMARY KEY (task_id, task_inserted_at, retry_count)
 );
@@ -719,6 +721,8 @@ CREATE INDEX v1_task_runtime_tenant_worker_not_evicted_idx ON v1_task_runtime (t
 CREATE INDEX v1_task_runtime_tenant_evicted_at_idx ON v1_task_runtime (tenant_id, evicted_at, task_id, task_inserted_at, retry_count) WHERE evicted_at IS NOT NULL;
 
 CREATE INDEX v1_task_runtime_batch_id_idx ON v1_task_runtime (batch_id) WHERE batch_id IS NOT NULL;
+
+CREATE INDEX v1_task_runtime_tenant_unacked_assigned_at_idx ON v1_task_runtime (tenant_id, assigned_at) WHERE assigned_at IS NOT NULL AND acked_at IS NULL;
 
 -- Cleanup v1_batch_runtime reservations when the last v1_task_runtime row for a batch_id is deleted.
 CREATE OR REPLACE FUNCTION after_v1_task_runtime_delete_cleanup_batch_runtime_fn()
@@ -902,6 +906,46 @@ alter table v1_rate_limited_queue_items set (
     autovacuum_vacuum_cost_limit='1000'
 );
 
+-- kept apart from "RateLimit" so a key can be paused before its first run and upserts can't clear a pause
+CREATE TABLE v1_rate_limit_pause (
+    tenant_id UUID NOT NULL,
+    key TEXT NOT NULL,
+    -- the key's window is frozen from paused_at until paused_until, and shifted by that span once the pause ends
+    paused_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    paused_until TIMESTAMPTZ NOT NULL,
+    CONSTRAINT v1_rate_limit_pause_pkey PRIMARY KEY (tenant_id, key)
+);
+
+-- returns when the latest active pause on any of the task's static or dynamic rate limit keys ends, or NULL if none is paused
+CREATE OR REPLACE FUNCTION v1_task_rate_limit_paused_until(
+    _tenant_id UUID,
+    _task_id BIGINT,
+    _task_inserted_at TIMESTAMPTZ,
+    _step_id UUID
+) RETURNS TIMESTAMPTZ AS $$
+    SELECT MAX(p.paused_until)
+    FROM v1_rate_limit_pause p
+    WHERE
+        p.tenant_id = _tenant_id
+        AND p.paused_until > NOW()
+        AND (
+            EXISTS (
+                SELECT 1
+                FROM "StepRateLimit" srl
+                WHERE srl."stepId" = _step_id AND srl."rateLimitKey" = p.key
+            )
+            OR EXISTS (
+                SELECT 1
+                FROM v1_task_expression_eval ee
+                WHERE
+                    ee.task_id = _task_id
+                    AND ee.task_inserted_at = _task_inserted_at
+                    AND ee.kind = 'DYNAMIC_RATE_LIMIT_KEY'
+                    AND ee.value_str = p.key
+            )
+        );
+$$ LANGUAGE sql STABLE;
+
 CREATE TABLE v1_batched_queue_item (
     id BIGINT GENERATED ALWAYS AS IDENTITY,
     tenant_id UUID NOT NULL,
@@ -972,6 +1016,8 @@ CREATE TABLE v1_paused_workflow_queue_item (
     retry_count INTEGER NOT NULL DEFAULT 0,
     desired_worker_label JSONB,
     batch_key TEXT,
+    -- set when the item is held by a paused rate limit key rather than (only) a paused workflow
+    rate_limit_paused_until TIMESTAMPTZ,
 
     -- important: inserted at first so we can use it to filter for expired queue items
     CONSTRAINT v1_paused_workflow_queue_itemm_pkey PRIMARY KEY (task_inserted_at, task_id, retry_count)
@@ -979,6 +1025,10 @@ CREATE TABLE v1_paused_workflow_queue_item (
 
 CREATE INDEX v1_paused_workflow_queue_item_workflow_idx
     ON v1_paused_workflow_queue_item (workflow_id, tenant_id);
+
+CREATE INDEX v1_paused_workflow_queue_item_rate_limit_idx
+    ON v1_paused_workflow_queue_item (tenant_id, rate_limit_paused_until)
+    WHERE rate_limit_paused_until IS NOT NULL;
 
 ALTER TABLE v1_paused_workflow_queue_item SET (
     autovacuum_vacuum_scale_factor = '0.1',

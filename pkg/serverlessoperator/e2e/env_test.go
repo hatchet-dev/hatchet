@@ -29,6 +29,9 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/contract"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 )
 
 const (
@@ -186,13 +189,22 @@ func (e *testEnv) pollUntil(timeout time.Duration, what string, fn func() (bool,
 // tenant is a tenant the test created, with a token for the out-of-process host and an SDK
 // client for triggering and inspecting runs.
 type tenant struct {
-	id  uuid.UUID
-	sdk *hatchet.Client
+	id    uuid.UUID
+	sdk   *hatchet.Client
+	token string
 }
 
-// newTenant creates a tenant through the repository and mints a token for it the way the
-// harness mints the default tenant's: with the engine's JWT keysets from the environment.
+// newTenant creates a tenant entitled to everything the scenarios use: the serverless
+// operator and durable streams.
 func (e *testEnv) newTenant() *tenant {
+	e.t.Helper()
+
+	return e.newTenantEntitled(repository.TenantEntitlements{ServerlessOperator: true, DurableStreams: true})
+}
+
+// newTenantEntitled creates a tenant through the repository and mints a token for it the way the
+// harness mints the default tenant's: with the engine's JWT keysets from the environment.
+func (e *testEnv) newTenantEntitled(entitlements repository.TenantEntitlements) *tenant {
 	e.t.Helper()
 
 	dl, err := loader.NewConfigLoader("").InitDataLayer()
@@ -230,7 +242,7 @@ func (e *testEnv) newTenant() *tenant {
 	require.NoError(e.t, err)
 
 	// The operator claims and serves only entitled tenants.
-	require.NoError(e.t, dl.V1.TenantEntitlement().SetEntitlements(e.ctx, row.ID, repository.TenantEntitlements{ServerlessOperator: true}))
+	require.NoError(e.t, dl.V1.TenantEntitlement().SetEntitlements(e.ctx, row.ID, entitlements))
 
 	// A new tenant gets its scheduler partition from a once-a-minute rebalance; run it now so
 	// the tenant's queue is scheduled right away (the scheduler refreshes its tenants every
@@ -268,7 +280,33 @@ func (e *testEnv) newTenant() *tenant {
 	sdk, err := hatchet.NewClient(hatchet.WithToken(tok.Token))
 	require.NoError(e.t, err)
 
-	return &tenant{id: row.ID, sdk: sdk}
+	return &tenant{id: row.ID, sdk: sdk, token: tok.Token}
+}
+
+// publishStreamMessages publishes payloads to the tenant's topic through the engine's
+// V1Streams.Publish with the tenant's token, as an SDK would: one producer, sequenced from 0.
+func (e *testEnv) publishStreamMessages(tn *tenant, namespace, topic string, payloads ...string) {
+	e.t.Helper()
+
+	conn, err := grpc.NewClient(os.Getenv("SERVER_GRPC_BROADCAST_ADDRESS"), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(e.t, err)
+
+	defer func() { _ = conn.Close() }()
+
+	streams := v1.NewV1StreamsClient(conn)
+	ctx := metadata.AppendToOutgoingContext(e.ctx, "authorization", "Bearer "+tn.token)
+	producer := uniqueName("producer")
+
+	for i, payload := range payloads {
+		_, err := streams.Publish(ctx, &v1.PublishStreamMessageRequest{
+			Namespace:   namespace,
+			Topic:       topic,
+			Payload:     []byte(payload),
+			ProducerId:  producer,
+			ProducerSeq: int64(i),
+		})
+		require.NoError(e.t, err, "publishing message %d to %s/%s", i+1, namespace, topic)
+	}
 }
 
 func uniqueName(prefix string) string {

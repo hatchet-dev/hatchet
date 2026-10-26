@@ -469,8 +469,8 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		}
 
 		// the operators this dispatcher claims are hosted in process, on the local
-		// dispatcher, from here
-		operators, err := startOperatorClaimer(sc, d, adminv1Svc)
+		// dispatcher, from here; the v0 engine serves no durable streams
+		operators, err := startOperatorClaimer(sc, d, adminv1Svc, nil)
 
 		if err != nil {
 			return fmt.Errorf("could not start operator claimer: %w", err)
@@ -1006,8 +1006,8 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		}
 
 		// the operators this dispatcher claims are hosted in process, on the local
-		// dispatcher, from here
-		operators, err := startOperatorClaimer(sc, d, adminv1Svc)
+		// dispatcher and streams service, from here
+		operators, err := startOperatorClaimer(sc, d, adminv1Svc, streamsSvc)
 
 		if err != nil {
 			return fmt.Errorf("could not start operator claimer: %w", err)

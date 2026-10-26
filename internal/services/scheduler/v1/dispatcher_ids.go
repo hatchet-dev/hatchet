@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hashicorp/golang-lru/v2/expirable"
 
-	"github.com/hatchet-dev/hatchet/internal/listutils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 )
 
 const (
@@ -44,7 +44,7 @@ func (c *dispatcherIdCache) get(ctx context.Context, tenantId uuid.UUID, workerI
 	workerIdToDispatcherId := make(map[uuid.UUID]uuid.UUID, len(workerIds))
 	uncached := make([]uuid.UUID, 0)
 
-	for _, workerId := range listutils.Uniq(workerIds) {
+	for _, workerId := range enumerables.Uniq(workerIds) {
 		if dispatcherId, ok := c.ids.Get(workerId); ok {
 			workerIdToDispatcherId[workerId] = dispatcherId
 		} else {

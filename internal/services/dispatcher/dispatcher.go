@@ -952,19 +952,32 @@ func splitParentOutputsAndStepRunErrors(
 			continue
 		}
 
-		outputMap := make(map[string]interface{})
+		outputMap, err := parentOutputMapFromEvent(event)
 
-		if len(event.Output) > 0 {
-			if err := json.Unmarshal(event.Output, &outputMap); err != nil {
-				l.Warn().Ctx(ctx).Err(err).Msg("failed to unmarshal output")
-				continue
-			}
+		if err != nil {
+			l.Warn().Ctx(ctx).Err(err).Msg("failed to unmarshal output")
+			continue
 		}
 
 		parentOutputs[event.StepReadableID] = outputMap
 	}
 
 	return parentOutputs, stepRunErrors
+}
+
+// A task that returns nothing has an empty output, which the child must still see as an empty object.
+func parentOutputMapFromEvent(event *v1.TaskOutputEvent) (map[string]interface{}, error) {
+	outputMap := make(map[string]interface{})
+
+	if len(event.Output) == 0 {
+		return outputMap, nil
+	}
+
+	if err := json.Unmarshal(event.Output, &outputMap); err != nil {
+		return nil, err
+	}
+
+	return outputMap, nil
 }
 
 func resolveDagParentOutputs(
@@ -989,9 +1002,9 @@ func resolveDagParentOutputs(
 				continue
 			}
 
-			outputMap := make(map[string]interface{})
+			outputMap, err := parentOutputMapFromEvent(parentOutput)
 
-			if err := json.Unmarshal(parentOutput.Output, &outputMap); err != nil {
+			if err != nil {
 				l.Warn().Ctx(ctx).Err(err).Msgf("failed to unmarshal dag parent output for %s", parentOutput.StepReadableID)
 				continue
 			}

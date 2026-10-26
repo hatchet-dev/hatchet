@@ -26,6 +26,24 @@ export interface PublishStreamMessageRequest {
 
 export interface PublishStreamMessageResponse {}
 
+/** one round trip for a producer's next messages to a topic, stored atomically */
+export interface PublishStreamMessagesRequest {
+  namespace: string;
+  topic: string;
+  producerId: string;
+  /** the first entry's sequence number; each later entry's is one more */
+  firstProducerSeq: number;
+  entries: StreamPublishEntry[];
+}
+
+export interface StreamPublishEntry {
+  payload: Uint8Array;
+  /** instead of payload: a ref returned by the stream payload upload endpoint */
+  payloadRef: string;
+}
+
+export interface PublishStreamMessagesResponse {}
+
 export interface SubscribeStreamRequest {
   namespace: string;
   topic: string;
@@ -271,6 +289,269 @@ export const PublishStreamMessageResponse: MessageFns<PublishStreamMessageRespon
   },
   fromPartial(_: DeepPartial<PublishStreamMessageResponse>): PublishStreamMessageResponse {
     const message = createBasePublishStreamMessageResponse();
+    return message;
+  },
+};
+
+function createBasePublishStreamMessagesRequest(): PublishStreamMessagesRequest {
+  return { namespace: '', topic: '', producerId: '', firstProducerSeq: 0, entries: [] };
+}
+
+export const PublishStreamMessagesRequest: MessageFns<PublishStreamMessagesRequest> = {
+  encode(
+    message: PublishStreamMessagesRequest,
+    writer: BinaryWriter = new BinaryWriter()
+  ): BinaryWriter {
+    if (message.namespace !== '') {
+      writer.uint32(10).string(message.namespace);
+    }
+    if (message.topic !== '') {
+      writer.uint32(18).string(message.topic);
+    }
+    if (message.producerId !== '') {
+      writer.uint32(26).string(message.producerId);
+    }
+    if (message.firstProducerSeq !== 0) {
+      writer.uint32(32).int64(message.firstProducerSeq);
+    }
+    for (const v of message.entries) {
+      StreamPublishEntry.encode(v!, writer.uint32(42).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): PublishStreamMessagesRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBasePublishStreamMessagesRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.namespace = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.topic = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.producerId = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.firstProducerSeq = longToNumber(reader.int64());
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.entries.push(StreamPublishEntry.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): PublishStreamMessagesRequest {
+    return {
+      namespace: isSet(object.namespace) ? globalThis.String(object.namespace) : '',
+      topic: isSet(object.topic) ? globalThis.String(object.topic) : '',
+      producerId: isSet(object.producerId)
+        ? globalThis.String(object.producerId)
+        : isSet(object.producer_id)
+          ? globalThis.String(object.producer_id)
+          : '',
+      firstProducerSeq: isSet(object.firstProducerSeq)
+        ? globalThis.Number(object.firstProducerSeq)
+        : isSet(object.first_producer_seq)
+          ? globalThis.Number(object.first_producer_seq)
+          : 0,
+      entries: globalThis.Array.isArray(object?.entries)
+        ? object.entries.map((e: any) => StreamPublishEntry.fromJSON(e))
+        : [],
+    };
+  },
+
+  toJSON(message: PublishStreamMessagesRequest): unknown {
+    const obj: any = {};
+    if (message.namespace !== '') {
+      obj.namespace = message.namespace;
+    }
+    if (message.topic !== '') {
+      obj.topic = message.topic;
+    }
+    if (message.producerId !== '') {
+      obj.producerId = message.producerId;
+    }
+    if (message.firstProducerSeq !== 0) {
+      obj.firstProducerSeq = Math.round(message.firstProducerSeq);
+    }
+    if (message.entries?.length) {
+      obj.entries = message.entries.map((e) => StreamPublishEntry.toJSON(e));
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<PublishStreamMessagesRequest>): PublishStreamMessagesRequest {
+    return PublishStreamMessagesRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<PublishStreamMessagesRequest>): PublishStreamMessagesRequest {
+    const message = createBasePublishStreamMessagesRequest();
+    message.namespace = object.namespace ?? '';
+    message.topic = object.topic ?? '';
+    message.producerId = object.producerId ?? '';
+    message.firstProducerSeq = object.firstProducerSeq ?? 0;
+    message.entries = object.entries?.map((e) => StreamPublishEntry.fromPartial(e)) || [];
+    return message;
+  },
+};
+
+function createBaseStreamPublishEntry(): StreamPublishEntry {
+  return { payload: new Uint8Array(0), payloadRef: '' };
+}
+
+export const StreamPublishEntry: MessageFns<StreamPublishEntry> = {
+  encode(message: StreamPublishEntry, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.payload.length !== 0) {
+      writer.uint32(10).bytes(message.payload);
+    }
+    if (message.payloadRef !== '') {
+      writer.uint32(18).string(message.payloadRef);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): StreamPublishEntry {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseStreamPublishEntry();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.payload = reader.bytes();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.payloadRef = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): StreamPublishEntry {
+    return {
+      payload: isSet(object.payload) ? bytesFromBase64(object.payload) : new Uint8Array(0),
+      payloadRef: isSet(object.payloadRef)
+        ? globalThis.String(object.payloadRef)
+        : isSet(object.payload_ref)
+          ? globalThis.String(object.payload_ref)
+          : '',
+    };
+  },
+
+  toJSON(message: StreamPublishEntry): unknown {
+    const obj: any = {};
+    if (message.payload.length !== 0) {
+      obj.payload = base64FromBytes(message.payload);
+    }
+    if (message.payloadRef !== '') {
+      obj.payloadRef = message.payloadRef;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<StreamPublishEntry>): StreamPublishEntry {
+    return StreamPublishEntry.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<StreamPublishEntry>): StreamPublishEntry {
+    const message = createBaseStreamPublishEntry();
+    message.payload = object.payload ?? new Uint8Array(0);
+    message.payloadRef = object.payloadRef ?? '';
+    return message;
+  },
+};
+
+function createBasePublishStreamMessagesResponse(): PublishStreamMessagesResponse {
+  return {};
+}
+
+export const PublishStreamMessagesResponse: MessageFns<PublishStreamMessagesResponse> = {
+  encode(
+    _: PublishStreamMessagesResponse,
+    writer: BinaryWriter = new BinaryWriter()
+  ): BinaryWriter {
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): PublishStreamMessagesResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBasePublishStreamMessagesResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(_: any): PublishStreamMessagesResponse {
+    return {};
+  },
+
+  toJSON(_: PublishStreamMessagesResponse): unknown {
+    const obj: any = {};
+    return obj;
+  },
+
+  create(base?: DeepPartial<PublishStreamMessagesResponse>): PublishStreamMessagesResponse {
+    return PublishStreamMessagesResponse.fromPartial(base ?? {});
+  },
+  fromPartial(_: DeepPartial<PublishStreamMessagesResponse>): PublishStreamMessagesResponse {
+    const message = createBasePublishStreamMessagesResponse();
     return message;
   },
 };
@@ -954,6 +1235,14 @@ export const V1StreamsDefinition = {
       responseStream: false,
       options: {},
     },
+    publishBatch: {
+      name: 'PublishBatch',
+      requestType: PublishStreamMessagesRequest as typeof PublishStreamMessagesRequest,
+      requestStream: false,
+      responseType: PublishStreamMessagesResponse as typeof PublishStreamMessagesResponse,
+      responseStream: false,
+      options: {},
+    },
     subscribe: {
       name: 'Subscribe',
       requestType: SubscribeStreamRequest as typeof SubscribeStreamRequest,
@@ -986,6 +1275,10 @@ export interface V1StreamsServiceImplementation<CallContextExt = {}> {
     request: PublishStreamMessageRequest,
     context: CallContext & CallContextExt
   ): Promise<DeepPartial<PublishStreamMessageResponse>>;
+  publishBatch(
+    request: PublishStreamMessagesRequest,
+    context: CallContext & CallContextExt
+  ): Promise<DeepPartial<PublishStreamMessagesResponse>>;
   subscribe(
     request: SubscribeStreamRequest,
     context: CallContext & CallContextExt
@@ -1005,6 +1298,10 @@ export interface V1StreamsClient<CallOptionsExt = {}> {
     request: DeepPartial<PublishStreamMessageRequest>,
     options?: CallOptions & CallOptionsExt
   ): Promise<PublishStreamMessageResponse>;
+  publishBatch(
+    request: DeepPartial<PublishStreamMessagesRequest>,
+    options?: CallOptions & CallOptionsExt
+  ): Promise<PublishStreamMessagesResponse>;
   subscribe(
     request: DeepPartial<SubscribeStreamRequest>,
     options?: CallOptions & CallOptionsExt

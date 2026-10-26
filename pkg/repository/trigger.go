@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/hatchet-dev/hatchet/internal/cel"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/constants"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
@@ -470,7 +472,7 @@ func (s *sharedRepository) triggerFromWorkflowNames(ctx context.Context, tx *Opt
 		return nil, nil, nil, nil, nil, fmt.Errorf("failed to prepare trigger from workflow names: %w", err)
 	}
 
-	tasks, dags, idempotencyKeyCollisions, celEvaluationFailures, storePayloadOpts, operatorDagTuples, err := s.triggerWorkflowsCore(ctx, tx, tenantId, triggerOpts, nil, false)
+	tasks, dags, idempotencyKeyCollisions, celEvaluationFailures, storePayloadOpts, operatorDagTuples, err := s.triggerWorkflowsCore(ctx, tx, tenantId, triggerOpts, nil)
 
 	if err != nil {
 		return nil, nil, nil, nil, nil, err
@@ -580,11 +582,7 @@ func (r *TriggerRepositoryImpl) PopulateWorkflowIdempotencyPresence(ctx context.
 		return fmt.Errorf("failed to list workflows by names: %w", err)
 	}
 
-	nameToRow := make(map[string]*sqlcv1.ListWorkflowsByNamesRow, len(rows))
-
-	for _, row := range rows {
-		nameToRow[row.WorkflowName] = row
-	}
+	nameToRow := enumerables.KeyBy(rows, func(row *sqlcv1.ListWorkflowsByNamesRow) string { return row.WorkflowName })
 
 	for _, opt := range opts {
 		row, ok := nameToRow[opt.WorkflowName]
@@ -808,24 +806,31 @@ func (r *sharedRepository) evalIdempotencyKey(tuple triggerTuple) (string, error
 	return key, nil
 }
 
-func (r *sharedRepository) triggerWorkflowsCore(
+// triggerPreflight is everything triggerWorkflowsCore reads before it writes: idempotency
+// claims, step metadata, metering and step match conditions.
+type triggerPreflight struct {
+	tuples                     []triggerTuple
+	pausedWorkflowIds          map[uuid.UUID]struct{}
+	workflowVersionToSteps     map[uuid.UUID][]*sqlcv1.ListStepsByWorkflowVersionIdsRow
+	stepIdsToReadableIds       map[uuid.UUID]string
+	stepsToAdditionalMatches   map[uuid.UUID][]*sqlcv1.V1StepMatchCondition
+	idempotencyCollisions      []IdempotencyCollision
+	celEvaluationFailures      []CELEvaluationFailure
+	externalIdToIdempotencyKey map[uuid.UUID]string
+	postTask                   func()
+}
+
+// triggerWorkflowsPreflight runs the read-and-claim half of a trigger on preflightTx.
+//
+// The pool is a valid preflightTx: each query checks out and returns its own connection. An
+// owned trigger runs this before PrepareOptimisticTx so that it never holds the transaction's
+// connection while checking out a second one.
+func (r *sharedRepository) triggerWorkflowsPreflight(
 	ctx context.Context,
-	optTx *OptimisticTx,
+	preflightTx sqlcv1.DBTX,
 	tenantId uuid.UUID,
 	triggerCandidateTuples []triggerTuple,
-	coreEvents *createCoreUserEventOpts,
-	ownsTx bool,
-) ([]*V1TaskWithPayload, []*DAGWithData, []IdempotencyCollision, []CELEvaluationFailure, []StorePayloadOpts, map[uuid.UUID]triggerTuple, error) {
-	if optTx == nil {
-		return nil, nil, nil, nil, nil, nil, fmt.Errorf("triggerWorkflowsCore requires a non-nil transaction")
-	}
-
-	preflightTx := optTx.tx
-
-	if ownsTx {
-		preflightTx = r.pool
-	}
-
+) (*triggerPreflight, error) {
 	tuples := make([]triggerTuple, 0, len(triggerCandidateTuples))
 
 	keys := make([]string, 0, len(triggerCandidateTuples))
@@ -872,7 +877,7 @@ func (r *sharedRepository) triggerWorkflowsCore(
 		})
 
 		if err != nil {
-			return nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to claim idempotency keys: %w", err)
+			return nil, fmt.Errorf("failed to claim idempotency keys: %w", err)
 		}
 
 		idempotencyKeyToLockHolder := make(map[string]uuid.UUID, len(claims))
@@ -927,7 +932,7 @@ func (r *sharedRepository) triggerWorkflowsCore(
 	workflowVersionToSteps, err := r.listStepsByWorkflowVersionIds(ctx, preflightTx, tenantId, workflowVersionIds)
 
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to get workflow versions for engine: %w", err)
+		return nil, fmt.Errorf("failed to get workflow versions for engine: %w", err)
 	}
 
 	// group steps by workflow version ids
@@ -962,7 +967,7 @@ func (r *sharedRepository) triggerWorkflowsCore(
 	preTask, postTask := r.m.Meter(ctx, preflightTx, sqlcv1.LimitResourceTASKRUN, tenantId, int32(countTasks)) // nolint: gosec
 
 	if err := preTask(); err != nil {
-		return nil, nil, nil, nil, nil, nil, err
+		return nil, err
 	}
 
 	stepsToAdditionalMatches := make(map[uuid.UUID][]*sqlcv1.V1StepMatchCondition)
@@ -971,7 +976,7 @@ func (r *sharedRepository) triggerWorkflowsCore(
 		additionalMatches, err := r.listStepMatchConditions(ctx, preflightTx, tenantId, stepsWithAdditionalMatchConditions)
 
 		if err != nil {
-			return nil, nil, nil, nil, nil, nil, err
+			return nil, err
 		}
 
 		for _, match := range additionalMatches {
@@ -980,6 +985,59 @@ func (r *sharedRepository) triggerWorkflowsCore(
 			stepsToAdditionalMatches[stepId] = append(stepsToAdditionalMatches[stepId], match)
 		}
 	}
+
+	return &triggerPreflight{
+		tuples:                     tuples,
+		pausedWorkflowIds:          pausedWorkflowIds,
+		workflowVersionToSteps:     workflowVersionToSteps,
+		stepIdsToReadableIds:       stepIdsToReadableIds,
+		stepsToAdditionalMatches:   stepsToAdditionalMatches,
+		idempotencyCollisions:      idempotencyKeyCollisions,
+		celEvaluationFailures:      celEvaluationFailures,
+		externalIdToIdempotencyKey: externalIdToIdempotencyKey,
+		postTask:                   postTask,
+	}, nil
+}
+
+// triggerWorkflowsCore runs preflight and write on the same optimistic transaction.
+func (r *sharedRepository) triggerWorkflowsCore(
+	ctx context.Context,
+	optTx *OptimisticTx,
+	tenantId uuid.UUID,
+	triggerCandidateTuples []triggerTuple,
+	coreEvents *createCoreUserEventOpts,
+) ([]*V1TaskWithPayload, []*DAGWithData, []IdempotencyCollision, []CELEvaluationFailure, []StorePayloadOpts, map[uuid.UUID]triggerTuple, error) {
+	if optTx == nil {
+		return nil, nil, nil, nil, nil, nil, fmt.Errorf("triggerWorkflowsCore requires a non-nil transaction")
+	}
+
+	pf, err := r.triggerWorkflowsPreflight(ctx, optTx.tx, tenantId, triggerCandidateTuples)
+
+	if err != nil {
+		return nil, nil, nil, nil, nil, nil, err
+	}
+
+	return r.triggerWorkflowsWrite(ctx, optTx, tenantId, pf, coreEvents)
+}
+
+// triggerWorkflowsWrite creates the DAGs, tasks, matches and events for a preflighted trigger
+// on optTx.
+func (r *sharedRepository) triggerWorkflowsWrite(
+	ctx context.Context,
+	optTx *OptimisticTx,
+	tenantId uuid.UUID,
+	pf *triggerPreflight,
+	coreEvents *createCoreUserEventOpts,
+) ([]*V1TaskWithPayload, []*DAGWithData, []IdempotencyCollision, []CELEvaluationFailure, []StorePayloadOpts, map[uuid.UUID]triggerTuple, error) {
+	tuples := pf.tuples
+	pausedWorkflowIds := pf.pausedWorkflowIds
+	workflowVersionToSteps := pf.workflowVersionToSteps
+	stepIdsToReadableIds := pf.stepIdsToReadableIds
+	stepsToAdditionalMatches := pf.stepsToAdditionalMatches
+	idempotencyKeyCollisions := pf.idempotencyCollisions
+	celEvaluationFailures := pf.celEvaluationFailures
+	externalIdToIdempotencyKey := pf.externalIdToIdempotencyKey
+	postTask := pf.postTask
 
 	// start constructing options for creating tasks, DAGs, and triggers. logic is as follows:
 	//
@@ -1608,25 +1666,61 @@ func (r *sharedRepository) triggerWorkflowsCore(
 		}
 	}
 
-	if len(pausedWorkflowIds) > 0 {
-		workflowIds := make([]uuid.UUID, 0, len(pausedWorkflowIds))
+	shouldHold := len(pausedWorkflowIds) > 0
 
-		for id := range pausedWorkflowIds {
-			workflowIds = append(workflowIds, id)
+	if !shouldHold {
+		// a task with concurrency slots can cancel other runs before the scheduler sees the pause, so it can't rely on a stale cache
+		hasConcurrencySlots := slices.ContainsFunc(tasks, func(task *V1TaskWithPayload) bool {
+			return len(task.ConcurrencyStrategyIds) > 0 || len(task.ConcurrencyParentStrategyIds) > 0
+		})
+
+		shouldHold, err = r.tenantHasRateLimitPause(ctx, tx, tenantId, hasConcurrencySlots)
+
+		if err != nil {
+			return nil, nil, nil, nil, nil, nil, err
+		}
+	}
+
+	// held here so a task in a paused workflow or behind a paused key never fills a concurrency slot
+	if shouldHold {
+		toHold := make(map[TaskIdInsertedAtRetryCount]struct{}, len(tasks))
+
+		for _, task := range tasks {
+			toHold[TaskIdInsertedAtRetryCount{
+				Id:         task.ID,
+				InsertedAt: task.InsertedAt,
+				RetryCount: task.RetryCount,
+			}] = struct{}{}
 		}
 
-		if err := r.queries.MovePausedWorkflowQueueItems(ctx, tx, sqlcv1.MovePausedWorkflowQueueItemsParams{
-			Workflowids: workflowIds,
-			Tenantid:    tenantId,
-		}); err != nil {
-			return nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to move queue items for paused workflows: %w", err)
+		// also catches runs of these workflows that were queued before the pause reached the workflow cache
+		if len(pausedWorkflowIds) > 0 {
+			workflowIds := make([]uuid.UUID, 0, len(pausedWorkflowIds))
+
+			for id := range pausedWorkflowIds {
+				workflowIds = append(workflowIds, id)
+			}
+
+			queued, err := r.queries.ListQueuedTasksForWorkflows(ctx, tx, sqlcv1.ListQueuedTasksForWorkflowsParams{
+				Tenantid:    tenantId,
+				Workflowids: workflowIds,
+			})
+
+			if err != nil {
+				return nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to list queued tasks for paused workflows: %w", err)
+			}
+
+			for _, row := range queued {
+				toHold[TaskIdInsertedAtRetryCount{
+					Id:         row.TaskID,
+					InsertedAt: row.TaskInsertedAt,
+					RetryCount: row.RetryCount,
+				}] = struct{}{}
+			}
 		}
 
-		if err := r.queries.MovePausedWorkflowConcurrencySlots(ctx, tx, sqlcv1.MovePausedWorkflowConcurrencySlotsParams{
-			Workflowids: workflowIds,
-			Tenantid:    tenantId,
-		}); err != nil {
-			return nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to move concurrency slots for paused workflows: %w", err)
+		if err := r.holdPausedTasks(ctx, tx, tenantId, slices.Collect(maps.Keys(toHold))); err != nil {
+			return nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to hold tasks for paused workflows or rate limits: %w", err)
 		}
 	}
 
@@ -1713,11 +1807,28 @@ func (r *sharedRepository) triggerWorkflows(
 	triggerCandidateTuples []triggerTuple,
 	coreEvents *createCoreUserEventOpts,
 ) ([]*V1TaskWithPayload, []*DAGWithData, []IdempotencyCollision, []CELEvaluationFailure, error) {
-	tx := existingTx
-	ownsTx := false
+	var (
+		tx                = existingTx
+		tasks             []*V1TaskWithPayload
+		dags              []*DAGWithData
+		collisions        []IdempotencyCollision
+		celFailures       []CELEvaluationFailure
+		storePayloadOpts  []StorePayloadOpts
+		operatorDagTuples map[uuid.UUID]triggerTuple
+		err               error
+		ownsTx            = existingTx == nil
+	)
 
-	if tx == nil {
-		var err error
+	if ownsTx {
+		// Preflight runs on the pool before the transaction begins, so each query returns its
+		// connection before the transaction takes one. Running it after would hold two
+		// connections per trigger.
+		pf, preflightErr := r.triggerWorkflowsPreflight(ctx, r.pool, tenantId, triggerCandidateTuples)
+
+		if preflightErr != nil {
+			return nil, nil, nil, nil, preflightErr
+		}
+
 		tx, err = r.PrepareOptimisticTx(ctx)
 
 		if err != nil {
@@ -1725,10 +1836,11 @@ func (r *sharedRepository) triggerWorkflows(
 		}
 
 		defer tx.Rollback()
-		ownsTx = true
-	}
 
-	tasks, dags, idempotencyKeyCollisions, celEvaluationFailures, storePayloadOpts, operatorDagTuples, err := r.triggerWorkflowsCore(ctx, tx, tenantId, triggerCandidateTuples, coreEvents, ownsTx)
+		tasks, dags, collisions, celFailures, storePayloadOpts, operatorDagTuples, err = r.triggerWorkflowsWrite(ctx, tx, tenantId, pf, coreEvents)
+	} else {
+		tasks, dags, collisions, celFailures, storePayloadOpts, operatorDagTuples, err = r.triggerWorkflowsCore(ctx, tx, tenantId, triggerCandidateTuples, coreEvents)
+	}
 
 	if err != nil {
 		return nil, nil, nil, nil, err
@@ -1749,7 +1861,7 @@ func (r *sharedRepository) triggerWorkflows(
 		}
 	}
 
-	return tasks, dags, idempotencyKeyCollisions, celEvaluationFailures, nil
+	return tasks, dags, collisions, celFailures, nil
 }
 
 type DAGWithData struct {
@@ -2071,11 +2183,7 @@ func (r *sharedRepository) registerChildWorkflows(
 		return nil, err
 	}
 
-	tuplesToSkip = make(map[uuid.UUID]struct{})
-
-	for _, dbExternalId := range existingExternalIds {
-		tuplesToSkip[dbExternalId.ExternalID] = struct{}{}
-	}
+	tuplesToSkip = enumerables.ToSet(existingExternalIds, func(dbExternalId *sqlcv1.V1LookupTable) uuid.UUID { return dbExternalId.ExternalID })
 
 	createMatchOpts := make([]CreateMatchOpts, 0)
 
@@ -2158,11 +2266,9 @@ func getParentInDAGGroupMatch(
 		completeAction = sqlcv1.V1MatchConditionActionCREATEMATCH
 	}
 
-	actionsToOverrides := make(map[sqlcv1.V1MatchConditionAction][]*sqlcv1.V1StepMatchCondition)
-
-	for _, match := range parentOverrideMatches {
-		actionsToOverrides[match.Action] = append(actionsToOverrides[match.Action], match)
-	}
+	actionsToOverrides := enumerables.GroupBy(parentOverrideMatches, func(match *sqlcv1.V1StepMatchCondition) sqlcv1.V1MatchConditionAction {
+		return match.Action
+	})
 
 	res := []GroupMatchCondition{}
 
@@ -2719,8 +2825,6 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 		scopes = append(scopes, pair.Scope)
 	}
 
-	workflowIdAndScopeToFilters := make(map[WorkflowAndScope][]*sqlcv1.V1Filter)
-
 	// the query joins on (workflow id, scope) pairs, so it can only return rows when at least
 	// one event was pushed with a scope; skip the round trip otherwise
 	var filters []*sqlcv1.V1Filter
@@ -2737,16 +2841,12 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 		}
 	}
 
-	for _, filter := range filters {
-		key := WorkflowAndScope{
+	workflowIdAndScopeToFilters := enumerables.GroupBy(filters, func(filter *sqlcv1.V1Filter) WorkflowAndScope {
+		return WorkflowAndScope{
 			WorkflowId: filter.WorkflowID,
 			Scope:      filter.Scope,
 		}
-
-		workflowIdAndScopeToFilters[key] = append(workflowIdAndScopeToFilters[key], filter)
-	}
-
-	workflowIdToCount := make(map[uuid.UUID]int64)
+	})
 
 	// no workflow is subscribed to any of these event keys: nothing to count
 	var filterCounts []*sqlcv1.ListFilterCountsForWorkflowsRow
@@ -2762,9 +2862,11 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 		}
 	}
 
-	for _, count := range filterCounts {
-		workflowIdToCount[count.WorkflowID] = count.Count
-	}
+	workflowIdToCount := enumerables.ToMap(
+		filterCounts,
+		func(count *sqlcv1.ListFilterCountsForWorkflowsRow) uuid.UUID { return count.WorkflowID },
+		func(count *sqlcv1.ListFilterCountsForWorkflowsRow) int64 { return count.Count },
+	)
 
 	// each (workflowVersionId, eventKey, opt) is a separate workflow that we need to create
 	triggerOpts := make([]triggerTuple, 0)

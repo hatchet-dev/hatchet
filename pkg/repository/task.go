@@ -20,7 +20,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/internal/cel"
-	"github.com/hatchet-dev/hatchet/internal/listutils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/statusutils"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -254,6 +254,8 @@ type FailTasksResponse struct {
 	*FinalizedTaskResponse
 
 	RetriedTasks []RetriedTask
+
+	ReassignmentReasonByTaskId map[int64]string
 }
 
 type TimeoutTasksResponse struct {
@@ -336,6 +338,8 @@ type TaskRepository interface {
 
 	ProcessTaskReassignments(ctx context.Context, tenantId uuid.UUID) (*FailTasksResponse, bool, error)
 
+	MarkTaskRuntimesAcked(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) error
+
 	ProcessTaskRetryQueueItems(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.V1RetryQueueItem, bool, error)
 
 	ProcessDurableSleeps(ctx context.Context, tenantId uuid.UUID) (*EventMatchResults, bool, error)
@@ -412,7 +416,7 @@ func (r *TaskRepositoryImpl) EnsureTablePartitionsExist(ctx context.Context) (bo
 }
 
 func createExternalIdUniqueConstraintsOnDailyPartitions(ctx context.Context, db sqlcv1.DBTX, parentTableName string, partitionDates ...time.Time) error {
-	partitionTableNames := listutils.Map(partitionDates, func(partitionDate time.Time) string {
+	partitionTableNames := enumerables.Map(partitionDates, func(partitionDate time.Time) string {
 		return fmt.Sprintf("%s_%s", parentTableName, partitionDate.UTC().Format("20060102"))
 	})
 
@@ -420,7 +424,7 @@ func createExternalIdUniqueConstraintsOnDailyPartitions(ctx context.Context, db 
 }
 
 func createExternalIdUniqueConstraintsOnMonthlyPartitions(ctx context.Context, db sqlcv1.DBTX, parentTableName string, partitionDates ...time.Time) error {
-	partitionTableNames := listutils.Map(partitionDates, func(partitionDate time.Time) string {
+	partitionTableNames := enumerables.Map(partitionDates, func(partitionDate time.Time) string {
 		return fmt.Sprintf("%s_%s01", parentTableName, partitionDate.UTC().Format("200601"))
 	})
 
@@ -774,13 +778,9 @@ func (r *sharedRepository) lookupExternalIds(ctx context.Context, tx sqlcv1.DBTX
 	}
 
 	// set the cache
-	groupedExternalIds := make(map[string][]*sqlcv1.FlattenExternalIdsRow)
-
-	for _, task := range dbTasks {
-		rootExternalId := task.WorkflowRunExternalID.String()
-
-		groupedExternalIds[rootExternalId] = append(groupedExternalIds[rootExternalId], task)
-	}
+	groupedExternalIds := enumerables.GroupBy(dbTasks, func(task *sqlcv1.FlattenExternalIdsRow) string {
+		return task.WorkflowRunExternalID.String()
+	})
 
 	for _, tasks := range groupedExternalIds {
 		res = append(res, tasks...)
@@ -817,18 +817,14 @@ func (r *TaskRepositoryImpl) verifyAllTasksFinalized(ctx context.Context, tx sql
 		return nil, nil, err
 	}
 
-	notFinalizedMap := make(map[int64]bool)
-
-	for _, task := range notFinalized {
-		notFinalizedMap[task.ID] = true
-	}
+	notFinalizedMap := enumerables.ToSet(notFinalized, func(task *sqlcv1.PreflightCheckTasksForReplayRow) int64 { return task.ID })
 
 	dagIdsToCheck := make([]int64, 0)
 	dagInsertedAtsToCheck := make([]pgtype.Timestamptz, 0)
 	dagsToTasks := make(map[int64][]*sqlcv1.FlattenExternalIdsRow)
 
 	for _, task := range flattenedTasks {
-		if !notFinalizedMap[task.ID] && task.DagID.Valid {
+		if !enumerables.HasKey(notFinalizedMap, task.ID) && task.DagID.Valid {
 			dagIdsToCheck = append(dagIdsToCheck, task.DagID.Int64)
 			dagInsertedAtsToCheck = append(dagInsertedAtsToCheck, task.DagInsertedAt)
 			dagsToTasks[task.DagID.Int64] = append(dagsToTasks[task.DagID.Int64], task)
@@ -874,7 +870,7 @@ func (r *TaskRepositoryImpl) verifyAllTasksFinalized(ctx context.Context, tx sql
 			continue
 		}
 
-		if notFinalizedMap[task.ID] {
+		if enumerables.HasKey(notFinalizedMap, task.ID) {
 			candidateFinalizedRootExternalIds[rootId] = false
 			continue
 		}
@@ -919,9 +915,9 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId uuid.UU
 	// 	return err
 	// }
 
-	taskIdRetryCounts := listutils.Map(tasks, func(task CompleteTaskOpts) TaskIdInsertedAtRetryCount { return *task.TaskIdInsertedAtRetryCount })
+	taskIdRetryCounts := enumerables.Map(tasks, func(task CompleteTaskOpts) TaskIdInsertedAtRetryCount { return *task.TaskIdInsertedAtRetryCount })
 
-	uniqueTaskIdRetryCounts := listutils.UniqBy(taskIdRetryCounts, createTaskUniqueKey)
+	uniqueTaskIdRetryCounts := enumerables.UniqBy(taskIdRetryCounts, createTaskUniqueKey)
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
 
@@ -957,7 +953,7 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId uuid.UU
 	// the SDKs retry failed completion sends, so one attempt can be reported more than once, and the
 	// dispatcher gives each report a new payload reference. OLAP may keep any of those references, so
 	// every report with a distinct reference gets its own completion event and stored payload
-	uniqueReports := listutils.UniqBy(tasks, createCompletionReportUniqueKey)
+	uniqueReports := enumerables.UniqBy(tasks, createCompletionReportUniqueKey)
 
 	reportTaskIdRetryCounts := make([]TaskIdInsertedAtRetryCount, len(uniqueReports))
 	releasedTaskPerReport := make([]*sqlcv1.ReleaseTasksRow, len(uniqueReports))
@@ -1089,7 +1085,7 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 		}
 	}
 
-	tasks = listutils.UniqBy(tasks, createTaskUniqueKey)
+	tasks = enumerables.UniqBy(tasks, createTaskUniqueKey)
 
 	retriedTasks := make([]RetriedTask, 0)
 
@@ -1426,7 +1422,7 @@ func (r *TaskRepositoryImpl) CancelTasks(ctx context.Context, tenantId uuid.UUID
 
 func (r *sharedRepository) cancelTasks(ctx context.Context, dbtx sqlcv1.DBTX, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) (*FinalizedTaskResponse, error) {
 	// get a unique set of task ids and retry counts
-	tasks = listutils.UniqBy(tasks, createTaskUniqueKey)
+	tasks = enumerables.UniqBy(tasks, createTaskUniqueKey)
 
 	// release queue items
 	releasedTasks, err := r.releaseTasks(ctx, dbtx, tenantId, tasks)
@@ -1503,7 +1499,7 @@ type TasksForDispatch struct {
 // ListTasksForDispatch reads every requested task in one statement execution (see the statement in
 // sqlcv1 for how it stays on the generic plan).
 func (r *TaskRepositoryImpl) ListTasksForDispatch(ctx context.Context, tenantId uuid.UUID, tasks []int64) (*TasksForDispatch, error) {
-	rows, err := r.queries.ListTasksForDispatch(ctx, r.pool, tenantId, listutils.Uniq(tasks))
+	rows, err := r.queries.ListTasksForDispatch(ctx, r.pool, tenantId, enumerables.Uniq(tasks))
 
 	if err != nil {
 		return nil, err
@@ -1601,12 +1597,7 @@ func (r *TaskRepositoryImpl) ListTaskRuntimes(ctx context.Context, tenantId uuid
 		return nil, err
 	}
 
-	result := make(map[int64]*sqlcv1.V1TaskRuntime, len(rows))
-	for _, row := range rows {
-		result[row.TaskID] = row
-	}
-
-	return result, nil
+	return enumerables.KeyBy(rows, func(row *sqlcv1.V1TaskRuntime) int64 { return row.TaskID }), nil
 }
 
 func (r *TaskRepositoryImpl) ListDurableOrchestratorChildOutputEvents(ctx context.Context, tenantId, orchestratorExternalId uuid.UUID) ([]*TaskOutputEvent, error) {
@@ -1900,6 +1891,7 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 
 	// parse into FailTaskOpts
 	failOpts := make([]FailTaskOpts, 0, len(toReassign))
+	reasonByTaskId := make(map[int64]string, len(toReassign))
 
 	for _, task := range toReassign {
 		failOpts = append(failOpts, FailTaskOpts{
@@ -1911,6 +1903,8 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 			IsAppError:     false,
 			IsNonRetryable: false,
 		})
+
+		reasonByTaskId[task.ID] = task.Reason
 	}
 
 	// fail the tasks
@@ -1925,7 +1919,32 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 		return nil, false, err
 	}
 
-	return res, len(toReassign) == limit, nil
+	res.ReassignmentReasonByTaskId = reasonByTaskId
+
+	return res, len(toReassign) >= limit, nil
+}
+
+func (r *TaskRepositoryImpl) MarkTaskRuntimesAcked(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) error {
+	if len(tasks) == 0 {
+		return nil
+	}
+
+	taskIds := make([]int64, len(tasks))
+	taskInsertedAts := make([]pgtype.Timestamptz, len(tasks))
+	retryCounts := make([]int32, len(tasks))
+
+	for i, task := range tasks {
+		taskIds[i] = task.Id
+		taskInsertedAts[i] = task.InsertedAt
+		retryCounts[i] = task.RetryCount
+	}
+
+	return r.queries.MarkTaskRuntimesAcked(ctx, r.pool, sqlcv1.MarkTaskRuntimesAckedParams{
+		Tenantid:        tenantId,
+		Taskids:         taskIds,
+		Taskinsertedats: taskInsertedAts,
+		Retrycounts:     retryCounts,
+	})
 }
 
 func (r *TaskRepositoryImpl) ExpirePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID) (*FinalizedTaskResponse, bool, error) {
@@ -2131,13 +2150,11 @@ func (r *TaskRepositoryImpl) getFIFOQueuedCounts(ctx context.Context, tenantId u
 		return nil, err
 	}
 
-	res := make(map[string]interface{})
-
-	for _, count := range counts {
-		res[count.Queue] = int(count.Count)
-	}
-
-	return res, nil
+	return enumerables.ToMap(
+		counts,
+		func(count *sqlcv1.GetQueuedCountsRow) string { return count.Queue },
+		func(count *sqlcv1.GetQueuedCountsRow) interface{} { return int(count.Count) },
+	), nil
 }
 
 func (r *TaskRepositoryImpl) getConcurrencyQueuedCounts(ctx context.Context, tenantId uuid.UUID) (map[string]interface{}, error) {
@@ -3655,11 +3672,7 @@ func (r *sharedRepository) getConcurrencyExpressions(
 		return nil, err
 	}
 
-	fetchedByStepId := make(map[uuid.UUID][]*sqlcv1.V1StepConcurrency)
-
-	for _, strat := range strats {
-		fetchedByStepId[strat.StepID] = append(fetchedByStepId[strat.StepID], strat)
-	}
+	fetchedByStepId := enumerables.GroupBy(strats, func(strat *sqlcv1.V1StepConcurrency) uuid.UUID { return strat.StepID })
 
 	// Populate cache for all missing step IDs, including negative-caching empty results.
 	for _, stepId := range missingStepIdStrs {
@@ -4156,8 +4169,6 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 		}
 	}
 
-	tasksFailedPreflight := make(map[int64]bool)
-
 	failedPreflightChecks, err := r.queries.PreflightCheckTasksForReplay(ctx, tx, sqlcv1.PreflightCheckTasksForReplayParams{
 		Taskids:         lockedTaskIds,
 		Taskinsertedats: lockedTaskInsertedAts,
@@ -4169,9 +4180,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 		return nil, fmt.Errorf("failed to preflight check tasks for replay: %w", err)
 	}
 
-	for _, task := range failedPreflightChecks {
-		tasksFailedPreflight[task.ID] = true
-	}
+	tasksFailedPreflight := enumerables.ToSet(failedPreflightChecks, func(task *sqlcv1.PreflightCheckTasksForReplayRow) int64 { return task.ID })
 
 	// group tasks by their dag_id, if it exists
 	dagIdsToChildTasks := make(map[int64][]*sqlcv1.ListTasksForReplayRow)
@@ -4211,7 +4220,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 			continue
 		}
 
-		if tasksFailedPreflight[task.ID] {
+		if enumerables.HasKey(tasksFailedPreflight, task.ID) {
 			r.l.Warn().Ctx(ctx).Int64("task_id", task.ID).Msg("discarding task, failed preflight check")
 			continue
 		}
@@ -4346,13 +4355,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 	}
 
 	// for any tasks which are child tasks, we need to reset the match signals for the parent tasks
-	spawnedChildTasks := make([]*sqlcv1.ListTasksForReplayRow, 0)
-
-	for _, task := range lockedTasks {
-		if task.ParentTaskID.Valid {
-			spawnedChildTasks = append(spawnedChildTasks, task)
-		}
-	}
+	spawnedChildTasks := enumerables.Filter(lockedTasks, func(task *sqlcv1.ListTasksForReplayRow) bool { return task.ParentTaskID.Valid })
 
 	eventMatches := make([]CreateMatchOpts, 0)
 
@@ -4419,7 +4422,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 
 	if len(stepIdsInDAGs) > 0 {
 		additionalMatches, listErr := r.queries.ListStepMatchConditions(ctx, tx, sqlcv1.ListStepMatchConditionsParams{
-			Stepids:  listutils.Uniq(stepIdsInDAGs),
+			Stepids:  enumerables.Uniq(stepIdsInDAGs),
 			Tenantid: tenantId,
 		})
 
@@ -4702,11 +4705,7 @@ func (r *sharedRepository) createExpressionEvals(ctx context.Context, dbtx sqlcv
 	}
 
 	// map tasks using their external id
-	taskExternalIds := make(map[uuid.UUID]*V1TaskWithPayload)
-
-	for _, task := range createdTasks {
-		taskExternalIds[task.ExternalID] = task
-	}
+	taskExternalIds := enumerables.KeyBy(createdTasks, func(task *V1TaskWithPayload) uuid.UUID { return task.ExternalID })
 
 	taskIds := make([]int64, 0)
 	taskInsertedAts := make([]pgtype.Timestamptz, 0)
@@ -5611,8 +5610,6 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 }
 
 func (r *TaskRepositoryImpl) FilterValidTasks(ctx context.Context, tenantId uuid.UUID, opts []TaskIdInsertedAtRetryCount) (map[int64]struct{}, error) {
-	res := make(map[int64]struct{})
-
 	taskIds := make([]int64, len(opts))
 	taskInsertedAts := make([]pgtype.Timestamptz, len(opts))
 	taskRetryCounts := make([]int32, len(opts))
@@ -5633,11 +5630,7 @@ func (r *TaskRepositoryImpl) FilterValidTasks(ctx context.Context, tenantId uuid
 		return nil, err
 	}
 
-	for _, taskId := range taskIds {
-		res[taskId] = struct{}{}
-	}
-
-	return res, nil
+	return enumerables.ToSet(taskIds, func(taskId int64) int64 { return taskId }), nil
 }
 
 const deleteIdleStreamTopicsBatchSize = 1000

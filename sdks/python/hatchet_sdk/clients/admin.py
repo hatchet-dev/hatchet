@@ -1,7 +1,7 @@
 import asyncio
 import json
 from collections.abc import Generator
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, TypeVar, cast
 
@@ -332,6 +332,26 @@ class AdminClient:
             ),
             metadata=create_authorization_header(self.token),
         )
+
+    def pause_rate_limit(self, key: str, until: datetime) -> datetime:
+        paused_until = timestamp_pb2.Timestamp()
+        paused_until.FromDatetime(until)
+
+        client = self._get_or_create_v0_client()
+        pause_rate_limit = tenacity_retry(client.PauseRateLimit, self.config.tenacity)
+
+        response = cast(
+            v0_workflow_protos.PauseRateLimitResponse,
+            pause_rate_limit(
+                v0_workflow_protos.PauseRateLimitRequest(
+                    key=key,
+                    paused_until=paused_until,
+                ),
+                metadata=create_authorization_header(self.token),
+            ),
+        )
+
+        return response.paused_until.ToDatetime(tzinfo=timezone.utc)
 
     def schedule_workflow(
         self,

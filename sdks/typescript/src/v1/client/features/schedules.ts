@@ -7,11 +7,11 @@ import {
 } from '@hatchet/clients/rest/generated/data-contracts';
 import { z } from 'zod/v4';
 import type { Workflow } from '@hatchet/legacy/workflow';
-import { AxiosError } from 'axios';
 import { isValidUUID } from '@util/uuid';
 import { BaseWorkflowDeclaration, WorkflowDefinition } from '@hatchet/v1';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
-import { HatchetClient } from '../client';
+import type { RestApi, RestClientDeps } from '@hatchet/clients/rest/rest-api';
+import { rethrowRestError } from '@hatchet/clients/rest/errors';
 import { workflowNameString, WorkflowsClient } from './workflows';
 /**
  * Schema for creating a Scheduled Run Trigger.
@@ -44,16 +44,16 @@ export type UpdateScheduledRunInput = z.infer<typeof UpdateScheduledRunTriggerSc
  * The scheduled client is a client for managing scheduled workflows within Hatchet
  */
 export class ScheduleClient {
-  api: HatchetClient['api'];
+  api: RestApi;
   tenantId: string;
   workflows: WorkflowsClient;
   namespace: string | undefined;
 
-  constructor(client: HatchetClient) {
+  constructor(client: RestClientDeps) {
     this.api = client.api;
     this.tenantId = client.tenantId;
     this.workflows = new WorkflowsClient(client);
-    this.namespace = client.config.namespace;
+    this.namespace = client.config?.namespace;
   }
 
   /**
@@ -103,11 +103,7 @@ export class ScheduleClient {
         throw new Error(`Invalid cron input: ${err.message}`, { cause: err });
       }
 
-      if (err instanceof AxiosError) {
-        throw new Error(JSON.stringify(err.response?.data.errors), { cause: err });
-      }
-
-      throw err;
+      rethrowRestError(err);
     }
   }
 
@@ -134,11 +130,7 @@ export class ScheduleClient {
         throw new Error(`Invalid update input: ${err.message}`, { cause: err });
       }
 
-      if (err instanceof AxiosError) {
-        throw new Error(JSON.stringify(err.response?.data.errors), { cause: err });
-      }
-
-      throw err;
+      rethrowRestError(err);
     }
   }
 
