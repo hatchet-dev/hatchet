@@ -16,7 +16,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/digest"
-	"github.com/hatchet-dev/hatchet/internal/listutils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -2036,7 +2036,7 @@ func (r *workflowRepository) RequeueRateLimitPausedQueueItems(ctx context.Contex
 		}
 	}
 
-	return listutils.Uniq(allQueueNames), listutils.Uniq(allStrategyIds), nil
+	return enumerables.Uniq(allQueueNames), enumerables.Uniq(allStrategyIds), nil
 }
 
 type releasedHeldQueueItems struct {
@@ -2123,7 +2123,7 @@ func (r *workflowRepository) requeueHeldTasks(ctx context.Context, tx sqlcv1.DBT
 		return nil, nil, fmt.Errorf("could not requeue held concurrency slots: %w", err)
 	}
 
-	return listutils.Uniq(queueNames), listutils.Uniq(concurrencyStrategyIds), nil
+	return enumerables.Uniq(queueNames), enumerables.Uniq(concurrencyStrategyIds), nil
 }
 
 func (r *workflowRepository) ListUnpausedWorkflowsWithPausedQueueItems(ctx context.Context, tenantId uuid.UUID) ([]uuid.UUID, error) {

@@ -1,4 +1,4 @@
-package listutils
+package enumerables
 
 import (
 	"cmp"
@@ -123,6 +123,73 @@ func Map[T any, R any](xs []T, fn func(x T) R) []R {
 
 	for _, x := range xs {
 		result = append(result, fn(x))
+	}
+
+	return result
+}
+
+func ToMap[T any, K comparable, V any](xs []T, keyFn func(x T) K, valueFn func(x T) V) map[K]V {
+	result := make(map[K]V, len(xs))
+
+	for _, x := range xs {
+		result[keyFn(x)] = valueFn(x)
+	}
+
+	return result
+}
+
+func ToMapWithItemsAsValues[T any, K comparable](xs []T, keyFn func(x T) K) map[K]T {
+	result := make(map[K]T, len(xs))
+
+	for _, x := range xs {
+		result[keyFn(x)] = x
+	}
+
+	return result
+}
+
+// inspiration: group_by/3 https://elixir.hexdocs.pm/Enum.html#group_by/3
+func GroupBy[T any, K comparable](xs []T, keyFn func(x T) K) map[K][]T {
+	result := make(map[K][]T)
+
+	for _, x := range xs {
+		key := keyFn(x)
+		result[key] = append(result[key], x)
+	}
+
+	return result
+}
+
+// inspiration: MapSet.new/2 https://elixir.hexdocs.pm/MapSet.html#new/2
+func ToSet[T any, K comparable](xs []T, keyFn func(x T) K) map[K]struct{} {
+	result := make(map[K]struct{}, len(xs))
+
+	for _, x := range xs {
+		result[keyFn(x)] = struct{}{}
+	}
+
+	return result
+}
+
+// inspiration: filter/2 https://elixir.hexdocs.pm/Enum.html#filter/2
+func Filter[T any](xs []T, predicate func(x T) bool) []T {
+	result := make([]T, 0)
+
+	for _, x := range xs {
+		if predicate(x) {
+			result = append(result, x)
+		}
+	}
+
+	return result
+}
+
+// inspiration: flat_map/2 https://elixir.hexdocs.pm/Enum.html#flat_map/2
+func FlatMap[T any, R any](xs []T, fn func(x T) []R) []R {
+	result := make([]R, 0)
+
+	for _, x := range xs {
+		result = append(result, fn(x)...)
 	}
 
 	return result
