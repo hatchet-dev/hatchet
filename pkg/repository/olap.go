@@ -3201,7 +3201,7 @@ func (r *OLAPRepositoryImpl) GetDAGDurations(ctx context.Context, tenantId uuid.
 		return nil, err
 	}
 
-	return enumerables.ToMapWithItemsAsValues(rows, func(row *sqlcv1.GetDagDurationsRow) string { return row.ExternalID.String() }), nil
+	return enumerables.KeyBy(rows, func(row *sqlcv1.GetDagDurationsRow) string { return row.ExternalID.String() }), nil
 }
 
 func (r *OLAPRepositoryImpl) GetTaskDurationsByTaskIds(ctx context.Context, tenantId uuid.UUID, taskIds []int64, taskInsertedAts []pgtype.Timestamptz, readableStatuses []sqlcv1.V1ReadableStatusOlap) (map[int64]*sqlcv1.GetTaskDurationsByTaskIdsRow, error) {
@@ -3216,7 +3216,7 @@ func (r *OLAPRepositoryImpl) GetTaskDurationsByTaskIds(ctx context.Context, tena
 	}
 
 	// rows come back sorted and drop tasks whose status changed, so they can't be matched to taskIds by index
-	return enumerables.ToMapWithItemsAsValues(rows, func(row *sqlcv1.GetTaskDurationsByTaskIdsRow) int64 { return row.TaskID }), nil
+	return enumerables.KeyBy(rows, func(row *sqlcv1.GetTaskDurationsByTaskIdsRow) int64 { return row.TaskID }), nil
 }
 
 func (r *OLAPRepositoryImpl) GetTaskStartedTimestamps(ctx context.Context, tenantId uuid.UUID, taskIds []int64, taskInsertedAts []time.Time, retryCounts []int32) ([]*sqlcv1.GetTaskStartedTimestampsRow, error) {

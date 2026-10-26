@@ -306,7 +306,7 @@ func (t *tenantManager) setConcurrencyStrategies(strategies []*sqlcv1.V1StepConc
 	t.concurrencyMu.Lock()
 	defer t.concurrencyMu.Unlock()
 
-	strategiesSet := enumerables.ToMapWithItemsAsValues(strategies, func(strat *sqlcv1.V1StepConcurrency) int64 { return strat.ID })
+	strategiesSet := enumerables.KeyBy(strategies, func(strat *sqlcv1.V1StepConcurrency) int64 { return strat.ID })
 
 	newArr := make([]*ConcurrencyManager, 0, len(strategies))
 
@@ -667,8 +667,8 @@ func (t *tenantManager) runOptimisticScheduling(
 	}
 
 	// map the tasks to the assigned items
-	taskUUIDToAssigned := enumerables.ToMapWithItemsAsValues(allLocalAssigned, func(ai *v1.AssignedItem) uuid.UUID { return ai.QueueItem.ExternalID })
-	taskUUIDToTask := enumerables.ToMapWithItemsAsValues(tasks, func(task *v1.V1TaskWithPayload) uuid.UUID { return task.ExternalID })
+	taskUUIDToAssigned := enumerables.KeyBy(allLocalAssigned, func(ai *v1.AssignedItem) uuid.UUID { return ai.QueueItem.ExternalID })
+	taskUUIDToTask := enumerables.KeyBy(tasks, func(task *v1.V1TaskWithPayload) uuid.UUID { return task.ExternalID })
 
 	// return the assigned items with their tasks
 	res := make(map[uuid.UUID][]*AssignedItemWithTask)
@@ -750,8 +750,8 @@ func (t *tenantManager) runOptimisticSchedulingFromEvents(
 	}
 
 	// map the tasks to the assigned items
-	taskUUIDToAssigned := enumerables.ToMapWithItemsAsValues(allLocalAssigned, func(ai *v1.AssignedItem) uuid.UUID { return ai.QueueItem.ExternalID })
-	taskUUIDToTask := enumerables.ToMapWithItemsAsValues(eventsRes.Tasks, func(task *v1.V1TaskWithPayload) uuid.UUID { return task.ExternalID })
+	taskUUIDToAssigned := enumerables.KeyBy(allLocalAssigned, func(ai *v1.AssignedItem) uuid.UUID { return ai.QueueItem.ExternalID })
+	taskUUIDToTask := enumerables.KeyBy(eventsRes.Tasks, func(task *v1.V1TaskWithPayload) uuid.UUID { return task.ExternalID })
 
 	// return the assigned items with their tasks
 	res := make(map[uuid.UUID][]*AssignedItemWithTask)

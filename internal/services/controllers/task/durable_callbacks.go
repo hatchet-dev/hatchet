@@ -52,7 +52,7 @@ func (tc *TasksControllerImpl) handleDurableRestoreTask(ctx context.Context, ten
 		return fmt.Errorf("failed to batch-restore evicted tasks: %w", err)
 	}
 
-	restoredByTaskId := enumerables.ToMapWithItemsAsValues(restoredRows, func(r *sqlcv1.RestoreEvictedTasksRow) int64 {
+	restoredByTaskId := enumerables.KeyBy(restoredRows, func(r *sqlcv1.RestoreEvictedTasksRow) int64 {
 		return r.TaskID
 	})
 

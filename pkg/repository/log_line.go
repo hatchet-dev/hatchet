@@ -204,7 +204,7 @@ func (r *logLineRepositoryImpl) ListLogLines(ctx context.Context, tenantId uuid.
 	}
 
 	// create a map of task id to external id
-	taskIdToTask := enumerables.ToMapWithItemsAsValues(tasks, func(task *sqlcv1.V1Task) int64 { return task.ID })
+	taskIdToTask := enumerables.KeyBy(tasks, func(task *sqlcv1.V1Task) int64 { return task.ID })
 
 	// attach task external ids to log lines
 	res := make([]*ListLogLineRow, len(logLines))

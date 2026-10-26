@@ -1498,7 +1498,7 @@ func (r *TaskRepositoryImpl) ListTaskRuntimes(ctx context.Context, tenantId uuid
 		return nil, err
 	}
 
-	return enumerables.ToMapWithItemsAsValues(rows, func(row *sqlcv1.V1TaskRuntime) int64 { return row.TaskID }), nil
+	return enumerables.KeyBy(rows, func(row *sqlcv1.V1TaskRuntime) int64 { return row.TaskID }), nil
 }
 
 func (r *TaskRepositoryImpl) ListDurableOrchestratorChildOutputEvents(ctx context.Context, tenantId, orchestratorExternalId uuid.UUID) ([]*TaskOutputEvent, error) {
@@ -4578,7 +4578,7 @@ func (r *sharedRepository) createExpressionEvals(ctx context.Context, dbtx sqlcv
 	}
 
 	// map tasks using their external id
-	taskExternalIds := enumerables.ToMapWithItemsAsValues(createdTasks, func(task *V1TaskWithPayload) uuid.UUID { return task.ExternalID })
+	taskExternalIds := enumerables.KeyBy(createdTasks, func(task *V1TaskWithPayload) uuid.UUID { return task.ExternalID })
 
 	taskIds := make([]int64, 0)
 	taskInsertedAts := make([]pgtype.Timestamptz, 0)

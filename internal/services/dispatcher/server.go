@@ -2602,7 +2602,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMetaV1(ctx context
 					return nil, err
 				}
 
-				workflowRunIdsToRow := enumerables.ToMapWithItemsAsValues(workflowRuns, func(wr *listWorkflowRunsResult) uuid.UUID {
+				workflowRunIdsToRow := enumerables.KeyBy(workflowRuns, func(wr *listWorkflowRunsResult) uuid.UUID {
 					return wr.WorkflowRunId
 				})
 

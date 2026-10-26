@@ -468,7 +468,7 @@ func (r *workflowRepository) getTenantStrategiesForEntries(ctx context.Context, 
 		return nil, err
 	}
 
-	strategiesByName := enumerables.ToMapWithItemsAsValues(strategies, func(strategy *sqlcv1.V1TenantConcurrency) string {
+	strategiesByName := enumerables.KeyBy(strategies, func(strategy *sqlcv1.V1TenantConcurrency) string {
 		return strategy.Name
 	})
 

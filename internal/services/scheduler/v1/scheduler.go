@@ -1544,7 +1544,7 @@ func (s *Scheduler) handleDeadLetteredDurableCallbackCompleted(ctx context.Conte
 		return fmt.Errorf("could not resolve tasks for undelivered durable callbacks: %w", err)
 	}
 
-	flatByExternalId := enumerables.ToMapWithItemsAsValues(flatTasks, func(t *sqlcv1.FlattenExternalIdsRow) uuid.UUID { return t.ExternalID })
+	flatByExternalId := enumerables.KeyBy(flatTasks, func(t *sqlcv1.FlattenExternalIdsRow) uuid.UUID { return t.ExternalID })
 
 	callbacks := make([]repov1.SatisfiedEntry, 0, len(payloads))
 

@@ -39,7 +39,7 @@ func (s *Scheduler) RunOptimisticSchedulingFromEvents(ctx context.Context, tenan
 		return nil, err
 	}
 
-	eventIdToOpts := enumerables.ToMapWithItemsAsValues(opts, func(opt v1.EventTriggerOpts) uuid.UUID { return opt.ExternalId })
+	eventIdToOpts := enumerables.KeyBy(opts, func(opt v1.EventTriggerOpts) uuid.UUID { return opt.ExternalId })
 
 	go func() { // #nosec G118 -- intentionally decoupled from request context so signaling survives the response, bounded by its own timeout
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

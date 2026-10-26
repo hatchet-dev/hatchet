@@ -166,7 +166,7 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 		return err
 	}
 
-	externalIdToLookupRow := enumerables.ToMapWithItemsAsValues(gotTasks, func(task *sqlcv1.V1LookupTable) uuid.UUID {
+	externalIdToLookupRow := enumerables.KeyBy(gotTasks, func(task *sqlcv1.V1LookupTable) uuid.UUID {
 		return task.ExternalID
 	})
 

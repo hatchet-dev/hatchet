@@ -582,7 +582,7 @@ func (r *TriggerRepositoryImpl) PopulateWorkflowIdempotencyPresence(ctx context.
 		return fmt.Errorf("failed to list workflows by names: %w", err)
 	}
 
-	nameToRow := enumerables.ToMapWithItemsAsValues(rows, func(row *sqlcv1.ListWorkflowsByNamesRow) string { return row.WorkflowName })
+	nameToRow := enumerables.KeyBy(rows, func(row *sqlcv1.ListWorkflowsByNamesRow) string { return row.WorkflowName })
 
 	for _, opt := range opts {
 		row, ok := nameToRow[opt.WorkflowName]

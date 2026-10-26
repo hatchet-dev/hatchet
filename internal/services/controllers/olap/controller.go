@@ -972,7 +972,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		return err
 	}
 
-	taskIdsToMetas := enumerables.ToMapWithItemsAsValues(metas, func(taskMeta *sqlcv1.ListTaskMetasRow) int64 {
+	taskIdsToMetas := enumerables.KeyBy(metas, func(taskMeta *sqlcv1.ListTaskMetasRow) int64 {
 		return taskMeta.ID
 	})
 
