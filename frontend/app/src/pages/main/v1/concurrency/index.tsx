@@ -10,7 +10,7 @@ import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import { useLiveClock } from '@/hooks/use-live-clock';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { V1ConcurrencyStrategy } from '@/lib/api';
+import { queries, V1ConcurrencyStrategy } from '@/lib/api';
 import { docsPages } from '@/lib/generated/docs';
 import { tenantConcurrencyRoute } from '@/router';
 import { useQueryClient } from '@tanstack/react-query';
@@ -34,7 +34,11 @@ function Concurrency({ tenantId }: ConcurrencyProps) {
   const refresh = () => {
     void refetch();
     void queryClient.invalidateQueries({
-      queryKey: ['v1:concurrency:keys', tenantId],
+      queryKey: [
+        ...queries.v1Concurrency.keys._def,
+        'v1:concurrency:keys',
+        tenantId,
+      ],
     });
   };
 
