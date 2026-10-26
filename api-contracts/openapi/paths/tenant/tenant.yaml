@@ -838,7 +838,6 @@ getPrometheusMetrics:
 getTaskStats:
   get:
     x-resources: ["tenant"]
-    x-enable-rate-limiting: true
     description: Get task stats for tenant
     operationId: tenant:get:task-stats
     x-payloads: false
