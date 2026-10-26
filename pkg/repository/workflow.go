@@ -16,8 +16,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/digest"
-	"github.com/hatchet-dev/hatchet/internal/listutils"
-	"github.com/hatchet-dev/hatchet/internal/maputils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -320,7 +319,7 @@ func (r *workflowRepository) ListWorkflowNamesByIds(ctx context.Context, tenantI
 		return nil, err
 	}
 
-	workflowIdToNameMap := listutils.ToMap(
+	workflowIdToNameMap := enumerables.ToMap(
 		workflowNames,
 		func(row *sqlcv1.ListWorkflowNamesByIdsRow) uuid.UUID { return row.ID },
 		func(row *sqlcv1.ListWorkflowNamesByIdsRow) string { return row.Name },
@@ -469,12 +468,12 @@ func (r *workflowRepository) getTenantStrategiesForEntries(ctx context.Context, 
 		return nil, err
 	}
 
-	strategiesByName := listutils.ToMapWithItemsAsValues(strategies, func(strategy *sqlcv1.V1TenantConcurrency) string {
+	strategiesByName := enumerables.ToMapWithItemsAsValues(strategies, func(strategy *sqlcv1.V1TenantConcurrency) string {
 		return strategy.Name
 	})
 
-	missingNames := listutils.Filter(names, func(name string) bool {
-		return !maputils.HasKey(strategiesByName, name)
+	missingNames := enumerables.Filter(names, func(name string) bool {
+		return !enumerables.HasKey(strategiesByName, name)
 	})
 
 	if len(missingNames) > 0 {
@@ -2031,7 +2030,7 @@ func (r *workflowRepository) RequeueRateLimitPausedQueueItems(ctx context.Contex
 		}
 	}
 
-	return listutils.Uniq(allQueueNames), listutils.Uniq(allStrategyIds), nil
+	return enumerables.Uniq(allQueueNames), enumerables.Uniq(allStrategyIds), nil
 }
 
 type releasedHeldQueueItems struct {
@@ -2118,7 +2117,7 @@ func (r *workflowRepository) requeueHeldTasks(ctx context.Context, tx sqlcv1.DBT
 		return nil, nil, fmt.Errorf("could not requeue held concurrency slots: %w", err)
 	}
 
-	return listutils.Uniq(queueNames), listutils.Uniq(concurrencyStrategyIds), nil
+	return enumerables.Uniq(queueNames), enumerables.Uniq(concurrencyStrategyIds), nil
 }
 
 func (r *workflowRepository) ListUnpausedWorkflowsWithPausedQueueItems(ctx context.Context, tenantId uuid.UUID) ([]uuid.UUID, error) {
@@ -2229,7 +2228,7 @@ func stripTenantConcurrencyDefs(entries []CreateConcurrencyOpts) []CreateConcurr
 }
 
 func hasCycleV1(steps []CreateStepOpts) bool {
-	graph := listutils.ToMap(
+	graph := enumerables.ToMap(
 		steps,
 		func(step CreateStepOpts) string { return step.ReadableId },
 		func(step CreateStepOpts) []string { return step.Parents },

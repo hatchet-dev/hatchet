@@ -26,7 +26,7 @@ import (
 	tracev1 "go.opentelemetry.io/proto/otlp/trace/v1"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/hatchet-dev/hatchet/internal/listutils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/pkg/config/limits"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -1162,7 +1162,7 @@ func readableStatusesOrDefault(statuses []sqlcv1.V1ReadableStatusOlap) []string 
 		}
 	}
 
-	return listutils.Map(statuses, func(status sqlcv1.V1ReadableStatusOlap) string {
+	return enumerables.Map(statuses, func(status sqlcv1.V1ReadableStatusOlap) string {
 		return string(status)
 	})
 }

@@ -19,8 +19,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/hatchet-dev/hatchet/internal/listutils"
-	"github.com/hatchet-dev/hatchet/internal/maputils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -168,7 +167,7 @@ func (s TypedPayloadStore[S]) RetrieveOne(ctx context.Context, tx sqlcv1.DBTX, r
 }
 
 func (s TypedPayloadStore[S]) Retrieve(ctx context.Context, tx sqlcv1.DBTX, refs ...PayloadRef[S]) (map[PayloadRef[S]]Payload[S], error) {
-	opts := listutils.Map(refs, func(ref PayloadRef[S]) RetrievePayloadOpts {
+	opts := enumerables.Map(refs, func(ref PayloadRef[S]) RetrievePayloadOpts {
 		return ref.retrieveOpts()
 	})
 
@@ -429,7 +428,7 @@ func (p *payloadStoreRepositoryImpl) OverwriteExisting(ctx context.Context, tx s
 		return nil
 	}
 
-	uniquePayloads := listutils.UniqBy(payloads, func(payload StorePayloadOpts) PayloadUniqueKey {
+	uniquePayloads := enumerables.UniqBy(payloads, func(payload StorePayloadOpts) PayloadUniqueKey {
 		return payloadUniqueKeyFromRetrieveOpt(payload.key)
 	})
 
@@ -595,8 +594,8 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 		return optsToPayload, nil
 	}
 
-	notFoundInline := listutils.Filter(opts, func(opt RetrievePayloadOpts) bool {
-		return !maputils.HasKey(foundKeys, payloadUniqueKeyFromRetrieveOpt(opt))
+	notFoundInline := enumerables.Filter(opts, func(opt RetrievePayloadOpts) bool {
+		return !enumerables.HasKey(foundKeys, payloadUniqueKeyFromRetrieveOpt(opt))
 	})
 
 	retrieveFromExternalOptsToOpts, err := p.offloadedRetrieveOpts(ctx, tx, notFoundInline)

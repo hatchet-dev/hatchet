@@ -20,7 +20,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/internal/cel"
-	"github.com/hatchet-dev/hatchet/internal/listutils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/statusutils"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -407,7 +407,7 @@ func (r *TaskRepositoryImpl) EnsureTablePartitionsExist(ctx context.Context) (bo
 }
 
 func createExternalIdUniqueConstraintsOnDailyPartitions(ctx context.Context, db sqlcv1.DBTX, parentTableName string, partitionDates ...time.Time) error {
-	partitionTableNames := listutils.Map(partitionDates, func(partitionDate time.Time) string {
+	partitionTableNames := enumerables.Map(partitionDates, func(partitionDate time.Time) string {
 		return fmt.Sprintf("%s_%s", parentTableName, partitionDate.UTC().Format("20060102"))
 	})
 
@@ -415,7 +415,7 @@ func createExternalIdUniqueConstraintsOnDailyPartitions(ctx context.Context, db 
 }
 
 func createExternalIdUniqueConstraintsOnMonthlyPartitions(ctx context.Context, db sqlcv1.DBTX, parentTableName string, partitionDates ...time.Time) error {
-	partitionTableNames := listutils.Map(partitionDates, func(partitionDate time.Time) string {
+	partitionTableNames := enumerables.Map(partitionDates, func(partitionDate time.Time) string {
 		return fmt.Sprintf("%s_%s01", parentTableName, partitionDate.UTC().Format("200601"))
 	})
 
@@ -906,9 +906,9 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId uuid.UU
 	// 	return err
 	// }
 
-	taskIdRetryCounts := listutils.Map(tasks, func(task CompleteTaskOpts) TaskIdInsertedAtRetryCount { return *task.TaskIdInsertedAtRetryCount })
+	taskIdRetryCounts := enumerables.Map(tasks, func(task CompleteTaskOpts) TaskIdInsertedAtRetryCount { return *task.TaskIdInsertedAtRetryCount })
 
-	uniqueTaskIdRetryCounts := listutils.UniqBy(taskIdRetryCounts, createTaskUniqueKey)
+	uniqueTaskIdRetryCounts := enumerables.UniqBy(taskIdRetryCounts, createTaskUniqueKey)
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
 
@@ -944,7 +944,7 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId uuid.UU
 	// the SDKs retry failed completion sends, so one attempt can be reported more than once, and the
 	// dispatcher gives each report a new payload reference. OLAP may keep any of those references, so
 	// every report with a distinct reference gets its own completion event and stored payload
-	uniqueReports := listutils.UniqBy(tasks, createCompletionReportUniqueKey)
+	uniqueReports := enumerables.UniqBy(tasks, createCompletionReportUniqueKey)
 
 	reportTaskIdRetryCounts := make([]TaskIdInsertedAtRetryCount, len(uniqueReports))
 	releasedTaskPerReport := make([]*sqlcv1.ReleaseTasksRow, len(uniqueReports))
@@ -1076,7 +1076,7 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 		}
 	}
 
-	tasks = listutils.UniqBy(tasks, createTaskUniqueKey)
+	tasks = enumerables.UniqBy(tasks, createTaskUniqueKey)
 
 	retriedTasks := make([]RetriedTask, 0)
 
@@ -1413,7 +1413,7 @@ func (r *TaskRepositoryImpl) CancelTasks(ctx context.Context, tenantId uuid.UUID
 
 func (r *sharedRepository) cancelTasks(ctx context.Context, dbtx sqlcv1.DBTX, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) (*FinalizedTaskResponse, error) {
 	// get a unique set of task ids and retry counts
-	tasks = listutils.UniqBy(tasks, createTaskUniqueKey)
+	tasks = enumerables.UniqBy(tasks, createTaskUniqueKey)
 
 	// release queue items
 	releasedTasks, err := r.releaseTasks(ctx, dbtx, tenantId, tasks)
@@ -4295,7 +4295,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 
 	if len(stepIdsInDAGs) > 0 {
 		additionalMatches, listErr := r.queries.ListStepMatchConditions(ctx, tx, sqlcv1.ListStepMatchConditionsParams{
-			Stepids:  listutils.Uniq(stepIdsInDAGs),
+			Stepids:  enumerables.Uniq(stepIdsInDAGs),
 			Tenantid: tenantId,
 		})
 

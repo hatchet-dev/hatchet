@@ -16,8 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.opentelemetry.io/otel/attribute"
 
-	"github.com/hatchet-dev/hatchet/internal/listutils"
-	"github.com/hatchet-dev/hatchet/internal/maputils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -363,7 +362,7 @@ func (w *workerRepository) ListTotalActiveSlotsPerTenant(ctx context.Context) (m
 		return nil, fmt.Errorf("could not list total active slots per tenant: %w", err)
 	}
 
-	tenantToSlots := listutils.ToMap(
+	tenantToSlots := enumerables.ToMap(
 		rows,
 		func(row *sqlcv1.ListTotalActiveSlotsPerTenantRow) uuid.UUID { return row.TenantId },
 		func(row *sqlcv1.ListTotalActiveSlotsPerTenantRow) int64 { return row.TotalActiveSlots },
@@ -378,7 +377,7 @@ func (w *workerRepository) ListActiveSlotsPerTenantAndSlotType(ctx context.Conte
 		return nil, fmt.Errorf("could not list active slots per tenant and slot type: %w", err)
 	}
 
-	res := listutils.ToMap(
+	res := enumerables.ToMap(
 		rows,
 		func(row *sqlcv1.ListActiveSlotsPerTenantAndSlotTypeRow) TenantIdSlotTypeTuple {
 			return TenantIdSlotTypeTuple{
@@ -399,7 +398,7 @@ func (w *workerRepository) CountActiveWorkersPerTenant(ctx context.Context) (map
 		return nil, fmt.Errorf("could not list active workers per tenant: %w", err)
 	}
 
-	tenantToWorkers := listutils.ToMap(
+	tenantToWorkers := enumerables.ToMap(
 		workers,
 		func(worker *sqlcv1.ListActiveWorkersPerTenantRow) uuid.UUID { return worker.TenantId },
 		func(worker *sqlcv1.ListActiveWorkersPerTenantRow) int64 { return worker.Count },
@@ -509,7 +508,7 @@ func (w *workerRepository) ListWorkerLabels(ctx context.Context, tenantId uuid.U
 		return nil, fmt.Errorf("could not list worker labels: %w", err)
 	}
 
-	workerIdToLabels := listutils.GroupBy(labels, func(label *sqlcv1.ListWorkerLabelsRow) uuid.UUID { return label.WorkerId })
+	workerIdToLabels := enumerables.GroupBy(labels, func(label *sqlcv1.ListWorkerLabelsRow) uuid.UUID { return label.WorkerId })
 
 	return workerIdToLabels, nil
 }
@@ -546,7 +545,7 @@ func (w *workerRepository) ListAvailableSlotsForWorkers(ctx context.Context, ten
 		return nil, fmt.Errorf("could not list available slots for workers: %w", err)
 	}
 
-	res := listutils.ToMap(
+	res := enumerables.ToMap(
 		rows,
 		func(row *sqlcv1.ListAvailableSlotsForWorkersRow) uuid.UUID { return row.ID },
 		func(row *sqlcv1.ListAvailableSlotsForWorkersRow) int32 { return row.AvailableSlots },
@@ -1046,8 +1045,8 @@ func (w *workerRepository) resolveActionIds(ctx context.Context, tx pgx.Tx, tena
 		uuidByActionId[action.ActionId] = action.ID
 	}
 
-	missing := listutils.Filter(actionIds, func(actionId string) bool {
-		return !maputils.HasKey(uuidByActionId, actionId)
+	missing := enumerables.Filter(actionIds, func(actionId string) bool {
+		return !enumerables.HasKey(uuidByActionId, actionId)
 	})
 
 	if len(missing) > 0 {
@@ -1069,8 +1068,8 @@ func (w *workerRepository) resolveActionIds(ctx context.Context, tx pgx.Tx, tena
 		// an action a concurrent transaction created after the read above is skipped by the
 		// insert and resolved here, once that transaction has committed
 		if len(inserted) < len(missing) {
-			raced := listutils.Filter(missing, func(actionId string) bool {
-				return !maputils.HasKey(uuidByActionId, actionId)
+			raced := enumerables.Filter(missing, func(actionId string) bool {
+				return !enumerables.HasKey(uuidByActionId, actionId)
 			})
 
 			concurrent, err := w.queries.ListActionsByActionIds(ctx, tx, sqlcv1.ListActionsByActionIdsParams{
@@ -1392,7 +1391,7 @@ func (w *workerRepository) CleanupOldWorkers(ctx context.Context, tenantId uuid.
 func (w *workerRepository) GetDispatcherIdsForWorkers(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID]uuid.UUID, map[uuid.UUID]struct{}, error) {
 	rows, err := w.queries.ListDispatcherIdsForWorkers(ctx, w.pool, sqlcv1.ListDispatcherIdsForWorkersParams{
 		Tenantid:  tenantId,
-		Workerids: listutils.Uniq(workerIds),
+		Workerids: enumerables.Uniq(workerIds),
 	})
 
 	if err != nil {

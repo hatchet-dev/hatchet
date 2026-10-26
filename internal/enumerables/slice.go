@@ -1,4 +1,4 @@
-package listutils
+package enumerables
 
 import (
 	"cmp"
