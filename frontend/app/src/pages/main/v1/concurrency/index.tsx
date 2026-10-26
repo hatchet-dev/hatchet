@@ -1,5 +1,5 @@
 import { strategyRef } from './components/concurrency-format';
-import { ScopeFilter, StrategiesPanel } from './components/strategies-panel';
+import { StrategiesPanel } from './components/strategies-panel';
 import { TotalsStrip } from './components/totals-strip';
 import {
   STRATEGIES_PAGE_SIZE,
@@ -41,7 +41,6 @@ function Concurrency({ tenantId }: ConcurrencyProps) {
   const view = tenantConcurrencyRoute.useSearch();
   const navigate = tenantConcurrencyRoute.useNavigate();
 
-  const scope: ScopeFilter = view.scope ?? 'ALL';
   const selectedRef = view.strategy;
 
   const updateView = (patch: ConcurrencySearch) =>
@@ -54,15 +53,10 @@ function Concurrency({ tenantId }: ConcurrencyProps) {
 
   const all = useMemo(() => data?.rows ?? [], [data]);
 
-  const visible = useMemo(
-    () => all.filter((s) => scope === 'ALL' || s.scope === scope),
-    [all, scope],
-  );
-
-  const numPages = Math.ceil(visible.length / STRATEGIES_PAGE_SIZE);
+  const numPages = Math.ceil(all.length / STRATEGIES_PAGE_SIZE);
   // clamped so a page emptied by strategies going away shows the last page instead
   const page = Math.min((view.page ?? 1) - 1, Math.max(numPages - 1, 0));
-  const pageRows = visible.slice(
+  const pageRows = all.slice(
     page * STRATEGIES_PAGE_SIZE,
     (page + 1) * STRATEGIES_PAGE_SIZE,
   );
@@ -73,34 +67,16 @@ function Concurrency({ tenantId }: ConcurrencyProps) {
       content: { tenantId, strategy: ref, initialSearch },
     });
 
-  // A filter that hides the selected strategy also clears it and closes its keys, so the
-  // URL never names a strategy other than the one shown.
-  const setScope = (s: ScopeFilter) => {
-    const selectedStrategy = all.find((x) => strategyRef(x) === selectedRef);
-    const keep = s === 'ALL' || selectedStrategy?.scope === s;
-
-    updateView({
-      scope: s === 'ALL' ? undefined : s,
-      strategy: keep ? selectedRef : undefined,
-      page: undefined,
-    });
-
-    if (!keep && sidePanel.isOpen) {
-      sidePanel.close();
-    }
-  };
-
   const selectStrategy = (s: V1ConcurrencyStrategy) => {
     updateView({ strategy: strategyRef(s) });
     openKeys(strategyRef(s));
   };
 
-  // clears the filters and turns to the strategy's page so it is always visible
+  // turns to the strategy's page so it is always visible
   const openKey = (s: V1ConcurrencyStrategy, key: string) => {
     const index = all.findIndex((x) => strategyRef(x) === strategyRef(s));
 
     updateView({
-      scope: undefined,
       strategy: strategyRef(s),
       page: Math.floor(Math.max(index, 0) / STRATEGIES_PAGE_SIZE) + 1,
     });
@@ -171,11 +147,9 @@ function Concurrency({ tenantId }: ConcurrencyProps) {
             loading={isLoading}
             selectedRef={selectedRef}
             onSelect={(s) => selectStrategy(s)}
-            scope={scope}
-            onScopeChange={setScope}
             page={page}
             numPages={numPages}
-            total={visible.length}
+            total={all.length}
             onPageChange={(p) => updateView({ page: p + 1 })}
             isRefetching={isRefetching}
             onRefetch={refresh}

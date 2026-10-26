@@ -1,10 +1,9 @@
 import { useConcurrencyKeys } from '../hooks/use-concurrency';
-import { formatElapsed, neverQueues } from './concurrency-format';
+import { formatElapsed } from './concurrency-format';
 import { DrainingBadge } from './draining-badge';
 import { PaginationFooter } from './pagination-footer';
 import { Input } from '@/components/v1/ui/input';
 import { Skeleton } from '@/components/v1/ui/skeleton';
-import { Tabs, TabsList, TabsTrigger } from '@/components/v1/ui/tabs';
 import { V1ConcurrencyKey, V1ConcurrencyStrategy } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { appRoutes } from '@/router';
@@ -24,8 +23,6 @@ export type KeysPanelProps = {
   strategy: V1ConcurrencyStrategy;
   search: string;
   onSearchChange: (search: string) => void;
-  onlyQueued: boolean;
-  onOnlyQueuedChange: (onlyQueued: boolean) => void;
   page: number;
   onPageChange: (page: number) => void;
   now: number;
@@ -36,8 +33,6 @@ export function KeysPanel({
   strategy,
   search,
   onSearchChange,
-  onlyQueued,
-  onOnlyQueuedChange,
   page,
   onPageChange,
   now,
@@ -48,23 +43,15 @@ export function KeysPanel({
     tenantId,
     strategy,
     search: debouncedSearch,
-    onlyQueued,
     page,
   });
 
   const keys = data?.rows ?? [];
   const numPages = data?.pagination?.num_pages ?? 0;
 
-  let emptyText = 'No runs are running or queued on this strategy right now.';
-
-  if (onlyQueued && neverQueues(strategy.limitStrategy)) {
-    emptyText =
-      'Nothing is ever queued on this strategy: its limit strategy cancels runs instead of queueing them.';
-  } else if (onlyQueued) {
-    emptyText = 'No runs are queued on this strategy right now.';
-  } else if (debouncedSearch) {
-    emptyText = 'No keys match.';
-  }
+  const emptyText = debouncedSearch
+    ? 'No keys match.'
+    : 'No runs are running or queued on this strategy right now.';
 
   return (
     <section
@@ -110,19 +97,6 @@ export function KeysPanel({
               className="h-8 w-48 pl-7 font-mono text-xs"
             />
           </div>
-          <Tabs
-            value={onlyQueued ? 'queued' : 'all'}
-            onValueChange={(v) => onOnlyQueuedChange(v === 'queued')}
-          >
-            <TabsList aria-label="Key filter" className="h-8">
-              <TabsTrigger value="all" className="h-6 px-2.5 text-xs">
-                All keys
-              </TabsTrigger>
-              <TabsTrigger value="queued" className="h-6 px-2.5 text-xs">
-                Has queued
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
         </div>
       </div>
 

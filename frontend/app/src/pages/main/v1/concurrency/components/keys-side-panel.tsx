@@ -22,7 +22,6 @@ export function KeysSidePanel({
   const { data, isLoading } = useConcurrencyStrategies(tenantId);
 
   const [search, setSearch] = useState(initialSearch);
-  const [onlyQueued, setOnlyQueued] = useState(false);
   const [page, setPage] = useState(0);
 
   const strategy = data?.rows.find((s) => strategyRef(s) === ref);
@@ -43,11 +42,6 @@ export function KeysSidePanel({
         search={search}
         onSearchChange={(q) => {
           setSearch(q);
-          setPage(0);
-        }}
-        onlyQueued={onlyQueued}
-        onOnlyQueuedChange={(v) => {
-          setOnlyQueued(v);
           setPage(0);
         }}
         page={page}

@@ -19,13 +19,11 @@ export function useConcurrencyKeys({
   tenantId,
   strategy,
   search,
-  onlyQueued,
   page,
 }: {
   tenantId: string;
   strategy: V1ConcurrencyStrategy | undefined;
   search: string;
-  onlyQueued: boolean;
   page: number;
 }) {
   const { refetchInterval } = useRefetchInterval();
@@ -38,7 +36,6 @@ export function useConcurrencyKeys({
         strategy?.id ?? 0,
         {
           search: search || undefined,
-          onlyQueued: onlyQueued || undefined,
           limit: KEYS_PAGE_SIZE,
           offset: page * KEYS_PAGE_SIZE,
         },

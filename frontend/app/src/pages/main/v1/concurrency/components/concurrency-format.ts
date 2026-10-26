@@ -30,25 +30,16 @@ export const limitStrategyClassName: Record<
   [V1ConcurrencyLimitStrategy.V1ConcurrencyLimitStrategyGroupRoundRobin]:
     'border-indigo-200 bg-indigo-50 text-indigo-900 dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-300',
   [V1ConcurrencyLimitStrategy.V1ConcurrencyLimitStrategyCancelInProgress]:
-    'border-red-200 bg-red-50 text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300',
+    'border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-300',
   [V1ConcurrencyLimitStrategy.V1ConcurrencyLimitStrategyCancelNewest]:
-    'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300',
+    'border-fuchsia-200 bg-fuchsia-50 text-fuchsia-800 dark:border-fuchsia-500/30 dark:bg-fuchsia-500/10 dark:text-fuchsia-300',
   [V1ConcurrencyLimitStrategy.V1ConcurrencyLimitStrategyCancelQueuedExceptNewest]:
     'border-violet-200 bg-violet-50 text-violet-800 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-300',
   [V1ConcurrencyLimitStrategy.V1ConcurrencyLimitStrategyCancelQueuedExceptOldest]:
-    'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300',
+    'border-cyan-200 bg-cyan-50 text-cyan-800 dark:border-cyan-500/30 dark:bg-cyan-500/10 dark:text-cyan-300',
   [V1ConcurrencyLimitStrategy.V1ConcurrencyLimitStrategyNone]:
     'border-border bg-muted text-muted-foreground',
 };
-
-export function neverQueues(limitStrategy: V1ConcurrencyLimitStrategy) {
-  return (
-    limitStrategy ===
-      V1ConcurrencyLimitStrategy.V1ConcurrencyLimitStrategyCancelInProgress ||
-    limitStrategy ===
-      V1ConcurrencyLimitStrategy.V1ConcurrencyLimitStrategyCancelNewest
-  );
-}
 
 export function strategyLocation(s: V1ConcurrencyStrategy): string {
   switch (s.scope) {

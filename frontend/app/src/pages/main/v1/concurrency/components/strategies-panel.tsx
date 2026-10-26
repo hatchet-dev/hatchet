@@ -11,24 +11,14 @@ import { DrainingBadge } from './draining-badge';
 import { PaginationFooter } from './pagination-footer';
 import { RefetchIntervalDropdown } from '@/components/refetch-interval-dropdown';
 import { Skeleton } from '@/components/v1/ui/skeleton';
-import { Tabs, TabsList, TabsTrigger } from '@/components/v1/ui/tabs';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/v1/ui/tooltip';
-import { V1ConcurrencyScope, V1ConcurrencyStrategy } from '@/lib/api';
+import { V1ConcurrencyStrategy } from '@/lib/api';
 import { cn } from '@/lib/utils';
-
-export type ScopeFilter = 'ALL' | V1ConcurrencyScope;
-
-const scopeFilters: { value: ScopeFilter; label: string }[] = [
-  { value: 'ALL', label: 'All' },
-  { value: V1ConcurrencyScope.V1ConcurrencyScopeShared, label: 'Shared' },
-  { value: V1ConcurrencyScope.V1ConcurrencyScopeWorkflow, label: 'Workflow' },
-  { value: V1ConcurrencyScope.V1ConcurrencyScopeTask, label: 'Task' },
-];
 
 const grid =
   'grid grid-cols-[minmax(200px,1.3fr)_minmax(150px,1fr)_190px_64px_64px_80px_80px_92px] items-center gap-x-3 px-4';
@@ -39,12 +29,10 @@ export type StrategiesPanelProps = {
   loading: boolean;
   selectedRef: string | undefined;
   onSelect: (s: V1ConcurrencyStrategy) => void;
-  scope: ScopeFilter;
-  onScopeChange: (scope: ScopeFilter) => void;
   // zero-based
   page: number;
   numPages: number;
-  // strategies matching the scope filter, across all pages
+  // across all pages
   total: number;
   onPageChange: (page: number) => void;
   isRefetching: boolean;
@@ -57,8 +45,6 @@ export function StrategiesPanel({
   loading,
   selectedRef,
   onSelect,
-  scope,
-  onScopeChange,
   page,
   numPages,
   total,
@@ -74,22 +60,6 @@ export function StrategiesPanel({
     >
       <div className="flex flex-wrap items-center gap-3 border-b border-border/50 px-4 py-2.5">
         <span className="text-sm font-semibold">Strategies</span>
-        <Tabs
-          value={scope}
-          onValueChange={(v) => onScopeChange(v as ScopeFilter)}
-        >
-          <TabsList aria-label="Scope" className="h-8">
-            {scopeFilters.map((f) => (
-              <TabsTrigger
-                key={f.value}
-                value={f.value}
-                className="h-6 px-2.5 text-xs"
-              >
-                {f.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
         <div className="ml-auto">
           <RefetchIntervalDropdown
             isRefetching={isRefetching}
@@ -127,12 +97,6 @@ export function StrategiesPanel({
                 <Skeleton className="h-4 w-32" />
               </div>
             ))}
-
-          {!loading && strategies.length === 0 && (
-            <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-              No strategies match these filters.
-            </div>
-          )}
 
           <TooltipProvider>
             {strategies.map((s) => (
