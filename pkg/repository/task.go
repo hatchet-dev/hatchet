@@ -392,10 +392,9 @@ type TaskRepositoryImpl struct {
 	reassignLimit         int
 	retryQueueLimit       int
 	durableSleepLimit     int
-	reassignUnackedTasks  bool
 }
 
-func newTaskRepository(s *sharedRepository, taskRetentionPeriod time.Duration, maxInternalRetryCount int32, timeoutLimit, reassignLimit, retryQueueLimit, durableSleepLimit int, reassignUnackedTasks bool) TaskRepository {
+func newTaskRepository(s *sharedRepository, taskRetentionPeriod time.Duration, maxInternalRetryCount int32, timeoutLimit, reassignLimit, retryQueueLimit, durableSleepLimit int) TaskRepository {
 	return &TaskRepositoryImpl{
 		sharedRepository:      s,
 		taskRetentionPeriod:   taskRetentionPeriod,
@@ -404,7 +403,6 @@ func newTaskRepository(s *sharedRepository, taskRetentionPeriod time.Duration, m
 		reassignLimit:         reassignLimit,
 		retryQueueLimit:       retryQueueLimit,
 		durableSleepLimit:     durableSleepLimit,
-		reassignUnackedTasks:  reassignUnackedTasks,
 	}
 }
 

@@ -126,9 +126,9 @@ type TaskOperationLimitsConfigFile struct {
 	// ReassignLimit is the limit for how many tasks to process in a single reassignment operation
 	ReassignLimit int `mapstructure:"reassignLimit" json:"reassignLimit,omitempty" default:"1000"`
 
-	// ReassignUnackedTasks reassigns tasks whose worker never acknowledged them within a minute of assignment.
-	// Only enable it once every engine instance sends acks: during a rolling deploy from an engine version that
-	// doesn't, running tasks look unacked and get reassigned while they're still running.
+	// ReassignUnackedTasks records when each task is assigned and reassigns tasks whose worker never acknowledged
+	// them within a minute. Only enable it once every engine instance sends acks: during a rolling deploy from an
+	// engine version that doesn't, running tasks look unacked and get reassigned while they're still running.
 	ReassignUnackedTasks bool `mapstructure:"reassignUnackedTasks" json:"reassignUnackedTasks,omitempty" default:"false"`
 
 	// RetryQueueLimit is the limit for how many retry queue items to process in a single operation

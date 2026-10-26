@@ -75,6 +75,7 @@ type sharedRepository struct {
 
 	wrapTaskInputInStepRunData bool
 	enablePayloadConsolidation bool
+	reassignUnackedTasks       bool
 }
 
 func newSharedRepository(
@@ -85,6 +86,7 @@ func newSharedRepository(
 	c limits.LimitConfigFile,
 	shouldEnforceLimits bool,
 	cacheDuration time.Duration,
+	reassignUnackedTasks bool,
 ) (*sharedRepository, func() error) {
 	queries := sqlcv1.New()
 	queueCache := cache.New(5 * time.Minute)
@@ -148,6 +150,7 @@ func newSharedRepository(
 		payloadStore:                payloadStore,
 		wrapTaskInputInStepRunData:  payloadStoreOpts.WrapTaskInputInStepRunData,
 		enablePayloadConsolidation:  payloadStoreOpts.EnablePayloadConsolidation,
+		reassignUnackedTasks:        reassignUnackedTasks,
 	}
 
 	tenantLimitRepository := newTenantLimitRepository(s, c, shouldEnforceLimits, cacheDuration)
