@@ -26,6 +26,10 @@ The endpoint requires Bearer token authentication using a valid API token:
 Authorization: Bearer <API_TOKEN>
 ```
 
+### Rate limiting
+
+This endpoint is rate limited per tenant. Requests over the limit get a `429` with a `Retry-After` header. On self-hosted deployments the default is 5 requests per second with a burst of 50, counted per API replica; see `SERVER_TASK_STATS_RATE_LIMIT` in the [configuration options](/self-hosting/configuration-options).
+
 ### Response Format
 
 The response is a JSON object keyed by task name, with each task containing statistics for queued and running states:

@@ -83,11 +83,15 @@ func (m *RateLimitMiddleware) Middleware() echo.MiddlewareFunc {
 			return context.JSON(http.StatusForbidden, nil)
 		},
 		DenyHandler: func(context echo.Context, identifier string, err error) error {
-			context.Response().Header().Set(echo.HeaderRetryAfter, retryAfter)
-
-			return context.JSON(http.StatusTooManyRequests, apierrors.NewAPIErrors("too many requests, try again later"))
+			return tooManyRequests(context, retryAfter)
 		},
 	}
 
 	return echoMiddleware.RateLimiterWithConfig(rateLimiterConfig)
+}
+
+func tooManyRequests(c echo.Context, retryAfter string) error {
+	c.Response().Header().Set(echo.HeaderRetryAfter, retryAfter)
+
+	return echo.NewHTTPError(http.StatusTooManyRequests, apierrors.NewAPIErrors("too many requests, try again later"))
 }
