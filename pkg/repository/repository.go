@@ -12,10 +12,11 @@ import (
 )
 
 type TaskOperationLimits struct {
-	TimeoutLimit      int
-	ReassignLimit     int
-	RetryQueueLimit   int
-	DurableSleepLimit int
+	TimeoutLimit         int
+	ReassignLimit        int
+	RetryQueueLimit      int
+	DurableSleepLimit    int
+	ReassignUnackedTasks bool
 }
 
 type Repository interface {
@@ -126,7 +127,7 @@ func NewRepository(
 		messageQueue:      mq,
 		rateLimit:         newRateLimitRepository(shared),
 		triggers:          newTriggerRepository(shared),
-		tasks:             newTaskRepository(shared, taskRetentionPeriod, maxInternalRetryCount, taskLimits.TimeoutLimit, taskLimits.ReassignLimit, taskLimits.RetryQueueLimit, taskLimits.DurableSleepLimit),
+		tasks:             newTaskRepository(shared, taskRetentionPeriod, maxInternalRetryCount, taskLimits.TimeoutLimit, taskLimits.ReassignLimit, taskLimits.RetryQueueLimit, taskLimits.DurableSleepLimit, taskLimits.ReassignUnackedTasks),
 		scheduler:         newSchedulerRepository(shared),
 		matches:           newMatchRepository(shared),
 		olap:              newOLAPRepository(shared, olapRetentionPeriod, true, true, statusUpdateBatchSizeLimits),

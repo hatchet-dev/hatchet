@@ -673,6 +673,7 @@ WITH tasks_on_inactive_workers AS (
         AND runtime.evicted_at IS NULL
         AND runtime.acked_at IS NULL
         AND runtime.assigned_at < NOW() - INTERVAL '1 minute'
+        AND @reassignUnackedTasks::boolean
     -- NOTE: this ORDER BY keeps the planner on the unacked index; without it, a stale estimate of unacked rows makes it seq scan
     ORDER BY
         runtime.assigned_at

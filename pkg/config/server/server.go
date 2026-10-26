@@ -126,6 +126,11 @@ type TaskOperationLimitsConfigFile struct {
 	// ReassignLimit is the limit for how many tasks to process in a single reassignment operation
 	ReassignLimit int `mapstructure:"reassignLimit" json:"reassignLimit,omitempty" default:"1000"`
 
+	// ReassignUnackedTasks reassigns tasks whose worker never acknowledged them within a minute of assignment.
+	// Only enable it once every engine instance sends acks: during a rolling deploy from an engine version that
+	// doesn't, running tasks look unacked and get reassigned while they're still running.
+	ReassignUnackedTasks bool `mapstructure:"reassignUnackedTasks" json:"reassignUnackedTasks,omitempty" default:"false"`
+
 	// RetryQueueLimit is the limit for how many retry queue items to process in a single operation
 	RetryQueueLimit int `mapstructure:"retryQueueLimit" json:"retryQueueLimit,omitempty" default:"1000"`
 
@@ -1280,6 +1285,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.durableEventBufferMaxSize", "SERVER_DURABLE_EVENT_BUFFER_MAX_SIZE")
 	_ = v.BindEnv("runtime.durableEventBufferMaxConcurrentFlushes", "SERVER_DURABLE_EVENT_BUFFER_MAX_CONCURRENT_FLUSHES")
 	_ = v.BindEnv("runtime.streamEventBufferTimeout", "SERVER_STREAM_EVENT_BUFFER_TIMEOUT")
+	_ = v.BindEnv("runtime.taskOperationLimits.reassignUnackedTasks", "SERVER_REASSIGN_UNACKED_TASKS")
 
 	// payload store options
 	_ = v.BindEnv("payloadStore.externalCutoverProcessInterval", "SERVER_PAYLOAD_STORE_EXTERNAL_CUTOVER_PROCESS_INTERVAL")
