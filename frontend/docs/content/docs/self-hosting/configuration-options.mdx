@@ -194,6 +194,7 @@ Variables marked with ⚠️ are conditionally required when specific features a
 | `SERVER_INCOMING_WEBHOOK_RATE_LIMIT_BURST`             | Incoming webhook rate limit burst size                                                                                                                | `100`                   |
 | `SERVER_WORKFLOW_RUN_BUFFER_SIZE`                      | Workflow run event batch size in the dispatcher                                                                                                       | `1000`                  |
 | `SERVER_STREAM_EVENT_BUFFER_TIMEOUT`                   | How long the stream event buffer waits for out-of-order events before flushing                                                                        | `5s`                    |
+| `SERVER_REASSIGN_UNACKED_TASKS`                        | Reassign tasks whose worker never acknowledged them within a minute. Enable only after every engine instance runs a version that sends acks           | `false`                 |
 | `SCHEDULER_CHECK_ACTIVE_MIN_INTERVAL`                  | Minimum interval for the scheduler check-active loop                                                                                                  | `30s`                   |
 | `SCHEDULER_CHECK_ACTIVE_MAX_INTERVAL`                  | Maximum interval for the scheduler check-active loop                                                                                                  | `60s`                   |
 

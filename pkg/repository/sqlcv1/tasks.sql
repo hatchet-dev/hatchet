@@ -311,7 +311,7 @@ SET
     batch_index = input.batch_index,
     worker_id = @workerId::uuid,
     batch_key = COALESCE(NULLIF(@batchKey::text, ''), tr.batch_key),
-    assigned_at = NOW(),
+    assigned_at = CASE WHEN @reassignUnackedTasks::boolean THEN NOW() END,
     acked_at = NULL
 FROM
     input
