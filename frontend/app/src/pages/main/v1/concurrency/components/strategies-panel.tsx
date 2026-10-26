@@ -1,14 +1,12 @@
 import { STRATEGIES_PAGE_SIZE } from '../hooks/use-concurrency';
 import {
   formatElapsed,
-  limitStrategyClassName,
-  scopeClassName,
-  scopeLabel,
   strategyLocation,
   strategyRef,
 } from './concurrency-format';
 import { DrainingBadge } from './draining-badge';
 import { PaginationFooter } from './pagination-footer';
+import { LimitStrategyBadge, ScopeBadge } from './strategy-badges';
 import { RefetchIntervalDropdown } from '@/components/refetch-interval-dropdown';
 import { Skeleton } from '@/components/v1/ui/skeleton';
 import {
@@ -151,14 +149,7 @@ function StrategyRow({
       <span className="flex min-w-0 flex-col gap-0.5 py-1.5">
         <span className="flex min-w-0 items-center gap-1.5">
           <span className="truncate font-medium">{s.name}</span>
-          <span
-            className={cn(
-              'shrink-0 rounded-full border px-1.5 text-[10.5px] font-medium leading-4',
-              scopeClassName[s.scope],
-            )}
-          >
-            {scopeLabel[s.scope]}
-          </span>
+          <ScopeBadge strategy={s} />
           {s.isDraining && <DrainingBadge />}
         </span>
         <span className="truncate text-xs text-muted-foreground">
@@ -169,14 +160,7 @@ function StrategyRow({
         {s.expression}
       </span>
       <span className="min-w-0">
-        <span
-          className={cn(
-            'inline-block max-w-full truncate rounded border px-1.5 font-mono text-[10.5px]',
-            limitStrategyClassName[s.limitStrategy],
-          )}
-        >
-          {s.limitStrategy}
-        </span>
+        <LimitStrategyBadge strategy={s} />
       </span>
       <span className="text-right font-mono text-xs tabular-nums">
         {s.maxRunsExpression ? (

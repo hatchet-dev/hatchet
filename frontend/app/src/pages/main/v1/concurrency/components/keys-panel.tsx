@@ -1,10 +1,15 @@
 import { useConcurrencyKeys } from '../hooks/use-concurrency';
-import { formatElapsed } from './concurrency-format';
+import { formatElapsed, strategyLocation } from './concurrency-format';
 import { DrainingBadge } from './draining-badge';
 import { PaginationFooter } from './pagination-footer';
+import { LimitStrategyBadge, ScopeBadge } from './strategy-badges';
 import { Input } from '@/components/v1/ui/input';
 import { Skeleton } from '@/components/v1/ui/skeleton';
-import { V1ConcurrencyKey, V1ConcurrencyStrategy } from '@/lib/api';
+import {
+  V1ConcurrencyKey,
+  V1ConcurrencyScope,
+  V1ConcurrencyStrategy,
+} from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { appRoutes } from '@/router';
 import { Link } from '@tanstack/react-router';
@@ -68,6 +73,26 @@ export function KeysPanel({
             <span className="font-mono text-xs text-indigo-900 dark:text-indigo-300">
               {strategy.expression}
             </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <ScopeBadge strategy={strategy} />
+            <LimitStrategyBadge strategy={strategy} />
+            <span>
+              Max runs{' '}
+              <span className="font-mono text-foreground/80">
+                {strategy.maxRunsExpression ?? strategy.maxRuns}
+              </span>
+            </span>
+            {strategy.scope !== V1ConcurrencyScope.V1ConcurrencyScopeShared &&
+              strategy.workflowId && (
+                <Link
+                  to={appRoutes.tenantWorkflowRoute.to}
+                  params={{ tenant: tenantId, workflow: strategy.workflowId }}
+                  className="hover:text-foreground hover:underline"
+                >
+                  {strategyLocation(strategy)}
+                </Link>
+              )}
           </div>
           {strategy.usedBy && strategy.usedBy.length > 0 && (
             <div className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
