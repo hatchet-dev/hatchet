@@ -183,3 +183,14 @@ func Filter[T any](xs []T, predicate func(x T) bool) []T {
 
 	return result
 }
+
+// inspiration: flat_map/2 https://elixir.hexdocs.pm/Enum.html#flat_map/2
+func FlatMap[T any, R any](xs []T, fn func(x T) []R) []R {
+	result := make([]R, 0)
+
+	for _, x := range xs {
+		result = append(result, fn(x)...)
+	}
+
+	return result
+}
