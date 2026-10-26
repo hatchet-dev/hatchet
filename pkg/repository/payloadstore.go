@@ -594,13 +594,9 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 		return optsToPayload, nil
 	}
 
-	notFoundInline := make([]RetrievePayloadOpts, 0)
-
-	for _, opt := range opts {
-		if _, found := foundKeys[payloadUniqueKeyFromRetrieveOpt(opt)]; !found {
-			notFoundInline = append(notFoundInline, opt)
-		}
-	}
+	notFoundInline := enumerables.Filter(opts, func(opt RetrievePayloadOpts) bool {
+		return !enumerables.HasKey(foundKeys, payloadUniqueKeyFromRetrieveOpt(opt))
+	})
 
 	retrieveFromExternalOptsToOpts, err := p.offloadedRetrieveOpts(ctx, tx, notFoundInline)
 

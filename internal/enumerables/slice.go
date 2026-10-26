@@ -138,7 +138,7 @@ func ToMap[T any, K comparable, V any](xs []T, keyFn func(x T) K, valueFn func(x
 	return result
 }
 
-func ToMapWithItemsAsValues[T any, K comparable](xs []T, keyFn func(x T) K) map[K]T {
+func KeyBy[T any, K comparable](xs []T, keyFn func(x T) K) map[K]T {
 	result := make(map[K]T, len(xs))
 
 	for _, x := range xs {

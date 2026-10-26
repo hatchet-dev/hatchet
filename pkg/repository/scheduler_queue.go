@@ -1134,10 +1134,7 @@ func (b *batchQueueRepository) ListExistingBatchedQueueItemIds(ctx context.Conte
 		return nil, err
 	}
 
-	res := make(map[int64]struct{}, len(rows))
-	for _, id := range rows {
-		res[id] = struct{}{}
-	}
+	res := enumerables.ToSet(rows, func(id int64) int64 { return id })
 
 	return res, nil
 }
