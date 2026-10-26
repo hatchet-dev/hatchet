@@ -53,7 +53,7 @@ func (tc *TasksControllerImpl) processTaskReassignments(ctx context.Context, ten
 				RetryCount:     task.RetryCount,
 				EventType:      sqlcv1.V1EventTypeOlapREASSIGNED,
 				EventTimestamp: time.Now(),
-				EventMessage:   "Worker did not send a heartbeat for 30 seconds",
+				EventMessage:   res.ReassignmentReasonByTaskId[task.ID],
 				WorkerId:       workerId,
 			},
 		)

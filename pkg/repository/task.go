@@ -254,6 +254,8 @@ type FailTasksResponse struct {
 	*FinalizedTaskResponse
 
 	RetriedTasks []RetriedTask
+
+	ReassignmentReasonByTaskId map[int64]string
 }
 
 type TimeoutTasksResponse struct {
@@ -330,6 +332,8 @@ type TaskRepository interface {
 	ProcessTaskTimeouts(ctx context.Context, tenantId uuid.UUID) (*TimeoutTasksResponse, bool, error)
 
 	ProcessTaskReassignments(ctx context.Context, tenantId uuid.UUID) (*FailTasksResponse, bool, error)
+
+	MarkTaskRuntimesAcked(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) error
 
 	ProcessTaskRetryQueueItems(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.V1RetryQueueItem, bool, error)
 
@@ -1792,6 +1796,7 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 
 	// parse into FailTaskOpts
 	failOpts := make([]FailTaskOpts, 0, len(toReassign))
+	reasonByTaskId := make(map[int64]string, len(toReassign))
 
 	for _, task := range toReassign {
 		failOpts = append(failOpts, FailTaskOpts{
@@ -1803,6 +1808,8 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 			IsAppError:     false,
 			IsNonRetryable: false,
 		})
+
+		reasonByTaskId[task.ID] = task.Reason
 	}
 
 	// fail the tasks
@@ -1817,7 +1824,32 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 		return nil, false, err
 	}
 
-	return res, len(toReassign) == limit, nil
+	res.ReassignmentReasonByTaskId = reasonByTaskId
+
+	return res, len(toReassign) >= limit, nil
+}
+
+func (r *TaskRepositoryImpl) MarkTaskRuntimesAcked(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) error {
+	if len(tasks) == 0 {
+		return nil
+	}
+
+	taskIds := make([]int64, len(tasks))
+	taskInsertedAts := make([]pgtype.Timestamptz, len(tasks))
+	retryCounts := make([]int32, len(tasks))
+
+	for i, task := range tasks {
+		taskIds[i] = task.Id
+		taskInsertedAts[i] = task.InsertedAt
+		retryCounts[i] = task.RetryCount
+	}
+
+	return r.queries.MarkTaskRuntimesAcked(ctx, r.pool, sqlcv1.MarkTaskRuntimesAckedParams{
+		Tenantid:        tenantId,
+		Taskids:         taskIds,
+		Taskinsertedats: taskInsertedAts,
+		Retrycounts:     retryCounts,
+	})
 }
 
 func (r *TaskRepositoryImpl) ExpirePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID) (*FinalizedTaskResponse, bool, error) {
