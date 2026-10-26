@@ -82,6 +82,7 @@ roles:
       - TenantInviteReject
       - V1LogLineList
       - V1StreamPayloadGet
+      - V1StreamTopicList
       - V1WebhookGet
       - V1ServerlessEndpointList
       - V1ServerlessEndpointGet
@@ -139,6 +140,7 @@ roles:
       - UserUpdateLogin
       - V1FilterGet
       - TenantResourcePolicyGet
+      - TenantEntitlementsGet
       - UserUpdateSlackOauthStart
       - UserUpdateGoogleOauthStart
       - V1CelDebug
