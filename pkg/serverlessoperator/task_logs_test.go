@@ -3,8 +3,11 @@
 package serverlessoperator
 
 import (
+	"context"
 	"encoding/json"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
@@ -12,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/internal/memrepo"
 )
 
@@ -30,7 +34,7 @@ func TestTaskLoggerNamesTheEndpoint(t *testing.T) {
 	// an id that is not a uuid has no task to log on
 	tl.delivered(epA, &endpointConfig{name: "orders"}, &contracts.AssignedAction{TaskRunExternalId: "not-a-uuid"})
 
-	tl.stop()
+	tl.stop(context.Background())
 
 	rows := repo.TaskLogRows()
 	require.Len(t, rows, 2)
@@ -62,5 +66,62 @@ func TestTaskLoggerDisabled(t *testing.T) {
 
 	// a disabled logger accepts every call
 	tl.delivered(&cachedEndpoint{}, &endpointConfig{}, &contracts.AssignedAction{TaskRunExternalId: uuid.NewString()})
-	tl.stop()
+	tl.stop(context.Background())
+}
+
+// blockingTaskLogRepo holds every Insert until released, and counts the lines it saw.
+type blockingTaskLogRepo struct {
+	started chan struct{}
+	release chan struct{}
+	lines   atomic.Int64
+}
+
+func (b *blockingTaskLogRepo) Insert(ctx context.Context, _ uuid.UUID, lines []repository.ServerlessTaskLogOpts) error {
+	b.lines.Add(int64(len(lines)))
+	b.started <- struct{}{}
+
+	select {
+	case <-b.release:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// Lines still queued when the shutdown deadline has passed are dropped rather than written
+// one slow statement at a time.
+func TestTaskLoggerDropsQueuedLinesPastShutdownDeadline(t *testing.T) {
+	repo := &blockingTaskLogRepo{started: make(chan struct{}, 1), release: make(chan struct{})}
+	l := zerolog.Nop()
+	tl := newTaskLogger(repo, &l)
+
+	ep := &cachedEndpoint{id: uuid.New(), tenantId: uuid.New()}
+	cfg := &endpointConfig{name: "orders"}
+
+	tl.delivered(ep, cfg, &contracts.AssignedAction{TaskRunExternalId: uuid.NewString()})
+	<-repo.started // the writer is inside Insert with the first line
+
+	tl.delivered(ep, cfg, &contracts.AssignedAction{TaskRunExternalId: uuid.NewString()})
+	tl.delivered(ep, cfg, &contracts.AssignedAction{TaskRunExternalId: uuid.NewString()})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	stopped := make(chan struct{})
+
+	go func() {
+		tl.stop(ctx)
+		close(stopped)
+	}()
+
+	<-tl.stopCh // stop has asked the writer to finish
+	close(repo.release)
+
+	select {
+	case <-stopped:
+	case <-time.After(5 * time.Second):
+		t.Fatal("stop did not return once the shutdown deadline had passed")
+	}
+
+	assert.Equal(t, int64(1), repo.lines.Load())
 }

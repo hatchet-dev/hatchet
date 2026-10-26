@@ -285,6 +285,67 @@ describe('diagnoseEndpoint', () => {
     assert.equal(d.title.key, 'diagnosis.healthchecksFailing.title');
   });
 
+  it('stops warning once a short failure streak must have ended', () => {
+    // 30s polls: a streak still going on without flipping the status is under two minutes old
+    const d = diagnoseEndpoint({
+      deployment: 'oss',
+      endpoint: endpoint(),
+      events: [
+        event(V1ServerlessEndpointEventKind.HEALTHY, '2026-10-22T11:00:00Z'),
+        event(
+          V1ServerlessEndpointEventKind.HEALTHCHECK_FAILED,
+          '2026-10-22T11:30:00Z',
+          'healthcheck returned status 503',
+        ),
+      ],
+      now: NOW,
+    });
+    assert.equal(d.severity, 'healthy');
+  });
+
+  it('takes the status flipping back to healthy as a recovery', () => {
+    const d = diagnoseEndpoint({
+      deployment: 'oss',
+      endpoint: endpoint({
+        pollIntervalSeconds: 3600,
+        status: { healthy: true, changedAt: '2026-10-22T11:59:30Z' },
+      }),
+      events: [
+        event(
+          V1ServerlessEndpointEventKind.HEALTHCHECK_FAILED,
+          '2026-10-22T11:59:00Z',
+          'healthcheck returned status 503',
+        ),
+      ],
+      now: NOW,
+    });
+    assert.equal(d.severity, 'healthy');
+  });
+
+  it('only uses event details that belong to the status error', () => {
+    const parseFailure = event(
+      V1ServerlessEndpointEventKind.HEALTHCHECK_FAILED,
+      '2026-10-22T11:59:00Z',
+      'bad body',
+      { stage: V1ServerlessEndpointCheckStage.PARSE },
+    );
+    const unhealthy = (error: string) =>
+      diagnoseEndpoint({
+        deployment: 'oss',
+        endpoint: endpoint({ status: { healthy: false, error } }),
+        events: [parseFailure],
+        now: NOW,
+      }).title.key;
+
+    assert.equal(unhealthy('bad body'), 'failure.notHealthcheck.title');
+    // a later failure changed the status error; the old event's stage does not apply
+    assert.equal(unhealthy('something else'), 'failure.unknown.title');
+    assert.equal(
+      unhealthy('healthcheck returned status 503'),
+      'failure.serverError.title',
+    );
+  });
+
   it('warns about a healthy endpoint that serves nothing', () => {
     const d = diagnoseEndpoint({
       deployment: 'oss',

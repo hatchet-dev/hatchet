@@ -638,8 +638,9 @@ func (r *runner) syncTenantActions(ctx context.Context, ts *tenantState) {
 
 // Shutdown is the graceful stop after leases were released: stop pollers, pause every
 // registration's worker, drain deliveries up to DrainTimeout, close the sessions, then wait
-// for every goroutine.
-func (r *runner) Shutdown() {
+// for every goroutine. The endpoint events and task log lines still queued are written
+// within ctx and dropped once it ends.
+func (r *runner) Shutdown(ctx context.Context) {
 	r.mu.Lock()
 	tenants := r.tenants
 	r.tenants = map[uuid.UUID]*tenantState{}
@@ -687,8 +688,8 @@ func (r *runner) Shutdown() {
 	r.wg.Wait()
 
 	// After the pollers and deliveries, so their last events and log lines are flushed.
-	r.events.stop()
-	r.taskLogs.stop()
+	r.events.stop(ctx)
+	r.taskLogs.stop(ctx)
 
 	r.updateGauges()
 }

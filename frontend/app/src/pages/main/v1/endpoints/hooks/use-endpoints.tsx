@@ -1,4 +1,5 @@
 import { t } from '../components/copy';
+import { rowsToLabels } from '../lib/labels';
 import {
   MIN_SIGNING_SECRET_LENGTH,
   PLATFORMS,
@@ -83,37 +84,6 @@ export const useEndpointMutations = () => {
   return { create, update, remove };
 };
 
-export type LabelRow = { key: string; value: string };
-
-// whole numbers, without leading zeros, are saved as integer worker labels
-const INTEGER_LABEL = /^-?(0|[1-9]\d*)$/;
-
-export const labelsToRows = (
-  labels: Record<string, unknown> | undefined,
-): LabelRow[] =>
-  Object.entries(labels ?? {}).map(([key, value]) => ({
-    key,
-    value: String(value),
-  }));
-
-export const rowsToLabels = (
-  rows: LabelRow[],
-): Record<string, string | number> => {
-  const labels: Record<string, string | number> = {};
-
-  for (const { key, value } of rows) {
-    if (key.trim() === '' && value.trim() === '') {
-      continue;
-    }
-
-    labels[key.trim()] = INTEGER_LABEL.test(value.trim())
-      ? Number(value.trim())
-      : value;
-  }
-
-  return labels;
-};
-
 const labelRows = z
   .array(z.object({ key: z.string(), value: z.string() }))
   .superRefine((rows, ctx) => {
@@ -145,12 +115,18 @@ const labelRows = z
 const numberField = () =>
   z.number({ invalid_type_error: t('validation.number') }).int();
 
+// the bounds the API enforces (pkg/repository/serverless_endpoint.go), so a form that
+// validates is a request the server accepts
 const advancedFields = {
   requestTimeoutSeconds: numberField()
     .min(1, t('validation.requestTimeoutMin'))
     .max(600, t('validation.requestTimeoutMax')),
-  pollIntervalSeconds: numberField().min(1, t('validation.pollIntervalMin')),
-  inlineWaitBudgetMs: numberField().min(0, t('validation.inlineWaitMin')),
+  pollIntervalSeconds: numberField()
+    .min(5, t('validation.pollIntervalMin'))
+    .max(3600, t('validation.pollIntervalMax')),
+  inlineWaitBudgetMs: numberField()
+    .min(0, t('validation.inlineWaitMin'))
+    .max(600000, t('validation.inlineWaitMax')),
   labels: labelRows,
   enabled: z.boolean(),
 };
@@ -253,6 +229,7 @@ export type EndpointUpdateFormData = z.infer<typeof endpointUpdateFormSchema>;
 
 export const buildUpdateRequest = (
   data: EndpointUpdateFormData,
+  existingLabels: Record<string, unknown>,
 ): V1UpdateServerlessEndpointRequest => ({
   name: data.name.trim(),
   kind: data.kind,
@@ -263,6 +240,6 @@ export const buildUpdateRequest = (
   pollIntervalSeconds: data.pollIntervalSeconds,
   inlineWaitBudgetMs: data.inlineWaitBudgetMs,
   // labels replace the existing set, so removing every row clears them
-  labels: rowsToLabels(data.labels),
+  labels: rowsToLabels(data.labels, existingLabels),
   enabled: data.enabled,
 });

@@ -1,4 +1,4 @@
-import { LabelRow } from '../hooks/use-endpoints';
+import { LabelRow } from '../lib/labels';
 import { generateSigningSecret } from '../lib/platforms';
 import { Copy, t } from './copy';
 import { Button } from '@/components/v1/ui/button';

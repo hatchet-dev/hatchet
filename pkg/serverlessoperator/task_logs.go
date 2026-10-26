@@ -31,12 +31,14 @@ type taskLogLine struct {
 // Like eventRecorder, delivered only enqueues and a single writer batches the queue, so a
 // slow database never holds up a delivery; a full queue drops lines.
 type taskLogger struct {
-	repo     repository.ServerlessTaskLogRepository
-	l        *zerolog.Logger
-	queue    chan taskLogLine
-	stopCh   chan struct{}
-	done     chan struct{}
-	dropped  atomic.Int64
+	repo    repository.ServerlessTaskLogRepository
+	l       *zerolog.Logger
+	queue   chan taskLogLine
+	stopCh  chan struct{}
+	done    chan struct{}
+	dropped atomic.Int64
+	// stopCtx bounds the flush at shutdown; set by stop before stopCh is closed.
+	stopCtx  context.Context
 	stopOnce sync.Once
 }
 
@@ -104,12 +106,20 @@ func (tl *taskLogger) run() {
 	defer close(tl.done)
 
 	for {
+		// A stop takes precedence over queued lines, so they are flushed under its deadline.
 		select {
 		case <-tl.stopCh:
-			tl.flush()
+			tl.flush(tl.stopCtx)
+			return
+		default:
+		}
+
+		select {
+		case <-tl.stopCh:
+			tl.flush(tl.stopCtx)
 			return
 		case line := <-tl.queue:
-			tl.write(tl.drain([]taskLogLine{line}))
+			tl.write(context.Background(), tl.drain([]taskLogLine{line}))
 		}
 	}
 }
@@ -128,21 +138,31 @@ func (tl *taskLogger) drain(batch []taskLogLine) []taskLogLine {
 	return batch
 }
 
-// flush writes what is queued at shutdown, without waiting for more.
-func (tl *taskLogger) flush() {
+// flush writes what is queued at shutdown, without waiting for more. Once ctx ends, what is
+// still queued is dropped: a slow database must not hold the process past its deadline.
+func (tl *taskLogger) flush(ctx context.Context) {
 	for {
+		if ctx.Err() != nil {
+			if n := len(tl.queue); n > 0 {
+				tl.l.Warn().Int("lines", n).Msg("shutdown deadline passed; dropping queued serverless task log lines")
+			}
+
+			return
+		}
+
 		batch := tl.drain(nil)
 
 		if len(batch) == 0 {
 			return
 		}
 
-		tl.write(batch)
+		tl.write(ctx, batch)
 	}
 }
 
-// write inserts a batch, one statement per tenant: task ids resolve within a tenant.
-func (tl *taskLogger) write(batch []taskLogLine) {
+// write inserts a batch, one statement per tenant: task ids resolve within a tenant. Each
+// statement gets eventWriteTimeout within ctx.
+func (tl *taskLogger) write(ctx context.Context, batch []taskLogLine) {
 	byTenant := map[uuid.UUID][]repository.ServerlessTaskLogOpts{}
 
 	for _, line := range batch {
@@ -150,7 +170,7 @@ func (tl *taskLogger) write(batch []taskLogLine) {
 	}
 
 	for tenantId, lines := range byTenant {
-		ctx, cancel := context.WithTimeout(context.Background(), eventWriteTimeout)
+		ctx, cancel := context.WithTimeout(ctx, eventWriteTimeout)
 
 		if err := tl.repo.Insert(ctx, tenantId, lines); err != nil {
 			tl.l.Warn().Err(err).Str("tenant_id", tenantId.String()).Int("lines", len(lines)).Msg("could not write serverless task log lines")
@@ -160,13 +180,15 @@ func (tl *taskLogger) write(batch []taskLogLine) {
 	}
 }
 
-// stop flushes the queue and stops the writer. Lines queued afterwards are dropped.
-func (tl *taskLogger) stop() {
+// stop flushes the queue within ctx and stops the writer. Lines still queued when ctx ends,
+// or queued afterwards, are dropped.
+func (tl *taskLogger) stop(ctx context.Context) {
 	if tl == nil {
 		return
 	}
 
 	tl.stopOnce.Do(func() {
+		tl.stopCtx = ctx
 		close(tl.stopCh)
 	})
 

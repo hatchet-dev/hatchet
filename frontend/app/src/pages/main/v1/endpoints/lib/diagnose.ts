@@ -48,6 +48,14 @@ type FailureId = {
 // deliveries that failed within this window count as "currently failing"
 const RECENT_DELIVERY_FAILURE_MS = 15 * 60 * 1000;
 
+// The operator flips a healthy endpoint unhealthy after this many consecutive failed polls
+// (unhealthyAfterFailures in pkg/serverlessoperator). On an endpoint still healthy, a failure
+// streak that is still going on is therefore at most this many poll intervals old.
+const UNHEALTHY_AFTER_FAILURES = 3;
+
+// slack on top of the poll intervals, for the healthcheck itself and a busy operator
+const POLL_SLACK_MS = 30_000;
+
 export function statusCodeOf(error?: string): number | undefined {
   const match = error?.match(/status (\d{3})/);
   return match ? Number(match[1]) : undefined;
@@ -313,10 +321,16 @@ export function diagnoseEndpoint({
     V1ServerlessEndpointEventKind.HEALTHY,
     V1ServerlessEndpointEventKind.CATALOG_REGISTERED,
   ]);
+  // the status flipping back to healthy is a recovery too, should its event be missing
+  const healthyAt = Math.max(
+    lastHealthy ? Date.parse(lastHealthy.createdAt) : -Infinity,
+    status.healthy && status.changedAt
+      ? Date.parse(status.changedAt)
+      : -Infinity,
+  );
   const failingSinceHealthy =
-    lastFailure &&
-    (!lastHealthy ||
-      Date.parse(lastFailure.createdAt) > Date.parse(lastHealthy.createdAt));
+    lastFailure && Date.parse(lastFailure.createdAt) > healthyAt;
+  const pollMs = endpoint.pollIntervalSeconds * 1000;
 
   if (status.healthy === undefined) {
     if (lastFailure) {
@@ -332,7 +346,6 @@ export function diagnoseEndpoint({
       );
     }
 
-    const pollMs = endpoint.pollIntervalSeconds * 1000;
     const age = now - Date.parse(endpoint.metadata.createdAt);
 
     // a few poll intervals without a single healthcheck: nothing is polling the endpoint
@@ -358,14 +371,21 @@ export function diagnoseEndpoint({
   }
 
   if (status.healthy === false) {
+    // The status error is the failure to explain. Only an event of that same failure can
+    // add its details: a later, suppressed failure may have changed the status error.
+    const sameFailure =
+      status.error === undefined || lastFailure?.message === status.error
+        ? lastFailure
+        : undefined;
+
     return withSeverity(
       'error',
       explainFailure(kind, {
         deployment,
         request: 'healthcheck',
         error: status.error ?? lastFailure?.message,
-        statusCode: lastFailure?.details.statusCode,
-        stage: lastFailure?.details.stage,
+        statusCode: sameFailure?.details.statusCode,
+        stage: sameFailure?.details.stage,
       }),
     );
   }
@@ -394,7 +414,16 @@ export function diagnoseEndpoint({
     };
   }
 
-  if (failingSinceHealthy && lastFailure) {
+  // A streak too short to flip the status leaves no trace when it ends: HEALTHY is only
+  // recorded when the status flips. So a failure counts as current only while the streak
+  // that started with it could still be going on without having flipped the status.
+  const failingNow =
+    failingSinceHealthy &&
+    lastFailure &&
+    now - Date.parse(lastFailure.createdAt) <
+      pollMs * UNHEALTHY_AFTER_FAILURES + POLL_SLACK_MS;
+
+  if (failingNow && lastFailure) {
     const explanation = explainFailure(kind, {
       deployment,
       request: 'healthcheck',

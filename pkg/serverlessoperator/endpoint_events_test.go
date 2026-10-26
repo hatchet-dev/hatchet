@@ -330,7 +330,7 @@ func TestDeliveryFailedEventsAreRateLimited(t *testing.T) {
 	now = now.Add(failureEventWindow)
 	rec.deliveryFailed(ep, "after the window", &eventDetails{})
 
-	rec.stop()
+	rec.stop(context.Background())
 
 	rows := repo.EventRows()
 	require.Len(t, rows, 3)
@@ -430,7 +430,7 @@ func TestEventDetailsAreSafeAndBounded(t *testing.T) {
 	}
 
 	rec.record(ep, sqlcv1.V1ServerlessEndpointEventKindCATALOGREJECTED, "engine rejected workflow bad\x00name\x1b[2K", details)
-	rec.stop()
+	rec.stop(context.Background())
 
 	rows := repo.EventRows()
 	require.Len(t, rows, 1)
@@ -481,7 +481,7 @@ func TestFailureEventsAreLimitedPerKind(t *testing.T) {
 	clock.advance(failureEventWindow)
 	rec.record(ep, sqlcv1.V1ServerlessEndpointEventKindHEALTHCHECKFAILED, "healthcheck returned status 599", &eventDetails{})
 
-	rec.stop()
+	rec.stop(context.Background())
 
 	failed := eventsOfKind(repo, sqlcv1.V1ServerlessEndpointEventKindHEALTHCHECKFAILED)
 	require.Len(t, failed, 2)
@@ -516,7 +516,7 @@ func TestEndpointEventBudget(t *testing.T) {
 	clock.advance(endpointEventBudgetPeriod)
 	rec.record(ep, sqlcv1.V1ServerlessEndpointEventKindCATALOGREGISTERED, "next period", nil)
 
-	rec.stop()
+	rec.stop(context.Background())
 
 	rows := repo.EventRows()
 	require.Len(t, rows, endpointEventBudget+2)
@@ -532,7 +532,7 @@ func TestEventRecorderForgetsIdleEndpoints(t *testing.T) {
 	l := zerolog.Nop()
 
 	rec := newEventRecorder(repo.Events(), &l)
-	defer rec.stop()
+	defer rec.stop(context.Background())
 
 	clock := newTestClock()
 	rec.now = clock.now
@@ -580,7 +580,7 @@ func TestEventWriteIsolatesRefusedRows(t *testing.T) {
 	events := &rowFailingEvents{}
 	rec := &eventRecorder{repo: events, l: &l}
 
-	rec.write([]repository.ServerlessEndpointEventOpts{
+	rec.write(context.Background(), []repository.ServerlessEndpointEventOpts{
 		{Message: "one", TenantId: uuid.New()},
 		{Message: "bad row", TenantId: uuid.New()},
 		{Message: "two", TenantId: uuid.New()},
@@ -590,4 +590,74 @@ func TestEventWriteIsolatesRefusedRows(t *testing.T) {
 	assert.Equal(t, "one", events.inserted[0].Message)
 	assert.Equal(t, "two", events.inserted[1].Message)
 	assert.Equal(t, 4, events.calls, "the batch, then each row")
+}
+
+// blockingEventRepo holds every Insert until released, and remembers each batch it saw.
+type blockingEventRepo struct {
+	repository.ServerlessEndpointEventRepository
+	started chan struct{}
+	release chan struct{}
+	mu      sync.Mutex
+	batches [][]repository.ServerlessEndpointEventOpts
+}
+
+func (b *blockingEventRepo) Insert(ctx context.Context, events []repository.ServerlessEndpointEventOpts) error {
+	b.mu.Lock()
+	b.batches = append(b.batches, events)
+	b.mu.Unlock()
+
+	b.started <- struct{}{}
+
+	select {
+	case <-b.release:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (b *blockingEventRepo) seen() [][]repository.ServerlessEndpointEventOpts {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	return b.batches
+}
+
+// Events still queued when the shutdown deadline has passed are dropped rather than written
+// one slow statement at a time.
+func TestEventRecorderDropsQueuedEventsPastShutdownDeadline(t *testing.T) {
+	repo := &blockingEventRepo{started: make(chan struct{}, 1), release: make(chan struct{})}
+	l := zerolog.Nop()
+
+	rec := newEventRecorder(repo, &l)
+	ep := &cachedEndpoint{id: uuid.New(), tenantId: uuid.New()}
+
+	rec.record(ep, sqlcv1.V1ServerlessEndpointEventKindHEALTHY, "first", nil)
+	<-repo.started // the writer is inside Insert with the first event
+
+	rec.record(ep, sqlcv1.V1ServerlessEndpointEventKindUNHEALTHY, "second", nil)
+	rec.record(ep, sqlcv1.V1ServerlessEndpointEventKindHEALTHY, "third", nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	stopped := make(chan struct{})
+
+	go func() {
+		rec.stop(ctx)
+		close(stopped)
+	}()
+
+	<-rec.stopCh // stop has asked the writer to finish
+	close(repo.release)
+
+	select {
+	case <-stopped:
+	case <-time.After(5 * time.Second):
+		t.Fatal("stop did not return once the shutdown deadline had passed")
+	}
+
+	batches := repo.seen()
+	require.Len(t, batches, 1)
+	assert.Equal(t, "first", batches[0][0].Message)
 }

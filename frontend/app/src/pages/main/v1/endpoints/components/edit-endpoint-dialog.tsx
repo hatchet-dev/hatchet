@@ -2,9 +2,9 @@ import {
   buildUpdateRequest,
   EndpointUpdateFormData,
   endpointUpdateFormSchema,
-  labelsToRows,
   useEndpointMutations,
 } from '../hooks/use-endpoints';
+import { labelsToRows } from '../lib/labels';
 import { PLATFORM_ORDER, PLATFORMS } from '../lib/platforms';
 import { Copy, t } from './copy';
 import {
@@ -95,7 +95,10 @@ export const EditEndpointDialog = ({
     setApiErrors([]);
 
     update.mutate(
-      { endpointId: endpoint.metadata.id, data: buildUpdateRequest(data) },
+      {
+        endpointId: endpoint.metadata.id,
+        data: buildUpdateRequest(data, endpoint.labels),
+      },
       {
         onSuccess: () => onOpenChange(false),
         onError: (error) => handleApiError(error as AxiosError),

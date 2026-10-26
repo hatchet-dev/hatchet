@@ -166,8 +166,10 @@ type eventRecorder struct {
 	done      chan struct{}
 	endpoints map[uuid.UUID]*endpointEvents
 	dropped   atomic.Int64
-	stopOnce  sync.Once
-	mu        sync.Mutex
+	// stopCtx bounds the flush at shutdown; set by stop before stopCh is closed.
+	stopCtx  context.Context
+	stopOnce sync.Once
+	mu       sync.Mutex
 }
 
 func newEventRecorder(repo repository.ServerlessEndpointEventRepository, l *zerolog.Logger) *eventRecorder {
@@ -323,12 +325,20 @@ func (rec *eventRecorder) run() {
 	defer close(rec.done)
 
 	for {
+		// A stop takes precedence over queued events, so they are flushed under its deadline.
 		select {
 		case <-rec.stopCh:
-			rec.flush()
+			rec.flush(rec.stopCtx)
+			return
+		default:
+		}
+
+		select {
+		case <-rec.stopCh:
+			rec.flush(rec.stopCtx)
 			return
 		case ev := <-rec.queue:
-			rec.write(rec.drain([]repository.ServerlessEndpointEventOpts{ev}))
+			rec.write(context.Background(), rec.drain([]repository.ServerlessEndpointEventOpts{ev}))
 		}
 	}
 }
@@ -347,21 +357,31 @@ func (rec *eventRecorder) drain(batch []repository.ServerlessEndpointEventOpts) 
 	return batch
 }
 
-// flush writes what is queued at shutdown, without waiting for more.
-func (rec *eventRecorder) flush() {
+// flush writes what is queued at shutdown, without waiting for more. Once ctx ends, what is
+// still queued is dropped: a slow database must not hold the process past its deadline.
+func (rec *eventRecorder) flush(ctx context.Context) {
 	for {
+		if ctx.Err() != nil {
+			if n := len(rec.queue); n > 0 {
+				rec.l.Warn().Int("events", n).Msg("shutdown deadline passed; dropping queued serverless endpoint events")
+			}
+
+			return
+		}
+
 		batch := rec.drain(nil)
 
 		if len(batch) == 0 {
 			return
 		}
 
-		rec.write(batch)
+		rec.write(ctx, batch)
 	}
 }
 
-func (rec *eventRecorder) write(batch []repository.ServerlessEndpointEventOpts) {
-	ctx, cancel := context.WithTimeout(context.Background(), eventWriteTimeout)
+// write inserts a batch with eventWriteTimeout within ctx.
+func (rec *eventRecorder) write(ctx context.Context, batch []repository.ServerlessEndpointEventOpts) {
+	ctx, cancel := context.WithTimeout(ctx, eventWriteTimeout)
 	defer cancel()
 
 	err := rec.repo.Insert(ctx, batch)
@@ -394,13 +414,15 @@ func (rec *eventRecorder) write(batch []repository.ServerlessEndpointEventOpts) 
 	}
 }
 
-// stop flushes the queue and stops the writer. Events recorded afterwards are dropped.
-func (rec *eventRecorder) stop() {
+// stop flushes the queue within ctx and stops the writer. Events still queued when ctx
+// ends, or recorded afterwards, are dropped.
+func (rec *eventRecorder) stop(ctx context.Context) {
 	if rec == nil {
 		return
 	}
 
 	rec.stopOnce.Do(func() {
+		rec.stopCtx = ctx
 		close(rec.stopCh)
 	})
 
