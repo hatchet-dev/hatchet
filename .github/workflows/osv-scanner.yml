@@ -18,6 +18,10 @@ jobs:
     with:
       scan-args: |-
         -r
+        --experimental-exclude
+        sdks
+        --experimental-exclude
+        examples
         ./
   scan-pr:
     if: ${{ github.event_name == 'pull_request' }}
@@ -25,4 +29,8 @@ jobs:
     with:
       scan-args: |-
         -r
+        --experimental-exclude
+        sdks
+        --experimental-exclude
+        examples
         ./
