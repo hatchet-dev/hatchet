@@ -114,6 +114,22 @@ function entryResult(
   };
 }
 
+/**
+ * Runs `fn` on a later event-loop turn, a macrotask, without a timer: a timer would be held
+ * back by fake timers in tests and counted as pending, while a message port turn runs on
+ * Node, workerd and Vercel alike.
+ */
+function nextTurn(fn: () => void): void {
+  const { port1, port2 } = new MessageChannel();
+
+  port1.onmessage = () => {
+    port1.close();
+    port2.close();
+    fn();
+  };
+  port2.postMessage(undefined);
+}
+
 export class FrameTransport implements DurableTransport {
   private seq = 0;
   private inFlight: Deferred<DurableTaskResponse> | undefined;
@@ -299,8 +315,12 @@ export class FrameTransport implements DurableTransport {
 
   /**
    * Hands queued completions to their waiters strictly in delivery order, stopping at the
-   * first one whose waiter has not registered yet, with a microtask between releases so a
-   * resumed waiter reaches its next durable event before the following completion lands.
+   * first one whose waiter has not registered yet, with a macrotask boundary between
+   * releases, as the worker's listener keeps: a resumed waiter then runs through every
+   * nested promise callback to its next durable event before the following completion
+   * lands, so two branches resumed together emit their next events in release order
+   * rather than in the order their continuations happened to be attached. A microtask is
+   * not enough for a wait with more nested callbacks than its neighbour.
    */
   private drain(): void {
     if (this.draining) {
@@ -320,7 +340,7 @@ export class FrameTransport implements DurableTransport {
 
       this.completions.shift();
       this.settleCallback(head.key, waiter, head.result);
-      queueMicrotask(step);
+      nextTurn(step);
     };
 
     step();

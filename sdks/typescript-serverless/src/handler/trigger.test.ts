@@ -97,15 +97,31 @@ describe('trigger outcomes', () => {
     expect((outcome as { output: { echo: string } }).output.echo).toBe('hi');
   });
 
-  it('returns undefined: 204 with no body', async () => {
+  it('returns undefined: 204 with no body, which the engine stores as an empty output', async () => {
     const op = operator();
 
     expect(await op.deliver(nothing, {})).toEqual({
       status: 'completed',
-      output: undefined,
+      output: {},
       httpStatus: 204,
     });
-    expect(await op.invoke(nothing, {})).toBeUndefined();
+    expect(await op.invoke(nothing, {})).toEqual({});
+  });
+
+  it('fails an output over the operator response limit without a retry, as the operator does', async () => {
+    const big = hatchet.task({
+      name: 'big-pure',
+      hatchetClient: false,
+      fn: async () => ({ blob: 'x'.repeat(4 * 1024 * 1024) }),
+    });
+    const op = operator({ workflows: [big] });
+
+    expect(await op.deliver(big, {})).toEqual({
+      status: 'failed',
+      error: 'response body exceeded the 4 MiB limit',
+      retry: false,
+      httpStatus: 200,
+    });
   });
 
   it('throws NonRetryableError: 422, retry false', async () => {

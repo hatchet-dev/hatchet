@@ -748,6 +748,19 @@ describe('clientConfigFromEnv', () => {
     ).toEqual({ token: 't' });
   });
 
+  it('accepts the resolver forms the client supports in front of the host and port', () => {
+    for (const hostPort of [
+      'dns:///engine.example.com:7070',
+      'dns:engine.example.com:7070',
+      'ipv4:10.0.0.1:7070',
+      'ipv6:[::1]:7070',
+    ]) {
+      expect(
+        clientConfigFromEnv({ HATCHET_CLIENT_TOKEN: 't', HATCHET_CLIENT_HOST_PORT: hostPort })
+      ).toEqual({ token: 't', hostPort });
+    }
+  });
+
   it('refuses a host and port carrying a path, query, fragment or user info', () => {
     for (const hostPort of ['engine.example/api', 'engine.example:7070/api', 'a@b:1', 'x:1?y']) {
       expect(() =>

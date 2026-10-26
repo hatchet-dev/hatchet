@@ -608,7 +608,7 @@ class ActiveInvocation implements DurableRun {
       this.violation = reason;
       this.settle(
         'failed',
-        { error: `protocol violation: ${reason}`, retry: true },
+        { error: `protocol violation: ${reason}`, retry: false },
         this.httpStatus,
         1009,
         reason

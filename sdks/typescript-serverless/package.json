@@ -36,14 +36,12 @@
     },
     "./vercel": {
       "types": "./dist/adapters/vercel.d.ts",
-      "node": "./dist/adapters/vercel.js",
       "import": "./dist/adapters/vercel.js",
       "require": "./dist/adapters/vercel.cjs",
       "default": "./dist/adapters/vercel.js"
     },
     "./node": {
       "types": "./dist/adapters/node.d.ts",
-      "node": "./dist/adapters/node.js",
       "import": "./dist/adapters/node.js",
       "require": "./dist/adapters/node.cjs",
       "default": "./dist/adapters/node.js"

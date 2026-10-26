@@ -21,6 +21,7 @@ import {
 import { createHandler, type HandlerOptions, type ServerlessHandler } from '../handler';
 import {
   ENDPOINT_ID_HEADER,
+  OPERATOR_MAX_FRAME_BYTES,
   SIGNATURE_HEADER,
   TIMESTAMP_HEADER,
   TRIGGER_ENVELOPE_VERSION,
@@ -427,21 +428,32 @@ function resolveTarget(target: InvokeTarget): { workflowName: string; taskName: 
 }
 
 /**
- * Mirrors pkg/serverlessoperator/delivery.go classifyResponse: 204 completes with no
- * output, 2xx JSON is the output, 4xx is permanent except 408, 425 and 429, 5xx is
- * retryable, and a ServerlessTriggerError body overrides message and retry on non-2xx.
+ * Mirrors pkg/serverlessoperator/delivery.go classifyResponse: 204 and an empty 2xx body
+ * complete with `{}` (what the engine stores for a task without output), 2xx JSON is the
+ * output, a body over the operator's 4 MiB limit fails without a retry, 4xx is permanent
+ * except 408, 425 and 429, 5xx is retryable, and a ServerlessTriggerError body overrides
+ * message and retry on non-2xx.
  */
 export async function classifyResponse(response: Response): Promise<DeliveryOutcome> {
   const httpStatus = response.status;
   const text = await response.text();
 
+  if (new TextEncoder().encode(text).byteLength > OPERATOR_MAX_FRAME_BYTES) {
+    return {
+      status: 'failed',
+      error: 'response body exceeded the 4 MiB limit',
+      retry: false,
+      httpStatus,
+    };
+  }
+
   if (httpStatus === 204) {
-    return { status: 'completed', output: undefined, httpStatus };
+    return { status: 'completed', output: {}, httpStatus };
   }
 
   if (httpStatus >= 200 && httpStatus < 300) {
     if (text.length === 0) {
-      return { status: 'completed', output: undefined, httpStatus };
+      return { status: 'completed', output: {}, httpStatus };
     }
 
     try {

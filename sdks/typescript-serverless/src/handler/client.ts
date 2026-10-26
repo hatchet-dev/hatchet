@@ -48,8 +48,11 @@ export function clientConfigFromEnv(
 
     // The client turns it into the base URL of its calls, so a path, query, fragment or user
     // info in it would become a prefix of every call instead of failing; a URL belongs in
-    // the `serverUrl` option, not here.
-    if (/[/?#@\s]/.test(hostPort)) {
+    // the `serverUrl` option, not here. The resolver forms the client accepts (`dns:`,
+    // `dns:///`, `ipv4:`, `ipv6:`) are allowed in front of the host and port.
+    const bare = hostPort.replace(/^(?:dns|ipv4|ipv6):(?:\/\/[^/]*\/)?/, '');
+
+    if (/[/?#@\s]/.test(bare)) {
       throw new Error(
         `HATCHET_CLIENT_HOST_PORT must be a host and port such as localhost:7070, got ${JSON.stringify(hostPort)}; a full URL goes in the client's serverUrl option`
       );

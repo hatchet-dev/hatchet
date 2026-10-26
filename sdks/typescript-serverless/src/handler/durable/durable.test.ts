@@ -190,6 +190,7 @@ describe('durable invocations', () => {
     expect(result.error).toMatch(
       /protocol violation: endpoint frame exceeded the 4194304 byte limit/
     );
+    expect(result.retry).toBe(false);
     expect(result.closeCode).toBe(1009);
   });
 
