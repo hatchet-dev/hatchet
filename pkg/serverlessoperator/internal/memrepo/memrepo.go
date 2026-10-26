@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -190,9 +191,7 @@ func (r *Repo) SetEntitled(tenantId uuid.UUID, entitled bool) {
 }
 
 func (r *Repo) entitledLocked(tenantId uuid.UUID) bool {
-	_, off := r.unentitled[tenantId]
-
-	return !off
+	return !enumerables.HasKey(r.unentitled, tenantId)
 }
 
 // AddEndpoint stores a copy of ep, stamps updated_at, and creates or bumps its lease unit.
@@ -332,11 +331,7 @@ func (e *endpoints) ListForUnits(_ context.Context, units []Unit, afterId uuid.U
 	e.r.mu.Lock()
 	defer e.r.mu.Unlock()
 
-	want := map[Unit]struct{}{}
-
-	for _, u := range units {
-		want[u] = struct{}{}
-	}
+	want := enumerables.ToSet(units, func(u Unit) Unit { return u })
 
 	out := make([]*sqlcv1.V1ServerlessEndpoint, 0)
 

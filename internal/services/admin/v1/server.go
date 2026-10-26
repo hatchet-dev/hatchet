@@ -12,7 +12,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/hatchet-dev/hatchet/internal/listutils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/task/trigger"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
@@ -689,9 +689,9 @@ func (a *AdminServiceImpl) GetRunDetails(ctx context.Context, req *contracts.Get
 		}
 	}
 
-	done := !listutils.Any(statuses, "QUEUED") && !listutils.Any(statuses, "RUNNING") && !listutils.Any(statuses, "EVICTED")
+	done := !enumerables.Any(statuses, "QUEUED") && !enumerables.Any(statuses, "RUNNING") && !enumerables.Any(statuses, "EVICTED")
 
-	anyEvicted := listutils.Any(statuses, "EVICTED")
+	anyEvicted := enumerables.Any(statuses, "EVICTED")
 
 	derivedStatusPtr, err := derivedWorkflowRunStatus.ToProto()
 

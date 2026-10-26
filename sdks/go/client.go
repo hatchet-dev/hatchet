@@ -387,16 +387,20 @@ func (w *Worker) wrapDurableAction(actionID string, fn internal.WrappedTaskFn) f
 
 		key := ctx.StepRunId()
 
+		// The engine omits invocation_count on the first invocation of a durable
+		// task (no entry in the durable event log yet). Treat zero as the implicit
+		// first attempt.
+		invCount := ctx.DurableTaskInvocationCount()
+		if invCount == 0 {
+			invCount = 1
+		}
+
+		if w.durableTaskListener != nil {
+			defer w.durableTaskListener.CleanupTaskState(key, invCount)
+		}
+
 		var evictionHook worker.DurableEvictionHook
 		if w.evictionManager != nil {
-			// The engine omits invocation_count on the first invocation of a durable
-			// task (no entry in the durable event log yet). Treat zero as the implicit
-			// first attempt.
-			invCount := ctx.DurableTaskInvocationCount()
-			if invCount == 0 {
-				invCount = 1
-			}
-
 			var ep *evictionpkg.EvictionPolicy
 			if policy, ok := w.evictionPolicies[actionID]; ok {
 				ep = &evictionpkg.EvictionPolicy{

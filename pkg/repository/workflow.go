@@ -16,7 +16,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/digest"
-	"github.com/hatchet-dev/hatchet/internal/listutils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -319,11 +319,11 @@ func (r *workflowRepository) ListWorkflowNamesByIds(ctx context.Context, tenantI
 		return nil, err
 	}
 
-	workflowIdToNameMap := make(map[uuid.UUID]string)
-
-	for _, row := range workflowNames {
-		workflowIdToNameMap[row.ID] = row.Name
-	}
+	workflowIdToNameMap := enumerables.ToMap(
+		workflowNames,
+		func(row *sqlcv1.ListWorkflowNamesByIdsRow) uuid.UUID { return row.ID },
+		func(row *sqlcv1.ListWorkflowNamesByIdsRow) string { return row.Name },
+	)
 
 	return workflowIdToNameMap, nil
 }
@@ -468,19 +468,13 @@ func (r *workflowRepository) getTenantStrategiesForEntries(ctx context.Context, 
 		return nil, err
 	}
 
-	strategiesByName := make(map[string]*sqlcv1.V1TenantConcurrency, len(strategies))
+	strategiesByName := enumerables.KeyBy(strategies, func(strategy *sqlcv1.V1TenantConcurrency) string {
+		return strategy.Name
+	})
 
-	for _, strategy := range strategies {
-		strategiesByName[strategy.Name] = strategy
-	}
-
-	missingNames := make([]string, 0)
-
-	for _, name := range names {
-		if _, ok := strategiesByName[name]; !ok {
-			missingNames = append(missingNames, name)
-		}
-	}
+	missingNames := enumerables.Filter(names, func(name string) bool {
+		return !enumerables.HasKey(strategiesByName, name)
+	})
 
 	if len(missingNames) > 0 {
 		return nil, newTenantConcurrencyError("unknown tenant-scoped concurrency strategies: %s (step %s)", strings.Join(missingNames, ", "), stepReadableId)
@@ -2036,7 +2030,7 @@ func (r *workflowRepository) RequeueRateLimitPausedQueueItems(ctx context.Contex
 		}
 	}
 
-	return listutils.Uniq(allQueueNames), listutils.Uniq(allStrategyIds), nil
+	return enumerables.Uniq(allQueueNames), enumerables.Uniq(allStrategyIds), nil
 }
 
 type releasedHeldQueueItems struct {
@@ -2123,7 +2117,7 @@ func (r *workflowRepository) requeueHeldTasks(ctx context.Context, tx sqlcv1.DBT
 		return nil, nil, fmt.Errorf("could not requeue held concurrency slots: %w", err)
 	}
 
-	return listutils.Uniq(queueNames), listutils.Uniq(concurrencyStrategyIds), nil
+	return enumerables.Uniq(queueNames), enumerables.Uniq(concurrencyStrategyIds), nil
 }
 
 func (r *workflowRepository) ListUnpausedWorkflowsWithPausedQueueItems(ctx context.Context, tenantId uuid.UUID) ([]uuid.UUID, error) {
@@ -2234,10 +2228,11 @@ func stripTenantConcurrencyDefs(entries []CreateConcurrencyOpts) []CreateConcurr
 }
 
 func hasCycleV1(steps []CreateStepOpts) bool {
-	graph := make(map[string][]string)
-	for _, step := range steps {
-		graph[step.ReadableId] = step.Parents
-	}
+	graph := enumerables.ToMap(
+		steps,
+		func(step CreateStepOpts) string { return step.ReadableId },
+		func(step CreateStepOpts) []string { return step.Parents },
+	)
 
 	visited := make(map[string]bool)
 	var dfs func(string) bool

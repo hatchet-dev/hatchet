@@ -40,6 +40,9 @@ from examples.bug_tests.durable_dag_child.worker import (
 )
 from examples.bug_tests.durable_dag_replay_satisfied_order_gap.worker import replay_gap
 from examples.bug_tests.durable_evict_timeout.worker import evictable_durable
+from examples.bug_tests.durable_stream_reconnect_mid_wait.worker import (
+    durable_stream_reconnect_mid_wait,
+)
 from examples.bug_tests.durable_spawn_index_collision.worker import (
     durable_spawn_index_collision,
     spawn_index_child_a,
@@ -365,6 +368,7 @@ def main() -> None:
             durable_spawner_dag,
             mixed_spawner_dag,
             evictable_durable,
+            durable_stream_reconnect_mid_wait,
             replay_gap,
             callback_ordering_leaf,
             callback_ordering_mid,
