@@ -44,6 +44,7 @@ export enum FeatureFlagId {
   TraceMinimapEnabled = 'trace-minimap-enabled',
   OrganizationSsoEnabled = 'organization-sso-enabled',
   OperatorDetailsEnabled = 'operator-details-enabled',
+  ConcurrencyPageEnabled = 'concurrency-page-enabled',
 }
 
 export enum WebhookWorkerRequestMethod {

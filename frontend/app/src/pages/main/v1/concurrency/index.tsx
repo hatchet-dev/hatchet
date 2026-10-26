@@ -7,17 +7,31 @@ import {
 } from './hooks/use-concurrency';
 import { ConcurrencySearch, normalizeConcurrencySearch } from './search';
 import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
+import { FeatureFlagId, useIsFeatureEnabled } from '@/hooks/use-feature-flags';
 import { useLiveClock } from '@/hooks/use-live-clock';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { queries, V1ConcurrencyStrategy } from '@/lib/api';
 import { docsPages } from '@/lib/generated/docs';
+import { NotFound } from '@/pages/error/components/not-found';
 import { tenantConcurrencyRoute } from '@/router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef } from 'react';
 
 export default function ConcurrencyPage() {
   const { tenantId } = useCurrentTenantId();
+  const { isEnabled, isLoading } = useIsFeatureEnabled(
+    FeatureFlagId.ConcurrencyPageEnabled,
+    false,
+  );
+
+  if (isLoading) {
+    return null;
+  }
+
+  if (!isEnabled) {
+    return <NotFound />;
+  }
 
   return <Concurrency key={tenantId} tenantId={tenantId} />;
 }

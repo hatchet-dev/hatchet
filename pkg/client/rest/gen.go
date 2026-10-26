@@ -63,6 +63,7 @@ const (
 
 // Defines values for FeatureFlagId.
 const (
+	ConcurrencyPageEnabled         FeatureFlagId = "concurrency-page-enabled"
 	OperatorDetailsEnabled         FeatureFlagId = "operator-details-enabled"
 	OrganizationSsoEnabled         FeatureFlagId = "organization-sso-enabled"
 	TenantLogWorkflowFilterEnabled FeatureFlagId = "tenant-log-workflow-filter-enabled"

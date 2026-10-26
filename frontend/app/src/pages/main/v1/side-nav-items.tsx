@@ -24,6 +24,7 @@ export function sideNavItems(opts: {
   orgId?: string;
   hasManagedWorkers?: boolean;
   hasDurableStreams?: boolean;
+  isConcurrencyEnabled?: boolean;
 }): SideNavSection[] {
   return [
     {
@@ -250,16 +251,20 @@ export function sideNavItems(opts: {
             />
           ),
         },
-        {
-          key: 'concurrency',
-          name: 'Concurrency',
-          to: appRoutes.tenantConcurrencyRoute.to,
-          icon: ({ collapsed }: { collapsed: boolean }) => (
-            <RiLock2Line
-              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
-            />
-          ),
-        },
+        ...(opts.isConcurrencyEnabled
+          ? [
+              {
+                key: 'concurrency',
+                name: 'Concurrency',
+                to: appRoutes.tenantConcurrencyRoute.to,
+                icon: ({ collapsed }: { collapsed: boolean }) => (
+                  <RiLock2Line
+                    className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
+                  />
+                ),
+              },
+            ]
+          : []),
         {
           key: 'filters',
           name: 'Filters',
