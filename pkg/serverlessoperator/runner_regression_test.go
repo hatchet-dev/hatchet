@@ -284,9 +284,10 @@ func (r *blockedOpen) OpenDurable(ctx context.Context, _ uuid.UUID, _ int32) (op
 	return nil, ctx.Err()
 }
 
-// The in-engine handshake of a durable invocation is bounded by the endpoint's request
-// timeout like the rest of the invocation.
-func TestDurableHandshakeCarriesRequestDeadline(t *testing.T) {
+// The in-engine handshake of a durable invocation is bounded by the operator's durable
+// invocation timeout like the rest of the invocation, not by the endpoint's request timeout,
+// which bounds a trigger request and the socket of a non-durable task.
+func TestDurableHandshakeCarriesInvocationDeadline(t *testing.T) {
 	env := newTestEnv(t)
 	fake := newFakeSession(nil, operator.Registration{WorkerId: uuid.New()})
 	blocking := &blockedOpen{Session: fake, observed: make(chan context.Context, 1)}
@@ -309,8 +310,8 @@ func TestDurableHandshakeCarriesRequestDeadline(t *testing.T) {
 	cancel()
 	<-done
 
-	require.True(t, bounded, "requestTimeoutSeconds=1 but OpenDurable received a context without a deadline")
-	assert.WithinDuration(t, time.Now().Add(time.Second), deadline, 2*time.Second)
+	require.True(t, bounded, "OpenDurable received a context without a deadline")
+	assert.WithinDuration(t, time.Now().Add(env.r.cfg.DurableInvocationTimeout), deadline, 2*time.Second)
 }
 
 // blockingHost blocks Open for one tenant until released, standing in for a hung engine.

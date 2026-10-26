@@ -2,6 +2,7 @@ package serverlessoperator
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -95,6 +96,7 @@ func TestCoreConfigCarriesTheFile(t *testing.T) {
 	cf.EndpointPartitionCount = 4
 	cf.HealthPort = 9090
 	cf.InfraBlockedCIDRs = " 10.0.0.0/8, ,192.168.0.0/16 "
+	cf.DurableInvocationTimeout = 20 * time.Minute
 
 	core := cf.CoreConfig()
 
@@ -102,5 +104,6 @@ func TestCoreConfigCarriesTheFile(t *testing.T) {
 	assert.Equal(t, serverlessoperator.DefaultLinkName, core.LinkName)
 	assert.Equal(t, int32(4), core.EndpointPartitionCount)
 	assert.Equal(t, 9090, core.HealthPort)
+	assert.Equal(t, 20*time.Minute, core.DurableInvocationTimeout)
 	assert.Equal(t, []string{"10.0.0.0/8", "192.168.0.0/16"}, cf.InfraBlockedCIDRList())
 }

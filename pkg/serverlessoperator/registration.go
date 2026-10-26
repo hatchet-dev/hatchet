@@ -481,8 +481,9 @@ func (reg *registration) deliver(ctx context.Context, task *inflightTask, action
 // deliverOverSocket relays an invocation over the endpoint websocket: report STARTED, open
 // the invocation's durable channel through the session when the task is durable, and run the
 // relay, which owns the socket, the channel and the engine streams the endpoint opens until
-// the endpoint's done frame or a failure. The endpoint's request timeout bounds the whole
-// invocation, the host's handshake included.
+// the endpoint's done frame or a failure. The whole invocation, the host's handshake
+// included, is bounded by the operator's durable invocation timeout for a durable task and by
+// the endpoint's request timeout for a non-durable one.
 func (reg *registration) deliverOverSocket(ctx context.Context, task *inflightTask, action *contracts.AssignedAction, ep *cachedEndpoint, cfg *endpointConfig, start time.Time, invocation int32, durableTask bool) {
 	dialer, ok := reg.r.sender.(durable.NetDialer)
 
@@ -514,6 +515,12 @@ func (reg *registration) deliverOverSocket(ctx context.Context, task *inflightTa
 	}
 
 	timeout := requestTimeout(cfg)
+
+	if durableTask {
+		// The endpoint's request timeout bounds one trigger request; a durable invocation
+		// parks on waits and computes for as long as the task needs.
+		timeout = reg.r.cfg.DurableInvocationTimeout
+	}
 
 	rctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()

@@ -76,6 +76,10 @@ type ConfigFile struct {
 	WSMaxStreams            int   `mapstructure:"wsMaxStreams" default:"16"`
 	WSMaxRunsPerStream      int   `mapstructure:"wsMaxRunsPerStream" default:"1024"`
 
+	// DurableInvocationTimeout bounds one durable invocation's socket; an endpoint's
+	// requestTimeoutSeconds bounds a trigger request and a non-durable socket instead.
+	DurableInvocationTimeout time.Duration `mapstructure:"durableInvocationTimeout" default:"15m"`
+
 	// Outbound HTTP idle connection pool.
 	HTTPMaxIdleConns        int           `mapstructure:"httpMaxIdleConns" default:"256"`
 	HTTPMaxIdleConnsPerHost int           `mapstructure:"httpMaxIdleConnsPerHost" default:"4"`
@@ -251,5 +255,6 @@ func (cf *ConfigFile) CoreConfig() serverlessoperator.Config {
 		WSMaxQueuedBytes:             cf.WSMaxQueuedBytes,
 		WSMaxStreams:                 cf.WSMaxStreams,
 		WSMaxRunsPerStream:           cf.WSMaxRunsPerStream,
+		DurableInvocationTimeout:     cf.DurableInvocationTimeout,
 	}
 }

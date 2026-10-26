@@ -757,6 +757,11 @@ type ServerlessOperatorConfigFile struct {
 	// socket may await at once.
 	WSMaxRunsPerStream int `mapstructure:"wsMaxRunsPerStream" json:"wsMaxRunsPerStream,omitempty" default:"1024"`
 
+	// DurableInvocationTimeout bounds one durable invocation's socket, which parks on waits and computes for
+	// as long as the task needs; an endpoint's requestTimeoutSeconds bounds a trigger request and the socket
+	// of a non-durable task instead.
+	DurableInvocationTimeout time.Duration `mapstructure:"durableInvocationTimeout" json:"durableInvocationTimeout,omitempty" default:"15m"`
+
 	// HTTPMaxIdleConns, HTTPMaxIdleConnsPerHost and HTTPIdleConnTimeout bound the delivery client's idle
 	// connection pool (SERVER_SERVERLESS_OPERATOR_HTTP_*).
 	HTTPMaxIdleConns        int           `mapstructure:"httpMaxIdleConns" json:"httpMaxIdleConns,omitempty" default:"256"`
@@ -1047,6 +1052,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.serverlessOperator.wsMaxQueuedBytes", "SERVER_SERVERLESS_OPERATOR_WS_MAX_QUEUED_BYTES")
 	_ = v.BindEnv("runtime.serverlessOperator.wsMaxStreams", "SERVER_SERVERLESS_OPERATOR_WS_MAX_STREAMS")
 	_ = v.BindEnv("runtime.serverlessOperator.wsMaxRunsPerStream", "SERVER_SERVERLESS_OPERATOR_WS_MAX_RUNS_PER_STREAM")
+	_ = v.BindEnv("runtime.serverlessOperator.durableInvocationTimeout", "SERVER_SERVERLESS_OPERATOR_DURABLE_INVOCATION_TIMEOUT")
 	_ = v.BindEnv("runtime.serverlessOperator.httpMaxIdleConns", "SERVER_SERVERLESS_OPERATOR_HTTP_MAX_IDLE_CONNS")
 	_ = v.BindEnv("runtime.serverlessOperator.httpMaxIdleConnsPerHost", "SERVER_SERVERLESS_OPERATOR_HTTP_MAX_IDLE_CONNS_PER_HOST")
 	_ = v.BindEnv("runtime.serverlessOperator.httpIdleConnTimeout", "SERVER_SERVERLESS_OPERATOR_HTTP_IDLE_CONN_TIMEOUT")

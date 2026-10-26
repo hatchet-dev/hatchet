@@ -94,6 +94,11 @@ type Config struct {
 	// over a socket may await at once; a subscription past it closes the stream with
 	// ResourceExhausted.
 	WSMaxRunsPerStream int
+
+	// DurableInvocationTimeout bounds one durable invocation's socket, which parks on waits
+	// and computes for as long as the task needs. The endpoint's requestTimeoutSeconds bounds
+	// a trigger request and the socket of a non-durable task instead.
+	DurableInvocationTimeout time.Duration
 }
 
 const (
@@ -126,6 +131,9 @@ const (
 	DefaultWSMaxQueuedBytes        int64 = 16 * 1024 * 1024
 	DefaultWSMaxStreams                  = 16
 	DefaultWSMaxRunsPerStream            = 1024
+
+	// DefaultDurableInvocationTimeout bounds a durable invocation's socket.
+	DefaultDurableInvocationTimeout = 15 * time.Minute
 
 	// processSweepInterval and processExpiryCutoff drive the expired process row sweep every
 	// process runs.
@@ -187,6 +195,7 @@ func DefaultConfig() Config {
 		WSMaxQueuedBytes:             DefaultWSMaxQueuedBytes,
 		WSMaxStreams:                 DefaultWSMaxStreams,
 		WSMaxRunsPerStream:           DefaultWSMaxRunsPerStream,
+		DurableInvocationTimeout:     DefaultDurableInvocationTimeout,
 	}
 }
 
@@ -301,6 +310,10 @@ func (c Config) withDefaults() Config {
 
 	if c.WSMaxRunsPerStream <= 0 {
 		c.WSMaxRunsPerStream = d.WSMaxRunsPerStream
+	}
+
+	if c.DurableInvocationTimeout <= 0 {
+		c.DurableInvocationTimeout = d.DurableInvocationTimeout
 	}
 
 	return c
