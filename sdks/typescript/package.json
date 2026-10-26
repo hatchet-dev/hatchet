@@ -118,7 +118,7 @@
     "check:exports": "pnpm run tsc:build && node scripts/check-exports.mjs",
     "test:e2e": "jest --config jest.e2e.config.ts --silent --forceExit --runInBand",
     "test:unit:watch": "jest --testMatch='**/*.test.ts' --watch",
-    "generate": "pnpm run '/generate-.*/'",
+    "generate": "pnpm run generate-api && pnpm run generate-api-fetch && pnpm run generate-protoc && pnpm run generate-protoc-es && pnpm run generate-docs",
     "generate-api": "npx swagger-typescript-api@13.2.7 generate -p ../../bin/oas/openapi.yaml -o ./src/clients/rest/generated -n hatchet.ts --modular --axios",
     "generate-api-fetch": "npx swagger-typescript-api@13.2.7 generate -p ../../bin/oas/openapi.yaml -o ./src/clients/rest/generated-fetch -n hatchet.ts --modular && node scripts/share-rest-contracts.mjs && prettier --write \"src/clients/rest/generated-fetch/*.ts\"",
     "generate-protoc": "./generate-protoc.sh",
