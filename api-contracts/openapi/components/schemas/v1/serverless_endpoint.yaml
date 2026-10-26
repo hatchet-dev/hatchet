@@ -59,10 +59,7 @@ V1ServerlessEndpoint:
     requestTimeoutSeconds:
       type: integer
       format: int32
-      description: >-
-        The per-request timeout backstop for trigger requests and for the socket invocation
-        of a non-durable task, in seconds. Durable invocations are bounded by the operator's
-        durable invocation timeout instead.
+      description: The per-request timeout backstop for trigger requests, in seconds.
     pollIntervalSeconds:
       type: integer
       format: int32
@@ -129,10 +126,7 @@ V1CreateServerlessEndpointRequest:
     requestTimeoutSeconds:
       type: integer
       format: int32
-      description: >-
-        The per-request timeout backstop for trigger requests and for the socket invocation
-        of a non-durable task, in seconds. Durable invocations are bounded by the operator's
-        durable invocation timeout instead. Defaults to 60.
+      description: The per-request timeout backstop for trigger requests, in seconds. Defaults to 60.
     pollIntervalSeconds:
       type: integer
       format: int32
@@ -178,10 +172,7 @@ V1UpdateServerlessEndpointRequest:
     requestTimeoutSeconds:
       type: integer
       format: int32
-      description: >-
-        The per-request timeout backstop for trigger requests and for the socket invocation
-        of a non-durable task, in seconds. Durable invocations are bounded by the operator's
-        durable invocation timeout instead.
+      description: The per-request timeout backstop for trigger requests, in seconds.
     pollIntervalSeconds:
       type: integer
       format: int32
