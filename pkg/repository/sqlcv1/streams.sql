@@ -277,8 +277,9 @@ WHERE EXISTS (SELECT 1 FROM topic);
 -- name: ResetStreamTopic :exec
 -- Waits on the row lock a publish holds until commit (see
 -- ReserveStreamTopicOffsets), so every offset up to last_offset is stored.
+-- LEAST ignores a NULL startingOffset, and caps one past offsets yet reserved.
 UPDATE v1_stream_topic
-SET starting_offset = last_offset
+SET starting_offset = LEAST(sqlc.narg('startingOffset')::bigint, last_offset)
 WHERE tenant_id = @tenantId::uuid AND namespace = @namespace::text AND topic = @topic::text;
 
 -- name: GetStreamTopicStartingOffset :one

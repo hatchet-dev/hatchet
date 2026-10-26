@@ -356,14 +356,17 @@ export class StreamsClient {
   }
 
   /**
-   * Makes events() calls without a cursor start after the topic's latest
-   * message. Readers already iterating, and any call with a cursor, are
-   * unaffected.
+   * Makes events() calls without a cursor start after options.cursor, or the
+   * topic's latest message. Readers already iterating, and any call with a
+   * cursor, are unaffected.
    * @param topic - the topic to reset
-   * @param options - optional namespace override
+   * @param options - optional namespace override and cursor to reset to
    */
-  async reset(topic: string, options?: Pick<StreamCallOptions, 'namespace'>): Promise<void> {
-    await this.grpc.reset({ namespace: options?.namespace ?? '', topic });
+  async reset(
+    topic: string,
+    options?: Pick<StreamCallOptions, 'namespace' | 'cursor'>
+  ): Promise<void> {
+    await this.grpc.reset({ namespace: options?.namespace ?? '', topic, cursor: options?.cursor });
   }
 
   /**

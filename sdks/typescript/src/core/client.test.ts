@@ -1359,8 +1359,10 @@ describe('HatchetCore.streams', () => {
     });
 
     await client.streams.reset('progress', { namespace: 'ns' });
+    await client.streams.reset('progress', { namespace: 'ns', cursor: 'cursor-1' });
     expect(engine.resets).toEqual([
-      expect.objectContaining({ namespace: 'ns', topic: 'progress' }),
+      expect.not.objectContaining({ cursor: expect.anything() }),
+      expect.objectContaining({ namespace: 'ns', topic: 'progress', cursor: 'cursor-1' }),
     ]);
   });
 });
