@@ -132,7 +132,6 @@ type runner struct {
 	l            *zerolog.Logger
 	m            *metrics
 	events       *eventRecorder
-	taskLogs     *taskLogger
 	tenants      map[uuid.UUID]*tenantState
 	pending      map[lease.Unit]struct{}
 	hcSem        chan struct{}
@@ -152,12 +151,6 @@ func newRunner(deps Deps, cfg Config, m *metrics) *runner {
 	loopCtx, stopLoops := context.WithCancel(context.Background())
 	deliveryCtx, cancel := context.WithCancel(context.Background())
 
-	var taskLogs *taskLogger
-
-	if !deps.DisableTaskLogs {
-		taskLogs = newTaskLogger(deps.Repo.TaskLogs(), deps.Logger)
-	}
-
 	return &runner{
 		repo:         deps.Repo,
 		host:         deps.Host,
@@ -167,7 +160,6 @@ func newRunner(deps Deps, cfg Config, m *metrics) *runner {
 		l:            deps.Logger,
 		m:            m,
 		events:       newEventRecorder(deps.Repo.Events(), deps.Logger),
-		taskLogs:     taskLogs,
 		cfg:          cfg,
 		processId:    deps.ProcessId,
 		tenants:      map[uuid.UUID]*tenantState{},
@@ -638,8 +630,8 @@ func (r *runner) syncTenantActions(ctx context.Context, ts *tenantState) {
 
 // Shutdown is the graceful stop after leases were released: stop pollers, pause every
 // registration's worker, drain deliveries up to DrainTimeout, close the sessions, then wait
-// for every goroutine. The endpoint events and task log lines still queued are written
-// within ctx and dropped once it ends.
+// for every goroutine. The endpoint events still queued are written within ctx and dropped
+// once it ends.
 func (r *runner) Shutdown(ctx context.Context) {
 	r.mu.Lock()
 	tenants := r.tenants
@@ -687,9 +679,8 @@ func (r *runner) Shutdown(ctx context.Context) {
 	r.stopDelivery()
 	r.wg.Wait()
 
-	// After the pollers and deliveries, so their last events and log lines are flushed.
+	// After the pollers and deliveries, so their last events are flushed.
 	r.events.stop(ctx)
-	r.taskLogs.stop(ctx)
 
 	r.updateGauges()
 }

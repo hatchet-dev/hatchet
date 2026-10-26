@@ -215,7 +215,6 @@ export const COPY_KEYS = [
   'failure.unknown.title',
   'failure.unknown.detail',
   'failure.unknown.noMessage',
-  'taskLog.viewEndpoint',
 ] as const;
 
 export type CopyKey = (typeof COPY_KEYS)[number];

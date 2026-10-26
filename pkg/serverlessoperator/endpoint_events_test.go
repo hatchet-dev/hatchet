@@ -361,7 +361,7 @@ func TestEventRecorderDropsWhenFull(t *testing.T) {
 	ep := &cachedEndpoint{id: uuid.New(), tenantId: uuid.New()}
 
 	for range 5 {
-		rec.record(ep, sqlcv1.V1ServerlessEndpointEventKindHEALTHY, "healthy", nil)
+		rec.record(ep, sqlcv1.V1ServerlessEndpointEventKindCATALOGREGISTERED, "registered", nil)
 	}
 
 	assert.Len(t, rec.queue, 2)
@@ -660,4 +660,68 @@ func TestEventRecorderDropsQueuedEventsPastShutdownDeadline(t *testing.T) {
 	batches := repo.seen()
 	require.Len(t, batches, 1)
 	assert.Equal(t, "first", batches[0][0].Message)
+}
+
+// A failure streak too short to flip the status ends with a HEALTHY event, so the dashboard
+// can tell it is over; a streak that flipped the status ends with the transition alone.
+func TestShortFailureStreakEndsWithRecoveryEvent(t *testing.T) {
+	env := newTestEnv(t)
+	tenant := uuid.New()
+
+	a := newEndpointRow(endpointSpec{tenantId: tenant, name: "a", enabled: true})
+	a.RegisteredActions = []string{"svc:a"}
+	env.addEndpoint(a)
+
+	clock := newTestClock()
+	env.r.events.now = clock.now
+
+	env.r.UnitsGained(context.Background(), []memrepo.Unit{env.unit(a)})
+
+	require.Eventually(t, func() bool {
+		return len(eventsOfKind(env.repo, sqlcv1.V1ServerlessEndpointEventKindHEALTHY)) == 1
+	}, eventually, 10*time.Millisecond)
+
+	poller := env.poller(a)
+	require.NotNil(t, poller)
+	poller.stop()
+
+	// Two failures, then a success: the status never flipped.
+	env.sender.respond(a.HealthcheckUrl, http.StatusBadGateway, "upstream down")
+	poller.pollOnce(context.Background())
+	poller.pollOnce(context.Background())
+
+	clock.advance(failureEventWindow)
+	env.sender.respond(a.HealthcheckUrl, http.StatusOK, healthcheckBody("svc:a"))
+	poller.pollOnce(context.Background())
+
+	require.Eventually(t, func() bool {
+		return len(eventsOfKind(env.repo, sqlcv1.V1ServerlessEndpointEventKindHEALTHY)) == 2
+	}, eventually, 10*time.Millisecond)
+
+	recovered := eventsOfKind(env.repo, sqlcv1.V1ServerlessEndpointEventKindHEALTHY)[1]
+	assert.Equal(t, "healthchecks succeed again after 2 failed polls", recovered.Message)
+	assert.Empty(t, eventsOfKind(env.repo, sqlcv1.V1ServerlessEndpointEventKindUNHEALTHY))
+	assert.True(t, poller.ts.cache.Config(poller.ep).healthy)
+
+	// A success without a failure before it records nothing.
+	poller.pollOnce(context.Background())
+	time.Sleep(50 * time.Millisecond)
+	assert.Len(t, eventsOfKind(env.repo, sqlcv1.V1ServerlessEndpointEventKindHEALTHY), 2)
+
+	// A streak that flips the status ends with the transition alone.
+	clock.advance(failureEventWindow)
+	env.sender.respond(a.HealthcheckUrl, http.StatusBadGateway, "upstream down")
+
+	for range 3 {
+		poller.pollOnce(context.Background())
+	}
+
+	clock.advance(failureEventWindow)
+	env.sender.respond(a.HealthcheckUrl, http.StatusOK, healthcheckBody("svc:a"))
+	poller.pollOnce(context.Background())
+
+	require.Eventually(t, func() bool {
+		return len(eventsOfKind(env.repo, sqlcv1.V1ServerlessEndpointEventKindHEALTHY)) == 3
+	}, eventually, 10*time.Millisecond)
+	assert.Equal(t, "endpoint is healthy", eventsOfKind(env.repo, sqlcv1.V1ServerlessEndpointEventKindHEALTHY)[2].Message)
 }

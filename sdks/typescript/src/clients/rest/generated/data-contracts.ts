@@ -244,7 +244,7 @@ export enum V1ServerlessEndpointCheckStage {
   CATALOG = 'CATALOG',
 }
 
-/** HEALTHCHECK_FAILED: a healthcheck failed; recorded at the start of a failure streak and whenever the error changes. UNHEALTHY and HEALTHY: the endpoint's health flipped. CATALOG_REGISTERED: a changed set of workflows and actions was registered. CATALOG_REJECTED: the engine refused the declared workflows. DELIVERY_FAILED: a task delivered to the endpoint failed. HEALTHCHECK_FAILED, CATALOG_REJECTED and DELIVERY_FAILED are each recorded at most once per endpoint every 30 seconds, and an endpoint records at most 120 events an hour; what is held back is counted in details.suppressed of the next event of the same kind. */
+/** HEALTHCHECK_FAILED: a healthcheck failed; recorded at the start of a failure streak and whenever the error changes. UNHEALTHY: the endpoint's health flipped to unhealthy. HEALTHY: the endpoint's health flipped to healthy, or its healthchecks succeed again after a streak of failures too short to flip it. CATALOG_REGISTERED: a changed set of workflows and actions was registered. CATALOG_REJECTED: the engine refused the declared workflows. DELIVERY_FAILED: a task delivered to the endpoint failed. HEALTHCHECK_FAILED, CATALOG_REJECTED, DELIVERY_FAILED and HEALTHY are each recorded at most once per endpoint every 30 seconds, and an endpoint records at most 120 events an hour; what is held back is counted in details.suppressed of the next event of the same kind. */
 export enum V1ServerlessEndpointEventKind {
   HEALTHCHECK_FAILED = 'HEALTHCHECK_FAILED',
   UNHEALTHY = 'UNHEALTHY',
@@ -1469,7 +1469,7 @@ export interface V1ServerlessEndpointEvent {
   id: number;
   /** @format date-time */
   createdAt: string;
-  /** HEALTHCHECK_FAILED: a healthcheck failed; recorded at the start of a failure streak and whenever the error changes. UNHEALTHY and HEALTHY: the endpoint's health flipped. CATALOG_REGISTERED: a changed set of workflows and actions was registered. CATALOG_REJECTED: the engine refused the declared workflows. DELIVERY_FAILED: a task delivered to the endpoint failed. HEALTHCHECK_FAILED, CATALOG_REJECTED and DELIVERY_FAILED are each recorded at most once per endpoint every 30 seconds, and an endpoint records at most 120 events an hour; what is held back is counted in details.suppressed of the next event of the same kind. */
+  /** HEALTHCHECK_FAILED: a healthcheck failed; recorded at the start of a failure streak and whenever the error changes. UNHEALTHY: the endpoint's health flipped to unhealthy. HEALTHY: the endpoint's health flipped to healthy, or its healthchecks succeed again after a streak of failures too short to flip it. CATALOG_REGISTERED: a changed set of workflows and actions was registered. CATALOG_REJECTED: the engine refused the declared workflows. DELIVERY_FAILED: a task delivered to the endpoint failed. HEALTHCHECK_FAILED, CATALOG_REJECTED, DELIVERY_FAILED and HEALTHY are each recorded at most once per endpoint every 30 seconds, and an endpoint records at most 120 events an hour; what is held back is counted in details.suppressed of the next event of the same kind. */
   kind: V1ServerlessEndpointEventKind;
   message: string;
   details: V1ServerlessEndpointEventDetails;

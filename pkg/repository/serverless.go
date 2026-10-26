@@ -24,7 +24,6 @@ type ServerlessRepository interface {
 	Processes() ServerlessProcessRepository
 	Leases() ServerlessLeaseRepository
 	Events() ServerlessEndpointEventRepository
-	TaskLogs() ServerlessTaskLogRepository
 }
 
 // ServerlessUnit is one lease unit: the (tenant, partition) pair a process owns.
@@ -148,7 +147,6 @@ type serverlessRepository struct {
 	processes ServerlessProcessRepository
 	leases    ServerlessLeaseRepository
 	events    ServerlessEndpointEventRepository
-	taskLogs  ServerlessTaskLogRepository
 }
 
 func newServerlessRepository(shared *sharedRepository) ServerlessRepository {
@@ -158,7 +156,6 @@ func newServerlessRepository(shared *sharedRepository) ServerlessRepository {
 		processes: &serverlessProcessRepository{sharedRepository: shared},
 		leases:    &serverlessLeaseRepository{sharedRepository: shared},
 		events:    &serverlessEventRepository{sharedRepository: shared},
-		taskLogs:  &serverlessTaskLogRepository{sharedRepository: shared},
 	}
 }
 
@@ -191,10 +188,6 @@ func (r *serverlessRepository) Leases() ServerlessLeaseRepository {
 
 func (r *serverlessRepository) Events() ServerlessEndpointEventRepository {
 	return r.events
-}
-
-func (r *serverlessRepository) TaskLogs() ServerlessTaskLogRepository {
-	return r.taskLogs
 }
 
 // unitArrays splits units into the parallel arrays the unnest-based queries take.

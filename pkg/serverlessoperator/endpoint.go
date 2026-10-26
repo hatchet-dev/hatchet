@@ -215,10 +215,29 @@ func (p *endpointPoller) pollOnce(ctx context.Context) {
 	}
 
 	p.r.m.healthcheck("ok", time.Since(start))
+	failed := p.failures
 	p.failures = 0
 	p.lastFailureEvent = ""
 
-	p.writeStatusIfChanged(ctx, cfg, p.apply(ctx, res))
+	status := p.apply(ctx, res)
+
+	// A streak too short to flip the status ends without a status write, so its end is
+	// recorded here: the dashboard can then tell a failure that is over from one still
+	// going on. A streak that did flip the status ends with the HEALTHY transition instead.
+	if failed > 0 && status.healthy && cfg.healthKnown && cfg.healthy {
+		p.r.events.record(p.ep, sqlcv1.V1ServerlessEndpointEventKindHEALTHY,
+			fmt.Sprintf("healthchecks succeed again after %d failed %s", failed, pluralize(failed, "poll")), nil)
+	}
+
+	p.writeStatusIfChanged(ctx, cfg, status)
+}
+
+func pluralize(n int, word string) string {
+	if n == 1 {
+		return word
+	}
+
+	return word + "s"
 }
 
 // apply registers a changed catalog and returns the resulting status: healthy when the

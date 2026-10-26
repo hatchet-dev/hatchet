@@ -2056,7 +2056,7 @@ type V1ServerlessEndpointEvent struct {
 	Details   V1ServerlessEndpointEventDetails `json:"details"`
 	Id        int64                            `json:"id"`
 
-	// Kind HEALTHCHECK_FAILED: a healthcheck failed; recorded at the start of a failure streak and whenever the error changes. UNHEALTHY and HEALTHY: the endpoint's health flipped. CATALOG_REGISTERED: a changed set of workflows and actions was registered. CATALOG_REJECTED: the engine refused the declared workflows. DELIVERY_FAILED: a task delivered to the endpoint failed. HEALTHCHECK_FAILED, CATALOG_REJECTED and DELIVERY_FAILED are each recorded at most once per endpoint every 30 seconds, and an endpoint records at most 120 events an hour; what is held back is counted in details.suppressed of the next event of the same kind.
+	// Kind HEALTHCHECK_FAILED: a healthcheck failed; recorded at the start of a failure streak and whenever the error changes. UNHEALTHY: the endpoint's health flipped to unhealthy. HEALTHY: the endpoint's health flipped to healthy, or its healthchecks succeed again after a streak of failures too short to flip it. CATALOG_REGISTERED: a changed set of workflows and actions was registered. CATALOG_REJECTED: the engine refused the declared workflows. DELIVERY_FAILED: a task delivered to the endpoint failed. HEALTHCHECK_FAILED, CATALOG_REJECTED, DELIVERY_FAILED and HEALTHY are each recorded at most once per endpoint every 30 seconds, and an endpoint records at most 120 events an hour; what is held back is counted in details.suppressed of the next event of the same kind.
 	Kind    V1ServerlessEndpointEventKind `json:"kind"`
 	Message string                        `json:"message"`
 }
@@ -2088,7 +2088,7 @@ type V1ServerlessEndpointEventDetails struct {
 	Workflows *[]string `json:"workflows,omitempty"`
 }
 
-// V1ServerlessEndpointEventKind HEALTHCHECK_FAILED: a healthcheck failed; recorded at the start of a failure streak and whenever the error changes. UNHEALTHY and HEALTHY: the endpoint's health flipped. CATALOG_REGISTERED: a changed set of workflows and actions was registered. CATALOG_REJECTED: the engine refused the declared workflows. DELIVERY_FAILED: a task delivered to the endpoint failed. HEALTHCHECK_FAILED, CATALOG_REJECTED and DELIVERY_FAILED are each recorded at most once per endpoint every 30 seconds, and an endpoint records at most 120 events an hour; what is held back is counted in details.suppressed of the next event of the same kind.
+// V1ServerlessEndpointEventKind HEALTHCHECK_FAILED: a healthcheck failed; recorded at the start of a failure streak and whenever the error changes. UNHEALTHY: the endpoint's health flipped to unhealthy. HEALTHY: the endpoint's health flipped to healthy, or its healthchecks succeed again after a streak of failures too short to flip it. CATALOG_REGISTERED: a changed set of workflows and actions was registered. CATALOG_REJECTED: the engine refused the declared workflows. DELIVERY_FAILED: a task delivered to the endpoint failed. HEALTHCHECK_FAILED, CATALOG_REJECTED, DELIVERY_FAILED and HEALTHY are each recorded at most once per endpoint every 30 seconds, and an endpoint records at most 120 events an hour; what is held back is counted in details.suppressed of the next event of the same kind.
 type V1ServerlessEndpointEventKind string
 
 // V1ServerlessEndpointEventList defines model for V1ServerlessEndpointEventList.

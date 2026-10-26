@@ -57,7 +57,6 @@ type Repo struct {
 
 	// Recorded calls. Read them through the snapshot accessors below, which take the lock.
 	statusWrites  []StatusWrite
-	taskLogs      []TaskLog
 	actionWrites  []ActionWrite
 	heartbeats    []repository.UpsertServerlessProcessOpts
 	claimCalls    []int32

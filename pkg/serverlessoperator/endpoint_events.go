@@ -26,10 +26,12 @@ const (
 	// eventWriteTimeout bounds one batch insert, and the final flush at shutdown.
 	eventWriteTimeout = 5 * time.Second
 
-	// failureEventWindow is the least time between two events of one failure kind
-	// (HEALTHCHECK_FAILED, CATALOG_REJECTED, DELIVERY_FAILED) of one endpoint. The failures in
-	// between are counted on the next event of the kind instead, so a failing endpoint writes
-	// one row per window and kind, however often it fails and however its error text varies.
+	// failureEventWindow is the least time between two events of one windowed kind (the
+	// failure kinds HEALTHCHECK_FAILED, CATALOG_REJECTED and DELIVERY_FAILED, and HEALTHY,
+	// which also ends every failure streak) of one endpoint. The events in between are
+	// counted on the next event of the kind instead, so a failing or flapping endpoint
+	// writes one row per window and kind, however often it fails and however its error text
+	// varies.
 	failureEventWindow = 30 * time.Second
 
 	// endpointEventBudget is the most events of every kind one endpoint writes per
@@ -148,11 +150,12 @@ type endpointEvents struct {
 	overBudgetSeen bool
 }
 
-// windowedKinds are the failure kinds limited to one event per failureEventWindow.
+// windowedKinds are the kinds limited to one event per failureEventWindow.
 var windowedKinds = map[sqlcv1.V1ServerlessEndpointEventKind]bool{
 	sqlcv1.V1ServerlessEndpointEventKindHEALTHCHECKFAILED: true,
 	sqlcv1.V1ServerlessEndpointEventKindCATALOGREJECTED:   true,
 	sqlcv1.V1ServerlessEndpointEventKindDELIVERYFAILED:    true,
+	sqlcv1.V1ServerlessEndpointEventKindHEALTHY:           true,
 }
 
 // eventRecorder writes endpoint events off the caller's path: record only enqueues, and a

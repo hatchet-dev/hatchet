@@ -468,8 +468,6 @@ func (reg *registration) deliver(ctx context.Context, task *inflightTask, action
 		reg.r.l.Error().Err(err).Str("task_run_external_id", action.TaskRunExternalId).Msg("could not report task started")
 	}
 
-	reg.r.taskLogs.delivered(ep, cfg, action)
-
 	out := deliverAction(ctx, reg.r.sender, ep, cfg, action)
 
 	reg.r.m.delivered(out.result, time.Since(start))
@@ -545,8 +543,6 @@ func (reg *registration) deliverOverSocket(ctx context.Context, task *inflightTa
 	if err := reg.events.started(action); err != nil {
 		reg.r.l.Error().Err(err).Str("task_run_external_id", action.TaskRunExternalId).Msg("could not report task started")
 	}
-
-	reg.r.taskLogs.delivered(ep, cfg, action)
 
 	timeout := requestTimeout(cfg)
 

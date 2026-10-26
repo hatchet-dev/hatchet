@@ -85,8 +85,6 @@ func startServerlessOperator(sc *server.ServerConfig, d *dispatcher.DispatcherIm
 			Hostname:   hostname,
 			ProcessId:  d.DispatcherId(),
 			Config:     cfg,
-			// the delivery log lines are task logs, so they follow log ingestion
-			DisableTaskLogs: !sc.Runtime.LogIngestionEnabled,
 		})
 	})
 

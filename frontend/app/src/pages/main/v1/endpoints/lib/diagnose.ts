@@ -414,9 +414,9 @@ export function diagnoseEndpoint({
     };
   }
 
-  // A streak too short to flip the status leaves no trace when it ends: HEALTHY is only
-  // recorded when the status flips. So a failure counts as current only while the streak
-  // that started with it could still be going on without having flipped the status.
+  // The operator records HEALTHY when a streak ends, but that event may be rate limited
+  // or lost. So a failure also stops counting as current once the streak that started
+  // with it could no longer be going on without having flipped the status.
   const failingNow =
     failingSinceHealthy &&
     lastFailure &&
