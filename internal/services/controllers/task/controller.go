@@ -14,7 +14,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/hatchet-dev/hatchet/internal/listutils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 
 	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/internal/datautils"
@@ -1471,17 +1471,17 @@ func (tc *TasksControllerImpl) handlePauseWorkflow(ctx context.Context, tenantId
 
 func (tc *TasksControllerImpl) handleRateLimitPausesChanged(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
 	msgs := msgqueue.JSONConvert[tasktypes.RateLimitPausesChangedPayload](payloads)
-	statuses := listutils.Map[*tasktypes.RateLimitPausesChangedPayload, bool](msgs, func(x *tasktypes.RateLimitPausesChangedPayload) bool {
+	statuses := enumerables.Map[*tasktypes.RateLimitPausesChangedPayload, bool](msgs, func(x *tasktypes.RateLimitPausesChangedPayload) bool {
 		return x.Paused
 	})
 
-	if listutils.Any(statuses, true) {
+	if enumerables.Any(statuses, true) {
 		if err := tc.repov1.RateLimit().HoldRateLimitPausedQueuedTasks(ctx, tenantId); err != nil {
 			return fmt.Errorf("failed to hold tasks behind newly paused rate limits: %w", err)
 		}
 	}
 
-	if listutils.Any(statuses, false) {
+	if enumerables.Any(statuses, false) {
 		if err := tc.requeueItemsForExpiredRateLimitPauses(ctx, tenantId); err != nil {
 			return err
 		}
