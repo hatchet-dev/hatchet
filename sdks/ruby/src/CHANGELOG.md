@@ -5,6 +5,12 @@ All notable changes to Hatchet's Ruby SDK will be documented in this changelog.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.1] - 2026-10-23
+
+### Fixed
+
+- [Durable tasks](https://docs.hatchet.run/v1/durable-tasks) no longer stall after the worker's durable stream reconnects in the middle of a wait. The worker now reports the last completion it received in its status requests, so the engine resumes delivery from there instead of holding later completions until the task is evicted and replayed.
+
 ## [0.11.0] - 2026-10-14
 
 ### Added
