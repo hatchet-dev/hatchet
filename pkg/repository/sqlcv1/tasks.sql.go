@@ -2956,7 +2956,6 @@ WITH tasks_on_inactive_workers AS (
         AND runtime.evicted_at IS NULL
         AND runtime.acked_at IS NULL
         AND runtime.assigned_at < NOW() - INTERVAL '1 minute'
-        AND $3::boolean
     -- NOTE: this ORDER BY keeps the planner on the unacked index; without it, a stale estimate of unacked rows makes it seq scan
     ORDER BY
         runtime.assigned_at
@@ -2990,9 +2989,8 @@ JOIN
 `
 
 type ListTasksToReassignParams struct {
-	Tenantid             uuid.UUID   `json:"tenantid"`
-	Limit                pgtype.Int4 `json:"limit"`
-	Reassignunackedtasks bool        `json:"reassignunackedtasks"`
+	Tenantid uuid.UUID   `json:"tenantid"`
+	Limit    pgtype.Int4 `json:"limit"`
 }
 
 type ListTasksToReassignRow struct {
@@ -3003,7 +3001,7 @@ type ListTasksToReassignRow struct {
 }
 
 func (q *Queries) ListTasksToReassign(ctx context.Context, db DBTX, arg ListTasksToReassignParams) ([]*ListTasksToReassignRow, error) {
-	rows, err := db.Query(ctx, listTasksToReassign, arg.Tenantid, arg.Limit, arg.Reassignunackedtasks)
+	rows, err := db.Query(ctx, listTasksToReassign, arg.Tenantid, arg.Limit)
 	if err != nil {
 		return nil, err
 	}

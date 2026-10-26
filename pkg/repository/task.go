@@ -1778,7 +1778,6 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 			Int32: int32(limit), // #nosec G115 -- internal engine-configured limit, not attacker-controlled
 			Valid: true,
 		},
-		Reassignunackedtasks: r.reassignUnackedTasks,
 	})
 
 	if err != nil {
