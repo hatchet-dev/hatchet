@@ -222,6 +222,12 @@ export type StreamCallOptions = {
   cursor?: string;
   /** Ends an `events()` iteration cleanly, without throwing; aborts a unary call. */
   signal?: AbortSignal;
+  /**
+   * For `publish`: how long the message may wait for later publishes to the same topic to
+   * share its request, bounding the latency batching adds. 0, the default, sends it as soon as
+   * no other request to the topic is in flight.
+   */
+  batchTimeoutMs?: number;
 };
 
 /** What a durable stream topic retains; counts and the latest message cover the tenant's retention. */

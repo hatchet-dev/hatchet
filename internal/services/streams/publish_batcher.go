@@ -39,8 +39,10 @@ type publishBatcher struct {
 	wg      sync.WaitGroup
 }
 
+// pendingPublish is one request's messages, which always share a commit so a
+// producer's batch can't be split across concurrent transactions.
 type pendingPublish struct {
-	msg  v1.TenantStreamMessage
+	msgs []v1.TenantStreamMessage
 	done chan publishResult
 
 	// links the batch commit back to the publish waiting on it
@@ -49,7 +51,7 @@ type pendingPublish struct {
 }
 
 type publishResult struct {
-	res v1.OrderedStreamMessageResult
+	res []v1.OrderedStreamMessageResult
 	err error
 
 	batchSize       int
@@ -74,19 +76,20 @@ func newPublishBatcher(streams v1.StreamsRepository, pubsub msgqueue.PubSub, l *
 	return b
 }
 
-// publish returns once msg is committed or rejected. If ctx ends first the
-// message may still commit, which a retry with the same sequence detects.
-func (b *publishBatcher) publish(ctx context.Context, msg v1.TenantStreamMessage) (v1.OrderedStreamMessageResult, error) {
+// publish returns once msgs are committed or rejected, with results in input
+// order. If ctx ends first they may still commit, which a retry with the same
+// sequences detects.
+func (b *publishBatcher) publish(ctx context.Context, msgs ...v1.TenantStreamMessage) ([]v1.OrderedStreamMessageResult, error) {
 	ctx, span := telemetry.NewSpan(ctx, "streams.publish-batcher.publish")
 	defer span.End()
 
-	p := &pendingPublish{msg: msg, done: make(chan publishResult, 1), spanCtx: span.SpanContext(), enqueuedAt: time.Now()}
+	p := &pendingPublish{msgs: msgs, done: make(chan publishResult, 1), spanCtx: span.SpanContext(), enqueuedAt: time.Now()}
 
 	select {
 	case b.pending <- p:
 	case <-ctx.Done():
 		recordSpanError(span, ctx.Err())
-		return v1.OrderedStreamMessageResult{}, ctx.Err()
+		return nil, ctx.Err()
 	}
 
 	select {
@@ -103,7 +106,7 @@ func (b *publishBatcher) publish(ctx context.Context, msg v1.TenantStreamMessage
 		return r.res, r.err
 	case <-ctx.Done():
 		recordSpanError(span, ctx.Err())
-		return v1.OrderedStreamMessageResult{}, ctx.Err()
+		return nil, ctx.Err()
 	}
 }
 
@@ -132,14 +135,15 @@ func (b *publishBatcher) work(ctx context.Context) {
 		}
 
 		batch := []*pendingPublish{first}
-		size := len(first.msg.Opts.Payload)
+		count, size := len(first.msgs), payloadBytes(first.msgs)
 
 	collect:
-		for len(batch) < publishBatchMaxMessages && size < publishBatchMaxBytes {
+		for count < publishBatchMaxMessages && size < publishBatchMaxBytes {
 			select {
 			case p := <-b.pending:
 				batch = append(batch, p)
-				size += len(p.msg.Opts.Payload)
+				count += len(p.msgs)
+				size += payloadBytes(p.msgs)
 			default:
 				break collect
 			}
@@ -149,17 +153,27 @@ func (b *publishBatcher) work(ctx context.Context) {
 	}
 }
 
+func payloadBytes(msgs []v1.TenantStreamMessage) int {
+	size := 0
+
+	for _, m := range msgs {
+		size += len(m.Opts.Payload)
+	}
+
+	return size
+}
+
 func (b *publishBatcher) commit(batch []*pendingPublish) {
 	startedAt := time.Now()
 	links := make([]trace.Link, 0, len(batch))
-	payloadBytes := 0
+	var msgs []v1.TenantStreamMessage
 
 	for _, p := range batch {
 		if p.spanCtx.IsValid() {
 			links = append(links, trace.Link{SpanContext: p.spanCtx})
 		}
 
-		payloadBytes += len(p.msg.Opts.Payload)
+		msgs = append(msgs, p.msgs...)
 	}
 
 	// not a caller's context: one caller giving up must not abort the others' writes
@@ -167,28 +181,27 @@ func (b *publishBatcher) commit(batch []*pendingPublish) {
 	defer span.End()
 
 	telemetry.WithAttributes(span,
-		telemetry.AttributeKV{Key: "batch_size", Value: len(batch)},
-		telemetry.AttributeKV{Key: "stream.payload_bytes", Value: payloadBytes},
+		telemetry.AttributeKV{Key: "batch_size", Value: len(msgs)},
+		telemetry.AttributeKV{Key: "publishes", Value: len(batch)},
+		telemetry.AttributeKV{Key: "stream.payload_bytes", Value: payloadBytes(msgs)},
 	)
 
 	ctx, cancel := context.WithTimeout(ctx, publishCommitTimeout)
 	defer cancel()
 
-	msgs := make([]v1.TenantStreamMessage, len(batch))
-
-	for i, p := range batch {
-		msgs[i] = p.msg
-	}
-
 	results, err := b.streams.InsertOrderedStreamMessages(ctx, msgs)
 	recordSpanError(span, err)
 
-	for i, p := range batch {
+	offset := 0
+
+	for _, p := range batch {
 		if err != nil {
-			p.done <- publishResult{err: err, batchSize: len(batch), commitStartedAt: startedAt}
+			p.done <- publishResult{err: err, batchSize: len(msgs), commitStartedAt: startedAt}
 		} else {
-			p.done <- publishResult{res: results[i], batchSize: len(batch), commitStartedAt: startedAt}
+			p.done <- publishResult{res: results[offset : offset+len(p.msgs)], batchSize: len(msgs), commitStartedAt: startedAt}
 		}
+
+		offset += len(p.msgs)
 	}
 
 	if err == nil {

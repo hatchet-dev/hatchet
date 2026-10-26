@@ -1,3 +1,56 @@
+## [0.114.2] - 2026-10-26
+
+Hatchet v0.114.2 adds rate limit pausing, `RetryAfter` errors, and FIPS images. It also includes a set of security fixes and a large batch of DAG, scheduler, and database fixes.
+
+### Highlights
+
+- **Rate limit pause**: a rate limit key can be paused. Tasks that use the key wait, and do not consume the limit, until the pause ends ([#5209](https://github.com/hatchet-dev/hatchet/pull/5209)).
+- **`RetryAfter` errors**: a task can return a `RetryAfterError` to choose when its next retry runs. See [Retry Policies](https://docs.hatchet.run/v1/retry-policies?utm_source=changelog&utm_campaign=v0.114.2) ([#5162](https://github.com/hatchet-dev/hatchet/pull/5162)).
+- **FIPS images**: every server image is also published with a `-fips` suffix, built against the validated Go Cryptographic Module. See [FIPS 140-3 Images](https://docs.hatchet.run/self-hosting/fips?utm_source=changelog&utm_campaign=v0.114.2) ([#4997](https://github.com/hatchet-dev/hatchet/pull/4997)).
+- **Workflow pause in the Go SDK**: workflows can now be paused and unpaused from the Go SDK ([#5025](https://github.com/hatchet-dev/hatchet/pull/5025)).
+- Dashboard: the trigger dialog has a Form tab built from the workflow's input schema, the runs table has a "Replay as new" action that re-triggers a run with its original input, and the workflows page shows triggers, description, and last deploy ([#5183](https://github.com/hatchet-dev/hatchet/pull/5183), [#5140](https://github.com/hatchet-dev/hatchet/pull/5140), [#5242](https://github.com/hatchet-dev/hatchet/pull/5242)).
+- Engine: the lookup, DAG data, and DAG-to-task tables in the core and OLAP databases are now partitioned by time, like the task tables already were ([#5038](https://github.com/hatchet-dev/hatchet/pull/5038), [#5050](https://github.com/hatchet-dev/hatchet/pull/5050)).
+- Engine: payloads are stored once and shared between events, DAGs, and tasks instead of being written several times ([#5196](https://github.com/hatchet-dev/hatchet/pull/5196), [#5198](https://github.com/hatchet-dev/hatchet/pull/5198), [#5224](https://github.com/hatchet-dev/hatchet/pull/5224)).
+- Self-hosting: default entitlements for new tenants can be set with env vars ([#5266](https://github.com/hatchet-dev/hatchet/pull/5266)).
+
+### Security
+
+- Build: Go 1.26.10, newer base images, and fixed Node releases block the compromised eMudhra CAs (CVE-2026-111943) ([#5256](https://github.com/hatchet-dev/hatchet/pull/5256), [#5258](https://github.com/hatchet-dev/hatchet/pull/5258), [#5275](https://github.com/hatchet-dev/hatchet/pull/5275)).
+- Auth: an API token's JWT subject must match the tenant stored for that token ([#5215](https://github.com/hatchet-dev/hatchet/pull/5215)).
+- Engine: SNS message verification is stricter. Signed fields other than `Message` may not contain newlines, the signing certificate URL must be a regional SNS host with a `.pem` path, outbound requests have a timeout and a 1 MiB response cap, and messages signed more than an hour ago are rejected ([#4926](https://github.com/hatchet-dev/hatchet/pull/4926), [#5279](https://github.com/hatchet-dev/hatchet/pull/5279)).
+- Engine: worker slot units must be zero or more and are summed without overflow, so a worker cannot skip the tenant slot limit ([#5274](https://github.com/hatchet-dev/hatchet/pull/5274)).
+- API: listing workflow runs with payloads checks payload permissions before querying ([#5205](https://github.com/hatchet-dev/hatchet/pull/5205)).
+
+### Fixed
+
+- Engine: DAG replays no longer hang or retry forever when a running task is replayed, a child is spawned twice, or tasks finish out of order ([#5186](https://github.com/hatchet-dev/hatchet/pull/5186), [#5189](https://github.com/hatchet-dev/hatchet/pull/5189), [#5207](https://github.com/hatchet-dev/hatchet/pull/5207), [#5265](https://github.com/hatchet-dev/hatchet/pull/5265)).
+- Engine: the DAG operator no longer claims idempotency keys that its children need, no longer reports a cycle when a task shares its workflow's name, and no longer checks idempotency keys for DAG steps ([#5136](https://github.com/hatchet-dev/hatchet/pull/5136), [#5137](https://github.com/hatchet-dev/hatchet/pull/5137), [#5211](https://github.com/hatchet-dev/hatchet/pull/5211)).
+- Engine: task errors are passed to the on-failure task, returned verbatim without a `dag failed:` prefix, and internal errors no longer leak into task run errors ([#5178](https://github.com/hatchet-dev/hatchet/pull/5178), [#5302](https://github.com/hatchet-dev/hatchet/pull/5302), [#5212](https://github.com/hatchet-dev/hatchet/pull/5212)).
+- Engine: `skip_if` and `cancel_if` conditions are evaluated when a parent returns empty output, empty parent outputs still appear in the `parents` map, and an invalid CEL condition is ignored instead of failing the DAG ([#5295](https://github.com/hatchet-dev/hatchet/pull/5295), [#5296](https://github.com/hatchet-dev/hatchet/pull/5296)).
+- Engine: a failing CEL expression no longer causes a flood of retries ([#5151](https://github.com/hatchet-dev/hatchet/pull/5151)).
+- Engine: the DAG operator is registered for workflows put by very old SDKs, skips deleted tenants, and is metered once per run instead of once per step ([#5203](https://github.com/hatchet-dev/hatchet/pull/5203), [#5177](https://github.com/hatchet-dev/hatchet/pull/5177), [#5158](https://github.com/hatchet-dev/hatchet/pull/5158)).
+- Engine: `CANCEL_*` concurrency strategies no longer cancel a task's own retry ([#5229](https://github.com/hatchet-dev/hatchet/pull/5229)).
+- Engine: when a later concurrency batch fails, results from batches that already committed are still published, so cancelled tasks get their cancellation and filled tasks are not delayed ([#5155](https://github.com/hatchet-dev/hatchet/pull/5155)).
+- Engine: the in-memory concurrency index uses much less memory per key, and its build timeout is 30s ([#5156](https://github.com/hatchet-dev/hatchet/pull/5156), [#5214](https://github.com/hatchet-dev/hatchet/pull/5214), [#5228](https://github.com/hatchet-dev/hatchet/pull/5228)).
+- Engine: idle queues go inactive again instead of being polled forever, the rate limit requeue runs without a transaction and only when there is work, and `REQUEUED_RATE_LIMIT` events are reported at most once a minute per task ([#5144](https://github.com/hatchet-dev/hatchet/pull/5144), [#5138](https://github.com/hatchet-dev/hatchet/pull/5138), [#5245](https://github.com/hatchet-dev/hatchet/pull/5245), [#5170](https://github.com/hatchet-dev/hatchet/pull/5170)).
+- Engine: retry decisions for a batch of failed tasks match each task to its own row. Large batches previously got wrong results or timed out and never retried ([#5243](https://github.com/hatchet-dev/hatchet/pull/5243)).
+- Engine: the trigger path caches event-to-workflow lookups, workflow versions, step expressions, and match conditions, and runs its preflight checks before opening a transaction ([#5251](https://github.com/hatchet-dev/hatchet/pull/5251), [#5259](https://github.com/hatchet-dev/hatchet/pull/5259), [#5165](https://github.com/hatchet-dev/hatchet/pull/5165)).
+- Engine: cron and scheduled pollers no longer rewrite rows they already own on every poll ([#5301](https://github.com/hatchet-dev/hatchet/pull/5301)).
+- Engine: new indexes for DAG orchestration action lookups, stuck evicted durable orchestrators, and cron name search, and a redundant OLAP runs index is dropped ([#5288](https://github.com/hatchet-dev/hatchet/pull/5288), [#5160](https://github.com/hatchet-dev/hatchet/pull/5160), [#5267](https://github.com/hatchet-dev/hatchet/pull/5267), [#5090](https://github.com/hatchet-dev/hatchet/pull/5090)).
+- Engine: the durable task connection runs one worker-status handler per worker, fixing an out-of-memory crash when a worker stops reading, and a `wait_for` condition without a base returns an error instead of crashing the handler ([#5201](https://github.com/hatchet-dev/hatchet/pull/5201), [#5260](https://github.com/hatchet-dev/hatchet/pull/5260)).
+- Engine: statement timeouts now apply behind a transaction-mode PgBouncer, with a startup warning when they are missing. See [Using PgBouncer](https://docs.hatchet.run/self-hosting/using-pgbouncer?utm_source=changelog&utm_campaign=v0.114.2) ([#5065](https://github.com/hatchet-dev/hatchet/pull/5065), [#5218](https://github.com/hatchet-dev/hatchet/pull/5218)).
+- Engine: the Go memory limit is set to 90% of the container limit to reduce OOM kills ([#5180](https://github.com/hatchet-dev/hatchet/pull/5180)).
+- Engine: orchestrator terminal events are written to OLAP once, retried tasks are counted by their final status in the workflow duration metric, and `is_dag_orchestrator` is recorded on task events ([#5161](https://github.com/hatchet-dev/hatchet/pull/5161), [#5176](https://github.com/hatchet-dev/hatchet/pull/5176), [#5199](https://github.com/hatchet-dev/hatchet/pull/5199)).
+- Engine: task durations were sometimes matched to the wrong task ([#5227](https://github.com/hatchet-dev/hatchet/pull/5227)).
+- Engine: empty and `null` payloads are no longer written to the payloads table ([#5252](https://github.com/hatchet-dev/hatchet/pull/5252), [#5253](https://github.com/hatchet-dev/hatchet/pull/5253)).
+- Engine: authentication returns a 5xx error instead of "invalid token" when the database is unreachable ([#5173](https://github.com/hatchet-dev/hatchet/pull/5173)).
+- Engine: analytics events from in-process callers carry the tenant id ([#5120](https://github.com/hatchet-dev/hatchet/pull/5120)).
+- API: listing workflow runs with payloads returns 400 above 1,000 runs or 1,000 DAG child tasks, and DAG outputs are no longer duplicated per child task ([#5205](https://github.com/hatchet-dev/hatchet/pull/5205)).
+- Dashboard: run counts load separately from the runs list, which makes the runs page much faster for tenants with many runs ([#5164](https://github.com/hatchet-dev/hatchet/pull/5164)).
+- Dashboard: workflow search UX fixes, the Manage Billing button is hidden on legacy plans, and the support chat widget follows the app theme ([#5036](https://github.com/hatchet-dev/hatchet/pull/5036), [#5150](https://github.com/hatchet-dev/hatchet/pull/5150), [#5219](https://github.com/hatchet-dev/hatchet/pull/5219)).
+- Go SDK: waiting for a workflow result ends when the caller's context ends, and `WithToken` overrides the API token for the OTel collector ([#5234](https://github.com/hatchet-dev/hatchet/pull/5234), [#5217](https://github.com/hatchet-dev/hatchet/pull/5217)).
+- Go SDK: durable status polling fixes, and shutdown and evict acks are serialized ([#5128](https://github.com/hatchet-dev/hatchet/pull/5128)).
+
 ## [0.110.5] - 2026-10-05
 
 Hatchet v0.110.5 ships a new dashboard overview page and onboarding flow. It also includes a set of security hardening fixes and a large batch of scheduler and engine performance work.
