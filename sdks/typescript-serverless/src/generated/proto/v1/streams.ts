@@ -88,6 +88,8 @@ export interface StreamTopicMetadata {
 export interface ResetStreamTopicRequest {
   namespace: string;
   topic: string;
+  /** subscribers without a cursor start after this one instead of the latest message */
+  cursor?: string | undefined;
 }
 
 export interface ResetStreamTopicResponse {
@@ -1085,7 +1087,7 @@ export const StreamTopicMetadata: MessageFns<StreamTopicMetadata> = {
 };
 
 function createBaseResetStreamTopicRequest(): ResetStreamTopicRequest {
-  return { namespace: "", topic: "" };
+  return { namespace: "", topic: "", cursor: undefined };
 }
 
 export const ResetStreamTopicRequest: MessageFns<ResetStreamTopicRequest> = {
@@ -1095,6 +1097,9 @@ export const ResetStreamTopicRequest: MessageFns<ResetStreamTopicRequest> = {
     }
     if (message.topic !== "") {
       writer.uint32(18).string(message.topic);
+    }
+    if (message.cursor !== undefined) {
+      writer.uint32(26).string(message.cursor);
     }
     return writer;
   },
@@ -1122,6 +1127,14 @@ export const ResetStreamTopicRequest: MessageFns<ResetStreamTopicRequest> = {
           message.topic = reader.string();
           continue;
         }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.cursor = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1135,6 +1148,7 @@ export const ResetStreamTopicRequest: MessageFns<ResetStreamTopicRequest> = {
     return {
       namespace: isSet(object.namespace) ? globalThis.String(object.namespace) : "",
       topic: isSet(object.topic) ? globalThis.String(object.topic) : "",
+      cursor: isSet(object.cursor) ? globalThis.String(object.cursor) : undefined,
     };
   },
 
@@ -1146,6 +1160,9 @@ export const ResetStreamTopicRequest: MessageFns<ResetStreamTopicRequest> = {
     if (message.topic !== "") {
       obj.topic = message.topic;
     }
+    if (message.cursor !== undefined) {
+      obj.cursor = message.cursor;
+    }
     return obj;
   },
 
@@ -1156,6 +1173,7 @@ export const ResetStreamTopicRequest: MessageFns<ResetStreamTopicRequest> = {
     const message = createBaseResetStreamTopicRequest();
     message.namespace = object.namespace ?? "";
     message.topic = object.topic ?? "";
+    message.cursor = object.cursor ?? undefined;
     return message;
   },
 };

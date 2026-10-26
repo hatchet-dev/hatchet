@@ -253,24 +253,38 @@ func (s *ServiceImpl) subscribe(ctx context.Context, req *contracts.SubscribeStr
 		return connect.NewError(connect.CodePermissionDenied, errNotEntitled)
 	}
 
-	namespace, topic, cursor, err := resolveSubscribeAddressAndCursor(req)
+	resumed := req.Cursor != nil && *req.Cursor != ""
+
+	if req.Topic == "" && !resumed {
+		return connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("topic is required unless cursor is supplied"))
+	}
+
+	if req.Topic != "" {
+		if err := v1.ValidateStreamAddress(req.Namespace, req.Topic); err != nil {
+			return connect.NewError(connect.CodeInvalidArgument, err)
+		}
+	}
+
+	var cursor v1.StreamCursor
+
+	if resumed {
+		cursor, err = s.resolveCursor(ctx, tenantId, req.Namespace, req.Topic, *req.Cursor)
+	} else {
+		cursor, err = s.repo.Streams().TopicStartCursor(ctx, tenantId, req.Namespace, req.Topic)
+	}
 
 	if err != nil {
-		return connect.NewError(connect.CodeInvalidArgument, err)
+		return err
 	}
+
+	namespace, topic := cursor.Namespace, cursor.Topic
 
 	telemetry.WithAttributes(trace.SpanFromContext(ctx),
 		telemetry.AttributeKV{Key: "tenant.id", Value: tenantId},
 		telemetry.AttributeKV{Key: "stream.namespace", Value: namespace},
 		telemetry.AttributeKV{Key: "stream.topic", Value: topic},
-		telemetry.AttributeKV{Key: "stream.resumed", Value: cursor.ID > 0},
+		telemetry.AttributeKV{Key: "stream.resumed", Value: resumed},
 	)
-
-	if req.Cursor == nil || *req.Cursor == "" {
-		if cursor, err = s.repo.Streams().TopicStartCursor(ctx, tenantId, namespace, topic); err != nil {
-			return err
-		}
-	}
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -288,12 +302,6 @@ func (s *ServiceImpl) subscribe(ctx context.Context, req *contracts.SubscribeStr
 		cancel: cancel,
 	})
 
-	var expired *v1.StreamCursorExpiredError
-
-	if errors.As(err, &expired) {
-		return connect.NewError(connect.CodeOutOfRange, fmt.Errorf("%w; subscribe without a cursor to start from the oldest retained message", expired))
-	}
-
 	if err != nil {
 		return err
 	}
@@ -307,8 +315,8 @@ func (s *ServiceImpl) subscribe(ctx context.Context, req *contracts.SubscribeStr
 	return nil
 }
 
-// Reset makes subscribers without a cursor start after the topic's latest
-// message. Subscriptions already open, and any with a cursor, are unaffected.
+// Reset makes subscribers without a cursor start after req.Cursor, or the topic's
+// latest message. Subscriptions already open, and any with a cursor, are unaffected.
 func (s *ServiceImpl) Reset(ctx context.Context, req *contracts.ResetStreamTopicRequest) (*contracts.ResetStreamTopicResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
@@ -333,7 +341,19 @@ func (s *ServiceImpl) Reset(ctx context.Context, req *contracts.ResetStreamTopic
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 
-	if err := s.repo.Streams().ResetTopic(ctx, tenantId, req.Namespace, req.Topic); err != nil {
+	var cursor *v1.StreamCursor
+
+	if req.Cursor != nil && *req.Cursor != "" {
+		decoded, err := s.resolveCursor(ctx, tenantId, req.Namespace, req.Topic, *req.Cursor)
+
+		if err != nil {
+			return nil, err
+		}
+
+		cursor = &decoded
+	}
+
+	if err := s.repo.Streams().ResetTopic(ctx, tenantId, req.Namespace, req.Topic, cursor); err != nil {
 		return nil, err
 	}
 
@@ -404,47 +424,39 @@ func recordSpanError(span trace.Span, err error) {
 	span.SetStatus(codes.Error, err.Error())
 }
 
-func resolveSubscribeAddressAndCursor(req *contracts.SubscribeStreamRequest) (namespace, topic string, cursor v1.StreamCursor, err error) {
-	// offsets start at 1, so ID 0 is the start of the topic
-	decoded := v1.StreamCursor{
-		Namespace: req.Namespace,
-		Topic:     req.Topic,
-		CreatedAt: time.Time{},
-		ID:        0,
+// resolveCursor decodes raw, a client's cursor for namespace and topic, and checks
+// it's still retained; an empty topic takes the cursor's own address. Errors are
+// connect errors.
+func (s *ServiceImpl) resolveCursor(ctx context.Context, tenantId uuid.UUID, namespace, topic, raw string) (v1.StreamCursor, error) {
+	cursor, err := v1.DecodeStreamCursor(raw)
+
+	if err != nil {
+		return v1.StreamCursor{}, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 
-	if req.Cursor != nil && *req.Cursor != "" {
-		c, err := v1.DecodeStreamCursor(*req.Cursor)
-
-		if err != nil {
-			return "", "", v1.StreamCursor{}, err
+	if topic == "" {
+		// a cursor is client-supplied, so the address decoded from it is checked too
+		if err := v1.ValidateStreamAddress(cursor.Namespace, cursor.Topic); err != nil {
+			return v1.StreamCursor{}, connect.NewError(connect.CodeInvalidArgument, err)
 		}
-
-		decoded = c
+	} else if cursor.Namespace != namespace || cursor.Topic != topic {
+		return v1.StreamCursor{}, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf(
+			"cursor belongs to namespace %q topic %q, not namespace %q topic %q",
+			cursor.Namespace, cursor.Topic, namespace, topic,
+		))
 	}
 
-	if req.Topic == "" {
-		if decoded.Topic == "" {
-			return "", "", v1.StreamCursor{}, fmt.Errorf("topic is required unless cursor is supplied")
-		}
+	err = s.repo.Streams().CheckCursorRetained(ctx, tenantId, cursor)
 
-		if err := v1.ValidateStreamAddress(decoded.Namespace, decoded.Topic); err != nil {
-			return "", "", v1.StreamCursor{}, err
-		}
+	var expired *v1.StreamCursorExpiredError
 
-		return decoded.Namespace, decoded.Topic, decoded, nil
+	if errors.As(err, &expired) {
+		return v1.StreamCursor{}, connect.NewError(connect.CodeOutOfRange, expired)
 	}
 
-	if req.Cursor != nil && *req.Cursor != "" && (decoded.Namespace != req.Namespace || decoded.Topic != req.Topic) {
-		return "", "", v1.StreamCursor{}, fmt.Errorf(
-			"cursor belongs to namespace %q topic %q, not namespace %q topic %q; omit topic to resume the cursor's own topic",
-			decoded.Namespace, decoded.Topic, req.Namespace, req.Topic,
-		)
+	if err != nil {
+		return v1.StreamCursor{}, err
 	}
 
-	if err := v1.ValidateStreamAddress(req.Namespace, req.Topic); err != nil {
-		return "", "", v1.StreamCursor{}, err
-	}
-
-	return req.Namespace, req.Topic, decoded, nil
+	return cursor, nil
 }

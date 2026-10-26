@@ -38,6 +38,7 @@ func newUserEventScopeTestRepositories(t *testing.T, pool *pgxpool.Pool) userEve
 		limits.LimitConfigFile{},
 		false,
 		time.Minute,
+		false,
 	)
 	t.Cleanup(func() { _ = cleanup() })
 

@@ -12,10 +12,11 @@ import (
 )
 
 type TaskOperationLimits struct {
-	TimeoutLimit      int
-	ReassignLimit     int
-	RetryQueueLimit   int
-	DurableSleepLimit int
+	TimeoutLimit         int
+	ReassignLimit        int
+	RetryQueueLimit      int
+	DurableSleepLimit    int
+	ReassignUnackedTasks bool
 }
 
 type Repository interface {
@@ -114,7 +115,7 @@ func NewRepository(
 ) (Repository, func() error) {
 	v := validator.NewDefaultValidator()
 
-	shared, cleanupShared := newSharedRepository(pool, ddlPool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration)
+	shared, cleanupShared := newSharedRepository(pool, ddlPool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration, taskLimits.ReassignUnackedTasks)
 
 	mq, cleanupMq := newMessageQueueRepository(shared)
 

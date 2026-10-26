@@ -331,10 +331,11 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 	}
 
 	taskLimits := repov1.TaskOperationLimits{
-		TimeoutLimit:      scf.Runtime.TaskOperationLimits.TimeoutLimit,
-		ReassignLimit:     scf.Runtime.TaskOperationLimits.ReassignLimit,
-		RetryQueueLimit:   scf.Runtime.TaskOperationLimits.RetryQueueLimit,
-		DurableSleepLimit: scf.Runtime.TaskOperationLimits.DurableSleepLimit,
+		TimeoutLimit:         scf.Runtime.TaskOperationLimits.TimeoutLimit,
+		ReassignLimit:        scf.Runtime.TaskOperationLimits.ReassignLimit,
+		RetryQueueLimit:      scf.Runtime.TaskOperationLimits.RetryQueueLimit,
+		DurableSleepLimit:    scf.Runtime.TaskOperationLimits.DurableSleepLimit,
+		ReassignUnackedTasks: scf.Runtime.TaskOperationLimits.ReassignUnackedTasks,
 	}
 
 	inlineStoreTTLDays := scf.PayloadStore.InlineStoreTTLDays

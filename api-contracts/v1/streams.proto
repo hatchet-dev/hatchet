@@ -85,6 +85,8 @@ message StreamTopicMetadata {
 message ResetStreamTopicRequest {
     string namespace = 1;
     string topic = 2;
+    // subscribers without a cursor start after this one instead of the latest message
+    optional string cursor = 3;
 }
 
 message ResetStreamTopicResponse {}
