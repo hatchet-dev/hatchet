@@ -17,8 +17,7 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/hatchet-dev/hatchet/internal/listutils"
-	"github.com/hatchet-dev/hatchet/internal/maputils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/operator/safeclient"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/contract"
@@ -234,8 +233,8 @@ func parseHealthcheckResponse(body []byte, limits catalogLimits) (*healthcheckRe
 	durable := resp.GetDurable().GetSupported()
 
 	if !durable && len(durableActions) > 0 {
-		actions = listutils.Filter(actions, func(action string) bool {
-			return !maputils.HasKey(durableActions, action)
+		actions = enumerables.Filter(actions, func(action string) bool {
+			return !enumerables.HasKey(durableActions, action)
 		})
 	}
 
@@ -344,7 +343,7 @@ func byteSlices(values []string) [][]byte {
 // one against the catalog's action set: an option for an action the endpoint does not serve
 // is a catalog error, so a misspelt id surfaces on the endpoint instead of being ignored.
 func streamActionsOf(tasks []*v1.ServerlessTaskOptions, actions []string) ([]string, error) {
-	served := listutils.ToSet(actions, func(action string) string { return action })
+	served := enumerables.ToSet(actions, func(action string) string { return action })
 
 	flagged := make([]string, 0)
 

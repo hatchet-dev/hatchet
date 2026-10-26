@@ -12,7 +12,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/hatchet-dev/hatchet/internal/maputils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/client/operatorclient"
@@ -620,7 +620,7 @@ func (s *session) SendStepActionEvent(ctx context.Context, ev *contracts.StepAct
 	s.mu.Lock()
 
 	recorded, attempted := s.attempts[ev.TaskRunExternalId]
-	ours := maputils.HasKey(s.workers, ev.WorkerId)
+	ours := enumerables.HasKey(s.workers, ev.WorkerId)
 
 	if isTerminalStepEvent(ev.EventType) {
 		delete(s.attempts, ev.TaskRunExternalId)

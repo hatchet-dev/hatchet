@@ -9,7 +9,7 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/rs/zerolog"
 
-	"github.com/hatchet-dev/hatchet/internal/listutils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/timeout_lock"
 
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
@@ -258,7 +258,7 @@ func (t *tenantManager) setQueuers(queueNames []string) {
 	t.queuersMu.Lock()
 	defer t.queuersMu.Unlock()
 
-	queueNamesSet := listutils.ToSet(queueNames, func(queueName string) string { return queueName })
+	queueNamesSet := enumerables.ToSet(queueNames, func(queueName string) string { return queueName })
 
 	newQueueArr := make([]*Queuer, 0, len(queueNames))
 
@@ -306,7 +306,7 @@ func (t *tenantManager) setConcurrencyStrategies(strategies []*sqlcv1.V1StepConc
 	t.concurrencyMu.Lock()
 	defer t.concurrencyMu.Unlock()
 
-	strategiesSet := listutils.ToMapWithItemsAsValues(strategies, func(strat *sqlcv1.V1StepConcurrency) int64 { return strat.ID })
+	strategiesSet := enumerables.ToMapWithItemsAsValues(strategies, func(strat *sqlcv1.V1StepConcurrency) int64 { return strat.ID })
 
 	newArr := make([]*ConcurrencyManager, 0, len(strategies))
 
@@ -447,7 +447,7 @@ func (t *tenantManager) setBatchSchedulers(ctx context.Context, batches []*sqlcv
 // missed capacity are retried as soon as the scheduler's pools have it rather
 // than on the queuers' next poll.
 func (t *tenantManager) notifyQueuers(ctx context.Context, queueNames []string) {
-	wanted := listutils.ToSet(queueNames, func(queueName string) string { return queueName })
+	wanted := enumerables.ToSet(queueNames, func(queueName string) string { return queueName })
 
 	t.queuersMu.RLock()
 	defer t.queuersMu.RUnlock()
@@ -593,7 +593,7 @@ func (t *tenantManager) notifyNewConcurrencyStrategy(ctx context.Context, strate
 
 func (t *tenantManager) queue(ctx context.Context, queueNames []string) {
 	t.queuersMu.RLock()
-	requested := listutils.ToSet(queueNames, func(name string) string { return name })
+	requested := enumerables.ToSet(queueNames, func(name string) string { return name })
 	for _, q := range t.queuers {
 		if _, ok := requested[q.queueName]; ok {
 			q.queue(ctx)
@@ -634,7 +634,7 @@ func (t *tenantManager) runOptimisticScheduling(
 	// and then immediately flush to the database
 
 	// split qis by their queue name
-	qisByQueueName := listutils.GroupBy(qis, func(qi *sqlcv1.V1QueueItem) string { return qi.Queue })
+	qisByQueueName := enumerables.GroupBy(qis, func(qi *sqlcv1.V1QueueItem) string { return qi.Queue })
 
 	var allLocalAssigned []*v1.AssignedItem
 	var allQueueResults []*QueueResults
@@ -667,8 +667,8 @@ func (t *tenantManager) runOptimisticScheduling(
 	}
 
 	// map the tasks to the assigned items
-	taskUUIDToAssigned := listutils.ToMapWithItemsAsValues(allLocalAssigned, func(ai *v1.AssignedItem) uuid.UUID { return ai.QueueItem.ExternalID })
-	taskUUIDToTask := listutils.ToMapWithItemsAsValues(tasks, func(task *v1.V1TaskWithPayload) uuid.UUID { return task.ExternalID })
+	taskUUIDToAssigned := enumerables.ToMapWithItemsAsValues(allLocalAssigned, func(ai *v1.AssignedItem) uuid.UUID { return ai.QueueItem.ExternalID })
+	taskUUIDToTask := enumerables.ToMapWithItemsAsValues(tasks, func(task *v1.V1TaskWithPayload) uuid.UUID { return task.ExternalID })
 
 	// return the assigned items with their tasks
 	res := make(map[uuid.UUID][]*AssignedItemWithTask)
@@ -717,7 +717,7 @@ func (t *tenantManager) runOptimisticSchedulingFromEvents(
 	// and then immediately flush to the database
 
 	// split qis by their queue name
-	qisByQueueName := listutils.GroupBy(qis, func(qi *sqlcv1.V1QueueItem) string { return qi.Queue })
+	qisByQueueName := enumerables.GroupBy(qis, func(qi *sqlcv1.V1QueueItem) string { return qi.Queue })
 
 	var allLocalAssigned []*v1.AssignedItem
 	var allQueueResults []*QueueResults
@@ -750,8 +750,8 @@ func (t *tenantManager) runOptimisticSchedulingFromEvents(
 	}
 
 	// map the tasks to the assigned items
-	taskUUIDToAssigned := listutils.ToMapWithItemsAsValues(allLocalAssigned, func(ai *v1.AssignedItem) uuid.UUID { return ai.QueueItem.ExternalID })
-	taskUUIDToTask := listutils.ToMapWithItemsAsValues(eventsRes.Tasks, func(task *v1.V1TaskWithPayload) uuid.UUID { return task.ExternalID })
+	taskUUIDToAssigned := enumerables.ToMapWithItemsAsValues(allLocalAssigned, func(ai *v1.AssignedItem) uuid.UUID { return ai.QueueItem.ExternalID })
+	taskUUIDToTask := enumerables.ToMapWithItemsAsValues(eventsRes.Tasks, func(task *v1.V1TaskWithPayload) uuid.UUID { return task.ExternalID })
 
 	// return the assigned items with their tasks
 	res := make(map[uuid.UUID][]*AssignedItemWithTask)

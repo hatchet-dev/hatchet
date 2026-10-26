@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/hatchet-dev/hatchet/internal/listutils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -53,7 +53,7 @@ func (r *intervalSettingsRepository) ReadAllIntervals(ctx context.Context, opera
 		return nil, err
 	}
 
-	res := listutils.ToMap(
+	res := enumerables.ToMap(
 		intervals,
 		func(interval *sqlcv1.V1OperationIntervalSettings) string { return interval.TenantID.String() },
 		func(interval *sqlcv1.V1OperationIntervalSettings) time.Duration {

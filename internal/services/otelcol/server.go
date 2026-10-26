@@ -13,7 +13,7 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"github.com/hatchet-dev/hatchet/internal/listutils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/o11yusage"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
@@ -286,7 +286,7 @@ func (oc *otelCollectorImpl) anyValueToInterface(v *commonv1.AnyValue) interface
 }
 
 func (oc *otelCollectorImpl) keyValuesToMap(keyValues []*commonv1.KeyValue) map[string]any {
-	return listutils.ToMap(
+	return enumerables.ToMap(
 		keyValues,
 		func(kv *commonv1.KeyValue) string { return kv.GetKey() },
 		func(kv *commonv1.KeyValue) any { return oc.anyValueToInterface(kv.GetValue()) },

@@ -8,7 +8,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"go.yaml.in/yaml/v3"
 
-	"github.com/hatchet-dev/hatchet/internal/maputils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 )
 
 func OperationIn(operationId string, operationIds []string) bool {
@@ -82,7 +82,7 @@ func (p *PermissionMap) ValidInheritance(roleName string) error {
 		return nil
 	}
 	for _, inheritedRole := range *p.Roles[roleName].Inherits {
-		if !maputils.HasKey(p.Roles, inheritedRole) {
+		if !enumerables.HasKey(p.Roles, inheritedRole) {
 			return &RBACError{
 				Message: fmt.Sprintf("%s inherits from %s which does not exist", roleName, inheritedRole),
 			}
@@ -121,8 +121,8 @@ func (p *PermissionMap) ValidateSpec(spec openapi3.T) error {
 	maps.Copy(completeListOfOps, specOperations)
 	maps.Copy(completeListOfOps, allOperations)
 	for operationId := range completeListOfOps {
-		inSpec := maputils.HasKey(specOperations, operationId)
-		inYaml := maputils.HasKey(allOperations, operationId)
+		inSpec := enumerables.HasKey(specOperations, operationId)
+		inYaml := enumerables.HasKey(allOperations, operationId)
 		if inSpec && !inYaml {
 			return &RBACError{
 				Message: fmt.Sprintf("%s exists in openapi specs but not in rbac.yaml", operationId),

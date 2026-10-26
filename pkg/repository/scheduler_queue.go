@@ -1134,7 +1134,7 @@ func (b *batchQueueRepository) ListExistingBatchedQueueItemIds(ctx context.Conte
 		return nil, err
 	}
 
-	res := listutils.ToSet(rows, func(id int64) int64 { return id })
+	res := enumerables.ToSet(rows, func(id int64) int64 { return id })
 
 	return res, nil
 }

@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/hatchet-dev/hatchet/internal/listutils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
@@ -29,7 +29,7 @@ func (tc *TasksControllerImpl) processTaskReassignments(ctx context.Context, ten
 		return false, fmt.Errorf("could not list step runs to reassign for tenant %s: %w", tenantId, err)
 	}
 
-	retriedTasks := listutils.ToSet(res.RetriedTasks, func(task v1.RetriedTask) int64 {
+	retriedTasks := enumerables.ToSet(res.RetriedTasks, func(task v1.RetriedTask) int64 {
 		return task.Id
 	})
 

@@ -968,7 +968,7 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, 
 	payloads := make(map[uuid.UUID][]byte)
 
 	if opts.IncludePayloads {
-		retrievePayloadOpts := listutils.FlatMap(tasksWithData, taskRunPayloadReadOpts)
+		retrievePayloadOpts := enumerables.FlatMap(tasksWithData, taskRunPayloadReadOpts)
 
 		payloads, err = r.readPayloads(ctx, tenantId, retrievePayloadOpts...)
 
@@ -1048,7 +1048,7 @@ func (r *OLAPRepositoryImpl) ListTasksByDAGId(ctx context.Context, tenantId uuid
 	payloads := make(map[uuid.UUID][]byte)
 
 	if includePayloads {
-		retrievePayloadOpts := listutils.FlatMap(tasksWithData, taskRunPayloadReadOpts)
+		retrievePayloadOpts := enumerables.FlatMap(tasksWithData, taskRunPayloadReadOpts)
 
 		payloads, err = r.readPayloads(ctx, tenantId, retrievePayloadOpts...)
 
@@ -1111,7 +1111,7 @@ func (r *OLAPRepositoryImpl) ListTasksByIdAndInsertedAt(ctx context.Context, ten
 	payloads := make(map[uuid.UUID][]byte)
 
 	if includePayloads {
-		retrievePayloadOpts := listutils.FlatMap(tasksWithData, taskRunPayloadReadOpts)
+		retrievePayloadOpts := enumerables.FlatMap(tasksWithData, taskRunPayloadReadOpts)
 
 		payloads, err = r.readPayloads(ctx, tenantId, retrievePayloadOpts...)
 
@@ -2855,7 +2855,7 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 		return fmt.Errorf("error creating events: %v", err)
 	}
 
-	eventExternalIdToId := listutils.ToMap(
+	eventExternalIdToId := enumerables.ToMap(
 		insertedEvents,
 		func(event *sqlcv1.V1EventsOlap) uuid.UUID { return event.ExternalID },
 		func(event *sqlcv1.V1EventsOlap) int64 { return event.ID },
@@ -2943,7 +2943,7 @@ func (r *OLAPRepositoryImpl) PopulateEventData(ctx context.Context, tenantId uui
 		return nil, fmt.Errorf("error populating event data: %v", err)
 	}
 
-	return listutils.ToMap(
+	return enumerables.ToMap(
 		eventData,
 		func(data *sqlcv1.PopulateEventDataRow) uuid.UUID { return data.ExternalID },
 		func(data *sqlcv1.PopulateEventDataRow) sqlcv1.PopulateEventDataRow { return *data },
@@ -3201,7 +3201,7 @@ func (r *OLAPRepositoryImpl) GetDAGDurations(ctx context.Context, tenantId uuid.
 		return nil, err
 	}
 
-	return listutils.ToMapWithItemsAsValues(rows, func(row *sqlcv1.GetDagDurationsRow) string { return row.ExternalID.String() }), nil
+	return enumerables.ToMapWithItemsAsValues(rows, func(row *sqlcv1.GetDagDurationsRow) string { return row.ExternalID.String() }), nil
 }
 
 func (r *OLAPRepositoryImpl) GetTaskDurationsByTaskIds(ctx context.Context, tenantId uuid.UUID, taskIds []int64, taskInsertedAts []pgtype.Timestamptz, readableStatuses []sqlcv1.V1ReadableStatusOlap) (map[int64]*sqlcv1.GetTaskDurationsByTaskIdsRow, error) {
@@ -3216,7 +3216,7 @@ func (r *OLAPRepositoryImpl) GetTaskDurationsByTaskIds(ctx context.Context, tena
 	}
 
 	// rows come back sorted and drop tasks whose status changed, so they can't be matched to taskIds by index
-	return listutils.ToMapWithItemsAsValues(rows, func(row *sqlcv1.GetTaskDurationsByTaskIdsRow) int64 { return row.TaskID }), nil
+	return enumerables.ToMapWithItemsAsValues(rows, func(row *sqlcv1.GetTaskDurationsByTaskIdsRow) int64 { return row.TaskID }), nil
 }
 
 func (r *OLAPRepositoryImpl) GetTaskStartedTimestamps(ctx context.Context, tenantId uuid.UUID, taskIds []int64, taskInsertedAts []time.Time, retryCounts []int32) ([]*sqlcv1.GetTaskStartedTimestampsRow, error) {
@@ -3544,7 +3544,7 @@ func (r *OLAPRepositoryImpl) readPayloadsFromOLAPStore(ctx context.Context, tx s
 		return nil, err
 	}
 
-	externalIdToPayload := listutils.ToMap(
+	externalIdToPayload := enumerables.ToMap(
 		payloads,
 		func(payload *sqlcv1.V1PayloadsOlap) uuid.UUID { return payload.ExternalID },
 		func(payload *sqlcv1.V1PayloadsOlap) []byte { return payload.InlineContent },
@@ -3789,7 +3789,7 @@ func (r *OLAPRepositoryImpl) ListYesterdayRunCountsByStatus(ctx context.Context)
 		return nil, err
 	}
 
-	return listutils.ToMap(
+	return enumerables.ToMap(
 		rows,
 		func(row *sqlcv1.ListYesterdayRunCountsByStatusRow) sqlcv1.V1ReadableStatusOlap {
 			return row.ReadableStatus

@@ -12,8 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
-	"github.com/hatchet-dev/hatchet/internal/listutils"
-	"github.com/hatchet-dev/hatchet/internal/maputils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
@@ -580,8 +579,8 @@ func (q *Queuer) refillQueue(ctx context.Context) ([]*sqlcv1.V1QueueItem, error)
 		}
 	}
 
-	newCurr := listutils.Filter(curr, func(qi *sqlcv1.V1QueueItem) bool {
-		return !maputils.HasKey(q.unacked, qi.ID)
+	newCurr := enumerables.Filter(curr, func(qi *sqlcv1.V1QueueItem) bool {
+		return !enumerables.HasKey(q.unacked, qi.ID)
 	})
 
 	// add all newCurr to unacked so we don't assign them again

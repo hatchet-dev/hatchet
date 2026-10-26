@@ -769,7 +769,7 @@ func (r *sharedRepository) lookupExternalIds(ctx context.Context, tx sqlcv1.DBTX
 	}
 
 	// set the cache
-	groupedExternalIds := listutils.GroupBy(dbTasks, func(task *sqlcv1.FlattenExternalIdsRow) string {
+	groupedExternalIds := enumerables.GroupBy(dbTasks, func(task *sqlcv1.FlattenExternalIdsRow) string {
 		return task.WorkflowRunExternalID.String()
 	})
 
@@ -808,7 +808,7 @@ func (r *TaskRepositoryImpl) verifyAllTasksFinalized(ctx context.Context, tx sql
 		return nil, nil, err
 	}
 
-	notFinalizedMap := listutils.ToSet(notFinalized, func(task *sqlcv1.PreflightCheckTasksForReplayRow) int64 { return task.ID })
+	notFinalizedMap := enumerables.ToSet(notFinalized, func(task *sqlcv1.PreflightCheckTasksForReplayRow) int64 { return task.ID })
 
 	dagIdsToCheck := make([]int64, 0)
 	dagInsertedAtsToCheck := make([]pgtype.Timestamptz, 0)
@@ -1498,7 +1498,7 @@ func (r *TaskRepositoryImpl) ListTaskRuntimes(ctx context.Context, tenantId uuid
 		return nil, err
 	}
 
-	return listutils.ToMapWithItemsAsValues(rows, func(row *sqlcv1.V1TaskRuntime) int64 { return row.TaskID }), nil
+	return enumerables.ToMapWithItemsAsValues(rows, func(row *sqlcv1.V1TaskRuntime) int64 { return row.TaskID }), nil
 }
 
 func (r *TaskRepositoryImpl) ListDurableOrchestratorChildOutputEvents(ctx context.Context, tenantId, orchestratorExternalId uuid.UUID) ([]*TaskOutputEvent, error) {
@@ -2023,7 +2023,7 @@ func (r *TaskRepositoryImpl) getFIFOQueuedCounts(ctx context.Context, tenantId u
 		return nil, err
 	}
 
-	return listutils.ToMap(
+	return enumerables.ToMap(
 		counts,
 		func(count *sqlcv1.GetQueuedCountsRow) string { return count.Queue },
 		func(count *sqlcv1.GetQueuedCountsRow) interface{} { return int(count.Count) },
@@ -3545,7 +3545,7 @@ func (r *sharedRepository) getConcurrencyExpressions(
 		return nil, err
 	}
 
-	fetchedByStepId := listutils.GroupBy(strats, func(strat *sqlcv1.V1StepConcurrency) uuid.UUID { return strat.StepID })
+	fetchedByStepId := enumerables.GroupBy(strats, func(strat *sqlcv1.V1StepConcurrency) uuid.UUID { return strat.StepID })
 
 	// Populate cache for all missing step IDs, including negative-caching empty results.
 	for _, stepId := range missingStepIdStrs {
@@ -4053,7 +4053,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 		return nil, fmt.Errorf("failed to preflight check tasks for replay: %w", err)
 	}
 
-	tasksFailedPreflight := listutils.ToSet(failedPreflightChecks, func(task *sqlcv1.PreflightCheckTasksForReplayRow) int64 { return task.ID })
+	tasksFailedPreflight := enumerables.ToSet(failedPreflightChecks, func(task *sqlcv1.PreflightCheckTasksForReplayRow) int64 { return task.ID })
 
 	// group tasks by their dag_id, if it exists
 	dagIdsToChildTasks := make(map[int64][]*sqlcv1.ListTasksForReplayRow)
@@ -4228,7 +4228,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 	}
 
 	// for any tasks which are child tasks, we need to reset the match signals for the parent tasks
-	spawnedChildTasks := listutils.Filter(lockedTasks, func(task *sqlcv1.ListTasksForReplayRow) bool { return task.ParentTaskID.Valid })
+	spawnedChildTasks := enumerables.Filter(lockedTasks, func(task *sqlcv1.ListTasksForReplayRow) bool { return task.ParentTaskID.Valid })
 
 	eventMatches := make([]CreateMatchOpts, 0)
 
@@ -4578,7 +4578,7 @@ func (r *sharedRepository) createExpressionEvals(ctx context.Context, dbtx sqlcv
 	}
 
 	// map tasks using their external id
-	taskExternalIds := listutils.ToMapWithItemsAsValues(createdTasks, func(task *V1TaskWithPayload) uuid.UUID { return task.ExternalID })
+	taskExternalIds := enumerables.ToMapWithItemsAsValues(createdTasks, func(task *V1TaskWithPayload) uuid.UUID { return task.ExternalID })
 
 	taskIds := make([]int64, 0)
 	taskInsertedAts := make([]pgtype.Timestamptz, 0)
@@ -5503,7 +5503,7 @@ func (r *TaskRepositoryImpl) FilterValidTasks(ctx context.Context, tenantId uuid
 		return nil, err
 	}
 
-	return listutils.ToSet(taskIds, func(taskId int64) int64 { return taskId }), nil
+	return enumerables.ToSet(taskIds, func(taskId int64) int64 { return taskId }), nil
 }
 
 const deleteIdleStreamTopicsBatchSize = 1000

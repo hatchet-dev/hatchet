@@ -13,7 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog"
 
-	"github.com/hatchet-dev/hatchet/internal/listutils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -164,7 +164,7 @@ func (l *LeaseManager) acquireWorkerLeases(ctx context.Context) error {
 		return err
 	}
 
-	currResourceIdsToLease := listutils.ToMapWithItemsAsValues(l.workerLeases, func(lease *sqlcv1.Lease) string { return lease.ResourceId })
+	currResourceIdsToLease := enumerables.ToMapWithItemsAsValues(l.workerLeases, func(lease *sqlcv1.Lease) string { return lease.ResourceId })
 
 	workerIdsStr := make([]string, len(activeWorkers))
 	activeWorkerIdsToResults := make(map[string]*v1.ListActiveWorkersResult, len(activeWorkers))
@@ -283,7 +283,7 @@ func (l *LeaseManager) acquireQueueLeases(ctx context.Context) error {
 		return err
 	}
 
-	currResourceIdsToLease := listutils.ToMapWithItemsAsValues(l.queueLeases, func(lease *sqlcv1.Lease) string { return lease.ResourceId })
+	currResourceIdsToLease := enumerables.ToMapWithItemsAsValues(l.queueLeases, func(lease *sqlcv1.Lease) string { return lease.ResourceId })
 
 	queueIdsStr := make([]string, len(queues))
 	leasesToExtend := make([]*sqlcv1.Lease, 0, len(queues))
@@ -395,7 +395,7 @@ func (l *LeaseManager) acquireConcurrencyLeases(ctx context.Context) error {
 		return err
 	}
 
-	currResourceIdsToLease := listutils.ToMapWithItemsAsValues(l.concurrencyLeases, func(lease *sqlcv1.Lease) string { return lease.ResourceId })
+	currResourceIdsToLease := enumerables.ToMapWithItemsAsValues(l.concurrencyLeases, func(lease *sqlcv1.Lease) string { return lease.ResourceId })
 
 	strategyIdsStr := make([]string, len(strats))
 	activeStratIdsToStrategies := make(map[string]*sqlcv1.V1StepConcurrency, len(strats))
@@ -505,7 +505,7 @@ func (l *LeaseManager) acquireBatchLeases(ctx context.Context) error {
 		return err
 	}
 
-	currResourceIdsToLease := listutils.ToMapWithItemsAsValues(l.batchLeases, func(lease *sqlcv1.Lease) string { return lease.ResourceId })
+	currResourceIdsToLease := enumerables.ToMapWithItemsAsValues(l.batchLeases, func(lease *sqlcv1.Lease) string { return lease.ResourceId })
 
 	resourceIdToRows := make(map[string][]*sqlcv1.ListDistinctBatchResourcesRow)
 	resourceIds := make([]string, 0, len(resources))

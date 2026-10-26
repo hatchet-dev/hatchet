@@ -18,7 +18,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/internal/datautils"
-	"github.com/hatchet-dev/hatchet/internal/maputils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/operation"
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
@@ -778,7 +777,7 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId uu
 		return err
 	}
 
-	retried := listutils.ToSet(res.RetriedTasks, func(r v1.RetriedTask) int64 {
+	retried := enumerables.ToSet(res.RetriedTasks, func(r v1.RetriedTask) int64 {
 		return r.Id
 	})
 
@@ -797,7 +796,7 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId uu
 
 	// published after FailTasks so the event can say whether it ended this attempt for good
 	for _, msg := range msgs {
-		willRetry := !maputils.HasKey(failed, attempt{id: msg.TaskId, retryCount: msg.RetryCount})
+		willRetry := !enumerables.HasKey(failed, attempt{id: msg.TaskId, retryCount: msg.RetryCount})
 
 		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
 			tenantId,
@@ -858,7 +857,7 @@ func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, ten
 
 	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
 
-	retriedTaskIds := listutils.ToSet(res.RetriedTasks, func(task v1.RetriedTask) int64 {
+	retriedTaskIds := enumerables.ToSet(res.RetriedTasks, func(task v1.RetriedTask) int64 {
 		return task.Id
 	})
 

@@ -19,8 +19,7 @@ import (
 	telemetry_codes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/hatchet-dev/hatchet/internal/listutils"
-	"github.com/hatchet-dev/hatchet/internal/maputils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/rpcstream"
@@ -558,7 +557,7 @@ func (w *workflowRunAcks) hasWorkflowRun(id uuid.UUID) bool {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 
-	return maputils.HasKey(w.acks, id)
+	return enumerables.HasKey(w.acks, id)
 }
 
 func (d *DispatcherImpl) cleanResults(results []*contracts.StepRunResult) []*contracts.StepRunResult {
@@ -2603,7 +2602,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMetaV1(ctx context
 					return nil, err
 				}
 
-				workflowRunIdsToRow := listutils.ToMapWithItemsAsValues(workflowRuns, func(wr *listWorkflowRunsResult) uuid.UUID {
+				workflowRunIdsToRow := enumerables.ToMapWithItemsAsValues(workflowRuns, func(wr *listWorkflowRunsResult) uuid.UUID {
 					return wr.WorkflowRunId
 				})
 

@@ -14,7 +14,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/hatchet-dev/hatchet/internal/listutils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
@@ -1014,7 +1014,7 @@ func (c *ConcurrencyStrategy) getOrCreateSubQueue(key string) *subQueue {
 }
 
 func groupMessagesBySubQueue(msgs []walMessage) map[string][]walMessage {
-	return listutils.GroupBy(msgs, func(msg walMessage) string { return msg.Key })
+	return enumerables.GroupBy(msgs, func(msg walMessage) string { return msg.Key })
 }
 
 func walMessageToSlot(msg walMessage) slot {

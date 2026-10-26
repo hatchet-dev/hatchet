@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
-	"github.com/hatchet-dev/hatchet/internal/listutils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/pkg/randomticker"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
@@ -1702,7 +1702,7 @@ func (s *Scheduler) tryAssign(
 }
 
 func (s *Scheduler) getExtensionInput(results []*assignResults) *PostAssignInput {
-	unassigned := listutils.FlatMap(results, func(res *assignResults) []*sqlcv1.V1QueueItem { return res.unassigned })
+	unassigned := enumerables.FlatMap(results, func(res *assignResults) []*sqlcv1.V1QueueItem { return res.unassigned })
 
 	return &PostAssignInput{
 		HasUnassignedStepRuns: len(unassigned) > 0,

@@ -21,7 +21,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/credentials"
 
-	"github.com/hatchet-dev/hatchet/internal/listutils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 )
 
 type TracerOpts struct {
@@ -304,5 +304,5 @@ func firstNonEmpty(vals ...string) string {
 // CollectUniqueTenantIDs extracts unique tenant IDs from a slice of items.
 // The extractFn should return the tenant ID string for each item.
 func CollectUniqueTenantIDs[T any](items []T, extractFn func(T) string) []string {
-	return listutils.Uniq(listutils.Map(items, extractFn))
+	return enumerables.Uniq(enumerables.Map(items, extractFn))
 }

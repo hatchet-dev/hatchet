@@ -15,8 +15,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/hatchet-dev/hatchet/internal/listutils"
-	"github.com/hatchet-dev/hatchet/internal/maputils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/operatorsvc"
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
@@ -374,12 +373,12 @@ func (f *WorkerStore) ApplyWorkerActionsDelta(_ context.Context, tenantId uuid.U
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	fresh := listutils.Filter(add, func(id string) bool {
-		return !maputils.HasKey(f.actions[workerId], id)
+	fresh := enumerables.Filter(add, func(id string) bool {
+		return !enumerables.HasKey(f.actions[workerId], id)
 	})
 
-	gone := listutils.Filter(remove, func(id string) bool {
-		return maputils.HasKey(f.actions[workerId], id)
+	gone := enumerables.Filter(remove, func(id string) bool {
+		return enumerables.HasKey(f.actions[workerId], id)
 	})
 
 	if len(fresh) == 0 && len(gone) == 0 {

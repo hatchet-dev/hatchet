@@ -20,7 +20,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/hatchet-dev/hatchet/internal/listutils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -1730,7 +1730,7 @@ func (r *durableEventsRepository) resolveChildExternalIdsForBatch(ctx context.Co
 		return fmt.Errorf("failed to upsert child signal created events: %w", err)
 	}
 
-	resolvedIdByKey := listutils.ToMap(
+	resolvedIdByKey := enumerables.ToMap(
 		rows,
 		func(row *sqlcv1.BulkUpsertDurableChildSignalCreatedEventsRow) taskIdSpawnKey {
 			return taskIdSpawnKey{taskId: row.TaskID, spawnKey: row.EventKey.String}

@@ -8,7 +8,7 @@ import (
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/hatchet-dev/hatchet/internal/listutils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
@@ -49,7 +49,7 @@ func (o *OLAPControllerImpl) runTaskPrometheusUpdateWorker() {
 			return
 		}
 
-		tenantToUpdates := listutils.GroupBy(updates, func(update taskPrometheusUpdate) uuid.UUID {
+		tenantToUpdates := enumerables.GroupBy(updates, func(update taskPrometheusUpdate) uuid.UUID {
 			return update.tenantId
 		})
 
@@ -193,7 +193,7 @@ func (o *OLAPControllerImpl) runDAGPrometheusUpdateWorker() {
 			return
 		}
 
-		tenantToUpdates := listutils.GroupBy(updates, func(update dagPrometheusUpdate) uuid.UUID {
+		tenantToUpdates := enumerables.GroupBy(updates, func(update dagPrometheusUpdate) uuid.UUID {
 			return update.tenantId
 		})
 

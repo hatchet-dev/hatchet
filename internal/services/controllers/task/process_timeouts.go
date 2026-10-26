@@ -7,8 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/hatchet-dev/hatchet/internal/listutils"
-	"github.com/hatchet-dev/hatchet/internal/maputils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
@@ -39,7 +38,7 @@ func (tc *TasksControllerImpl) processTaskTimeouts(ctx context.Context, tenantId
 		return false, fmt.Errorf("could not process fail tasks response: %w", err)
 	}
 
-	retried := listutils.ToSet(res.RetriedTasks, func(r v1.RetriedTask) int64 {
+	retried := enumerables.ToSet(res.RetriedTasks, func(r v1.RetriedTask) int64 {
 		return r.Id
 	})
 
@@ -58,7 +57,7 @@ func (tc *TasksControllerImpl) processTaskTimeouts(ctx context.Context, tenantId
 			WorkerId:   workerId,
 		})
 
-		willRetry := maputils.HasKey(retried, task.ID)
+		willRetry := enumerables.HasKey(retried, task.ID)
 
 		// send failed tasks to the olap repository
 		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(

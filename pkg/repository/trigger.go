@@ -16,7 +16,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/hatchet-dev/hatchet/internal/cel"
-	"github.com/hatchet-dev/hatchet/internal/listutils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/constants"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
@@ -582,7 +582,7 @@ func (r *TriggerRepositoryImpl) PopulateWorkflowIdempotencyPresence(ctx context.
 		return fmt.Errorf("failed to list workflows by names: %w", err)
 	}
 
-	nameToRow := listutils.ToMapWithItemsAsValues(rows, func(row *sqlcv1.ListWorkflowsByNamesRow) string { return row.WorkflowName })
+	nameToRow := enumerables.ToMapWithItemsAsValues(rows, func(row *sqlcv1.ListWorkflowsByNamesRow) string { return row.WorkflowName })
 
 	for _, opt := range opts {
 		row, ok := nameToRow[opt.WorkflowName]
@@ -2105,7 +2105,7 @@ func (r *sharedRepository) registerChildWorkflows(
 		return nil, err
 	}
 
-	tuplesToSkip = listutils.ToSet(existingExternalIds, func(dbExternalId *sqlcv1.V1LookupTable) uuid.UUID { return dbExternalId.ExternalID })
+	tuplesToSkip = enumerables.ToSet(existingExternalIds, func(dbExternalId *sqlcv1.V1LookupTable) uuid.UUID { return dbExternalId.ExternalID })
 
 	createMatchOpts := make([]CreateMatchOpts, 0)
 
@@ -2188,7 +2188,7 @@ func getParentInDAGGroupMatch(
 		completeAction = sqlcv1.V1MatchConditionActionCREATEMATCH
 	}
 
-	actionsToOverrides := listutils.GroupBy(parentOverrideMatches, func(match *sqlcv1.V1StepMatchCondition) sqlcv1.V1MatchConditionAction {
+	actionsToOverrides := enumerables.GroupBy(parentOverrideMatches, func(match *sqlcv1.V1StepMatchCondition) sqlcv1.V1MatchConditionAction {
 		return match.Action
 	})
 
@@ -2763,7 +2763,7 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 		}
 	}
 
-	workflowIdAndScopeToFilters := listutils.GroupBy(filters, func(filter *sqlcv1.V1Filter) WorkflowAndScope {
+	workflowIdAndScopeToFilters := enumerables.GroupBy(filters, func(filter *sqlcv1.V1Filter) WorkflowAndScope {
 		return WorkflowAndScope{
 			WorkflowId: filter.WorkflowID,
 			Scope:      filter.Scope,
@@ -2784,7 +2784,7 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 		}
 	}
 
-	workflowIdToCount := listutils.ToMap(
+	workflowIdToCount := enumerables.ToMap(
 		filterCounts,
 		func(count *sqlcv1.ListFilterCountsForWorkflowsRow) uuid.UUID { return count.WorkflowID },
 		func(count *sqlcv1.ListFilterCountsForWorkflowsRow) int64 { return count.Count },

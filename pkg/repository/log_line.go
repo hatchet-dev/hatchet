@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/hatchet-dev/hatchet/internal/listutils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -189,7 +189,7 @@ func (r *logLineRepositoryImpl) ListLogLines(ctx context.Context, tenantId uuid.
 	}
 
 	// gather unique task ids, inserted ats to look up associated task external ids
-	uniqueTaskIds := listutils.ToSet(logLines, func(logLine *sqlcv1.V1LogLine) int64 { return logLine.TaskID })
+	uniqueTaskIds := enumerables.ToSet(logLines, func(logLine *sqlcv1.V1LogLine) int64 { return logLine.TaskID })
 
 	taskIds := make([]int64, 0, len(uniqueTaskIds))
 	for taskId := range uniqueTaskIds {
@@ -204,7 +204,7 @@ func (r *logLineRepositoryImpl) ListLogLines(ctx context.Context, tenantId uuid.
 	}
 
 	// create a map of task id to external id
-	taskIdToTask := listutils.ToMapWithItemsAsValues(tasks, func(task *sqlcv1.V1Task) int64 { return task.ID })
+	taskIdToTask := enumerables.ToMapWithItemsAsValues(tasks, func(task *sqlcv1.V1Task) int64 { return task.ID })
 
 	// attach task external ids to log lines
 	res := make([]*ListLogLineRow, len(logLines))

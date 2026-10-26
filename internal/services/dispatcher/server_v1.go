@@ -17,7 +17,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 
-	"github.com/hatchet-dev/hatchet/internal/listutils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
@@ -1671,7 +1671,7 @@ func (d *DispatcherServiceImpl) evictIdleOperatorTasks(
 	staleExternalIds map[uuid.UUID]struct{},
 	satisfiedCallbacks []*v1.SatisfiedEventWithPayload,
 ) {
-	tasksWithSatisfiedEntries := listutils.ToSet(satisfiedCallbacks, func(cb *v1.SatisfiedEventWithPayload) uuid.UUID {
+	tasksWithSatisfiedEntries := enumerables.ToSet(satisfiedCallbacks, func(cb *v1.SatisfiedEventWithPayload) uuid.UUID {
 		return cb.TaskExternalId
 	})
 

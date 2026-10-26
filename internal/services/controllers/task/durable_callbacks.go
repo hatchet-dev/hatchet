@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/hatchet-dev/hatchet/internal/listutils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/durable"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
@@ -52,7 +52,7 @@ func (tc *TasksControllerImpl) handleDurableRestoreTask(ctx context.Context, ten
 		return fmt.Errorf("failed to batch-restore evicted tasks: %w", err)
 	}
 
-	restoredByTaskId := listutils.ToMapWithItemsAsValues(restoredRows, func(r *sqlcv1.RestoreEvictedTasksRow) int64 {
+	restoredByTaskId := enumerables.ToMapWithItemsAsValues(restoredRows, func(r *sqlcv1.RestoreEvictedTasksRow) int64 {
 		return r.TaskID
 	})
 

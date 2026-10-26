@@ -17,7 +17,7 @@ import (
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/hatchet-dev/hatchet/internal/listutils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -559,7 +559,7 @@ func (s *Leaser) listOwned(ctx context.Context) (map[Unit]int32, error) {
 		return nil, fmt.Errorf("list owned leases: %w", err)
 	}
 
-	current := listutils.ToMap(
+	current := enumerables.ToMap(
 		rows,
 		func(row *sqlcv1.V1ServerlessLease) Unit {
 			return Unit{TenantId: row.TenantID, Partition: row.EndpointPartition}

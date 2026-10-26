@@ -15,8 +15,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
-	"github.com/hatchet-dev/hatchet/internal/listutils"
-	"github.com/hatchet-dev/hatchet/internal/maputils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/olap/signal"
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
@@ -556,7 +555,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 				continue
 			}
 
-			hasNoDispatcher := maputils.HasKey(workersWithoutDispatchers, bulkAssigned.WorkerId)
+			hasNoDispatcher := enumerables.HasKey(workersWithoutDispatchers, bulkAssigned.WorkerId)
 			dispatcherId, ok := workerIdToDispatcherId[bulkAssigned.WorkerId]
 
 			if hasNoDispatcher || !ok {
@@ -915,9 +914,9 @@ func (s *Scheduler) internalRetry(ctx context.Context, tenantId uuid.UUID, assig
 }
 
 func (s *Scheduler) notifyAfterConcurrency(ctx context.Context, tenantId uuid.UUID, res *v1.ConcurrencyResults) {
-	uniqueQueueNames := listutils.ToSet(res.Queued, func(task repov1.TaskWithQueue) string { return task.Queue })
+	uniqueQueueNames := enumerables.ToSet(res.Queued, func(task repov1.TaskWithQueue) string { return task.Queue })
 
-	uniqueNextStrategies := listutils.ToSet(res.NextConcurrencyStrategies, func(id int64) int64 { return id })
+	uniqueNextStrategies := enumerables.ToSet(res.NextConcurrencyStrategies, func(id int64) int64 { return id })
 
 	strategies := make([]int64, 0, len(uniqueNextStrategies))
 
@@ -1545,7 +1544,7 @@ func (s *Scheduler) handleDeadLetteredDurableCallbackCompleted(ctx context.Conte
 		return fmt.Errorf("could not resolve tasks for undelivered durable callbacks: %w", err)
 	}
 
-	flatByExternalId := listutils.ToMapWithItemsAsValues(flatTasks, func(t *sqlcv1.FlattenExternalIdsRow) uuid.UUID { return t.ExternalID })
+	flatByExternalId := enumerables.ToMapWithItemsAsValues(flatTasks, func(t *sqlcv1.FlattenExternalIdsRow) uuid.UUID { return t.ExternalID })
 
 	callbacks := make([]repov1.SatisfiedEntry, 0, len(payloads))
 
@@ -1619,7 +1618,7 @@ func (s *Scheduler) handleDeadLetteredTaskCancelled(ctx context.Context, msg *ms
 	for _, p := range payloads {
 		// if we no longer have the worker attached to a dispatcher, discard the message
 		dispatcherId, ok := workerIdToDispatcherId[p.WorkerId]
-		hasNoDispatcher := maputils.HasKey(workersWithoutDispatchers, p.WorkerId)
+		hasNoDispatcher := enumerables.HasKey(workersWithoutDispatchers, p.WorkerId)
 
 		if hasNoDispatcher || !ok {
 			continue
