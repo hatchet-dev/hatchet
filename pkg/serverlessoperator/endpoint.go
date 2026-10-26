@@ -10,6 +10,9 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
+	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 )
 
 const (
@@ -340,11 +343,7 @@ func (p *endpointPoller) applyChange(ctx context.Context, reg *registration, res
 
 // prunePutHashes forgets workflows the catalog does not name.
 func (p *endpointPoller) prunePutHashes(res *healthcheckResult) {
-	keep := make(map[string]struct{}, len(res.workflows))
-
-	for _, wf := range res.workflows {
-		keep[wf.Name] = struct{}{}
-	}
+	keep := enumerables.ToSet(res.workflows, func(wf *v1.CreateWorkflowVersionRequest) string { return wf.Name })
 
 	for name := range p.putHashes {
 		if _, ok := keep[name]; !ok {

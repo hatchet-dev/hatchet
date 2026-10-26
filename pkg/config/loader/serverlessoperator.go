@@ -3,6 +3,7 @@ package loader
 import (
 	"context"
 	"fmt"
+
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator"
 
 	"github.com/jackc/pgx/v5/pgxpool"

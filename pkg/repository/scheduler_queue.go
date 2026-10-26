@@ -12,7 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/hatchet-dev/hatchet/internal/listutils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -38,6 +38,7 @@ type RateLimitResult struct {
 	ExceededUnits  int32
 	ExceededVal    int32
 	NextRefillAt   *time.Time
+	PausedUntil    *time.Time
 	TaskId         int64
 	TaskInsertedAt pgtype.Timestamptz
 	RetryCount     int32
@@ -475,8 +476,20 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 	// remove rate limited queue items from the queue and place them in the v1_rate_limited_queue_items table
 	qisToMoveToRateLimited := make([]int64, 0, len(r.RateLimited))
 	qisToMoveToRateLimitedRQAfter := make([]pgtype.Timestamptz, 0, len(r.RateLimited))
+	tasksToHold := make([]TaskIdInsertedAtRetryCount, 0)
 
 	for _, row := range r.RateLimitedToMove {
+		// a paused key holds the task until the pause ends, without its concurrency slot
+		if row.PausedUntil != nil {
+			tasksToHold = append(tasksToHold, TaskIdInsertedAtRetryCount{
+				Id:         row.TaskID,
+				InsertedAt: row.TaskInsertedAt,
+				RetryCount: row.RetryCount,
+			})
+
+			continue
+		}
+
 		qisToMoveToRateLimited = append(qisToMoveToRateLimited, row.ID)
 		qisToMoveToRateLimitedRQAfter = append(qisToMoveToRateLimitedRQAfter, sqlchelpers.TimestamptzFromTime(*row.NextRefillAt))
 	}
@@ -490,6 +503,10 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 		if err != nil {
 			return nil, nil, err
 		}
+	}
+
+	if err = d.holdPausedTasks(ctx, tx, tenantId, tasksToHold); err != nil {
+		return nil, nil, err
 	}
 
 	if len(tasksToRelease) > 0 {
@@ -811,7 +828,7 @@ func (d *queueRepository) GetDesiredLabels(ctx context.Context, tx *OptimisticTx
 	stepIdsToLookup := make([]uuid.UUID, 0, len(stepIds))
 	stepIdToLabels := make(map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow)
 
-	uniqueStepIds := listutils.Uniq(stepIds)
+	uniqueStepIds := enumerables.Uniq(stepIds)
 
 	for _, stepId := range uniqueStepIds {
 		if value, found := d.stepIdLabelsCache.Get(stepId); found {
@@ -864,7 +881,7 @@ func (d *queueRepository) GetStepSlotRequests(ctx context.Context, tx *Optimisti
 	ctx, span := telemetry.NewSpan(ctx, "get-step-slot-requests")
 	defer span.End()
 
-	uniqueStepIds := listutils.Uniq(stepIds)
+	uniqueStepIds := enumerables.Uniq(stepIds)
 
 	stepIdsToLookup := make([]uuid.UUID, 0, len(uniqueStepIds))
 	stepIdToRequests := make(map[uuid.UUID]map[string]int32, len(uniqueStepIds))
@@ -921,7 +938,7 @@ func (d *queueRepository) GetStepBatchConfigs(ctx context.Context, tx *Optimisti
 	ctx, span := telemetry.NewSpan(ctx, "get-step-batch-configs")
 	defer span.End()
 
-	uniqueStepIds := listutils.Uniq(stepIds)
+	uniqueStepIds := enumerables.Uniq(stepIds)
 	res := make(map[string]bool, len(uniqueStepIds))
 
 	stepIdsToLookup := make([]uuid.UUID, 0, len(uniqueStepIds))
@@ -1117,10 +1134,7 @@ func (b *batchQueueRepository) ListExistingBatchedQueueItemIds(ctx context.Conte
 		return nil, err
 	}
 
-	res := make(map[int64]struct{}, len(rows))
-	for _, id := range rows {
-		res[id] = struct{}{}
-	}
+	res := enumerables.ToSet(rows, func(id int64) int64 { return id })
 
 	return res, nil
 }

@@ -163,23 +163,30 @@ INSERT INTO "WorkflowTriggerScheduledRef" (
 -- name: ListCronWorkflows :many
 -- Get all of the latest workflow versions for the tenant
 WITH latest_versions AS (
-    SELECT DISTINCT ON("workflowId")
-        workflowVersions."id" AS "workflowVersionId",
-        workflowVersions."workflowId"
+    SELECT
+        latestVersion."id" AS "workflowVersionId",
+        workflow."id" AS "workflowId",
+        workflow."name" AS "workflowName",
+        workflow."tenantId"
     FROM
-        "WorkflowVersion" as workflowVersions
-    JOIN
-        "Workflow" as workflow ON workflow."id" = workflowVersions."workflowId"
+        "Workflow" as workflow
+    JOIN LATERAL (
+        SELECT workflowVersions."id"
+        FROM "WorkflowVersion" as workflowVersions
+        WHERE
+            workflowVersions."workflowId" = workflow."id"
+            AND workflowVersions."deletedAt" IS NULL
+        ORDER BY workflowVersions."order" DESC
+        LIMIT 1
+    ) as latestVersion ON TRUE
     WHERE
         workflow."tenantId" = @tenantId::uuid
-        AND workflowVersions."deletedAt" IS NULL
-    ORDER BY "workflowId", "order" DESC
 )
 SELECT
     latest_versions."workflowVersionId",
-    w."name" as "workflowName",
-    w."id" as "workflowId",
-    w."tenantId",
+    latest_versions."workflowName",
+    latest_versions."workflowId",
+    latest_versions."tenantId",
     t."id" as "triggerId",
     c."id" as "cronId",
     t.*,
@@ -190,20 +197,17 @@ JOIN
     "WorkflowTriggers" as t ON t."workflowVersionId" = latest_versions."workflowVersionId"
 JOIN
     "WorkflowTriggerCronRef" as c ON c."parentId" = t."id"
-JOIN
-    "Workflow" w on w."id" = latest_versions."workflowId"
 WHERE
     t."deletedAt" IS NULL
-    AND w."tenantId" = @tenantId::uuid
     AND (sqlc.narg('cronTriggerId')::uuid IS NULL OR c."id" = sqlc.narg('cronTriggerId')::uuid)
-    AND (sqlc.narg('workflowId')::uuid IS NULL OR w."id" = sqlc.narg('workflowId')::uuid)
+    AND (sqlc.narg('workflowId')::uuid IS NULL OR latest_versions."workflowId" = sqlc.narg('workflowId')::uuid)
     AND (sqlc.narg('additionalMetadata')::jsonb IS NULL OR
         c."additionalMetadata" @> sqlc.narg('additionalMetadata')::jsonb)
     AND (sqlc.narg('cronName')::TEXT IS NULL OR c."name" = sqlc.narg('cronName')::TEXT)
-    AND (sqlc.narg('workflowName')::TEXT IS NULL OR w."name" = sqlc.narg('workflowName')::TEXT)
+    AND (sqlc.narg('workflowName')::TEXT IS NULL OR latest_versions."workflowName" = sqlc.narg('workflowName')::TEXT)
 ORDER BY
-    case when @orderBy = 'name ASC' THEN w."name" END ASC,
-    case when @orderBy = 'name DESC' THEN w."name" END DESC,
+    case when @orderBy = 'name ASC' THEN latest_versions."workflowName" END ASC,
+    case when @orderBy = 'name DESC' THEN latest_versions."workflowName" END DESC,
     case when @orderBy = 'createdAt ASC' THEN c."createdAt" END ASC ,
     case when @orderBy = 'createdAt DESC' THEN c."createdAt" END DESC,
     t."id" ASC
@@ -215,37 +219,40 @@ LIMIT
 -- name: CountCronWorkflows :one
 -- Get all of the latest workflow versions for the tenant
 WITH latest_versions AS (
-    SELECT DISTINCT ON("workflowId")
-        workflowVersions."id" AS "workflowVersionId",
-        workflowVersions."workflowId"
+    SELECT
+        latestVersion."id" AS "workflowVersionId",
+        workflow."id" AS "workflowId",
+        workflow."name" AS "workflowName"
     FROM
-        "WorkflowVersion" as workflowVersions
-    JOIN
-        "Workflow" as workflow ON workflow."id" = workflowVersions."workflowId"
+        "Workflow" as workflow
+    JOIN LATERAL (
+        SELECT workflowVersions."id"
+        FROM "WorkflowVersion" as workflowVersions
+        WHERE
+            workflowVersions."workflowId" = workflow."id"
+            AND workflowVersions."deletedAt" IS NULL
+        ORDER BY workflowVersions."order" DESC
+        LIMIT 1
+    ) as latestVersion ON TRUE
     WHERE
         workflow."tenantId" = @tenantId::uuid
-        AND workflowVersions."deletedAt" IS NULL
-    ORDER BY "workflowId", "order" DESC
 )
 SELECT
-    count(c.*)
+    count(*)
 FROM
     latest_versions
 JOIN
     "WorkflowTriggers" as t ON t."workflowVersionId" = latest_versions."workflowVersionId"
 JOIN
     "WorkflowTriggerCronRef" as c ON c."parentId" = t."id"
-JOIN
-    "Workflow" w on w."id" = latest_versions."workflowId"
 WHERE
     t."deletedAt" IS NULL
-    AND w."tenantId" = @tenantId::uuid
     AND (sqlc.narg('cronTriggerId')::uuid IS NULL OR c."id" = sqlc.narg('cronTriggerId')::uuid)
-    AND (sqlc.narg('workflowId')::uuid IS NULL OR w."id" = sqlc.narg('workflowId')::uuid)
+    AND (sqlc.narg('workflowId')::uuid IS NULL OR latest_versions."workflowId" = sqlc.narg('workflowId')::uuid)
     AND (sqlc.narg('additionalMetadata')::jsonb IS NULL OR
         c."additionalMetadata" @> sqlc.narg('additionalMetadata')::jsonb)
     AND (sqlc.narg('cronName')::TEXT IS NULL OR c."name" = sqlc.narg('cronName')::TEXT)
-    AND (sqlc.narg('workflowName')::TEXT IS NULL OR w."name" = sqlc.narg('workflowName')::TEXT)
+    AND (sqlc.narg('workflowName')::TEXT IS NULL OR latest_versions."workflowName" = sqlc.narg('workflowName')::TEXT)
 ;
 
 -- name: DeleteWorkflowTriggerCronRef :exec

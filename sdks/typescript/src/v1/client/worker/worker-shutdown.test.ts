@@ -71,11 +71,11 @@ describe('durable worker shutdown', () => {
     manager = new DurableEvictionManager({
       durableSlots: 2,
       cancelLocal: (key) => cancelled.push(key),
-      requestEvictionWithAck: (_key, run) =>
+      requestEvictionWithAck: (_key, run, reason) =>
         client.durableListener.sendEvictInvocation(
           run.taskRunExternalId,
           run.invocationCount,
-          run.evictionReason
+          reason
         ),
       logger: worker.logger,
     });
@@ -181,6 +181,26 @@ describe('durable worker shutdown', () => {
     expect(stopStream).toHaveBeenCalledTimes(1);
     expect(stopHeartbeat).toHaveBeenCalledTimes(1);
     expect(unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the durable listener running until in-flight tasks finish', async () => {
+    registerOpenActionStream();
+    const stopDurableListener = jest.spyOn(client.durableListener, 'stop');
+    const inFlightTask = registerRunningTask('in-flight-task/0' as ActionKey);
+
+    const starting = worker.start();
+    await jest.advanceTimersByTimeAsync(0);
+
+    const stopping = worker.stop();
+    await jest.advanceTimersByTimeAsync(60_000);
+
+    expect(stopDurableListener).not.toHaveBeenCalled();
+
+    inFlightTask.finish();
+    await stopping;
+    await starting;
+
+    expect(stopDurableListener).toHaveBeenCalledTimes(1);
   });
 
   it('still unregisters when an in-flight task is cancelled during shutdown', async () => {

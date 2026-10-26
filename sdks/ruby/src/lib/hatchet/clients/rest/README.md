@@ -158,6 +158,7 @@ Class | Method | HTTP request | Description
 *HatchetSdkRest::StepRunApi* | [**workflow_run_list_step_run_events**](docs/StepRunApi.md#workflow_run_list_step_run_events) | **GET** /api/v1/tenants/{tenant}/workflow-runs/{workflow-run}/step-run-events | List events for all step runs for a workflow run
 *HatchetSdkRest::StreamsApi* | [**v1_stream_payload_get**](docs/StreamsApi.md#v1_stream_payload_get) | **GET** /api/v1/stable/tenants/{tenant}/streams/payloads | Get stream payload
 *HatchetSdkRest::StreamsApi* | [**v1_stream_payload_upload**](docs/StreamsApi.md#v1_stream_payload_upload) | **POST** /api/v1/stable/tenants/{tenant}/streams/payloads | Upload stream payload
+*HatchetSdkRest::StreamsApi* | [**v1_stream_topic_list**](docs/StreamsApi.md#v1_stream_topic_list) | **GET** /api/v1/stable/tenants/{tenant}/streams/topics | List stream topics
 *HatchetSdkRest::TaskApi* | [**v1_dag_list_tasks**](docs/TaskApi.md#v1_dag_list_tasks) | **GET** /api/v1/stable/dags/tasks | List tasks
 *HatchetSdkRest::TaskApi* | [**v1_task_cancel**](docs/TaskApi.md#v1_task_cancel) | **POST** /api/v1/stable/tenants/{tenant}/tasks/cancel | Cancel tasks
 *HatchetSdkRest::TaskApi* | [**v1_task_event_list**](docs/TaskApi.md#v1_task_event_list) | **GET** /api/v1/stable/tasks/{task}/task-events | List events for a task
@@ -172,6 +173,7 @@ Class | Method | HTTP request | Description
 *HatchetSdkRest::TenantApi* | [**alert_email_group_update**](docs/TenantApi.md#alert_email_group_update) | **PATCH** /api/v1/alerting-email-groups/{alert-email-group} | Update tenant alert email group
 *HatchetSdkRest::TenantApi* | [**tenant_alerting_settings_get**](docs/TenantApi.md#tenant_alerting_settings_get) | **GET** /api/v1/tenants/{tenant}/alerting/settings | Get tenant alerting settings
 *HatchetSdkRest::TenantApi* | [**tenant_create**](docs/TenantApi.md#tenant_create) | **POST** /api/v1/tenants | Create tenant
+*HatchetSdkRest::TenantApi* | [**tenant_entitlements_get**](docs/TenantApi.md#tenant_entitlements_get) | **GET** /api/v1/tenants/{tenant}/entitlements | Get tenant entitlements
 *HatchetSdkRest::TenantApi* | [**tenant_get**](docs/TenantApi.md#tenant_get) | **GET** /api/v1/tenants/{tenant} | Get tenant
 *HatchetSdkRest::TenantApi* | [**tenant_get_prometheus_metrics**](docs/TenantApi.md#tenant_get_prometheus_metrics) | **GET** /api/v1/tenants/{tenant}/prometheus-metrics | Get prometheus metrics
 *HatchetSdkRest::TenantApi* | [**tenant_get_step_run_queue_metrics**](docs/TenantApi.md#tenant_get_step_run_queue_metrics) | **GET** /api/v1/tenants/{tenant}/step-run-queue-metrics | Get step run metrics
@@ -358,6 +360,7 @@ Class | Method | HTTP request | Description
  - [HatchetSdkRest::TenantAlertEmailGroup](docs/TenantAlertEmailGroup.md)
  - [HatchetSdkRest::TenantAlertEmailGroupList](docs/TenantAlertEmailGroupList.md)
  - [HatchetSdkRest::TenantAlertingSettings](docs/TenantAlertingSettings.md)
+ - [HatchetSdkRest::TenantEntitlements](docs/TenantEntitlements.md)
  - [HatchetSdkRest::TenantEnvironment](docs/TenantEnvironment.md)
  - [HatchetSdkRest::TenantInvite](docs/TenantInvite.md)
  - [HatchetSdkRest::TenantInviteList](docs/TenantInviteList.md)
@@ -428,6 +431,8 @@ Class | Method | HTTP request | Description
  - [HatchetSdkRest::V1ServerlessEndpointList](docs/V1ServerlessEndpointList.md)
  - [HatchetSdkRest::V1ServerlessEndpointStatus](docs/V1ServerlessEndpointStatus.md)
  - [HatchetSdkRest::V1StreamPayloadRef](docs/V1StreamPayloadRef.md)
+ - [HatchetSdkRest::V1StreamTopic](docs/V1StreamTopic.md)
+ - [HatchetSdkRest::V1StreamTopicList](docs/V1StreamTopicList.md)
  - [HatchetSdkRest::V1TaskEvent](docs/V1TaskEvent.md)
  - [HatchetSdkRest::V1TaskEventList](docs/V1TaskEventList.md)
  - [HatchetSdkRest::V1TaskEventType](docs/V1TaskEventType.md)

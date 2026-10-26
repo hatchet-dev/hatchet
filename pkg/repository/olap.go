@@ -26,7 +26,7 @@ import (
 	tracev1 "go.opentelemetry.io/proto/otlp/trace/v1"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/hatchet-dev/hatchet/internal/listutils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/pkg/config/limits"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -959,10 +959,7 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, 
 	payloads := make(map[uuid.UUID][]byte)
 
 	if opts.IncludePayloads {
-		retrievePayloadOpts := make([]ReadOLAPPayloadOpts, 0)
-		for _, task := range tasksWithData {
-			retrievePayloadOpts = append(retrievePayloadOpts, taskRunPayloadReadOpts(task)...)
-		}
+		retrievePayloadOpts := enumerables.FlatMap(tasksWithData, taskRunPayloadReadOpts)
 
 		payloads, err = r.readPayloads(ctx, tenantId, retrievePayloadOpts...)
 
@@ -1042,10 +1039,7 @@ func (r *OLAPRepositoryImpl) ListTasksByDAGId(ctx context.Context, tenantId uuid
 	payloads := make(map[uuid.UUID][]byte)
 
 	if includePayloads {
-		retrievePayloadOpts := make([]ReadOLAPPayloadOpts, 0)
-		for _, task := range tasksWithData {
-			retrievePayloadOpts = append(retrievePayloadOpts, taskRunPayloadReadOpts(task)...)
-		}
+		retrievePayloadOpts := enumerables.FlatMap(tasksWithData, taskRunPayloadReadOpts)
 
 		payloads, err = r.readPayloads(ctx, tenantId, retrievePayloadOpts...)
 
@@ -1108,10 +1102,7 @@ func (r *OLAPRepositoryImpl) ListTasksByIdAndInsertedAt(ctx context.Context, ten
 	payloads := make(map[uuid.UUID][]byte)
 
 	if includePayloads {
-		retrievePayloadOpts := make([]ReadOLAPPayloadOpts, 0)
-		for _, task := range tasksWithData {
-			retrievePayloadOpts = append(retrievePayloadOpts, taskRunPayloadReadOpts(task)...)
-		}
+		retrievePayloadOpts := enumerables.FlatMap(tasksWithData, taskRunPayloadReadOpts)
 
 		payloads, err = r.readPayloads(ctx, tenantId, retrievePayloadOpts...)
 
@@ -1162,7 +1153,7 @@ func readableStatusesOrDefault(statuses []sqlcv1.V1ReadableStatusOlap) []string 
 		}
 	}
 
-	return listutils.Map(statuses, func(status sqlcv1.V1ReadableStatusOlap) string {
+	return enumerables.Map(statuses, func(status sqlcv1.V1ReadableStatusOlap) string {
 		return string(status)
 	})
 }
@@ -2855,11 +2846,11 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 		return fmt.Errorf("error creating events: %v", err)
 	}
 
-	eventExternalIdToId := make(map[uuid.UUID]int64)
-
-	for _, event := range insertedEvents {
-		eventExternalIdToId[event.ExternalID] = event.ID
-	}
+	eventExternalIdToId := enumerables.ToMap(
+		insertedEvents,
+		func(event *sqlcv1.V1EventsOlap) uuid.UUID { return event.ExternalID },
+		func(event *sqlcv1.V1EventsOlap) int64 { return event.ID },
+	)
 
 	bulkCreateTriggersParams := sqlcv1.BulkCreateEventTriggersParams{
 		Runids:         make([]int64, 0, len(triggers)),
@@ -2943,13 +2934,11 @@ func (r *OLAPRepositoryImpl) PopulateEventData(ctx context.Context, tenantId uui
 		return nil, fmt.Errorf("error populating event data: %v", err)
 	}
 
-	externalIdToEventData := make(map[uuid.UUID]sqlcv1.PopulateEventDataRow)
-
-	for _, data := range eventData {
-		externalIdToEventData[data.ExternalID] = *data
-	}
-
-	return externalIdToEventData, nil
+	return enumerables.ToMap(
+		eventData,
+		func(data *sqlcv1.PopulateEventDataRow) uuid.UUID { return data.ExternalID },
+		func(data *sqlcv1.PopulateEventDataRow) sqlcv1.PopulateEventDataRow { return *data },
+	), nil
 }
 
 func (r *OLAPRepositoryImpl) GetEventWithPayload(ctx context.Context, externalId, tenantId uuid.UUID) (*EventWithPayload, error) {
@@ -3203,13 +3192,7 @@ func (r *OLAPRepositoryImpl) GetDAGDurations(ctx context.Context, tenantId uuid.
 		return nil, err
 	}
 
-	dagDurations := make(map[string]*sqlcv1.GetDagDurationsRow)
-
-	for _, row := range rows {
-		dagDurations[row.ExternalID.String()] = row
-	}
-
-	return dagDurations, nil
+	return enumerables.KeyBy(rows, func(row *sqlcv1.GetDagDurationsRow) string { return row.ExternalID.String() }), nil
 }
 
 func (r *OLAPRepositoryImpl) GetTaskDurationsByTaskIds(ctx context.Context, tenantId uuid.UUID, taskIds []int64, taskInsertedAts []pgtype.Timestamptz, readableStatuses []sqlcv1.V1ReadableStatusOlap) (map[int64]*sqlcv1.GetTaskDurationsByTaskIdsRow, error) {
@@ -3223,14 +3206,8 @@ func (r *OLAPRepositoryImpl) GetTaskDurationsByTaskIds(ctx context.Context, tena
 		return nil, err
 	}
 
-	taskDurations := make(map[int64]*sqlcv1.GetTaskDurationsByTaskIdsRow)
-
 	// rows come back sorted and drop tasks whose status changed, so they can't be matched to taskIds by index
-	for _, row := range rows {
-		taskDurations[row.TaskID] = row
-	}
-
-	return taskDurations, nil
+	return enumerables.KeyBy(rows, func(row *sqlcv1.GetTaskDurationsByTaskIdsRow) int64 { return row.TaskID }), nil
 }
 
 func (r *OLAPRepositoryImpl) GetTaskStartedTimestamps(ctx context.Context, tenantId uuid.UUID, taskIds []int64, taskInsertedAts []time.Time, retryCounts []int32) ([]*sqlcv1.GetTaskStartedTimestampsRow, error) {
@@ -3558,13 +3535,13 @@ func (r *OLAPRepositoryImpl) readPayloadsFromOLAPStore(ctx context.Context, tx s
 		return nil, err
 	}
 
-	externalIdToPayload := make(map[uuid.UUID][]byte)
+	externalIdToPayload := enumerables.ToMap(
+		payloads,
+		func(payload *sqlcv1.V1PayloadsOlap) uuid.UUID { return payload.ExternalID },
+		func(payload *sqlcv1.V1PayloadsOlap) []byte { return payload.InlineContent },
+	)
 	externalIdToRetrieveFromExternalOpt := make(map[uuid.UUID]RetrieveFromExternalOpts)
 	retrieveFromExternalOpts := make([]RetrieveFromExternalOpts, 0)
-
-	for _, payload := range payloads {
-		externalIdToPayload[payload.ExternalID] = payload.InlineContent
-	}
 
 	if r.payloadStore.ExternalStoreEnabled() {
 		retrieveIndexBlockExternalIds := make([]uuid.UUID, 0)
@@ -3803,13 +3780,13 @@ func (r *OLAPRepositoryImpl) ListYesterdayRunCountsByStatus(ctx context.Context)
 		return nil, err
 	}
 
-	statusToCount := make(map[sqlcv1.V1ReadableStatusOlap]int64)
-
-	for _, row := range rows {
-		statusToCount[row.ReadableStatus] = row.Count
-	}
-
-	return statusToCount, nil
+	return enumerables.ToMap(
+		rows,
+		func(row *sqlcv1.ListYesterdayRunCountsByStatusRow) sqlcv1.V1ReadableStatusOlap {
+			return row.ReadableStatus
+		},
+		func(row *sqlcv1.ListYesterdayRunCountsByStatusRow) int64 { return row.Count },
+	), nil
 }
 
 func DeriveIDBytes(size int, parts ...[]byte) []byte {

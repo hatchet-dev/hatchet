@@ -882,6 +882,28 @@ export interface V1StreamPayloadRef {
   ref: string;
 }
 
+export interface V1StreamTopic {
+  /** The topic's namespace, empty for the default namespace */
+  namespace: string;
+  topic: string;
+  /** @format date-time */
+  createdAt: string;
+  /** @format date-time */
+  lastPublishedAt: string;
+  /**
+   * The number of messages within the tenant's retention
+   * @format int64
+   */
+  messageCount: number;
+}
+
+export interface V1StreamTopicList {
+  pagination: PaginationResponse;
+  /** How long messages are kept, and how long a topic is kept after its last publish */
+  retentionHours: number;
+  rows: V1StreamTopic[];
+}
+
 export interface OtelSpan {
   traceId: string;
   spanId: string;
@@ -1596,6 +1618,15 @@ export interface TenantResourcePolicy {
   limits: TenantResourceLimit[];
 }
 
+export interface TenantEntitlements {
+  auditLogs: boolean;
+  prometheusMetrics: boolean;
+  strictAdditionalMetadataFilters: boolean;
+  dagOperator: boolean;
+  durableStreams: boolean;
+  serverlessOperator: boolean;
+}
+
 export interface UpdateTenantAlertEmailGroupRequest {
   /** A list of emails for users */
   emails: string[];
@@ -1944,6 +1975,12 @@ export interface RateLimit {
    * @example "2022-12-13T15:06:48.888358-05:00"
    */
   lastRefill: string;
+  /**
+   * When the rate limit's pause ends, if it is paused. Runs that consume a paused key stay queued until then.
+   * @format date-time
+   * @example "2022-12-13T15:06:48.888358-05:00"
+   */
+  pausedUntil?: string;
 }
 
 export interface RateLimitList {

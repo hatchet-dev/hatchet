@@ -20,6 +20,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -1729,11 +1730,13 @@ func (r *durableEventsRepository) resolveChildExternalIdsForBatch(ctx context.Co
 		return fmt.Errorf("failed to upsert child signal created events: %w", err)
 	}
 
-	resolvedIdByKey := make(map[taskIdSpawnKey]uuid.UUID, len(rows))
-
-	for _, row := range rows {
-		resolvedIdByKey[taskIdSpawnKey{taskId: row.TaskID, spawnKey: row.EventKey.String}] = *row.ChildExternalID
-	}
+	resolvedIdByKey := enumerables.ToMap(
+		rows,
+		func(row *sqlcv1.BulkUpsertDurableChildSignalCreatedEventsRow) taskIdSpawnKey {
+			return taskIdSpawnKey{taskId: row.TaskID, spawnKey: row.EventKey.String}
+		},
+		func(row *sqlcv1.BulkUpsertDurableChildSignalCreatedEventsRow) uuid.UUID { return *row.ChildExternalID },
+	)
 
 	for key, opts := range optsByKey {
 		resolvedId, ok := resolvedIdByKey[key]
@@ -2735,7 +2738,7 @@ func (r *durableEventsRepository) handleWaitFor(ctx context.Context, tx sqlcv1.D
 	return r.registerSignalMatchConditions(ctx, tx, tenantId, createMatchOpts)
 }
 
-func (r *durableEventsRepository) latestSatisfiedOrderBeforeBranchPoint(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, nodeId, branchId int64, task *sqlcv1.FlattenExternalIdsRow, nextBranchIdToBranchPoint map[int64]*sqlcv1.V1DurableEventLogBranchPoint) (int64, error) {
+func (r *durableEventsRepository) resetSatisfiedOrdersForNewBranch(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, nodeId, branchId int64, task *sqlcv1.FlattenExternalIdsRow, nextBranchIdToBranchPoint map[int64]*sqlcv1.V1DurableEventLogBranchPoint) (int64, error) {
 	entries, err := r.queries.ListDurableEventLogEntriesBeforeNode(ctx, tx, sqlcv1.ListDurableEventLogEntriesBeforeNodeParams{
 		Durabletaskid:         task.ID,
 		Durabletaskinsertedat: task.InsertedAt,
@@ -2746,23 +2749,21 @@ func (r *durableEventsRepository) latestSatisfiedOrderBeforeBranchPoint(ctx cont
 		return 0, fmt.Errorf("failed to list durable event log entries before branch point: %w", err)
 	}
 
-	return latestSatisfiedOrderForBranchPrefix(entries, branchId, nextBranchIdToBranchPoint), nil
-}
-
-func latestSatisfiedOrderForBranchPrefix(entries []*sqlcv1.V1DurableEventLogEntry, branchId int64, nextBranchIdToBranchPoint map[int64]*sqlcv1.V1DurableEventLogBranchPoint) int64 {
-	var latest int64
+	params := sqlcv1.ResetSatisfiedOrdersForNewBranchParams{
+		Durabletaskid:         task.ID,
+		Durabletaskinsertedat: task.InsertedAt,
+	}
 
 	for _, entry := range entries {
 		if entry.BranchID != resolveBranchForNode(entry.NodeID, branchId, nextBranchIdToBranchPoint) {
 			continue
 		}
 
-		if entry.SatisfiedOrder.Valid && entry.SatisfiedOrder.Int64 > latest {
-			latest = entry.SatisfiedOrder.Int64
-		}
+		params.Keptnodeids = append(params.Keptnodeids, entry.NodeID)
+		params.Keptbranchids = append(params.Keptbranchids, entry.BranchID)
 	}
 
-	return latest
+	return r.queries.ResetSatisfiedOrdersForNewBranch(ctx, tx, params)
 }
 
 func (r *durableEventsRepository) CompleteMemoEntry(ctx context.Context, opts CompleteMemoEntryOpts) error {
@@ -2834,7 +2835,7 @@ func (r *durableEventsRepository) handleBranch(ctx context.Context, tenantId uui
 	newBranchId := logFile.LatestBranchID + 1
 	zero := int64(0)
 
-	latestSatisfiedOrder, err := r.latestSatisfiedOrderBeforeBranchPoint(ctx, tx, tenantId, nodeId, branchId, task, nextBranchIdToBranchPoint)
+	latestSatisfiedOrder, err := r.resetSatisfiedOrdersForNewBranch(ctx, tx, tenantId, nodeId, branchId, task, nextBranchIdToBranchPoint)
 	if err != nil {
 		return nil, err
 	}

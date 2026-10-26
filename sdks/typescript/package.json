@@ -1,6 +1,6 @@
 {
   "name": "@hatchet-dev/typescript-sdk",
-  "version": "1.38.0",
+  "version": "1.43.0",
   "engines": {
     "node": ">=20"
   },
@@ -114,12 +114,13 @@
     "tsc:build": "pnpm run dump-version && tsc && resolve-tspaths",
     "test:unit": "jest --testMatch='**/*.test.ts'",
     "check:edge": "pnpm run tsc:build && node scripts/check-edge-entry.mjs",
-    "check:core": "pnpm run tsc:build && node scripts/check-edge-entry.mjs dist/core/index.js --forbid axios,nice-grpc,@grpc/grpc-js,@connectrpc/connect-node,long,protobufjs,yaml",
+    "check:core": "pnpm run tsc:build && node scripts/check-edge-entry.mjs dist/core/index.js --forbid axios,nice-grpc,@grpc/grpc-js,@connectrpc/connect-node,long,protobufjs,yaml && node scripts/check-core-esm-exports.mjs",
     "check:exports": "pnpm run tsc:build && node scripts/check-exports.mjs",
     "test:e2e": "jest --config jest.e2e.config.ts --silent --forceExit --runInBand",
     "test:unit:watch": "jest --testMatch='**/*.test.ts' --watch",
     "generate": "pnpm run '/generate-.*/'",
     "generate-api": "npx swagger-typescript-api@13.2.7 generate -p ../../bin/oas/openapi.yaml -o ./src/clients/rest/generated -n hatchet.ts --modular --axios",
+    "generate-api-fetch": "npx swagger-typescript-api@13.2.7 generate -p ../../bin/oas/openapi.yaml -o ./src/clients/rest/generated-fetch -n hatchet.ts --modular && node scripts/share-rest-contracts.mjs && prettier --write \"src/clients/rest/generated-fetch/*.ts\"",
     "generate-protoc": "./generate-protoc.sh",
     "generate-protoc-es": "./generate-protoc-es.sh",
     "lint:check": "pnpm run eslint:check && pnpm run prettier:check",
