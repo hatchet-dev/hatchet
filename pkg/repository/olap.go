@@ -1995,6 +1995,7 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId u
 	eventsToWrite := make([]sqlcv1.CreateTaskEventsOLAPParams, 0)
 	eventsForStatusUpdate := make([]sqlcv1.CreateTaskEventsOLAPParams, 0, len(events))
 	payloadsToWrite := make([]StoreOLAPPayloadOpts, 0)
+	oldestRetainedPartitionStart := r.oldestRetainedPartitionStart()
 
 	for _, event := range events {
 		workflowRunId, ok := eventExternalIdToWorkflowRunId[event.ExternalID]
@@ -2011,7 +2012,9 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId u
 		key := getCacheKey(event)
 		output := event.Output
 
-		if _, ok := r.eventCache.Get(key); !ok {
+		isTaskPartitionDropped := event.TaskInsertedAt.Time.Before(oldestRetainedPartitionStart)
+
+		if _, ok := r.eventCache.Get(key); !ok && !isTaskPartitionDropped {
 			if event.Output != nil || event.PayloadReferenceID != nil {
 				event.Output = []byte("{}")
 			}
