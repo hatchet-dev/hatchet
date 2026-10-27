@@ -1842,6 +1842,7 @@ func (r *OLAPRepositoryImpl) prepareStatusUpdateBatch(ctx context.Context, tenan
 		Statuses:        statuses,
 		Workerids:       workerIds,
 		Retrycounts:     retryCounts,
+		Mininsertedat:   sqlchelpers.MinTimestamptz(taskInsertedAts),
 	}
 }
 
