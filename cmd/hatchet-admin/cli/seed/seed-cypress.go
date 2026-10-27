@@ -171,7 +171,7 @@ func SeedDatabaseForCypress(dc *database.Layer) error {
 			member, err := dc.V1.Tenant().GetTenantMemberByUserID(ctx, tenantUUID, user.id)
 			if err == nil {
 				if !allowed {
-					if err := dc.V1.Tenant().DeleteTenantMember(ctx, member.ID); err != nil {
+					if err := dc.V1.Tenant().DeleteTenantMember(ctx, tenantUUID, member.ID); err != nil {
 						return fmt.Errorf(
 							"deleting disallowed tenant member (tenant_slug=%s tenant_id=%s user_email=%s user_id=%s member_id=%s): %w",
 							tenant.slug,

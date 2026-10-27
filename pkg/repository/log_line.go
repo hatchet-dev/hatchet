@@ -112,6 +112,8 @@ func newLogLineRepository(s *sharedRepository) LogLineRepository {
 }
 
 func (r *logLineRepositoryImpl) ListLogLines(ctx context.Context, tenantId uuid.UUID, opts *ListLogsOpts) ([]*ListLogLineRow, error) {
+	db := r.pool.ForTenant(tenantId)
+
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -183,7 +185,7 @@ func (r *logLineRepositoryImpl) ListLogLines(ctx context.Context, tenantId uuid.
 		queryParams.TaskIds = internalIds
 	}
 
-	logLines, err := r.queries.ListLogLines(ctx, r.pool, queryParams)
+	logLines, err := r.queries.ListLogLines(ctx, db, queryParams)
 	if err != nil {
 		return nil, err
 	}
@@ -197,7 +199,7 @@ func (r *logLineRepositoryImpl) ListLogLines(ctx context.Context, tenantId uuid.
 	}
 
 	// look up associated task external ids
-	tasks, err := r.listTasks(ctx, r.pool, tenantId, taskIds)
+	tasks, err := r.listTasks(ctx, db, tenantId, taskIds)
 
 	if err != nil {
 		return nil, err
@@ -227,6 +229,8 @@ func (r *logLineRepositoryImpl) ListLogLines(ctx context.Context, tenantId uuid.
 }
 
 func (r *logLineRepositoryImpl) PutLog(ctx context.Context, tenantId uuid.UUID, opts *CreateLogLineOpts) error {
+	db := r.pool.ForTenant(tenantId)
+
 	if err := r.v.Validate(opts); err != nil {
 		return err
 	}
@@ -241,7 +245,7 @@ func (r *logLineRepositoryImpl) PutLog(ctx context.Context, tenantId uuid.UUID, 
 
 	_, err := r.queries.InsertLogLine(
 		ctx,
-		r.pool,
+		db,
 		[]sqlcv1.InsertLogLineParams{
 			{
 				TenantID:       tenantId,
@@ -261,6 +265,8 @@ func (r *logLineRepositoryImpl) PutLog(ctx context.Context, tenantId uuid.UUID, 
 }
 
 func (r *logLineRepositoryImpl) GetLogLinePointMetrics(ctx context.Context, tenantId uuid.UUID, opts *GetLogLinePointMetricsOpts) ([]*sqlcv1.GetLogLinePointMetricsRow, error) {
+	db := r.pool.ForTenant(tenantId)
+
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -294,7 +300,7 @@ func (r *logLineRepositoryImpl) GetLogLinePointMetrics(ctx context.Context, tena
 		params.TaskIds = internalIds
 	}
 
-	rows, err := r.queries.GetLogLinePointMetrics(ctx, r.pool, params)
+	rows, err := r.queries.GetLogLinePointMetrics(ctx, db, params)
 	if err != nil {
 		return nil, err
 	}
@@ -303,7 +309,9 @@ func (r *logLineRepositoryImpl) GetLogLinePointMetrics(ctx context.Context, tena
 }
 
 func (r *logLineRepositoryImpl) resolveTaskExternalIds(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID) ([]int64, error) {
-	tasks, err := r.queries.FlattenExternalIds(ctx, r.pool, sqlcv1.FlattenExternalIdsParams{
+	db := r.pool.ForTenant(tenantId)
+
+	tasks, err := r.queries.FlattenExternalIds(ctx, db, sqlcv1.FlattenExternalIdsParams{
 		Tenantid:    tenantId,
 		Externalids: externalIds,
 	})

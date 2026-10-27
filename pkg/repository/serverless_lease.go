@@ -17,7 +17,7 @@ func (r *serverlessLeaseRepository) Claim(ctx context.Context, processId uuid.UU
 		return nil, nil
 	}
 
-	return r.queries.ClaimServerlessLeases(ctx, r.pool, sqlcv1.ClaimServerlessLeasesParams{
+	return r.queries.ClaimServerlessLeases(ctx, r.pool.ForShared(), sqlcv1.ClaimServerlessLeasesParams{
 		Processid:      processId,
 		Aftertenantid:  after.TenantId,
 		Afterpartition: after.Partition,
@@ -32,7 +32,7 @@ func (r *serverlessLeaseRepository) Shed(ctx context.Context, processId uuid.UUI
 
 	tenantIds, partitions := unitArrays(units)
 
-	return r.queries.ShedServerlessLeases(ctx, r.pool, sqlcv1.ShedServerlessLeasesParams{
+	return r.queries.ShedServerlessLeases(ctx, r.pool.ForShared(), sqlcv1.ShedServerlessLeasesParams{
 		Processid:  processId,
 		Tenantids:  tenantIds,
 		Partitions: partitions,
@@ -40,15 +40,15 @@ func (r *serverlessLeaseRepository) Shed(ctx context.Context, processId uuid.UUI
 }
 
 func (r *serverlessLeaseRepository) ReleaseUnentitled(ctx context.Context, processId uuid.UUID) ([]*sqlcv1.ReleaseUnentitledServerlessLeasesRow, error) {
-	return r.queries.ReleaseUnentitledServerlessLeases(ctx, r.pool, processId)
+	return r.queries.ReleaseUnentitledServerlessLeases(ctx, r.pool.ForShared(), processId)
 }
 
 func (r *serverlessLeaseRepository) ReleaseAll(ctx context.Context, processId uuid.UUID) (int64, error) {
-	return r.queries.ReleaseAllServerlessLeases(ctx, r.pool, processId)
+	return r.queries.ReleaseAllServerlessLeases(ctx, r.pool.ForShared(), processId)
 }
 
 func (r *serverlessLeaseRepository) ListOwned(ctx context.Context, processId uuid.UUID) ([]*sqlcv1.V1ServerlessLease, error) {
-	return r.queries.ListOwnedServerlessLeases(ctx, r.pool, processId)
+	return r.queries.ListOwnedServerlessLeases(ctx, r.pool.ForShared(), processId)
 }
 
 func (r *serverlessLeaseRepository) CountClaimable(ctx context.Context, limit int64) (*sqlcv1.CountClaimableServerlessLeasesRow, error) {
@@ -56,18 +56,18 @@ func (r *serverlessLeaseRepository) CountClaimable(ctx context.Context, limit in
 		return &sqlcv1.CountClaimableServerlessLeasesRow{}, nil
 	}
 
-	return r.queries.CountClaimableServerlessLeases(ctx, r.pool, limit)
+	return r.queries.CountClaimableServerlessLeases(ctx, r.pool.ForShared(), limit)
 }
 
 func (r *serverlessLeaseRepository) InsertIfAbsent(ctx context.Context, unit ServerlessUnit) error {
-	return r.queries.InsertServerlessLeaseIfAbsent(ctx, r.pool, sqlcv1.InsertServerlessLeaseIfAbsentParams{
+	return r.queries.InsertServerlessLeaseIfAbsent(ctx, r.pool.ForShared(), sqlcv1.InsertServerlessLeaseIfAbsentParams{
 		Tenantid:  unit.TenantId,
 		Partition: unit.Partition,
 	})
 }
 
 func (r *serverlessLeaseRepository) IncrementEndpointCount(ctx context.Context, unit ServerlessUnit, delta int32) error {
-	return r.queries.IncrementServerlessLeaseEndpointCount(ctx, r.pool, sqlcv1.IncrementServerlessLeaseEndpointCountParams{
+	return r.queries.IncrementServerlessLeaseEndpointCount(ctx, r.pool.ForShared(), sqlcv1.IncrementServerlessLeaseEndpointCountParams{
 		Tenantid:  unit.TenantId,
 		Partition: unit.Partition,
 		Delta:     delta,
