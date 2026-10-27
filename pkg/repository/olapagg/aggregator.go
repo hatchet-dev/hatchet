@@ -34,7 +34,6 @@ func DefaultOpts() Opts {
 	}
 }
 
-// Aggregator compacts aggregate deltas.
 type Aggregator struct {
 	pool    sqlchelpers.Pool
 	l       *zerolog.Logger
@@ -46,7 +45,6 @@ func New(pool sqlchelpers.Pool, l *zerolog.Logger, opts Opts) *Aggregator {
 	return &Aggregator{pool: pool, l: l, opts: opts, queries: sqlcv1.New()}
 }
 
-// Start runs the compactors until the returned stop function is called.
 func (a *Aggregator) Start() func() {
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -68,7 +66,6 @@ func (a *Aggregator) Start() func() {
 	}
 }
 
-// runCompactor folds the deltas of one delta partition of one aggregate.
 func (a *Aggregator) runCompactor(ctx context.Context, agg Aggregate, partition int) {
 	for {
 		n, err := a.compact(ctx, agg, partition)
