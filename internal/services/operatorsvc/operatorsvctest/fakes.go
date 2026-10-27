@@ -349,7 +349,7 @@ func (f *WorkerStore) BulkHeartbeats() [][]uuid.UUID {
 	return append([][]uuid.UUID(nil), f.bulkHeartbeats...)
 }
 
-func (f *WorkerStore) UpsertWorkerLabels(_ context.Context, workerId uuid.UUID, opts []repository.UpsertWorkerLabelOpts) ([]*sqlcv1.WorkerLabel, error) {
+func (f *WorkerStore) UpsertWorkerLabels(_ context.Context, _ uuid.UUID, workerId uuid.UUID, opts []repository.UpsertWorkerLabelOpts) ([]*sqlcv1.WorkerLabel, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 

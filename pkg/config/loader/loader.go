@@ -46,6 +46,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/debugger"
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 	"github.com/hatchet-dev/hatchet/pkg/security"
@@ -156,6 +157,14 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		return nil, err
 	}
 
+	if cf.FairpoolTenantMaxPercent < 1 || cf.FairpoolTenantMaxPercent > 100 {
+		return nil, fmt.Errorf("DATABASE_FAIRPOOL_TENANT_MAX_PERCENT must be from 1 to 100, got %d", cf.FairpoolTenantMaxPercent)
+	}
+
+	if cf.FairpoolSharedMaxPercent < 1 || cf.FairpoolSharedMaxPercent > 100 {
+		return nil, fmt.Errorf("DATABASE_FAIRPOOL_SHARED_MAX_PERCENT must be from 1 to 100, got %d", cf.FairpoolSharedMaxPercent)
+	}
+
 	serverSharedFilePath := filepath.Join(c.directory, "server.yaml")
 	serverConfigFileBytes, err := loaderutils.GetConfigBytes(serverSharedFilePath)
 
@@ -241,11 +250,19 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		config.AfterRelease = debug.AfterRelease
 	}
 
-	pool, err := pgxpool.NewWithConfig(context.Background(), config)
+	gatedPool, err := fairpool.NewWithConfig(context.Background(), config, fairpool.Options{
+		MaxPercent:       cf.FairpoolTenantMaxPercent,
+		SharedMaxPercent: cf.FairpoolSharedMaxPercent,
+		MaxWait:          cf.FairpoolTenantMaxWait,
+		PoolName:         "main",
+		L:                &l,
+	})
 
 	if err != nil {
 		return nil, fmt.Errorf("could not connect to database: %w", err)
 	}
+
+	pool := gatedPool.Unwrap()
 
 	if debug != nil {
 		// pool needs the debugger hooks (BeforeAcquire/AfterRelease) but debugger needs the pool
@@ -258,7 +275,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 	}
 
 	// a pool for read replicas, if enabled
-	var readReplicaPool *pgxpool.Pool
+	var readReplicaPool *fairpool.Pool
 
 	if cf.ReadReplicaEnabled {
 		if cf.ReadReplicaDatabaseURL == "" {
@@ -284,7 +301,13 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 			}
 		}
 
-		readReplicaPool, err = pgxpool.NewWithConfig(context.Background(), readReplicaConfig)
+		readReplicaPool, err = fairpool.NewWithConfig(context.Background(), readReplicaConfig, fairpool.Options{
+			MaxPercent:       cf.FairpoolTenantMaxPercent,
+			SharedMaxPercent: cf.FairpoolSharedMaxPercent,
+			MaxWait:          cf.FairpoolTenantMaxWait,
+			PoolName:         "read-replica",
+			L:                &l,
+		})
 
 		if err != nil {
 			return nil, fmt.Errorf("could not connect to read replica database: %w", err)
@@ -368,7 +391,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 	}
 
 	v1, cleanupV1 := repov1.NewRepository(
-		pool,
+		gatedPool,
 		ddlPool,
 		&l,
 		cf.CacheDuration,

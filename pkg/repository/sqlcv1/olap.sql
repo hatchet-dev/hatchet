@@ -1064,7 +1064,8 @@ WITH inputs AS (
     FROM v1_tasks_olap t
     JOIN inputs i ON (i.tenant_id, i.task_id, i.task_inserted_at) = (t.tenant_id, t.id, t.inserted_at)
     WHERE
-        (
+        t.inserted_at >= @minInsertedAt::TIMESTAMPTZ
+        AND (
             -- A newer retry count must always apply, even when the readable
             -- status is unchanged, because this is the only chance to record it:
             -- the message this batch came from is acked once the transaction
@@ -1103,6 +1104,7 @@ WITH inputs AS (
     FROM locked_tasks lt
     WHERE
         (t.inserted_at, t.id, t.tenant_id) = (lt.inserted_at, lt.id, lt.tenant_id)
+        AND t.inserted_at >= @minInsertedAt::TIMESTAMPTZ
     RETURNING t.*
 )
 
@@ -1120,10 +1122,12 @@ SELECT
     (ut.id IS NOT NULL)::BOOLEAN AS was_updated
 FROM v1_tasks_olap t
 LEFT JOIN updated_tasks ut ON (ut.tenant_id, ut.id, ut.inserted_at) = (t.tenant_id, t.id, t.inserted_at)
-WHERE (t.inserted_at, t.id, t.tenant_id) IN (
-    SELECT task_inserted_at, task_id, tenant_id
-    FROM inputs
-)
+WHERE
+    t.inserted_at >= @minInsertedAt::TIMESTAMPTZ
+    AND (t.inserted_at, t.id, t.tenant_id) IN (
+        SELECT task_inserted_at, task_id, tenant_id
+        FROM inputs
+    )
 ;
 
 -- name: UpdateDAGStatusesFromMQ :many
@@ -1136,7 +1140,8 @@ WITH inputs AS (
     SELECT *
     FROM v1_dags_olap d
     WHERE
-        (d.inserted_at, d.id, d.tenant_id) IN (
+        d.inserted_at >= @minDagInsertedAt::TIMESTAMPTZ
+        AND (d.inserted_at, d.id, d.tenant_id) IN (
             SELECT dag_inserted_at, dag_id, tenant_id
             FROM inputs
         )
@@ -1198,6 +1203,7 @@ WITH inputs AS (
         dag_new_statuses dns
     WHERE
         (d.inserted_at, d.id, d.tenant_id) = (dns.inserted_at, dns.id, dns.tenant_id)
+        AND d.inserted_at >= @minDagInsertedAt::TIMESTAMPTZ
         AND dns.new_readable_status != d.readable_status
     RETURNING
         d.tenant_id, d.id, d.inserted_at, d.external_id, d.readable_status, d.workflow_id
@@ -2495,12 +2501,15 @@ RETURNING
 -- shares the DAG's id and inserted_at) so run metadata queries surface the orchestrator's error
 -- message and timings. Status derivation is unaffected: status queries join through
 -- v1_tasks_olap, which has no row for the orchestrator.
+WITH inputs AS (
+    SELECT
+        UNNEST(@dagIds::bigint[]) AS dag_id,
+        UNNEST(@dagInsertedAts::timestamptz[]) AS dag_inserted_at
+)
 INSERT INTO v1_dag_to_task_olap (dag_id, dag_inserted_at, task_id, task_inserted_at)
-SELECT
-    UNNEST(@dagIds::bigint[]),
-    UNNEST(@dagInsertedAts::timestamptz[]),
-    UNNEST(@dagIds::bigint[]),
-    UNNEST(@dagInsertedAts::timestamptz[])
+SELECT i.dag_id, i.dag_inserted_at, i.dag_id, i.dag_inserted_at
+FROM inputs i
+ORDER BY i.dag_inserted_at, i.dag_id
 ON CONFLICT DO NOTHING;
 
 -- name: ReconcileOperatorDAGStatusesOnCreate :exec

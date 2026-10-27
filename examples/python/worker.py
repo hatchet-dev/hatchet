@@ -18,6 +18,9 @@ from examples.bug_tests.dag_cancel_if_missing_output_key.worker import (
     cancel_if_missing_output_key_dag,
 )
 from examples.bug_tests.dag_parent_returns_none.worker import parent_returns_none_dag
+from examples.bug_tests.dag_replay_child_reads_parent_output.worker import (
+    dag_replay_child_reads_parent_output,
+)
 from examples.bug_tests.dag_replay_twice.worker import dag_replay_twice
 from examples.bug_tests.durable_callback_ordering.worker import (
     callback_ordering_leaf,
@@ -294,6 +297,7 @@ def main() -> None:
             cancel_if_missing_output_key_dag,
             parent_returns_none_dag,
             dag_replay_twice,
+            dag_replay_child_reads_parent_output,
             run_detail_test_workflow,
             lifespan_task,
             simple,

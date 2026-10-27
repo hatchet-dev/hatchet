@@ -38,6 +38,8 @@ withTenant:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Create API Token
     tags:
       - API Token
@@ -75,6 +77,8 @@ withTenant:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: List API Tokens
     tags:
       - API Token
@@ -109,6 +113,8 @@ revoke:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Revoke API Token
     tags:
       - API Token

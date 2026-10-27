@@ -98,7 +98,7 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 	workerId := worker.ID.String()
 
 	if request.Labels != nil {
-		_, err = s.upsertLabels(ctx, worker.ID, request.Labels)
+		_, err = s.upsertLabels(ctx, tenantId, worker.ID, request.Labels)
 
 		if err != nil {
 			return nil, err
@@ -144,7 +144,7 @@ func (s *DispatcherImpl) UpsertWorkerLabels(ctx context.Context, request *contra
 		return nil, err
 	}
 
-	_, err = s.upsertLabels(ctx, workerId, request.Labels)
+	_, err = s.upsertLabels(ctx, tenant.ID, workerId, request.Labels)
 
 	if err != nil {
 		return nil, err
@@ -156,7 +156,7 @@ func (s *DispatcherImpl) UpsertWorkerLabels(ctx context.Context, request *contra
 	}, nil
 }
 
-func (s *DispatcherImpl) upsertLabels(ctx context.Context, workerId uuid.UUID, request map[string]*contracts.WorkerLabels) ([]*sqlcv1.WorkerLabel, error) {
+func (s *DispatcherImpl) upsertLabels(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, request map[string]*contracts.WorkerLabels) ([]*sqlcv1.WorkerLabel, error) {
 	affinities := make([]v1.UpsertWorkerLabelOpts, 0, len(request))
 
 	for key, config := range request {
@@ -174,7 +174,7 @@ func (s *DispatcherImpl) upsertLabels(ctx context.Context, workerId uuid.UUID, r
 		})
 	}
 
-	res, err := s.repov1.Workers().UpsertWorkerLabels(ctx, workerId, affinities)
+	res, err := s.repov1.Workers().UpsertWorkerLabels(ctx, tenantId, workerId, affinities)
 
 	if err != nil {
 		s.l.Error().Ctx(ctx).Err(err).Msgf("could not upsert worker affinities for worker %s", workerId.String())
