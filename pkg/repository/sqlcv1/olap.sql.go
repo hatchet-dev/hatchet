@@ -4389,7 +4389,7 @@ WITH inputs AS (
     FROM v1_tasks_olap t
     JOIN inputs i ON (i.tenant_id, i.task_id, i.task_inserted_at) = (t.tenant_id, t.id, t.inserted_at)
     WHERE
-        t.inserted_at > $1::TIMESTAMPTZ
+        t.inserted_at >= $1::TIMESTAMPTZ
         AND (
             -- A newer retry count must always apply, even when the readable
             -- status is unchanged, because this is the only chance to record it:
@@ -4429,7 +4429,7 @@ WITH inputs AS (
     FROM locked_tasks lt
     WHERE
         (t.inserted_at, t.id, t.tenant_id) = (lt.inserted_at, lt.id, lt.tenant_id)
-        AND t.inserted_at > $1::TIMESTAMPTZ
+        AND t.inserted_at >= $1::TIMESTAMPTZ
     RETURNING t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at, t.parent_task_external_id, t.is_durable, t.idempotency_key, t.payload_reference_id
 )
 
@@ -4448,7 +4448,7 @@ SELECT
 FROM v1_tasks_olap t
 LEFT JOIN updated_tasks ut ON (ut.tenant_id, ut.id, ut.inserted_at) = (t.tenant_id, t.id, t.inserted_at)
 WHERE
-    t.inserted_at > $1::TIMESTAMPTZ
+    t.inserted_at >= $1::TIMESTAMPTZ
     AND (t.inserted_at, t.id, t.tenant_id) IN (
         SELECT task_inserted_at, task_id, tenant_id
         FROM inputs
