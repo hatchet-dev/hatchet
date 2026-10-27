@@ -2,7 +2,9 @@ package middleware
 
 import (
 	"fmt"
+	"math"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -12,6 +14,16 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 )
+
+// RetryAfter is the Retry-After value for a limiter refilling at limit tokens per second: whole
+// seconds until the next token, at least 1.
+func RetryAfter(limit rate.Limit) string {
+	if limit <= 0 {
+		return "1"
+	}
+
+	return strconv.Itoa(max(1, int(math.Ceil(1/float64(limit)))))
+}
 
 func WebhookRateLimitMiddleware(rateLimit rate.Limit, burst int, l *zerolog.Logger) echo.MiddlewareFunc {
 	config := middleware.RateLimiterConfig{
@@ -52,6 +64,8 @@ func WebhookRateLimitMiddleware(rateLimit rate.Limit, burst int, l *zerolog.Logg
 		},
 
 		DenyHandler: func(c echo.Context, _ string, _ error) error {
+			c.Response().Header().Set(echo.HeaderRetryAfter, RetryAfter(rateLimit))
+
 			return c.JSON(http.StatusTooManyRequests, apierrors.NewAPIErrors("rate limit exceeded, retry shortly"))
 		},
 	}
