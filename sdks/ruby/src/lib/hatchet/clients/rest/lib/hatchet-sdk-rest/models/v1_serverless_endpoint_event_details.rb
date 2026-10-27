@@ -23,7 +23,7 @@ module HatchetSdkRest
 
     attr_accessor :duration_ms
 
-    # The start of the response body, at most 1 KiB.
+    # The start of the response body, at most 1 KiB. Omitted for members who cannot view payloads.
     attr_accessor :response_excerpt
 
     attr_accessor :actions
