@@ -2676,6 +2676,10 @@ func dedupeOrchestratorUpdates(updates []OrchestratorDAGStatusUpdateOpt) []Orche
 	return deduped
 }
 
+func (r *OLAPRepositoryImpl) oldestRetainedPartitionStart() time.Time {
+	return time.Now().UTC().Add(-1 * r.olapRetentionPeriod).Truncate(24 * time.Hour)
+}
+
 func (r *OLAPRepositoryImpl) applyOrchestratorEventsToDAGs(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, updates []OrchestratorDAGStatusUpdateOpt) ([]UpdateDAGStatusRow, error) {
 	if len(updates) == 0 {
 		return nil, nil
@@ -2685,7 +2689,13 @@ func (r *OLAPRepositoryImpl) applyOrchestratorEventsToDAGs(ctx context.Context, 
 		Tenantid: tenantId,
 	}
 
+	oldestRetainedPartitionStart := r.oldestRetainedPartitionStart()
+
 	for _, update := range dedupeOrchestratorUpdates(updates) {
+		if update.DagInsertedAt.Time.Before(oldestRetainedPartitionStart) {
+			continue
+		}
+
 		params.Dagids = append(params.Dagids, update.DagId)
 		params.Daginsertedats = append(params.Daginsertedats, update.DagInsertedAt)
 		params.Statuses = append(params.Statuses, update.ReadableStatus)
