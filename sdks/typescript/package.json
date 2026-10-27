@@ -2,7 +2,7 @@
   "name": "@hatchet-dev/typescript-sdk",
   "version": "1.44.2",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "description": "Background task orchestration & visibility for developers",
   "types": "index.d.ts",
