@@ -254,7 +254,7 @@ V1ServerlessEndpointEventList:
     x-resources: ["tenant", "v1-serverless-endpoint"]
     description: Lists the most recent events the serverless operator recorded for an endpoint, newest first.
     operationId: v1-serverless-endpoint:event-list
-    x-payloads: false
+    x-payloads: true
     parameters:
       - description: The serverless endpoint id
         in: path

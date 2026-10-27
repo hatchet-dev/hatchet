@@ -36,7 +36,7 @@ class V1ServerlessEndpointEventDetails(BaseModel):
     duration_ms: Optional[StrictInt] = Field(default=None, alias="durationMs")
     response_excerpt: Optional[StrictStr] = Field(
         default=None,
-        description="The start of the response body, at most 1 KiB.",
+        description="The start of the response body, at most 1 KiB. Omitted for members who cannot view payloads.",
         alias="responseExcerpt",
     )
     actions: Optional[List[StrictStr]] = None

@@ -137,7 +137,7 @@ func TestToV1ServerlessEndpointEventList(t *testing.T) {
 	taskId := uuid.New()
 	now := time.Date(2026, 9, 7, 12, 0, 0, 0, time.UTC)
 
-	list := ToV1ServerlessEndpointEventList([]*sqlcv1.V1ServerlessEndpointEvent{
+	events := []*sqlcv1.V1ServerlessEndpointEvent{
 		{
 			ID:        2,
 			CreatedAt: pgtype.Timestamptz{Time: now, Valid: true},
@@ -152,7 +152,9 @@ func TestToV1ServerlessEndpointEventList(t *testing.T) {
 			Message:   "endpoint is healthy",
 			Details:   []byte(`{}`),
 		},
-	})
+	}
+
+	list := ToV1ServerlessEndpointEventList(events, WithPayloads(true))
 
 	require.Len(t, list.Rows, 2)
 
@@ -169,4 +171,10 @@ func TestToV1ServerlessEndpointEventList(t *testing.T) {
 	assert.Equal(t, "boom", *failed.Details.ResponseExcerpt)
 
 	assert.Nil(t, list.Rows[1].Details.StatusCode)
+
+	// The response excerpt is a payload: without the option it is left out, the rest stays.
+	redacted := ToV1ServerlessEndpointEventList(events).Rows[0].Details
+	assert.Nil(t, redacted.ResponseExcerpt)
+	require.NotNil(t, redacted.StatusCode)
+	assert.Equal(t, int32(500), *redacted.StatusCode)
 }

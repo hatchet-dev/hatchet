@@ -193,16 +193,17 @@ func newEventRecorder(repo repository.ServerlessEndpointEventRepository, l *zero
 
 // record enqueues an event, unless the endpoint's rate limits hold it back (see admit) or
 // the queue is full. A held back event is counted as suppressed on the endpoint's next event
-// of the same kind. The message and details are stored through safeText.
-func (rec *eventRecorder) record(ep *cachedEndpoint, kind sqlcv1.V1ServerlessEndpointEventKind, message string, details *eventDetails) {
+// of the same kind. The message and details are stored through safeText. It reports whether
+// the event was admitted, so a caller can offer a held back event again later.
+func (rec *eventRecorder) record(ep *cachedEndpoint, kind sqlcv1.V1ServerlessEndpointEventKind, message string, details *eventDetails) bool {
 	if rec == nil {
-		return
+		return false
 	}
 
 	suppressed, ok := rec.admit(ep, kind)
 
 	if !ok {
-		return
+		return false
 	}
 
 	details = details.safeCopy()
@@ -237,6 +238,8 @@ func (rec *eventRecorder) record(ep *cachedEndpoint, kind sqlcv1.V1ServerlessEnd
 			rec.l.Warn().Str("endpoint_id", ep.id.String()).Msg("serverless endpoint event queue full; dropping events")
 		}
 	}
+
+	return true
 }
 
 // deliveryFailed records a failed delivery, at most one per failureEventWindow.

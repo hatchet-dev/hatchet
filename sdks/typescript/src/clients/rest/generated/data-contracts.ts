@@ -1444,7 +1444,7 @@ export interface V1ServerlessEndpointEventDetails {
   statusCode?: number;
   /** @format int32 */
   durationMs?: number;
-  /** The start of the response body, at most 1 KiB. */
+  /** The start of the response body, at most 1 KiB. Omitted for members who cannot view payloads. */
   responseExcerpt?: string;
   actions?: string[];
   workflows?: string[];

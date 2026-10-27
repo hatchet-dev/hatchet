@@ -198,9 +198,12 @@ func (p *endpointPoller) pollOnce(ctx context.Context) {
 
 		details := healthcheckDetails(cfg, healthcheckStage(err), elapsed)
 
+		// The streak's first error and each changed error are recorded. One the recorder
+		// holds back stays pending, offered again on every poll until it is written.
 		if p.failures == 1 || err.Error() != p.lastFailureEvent {
-			p.lastFailureEvent = err.Error()
-			p.r.events.record(p.ep, sqlcv1.V1ServerlessEndpointEventKindHEALTHCHECKFAILED, err.Error(), details)
+			if p.r.events.record(p.ep, sqlcv1.V1ServerlessEndpointEventKindHEALTHCHECKFAILED, err.Error(), details) {
+				p.lastFailureEvent = err.Error()
+			}
 		}
 
 		if p.failures == unhealthyAfterFailures {

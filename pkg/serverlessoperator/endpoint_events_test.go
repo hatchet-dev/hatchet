@@ -205,9 +205,9 @@ func TestHealthcheckEventsRecordStreakStartsAndTransitions(t *testing.T) {
 	assert.Len(t, eventsOfKind(env.repo, sqlcv1.V1ServerlessEndpointEventKindHEALTHCHECKFAILED), 1)
 	assert.Equal(t, "healthcheck returned status 503", poller.ts.cache.Config(poller.ep).statusError)
 
-	// Past the window the next different error is recorded, carrying the count.
+	// Past the window the changed error, still pending, is recorded with the count of the
+	// polls held back, even though the error has not changed again.
 	clock.advance(failureEventWindow)
-	env.sender.respond(a.HealthcheckUrl, http.StatusGatewayTimeout, "")
 	poller.pollOnce(context.Background())
 
 	require.Eventually(t, func() bool {
@@ -215,8 +215,13 @@ func TestHealthcheckEventsRecordStreakStartsAndTransitions(t *testing.T) {
 	}, eventually, 10*time.Millisecond)
 
 	second := eventsOfKind(env.repo, sqlcv1.V1ServerlessEndpointEventKindHEALTHCHECKFAILED)[1]
-	assert.Equal(t, "healthcheck returned status 504", second.Message)
-	assert.Equal(t, 1, detailsOf(t, second).Suppressed)
+	assert.Equal(t, "healthcheck returned status 503", second.Message)
+	assert.Equal(t, 2, detailsOf(t, second).Suppressed)
+
+	// Once written, the same error is not offered again.
+	poller.pollOnce(context.Background())
+	time.Sleep(50 * time.Millisecond)
+	assert.Len(t, eventsOfKind(env.repo, sqlcv1.V1ServerlessEndpointEventKindHEALTHCHECKFAILED), 2)
 	assert.Len(t, eventsOfKind(env.repo, sqlcv1.V1ServerlessEndpointEventKindUNHEALTHY), 1, "a new error while unhealthy is no transition")
 
 	// Recovery is a transition back.

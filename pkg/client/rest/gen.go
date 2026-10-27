@@ -2067,7 +2067,7 @@ type V1ServerlessEndpointEventDetails struct {
 	Actions    *[]string `json:"actions,omitempty"`
 	DurationMs *int32    `json:"durationMs,omitempty"`
 
-	// ResponseExcerpt The start of the response body, at most 1 KiB.
+	// ResponseExcerpt The start of the response body, at most 1 KiB. Omitted for members who cannot view payloads.
 	ResponseExcerpt *string `json:"responseExcerpt,omitempty"`
 	RetryCount      *int32  `json:"retryCount,omitempty"`
 
