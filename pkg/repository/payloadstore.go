@@ -589,7 +589,7 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 
 func (p *payloadStoreRepositoryImpl) Resolve(ctx context.Context, tx sqlcv1.DBTX, rows []*sqlcv1.V1Payload, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error) {
 	if tx == nil {
-		tx = p.pool
+		tx = p.defaultRetrieveHandle(opts)
 	}
 
 	return p.resolve(ctx, tx, rows, opts...)

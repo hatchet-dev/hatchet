@@ -1514,7 +1514,7 @@ type TasksForDispatch struct {
 // ListTasksForDispatch reads every requested task in one statement execution (see the statement in
 // sqlcv1 for how it stays on the generic plan).
 func (r *TaskRepositoryImpl) ListTasksForDispatch(ctx context.Context, tenantId uuid.UUID, tasks []int64) (*TasksForDispatch, error) {
-	rows, err := r.queries.ListTasksForDispatch(ctx, r.pool, tenantId, enumerables.Uniq(tasks))
+	rows, err := r.queries.ListTasksForDispatch(ctx, r.pool.ForTenant(tenantId), tenantId, enumerables.Uniq(tasks))
 
 	if err != nil {
 		return nil, err
