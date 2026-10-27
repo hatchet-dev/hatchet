@@ -5,8 +5,10 @@ package repository
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/require"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -93,4 +95,106 @@ func TestReplayQueuedTaskIsRejected(t *testing.T) {
 
 	require.Equal(t, []int32{0}, listQueueItemRetryCounts(),
 		"a rejected replay must leave the existing queue item untouched")
+}
+
+// with the dag operator enabled the replay path relies on row locks instead of the tenant-wide
+// advisory lock, so two replays of the same task racing for the row lock must both succeed and
+// bump the retry count exactly once.
+func TestConcurrentReplaysWithDagOperatorEnabledIncrementRetryCountOnce(t *testing.T) {
+	pool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+
+	repo := newBatchTestRepository(pool)
+	shared := repo.sharedRepository
+	workflows := &workflowRepository{sharedRepository: shared}
+
+	ctx := context.Background()
+
+	require.NoError(t, newTenantEntitlementRepository(shared).SetEntitlements(ctx, internalTenantId, TenantEntitlements{DAGOperator: true}))
+
+	workflowOpts := minimalWorkflowOpts("replay-concurrent-dag-operator", "v1", nil)
+	workflowOpts.Tasks = append(workflowOpts.Tasks, CreateStepOpts{
+		ReadableId: "step2",
+		Action:     "integration:step2",
+		Parents:    []string{"step1"},
+	})
+
+	_, err := workflows.PutWorkflowVersion(ctx, internalTenantId, workflowOpts)
+	require.NoError(t, err)
+
+	tasks, _, _, _, err := newTriggerRepository(shared).TriggerFromWorkflowNames(ctx, internalTenantId, []*WorkflowNameTriggerOpts{
+		{
+			TriggerTaskData: &TriggerTaskData{
+				WorkflowName: workflowOpts.Name,
+				Data:         []byte(`{}`),
+			},
+			ExternalId: uuid.New(),
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, tasks, 1, "only the orchestrator is created at trigger time")
+
+	task := tasks[0]
+	require.True(t, task.IsDagOrchestrator)
+
+	_, err = repo.CompleteTasks(ctx, internalTenantId, []CompleteTaskOpts{
+		{
+			TaskIdInsertedAtRetryCount: &TaskIdInsertedAtRetryCount{
+				Id:         task.ID,
+				InsertedAt: task.InsertedAt,
+				RetryCount: task.RetryCount,
+			},
+			Output: []byte(`{}`),
+		},
+	})
+	require.NoError(t, err)
+
+	replayOpts := []TaskIdInsertedAtRetryCount{
+		{
+			Id:         task.ID,
+			InsertedAt: task.InsertedAt,
+			RetryCount: task.RetryCount,
+		},
+	}
+
+	// hold the task's row lock so both replays block on it, then release it so they race from the
+	// same starting point
+	rowLockHolder, err := pool.Begin(ctx)
+	require.NoError(t, err)
+	defer rowLockHolder.Rollback(ctx) //nolint:errcheck
+
+	_, err = repo.queries.ListTasksForReplay(ctx, rowLockHolder, sqlcv1.ListTasksForReplayParams{
+		Taskids:           []int64{task.ID},
+		Taskinsertedats:   []pgtype.Timestamptz{task.InsertedAt},
+		Mintaskinsertedat: task.InsertedAt,
+		Tenantid:          internalTenantId,
+	})
+	require.NoError(t, err)
+
+	errs := make(chan error, 2)
+
+	for i := 0; i < 2; i++ {
+		go func() {
+			_, err := repo.ReplayTasks(ctx, internalTenantId, replayOpts)
+			errs <- err
+		}()
+	}
+
+	require.Eventually(t, func() bool {
+		var blockedBackends int
+		err := pool.QueryRow(ctx, `SELECT COUNT(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock'`).Scan(&blockedBackends)
+		return err == nil && blockedBackends == 2
+	}, 10*time.Second, 10*time.Millisecond, "both replays should be waiting on the row lock")
+
+	require.NoError(t, rowLockHolder.Rollback(ctx))
+
+	for i := 0; i < 2; i++ {
+		require.NoError(t, <-errs)
+	}
+
+	flattened, err := repo.FlattenExternalIds(ctx, internalTenantId, []uuid.UUID{task.ExternalID})
+	require.NoError(t, err)
+	require.Len(t, flattened, 1)
+	require.True(t, flattened[0].IsDagOrchestrator)
+	require.Equal(t, task.RetryCount+1, flattened[0].RetryCount)
 }

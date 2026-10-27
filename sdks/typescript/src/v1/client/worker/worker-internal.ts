@@ -871,6 +871,12 @@ export class InternalWorker {
       }
     }
 
+    // Snapshot before evicting: eviction cancels a waiting task's cancelable wrapper, and
+    // handleStartStepRun's `finally` removes it from `futures` while its underlying work is still
+    // winding down. Building the drain list afterwards would skip every task that was already
+    // waiting when shutdown began.
+    const inFlightWork = Object.values(this.futures).map(({ inner }) => inner);
+
     if (this.evictionManager) {
       try {
         const evicted = await this.evictionManager.evictAllWaiting();
@@ -885,8 +891,12 @@ export class InternalWorker {
     this.logger.info('Gracefully exiting hatchet worker, running tasks will attempt to finish...');
 
     // Awaits the underlying work rather than the cancelable wrapper, which rejects as soon as a
-    // cancellation arrives while the task is still winding down.
-    await Promise.allSettled(Object.values(this.futures).map(({ inner }) => inner));
+    // cancellation arrives while the task is still winding down. Tasks assigned between the
+    // snapshot and the pause taking effect are picked up from the live map.
+    await Promise.allSettled([
+      ...inFlightWork,
+      ...Object.values(this.futures).map(({ inner }) => inner),
+    ]);
 
     this.logger.info('Successfully finished pending tasks.');
 
