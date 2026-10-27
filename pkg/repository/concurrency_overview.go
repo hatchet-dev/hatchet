@@ -164,27 +164,27 @@ func (r *concurrencyOverviewRepository) ListStrategySummaries(ctx context.Contex
 }
 
 func (r *concurrencyOverviewRepository) listStrategySummaries(ctx context.Context, tenantId uuid.UUID) ([]*ConcurrencyStrategySummary, error) {
-	taskStrategies, err := r.queries.ListTaskConcurrencyStrategiesForTenant(ctx, r.pool, tenantId)
+	taskStrategies, err := r.queries.ListTaskConcurrencyStrategiesForTenant(ctx, r.pool.ForTenant(tenantId), tenantId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list task concurrency strategies: %w", err)
 	}
 
-	workflowStrategies, err := r.queries.ListWorkflowConcurrencyStrategiesForTenant(ctx, r.pool, tenantId)
+	workflowStrategies, err := r.queries.ListWorkflowConcurrencyStrategiesForTenant(ctx, r.pool.ForTenant(tenantId), tenantId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list workflow concurrency strategies: %w", err)
 	}
 
-	usage, err := r.queries.ListTenantConcurrencyStrategyUsage(ctx, r.pool, tenantId)
+	usage, err := r.queries.ListTenantConcurrencyStrategyUsage(ctx, r.pool.ForTenant(tenantId), tenantId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list shared concurrency strategy usage: %w", err)
 	}
 
-	slotStatRows, err := r.queries.ListConcurrencySlotStatsForTenant(ctx, r.pool, tenantId)
+	slotStatRows, err := r.queries.ListConcurrencySlotStatsForTenant(ctx, r.pool.ForTenant(tenantId), tenantId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list concurrency slot stats: %w", err)
 	}
 
-	workflowSlotStatRows, err := r.queries.ListWorkflowConcurrencySlotStatsForTenant(ctx, r.pool, tenantId)
+	workflowSlotStatRows, err := r.queries.ListWorkflowConcurrencySlotStatsForTenant(ctx, r.pool.ForTenant(tenantId), tenantId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list workflow concurrency slot stats: %w", err)
 	}
@@ -233,7 +233,7 @@ func (r *concurrencyOverviewRepository) listStrategySummaries(ctx context.Contex
 		}
 	}
 
-	sharedStrategies, err := r.queries.GetTenantConcurrencyStrategiesByIds(ctx, r.pool, sqlcv1.GetTenantConcurrencyStrategiesByIdsParams{
+	sharedStrategies, err := r.queries.GetTenantConcurrencyStrategiesByIds(ctx, r.pool.ForTenant(tenantId), sqlcv1.GetTenantConcurrencyStrategiesByIdsParams{
 		Tenantid: tenantId,
 		Ids:      sharedIds,
 	})
@@ -260,7 +260,7 @@ func (r *concurrencyOverviewRepository) listStrategySummaries(ctx context.Contex
 	var drainingTaskStrategies []*sqlcv1.ListStepConcurrencyStrategiesByIdsRow
 
 	if len(drainingTaskParams.Ids) > 0 {
-		drainingTaskStrategies, err = r.queries.ListStepConcurrencyStrategiesByIds(ctx, r.pool, drainingTaskParams)
+		drainingTaskStrategies, err = r.queries.ListStepConcurrencyStrategiesByIds(ctx, r.pool.ForTenant(tenantId), drainingTaskParams)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get draining task concurrency strategies: %w", err)
 		}
@@ -285,7 +285,7 @@ func (r *concurrencyOverviewRepository) listStrategySummaries(ctx context.Contex
 	var drainingWorkflowStrategies []*sqlcv1.ListWorkflowConcurrencyStrategiesByIdsRow
 
 	if len(drainingWorkflowParams.Ids) > 0 {
-		drainingWorkflowStrategies, err = r.queries.ListWorkflowConcurrencyStrategiesByIds(ctx, r.pool, drainingWorkflowParams)
+		drainingWorkflowStrategies, err = r.queries.ListWorkflowConcurrencyStrategiesByIds(ctx, r.pool.ForTenant(tenantId), drainingWorkflowParams)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get draining workflow concurrency strategies: %w", err)
 		}
@@ -424,7 +424,7 @@ func (r *concurrencyOverviewRepository) listKeys(ctx context.Context, tenantId u
 	}
 
 	if scope == ConcurrencyScopeWorkflow {
-		rows, err := r.queries.ListWorkflowConcurrencyKeys(ctx, r.pool, sqlcv1.ListWorkflowConcurrencyKeysParams{
+		rows, err := r.queries.ListWorkflowConcurrencyKeys(ctx, r.pool.ForTenant(tenantId), sqlcv1.ListWorkflowConcurrencyKeysParams{
 			Tenantid:   tenantId,
 			Strategyid: strategyId,
 			Search:     search,
@@ -437,7 +437,7 @@ func (r *concurrencyOverviewRepository) listKeys(ctx context.Context, tenantId u
 			return nil, 0, fmt.Errorf("failed to list workflow concurrency keys: %w", err)
 		}
 
-		total, err := r.queries.CountWorkflowConcurrencyKeys(ctx, r.pool, sqlcv1.CountWorkflowConcurrencyKeysParams{
+		total, err := r.queries.CountWorkflowConcurrencyKeys(ctx, r.pool.ForTenant(tenantId), sqlcv1.CountWorkflowConcurrencyKeysParams{
 			Tenantid:   tenantId,
 			Strategyid: strategyId,
 			Search:     search,
@@ -463,7 +463,7 @@ func (r *concurrencyOverviewRepository) listKeys(ctx context.Context, tenantId u
 		return res, total, nil
 	}
 
-	rows, err := r.queries.ListConcurrencyKeys(ctx, r.pool, sqlcv1.ListConcurrencyKeysParams{
+	rows, err := r.queries.ListConcurrencyKeys(ctx, r.pool.ForTenant(tenantId), sqlcv1.ListConcurrencyKeysParams{
 		Tenantid:       tenantId,
 		Strategyid:     strategyId,
 		Defaultmaxruns: strategy.MaxRuns,
@@ -477,7 +477,7 @@ func (r *concurrencyOverviewRepository) listKeys(ctx context.Context, tenantId u
 		return nil, 0, fmt.Errorf("failed to list concurrency keys: %w", err)
 	}
 
-	total, err := r.queries.CountConcurrencyKeys(ctx, r.pool, sqlcv1.CountConcurrencyKeysParams{
+	total, err := r.queries.CountConcurrencyKeys(ctx, r.pool.ForTenant(tenantId), sqlcv1.CountConcurrencyKeysParams{
 		Tenantid:   tenantId,
 		Strategyid: strategyId,
 		Search:     search,
