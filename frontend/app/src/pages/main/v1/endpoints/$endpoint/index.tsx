@@ -23,6 +23,7 @@ import { Loading } from '@/components/v1/ui/loading';
 import { Switch } from '@/components/v1/ui/switch';
 import useCanWrite from '@/hooks/use-can-write';
 import useControlPlane from '@/hooks/use-control-plane';
+import { useNow } from '@/hooks/use-now';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { queries } from '@/lib/api';
 import { shouldRetryQueryError } from '@/lib/error-utils';
@@ -106,6 +107,10 @@ function EndpointDetailContent() {
     [eventsQuery.data],
   );
 
+  // The diagnosis depends on how long ago things happened, so it is recomputed as time
+  // passes even when the endpoint and its events come back unchanged.
+  const now = useNow(ENDPOINTS_REFETCH_INTERVAL_MS);
+
   const diagnosis = useMemo(
     () =>
       endpoint
@@ -113,9 +118,10 @@ function EndpointDetailContent() {
             endpoint,
             events,
             deployment: isSelfHosted ? 'oss' : 'cloud',
+            now,
           })
         : undefined,
-    [endpoint, events, isSelfHosted],
+    [endpoint, events, isSelfHosted, now],
   );
 
   if (endpointQuery.isLoading) {

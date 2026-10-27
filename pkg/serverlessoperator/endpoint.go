@@ -76,7 +76,9 @@ type endpointPoller struct {
 
 	// catalogChanged is set by applyChange when it changed what the engine or the row holds
 	// for the endpoint, as opposed to re-putting an unchanged catalog after a restart or a
-	// lease move; only a real change is recorded as CATALOG_REGISTERED.
+	// lease move; only a real change is recorded as CATALOG_REGISTERED. It stays set across
+	// the retries of a change that failed part way, whose later steps find nothing left to
+	// change, until the whole change is applied and its event offered.
 	catalogChanged bool
 }
 
@@ -295,6 +297,7 @@ func (p *endpointPoller) apply(ctx context.Context, res *healthcheckResult) poll
 		p.r.events.record(p.ep, sqlcv1.V1ServerlessEndpointEventKindCATALOGREGISTERED,
 			fmt.Sprintf("registered %d workflows and %d actions", len(res.workflows), len(res.actions)),
 			&eventDetails{Workflows: workflowNames(res), Actions: res.actions})
+		p.catalogChanged = false
 	}
 
 	p.lastHash = res.hash
@@ -341,8 +344,6 @@ func (p *endpointPoller) applyChange(ctx context.Context, reg *registration, res
 	// the retry, but names from earlier catalogs are not, and a run of rejected catalogs
 	// with fresh names must not accumulate.
 	defer p.prunePutHashes(res)
-
-	p.catalogChanged = false
 
 	for i, wf := range res.workflows {
 		if p.putHashes[wf.Name] == res.workflowHashes[i] {

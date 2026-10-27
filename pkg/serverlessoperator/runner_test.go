@@ -299,6 +299,53 @@ func TestEngineRejectedWorkflowMarksEndpoint(t *testing.T) {
 	assert.Empty(t, env.repo.ActionWrites(), "a refused catalog waits for its backoff")
 }
 
+// A catalog change that fails after its workflows and actions were saved is retried with
+// nothing left to save; the retry that completes it still records CATALOG_REGISTERED.
+func TestCatalogRegisteredEventSurvivesAFailedSync(t *testing.T) {
+	env := newTestEnv(t)
+	tenant := uuid.New()
+
+	a := healthyRow(endpointSpec{tenantId: tenant, name: "a", actions: []string{"svc:a"}})
+	env.addEndpoint(a)
+
+	env.r.UnitsGained(context.Background(), []memrepo.Unit{env.unit(a)})
+	require.Eventually(t, func() bool { return len(env.sender.callsTo(a.HealthcheckUrl)) == 1 }, eventually, 10*time.Millisecond)
+
+	poller := env.poller(a)
+	poller.stop()
+
+	registered := func() []repository.ServerlessEndpointEventOpts {
+		return eventsOfKind(env.repo, sqlcv1.V1ServerlessEndpointEventKindCATALOGREGISTERED)
+	}
+
+	// The new action is saved on the row, then the owner's registration refuses the delta.
+	reg := env.host.session(0)
+	reg.mu.Lock()
+	reg.deltaErr = errors.New("engine unavailable")
+	reg.mu.Unlock()
+
+	env.sender.respond(a.HealthcheckUrl, http.StatusOK, healthcheckBody("svc:a", "svc:b"))
+	poller.pollOnce(context.Background())
+
+	require.Len(t, env.repo.ActionWrites(), 1, "the actions were saved before the sync failed")
+	time.Sleep(50 * time.Millisecond)
+	assert.Empty(t, registered(), "an incomplete change is not recorded")
+
+	// The retry has nothing left to save and completes the change.
+	reg.mu.Lock()
+	reg.deltaErr = nil
+	reg.mu.Unlock()
+	poller.pollOnce(context.Background())
+
+	require.Eventually(t, func() bool { return len(registered()) == 1 }, eventually, 10*time.Millisecond)
+	assert.Len(t, env.repo.ActionWrites(), 1, "the retry saved nothing again")
+
+	// An unchanged catalog afterwards records nothing more.
+	poller.pollOnce(context.Background())
+	time.Sleep(50 * time.Millisecond)
+	assert.Len(t, registered(), 1)
+}
+
 // A refused catalog held back by the recorder's window is still recorded on a later retry,
 // so a catalog that changed and is refused again is not missing from the event log.
 func TestRejectedCatalogEventStaysPendingUntilRecorded(t *testing.T) {
